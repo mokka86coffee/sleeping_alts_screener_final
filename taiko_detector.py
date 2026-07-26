@@ -21,6 +21,8 @@ class TaikoSignal:
     obv_turning_up: bool = False
     reversal_hint: bool = False
     verdict: str = ""
+    vortex_divergence: bool = False
+    vortex_note: str = ""
 
 
 def _get_klines(symbol: str, interval: str = "1d", limit: int = 200) -> list[list] | None:
@@ -53,6 +55,75 @@ def _obv(closes, vols):
         elif closes[i] < closes[i-1]: out.append(out[-1] - vols[i])
         else: out.append(out[-1])
     return out
+
+def _vortex(highs, lows, closes, period: int = 14) -> tuple[list[float], list[float]]:
+    """Возвращает (VI+, VI-) серии длины len(closes)."""
+    n = len(closes)
+    vi_plus  = [0.0] * n
+    vi_minus = [0.0] * n
+    if n < period + 2:
+        return vi_plus, vi_minus
+
+    vm_plus, vm_minus, tr = [], [], []
+    for i in range(1, n):
+        vm_plus.append(abs(highs[i] - lows[i - 1]))
+        vm_minus.append(abs(lows[i] - highs[i - 1]))
+        tr.append(max(
+            highs[i] - lows[i],
+            abs(highs[i] - closes[i - 1]),
+            abs(lows[i]  - closes[i - 1]),
+        ))
+
+    for i in range(period, len(vm_plus) + 1):
+        sum_tr = sum(tr[i - period:i])
+        if sum_tr <= 0: continue
+        vi_plus[i]  = sum(vm_plus[i - period:i])  / sum_tr
+        vi_minus[i] = sum(vm_minus[i - period:i]) / sum_tr
+
+    return vi_plus, vi_minus
+
+
+def _find_swing_lows(series: list[float], lookback: int = 3) -> list[int]:
+    """Индексы локальных минимумов (свинг-лоу) в серии."""
+    out = []
+    for i in range(lookback, len(series) - lookback):
+        if series[i] <= 0: continue
+        left  = series[i - lookback:i]
+        right = series[i + 1:i + 1 + lookback]
+        if all(series[i] <= x for x in left) and all(series[i] <= x for x in right):
+            out.append(i)
+    return out
+
+
+def _check_vortex_divergence(highs, lows, closes) -> tuple[bool, str]:
+    """
+    Bullish Vortex Divergence:
+    - VI- делает lower lows (продажи слабеют по силе, но растут по агрессии — считаем как lower lows у VI-)
+    - VI+ делает higher lows (покупки становятся крепче)
+    Смотрим последние 2 свинга у каждой линии за последние ~40 баров.
+    """
+    vi_p, vi_m = _vortex(highs, lows, closes, 14)
+    tail_start = max(0, len(closes) - 45)
+    p_tail = vi_p[tail_start:]
+    m_tail = vi_m[tail_start:]
+
+    p_lows_idx = _find_swing_lows(p_tail, lookback=3)
+    m_lows_idx = _find_swing_lows(m_tail, lookback=3)
+
+    if len(p_lows_idx) < 2 or len(m_lows_idx) < 2:
+        return False, ""
+
+    # Последние 2 свинга
+    p1, p2 = p_tail[p_lows_idx[-2]], p_tail[p_lows_idx[-1]]
+    m1, m2 = m_tail[m_lows_idx[-2]], m_tail[m_lows_idx[-1]]
+
+    vi_plus_higher_lows  = p2 > p1 * 1.02   # VI+ выше на 2%+
+    vi_minus_lower_lows  = m2 < m1 * 0.98   # VI- ниже на 2%+
+
+    if vi_plus_higher_lows and vi_minus_lower_lows:
+        return True, (f"VI+ higher lows ({p1:.2f}→{p2:.2f}), "
+                      f"VI- lower lows ({m1:.2f}→{m2:.2f})")
+    return False, ""
 
 
 def detect_taiko(symbol: str) -> TaikoSignal:
@@ -127,6 +198,17 @@ def detect_taiko(symbol: str) -> TaikoSignal:
 
     reversal_hint = (green_recent >= 3 and vol_pickup) or obv_turning_up
 
+    # Проверяем на 2D (главный TF для этого паттерна — как на скрине)
+    kl_2d = _get_klines(symbol, "2d", 200)
+    if kl_2d and len(kl_2d) >= 40:
+        h2 = [float(k[2]) for k in kl_2d]
+        l2 = [float(k[3]) for k in kl_2d]
+        c2 = [float(k[4]) for k in kl_2d]
+        vortex_div, vortex_note = _check_vortex_divergence(h2, l2, c2)
+    else:
+        # fallback на 1D
+        vortex_div, vortex_note = _check_vortex_divergence(highs, lows, closes)
+
     # 7. Скоринг
     score = 0
     score += min(int(abs(drop_pct) - 30) // 2, 20)      # глубина падения (до +20)
@@ -134,10 +216,13 @@ def detect_taiko(symbol: str) -> TaikoSignal:
     if cap_found: score += 15                            # капитуляционная свеча
     if deeply_oversold: score += 15                      # был RSI < 32
     if obv_turning_up: score += 15                       # OBV развернулся
+    if vortex_div:     score += 25                       # ← сильный подтверждающий сигнал
     if reversal_hint: score += 15                        # свежий разворот
     score = max(0, min(score, 100))
 
-    detected = score >= 50 and (cap_found or deeply_oversold) and downtrend_bars >= 12
+    # Vortex divergence — очень сильный сигнал, снижаем требование к остальному
+    detected = (score >= 50 and downtrend_bars >= 12
+                and (cap_found or deeply_oversold or vortex_div))
 
     verdict = ""
     if detected:
@@ -151,6 +236,8 @@ def detect_taiko(symbol: str) -> TaikoSignal:
             parts.append("OBV разворачивается вверх")
         if reversal_hint:
             parts.append("первые зелёные свечи на объёме")
+        if vortex_div:
+            parts.append(f"Vortex bullish divergence ({vortex_note})")
         verdict = ". ".join(parts) + "."
 
     return TaikoSignal(
@@ -163,4 +250,6 @@ def detect_taiko(symbol: str) -> TaikoSignal:
         obv_turning_up=obv_turning_up,
         reversal_hint=reversal_hint,
         verdict=verdict,
+        vortex_divergence=vortex_div,
+        vortex_note=vortex_note,
     )
