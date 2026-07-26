@@ -461,12 +461,31 @@ def build_candidate(m: dict, rank_idx: int) -> Candidate:
         tags.append({"text": fund.defillama_category, "class": "tag-cat"})
 
     # Паттерн-тэги (эвристика по фазе)
-    if m["phase_num"] == 2:
-        tags.append({"text": "TAIKO REVERSAL", "class": "tag-pattern taiko"})
+# Паттерн-метки (для быстрого визуального сканирования отчёта)
+    # TAIKO REVERSAL: капитуляция на HTF — RSI низкий, OBV разворачивается, цена глубоко упала
+    if (m["phase_num"] == 2
+            and m["rsi_4h"] < 42
+            and m["obv_slope"] > 0
+            and m["price_change_30d"] < -30):
+        tags.append({"text": "◉ TAIKO REVERSAL", "class": "tag-pattern taiko"})
+
+    # DEXE POST-PUMP: недавний памп + squeeze в истории + сейчас откат/консолидация
+    elif (sq.risk_level in ("high", "extreme")
+            and m["price_change_24h"] < 5
+            and m["rsi_4h"] < 55):
+        tags.append({"text": "◉ DEXE POST-PUMP", "class": "tag-pattern dexe"})
+
+    # Обычные фазовые теги
+    elif m["phase_num"] == 2:
+        tags.append({"text": "REVERSAL", "class": "tag-pattern"})
     elif m["phase_num"] == 3:
         tags.append({"text": "BREAKOUT", "class": "tag-pattern"})
     elif m["phase_num"] == 4:
         tags.append({"text": "TREND", "class": "tag-pattern"})
+    elif m["phase_num"] == 5:
+        tags.append({"text": "⚠ EUPHORIA", "class": "tag-pattern dexe"})
+    elif m["phase_num"] == 1:
+        tags.append({"text": "ACCUMULATION", "class": "tag-pattern taiko"})
 
     # Squeeze detector
     sq = analyze_squeeze(symbol)
@@ -718,6 +737,25 @@ body::before{
 .pill{padding:4px 12px;background:var(--panel-2);font-size:10px;letter-spacing:1px;color:var(--ink-dim);display:inline-flex;align-items:center;gap:6px;font-weight:700;text-transform:uppercase;border:1px solid var(--line)}
 .pill-dot{width:5px;height:5px;border-radius:50%}
 
+.phase-legend{background:var(--panel);padding:18px 22px;margin-bottom:22px;border-left:2px solid var(--violet);position:relative}
+.phase-legend-title{font-size:10px;color:var(--violet);letter-spacing:2.5px;text-transform:uppercase;font-weight:800;margin-bottom:14px}
+.phase-legend-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-bottom:14px}
+.pl-item{display:flex;gap:12px;padding:10px 12px;background:var(--panel-2);border-left:2px solid var(--pl-color,var(--blue));align-items:flex-start}
+.pl-1{--pl-color:var(--coral)}
+.pl-2{--pl-color:var(--amber)}
+.pl-3{--pl-color:var(--cyan)}
+.pl-4{--pl-color:var(--green)}
+.pl-5{--pl-color:var(--pink)}
+.pl-num{width:26px;height:26px;flex-shrink:0;background:var(--pl-color);color:#0b0f18;font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;font-family:"Inter",sans-serif}
+.pl-body{flex:1;min-width:0}
+.pl-name{font-size:11px;color:var(--pl-color);letter-spacing:1.4px;text-transform:uppercase;font-weight:800;margin-bottom:3px;font-family:"JetBrains Mono",monospace}
+.pl-desc{font-size:11px;color:var(--ink-dim);line-height:1.45;font-family:"Inter",sans-serif}
+.phase-legend-tags{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding-top:12px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-dim);font-family:"Inter",sans-serif}
+.pl-tag{font-size:9px;letter-spacing:1.2px;padding:3px 9px;font-weight:800;text-transform:uppercase;font-family:"JetBrains Mono",monospace}
+.pl-tag-taiko{background:rgba(34,211,238,0.10);color:var(--cyan);border:1px solid rgba(34,211,238,0.4)}
+.pl-tag-dexe{background:rgba(244,114,182,0.10);color:var(--pink);border:1px solid rgba(244,114,182,0.4)}
+.pl-tag-desc{color:var(--mute);font-size:10.5px}
+
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(410px,1fr));gap:16px;content-visibility:auto;contain-intrinsic-size:0 740px}
 .card{position:relative;background:var(--panel);padding:22px 24px 20px;animation:fadeUp .35s backwards;transition:background .2s;contain:layout style paint;--card-color:var(--blue);overflow:hidden}
 .card:hover{background:var(--panel-2)}
@@ -965,6 +1003,54 @@ a{color:var(--cyan);text-decoration:none}a:hover{color:var(--blue)}
     scout_html  = render_section("SCOUT / EARLY",  "scout",  scout)
     watch_html  = render_section("WATCHLIST",      "watch",  watch)
 
+    legend_html = """
+      <div class="phase-legend">
+        <div class="phase-legend-title">Vortex Phases</div>
+        <div class="phase-legend-grid">
+          <div class="pl-item pl-1">
+            <div class="pl-num">1</div>
+            <div class="pl-body">
+              <div class="pl-name">Accumulation</div>
+              <div class="pl-desc">Плоское дно, умные деньги собирают. Скаутить, ждать подтверждения.</div>
+            </div>
+          </div>
+          <div class="pl-item pl-2">
+            <div class="pl-num">2</div>
+            <div class="pl-body">
+              <div class="pl-name">Reversal</div>
+              <div class="pl-desc">Разворот от низов, OBV вверх. Ранний вход, часто = TAIKO-сетап.</div>
+            </div>
+          </div>
+          <div class="pl-item pl-3">
+            <div class="pl-num">3</div>
+            <div class="pl-body">
+              <div class="pl-name">Breakout ★</div>
+              <div class="pl-desc">Пробой уровня на объёме. Основная зона входа.</div>
+            </div>
+          </div>
+          <div class="pl-item pl-4">
+            <div class="pl-num">4</div>
+            <div class="pl-body">
+              <div class="pl-name">Trend</div>
+              <div class="pl-desc">Устойчивое движение. Держать, добирать на откатах.</div>
+            </div>
+          </div>
+          <div class="pl-item pl-5">
+            <div class="pl-num">5</div>
+            <div class="pl-body">
+              <div class="pl-name">Euphoria ⚠</div>
+              <div class="pl-desc">Параболический топ, RSI 85+. Не входить, фиксировать.</div>
+            </div>
+          </div>
+        </div>
+        <div class="phase-legend-tags">
+          <span class="pl-tag pl-tag-taiko">◉ TAIKO REVERSAL</span>
+          <span class="pl-tag-desc">— капитуляция + разворот на HTF, глубокая перепроданность</span>
+          <span class="pl-tag pl-tag-dexe">◉ DEXE POST-PUMP</span>
+          <span class="pl-tag-desc">— консолидация после сдувшегося пампа, ранний ре-энтри</span>
+        </div>
+      </div>"""
+
     html_str = f"""<!doctype html>
 <html lang="ru">
 <head>
@@ -1025,6 +1111,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{color:var(--blue)}
     <span class="pill"><span class="pill-dot" style="background:var(--mute)"></span>Watch</span>
   </div>
 
+  {legend_html}
   {strong_html}
   {good_html}
   {scout_html}
