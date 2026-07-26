@@ -67,7 +67,15 @@ MIN_RVOL_1H = 1.3
 MIN_SCORE_TO_INCLUDE = 30
 
 # Исключения (стейблы, wrapped, мемы вне интереса)
-EXCLUDE_BASES = {"USDC", "TUSD", "FDUSD", "BUSD", "DAI", "USDP", "USTC"}
+EXCLUDE_BASES = {
+    # стейблы
+    "USDC", "TUSD", "FDUSD", "BUSD", "DAI", "USDP", "USTC",
+    # топ-капы (не "спящие")
+    "BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "DOGE", "TRX",
+    "LTC", "BCH", "LINK", "AVAX", "DOT", "MATIC", "TON",
+    "SHIB", "UNI", "ATOM", "XLM", "ETC", "FIL", "NEAR",
+    "APT", "ARB", "OP", "SUI", "HBAR", "ICP", "AAVE",
+}
 
 
 # ============================================================
@@ -88,6 +96,7 @@ class Candidate:
     buzz: dict | None = None
     strategy: str = ""
     squeeze: dict | None = None
+    links: list[dict] = field(default_factory=list)
 
 
 # ============================================================
@@ -498,6 +507,21 @@ def build_candidate(m: dict, rank_idx: int) -> Candidate:
         {"key": "VOL 24H", "val": fmt_usd_short(m["quote_vol_24h"]), "cls": ""},
     ]
 
+    # Ссылки
+    base = symbol.replace("USDT", "")
+    links = [
+        {"text": "TV",   "url": f"https://www.tradingview.com/chart/?symbol=BINANCE:{symbol}.P"},
+        {"text": "BIN",  "url": f"https://www.binance.com/en/futures/{symbol}"},
+    ]
+    if fund.coingecko_id:
+        links.append({"text": "CG", "url": f"https://www.coingecko.com/en/coins/{fund.coingecko_id}"})
+    if fund.defillama_slug:
+        links.append({"text": "LLAMA", "url": f"https://defillama.com/protocol/{fund.defillama_slug}"})
+    if fund.twitter_handle:
+        links.append({"text": "X", "url": f"https://twitter.com/{fund.twitter_handle}"})
+    if fund.homepage:
+        links.append({"text": "WEB", "url": fund.homepage})
+
     # DEX/Onchain (из фундаменталки)
     dexe = None
     dexe_cells = []
@@ -584,6 +608,7 @@ def build_candidate(m: dict, rank_idx: int) -> Candidate:
         buzz=buzz,
         strategy=strategy,
         squeeze=squeeze_block,
+        links=links,
     )
 
 
@@ -712,6 +737,10 @@ body::before{
 .tag-pattern.taiko{background:rgba(34,211,238,0.10);color:var(--cyan);border-color:rgba(34,211,238,0.4)}
 .tag-pattern.dexe{background:rgba(244,114,182,0.10);color:var(--pink);border-color:rgba(244,114,182,0.4)}
 
+.links-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
+.link-chip{font-size:9px;letter-spacing:1.2px;padding:4px 10px;background:var(--panel-2);color:var(--ink-dim);border:1px solid var(--line);font-family:"JetBrains Mono",monospace;font-weight:800;text-transform:uppercase;transition:background .18s,color .18s,border-color .18s}
+.link-chip:hover{background:var(--panel-3);color:var(--cyan);border-color:rgba(34,211,238,0.4)}
+
 .tag-squeeze-low{background:rgba(34,211,238,0.10);color:var(--cyan);border:1px solid rgba(34,211,238,0.4)}
 .tag-squeeze-med{background:rgba(251,191,36,0.12);color:var(--amber);border:1px solid rgba(251,191,36,0.4)}
 .tag-squeeze-high{background:rgba(248,113,113,0.12);color:var(--coral);border:1px solid rgba(248,113,113,0.4)}
@@ -812,6 +841,15 @@ a{color:var(--cyan);text-decoration:none}a:hover{color:var(--blue)}
             for t in tags
         )
 
+        links = r.get("links", []) or []
+        links_html = ""
+        if links:
+            items = "".join(
+                f'<a class="link-chip" href="{esc(l["url"])}" target="_blank" rel="noopener">{esc(l["text"])}</a>'
+                for l in links
+            )
+            links_html = f'<div class="links-row">{items}</div>'
+
         phase_html = ""
         if phase:
             phase_html = f"""
@@ -902,6 +940,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{color:var(--blue)}
               <div class="score-badge-value">{esc(score)}</div>
             </div>
           </div>
+          {links_html}
           {phase_html}
           {metrics_html}
           {dexe_html}
