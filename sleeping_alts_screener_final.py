@@ -35,6 +35,7 @@ import requests
 from external_data import get_fundamentals, build_fundamental_take_live
 from squeeze_detector import analyze_squeeze, get_squeeze_tag
 from taiko_detector import detect_taiko
+from dexe_detector import detect_dexe
 
 # ============================================================
 # LOGGING
@@ -479,15 +480,27 @@ def build_candidate(m: dict, rank_idx: int) -> Candidate:
     # Squeeze detector
     sq = analyze_squeeze(symbol)
     taiko_sig = detect_taiko(symbol)
+    dexe_sig  = detect_dexe(symbol)
+
+    # Форсим HTF-кандидатов в отчёт
+    if (taiko_sig.detected or dexe_sig.detected) and bucket == "watch":
+        bucket = "scout"
 
     # Форсим TAIKO-кандидатов в отчёт даже с низким скоромf
     if taiko_sig.detected:
         tags.append({"text": f"◉ TAIKO REVERSAL · {taiko_sig.score}", "class": "tag-pattern taiko"})
-    elif (sq.risk_level in ("high", "extreme")
-            and m["price_change_24h"] < 5 and m["rsi_4h"] < 55):
-        tags.append({"text": "◉ DEXE POST-PUMP", "class": "tag-pattern dexe"})
+    elif dexe_sig.detected:
+        tags.append({"text": f"◉ DEXE POST-PUMP · {dexe_sig.score}", "class": "tag-pattern dexe"})
     elif m["phase_num"] == 2:
         tags.append({"text": "REVERSAL", "class": "tag-pattern"})
+    elif m["phase_num"] == 3:
+        tags.append({"text": "BREAKOUT", "class": "tag-pattern"})
+    elif m["phase_num"] == 4:
+        tags.append({"text": "TREND", "class": "tag-pattern"})
+    elif m["phase_num"] == 5:
+        tags.append({"text": "⚠ EUPHORIA", "class": "tag-pattern dexe"})
+    elif m["phase_num"] == 1:
+        tags.append({"text": "ACCUMULATION", "class": "tag-pattern taiko"})
 
     sq_tag = get_squeeze_tag(sq)
     if sq_tag:
