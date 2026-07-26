@@ -79,6 +79,17 @@ EXCLUDE_BASES = {
     "APT", "ARB", "OP", "SUI", "HBAR", "ICP", "AAVE",
 }
 
+LEGEND_HTML = """
+<div style="background:#1f2937;border-radius:8px;padding:12px 16px;margin:16px 0;
+            font-size:13px;color:#d1d5db;">
+  <b style="color:#fff;">Классы сетапов:</b><br>
+  <span style="color:#10B981;">✓ НАДЁЖНЫЙ (TAIKO)</span> — структурный разворот,
+  стандартный размер, горизонт недели.<br>
+  <span style="color:#F59E0B;">⚠️ ВЫСОКИЙ РИСК (DEXE)</span> — лотерейный отскок
+  после дампа. Размер 1/3, стоп жёсткий, горизонт 1–5 дней. Может не сработать.
+</div>
+"""
+
 
 # ============================================================
 # DATACLASS
@@ -482,15 +493,40 @@ def build_candidate(m: dict, rank_idx: int) -> Candidate:
     taiko_sig = detect_taiko(symbol)
     dexe_sig  = detect_dexe(symbol)
 
+    # Взаимоисключение по возрасту: DEXE приоритетнее в свежем окне ≤4 дней
+    if taiko_sig.detected and dexe_sig.detected:
+        # DEXE актуален только 0-4 дня, TAIKO во всех остальных случаях
+        # поэтому если DEXE сработал — он и приоритетен, TAIKO подождёт
+        taiko_sig.detected = False
+
     # Форсим HTF-кандидатов в отчёт
     if (taiko_sig.detected or dexe_sig.detected) and bucket == "watch":
         bucket = "scout"
 
     # Форсим TAIKO-кандидатов в отчёт даже с низким скоромf
     if taiko_sig.detected:
-        tags.append({"text": f"◉ TAIKO REVERSAL · {taiko_sig.score}", "class": "tag-pattern taiko"})
+        tags.append({
+            "text": f"◉ TAIKO REVERSAL · {taiko_sig.score}",
+            "color": "#10B981",         # зелёный — надёжно
+            "risk_label": "НАДЁЖНЫЙ СЕТАП",
+        })
     elif dexe_sig.detected:
-        tags.append({"text": f"◉ DEXE POST-PUMP · {dexe_sig.score}", "class": "tag-pattern dexe"})
+        tags.append({
+            "text": f"🎰 DEXE POST-PUMP · {dexe_sig.score}",
+            "color": "#F59E0B",
+            "risk_label": "ВЫСОКИЙ РИСК · ЛОТЕРЕЯ",
+        })
+        # Подсказка о потенциале по climax volume
+        climax_color = (
+            "#10B981" if dexe_sig.volume_climax_ratio >= 15
+            else "#F59E0B" if dexe_sig.volume_climax_ratio >= 5
+            else "#EF4444"
+        )
+        tags.append({
+            "text": f"📊 Climax ×{dexe_sig.volume_climax_ratio:.1f} · {dexe_sig.climax_label}",
+            "color": climax_color,
+            "risk_label": "",
+        })
     elif m["phase_num"] == 2:
         tags.append({"text": "REVERSAL", "class": "tag-pattern"})
     elif m["phase_num"] == 3:
@@ -679,19 +715,29 @@ def build_strategy(m: dict, sq, taiko_sig=None, dexe_sig=None) -> str:
 
     # 1) Спец-паттерны — приоритет
     if taiko_sig and taiko_sig.detected:
-        s = ("TAIKO-сетап: капитуляция уже была, разворот подтверждается. ")
+        s = ("🟢 НАДЁЖНЫЙ СЕТАП. TAIKO-разворот: структурный разворот тренда "
+             "после длительного даунтренда и капитуляции. ")
         if taiko_sig.vortex_divergence:
-            s += (f"Дополнительно — Vortex bullish divergence на HTF: {taiko_sig.vortex_note}. "
-                  "Это структурный сигнал разворота силы, приоритет высокий. ")
-        s += ("Вход лесенкой от текущей цены с добором на откате к локальному минимуму. "
-              "Стоп под low капитуляционной свечи. Первая цель — 20-дневная EMA, "
-              "вторая — половина падения от пика.")
+            s += (f"Подтверждение — Vortex bullish divergence на HTF: "
+                  f"{taiko_sig.vortex_note}. ")
+        s += ("Вход лесенкой от текущей цены с добором на откате к локальному "
+              "минимуму. Стоп под low капитуляционной свечи. "
+              "Первая цель — 20-дневная EMA, вторая — половина падения от пика. "
+              "Горизонт: недели. Размер позиции — стандартный.")
         return s
+
     if dexe_sig and dexe_sig.detected:
-        return ("DEXE post-pump сетап: цена в консолидации у дна после сдувшегося пампа. "
-                "Ждать пробой верхней границы боковика на объёме, входить после подтверждения. "
-                "Стоп под low консолидации. Риск повышенный — падение может продолжиться, "
-                "работать малым размером.")
+        return ("🎰 ВЫСОКИЙ РИСК · КАЗИНО. DEXE post-pump: ловим отскок после "
+                "экстремального дампа. Это лотерейный сетап — исход зависит "
+                "от настроения оставшихся покупателей, а не от структуры рынка. "
+                "Может не сработать вовсе (как POWER), может дать слабый отскок "
+                "30–50% (как RAVE), может выстрелить x2 (как ARIA). "
+                "\n\nПравила работы: РАЗМЕР ПОЗИЦИИ 1/3 ОТ СТАНДАРТНОГО. "
+                "Вход одним ордером или лесенкой из 2 частей. "
+                "Стоп жёсткий — под low капитуляционной свечи (−15…−25%). "
+                "Первая цель +30% — фиксировать половину сразу, "
+                "остаток трейлить. Горизонт 1–5 дней, не больше. "
+                "Если за 48 часов нет движения вверх — выход по рынку.")
 
     # 2) EUPHORIA — не входить
     if phase == 5 or rsi > 82:
@@ -765,6 +811,21 @@ def build_html(rows, out_path=None) -> str:
             if needle in (t.get("text") or ""):
                 return True
         return False
+
+    def render_risk_banner(strategy_text: str) -> str:
+        if "🎰" in strategy_text or "КАЗИНО" in strategy_text:
+            return ('<div style="background:#F59E0B22;border-left:4px solid #F59E0B;'
+                    'padding:8px 12px;margin:8px 0;border-radius:4px;'
+                    'font-weight:600;color:#F59E0B;">'
+                    '⚠️ ВЫСОКИЙ РИСК · Лотерейный сетап, размер 1/3'
+                    '</div>')
+        if "🟢" in strategy_text or "НАДЁЖНЫЙ" in strategy_text:
+            return ('<div style="background:#10B98122;border-left:4px solid #10B981;'
+                    'padding:8px 12px;margin:8px 0;border-radius:4px;'
+                    'font-weight:600;color:#10B981;">'
+                    '✓ НАДЁЖНЫЙ СЕТАП · Структурный разворот'
+                    '</div>')
+        return ""
 
     taiko = [r for r in rows if has_tag(r, "TAIKO REVERSAL")]
     dexe  = [r for r in rows if has_tag(r, "DEXE POST-PUMP")]
@@ -1069,6 +1130,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{color:var(--blue)}
             strategy_html = f"""
             <div class="strategy-block">
               <div class="strategy-title">▶ Strategy</div>
+              {render_risk_banner(strategy)}
               <div class="strategy-text">{esc(strategy)}</div>
             </div>"""
 
