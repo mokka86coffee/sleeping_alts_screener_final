@@ -34,6 +34,7 @@ import requests
 
 from external_data import get_fundamentals, build_fundamental_take_live
 from squeeze_detector import analyze_squeeze, get_squeeze_tag
+from taiko_detector import detect_taiko
 
 # ============================================================
 # LOGGING
@@ -246,24 +247,33 @@ def rvol(vols: list[float], period: int = 20) -> float:
 
 def vortex_phase(closes: list[float], rsi_val: float, obv_slp: float) -> tuple[int, str]:
     """
-    Возвращает (phase_num 1..5, name).
-    1 Accumulation, 2 Reversal, 3 Breakout, 4 Trend, 5 Euphoria
+    1 Accumulation | 2 Reversal | 3 Breakout | 4 Trend | 5 Euphoria
+    Каждая фаза имеет ОДНО имя. Никаких пересечений.
     """
     if len(closes) < 20:
-        return 3, "Trend"
+        return 3, "Breakout"
+
     c20 = closes[-20]
     change = (closes[-1] / c20 - 1) * 100 if c20 > 0 else 0
-    if rsi_val > 82 and change > 25:
+
+    # 5. Euphoria — параболический перегрев
+    if rsi_val >= 82 and change > 25:
         return 5, "Euphoria"
-    if rsi_val < 40 and obv_slp > 0:
-        return 2, "Reversal"
+
+    # 1. Accumulation — глубокая перепроданность, объёмы сухие
     if rsi_val < 35 and abs(obv_slp) < 5:
         return 1, "Accumulation"
-    if 55 < rsi_val <= 75 and change > 8:
+
+    # 2. Reversal — разворот от низов
+    if rsi_val < 45 and obv_slp > 0:
+        return 2, "Reversal"
+
+    # 4. Trend — устойчивое движение
+    if rsi_val > 60 and change > 8:
         return 4, "Trend"
-    if 45 < rsi_val <= 65 and 3 < change <= 15:
-        return 3, "Breakout"
-    return 3, "Trend"
+
+    # 3. Breakout — всё остальное (переход/пробой)
+    return 3, "Breakout"
 
 
 # ============================================================
@@ -332,6 +342,12 @@ def analyze_symbol(symbol: str, tick24: dict) -> dict | None:
                 spot_ratio = spot_vol / fut_kld_vol
         except Exception:
             pass
+
+    passes_normal = (price_change_30d <= MAX_PRICE_CHANGE_30D
+                     and (rvol_1h >= MIN_RVOL_1H or price_change_24h >= 5))
+    passes_htf_candidate = price_change_30d < -30  # TAIKO/DEXE кандидат
+    if not (passes_normal or passes_htf_candidate):
+        return None
 
     return {
         "symbol": symbol,
@@ -460,8 +476,25 @@ def build_candidate(m: dict, rank_idx: int) -> Candidate:
     elif fund.defillama_category:
         tags.append({"text": fund.defillama_category, "class": "tag-cat"})
 
+    # Squeeze detector
+    sq = analyze_squeeze(symbol)
+    taiko_sig = detect_taiko(symbol)
+
+    # Форсим TAIKO-кандидатов в отчёт даже с низким скоромf
+    if taiko_sig.detected:
+        tags.append({"text": f"◉ TAIKO REVERSAL · {taiko_sig.score}", "class": "tag-pattern taiko"})
+    elif (sq.risk_level in ("high", "extreme")
+            and m["price_change_24h"] < 5 and m["rsi_4h"] < 55):
+        tags.append({"text": "◉ DEXE POST-PUMP", "class": "tag-pattern dexe"})
+    elif m["phase_num"] == 2:
+        tags.append({"text": "REVERSAL", "class": "tag-pattern"})
+
+    sq_tag = get_squeeze_tag(sq)
+    if sq_tag:
+        tags.append(sq_tag)
+
     # Паттерн-тэги (эвристика по фазе)
-# Паттерн-метки (для быстрого визуального сканирования отчёта)
+    # Паттерн-метки (для быстрого визуального сканирования отчёта)
     # TAIKO REVERSAL: капитуляция на HTF — RSI низкий, OBV разворачивается, цена глубоко упала
     if (m["phase_num"] == 2
             and m["rsi_4h"] < 42
@@ -486,12 +519,6 @@ def build_candidate(m: dict, rank_idx: int) -> Candidate:
         tags.append({"text": "⚠ EUPHORIA", "class": "tag-pattern dexe"})
     elif m["phase_num"] == 1:
         tags.append({"text": "ACCUMULATION", "class": "tag-pattern taiko"})
-
-    # Squeeze detector
-    sq = analyze_squeeze(symbol)
-    sq_tag = get_squeeze_tag(sq)
-    if sq_tag:
-        tags.append(sq_tag)
 
     # extreme squeeze понижаем в watch
     if sq.risk_level == "extreme" and bucket in ("strong", "good"):
@@ -668,10 +695,23 @@ def build_html(rows, out_path=None) -> str:
 
     rows = [to_dict(r) for r in rows]
 
-    strong = [r for r in rows if r.get("bucket") == "strong"]
-    good   = [r for r in rows if r.get("bucket") == "good"]
-    scout  = [r for r in rows if r.get("bucket") == "scout"]
-    watch  = [r for r in rows if r.get("bucket") == "watch"]
+    def has_tag(r, needle: str) -> bool:
+        for t in (r.get("tags") or []):
+            if needle in (t.get("text") or ""):
+                return True
+        return False
+
+    taiko = [r for r in rows if has_tag(r, "TAIKO REVERSAL")]
+    dexe  = [r for r in rows if has_tag(r, "DEXE POST-PUMP")]
+
+    # Исключаем TAIKO/DEXE из общих бакетов, чтобы не дублировать
+    special_syms = {r.get("symbol") for r in taiko + dexe}
+    rest = [r for r in rows if r.get("symbol") not in special_syms]
+
+    strong = [r for r in rest if r.get("bucket") == "strong"]
+    good   = [r for r in rest if r.get("bucket") == "good"]
+    scout  = [r for r in rest if r.get("bucket") == "scout"]
+    watch  = [r for r in rest if r.get("bucket") == "watch"]
 
     total = len(rows)
     ts = _dt.now().strftime("%Y-%m-%d %H:%M UTC")
@@ -731,6 +771,10 @@ body::before{
 .stat-value{font-size:30px;font-weight:800;color:var(--ink);line-height:1;letter-spacing:-1px;font-family:"Inter",sans-serif}
 .stat-value.accent{color:var(--stat-color,var(--blue))}
 .stat-sub{font-size:10px;color:var(--mute);margin-top:4px;font-weight:600;letter-spacing:.5px}
+.stat-taiko{--stat-color:var(--cyan)}
+.stat-dexe{--stat-color:var(--pink)}
+.section-taiko{--section-color:var(--cyan)}
+.section-dexe{--section-color:var(--pink)}
 
 .filter-bar{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap;padding:12px 18px;background:var(--panel);border-left:2px solid var(--cyan)}
 .filter-label{font-size:9px;color:var(--mute);letter-spacing:2px;text-transform:uppercase;align-self:center;font-weight:800;margin-right:4px}
@@ -998,10 +1042,12 @@ a{color:var(--cyan);text-decoration:none}a:hover{color:var(--blue)}
         </div>
         <div class="grid">{cards}</div>"""
 
-    strong_html = render_section("STRONG SIGNALS", "strong", strong)
-    good_html   = render_section("GOOD SETUPS",    "good",   good)
-    scout_html  = render_section("SCOUT / EARLY",  "scout",  scout)
-    watch_html  = render_section("WATCHLIST",      "watch",  watch)
+    taiko_html  = render_section("◉ TAIKO REVERSAL SETUPS", "taiko",  taiko)
+    dexe_html   = render_section("◉ DEXE POST-PUMP SETUPS", "dexe",   dexe)
+    strong_html = render_section("STRONG SIGNALS",          "strong", strong)
+    good_html   = render_section("GOOD SETUPS",             "good",   good)
+    scout_html  = render_section("SCOUT / EARLY",           "scout",  scout)
+    watch_html  = render_section("WATCHLIST",               "watch",  watch)
 
     legend_html = """
       <div class="phase-legend">
@@ -1081,6 +1127,16 @@ a{color:var(--cyan);text-decoration:none}a:hover{color:var(--blue)}
   </div>
 
   <div class="stats">
+    <div class="stat stat-taiko">
+      <div class="stat-label">◉ TAIKO</div>
+      <div class="stat-value accent">{len(taiko)}</div>
+      <div class="stat-sub">HTF reversal</div>
+    </div>
+    <div class="stat stat-dexe">
+      <div class="stat-label">◉ DEXE</div>
+      <div class="stat-value accent">{len(dexe)}</div>
+      <div class="stat-sub">post-pump</div>
+    </div>
     <div class="stat stat-strong">
       <div class="stat-label">Strong</div>
       <div class="stat-value accent">{len(strong)}</div>
@@ -1112,6 +1168,9 @@ a{color:var(--cyan);text-decoration:none}a:hover{color:var(--blue)}
   </div>
 
   {legend_html}
+
+  {taiko_html}
+  {dexe_html}
   {strong_html}
   {good_html}
   {scout_html}
@@ -1173,7 +1232,7 @@ def run_pipeline() -> dict:
     scored = []
     for m in results:
         sc = score_candidate(m)
-        if sc >= MIN_SCORE_TO_INCLUDE:
+        if sc >= MIN_SCORE_TO_INCLUDE or m["price_change_30d"] < -40:
             scored.append((sc, m))
     scored.sort(key=lambda x: -x[0])
 
