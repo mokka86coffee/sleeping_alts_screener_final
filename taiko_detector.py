@@ -40,6 +40,7 @@ class TaikoSignal:
     htf_drop_pct: float = 0.0
     days_in_downtrend: int = 0
     price_position_pct: float = 50.0    # где сейчас цена в диапазоне [low..high] окна, %
+    short_history: bool = False
 
 
 # ============================================================
@@ -355,8 +356,9 @@ def _volume_climax_bullish(opens, closes, vols, avg_vol: float) -> tuple[bool, f
 def detect_taiko(symbol: str) -> TaikoSignal:
     # --- 1D данные (максимум 500 баров ≈ 1.4 года) ---
     kl = _get_klines(symbol, "1d", 500)
-    if not kl or len(kl) < 90:                    # фильтр min history
+    if not kl or len(kl) < 35:                    # снижаем порог до 35 дней
         return TaikoSignal()
+    short_history = len(kl) < 90                  # флаг короткой истории
 
     opens  = [float(k[1]) for k in kl]
     highs  = [float(k[2]) for k in kl]
@@ -401,8 +403,9 @@ def detect_taiko(symbol: str) -> TaikoSignal:
     else:
         price_position_pct = 50.0
 
-    # для TAIKO: цена в нижней трети диапазона + существенная часть окна в даунтренде
-    in_base = price_position_pct <= 35 and days_in_downtrend >= 30
+    # Для короткой истории требуем меньше дней даунтренда пропорционально
+    min_downtrend_days = 15 if short_history else 30
+    in_base = price_position_pct <= 40 and days_in_downtrend >= min_downtrend_days
 
     # --- 5. Старое поле downtrend_bars (для совместимости) ---
     downtrend_bars = 0
@@ -496,11 +499,17 @@ def detect_taiko(symbol: str) -> TaikoSignal:
         vortex_cross or vortex_div or vortex_exh
         or obv_div or vc_bull
     )
+
+    # Для короткой истории требуем чуть больше подтверждения силы падения,
+    # но снижаем минимальный score, т.к. days_in_downtrend физически меньше
+    min_score = 38 if short_history else 45
+    min_drop = -70 if short_history else -60   # свежие листинги должны реально обвалиться
+
     detected = (
-        effective_drop <= -60
+        effective_drop <= min_drop
         and (in_base or has_reversal_signal)
         and has_reversal_signal
-        and score >= 45
+        and score >= min_score
     )
 
     # --- 15. Вердикт ---
@@ -559,4 +568,5 @@ def detect_taiko(symbol: str) -> TaikoSignal:
         htf_drop_pct=htf_drop_pct,
         days_in_downtrend=days_in_downtrend,
         price_position_pct=price_position_pct,
+        short_history=short_history,
     )

@@ -823,15 +823,58 @@ body::before{
 .stat-value.accent{color:var(--stat-color,var(--blue))}
 .stat-sub{font-size:10px;color:var(--mute);margin-top:4px;font-weight:600;letter-spacing:.5px}
 
+/* === Плашки: поднимаем hover-плашку над всем остальным === */
+.stat { z-index: 1; }
+.stat:hover { z-index: 9999; }
+
+/* === Tooltip: без зазора + мостик, чтобы hover не рвался === */
 .stat-tt{
-  position:absolute;top:calc(100% + 6px);left:0;min-width:220px;max-width:280px;max-height:360px;overflow-y:auto;
-  background:#0f172a;border:1px solid #334155;border-radius:6px;padding:10px 0;
+  position:absolute;
+  top:100%;                         /* вплотную к плашке, без gap */
+  left:0;
+  margin-top:0;
+  min-width:220px;max-width:280px;
+  max-height:360px;overflow-y:auto;
+  background:#0f172a;
+  border:1px solid #334155;
+  border-radius:6px;
+  padding:12px 0 10px;
   box-shadow:0 12px 28px rgba(0,0,0,0.6);
-  opacity:0;visibility:hidden;transform:translateY(-4px);
-  transition:opacity .15s,transform .15s,visibility .15s;
-  z-index:1000;pointer-events:none;
+  opacity:0;visibility:hidden;
+  transform:translateY(-4px);
+  transition:opacity .18s ease, transform .18s ease, visibility .18s ease;
+  z-index:10000;
+  pointer-events:none;
 }
-.stat:hover .stat-tt{opacity:1;visibility:visible;transform:translateY(0);pointer-events:auto}
+/* Невидимый "мостик" сверху tooltip'а — соединяет с плашкой,
+   чтобы курсор мог пройти без разрыва hover */
+.stat-tt::before{
+  content:"";
+  position:absolute;
+  top:-12px;                        /* высота мостика */
+  left:0;
+  right:0;
+  height:12px;
+  background:transparent;
+}
+
+/* Показ tooltip'а — и когда наводим на плашку, И когда уже внутри самого tooltip'а */
+.stat:hover .stat-tt,
+.stat-tt:hover{
+  opacity:1;
+  visibility:visible;
+  transform:translateY(0);
+  pointer-events:auto;
+}
+
+/* Задержка исчезновения — 250ms grace period при уходе с плашки */
+.stat-tt{
+  transition-delay:0s, 0s, 0s;
+}
+.stat:not(:hover) .stat-tt{
+  transition-delay:.25s, .25s, .25s;
+}
+
 .tt-head{
   font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;
   padding:0 14px 8px;border-bottom:1px solid #1e293b;margin-bottom:6px;
@@ -839,10 +882,11 @@ body::before{
 }
 .tt-list{display:flex;flex-direction:column}
 .tt-item{
-  display:block;padding:6px 14px;color:#e5e7eb;font-family:"JetBrains Mono",monospace;
-  font-size:12px;font-weight:700;text-decoration:none;transition:background .1s,color .1s;
-  letter-spacing:.5px;
-}
+  display:block;padding:6px 14px;color:#e5e7eb;
+  font-family:"JetBrains Mono",monospace;
+  font-size:12px;font-weight:700;text-decoration:none;
+  transition:background .1s,color .1s;letter-spacing:.5px;
+}``
 .tt-item:hover{background:#1e293b;color:var(--cyan)}
 .tt-empty{padding:8px 14px;color:#6b7280;font-size:11px;font-style:italic}
 .tt-hint{
@@ -852,6 +896,9 @@ body::before{
 .stat-tt::-webkit-scrollbar{width:6px}
 .stat-tt::-webkit-scrollbar-track{background:transparent}
 .stat-tt::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}
+
+/* Правые плашки — tooltip по правому краю */
+.stats .stat:nth-child(n+5) .stat-tt{left:auto;right:0}
 /* Правые плашки — tooltip выравнивается по правому краю */
 .stats .stat:nth-child(n+5) .stat-tt{left:auto;right:0}
 
