@@ -1,7 +1,12 @@
 """
-TAIKO Reversal Detector — HTF (1D).
-Ищет паттерн: долгое падение → капитуляция (volume spike вниз) →
-глубокая перепроданность → первые признаки разворота.
+TAIKO Reversal Detector — HTF.
+Ищет паттерн разворота после длительного даунтренда:
+  - Глубокое падение от исторического пика (≥60%)
+  - Зрелая база у дна ИЛИ активный разворотный импульс
+  - Подтверждение хотя бы одним сильным сигналом:
+      * Vortex bullish crossover / divergence
+      * OBV bullish divergence
+      * Volume climax на разворотной свече
 """
 from __future__ import annotations
 from dataclasses import dataclass
@@ -13,19 +18,32 @@ BINANCE_FAPI = "https://fapi.binance.com"
 @dataclass
 class TaikoSignal:
     detected: bool = False
-    score: int = 0                    # 0..100
-    downtrend_bars: int = 0           # длина падения в днях
-    drop_pct: float = 0.0             # глубина падения от максимума окна
-    capitulation_bar_ago: int = 0     # дней назад была свеча капитуляции
+    score: int = 0
+    # старые поля (для совместимости)
+    downtrend_bars: int = 0
+    drop_pct: float = 0.0
+    capitulation_bar_ago: int = 0
     rsi_d: float = 50.0
     obv_turning_up: bool = False
     reversal_hint: bool = False
     verdict: str = ""
     vortex_divergence: bool = False
     vortex_note: str = ""
+    # новые поля
+    vortex_crossover: bool = False
+    obv_divergence: bool = False
+    volume_climax_bull: bool = False
+    volume_climax_ratio: float = 0.0
+    htf_drop_pct: float = 0.0
+    days_in_downtrend: int = 0
+    price_position_pct: float = 50.0    # где сейчас цена в диапазоне [low..high] окна, %
 
 
-def _get_klines(symbol: str, interval: str = "1d", limit: int = 200) -> list[list] | None:
+# ============================================================
+# ==================== ДАННЫЕ ================================
+# ============================================================
+
+def _get_klines(symbol: str, interval: str = "1d", limit: int = 500) -> list[list] | None:
     try:
         r = requests.get(f"{BINANCE_FAPI}/fapi/v1/klines",
                          params={"symbol": symbol, "interval": interval, "limit": limit},
@@ -34,6 +52,10 @@ def _get_klines(symbol: str, interval: str = "1d", limit: int = 200) -> list[lis
     except Exception:
         return None
 
+
+# ============================================================
+# ==================== ИНДИКАТОРЫ ============================
+# ============================================================
 
 def _rsi(closes: list[float], period: int = 14) -> float:
     if len(closes) < period + 1:
@@ -44,7 +66,8 @@ def _rsi(closes: list[float], period: int = 14) -> float:
         gains.append(max(d, 0)); losses.append(max(-d, 0))
     g = sum(gains[-period:]) / period
     l = sum(losses[-period:]) / period
-    if l == 0: return 100.0
+    if l == 0:
+        return 100.0
     return 100 - 100 / (1 + g / l)
 
 
@@ -56,14 +79,13 @@ def _obv(closes, vols):
         else: out.append(out[-1])
     return out
 
+
 def _vortex(highs, lows, closes, period: int = 14) -> tuple[list[float], list[float]]:
-    """Возвращает (VI+, VI-) серии длины len(closes)."""
     n = len(closes)
-    vi_plus  = [0.0] * n
+    vi_plus = [0.0] * n
     vi_minus = [0.0] * n
     if n < period + 2:
         return vi_plus, vi_minus
-
     vm_plus, vm_minus, tr = [], [], []
     for i in range(1, n):
         vm_plus.append(abs(highs[i] - lows[i - 1]))
@@ -71,173 +93,268 @@ def _vortex(highs, lows, closes, period: int = 14) -> tuple[list[float], list[fl
         tr.append(max(
             highs[i] - lows[i],
             abs(highs[i] - closes[i - 1]),
-            abs(lows[i]  - closes[i - 1]),
+            abs(lows[i] - closes[i - 1]),
         ))
-
     for i in range(period, len(vm_plus) + 1):
         sum_tr = sum(tr[i - period:i])
         if sum_tr <= 0: continue
-        vi_plus[i]  = sum(vm_plus[i - period:i])  / sum_tr
+        vi_plus[i]  = sum(vm_plus[i - period:i]) / sum_tr
         vi_minus[i] = sum(vm_minus[i - period:i]) / sum_tr
-
     return vi_plus, vi_minus
 
 
 def _find_swing_lows(series: list[float], lookback: int = 3) -> list[int]:
-    """Индексы локальных минимумов (свинг-лоу) в серии."""
     out = []
     for i in range(lookback, len(series) - lookback):
         if series[i] <= 0: continue
-        left  = series[i - lookback:i]
+        left = series[i - lookback:i]
         right = series[i + 1:i + 1 + lookback]
         if all(series[i] <= x for x in left) and all(series[i] <= x for x in right):
             out.append(i)
     return out
 
 
-def _check_vortex_divergence(highs, lows, closes) -> tuple[bool, str]:
-    """
-    Bullish Vortex Divergence:
-    - VI- делает lower lows (продажи слабеют по силе, но растут по агрессии — считаем как lower lows у VI-)
-    - VI+ делает higher lows (покупки становятся крепче)
-    Смотрим последние 2 свинга у каждой линии за последние ~40 баров.
-    """
+# ============================================================
+# =============== ПРОВЕРКИ СИГНАЛОВ ==========================
+# ============================================================
+
+def _vortex_bullish_crossover(highs, lows, closes) -> bool:
+    """Свежий crossover VI+ > VI- в последние 8 баров после долгого доминирования VI-."""
     vi_p, vi_m = _vortex(highs, lows, closes, 14)
-    tail_start = max(0, len(closes) - 45)
+    n = len(vi_p)
+    if n < 30: return False
+    # текущее состояние
+    if vi_p[-1] <= vi_m[-1]: return False
+    # crossover случился в последние 8 баров
+    crossover_idx = None
+    for i in range(n - 1, max(n - 9, 1), -1):
+        if vi_p[i] > vi_m[i] and vi_p[i - 1] <= vi_m[i - 1]:
+            crossover_idx = i
+            break
+    if crossover_idx is None: return False
+    # до crossover VI- доминировало в 15 из 20 баров
+    check_from = max(0, crossover_idx - 20)
+    minus_dom = sum(1 for j in range(check_from, crossover_idx)
+                    if vi_m[j] > vi_p[j])
+    return minus_dom >= 15
+
+
+def _vortex_divergence(highs, lows, closes) -> tuple[bool, str]:
+    vi_p, vi_m = _vortex(highs, lows, closes, 14)
+    tail_start = max(0, len(closes) - 60)
     p_tail = vi_p[tail_start:]
     m_tail = vi_m[tail_start:]
-
     p_lows_idx = _find_swing_lows(p_tail, lookback=3)
     m_lows_idx = _find_swing_lows(m_tail, lookback=3)
-
     if len(p_lows_idx) < 2 or len(m_lows_idx) < 2:
         return False, ""
-
-    # Последние 2 свинга
     p1, p2 = p_tail[p_lows_idx[-2]], p_tail[p_lows_idx[-1]]
     m1, m2 = m_tail[m_lows_idx[-2]], m_tail[m_lows_idx[-1]]
-
-    vi_plus_higher_lows  = p2 > p1 * 1.02   # VI+ выше на 2%+
-    vi_minus_lower_lows  = m2 < m1 * 0.98   # VI- ниже на 2%+
-
-    if vi_plus_higher_lows and vi_minus_lower_lows:
-        return True, (f"VI+ higher lows ({p1:.2f}→{p2:.2f}), "
-                      f"VI- lower lows ({m1:.2f}→{m2:.2f})")
+    if p2 > p1 * 1.02 and m2 < m1 * 0.98:
+        return True, f"VI+ {p1:.2f}→{p2:.2f}, VI- {m1:.2f}→{m2:.2f}"
     return False, ""
 
 
+def _obv_bullish_divergence(closes, vols, window: int = 80) -> bool:
+    """Цена делает LL, OBV делает HL за окно."""
+    if len(closes) < window: return False
+    obv = _obv(closes, vols)
+    seg_c = closes[-window:]
+    seg_o = obv[-window:]
+    price_lows_idx = _find_swing_lows(seg_c, lookback=3)
+    obv_lows_idx = _find_swing_lows(seg_o, lookback=3)
+    if len(price_lows_idx) < 2 or len(obv_lows_idx) < 2:
+        return False
+    pc1, pc2 = seg_c[price_lows_idx[-2]], seg_c[price_lows_idx[-1]]
+    oc1, oc2 = seg_o[obv_lows_idx[-2]], seg_o[obv_lows_idx[-1]]
+    # цена: LL (или flat), OBV: HL
+    price_ll_or_flat = pc2 <= pc1 * 1.03
+    obv_hl = oc2 > oc1
+    return price_ll_or_flat and obv_hl
+
+
+def _volume_climax_bullish(opens, closes, vols, avg_vol: float) -> tuple[bool, float]:
+    """Есть ли в последних 5 барах зелёная свеча с аномальным объёмом (≥3× среднего)."""
+    if avg_vol <= 0: return False, 0.0
+    best_ratio = 0.0
+    found = False
+    for i in range(max(0, len(closes) - 5), len(closes)):
+        if closes[i] <= opens[i]: continue    # только зелёные
+        ratio = vols[i] / avg_vol
+        if ratio > best_ratio:
+            best_ratio = ratio
+        if ratio >= 3.0:
+            found = True
+    return found, best_ratio
+
+
+# ============================================================
+# =============== ОСНОВНОЙ ДЕТЕКТОР ==========================
+# ============================================================
+
 def detect_taiko(symbol: str) -> TaikoSignal:
-    kl = _get_klines(symbol, "1d", 200)
-    if not kl or len(kl) < 60:
+    # --- 1D данные (максимум 500 баров ≈ 1.4 года) ---
+    kl = _get_klines(symbol, "1d", 500)
+    if not kl or len(kl) < 90:                    # фильтр min history
         return TaikoSignal()
 
-    opens   = [float(k[1]) for k in kl]
-    highs   = [float(k[2]) for k in kl]
-    lows    = [float(k[3]) for k in kl]
-    closes  = [float(k[4]) for k in kl]
-    vols    = [float(k[7]) for k in kl]
+    opens  = [float(k[1]) for k in kl]
+    highs  = [float(k[2]) for k in kl]
+    lows   = [float(k[3]) for k in kl]
+    closes = [float(k[4]) for k in kl]
+    vols   = [float(k[7]) for k in kl]            # quote volume
+    price  = closes[-1]
 
-    price = closes[-1]
-
-    # 1. Ищем максимум последних 90 дней
-    window = 90 if len(closes) >= 90 else len(closes) - 1
-    hi_window = highs[-window:]
-    peak = max(hi_window)
-    peak_idx_rel = hi_window.index(peak)
-    peak_bars_ago = window - peak_idx_rel - 1
-
+    # --- 2. Пик за всю доступную историю ---
+    peak = max(highs)
+    peak_idx = highs.index(peak)
     if peak <= 0: return TaikoSignal()
-    drop_pct = (price / peak - 1) * 100   # отрицательное
+    drop_pct = (price / peak - 1) * 100
 
-    # TAIKO — падение серьёзное, но не такое экстремальное как DEXE
-    if drop_pct > -30:
+    # --- 3. Догружаем недельки для HTF-подтверждения глубины ---
+    htf_drop_pct = drop_pct
+    kl_w = _get_klines(symbol, "1w", 200)
+    if kl_w and len(kl_w) >= 20:
+        htf_highs = [float(k[2]) for k in kl_w]
+        htf_peak = max(htf_highs)
+        if htf_peak > 0:
+            htf_drop_pct = (price / htf_peak - 1) * 100
+
+    # для TAIKO нужен глубокий обвал в истории — минимум 60%
+    effective_drop = min(drop_pct, htf_drop_pct)   # более отрицательный
+    if effective_drop > -60:
         return TaikoSignal()
 
-    # 2. Длина даунтренда: сколько дней подряд закрытие ниже EMA (упрощённо: ниже средней за 20)
+    # --- 4. Даунтренд: доля баров ниже 50% от пика за 180 дней ---
+    window = min(180, len(closes))
+    seg_h = highs[-window:]
+    seg_l = lows[-window:]
+    seg_c = closes[-window:]
+    win_peak = max(seg_h)
+    win_low  = min(seg_l)
+    half = win_peak * 0.5
+    days_in_downtrend = sum(1 for c in seg_c if c < half)
+
+    # где сейчас цена в диапазоне окна
+    if win_peak > win_low:
+        price_position_pct = (price - win_low) / (win_peak - win_low) * 100
+    else:
+        price_position_pct = 50.0
+
+    # для TAIKO: цена в нижней трети диапазона + существенная часть окна в даунтренде
+    in_base = price_position_pct <= 35 and days_in_downtrend >= 30
+
+    # --- 5. Старое поле downtrend_bars (для совместимости) ---
     downtrend_bars = 0
     for i in range(len(closes) - 1, 0, -1):
-        window20 = closes[max(0, i-20):i]
-        if not window20: break
-        ma = sum(window20) / len(window20)
-        if closes[i] < ma:
-            downtrend_bars += 1
-        else:
-            break
+        w20 = closes[max(0, i-20):i]
+        if not w20: break
+        if closes[i] < sum(w20) / len(w20): downtrend_bars += 1
+        else: break
 
-    if downtrend_bars < 10:
-        return TaikoSignal()
-
-    # 3. Капитуляционная свеча — большая красная с volume-spike за последние 30 дней
+    # --- 6. Капитуляционная свеча — окно 120 дней ---
     avg_vol_60 = sum(vols[-70:-10]) / 60 if len(vols) >= 70 else (sum(vols) / len(vols))
     capitulation_bar_ago = 0
     cap_found = False
-    for i in range(len(closes) - 1, max(len(closes) - 30, 0), -1):
+    for i in range(len(closes) - 1, max(len(closes) - 120, 0), -1):
         body = (opens[i] - closes[i]) / opens[i] * 100 if opens[i] > 0 else 0
         vol_x = vols[i] / avg_vol_60 if avg_vol_60 > 0 else 0
-        # красная свеча -7%+ на объёме x2+
         if body >= 6 and vol_x >= 1.8:
             capitulation_bar_ago = len(closes) - 1 - i
             cap_found = True
             break
 
-    # 4. RSI на дневках — глубокая перепроданность (либо была недавно)
+    # --- 7. RSI: текущий + минимум за 60 дней ---
     rsi_d = _rsi(closes, 14)
-    rsi_min_recent = min(_rsi(closes[:i+1], 14) for i in range(len(closes) - 10, len(closes)))
+    lookback_rsi = min(60, len(closes) - 15)
+    rsi_min_recent = min(
+        _rsi(closes[:i+1], 14)
+        for i in range(len(closes) - lookback_rsi, len(closes))
+    )
     deeply_oversold = rsi_min_recent < 32
 
-    # 5. OBV разворачивается вверх
+    # --- 8. OBV разворот (короткое окно, для совместимости) ---
     obv_series = _obv(closes, vols)
     obv_tail = obv_series[-15:]
     obv_min_idx = obv_tail.index(min(obv_tail))
     obv_turning_up = obv_min_idx < len(obv_tail) - 3 and obv_tail[-1] > obv_tail[obv_min_idx]
 
-    # 6. Признаки разворота: зелёные свечи + объём последних 5 дней
-    green_recent = sum(1 for i in range(-5, 0) if closes[i] > opens[i])
-    recent_vol = sum(vols[-5:]) / 5
-    vol_pickup = avg_vol_60 > 0 and recent_vol / avg_vol_60 >= 1.2
+    # --- 9. OBV bullish divergence (сильный сигнал, окно 80 дней) ---
+    obv_div = _obv_bullish_divergence(closes, vols, window=80)
 
-    reversal_hint = (green_recent >= 3 and vol_pickup) or obv_turning_up
+    # --- 10. Volume climax bullish (аномальный объём на зелёной свече в последних 5 барах) ---
+    vc_bull, vc_ratio = _volume_climax_bullish(opens, closes, vols, avg_vol_60)
 
-    # Проверяем на 2D (главный TF для этого паттерна — как на скрине)
+    # --- 11. Vortex: crossover или divergence (проверяем на 2D — плавнее) ---
     kl_2d = _get_klines(symbol, "2d", 200)
     if kl_2d and len(kl_2d) >= 40:
         h2 = [float(k[2]) for k in kl_2d]
         l2 = [float(k[3]) for k in kl_2d]
         c2 = [float(k[4]) for k in kl_2d]
-        vortex_div, vortex_note = _check_vortex_divergence(h2, l2, c2)
+        vortex_div, vortex_note = _vortex_divergence(h2, l2, c2)
+        vortex_cross = _vortex_bullish_crossover(h2, l2, c2)
     else:
-        # fallback на 1D
-        vortex_div, vortex_note = _check_vortex_divergence(highs, lows, closes)
+        vortex_div, vortex_note = _vortex_divergence(highs, lows, closes)
+        vortex_cross = _vortex_bullish_crossover(highs, lows, closes)
 
-    # 7. Скоринг
+    # --- 12. Разворотный импульс: зелёные свечи + подросший объём ---
+    green_recent = sum(1 for i in range(-5, 0) if closes[i] > opens[i])
+    recent_vol = sum(vols[-5:]) / 5
+    vol_pickup = avg_vol_60 > 0 and recent_vol / avg_vol_60 >= 1.2
+    reversal_hint = (green_recent >= 3 and vol_pickup) or obv_turning_up or vc_bull
+
+    # --- 13. Скоринг ---
     score = 0
-    score += min(int(abs(drop_pct) - 30) // 2, 20)      # глубина падения (до +20)
-    score += min(downtrend_bars, 20)                     # длительность даунтренда (до +20)
-    if cap_found: score += 15                            # капитуляционная свеча
-    if deeply_oversold: score += 15                      # был RSI < 32
-    if obv_turning_up: score += 15                       # OBV развернулся
-    if vortex_div:     score += 25                       # ← сильный подтверждающий сигнал
-    if reversal_hint: score += 15                        # свежий разворот
+    # глубина падения: -60%..-95%+  → 0..25
+    score += min(int((abs(effective_drop) - 60) * 0.6), 25) if effective_drop <= -60 else 0
+    # зрелость базы (доля даунтренда в окне)
+    score += min(int(days_in_downtrend / 6), 20)      # 30д→5, 120д→20
+    # позиция цены — чем ниже, тем лучше
+    score += max(0, int((35 - price_position_pct) * 0.6))  # 0%→+21, 35%→0
+
+    if cap_found: score += 8
+    if deeply_oversold: score += 8
+    if obv_turning_up: score += 6
+
+    # сильные сигналы разворота
+    if vortex_cross: score += 20
+    if vortex_div:   score += 18
+    if obv_div:      score += 20
+    if vc_bull:      score += 18
+    if reversal_hint: score += 6
+
     score = max(0, min(score, 100))
 
-    # Vortex divergence — очень сильный сигнал, снижаем требование к остальному
-    detected = (score >= 50 and downtrend_bars >= 12
-                and (cap_found or deeply_oversold or vortex_div))
+    # --- 14. Условие срабатывания ---
+    has_reversal_signal = vortex_cross or vortex_div or obv_div or vc_bull
+    detected = (
+        effective_drop <= -60
+        and (in_base or has_reversal_signal)
+        and has_reversal_signal
+        and score >= 45
+    )
 
+    # --- 15. Вердикт ---
     verdict = ""
     if detected:
-        parts = [f"Паттерн TAIKO Reversal: даунтренд {downtrend_bars} дней",
-                 f"падение {drop_pct:.0f}% от пика"]
-        if cap_found:
-            parts.append(f"капитуляционная свеча {capitulation_bar_ago} дней назад")
-        if deeply_oversold:
-            parts.append(f"RSI был в глубокой перепроданности ({rsi_min_recent:.0f})")
-        if obv_turning_up:
-            parts.append("OBV разворачивается вверх")
-        if reversal_hint:
-            parts.append("первые зелёные свечи на объёме")
+        parts = [f"TAIKO Reversal: падение {effective_drop:.0f}% от HTF-пика"]
+        if in_base:
+            parts.append(f"зрелая база ({days_in_downtrend} дней в даунтренде, "
+                         f"цена в {price_position_pct:.0f}% диапазона)")
+        if vortex_cross:
+            parts.append("свежий Vortex bullish crossover")
         if vortex_div:
-            parts.append(f"Vortex bullish divergence ({vortex_note})")
+            parts.append(f"Vortex divergence ({vortex_note})")
+        if obv_div:
+            parts.append("OBV bullish divergence")
+        if vc_bull:
+            parts.append(f"Volume climax bullish (×{vc_ratio:.1f})")
+        if cap_found:
+            parts.append(f"капитуляция {capitulation_bar_ago}д назад")
+        if deeply_oversold:
+            parts.append(f"RSI-min {rsi_min_recent:.0f}")
+        if reversal_hint and not vc_bull:
+            parts.append("зелёные свечи с объёмом")
         verdict = ". ".join(parts) + "."
 
     return TaikoSignal(
@@ -252,4 +369,11 @@ def detect_taiko(symbol: str) -> TaikoSignal:
         verdict=verdict,
         vortex_divergence=vortex_div,
         vortex_note=vortex_note,
+        vortex_crossover=vortex_cross,
+        obv_divergence=obv_div,
+        volume_climax_bull=vc_bull,
+        volume_climax_ratio=vc_ratio,
+        htf_drop_pct=htf_drop_pct,
+        days_in_downtrend=days_in_downtrend,
+        price_position_pct=price_position_pct,
     )
