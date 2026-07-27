@@ -58,8 +58,7 @@ log = logging.getLogger("screener")
 BINANCE_FAPI = "https://fapi.binance.com"
 BINANCE_SAPI = "https://api.binance.com"
 
-OUT_DIR.mkdir(parents=True, exist_ok=True)
-REPORT_HTML = "index.html"
+REPORT_HTML = Path("index.html")
 
 MAX_WORKERS = 8
 REQUEST_TIMEOUT = (8, 20)
