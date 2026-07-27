@@ -1,90 +1,58 @@
+# ═══════════════════════════════════════════════════════════════
+#  sleeping_alts_screener_final.py — ЧАСТЬ 1/3 НАЧАЛО
+# ═══════════════════════════════════════════════════════════════
 """
-sleeping_alts_screener_final.py
-================================
-Основной скрипт скринера "спящих" альткоинов Binance Futures.
-
-Модули рядом:
-  • external_data.py — CoinGecko + DefiLlama
-  • squeeze_detector.py — детектор manipulated squeeze
-  • taiko_detector.py — HTF reversal
-  • dexe_detector.py — post-pump bounce
-  • volume_surge_detector.py — аномальные всплески объёма
-
-Логика:
-1. Тянем список USDT-перпов с Binance Futures.
-2. Для каждой пары считаем метрики (RVOL, ATR, RSI, OBV, Vortex-фаза, spot/futures ratio, funding, OI).
-3. Обогащаем фундаменталкой (CoinGecko + DefiLlama).
-4. Детектим squeeze-risk / TAIKO / DEXE / Volume Surge.
-5. Классифицируем в бакеты: strong / good / scout / watch.
-6. Рендерим HTML (HEX GRID дизайн).
+SLEEPING ALTS SCREENER — институциональный скринер альткоинов
+Stage 2: TAIKO + DEXE + Volume Surge + Twitter HOT + VIRAL HYPE
 """
+
 from __future__ import annotations
 
-import json
-import logging
+import html
 import math
-import os
-import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass, field, asdict, is_dataclass
-from datetime import datetime
+import statistics
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import requests
 
-from external_data import get_fundamentals, build_fundamental_take_live
-from squeeze_detector import analyze_squeeze, get_squeeze_tag
-from taiko_detector import detect_taiko
-from dexe_detector import detect_dexe
+from taiko_detector import detect_taiko, TaikoSignal
+from dexe_detector import detect_dexe, DexeSignal
 from volume_surge_detector import detect_volume_surge
+from squeeze_detector import detect_squeeze
+from external_data import get_fundamentals
 
-
-# ============================================================
-# LOGGING
-# ============================================================
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
-log = logging.getLogger("screener")
-
-
-# ============================================================
-# CONFIG
-# ============================================================
+# ─────────────────────────────────────────────────────────────
+# Конфигурация
+# ─────────────────────────────────────────────────────────────
 BINANCE_FAPI = "https://fapi.binance.com"
-BINANCE_SAPI = "https://api.binance.com"
+BINANCE_SPOT = "https://api.binance.com"
+
+REQUEST_TIMEOUT = (10, 30)
+MAX_SYMBOLS = 200               # верхний предел монет для анализа
+MIN_QUOTE_VOLUME_24H = 5_000_000  # $5M суточный оборот минимум
 
 REPORT_HTML = Path("index.html")
 
-MAX_WORKERS = 8
-REQUEST_TIMEOUT = (8, 20)
-HEADERS = {"User-Agent": "Mozilla/5.0 SleepingAlts/1.0"}
-
-# Фильтры отбора
-MIN_QUOTE_VOL_24H = 3_000_000
-MAX_PRICE_CHANGE_30D = 300
-MIN_RVOL_1H = 1.3
-MIN_SCORE_TO_INCLUDE = 30
-
-EXCLUDE_BASES = {
-    "USDC", "TUSD", "FDUSD", "BUSD", "DAI", "USDP", "USTC",
-    "BTC", "ETH", "BNB", "SOL", "XRP", "ADA", "DOGE", "TRX", "LTC", "BCH",
-    "LINK", "AVAX", "DOT", "MATIC", "TON", "SHIB", "UNI", "ATOM", "XLM",
-    "ETC", "FIL", "NEAR", "APT", "ARB", "OP", "SUI", "HBAR", "ICP", "AAVE",
+STABLECOINS = {
+    "USDT", "USDC", "BUSD", "DAI", "TUSD", "FDUSD", "USDP", "USDD",
+    "UST", "PYUSD", "USDE", "USDS", "USDX",
 }
 
+EXCLUDE_TOKENS = {
+    "BTC", "ETH",   # мажоры
+}
 
-# ============================================================
-# DATACLASS
-# ============================================================
+# ─────────────────────────────────────────────────────────────
+# Dataclass
+# ─────────────────────────────────────────────────────────────
 @dataclass
 class Candidate:
     symbol: str
-    bucket: str = "watch"                     # strong | good | scout | watch
+    bucket: str = "watch"
     rank: str = ""
     score: int = 0
     tags: list[dict] = field(default_factory=list)
@@ -96,108 +64,123 @@ class Candidate:
     strategy: str = ""
     squeeze: dict | None = None
     links: list[dict] = field(default_factory=list)
-    surge: dict | None = None                 # ← НОВОЕ: данные о всплеске объёма
+    surge: dict | None = None
+    categories: list[str] = field(default_factory=list)
+    is_viral: bool = False
 
-
-# ============================================================
-# HTTP
-# ============================================================
-def http_get(url: str, params: dict | None = None) -> Any:
+# ─────────────────────────────────────────────────────────────
+# HTTP helpers
+# ─────────────────────────────────────────────────────────────
+def _get(url: str, params: dict | None = None) -> Any:
     try:
-        r = requests.get(url, params=params, timeout=REQUEST_TIMEOUT, headers=HEADERS)
-        if r.status_code == 200:
-            return r.json()
-        log.debug(f"HTTP {r.status_code}: {url}")
+        r = requests.get(url, params=params, timeout=REQUEST_TIMEOUT)
+        r.raise_for_status()
+        return r.json()
     except Exception as e:
-        log.debug(f"HTTP fail {url}: {e}")
-    return None
+        print(f"[HTTP ERROR] {url}: {e}")
+        return None
 
+def get_futures_tickers() -> list[dict]:
+    data = _get(f"{BINANCE_FAPI}/fapi/v1/ticker/24hr")
+    return data or []
 
-# ============================================================
-# MARKET DATA
-# ============================================================
-def fetch_futures_symbols() -> list[str]:
-    data = http_get(f"{BINANCE_FAPI}/fapi/v1/exchangeInfo")
-    if not data:
-        return []
-    out = []
-    for s in data.get("symbols", []):
-        if s.get("status") != "TRADING":
-            continue
-        if s.get("contractType") != "PERPETUAL":
-            continue
-        if s.get("quoteAsset") != "USDT":
-            continue
-        base = s.get("baseAsset", "")
-        if base in EXCLUDE_BASES:
-            continue
-        out.append(s["symbol"])
-    return sorted(set(out))
-
-
-def fetch_24h_stats() -> dict[str, dict]:
-    data = http_get(f"{BINANCE_FAPI}/fapi/v1/ticker/24hr")
-    if not isinstance(data, list):
-        return {}
-    return {x["symbol"]: x for x in data}
-
-
-def fetch_klines(symbol: str, interval: str, limit: int = 200) -> list[list] | None:
-    return http_get(
+def get_klines(symbol: str, interval: str, limit: int = 500) -> list[list]:
+    data = _get(
         f"{BINANCE_FAPI}/fapi/v1/klines",
         {"symbol": symbol, "interval": interval, "limit": limit},
     )
+    return data or []
 
+def get_funding_rate(symbol: str) -> float:
+    data = _get(
+        f"{BINANCE_FAPI}/fapi/v1/premiumIndex",
+        {"symbol": symbol},
+    )
+    try:
+        return float(data.get("lastFundingRate", 0)) if data else 0.0
+    except Exception:
+        return 0.0
 
-def fetch_funding(symbol: str) -> float:
-    data = http_get(f"{BINANCE_FAPI}/fapi/v1/premiumIndex", {"symbol": symbol})
-    if isinstance(data, dict):
-        try:
-            return float(data.get("lastFundingRate", 0)) * 100
-        except Exception:
-            return 0.0
-    return 0.0
+def get_open_interest(symbol: str) -> float:
+    data = _get(
+        f"{BINANCE_FAPI}/fapi/v1/openInterest",
+        {"symbol": symbol},
+    )
+    try:
+        return float(data.get("openInterest", 0)) if data else 0.0
+    except Exception:
+        return 0.0
 
-
-def fetch_oi(symbol: str) -> float:
-    data = http_get(f"{BINANCE_FAPI}/fapi/v1/openInterest", {"symbol": symbol})
-    if isinstance(data, dict):
-        try:
-            return float(data.get("openInterest", 0))
-        except Exception:
-            return 0.0
-    return 0.0
-
-
-def fetch_spot_klines(symbol: str, interval: str = "1d", limit: int = 7) -> list[list] | None:
-    return http_get(
-        f"{BINANCE_SAPI}/api/v3/klines",
-        {"symbol": symbol, "interval": interval, "limit": limit},
+def get_spot_ticker(symbol: str) -> dict | None:
+    return _get(
+        f"{BINANCE_SPOT}/api/v3/ticker/24hr",
+        {"symbol": symbol},
     )
 
+# ─────────────────────────────────────────────────────────────
+# Индикаторы
+# ─────────────────────────────────────────────────────────────
+def sma(values: list[float], period: int) -> float | None:
+    if len(values) < period:
+        return None
+    return sum(values[-period:]) / period
 
-# ============================================================
-# INDICATORS
-# ============================================================
-def rsi(closes: list[float], period: int = 14) -> float:
-    if len(closes) < period + 1:
+def ema(values: list[float], period: int) -> float | None:
+    if len(values) < period:
+        return None
+    k = 2 / (period + 1)
+    e = values[0]
+    for v in values[1:]:
+        e = v * k + e * (1 - k)
+    return e
+
+def stoch_rsi(closes: list[float], period: int = 14) -> float | None:
+    if len(closes) < period * 2:
+        return None
+    rsis = []
+    for i in range(period, len(closes)):
+        gains = losses = 0.0
+        for j in range(i - period + 1, i + 1):
+            change = closes[j] - closes[j - 1]
+            if change > 0:
+                gains += change
+            else:
+                losses -= change
+        rs = gains / losses if losses > 0 else 100
+        rsi = 100 - (100 / (1 + rs))
+        rsis.append(rsi)
+    if len(rsis) < period:
+        return None
+    window = rsis[-period:]
+    lo, hi = min(window), max(window)
+    if hi == lo:
         return 50.0
-    gains, losses = [], []
+    return (rsis[-1] - lo) / (hi - lo) * 100
+
+def obv_series(closes: list[float], volumes: list[float]) -> list[float]:
+    obv = [0.0]
     for i in range(1, len(closes)):
-        d = closes[i] - closes[i - 1]
-        gains.append(max(d, 0))
-        losses.append(max(-d, 0))
-    avg_g = sum(gains[-period:]) / period
-    avg_l = sum(losses[-period:]) / period
-    if avg_l == 0:
-        return 100.0
-    rs = avg_g / avg_l
-    return 100.0 - (100.0 / (1.0 + rs))
+        if closes[i] > closes[i - 1]:
+            obv.append(obv[-1] + volumes[i])
+        elif closes[i] < closes[i - 1]:
+            obv.append(obv[-1] - volumes[i])
+        else:
+            obv.append(obv[-1])
+    return obv
 
-
-def atr_pct(highs, lows, closes, period: int = 14) -> float:
-    if len(closes) < period + 1:
+def obv_slope_pct(closes: list[float], volumes: list[float], window: int = 20) -> float:
+    obv = obv_series(closes, volumes)
+    if len(obv) < window + 1:
         return 0.0
+    old = obv[-window - 1]
+    new = obv[-1]
+    if old == 0:
+        return 0.0
+    return ((new - old) / abs(old)) * 100
+
+def atr_pct(highs: list[float], lows: list[float], closes: list[float], period: int = 14) -> float | None:
+    if len(closes) < period + 1:
+        return None
     trs = []
     for i in range(1, len(closes)):
         tr = max(
@@ -206,1174 +189,1034 @@ def atr_pct(highs, lows, closes, period: int = 14) -> float:
             abs(lows[i] - closes[i - 1]),
         )
         trs.append(tr)
+    if len(trs) < period:
+        return None
     atr = sum(trs[-period:]) / period
-    return (atr / closes[-1]) * 100 if closes[-1] > 0 else 0.0
+    return (atr / closes[-1]) * 100 if closes[-1] > 0 else None
 
+def bb_squeeze_pct(closes: list[float], period: int = 20, mult: float = 2.0) -> float | None:
+    if len(closes) < period:
+        return None
+    window = closes[-period:]
+    m = sum(window) / period
+    var = sum((x - m) ** 2 for x in window) / period
+    sd = math.sqrt(var)
+    upper = m + mult * sd
+    lower = m - mult * sd
+    width = upper - lower
+    return (width / m) * 100 if m > 0 else None
 
-def obv(closes, vols) -> list[float]:
-    out = [0.0]
+def vortex_phase(highs: list[float], lows: list[float], closes: list[float], period: int = 14) -> dict:
+    """Возвращает VI+, VI- и фазу тренда."""
+    if len(closes) < period + 1:
+        return {"vi_plus": 0, "vi_minus": 0, "phase": 0, "label": "no data"}
+    vm_plus, vm_minus, trs = [], [], []
     for i in range(1, len(closes)):
-        if closes[i] > closes[i - 1]:
-            out.append(out[-1] + vols[i])
-        elif closes[i] < closes[i - 1]:
-            out.append(out[-1] - vols[i])
-        else:
-            out.append(out[-1])
-    return out
+        vm_plus.append(abs(highs[i] - lows[i - 1]))
+        vm_minus.append(abs(lows[i] - highs[i - 1]))
+        tr = max(
+            highs[i] - lows[i],
+            abs(highs[i] - closes[i - 1]),
+            abs(lows[i] - closes[i - 1]),
+        )
+        trs.append(tr)
+    if len(trs) < period:
+        return {"vi_plus": 0, "vi_minus": 0, "phase": 0, "label": "no data"}
+    sum_tr = sum(trs[-period:])
+    sum_vm_plus = sum(vm_plus[-period:])
+    sum_vm_minus = sum(vm_minus[-period:])
+    vi_plus = sum_vm_plus / sum_tr if sum_tr > 0 else 0
+    vi_minus = sum_vm_minus / sum_tr if sum_tr > 0 else 0
+    diff = vi_plus - vi_minus
+    if diff > 0.15:
+        phase, label = 4, "TREND"
+    elif diff > 0.05:
+        phase, label = 3, "MOMENTUM"
+    elif diff > -0.05:
+        phase, label = 2, "BASE"
+    else:
+        phase, label = 1, "DECLINE"
+    return {"vi_plus": round(vi_plus, 4), "vi_minus": round(vi_minus, 4),
+            "phase": phase, "label": label}
 
+# ─────────────────────────────────────────────────────────────
+# Метрики для карточек
+# ─────────────────────────────────────────────────────────────
+def _pct(x: float | None, digits: int = 1) -> str:
+    if x is None:
+        return "—"
+    sign = "+" if x > 0 else ""
+    return f"{sign}{x:.{digits}f}%"
 
-def obv_slope(closes, vols, lookback: int = 20) -> float:
-    o = obv(closes, vols)
-    if len(o) < lookback:
-        return 0.0
-    tail = o[-lookback:]
-    if tail[0] == 0:
-        return 0.0
-    return (tail[-1] - tail[0]) / abs(tail[0]) * 100
+def _num(x: float | None, digits: int = 2) -> str:
+    if x is None:
+        return "—"
+    return f"{x:.{digits}f}"
 
+def _big(x: float | None) -> str:
+    if x is None:
+        return "—"
+    if x >= 1e9:
+        return f"${x/1e9:.2f}B"
+    if x >= 1e6:
+        return f"${x/1e6:.2f}M"
+    if x >= 1e3:
+        return f"${x/1e3:.1f}K"
+    return f"${x:.0f}"
 
-def rvol(vols: list[float], period: int = 20) -> float:
-    if len(vols) < period + 1:
-        return 1.0
-    avg = sum(vols[-period - 1:-1]) / period
-    if avg <= 0:
-        return 1.0
-    return vols[-1] / avg
+def collect_metrics(symbol: str) -> dict:
+    """Собирает все базовые метрики для одной монеты."""
+    kl_1d = get_klines(symbol, "1d", 200)
+    kl_4h = get_klines(symbol, "4h", 200)
+    kl_1h = get_klines(symbol, "1h", 200)
 
+    if not kl_1d or len(kl_1d) < 30:
+        return {}
 
-def vortex_phase(closes: list[float], rsi_val: float, obv_slp: float) -> tuple[int, str]:
-    """
-    1 Accumulation | 2 Reversal | 3 Breakout | 4 Trend | 5 Euphoria
-    """
-    if len(closes) < 20:
-        return 3, "Breakout"
-    c20 = closes[-20]
-    change = (closes[-1] / c20 - 1) * 100 if c20 > 0 else 0
-    if rsi_val >= 82 and change > 25:
-        return 5, "Euphoria"
-    if rsi_val < 35 and abs(obv_slp) < 5:
-        return 1, "Accumulation"
-    if rsi_val < 45 and obv_slp > 0:
-        return 2, "Reversal"
-    if rsi_val > 60 and change > 8:
-        return 4, "Trend"
-    return 3, "Breakout"
+    def _series(kl, idx):
+        return [float(k[idx]) for k in kl]
 
+    closes_1d = _series(kl_1d, 4)
+    volumes_1d = _series(kl_1d, 5)
+    highs_1d = _series(kl_1d, 2)
+    lows_1d = _series(kl_1d, 3)
 
-# ============================================================
-# ANALYSIS PER SYMBOL
-# ============================================================
-def analyze_symbol(symbol: str, tick24: dict) -> dict | None:
-    try:
-        quote_vol = float(tick24.get("quoteVolume", 0))
-    except Exception:
-        quote_vol = 0
-    if quote_vol < MIN_QUOTE_VOL_24H:
-        return None
+    closes_4h = _series(kl_4h, 4) if kl_4h else []
+    volumes_4h = _series(kl_4h, 5) if kl_4h else []
+    highs_4h = _series(kl_4h, 2) if kl_4h else []
+    lows_4h = _series(kl_4h, 3) if kl_4h else []
 
-    try:
-        price_change_24h = float(tick24.get("priceChangePercent", 0))
-    except Exception:
-        price_change_24h = 0
+    closes_1h = _series(kl_1h, 4) if kl_1h else []
+    volumes_1h = _series(kl_1h, 5) if kl_1h else []
 
-    kl4 = fetch_klines(symbol, "4h", 120)
-    if not kl4 or len(kl4) < 30:
-        return None
-    highs4 = [float(k[2]) for k in kl4]
-    lows4 = [float(k[3]) for k in kl4]
-    closes4 = [float(k[4]) for k in kl4]
-    vols4 = [float(k[7]) for k in kl4]
+    price = closes_1d[-1]
 
-    kl1 = fetch_klines(symbol, "1h", 60)
-    if not kl1 or len(kl1) < 25:
-        return None
-    vols1 = [float(k[7]) for k in kl1]
+    # изменения цены
+    def _ch(series, back):
+        if len(series) < back + 1:
+            return None
+        return ((series[-1] / series[-1 - back]) - 1) * 100
 
-    kld = fetch_klines(symbol, "1d", 40)
-    if not kld or len(kld) < 30:
-        return None
-    closesd = [float(k[4]) for k in kld]
-    price_change_30d = (closesd[-1] / closesd[-30] - 1) * 100 if closesd[-30] > 0 else 0
+    ch_24h = _ch(closes_1d, 1)
+    ch_7d  = _ch(closes_1d, 7)
+    ch_30d = _ch(closes_1d, 30)
 
-    if price_change_30d > MAX_PRICE_CHANGE_30D:
-        return None
+    # ATH
+    ath = max(highs_1d)
+    ath_drop = ((price / ath) - 1) * 100 if ath > 0 else 0
 
-    rvol_1h = rvol(vols1, 20)
-    if rvol_1h < MIN_RVOL_1H and price_change_24h < 5:
-        return None
+    # RVOL
+    rvol_1h = 0.0
+    if volumes_1h and len(volumes_1h) >= 24:
+        avg_24 = sum(volumes_1h[-24:]) / 24
+        last_vol = volumes_1h[-1]
+        if avg_24 > 0:
+            rvol_1h = last_vol / avg_24
 
-    rsi_4h = rsi(closes4, 14)
-    atr_4h = atr_pct(highs4, lows4, closes4, 14)
-    obv_slp = obv_slope(closes4, vols4, 20)
-    phase_num, phase_name = vortex_phase(closes4, rsi_4h, obv_slp)
-    funding = fetch_funding(symbol)
+    # OBV slope
+    obv_slope = obv_slope_pct(closes_1d, volumes_1d, 20)
 
-    spot_kl = fetch_spot_klines(symbol, "1d", 7)
-    spot_ratio = 0.0
-    if spot_kl and len(spot_kl) >= 3:
-        try:
-            spot_vol = sum(float(k[7]) for k in spot_kl)
-            fut_kld_vol = sum(float(k[7]) for k in kld[-7:])
-            if fut_kld_vol > 0:
-                spot_ratio = spot_vol / fut_kld_vol
-        except Exception:
-            pass
+    # StochRSI 4H
+    srsi = stoch_rsi(closes_4h, 14) if closes_4h else None
 
-    passes_normal = (price_change_30d <= MAX_PRICE_CHANGE_30D and
-                     (rvol_1h >= MIN_RVOL_1H or price_change_24h >= 5))
-    passes_htf_candidate = price_change_30d < -30
+    # ATR %
+    atr_p = atr_pct(highs_1d, lows_1d, closes_1d, 14)
 
-    if not (passes_normal or passes_htf_candidate):
-        return None
+    # BB squeeze
+    bb = bb_squeeze_pct(closes_1d, 20, 2.0)
+
+    # Vortex phase (4H)
+    vp_4h = vortex_phase(highs_4h, lows_4h, closes_4h, 14) if closes_4h else {}
+
+    # Funding & OI
+    funding = get_funding_rate(symbol) * 100  # в %
+    oi = get_open_interest(symbol)
+    oi_usd = oi * price if oi > 0 else 0
+
+    # Spot ratio
+    spot = get_spot_ticker(symbol)
+    spot_vol = float(spot.get("quoteVolume", 0)) if spot else 0
+    fut_vol_24h = sum(volumes_1d[-1:]) * price if volumes_1d else 0
+    spot_ratio = spot_vol / (spot_vol + fut_vol_24h) if (spot_vol + fut_vol_24h) > 0 else 0
 
     return {
         "symbol": symbol,
-        "price": closes4[-1],
-        "quote_vol_24h": quote_vol,
-        "price_change_24h": price_change_24h,
-        "price_change_30d": price_change_30d,
+        "price": price,
+        "ch_24h": ch_24h,
+        "ch_7d": ch_7d,
+        "ch_30d": ch_30d,
+        "ath": ath,
+        "ath_drop": ath_drop,
         "rvol_1h": rvol_1h,
-        "rsi_4h": rsi_4h,
-        "atr_4h": atr_4h,
-        "obv_slope": obv_slp,
+        "obv_slope": obv_slope,
+        "srsi_4h": srsi,
+        "atr_pct": atr_p,
+        "bb_pct": bb,
+        "vortex_4h": vp_4h,
         "funding": funding,
+        "oi": oi,
+        "oi_usd": oi_usd,
         "spot_ratio": spot_ratio,
-        "phase_num": phase_num,
-        "phase_name": phase_name,
+        "closes_1d": closes_1d,
+        "volumes_1d": volumes_1d,
+        "highs_1d": highs_1d,
+        "lows_1d": lows_1d,
+        "closes_4h": closes_4h,
+        "closes_1h": closes_1h,
     }
 
+# ═══════════════════════════════════════════════════════════════
+#  ЧАСТЬ 1/3 КОНЕЦ
+# ═══════════════════════════════════════════════════════════════
 
-# ============================================================
-# SCORING
-# ============================================================
-def score_candidate(m: dict) -> int:
-    score = 0
-    if m["rvol_1h"] >= 3.0: score += 20
-    elif m["rvol_1h"] >= 2.0: score += 14
-    elif m["rvol_1h"] >= 1.5: score += 8
+# ═══════════════════════════════════════════════════════════════
+#  sleeping_alts_screener_final.py — ЧАСТЬ 2/3 НАЧАЛО
+# ═══════════════════════════════════════════════════════════════
 
-    if m["obv_slope"] > 30: score += 15
-    elif m["obv_slope"] > 10: score += 8
-    elif m["obv_slope"] < -20: score -= 8
+# ─────────────────────────────────────────────────────────────
+# Стратегия входа
+# ─────────────────────────────────────────────────────────────
+def build_strategy(m: dict, sq: dict | None, taiko_sig: TaikoSignal, dexe_sig: DexeSignal) -> str:
+    """Возвращает короткую human-readable стратегию входа."""
+    parts = []
+    price = m["price"]
 
-    if 45 < m["rsi_4h"] <= 65: score += 10
-    elif 65 < m["rsi_4h"] <= 75: score += 6
-    elif m["rsi_4h"] > 85: score -= 10
-    elif m["rsi_4h"] < 30: score += 5
+    if taiko_sig.detected:
+        parts.append(
+            f"🎯 TAIKO REVERSAL. Вход лесенкой от текущей ${price:.4g}, "
+            f"стоп под минимум базы, тейки 1.3× / 2× / 3× от риска."
+        )
+        return " ".join(parts)
 
-    if 3 <= m["atr_4h"] <= 8: score += 8
-    elif m["atr_4h"] > 15: score -= 5
+    if dexe_sig.detected:
+        parts.append(
+            f"🎰 DEXE POST-PUMP. Ждём отбоя от EMA200 (~${dexe_sig.ema200:.4g}). "
+            f"Стоп под EMA, цель — возврат в диапазон до пампа."
+        )
+        return " ".join(parts)
 
-    phase_bonus = {1: 8, 2: 15, 3: 18, 4: 12, 5: -8}
-    score += phase_bonus.get(m["phase_num"], 0)
+    if sq and sq.get("detected"):
+        parts.append(
+            f"⚠ SQUEEZE MANIPULATED. Наблюдение, входы против движения рискованны."
+        )
+        return " ".join(parts)
 
-    if m["funding"] > 0.10: score -= 8
-    elif m["funding"] < -0.05: score += 5
+    # Общая логика по фазе Vortex
+    vp = m.get("vortex_4h", {})
+    label = vp.get("label", "")
+    if label == "TREND":
+        parts.append(f"📈 TREND. Работать по тренду, коррекции откупать от EMA21.")
+    elif label == "MOMENTUM":
+        parts.append(f"⚡ MOMENTUM. Ищем подтверждение объёмом, вход по пробою.")
+    elif label == "BASE":
+        parts.append(f"📊 BASE. Диапазон, торговля от границ до пробоя.")
+    elif label == "DECLINE":
+        parts.append(f"📉 DECLINE. Лонги рискованны, ждать разворотной формации.")
+    else:
+        parts.append("Наблюдение.")
 
-    if m["spot_ratio"] >= 0.5: score += 8
-    elif 0 < m["spot_ratio"] < 0.2: score -= 5
+    return " ".join(parts)
 
-    if 3 < m["price_change_24h"] < 20: score += 6
-    elif m["price_change_24h"] > 40: score -= 5
-
-    if m["price_change_30d"] < 30: score += 6
-
-    return max(0, min(score, 100))
-
-
-def bucket_from_score(score: int, phase_num: int) -> str:
-    if score >= 70: return "strong"
-    if score >= 55: return "good"
-    if score >= 40 or phase_num in (2, 1): return "scout"
-    return "watch"
-
-
-# ============================================================
-# BUILD CANDIDATE
-# ============================================================
-def fmt_pct(v: float, decimals: int = 1) -> str:
-    return f"{v:+.{decimals}f}%"
-
-
-def fmt_usd_short(v: float) -> str:
-    if v >= 1e9: return f"${v/1e9:.2f}B"
-    if v >= 1e6: return f"${v/1e6:.1f}M"
-    if v >= 1e3: return f"${v/1e3:.1f}K"
-    return f"${v:.0f}"
-
-
-def build_candidate(m: dict, rank_idx: int) -> Candidate:
-    symbol = m["symbol"]
-    score = score_candidate(m)
-    bucket = bucket_from_score(score, m["phase_num"])
+# ─────────────────────────────────────────────────────────────
+# Сборка кандидата
+# ─────────────────────────────────────────────────────────────
+def build_candidate(symbol: str, rank_idx: int) -> Candidate | None:
+    m = collect_metrics(symbol)
+    if not m:
+        return None
 
     tags: list[dict] = []
+    score = 0
 
+    # ── Фаза Vortex ──
+    vp = m.get("vortex_4h", {})
+    phase = {
+        "num": vp.get("phase", 0),
+        "label": vp.get("label", "—"),
+        "vi_plus": vp.get("vi_plus", 0),
+        "vi_minus": vp.get("vi_minus", 0),
+    }
+
+    # ── Метрики карточки ──
+    metrics = [
+        {"key": "Цена",    "val": f"${m['price']:.4g}", "cls": ""},
+        {"key": "24h",     "val": _pct(m["ch_24h"]),
+         "cls": "up" if (m["ch_24h"] or 0) > 0 else "down" if (m["ch_24h"] or 0) < 0 else ""},
+        {"key": "7d",      "val": _pct(m["ch_7d"]),
+         "cls": "up" if (m["ch_7d"] or 0) > 0 else "down" if (m["ch_7d"] or 0) < 0 else ""},
+        {"key": "30d",     "val": _pct(m["ch_30d"]),
+         "cls": "up" if (m["ch_30d"] or 0) > 0 else "down" if (m["ch_30d"] or 0) < 0 else ""},
+        {"key": "От ATH",  "val": _pct(m["ath_drop"]), "cls": "down"},
+        {"key": "RVOL 1H", "val": f"{m['rvol_1h']:.2f}×", "cls": ""},
+        {"key": "OBV",     "val": _pct(m["obv_slope"]),
+         "cls": "up" if m["obv_slope"] > 0 else "down"},
+        {"key": "StochRSI 4H", "val": _num(m["srsi_4h"], 1),
+         "cls": ""},
+        {"key": "ATR %",   "val": _num(m["atr_pct"], 2), "cls": ""},
+        {"key": "BB width","val": _num(m["bb_pct"], 2), "cls": ""},
+        {"key": "Funding", "val": f"{m['funding']:.4f}%",
+         "cls": "up" if m["funding"] > 0 else "down"},
+        {"key": "OI",      "val": _big(m["oi_usd"]), "cls": ""},
+        {"key": "Spot ratio", "val": f"{m['spot_ratio']*100:.0f}%", "cls": ""},
+    ]
+
+    # ── Volume Surge ──
+    vs = detect_volume_surge(symbol, m.get("volumes_1d") or [], m.get("closes_1d") or [])
+    surge_block = None
+    if vs.detected:
+        surge_block = {
+            "detected": True,
+            "surge_ratio": vs.surge_ratio,
+            "candle_type": vs.candle_type,
+            "verdict": vs.verdict,
+        }
+        tags.append({
+            "text": f"📊 VOL SURGE ×{vs.surge_ratio:.1f}",
+            "class": "tag-pattern surge",
+        })
+        score += 12
+
+    # ── Squeeze ──
+    sq = detect_squeeze(symbol, m.get("closes_1d") or [], m.get("volumes_1d") or [])
+    squeeze_block = None
+    if sq and sq.get("detected"):
+        squeeze_block = sq
+        tags.append({
+            "text": f"⚠ EUPHORIA SQUEEZE",
+            "class": "tag-pattern euphoria",
+        })
+        score += 8
+
+    # ── TAIKO ──
+    taiko_sig = detect_taiko(symbol)
+
+    # ── DEXE ──
+    dexe_sig = detect_dexe(symbol)
+    dexe_block = None
+    if dexe_sig.detected:
+        dexe_block = {
+            "detected": True,
+            "score": dexe_sig.score,
+            "ema200": dexe_sig.ema200,
+            "verdict": dexe_sig.verdict,
+        }
+
+    # ── Взаимоисключение TAIKO / DEXE ──
+    if taiko_sig.detected and dexe_sig.detected:
+        if taiko_sig.score >= dexe_sig.score:
+            dexe_sig = DexeSignal()
+            dexe_block = None
+        else:
+            taiko_sig = TaikoSignal()
+
+    # ── Теги TAIKO / DEXE ──
+    if taiko_sig.detected:
+        if getattr(taiko_sig, "confirmed_breakout", False):
+            tags.append({
+                "text": f"✅ TAIKO CONFIRMED · {taiko_sig.score}",
+                "class": "tag-pattern taiko",
+            })
+        else:
+            tags.append({
+                "text": f"◉ TAIKO REVERSAL · {taiko_sig.score}",
+                "class": "tag-pattern taiko",
+            })
+        score += taiko_sig.score
+
+    if dexe_sig.detected:
+        tags.append({
+            "text": f"◉ DEXE POST-PUMP · {dexe_sig.score}",
+            "class": "tag-pattern dexe",
+        })
+        score += dexe_sig.score
+
+    # ── Общий скор по фазе ──
+    if vp.get("phase") == 4:
+        score += 15
+    elif vp.get("phase") == 3:
+        score += 10
+    elif vp.get("phase") == 2:
+        score += 4
+
+    if m["obv_slope"] > 50:
+        score += 6
+    if m["rvol_1h"] >= 3:
+        score += 6
+
+    # ── Классификация bucket ──
+    if score >= 55:
+        bucket = "strong"
+    elif score >= 35:
+        bucket = "good"
+    elif score >= 20:
+        bucket = "scout"
+    else:
+        bucket = "watch"
+
+    # TAIKO / DEXE — всегда минимум scout
+    if (taiko_sig.detected or dexe_sig.detected) and bucket == "watch":
+        bucket = "scout"
+
+    # ── Фундаменталка ──
     fund = get_fundamentals(symbol)
     if fund.categories:
         tags.append({"text": fund.categories[0], "class": "tag-cat"})
     elif fund.defillama_category:
         tags.append({"text": fund.defillama_category, "class": "tag-cat"})
 
-    sq = analyze_squeeze(symbol)
-    taiko_sig = detect_taiko(symbol)
-    dexe_sig = detect_dexe(symbol)
-    surge_sig = detect_volume_surge(symbol)
+    # Все категории — для секторных фильтров
+    all_categories = list(fund.categories or [])
+    if fund.defillama_category and fund.defillama_category not in all_categories:
+        all_categories.append(fund.defillama_category)
 
-    # DEXE приоритетнее TAIKO в свежем окне
-    if taiko_sig.detected and dexe_sig.detected:
-        taiko_sig.detected = False
-
-    if (taiko_sig.detected or dexe_sig.detected) and bucket == "watch":
-        bucket = "scout"
-
-    # === Тэг Volume Surge ===
-    if surge_sig.detected:
-        if surge_sig.surge_ratio >= 20:
-            color = "#EF4444"
-        elif surge_sig.surge_ratio >= 10:
-            color = "#F59E0B"
-        else:
-            color = "#3B82F6"
-        direction_arrow = "↑" if surge_sig.is_green else "↓"
-        tags.append({
-            "text": (f"📊 VOL SURGE ×{surge_sig.surge_ratio:.1f} "
-                     f"{direction_arrow} {surge_sig.day_change_pct:+.0f}%"),
-            "class": "tag-pattern",
-        })
-
-    # === Сохраняем surge для отдельной секции отчёта ===
-    surge_block = None
-    if surge_sig.detected:
-        surge_block = {
-            "detected": True,
-            "surge_ratio": surge_sig.surge_ratio,
-            "current_vol_usd": surge_sig.current_vol_usd,
-            "avg_vol_usd": surge_sig.avg_vol_usd,
-            "day_change_pct": surge_sig.day_change_pct,
-            "is_green": surge_sig.is_green,
-            "strength_label": surge_sig.strength_label,
-        }
-
-    # === TAIKO / DEXE тэги ===
-    if taiko_sig.detected:
-        tags.append({
-            "text": f"◉ TAIKO REVERSAL · {taiko_sig.score}",
-            "class": "tag-pattern taiko",
-        })
-    elif dexe_sig.detected:
-        tags.append({
-            "text": f"🎰 DEXE POST-PUMP · {dexe_sig.score}",
-            "class": "tag-pattern dexe",
-        })
-        climax_class = "tag-pattern"
-        tags.append({
-            "text": f"📊 Climax ×{dexe_sig.volume_climax_ratio:.1f} · {dexe_sig.climax_label}",
-            "class": climax_class,
-        })
-    elif m["phase_num"] == 2:
-        tags.append({"text": "REVERSAL", "class": "tag-pattern"})
-    elif m["phase_num"] == 3:
-        tags.append({"text": "BREAKOUT", "class": "tag-pattern"})
-    elif m["phase_num"] == 4:
-        tags.append({"text": "TREND", "class": "tag-pattern"})
-    elif m["phase_num"] == 5:
-        tags.append({"text": "⚠ EUPHORIA", "class": "tag-pattern dexe"})
-    elif m["phase_num"] == 1:
-        tags.append({"text": "ACCUMULATION", "class": "tag-pattern taiko"})
-
-    sq_tag = get_squeeze_tag(sq)
-    if sq_tag:
-        tags.append(sq_tag)
-
-    if sq.risk_level == "extreme" and bucket in ("strong", "good"):
-        bucket = "watch"
-
-    phase_class_map = {1: "phase-p1", 2: "phase-p2", 3: "phase-p3", 4: "phase-p4", 5: "phase-p5"}
-    phase = {
-        "class": phase_class_map.get(m["phase_num"], "phase-p3"),
-        "icon": str(m["phase_num"]),
-        "name": m["phase_name"],
-        "tf": "4H",
-    }
-
-    metrics = [
-        {"key": "24h", "val": fmt_pct(m["price_change_24h"]), "cls": "up" if m["price_change_24h"] > 0 else "down"},
-        {"key": "30d", "val": fmt_pct(m["price_change_30d"]), "cls": "up" if m["price_change_30d"] > 0 else "down"},
-        {"key": "RVOL 1H", "val": f"{m['rvol_1h']:.2f}×", "cls": "hot" if m["rvol_1h"] >= 2 else ""},
-        {"key": "RSI 4H", "val": f"{m['rsi_4h']:.0f}", "cls": "warn" if m["rsi_4h"] > 75 else ""},
-        {"key": "ATR", "val": f"{m['atr_4h']:.1f}%", "cls": ""},
-        {"key": "OBV", "val": fmt_pct(m["obv_slope"], 0), "cls": "up" if m["obv_slope"] > 0 else "down"},
-        {"key": "FUNDING", "val": f"{m['funding']:+.3f}%", "cls": "warn" if abs(m["funding"]) > 0.08 else ""},
-        {"key": "SPOT/FUT", "val": f"{m['spot_ratio']:.2f}", "cls": "" if m["spot_ratio"] > 0.4 else "warn"},
-        {"key": "VOL 24H", "val": fmt_usd_short(m["quote_vol_24h"]), "cls": ""},
-    ]
-
-    links = [
-        {"text": "TV", "url": f"https://www.tradingview.com/chart/?symbol=BINANCE:{symbol}.P"},
-        {"text": "BIN", "url": f"https://www.binance.com/en/futures/{symbol}"},
-    ]
-    if fund.coingecko_id:
-        links.append({"text": "CG", "url": f"https://www.coingecko.com/en/coins/{fund.coingecko_id}"})
-    if fund.defillama_slug:
-        links.append({"text": "LLAMA", "url": f"https://defillama.com/protocol/{fund.defillama_slug}"})
-    if fund.twitter_handle:
-        links.append({"text": "X", "url": f"https://twitter.com/{fund.twitter_handle}"})
-    if fund.homepage:
-        links.append({"text": "WEB", "url": fund.homepage})
-
-    dexe = None
-    dexe_cells = []
-    if fund.mcap_usd > 0:
-        dexe_cells.append({"k": "MCAP", "v": fmt_usd_short(fund.mcap_usd), "cls": ""})
-    if fund.mcap_rank:
-        dexe_cells.append({"k": "RANK", "v": f"#{fund.mcap_rank}", "cls": ""})
-    if fund.fdv_usd > 0 and fund.mcap_usd > 0:
-        ratio = fund.fdv_usd / fund.mcap_usd
-        cls = "rev-hot" if ratio >= 3 else ("down" if ratio >= 1.8 else "")
-        dexe_cells.append({"k": "FDV/MC", "v": f"{ratio:.2f}×", "cls": cls})
-    if fund.tvl_usd > 0:
-        dexe_cells.append({"k": "TVL", "v": fmt_usd_short(fund.tvl_usd), "cls": ""})
-    if fund.tvl_change_7d:
-        cls = "up" if fund.tvl_change_7d > 0 else "down"
-        dexe_cells.append({"k": "TVL 7D", "v": fmt_pct(fund.tvl_change_7d), "cls": cls})
-    if fund.price_change_7d:
-        cls = "up" if fund.price_change_7d > 0 else "down"
-        dexe_cells.append({"k": "PRICE 7D", "v": fmt_pct(fund.price_change_7d), "cls": cls})
-    if dexe_cells:
-        dexe = {"cells": dexe_cells}
-
-    analysis = ""
-    if fund.has_data():
-        try:
-            analysis = build_fundamental_take_live(fund)
-        except Exception as e:
-            log.debug(f"fund take failed for {symbol}: {e}")
-
+    # ── Twitter Buzz (с уровнем) ──
     buzz = None
     if m["rvol_1h"] >= 3 and m["obv_slope"] > 20:
-        buzz = {"level_class": "buzz-hot", "level_text": "HOT",
-                "text": "Резкий всплеск объёма + активное накопление. Внимание рынка на паре."}
-    elif m["rvol_1h"] >= 1.8:
-        buzz = {"level_class": "buzz-warm", "level_text": "WARM",
-                "text": "Объём выше среднего, растёт интерес."}
-    elif m["rvol_1h"] >= 1.2:
-        buzz = {"level_class": "buzz-cool", "level_text": "COOL",
-                "text": "Умеренная активность."}
-    else:
-        buzz = {"level_class": "buzz-cold", "level_text": "COLD",
-                "text": "Низкий уровень внимания."}
-
-    squeeze_block = None
-    if sq.risk_level != "none":
-        squeeze_block = {
-            "level": sq.risk_level, "score": sq.risk_score,
-            "reasons": sq.reasons, "verdict": sq.verdict,
-            "funding_peak": sq.funding_peak_14d,
-            "oi_change": sq.oi_change_14d_pct,
-            "spot_fut": sq.spot_futures_ratio,
+        buzz = {
+            "level": "hot",
+            "level_class": "buzz-hot", "level_text": "HOT",
+            "text": "Резкий всплеск объёма + активное накопление. Внимание рынка на паре.",
         }
+    elif m["rvol_1h"] >= 1.8:
+        buzz = {
+            "level": "warm",
+            "level_class": "buzz-warm", "level_text": "WARM",
+            "text": "Объём выше среднего, растёт интерес.",
+        }
+    elif m["rvol_1h"] >= 1.2:
+        buzz = {
+            "level": "cool",
+            "level_class": "buzz-cool", "level_text": "COOL",
+            "text": "Умеренная активность.",
+        }
+    else:
+        buzz = {
+            "level": "cold",
+            "level_class": "buzz-cold", "level_text": "COLD",
+            "text": "Низкий уровень внимания.",
+        }
+
+    # ── VIRAL HYPE детектор ──
+    # Twitter HOT × Volume Surge × meme/gamefi сектор
+    VIRAL_SECTOR_KEYWORDS = [
+        "meme", "dog", "cat", "frog", "pepe",
+        "game", "gaming", "gamefi", "play-to-earn",
+        "metaverse", "virtual",
+    ]
+    cats_lower = " ".join(c.lower() for c in all_categories)
+    in_speculative_sector = any(kw in cats_lower for kw in VIRAL_SECTOR_KEYWORDS)
+
+    twitter_hot = (buzz or {}).get("level") == "hot"
+    has_vol_surge = surge_block is not None and surge_block.get("detected")
+
+    is_viral = twitter_hot and has_vol_surge and in_speculative_sector
+
+    if is_viral:
+        tags.insert(0, {
+            "text": "🚀 VIRAL HYPE",
+            "class": "tag-pattern viral",
+        })
+
+    # ── Аналитика и стратегия ──
+    analysis_parts = []
+    if taiko_sig.detected:
+        analysis_parts.append(taiko_sig.verdict)
+    if dexe_sig.detected:
+        analysis_parts.append(dexe_sig.verdict)
+    if vs.detected:
+        analysis_parts.append(vs.verdict)
+    analysis = " ".join(analysis_parts) if analysis_parts else ""
 
     strategy = build_strategy(m, sq, taiko_sig, dexe_sig)
 
+    # ── Ссылки на графики ──
+    links = [
+        {"text": "TradingView", "url": f"https://www.tradingview.com/chart/?symbol=BINANCE:{symbol}.P"},
+        {"text": "Binance",     "url": f"https://www.binance.com/en/futures/{symbol}"},
+    ]
+
     return Candidate(
-        symbol=symbol, bucket=bucket, rank=f"#{rank_idx:03d}", score=score,
-        tags=tags, phase=phase, metrics=metrics, dexe=dexe,
-        analysis=analysis, buzz=buzz, strategy=strategy,
-        squeeze=squeeze_block, links=links,
+        symbol=symbol,
+        bucket=bucket,
+        rank=f"#{rank_idx:03d}",
+        score=score,
+        tags=tags,
+        phase=phase,
+        metrics=metrics,
+        dexe=dexe_block,
+        analysis=analysis,
+        buzz=buzz,
+        strategy=strategy,
+        squeeze=squeeze_block,
+        links=links,
         surge=surge_block,
+        categories=all_categories,
+        is_viral=is_viral,
     )
 
+# ═══════════════════════════════════════════════════════════════
+#  ЧАСТЬ 2/3 КОНЕЦ
+# ═══════════════════════════════════════════════════════════════
 
-def build_strategy(m: dict, sq, taiko_sig=None, dexe_sig=None) -> str:
-    phase = m["phase_num"]
-    rsi_v = m["rsi_4h"]
-    ch24 = m["price_change_24h"]
-    rvol_v = m["rvol_1h"]
+# ═══════════════════════════════════════════════════════════════
+#  sleeping_alts_screener_final.py — ЧАСТЬ 3a/3 НАЧАЛО
+# ═══════════════════════════════════════════════════════════════
 
-    if taiko_sig and taiko_sig.detected:
-        s = ("🟢 НАДЁЖНЫЙ СЕТАП. TAIKO-разворот: структурный разворот тренда "
-             "после длительного даунтренда и капитуляции. ")
-        if taiko_sig.vortex_divergence:
-            s += (f"Подтверждение — Vortex bullish divergence на HTF: "
-                  f"{taiko_sig.vortex_note}. ")
-        s += ("Вход лесенкой от текущей цены с добором на откате к локальному "
-              "минимуму. Стоп под low капитуляционной свечи. "
-              "Первая цель — 20-дневная EMA, вторая — половина падения от пика. "
-              "Горизонт: недели. Размер позиции — стандартный.")
-        return s
+# ─────────────────────────────────────────────────────────────
+# HTML утилиты
+# ─────────────────────────────────────────────────────────────
+def esc(x: Any) -> str:
+    return html.escape(str(x), quote=True)
 
-    if dexe_sig and dexe_sig.detected:
-        return ("🎰 ВЫСОКИЙ РИСК · КАЗИНО. DEXE post-pump: ловим отскок после "
-                "экстремального дампа. Размер позиции 1/3 от стандартного. "
-                "Стоп жёсткий, первая цель +30% фиксируем половину, "
-                "горизонт 1–5 дней.")
+# ─────────────────────────────────────────────────────────────
+# Построение HTML отчёта
+# ─────────────────────────────────────────────────────────────
+def build_html(candidates: list[Candidate]) -> str:
+    rows = [c.__dict__ for c in candidates]
 
-    if phase == 5 or rsi_v > 82:
-        return "Эйфория/перегрев. НЕ входить в лонг."
-    if phase == 4:
-        return "Устойчивый тренд. Добор на откатах к EMA20."
-    if phase == 3:
-        if rvol_v >= 1.5:
-            return f"Пробой на подтверждающем объёме (RVOL ×{rvol_v:.1f}). Основная зона входа."
-        return f"Пробой формируется, объём слабый (RVOL ×{rvol_v:.1f}). Ждать закрепления."
-    if phase == 2:
-        return "Разворотная фаза. Ранний вход с пониженным размером."
-    if phase == 1:
-        return "Фаза накопления. Watchlist до пробоя."
-    return "Наблюдение."
+    # ── Разбивка по bucket ──
+    strong = [r for r in rows if r["bucket"] == "strong"]
+    good   = [r for r in rows if r["bucket"] == "good"]
+    scout  = [r for r in rows if r["bucket"] == "scout"]
+    watch  = [r for r in rows if r["bucket"] == "watch"]
 
+    taiko = [r for r in rows if any("TAIKO" in t.get("text", "") for t in r.get("tags") or [])]
+    dexe  = [r for r in rows if any("DEXE"  in t.get("text", "") for t in r.get("tags") or [])]
+    viral = [r for r in rows if r.get("is_viral")]
 
-# ============================================================
-# HTML RENDER
-# ============================================================
-def build_html(rows, out_path=None) -> str:
-    from datetime import datetime as _dt
-    import html as _html
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-    def esc(s) -> str:
-        return _html.escape(str(s) if s is not None else "")
+    css = """
+    :root{
+      --bg:#0a0e1a; --panel:#111827; --panel2:#1f2937; --border:#374151;
+      --text:#e8ecf5; --muted:#9ca3af; --accent:#22d3ee;
+      --up:#10B981; --down:#EF4444;
+    }
+    *{box-sizing:border-box}
+    body{background:var(--bg);color:var(--text);font-family:'Inter',-apple-system,sans-serif;
+         margin:0;padding:16px;font-size:13px;line-height:1.5}
+    a{color:var(--accent);text-decoration:none}
+    h1{font-size:20px;letter-spacing:2px;margin:0 0 4px;font-weight:900}
+    .subtitle{color:var(--muted);font-size:11px;letter-spacing:1.5px;margin-bottom:16px}
 
-    def to_dict(r):
-        if isinstance(r, dict): return r
-        if is_dataclass(r): return asdict(r)
-        return {k: getattr(r, k) for k in dir(r) if not k.startswith("_") and not callable(getattr(r, k))}
+    /* === СТАТИСТИКА (плашки) === */
+    .stats{display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:20px}
+    .stat{position:relative;background:linear-gradient(135deg,var(--panel) 0%,var(--panel2) 100%);
+          border:1px solid var(--border);border-radius:6px;padding:10px 12px;cursor:pointer;
+          transition:all 0.2s;border-left:3px solid var(--stat-color,#6b7280)}
+    .stat:hover{border-color:var(--stat-color,#6b7280);transform:translateY(-1px)}
+    .stat-label{color:var(--muted);font-size:10px;letter-spacing:1.5px;font-weight:700;text-transform:uppercase}
+    .stat-value{color:var(--stat-color,var(--text));font-size:20px;font-weight:900;margin:2px 0}
+    .stat-desc{color:var(--muted);font-size:10px;letter-spacing:.5px}
+    .stat-tt{position:absolute;top:calc(100% + 4px);left:0;min-width:280px;max-width:400px;
+             background:#0a0e1a;border:1px solid var(--stat-color,var(--border));border-radius:6px;
+             padding:8px;font-size:11px;z-index:10000;opacity:0;pointer-events:none;
+             transition:opacity 0.15s;max-height:400px;overflow-y:auto;
+             box-shadow:0 8px 24px rgba(0,0,0,0.5)}
+    .stat-tt::before{content:"";position:absolute;top:-4px;left:0;right:0;height:4px}
+    .stat:hover .stat-tt{opacity:1;pointer-events:auto;transition-delay:0s}
+    .stat-tt:hover{opacity:1;pointer-events:auto}
+    .stats .stat:nth-child(n+6) .stat-tt{left:auto;right:0}
+    .stat-tt-row{display:flex;justify-content:space-between;padding:4px 6px;border-bottom:1px solid var(--border)}
+    .stat-tt-row:last-child{border-bottom:none}
+    .stat-tt-row:hover{background:var(--panel2)}
+    .stat-tt-sym{color:var(--text);font-weight:800}
+    .stat-tt-score{color:var(--stat-color,var(--accent));font-weight:800}
 
-    rows = [to_dict(r) for r in rows]
+    /* цвета плашек */
+    .stat-viral{--stat-color:#f472b6;background:linear-gradient(135deg,var(--panel) 0%,rgba(244,114,182,0.08) 100%)}
+    .stat-taiko{--stat-color:#22d3ee}
+    .stat-dexe{--stat-color:#f472b6}
+    .stat-strong{--stat-color:#10B981}
+    .stat-good{--stat-color:#22d3ee}
+    .stat-scout{--stat-color:#fbbf24}
+    .stat-watch{--stat-color:#6b7280}
 
-    def has_tag(r, needle: str) -> bool:
-        for t in (r.get("tags") or []):
-            if needle in (t.get("text") or ""):
-                return True
-        return False
+    /* === СЕКЦИИ === */
+    .section-title{color:var(--section-color,var(--accent));font-size:14px;letter-spacing:2.5px;
+                   text-transform:uppercase;font-weight:800;margin:24px 0 10px;
+                   border-bottom:1px solid var(--border);padding-bottom:6px}
+    .section-count{color:var(--muted);font-size:12px;margin-left:8px;letter-spacing:1px}
+    .section-viral{--section-color:#f472b6}
+    .section-taiko{--section-color:#22d3ee}
+    .section-dexe{--section-color:#f472b6}
+    .section-strong{--section-color:#10B981}
+    .section-good{--section-color:#22d3ee}
+    .section-scout{--section-color:#fbbf24}
+    .section-watch{--section-color:#6b7280}
 
-    def render_risk_banner(strategy_text: str) -> str:
-        if "🎰" in strategy_text or "КАЗИНО" in strategy_text:
-            return ('<div style="background:#F59E0B22;border-left:4px solid #F59E0B;'
-                    'padding:8px 12px;margin:8px 0;border-radius:4px;'
-                    'font-weight:600;color:#F59E0B;">'
-                    '⚠️ ВЫСОКИЙ РИСК · Лотерейный сетап, размер 1/3</div>')
-        if "🟢" in strategy_text or "НАДЁЖНЫЙ" in strategy_text:
-            return ('<div style="background:#10B98122;border-left:4px solid #10B981;'
-                    'padding:8px 12px;margin:8px 0;border-radius:4px;'
-                    'font-weight:600;color:#10B981;">'
-                    '✓ НАДЁЖНЫЙ СЕТАП · Структурный разворот</div>')
-        return ""
+    /* === КАРТОЧКИ === */
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px;margin-bottom:20px}
+    .card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px;
+          transition:all 0.2s}
+    .card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 4px 16px rgba(34,211,238,0.15)}
+    .card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .card-sym{font-size:16px;font-weight:900;letter-spacing:1px}
+    .card-rank{color:var(--muted);font-size:11px;font-weight:700}
+    .card-score{background:var(--panel2);color:var(--accent);padding:2px 8px;border-radius:4px;
+                font-size:11px;font-weight:800;letter-spacing:.5px}
 
-    def _fmt_usd(v: float) -> str:
-        if v >= 1e9: return f"{v/1e9:.2f}B"
-        if v >= 1e6: return f"{v/1e6:.2f}M"
-        if v >= 1e3: return f"{v/1e3:.1f}K"
-        return f"{v:.0f}"
+    .tags{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+    .tag{display:inline-block;padding:2px 6px;border-radius:3px;font-size:10px;font-weight:700;
+         letter-spacing:.5px;text-transform:uppercase}
+    .tag-cat{background:rgba(107,114,128,0.2);color:#9ca3af;border:1px solid var(--border)}
+    .tag-pattern{background:rgba(34,211,238,0.15);color:var(--accent);border:1px solid rgba(34,211,238,0.4)}
+    .tag-pattern.taiko{background:rgba(34,211,238,0.15);color:#22d3ee;border:1px solid rgba(34,211,238,0.5)}
+    .tag-pattern.dexe{background:rgba(244,114,182,0.15);color:#f472b6;border:1px solid rgba(244,114,182,0.5)}
+    .tag-pattern.surge{background:rgba(245,158,11,0.15);color:#F59E0B;border:1px solid rgba(245,158,11,0.5)}
+    .tag-pattern.euphoria{background:rgba(244,114,182,0.15);color:#f472b6;border:1px solid rgba(244,114,182,0.4)}
+    .tag-pattern.viral{background:linear-gradient(90deg,rgba(244,114,182,0.18),rgba(167,139,250,0.18));
+                       color:#f9a8d4;border:1px solid rgba(244,114,182,0.5);animation:pulse 2.4s infinite;
+                       font-weight:900}
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.75}}
+
+    .phase{display:flex;align-items:center;gap:6px;margin-bottom:8px;font-size:11px}
+    .phase-badge{padding:2px 6px;border-radius:3px;font-weight:800;letter-spacing:.5px}
+    .phase-4{background:rgba(16,185,129,0.15);color:#10B981}
+    .phase-3{background:rgba(34,211,238,0.15);color:#22d3ee}
+    .phase-2{background:rgba(251,191,36,0.15);color:#fbbf24}
+    .phase-1{background:rgba(239,68,68,0.15);color:#EF4444}
+    .phase-0{background:rgba(107,114,128,0.2);color:#6b7280}
+
+    .metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:4px 12px;margin-bottom:8px;
+             font-size:11px}
+    .metric{display:flex;justify-content:space-between;padding:2px 0;border-bottom:1px dashed var(--border)}
+    .metric-key{color:var(--muted)}
+    .metric-val{font-weight:700}
+    .metric-val.up{color:var(--up)}
+    .metric-val.down{color:var(--down)}
+
+    .buzz{margin:8px 0;padding:6px 8px;border-radius:4px;font-size:11px;line-height:1.4}
+    .buzz-hot{background:rgba(244,114,182,0.1);border-left:2px solid #f472b6}
+    .buzz-warm{background:rgba(245,158,11,0.08);border-left:2px solid #F59E0B}
+    .buzz-cool{background:rgba(34,211,238,0.08);border-left:2px solid #22d3ee}
+    .buzz-cold{background:rgba(107,114,128,0.08);border-left:2px solid #6b7280}
+    .buzz-level{font-weight:800;letter-spacing:1px;margin-right:6px}
+
+    .analysis{background:rgba(34,211,238,0.05);border-left:2px solid var(--accent);
+              padding:6px 8px;font-size:11px;line-height:1.4;margin:8px 0;color:#d1d5db}
+    .strategy{background:rgba(16,185,129,0.05);border-left:2px solid var(--up);
+              padding:6px 8px;font-size:11px;line-height:1.4;margin:8px 0;color:#d1d5db}
+    .squeeze{background:rgba(244,114,182,0.05);border-left:2px solid #f472b6;
+             padding:6px 8px;font-size:11px;line-height:1.4;margin:8px 0;color:#d1d5db}
+
+    .links{display:flex;gap:8px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border)}
+    .link{color:var(--accent);font-size:11px;font-weight:700;letter-spacing:.5px}
+    """
+
+    # ── Render функции ──
+    def render_stat_tile(label: str, count: int, desc: str, cls: str, items: list) -> str:
+        tt_rows = ""
+        for it in sorted(items, key=lambda x: -x.get("score", 0))[:20]:
+            sym = it.get("symbol", "")
+            sc = it.get("score", 0)
+            tv = f"https://www.tradingview.com/chart/?symbol=BINANCE:{sym}.P"
+            tt_rows += (
+                f'<div class="stat-tt-row">'
+                f'<a href="{tv}" target="_blank" rel="noopener" class="stat-tt-sym">{esc(sym)}</a>'
+                f'<span class="stat-tt-score">{esc(sc)}</span>'
+                f'</div>'
+            )
+        if not tt_rows:
+            tt_rows = '<div class="stat-tt-row"><span class="stat-tt-sym" style="color:#6b7280">пусто</span></div>'
+
+        return f"""
+        <div class="stat {cls}">
+          <div class="stat-label">{esc(label)}</div>
+          <div class="stat-value">{count}</div>
+          <div class="stat-desc">{esc(desc)}</div>
+          <div class="stat-tt">{tt_rows}</div>
+        </div>
+        """
+
+    def render_card(c: dict) -> str:
+        sym = c.get("symbol", "")
+        rank = c.get("rank", "")
+        score = c.get("score", 0)
+        tags = c.get("tags", []) or []
+        phase = c.get("phase", {}) or {}
+        metrics = c.get("metrics", []) or []
+        buzz = c.get("buzz") or {}
+        analysis = c.get("analysis", "") or ""
+        strategy = c.get("strategy", "") or ""
+        squeeze = c.get("squeeze") or {}
+        links = c.get("links", []) or []
+
+        tags_html = "".join(
+            f'<span class="tag {esc(t.get("class",""))}">{esc(t.get("text",""))}</span>'
+            for t in tags
+        )
+
+        phase_num = phase.get("num", 0)
+        phase_html = f"""
+        <div class="phase">
+          <span class="phase-badge phase-{phase_num}">{esc(phase.get("label","—"))}</span>
+          <span style="color:var(--muted)">VI+ {esc(phase.get("vi_plus","—"))} · VI- {esc(phase.get("vi_minus","—"))}</span>
+        </div>
+        """
+
+        metrics_html = "".join(
+            f'<div class="metric"><span class="metric-key">{esc(mm.get("key",""))}</span>'
+            f'<span class="metric-val {esc(mm.get("cls",""))}">{esc(mm.get("val",""))}</span></div>'
+            for mm in metrics
+        )
+
+        buzz_html = ""
+        if buzz:
+            buzz_html = f"""
+            <div class="buzz {esc(buzz.get("level_class",""))}">
+              <span class="buzz-level">{esc(buzz.get("level_text",""))}</span>{esc(buzz.get("text",""))}
+            </div>
+            """
+
+        analysis_html = f'<div class="analysis">{esc(analysis)}</div>' if analysis else ""
+        strategy_html = f'<div class="strategy">{esc(strategy)}</div>' if strategy else ""
+        squeeze_html = ""
+        if squeeze and squeeze.get("verdict"):
+            squeeze_html = f'<div class="squeeze">{esc(squeeze.get("verdict",""))}</div>'
+
+        links_html = "".join(
+            f'<a class="link" href="{esc(l.get("url",""))}" target="_blank" rel="noopener">{esc(l.get("text",""))} ↗</a>'
+            for l in links
+        )
+
+        return f"""
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <span class="card-sym">{esc(sym)}</span>
+              <span class="card-rank" style="margin-left:6px">{esc(rank)}</span>
+            </div>
+            <div class="card-score">SCORE {esc(score)}</div>
+          </div>
+          <div class="tags">{tags_html}</div>
+          {phase_html}
+          <div class="metrics">{metrics_html}</div>
+          {buzz_html}
+          {analysis_html}
+          {strategy_html}
+          {squeeze_html}
+          <div class="links">{links_html}</div>
+        </div>
+        """
+
+# ═══════════════════════════════════════════════════════════════
+#  ЧАСТЬ 3a/3 КОНЕЦ
+# ═══════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════
+#  sleeping_alts_screener_final.py — ЧАСТЬ 3b/3 НАЧАЛО
+# ═══════════════════════════════════════════════════════════════
 
     def render_volume_surge_section(candidates: list) -> str:
-        """Отдельная секция отчёта с монетами, у которых аномальный объём."""
-        surge_items = [
-            c for c in candidates
-            if c.get("surge") and c["surge"].get("detected")
-        ]
+        """Таблица монет с аномальным объёмом на дневке."""
+        surge_items = [c for c in candidates if (c.get("surge") or {}).get("detected")]
         if not surge_items:
             return ""
-        surge_items.sort(key=lambda c: c["surge"]["surge_ratio"], reverse=True)
+
+        surge_items.sort(
+            key=lambda c: (c.get("surge") or {}).get("surge_ratio", 0),
+            reverse=True,
+        )
 
         html_str = """
         <div style="margin:24px 0;">
-          <h2 style="color:#F59E0B;font-size:14px;letter-spacing:2.5px;text-transform:uppercase;font-weight:800;margin-bottom:10px;">
-            📊 Аномальные объёмы на дневках
+          <h2 style="color:#F59E0B;font-size:14px;letter-spacing:2.5px;text-transform:uppercase;
+                     font-weight:800;margin-bottom:10px;">
+            📊 Аномальные объёмы (дневка)
           </h2>
           <p style="color:#9ca3af;font-size:12px;margin-bottom:12px;">
-            Монеты с текущим дневным объёмом ≥×3 к среднему за 30 дней.
-            Всплеск может быть началом пампа, дампа, разворота или реакцией на новость.
+            Дневной объём в 3+ раза выше среднего за 20 дней. Ранний сигнал перелома интереса.
           </p>
           <table style="width:100%;border-collapse:collapse;font-size:13px;background:#111827;">
             <thead>
               <tr style="background:#1f2937;color:#d1d5db;">
-                <th style="padding:8px 10px;text-align:left;letter-spacing:1px;">СИМВОЛ</th>
-                <th style="padding:8px 10px;text-align:right;letter-spacing:1px;">×</th>
-                <th style="padding:8px 10px;text-align:right;letter-spacing:1px;">СВЕЧА</th>
-                <th style="padding:8px 10px;text-align:right;letter-spacing:1px;">ОБЪЁМ (USD)</th>
-                <th style="padding:8px 10px;text-align:right;letter-spacing:1px;">СРЕДНИЙ</th>
-                <th style="padding:8px 10px;text-align:left;letter-spacing:1px;">СИЛА</th>
-                <th style="padding:8px 10px;text-align:center;letter-spacing:1px;">TV</th>
+                <th style="padding:8px 10px;text-align:left;">СИМВОЛ</th>
+                <th style="padding:8px 10px;text-align:right;">SURGE</th>
+                <th style="padding:8px 10px;text-align:right;">24H</th>
+                <th style="padding:8px 10px;text-align:left;">СВЕЧА</th>
+                <th style="padding:8px 10px;text-align:left;">ВЕРДИКТ</th>
+                <th style="padding:8px 10px;text-align:center;">TV</th>
               </tr>
             </thead>
             <tbody>
         """
+
+        def _find_metric(metrics_list, key):
+            for mm in (metrics_list or []):
+                if mm.get("key") == key:
+                    return mm.get("val", ""), mm.get("cls", "")
+            return "", ""
+
         for c in surge_items:
-            s = c["surge"]
             sym = c.get("symbol", "")
-            arrow = "▲" if s["is_green"] else "▼"
-            arrow_color = "#10B981" if s["is_green"] else "#EF4444"
-            ratio_color = ("#EF4444" if s["surge_ratio"] >= 20
-                           else "#F59E0B" if s["surge_ratio"] >= 10
-                           else "#3B82F6")
-            tv_url = f"https://www.tradingview.com/chart/?symbol=BINANCE:{sym}.P"
+            surge = c.get("surge") or {}
+            ratio = surge.get("surge_ratio", 0)
+            candle = surge.get("candle_type", "—")
+            verdict = surge.get("verdict", "")
+            ch24_val, ch24_cls = _find_metric(c.get("metrics"), "24h")
+            ch24_color = "#10B981" if ch24_cls == "up" else ("#EF4444" if ch24_cls == "down" else "#e8ecf5")
+            tv = f"https://www.tradingview.com/chart/?symbol=BINANCE:{sym}.P"
+
             html_str += f"""
               <tr style="border-bottom:1px solid #374151;">
-                <td style="padding:8px 10px;font-weight:700;color:#e8ecf5;">{esc(sym)}</td>
-                <td style="padding:8px 10px;text-align:right;color:{ratio_color};font-weight:800;">×{s['surge_ratio']:.1f}</td>
-                <td style="padding:8px 10px;text-align:right;color:{arrow_color};font-weight:700;">{arrow} {s['day_change_pct']:+.1f}%</td>
-                <td style="padding:8px 10px;text-align:right;color:#e8ecf5;">${_fmt_usd(s['current_vol_usd'])}</td>
-                <td style="padding:8px 10px;text-align:right;color:#9ca3af;">${_fmt_usd(s['avg_vol_usd'])}</td>
-                <td style="padding:8px 10px;color:#d1d5db;">{esc(s['strength_label'])}</td>
+                <td style="padding:8px 10px;font-weight:800;color:#e8ecf5;">{esc(sym)}</td>
+                <td style="padding:8px 10px;text-align:right;color:#F59E0B;font-weight:800;">×{ratio:.1f}</td>
+                <td style="padding:8px 10px;text-align:right;color:{ch24_color};font-weight:700;">{esc(ch24_val)}</td>
+                <td style="padding:8px 10px;color:#d1d5db;">{esc(candle)}</td>
+                <td style="padding:8px 10px;color:#9ca3af;font-size:11px;">{esc(verdict)}</td>
                 <td style="padding:8px 10px;text-align:center;">
-                  <a href="{tv_url}" target="_blank" rel="noopener"
-                     style="color:#22d3ee;text-decoration:none;font-weight:700;">TV↗</a>
+                  <a href="{tv}" target="_blank" rel="noopener" style="color:#22d3ee;font-weight:700;">TV↗</a>
                 </td>
               </tr>
             """
         html_str += "</tbody></table></div>"
         return html_str
 
-    # === Разделение по бакетам ===
-    taiko = [r for r in rows if has_tag(r, "TAIKO REVERSAL")]
-    dexe = [r for r in rows if has_tag(r, "DEXE POST-PUMP")]
+    def render_twitter_hot_section(candidates: list) -> str:
+        """Таблица монет с Twitter Buzz = HOT."""
+        hot_items = [c for c in candidates if (c.get("buzz") or {}).get("level") == "hot"]
+        if not hot_items:
+            return ""
 
-    special_syms = {r.get("symbol") for r in taiko + dexe}
-    rest = [r for r in rows if r.get("symbol") not in special_syms]
+        hot_items.sort(key=lambda c: -c.get("score", 0))
 
-    strong = [r for r in rest if r.get("bucket") == "strong"]
-    good = [r for r in rest if r.get("bucket") == "good"]
-    scout = [r for r in rest if r.get("bucket") == "scout"]
-    watch = [r for r in rest if r.get("bucket") == "watch"]
-
-    total = len(rows)
-    ts = _dt.now().strftime("%Y-%m-%d %H:%M UTC")
-
-    # === Интерактивные плашки с tooltip'ом ===
-    def render_stat_tile(label: str, count: int, subtitle: str,
-                         stat_cls: str, items: list) -> str:
-        items_sorted = sorted(items, key=lambda x: -x.get("score", 0))
-        symbols_list = [x.get("symbol", "") for x in items_sorted if x.get("symbol")]
-        if symbols_list:
-            items_html = "".join(
-                f'<a class="tt-item" '
-                f'href="https://www.tradingview.com/chart/?symbol=BINANCE:{esc(s)}.P" '
-                f'target="_blank" rel="noopener">{esc(s)}</a>'
-                for s in symbols_list
-            )
-        else:
-            items_html = '<div class="tt-empty">— пусто —</div>'
-
-        return f"""
-        <div class="stat {stat_cls}">
-          <div class="stat-label">{esc(label)}</div>
-          <div class="stat-value accent">{count}</div>
-          <div class="stat-sub">{esc(subtitle)}</div>
-          <div class="stat-tt">
-            <div class="tt-head">{esc(label)} · {count}</div>
-            <div class="tt-list">{items_html}</div>
-            <div class="tt-hint">клик — открыть на TradingView</div>
-          </div>
-        </div>
+        html_str = """
+        <div style="margin:24px 0;">
+          <h2 style="color:#a78bfa;font-size:14px;letter-spacing:2.5px;text-transform:uppercase;
+                     font-weight:800;margin-bottom:10px;">
+            🔥 Twitter Buzz — HOT
+          </h2>
+          <p style="color:#9ca3af;font-size:12px;margin-bottom:12px;">
+            Монеты с резким всплеском объёма и активным накоплением — часто совпадает с волной упоминаний в X/Twitter.
+          </p>
+          <table style="width:100%;border-collapse:collapse;font-size:13px;background:#111827;">
+            <thead>
+              <tr style="background:#1f2937;color:#d1d5db;">
+                <th style="padding:8px 10px;text-align:left;">СИМВОЛ</th>
+                <th style="padding:8px 10px;text-align:right;">SCORE</th>
+                <th style="padding:8px 10px;text-align:right;">24H</th>
+                <th style="padding:8px 10px;text-align:right;">RVOL 1H</th>
+                <th style="padding:8px 10px;text-align:right;">OBV</th>
+                <th style="padding:8px 10px;text-align:left;">СЕТАП</th>
+                <th style="padding:8px 10px;text-align:center;">TV</th>
+              </tr>
+            </thead>
+            <tbody>
         """
 
-    css = r"""
-*{margin:0;padding:0;box-sizing:border-box}
-:root{
-  --bg-0:#080b12;--bg-1:#0d1220;
-  --panel:#111827;--panel-2:#1a2338;--panel-3:#232e48;
-  --line:rgba(120,150,220,0.14);--line-hi:rgba(140,180,255,0.42);
-  --ink:#e8ecf5;--ink-dim:#b8c2d6;--mute:#6b7688;--soft:#3d4560;
-  --cyan:#22d3ee;--blue:#5a9dff;--violet:#a78bfa;--pink:#f472b6;
-  --green:#34d399;--amber:#fbbf24;--coral:#f87171;
-}
-html,body{
-  background: radial-gradient(1200px 700px at 15% -10%, rgba(90,157,255,0.06), transparent 60%),
-              radial-gradient(900px 600px at 100% 100%, rgba(167,139,250,0.05), transparent 60%),
-              linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 100%);
-  background-attachment:local;color:var(--ink);
-  font-family:"JetBrains Mono","SF Mono","Menlo",ui-monospace,monospace;
-  min-height:100vh;-webkit-font-smoothing:antialiased;
-}
-body::before{
-  content:"";position:fixed;inset:0;
-  background-image: linear-gradient(rgba(120,150,220,0.04) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(120,150,220,0.04) 1px, transparent 1px);
-  background-size:56px 56px;pointer-events:none;z-index:0;
-}
-.container{max-width:1520px;margin:0 auto;padding:32px 24px 80px;position:relative;z-index:1}
-.hex{clip-path:polygon(18px 0,calc(100% - 18px) 0,100% 18px,100% calc(100% - 18px),calc(100% - 18px) 100%,18px 100%,0 calc(100% - 18px),0 18px)}
-.hex-sm{clip-path:polygon(10px 0,calc(100% - 10px) 0,100% 10px,100% calc(100% - 10px),calc(100% - 10px) 100%,10px 100%,0 calc(100% - 10px),0 10px)}
-@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
-@keyframes scan{0%{transform:translateX(-100%)}100%{transform:translateX(200%)}}
+        def _find_metric(metrics_list, key):
+            for mm in (metrics_list or []):
+                if mm.get("key") == key:
+                    return mm.get("val", ""), mm.get("cls", "")
+            return "", ""
 
-.header{display:flex;justify-content:space-between;align-items:center;padding:26px 32px;margin-bottom:24px;gap:16px;flex-wrap:wrap;background:linear-gradient(135deg,var(--panel) 0%,var(--panel-2) 100%);position:relative}
-.brand{display:flex;align-items:center;gap:14px}
-.brand-icon{width:44px;height:44px;background:linear-gradient(135deg,var(--cyan),var(--blue));display:flex;align-items:center;justify-content:center;color:#0b0f18;font-size:20px;font-weight:900}
-.brand-title{font-size:22px;font-weight:800;letter-spacing:-0.2px;color:var(--ink);font-family:"Inter",sans-serif}
-.subtitle{color:var(--mute);font-size:10px;letter-spacing:2.5px;text-transform:uppercase;margin-top:4px;font-weight:700}
-.header-right{text-align:right}
-.status-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;background:rgba(52,211,153,0.10);border:1px solid rgba(52,211,153,0.4);font-size:10px;color:var(--green);letter-spacing:1.4px;font-weight:800;margin-bottom:6px;text-transform:uppercase}
-.status-dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 1.6s infinite;box-shadow:0 0 6px var(--green)}
-.timestamp{font-size:11px;color:var(--ink-dim);letter-spacing:1.2px;font-weight:600}
-.timestamp span{color:var(--cyan);margin-left:6px;font-weight:800}
+        def _setup_label(cand):
+            for t in (cand.get("tags") or []):
+                text = t.get("text", "")
+                if "VIRAL HYPE" in text:       return ("🚀 VIRAL",      "#f472b6")
+                if "TAIKO CONFIRMED" in text:  return ("✅ TAIKO CONF", "#22d3ee")
+                if "TAIKO REVERSAL" in text:   return ("◉ TAIKO",       "#22d3ee")
+                if "DEXE POST-PUMP" in text:   return ("🎰 DEXE",       "#f472b6")
+                if "VOL SURGE" in text:        return ("📊 SURGE",      "#F59E0B")
+                if "EUPHORIA" in text:         return ("⚠ EUPHORIA",   "#f472b6")
+            return ("—", "#6b7280")
 
-/* === Плашки статистики + tooltip === */
-.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-bottom:22px}
-.stat{padding:18px 22px 18px 26px;background:var(--panel);position:relative;transition:transform .2s,background .2s;border-left:2px solid var(--stat-color,var(--blue));cursor:pointer}
-.stat::before{content:"";position:absolute;top:0;right:0;width:24px;height:24px;background:linear-gradient(225deg,var(--stat-color,var(--blue)) 50%,transparent 50%);opacity:.6}
-.stat:hover{transform:translateY(-2px);background:var(--panel-2)}
-.stat-strong{--stat-color:var(--green)}.stat-good{--stat-color:var(--blue)}
-.stat-scout{--stat-color:var(--amber)}.stat-watch{--stat-color:var(--mute)}
-.stat-taiko{--stat-color:var(--cyan)}.stat-dexe{--stat-color:var(--pink)}
-.stat-label{font-size:9px;color:var(--mute);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;font-weight:800}
-.stat-value{font-size:30px;font-weight:800;color:var(--ink);line-height:1;letter-spacing:-1px;font-family:"Inter",sans-serif}
-.stat-value.accent{color:var(--stat-color,var(--blue))}
-.stat-sub{font-size:10px;color:var(--mute);margin-top:4px;font-weight:600;letter-spacing:.5px}
+        for c in hot_items:
+            sym = c.get("symbol", "")
+            score = c.get("score", 0)
+            ch24_val, ch24_cls = _find_metric(c.get("metrics"), "24h")
+            rvol_val, _        = _find_metric(c.get("metrics"), "RVOL 1H")
+            obv_val, obv_cls   = _find_metric(c.get("metrics"), "OBV")
+            ch24_color = "#10B981" if ch24_cls == "up" else ("#EF4444" if ch24_cls == "down" else "#e8ecf5")
+            obv_color  = "#10B981" if obv_cls  == "up" else ("#EF4444" if obv_cls  == "down" else "#e8ecf5")
+            setup_text, setup_color = _setup_label(c)
+            tv = f"https://www.tradingview.com/chart/?symbol=BINANCE:{sym}.P"
 
-/* === Плашки: поднимаем hover-плашку над всем остальным === */
-.stat { z-index: 1; }
-.stat:hover { z-index: 9999; }
+            html_str += f"""
+              <tr style="border-bottom:1px solid #374151;">
+                <td style="padding:8px 10px;font-weight:800;color:#e8ecf5;">{esc(sym)}</td>
+                <td style="padding:8px 10px;text-align:right;color:#a78bfa;font-weight:800;">{esc(score)}</td>
+                <td style="padding:8px 10px;text-align:right;color:{ch24_color};font-weight:700;">{esc(ch24_val)}</td>
+                <td style="padding:8px 10px;text-align:right;color:#22d3ee;font-weight:700;">{esc(rvol_val)}</td>
+                <td style="padding:8px 10px;text-align:right;color:{obv_color};font-weight:700;">{esc(obv_val)}</td>
+                <td style="padding:8px 10px;color:{setup_color};font-weight:800;font-size:11px;">{esc(setup_text)}</td>
+                <td style="padding:8px 10px;text-align:center;">
+                  <a href="{tv}" target="_blank" rel="noopener" style="color:#22d3ee;font-weight:700;">TV↗</a>
+                </td>
+              </tr>
+            """
+        html_str += "</tbody></table></div>"
+        return html_str
 
-/* === Tooltip: без зазора + мостик, чтобы hover не рвался === */
-.stat-tt{
-  position:absolute;
-  top:100%;                         /* вплотную к плашке, без gap */
-  left:0;
-  margin-top:0;
-  min-width:220px;max-width:280px;
-  max-height:360px;overflow-y:auto;
-  background:#0f172a;
-  border:1px solid #334155;
-  border-radius:6px;
-  padding:12px 0 10px;
-  box-shadow:0 12px 28px rgba(0,0,0,0.6);
-  opacity:0;visibility:hidden;
-  transform:translateY(-4px);
-  transition:opacity .18s ease, transform .18s ease, visibility .18s ease;
-  z-index:10000;
-  pointer-events:none;
-}
-/* Невидимый "мостик" сверху tooltip'а — соединяет с плашкой,
-   чтобы курсор мог пройти без разрыва hover */
-.stat-tt::before{
-  content:"";
-  position:absolute;
-  top:-12px;                        /* высота мостика */
-  left:0;
-  right:0;
-  height:12px;
-  background:transparent;
-}
+    def render_viral_hype_section(candidates: list) -> str:
+        """VIRAL HYPE — Twitter HOT × Vol Surge × meme/gamefi."""
+        viral_items = [c for c in candidates if c.get("is_viral")]
+        if not viral_items:
+            return ""
 
-/* Показ tooltip'а — и когда наводим на плашку, И когда уже внутри самого tooltip'а */
-.stat:hover .stat-tt,
-.stat-tt:hover{
-  opacity:1;
-  visibility:visible;
-  transform:translateY(0);
-  pointer-events:auto;
-}
-
-/* Задержка исчезновения — 250ms grace period при уходе с плашки */
-.stat-tt{
-  transition-delay:0s, 0s, 0s;
-}
-.stat:not(:hover) .stat-tt{
-  transition-delay:.25s, .25s, .25s;
-}
-
-.tt-head{
-  font-size:10px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;
-  padding:0 14px 8px;border-bottom:1px solid #1e293b;margin-bottom:6px;
-  color:var(--stat-color,var(--cyan));
-}
-.tt-list{display:flex;flex-direction:column}
-.tt-item{
-  display:block;padding:6px 14px;color:#e5e7eb;
-  font-family:"JetBrains Mono",monospace;
-  font-size:12px;font-weight:700;text-decoration:none;
-  transition:background .1s,color .1s;letter-spacing:.5px;
-}``
-.tt-item:hover{background:#1e293b;color:var(--cyan)}
-.tt-empty{padding:8px 14px;color:#6b7280;font-size:11px;font-style:italic}
-.tt-hint{
-  padding:8px 14px 0;margin-top:6px;border-top:1px solid #1e293b;
-  font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:1.2px;
-}
-.stat-tt::-webkit-scrollbar{width:6px}
-.stat-tt::-webkit-scrollbar-track{background:transparent}
-.stat-tt::-webkit-scrollbar-thumb{background:#334155;border-radius:3px}
-
-/* Правые плашки — tooltip по правому краю */
-.stats .stat:nth-child(n+5) .stat-tt{left:auto;right:0}
-/* Правые плашки — tooltip выравнивается по правому краю */
-.stats .stat:nth-child(n+5) .stat-tt{left:auto;right:0}
-
-.filter-bar{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap;padding:12px 18px;background:var(--panel);border-left:2px solid var(--cyan)}
-.filter-label{font-size:9px;color:var(--mute);letter-spacing:2px;text-transform:uppercase;align-self:center;font-weight:800;margin-right:4px}
-.pill{padding:4px 12px;background:var(--panel-2);font-size:10px;letter-spacing:1px;color:var(--ink-dim);display:inline-flex;align-items:center;gap:6px;font-weight:700;text-transform:uppercase;border:1px solid var(--line)}
-.pill-dot{width:5px;height:5px;border-radius:50%}
-
-.phase-legend{background:var(--panel);padding:18px 22px;margin-bottom:22px;border-left:2px solid var(--violet);position:relative}
-.phase-legend-title{font-size:10px;color:var(--violet);letter-spacing:2.5px;text-transform:uppercase;font-weight:800;margin-bottom:14px}
-.phase-legend-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;margin-bottom:14px}
-.pl-item{display:flex;gap:12px;padding:10px 12px;background:var(--panel-2);border-left:2px solid var(--pl-color,var(--blue));align-items:flex-start}
-.pl-1{--pl-color:var(--coral)}.pl-2{--pl-color:var(--amber)}.pl-3{--pl-color:var(--cyan)}
-.pl-4{--pl-color:var(--green)}.pl-5{--pl-color:var(--pink)}
-.pl-num{width:26px;height:26px;flex-shrink:0;background:var(--pl-color);color:#0b0f18;font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center;font-family:"Inter",sans-serif}
-.pl-body{flex:1;min-width:0}
-.pl-name{font-size:11px;color:var(--pl-color);letter-spacing:1.4px;text-transform:uppercase;font-weight:800;margin-bottom:3px;font-family:"JetBrains Mono",monospace}
-.pl-desc{font-size:11px;color:var(--ink-dim);line-height:1.45;font-family:"Inter",sans-serif}
-.phase-legend-tags{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding-top:12px;border-top:1px solid var(--line);font-size:11px;color:var(--ink-dim);font-family:"Inter",sans-serif}
-.pl-tag{font-size:9px;letter-spacing:1.2px;padding:3px 9px;font-weight:800;text-transform:uppercase;font-family:"JetBrains Mono",monospace}
-.pl-tag-taiko{background:rgba(34,211,238,0.10);color:var(--cyan);border:1px solid rgba(34,211,238,0.4)}
-.pl-tag-dexe{background:rgba(244,114,182,0.10);color:var(--pink);border:1px solid rgba(244,114,182,0.4)}
-.pl-tag-desc{color:var(--mute);font-size:10.5px}
-
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(410px,1fr));gap:16px;content-visibility:auto;contain-intrinsic-size:0 740px}
-.card{position:relative;background:var(--panel);padding:22px 24px 20px;animation:fadeUp .35s backwards;transition:background .2s;contain:layout style paint;--card-color:var(--blue);overflow:hidden}
-.card:hover{background:var(--panel-2)}
-.card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--card-color);clip-path:polygon(0 8px,100% 0,100% 100%,0 calc(100% - 8px))}
-.card::after{content:"";position:absolute;top:0;right:0;width:36px;height:36px;background:linear-gradient(225deg,var(--card-color) 50%,transparent 50%);opacity:.22}
-.card-strong{--card-color:var(--green)}.card-good{--card-color:var(--blue)}
-.card-scout{--card-color:var(--amber)}.card-watch{--card-color:var(--mute)}
-
-.card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:12px;position:relative;z-index:1}
-.rank-symbol{display:flex;align-items:center;gap:10px}
-.rank{font-size:9px;color:var(--mute);padding:3px 9px;background:var(--panel-3);letter-spacing:1px;font-weight:800}
-.symbol{font-size:20px;font-weight:800;color:var(--ink);font-family:"Inter",sans-serif}
-.tag-row{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
-.tag{font-size:8px;letter-spacing:1.2px;padding:3px 8px;font-weight:800;text-transform:uppercase}
-.tag-cat{background:color-mix(in srgb,var(--card-color) 15%,transparent);color:var(--card-color);border:1px solid color-mix(in srgb,var(--card-color) 40%,transparent)}
-.tag-pattern{background:rgba(167,139,250,0.10);color:var(--violet);border:1px solid rgba(167,139,250,0.38)}
-.tag-pattern.taiko{background:rgba(34,211,238,0.10);color:var(--cyan);border-color:rgba(34,211,238,0.4)}
-.tag-pattern.dexe{background:rgba(244,114,182,0.10);color:var(--pink);border-color:rgba(244,114,182,0.4)}
-
-.links-row{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px}
-.link-chip{font-size:9px;letter-spacing:1.2px;padding:4px 10px;background:var(--panel-2);color:var(--ink-dim);border:1px solid var(--line);font-family:"JetBrains Mono",monospace;font-weight:800;text-transform:uppercase;transition:background .18s,color .18s,border-color .18s}
-.link-chip:hover{background:var(--panel-3);color:var(--cyan);border-color:rgba(34,211,238,0.4)}
-
-.tag-squeeze-low{background:rgba(34,211,238,0.10);color:var(--cyan);border:1px solid rgba(34,211,238,0.4)}
-.tag-squeeze-med{background:rgba(251,191,36,0.12);color:var(--amber);border:1px solid rgba(251,191,36,0.4)}
-.tag-squeeze-high{background:rgba(248,113,113,0.12);color:var(--coral);border:1px solid rgba(248,113,113,0.4)}
-.tag-squeeze-ext{background:var(--coral);color:#0b0f18;border:1px solid var(--coral);animation:pulse 2s infinite}
-
-.score-badge{min-width:64px;text-align:center;padding:8px 12px;background:color-mix(in srgb,var(--card-color) 10%,transparent);border:1px solid color-mix(in srgb,var(--card-color) 40%,transparent);position:relative}
-.score-badge::before{content:"";position:absolute;top:-1px;right:-1px;width:8px;height:8px;background:var(--card-color);clip-path:polygon(100% 0,100% 100%,0 0)}
-.score-badge-label{font-size:8px;color:var(--mute);letter-spacing:1.4px;text-transform:uppercase;font-weight:800}
-.score-badge-value{font-size:24px;font-weight:800;color:var(--card-color);line-height:1;letter-spacing:-0.5px;font-family:"Inter",sans-serif;margin-top:2px}
-
-.phase-indicator{display:flex;align-items:center;gap:10px;padding:9px 14px;margin-bottom:12px;background:var(--panel-2);border-left:2px solid var(--phase-color,var(--blue))}
-.phase-icon{width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:900;background:var(--phase-color,var(--blue));color:#0b0f18;font-family:"Inter",sans-serif}
-.phase-p1{--phase-color:var(--coral)}.phase-p2{--phase-color:var(--amber)}
-.phase-p3{--phase-color:var(--cyan)}.phase-p4{--phase-color:var(--green)}
-.phase-p5{--phase-color:var(--pink)}
-.phase-name{font-size:10px;color:var(--ink-dim);letter-spacing:1.5px;font-weight:800;flex:1;text-transform:uppercase}
-.phase-tf{font-size:9px;color:var(--cyan);padding:3px 8px;background:rgba(34,211,238,0.10);border:1px solid rgba(34,211,238,0.35);letter-spacing:1px;font-weight:800}
-
-.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;margin-bottom:12px;background:var(--line)}
-.metric{padding:10px 12px;background:var(--panel);transition:background .18s}
-.metric:hover{background:var(--panel-3)}
-.metric-key{font-size:8px;color:var(--mute);letter-spacing:1.4px;text-transform:uppercase;margin-bottom:4px;font-weight:800}
-.metric-val{font-size:14px;color:var(--ink);font-weight:800;letter-spacing:-0.2px;font-family:"Inter",sans-serif}
-.metric-val.up{color:var(--green)}.metric-val.down{color:var(--coral)}
-.metric-val.hot{color:var(--cyan)}.metric-val.warn{color:var(--amber)}
-
-.dexe-block{padding:12px 14px;margin-bottom:12px;background:var(--panel-2);border-left:2px solid var(--pink)}
-.dexe-title{font-size:9px;color:var(--pink);letter-spacing:1.6px;font-weight:800;margin-bottom:8px;text-transform:uppercase}
-.dexe-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:5px 16px}
-.dexe-cell{display:flex;justify-content:space-between;font-size:12px}
-.dexe-k{color:var(--mute);text-transform:uppercase;font-size:9px;letter-spacing:1px;font-weight:700;align-self:center}
-.dexe-v{color:var(--ink);font-weight:800;font-family:"Inter",sans-serif}
-.dexe-v.up{color:var(--green)}.dexe-v.down{color:var(--coral)}
-.dexe-v.rev-hot{color:var(--amber);animation:pulse 2s infinite}
-.dexe-v.rev-none{color:var(--mute)}
-
-.analysis-block{padding:13px 16px;margin-bottom:12px;background:var(--panel-2);border-left:2px solid var(--cyan);position:relative;overflow:hidden}
-.analysis-block::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);animation:scan 4s linear infinite;opacity:.5}
-.analysis-title{font-size:9px;color:var(--cyan);letter-spacing:1.6px;font-weight:800;margin-bottom:6px;text-transform:uppercase}
-.analysis-text{font-size:12.5px;line-height:1.65;color:var(--ink-dim);font-weight:500;font-family:"Inter",sans-serif}
-
-.buzz-block{padding:11px 14px;margin-bottom:12px;background:var(--panel-2);border-left:2px solid var(--violet)}
-.buzz-header{display:flex;align-items:center;gap:10px;margin-bottom:6px}
-.buzz-icon{font-size:14px;color:var(--violet);font-weight:900}
-.buzz-title{font-size:9px;color:var(--mute);letter-spacing:1.5px;font-weight:800;flex:1;text-transform:uppercase}
-.buzz-level{font-size:8px;letter-spacing:1.2px;font-weight:800;padding:3px 9px;text-transform:uppercase}
-.buzz-level.buzz-hot{color:#0b0f18;background:var(--coral);animation:pulse 2s infinite}
-.buzz-level.buzz-warm{color:var(--amber);background:rgba(251,191,36,0.14);border:1px solid rgba(251,191,36,0.4)}
-.buzz-level.buzz-cool{color:var(--cyan);background:rgba(34,211,238,0.12);border:1px solid rgba(34,211,238,0.35)}
-.buzz-level.buzz-cold{color:var(--mute);background:var(--panel-3);border:1px solid var(--line)}
-.buzz-text{font-size:11.5px;color:var(--ink-dim);line-height:1.55;font-family:"Inter",sans-serif}
-
-.squeeze-block{padding:11px 14px;margin-bottom:12px;background:var(--panel-2);border-left:2px solid var(--sq-color);position:relative}
-.squeeze-block.sq-low{--sq-color:var(--cyan)}
-.squeeze-block.sq-medium{--sq-color:var(--amber)}
-.squeeze-block.sq-high{--sq-color:var(--coral)}
-.squeeze-block.sq-extreme{--sq-color:var(--coral);background:rgba(248,113,113,0.06)}
-.squeeze-header{display:flex;align-items:center;gap:10px;margin-bottom:6px}
-.squeeze-icon{font-size:13px;color:var(--sq-color);font-weight:900}
-.squeeze-title{font-size:9px;color:var(--mute);letter-spacing:1.5px;font-weight:800;flex:1;text-transform:uppercase}
-.squeeze-level{font-size:8px;letter-spacing:1.2px;font-weight:800;padding:3px 9px;text-transform:uppercase;color:var(--sq-color);background:color-mix(in srgb,var(--sq-color) 12%,transparent);border:1px solid color-mix(in srgb,var(--sq-color) 40%,transparent)}
-.squeeze-level.sq-extreme{color:#0b0f18;background:var(--sq-color);animation:pulse 2s infinite}
-.squeeze-reasons{list-style:none;margin:6px 0;padding:0}
-.squeeze-reasons li{font-size:11px;color:var(--ink-dim);padding:3px 0 3px 14px;position:relative;line-height:1.4;font-family:"Inter",sans-serif}
-.squeeze-reasons li::before{content:"▸";position:absolute;left:0;color:var(--sq-color);font-weight:900}
-.squeeze-verdict{font-size:11.5px;color:var(--ink);line-height:1.5;margin-top:6px;padding-top:6px;border-top:1px solid var(--line);font-family:"Inter",sans-serif;font-weight:500}
-
-.strategy-block{padding:11px 14px;margin-top:10px;background:var(--panel-3);border-left:2px solid var(--card-color);position:relative}
-.strategy-title{font-size:9px;color:var(--card-color);letter-spacing:1.6px;font-weight:800;margin-bottom:5px;text-transform:uppercase}
-.strategy-text{font-size:12px;color:var(--ink);line-height:1.55;font-family:"Inter",sans-serif;font-weight:500}
-
-.section-title{font-size:12px;color:var(--mute);letter-spacing:3px;text-transform:uppercase;margin:26px 0 14px;font-weight:800;display:flex;align-items:center;gap:14px}
-.section-title::before{content:"";width:20px;height:2px;background:var(--section-color,var(--cyan))}
-.section-title::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--line),transparent)}
-.section-strong{--section-color:var(--green)}.section-good{--section-color:var(--blue)}
-.section-scout{--section-color:var(--amber)}.section-watch{--section-color:var(--mute)}
-.section-taiko{--section-color:var(--cyan)}.section-dexe{--section-color:var(--pink)}
-.section-count{color:var(--section-color,var(--cyan));font-family:"JetBrains Mono",monospace;font-weight:800}
-
-a{color:var(--cyan);text-decoration:none}a:hover{color:var(--blue)}
-"""
-
-    def render_card(r: dict) -> str:
-        bucket = r.get("bucket", "watch")
-        symbol = esc(r.get("symbol", "—"))
-        rank = esc(r.get("rank", ""))
-        score = r.get("score", 0)
-        tags = r.get("tags", []) or []
-        phase = r.get("phase") or {}
-        metrics = r.get("metrics", []) or []
-        dexe = r.get("dexe") or {}
-        analysis = r.get("analysis", "") or ""
-        buzz = r.get("buzz") or {}
-        strategy = r.get("strategy", "") or ""
-        squeeze = r.get("squeeze")
-
-        tags_html = "".join(
-            f'<span class="tag {esc(t.get("class","tag-cat"))}">{esc(t.get("text",""))}</span>'
-            for t in tags
+        viral_items.sort(
+            key=lambda c: (c.get("surge") or {}).get("surge_ratio", 0),
+            reverse=True,
         )
 
-        links = r.get("links", []) or []
-        links_html = ""
-        if links:
-            items = "".join(
-                f'<a class="link-chip" href="{esc(l["url"])}" target="_blank" rel="noopener">{esc(l["text"])}</a>'
-                for l in links
-            )
-            links_html = f'<div class="links-row">{items}</div>'
-
-        phase_html = ""
-        if phase:
-            phase_html = f"""
-            <div class="phase-indicator {esc(phase.get("class","phase-p3"))}">
-              <div class="phase-icon">{esc(phase.get("icon","3"))}</div>
-              <div class="phase-name">{esc(phase.get("name",""))}</div>
-              <div class="phase-tf">{esc(phase.get("tf",""))}</div>
-            </div>"""
-
-        metrics_html = ""
-        if metrics:
-            cells = "".join(
-                f'<div class="metric"><div class="metric-key">{esc(m.get("key",""))}</div>'
-                f'<div class="metric-val {esc(m.get("cls",""))}">{esc(m.get("val",""))}</div></div>'
-                for m in metrics
-            )
-            metrics_html = f'<div class="metrics">{cells}</div>'
-
-        dexe_html = ""
-        if dexe and dexe.get("cells"):
-            cells = "".join(
-                f'<div class="dexe-cell"><span class="dexe-k">{esc(c.get("k",""))}</span>'
-                f'<span class="dexe-v {esc(c.get("cls",""))}">{esc(c.get("v",""))}</span></div>'
-                for c in dexe["cells"]
-            )
-            dexe_html = f"""
-            <div class="dexe-block">
-              <div class="dexe-title">◈ DEX / Onchain</div>
-              <div class="dexe-grid">{cells}</div>
-            </div>"""
-
-        analysis_html = ""
-        if analysis:
-            analysis_html = f"""
-            <div class="analysis-block">
-              <div class="analysis-title">◇ Fundamental Take</div>
-              <div class="analysis-text">{esc(analysis)}</div>
-            </div>"""
-
-        buzz_html = ""
-        if buzz:
-            buzz_html = f"""
-            <div class="buzz-block">
-              <div class="buzz-header">
-                <span class="buzz-icon">◉</span>
-                <span class="buzz-title">Twitter Buzz</span>
-                <span class="buzz-level {esc(buzz.get("level_class","buzz-cool"))}">{esc(buzz.get("level_text","COOL"))}</span>
-              </div>
-              <div class="buzz-text">{esc(buzz.get("text",""))}</div>
-            </div>"""
-
-        squeeze_html = ""
-        if squeeze:
-            lvl = squeeze.get("level", "low")
-            lvl_cls = f"sq-{lvl}"
-            reasons_html = "".join(f"<li>{esc(x)}</li>" for x in (squeeze.get("reasons") or [])[:4])
-            squeeze_html = f"""
-            <div class="squeeze-block {lvl_cls}">
-              <div class="squeeze-header">
-                <span class="squeeze-icon">⚠</span>
-                <span class="squeeze-title">Squeeze Risk</span>
-                <span class="squeeze-level {lvl_cls}">{esc(lvl.upper())} · {esc(squeeze.get("score",0))}/100</span>
-              </div>
-              <ul class="squeeze-reasons">{reasons_html}</ul>
-              <div class="squeeze-verdict">{esc(squeeze.get("verdict",""))}</div>
-            </div>"""
-
-        strategy_html = ""
-        if strategy:
-            strategy_html = f"""
-            <div class="strategy-block">
-              <div class="strategy-title">▶ Strategy</div>
-              {render_risk_banner(strategy)}
-              <div class="strategy-text">{esc(strategy)}</div>
-            </div>"""
-
+        cards = "\n".join(render_card(r) for r in viral_items)
         return f"""
-        <div class="card card-{esc(bucket)}">
-          <div class="card-top">
-            <div>
-              <div class="rank-symbol">
-                <span class="rank">{rank}</span>
-                <span class="symbol">{symbol}</span>
-              </div>
-              <div class="tag-row">{tags_html}</div>
-            </div>
-            <div class="score-badge">
-              <div class="score-badge-label">Score</div>
-              <div class="score-badge-value">{esc(score)}</div>
-            </div>
-          </div>
-          {links_html}
-          {phase_html}
-          {metrics_html}
-          {dexe_html}
-          {analysis_html}
-          {buzz_html}
-          {squeeze_html}
-          {strategy_html}
-        </div>"""
+        <div class="section-title section-viral">
+          🚀 VIRAL HYPE · MEME / GAMEFI
+          <span class="section-count">[{len(viral_items):02d}]</span>
+        </div>
+        <div style="background:rgba(244,114,182,0.06);border-left:2px solid #f472b6;
+                    padding:10px 14px;margin-bottom:14px;font-size:12px;color:#d1d5db;
+                    line-height:1.5;">
+          Пересечение трёх сигналов: <b style="color:#a78bfa;">Twitter HOT</b> +
+          <b style="color:#F59E0B;">Volume Surge ×3+</b> +
+          спекулятивный сектор <b style="color:#f472b6;">(meme / gamefi)</b>.
+          Самые «горячие» монеты рынка прямо сейчас — но и самые рискованные.
+          <br><span style="color:#f87171;font-weight:700;">
+          ⚠ Размер позиции 1/4 от стандартного, стоп жёсткий, горизонт 1–3 дня.</span>
+        </div>
+        <div class="grid">{cards}</div>
+        """
 
-    def render_section(title: str, cls: str, items: list[dict]) -> str:
+    # ── Легенда ──
+    legend_html = """
+    <div style="background:var(--panel);border:1px solid var(--border);border-radius:6px;
+                padding:10px 14px;margin:16px 0;font-size:12px;color:#9ca3af;line-height:1.7;">
+      <b style="color:#e8ecf5">Легенда:</b>
+      <span style="color:#f472b6">🚀 VIRAL</span> — meme/gamefi + Twitter HOT + Vol Surge ·
+      <span style="color:#22d3ee">◉ TAIKO</span> — HTF reversal setup ·
+      <span style="color:#f472b6">◉ DEXE</span> — post-pump return to EMA200 ·
+      <span style="color:#F59E0B">📊 VOL SURGE</span> — дневной объём ×3+ ·
+      <span style="color:#a78bfa">🔥 HOT</span> — Twitter buzz.
+    </div>
+    """
+
+    # ── Сборка секций ──
+    volume_surge_html = render_volume_surge_section(rows)
+    twitter_hot_html  = render_twitter_hot_section(rows)
+    viral_html        = render_viral_hype_section(rows)
+
+    viral_stat_html  = render_stat_tile("🚀 VIRAL", len(viral),  "meme/gamefi hype", "stat-viral",  viral)
+    taiko_stat_html  = render_stat_tile("◉ TAIKO",  len(taiko),  "HTF reversal",     "stat-taiko",  taiko)
+    dexe_stat_html   = render_stat_tile("◉ DEXE",   len(dexe),   "post-pump",        "stat-dexe",   dexe)
+    strong_stat_html = render_stat_tile("Strong",   len(strong), "high-confluence",  "stat-strong", strong)
+    good_stat_html   = render_stat_tile("Good",     len(good),   "tradable setups",  "stat-good",   good)
+    scout_stat_html  = render_stat_tile("Scout",    len(scout),  "early stage",      "stat-scout",  scout)
+    watch_stat_html  = render_stat_tile("Watch",    len(watch),  "monitor only",     "stat-watch",  watch)
+
+    stats_html = (viral_stat_html + taiko_stat_html + dexe_stat_html +
+                  strong_stat_html + good_stat_html + scout_stat_html + watch_stat_html)
+
+    def render_bucket_section(name: str, items: list, css_class: str) -> str:
         if not items:
             return ""
-        cards = "\n".join(render_card(r) for r in items)
+        items_sorted = sorted(items, key=lambda x: -x.get("score", 0))
+        cards = "\n".join(render_card(r) for r in items_sorted)
         return f"""
-        <div class="section-title section-{cls}">
-          {title}
+        <div class="section-title section-{css_class}">
+          {esc(name)}
           <span class="section-count">[{len(items):02d}]</span>
         </div>
-        <div class="grid">{cards}</div>"""
+        <div class="grid">{cards}</div>
+        """
 
-    # === Собираем блоки ===
-    volume_surge_html = render_volume_surge_section(rows)
-    taiko_html = render_section("◉ TAIKO REVERSAL SETUPS", "taiko", taiko)
-    dexe_html = render_section("◉ DEXE POST-PUMP SETUPS", "dexe", dexe)
-    strong_html = render_section("STRONG SIGNALS", "strong", strong)
-    good_html = render_section("GOOD SETUPS", "good", good)
-    scout_html = render_section("SCOUT / EARLY", "scout", scout)
-    watch_html = render_section("WATCHLIST", "watch", watch)
+    taiko_html  = render_bucket_section("◉ TAIKO REVERSAL SETUPS", taiko, "taiko")
+    dexe_html   = render_bucket_section("◉ DEXE POST-PUMP SETUPS", dexe, "dexe")
+    strong_html = render_bucket_section("STRONG · high-confluence", strong, "strong")
+    good_html   = render_bucket_section("GOOD · tradable setups",   good,   "good")
+    scout_html  = render_bucket_section("SCOUT · early stage",      scout,  "scout")
+    watch_html  = render_bucket_section("WATCH · monitor only",     watch,  "watch")
 
-    # === Интерактивные плашки (6 штук) ===
-    stats_html = "".join([
-        render_stat_tile("◉ TAIKO",  len(taiko),  "HTF reversal",     "stat-taiko",  taiko),
-        render_stat_tile("◉ DEXE",   len(dexe),   "post-pump",        "stat-dexe",   dexe),
-        render_stat_tile("Strong",   len(strong), "high-confluence",  "stat-strong", strong),
-        render_stat_tile("Good",     len(good),   "tradable setups",  "stat-good",   good),
-        render_stat_tile("Scout",    len(scout),  "early stage",      "stat-scout",  scout),
-        render_stat_tile("Watch",    len(watch),  "monitor only",     "stat-watch",  watch),
-    ])
-
-    legend_html = """
-    <div class="phase-legend">
-      <div class="phase-legend-title">Vortex Phases</div>
-      <div class="phase-legend-grid">
-        <div class="pl-item pl-1">
-          <div class="pl-num">1</div>
-          <div class="pl-body">
-            <div class="pl-name">Accumulation</div>
-            <div class="pl-desc">Плоское дно, умные деньги собирают. Скаутить, ждать подтверждения.</div>
-          </div>
-        </div>
-        <div class="pl-item pl-2">
-          <div class="pl-num">2</div>
-          <div class="pl-body">
-            <div class="pl-name">Reversal</div>
-            <div class="pl-desc">Разворот от низов, OBV вверх. Ранний вход, часто = TAIKO-сетап.</div>
-          </div>
-        </div>
-        <div class="pl-item pl-3">
-          <div class="pl-num">3</div>
-          <div class="pl-body">
-            <div class="pl-name">Breakout ★</div>
-            <div class="pl-desc">Пробой уровня на объёме. Основная зона входа.</div>
-          </div>
-        </div>
-        <div class="pl-item pl-4">
-          <div class="pl-num">4</div>
-          <div class="pl-body">
-            <div class="pl-name">Trend</div>
-            <div class="pl-desc">Устойчивое движение. Держать, добирать на откатах.</div>
-          </div>
-        </div>
-        <div class="pl-item pl-5">
-          <div class="pl-num">5</div>
-          <div class="pl-body">
-            <div class="pl-name">Euphoria ⚠</div>
-            <div class="pl-desc">Параболический топ, RSI 85+. Не входить, фиксировать.</div>
-          </div>
-        </div>
-      </div>
-      <div class="phase-legend-tags">
-        <span class="pl-tag pl-tag-taiko">◉ TAIKO REVERSAL</span>
-        <span class="pl-tag-desc">— капитуляция + разворот на HTF</span>
-        <span class="pl-tag pl-tag-dexe">◉ DEXE POST-PUMP</span>
-        <span class="pl-tag-desc">— консолидация после сдувшегося пампа</span>
-      </div>
-    </div>"""
-
-    html_str = f"""<!doctype html>
+    # ── Финальный HTML ──
+    html_str = f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
-<meta charset="utf-8">
-<title>Sleeping Alts Screener — HEX v3</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
-<style>{css}</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sleeping Alts Screener</title>
+  <style>{css}</style>
 </head>
 <body>
-<div class="container">
-  <div class="header hex">
-    <div class="brand">
-      <div class="brand-icon hex-sm">◈</div>
-      <div>
-        <div class="brand-title">Sleeping Alts Screener</div>
-        <div class="subtitle">HEX GRID · Multi-Layer Signal Engine</div>
-      </div>
-    </div>
-    <div class="header-right">
-      <div class="status-badge">
-        <span class="status-dot"></span> LIVE · {total} pairs
-      </div>
-      <div class="timestamp">Updated <span>{esc(ts)}</span></div>
-    </div>
-  </div>
+  <h1>SLEEPING ALTS SCREENER</h1>
+  <div class="subtitle">Stage 2 · {esc(ts)} · {len(rows)} монет</div>
 
   <div class="stats">{stats_html}</div>
 
-  <div class="filter-bar">
-    <span class="filter-label">Legend</span>
-    <span class="pill"><span class="pill-dot" style="background:var(--green)"></span>Strong</span>
-    <span class="pill"><span class="pill-dot" style="background:var(--blue)"></span>Good</span>
-    <span class="pill"><span class="pill-dot" style="background:var(--amber)"></span>Scout</span>
-    <span class="pill"><span class="pill-dot" style="background:var(--mute)"></span>Watch</span>
-  </div>
-
   {legend_html}
+  {viral_html}
   {volume_surge_html}
+  {twitter_hot_html}
   {taiko_html}
   {dexe_html}
   {strong_html}
   {good_html}
   {scout_html}
   {watch_html}
-</div>
-</body>
-</html>"""
 
-    if out_path is not None:
-        try:
-            Path(out_path).write_text(html_str, encoding="utf-8")
-        except Exception as e:
-            log.error(f"build_html: не удалось записать {out_path}: {e}")
+</body>
+</html>
+"""
     return html_str
 
-
-# ============================================================
-# PIPELINE
-# ============================================================
-def run_pipeline() -> dict:
-    log.info("Загружаем список USDT-перпов Binance Futures...")
-    symbols = fetch_futures_symbols()
-    log.info(f"Найдено {len(symbols)} пар")
-
-    log.info("Загружаем 24h stats...")
-    tick24 = fetch_24h_stats()
-
-    prelim = [s for s in symbols if s in tick24]
-    log.info(f"К анализу: {len(prelim)} пар")
-
-    results: list[dict] = []
-    total = len(prelim)
-    processed = 0
-
-    def worker(sym: str):
-        try:
-            return analyze_symbol(sym, tick24[sym])
-        except Exception as e:
-            log.debug(f"analyze {sym} failed: {e}")
-            return None
-
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-        futures = {pool.submit(worker, s): s for s in prelim}
-        for fut in as_completed(futures):
-            processed += 1
-            if processed % 25 == 0:
-                log.info(f"Прогресс: {processed}/{total}")
-            res = fut.result()
-            if res:
-                results.append(res)
-
-    log.info(f"Первичная оценка {len(results)} монет...")
-
-    candidates: list[Candidate] = []
-    scored = []
-    for m in results:
-        sc = score_candidate(m)
-        if sc >= MIN_SCORE_TO_INCLUDE or m["price_change_30d"] < -40:
-            scored.append((sc, m))
-    scored.sort(key=lambda x: -x[0])
-    log.info(f"Итого кандидатов: {len(scored)}")
-
-    for idx, (_, m) in enumerate(scored, start=1):
-        try:
-            cand = build_candidate(m, idx)
-            candidates.append(cand)
-        except Exception as e:
-            log.warning(f"build_candidate {m['symbol']} failed: {e}")
-
-    candidates.sort(key=lambda c: (
-        {"strong": 0, "good": 1, "scout": 2, "watch": 3}[c.bucket],
-        -c.score,
-    ))
-
-    log.info(f"Рендерим HTML → {REPORT_HTML}")
-    build_html(candidates, REPORT_HTML)
-
-    return {"html": REPORT_HTML, "count": len(candidates)}
-
-
-# ============================================================
-# ENTRYPOINT
-# ============================================================
+# ─────────────────────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────────────────────
 def main():
-    t0 = time.time()
-    try:
-        out = run_pipeline()
-        dt = time.time() - t0
-        log.info(f"✔ Готово за {dt:.1f}s. Отчёт: {out['html']} ({out['count']} монет)")
-    except KeyboardInterrupt:
-        log.warning("Прервано пользователем")
-        sys.exit(1)
-    except Exception as e:
-        log.exception(f"Ошибка: {e}")
-        sys.exit(2)
+    print("→ Загружаю тикеры Binance Futures...")
+    tickers = get_futures_tickers()
+    if not tickers:
+        print("✗ Не удалось получить тикеры")
+        return
 
+    # Фильтруем USDT-perp и по объёму
+    candidates_syms = []
+    for t in tickers:
+        sym = t.get("symbol", "")
+        if not sym.endswith("USDT"):
+            continue
+        base = sym[:-4]
+        if base in STABLECOINS or base in EXCLUDE_TOKENS:
+            continue
+        try:
+            qvol = float(t.get("quoteVolume", 0))
+        except Exception:
+            qvol = 0
+        if qvol < MIN_QUOTE_VOLUME_24H:
+            continue
+        candidates_syms.append((sym, qvol))
+
+    # Сортируем по обороту (топ ликвидных)
+    candidates_syms.sort(key=lambda x: -x[1])
+    candidates_syms = candidates_syms[:MAX_SYMBOLS]
+
+    print(f"→ Обрабатываю {len(candidates_syms)} монет...")
+
+    results: list[Candidate] = []
+    for i, (sym, _) in enumerate(candidates_syms, 1):
+        try:
+            print(f"  [{i}/{len(candidates_syms)}] {sym}...", end=" ", flush=True)
+            c = build_candidate(sym, i)
+            if c:
+                results.append(c)
+                print(f"score={c.score} bucket={c.bucket}")
+            else:
+                print("skip")
+        except Exception as e:
+            print(f"ERROR: {e}")
+
+    # Сортируем по score
+    results.sort(key=lambda x: -x.score)
+
+    print(f"→ Генерирую HTML отчёт → {REPORT_HTML}")
+    html_str = build_html(results)
+    REPORT_HTML.write_text(html_str, encoding="utf-8")
+
+    print(f"✓ Готово! Открой {REPORT_HTML}")
 
 if __name__ == "__main__":
     main()
+
+# ═══════════════════════════════════════════════════════════════
+#  ЧАСТЬ 3b/3 КОНЕЦ · ФАЙЛ ЗАВЕРШЁН
+# ═══════════════════════════════════════════════════════════════
