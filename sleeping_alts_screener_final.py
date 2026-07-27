@@ -42,20 +42,27 @@ STABLECOINS = {
     "UST", "PYUSD", "USDE", "USDS", "USDX",
 }
 
-EXCLUDE_TOKENS = {
-    "BTC", "ETH",   # мажоры
-}
 STOCK_PERPS = {
     "TSLA", "MRVL", "NVDA", "AAPL", "MSFT", "AMZN", "META", "GOOGL",
     "COIN", "MSTR", "HOOD", "PLTR", "AMD", "INTC", "NFLX", "BABA",
-    "SPY", "QQQ", "GLD", "SLV", "ON",
-    "SNDK", "SKHYNIX", "SOXL", "MU", "TSM", "ASML", "AVGO", "ORCL",
-    "SMCI", "ARM", "DELL", "IBM", "CRM", "UBER", "ABNB", "SHOP",
-    "GME", "AMC", "BB", "NOK", "LCID", "RIVN", "NIO", "XPEV",
-    "BRKB", "JPM", "V", "MA", "WMT", "COST", "DIS", "PYPL",
-    "COINBASE", "CRCL", "FIGR", "BMNR", "SBET",
+    "SPY", "QQQ", "GLD", "SLV", "ON", "SNDK", "SKHYNIX", "SOXL",
+    "MU", "TSM", "ASML", "AVGO", "ORCL", "SMCI", "ARM", "DELL",
+    "IBM", "CRM", "UBER", "ABNB", "SHOP", "GME", "AMC", "BB",
+    "NOK", "LCID", "RIVN", "NIO", "XPEV", "BRKB", "JPM", "V",
+    "MA", "WMT", "COST", "DIS", "PYPL", "COINBASE", "CRCL", "FIGR",
+    "BMNR", "SBET",
+    # добавлено по результатам прогона
+    "NBIS", "CRWV", "RKLB", "AAOI", "IREN", "SAMSUNG", "SKHY",
+    "ZHIPU", "MVLL", "GLW", "EWY", "SNXX", "MINIMAX", "STRC",
+    "GRAM", "TQQQ", "SQQQ", "SOXS", "SPCX", "LITE", "BILL",
 }
-EXCLUDE_TOKENS = EXCLUDE_TOKENS | STOCK_PERPS
+
+# Товарные активы и сырьё — не крипта
+COMMODITY_PERPS = {
+    "XAU", "XAG", "XAUT", "PAXG", "XPT", "XPD", "NATGAS", "OIL", "WTI", "BRENT",
+}
+
+EXCLUDE_TOKENS = STABLECOINS | STOCK_PERPS | COMMODITY_PERPS
 
 # ─────────────────────────────────────────────────────────────
 # Dataclass
@@ -551,14 +558,16 @@ def build_candidate(symbol: str, rank_idx: int) -> Candidate | None:
                 "text": f"◉ TAIKO REVERSAL · {taiko_sig.score}",
                 "class": "tag-pattern taiko",
             })
-        score += taiko_sig.score
+        # внутренний скор 45..100 → вклад 15..35
+        score += int(15 + (taiko_sig.score - 45) * 0.36)
 
     if dexe_sig.detected:
         tags.append({
             "text": f"◉ DEXE POST-PUMP · {dexe_sig.score}",
             "class": "tag-pattern dexe",
         })
-        score += dexe_sig.score
+        # внутренний скор 55..100 → вклад 15..35
+        score += int(15 + (dexe_sig.score - 55) * 0.44)
 
     # ── Общий скор по фазе ──
     if vp.get("phase") == 4:
@@ -1216,6 +1225,8 @@ def main():
         if not sym.endswith("USDT"):
             continue
         base = sym[:-4]
+        if not base.isascii():
+            continue
         if base in STABLECOINS or base in EXCLUDE_TOKENS:
             continue
         try:
