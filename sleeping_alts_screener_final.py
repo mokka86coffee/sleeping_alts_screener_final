@@ -711,9 +711,12 @@ def build_candidate(symbol: str, rank_idx: int) -> Candidate | None:
     strategy = build_strategy(m, sq, taiko_sig, dexe_sig)
 
     # ── Ссылки на графики ──
+    base = symbol[:-4] if symbol.endswith("USDT") else symbol
     links = [
         {"text": "TradingView", "url": f"https://www.tradingview.com/chart/?symbol=BINANCE:{symbol}.P"},
         {"text": "Binance",     "url": f"https://www.binance.com/en/futures/{symbol}"},
+        {"text": "CoinGecko",   "url": f"https://www.coingecko.com/en/search?query={base}"},
+        {"text": "Twitter",     "url": f"https://x.com/search?q=%24{base}&f=live"},
     ]
 
     return Candidate(
@@ -992,6 +995,19 @@ def build_html(candidates: list[Candidate]) -> str:
     .b3-d{font-size:8.5px;color:#5a5a66;margin-top:6px;line-height:1.5}
     .b3-tv{position:absolute;right:20px;top:14px;font-size:7.5px;font-weight:900;color:#8a8a96}
     .empty-note{font-family:var(--serif);font-style:italic;font-size:10px;color:#3a3a44;padding:6px 22px}
+
+    /* ══════════ ССЫЛКИ КАРТОЧКИ ══════════ */
+    .lnks{display:flex;gap:8px;margin-top:12px}
+    .lnk{flex:1;height:32px;border-radius:16px;background:#121217;border:1px solid var(--line2);
+      display:flex;align-items:center;justify-content:center;gap:7px;
+      font-size:8px;font-weight:900;letter-spacing:1.5px;color:#8a8a96;
+      transition:background .15s,color .15s,border-color .15s}
+    .lnk:hover{background:#1c1a14;border-color:rgba(255,184,0,.4);color:var(--am1)}
+    .lnk i{font-style:normal;font-size:9px;opacity:.7}
+    .lnk.pri{background:#1a1710;border-color:rgba(255,184,0,.32);color:var(--am4)}
+    .lnk.pri:hover{background:#241f10;color:var(--am1)}
+    .hdr-sym-a{display:block}
+    .hdr-sym-a:hover .hdr-sym{opacity:.82}
 
     @media(max-width:1180px){
       .dash{grid-template-columns:repeat(4,1fr);row-gap:20px}
@@ -1319,7 +1335,6 @@ def build_html(candidates: list[Candidate]) -> str:
 
         # ── блок 03 стратегия ──
         strat = (c.get("strategy") or "").strip()
-        tv = f"https://www.tradingview.com/chart/?symbol=BINANCE:{sym}.P"
         b3 = ""
         if strat:
             b3 = f"""
@@ -1331,13 +1346,28 @@ def build_html(candidates: list[Candidate]) -> str:
   </div>
 </div>"""
 
+        # ── ссылки ──
+        ICON_L = {"tradingview": "📈", "binance": "🅱", "coingecko": "🦎", "twitter": "𝕏"}
+        links = c.get("links") or []
+        lnk_html = ""
+        for i, l in enumerate(links):
+            txt = str(l.get("text", ""))
+            ico = ICON_L.get(txt.lower().replace(" ", ""), "↗")
+            pri = " pri" if i == 0 else ""
+            lnk_html += (f'<a class="lnk{pri}" href="{esc(l.get("url",""))}" '
+                         f'target="_blank" rel="noopener">'
+                         f'<i>{ico}</i>{esc(txt.upper())} ↗</a>')
+        links_block = f'<div class="lnks">{lnk_html}</div>' if lnk_html else ""
+
         inner = f"""
 <div class="card-in">
   <div class="hdr {tone}">
     <div class="hdr-cl"><div class="hdr-gh">{esc(ghost)}</div></div>
     <div class="hdr-in">
       <div class="hdr-rk"><b>RANK {esc(rank)}</b><i></i></div>
-      <div class="hdr-sym" style="font-size:{fs};letter-spacing:{ls}">{esc(sym)}</div>
+      <a class="hdr-sym-a" href="{tv}" target="_blank" rel="noopener">
+          <div class="hdr-sym" style="font-size:{fs};letter-spacing:{ls}">{esc(sym)}</div>
+      <a>
       <div class="hdr-ph">{esc(ph_lbl)}</div>
     </div>
     <div class="hdr-pr">{esc(price)}</div>
@@ -1359,6 +1389,7 @@ def build_html(candidates: list[Candidate]) -> str:
   <div class="perf">{perf}</div>
   <div class="tech">{esc(tech)}</div>
   {b1}{b2}{b3}
+  {links_block}
 </div>"""
 
         if glow:
