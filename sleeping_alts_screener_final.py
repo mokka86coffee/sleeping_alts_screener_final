@@ -25,6 +25,8 @@ from dexe_detector import detect_dexe, DexeSignal
 from volume_surge_detector import detect_volume_surge
 from squeeze_detector import detect_squeeze
 from external_data import get_fundamentals, build_fundamental_take_live
+from rr_dial import build_dial, fmt_price
+
 # ─────────────────────────────────────────────────────────────
 # Конфигурация
 # ─────────────────────────────────────────────────────────────
@@ -1333,18 +1335,59 @@ def build_html(candidates: list[Candidate]) -> str:
   <div class="b2-body">{body}</div>
 </details>"""
 
-        # ── блок 03 стратегия ──
-        strat = (c.get("strategy") or "").strip()
-        b3 = ""
-        if strat:
-            b3 = f"""
-<div class="blk b3"><div class="blk-n">03</div>
-  <a class="b3-tv" href="{tv}" target="_blank" rel="noopener">TV ↗</a>
-  <div class="b3-in">
-    <div class="b3-t">СТРАТЕГИЯ</div>
-    <div class="b3-d">{esc(strat)}</div>
-  </div>
-</div>"""
+        # ── 03 · Стратегия ──
+        st = c.get("strategy") or {}
+        strat_text = esc(st.get("text") or c.get("strategy_text") or "")
+        size_hint = st.get("size_hint") or ""
+        tv_url = c.get("tv_url") or ""
+
+        dial = build_dial(
+            entry=float(st.get("entry") or c.get("price") or 0),
+            stop=float(st.get("stop") or 0),
+            target=float(st.get("target1") or 0),
+        )
+    
+        if dial.ok:
+            dial_html = f"""
+        <div class="rr-dial rr-{dial.grade}">
+          <svg viewBox="0 0 100 100" aria-hidden="true">
+            <circle class="rr-trk" cx="50" cy="50" r="42"/>
+            <circle class="rr-arc" cx="50" cy="50" r="42"
+                    stroke-dasharray="{dial.dash} {dial.circumference}"/>
+          </svg>
+          <div class="rr-val">{dial.rr_text}</div>
+          <div class="rr-cap">R : R</div>
+        </div>
+        <div class="rr-nums">
+          <div class="rr-c"><span class="rr-l">ВХОД</span>
+            <span class="rr-p rr-e">{fmt_price(dial.entry)}</span></div>
+          <div class="rr-c"><span class="rr-l">СТОП</span>
+            <span class="rr-p rr-s">{fmt_price(dial.stop)}</span>
+            <span class="rr-d">{dial.stop_pct:+.1f}%</span></div>
+          <div class="rr-c"><span class="rr-l">ЦЕЛЬ 1</span>
+            <span class="rr-p rr-t">{fmt_price(dial.target)}</span>
+            <span class="rr-d">{dial.target_pct:+.1f}%</span></div>
+        </div>"""
+            b3_body = f'<div class="b3-grid">{dial_html}</div>'
+        else:
+            b3_body = ""
+
+        size_chip = (f'<span class="b3-chip">{esc(size_hint)}</span>'
+                     if size_hint else "")
+        tv_link = (f'<a class="b3-tv" href="{esc(tv_url)}" target="_blank" '
+                   f'rel="noopener">TV ↗</a>' if tv_url else "")
+
+        b3 = f"""
+    <div class="blk b3">
+      <div class="blk-n">03</div>
+      <div class="b3-in">
+        <div class="b3-hd">
+          <span class="b3-t">СТРАТЕГИЯ</span>{size_chip}{tv_link}
+        </div>
+        {b3_body}
+        <div class="b3-d">{strat_text}</div>
+      </div>
+    </div>"""
 
         # ── ссылки ──
         ICON_L = {"tradingview": "📈", "binance": "🅱", "coingecko": "🦎", "twitter": "𝕏"}
