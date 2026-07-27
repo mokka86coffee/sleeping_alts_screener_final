@@ -99,28 +99,17 @@ def detect_dexe(symbol: str) -> DexeSignal:
         return DexeSignal()
 
     # === 6. Плавный длительный рост ДО пика ===
-    # Ищем максимально ранний момент, откуда рост до пика был непрерывным (без крупных откатов >30%)
-    # и считаем длительность и множитель.
-    growth_start_idx = peak_idx
-    running_low = peak
-    for i in range(peak_idx - 1, -1, -1):
-        running_low = min(running_low, lows[i])
-        # если от этой точки цена дошла до пика без промежуточного отката >35%,
-        # считаем её частью восходящего движения
-        # (грубая проверка: local max между i и peak не должен превышать running_low на слишком много,
-        # т.к. это будет означать, что был отдельный памп раньше)
-        growth_start_idx = i
-        if running_low > 0 and (peak / running_low) >= MIN_GROWTH_MULT * 1.2:
-            # достаточно данных для ×10 с запасом — можно остановиться,
-            # чтобы не втягивать более раннюю историю
-            pass
-        # ограничим окно роста разумными пределами (не более 500ч ≈ 21 день)
-        if peak_idx - i > 500:
-            break
+    # Нога роста = от минимального лоя в окне (макс. 500ч) до пика
+    window_start = max(0, peak_idx - 500)
+    seg = lows[window_start:peak_idx + 1]
+    if not seg:
+        return DexeSignal()
 
-    growth_low = min(lows[growth_start_idx:peak_idx + 1])
+    growth_low = min(seg)
     if growth_low <= 0:
         return DexeSignal()
+
+    growth_start_idx = window_start + seg.index(growth_low)
     growth_mult = peak / growth_low
     growth_hours = peak_idx - growth_start_idx
     growth_days = growth_hours / 24.0
@@ -149,7 +138,7 @@ def detect_dexe(symbol: str) -> DexeSignal:
 
     # === Volume Climax Ratio ===
     # Объём в окне ±1 свечи от дна vs средний объём 20 свечей до пампа
-    vols = [float(k[5]) for k in kl]     # base asset volume
+    vols = [float(k[7]) for k in kl]  # quote volume (USD) — сопоставимо с TAIKO
     lo = max(0, bottom_idx - 1)
     hi = min(len(vols), bottom_idx + 2)
     climax_vol = max(vols[lo:hi]) if hi > lo else 0.0

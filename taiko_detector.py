@@ -48,14 +48,24 @@ class TaikoSignal:
 # ============================================================
 # ==================== ДАННЫЕ ================================
 # ============================================================
+_KL_CACHE: dict[tuple[str, str, int], list[list] | None] = {}
+
+
 def _get_klines(symbol: str, interval: str = "1d", limit: int = 500) -> list[list] | None:
+    key = (symbol, interval, limit)
+    if key in _KL_CACHE:
+        return _KL_CACHE[key]
     try:
         r = requests.get(f"{BINANCE_FAPI}/fapi/v1/klines",
                          params={"symbol": symbol, "interval": interval, "limit": limit},
                          timeout=(8, 20))
-        return r.json() if r.status_code == 200 else None
+        data = r.json() if r.status_code == 200 else None
     except Exception:
-        return None
+        data = None
+    if len(_KL_CACHE) > 3000:
+        _KL_CACHE.clear()
+    _KL_CACHE[key] = data
+    return data
 
 
 # ============================================================
@@ -147,14 +157,6 @@ VORTEX_TF_LADDER = [
 ]
 MIN_VORTEX_PEAKS = 3
 
-
-def _count_vortex_peaks(highs, lows, closes, lookback: int = 3) -> int:
-    vi_p, vi_m = _vortex(highs, lows, closes, 14)
-    tail_start = max(0, len(closes) - 60)
-    m_tail = vi_m[tail_start:]
-    return len(_find_swing_highs(m_tail, lookback=lookback))
-
-
 def _analyze_vortex_multi_tf(symbol: str) -> dict:
     result = {
         "tf_used": None,
@@ -178,8 +180,6 @@ def _analyze_vortex_multi_tf(symbol: str) -> dict:
         peaks_count, prominence = _vortex_tf_quality(h, l, c)
         readable = (3 <= peaks_count <= 10 and prominence >= 0.15)
         if not readable:
-            continue
-        if peaks_count < MIN_VORTEX_PEAKS:
             continue
 
         cross = _vortex_bullish_crossover(h, l, c)
@@ -483,6 +483,18 @@ def detect_taiko(symbol: str) -> TaikoSignal:
     # --- Условие срабатывания ---
     has_reversal_signal = (
         vortex_cross or vortex_div or vortex_exh or obv_div or vc_bull
+    )
+
+    min_score = 38 if short_history else 45
+    min_drop = -70 if short_history else -60
+
+    # Зрелая база снижает планку по скору: паттерн вызрел, ждём триггер
+    effective_min_score = min_score - 7 if in_base else min_score
+
+    detected = (
+        effective_drop <= min_drop
+        and has_reversal_signal
+        and score >= effective_min_score
     )
 
     min_score = 38 if short_history else 45

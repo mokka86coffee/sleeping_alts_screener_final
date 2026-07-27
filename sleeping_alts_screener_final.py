@@ -12,6 +12,7 @@ import html
 import math
 import time
 import statistics
+import traceback
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,8 +24,7 @@ from taiko_detector import detect_taiko, TaikoSignal
 from dexe_detector import detect_dexe, DexeSignal
 from volume_surge_detector import detect_volume_surge
 from squeeze_detector import detect_squeeze
-from external_data import get_fundamentals
-
+from external_data import get_fundamentals, build_fundamental_take_live
 # ─────────────────────────────────────────────────────────────
 # Конфигурация
 # ─────────────────────────────────────────────────────────────
@@ -45,6 +45,17 @@ STABLECOINS = {
 EXCLUDE_TOKENS = {
     "BTC", "ETH",   # мажоры
 }
+STOCK_PERPS = {
+    "TSLA", "MRVL", "NVDA", "AAPL", "MSFT", "AMZN", "META", "GOOGL",
+    "COIN", "MSTR", "HOOD", "PLTR", "AMD", "INTC", "NFLX", "BABA",
+    "SPY", "QQQ", "GLD", "SLV", "ON",
+    "SNDK", "SKHYNIX", "SOXL", "MU", "TSM", "ASML", "AVGO", "ORCL",
+    "SMCI", "ARM", "DELL", "IBM", "CRM", "UBER", "ABNB", "SHOP",
+    "GME", "AMC", "BB", "NOK", "LCID", "RIVN", "NIO", "XPEV",
+    "BRKB", "JPM", "V", "MA", "WMT", "COST", "DIS", "PYPL",
+    "COINBASE", "CRCL", "FIGR", "BMNR", "SBET",
+}
+EXCLUDE_TOKENS = EXCLUDE_TOKENS | STOCK_PERPS
 
 # ─────────────────────────────────────────────────────────────
 # Dataclass
@@ -71,9 +82,11 @@ class Candidate:
 # ─────────────────────────────────────────────────────────────
 # HTTP helpers
 # ─────────────────────────────────────────────────────────────
-def _get(url: str, params: dict | None = None) -> Any:
+def _get(url: str, params: dict | None = None, quiet_400: bool = False) -> Any:
     try:
         r = requests.get(url, params=params, timeout=REQUEST_TIMEOUT)
+        if r.status_code == 400 and quiet_400:
+            return None
         r.raise_for_status()
         return r.json()
     except Exception as e:
@@ -115,6 +128,7 @@ def get_spot_ticker(symbol: str) -> dict | None:
     return _get(
         f"{BINANCE_SPOT}/api/v3/ticker/24hr",
         {"symbol": symbol},
+        quiet_400=True,
     )
 
 # ─────────────────────────────────────────────────────────────
@@ -390,8 +404,11 @@ def build_strategy(m: dict, sq: dict | None, taiko_sig: TaikoSignal, dexe_sig: D
 
     if dexe_sig.detected:
         parts.append(
-            f"🎰 DEXE POST-PUMP. Ждём отбоя от EMA200 (~${dexe_sig.ema200:.4g}). "
-            f"Стоп под EMA, цель — возврат в диапазон до пампа."
+            f"🎰 DEXE POST-PUMP. Дамп {dexe_sig.dump_pct:.0f}% за {dexe_sig.dump_hours:.0f}ч, "
+            f"дно {dexe_sig.bottom_hours_ago:.0f}ч назад. "
+            f"Climax ×{dexe_sig.volume_climax_ratio:.1f} — {dexe_sig.climax_label}. "
+            f"Вход от текущей ${price:.4g} частями, стоп под дно, "
+            f"первая цель — 30–50% отката к пику ${dexe_sig.peak_price:.4g}."
         )
         return " ".join(parts)
 
@@ -404,6 +421,7 @@ def build_strategy(m: dict, sq: dict | None, taiko_sig: TaikoSignal, dexe_sig: D
     # Общая логика по фазе Vortex
     vp = m.get("vortex_4h", {})
     label = vp.get("label", "")
+
     if label == "TREND":
         parts.append(f"📈 TREND. Работать по тренду, коррекции откупать от EMA21.")
     elif label == "MOMENTUM":
@@ -461,31 +479,36 @@ def build_candidate(symbol: str, rank_idx: int) -> Candidate | None:
     ]
 
     # ── Volume Surge ──
-    vs = detect_volume_surge(symbol, m.get("volumes_1d") or [], m.get("closes_1d") or [])
+    vs = detect_volume_surge(symbol)
     surge_block = None
     if vs.detected:
         surge_block = {
             "detected": True,
             "surge_ratio": vs.surge_ratio,
-            "candle_type": vs.candle_type,
+            "candle_type": ("зелёная" if vs.is_green else "красная") + f" {vs.day_change_pct:+.1f}%",
+            "strength_label": vs.strength_label,
+            "current_vol_usd": vs.current_vol_usd,
+            "avg_vol_usd": vs.avg_vol_usd,
             "verdict": vs.verdict,
         }
+        arrow = "▲" if vs.is_green else "▼"
         tags.append({
-            "text": f"📊 VOL SURGE ×{vs.surge_ratio:.1f}",
+            "text": f"📊 VOL SURGE ×{vs.surge_ratio:.1f} {arrow}",
             "class": "tag-pattern surge",
         })
-        score += 12
+        score += 12 if vs.surge_ratio >= 10 else 8
 
     # ── Squeeze ──
     sq = detect_squeeze(symbol, m.get("closes_1d") or [], m.get("volumes_1d") or [])
     squeeze_block = None
     if sq and sq.get("detected"):
         squeeze_block = sq
+        lvl = sq.get("risk_level", "high")
         tags.append({
-            "text": f"⚠ EUPHORIA SQUEEZE",
+            "text": f"⚠ SQUEEZE {lvl.upper()} · {sq.get('risk_score', 0)}",
             "class": "tag-pattern euphoria",
         })
-        score += 8
+        score += 12 if lvl == "extreme" else 8
 
     # ── TAIKO ──
     taiko_sig = detect_taiko(symbol)
@@ -497,7 +520,14 @@ def build_candidate(symbol: str, rank_idx: int) -> Candidate | None:
         dexe_block = {
             "detected": True,
             "score": dexe_sig.score,
-            "ema200": dexe_sig.ema200,
+            "peak_price": dexe_sig.peak_price,
+            "dump_pct": dexe_sig.dump_pct,
+            "dump_hours": dexe_sig.dump_hours,
+            "growth_mult": dexe_sig.growth_mult,
+            "growth_days": dexe_sig.growth_days,
+            "bottom_hours_ago": dexe_sig.bottom_hours_ago,
+            "volume_climax_ratio": dexe_sig.volume_climax_ratio,
+            "climax_label": dexe_sig.climax_label,
             "verdict": dexe_sig.verdict,
         }
 
@@ -626,6 +656,10 @@ def build_candidate(symbol: str, rank_idx: int) -> Candidate | None:
     if vs.detected:
         analysis_parts.append(vs.verdict)
     analysis = " ".join(analysis_parts) if analysis_parts else ""
+
+    fund_take = build_fundamental_take_live(fund)
+    if fund_take:
+        analysis = (analysis + " " + fund_take).strip() if analysis else fund_take
 
     strategy = build_strategy(m, sq, taiko_sig, dexe_sig)
 
@@ -926,7 +960,7 @@ def build_html(candidates: list[Candidate]) -> str:
             📊 Аномальные объёмы (дневка)
           </h2>
           <p style="color:#9ca3af;font-size:12px;margin-bottom:12px;">
-            Дневной объём в 3+ раза выше среднего за 20 дней. Ранний сигнал перелома интереса.
+            Дневной объём в 3+ раза выше среднего за 30 дней. Ранний сигнал перелома интереса.
           </p>
           <table style="width:100%;border-collapse:collapse;font-size:13px;background:#111827;">
             <thead>
@@ -1014,12 +1048,18 @@ def build_html(candidates: list[Candidate]) -> str:
         def _setup_label(cand):
             for t in (cand.get("tags") or []):
                 text = t.get("text", "")
-                if "VIRAL HYPE" in text:       return ("🚀 VIRAL",      "#f472b6")
-                if "TAIKO CONFIRMED" in text:  return ("✅ TAIKO CONF", "#22d3ee")
-                if "TAIKO REVERSAL" in text:   return ("◉ TAIKO",       "#22d3ee")
-                if "DEXE POST-PUMP" in text:   return ("🎰 DEXE",       "#f472b6")
-                if "VOL SURGE" in text:        return ("📊 SURGE",      "#F59E0B")
-                if "EUPHORIA" in text:         return ("⚠ EUPHORIA",   "#f472b6")
+                if "VIRAL HYPE" in text:
+                    return ("🚀 VIRAL", "#f472b6")
+                if "TAIKO CONFIRMED" in text:
+                    return ("✅ TAIKO CONF", "#22d3ee")
+                if "TAIKO REVERSAL" in text:
+                    return ("◉ TAIKO", "#22d3ee")
+                if "DEXE POST-PUMP" in text:
+                    return ("🎰 DEXE", "#f472b6")
+                if "VOL SURGE" in text:
+                    return ("📊 SURGE", "#F59E0B")
+                if "SQUEEZE" in text:
+                    return ("⚠ SQUEEZE", "#f472b6")
             return ("—", "#6b7280")
 
         for c in hot_items:
@@ -1086,7 +1126,7 @@ def build_html(candidates: list[Candidate]) -> str:
       <b style="color:#e8ecf5">Легенда:</b>
       <span style="color:#f472b6">🚀 VIRAL</span> — meme/gamefi + Twitter HOT + Vol Surge ·
       <span style="color:#22d3ee">◉ TAIKO</span> — HTF reversal setup ·
-      <span style="color:#f472b6">◉ DEXE</span> — post-pump return to EMA200 ·
+      <span style="color:#f472b6">◉ DEXE</span> — отскок после дампа −90% ·
       <span style="color:#F59E0B">📊 VOL SURGE</span> — дневной объём ×3+ ·
       <span style="color:#a78bfa">🔥 HOT</span> — Twitter buzz.
     </div>
@@ -1193,6 +1233,7 @@ def main():
     print(f"→ Обрабатываю {len(candidates_syms)} монет...")
 
     results: list[Candidate] = []
+    errors: list[tuple[str, str]] = []
     for i, (sym, _) in enumerate(candidates_syms, 1):
         try:
             print(f"  [{i}/{len(candidates_syms)}] {sym}...", end=" ", flush=True)
@@ -1202,16 +1243,23 @@ def main():
                 print(f"score={c.score} bucket={c.bucket}")
             else:
                 print("skip")
+                time.sleep(0.25)
         except Exception as e:
-            print(f"ERROR: {e}")
+            print(f"ERROR: {type(e).__name__}: {e}")
+            errors.append((sym, f"{type(e).__name__}: {e}"))
+            traceback.print_exc()
 
     # Сортируем по score
     results.sort(key=lambda x: -x.score)
 
+    if errors:
+        print(f"\n⚠ Ошибок: {len(errors)} из {len(candidates_syms)}")
+        for sym, err in errors[:10]:
+            print(f"   {sym}: {err}")
+
     print(f"→ Генерирую HTML отчёт → {REPORT_HTML}")
     html_str = build_html(results)
     REPORT_HTML.write_text(html_str, encoding="utf-8")
-
     print(f"✓ Готово! Открой {REPORT_HTML}")
 
 if __name__ == "__main__":
