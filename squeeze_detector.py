@@ -3,11 +3,18 @@ squeeze_detector.py — детектор manipulated squeeze (DEXE-style пам�
 
 Отличает "здоровый" тренд (KAITO, DIA) от "выжимания шортов на тонком стакане".
 Работает на данных Binance Futures: klines + OI history + funding + premium index.
+
+Публичный API:
+  - analyze_squeeze(symbol) -> SqueezeSignal   (полный анализ, объект)
+  - get_squeeze_tag(sig)    -> dict | None     (тег для карточки)
+  - detect_squeeze(symbol, closes, vols) -> dict | None
+        Адаптер под sleeping_alts_screener_final.py:
+        возвращает {"detected": bool, "verdict": str, ...} или None.
 """
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import requests
@@ -22,37 +29,29 @@ HEADERS = {"User-Agent": "Mozilla/5.0 SleepingAlts/1.0"}
 # ============================================================
 # DATACLASS
 # ============================================================
-
 @dataclass
 class SqueezeSignal:
     symbol: str
-    risk_score: int = 0            # 0-100
-    risk_level: str = "none"       # none | low | medium | high | extreme
-    is_squeeze: bool = False       # True если risk_score >= 60
-
+    risk_score: int = 0                 # 0-100
+    risk_level: str = "none"            # none | low | medium | high | extreme
+    is_squeeze: bool = False            # True если risk_score >= 60
     # Метрики
     price_change_14d_pct: float = 0.0
     oi_change_14d_pct: float = 0.0
-    oi_price_ratio: float = 0.0    # OI растёт быстрее цены → squeeze
-    funding_now: float = 0.0       # текущий funding rate (%)
+    oi_price_ratio: float = 0.0
+    funding_now: float = 0.0
     funding_avg_7d: float = 0.0
     funding_peak_14d: float = 0.0
-    spot_futures_ratio: float = 0.0  # spot_vol / futures_vol; <0.3 = памп в перпах
+    spot_futures_ratio: float = 0.0
     rsi_14: float = 50.0
-    parabolic: bool = False        # цена > +50% за 7 дней без коррекций
-
-    reasons: list[str] = None
+    parabolic: bool = False
+    reasons: list[str] = field(default_factory=list)
     verdict: str = ""
-
-    def __post_init__(self):
-        if self.reasons is None:
-            self.reasons = []
 
 
 # ============================================================
 # HTTP HELPERS
 # ============================================================
-
 def _get(url: str, params: dict | None = None) -> Any:
     try:
         r = requests.get(url, params=params, timeout=TIMEOUT, headers=HEADERS)
@@ -82,7 +81,6 @@ def _rsi(closes: list[float], period: int = 14) -> float:
 # ============================================================
 # CORE
 # ============================================================
-
 def analyze_squeeze(symbol: str) -> SqueezeSignal:
     """
     Возвращает SqueezeSignal с оценкой риска manipulated squeeze.
@@ -98,18 +96,18 @@ def analyze_squeeze(symbol: str) -> SqueezeSignal:
         return sig
 
     closes = [float(k[4]) for k in kl]
-    vols_futures = [float(k[7]) for k in kl]  # quote volume в USDT
+    vols_futures = [float(k[7]) for k in kl]
 
     price_now = closes[-1]
     price_14d_ago = closes[-15] if len(closes) >= 15 else closes[0]
     price_7d_ago  = closes[-8]  if len(closes) >= 8  else closes[0]
 
     sig.price_change_14d_pct = (price_now / price_14d_ago - 1) * 100 if price_14d_ago > 0 else 0
-    price_change_7d_pct      = (price_now / price_7d_ago  - 1) * 100 if price_7d_ago  > 0 else 0
+    price_change_7d_pct = (price_now / price_7d_ago - 1) * 100 if price_7d_ago > 0 else 0
 
     sig.rsi_14 = _rsi(closes, 14)
 
-    # Парабола: макс дневная свеча в последних 7 днях > 15% и суммарный рост >50%
+    # Парабола: макс дневная свеча в последних 7 днях > 15% И суммарный рост > 50%
     max_daily = 0.0
     for i in range(max(1, len(closes) - 7), len(closes)):
         if closes[i - 1] > 0:
@@ -126,22 +124,20 @@ def analyze_squeeze(symbol: str) -> SqueezeSignal:
         oi_14d_ago = oi_vals[-15] if len(oi_vals) >= 15 else oi_vals[0]
         if oi_14d_ago > 0:
             sig.oi_change_14d_pct = (oi_now / oi_14d_ago - 1) * 100
-        # Соотношение: если OI вырос быстрее цены — squeeze
-        if abs(sig.price_change_14d_pct) > 1:
-            sig.oi_price_ratio = sig.oi_change_14d_pct / sig.price_change_14d_pct
+            if abs(sig.price_change_14d_pct) > 1:
+                sig.oi_price_ratio = sig.oi_change_14d_pct / sig.price_change_14d_pct
 
     # ─── 3. Funding rate history за 14 дней ───
     fr = _get(f"{BINANCE_FAPI}/fapi/v1/fundingRate",
               {"symbol": symbol, "limit": 100})
     if fr and len(fr) > 0:
-        rates = [float(x.get("fundingRate", 0)) * 100 for x in fr]  # в %
+        rates = [float(x.get("fundingRate", 0)) * 100 for x in fr]
         sig.funding_now = rates[-1]
-        # Последние 7 дней = 21 запись (funding каждые 8ч)
         recent = rates[-21:] if len(rates) >= 21 else rates
         sig.funding_avg_7d = sum(recent) / len(recent)
         sig.funding_peak_14d = max(rates[-42:]) if len(rates) >= 42 else max(rates)
 
-    # ─── 4. Spot vs Futures volume (если есть спот-пара) ───
+    # ─── 4. Spot vs Futures volume ───
     spot_kl = _get("https://api.binance.com/api/v3/klines",
                    {"symbol": symbol, "interval": "1d", "limit": 7})
     if spot_kl and len(spot_kl) >= 3:
@@ -154,7 +150,6 @@ def analyze_squeeze(symbol: str) -> SqueezeSignal:
     score = 0
     reasons: list[str] = []
 
-    # 1) Параболический рост цены
     if sig.parabolic:
         score += 25
         reasons.append(f"параболический рост (+{price_change_7d_pct:.0f}% за 7д, max свеча +{max_daily:.0f}%)")
@@ -162,7 +157,6 @@ def analyze_squeeze(symbol: str) -> SqueezeSignal:
         score += 12
         reasons.append(f"агрессивный рост +{price_change_7d_pct:.0f}% за 7д")
 
-    # 2) OI растёт значительно быстрее цены — классика squeeze
     if sig.oi_price_ratio > 1.5 and sig.oi_change_14d_pct > 50:
         score += 25
         reasons.append(f"OI растёт быстрее цены (OI +{sig.oi_change_14d_pct:.0f}% vs цена +{sig.price_change_14d_pct:.0f}%)")
@@ -170,27 +164,23 @@ def analyze_squeeze(symbol: str) -> SqueezeSignal:
         score += 15
         reasons.append(f"OI +{sig.oi_change_14d_pct:.0f}% за 14д — толпа лезет в перпы")
 
-    # 3) Экстремальный funding
-    if sig.funding_peak_14d > 0.15:  # >0.15% за 8ч = 164% APR
+    if sig.funding_peak_14d > 0.15:
         score += 25
         reasons.append(f"пиковый funding {sig.funding_peak_14d:.3f}% (~{sig.funding_peak_14d*3*365:.0f}% APR)")
     elif sig.funding_peak_14d > 0.08:
         score += 15
         reasons.append(f"высокий funding {sig.funding_peak_14d:.3f}%")
     elif sig.funding_now < -0.05:
-        # Отрицательный funding при пампе = шорты сдались, топ близко
         score += 10
         reasons.append(f"funding развернулся в минус ({sig.funding_now:.3f}%) — шорты капитулировали")
 
-    # 4) Памп идёт в перпах, а не в споте
-    if sig.spot_futures_ratio > 0 and sig.spot_futures_ratio < 0.25:
+    if 0 < sig.spot_futures_ratio < 0.25:
         score += 15
         reasons.append(f"памп в перпах (spot/fut = {sig.spot_futures_ratio:.2f})")
-    elif sig.spot_futures_ratio > 0 and sig.spot_futures_ratio < 0.5:
+    elif 0 < sig.spot_futures_ratio < 0.5:
         score += 7
         reasons.append(f"спот отстаёт от фьючерсов (spot/fut = {sig.spot_futures_ratio:.2f})")
 
-    # 5) RSI-перегрев
     if sig.rsi_14 > 85:
         score += 10
         reasons.append(f"RSI(14d) = {sig.rsi_14:.0f} — экстремальный перегрев")
@@ -198,9 +188,7 @@ def analyze_squeeze(symbol: str) -> SqueezeSignal:
         score += 5
         reasons.append(f"RSI(14d) = {sig.rsi_14:.0f} — перекупленность")
 
-    # Финал
     sig.risk_score = min(score, 100)
-
     if sig.risk_score >= 75:
         sig.risk_level = "extreme"
     elif sig.risk_score >= 60:
@@ -215,7 +203,6 @@ def analyze_squeeze(symbol: str) -> SqueezeSignal:
     sig.is_squeeze = sig.risk_score >= 60
     sig.reasons = reasons
     sig.verdict = _build_verdict(sig)
-
     return sig
 
 
@@ -248,3 +235,44 @@ def get_squeeze_tag(sig: SqueezeSignal) -> dict | None:
     }
     text, cls = label_map[sig.risk_level]
     return {"text": text, "class": cls}
+
+
+# ============================================================
+# АДАПТЕР под sleeping_alts_screener_final.py
+# ============================================================
+def detect_squeeze(symbol: str,
+                   closes: list[float] | None = None,
+                   vols: list[float] | None = None) -> dict | None:
+    """
+    Совместимый интерфейс для главного скрипта.
+    Аргументы closes/vols принимаются для совместимости, но не используются —
+    внутри analyze_squeeze() данные тянутся заново по symbol (нужны OI, funding, spot).
+
+    Возвращает dict с:
+      - detected: bool  (True при risk_level >= high)
+      - risk_level, risk_score
+      - verdict, reasons
+      - tag: {"text","class"} или None
+    Или None при полном отсутствии данных.
+    """
+    try:
+        sig = analyze_squeeze(symbol)
+    except Exception as e:
+        log.debug(f"detect_squeeze({symbol}) failed: {e}")
+        return None
+
+    if not sig or sig.risk_level == "none":
+        return None
+
+    return {
+        "detected": sig.is_squeeze,          # True только при high/extreme
+        "risk_level": sig.risk_level,
+        "risk_score": sig.risk_score,
+        "verdict": sig.verdict,
+        "reasons": sig.reasons or [],
+        "parabolic": sig.parabolic,
+        "funding_peak_14d": sig.funding_peak_14d,
+        "oi_change_14d_pct": sig.oi_change_14d_pct,
+        "spot_futures_ratio": sig.spot_futures_ratio,
+        "tag": get_squeeze_tag(sig),
+    }
