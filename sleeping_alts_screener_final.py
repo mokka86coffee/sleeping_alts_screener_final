@@ -62,7 +62,11 @@ COMMODITY_PERPS = {
     "XAU", "XAG", "XAUT", "PAXG", "XPT", "XPD", "NATGAS", "OIL", "WTI", "BRENT",
 }
 
-EXCLUDE_TOKENS = STABLECOINS | STOCK_PERPS | COMMODITY_PERPS
+EXCLUDE_TOKENS = {
+    "BTC", "ETH", "XRP", "FARTCOIN", "NEAR", "LTC", "ETC", "ADA", "BNB", "DOGE", "SOL"  # мажоры
+}
+
+EXCLUDE_TOKENS = STABLECOINS | EXCLUDE_TOKENS | STOCK_PERPS | COMMODITY_PERPS
 
 # ─────────────────────────────────────────────────────────────
 # Dataclass
