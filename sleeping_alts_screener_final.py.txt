@@ -24,8 +24,7 @@ from taiko_detector import detect_taiko, TaikoSignal
 from dexe_detector import detect_dexe, DexeSignal
 from volume_surge_detector import detect_volume_surge
 from squeeze_detector import detect_squeeze
-from external_data import get_fundamentals
-
+from external_data import get_fundamentals, build_fundamental_take_live
 # ─────────────────────────────────────────────────────────────
 # Конфигурация
 # ─────────────────────────────────────────────────────────────
@@ -43,20 +42,31 @@ STABLECOINS = {
     "UST", "PYUSD", "USDE", "USDS", "USDX",
 }
 
-EXCLUDE_TOKENS = {
-    "BTC", "ETH",   # мажоры
-}
 STOCK_PERPS = {
     "TSLA", "MRVL", "NVDA", "AAPL", "MSFT", "AMZN", "META", "GOOGL",
     "COIN", "MSTR", "HOOD", "PLTR", "AMD", "INTC", "NFLX", "BABA",
-    "SPY", "QQQ", "GLD", "SLV", "ON",
-    "SNDK", "SKHYNIX", "SOXL", "MU", "TSM", "ASML", "AVGO", "ORCL",
-    "SMCI", "ARM", "DELL", "IBM", "CRM", "UBER", "ABNB", "SHOP",
-    "GME", "AMC", "BB", "NOK", "LCID", "RIVN", "NIO", "XPEV",
-    "BRKB", "JPM", "V", "MA", "WMT", "COST", "DIS", "PYPL",
-    "COINBASE", "CRCL", "FIGR", "BMNR", "SBET",
+    "SPY", "QQQ", "GLD", "SLV", "ON", "SNDK", "SKHYNIX", "SOXL",
+    "MU", "TSM", "ASML", "AVGO", "ORCL", "SMCI", "ARM", "DELL",
+    "IBM", "CRM", "UBER", "ABNB", "SHOP", "GME", "AMC", "BB",
+    "NOK", "LCID", "RIVN", "NIO", "XPEV", "BRKB", "JPM", "V",
+    "MA", "WMT", "COST", "DIS", "PYPL", "COINBASE", "CRCL", "FIGR",
+    "BMNR", "SBET",
+    # добавлено по результатам прогона
+    "NBIS", "CRWV", "RKLB", "AAOI", "IREN", "SAMSUNG", "SKHY",
+    "ZHIPU", "MVLL", "GLW", "EWY", "SNXX", "MINIMAX", "STRC",
+    "GRAM", "TQQQ", "SQQQ", "SOXS", "SPCX", "LITE", "BILL",
 }
-EXCLUDE_TOKENS = EXCLUDE_TOKENS | STOCK_PERPS
+
+# Товарные активы и сырьё — не крипта
+COMMODITY_PERPS = {
+    "XAU", "XAG", "XAUT", "PAXG", "XPT", "XPD", "NATGAS", "OIL", "WTI", "BRENT",
+}
+
+EXCLUDE_TOKENS = {
+    "BTC", "ETH", "XRP", "FARTCOIN", "NEAR", "LTC", "ETC", "ADA", "BNB", "DOGE", "SOL"  # мажоры
+}
+
+EXCLUDE_TOKENS = STABLECOINS | EXCLUDE_TOKENS | STOCK_PERPS | COMMODITY_PERPS
 
 # ─────────────────────────────────────────────────────────────
 # Dataclass
@@ -552,14 +562,16 @@ def build_candidate(symbol: str, rank_idx: int) -> Candidate | None:
                 "text": f"◉ TAIKO REVERSAL · {taiko_sig.score}",
                 "class": "tag-pattern taiko",
             })
-        score += taiko_sig.score
+        # внутренний скор 45..100 → вклад 15..35
+        score += int(15 + (taiko_sig.score - 45) * 0.36)
 
     if dexe_sig.detected:
         tags.append({
             "text": f"◉ DEXE POST-PUMP · {dexe_sig.score}",
             "class": "tag-pattern dexe",
         })
-        score += dexe_sig.score
+        # внутренний скор 55..100 → вклад 15..35
+        score += int(15 + (dexe_sig.score - 55) * 0.44)
 
     # ── Общий скор по фазе ──
     if vp.get("phase") == 4:
@@ -628,23 +640,49 @@ def build_candidate(symbol: str, rank_idx: int) -> Candidate | None:
         }
 
     # ── VIRAL HYPE детектор ──
-    # Twitter HOT × Volume Surge × meme/gamefi сектор
+    # Twitter HOT × Volume Surge × (спекулятивный сектор ИЛИ поведение цены)
     VIRAL_SECTOR_KEYWORDS = [
-        "meme", "dog", "cat", "frog", "pepe",
-        "game", "gaming", "gamefi", "play-to-earn",
-        "metaverse", "virtual",
+        # мемы
+        "meme", "dog", "cat", "frog", "pepe", "inu", "shib", "wif",
+        "bonk", "floki", "broccoli", "farto", "useless",
+        # игры и метаверс
+        "game", "gaming", "gamefi", "play-to-earn", "metaverse", "virtual",
+        # AI — самый горячий нарратив
+        "artificial intelligence", " ai ", "ai agent", "agent", "machine learning",
+        "deai", "ai & big data", "depin",
+        # экосистемы, где живёт спекуляция
+        "solana meme", "bnb chain ecosystem", "base ecosystem", "pump.fun",
     ]
-    cats_lower = " ".join(c.lower() for c in all_categories)
+    cats_lower = " " + " ".join(c.lower() for c in all_categories) + " "
     in_speculative_sector = any(kw in cats_lower for kw in VIRAL_SECTOR_KEYWORDS)
+
+    # Фолбэк: мемное имя в самом тикере (когда CoinGecko не дал категорий)
+    MEME_TICKER_HINTS = [
+        "PEPE", "SHIB", "DOGE", "FLOKI", "BONK", "WIF", "BROCCOLI",
+        "FARTCOIN", "USELESS", "NEIRO", "GIGGLE", "TRUMP", "MELANIA",
+        "MOG", "TURBO", "POPCAT", "MEW", "BOME", "PENGU", "SPX",
+    ]
+    if not in_speculative_sector:
+        sym_upper = symbol.upper()
+        if any(h in sym_upper for h in MEME_TICKER_HINTS):
+            in_speculative_sector = True
 
     twitter_hot = (buzz or {}).get("level") == "hot"
     has_vol_surge = surge_block is not None and surge_block.get("detected")
 
-    is_viral = twitter_hot and has_vol_surge and in_speculative_sector
+    # Спекулятивное поведение: сурж на зелёной свече с большим ходом
+    behaves_speculative = (
+        has_vol_surge and vs.is_green and vs.day_change_pct >= 20
+    )
+
+    is_viral = twitter_hot and has_vol_surge and (
+        in_speculative_sector or behaves_speculative
+    )
 
     if is_viral:
+        label = "🚀 VIRAL HYPE" if in_speculative_sector else "🚀 VIRAL PUMP"
         tags.insert(0, {
-            "text": "🚀 VIRAL HYPE",
+            "text": label,
             "class": "tag-pattern viral",
         })
 
@@ -657,6 +695,10 @@ def build_candidate(symbol: str, rank_idx: int) -> Candidate | None:
     if vs.detected:
         analysis_parts.append(vs.verdict)
     analysis = " ".join(analysis_parts) if analysis_parts else ""
+
+    fund_take = build_fundamental_take_live(fund)
+    if fund_take:
+        analysis = (analysis + " " + fund_take).strip() if analysis else fund_take
 
     strategy = build_strategy(m, sq, taiko_sig, dexe_sig)
 
@@ -1213,6 +1255,8 @@ def main():
         if not sym.endswith("USDT"):
             continue
         base = sym[:-4]
+        if not base.isascii():
+            continue
         if base in STABLECOINS or base in EXCLUDE_TOKENS:
             continue
         try:
