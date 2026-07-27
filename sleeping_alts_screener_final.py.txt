@@ -407,10 +407,18 @@ def build_strategy(m: dict, sq: dict | None, taiko_sig: TaikoSignal, dexe_sig: D
     price = m["price"]
 
     if taiko_sig.detected:
-        parts.append(
-            f"🎯 TAIKO REVERSAL. Вход лесенкой от текущей ${price:.4g}, "
-            f"стоп под минимум базы, тейки 1.3× / 2× / 3× от риска."
-        )
+        sq_level = (sq or {}).get("risk_level", "none")
+        if sq_level in ("high", "extreme"):
+            parts.append(
+                f"⚠ КОНФЛИКТ СИГНАЛОВ. TAIKO даёт разворот, но squeeze-риск {sq_level.upper()} "
+                f"({(sq or {}).get('risk_score', 0)}) — часть роста на ликвидациях шортов. "
+                f"Вход половинным объёмом от ${price:.4g} или ждать отката и повторного теста базы."
+            )
+        else:
+            parts.append(
+                f"🎯 TAIKO REVERSAL. Вход лесенкой от текущей ${price:.4g}, "
+                f"стоп под минимум базы, тейки 1.3× / 2× / 3× от риска."
+            )
         return " ".join(parts)
 
     if dexe_sig.detected:
@@ -1087,7 +1095,7 @@ def build_html(candidates: list[Candidate]) -> str:
         def _setup_label(cand):
             for t in (cand.get("tags") or []):
                 text = t.get("text", "")
-                if "VIRAL HYPE" in text:
+                if "VIRAL" in text:
                     return ("🚀 VIRAL", "#f472b6")
                 if "TAIKO CONFIRMED" in text:
                     return ("✅ TAIKO CONF", "#22d3ee")
@@ -1142,7 +1150,7 @@ def build_html(candidates: list[Candidate]) -> str:
         cards = "\n".join(render_card(r) for r in viral_items)
         return f"""
         <div class="section-title section-viral">
-          🚀 VIRAL HYPE · MEME / GAMEFI
+          🚀 VIRAL HYPE · ГОРЯЧИЕ ПАМПЫ
           <span class="section-count">[{len(viral_items):02d}]</span>
         </div>
         <div style="background:rgba(244,114,182,0.06);border-left:2px solid #f472b6;
