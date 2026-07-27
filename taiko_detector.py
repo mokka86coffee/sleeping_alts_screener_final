@@ -31,6 +31,9 @@ class TaikoSignal:
     vortex_note: str = ""
     # новые поля
     vortex_crossover: bool = False
+    vortex_selling_exhaustion: bool = False
+    vortex_tf_used: str = ""            # "2d" / "3d" / "1w" / "2w" или ""
+    vortex_peaks_count: int = 0         # сколько пиков насчитано
     obv_divergence: bool = False
     volume_climax_bull: bool = False
     volume_climax_ratio: float = 0.0
@@ -118,6 +121,85 @@ def _find_swing_lows(series: list[float], lookback: int = 3) -> list[int]:
 # =============== ПРОВЕРКИ СИГНАЛОВ ==========================
 # ============================================================
 
+# Иерархия таймфреймов от мелкого к крупному
+VORTEX_TF_LADDER = [
+    ("2d",  200),
+    ("3d",  200),
+    ("5d",  200),
+    ("1w",  200),
+    ("2w",  200),   # ~2 месяца окна ≈ длинный HTF
+]
+
+MIN_VORTEX_PEAKS = 3  # минимум пиков VI- для достоверной картины
+
+
+def _count_vortex_peaks(highs, lows, closes, lookback: int = 3) -> int:
+    """Считает количество свинг-хаёв у VI- в последних 60 барах."""
+    vi_p, vi_m = _vortex(highs, lows, closes, 14)
+    tail_start = max(0, len(closes) - 60)
+    m_tail = vi_m[tail_start:]
+    return len(_find_swing_highs(m_tail, lookback=lookback))
+
+
+def _analyze_vortex_multi_tf(symbol: str) -> dict:
+    """
+    Идёт по лестнице TF от мелкого к крупному.
+    На каждом TF проверяет — достаточно ли пиков VI- для достоверного вывода.
+    Первый TF с ≥3 пиками → фиксируем сигналы на нём и выходим.
+    Возвращает словарь с результатом + указанием, на каком TF найдено.
+    """
+    result = {
+        "tf_used": None,
+        "peaks_count": 0,
+        "crossover": False,
+        "divergence": False,
+        "divergence_note": "",
+        "exhaustion": False,
+        "exhaustion_note": "",
+    }
+
+    for tf, limit in VORTEX_TF_LADDER:
+        kl = _get_klines(symbol, tf, limit)
+        if not kl or len(kl) < 40:
+            continue
+        h = [float(k[2]) for k in kl]
+        l = [float(k[3]) for k in kl]
+        c = [float(k[4]) for k in kl]
+
+        peaks_count, prominence = _vortex_tf_quality(h, l, c)
+
+        # хорошая картина: 3-8 пиков со средней "выпуклостью" ≥ 0.15 (15% над средним)
+        # плохая (месиво): много пиков, но prominence < 0.10
+        readable = (
+            3 <= peaks_count <= 10
+            and prominence >= 0.15
+        )
+        if not readable:
+            continue
+
+        # если пиков мало — картина размытая, идём на TF выше
+        if peaks_count < MIN_VORTEX_PEAKS:
+            continue
+
+        # картина достоверная — считаем сигналы на этом TF
+        cross = _vortex_bullish_crossover(h, l, c)
+        div, div_note = _vortex_divergence(h, l, c)
+        exh, exh_note = _vortex_selling_exhaustion(h, l, c)
+
+        result.update({
+            "tf_used": tf,
+            "peaks_count": peaks_count,
+            "crossover": cross,
+            "divergence": div,
+            "divergence_note": div_note,
+            "exhaustion": exh,
+            "exhaustion_note": exh_note,
+        })
+        return result
+
+    # ни один TF не дал достаточной картины — Vortex-сигналов нет
+    return result
+
 def _vortex_bullish_crossover(highs, lows, closes) -> bool:
     """Свежий crossover VI+ > VI- в последние 8 баров после долгого доминирования VI-."""
     vi_p, vi_m = _vortex(highs, lows, closes, 14)
@@ -154,6 +236,56 @@ def _vortex_divergence(highs, lows, closes) -> tuple[bool, str]:
         return True, f"VI+ {p1:.2f}→{p2:.2f}, VI- {m1:.2f}→{m2:.2f}"
     return False, ""
 
+def _vortex_selling_exhaustion(highs, lows, closes) -> tuple[bool, str]:
+    """
+    Bullish Vortex Selling Exhaustion:
+    VI- (продажи) делает LOWER HIGHS — пики агрессии продаж затухают
+    от волны к волне. Самый ранний сигнал разворота, появляется
+    ещё до crossover и до lower-lows дивергенции.
+
+    Дополнительно требуем, что VI+ не падает (подрастает или стабилен),
+    чтобы отсечь ситуацию, где просто вся волатильность затухает.
+    """
+    vi_p, vi_m = _vortex(highs, lows, closes, 14)
+    tail_start = max(0, len(closes) - 60)
+    p_tail = vi_p[tail_start:]
+    m_tail = vi_m[tail_start:]
+
+    # свинг-хаи у VI- (локальные максимумы продаж)
+    m_highs_idx = _find_swing_highs(m_tail, lookback=3)
+    if len(m_highs_idx) < 2:
+        return False, ""
+
+    # последние 2-3 пика VI-
+    peaks = [m_tail[i] for i in m_highs_idx[-3:]]
+    # проверяем нисходящую последовательность пиков
+    descending = all(peaks[k] > peaks[k + 1] * 1.02 for k in range(len(peaks) - 1))
+    if not descending:
+        return False, ""
+
+    # VI+ не должен падать за тот же период (свинг-хаи VI+ не ниже)
+    p_last = p_tail[-1]
+    p_prev_avg = sum(p_tail[-10:-1]) / 9 if len(p_tail) >= 10 else p_last
+    vi_plus_ok = p_last >= p_prev_avg * 0.95
+
+    if descending and vi_plus_ok:
+        peaks_str = "→".join(f"{p:.2f}" for p in peaks)
+        return True, f"VI- selling peaks fading ({peaks_str})"
+    return False, ""
+
+
+def _find_swing_highs(series: list[float], lookback: int = 3) -> list[int]:
+    """Индексы локальных максимумов (свинг-хай) в серии."""
+    out = []
+    for i in range(lookback, len(series) - lookback):
+        if series[i] <= 0:
+            continue
+        left = series[i - lookback:i]
+        right = series[i + 1:i + 1 + lookback]
+        if all(series[i] >= x for x in left) and all(series[i] >= x for x in right):
+            out.append(i)
+    return out
+
 
 def _obv_bullish_divergence(closes, vols, window: int = 80) -> bool:
     """Цена делает LL, OBV делает HL за окно."""
@@ -171,6 +303,34 @@ def _obv_bullish_divergence(closes, vols, window: int = 80) -> bool:
     price_ll_or_flat = pc2 <= pc1 * 1.03
     obv_hl = oc2 > oc1
     return price_ll_or_flat and obv_hl
+
+def _vortex_tf_quality(highs, lows, closes) -> tuple[int, float]:
+    """
+    Оценивает читаемость Vortex-картины на данном TF.
+    Возвращает (peaks_count, avg_peak_prominence).
+    Хорошая картина: 3-6 крупных пиков с большой амплитудой.
+    Плохая: много мелких пиков одинаковой высоты (месиво).
+    """
+    vi_p, vi_m = _vortex(highs, lows, closes, 14)
+    tail_start = max(0, len(closes) - 60)
+    m_tail = vi_m[tail_start:]
+    if len(m_tail) < 20:
+        return 0, 0.0
+
+    peaks_idx = _find_swing_highs(m_tail, lookback=3)
+    if len(peaks_idx) < 2:
+        return len(peaks_idx), 0.0
+
+    # среднее значение VI- в окне
+    avg_val = sum(m_tail) / len(m_tail)
+    if avg_val <= 0:
+        return len(peaks_idx), 0.0
+
+    # средняя "выпуклость" пиков над средним уровнем
+    prominences = [(m_tail[i] - avg_val) / avg_val for i in peaks_idx]
+    avg_prominence = sum(prominences) / len(prominences)
+
+    return len(peaks_idx), avg_prominence
 
 
 def _volume_climax_bullish(opens, closes, vols, avg_vol: float) -> tuple[bool, float]:
@@ -285,17 +445,15 @@ def detect_taiko(symbol: str) -> TaikoSignal:
     # --- 10. Volume climax bullish (аномальный объём на зелёной свече в последних 5 барах) ---
     vc_bull, vc_ratio = _volume_climax_bullish(opens, closes, vols, avg_vol_60)
 
-    # --- 11. Vortex: crossover или divergence (проверяем на 2D — плавнее) ---
-    kl_2d = _get_klines(symbol, "2d", 200)
-    if kl_2d and len(kl_2d) >= 40:
-        h2 = [float(k[2]) for k in kl_2d]
-        l2 = [float(k[3]) for k in kl_2d]
-        c2 = [float(k[4]) for k in kl_2d]
-        vortex_div, vortex_note = _vortex_divergence(h2, l2, c2)
-        vortex_cross = _vortex_bullish_crossover(h2, l2, c2)
-    else:
-        vortex_div, vortex_note = _vortex_divergence(highs, lows, closes)
-        vortex_cross = _vortex_bullish_crossover(highs, lows, closes)
+    # --- 11. Vortex: адаптивный поиск по лестнице TF (мелкий → крупный) ---
+    v = _analyze_vortex_multi_tf(symbol)
+    vortex_cross    = v["crossover"]
+    vortex_div      = v["divergence"]
+    vortex_note     = v["divergence_note"]
+    vortex_exh      = v["exhaustion"]
+    vortex_exh_note = v["exhaustion_note"]
+    vortex_tf_used  = v["tf_used"]      # ← новое: какой TF дал сигнал
+    vortex_peaks    = v["peaks_count"]
 
     # --- 12. Разворотный импульс: зелёные свечи + подросший объём ---
     green_recent = sum(1 for i in range(-5, 0) if closes[i] > opens[i])
@@ -319,14 +477,25 @@ def detect_taiko(symbol: str) -> TaikoSignal:
     # сильные сигналы разворота
     if vortex_cross: score += 20
     if vortex_div:   score += 18
+    if vortex_exh:   score += 14
     if obv_div:      score += 20
     if vc_bull:      score += 18
     if reversal_hint: score += 6
 
+    # бонус за качество TF, на котором найден Vortex-сигнал
+    if vortex_tf_used in ("1w", "2w"):
+        score += 5     # HTF-подтверждение самое сильное
+    elif vortex_tf_used in ("3d", "5d"):
+        score += 3
+    # 2d — без бонуса, стандартный случай
+
     score = max(0, min(score, 100))
 
     # --- 14. Условие срабатывания ---
-    has_reversal_signal = vortex_cross or vortex_div or obv_div or vc_bull
+    has_reversal_signal = (
+        vortex_cross or vortex_div or vortex_exh
+        or obv_div or vc_bull
+    )
     detected = (
         effective_drop <= -60
         and (in_base or has_reversal_signal)
@@ -341,6 +510,8 @@ def detect_taiko(symbol: str) -> TaikoSignal:
         if in_base:
             parts.append(f"зрелая база ({days_in_downtrend} дней в даунтренде, "
                          f"цена в {price_position_pct:.0f}% диапазона)")
+        if vortex_exh:
+            parts.append(f"Vortex selling exhaustion ({vortex_exh_note})")
         if vortex_cross:
             parts.append("свежий Vortex bullish crossover")
         if vortex_div:
@@ -355,6 +526,15 @@ def detect_taiko(symbol: str) -> TaikoSignal:
             parts.append(f"RSI-min {rsi_min_recent:.0f}")
         if reversal_hint and not vc_bull:
             parts.append("зелёные свечи с объёмом")
+
+        tf_tag = f" [{vortex_tf_used.upper()}]" if vortex_tf_used else ""
+        if vortex_cross:
+            parts.append(f"свежий Vortex bullish crossover{tf_tag}")
+        if vortex_div:
+            parts.append(f"Vortex divergence{tf_tag} ({vortex_note})")
+        if vortex_exh:
+            parts.append(f"Vortex selling exhaustion{tf_tag} ({vortex_exh_note})")
+
         verdict = ". ".join(parts) + "."
 
     return TaikoSignal(
@@ -370,6 +550,9 @@ def detect_taiko(symbol: str) -> TaikoSignal:
         vortex_divergence=vortex_div,
         vortex_note=vortex_note,
         vortex_crossover=vortex_cross,
+        vortex_selling_exhaustion=vortex_exh,
+        vortex_tf_used=vortex_tf_used,
+        vortex_peaks_count=vortex_peaks,
         obv_divergence=obv_div,
         volume_climax_bull=vc_bull,
         volume_climax_ratio=vc_ratio,

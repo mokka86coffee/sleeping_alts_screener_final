@@ -36,6 +36,7 @@ from external_data import get_fundamentals, build_fundamental_take_live
 from squeeze_detector import analyze_squeeze, get_squeeze_tag
 from taiko_detector import detect_taiko
 from dexe_detector import detect_dexe
+from volume_surge_detector import detect_volume_surge
 
 # ============================================================
 # LOGGING
@@ -492,6 +493,7 @@ def build_candidate(m: dict, rank_idx: int) -> Candidate:
     sq = analyze_squeeze(symbol)
     taiko_sig = detect_taiko(symbol)
     dexe_sig  = detect_dexe(symbol)
+    surge_sig  = detect_volume_surge(symbol)
 
     # Взаимоисключение по возрасту: DEXE приоритетнее в свежем окне ≤4 дней
     if taiko_sig.detected and dexe_sig.detected:
@@ -503,8 +505,24 @@ def build_candidate(m: dict, rank_idx: int) -> Candidate:
     if (taiko_sig.detected or dexe_sig.detected) and bucket == "watch":
         bucket = "scout"
 
+    if surge_sig.detected:
+            # цвет по силе всплеска
+            if surge_sig.surge_ratio >= 20:
+                color = "#EF4444"    # экстремальный — красный
+            elif surge_sig.surge_ratio >= 10:
+                color = "#F59E0B"    # сильный — оранжевый
+            else:
+                color = "#3B82F6"    # умеренный — синий
+
+            direction_arrow = "↑" if surge_sig.is_green else "↓"
+            tags.append({
+                "text": (f"📊 VOL SURGE ×{surge_sig.surge_ratio:.1f} "
+                         f"{direction_arrow} {surge_sig.day_change_pct:+.0f}%"),
+                "color": color,
+                "risk_label": "",
+            })
     # Форсим TAIKO-кандидатов в отчёт даже с низким скоромf
-    if taiko_sig.detected:
+    elif taiko_sig.detected:
         tags.append({
             "text": f"◉ TAIKO REVERSAL · {taiko_sig.score}",
             "color": "#10B981",         # зелёный — надёжно
@@ -826,6 +844,74 @@ def build_html(rows, out_path=None) -> str:
                     '✓ НАДЁЖНЫЙ СЕТАП · Структурный разворот'
                     '</div>')
         return ""
+
+    def render_volume_surge_section(candidates: list) -> str:
+        """Отдельная секция отчёта с монетами, у которых аномальный объём."""
+        surge_items = [
+            c for c in candidates
+            if c.get("surge_sig") and c["surge_sig"].detected
+        ]
+        if not surge_items:
+            return ""
+
+        # сортируем по силе всплеска (по убыванию)
+        surge_items.sort(key=lambda c: c["surge_sig"].surge_ratio, reverse=True)
+
+        html = """
+        <div style="margin:24px 0;">
+          <h2 style="color:#F59E0B;">📊 Аномальные объёмы на дневках</h2>
+          <p style="color:#9ca3af;font-size:13px;">
+            Монеты с текущим дневным объёмом ≥×3 к среднему за 30 дней.
+            Всплеск может быть началом пампа, дампа, разворота или реакцией на новость.
+            Всегда стоит проверить причину — новости, твиттер, on-chain активность.
+          </p>
+          <table style="width:100%;border-collapse:collapse;font-size:14px;">
+            <thead>
+              <tr style="background:#1f2937;color:#d1d5db;">
+                <th style="padding:8px;text-align:left;">Символ</th>
+                <th style="padding:8px;text-align:right;">Множитель</th>
+                <th style="padding:8px;text-align:right;">Свеча</th>
+                <th style="padding:8px;text-align:right;">Объём (USD)</th>
+                <th style="padding:8px;text-align:right;">Средний</th>
+                <th style="padding:8px;text-align:left;">Сила</th>
+              </tr>
+            </thead>
+            <tbody>
+        """
+        for c in surge_items:
+            s = c["surge_sig"]
+            arrow = "▲" if s.is_green else "▼"
+            arrow_color = "#10B981" if s.is_green else "#EF4444"
+            ratio_color = ("#EF4444" if s.surge_ratio >= 20
+                           else "#F59E0B" if s.surge_ratio >= 10
+                           else "#3B82F6")
+            html += f"""
+              <tr style="border-bottom:1px solid #374151;">
+                <td style="padding:8px;font-weight:600;">{c['symbol']}</td>
+                <td style="padding:8px;text-align:right;color:{ratio_color};font-weight:600;">
+                  ×{s.surge_ratio:.1f}
+                </td>
+                <td style="padding:8px;text-align:right;color:{arrow_color};">
+                  {arrow} {s.day_change_pct:+.1f}%
+                </td>
+                <td style="padding:8px;text-align:right;">${_fmt_usd(s.current_vol_usd)}</td>
+                <td style="padding:8px;text-align:right;color:#9ca3af;">${_fmt_usd(s.avg_vol_usd)}</td>
+                <td style="padding:8px;">{s.strength_label}</td>
+              </tr>
+            """
+        html += """
+            </tbody>
+          </table>
+        </div>
+        """
+        return html
+
+
+    def _fmt_usd(v: float) -> str:
+        if v >= 1e9: return f"{v/1e9:.2f}B"
+        if v >= 1e6: return f"{v/1e6:.2f}M"
+        if v >= 1e3: return f"{v/1e3:.1f}K"
+        return f"{v:.0f}"
 
     taiko = [r for r in rows if has_tag(r, "TAIKO REVERSAL")]
     dexe  = [r for r in rows if has_tag(r, "DEXE POST-PUMP")]
@@ -1169,6 +1255,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{color:var(--blue)}
         </div>
         <div class="grid">{cards}</div>"""
 
+    volume_surge_html = render_volume_surge_section(rows)
     taiko_html  = render_section("◉ TAIKO REVERSAL SETUPS", "taiko",  taiko)
     dexe_html   = render_section("◉ DEXE POST-PUMP SETUPS", "dexe",   dexe)
     strong_html = render_section("STRONG SIGNALS",          "strong", strong)
@@ -1296,6 +1383,7 @@ a{color:var(--cyan);text-decoration:none}a:hover{color:var(--blue)}
 
   {legend_html}
 
+  {volume_surge_html}
   {taiko_html}
   {dexe_html}
   {strong_html}
