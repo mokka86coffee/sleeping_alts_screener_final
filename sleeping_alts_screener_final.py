@@ -640,23 +640,49 @@ def build_candidate(symbol: str, rank_idx: int) -> Candidate | None:
         }
 
     # ── VIRAL HYPE детектор ──
-    # Twitter HOT × Volume Surge × meme/gamefi сектор
+    # Twitter HOT × Volume Surge × (спекулятивный сектор ИЛИ поведение цены)
     VIRAL_SECTOR_KEYWORDS = [
-        "meme", "dog", "cat", "frog", "pepe",
-        "game", "gaming", "gamefi", "play-to-earn",
-        "metaverse", "virtual",
+        # мемы
+        "meme", "dog", "cat", "frog", "pepe", "inu", "shib", "wif",
+        "bonk", "floki", "broccoli", "farto", "useless",
+        # игры и метаверс
+        "game", "gaming", "gamefi", "play-to-earn", "metaverse", "virtual",
+        # AI — самый горячий нарратив
+        "artificial intelligence", " ai ", "ai agent", "agent", "machine learning",
+        "deai", "ai & big data", "depin",
+        # экосистемы, где живёт спекуляция
+        "solana meme", "bnb chain ecosystem", "base ecosystem", "pump.fun",
     ]
-    cats_lower = " ".join(c.lower() for c in all_categories)
+    cats_lower = " " + " ".join(c.lower() for c in all_categories) + " "
     in_speculative_sector = any(kw in cats_lower for kw in VIRAL_SECTOR_KEYWORDS)
+
+    # Фолбэк: мемное имя в самом тикере (когда CoinGecko не дал категорий)
+    MEME_TICKER_HINTS = [
+        "PEPE", "SHIB", "DOGE", "FLOKI", "BONK", "WIF", "BROCCOLI",
+        "FARTCOIN", "USELESS", "NEIRO", "GIGGLE", "TRUMP", "MELANIA",
+        "MOG", "TURBO", "POPCAT", "MEW", "BOME", "PENGU", "SPX",
+    ]
+    if not in_speculative_sector:
+        sym_upper = symbol.upper()
+        if any(h in sym_upper for h in MEME_TICKER_HINTS):
+            in_speculative_sector = True
 
     twitter_hot = (buzz or {}).get("level") == "hot"
     has_vol_surge = surge_block is not None and surge_block.get("detected")
 
-    is_viral = twitter_hot and has_vol_surge and in_speculative_sector
+    # Спекулятивное поведение: сурж на зелёной свече с большим ходом
+    behaves_speculative = (
+        has_vol_surge and vs.is_green and vs.day_change_pct >= 20
+    )
+
+    is_viral = twitter_hot and has_vol_surge and (
+        in_speculative_sector or behaves_speculative
+    )
 
     if is_viral:
+        label = "🚀 VIRAL HYPE" if in_speculative_sector else "🚀 VIRAL PUMP"
         tags.insert(0, {
-            "text": "🚀 VIRAL HYPE",
+            "text": label,
             "class": "tag-pattern viral",
         })
 
