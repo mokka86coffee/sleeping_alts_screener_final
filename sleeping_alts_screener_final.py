@@ -26,6 +26,7 @@ from volume_surge_detector import detect_volume_surge
 from squeeze_detector import detect_squeeze
 from external_data import get_fundamentals, build_fundamental_take_live
 from rr_dial import build_dial, fmt_price
+from styles import CSS
 
 # ─────────────────────────────────────────────────────────────
 # Конфигурация
@@ -85,7 +86,7 @@ class Candidate:
     dexe: dict | None = None
     analysis: str = ""
     buzz: dict | None = None
-    strategy: str = ""
+    strategy: dict | None = None
     squeeze: dict | None = None
     links: list[dict] = field(default_factory=list)
     surge: dict | None = None
@@ -403,58 +404,99 @@ def collect_metrics(symbol: str) -> dict:
 # ─────────────────────────────────────────────────────────────
 # Стратегия входа
 # ─────────────────────────────────────────────────────────────
-def build_strategy(m: dict, sq: dict | None, taiko_sig: TaikoSignal, dexe_sig: DexeSignal) -> str:
-    """Возвращает короткую human-readable стратегию входа."""
-    parts = []
+def build_strategy(m: dict, sq: dict | None,
+                   taiko_sig: TaikoSignal, dexe_sig: DexeSignal) -> dict:
+    """Стратегия входа: текст + числовые уровни для подковы R:R."""
     price = m["price"]
+    atr = m.get("atr_pct") or 4.0
+    lows = m.get("lows_1d") or []
 
+    def _pack(text: str, entry: float, stop: float,
+              t1: float, t2: float, t3: float, size: str) -> dict:
+        return {
+            "text": text,
+            "entry": round(entry, 10),
+            "stop": round(stop, 10),
+            "target1": round(t1, 10),
+            "target2": round(t2, 10),
+            "target3": round(t3, 10),
+            "size_hint": size,
+        }
+
+    def _by_risk(entry: float, stop: float,
+                 mults: tuple = (1.3, 2.0, 3.0)) -> tuple:
+        """Цели как кратные риску."""
+        risk = entry - stop
+        return tuple(entry + risk * k for k in mults)
+
+    # ── TAIKO ──
     if taiko_sig.detected:
+        base_low = min(lows[-20:]) if len(lows) >= 20 else price * 0.9
+        stop = min(base_low * 0.985, price * (1 - atr / 100 * 1.5))
+        t1, t2, t3 = _by_risk(price, stop)
         sq_level = (sq or {}).get("risk_level", "none")
         if sq_level in ("high", "extreme"):
-            parts.append(
-                f"⚠ КОНФЛИКТ СИГНАЛОВ. TAIKO даёт разворот, но squeeze-риск {sq_level.upper()} "
-                f"({(sq or {}).get('risk_score', 0)}) — часть роста на ликвидациях шортов. "
-                f"Вход половинным объёмом от ${price:.4g} или ждать отката и повторного теста базы."
+            txt = (
+                f"⚠ КОНФЛИКТ СИГНАЛОВ. TAIKO даёт разворот, но squeeze-риск "
+                f"{sq_level.upper()} ({(sq or {}).get('risk_score', 0)}) — часть роста "
+                f"на ликвидациях шортов. Вход половинным объёмом или ждать отката "
+                f"и повторного теста базы."
             )
+            size = "½ ОБЪЁМА"
         else:
-            parts.append(
-                f"🎯 TAIKO REVERSAL. Вход лесенкой от текущей ${price:.4g}, "
-                f"стоп под минимум базы, тейки 1.3× / 2× / 3× от риска."
+            txt = (
+                f"🎯 TAIKO REVERSAL. Вход лесенкой от текущей, стоп под минимум базы, "
+                f"тейки 1.3× / 2× / 3× от риска."
             )
-        return " ".join(parts)
+            size = "ПОЛНЫЙ"
+        return _pack(txt, price, stop, t1, t2, t3, size)
 
+    # ── DEXE ──
     if dexe_sig.detected:
-        parts.append(
+        bottom = dexe_sig.bottom_price if getattr(dexe_sig, "bottom_price", 0) else price * 0.93
+        stop = bottom * 0.98
+        peak = dexe_sig.peak_price or price * 1.5
+        t1 = price + (peak - price) * 0.30
+        t2 = price + (peak - price) * 0.50
+        t3 = price + (peak - price) * 0.75
+        txt = (
             f"🎰 DEXE POST-PUMP. Дамп {dexe_sig.dump_pct:.0f}% за {dexe_sig.dump_hours:.0f}ч, "
-            f"дно {dexe_sig.bottom_hours_ago:.0f}ч назад. "
-            f"Climax ×{dexe_sig.volume_climax_ratio:.1f} — {dexe_sig.climax_label}. "
-            f"Вход от текущей ${price:.4g} частями, стоп под дно, "
-            f"первая цель — 30–50% отката к пику ${dexe_sig.peak_price:.4g}."
+            f"дно {dexe_sig.bottom_hours_ago:.0f}ч назад. Climax ×{dexe_sig.volume_climax_ratio:.1f} — "
+            f"{dexe_sig.climax_label}. Вход частями, стоп под дно, первая цель — "
+            f"30% отката к пику ${peak:.4g}."
         )
-        return " ".join(parts)
+        return _pack(txt, price, stop, t1, t2, t3, "⅓ ОБЪЁМА")
 
+    # ── SQUEEZE ──
     if sq and sq.get("detected"):
-        parts.append(
-            f"⚠ SQUEEZE MANIPULATED. Наблюдение, входы против движения рискованны."
+        return _pack(
+            "⚠ SQUEEZE MANIPULATED. Наблюдение, входы против движения рискованны.",
+            0, 0, 0, 0, 0, "БЕЗ ВХОДА",
         )
-        return " ".join(parts)
 
-    # Общая логика по фазе Vortex
-    vp = m.get("vortex_4h", {})
-    label = vp.get("label", "")
-
+    # ── по фазе Vortex ──
+    label = (m.get("vortex_4h") or {}).get("label", "")
     if label == "TREND":
-        parts.append(f"📈 TREND. Работать по тренду, коррекции откупать от EMA21.")
-    elif label == "MOMENTUM":
-        parts.append(f"⚡ MOMENTUM. Ищем подтверждение объёмом, вход по пробою.")
-    elif label == "BASE":
-        parts.append(f"📊 BASE. Диапазон, торговля от границ до пробоя.")
-    elif label == "DECLINE":
-        parts.append(f"📉 DECLINE. Лонги рискованны, ждать разворотной формации.")
-    else:
-        parts.append("Наблюдение.")
+        stop = price * (1 - atr / 100 * 2)
+        t1, t2, t3 = _by_risk(price, stop)
+        return _pack("📈 TREND. Работать по тренду, коррекции откупать от EMA21.",
+                     price, stop, t1, t2, t3, "ПОЛНЫЙ")
+    if label == "MOMENTUM":
+        stop = price * (1 - atr / 100 * 1.8)
+        t1, t2, t3 = _by_risk(price, stop)
+        return _pack("⚡ MOMENTUM. Ищем подтверждение объёмом, вход по пробою.",
+                     price, stop, t1, t2, t3, "⅔ ОБЪЁМА")
+    if label == "BASE":
+        lo = min(lows[-30:]) if len(lows) >= 30 else price * 0.92
+        stop = lo * 0.985
+        t1, t2, t3 = _by_risk(price, stop, (1.5, 2.5, 4.0))
+        return _pack("📊 BASE. Диапазон, торговля от границ до пробоя.",
+                     price, stop, t1, t2, t3, "⅓ ОБЪЁМА")
+    if label == "DECLINE":
+        return _pack("📉 DECLINE. Лонги рискованны, ждать разворотной формации.",
+                     0, 0, 0, 0, 0, "БЕЗ ВХОДА")
 
-    return " ".join(parts)
+    return _pack("Наблюдение.", 0, 0, 0, 0, 0, "БЕЗ ВХОДА")
 
 # ─────────────────────────────────────────────────────────────
 # Сборка кандидата
@@ -771,267 +813,7 @@ def build_html(candidates: list[Candidate]) -> str:
     viral = [r for r in rows if r.get("is_viral")]
 
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-
-    css = """
-    :root{
-      --bg:#0a0a0c; --card:#0e0e12; --panel:#16161c; --panel2:#121217; --panel3:#0f0f14;
-      --line:#22222a; --line2:#1a1a22;
-      --am1:#FFD24A; --am2:#F0A800; --am3:#e0b850; --am4:#c9a24a; --am5:#a8863a; --am6:#8a6a2a;
-      --txt:#e8e8f0; --txt2:#c8c8d4; --mut:#6b6b76; --mut2:#4e4e58; --mut3:#3f3f48; --ghost:#2e2e36;
-      --up:#7fbf8f; --dn:#e39a9a;
-      --mono:'SF Mono',SFMono-Regular,Consolas,'Liberation Mono',monospace;
-      --serif:Georgia,'Times New Roman',serif;
-    }
-    *{box-sizing:border-box}
-    body{background:var(--bg);color:var(--txt);margin:0;padding:26px 30px 60px;
-      font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;line-height:1.5;
-      -webkit-font-smoothing:antialiased}
-    a{text-decoration:none;color:inherit}
-    summary{cursor:pointer;list-style:none}
-    summary::-webkit-details-marker{display:none}
-
-    /* ══════════ ШАПКА H1 ══════════ */
-    .hd{display:flex;align-items:flex-start;gap:14px;margin-bottom:14px}
-    .hd-bar{width:6px;height:26px;border-radius:3px;background:linear-gradient(160deg,var(--am1),var(--am2));flex:none;margin-top:2px}
-    .hd-t{font-size:19px;font-weight:900;letter-spacing:2px;color:#fdfdff;margin:0}
-    .hd-t span{color:var(--am1)}
-    .hd-sub{display:flex;align-items:center;gap:10px;margin-top:5px}
-    .hd-ts{font-family:var(--mono);font-size:9px;color:#5c5c66}
-    .hd-stage{background:#22222a;border-radius:8px;padding:2px 9px;font-size:7px;font-weight:900;
-      letter-spacing:1.5px;color:#8a8a96}
-    .hd-r{margin-left:auto;text-align:right}
-    .hd-n{font-family:var(--mono);font-size:20px;font-weight:900;color:var(--am1);line-height:1}
-    .hd-nl{font-size:8px;letter-spacing:2px;color:var(--mut2);margin-top:4px}
-    .hd-rule{height:1.5px;border:0;margin:0 0 12px;
-      background:linear-gradient(90deg,rgba(255,184,0,.4),rgba(255,184,0,0))}
-
-    .dash{display:grid;grid-template-columns:repeat(7,1fr);background:var(--panel2);
-      border-radius:22px;padding:22px 0 20px}
-    .dcell{padding:0 0 0 36px;position:relative}
-    .dcell+.dcell::before{content:'';position:absolute;left:0;top:0;bottom:0;width:1px;background:#1e1e26}
-    .dcell-l{font-size:8px;font-weight:900;letter-spacing:2px;color:var(--dc,var(--am1))}
-    .dcell-v{font-family:var(--mono);font-size:24px;font-weight:900;color:var(--dc,var(--am1));margin:12px 0 4px;line-height:1}
-    .dcell-d{font-family:var(--serif);font-style:italic;font-size:8px;color:var(--mut2)}
-    .dc-1{--dc:var(--am1)} .dc-2{--dc:var(--am3)} .dc-3{--dc:var(--am4)}
-    .dc-4{--dc:var(--am5)} .dc-5{--dc:var(--mut)}
-    .dcell.empty{--dc:#3a3a44} .dcell.empty .dcell-d{color:#2a2a32}
-
-    .lg{margin:12px 0 4px;background:#0d0d11;border:1px solid var(--line2);border-radius:17px}
-    .lg summary{display:flex;align-items:center;gap:20px;height:34px;padding:0 14px}
-    .lg-q{width:18px;height:18px;border-radius:50%;background:#22201a;color:var(--am4);
-      font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center;flex:none}
-    .lg-t{font-size:9px;font-weight:900;letter-spacing:2px;color:#8a8a96}
-    .lg-d{font-family:var(--serif);font-style:italic;font-size:9px;color:#45454e}
-    .lg-c{margin-left:auto;width:22px;height:22px;border-radius:50%;background:#1a1a22;
-      display:flex;align-items:center;justify-content:center;transition:transform .18s}
-    .lg-c::before{content:'';width:7px;height:7px;border-right:1.8px solid var(--am4);
-      border-bottom:1.8px solid var(--am4);transform:translateY(-2px) rotate(45deg)}
-    .lg[open] .lg-c{transform:rotate(180deg)}
-    .lg[open] .lg-t{color:var(--txt2)}
-    .lg-body{display:grid;grid-template-columns:1fr 1px 1fr;gap:0 34px;padding:4px 26px 20px}
-    .lg-sep{background:var(--line2)}
-    .lg-h{font-size:7px;font-weight:900;letter-spacing:2px;color:#3a3a44;margin:6px 0 12px}
-    .lg-row{display:flex;gap:12px;padding:4px 0;font-size:8.5px;align-items:baseline}
-    .lg-k{font-weight:900;letter-spacing:1.5px;width:76px;flex:none;color:var(--am4)}
-    .lg-v{font-family:var(--serif);font-style:italic;color:var(--mut)}
-    .lg-n{font-family:var(--mono);color:var(--am4);width:56px;flex:none}
-
-    /* ══════════ ЗАГОЛОВКИ СЕКЦИЙ ══════════ */
-    .sec{display:flex;align-items:center;gap:14px;margin:34px 0 12px}
-    .sec-p{display:flex;align-items:center;gap:14px;border-radius:19px;padding:0 18px;height:38px}
-    .sec-n{font-size:14px;font-weight:900;letter-spacing:2px}
-    .sec-c{min-width:22px;height:22px;border-radius:11px;display:flex;align-items:center;
-      justify-content:center;font-family:var(--mono);font-size:9px;font-weight:900;padding:0 6px}
-    .sec-d{font-family:var(--serif);font-style:italic;font-size:10px;color:#7a6a44}
-    .sec-l{flex:1;height:1.2px;background:linear-gradient(90deg,rgba(255,184,0,.4),rgba(255,184,0,0))}
-    .t1 .sec-p{background:linear-gradient(160deg,var(--am1),var(--am2));box-shadow:0 4px 14px rgba(240,168,0,.32)}
-    .t1 .sec-n{color:#1a1400} .t1 .sec-c{background:rgba(26,20,0,.2);color:#1a1400}
-    .t2 .sec-p{background:#241f10;border:1px solid rgba(255,184,0,.5)}
-    .t2 .sec-n{color:var(--am1)} .t2 .sec-c{background:#3a2f18;color:var(--am1)}
-    .t3 .sec-p{background:#1a1710;border:1px solid rgba(138,106,42,.45)}
-    .t3 .sec-n{color:var(--am4);font-size:13px} .t3 .sec-c{background:#2a2417;color:var(--am4)}
-    .t3 .sec-d{color:#6b6050} .t3 .sec-l{background:linear-gradient(90deg,rgba(138,106,42,.4),rgba(138,106,42,0))}
-    .t4 .sec-p{background:#131317;border:1px solid #2a2a34}
-    .t4 .sec-n{color:#7a7a86;font-size:13px} .t4 .sec-c{background:#1e1e26;color:#7a7a86}
-    .t4 .sec-d{color:var(--mut3)} .t4 .sec-l{background:linear-gradient(90deg,rgba(74,74,84,.45),rgba(74,74,84,0))}
-
-    /* ══════════ ТАБЛИЦЫ-СЛАЙДЕРЫ ══════════ */
-    .tbl{margin-bottom:8px}
-    .tbl-h{display:grid;grid-template-columns:150px 1fr 308px 84px 66px;gap:12px;
-      padding:0 22px 8px;font-size:7px;font-weight:900;letter-spacing:2px;color:#3a3a44}
-    .tbl-h b:nth-child(4),.tbl-h b:nth-child(5){text-align:right;font-weight:900}
-    .trow{display:grid;grid-template-columns:150px 1fr 308px 84px 66px;gap:12px;align-items:center;
-      height:36px;padding:0 22px;border-radius:14px;background:var(--panel2)}
-    .trow:nth-child(even){background:var(--panel3)}
-    .trow:hover{background:#191920}
-    .t-sym{font-size:11px;font-weight:800;color:#dcdce4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .t-note{font-family:var(--serif);font-style:italic;font-size:8px;color:var(--mut3);
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .t-track{position:relative;height:5px;border-radius:2.5px;background:#1c1c24}
-    .t-fill{height:5px;border-radius:2.5px;background:linear-gradient(90deg,var(--am2),var(--am1))}
-    .t-dot{position:absolute;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;
-      background:var(--am1);box-shadow:0 0 0 2.5px rgba(255,184,0,.32)}
-    .t-val{font-family:var(--mono);font-size:12px;font-weight:900;color:var(--am1);text-align:right}
-    .t-ch{font-family:var(--mono);font-size:10px;text-align:right}
-    .t-scale{display:grid;grid-template-columns:150px 1fr 308px 84px 66px;gap:12px;padding:8px 22px 0}
-    .t-scale div:nth-child(3){display:flex;justify-content:space-between;
-      font-family:var(--mono);font-size:7px;color:var(--ghost)}
-    .up{color:var(--up)} .dn{color:var(--dn)}
-
-    /* ══════════ КАРТОЧКИ ══════════ */
-    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));
-      gap:20px;align-items:start;margin-bottom:8px}
-    .card{position:relative;background:var(--card);border-radius:30px;padding:16px}
-    .card.glow{background:linear-gradient(135deg,var(--g1),var(--g2) 50%,var(--g3));padding:1.2px;
-      border-radius:30px;box-shadow:0 0 11px var(--gs1),0 0 24px var(--gs2)}
-    .card.glow>.card-in{background:var(--card);border-radius:28.8px;padding:15px}
-    .card-in{position:relative}
-    .g-am{--g1:#FFB800;--g2:#e07a3a;--g3:#FFD24A;--gs1:rgba(255,184,0,.42);--gs2:rgba(240,168,0,.16)}
-    .g-rd{--g1:#e05a5a;--g2:#c04a6a;--g3:#f08a8a;--gs1:rgba(224,90,90,.42);--gs2:rgba(208,85,85,.16)}
-
-    .hdr{position:relative;height:118px;border-radius:22px;margin:0 0 14px;
-      background:linear-gradient(160deg,var(--h1),var(--h2));box-shadow:0 5px 18px var(--hs)}
-    .hdr.amber{--h1:#FFD24A;--h2:#F0A800;--hs:rgba(240,168,0,.3);--hf:#7a5c00;--hd:#1a1400;--hp:#6b5000}
-    .hdr.red{--h1:#f0a0a0;--h2:#d06060;--hs:rgba(208,85,85,.3);--hf:#5c1a1a;--hd:#2a0d0d;--hp:#6b2a2a}
-    .hdr::after{content:'';position:absolute;bottom:-22px;left:96px;width:44px;height:44px;
-      border-radius:50%;background:var(--card)}
-    .hdr-cl{position:absolute;inset:0;border-radius:22px;overflow:hidden}
-    .hdr-gh{position:absolute;left:-4px;bottom:-16px;font-size:80px;font-weight:900;
-      letter-spacing:-3px;color:var(--hd);opacity:.12;line-height:1;white-space:nowrap}
-    .hdr-in{position:relative;padding:22px 24px 0}
-    .hdr-rk{display:flex;align-items:center;gap:12px}
-    .hdr-rk b{font-size:8px;font-weight:800;letter-spacing:3px;color:var(--hf)}
-    .hdr-rk i{flex:1;max-width:80px;height:1px;background:var(--hf);opacity:.35}
-    .hdr-sym{margin-top:16px;font-weight:900;color:#fffdf6;text-shadow:0 2px 3px rgba(58,42,0,.55);
-      white-space:nowrap;overflow:hidden}
-    .hdr-ph{font-family:var(--serif);font-style:italic;font-weight:500;font-size:27px;
-      color:var(--hd);margin:-2px 0 0 10px;line-height:1.05}
-    .hdr-pr{position:absolute;right:24px;bottom:14px;font-family:var(--mono);font-size:9px;
-      font-weight:800;color:var(--hp)}
-
-    .med{position:absolute;top:52px;right:38px;width:50px;height:50px;border-radius:50%;
-      background:conic-gradient(from -90deg,var(--am1) calc(var(--p)*3.6deg),#24242c 0);
-      box-shadow:0 5px 8px rgba(0,0,0,.92),0 0 10px rgba(255,184,0,.35)}
-    .med.red{background:conic-gradient(from -90deg,#e39a9a calc(var(--p)*3.6deg),#24242c 0)}
-    .med::before{content:'';position:absolute;inset:3.4px;border-radius:50%;background:#14141a}
-    .med-i{position:relative;height:100%;display:flex;flex-direction:column;
-      align-items:center;justify-content:center;gap:1px}
-    .med-v{font-size:16px;font-weight:900;color:var(--am1);line-height:1}
-    .med.red .med-v{color:var(--dn)}
-    .med-l{font-size:5.5px;font-weight:800;letter-spacing:1.2px;color:var(--mut)}
-    .med-link{position:absolute;top:76px;right:88px;width:30px;height:1.2px;
-      background:var(--am2);opacity:.6}
-
-    .chips{display:flex;flex-wrap:wrap;gap:6px;margin:26px 0 12px}
-    .chip{height:18px;padding:0 11px;border-radius:9px;background:#1e1e26;color:#8a8a96;
-      font-size:7px;font-weight:900;letter-spacing:1px;display:flex;align-items:center;text-transform:uppercase}
-    .chip.risk{background:#2c1c1f;color:var(--dn)}
-    .chip.more{background:transparent;border:1px dashed #2a2a34;color:var(--mut3)}
-
-    .wrap{display:grid;grid-template-columns:120px 1fr;gap:8px;margin-bottom:12px}
-    .rvol{grid-row:span 2;background:var(--panel);border-radius:22px;padding:14px 0;text-align:center;
-      box-shadow:2px 4px 5px rgba(0,0,0,.8)}
-    .rvol-i{width:34px;height:34px;margin:0 auto;border-radius:50%;background:rgba(255,184,0,.14);
-      display:flex;align-items:center;justify-content:center;font-size:15px}
-    .rvol-v{font-family:var(--mono);font-size:22px;font-weight:900;color:var(--am1);margin-top:12px}
-    .rvol-l{font-size:7.5px;font-weight:700;letter-spacing:1.5px;color:#9a9080;margin-top:6px}
-    .rvol-d{font-family:var(--serif);font-style:italic;font-size:8px;color:#6e6a60;margin-top:4px}
-    .sigs{display:flex;flex-direction:column;gap:8px}
-    .sig{display:flex;align-items:center;gap:12px;height:46px;padding:0 16px;border-radius:20px;
-      background:var(--panel);box-shadow:2px 4px 5px rgba(0,0,0,.8)}
-    .sig.half{height:30px;border-radius:15px;background:#141419;box-shadow:none}
-    .sig-i{width:24px;height:24px;border-radius:50%;background:#2b2718;color:var(--am1);flex:none;
-      font-size:9px;font-weight:900;display:flex;align-items:center;justify-content:center}
-    .sig.rd .sig-i{background:#2c1c1f;color:var(--dn)}
-    .sig.half .sig-i{width:18px;height:18px;background:#22201a;color:var(--am4);font-size:8px}
-    .sig-t{font-size:9px;font-weight:900;letter-spacing:1.2px;color:#f2f2f6}
-    .sig.half .sig-t{font-size:8px;color:#dcdce4}
-    .sig-d{font-family:var(--serif);font-style:italic;font-size:8.5px;color:#82828e;margin-top:3px;
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .sig.half .sig-d{font-family:var(--mono);font-style:normal;font-size:7.5px;color:#5c5c66}
-    .sig-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-
-    .perf{display:grid;grid-template-columns:repeat(4,1fr);height:48px;align-items:center;
-      padding:0 24px;border-radius:20px;background:#0a0a0d;border:1px solid var(--line);margin-bottom:8px}
-    .perf-k{font-size:7px;font-weight:700;letter-spacing:1.8px;color:#57575f}
-    .perf-v{font-family:var(--mono);font-size:12px;font-weight:800;margin-top:5px}
-    .tech{height:22px;line-height:20px;border-radius:11px;background:#0a0a0d;border:1px solid var(--line2);
-      text-align:center;font-family:var(--mono);font-size:7.5px;color:var(--mut2);margin-bottom:16px;
-      white-space:nowrap;overflow:hidden}
-
-    .blk{position:relative;border-radius:20px;margin-bottom:8px;overflow:hidden}
-    .blk-n{position:absolute;left:16px;top:50%;transform:translateY(-50%);
-      font-size:38px;font-weight:900;line-height:1;pointer-events:none}
-    .b1{background:#141418;min-height:52px;box-shadow:2px 4px 5px rgba(0,0,0,.8)}
-    .b1 .blk-n{color:#26262e}
-    .b1-in{padding:12px 16px 12px 82px}
-    .b1-h{display:flex;align-items:center;gap:8px}
-    .tw{width:22px;height:22px;border-radius:50%;background:#1d2a33;flex:none;
-      display:flex;align-items:center;justify-content:center}
-    .tw svg{width:11px;height:11px;fill:#8fc4e8}
-    .b1-t{font-size:8px;font-weight:900;letter-spacing:2.5px;color:#c8c8d4}
-    .b1-lv{height:13px;padding:0 8px;border-radius:6.5px;font-size:6.5px;font-weight:900;
-      letter-spacing:1.2px;display:flex;align-items:center}
-    .lv-hot{background:#3a2f18;color:var(--am1)} .lv-warm{background:#3a2f18;color:var(--am4)}
-    .lv-cool{background:#22222a;color:#8a8a96} .lv-cold{background:#1a1a22;color:var(--mut2)}
-    .b1-d{font-size:8.5px;color:#63636d;margin-top:6px;line-height:1.4}
-    .b2{background:var(--panel);box-shadow:2px 4px 5px rgba(0,0,0,.8)}
-    .b2 .blk-n{color:#332a12}
-    .b2 summary{display:flex;align-items:center;min-height:52px;padding:10px 16px 10px 82px;gap:12px}
-    .b2-t{font-size:8px;font-weight:900;letter-spacing:2.5px;color:var(--am1)}
-    .b2-p{font-size:8.5px;color:#63636d;margin-top:6px;white-space:nowrap;overflow:hidden;
-      text-overflow:ellipsis;max-width:250px}
-    .b2-c{margin-left:auto;width:22px;height:22px;border-radius:50%;background:#22222a;flex:none;
-      display:flex;align-items:center;justify-content:center;transition:transform .18s}
-    .b2-c::before{content:'';width:7px;height:7px;border-right:1.8px solid var(--am1);
-      border-bottom:1.8px solid var(--am1);transform:translateY(-2px) rotate(45deg)}
-    .b2[open] .b2-c{transform:rotate(180deg)}
-    .b2[open] .b2-p{white-space:normal;max-width:none}
-    .b2-body{padding:0 20px 16px 82px;font-size:9.5px;line-height:1.65;color:#9a9aa4}
-    .b2-body p{margin:0 0 8px}
-    .b2-body p:last-child{margin:0}
-    .b3{background:#f4f4f7;min-height:62px;box-shadow:2px 4px 5px rgba(0,0,0,.8)}
-    .b3 .blk-n{color:#e2e2ea;font-size:44px}
-    .b3-in{padding:14px 20px 14px 82px}
-    .b3-t{font-size:8px;font-weight:900;letter-spacing:2.5px;color:#1a1a20}
-    .b3-d{font-size:8.5px;color:#5a5a66;margin-top:6px;line-height:1.5}
-    .b3-tv{position:absolute;right:20px;top:14px;font-size:7.5px;font-weight:900;color:#8a8a96}
-    .empty-note{font-family:var(--serif);font-style:italic;font-size:10px;color:#3a3a44;padding:6px 22px}
-
-    /* ══════════ ССЫЛКИ КАРТОЧКИ ══════════ */
-    .lnks{display:flex;gap:8px;margin-top:12px}
-    .lnk{flex:1;height:32px;border-radius:16px;background:#121217;border:1px solid var(--line2);
-      display:flex;align-items:center;justify-content:center;gap:7px;
-      font-size:8px;font-weight:900;letter-spacing:1.5px;color:#8a8a96;
-      transition:background .15s,color .15s,border-color .15s}
-    .lnk:hover{background:#1c1a14;border-color:rgba(255,184,0,.4);color:var(--am1)}
-    .lnk i{font-style:normal;font-size:9px;opacity:.7}
-    .lnk.pri{background:#1a1710;border-color:rgba(255,184,0,.32);color:var(--am4)}
-    .lnk.pri:hover{background:#241f10;color:var(--am1)}
-    .hdr-sym-a{display:block}
-    .hdr-sym-a:hover .hdr-sym{opacity:.82}
-
-    @media(max-width:1180px){
-      .dash{grid-template-columns:repeat(4,1fr);row-gap:20px}
-      .dcell:nth-child(5)::before{display:none}
-      .tbl-h,.trow,.t-scale{grid-template-columns:130px 1fr 200px 70px 60px}
-    }
-    @media(max-width:820px){
-      body{padding:18px 14px 40px}
-      .dash{grid-template-columns:repeat(2,1fr)}
-      .grid{grid-template-columns:1fr}
-      .tbl-h b:nth-child(2),.trow>div:nth-child(2){display:none}
-      .tbl-h,.trow,.t-scale{grid-template-columns:120px 1fr 66px 56px}
-      .lg-body{grid-template-columns:1fr}.lg-sep{display:none}
-    }
-    """
-# ═══════════════════════════════════════════════════════════════
-#  ЧАСТЬ 3a/3 КОНЕЦ
-# ═══════════════════════════════════════════════════════════════
-
-# ═══════════════════════════════════════════════════════════════
-#  sleeping_alts_screener_final.py — ЧАСТЬ 3b/3 НАЧАЛО
-# ═══════════════════════════════════════════════════════════════
+    css = CSS
 
     # ─────────────────────────────────────────────
     # Хелперы извлечения данных
@@ -1228,6 +1010,7 @@ def build_html(candidates: list[Candidate]) -> str:
         ph_lbl = str(phase.get("label", "—")).lower()
         risky  = (sq.get("risk_level") in ("high", "extreme")) or phase.get("num", 0) <= 1
         tone   = "red" if (risky and ch24 <= 0) else "amber"
+        tv = f"https://www.tradingview.com/chart/?symbol=BINANCE:{sym}.P"
 
         has_sig = bool(c.get("is_viral")) or any(
             t.get("class", "").startswith("tag-pattern") for t in tags)
@@ -1323,71 +1106,79 @@ def build_html(candidates: list[Candidate]) -> str:
             if len(preview) > 64:
                 preview = preview[:61].rstrip() + "…"
             body = "".join(f"<p>{esc(p)}</p>" for p in paras)
-            b2 = f"""
-<details class="blk b2"><div class="blk-n">02</div>
-  <summary>
-    <div style="min-width:0">
-      <div class="b2-t">АНАЛИЗ · {len(paras)} БЛОК{"А" if len(paras)>1 else ""}</div>
-      <div class="b2-p">{esc(preview)}</div>
-    </div>
-    <span class="b2-c"></span>
-  </summary>
-  <div class="b2-body">{body}</div>
-</details>"""
+            b2 = ""
+            if paras:
+                preview = paras[0]
+                if len(preview) > 64:
+                    preview = preview[:61].rstrip() + "…"
+                body = "".join(f"<p>{esc(p)}</p>" for p in paras)
+                plural = "А" if len(paras) > 1 else ""
+                b2 = f"""
+        <details class="blk b2">
+          <summary>
+            <div class="blk-n">02</div>
+            <div class="b2-in">
+              <div class="b2-t">АНАЛИЗ · {len(paras)} БЛОК{plural}</div>
+              <div class="b2-p">{esc(preview)}</div>
+            </div>
+            <span class="b2-c"></span>
+          </summary>
+          <div class="b2-body">{body}</div>
+        </details>"""
 
-        # ── 03 · Стратегия ──
-        st = c.get("strategy") or {}
-        strat_text = esc(st.get("text") or c.get("strategy_text") or "")
-        size_hint = st.get("size_hint") or ""
-        tv_url = c.get("tv_url") or ""
+            # ── 03 · Стратегия ──
+            st = c.get("strategy") or {}
+            strat_text = esc(st.get("text") or "")
+            size_hint = st.get("size_hint") or ""
 
-        dial = build_dial(
-            entry=float(st.get("entry") or c.get("price") or 0),
-            stop=float(st.get("stop") or 0),
-            target=float(st.get("target1") or 0),
-        )
-    
-        if dial.ok:
-            dial_html = f"""
-        <div class="rr-dial rr-{dial.grade}">
-          <svg viewBox="0 0 100 100" aria-hidden="true">
-            <circle class="rr-trk" cx="50" cy="50" r="42"/>
-            <circle class="rr-arc" cx="50" cy="50" r="42"
-                    stroke-dasharray="{dial.dash} {dial.circumference}"/>
-          </svg>
-          <div class="rr-val">{dial.rr_text}</div>
-          <div class="rr-cap">R : R</div>
-        </div>
-        <div class="rr-nums">
-          <div class="rr-c"><span class="rr-l">ВХОД</span>
-            <span class="rr-p rr-e">{fmt_price(dial.entry)}</span></div>
-          <div class="rr-c"><span class="rr-l">СТОП</span>
-            <span class="rr-p rr-s">{fmt_price(dial.stop)}</span>
-            <span class="rr-d">{dial.stop_pct:+.1f}%</span></div>
-          <div class="rr-c"><span class="rr-l">ЦЕЛЬ 1</span>
-            <span class="rr-p rr-t">{fmt_price(dial.target)}</span>
-            <span class="rr-d">{dial.target_pct:+.1f}%</span></div>
+            dial = build_dial(
+                entry=float(st.get("entry") or 0),
+                stop=float(st.get("stop") or 0),
+                target=float(st.get("target1") or 0),
+            )
+
+            if dial.ok:
+                b3_body = f"""
+            <div class="b3-grid">
+              <div class="rr-dial rr-{dial.grade}">
+                <svg viewBox="0 0 100 100" aria-hidden="true">
+                  <circle class="rr-trk" cx="50" cy="50" r="42"/>
+                  <circle class="rr-arc" cx="50" cy="50" r="42"
+                          stroke-dasharray="{dial.dash} {dial.circumference}"/>
+                </svg>
+                <div class="rr-val">{dial.rr_text}</div>
+                <div class="rr-cap">R : R</div>
+              </div>
+              <div class="rr-nums">
+                <div class="rr-c"><span class="rr-l">ВХОД</span>
+                  <span class="rr-p rr-e">{fmt_price(dial.entry)}</span></div>
+                <div class="rr-c"><span class="rr-l">СТОП</span>
+                  <span class="rr-p rr-s">{fmt_price(dial.stop)}</span>
+                  <span class="rr-d">{dial.stop_pct:+.1f}%</span></div>
+                <div class="rr-c"><span class="rr-l">ЦЕЛЬ 1</span>
+                  <span class="rr-p rr-t">{fmt_price(dial.target)}</span>
+                  <span class="rr-d">{dial.target_pct:+.1f}%</span></div>
+              </div>
+            </div>"""
+            else:
+                b3_body = ""
+
+            size_chip = (f'<span class="b3-chip">{esc(size_hint)}</span>'
+                         if size_hint else "")
+            tv_link = (f'<a class="b3-tv" href="{esc(tv)}" target="_blank" '
+                       f'rel="noopener">TV ↗</a>')
+
+            b3 = f"""
+        <div class="blk b3">
+          <div class="blk-n">03</div>
+          <div class="b3-in">
+            <div class="b3-hd">
+              <span class="b3-t">СТРАТЕГИЯ</span>{size_chip}{tv_link}
+            </div>
+            {b3_body}
+            <div class="b3-d">{strat_text}</div>
+          </div>
         </div>"""
-            b3_body = f'<div class="b3-grid">{dial_html}</div>'
-        else:
-            b3_body = ""
-
-        size_chip = (f'<span class="b3-chip">{esc(size_hint)}</span>'
-                     if size_hint else "")
-        tv_link = (f'<a class="b3-tv" href="{esc(tv_url)}" target="_blank" '
-                   f'rel="noopener">TV ↗</a>' if tv_url else "")
-
-        b3 = f"""
-    <div class="blk b3">
-      <div class="blk-n">03</div>
-      <div class="b3-in">
-        <div class="b3-hd">
-          <span class="b3-t">СТРАТЕГИЯ</span>{size_chip}{tv_link}
-        </div>
-        {b3_body}
-        <div class="b3-d">{strat_text}</div>
-      </div>
-    </div>"""
 
         # ── ссылки ──
         ICON_L = {"tradingview": "📈", "binance": "🅱", "coingecko": "🦎", "twitter": "𝕏"}
@@ -1410,7 +1201,7 @@ def build_html(candidates: list[Candidate]) -> str:
       <div class="hdr-rk"><b>RANK {esc(rank)}</b><i></i></div>
       <a class="hdr-sym-a" href="{tv}" target="_blank" rel="noopener">
           <div class="hdr-sym" style="font-size:{fs};letter-spacing:{ls}">{esc(sym)}</div>
-      <a>
+      </a>
       <div class="hdr-ph">{esc(ph_lbl)}</div>
     </div>
     <div class="hdr-pr">{esc(price)}</div>
