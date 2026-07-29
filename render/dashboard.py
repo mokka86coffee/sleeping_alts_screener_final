@@ -63,6 +63,40 @@ def _arc(pct: float, r: float) -> str:
     return f"{on:.2f} {circ - on:.2f}"
 
 
+def _spark(values: list[float], w: float = 236.0,
+           h: float = 48.0, pad: float = 6.0) -> tuple[str, float, float]:
+    """Точки для линии с АВТОМАСШТАБОМ по фактическому диапазону.
+
+    Раньше ось строилась по score с жёсткой шкалой 0..100: реальный разброс
+    (напр. 57..62) давал 2px амплитуды, и линия выглядела прямой. Теперь
+    минимум серии прижимается к низу, максимум — к верху, поэтому любой
+    разброс раскрывается на всю высоту блока.
+
+    Возвращает (points, x последней точки, y последней точки).
+    """
+    n = len(values)
+    if n == 0:
+        return "", w, h / 2
+    if n == 1:
+        y = h / 2
+        return f"0,{y:.1f} {w:.0f},{y:.1f}", w, y
+
+    lo, hi = min(values), max(values)
+    span = hi - lo
+    top, bottom = pad, h - pad
+    step = w / (n - 1)
+
+    pts = []
+    for i, v in enumerate(values):
+        # нулевой разброс — ровная линия по центру, это честное "нет данных"
+        k = 0.5 if span < 1e-9 else (v - lo) / span
+        y = bottom - k * (bottom - top)
+        pts.append((i * step, y))
+
+    coords = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+    return coords, pts[-1][0], pts[-1][1]
+
+
 # Срезы, которые больше НЕ выводятся плашками на первом экране.
 # Код и таблицы сохранены: их числа уходят в узлы воронки,
 # а клик по узлу открывает соответствующую панель.
@@ -84,8 +118,10 @@ def build_slices(candidates: list[Candidate], snapshot: RunSnapshot) -> list[dic
     #   · выноска "> ×4" и подпись "на дневке" — сейчас константы
     #     (SURGE_MULT / SURGE_TF), в макете на их месте было "×2.3"
     #     и "к вчерашнему дню"
-    #   · линейный график — источник данных не определён, строится
-    #     по скорам топа как заглушка
+    #   · линейный график — СТРОИТСЯ ПО rvol_1h среза с автомасштабом.
+    #     Настоящей истории объёма нет, это распределение по монетам,
+    #     а не временной ряд. Когда появится история — заменить values
+    #     в _blk_volume на неё, _spark менять не нужно
     #   · ТРИ МОНЕТЫ ПОД ГРАФИКОМ = ТОП-3 из таблицы прошлой реализации
     #     (сортировка по множителю объёма, формат "тикер ×N.N")
     # =====================================================================
@@ -115,10 +151,10 @@ def build_slices(candidates: list[Candidate], snapshot: RunSnapshot) -> list[dic
     # Вёрстка по новому дизайну. ФУНКЦИОНАЛ ИЗ ПРОШЛОЙ РЕАЛИЗАЦИИ.
     #
     # СОСТАВ СТРОК (порядок сверху вниз) и источники:
-    #   1) taiko   ← срез `taiko`   (HTF reversal)      — данные есть
-    #   2) dexe    ← срез `dexe`    (post-pump)         — данные есть
-    #   3) strong  ← бывш. "база",  (high-confidence)   — ПЕРЕИМЕНОВАНО
-    #   4) good    ← бывш. "vortex",(tradable setups)   — ПЕРЕИМЕНОВАНО
+    #   1) taiko   ← срез `taiko` (HTF reversal)      — данные есть
+    #   2) dexe    ← срез `dexe`  (post-pump)         — данные есть
+    #   3) strong  ← бывш. "база",  (high-confidence) — ПЕРЕИМЕНОВАНО
+    #   4) good    ← бывш. "vortex",(tradable setups) — ПЕРЕИМЕНОВАНО
     #
     # ВАЖНО ПО ПЕРЕИМЕНОВАНИЮ:
     #   меняются ТОЛЬКО подписи в вёрстке. Строка "база" теперь выводит
@@ -132,7 +168,8 @@ def build_slices(candidates: list[Candidate], snapshot: RunSnapshot) -> list[dic
     #   · "N сигнал" в заголовке — сумма четырёх счётчиков
     #   · цвет шкалы и числа закреплён за строкой (p-taiko … p-good),
     #     из макета, не меняем
-    #   · СТРОКА `good` пока без источника: детектора нет, срез пустой
+    #   · СТРОКА `good` пока без источника: детектора нет, срез пустой,
+    #     поэтому строка гасится классом `off`
     #
     # Подпись "после фильтра качества базы" — ОСТАВЛЯЕМ КАК ЕСТЬ, константа.
     # Клик по строке ведёт в таблицу соответствующего среза.
@@ -196,7 +233,8 @@ def build_slices(candidates: list[Candidate], snapshot: RunSnapshot) -> list[dic
     #     подсвеченный столбец = пик.
     #     ВНИМАНИЕ: почасовой истории в прошлой реализации НЕТ,
     #     источник нужно определить отдельно. Пока IMP_BARS / IMP_PEAK —
-    #     константы по макету
+    #     константы по макету; при пустом срезе гистограмма гасится
+    #     классом `dim`, чтобы декор не спорил с нулём
     #   · нижняя подпись "пик был N часа назад" — из той же истории
     #
     # Клик по блоку ведёт в таблицу этого среза.
@@ -214,21 +252,28 @@ def build_slices(candidates: list[Candidate], snapshot: RunSnapshot) -> list[dic
     planned = [c for c in candidates if _actionable(c)]
 
     return [
-        {"id": "all", "label": "ВСЯ ВЫБОРКА", "note": "все монеты прогона, без фильтров",
-         "items": list(candidates)},
-        {"id": "surge", "label": "ОБЪЁМЫ АНОМАЛЬНЫЕ", "note": "против среднего за 30 дней",
-         "items": surge},
-        {"id": "viral", "label": "ВСПЛЕСК ВНИМАНИЯ", "note": "внимание и объём вместе",
-         "items": viral},
-        {"id": "taiko", "label": "TAIKO", "note": "разворот на старшем ТФ", "items": taiko},
-        {"id": "dexe", "label": "DEXE", "note": "отскок после дампа", "items": dexe},
-        {"id": "strong", "label": "STRONG", "note": "накопление, фаза 2", "items": strong},
-        {"id": "good", "label": "GOOD", "note": "рабочие сетапы", "items": good},
-        {"id": "setups", "label": "СЕТАПЫ К РАБОТЕ", "note": "R:R подтверждён, вето пройдено",
-         "items": setups},
-        {"id": "hourly", "label": "ИМПУЛЬС ЗА ЧАС", "note": "RVOL 1H ≥ 3", "items": hourly},
-        {"id": "planned", "label": "ЕСТЬ ПЛАН", "note": "уровни построены", "items": planned},
-        {"id": "vetoed", "label": "ПОД ВЕТО", "note": "отсеяны фильтром риска", "items": vetoed},
+        {"id": "all", "label": "ВСЯ ВЫБОРКА",
+         "note": "все монеты прогона, без фильтров", "items": list(candidates)},
+        {"id": "surge", "label": "ОБЪЁМЫ АНОМАЛЬНЫЕ",
+         "note": "против среднего за 30 дней", "items": surge},
+        {"id": "viral", "label": "ВСПЛЕСК ВНИМАНИЯ",
+         "note": "внимание и объём вместе", "items": viral},
+        {"id": "taiko", "label": "TAIKO",
+         "note": "разворот на старшем ТФ", "items": taiko},
+        {"id": "dexe", "label": "DEXE",
+         "note": "отскок после дампа", "items": dexe},
+        {"id": "strong", "label": "STRONG",
+         "note": "накопление, фаза 2", "items": strong},
+        {"id": "good", "label": "GOOD",
+         "note": "рабочие сетапы", "items": good},
+        {"id": "setups", "label": "СЕТАПЫ К РАБОТЕ",
+         "note": "R:R подтверждён, вето пройдено", "items": setups},
+        {"id": "hourly", "label": "ИМПУЛЬС ЗА ЧАС",
+         "note": "RVOL 1H ≥ 3", "items": hourly},
+        {"id": "planned", "label": "ЕСТЬ ПЛАН",
+         "note": "уровни построены", "items": planned},
+        {"id": "vetoed", "label": "ПОД ВЕТО",
+         "note": "отсеяны фильтром риска", "items": vetoed},
     ]
 
 
@@ -236,17 +281,18 @@ def build_slices(candidates: list[Candidate], snapshot: RunSnapshot) -> list[dic
 # КОНСТАНТЫ ВЁРСТКИ · всё, что пока не приходит из данных
 # ═════════════════════════════════════════════════════════════
 TITLE = "SLEEPING ALTS"
-SURGE_NOTE = "монет · surge ≥ 4×"     # было "surge ≥ 3×"
-SURGE_MULT = "&gt; ×4"                # было "×2.3"
-SURGE_TF = "на дневке"                # было "к вчерашнему дню"
+SURGE_NOTE = "монет · surge ≥ 4×"        # было "surge ≥ 3×"
+SURGE_MULT = "&gt; ×4"                    # было "×2.3"
+SURGE_TF = "на дневке"                    # было "к вчерашнему дню"
 SOC_SUB = "hot 3 · warm 4"
 PAT_FOOT = "после фильтра качества базы"
 RR_MIN = "2"
-RR_GOOD = 3.0                          # порог зелёного кольца в сетапах
+RR_GOOD = 3.0                             # порог зелёного кольца в сетапах
 IMP_NOTE = "rvol ≥ 2.2× сейчас"
 IMP_BARS = [18, 26, 36, 48, 30, 16, 10]
 IMP_PEAK = 3
 IMP_FOOT = "пик был 2 часа назад"
+IMP_EMPTY = "импульса в этом прогоне нет"
 RISK_LEGS = [("squeeze", 9, "ru"), ("фандинг", 6, "gl"), ("ликвид.", 8, "st")]
 BTC_D = "58%"
 FN_FOOT_R = "медиана от ath −71% · rvol 0.7×"
@@ -370,24 +416,34 @@ def _head(snapshot: RunSnapshot) -> str:
 # Блок · объёмы
 # ─────────────────────────────────────────────────────────────
 def _blk_volume(s: dict) -> str:
-    items = sorted(s["items"], key=lambda c: -c.score)
-    pts = [max(10, min(100, int(c.score))) for c in items[:8]]
-    while len(pts) < 8:
-        pts.append(pts[-1] if pts else 40)
+    items = s["items"]
 
-    step = 236 / 7
-    coords = " ".join(
-        f"{i * step:.0f},{48 - v / 100 * 40:.0f}" for i, v in enumerate(pts)
-    )
-    last_x, last_y = 236, 48 - pts[-1] / 100 * 40
+    # ГРАФИК. Ось Y — множитель объёма (rvol_1h), НЕ score: score почти
+    # не разбросан внутри среза и давал визуально прямую линию.
+    # Точки идут по возрастанию, поэтому маркер на конце = лидер по объёму.
+    # Дублирование хвоста убрано: сколько монет, столько и точек.
+    chart = sorted(items, key=lambda c: _num(c, "rvol_1h"))
+    values = [_num(c, "rvol_1h") for c in chart]
+    coords, last_x, last_y = _spark(values)
 
-    lead = items[:3]
+    # ТОП-3 по объёму, но выводим по ВОЗРАСТАНИЮ — чтобы порядок слева направо
+    # совпадал с направлением линии над легендой (лидер под маркером справа).
+    lead = sorted(items, key=lambda c: -_num(c, "rvol_1h"))[:3][::-1]
     legend = "".join(
-        f'<span>{_tick(c)} ×{max(_num(c, "rvol_1h"), 4.0):.1f}</span>' for c in lead
+        f'<span>{_tick(c)} ×{_num(c, "rvol_1h"):.1f}</span>' for c in lead
     ) or '<span>нет данных</span>'
 
+    flat = len(values) < 2
+    line = "" if not coords else (
+        f'<polygon points="{coords} 236,52 0,52" fill="url(#vf)"/>'
+        f'<polyline points="{coords}" fill="none" stroke="#F5A623" '
+        f'stroke-width="1.4" vector-effect="non-scaling-stroke"/>'
+        f'<circle cx="{last_x:.0f}" cy="{last_y:.0f}" r="2.5" fill="#FFE0A0"/>'
+    )
+    cls = "b c-am g-vol" + ("" if items else " empty")
+
     return f"""
-<div class="b c-am g-vol" data-slice="{esc(s['id'])}">
+<div class="{cls}" data-slice="{esc(s['id'])}">
   <span class="halo"></span>
   <div class="b-in">
     <div class="vol-call"><b>{SURGE_MULT}</b><i>{SURGE_TF}</i></div>
@@ -400,7 +456,7 @@ def _blk_volume(s: dict) -> str:
     {_title('объёмы', 'аномальные')}
     <span class="big">{len(items)}</span>
     <span class="big-u">{SURGE_NOTE}</span>
-    <div class="vol-chart">
+    <div class="vol-chart{' dim' if flat else ''}">
       <svg viewBox="0 0 236 52" preserveAspectRatio="none">
         <defs>
           <linearGradient id="vf" x1="0" y1="1" x2="0" y2="0">
@@ -408,10 +464,7 @@ def _blk_volume(s: dict) -> str:
             <stop offset="1" stop-color="#F5A623" stop-opacity=".22"/>
           </linearGradient>
         </defs>
-        <polygon points="{coords} 236,52 0,52" fill="url(#vf)"/>
-        <polyline points="{coords}" fill="none" stroke="#F5A623" stroke-width="1.4"
-                  vector-effect="non-scaling-stroke"/>
-        <circle cx="{last_x}" cy="{last_y:.0f}" r="2.5" fill="#FFE0A0"/>
+        {line}
       </svg>
     </div>
     <div class="hr"></div>
@@ -429,9 +482,11 @@ def _blk_social(s: dict, total: int) -> str:
     lead = max(items, key=lambda c: c.score, default=None)
     pill_txt = (f'{_tick(lead)} ×{max(_num(lead, "rvol_1h"), 2.0):.1f}'
                 if lead is not None else "нет всплесков")
+    # пустой срез: карточка гаснет, чтобы нулевое кольцо не читалось как дыра
+    cls = "b b-card c-bl g-soc" + ("" if items else " empty")
 
     return f"""
-<div class="b b-card c-bl g-soc" data-slice="{esc(s['id'])}">
+<div class="{cls}" data-slice="{esc(s['id'])}">
   <span class="halo"></span>
   <div class="b-in">
     {_icon('soc')}
@@ -453,14 +508,18 @@ def _blk_social(s: dict, total: int) -> str:
 # Блок · паттерны
 # ─────────────────────────────────────────────────────────────
 def _blk_patterns(slices: list[dict]) -> str:
-    src = [("taiko", "taiko", "p-taiko"), ("dexe", "dexe", "p-dexe"),
-           ("strong", "strong", "p-strong"), ("good", "good", "p-good")]
+    src = [("taiko", "taiko", "p-taiko"),
+           ("dexe", "dexe", "p-dexe"),
+           ("strong", "strong", "p-strong"),
+           ("good", "good", "p-good")]
     data = [(lbl, cls, _pick(slices, sid)) for sid, lbl, cls in src]
     total = sum(len(d[2]["items"]) for d in data)
     peak = max((len(d[2]["items"]) for d in data), default=0) or 1
 
+    # строка без данных гасится: пустая шкала иначе читается как баг вёрстки
     rows = "".join(
-        f'<div class="brow {cls}" data-slice="{esc(sl["id"])}">'
+        f'<div class="brow {cls}{"" if sl["items"] else " off"}" '
+        f'data-slice="{esc(sl["id"])}">'
         f'<span class="brow-n">{esc(lbl)}</span>'
         f'<span class="brow-t"><i style="width:{len(sl["items"]) / peak * 100:.0f}%"></i></span>'
         f'<span class="brow-v">{len(sl["items"])}</span></div>'
@@ -487,7 +546,8 @@ def _blk_risk(s: dict, total: int) -> str:
     items = s["items"]
     share = round(len(items) / total * 100) if total else 0
     legs = "".join(
-        f'<span>{esc(k)}<b class="{tone}">{n}</b></span>' for k, n, tone in RISK_LEGS
+        f'<span>{esc(k)}<b class="{tone}">{n}</b></span>'
+        for k, n, tone in RISK_LEGS
     )
 
     return f"""
@@ -498,7 +558,8 @@ def _blk_risk(s: dict, total: int) -> str:
       <span><b>{share}<i>%</i></b><s>доля выборки</s></span>
       <svg viewBox="0 0 14 8" fill="none">
         <path d="M0 4 h12 m-4 -3.5 l4 3.5 l-4 3.5" stroke="#C8DCE8"
-              stroke-opacity=".45" stroke-linecap="round" stroke-linejoin="round"/>
+              stroke-opacity=".45" stroke-linecap="round"
+              stroke-linejoin="round"/>
       </svg>
     </div>
     <div class="b-t wide">риск · под вето</div>
@@ -521,8 +582,6 @@ def _blk_risk(s: dict, total: int) -> str:
       <span>фандинг</span>
     </div>
     <div class="risk-mid">
-      <div class="risk-k">монет</div>
-      <div class="risk-v">{len(items)}</div>
       <svg class="risk-orbit" viewBox="0 0 276 46" preserveAspectRatio="none">
         <defs>
           <linearGradient id="orb" x1="0" y1="0" x2="1" y2="0">
@@ -533,12 +592,15 @@ def _blk_risk(s: dict, total: int) -> str:
             <stop offset="1" stop-color="#C8DCE8" stop-opacity=".04"/>
           </linearGradient>
         </defs>
-        <ellipse cx="138" cy="20" rx="132" ry="17" fill="none" stroke="url(#orb)"
-                 stroke-width="1.2" vector-effect="non-scaling-stroke"/>
-        <ellipse cx="138" cy="24" rx="96" ry="10" fill="none" stroke="#C8DCE8"
+        <ellipse cx="138" cy="23" rx="132" ry="19" fill="none"
+                 stroke="url(#orb)" stroke-width="1.2"
+                 vector-effect="non-scaling-stroke"/>
+        <ellipse cx="138" cy="23" rx="96" ry="11" fill="none" stroke="#C8DCE8"
                  stroke-opacity=".07" vector-effect="non-scaling-stroke"/>
-        <circle cx="6" cy="20" r="2" fill="#DCEAF4" opacity=".55"/>
+        <circle cx="6" cy="23" r="2" fill="#DCEAF4" opacity=".55"/>
       </svg>
+      <div class="risk-k">монет</div>
+      <div class="risk-v">{len(items)}</div>
     </div>
     <div class="risk-legs">{legs}</div>
   </div>
@@ -560,6 +622,7 @@ def _blk_setups(s: dict, total: int) -> str:
         color = "#4FCF8A" if rr >= RR_GOOD else "#F5A623"
         fill = min(100, rr / 5 * 100)
         phase = str((c.phase or {}).get("label", "—")).lower()
+
         rows += (
             f'<div class="set-row" data-coin="{esc(c.symbol)}">'
             f'<div><div class="set-sym">{esc(c.symbol)}</div>'
@@ -575,6 +638,7 @@ def _blk_setups(s: dict, total: int) -> str:
             f'<span class="set-in">вход {_price(entry)}</span>'
             f'</div>'
         )
+
     if not rows:
         rows = '<div class="set-empty">сетапов в этом прогоне нет</div>'
 
@@ -594,24 +658,29 @@ def _blk_setups(s: dict, total: int) -> str:
 # Блок · импульс
 # ─────────────────────────────────────────────────────────────
 def _blk_impulse(s: dict) -> str:
+    # Гистограмма — статика (истории по часам нет). Если срез пуст, гасим её
+    # и снимаем подсветку пика: живой декор рядом с нулём выглядит ошибкой.
+    n = len(s["items"])
     peak = max(IMP_BARS) or 1
     bars = "".join(
-        f'<i class="{"on" if i == IMP_PEAK else ""}" '
+        f'<i class="{"on" if (i == IMP_PEAK and n) else ""}" '
         f'style="height:{v / peak * 100:.0f}%"></i>'
         for i, v in enumerate(IMP_BARS)
     )
+    foot = IMP_FOOT if n else IMP_EMPTY
+    cls = "b c-am g-imp" + ("" if n else " empty")
 
     return f"""
-<div class="b c-am g-imp" data-slice="{esc(s['id'])}">
+<div class="{cls}" data-slice="{esc(s['id'])}">
   <span class="halo"></span>
   <div class="b-in">
     {_icon('imp')}
     {_title('импульс', 'за час')}
-    <span class="big">{len(s['items'])}</span>
+    <span class="big">{n}</span>
     <span class="big-u">{IMP_NOTE}</span>
-    <div class="imp-bars">{bars}</div>
+    <div class="imp-bars{'' if n else ' dim'}">{bars}</div>
     <div class="hr"></div>
-    <div class="note mid">{IMP_FOOT}</div>
+    <div class="note mid">{esc(foot)}</div>
   </div>
 </div>"""
 
@@ -639,6 +708,7 @@ def _blk_sectors(snapshot: RunSnapshot) -> str:
         pairs, live = list(SECTOR_FALLBACK), False
 
     peak = max((abs(v) for _, v in pairs), default=1) or 1
+
     rows = ""
     for name, val in pairs:
         cls = "up" if val >= 0 else "dn"
@@ -673,14 +743,17 @@ def _funnel(snapshot: RunSnapshot) -> str:
     #   · ПЕРВЫЙ УЗЕЛ = скрытый срез `all`, отдельного блока у него нет
     #   · скрытый срез `planned` вынесен в узел "r:r ≥ 2"
     #   · дуга на круге — доля от ПРЕДЫДУЩЕГО этапа
-    #   · между узлами — дельта отсева (−N)
+    #   · между узлами — дельта отсева (−N); при нулевой дельте вместо
+    #     "−0" ставим точку, иначе выглядит как мусор
     #   · последний узел крупнее, со свечением и пунктирным кольцом
     #   · "конверсия N%" справа сверху — последний / первый
     # Если snapshot.funnel пуст, показываем FUNNEL_FALLBACK по макету.
     # =====================================================================
     src = getattr(snapshot, "funnel", None) or []
-    clickable = {"вся выборка": "all", "есть план": "planned", "r:r ≥ 2": "planned",
-                 "после вето": "vetoed", "к работе": "setups"}
+    clickable = {"вся выборка": "all", "есть план": "planned",
+                 "r:r ≥ 2": "planned", "после вето": "vetoed",
+                 "к работе": "setups"}
+
     if src:
         nodes = []
         for r in src:
@@ -699,19 +772,23 @@ def _funnel(snapshot: RunSnapshot) -> str:
     out, prev = "", nodes[0][1] or 1
     for i, (name, count, target) in enumerate(nodes):
         if i:
-            out += f'<div class="fn-gap">−{max(0, prev - count)}</div>'
+            drop = max(0, prev - count)
+            out += f'<div class="fn-gap">{"−" + str(drop) if drop else "·"}</div>'
         pct = min(100, count / prev * 100) if prev else 0
         prev = count or prev
+
         tone = FN_TONE[min(i, len(FN_TONE) - 1)]
         attr = f' data-slice="{target}"' if target else ""
         is_last = i == len(nodes) - 1
         r = 28 if is_last else 24
+
         extra = (f'<circle r="36" fill="none" stroke="#4FCF8A" stroke-opacity=".12" '
                  f'stroke-dasharray="1 5"/>' if is_last else "")
         arc = ("" if (i == 0 or is_last) else
                f'<circle r="{r}" fill="none" stroke="{tone}" stroke-opacity=".5" '
                f'stroke-width="1.4" stroke-linecap="round" '
                f'stroke-dasharray="{_arc(pct, r)}" transform="rotate(-90)"/>')
+
         out += (
             f'<div class="fn-node{" last" if is_last else ""}"{attr}>'
             f'<svg width="{r * 2 + 20}" height="{r * 2 + 20}" '
@@ -809,9 +886,6 @@ def _modals(candidates: list[Candidate]) -> str:
 # ─────────────────────────────────────────────────────────────
 # Сборка
 # ─────────────────────────────────────────────────────────────
-# ─────────────────────────────────────────────────────────────
-# Сборка
-# ─────────────────────────────────────────────────────────────
 def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
     slices = build_slices(candidates, snapshot)
     total = len(candidates)
@@ -854,7 +928,9 @@ DASH_JS = """
   function showPane(id) {
     var target = document.querySelector('[data-pane="' + id + '"]');
     if (!target) return;
-    document.querySelectorAll('.pane').forEach(function (p) { p.classList.remove('on'); });
+    document.querySelectorAll('.pane').forEach(function (p) {
+      p.classList.remove('on');
+    });
     target.classList.add('on');
     dash.classList.add('hide');
     panes.classList.remove('hide');
@@ -866,7 +942,9 @@ DASH_JS = """
     panes.classList.remove('on');
     panes.classList.add('hide');
     dash.classList.remove('hide');
-    document.querySelectorAll('.pane').forEach(function (p) { p.classList.remove('on'); });
+    document.querySelectorAll('.pane').forEach(function (p) {
+      p.classList.remove('on');
+    });
   }
 
   function openCoin(sym) {
@@ -877,29 +955,40 @@ DASH_JS = """
   }
 
   function closeCoin() {
-    document.querySelectorAll('.modal.on').forEach(function (m) { m.classList.remove('on'); });
+    document.querySelectorAll('.modal.on').forEach(function (m) {
+      m.classList.remove('on');
+    });
     document.body.style.overflow = '';
   }
 
   document.addEventListener('click', function (e) {
-    if (e.target.closest('.modal-x') || e.target.closest('.modal-bd')) { closeCoin(); return; }
-    if (e.target.closest('.pane-back')) { backToDash(); return; }
-
+    if (e.target.closest('.modal-x') || e.target.closest('.modal-bd')) {
+      closeCoin();
+      return;
+    }
+    if (e.target.closest('.pane-back')) {
+      backToDash();
+      return;
+    }
     var coin = e.target.closest('[data-coin]');
     if (coin && !coin.closest('.modal')) {
       openCoin(coin.getAttribute('data-coin'));
       return;
     }
-
     var slice = e.target.closest('[data-slice]');
-    if (slice) { showPane(slice.getAttribute('data-slice')); }
+    if (slice) {
+      showPane(slice.getAttribute('data-slice'));
+    }
   });
 
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'Escape') return;
-    if (document.querySelector('.modal.on')) { closeCoin(); }
-    else if (panes.classList.contains('on')) { backToDash(); }
+    if (document.querySelector('.modal.on')) {
+      closeCoin();
+    } else if (panes.classList.contains('on')) {
+      backToDash();
+    }
   });
 })();
-<//script>
+</script>
 """

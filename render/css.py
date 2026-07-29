@@ -11,23 +11,17 @@
 TOKENS = """
 :root{
   --bg:#08080b;
-  --card1:#1a1a21;
-  --card2:#131318;
-
-  --am:#F5A623;      --am-l:#FFD98A;   --am-n:#FFE0A0;   --am-d:#B36A10;
+  --card1:#1a1a21;   --card2:#131318;
+  --am:#F5A623;      --am-l:#FFD98A;  --am-n:#FFE0A0;  --am-d:#B36A10;
   --bl:#3E9BE0;      --bl-l:#BFE4FF;
-  --gd:#E0C060;      --gd-n:#D9B84A;   --gd-b:#C9AC4A;
-  --gr:#4FCF8A;      --gr-l:#A8F0C8;   --gr-n:#7FEBAE;
+  --gd:#E0C060;      --gd-n:#D9B84A;  --gd-b:#C9AC4A;
+  --gr:#4FCF8A;      --gr-l:#A8F0C8;  --gr-n:#7FEBAE;
   --vi:#A47AE0;      --vi-l:#D8C0F8;
-  --ru:#C4703A;
-  --st:#8FA0B0;      --st-l:#a8b2bc;
-  --gl:#C8DCE8;
-
-  --t1:#f2f2f5; --t2:#e8eaee; --t3:#c8ccd4;
-  --m1:#9aa0a8; --m2:#6a6e77; --m3:#5e626b;
-  --m4:#4a4a56; --m5:#3e3e48; --m6:#33333c;
-  --trk:#1c1c22; --hr:#1a1a20;
-
+  --ru:#C4703A;      --st:#8FA0B0;    --st-l:#a8b2bc;  --gl:#C8DCE8;
+  --t1:#f2f2f5;      --t2:#e8eaee;    --t3:#c8ccd4;
+  --m1:#9aa0a8;      --m2:#6a6e77;    --m3:#5e626b;
+  --m4:#4a4a56;      --m5:#3e3e48;    --m6:#33333c;
+  --trk:#1c1c22;     --hr:#1a1a20;
   --glass:linear-gradient(140deg,rgba(143,180,200,.07),rgba(74,96,112,.03) 40%,
           rgba(127,168,192,.05) 75%,rgba(58,74,88,.02));
   --glassG:linear-gradient(140deg,rgba(127,200,168,.06),rgba(58,106,86,.025) 40%,
@@ -40,7 +34,6 @@ TOKENS = """
           rgba(168,232,200,.2) 65%,rgba(58,90,74,.07));
   --rimW:linear-gradient(90deg,rgba(200,220,232,.3),rgba(122,140,154,.1) 30%,
           rgba(143,168,184,.12) 70%,rgba(168,232,200,.3));
-
   --mono:'SF Mono',SFMono-Regular,Consolas,'Liberation Mono',monospace;
 }
 """
@@ -65,7 +58,7 @@ body{
     radial-gradient(circle 380px at 82% 76%,rgba(62,155,224,.045),transparent 70%);}
 .bg svg{position:absolute;inset:0;width:100%;height:100%}
 
-.screen{position:relative;z-index:1;max-width:1112px;margin:0 auto;padding:34px 20px 60px}
+.screen{position:relative;z-index:1;max-width:1390px;margin:0 auto;padding:34px 20px 60px}
 #panes{display:none}
 #panes.on{display:block}
 """
@@ -103,16 +96,16 @@ HEAD = """
 # СЕТКА И КАРКАС БЛОКА
 # ═══════════════════════════════════════════════════
 BLOCK = """
-.row{display:grid;margin-bottom:52px}
-.row-1{grid-template-columns:272fr 204fr 236fr 316fr;gap:30px;align-items:start}
-.row-2{grid-template-columns:492fr 192fr 316fr;gap:52px;align-items:start}
+.row{display:grid;align-items:start;margin-bottom:52px}
+.row-1{grid-template-columns:272fr 204fr 236fr 316fr;gap:30px;margin-top:34px}
+.row-2{grid-template-columns:492fr 192fr 316fr;gap:52px}
 
 .b{position:relative;padding:30px 0 0}
 .halo{position:absolute;top:-14px;left:50%;transform:translateX(-50%);
   width:118%;height:104px;border-radius:50%;pointer-events:none;filter:blur(18px);
   background:radial-gradient(ellipse at 50% 0,var(--h1),var(--h2) 45%,transparent 72%)}
 
-/* широкие блоки — свечение чуть скромнее по доле, но крупнее физически */
+/* широкие блоки — свечение скромнее по доле, но крупнее физически */
 .g-set .halo{width:86%;height:112px}
 .g-sect .halo{width:100%}
 .fn .halo{width:76%;height:96px}
@@ -123,6 +116,10 @@ BLOCK = """
 .c-gr{--c:var(--gr);--h1:rgba(79,207,138,.38);--h2:rgba(46,138,90,.1)}
 .c-vi{--c:var(--vi);--h1:rgba(164,122,224,.38);--h2:rgba(106,74,160,.1)}
 .c-wh{--c:var(--gl);--h1:rgba(200,220,232,.22);--h2:rgba(106,122,136,.07)}
+
+/* пустой срез: блок гаснет, но остаётся кликабельным */
+.b.empty{opacity:.5}
+.b.empty .dial-v{fill:#5a6470}
 
 .b-in{position:relative;padding:0 4px}
 
@@ -158,13 +155,16 @@ BLOCK = """
   background:var(--c);opacity:.26;filter:blur(7px)}
 .b-ic svg{position:relative;width:26px;height:26px;overflow:visible}
 
-.b-t{margin-top:22px;text-align:center;font-size:12px;font-weight:300;
-  letter-spacing:2px;color:var(--t2)}
-.b-t span{color:var(--m3)}
-.b-t.wide{font-size:7px;letter-spacing:4px;color:#7d8994;margin-top:0}
+/* ЗАГОЛОВКИ ПЛАШЕК · увеличены относительно макета */
+.b-t{margin-top:16px;text-align:center;font-size:11px;font-weight:300;
+  line-height:1.25;letter-spacing:3px;color:var(--t2)}
+.b-t span{font-size:12px;font-weight:300;letter-spacing:2px;
+  color:var(--m2);opacity:1;margin-left:9px}
+.b-t.wide{font-size:11px;font-weight:300;letter-spacing:5px;
+  color:#c8d4de;margin-top:0}
 
 .big{display:block;text-align:center;font-size:58px;font-weight:100;
-  letter-spacing:4px;line-height:1;color:var(--am-n);margin-top:34px}
+  letter-spacing:4px;line-height:1;color:var(--am-n);margin-top:30px}
 .big-u{display:block;text-align:center;font-size:7.5px;font-weight:300;
   letter-spacing:2.5px;color:var(--m3);margin-top:12px}
 .hr{height:1px;background:var(--hr);margin:14px 0 0}
@@ -179,7 +179,7 @@ VOL = """
 .vol-chart{margin-top:26px}
 .vol-chart svg{display:block;width:100%;height:48px;overflow:visible}
 .vol-legend{display:flex;justify-content:space-between;font-size:7.5px;
-  font-weight:300;letter-spacing:1px;color:var(--m2);margin-top:14px}
+  font-weight:300;letter-spacing:1px;margin-top:14px}
 .vol-call{position:absolute;top:-4px;right:-6px;text-align:right;pointer-events:none}
 .vol-call b{display:block;font-size:10px;font-weight:200;letter-spacing:2px;color:#8a8f98}
 .vol-call i{display:block;font-style:normal;font-size:6.5px;font-weight:300;
@@ -191,12 +191,12 @@ VOL = """
 # СОЦСЕТИ
 # ═══════════════════════════════════════════════════
 SOC = """
-.dial{display:block;margin:7px auto 0;width:64px;height:64px}
+.dial{display:block;margin:3px auto 0;width:64px;height:64px}
 .dial-v{font-size:26px;font-weight:100;letter-spacing:1px;fill:var(--bl-l)}
 .soc-sub{text-align:center;font-size:7px;font-weight:300;letter-spacing:2px;
   color:var(--m3);margin-top:4px}
 .pill{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;
-  gap:10px;width:120px;height:28px;margin: -11px auto -14px;border-radius:14px;
+  gap:10px;width:120px;height:28px;margin:-11px auto -14px;border-radius:14px;
   background:#111319;border:1px solid #213038;box-shadow:0 8px 16px rgba(0,0,0,.6)}
 .pill i{width:7px;height:7px;border-radius:50%;background:var(--bl)}
 .pill b{font-size:9px;font-weight:300;letter-spacing:1.5px;color:var(--bl-l)}
@@ -206,13 +206,14 @@ SOC = """
 # ПАТТЕРНЫ · СЕКТОРА · общие полосы
 # ═══════════════════════════════════════════════════
 BARS = """
-.rows{margin-top:26px}
+.rows{margin-top:24px}
 .brow{display:grid;grid-template-columns:58px 1fr 34px;align-items:center;gap:12px;
   padding:6px 0;font-size:8px;font-weight:300;letter-spacing:1.5px}
 .brow-n{color:var(--m2)}
 .brow-t{position:relative;height:4px;border-radius:2px;background:var(--trk)}
 .brow-t i{position:absolute;top:0;left:0;height:4px;border-radius:2px;background:var(--bc)}
 .brow-v{text-align:right;font-size:10px;font-weight:200;color:var(--bc)}
+.brow.off{opacity:.35}
 .p-taiko{--bc:linear-gradient(90deg,#B87A18,#FFD98A)}
 .p-taiko .brow-v{color:#F5C880}
 .p-dexe{--bc:var(--ru)}
@@ -238,9 +239,12 @@ BARS = """
 # СЕТАПЫ
 # ═══════════════════════════════════════════════════
 SET = """
-.set-list{margin-top:24px}
+.g-set .b-t{white-space:nowrap}
+.g-set .b-t span{font-size:12px}
+.set-list{margin-top:22px}
 .set-row{display:grid;grid-template-columns:1fr 26px 62px 92px;align-items:center;
-  gap:14px;padding:14px 18px;border-top:1px solid rgba(168,232,200,.07)}
+  gap:14px;padding:14px 18px;border-top:1px solid rgba(168,232,200,.07);
+  transition:background .12s}
 .set-row:hover{background:rgba(168,232,200,.03)}
 .set-sym{font-size:12px;font-weight:300;letter-spacing:1.5px;color:var(--t2)}
 .set-sub{font-size:7px;font-weight:300;letter-spacing:1px;color:#55625b;margin-top:5px}
@@ -258,38 +262,55 @@ SET = """
 # ═══════════════════════════════════════════════════
 IMP = """
 .imp-bars{display:flex;align-items:flex-end;justify-content:center;gap:10px;
-  height:48px;margin-top:34px}
+  height:48px;margin-top:30px}
 .imp-bars i{width:12px;border-radius:2px;background:var(--trk)}
 .imp-bars i.on{background:var(--am)}
+.imp-bars.dim{opacity:.25}
 """
 
 # ═══════════════════════════════════════════════════
 # РИСК
 # ═══════════════════════════════════════════════════
 RISK = """
-.risk-cap{position:absolute;top:-40px;right:26px;z-index:2;display:flex;
-  align-items:center;gap:10px;height:26px;padding:0 14px;border-radius:13px;
+.g-risk{min-height:184px}
+.g-risk>.b-in{padding:14px 34px 10px;overflow:visible}
+
+.risk-cap{position:absolute;top:-34px;right:0;z-index:2;display:flex;
+  align-items:center;gap:8px;height:26px;padding:0 14px;border-radius:13px;
   background:var(--glass);border:1px solid rgba(200,220,232,.16)}
+.risk-cap span{display:flex;flex-direction:column;align-items:flex-start;
+  line-height:1}
 .risk-cap b{font-size:10px;font-weight:200;letter-spacing:1px;color:#dfe8f0}
 .risk-cap b i{font-style:normal;font-size:6.5px;color:#7d8994;letter-spacing:1.5px}
-.risk-cap s{text-decoration:none;font-size:5.5px;font-weight:300;letter-spacing:2px;
-  color:#5e6a76;display:block;margin-top:2px}
-.risk-cap svg{width:14px;height:8px}
+.risk-cap s{text-decoration:none;font-size:5.5px;font-weight:300;
+  letter-spacing:2px;color:#5e6a76;margin-top:3px}
+.risk-cap svg{width:14px;height:8px;flex:none}
 
-.risk-mid{position:relative;margin-top:20px;text-align:center}
-.risk-k{font-size:6.5px;font-weight:300;letter-spacing:3px;color:#7d8994}
-.risk-v{font-size:52px;font-weight:100;letter-spacing:3px;color:#f2f8fc;
-  line-height:1;margin-top:12px}
-.risk-orbit{display:block;width:100%;height:46px;margin-top:-6px;overflow:visible}
-.risk-arc{position:absolute;top:22px;width:34px;height:78px}
-.risk-arc.l{left:-2px}
-.risk-arc.r{right:-2px}
-.risk-arc span{position:absolute;top:50%;left:50%;font-size:6px;font-weight:300;
-  letter-spacing:1.5px;color:#6a7682;white-space:nowrap}
+/* ЯДРО: орбита — подложка, число центрируется поверх неё */
+.risk-mid{position:relative;margin-top:16px;height:92px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center}
+.risk-orbit{position:absolute;left:50%;top:50%;
+  transform:translate(-50%,-50%);width:100%;height:76px;
+  overflow:visible;pointer-events:none;z-index:0}
+.risk-k{position:relative;z-index:1;font-size:6.5px;font-weight:300;
+  letter-spacing:3px;color:#7d8994}
+.risk-v{position:relative;z-index:1;font-size:50px;font-weight:100;
+  letter-spacing:3px;color:#f2f8fc;line-height:1;margin-top:6px}
+
+/* боковые дуги: подписи вынесены наружу, поэтому overflow нельзя резать */
+.risk-arc{position:absolute;top:50%;transform:translateY(-50%);
+  width:34px;height:78px;pointer-events:none;z-index:1}
+.risk-arc.l{left:6px}
+.risk-arc.r{right:6px}
+.risk-arc svg{width:100%;height:100%}
+.risk-arc span{position:absolute;top:50%;left:50%;
+  font-size:6px;font-weight:300;letter-spacing:1.5px;color:#8494a2;
+  white-space:nowrap}
 .risk-arc.l span{transform:translate(-50%,-50%) rotate(-90deg)}
 .risk-arc.r span{transform:translate(-50%,-50%) rotate(90deg)}
-.risk-legs{display:flex;justify-content:center;gap:26px;margin-top:14px;
-  font-size:6.5px;font-weight:300;letter-spacing:1.5px}
+
+.risk-legs{position:relative;z-index:1;display:flex;justify-content:center;
+  gap:24px;margin-top:12px;font-size:6.5px;font-weight:300;letter-spacing:1.5px}
 .risk-legs span{color:#6a7682}
 .risk-legs b{font-size:9px;font-weight:200;margin-left:8px}
 .risk-legs b.ru{color:var(--ru)}
@@ -328,6 +349,7 @@ FUNNEL = """
   color:var(--m4);margin-top:16px}
 .fn-node.last .fn-v{fill:var(--gr-n);font-size:23px}
 .fn-node.last .fn-l{color:#4a5a52}
+.fn-node[data-slice]:hover .fn-l{color:var(--t3)}
 .fn-gap{position:relative;flex:1;text-align:center;font-size:6px;font-weight:300;
   letter-spacing:1.5px;color:var(--m5);padding-top:36px}
 .fn-foot{display:flex;justify-content:space-between;margin-top:24px;
@@ -341,14 +363,16 @@ FUNNEL = """
 PANES = """
 .pane{display:none;padding-top:10px}
 .pane.on{display:block}
-.pane-hd{display:flex;align-items:center;gap:16px;padding-bottom:18px;
-  border-bottom:1px solid rgba(200,220,232,.08)}
-.pane-back{font-family:inherit;font-size:7px;font-weight:300;letter-spacing:3px;
-  color:#8a95a0;background:var(--glass);border:1px solid rgba(200,220,232,.16);
-  border-radius:13px;height:26px;padding:0 16px;cursor:pointer}
+.pane-hd{display:flex;align-items:baseline;gap:12px;padding-bottom:18px;
+  margin-bottom:6px;border-bottom:1px solid rgba(200,220,232,.08)}
+.pane-back{align-self:center;font-family:inherit;font-size:7px;font-weight:300;
+  letter-spacing:3px;color:#8a95a0;background:var(--glass);
+  border:1px solid rgba(200,220,232,.16);border-radius:13px;height:26px;
+  padding:0 16px;cursor:pointer;flex:none}
 .pane-back:hover{color:var(--t2)}
-.pane-t{font-size:12px;font-weight:300;letter-spacing:3px;color:var(--t2)}
-.pane-c{font-size:9px;font-weight:200;letter-spacing:1px;color:var(--am-n)}
+.pane-t{font-size:14px;font-weight:400;letter-spacing:2px;color:var(--t2)}
+.pane-c{font-size:9px;font-weight:200;letter-spacing:1px;color:var(--am-n);
+  font-variant-numeric:tabular-nums}
 .pane-n{font-size:7px;font-weight:300;letter-spacing:2px;color:var(--m4);margin-left:auto}
 
 .tb{width:100%;border-collapse:collapse;margin-top:6px}
@@ -356,10 +380,12 @@ PANES = """
   text-align:left;padding:16px 12px 10px}
 .tb td{font-size:11px;font-weight:300;letter-spacing:1px;color:var(--t3);
   padding:11px 12px;border-top:1px solid rgba(200,220,232,.06)}
+.tb tbody tr{cursor:pointer;transition:background .12s}
 .tb tbody tr:hover{background:rgba(245,166,35,.045)}
 .tb-s{font-size:12.5px;color:#dfe2e8;letter-spacing:1.5px}
-.tb-sc i{display:inline-block;vertical-align:middle;width:34px;height:3px;
-  border-radius:1.5px;margin-right:10px;
+.tb-sc{position:relative;padding-left:56px;font-variant-numeric:tabular-nums}
+.tb-sc i{position:absolute;left:12px;top:50%;transform:translateY(-50%);
+  width:34px;height:3px;border-radius:1.5px;
   background:linear-gradient(90deg,var(--am) calc(var(--p) * 1%),
   rgba(255,255,255,.07) calc(var(--p) * 1%))}
 .tb .up{color:var(--gr)}
@@ -382,19 +408,22 @@ PANES = """
 # АДАПТИВ · ВСЕГДА В КОНЦЕ
 # ═══════════════════════════════════════════════════
 RESPONSIVE = """
-@media (max-width:1100px){
-  .row-1{grid-template-columns:1fr 1fr;gap:30px 40px}
-  .row-2{grid-template-columns:1fr 1fr;gap:30px 40px}
+@media (max-width:1240px){
+  .row-1{grid-template-columns:1fr 1fr;gap:34px 40px}
+  .row-2{grid-template-columns:1fr 1fr;gap:34px 40px}
   .row-2 .g-set{grid-column:1 / -1}
   .fn-line{left:60px;right:80px}
   .fn-node{width:64px}
+  .risk-cap{right:auto;left:0}
 }
+
 @media (max-width:760px){
   .screen{padding:24px 16px 48px}
   .hd{flex-wrap:wrap;gap:16px}
   .cap{margin-left:0;width:100%;justify-content:space-between;gap:12px;padding:0 14px}
   .row-1,.row-2{grid-template-columns:1fr;gap:44px}
   .row-2 .g-set{grid-column:auto}
+  .b-t{font-size:17px}
   .vol-call,.vol-hook,.risk-arc{display:none}
   .fn-nodes{flex-wrap:wrap;justify-content:center;gap:24px}
   .fn-gap{display:none}
@@ -403,19 +432,21 @@ RESPONSIVE = """
   .fn-foot{flex-direction:column;gap:8px}
   .set-row{grid-template-columns:1fr 26px 56px;gap:10px;padding:12px 8px}
   .set-in{display:none}
+  .pane-hd{flex-wrap:wrap;gap:10px}
+  .pane-n{margin-left:0;width:100%}
   .tb th:nth-child(4),.tb td:nth-child(4){display:none}
 }
+
 @media (max-width:520px){
   .big{font-size:46px}
   .risk-v{font-size:42px}
   .risk-legs{gap:14px}
+  .g-risk{height:auto}
   .tb th:nth-child(6),.tb td:nth-child(6){display:none}
 }
 """
 
 CSS = "".join([
-    TOKENS, BASE, HEAD, BLOCK,
-    VOL, SOC, BARS, SET, IMP, RISK, FUNNEL,
-    PANES,
-    RESPONSIVE,
+    TOKENS, BASE, HEAD, BLOCK, VOL, SOC, BARS, SET, IMP,
+    RISK, FUNNEL, PANES, RESPONSIVE,
 ])
