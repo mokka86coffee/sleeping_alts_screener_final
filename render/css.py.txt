@@ -105,7 +105,6 @@ BLOCK = """
   width:118%;height:104px;border-radius:50%;pointer-events:none;filter:blur(18px);
   background:radial-gradient(ellipse at 50% 0,var(--h1),var(--h2) 45%,transparent 72%)}
 
-/* широкие блоки — свечение скромнее по доле, но крупнее физически */
 .g-set .halo{width:86%;height:112px}
 .g-sect .halo{width:100%}
 .fn .halo{width:76%;height:96px}
@@ -117,7 +116,6 @@ BLOCK = """
 .c-vi{--c:var(--vi);--h1:rgba(164,122,224,.38);--h2:rgba(106,74,160,.1)}
 .c-wh{--c:var(--gl);--h1:rgba(200,220,232,.22);--h2:rgba(106,122,136,.07)}
 
-/* пустой срез: блок гаснет, но остаётся кликабельным */
 .b.empty{opacity:.5}
 .b.empty .dial-v{fill:#5a6470}
 
@@ -155,7 +153,6 @@ BLOCK = """
   background:var(--c);opacity:.26;filter:blur(7px)}
 .b-ic svg{position:relative;width:26px;height:26px;overflow:visible}
 
-/* ЗАГОЛОВКИ ПЛАШЕК · увеличены относительно макета */
 .b-t{margin-top:16px;text-align:center;font-size:11px;font-weight:300;
   line-height:1.25;letter-spacing:3px;color:var(--t2)}
 .b-t span{font-size:12px;font-weight:300;letter-spacing:2px;
@@ -177,9 +174,10 @@ BLOCK = """
 # ═══════════════════════════════════════════════════
 VOL = """
 .vol-chart{margin-top:26px}
+.vol-chart.dim{opacity:.3}
 .vol-chart svg{display:block;width:100%;height:48px;overflow:visible}
 .vol-legend{display:flex;justify-content:space-between;font-size:7.5px;
-  font-weight:300;letter-spacing:1px;margin-top:14px}
+  font-weight:300;letter-spacing:1px;color:var(--m2);margin-top:14px}
 .vol-call{position:absolute;top:-4px;right:-6px;text-align:right;pointer-events:none}
 .vol-call b{display:block;font-size:10px;font-weight:200;letter-spacing:2px;color:#8a8f98}
 .vol-call i{display:block;font-style:normal;font-size:6.5px;font-weight:300;
@@ -196,10 +194,12 @@ SOC = """
 .soc-sub{text-align:center;font-size:7px;font-weight:300;letter-spacing:2px;
   color:var(--m3);margin-top:4px}
 .pill{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;
-  gap:10px;width:120px;height:28px;margin:-11px auto -14px;border-radius:14px;
-  background:#111319;border:1px solid #213038;box-shadow:0 8px 16px rgba(0,0,0,.6)}
-.pill i{width:7px;height:7px;border-radius:50%;background:var(--bl)}
-.pill b{font-size:9px;font-weight:300;letter-spacing:1.5px;color:var(--bl-l)}
+  gap:10px;min-width:120px;height:28px;margin:-11px auto -14px;padding:0 12px;
+  border-radius:14px;background:#111319;border:1px solid #213038;
+  box-shadow:0 8px 16px rgba(0,0,0,.6)}
+.pill i{width:7px;height:7px;border-radius:50%;background:var(--bl);flex:none}
+.pill b{font-size:9px;font-weight:300;letter-spacing:1.5px;color:var(--bl-l);
+  white-space:nowrap}
 """
 
 # ═══════════════════════════════════════════════════
@@ -227,7 +227,7 @@ BARS = """
   padding:6px 0;font-size:8px;font-weight:300;letter-spacing:1.5px}
 .srow-n{color:var(--m1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .srow-t{position:relative;height:4px;border-radius:2px;background:var(--trk)}
-.srow-t i{position:absolute;top:0;height:4px;border-radius:2px}
+.srow-t i{position:absolute;top:0;height:4px;border-radius:2px;min-width:6px}
 .srow-t i.up{left:50%;background:var(--gr)}
 .srow-t i.dn{right:50%;background:var(--ru)}
 .srow-v{text-align:right;font-size:10px;font-weight:200}
@@ -286,7 +286,6 @@ RISK = """
   letter-spacing:2px;color:#5e6a76;margin-top:3px}
 .risk-cap svg{width:14px;height:8px;flex:none}
 
-/* ЯДРО: орбита — подложка, число центрируется поверх неё */
 .risk-mid{position:relative;margin-top:16px;height:92px;
   display:flex;flex-direction:column;align-items:center;justify-content:center}
 .risk-orbit{position:absolute;left:50%;top:50%;
@@ -297,7 +296,6 @@ RISK = """
 .risk-v{position:relative;z-index:1;font-size:50px;font-weight:100;
   letter-spacing:3px;color:#f2f8fc;line-height:1;margin-top:6px}
 
-/* боковые дуги: подписи вынесены наружу, поэтому overflow нельзя резать */
 .risk-arc{position:absolute;top:50%;transform:translateY(-50%);
   width:34px;height:78px;pointer-events:none;z-index:1}
 .risk-arc.l{left:6px}
@@ -375,25 +373,6 @@ PANES = """
   font-variant-numeric:tabular-nums}
 .pane-n{font-size:7px;font-weight:300;letter-spacing:2px;color:var(--m4);margin-left:auto}
 
-.tb{width:100%;border-collapse:collapse;margin-top:6px}
-.tb th{font-size:6.5px;font-weight:300;letter-spacing:2px;color:#4a505a;
-  text-align:left;padding:16px 12px 10px}
-.tb td{font-size:11px;font-weight:300;letter-spacing:1px;color:var(--t3);
-  padding:11px 12px;border-top:1px solid rgba(200,220,232,.06)}
-.tb tbody tr{cursor:pointer;transition:background .12s}
-.tb tbody tr:hover{background:rgba(245,166,35,.045)}
-.tb-s{font-size:12.5px;color:#dfe2e8;letter-spacing:1.5px}
-.tb-sc{position:relative;padding-left:56px;font-variant-numeric:tabular-nums}
-.tb-sc i{position:absolute;left:12px;top:50%;transform:translateY(-50%);
-  width:34px;height:3px;border-radius:1.5px;
-  background:linear-gradient(90deg,var(--am) calc(var(--p) * 1%),
-  rgba(255,255,255,.07) calc(var(--p) * 1%))}
-.tb .up{color:var(--gr)}
-.tb .dn{color:var(--ru)}
-.tb-ph{font-size:8.5px;color:#70747c}
-.tb-empty{padding:52px 0;text-align:center;font-size:8px;font-weight:300;
-  letter-spacing:2px;color:var(--m4)}
-
 .modal{display:none;position:fixed;inset:0;z-index:900}
 .modal.on{display:block}
 .modal-bd{position:absolute;inset:0;background:rgba(6,7,9,.86);backdrop-filter:blur(6px)}
@@ -402,6 +381,164 @@ PANES = """
 .modal-x{position:sticky;top:0;margin-left:auto;display:block;width:32px;height:32px;
   border-radius:50%;background:rgba(255,255,255,.08);
   border:1px solid rgba(200,220,232,.16);color:var(--t3);font-size:13px;cursor:pointer}
+"""
+
+# ═══════════════════════════════════════════════════
+# ТАБЛИЦА ВЫБОРКИ · терминальный режим, 20+ колонок
+# Первые четыре колонки закреплены через position:sticky.
+# Ширины закреплённых колонок и их смещения слева должны
+# совпадать: 34 / 104 / 74 / 84 → left 0 / 34 / 138 / 212.
+# ═══════════════════════════════════════════════════
+SCAN = """
+.scan{margin-top:56px}
+.sx-hint{font-size:7px;font-weight:300;letter-spacing:2px;color:var(--m5);
+  margin:10px 0 14px}
+
+.sx-empty{padding:52px 0;text-align:center;font-size:8px;font-weight:300;
+  letter-spacing:2px;color:var(--m4)}
+
+.sx-wrap{position:relative;overflow-x:auto;overflow-y:visible;
+  border-radius:14px;background:linear-gradient(180deg,#15161c,#101116);
+  border:1px solid rgba(200,220,232,.1);
+  scrollbar-width:thin;scrollbar-color:#2a2c34 transparent}
+.sx-wrap::-webkit-scrollbar{height:8px}
+.sx-wrap::-webkit-scrollbar-thumb{background:#24262e;border-radius:4px}
+.sx-wrap::-webkit-scrollbar-track{background:transparent}
+
+.sx{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
+.sx th{position:sticky;top:0;z-index:3;background:#0d0e12;
+  font-size:8px;font-weight:600;letter-spacing:2px;color:#b0b0b0;
+  text-align:left;padding:14px 14px 10px;white-space:nowrap;
+  border-bottom:1px solid rgba(200,220,232,.09)}
+.sh th::first-letter {
+ color: white;
+ font-size: 11px;
+}
+.sx td{padding:10px 14px;vertical-align:middle;white-space:nowrap;
+  border-bottom:1px solid rgba(200,220,232,.045)}
+
+.sxr{transition:background .12s}
+.sxr:hover{background:rgba(255,255,255,.022)}
+.sxr td:first-child{position:relative}
+.sxr td:first-child::before{content:'';position:absolute;left:0;top:6px;bottom:6px;
+  width:2px;border-radius:1px;background:var(--acc);opacity:0;transition:opacity .12s}
+.sxr:hover td:first-child::before{opacity:.8}
+.sxr.vetoed{opacity:.62}
+.sxr.faded{opacity:.4}
+
+/* ── закреплённые колонки ── */
+.sx .sx-idx{position:sticky;left:0;z-index:2;width:34px;background:#0d0e12}
+.sx .sx-c-sym{position:sticky;left:34px;z-index:2;width:104px;background:#0d0e12}
+.sx .sx-c-soc{position:sticky;left:138px;z-index:2;width:74px;background:#0d0e12}
+.sx .sx-c-surge{position:sticky;left:212px;z-index:2;width:84px;background:#0d0e12;
+  box-shadow:10px 0 14px -8px rgba(0,0,0,.85)}
+.sx th.sx-idx,.sx th.sx-c-sym,.sx th.sx-c-soc,.sx th.sx-c-surge{z-index:4}
+.sxr:hover .sx-idx,.sxr:hover .sx-c-sym,
+.sxr:hover .sx-c-soc,.sxr:hover .sx-c-surge{background:#12141a}
+
+.sx-idx{font-size:9px;font-weight:200;color:#3a3e46;
+  font-variant-numeric:tabular-nums}
+
+.sx-sym{display:inline-flex;align-items:center;gap:5px;font-size:13px;
+  font-weight:300;letter-spacing:1.2px;color:#eceef2;text-decoration:none}
+.sx-sym svg{width:8px;height:8px;opacity:0;transition:opacity .12s;color:var(--am)}
+.sx-sym:hover{color:var(--am-l)}
+.sx-sym:hover svg{opacity:1}
+.sx-sub{display:block;font-size:6.5px;font-weight:300;letter-spacing:1.2px;
+  margin-top:3px}
+.sx-sub2{display:block;font-size:6.5px;font-weight:300;letter-spacing:1.2px;
+  color:#565b64;margin-top:4px}
+.sx-mut{font-size:10px;color:#3e424a}
+
+/* ── примитивы ── */
+.sx-ring{display:block;width:32px;height:32px;overflow:visible}
+.sx-ring-v{font-size:10px;font-weight:200;fill:var(--t3)}
+td:nth-child(6) .sx-ring{width:36px;height:36px}
+
+.sx-bar{position:relative;display:block;height:3px;border-radius:1.5px;
+  background:#1b1c22;margin-top:5px;overflow:hidden}
+.sx-bar i{position:absolute;left:0;top:0;height:100%;border-radius:1.5px;
+  min-width:3px}
+
+.sx-n{font-size:11px;font-weight:200;letter-spacing:.5px;color:var(--t3);
+  font-variant-numeric:tabular-nums}
+.sx-n.up{color:var(--gr)}
+.sx-n.dn{color:var(--ru)}
+.sx-n.am{color:var(--am-l)}
+.sx-n.mut{color:#7a7f88}
+
+.sx-rr{font-size:14px;font-weight:200;letter-spacing:.8px;
+  font-variant-numeric:tabular-nums}
+.sx-rr.up{color:var(--gr)}
+.sx-rr.am{color:var(--am)}
+.sx-rr.mut{color:#43474f}
+
+.sx-badge{display:inline-flex;align-items:center;height:16px;padding:0 8px;
+  border-radius:8px;font-size:10px;font-weight:300;letter-spacing:.8px;
+  color:var(--bc);background:color-mix(in srgb,var(--bc) 12%,transparent);
+  border:1px solid color-mix(in srgb,var(--bc) 38%,transparent)}
+.sx-badge.off{opacity:.3}
+.sx-chips{display:flex;gap:5px;flex-wrap:nowrap}
+
+.sx-steps{display:flex;gap:3px}
+.sx-steps i{width:12px;height:3px;border-radius:1.5px;background:#25262d}
+.sx-steps i.on{background:var(--sc)}
+
+.sx-sb{display:flex;align-items:flex-end;gap:2.5px;height:22px;width:56px}
+.sx-sb i{flex:1;border-radius:1px;background:var(--sbc);opacity:.4}
+.sx-sb i.last{opacity:1}
+.sx-sb.empty{opacity:.15;border-bottom:1px solid #2a2c34}
+
+.sx-sl{display:block;width:72px;height:26px;overflow:visible}
+.sx-sl.empty{display:block;width:72px;height:1px;background:#22242a;margin:12px 0}
+
+.sx-soc{display:flex;align-items:center;gap:7px}
+.sx-soc-l{font-size:7px;font-weight:300;letter-spacing:1.2px;color:#3e4650}
+.sx-soc-l.hot{color:var(--bl)}
+.sx-soc-l.warm{color:#3a6a90}
+.sx-soc-l b{display:block;font-size:6.5px;font-weight:300;color:#4a505a;
+  margin-top:2px}
+
+.sx-surge,.sx-taiko{display:flex;flex-direction:column;align-items:flex-start}
+
+.sx-veto{display:flex;align-items:center;gap:8px}
+.sx-dots{display:flex;gap:4px}
+.sx-dots i{width:7px;height:7px;border-radius:50%;background:#1e2026;
+  border:1px solid #2a2c32}
+.sx-dots i.on{border-color:transparent}
+.sx-veto-l{font-size:7.5px;font-weight:300;letter-spacing:1px}
+.sx-veto-l.ok{color:#4a6a58}
+.sx-veto-l.bad{color:var(--ru)}
+
+.sx-bp{position:relative;display:block;width:64px;height:4px;border-radius:2px;
+  background:#1b1c22}
+.sx-bp::after{content:'';position:absolute;left:50%;top:-3px;width:1px;height:10px;
+  background:#3a3a44}
+.sx-bp i{position:absolute;top:0;height:100%;border-radius:2px;min-width:2px}
+.sx-bp-v{display:block;font-size:8px;font-weight:200;margin-top:5px;
+  font-variant-numeric:tabular-nums}
+
+.sx-lv{position:relative;display:block;width:78px;height:8px}
+.sx-lv::before{content:'';position:absolute;left:0;right:0;top:3.5px;height:1px;
+  background:#22242a}
+.sx-lv i{position:absolute;top:0}
+.sx-lv i.s{left:0;width:3px;height:8px;border-radius:1.5px;background:var(--ru)}
+.sx-lv i.t{right:0;width:3px;height:8px;border-radius:1.5px;background:var(--gr)}
+.sx-lv i.e{width:6px;height:6px;top:1px;border-radius:50%;background:var(--gl);
+  transform:translateX(-50%)}
+.sx-lv.empty{font-size:6.5px;color:#3a3a44;letter-spacing:1px;
+  width:auto;height:auto}
+.sx-lv-v{display:block;font-size:7px;font-weight:300;color:#4a505a;margin-top:5px;
+  font-variant-numeric:tabular-nums}
+
+.sx-act{font-size:8px;font-weight:300;letter-spacing:1.5px;color:var(--m3)}
+.sx-act.go{color:var(--gr)}
+.sx-act.mut{color:#43474f}
+
+.sx-f{display:flex;align-items:center;gap:18px;margin-top:16px;
+  font-size:7px;font-weight:300;letter-spacing:2px;color:var(--m5)}
+.sx-f-m{color:var(--am-d)}
+.sx-f-r{margin-left:auto}
 """
 
 # ═══════════════════════════════════════════════════
@@ -423,7 +560,6 @@ RESPONSIVE = """
   .cap{margin-left:0;width:100%;justify-content:space-between;gap:12px;padding:0 14px}
   .row-1,.row-2{grid-template-columns:1fr;gap:44px}
   .row-2 .g-set{grid-column:auto}
-  .b-t{font-size:17px}
   .vol-call,.vol-hook,.risk-arc{display:none}
   .fn-nodes{flex-wrap:wrap;justify-content:center;gap:24px}
   .fn-gap{display:none}
@@ -434,19 +570,23 @@ RESPONSIVE = """
   .set-in{display:none}
   .pane-hd{flex-wrap:wrap;gap:10px}
   .pane-n{margin-left:0;width:100%}
-  .tb th:nth-child(4),.tb td:nth-child(4){display:none}
+  /* на узком экране закрепляем только тикер */
+  .sx .sx-c-soc,.sx .sx-c-surge{position:static;box-shadow:none}
+  .sx .sx-c-sym{box-shadow:10px 0 14px -8px rgba(0,0,0,.85)}
+  .sx td,.sx th{padding-left:10px;padding-right:10px}
 }
 
 @media (max-width:520px){
   .big{font-size:46px}
   .risk-v{font-size:42px}
   .risk-legs{gap:14px}
-  .g-risk{height:auto}
-  .tb th:nth-child(6),.tb td:nth-child(6){display:none}
+  .g-risk{min-height:0}
+  .sx .sx-idx{display:none}
+  .sx .sx-c-sym{left:0}
 }
 """
 
 CSS = "".join([
     TOKENS, BASE, HEAD, BLOCK, VOL, SOC, BARS, SET, IMP,
-    RISK, FUNNEL, PANES, RESPONSIVE,
+    RISK, FUNNEL, PANES, SCAN, RESPONSIVE,
 ])
