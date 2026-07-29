@@ -20,66 +20,6 @@ CACHE_DIR = Path("./cache_fundamental")
 # В начале файла, после CACHE_DIR
 _MEMORY_CACHE: dict[str, Any] = {}
 
-def _load_protocols_map() -> dict[str, dict[str, Any]]:
-    # 1. In-memory кэш (в рамках одного запуска)
-    if "protocols" in _MEMORY_CACHE:
-        return _MEMORY_CACHE["protocols"]
-
-    # 2. File-кэш
-    cached = _cache_read("protocols_list.json", PROTOCOLS_TTL_HOURS)
-    if cached is not None:
-        log.info(f"DefiLlama: {len(cached)} протоколов (из кэша)")
-        _MEMORY_CACHE["protocols"] = cached
-        return cached
-
-    # 3. Первичная загрузка
-    log.info("Загружаем протоколы DefiLlama (первый раз, ~15-30 сек)...")
-    try:
-        resp = requests.get(
-            f"{DEFILLAMA_BASE}/protocols",
-            timeout=90,
-            headers={"User-Agent": "Mozilla/5.0 SleepingAlts/1.0",
-                     "Accept": "application/json"},
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except Exception as e:
-        log.error(f"DefiLlama /protocols failed: {e}")
-        _MEMORY_CACHE["protocols"] = {}
-        return {}
-
-    if not isinstance(data, list):
-        log.error(f"DefiLlama: неожиданный формат {type(data)}")
-        _MEMORY_CACHE["protocols"] = {}
-        return {}
-
-    protocols_map: dict[str, dict[str, Any]] = {}
-    for item in data:
-        if not isinstance(item, dict):
-            continue
-        sym = str(item.get("symbol", "")).upper().strip()
-        slug = str(item.get("slug", "") or "").strip()
-        if not sym or sym in ("-", "NONE") or not slug:
-            continue
-        tvl = float(item.get("tvl") or 0)
-        # Приоритет протокола с бОльшим TVL для одного и того же символа
-        if sym in protocols_map and protocols_map[sym]["tvl"] >= tvl:
-            continue
-        protocols_map[sym] = {
-            "slug": slug,
-            "category": str(item.get("category", "") or ""),
-            "tvl": tvl,
-            "change_1d": float(item.get("change_1d") or 0),
-            "change_7d": float(item.get("change_7d") or 0),
-        }
-
-    log.info(f"DefiLlama: {len(protocols_map)} протоколов загружено")
-
-    # ВСЕГДА сохраняем — даже маленькую карту, лишь бы не грузить каждый раз
-    _cache_write("protocols_list.json", protocols_map)
-    _MEMORY_CACHE["protocols"] = protocols_map
-    return protocols_map
-
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
@@ -88,7 +28,7 @@ DEFILLAMA_COINS_BASE = "https://coins.llama.fi"
 
 REQUEST_TIMEOUT = 15
 REQUEST_DELAY = 1.5  # соблюдаем free-tier rate limit CoinGecko
-MAX_RETRIES = 2
+MAX_RETRIES = 1
 
 # Кэш TTL
 COINS_LIST_TTL_HOURS = 24
@@ -147,7 +87,7 @@ def _http_get_json(url: str, params: dict[str, Any] | None = None) -> Any:
                                 headers={"User-Agent": "sleeping-alts-screener/1.0"})
             if resp.status_code == 429:
                 # rate limit — ждём и повторяем
-                time.sleep(30)
+                time.sleep(10)
                 continue
             resp.raise_for_status()
             return resp.json()
@@ -317,19 +257,25 @@ def _fetch_coingecko_detail(coingecko_id: str) -> dict[str, Any] | None:
     cache_name = f"cg_{coingecko_id}.json"
     cached = _cache_read(cache_name, COIN_DATA_TTL_HOURS)
     if cached is not None:
-        return cached
+        # пустой словарь = закэшированный промах, не долбим API снова
+        return cached or None
 
     time.sleep(REQUEST_DELAY)
     data = _http_get_json(
         f"{COINGECKO_BASE}/coins/{coingecko_id}",
         params={
-            "localization": "false", "tickers": "false",
-            "market_data": "true", "community_data": "true",
-            "developer_data": "true", "sparkline": "false",
+            "localization": "false",
+            "tickers": "false",
+            "market_data": "true",
+            "community_data": "true",
+            "developer_data": "true",
+            "sparkline": "false",
         },
     )
     if data is None:
+        _cache_write(cache_name, {})   # негативный кэш на COIN_DATA_TTL_HOURS
         return None
+
     _cache_write(cache_name, data)
     return data
 
@@ -612,7 +558,7 @@ def build_fundamental_take_live(f: CoinFundamentals) -> str:
     fin_parts = []
     if f.mcap_rank:
         if f.mcap_rank <= 50:
-            fin_parts.append(f"Тop-{f.mcap_rank} по капитализации ({_fmt_usd(f.mcap_usd)}) — это blue chip")
+            fin_parts.append(f"Top-{f.mcap_rank} по капитализации ({_fmt_usd(f.mcap_usd)}) — это blue chip")
         elif f.mcap_rank <= 200:
             fin_parts.append(f"Ранг #{f.mcap_rank} ({_fmt_usd(f.mcap_usd)}) — средняя капа")
         elif f.mcap_rank <= 500:

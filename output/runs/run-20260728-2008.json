@@ -1,0 +1,285 @@
+{
+ "timestamp": "2026-07-28T20:08:21+00:00",
+ "total_scanned": 1,
+ "duration_sec": 17.1,
+ "errors": 0,
+ "counts": {
+  "total": 1,
+  "viral": 0,
+  "taiko": 0,
+  "dexe": 0,
+  "surge": 0,
+  "vetoed": 1,
+  "tradable": 0,
+  "strong": 0,
+  "good": 0,
+  "scout": 0,
+  "watch": 1
+ },
+ "funnel": [
+  {
+   "code": "all",
+   "label": "вся выборка",
+   "count": 1,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 100.0
+  },
+  {
+   "code": "volume",
+   "label": "прошли объём",
+   "count": 0,
+   "dropped": 1,
+   "pass_pct": 0.0,
+   "share_pct": 0.0
+  },
+  {
+   "code": "structure",
+   "label": "структура ок",
+   "count": 0,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 0.0
+  },
+  {
+   "code": "plan",
+   "label": "есть план",
+   "count": 0,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 0.0
+  },
+  {
+   "code": "veto",
+   "label": "после вето",
+   "count": 0,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 0.0
+  },
+  {
+   "code": "tradable",
+   "label": "к работе",
+   "count": 0,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 0.0
+  }
+ ],
+ "sectors": [
+  {
+   "sector": "MEME",
+   "count": 1,
+   "avg_change_24h": -15.62,
+   "best": -15.62,
+   "worst": -15.62
+  }
+ ],
+ "market_regime": {
+  "regime": "risk-off",
+  "appetite": 1,
+  "green_share": 0.0,
+  "median_change_24h": -15.62,
+  "tradable_share": 0.0,
+  "leading_sector": "MEME",
+  "lagging_sector": "MEME",
+  "note": "давление на альты, деньги уходят"
+ },
+ "veto_stats": [
+  {
+   "code": "volatility",
+   "label": "ВОЛАТИЛЬНОСТЬ",
+   "severity": "mid",
+   "count": 1
+  },
+  {
+   "code": "no_spot",
+   "label": "НЕТ СПОТА",
+   "severity": "low",
+   "count": 1
+  }
+ ],
+ "candidates": [
+  {
+   "symbol": "KORUUSDT",
+   "bucket": "watch",
+   "rank": "#001",
+   "score": 0,
+   "tags": [
+    {
+     "text": "Solana Ecosystem",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.7398,
+    "vi_minus": 1.2748
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$14.1",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "-15.6%",
+     "cls": "down"
+    },
+    {
+     "key": "7d",
+     "val": "-37.0%",
+     "cls": "down"
+    },
+    {
+     "key": "30d",
+     "val": "-98.2%",
+     "cls": "down"
+    },
+    {
+     "key": "От ATH",
+     "val": "-98.7%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.07×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "-8359.7%",
+     "cls": "down"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "24.0",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "264.03",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "546.87",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "94",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "0.0107%",
+     "cls": "up"
+    },
+    {
+     "key": "OI",
+     "val": "$69.60M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "0%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": {
+    "detected": false,
+    "risk_level": "low",
+    "risk_score": 25,
+    "verdict": "Небольшой перегрев на перпах, пока в рамках здорового тренда.",
+    "reasons": [
+     "пиковый фандинг 0.278%, около 305% годовых"
+    ],
+    "parabolic": false,
+    "funding_peak_14d": 0.278086,
+    "funding_now": 0.0,
+    "oi_change_14d_pct": -44.48766190931015,
+    "spot_futures_ratio": 0.0,
+    "rsi_14": 20.401025520938674,
+    "tag": {
+     "text": "SQUEEZE LOW",
+     "class": "tag-squeeze-low"
+    }
+   },
+   "taiko": null,
+   "analysis": "Koru — MEME. $KORU is the first 100% community airdrop on SOL. $KORU airdropped close to 100% of the supply to our community. $KORU's also building an entire ecosystem with its own NFT collection and Memecoin Trading APP, where $KORU's one of the most important assets. Ранг 10665, $8K, микрокап. Динамика: за год -89%; цена ниже исторического максимума на 94%. Чистая спекуляция: играется на новостях и вирусности, фундамента нет.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Снижение. Лонги рискованны, ждём разворотную формацию.",
+    "size_hint": "БЕЗ ВХОДА",
+    "kind": "none",
+    "actionable": false,
+    "levels": {
+     "entry": 0.0,
+     "stop": 0.0,
+     "target1": 0.0,
+     "target2": 0.0,
+     "target3": 0.0,
+     "rr": 0.0,
+     "rr_full": 0.0,
+     "stop_pct": 0.0,
+     "target_pct": 0.0,
+     "valid": false
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:KORUUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/KORUUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=KORU"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24KORU&f=live"
+    }
+   ],
+   "categories": [
+    "Solana Ecosystem",
+    "Meme",
+    "Pump.fun Ecosystem"
+   ],
+   "sector": "MEME",
+   "is_viral": false,
+   "score_parts": [],
+   "veto": [
+    {
+     "code": "volatility",
+     "label": "ВОЛАТИЛЬНОСТЬ",
+     "detail": "ATR 264.0% в день",
+     "severity": "mid"
+    },
+    {
+     "code": "no_spot",
+     "label": "НЕТ СПОТА",
+     "detail": "спот 0.0% оборота",
+     "severity": "low"
+    }
+   ],
+   "vetoed": true,
+   "quote_volume_24h": 1314016970.1098,
+   "rr": 0.0,
+   "tradable": false
+  }
+ ]
+}

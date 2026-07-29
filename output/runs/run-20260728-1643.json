@@ -1,0 +1,5404 @@
+{
+ "timestamp": "2026-07-28T16:43:04+00:00",
+ "total_scanned": 30,
+ "duration_sec": 211.9,
+ "errors": 0,
+ "counts": {
+  "total": 29,
+  "viral": 0,
+  "taiko": 12,
+  "dexe": 0,
+  "surge": 3,
+  "vetoed": 10,
+  "tradable": 9,
+  "strong": 3,
+  "good": 6,
+  "scout": 4,
+  "watch": 16
+ },
+ "funnel": [
+  {
+   "code": "all",
+   "label": "вся выборка",
+   "count": 30,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 100.0
+  },
+  {
+   "code": "volume",
+   "label": "прошли объём",
+   "count": 3,
+   "dropped": 27,
+   "pass_pct": 10.0,
+   "share_pct": 10.0
+  },
+  {
+   "code": "structure",
+   "label": "структура ок",
+   "count": 3,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 10.0
+  },
+  {
+   "code": "veto",
+   "label": "после вето",
+   "count": 1,
+   "dropped": 2,
+   "pass_pct": 33.3,
+   "share_pct": 3.3
+  },
+  {
+   "code": "rr",
+   "label": "r:r ≥ 2",
+   "count": 0,
+   "dropped": 1,
+   "pass_pct": 0.0,
+   "share_pct": 0.0
+  },
+  {
+   "code": "tradable",
+   "label": "к работе",
+   "count": 0,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 0.0
+  }
+ ],
+ "sectors": [
+  {
+   "sector": "L1/L2",
+   "count": 4,
+   "avg_change_24h": 9.72,
+   "best": 19.74,
+   "worst": -1.28
+  },
+  {
+   "sector": "DEFI",
+   "count": 6,
+   "avg_change_24h": 5.27,
+   "best": 21.09,
+   "worst": -6.27
+  },
+  {
+   "sector": "AI",
+   "count": 5,
+   "avg_change_24h": 3.57,
+   "best": 20.03,
+   "worst": -12.75
+  },
+  {
+   "sector": "OTHER",
+   "count": 4,
+   "avg_change_24h": 1.56,
+   "best": 16.93,
+   "worst": -5.44
+  },
+  {
+   "sector": "INFRA",
+   "count": 3,
+   "avg_change_24h": 0.1,
+   "best": 1.41,
+   "worst": -1.33
+  },
+  {
+   "sector": "MEME",
+   "count": 6,
+   "avg_change_24h": -5.99,
+   "best": 0.27,
+   "worst": -16.55
+  },
+  {
+   "sector": "RWA",
+   "count": 1,
+   "avg_change_24h": -6.33,
+   "best": -6.33,
+   "worst": -6.33
+  }
+ ],
+ "market_regime": {
+  "regime": "risk-on",
+  "appetite": 4,
+  "green_share": 55.2,
+  "median_change_24h": 0.27,
+  "tradable_share": 31.0,
+  "leading_sector": "L1/L2",
+  "lagging_sector": "RWA",
+  "note": "широкий рост, альты в фаворе"
+ },
+ "candidates": [
+  {
+   "symbol": "COTIUSDT",
+   "bucket": "strong",
+   "rank": "#001",
+   "score": 74,
+   "tags": [
+    {
+     "text": "VOL SURGE ×110.7 ▲",
+     "class": "tag-pattern surge"
+    },
+    {
+     "text": "SQUEEZE EXTREME · 85",
+     "class": "tag-pattern euphoria"
+    },
+    {
+     "text": "TAIKO CONFIRMED · 85",
+     "class": "tag-pattern taiko"
+    },
+    {
+     "text": "Smart Contract Platform",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 4,
+    "label": "TREND",
+    "vi_plus": 1.2439,
+    "vi_minus": 0.6474
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$0.01278",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "+19.7%",
+     "cls": "up"
+    },
+    {
+     "key": "7d",
+     "val": "+70.3%",
+     "cls": "up"
+    },
+    {
+     "key": "30d",
+     "val": "+52.9%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-95.4%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "1.89×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+410.6%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "56.2",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "7.26",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "65.04",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "99",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "-0.0588%",
+     "cls": "down"
+    },
+    {
+     "key": "OI",
+     "val": "$10.30M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "5%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": {
+    "detected": true,
+    "score": 100,
+    "surge_ratio": 110.71712594782393,
+    "current_vol_usd": 439057383.0621058,
+    "avg_vol_usd": 3965577.8571150233,
+    "day_change_pct": 19.791959516446433,
+    "is_green": true,
+    "strength_label": "экстремальный",
+    "verdict": "Volume Surge ×110.7 (экстремальный): текущий дневной объём $439.06M против среднего $3.97M за 30 дней. Свеча зелёная +19.8%. Аномальная активность: крупный игрок, новость или начало движения."
+   },
+   "squeeze": {
+    "detected": true,
+    "risk_level": "extreme",
+    "risk_score": 85,
+    "verdict": "EXTREME SQUEEZE RISK — классический manipulated памп. После разворота возможен откат 60–80%. Лонг не открывать, шорт только после подтверждённого разворота.",
+    "reasons": [
+     "параболический рост +70% за 7д, максимальная свеча +44%",
+     "OI растёт быстрее цены: OI +359% против цены +62%",
+     "фандинг ушёл в минус -0.065%, шорты капитулировали",
+     "памп идёт в перпах, спот к фьючерсу 0.06",
+     "RSI дневной 85, экстремальный перегрев"
+    ],
+    "parabolic": true,
+    "funding_peak_14d": 0.01,
+    "funding_now": -0.064718,
+    "oi_change_14d_pct": 358.77071734771766,
+    "spot_futures_ratio": 0.05691139780895924,
+    "rsi_14": 85.06544506788083,
+    "tag": {
+     "text": "SQUEEZE EXT",
+     "class": "tag-squeeze-ext"
+    }
+   },
+   "taiko": {
+    "detected": true,
+    "score": 85,
+    "downtrend_bars": 0,
+    "drop_pct": -86.30637386181039,
+    "htf_drop_pct": -95.39467521706236,
+    "days_in_downtrend": 20,
+    "price_position_pct": 60.8315334773218,
+    "short_history": false,
+    "capitulation_bar_ago": 53,
+    "rsi_d": 83.32208154630374,
+    "rsi_min_recent": 26.965381887627032,
+    "obv_turning_up": true,
+    "obv_divergence": false,
+    "reversal_hint": true,
+    "volume_climax_bull": true,
+    "volume_climax_ratio": 382.65566804439317,
+    "vortex_crossover": false,
+    "vortex_divergence": false,
+    "vortex_note": "",
+    "vortex_selling_exhaustion": false,
+    "vortex_exhaustion_note": "",
+    "vortex_tf_used": "1M",
+    "vortex_peaks_count": 5,
+    "confirmed_breakout": true,
+    "verdict": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -95% от пика старшего ТФ. объёмная кульминация ×382.7. капитуляция 53д назад. минимум RSI 27."
+   },
+   "analysis": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -95% от пика старшего ТФ. объёмная кульминация ×382.7. капитуляция 53д назад. минимум RSI 27. Volume Surge ×110.7 (экстремальный): текущий дневной объём $439.06M против среднего $3.97M за 30 дней. Свеча зелёная +19.8%. Аномальная активность: крупный игрок, новость или начало движения. COTI — Layer-2. COTI is a fast and light confidentiality layer on Ethereum. Powered by the breakthrough cryptographic protocol Garbled Circuits and secured by Ethereum, COTI introduces the most advanced and compliant solution for data protection on the public blockchain. Ранг 505, $40.1M, микрокап. Динамика: за год -78%; за 30 дней +60%, сильный откат от дна; цена ниже исторического максимума на 98%. Настроение 81% бычье — толпа предельно оптимистична, что работает как контриндикатор. Сектор перенасыщен, каждая новая сеть каннибализирует предыдущие.",
+   "buzz": {
+    "level": "warm",
+    "level_class": "buzz-warm",
+    "level_text": "WARM",
+    "text": "Объём выше среднего, интерес растёт."
+   },
+   "strategy": {
+    "text": "Конфликт сигналов. TAIKO даёт разворот, но squeeze-риск EXTREME со скором 85 — часть роста обеспечена ликвидациями шортов. Вход половинным объёмом либо ожидание отката и повторного теста базы.",
+    "size_hint": "½ ОБЪЁМА",
+    "kind": "taiko",
+    "levels": {
+     "entry": 0.012783,
+     "stop": 0.00704275,
+     "target1": 0.020245325,
+     "target2": 0.0242635,
+     "target3": 0.03000375,
+     "rr": 1.3,
+     "stop_pct": -44.91,
+     "target_pct": 58.38,
+     "valid": true
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:COTIUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/COTIUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=COTI"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24COTI&f=live"
+    }
+   ],
+   "categories": [
+    "Smart Contract Platform",
+    "Ethereum Ecosystem",
+    "Layer 2 (L2)",
+    "Zero Knowledge (ZK)",
+    "Alleged SEC Securities"
+   ],
+   "sector": "L1/L2",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "surge",
+     "label": "Всплеск объёма",
+     "points": 12
+    },
+    {
+     "code": "squeeze",
+     "label": "Squeeze-аномалия",
+     "points": 12
+    },
+    {
+     "code": "taiko",
+     "label": "TAIKO разворот",
+     "points": 29
+    },
+    {
+     "code": "phase",
+     "label": "Фаза TREND",
+     "points": 15
+    },
+    {
+     "code": "obv",
+     "label": "Накопление по OBV",
+     "points": 6
+    }
+   ],
+   "veto": [
+    {
+     "code": "squeeze",
+     "label": "SQUEEZE",
+     "detail": "риск EXTREME, скор 85",
+     "severity": "high"
+    },
+    {
+     "code": "funding",
+     "label": "ФАНДИНГ",
+     "detail": "-0.0588%, шорты перегреты",
+     "severity": "mid"
+    }
+   ],
+   "vetoed": true,
+   "quote_volume_24h": 531083743.4892845,
+   "rr": 1.3,
+   "tradable": false
+  },
+  {
+   "symbol": "SOONUSDT",
+   "bucket": "strong",
+   "rank": "#002",
+   "score": 61,
+   "tags": [
+    {
+     "text": "VOL SURGE ×19.2 ▲",
+     "class": "tag-pattern surge"
+    },
+    {
+     "text": "TAIKO CONFIRMED · 100",
+     "class": "tag-pattern taiko"
+    },
+    {
+     "text": "Infrastructure",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 4,
+    "label": "TREND",
+    "vi_plus": 1.333,
+    "vi_minus": 0.6297
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$0.2767",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "+16.7%",
+     "cls": "up"
+    },
+    {
+     "key": "7d",
+     "val": "+68.1%",
+     "cls": "up"
+    },
+    {
+     "key": "30d",
+     "val": "+55.7%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-94.9%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "1.34×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+28.4%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "61.1",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "6.63",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "65.02",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "88",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "0.0379%",
+     "cls": "up"
+    },
+    {
+     "key": "OI",
+     "val": "$15.92M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "0%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": {
+    "detected": true,
+    "score": 93,
+    "surge_ratio": 19.23929338447839,
+    "current_vol_usd": 82583713.4958,
+    "avg_vol_usd": 4292450.447396667,
+    "day_change_pct": 16.652613827993257,
+    "is_green": true,
+    "strength_label": "сильный",
+    "verdict": "Volume Surge ×19.2 (сильный): текущий дневной объём $82.58M против среднего $4.29M за 30 дней. Свеча зелёная +16.7%. Аномальная активность: крупный игрок, новость или начало движения."
+   },
+   "squeeze": {
+    "detected": false,
+    "risk_level": "low",
+    "risk_score": 30,
+    "verdict": "Небольшой перегрев на перпах, пока в рамках здорового тренда.",
+    "reasons": [
+     "параболический рост +68% за 7д, максимальная свеча +21%",
+     "RSI дневной 85, перекупленность"
+    ],
+    "parabolic": true,
+    "funding_peak_14d": 0.055196,
+    "funding_now": 0.044218,
+    "oi_change_14d_pct": 92.39408237813468,
+    "spot_futures_ratio": 0.0,
+    "rsi_14": 84.69879049531144,
+    "tag": {
+     "text": "SQUEEZE LOW",
+     "class": "tag-squeeze-low"
+    }
+   },
+   "taiko": {
+    "detected": true,
+    "score": 100,
+    "downtrend_bars": 0,
+    "drop_pct": -94.88870416551215,
+    "htf_drop_pct": -94.88870416551215,
+    "days_in_downtrend": 171,
+    "price_position_pct": 61.95995785036881,
+    "short_history": false,
+    "capitulation_bar_ago": 76,
+    "rsi_d": 86.22170217288812,
+    "rsi_min_recent": 40.0093302873347,
+    "obv_turning_up": true,
+    "obv_divergence": true,
+    "reversal_hint": true,
+    "volume_climax_bull": true,
+    "volume_climax_ratio": 17.203814311411115,
+    "vortex_crossover": false,
+    "vortex_divergence": false,
+    "vortex_note": "",
+    "vortex_selling_exhaustion": true,
+    "vortex_exhaustion_note": "пики продаж затухают (1.45→1.05→1.03)",
+    "vortex_tf_used": "3d",
+    "vortex_peaks_count": 6,
+    "confirmed_breakout": true,
+    "verdict": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -95% от пика старшего ТФ. затухание продаж [3D], пики продаж затухают (1.45→1.05→1.03). бычья дивергенция OBV. объёмная кульминация ×17.2. капитуляция 76д назад."
+   },
+   "analysis": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -95% от пика старшего ТФ. затухание продаж [3D], пики продаж затухают (1.45→1.05→1.03). бычья дивергенция OBV. объёмная кульминация ×17.2. капитуляция 76д назад. Volume Surge ×19.2 (сильный): текущий дневной объём $82.58M против среднего $4.29M за 30 дней. Свеча зелёная +16.7%. Аномальная активность: крупный игрок, новость или начало движения. SOON — Layer-2. SOON stack is the most efficient rollup stack delivering high performance to every L1, powered by SVM. SOON team pioneered Decoupled SVM, which allows SVM rollups to be spun up across different L1s with native fraud proofs, reduced DA cost and horizontal scaling capacity. Ранг 271, $93.6M, малая капитализация. FDV к капитализации 3.0×, заметный навес эмиссии. Динамика: за год +91%; за 30 дней +54%, сильный откат от дна; цена ниже исторического максимума на 94%. TVL $389K, маленький протокол. Сектор перенасыщен, каждая новая сеть каннибализирует предыдущие.",
+   "buzz": {
+    "level": "cool",
+    "level_class": "buzz-cool",
+    "level_text": "COOL",
+    "text": "Умеренная активность."
+   },
+   "strategy": {
+    "text": "TAIKO Reversal. Вход лесенкой от текущей цены, стоп под минимум базы, цели 1.3× / 2× / 3× от риска.",
+    "size_hint": "ПОЛНЫЙ",
+    "kind": "taiko",
+    "levels": {
+     "entry": 0.2767,
+     "stop": 0.14578,
+     "target1": 0.446896,
+     "target2": 0.53854,
+     "target3": 0.66946,
+     "rr": 1.3,
+     "stop_pct": -47.31,
+     "target_pct": 61.51,
+     "valid": true
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:SOONUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/SOONUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=SOON"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24SOON&f=live"
+    }
+   ],
+   "categories": [
+    "Infrastructure",
+    "Smart Contract Platform",
+    "BNB Chain Ecosystem",
+    "Layer 2 (L2)",
+    "Base Ecosystem",
+    "Chain"
+   ],
+   "sector": "L1/L2",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "surge",
+     "label": "Всплеск объёма",
+     "points": 12
+    },
+    {
+     "code": "taiko",
+     "label": "TAIKO разворот",
+     "points": 34
+    },
+    {
+     "code": "phase",
+     "label": "Фаза TREND",
+     "points": 15
+    }
+   ],
+   "veto": [
+    {
+     "code": "no_spot",
+     "label": "НЕТ СПОТА",
+     "detail": "спот 0.0% оборота",
+     "severity": "low"
+    }
+   ],
+   "vetoed": false,
+   "quote_volume_24h": 99012617.0591,
+   "rr": 1.3,
+   "tradable": true
+  },
+  {
+   "symbol": "ZAMAUSDT",
+   "bucket": "strong",
+   "rank": "#003",
+   "score": 55,
+   "tags": [
+    {
+     "text": "SQUEEZE HIGH · 67",
+     "class": "tag-pattern euphoria"
+    },
+    {
+     "text": "TAIKO CONFIRMED · 78",
+     "class": "tag-pattern taiko"
+    },
+    {
+     "text": "BNB Chain Ecosystem",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 4,
+    "label": "TREND",
+    "vi_plus": 1.1162,
+    "vi_minus": 0.9576
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$0.06053",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "+0.3%",
+     "cls": "up"
+    },
+    {
+     "key": "7d",
+     "val": "+51.6%",
+     "cls": "up"
+    },
+    {
+     "key": "30d",
+     "val": "+98.1%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-73.2%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.44×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+87.2%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "15.5",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "10.79",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "96.59",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "99",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "0.0005%",
+     "cls": "up"
+    },
+    {
+     "key": "OI",
+     "val": "$12.84M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "22%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": {
+    "detected": true,
+    "risk_level": "high",
+    "risk_score": 67,
+    "verdict": "HIGH SQUEEZE RISK — признаки выжимания шортов. Тренд может продолжиться, но соотношение риска к прибыли плохое. Если в позиции — фиксировать лесенкой, стопы жёсткие.",
+    "reasons": [
+     "параболический рост +52% за 7д, максимальная свеча +19%",
+     "OI растёт быстрее цены: OI +149% против цены +76%",
+     "спот отстаёт от фьючерсов, 0.26",
+     "RSI дневной 90, экстремальный перегрев"
+    ],
+    "parabolic": true,
+    "funding_peak_14d": 0.005,
+    "funding_now": -0.001205,
+    "oi_change_14d_pct": 148.83747073871186,
+    "spot_futures_ratio": 0.2551333039002238,
+    "rsi_14": 90.03850162071318,
+    "tag": {
+     "text": "SQUEEZE HIGH",
+     "class": "tag-squeeze-high"
+    }
+   },
+   "taiko": {
+    "detected": true,
+    "score": 78,
+    "downtrend_bars": 0,
+    "drop_pct": -73.24049513704686,
+    "htf_drop_pct": -73.24049513704686,
+    "days_in_downtrend": 141,
+    "price_position_pct": 87.69690927218346,
+    "short_history": false,
+    "capitulation_bar_ago": 94,
+    "rsi_d": 89.58177163924556,
+    "rsi_min_recent": 39.95617734456157,
+    "obv_turning_up": true,
+    "obv_divergence": false,
+    "reversal_hint": true,
+    "volume_climax_bull": true,
+    "volume_climax_ratio": 18.327343098748898,
+    "vortex_crossover": false,
+    "vortex_divergence": false,
+    "vortex_note": "",
+    "vortex_selling_exhaustion": false,
+    "vortex_exhaustion_note": "",
+    "vortex_tf_used": "3d",
+    "vortex_peaks_count": 6,
+    "confirmed_breakout": true,
+    "verdict": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -73% от пика старшего ТФ. объёмная кульминация ×18.3. капитуляция 94д назад."
+   },
+   "analysis": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -73% от пика старшего ТФ. объёмная кульминация ×18.3. капитуляция 94д назад. Zama — AI. Zama is an open source cryptography company that builds state-of-the-art Fully Homomorphic Encryption (FHE) solutions for blockchain. Ранг 212, $132.6M, малая капитализация. FDV к капитализации 5.0×, впереди крупные разлоки и структурное давление на цену. Динамика: за 30 дней +94%, сильный откат от дна. TVL $49.4M, средний размер, за неделю +17%. Настроение 74% бычье. Самый горячий нарратив: движения кратные, коррекции жестокие.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Конфликт сигналов. TAIKO даёт разворот, но squeeze-риск HIGH со скором 67 — часть роста обеспечена ликвидациями шортов. Вход половинным объёмом либо ожидание отката и повторного теста базы.",
+    "size_hint": "½ ОБЪЁМА",
+    "kind": "taiko",
+    "levels": {
+     "entry": 0.06053,
+     "stop": 0.03135255,
+     "target1": 0.098460685,
+     "target2": 0.1188849,
+     "target3": 0.14806235,
+     "rr": 1.3,
+     "stop_pct": -48.2,
+     "target_pct": 62.66,
+     "valid": true
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:ZAMAUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/ZAMAUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=ZAMA"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24ZAMA&f=live"
+    }
+   ],
+   "categories": [
+    "BNB Chain Ecosystem",
+    "Solana Ecosystem",
+    "Ethereum Ecosystem",
+    "Cross-chain Communication",
+    "Binance Wallet IDO",
+    "Privacy"
+   ],
+   "sector": "MEME",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "squeeze",
+     "label": "Squeeze-аномалия",
+     "points": 8
+    },
+    {
+     "code": "taiko",
+     "label": "TAIKO разворот",
+     "points": 26
+    },
+    {
+     "code": "phase",
+     "label": "Фаза TREND",
+     "points": 15
+    },
+    {
+     "code": "obv",
+     "label": "Накопление по OBV",
+     "points": 6
+    }
+   ],
+   "veto": [
+    {
+     "code": "squeeze",
+     "label": "SQUEEZE",
+     "detail": "риск HIGH, скор 67",
+     "severity": "mid"
+    }
+   ],
+   "vetoed": true,
+   "quote_volume_24h": 78631012.85847,
+   "rr": 1.3,
+   "tradable": false
+  },
+  {
+   "symbol": "LAUSDT",
+   "bucket": "good",
+   "rank": "#004",
+   "score": 48,
+   "tags": [
+    {
+     "text": "VOL SURGE ×3.4 ▲",
+     "class": "tag-pattern surge"
+    },
+    {
+     "text": "TAIKO CONFIRMED · 100",
+     "class": "tag-pattern taiko"
+    },
+    {
+     "text": "Artificial Intelligence (AI)",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.9744,
+    "vi_minus": 1.0389
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$0.06316",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "+3.1%",
+     "cls": "up"
+    },
+    {
+     "key": "7d",
+     "val": "+13.4%",
+     "cls": "up"
+    },
+    {
+     "key": "30d",
+     "val": "+2.0%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-96.5%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.27×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+97.0%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "3.7",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "18.54",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "42.74",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "72",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "-1.0474%",
+     "cls": "down"
+    },
+    {
+     "key": "OI",
+     "val": "$4.77M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "11%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": {
+    "detected": true,
+    "score": 41,
+    "surge_ratio": 3.352512126485759,
+    "current_vol_usd": 68974509.151453,
+    "avg_vol_usd": 20573977.52763833,
+    "day_change_pct": 3.084707034437728,
+    "is_green": true,
+    "strength_label": "умеренный",
+    "verdict": "Volume Surge ×3.4 (умеренный): текущий дневной объём $68.97M против среднего $20.57M за 30 дней. Свеча зелёная +3.1%. Аномальная активность: крупный игрок, новость или начало движения."
+   },
+   "squeeze": {
+    "detected": false,
+    "risk_level": "medium",
+    "risk_score": 50,
+    "verdict": "Умеренный squeeze-риск: часть роста обеспечена ликвидациями шортов, а не органическим спросом. Следить за фандингом и OI.",
+    "reasons": [
+     "OI растёт быстрее цены: OI +265% против цены +13%",
+     "фандинг ушёл в минус -1.020%, шорты капитулировали",
+     "памп идёт в перпах, спот к фьючерсу 0.12"
+    ],
+    "parabolic": false,
+    "funding_peak_14d": 0.005,
+    "funding_now": -1.019672,
+    "oi_change_14d_pct": 265.3381353834034,
+    "spot_futures_ratio": 0.1193518145936186,
+    "rsi_14": 52.41930500207497,
+    "tag": {
+     "text": "SQUEEZE MED",
+     "class": "tag-squeeze-med"
+    }
+   },
+   "taiko": {
+    "detected": true,
+    "score": 100,
+    "downtrend_bars": 0,
+    "drop_pct": -96.479375696767,
+    "htf_drop_pct": -96.479375696767,
+    "days_in_downtrend": 92,
+    "price_position_pct": 5.612457008957253,
+    "short_history": false,
+    "capitulation_bar_ago": 1,
+    "rsi_d": 51.21308121494229,
+    "rsi_min_recent": 21.666804544253708,
+    "obv_turning_up": true,
+    "obv_divergence": false,
+    "reversal_hint": true,
+    "volume_climax_bull": true,
+    "volume_climax_ratio": 16.12094490472203,
+    "vortex_crossover": false,
+    "vortex_divergence": false,
+    "vortex_note": "",
+    "vortex_selling_exhaustion": false,
+    "vortex_exhaustion_note": "",
+    "vortex_tf_used": "1w",
+    "vortex_peaks_count": 4,
+    "confirmed_breakout": true,
+    "verdict": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -96% от пика старшего ТФ. зрелая база, 92 дней в даунтренде, цена в нижних 6% диапазона. объёмная кульминация ×16.1. капитуляция 1д назад. минимум RSI 22."
+   },
+   "analysis": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -96% от пика старшего ТФ. зрелая база, 92 дней в даунтренде, цена в нижних 6% диапазона. объёмная кульминация ×16.1. капитуляция 1д назад. минимум RSI 22. Volume Surge ×3.4 (умеренный): текущий дневной объём $68.97M против среднего $20.57M за 30 дней. Свеча зелёная +3.1%. Аномальная активность: крупный игрок, новость или начало движения. Lagrange — AI. Today, Lagrange has expanded its ZK Prover Network to power proof generation for ZK rollups, adding onto Lagrange’s existing ZK Coprocessor and State Committee offerings. Ранг 1017, $12.5M, микрокап. FDV к капитализации 5.2×, впереди крупные разлоки и структурное давление на цену. Динамика: за год -81%; цена ниже исторического максимума на 96%. Настроение 100% бычье — толпа предельно оптимистична, что работает как контриндикатор. Самый горячий нарратив: движения кратные, коррекции жестокие.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "TAIKO Reversal. Вход лесенкой от текущей цены, стоп под минимум базы, цели 1.3× / 2× / 3× от риска.",
+    "size_hint": "ПОЛНЫЙ",
+    "kind": "taiko",
+    "levels": {
+     "entry": 0.06316,
+     "stop": 0.0455992857,
+     "target1": 0.0859889286,
+     "target2": 0.0982814286,
+     "target3": 0.1158421429,
+     "rr": 1.3,
+     "stop_pct": -27.8,
+     "target_pct": 36.14,
+     "valid": true
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:LAUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/LAUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=LA"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24LA&f=live"
+    }
+   ],
+   "categories": [
+    "Artificial Intelligence (AI)",
+    "BNB Chain Ecosystem",
+    "Ethereum Ecosystem",
+    "Zero Knowledge (ZK)",
+    "Binance HODLer Airdrops"
+   ],
+   "sector": "AI",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "surge",
+     "label": "Всплеск объёма",
+     "points": 8
+    },
+    {
+     "code": "taiko",
+     "label": "TAIKO разворот",
+     "points": 34
+    },
+    {
+     "code": "obv",
+     "label": "Накопление по OBV",
+     "points": 6
+    }
+   ],
+   "veto": [
+    {
+     "code": "funding",
+     "label": "ФАНДИНГ",
+     "detail": "-1.0474%, шорты перегреты",
+     "severity": "mid"
+    }
+   ],
+   "vetoed": true,
+   "quote_volume_24h": 197681835.434513,
+   "rr": 1.3,
+   "tradable": false
+  },
+  {
+   "symbol": "UNIUSDT",
+   "bucket": "good",
+   "rank": "#005",
+   "score": 48,
+   "tags": [
+    {
+     "text": "TAIKO REVERSAL · 97",
+     "class": "tag-pattern taiko"
+    },
+    {
+     "text": "Decentralized Exchange (DEX)",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 4,
+    "label": "TREND",
+    "vi_plus": 1.1637,
+    "vi_minus": 0.9497
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$3.88",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "+4.7%",
+     "cls": "up"
+    },
+    {
+     "key": "7d",
+     "val": "+4.4%",
+     "cls": "up"
+    },
+    {
+     "key": "30d",
+     "val": "+32.7%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-80.1%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.86×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+11.5%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "52.0",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "5.21",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "13.40",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "11",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "0.0100%",
+     "cls": "up"
+    },
+    {
+     "key": "OI",
+     "val": "$69.80M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "20%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": {
+    "detected": true,
+    "score": 97,
+    "downtrend_bars": 0,
+    "drop_pct": -68.42190933506959,
+    "htf_drop_pct": -80.10664479081214,
+    "days_in_downtrend": 0,
+    "price_position_pct": 68.804920913884,
+    "short_history": false,
+    "capitulation_bar_ago": 117,
+    "rsi_d": 63.28145160171021,
+    "rsi_min_recent": 21.020798429646078,
+    "obv_turning_up": true,
+    "obv_divergence": false,
+    "reversal_hint": true,
+    "volume_climax_bull": false,
+    "volume_climax_ratio": 1.0196039765551619,
+    "vortex_crossover": true,
+    "vortex_divergence": true,
+    "vortex_note": "VI+ 0.76→0.83, VI- 1.14→1.00",
+    "vortex_selling_exhaustion": true,
+    "vortex_exhaustion_note": "пики продаж затухают (1.45→1.28→1.20)",
+    "vortex_tf_used": "1w",
+    "vortex_peaks_count": 5,
+    "confirmed_breakout": false,
+    "verdict": "TAIKO Reversal: падение -80% от пика старшего ТФ. свежий бычий crossover Vortex [1W]. дивергенция Vortex [1W], VI+ 0.76→0.83, VI- 1.14→1.00. затухание продаж [1W], пики продаж затухают (1.45→1.28→1.20). капитуляция 117д назад. минимум RSI 21. зелёные свечи с объёмом."
+   },
+   "analysis": "TAIKO Reversal: падение -80% от пика старшего ТФ. свежий бычий crossover Vortex [1W]. дивергенция Vortex [1W], VI+ 0.76→0.83, VI- 1.14→1.00. затухание продаж [1W], пики продаж затухают (1.45→1.28→1.20). капитуляция 117д назад. минимум RSI 21. зелёные свечи с объёмом. Uniswap — DEX. UNI is the governance token for Uniswap, an Automated Market Marker DEX on the Ethereum blockchain. The UNI token allows token holders to participate in the governance of the protocol. Key decisions such as usage of the treasury or future upgrades can be decided through a governance vote. Топ-38 по капитализации, $2.42B, это голубая фишка. Динамика: за год -63%; за 30 дней +32%, сильный откат от дна; цена ниже исторического максимума на 91%. TVL $1.42B, крупный протокол, за неделю -6%. Настроение 67% бычье. Оценивать по реальным комиссиям и доле объёма, а не по TVL самому по себе.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "TAIKO Reversal. Вход лесенкой от текущей цены, стоп под минимум базы, цели 1.3× / 2× / 3× от риска.",
+    "size_hint": "ПОЛНЫЙ",
+    "kind": "taiko",
+    "levels": {
+     "entry": 3.88,
+     "stop": 3.194355,
+     "target1": 4.7713385,
+     "target2": 5.25129,
+     "target3": 5.936935,
+     "rr": 1.3,
+     "stop_pct": -17.67,
+     "target_pct": 22.97,
+     "valid": true
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:UNIUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/UNIUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=UNI"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24UNI&f=live"
+    }
+   ],
+   "categories": [
+    "Decentralized Exchange (DEX)",
+    "Exchange-based Tokens",
+    "Decentralized Finance (DeFi)",
+    "Yield Farming",
+    "Automated Market Maker (AMM)",
+    "Dexs"
+   ],
+   "sector": "DEFI",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "taiko",
+     "label": "TAIKO разворот",
+     "points": 33
+    },
+    {
+     "code": "phase",
+     "label": "Фаза TREND",
+     "points": 15
+    }
+   ],
+   "veto": [],
+   "vetoed": false,
+   "quote_volume_24h": 73908078.01,
+   "rr": 1.3,
+   "tradable": true
+  },
+  {
+   "symbol": "PUMPUSDT",
+   "bucket": "good",
+   "rank": "#006",
+   "score": 46,
+   "tags": [
+    {
+     "text": "TAIKO CONFIRMED · 90",
+     "class": "tag-pattern taiko"
+    },
+    {
+     "text": "BNB Chain Ecosystem",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 4,
+    "label": "TREND",
+    "vi_plus": 1.1499,
+    "vi_minus": 0.8487
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$0.002019",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "-4.6%",
+     "cls": "down"
+    },
+    {
+     "key": "7d",
+     "val": "+0.8%",
+     "cls": "up"
+    },
+    {
+     "key": "30d",
+     "val": "+40.4%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-77.6%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.30×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+34.8%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "16.6",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "8.75",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "52.45",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "98",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "0.0040%",
+     "cls": "up"
+    },
+    {
+     "key": "OI",
+     "val": "$50.92M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "13%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": {
+    "detected": true,
+    "score": 90,
+    "downtrend_bars": 0,
+    "drop_pct": -77.56417379708857,
+    "htf_drop_pct": -77.56417379708857,
+    "days_in_downtrend": 20,
+    "price_position_pct": 48.739495798319325,
+    "short_history": false,
+    "capitulation_bar_ago": 53,
+    "rsi_d": 62.18545204829768,
+    "rsi_min_recent": 31.63053973507087,
+    "obv_turning_up": true,
+    "obv_divergence": false,
+    "reversal_hint": true,
+    "volume_climax_bull": false,
+    "volume_climax_ratio": 2.386913077212216,
+    "vortex_crossover": true,
+    "vortex_divergence": false,
+    "vortex_note": "",
+    "vortex_selling_exhaustion": true,
+    "vortex_exhaustion_note": "пики продаж затухают (1.25→1.20→1.13)",
+    "vortex_tf_used": "1w",
+    "vortex_peaks_count": 5,
+    "confirmed_breakout": true,
+    "verdict": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -78% от пика старшего ТФ. свежий бычий crossover Vortex [1W]. затухание продаж [1W], пики продаж затухают (1.25→1.20→1.13). капитуляция 53д назад. минимум RSI 32. зелёные свечи с объёмом."
+   },
+   "analysis": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -78% от пика старшего ТФ. свежий бычий crossover Vortex [1W]. затухание продаж [1W], пики продаж затухают (1.25→1.20→1.13). капитуляция 53д назад. минимум RSI 32. зелёные свечи с объёмом. Big Pump — MEME. $PUMP is a meme coin on BNB Chain that represents what everyone in crypto is dreaming of: a Big Pump of their coins.  $PUMP doesn't have any utility, there \bare no team to back it up. Ранг 2995, $861K, микрокап. Динамика: за год -53%; цена ниже исторического максимума на 94%. TVL $233.6M, заметная доля рынка, за неделю -5%. Чистая спекуляция: играется на новостях и вирусности, фундамента нет.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "TAIKO Reversal. Вход лесенкой от текущей цены, стоп под минимум базы, цели 1.3× / 2× / 3× от риска.",
+    "size_hint": "ПОЛНЫЙ",
+    "kind": "taiko",
+    "levels": {
+     "entry": 0.002019,
+     "stop": 0.001340585,
+     "target1": 0.0029009395,
+     "target2": 0.00337583,
+     "target3": 0.004054245,
+     "rr": 1.3,
+     "stop_pct": -33.6,
+     "target_pct": 43.68,
+     "valid": true
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:PUMPUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/PUMPUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=PUMP"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24PUMP&f=live"
+    }
+   ],
+   "categories": [
+    "BNB Chain Ecosystem",
+    "Meme",
+    "Dexs"
+   ],
+   "sector": "MEME",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "taiko",
+     "label": "TAIKO разворот",
+     "points": 31
+    },
+    {
+     "code": "phase",
+     "label": "Фаза TREND",
+     "points": 15
+    }
+   ],
+   "veto": [],
+   "vetoed": false,
+   "quote_volume_24h": 125436296.226836,
+   "rr": 1.3,
+   "tradable": true
+  },
+  {
+   "symbol": "EULUSDT",
+   "bucket": "good",
+   "rank": "#007",
+   "score": 45,
+   "tags": [
+    {
+     "text": "SQUEEZE HIGH · 65",
+     "class": "tag-pattern euphoria"
+    },
+    {
+     "text": "TAIKO CONFIRMED · 92",
+     "class": "tag-pattern taiko"
+    },
+    {
+     "text": "BNB Chain Ecosystem",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.7606,
+    "vi_minus": 1.3566
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$1.537",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "-6.3%",
+     "cls": "down"
+    },
+    {
+     "key": "7d",
+     "val": "+51.6%",
+     "cls": "up"
+    },
+    {
+     "key": "30d",
+     "val": "+52.9%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-88.2%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.53×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+185.3%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "3.2",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "15.27",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "125.72",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "98",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "-0.0035%",
+     "cls": "down"
+    },
+    {
+     "key": "OI",
+     "val": "$8.41M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "9%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": {
+    "detected": true,
+    "risk_level": "high",
+    "risk_score": 65,
+    "verdict": "HIGH SQUEEZE RISK — признаки выжимания шортов. Тренд может продолжиться, но соотношение риска к прибыли плохое. Если в позиции — фиксировать лесенкой, стопы жёсткие.",
+    "reasons": [
+     "параболический рост +52% за 7д, максимальная свеча +79%",
+     "OI растёт быстрее цены: OI +341% против цены +54%",
+     "памп идёт в перпах, спот к фьючерсу 0.06"
+    ],
+    "parabolic": true,
+    "funding_peak_14d": 0.005,
+    "funding_now": -0.0036829999999999996,
+    "oi_change_14d_pct": 341.3000471019,
+    "spot_futures_ratio": 0.06384524740223939,
+    "rsi_14": 58.280388566683826,
+    "tag": {
+     "text": "SQUEEZE HIGH",
+     "class": "tag-squeeze-high"
+    }
+   },
+   "taiko": {
+    "detected": true,
+    "score": 92,
+    "downtrend_bars": 0,
+    "drop_pct": -88.23677967398791,
+    "htf_drop_pct": -88.23677967398791,
+    "days_in_downtrend": 146,
+    "price_position_pct": 42.350717678908914,
+    "short_history": false,
+    "capitulation_bar_ago": 0,
+    "rsi_d": 58.56344004344609,
+    "rsi_min_recent": 29.95068955916156,
+    "obv_turning_up": true,
+    "obv_divergence": false,
+    "reversal_hint": true,
+    "volume_climax_bull": true,
+    "volume_climax_ratio": 397.0965651225754,
+    "vortex_crossover": false,
+    "vortex_divergence": false,
+    "vortex_note": "",
+    "vortex_selling_exhaustion": false,
+    "vortex_exhaustion_note": "",
+    "vortex_tf_used": "",
+    "vortex_peaks_count": 0,
+    "confirmed_breakout": true,
+    "verdict": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -88% от пика старшего ТФ. объёмная кульминация ×397.1. капитуляция 0д назад. минимум RSI 30."
+   },
+   "analysis": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -88% от пика старшего ТФ. объёмная кульминация ×397.1. капитуляция 0д назад. минимум RSI 30. Euler — DeFi Lending. The ability to lend and borrow assets efficiently is a crucial feature of any financial system. In the world of traditional finance, this process is typically facilitated by trusted and permissioned third-parties such as banks, who connect people with a surplus of money to those who need access to it in the short term. Ранг 536, $41.6M, микрокап. Динамика: за год -88%; за 30 дней +51%, сильный откат от дна; цена ниже исторического максимума на 90%. TVL $353.7M, заметная доля рынка, за неделю +13%. Настроение 80% бычье — толпа предельно оптимистична, что работает как контриндикатор. Смотреть на utilization rate и риски оракула, здесь случаются чёрные лебеди.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Конфликт сигналов. TAIKO даёт разворот, но squeeze-риск HIGH со скором 65 — часть роста обеспечена ликвидациями шортов. Вход половинным объёмом либо ожидание отката и повторного теста базы.",
+    "size_hint": "½ ОБЪЁМА",
+    "kind": "taiko",
+    "levels": {
+     "entry": 1.5371,
+     "stop": 0.919399,
+     "target1": 2.3401113,
+     "target2": 2.772502,
+     "target3": 3.390203,
+     "rr": 1.3,
+     "stop_pct": -40.19,
+     "target_pct": 52.24,
+     "valid": true
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:EULUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/EULUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=EUL"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24EUL&f=live"
+    }
+   ],
+   "categories": [
+    "BNB Chain Ecosystem",
+    "Lending/Borrowing Protocols",
+    "Avalanche Ecosystem",
+    "Arbitrum Ecosystem",
+    "Ethereum Ecosystem",
+    "Lending"
+   ],
+   "sector": "DEFI",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "squeeze",
+     "label": "Squeeze-аномалия",
+     "points": 8
+    },
+    {
+     "code": "taiko",
+     "label": "TAIKO разворот",
+     "points": 31
+    },
+    {
+     "code": "obv",
+     "label": "Накопление по OBV",
+     "points": 6
+    }
+   ],
+   "veto": [
+    {
+     "code": "squeeze",
+     "label": "SQUEEZE",
+     "detail": "риск HIGH, скор 65",
+     "severity": "mid"
+    }
+   ],
+   "vetoed": true,
+   "quote_volume_24h": 116995849.03152,
+   "rr": 1.3,
+   "tradable": false
+  },
+  {
+   "symbol": "VANRYUSDT",
+   "bucket": "good",
+   "rank": "#008",
+   "score": 44,
+   "tags": [
+    {
+     "text": "TAIKO REVERSAL · 85",
+     "class": "tag-pattern taiko"
+    },
+    {
+     "text": "Artificial Intelligence (AI)",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 4,
+    "label": "TREND",
+    "vi_plus": 1.1455,
+    "vi_minus": 0.8188
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$0.004806",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "+20.0%",
+     "cls": "up"
+    },
+    {
+     "key": "7d",
+     "val": "+4.3%",
+     "cls": "up"
+    },
+    {
+     "key": "30d",
+     "val": "+61.7%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-98.7%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "1.67×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "-5.0%",
+     "cls": "down"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "99.2",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "12.85",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "55.57",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "80",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "-0.2074%",
+     "cls": "down"
+    },
+    {
+     "key": "OI",
+     "val": "$5.27M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "10%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": {
+    "detected": false,
+    "risk_level": "low",
+    "risk_score": 25,
+    "verdict": "Небольшой перегрев на перпах, пока в рамках здорового тренда.",
+    "reasons": [
+     "фандинг ушёл в минус -0.167%, шорты капитулировали",
+     "памп идёт в перпах, спот к фьючерсу 0.13"
+    ],
+    "parabolic": false,
+    "funding_peak_14d": -0.039703999999999996,
+    "funding_now": -0.16669799999999999,
+    "oi_change_14d_pct": -9.16364122422204,
+    "spot_futures_ratio": 0.12586210073944784,
+    "rsi_14": 55.62445964606837,
+    "tag": {
+     "text": "SQUEEZE LOW",
+     "class": "tag-squeeze-low"
+    }
+   },
+   "taiko": {
+    "detected": true,
+    "score": 85,
+    "downtrend_bars": 9,
+    "drop_pct": -89.89061842658813,
+    "htf_drop_pct": -98.68494500082087,
+    "days_in_downtrend": 58,
+    "price_position_pct": 30.647600714973194,
+    "short_history": false,
+    "capitulation_bar_ago": 21,
+    "rsi_d": 50.27396359386783,
+    "rsi_min_recent": 21.409517312541894,
+    "obv_turning_up": true,
+    "obv_divergence": true,
+    "reversal_hint": true,
+    "volume_climax_bull": false,
+    "volume_climax_ratio": 1.659816018377599,
+    "vortex_crossover": false,
+    "vortex_divergence": false,
+    "vortex_note": "",
+    "vortex_selling_exhaustion": false,
+    "vortex_exhaustion_note": "",
+    "vortex_tf_used": "3d",
+    "vortex_peaks_count": 6,
+    "confirmed_breakout": false,
+    "verdict": "TAIKO Reversal: падение -99% от пика старшего ТФ. зрелая база, 58 дней в даунтренде, цена в нижних 31% диапазона. бычья дивергенция OBV. капитуляция 21д назад. минимум RSI 21. зелёные свечи с объёмом."
+   },
+   "analysis": "TAIKO Reversal: падение -99% от пика старшего ТФ. зрелая база, 58 дней в даунтренде, цена в нижних 31% диапазона. бычья дивергенция OBV. капитуляция 21д назад. минимум RSI 21. зелёные свечи с объёмом. Vanar Chain — Layer-1. Vanar, a L1 designed from the ground up, builds upon our technological expertise to foster practical real-world adoption. Drawing upon years of experience working with the gaming, entertainment, and brand sectors, our primary focus is on ushering billions of consumers into the world of web3. Ранг 1115, $11.5M, микрокап. Динамика: за год -86%; за 30 дней +59%, сильный откат от дна; цена ниже исторического максимума на 99%. Настроение 100% бычье — толпа предельно оптимистична, что работает как контриндикатор. Ставка на экосистему: если разработчики уходят, токен идёт в ноль.",
+   "buzz": {
+    "level": "cool",
+    "level_class": "buzz-cool",
+    "level_text": "COOL",
+    "text": "Умеренная активность."
+   },
+   "strategy": {
+    "text": "TAIKO Reversal. Вход лесенкой от текущей цены, стоп под минимум базы, цели 1.3× / 2× / 3× от риска.",
+    "size_hint": "ПОЛНЫЙ",
+    "kind": "taiko",
+    "levels": {
+     "entry": 0.004806,
+     "stop": 0.003787325,
+     "target1": 0.0061302775,
+     "target2": 0.00684335,
+     "target3": 0.007862025,
+     "rr": 1.3,
+     "stop_pct": -21.2,
+     "target_pct": 27.55,
+     "valid": true
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:VANRYUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/VANRYUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=VANRY"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24VANRY&f=live"
+    }
+   ],
+   "categories": [
+    "Artificial Intelligence (AI)",
+    "Smart Contract Platform",
+    "Layer 1 (L1)",
+    "Polygon Ecosystem",
+    "Ethereum Ecosystem"
+   ],
+   "sector": "AI",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "taiko",
+     "label": "TAIKO разворот",
+     "points": 29
+    },
+    {
+     "code": "phase",
+     "label": "Фаза TREND",
+     "points": 15
+    }
+   ],
+   "veto": [
+    {
+     "code": "funding",
+     "label": "ФАНДИНГ",
+     "detail": "-0.2074%, шорты перегреты",
+     "severity": "mid"
+    }
+   ],
+   "vetoed": true,
+   "quote_volume_24h": 72852714.244506,
+   "rr": 1.3,
+   "tradable": false
+  },
+  {
+   "symbol": "DEXEUSDT",
+   "bucket": "good",
+   "rank": "#009",
+   "score": 40,
+   "tags": [
+    {
+     "text": "TAIKO REVERSAL · 100",
+     "class": "tag-pattern taiko"
+    },
+    {
+     "text": "Decentralized Finance (DeFi)",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.9985,
+    "vi_minus": 1.0962
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$3.146",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "+21.1%",
+     "cls": "up"
+    },
+    {
+     "key": "7d",
+     "val": "-45.8%",
+     "cls": "down"
+    },
+    {
+     "key": "30d",
+     "val": "-85.5%",
+     "cls": "down"
+    },
+    {
+     "key": "От ATH",
+     "val": "-93.7%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.58×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+101.1%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "87.1",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "181.85",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "283.75",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "99",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "-0.0218%",
+     "cls": "down"
+    },
+    {
+     "key": "OI",
+     "val": "$19.58M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "16%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": {
+    "detected": true,
+    "score": 100,
+    "downtrend_bars": 8,
+    "drop_pct": -93.70674134826965,
+    "htf_drop_pct": -93.70674134826965,
+    "days_in_downtrend": 165,
+    "price_position_pct": 3.8170133256678227,
+    "short_history": false,
+    "capitulation_bar_ago": 1,
+    "rsi_d": 29.52232197831752,
+    "rsi_min_recent": 25.41018914998301,
+    "obv_turning_up": true,
+    "obv_divergence": true,
+    "reversal_hint": true,
+    "volume_climax_bull": true,
+    "volume_climax_ratio": 34.41660459712603,
+    "vortex_crossover": false,
+    "vortex_divergence": false,
+    "vortex_note": "",
+    "vortex_selling_exhaustion": false,
+    "vortex_exhaustion_note": "",
+    "vortex_tf_used": "1w",
+    "vortex_peaks_count": 5,
+    "confirmed_breakout": false,
+    "verdict": "TAIKO Reversal: падение -94% от пика старшего ТФ. зрелая база, 165 дней в даунтренде, цена в нижних 4% диапазона. бычья дивергенция OBV. объёмная кульминация ×34.4. капитуляция 1д назад. минимум RSI 25."
+   },
+   "analysis": "TAIKO Reversal: падение -94% от пика старшего ТФ. зрелая база, 165 дней в даунтренде, цена в нижних 4% диапазона. бычья дивергенция OBV. объёмная кульминация ×34.4. капитуляция 1д назад. минимум RSI 25. DeXe — AI. 1. Using the DeXe Utility token in the ecosystem: 1.1 Programmed redemption and burning of tokens for a certain % of the traders’ compensation. 1.2 Control over DeXe treasury better. Ранг 196, $306.5M, средняя капитализация. Динамика: за год -57%; за 30 дней -86%; цена ниже исторического максимума на 94%. Настроение 78% бычье. Самый горячий нарратив: движения кратные, коррекции жестокие.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "TAIKO Reversal. Вход лесенкой от текущей цены, стоп под минимум базы, цели 1.3× / 2× / 3× от риска.",
+    "size_hint": "ПОЛНЫЙ",
+    "kind": "taiko",
+    "levels": {
+     "entry": 3.146,
+     "stop": -5.4352857143,
+     "target1": 14.3016714286,
+     "target2": 20.3085714286,
+     "target3": 28.8898571429,
+     "rr": 1.3,
+     "stop_pct": -272.77,
+     "target_pct": 354.6,
+     "valid": false
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:DEXEUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/DEXEUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=DEXE"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24DEXE&f=live"
+    }
+   ],
+   "categories": [
+    "Decentralized Finance (DeFi)",
+    "BNB Chain Ecosystem",
+    "Ethereum Ecosystem"
+   ],
+   "sector": "DEFI",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "taiko",
+     "label": "TAIKO разворот",
+     "points": 34
+    },
+    {
+     "code": "obv",
+     "label": "Накопление по OBV",
+     "points": 6
+    }
+   ],
+   "veto": [
+    {
+     "code": "volatility",
+     "label": "ВОЛАТИЛЬНОСТЬ",
+     "detail": "ATR 181.8% в день",
+     "severity": "mid"
+    }
+   ],
+   "vetoed": true,
+   "quote_volume_24h": 318480375.55672,
+   "rr": 1.3,
+   "tradable": false
+  },
+  {
+   "symbol": "1000SHIBUSDT",
+   "bucket": "scout",
+   "rank": "#010",
+   "score": 30,
+   "tags": [
+    {
+     "text": "TAIKO CONFIRMED · 88",
+     "class": "tag-pattern taiko"
+    },
+    {
+     "text": "Meme",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.7574,
+    "vi_minus": 1.3582
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$0.004649",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "-3.7%",
+     "cls": "down"
+    },
+    {
+     "key": "7d",
+     "val": "+9.0%",
+     "cls": "up"
+    },
+    {
+     "key": "30d",
+     "val": "+11.7%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-89.8%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.34×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+37.2%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "2.4",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "6.15",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "28.50",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "94",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "0.0005%",
+     "cls": "up"
+    },
+    {
+     "key": "OI",
+     "val": "$26.42M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "0%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": {
+    "detected": true,
+    "score": 88,
+    "downtrend_bars": 0,
+    "drop_pct": -73.64512471655328,
+    "htf_drop_pct": -89.84868004454441,
+    "days_in_downtrend": 0,
+    "price_position_pct": 18.282465589467396,
+    "short_history": false,
+    "capitulation_bar_ago": 1,
+    "rsi_d": 54.65508685335057,
+    "rsi_min_recent": 19.13013850746168,
+    "obv_turning_up": true,
+    "obv_divergence": false,
+    "reversal_hint": true,
+    "volume_climax_bull": true,
+    "volume_climax_ratio": 23.07197078537111,
+    "vortex_crossover": false,
+    "vortex_divergence": false,
+    "vortex_note": "",
+    "vortex_selling_exhaustion": false,
+    "vortex_exhaustion_note": "",
+    "vortex_tf_used": "1M",
+    "vortex_peaks_count": 6,
+    "confirmed_breakout": true,
+    "verdict": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -90% от пика старшего ТФ. объёмная кульминация ×23.1. капитуляция 1д назад. минимум RSI 19."
+   },
+   "analysis": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -90% от пика старшего ТФ. объёмная кульминация ×23.1. капитуляция 1д назад. минимум RSI 19. Shiba Inu — MEME. Shiba Inu (SHIB) is a decentralized, community-led cryptocurrency ecosystem built on the Ethereum blockchain. Originally launched as a meme-based project, it has evolved into a comprehensive financial ecosystem designed to offer a decentralized alternative to traditional banking. Топ-33 по капитализации, $2.74B, это голубая фишка. Динамика: за год -66%; за 30 дней +11%; цена ниже исторического максимума на 95%. Настроение 68% бычье. Чистая спекуляция: играется на новостях и вирусности, фундамента нет.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "TAIKO Reversal. Вход лесенкой от текущей цены, стоп под минимум базы, цели 1.3× / 2× / 3× от риска.",
+    "size_hint": "ПОЛНЫЙ",
+    "kind": "taiko",
+    "levels": {
+     "entry": 0.004649,
+     "stop": 0.00399319,
+     "target1": 0.005501553,
+     "target2": 0.00596062,
+     "target3": 0.00661643,
+     "rr": 1.3,
+     "stop_pct": -14.11,
+     "target_pct": 18.34,
+     "valid": true
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:1000SHIBUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/1000SHIBUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=1000SHIB"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%241000SHIB&f=live"
+    }
+   ],
+   "categories": [
+    "Meme",
+    "Ethereum Ecosystem",
+    "Animoca Brands Portfolio",
+    "Dog-Themed",
+    "GMCI Meme Index"
+   ],
+   "sector": "MEME",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "taiko",
+     "label": "TAIKO разворот",
+     "points": 30
+    }
+   ],
+   "veto": [
+    {
+     "code": "no_spot",
+     "label": "НЕТ СПОТА",
+     "detail": "спот 0.0% оборота",
+     "severity": "low"
+    }
+   ],
+   "vetoed": false,
+   "quote_volume_24h": 108014843.690653,
+   "rr": 1.3,
+   "tradable": true
+  },
+  {
+   "symbol": "KAITOUSDT",
+   "bucket": "scout",
+   "rank": "#011",
+   "score": 28,
+   "tags": [
+    {
+     "text": "TAIKO CONFIRMED · 71",
+     "class": "tag-pattern taiko"
+    },
+    {
+     "text": "Artificial Intelligence (AI)",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 2,
+    "label": "BASE",
+    "vi_plus": 1.0909,
+    "vi_minus": 1.0453
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$1.123",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "-12.8%",
+     "cls": "down"
+    },
+    {
+     "key": "7d",
+     "val": "+13.0%",
+     "cls": "up"
+    },
+    {
+     "key": "30d",
+     "val": "+94.6%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-60.5%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.42×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+11.9%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "0.0",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "12.63",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "82.84",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "98",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "-0.0005%",
+     "cls": "down"
+    },
+    {
+     "key": "OI",
+     "val": "$59.59M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "10%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": {
+    "detected": false,
+    "risk_level": "medium",
+    "risk_score": 40,
+    "verdict": "Умеренный squeeze-риск: часть роста обеспечена ликвидациями шортов, а не органическим спросом. Следить за фандингом и OI.",
+    "reasons": [
+     "OI растёт быстрее цены: OI +87% против цены +44%",
+     "памп идёт в перпах, спот к фьючерсу 0.13"
+    ],
+    "parabolic": false,
+    "funding_peak_14d": 0.005,
+    "funding_now": -0.000164,
+    "oi_change_14d_pct": 87.22331124334382,
+    "spot_futures_ratio": 0.13358692374507897,
+    "rsi_14": 64.99199696468762,
+    "tag": {
+     "text": "SQUEEZE MED",
+     "class": "tag-squeeze-med"
+    }
+   },
+   "taiko": {
+    "detected": true,
+    "score": 71,
+    "downtrend_bars": 0,
+    "drop_pct": -53.5972560849622,
+    "htf_drop_pct": -60.46126760563379,
+    "days_in_downtrend": 165,
+    "price_position_pct": 78.58321114369501,
+    "short_history": false,
+    "capitulation_bar_ago": 0,
+    "rsi_d": 65.63941963553027,
+    "rsi_min_recent": 38.405340954775845,
+    "obv_turning_up": true,
+    "obv_divergence": false,
+    "reversal_hint": true,
+    "volume_climax_bull": true,
+    "volume_climax_ratio": 8.171125407856437,
+    "vortex_crossover": false,
+    "vortex_divergence": false,
+    "vortex_note": "",
+    "vortex_selling_exhaustion": false,
+    "vortex_exhaustion_note": "",
+    "vortex_tf_used": "3d",
+    "vortex_peaks_count": 5,
+    "confirmed_breakout": true,
+    "verdict": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -60% от пика старшего ТФ. объёмная кульминация ×8.2. капитуляция 0д назад."
+   },
+   "analysis": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -60% от пика старшего ТФ. объёмная кульминация ×8.2. капитуляция 0д назад. KAITO — AI. $KAITO is the native token and the fundamental building block of the AI-powered InfoFi network. Ранг 134, $272.1M, средняя капитализация. FDV к капитализации 4.1×, впереди крупные разлоки и структурное давление на цену. Динамика: за год -15%; за 30 дней +96%, сильный откат от дна. Настроение 14% бычье — рынок пессимистичен, такое часто предшествует развороту. Самый горячий нарратив: движения кратные, коррекции жестокие.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "TAIKO Reversal. Вход лесенкой от текущей цены, стоп под минимум базы, цели 1.3× / 2× / 3× от риска.",
+    "size_hint": "ПОЛНЫЙ",
+    "kind": "taiko",
+    "levels": {
+     "entry": 1.1229,
+     "stop": 0.597895,
+     "target1": 1.8054065,
+     "target2": 2.17291,
+     "target3": 2.697915,
+     "rr": 1.3,
+     "stop_pct": -46.75,
+     "target_pct": 60.78,
+     "valid": true
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:KAITOUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/KAITOUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=KAITO"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24KAITO&f=live"
+    }
+   ],
+   "categories": [
+    "Artificial Intelligence (AI)",
+    "Analytics",
+    "Launchpad",
+    "Base Ecosystem",
+    "Binance HODLer Airdrops",
+    "Services"
+   ],
+   "sector": "AI",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "taiko",
+     "label": "TAIKO разворот",
+     "points": 24
+    },
+    {
+     "code": "phase",
+     "label": "Фаза BASE",
+     "points": 4
+    }
+   ],
+   "veto": [],
+   "vetoed": false,
+   "quote_volume_24h": 137985298.46233,
+   "rr": 1.3,
+   "tradable": true
+  },
+  {
+   "symbol": "RIFUSDT",
+   "bucket": "scout",
+   "rank": "#012",
+   "score": 23,
+   "tags": [
+    {
+     "text": "TAIKO REVERSAL · 68",
+     "class": "tag-pattern taiko"
+    },
+    {
+     "text": "Solana Ecosystem",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.9368,
+    "vi_minus": 1.14
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$0.07941",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "+3.8%",
+     "cls": "up"
+    },
+    {
+     "key": "7d",
+     "val": "-1.8%",
+     "cls": "down"
+    },
+    {
+     "key": "30d",
+     "val": "+14.8%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-77.0%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.27×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "-26.8%",
+     "cls": "down"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "57.5",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "36.14",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "86.57",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "87",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "-0.0477%",
+     "cls": "down"
+    },
+    {
+     "key": "OI",
+     "val": "$4.68M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "9%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": {
+    "detected": true,
+    "score": 68,
+    "downtrend_bars": 9,
+    "drop_pct": -45.79152160557035,
+    "htf_drop_pct": -76.96992546619877,
+    "days_in_downtrend": 129,
+    "price_position_pct": 42.90577921525235,
+    "short_history": false,
+    "capitulation_bar_ago": 1,
+    "rsi_d": 42.402859084208735,
+    "rsi_min_recent": 32.70952773397693,
+    "obv_turning_up": true,
+    "obv_divergence": false,
+    "reversal_hint": true,
+    "volume_climax_bull": true,
+    "volume_climax_ratio": 3.6994824566021975,
+    "vortex_crossover": false,
+    "vortex_divergence": false,
+    "vortex_note": "",
+    "vortex_selling_exhaustion": false,
+    "vortex_exhaustion_note": "",
+    "vortex_tf_used": "",
+    "vortex_peaks_count": 0,
+    "confirmed_breakout": false,
+    "verdict": "TAIKO Reversal: падение -77% от пика старшего ТФ. объёмная кульминация ×3.7. капитуляция 1д назад."
+   },
+   "analysis": "TAIKO Reversal: падение -77% от пика старшего ТФ. объёмная кульминация ×3.7. капитуляция 1д назад. Rootstock Infrastructure Framework — Crypto Asset. Built to compliment Bitcoin, not compete with it. RIF is designed to accelerate the adoption of Rootstock, Bitcoin’s DeFi Layer by powering incentives, infrastructure and interoperability. Ранг 295, $79.4M, малая капитализация. Динамика: за год +26%; за 30 дней +13%; цена ниже исторического максимума на 83%. Настроение 75% бычье. Нужна ручная проверка: что делает проект и есть ли реальные пользователи.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "TAIKO Reversal. Вход лесенкой от текущей цены, стоп под минимум базы, цели 1.3× / 2× / 3× от риска.",
+    "size_hint": "ПОЛНЫЙ",
+    "kind": "taiko",
+    "levels": {
+     "entry": 0.07941,
+     "stop": 0.0363675,
+     "target1": 0.13536525,
+     "target2": 0.165495,
+     "target3": 0.2085375,
+     "rr": 1.3,
+     "stop_pct": -54.2,
+     "target_pct": 70.46,
+     "valid": true
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:RIFUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/RIFUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=RIF"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24RIF&f=live"
+    }
+   ],
+   "categories": [
+    "Solana Ecosystem",
+    "Arbitrum Ecosystem",
+    "Ethereum Ecosystem",
+    "Base Ecosystem",
+    "Rootstock Ecosystem"
+   ],
+   "sector": "L1/L2",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "taiko",
+     "label": "TAIKO разворот",
+     "points": 23
+    }
+   ],
+   "veto": [
+    {
+     "code": "volatility",
+     "label": "ВОЛАТИЛЬНОСТЬ",
+     "detail": "ATR 36.1% в день",
+     "severity": "mid"
+    }
+   ],
+   "vetoed": true,
+   "quote_volume_24h": 102917938.01702,
+   "rr": 1.3,
+   "tradable": false
+  },
+  {
+   "symbol": "AKEUSDT",
+   "bucket": "scout",
+   "rank": "#013",
+   "score": 21,
+   "tags": [
+    {
+     "text": "Artificial Intelligence (AI)",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 4,
+    "label": "TREND",
+    "vi_plus": 1.0729,
+    "vi_minus": 0.9171
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$0.004269",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "+5.9%",
+     "cls": "up"
+    },
+    {
+     "key": "7d",
+     "val": "+152.6%",
+     "cls": "up"
+    },
+    {
+     "key": "30d",
+     "val": "+1030.2%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-38.1%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.38×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+885.7%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "20.1",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "25.49",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "310.15",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "90",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "0.0050%",
+     "cls": "up"
+    },
+    {
+     "key": "OI",
+     "val": "$31.38M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "0%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": {
+    "detected": false,
+    "risk_level": "medium",
+    "risk_score": 50,
+    "verdict": "Умеренный squeeze-риск: часть роста обеспечена ликвидациями шортов, а не органическим спросом. Следить за фандингом и OI.",
+    "reasons": [
+     "параболический рост +153% за 7д, максимальная свеча +46%",
+     "OI +726% за 14д, толпа набилась в перпы",
+     "RSI дневной 92, экстремальный перегрев"
+    ],
+    "parabolic": true,
+    "funding_peak_14d": 0.034976,
+    "funding_now": 0.005,
+    "oi_change_14d_pct": 725.615279918584,
+    "spot_futures_ratio": 0.0,
+    "rsi_14": 91.8845815992465,
+    "tag": {
+     "text": "SQUEEZE MED",
+     "class": "tag-squeeze-med"
+    }
+   },
+   "taiko": null,
+   "analysis": "Akedo — AI. AKEDO is a Multi-Agent AI framework built for Autonomous Content Creation and Intelligent Collaboration. It empowers creators to design engaging games in just 2 minutes using simple natural language prompts. Ранг 267, $95.3M, малая капитализация. FDV к капитализации 4.4×, впереди крупные разлоки и структурное давление на цену. Динамика: за 30 дней +938%, сильный откат от дна. Комьюнити: Telegram 1.5M. Настроение 68% бычье. Самый горячий нарратив: движения кратные, коррекции жестокие.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Тренд. Работать по направлению, коррекции откупать от EMA21.",
+    "size_hint": "ПОЛНЫЙ",
+    "kind": "trend",
+    "levels": {
+     "entry": 0.0042689,
+     "stop": 0.0020927429,
+     "target1": 0.0070979043,
+     "target2": 0.0086212143,
+     "target3": 0.0107973714,
+     "rr": 1.3,
+     "stop_pct": -50.98,
+     "target_pct": 66.27,
+     "valid": true
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:AKEUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/AKEUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=AKE"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24AKE&f=live"
+    }
+   ],
+   "categories": [
+    "Artificial Intelligence (AI)",
+    "BNB Chain Ecosystem",
+    "AI Applications",
+    "Binance Wallet IDO"
+   ],
+   "sector": "AI",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "phase",
+     "label": "Фаза TREND",
+     "points": 15
+    },
+    {
+     "code": "obv",
+     "label": "Накопление по OBV",
+     "points": 6
+    }
+   ],
+   "veto": [
+    {
+     "code": "volatility",
+     "label": "ВОЛАТИЛЬНОСТЬ",
+     "detail": "ATR 25.5% в день",
+     "severity": "mid"
+    },
+    {
+     "code": "no_spot",
+     "label": "НЕТ СПОТА",
+     "detail": "спот 0.0% оборота",
+     "severity": "low"
+    }
+   ],
+   "vetoed": true,
+   "quote_volume_24h": 429676314.4643848,
+   "rr": 1.3,
+   "tradable": false
+  },
+  {
+   "symbol": "AAVEUSDT",
+   "bucket": "watch",
+   "rank": "#014",
+   "score": 15,
+   "tags": [
+    {
+     "text": "Decentralized Finance (DeFi)",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 4,
+    "label": "TREND",
+    "vi_plus": 1.1999,
+    "vi_minus": 0.8585
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$101.2",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "+3.3%",
+     "cls": "up"
+    },
+    {
+     "key": "7d",
+     "val": "+5.8%",
+     "cls": "up"
+    },
+    {
+     "key": "30d",
+     "val": "+10.4%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-74.7%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "1.53×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+3.1%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "54.5",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "4.51",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "15.56",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "14",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "0.0045%",
+     "cls": "up"
+    },
+    {
+     "key": "OI",
+     "val": "$57.73M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "15%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": null,
+   "analysis": "Aave — DeFi Lending. Aave is a decentralized money market protocol where users can lend and borrow cryptocurrency across 20 different assets as collateral. The protocol has a native token called AAVE, which is also a governance token that lets the community decide the direction of the protocol in a collective manner. Топ-50 по капитализации, $1.55B, это голубая фишка. Динамика: за год -65%; за 30 дней +13%; цена ниже исторического максимума на 85%. TVL $13.68B, крупный протокол. Настроение 100% бычье — толпа предельно оптимистична, что работает как контриндикатор. Смотреть на utilization rate и риски оракула, здесь случаются чёрные лебеди.",
+   "buzz": {
+    "level": "cool",
+    "level_class": "buzz-cool",
+    "level_text": "COOL",
+    "text": "Умеренная активность."
+   },
+   "strategy": {
+    "text": "Тренд. Работать по направлению, коррекции откупать от EMA21.",
+    "size_hint": "ПОЛНЫЙ",
+    "kind": "trend",
+    "levels": {
+     "entry": 101.16,
+     "stop": 92.04,
+     "target1": 113.016,
+     "target2": 119.4,
+     "target3": 128.52,
+     "rr": 1.3,
+     "stop_pct": -9.02,
+     "target_pct": 11.72,
+     "valid": true
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:AAVEUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/AAVEUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=AAVE"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24AAVE&f=live"
+    }
+   ],
+   "categories": [
+    "Decentralized Finance (DeFi)",
+    "Yield Farming",
+    "BNB Chain Ecosystem",
+    "Lending/Borrowing Protocols",
+    "Solana Ecosystem",
+    "Lending"
+   ],
+   "sector": "DEFI",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "phase",
+     "label": "Фаза TREND",
+     "points": 15
+    }
+   ],
+   "veto": [],
+   "vetoed": false,
+   "quote_volume_24h": 83743361.642,
+   "rr": 1.3,
+   "tradable": true
+  },
+  {
+   "symbol": "ONDOUSDT",
+   "bucket": "watch",
+   "rank": "#015",
+   "score": 15,
+   "tags": [
+    {
+     "text": "Decentralized Finance (DeFi)",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 4,
+    "label": "TREND",
+    "vi_plus": 1.1315,
+    "vi_minus": 0.8636
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$0.4109",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "+4.3%",
+     "cls": "up"
+    },
+    {
+     "key": "7d",
+     "val": "+2.3%",
+     "cls": "up"
+    },
+    {
+     "key": "30d",
+     "val": "+32.7%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-80.9%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "1.13×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+3.1%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "67.5",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "7.79",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "37.67",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "83",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "-0.0016%",
+     "cls": "down"
+    },
+    {
+     "key": "OI",
+     "val": "$39.54M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "13%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": null,
+   "analysis": "Ondo — RWA. The Ondo Foundation was founded in 2022 as an independently governed and nonprofit Cayman Islands Foundation Company with no beneficial owners. The Ondo Foundation assisted in the launch of the Ondo DAO, which deployed and currently governs Flux Finance, the first lending protocol supporting tokenized securities as collateral. Топ-41 по капитализации, $2.00B, это голубая фишка. FDV к капитализации 2.1×, заметный навес эмиссии. Динамика: за год -59%; за 30 дней +33%, сильный откат от дна; цена ниже исторического максимума на 81%. TVL $2.52B, крупный протокол. Настроение 85% бычье — толпа предельно оптимистична, что работает как контриндикатор. Один из сильнейших долгосрочных нарративов, но короткие движения непредсказуемы.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Тренд. Работать по направлению, коррекции откупать от EMA21.",
+    "size_hint": "ПОЛНЫЙ",
+    "kind": "trend",
+    "levels": {
+     "entry": 0.4109,
+     "stop": 0.3468428571,
+     "target1": 0.4941742857,
+     "target2": 0.5390142857,
+     "target3": 0.6030714286,
+     "rr": 1.3,
+     "stop_pct": -15.59,
+     "target_pct": 20.27,
+     "valid": true
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:ONDOUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/ONDOUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=ONDO"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24ONDO&f=live"
+    }
+   ],
+   "categories": [
+    "Decentralized Finance (DeFi)",
+    "Ethereum Ecosystem",
+    "Real World Assets (RWA)",
+    "Coinbase Ventures Portfolio",
+    "Pantera Capital Portfolio",
+    "RWA"
+   ],
+   "sector": "DEFI",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "phase",
+     "label": "Фаза TREND",
+     "points": 15
+    }
+   ],
+   "veto": [],
+   "vetoed": false,
+   "quote_volume_24h": 85848968.99871,
+   "rr": 1.3,
+   "tradable": true
+  },
+  {
+   "symbol": "ENAUSDT",
+   "bucket": "watch",
+   "rank": "#016",
+   "score": 10,
+   "tags": [
+    {
+     "text": "Decentralized Finance (DeFi)",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 3,
+    "label": "MOMENTUM",
+    "vi_plus": 1.0333,
+    "vi_minus": 0.9819
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$0.08588",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "+4.5%",
+     "cls": "up"
+    },
+    {
+     "key": "7d",
+     "val": "-1.0%",
+     "cls": "down"
+    },
+    {
+     "key": "30d",
+     "val": "+11.9%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-94.4%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.92×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "-9.3%",
+     "cls": "down"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "47.5",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "6.09",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "18.27",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "8",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "0.0050%",
+     "cls": "up"
+    },
+    {
+     "key": "OI",
+     "val": "$46.15M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "13%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": null,
+   "analysis": "Ethena — DeFi Protocol. Ранг 75, $818.9M, средняя капитализация. Динамика: за год -87%; за 30 дней +12%; цена ниже исторического максимума на 94%. TVL $3.92B, крупный протокол. Настроение 100% бычье — толпа предельно оптимистична, что работает как контриндикатор. Смотреть на реальную выручку протокола, а не только на TVL.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Импульс. Нужно подтверждение объёмом, вход по пробою.",
+    "size_hint": "⅔ ОБЪЁМА",
+    "kind": "momentum",
+    "levels": {
+     "entry": 0.08588,
+     "stop": 0.0764711429,
+     "target1": 0.0981115143,
+     "target2": 0.1046977143,
+     "target3": 0.1141065714,
+     "rr": 1.3,
+     "stop_pct": -10.96,
+     "target_pct": 14.24,
+     "valid": true
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:ENAUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/ENAUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=ENA"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24ENA&f=live"
+    }
+   ],
+   "categories": [
+    "Decentralized Finance (DeFi)",
+    "Binance Launchpool",
+    "Solana Ecosystem",
+    "Avalanche Ecosystem",
+    "Arbitrum Ecosystem",
+    "Basis Trading"
+   ],
+   "sector": "DEFI",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "phase",
+     "label": "Фаза MOMENTUM",
+     "points": 10
+    }
+   ],
+   "veto": [],
+   "vetoed": false,
+   "quote_volume_24h": 80107815.82088,
+   "rr": 1.3,
+   "tradable": true
+  },
+  {
+   "symbol": "BANKUSDT",
+   "bucket": "watch",
+   "rank": "#017",
+   "score": 6,
+   "tags": [
+    {
+     "text": "Meme",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.9347,
+    "vi_minus": 1.0656
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$0.2836",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "-16.5%",
+     "cls": "down"
+    },
+    {
+     "key": "7d",
+     "val": "+55.5%",
+     "cls": "up"
+    },
+    {
+     "key": "30d",
+     "val": "+676.4%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-57.8%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "1.02×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+420.9%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "0.0",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "39.45",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "292.00",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "92",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "-0.0107%",
+     "cls": "down"
+    },
+    {
+     "key": "OI",
+     "val": "$31.60M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "9%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": {
+    "detected": false,
+    "risk_level": "medium",
+    "risk_score": 55,
+    "verdict": "Умеренный squeeze-риск: часть роста обеспечена ликвидациями шортов, а не органическим спросом. Следить за фандингом и OI.",
+    "reasons": [
+     "параболический рост +55% за 7д, максимальная свеча +26%",
+     "OI +563% за 14д, толпа набилась в перпы",
+     "памп идёт в перпах, спот к фьючерсу 0.07"
+    ],
+    "parabolic": true,
+    "funding_peak_14d": 0.005,
+    "funding_now": -0.009598,
+    "oi_change_14d_pct": 563.094325756524,
+    "spot_futures_ratio": 0.07422793941306487,
+    "rsi_14": 64.42138964845167,
+    "tag": {
+     "text": "SQUEEZE MED",
+     "class": "tag-squeeze-med"
+    }
+   },
+   "taiko": null,
+   "analysis": "Bankcoin — MEME. Ранг 12411, $3K, микрокап. Динамика: цена ниже исторического максимума на 99%. TVL $195K, маленький протокол, за неделю -7%. Чистая спекуляция: играется на новостях и вирусности, фундамента нет.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Снижение. Лонги рискованны, ждём разворотную формацию.",
+    "size_hint": "БЕЗ ВХОДА",
+    "kind": "none",
+    "levels": {
+     "entry": 0.0,
+     "stop": 0.0,
+     "target1": 0.0,
+     "target2": 0.0,
+     "target3": 0.0,
+     "rr": 0.0,
+     "stop_pct": 0.0,
+     "target_pct": 0.0,
+     "valid": false
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:BANKUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/BANKUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=BANK"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24BANK&f=live"
+    }
+   ],
+   "categories": [
+    "Meme",
+    "Solana Meme",
+    "BONK.fun Ecosystem",
+    "Reserve Currency"
+   ],
+   "sector": "MEME",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "obv",
+     "label": "Накопление по OBV",
+     "points": 6
+    }
+   ],
+   "veto": [
+    {
+     "code": "volatility",
+     "label": "ВОЛАТИЛЬНОСТЬ",
+     "detail": "ATR 39.4% в день",
+     "severity": "mid"
+    }
+   ],
+   "vetoed": true,
+   "quote_volume_24h": 1097008632.67962,
+   "rr": 0.0,
+   "tradable": false
+  },
+  {
+   "symbol": "LINKUSDT",
+   "bucket": "watch",
+   "rank": "#018",
+   "score": 4,
+   "tags": [
+    {
+     "text": "Oracle",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 2,
+    "label": "BASE",
+    "vi_plus": 0.984,
+    "vi_minus": 1.0113
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$8.396",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "+0.2%",
+     "cls": "up"
+    },
+    {
+     "key": "7d",
+     "val": "-3.0%",
+     "cls": "down"
+    },
+    {
+     "key": "30d",
+     "val": "+15.6%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-72.9%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.77×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+5.4%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "20.6",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "3.44",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "13.45",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "26",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "0.0069%",
+     "cls": "up"
+    },
+    {
+     "key": "OI",
+     "val": "$75.47M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "12%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": null,
+   "analysis": "LINK — Oracle. Утилита есть, связь с ценой токена слабая, конкуренция с Chainlink давит.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "База. Диапазон, торговля от границ до пробоя.",
+    "size_hint": "⅓ ОБЪЁМА",
+    "kind": "base",
+    "levels": {
+     "entry": 8.396,
+     "stop": 6.96395,
+     "target1": 10.544075,
+     "target2": 11.976125,
+     "target3": 14.1242,
+     "rr": 1.5,
+     "stop_pct": -17.06,
+     "target_pct": 25.58,
+     "valid": true
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:LINKUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/LINKUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=LINK"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24LINK&f=live"
+    }
+   ],
+   "categories": [
+    "Oracle"
+   ],
+   "sector": "INFRA",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "phase",
+     "label": "Фаза BASE",
+     "points": 4
+    }
+   ],
+   "veto": [],
+   "vetoed": false,
+   "quote_volume_24h": 93535115.194,
+   "rr": 1.5,
+   "tradable": true
+  },
+  {
+   "symbol": "CLUSDT",
+   "bucket": "watch",
+   "rank": "#019",
+   "score": 0,
+   "tags": [
+    {
+     "text": "Luck Games",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.7234,
+    "vi_minus": 1.3188
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$77.96",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "-5.0%",
+     "cls": "down"
+    },
+    {
+     "key": "7d",
+     "val": "-8.0%",
+     "cls": "down"
+    },
+    {
+     "key": "30d",
+     "val": "+11.6%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-33.9%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "1.43×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+18.1%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "0.0",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "5.02",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "28.03",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "67",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "-0.0002%",
+     "cls": "down"
+    },
+    {
+     "key": "OI",
+     "val": "$178.39M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "0%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": null,
+   "analysis": "CL — DeFi Protocol. TVL $11, маленький протокол. Смотреть на реальную выручку протокола, а не только на TVL.",
+   "buzz": {
+    "level": "cool",
+    "level_class": "buzz-cool",
+    "level_text": "COOL",
+    "text": "Умеренная активность."
+   },
+   "strategy": {
+    "text": "Снижение. Лонги рискованны, ждём разворотную формацию.",
+    "size_hint": "БЕЗ ВХОДА",
+    "kind": "none",
+    "levels": {
+     "entry": 0.0,
+     "stop": 0.0,
+     "target1": 0.0,
+     "target2": 0.0,
+     "target3": 0.0,
+     "rr": 0.0,
+     "stop_pct": 0.0,
+     "target_pct": 0.0,
+     "valid": false
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:CLUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/CLUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=CL"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24CL&f=live"
+    }
+   ],
+   "categories": [
+    "Luck Games"
+   ],
+   "sector": "OTHER",
+   "is_viral": false,
+   "score_parts": [],
+   "veto": [
+    {
+     "code": "no_spot",
+     "label": "НЕТ СПОТА",
+     "detail": "спот 0.0% оборота",
+     "severity": "low"
+    }
+   ],
+   "vetoed": false,
+   "quote_volume_24h": 1034815174.9364,
+   "rr": 0.0,
+   "tradable": false
+  },
+  {
+   "symbol": "BZUSDT",
+   "bucket": "watch",
+   "rank": "#020",
+   "score": 0,
+   "tags": [],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.7412,
+    "vi_minus": 1.3008
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$80.87",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "-5.4%",
+     "cls": "down"
+    },
+    {
+     "key": "7d",
+     "val": "-9.1%",
+     "cls": "down"
+    },
+    {
+     "key": "30d",
+     "val": "+10.6%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-29.7%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "1.31×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+11.4%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "0.0",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "4.56",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "24.32",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "60",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "-0.0026%",
+     "cls": "down"
+    },
+    {
+     "key": "OI",
+     "val": "$74.80M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "0%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": null,
+   "analysis": "Данных о BZ нет ни в CoinGecko, ни в DefiLlama — вероятно, свежий листинг или узкоспециальный токен. Перед входом нужна ручная проверка команды, документации, графика разлоков и структуры держателей.",
+   "buzz": {
+    "level": "cool",
+    "level_class": "buzz-cool",
+    "level_text": "COOL",
+    "text": "Умеренная активность."
+   },
+   "strategy": {
+    "text": "Снижение. Лонги рискованны, ждём разворотную формацию.",
+    "size_hint": "БЕЗ ВХОДА",
+    "kind": "none",
+    "levels": {
+     "entry": 0.0,
+     "stop": 0.0,
+     "target1": 0.0,
+     "target2": 0.0,
+     "target3": 0.0,
+     "rr": 0.0,
+     "stop_pct": 0.0,
+     "target_pct": 0.0,
+     "valid": false
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:BZUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/BZUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=BZ"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24BZ&f=live"
+    }
+   ],
+   "categories": [],
+   "sector": "OTHER",
+   "is_viral": false,
+   "score_parts": [],
+   "veto": [
+    {
+     "code": "no_spot",
+     "label": "НЕТ СПОТА",
+     "detail": "спот 0.0% оборота",
+     "severity": "low"
+    }
+   ],
+   "vetoed": false,
+   "quote_volume_24h": 418913868.2872,
+   "rr": 0.0,
+   "tradable": false
+  },
+  {
+   "symbol": "ZECUSDT",
+   "bucket": "watch",
+   "rank": "#021",
+   "score": 0,
+   "tags": [
+    {
+     "text": "BNB Chain Ecosystem",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.9129,
+    "vi_minus": 1.0989
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$475.4",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "-0.2%",
+     "cls": "down"
+    },
+    {
+     "key": "7d",
+     "val": "-10.7%",
+     "cls": "down"
+    },
+    {
+     "key": "30d",
+     "val": "+26.4%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-38.7%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.80×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+0.5%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "36.8",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "6.50",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "22.81",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "1",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "0.0016%",
+     "cls": "up"
+    },
+    {
+     "key": "OI",
+     "val": "$238.31M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "12%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": null,
+   "analysis": "Binance-Peg ZEC — AI. Капитализация $104.4M. Динамика: за 30 дней +22%, сильный откат от дна. Самый горячий нарратив: движения кратные, коррекции жестокие.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Снижение. Лонги рискованны, ждём разворотную формацию.",
+    "size_hint": "БЕЗ ВХОДА",
+    "kind": "none",
+    "levels": {
+     "entry": 0.0,
+     "stop": 0.0,
+     "target1": 0.0,
+     "target2": 0.0,
+     "target3": 0.0,
+     "rr": 0.0,
+     "stop_pct": 0.0,
+     "target_pct": 0.0,
+     "valid": false
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:ZECUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/ZECUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=ZEC"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24ZEC&f=live"
+    }
+   ],
+   "categories": [
+    "BNB Chain Ecosystem",
+    "Binance-Peg Tokens"
+   ],
+   "sector": "OTHER",
+   "is_viral": false,
+   "score_parts": [],
+   "veto": [],
+   "vetoed": false,
+   "quote_volume_24h": 395546850.75,
+   "rr": 0.0,
+   "tradable": false
+  },
+  {
+   "symbol": "HYPEUSDT",
+   "bucket": "watch",
+   "rank": "#022",
+   "score": 0,
+   "tags": [
+    {
+     "text": "Launchpad",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.8076,
+    "vi_minus": 1.2062
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$55.34",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "-1.3%",
+     "cls": "down"
+    },
+    {
+     "key": "7d",
+     "val": "-9.1%",
+     "cls": "down"
+    },
+    {
+     "key": "30d",
+     "val": "-10.0%",
+     "cls": "down"
+    },
+    {
+     "key": "От ATH",
+     "val": "-28.1%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.46×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "-52.1%",
+     "cls": "down"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "25.2",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "5.81",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "25.31",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "55",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "0.0050%",
+     "cls": "up"
+    },
+    {
+     "key": "OI",
+     "val": "$244.94M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "0%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": null,
+   "analysis": "HYPE — Bridge. Hypepad is a multi-chain crypto launchpad designed to make token launches transparent and automated. The platform provides creators with a token creator and meme-coin launcher, presale/IDO configuration, and LP locking. TVL $5.98B, крупный протокол. Мостовые токены исторически отстают, риск эксплойта высокий.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Снижение. Лонги рискованны, ждём разворотную формацию.",
+    "size_hint": "БЕЗ ВХОДА",
+    "kind": "none",
+    "levels": {
+     "entry": 0.0,
+     "stop": 0.0,
+     "target1": 0.0,
+     "target2": 0.0,
+     "target3": 0.0,
+     "rr": 0.0,
+     "stop_pct": 0.0,
+     "target_pct": 0.0,
+     "valid": false
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:HYPEUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/HYPEUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=HYPE"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24HYPE&f=live"
+    }
+   ],
+   "categories": [
+    "Launchpad",
+    "Governance",
+    "Bridge"
+   ],
+   "sector": "INFRA",
+   "is_viral": false,
+   "score_parts": [],
+   "veto": [
+    {
+     "code": "no_spot",
+     "label": "НЕТ СПОТА",
+     "detail": "спот 0.0% оборота",
+     "severity": "low"
+    }
+   ],
+   "vetoed": false,
+   "quote_volume_24h": 483863567.35403,
+   "rr": 0.0,
+   "tradable": false
+  },
+  {
+   "symbol": "DRAMUSDT",
+   "bucket": "watch",
+   "rank": "#023",
+   "score": 0,
+   "tags": [
+    {
+     "text": "Tokenized Assets",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.7405,
+    "vi_minus": 1.2511
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$48.36",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "-6.3%",
+     "cls": "down"
+    },
+    {
+     "key": "7d",
+     "val": "-19.3%",
+     "cls": "down"
+    },
+    {
+     "key": "30d",
+     "val": "-33.5%",
+     "cls": "down"
+    },
+    {
+     "key": "От ATH",
+     "val": "-41.0%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.87×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "-67.4%",
+     "cls": "down"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "4.4",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "9.33",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "33.34",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "47",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "0.0052%",
+     "cls": "up"
+    },
+    {
+     "key": "OI",
+     "val": "$48.59M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "0%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": null,
+   "analysis": "Roundhill Memory ETF (Backpack Securities) — RWA. Roundhill Memory ETF (Backpack Securities) (DRAM) is a tokenized security on the Solana blockchain that provides direct, 1:1 economic exposure to Roundhill Memory ETF. Ранг 2704, $1.2M, микрокап. Динамика: за 30 дней -34%. Один из сильнейших долгосрочных нарративов, но короткие движения непредсказуемы.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Снижение. Лонги рискованны, ждём разворотную формацию.",
+    "size_hint": "БЕЗ ВХОДА",
+    "kind": "none",
+    "levels": {
+     "entry": 0.0,
+     "stop": 0.0,
+     "target1": 0.0,
+     "target2": 0.0,
+     "target3": 0.0,
+     "rr": 0.0,
+     "stop_pct": 0.0,
+     "target_pct": 0.0,
+     "valid": false
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:DRAMUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/DRAMUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=DRAM"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24DRAM&f=live"
+    }
+   ],
+   "categories": [
+    "Tokenized Assets",
+    "Solana Ecosystem",
+    "Real World Assets (RWA)",
+    "Tokenized Exchange-Traded Funds (ETFs)",
+    "Tokenized Exchange-Traded Product (ETPs)"
+   ],
+   "sector": "RWA",
+   "is_viral": false,
+   "score_parts": [],
+   "veto": [
+    {
+     "code": "no_spot",
+     "label": "НЕТ СПОТА",
+     "detail": "спот 0.0% оборота",
+     "severity": "low"
+    }
+   ],
+   "vetoed": false,
+   "quote_volume_24h": 383690461.8041,
+   "rr": 0.0,
+   "tradable": false
+  },
+  {
+   "symbol": "1000PEPEUSDT",
+   "bucket": "watch",
+   "rank": "#024",
+   "score": 0,
+   "tags": [
+    {
+     "text": "BNB Chain Ecosystem",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.8875,
+    "vi_minus": 1.1435
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$0.002805",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "-0.7%",
+     "cls": "down"
+    },
+    {
+     "key": "7d",
+     "val": "-2.5%",
+     "cls": "down"
+    },
+    {
+     "key": "30d",
+     "val": "+19.2%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-90.1%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "1.01×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+8.7%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "2.0",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "5.55",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "11.81",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "6",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "-0.0075%",
+     "cls": "down"
+    },
+    {
+     "key": "OI",
+     "val": "$53.85M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "0%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": null,
+   "analysis": "Pepe — MEME. What is the project about? Pepe is a community based meme token surround the iconic meme Pepe the frog. Pepe aims to leverage the power of such an iconic meme to become the most memeable memecoin in existence. Ранг 58, $1.18B, средняя капитализация. Динамика: за год -77%; за 30 дней +18%; цена ниже исторического максимума на 90%. Настроение 92% бычье — толпа предельно оптимистична, что работает как контриндикатор. Чистая спекуляция: играется на новостях и вирусности, фундамента нет.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Снижение. Лонги рискованны, ждём разворотную формацию.",
+    "size_hint": "БЕЗ ВХОДА",
+    "kind": "none",
+    "levels": {
+     "entry": 0.0,
+     "stop": 0.0,
+     "target1": 0.0,
+     "target2": 0.0,
+     "target3": 0.0,
+     "rr": 0.0,
+     "stop_pct": 0.0,
+     "target_pct": 0.0,
+     "valid": false
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:1000PEPEUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/1000PEPEUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=1000PEPE"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%241000PEPE&f=live"
+    }
+   ],
+   "categories": [
+    "BNB Chain Ecosystem",
+    "Avalanche Ecosystem",
+    "Meme",
+    "Arbitrum Ecosystem",
+    "Ethereum Ecosystem"
+   ],
+   "sector": "MEME",
+   "is_viral": false,
+   "score_parts": [],
+   "veto": [
+    {
+     "code": "no_spot",
+     "label": "НЕТ СПОТА",
+     "detail": "спот 0.0% оборота",
+     "severity": "low"
+    }
+   ],
+   "vetoed": false,
+   "quote_volume_24h": 168219170.2950395,
+   "rr": 0.0,
+   "tradable": false
+  },
+  {
+   "symbol": "KORUUSDT",
+   "bucket": "watch",
+   "rank": "#025",
+   "score": 0,
+   "tags": [
+    {
+     "text": "Solana Ecosystem",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.7739,
+    "vi_minus": 1.2155
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$14.94",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "-10.6%",
+     "cls": "down"
+    },
+    {
+     "key": "7d",
+     "val": "-33.2%",
+     "cls": "down"
+    },
+    {
+     "key": "30d",
+     "val": "-98.0%",
+     "cls": "down"
+    },
+    {
+     "key": "От ATH",
+     "val": "-98.7%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.54×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "-8100.0%",
+     "cls": "down"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "40.6",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "249.19",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "546.67",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "94",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "0.0000%",
+     "cls": ""
+    },
+    {
+     "key": "OI",
+     "val": "$71.11M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "0%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": {
+    "detected": false,
+    "risk_level": "low",
+    "risk_score": 25,
+    "verdict": "Небольшой перегрев на перпах, пока в рамках здорового тренда.",
+    "reasons": [
+     "пиковый фандинг 0.278%, около 305% годовых"
+    ],
+    "parabolic": false,
+    "funding_peak_14d": 0.278086,
+    "funding_now": 0.0,
+    "oi_change_14d_pct": -44.48766190931015,
+    "spot_futures_ratio": 0.0,
+    "rsi_14": 20.439417132920454,
+    "tag": {
+     "text": "SQUEEZE LOW",
+     "class": "tag-squeeze-low"
+    }
+   },
+   "taiko": null,
+   "analysis": "Koru — MEME. $KORU is the first 100% community airdrop on SOL. $KORU airdropped close to 100% of the supply to our community. $KORU's also building an entire ecosystem with its own NFT collection and Memecoin Trading APP, where $KORU's one of the most important assets. Ранг 10665, $8K, микрокап. Динамика: за год -89%; цена ниже исторического максимума на 94%. Чистая спекуляция: играется на новостях и вирусности, фундамента нет.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Снижение. Лонги рискованны, ждём разворотную формацию.",
+    "size_hint": "БЕЗ ВХОДА",
+    "kind": "none",
+    "levels": {
+     "entry": 0.0,
+     "stop": 0.0,
+     "target1": 0.0,
+     "target2": 0.0,
+     "target3": 0.0,
+     "rr": 0.0,
+     "stop_pct": 0.0,
+     "target_pct": 0.0,
+     "valid": false
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:KORUUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/KORUUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=KORU"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24KORU&f=live"
+    }
+   ],
+   "categories": [
+    "Solana Ecosystem",
+    "Meme",
+    "Pump.fun Ecosystem"
+   ],
+   "sector": "MEME",
+   "is_viral": false,
+   "score_parts": [],
+   "veto": [
+    {
+     "code": "volatility",
+     "label": "ВОЛАТИЛЬНОСТЬ",
+     "detail": "ATR 249.2% в день",
+     "severity": "mid"
+    },
+    {
+     "code": "no_spot",
+     "label": "НЕТ СПОТА",
+     "detail": "спот 0.0% оборота",
+     "severity": "low"
+    }
+   ],
+   "vetoed": true,
+   "quote_volume_24h": 1293199733.791,
+   "rr": 0.0,
+   "tradable": false
+  },
+  {
+   "symbol": "BEATUSDT",
+   "bucket": "watch",
+   "rank": "#026",
+   "score": 0,
+   "tags": [],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.9523,
+    "vi_minus": 1.0819
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$3.067",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "+16.9%",
+     "cls": "up"
+    },
+    {
+     "key": "7d",
+     "val": "+21.9%",
+     "cls": "up"
+    },
+    {
+     "key": "30d",
+     "val": "+14.7%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-73.5%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.17×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+1.0%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "19.2",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "18.16",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "53.18",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "28",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "-0.0165%",
+     "cls": "down"
+    },
+    {
+     "key": "OI",
+     "val": "$12.94M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "0%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": null,
+   "analysis": "Данных о BEAT нет ни в CoinGecko, ни в DefiLlama — вероятно, свежий листинг или узкоспециальный токен. Перед входом нужна ручная проверка команды, документации, графика разлоков и структуры держателей.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Снижение. Лонги рискованны, ждём разворотную формацию.",
+    "size_hint": "БЕЗ ВХОДА",
+    "kind": "none",
+    "levels": {
+     "entry": 0.0,
+     "stop": 0.0,
+     "target1": 0.0,
+     "target2": 0.0,
+     "target3": 0.0,
+     "rr": 0.0,
+     "stop_pct": 0.0,
+     "target_pct": 0.0,
+     "valid": false
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:BEATUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/BEATUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=BEAT"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24BEAT&f=live"
+    }
+   ],
+   "categories": [],
+   "sector": "OTHER",
+   "is_viral": false,
+   "score_parts": [],
+   "veto": [
+    {
+     "code": "no_spot",
+     "label": "НЕТ СПОТА",
+     "detail": "спот 0.0% оборота",
+     "severity": "low"
+    }
+   ],
+   "vetoed": false,
+   "quote_volume_24h": 145940629.1894,
+   "rr": 0.0,
+   "tradable": false
+  },
+  {
+   "symbol": "SUIUSDT",
+   "bucket": "watch",
+   "rank": "#027",
+   "score": 0,
+   "tags": [
+    {
+     "text": "Canonical Bridge",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.8414,
+    "vi_minus": 1.1632
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$0.6901",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "+1.4%",
+     "cls": "up"
+    },
+    {
+     "key": "7d",
+     "val": "-10.6%",
+     "cls": "down"
+    },
+    {
+     "key": "30d",
+     "val": "+1.3%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-87.1%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.82×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+1.1%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "49.1",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "3.90",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "13.02",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "21",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "-0.0048%",
+     "cls": "down"
+    },
+    {
+     "key": "OI",
+     "val": "$74.36M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "16%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": null,
+   "analysis": "SUI — Bridge. Мостовые токены исторически отстают, риск эксплойта высокий.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Снижение. Лонги рискованны, ждём разворотную формацию.",
+    "size_hint": "БЕЗ ВХОДА",
+    "kind": "none",
+    "levels": {
+     "entry": 0.0,
+     "stop": 0.0,
+     "target1": 0.0,
+     "target2": 0.0,
+     "target3": 0.0,
+     "rr": 0.0,
+     "stop_pct": 0.0,
+     "target_pct": 0.0,
+     "valid": false
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:SUIUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/SUIUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=SUI"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24SUI&f=live"
+    }
+   ],
+   "categories": [
+    "Canonical Bridge"
+   ],
+   "sector": "INFRA",
+   "is_viral": false,
+   "score_parts": [],
+   "veto": [],
+   "vetoed": false,
+   "quote_volume_24h": 102221758.60634,
+   "rr": 0.0,
+   "tradable": false
+  },
+  {
+   "symbol": "WLDUSDT",
+   "bucket": "watch",
+   "rank": "#028",
+   "score": 0,
+   "tags": [
+    {
+     "text": "Smart Contract Platform",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.9173,
+    "vi_minus": 1.1
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$0.3227",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "-1.3%",
+     "cls": "down"
+    },
+    {
+     "key": "7d",
+     "val": "-14.4%",
+     "cls": "down"
+    },
+    {
+     "key": "30d",
+     "val": "-27.0%",
+     "cls": "down"
+    },
+    {
+     "key": "От ATH",
+     "val": "-97.3%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.37×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "-18.6%",
+     "cls": "down"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "12.0",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "7.99",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "27.17",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "27",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "-0.0193%",
+     "cls": "down"
+    },
+    {
+     "key": "OI",
+     "val": "$63.58M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "12%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": null,
+   "analysis": "Worldcoin — AI. The mission of the Worldcoin project is to build the world’s largest identity and financial network as a public utility, giving ownership to everyone. A key component of the Worldcoin project is the development of the foundational infrastructure that will be important for a world where AI plays an increasingly large role. Ранг 61, $1.13B, средняя капитализация. FDV к капитализации 2.9×, заметный навес эмиссии. Динамика: за год -72%; за 30 дней -27%; цена ниже исторического максимума на 97%. Комьюнити: Telegram 120K. Настроение 86% бычье — толпа предельно оптимистична, что работает как контриндикатор. Самый горячий нарратив: движения кратные, коррекции жестокие.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Снижение. Лонги рискованны, ждём разворотную формацию.",
+    "size_hint": "БЕЗ ВХОДА",
+    "kind": "none",
+    "levels": {
+     "entry": 0.0,
+     "stop": 0.0,
+     "target1": 0.0,
+     "target2": 0.0,
+     "target3": 0.0,
+     "rr": 0.0,
+     "stop_pct": 0.0,
+     "target_pct": 0.0,
+     "valid": false
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:WLDUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/WLDUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=WLD"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24WLD&f=live"
+    }
+   ],
+   "categories": [
+    "Smart Contract Platform",
+    "Ethereum Ecosystem",
+    "Decentralized Identifier (DID)",
+    "Optimism Ecosystem",
+    "Coinbase Ventures Portfolio",
+    "Chain"
+   ],
+   "sector": "L1/L2",
+   "is_viral": false,
+   "score_parts": [],
+   "veto": [],
+   "vetoed": false,
+   "quote_volume_24h": 106821478.2592,
+   "rr": 0.0,
+   "tradable": false
+  },
+  {
+   "symbol": "TAOUSDT",
+   "bucket": "watch",
+   "rank": "#029",
+   "score": 0,
+   "tags": [
+    {
+     "text": "Artificial Intelligence (AI)",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.8851,
+    "vi_minus": 1.1329
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$190.5",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "+1.6%",
+     "cls": "up"
+    },
+    {
+     "key": "7d",
+     "val": "-5.1%",
+     "cls": "down"
+    },
+    {
+     "key": "30d",
+     "val": "-7.2%",
+     "cls": "down"
+    },
+    {
+     "key": "От ATH",
+     "val": "-74.6%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.58×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "-5.1%",
+     "cls": "down"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "37.7",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "4.35",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "14.86",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "12",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "-0.0080%",
+     "cls": "down"
+    },
+    {
+     "key": "OI",
+     "val": "$55.46M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "17%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": null,
+   "analysis": "Bittensor — Layer-1. Bittensor is an open-source protocol that powers a decentralized, blockchain-based machine learning network. Machine learning models train collaboratively and are rewarded in TAO according to the informational value they offer the collective. Топ-42 по капитализации, $1.83B, это голубая фишка. FDV к капитализации 2.2×, заметный навес эмиссии. Динамика: за год -54%; за 30 дней -9%. Ставка на экосистему: если разработчики уходят, токен идёт в ноль.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Снижение. Лонги рискованны, ждём разворотную формацию.",
+    "size_hint": "БЕЗ ВХОДА",
+    "kind": "none",
+    "levels": {
+     "entry": 0.0,
+     "stop": 0.0,
+     "target1": 0.0,
+     "target2": 0.0,
+     "target3": 0.0,
+     "rr": 0.0,
+     "stop_pct": 0.0,
+     "target_pct": 0.0,
+     "valid": false
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:TAOUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/TAOUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=TAO"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24TAO&f=live"
+    }
+   ],
+   "categories": [
+    "Artificial Intelligence (AI)",
+    "Smart Contract Platform",
+    "Layer 1 (L1)",
+    "DePIN",
+    "Bittensor Ecosystem",
+    "Chain"
+   ],
+   "sector": "AI",
+   "is_viral": false,
+   "score_parts": [],
+   "veto": [],
+   "vetoed": false,
+   "quote_volume_24h": 68825502.32,
+   "rr": 0.0,
+   "tradable": false
+  }
+ ]
+}

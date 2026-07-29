@@ -1,0 +1,82 @@
+<svg viewBox="0 0 900 760" xmlns="http://www.w3.org/2000/svg" font-family="Inter, Segoe UI, sans-serif">
+    <rect width="900" height="760" fill="#15121f"/>
+
+    <rect x="20" y="18" width="860" height="86" rx="10" fill="#1a1626" stroke="#3a3154"/>
+    <text x="34" y="38" fill="#8b83a8" font-size="11" letter-spacing="1.5">НАВИГАЦИЯ</text>
+
+    <rect x="40" y="48" width="150" height="40" rx="8" fill="#1e1b2e" stroke="#6b5bd6"/>
+    <text x="115" y="66" fill="#e8e6f0" font-size="12" text-anchor="middle" font-weight="600">ДАШБОРД</text>
+    <text x="115" y="80" fill="#9b93b8" font-size="11" text-anchor="middle">первый экран</text>
+
+    <line x1="190" y1="68" x2="270" y2="68" stroke="#6b5bd6" stroke-width="1.5"/>
+    <polygon points="270,68 262,64 262,72" fill="#6b5bd6"/>
+    <text x="230" y="60" fill="#8b83a8" font-size="9" text-anchor="middle">клик по виджету</text>
+
+    <rect x="272" y="48" width="150" height="40" rx="8" fill="#1e1b2e" stroke="#6b5bd6"/>
+    <text x="347" y="66" fill="#e8e6f0" font-size="12" text-anchor="middle" font-weight="600">ТАБЛИЦА</text>
+    <text x="347" y="80" fill="#9b93b8" font-size="11" text-anchor="middle">монеты среза</text>
+
+    <line x1="422" y1="68" x2="502" y2="68" stroke="#6b5bd6" stroke-width="1.5"/>
+    <polygon points="502,68 494,64 494,72" fill="#6b5bd6"/>
+    <text x="462" y="60" fill="#8b83a8" font-size="9" text-anchor="middle">клик по строке</text>
+
+    <rect x="504" y="48" width="170" height="40" rx="8" fill="#1e1b2e" stroke="#6b5bd6"/>
+    <text x="589" y="66" fill="#e8e6f0" font-size="12" text-anchor="middle" font-weight="600">МОДАЛКА</text>
+    <text x="589" y="80" fill="#9b93b8" font-size="11" text-anchor="middle">дизайн не меняем</text>
+
+    <line x1="115" y1="88" x2="115" y2="96" stroke="#463c6b" stroke-width="1.5"/>
+    <path d="M115 96 L777 96 L777 88" stroke="#463c6b" stroke-width="1.5" fill="none"/>
+    <polygon points="777,88 773,96 781,96" fill="#463c6b"/>
+    <rect x="694" y="48" width="166" height="40" rx="8" fill="#241f33" stroke="#463c6b"/>
+    <text x="777" y="66" fill="#9b93b8" font-size="12" text-anchor="middle" font-weight="600">СТАРЫЙ ОТЧЁТ</text>
+    <text x="777" y="80" fill="#7d7595" font-size="11" text-anchor="middle">кнопки пока нет</text>
+
+    <rect x="20" y="118" width="860" height="70" rx="10" fill="#1a1626" stroke="#3a3154"/>
+    <text x="34" y="138" fill="#8b83a8" font-size="11" letter-spacing="1.5">ШАПКА · СОГЛАСОВАНО</text>
+    <rect x="40" y="146" width="820" height="32" rx="8" fill="#1e1b2e" stroke="#6b5bd6"/>
+    <text x="54" y="166" fill="#e8e6f0" font-size="12"><tspan font-weight="600">_regime → капсула режима</tspan><tspan fill="#9b93b8" font-size="11"> · статика по макету, функционал позже · код сохранён + комментарий</tspan></text>
+
+    <rect x="20" y="202" width="860" height="476" rx="10" fill="#1a1626" stroke="#3a3154"/>
+    <text x="34" y="222" fill="#8b83a8" font-size="11" letter-spacing="1.5">БЛОКИ ПЕРВОГО ЭКРАНА · ВСЕ СОГЛАСОВАНЫ · ПОРЯДОК ОБХОДА</text>
+
+    <rect x="40" y="232" width="820" height="54" rx="8" fill="#1e1b2e" stroke="#6b5bd6"/>
+    <text x="54" y="250" fill="#e8e6f0" font-size="12" font-weight="600">1 · surge → ОБЪЁМЫ</text>
+    <text x="54" y="266" fill="#9b93b8" font-size="11">константы: «×2.3» → «&gt; ×4» · «к вчера» → «на дневке» · «surge ≥ 3×» → «surge ≥ 4×»</text>
+    <text x="54" y="280" fill="#9b93b8" font-size="11">3 монеты внизу = топ-3 старой таблицы</text>
+
+    <rect x="40" y="292" width="820" height="40" rx="8" fill="#1e1b2e" stroke="#6b5bd6"/>
+    <text x="54" y="310" fill="#e8e6f0" font-size="12" font-weight="600">2 · viral → СОЦСЕТИ</text>
+    <text x="54" y="325" fill="#9b93b8" font-size="11">кольцо + число в центре · пилюля внизу = лидер списка «тикер ×N.N»</text>
+
+    <rect x="40" y="338" width="820" height="56" rx="8" fill="#1e1b2e" stroke="#6b5bd6"/>
+    <text x="54" y="356" fill="#e8e6f0" font-size="12" font-weight="600">3 · ПАТТЕРНЫ · 4 строки</text>
+    <text x="54" y="372" fill="#9b93b8" font-size="11">taiko · dexe — данные есть   ·   «база» → strong   ·   «vortex» → good</text>
+    <text x="54" y="387" fill="#9b93b8" font-size="11">подпись «после фильтра качества базы» — константа, оставляем</text>
+
+    <rect x="40" y="400" width="820" height="54" rx="8" fill="#1e1b2e" stroke="#6b5bd6"/>
+    <text x="54" y="418" fill="#e8e6f0" font-size="12" font-weight="600">4 · setups → СЕТАПЫ</text>
+    <text x="54" y="434" fill="#9b93b8" font-size="11">заголовок «сетапы N из M · rr ≥ K» · 3 строки = топ-3 по rr</text>
+    <text x="54" y="448" fill="#9b93b8" font-size="11">в строке: тикер, вход/стоп/цель, кольцо «1:X.X», справа «вход 0.XXXX»</text>
+
+    <rect x="40" y="460" width="820" height="54" rx="8" fill="#1e1b2e" stroke="#6b5bd6"/>
+    <text x="54" y="478" fill="#e8e6f0" font-size="12" font-weight="600">5 · hourly → ИМПУЛЬС ЗА ЧАС</text>
+    <text x="54" y="494" fill="#9b93b8" font-size="11">крупная цифра = размер среза · подпись = порог роста за час</text>
+    <text x="54" y="508" fill="#9b93b8" font-size="11">гистограмма по часам — источника в прошлой реализации нет, пока статика</text>
+
+    <rect x="40" y="520" width="820" height="54" rx="8" fill="#1e1b2e" stroke="#6b5bd6"/>
+    <text x="54" y="538" fill="#e8e6f0" font-size="12" font-weight="600">6 · _sectors → СЕКТОРА ЗА 24 ЧАСА</text>
+    <text x="54" y="554" fill="#9b93b8" font-size="11">5 строк, сортировка по изменению · бар + значение «+X.X%»</text>
+    <text x="54" y="568" fill="#9b93b8" font-size="11">цвет: рост — зелёный, падение — оранжевый, из макета</text>
+
+    <rect x="40" y="580" width="820" height="40" rx="8" fill="#1e1b2e" stroke="#6b5bd6"/>
+    <text x="54" y="598" fill="#e8e6f0" font-size="12" font-weight="600">7 · vetoed → РИСК · ПОД ВЕТО</text>
+    <text x="54" y="613" fill="#9b93b8" font-size="11">число «монет» + squeeze / фандинг / ликвид. · капсула «13% · доля выборки» — константа</text>
+
+    <rect x="40" y="626" width="820" height="40" rx="8" fill="#1e1b2e" stroke="#6b5bd6"/>
+    <text x="54" y="644" fill="#e8e6f0" font-size="12" font-weight="600">8 · _funnel → ВОРОНКА «путь отбора 176 → 6»</text>
+    <text x="54" y="659" fill="#9b93b8" font-size="11">6 узлов · 1-й узел = скрытый срез all · planned также вынесен в узел · последний — акцентный</text>
+
+    <rect x="20" y="692" width="860" height="52" rx="10" fill="#1a1626" stroke="#3a3154"/>
+    <text x="34" y="712" fill="#8b83a8" font-size="11" letter-spacing="1.5">ОБЩИЕ ПРАВИЛА</text>
+    <text x="34" y="730" fill="#9b93b8" font-size="11">Сейчас только рендер и только вёрстка, функционал позже · во всех блоках функционал берём из прошлой реализации · скрытые срезы не удаляем, код + комментарий с источником данных.</text>
+</svg>

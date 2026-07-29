@@ -1,0 +1,401 @@
+{
+ "timestamp": "2026-07-28T16:19:24+00:00",
+ "total_scanned": 2,
+ "duration_sec": 22.9,
+ "errors": 0,
+ "counts": {
+  "total": 2,
+  "viral": 0,
+  "taiko": 0,
+  "dexe": 0,
+  "surge": 0,
+  "vetoed": 0,
+  "tradable": 0,
+  "strong": 0,
+  "good": 0,
+  "scout": 0,
+  "watch": 2
+ },
+ "funnel": [
+  {
+   "code": "all",
+   "label": "вся выборка",
+   "count": 2,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 100.0
+  },
+  {
+   "code": "volume",
+   "label": "прошли объём",
+   "count": 0,
+   "dropped": 2,
+   "pass_pct": 0.0,
+   "share_pct": 0.0
+  },
+  {
+   "code": "structure",
+   "label": "структура ок",
+   "count": 0,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 0.0
+  },
+  {
+   "code": "veto",
+   "label": "после вето",
+   "count": 0,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 0.0
+  },
+  {
+   "code": "rr",
+   "label": "r:r ≥ 2",
+   "count": 0,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 0.0
+  },
+  {
+   "code": "tradable",
+   "label": "к работе",
+   "count": 0,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 0.0
+  }
+ ],
+ "sectors": [
+  {
+   "sector": "OTHER",
+   "count": 1,
+   "avg_change_24h": -0.16,
+   "best": -0.16,
+   "worst": -0.16
+  },
+  {
+   "sector": "DEFI",
+   "count": 1,
+   "avg_change_24h": -3.24,
+   "best": -3.24,
+   "worst": -3.24
+  }
+ ],
+ "market_regime": {
+  "regime": "risk-off",
+  "appetite": 1,
+  "green_share": 0.0,
+  "median_change_24h": -0.16,
+  "tradable_share": 0.0,
+  "leading_sector": "OTHER",
+  "lagging_sector": "DEFI",
+  "note": "давление на альты, деньги уходят"
+ },
+ "candidates": [
+  {
+   "symbol": "ZECUSDT",
+   "bucket": "watch",
+   "rank": "#001",
+   "score": 0,
+   "tags": [
+    {
+     "text": "BNB Chain Ecosystem",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.9129,
+    "vi_minus": 1.0989
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$475.7",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "-0.2%",
+     "cls": "down"
+    },
+    {
+     "key": "7d",
+     "val": "-10.7%",
+     "cls": "down"
+    },
+    {
+     "key": "30d",
+     "val": "+26.4%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-38.6%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.51×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+0.5%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "37.4",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "6.50",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "22.79",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "1",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "0.0027%",
+     "cls": "up"
+    },
+    {
+     "key": "OI",
+     "val": "$238.80M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "15%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": null,
+   "analysis": "Binance-Peg ZEC — AI. Капитализация $104.4M. Динамика: за 30 дней +22%, сильный откат от дна. Самый горячий нарратив: движения кратные, коррекции жестокие.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Снижение. Лонги рискованны, ждём разворотную формацию.",
+    "size_hint": "БЕЗ ВХОДА",
+    "kind": "none",
+    "levels": {
+     "entry": 0.0,
+     "stop": 0.0,
+     "target1": 0.0,
+     "target2": 0.0,
+     "target3": 0.0,
+     "rr": 0.0,
+     "stop_pct": 0.0,
+     "target_pct": 0.0,
+     "valid": false
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:ZECUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/ZECUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=ZEC"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24ZEC&f=live"
+    }
+   ],
+   "categories": [
+    "BNB Chain Ecosystem",
+    "Binance-Peg Tokens"
+   ],
+   "sector": "OTHER",
+   "is_viral": false,
+   "score_parts": [],
+   "veto": [],
+   "vetoed": false,
+   "quote_volume_24h": 0.0,
+   "rr": 0.0,
+   "tradable": false
+  },
+  {
+   "symbol": "MYXUSDT",
+   "bucket": "watch",
+   "rank": "#002",
+   "score": 0,
+   "tags": [
+    {
+     "text": "Decentralized Finance (DeFi)",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 1,
+    "label": "DECLINE",
+    "vi_plus": 0.7569,
+    "vi_minus": 1.2905
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$0.06666",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "-3.2%",
+     "cls": "down"
+    },
+    {
+     "key": "7d",
+     "val": "-19.8%",
+     "cls": "down"
+    },
+    {
+     "key": "30d",
+     "val": "-26.3%",
+     "cls": "down"
+    },
+    {
+     "key": "От ATH",
+     "val": "-99.6%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "0.35×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "-0.2%",
+     "cls": "down"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "23.7",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "12.24",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "22.13",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "10",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "0.0050%",
+     "cls": "up"
+    },
+    {
+     "key": "OI",
+     "val": "$4.75M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "0%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": null,
+   "squeeze": null,
+   "taiko": null,
+   "analysis": "MYX Finance — Perp DEX. Ранг 1010, $12.6M, микрокап. FDV к капитализации 5.2×, впереди крупные разлоки и структурное давление на цену. Динамика: за год -34%; за 30 дней -33%; цена ниже исторического максимума на 100%. TVL $99K, маленький протокол. Прямая конкуренция с Hyperliquid, выживают только с оборотом от $100M в день.",
+   "buzz": {
+    "level": "cold",
+    "level_class": "buzz-cold",
+    "level_text": "COLD",
+    "text": "Низкий уровень внимания."
+   },
+   "strategy": {
+    "text": "Снижение. Лонги рискованны, ждём разворотную формацию.",
+    "size_hint": "БЕЗ ВХОДА",
+    "kind": "none",
+    "levels": {
+     "entry": 0.0,
+     "stop": 0.0,
+     "target1": 0.0,
+     "target2": 0.0,
+     "target3": 0.0,
+     "rr": 0.0,
+     "stop_pct": 0.0,
+     "target_pct": 0.0,
+     "valid": false
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:MYXUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/MYXUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=MYX"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24MYX&f=live"
+    }
+   ],
+   "categories": [
+    "Decentralized Finance (DeFi)",
+    "BNB Chain Ecosystem",
+    "Derivatives",
+    "Perpetuals",
+    "Binance Wallet IDO"
+   ],
+   "sector": "DEFI",
+   "is_viral": false,
+   "score_parts": [],
+   "veto": [
+    {
+     "code": "no_spot",
+     "label": "НЕТ СПОТА",
+     "detail": "спот 0.0% оборота",
+     "severity": "low"
+    }
+   ],
+   "vetoed": false,
+   "quote_volume_24h": 0.0,
+   "rr": 0.0,
+   "tradable": false
+  }
+ ]
+}

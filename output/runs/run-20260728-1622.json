@@ -1,0 +1,349 @@
+{
+ "timestamp": "2026-07-28T16:22:03+00:00",
+ "total_scanned": 1,
+ "duration_sec": 43.1,
+ "errors": 0,
+ "counts": {
+  "total": 1,
+  "viral": 0,
+  "taiko": 1,
+  "dexe": 0,
+  "surge": 1,
+  "vetoed": 1,
+  "tradable": 0,
+  "strong": 1,
+  "good": 0,
+  "scout": 0,
+  "watch": 0
+ },
+ "funnel": [
+  {
+   "code": "all",
+   "label": "вся выборка",
+   "count": 1,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 100.0
+  },
+  {
+   "code": "volume",
+   "label": "прошли объём",
+   "count": 1,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 100.0
+  },
+  {
+   "code": "structure",
+   "label": "структура ок",
+   "count": 1,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 100.0
+  },
+  {
+   "code": "veto",
+   "label": "после вето",
+   "count": 0,
+   "dropped": 1,
+   "pass_pct": 0.0,
+   "share_pct": 0.0
+  },
+  {
+   "code": "rr",
+   "label": "r:r ≥ 2",
+   "count": 0,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 0.0
+  },
+  {
+   "code": "tradable",
+   "label": "к работе",
+   "count": 0,
+   "dropped": 0,
+   "pass_pct": 100.0,
+   "share_pct": 0.0
+  }
+ ],
+ "sectors": [
+  {
+   "sector": "L1/L2",
+   "count": 1,
+   "avg_change_24h": 23.26,
+   "best": 23.26,
+   "worst": 23.26
+  }
+ ],
+ "market_regime": {
+  "regime": "risk-on",
+  "appetite": 5,
+  "green_share": 100.0,
+  "median_change_24h": 23.26,
+  "tradable_share": 0.0,
+  "leading_sector": "L1/L2",
+  "lagging_sector": "L1/L2",
+  "note": "широкий рост, альты в фаворе"
+ },
+ "candidates": [
+  {
+   "symbol": "COTIUSDT",
+   "bucket": "strong",
+   "rank": "#001",
+   "score": 72,
+   "tags": [
+    {
+     "text": "VOL SURGE ×107.2 ▲",
+     "class": "tag-pattern surge"
+    },
+    {
+     "text": "SQUEEZE EXTREME · 85",
+     "class": "tag-pattern euphoria"
+    },
+    {
+     "text": "TAIKO CONFIRMED · 80",
+     "class": "tag-pattern taiko"
+    },
+    {
+     "text": "Smart Contract Platform",
+     "class": "tag-cat"
+    }
+   ],
+   "phase": {
+    "num": 4,
+    "label": "TREND",
+    "vi_plus": 1.2829,
+    "vi_minus": 0.6363
+   },
+   "metrics": [
+    {
+     "key": "Цена",
+     "val": "$0.01316",
+     "cls": ""
+    },
+    {
+     "key": "24h",
+     "val": "+23.3%",
+     "cls": "up"
+    },
+    {
+     "key": "7d",
+     "val": "+75.3%",
+     "cls": "up"
+    },
+    {
+     "key": "30d",
+     "val": "+57.4%",
+     "cls": "up"
+    },
+    {
+     "key": "От ATH",
+     "val": "-95.3%",
+     "cls": "down"
+    },
+    {
+     "key": "RVOL 1H",
+     "val": "1.26×",
+     "cls": ""
+    },
+    {
+     "key": "OBV",
+     "val": "+400.7%",
+     "cls": "up"
+    },
+    {
+     "key": "StochRSI 4H",
+     "val": "63.7",
+     "cls": ""
+    },
+    {
+     "key": "ATR %",
+     "val": "7.05",
+     "cls": ""
+    },
+    {
+     "key": "BB width",
+     "val": "68.33",
+     "cls": ""
+    },
+    {
+     "key": "BB rank",
+     "val": "99",
+     "cls": ""
+    },
+    {
+     "key": "Funding",
+     "val": "-0.0548%",
+     "cls": "down"
+    },
+    {
+     "key": "OI",
+     "val": "$10.56M",
+     "cls": ""
+    },
+    {
+     "key": "Spot ratio",
+     "val": "6%",
+     "cls": ""
+    }
+   ],
+   "dexe": null,
+   "surge": {
+    "detected": true,
+    "score": 100,
+    "surge_ratio": 107.20871785450959,
+    "current_vol_usd": 425144517.6135353,
+    "avg_vol_usd": 3965577.8571150233,
+    "day_change_pct": 23.3155280667229,
+    "is_green": true,
+    "strength_label": "экстремальный",
+    "verdict": "Volume Surge ×107.2 (экстремальный): текущий дневной объём $425.14M против среднего $3.97M за 30 дней. Свеча зелёная +23.3%. Аномальная активность: крупный игрок, новость или начало движения."
+   },
+   "squeeze": {
+    "detected": true,
+    "risk_level": "extreme",
+    "risk_score": 85,
+    "verdict": "EXTREME SQUEEZE RISK — классический manipulated памп. После разворота возможен откат 60–80%. Лонг не открывать, шорт только после подтверждённого разворота.",
+    "reasons": [
+     "параболический рост +75% за 7д, максимальная свеча +44%",
+     "OI растёт быстрее цены: OI +359% против цены +67%",
+     "фандинг ушёл в минус -0.065%, шорты капитулировали",
+     "памп идёт в перпах, спот к фьючерсу 0.06",
+     "RSI дневной 86, экстремальный перегрев"
+    ],
+    "parabolic": true,
+    "funding_peak_14d": 0.01,
+    "funding_now": -0.064718,
+    "oi_change_14d_pct": 358.77071734771766,
+    "spot_futures_ratio": 0.05741596479961642,
+    "rsi_14": 85.83883494179267,
+    "tag": {
+     "text": "SQUEEZE EXT",
+     "class": "tag-squeeze-ext"
+    }
+   },
+   "taiko": {
+    "detected": true,
+    "score": 80,
+    "downtrend_bars": 0,
+    "drop_pct": -85.90358864488485,
+    "htf_drop_pct": -95.25921389199121,
+    "days_in_downtrend": 20,
+    "price_position_pct": 64.89200863930886,
+    "short_history": false,
+    "capitulation_bar_ago": 53,
+    "rsi_d": 84.17590758647701,
+    "rsi_min_recent": 26.965381887627032,
+    "obv_turning_up": true,
+    "obv_divergence": false,
+    "reversal_hint": true,
+    "volume_climax_bull": true,
+    "volume_climax_ratio": 370.5300620803057,
+    "vortex_crossover": false,
+    "vortex_divergence": false,
+    "vortex_note": "",
+    "vortex_selling_exhaustion": false,
+    "vortex_exhaustion_note": "",
+    "vortex_tf_used": "",
+    "vortex_peaks_count": 0,
+    "confirmed_breakout": true,
+    "verdict": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -95% от пика старшего ТФ. объёмная кульминация ×370.5. капитуляция 53д назад. минимум RSI 27."
+   },
+   "analysis": "CONFIRMED BREAKOUT. TAIKO Reversal: падение -95% от пика старшего ТФ. объёмная кульминация ×370.5. капитуляция 53д назад. минимум RSI 27. Volume Surge ×107.2 (экстремальный): текущий дневной объём $425.14M против среднего $3.97M за 30 дней. Свеча зелёная +23.3%. Аномальная активность: крупный игрок, новость или начало движения. COTI — Layer-2. COTI is a fast and light confidentiality layer on Ethereum. Powered by the breakthrough cryptographic protocol Garbled Circuits and secured by Ethereum, COTI introduces the most advanced and compliant solution for data protection on the public blockchain. Ранг 505, $40.1M, микрокап. Динамика: за год -78%; за 30 дней +60%, сильный откат от дна; цена ниже исторического максимума на 98%. Настроение 81% бычье — толпа предельно оптимистична, что работает как контриндикатор. Сектор перенасыщен, каждая новая сеть каннибализирует предыдущие.",
+   "buzz": {
+    "level": "cool",
+    "level_class": "buzz-cool",
+    "level_text": "COOL",
+    "text": "Умеренная активность."
+   },
+   "strategy": {
+    "text": "Конфликт сигналов. TAIKO даёт разворот, но squeeze-риск EXTREME со скором 85 — часть роста обеспечена ликвидациями шортов. Вход половинным объёмом либо ожидание отката и повторного теста базы.",
+    "size_hint": "½ ОБЪЁМА",
+    "kind": "taiko",
+    "levels": {
+     "entry": 0.013159,
+     "stop": 0.00704275,
+     "target1": 0.021110125,
+     "target2": 0.0253915,
+     "target3": 0.03150775,
+     "rr": 1.3,
+     "stop_pct": -46.48,
+     "target_pct": 60.42,
+     "valid": true
+    }
+   },
+   "links": [
+    {
+     "text": "TradingView",
+     "url": "https://www.tradingview.com/chart/?symbol=BINANCE:COTIUSDT.P"
+    },
+    {
+     "text": "Binance",
+     "url": "https://www.binance.com/en/futures/COTIUSDT"
+    },
+    {
+     "text": "CoinGecko",
+     "url": "https://www.coingecko.com/en/search?query=COTI"
+    },
+    {
+     "text": "Twitter",
+     "url": "https://x.com/search?q=%24COTI&f=live"
+    }
+   ],
+   "categories": [
+    "Smart Contract Platform",
+    "Ethereum Ecosystem",
+    "Layer 2 (L2)",
+    "Zero Knowledge (ZK)",
+    "Alleged SEC Securities"
+   ],
+   "sector": "L1/L2",
+   "is_viral": false,
+   "score_parts": [
+    {
+     "code": "surge",
+     "label": "Всплеск объёма",
+     "points": 12
+    },
+    {
+     "code": "squeeze",
+     "label": "Squeeze-аномалия",
+     "points": 12
+    },
+    {
+     "code": "taiko",
+     "label": "TAIKO разворот",
+     "points": 27
+    },
+    {
+     "code": "phase",
+     "label": "Фаза TREND",
+     "points": 15
+    },
+    {
+     "code": "obv",
+     "label": "Накопление по OBV",
+     "points": 6
+    }
+   ],
+   "veto": [
+    {
+     "code": "squeeze",
+     "label": "SQUEEZE",
+     "detail": "риск EXTREME, скор 85",
+     "severity": "high"
+    },
+    {
+     "code": "funding",
+     "label": "ФАНДИНГ",
+     "detail": "-0.0548%, шорты перегреты",
+     "severity": "mid"
+    }
+   ],
+   "vetoed": true,
+   "quote_volume_24h": 0.0,
+   "rr": 1.3,
+   "tradable": false
+  }
+ ]
+}
