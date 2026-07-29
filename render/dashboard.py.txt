@@ -11,7 +11,6 @@ from __future__ import annotations
 
 from core.models import Candidate, RunSnapshot
 from render.card import render_card
-from render.table import render_slice_pane
 from render.theme import esc
 
 
@@ -816,11 +815,54 @@ def _funnel(snapshot: RunSnapshot) -> str:
   </div>
 </div>"""
 
+
+# ─────────────────────────────────────────────────────────────
+# Таблицы срезов
+# ─────────────────────────────────────────────────────────────
+def _table(s: dict) -> str:
+    if not s["items"]:
+        body = '<div class="tb-empty">в этом срезе монет нет</div>'
+    else:
+        rows = ""
+        for c in sorted(s["items"], key=lambda x: -x.score):
+            ch = _num(c, "ch_24h")
+            cls = "up" if ch >= 0 else "dn"
+            rr = getattr(c, "rr", 0) or 0
+            rows += (
+                f'<tr data-coin="{esc(c.symbol)}">'
+                f'<td class="tb-s">{_tick(c)}</td>'
+                f'<td class="tb-sc"><i style="--p:{min(int(c.score), 100)}"></i>'
+                f'{c.score}</td>'
+                f'<td class="{cls}">{ch:+.1f}%</td>'
+                f'<td>{_num(c, "rvol_1h"):.1f}×</td>'
+                f'<td>{f"1:{rr:.1f}" if rr else "—"}</td>'
+                f'<td class="tb-ph">'
+                f'{esc(str((c.phase or {}).get("label", "—")).lower())}</td></tr>'
+            )
+        body = (
+            '<table class="tb"><thead><tr>'
+            '<th>монета</th><th>score</th><th>24h</th>'
+            '<th>rvol</th><th>r:r</th><th>фаза</th>'
+            f'</tr></thead><tbody>{rows}</tbody></table>'
+        )
+
+    return f"""
+<div class="pane" data-pane="{esc(s['id'])}">
+  <div class="pane-hd">
+    <button class="pane-back">← назад</button>
+    <span class="pane-t">{esc(s['label'].lower())}</span>
+    <span class="pane-c">{len(s['items'])}</span>
+    <span class="pane-n">{esc(s['note'])}</span>
+  </div>
+  {body}
+</div>"""
+
+
 def _sector_panes(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
     out = ""
     for r in (getattr(snapshot, "sectors", None) or [])[:5]:
         name = str(_get(r, "sector", "") or "")
-        out += render_slice_pane({
+        out += _table({
             "id": f"sector:{name}",
             "label": f"сектор · {name}",
             "note": "все монеты сектора",
@@ -862,8 +904,7 @@ def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot) ->
 
     # Панели-таблицы строим для ВСЕХ срезов, включая скрытые:
     # на них ведут узлы воронки.
-    panes = ("".join(render_slice_pane(s) for s in slices)
-             + _sector_panes(candidates, snapshot))
+    panes = "".join(_table(s) for s in slices) + _sector_panes(candidates, snapshot)
 
     return f"""
 {_bg()}

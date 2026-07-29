@@ -373,25 +373,6 @@ PANES = """
   font-variant-numeric:tabular-nums}
 .pane-n{font-size:7px;font-weight:300;letter-spacing:2px;color:var(--m4);margin-left:auto}
 
-.tb{width:100%;border-collapse:collapse;margin-top:6px}
-.tb th{font-size:6.5px;font-weight:300;letter-spacing:2px;color:#4a505a;
-  text-align:left;padding:16px 12px 10px}
-.tb td{font-size:11px;font-weight:300;letter-spacing:1px;color:var(--t3);
-  padding:11px 12px;border-top:1px solid rgba(200,220,232,.06)}
-.tb tbody tr{cursor:pointer;transition:background .12s}
-.tb tbody tr:hover{background:rgba(245,166,35,.045)}
-.tb-s{font-size:12.5px;color:#dfe2e8;letter-spacing:1.5px}
-.tb-sc{position:relative;padding-left:56px;font-variant-numeric:tabular-nums}
-.tb-sc i{position:absolute;left:12px;top:50%;transform:translateY(-50%);
-  width:34px;height:3px;border-radius:1.5px;
-  background:linear-gradient(90deg,var(--am) calc(var(--p) * 1%),
-  rgba(255,255,255,.07) calc(var(--p) * 1%))}
-.tb .up{color:var(--gr)}
-.tb .dn{color:var(--ru)}
-.tb-ph{font-size:8.5px;color:#70747c}
-.tb-empty{padding:52px 0;text-align:center;font-size:8px;font-weight:300;
-  letter-spacing:2px;color:var(--m4)}
-
 .modal{display:none;position:fixed;inset:0;z-index:900}
 .modal.on{display:block}
 .modal-bd{position:absolute;inset:0;background:rgba(6,7,9,.86);backdrop-filter:blur(6px)}
@@ -412,6 +393,9 @@ SCAN = """
 .scan{margin-top:56px}
 .sx-hint{font-size:7px;font-weight:300;letter-spacing:2px;color:var(--m5);
   margin:10px 0 14px}
+
+.sx-empty{padding:52px 0;text-align:center;font-size:8px;font-weight:300;
+  letter-spacing:2px;color:var(--m4)}
 
 .sx-wrap{position:relative;overflow-x:auto;overflow-y:visible;
   border-radius:14px;background:linear-gradient(180deg,#101116,#0b0c0f);
@@ -582,7 +566,6 @@ RESPONSIVE = """
   .set-in{display:none}
   .pane-hd{flex-wrap:wrap;gap:10px}
   .pane-n{margin-left:0;width:100%}
-  .tb th:nth-child(4),.tb td:nth-child(4){display:none}
   /* на узком экране закрепляем только тикер */
   .sx .sx-c-soc,.sx .sx-c-surge{position:static;box-shadow:none}
   .sx .sx-c-sym{box-shadow:10px 0 14px -8px rgba(0,0,0,.85)}
@@ -594,7 +577,6 @@ RESPONSIVE = """
   .risk-v{font-size:42px}
   .risk-legs{gap:14px}
   .g-risk{min-height:0}
-  .tb th:nth-child(6),.tb td:nth-child(6){display:none}
   .sx .sx-idx{display:none}
   .sx .sx-c-sym{left:0}
 }

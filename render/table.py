@@ -378,3 +378,123 @@ def render_scan_table(candidates: list[Candidate]) -> str:
           f'<span class="sx-f-r">score = объём · структура · импульс</span></div>'
         + "</div>"
     )
+
+def _rows(shown: list[Candidate], total_shown: int) -> str:
+    """Строки таблицы. Хвост приглушается, чтобы взгляд не тянуло вниз."""
+    rows = ""
+    fade_from = max(total_shown - FADE_TAIL, 0)
+
+    for i, c in enumerate(shown, 1):
+        ch24 = _raw(c, "ch_24h")
+        rr = getattr(c, "rr", 0) or 0
+        lv = getattr(c.strategy, "levels", None)
+        entry = float(getattr(lv, "entry", 0) or 0)
+        stop = float(getattr(lv, "stop", 0) or 0)
+        take = float(getattr(lv, "take", 0) or 0)
+
+        cls = ["sxr"]
+        if c.vetoed:
+            cls.append("vetoed")
+        if i - 1 >= fade_from:
+            cls.append("faded")
+
+        if c.vetoed:
+            accent = RUST
+        elif getattr(c, "tradable", False):
+            accent = GREEN
+        elif c.taiko:
+            accent = AMBER_L
+        elif c.surge:
+            accent = AMBER
+        else:
+            accent = STEEL
+
+        score_c = tone_for_score(c.score)
+        ath = _raw(c, "from_ath")
+        rvol = _raw(c, "rvol_1h")
+        phase_n = int((c.phase or {}).get("num", 0) or 0)
+        phase_l = str((c.phase or {}).get("label", "—")).lower()
+        sector = (c.sector or "—").lower()
+        up = ch24 >= 0
+        rr_cls = "up" if rr >= 3 else ("am" if rr >= 2 else "mut")
+
+        rows += f"""
+<tr class="{' '.join(cls)}" style="--acc:{accent}" data-coin="{esc(c.symbol)}">
+  <td class="sx-idx">{i:02d}</td>
+  <td class="sx-c-sym">
+    <a class="sx-sym" href="{esc(tv_url(c.symbol))}" target="_blank"
+       rel="noopener">{_tick(c)}<svg viewBox="0 0 8 8"><path d="M2 6 L6 2 M3 2h3v3"
+       fill="none" stroke="currentColor" stroke-width="1"/></svg></a>
+    <span class="sx-sub">{esc(sector)} · перп</span>
+  </td>
+  <td class="sx-c-soc">{_cell_social(c)}</td>
+  <td class="sx-c-surge">{_cell_surge(c)}</td>
+  <td class="sx-c-taiko">{_cell_taiko(c)}</td>
+
+  <td>{_ring(c.score, min(c.score, 100), score_c, r=15, size=36)}</td>
+  <td><b class="sx-n am">{rvol:.1f}×</b>{_bar(min(rvol / 10 * 100, 100), AMBER)}</td>
+  <td>{_sparkbars(_seq(c, "vol_7d"), AMBER)}</td>
+  <td>{_bar(min(rvol / 6 * 100, 100), AMBER_L, 40)}</td>
+
+  <td><b class="sx-n {'up' if up else 'dn'}">{ch24:+.1f}%</b></td>
+  <td>{_sparkline(_seq(c, "spark_1d"), up)}</td>
+  <td><b class="sx-n mut">{ath:.0f}%</b>{_bar(max(0, 100 + ath), RUST, 40)}</td>
+
+  <td>{_steps(phase_n, 4, GOLD)}<span class="sx-sub2">{esc(phase_l)}</span></td>
+  <td>{_cell_signals(c)}</td>
+  <td><span class="sx-sub2">{esc(sector)}</span></td>
+
+  <td>{_cell_veto(c)}</td>
+  <td>{_bipolar(_raw(c, "funding") * 100)}</td>
+  <td><b class="sx-rr {rr_cls}">{f"1:{rr:.1f}" if rr else "—"}</b></td>
+
+  <td>{_levels(entry, stop, take)}</td>
+  <td><b class="sx-n">{_price(_raw(c, "price"))}</b></td>
+  <td>{_cell_action(c)}</td>
+</tr>"""
+    return rows
+
+
+
+# ─────────────────────────────────────────────────────────────
+# Публичные рендеры
+# ─────────────────────────────────────────────────────────────
+def render_table(items: list[Candidate], limit: int = VISIBLE_ROWS) -> str:
+    """Тело таблицы без обёрток. Используется и полной выборкой,
+    и панелями срезов дашборда."""
+    if not items:
+        return '<div class="sx-empty">в этом срезе монет нет</div>'
+
+    ordered = sorted(items, key=lambda c: -c.score)
+    shown = ordered[:limit]
+
+    head = "".join(
+        f'<th class="{cls}">{esc(label)}</th>' for label, cls in HEAD_COLS
+    )
+    rows = _rows(shown, total_shown=len(shown))
+
+    return (
+        '<div class="sx-wrap"><table class="sx">'
+        f'<thead><tr>{head}</tr></thead><tbody>{rows}</tbody></table></div>'
+    )
+
+
+def render_slice_pane(s: dict, limit: int = VISIBLE_ROWS) -> str:
+    """Панель среза для дашборда: шапка с кнопкой возврата плюс таблица."""
+    items = s.get("items") or []
+    total = len(items)
+    more = (f'<span class="sx-f-m">показано {min(total, limit)} из {total}</span>'
+            if total > limit else "")
+
+    return f"""
+<div class="pane" data-pane="{esc(s['id'])}">
+  <div class="pane-hd">
+    <button class="pane-back">← назад</button>
+    <span class="pane-t">{esc(str(s.get('label', '')).lower())}</span>
+    <span class="pane-c">{total}</span>
+    <span class="pane-n">{esc(str(s.get('note', '')))}</span>
+  </div>
+  {render_table(items, limit)}
+  <div class="sx-f"><span>всего {total} монет</span>{more}
+    <span class="sx-f-r">score = объём · структура · импульс</span></div>
+</div>"""
