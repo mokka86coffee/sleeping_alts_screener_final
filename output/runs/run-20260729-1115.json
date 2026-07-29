@@ -1,8 +1,8 @@
 {
- "timestamp": "2026-07-29T12:34:47+00:00",
- "total_scanned": 10,
- "duration_sec": 4.6,
- "errors": 8,
+ "timestamp": "2026-07-29T11:15:37+00:00",
+ "total_scanned": 1,
+ "duration_sec": 4.1,
+ "errors": 0,
  "counts": {
   "total": 1,
   "viral": 0,
@@ -20,7 +20,7 @@
   {
    "code": "all",
    "label": "вся выборка",
-   "count": 10,
+   "count": 1,
    "dropped": 0,
    "pass_pct": 100.0,
    "share_pct": 100.0
@@ -29,7 +29,7 @@
    "code": "volume",
    "label": "прошли объём",
    "count": 0,
-   "dropped": 10,
+   "dropped": 1,
    "pass_pct": 0.0,
    "share_pct": 0.0
   },
@@ -70,28 +70,22 @@
   {
    "sector": "OTHER",
    "count": 1,
-   "avg_change_24h": -14.79,
-   "best": -14.79,
-   "worst": -14.79
+   "avg_change_24h": -12.74,
+   "best": -12.74,
+   "worst": -12.74
   }
  ],
  "market_regime": {
   "regime": "risk-off",
   "appetite": 1,
   "green_share": 0.0,
-  "median_change_24h": -14.79,
+  "median_change_24h": -12.74,
   "tradable_share": 0.0,
   "leading_sector": "OTHER",
   "lagging_sector": "OTHER",
   "note": "давление на альты, деньги уходят"
  },
  "veto_stats": [
-  {
-   "code": "funding",
-   "label": "ФАНДИНГ",
-   "severity": "mid",
-   "count": 1
-  },
   {
    "code": "volatility",
    "label": "ВОЛАТИЛЬНОСТЬ",
@@ -115,28 +109,28 @@
    "phase": {
     "num": 1,
     "label": "DECLINE",
-    "vi_plus": 0.763,
-    "vi_minus": 1.2445
+    "vi_plus": 0.7671,
+    "vi_minus": 1.2711
    },
    "metrics": [
     {
      "key": "Цена",
-     "val": "$12.91",
+     "val": "$13.22",
      "cls": ""
     },
     {
      "key": "24h",
-     "val": "-14.8%",
+     "val": "-12.7%",
      "cls": "down"
     },
     {
      "key": "7d",
-     "val": "-40.3%",
+     "val": "-38.8%",
      "cls": "down"
     },
     {
      "key": "30d",
-     "val": "-98.3%",
+     "val": "-98.2%",
      "cls": "down"
     },
     {
@@ -146,27 +140,27 @@
     },
     {
      "key": "RVOL 1H",
-     "val": "0.58×",
+     "val": "0.16×",
      "cls": ""
     },
     {
      "key": "OBV",
-     "val": "-39001.5%",
+     "val": "-38333.3%",
      "cls": "down"
     },
     {
      "key": "StochRSI 4H",
-     "val": "68.4",
+     "val": "67.5",
      "cls": ""
     },
     {
      "key": "ATR %",
-     "val": "26.14",
+     "val": "25.52",
      "cls": ""
     },
     {
      "key": "BB width",
-     "val": "605.74",
+     "val": "605.65",
      "cls": ""
     },
     {
@@ -176,12 +170,12 @@
     },
     {
      "key": "Funding",
-     "val": "0.1339%",
+     "val": "0.0065%",
      "cls": "up"
     },
     {
      "key": "OI",
-     "val": "$153.92M",
+     "val": "$157.95M",
      "cls": ""
     },
     {
@@ -205,7 +199,7 @@
     "funding_now": -0.186795,
     "oi_change_14d_pct": -27.178821521970786,
     "spot_futures_ratio": 0.0,
-    "rsi_14": 18.39728617299903,
+    "rsi_14": 18.410845039425865,
     "tag": {
      "text": "SQUEEZE LOW",
      "class": "tag-squeeze-low"
@@ -261,15 +255,9 @@
    "score_parts": [],
    "veto": [
     {
-     "code": "funding",
-     "label": "ФАНДИНГ",
-     "detail": "+0.1339%, лонги перегреты",
-     "severity": "mid"
-    },
-    {
      "code": "volatility",
      "label": "ВОЛАТИЛЬНОСТЬ",
-     "detail": "ATR 26.1% в день",
+     "detail": "ATR 25.5% в день",
      "severity": "mid"
     },
     {
@@ -280,7 +268,7 @@
     }
    ],
    "vetoed": true,
-   "quote_volume_24h": 2246757289.5628,
+   "quote_volume_24h": 2215655047.4727,
    "rr": 0.0,
    "tradable": false
   }

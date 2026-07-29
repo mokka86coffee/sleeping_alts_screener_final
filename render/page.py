@@ -7,10 +7,8 @@
 from __future__ import annotations
 
 from core.models import Candidate, RunSnapshot
-from render.blocks import render_header
 from render.css import CSS
 from render.dashboard import render_dashboard_page
-from render.svg import shared_defs
 
 FONTS_LINK = (
     '<link rel="preconnect" href="https://fonts.googleapis.com">'
@@ -23,7 +21,6 @@ FONTS_LINK = (
 def build_page(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
     """Полный HTML отчёта."""
     body = "\n".join([
-        render_header(snapshot),
         render_dashboard_page(candidates, snapshot),
     ])
 
@@ -37,7 +34,6 @@ def build_page(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
 <style>{CSS}</style>
 </head>
 <body>
-{shared_defs()}
 {body}
 </body>
 </html>

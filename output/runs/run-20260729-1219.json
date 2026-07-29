@@ -1,7 +1,7 @@
 {
- "timestamp": "2026-07-29T12:34:47+00:00",
+ "timestamp": "2026-07-29T12:19:37+00:00",
  "total_scanned": 10,
- "duration_sec": 4.6,
+ "duration_sec": 4.8,
  "errors": 8,
  "counts": {
   "total": 1,
@@ -70,16 +70,16 @@
   {
    "sector": "OTHER",
    "count": 1,
-   "avg_change_24h": -14.79,
-   "best": -14.79,
-   "worst": -14.79
+   "avg_change_24h": -15.05,
+   "best": -15.05,
+   "worst": -15.05
   }
  ],
  "market_regime": {
   "regime": "risk-off",
   "appetite": 1,
   "green_share": 0.0,
-  "median_change_24h": -14.79,
+  "median_change_24h": -15.05,
   "tradable_share": 0.0,
   "leading_sector": "OTHER",
   "lagging_sector": "OTHER",
@@ -121,17 +121,17 @@
    "metrics": [
     {
      "key": "Цена",
-     "val": "$12.91",
+     "val": "$12.87",
      "cls": ""
     },
     {
      "key": "24h",
-     "val": "-14.8%",
+     "val": "-15.0%",
      "cls": "down"
     },
     {
      "key": "7d",
-     "val": "-40.3%",
+     "val": "-40.4%",
      "cls": "down"
     },
     {
@@ -141,32 +141,32 @@
     },
     {
      "key": "От ATH",
-     "val": "-98.8%",
+     "val": "-98.9%",
      "cls": "down"
     },
     {
      "key": "RVOL 1H",
-     "val": "0.58×",
+     "val": "0.31×",
      "cls": ""
     },
     {
      "key": "OBV",
-     "val": "-39001.5%",
+     "val": "-38820.1%",
      "cls": "down"
     },
     {
      "key": "StochRSI 4H",
-     "val": "68.4",
+     "val": "67.6",
      "cls": ""
     },
     {
      "key": "ATR %",
-     "val": "26.14",
+     "val": "26.22",
      "cls": ""
     },
     {
      "key": "BB width",
-     "val": "605.74",
+     "val": "605.76",
      "cls": ""
     },
     {
@@ -176,12 +176,12 @@
     },
     {
      "key": "Funding",
-     "val": "0.1339%",
+     "val": "0.1209%",
      "cls": "up"
     },
     {
      "key": "OI",
-     "val": "$153.92M",
+     "val": "$153.53M",
      "cls": ""
     },
     {
@@ -205,7 +205,7 @@
     "funding_now": -0.186795,
     "oi_change_14d_pct": -27.178821521970786,
     "spot_futures_ratio": 0.0,
-    "rsi_14": 18.39728617299903,
+    "rsi_14": 18.39553809642321,
     "tag": {
      "text": "SQUEEZE LOW",
      "class": "tag-squeeze-low"
@@ -263,13 +263,13 @@
     {
      "code": "funding",
      "label": "ФАНДИНГ",
-     "detail": "+0.1339%, лонги перегреты",
+     "detail": "+0.1209%, лонги перегреты",
      "severity": "mid"
     },
     {
      "code": "volatility",
      "label": "ВОЛАТИЛЬНОСТЬ",
-     "detail": "ATR 26.1% в день",
+     "detail": "ATR 26.2% в день",
      "severity": "mid"
     },
     {
@@ -280,7 +280,7 @@
     }
    ],
    "vetoed": true,
-   "quote_volume_24h": 2246757289.5628,
+   "quote_volume_24h": 2233183995.8862,
    "rr": 0.0,
    "tradable": false
   }

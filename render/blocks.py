@@ -25,26 +25,6 @@ def _fmt_timestamp(iso: str) -> str:
         return iso
 
 
-def render_header(snapshot: RunSnapshot) -> str:
-    """Шапка отчёта."""
-    return f"""
-<div class="hd">
-  <div class="hd-bar"></div>
-  <div>
-    <h1 class="hd-t">SLEEPING ALTS <span>SCREENER</span></h1>
-    <div class="hd-sub">
-      <span class="hd-ts">{esc(_fmt_timestamp(snapshot.timestamp))}</span>
-      <span class="hd-stage">{STAGE_LABEL}</span>
-    </div>
-  </div>
-  <div class="hd-r">
-    <div class="hd-n">{snapshot.total_scanned}</div>
-    <div class="hd-nl">МОНЕТ В ВЫБОРКЕ</div>
-  </div>
-</div>
-<hr class="hd-rule">"""
-
-
 def render_dashboard(snapshot: RunSnapshot) -> str:
     """Панель приборов: сводка по категориям."""
     c = snapshot.counts
