@@ -27,3 +27,7 @@ Thumbs.db
 # Виртуальные окружения
 venv/
 .env
+
+cache
+cache_fundamental
+output
