@@ -32,6 +32,7 @@ class VolumeSurgeSignal:
     score: int = 0
     surge_ratio: float = 0.0        # во сколько раз объём выше среднего
     current_vol_usd: float = 0.0    # объём текущей дневной свечи в USD
+    projected_vol_usd: float = 0.0  # ??
     avg_vol_usd: float = 0.0        # средний дневной объём в USD
     day_change_pct: float = 0.0     # изменение цены за текущий день
     is_green: bool = False          # текущая свеча зелёная
