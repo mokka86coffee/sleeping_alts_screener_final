@@ -290,7 +290,10 @@ def render_scan_table(candidates: list[Candidate]) -> str:
     )
 
     rows = ""
-    fade_from = max(len(shown) - FADE_TAIL, 0)
+
+    # Хвост приглушаем только когда список длинный: иначе на коротком срезе
+    # (2-5 строк) под fade попадает вся таблица целиком.
+    fade_from = total_shown if total_shown <= FADE_TAIL * 2 else total_shown - FADE_TAIL
 
     for i, c in enumerate(shown, 1):
         ch24 = _raw(c, "ch_24h")
@@ -382,7 +385,9 @@ def render_scan_table(candidates: list[Candidate]) -> str:
 def _rows(shown: list[Candidate], total_shown: int) -> str:
     """Строки таблицы. Хвост приглушается, чтобы взгляд не тянуло вниз."""
     rows = ""
-    fade_from = max(total_shown - FADE_TAIL, 0)
+    # Хвост приглушаем только когда список длинный: иначе на коротком срезе
+    # (2-5 строк) под fade попадает вся таблица целиком.
+    fade_from = total_shown if total_shown <= FADE_TAIL * 2 else total_shown - FADE_TAIL
 
     for i, c in enumerate(shown, 1):
         ch24 = _raw(c, "ch_24h")

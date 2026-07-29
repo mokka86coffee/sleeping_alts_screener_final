@@ -930,6 +930,7 @@ DASH_JS = """
       return;
     }
     var coin = e.target.closest('[data-coin]');
+    if (e.target.closest('a')) { return; }
     if (coin && !coin.closest('.modal')) {
       openCoin(coin.getAttribute('data-coin'));
       return;
