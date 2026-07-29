@@ -406,28 +406,25 @@ SCAN = """
 .sx-wrap::-webkit-scrollbar-track{background:transparent}
 
 .sx{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
-.sx th{position:sticky;top:0;z-index:3;background:#171922;
-  font-size:6.5px;font-weight:300;letter-spacing:2px;color:#5a616c;
+.sx th{position:sticky;top:0;z-index:3;background:#0d0e12;
+  font-size:6.5px;font-weight:300;letter-spacing:2px;color:#f58b25;
   text-align:left;padding:14px 14px 10px;white-space:nowrap;
-  border-bottom:1px solid rgba(200,220,232,.12)}
-
+  border-bottom:1px solid rgba(200,220,232,.09)}
+.sh th::first-letter {
+ color: white;
+ font-size: 11px;
+}
 .sx td{padding:10px 14px;vertical-align:middle;white-space:nowrap;
-  border-bottom:1px solid rgba(200,220,232,.06)}
+  border-bottom:1px solid rgba(200,220,232,.045)}
 
-/* закреплённые колонки должны совпадать с новым фоном */
-.sx .sx-idx{position:sticky;left:0;z-index:2;width:34px;background:#15161c}
-.sx .sx-c-sym{position:sticky;left:34px;z-index:2;width:104px;background:#15161c}
-.sx .sx-c-soc{position:sticky;left:138px;z-index:2;width:74px;background:#15161c}
-.sx .sx-c-surge{position:sticky;left:212px;z-index:2;width:84px;background:#15161c;
-  box-shadow:10px 0 14px -8px rgba(0,0,0,.85)}
-.sx th.sx-idx,.sx th.sx-c-sym,
-.sx th.sx-c-soc,.sx th.sx-c-surge{background:#171922;z-index:4}
-.sxr:hover .sx-idx,.sxr:hover .sx-c-sym,
-.sxr:hover .sx-c-soc,.sxr:hover .sx-c-surge{background:#1b1e27}
-
-.sxr:hover{background:rgba(255,255,255,.03)}
-.sxr.vetoed{opacity:.78}
-.sxr.faded{opacity:.5}
+.sxr{transition:background .12s}
+.sxr:hover{background:rgba(255,255,255,.022)}
+.sxr td:first-child{position:relative}
+.sxr td:first-child::before{content:'';position:absolute;left:0;top:6px;bottom:6px;
+  width:2px;border-radius:1px;background:var(--acc);opacity:0;transition:opacity .12s}
+.sxr:hover td:first-child::before{opacity:.8}
+.sxr.vetoed{opacity:.62}
+.sxr.faded{opacity:.4}
 
 /* ── закреплённые колонки ── */
 .sx .sx-idx{position:sticky;left:0;z-index:2;width:34px;background:#0d0e12}
@@ -448,7 +445,7 @@ SCAN = """
 .sx-sym:hover{color:var(--am-l)}
 .sx-sym:hover svg{opacity:1}
 .sx-sub{display:block;font-size:6.5px;font-weight:300;letter-spacing:1.2px;
-  color:#4e535c;margin-top:3px}
+  margin-top:3px}
 .sx-sub2{display:block;font-size:6.5px;font-weight:300;letter-spacing:1.2px;
   color:#565b64;margin-top:4px}
 .sx-mut{font-size:10px;color:#3e424a}
@@ -477,7 +474,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
 .sx-rr.mut{color:#43474f}
 
 .sx-badge{display:inline-flex;align-items:center;height:16px;padding:0 8px;
-  border-radius:8px;font-size:7.5px;font-weight:300;letter-spacing:.8px;
+  border-radius:8px;font-size:10px;font-weight:300;letter-spacing:.8px;
   color:var(--bc);background:color-mix(in srgb,var(--bc) 12%,transparent);
   border:1px solid color-mix(in srgb,var(--bc) 38%,transparent)}
 .sx-badge.off{opacity:.3}
