@@ -407,7 +407,7 @@ SCAN = """
 
 .sx{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
 .sx th{position:sticky;top:0;z-index:3;background:#0d0e12;
-  font-size:6.5px;font-weight:300;letter-spacing:2px;color:#f58b25;
+  font-size:8px;font-weight:600;letter-spacing:2px;color:#b0b0b0;
   text-align:left;padding:14px 14px 10px;white-space:nowrap;
   border-bottom:1px solid rgba(200,220,232,.09)}
 .sh th::first-letter {
