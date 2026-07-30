@@ -14,10 +14,20 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 OUTPUT_DIR = BASE_DIR / "output"
 RUNS_DIR = OUTPUT_DIR / "runs"
-REPORT_HTML = OUTPUT_DIR / "index.html"
+REPORT_PATH = BASE_DIR / "index.html"
 LATEST_JSON = OUTPUT_DIR / "latest.json"
 
 RUNS_KEEP = 60
+
+# ─────────────────────────────────────────────────────────────
+# Планировщик
+# ─────────────────────────────────────────────────────────────
+
+LOOP_INTERVAL_SEC = 3 * 60 * 60      # 3 часа
+GIT_TIMEOUT_SEC = 120
+COMMIT_MSG = "new"
+GIT_ADD_ALL_CHANGED = "."
+GIT_ADD_HTML_ONLY = "index.html"
 
 # ─────────────────────────────────────────────────────────────
 # Эндпоинты

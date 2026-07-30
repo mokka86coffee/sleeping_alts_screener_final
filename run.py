@@ -4,11 +4,15 @@
 сохранение снимка и генерация отчёта.
 
 Запуск:
-    python run.py                     полный прогон
-    python run.py --limit 20          только 20 монет, для отладки
-    python run.py --symbols MYX,ZEC   конкретные монеты
-    python run.py --no-html           только JSON, без отчёта
-    python run.py --workers 3         другое число потоков
+    python run.py                            полный прогон
+    python run.py --limit 20                 только 20 монет, для отладки
+    python run.py --symbols MYX,ZEC          конкретные монеты
+    python run.py --no-html                  только JSON, без отчёта
+    python run.py --workers 3                другое число потоков
+    python run.py                            разовый прогон, отчёт + git push
+    python run.py --loop                     бесконечно, каждые 3 часа
+    python run.py --loop --interval 3600     каждый час
+    python run.py --no-git                   без публикации
 """
 
 from __future__ import annotations
@@ -19,11 +23,18 @@ import time
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import os
+import signal
+import subprocess
+from datetime import datetime, timedelta
+from pathlib import Path
+
 from analytics.candidate import build_candidate
 from core.binance import get_futures_tickers
 from core.config import (
     EXCLUDE_TOKENS, MAX_SYMBOLS, MAX_WORKERS,
-    MIN_QUOTE_VOLUME_24H, REPORT_HTML, RVOL_WARM, STABLECOINS,
+    MIN_QUOTE_VOLUME_24H, RVOL_WARM, STABLECOINS,
+    LOOP_INTERVAL_SEC, REPORT_PATH,
 )
 from core.http import log
 from core.models import Candidate, FunnelStage, RunSnapshot
@@ -339,7 +350,7 @@ def build_snapshot(
 # Отчёт
 # ─────────────────────────────────────────────────────────────
 def render_report(candidates: list[Candidate], snapshot: RunSnapshot) -> bool:
-    """Генерирует HTML. Отсутствие рендера не должно ронять прогон."""
+    """Генерирует HTML в корень проекта. Отсутствие рендера не роняет прогон."""
     try:
         from render.page import build_page
     except ImportError as e:
@@ -348,13 +359,69 @@ def render_report(candidates: list[Candidate], snapshot: RunSnapshot) -> bool:
 
     try:
         html = build_page(candidates, snapshot)
-        write_atomic(REPORT_HTML, html)
+        write_atomic(REPORT_PATH, html)
         return True
     except Exception as e:
         log(f"Ошибка сборки отчёта: {type(e).__name__}: {e}")
         traceback.print_exc()
         return False
 
+
+# ─────────────────────────────────────────────────────────────
+# Публикация в git
+# ─────────────────────────────────────────────────────────────
+def _git(*cmd: str) -> tuple[int, str]:
+    """Запускает git-команду в корне проекта.
+
+    Возвращает (код возврата, объединённый вывод). Исключения не пробрасывает:
+    сбой публикации не должен ронять прогон и тем более планировщик.
+    """
+    try:
+        proc = subprocess.run(
+            ("git", *cmd),
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=GIT_TIMEOUT_SEC,
+        )
+    except FileNotFoundError:
+        return 127, "git не найден в PATH"
+    except subprocess.TimeoutExpired:
+        return 124, f"git {' '.join(cmd)} — таймаут {GIT_TIMEOUT_SEC}с"
+
+    out = (proc.stdout or "") + (proc.stderr or "")
+    return proc.returncode, out.strip()
+
+
+def git_publish() -> bool:
+    """add → commit → push. Пустой коммит не создаётся."""
+    if not (ROOT / ".git").exists():
+        log("→ git: репозиторий не найден, публикация пропущена")
+        return False
+
+    code, out = _git("add", GIT_ADD_HTML_ONLY) # GIT_ADD_HTML_ONLY | GIT_ADD_ALL_CHANGED
+    if code != 0:
+        log(f"✗ git add: {out}")
+        return False
+
+    # Нечего коммитить — не ошибка, просто данные не изменились
+    code, _ = _git("diff", "--cached", "--quiet")
+    if code == 0:
+        log("→ git: изменений нет, коммит не нужен")
+        return True
+
+    code, out = _git("commit", "-nm", COMMIT_MSG)
+    if code != 0:
+        log(f"✗ git commit: {out}")
+        return False
+
+    code, out = _git("push")
+    if code != 0:
+        log(f"✗ git push: {out}")
+        return False
+
+    log("✓ Опубликовано в git")
+    return True
 
 # ─────────────────────────────────────────────────────────────
 # Аргументы
@@ -371,6 +438,12 @@ def parse_args() -> argparse.Namespace:
                    help="не собирать HTML, только JSON")
     p.add_argument("--no-save", action="store_true",
                    help="не сохранять снимок прогона")
+    p.add_argument("--loop", action="store_true",
+                  help="повторять прогон бесконечно с интервалом --interval")
+    p.add_argument("--interval", type=int, default=LOOP_INTERVAL_SEC,
+                  help="интервал между прогонами в секундах, по умолчанию 3 часа")
+    p.add_argument("--no-git", action="store_true",
+                  help="не публиковать результат в git")
     return p.parse_args()
 
 
@@ -386,6 +459,95 @@ def resolve_explicit_symbols(raw: str) -> list[tuple[str, float]]:
         out.append((sym, 0.0))
     return out
 
+
+
+# ─────────────────────────────────────────────────────────────
+# PREV MAIN
+# ─────────────────────────────────────────────────────────────
+def run_once(args: argparse.Namespace) -> int:
+    """Один полный прогон. Возвращает код возврата."""
+    started = time.monotonic()
+    started = time.monotonic()
+
+    # ── Отбор ──
+    if args.symbols:
+        symbols = resolve_explicit_symbols(args.symbols)
+        select_stats = {"selected": len(symbols), "explicit": True}
+        log(f"→ Явно заданы {len(symbols)} монет")
+    else:
+        log("→ Загружаю тикеры Binance Futures")
+        symbols, select_stats = select_symbols(args.limit)
+        if not symbols:
+            log("✗ Не удалось получить тикеры")
+            return 1
+        log(f"→ Из {select_stats['total_pairs']} пар отобрано {len(symbols)}: "
+            f"исключено {select_stats['excluded']}, "
+            f"мало объёма у {select_stats['low_volume']}")
+
+    # ── Анализ ──
+    log(f"→ Обрабатываю в {args.workers} потоках")
+    candidates, errors = analyze_all(symbols, args.workers)
+
+    duration = time.monotonic() - started
+
+    if errors:
+        log(f"\n⚠ Ошибок: {len(errors)} из {len(symbols)}")
+        for sym, err in errors[:10]:
+            log(f"   {sym}: {err}")
+
+    if not candidates:
+        log("✗ Ни одной монеты не удалось проанализировать")
+        return 1
+
+    # ── Снимок ──
+    snapshot = build_snapshot(candidates, len(symbols), duration, len(errors))
+
+    log("\n→ Воронка отбора")
+    for stage in snapshot.funnel:
+        bar = "█" * max(1, int(stage.share_pct / 3))
+        log(f"   {stage.label:<16} {stage.count:>4}  {bar} {stage.share_pct:>5.1f}%")
+
+    if snapshot.veto_stats:
+        log("\n→ Причины вето")
+        for v in snapshot.veto_stats:
+            log(f"   {v['label']:<16} {v['count']:>3}  ({v['severity']})")
+
+    regime = snapshot.market_regime
+    log(f"\n→ Режим рынка: {regime.get('regime', '—').upper()} · "
+        f"аппетит {regime.get('appetite', 0)}/5 · "
+        f"{regime.get('note', '')}")
+
+    if snapshot.sectors:
+        top = snapshot.sectors[0]
+        bottom = snapshot.sectors[-1]
+        log(f"→ Сектора: лидер {top['sector']} {top['avg_change_24h']:+.1f}%, "
+            f"аутсайдер {bottom['sector']} {bottom['avg_change_24h']:+.1f}%")
+
+    # ── Сравнение с прошлым прогоном ──
+    if not args.no_save:
+        diff = compare_with_previous(snapshot)
+        if diff.get("has_previous"):
+            if diff["new"]:
+                log(f"→ Новые в работе: {', '.join(diff['new'][:8])}")
+            if diff["gone"]:
+                log(f"→ Выбыли из работы: {', '.join(diff['gone'][:8])}")
+
+        path = save_snapshot(snapshot)
+        log(f"→ Снимок сохранён: {path}")
+
+    # ── Отчёт ──
+    published = False
+    if not args.no_html:
+        if render_report(candidates, snapshot):
+            log(f"✓ Отчёт готов: {REPORT_PATH}")
+            if not args.no_git:
+                published = git_publish()
+
+    log(f"\n✓ Прогон завершён за {duration:.0f}с · "
+        f"{snapshot.counts['tradable']} монет к работе "
+        f"из {len(candidates)} проанализированных"
+        f"{' · опубликовано' if published else ''}")
+    return 0
 
 # ─────────────────────────────────────────────────────────────
 # MAIN
@@ -463,7 +625,7 @@ def main() -> int:
     # ── Отчёт ──
     if not args.no_html:
         if render_report(candidates, snapshot):
-            log(f"✓ Отчёт готов: {REPORT_HTML}")
+            log(f"✓ Отчёт готов: {REPORT_PATH}")
 
     log(f"\n✓ Прогон завершён за {duration:.0f}с · "
         f"{snapshot.counts['tradable']} монет к работе "

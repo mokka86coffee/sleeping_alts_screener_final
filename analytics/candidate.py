@@ -11,8 +11,13 @@ from core.binance import drop_symbol_cache
 from core.config import BUCKET_SCOUT
 from core.models import Candidate
 from detectors import (
-    DexeSignal, TaikoSignal,
-    detect_dexe, detect_squeeze, detect_taiko, detect_volume_surge, detect_flow,
+    DexeSignal,
+    TaikoSignal,
+    detect_dexe,
+    detect_squeeze,
+    detect_taiko,
+    detect_volume_surge,
+    detect_flow,
 )
 from sources.external import build_fundamental_take_live, get_fundamentals
 
@@ -66,11 +71,26 @@ def build_candidate(
         }
 
         # ── Детекторы ──
-        flow = detect_flow(symbol)
         surge = detect_volume_surge(symbol)
         squeeze = detect_squeeze(symbol)
         taiko = detect_taiko(symbol)
         dexe = detect_dexe(symbol)
+
+        # TAIKO и DEXE взаимоисключающи: побеждает более уверенный
+        if taiko.detected and dexe.detected:
+            if taiko.score >= dexe.score:
+                dexe = DexeSignal()
+            else:
+                taiko = TaikoSignal()
+
+        # ── FLOW: семейство потока ──
+        # Вызывается последним и работает диспетчером: подкейсы
+        # (spring, churn, fuel, hidden, taker) считаются по общему
+        # кэшу дневных свечей, зоны и события — один раз на все.
+        # Дорогие запросы (funding, OI, спот) берутся только после
+        # срабатывания дневного ядра: без него detected всё равно ложь,
+        # и двести монет × два запроса уходят впустую.
+        flow = detect_flow(symbol)
 
         # TAIKO и DEXE взаимоисключающи: побеждает более уверенный
         if taiko.detected and dexe.detected:
@@ -107,16 +127,22 @@ def build_candidate(
                 "class": "tag-pattern dexe",
             })
 
+        if flow.detected:
+            tags.append({
+                "text": f"FLOW {flow.case.upper()} · {flow.score}",
+                "class": "tag-pattern flow",
+            })
+
         # ── Скоринг ──
-        sb = score_candidate(m, surge, squeeze, taiko, dexe)
+        sb = score_candidate(m, surge, squeeze, taiko, dexe, flow)
         score = sb.capped()
-        has_pattern = taiko.detected or dexe.detected
+        has_pattern = taiko.detected or dexe.detected or flow.detected
         bucket = classify_bucket(score, has_pattern)
 
         # ── Вето ──
-        # Защищённые треки отбираются собственной основой и не подлежат
-        # отсеву внешними фильтрами: вето остаётся справкой, но не блокирует.
-        protected = bool(taiko.detected or dexe.detected or surge.detected)
+        protected = bool(
+            taiko.detected or dexe.detected or surge.detected or flow.detected
+        )
         veto = evaluate_veto(m, squeeze)
         vetoed = is_blocking(veto) and not protected
 
@@ -148,6 +174,7 @@ def build_candidate(
             p for p in (
                 taiko.verdict if taiko.detected else "",
                 dexe.verdict if dexe.detected else "",
+                flow.verdict if flow.detected else "",
                 surge.verdict if surge.detected else "",
             ) if p
         ]
@@ -173,6 +200,7 @@ def build_candidate(
             surge=surge.to_dict() if surge.detected else None,
             squeeze=squeeze,
             taiko=taiko.to_dict() if taiko.detected else None,
+            flow=flow.to_dict() if flow.detected else None,
             analysis=analysis,
             buzz=buzz,
             strategy=strategy,

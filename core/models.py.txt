@@ -126,9 +126,8 @@ class Candidate:
     surge: dict | None = None
     squeeze: dict | None = None
     taiko: dict | None = None
-    flow: dict | None = None
-    analysis: str = ""
 
+    analysis: str = ""
     buzz: dict | None = None
     strategy: Strategy = field(default_factory=Strategy)
     links: list[dict] = field(default_factory=list)
@@ -197,7 +196,6 @@ class Candidate:
             "surge": self.surge,
             "squeeze": self.squeeze,
             "taiko": self.taiko,
-            "flow": self.flow,
             "analysis": self.analysis,
             "buzz": self.buzz,
             "strategy": self.strategy.to_dict(),

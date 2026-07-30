@@ -36,9 +36,18 @@ def score_candidate(
     squeeze: dict | None,
     taiko,
     dexe,
+    flow=None,
 ) -> ScoreBuilder:
     """Собирает скор из всех источников сигнала."""
     sb = ScoreBuilder()
+
+    # ... surge, squeeze, taiko, dexe без изменений ...
+
+    # ── FLOW: внутренний скор 45..100 отображаем в 14..34 ──
+    # Семейство смотрит на характер потока, а не на цену: вклад
+    # сопоставим с TAIKO, но чуть скромнее — подкейсы разной зрелости.
+    if flow and flow.detected:
+        sb.add(int(14 + (flow.score - 45) * 0.36), "flow", f"FLOW {flow.case}")
 
     # ── Всплеск объёма ──
     if surge and surge.detected:
