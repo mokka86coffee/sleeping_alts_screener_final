@@ -12,7 +12,7 @@ from core.config import BUCKET_SCOUT
 from core.models import Candidate
 from detectors import (
     DexeSignal, TaikoSignal,
-    detect_dexe, detect_squeeze, detect_taiko, detect_volume_surge,
+    detect_dexe, detect_squeeze, detect_taiko, detect_volume_surge, detect_flow,
 )
 from sources.external import build_fundamental_take_live, get_fundamentals
 
@@ -66,6 +66,7 @@ def build_candidate(
         }
 
         # ── Детекторы ──
+        flow = detect_flow(symbol)
         surge = detect_volume_surge(symbol)
         squeeze = detect_squeeze(symbol)
         taiko = detect_taiko(symbol)

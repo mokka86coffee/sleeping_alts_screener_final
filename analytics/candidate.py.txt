@@ -12,7 +12,7 @@ from core.config import BUCKET_SCOUT
 from core.models import Candidate
 from detectors import (
     DexeSignal, TaikoSignal,
-    detect_dexe, detect_squeeze, detect_taiko, detect_volume_surge,
+    detect_dexe, detect_squeeze, detect_taiko, detect_volume_surge, detect_flow,
 )
 from sources.external import build_fundamental_take_live, get_fundamentals
 
@@ -66,6 +66,7 @@ def build_candidate(
         }
 
         # ── Детекторы ──
+        flow = detect_flow(symbol)
         surge = detect_volume_surge(symbol)
         squeeze = detect_squeeze(symbol)
         taiko = detect_taiko(symbol)
@@ -112,19 +113,10 @@ def build_candidate(
         has_pattern = taiko.detected or dexe.detected
         bucket = classify_bucket(score, has_pattern)
 
-        # ── Внимание рынка и вирусность ──
-        buzz = build_buzz(m)
-        is_viral, viral_label = detect_viral(buzz, surge, symbol, categories)
-
-        if is_viral:
-            tags.insert(0, {"text": viral_label, "class": "tag-pattern viral"})
-
-        # ── Защищённые треки ──
-        # Четыре стратегии отбираются собственной основой и не подлежат
-        # отсеву внешними фильтрами: вето остаётся справкой, но не блокирует.
-        protected = bool(taiko.detected or dexe.detected or surge.detected or is_viral)
-
         # ── Вето ──
+        # Защищённые треки отбираются собственной основой и не подлежат
+        # отсеву внешними фильтрами: вето остаётся справкой, но не блокирует.
+        protected = bool(taiko.detected or dexe.detected or surge.detected)
         veto = evaluate_veto(m, squeeze)
         vetoed = is_blocking(veto) and not protected
 
@@ -142,6 +134,14 @@ def build_candidate(
             tags.append({"text": categories[0], "class": "tag-cat"})
 
         sector = resolve_sector(categories)
+
+        # ── Внимание рынка и вирусность ──
+        # Считается после категорий: detect_viral смотрит на сектор монеты
+        buzz = build_buzz(m)
+        is_viral, viral_label = detect_viral(buzz, surge, symbol, categories)
+        if is_viral:
+            tags.insert(0, {"text": viral_label, "class": "tag-pattern viral"})
+            vetoed = False   # четвёртый защищённый трек
 
         # ── Аналитический текст ──
         analysis_parts = [
