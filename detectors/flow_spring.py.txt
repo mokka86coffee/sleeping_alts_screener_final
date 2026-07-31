@@ -14,12 +14,6 @@ rel_volume в противоположные стороны.
 Сама по себе пружина направления не имеет: сжатие разряжается в
 любую сторону. Направление задаёт зона под ней — spring без
 опорной зоны не собирается.
-
-Плато здесь НЕ обязательно, в отличие от churn. Фигурой является
-само сжатие, а долгое стояние над уровнем скорее говорит о
-затухании, чем о силе. Первый прогон показал цену прежнего
-единообразия: два ненулевых значения на 224 монеты — подкейс был
-задушен множителем, писавшимся под другую фигуру.
 """
 
 from __future__ import annotations
@@ -29,7 +23,6 @@ from detectors.flow_config import (
     PLATEAU_MAX_RANGE,
     SPRING_MIN_EVENTS,
     SPRING_QUIET_MAX,
-    VORTEX_MULT_MAX,
     ZONE_NEAR_PCT,
     ZONE_SINGLE_SCALE_WEIGHT,
 )
@@ -66,7 +59,11 @@ def _squeeze_ratio(base: list[Bar]) -> float:
     old, new = tail[:half], tail[half:]
 
     def amp(bars: list[Bar]) -> float:
-        vals = [(b.high - b.low) / b.close for b in bars if b.close > 0]
+        vals = [
+            (b.high - b.low) / b.close
+            for b in bars
+            if b.close > 0
+        ]
         return sum(vals) / len(vals) if vals else 0.0
 
     a_old, a_new = amp(old), amp(new)
@@ -104,7 +101,8 @@ def _support_zone(ctx: FlowContext) -> Zone | None:
         return None
 
     near = [
-        z for z in below
+        z
+        for z in below
         if (ctx.price - z.price) / ctx.price <= ZONE_NEAR_PCT * 1.5
     ]
     pool = near or below
@@ -155,6 +153,7 @@ def _base_score(
 
 def detect(ctx: FlowContext) -> SubcaseSignal | None:
     """Собирает фигуру spring либо возвращает None."""
+
     if veto_bullish(ctx):
         return None
 
@@ -199,18 +198,11 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     # ── Опора ────────────────────────────────────────────────
     # Пружина над подтверждённой зоной — сильнейшее сочетание
     # семейства: сжатие даёт момент, зона даёт направление.
-    # Множитель мягкий: отсутствие плато для spring не порок,
-    # фигура держится на сжатии, а не на выдержанном диапазоне.
-    sig.apply("zone_plateau", zone.plateau_mult(soft=True))
+    sig.apply("zone_plateau", zone.plateau_mult)
     if zone.plateau_bars > 0:
         sig.add(
             f"опора: зона {zone.price:.6g}, плато {zone.plateau_bars} дней",
             plateau_bars=float(zone.plateau_bars),
-        )
-    else:
-        sig.add(
-            f"опора: зона {zone.price:.6g}",
-            plateau_bars=0.0,
         )
 
     if len(zone.scales) < 2:
@@ -220,30 +212,6 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     if zone.tests >= 2:
         sig.apply("tested", 1.12)
         sig.add(f"опора выдержала {zone.tests} теста", tests=float(zone.tests))
-
-    # ── Вортекс на своём масштабе [MMT] ──────────────────────
-    # Для пружины это ответ на её единственную неопределённость:
-    # сжатие направления не имеет, и если перевес уже сложился на
-    # старшем масштабе — сторона разряда известна заранее.
-    vx = ctx.vortex
-    if vx.diverging and vx.vi_plus > vx.vi_minus:
-        mult = min(VORTEX_MULT_MAX, 1.0 + vx.spread * 0.5)
-        sig.apply("vortex_up", mult)
-        sig.add(
-            f"вортекс на масштабе {vx.scale}D разошёлся вверх "
-            f"({vx.vi_plus:.2f} против {vx.vi_minus:.2f})",
-            vortex_scale=float(vx.scale),
-            vortex_spread=vx.spread,
-        )
-    elif vx.diverging and vx.vi_minus > vx.vi_plus:
-        # Разряд с высокой вероятностью пойдёт вниз — а лонговая
-        # пружина именно этого и не переживает.
-        sig.apply("vortex_down", 0.65)
-        sig.add(
-            f"вортекс на масштабе {vx.scale}D разошёлся вниз",
-            vortex_scale=float(vx.scale),
-            vortex_spread=vx.spread,
-        )
 
     # ── Однородность серии ───────────────────────────────────
     if ctx.flow.homogeneity < HOMOGENEITY_MIN:

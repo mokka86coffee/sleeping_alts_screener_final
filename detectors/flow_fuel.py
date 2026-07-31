@@ -5,24 +5,24 @@
 предложение: при подходе цены снизу часть застрявших выходит в
 ноль, и движение упирается.
 
-Один подкейс, две роли, и это не двусмысленность, а свойство самой
-структуры:
+Подкейс читает карту предложения и срабатывает РОВНО в одном
+случае: уровни пройдены вверх и удержаны, а сверху пусто. Это
+положительная фигура — предложение снято, идти есть куда.
 
-  сопротивление — цена подходит снизу, зона гасит движение;
-  топливо       — зона уже пробита вверх, застрявшие вышли,
-                  над уровнем предложения больше нет.
+Обратная картина (завал над ценой) фигурой НЕ является и сигналом
+не возвращается: «сверху стена» — довод против движения, а не за
+него. Раньше эта ветка давала ослабленный положительный скор и
+давала большинство ложных срабатываний семейства. Её оценка
+осталась в коде как расчёт веса, но исход теперь — молчание.
 
-Роль определяется не зоной, а тем, где цена относительно неё и
-пробивала ли она уровень. Поэтому fuel — единственный подкейс
-семейства, читающий зоны сверху, и единственный, для которого
-обвал дельты не помеха: он описывает препятствие, а не разворот.
+Второе жёсткое условие: пустая карта зон означает отсутствие
+информации, а не свободный путь. Без зон подкейс молчит.
 """
 
 from __future__ import annotations
 
 from detectors.flow_config import (
     EXTREME_GROWTH_X,
-    ZONE_NEAR_PCT,
     ZONE_SINGLE_SCALE_WEIGHT,
 )
 from detectors.flow_core import FlowContext, Zone
@@ -39,9 +39,17 @@ FUEL_MAX_DISTANCE = 0.60
 BREAKOUT_MARGIN = 0.03
 BREAKOUT_HOLD_BARS = 5
 
+# Сколько уровней должно быть снято, чтобы это считалось картой,
+# а не единичным касанием. Один пройденный уровень есть почти у
+# любой монеты в умеренном росте.
+MIN_CLEARED = 2
+
+# Суммарный вес зон сверху, ниже которого небо считается чистым.
+CLEAR_SKY_WEIGHT = 0.35
+
 
 # ─────────────────────────────────────────────────────────────
-# Сбор зон сверху
+# Сбор зон
 # ─────────────────────────────────────────────────────────────
 
 def _zones_above(ctx: FlowContext) -> list[Zone]:
@@ -100,8 +108,25 @@ def _zone_weight(zone: Zone, ctx: FlowContext) -> float:
     rejections = 1.0 + min(0.4, zone.tests * 0.15)
 
     scales = 1.0 if len(zone.scales) >= 2 else ZONE_SINGLE_SCALE_WEIGHT
-
     return mass * proximity * rejections * scales
+
+
+def _cleared_mass(zones: list[Zone]) -> float:
+    """Сколько предложения реально снято пройденными уровнями.
+
+    Считаем по тем же тирам, что и давление сверху: снятый
+    уровень третьего тира весит вдвое против первого. Два слабых
+    касания не должны давать столько же, сколько две плиты.
+    """
+    total = 0.0
+    for z in zones:
+        if not z.events:
+            continue
+        top_tier = max(e.tier for e in z.events)
+        mass = {1: 0.5, 2: 0.8, 3: 1.0}.get(top_tier, 0.5)
+        scales = 1.0 if len(z.scales) >= 2 else ZONE_SINGLE_SCALE_WEIGHT
+        total += mass * scales
+    return total
 
 
 # ─────────────────────────────────────────────────────────────
@@ -115,95 +140,95 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     расположение предложения, и при сливе оно расположено ровно
     там же, где при накоплении.
     """
-
     if veto_common(ctx):
+        return None
+
+    # Нет карты — нет вывода. Пустой список зон это незнание, а
+    # не свободный путь наверх.
+    if not ctx.zones:
         return None
 
     above = _zones_above(ctx)
     cleared = _cleared_zones(ctx)
 
-    if not above and not cleared:
+    # Ниже порога карты фигуры нет. Сюда же попадает случай
+    # «сверху завал»: подкейс описывает только снятое
+    # предложение, стена над ценой доводом за движение не бывает.
+    if len(cleared) < MIN_CLEARED:
         return None
 
-    # ── Роль ─────────────────────────────────────────────────
     total_above = sum(_zone_weight(z, ctx) for z in above)
-    nearest = above[0] if above else None
+    if total_above >= CLEAR_SKY_WEIGHT:
+        return None
 
-    # Чистое небо: сверху ничего, снизу пройденные уровни.
-    clear_sky = total_above < 0.35 and bool(cleared)
+    # ── Скор ───────────────────────────────────────────────
+    # Считаем по снятой массе, а не по числу уровней: важно,
+    # сколько предложения ушло, а не сколько раз мы его пересекли.
+    mass = _cleared_mass(cleared)
+    score = 38.0 + min(24.0, mass * 11.0)
 
-    if clear_sky:
-        score = 42.0 + min(20.0, len(cleared) * 7.0)
-        role = "топливо"
-        zone_price = cleared[0].price
-    else:
-        # Сопротивление вычитает, а не добавляет: чем тяжелее
-        # сверху, тем меньше вклад. Скор здесь — оценка того,
-        # насколько путь свободен.
-        score = max(0.0, 62.0 - total_above * 34.0)
-        role = "сопротивление"
-        zone_price = nearest.price if nearest else 0.0
-
+    top = cleared[0]
     sig = SubcaseSignal(
         subcase=name,
         score=score,
         horizon_bars=ctx.horizon_bars,
-        zone_price=zone_price,
+        zone_price=top.price,
+    )
+    sig.add(
+        f"топливо: {len(cleared)} уровня снято вверх, сверху свободно",
+        cleared=float(len(cleared)),
+        cleared_mass=round(mass, 3),
+        weight_above=round(total_above, 3),
     )
 
-    if clear_sky:
-        sig.add(
-            f"{role}: {len(cleared)} уровня пройдено вверх, "
-            f"сверху свободно",
-            cleared=float(len(cleared)),
-            weight_above=total_above,
-        )
-        # Ближайший пройденный уровень становится опорой.
-        top = cleared[0]
-        if top.tests >= 1:
-            sig.apply("retest_held", 1.15)
+    # ── Ретест ─────────────────────────────────────────────
+    # Раньше это был бонус, который получали почти все, то есть
+    # константа. Теперь наоборот: пробой без единого возврата к
+    # уровню не подтверждён, и это штраф.
+    tested = [z for z in cleared if z.tests >= 1]
+    if tested:
+        best = max(tested, key=lambda z: z.tests)
+        if best.tests >= 2:
+            sig.apply("retest_held", 1.12)
             sig.add(
-                f"пройденный уровень {top.price:.6g} удержан на ретесте",
-                retest_price=top.price,
-                tests=float(top.tests),
+                f"уровень {best.price:.6g} удержан на {best.tests} ретестах",
+                retest_price=best.price,
+                tests=float(best.tests),
+            )
+        else:
+            sig.add(
+                f"уровень {best.price:.6g} удержан на ретесте",
+                retest_price=best.price,
+                tests=float(best.tests),
             )
     else:
-        dist_pct = (nearest.price - ctx.price) / ctx.price * 100
+        sig.apply("no_retest", 0.85)
+        sig.add("ни один пройденный уровень не тестировался сверху")
+
+    # ── Свежесть пробоя ────────────────────────────────────
+    # Пробой годовой давности картой предложения уже не управляет:
+    # состав держателей сменился.
+    if top.freshness > ctx.horizon_bars * 6:
+        sig.apply("stale_breakout", 0.75)
         sig.add(
-            f"{role}: {len(above)} зон сверху, ближайшая "
-            f"{nearest.price:.6g} (+{dist_pct:.1f}%)",
-            zones_above=float(len(above)),
-            weight_above=total_above,
-            nearest_dist=dist_pct / 100,
+            f"пробой давний ({top.freshness} баров назад)",
+            freshness=float(top.freshness),
         )
 
-        # Плотный завал прямо над ценой — движение упрётся почти
-        # сразу, горизонт до этого не доживёт.
-        if nearest and (nearest.price - ctx.price) / ctx.price <= ZONE_NEAR_PCT:
-            sig.apply("wall_close", 0.65)
-            sig.add("завал вплотную к цене")
-
-        if nearest and nearest.tests >= 2:
-            sig.apply("proven_wall", 0.75)
-            sig.add(
-                f"ближайшая зона уже отбила {nearest.tests} подхода",
-                nearest_tests=float(nearest.tests),
-            )
-
-    # ── Рост перед падением ──────────────────────────────────
-    # Зоны сверху тем тяжелее, чем сильнее был рост: у застрявших
-    # выше цена входа, и выходить они будут агрессивнее.
-    if ctx.growth_x >= EXTREME_GROWTH_X * 0.5 and not clear_sky:
-        sig.apply("growth_load", 0.8)
+    # ── Рост перед падением ────────────────────────────────
+    # Сильный рост в прошлом означает, что выше рабочей дистанции
+    # всё равно висят застрявшие — просто мы их не видим.
+    if ctx.growth_x >= EXTREME_GROWTH_X * 0.5:
+        sig.apply("growth_load", 0.85)
         sig.add(
-            f"рост перед падением x{ctx.growth_x:.1f} утяжеляет зоны",
+            f"рост перед падением x{ctx.growth_x:.1f}: выше могут быть "
+            f"зоны за горизонтом карты",
             growth_x=ctx.growth_x,
         )
 
-    # ── Восстановление объёма ────────────────────────────────
-    # Проходить завал нужно на объёме. Без него подход к зоне
-    # гасится даже небольшим предложением.
-    if ctx.volume_recovery < 1.0 and not clear_sky:
+    # ── Восстановление объёма ──────────────────────────────
+    # Снятое предложение ничего не даёт, если идти наверх некому.
+    if ctx.volume_recovery and ctx.volume_recovery < 1.0:
         sig.apply("thin_volume", 0.8)
         sig.add(
             f"объём не восстановился (x{ctx.volume_recovery:.2f})",

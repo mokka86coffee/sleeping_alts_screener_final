@@ -11,6 +11,8 @@
 Одиночное поглощение фигурой не является. Оно говорит «здесь
 столкнулись», но не говорит, кто победил. Победителя определяет
 то, что происходит потом: осталась цена над уровнем или нет.
+Поэтому плато здесь обязательно — в отличие от spring, где фигурой
+является само сжатие.
 """
 
 from __future__ import annotations
@@ -19,6 +21,7 @@ from detectors.flow_config import (
     CHURN_MIN_TIER,
     CHURN_NOISE_MIN_VOL,
     HOMOGENEITY_MIN,
+    VORTEX_MULT_MAX,
     ZONE_NEAR_PCT,
     ZONE_SINGLE_SCALE_WEIGHT,
 )
@@ -40,20 +43,24 @@ def _pick_zone(ctx: FlowContext) -> Zone | None:
     flow_fuel.
     """
     below = [
-        z
-        for z in ctx.zones
+        z for z in ctx.zones
         if z.price <= ctx.price and z.absorbed_events(CHURN_MIN_TIER)
     ]
     if not below:
         return None
 
     near = [
-        z
-        for z in below
+        z for z in below
         if (ctx.price - z.price) / ctx.price <= ZONE_NEAR_PCT
     ]
     pool = near or below
-    return max(pool, key=lambda z: (z.tests, -abs(ctx.price - z.price)))
+
+    # Приоритет отдаём выдержанным уровням: тесты и плато — прямое
+    # свидетельство работы, близость к цене лишь удобство входа.
+    return max(
+        pool,
+        key=lambda z: (z.tests, z.plateau_bars, -abs(ctx.price - z.price)),
+    )
 
 
 # ─────────────────────────────────────────────────────────────
@@ -95,7 +102,6 @@ def _base_score(zone: Zone) -> tuple[float, dict[str, float]]:
 
 def detect(ctx: FlowContext) -> SubcaseSignal | None:
     """Собирает фигуру churn либо возвращает None."""
-
     if veto_bullish(ctx):
         return None
 
@@ -109,6 +115,7 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
         return None
 
     score, facts = _base_score(zone)
+
     sig = SubcaseSignal(
         subcase=name,
         score=score,
@@ -122,14 +129,17 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     )
 
     # ── Плато: главный множитель фигуры ──────────────────────
-    # Без выдержанного диапазона над зоной вклад режется более чем
-    # вдвое. Именно плато отличает отработавшую фигуру от заготовки.
-    sig.apply("plateau", zone.plateau_mult)
+    # Без выдержанного диапазона над зоной вклад режется: именно
+    # плато отличает отработавшую фигуру от заготовки. Мягкий
+    # вариант множителя здесь НЕ применяется — он для spring.
+    sig.apply("plateau", zone.plateau_mult())
     if zone.plateau_bars > 0:
         sig.add(
             f"плато над зоной {zone.plateau_bars} дней",
             plateau_bars=float(zone.plateau_bars),
         )
+    else:
+        sig.add("плато над зоной не набралось", plateau_bars=0.0)
 
     # ── Подтверждение масштабами ─────────────────────────────
     if len(zone.scales) < 2:
@@ -154,6 +164,29 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     elif zone.tests == 0:
         sig.apply("untested", 0.8)
         sig.add("уровень ещё не тестировался", tests=0.0)
+
+    # ── Вортекс на своём масштабе [MMT] ──────────────────────
+    # Расхождение VI внутри плоской базы означает, что перевес
+    # уже сложился, хотя цена его не показывает. Для churn это
+    # ответ на главный вопрос фигуры: кто победил в столкновении.
+    vx = ctx.vortex
+    if vx.diverging and vx.vi_plus > vx.vi_minus:
+        mult = min(VORTEX_MULT_MAX, 1.0 + vx.spread * 0.4)
+        sig.apply("vortex_up", mult)
+        sig.add(
+            f"вортекс на масштабе {vx.scale}D разошёлся вверх "
+            f"({vx.vi_plus:.2f} против {vx.vi_minus:.2f})",
+            vortex_scale=float(vx.scale),
+            vortex_spread=vx.spread,
+        )
+    elif vx.diverging and vx.vi_minus > vx.vi_plus:
+        # Перевес в другую сторону: поглощали, но продавливают вниз.
+        sig.apply("vortex_down", 0.8)
+        sig.add(
+            f"вортекс на масштабе {vx.scale}D разошёлся вниз",
+            vortex_scale=float(vx.scale),
+            vortex_spread=vx.spread,
+        )
 
     # ── Однородность потока ──────────────────────────────────
     # Вклад, сделанный одним баром, не описывает намерение:

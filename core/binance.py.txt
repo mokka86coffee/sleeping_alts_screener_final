@@ -6,12 +6,6 @@
 и монета грузится один раз вместо четырёх.
 """
 
-# Семейство FLOW строит ВСЕ свои масштабы (2D, 3D, 5D, 10D) агрегацией
-# из klines_1d — отдельных запросов на старшие таймфреймы не делает.
-# Поэтому LIMIT_1D = 500 задаёт потолок глубины анализа: 500 дней даёт
-# 50 баров десятидневки, чего хватает на EVENT_NORM_WINDOW = 30.
-# Уменьшать нельзя, не пересчитав MIN_BARS_BASE в flow_config.
-
 from __future__ import annotations
 
 from core.config import BINANCE_FAPI, BINANCE_SPOT
@@ -205,9 +199,6 @@ K_CLOSE = 4
 K_VOLUME = 5          # объём в базовой монете
 K_CLOSE_TIME = 6
 K_QUOTE_VOLUME = 7    # объём в USDT
-K_TRADES = 8            # число сделок
-K_TAKER_BUY_BASE = 9    # покупки тейкеромs, базовая монета
-K_TAKER_BUY_QUOTE = 10  # покупки тейкером, USDT — база дельты в FLOW
 
 
 def series(klines: list[list], index: int, tail: int | None = None) -> list[float]:

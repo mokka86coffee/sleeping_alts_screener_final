@@ -1,0 +1,2717 @@
+[
+  {
+    "symbol": "MUUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 7,
+    "horizon_tf": "неделя",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 56.3,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 698.76 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 1 уровня пройдено вверх, сверху свободно; пройденный уровень 698.76 удержан на ретесте. Картина читается на неделя, ожидание порядка 7 дней.",
+    "parts": [
+      {
+        "zone_price": 698.7602554304381,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 698.76 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 1.0,
+          "weight_above": 0.0,
+          "retest_price": 698.760255,
+          "tests": 2.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 906.7,
+      "scales": [
+        1,
+        2,
+        3
+      ],
+      "events_total": 44,
+      "zones": [],
+      "drop": {
+        "growth_x": 3.49,
+        "drop_pct": 43.7,
+        "bars_since_bottom": 2,
+        "volume_recovery": 0.0,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": -0.0557,
+        "price_slope": -0.005,
+        "homogeneity": 0.57,
+        "buy_share": 0.493,
+        "collapsing": true,
+        "rel_volume": 14.44
+      },
+      "horizon": "неделя"
+    }
+  },
+  {
+    "symbol": "CLUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 7,
+    "horizon_tf": "неделя",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 56.3,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 78.9029 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 1 уровня пройдено вверх, сверху свободно; пройденный уровень 78.9029 удержан на ретесте. Картина читается на неделя, ожидание порядка 7 дней.",
+    "parts": [
+      {
+        "zone_price": 78.9029020249522,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 78.9029 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 1.0,
+          "weight_above": 0.0,
+          "retest_price": 78.902902,
+          "tests": 3.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 85.12,
+      "scales": [
+        1,
+        2,
+        3
+      ],
+      "events_total": 8,
+      "zones": [],
+      "drop": {
+        "growth_x": 1.21,
+        "drop_pct": 43.2,
+        "bars_since_bottom": 29,
+        "volume_recovery": 1.58,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": -0.1386,
+        "price_slope": 0.009,
+        "homogeneity": 0.78,
+        "buy_share": 0.496,
+        "collapsing": true,
+        "rel_volume": 0.88
+      },
+      "horizon": "неделя"
+    }
+  },
+  {
+    "symbol": "BANKUSDT",
+    "detected": true,
+    "score": 68,
+    "case": "flow_churn",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_churn": {
+        "score": 42.4,
+        "reasons": [
+          "поглощение на 0.0298299: тир 3, событий 6",
+          "плато над зоной 17 дней",
+          "подтверждено масштабами [1, 2, 3, 5]"
+        ],
+        "mults": {
+          "plateau": 0.45,
+          "tested": 1.15
+        }
+      }
+    },
+    "verdict": "Поглощение на уровне: поглощение на 0.0298299: тир 3, событий 6; плато над зоной 17 дней; подтверждено масштабами [1, 2, 3, 5]. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.029829917257590977,
+        "reasons": [
+          "поглощение на 0.0298299: тир 3, событий 6",
+          "плато над зоной 17 дней",
+          "подтверждено масштабами [1, 2, 3, 5]",
+          "уровень выдержал 2 теста"
+        ],
+        "facts": {
+          "tier": 3.0,
+          "sigma": 83.336232,
+          "events": 6.0,
+          "zone_price": 0.02983,
+          "plateau_bars": 17.0,
+          "scales": 4.0,
+          "tests": 2.0,
+          "last_test_age": 28.0
+        },
+        "mults": {
+          "plateau": 0.45,
+          "tested": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 0.05563,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 193,
+      "zones": [
+        {
+          "price": 0.0298299173,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 17,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 0.83,
+          "freshness": 28,
+          "tests": 2,
+          "plateau_bars": 17,
+          "broken": false
+        },
+        {
+          "price": 0.0556529503,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 21,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.88,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        },
+        {
+          "price": 0.0610811313,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 24,
+          "absorbed_ratio": 0.62,
+          "buy_ratio": 0.38,
+          "freshness": 1,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        },
+        {
+          "price": 0.1721582447,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 7,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 1.0,
+          "freshness": 2,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 0.0,
+        "drop_pct": 0.0,
+        "bars_since_bottom": 0,
+        "volume_recovery": 0.0,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": 0.1274,
+        "price_slope": 0.0694,
+        "homogeneity": 0.88,
+        "buy_share": 0.507,
+        "collapsing": false,
+        "rel_volume": 99.56
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "MMTUSDT",
+    "detected": true,
+    "score": 80,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 12,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_churn": {
+        "score": 25.2,
+        "reasons": [
+          "поглощение на 0.261: тир 3, событий 1",
+          "подтверждено масштабами [1, 2, 3, 5]",
+          "уровень ещё не тестировался"
+        ],
+        "mults": {
+          "plateau": 0.45,
+          "untested": 0.8
+        }
+      },
+      "flow_fuel": {
+        "score": 64.4,
+        "reasons": [
+          "топливо: 2 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 0.152363 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 2 уровня пройдено вверх, сверху свободно; пройденный уровень 0.152363 удержан на ретесте. Картина читается на недели, ожидание порядка 12 дней.",
+    "parts": [
+      {
+        "zone_price": 0.15236280712750996,
+        "reasons": [
+          "топливо: 2 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 0.152363 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 2.0,
+          "weight_above": 0.0,
+          "retest_price": 0.152363,
+          "tests": 2.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 0.261,
+      "scales": [
+        1,
+        2,
+        3,
+        5
+      ],
+      "events_total": 81,
+      "zones": [
+        {
+          "price": 0.1523628071,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 3,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.5,
+          "freshness": 15,
+          "tests": 2,
+          "plateau_bars": 17,
+          "broken": false
+        },
+        {
+          "price": 0.261,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.25,
+          "buy_ratio": 1.0,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 0.0,
+        "drop_pct": 0.0,
+        "bars_since_bottom": 0,
+        "volume_recovery": 0.0,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": 0.008,
+        "price_slope": 0.012,
+        "homogeneity": 0.66,
+        "buy_share": 0.503,
+        "collapsing": false,
+        "rel_volume": 1.51
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "HYPEUSDT",
+    "detected": true,
+    "score": 80,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 64.4,
+        "reasons": [
+          "топливо: 2 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 47.5686 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 2 уровня пройдено вверх, сверху свободно; пройденный уровень 47.5686 удержан на ретесте. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 47.56862382928008,
+        "reasons": [
+          "топливо: 2 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 47.5686 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 2.0,
+          "weight_above": 0.0,
+          "retest_price": 47.568624,
+          "tests": 1.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 55.024,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 122,
+      "zones": [
+        {
+          "price": 42.1074829815,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 10,
+          "absorbed_ratio": 0.17,
+          "buy_ratio": 0.67,
+          "freshness": 74,
+          "tests": 1,
+          "plateau_bars": 40,
+          "broken": false
+        },
+        {
+          "price": 47.5686238293,
+          "events": 9,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 20,
+          "absorbed_ratio": 0.22,
+          "buy_ratio": 0.56,
+          "freshness": 71,
+          "tests": 1,
+          "plateau_bars": 40,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 0.0,
+        "drop_pct": 31.4,
+        "bars_since_bottom": 0,
+        "volume_recovery": 0.0,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": -0.1203,
+        "price_slope": -0.0093,
+        "homogeneity": 0.65,
+        "buy_share": 0.491,
+        "collapsing": true,
+        "rel_volume": 0.66
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "COTIUSDT",
+    "detected": true,
+    "score": 56,
+    "case": "flow_fuel",
+    "strength_label": "умеренный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 20.7,
+        "reasons": [
+          "сопротивление: 1 зон сверху, ближайшая 0.01709 (+6.8%)",
+          "завал вплотную к цене"
+        ],
+        "mults": {
+          "wall_close": 0.65
+        }
+      }
+    },
+    "verdict": "Карта предложения: сопротивление: 1 зон сверху, ближайшая 0.01709 (+6.8%); завал вплотную к цене. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.01709,
+        "reasons": [
+          "сопротивление: 1 зон сверху, ближайшая 0.01709 (+6.8%)",
+          "завал вплотную к цене"
+        ],
+        "facts": {
+          "zones_above": 1.0,
+          "weight_above": 0.887348,
+          "nearest_dist": 0.067591
+        },
+        "mults": {
+          "wall_close": 0.65
+        }
+      }
+    ],
+    "context": {
+      "price": 0.016008,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 100,
+      "zones": [
+        {
+          "price": 0.016008,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.8,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        },
+        {
+          "price": 0.01709,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 1.0,
+          "freshness": 2,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 0.0,
+        "drop_pct": 74.7,
+        "bars_since_bottom": 11,
+        "volume_recovery": 1.05,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": -0.1106,
+        "price_slope": 0.0144,
+        "homogeneity": 0.34,
+        "buy_share": 0.499,
+        "collapsing": true,
+        "rel_volume": 0.74
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "ZECUSDT",
+    "detected": true,
+    "score": 84,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_spring": {
+        "score": 31.2,
+        "reasons": [
+          "сжатие x1.5 на серии из 17 событий, диапазон 30.0%",
+          "опора: зона 363.82, плато 19 дней",
+          "опора выдержала 2 теста"
+        ],
+        "mults": {
+          "zone_plateau": 0.45,
+          "tested": 1.12
+        }
+      },
+      "flow_fuel": {
+        "score": 71.3,
+        "reasons": [
+          "топливо: 4 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 363.82 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 4 уровня пройдено вверх, сверху свободно; пройденный уровень 363.82 удержан на ретесте. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 363.81989471216775,
+        "reasons": [
+          "топливо: 4 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 363.82 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 4.0,
+          "weight_above": 0.0,
+          "retest_price": 363.819895,
+          "tests": 2.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 457.79,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 220,
+      "zones": [
+        {
+          "price": 61.03,
+          "events": 3,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 5,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 1.0,
+          "freshness": 303,
+          "tests": 1,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 74.14,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.5,
+          "freshness": 302,
+          "tests": 1,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 127.395387917,
+          "events": 3,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.0,
+          "freshness": 295,
+          "tests": 1,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 363.8198947122,
+          "events": 7,
+          "scales": [
+            1,
+            2,
+            3,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.43,
+          "buy_ratio": 0.57,
+          "freshness": 31,
+          "tests": 2,
+          "plateau_bars": 19,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 3.74,
+        "drop_pct": 63.7,
+        "bars_since_bottom": 56,
+        "volume_recovery": 0.45,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": 0.0411,
+        "price_slope": 0.0013,
+        "homogeneity": 0.92,
+        "buy_share": 0.506,
+        "collapsing": false,
+        "rel_volume": 0.59
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "UNIUSDT",
+    "detected": true,
+    "score": 80,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 64.4,
+        "reasons": [
+          "топливо: 2 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 3.38244 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 2 уровня пройдено вверх, сверху свободно; пройденный уровень 3.38244 удержан на ретесте. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 3.382441351832684,
+        "reasons": [
+          "топливо: 2 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 3.38244 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 2.0,
+          "weight_above": 0.0,
+          "retest_price": 3.382441,
+          "tests": 3.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 4.35,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 115,
+      "zones": [
+        {
+          "price": 3.2860477399,
+          "events": 4,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 10,
+          "absorbed_ratio": 0.25,
+          "buy_ratio": 0.5,
+          "freshness": 10,
+          "tests": 2,
+          "plateau_bars": 23,
+          "broken": false
+        },
+        {
+          "price": 3.3824413518,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.83,
+          "buy_ratio": 0.67,
+          "freshness": 10,
+          "tests": 3,
+          "plateau_bars": 22,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 1.35,
+        "drop_pct": 64.8,
+        "bars_since_bottom": 55,
+        "volume_recovery": 0.87,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": -0.1141,
+        "price_slope": 0.0089,
+        "homogeneity": 0.83,
+        "buy_share": 0.497,
+        "collapsing": true,
+        "rel_volume": 1.38
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "INTCUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 12,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 56.3,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 58.22 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 1 уровня пройдено вверх, сверху свободно; пройденный уровень 58.22 удержан на ретесте. Картина читается на недели, ожидание порядка 12 дней.",
+    "parts": [
+      {
+        "zone_price": 58.22,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 58.22 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 1.0,
+          "weight_above": 0.0,
+          "retest_price": 58.22,
+          "tests": 2.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 94.8,
+      "scales": [
+        1,
+        2,
+        3,
+        5
+      ],
+      "events_total": 58,
+      "zones": [
+        {
+          "price": 58.22,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.5,
+          "freshness": 108,
+          "tests": 2,
+          "plateau_bars": 28,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 3.57,
+        "drop_pct": 45.4,
+        "bars_since_bottom": 2,
+        "volume_recovery": 0.0,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": -0.1168,
+        "price_slope": -0.0111,
+        "homogeneity": 0.77,
+        "buy_share": 0.49,
+        "collapsing": true,
+        "rel_volume": 2.0
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "AAPLUSDT",
+    "detected": true,
+    "score": 75,
+    "case": "flow_churn",
+    "strength_label": "экстремальный",
+    "horizon_days": 2,
+    "horizon_tf": "дни",
+    "horizon_readable": false,
+    "cases": {
+      "flow_churn": {
+        "score": 55.4,
+        "reasons": [
+          "поглощение на 293.624: тир 3, событий 3",
+          "плато над зоной 30 дней",
+          "подтверждено масштабами [1, 2]"
+        ],
+        "mults": {
+          "plateau": 0.588,
+          "tested": 1.15
+        }
+      }
+    },
+    "verdict": "Поглощение на уровне: поглощение на 293.624: тир 3, событий 3; плато над зоной 30 дней; подтверждено масштабами [1, 2].",
+    "parts": [
+      {
+        "zone_price": 293.6241458208912,
+        "reasons": [
+          "поглощение на 293.624: тир 3, событий 3",
+          "плато над зоной 30 дней",
+          "подтверждено масштабами [1, 2]",
+          "уровень выдержал 2 теста"
+        ],
+        "facts": {
+          "tier": 3.0,
+          "sigma": 14.045862,
+          "events": 3.0,
+          "zone_price": 293.624146,
+          "plateau_bars": 30.0,
+          "scales": 2.0,
+          "tests": 2.0,
+          "last_test_age": 24.0
+        },
+        "mults": {
+          "plateau": 0.588,
+          "tested": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 308.1,
+      "scales": [
+        1,
+        2,
+        3
+      ],
+      "events_total": 37,
+      "zones": [
+        {
+          "price": 279.5884195506,
+          "events": 5,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 13,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.4,
+          "freshness": 29,
+          "tests": 1,
+          "plateau_bars": 32,
+          "broken": false
+        },
+        {
+          "price": 293.6241458209,
+          "events": 7,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 17,
+          "absorbed_ratio": 0.57,
+          "buy_ratio": 0.71,
+          "freshness": 24,
+          "tests": 2,
+          "plateau_bars": 30,
+          "broken": false
+        },
+        {
+          "price": 309.844215119,
+          "events": 14,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 32,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.43,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 0.0,
+        "drop_pct": 0.0,
+        "bars_since_bottom": 0,
+        "volume_recovery": 0.0,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": 0.1897,
+        "price_slope": 0.0026,
+        "homogeneity": 0.85,
+        "buy_share": 0.506,
+        "collapsing": false,
+        "rel_volume": 6.98
+      },
+      "horizon": "дни"
+    }
+  },
+  {
+    "symbol": "AKEUSDT",
+    "detected": true,
+    "score": 60,
+    "case": "flow_churn",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_churn": {
+        "score": 27.7,
+        "reasons": [
+          "поглощение на 0.0039224: тир 3, событий 2",
+          "подтверждено масштабами [2, 3, 5, 10]",
+          "уровень ещё не тестировался"
+        ],
+        "mults": {
+          "plateau": 0.45,
+          "untested": 0.8
+        }
+      }
+    },
+    "verdict": "Поглощение на уровне: поглощение на 0.0039224: тир 3, событий 2; подтверждено масштабами [2, 3, 5, 10]; уровень ещё не тестировался. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.0039224,
+        "reasons": [
+          "поглощение на 0.0039224: тир 3, событий 2",
+          "подтверждено масштабами [2, 3, 5, 10]",
+          "уровень ещё не тестировался"
+        ],
+        "facts": {
+          "tier": 3.0,
+          "sigma": 95.539539,
+          "events": 2.0,
+          "zone_price": 0.003922,
+          "scales": 4.0,
+          "tests": 0.0
+        },
+        "mults": {
+          "plateau": 0.45,
+          "untested": 0.8
+        }
+      }
+    ],
+    "context": {
+      "price": 0.0039224,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 147,
+      "zones": [
+        {
+          "price": 0.0006777,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 1.0,
+          "freshness": 14,
+          "tests": 1,
+          "plateau_bars": 2,
+          "broken": false
+        },
+        {
+          "price": 0.001693184,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 18,
+          "absorbed_ratio": 0.17,
+          "buy_ratio": 1.0,
+          "freshness": 7,
+          "tests": 1,
+          "plateau_bars": 2,
+          "broken": false
+        },
+        {
+          "price": 0.0038123,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 1.0,
+          "freshness": 2,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        },
+        {
+          "price": 0.0039224,
+          "events": 4,
+          "scales": [
+            2,
+            3,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 1.0,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 0.0,
+        "drop_pct": 0.0,
+        "bars_since_bottom": 0,
+        "volume_recovery": 0.0,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": 0.1152,
+        "price_slope": 0.0975,
+        "homogeneity": 0.9,
+        "buy_share": 0.511,
+        "collapsing": false,
+        "rel_volume": 107.8
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "ONDOUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 56.3,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 0.280395 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 1 уровня пройдено вверх, сверху свободно; пройденный уровень 0.280395 удержан на ретесте. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.28039497082921216,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 0.280395 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 1.0,
+          "weight_above": 0.0,
+          "retest_price": 0.280395,
+          "tests": 1.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 0.4012,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 118,
+      "zones": [],
+      "drop": {
+        "growth_x": 1.17,
+        "drop_pct": 61.2,
+        "bars_since_bottom": 175,
+        "volume_recovery": 0.91,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": -0.0596,
+        "price_slope": 0.0096,
+        "homogeneity": 0.85,
+        "buy_share": 0.494,
+        "collapsing": true,
+        "rel_volume": 0.88
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "PAXGUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 56.3,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 3910.92 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 1 уровня пройдено вверх, сверху свободно; пройденный уровень 3910.92 удержан на ретесте. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 3910.916657708666,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 3910.92 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 1.0,
+          "weight_above": 0.0,
+          "retest_price": 3910.916658,
+          "tests": 8.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 4045.56,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 140,
+      "zones": [
+        {
+          "price": 3910.9166577087,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 14,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 0.67,
+          "freshness": 9,
+          "tests": 8,
+          "plateau_bars": 130,
+          "broken": false
+        },
+        {
+          "price": 4006.281307773,
+          "events": 19,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 39,
+          "absorbed_ratio": 0.42,
+          "buy_ratio": 0.47,
+          "freshness": 30,
+          "tests": 0,
+          "plateau_bars": 30,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 0.0,
+        "drop_pct": 30.0,
+        "bars_since_bottom": 0,
+        "volume_recovery": 0.0,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": -0.0601,
+        "price_slope": -0.0008,
+        "homogeneity": 0.74,
+        "buy_share": 0.49,
+        "collapsing": true,
+        "rel_volume": 0.91
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "MSTRUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 12,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 56.3,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 85.7855 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 1 уровня пройдено вверх, сверху свободно; пройденный уровень 85.7855 удержан на ретесте. Картина читается на недели, ожидание порядка 12 дней.",
+    "parts": [
+      {
+        "zone_price": 85.78551637919561,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 85.7855 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 1.0,
+          "weight_above": 0.0,
+          "retest_price": 85.785516,
+          "tests": 1.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 95.47,
+      "scales": [
+        1,
+        2,
+        3,
+        5
+      ],
+      "events_total": 41,
+      "zones": [
+        {
+          "price": 85.7855163792,
+          "events": 3,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 8,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.33,
+          "freshness": 29,
+          "tests": 1,
+          "plateau_bars": 31,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 1.69,
+        "drop_pct": 59.4,
+        "bars_since_bottom": 32,
+        "volume_recovery": 1.12,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": -0.026,
+        "price_slope": -0.0024,
+        "homogeneity": 0.56,
+        "buy_share": 0.502,
+        "collapsing": true,
+        "rel_volume": 1.93
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "AAVEUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 56.3,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 82.6461 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 1 уровня пройдено вверх, сверху свободно; пройденный уровень 82.6461 удержан на ретесте. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 82.64608942035225,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 82.6461 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 1.0,
+          "weight_above": 0.0,
+          "retest_price": 82.646089,
+          "tests": 2.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 96.97,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 97,
+      "zones": [
+        {
+          "price": 82.6460894204,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 10,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.75,
+          "freshness": 22,
+          "tests": 2,
+          "plateau_bars": 30,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 1.14,
+        "drop_pct": 72.1,
+        "bars_since_bottom": 55,
+        "volume_recovery": 1.14,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": -0.0451,
+        "price_slope": 0.0032,
+        "homogeneity": 0.77,
+        "buy_share": 0.491,
+        "collapsing": true,
+        "rel_volume": 1.13
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "WLDUSDT",
+    "detected": true,
+    "score": 80,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 64.4,
+        "reasons": [
+          "топливо: 2 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 0.280558 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 2 уровня пройдено вверх, сверху свободно; пройденный уровень 0.280558 удержан на ретесте. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.28055777632672924,
+        "reasons": [
+          "топливо: 2 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 0.280558 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 2.0,
+          "weight_above": 0.0,
+          "retest_price": 0.280558,
+          "tests": 1.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 0.3048,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 156,
+      "zones": [
+        {
+          "price": 0.2488046485,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 3,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.33,
+          "freshness": 68,
+          "tests": 2,
+          "plateau_bars": 27,
+          "broken": false
+        },
+        {
+          "price": 0.2805577763,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 11,
+          "absorbed_ratio": 0.2,
+          "buy_ratio": 0.2,
+          "freshness": 61,
+          "tests": 1,
+          "plateau_bars": 27,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 3.2,
+        "drop_pct": 59.2,
+        "bars_since_bottom": 2,
+        "volume_recovery": 0.0,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": -0.0622,
+        "price_slope": -0.0094,
+        "homogeneity": 0.43,
+        "buy_share": 0.482,
+        "collapsing": true,
+        "rel_volume": 1.08
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "KAITOUSDT",
+    "detected": true,
+    "score": 68,
+    "case": "flow_churn",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_churn": {
+        "score": 42.4,
+        "reasons": [
+          "поглощение на 0.998968: тир 3, событий 6",
+          "плато над зоной 4 дней",
+          "подтверждено масштабами [1, 2, 3, 5, 10]"
+        ],
+        "mults": {
+          "plateau": 0.45,
+          "tested": 1.15
+        }
+      }
+    },
+    "verdict": "Поглощение на уровне: поглощение на 0.998968: тир 3, событий 6; плато над зоной 4 дней; подтверждено масштабами [1, 2, 3, 5, 10]. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.9989676771065107,
+        "reasons": [
+          "поглощение на 0.998968: тир 3, событий 6",
+          "плато над зоной 4 дней",
+          "подтверждено масштабами [1, 2, 3, 5, 10]",
+          "уровень выдержал 2 теста"
+        ],
+        "facts": {
+          "tier": 3.0,
+          "sigma": 10.642477,
+          "events": 6.0,
+          "zone_price": 0.998968,
+          "plateau_bars": 4.0,
+          "scales": 5.0,
+          "tests": 2.0,
+          "last_test_age": 0.0
+        },
+        "mults": {
+          "plateau": 0.45,
+          "tested": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 1.083,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 175,
+      "zones": [
+        {
+          "price": 0.5467649848,
+          "events": 8,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 18,
+          "absorbed_ratio": 0.88,
+          "buy_ratio": 0.38,
+          "freshness": 27,
+          "tests": 1,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.5598558562,
+          "events": 9,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 21,
+          "absorbed_ratio": 0.78,
+          "buy_ratio": 0.67,
+          "freshness": 27,
+          "tests": 1,
+          "plateau_bars": 9,
+          "broken": false
+        },
+        {
+          "price": 0.64367088,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 21,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.5,
+          "freshness": 16,
+          "tests": 1,
+          "plateau_bars": 8,
+          "broken": false
+        },
+        {
+          "price": 0.9989676771,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 22,
+          "absorbed_ratio": 0.75,
+          "buy_ratio": 0.5,
+          "freshness": 0,
+          "tests": 2,
+          "plateau_bars": 4,
+          "broken": false
+        },
+        {
+          "price": 1.0837361889,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 14,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 0.67,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        },
+        {
+          "price": 1.2503868036,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 20,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 0.38,
+          "freshness": 2,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 0.0,
+        "drop_pct": 0.0,
+        "bars_since_bottom": 0,
+        "volume_recovery": 0.0,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": 0.0596,
+        "price_slope": 0.0278,
+        "homogeneity": 0.72,
+        "buy_share": 0.507,
+        "collapsing": false,
+        "rel_volume": 7.48
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "NEARUSDT",
+    "detected": true,
+    "score": 80,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 64.4,
+        "reasons": [
+          "топливо: 2 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 1.5902 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 2 уровня пройдено вверх, сверху свободно; пройденный уровень 1.5902 удержан на ретесте. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 1.5901988536890321,
+        "reasons": [
+          "топливо: 2 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 1.5902 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 2.0,
+          "weight_above": 0.0,
+          "retest_price": 1.590199,
+          "tests": 1.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 1.656,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 139,
+      "zones": [
+        {
+          "price": 1.1434475949,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.67,
+          "freshness": 118,
+          "tests": 3,
+          "plateau_bars": 72,
+          "broken": false
+        },
+        {
+          "price": 1.5901988537,
+          "events": 10,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 14,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.7,
+          "freshness": 71,
+          "tests": 1,
+          "plateau_bars": 36,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 3.67,
+        "drop_pct": 49.1,
+        "bars_since_bottom": 2,
+        "volume_recovery": 0.0,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": -0.0749,
+        "price_slope": -0.0059,
+        "homogeneity": 0.56,
+        "buy_share": 0.48,
+        "collapsing": true,
+        "rel_volume": 0.77
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "GOOGLUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 2,
+    "horizon_tf": "дни",
+    "horizon_readable": false,
+    "cases": {
+      "flow_fuel": {
+        "score": 56.3,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 319.605 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 1 уровня пройдено вверх, сверху свободно; пройденный уровень 319.605 удержан на ретесте.",
+    "parts": [
+      {
+        "zone_price": 319.6052219456579,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 319.605 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 1.0,
+          "weight_above": 0.0,
+          "retest_price": 319.605222,
+          "tests": 1.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 338.42,
+      "scales": [
+        1,
+        2,
+        3
+      ],
+      "events_total": 33,
+      "zones": [
+        {
+          "price": 319.6052219457,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 11,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.5,
+          "freshness": 0,
+          "tests": 1,
+          "plateau_bars": 6,
+          "broken": false
+        },
+        {
+          "price": 333.2095597352,
+          "events": 4,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.25,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 0.0,
+        "drop_pct": 23.0,
+        "bars_since_bottom": 0,
+        "volume_recovery": 0.0,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": -0.103,
+        "price_slope": -0.0041,
+        "homogeneity": 0.36,
+        "buy_share": 0.488,
+        "collapsing": true,
+        "rel_volume": 2.68
+      },
+      "horizon": "дни"
+    }
+  },
+  {
+    "symbol": "PUMPUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 56.3,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 0.00151649 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 1 уровня пройдено вверх, сверху свободно; пройденный уровень 0.00151649 удержан на ретесте. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.0015164901844164924,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 0.00151649 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 1.0,
+          "weight_above": 0.0,
+          "retest_price": 0.001516,
+          "tests": 1.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 0.002032,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 50,
+      "zones": [
+        {
+          "price": 0.0015164902,
+          "events": 3,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 3,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 0.67,
+          "freshness": 15,
+          "tests": 1,
+          "plateau_bars": 13,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 2.0,
+        "drop_pct": 65.8,
+        "bars_since_bottom": 36,
+        "volume_recovery": 1.29,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": 0.1487,
+        "price_slope": 0.0117,
+        "homogeneity": 0.89,
+        "buy_share": 0.501,
+        "collapsing": false,
+        "rel_volume": 1.13
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "EULUSDT",
+    "detected": true,
+    "score": 67,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 40.3,
+        "reasons": [
+          "сопротивление: 1 зон сверху, ближайшая 1.64271 (+21.6%)"
+        ],
+        "mults": {}
+      }
+    },
+    "verdict": "Карта предложения: сопротивление: 1 зон сверху, ближайшая 1.64271 (+21.6%). Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 1.6427105113256528,
+        "reasons": [
+          "сопротивление: 1 зон сверху, ближайшая 1.64271 (+21.6%)"
+        ],
+        "facts": {
+          "zones_above": 1.0,
+          "weight_above": 0.63968,
+          "nearest_dist": 0.216192
+        },
+        "mults": {}
+      }
+    ],
+    "context": {
+      "price": 1.3507,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 81,
+      "zones": [
+        {
+          "price": 1.3506601394,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.6,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        },
+        {
+          "price": 1.6427105113,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 13,
+          "absorbed_ratio": 0.6,
+          "buy_ratio": 0.4,
+          "freshness": 2,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 0.0,
+        "drop_pct": 83.7,
+        "bars_since_bottom": 124,
+        "volume_recovery": 1.17,
+        "suspicious": true,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": 0.1646,
+        "price_slope": 0.019,
+        "homogeneity": 0.52,
+        "buy_share": 0.501,
+        "collapsing": false,
+        "rel_volume": 0.39
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "AVAXUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 56.3,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 5.89 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 1 уровня пройдено вверх, сверху свободно; пройденный уровень 5.89 удержан на ретесте. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 5.89,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 5.89 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 1.0,
+          "weight_above": 0.0,
+          "retest_price": 5.89,
+          "tests": 1.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 6.427,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 90,
+      "zones": [
+        {
+          "price": 5.89,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 3,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.0,
+          "freshness": 34,
+          "tests": 1,
+          "plateau_bars": 42,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 1.33,
+        "drop_pct": 62.0,
+        "bars_since_bottom": 42,
+        "volume_recovery": 0.7,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": -0.088,
+        "price_slope": -0.002,
+        "homogeneity": 0.84,
+        "buy_share": 0.491,
+        "collapsing": true,
+        "rel_volume": 0.57
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "XMRUSDT",
+    "detected": true,
+    "score": 84,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 71.3,
+        "reasons": [
+          "топливо: 4 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 303.327 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 4 уровня пройдено вверх, сверху свободно; пройденный уровень 303.327 удержан на ретесте. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 303.3266763933769,
+        "reasons": [
+          "топливо: 4 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 303.327 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 4.0,
+          "weight_above": 0.0,
+          "retest_price": 303.326676,
+          "tests": 4.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 349.67,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 169,
+      "zones": [
+        {
+          "price": 254.2867771507,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 10,
+          "absorbed_ratio": 0.6,
+          "buy_ratio": 0.6,
+          "freshness": 328,
+          "tests": 4,
+          "plateau_bars": 81,
+          "broken": false
+        },
+        {
+          "price": 259.3732314626,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 8,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 0.33,
+          "freshness": 293,
+          "tests": 2,
+          "plateau_bars": 81,
+          "broken": false
+        },
+        {
+          "price": 294.4384534734,
+          "events": 7,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 11,
+          "absorbed_ratio": 0.43,
+          "buy_ratio": 0.43,
+          "freshness": 28,
+          "tests": 4,
+          "plateau_bars": 43,
+          "broken": false
+        },
+        {
+          "price": 303.3266763934,
+          "events": 3,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 4,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 0.67,
+          "freshness": 20,
+          "tests": 4,
+          "plateau_bars": 43,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 2.22,
+        "drop_pct": 65.6,
+        "bars_since_bottom": 175,
+        "volume_recovery": 0.29,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": -0.0038,
+        "price_slope": 0.0042,
+        "homogeneity": 0.88,
+        "buy_share": 0.499,
+        "collapsing": false,
+        "rel_volume": 0.66
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "INJUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 56.3,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 3.41793 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 1 уровня пройдено вверх, сверху свободно; пройденный уровень 3.41793 удержан на ретесте. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 3.417927902557811,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 3.41793 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 1.0,
+          "weight_above": 0.0,
+          "retest_price": 3.417928,
+          "tests": 1.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 4.84,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 115,
+      "zones": [
+        {
+          "price": 3.4179279026,
+          "events": 4,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 8,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 1.0,
+          "freshness": 90,
+          "tests": 1,
+          "plateau_bars": 39,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 2.79,
+        "drop_pct": 45.3,
+        "bars_since_bottom": 36,
+        "volume_recovery": 0.56,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 0
+      },
+      "flow": {
+        "delta_slope": -0.0638,
+        "price_slope": 0.0013,
+        "homogeneity": 0.84,
+        "buy_share": 0.484,
+        "collapsing": true,
+        "rel_volume": 0.77
+      },
+      "horizon": "недели"
+    }
+  },
+  {
+    "symbol": "RIFUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "экстремальный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_churn": {
+        "score": 29.5,
+        "reasons": [
+          "поглощение на 0.0829828: тир 3, событий 7",
+          "подтверждено масштабами [1, 2, 5, 10]",
+          "уровень ещё не тестировался"
+        ],
+        "mults": {
+          "plateau": 0.45,
+          "untested": 0.8
+        }
+      },
+      "flow_fuel": {
+        "score": 56.3,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 0.0324037 удержан на ретесте"
+        ],
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 1 уровня пройдено вверх, сверху свободно; пройденный уровень 0.0324037 удержан на ретесте. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.03240365788061215,
+        "reasons": [
+          "топливо: 1 уровня пройдено вверх, сверху свободно",
+          "пройденный уровень 0.0324037 удержан на ретесте"
+        ],
+        "facts": {
+          "cleared": 1.0,
+          "weight_above": 0.0,
+          "retest_price": 0.032404,
+          "tests": 4.0
+        },
+        "mults": {
+          "retest_held": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 0.08363,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "events_total": 213,
+      "zones": [
+        {
+          "price": 0.0324036579,
+          "events": 6,
+          "scales": [
+            1,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 10,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 0.33,
+          "freshness": 116,
+          "tests": 4,
+          "plateau_bars": 37,
+          "broken": false
+        },
+        {
+          "price": 0.0829827911,
+          "events": 9,
+          "scales": [
+            1,
+            2,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 27,
+          "absorbed_ratio": 0.78,
+          "buy_ratio": 0.56,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "drop": {
+        "growth_x": 5.19,
+        "drop_pct": 70.1,
+        "bars_since_bottom": 9,
+        "volume_recovery": 0.0,
+        "suspicious": false,
+        "extreme_growth": false,
+        "distrust_zones": 1
+      },
+      "flow": {
+        "delta_slope": 0.0431,
+        "price_slope": -0.0126,
+        "homogeneity": 0.71,
+        "buy_share": 0.503,
+        "collapsing": false,
+        "rel_volume": 5.39
+      },
+      "horizon": "недели"
+    }
+  }
+]
