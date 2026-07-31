@@ -34,7 +34,8 @@ from core.binance import get_futures_tickers
 from core.config import (
     EXCLUDE_TOKENS, MAX_SYMBOLS, MAX_WORKERS,
     MIN_QUOTE_VOLUME_24H, RVOL_WARM, STABLECOINS,
-    LOOP_INTERVAL_SEC, REPORT_PATH,
+    LOOP_INTERVAL_SEC, REPORT_PATH, BASE_DIR, GIT_ADD_ALL_CHANGED,
+    GIT_TIMEOUT_SEC, COMMIT_MSG,
 )
 from core.http import log
 from core.models import Candidate, FunnelStage, RunSnapshot
@@ -379,7 +380,7 @@ def _git(*cmd: str) -> tuple[int, str]:
     try:
         proc = subprocess.run(
             ("git", *cmd),
-            cwd=ROOT,
+            cwd=BASE_DIR,
             capture_output=True,
             text=True,
             timeout=GIT_TIMEOUT_SEC,
@@ -395,11 +396,11 @@ def _git(*cmd: str) -> tuple[int, str]:
 
 def git_publish() -> bool:
     """add → commit → push. Пустой коммит не создаётся."""
-    if not (ROOT / ".git").exists():
+    if not (BASE_DIR / ".git").exists():
         log("→ git: репозиторий не найден, публикация пропущена")
         return False
 
-    code, out = _git("add", GIT_ADD_HTML_ONLY) # GIT_ADD_HTML_ONLY | GIT_ADD_ALL_CHANGED
+    code, out = _git("add", GIT_ADD_ALL_CHANGED) # GIT_ADD_HTML_ONLY | GIT_ADD_ALL_CHANGED
     if code != 0:
         log(f"✗ git add: {out}")
         return False
@@ -554,83 +555,35 @@ def run_once(args: argparse.Namespace) -> int:
 # ─────────────────────────────────────────────────────────────
 def main() -> int:
     args = parse_args()
-    started = time.monotonic()
 
-    # ── Отбор ──
-    if args.symbols:
-        symbols = resolve_explicit_symbols(args.symbols)
-        select_stats = {"selected": len(symbols), "explicit": True}
-        log(f"→ Явно заданы {len(symbols)} монет")
-    else:
-        log("→ Загружаю тикеры Binance Futures")
-        symbols, select_stats = select_symbols(args.limit)
-        if not symbols:
-            log("✗ Не удалось получить тикеры")
-            return 1
-        log(f"→ Из {select_stats['total_pairs']} пар отобрано {len(symbols)}: "
-            f"исключено {select_stats['excluded']}, "
-            f"мало объёма у {select_stats['low_volume']}")
+    if not args.loop:
+        return run_once(args)
 
-    # ── Анализ ──
-    log(f"→ Обрабатываю в {args.workers} потоках")
-    candidates, errors = analyze_all(symbols, args.workers)
+    interval = max(60, args.interval)
+    log(f"→ Режим цикла: прогон каждые {interval // 3600}ч "
+        f"{interval % 3600 // 60}мин · Ctrl+C для остановки")
 
-    duration = time.monotonic() - started
+    runs = 0
+    while True:
+        runs += 1
+        log(f"\n{'═' * 60}\n→ Прогон #{runs} · "
+            f"{datetime.now():%d.%m.%Y %H:%M:%S}\n{'═' * 60}")
 
-    if errors:
-        log(f"\n⚠ Ошибок: {len(errors)} из {len(symbols)}")
-        for sym, err in errors[:10]:
-            log(f"   {sym}: {err}")
+        try:
+            run_once(args)
+        except Exception as e:
+            # Падение одного прогона не должно убивать планировщик
+            log(f"✗ Прогон #{runs} упал: {type(e).__name__}: {e}")
+            traceback.print_exc()
 
-    if not candidates:
-        log("✗ Ни одной монеты не удалось проанализировать")
-        return 1
+        nxt = datetime.now() + timedelta(seconds=interval)
+        log(f"\n→ Следующий прогон в {nxt:%H:%M:%S}")
 
-    # ── Снимок ──
-    snapshot = build_snapshot(candidates, len(symbols), duration, len(errors))
-
-    log("\n→ Воронка отбора")
-    for stage in snapshot.funnel:
-        bar = "█" * max(1, int(stage.share_pct / 3))
-        log(f"   {stage.label:<16} {stage.count:>4}  {bar} {stage.share_pct:>5.1f}%")
-
-    if snapshot.veto_stats:
-        log("\n→ Причины вето")
-        for v in snapshot.veto_stats:
-            log(f"   {v['label']:<16} {v['count']:>3}  ({v['severity']})")
-
-    regime = snapshot.market_regime
-    log(f"\n→ Режим рынка: {regime.get('regime', '—').upper()} · "
-        f"аппетит {regime.get('appetite', 0)}/5 · "
-        f"{regime.get('note', '')}")
-
-    if snapshot.sectors:
-        top = snapshot.sectors[0]
-        bottom = snapshot.sectors[-1]
-        log(f"→ Сектора: лидер {top['sector']} {top['avg_change_24h']:+.1f}%, "
-            f"аутсайдер {bottom['sector']} {bottom['avg_change_24h']:+.1f}%")
-
-    # ── Сравнение с прошлым прогоном ──
-    if not args.no_save:
-        diff = compare_with_previous(snapshot)
-        if diff.get("has_previous"):
-            if diff["new"]:
-                log(f"→ Новые в работе: {', '.join(diff['new'][:8])}")
-            if diff["gone"]:
-                log(f"→ Выбыли из работы: {', '.join(diff['gone'][:8])}")
-
-        path = save_snapshot(snapshot)
-        log(f"→ Снимок сохранён: {path}")
-
-    # ── Отчёт ──
-    if not args.no_html:
-        if render_report(candidates, snapshot):
-            log(f"✓ Отчёт готов: {REPORT_PATH}")
-
-    log(f"\n✓ Прогон завершён за {duration:.0f}с · "
-        f"{snapshot.counts['tradable']} монет к работе "
-        f"из {len(candidates)} проанализированных")
-    return 0
+        try:
+            time.sleep(interval)
+        except KeyboardInterrupt:
+            log("\n✗ Цикл остановлен")
+            return 130
 
 
 if __name__ == "__main__":
