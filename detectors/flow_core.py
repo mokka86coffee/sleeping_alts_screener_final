@@ -248,20 +248,38 @@ def aggregate(bars: list[Bar], scale: int) -> list[Bar]:
     крупное. Крупный масштаб не показывает другое, он суммирует то,
     что тонуло в шуме.
 
-    Хвост обрезается с начала, чтобы последний бар всегда был полным
-    по правому краю: незакрытый бар справа искажает всю логику отклика.
+    Хвост НЕ обрезается: последний бар может быть неполным, но он
+    несёт самые свежие события. Вместо этого он помечается долей
+    заполнения, а сигма считается по приведённому объёму.
     """
     if scale <= 1:
         return bars
     n = len(bars)
     if n < scale:
         return []
+
+    # Выравнивание с начала: правый край обязан заканчиваться
+    # текущим баром, иначе свежие события теряют масштаб.
     start = n % scale
     out: list[Bar] = []
+
+    if start:
+        head = bars[:start]
+        out.append(
+            Bar(
+                idx=head[0].idx,
+                open=head[0].open,
+                high=max(b.high for b in head),
+                low=min(b.low for b in head),
+                close=head[-1].close,
+                quote=sum(b.quote for b in head),
+                buy_quote=sum(b.buy_quote for b in head),
+                fill=len(head) / scale,
+            )
+        )
+
     for i in range(start, n, scale):
         chunk = bars[i : i + scale]
-        if len(chunk) < scale:
-            break
         out.append(
             Bar(
                 idx=chunk[0].idx,
@@ -271,6 +289,7 @@ def aggregate(bars: list[Bar], scale: int) -> list[Bar]:
                 close=chunk[-1].close,
                 quote=sum(b.quote for b in chunk),
                 buy_quote=sum(b.buy_quote for b in chunk),
+                fill=len(chunk) / scale,
             )
         )
     return out
@@ -290,7 +309,8 @@ class Event:
     """Аномальный объём одной стороны."""
 
     scale: int
-    bar_idx: int          # позиция в ряду своего масштаба
+    bar_idx: int    # позиция в ряду своего масштаба
+    day_idx: int    # позиция конца бара в дневном ряду
     age: int              # сколько баров назад от правого края
     price: float          # уровень события
     side: str             # "buy" | "sell"
@@ -350,12 +370,24 @@ def find_events(bars: list[Bar], scale: int) -> list[Event]:
 
     for i in range(EVENT_NORM_WINDOW, n):
         bar = bars[i]
-        lo = max(0, i - EVENT_NORM_WINDOW)
-        buys = [b.buy_quote for b in bars[lo:i]]
-        sells = [b.sell_quote for b in bars[lo:i]]
 
-        sig_buy = robust_sigma(bar.buy_quote, buys)
-        sig_sell = robust_sigma(bar.sell_quote, sells)
+        # Бар набран меньше чем на треть — судить не о чем.
+        if bar.fill < PARTIAL_BAR_MIN_FILL:
+            continue
+
+        lo = max(0, i - EVENT_NORM_WINDOW)
+        # Норма строится только по полным барам: неполный в выборке
+        # занижает медиану и делает аномалией любой обычный объём.
+        norm = [b for b in bars[lo:i] if b.fill >= 1.0]
+        if len(norm) < EVENT_NORM_WINDOW // 2:
+            continue
+
+        buys = [b.buy_quote for b in norm]
+        sells = [b.sell_quote for b in norm]
+
+        k = bar.scale_factor
+        sig_buy = robust_sigma(bar.buy_quote * k, buys)
+        sig_sell = robust_sigma(bar.sell_quote * k, sells)
 
         # Обе стороны аномальны — берём доминирующую.
         if sig_buy >= sig_sell:
@@ -391,6 +423,7 @@ def find_events(bars: list[Bar], scale: int) -> list[Event]:
             Event(
                 scale=scale,
                 bar_idx=i,
+                day_idx=bar.idx + max(1, scale) - 1,
                 age=age,
                 price=bar.close,
                 side=side,
@@ -419,6 +452,13 @@ class Zone:
     events: list[Event] = field(default_factory=list)
     scales: set[int] = field(default_factory=set)
 
+    # История уровня после события. Заполняется annotate_zone_history.
+    tests: int = 0            # успешных тестов уровня
+    last_test_age: int = -1   # давность последнего теста, в днях
+    broken: bool = False      # цена уходила под зону
+    plateau_bars: int = 0     # длина плато над зоной, в днях
+    zones_below: int = 0      # сколько живых зон ниже этой
+
     @property
     def strength(self) -> float:
         return sum(e.volume for e in self.events)
@@ -440,11 +480,56 @@ class Zone:
         return sum(1 for e in self.events if e.side == "buy") / len(self.events)
 
     @property
-    def freshness(self) -> int:
-        """Давность последнего события в зоне, в дневных барах."""
+    def event_age(self) -> int:
+        """Давность самого события, в дневных барах."""
         if not self.events:
             return 10_000
         return min(e.age * max(1, e.scale) for e in self.events)
+
+    @property
+    def freshness(self) -> int:
+        """Рабочая давность зоны.
+
+        Событие стареет, зона — нет: она живёт, пока цена её не
+        пробила. Каждый успешный тест обнуляет возраст. На KOMA
+        между событием и выносом прошло ~200 дней, и всё это время
+        зона была рабочей — цена ни разу не ушла под неё.
+        """
+        if self.broken and ZONE_DEAD_AFTER_BREAK:
+            return 10_000
+        if self.last_test_age >= 0:
+            return self.last_test_age
+        return self.event_age
+
+    @property
+    def alive(self) -> bool:
+        if self.broken and ZONE_DEAD_AFTER_BREAK:
+            return False
+        if self.tests > 0:
+            return True
+        return self.event_age <= ZONE_MAX_AGE_UNTESTED
+
+    @property
+    def plateau_mult(self) -> float:
+        """Множитель за выдержанное плато над зоной.
+
+        Одиночное поглощение — заготовка. Фигуру закрывает то, что
+        цена осталась выше уровня: значит принимавший победил.
+        """
+        if self.plateau_bars < PLATEAU_MIN_BARS:
+            return PLATEAU_MULT_NONE
+        if self.plateau_bars >= PLATEAU_FULL_BARS:
+            return PLATEAU_MULT_FULL
+        span = PLATEAU_FULL_BARS - PLATEAU_MIN_BARS
+        k = (self.plateau_bars - PLATEAU_MIN_BARS) / span
+        return PLATEAU_MULT_NONE + k * (PLATEAU_MULT_FULL - PLATEAU_MULT_NONE)
+
+    def absorbed_events(self, min_tier: int = 1) -> list[Event]:
+        """Поглощённые события зоны не ниже заданного тира."""
+        return [
+            e for e in self.events
+            if e.absorbed and e.tier >= min_tier
+        ]
 
     @property
     def confirmed(self) -> bool:
@@ -460,6 +545,9 @@ class Zone:
             "absorbed_ratio": round(self.absorbed_ratio, 2),
             "buy_ratio": round(self.buy_ratio, 2),
             "freshness": self.freshness,
+            "tests": self.tests,
+            "plateau_bars": self.plateau_bars,
+            "broken": self.broken,
         }
 
 
@@ -491,6 +579,64 @@ def build_zones(events: list[Event]) -> list[Zone]:
         zones.append(_make_zone(current))
 
     return [z for z in zones if len(z.events) >= ZONE_MIN_EVENTS]
+
+def annotate_zone_history(zone: Zone, base: list[Bar]) -> None:
+    """Проходит дневки после события и заполняет тесты, пробой, плато.
+
+    Тест — заход цены в окрестность зоны с последующим уходом вверх.
+    Пробой — закрытие или прокол заметно ниже уровня. Плато —
+    непрерывная серия баров над зоной в узком диапазоне.
+
+    Отсчёт ведётся от КОНЦА самого позднего события зоны: пока бар
+    события не закрылся, судить о том, удержался уровень или нет,
+    нельзя.
+    """
+    if zone.price <= 0 or not zone.events:
+        return
+
+    start = max(e.day_idx for e in zone.events)
+    tail = [b for b in base if b.idx > start]
+    if len(tail) < 3:
+        return
+
+    touch = zone.price * (1 + ZONE_TEST_TOUCH_PCT)
+    breach = zone.price * (1 - ZONE_TEST_HOLD_PCT)
+
+    in_touch = False
+    plateau_run = 0
+    plateau_hi = 0.0
+    plateau_lo = float("inf")
+    best_plateau = 0
+
+    for pos, b in enumerate(tail):
+        if b.close <= breach or b.low <= breach:
+            zone.broken = True
+            plateau_run = 0
+            plateau_hi, plateau_lo = 0.0, float("inf")
+            in_touch = False
+            continue
+
+        # Плато: бар держится над зоной, диапазон не разъезжается.
+        plateau_run += 1
+        plateau_hi = max(plateau_hi, b.high)
+        plateau_lo = min(plateau_lo, b.low)
+        width = (plateau_hi - plateau_lo) / b.close if b.close > 0 else 1.0
+        if width > PLATEAU_MAX_RANGE:
+            best_plateau = max(best_plateau, plateau_run - 1)
+            plateau_run = 1
+            plateau_hi, plateau_lo = b.high, b.low
+        else:
+            best_plateau = max(best_plateau, plateau_run)
+
+        # Тест: зашли в окрестность и вышли обратно вверх.
+        if b.low <= touch:
+            in_touch = True
+        elif in_touch and b.close > touch:
+            zone.tests += 1
+            zone.last_test_age = len(tail) - 1 - pos
+            in_touch = False
+
+    zone.plateau_bars = best_plateau
 
 
 def _make_zone(events: list[Event]) -> Zone:
@@ -641,6 +787,16 @@ class FlowStats:
     price_slope: float = 0.0
     homogeneity: float = 0.0
     buy_share: float = 0.5
+    rel_volume: float = 1.0   # объём окна к своей норме
+
+    @property
+    def collapsing(self) -> bool:
+        """Дельта валится вертикально.
+
+        Пока идёт слив, поглощение на дне остаётся заготовкой:
+        столкновение состоялось, победитель не определён.
+        """
+        return self.delta_slope <= DELTA_COLLAPSE_SLOPE
 
     def to_dict(self) -> dict:
         return {
@@ -648,6 +804,8 @@ class FlowStats:
             "price_slope": round(self.price_slope, 4),
             "homogeneity": round(self.homogeneity, 2),
             "buy_share": round(self.buy_share, 3),
+            "collapsing": self.collapsing,
+            "rel_volume": round(self.rel_volume, 2),
         }
 
 
@@ -675,6 +833,14 @@ def build_flow_stats(bars: list[Bar], window: int = DELTA_WINDOW) -> FlowStats:
     total_q = sum(b.quote for b in tail)
     total_b = sum(b.buy_quote for b in tail)
     st.buy_share = total_b / total_q if total_q > 0 else 0.5
+
+    # Фон: объём окна против более длинной нормы. Churn требует
+    # шумного фона, spring — тихого; на этом они и расходятся.
+    norm_src = bars[-window * 4 : -window] if len(bars) > window * 2 else []
+    med_norm = _median([b.quote for b in norm_src]) if norm_src else 0.0
+    med_tail = _median([b.quote for b in tail])
+    st.rel_volume = med_tail / med_norm if med_norm > 0 else 1.0
+
     return st
 
 
@@ -774,6 +940,44 @@ class FlowContext:
                 return z
         return below[0] if below else None
 
+    # ── Алиасы для подкейсов ─────────────────────────────────
+    # Подкейсы читают контекст короткими именами. Держим их здесь,
+    # чтобы имя поля в ядре можно было менять, не трогая пять
+    # модулей семейства.
+
+    @property
+    def flow(self) -> FlowStats:
+        return self.stats
+
+    @property
+    def base(self) -> list[Bar]:
+        """Дневной ряд — основа всех измерений времени."""
+        return self.bars.get(1, [])
+
+    @property
+    def ready(self) -> bool:
+        return self.valid
+
+    @property
+    def horizon_bars(self) -> int:
+        return max(1, int(self.horizon_scale * HORIZON_BARS_AHEAD))
+
+    @property
+    def growth_x(self) -> float:
+        return self.drop.growth_x
+
+    @property
+    def extreme_growth_x(self) -> float:
+        return EXTREME_GROWTH_X
+
+    @property
+    def distrust_zones(self) -> int:
+        return self.drop.distrust_zones
+
+    @property
+    def volume_recovery(self) -> float:
+        return self.drop.volume_recovery
+
     def to_dict(self) -> dict:
         return {
             "price": round(self.price, 10),
@@ -819,6 +1023,16 @@ def build_context(symbol: str, quote_volume_24h: float = 0.0) -> FlowContext:
         ctx.events.extend(find_events(bars, scale))
 
     ctx.zones = build_zones(ctx.events)
+    for z in ctx.zones:
+        annotate_zone_history(z, base)
+    ctx.zones = [z for z in ctx.zones if z.alive]
+
+    # Сколько живых зон лежит ниже каждой — нужно для недоверия
+    # после сильного роста.
+    ordered = sorted(ctx.zones, key=lambda z: z.price)
+    for i, z in enumerate(ordered):
+        z.zones_below = i
+
     ctx.drop = build_drop_context(base)
     ctx.stats = build_flow_stats(base)
     ctx.horizon_scale, ctx.horizon_label = pick_horizon(ctx.bars)

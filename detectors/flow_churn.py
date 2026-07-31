@@ -23,7 +23,7 @@ from detectors.flow_config import (
     ZONE_SINGLE_SCALE_WEIGHT,
 )
 from detectors.flow_core import FlowContext, Zone
-from detectors.flow_signal import FlowSignal, veto_bullish
+from detectors.flow_signal import SubcaseSignal, veto_bullish
 
 name = "flow_churn"
 
@@ -93,7 +93,7 @@ def _base_score(zone: Zone) -> tuple[float, dict[str, float]]:
 # Детект
 # ─────────────────────────────────────────────────────────────
 
-def detect(ctx: FlowContext) -> FlowSignal | None:
+def detect(ctx: FlowContext) -> SubcaseSignal | None:
     """Собирает фигуру churn либо возвращает None."""
 
     if veto_bullish(ctx):
@@ -109,7 +109,7 @@ def detect(ctx: FlowContext) -> FlowSignal | None:
         return None
 
     score, facts = _base_score(zone)
-    sig = FlowSignal(
+    sig = SubcaseSignal(
         subcase=name,
         score=score,
         horizon_bars=ctx.horizon_bars,

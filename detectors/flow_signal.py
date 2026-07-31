@@ -22,16 +22,21 @@ from detectors.flow_core import FlowContext
 # ─────────────────────────────────────────────────────────────
 
 @dataclass
-class FlowSignal:
+class SubcaseSignal:
     """Закрытая фигура одного подкейса.
 
-    score — сырой вклад до сведения по семейству, шкала 0..100.
-    Сведением занимается flow_family, подкейс о нём не знает.
+    Внутренний тип семейства. Наружу через detectors/__init__
+    выходит только FlowSignal из flow.py — сведённый результат
+    диспетчера. Разные сущности, разные имена: подкейс описывает
+    одну фигуру, FlowSignal описывает монету.
+
+    score — сырой вклад в шкале 0..100 ДО сведения. Приведением
+    к диапазону семейства 45..100 занимается flow.py.
     """
 
-    subcase: str                  # "flow_churn", "flow_spring", ...
+    subcase: str
     score: float
-    horizon_bars: int             # ожидаемый горизонт, в дневных барах
+    horizon_bars: int
 
     # Что именно сработало — для карточки и для разбора ошибок.
     reasons: list[str] = field(default_factory=list)
@@ -88,7 +93,7 @@ class Subcase(Protocol):
 
     name: str
 
-    def __call__(self, ctx: FlowContext) -> FlowSignal | None:
+    def __call__(self, ctx: FlowContext) -> SubcaseSignal | None:
         ...
 
 

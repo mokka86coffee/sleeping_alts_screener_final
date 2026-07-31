@@ -26,7 +26,7 @@ from detectors.flow_config import (
     ZONE_SINGLE_SCALE_WEIGHT,
 )
 from detectors.flow_core import FlowContext, Zone
-from detectors.flow_signal import FlowSignal, veto_common
+from detectors.flow_signal import SubcaseSignal, veto_common
 
 name = "flow_fuel"
 
@@ -108,7 +108,7 @@ def _zone_weight(zone: Zone, ctx: FlowContext) -> float:
 # Детект
 # ─────────────────────────────────────────────────────────────
 
-def detect(ctx: FlowContext) -> FlowSignal | None:
+def detect(ctx: FlowContext) -> SubcaseSignal | None:
     """Собирает фигуру fuel либо возвращает None.
 
     Обвал дельты здесь не проверяется намеренно: fuel описывает
@@ -144,7 +144,7 @@ def detect(ctx: FlowContext) -> FlowSignal | None:
         role = "сопротивление"
         zone_price = nearest.price if nearest else 0.0
 
-    sig = FlowSignal(
+    sig = SubcaseSignal(
         subcase=name,
         score=score,
         horizon_bars=ctx.horizon_bars,

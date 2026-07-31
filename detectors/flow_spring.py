@@ -27,7 +27,7 @@ from detectors.flow_config import (
     ZONE_SINGLE_SCALE_WEIGHT,
 )
 from detectors.flow_core import Bar, FlowContext, Zone
-from detectors.flow_signal import FlowSignal, veto_bullish
+from detectors.flow_signal import SubcaseSignal, veto_bullish
 
 name = "flow_spring"
 
@@ -151,7 +151,7 @@ def _base_score(
 # Детект
 # ─────────────────────────────────────────────────────────────
 
-def detect(ctx: FlowContext) -> FlowSignal | None:
+def detect(ctx: FlowContext) -> SubcaseSignal | None:
     """Собирает фигуру spring либо возвращает None."""
 
     if veto_bullish(ctx):
@@ -183,7 +183,7 @@ def detect(ctx: FlowContext) -> FlowSignal | None:
     score, facts = _base_score(len(recent), squeeze, width)
     facts["zone_price"] = zone.price
 
-    sig = FlowSignal(
+    sig = SubcaseSignal(
         subcase=name,
         score=score,
         horizon_bars=ctx.horizon_bars,
