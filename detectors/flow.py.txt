@@ -1,0 +1,179 @@
+"""FLOW — семейство детекторов потока ордеров. Диспетчер.
+
+Три существующих детектора смотрят на цену и суммарный объём.
+Это семейство смотрит на характер потока: кто агрессор, поглощается
+ли предложение, где крупный участник оставил следы.
+
+БАЗОВАЯ МОДЕЛЬ. Пузырь маркет-ордеров — это попытка развернуть
+тренд, а не направление движения. Белое — набор лонга, красное —
+набор шорта; знак фиксирован во всех модулях. Сигнал рождается
+не из цвета, а из отклика: каждая провалившаяся попытка съедает
+встречную ликвидность, и когда та исчерпана, следующая попытка
+той же силы проходит без сопротивления.
+
+Размер набора не предсказывает точку разворота — только говорит
+«готовиться». Проверено на BEAT: сильнейший откуп был на 0.74,
+цена ушла на 0.15.
+
+ТАЙМФРЕЙМ не входит ни в один порог и ни в один скор. Его
+единственная роль — горизонт ожидания: чем крупнее чистый ТФ,
+тем дольше ждать движения.
+
+РОЛЬ ДИСПЕТЧЕРА. Дневные свечи грузятся один раз и передаются
+во все подкейсы: события, зоны и контекст не считаются заново.
+Дорогие сетевые запросы берутся только после срабатывания
+дневного ядра — без него detected всё равно ложь, и двести монет
+× два запроса уходят впустую.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, asdict
+
+from core.binance import klines_1d
+from detectors.flow_core import pick_horizon
+from detectors.flow_churn import detect_churn
+from detectors.flow_spring import detect_spring
+
+MIN_HISTORY_DAYS = 70
+MIN_SCORE = 45
+
+# Приоритет при равном скоре. Spring выше churn: взведённая
+# пружина — более зрелая фигура, чем одиночное поглощение,
+# у неё за спиной серия попыток, а не одно событие.
+CASE_PRIORITY = {
+    "spring": 3,
+    "churn": 2,
+    "fuel": 2,
+    "hidden": 1,
+    "taker": 1,
+    "none": 0,
+}
+
+
+@dataclass
+class FlowSignal:
+    """Публичный сигнал семейства. Один на монету.
+
+    Контракт с candidate.py: detected, score, case, strength_label,
+    horizon_days, verdict, to_dict(). Эти поля не меняются при
+    добавлении новых подкейсов — воронку править больше не нужно.
+    """
+
+    symbol: str
+
+    detected: bool = False
+    score: int = 0
+    case: str = "none"        # spring | churn | fuel | hidden | taker | none
+    strength_label: str = ""
+
+    # Горизонт: ярлык времени, в пороги и скор НЕ входит
+    horizon_days: int = 0
+    horizon_tf: str = ""
+    horizon_readable: bool = False
+
+    # Разбор подкейсов: заполняется даже при недоборе порога —
+    # в воронке нужно видеть, насколько монета не дотянула.
+    cases: dict = None
+    verdict: str = ""
+
+    # Победитель и контекст, для карточки и разбора ошибок
+    parts: list[dict] = field(default_factory=list)
+    context: dict = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.cases is None:
+            self.cases = {}
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+def _strength(score: int) -> str:
+    if score >= 75:
+        return "экстремальный"
+    if score >= 60:
+        return "сильный"
+    if score >= MIN_SCORE:
+        return "умеренный"
+    return ""
+
+
+def detect_flow(symbol: str) -> FlowSignal:
+    """Прогоняет подкейсы по общему кэшу и возвращает сильнейший.
+
+    Пока подключены spring и churn. Остальные подкейсы добавляются
+    в _RUNNERS без правок в candidate.py и scoring.py.
+    """
+    kl = klines_1d(symbol)
+    if not kl or len(kl) < MIN_HISTORY_DAYS:
+        return FlowSignal()
+
+    # ── Подкейсы по общим свечам ──
+    spring = detect_spring(symbol, kl)
+    churn = detect_churn(symbol, kl)
+
+    results = [("spring", spring), ("churn", churn)]
+
+    # Разбор для воронки — до отбора победителя
+    cases = {
+        name: {
+            "detected": sig.detected,
+            "score": sig.score,
+        }
+        for name, sig in results
+    }
+
+    # ── Победитель ──
+    # Сравниваем по скору, при близких значениях решает приоритет
+    # фигуры: разница в пару баллов между двумя подкейсами ничего
+    # не значит, а зрелость фигуры значит
+    best_name = "none"
+    best_sig = None
+    for name, sig in results:
+        if not sig.detected:
+            continue
+        if best_sig is None:
+            best_name, best_sig = name, sig
+            continue
+        if sig.score > best_sig.score + 5:
+            best_name, best_sig = name, sig
+        elif abs(sig.score - best_sig.score) <= 5:
+            if CASE_PRIORITY[name] > CASE_PRIORITY[best_name]:
+                best_name, best_sig = name, sig
+
+    if best_sig is None:
+        # Ядро не сработало: дорогие запросы не делаем.
+        # Возвращаем разбор, чтобы воронка видела недобор.
+        top = max(results, key=lambda r: r[1].score)
+        return FlowSignal(
+            detected=False,
+            score=top[1].score,
+            case="none",
+            cases=cases,
+        )
+
+    # ── Горизонт ──
+    # Считается ТОЛЬКО после срабатывания: агрегация семи ТФ
+    # с пересчётом Vortex на каждом стоит процессорного времени,
+    # и тратить его на монеты вне отбора незачем.
+    hz = pick_horizon(kl)
+
+    verdict = best_sig.verdict
+    if hz.get("readable") and hz.get("wait_days"):
+        verdict = (
+            f"{verdict} Картина читается на {hz['label']}, "
+            f"ожидание порядка {hz['wait_days']} дней."
+        )
+
+    return FlowSignal(
+        detected=True,
+        score=best_sig.score,
+        case=best_name,
+        strength_label=_strength(best_sig.score),
+        horizon_days=hz.get("wait_days", 0),
+        horizon_tf=hz.get("label", ""),
+        horizon_readable=hz.get("readable", False),
+        cases=cases,
+        verdict=verdict,
+    )

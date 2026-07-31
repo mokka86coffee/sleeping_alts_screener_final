@@ -90,14 +90,7 @@ def build_candidate(
         # Дорогие запросы (funding, OI, спот) берутся только после
         # срабатывания дневного ядра: без него detected всё равно ложь,
         # и двести монет × два запроса уходят впустую.
-        flow = detect_flow(symbol)
-
-        # TAIKO и DEXE взаимоисключающи: побеждает более уверенный
-        if taiko.detected and dexe.detected:
-            if taiko.score >= dexe.score:
-                dexe = DexeSignal()
-            else:
-                taiko = TaikoSignal()
+        flow = detect_flow(symbol, quote_volume_24h)
 
         # ── Теги сигналов ──
         if surge.detected:
@@ -128,10 +121,10 @@ def build_candidate(
             })
 
         if flow.detected:
-            tags.append({
-                "text": f"FLOW {flow.case.upper()} · {flow.score}",
-                "class": "tag-pattern flow",
-            })
+            text = f"FLOW {flow.case.upper()} · {flow.score}"
+            if flow.horizon_readable and flow.horizon_tf:
+                text += f" · {flow.horizon_tf}"
+            tags.append({"text": text, "class": "tag-pattern flow"})
 
         # ── Скоринг ──
         sb = score_candidate(m, surge, squeeze, taiko, dexe, flow)
