@@ -1,341 +1,246 @@
-"""FLOW · SPRING — сжатие диапазона плюс поглощение в тишине.
+"""FLOW · подкейс spring — пружина.
 
-Эталон: AKE. Диапазон сжат до минимума, объём невелик, но серия
-попыток набора идёт одна за другой и цена не двигается. Каждая
-проваливающаяся попытка съедает встречную ликвидность; когда она
-кончается, следующая попытка той же силы проходит без сопротивления —
-отсюда вертикаль.
+Фигура: серия событий на узком диапазоне при затухающем фоне.
+Не одиночное столкновение, как в churn, а накопление, размазанное
+по времени: каждое событие по отдельности ничего не решает, но
+вместе они держат цену в тисках.
 
-Ключевое отличие от volume_surge: там сигналом служит сам всплеск
-объёма, здесь — ОТСУТСТВИЕ отклика на приложенную силу. Пружина
-взводится в тишине, а не в шуме.
+Обратное к churn требование к фону. Churn ищет поглощение в шуме:
+поток идёт, цена стоит. Spring ищет сжатие в тишине: поток иссяк,
+диапазон схлопнулся, амплитуда падает бар за баром. Поэтому один
+и тот же участок не может дать оба подкейса — они расходятся по
+rel_volume в противоположные стороны.
 
-Абсолютный порог сжатия обязателен. Отношение ATR30/ATR180 после
-краша врёт: знаменатель раздут обвалом, и монета с восьмипроцентным
-дневным ходом формально выглядит «успокоившейся». HOLO отсекается
-именно этим, AKE проходит с запасом.
+Сама по себе пружина направления не имеет: сжатие разряжается в
+любую сторону. Направление задаёт зона под ней — spring без
+опорной зоны не собирается.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-
-from core.binance import K_CLOSE, K_HIGH, K_LOW, klines_1d
-from detectors.flow_core import (
-    FlowEvent,
-    aggregate,
-    cluster_zones,
-    detect_events,
-    drop_forming,
-    extreme_growth_before,
-    flow_homogeneity,
-    mean,
-    median,
-    merge_zones,
-    obv_recovery,
-    pct_change,
-    slope,
-    zone_confirmed,
+from detectors.flow_config import (
+    HOMOGENEITY_MIN,
+    PLATEAU_MAX_RANGE,
+    SPRING_MIN_EVENTS,
+    SPRING_QUIET_MAX,
+    ZONE_NEAR_PCT,
+    ZONE_SINGLE_SCALE_WEIGHT,
 )
+from detectors.flow_core import Bar, FlowContext, Zone
+from detectors.flow_signal import FlowSignal, veto_bullish
 
-# ── История ──
-MIN_HISTORY_DAYS = 90
+name = "flow_spring"
 
-# ── Сжатие ──
-ATR_FAST = 30
-ATR_SLOW = 180
-DORMANCY_MAX = 0.62          # относительное сжатие
-DORMANT_ABS_MAX = 0.055      # абсолютный потолок: средний дневной ход к цене
-RANGE_WINDOW = 30            # окно замера коридора
-RANGE_MAX_PCT = 70.0         # реалистичный «тихий» коридор для альта
-
-# ── Поглощение ──
-PRESSURE_WINDOW = 40         # где ищем серию попыток
-MIN_ATTEMPTS = 3             # одиночное событие пружину не взводит
-ABSORBED_SHARE_MIN = 0.7     # доля провалившихся попыток в серии
-HOMOGENEITY_MIN = 0.45       # ровное давление против одиночного сброса
-
-# ── Расхождение силы и отклика ──
-DECOUPLING_MIN = 2.0
-
-MIN_SCORE = 45
+# Окно, на котором меряется сжатие. Короче — ловится любая пауза,
+# длиннее — пружина размывается трендом.
+SQUEEZE_WINDOW = 24
+SQUEEZE_HALVES = 2
 
 
-@dataclass
-class SpringSignal:
-    """Взведённая пружина: сила прикладывается, цена не отвечает."""
+# ─────────────────────────────────────────────────────────────
+# Сжатие
+# ─────────────────────────────────────────────────────────────
 
-    detected: bool = False
-    score: int = 0
+def _squeeze_ratio(base: list[Bar]) -> float:
+    """Во сколько раз амплитуда сжалась к концу окна.
 
-    # сжатие
-    dormancy: float = 0.0            # ATR30 / ATR180
-    atr_abs: float = 0.0             # средний ход как доля цены
-    range_pct: float = 0.0           # ширина коридора
-    compressed: bool = False
+    Считается по половинам окна, а не регрессией: пружина редко
+    сжимается равномерно, зато почти всегда даёт ступеньку между
+    первой и второй половиной.
 
-    # поглощение
-    attempts: int = 0
-    absorbed: int = 0
-    absorbed_share: float = 0.0
-    dominant_side: str = ""          # buy (белое, лонг) | sell (красное, шорт)
-    homogeneity: float = 0.0
-    decoupling: float = 0.0          # сила на единицу отклика
-
-    # контекст
-    obv_recovering: bool = False
-    obv_suspicious: bool = False
-    growth_mult: float = 0.0
-    zones_to_skip: int = 0
-    zone_level: float = 0.0
-    zone_tfs: tuple = ()
-
-    verdict: str = ""
-
-    def to_dict(self) -> dict:
-        d = asdict(self)
-        d["zone_tfs"] = list(self.zone_tfs)
-        return d
-
-
-def _atr(highs, lows, closes, period: int) -> float:
-    """Средний истинный диапазон за период, в абсолютных единицах."""
-    n = len(closes)
-    if n < period + 1:
-        return 0.0
-    trs = []
-    for i in range(n - period, n):
-        if i < 1:
-            continue
-        trs.append(max(
-            highs[i] - lows[i],
-            abs(highs[i] - closes[i - 1]),
-            abs(lows[i] - closes[i - 1]),
-        ))
-    return mean(trs)
-
-
-def _compression(highs, lows, closes) -> tuple[float, float, float, bool]:
-    """Сжат ли диапазон — по трём независимым мерам.
-
-    Абсолютная мера (atr_abs) — ОБЯЗАТЕЛЬНА. Она отсекает монеты,
-    которые «успокоились» до восьми процентов в день.
-
-    Коридор проверяет, что цена стоит, а не медленно сползает.
-
-    Относительная (dormancy) — достаточна, но НЕ необходима.
-    После краша она врёт: знаменатель раздут обвалом, и монета
-    с восьмипроцентным ходом формально выглядит успокоившейся.
-    Обратный случай тоже реален: монета может ровно стоять весь год
-    и не иметь никакого затухания относительно самой себя. Поэтому
-    её заменяет более строгий абсолютный порог.
+    Возвращает отношение свежей амплитуды к ранней. Меньше 1 —
+    сжатие, около 1 — плоско, больше 1 — расширение.
     """
-    price = closes[-1] if closes else 0.0
-    if price <= 0:
-        return 0.0, 0.0, 0.0, False
+    tail = base[-SQUEEZE_WINDOW:]
+    if len(tail) < SQUEEZE_WINDOW:
+        return 1.0
 
-    atr_fast = _atr(highs, lows, closes, ATR_FAST)
-    atr_slow = _atr(highs, lows, closes, ATR_SLOW) or atr_fast
+    half = len(tail) // SQUEEZE_HALVES
+    old, new = tail[:half], tail[half:]
 
-    dormancy = atr_fast / atr_slow if atr_slow > 0 else 1.0
-    atr_abs = atr_fast / price
-
-    seg_h = highs[-RANGE_WINDOW:]
-    seg_l = lows[-RANGE_WINDOW:]
-    lo = min(seg_l) if seg_l else 0.0
-    hi = max(seg_h) if seg_h else 0.0
-    range_pct = pct_change(lo, hi) if lo > 0 else 999.0
-
-    quiet_abs = atr_abs <= DORMANT_ABS_MAX
-    very_quiet = atr_abs <= DORMANT_ABS_MAX * 0.75
-    compressed = (
-        quiet_abs
-        and range_pct <= RANGE_MAX_PCT
-        and (dormancy <= DORMANCY_MAX or very_quiet)
-    )
-    return dormancy, atr_abs, range_pct, compressed
-
-
-def _absorption(events: list[FlowEvent], kl: list) -> dict:
-    """Серия попыток, которые не сдвинули цену.
-
-    Считаем не отдельное событие, а серию: одиночный провал
-    ничего не значит — шорт набирают и под смену тренда, и под
-    локальный сквиз. Решает совокупность.
-
-    Сторона серии задаёт направление будущего выхода. Белое —
-    набор лонга, красное — набор шорта; знак фиксирован.
-    """
-    recent = [e for e in events if e.bars_ago <= PRESSURE_WINDOW]
-    if len(recent) < MIN_ATTEMPTS:
-        return {"ok": False}
-
-    buys = [e for e in recent if e.side == "buy"]
-    sells = [e for e in recent if e.side == "sell"]
-    side_events = buys if len(buys) >= len(sells) else sells
-    dominant = "buy" if len(buys) >= len(sells) else "sell"
-
-    if len(side_events) < MIN_ATTEMPTS:
-        return {"ok": False}
-
-    absorbed = sum(1 for e in side_events if e.absorbed)
-    share = absorbed / len(side_events)
-
-    # Расхождение: суммарная сила против фактического хода цены.
-    # Много сигм при нулевом отклике — предложение принимают молча.
-    force = sum(max(e.sigma, 0.0) for e in side_events)
-    moved = abs(mean(abs(e.response_pct) for e in side_events)) or 0.5
-    decoupling = force / moved
-
-    homo = flow_homogeneity(kl, PRESSURE_WINDOW)
-
-    ok = (
-        share >= ABSORBED_SHARE_MIN
-        and homo >= HOMOGENEITY_MIN
-        and decoupling >= DECOUPLING_MIN
-    )
-    return {
-        "ok": ok,
-        "attempts": len(side_events),
-        "absorbed": absorbed,
-        "share": share,
-        "side": dominant,
-        "homogeneity": homo,
-        "decoupling": decoupling,
-    }
-
-
-def detect_spring(symbol: str, kl: list | None = None) -> SpringSignal:
-    """Пружина по дневным свечам.
-
-    Свечи можно передать снаружи: диспетчер грузит их один раз
-    на все подкейсы семейства.
-    """
-    kl = kl if kl is not None else klines_1d(symbol)
-    if not kl or len(kl) < MIN_HISTORY_DAYS:
-        return SpringSignal()
-
-    highs = [float(k[K_HIGH]) for k in kl]
-    lows = [float(k[K_LOW]) for k in kl]
-    closes = [float(k[K_CLOSE]) for k in kl]
-    if closes[-1] <= 0:
-        return SpringSignal()
-
-    # ── Сжатие ──
-    dormancy, atr_abs, range_pct, compressed = _compression(highs, lows, closes)
-
-    # ── События и поглощение ──
-    events = detect_events(kl)
-    ab = _absorption(events, kl)
-
-    # ── Контекст ──
-    obv = obv_recovery(kl)
-    growth = extreme_growth_before(kl)
-
-    # ── Зона агрегации, подтверждённая несколькими агрегатами ──
-    zone_level = 0.0
-    zone_tfs: tuple = ()
-    groups = []
-    for d in (1, 3, 5, 10):
-        agg = drop_forming(aggregate(kl, d), d)
-        if len(agg) < 40:
-            continue
-        ev = detect_events(agg)
-        groups.append(cluster_zones(ev, tf_label=f"{d}d"))
-    if groups:
-        zones = merge_zones(groups)
-        side = ab.get("side", "")
-        for z in zones:
-            if side and z.side != side:
-                continue
-            if zone_confirmed(z):
-                zone_level = z.level
-                zone_tfs = z.tfs
-                break
-
-    # ── Ядро ──
-    # Сжатие БЕЗ поглощения — это просто мёртвая монета.
-    # Поглощение БЕЗ сжатия — это churn, другой подкейс.
-    has_core = compressed and ab.get("ok", False)
-
-    # ── Скоринг ──
-    score = 0
-    if compressed:
-        score += 12
-        if atr_abs <= DORMANT_ABS_MAX * 0.6:
-            score += 6
-        if range_pct <= RANGE_MAX_PCT * 0.6:
-            score += 5
-
-    if ab.get("ok"):
-        score += 20
-        score += min(int((ab["attempts"] - MIN_ATTEMPTS) * 3), 9)
-        score += min(int(ab["decoupling"] * 2), 12)
-        if ab["homogeneity"] >= 0.65:
-            score += 6
-
-    if zone_tfs:
-        score += 6 + 3 * (len(zone_tfs) - 2)
-
-    if obv.get("recovering"):
-        score += 10
-    if obv.get("rising"):
-        score += 5
-    if obv.get("suspicious"):
-        score -= 8
-
-    # Вето на первые зоны после кратного роста: толпа в панике
-    # продавливает любой уровень, пока держателей с прибылью много
-    if growth.get("extreme"):
-        score -= 6 * growth.get("zones_to_skip", 1)
-
-    score = max(0, min(score, 100))
-    detected = has_core and score >= MIN_SCORE
-
-    # ── Вердикт ──
-    verdict = ""
-    if detected:
-        side_ru = "лонга" if ab["side"] == "buy" else "шорта"
-        parts = [
-            f"FLOW Spring: диапазон сжат ({atr_abs * 100:.1f}% дневного хода, "
-            f"коридор {range_pct:.0f}%)"
+    def amp(bars: list[Bar]) -> float:
+        vals = [
+            (b.high - b.low) / b.close
+            for b in bars
+            if b.close > 0
         ]
-        parts.append(
-            f"{ab['attempts']} попыток набора {side_ru}, "
-            f"{ab['absorbed']} без отклика цены"
-        )
-        parts.append(f"расхождение силы и отклика ×{ab['decoupling']:.1f}")
-        if zone_tfs:
-            parts.append(
-                f"зона {zone_level:.6g} подтверждена на {', '.join(zone_tfs)}"
-            )
-        if obv.get("recovering"):
-            parts.append("объём возвращается после дна")
-        if growth.get("extreme"):
-            parts.append(
-                f"осторожно: рост ×{growth['mult']:.0f} до падения, "
-                f"первые зоны обычно проваливаются"
-            )
-        verdict = ". ".join(parts) + "."
+        return sum(vals) / len(vals) if vals else 0.0
 
-    return SpringSignal(
-        detected=detected,
+    a_old, a_new = amp(old), amp(new)
+    if a_old <= 0:
+        return 1.0
+    return a_new / a_old
+
+
+def _range_width(base: list[Bar]) -> float:
+    """Ширина диапазона окна к текущей цене."""
+    tail = base[-SQUEEZE_WINDOW:]
+    if not tail:
+        return 1.0
+    hi = max(b.high for b in tail)
+    lo = min(b.low for b in tail)
+    last = tail[-1].close
+    if last <= 0:
+        return 1.0
+    return (hi - lo) / last
+
+
+# ─────────────────────────────────────────────────────────────
+# Зона-опора
+# ─────────────────────────────────────────────────────────────
+
+def _support_zone(ctx: FlowContext) -> Zone | None:
+    """Зона, задающая направление разряда.
+
+    В отличие от churn берётся не ближайшая, а самая насыщенная
+    событиями: пружина опирается на уровень, где работа шла долго,
+    даже если цена от него отошла.
+    """
+    below = [z for z in ctx.zones if z.price <= ctx.price]
+    if not below:
+        return None
+
+    near = [
+        z
+        for z in below
+        if (ctx.price - z.price) / ctx.price <= ZONE_NEAR_PCT * 1.5
+    ]
+    pool = near or below
+    return max(pool, key=lambda z: (len(z.events), z.tests))
+
+
+# ─────────────────────────────────────────────────────────────
+# Базовый скор
+# ─────────────────────────────────────────────────────────────
+
+def _base_score(
+    events: int,
+    squeeze: float,
+    width: float,
+) -> tuple[float, dict[str, float]]:
+    """Скор от плотности серии и глубины сжатия.
+
+    Серия важнее одиночного тира: в spring нет события, которое
+    решает исход само по себе.
+    """
+    score = 30.0 + min(18.0, (events - SPRING_MIN_EVENTS) * 4.5)
+
+    # Сжатие вдвое и глубже — полноценная пружина.
+    if squeeze <= 0.5:
+        score += 22.0
+    elif squeeze <= 0.7:
+        score += 14.0
+    elif squeeze <= 0.85:
+        score += 7.0
+
+    # Узкий диапазон усиливает: разряд из тисков резче.
+    if width <= 0.12:
+        score += 10.0
+    elif width <= 0.20:
+        score += 5.0
+
+    facts = {
+        "events": float(events),
+        "squeeze": squeeze,
+        "range_width": width,
+    }
+    return score, facts
+
+
+# ─────────────────────────────────────────────────────────────
+# Детект
+# ─────────────────────────────────────────────────────────────
+
+def detect(ctx: FlowContext) -> FlowSignal | None:
+    """Собирает фигуру spring либо возвращает None."""
+
+    if veto_bullish(ctx):
+        return None
+
+    # Фон обязан быть тихим. Шумный фон — территория churn:
+    # там поток идёт и его принимают, здесь потока нет вовсе.
+    if ctx.flow.rel_volume > SPRING_QUIET_MAX:
+        return None
+
+    zone = _support_zone(ctx)
+    if zone is None:
+        return None
+
+    # Серия. Одиночное событие пружиной не является по определению.
+    recent = [e for e in ctx.events if e.age <= SQUEEZE_WINDOW]
+    if len(recent) < SPRING_MIN_EVENTS:
+        return None
+
+    squeeze = _squeeze_ratio(ctx.base)
+    width = _range_width(ctx.base)
+
+    # Расширение амплитуды — прямое опровержение фигуры.
+    if squeeze >= 1.0:
+        return None
+    if width > PLATEAU_MAX_RANGE:
+        return None
+
+    score, facts = _base_score(len(recent), squeeze, width)
+    facts["zone_price"] = zone.price
+
+    sig = FlowSignal(
+        subcase=name,
         score=score,
-        dormancy=round(dormancy, 3),
-        atr_abs=round(atr_abs, 4),
-        range_pct=round(range_pct, 2),
-        compressed=compressed,
-        attempts=ab.get("attempts", 0),
-        absorbed=ab.get("absorbed", 0),
-        absorbed_share=round(ab.get("share", 0.0), 3),
-        dominant_side=ab.get("side", ""),
-        homogeneity=round(ab.get("homogeneity", 0.0), 3),
-        decoupling=round(ab.get("decoupling", 0.0), 2),
-        obv_recovering=obv.get("recovering", False),
-        obv_suspicious=obv.get("suspicious", False),
-        growth_mult=growth.get("mult", 0.0),
-        zones_to_skip=growth.get("zones_to_skip", 0),
-        zone_level=zone_level,
-        zone_tfs=zone_tfs,
-        verdict=verdict,
+        horizon_bars=ctx.horizon_bars,
+        zone_price=zone.price,
     )
+    sig.add(
+        f"сжатие x{1 / squeeze:.1f} на серии из {len(recent)} событий, "
+        f"диапазон {width * 100:.1f}%",
+        **facts,
+    )
+
+    # ── Опора ────────────────────────────────────────────────
+    # Пружина над подтверждённой зоной — сильнейшее сочетание
+    # семейства: сжатие даёт момент, зона даёт направление.
+    sig.apply("zone_plateau", zone.plateau_mult)
+    if zone.plateau_bars > 0:
+        sig.add(
+            f"опора: зона {zone.price:.6g}, плато {zone.plateau_bars} дней",
+            plateau_bars=float(zone.plateau_bars),
+        )
+
+    if len(zone.scales) < 2:
+        sig.apply("single_scale", ZONE_SINGLE_SCALE_WEIGHT)
+        sig.add("опора подтверждена одним масштабом", scales=1.0)
+
+    if zone.tests >= 2:
+        sig.apply("tested", 1.12)
+        sig.add(f"опора выдержала {zone.tests} теста", tests=float(zone.tests))
+
+    # ── Однородность серии ───────────────────────────────────
+    if ctx.flow.homogeneity < HOMOGENEITY_MIN:
+        sig.apply("lumpy", 0.8)
+        sig.add("серия неоднородна", homogeneity=ctx.flow.homogeneity)
+
+    # ── Перекос потока ───────────────────────────────────────
+    # В тишине небольшой, но устойчивый перекос в покупку весит
+    # больше, чем крупный перекос в шуме: продавать некому.
+    if ctx.flow.buy_share >= 0.55:
+        sig.apply("buy_bias", 1.15)
+        sig.add(
+            f"перекос в покупку {ctx.flow.buy_share * 100:.0f}%",
+            buy_share=ctx.flow.buy_share,
+        )
+    elif ctx.flow.buy_share <= 0.42:
+        sig.apply("sell_bias", 0.7)
+        sig.add(
+            f"перекос в продажу {(1 - ctx.flow.buy_share) * 100:.0f}%",
+            buy_share=ctx.flow.buy_share,
+        )
+
+    # ── Недоверие за рост ────────────────────────────────────
+    need = ctx.distrust_zones
+    if need and zone.zones_below < need:
+        sig.apply("distrust", 0.7)
+        sig.add(
+            f"под опорой ещё {need - zone.zones_below} несработавших уровня",
+            zones_below=float(zone.zones_below),
+        )
+
+    return sig if not sig.weak else None

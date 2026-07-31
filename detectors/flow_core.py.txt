@@ -31,24 +31,15 @@ from detectors.flow_config import (
     BOTTOM_LOOKBACK_DAYS,
     BOTTOM_MIN_BARS_AFTER,
     BOTTOM_MIN_DROP_PCT,
-    DELTA_COLLAPSE_SLOPE,
     DELTA_WINDOW,
     EVENT_NORM_WINDOW,
     EXTREME_GROWTH_X,
     GROWTH_DISTRUST,
     HORIZON_BARS_AHEAD,
-    HORIZON_MIN_AMPLITUDE,
     IMMATURE_BODY_MAX,
     IMMATURE_MIN_TIER,
     MIN_BARS_BASE,
     MIN_BARS_HTF,
-    PARTIAL_BAR_MIN_FILL,
-    PARTIAL_BAR_NORMALIZE,
-    PLATEAU_FULL_BARS,
-    PLATEAU_MAX_RANGE,
-    PLATEAU_MIN_BARS,
-    PLATEAU_MULT_FULL,
-    PLATEAU_MULT_NONE,
     RESPONSE_BARS,
     RESPONSE_FLAT_ATR,
     SCALES,
@@ -56,13 +47,9 @@ from detectors.flow_config import (
     TIER_2_SIGMA,
     TIER_3_SIGMA,
     VOLUME_RECOVERY_GOOD,
-    ZONE_DEAD_AFTER_BREAK,
     ZONE_MATCH_PCT,
-    ZONE_MAX_AGE_UNTESTED,
     ZONE_MIN_EVENTS,
     ZONE_NEAR_PCT,
-    ZONE_TEST_HOLD_PCT,
-    ZONE_TEST_TOUCH_PCT,
 )
 
 # Индекс поля taker buy quote volume в свече Binance.
@@ -168,24 +155,6 @@ class Bar:
     close: float
     quote: float
     buy_quote: float
-    buy_quote: float
-    fill: float = 1.0   # доля набранного времени бара
-
-    @property
-    def scale_factor(self) -> float:
-        """Множитель приведения объёма к полному бару.
-
-        Незакрытый бар нельзя сравнивать с нормой напрямую: 6D
-        показывал 16% относительного объёма там, где 4D в тот же
-        момент показывал 327% — разница целиком в заполнении.
-        """
-        if not PARTIAL_BAR_NORMALIZE or self.fill >= 1.0 or self.fill <= 0:
-            return 1.0
-        return 1.0 / self.fill
-
-    @property
-    def normalized_quote(self) -> float:
-        return self.quote * self.scale_factor
 
     @property
     def sell_quote(self) -> float:
