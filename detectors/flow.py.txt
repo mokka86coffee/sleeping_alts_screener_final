@@ -1,3 +1,9 @@
+"""FLOW · диспетчер семейства.
+
+Один сигнал на монету. Контекст считается один раз, подкейсы
+прогоняются по нему, сильнейший становится вердиктом.
+"""
+
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
@@ -7,32 +13,72 @@ from detectors.flow_signal import SubcaseSignal
 
 import detectors.flow_churn as flow_churn
 import detectors.flow_fuel as flow_fuel
+import detectors.flow_hidden as flow_hidden
 import detectors.flow_spring as flow_spring
 
 MIN_SCORE = 45
 
+# Порог на СЫРОЙ шкале подкейса. Отдельная величина, и это
+# принципиально: raw и score живут в разных шкалах, и раньше
+# порог проверялся уже после приведения — то есть не проверялся
+# вовсе. Отображение 0..100 → 45..100 монотонно, поэтому даже
+# нулевая фигура давала ровно MIN_SCORE и проходила. Отсюда в
+# прогоне «недобрали до порога: 0» при 19% срабатываний: недобрать
+# было невозможно по построению.
+MIN_RAW_SCORE = 45
+
 # Реестр подкейсов. Добавление нового модуля — одна строка здесь,
 # candidate.py и scoring.py не трогаются.
 _RUNNERS = (
+    flow_hidden,
     flow_spring,
     flow_churn,
     flow_fuel,
 )
 
-# Приоритет при близком скоре. Spring выше churn: взведённая
-# пружина — более зрелая фигура, чем одиночное поглощение,
-# у неё за спиной серия попыток, а не одно событие.
+# Приоритет при близком скоре. Hidden выше всех — единственный
+# опережающий подкейс. Spring выше churn: взведённая пружина —
+# более зрелая фигура, чем одиночное поглощение, у неё за спиной
+# серия попыток, а не одно событие. Fuel ниже всех работающих:
+# он описывает отсутствие препятствия, а не наличие работы.
 CASE_PRIORITY = {
+    "flow_hidden": 4,
     "flow_spring": 3,
     "flow_churn": 2,
-    "flow_fuel": 2,
-    "flow_hidden": 1,
+    "flow_fuel": 1,
     "flow_taker": 1,
+    "flow_leverage": 1,
     "none": 0,
+}
+
+# Потолки подкейсов. Отражают зрелость модуля, а не силу фигуры:
+# сырой скор выше потолка означает, что модуль переоценивает себя.
+from detectors.flow_config import (
+    CAP_CHURN,
+    CAP_FUEL,
+    CAP_HIDDEN,
+    CAP_LEVERAGE,
+    CAP_SPRING,
+    CAP_TAKER,
+)
+
+CASE_CAP = {
+    "flow_hidden": CAP_HIDDEN,
+    "flow_spring": CAP_SPRING,
+    "flow_churn": CAP_CHURN,
+    "flow_fuel": CAP_FUEL,
+    "flow_taker": CAP_TAKER,
+    "flow_leverage": CAP_LEVERAGE,
 }
 
 # Разница меньше этого — подкейсы считаются равными, решает зрелость.
 TIE_MARGIN = 5
+
+# Совпадение двух независимых фигур на одной монете — отдельный
+# факт, а не сумма баллов. Складывать скоры нельзя: подкейсы не
+# независимы, они читают одну карту зон. Но и игнорировать нельзя.
+CONFIRM_BONUS = 6
+CONFIRM_MIN_RAW = 35        # спутник ниже этого подтверждением не считается
 
 
 @dataclass
@@ -45,19 +91,15 @@ class FlowSignal:
     """
 
     symbol: str = ""
-
     detected: bool = False
     score: int = 0
     case: str = "none"
     strength_label: str = ""
-
     horizon_days: int = 0
     horizon_tf: str = ""
     horizon_readable: bool = False
-
     cases: dict = None
     verdict: str = ""
-
     parts: list[dict] = field(default_factory=list)
     context: dict = field(default_factory=dict)
 
@@ -70,9 +112,9 @@ class FlowSignal:
 
 
 def _strength(score: int) -> str:
-    if score >= 75:
+    if score >= 85:
         return "экстремальный"
-    if score >= 60:
+    if score >= 70:
         return "сильный"
     if score >= MIN_SCORE:
         return "умеренный"
@@ -85,6 +127,10 @@ def _to_family_score(raw: float) -> int:
     scoring.py отображает 45..100 в 14..34 и на входе ниже 45 даёт
     отрицательные баллы. Подкейсы про эту шкалу не знают и не
     должны: они меряют силу фигуры, а не место монеты в отчёте.
+
+    ВАЖНО: приведение делается ТОЛЬКО после того, как сырой скор
+    прошёл MIN_RAW_SCORE. Само по себе оно ничего не отсекает —
+    нижняя точка отображения совпадает с порогом семейства.
     """
     raw = max(0.0, min(100.0, raw))
     return int(round(MIN_SCORE + raw * (100 - MIN_SCORE) / 100))
@@ -100,38 +146,52 @@ def _horizon(ctx: FlowContext) -> dict:
     }
 
 
-def _verdict(name: str, sig: SubcaseSignal) -> str:
+def _verdict(name: str, sig: SubcaseSignal, confirmed_by: str = "") -> str:
     """Собирает вердикт из причин победителя.
 
     Причины уже отсортированы по порядку применения: сначала
-    качество фигуры, затем контекст. Берём первые три — дальше
-    идут поправки, они интересны только при разборе ошибок.
+    качество фигуры, затем контекст. Берём первые три — дальше идут
+    поправки, они интересны только при разборе ошибок.
     """
     head = {
+        "flow_hidden": "Скрытый набор",
         "flow_spring": "Пружина",
         "flow_churn": "Поглощение на уровне",
         "flow_fuel": "Карта предложения",
     }.get(name, "Поток")
 
     if not sig.reasons:
-        return f"{head}."
-    body = "; ".join(sig.reasons[:3])
-    return f"{head}: {body}."
+        text = f"{head}."
+    else:
+        body = "; ".join(sig.reasons[:3])
+        text = f"{head}: {body}."
+
+    if confirmed_by:
+        tail = {
+            "flow_hidden": "скрытым набором",
+            "flow_spring": "сжатием",
+            "flow_churn": "поглощением на уровне",
+            "flow_fuel": "снятым предложением сверху",
+        }.get(confirmed_by, "вторым подкейсом")
+        text += f" Подтверждено {tail}."
+
+    return text
 
 
 def detect_flow(symbol: str, quote_volume_24h: float = 0.0) -> FlowSignal:
     """Прогоняет подкейсы по общему контексту и возвращает сильнейший.
 
-    Контекст считается ОДИН раз: дневки берутся из RunCache,
-    агрегаты строятся из них, поэтому масштабы бесплатны. Дорогие
-    сетевые запросы (funding, OI) делаются только после
-    срабатывания дневного ядра — без него detected всё равно ложь.
+    Контекст считается ОДИН раз: дневки берутся из RunCache, агрегаты
+    строятся из них, поэтому масштабы бесплатны. Дорогие сетевые
+    запросы (funding, OI) делаются только после срабатывания дневного
+    ядра — без него detected всё равно ложь.
     """
     ctx = build_context(symbol, quote_volume_24h)
     if not ctx.valid:
         return FlowSignal(symbol=symbol)
 
     results: list[tuple[str, SubcaseSignal]] = []
+
     for module in _RUNNERS:
         try:
             sig = module.detect(ctx)
@@ -139,12 +199,22 @@ def detect_flow(symbol: str, quote_volume_24h: float = 0.0) -> FlowSignal:
             # Падение одного подкейса не должно ронять семейство:
             # монет двести, а модулей пять.
             continue
-        if sig is not None:
-            results.append((sig.subcase, sig))
+        if sig is None:
+            continue
+
+        # Потолок зрелости. Применяется здесь, а не в подкейсе:
+        # модуль не обязан знать, насколько ему доверяют.
+        cap = CASE_CAP.get(sig.subcase, 100)
+        if sig.score > cap:
+            sig.score = float(cap)
+
+        results.append((sig.subcase, sig))
 
     cases = {
         name: {
             "score": round(sig.score, 1),
+            "base": round(sig.base_score, 1),
+            "cut": round(sig.cut, 2),
             "reasons": sig.reasons[:3],
             "mults": sig.mults,
         }
@@ -167,19 +237,39 @@ def detect_flow(symbol: str, quote_volume_24h: float = 0.0) -> FlowSignal:
             if CASE_PRIORITY.get(name, 0) > CASE_PRIORITY.get(best_name, 0):
                 best_name, best_sig = name, sig
 
-    score = _to_family_score(best_sig.score)
-    if score < MIN_SCORE:
+    raw = best_sig.score
+
+    # ── Подтверждение вторым подкейсом ───────────────────────
+    # Две независимые фигуры на одной монете сильнее одной. Бонус
+    # фиксированный и небольшой: подкейсы читают общую карту зон,
+    # то есть частично коррелированы, и складывать их скоры было
+    # бы двойным счётом.
+    confirmed_by = ""
+    others = [
+        (n, s) for n, s in results
+        if n != best_name and s.score >= CONFIRM_MIN_RAW
+    ]
+    if others:
+        confirmed_by = max(others, key=lambda x: x[1].score)[0]
+        raw = min(100.0, raw + CONFIRM_BONUS)
+
+    # ── Порог ────────────────────────────────────────────────
+    # Проверяется на СЫРОЙ шкале. После приведения проверять
+    # бессмысленно: нижняя точка отображения равна порогу.
+    if raw < MIN_RAW_SCORE:
         # Фигура собралась, но вклад символический. Разбор
         # отдаём — воронке нужно видеть, насколько не дотянули.
         return FlowSignal(
             symbol=symbol,
-            score=score,
+            score=int(round(raw)),
             cases=cases,
             context=ctx.to_dict(),
         )
 
+    score = _to_family_score(raw)
     hz = _horizon(ctx)
-    verdict = _verdict(best_name, best_sig)
+    verdict = _verdict(best_name, best_sig, confirmed_by)
+
     if hz["readable"] and hz["wait_days"]:
         verdict += (
             f" Картина читается на {hz['label']}, "

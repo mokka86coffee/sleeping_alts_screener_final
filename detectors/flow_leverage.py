@@ -1,0 +1,383 @@
+"""FLOW · подкейс leverage — перекос в плече.
+
+Фигура: шорты перегружены. Фандинг устойчиво отрицательный, открытый
+интерес растёт, цена стоит. Позиция набрана против движения, которого
+нет, и держать её стоит денег — каждые восемь часов шорты платят
+лонгам за право оставаться в позиции.
+
+Такая конструкция сама себе топливо. Ей не нужен покупатель: хватит
+отсутствия продавца, чтобы вынести стопы, а вынесенные стопы — это
+рыночные покупки, которые выносят следующие. Отсюда характерная
+форма выноса: вертикаль без объёмной подготовки.
+
+Отличие от detect_squeeze: там перегрев ЛОНГОВ и охота за ними,
+положительный экстремальный фандинг. Здесь зеркальная сторона —
+перегруженность шортов. Пересечения нет по знаку, и это проверяется
+явно: при фандинге выше LEV_FUNDING_HOT_APR подкейс молчит, потому
+что территория чужая.
+
+Единственный модуль семейства, который ходит в сеть сверх дневок.
+Поэтому он ленивый: без сработавшего дневного ядра запросы не
+делаются вовсе — detected всё равно был бы ложью.
+"""
+
+from __future__ import annotations
+
+from core.binance import get_funding_history, get_oi_history
+from detectors.flow_config import (
+    LEV_FUNDING_EXTREME_APR,
+    LEV_FUNDING_HOT_APR,
+    LEV_FUNDING_NEG_APR,
+    LEV_HISTORY_DAYS,
+    LEV_MIN_OI_USD,
+    LEV_OI_GROWTH_MIN,
+    LEV_PRICE_FLAT_PCT,
+    LEV_REQUIRE_CORE,
+    VORTEX_MULT_MAX,
+    ZONE_NEAR_PCT,
+)
+from detectors.flow_core import (
+    FlowContext,
+    Zone,
+    _median,
+    _slope,
+)
+from detectors.flow_signal import SubcaseSignal, veto_bullish
+
+name = "flow_leverage"
+
+# Три записи в сутки — так отдаёт Binance. Переводим дни в записи
+# здесь, чтобы порог в конфиге оставался в днях: срок жизни данных
+# понятнее в днях, чем в интервалах фандинга.
+LEV_FUNDING_PER_DAY = 3
+
+# Доля интервалов, которые обязаны быть отрицательными. Один
+# провал фандинга ничего не значит — перекос должен держаться.
+LEV_NEG_SHARE_MIN = 0.6
+
+# Окно оценки роста OI, в записях. Binance отдаёт 5m/15m/1h/4h/1d;
+# берём дневки, чтобы согласовать с остальным семейством.
+LEV_OI_WINDOW = 14
+
+
+# ─────────────────────────────────────────────────────────────
+# Фандинг
+# ─────────────────────────────────────────────────────────────
+
+def _to_apr(rate: float, interval_hours: float = 8.0) -> float:
+    """Приводит сырую ставку к годовым процентам.
+
+    Внутри семейства сырая ставка не используется НИГДЕ: 0.01% за
+    восемь часов и 0.01% за час — принципиально разные вещи, а
+    выглядят одинаково. Все пороги заданы в APR.
+    """
+    if interval_hours <= 0:
+        interval_hours = 8.0
+    return rate * (24.0 / interval_hours) * 365.0 * 100.0
+
+
+def _funding_state(symbol: str) -> dict | None:
+     """Состояние фандинга за доступную историю.
+
+     Возвращает медианный APR, долю отрицательных интервалов и
+     минимум — либо None, если данных нет.
+     """
+     limit = int(LEV_HISTORY_DAYS * LEV_FUNDING_PER_DAY)
+     try:
+         raw = get_funding_history(symbol, limit=limit)
+     except Exception:
+         return None
+     if not raw or len(raw) < 6:
+         return None
+
+     rates: list[float] = []
+     for item in raw:
+         try:
+             rates.append(float(item["fundingRate"]))
+         except (KeyError, TypeError, ValueError):
+             continue
+
+     if len(rates) < 6:
+         return None
+
+     aprs = [_to_apr(r) for r in rates]
+     neg = sum(1 for a in aprs if a < 0)
+
+     return {
+         "median_apr": _median(aprs),
+         "min_apr": min(aprs),
+         "last_apr": aprs[-1],
+         "neg_share": neg / len(aprs),
+         "samples": float(len(aprs)),
+         "slope": _slope(aprs),
+     }
+
+
+def _oi_state(symbol: str) -> dict | None:
+     """Динамика открытого интереса в долларах.
+
+     Берём именно долларовую величину, а не количество контрактов:
+     при движении цены счёт контрактов растёт и падает сам по себе,
+     и рост OI в штуках может означать сокращение позиции в деньгах.
+
+     История доступна только за 30 дней — жёсткий потолок Binance,
+     поэтому окно сравнения короткое по построению.
+     """
+     try:
+         raw = get_oi_history(symbol, period="1d", limit=30)
+     except Exception:
+         return None
+     if not raw or len(raw) < LEV_OI_WINDOW:
+         return None
+
+     values: list[float] = []
+     for item in raw:
+         try:
+             values.append(float(item["sumOpenInterestValue"]))
+         except (KeyError, TypeError, ValueError):
+             continue
+
+     if len(values) < LEV_OI_WINDOW:
+         return None
+
+     tail = values[-LEV_OI_WINDOW:]
+     half = LEV_OI_WINDOW // 2
+     first = _median(tail[:half])
+     last = _median(tail[half:])
+
+     growth = (last - first) / first if first > 0 else 0.0
+
+     return {
+         "current": values[-1],
+         "growth": growth,
+         "slope": _slope(tail),
+     }
+
+
+# ─────────────────────────────────────────────────────────────
+# Цена
+# ─────────────────────────────────────────────────────────────
+
+def _price_flat(ctx: FlowContext, window: int = LEV_OI_WINDOW) -> tuple[bool, float]:
+    """Стоит ли цена, пока набирается позиция.
+
+    Смысл фигуры именно в расхождении: OI растёт, цена не идёт.
+    Если цена уже падает вместе с ростом OI — шорт работает, и
+    это не перекос, а тренд.
+    """
+    base = ctx.base
+    if len(base) < window:
+        return False, 0.0
+
+    tail = base[-window:]
+    if tail[0].close <= 0:
+        return False, 0.0
+
+    move = (tail[-1].close - tail[0].close) / tail[0].close * 100
+    return abs(move) <= LEV_PRICE_FLAT_PCT, move
+
+
+# ─────────────────────────────────────────────────────────────
+# Зона
+# ─────────────────────────────────────────────────────────────
+
+def _floor_zone(ctx: FlowContext) -> Zone | None:
+    """Уровень, от которого шортам будет больно.
+
+    Не обязателен, но важен: перекос без опоры разряжается куда
+    угодно, перекос над выдержанным уровнем — вверх.
+    """
+    below = [
+        z for z in ctx.zones
+        if z.price <= ctx.price
+        and (ctx.price - z.price) / ctx.price <= ZONE_NEAR_PCT
+    ]
+    if not below:
+        return None
+    return max(below, key=lambda z: (z.tests, z.plateau_bars))
+
+
+# ─────────────────────────────────────────────────────────────
+# Базовый скор
+# ─────────────────────────────────────────────────────────────
+
+def _base_score(
+    fund: dict,
+    oi: dict,
+    flat: bool,
+) -> tuple[float, dict[str, float]]:
+    """Скор от глубины перекоса и подтверждённости набора.
+
+    Основа — фандинг: он прямо измеряет, сколько стоит держать
+    позицию. Рост OI показывает, что позицию всё равно набирают,
+    несмотря на цену.
+    """
+    apr = fund["median_apr"]
+    score = 28.0
+
+    if apr <= LEV_FUNDING_EXTREME_APR:
+        score += 26.0
+    elif apr <= LEV_FUNDING_NEG_APR * 2:
+        score += 18.0
+    elif apr <= LEV_FUNDING_NEG_APR:
+        score += 10.0
+
+    # Устойчивость перекоса важнее его глубины: один экстремальный
+    # интервал бывает от разовой ликвидации.
+    if fund["neg_share"] >= 0.85:
+        score += 12.0
+    elif fund["neg_share"] >= LEV_NEG_SHARE_MIN:
+        score += 6.0
+
+    # Позицию продолжают набирать.
+    growth = oi["growth"]
+    if growth >= LEV_OI_GROWTH_MIN * 3:
+        score += 14.0
+    elif growth >= LEV_OI_GROWTH_MIN * 2:
+        score += 9.0
+    elif growth >= LEV_OI_GROWTH_MIN:
+        score += 5.0
+
+    if flat:
+        score += 8.0
+
+    facts = {
+        "funding_apr": apr,
+        "funding_min_apr": fund["min_apr"],
+        "neg_share": fund["neg_share"],
+        "oi_growth": growth,
+        "oi_usd": oi["current"],
+    }
+    return score, facts
+
+
+# ─────────────────────────────────────────────────────────────
+# Детект
+# ─────────────────────────────────────────────────────────────
+
+def detect(ctx: FlowContext) -> SubcaseSignal | None:
+    """Собирает фигуру leverage либо возвращает None.
+
+    Сетевые запросы делаются ТОЛЬКО после того, как отработали все
+    дешёвые проверки: без валидного контекста и живых зон результат
+    всё равно был бы отброшен, а запросов — двести штук впустую.
+    """
+    # Зона желательна, но не обязательна: перекос в плече существует
+    # независимо от карты уровней.
+    if veto_bullish(ctx, require_zones=False):
+        return None
+
+    # ── Ленивая загрузка ─────────────────────────────────────
+    # Требование дневного ядра: без зон под ценой фигура не имеет
+    # направления, и платить за сеть незачем.
+    if LEV_REQUIRE_CORE and not ctx.zones:
+        return None
+
+    flat, move = _price_flat(ctx)
+    if not flat:
+        # Цена идёт — перекос либо уже отработал, либо шорт прав.
+        return None
+
+    fund = _funding_state(ctx.symbol)
+    if fund is None:
+        return None
+
+    # ── Разграничение с detect_squeeze ───────────────────────
+    # Положительный горячий фандинг — перегрев лонгов, чужая
+    # территория. Пересечения между семействами быть не должно.
+    if fund["median_apr"] >= LEV_FUNDING_HOT_APR:
+        return None
+
+    if fund["median_apr"] > LEV_FUNDING_NEG_APR:
+        return None
+
+    if fund["neg_share"] < LEV_NEG_SHARE_MIN:
+        return None
+
+    oi = _oi_state(ctx.symbol)
+    if oi is None:
+        return None
+
+    # ── Ликвидность позиции ──────────────────────────────────
+    # Если OI меньше порога, закрывать позицию некуда: сквиз
+    # упрётся в пустой стакан и не даст движения, на котором
+    # можно выйти.
+    if oi["current"] < LEV_MIN_OI_USD:
+        return None
+
+    if oi["growth"] < LEV_OI_GROWTH_MIN:
+        return None
+
+    score, facts = _base_score(fund, oi, flat)
+    facts["price_move_pct"] = move
+
+    sig = SubcaseSignal(
+        subcase=name,
+        score=score,
+        horizon_bars=ctx.horizon_bars,
+        zone_price=ctx.price,
+    )
+    sig.add(
+        f"шорты перегружены: фандинг {facts['funding_apr']:.0f}% APR "
+        f"({fund['neg_share'] * 100:.0f}% интервалов в минусе), "
+        f"OI +{oi['growth'] * 100:.0f}% при цене {move:+.1f}%",
+        **facts,
+    )
+
+    # ── Углубление перекоса ──────────────────────────────────
+    # Фандинг уходит всё ниже — значит перекос не рассасывается,
+    # а нарастает. Разряд ближе.
+    if fund["slope"] < 0:
+        sig.apply("deepening", 1.12)
+        sig.add(
+            "перекос углубляется",
+            funding_slope=fund["slope"],
+        )
+
+    # ── Опора ────────────────────────────────────────────────
+    zone = _floor_zone(ctx)
+    if zone is not None:
+        mult = 1.2 if zone.tests >= 2 else 1.1
+        sig.apply("floor_zone", mult)
+        sig.add(
+            f"под перекосом зона {zone.price:.6g} "
+            f"({zone.tests} тестов, плато {zone.plateau_bars} дней)",
+            zone_price=zone.price,
+            tests=float(zone.tests),
+        )
+        sig.zone_price = zone.price
+    else:
+        # Разряд возможен в любую сторону.
+        sig.apply("no_floor", 0.85)
+        sig.add("опорной зоны под перекосом нет")
+
+    # ── Вортекс [MMT] ────────────────────────────────────────
+    vx = ctx.vortex
+    if vx.diverging and vx.vi_plus > vx.vi_minus:
+        mult = min(VORTEX_MULT_MAX, 1.0 + vx.spread * 0.4)
+        sig.apply("vortex_up", mult)
+        sig.add(
+            f"вортекс на масштабе {vx.scale}D подтверждает сторону разряда",
+            vortex_scale=float(vx.scale),
+            vortex_spread=vx.spread,
+        )
+    elif vx.diverging and vx.vi_minus > vx.vi_plus:
+        # Шорт может оказаться прав: направленное движение вниз.
+        sig.apply("vortex_conflict", 0.7)
+        sig.add(
+            f"вортекс на масштабе {vx.scale}D указывает вниз",
+            vortex_scale=float(vx.scale),
+            vortex_spread=vx.spread,
+        )
+
+    # ── Поток ────────────────────────────────────────────────
+    # Перекос в плече плюс перекос в потоке — две независимые
+    # стороны одной картины.
+    if ctx.flow.buy_share >= 0.52:
+        sig.apply("buy_bias", 1.1)
+        sig.add(
+            f"доля покупок {ctx.flow.buy_share * 100:.1f}%",
+            buy_share=ctx.flow.buy_share,
+        )
+
+    return sig if not sig.weak else None

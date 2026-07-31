@@ -2,26 +2,62 @@
 
 Не фильтрует и не отбирает: задача — собрать сырой срез, по которому
 видно, где подкейсы недобирают. Пишет CSV для сводных цифр и JSON
-с полным разбором первых сработавших монет.
+с полным разбором сработавших монет.
 
-Запуск:  python flow_probe.py
+Запуск:
+    python flow_probe.py              полный прогон, сеть включена
+    python flow_probe.py --no-net     без funding и OI, быстрее
+    python flow_probe.py --limit 50   первые 50 монет по обороту
 """
 
 from __future__ import annotations
 
 import csv
 import json
+import sys
 import time
 import traceback
+from collections import Counter
 from datetime import datetime
 
 from core.binance import drop_symbol_cache, get_futures_tickers
-from detectors.flow import MIN_SCORE, detect_flow
+from detectors.flow import MIN_RAW_SCORE, detect_flow
 
-MIN_QUOTE_VOLUME = 5_000_000  # ниже этого монета неторгуема, шум в статистике
+MIN_QUOTE_VOLUME = 5_000_000    # ниже этого монета неторгуема, шум в статистике
+
+# Сколько монет с detected сохранить с полным контекстом
+DEEP_DUMP_LIMIT = 25
+
+# Подкейсы в порядке зрелости. Одно место, из которого берутся и
+# колонки CSV, и разделы сводки: добавление модуля — одна строка.
+CASES = ("hidden", "spring", "churn", "taker", "fuel", "leverage")
+
+STAMP = datetime.now().strftime("%Y%m%d_%H%M")
+CSV_PATH = f"flow_probe_{STAMP}.csv"
+JSON_PATH = f"flow_probe_{STAMP}.json"
+
+FIELDS = [
+    "symbol",
+    "detected",
+    "score",
+    "case",
+    "strength",
+    "horizon_days",
+    "horizon_tf",
+    *CASES,
+    "zone_price",
+    "events",
+    "zones",
+    "vortex_scale",
+    "vortex_spread",
+    "collapsing",
+    "growth_x",
+    "failures",
+    "error",
+]
 
 
-def load_universe() -> list[tuple[str, float]]:
+def load_universe(limit: int = 0) -> list[tuple[str, float]]:
     """Символы с объёмом, отсортированные по убыванию ликвидности."""
     out: list[tuple[str, float]] = []
     for t in get_futures_tickers():
@@ -35,45 +71,69 @@ def load_universe() -> list[tuple[str, float]]:
         if qv >= MIN_QUOTE_VOLUME:
             out.append((sym, qv))
     out.sort(key=lambda x: -x[1])
-    return out
-
-# Сколько монет с detected сохранить с полным контекстом
-DEEP_DUMP_LIMIT = 25
-
-STAMP = datetime.now().strftime("%Y%m%d_%H%M")
-CSV_PATH = f"flow_probe_{STAMP}.csv"
-JSON_PATH = f"flow_probe_{STAMP}.json"
-
-FIELDS = [
-    "symbol", "detected", "score", "case", "strength",
-    "horizon_days", "horizon_tf", "horizon_readable",
-    "spring", "churn", "fuel",
-    "zone_price", "plateau_bars", "scale", "error",
-]
+    return out[:limit] if limit else out
 
 
-def _case_score(cases: dict, name: str) -> float:
-    row = cases.get(name) or cases.get(f"flow_{name}") or {}
-    return round(row.get("score", 0.0), 1)
+def _case_score(cases: dict, short: str) -> float:
+    """Скор подкейса по короткому имени. 0, если не сработал."""
+    row = cases.get(f"flow_{short}") or cases.get(short) or {}
+    try:
+        return round(float(row.get("score", 0.0)), 1)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _stats(values: list[float]) -> str:
+    """Медиана и края по ненулевым значениям."""
+    live = sorted(v for v in values if v > 0)
+    if not live:
+        return "нет срабатываний"
+    med = live[len(live) // 2]
+    return (
+        f"ненулевых {len(live):3d}  "
+        f"мин {live[0]:5.1f}  медиана {med:5.1f}  макс {live[-1]:5.1f}"
+    )
 
 
 def main() -> None:
-    symbols = load_universe()
-    print(f"Монет к прогону: {len(symbols)}")
+    allow_network = "--no-net" not in sys.argv
+
+    limit = 0
+    if "--limit" in sys.argv:
+        try:
+            limit = int(sys.argv[sys.argv.index("--limit") + 1])
+        except (IndexError, ValueError):
+            limit = 0
+
+    symbols = load_universe(limit)
+    net = "включена" if allow_network else "выключена"
+    print(f"Монет к прогону: {len(symbols)}, сеть для leverage: {net}")
 
     rows: list[dict] = []
     deep: list[dict] = []
+    fail_counter: Counter[str] = Counter()
+    fail_samples: dict[str, str] = {}
     started = time.time()
 
     for i, (symbol, qv) in enumerate(symbols, 1):
         row = {k: "" for k in FIELDS}
         row["symbol"] = symbol
+        row["detected"] = 0
+        row["score"] = 0
+        for c in CASES:
+            row[c] = 0.0
+
         try:
-            sig = detect_flow(symbol, qv)
+            sig = detect_flow(symbol, qv, allow_network=allow_network)
             d = sig.to_dict()
+
             cases = d.get("cases") or {}
             ctx = d.get("context") or {}
             parts = d.get("parts") or []
+            flow = ctx.get("flow") or {}
+            drop = ctx.get("drop") or {}
+            vortex = ctx.get("vortex") or {}
+            fails = d.get("failures") or {}
 
             row.update(
                 detected=int(bool(d.get("detected"))),
@@ -82,14 +142,21 @@ def main() -> None:
                 strength=d.get("strength_label", ""),
                 horizon_days=d.get("horizon_days", 0),
                 horizon_tf=d.get("horizon_tf", ""),
-                horizon_readable=int(bool(d.get("horizon_readable"))),
-                spring=_case_score(cases, "spring"),
-                churn=_case_score(cases, "churn"),
-                fuel=_case_score(cases, "fuel"),
-                scale=ctx.get("scale", ""),
-                plateau_bars=ctx.get("plateau_bars", ""),
+                events=ctx.get("events_total", ""),
+                zones=len(ctx.get("zones") or []),
+                vortex_scale=vortex.get("scale", ""),
+                vortex_spread=vortex.get("spread", ""),
+                collapsing=int(bool(flow.get("collapsing"))),
+                growth_x=drop.get("growth_x", ""),
                 zone_price=(parts[0].get("zone_price") if parts else ""),
+                failures=";".join(sorted(fails)),
             )
+            for c in CASES:
+                row[c] = _case_score(cases, c)
+
+            for mod, text in fails.items():
+                fail_counter[mod] += 1
+                fail_samples.setdefault(mod, text)
 
             if d.get("detected") and len(deep) < DEEP_DUMP_LIMIT:
                 deep.append(d)
@@ -121,37 +188,67 @@ def main() -> None:
     hits = [r for r in ok if r["detected"] == 1]
     errs = [r for r in rows if r["error"]]
 
-    print("\n" + "=" * 46)
-    print(f"Всего монет:        {total}")
-    print(f"Прошло без ошибок:  {len(ok)}")
-    print(f"Ошибок:             {len(errs)}")
-    print(f"Срабатываний:       {len(hits)}  ({len(hits) / max(total, 1) * 100:.1f}%)")
+    print("\n" + "=" * 52)
+    print(f"Всего монет: {total}")
+    print(f"Прошло без ошибок: {len(ok)}")
+    print(f"Ошибок: {len(errs)}")
+    print(f"Срабатываний: {len(hits)} ({len(hits) / max(total, 1) * 100:.1f}%)")
 
-    by_case: dict[str, int] = {}
-    for r in hits:
-        by_case[r["case"]] = by_case.get(r["case"], 0) + 1
-    for name, n in sorted(by_case.items(), key=lambda x: -x[1]):
-        print(f"   {name:10s} {n}")
+    print("\nПобедители:")
+    by_case = Counter(r["case"] for r in hits)
+    for name, n in by_case.most_common():
+        print(f"  {name:16s} {n}")
 
-    for name in ("spring", "churn", "fuel"):
-        vals = [r[name] for r in ok if isinstance(r[name], (int, float))]
-        live = [v for v in vals if v > 0]
-        if live:
-            live.sort()
-            print(
-                f"{name:8s} ненулевых {len(live):3d}  "
-                f"медиана {live[len(live) // 2]:5.1f}  макс {live[-1]:5.1f}"
-            )
+    print("\nШкалы подкейсов (сырой скор до сведения):")
+    for c in CASES:
+        vals = [r[c] for r in ok if isinstance(r[c], (int, float))]
+        print(f"  {c:9s} {_stats(vals)}")
 
-    near = [r for r in ok if r["detected"] == 0 and r["score"] >= MIN_SCORE - 10]
+    # ── Тихие падения ──
+    # Подкейс, который ни разу не сработал, может быть либо честно
+    # молчащим, либо сломанным. Различить можно только здесь:
+    # flow.py ловит исключения, чтобы не ронять прогон, и без этого
+    # раздела опечатка выглядит как свойство рынка.
+    if fail_counter:
+        print("\nИсключения в подкейсах:")
+        for mod, n in fail_counter.most_common():
+            print(f"  {mod:16s} {n:3d}  {fail_samples[mod]}")
+    else:
+        print("\nИсключений в подкейсах нет.")
+
+    silent = [
+        c for c in CASES
+        if not any(r[c] for r in ok if isinstance(r[c], (int, float)))
+    ]
+    if silent:
+        print(f"Ни разу не собрались: {', '.join(silent)}")
+
+    # ── Недобор ──
+    near = [
+        r for r in ok
+        if r["detected"] == 0 and r["score"] >= MIN_RAW_SCORE - 10
+    ]
     print(f"\nНедобрали до порога в пределах 10 баллов: {len(near)}")
     for r in sorted(near, key=lambda x: -x["score"])[:15]:
-        print(f"   {r['symbol']:14s} {r['score']:3d}  s{r['spring']:5.1f} c{r['churn']:5.1f} f{r['fuel']:5.1f}")
+        parts = "  ".join(f"{c[0]}{r[c]:5.1f}" for c in CASES)
+        print(f"  {r['symbol']:14s} {r['score']:3d}  {parts}")
+
+    # ── Контекстные вето ──
+    # Не срабатывания, а причины молчания. Нужны, чтобы понимать,
+    # что именно рубит выборку: обвал дельты, отсутствие зон или
+    # экстремальный рост.
+    quiet = [r for r in ok if r["detected"] == 0]
+    collapsing = sum(1 for r in quiet if r["collapsing"] == 1)
+    no_zones = sum(1 for r in quiet if r["zones"] == 0)
+    print(
+        f"\nСреди молчащих: обвал дельты {collapsing}, "
+        f"без живых зон {no_zones}, всего {len(quiet)}"
+    )
 
     if errs:
         print("\nОшибки:")
         for r in errs[:10]:
-            print(f"   {r['symbol']:14s} {r['error']}")
+            print(f"  {r['symbol']:14s} {r['error']}")
 
     print(f"\nФайлы: {CSV_PATH}, {JSON_PATH}")
 

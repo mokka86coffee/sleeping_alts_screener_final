@@ -179,7 +179,7 @@ def _base_score(
 
 def detect(ctx: FlowContext) -> SubcaseSignal | None:
     """Собирает фигуру hidden либо возвращает None."""
-    if veto_bullish(ctx, require_zpnes=False):
+    if veto_bullish(ctx, require_zones=False):
         return None
 
     base = ctx.base
