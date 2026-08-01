@@ -206,7 +206,7 @@ K_VOLUME = 5          # объём в базовой монете
 K_CLOSE_TIME = 6
 K_QUOTE_VOLUME = 7    # объём в USDT
 K_TRADES = 8            # число сделок
-K_TAKER_BUY_BASE = 9    # покупки тейкеромs, базовая монета
+K_TAKER_BUY_BASE = 9    # покупки тейкером, базовая монета
 K_TAKER_BUY_QUOTE = 10  # покупки тейкером, USDT — база дельты в FLOW
 
 

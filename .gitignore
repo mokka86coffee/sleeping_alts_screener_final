@@ -28,6 +28,8 @@ Thumbs.db
 venv/
 .env
 
-cache
+cache/
+path/
+reports/
 cache_fundamental
-output
+output/

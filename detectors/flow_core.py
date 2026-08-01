@@ -23,6 +23,7 @@ from core.binance import (
     K_LOW,
     K_OPEN,
     K_QUOTE_VOLUME,
+    K_TAKER_BUY_QUOTE,
     klines_1d,
 )
 from detectors.flow_config import (
@@ -35,7 +36,7 @@ from detectors.flow_config import (
     EXTREME_GROWTH_X,
     GROWTH_DISTRUST,
     HORIZON_BARS_AHEAD,
-    HORIZON_MIN_AMPLITUDE,
+    HORIZON_AMP_GAIN,
     IMMATURE_BODY_MAX,
     IMMATURE_MIN_TIER,
     MIN_BARS_BASE,
@@ -67,15 +68,6 @@ from detectors.flow_config import (
     ZONE_TEST_HOLD_PCT,
     ZONE_TEST_TOUCH_PCT,
 )
-
-# Индекс поля taker buy quote volume в свече Binance.
-# Каноническое место — core.binance, рядом с остальными K_*. Пока
-# константа там не объявлена, работает запасной вариант: формат
-# свечи фиксирован биржей, значение меняться не может.
-try:
-    from core.binance import K_TAKER_BUY_QUOTE
-except ImportError:  # pragma: no cover
-    K_TAKER_BUY_QUOTE = 10
 
 
 # ─────────────────────────────────────────────────────────────
@@ -900,22 +892,29 @@ def build_drop_context(bars: list[Bar]) -> DropContext:
 
     bottom_rel = min(range(len(after)), key=lambda i: after[i].low)
     bottom_i = peak_i + bottom_rel
+
     bottom = after[bottom_rel].low
     if bottom <= 0:
         return ctx
 
+    # Рост до пика считается ВСЕГДА, независимо от того, случилось
+    # ли после него падение. Прежде расчёт стоял ниже проверки
+    # drop_pct, и монета, выросшая в двадцать раз и не упавшая,
+    # получала growth_x = 0 — то есть вето на экстремальный рост к
+    # ней не применялось вовсе, а зоны под ценой считались
+    # доверенными. Между тем толпа с прибылью там никуда не делась,
+    # и уровни под ней ещё не проверены сливом.
+    before = window[:peak_i] if peak_i > 0 else []
+    if before:
+        base_low = min(b.low for b in before)
+        if base_low > 0:
+            ctx.growth_x = peak / base_low
+            ctx.extreme_growth = ctx.growth_x >= EXTREME_GROWTH_X
+            ctx.distrust_zones = _distrust_count(ctx.growth_x)
+
     ctx.drop_pct = (peak - bottom) / peak * 100
     if ctx.drop_pct < BOTTOM_MIN_DROP_PCT:
         return ctx
-
-    # Рост до пика: от минимума на подходе к вершине.
-    before = window[:peak_i] if peak_i > 0 else []
-    if before:
-        base = min(b.low for b in before)
-        if base > 0:
-            ctx.growth_x = peak / base
-            ctx.extreme_growth = ctx.growth_x >= EXTREME_GROWTH_X
-            ctx.distrust_zones = _distrust_count(ctx.growth_x)
 
     ctx.bars_since_bottom = n - 1 - bottom_i
     if ctx.bars_since_bottom < BOTTOM_MIN_BARS_AFTER:
@@ -1037,10 +1036,33 @@ def pick_horizon(scales_bars: dict[int, list[Bar]]) -> tuple[int, str]:
 
     Не про силу сигнала, а про то, сколько ждать. В скор не входит:
     это ярлык времени, а не аргумент за монету.
-    """
-    best_scale = 1
 
+    Прежнее условие сравнивало амплитуду агрегата с константой,
+    делённой на масштаб. Обе величины шли навстречу: амплитуда
+    крупного бара больше по построению, а порог для него меньше.
+    Условие выполнялось почти всегда на максимальном доступном
+    масштабе, и горизонт различал не монеты, а длину их истории —
+    у 24 сработавших монет из 31 он равнялся 25 дням.
+
+    Здесь масштаб засчитывается, только если даёт существенный
+    прирост амплитуды против дневки той же монеты. Случайное
+    блуждание расширяет бар как корень масштаба; прирост в
+    пределах этого не проявляет ничего.
+    """
+    base = scales_bars.get(1) or []
+    if len(base) < 10:
+        return 1, "дни"
+
+    base_amp = _median(
+        [b.amplitude / b.close for b in base[-30:] if b.close > 0]
+    )
+    if base_amp <= 0:
+        return 1, "дни"
+
+    best_scale = 1
     for scale in sorted(scales_bars):
+        if scale <= 1:
+            continue
         bars = scales_bars[scale]
         if len(bars) < _min_bars(scale):
             continue
@@ -1048,7 +1070,7 @@ def pick_horizon(scales_bars: dict[int, list[Bar]]) -> tuple[int, str]:
         if len(tail) < 10:
             continue
         amp = _median([b.amplitude / b.close for b in tail if b.close > 0])
-        if amp >= HORIZON_MIN_AMPLITUDE / max(1, scale):
+        if amp >= base_amp * math.sqrt(scale) * HORIZON_AMP_GAIN:
             best_scale = scale
 
     days = int(best_scale * HORIZON_BARS_AHEAD)
@@ -1060,7 +1082,6 @@ def pick_horizon(scales_bars: dict[int, list[Bar]]) -> tuple[int, str]:
         label = "недели"
     else:
         label = "месяц+"
-
     return best_scale, label
 
 
