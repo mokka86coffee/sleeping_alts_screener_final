@@ -28,6 +28,7 @@ from detectors.flow_config import (
     HIDDEN_LOWS_TOLERANCE,
     HIDDEN_MAX_BARS,
     HIDDEN_MIN_BARS,
+    HIDDEN_BUY_BIAS,
     HIDDEN_PRICE_SLOPE_MAX,
     HIDDEN_WINDOW,
     HOMOGENEITY_GOOD,
@@ -301,7 +302,11 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     # Наклон дельты может расти и при доле около половины, если
     # объём нарастает. Устойчивый перевес — отдельное
     # свидетельство.
-    if ctx.flow.buy_share >= 0.53:
+    #
+    # Порог привязан к наблюдаемому разбросу (0.479..0.509).
+    # Прежние 0.53 лежали выше рыночного максимума: ветка была
+    # мёртвым кодом.
+    if ctx.flow.buy_share >= HIDDEN_BUY_BIAS:
         sig.apply("buy_bias", 1.1)
         sig.add(
             f"доля покупок {ctx.flow.buy_share * 100:.1f}%",

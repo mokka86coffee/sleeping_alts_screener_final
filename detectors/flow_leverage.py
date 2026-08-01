@@ -29,12 +29,16 @@ from detectors.flow_config import (
     LEV_FUNDING_HOT_APR,
     LEV_FUNDING_NEG_APR,
     LEV_HISTORY_DAYS,
+    LEV_BUY_BIAS,
     LEV_MIN_OI_USD,
     LEV_OI_GROWTH_MIN,
     LEV_PRICE_FLAT_PCT,
     LEV_REQUIRE_CORE,
     VORTEX_MULT_MAX,
     ZONE_NEAR_PCT,
+    LEV_FUNDING_PER_DAY,
+    LEV_NEG_SHARE_MIN,
+    LEV_OI_WINDOW,
 )
 from detectors.flow_core import (
     FlowContext,
@@ -45,19 +49,6 @@ from detectors.flow_core import (
 from detectors.flow_signal import SubcaseSignal, veto_bullish
 
 name = "flow_leverage"
-
-# Три записи в сутки — так отдаёт Binance. Переводим дни в записи
-# здесь, чтобы порог в конфиге оставался в днях: срок жизни данных
-# понятнее в днях, чем в интервалах фандинга.
-LEV_FUNDING_PER_DAY = 3
-
-# Доля интервалов, которые обязаны быть отрицательными. Один
-# провал фандинга ничего не значит — перекос должен держаться.
-LEV_NEG_SHARE_MIN = 0.6
-
-# Окно оценки роста OI, в записях. Binance отдаёт 5m/15m/1h/4h/1d;
-# берём дневки, чтобы согласовать с остальным семейством.
-LEV_OI_WINDOW = 14
 
 
 # ─────────────────────────────────────────────────────────────
@@ -370,10 +361,13 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
             vortex_spread=vx.spread,
         )
 
-    # ── Поток ────────────────────────────────────────────────
+    # ── Поток ──────────────────────────────────────────────
     # Перекос в плече плюс перекос в потоке — две независимые
     # стороны одной картины.
-    if ctx.flow.buy_share >= 0.52:
+    #
+    # Порог привязан к наблюдаемому разбросу (0.479..0.509).
+    # Прежние 0.52 лежали выше рыночного максимума.
+    if ctx.flow.buy_share >= LEV_BUY_BIAS:
         sig.apply("buy_bias", 1.1)
         sig.add(
             f"доля покупок {ctx.flow.buy_share * 100:.1f}%",

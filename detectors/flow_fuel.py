@@ -23,29 +23,17 @@ from __future__ import annotations
 
 from detectors.flow_config import (
     EXTREME_GROWTH_X,
+    FUEL_BREAKOUT_HOLD_BARS,
+    FUEL_BREAKOUT_MARGIN,
+    FUEL_CLEAR_SKY_WEIGHT,
+    FUEL_MAX_DISTANCE,
+    FUEL_MIN_CLEARED,
     ZONE_SINGLE_SCALE_WEIGHT,
 )
 from detectors.flow_core import FlowContext, Zone
 from detectors.flow_signal import SubcaseSignal, veto_common
 
 name = "flow_fuel"
-
-# Дальше этой доли зона на горизонте не влияет: до неё цена
-# успеет прийти и уйти несколько раз.
-FUEL_MAX_DISTANCE = 0.60
-
-# Пробой считается состоявшимся, если цена ушла над зоной
-# заметно и там закрепилась.
-BREAKOUT_MARGIN = 0.03
-BREAKOUT_HOLD_BARS = 5
-
-# Сколько уровней должно быть снято, чтобы это считалось картой,
-# а не единичным касанием. Один пройденный уровень есть почти у
-# любой монеты в умеренном росте.
-MIN_CLEARED = 2
-
-# Суммарный вес зон сверху, ниже которого небо считается чистым.
-CLEAR_SKY_WEIGHT = 0.35
 
 
 # ─────────────────────────────────────────────────────────────
@@ -77,7 +65,7 @@ def _cleared_zones(ctx: FlowContext) -> list[Zone]:
         if z.broken:
             continue
         margin = (ctx.price - z.price) / ctx.price
-        if margin >= BREAKOUT_MARGIN and z.plateau_bars >= BREAKOUT_HOLD_BARS:
+        if margin >= FUEL_BREAKOUT_MARGIN and z.plateau_bars >= FUEL_BREAKOUT_HOLD_BARS:
             out.append(z)
     return sorted(out, key=lambda z: -z.price)
 
@@ -154,11 +142,11 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     # Ниже порога карты фигуры нет. Сюда же попадает случай
     # «сверху завал»: подкейс описывает только снятое
     # предложение, стена над ценой доводом за движение не бывает.
-    if len(cleared) < MIN_CLEARED:
+    if len(cleared) < FUEL_MIN_CLEARED:
         return None
 
     total_above = sum(_zone_weight(z, ctx) for z in above)
-    if total_above >= CLEAR_SKY_WEIGHT:
+    if total_above >= FUEL_CLEAR_SKY_WEIGHT:
         return None
 
     # ── Скор ───────────────────────────────────────────────

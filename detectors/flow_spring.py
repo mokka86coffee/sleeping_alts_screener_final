@@ -30,6 +30,7 @@ from detectors.flow_config import (
     SPRING_BUY_BIAS,
     SPRING_MIN_EVENTS,
     SPRING_QUIET_MAX,
+    SPRING_SQUEEZE_MAX,
     SPRING_SELL_BIAS,
     VORTEX_MULT_MAX,
     ZONE_NEAR_PCT,
@@ -177,8 +178,13 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     squeeze = _squeeze_ratio(ctx.base)
     width = _range_width(ctx.base)
 
-    # Расширение амплитуды — прямое опровержение фигуры.
-    if squeeze >= 1.0:
+    # Сжатие — определяющий признак фигуры, а не один из факторов.
+    # Пружина, которая не сжалась, пружиной не является: остальные
+    # части (серия событий, опора, тишина) описывают контекст, но
+    # без схлопывания диапазона разряжаться нечему.
+    #
+    # Отсечка по 1.0 принимала любое сужение, включая шум оценки.
+    if squeeze > SPRING_SQUEEZE_MAX:
         return None
     if width > PLATEAU_MAX_RANGE:
         return None
