@@ -40,11 +40,29 @@ from detectors.flow_core import (
     FlowContext,
     Zone,
     _slope,
+    _slope_of_flow,
     homogeneity,
 )
 from detectors.flow_signal import SubcaseSignal, veto_bullish
 
 name = "flow_hidden"
+
+def _flow_slope(window: list[Bar]) -> float:
+    """Наклон кумулятивной дельты окна в долях оборота.
+
+    Нормировка обязана совпадать с той, что применяется в
+    build_flow_stats: иначе HIDDEN_DELTA_SLOPE_MIN и
+    DELTA_COLLAPSE_SLOPE окажутся в разных единицах и перестанут
+    быть сравнимыми, хотя описывают одну и ту же величину.
+    """
+    acc = 0.0
+    cum: list[float] = []
+    for b in window:
+        acc += b.delta
+        cum.append(acc)
+
+    avg_quote = sum(b.quote for b in window) / len(window) if window else 0.0
+    return _slope_of_flow(cum, avg_quote)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -67,13 +85,7 @@ def _divergence_span(bars: list[Bar]) -> int:
     for span in range(HIDDEN_MIN_BARS, min(n, HIDDEN_MAX_BARS) + 1):
         window = bars[-span:]
 
-        acc = 0.0
-        cum: list[float] = []
-        for b in window:
-            acc += b.delta
-            cum.append(acc)
-
-        d_slope = _slope(cum)
+        d_slope = _flow_slope(window)
         p_slope = _slope([b.close for b in window])
 
         if d_slope >= HIDDEN_DELTA_SLOPE_MIN and p_slope <= HIDDEN_PRICE_SLOPE_MAX:
@@ -192,13 +204,8 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
 
     window = base[-span:]
 
-    acc = 0.0
-    cum: list[float] = []
-    for b in window:
-        acc += b.delta
-        cum.append(acc)
 
-    d_slope = _slope(cum)
+    d_slope = _flow_slope(window)
     p_slope = _slope([b.close for b in window])
 
     # ── Однородность: жёсткий фильтр, не множитель ───────────

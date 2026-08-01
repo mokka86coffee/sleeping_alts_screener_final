@@ -8,6 +8,7 @@
     python flow_probe.py              полный прогон, сеть включена
     python flow_probe.py --no-net     без funding и OI, быстрее
     python flow_probe.py --limit 50   первые 50 монет по обороту
+    python flow_probe.py --with-tokenized   не отсеивать акции и сырьё
 """
 
 from __future__ import annotations
@@ -23,46 +24,97 @@ from datetime import datetime
 from core.binance import drop_symbol_cache, get_futures_tickers
 from detectors.flow import MIN_RAW_SCORE, detect_flow
 
-MIN_QUOTE_VOLUME = 5_000_000    # ниже этого монета неторгуема, шум в статистике
+MIN_QUOTE_VOLUME = 5_000_000  # ниже этого монета неторгуема, шум в статистике
 
-# Сколько монет с detected сохранить с полным контекстом
-DEEP_DUMP_LIMIT = 25
+# Сколько монет сохранить с полным контекстом.
+#
+# Поднято с 25: при сорока срабатываниях наблюдаемые монеты из WATCH
+# вытеснялись сработавшими и в JSON не попадали, а именно ради них
+# список и заводился.
+DEEP_DUMP_LIMIT = 80
 
 # Подкейсы в порядке зрелости. Одно место, из которого берутся и
 # колонки CSV, и разделы сводки: добавление модуля — одна строка.
 CASES = ("hidden", "spring", "churn", "taker", "fuel", "leverage")
+
+# Монеты, разбор которых сохраняется в JSON независимо от того,
+# сработали они или нет. Нужен, чтобы видеть ПРИЧИНУ молчания:
+# в CSV попадают только итоговые числа, а отказ происходит внутри
+# подкейса — на плато, на тирах, на возрасте зоны. Без контекста
+# молчащей монеты калибровать пороги можно только вслепую.
+WATCH = {
+    "COTIUSDT",
+    "KOMAUSDT",
+    "MMTUSDT",
+    "AKEUSDT",
+    "EPICUSDT",
+    "LDOUSDT",
+}
+
+# ─────────────────────────────────────────────────────────────
+# Некриптовые инструменты
+# ─────────────────────────────────────────────────────────────
+# Токенизированные акции, ETF, металлы, сырьё и стейблкоины торгуются
+# на бирже теми же парами к USDT, но живут по другому календарю:
+# выходные, клиринг, гэпы на открытии. Ряд дневных баров у них рваный,
+# из-за чего наклоны дельты и цены считаются по несопоставимым
+# промежуткам, плато меряется в календарных днях вместо торговых, а
+# growth_x ловит гэп вместо движения.
+#
+# Пороги семейства калибруются по круглосуточному рынку, поэтому такие
+# инструменты дают систематический перекос — в последнем срезе именно
+# они наполнили fuel слабыми срабатываниями (CL, BZ, IBM, COPPER,
+# BABA при девяти-двадцати событиях).
+#
+# Список ведётся перечислением, а не эвристикой по имени: тикеры вроде
+# MUUSDT (Micron) и MUSDT (крипта) различаются одной буквой, и любое
+# правило по подстроке будет резать живые монеты. Состав меняется
+# медленно, дополнять руками дешевле, чем отлаживать угадывание.
+NON_CRYPTO = {
+    # Акции США
+    "AAPLUSDT", "MSFTUSDT", "NVDAUSDT", "TSLAUSDT", "AMZNUSDT",
+    "GOOGLUSDT", "METAUSDT", "AMDUSDT", "INTCUSDT", "MUUSDT",
+    "MRVLUSDT", "AVGOUSDT", "QCOMUSDT", "IBMUSDT", "ORCLUSDT",
+    "DELLUSDT", "WDCUSDT", "SNDKUSDT", "AXTIUSDT", "AAOIUSDT",
+    "NOKUSDT", "GLWUSDT", "FLNCUSDT", "RKLBUSDT", "IRENUSDT",
+    "NBISUSDT", "CRWVUSDT", "CRCLUSDT", "COINUSDT", "HOODUSDT",
+    "MSTRUSDT", "PLTRUSDT", "BMNRUSDT", "SPCXUSDT", "RIVERUSDT",
+    "TSMUSDT", "ASMLUSDT", "ARMUSDT", "BABAUSDT", "HK1810USDT",
+    "SAMSUNGUSDT", "SKHYNIXUSDT", "SKHYUSDT", "KORUUSDT",
+    "MUUUSDT", "SNXXUSDT", "STXXUSDT", "MVLLUSDT", "CBRSUSDT",
+    "ZHIPUUSDT", "MINIMAXUSDT", "GRAMUSDT", "BEUSDT", "BZUSDT",
+    # ETF и индексы
+    "QQQUSDT", "TQQQUSDT", "SQQQUSDT", "SPYUSDT", "SOXLUSDT",
+    "SOXSUSDT", "EWYUSDT",
+    # Металлы, сырьё, энергия
+    "XAUUSDT", "XAGUSDT", "XPTUSDT", "COPPERUSDT", "NATGASUSDT",
+    "CLUSDT", "DRAMUSDT",
+    # Обёртки золота и стейблкоины: движения нет по построению
+    "PAXGUSDT", "XAUTUSDT", "USDCUSDT",
+}
 
 STAMP = datetime.now().strftime("%Y%m%d_%H%M")
 CSV_PATH = f"flow_probe_{STAMP}.csv"
 JSON_PATH = f"flow_probe_{STAMP}.json"
 
 FIELDS = [
-    "symbol",
-    "detected",
-    "score",
-    "case",
-    "strength",
-    "horizon_days",
-    "horizon_tf",
+    "symbol", "detected", "score", "case", "strength",
+    "horizon_days", "horizon_tf",
     *CASES,
-    "zone_price",
-    "events",
-    "zones",
-    "vortex_scale",
-    "vortex_spread",
-    "collapsing",
-    "growth_x",
-    "failures",
-    "error",
+    "zone_price", "events", "zones", "zones_conf",
+    "vortex_scale", "vortex_spread",
+    "collapsing", "growth_x", "failures", "error",
 ]
 
 
-def load_universe(limit: int = 0) -> list[tuple[str, float]]:
+def load_universe(limit: int = 0, skip_tokenized: bool = True) -> list[tuple[str, float]]:
     """Символы с объёмом, отсортированные по убыванию ликвидности."""
     out: list[tuple[str, float]] = []
     for t in get_futures_tickers():
         sym = t.get("symbol", "")
         if not sym.endswith("USDT"):
+            continue
+        if skip_tokenized and sym in NON_CRYPTO:
             continue
         try:
             qv = float(t.get("quoteVolume", 0))
@@ -97,7 +149,7 @@ def _stats(values: list[float]) -> str:
 
 def main() -> None:
     allow_network = "--no-net" not in sys.argv
-
+    skip_tokenized = "--with-tokenized" not in sys.argv
     limit = 0
     if "--limit" in sys.argv:
         try:
@@ -105,9 +157,11 @@ def main() -> None:
         except (IndexError, ValueError):
             limit = 0
 
-    symbols = load_universe(limit)
+    symbols = load_universe(limit, skip_tokenized=skip_tokenized)
     net = "включена" if allow_network else "выключена"
+    filt = "крипта" if skip_tokenized else "всё, включая акции и сырьё"
     print(f"Монет к прогону: {len(symbols)}, сеть для leverage: {net}")
+    print(f"Состав выборки: {filt}")
 
     rows: list[dict] = []
     deep: list[dict] = []
@@ -126,7 +180,6 @@ def main() -> None:
         try:
             sig = detect_flow(symbol, qv, allow_network=allow_network)
             d = sig.to_dict()
-
             cases = d.get("cases") or {}
             ctx = d.get("context") or {}
             parts = d.get("parts") or []
@@ -144,6 +197,7 @@ def main() -> None:
                 horizon_tf=d.get("horizon_tf", ""),
                 events=ctx.get("events_total", ""),
                 zones=len(ctx.get("zones") or []),
+                zones_conf=ctx.get("zones_confirmed", 0),
                 vortex_scale=vortex.get("scale", ""),
                 vortex_spread=vortex.get("spread", ""),
                 collapsing=int(bool(flow.get("collapsing"))),
@@ -158,7 +212,7 @@ def main() -> None:
                 fail_counter[mod] += 1
                 fail_samples.setdefault(mod, text)
 
-            if d.get("detected") and len(deep) < DEEP_DUMP_LIMIT:
+            if (d.get("detected") or symbol in WATCH) and len(deep) < DEEP_DUMP_LIMIT:
                 deep.append(d)
 
         except Exception as exc:
@@ -168,7 +222,6 @@ def main() -> None:
             drop_symbol_cache(symbol)
 
         rows.append(row)
-
         if i % 25 == 0:
             el = time.time() - started
             hits = sum(r["detected"] == 1 for r in rows)
@@ -189,15 +242,46 @@ def main() -> None:
     errs = [r for r in rows if r["error"]]
 
     print("\n" + "=" * 52)
-    print(f"Всего монет: {total}")
-    print(f"Прошло без ошибок: {len(ok)}")
-    print(f"Ошибок: {len(errs)}")
-    print(f"Срабатываний: {len(hits)} ({len(hits) / max(total, 1) * 100:.1f}%)")
+    print(f"Всего монет:          {total}")
+    print(f"Прошло без ошибок:    {len(ok)}")
+    print(f"Ошибок:               {len(errs)}")
+    print(f"Срабатываний:         {len(hits)} ({len(hits) / max(total, 1) * 100:.1f}%)")
 
     print("\nПобедители:")
     by_case = Counter(r["case"] for r in hits)
     for name, n in by_case.most_common():
         print(f"  {name:16s} {n}")
+
+    # ── Поимённый разбор по стратегиям ──
+    # Сводные числа показывают, сколько сработало, но не ЧТО именно.
+    # Без имён каждый разбор начинается с ручной выборки из CSV, а
+    # глазами по срезу видно сразу: попала ли монета в тот подкейс,
+    # который ей соответствует по смыслу, и какой ценой — за счёт
+    # собственной силы или подтверждения соседом.
+    print("\n" + "─" * 52)
+    print("Кто в какую стратегию попал")
+    for case_name, _ in by_case.most_common():
+        group = [r for r in hits if r["case"] == case_name]
+        group.sort(key=lambda x: -x["score"])
+        print(f"\n  {case_name}  ({len(group)})")
+        for r in group:
+            short = case_name.replace("flow_", "")
+            own = r.get(short, 0.0)
+            # Подкейсы, которые тоже собрались на этой монете, —
+            # подтверждение победителя другим прочтением картины.
+            support = [
+                f"{c}{r[c]:.0f}"
+                for c in CASES
+                if c != short and isinstance(r[c], (int, float)) and r[c] > 0
+            ]
+            tail = ("  + " + " ".join(support)) if support else ""
+            print(
+                f"    {r['symbol']:16s} {r['score']:3d}  "
+                f"{short} {own:5.1f}  "
+                f"{r['horizon_days']:>2}д  "
+                f"зон {r['zones']:>2}  соб {str(r['events']):>3}"
+                f"{tail}"
+            )
 
     print("\nШкалы подкейсов (сырой скор до сведения):")
     for c in CASES:
@@ -230,8 +314,24 @@ def main() -> None:
     ]
     print(f"\nНедобрали до порога в пределах 10 баллов: {len(near)}")
     for r in sorted(near, key=lambda x: -x["score"])[:15]:
-        parts = "  ".join(f"{c[0]}{r[c]:5.1f}" for c in CASES)
+        parts = " ".join(f"{c[0]}{r[c]:5.1f}" for c in CASES)
         print(f"  {r['symbol']:14s} {r['score']:3d}  {parts}")
+
+    # ── Наблюдаемые ──
+    # Монеты из WATCH, которые не сработали. Их разбор лежит в JSON,
+    # здесь — только напоминание, что смотреть.
+    watched_quiet = [
+        r for r in ok if r["symbol"] in WATCH and r["detected"] == 0
+    ]
+    if watched_quiet:
+        print("\nНаблюдаемые, оставшиеся молчать (контекст в JSON):")
+        for r in watched_quiet:
+            parts = " ".join(f"{c[0]}{r[c]:5.1f}" for c in CASES)
+            print(
+                f"  {r['symbol']:14s} зон {r['zones']:>2}  "
+                f"соб {str(r['events']):>3}  "
+                f"обвал {r['collapsing']}  {parts}"
+            )
 
     # ── Контекстные вето ──
     # Не срабатывания, а причины молчания. Нужны, чтобы понимать,

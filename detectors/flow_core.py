@@ -1005,10 +1005,25 @@ def build_flow_stats(bars: list[Bar], window: int = DELTA_WINDOW) -> FlowStats:
 
     # Фон: объём окна против более длинной нормы. Churn требует
     # шумного фона, spring — тихого; на этом они и расходятся.
-    norm_src = bars[-window * 4 : -window] if len(bars) > window * 2 else []
-    med_norm = _median([b.quote for b in norm_src]) if norm_src else 0.0
-    med_tail = _median([b.quote for b in tail])
-    st.rel_volume = med_tail / med_norm if med_norm > 0 else 1.0
+    #
+    # Норма обязана быть представительной. Прежнее условие входа
+    # (len > window*2) не соответствовало длине среза (window*3):
+    # при короткой истории норма молча собиралась из двух-трёх
+    # баров, а у свежего листинга попадала в первые дни торгов,
+    # где оборот на порядки ниже установившегося. Результат —
+    # rel_volume порядка 110 у BANK и 114 у AKE: величина, которая
+    # читается как «объём вырос в сто раз», а означает «нормы нет».
+    #
+    # Отсутствие нормы — не признак и не аномалия. Нейтральная
+    # единица честнее любого отношения к пустоте.
+    norm_src = bars[-window * 4 : -window] if len(bars) >= window * 4 else []
+    full_norm = [b for b in norm_src if b.fill >= 1.0]
+    if len(full_norm) < window:
+        st.rel_volume = 1.0
+    else:
+        med_norm = _median([b.quote for b in full_norm])
+        med_tail = _median([b.quote for b in tail])
+        st.rel_volume = med_tail / med_norm if med_norm > 0 else 1.0
 
     return st
 
@@ -1149,11 +1164,24 @@ class FlowContext:
         return self.drop.volume_recovery
 
     def to_dict(self) -> dict:
+        # Зоны отдаются ПОЛНОСТЬЮ, без фильтра по confirmed и без
+        # среза. Прежний вариант — `if z.confirmed][:6]` — показывал
+        # не ту карту, по которой работают подкейсы, и диагностика
+        # получалась ложной: MU выглядела как монета без зон вообще,
+        # хотя fuel насчитал на ней три снятых уровня, а churn нашёл
+        # плато в 22 дня. Её зоны держатся на одном масштабе — для
+        # модулей это законный материал, для сериализации они
+        # исчезали. Срез [:6] дополнительно скрывал длину карты:
+        # шесть зон в выводе могли означать и шесть, и двадцать.
+        #
+        # Признак confirmed остаётся внутри каждой зоны — фильтровать
+        # по нему должен читатель среза, а не сам срез.
         return {
             "price": round(self.price, 10),
             "scales": sorted(self.bars),
             "events_total": len(self.events),
-            "zones": [z.to_dict() for z in self.zones if z.confirmed][:6],
+            "zones": [z.to_dict() for z in self.zones],
+            "zones_confirmed": sum(1 for z in self.zones if z.confirmed),
             "drop": self.drop.to_dict(),
             "flow": self.stats.to_dict(),
             "vortex": self.vortex.to_dict(),
