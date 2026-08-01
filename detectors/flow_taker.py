@@ -189,12 +189,6 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     if veto_bullish(ctx, require_zones=False):
         return None
 
-    # ── Масштаб ──────────────────────────────────────────────
-    # На крупных агрегатах доля покупок усредняется до бессмыслицы:
-    # десятидневный бар складывает и набор, и раздачу в одно число.
-    if ctx.horizon_scale > TAKER_MAX_SCALE:
-        return None
-
     base = ctx.base
     pair = _windows(base)
     if pair is None:

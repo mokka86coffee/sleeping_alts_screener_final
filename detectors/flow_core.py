@@ -117,6 +117,44 @@ def robust_sigma(value: float, sample: list[float]) -> float:
         return 0.0
     return (value - med) / mad
 
+def _slope_of_flow(cum: list[float], scale: float) -> float:
+    """Наклон кумулятивного ряда, нормированный на внешний масштаб.
+
+    Отдельная функция, а не параметр к _slope, и это принципиально.
+    Обычный ряд нормируется на собственный средний уровень: для цены
+    это верно, она положительна и её среднее задаёт естественный
+    масштаб. Для кумулятивной дельты — неверно в принципе.
+
+    Кумулятивная дельта пересекает ноль постоянно: сегодня набрали,
+    завтра раздали. Средний уровень такого ряда — величина случайная
+    и близкая к нулю, деление на неё даёт произвольно большие числа
+    любого знака. Прогон это показал прямо: `collapsing` стоял у 36
+    молчащих монет из 48, то есть у трёх четвертей рынка, включая
+    те, где дельта росла.
+
+    Масштабом обязан быть оборот: тогда величина читается как доля
+    дневного оборота, на которую поток смещается за бар. Это
+    сравнимо между монетами и устойчиво во времени.
+    """
+    n = len(cum)
+    if n < 3 or scale <= 0:
+        return 0.0
+
+    mean_x = (n - 1) / 2.0
+    mean_y = sum(cum) / n
+
+    num = 0.0
+    den = 0.0
+    for i, y in enumerate(cum):
+        dx = i - mean_x
+        num += dx * (y - mean_y)
+        den += dx * dx
+
+    if den <= 0:
+        return 0.0
+
+    return (num / den) / scale
+
 
 def _slope(values: list[float]) -> float:
     """Наклон линейной регрессии, нормированный на средний уровень.
@@ -953,7 +991,11 @@ def build_flow_stats(bars: list[Bar], window: int = DELTA_WINDOW) -> FlowStats:
         acc += b.delta
         st.cum_delta.append(acc)
 
-    st.delta_slope = _slope(st.cum_delta)
+    # Масштаб — средний оборот бара в окне. Нормировать кумулятивную
+    # дельту на её собственный уровень нельзя: он проходит через
+    # ноль, и результат теряет смысл.
+    avg_quote = sum(b.quote for b in tail) / len(tail) if tail else 0.0
+    st.delta_slope = _slope_of_flow(st.cum_delta, avg_quote)
     st.price_slope = _slope([b.close for b in tail])
     st.homogeneity = homogeneity([b.delta for b in tail])
 
