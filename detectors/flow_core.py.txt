@@ -15,16 +15,13 @@
 from __future__ import annotations
 
 import math
-import time
 from dataclasses import dataclass, field
 
 from core.binance import (
     K_CLOSE,
-    K_CLOSE_TIME,
     K_HIGH,
     K_LOW,
     K_OPEN,
-    K_OPEN_TIME,
     K_QUOTE_VOLUME,
     K_TAKER_BUY_QUOTE,
     klines_1d,
@@ -246,27 +243,6 @@ class Bar:
 
 
 def _to_bars(raw: list[list]) -> list[Bar]:
-    """Разбирает свечи Binance в бары с разложенным потоком.
-
-    Заполнение последнего бара считается ПО ВРЕМЕНИ, а не по факту
-    его наличия в ряду. Это единственный источник fill во всём
-    семействе: агрегаты его наследуют, событийная логика на него
-    опирается, и если он всегда равен единице — вся ветка
-    PARTIAL_BAR_* становится мёртвым кодом, внешне неотличимым от
-    рабочего.
-
-    Ровно это и происходило: fill выставлялся безусловной единицей,
-    а в aggregate вычислялся как len(chunk) / scale — величина,
-    равная единице по построению, потому что остаток от деления
-    собирается в головной бар. Незакрытый бар правого края
-    сравнивался с нормой по полным барам как равный ей.
-
-    Проявляется расхождением между масштабами в один момент
-    времени: 3D показывал 52.66 B при 2283% RVOL, 4D в ту же
-    секунду — 7.44 B при 276%. Более длинный бар с меньшим
-    объёмом невозможен; различалась только стадия заполнения.
-    """
-    now_ms = time.time() * 1000.0
     out: list[Bar] = []
     for i, k in enumerate(raw):
         try:
@@ -276,21 +252,10 @@ def _to_bars(raw: list[list]) -> list[Bar]:
             h = float(k[K_HIGH])
             lo = float(k[K_LOW])
             c = float(k[K_CLOSE])
-            t_open = float(k[K_OPEN_TIME])
-            t_close = float(k[K_CLOSE_TIME])
         except (TypeError, ValueError, IndexError):
             continue
         if c <= 0 or quote <= 0:
             continue
-
-        # Закрытая свеча — полная по определению. Незакрытая
-        # набрана ровно настолько, сколько прошло её времени.
-        span = t_close - t_open
-        if span > 0 and now_ms < t_close:
-            fill = max(0.0, min(1.0, (now_ms - t_open) / span))
-        else:
-            fill = 1.0
-
         out.append(
             Bar(
                 idx=i,
@@ -300,7 +265,6 @@ def _to_bars(raw: list[list]) -> list[Bar]:
                 close=c,
                 quote=quote,
                 buy_quote=min(buy, quote),
-                fill=fill,
             )
         )
     return out
@@ -318,12 +282,6 @@ def aggregate(bars: list[Bar], scale: int) -> list[Bar]:
     Хвост НЕ обрезается: последний бар может быть неполным, но он
     несёт самые свежие события. Вместо этого он помечается долей
     заполнения, а сигма считается по приведённому объёму.
-
-    Заполнение бара НЕ равно доле присутствующих дневок. Оно равно
-    средней доле их заполнения: последняя дневка сама может быть
-    незакрытой, и на крупном масштабе это единственный источник
-    неполноты — все предыдущие группы содержат ровно scale
-    элементов, потому что остаток ушёл в головной бар.
     """
     if scale <= 1:
         return bars
@@ -347,12 +305,7 @@ def aggregate(bars: list[Bar], scale: int) -> list[Bar]:
                 close=head[-1].close,
                 quote=sum(b.quote for b in head),
                 buy_quote=sum(b.buy_quote for b in head),
-                # Сумма долей, а не количество баров. Прежнее
-                # len(head) / scale давало верный результат только
-                # здесь — по случайности, потому что головной бар
-                # действительно укорочен. Для всех остальных групп
-                # оно возвращало единицу по построению.
-                fill=sum(b.fill for b in head) / scale,
+                fill=len(head) / scale,
             )
         )
 
@@ -367,13 +320,9 @@ def aggregate(bars: list[Bar], scale: int) -> list[Bar]:
                 close=chunk[-1].close,
                 quote=sum(b.quote for b in chunk),
                 buy_quote=sum(b.buy_quote for b in chunk),
-                # Правый край: k−1 закрытых дневок плюс текущая
-                # своей долей. Именно здесь величина перестаёт быть
-                # единицей — и именно здесь она нужна.
-                fill=sum(b.fill for b in chunk) / scale,
+                fill=len(chunk) / scale,
             )
         )
-
     return out
 
 
@@ -1252,30 +1201,14 @@ class FlowContext:
         # хотя fuel насчитал на ней три снятых уровня, а churn нашёл
         # плато в 22 дня. Её зоны держатся на одном масштабе — для
         # модулей это законный материал, для сериализации они
-        # исчезали.
+        # исчезали. Срез [:6] дополнительно скрывал длину карты:
+        # шесть зон в выводе могли означать и шесть, и двадцать.
         #
         # Признак confirmed остаётся внутри каждой зоны — фильтровать
         # по нему должен читатель среза, а не сам срез.
-        #
-        # fills — состояние ИЗМЕРИТЕЛЯ, а не рынка. Доля набранного
-        # времени правого края по каждому масштабу. Поле выглядит
-        # служебным, но именно его отсутствие держало мёртвой всю
-        # ветку PARTIAL_BAR_*: fill был равен единице всегда, объём
-        # незакрытого бара сравнивался с полной нормой как равный, и
-        # система об этом сообщить не могла — она не показывала
-        # величину, от которой зависела. Расхождение нашлось только
-        # сравнением RVOL на пяти масштабах вручную.
-        #
-        # Правило: срез обязан показывать не только результат
-        # измерения, но и состояние того, чем меряли.
         return {
             "price": round(self.price, 10),
             "scales": sorted(self.bars),
-            "fills": {
-                scale: round(bars[-1].fill, 3)
-                for scale, bars in sorted(self.bars.items())
-                if bars
-            },
             "events_total": len(self.events),
             "zones": [z.to_dict() for z in self.zones],
             "zones_confirmed": sum(1 for z in self.zones if z.confirmed),
