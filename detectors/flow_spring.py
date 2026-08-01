@@ -27,8 +27,10 @@ from __future__ import annotations
 from detectors.flow_config import (
     HOMOGENEITY_MIN,
     PLATEAU_MAX_RANGE,
+    SPRING_BUY_BIAS,
     SPRING_MIN_EVENTS,
     SPRING_QUIET_MAX,
+    SPRING_SELL_BIAS,
     VORTEX_MULT_MAX,
     ZONE_NEAR_PCT,
     ZONE_SINGLE_SCALE_WEIGHT,
@@ -250,19 +252,23 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
         sig.apply("lumpy", 0.8)
         sig.add("серия неоднородна", homogeneity=ctx.flow.homogeneity)
 
-    # ── Перекос потока ───────────────────────────────────────
+    # ── Перекос потока ─────────────────────────────────────
     # В тишине небольшой, но устойчивый перекос в покупку весит
     # больше, чем крупный перекос в шуме: продавать некому.
-    if ctx.flow.buy_share >= 0.55:
+    #
+    # Пороги привязаны к наблюдаемому разбросу (0.479..0.509),
+    # а не к интуитивным долям. Прежние 0.55 и 0.42 не достигались
+    # на рынке ни разу — обе ветки были мёртвым кодом.
+    if ctx.flow.buy_share >= SPRING_BUY_BIAS:
         sig.apply("buy_bias", 1.15)
         sig.add(
-            f"перекос в покупку {ctx.flow.buy_share * 100:.0f}%",
+            f"перекос в покупку {ctx.flow.buy_share * 100:.1f}%",
             buy_share=ctx.flow.buy_share,
         )
-    elif ctx.flow.buy_share <= 0.42:
+    elif ctx.flow.buy_share <= SPRING_SELL_BIAS:
         sig.apply("sell_bias", 0.7)
         sig.add(
-            f"перекос в продажу {(1 - ctx.flow.buy_share) * 100:.0f}%",
+            f"перекос в продажу {(1 - ctx.flow.buy_share) * 100:.1f}%",
             buy_share=ctx.flow.buy_share,
         )
 

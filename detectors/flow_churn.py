@@ -17,12 +17,15 @@
 
 from __future__ import annotations
 
+import math
+
 from detectors.flow_config import (
     CHURN_DIST_PENALTY,
     CHURN_MIN_TIER,
     CHURN_NOISE_MIN_VOL,
     CHURN_TEST_WEIGHT,
     HOMOGENEITY_MIN,
+    TIER_3_SIGMA,
     VORTEX_MULT_MAX,
     ZONE_SINGLE_SCALE_WEIGHT,
 )
@@ -120,16 +123,36 @@ def _pick_zone(ctx: FlowContext) -> Zone | None:
 def _base_score(zone: Zone) -> tuple[float, dict[str, float]]:
     """Скор от качества самого поглощения.
 
-    Складывается из тира событий, их количества и того, насколько
-    плотно цена стояла при аномальном потоке.
+    Складывается из тира событий, их силы в сигмах и количества
+    поглощений на уровне.
     """
     events = zone.absorbed_events(CHURN_MIN_TIER)
     top_tier = max(e.tier for e in events)
     sigma = max(e.sigma for e in events)
 
-    # Тир даёт основу, сигма сверх порога — надбавку.
-    score = {2: 38.0, 3: 55.0}.get(top_tier, 30.0)
-    score += min(15.0, (sigma - 4.0) * 2.5) if sigma > 4.0 else 0.0
+    # Тир даёт основу. Ветки ниже второго тира нет намеренно:
+    # CHURN_MIN_TIER = 2 гарантирует, что такие события в выборку
+    # не попадают, и третье значение в словаре было бы мёртвым.
+    score = 55.0 if top_tier >= 3 else 38.0
+
+    # Сила сверх порога тира — надбавка по ЛОГАРИФМИЧЕСКОЙ шкале.
+    #
+    # Прежняя линейная формула min(15, (sigma - 4) * 2.5) упиралась
+    # в потолок при sigma = 10 и выдавала ровно 15 практически
+    # всем: в прогоне UNI дала 15.7, ON — 33.5, MMT — 80.8.
+    # Слагаемое перестало различать фигуры, то есть выродилось
+    # в константу.
+    #
+    # Большие значения не дефект ядра: robust_sigma делит на MAD,
+    # и на плотной выборке отношение вырастает до десятков.
+    # Величина честная, но её распределение имеет длинный хвост,
+    # и линейная шкала на нём неработоспособна по построению.
+    #
+    # log2 от порога тира: sigma 8 → 4 балла, 16 → 8, 32 → 12,
+    # потолок при 64. Различение восстановлено на всём
+    # наблюдаемом диапазоне.
+    if sigma > TIER_3_SIGMA:
+        score += min(15.0, math.log2(sigma / TIER_3_SIGMA) * 4.0)
 
     # Повторное поглощение на одном уровне сильнее одиночного.
     if len(events) >= 3:
