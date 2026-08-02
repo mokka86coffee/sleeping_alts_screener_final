@@ -323,7 +323,11 @@ def _card(c: Candidate, idx: int) -> str:
             <a class="fr-sym" href="https://www.tradingview.com/chart/?symbol=BINANCE:{esc(c.symbol)}.P"
             target="_blank" rel="noopener">{sym}</a>
         <span class="fr-sec">{sector}</span>
-        <span class="fr-caps">…</span>
+        <span class="fr-caps">
+            <b class="fr-tag">{_cap(d['cap'])}</b>
+            <b class="fr-tag gh">{d['ath']:+.0f}% ath</b>
+            <b class="fr-tag up">+{d['up']:.0f}% от дна</b>
+        </span>
     </div>
 
     <svg class="fr-ring" viewBox="-32 -32 64 64">
