@@ -1,0 +1,278 @@
+"""Отчёт стратегии FLOW · карточки вместо горизонтальной таблицы.
+
+Вариант B, зафиксирован: свет из левого нижнего угла, кант затухает
+вправо, цвет = статус строки. Применяется ТОЛЬКО к flow — у других
+стратегий свои представления.
+"""
+
+from __future__ import annotations
+
+from core.models import Candidate
+from render.theme import esc
+
+# ── палитра статусов ──────────────────────────────────────────
+# золото — топ, зелёный — чисто и растёт, оранж — под вето,
+# бирюза — новичок (в прошлом прогоне монеты не было)
+TONE = {
+    "top":  ("gd", "#FFB020", "#FFD25E"),
+    "ok":   ("gr", "#22E08A", "#6BFFB4"),
+    "veto": ("rd", "#FF6B35", "#FF9B6B"),
+    "new":  ("cy", "#00D4FF", "#7FEBFF"),
+}
+
+CASE_RU = {
+    "hidden":   "скрытый набор",
+    "spring":   "сжатие в тишине",
+    "churn":    "объём есть, цена стоит",
+    "fuel":     "сверху пусто",
+    "taker":    "сменился агрессор",
+    "leverage": "шорты перегружены",
+}
+
+
+def _n(c: Candidate, key: str, default: float = 0.0) -> float:
+    try:
+        return float((c.raw or {}).get(key) or default)
+    except (TypeError, ValueError):
+        return default
+
+
+def _flow(c: Candidate, key: str, default=None):
+    return (c.flow or {}).get(key, default)
+
+
+def _tone(c: Candidate, idx: int) -> str:
+    if c.vetoed:
+        return "veto"
+    if idx == 0:
+        return "top"
+    if getattr(c, "is_new", False):
+        return "new"
+    return "ok"
+
+
+def _arc(pct: float, r: float) -> str:
+    circ = 2 * 3.14159265 * r
+    on = circ * max(0.0, min(100.0, pct)) / 100
+    return f"{on:.2f} {circ - on:.2f}"
+
+
+def _spark(values: list[float], w: float = 154.0, h: float = 46.0) -> tuple[str, float, float]:
+    """Ломаная цены с автомасштабом. Возвращает (points, x, y последней)."""
+    n = len(values)
+    if n < 2:
+        y = h / 2
+        return f"0,{y:.1f} {w:.0f},{y:.1f}", w, y
+    lo, hi = min(values), max(values)
+    span = hi - lo
+    top, bottom, step = 5.0, h - 5.0, w / (n - 1)
+    pts = []
+    for i, v in enumerate(values):
+        k = 0.5 if span < 1e-9 else (v - lo) / span
+        pts.append((i * step, bottom - k * (bottom - top)))
+    return (" ".join(f"{x:.1f},{y:.1f}" for x, y in pts), pts[-1][0], pts[-1][1])
+
+# ── формат ────────────────────────────────────────────────────
+def _mult(v: float) -> str:
+    """Кратность медиане: ×0.4 · ×2.1 · ×12. Прочерк — недобор бара."""
+    if v is None or v <= 0:
+        return "—"
+    return f"×{v:.0f}" if v >= 10 else f"×{v:.1f}"
+
+
+def _cap(v: float) -> str:
+    if v >= 1e9:
+        return f"${v / 1e9:.1f}B"
+    if v >= 1e6:
+        return f"${v / 1e6:.0f}M"
+    return f"${v / 1e3:.0f}K"
+
+
+# ── временная заглушка данных ─────────────────────────────────
+# Детерминированная: одна монета всегда даёт одни и те же числа,
+# картинка не скачет между прогонами. Заменяется на реальные
+# источники по списку в конце ответа.
+def _stub(sym: str) -> dict:
+    h = sum(ord(ch) * (i + 7) for i, ch in enumerate(sym))
+    r = lambda k, lo, hi: lo + ((h * k) % 1000) / 1000 * (hi - lo)
+    return {
+        "v1h":  round(r(3, 0.2, 9.0), 1),
+        "v4h":  round(r(5, 0.3, 6.5), 1),
+        "v1d":  round(r(7, 0.4, 4.0), 1),
+        "p1d":  round(r(11, -14, 22), 1),
+        "p3d":  round(r(13, -22, 34), 1),
+        "p7d":  round(r(17, -30, 48), 1),
+        "fund": round(r(19, -13, 1.2), 3),
+        "cap":  r(23, 4e6, 2.4e9),
+        "ath":  round(r(29, -94, -38)),
+        "series": [r(31 + i, 0.7, 1.35) for i in range(14)],
+    }
+
+
+def _vol_rows(d: dict) -> str:
+    """Три масштаба в столбик. Ярче тот, что сильнее медианы."""
+    out = ""
+    for label, key in (("1ч", "v1h"), ("4ч", "v4h"), ("1д", "v1d")):
+        v = d[key]
+        # 3 ступени: спокойно / заметно / аномалия
+        lvl = "hot" if v >= 4 else ("warm" if v >= 2 else "")
+        out += (f'<span class="fr-vr {lvl}">'
+                f'<i>{label}</i><b>{_mult(v)}</b>'
+                f'<s style="width:{min(100, v / 8 * 100):.0f}%"></s></span>')
+    return out
+
+
+def _fund_bar(pct: float) -> str:
+    """Биполярный бар от центра. Вправо — лонги платят, влево — шорты."""
+    fill = min(50.0, abs(pct) / 1.0 * 50)          # ±1% = край шкалы
+    side = "pos" if pct >= 0 else "neg"
+    style = (f"left:50%;width:{fill:.0f}%" if pct >= 0
+             else f"right:50%;width:{fill:.0f}%")
+    return (f'<span class="fr-fund"><s></s>'
+            f'<i class="{side}" style="{style}"></i></span>'
+            f'<span class="fr-fv {side}">{pct:+.3f}%</span>')
+
+
+def _money(v: float) -> str:
+    if v >= 1e9:
+        return f"${v / 1e9:.2f}B"
+    if v >= 1e6:
+        return f"${v / 1e6:.1f}M"
+    if v >= 1e3:
+        return f"${v / 1e3:.0f}K"
+    return f"${v:.0f}"
+
+
+def _card(c: Candidate, idx: int) -> str:
+    tone = _tone(c, idx)
+    key, base, light = TONE[tone]
+    sym = esc(c.symbol.replace("USDT", ""))
+
+    # ── шапка ──
+    sector = esc(str(c.sector or "—").lower())
+    rvol_d = _n(c, "rvol_1d", _n(c, "surge_ratio"))
+    score = int(getattr(c, "score", 0) or 0)
+
+    # ── паттерн и фаза ──
+    case = str(_flow(c, "case", "") or "—")
+    phase_num = int((c.phase or {}).get("num", 0) or 0)
+    steps = "".join(
+        f'<i class="{"on" if i < phase_num else ""}"></i>' for i in range(4)
+    )
+    buzz = int((c.buzz or {}).get("level_num", 0) or 0)
+    dots = "".join(f'<i class="{"on" if i < buzz else ""}"></i>' for i in range(3))
+    rr = float(getattr(c, "rr", 0) or 0)
+
+    veto_txt, veto_cls = ("чисто", "ok")
+
+    d = _stub(c.symbol)
+    coords, lx, ly = _spark(d["series"], w=150.0, h=40.0)
+    up = d["p1d"] >= 0
+    col = "#22E08A" if up else "#FF6B35"
+
+    veto_txt, veto_cls = ("чисто", "ok")
+    if c.vetoed:
+        reasons = list((c.veto or {}).keys()) if isinstance(c.veto, dict) else []
+        veto_txt, veto_cls = (esc(reasons[0]) if reasons else "вето"), "bad"
+
+    btn = ('<span class="fr-btn off">ПОД ВЕТО</span>' if c.vetoed
+           else '<span class="fr-btn">ОТКРЫТЬ</span>')
+
+    return f"""
+<div class="fr t-{key}" data-coin="{esc(c.symbol)}">
+  <div class="fr-in">
+    <div class="fr-c fr-c1">
+      <span class="fr-idx">{idx + 1:02d}</span>
+      <span class="fr-sym">{sym}</span>
+      <span class="fr-sec">{sector}</span>
+      <span class="fr-caps">
+        <b class="fr-tag">{_cap(d['cap'])}</b>
+        <b class="fr-tag gh">{d['ath']}% от ath</b>
+      </span>
+    </div>
+
+    <svg class="fr-ring" viewBox="-32 -32 64 64">
+      <circle r="26" fill="none" stroke="#fff" stroke-opacity=".05" stroke-width="3"/>
+      <circle r="26" fill="none" stroke="{light}" stroke-width="3" stroke-linecap="round"
+              stroke-dasharray="{_arc(score, 26)}" transform="rotate(-90)"/>
+      <text class="fr-ring-v" y="6" text-anchor="middle">{score}</text>
+      <text class="fr-ring-l" y="44" text-anchor="middle">SCORE</text>
+    </svg>
+
+    <div class="fr-c">
+      <span class="fr-k">ПАТТЕРН</span>
+      <span class="fr-chip">{esc(case)}</span>
+      <span class="fr-k">ФАЗА</span>
+      <span class="fr-steps">{steps}</span>
+    </div>
+
+    <div class="fr-c fr-vol">
+      <span class="fr-k">ОБЪЁМ · К МЕДИАНЕ 30</span>
+      {_vol_rows(d)}
+    </div>
+
+    <div class="fr-c fr-price">
+      <span class="fr-k">ЦЕНА · 1Д</span>
+      <span class="fr-big {'up' if up else 'dn'}">{d['p1d']:+.1f}%</span>
+      <svg viewBox="0 0 150 40" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="fg{idx}" x1="0" y1="1" x2="0" y2="0">
+            <stop offset="0" stop-color="{col}" stop-opacity="0"/>
+            <stop offset="1" stop-color="{col}" stop-opacity=".22"/>
+          </linearGradient>
+        </defs>
+        <polygon points="{coords} 150,40 0,40" fill="url(#fg{idx})"/>
+        <polyline points="{coords}" fill="none" stroke="{col}" stroke-width="1.5"
+                  vector-effect="non-scaling-stroke"/>
+        <circle cx="{lx:.0f}" cy="{ly:.0f}" r="2.6" fill="{col}"/>
+      </svg>
+      <span class="fr-legs">
+        <i>3д <b class="{'up' if d['p3d'] >= 0 else 'dn'}">{d['p3d']:+.0f}%</b></i>
+        <i>7д <b class="{'up' if d['p7d'] >= 0 else 'dn'}">{d['p7d']:+.0f}%</b></i>
+      </span>
+    </div>
+
+    <div class="fr-c">
+      <span class="fr-k">ФАНДИНГ</span>
+      {_fund_bar(d['fund'])}
+      <span class="fr-k">R:R</span>
+      <span class="fr-rr">1:{float(getattr(c, 'rr', 0) or 0):.1f}</span>
+    </div>
+
+    <div class="fr-c">
+      <span class="fr-k">ВЕТО</span>
+      <span class="fr-veto {veto_cls}">{veto_txt}</span>
+      <span class="fr-k">СОЦСЕТИ</span>
+      <span class="fr-dots">{dots}</span>
+    </div>
+
+    {btn}
+  </div>
+</div>"""
+
+
+def render_flow_report(candidates: list[Candidate]) -> str:
+    """Панель отчёта FLOW. Открывается кликом по ленте стратегии."""
+    items = sorted(
+        (c for c in candidates if c.flow),
+        key=lambda c: -(getattr(c, "score", 0) or 0),
+    )
+
+    if not items:
+        body = '<div class="fr-empty">в этом прогоне flow не сработал</div>'
+    else:
+        body = "".join(_card(c, i) for i, c in enumerate(items))
+
+    tail = (f'<div class="fr-tail">↓ ещё {len(items) - 12} монет</div>'
+            if len(items) > 12 else "")
+
+    return f"""
+<div class="pane fr-pane" data-pane="strat:flow">
+  <div class="pane-hd">
+    <button class="pane-back">← НАЗАД</button>
+    <span class="pane-t">FLOW · КТО ДВИГАЕТ РЫНОК</span>
+    <span class="pane-c">{len(items)}</span>
+    <span class="pane-n">сортировка по score · вето не скрыто, помечено цветом</span>
+  </div>
+  <div class="fr-list">{body}{tail}</div>
+</div>"""

@@ -751,6 +751,199 @@ CARD = """
 """
 
 # ═══════════════════════════════════════════════════
+# РЯД СТРАТЕГИЙ · лента FLOW
+# ═══════════════════════════════════════════════════
+STRAT = """
+.row-s{display:block;margin-bottom:52px}
+.strat{position:relative;padding:8px 0 0;cursor:pointer}
+.c-fl{--c:#D9A441;--h1:rgba(217,164,65,.30);--h2:rgba(184,134,11,.08)}
+.strat .halo{width:56%;height:96px;top:2px}
+.strat.empty{opacity:.45;pointer-events:none}
+
+.fl{display:block;width:100%;max-width:620px;height:130px;margin:0 auto;
+    overflow:visible}
+.fl-blur{filter:blur(7px)}
+
+.fl-lk{font-size:6px;font-weight:300;letter-spacing:3.5px;fill:#6a5c3d}
+.fl-tot{font-size:23px;font-weight:100;letter-spacing:1px;fill:#FFF9EC}
+.fl-n{font-size:14px;font-weight:200;letter-spacing:1px;fill:#FFF4D8}
+.fl-c{font-size:7px;font-weight:300;letter-spacing:2.5px;fill:#D4B476}
+.fl-glow{fill:#D9A441;opacity:.16;filter:blur(4px)}
+.fl-lv{font-size:12px;font-weight:300;letter-spacing:1.5px;fill:#e8eaee}
+.fl-ls{font-size:14px;font-weight:200;letter-spacing:1px;fill:#FFD98A}
+.fl-note{font-size:6px;font-weight:300;letter-spacing:3px;fill:#6b5c38}
+
+.fl-node{transition:opacity .15s}
+.fl-node.big .fl-n{font-size:26px;font-weight:700;fill:#fff}
+.fl-node.big .fl-c{font-size:8px;letter-spacing:3.5px;fill:#FFEBB8}
+.fl-node.off{opacity:.3}
+.fl:hover .fl-node{opacity:.55}
+.fl:hover .fl-node:hover{opacity:1}
+.fl-node:hover .fl-c{fill:#FFF4D8}
+"""
+
+# ═══════════════════════════════════════════════════
+# ОТЧЁТ FLOW · карточки, вариант B
+# Свет из левого нижнего угла, кант затухает вправо,
+# цвет = статус строки. Только для стратегии flow.
+# ═══════════════════════════════════════════════════
+FLOWREP = """
+.fr-list{padding-top:20px}
+.fr-empty{padding:80px 0;text-align:center;font-size:9px;font-weight:300;
+          letter-spacing:3px;color:var(--m4)}
+.fr-tail{padding:26px 0 10px;text-align:center;font-size:7px;font-weight:300;
+         letter-spacing:3px;color:#2e2e38}
+
+.fr{position:relative;margin-bottom:32px;border-radius:30px;background:#0a0b0f;
+    box-shadow:0 16px 20px rgba(0,0,0,.62);cursor:pointer;
+    transition:transform .14s,box-shadow .14s}
+.fr:hover{transform:translateY(-2px);box-shadow:0 20px 26px rgba(0,0,0,.7)}
+
+.t-gd{--fc:#FFB020;--fl:#FFD25E;--fw:#FFEBB0;--fo:.65}
+.t-gr{--fc:#22E08A;--fl:#6BFFB4;--fw:#BFFFDF;--fo:.60}
+.t-rd{--fc:#FF6B35;--fl:#FF9B6B;--fw:#FFC4A0;--fo:.45}
+.t-cy{--fc:#00D4FF;--fl:#7FEBFF;--fw:#D4F8FF;--fo:.50}
+
+/* стекло + свет из левого нижнего угла */
+.fr::before{content:'';position:absolute;inset:0;border-radius:inherit;
+  background:var(--glass),
+    radial-gradient(ellipse 52% 52% at 18% 105%,
+      color-mix(in srgb,var(--fc) 26%,transparent),transparent 70%);
+  pointer-events:none}
+/* кант корпуса */
+.fr::after{content:'';position:absolute;inset:0;border-radius:inherit;padding:1px;
+  background:var(--rim);-webkit-mask:linear-gradient(#000 0 0) content-box,
+  linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
+  pointer-events:none}
+
+.fr-in{position:relative;z-index:1;display:grid;
+  grid-template-columns:162px 72px 92px 128px 176px 116px 92px 84px;
+  align-items:center;gap:0 16px;min-height:136px;padding:0 30px}
+
+/* шапка: два тега в строку */
+.fr-caps{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+.fr-tag{height:15px;line-height:13px;padding:0 8px;border-radius:7.5px;
+  font-size:7.5px;font-weight:300;color:var(--fl);
+  background:color-mix(in srgb,var(--fc) 13%,transparent);
+  border:1px solid color-mix(in srgb,var(--fc) 40%,transparent)}
+.fr-tag.gh{color:#7f838c;background:none;border-color:#26262e}
+
+/* объём: три масштаба столбиком */
+.fr-vol{gap:7px}
+.fr-vr{position:relative;display:grid;grid-template-columns:18px 40px;
+  align-items:center;gap:8px;padding-bottom:5px}
+.fr-vr i{font-style:normal;font-size:7px;font-weight:300;letter-spacing:1px;
+  color:#45454f}
+.fr-vr b{font-size:13px;font-weight:200;color:#8d929b;
+  font-variant-numeric:tabular-nums}
+.fr-vr s{position:absolute;left:26px;right:0;bottom:0;height:2px;
+  border-radius:1px;background:color-mix(in srgb,var(--fc) 26%,transparent);
+  text-decoration:none;max-width:calc(100% - 26px)}
+.fr-vr.warm b{color:#c9ced6}
+.fr-vr.hot b{color:var(--fw)}
+.fr-vr.hot s{background:var(--fc);box-shadow:0 0 6px color-mix(in srgb,var(--fc) 55%,transparent)}
+
+/* цена: крупный 1д + спарклайн + два периода */
+.fr-price{gap:5px}
+.fr-big{font-size:19px;font-weight:200;letter-spacing:.5px;
+  font-variant-numeric:tabular-nums}
+.fr-big.up{color:#22E08A}
+.fr-big.dn{color:#FF6B35}
+.fr-price svg{width:100%;height:40px;overflow:visible}
+.fr-legs{display:flex;gap:16px}
+.fr-legs i{font-style:normal;font-size:7px;font-weight:300;letter-spacing:1px;
+  color:#45454f}
+.fr-legs b{font-size:9px;font-weight:200;margin-left:5px;
+  font-variant-numeric:tabular-nums}
+.fr-legs b.up{color:#22E08A}
+.fr-legs b.dn{color:#FF6B35}
+
+/* фандинг: биполярный бар от центра */
+.fr-fund{position:relative;display:block;width:100%;max-width:104px;height:5px;
+  border-radius:2.5px;background:#15161b}
+.fr-fund s{position:absolute;left:50%;top:-3px;width:1px;height:11px;
+  background:#3a3a44;text-decoration:none}
+.fr-fund i{position:absolute;top:0;height:5px;border-radius:2.5px;min-width:3px}
+.fr-fund i.pos{background:#E8843C}
+.fr-fund i.neg{background:#8FB4D0}
+.fr-fv{font-size:9px;font-weight:200;font-variant-numeric:tabular-nums;
+  margin-top:2px}
+.fr-fv.pos{color:#E8843C}
+.fr-fv.neg{color:#8FB4D0}
+
+/* верхний блик и нижний светящийся кант */
+.fr-in::before{content:'';position:absolute;top:0;left:9%;right:9%;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(234,244,250,.45) 28%,
+  rgba(234,244,250,.4) 72%,transparent)}
+.fr-in::after{content:'';position:absolute;bottom:0;left:4%;width:70%;height:1.3px;
+  background:linear-gradient(90deg,var(--fw),
+    color-mix(in srgb,var(--fc) 55%,transparent) 35%,transparent);
+  box-shadow:0 0 9px 1px color-mix(in srgb,var(--fc) 42%,transparent);
+  opacity:var(--fo)}
+
+.fr-c{display:flex;flex-direction:column;justify-content:center;gap:4px;
+      min-width:0;padding:26px 0}
+.fr-c1{gap:0}
+.fr-idx{font-size:9px;font-weight:200;color:#2f3138}
+.fr-sym{font-size:19px;font-weight:200;letter-spacing:2px;color:#f4f6f8;
+        margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fr-sec{font-size:7px;font-weight:300;letter-spacing:1.5px;
+        color:color-mix(in srgb,var(--fc) 34%,#6a6a72);margin-top:5px}
+.fr-tag{align-self:flex-start;height:15px;line-height:13px;padding:0 9px;
+  margin-top:9px;border-radius:7.5px;font-size:7.5px;font-weight:300;
+  color:var(--fl);background:color-mix(in srgb,var(--fc) 13%,transparent);
+  border:1px solid color-mix(in srgb,var(--fc) 40%,transparent)}
+
+.fr-ring{width:62px;height:62px;overflow:visible;justify-self:center}
+.fr-ring-v{font-size:20px;font-weight:100;fill:var(--fw)}
+.fr-ring-l{font-size:6px;font-weight:300;letter-spacing:2px;fill:#4a4a54}
+
+.fr-k{font-size:6px;font-weight:300;letter-spacing:2px;color:#45454f}
+.fr-v{font-size:15px;font-weight:200;color:#e8ecf0;
+      font-variant-numeric:tabular-nums}
+.fr-v.sm{font-size:10px;color:var(--m1)}
+
+.fr-chip{align-self:flex-start;height:16px;line-height:14px;padding:0 10px;
+  border-radius:4px;font-size:8px;font-weight:300;color:var(--fl);
+  background:color-mix(in srgb,var(--fc) 10%,transparent);
+  border:1px solid color-mix(in srgb,var(--fc) 30%,transparent)}
+.fr-steps{display:flex;gap:4px}
+.fr-steps i{width:11px;height:3px;border-radius:1.5px;
+  background:color-mix(in srgb,var(--fc) 22%,transparent)}
+.fr-steps i.on{background:var(--fc)}
+
+.fr-spark{position:relative;gap:2px}
+.fr-spark svg{width:100%;height:46px;overflow:visible}
+.fr-chg{font-size:10px;font-weight:200;font-variant-numeric:tabular-nums}
+.fr-chg.up{color:#22E08A}
+.fr-chg.dn{color:#FF6B35}
+
+.fr-trk{position:relative;height:3px;border-radius:1.5px;background:#191920;
+        max-width:90px}
+.fr-trk i{position:absolute;left:0;top:0;height:3px;border-radius:1.5px;
+  background:var(--fc);opacity:.85;min-width:3px}
+.fr-dots{display:flex;gap:4px}
+.fr-dots i{width:5.2px;height:5.2px;border-radius:50%;background:var(--fc);
+           opacity:.2}
+.fr-dots i.on{opacity:1}
+
+.fr-veto{font-size:9px;font-weight:300;letter-spacing:1px}
+.fr-veto.ok{color:#22E08A}
+.fr-veto.bad{color:#FF6B35}
+.fr-rr{font-size:15px;font-weight:200;color:var(--fl);
+       font-variant-numeric:tabular-nums}
+
+.fr-btn{justify-self:end;height:28px;line-height:26px;padding:0 16px;
+  border-radius:14px;font-size:8px;font-weight:300;letter-spacing:1.5px;
+  color:var(--fl);background:color-mix(in srgb,var(--fc) 12%,transparent);
+  border:1px solid color-mix(in srgb,var(--fc) 45%,transparent);
+  white-space:nowrap;transition:background .14s}
+.fr:hover .fr-btn{background:color-mix(in srgb,var(--fc) 22%,transparent)}
+.fr-btn.off{background:none;color:#8a7060;opacity:.55;
+  border:1px dashed color-mix(in srgb,var(--fc) 32%,transparent)}
+"""
+
+# ═══════════════════════════════════════════════════
 # АДАПТИВ · ВСЕГДА В КОНЦЕ
 # ═══════════════════════════════════════════════════
 RESPONSIVE = """
@@ -761,6 +954,9 @@ RESPONSIVE = """
   .fn-line{left:60px;right:80px}
   .fn-node{width:64px}
   .risk-cap{right:auto;left:0}
+  .fr-in{grid-template-columns:140px 70px 88px 92px 1fr 110px 84px 78px;
+           gap:0 14px;padding:0 24px}
+  .fl{max-width:560px}
 }
 
 @media (max-width:760px){
@@ -783,6 +979,18 @@ RESPONSIVE = """
   .sx .sx-c-soc,.sx .sx-c-surge{position:static;box-shadow:none}
   .sx .sx-c-sym{box-shadow:10px 0 14px -8px rgba(0,0,0,.85)}
   .sx td,.sx th{padding-left:10px;padding-right:10px}
+
+    .fr-in{grid-template-columns:150px 66px 84px 116px 1fr 104px 84px 78px;
+             gap:0 12px;padding:0 22px}
+    .fr-price svg{height:34px}
+    .fr-c1{grid-column:1}
+    .fr-ring{grid-column:2;grid-row:1}
+    .fr-c{grid-column:1 / -1;flex-direction:row;align-items:center;
+          gap:12px;padding:0;flex-wrap:wrap}
+    .fr-spark{flex-direction:column;align-items:stretch}
+    .fr-btn{grid-column:1 / -1;justify-self:stretch;text-align:center}
+    .fl{height:150px}
+    .fl-c{font-size:6px;letter-spacing:1.5px}
 }
 
 @media (max-width:520px){
@@ -801,6 +1009,6 @@ RESPONSIVE = """
 """
 
 CSS = "".join([
-    TOKENS, BASE, HEAD, BLOCK, VOL, SOC, BARS, SET, IMP,
-    RISK, FUNNEL, PANES, SCAN, CARD, RESPONSIVE,
+    TOKENS, BASE, HEAD, BLOCK, VOL, SOC, BARS, SET, IMP, RISK,
+    STRAT, FUNNEL, PANES, FLOWREP, SCAN, CARD, RESPONSIVE,
 ])

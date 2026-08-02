@@ -13,7 +13,7 @@ from core.models import Candidate, RunSnapshot
 from render.card import render_card
 from render.table import render_slice_pane
 from render.theme import esc
-
+from render.flow_report import render_flow_report
 
 # ─────────────────────────────────────────────────────────────
 # Хелперы
@@ -733,6 +733,130 @@ def _blk_sectors(snapshot: RunSnapshot) -> str:
 </div>"""
 
 
+# ═════════════════════════════════════════════════════════════
+# СТРАТЕГИИ · ряд между первым и вторым экраном блоков.
+# Пока одна: FLOW. Лента зафиксирована (золото, компактная,
+# по центру). Клик по ленте или по узлу открывает отчёт
+# стратегии — карточки, вариант B, только для flow.
+#
+# ЧТО ПОДКЛЮЧЕНО:
+#  · число слева — монеты со сработавшим flow
+#  · размер узла и число над ним — счётчик подкейса
+#  · лидер справа — максимальный score среди flow
+#
+# ЧТО ПРЕДСТОИТ:
+#  · вторая и третья стратегия встанут в тот же ряд .row-s
+#  · «свежесть» узла (пунктирный ореол) — нужна память прогонов
+# ═════════════════════════════════════════════════════════════
+
+# порядок узлов на ленте фиксирован макетом, cx пересчитаны
+# из холста 1200×950 в локальный viewBox (сдвиг x−352, y−410)
+FLOW_NODES = [
+    ("hidden",   124, 22.0, "скрытый набор",        True),
+    ("spring",   165, 16.0, "сжатие в тишине",      False),
+    ("churn",    221, 35.0, "объём есть, цена стоит", True),
+    ("fuel",     287, 26.0, "сверху пусто",         True),
+    ("taker",    335, 19.0, "сменился агрессор",    False),
+    ("leverage", 373, 13.0, "шорты перегружены",    False),
+]
+
+
+def _blk_flow(candidates: list[Candidate]) -> str:
+    flow = [c for c in candidates if c.flow]
+    by_case: dict[str, int] = {}
+    for c in flow:
+        case = str((c.flow or {}).get("case", "") or "")
+        by_case[case] = by_case.get(case, 0) + 1
+
+    lead = max(flow, key=lambda c: getattr(c, "score", 0) or 0, default=None)
+
+    nodes = ""
+    for case, cx, rx, _sub, underline in FLOW_NODES:
+        n = by_case.get(case, 0)
+        ry = rx * 0.317
+        dim = "" if n else " off"
+        big = " big" if case == "churn" else ""
+        # число немного приподнято над кольцом
+        dy = -14 if case == "churn" else (-8 if rx >= 22 else -6)
+        line = (f'<path d="M{-rx * 0.7:.0f} 47 H{rx * 0.7:.0f}" '
+                f'stroke="url(#fl-und)" stroke-width="1"/>' if underline else "")
+        nodes += f"""
+    <g class="fl-node{dim}{big}" transform="translate({cx},56)"
+       data-slice="strat:flow">
+      <text class="fl-n" y="{dy}" text-anchor="middle">{n}</text>
+      <ellipse rx="{rx + 4:.1f}" ry="{ry + 1.3:.1f}" class="fl-glow"/>
+      <ellipse rx="{rx:.1f}" ry="{ry:.1f}" fill="url(#fl-disc)"/>
+      <ellipse rx="{rx:.1f}" ry="{ry:.1f}" fill="none" stroke="url(#fl-ring)"
+               stroke-width="1.3"/>
+      <ellipse rx="{rx + 6:.1f}" ry="{ry + 2:.1f}" fill="none" stroke="#D9A441"
+               stroke-opacity=".24" stroke-width=".8"/>
+      <path d="M{-rx:.1f} 0 A{rx:.1f} {ry:.1f} 0 0 0 {rx:.1f} 0" fill="none"
+            stroke="#FFEBB8" stroke-opacity=".8" stroke-width="1.4"/>
+      <text class="fl-c" y="42" text-anchor="middle">{case.upper()}</text>
+      {line}
+    </g>"""
+
+    lead_html = ""
+    if lead is not None:
+        lead_html = (
+            f'<text class="fl-lk" x="440" y="28">лидер прогона</text>'
+            f'<text class="fl-lv" x="440" y="48">{_tick(lead)}</text>'
+            f'<text class="fl-ls" x="520" y="48" text-anchor="end">'
+            f'{int(getattr(lead, "score", 0) or 0)}</text>'
+        )
+
+    cls = "strat c-fl" + ("" if flow else " empty")
+    return f"""
+<div class="{cls}" data-slice="strat:flow">
+  <span class="halo"></span>
+  <svg class="fl" viewBox="-14 0 560 130">
+    <defs>
+      <linearGradient id="fl-base" x1="0" x2="1">
+        <stop offset="0" stop-color="#B8860B" stop-opacity="0"/>
+        <stop offset=".12" stop-color="#D9A441" stop-opacity=".5"/>
+        <stop offset=".5" stop-color="#FFEBB8" stop-opacity=".9"/>
+        <stop offset=".88" stop-color="#D9A441" stop-opacity=".5"/>
+        <stop offset="1" stop-color="#B8860B" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="fl-ring" x1="0" x2="1">
+        <stop offset="0" stop-color="#B8860B" stop-opacity=".15"/>
+        <stop offset=".3" stop-color="#FFD98A" stop-opacity=".95"/>
+        <stop offset=".7" stop-color="#FFD98A" stop-opacity=".95"/>
+        <stop offset="1" stop-color="#B8860B" stop-opacity=".15"/>
+      </linearGradient>
+      <linearGradient id="fl-und" x1="0" x2="1">
+        <stop offset="0" stop-color="#D9A441" stop-opacity="0"/>
+        <stop offset=".5" stop-color="#FFEBB8" stop-opacity=".85"/>
+        <stop offset="1" stop-color="#D9A441" stop-opacity="0"/>
+      </linearGradient>
+      <radialGradient id="fl-disc" cx="50%" cy="35%" r="65%">
+        <stop offset="0" stop-color="#D9A441" stop-opacity=".18"/>
+        <stop offset="1" stop-color="#33260B" stop-opacity=".45"/>
+      </radialGradient>
+    </defs>
+
+    <g class="fl-left">
+      <ellipse cx="0" cy="56" rx="11" ry="3.7" fill="none" stroke="#FFD98A"
+               stroke-opacity=".35"/>
+      <ellipse cx="0" cy="56" rx="6.5" ry="2.2" fill="none" stroke="#FFEBB8"
+               stroke-opacity=".55"/>
+      <circle cx="0" cy="56" r="1.6" fill="#FFF4D8"/>
+      <text class="fl-lk" x="22" y="49">FLOW</text>
+      <text class="fl-tot" x="22" y="71">{len(flow)}</text>
+    </g>
+    <line x1="80" y1="26" x2="80" y2="86" stroke="#B8860B" stroke-opacity=".16"/>
+
+    <path d="M94 56 H404" stroke="url(#fl-base)" stroke-width="6"
+          class="fl-blur" opacity=".35"/>
+    <path d="M94 56 H404" stroke="url(#fl-base)" stroke-width="1"/>
+    {nodes}
+
+    <line x1="416" y1="26" x2="416" y2="86" stroke="#B8860B" stroke-opacity=".16"/>
+    {lead_html}
+    <text class="fl-note" x="440" y="102">КТО ДВИГАЕТ РЫНОК</text>
+  </svg>
+</div>"""
+
 # ─────────────────────────────────────────────────────────────
 # Воронка
 # ─────────────────────────────────────────────────────────────
@@ -860,16 +984,21 @@ def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot) ->
         _blk_sectors(snapshot),
     ])
 
+    # ряд стратегий между блоками и вторым рядом
+    strat = f'<div class="row row-s">{_blk_flow(candidates)}</div>'
+
     # Панели-таблицы строим для ВСЕХ срезов, включая скрытые:
     # на них ведут узлы воронки.
     panes = ("".join(render_slice_pane(s) for s in slices)
-             + _sector_panes(candidates, snapshot))
+             + _sector_panes(candidates, snapshot)
+             + render_flow_report(candidates))     # ← новый отчёт
 
     return f"""
 {_bg()}
 <div class="screen" id="dash">
   {_head(snapshot)}
   <div class="row row-1">{row1}</div>
+  {strat}
   <div class="row row-2">{row2}</div>
   {_funnel(snapshot)}
 </div>
