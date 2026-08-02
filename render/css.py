@@ -802,7 +802,6 @@ FLOWREP = """
 .t-gd{--fc:#FFB020;--fl:#FFD25E;--fw:#FFEBB0;--fo:.65}
 .t-gr{--fc:#22E08A;--fl:#6BFFB4;--fw:#BFFFDF;--fo:.60}
 .t-rd{--fc:#FF6B35;--fl:#FF9B6B;--fw:#FFC4A0;--fo:.45}
-.t-cy{--fc:#00D4FF;--fl:#7FEBFF;--fw:#D4F8FF;--fo:.50}
 
 /* стекло + свет из левого нижнего угла */
 .fr::before{content:'';position:absolute;inset:0;border-radius:inherit;
@@ -890,19 +889,12 @@ FLOWREP = """
         margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fr-sec{font-size:7px;font-weight:300;letter-spacing:1.5px;
         color:color-mix(in srgb,var(--fc) 34%,#6a6a72);margin-top:5px}
-.fr-tag{align-self:flex-start;height:15px;line-height:13px;padding:0 9px;
-  margin-top:9px;border-radius:7.5px;font-size:7.5px;font-weight:300;
-  color:var(--fl);background:color-mix(in srgb,var(--fc) 13%,transparent);
-  border:1px solid color-mix(in srgb,var(--fc) 40%,transparent)}
 
 .fr-ring{width:62px;height:62px;overflow:visible;justify-self:center}
 .fr-ring-v{font-size:20px;font-weight:100;fill:var(--fw)}
 .fr-ring-l{font-size:6px;font-weight:300;letter-spacing:2px;fill:#4a4a54}
 
 .fr-k{font-size:6px;font-weight:300;letter-spacing:2px;color:#45454f}
-.fr-v{font-size:15px;font-weight:200;color:#e8ecf0;
-      font-variant-numeric:tabular-nums}
-.fr-v.sm{font-size:10px;color:var(--m1)}
 
 .fr-chip{align-self:flex-start;height:16px;line-height:14px;padding:0 10px;
   border-radius:4px;font-size:8px;font-weight:300;color:var(--fl);
@@ -913,20 +905,15 @@ FLOWREP = """
   background:color-mix(in srgb,var(--fc) 22%,transparent)}
 .fr-steps i.on{background:var(--fc)}
 
-.fr-spark{position:relative;gap:2px}
-.fr-spark svg{width:100%;height:46px;overflow:visible}
-.fr-chg{font-size:10px;font-weight:200;font-variant-numeric:tabular-nums}
-.fr-chg.up{color:#22E08A}
-.fr-chg.dn{color:#FF6B35}
-
-.fr-trk{position:relative;height:3px;border-radius:1.5px;background:#191920;
-        max-width:90px}
-.fr-trk i{position:absolute;left:0;top:0;height:3px;border-radius:1.5px;
-  background:var(--fc);opacity:.85;min-width:3px}
-.fr-dots{display:flex;gap:4px}
-.fr-dots i{width:5.2px;height:5.2px;border-radius:50%;background:var(--fc);
-           opacity:.2}
-.fr-dots i.on{opacity:1}
+/* фон торговли: три уровня + подпись.
+   Штрихи, а не точки: величина порядковая (тихо → разгон),
+   а точки читаются как счётчик чего-то дискретного. */
+.fr-bg{display:flex;align-items:center;gap:5px}
+.fr-bg i{width:4px;height:11px;border-radius:1px;background:var(--fc);
+         opacity:.2}
+.fr-bg i.on{opacity:1}
+.fr-bg b{font-size:8px;font-weight:300;letter-spacing:1px;color:#7f838c;
+         margin-left:3px}
 
 .fr-veto{font-size:9px;font-weight:300;letter-spacing:1px}
 .fr-veto.ok{color:#22E08A}
@@ -988,7 +975,6 @@ RESPONSIVE = """
     .fr-ring{grid-column:2;grid-row:1}
     .fr-c{grid-column:1 / -1;flex-direction:row;align-items:center;
           gap:12px;padding:0;flex-wrap:wrap}
-    .fr-spark{flex-direction:column;align-items:stretch}
     .fr-btn{grid-column:1 / -1;justify-self:stretch;text-align:center}
     .fl{height:150px}
     .fl-c{font-size:6px;letter-spacing:1.5px}
