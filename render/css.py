@@ -899,6 +899,11 @@ FLOWREP = """
 .fr-legs b.up{color:#22E08A}
 .fr-legs b.dn{color:#FF6B35}
 
+.fr-dots{display:flex;gap:4px}
+.fr-dots i{width:5.2px;height:5.2px;border-radius:50%;background:var(--fc);
+           opacity:.2}
+.fr-dots i.on{opacity:1}
+
 /* фандинг: биполярный бар от центра */
 .fr-fund{position:relative;display:block;width:100%;max-width:104px;height:5px;
   border-radius:2.5px;background:#15161b}
@@ -1012,15 +1017,13 @@ RESPONSIVE = """
 
   .fr-in{grid-template-columns:150px 66px;gap:0 12px;padding:0 22px}
   .fr-price svg{height:34px}
-  .fr-c1{grid-column:1}
-  .fr-ring{grid-column:2;grid-row:1}
-  .fr-c{grid-column:1 / -1;flex-direction:row;align-items:center;
-  gap:12px;padding:0;flex-wrap:wrap}
-  .fr-btn{grid-column:1 / -1;justify-self:stretch;text-align:center}
-  .fl{height:150px}
-  .fl-c{font-size:6px;letter-spacing:1.5px}
-  .fr-lnks{margin-left:0;width:100%}
-  .fr-act{padding:0 0 16px}
+    .fr-c1{grid-column:1}
+    .fr-ring{grid-column:2;grid-row:1}
+    .fr-c{grid-column:1 / -1;flex-direction:row;align-items:center;
+          gap:12px;padding:0;flex-wrap:wrap}
+    .fr-btn{grid-column:1 / -1;justify-self:stretch;text-align:center}
+    .fl{height:150px}
+    .fl-c{font-size:6px;letter-spacing:1.5px}
 }
 
 @media (max-width:520px){
