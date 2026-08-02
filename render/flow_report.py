@@ -23,13 +23,16 @@ TONE = {
     "veto": ("rd", "#FF6B35", "#FF9B6B"),
 }
 
+# Короткие подписи: в чипе карточки длинная формулировка переносится
+# на вторую строку и ломает сетку. Полные описания живут на ленте
+# стратегии, здесь нужен ярлык, а не определение.
 CASE_RU = {
     "hidden": "скрытый набор",
-    "spring": "сжатие в тишине",
-    "churn": "объём есть, цена стоит",
-    "fuel": "сверху пусто",
-    "taker": "сменился агрессор",
-    "leverage": "шорты перегружены",
+    "spring": "сжатие",
+    "churn": "поглощение",
+    "fuel": "путь свободен",
+    "taker": "смена агрессора",
+    "leverage": "перекос плеча",
 }
 
 
@@ -122,6 +125,8 @@ def _data(c: Candidate) -> dict:
         "ath": float(r.get("ath_drop") or 0),
         # spark_1d — дневные закрытия, уже в KEEP_SERIES
         "series": list(r.get("spark_1d") or [])[-14:],
+        "up": float(r.get("up_from_low") or 0),
+        "up_days": int(r.get("days_from_low") or 0),
     }
 
 
@@ -176,6 +181,37 @@ def _vol_rows(d: dict) -> str:
                 f'<s style="width:{min(100, v / 8 * 100):.0f}%"></s></span>')
     return out
 
+def _links(c: Candidate) -> str:
+    """Четыре внешние ссылки, каждая — на саму монету.
+
+    CoinGecko ищется в c.links: id монеты приходит от них же и
+    восстановить его из тикера нельзя. Если ссылки нет, кнопка
+    гасится, а не ведёт на главную — переход в никуда хуже
+    отсутствия перехода.
+    """
+    base = c.symbol.replace("USDT", "")
+    tv = f"https://www.tradingview.com/chart/?symbol=BINANCE:{c.symbol}.P"
+    bn = f"https://www.binance.com/en/futures/{c.symbol}"
+    tw = f"https://twitter.com/search?q=%24{base}"
+
+    cg = ""
+    for l in (c.links or []):
+        url = str(l.get("url") or "")
+        if "coingecko.com/en/coins/" in url:
+            cg = url
+            break
+
+    out = (f'<a class="fr-lnk pri" href="{tv}" target="_blank" '
+           f'rel="noopener">TRADINGVIEW <i>↗</i></a>'
+           f'<a class="fr-lnk" href="{bn}" target="_blank" '
+           f'rel="noopener">BINANCE <i>↗</i></a>')
+    out += (f'<a class="fr-lnk" href="{esc(cg)}" target="_blank" '
+            f'rel="noopener">COINGECKO <i>↗</i></a>' if cg
+            else '<span class="fr-lnk off">COINGECKO</span>')
+    out += (f'<a class="fr-lnk" href="{tw}" target="_blank" '
+            f'rel="noopener">TWITTER <i>↗</i></a>')
+    return out
+
 
 def _fund_bar(pct: float) -> str:
     """Биполярный бар от центра. Вправо — лонги платят, влево — шорты."""
@@ -187,6 +223,47 @@ def _fund_bar(pct: float) -> str:
             f'<i class="{side}" style="{style}"></i></span>'
             f'<span class="fr-fv {side}">{pct:+.3f}%</span>')
 
+def _zones(c: Candidate) -> str:
+    """Ближайшая опора снизу и ближайший завал сверху.
+
+    Роль зоны определяется положением цены, а не стороной событий:
+    выше — там набирали и будут защищать, ниже — там застряли и
+    будут выходить в ноль. Обе величины уже посчитаны ядром, здесь
+    только выбор ближайших.
+
+    tests — сколько раз уровень проверяли и он выдержал. Ноль
+    тестов не порок, но и не подтверждение: зона может быть просто
+    молодой.
+    """
+    ctx = (c.flow or {}).get("context") or {}
+    price = float(ctx.get("price") or 0)
+    zones = ctx.get("zones") or []
+    if price <= 0 or not zones:
+        return '<span class="fr-zn off">карты нет</span>'
+
+    below = [z for z in zones if float(z.get("price") or 0) < price]
+    above = [z for z in zones if float(z.get("price") or 0) > price]
+    out = ""
+
+    if above:
+        z = min(above, key=lambda z: float(z["price"]))
+        dist = (float(z["price"]) / price - 1) * 100
+        out += (f'<span class="fr-zn up"><i>↑</i>'
+                f'<b>+{dist:.0f}%</b><s>завал</s></span>')
+    else:
+        out += '<span class="fr-zn off"><i>↑</i><s>сверху чисто</s></span>'
+
+    if below:
+        z = max(below, key=lambda z: float(z["price"]))
+        dist = (1 - float(z["price"]) / price) * 100
+        t = int(z.get("tests") or 0)
+        out += (f'<span class="fr-zn dn"><i>↓</i>'
+                f'<b>−{dist:.0f}%</b>'
+                f'<s>опора{f" · {t}т" if t else ""}</s></span>')
+    else:
+        out += '<span class="fr-zn off"><i>↓</i><s>опоры нет</s></span>'
+
+    return out
 
 def _card(c: Candidate, idx: int) -> str:
     tone = _tone(c, idx)
@@ -231,11 +308,13 @@ def _card(c: Candidate, idx: int) -> str:
   <div class="fr-in">
     <div class="fr-c fr-c1">
       <span class="fr-idx">{idx + 1:02d}</span>
-      <span class="fr-sym">{sym}</span>
+      <a class="fr-sym" href="https://www.tradingview.com/chart/?symbol=BINANCE:{esc(c.symbol)}.P"
+               target="_blank" rel="noopener">{sym}</a>
       <span class="fr-sec">{sector}</span>
       <span class="fr-caps">
         <b class="fr-tag">{_cap(d['cap'])}</b>
-        <b class="fr-tag gh">{d['ath']:+.0f}% от ath</b>
+        <b class="fr-tag gh">{d['ath']:+.0f}% ath</b>
+        <b class="fr-tag up">+{d['up']:.0f}% от дна</b>
       </span>
     </div>
 
@@ -288,13 +367,21 @@ def _card(c: Candidate, idx: int) -> str:
     </div>
 
     <div class="fr-c">
+      <span class="fr-k">ЗОНЫ</span>
+      {_zones(c)}
+    </div>
+
+    <div class="fr-c">
       <span class="fr-k">ВЕТО</span>
       <span class="fr-veto {veto_cls}">{veto_txt}</span>
       <span class="fr-k">ФОН</span>
       <span class="fr-bg">{bars}<b>{bg_txt}</b></span>
     </div>
 
-    {btn}
+    <div class="fr-act">
+      {btn}
+      <div class="fr-lnks">{_links(c)}</div>
+    </div>
   </div>
 </div>"""
 

@@ -113,6 +113,27 @@ def vol_ratio(klines: list[list]) -> float | None:
 
     return (current / fill) / med
 
+BOTTOM_WINDOW = 60
+
+
+def _from_bottom(lows: list[float], price: float) -> tuple[float, int]:
+    """Рост от минимума окна и его давность в днях.
+
+    Окно короткое сознательно: 60 дней отвечают на вопрос «сколько
+    уже отъехали от локального дна», а не «где было дно цикла».
+    Для второго есть ath_drop, и величины дополняют друг друга —
+    −80% от ATH при +150% от дна и −80% при +5% описывают разные
+    монеты, хотя первая цифра у них общая.
+    """
+    if not lows or price <= 0:
+        return 0.0, 0
+    tail = lows[-BOTTOM_WINDOW:]
+    low = min(tail)
+    if low <= 0:
+        return 0.0, 0
+    idx = len(tail) - 1 - tail.index(low)
+    return (price / low - 1) * 100, idx
+
 def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
     """Все базовые метрики монеты.
 
@@ -133,6 +154,7 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
     if price <= 0:
         return {}
 
+    up_from_low, days_from_low = _from_bottom(lows_1d, price)
     kl_4h = klines_4h(symbol)
     closes_4h = series(kl_4h, K_CLOSE) if kl_4h else []
     highs_4h = series(kl_4h, K_HIGH) if kl_4h else []
@@ -235,6 +257,8 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
         "closes_4h": closes_4h,
         "closes_1h": closes_1h,
         "ch_3d": ch_3d,
+        "up_from_low": up_from_low,
+        "days_from_low": days_from_low,
     }
 
 
