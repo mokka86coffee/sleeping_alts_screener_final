@@ -11,29 +11,39 @@ from core.models import Candidate
 from render.theme import esc
 
 # ── палитра статусов ──────────────────────────────────────────
-# золото — топ, зелёный — чисто и растёт, оранж — под вето,
-# бирюза — новичок (в прошлом прогоне монеты не было)
+# золото — топ прогона, зелёный — чисто, оранж — под вето.
+#
+# Четвёртого тона нет: он был заведён под «новичок прогона», а
+# признака новизны в Candidate не существует — сравнение со
+# снимком не реализовано. Тон без источника данных это мёртвая
+# ветка, внешне неотличимая от рабочей.
 TONE = {
-    "top":  ("gd", "#FFB020", "#FFD25E"),
-    "ok":   ("gr", "#22E08A", "#6BFFB4"),
+    "top": ("gd", "#FFB020", "#FFD25E"),
+    "ok": ("gr", "#22E08A", "#6BFFB4"),
     "veto": ("rd", "#FF6B35", "#FF9B6B"),
-    "new":  ("cy", "#00D4FF", "#7FEBFF"),
 }
 
 CASE_RU = {
-    "hidden":   "скрытый набор",
-    "spring":   "сжатие в тишине",
-    "churn":    "объём есть, цена стоит",
-    "fuel":     "сверху пусто",
-    "taker":    "сменился агрессор",
+    "hidden": "скрытый набор",
+    "spring": "сжатие в тишине",
+    "churn": "объём есть, цена стоит",
+    "fuel": "сверху пусто",
+    "taker": "сменился агрессор",
     "leverage": "шорты перегружены",
 }
 
-def _n(c: Candidate, key: str, default: float = 0.0) -> float:
-    try:
-        return float((c.raw or {}).get(key) or default)
-    except (TypeError, ValueError):
-        return default
+
+def case_key(raw: str) -> str:
+    """Диспетчер отдаёт subcase с префиксом модуля: flow_hidden.
+
+    Внутри семейства это правильно — имя совпадает с именем модуля
+    и с ключами CASE_CAP. Наружу префикс смысла не несёт и ломает
+    сопоставление по короткому ключу, поэтому режем ровно на
+    границе рендера, а не в семействе.
+
+    Публичная: dashboard читает тот же ключ при сборке ленты.
+    """
+    return str(raw or "").removeprefix("flow_")
 
 
 def _flow(c: Candidate, key: str, default=None):
@@ -43,21 +53,7 @@ def _flow(c: Candidate, key: str, default=None):
 def _tone(c: Candidate, idx: int) -> str:
     if c.vetoed:
         return "veto"
-    if idx == 0:
-        return "top"
-    if getattr(c, "is_new", False):
-        return "new"
-    return "ok"
-
-
-def _case_key(raw: str) -> str:
-    """Диспетчер отдаёт subcase с префиксом модуля: flow_hidden.
-
-    Внутри семейства это правильно — имя совпадает с именем модуля
-    и с ключами CASE_CAP. Наружу префикс смысла не несёт, поэтому
-    режем ровно на границе рендера, а не в семействе.
-    """
-    return str(raw or "").removeprefix("flow_")
+    return "top" if idx == 0 else "ok"
 
 
 def _arc(pct: float, r: float) -> str:
@@ -66,7 +62,8 @@ def _arc(pct: float, r: float) -> str:
     return f"{on:.2f} {circ - on:.2f}"
 
 
-def _spark(values: list[float], w: float = 154.0, h: float = 46.0) -> tuple[str, float, float]:
+def _spark(values: list[float], w: float = 154.0,
+           h: float = 46.0) -> tuple[str, float, float]:
     """Ломаная цены с автомасштабом. Возвращает (points, x, y последней)."""
     n = len(values)
     if n < 2:
@@ -79,10 +76,12 @@ def _spark(values: list[float], w: float = 154.0, h: float = 46.0) -> tuple[str,
     for i, v in enumerate(values):
         k = 0.5 if span < 1e-9 else (v - lo) / span
         pts.append((i * step, bottom - k * (bottom - top)))
-    return (" ".join(f"{x:.1f},{y:.1f}" for x, y in pts), pts[-1][0], pts[-1][1])
+    return (" ".join(f"{x:.1f},{y:.1f}" for x, y in pts),
+            pts[-1][0], pts[-1][1])
+
 
 # ── формат ────────────────────────────────────────────────────
-def _mult(v: float) -> str:
+def _mult(v) -> str:
     """Кратность медиане: ×0.4 · ×2.1 · ×12. Прочерк — недобор бара."""
     if v is None or v <= 0:
         return "—"
@@ -98,7 +97,18 @@ def _cap(v: float) -> str:
         return f"${v / 1e6:.0f}M"
     return f"${v / 1e3:.0f}K"
 
+
 def _data(c: Candidate) -> dict:
+    """Числа карточки из raw кандидата.
+
+    Все ключи скалярные: strip_series оставляет их в снимке, и они
+    доживают до рендера после drop_symbol_cache — свечей монеты в
+    памяти к этому моменту уже нет.
+
+    mcap_usd, а не market_cap: поле CoinFundamentals называется
+    именно так. Промах по имени здесь молчалив — .get вернул бы
+    ноль, и колонка показывала бы прочерк при живых данных.
+    """
     r = c.raw or {}
     return {
         "v1h": r.get("vol_x_1h"),
@@ -108,11 +118,45 @@ def _data(c: Candidate) -> dict:
         "p3d": float(r.get("ch_3d") or 0),
         "p7d": float(r.get("ch_7d") or 0),
         "fund": float(r.get("funding") or 0),
-        "cap": float(r.get("market_cap") or 0),
+        "cap": float(r.get("mcap_usd") or 0),
         "ath": float(r.get("ath_drop") or 0),
-        # spark_1d — 24 дневных закрытия, уже в KEEP_SERIES
+        # spark_1d — дневные закрытия, уже в KEEP_SERIES
         "series": list(r.get("spark_1d") or [])[-14:],
     }
+
+
+def _background(c: Candidate) -> tuple[int, str]:
+    """Фон торговли и характер потока — три уровня.
+
+    Величина унаследована от buzz.build_buzz и доработана внутри
+    семейства: те же две оси, но rvol заменён на rel_volume
+    (медиана к медиане, только по полным барам), а obv_slope — на
+    фактический taker-поток, нормированный на оборот.
+
+    Сам buzz.py не импортируется: FLOW от действующих стратегий
+    не зависит. Уровень «соцсети» из него не используется — до
+    появления настоящего источника лучше не иметь данных, чем
+    иметь недостоверные.
+
+    Верхний уровень требует совпадения двух осей, как hot в buzz:
+    объём выше нормы И поток односторонний вверх. Порознь ни то
+    ни другое ничего не значит.
+
+    Пороги из семейства: churn требует от 1.3, spring — не выше
+    0.9, между ними зазор, где не собирается ни один подкейс.
+    """
+    ctx = ((c.flow or {}).get("context") or {}).get("flow") or {}
+    rel = float(ctx.get("rel_volume") or 0)
+    slope = float(ctx.get("delta_slope") or 0)
+
+    if rel <= 0:
+        return 0, "—"
+    if rel >= 1.3:
+        return (3, "разгон") if slope > 0 else (2, "шумно")
+    if rel >= 0.9:
+        return 2, "обычно"
+    return 1, "тихо"
+
 
 def _vol_rows(d: dict) -> str:
     """Три масштаба в столбик. Ярче тот, что сильнее медианы."""
@@ -120,10 +164,12 @@ def _vol_rows(d: dict) -> str:
     for label, key in (("1ч", "v1h"), ("4ч", "v4h"), ("1д", "v1d")):
         v = d[key]
         if v is None:
+            # Бар набран меньше порога — прочерк, а не число.
+            # Заниженное значение хуже отсутствующего: оно
+            # выглядит как факт.
             out += (f'<span class="fr-vr off"><i>{label}</i>'
                     f'<b>—</b><s></s></span>')
             continue
-        # 3 ступени: спокойно / заметно / аномалия
         lvl = "hot" if v >= 4 else ("warm" if v >= 2 else "")
         out += (f'<span class="fr-vr {lvl}">'
                 f'<i>{label}</i><b>{_mult(v)}</b>'
@@ -142,45 +188,39 @@ def _fund_bar(pct: float) -> str:
             f'<span class="fr-fv {side}">{pct:+.3f}%</span>')
 
 
-def _money(v: float) -> str:
-    if v >= 1e9:
-        return f"${v / 1e9:.2f}B"
-    if v >= 1e6:
-        return f"${v / 1e6:.1f}M"
-    if v >= 1e3:
-        return f"${v / 1e3:.0f}K"
-    return f"${v:.0f}"
-
-
 def _card(c: Candidate, idx: int) -> str:
     tone = _tone(c, idx)
     key, base, light = TONE[tone]
     sym = esc(c.symbol.replace("USDT", ""))
-
-    # ── шапка ──
-    sector = esc(str(c.sector or "—").lower())
-    rvol_d = _n(c, "rvol_1d", _n(c, "surge_ratio"))
     score = int(getattr(c, "score", 0) or 0)
 
-    # ── паттерн и фаза ──
-    case = str(_flow(c, "case", "") or "—")
+    # c.sector не читается: он приходит из buzz.resolve_sector,
+    # а этот модуль семейство не использует. Категория CoinGecko —
+    # первичный источник, берём её.
+    cats = getattr(c, "categories", None) or []
+    sector = esc((cats[0] if cats else "—").lower())
+
+    case = case_key(_flow(c, "case", ""))
     phase_num = int((c.phase or {}).get("num", 0) or 0)
     steps = "".join(
         f'<i class="{"on" if i < phase_num else ""}"></i>' for i in range(4)
     )
-    buzz = int((c.buzz or {}).get("level_num", 0) or 0)
-    dots = "".join(f'<i class="{"on" if i < buzz else ""}"></i>' for i in range(3))
-    rr = float(getattr(c, "rr", 0) or 0)
 
-    d = _data(c.symbol)
+    bg_lvl, bg_txt = _background(c)
+    bars = "".join(
+        f'<i class="{"on" if i < bg_lvl else ""}"></i>' for i in range(3)
+    )
+
+    d = _data(c)
     coords, lx, ly = _spark(d["series"], w=150.0, h=40.0)
     up = d["p1d"] >= 0
     col = "#22E08A" if up else "#FF6B35"
 
+    # veto — список VetoReason, не словарь.
     veto_txt, veto_cls = "чисто", "ok"
     if c.vetoed:
         first = c.veto[0] if c.veto else None
-        veto_txt = esc(first.label) if first else "вето"
+        veto_txt = esc(getattr(first, "label", "") or "вето")
         veto_cls = "bad"
 
     btn = ('<span class="fr-btn off">ПОД ВЕТО</span>' if c.vetoed
@@ -195,7 +235,7 @@ def _card(c: Candidate, idx: int) -> str:
       <span class="fr-sec">{sector}</span>
       <span class="fr-caps">
         <b class="fr-tag">{_cap(d['cap'])}</b>
-        <b class="fr-tag gh">{d['ath']}% от ath</b>
+        <b class="fr-tag gh">{d['ath']:+.0f}% от ath</b>
       </span>
     </div>
 
@@ -209,7 +249,7 @@ def _card(c: Candidate, idx: int) -> str:
 
     <div class="fr-c">
       <span class="fr-k">ПАТТЕРН</span>
-      <span class="fr-chip">{esc(case)}</span>
+      <span class="fr-chip">{esc(CASE_RU.get(case, case) or "—")}</span>
       <span class="fr-k">ФАЗА</span>
       <span class="fr-steps">{steps}</span>
     </div>
@@ -250,8 +290,8 @@ def _card(c: Candidate, idx: int) -> str:
     <div class="fr-c">
       <span class="fr-k">ВЕТО</span>
       <span class="fr-veto {veto_cls}">{veto_txt}</span>
-      <span class="fr-k">СОЦСЕТИ</span>
-      <span class="fr-dots">{dots}</span>
+      <span class="fr-k">ФОН</span>
+      <span class="fr-bg">{bars}<b>{bg_txt}</b></span>
     </div>
 
     {btn}
@@ -265,7 +305,6 @@ def render_flow_report(candidates: list[Candidate]) -> str:
         (c for c in candidates if c.flow),
         key=lambda c: -(getattr(c, "score", 0) or 0),
     )
-
     if not items:
         body = '<div class="fr-empty">в этом прогоне flow не сработал</div>'
     else:
