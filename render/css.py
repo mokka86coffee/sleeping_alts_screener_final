@@ -816,7 +816,6 @@ FLOWREP = """
   pointer-events:none}
 
 /* ссылки: второй ряд карточки, во всю ширину */
-.fr-in{grid-template-rows:1fr auto}
 .fr-act{grid-column:1 / -1;display:flex;align-items:center;gap:10px;
         padding:0 0 18px;flex-wrap:wrap}
 .fr-lnks{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
@@ -839,6 +838,9 @@ FLOWREP = """
         text-overflow:ellipsis;transition:color .14s}
 .fr-sym:hover{color:var(--fl)}
 
+.fr-in{position:relative;z-index:1;display:grid;
+       grid-template-columns:170px 68px 104px 116px 158px 100px 92px 92px 84px;
+       align-items:center;gap:0 14px;min-height:136px;padding:0 26px}
 /* чип паттерна: ярлык, не абзац — перенос запрещён */
 .fr-chip{align-self:flex-start;max-width:100%;height:16px;line-height:14px;
          padding:0 9px;border-radius:4px;font-size:8px;font-weight:300;
