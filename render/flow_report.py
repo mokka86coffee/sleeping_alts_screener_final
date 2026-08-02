@@ -81,39 +81,39 @@ def _mult(v: float) -> str:
 
 
 def _cap(v: float) -> str:
+    if v <= 0:
+        return "—"
     if v >= 1e9:
         return f"${v / 1e9:.1f}B"
     if v >= 1e6:
         return f"${v / 1e6:.0f}M"
     return f"${v / 1e3:.0f}K"
 
-
-# ── временная заглушка данных ─────────────────────────────────
-# Детерминированная: одна монета всегда даёт одни и те же числа,
-# картинка не скачет между прогонами. Заменяется на реальные
-# источники по списку в конце ответа.
-def _stub(sym: str) -> dict:
-    h = sum(ord(ch) * (i + 7) for i, ch in enumerate(sym))
-    r = lambda k, lo, hi: lo + ((h * k) % 1000) / 1000 * (hi - lo)
+def _data(c: Candidate) -> dict:
+    r = c.raw or {}
     return {
-        "v1h":  round(r(3, 0.2, 9.0), 1),
-        "v4h":  round(r(5, 0.3, 6.5), 1),
-        "v1d":  round(r(7, 0.4, 4.0), 1),
-        "p1d":  round(r(11, -14, 22), 1),
-        "p3d":  round(r(13, -22, 34), 1),
-        "p7d":  round(r(17, -30, 48), 1),
-        "fund": round(r(19, -13, 1.2), 3),
-        "cap":  r(23, 4e6, 2.4e9),
-        "ath":  round(r(29, -94, -38)),
-        "series": [r(31 + i, 0.7, 1.35) for i in range(14)],
+        "v1h": r.get("vol_x_1h"),
+        "v4h": r.get("vol_x_4h"),
+        "v1d": r.get("vol_x_1d"),
+        "p1d": float(r.get("ch_24h") or 0),
+        "p3d": float(r.get("ch_3d") or 0),
+        "p7d": float(r.get("ch_7d") or 0),
+        "fund": float(r.get("funding") or 0),
+        "cap": float(r.get("market_cap") or 0),
+        "ath": float(r.get("ath_drop") or 0),
+        # spark_1d — 24 дневных закрытия, уже в KEEP_SERIES
+        "series": list(r.get("spark_1d") or [])[-14:],
     }
-
 
 def _vol_rows(d: dict) -> str:
     """Три масштаба в столбик. Ярче тот, что сильнее медианы."""
     out = ""
     for label, key in (("1ч", "v1h"), ("4ч", "v4h"), ("1д", "v1d")):
         v = d[key]
+        if v is None:
+            out += (f'<span class="fr-vr off"><i>{label}</i>'
+                    f'<b>—</b><s></s></span>')
+            continue
         # 3 ступени: спокойно / заметно / аномалия
         lvl = "hot" if v >= 4 else ("warm" if v >= 2 else "")
         out += (f'<span class="fr-vr {lvl}">'
@@ -163,17 +163,16 @@ def _card(c: Candidate, idx: int) -> str:
     dots = "".join(f'<i class="{"on" if i < buzz else ""}"></i>' for i in range(3))
     rr = float(getattr(c, "rr", 0) or 0)
 
-    veto_txt, veto_cls = ("чисто", "ok")
-
-    d = _stub(c.symbol)
+    d = _data(c.symbol)
     coords, lx, ly = _spark(d["series"], w=150.0, h=40.0)
     up = d["p1d"] >= 0
     col = "#22E08A" if up else "#FF6B35"
 
-    veto_txt, veto_cls = ("чисто", "ok")
+    veto_txt, veto_cls = "чисто", "ok"
     if c.vetoed:
-        reasons = list((c.veto or {}).keys()) if isinstance(c.veto, dict) else []
-        veto_txt, veto_cls = (esc(reasons[0]) if reasons else "вето"), "bad"
+        first = c.veto[0] if c.veto else None
+        veto_txt = esc(first.label) if first else "вето"
+        veto_cls = "bad"
 
     btn = ('<span class="fr-btn off">ПОД ВЕТО</span>' if c.vetoed
            else '<span class="fr-btn">ОТКРЫТЬ</span>')

@@ -5,6 +5,15 @@ from __future__ import annotations
 import math
 
 
+def median(values: list[float]) -> float:
+    """Медиана ряда. Устойчива к выбросам, в отличие от среднего."""
+    if not values:
+        return 0.0
+    s = sorted(values)
+    n = len(s)
+    mid = n // 2
+    return s[mid] if n % 2 else (s[mid - 1] + s[mid]) / 2
+
 def sma(values: list[float], period: int) -> float | None:
     if len(values) < period:
         return None

@@ -408,6 +408,7 @@ summary::-webkit-details-marker{display:none}
 
 /* объём: три масштаба столбиком */
 .fr-vol{gap:7px}
+.fr-vr.off b{color:#3a3a44}
 .fr-vr{position:relative;display:grid;grid-template-columns:18px 40px;
   align-items:center;gap:8px;padding-bottom:5px}
 .fr-vr i{font-style:normal;font-size:7px;font-weight:300;letter-spacing:1px;
@@ -941,7 +942,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
     <svg width="30" height="30" viewBox="-15 -15 30 30">
       <circle r="12" fill="none" stroke="#252c33" stroke-width="3"/>
       <circle r="12" fill="none" stroke="#D8E4EE" stroke-width="3"
-              stroke-linecap="round" stroke-dasharray="75.40 0.00"
+              stroke-linecap="round" stroke-dasharray="15.08 60.32"
               transform="rotate(-90)"/>
       <circle r="3" fill="#D8E4EE"/>
     </svg>
@@ -950,8 +951,8 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
       <div class="cap-v">RISK-OFF</div>
     </div>
     <div class="cap-g">
-      <span class="cap-dots"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span>
-      <span class="cap-ap">аппетит 5/5</span>
+      <span class="cap-dots"><i class="on"></i><i class=""></i><i class=""></i><i class=""></i><i class=""></i></span>
+      <span class="cap-ap">аппетит 1/5</span>
     </div>
     <div class="cap-btc">
       <span class="cap-k">btc.d</span>
@@ -1009,7 +1010,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <div class="b-in">
     <span class="b-ic"><svg viewBox="-13 -13 26 26"><path d="M-8 6 v-8 M-2 6 v-12 M4 6 v-6 M10 6 v-10" fill="none" stroke="#FFEFB0" stroke-width="2" stroke-linecap="round"/></svg></span>
     <div class="b-t">паттерны <span>1 сигнал</span></div>
-    <div class="rows"><div class="brow p-taiko" data-slice="taiko"><span class="brow-n">taiko</span><span class="brow-t"><i style="width:100%"></i></span><span class="brow-v">1</span></div><div class="brow p-dexe off" data-slice="dexe"><span class="brow-n">dexe</span><span class="brow-t"><i style="width:0%"></i></span><span class="brow-v">0</span></div><div class="brow p-strong off" data-slice="strong"><span class="brow-n">strong</span><span class="brow-t"><i style="width:0%"></i></span><span class="brow-v">0</span></div><div class="brow p-good off" data-slice="good"><span class="brow-n">good</span><span class="brow-t"><i style="width:0%"></i></span><span class="brow-v">0</span></div></div>
+    <div class="rows"><div class="brow p-taiko off" data-slice="taiko"><span class="brow-n">taiko</span><span class="brow-t"><i style="width:0%"></i></span><span class="brow-v">0</span></div><div class="brow p-dexe off" data-slice="dexe"><span class="brow-n">dexe</span><span class="brow-t"><i style="width:0%"></i></span><span class="brow-v">0</span></div><div class="brow p-strong" data-slice="strong"><span class="brow-n">strong</span><span class="brow-t"><i style="width:100%"></i></span><span class="brow-v">1</span></div><div class="brow p-good off" data-slice="good"><span class="brow-n">good</span><span class="brow-t"><i style="width:0%"></i></span><span class="brow-v">0</span></div></div>
     <div class="hr"></div>
     <div class="note">после фильтра качества базы</div>
   </div>
@@ -1018,7 +1019,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <span class="halo"></span>
   <div class="b-in">
     <div class="risk-cap">
-      <span><b>0<i>%</i></b><s>доля выборки</s></span>
+      <span><b>100<i>%</i></b><s>доля выборки</s></span>
       <svg viewBox="0 0 14 8" fill="none">
         <path d="M0 4 h12 m-4 -3.5 l4 3.5 l-4 3.5" stroke="#C8DCE8"
               stroke-opacity=".45" stroke-linecap="round"
@@ -1063,7 +1064,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
         <circle cx="6" cy="23" r="2" fill="#DCEAF4" opacity=".55"/>
       </svg>
       <div class="risk-k">монет</div>
-      <div class="risk-v">0</div>
+      <div class="risk-v">1</div>
     </div>
     <div class="risk-legs"><span>squeeze<b class="ru">9</b></span><span>фандинг<b class="gl">6</b></span><span>ликвид.<b class="st">8</b></span></div>
   </div>
@@ -1208,8 +1209,8 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <div class="b-in">
     <span class="b-ic"><svg viewBox="-13 -13 26 26"><path d="M-8 4 L-2 -4 L4 1 L9 -6 M9 -6 h-5 M9 -6 v5" fill="none" stroke="#A8F0C8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
     <div class="b-t" data-slice="setups">сетапы
-      <span>1 из 1 · r:r ≥ 2</span></div>
-    <div class="set-list"><div class="set-row" data-coin="GIGGLEUSDT"><div><div class="set-sym">GIGGLEUSDT</div><div class="set-sub">trend · объём ×0.0</div></div><svg class="set-dial" viewBox="-15 -15 30 30"><circle r="13" fill="none" stroke="#fff" stroke-opacity=".07" stroke-width="2.5"/><circle r="13" fill="none" stroke="#F5A623" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="38.43 43.25" transform="rotate(-90)"/></svg><span class="set-rr am">1:2.4</span><span class="set-in">вход 42.7800</span></div></div>
+      <span>0 из 1 · r:r ≥ 2</span></div>
+    <div class="set-list"><div class="set-empty">сетапов в этом прогоне нет</div></div>
   </div>
 </div>
 <div class="b c-am g-imp empty" data-slice="hourly">
@@ -1229,7 +1230,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <div class="b-in">
     <span class="b-ic"><svg viewBox="-13 -13 26 26"><path d="M-8 5 h16 M-8 5 v-4 M-3 5 v-8 M2 5 v-11 M7 5 v-6" fill="none" stroke="#D8C0F8" stroke-width="1.8" stroke-linecap="round"/></svg></span>
     <div class="b-t">сектора <span>за 24 часа</span></div>
-    <div class="rows"><div class="srow" data-slice="sector:MEME"><span class="srow-n">MEME</span><span class="srow-t"><i class="up" style="width:50%"></i></span><span class="srow-v up">+0.7%</span></div></div>
+    <div class="rows"><div class="srow" data-slice="sector:OTHER"><span class="srow-n">OTHER</span><span class="srow-t"><i class="dn" style="width:50%"></i></span><span class="srow-v dn">-24.9%</span></div></div>
   </div>
 </div></div>
   
@@ -1255,38 +1256,38 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
     <span class="pane-n">все монеты прогона, без фильтров</span>
   </div>
   <div class="sx-wrap"><table class="sx"><thead><tr><th class="sx-idx">#</th><th class="sx-c-sym">монета</th><th class="sx-c-soc">соцсети</th><th class="sx-c-surge">объём</th><th class="sx-c-taiko">taiko</th><th class="">score</th><th class="">rvol 1ч</th><th class="">объём 7д</th><th class="">импульс</th><th class="">24ч</th><th class="">цена 7д</th><th class="">от ath</th><th class="">фаза</th><th class="">сигналы</th><th class="">сектор</th><th class="">вето</th><th class="">фандинг</th><th class="">r:r</th><th class="">уровни</th><th class="">цена</th><th class=""></th></tr></thead><tbody>
-<tr class="sxr" style="--acc:#93ff00" data-coin="GIGGLEUSDT">
+<tr class="sxr vetoed" style="--acc:#C4703A" data-coin="AKEUSDT">
   <td class="sx-idx">01</td>
   <td class="sx-c-sym">
-    <a class="sx-sym" href="https://www.tradingview.com/chart/?symbol=BINANCE:GIGGLEUSDT.P" target="_blank"
-       rel="noopener">GIGGLE<svg viewBox="0 0 8 8"><path d="M2 6 L6 2 M3 2h3v3"
+    <a class="sx-sym" href="https://www.tradingview.com/chart/?symbol=BINANCE:AKEUSDT.P" target="_blank"
+       rel="noopener">AKE<svg viewBox="0 0 8 8"><path d="M2 6 L6 2 M3 2h3v3"
        fill="none" stroke="currentColor" stroke-width="1"/></svg></a>
-    <span class="sx-sub">meme · перп</span>
+    <span class="sx-sub">other · перп</span>
   </td>
   <td class="sx-c-soc"><div class="sx-mut">—</div></td>
-  <td class="sx-c-surge"><div class="sx-mut">0.0×</div></td>
-  <td class="sx-c-taiko"><div class="sx-taiko"><span class="sx-badge" style="--bc:#93ff00">taiko</span><span class="sx-sub2">подтв.</span></div></td>
+  <td class="sx-c-surge"><div class="sx-mut">0.2×</div></td>
+  <td class="sx-c-taiko"><div class="sx-mut">—</div></td>
 
-  <td><svg class="sx-ring" viewBox="-18.0 -18.0 36 36"><circle r="15" fill="none" stroke="#1d2127" stroke-width="2.5"/><circle r="15" fill="none" stroke="#8FA0B0" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round" stroke-dasharray="44.30 49.95" transform="rotate(-90)"/><text class="sx-ring-v" y="3.5" text-anchor="middle">47</text></svg></td>
-  <td><b class="sx-n am">0.0×</b><span class="sx-bar" style="width:52px"><i style="width:0%;background:#F5A623"></i></span></td>
+  <td><svg class="sx-ring" viewBox="-18.0 -18.0 36 36"><circle r="15" fill="none" stroke="#1d2127" stroke-width="2.5"/><circle r="15" fill="none" stroke="#8FA0B0" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round" stroke-dasharray="9.42 84.82" transform="rotate(-90)"/><text class="sx-ring-v" y="3.5" text-anchor="middle">10</text></svg></td>
+  <td><b class="sx-n am">0.2×</b><span class="sx-bar" style="width:52px"><i style="width:2%;background:#F5A623"></i></span></td>
   <td><span class="sx-sb empty"></span></td>
-  <td><span class="sx-bar" style="width:40px"><i style="width:0%;background:#FFD98A"></i></span></td>
+  <td><span class="sx-bar" style="width:40px"><i style="width:3%;background:#FFD98A"></i></span></td>
 
-  <td><b class="sx-n up">+0.7%</b></td>
-  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,22.3 3.1,22.9 6.3,21.7 9.4,22.2 12.5,21.2 15.7,21.8 18.8,22.5 21.9,22.1 25.0,22.3 28.2,22.2 31.3,22.3 34.4,21.7 37.6,21.8 40.7,22.6 43.8,22.8 47.0,22.4 50.1,21.3 53.2,22.9 56.3,22.4 59.5,23.0 62.6,19.0 65.7,3.0 68.9,7.9 72.0,7.7" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="7.7" r="2" fill="#93ff00"/></svg></td>
+  <td><b class="sx-n dn">-24.9%</b></td>
+  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,23.0 3.1,22.9 6.3,23.0 9.4,23.0 12.5,23.0 15.7,21.3 18.8,20.1 21.9,18.7 25.0,16.7 28.2,16.8 31.3,17.8 34.4,17.8 37.6,17.7 40.7,15.0 43.8,14.2 47.0,13.1 50.1,12.8 53.2,9.7 56.3,9.5 59.5,10.5 62.6,8.1 65.7,8.5 68.9,3.0 72.0,8.2" fill="none" stroke="#C4703A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="8.2" r="2" fill="#C4703A"/></svg></td>
   <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
 
-  <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="sx-sub2">trend</span></td>
-  <td><div class="sx-mut">—</div></td>
-  <td><span class="sx-sub2">meme</span></td>
+  <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i></span><span class="sx-sub2">base</span></td>
+  <td><div class="sx-chips"><span class="sx-badge" style="--bc:#D9B84A">база</span></div></td>
+  <td><span class="sx-sub2">other</span></td>
 
-  <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#D9B84A"></i><i></i><i></i></span><span class="sx-veto-l bad">squeeze</span></div></td>
+  <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#D9B84A"></i><i class="on" style="background:#8FA0B0"></i><i></i></span><span class="sx-veto-l bad">2 вето</span></div></td>
   <td><span class="sx-bp"><i style="left:50%;width:50%;background:#C4703A"></i></span><b class="sx-bp-v" style="color:#C4703A">+0.500%</b></td>
-  <td><b class="sx-rr am">1:2.4</b></td>
+  <td><b class="sx-rr up">1:3.9</b></td>
 
-  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">42.7800</b></td>
-  <td><b class="sx-n">42.7800</b></td>
-  <td><div class="sx-act go">открыть</div></td>
+  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">0.0045</b></td>
+  <td><b class="sx-n">0.0045</b></td>
+  <td><div class="sx-act mut">под вето</div></td>
 </tr></tbody></table></div>
   <div class="sx-f"><span>всего 1 монет</span>
     <span class="sx-f-r">score = объём · структура · импульс</span></div>
@@ -1317,44 +1318,11 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <div class="pane-hd">
     <button class="pane-back">← назад</button>
     <span class="pane-t">taiko</span>
-    <span class="pane-c">1</span>
+    <span class="pane-c">0</span>
     <span class="pane-n">разворот на старшем ТФ</span>
   </div>
-  <div class="sx-wrap"><table class="sx"><thead><tr><th class="sx-idx">#</th><th class="sx-c-sym">монета</th><th class="sx-c-soc">соцсети</th><th class="sx-c-surge">объём</th><th class="sx-c-taiko">taiko</th><th class="">score</th><th class="">rvol 1ч</th><th class="">объём 7д</th><th class="">импульс</th><th class="">24ч</th><th class="">цена 7д</th><th class="">от ath</th><th class="">фаза</th><th class="">сигналы</th><th class="">сектор</th><th class="">вето</th><th class="">фандинг</th><th class="">r:r</th><th class="">уровни</th><th class="">цена</th><th class=""></th></tr></thead><tbody>
-<tr class="sxr" style="--acc:#93ff00" data-coin="GIGGLEUSDT">
-  <td class="sx-idx">01</td>
-  <td class="sx-c-sym">
-    <a class="sx-sym" href="https://www.tradingview.com/chart/?symbol=BINANCE:GIGGLEUSDT.P" target="_blank"
-       rel="noopener">GIGGLE<svg viewBox="0 0 8 8"><path d="M2 6 L6 2 M3 2h3v3"
-       fill="none" stroke="currentColor" stroke-width="1"/></svg></a>
-    <span class="sx-sub">meme · перп</span>
-  </td>
-  <td class="sx-c-soc"><div class="sx-mut">—</div></td>
-  <td class="sx-c-surge"><div class="sx-mut">0.0×</div></td>
-  <td class="sx-c-taiko"><div class="sx-taiko"><span class="sx-badge" style="--bc:#93ff00">taiko</span><span class="sx-sub2">подтв.</span></div></td>
-
-  <td><svg class="sx-ring" viewBox="-18.0 -18.0 36 36"><circle r="15" fill="none" stroke="#1d2127" stroke-width="2.5"/><circle r="15" fill="none" stroke="#8FA0B0" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round" stroke-dasharray="44.30 49.95" transform="rotate(-90)"/><text class="sx-ring-v" y="3.5" text-anchor="middle">47</text></svg></td>
-  <td><b class="sx-n am">0.0×</b><span class="sx-bar" style="width:52px"><i style="width:0%;background:#F5A623"></i></span></td>
-  <td><span class="sx-sb empty"></span></td>
-  <td><span class="sx-bar" style="width:40px"><i style="width:0%;background:#FFD98A"></i></span></td>
-
-  <td><b class="sx-n up">+0.7%</b></td>
-  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,22.3 3.1,22.9 6.3,21.7 9.4,22.2 12.5,21.2 15.7,21.8 18.8,22.5 21.9,22.1 25.0,22.3 28.2,22.2 31.3,22.3 34.4,21.7 37.6,21.8 40.7,22.6 43.8,22.8 47.0,22.4 50.1,21.3 53.2,22.9 56.3,22.4 59.5,23.0 62.6,19.0 65.7,3.0 68.9,7.9 72.0,7.7" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="7.7" r="2" fill="#93ff00"/></svg></td>
-  <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
-
-  <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="sx-sub2">trend</span></td>
-  <td><div class="sx-mut">—</div></td>
-  <td><span class="sx-sub2">meme</span></td>
-
-  <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#D9B84A"></i><i></i><i></i></span><span class="sx-veto-l bad">squeeze</span></div></td>
-  <td><span class="sx-bp"><i style="left:50%;width:50%;background:#C4703A"></i></span><b class="sx-bp-v" style="color:#C4703A">+0.500%</b></td>
-  <td><b class="sx-rr am">1:2.4</b></td>
-
-  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">42.7800</b></td>
-  <td><b class="sx-n">42.7800</b></td>
-  <td><div class="sx-act go">открыть</div></td>
-</tr></tbody></table></div>
-  <div class="sx-f"><span>всего 1 монет</span>
+  <div class="sx-empty">в этом срезе монет нет</div>
+  <div class="sx-f"><span>всего 0 монет</span>
     <span class="sx-f-r">score = объём · структура · импульс</span></div>
 </div>
 <div class="pane" data-pane="dexe">
@@ -1372,11 +1340,44 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <div class="pane-hd">
     <button class="pane-back">← назад</button>
     <span class="pane-t">strong</span>
-    <span class="pane-c">0</span>
+    <span class="pane-c">1</span>
     <span class="pane-n">накопление, фаза 2</span>
   </div>
-  <div class="sx-empty">в этом срезе монет нет</div>
-  <div class="sx-f"><span>всего 0 монет</span>
+  <div class="sx-wrap"><table class="sx"><thead><tr><th class="sx-idx">#</th><th class="sx-c-sym">монета</th><th class="sx-c-soc">соцсети</th><th class="sx-c-surge">объём</th><th class="sx-c-taiko">taiko</th><th class="">score</th><th class="">rvol 1ч</th><th class="">объём 7д</th><th class="">импульс</th><th class="">24ч</th><th class="">цена 7д</th><th class="">от ath</th><th class="">фаза</th><th class="">сигналы</th><th class="">сектор</th><th class="">вето</th><th class="">фандинг</th><th class="">r:r</th><th class="">уровни</th><th class="">цена</th><th class=""></th></tr></thead><tbody>
+<tr class="sxr vetoed" style="--acc:#C4703A" data-coin="AKEUSDT">
+  <td class="sx-idx">01</td>
+  <td class="sx-c-sym">
+    <a class="sx-sym" href="https://www.tradingview.com/chart/?symbol=BINANCE:AKEUSDT.P" target="_blank"
+       rel="noopener">AKE<svg viewBox="0 0 8 8"><path d="M2 6 L6 2 M3 2h3v3"
+       fill="none" stroke="currentColor" stroke-width="1"/></svg></a>
+    <span class="sx-sub">other · перп</span>
+  </td>
+  <td class="sx-c-soc"><div class="sx-mut">—</div></td>
+  <td class="sx-c-surge"><div class="sx-mut">0.2×</div></td>
+  <td class="sx-c-taiko"><div class="sx-mut">—</div></td>
+
+  <td><svg class="sx-ring" viewBox="-18.0 -18.0 36 36"><circle r="15" fill="none" stroke="#1d2127" stroke-width="2.5"/><circle r="15" fill="none" stroke="#8FA0B0" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round" stroke-dasharray="9.42 84.82" transform="rotate(-90)"/><text class="sx-ring-v" y="3.5" text-anchor="middle">10</text></svg></td>
+  <td><b class="sx-n am">0.2×</b><span class="sx-bar" style="width:52px"><i style="width:2%;background:#F5A623"></i></span></td>
+  <td><span class="sx-sb empty"></span></td>
+  <td><span class="sx-bar" style="width:40px"><i style="width:3%;background:#FFD98A"></i></span></td>
+
+  <td><b class="sx-n dn">-24.9%</b></td>
+  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,23.0 3.1,22.9 6.3,23.0 9.4,23.0 12.5,23.0 15.7,21.3 18.8,20.1 21.9,18.7 25.0,16.7 28.2,16.8 31.3,17.8 34.4,17.8 37.6,17.7 40.7,15.0 43.8,14.2 47.0,13.1 50.1,12.8 53.2,9.7 56.3,9.5 59.5,10.5 62.6,8.1 65.7,8.5 68.9,3.0 72.0,8.2" fill="none" stroke="#C4703A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="8.2" r="2" fill="#C4703A"/></svg></td>
+  <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
+
+  <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i></span><span class="sx-sub2">base</span></td>
+  <td><div class="sx-chips"><span class="sx-badge" style="--bc:#D9B84A">база</span></div></td>
+  <td><span class="sx-sub2">other</span></td>
+
+  <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#D9B84A"></i><i class="on" style="background:#8FA0B0"></i><i></i></span><span class="sx-veto-l bad">2 вето</span></div></td>
+  <td><span class="sx-bp"><i style="left:50%;width:50%;background:#C4703A"></i></span><b class="sx-bp-v" style="color:#C4703A">+0.500%</b></td>
+  <td><b class="sx-rr up">1:3.9</b></td>
+
+  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">0.0045</b></td>
+  <td><b class="sx-n">0.0045</b></td>
+  <td><div class="sx-act mut">под вето</div></td>
+</tr></tbody></table></div>
+  <div class="sx-f"><span>всего 1 монет</span>
     <span class="sx-f-r">score = объём · структура · импульс</span></div>
 </div>
 <div class="pane" data-pane="good">
@@ -1394,44 +1395,11 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <div class="pane-hd">
     <button class="pane-back">← назад</button>
     <span class="pane-t">сетапы к работе</span>
-    <span class="pane-c">1</span>
+    <span class="pane-c">0</span>
     <span class="pane-n">R:R подтверждён, вето пройдено</span>
   </div>
-  <div class="sx-wrap"><table class="sx"><thead><tr><th class="sx-idx">#</th><th class="sx-c-sym">монета</th><th class="sx-c-soc">соцсети</th><th class="sx-c-surge">объём</th><th class="sx-c-taiko">taiko</th><th class="">score</th><th class="">rvol 1ч</th><th class="">объём 7д</th><th class="">импульс</th><th class="">24ч</th><th class="">цена 7д</th><th class="">от ath</th><th class="">фаза</th><th class="">сигналы</th><th class="">сектор</th><th class="">вето</th><th class="">фандинг</th><th class="">r:r</th><th class="">уровни</th><th class="">цена</th><th class=""></th></tr></thead><tbody>
-<tr class="sxr" style="--acc:#93ff00" data-coin="GIGGLEUSDT">
-  <td class="sx-idx">01</td>
-  <td class="sx-c-sym">
-    <a class="sx-sym" href="https://www.tradingview.com/chart/?symbol=BINANCE:GIGGLEUSDT.P" target="_blank"
-       rel="noopener">GIGGLE<svg viewBox="0 0 8 8"><path d="M2 6 L6 2 M3 2h3v3"
-       fill="none" stroke="currentColor" stroke-width="1"/></svg></a>
-    <span class="sx-sub">meme · перп</span>
-  </td>
-  <td class="sx-c-soc"><div class="sx-mut">—</div></td>
-  <td class="sx-c-surge"><div class="sx-mut">0.0×</div></td>
-  <td class="sx-c-taiko"><div class="sx-taiko"><span class="sx-badge" style="--bc:#93ff00">taiko</span><span class="sx-sub2">подтв.</span></div></td>
-
-  <td><svg class="sx-ring" viewBox="-18.0 -18.0 36 36"><circle r="15" fill="none" stroke="#1d2127" stroke-width="2.5"/><circle r="15" fill="none" stroke="#8FA0B0" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round" stroke-dasharray="44.30 49.95" transform="rotate(-90)"/><text class="sx-ring-v" y="3.5" text-anchor="middle">47</text></svg></td>
-  <td><b class="sx-n am">0.0×</b><span class="sx-bar" style="width:52px"><i style="width:0%;background:#F5A623"></i></span></td>
-  <td><span class="sx-sb empty"></span></td>
-  <td><span class="sx-bar" style="width:40px"><i style="width:0%;background:#FFD98A"></i></span></td>
-
-  <td><b class="sx-n up">+0.7%</b></td>
-  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,22.3 3.1,22.9 6.3,21.7 9.4,22.2 12.5,21.2 15.7,21.8 18.8,22.5 21.9,22.1 25.0,22.3 28.2,22.2 31.3,22.3 34.4,21.7 37.6,21.8 40.7,22.6 43.8,22.8 47.0,22.4 50.1,21.3 53.2,22.9 56.3,22.4 59.5,23.0 62.6,19.0 65.7,3.0 68.9,7.9 72.0,7.7" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="7.7" r="2" fill="#93ff00"/></svg></td>
-  <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
-
-  <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="sx-sub2">trend</span></td>
-  <td><div class="sx-mut">—</div></td>
-  <td><span class="sx-sub2">meme</span></td>
-
-  <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#D9B84A"></i><i></i><i></i></span><span class="sx-veto-l bad">squeeze</span></div></td>
-  <td><span class="sx-bp"><i style="left:50%;width:50%;background:#C4703A"></i></span><b class="sx-bp-v" style="color:#C4703A">+0.500%</b></td>
-  <td><b class="sx-rr am">1:2.4</b></td>
-
-  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">42.7800</b></td>
-  <td><b class="sx-n">42.7800</b></td>
-  <td><div class="sx-act go">открыть</div></td>
-</tr></tbody></table></div>
-  <div class="sx-f"><span>всего 1 монет</span>
+  <div class="sx-empty">в этом срезе монет нет</div>
+  <div class="sx-f"><span>всего 0 монет</span>
     <span class="sx-f-r">score = объём · структура · импульс</span></div>
 </div>
 <div class="pane" data-pane="hourly">
@@ -1453,38 +1421,38 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
     <span class="pane-n">уровни построены</span>
   </div>
   <div class="sx-wrap"><table class="sx"><thead><tr><th class="sx-idx">#</th><th class="sx-c-sym">монета</th><th class="sx-c-soc">соцсети</th><th class="sx-c-surge">объём</th><th class="sx-c-taiko">taiko</th><th class="">score</th><th class="">rvol 1ч</th><th class="">объём 7д</th><th class="">импульс</th><th class="">24ч</th><th class="">цена 7д</th><th class="">от ath</th><th class="">фаза</th><th class="">сигналы</th><th class="">сектор</th><th class="">вето</th><th class="">фандинг</th><th class="">r:r</th><th class="">уровни</th><th class="">цена</th><th class=""></th></tr></thead><tbody>
-<tr class="sxr" style="--acc:#93ff00" data-coin="GIGGLEUSDT">
+<tr class="sxr vetoed" style="--acc:#C4703A" data-coin="AKEUSDT">
   <td class="sx-idx">01</td>
   <td class="sx-c-sym">
-    <a class="sx-sym" href="https://www.tradingview.com/chart/?symbol=BINANCE:GIGGLEUSDT.P" target="_blank"
-       rel="noopener">GIGGLE<svg viewBox="0 0 8 8"><path d="M2 6 L6 2 M3 2h3v3"
+    <a class="sx-sym" href="https://www.tradingview.com/chart/?symbol=BINANCE:AKEUSDT.P" target="_blank"
+       rel="noopener">AKE<svg viewBox="0 0 8 8"><path d="M2 6 L6 2 M3 2h3v3"
        fill="none" stroke="currentColor" stroke-width="1"/></svg></a>
-    <span class="sx-sub">meme · перп</span>
+    <span class="sx-sub">other · перп</span>
   </td>
   <td class="sx-c-soc"><div class="sx-mut">—</div></td>
-  <td class="sx-c-surge"><div class="sx-mut">0.0×</div></td>
-  <td class="sx-c-taiko"><div class="sx-taiko"><span class="sx-badge" style="--bc:#93ff00">taiko</span><span class="sx-sub2">подтв.</span></div></td>
+  <td class="sx-c-surge"><div class="sx-mut">0.2×</div></td>
+  <td class="sx-c-taiko"><div class="sx-mut">—</div></td>
 
-  <td><svg class="sx-ring" viewBox="-18.0 -18.0 36 36"><circle r="15" fill="none" stroke="#1d2127" stroke-width="2.5"/><circle r="15" fill="none" stroke="#8FA0B0" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round" stroke-dasharray="44.30 49.95" transform="rotate(-90)"/><text class="sx-ring-v" y="3.5" text-anchor="middle">47</text></svg></td>
-  <td><b class="sx-n am">0.0×</b><span class="sx-bar" style="width:52px"><i style="width:0%;background:#F5A623"></i></span></td>
+  <td><svg class="sx-ring" viewBox="-18.0 -18.0 36 36"><circle r="15" fill="none" stroke="#1d2127" stroke-width="2.5"/><circle r="15" fill="none" stroke="#8FA0B0" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round" stroke-dasharray="9.42 84.82" transform="rotate(-90)"/><text class="sx-ring-v" y="3.5" text-anchor="middle">10</text></svg></td>
+  <td><b class="sx-n am">0.2×</b><span class="sx-bar" style="width:52px"><i style="width:2%;background:#F5A623"></i></span></td>
   <td><span class="sx-sb empty"></span></td>
-  <td><span class="sx-bar" style="width:40px"><i style="width:0%;background:#FFD98A"></i></span></td>
+  <td><span class="sx-bar" style="width:40px"><i style="width:3%;background:#FFD98A"></i></span></td>
 
-  <td><b class="sx-n up">+0.7%</b></td>
-  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,22.3 3.1,22.9 6.3,21.7 9.4,22.2 12.5,21.2 15.7,21.8 18.8,22.5 21.9,22.1 25.0,22.3 28.2,22.2 31.3,22.3 34.4,21.7 37.6,21.8 40.7,22.6 43.8,22.8 47.0,22.4 50.1,21.3 53.2,22.9 56.3,22.4 59.5,23.0 62.6,19.0 65.7,3.0 68.9,7.9 72.0,7.7" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="7.7" r="2" fill="#93ff00"/></svg></td>
+  <td><b class="sx-n dn">-24.9%</b></td>
+  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,23.0 3.1,22.9 6.3,23.0 9.4,23.0 12.5,23.0 15.7,21.3 18.8,20.1 21.9,18.7 25.0,16.7 28.2,16.8 31.3,17.8 34.4,17.8 37.6,17.7 40.7,15.0 43.8,14.2 47.0,13.1 50.1,12.8 53.2,9.7 56.3,9.5 59.5,10.5 62.6,8.1 65.7,8.5 68.9,3.0 72.0,8.2" fill="none" stroke="#C4703A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="8.2" r="2" fill="#C4703A"/></svg></td>
   <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
 
-  <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="sx-sub2">trend</span></td>
-  <td><div class="sx-mut">—</div></td>
-  <td><span class="sx-sub2">meme</span></td>
+  <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i></span><span class="sx-sub2">base</span></td>
+  <td><div class="sx-chips"><span class="sx-badge" style="--bc:#D9B84A">база</span></div></td>
+  <td><span class="sx-sub2">other</span></td>
 
-  <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#D9B84A"></i><i></i><i></i></span><span class="sx-veto-l bad">squeeze</span></div></td>
+  <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#D9B84A"></i><i class="on" style="background:#8FA0B0"></i><i></i></span><span class="sx-veto-l bad">2 вето</span></div></td>
   <td><span class="sx-bp"><i style="left:50%;width:50%;background:#C4703A"></i></span><b class="sx-bp-v" style="color:#C4703A">+0.500%</b></td>
-  <td><b class="sx-rr am">1:2.4</b></td>
+  <td><b class="sx-rr up">1:3.9</b></td>
 
-  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">42.7800</b></td>
-  <td><b class="sx-n">42.7800</b></td>
-  <td><div class="sx-act go">открыть</div></td>
+  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">0.0045</b></td>
+  <td><b class="sx-n">0.0045</b></td>
+  <td><div class="sx-act mut">под вето</div></td>
 </tr></tbody></table></div>
   <div class="sx-f"><span>всего 1 монет</span>
     <span class="sx-f-r">score = объём · структура · импульс</span></div>
@@ -1493,53 +1461,86 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <div class="pane-hd">
     <button class="pane-back">← назад</button>
     <span class="pane-t">под вето</span>
-    <span class="pane-c">0</span>
+    <span class="pane-c">1</span>
     <span class="pane-n">отсеяны фильтром риска</span>
   </div>
-  <div class="sx-empty">в этом срезе монет нет</div>
-  <div class="sx-f"><span>всего 0 монет</span>
+  <div class="sx-wrap"><table class="sx"><thead><tr><th class="sx-idx">#</th><th class="sx-c-sym">монета</th><th class="sx-c-soc">соцсети</th><th class="sx-c-surge">объём</th><th class="sx-c-taiko">taiko</th><th class="">score</th><th class="">rvol 1ч</th><th class="">объём 7д</th><th class="">импульс</th><th class="">24ч</th><th class="">цена 7д</th><th class="">от ath</th><th class="">фаза</th><th class="">сигналы</th><th class="">сектор</th><th class="">вето</th><th class="">фандинг</th><th class="">r:r</th><th class="">уровни</th><th class="">цена</th><th class=""></th></tr></thead><tbody>
+<tr class="sxr vetoed" style="--acc:#C4703A" data-coin="AKEUSDT">
+  <td class="sx-idx">01</td>
+  <td class="sx-c-sym">
+    <a class="sx-sym" href="https://www.tradingview.com/chart/?symbol=BINANCE:AKEUSDT.P" target="_blank"
+       rel="noopener">AKE<svg viewBox="0 0 8 8"><path d="M2 6 L6 2 M3 2h3v3"
+       fill="none" stroke="currentColor" stroke-width="1"/></svg></a>
+    <span class="sx-sub">other · перп</span>
+  </td>
+  <td class="sx-c-soc"><div class="sx-mut">—</div></td>
+  <td class="sx-c-surge"><div class="sx-mut">0.2×</div></td>
+  <td class="sx-c-taiko"><div class="sx-mut">—</div></td>
+
+  <td><svg class="sx-ring" viewBox="-18.0 -18.0 36 36"><circle r="15" fill="none" stroke="#1d2127" stroke-width="2.5"/><circle r="15" fill="none" stroke="#8FA0B0" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round" stroke-dasharray="9.42 84.82" transform="rotate(-90)"/><text class="sx-ring-v" y="3.5" text-anchor="middle">10</text></svg></td>
+  <td><b class="sx-n am">0.2×</b><span class="sx-bar" style="width:52px"><i style="width:2%;background:#F5A623"></i></span></td>
+  <td><span class="sx-sb empty"></span></td>
+  <td><span class="sx-bar" style="width:40px"><i style="width:3%;background:#FFD98A"></i></span></td>
+
+  <td><b class="sx-n dn">-24.9%</b></td>
+  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,23.0 3.1,22.9 6.3,23.0 9.4,23.0 12.5,23.0 15.7,21.3 18.8,20.1 21.9,18.7 25.0,16.7 28.2,16.8 31.3,17.8 34.4,17.8 37.6,17.7 40.7,15.0 43.8,14.2 47.0,13.1 50.1,12.8 53.2,9.7 56.3,9.5 59.5,10.5 62.6,8.1 65.7,8.5 68.9,3.0 72.0,8.2" fill="none" stroke="#C4703A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="8.2" r="2" fill="#C4703A"/></svg></td>
+  <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
+
+  <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i></span><span class="sx-sub2">base</span></td>
+  <td><div class="sx-chips"><span class="sx-badge" style="--bc:#D9B84A">база</span></div></td>
+  <td><span class="sx-sub2">other</span></td>
+
+  <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#D9B84A"></i><i class="on" style="background:#8FA0B0"></i><i></i></span><span class="sx-veto-l bad">2 вето</span></div></td>
+  <td><span class="sx-bp"><i style="left:50%;width:50%;background:#C4703A"></i></span><b class="sx-bp-v" style="color:#C4703A">+0.500%</b></td>
+  <td><b class="sx-rr up">1:3.9</b></td>
+
+  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">0.0045</b></td>
+  <td><b class="sx-n">0.0045</b></td>
+  <td><div class="sx-act mut">под вето</div></td>
+</tr></tbody></table></div>
+  <div class="sx-f"><span>всего 1 монет</span>
     <span class="sx-f-r">score = объём · структура · импульс</span></div>
 </div>
-<div class="pane" data-pane="sector:MEME">
+<div class="pane" data-pane="sector:OTHER">
   <div class="pane-hd">
     <button class="pane-back">← назад</button>
-    <span class="pane-t">сектор · meme</span>
+    <span class="pane-t">сектор · other</span>
     <span class="pane-c">1</span>
     <span class="pane-n">все монеты сектора</span>
   </div>
   <div class="sx-wrap"><table class="sx"><thead><tr><th class="sx-idx">#</th><th class="sx-c-sym">монета</th><th class="sx-c-soc">соцсети</th><th class="sx-c-surge">объём</th><th class="sx-c-taiko">taiko</th><th class="">score</th><th class="">rvol 1ч</th><th class="">объём 7д</th><th class="">импульс</th><th class="">24ч</th><th class="">цена 7д</th><th class="">от ath</th><th class="">фаза</th><th class="">сигналы</th><th class="">сектор</th><th class="">вето</th><th class="">фандинг</th><th class="">r:r</th><th class="">уровни</th><th class="">цена</th><th class=""></th></tr></thead><tbody>
-<tr class="sxr" style="--acc:#93ff00" data-coin="GIGGLEUSDT">
+<tr class="sxr vetoed" style="--acc:#C4703A" data-coin="AKEUSDT">
   <td class="sx-idx">01</td>
   <td class="sx-c-sym">
-    <a class="sx-sym" href="https://www.tradingview.com/chart/?symbol=BINANCE:GIGGLEUSDT.P" target="_blank"
-       rel="noopener">GIGGLE<svg viewBox="0 0 8 8"><path d="M2 6 L6 2 M3 2h3v3"
+    <a class="sx-sym" href="https://www.tradingview.com/chart/?symbol=BINANCE:AKEUSDT.P" target="_blank"
+       rel="noopener">AKE<svg viewBox="0 0 8 8"><path d="M2 6 L6 2 M3 2h3v3"
        fill="none" stroke="currentColor" stroke-width="1"/></svg></a>
-    <span class="sx-sub">meme · перп</span>
+    <span class="sx-sub">other · перп</span>
   </td>
   <td class="sx-c-soc"><div class="sx-mut">—</div></td>
-  <td class="sx-c-surge"><div class="sx-mut">0.0×</div></td>
-  <td class="sx-c-taiko"><div class="sx-taiko"><span class="sx-badge" style="--bc:#93ff00">taiko</span><span class="sx-sub2">подтв.</span></div></td>
+  <td class="sx-c-surge"><div class="sx-mut">0.2×</div></td>
+  <td class="sx-c-taiko"><div class="sx-mut">—</div></td>
 
-  <td><svg class="sx-ring" viewBox="-18.0 -18.0 36 36"><circle r="15" fill="none" stroke="#1d2127" stroke-width="2.5"/><circle r="15" fill="none" stroke="#8FA0B0" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round" stroke-dasharray="44.30 49.95" transform="rotate(-90)"/><text class="sx-ring-v" y="3.5" text-anchor="middle">47</text></svg></td>
-  <td><b class="sx-n am">0.0×</b><span class="sx-bar" style="width:52px"><i style="width:0%;background:#F5A623"></i></span></td>
+  <td><svg class="sx-ring" viewBox="-18.0 -18.0 36 36"><circle r="15" fill="none" stroke="#1d2127" stroke-width="2.5"/><circle r="15" fill="none" stroke="#8FA0B0" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round" stroke-dasharray="9.42 84.82" transform="rotate(-90)"/><text class="sx-ring-v" y="3.5" text-anchor="middle">10</text></svg></td>
+  <td><b class="sx-n am">0.2×</b><span class="sx-bar" style="width:52px"><i style="width:2%;background:#F5A623"></i></span></td>
   <td><span class="sx-sb empty"></span></td>
-  <td><span class="sx-bar" style="width:40px"><i style="width:0%;background:#FFD98A"></i></span></td>
+  <td><span class="sx-bar" style="width:40px"><i style="width:3%;background:#FFD98A"></i></span></td>
 
-  <td><b class="sx-n up">+0.7%</b></td>
-  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,22.3 3.1,22.9 6.3,21.7 9.4,22.2 12.5,21.2 15.7,21.8 18.8,22.5 21.9,22.1 25.0,22.3 28.2,22.2 31.3,22.3 34.4,21.7 37.6,21.8 40.7,22.6 43.8,22.8 47.0,22.4 50.1,21.3 53.2,22.9 56.3,22.4 59.5,23.0 62.6,19.0 65.7,3.0 68.9,7.9 72.0,7.7" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="7.7" r="2" fill="#93ff00"/></svg></td>
+  <td><b class="sx-n dn">-24.9%</b></td>
+  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,23.0 3.1,22.9 6.3,23.0 9.4,23.0 12.5,23.0 15.7,21.3 18.8,20.1 21.9,18.7 25.0,16.7 28.2,16.8 31.3,17.8 34.4,17.8 37.6,17.7 40.7,15.0 43.8,14.2 47.0,13.1 50.1,12.8 53.2,9.7 56.3,9.5 59.5,10.5 62.6,8.1 65.7,8.5 68.9,3.0 72.0,8.2" fill="none" stroke="#C4703A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="8.2" r="2" fill="#C4703A"/></svg></td>
   <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
 
-  <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="sx-sub2">trend</span></td>
-  <td><div class="sx-mut">—</div></td>
-  <td><span class="sx-sub2">meme</span></td>
+  <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class=""></i><i class=""></i></span><span class="sx-sub2">base</span></td>
+  <td><div class="sx-chips"><span class="sx-badge" style="--bc:#D9B84A">база</span></div></td>
+  <td><span class="sx-sub2">other</span></td>
 
-  <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#D9B84A"></i><i></i><i></i></span><span class="sx-veto-l bad">squeeze</span></div></td>
+  <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#D9B84A"></i><i class="on" style="background:#8FA0B0"></i><i></i></span><span class="sx-veto-l bad">2 вето</span></div></td>
   <td><span class="sx-bp"><i style="left:50%;width:50%;background:#C4703A"></i></span><b class="sx-bp-v" style="color:#C4703A">+0.500%</b></td>
-  <td><b class="sx-rr am">1:2.4</b></td>
+  <td><b class="sx-rr up">1:3.9</b></td>
 
-  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">42.7800</b></td>
-  <td><b class="sx-n">42.7800</b></td>
-  <td><div class="sx-act go">открыть</div></td>
+  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">0.0045</b></td>
+  <td><b class="sx-n">0.0045</b></td>
+  <td><div class="sx-act mut">под вето</div></td>
 </tr></tbody></table></div>
   <div class="sx-f"><span>всего 1 монет</span>
     <span class="sx-f-r">score = объём · структура · импульс</span></div>
@@ -1553,36 +1554,36 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   </div>
   <div class="fr-list"><div class="fr-empty">в этом прогоне flow не сработал</div></div>
 </div></div>
-<div class="modal" data-coin="GIGGLEUSDT"><div class="modal-bd"></div><div class="modal-in"><button class="modal-x">✕</button><div class="card glow g-am">
+<div class="modal" data-coin="AKEUSDT"><div class="modal-bd"></div><div class="modal-in"><button class="modal-x">✕</button><div class="card">
 <div class="card-in">
-  <div class="hdr amber">
-    <div class="hdr-cl"><div class="hdr-gh">+0.7%</div></div>
+  <div class="hdr red">
+    <div class="hdr-cl"><div class="hdr-gh">-24.9%</div></div>
     <div class="hdr-in">
       <div class="hdr-rk"><b>RANK 001</b><i></i></div>
-      <a class="hdr-sym-a" href="https://www.tradingview.com/chart/?symbol=BINANCE:GIGGLEUSDT.P" target="_blank" rel="noopener">
-        <div class="hdr-sym" style="font-size:17px;letter-spacing:2px">GIGGLEUSDT</div>
+      <a class="hdr-sym-a" href="https://www.tradingview.com/chart/?symbol=BINANCE:AKEUSDT.P" target="_blank" rel="noopener">
+        <div class="hdr-sym" style="font-size:21px;letter-spacing:3px">AKEUSDT</div>
       </a>
-      <div class="hdr-ph">trend</div>
+      <div class="hdr-ph">base</div>
     </div>
-    <div class="hdr-pr">$42.78</div>
+    <div class="hdr-pr">$0.004479</div>
   </div>
   <div class="med-link"></div>
-  <div class="med " style="--p:47">
-    <div class="med-i"><div class="med-v">47</div><div class="med-l">SCORE</div></div>
+  <div class="med red" style="--p:10">
+    <div class="med-i"><div class="med-v">10</div><div class="med-l">SCORE</div></div>
   </div>
-  <div class="chips"><span class="chip">BNB Chain Ecosystem</span></div>
+  <div class="chips"><span class="chip risk">HIGH RISK</span></div>
   <div class="wrap">
     <div class="rvol">
       <div class="rvol-i">📊</div>
-      <div class="rvol-v">0.02×</div>
+      <div class="rvol-v">0.16×</div>
       <div class="rvol-l">RVOL 1H</div>
       <div class="rvol-d">в норме</div>
     </div>
-    <div class="sigs"><div class="sig rd"><span class="sig-i">!</span><div style="min-width:0"><div class="sig-t">SQUEEZE HIGH · 65</div><div class="sig-d">сжатие волатильности, риск выброса</div></div></div><div class="sig"><span class="sig-i">✓</span><div style="min-width:0"><div class="sig-t">TAIKO CONFIRMED · 72</div><div class="sig-d">разворот подтверждён на старшем ТФ</div></div></div><div class="sig-row"><div class="sig half"><span class="sig-i">≈</span><div style="min-width:0"><div class="sig-t">FUNDING</div><div class="sig-d">0.0050%</div></div></div><div class="sig half"><span class="sig-i">↑</span><div style="min-width:0"><div class="sig-t">OPEN INTEREST</div><div class="sig-d">$20.13M</div></div></div></div></div>
+    <div class="sigs"><div class="sig-row"><div class="sig half"><span class="sig-i">≈</span><div style="min-width:0"><div class="sig-t">FUNDING</div><div class="sig-d">0.0050%</div></div></div><div class="sig half"><span class="sig-i">↑</span><div style="min-width:0"><div class="sig-t">OPEN INTEREST</div><div class="sig-d">$31.93M</div></div></div></div></div>
   </div>
-  <div class="veto"><div class="veto-h">ПОД ВЕТО · 1</div><div class="veto-row"><span class="veto-k">SQUEEZE</span><span class="veto-v">риск HIGH, скор 65</span></div></div>
-  <div class="perf"><div><div class="perf-k">7D</div><div class="perf-v up">+56.9%</div></div><div><div class="perf-k">30D</div><div class="perf-v up">+66.3%</div></div><div><div class="perf-k">ATH</div><div class="perf-v dn">-85.2%</div></div><div><div class="perf-k">OBV</div><div class="perf-v dn">-80.2%</div></div></div>
-  <div class="tech">SRSI 14.0 · ATR 10.26 · BB 90.11 · SPOT 8% · VI+ 1.1437/0.8645</div>
+  <div class="veto"><div class="veto-h">ПОД ВЕТО · 2</div><div class="veto-row"><span class="veto-k">ВОЛАТИЛЬНОСТЬ</span><span class="veto-v">ATR 32.6% в день</span></div><div class="veto-row"><span class="veto-k">НЕТ СПОТА</span><span class="veto-v">спот 0.0% оборота</span></div></div>
+  <div class="perf"><div><div class="perf-k">7D</div><div class="perf-v up">+43.0%</div></div><div><div class="perf-k">30D</div><div class="perf-v up">+931.9%</div></div><div><div class="perf-k">ATH</div><div class="perf-v dn">-35.1%</div></div><div><div class="perf-k">OBV</div><div class="perf-v up">+874.1%</div></div></div>
+  <div class="tech">SRSI 19.7 · ATR 32.56 · BB 215.32 · SPOT 0% · VI+ 0.9787/1.0097</div>
   
 <div class="blk b1"><div class="blk-n">01</div><div class="b1-in">
   <div class="b1-h"><span class="tw"><svg viewBox="0 0 24 24"><path d="M23 4.9c-.8.4-1.7.6-2.6.8 1-.6 1.7-1.5 2-2.6-.9.5-1.9.9-3 1.1a4.7 4.7 0 0 0-8 4.3C7.5 8.3 4 6.5 1.7 3.7a4.7 4.7 0 0 0 1.5 6.3c-.8 0-1.5-.2-2.1-.6 0 2.3 1.6 4.2 3.8 4.6-.4.1-.8.2-1.2.2-.3 0-.6 0-.9-.1.6 1.9 2.4 3.3 4.4 3.3A9.5 9.5 0 0 1 0 19.5a13.3 13.3 0 0 0 7.2 2.1c8.7 0 13.4-7.2 13.4-13.4v-.6c.9-.7 1.7-1.5 2.4-2.7z"/></svg></span>
@@ -1594,45 +1595,45 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <summary>
     <div class="blk-n">02</div>
     <div class="b2-in">
-      <div class="b2-t">АНАЛИЗ · 2 БЛОКА</div>
-      <div class="b2-p">CONFIRMED BREAKOUT. TAIKO Reversal: падение -85% от пика стар…</div>
+      <div class="b2-t">АНАЛИЗ · 1 БЛОК</div>
+      <div class="b2-p">Данных о AKE нет ни в CoinGecko, ни в DefiLlama — вероятно, с…</div>
     </div>
     <span class="b2-c"></span>
   </summary>
-  <div class="b2-body"><p>CONFIRMED BREAKOUT. TAIKO Reversal: падение -85% от пика старшего ТФ. объёмная кульминация ×40.1. капитуляция 1д назад. Giggle Fund — MEME. Ранг 470, $42.1M, малая капитализация. Динамика: за 30 дней +68%, сильный откат от дна; цена ниже исторического максимума на 85%. Настроение 63% бычье. Чистая спекуляция: играется на новостях и вирусности, фундамента нет.</p><p>HIGH SQUEEZE RISK — признаки выжимания шортов. Тренд может продолжиться, но соотношение риска к прибыли плохое. Если в позиции — фиксировать лесенкой, стопы жёсткие.</p></div>
+  <div class="b2-body"><p>Данных о AKE нет ни в CoinGecko, ни в DefiLlama — вероятно, свежий листинг или узкоспециальный токен. Перед входом нужна ручная проверка команды, документации, графика разлоков и структуры держателей.</p></div>
 </details>
 <div class="blk b3">
   <div class="blk-n">03</div>
   <div class="b3-in">
     <div class="b3-hd">
-      <span class="b3-t">СТРАТЕГИЯ</span><span class="b3-chip">½ ОБЪЁМА</span><a class="b3-tv" href="https://www.tradingview.com/chart/?symbol=BINANCE:GIGGLEUSDT.P" target="_blank" rel="noopener">TV ↗</a>
+      <span class="b3-t">СТРАТЕГИЯ</span><span class="b3-chip">⅓ ОБЪЁМА</span><a class="b3-tv" href="https://www.tradingview.com/chart/?symbol=BINANCE:AKEUSDT.P" target="_blank" rel="noopener">TV ↗</a>
     </div>
     
     <div class="b3-grid">
-      <div class="rr-dial rr-fair">
+      <div class="rr-dial rr-good">
         <svg viewBox="0 0 100 100" aria-hidden="true">
           <circle class="rr-trk" cx="50" cy="50" r="42"/>
           <circle class="rr-arc" cx="50" cy="50" r="42"
-                  stroke-dasharray="164.06 263.89"/>
+                  stroke-dasharray="214.41 263.89"/>
         </svg>
-        <div class="rr-val">1:2.4</div>
+        <div class="rr-val">1:3.9</div>
         <div class="rr-cap">R : R</div>
       </div>
       <div class="rr-nums">
         <div class="rr-c"><span class="rr-l">ВХОД</span>
-          <span class="rr-p rr-e">$42.7800</span></div>
+          <span class="rr-p rr-e">$0.004479</span></div>
         <div class="rr-c"><span class="rr-l">СТОП</span>
-          <span class="rr-p rr-s">$36.7908</span>
+          <span class="rr-p rr-s">$0.003852</span>
           <span class="rr-d">-14.0%</span></div>
         <div class="rr-c"><span class="rr-l">ЦЕЛЬ 1</span>
-          <span class="rr-p rr-t">$56.8700</span>
-          <span class="rr-d">+32.9%</span></div>
+          <span class="rr-p rr-t">$0.006900</span>
+          <span class="rr-d">+54.0%</span></div>
       </div>
     </div>
-    <div class="b3-d">Конфликт сигналов. TAIKO даёт разворот, но squeeze-риск HIGH со скором 65 — часть роста обеспечена ликвидациями шортов. Вход половинным объёмом либо ожидание отката и повторного теста базы.</div>
+    <div class="b3-d">База. Диапазон, торговля от нижней границы до верхней.</div>
   </div>
 </div>
-  <div class="lnks"><a class="lnk pri" href="https://www.tradingview.com/chart/?symbol=BINANCE:GIGGLEUSDT.P" target="_blank" rel="noopener"><i>📈</i>TRADINGVIEW ↗</a><a class="lnk" href="https://www.binance.com/en/futures/GIGGLEUSDT" target="_blank" rel="noopener"><i>🅱</i>BINANCE ↗</a><a class="lnk" href="https://www.coingecko.com/en/search?query=GIGGLE" target="_blank" rel="noopener"><i>🦎</i>COINGECKO ↗</a><a class="lnk" href="https://x.com/search?q=%24GIGGLE&amp;f=live" target="_blank" rel="noopener"><i>𝕏</i>TWITTER ↗</a></div>
+  <div class="lnks"><a class="lnk pri" href="https://www.tradingview.com/chart/?symbol=BINANCE:AKEUSDT.P" target="_blank" rel="noopener"><i>📈</i>TRADINGVIEW ↗</a><a class="lnk" href="https://www.binance.com/en/futures/AKEUSDT" target="_blank" rel="noopener"><i>🅱</i>BINANCE ↗</a><a class="lnk" href="https://www.coingecko.com/en/search?query=AKE" target="_blank" rel="noopener"><i>🦎</i>COINGECKO ↗</a><a class="lnk" href="https://x.com/search?q=%24AKE&amp;f=live" target="_blank" rel="noopener"><i>𝕏</i>TWITTER ↗</a></div>
 </div></div></div></div>
 
 <script>

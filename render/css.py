@@ -830,6 +830,7 @@ FLOWREP = """
 
 /* объём: три масштаба столбиком */
 .fr-vol{gap:7px}
+.fr-vr.off b{color:#3a3a44}
 .fr-vr{position:relative;display:grid;grid-template-columns:18px 40px;
   align-items:center;gap:8px;padding-bottom:5px}
 .fr-vr i{font-style:normal;font-size:7px;font-weight:300;letter-spacing:1px;

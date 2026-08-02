@@ -144,6 +144,15 @@ def build_candidate(
         # к CoinGecko дорог и не окупается для монет вне отбора.
         deep = _needs_deep_fundamentals(score, has_pattern, phase.get("num", 0))
         fund = get_fundamentals(symbol, deep=deep)
+        # Фундаментал уже загружен выше для категорий — берём из того же
+        # объекта, дополнительных запросов нет. Поля именно такие:
+        # mcap_usd, mcap_rank, fdv_usd (см. CoinFundamentals).
+        raw_data = strip_series(m)
+        raw_data.update({
+            "mcap_usd": fund.mcap_usd,
+            "mcap_rank": fund.mcap_rank or 0,
+            "fdv_ratio": (fund.fdv_usd / fund.mcap_usd) if fund.mcap_usd > 0 else 0.0,
+        })
 
         categories = list(fund.categories or [])
         if fund.defillama_category and fund.defillama_category not in categories:
@@ -188,7 +197,7 @@ def build_candidate(
             tags=tags,
             phase=phase,
             metrics=build_metric_rows(m),
-            raw=strip_series(m),
+            raw=raw_data,
             dexe=dexe.to_dict() if dexe.detected else None,
             surge=surge.to_dict() if surge.detected else None,
             squeeze=squeeze,

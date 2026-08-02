@@ -1,17 +1,18 @@
 """Сбор метрик по монете: сырые числа плюс форматированные значения."""
 
 from __future__ import annotations
+import time
 
 from analytics.indicators import (
     atr_pct, bb_width_pct, bb_width_rank, drawdown_from_high,
-    obv_slope_pct, pct_change, rvol, stoch_rsi, vortex_phase,
+    obv_slope_pct, pct_change, rvol, stoch_rsi, vortex_phase, median,
 )
 from core.binance import (
-    K_CLOSE, K_HIGH, K_LOW, K_QUOTE_VOLUME, K_VOLUME,
+    K_CLOSE, K_HIGH, K_LOW, K_QUOTE_VOLUME, K_VOLUME, K_CLOSE_TIME, K_OPEN_TIME,
     get_funding_rate, get_open_interest, get_spot_ticker,
     klines_1d, klines_1h, klines_4h, klines_1w, series,
 )
-from core.config import MIN_HISTORY_DAYS
+from core.config import MIN_HISTORY_DAYS, VOL_MEDIAN_WINDOW, MIN_BAR_FILL
 
 # Короткие ряды, которые остаются в снимке для отрисовки спарклайнов
 KEEP_SERIES = ("spark_1d", "spark_vol")
@@ -57,6 +58,60 @@ def _thin(values: list[float], points: int = SPARK_POINTS) -> list[float]:
     tail = values[-points:] if len(values) > points else values
     return [round(v, 10) for v in tail]
 
+def bar_fill(kline: list) -> float:
+    """Доля набранного времени свечи.
+
+    Закрытая свеча — единица по определению. Незакрытая набрана
+    ровно настолько, сколько прошло её времени.
+
+    Считать по факту наличия бара в ряду нельзя: последний бар
+    присутствует всегда, и величина выродится в константу.
+    Источник — временные поля свечи, других у нас нет.
+    """
+    now_ms = time.time() * 1000.0
+    try:
+        t_open = float(kline[K_OPEN_TIME])
+        t_close = float(kline[K_CLOSE_TIME])
+    except (TypeError, ValueError, IndexError):
+        return 1.0
+    span = t_close - t_open
+    if span <= 0 or now_ms >= t_close:
+        return 1.0
+    return max(0.0, min(1.0, (now_ms - t_open) / span))
+
+
+def vol_ratio(klines: list[list]) -> float | None:
+    """Объём текущего бара к медиане предыдущих, кратностью.
+
+    Текущий бар почти всегда незакрыт, и его объём достраивается
+    по доле набранного времени. Без этого величина занижена тем
+    сильнее, чем крупнее масштаб: дневка, открытая три часа назад,
+    покажет восьмую часть оборота — и соврёт ровно тогда, когда
+    колонка нужнее всего, на свежем движении.
+
+    Норма строится по закрытым барам: текущий из выборки исключён.
+    Неполный бар в норме занижает медиану и делает аномалией любой
+    обычный объём.
+
+    None — бар набран меньше порога. Прочерк честнее числа.
+    """
+    if not klines or len(klines) < VOL_MEDIAN_WINDOW + 1:
+        return None
+
+    quotes = series(klines, K_QUOTE_VOLUME)
+    current = quotes[-1]
+    if current <= 0:
+        return None
+
+    fill = bar_fill(klines[-1])
+    if fill < MIN_BAR_FILL:
+        return None
+
+    med = median(quotes[-(VOL_MEDIAN_WINDOW + 1):-1])
+    if med <= 0:
+        return None
+
+    return (current / fill) / med
 
 def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
     """Все базовые метрики монеты.
@@ -91,6 +146,14 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
     ch_24h = pct_change(closes_1d, 1)
     ch_7d = pct_change(closes_1d, 7)
     ch_30d = pct_change(closes_1d, 30)
+    ch_3d = pct_change(closes_1d, 3)
+
+    # Все три ряда уже загружены выше через канонические
+    # загрузчики — попадают в ту же ячейку RunCache,
+    # новых сетевых запросов ноль.
+    vol_x_1h = vol_ratio(kl_1h)
+    vol_x_4h = vol_ratio(kl_4h)
+    vol_x_1d = vol_ratio(kl_1d)
 
     # ── ATH: недельная история покрывает всю жизнь контракта ──
     kl_1w = klines_1w(symbol)
@@ -132,11 +195,17 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
     total_vol = spot_vol + fut_vol
     spot_ratio = spot_vol / total_vol if total_vol > 0 else 0.0
 
+    ch_3d = pct_change(closes_1d, 3)
+
     return {
         "symbol": symbol,
         "price": price,
         "ch_24h": ch_24h,
         "ch_7d": ch_7d,
+        "ch_3d": ch_3d,
+        "vol_x_1h": vol_x_1h,
+        "vol_x_4h": vol_x_4h,
+        "vol_x_1d": vol_x_1d,
         "ch_30d": ch_30d,
         "ath": ath,
         "ath_drop": ath_drop,
@@ -165,6 +234,7 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
         "lows_1d": lows_1d,
         "closes_4h": closes_4h,
         "closes_1h": closes_1h,
+        "ch_3d": ch_3d,
     }
 
 
