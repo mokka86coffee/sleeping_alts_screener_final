@@ -15,6 +15,9 @@ from detectors.flow_config import (
     CAP_LEVERAGE,
     CAP_SPRING,
     CAP_TAKER,
+    FLOW_MAX_SCORE,
+    FLOW_MIN_RAW_SCORE,
+    FLOW_MIN_SCORE,
 )
 from detectors.flow_core import FlowContext, build_context
 from detectors.flow_signal import SubcaseSignal
@@ -26,14 +29,18 @@ import detectors.flow_leverage as flow_leverage
 import detectors.flow_spring as flow_spring
 import detectors.flow_taker as flow_taker
 
-MIN_SCORE = 45
+# Нижняя точка шкалы семейства. Согласована со scoring.py:
+# отображение 45..100 → 14..34, ниже 45 даёт отрицательный вклад.
+MIN_SCORE = FLOW_MIN_SCORE
 
-# Порог на СЫРОЙ шкале подкейса. Отдельная величина, и это
-# принципиально: raw и score живут в разных шкалах, и раньше
-# порог проверялся уже после приведения — то есть не проверялся
-# вовсе. Отображение 0..100 → 45..100 монотонно, поэтому даже
-# нулевая фигура давала ровно MIN_SCORE и проходила.
-MIN_RAW_SCORE = 45
+# Порог на СЫРОЙ шкале подкейса. Отдельное имя, и это принципиально:
+# raw и score живут в разных шкалах, и раньше порог проверялся уже
+# после приведения — то есть не проверялся вовсе. Отображение
+# монотонно, поэтому даже нулевая фигура давала ровно MIN_SCORE.
+#
+# Сейчас величины совпадают, но связаны они не по смыслу, а по
+# калибровке: сырой порог можно поднять, не трогая шкалу.
+MIN_RAW_SCORE = FLOW_MIN_RAW_SCORE
 
 # Реестр подкейсов. Добавление нового модуля — одна строка здесь,
 # candidate.py и scoring.py не трогаются. Порядок на исход не
@@ -152,18 +159,24 @@ def _strength(score: int) -> str:
 
 
 def _to_family_score(raw: float) -> int:
-    """Приводит шкалу подкейса 0..100 к шкале семейства 45..100.
-
-    scoring.py отображает 45..100 в 14..34 и на входе ниже 45 даёт
-    отрицательные баллы. Подкейсы про эту шкалу не знают и не
-    должны: они меряют силу фигуры, а не место монеты в отчёте.
-
-    ВАЖНО: приведение делается ТОЛЬКО после того, как сырой скор
-    прошёл MIN_RAW_SCORE. Само по себе оно ничего не отсекает —
-    нижняя точка отображения совпадает с порогом семейства.
-    """
-    raw = max(0.0, min(100.0, raw))
-    return int(round(MIN_SCORE + raw * (100 - MIN_SCORE) / 100))
+    #     """Приводит шкалу подкейса 0..100 к шкале семейства 45..100.
+    #
+    #     scoring.py отображает 45..100 в 14..34 и на входе ниже 45 даёт
+    #     отрицательные баллы. Подкейсы про эту шкалу не знают и не
+    #     должны: они меряют силу фигуры, а не место монеты в отчёте.
+    #
+    #     ВАЖНО: приведение делается ТОЛЬКО после того, как сырой скор
+    #     прошёл MIN_RAW_SCORE. Само по себе оно ничего не отсекает —
+    #     нижняя точка отображения совпадает с порогом семейства.
+    #     """
+    # Два разных «100» в одной формуле. RAW_MAX — верх сырой шкалы
+    # подкейса, он задан контрактом SubcaseSignal (__post_init__
+    # клампит в 0..100) и в конфиге ему не место. FLOW_MAX_SCORE —
+    # верх шкалы семейства, он калибруется.
+    RAW_MAX = 100.0
+    raw = max(0.0, min(RAW_MAX, raw))
+    span = FLOW_MAX_SCORE - MIN_SCORE
+    return int(round(MIN_SCORE + raw * span / RAW_MAX))
 
 
 def _horizon(ctx: FlowContext) -> dict:
@@ -219,7 +232,13 @@ def detect_flow(
     failures: dict[str, str] = {}
 
     for module in _RUNNERS:
-        mod_name = getattr(module, "name", module.__name__)
+        # __name__ у импортированного модуля полный: "detectors.flow_leverage".
+        # Сравнение с NETWORK_CASES по нему всегда ложно, и allow_network
+        # молча перестаёт действовать — сеть выключается снаружи, а модуль
+        # об этом не узнаёт. Атрибут name объявлен протоколом Subcase, но
+        # опираться только на него нельзя: его отсутствие не ошибка импорта,
+        # оно ничем себя не проявляет.
+        mod_name = getattr(module, "name", module.__name__.rsplit(".", 1)[-1])
 
         if not allow_network and mod_name in NETWORK_CASES:
             continue
@@ -239,7 +258,18 @@ def detect_flow(
 
         # Потолок зрелости. Применяется здесь, а не в подкейсе:
         # модуль не обязан знать, насколько ему доверяют.
-        cap = CASE_CAP.get(sig.subcase, 100)
+        #
+        # Дефолта нет сознательно. Значение по умолчанию 100 снимало
+        # бы потолок с модуля, чьё имя не нашлось в таблице, — то есть
+        # ровно с того, где ограничение и нужно. Промах по ключу это
+        # дефект кода, а не свойство рынка, и он обязан быть виден.
+        cap = CASE_CAP.get(sig.subcase)
+        if cap is None:
+            failures[mod_name] = (
+                f"нет потолка для subcase={sig.subcase!r}; "
+                f"ожидались {sorted(CASE_CAP)}"
+            )
+            cap = min(CASE_CAP.values())
         if sig.score > cap:
             sig.score = float(cap)
 

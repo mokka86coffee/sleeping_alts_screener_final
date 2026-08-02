@@ -13,7 +13,7 @@ from core.models import Candidate, RunSnapshot
 from render.card import render_card
 from render.table import render_slice_pane
 from render.theme import esc
-from render.flow_report import case_key, render_flow_report
+from render.flow_report import render_flow_report
 
 # ─────────────────────────────────────────────────────────────
 # Хелперы
@@ -765,7 +765,7 @@ def _blk_flow(candidates: list[Candidate]) -> str:
     flow = [c for c in candidates if c.flow]
     by_case: dict[str, int] = {}
     for c in flow:
-        case = case_key((c.flow or {}).get("case", ""))
+        case = str((c.flow or {}).get("case", "") or "")
         by_case[case] = by_case.get(case, 0) + 1
 
     lead = max(flow, key=lambda c: getattr(c, "score", 0) or 0, default=None)

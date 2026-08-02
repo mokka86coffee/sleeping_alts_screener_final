@@ -31,6 +31,7 @@ from core.binance import (
 )
 from detectors.flow_config import (
     BOTTOM_LOOKBACK_DAYS,
+    BOTTOM_LOOKBACK_DAYS,
     BOTTOM_MIN_BARS_AFTER,
     BOTTOM_MIN_DROP_PCT,
     DELTA_COLLAPSE_SLOPE,
@@ -63,6 +64,7 @@ from detectors.flow_config import (
     VORTEX_SPREAD_MIN,
     ZONE_BREAK_BARS,
     ZONE_BREAK_DEEP_PCT,
+    ZONE_CONFIRM_SCALES,
     ZONE_DEAD_AFTER_BREAK,
     ZONE_MATCH_PCT,
     ZONE_MAX_AGE_UNTESTED,
@@ -718,7 +720,7 @@ class Zone:
 
     @property
     def confirmed(self) -> bool:
-        return len(self.scales) >= 2
+        return len(self.scales) >= ZONE_CONFIRM_SCALES
 
     def to_dict(self) -> dict:
         return {
@@ -931,11 +933,6 @@ def build_drop_context(bars: list[Bar]) -> DropContext:
 
     window = bars[-BOTTOM_LOOKBACK_DAYS:] if len(bars) > BOTTOM_LOOKBACK_DAYS else bars
     n = len(window)
-
-    peak_i = max(range(n), key=lambda i: window[i].high)
-    peak = window[peak_i].high
-    if peak <= 0:
-        return ctx
 
     peak_i = max(range(n), key=lambda i: window[i].high)
     peak = window[peak_i].high
