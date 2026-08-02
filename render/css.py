@@ -870,7 +870,7 @@ FLOWREP = """
 /* шапка: два тега в строку */
 .fr-caps{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
 .fr-tag{height:15px;line-height:13px;padding:0 8px;border-radius:8px;
-  font-size:7.5px;font-weight:300;color:var(--fl);
+  font-size:8.6px;font-weight:300;color:var(--fl);
   background:color-mix(in srgb,var(--fc) 13%,transparent);
   border:1px solid color-mix(in srgb,var(--fc) 40%,transparent)}
 .fr-tag.gh{color:#f7f7f7;background:none;border-color:#414141}
