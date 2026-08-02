@@ -815,17 +815,60 @@ FLOWREP = """
   linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
   pointer-events:none}
 
+/* ссылки: второй ряд карточки, во всю ширину */
+.fr-act{grid-column:1 / -1;display:flex;align-items:center;gap:10px;
+        padding:0 0 18px;flex-wrap:wrap}
+.fr-lnks{display:flex;gap:8px;margin-left:auto;flex-wrap:wrap}
+
+.fr-lnk{display:inline-flex;align-items:center;gap:6px;height:28px;
+        padding:0 14px;border-radius:14px;background:#121217;
+        border:1px solid #1f1f28;font-size:8px;font-weight:400;
+        letter-spacing:1.5px;color:#8a8a96;white-space:nowrap;
+        transition:background .14s,color .14s,border-color .14s}
+.fr-lnk:hover{background:#1c1a14;color:var(--fl);
+              border-color:color-mix(in srgb,var(--fc) 45%,transparent)}
+.fr-lnk i{font-style:normal;font-size:9px;opacity:.6}
+.fr-lnk.pri{color:var(--fl);background:color-mix(in srgb,var(--fc) 10%,transparent);
+            border-color:color-mix(in srgb,var(--fc) 38%,transparent)}
+.fr-lnk.off{opacity:.35;cursor:default}
+
+/* тикер стал ссылкой на график */
+.fr-sym{display:block;font-size:19px;font-weight:200;letter-spacing:2px;
+        color:#f4f6f8;margin-top:6px;white-space:nowrap;overflow:hidden;
+        text-overflow:ellipsis;transition:color .14s}
+.fr-sym:hover{color:var(--fl)}
+
 .fr-in{position:relative;z-index:1;display:grid;
-  grid-template-columns:162px 72px 92px 128px 176px 116px 92px 84px;
-  align-items:center;gap:0 16px;min-height:136px;padding:0 30px}
+       grid-template-columns:170px 68px 104px 116px 158px 100px 92px 92px 84px;
+       align-items:center;gap:0 14px;min-height:136px;padding:0 26px}
+/* чип паттерна: ярлык, не абзац — перенос запрещён */
+.fr-chip{align-self:flex-start;max-width:100%;height:16px;line-height:14px;
+         padding:0 9px;border-radius:4px;font-size:8px;font-weight:300;
+         white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+         color:var(--fl);background:color-mix(in srgb,var(--fc) 10%,transparent);
+         border:1px solid color-mix(in srgb,var(--fc) 30%,transparent)}
+
+/* тег роста от дна */
+.fr-tag.up{color:#6BFFB4;background:rgba(34,224,138,.08);
+           border-color:rgba(34,224,138,.3)}
+
+/* зоны: стрелка · дистанция · подпись */
+.fr-zn{display:flex;align-items:baseline;gap:5px}
+.fr-zn i{font-style:normal;font-size:8px;opacity:.6}
+.fr-zn b{font-size:12px;font-weight:200;font-variant-numeric:tabular-nums}
+.fr-zn s{text-decoration:none;font-size:6.5px;font-weight:300;
+         letter-spacing:1px;color:#f7f7f7}
+.fr-zn.up b,.fr-zn.up i{color:#FF6B35}
+.fr-zn.dn b,.fr-zn.dn i{color:#22E08A}
+.fr-zn.off{font-size:7px;color:#4a4a54;letter-spacing:1px}
 
 /* шапка: два тега в строку */
 .fr-caps{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
-.fr-tag{height:15px;line-height:13px;padding:0 8px;border-radius:7.5px;
+.fr-tag{height:15px;line-height:13px;padding:0 8px;border-radius:8px;
   font-size:7.5px;font-weight:300;color:var(--fl);
   background:color-mix(in srgb,var(--fc) 13%,transparent);
   border:1px solid color-mix(in srgb,var(--fc) 40%,transparent)}
-.fr-tag.gh{color:#7f838c;background:none;border-color:#26262e}
+.fr-tag.gh{color:#f7f7f7;background:none;border-color:#414141}
 
 /* объём: три масштаба столбиком */
 .fr-vol{gap:7px}
@@ -857,6 +900,11 @@ FLOWREP = """
   font-variant-numeric:tabular-nums}
 .fr-legs b.up{color:#22E08A}
 .fr-legs b.dn{color:#FF6B35}
+
+.fr-dots{display:flex;gap:4px}
+.fr-dots i{width:5.2px;height:5.2px;border-radius:50%;background:var(--fc);
+           opacity:.2}
+.fr-dots i.on{opacity:1}
 
 /* фандинг: биполярный бар от центра */
 .fr-fund{position:relative;display:block;width:100%;max-width:104px;height:5px;
@@ -942,8 +990,8 @@ RESPONSIVE = """
   .fn-line{left:60px;right:80px}
   .fn-node{width:64px}
   .risk-cap{right:auto;left:0}
-  .fr-in{grid-template-columns:140px 70px 88px 92px 1fr 110px 84px 78px;
-           gap:0 14px;padding:0 24px}
+  .fr-in{grid-template-columns:150px 64px 96px 92px 1fr 92px 86px 84px 78px;
+         gap:0 12px;padding:0 20px}
   .fl{max-width:560px}
 }
 
@@ -968,9 +1016,9 @@ RESPONSIVE = """
   .sx .sx-c-sym{box-shadow:10px 0 14px -8px rgba(0,0,0,.85)}
   .sx td,.sx th{padding-left:10px;padding-right:10px}
 
-    .fr-in{grid-template-columns:150px 66px 84px 116px 1fr 104px 84px 78px;
-             gap:0 12px;padding:0 22px}
-    .fr-price svg{height:34px}
+
+  .fr-in{grid-template-columns:150px 66px;gap:0 12px;padding:0 22px}
+  .fr-price svg{height:34px}
     .fr-c1{grid-column:1}
     .fr-ring{grid-column:2;grid-row:1}
     .fr-c{grid-column:1 / -1;flex-direction:row;align-items:center;
