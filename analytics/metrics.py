@@ -82,13 +82,27 @@ def bar_fill(kline: list) -> float:
 
 
 def vol_ratio(klines: list[list]) -> float | None:
-    """Объём текущего бара к медиане предыдущих, кратностью."""
+    """Объём текущего бара к медиане предыдущих, кратностью.
+
+    Текущий бар почти всегда незакрыт, и его объём достраивается по
+    доле набранного времени. Без этого величина занижена тем сильнее,
+    чем крупнее масштаб: дневка, открытая три часа назад, покажет
+    восьмую часть оборота — и соврёт ровно тогда, когда колонка
+    нужнее всего, на свежем движении.
+
+    Расчёт вынесен в core.volume: та же функция обслуживает
+    rel_volume в ядре семейства. Две реализации расходились на два
+    порядка, и понять, какая врёт, можно было только вручную.
+    """
     if not klines or len(klines) < VOL_MEDIAN_WINDOW + 1:
         return None
+
     quotes = series(klines, K_QUOTE_VOLUME)
     fills = [bar_fill(k) for k in klines]
+
     return volume_ratio(
-        quotes, fills,
+        quotes,
+        fills,
         window=VOL_MEDIAN_WINDOW,
         min_fill=MIN_BAR_FILL,
     )

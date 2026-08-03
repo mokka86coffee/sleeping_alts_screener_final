@@ -844,7 +844,7 @@ FLOWREP = """
 .fr-sym:hover{color:var(--fl)}
 
 .fr-in{position:relative;z-index:1;display:grid;
-       grid-template-columns:178px 68px 104px 116px 158px 100px 92px 92px 84px;
+       grid-template-columns:188px 68px 104px 116px 158px 100px 92px 92px 84px;
        align-items:center;gap:0 14px;min-height:136px;padding:0 26px}
 /* чип паттерна: ярлык, не абзац — перенос запрещён */
 .fr-chip{align-self:flex-start;max-width:100%;height:16px;line-height:14px;
