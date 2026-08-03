@@ -871,7 +871,7 @@ FLOWREP = """
   border:1px solid color-mix(in srgb,var(--fc) 40%,transparent); opacity: 0.8}
 .fr-tag.gh{color:#f7f7f7;background:transparent;border-color:transparent}
 /* тег роста от дна */
-.fr-tag.up{color:#f7f7f7;background:transparent;border-color:transparent}
+.fr-tag.up{background:transparent;border-color:transparent}
 
 /* объём: три масштаба столбиком */
 .fr-vol{gap:7px}
