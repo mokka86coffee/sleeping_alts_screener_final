@@ -171,7 +171,7 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
         return None
 
     # Серия. Одиночное событие пружиной не является по определению.
-    recent = [e for e in ctx.events if e.age <= SQUEEZE_WINDOW]
+    recent = [e for e in ctx.events if e.age_days <= SQUEEZE_WINDOW]
     if len(recent) < SPRING_MIN_EVENTS:
         return None
 

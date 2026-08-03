@@ -37,8 +37,6 @@ from detectors.flow_config import (
     DELTA_COLLAPSE_SLOPE,
     DELTA_WINDOW,
     EVENT_NORM_WINDOW,
-    EXTREME_GROWTH_X,
-    GROWTH_DISTRUST,
     HORIZON_BARS_AHEAD,
     HORIZON_AMP_GAIN,
     IMMATURE_BODY_MAX,
@@ -59,9 +57,14 @@ from detectors.flow_config import (
     TIER_1_SIGMA,
     TIER_2_SIGMA,
     TIER_3_SIGMA,
-    VORTEX_FLAT_SLOPE_MAX,
     VORTEX_PERIOD,
-    VORTEX_SPREAD_MIN,
+    VORTEX_EXTREMA_GAP,
+    VORTEX_DELTA_GAIN,
+    VORTEX_MIN_EXTREMA,
+    VORTEX_MAX_EXTREMA,
+    VORTEX_MULT_GAIN,
+    VORTEX_PROMINENCE,
+    VORTEX_MIN_TAIL,
     ZONE_BREAK_BARS,
     ZONE_BREAK_DEEP_PCT,
     ZONE_CONFIRM_SCALES,
@@ -404,10 +407,23 @@ class Event:
     absorbed: bool      # масса приложена, цена не сдвинулась
     immature: bool      # окно отклика ещё не прошло
 
+    @property
+    def age_days(self) -> int:
+        """Давность события в ДНЯХ.
+
+        Единственная величина, пригодная для сравнения между масштабами.
+        `age` меряется в барах своего ряда: на 10D значение 20 означает
+        двести дней, а не двадцать. Ровно это и сравнивалось с дневными
+        окнами подкейсов — spring с окном 24 принимал за свежее событие
+        полугодовой давности.
+        """
+        return self.age * max(1, self.scale)
+
     def to_dict(self) -> dict:
         return {
             "scale": self.scale,
             "age": self.age,
+            "age_days": self.age_days,
             "price": round(self.price, 10),
             "side": self.side,
             "sigma": round(self.sigma, 2),
@@ -521,39 +537,6 @@ def find_events(bars: list[Bar], scale: int) -> list[Event]:
     return events
 
 
-# ─────────────────────────────────────────────────────────────
-# Вортекс по масштабам [MMT]
-# ─────────────────────────────────────────────────────────────
-# Расхождение VI+ и VI- внутри плоской базы — опережающий признак.
-# На дневке MMT оба знака переплетались около единицы, на 3D было
-# 1.0667 против 0.5599, и разошлись задолго до выноса. Считается на
-# готовых агрегатах, сети не стоит ничего.
-
-@dataclass
-class VortexState:
-    """Расхождение направленного движения на лучшем масштабе."""
-
-    scale: int = 0
-    vi_plus: float = 0.0
-    vi_minus: float = 0.0
-    spread: float = 0.0
-    flat: bool = False      # цена стоит — только тогда это признак
-
-    @property
-    def diverging(self) -> bool:
-        return self.flat and self.spread >= VORTEX_SPREAD_MIN
-
-    def to_dict(self) -> dict:
-        return {
-            "scale": self.scale,
-            "vi_plus": round(self.vi_plus, 4),
-            "vi_minus": round(self.vi_minus, 4),
-            "spread": round(self.spread, 4),
-            "flat": self.flat,
-            "diverging": self.diverging,
-        }
-
-
 def vortex(bars: list[Bar], period: int = VORTEX_PERIOD) -> tuple[float, float]:
     """Классический Vortex: VI+ и VI- за период.
 
@@ -581,45 +564,6 @@ def vortex(bars: list[Bar], period: int = VORTEX_PERIOD) -> tuple[float, float]:
     if tr_sum <= 0:
         return 0.0, 0.0
     return vm_plus / tr_sum, vm_minus / tr_sum
-
-
-def build_vortex(scales_bars: dict[int, list[Bar]]) -> VortexState:
-    """Масштаб с максимальным расхождением VI при плоской цене.
-
-    Перебираем все масштабы, а не читаем один: признак имеет
-    собственную длительность и на чужом масштабе невидим — ровно
-    та же ошибка, что с RVOL на 2D.
-    """
-    best = VortexState()
-
-    for scale in sorted(scales_bars):
-        bars = scales_bars[scale]
-        if len(bars) < VORTEX_PERIOD + 5:
-            continue
-
-        vp, vm = vortex(bars)
-        if vp <= 0 and vm <= 0:
-            continue
-
-        spread = abs(vp - vm)
-        # Плоскость меряем на том же окне, на котором считали VI.
-        window = bars[-(VORTEX_PERIOD + 1):]
-        flat = abs(_slope([b.close for b in window])) <= VORTEX_FLAT_SLOPE_MAX
-
-        # Тренд расхождение даёт тривиально — такой масштаб не берём.
-        if not flat:
-            continue
-        if spread <= best.spread:
-            continue
-
-        best = VortexState(
-            scale=scale,
-            vi_plus=vp,
-            vi_minus=vm,
-            spread=spread,
-            flat=True,
-        )
-    return best
 
 
 # ─────────────────────────────────────────────────────────────
@@ -663,10 +607,10 @@ class Zone:
 
     @property
     def event_age(self) -> int:
-        """Давность самого события, в дневных барах."""
+        """Давность самого свежего события зоны, в днях."""
         if not self.events:
             return 10_000
-        return min(e.age * max(1, e.scale) for e in self.events)
+        return min(e.age_days for e in self.events)
 
     @property
     def freshness(self) -> int:
@@ -888,33 +832,23 @@ def zone_role(zone: Zone, price: float) -> str:
 class DropContext:
     """Что было до текущего состояния: рост, падение, поведение объёма."""
 
-    growth_x: float = 0.0           # во сколько раз вырос перед падением
+    growth_x: float = 0.0        # справка, решений по ней не принимается
+    peak_age_days: int = 0       # давность пика — для чтения growth_x
     drop_pct: float = 0.0
     bars_since_bottom: int = 0
     volume_recovery: float = 0.0    # объём после дна к объёму до него
-    suspicious: bool = False        # объём рос при падающей цене
-    extreme_growth: bool = False    # жёсткое вето семейства
-    distrust_zones: int = 0         # сколько верхних зон обязано провалиться
+    suspicious: bool = False     # помечает, но больше ничего не режет
     valid: bool = False
 
     def to_dict(self) -> dict:
         return {
             "growth_x": round(self.growth_x, 2),
+            "peak_age_days": self.peak_age_days,
             "drop_pct": round(self.drop_pct, 1),
             "bars_since_bottom": self.bars_since_bottom,
             "volume_recovery": round(self.volume_recovery, 2),
             "suspicious": self.suspicious,
-            "extreme_growth": self.extreme_growth,
-            "distrust_zones": self.distrust_zones,
         }
-
-
-def _distrust_count(growth_x: float) -> int:
-    count = 0
-    for threshold, zones in GROWTH_DISTRUST:
-        if growth_x >= threshold:
-            count = zones
-    return count
 
 
 def build_drop_context(bars: list[Bar]) -> DropContext:
@@ -955,8 +889,7 @@ def build_drop_context(bars: list[Bar]) -> DropContext:
         base_low = min(b.low for b in before)
         if base_low > 0:
             ctx.growth_x = peak / base_low
-            ctx.extreme_growth = ctx.growth_x >= EXTREME_GROWTH_X
-            ctx.distrust_zones = _distrust_count(ctx.growth_x)
+    ctx.peak_age_days = n - 1 - peak_i
 
     after = window[peak_i:]
     if len(after) < BOTTOM_MIN_BARS_AFTER:
@@ -1141,6 +1074,219 @@ def pick_horizon(scales_bars: dict[int, list[Bar]]) -> tuple[int, str]:
         label = "месяц+"
     return best_scale, label
 
+# ─────────────────────────────────────────────────────────────
+# Вортекс по форме кривых
+# ─────────────────────────────────────────────────────────────
+# Мгновенный спред VI+ и VI- не работает: порог 0.25 при наблюдаемом
+# разбросе 0.01–0.04 давал один diverging на 145 монет, то есть ветка
+# была мёртвой во всех четырёх модулях, которые её читают.
+#
+# Читается не значение, а ПОВЕДЕНИЕ. Каждый следующий пик VI- ниже
+# предыдущего — продавец слабеет, предложение конечно. Каждый
+# следующий лой VI+ выше предыдущего — покупатель крепнет. Величина
+# накопительная и не требует большого расхождения линий вообще.
+#
+# Нет различимых пиков — молчим. Отсекать монету за невнятную
+# картинку нельзя: фильтром служит стратегия, а не индикатор.
+
+
+def _local_extrema(
+    values: list[float],
+    kind: str,
+    gap: int = VORTEX_EXTREMA_GAP,
+    prominence: float = VORTEX_PROMINENCE,
+) -> list[tuple[int, float]]:
+    """Локальные экстремумы с минимальным разносом и порогом выраженности.
+
+    prominence отсекает зубцы: без него на любой кривой находятся
+    десятки экстремумов, и сравнение последнего с предыдущим
+    становится сравнением двух случайных значений.
+    """
+    n = len(values)
+    if n < gap * 2 + 1:
+        return []
+
+    out: list[tuple[int, float]] = []
+    for i in range(gap, n - gap):
+        win = values[i - gap : i + gap + 1]
+        v = values[i]
+        if kind == "high" and v >= max(win) and v - min(win) >= prominence:
+            out.append((i, v))
+        elif kind == "low" and v <= min(win) and max(win) - v >= prominence:
+            out.append((i, v))
+
+    # Схлопываем соседей на одном плато: иначе широкая вершина даёт
+    # серию одинаковых пиков и последний сравнивается сам с собой.
+    merged: list[tuple[int, float]] = []
+    for idx, val in out:
+        if merged and idx - merged[-1][0] <= gap:
+            better = val > merged[-1][1] if kind == "high" else val < merged[-1][1]
+            if better:
+                merged[-1] = (idx, val)
+        else:
+            merged.append((idx, val))
+    return merged
+
+
+def vortex_series(
+    bars: list[Bar], period: int = VORTEX_PERIOD
+) -> tuple[list[float], list[float]]:
+    """Полные ряды VI+ и VI-.
+
+    Прежняя vortex() возвращала одну точку — последнюю. Форму по одной
+    точке не прочитать, поэтому нужен ряд.
+    """
+    n = len(bars)
+    if n < period + 2:
+        return [], []
+
+    vm_p: list[float] = []
+    vm_m: list[float] = []
+    tr: list[float] = []
+    for prev, cur in zip(bars, bars[1:]):
+        vm_p.append(abs(cur.high - prev.low))
+        vm_m.append(abs(cur.low - prev.high))
+        tr.append(
+            max(
+                cur.high - cur.low,
+                abs(cur.high - prev.close),
+                abs(cur.low - prev.close),
+            )
+        )
+
+    vi_p: list[float] = []
+    vi_m: list[float] = []
+    for i in range(period, len(tr) + 1):
+        s_tr = sum(tr[i - period : i])
+        if s_tr <= 0:
+            continue
+        vi_p.append(sum(vm_p[i - period : i]) / s_tr)
+        vi_m.append(sum(vm_m[i - period : i]) / s_tr)
+    return vi_p, vi_m
+
+
+@dataclass
+class VortexState:
+    """Направление, прочитанное по форме VI."""
+
+    scale: int = 0
+    direction: str = "none"   # up | down | none
+    strength: float = 0.0     # выраженность последнего сдвига, 0..1
+    confidence: float = 0.0   # 0.5 — согласна одна сторона, 1.0 — обе
+    sell_peaks: int = 0       # сколько пиков продаж нашлось
+    buy_lows: int = 0
+    vi_plus: float = 0.0      # последние значения — для отчёта
+    vi_minus: float = 0.0
+
+    @property
+    def diverging(self) -> bool:
+        """Совместимость с модулями: сигнал вверх по форме кривых."""
+        return self.direction == "up"
+
+    @property
+    def mult(self) -> float:
+        """Множитель взамен прежнего `1 + spread * 0.4`.
+
+        Молчание даёт ровно единицу: не усиливает и не ослабляет.
+        """
+        if self.direction == "none":
+            return 1.0
+        k = self.strength * self.confidence * VORTEX_MULT_GAIN
+        return 1.0 + k if self.direction == "up" else max(0.0, 1.0 - k)
+
+    def to_dict(self) -> dict:
+        return {
+            "scale": self.scale,
+            "direction": self.direction,
+            "strength": round(self.strength, 3),
+            "confidence": round(self.confidence, 2),
+            "sell_peaks": self.sell_peaks,
+            "buy_lows": self.buy_lows,
+            "vi_plus": round(self.vi_plus, 4),
+            "vi_minus": round(self.vi_minus, 4),
+            "diverging": self.diverging,
+            "mult": round(self.mult, 3),
+        }
+
+
+def read_vortex(bars: list[Bar], scale: int) -> VortexState:
+    """Читает направление по последним двум экстремумам каждой линии."""
+    vi_p, vi_m = vortex_series(bars)
+    if not vi_p or not vi_m:
+        return VortexState(scale=scale)
+
+    peaks = _local_extrema(vi_m, "high")
+    lows = _local_extrema(vi_p, "low")
+
+    st = VortexState(
+        scale=scale,
+        sell_peaks=len(peaks),
+        buy_lows=len(lows),
+        vi_plus=vi_p[-1],
+        vi_minus=vi_m[-1],
+    )
+
+    votes: list[bool] = []
+    deltas: list[float] = []
+
+    if len(peaks) >= 2:
+        prev, last = peaks[-2][1], peaks[-1][1]
+        votes.append(last < prev)            # пик продаж ниже — рост
+        deltas.append(abs(last - prev) / max(prev, 1e-9))
+
+    if len(lows) >= 2:
+        prev, last = lows[-2][1], lows[-1][1]
+        votes.append(last > prev)            # лой покупок выше — рост
+        deltas.append(abs(last - prev) / max(prev, 1e-9))
+
+    if not votes:
+        return st                            # пиков нет — молчим
+
+    if all(votes):
+        st.direction = "up"
+    elif not any(votes):
+        st.direction = "down"
+    else:
+        # Стороны расходятся. Это не сигнал, это отсутствие сигнала:
+        # объявлять направление по одной линии против другой значит
+        # выдумывать уверенность.
+        return st
+
+    st.confidence = 1.0 if len(votes) == 2 else 0.5
+    st.strength = min(1.0, (sum(deltas) / len(deltas)) * VORTEX_DELTA_GAIN)
+    return st
+
+
+def build_vortex(scales_bars: dict[int, list[Bar]]) -> VortexState:
+    """Масштаб — регулятор громкости шума, больше ничего.
+
+    Берём самый мелкий масштаб, на котором пики уже различимы и их не
+    слишком много: на мелком линии сливаются в кашу, на слишком
+    крупном экстремумов остаётся один-два и сравнивать нечего.
+
+    Верхнего предела нет. Читаемость важнее свежести масштаба: если
+    структура проступила только на 10D, работаем с 10D. Требование
+    плоской цены снято — оно отсекало ровно те случаи, ради которых
+    признак и заводился.
+    """
+    fallback: VortexState | None = None
+
+    for scale in sorted(scales_bars):
+        bars = scales_bars[scale]
+        if len(bars) < VORTEX_PERIOD + VORTEX_MIN_TAIL:
+            continue
+        st = read_vortex(bars, scale)
+        if st.direction == "none":
+            continue
+
+        k = st.sell_peaks + st.buy_lows
+        if VORTEX_MIN_EXTREMA <= k <= VORTEX_MAX_EXTREMA:
+            return st
+        if fallback is None:
+            fallback = st
+
+    return fallback or VortexState()
+
 
 # ─────────────────────────────────────────────────────────────
 # Сборка контекста
@@ -1230,12 +1376,19 @@ class FlowContext:
         return self.drop.growth_x
 
     @property
-    def extreme_growth_x(self) -> float:
-        return EXTREME_GROWTH_X
-
-    @property
     def distrust_zones(self) -> int:
-        return self.drop.distrust_zones
+        """Сколько верхних опор считать ненадёжными.
+
+        Раньше считалось от growth_x по шкале GROWTH_DISTRUST — то
+        есть от того же числа, что стояло за снятым вето, и с той же
+        подменой смысла. Теперь читается по форме вортекса: растущие
+        пики продаж означают, что предложение не исчерпано и ближние
+        опоры под ценой ещё будут проверены сливом.
+        """
+        v = self.vortex
+        if v.direction != "down":
+            return 0
+        return 2 if v.confidence >= 1.0 else 1
 
     @property
     def volume_recovery(self) -> float:
@@ -1326,9 +1479,9 @@ def build_context(symbol: str, quote_volume_24h: float = 0.0) -> FlowContext:
     for i, z in enumerate(ordered):
         z.zones_below = i
 
+    ctx.vortex = build_vortex(ctx.bars)
     ctx.drop = build_drop_context(base)
     ctx.stats = build_flow_stats(base)
-    ctx.vortex = build_vortex(ctx.bars)
     ctx.horizon_scale, ctx.horizon_label = pick_horizon(ctx.bars)
     ctx.valid = True
     return ctx

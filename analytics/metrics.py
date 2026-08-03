@@ -13,6 +13,7 @@ from core.binance import (
     klines_1d, klines_1h, klines_4h, klines_1w, series,
 )
 from core.config import MIN_HISTORY_DAYS, VOL_MEDIAN_WINDOW, MIN_BAR_FILL
+from core.volume import volume_ratio
 
 # Короткие ряды, которые остаются в снимке для отрисовки спарклайнов
 KEEP_SERIES = ("spark_1d", "spark_vol")
@@ -81,41 +82,18 @@ def bar_fill(kline: list) -> float:
 
 
 def vol_ratio(klines: list[list]) -> float | None:
-    """Объём текущего бара к медиане предыдущих, кратностью.
-
-    Текущий бар почти всегда незакрыт, и его объём достраивается
-    по доле набранного времени. Без этого величина занижена тем
-    сильнее, чем крупнее масштаб: дневка, открытая три часа назад,
-    покажет восьмую часть оборота — и соврёт ровно тогда, когда
-    колонка нужнее всего, на свежем движении.
-
-    Норма строится по закрытым барам: текущий из выборки исключён.
-    Неполный бар в норме занижает медиану и делает аномалией любой
-    обычный объём.
-
-    None — бар набран меньше порога. Прочерк честнее числа.
-    """
+    """Объём текущего бара к медиане предыдущих, кратностью."""
     if not klines or len(klines) < VOL_MEDIAN_WINDOW + 1:
         return None
-
     quotes = series(klines, K_QUOTE_VOLUME)
-    current = quotes[-1]
-    if current <= 0:
-        return None
-
-    fill = bar_fill(klines[-1])
-    if fill < MIN_BAR_FILL:
-        return None
-
-    med = median(quotes[-(VOL_MEDIAN_WINDOW + 1):-1])
-    if med <= 0:
-        return None
-
-    return (current / fill) / med
+    fills = [bar_fill(k) for k in klines]
+    return volume_ratio(
+        quotes, fills,
+        window=VOL_MEDIAN_WINDOW,
+        min_fill=MIN_BAR_FILL,
+    )
 
 BOTTOM_WINDOW = 60
-
-
 def _from_bottom(lows: list[float], price: float) -> tuple[float, int]:
     """Рост от минимума окна и его давность в днях.
 
