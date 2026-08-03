@@ -844,7 +844,7 @@ FLOWREP = """
 .fr-sym:hover{color:var(--fl)}
 
 .fr-in{position:relative;z-index:1;display:grid;
-       grid-template-columns:170px 68px 104px 116px 158px 100px 92px 92px 84px;
+       grid-template-columns:178px 68px 104px 116px 158px 100px 92px 92px 84px;
        align-items:center;gap:0 14px;min-height:136px;padding:0 26px}
 /* чип паттерна: ярлык, не абзац — перенос запрещён */
 .fr-chip{align-self:flex-start;max-width:100%;height:16px;line-height:14px;
@@ -852,10 +852,6 @@ FLOWREP = """
          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
          color:var(--fl);background:color-mix(in srgb,var(--fc) 10%,transparent);
          border:1px solid color-mix(in srgb,var(--fc) 30%,transparent)}
-
-/* тег роста от дна */
-.fr-tag.up{color:#6BFFB4;background:rgba(34,224,138,.08);
-           border-color:rgba(34,224,138,.3)}
 
 /* зоны: стрелка · дистанция · подпись */
 .fr-zn{display:flex;align-items:baseline;gap:5px}
@@ -870,10 +866,12 @@ FLOWREP = """
 /* шапка: два тега в строку */
 .fr-caps{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
 .fr-tag{height:15px;line-height:13px;padding:0 8px;border-radius:8px;
-  font-size:8.6px;font-weight:300;color:var(--fl);
+  font-size:8.6px;font-weight:400;color:var(--fl);
   background:color-mix(in srgb,var(--fc) 13%,transparent);
-  border:1px solid color-mix(in srgb,var(--fc) 40%,transparent)}
-.fr-tag.gh{color:#f7f7f7;background:none;border-color:#414141}
+  border:1px solid color-mix(in srgb,var(--fc) 40%,transparent); opacity: 0.8}
+.fr-tag.gh{color:#f7f7f7;background:transparent;border-color:transparent}
+/* тег роста от дна */
+.fr-tag.up{color:#f7f7f7;background:transparent;border-color:transparent}
 
 /* объём: три масштаба столбиком */
 .fr-vol{gap:7px}
