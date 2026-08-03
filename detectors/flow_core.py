@@ -1070,17 +1070,23 @@ def pick_horizon(scales_bars: dict[int, list[Bar]]) -> tuple[int, str]:
 # ─────────────────────────────────────────────────────────────
 # Вортекс по форме кривых
 # ─────────────────────────────────────────────────────────────
-# Мгновенный спред VI+ и VI- не работает: порог 0.25 при наблюдаемом
-# разбросе 0.01–0.04 давал один diverging на 145 монет, то есть ветка
-# была мёртвой во всех четырёх модулях, которые её читают.
+# Мгновенный спред VI+ и VI- не работает. VORTEX_SPREAD_MIN = 0.25
+# при наблюдаемом разбросе 0.01–0.04 давал один diverging на 145
+# монет: ветка присутствовала в пяти модулях из шести и не
+# исполнялась ни в одном. На ZEREBRO, где разворот виден глазами,
+# спред равен 0.09 — старое условие не увидело бы и его.
 #
 # Читается не значение, а ПОВЕДЕНИЕ. Каждый следующий пик VI- ниже
 # предыдущего — продавец слабеет, предложение конечно. Каждый
 # следующий лой VI+ выше предыдущего — покупатель крепнет. Величина
-# накопительная и не требует большого расхождения линий вообще.
+# накопительная и большого расхождения линий не требует вовсе:
+# на ZEREBRO пик продаж под 2.0 больше не повторился, а линии при
+# этом сошлись почти вплотную.
 #
 # Нет различимых пиков — молчим. Отсекать монету за невнятную
-# картинку нельзя: фильтром служит стратегия, а не индикатор.
+# картинку нельзя: вторым фильтром служит стратегия. На OP пики
+# продаж идут вровень и последний даже выше — ждать там снижения
+# бессмысленно, а движения тем временем проходят мимо.
 
 
 def _local_extrema(
@@ -1091,27 +1097,27 @@ def _local_extrema(
 ) -> list[tuple[int, float]]:
     """Локальные экстремумы с минимальным разносом и порогом выраженности.
 
-    prominence отсекает зубцы: без него на любой кривой находятся
+    prominence отсекает зубцы. Без него на любой кривой находятся
     десятки экстремумов, и сравнение последнего с предыдущим
-    становится сравнением двух случайных значений.
+    вырождается в сравнение двух случайных значений.
     """
     n = len(values)
     if n < gap * 2 + 1:
         return []
 
-    out: list[tuple[int, float]] = []
+    found: list[tuple[int, float]] = []
     for i in range(gap, n - gap):
         win = values[i - gap : i + gap + 1]
         v = values[i]
         if kind == "high" and v >= max(win) and v - min(win) >= prominence:
-            out.append((i, v))
+            found.append((i, v))
         elif kind == "low" and v <= min(win) and max(win) - v >= prominence:
-            out.append((i, v))
+            found.append((i, v))
 
-    # Схлопываем соседей на одном плато: иначе широкая вершина даёт
-    # серию одинаковых пиков и последний сравнивается сам с собой.
+    # Схлопываем соседей на одном плато: широкая вершина иначе даёт
+    # серию одинаковых пиков, и последний сравнивается сам с собой.
     merged: list[tuple[int, float]] = []
-    for idx, val in out:
+    for idx, val in found:
         if merged and idx - merged[-1][0] <= gap:
             better = val > merged[-1][1] if kind == "high" else val < merged[-1][1]
             if better:
@@ -1126,8 +1132,8 @@ def vortex_series(
 ) -> tuple[list[float], list[float]]:
     """Полные ряды VI+ и VI-.
 
-    Прежняя vortex() возвращала одну точку — последнюю. Форму по одной
-    точке не прочитать, поэтому нужен ряд.
+    Прежняя vortex() возвращала одну точку — последнюю. Форму по
+    одной точке не прочитать, поэтому нужен ряд.
     """
     n = len(bars)
     if n < period + 2:
@@ -1165,26 +1171,24 @@ class VortexState:
     scale: int = 0
     direction: str = "none"   # up | down | none
     strength: float = 0.0     # выраженность последнего сдвига, 0..1
-    confidence: float = 0.0   # 0.5 — согласна одна сторона, 1.0 — обе
-    sell_peaks: int = 0       # сколько пиков продаж нашлось
+    confidence: float = 0.0   # 0.5 — согласна одна линия, 1.0 — обе
+    sell_peaks: int = 0
     buy_lows: int = 0
-    vi_plus: float = 0.0      # последние значения — для отчёта
+    vi_plus: float = 0.0      # последние значения, для отчёта
     vi_minus: float = 0.0
 
-    @property
-    def diverging(self) -> bool:
-        """Совместимость с модулями: сигнал вверх по форме кривых."""
-        return self.direction == "up"
+    def mult(self, gain: float = VORTEX_MULT_GAIN) -> float:
+        """Множитель взамен прежнего `1 + spread * gain`.
 
-    @property
-    def mult(self) -> float:
-        """Множитель взамен прежнего `1 + spread * 0.4`.
+        gain задаёт модуль: для hidden вортекс весит больше, чем для
+        churn. Там это второй опережающий признак рядом с дельтой,
+        здесь — ответ на вопрос «кто победил в столкновении».
 
         Молчание даёт ровно единицу: не усиливает и не ослабляет.
         """
         if self.direction == "none":
             return 1.0
-        k = self.strength * self.confidence * VORTEX_MULT_GAIN
+        k = self.strength * self.confidence * gain
         return 1.0 + k if self.direction == "up" else max(0.0, 1.0 - k)
 
     def to_dict(self) -> dict:
@@ -1197,19 +1201,18 @@ class VortexState:
             "buy_lows": self.buy_lows,
             "vi_plus": round(self.vi_plus, 4),
             "vi_minus": round(self.vi_minus, 4),
-            "diverging": self.diverging,
-            "mult": round(self.mult, 3),
+            "mult": round(self.mult(), 3),
         }
 
 
 def read_vortex(bars: list[Bar], scale: int) -> VortexState:
-    """Читает направление по последним двум экстремумам каждой линии."""
+    """Направление по последним двум экстремумам каждой линии."""
     vi_p, vi_m = vortex_series(bars)
     if not vi_p or not vi_m:
         return VortexState(scale=scale)
 
-    peaks = _local_extrema(vi_m, "high")
-    lows = _local_extrema(vi_p, "low")
+    peaks = _local_extrema(vi_m, "high")   # пики продаж
+    lows = _local_extrema(vi_p, "low")     # лои покупок
 
     st = VortexState(
         scale=scale,
@@ -1224,25 +1227,25 @@ def read_vortex(bars: list[Bar], scale: int) -> VortexState:
 
     if len(peaks) >= 2:
         prev, last = peaks[-2][1], peaks[-1][1]
-        votes.append(last < prev)            # пик продаж ниже — рост
+        votes.append(last < prev)          # пик продаж ниже — вверх
         deltas.append(abs(last - prev) / max(prev, 1e-9))
 
     if len(lows) >= 2:
         prev, last = lows[-2][1], lows[-1][1]
-        votes.append(last > prev)            # лой покупок выше — рост
+        votes.append(last > prev)          # лой покупок выше — вверх
         deltas.append(abs(last - prev) / max(prev, 1e-9))
 
     if not votes:
-        return st                            # пиков нет — молчим
+        return st                          # пиков нет — молчим
 
     if all(votes):
         st.direction = "up"
     elif not any(votes):
         st.direction = "down"
     else:
-        # Стороны расходятся. Это не сигнал, это отсутствие сигнала:
-        # объявлять направление по одной линии против другой значит
-        # выдумывать уверенность.
+        # Линии расходятся во мнении. Это не сигнал, а его
+        # отсутствие: объявлять направление по одной против другой
+        # значит выдумывать уверенность.
         return st
 
     st.confidence = 1.0 if len(votes) == 2 else 0.5
@@ -1253,14 +1256,18 @@ def read_vortex(bars: list[Bar], scale: int) -> VortexState:
 def build_vortex(scales_bars: dict[int, list[Bar]]) -> VortexState:
     """Масштаб — регулятор громкости шума, больше ничего.
 
-    Берём самый мелкий масштаб, на котором пики уже различимы и их не
-    слишком много: на мелком линии сливаются в кашу, на слишком
-    крупном экстремумов остаётся один-два и сравнивать нечего.
+    Берём самый мелкий масштаб, на котором пики уже различимы и их
+    не слишком много. На мелком линии сливаются в кашу — COTI на 1D
+    даёт сплошную сетку, на старшем те же данные расходятся и бугры
+    читаются. На слишком крупном экстремумов остаётся один-два и
+    сравнивать нечего.
 
     Верхнего предела нет. Читаемость важнее свежести масштаба: если
-    структура проступила только на 10D, работаем с 10D. Требование
-    плоской цены снято — оно отсекало ровно те случаи, ради которых
-    признак и заводился.
+    структура проступила только на 10D, работаем с 10D.
+
+    Требование плоской цены снято. Прежнее `if not flat: continue`
+    отбрасывало масштаб, где цена уже пошла, — то есть ровно те
+    случаи, ради которых признак и заводился.
     """
     fallback: VortexState | None = None
 
@@ -1268,6 +1275,7 @@ def build_vortex(scales_bars: dict[int, list[Bar]]) -> VortexState:
         bars = scales_bars[scale]
         if len(bars) < VORTEX_PERIOD + VORTEX_MIN_TAIL:
             continue
+
         st = read_vortex(bars, scale)
         if st.direction == "none":
             continue

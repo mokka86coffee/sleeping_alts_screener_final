@@ -1,0 +1,7693 @@
+[
+  {
+    "symbol": "ZECUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 55.6,
+        "base": 62.0,
+        "cut": 0.9,
+        "reasons": [
+          "топливо: 17 уровня снято вверх, сверху свободно",
+          "уровень 321.028 удержан на 4 ретестах",
+          "объём не восстановился (x0.44)"
+        ],
+        "mults": {
+          "retest_held": 1.12,
+          "thin_volume": 0.8
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 17 уровня снято вверх, сверху свободно; уровень 321.028 удержан на 4 ретестах; объём не восстановился (x0.44). Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 365.2209466794643,
+        "reasons": [
+          "топливо: 17 уровня снято вверх, сверху свободно",
+          "уровень 321.028 удержан на 4 ретестах",
+          "объём не восстановился (x0.44)"
+        ],
+        "facts": {
+          "cleared": 17.0,
+          "cleared_mass": 16.6,
+          "weight_above": 0.0,
+          "retest_price": 321.027926,
+          "tests": 4.0,
+          "volume_recovery": 0.435945
+        },
+        "mults": {
+          "retest_held": 1.12,
+          "thin_volume": 0.8
+        }
+      }
+    ],
+    "context": {
+      "price": 486.06,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 217,
+      "zones": [
+        {
+          "price": 36.61,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 5,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 1.0,
+          "freshness": 346,
+          "tests": 1,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 39.1826334382,
+          "events": 4,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.75,
+          "buy_ratio": 1.0,
+          "freshness": 331,
+          "tests": 3,
+          "plateau_bars": 29,
+          "broken": false
+        },
+        {
+          "price": 40.8279921873,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 11,
+          "absorbed_ratio": 0.83,
+          "buy_ratio": 0.5,
+          "freshness": 330,
+          "tests": 1,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 47.5253457517,
+          "events": 3,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 1.0,
+          "freshness": 313,
+          "tests": 4,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 48.3705548696,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 16,
+          "absorbed_ratio": 0.83,
+          "buy_ratio": 1.0,
+          "freshness": 313,
+          "tests": 2,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 50.2542156485,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 7,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 0.67,
+          "freshness": 313,
+          "tests": 1,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 51.4784084656,
+          "events": 2,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.5,
+          "freshness": 309,
+          "tests": 2,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 54.877652426,
+          "events": 7,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 20,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.57,
+          "freshness": 308,
+          "tests": 1,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 61.03,
+          "events": 2,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 1.0,
+          "freshness": 306,
+          "tests": 1,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 72.0,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 1.0,
+          "freshness": 305,
+          "tests": 1,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 120.8,
+          "events": 3,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.67,
+          "freshness": 299,
+          "tests": 2,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 127.4008979926,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 18,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.17,
+          "freshness": 298,
+          "tests": 1,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 131.31,
+          "events": 2,
+          "scales": [
+            1,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.5,
+          "freshness": 298,
+          "tests": 2,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 245.169529325,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 14,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.5,
+          "freshness": 58,
+          "tests": 2,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 250.5174138969,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 13,
+          "absorbed_ratio": 0.4,
+          "buy_ratio": 0.2,
+          "freshness": 58,
+          "tests": 2,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 321.0279257842,
+          "events": 7,
+          "scales": [
+            1,
+            2,
+            3,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 16,
+          "absorbed_ratio": 0.43,
+          "buy_ratio": 0.86,
+          "freshness": 58,
+          "tests": 4,
+          "plateau_bars": 22,
+          "broken": false
+        },
+        {
+          "price": 365.2209466795,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 17,
+          "absorbed_ratio": 0.38,
+          "buy_ratio": 0.62,
+          "freshness": 34,
+          "tests": 2,
+          "plateau_bars": 22,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 17,
+      "drop": {
+        "growth_x": 3.74,
+        "peak_age_days": 75,
+        "drop_pct": 63.7,
+        "bars_since_bottom": 59,
+        "volume_recovery": 0.44,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": 0.0101,
+        "price_slope": -0.0015,
+        "homogeneity": 0.91,
+        "buy_share": 0.506,
+        "collapsing": false,
+        "rel_volume": 0.53
+      },
+      "vortex": {
+        "scale": 10,
+        "direction": "up",
+        "strength": 0.714,
+        "confidence": 1.0,
+        "sell_peaks": 2,
+        "buy_lows": 4,
+        "vi_plus": 1.1343,
+        "vi_minus": 0.8861,
+        "diverging": true,
+        "mult": 1.286
+      },
+      "horizon": "недели"
+    },
+    "failures": {
+      "flow_hidden": "AttributeError: 'VortexState' object has no attribute 'spread'"
+    }
+  },
+  {
+    "symbol": "HYPEUSDT",
+    "detected": true,
+    "score": 83,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 69.4,
+        "base": 62.0,
+        "cut": 1.12,
+        "reasons": [
+          "топливо: 6 уровня снято вверх, сверху свободно",
+          "уровень 34.4997 удержан на 3 ретестах"
+        ],
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 6 уровня снято вверх, сверху свободно; уровень 34.4997 удержан на 3 ретестах. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 47.79255516990018,
+        "reasons": [
+          "топливо: 6 уровня снято вверх, сверху свободно",
+          "уровень 34.4997 удержан на 3 ретестах"
+        ],
+        "facts": {
+          "cleared": 6.0,
+          "cleared_mass": 5.4,
+          "weight_above": 0.0,
+          "retest_price": 34.499721,
+          "tests": 3.0
+        },
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    ],
+    "context": {
+      "price": 54.465,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 119,
+      "zones": [
+        {
+          "price": 30.8505222101,
+          "events": 13,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 32,
+          "absorbed_ratio": 0.85,
+          "buy_ratio": 0.46,
+          "freshness": 146,
+          "tests": 1,
+          "plateau_bars": 62,
+          "broken": false
+        },
+        {
+          "price": 34.4997205011,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 5,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.5,
+          "freshness": 117,
+          "tests": 3,
+          "plateau_bars": 71,
+          "broken": false
+        },
+        {
+          "price": 42.2132807099,
+          "events": 5,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 7,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.8,
+          "freshness": 77,
+          "tests": 1,
+          "plateau_bars": 40,
+          "broken": false
+        },
+        {
+          "price": 44.2671782336,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 13,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.5,
+          "freshness": 76,
+          "tests": 1,
+          "plateau_bars": 40,
+          "broken": false
+        },
+        {
+          "price": 45.6784144007,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 19,
+          "absorbed_ratio": 0.25,
+          "buy_ratio": 0.62,
+          "freshness": 74,
+          "tests": 1,
+          "plateau_bars": 40,
+          "broken": false
+        },
+        {
+          "price": 47.7925551699,
+          "events": 6,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 14,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.67,
+          "freshness": 74,
+          "tests": 1,
+          "plateau_bars": 40,
+          "broken": false
+        },
+        {
+          "price": 53.5804006016,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 11,
+          "absorbed_ratio": 0.6,
+          "buy_ratio": 0.4,
+          "freshness": 52,
+          "tests": 1,
+          "plateau_bars": 40,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 6,
+      "drop": {
+        "growth_x": 3.76,
+        "peak_age_days": 48,
+        "drop_pct": 33.6,
+        "bars_since_bottom": 0,
+        "volume_recovery": 0.0,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0278,
+        "price_slope": -0.0104,
+        "homogeneity": 0.74,
+        "buy_share": 0.488,
+        "collapsing": false,
+        "rel_volume": 0.6
+      },
+      "vortex": {
+        "scale": 5,
+        "direction": "up",
+        "strength": 0.189,
+        "confidence": 1.0,
+        "sell_peaks": 6,
+        "buy_lows": 8,
+        "vi_plus": 0.9786,
+        "vi_minus": 1.0632,
+        "diverging": true,
+        "mult": 1.076
+      },
+      "horizon": "недели"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "AKEUSDT",
+    "detected": true,
+    "score": 72,
+    "case": "flow_churn",
+    "strength_label": "сильный",
+    "horizon_days": 2,
+    "horizon_tf": "дни",
+    "horizon_readable": false,
+    "cases": {
+      "flow_churn": {
+        "score": 48.7,
+        "base": 77.0,
+        "cut": 0.63,
+        "reasons": [
+          "поглощение на 0.0031325: тир 3, событий 2",
+          "плато над зоной 3 дней",
+          "подтверждено масштабами [1, 2]"
+        ],
+        "mults": {
+          "plateau": 0.55,
+          "tested": 1.15
+        }
+      }
+    },
+    "verdict": "Поглощение на уровне: поглощение на 0.0031325: тир 3, событий 2; плато над зоной 3 дней; подтверждено масштабами [1, 2].",
+    "parts": [
+      {
+        "zone_price": 0.0031325000000000003,
+        "reasons": [
+          "поглощение на 0.0031325: тир 3, событий 2",
+          "плато над зоной 3 дней",
+          "подтверждено масштабами [1, 2]",
+          "уровень выдержал 2 теста"
+        ],
+        "facts": {
+          "tier": 3.0,
+          "sigma": 161.144267,
+          "events": 2.0,
+          "zone_price": 0.003133,
+          "plateau_bars": 3.0,
+          "scales": 2.0,
+          "tests": 2.0,
+          "last_test_age": 4.0
+        },
+        "mults": {
+          "plateau": 0.55,
+          "tested": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 0.0045485,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 149,
+      "zones": [
+        {
+          "price": 0.0001948759,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 13,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.5,
+          "freshness": 18,
+          "tests": 1,
+          "plateau_bars": 3,
+          "broken": false
+        },
+        {
+          "price": 0.0010236,
+          "events": 3,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.67,
+          "freshness": 16,
+          "tests": 1,
+          "plateau_bars": 3,
+          "broken": false
+        },
+        {
+          "price": 0.0016999345,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 18,
+          "absorbed_ratio": 0.17,
+          "buy_ratio": 0.83,
+          "freshness": 10,
+          "tests": 1,
+          "plateau_bars": 3,
+          "broken": false
+        },
+        {
+          "price": 0.0027192,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 1.0,
+          "freshness": 7,
+          "tests": 1,
+          "plateau_bars": 3,
+          "broken": false
+        },
+        {
+          "price": 0.0030449,
+          "events": 2,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 1.0,
+          "freshness": 6,
+          "tests": 1,
+          "plateau_bars": 3,
+          "broken": false
+        },
+        {
+          "price": 0.0031325,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 1.0,
+          "freshness": 4,
+          "tests": 2,
+          "plateau_bars": 3,
+          "broken": false
+        },
+        {
+          "price": 0.0038123,
+          "events": 2,
+          "scales": [
+            1,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 1.0,
+          "freshness": 0,
+          "tests": 1,
+          "plateau_bars": 2,
+          "broken": false
+        },
+        {
+          "price": 0.0040754116,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.75,
+          "buy_ratio": 1.0,
+          "freshness": 6,
+          "tests": 0,
+          "plateau_bars": 2,
+          "broken": false
+        },
+        {
+          "price": 0.0045450688,
+          "events": 5,
+          "scales": [
+            2,
+            3,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.4,
+          "buy_ratio": 1.0,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 9,
+      "drop": {
+        "growth_x": 39.91,
+        "peak_age_days": 7,
+        "drop_pct": 0.0,
+        "bars_since_bottom": 0,
+        "volume_recovery": 0.0,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": 0.0275,
+        "price_slope": 0.0934,
+        "homogeneity": 0.91,
+        "buy_share": 0.511,
+        "collapsing": false,
+        "rel_volume": 120.16
+      },
+      "vortex": {
+        "scale": 5,
+        "direction": "down",
+        "strength": 1.0,
+        "confidence": 1.0,
+        "sell_peaks": 4,
+        "buy_lows": 5,
+        "vi_plus": 1.2706,
+        "vi_minus": 0.493,
+        "diverging": false,
+        "mult": 0.6
+      },
+      "horizon": "дни"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "BEATUSDT",
+    "detected": true,
+    "score": 87,
+    "case": "flow_hidden",
+    "strength_label": "экстремальный",
+    "horizon_days": 5,
+    "horizon_tf": "неделя",
+    "horizon_readable": true,
+    "cases": {
+      "flow_hidden": {
+        "score": 76.5,
+        "base": 54.0,
+        "cut": 1.42,
+        "reasons": [
+          "скрытый набор: дельта растёт 67 баров, цена стоит (+0.17% за бар)",
+          "набор равномерный (однородность 0.71)",
+          "минимумы перестали обновляться вниз"
+        ],
+        "mults": {
+          "even_flow": 1.15,
+          "higher_lows": 1.12,
+          "floor_zone": 1.1
+        }
+      }
+    },
+    "verdict": "Скрытый набор: скрытый набор: дельта растёт 67 баров, цена стоит (+0.17% за бар); набор равномерный (однородность 0.71); минимумы перестали обновляться вниз. Картина читается на неделя, ожидание порядка 5 дней.",
+    "parts": [
+      {
+        "zone_price": 2.661815024890078,
+        "reasons": [
+          "скрытый набор: дельта растёт 67 баров, цена стоит (+0.17% за бар)",
+          "набор равномерный (однородность 0.71)",
+          "минимумы перестали обновляться вниз",
+          "набор идёт от зоны 2.66182 (1 тестов)"
+        ],
+        "facts": {
+          "span": 67.0,
+          "delta_slope": 0.011865,
+          "price_slope": 0.001669,
+          "excess": 1.186453,
+          "homogeneity": 0.708509,
+          "zone_price": 2.661815,
+          "tests": 1.0
+        },
+        "mults": {
+          "even_flow": 1.15,
+          "higher_lows": 1.12,
+          "floor_zone": 1.1
+        }
+      }
+    ],
+    "context": {
+      "price": 3.01,
+      "scales": [
+        1,
+        2,
+        3,
+        5
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966
+      },
+      "events_total": 88,
+      "zones": [
+        {
+          "price": 0.7497,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 1.0,
+          "freshness": 72,
+          "tests": 1,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.9863194208,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.4,
+          "buy_ratio": 1.0,
+          "freshness": 61,
+          "tests": 2,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 1.1371,
+          "events": 3,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 8,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.67,
+          "freshness": 60,
+          "tests": 1,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 1.1874133428,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.8,
+          "buy_ratio": 1.0,
+          "freshness": 60,
+          "tests": 1,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 1.4496,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.0,
+          "freshness": 39,
+          "tests": 3,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 1.7104225236,
+          "events": 3,
+          "scales": [
+            2,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 5,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.33,
+          "freshness": 38,
+          "tests": 1,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 2.6618150249,
+          "events": 2,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.5,
+          "freshness": 5,
+          "tests": 1,
+          "plateau_bars": 3,
+          "broken": false
+        },
+        {
+          "price": 3.0331022132,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 1.0,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        },
+        {
+          "price": 3.5261868943,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 5,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 1.0,
+          "freshness": 1,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 7,
+      "drop": {
+        "growth_x": 89.62,
+        "peak_age_days": 52,
+        "drop_pct": 87.4,
+        "bars_since_bottom": 46,
+        "volume_recovery": 0.18,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0012,
+        "price_slope": 0.018,
+        "homogeneity": 0.83,
+        "buy_share": 0.5,
+        "collapsing": false,
+        "rel_volume": 0.79
+      },
+      "vortex": {
+        "scale": 3,
+        "direction": "down",
+        "strength": 1.0,
+        "confidence": 1.0,
+        "sell_peaks": 6,
+        "buy_lows": 3,
+        "vi_plus": 1.0718,
+        "vi_minus": 0.7298,
+        "diverging": false,
+        "mult": 0.6
+      },
+      "horizon": "неделя"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "UNIUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 2,
+    "horizon_tf": "дни",
+    "horizon_readable": false,
+    "cases": {
+      "flow_fuel": {
+        "score": 55.6,
+        "base": 62.0,
+        "cut": 0.9,
+        "reasons": [
+          "топливо: 4 уровня снято вверх, сверху свободно",
+          "уровень 3.59117 удержан на 2 ретестах",
+          "объём не восстановился (x0.90)"
+        ],
+        "mults": {
+          "retest_held": 1.12,
+          "thin_volume": 0.8
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 4 уровня снято вверх, сверху свободно; уровень 3.59117 удержан на 2 ретестах; объём не восстановился (x0.90).",
+    "parts": [
+      {
+        "zone_price": 3.59117352302986,
+        "reasons": [
+          "топливо: 4 уровня снято вверх, сверху свободно",
+          "уровень 3.59117 удержан на 2 ретестах",
+          "объём не восстановился (x0.90)"
+        ],
+        "facts": {
+          "cleared": 4.0,
+          "cleared_mass": 3.6,
+          "weight_above": 0.0,
+          "retest_price": 3.591174,
+          "tests": 2.0,
+          "volume_recovery": 0.901569
+        },
+        "mults": {
+          "retest_held": 1.12,
+          "thin_volume": 0.8
+        }
+      }
+    ],
+    "context": {
+      "price": 3.916,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 110,
+      "zones": [
+        {
+          "price": 3.2154652472,
+          "events": 9,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 21,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 0.44,
+          "freshness": 24,
+          "tests": 1,
+          "plateau_bars": 27,
+          "broken": false
+        },
+        {
+          "price": 3.2871490502,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 13,
+          "absorbed_ratio": 0.6,
+          "buy_ratio": 0.6,
+          "freshness": 13,
+          "tests": 2,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 3.4874222521,
+          "events": 3,
+          "scales": [
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 5,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.33,
+          "freshness": 8,
+          "tests": 2,
+          "plateau_bars": 24,
+          "broken": false
+        },
+        {
+          "price": 3.591173523,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 5,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 1.0,
+          "freshness": 4,
+          "tests": 2,
+          "plateau_bars": 15,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 4,
+      "drop": {
+        "growth_x": 1.35,
+        "peak_age_days": 218,
+        "drop_pct": 64.8,
+        "bars_since_bottom": 58,
+        "volume_recovery": 0.9,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0107,
+        "price_slope": 0.0085,
+        "homogeneity": 0.77,
+        "buy_share": 0.494,
+        "collapsing": false,
+        "rel_volume": 1.37
+      },
+      "vortex": {
+        "scale": 5,
+        "direction": "up",
+        "strength": 0.365,
+        "confidence": 1.0,
+        "sell_peaks": 8,
+        "buy_lows": 6,
+        "vi_plus": 1.089,
+        "vi_minus": 0.8709,
+        "diverging": true,
+        "mult": 1.146
+      },
+      "horizon": "дни"
+    },
+    "failures": {
+      "flow_churn": "AttributeError: 'VortexState' object has no attribute 'spread'"
+    }
+  },
+  {
+    "symbol": "WLDUSDT",
+    "detected": true,
+    "score": 83,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 69.4,
+        "base": 62.0,
+        "cut": 1.12,
+        "reasons": [
+          "топливо: 5 уровня снято вверх, сверху свободно",
+          "уровень 0.289855 удержан на 3 ретестах"
+        ],
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 5 уровня снято вверх, сверху свободно; уровень 0.289855 удержан на 3 ретестах. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.29980000000000007,
+        "reasons": [
+          "топливо: 5 уровня снято вверх, сверху свободно",
+          "уровень 0.289855 удержан на 3 ретестах"
+        ],
+        "facts": {
+          "cleared": 5.0,
+          "cleared_mass": 4.3,
+          "weight_above": 0.0,
+          "retest_price": 0.289855,
+          "tests": 3.0
+        },
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    ],
+    "context": {
+      "price": 0.3249,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 150,
+      "zones": [
+        {
+          "price": 0.2484980344,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 2,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.5,
+          "freshness": 71,
+          "tests": 2,
+          "plateau_bars": 27,
+          "broken": false
+        },
+        {
+          "price": 0.2692695446,
+          "events": 4,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 8,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.75,
+          "freshness": 65,
+          "tests": 2,
+          "plateau_bars": 27,
+          "broken": false
+        },
+        {
+          "price": 0.2800062789,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 11,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.17,
+          "freshness": 64,
+          "tests": 1,
+          "plateau_bars": 27,
+          "broken": false
+        },
+        {
+          "price": 0.2898549627,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.25,
+          "buy_ratio": 0.25,
+          "freshness": 0,
+          "tests": 3,
+          "plateau_bars": 27,
+          "broken": false
+        },
+        {
+          "price": 0.2998,
+          "events": 3,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 8,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.67,
+          "freshness": 64,
+          "tests": 2,
+          "plateau_bars": 27,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 4,
+      "drop": {
+        "growth_x": 3.2,
+        "peak_age_days": 47,
+        "drop_pct": 59.2,
+        "bars_since_bottom": 5,
+        "volume_recovery": 0.0,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0381,
+        "price_slope": -0.0102,
+        "homogeneity": 0.3,
+        "buy_share": 0.482,
+        "collapsing": false,
+        "rel_volume": 0.84
+      },
+      "vortex": {
+        "scale": 1,
+        "direction": "down",
+        "strength": 0.593,
+        "confidence": 1.0,
+        "sell_peaks": 47,
+        "buy_lows": 51,
+        "vi_plus": 0.8532,
+        "vi_minus": 1.1797,
+        "diverging": false,
+        "mult": 0.763
+      },
+      "horizon": "недели"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "PUMPUSDT",
+    "detected": true,
+    "score": 83,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 2,
+    "horizon_tf": "дни",
+    "horizon_readable": false,
+    "cases": {
+      "flow_churn": {
+        "score": 21.3,
+        "base": 38.0,
+        "cut": 0.56,
+        "reasons": [
+          "поглощение на 0.00142984: тир 2, событий 1",
+          "плато над зоной 15 дней",
+          "подтверждено масштабами [1, 2, 3]"
+        ],
+        "mults": {
+          "plateau": 0.634,
+          "tested": 1.15,
+          "recovery": 1.1,
+          "distrust": 0.7
+        }
+      },
+      "flow_fuel": {
+        "score": 69.4,
+        "base": 62.0,
+        "cut": 1.12,
+        "reasons": [
+          "топливо: 3 уровня снято вверх, сверху свободно",
+          "уровень 0.00169461 удержан на 2 ретестах"
+        ],
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 3 уровня снято вверх, сверху свободно; уровень 0.00169461 удержан на 2 ретестах.",
+    "parts": [
+      {
+        "zone_price": 0.0016946119843160327,
+        "reasons": [
+          "топливо: 3 уровня снято вверх, сверху свободно",
+          "уровень 0.00169461 удержан на 2 ретестах"
+        ],
+        "facts": {
+          "cleared": 3.0,
+          "cleared_mass": 2.3,
+          "weight_above": 0.0,
+          "retest_price": 0.001695,
+          "tests": 2.0
+        },
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    ],
+    "context": {
+      "price": 0.00218,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 48,
+      "zones": [
+        {
+          "price": 0.0014298431,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.75,
+          "buy_ratio": 1.0,
+          "freshness": 19,
+          "tests": 2,
+          "plateau_bars": 15,
+          "broken": false
+        },
+        {
+          "price": 0.0015224675,
+          "events": 2,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 2,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.5,
+          "freshness": 18,
+          "tests": 1,
+          "plateau_bars": 13,
+          "broken": false
+        },
+        {
+          "price": 0.001694612,
+          "events": 3,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.67,
+          "freshness": 8,
+          "tests": 2,
+          "plateau_bars": 17,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 3,
+      "drop": {
+        "growth_x": 2.0,
+        "peak_age_days": 187,
+        "drop_pct": 65.8,
+        "bars_since_bottom": 39,
+        "volume_recovery": 1.37,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": 0.0035,
+        "price_slope": 0.0135,
+        "homogeneity": 0.89,
+        "buy_share": 0.501,
+        "collapsing": false,
+        "rel_volume": 1.33
+      },
+      "vortex": {
+        "scale": 5,
+        "direction": "down",
+        "strength": 0.218,
+        "confidence": 1.0,
+        "sell_peaks": 8,
+        "buy_lows": 8,
+        "vi_plus": 1.055,
+        "vi_minus": 0.907,
+        "diverging": false,
+        "mult": 0.913
+      },
+      "horizon": "дни"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "KOMAUSDT",
+    "detected": false,
+    "score": 0,
+    "case": "none",
+    "strength_label": "",
+    "horizon_days": 0,
+    "horizon_tf": "",
+    "horizon_readable": false,
+    "cases": {},
+    "verdict": "",
+    "parts": [],
+    "context": {
+      "price": 0.017237,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 148,
+      "zones": [
+        {
+          "price": 0.0067970775,
+          "events": 7,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 18,
+          "absorbed_ratio": 0.86,
+          "buy_ratio": 0.57,
+          "freshness": 16,
+          "tests": 4,
+          "plateau_bars": 36,
+          "broken": false
+        },
+        {
+          "price": 0.0077445295,
+          "events": 5,
+          "scales": [
+            1,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 11,
+          "absorbed_ratio": 0.4,
+          "buy_ratio": 0.4,
+          "freshness": 3,
+          "tests": 1,
+          "plateau_bars": 2,
+          "broken": false
+        },
+        {
+          "price": 0.014269,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.5,
+          "freshness": 4,
+          "tests": 0,
+          "plateau_bars": 1,
+          "broken": false
+        },
+        {
+          "price": 0.0172732274,
+          "events": 9,
+          "scales": [
+            1,
+            2,
+            3,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 27,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.56,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 4,
+      "drop": {
+        "growth_x": 5.83,
+        "peak_age_days": 3,
+        "drop_pct": 0.0,
+        "bars_since_bottom": 0,
+        "volume_recovery": 0.0,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": 0.0092,
+        "price_slope": 0.0341,
+        "homogeneity": 0.22,
+        "buy_share": 0.505,
+        "collapsing": false,
+        "rel_volume": 0.7
+      },
+      "vortex": {
+        "scale": 10,
+        "direction": "up",
+        "strength": 1.0,
+        "confidence": 1.0,
+        "sell_peaks": 3,
+        "buy_lows": 3,
+        "vi_plus": 1.0032,
+        "vi_minus": 0.6103,
+        "diverging": true,
+        "mult": 1.4
+      },
+      "horizon": "дни"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "UBUSDT",
+    "detected": true,
+    "score": 71,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 7,
+    "horizon_tf": "неделя",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 47.2,
+        "base": 62.0,
+        "cut": 0.76,
+        "reasons": [
+          "топливо: 10 уровня снято вверх, сверху свободно",
+          "уровень 0.0682608 удержан на 4 ретестах",
+          "рост перед падением x13.7: выше могут быть зоны за горизонтом карты"
+        ],
+        "mults": {
+          "retest_held": 1.12,
+          "growth_load": 0.85,
+          "thin_volume": 0.8
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 10 уровня снято вверх, сверху свободно; уровень 0.0682608 удержан на 4 ретестах; рост перед падением x13.7: выше могут быть зоны за горизонтом карты. Картина читается на неделя, ожидание порядка 7 дней.",
+    "parts": [
+      {
+        "zone_price": 0.07380999999999999,
+        "reasons": [
+          "топливо: 10 уровня снято вверх, сверху свободно",
+          "уровень 0.0682608 удержан на 4 ретестах",
+          "рост перед падением x13.7: выше могут быть зоны за горизонтом карты",
+          "объём не восстановился (x0.91)"
+        ],
+        "facts": {
+          "cleared": 10.0,
+          "cleared_mass": 9.3,
+          "weight_above": 0.0,
+          "retest_price": 0.068261,
+          "tests": 4.0,
+          "growth_x": 13.734739,
+          "volume_recovery": 0.906779
+        },
+        "mults": {
+          "retest_held": 1.12,
+          "growth_load": 0.85,
+          "thin_volume": 0.8
+        }
+      }
+    ],
+    "context": {
+      "price": 0.19117,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 134,
+      "zones": [
+        {
+          "price": 0.0345913782,
+          "events": 6,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 10,
+          "absorbed_ratio": 0.83,
+          "buy_ratio": 0.5,
+          "freshness": 107,
+          "tests": 1,
+          "plateau_bars": 11,
+          "broken": false
+        },
+        {
+          "price": 0.0399980543,
+          "events": 7,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 17,
+          "absorbed_ratio": 0.71,
+          "buy_ratio": 0.43,
+          "freshness": 98,
+          "tests": 3,
+          "plateau_bars": 11,
+          "broken": false
+        },
+        {
+          "price": 0.0408083911,
+          "events": 4,
+          "scales": [
+            1,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.25,
+          "freshness": 98,
+          "tests": 2,
+          "plateau_bars": 11,
+          "broken": false
+        },
+        {
+          "price": 0.0420183219,
+          "events": 6,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 0.5,
+          "freshness": 98,
+          "tests": 2,
+          "plateau_bars": 11,
+          "broken": false
+        },
+        {
+          "price": 0.0472596862,
+          "events": 7,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 16,
+          "absorbed_ratio": 0.29,
+          "buy_ratio": 0.57,
+          "freshness": 96,
+          "tests": 1,
+          "plateau_bars": 11,
+          "broken": false
+        },
+        {
+          "price": 0.0496239036,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 8,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.75,
+          "freshness": 96,
+          "tests": 1,
+          "plateau_bars": 11,
+          "broken": false
+        },
+        {
+          "price": 0.0551847136,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 2,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.5,
+          "freshness": 94,
+          "tests": 1,
+          "plateau_bars": 11,
+          "broken": false
+        },
+        {
+          "price": 0.06436,
+          "events": 3,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 1.0,
+          "freshness": 21,
+          "tests": 3,
+          "plateau_bars": 11,
+          "broken": false
+        },
+        {
+          "price": 0.0682607681,
+          "events": 3,
+          "scales": [
+            1,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 1.0,
+          "freshness": 18,
+          "tests": 4,
+          "plateau_bars": 11,
+          "broken": false
+        },
+        {
+          "price": 0.07381,
+          "events": 2,
+          "scales": [
+            1,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 1.0,
+          "freshness": 17,
+          "tests": 2,
+          "plateau_bars": 8,
+          "broken": false
+        },
+        {
+          "price": 0.1310508718,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 18,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 0.5,
+          "freshness": 0,
+          "tests": 2,
+          "plateau_bars": 4,
+          "broken": false
+        },
+        {
+          "price": 0.1903762178,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 11,
+          "absorbed_ratio": 0.25,
+          "buy_ratio": 0.75,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 11,
+      "drop": {
+        "growth_x": 13.73,
+        "peak_age_days": 80,
+        "drop_pct": 76.7,
+        "bars_since_bottom": 40,
+        "volume_recovery": 0.91,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0021,
+        "price_slope": 0.0295,
+        "homogeneity": 0.54,
+        "buy_share": 0.5,
+        "collapsing": false,
+        "rel_volume": 0.57
+      },
+      "vortex": {
+        "scale": 1,
+        "direction": "up",
+        "strength": 0.933,
+        "confidence": 1.0,
+        "sell_peaks": 29,
+        "buy_lows": 30,
+        "vi_plus": 1.1867,
+        "vi_minus": 0.7636,
+        "diverging": true,
+        "mult": 1.373
+      },
+      "horizon": "неделя"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "AAVEUSDT",
+    "detected": true,
+    "score": 83,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 69.4,
+        "base": 62.0,
+        "cut": 1.12,
+        "reasons": [
+          "топливо: 3 уровня снято вверх, сверху свободно",
+          "уровень 82.39 удержан на 2 ретестах"
+        ],
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 3 уровня снято вверх, сверху свободно; уровень 82.39 удержан на 2 ретестах. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 82.39000000000001,
+        "reasons": [
+          "топливо: 3 уровня снято вверх, сверху свободно",
+          "уровень 82.39 удержан на 2 ретестах"
+        ],
+        "facts": {
+          "cleared": 3.0,
+          "cleared_mass": 3.0,
+          "weight_above": 0.0,
+          "retest_price": 82.39,
+          "tests": 2.0
+        },
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    ],
+    "context": {
+      "price": 92.89,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 88,
+      "zones": [
+        {
+          "price": 61.4628435677,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 1.0,
+          "freshness": 51,
+          "tests": 1,
+          "plateau_bars": 40,
+          "broken": false
+        },
+        {
+          "price": 80.31,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 1.0,
+          "freshness": 31,
+          "tests": 2,
+          "plateau_bars": 40,
+          "broken": false
+        },
+        {
+          "price": 82.39,
+          "events": 2,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 1.0,
+          "freshness": 30,
+          "tests": 2,
+          "plateau_bars": 39,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 3,
+      "drop": {
+        "growth_x": 1.14,
+        "peak_age_days": 236,
+        "drop_pct": 72.1,
+        "bars_since_bottom": 58,
+        "volume_recovery": 1.14,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0141,
+        "price_slope": 0.0012,
+        "homogeneity": 0.78,
+        "buy_share": 0.491,
+        "collapsing": false,
+        "rel_volume": 1.12
+      },
+      "vortex": {
+        "scale": 10,
+        "direction": "down",
+        "strength": 0.223,
+        "confidence": 1.0,
+        "sell_peaks": 3,
+        "buy_lows": 3,
+        "vi_plus": 0.9377,
+        "vi_minus": 1.0944,
+        "diverging": false,
+        "mult": 0.911
+      },
+      "horizon": "недели"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "ONDOUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 55.6,
+        "base": 62.0,
+        "cut": 0.9,
+        "reasons": [
+          "топливо: 4 уровня снято вверх, сверху свободно",
+          "уровень 0.319974 удержан на 5 ретестах",
+          "объём не восстановился (x0.96)"
+        ],
+        "mults": {
+          "retest_held": 1.12,
+          "thin_volume": 0.8
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 4 уровня снято вверх, сверху свободно; уровень 0.319974 удержан на 5 ретестах; объём не восстановился (x0.96). Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.34778354349812707,
+        "reasons": [
+          "топливо: 4 уровня снято вверх, сверху свободно",
+          "уровень 0.319974 удержан на 5 ретестах",
+          "объём не восстановился (x0.96)"
+        ],
+        "facts": {
+          "cleared": 4.0,
+          "cleared_mass": 3.1,
+          "weight_above": 0.0,
+          "retest_price": 0.319974,
+          "tests": 5.0,
+          "volume_recovery": 0.960066
+        },
+        "mults": {
+          "retest_held": 1.12,
+          "thin_volume": 0.8
+        }
+      }
+    ],
+    "context": {
+      "price": 0.3747,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 117,
+      "zones": [
+        {
+          "price": 0.2803949708,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 2,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 1.0,
+          "freshness": 90,
+          "tests": 1,
+          "plateau_bars": 56,
+          "broken": false
+        },
+        {
+          "price": 0.2872,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 3,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 1.0,
+          "freshness": 38,
+          "tests": 2,
+          "plateau_bars": 56,
+          "broken": false
+        },
+        {
+          "price": 0.3199744037,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 14,
+          "absorbed_ratio": 0.2,
+          "buy_ratio": 1.0,
+          "freshness": 18,
+          "tests": 5,
+          "plateau_bars": 21,
+          "broken": false
+        },
+        {
+          "price": 0.3477835435,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 21,
+          "absorbed_ratio": 0.62,
+          "buy_ratio": 0.62,
+          "freshness": 12,
+          "tests": 1,
+          "plateau_bars": 15,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 3,
+      "drop": {
+        "growth_x": 1.17,
+        "peak_age_days": 237,
+        "drop_pct": 61.2,
+        "bars_since_bottom": 178,
+        "volume_recovery": 0.96,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0122,
+        "price_slope": 0.0087,
+        "homogeneity": 0.85,
+        "buy_share": 0.492,
+        "collapsing": false,
+        "rel_volume": 0.94
+      },
+      "vortex": {
+        "scale": 5,
+        "direction": "up",
+        "strength": 0.407,
+        "confidence": 1.0,
+        "sell_peaks": 9,
+        "buy_lows": 7,
+        "vi_plus": 0.9911,
+        "vi_minus": 1.0581,
+        "diverging": true,
+        "mult": 1.163
+      },
+      "horizon": "недели"
+    },
+    "failures": {
+      "flow_taker": "AttributeError: 'VortexState' object has no attribute 'spread'"
+    }
+  },
+  {
+    "symbol": "ALLOUSDT",
+    "detected": true,
+    "score": 71,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 7,
+    "horizon_tf": "неделя",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 47.2,
+        "base": 62.0,
+        "cut": 0.76,
+        "reasons": [
+          "топливо: 7 уровня снято вверх, сверху свободно",
+          "уровень 0.0829265 удержан на 4 ретестах",
+          "рост перед падением x12.4: выше могут быть зоны за горизонтом карты"
+        ],
+        "mults": {
+          "retest_held": 1.12,
+          "growth_load": 0.85,
+          "thin_volume": 0.8
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 7 уровня снято вверх, сверху свободно; уровень 0.0829265 удержан на 4 ретестах; рост перед падением x12.4: выше могут быть зоны за горизонтом карты. Картина читается на неделя, ожидание порядка 7 дней.",
+    "parts": [
+      {
+        "zone_price": 0.22487316365828128,
+        "reasons": [
+          "топливо: 7 уровня снято вверх, сверху свободно",
+          "уровень 0.0829265 удержан на 4 ретестах",
+          "рост перед падением x12.4: выше могут быть зоны за горизонтом карты",
+          "объём не восстановился (x0.78)"
+        ],
+        "facts": {
+          "cleared": 7.0,
+          "cleared_mass": 6.6,
+          "weight_above": 0.0,
+          "retest_price": 0.082926,
+          "tests": 4.0,
+          "growth_x": 12.389381,
+          "volume_recovery": 0.777852
+        },
+        "mults": {
+          "retest_held": 1.12,
+          "growth_load": 0.85,
+          "thin_volume": 0.8
+        }
+      }
+    ],
+    "context": {
+      "price": 0.26286,
+      "scales": [
+        1,
+        2,
+        3,
+        5
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966
+      },
+      "events_total": 101,
+      "zones": [
+        {
+          "price": 0.0765030313,
+          "events": 4,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 10,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 1.0,
+          "freshness": 170,
+          "tests": 1,
+          "plateau_bars": 28,
+          "broken": false
+        },
+        {
+          "price": 0.0829264683,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 4,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 1.0,
+          "freshness": 67,
+          "tests": 4,
+          "plateau_bars": 28,
+          "broken": false
+        },
+        {
+          "price": 0.0879764183,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.33,
+          "freshness": 66,
+          "tests": 1,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.0920789131,
+          "events": 7,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.14,
+          "buy_ratio": 0.0,
+          "freshness": 66,
+          "tests": 1,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.1724858264,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.25,
+          "freshness": 58,
+          "tests": 1,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.1795489718,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.2,
+          "freshness": 58,
+          "tests": 1,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.2248731637,
+          "events": 2,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.5,
+          "freshness": 31,
+          "tests": 1,
+          "plateau_bars": 10,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 6,
+      "drop": {
+        "growth_x": 12.39,
+        "peak_age_days": 56,
+        "drop_pct": 60.0,
+        "bars_since_bottom": 32,
+        "volume_recovery": 0.78,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0014,
+        "price_slope": -0.0114,
+        "homogeneity": 0.62,
+        "buy_share": 0.5,
+        "collapsing": false,
+        "rel_volume": 5.5
+      },
+      "vortex": {
+        "scale": 3,
+        "direction": "up",
+        "strength": 0.956,
+        "confidence": 1.0,
+        "sell_peaks": 7,
+        "buy_lows": 5,
+        "vi_plus": 0.9211,
+        "vi_minus": 1.0992,
+        "diverging": true,
+        "mult": 1.382
+      },
+      "horizon": "неделя"
+    },
+    "failures": {
+      "flow_churn": "AttributeError: 'VortexState' object has no attribute 'spread'"
+    }
+  },
+  {
+    "symbol": "COTIUSDT",
+    "detected": false,
+    "score": 0,
+    "case": "none",
+    "strength_label": "",
+    "horizon_days": 0,
+    "horizon_tf": "",
+    "horizon_readable": false,
+    "cases": {},
+    "verdict": "",
+    "parts": [],
+    "context": {
+      "price": 0.011542,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 107,
+      "zones": [
+        {
+          "price": 0.0108662341,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.25,
+          "buy_ratio": 1.0,
+          "freshness": 4,
+          "tests": 1,
+          "plateau_bars": 2,
+          "broken": false
+        },
+        {
+          "price": 0.0115427096,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 21,
+          "absorbed_ratio": 0.25,
+          "buy_ratio": 0.88,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        },
+        {
+          "price": 0.0124465948,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 1.0,
+          "freshness": 1,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        },
+        {
+          "price": 0.0145571633,
+          "events": 5,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 10,
+          "absorbed_ratio": 0.4,
+          "buy_ratio": 1.0,
+          "freshness": 2,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 3,
+      "drop": {
+        "growth_x": 1.09,
+        "peak_age_days": 237,
+        "drop_pct": 73.9,
+        "bars_since_bottom": 14,
+        "volume_recovery": 52.73,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0027,
+        "price_slope": 0.0211,
+        "homogeneity": 0.17,
+        "buy_share": 0.498,
+        "collapsing": false,
+        "rel_volume": 0.74
+      },
+      "vortex": {
+        "scale": 10,
+        "direction": "up",
+        "strength": 0.609,
+        "confidence": 1.0,
+        "sell_peaks": 3,
+        "buy_lows": 4,
+        "vi_plus": 0.8922,
+        "vi_minus": 0.8261,
+        "diverging": true,
+        "mult": 1.243
+      },
+      "horizon": "недели"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "NEARUSDT",
+    "detected": true,
+    "score": 83,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 69.4,
+        "base": 62.0,
+        "cut": 1.12,
+        "reasons": [
+          "топливо: 4 уровня снято вверх, сверху свободно",
+          "уровень 1.48118 удержан на 3 ретестах"
+        ],
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 4 уровня снято вверх, сверху свободно; уровень 1.48118 удержан на 3 ретестах. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 1.5813896315732165,
+        "reasons": [
+          "топливо: 4 уровня снято вверх, сверху свободно",
+          "уровень 1.48118 удержан на 3 ретестах"
+        ],
+        "facts": {
+          "cleared": 4.0,
+          "cleared_mass": 3.2,
+          "weight_above": 0.0,
+          "retest_price": 1.481181,
+          "tests": 3.0
+        },
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    ],
+    "context": {
+      "price": 1.741,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 141,
+      "zones": [
+        {
+          "price": 1.1316842168,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 5,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.67,
+          "freshness": 121,
+          "tests": 3,
+          "plateau_bars": 72,
+          "broken": false
+        },
+        {
+          "price": 1.1721268883,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 1.0,
+          "freshness": 120,
+          "tests": 3,
+          "plateau_bars": 73,
+          "broken": false
+        },
+        {
+          "price": 1.4811806887,
+          "events": 5,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 8,
+          "absorbed_ratio": 0.4,
+          "buy_ratio": 1.0,
+          "freshness": 76,
+          "tests": 3,
+          "plateau_bars": 39,
+          "broken": false
+        },
+        {
+          "price": 1.5813896316,
+          "events": 9,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.78,
+          "freshness": 1,
+          "tests": 2,
+          "plateau_bars": 39,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 3,
+      "drop": {
+        "growth_x": 3.67,
+        "peak_age_days": 61,
+        "drop_pct": 49.1,
+        "bars_since_bottom": 5,
+        "volume_recovery": 0.0,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0443,
+        "price_slope": -0.0064,
+        "homogeneity": 0.75,
+        "buy_share": 0.479,
+        "collapsing": false,
+        "rel_volume": 0.68
+      },
+      "vortex": {
+        "scale": 10,
+        "direction": "up",
+        "strength": 0.169,
+        "confidence": 0.5,
+        "sell_peaks": 1,
+        "buy_lows": 3,
+        "vi_plus": 1.0623,
+        "vi_minus": 0.943,
+        "diverging": true,
+        "mult": 1.034
+      },
+      "horizon": "недели"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "TRXUSDT",
+    "detected": true,
+    "score": 83,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 69.4,
+        "base": 62.0,
+        "cut": 1.12,
+        "reasons": [
+          "топливо: 5 уровня снято вверх, сверху свободно",
+          "уровень 0.30823 удержан на 6 ретестах"
+        ],
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 5 уровня снято вверх, сверху свободно; уровень 0.30823 удержан на 6 ретестах. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.31575078901038806,
+        "reasons": [
+          "топливо: 5 уровня снято вверх, сверху свободно",
+          "уровень 0.30823 удержан на 6 ретестах"
+        ],
+        "facts": {
+          "cleared": 5.0,
+          "cleared_mass": 3.78,
+          "weight_above": 0.0,
+          "retest_price": 0.30823,
+          "tests": 6.0
+        },
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    ],
+    "context": {
+      "price": 0.32887,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 91,
+      "zones": [
+        {
+          "price": 0.2616268199,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.5,
+          "freshness": 177,
+          "tests": 4,
+          "plateau_bars": 231,
+          "broken": false
+        },
+        {
+          "price": 0.2720336682,
+          "events": 12,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 20,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 0.5,
+          "freshness": 150,
+          "tests": 3,
+          "plateau_bars": 178,
+          "broken": false
+        },
+        {
+          "price": 0.2786170533,
+          "events": 3,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 3,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 0.0,
+          "freshness": 142,
+          "tests": 1,
+          "plateau_bars": 161,
+          "broken": false
+        },
+        {
+          "price": 0.3082298246,
+          "events": 12,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 22,
+          "absorbed_ratio": 0.42,
+          "buy_ratio": 0.08,
+          "freshness": 30,
+          "tests": 6,
+          "plateau_bars": 129,
+          "broken": false
+        },
+        {
+          "price": 0.315750789,
+          "events": 18,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 28,
+          "absorbed_ratio": 0.44,
+          "buy_ratio": 0.22,
+          "freshness": 9,
+          "tests": 3,
+          "plateau_bars": 52,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 3,
+      "drop": {
+        "growth_x": 1.42,
+        "peak_age_days": 69,
+        "drop_pct": 18.2,
+        "bars_since_bottom": 0,
+        "volume_recovery": 0.0,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": 0.0044,
+        "price_slope": -0.0002,
+        "homogeneity": 0.87,
+        "buy_share": 0.506,
+        "collapsing": false,
+        "rel_volume": 0.67
+      },
+      "vortex": {
+        "scale": 5,
+        "direction": "up",
+        "strength": 1.0,
+        "confidence": 1.0,
+        "sell_peaks": 4,
+        "buy_lows": 8,
+        "vi_plus": 0.8283,
+        "vi_minus": 1.2272,
+        "diverging": true,
+        "mult": 1.4
+      },
+      "horizon": "недели"
+    },
+    "failures": {
+      "flow_hidden": "AttributeError: 'VortexState' object has no attribute 'spread'"
+    }
+  },
+  {
+    "symbol": "TAKEUSDT",
+    "detected": true,
+    "score": 75,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 53.8,
+        "base": 60.0,
+        "cut": 0.9,
+        "reasons": [
+          "топливо: 2 уровня снято вверх, сверху свободно",
+          "уровень 0.0202451 удержан на 3 ретестах",
+          "объём не восстановился (x0.92)"
+        ],
+        "mults": {
+          "retest_held": 1.12,
+          "thin_volume": 0.8
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 2 уровня снято вверх, сверху свободно; уровень 0.0202451 удержан на 3 ретестах; объём не восстановился (x0.92). Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.021177953284458588,
+        "reasons": [
+          "топливо: 2 уровня снято вверх, сверху свободно",
+          "уровень 0.0202451 удержан на 3 ретестах",
+          "объём не восстановился (x0.92)"
+        ],
+        "facts": {
+          "cleared": 2.0,
+          "cleared_mass": 2.0,
+          "weight_above": 0.0,
+          "retest_price": 0.020245,
+          "tests": 3.0,
+          "volume_recovery": 0.91528
+        },
+        "mults": {
+          "retest_held": 1.12,
+          "thin_volume": 0.8
+        }
+      }
+    ],
+    "context": {
+      "price": 0.03994,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 95,
+      "zones": [
+        {
+          "price": 0.0202450956,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 8,
+          "absorbed_ratio": 0.75,
+          "buy_ratio": 0.25,
+          "freshness": 5,
+          "tests": 3,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.0211779533,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 11,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 0.17,
+          "freshness": 4,
+          "tests": 2,
+          "plateau_bars": 7,
+          "broken": false
+        },
+        {
+          "price": 0.0237210117,
+          "events": 4,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 11,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.75,
+          "freshness": 2,
+          "tests": 1,
+          "plateau_bars": 2,
+          "broken": false
+        },
+        {
+          "price": 0.0273146724,
+          "events": 6,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 17,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 1.0,
+          "freshness": 2,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        },
+        {
+          "price": 0.0283023071,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.5,
+          "freshness": 0,
+          "tests": 1,
+          "plateau_bars": 1,
+          "broken": false
+        },
+        {
+          "price": 0.03994,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.25,
+          "buy_ratio": 1.0,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 5,
+      "drop": {
+        "growth_x": 1.91,
+        "peak_age_days": 217,
+        "drop_pct": 97.4,
+        "bars_since_bottom": 127,
+        "volume_recovery": 0.92,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0263,
+        "price_slope": 0.0161,
+        "homogeneity": 0.8,
+        "buy_share": 0.485,
+        "collapsing": false,
+        "rel_volume": 0.71
+      },
+      "vortex": {
+        "scale": 3,
+        "direction": "up",
+        "strength": 0.185,
+        "confidence": 1.0,
+        "sell_peaks": 6,
+        "buy_lows": 8,
+        "vi_plus": 1.1319,
+        "vi_minus": 0.6531,
+        "diverging": true,
+        "mult": 1.074
+      },
+      "horizon": "недели"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "PTBUSDT",
+    "detected": true,
+    "score": 83,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 69.4,
+        "base": 62.0,
+        "cut": 1.12,
+        "reasons": [
+          "топливо: 3 уровня снято вверх, сверху свободно",
+          "уровень 0.000577746 удержан на 2 ретестах"
+        ],
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 3 уровня снято вверх, сверху свободно; уровень 0.000577746 удержан на 2 ретестах. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.0005777464431068588,
+        "reasons": [
+          "топливо: 3 уровня снято вверх, сверху свободно",
+          "уровень 0.000577746 удержан на 2 ретестах"
+        ],
+        "facts": {
+          "cleared": 3.0,
+          "cleared_mass": 2.6,
+          "weight_above": 0.0,
+          "retest_price": 0.000578,
+          "tests": 2.0
+        },
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    ],
+    "context": {
+      "price": 0.0009844,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 109,
+      "zones": [
+        {
+          "price": 0.0005377508,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.83,
+          "buy_ratio": 0.33,
+          "freshness": 13,
+          "tests": 1,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.0005587584,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 7,
+          "absorbed_ratio": 0.75,
+          "buy_ratio": 0.0,
+          "freshness": 9,
+          "tests": 1,
+          "plateau_bars": 12,
+          "broken": false
+        },
+        {
+          "price": 0.0005777464,
+          "events": 3,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 9,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 0.33,
+          "freshness": 4,
+          "tests": 2,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.0006413262,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 2,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 1.0,
+          "freshness": 1,
+          "tests": 1,
+          "plateau_bars": 1,
+          "broken": false
+        },
+        {
+          "price": 0.0007527,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 1.0,
+          "freshness": 2,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        },
+        {
+          "price": 0.0009844,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 1.0,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 4,
+      "drop": {
+        "growth_x": 3.01,
+        "peak_age_days": 229,
+        "drop_pct": 94.4,
+        "bars_since_bottom": 39,
+        "volume_recovery": 1.19,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0519,
+        "price_slope": 0.0175,
+        "homogeneity": 1.0,
+        "buy_share": 0.474,
+        "collapsing": false,
+        "rel_volume": 1.11
+      },
+      "vortex": {
+        "scale": 10,
+        "direction": "up",
+        "strength": 1.0,
+        "confidence": 1.0,
+        "sell_peaks": 2,
+        "buy_lows": 2,
+        "vi_plus": 0.9065,
+        "vi_minus": 1.0686,
+        "diverging": true,
+        "mult": 1.4
+      },
+      "horizon": "недели"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "MMTUSDT",
+    "detected": false,
+    "score": 0,
+    "case": "none",
+    "strength_label": "",
+    "horizon_days": 0,
+    "horizon_tf": "",
+    "horizon_readable": false,
+    "cases": {},
+    "verdict": "",
+    "parts": [],
+    "context": {
+      "price": 0.1599,
+      "scales": [
+        1,
+        2,
+        3,
+        5
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966
+      },
+      "events_total": 86,
+      "zones": [
+        {
+          "price": 0.1152427468,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 3,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 1.0,
+          "freshness": 50,
+          "tests": 1,
+          "plateau_bars": 17,
+          "broken": false
+        },
+        {
+          "price": 0.1297710812,
+          "events": 7,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 17,
+          "absorbed_ratio": 0.57,
+          "buy_ratio": 0.57,
+          "freshness": 47,
+          "tests": 1,
+          "plateau_bars": 17,
+          "broken": false
+        },
+        {
+          "price": 0.14355771,
+          "events": 7,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 17,
+          "absorbed_ratio": 0.71,
+          "buy_ratio": 1.0,
+          "freshness": 25,
+          "tests": 3,
+          "plateau_bars": 17,
+          "broken": false
+        },
+        {
+          "price": 0.1573031089,
+          "events": 3,
+          "scales": [
+            1,
+            2,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 7,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 0.0,
+          "freshness": 8,
+          "tests": 2,
+          "plateau_bars": 15,
+          "broken": false
+        },
+        {
+          "price": 0.1603177099,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 18,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.5,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        },
+        {
+          "price": 0.1710344716,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 0.67,
+          "freshness": 4,
+          "tests": 1,
+          "plateau_bars": 15,
+          "broken": false
+        },
+        {
+          "price": 0.1812679634,
+          "events": 10,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 30,
+          "absorbed_ratio": 0.7,
+          "buy_ratio": 1.0,
+          "freshness": 2,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 6,
+      "drop": {
+        "growth_x": 4.71,
+        "peak_age_days": 3,
+        "drop_pct": 0.0,
+        "bars_since_bottom": 0,
+        "volume_recovery": 0.0,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0029,
+        "price_slope": 0.0068,
+        "homogeneity": 0.41,
+        "buy_share": 0.497,
+        "collapsing": false,
+        "rel_volume": 2.32
+      },
+      "vortex": {
+        "scale": 3,
+        "direction": "up",
+        "strength": 0.744,
+        "confidence": 1.0,
+        "sell_peaks": 7,
+        "buy_lows": 7,
+        "vi_plus": 1.0149,
+        "vi_minus": 0.9697,
+        "diverging": true,
+        "mult": 1.298
+      },
+      "horizon": "дни"
+    },
+    "failures": {
+      "flow_churn": "AttributeError: 'VortexState' object has no attribute 'spread'"
+    }
+  },
+  {
+    "symbol": "INJUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 55.6,
+        "base": 62.0,
+        "cut": 0.9,
+        "reasons": [
+          "топливо: 7 уровня снято вверх, сверху свободно",
+          "уровень 4.57643 удержан на 6 ретестах",
+          "объём не восстановился (x0.55)"
+        ],
+        "mults": {
+          "retest_held": 1.12,
+          "thin_volume": 0.8
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 7 уровня снято вверх, сверху свободно; уровень 4.57643 удержан на 6 ретестах; объём не восстановился (x0.55). Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 4.576429926960156,
+        "reasons": [
+          "топливо: 7 уровня снято вверх, сверху свободно",
+          "уровень 4.57643 удержан на 6 ретестах",
+          "объём не восстановился (x0.55)"
+        ],
+        "facts": {
+          "cleared": 7.0,
+          "cleared_mass": 6.3,
+          "weight_above": 0.0,
+          "retest_price": 4.57643,
+          "tests": 6.0,
+          "volume_recovery": 0.554938
+        },
+        "mults": {
+          "retest_held": 1.12,
+          "thin_volume": 0.8
+        }
+      }
+    ],
+    "context": {
+      "price": 5.022,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 110,
+      "zones": [
+        {
+          "price": 3.2766943971,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 1.0,
+          "freshness": 94,
+          "tests": 2,
+          "plateau_bars": 42,
+          "broken": false
+        },
+        {
+          "price": 3.4320663898,
+          "events": 4,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 10,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 1.0,
+          "freshness": 93,
+          "tests": 1,
+          "plateau_bars": 42,
+          "broken": false
+        },
+        {
+          "price": 3.5188145421,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 17,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.67,
+          "freshness": 92,
+          "tests": 1,
+          "plateau_bars": 42,
+          "broken": false
+        },
+        {
+          "price": 3.7547419873,
+          "events": 4,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.75,
+          "freshness": 86,
+          "tests": 1,
+          "plateau_bars": 42,
+          "broken": false
+        },
+        {
+          "price": 3.8609834481,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 2,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.0,
+          "freshness": 86,
+          "tests": 1,
+          "plateau_bars": 42,
+          "broken": false
+        },
+        {
+          "price": 4.2146329129,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.5,
+          "freshness": 37,
+          "tests": 2,
+          "plateau_bars": 42,
+          "broken": false
+        },
+        {
+          "price": 4.576429927,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.17,
+          "buy_ratio": 0.0,
+          "freshness": 2,
+          "tests": 6,
+          "plateau_bars": 39,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 7,
+      "drop": {
+        "growth_x": 2.79,
+        "peak_age_days": 63,
+        "drop_pct": 45.3,
+        "bars_since_bottom": 39,
+        "volume_recovery": 0.55,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0292,
+        "price_slope": 0.0008,
+        "homogeneity": 0.86,
+        "buy_share": 0.484,
+        "collapsing": false,
+        "rel_volume": 0.76
+      },
+      "vortex": {
+        "scale": 1,
+        "direction": "down",
+        "strength": 0.677,
+        "confidence": 1.0,
+        "sell_peaks": 53,
+        "buy_lows": 54,
+        "vi_plus": 0.953,
+        "vi_minus": 1.11,
+        "diverging": false,
+        "mult": 0.729
+      },
+      "horizon": "недели"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "EPICUSDT",
+    "detected": true,
+    "score": 77,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 5,
+    "horizon_tf": "неделя",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 59.0,
+        "base": 62.0,
+        "cut": 0.95,
+        "reasons": [
+          "топливо: 9 уровня снято вверх, сверху свободно",
+          "уровень 0.355593 удержан на 2 ретестах",
+          "рост перед падением x5.1: выше могут быть зоны за горизонтом карты"
+        ],
+        "mults": {
+          "retest_held": 1.12,
+          "growth_load": 0.85
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 9 уровня снято вверх, сверху свободно; уровень 0.355593 удержан на 2 ретестах; рост перед падением x5.1: выше могут быть зоны за горизонтом карты. Картина читается на неделя, ожидание порядка 5 дней.",
+    "parts": [
+      {
+        "zone_price": 0.5988644076635976,
+        "reasons": [
+          "топливо: 9 уровня снято вверх, сверху свободно",
+          "уровень 0.355593 удержан на 2 ретестах",
+          "рост перед падением x5.1: выше могут быть зоны за горизонтом карты"
+        ],
+        "facts": {
+          "cleared": 9.0,
+          "cleared_mass": 9.0,
+          "weight_above": 0.0,
+          "retest_price": 0.355593,
+          "tests": 2.0,
+          "growth_x": 5.063808
+        },
+        "mults": {
+          "retest_held": 1.12,
+          "growth_load": 0.85
+        }
+      }
+    ],
+    "context": {
+      "price": 0.9269,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 201,
+      "zones": [
+        {
+          "price": 0.2168,
+          "events": 3,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.0,
+          "freshness": 64,
+          "tests": 1,
+          "plateau_bars": 11,
+          "broken": false
+        },
+        {
+          "price": 0.2386948238,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.2,
+          "buy_ratio": 0.0,
+          "freshness": 63,
+          "tests": 1,
+          "plateau_bars": 11,
+          "broken": false
+        },
+        {
+          "price": 0.2579907244,
+          "events": 7,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.71,
+          "buy_ratio": 0.43,
+          "freshness": 62,
+          "tests": 1,
+          "plateau_bars": 11,
+          "broken": false
+        },
+        {
+          "price": 0.3139498334,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 8,
+          "absorbed_ratio": 0.75,
+          "buy_ratio": 0.5,
+          "freshness": 22,
+          "tests": 2,
+          "plateau_bars": 7,
+          "broken": false
+        },
+        {
+          "price": 0.3327138953,
+          "events": 3,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.67,
+          "freshness": 22,
+          "tests": 1,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.3555929637,
+          "events": 3,
+          "scales": [
+            1,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.33,
+          "freshness": 19,
+          "tests": 2,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.3838726587,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 11,
+          "absorbed_ratio": 0.25,
+          "buy_ratio": 0.75,
+          "freshness": 18,
+          "tests": 1,
+          "plateau_bars": 8,
+          "broken": false
+        },
+        {
+          "price": 0.3955500969,
+          "events": 4,
+          "scales": [
+            3,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.75,
+          "freshness": 18,
+          "tests": 1,
+          "plateau_bars": 7,
+          "broken": false
+        },
+        {
+          "price": 0.5489030303,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.67,
+          "freshness": 7,
+          "tests": 2,
+          "plateau_bars": 4,
+          "broken": false
+        },
+        {
+          "price": 0.5988644077,
+          "events": 5,
+          "scales": [
+            1,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 11,
+          "absorbed_ratio": 0.8,
+          "buy_ratio": 0.8,
+          "freshness": 7,
+          "tests": 1,
+          "plateau_bars": 5,
+          "broken": false
+        },
+        {
+          "price": 0.7001524955,
+          "events": 5,
+          "scales": [
+            1,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.6,
+          "buy_ratio": 1.0,
+          "freshness": 1,
+          "tests": 1,
+          "plateau_bars": 4,
+          "broken": false
+        },
+        {
+          "price": 0.7210883555,
+          "events": 13,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 31,
+          "absorbed_ratio": 0.77,
+          "buy_ratio": 0.85,
+          "freshness": 1,
+          "tests": 1,
+          "plateau_bars": 4,
+          "broken": false
+        },
+        {
+          "price": 0.9269,
+          "events": 2,
+          "scales": [
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 1.0,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 13,
+      "drop": {
+        "growth_x": 5.06,
+        "peak_age_days": 2,
+        "drop_pct": 0.0,
+        "bars_since_bottom": 0,
+        "volume_recovery": 0.0,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0025,
+        "price_slope": 0.0372,
+        "homogeneity": 0.69,
+        "buy_share": 0.495,
+        "collapsing": false,
+        "rel_volume": 6.26
+      },
+      "vortex": {
+        "scale": 5,
+        "direction": "up",
+        "strength": 0.218,
+        "confidence": 1.0,
+        "sell_peaks": 9,
+        "buy_lows": 7,
+        "vi_plus": 1.1258,
+        "vi_minus": 0.8173,
+        "diverging": true,
+        "mult": 1.087
+      },
+      "horizon": "неделя"
+    },
+    "failures": {
+      "flow_churn": "AttributeError: 'VortexState' object has no attribute 'spread'"
+    }
+  },
+  {
+    "symbol": "TUTUSDT",
+    "detected": true,
+    "score": 83,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 2,
+    "horizon_tf": "дни",
+    "horizon_readable": false,
+    "cases": {
+      "flow_fuel": {
+        "score": 69.4,
+        "base": 62.0,
+        "cut": 1.12,
+        "reasons": [
+          "топливо: 7 уровня снято вверх, сверху свободно",
+          "уровень 0.00935761 удержан на 6 ретестах"
+        ],
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 7 уровня снято вверх, сверху свободно; уровень 0.00935761 удержан на 6 ретестах.",
+    "parts": [
+      {
+        "zone_price": 0.01382695766241647,
+        "reasons": [
+          "топливо: 7 уровня снято вверх, сверху свободно",
+          "уровень 0.00935761 удержан на 6 ретестах"
+        ],
+        "facts": {
+          "cleared": 7.0,
+          "cleared_mass": 6.6,
+          "weight_above": 0.0,
+          "retest_price": 0.009358,
+          "tests": 6.0
+        },
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    ],
+    "context": {
+      "price": 0.02046,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 156,
+      "zones": [
+        {
+          "price": 0.0093576122,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 7,
+          "absorbed_ratio": 0.75,
+          "buy_ratio": 0.25,
+          "freshness": 24,
+          "tests": 6,
+          "plateau_bars": 46,
+          "broken": false
+        },
+        {
+          "price": 0.009513987,
+          "events": 3,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 6,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 0.33,
+          "freshness": 24,
+          "tests": 3,
+          "plateau_bars": 45,
+          "broken": false
+        },
+        {
+          "price": 0.0100285866,
+          "events": 6,
+          "scales": [
+            1,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 0.83,
+          "freshness": 24,
+          "tests": 4,
+          "plateau_bars": 28,
+          "broken": false
+        },
+        {
+          "price": 0.0102729782,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 10,
+          "absorbed_ratio": 0.8,
+          "buy_ratio": 0.4,
+          "freshness": 23,
+          "tests": 2,
+          "plateau_bars": 14,
+          "broken": false
+        },
+        {
+          "price": 0.0106503188,
+          "events": 10,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 25,
+          "absorbed_ratio": 0.9,
+          "buy_ratio": 0.3,
+          "freshness": 23,
+          "tests": 1,
+          "plateau_bars": 12,
+          "broken": false
+        },
+        {
+          "price": 0.0124200266,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.8,
+          "buy_ratio": 0.6,
+          "freshness": 13,
+          "tests": 1,
+          "plateau_bars": 17,
+          "broken": false
+        },
+        {
+          "price": 0.0138269577,
+          "events": 3,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 7,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 0.33,
+          "freshness": 3,
+          "tests": 2,
+          "plateau_bars": 11,
+          "broken": false
+        },
+        {
+          "price": 0.0177018719,
+          "events": 4,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 10,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.75,
+          "freshness": 2,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        },
+        {
+          "price": 0.02046,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.75,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 8,
+      "drop": {
+        "growth_x": 2.83,
+        "peak_age_days": 0,
+        "drop_pct": 0.0,
+        "bars_since_bottom": 0,
+        "volume_recovery": 0.0,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0133,
+        "price_slope": 0.0185,
+        "homogeneity": 0.48,
+        "buy_share": 0.499,
+        "collapsing": false,
+        "rel_volume": 1.33
+      },
+      "vortex": {
+        "scale": 10,
+        "direction": "up",
+        "strength": 1.0,
+        "confidence": 1.0,
+        "sell_peaks": 3,
+        "buy_lows": 3,
+        "vi_plus": 1.0734,
+        "vi_minus": 0.7788,
+        "diverging": true,
+        "mult": 1.4
+      },
+      "horizon": "дни"
+    },
+    "failures": {
+      "flow_churn": "AttributeError: 'VortexState' object has no attribute 'spread'"
+    }
+  },
+  {
+    "symbol": "XMRUSDT",
+    "detected": true,
+    "score": 85,
+    "case": "flow_taker",
+    "strength_label": "экстремальный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_taker": {
+        "score": 68.6,
+        "base": 52.0,
+        "cut": 1.32,
+        "reasons": [
+          "агрессор сменился: доля покупок 49% → 50% при цене +9.6%",
+          "однородность 0.86",
+          "цена перестала сползать"
+        ],
+        "mults": {
+          "price_holds": 1.1,
+          "zone": 1.2
+        }
+      },
+      "flow_fuel": {
+        "score": 55.6,
+        "base": 62.0,
+        "cut": 0.9,
+        "reasons": [
+          "топливо: 6 уровня снято вверх, сверху свободно",
+          "уровень 286.406 удержан на 5 ретестах",
+          "объём не восстановился (x0.29)"
+        ],
+        "mults": {
+          "retest_held": 1.12,
+          "thin_volume": 0.8
+        }
+      }
+    },
+    "verdict": "Смена агрессора: агрессор сменился: доля покупок 49% → 50% при цене +9.6%; однородность 0.86; цена перестала сползать. Подтверждено снятым предложением сверху. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 312.71878664010364,
+        "reasons": [
+          "агрессор сменился: доля покупок 49% → 50% при цене +9.6%",
+          "однородность 0.86",
+          "цена перестала сползать",
+          "под сдвигом зона 312.719 (3 тестов)"
+        ],
+        "facts": {
+          "shift": 0.012347,
+          "late_share": 0.503942,
+          "stability": 0.010467,
+          "early_share": 0.491595,
+          "price_move": 0.096409,
+          "homogeneity": 0.857625,
+          "price_slope": 0.004589,
+          "zone_price": 312.718787,
+          "tests": 3.0
+        },
+        "mults": {
+          "price_holds": 1.1,
+          "zone": 1.2
+        }
+      }
+    ],
+    "context": {
+      "price": 362.1,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.831,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 169,
+      "zones": [
+        {
+          "price": 242.51,
+          "events": 3,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.0,
+          "freshness": 347,
+          "tests": 2,
+          "plateau_bars": 81,
+          "broken": false
+        },
+        {
+          "price": 255.1605792097,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.67,
+          "freshness": 296,
+          "tests": 4,
+          "plateau_bars": 81,
+          "broken": false
+        },
+        {
+          "price": 286.4064272142,
+          "events": 4,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 8,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.5,
+          "freshness": 56,
+          "tests": 5,
+          "plateau_bars": 81,
+          "broken": false
+        },
+        {
+          "price": 295.2421630099,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 10,
+          "absorbed_ratio": 0.17,
+          "buy_ratio": 0.67,
+          "freshness": 31,
+          "tests": 4,
+          "plateau_bars": 46,
+          "broken": false
+        },
+        {
+          "price": 303.7385010539,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 10,
+          "absorbed_ratio": 0.83,
+          "buy_ratio": 0.67,
+          "freshness": 23,
+          "tests": 4,
+          "plateau_bars": 46,
+          "broken": false
+        },
+        {
+          "price": 312.7187866401,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 10,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.67,
+          "freshness": 16,
+          "tests": 3,
+          "plateau_bars": 34,
+          "broken": false
+        },
+        {
+          "price": 357.7784990544,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 14,
+          "absorbed_ratio": 0.62,
+          "buy_ratio": 0.5,
+          "freshness": 13,
+          "tests": 0,
+          "plateau_bars": 6,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 6,
+      "drop": {
+        "growth_x": 2.22,
+        "peak_age_days": 201,
+        "drop_pct": 65.6,
+        "bars_since_bottom": 178,
+        "volume_recovery": 0.29,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": 0.0043,
+        "price_slope": 0.0047,
+        "homogeneity": 0.87,
+        "buy_share": 0.498,
+        "collapsing": false,
+        "rel_volume": 0.66
+      },
+      "vortex": {
+        "scale": 10,
+        "direction": "down",
+        "strength": 0.767,
+        "confidence": 1.0,
+        "sell_peaks": 3,
+        "buy_lows": 3,
+        "vi_plus": 1.0018,
+        "vi_minus": 1.013,
+        "diverging": false,
+        "mult": 0.693
+      },
+      "horizon": "недели"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "VVVUSDT",
+    "detected": true,
+    "score": 87,
+    "case": "flow_hidden",
+    "strength_label": "экстремальный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_hidden": {
+        "score": 70.3,
+        "base": 62.0,
+        "cut": 1.13,
+        "reasons": [
+          "скрытый набор: дельта растёт 119 баров, цена стоит (+0.20% за бар)",
+          "набор равномерный (однородность 0.95)",
+          "минимумы перестали обновляться вниз"
+        ],
+        "mults": {
+          "even_flow": 1.15,
+          "higher_lows": 1.12,
+          "no_floor": 0.88
+        }
+      },
+      "flow_fuel": {
+        "score": 47.2,
+        "base": 62.0,
+        "cut": 0.76,
+        "reasons": [
+          "топливо: 16 уровня снято вверх, сверху свободно",
+          "уровень 5.415 удержан на 5 ретестах",
+          "рост перед падением x21.1: выше могут быть зоны за горизонтом карты"
+        ],
+        "mults": {
+          "retest_held": 1.12,
+          "growth_load": 0.85,
+          "thin_volume": 0.8
+        }
+      }
+    },
+    "verdict": "Скрытый набор: скрытый набор: дельта растёт 119 баров, цена стоит (+0.20% за бар); набор равномерный (однородность 0.95); минимумы перестали обновляться вниз. Подтверждено снятым предложением сверху. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 12.41,
+        "reasons": [
+          "скрытый набор: дельта растёт 119 баров, цена стоит (+0.20% за бар)",
+          "набор равномерный (однородность 0.95)",
+          "минимумы перестали обновляться вниз",
+          "опорной зоны под набором нет"
+        ],
+        "facts": {
+          "span": 119.0,
+          "delta_slope": 0.015468,
+          "price_slope": 0.001951,
+          "excess": 1.546838,
+          "homogeneity": 0.945796
+        },
+        "mults": {
+          "even_flow": 1.15,
+          "higher_lows": 1.12,
+          "no_floor": 0.88
+        }
+      }
+    ],
+    "context": {
+      "price": 12.41,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.832,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 205,
+      "zones": [
+        {
+          "price": 1.1413751857,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 10,
+          "absorbed_ratio": 0.25,
+          "buy_ratio": 0.5,
+          "freshness": 226,
+          "tests": 1,
+          "plateau_bars": 22,
+          "broken": false
+        },
+        {
+          "price": 1.385,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 5,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.0,
+          "freshness": 217,
+          "tests": 1,
+          "plateau_bars": 22,
+          "broken": false
+        },
+        {
+          "price": 1.618554755,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 7,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.67,
+          "freshness": 177,
+          "tests": 2,
+          "plateau_bars": 22,
+          "broken": false
+        },
+        {
+          "price": 1.6648920381,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.5,
+          "freshness": 171,
+          "tests": 3,
+          "plateau_bars": 22,
+          "broken": false
+        },
+        {
+          "price": 2.9358497358,
+          "events": 7,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 13,
+          "absorbed_ratio": 0.57,
+          "buy_ratio": 1.0,
+          "freshness": 169,
+          "tests": 1,
+          "plateau_bars": 22,
+          "broken": false
+        },
+        {
+          "price": 3.1500745578,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 20,
+          "absorbed_ratio": 0.25,
+          "buy_ratio": 0.62,
+          "freshness": 159,
+          "tests": 2,
+          "plateau_bars": 22,
+          "broken": false
+        },
+        {
+          "price": 3.6210261776,
+          "events": 12,
+          "scales": [
+            1,
+            2,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 33,
+          "absorbed_ratio": 0.08,
+          "buy_ratio": 1.0,
+          "freshness": 158,
+          "tests": 1,
+          "plateau_bars": 22,
+          "broken": false
+        },
+        {
+          "price": 3.717839324,
+          "events": 5,
+          "scales": [
+            1,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.2,
+          "buy_ratio": 0.8,
+          "freshness": 157,
+          "tests": 1,
+          "plateau_bars": 22,
+          "broken": false
+        },
+        {
+          "price": 3.826,
+          "events": 3,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.67,
+          "freshness": 157,
+          "tests": 1,
+          "plateau_bars": 22,
+          "broken": false
+        },
+        {
+          "price": 3.9738788489,
+          "events": 7,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 21,
+          "absorbed_ratio": 0.29,
+          "buy_ratio": 0.71,
+          "freshness": 156,
+          "tests": 1,
+          "plateau_bars": 22,
+          "broken": false
+        },
+        {
+          "price": 4.1195033273,
+          "events": 9,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 24,
+          "absorbed_ratio": 0.22,
+          "buy_ratio": 0.78,
+          "freshness": 156,
+          "tests": 1,
+          "plateau_bars": 22,
+          "broken": false
+        },
+        {
+          "price": 4.5929802045,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.5,
+          "freshness": 155,
+          "tests": 1,
+          "plateau_bars": 22,
+          "broken": false
+        },
+        {
+          "price": 5.415,
+          "events": 3,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 1.0,
+          "freshness": 131,
+          "tests": 5,
+          "plateau_bars": 22,
+          "broken": false
+        },
+        {
+          "price": 5.8186345837,
+          "events": 5,
+          "scales": [
+            2,
+            3,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.8,
+          "buy_ratio": 0.6,
+          "freshness": 125,
+          "tests": 3,
+          "plateau_bars": 25,
+          "broken": false
+        },
+        {
+          "price": 6.0367093368,
+          "events": 3,
+          "scales": [
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 7,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 0.67,
+          "freshness": 124,
+          "tests": 1,
+          "plateau_bars": 25,
+          "broken": false
+        },
+        {
+          "price": 8.619,
+          "events": 2,
+          "scales": [
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.5,
+          "freshness": 93,
+          "tests": 2,
+          "plateau_bars": 20,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 14,
+      "drop": {
+        "growth_x": 21.13,
+        "peak_age_days": 61,
+        "drop_pct": 54.5,
+        "bars_since_bottom": 17,
+        "volume_recovery": 0.77,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": 0.0049,
+        "price_slope": 0.0052,
+        "homogeneity": 0.68,
+        "buy_share": 0.503,
+        "collapsing": false,
+        "rel_volume": 0.38
+      },
+      "vortex": {
+        "scale": 2,
+        "direction": "down",
+        "strength": 0.519,
+        "confidence": 1.0,
+        "sell_peaks": 20,
+        "buy_lows": 22,
+        "vi_plus": 1.0165,
+        "vi_minus": 0.9842,
+        "diverging": false,
+        "mult": 0.792
+      },
+      "horizon": "недели"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "LDOUSDT",
+    "detected": false,
+    "score": 0,
+    "case": "none",
+    "strength_label": "",
+    "horizon_days": 0,
+    "horizon_tf": "",
+    "horizon_readable": false,
+    "cases": {},
+    "verdict": "",
+    "parts": [],
+    "context": {
+      "price": 0.3272,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.832,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 110,
+      "zones": [
+        {
+          "price": 0.3006178325,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 19,
+          "absorbed_ratio": 0.38,
+          "buy_ratio": 0.5,
+          "freshness": 19,
+          "tests": 1,
+          "plateau_bars": 21,
+          "broken": false
+        },
+        {
+          "price": 0.3116743027,
+          "events": 3,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 5,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.0,
+          "freshness": 19,
+          "tests": 1,
+          "plateau_bars": 21,
+          "broken": false
+        },
+        {
+          "price": 0.3332,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 4,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 1.0,
+          "freshness": 18,
+          "tests": 1,
+          "plateau_bars": 17,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 2,
+      "drop": {
+        "growth_x": 1.39,
+        "peak_age_days": 209,
+        "drop_pct": 65.6,
+        "bars_since_bottom": 39,
+        "volume_recovery": 1.27,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0041,
+        "price_slope": 0.0066,
+        "homogeneity": 0.65,
+        "buy_share": 0.497,
+        "collapsing": false,
+        "rel_volume": 1.39
+      },
+      "vortex": {
+        "scale": 10,
+        "direction": "up",
+        "strength": 0.346,
+        "confidence": 1.0,
+        "sell_peaks": 2,
+        "buy_lows": 3,
+        "vi_plus": 1.0464,
+        "vi_minus": 0.9276,
+        "diverging": true,
+        "mult": 1.138
+      },
+      "horizon": "дни"
+    },
+    "failures": {
+      "flow_churn": "AttributeError: 'VortexState' object has no attribute 'spread'"
+    }
+  },
+  {
+    "symbol": "JTOUSDT",
+    "detected": true,
+    "score": 77,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 59.0,
+        "base": 62.0,
+        "cut": 0.95,
+        "reasons": [
+          "топливо: 5 уровня снято вверх, сверху свободно",
+          "уровень 0.323285 удержан на 3 ретестах",
+          "рост перед падением x4.2: выше могут быть зоны за горизонтом карты"
+        ],
+        "mults": {
+          "retest_held": 1.12,
+          "growth_load": 0.85
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 5 уровня снято вверх, сверху свободно; уровень 0.323285 удержан на 3 ретестах; рост перед падением x4.2: выше могут быть зоны за горизонтом карты. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.4240828496981163,
+        "reasons": [
+          "топливо: 5 уровня снято вверх, сверху свободно",
+          "уровень 0.323285 удержан на 3 ретестах",
+          "рост перед падением x4.2: выше могут быть зоны за горизонтом карты"
+        ],
+        "facts": {
+          "cleared": 5.0,
+          "cleared_mass": 4.2,
+          "weight_above": 0.0,
+          "retest_price": 0.323285,
+          "tests": 3.0,
+          "growth_x": 4.235998
+        },
+        "mults": {
+          "retest_held": 1.12,
+          "growth_load": 0.85
+        }
+      }
+    ],
+    "context": {
+      "price": 0.5024,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.832,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 168,
+      "zones": [
+        {
+          "price": 0.2761252217,
+          "events": 4,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.5,
+          "freshness": 114,
+          "tests": 1,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 0.3232848856,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 18,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.83,
+          "freshness": 95,
+          "tests": 3,
+          "plateau_bars": 16,
+          "broken": false
+        },
+        {
+          "price": 0.3343465525,
+          "events": 3,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 0.67,
+          "freshness": 94,
+          "tests": 1,
+          "plateau_bars": 16,
+          "broken": false
+        },
+        {
+          "price": 0.3721462094,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 17,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.83,
+          "freshness": 88,
+          "tests": 1,
+          "plateau_bars": 16,
+          "broken": false
+        },
+        {
+          "price": 0.4240828497,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.5,
+          "freshness": 74,
+          "tests": 2,
+          "plateau_bars": 16,
+          "broken": false
+        },
+        {
+          "price": 0.4963208213,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.4,
+          "buy_ratio": 1.0,
+          "freshness": 56,
+          "tests": 2,
+          "plateau_bars": 16,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 4,
+      "drop": {
+        "growth_x": 4.24,
+        "peak_age_days": 38,
+        "drop_pct": 45.8,
+        "bars_since_bottom": 1,
+        "volume_recovery": 0.0,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0265,
+        "price_slope": -0.011,
+        "homogeneity": 0.74,
+        "buy_share": 0.486,
+        "collapsing": false,
+        "rel_volume": 0.61
+      },
+      "vortex": {
+        "scale": 10,
+        "direction": "up",
+        "strength": 0.038,
+        "confidence": 0.5,
+        "sell_peaks": 1,
+        "buy_lows": 3,
+        "vi_plus": 1.0972,
+        "vi_minus": 0.8594,
+        "diverging": true,
+        "mult": 1.008
+      },
+      "horizon": "недели"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "PEOPLEUSDT",
+    "detected": true,
+    "score": 83,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 2,
+    "horizon_tf": "дни",
+    "horizon_readable": false,
+    "cases": {
+      "flow_fuel": {
+        "score": 68.2,
+        "base": 60.9,
+        "cut": 1.12,
+        "reasons": [
+          "топливо: 3 уровня снято вверх, сверху свободно",
+          "уровень 0.00623002 удержан на 3 ретестах"
+        ],
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 3 уровня снято вверх, сверху свободно; уровень 0.00623002 удержан на 3 ретестах.",
+    "parts": [
+      {
+        "zone_price": 0.0062300245566872,
+        "reasons": [
+          "топливо: 3 уровня снято вверх, сверху свободно",
+          "уровень 0.00623002 удержан на 3 ретестах"
+        ],
+        "facts": {
+          "cleared": 3.0,
+          "cleared_mass": 2.08,
+          "weight_above": 0.0,
+          "retest_price": 0.00623,
+          "tests": 3.0
+        },
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    ],
+    "context": {
+      "price": 0.007145,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.832,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 99,
+      "zones": [
+        {
+          "price": 0.0053034838,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 4,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 1.0,
+          "freshness": 8,
+          "tests": 1,
+          "plateau_bars": 11,
+          "broken": false
+        },
+        {
+          "price": 0.0056824643,
+          "events": 4,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 8,
+          "absorbed_ratio": 0.75,
+          "buy_ratio": 0.5,
+          "freshness": 7,
+          "tests": 1,
+          "plateau_bars": 9,
+          "broken": false
+        },
+        {
+          "price": 0.0062300246,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 7,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 0.33,
+          "freshness": 0,
+          "tests": 3,
+          "plateau_bars": 8,
+          "broken": false
+        },
+        {
+          "price": 0.0066562935,
+          "events": 3,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 7,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 0.33,
+          "freshness": 3,
+          "tests": 0,
+          "plateau_bars": 2,
+          "broken": false
+        },
+        {
+          "price": 0.0067635098,
+          "events": 9,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 27,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 0.56,
+          "freshness": 4,
+          "tests": 0,
+          "plateau_bars": 2,
+          "broken": false
+        },
+        {
+          "price": 0.0070816326,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 22,
+          "absorbed_ratio": 0.62,
+          "buy_ratio": 0.62,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 4,
+      "drop": {
+        "growth_x": 1.56,
+        "peak_age_days": 211,
+        "drop_pct": 61.4,
+        "bars_since_bottom": 34,
+        "volume_recovery": 1.07,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0176,
+        "price_slope": 0.0095,
+        "homogeneity": 0.7,
+        "buy_share": 0.491,
+        "collapsing": false,
+        "rel_volume": 0.89
+      },
+      "vortex": {
+        "scale": 5,
+        "direction": "down",
+        "strength": 0.254,
+        "confidence": 1.0,
+        "sell_peaks": 9,
+        "buy_lows": 7,
+        "vi_plus": 1.0149,
+        "vi_minus": 0.9719,
+        "diverging": false,
+        "mult": 0.898
+      },
+      "horizon": "дни"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "HOLOUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 2,
+    "horizon_tf": "дни",
+    "horizon_readable": false,
+    "cases": {
+      "flow_fuel": {
+        "score": 55.6,
+        "base": 62.0,
+        "cut": 0.9,
+        "reasons": [
+          "топливо: 3 уровня снято вверх, сверху свободно",
+          "уровень 0.0613432 удержан на 6 ретестах",
+          "объём не восстановился (x0.46)"
+        ],
+        "mults": {
+          "retest_held": 1.12,
+          "thin_volume": 0.8
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 3 уровня снято вверх, сверху свободно; уровень 0.0613432 удержан на 6 ретестах; объём не восстановился (x0.46).",
+    "parts": [
+      {
+        "zone_price": 0.061343241958266646,
+        "reasons": [
+          "топливо: 3 уровня снято вверх, сверху свободно",
+          "уровень 0.0613432 удержан на 6 ретестах",
+          "объём не восстановился (x0.46)"
+        ],
+        "facts": {
+          "cleared": 3.0,
+          "cleared_mass": 3.0,
+          "weight_above": 0.0,
+          "retest_price": 0.061343,
+          "tests": 6.0,
+          "volume_recovery": 0.460235
+        },
+        "mults": {
+          "retest_held": 1.12,
+          "thin_volume": 0.8
+        }
+      }
+    ],
+    "context": {
+      "price": 0.06717,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.832,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 101,
+      "zones": [
+        {
+          "price": 0.0573975402,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 8,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 0.33,
+          "freshness": 13,
+          "tests": 2,
+          "plateau_bars": 53,
+          "broken": false
+        },
+        {
+          "price": 0.0598874019,
+          "events": 13,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 30,
+          "absorbed_ratio": 0.85,
+          "buy_ratio": 0.38,
+          "freshness": 12,
+          "tests": 3,
+          "plateau_bars": 51,
+          "broken": false
+        },
+        {
+          "price": 0.061343242,
+          "events": 16,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 30,
+          "absorbed_ratio": 0.94,
+          "buy_ratio": 0.38,
+          "freshness": 0,
+          "tests": 6,
+          "plateau_bars": 48,
+          "broken": false
+        },
+        {
+          "price": 0.0650293101,
+          "events": 7,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 16,
+          "absorbed_ratio": 0.86,
+          "buy_ratio": 0.43,
+          "freshness": 3,
+          "tests": 0,
+          "plateau_bars": 3,
+          "broken": false
+        },
+        {
+          "price": 0.0665095691,
+          "events": 8,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 18,
+          "absorbed_ratio": 0.75,
+          "buy_ratio": 0.12,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 5,
+      "drop": {
+        "growth_x": 1.57,
+        "peak_age_days": 212,
+        "drop_pct": 48.2,
+        "bars_since_bottom": 178,
+        "volume_recovery": 0.46,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0059,
+        "price_slope": -0.0013,
+        "homogeneity": 0.89,
+        "buy_share": 0.498,
+        "collapsing": false,
+        "rel_volume": 0.69
+      },
+      "vortex": {
+        "scale": 2,
+        "direction": "up",
+        "strength": 0.661,
+        "confidence": 1.0,
+        "sell_peaks": 16,
+        "buy_lows": 14,
+        "vi_plus": 0.9909,
+        "vi_minus": 1.0304,
+        "diverging": true,
+        "mult": 1.264
+      },
+      "horizon": "дни"
+    },
+    "failures": {
+      "flow_hidden": "AttributeError: 'VortexState' object has no attribute 'spread'"
+    }
+  },
+  {
+    "symbol": "ETHFIUSDT",
+    "detected": true,
+    "score": 81,
+    "case": "flow_churn",
+    "strength_label": "сильный",
+    "horizon_days": 2,
+    "horizon_tf": "дни",
+    "horizon_readable": false,
+    "cases": {
+      "flow_churn": {
+        "score": 64.8,
+        "base": 70.2,
+        "cut": 0.92,
+        "reasons": [
+          "поглощение на 0.387878: тир 3, событий 3",
+          "плато над зоной 21 дней",
+          "подтверждено масштабами [1, 2, 3, 5]"
+        ],
+        "mults": {
+          "plateau": 0.803,
+          "tested": 1.15
+        }
+      },
+      "flow_fuel": {
+        "score": 33.7,
+        "base": 50.1,
+        "cut": 0.67,
+        "reasons": [
+          "топливо: 2 уровня снято вверх, сверху свободно",
+          "уровень 0.379488 удержан на 3 ретестах",
+          "пробой давний (18 баров назад)"
+        ],
+        "mults": {
+          "retest_held": 1.12,
+          "stale_breakout": 0.75,
+          "thin_volume": 0.8
+        }
+      }
+    },
+    "verdict": "Поглощение на уровне: поглощение на 0.387878: тир 3, событий 3; плато над зоной 21 дней; подтверждено масштабами [1, 2, 3, 5].",
+    "parts": [
+      {
+        "zone_price": 0.38787772195832265,
+        "reasons": [
+          "поглощение на 0.387878: тир 3, событий 3",
+          "плато над зоной 21 дней",
+          "подтверждено масштабами [1, 2, 3, 5]",
+          "уровень выдержал 3 теста"
+        ],
+        "facts": {
+          "tier": 3.0,
+          "sigma": 7.804362,
+          "events": 3.0,
+          "zone_price": 0.387878,
+          "plateau_bars": 21.0,
+          "scales": 4.0,
+          "tests": 3.0,
+          "last_test_age": 7.0
+        },
+        "mults": {
+          "plateau": 0.803,
+          "tested": 1.15
+        }
+      }
+    ],
+    "context": {
+      "price": 0.3998,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.832,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 106,
+      "zones": [
+        {
+          "price": 0.2870238878,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 2,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.5,
+          "freshness": 52,
+          "tests": 1,
+          "plateau_bars": 31,
+          "broken": false
+        },
+        {
+          "price": 0.379488297,
+          "events": 3,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.67,
+          "freshness": 18,
+          "tests": 3,
+          "plateau_bars": 31,
+          "broken": false
+        },
+        {
+          "price": 0.387877722,
+          "events": 7,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.43,
+          "buy_ratio": 0.71,
+          "freshness": 7,
+          "tests": 3,
+          "plateau_bars": 21,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 2,
+      "drop": {
+        "growth_x": 1.22,
+        "peak_age_days": 237,
+        "drop_pct": 71.3,
+        "bars_since_bottom": 59,
+        "volume_recovery": 0.96,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0157,
+        "price_slope": -0.0004,
+        "homogeneity": 0.86,
+        "buy_share": 0.491,
+        "collapsing": false,
+        "rel_volume": 1.45
+      },
+      "vortex": {
+        "scale": 5,
+        "direction": "down",
+        "strength": 0.411,
+        "confidence": 1.0,
+        "sell_peaks": 7,
+        "buy_lows": 7,
+        "vi_plus": 1.0498,
+        "vi_minus": 0.9711,
+        "diverging": false,
+        "mult": 0.836
+      },
+      "horizon": "дни"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "HUSDT",
+    "detected": true,
+    "score": 71,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 47.2,
+        "base": 62.0,
+        "cut": 0.76,
+        "reasons": [
+          "топливо: 5 уровня снято вверх, сверху свободно",
+          "уровень 0.0515187 удержан на 7 ретестах",
+          "рост перед падением x18.8: выше могут быть зоны за горизонтом карты"
+        ],
+        "mults": {
+          "retest_held": 1.12,
+          "growth_load": 0.85,
+          "thin_volume": 0.8
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 5 уровня снято вверх, сверху свободно; уровень 0.0515187 удержан на 7 ретестах; рост перед падением x18.8: выше могут быть зоны за горизонтом карты. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.0577928984910461,
+        "reasons": [
+          "топливо: 5 уровня снято вверх, сверху свободно",
+          "уровень 0.0515187 удержан на 7 ретестах",
+          "рост перед падением x18.8: выше могут быть зоны за горизонтом карты",
+          "объём не восстановился (x0.05)"
+        ],
+        "facts": {
+          "cleared": 5.0,
+          "cleared_mass": 5.0,
+          "weight_above": 0.0,
+          "retest_price": 0.051519,
+          "tests": 7.0,
+          "growth_x": 18.819704,
+          "volume_recovery": 0.049856
+        },
+        "mults": {
+          "retest_held": 1.12,
+          "growth_load": 0.85,
+          "thin_volume": 0.8
+        }
+      }
+    ],
+    "context": {
+      "price": 0.075,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.832,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 155,
+      "zones": [
+        {
+          "price": 0.03524,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.5,
+          "freshness": 296,
+          "tests": 3,
+          "plateau_bars": 23,
+          "broken": false
+        },
+        {
+          "price": 0.040885659,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.67,
+          "freshness": 296,
+          "tests": 2,
+          "plateau_bars": 23,
+          "broken": false
+        },
+        {
+          "price": 0.0448164539,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.67,
+          "freshness": 38,
+          "tests": 5,
+          "plateau_bars": 23,
+          "broken": false
+        },
+        {
+          "price": 0.0515187347,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 0.33,
+          "freshness": 13,
+          "tests": 7,
+          "plateau_bars": 23,
+          "broken": false
+        },
+        {
+          "price": 0.0577928985,
+          "events": 2,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 5,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.5,
+          "freshness": 6,
+          "tests": 3,
+          "plateau_bars": 13,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 5,
+      "drop": {
+        "growth_x": 18.82,
+        "peak_age_days": 63,
+        "drop_pct": 94.7,
+        "bars_since_bottom": 39,
+        "volume_recovery": 0.05,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0717,
+        "price_slope": -0.0004,
+        "homogeneity": 0.59,
+        "buy_share": 0.462,
+        "collapsing": true,
+        "rel_volume": 0.19
+      },
+      "vortex": {
+        "scale": 5,
+        "direction": "up",
+        "strength": 0.263,
+        "confidence": 1.0,
+        "sell_peaks": 4,
+        "buy_lows": 6,
+        "vi_plus": 0.9516,
+        "vi_minus": 1.0657,
+        "diverging": true,
+        "mult": 1.105
+      },
+      "horizon": "недели"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "MUBARAKUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_taker",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_taker": {
+        "score": 56.9,
+        "base": 47.0,
+        "cut": 1.21,
+        "reasons": [
+          "агрессор сменился: доля покупок 48% → 49% при цене +2.0%",
+          "однородность 0.71",
+          "цена перестала сползать"
+        ],
+        "mults": {
+          "price_holds": 1.1,
+          "zone": 1.1
+        }
+      }
+    },
+    "verdict": "Смена агрессора: агрессор сменился: доля покупок 48% → 49% при цене +2.0%; однородность 0.71; цена перестала сползать. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.012509704214295708,
+        "reasons": [
+          "агрессор сменился: доля покупок 48% → 49% при цене +2.0%",
+          "однородность 0.71",
+          "цена перестала сползать",
+          "под сдвигом зона 0.0125097 (0 тестов)"
+        ],
+        "facts": {
+          "shift": 0.008351,
+          "late_share": 0.487496,
+          "stability": 0.017165,
+          "early_share": 0.479146,
+          "price_move": 0.020292,
+          "homogeneity": 0.709938,
+          "price_slope": 0.001337,
+          "zone_price": 0.01251,
+          "tests": 0.0
+        },
+        "mults": {
+          "price_holds": 1.1,
+          "zone": 1.1
+        }
+      }
+    ],
+    "context": {
+      "price": 0.01257,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.832,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 111,
+      "zones": [
+        {
+          "price": 0.0120980645,
+          "events": 5,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 13,
+          "absorbed_ratio": 0.6,
+          "buy_ratio": 0.8,
+          "freshness": 2,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        },
+        {
+          "price": 0.0125097042,
+          "events": 7,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 14,
+          "absorbed_ratio": 0.86,
+          "buy_ratio": 0.57,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        },
+        {
+          "price": 0.0128463949,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 5,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.67,
+          "freshness": 3,
+          "tests": 0,
+          "plateau_bars": 1,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 3,
+      "drop": {
+        "growth_x": 1.84,
+        "peak_age_days": 215,
+        "drop_pct": 64.2,
+        "bars_since_bottom": 39,
+        "volume_recovery": 1.29,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0206,
+        "price_slope": -0.0027,
+        "homogeneity": 0.71,
+        "buy_share": 0.486,
+        "collapsing": false,
+        "rel_volume": 0.92
+      },
+      "vortex": {
+        "scale": 1,
+        "direction": "down",
+        "strength": 0.762,
+        "confidence": 1.0,
+        "sell_peaks": 45,
+        "buy_lows": 43,
+        "vi_plus": 1.1045,
+        "vi_minus": 0.8586,
+        "diverging": false,
+        "mult": 0.695
+      },
+      "horizon": "недели"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "CLOUSDT",
+    "detected": true,
+    "score": 70,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 45.7,
+        "base": 60.0,
+        "cut": 0.76,
+        "reasons": [
+          "топливо: 2 уровня снято вверх, сверху свободно",
+          "уровень 0.108049 удержан на 4 ретестах",
+          "рост перед падением x6.0: выше могут быть зоны за горизонтом карты"
+        ],
+        "mults": {
+          "retest_held": 1.12,
+          "growth_load": 0.85,
+          "thin_volume": 0.8
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 2 уровня снято вверх, сверху свободно; уровень 0.108049 удержан на 4 ретестах; рост перед падением x6.0: выше могут быть зоны за горизонтом карты. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.10804927571842911,
+        "reasons": [
+          "топливо: 2 уровня снято вверх, сверху свободно",
+          "уровень 0.108049 удержан на 4 ретестах",
+          "рост перед падением x6.0: выше могут быть зоны за горизонтом карты",
+          "объём не восстановился (x0.25)"
+        ],
+        "facts": {
+          "cleared": 2.0,
+          "cleared_mass": 2.0,
+          "weight_above": 0.0,
+          "retest_price": 0.108049,
+          "tests": 4.0,
+          "growth_x": 6.01117,
+          "volume_recovery": 0.253715
+        },
+        "mults": {
+          "retest_held": 1.12,
+          "growth_load": 0.85,
+          "thin_volume": 0.8
+        }
+      }
+    ],
+    "context": {
+      "price": 0.12738,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.832,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 110,
+      "zones": [
+        {
+          "price": 0.0721554457,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 14,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.67,
+          "freshness": 64,
+          "tests": 1,
+          "plateau_bars": 12,
+          "broken": false
+        },
+        {
+          "price": 0.1080492757,
+          "events": 3,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.67,
+          "freshness": 6,
+          "tests": 4,
+          "plateau_bars": 12,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 2,
+      "drop": {
+        "growth_x": 6.01,
+        "peak_age_days": 202,
+        "drop_pct": 94.2,
+        "bars_since_bottom": 178,
+        "volume_recovery": 0.25,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0008,
+        "price_slope": -0.0224,
+        "homogeneity": 0.57,
+        "buy_share": 0.498,
+        "collapsing": false,
+        "rel_volume": 0.8
+      },
+      "vortex": {
+        "scale": 3,
+        "direction": "down",
+        "strength": 0.059,
+        "confidence": 1.0,
+        "sell_peaks": 5,
+        "buy_lows": 5,
+        "vi_plus": 0.928,
+        "vi_minus": 1.2044,
+        "diverging": false,
+        "mult": 0.977
+      },
+      "horizon": "недели"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "PENDLEUSDT",
+    "detected": true,
+    "score": 78,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 60.8,
+        "base": 54.3,
+        "cut": 1.12,
+        "reasons": [
+          "топливо: 2 уровня снято вверх, сверху свободно",
+          "уровень 1.22777 удержан на 5 ретестах"
+        ],
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 2 уровня снято вверх, сверху свободно; уровень 1.22777 удержан на 5 ретестах. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 1.2277708944827277,
+        "reasons": [
+          "топливо: 2 уровня снято вверх, сверху свободно",
+          "уровень 1.22777 удержан на 5 ретестах"
+        ],
+        "facts": {
+          "cleared": 2.0,
+          "cleared_mass": 1.48,
+          "weight_above": 0.0,
+          "retest_price": 1.227771,
+          "tests": 5.0
+        },
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    ],
+    "context": {
+      "price": 1.3687,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.832,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 95,
+      "zones": [
+        {
+          "price": 1.0151412731,
+          "events": 2,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.0,
+          "freshness": 109,
+          "tests": 2,
+          "plateau_bars": 49,
+          "broken": false
+        },
+        {
+          "price": 1.2277708945,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 10,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 0.25,
+          "freshness": 33,
+          "tests": 5,
+          "plateau_bars": 48,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 1,
+      "drop": {
+        "growth_x": 1.12,
+        "peak_age_days": 236,
+        "drop_pct": 61.8,
+        "bars_since_bottom": 120,
+        "volume_recovery": 1.81,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.039,
+        "price_slope": -0.0017,
+        "homogeneity": 0.84,
+        "buy_share": 0.48,
+        "collapsing": false,
+        "rel_volume": 0.6
+      },
+      "vortex": {
+        "scale": 5,
+        "direction": "up",
+        "strength": 1.0,
+        "confidence": 1.0,
+        "sell_peaks": 8,
+        "buy_lows": 7,
+        "vi_plus": 0.8864,
+        "vi_minus": 1.1581,
+        "diverging": true,
+        "mult": 1.4
+      },
+      "horizon": "недели"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "GPSUSDT",
+    "detected": true,
+    "score": 76,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 55.6,
+        "base": 62.0,
+        "cut": 0.9,
+        "reasons": [
+          "топливо: 8 уровня снято вверх, сверху свободно",
+          "уровень 0.00641463 удержан на 7 ретестах",
+          "объём не восстановился (x0.72)"
+        ],
+        "mults": {
+          "retest_held": 1.12,
+          "thin_volume": 0.8
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 8 уровня снято вверх, сверху свободно; уровень 0.00641463 удержан на 7 ретестах; объём не восстановился (x0.72). Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.008693942750552823,
+        "reasons": [
+          "топливо: 8 уровня снято вверх, сверху свободно",
+          "уровень 0.00641463 удержан на 7 ретестах",
+          "объём не восстановился (x0.72)"
+        ],
+        "facts": {
+          "cleared": 8.0,
+          "cleared_mass": 7.48,
+          "weight_above": 0.0,
+          "retest_price": 0.006415,
+          "tests": 7.0,
+          "volume_recovery": 0.723075
+        },
+        "mults": {
+          "retest_held": 1.12,
+          "thin_volume": 0.8
+        }
+      }
+    ],
+    "context": {
+      "price": 0.009148,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.832,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 202,
+      "zones": [
+        {
+          "price": 0.0050302089,
+          "events": 3,
+          "scales": [
+            1
+          ],
+          "confirmed": false,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 1.0,
+          "freshness": 195,
+          "tests": 2,
+          "plateau_bars": 49,
+          "broken": false
+        },
+        {
+          "price": 0.0058350087,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 16,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.38,
+          "freshness": 195,
+          "tests": 1,
+          "plateau_bars": 49,
+          "broken": false
+        },
+        {
+          "price": 0.0059606328,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 5,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.67,
+          "freshness": 59,
+          "tests": 3,
+          "plateau_bars": 49,
+          "broken": false
+        },
+        {
+          "price": 0.0064146259,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 0.67,
+          "freshness": 54,
+          "tests": 7,
+          "plateau_bars": 49,
+          "broken": false
+        },
+        {
+          "price": 0.0067753999,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 16,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.67,
+          "freshness": 51,
+          "tests": 2,
+          "plateau_bars": 49,
+          "broken": false
+        },
+        {
+          "price": 0.0069245971,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 21,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.62,
+          "freshness": 50,
+          "tests": 2,
+          "plateau_bars": 49,
+          "broken": false
+        },
+        {
+          "price": 0.0072738437,
+          "events": 9,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 22,
+          "absorbed_ratio": 0.44,
+          "buy_ratio": 0.67,
+          "freshness": 49,
+          "tests": 1,
+          "plateau_bars": 47,
+          "broken": false
+        },
+        {
+          "price": 0.0086939428,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 13,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.83,
+          "freshness": 3,
+          "tests": 5,
+          "plateau_bars": 45,
+          "broken": false
+        },
+        {
+          "price": 0.0091235714,
+          "events": 5,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.4,
+          "buy_ratio": 0.8,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 8,
+      "drop": {
+        "growth_x": 3.84,
+        "peak_age_days": 174,
+        "drop_pct": 63.8,
+        "bars_since_bottom": 60,
+        "volume_recovery": 0.72,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0234,
+        "price_slope": -0.0019,
+        "homogeneity": 0.72,
+        "buy_share": 0.488,
+        "collapsing": false,
+        "rel_volume": 0.54
+      },
+      "vortex": {
+        "scale": 5,
+        "direction": "up",
+        "strength": 0.503,
+        "confidence": 1.0,
+        "sell_peaks": 7,
+        "buy_lows": 5,
+        "vi_plus": 1.0753,
+        "vi_minus": 0.884,
+        "diverging": true,
+        "mult": 1.201
+      },
+      "horizon": "недели"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "TAGUSDT",
+    "detected": true,
+    "score": 86,
+    "case": "flow_churn",
+    "strength_label": "экстремальный",
+    "horizon_days": 2,
+    "horizon_tf": "дни",
+    "horizon_readable": false,
+    "cases": {
+      "flow_churn": {
+        "score": 74.2,
+        "base": 81.6,
+        "cut": 0.91,
+        "reasons": [
+          "поглощение на 0.000567359: тир 3, событий 3",
+          "плато над зоной 18 дней",
+          "подтверждено масштабами [1, 2]"
+        ],
+        "mults": {
+          "plateau": 0.719,
+          "tested": 1.15,
+          "recovery": 1.1
+        }
+      }
+    },
+    "verdict": "Поглощение на уровне: поглощение на 0.000567359: тир 3, событий 3; плато над зоной 18 дней; подтверждено масштабами [1, 2].",
+    "parts": [
+      {
+        "zone_price": 0.0005673587232291156,
+        "reasons": [
+          "поглощение на 0.000567359: тир 3, событий 3",
+          "плато над зоной 18 дней",
+          "подтверждено масштабами [1, 2]",
+          "уровень выдержал 7 теста",
+          "объём восстановился (x5.07)"
+        ],
+        "facts": {
+          "tier": 3.0,
+          "sigma": 56.1757,
+          "events": 3.0,
+          "zone_price": 0.000567,
+          "plateau_bars": 18.0,
+          "scales": 2.0,
+          "tests": 7.0,
+          "last_test_age": 25.0,
+          "volume_recovery": 5.068089
+        },
+        "mults": {
+          "plateau": 0.719,
+          "tested": 1.15,
+          "recovery": 1.1
+        }
+      }
+    ],
+    "context": {
+      "price": 0.001206,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.832,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 142,
+      "zones": [
+        {
+          "price": 0.0002603,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 5,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.5,
+          "freshness": 174,
+          "tests": 1,
+          "plateau_bars": 25,
+          "broken": false
+        },
+        {
+          "price": 0.0002695905,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 0.33,
+          "freshness": 174,
+          "tests": 1,
+          "plateau_bars": 25,
+          "broken": false
+        },
+        {
+          "price": 0.0003192,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 4,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 1.0,
+          "freshness": 25,
+          "tests": 4,
+          "plateau_bars": 22,
+          "broken": false
+        },
+        {
+          "price": 0.0004254651,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 0.0,
+          "freshness": 25,
+          "tests": 3,
+          "plateau_bars": 17,
+          "broken": false
+        },
+        {
+          "price": 0.0004532903,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 10,
+          "absorbed_ratio": 0.75,
+          "buy_ratio": 0.75,
+          "freshness": 25,
+          "tests": 2,
+          "plateau_bars": 17,
+          "broken": false
+        },
+        {
+          "price": 0.0005397002,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.62,
+          "buy_ratio": 0.75,
+          "freshness": 25,
+          "tests": 2,
+          "plateau_bars": 17,
+          "broken": false
+        },
+        {
+          "price": 0.0005673587,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 0.33,
+          "freshness": 25,
+          "tests": 7,
+          "plateau_bars": 18,
+          "broken": false
+        },
+        {
+          "price": 0.0006558057,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 21,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.75,
+          "freshness": 24,
+          "tests": 1,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.0008511421,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.25,
+          "buy_ratio": 1.0,
+          "freshness": 16,
+          "tests": 2,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.0008874703,
+          "events": 6,
+          "scales": [
+            1,
+            3,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 16,
+          "absorbed_ratio": 0.67,
+          "buy_ratio": 0.67,
+          "freshness": 16,
+          "tests": 1,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.0014457967,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.8,
+          "buy_ratio": 0.8,
+          "freshness": 2,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 11,
+      "drop": {
+        "growth_x": 8.82,
+        "peak_age_days": 91,
+        "drop_pct": 85.5,
+        "bars_since_bottom": 26,
+        "volume_recovery": 5.07,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": 0.0053,
+        "price_slope": 0.0173,
+        "homogeneity": 0.7,
+        "buy_share": 0.503,
+        "collapsing": false,
+        "rel_volume": 1.67
+      },
+      "vortex": {
+        "scale": 5,
+        "direction": "down",
+        "strength": 0.739,
+        "confidence": 1.0,
+        "sell_peaks": 6,
+        "buy_lows": 6,
+        "vi_plus": 0.9808,
+        "vi_minus": 1.0443,
+        "diverging": false,
+        "mult": 0.704
+      },
+      "horizon": "дни"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "VELVETUSDT",
+    "detected": true,
+    "score": 71,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 5,
+    "horizon_tf": "неделя",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 47.2,
+        "base": 62.0,
+        "cut": 0.76,
+        "reasons": [
+          "топливо: 9 уровня снято вверх, сверху свободно",
+          "уровень 0.32065 удержан на 5 ретестах",
+          "рост перед падением x38.1: выше могут быть зоны за горизонтом карты"
+        ],
+        "mults": {
+          "retest_held": 1.12,
+          "growth_load": 0.85,
+          "thin_volume": 0.8
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 9 уровня снято вверх, сверху свободно; уровень 0.32065 удержан на 5 ретестах; рост перед падением x38.1: выше могут быть зоны за горизонтом карты. Картина читается на неделя, ожидание порядка 5 дней.",
+    "parts": [
+      {
+        "zone_price": 0.36169170719031773,
+        "reasons": [
+          "топливо: 9 уровня снято вверх, сверху свободно",
+          "уровень 0.32065 удержан на 5 ретестах",
+          "рост перед падением x38.1: выше могут быть зоны за горизонтом карты",
+          "объём не восстановился (x0.23)"
+        ],
+        "facts": {
+          "cleared": 9.0,
+          "cleared_mass": 8.5,
+          "weight_above": 0.0,
+          "retest_price": 0.32065,
+          "tests": 5.0,
+          "growth_x": 38.07193,
+          "volume_recovery": 0.23489
+        },
+        "mults": {
+          "retest_held": 1.12,
+          "growth_load": 0.85,
+          "thin_volume": 0.8
+        }
+      }
+    ],
+    "context": {
+      "price": 0.4282,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.832,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 171,
+      "zones": [
+        {
+          "price": 0.07146,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 4,
+          "absorbed_ratio": 1.0,
+          "buy_ratio": 0.0,
+          "freshness": 103,
+          "tests": 2,
+          "plateau_bars": 14,
+          "broken": false
+        },
+        {
+          "price": 0.0776614466,
+          "events": 10,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 25,
+          "absorbed_ratio": 0.9,
+          "buy_ratio": 0.6,
+          "freshness": 103,
+          "tests": 1,
+          "plateau_bars": 14,
+          "broken": false
+        },
+        {
+          "price": 0.08763,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 2,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.0,
+          "freshness": 61,
+          "tests": 5,
+          "plateau_bars": 14,
+          "broken": false
+        },
+        {
+          "price": 0.1211794233,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 8,
+          "absorbed_ratio": 0.2,
+          "buy_ratio": 0.8,
+          "freshness": 58,
+          "tests": 1,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.1534848676,
+          "events": 4,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.75,
+          "buy_ratio": 0.5,
+          "freshness": 57,
+          "tests": 1,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.1856093282,
+          "events": 5,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.4,
+          "buy_ratio": 0.6,
+          "freshness": 56,
+          "tests": 1,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.2500130828,
+          "events": 3,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 1.0,
+          "freshness": 9,
+          "tests": 2,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.32065,
+          "events": 2,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 6,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 1.0,
+          "freshness": 9,
+          "tests": 5,
+          "plateau_bars": 10,
+          "broken": false
+        },
+        {
+          "price": 0.3616917072,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            5,
+            10
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.4,
+          "buy_ratio": 0.4,
+          "freshness": 9,
+          "tests": 3,
+          "plateau_bars": 10,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 9,
+      "drop": {
+        "growth_x": 38.07,
+        "peak_age_days": 35,
+        "drop_pct": 88.1,
+        "bars_since_bottom": 10,
+        "volume_recovery": 0.23,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0186,
+        "price_slope": -0.0062,
+        "homogeneity": 0.42,
+        "buy_share": 0.488,
+        "collapsing": false,
+        "rel_volume": 4.67
+      },
+      "vortex": {
+        "scale": 5,
+        "direction": "up",
+        "strength": 0.197,
+        "confidence": 1.0,
+        "sell_peaks": 6,
+        "buy_lows": 4,
+        "vi_plus": 1.0436,
+        "vi_minus": 0.95,
+        "diverging": true,
+        "mult": 1.079
+      },
+      "horizon": "неделя"
+    },
+    "failures": {
+      "flow_churn": "AttributeError: 'VortexState' object has no attribute 'spread'"
+    }
+  },
+  {
+    "symbol": "AKTUSDT",
+    "detected": true,
+    "score": 83,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 25,
+    "horizon_tf": "недели",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 69.4,
+        "base": 62.0,
+        "cut": 1.12,
+        "reasons": [
+          "топливо: 6 уровня снято вверх, сверху свободно",
+          "уровень 0.428133 удержан на 7 ретестах"
+        ],
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 6 уровня снято вверх, сверху свободно; уровень 0.428133 удержан на 7 ретестах. Картина читается на недели, ожидание порядка 25 дней.",
+    "parts": [
+      {
+        "zone_price": 0.4413961904718154,
+        "reasons": [
+          "топливо: 6 уровня снято вверх, сверху свободно",
+          "уровень 0.428133 удержан на 7 ретестах"
+        ],
+        "facts": {
+          "cleared": 6.0,
+          "cleared_mass": 6.0,
+          "weight_above": 0.0,
+          "retest_price": 0.428133,
+          "tests": 7.0
+        },
+        "mults": {
+          "retest_held": 1.12
+        }
+      }
+    ],
+    "context": {
+      "price": 0.5453,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.832,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 172,
+      "zones": [
+        {
+          "price": 0.3377038446,
+          "events": 4,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 12,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.75,
+          "freshness": 148,
+          "tests": 1,
+          "plateau_bars": 31,
+          "broken": false
+        },
+        {
+          "price": 0.3524398752,
+          "events": 4,
+          "scales": [
+            1,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 8,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.5,
+          "freshness": 148,
+          "tests": 1,
+          "plateau_bars": 31,
+          "broken": false
+        },
+        {
+          "price": 0.3734409846,
+          "events": 3,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 7,
+          "absorbed_ratio": 0.33,
+          "buy_ratio": 1.0,
+          "freshness": 145,
+          "tests": 1,
+          "plateau_bars": 31,
+          "broken": false
+        },
+        {
+          "price": 0.3964367889,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 1.0,
+          "freshness": 4,
+          "tests": 2,
+          "plateau_bars": 31,
+          "broken": false
+        },
+        {
+          "price": 0.4281325208,
+          "events": 6,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.5,
+          "buy_ratio": 0.5,
+          "freshness": 1,
+          "tests": 7,
+          "plateau_bars": 31,
+          "broken": false
+        },
+        {
+          "price": 0.4413961905,
+          "events": 9,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 20,
+          "absorbed_ratio": 0.44,
+          "buy_ratio": 0.33,
+          "freshness": 1,
+          "tests": 5,
+          "plateau_bars": 26,
+          "broken": false
+        },
+        {
+          "price": 0.4785286127,
+          "events": 8,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 22,
+          "absorbed_ratio": 0.38,
+          "buy_ratio": 0.75,
+          "freshness": 2,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        },
+        {
+          "price": 0.5433014619,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 14,
+          "absorbed_ratio": 0.4,
+          "buy_ratio": 0.8,
+          "freshness": 0,
+          "tests": 0,
+          "plateau_bars": 0,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 8,
+      "drop": {
+        "growth_x": 3.79,
+        "peak_age_days": 70,
+        "drop_pct": 57.4,
+        "bars_since_bottom": 5,
+        "volume_recovery": 0.0,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.0406,
+        "price_slope": -0.0119,
+        "homogeneity": 0.41,
+        "buy_share": 0.479,
+        "collapsing": false,
+        "rel_volume": 0.33
+      },
+      "vortex": {
+        "scale": 5,
+        "direction": "up",
+        "strength": 0.222,
+        "confidence": 1.0,
+        "sell_peaks": 7,
+        "buy_lows": 8,
+        "vi_plus": 0.8346,
+        "vi_minus": 1.2291,
+        "diverging": true,
+        "mult": 1.089
+      },
+      "horizon": "недели"
+    },
+    "failures": {}
+  },
+  {
+    "symbol": "HEIUSDT",
+    "detected": true,
+    "score": 71,
+    "case": "flow_fuel",
+    "strength_label": "сильный",
+    "horizon_days": 7,
+    "horizon_tf": "неделя",
+    "horizon_readable": true,
+    "cases": {
+      "flow_fuel": {
+        "score": 46.5,
+        "base": 62.0,
+        "cut": 0.75,
+        "reasons": [
+          "топливо: 3 уровня снято вверх, сверху свободно",
+          "уровень 0.0720681 удержан на ретесте",
+          "пробой давний (46 баров назад)"
+        ],
+        "mults": {
+          "stale_breakout": 0.75
+        }
+      }
+    },
+    "verdict": "Карта предложения: топливо: 3 уровня снято вверх, сверху свободно; уровень 0.0720681 удержан на ретесте; пробой давний (46 баров назад). Картина читается на неделя, ожидание порядка 7 дней.",
+    "parts": [
+      {
+        "zone_price": 0.07206808781830545,
+        "reasons": [
+          "топливо: 3 уровня снято вверх, сверху свободно",
+          "уровень 0.0720681 удержан на ретесте",
+          "пробой давний (46 баров назад)"
+        ],
+        "facts": {
+          "cleared": 3.0,
+          "cleared_mass": 3.0,
+          "weight_above": 0.0,
+          "retest_price": 0.072068,
+          "tests": 1.0,
+          "freshness": 46.0
+        },
+        "mults": {
+          "stale_breakout": 0.75
+        }
+      }
+    ],
+    "context": {
+      "price": 0.08553,
+      "scales": [
+        1,
+        2,
+        3,
+        5,
+        10
+      ],
+      "fills": {
+        "1": 0.832,
+        "2": 0.916,
+        "3": 0.944,
+        "5": 0.966,
+        "10": 0.983
+      },
+      "events_total": 215,
+      "zones": [
+        {
+          "price": 0.0578992536,
+          "events": 3,
+          "scales": [
+            1,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 5,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.67,
+          "freshness": 65,
+          "tests": 1,
+          "plateau_bars": 9,
+          "broken": false
+        },
+        {
+          "price": 0.0590821863,
+          "events": 3,
+          "scales": [
+            1,
+            2
+          ],
+          "confirmed": true,
+          "tier_sum": 9,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.67,
+          "freshness": 65,
+          "tests": 1,
+          "plateau_bars": 9,
+          "broken": false
+        },
+        {
+          "price": 0.0720680878,
+          "events": 5,
+          "scales": [
+            1,
+            2,
+            3
+          ],
+          "confirmed": true,
+          "tier_sum": 15,
+          "absorbed_ratio": 0.0,
+          "buy_ratio": 0.2,
+          "freshness": 46,
+          "tests": 1,
+          "plateau_bars": 9,
+          "broken": false
+        },
+        {
+          "price": 0.0848158434,
+          "events": 9,
+          "scales": [
+            1,
+            2,
+            3,
+            5
+          ],
+          "confirmed": true,
+          "tier_sum": 22,
+          "absorbed_ratio": 0.78,
+          "buy_ratio": 0.44,
+          "freshness": 20,
+          "tests": 2,
+          "plateau_bars": 9,
+          "broken": false
+        }
+      ],
+      "zones_confirmed": 4,
+      "drop": {
+        "growth_x": 3.71,
+        "peak_age_days": 38,
+        "drop_pct": 61.3,
+        "bars_since_bottom": 4,
+        "volume_recovery": 0.0,
+        "suspicious": false
+      },
+      "flow": {
+        "delta_slope": -0.024,
+        "price_slope": -0.013,
+        "homogeneity": 0.67,
+        "buy_share": 0.486,
+        "collapsing": false,
+        "rel_volume": 4.05
+      },
+      "vortex": {
+        "scale": 5,
+        "direction": "up",
+        "strength": 0.437,
+        "confidence": 1.0,
+        "sell_peaks": 8,
+        "buy_lows": 7,
+        "vi_plus": 1.029,
+        "vi_minus": 0.9726,
+        "diverging": true,
+        "mult": 1.175
+      },
+      "horizon": "неделя"
+    },
+    "failures": {
+      "flow_churn": "AttributeError: 'VortexState' object has no attribute 'spread'"
+    }
+  }
+]
