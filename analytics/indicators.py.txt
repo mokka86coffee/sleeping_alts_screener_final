@@ -331,8 +331,6 @@ def window_ratio(
     Нейтральная единица при отсутствии нормы — честное «не знаю».
     """
     n = min(len(quotes), len(fills))
-    if n < window * 2:
-        return 1.0
 
     tail = [
         quotes[i] / max(fills[i], 1e-9)
@@ -348,6 +346,7 @@ def window_ratio(
         for i in range(lo, n - window)
         if fills[i] >= 1.0 and quotes[i] > 0
     ]
+
     if len(norm) < window:
         return 1.0
 
@@ -355,4 +354,10 @@ def window_ratio(
     if med_norm <= 0:
         return 1.0
 
-    return median(tail) / med_norm
+    # 1. Норма должна отстоять от края достаточно, чтобы не попасть в листинг
+    if n < window + norm_span:
+        return 1.0
+
+    # 2. Потолок: отношение выше 10 означает отсутствие нормы, а не аномалию
+    ratio = median(tail) / med_norm
+    return min(ratio, WINDOW_RATIO_CAP)

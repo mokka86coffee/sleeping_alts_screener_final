@@ -110,13 +110,16 @@ def robust_sigma(value: float, sample: list[float]) -> float:
     if not sample:
         return 0.0
     med = _median(sample)
-    floor = med * MIN_SIGMA_RATIO      # ~0.05
-    mad = max(mad, floor)
-    if mad <= 0:
-        # Вырожденный случай: половина выборки одинаковая.
-        # Падать на нуль нельзя, но и аномалию объявлять не за что.
+    if med <= 0:
         return 0.0
-    return (value - med) / mad
+    sigma = _mad(sample, med)
+    # Пол разброса. Половина выборки может совпасть до цифры —
+    # тогда MAD равен нулю и любое отклонение даёт бесконечность.
+    # Ниже этой доли медианы разброс считаем нереалистично малым.
+    sigma = max(sigma, med * MIN_SIGMA_RATIO)
+    if sigma <= 0:
+        return 0.0
+    return (value - med) / sigma
 
 def _slope_of_flow(cum: list[float], scale: float) -> float:
     """Наклон кумулятивного ряда, нормированный на внешний масштаб.

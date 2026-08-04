@@ -40,7 +40,7 @@ TIER_1_SIGMA = 2.0      # заметное
 TIER_2_SIGMA = 3.0      # сильное
 TIER_3_SIGMA = 4.5      # экстремальное
 
-MIN_SIGMA_RATIO = 20
+MIN_SIGMA_RATIO = 0.05   # пол MAD как доли медианы
 
 # Окно нормы, от которой считается аномалия стороны.
 EVENT_NORM_WINDOW = 30
