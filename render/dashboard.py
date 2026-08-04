@@ -311,6 +311,29 @@ SECTOR_FALLBACK = [("ai", 12.4), ("gamefi", 4.1), ("meme", -3.8),
 
 FN_TONE = ["#C8DCE8", "#F5A623", "#D9B84A", "#C4703A", "#8FA0B0", "#4FCF8A"]
 
+# ─────────────────────────────────────────────────────────────
+# ТЕКУЩИЕ ЛИДЕРЫ · наблюдение по Vortex
+# Первая буква тикера красится состоянием линии продаж,
+# остальное — базовым цветом строки. Цифру уровня не выводим:
+# цвет и есть значение, дублировать его числом нечем.
+# ЭТАП: вёрстка, состав списка и уровни — статика.
+# Источник появится вместе с панелью состояния импульса.
+# ─────────────────────────────────────────────────────────────
+VORTEX_TONE = {
+    "flat": "#4FCF8A",   # линия продаж горизонтальна
+    "up":   "#F5A623",   # пошла вверх, отклонение от фона
+    "cross": "#C4703A",  # пересекла линию покупок
+}
+
+# Две строки по три монеты. Базовый цвет чередуется:
+# верхняя — белый · золото · белый, нижняя наоборот.
+WATCH_ROWS = [
+    [("TUT", "flat"), ("BLESS", "cross"), ("ZRO", "up")],
+    [("ARB", "up"), ("PLAY", "flat"), ("SYN", "cross")],
+]
+WATCH_CAP = "текущие лидеры"
+WATCH_COLS = (470, 522, 574)   # центры колонок в локальном viewBox
+
 ICONS = {
     "vol": '<path d="M-9 6 L-3 -2 L2 3 L9 -8" fill="none" stroke="#FFD98A" '
            'stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -752,12 +775,12 @@ def _blk_sectors(snapshot: RunSnapshot) -> str:
 # порядок узлов на ленте фиксирован макетом, cx пересчитаны
 # из холста 1200×950 в локальный viewBox (сдвиг x−352, y−410)
 FLOW_NODES = [
-    ("hidden",   124, 22.0, "скрытый набор",        True),
-    ("spring",   165, 16.0, "сжатие в тишине",      False),
-    ("churn",    221, 35.0, "объём есть, цена стоит", True),
-    ("fuel",     287, 26.0, "сверху пусто",         True),
-    ("taker",    335, 19.0, "сменился агрессор",    False),
-    ("leverage", 373, 13.0, "шорты перегружены",    False),
+    ("hidden",   124, 22.0, "скрытый набор", True),
+    ("spring",   169, 16.0, "сжатие в тишине", False),
+    ("churn",    229, 35.0, "объём есть, цена стоит", True),
+    ("fuel",     299, 26.0, "сверху пусто", True),
+    ("taker",    351, 19.0, "сменился агрессор", False),
+    ("leverage", 393, 13.0, "шорты перегружены", False),
 ]
 
 
@@ -768,48 +791,53 @@ def _blk_flow(candidates: list[Candidate]) -> str:
         case = case_key((c.flow or {}).get("case", ""))
         by_case[case] = by_case.get(case, 0) + 1
 
-    lead = max(flow, key=lambda c: getattr(c, "score", 0) or 0, default=None)
-
     nodes = ""
     for case, cx, rx, _sub, underline in FLOW_NODES:
         n = by_case.get(case, 0)
         ry = rx * 0.317
         dim = "" if n else " off"
         big = " big" if case == "churn" else ""
-        # число немного приподнято над кольцом
         dy = -14 if case == "churn" else (-8 if rx >= 22 else -6)
         line = (f'<path d="M{-rx * 0.7:.0f} 47 H{rx * 0.7:.0f}" '
                 f'stroke="url(#fl-und)" stroke-width="1"/>' if underline else "")
         nodes += f"""
-    <g class="fl-node{dim}{big}" transform="translate({cx},56)"
-       data-slice="strat:flow">
-      <text class="fl-n" y="{dy}" text-anchor="middle">{n}</text>
-      <ellipse rx="{rx + 4:.1f}" ry="{ry + 1.3:.1f}" class="fl-glow"/>
-      <ellipse rx="{rx:.1f}" ry="{ry:.1f}" fill="url(#fl-disc)"/>
-      <ellipse rx="{rx:.1f}" ry="{ry:.1f}" fill="none" stroke="url(#fl-ring)"
-               stroke-width="1.3"/>
-      <ellipse rx="{rx + 6:.1f}" ry="{ry + 2:.1f}" fill="none" stroke="#D9A441"
-               stroke-opacity=".24" stroke-width=".8"/>
-      <path d="M{-rx:.1f} 0 A{rx:.1f} {ry:.1f} 0 0 0 {rx:.1f} 0" fill="none"
-            stroke="#FFEBB8" stroke-opacity=".8" stroke-width="1.4"/>
-      <text class="fl-c" y="42" text-anchor="middle">{case.upper()}</text>
-      {line}
-    </g>"""
+      <g class="fl-node{dim}{big}" transform="translate({cx},56)"
+         data-slice="strat:flow">
+        <text class="fl-n" y="{dy}" text-anchor="middle">{n}</text>
+        <ellipse rx="{rx + 4:.1f}" ry="{ry + 1.3:.1f}" class="fl-glow"/>
+        <ellipse rx="{rx:.1f}" ry="{ry:.1f}" fill="url(#fl-disc)"/>
+        <ellipse rx="{rx:.1f}" ry="{ry:.1f}" fill="none"
+                 stroke="url(#fl-ring)" stroke-width="1.3"/>
+        <ellipse rx="{rx + 6:.1f}" ry="{ry + 2:.1f}" fill="none"
+                 stroke="#D9A441" stroke-opacity=".24" stroke-width=".8"/>
+        <path d="M{-rx:.1f} 0 A{rx:.1f} {ry:.1f} 0 0 0 {rx:.1f} 0"
+              fill="none" stroke="#FFEBB8" stroke-opacity=".8" stroke-width="1.4"/>
+        <text class="fl-c" y="42" text-anchor="middle">{case.upper()}</text>
+        {line}
+      </g>"""
 
-    lead_html = ""
-    if lead is not None:
-        lead_html = (
-            f'<text class="fl-lk" x="440" y="28">лидер прогона</text>'
-            f'<text class="fl-lv" x="440" y="48">{_tick(lead)}</text>'
-            f'<text class="fl-ls" x="520" y="48" text-anchor="end">'
-            f'{int(getattr(lead, "score", 0) or 0)}</text>'
-        )
+    # Базовый цвет: fl-lv — белый, fl-ls — золото. В верхней строке
+    # золото по центру, в нижней по краям, поэтому классы чередуются
+    # от индекса колонки и номера строки сразу.
+    watch = ""
+    for row, coins in enumerate(WATCH_ROWS):
+        y = 48 + row * 22
+        for col, (name, state) in enumerate(coins[:3]):
+            gold = (col == 1) if row == 0 else (col != 1)
+            cls = "fl-ls" if gold else "fl-lv"
+            tone = VORTEX_TONE.get(state, "#6b5c38")
+            watch += (
+                f'<text class="{cls}" x="{WATCH_COLS[col]}" y="{y}" '
+                f'text-anchor="middle">'
+                f'<tspan fill="{tone}">{esc(name[:1])}</tspan>'
+                f'{esc(name[1:])}</text>'
+            )
 
     cls = "strat c-fl" + ("" if flow else " empty")
     return f"""
 <div class="{cls}" data-slice="strat:flow">
   <span class="halo"></span>
-  <svg class="fl" viewBox="-14 0 560 130">
+  <svg class="fl" viewBox="-14 0 620 130">
     <defs>
       <linearGradient id="fl-base" x1="0" x2="1">
         <stop offset="0" stop-color="#B8860B" stop-opacity="0"/>
@@ -836,24 +864,27 @@ def _blk_flow(candidates: list[Candidate]) -> str:
     </defs>
 
     <g class="fl-left">
-      <ellipse cx="0" cy="56" rx="11" ry="3.7" fill="none" stroke="#FFD98A"
-               stroke-opacity=".35"/>
-      <ellipse cx="0" cy="56" rx="6.5" ry="2.2" fill="none" stroke="#FFEBB8"
-               stroke-opacity=".55"/>
+      <ellipse cx="0" cy="56" rx="11" ry="3.7" fill="none"
+               stroke="#FFD98A" stroke-opacity=".35"/>
+      <ellipse cx="0" cy="56" rx="6.5" ry="2.2" fill="none"
+               stroke="#FFEBB8" stroke-opacity=".55"/>
       <circle cx="0" cy="56" r="1.6" fill="#FFF4D8"/>
       <text class="fl-lk" x="22" y="49">FLOW</text>
       <text class="fl-tot" x="22" y="71">{len(flow)}</text>
     </g>
+
     <line x1="80" y1="26" x2="80" y2="86" stroke="#B8860B" stroke-opacity=".16"/>
-
-    <path d="M94 56 H404" stroke="url(#fl-base)" stroke-width="6"
+    <path d="M94 56 H428" stroke="url(#fl-base)" stroke-width="6"
           class="fl-blur" opacity=".35"/>
-    <path d="M94 56 H404" stroke="url(#fl-base)" stroke-width="1"/>
+    <path d="M94 56 H428" stroke="url(#fl-base)" stroke-width="1"/>
     {nodes}
+    <line x1="436" y1="26" x2="436" y2="86" stroke="#B8860B" stroke-opacity=".16"/>
 
-    <line x1="416" y1="26" x2="416" y2="86" stroke="#B8860B" stroke-opacity=".16"/>
-    {lead_html}
-    <text class="fl-note" x="440" y="102">КТО ДВИГАЕТ РЫНОК</text>
+    <text class="fl-lk" x="{WATCH_COLS[0]}" y="26"
+          text-anchor="middle">{WATCH_CAP}</text>
+    {watch}
+    <text class="fl-note" x="{WATCH_COLS[0]}" y="104"
+          text-anchor="middle">КТО ДВИГАЕТ РЫНОК</text>
   </svg>
 </div>"""
 
