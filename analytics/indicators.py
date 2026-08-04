@@ -4,6 +4,11 @@ from __future__ import annotations
 
 import math
 
+from analytics.indicators import (
+    atr_pct, bb_width_pct, bb_width_rank, drawdown_from_high,
+    obv_slope_pct, pct_change, rvol, stoch_rsi, vortex_phase,
+    median, volume_ratio,
+)
 
 def median(values: list[float]) -> float:
     """Медиана ряда. Устойчива к выбросам, в отличие от среднего."""
@@ -269,3 +274,91 @@ def drawdown_from_high(price: float, highs: list[float]) -> float:
     if peak <= 0:
         return 0.0
     return ((price / peak) - 1) * 100
+
+def volume_ratio(
+    quotes: list[float],
+    fills: list[float],
+    window: int,
+    min_fill: float,
+    min_norm: int | None = None,
+) -> float | None:
+    """Объём последнего бара к медиане нормы, кратностью.
+
+    Единственная реализация на проект. Существовало две: metrics и
+    flow_core считали одно и то же над одной ячейкой кэша и
+    расходились на два порядка — EUL показывала ×107 в колонке и
+    «тихо» в семействе, в одной карточке, в один момент.
+
+    Три правила, нарушение любого даёт расхождение: незакрытый бар
+    достраивается по доле набранного времени; норма строится только
+    по закрытым барам; нормы нет — возвращается None, а не отношение
+    к пустоте.
+    """
+    n = min(len(quotes), len(fills))
+    if n < 2:
+        return None
+
+    cur_q = quotes[n - 1]
+    cur_fill = fills[n - 1]
+    if cur_q <= 0 or cur_fill <= 0 or cur_fill < min_fill:
+        return None
+
+    lo = max(0, n - 1 - window)
+    norm = [
+        quotes[i]
+        for i in range(lo, n - 1)
+        if fills[i] >= 1.0 and quotes[i] > 0
+    ]
+
+    need = min_norm if min_norm is not None else max(2, window // 2)
+    if len(norm) < need:
+        return None
+
+    med = median(norm)
+    if med <= 0:
+        return None
+
+    return (cur_q / cur_fill) / med
+
+
+def window_ratio(
+    quotes: list[float],
+    fills: list[float],
+    window: int,
+    norm_span: int,
+) -> float:
+    """Медиана окна к медиане более длинной нормы.
+
+    Отдельная функция, а не параметр к volume_ratio, и это по смыслу.
+    Первая отвечает «аномален ли текущий бар», вторая — «шумный ли
+    фон». Churn требует шумного, spring тихого, расходятся они именно
+    по второй величине.
+
+    Нейтральная единица при отсутствии нормы — честное «не знаю».
+    """
+    n = min(len(quotes), len(fills))
+    if n < window * 2:
+        return 1.0
+
+    tail = [
+        quotes[i] / max(fills[i], 1e-9)
+        for i in range(n - window, n)
+        if quotes[i] > 0
+    ]
+    if not tail:
+        return 1.0
+
+    lo = max(0, n - window - norm_span)
+    norm = [
+        quotes[i]
+        for i in range(lo, n - window)
+        if fills[i] >= 1.0 and quotes[i] > 0
+    ]
+    if len(norm) < window:
+        return 1.0
+
+    med_norm = median(norm)
+    if med_norm <= 0:
+        return 1.0
+
+    return median(tail) / med_norm
