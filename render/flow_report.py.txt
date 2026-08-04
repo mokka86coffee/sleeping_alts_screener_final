@@ -181,36 +181,50 @@ def _vol_rows(d: dict) -> str:
                 f'<s style="width:{min(100, v / 8 * 100):.0f}%"></s></span>')
     return out
 
-def _links(c: Candidate) -> str:
-    """Четыре внешние ссылки, каждая — на саму монету.
+# Короткие ярлыки: строка ссылок стоит над тикером и не должна
+# перетягивать внимание с самой карточки. Полные названия сайтов
+# занимали четверть ширины и не сообщали ничего сверх иконки.
+SITES = (
+    ("tv", "https://www.tradingview.com/chart/?symbol=BINANCE:{sym}.P", True),
+    ("bnc", "https://www.binance.com/en/futures/{sym}", False),
+    ("tw", "https://twitter.com/search?q=%24{base}", False),
+)
 
-    CoinGecko ищется в c.links: id монеты приходит от них же и
-    восстановить его из тикера нельзя. Если ссылки нет, кнопка
-    гасится, а не ведёт на главную — переход в никуда хуже
-    отсутствия перехода.
+
+def _links(c: Candidate) -> str:
+    """Внешние ссылки, каждая — на саму монету.
+
+    CoinGecko идёт отдельно: их id приходит из c.links и по тикеру
+    не восстанавливается. Нет ссылки — чип гасится, а не ведёт на
+    главную. Переход в никуда хуже отсутствия перехода.
     """
     base = c.symbol.replace("USDT", "")
-    tv = f"https://www.tradingview.com/chart/?symbol=BINANCE:{c.symbol}.P"
-    bn = f"https://www.binance.com/en/futures/{c.symbol}"
-    tw = f"https://twitter.com/search?q=%24{base}"
+    out = ""
+    for label, tpl, pri in SITES:
+        url = tpl.format(sym=c.symbol, base=base)
+        cls = "fr-lnk pri" if pri else "fr-lnk"
+        out += (f'<a class="{cls}" href="{url}" target="_blank" '
+                f'rel="noopener">{label}<i>↗</i></a>')
 
-    cg = ""
-    for l in (c.links or []):
-        url = str(l.get("url") or "")
-        if "coingecko.com/en/coins/" in url:
-            cg = url
-            break
-
-    out = (f'<a class="fr-lnk pri" href="{tv}" target="_blank" '
-           f'rel="noopener">TRADINGVIEW <i>↗</i></a>'
-           f'<a class="fr-lnk" href="{bn}" target="_blank" '
-           f'rel="noopener">BINANCE <i>↗</i></a>')
+    cg = next((str(l.get("url") or "") for l in (c.links or [])
+               if "coingecko.com/en/coins/" in str(l.get("url") or "")), "")
     out += (f'<a class="fr-lnk" href="{esc(cg)}" target="_blank" '
-            f'rel="noopener">COINGECKO <i>↗</i></a>' if cg
-            else '<span class="fr-lnk off">COINGECKO</span>')
-    out += (f'<a class="fr-lnk" href="{tw}" target="_blank" '
-            f'rel="noopener">TWITTER <i>↗</i></a>')
+            f'rel="noopener">cg<i>↗</i></a>' if cg
+            else '<span class="fr-lnk off">cg</span>')
     return out
+
+def _horizon(c: Candidate) -> str:
+    """Срок, на который рассчитан сигнал.
+
+    Диспетчер выбирает горизонт по масштабу, на котором собралась
+    фигура: скрытый набор разряжается дольше, чем перекос в плече.
+    Без этой величины score сравнивает несравнимое — сигнал на
+    неделю и сигнал на два месяца стоят рядом с одним числом.
+    """
+    days = int((c.flow or {}).get("horizon_days") or 0)
+    if days <= 0:
+        return '<span class="fr-hz off">—</span>'
+    return f'<span class="fr-hz"><b>{days}</b><s>дней</s></span>'
 
 
 def _fund_bar(pct: float) -> str:
@@ -300,22 +314,20 @@ def _card(c: Candidate, idx: int) -> str:
         veto_txt = esc(getattr(first, "label", "") or "вето")
         veto_cls = "bad"
 
-    btn = ('<span class="fr-btn off">ПОД ВЕТО</span>' if c.vetoed
-           else '<span class="fr-btn">ОТКРЫТЬ</span>')
-
     return f"""
 <div class="fr t-{key}" data-coin="{esc(c.symbol)}">
   <div class="fr-in">
     <div class="fr-c fr-c1">
-      <span class="fr-idx">{idx + 1:02d}</span>
-      <a class="fr-sym" href="https://www.tradingview.com/chart/?symbol=BINANCE:{esc(c.symbol)}.P"
-               target="_blank" rel="noopener">{sym}</a>
-      <span class="fr-sec">{sector}</span>
-      <span class="fr-caps">
-        <b class="fr-tag">{_cap(d['cap'])}</b>
-        <b class="fr-tag gh">{d['ath']:+.0f}% ath</b>
-        <b class="fr-tag up">+{d['up']:.0f}% от дна</b>
-      </span>
+        <span class="fr-lnks">{_links(c)}</span>
+        <span class="fr-idx">{idx + 1:02d}</span>
+            <a class="fr-sym" href="https://www.tradingview.com/chart/?symbol=BINANCE:{esc(c.symbol)}.P"
+            target="_blank" rel="noopener">{sym}</a>
+        <span class="fr-sec">{sector}</span>
+        <span class="fr-caps">
+            <b class="fr-tag">{_cap(d['cap'])}</b>
+            <b class="fr-tag gh">{d['ath']:+.0f}% ath</b>
+            <b class="fr-tag up">+{d['up']:.0f}% от дна</b>
+        </span>
     </div>
 
     <svg class="fr-ring" viewBox="-32 -32 64 64">
@@ -378,9 +390,9 @@ def _card(c: Candidate, idx: int) -> str:
       <span class="fr-bg">{bars}<b>{bg_txt}</b></span>
     </div>
 
-    <div class="fr-act">
-      {btn}
-      <div class="fr-lnks">{_links(c)}</div>
+    <div class="fr-c">
+        <span class="fr-k">ГОРИЗОНТ</span>
+        {_horizon(c)}
     </div>
   </div>
 </div>"""
