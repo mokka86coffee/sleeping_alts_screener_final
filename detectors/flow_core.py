@@ -15,7 +15,6 @@ import math
 import time
 from dataclasses import dataclass, field
 
-from core.volume import window_ratio
 from core.binance import (
     K_CLOSE,
     K_CLOSE_TIME,
@@ -27,6 +26,7 @@ from core.binance import (
     K_TAKER_BUY_QUOTE,
     klines_1d,
 )
+from analytics.indicators import window_ratio
 from detectors.flow_config import (
     BOTTOM_LOOKBACK_DAYS,
     BOTTOM_LOOKBACK_DAYS,

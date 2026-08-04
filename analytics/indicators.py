@@ -4,12 +4,6 @@ from __future__ import annotations
 
 import math
 
-from analytics.indicators import (
-    atr_pct, bb_width_pct, bb_width_rank, drawdown_from_high,
-    obv_slope_pct, pct_change, rvol, stoch_rsi, vortex_phase,
-    median, volume_ratio,
-)
-
 def median(values: list[float]) -> float:
     """Медиана ряда. Устойчива к выбросам, в отличие от среднего."""
     if not values:

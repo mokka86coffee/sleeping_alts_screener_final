@@ -5,7 +5,8 @@ import time
 
 from analytics.indicators import (
     atr_pct, bb_width_pct, bb_width_rank, drawdown_from_high,
-    obv_slope_pct, pct_change, rvol, stoch_rsi, vortex_phase, median,
+    obv_slope_pct, pct_change, rvol, stoch_rsi, vortex_phase,
+    median, volume_ratio,
 )
 from core.binance import (
     K_CLOSE, K_HIGH, K_LOW, K_QUOTE_VOLUME, K_VOLUME, K_CLOSE_TIME, K_OPEN_TIME,
@@ -13,7 +14,6 @@ from core.binance import (
     klines_1d, klines_1h, klines_4h, klines_1w, series,
 )
 from core.config import MIN_HISTORY_DAYS, VOL_MEDIAN_WINDOW, MIN_BAR_FILL
-from core.volume import volume_ratio
 
 # Короткие ряды, которые остаются в снимке для отрисовки спарклайнов
 KEEP_SERIES = ("spark_1d", "spark_vol")
