@@ -278,24 +278,23 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     # надёжнее: он накопительный, дельта шумит. Поэтому вес выше,
     # чем в churn и spring.
     vx = ctx.vortex
-    if vx.diverging and vx.vi_plus > vx.vi_minus:
-        mult = min(VORTEX_MULT_MAX, 1.0 + vx.spread * 0.6)
-        sig.apply("vortex_up", mult)
+    if vx.direction == "up":
+        sig.apply("vortex_up", min(VORTEX_MULT_MAX, vx.mult(0.6)))
         sig.add(
-            f"вортекс на масштабе {vx.scale}D подтверждает: "
-            f"{vx.vi_plus:.2f} против {vx.vi_minus:.2f}",
+            f"вортекс на масштабе {vx.scale}D подтверждает набор: "
+            f"пики продаж снижаются ({vx.strength:.2f})",
             vortex_scale=float(vx.scale),
-            vortex_spread=vx.spread,
+            vortex_strength=vx.strength,
+            vortex_confidence=vx.confidence,
         )
-    elif vx.diverging and vx.vi_minus > vx.vi_plus:
-        # Прямое противоречие: дельта растёт, а направленное
-        # движение перевешивает вниз. Один из двух признаков
-        # врёт, и это повод не брать монету.
+    elif vx.direction == "down":
+        # Дельта растёт, а предложение не исчерпано. Один из двух
+        # признаков врёт — повод не брать монету.
         sig.apply("vortex_conflict", 0.6)
         sig.add(
             f"вортекс на масштабе {vx.scale}D противоречит набору",
             vortex_scale=float(vx.scale),
-            vortex_spread=vx.spread,
+            vortex_strength=vx.strength,
         )
 
     # ── Доля покупок ─────────────────────────────────────────
@@ -320,12 +319,5 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
             f"объём восстановился (x{ctx.volume_recovery:.2f})",
             volume_recovery=ctx.volume_recovery,
         )
-
-    # ── Подозрительный контекст ──────────────────────────────
-    # Объём растёт при падающей цене. Для hidden это особенно
-    # опасно: ровно так выглядит и распределение сверху вниз.
-    if ctx.drop.suspicious:
-        sig.apply("suspicious", 0.75)
-        sig.add("объём нарастает при падающей цене")
 
     return sig if not sig.weak else None

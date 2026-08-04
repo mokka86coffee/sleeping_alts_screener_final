@@ -344,21 +344,21 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
 
     # ── Вортекс [MMT] ────────────────────────────────────────
     vx = ctx.vortex
-    if vx.diverging and vx.vi_plus > vx.vi_minus:
-        mult = min(VORTEX_MULT_MAX, 1.0 + vx.spread * 0.4)
-        sig.apply("vortex_up", mult)
+    if vx.direction == "up":
+        sig.apply("vortex_up", min(VORTEX_MULT_MAX, vx.mult(0.4)))
         sig.add(
             f"вортекс на масштабе {vx.scale}D подтверждает сторону разряда",
             vortex_scale=float(vx.scale),
-            vortex_spread=vx.spread,
+            vortex_strength=vx.strength,
+            vortex_confidence=vx.confidence,
         )
-    elif vx.diverging and vx.vi_minus > vx.vi_plus:
-        # Шорт может оказаться прав: направленное движение вниз.
+    elif vx.direction == "down":
+        # Шорт может оказаться прав.
         sig.apply("vortex_conflict", 0.7)
         sig.add(
             f"вортекс на масштабе {vx.scale}D указывает вниз",
             vortex_scale=float(vx.scale),
-            vortex_spread=vx.spread,
+            vortex_strength=vx.strength,
         )
 
     # ── Поток ──────────────────────────────────────────────

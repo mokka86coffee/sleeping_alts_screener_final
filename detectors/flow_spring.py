@@ -234,23 +234,22 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     # сжатие направления не имеет, и если перевес уже сложился на
     # старшем масштабе — сторона разряда известна заранее.
     vx = ctx.vortex
-    if vx.diverging and vx.vi_plus > vx.vi_minus:
-        mult = min(VORTEX_MULT_MAX, 1.0 + vx.spread * 0.5)
-        sig.apply("vortex_up", mult)
+    if vx.direction == "up":
+        sig.apply("vortex_up", min(VORTEX_MULT_MAX, vx.mult(0.5)))
         sig.add(
-            f"вортекс на масштабе {vx.scale}D разошёлся вверх "
-            f"({vx.vi_plus:.2f} против {vx.vi_minus:.2f})",
+            f"вортекс на масштабе {vx.scale}D задаёт сторону разряда "
+            f"({vx.strength:.2f})",
             vortex_scale=float(vx.scale),
-            vortex_spread=vx.spread,
+            vortex_strength=vx.strength,
+            vortex_confidence=vx.confidence,
         )
-    elif vx.diverging and vx.vi_minus > vx.vi_plus:
-        # Разряд с высокой вероятностью пойдёт вниз — а лонговая
-        # пружина именно этого и не переживает.
+    elif vx.direction == "down":
+        # Лонговая пружина разряда вниз не переживает.
         sig.apply("vortex_down", 0.65)
         sig.add(
-            f"вортекс на масштабе {vx.scale}D разошёлся вниз",
+            f"вортекс на масштабе {vx.scale}D: пики продаж растут",
             vortex_scale=float(vx.scale),
-            vortex_spread=vx.spread,
+            vortex_strength=vx.strength,
         )
 
     # ── Однородность серии ───────────────────────────────────

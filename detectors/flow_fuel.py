@@ -22,12 +22,13 @@
 from __future__ import annotations
 
 from detectors.flow_config import (
-    EXTREME_GROWTH_X,
     FUEL_BREAKOUT_HOLD_BARS,
     FUEL_BREAKOUT_MARGIN,
     FUEL_CLEAR_SKY_WEIGHT,
     FUEL_MAX_DISTANCE,
     FUEL_MIN_CLEARED,
+    GROWTH_LOAD_PEAK_DAYS,
+    GROWTH_LOAD_X,
     ZONE_SINGLE_SCALE_WEIGHT,
 )
 from detectors.flow_core import FlowContext, Zone
@@ -203,15 +204,24 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
             freshness=float(top.freshness),
         )
 
-    # ── Рост перед падением ────────────────────────────────
-    # Сильный рост в прошлом означает, что выше рабочей дистанции
-    # всё равно висят застрявшие — просто мы их не видим.
-    if ctx.growth_x >= EXTREME_GROWTH_X * 0.5:
+    # ── Свежий рост перед падением ────────────────────────
+    # Множитель, а не вето. Сильный рост означает, что выше рабочей
+    # дистанции могут висеть застрявшие, которых карта не видит.
+    #
+    # Но давит только СВЕЖАЯ толпа. Тот, кто держит минус девяносто
+    # процентов полгода, может держать его годами и предложением уже
+    # не является — он не продаёт. Прежнее условие читало growth_x
+    # без давности и штрафовало листинговые распилы, где толпы не
+    # было вовсе: рост в сорок раз за неделю на пустом стакане.
+    fresh_peak = ctx.drop.peak_age_days <= GROWTH_LOAD_PEAK_DAYS
+    if fresh_peak and ctx.growth_x >= GROWTH_LOAD_X:
         sig.apply("growth_load", 0.85)
         sig.add(
-            f"рост перед падением x{ctx.growth_x:.1f}: выше могут быть "
+            f"свежий пик: рост x{ctx.growth_x:.1f} "
+            f"{ctx.drop.peak_age_days} дней назад, выше могут быть "
             f"зоны за горизонтом карты",
             growth_x=ctx.growth_x,
+            peak_age_days=float(ctx.drop.peak_age_days),
         )
 
     # ── Восстановление объёма ──────────────────────────────

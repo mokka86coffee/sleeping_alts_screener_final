@@ -238,27 +238,26 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
         sig.apply("untested", 0.8)
         sig.add("уровень ещё не тестировался", tests=0.0)
 
-    # ── Вортекс на своём масштабе [MMT] ──────────────────────
-    # Расхождение VI внутри плоской базы означает, что перевес
-    # уже сложился, хотя цена его не показывает. Для churn это
-    # ответ на главный вопрос фигуры: кто победил в столкновении.
+# ── Вортекс: кто победил в столкновении ──────────────────
+    # Снижающиеся пики продаж означают, что предложение слабеет.
+    # Для churn это ответ на главный вопрос фигуры: столкновение
+    # состоялось, исход определяет то, что происходит дальше.
     vx = ctx.vortex
-    if vx.diverging and vx.vi_plus > vx.vi_minus:
-        mult = min(VORTEX_MULT_MAX, 1.0 + vx.spread * 0.4)
-        sig.apply("vortex_up", mult)
+    if vx.direction == "up":
+        sig.apply("vortex_up", min(VORTEX_MULT_MAX, vx.mult(0.4)))
         sig.add(
-            f"вортекс на масштабе {vx.scale}D разошёлся вверх "
-            f"({vx.vi_plus:.2f} против {vx.vi_minus:.2f})",
+            f"вортекс на масштабе {vx.scale}D: предложение слабеет "
+            f"(выраженность {vx.strength:.2f}, согласие {vx.confidence:.1f})",
             vortex_scale=float(vx.scale),
-            vortex_spread=vx.spread,
+            vortex_strength=vx.strength,
+            vortex_confidence=vx.confidence,
         )
-    elif vx.diverging and vx.vi_minus > vx.vi_plus:
-        # Перевес в другую сторону: поглощали, но продавливают вниз.
+    elif vx.direction == "down":
         sig.apply("vortex_down", 0.8)
         sig.add(
-            f"вортекс на масштабе {vx.scale}D разошёлся вниз",
+            f"вортекс на масштабе {vx.scale}D: пики продаж растут",
             vortex_scale=float(vx.scale),
-            vortex_spread=vx.spread,
+            vortex_strength=vx.strength,
         )
 
     # ── Однородность потока ──────────────────────────────────
