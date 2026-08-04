@@ -154,7 +154,7 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     # Считаем по снятой массе, а не по числу уровней: важно,
     # сколько предложения ушло, а не сколько раз мы его пересекли.
     mass = _cleared_mass(cleared)
-    score = 38.0 + min(24.0, mass * 11.0)
+    score = 38.0 + min(34.0, mass * 7.5)      # насыщение при mass ≈ 4.53, потолок 72.0
 
     top = cleared[0]
     sig = SubcaseSignal(
