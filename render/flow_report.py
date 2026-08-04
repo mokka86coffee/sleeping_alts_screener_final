@@ -48,6 +48,64 @@ def case_key(raw: str) -> str:
     """
     return str(raw or "").removeprefix("flow_")
 
+# ── состояние импульса · техдолг «Панель состояния импульса» ───
+# Фильтр отбора считается по дневным полям и работает уже сейчас.
+# Уровень по Vortex НЕ считается: внутридневной лестницы (1h–6h)
+# в ядре нет, дневной Vortex на этот вопрос не отвечает.
+#
+# Пока источника нет, шкала гасится и подписывается «нет данных».
+# Ставить уровень 1 по умолчанию нельзя: «продавец спокоен» и
+# «мы не знаем» — разные утверждения, и подменять второе первым
+# значит врать шкалой ровно в том месте, ради которого её завели.
+IMPULSE_MIN_PCT = 30.0
+
+# 4 уровня, 3 цвета: подъём линии продаж (2) и её устойчивый рост (3)
+# делят один тон, потому что различие между ними количественное,
+# а решение по ним одинаковое — насторожиться.
+VORTEX_STATE = {
+    1: ("flat", "продавец спокоен"),
+    2: ("up", "давление растёт"),
+    3: ("up", "давление растёт"),
+    4: ("cross", "продавец перехватил"),
+}
+
+
+def _impulse(c: Candidate) -> str:
+    """Состояние импульса: рост >30% за 1–3 дня плюс характер продаж.
+
+    Окно берём самое короткое из тех, что уже перебрали порог: если
+    30% набрались за сутки, импульс начался сутки назад, и мерить его
+    трёхдневным окном значит растянуть событие, которого там нет.
+    Длительность нужна для выбора масштаба, поэтому подменять её
+    более удобным числом нельзя.
+
+    Четырёхдневный случай (BEAT) сейчас не ловится: поля ch_4d нет,
+    а ch_7d слишком грубое — семидневный рост может целиком лежать
+    в первых двух днях. Это отдельный пункт долга.
+    """
+    r = c.raw or {}
+    d1 = float(r.get("ch_24h") or 0)
+    d3 = float(r.get("ch_3d") or 0)
+
+    if d1 >= IMPULSE_MIN_PCT:
+        pct, days = d1, 1
+    elif d3 >= IMPULSE_MIN_PCT:
+        pct, days = d3, 3
+    else:
+        return '<span class="fr-imp-off">не в импульсе</span>'
+
+    imp = ((c.flow or {}).get("context") or {}).get("impulse") or {}
+    level = int(imp.get("vortex_level") or 0)
+    tf = str(imp.get("tf") or "")
+    state, _label = VORTEX_STATE.get(level, ("none", "нет данных"))
+
+    segs = "".join(
+        f'<i class="{"on" if i < level else ""}"></i>' for i in range(4)
+    )
+    tail = f" · {esc(tf)}" if tf else ""
+    return (f'<span class="fr-imp {state}">{segs}</span>'
+            f'<span class="fr-impv">+{pct:.0f}% за {days}д{tail}</span>')
+
 
 def _flow(c: Candidate, key: str, default=None):
     return (c.flow or {}).get(key, default)
@@ -304,7 +362,9 @@ def _card(c: Candidate, idx: int) -> str:
 
     d = _data(c)
     coords, lx, ly = _spark(d["series"], w=150.0, h=40.0)
-    up = d["p1d"] >= 0
+    # Ведущая величина карточки — неделя. Дневное изменение внутри
+    # импульса скачет и на глаз сообщает меньше, чем форма недели.
+    up = d["p7d"] >= 0
     col = "#22E08A" if up else "#FF6B35"
 
     # veto — список VetoReason, не словарь.
@@ -351,8 +411,8 @@ def _card(c: Candidate, idx: int) -> str:
     </div>
 
     <div class="fr-c fr-price">
-      <span class="fr-k">ЦЕНА · 1Д</span>
-      <span class="fr-big {'up' if up else 'dn'}">{d['p1d']:+.1f}%</span>
+      <span class="fr-k">ЦЕНА · 7Д</span>
+      <span class="fr-big {'up' if up else 'dn'}">{d['p7d']:+.1f}%</span>
       <svg viewBox="0 0 150 40" preserveAspectRatio="none">
         <defs>
           <linearGradient id="fg{idx}" x1="0" y1="1" x2="0" y2="0">
@@ -361,13 +421,13 @@ def _card(c: Candidate, idx: int) -> str:
           </linearGradient>
         </defs>
         <polygon points="{coords} 150,40 0,40" fill="url(#fg{idx})"/>
-        <polyline points="{coords}" fill="none" stroke="{col}" stroke-width="1.5"
-                  vector-effect="non-scaling-stroke"/>
+        <polyline points="{coords}" fill="none" stroke="{col}"
+                  stroke-width="1.5" vector-effect="non-scaling-stroke"/>
         <circle cx="{lx:.0f}" cy="{ly:.0f}" r="2.6" fill="{col}"/>
       </svg>
       <span class="fr-legs">
+        <i>1д <b class="{'up' if d['p1d'] >= 0 else 'dn'}">{d['p1d']:+.0f}%</b></i>
         <i>3д <b class="{'up' if d['p3d'] >= 0 else 'dn'}">{d['p3d']:+.0f}%</b></i>
-        <i>7д <b class="{'up' if d['p7d'] >= 0 else 'dn'}">{d['p7d']:+.0f}%</b></i>
       </span>
     </div>
 
@@ -391,8 +451,10 @@ def _card(c: Candidate, idx: int) -> str:
     </div>
 
     <div class="fr-c">
-        <span class="fr-k">ГОРИЗОНТ</span>
-        {_horizon(c)}
+      <span class="fr-k">ГОРИЗОНТ</span>
+      {_horizon(c)}
+      <span class="fr-k">ИМПУЛЬС</span>
+      {_impulse(c)}
     </div>
   </div>
 </div>"""
