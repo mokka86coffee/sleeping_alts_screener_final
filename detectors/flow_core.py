@@ -28,6 +28,8 @@ from core.binance import (
 )
 from analytics.indicators import window_ratio
 from detectors.flow_config import (
+    MIN_SIGMA_RATIO,
+    VORTEX_FALLBACK_SLACK,
     BOTTOM_LOOKBACK_DAYS,
     BOTTOM_LOOKBACK_DAYS,
     BOTTOM_MIN_BARS_AFTER,
@@ -108,7 +110,8 @@ def robust_sigma(value: float, sample: list[float]) -> float:
     if not sample:
         return 0.0
     med = _median(sample)
-    mad = _mad(sample, med)
+    floor = med * MIN_SIGMA_RATIO      # ~0.05
+    mad = max(mad, floor)
     if mad <= 0:
         # Вырожденный случай: половина выборки одинаковая.
         # Падать на нуль нельзя, но и аномалию объявлять не за что.
@@ -463,10 +466,10 @@ def find_events(bars: list[Bar], scale: int) -> list[Event]:
         return []
 
     events: list[Event] = []
-    atr_norm = _atr_share(bars, n)
 
     for i in range(EVENT_NORM_WINDOW, n):
         bar = bars[i]
+        atr_norm = _atr_share(bars, i)
 
         # Бар набран меньше чем на треть — судить не о чем.
         if bar.fill < PARTIAL_BAR_MIN_FILL:
@@ -1288,6 +1291,8 @@ def build_vortex(scales_bars: dict[int, list[Bar]]) -> VortexState:
     """
     fallback: VortexState | None = None
 
+    best: VortexState | None = None
+    best_dist = 10**9
     for scale in sorted(scales_bars):
         bars = scales_bars[scale]
         if len(bars) < VORTEX_PERIOD + VORTEX_MIN_TAIL:
@@ -1300,10 +1305,12 @@ def build_vortex(scales_bars: dict[int, list[Bar]]) -> VortexState:
         k = st.sell_peaks + st.buy_lows
         if VORTEX_MIN_EXTREMA <= k <= VORTEX_MAX_EXTREMA:
             return st
-        if fallback is None:
-            fallback = st
-
-    return fallback or VortexState()
+        dist = (VORTEX_MIN_EXTREMA - k) if k < VORTEX_MIN_EXTREMA else (k - VORTEX_MAX_EXTREMA)
+        if dist < best_dist:
+            best, best_dist = st, dist
+    if best is None or best_dist > VORTEX_FALLBACK_SLACK:
+        return VortexState()
+    return best
 
 
 # ─────────────────────────────────────────────────────────────
@@ -1350,7 +1357,7 @@ class FlowContext:
         толпа с прибылью продавливает любой уровень.
         """
         below = self.zones_below()
-        skip = self.drop.distrust_zones
+        skip = self.distrust_zones
         return below[skip:] if skip < len(below) else []
 
     def zone_at(self, price: float) -> Zone | None:
