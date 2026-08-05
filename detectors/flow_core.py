@@ -20,6 +20,8 @@ from typing import Sequence
 from detectors.flow_config import (
     AGG_SCALES,
     BOTTOM_LOOKBACK_DAYS,
+    BOTTOM_MIN_BARS_AFTER,
+    DEFAULT_HORIZON_BARS,
     DELTA_COLLAPSE_SLOPE,
     DELTA_WINDOW,
     DROP_DISTRUST_PCT,
@@ -282,7 +284,6 @@ def aggregate(bars: Sequence[Bar], scale: int) -> list[Bar]:
 @dataclass
 class Event:
     """Аномалия объёма на конкретном баре."""
-
     idx: int
     ts: int
     price: float          # уровень, к которому событие привязано
@@ -293,6 +294,12 @@ class Event:
     absorbed: bool        # цена не ушла после аномального объёма
     direction: int        # знак бара события
     immature: bool        # окно отклика ещё не закрылось
+    # Индекс ПОСЛЕДНЕГО базового бара события. idx считается в барах
+    # своего масштаба, и на scale=10 бар №30 — это день №309, а не
+    # №30. Зоны аннотируются по базовому ряду, поэтому им нужен
+    # приведённый индекс, иначе уровень стартует на сотни баров
+    # раньше, чем возник, и почти гарантированно ловит пробой.
+    base_idx: int = 0
 
     @property
     def weight(self) -> float:
@@ -427,6 +434,7 @@ def find_events(bars: Sequence[Bar], scale: int) -> list[Event]:
                 absorbed=absorbed,
                 direction=bar.direction,
                 immature=immature,
+                base_idx=(idx + 1) * scale - 1,
             )
         )
 
@@ -446,6 +454,9 @@ class Zone:
     broken: bool = False
     plateau: int = 0          # длина плато у зоны, в барах
     last_touch_idx: int = -1
+    # Давность последнего события зоны, в базовых барах.
+    # Проставляется в _annotate_zone: там известна длина ряда.
+    _freshness: int = 0
 
     @property
     def scales(self) -> set[int]:
@@ -486,6 +497,31 @@ class Zone:
             return False
         return abs(price - self.price) / self.price <= ZONE_MATCH_PCT
 
+    @property
+    def last_idx(self) -> int:
+        """Индекс самого свежего события зоны, в базовых барах."""
+        if not self.events:
+            return -1
+        return max(e.base_idx for e in self.events)
+
+    @property
+    def plateau_bars(self) -> int:
+        """Длина плато у зоны. Имя, под которым её читает fuel.
+
+        Синоним поля plateau, а не отдельная величина: два имени
+        для одного числа держатся до общего прохода по именам.
+        """
+        return self.plateau
+
+    @property
+    def freshness(self) -> int:
+        """Сколько базовых баров назад зона подтверждалась.
+
+        Считается снаружи неоткуда: длина ряда сюда не приходит.
+        Заполняется в _annotate_zone, где ряд есть.
+        """
+        return self._freshness
+
 
 def _cluster(events: Sequence[Event]) -> list[Zone]:
     """Сборка событий в уровни по относительной близости цен."""
@@ -518,7 +554,8 @@ def _annotate_zone(zone: Zone, bars: Sequence[Bar]) -> None:
     if zone.price <= 0:
         return
 
-    start = zone.age
+    start = _clip(zone.age, 0, max(0, len(bars) - 1))
+    start = int(start)
     below_run = 0
     above_run = 0
     plateau_run = 0
@@ -567,10 +604,20 @@ def _annotate_zone(zone: Zone, bars: Sequence[Bar]) -> None:
             below_run = 0
             above_run = 0
 
-        if ZONE_DEAD_AFTER_BREAK and max(below_run, above_run) >= ZONE_BREAK_BARS:
+        # Пробой засчитывается только ПОСЛЕ последнего события зоны.
+        # Уровень, размеченный на старой истории и подтверждённый
+        # недавно, иначе умирает от движения, случившегося между
+        # его собственными событиями.
+        if (
+            ZONE_DEAD_AFTER_BREAK
+            and idx > zone.last_idx
+            and max(below_run, above_run) >= ZONE_BREAK_BARS
+        ):
             zone.broken = True
 
     zone.plateau = best_plateau if best_plateau >= PLATEAU_MIN_BARS else 0
+    # Давность: от последнего события зоны до конца ряда.
+    zone._freshness = max(0, len(bars) - 1 - zone.last_idx)
 
 
 def build_zones(all_events: Sequence[Event], bars: Sequence[Bar]) -> list[Zone]:
@@ -588,7 +635,10 @@ def build_zones(all_events: Sequence[Event], bars: Sequence[Bar]) -> list[Zone]:
         _annotate_zone(zone, bars)
         if zone.broken:
             continue
-        if zone.tests == 0 and (total - zone.age) > ZONE_MAX_AGE_UNTESTED:
+        # Возраст считается от ПОСЛЕДНЕГО события, а не от первого:
+        # zone.age — точка рождения зоны, и по ней любой давно
+        # заложенный, но недавно подтверждённый уровень выпадал.
+        if zone.tests == 0 and (total - zone.last_idx) > ZONE_MAX_AGE_UNTESTED:
             continue
         alive.append(zone)
 
@@ -858,6 +908,35 @@ class VortexState:
             return 1.0 - (1.0 - VORTEX_MULT_MIN) * self.strength
         return 1.0
 
+    @property
+    def confidence(self) -> float:
+        """Доверие к прочтению формы, 0..1.
+
+        Отдельно от strength: сила говорит, насколько выражен
+        перевес, доверие — насколько надёжен сам замер. Экстремумов
+        внутри коридора — доверие полное; на границе — падает.
+        """
+        if self.direction == "none" or self.extrema <= 0:
+            return 0.0
+        if VORTEX_MIN_EXTREMA <= self.extrema <= VORTEX_MAX_EXTREMA:
+            return 1.0
+        if self.extrema < VORTEX_MIN_EXTREMA:
+            dist = VORTEX_MIN_EXTREMA / float(self.extrema)
+        else:
+            dist = self.extrema / float(VORTEX_MAX_EXTREMA)
+        return _clip(1.0 / dist, 0.0, 1.0)
+
+    def mult(self, weight: float = 1.0) -> float:
+        """Множитель с весом подкейса.
+
+        weight задаёт, насколько сильно подкейс доверяет вортексу:
+        hidden ставит выше, чем churn и spring. Доверие к самому
+        замеру входит сомножителем — форма, прочитанная вне
+        коридора, двигает скор слабее.
+        """
+        base = self.multiplier - 1.0
+        return 1.0 + base * _clip(weight, 0.0, 2.0) * self.confidence
+
 
 def _vortex_lines(bars: Sequence[Bar], period: int) -> tuple[list[float], list[float]]:
     """Классический Vortex: VI+ и VI− по period."""
@@ -1013,7 +1092,36 @@ class DropContext:
     bottom_price: float = 0.0
     bottom_idx: int = -1
     drop_pct: float = 0.0
+    # Давность пика в барах. Проставляется build_drop.
+    _peak_age: int = 0
+
+    # Во сколько раз цена выросла до пика от предшествующего
+    # минимума. Нужна fuel: свежая кратность означает толпу,
+    # застрявшую выше карты зон.
+    growth_x: float = 1.0
+    # Давность пика в барах. Проставляется build_drop.
+    _peak_age: int = 0
     bars_since_bottom: int = 0
+
+    @property
+    def peak_age_days(self) -> int:
+        """Сколько баров назад стоял пик.
+
+        Считается от конца ряда. Заполняется в build_drop:
+        peak_idx живёт в координатах хвоста, и без длины хвоста
+        величина не восстанавливается.
+        """
+        return self._peak_age
+
+    @property
+    def peak_age_days(self) -> int:
+        """Сколько баров назад стоял пик.
+
+        Считается от конца ряда. Заполняется в build_drop:
+        peak_idx живёт в координатах хвоста, и без длины хвоста
+        величина не восстанавливается.
+        """
+        return self._peak_age
 
     @property
     def deep(self) -> bool:
@@ -1053,6 +1161,12 @@ def build_drop(bars: Sequence[Bar]) -> DropContext:
 
     drop = (peak - bottom) / peak if peak > 0 else 0.0
 
+    # Минимум ДО пика — точка отсчёта роста. Без неё growth_x
+    # мерил бы падение, а не подъём.
+    before = tail[:peak_idx + 1]
+    low_before = min((b.low for b in before if b.low > 0), default=0.0)
+    growth = (peak / low_before) if low_before > 0 else 1.0
+
     return DropContext(
         peak_price=peak,
         peak_idx=peak_idx,
@@ -1060,6 +1174,8 @@ def build_drop(bars: Sequence[Bar]) -> DropContext:
         bottom_idx=bottom_idx,
         drop_pct=_clip(drop, 0.0, 1.0),
         bars_since_bottom=len(tail) - 1 - bottom_idx,
+        _peak_age=len(tail) - 1 - peak_idx,
+        growth_x=_clip(growth, 1.0, 1000.0),
     )
 
 
@@ -1086,6 +1202,31 @@ class FlowContext:
     drop: DropContext
     rel_vol: float
     atr_share: float
+    # Оборот за сутки. Заполняется диспетчером после сборки —
+    # ядру он не нужен, подкейсам про ликвидность нужен.
+    quote_volume_24h: float = 0.0
+
+    # Восстановление объёма после дна: текущая норма против той,
+    # что была на дне. Больше единицы — интерес вернулся.
+    volume_recovery: float = 0.0
+
+    # Ожидание в барах базового ряда. Подкейсы кладут его в
+    # SubcaseSignal, а не считают сами.
+    horizon_bars: int = 5
+
+    @property
+    def base(self) -> list[Bar]:
+        """Базовый ряд. Имя, под которым его читают подкейсы."""
+        return self.by_scale.get(1) or self.bars
+
+    @property
+    def growth_x(self) -> float:
+        """Кратность роста до пика. Имя, под которым читает fuel.
+
+        Величина живёт в DropContext; здесь короткий доступ, чтобы
+        подкейс не знал, из какого куска контекста она берётся.
+        """
+        return self.drop.growth_x
 
     # ── общие помощники ──────────────────────────────────────
     def zones_below(self, near_pct: float = ZONE_NEAR_PCT) -> list[Zone]:
@@ -1168,6 +1309,31 @@ class FlowContext:
         """Контекст пригоден для суждения."""
         return bool(self.bars) and self.price > 0 and bool(self.by_scale)
 
+def _volume_recovery(bars: Sequence[Bar], drop: DropContext) -> float:
+    """Норма объёма сейчас против нормы на дне.
+
+    Дно ставится на панике, и объём там завышен. Если после него
+    прошло достаточно баров и текущая норма к той же величине
+    вернулась — на монету снова смотрят. Ноль означает «замерить
+    нечего»: дна нет либо после него слишком мало истории.
+    """
+    if drop.bottom_idx < 0:
+        return 0.0
+    tail = bars[-BOTTOM_LOOKBACK_DAYS:] if len(bars) > BOTTOM_LOOKBACK_DAYS else bars
+    idx = drop.bottom_idx
+    if idx >= len(tail) or (len(tail) - 1 - idx) < BOTTOM_MIN_BARS_AFTER:
+        return 0.0
+
+    at_bottom = [b.norm_volume() for b in tail[max(0, idx - 5):idx + 5] if b.norm_volume() > 0]
+    now = [b.norm_volume() for b in tail[-REL_VOLUME_WINDOW:] if b.norm_volume() > 0]
+    if len(at_bottom) < 3 or len(now) < 3:
+        return 0.0
+
+    base = _median(at_bottom)
+    if base <= 0:
+        return 0.0
+    return _clip(_median(now) / base, 0.0, REL_VOLUME_MAX)
+
 
 def build_context(symbol: str, raw_bars: Sequence[Bar]) -> FlowContext | None:
     """Единая сборка контекста монеты.
@@ -1200,6 +1366,7 @@ def build_context(symbol: str, raw_bars: Sequence[Bar]) -> FlowContext | None:
         all_events.extend(find_events(scaled, scale))
 
     zones = build_zones(all_events, bars)
+    drop = build_drop(bars)
 
     return FlowContext(
         symbol=symbol,
@@ -1210,7 +1377,12 @@ def build_context(symbol: str, raw_bars: Sequence[Bar]) -> FlowContext | None:
         zones=zones,
         flow=build_flow(bars),
         vortex=build_vortex(by_scale),
-        drop=build_drop(bars),
+        drop=drop,
+        # Последний бар неполный (fill ~0.5), и сырой quote занижал
+        # оборот вдвое — фильтр ликвидности резал по половине суток.
+        quote_volume_24h=(bars[-1].norm_volume() if bars else 0.0),
+        volume_recovery=_volume_recovery(bars, drop),
+        horizon_bars=DEFAULT_HORIZON_BARS,
         rel_vol=rel_volume(bars, len(bars) - 1),
         atr_share=_atr_share(bars, len(bars)),
     )

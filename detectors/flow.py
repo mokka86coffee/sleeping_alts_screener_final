@@ -39,12 +39,12 @@ from detectors.flow_core import Bar, FlowContext, build_context
 from detectors.flow_signal import SubcaseSignal
 
 import detectors.flow_hidden as flow_hidden
-
+import detectors.flow_fuel as flow_fuel
+#
 # Остальные подкейсы временно отключены: они писались под другой
 # набор имён в flow_config и валят импорт всего пакета. Возвращаем
 # по одному, по мере сверки констант.
 # import detectors.flow_churn as flow_churn
-# import detectors.flow_fuel as flow_fuel
 # import detectors.flow_leverage as flow_leverage
 # import detectors.flow_spring as flow_spring
 # import detectors.flow_taker as flow_taker
@@ -61,10 +61,10 @@ MIN_RAW_SCORE = FLOW_MIN_RAW_SCORE
 
 _RUNNERS = (
     flow_hidden,
+    flow_fuel,
 #     flow_spring,
 #     flow_churn,
 #     flow_taker,
-#     flow_fuel,
 #     flow_leverage,
 )
 
@@ -440,7 +440,11 @@ def detect_flow(
     if ctx is None or not ctx.ready:
         return FlowSignal(symbol=symbol)
 
-    ctx.quote_volume_24h = quote_volume_24h
+    # Ноль от вызывающего означает «не передавали», а не «оборота нет».
+    # Прямое присваивание затирало величину, уже посчитанную ядром,
+    # и фильтр ликвидности снимал все монеты подряд.
+    if quote_volume_24h > 0:
+        ctx.quote_volume_24h = quote_volume_24h
 
     hz = _horizon(ctx)
     ctx_dict = _context_dict(ctx, hz)

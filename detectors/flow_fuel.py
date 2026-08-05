@@ -60,13 +60,20 @@ def _cleared_zones(ctx: FlowContext) -> list[Zone]:
     после пробоя предложение с неё снято.
     """
     out = []
+
     for z in ctx.zones:
         if z.price > ctx.price:
             continue
         if z.broken:
             continue
         margin = (ctx.price - z.price) / ctx.price
-        if margin >= FUEL_BREAKOUT_MARGIN and z.plateau_bars >= FUEL_BREAKOUT_HOLD_BARS:
+        # plateau в ядре обнуляется, если не дотянул до
+        # PLATEAU_MIN_BARS: величина «есть плато или нет», а не
+        # длительность. Порог удержания меряем по последнему
+        # касанию — сколько бар цена провела над уровнем после
+        # того, как в последний раз к нему подходила.
+        held = len(ctx.base) - 1 - z.last_touch_idx if z.last_touch_idx >= 0 else 0
+        if margin >= FUEL_BREAKOUT_MARGIN and held >= FUEL_BREAKOUT_HOLD_BARS:
             out.append(z)
     return sorted(out, key=lambda z: -z.price)
 
