@@ -42,13 +42,12 @@ import detectors.flow_hidden as flow_hidden
 import detectors.flow_fuel as flow_fuel
 import detectors.flow_churn as flow_churn
 import detectors.flow_spring as flow_spring
+import detectors.flow_taker as flow_taker
 #
 # Остальные подкейсы временно отключены: они писались под другой
 # набор имён в flow_config и валят импорт всего пакета. Возвращаем
 # по одному, по мере сверки констант.
 # import detectors.flow_leverage as flow_leverage
-# import detectors.flow_taker as flow_taker
-
 
 # Нижняя точка шкалы семейства. Согласована со scoring.py:
 # отображение 45..100 → 14..34, ниже 45 даёт отрицательный вклад.
@@ -64,7 +63,7 @@ _RUNNERS = (
     flow_fuel,
     flow_churn,
     flow_spring,
-#     flow_taker,
+    flow_taker,
 #     flow_leverage,
 )
 

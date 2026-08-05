@@ -34,7 +34,6 @@ from detectors.flow_config import (
     TAKER_STABILITY_MAX,
     TAKER_TREND_PENALTY,
     VORTEX_MULT_MAX,
-    ZONE_NEAR_PCT,
 )
 from detectors.flow_core import (
     Bar,
@@ -130,15 +129,17 @@ def _context_zone(ctx: FlowContext) -> Zone | None:
     Не обязателен: смена агрессора не оставляет следов в карте
     уровней, потому что аномалий объёма в фигуре нет по построению.
     Но зона под ней превращает наблюдение в конструкцию.
+
+    Отбор идёт через общий помощник ядра (правка Э-7): локальный
+    фильтр по ZONE_NEAR_PCT дублировал zones_below и не учитывал
+    недоверие к карте после обвала. Критерий выбора остаётся
+    здесь — тесты важнее массы: taker строится на поведении цены
+    у уровня, а не на объёме, который туда пришёл.
     """
-    below = [
-        z for z in ctx.zones
-        if z.price <= ctx.price
-        and (ctx.price - z.price) / ctx.price <= ZONE_NEAR_PCT
-    ]
-    if not below:
-        return None
-    return max(below, key=lambda z: (z.tests, z.tier_sum))
+    return ctx.pick_zone_below(
+        key=lambda z: (z.tests, z.tier_sum),
+        trusted=True,
+    )
 
 
 # ─────────────────────────────────────────────────────────────

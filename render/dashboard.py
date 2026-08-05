@@ -781,13 +781,14 @@ def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
 
     by_symbol = {c.symbol.upper(): c for c in candidates}
 
-    items = "<span class="lead-t lead-g" data-coin="COTI">COTI</span>"
+    items = ""
     for sym in symbols:
         c = by_symbol.get(sym if sym.endswith("USDT") else f"{sym}USDT")
         attr = f' data-coin="{esc(c.symbol)}"' if c is not None else ""
         items += f'<span class="lead-t"{attr}>{esc(sym)}</span>'
 
-    items += "<span class="lead-t lead-g" data-coin="STO">STO</span>"
+    items += f'<span class="lead-t lead-g" data-coin="STO">STO</span>'
+
     return f"""
 <div class="g-lead">
   <div class="lead-list">{items}</div>
