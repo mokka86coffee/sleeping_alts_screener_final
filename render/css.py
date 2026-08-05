@@ -783,19 +783,18 @@ STRAT = """
 .fl-node:hover .fl-c{fill:#FFF4D8}
 
 /* заголовок — общий шрифт блоков (_title), тикеры — mono, отдельно */
-.g-lead{width:224px;flex:none}
-.g-lead>.b-in{padding:14px 18px 16px}
-.g-lead .b-t{text-align:left;margin-top:0}
-.lrows{margin-top:14px;display:flex;flex-direction:column}
-.lrow{display:grid;grid-template-columns:18px 1fr;align-items:center;gap:10px;
-  padding:7px 0;border-bottom:1px solid var(--hr)}
-.lrow:last-child{border-bottom:none}
-.lrow-i{font-size:8px;font-weight:300;color:var(--m4);
-  font-variant-numeric:tabular-nums}
-.lrow-t{font-family:var(--mono);font-size:12px;font-weight:600;
-  letter-spacing:.5px;color:var(--t2)}
-.lrow[data-coin]{cursor:pointer}
-.lrow[data-coin]:hover .lrow-t{color:var(--gd)}
+.g-lead{flex:0 0 auto;display:flex;flex-direction:column;
+  justify-content:space-between;align-items:flex-end;height:130px;padding:8px 0; position: absolute;
+    top: 0;transform: translateY(-26%);right: 10%}
+.lead-list{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-bottom: 20px;}
+.lead-t{font-family:font-size:11px;font-weight:400;
+  letter-spacing:1px;color:var(--m1)}
+.lead-t.lead-g{color: #d4b476;}
+.lead-t[data-coin]{font-size: 7px;font-weight: 300;letter-spacing: 2.5px;color: rgb(232 234 238 / 56%)}
+.lead-t[data-coin]:hover{color:var(--gd)}
+.lead-hd{font-weight:300;letter-spacing: 2.5px;font-size: 6px;letter-spacing: 3px;color: #6b5c38;
+  white-space:nowrap}
+.lead-hd s{text-decoration:none}
 """
 
 # ═══════════════════════════════════════════════════

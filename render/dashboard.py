@@ -767,38 +767,31 @@ FLOW_NODES = [
 # Блок · лидеры по объёму (боковая панель рядом с лентой FLOW)
 # ─────────────────────────────────────────────────────────────
 def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
-    """Топ-7 тикеров по обороту за 2 недели.
+    """Лидеры по объёму за 2 недели — правый край строки FLOW.
+
+    Без карточки: голый список, как «кто двигает рынок» у ленты —
+    подпись снизу, тикеры сверху, прижаты к правому краю.
 
     ЧТО ПОДКЛЮЧИТЬ: snapshot.volume_leaders_2w — список символов,
     отсортированный по обороту за 2 недели. Источника пока нет нигде
-    в системе, поэтому при пустом поле показываем LEADERS_FALLBACK
-    по макету — вёрстка видна, строки в этом режиме некликабельны.
-
-    Строка кликабельна (открывает карточку монеты), только если тикер
-    нашёлся среди candidates — иначе data-coin вести будет некуда.
+    в системе, поэтому при пустом поле — LEADERS_FALLBACK по макету.
     """
     src = getattr(snapshot, "volume_leaders_2w", None) or []
     symbols = [str(s).upper() for s in src][:7] if src else list(LEADERS_FALLBACK)
 
     by_symbol = {c.symbol.upper(): c for c in candidates}
 
-    rows = ""
-    for i, sym in enumerate(symbols, 1):
+    items = "<span class="lead-t lead-g" data-coin="COTI">COTI</span>"
+    for sym in symbols:
         c = by_symbol.get(sym if sym.endswith("USDT") else f"{sym}USDT")
         attr = f' data-coin="{esc(c.symbol)}"' if c is not None else ""
-        rows += (
-            f'<div class="lrow"{attr}>'
-            f'<span class="lrow-i">{i:02d}</span>'
-            f'<span class="lrow-t">{esc(sym)}</span>'
-            f'</div>'
-        )
+        items += f'<span class="lead-t"{attr}>{esc(sym)}</span>'
 
+    items += "<span class="lead-t lead-g" data-coin="STO">STO</span>"
     return f"""
-<div class="b b-card c-gd g-lead">
-  <div class="b-in">
-    {_title('лидеры', 'по объёму · 2 нед')}
-    <div class="lrows">{rows}</div>
-  </div>
+<div class="g-lead">
+  <div class="lead-list">{items}</div>
+  <div class="lead-hd">лидеры по объёму <s>2 нед</s></div>
 </div>"""
 
 def _blk_flow(candidates: list[Candidate]) -> str:
@@ -1026,7 +1019,7 @@ def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot) ->
 
     # ряд стратегий между блоками и вторым рядом
     strat = (
-        f'<div class="row row-s">'
+        f'<div class="row row-s" style="position:relative">'
         f'{_blk_flow(candidates)}{_blk_leaders(candidates, snapshot)}</div>'
     )
 
