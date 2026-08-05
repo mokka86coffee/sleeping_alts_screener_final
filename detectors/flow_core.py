@@ -36,6 +36,9 @@ from detectors.flow_config import (
     PLATEAU_FULL_BARS,
     PLATEAU_MAX_RANGE,
     PLATEAU_MIN_BARS,
+    PLATEAU_MULT_FULL,
+    PLATEAU_MULT_NONE,
+    PLATEAU_MULT_NONE_SOFT,
     REL_VOLUME_MAX,
     REL_VOLUME_MIN_NORM_COVER,
     REL_VOLUME_NORM_SPAN,
@@ -457,6 +460,13 @@ class Zone:
     # Давность последнего события зоны, в базовых барах.
     # Проставляется в _annotate_zone: там известна длина ряда.
     _freshness: int = 0
+    # Давность последнего подхода цены к уровню, в базовых барах.
+    # Большое значение означает «уровень давно не проверяли».
+    _last_test_age: int = 10 ** 6
+
+    # Сколько живых зон лежит ниже этой. Проставляется build_zones:
+    # знание о соседях есть только там, где виден весь список.
+    zones_below: int = 0
 
     @property
     def scales(self) -> set[int]:
@@ -521,6 +531,39 @@ class Zone:
         Заполняется в _annotate_zone, где ряд есть.
         """
         return self._freshness
+
+    def absorbed_events(self, min_tier: int = 1) -> list[Event]:
+            """Поглощённые события зоны не ниже заданного тира.
+
+            Отдельный метод, а не фильтр в подкейсе: churn и hidden
+            задавали его каждый по-своему и расходились в том, что
+            считать поглощением.
+            """
+            return [
+                e for e in self.events
+                if e.absorbed and e.tier >= min_tier
+            ]
+
+    def plateau_mult(self, soft: bool = False) -> float:
+        """Множитель за зрелость плато.
+
+        Полное плато не штрафует, отсутствие — режет. soft для
+        spring, где фигурой является само сжатие, а не плато.
+        """
+        if self.plateau <= 0:
+            return PLATEAU_MULT_NONE_SOFT if soft else PLATEAU_MULT_NONE
+        share = _clip(self.plateau / float(PLATEAU_FULL_BARS), 0.0, 1.0)
+        floor = PLATEAU_MULT_NONE_SOFT if soft else PLATEAU_MULT_NONE
+        return floor + (PLATEAU_MULT_FULL - floor) * share
+
+    @property
+    def last_test_age(self) -> int:
+        """Сколько базовых баров назад цена подходила к уровню.
+
+        Заполняется в _annotate_zone вместе с freshness: длина
+        ряда известна только там.
+        """
+        return self._last_test_age
 
 
 def _cluster(events: Sequence[Event]) -> list[Zone]:
@@ -618,6 +661,11 @@ def _annotate_zone(zone: Zone, bars: Sequence[Bar]) -> None:
     zone.plateau = best_plateau if best_plateau >= PLATEAU_MIN_BARS else 0
     # Давность: от последнего события зоны до конца ряда.
     zone._freshness = max(0, len(bars) - 1 - zone.last_idx)
+    # Давность последнего подхода. Без касаний — «никогда».
+    zone._last_test_age = (
+        max(0, len(bars) - 1 - zone.last_touch_idx)
+        if zone.last_touch_idx >= 0 else 10 ** 6
+    )
 
 
 def build_zones(all_events: Sequence[Event], bars: Sequence[Bar]) -> list[Zone]:
@@ -641,6 +689,12 @@ def build_zones(all_events: Sequence[Event], bars: Sequence[Bar]) -> list[Zone]:
         if zone.tests == 0 and (total - zone.last_idx) > ZONE_MAX_AGE_UNTESTED:
             continue
         alive.append(zone)
+
+    # Соседи снизу. Считается ПОСЛЕ отсева мёртвых: живой уровень
+    # ниже — реальная опора, пробитый опорой не является.
+    by_price = sorted(alive, key=lambda z: z.price)
+    for i, zone in enumerate(by_price):
+        zone.zones_below = i
 
     alive.sort(key=lambda z: z.strength, reverse=True)
     return alive
@@ -1099,19 +1153,7 @@ class DropContext:
     # минимума. Нужна fuel: свежая кратность означает толпу,
     # застрявшую выше карты зон.
     growth_x: float = 1.0
-    # Давность пика в барах. Проставляется build_drop.
-    _peak_age: int = 0
     bars_since_bottom: int = 0
-
-    @property
-    def peak_age_days(self) -> int:
-        """Сколько баров назад стоял пик.
-
-        Считается от конца ряда. Заполняется в build_drop:
-        peak_idx живёт в координатах хвоста, и без длины хвоста
-        величина не восстанавливается.
-        """
-        return self._peak_age
 
     @property
     def peak_age_days(self) -> int:
@@ -1227,6 +1269,23 @@ class FlowContext:
         подкейс не знал, из какого куска контекста она берётся.
         """
         return self.drop.growth_x
+
+    @property
+    def distrust_zones(self) -> int:
+        """Сколько нижних уровней обязано провалиться до доверия.
+
+        Число, а не флаг: подкейсы сравнивают его с числом зон
+        под кандидатом. Ядро отдаёт булево «карта устарела» —
+        здесь оно переводится в дозировку.
+        """
+        if not self.drop.distrust_zones:
+            return 0
+        # Глубже обвал — больше уровней должно быть проверено
+        # заново. Шкала грубая намеренно: точности тут неоткуда
+        # взяться, важен лишь порядок величины.
+        if self.drop.drop_pct >= 0.75:
+            return 2
+        return 1
 
     # ── общие помощники ──────────────────────────────────────
     def zones_below(self, near_pct: float = ZONE_NEAR_PCT) -> list[Zone]:

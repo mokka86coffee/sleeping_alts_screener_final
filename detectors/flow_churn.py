@@ -184,7 +184,9 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
 
     # Фон обязан быть шумным. Поглощение в тишине — это не
     # поглощение, а отсутствие торговли: принимать нечего.
-    if ctx.flow.rel_volume < CHURN_NOISE_MIN_VOL:
+    # rel_volume жил в FlowState прежней редакции; в новом ядре
+    # относительный объём правого края лежит в самом контексте.
+    if ctx.rel_vol < CHURN_NOISE_MIN_VOL:
         return None
 
     score, facts = _base_score(zone)
