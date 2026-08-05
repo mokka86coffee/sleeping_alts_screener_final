@@ -163,7 +163,7 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
 
     # Фон обязан быть тихим. Шумный фон — территория churn:
     # там поток идёт и его принимают, здесь потока нет вовсе.
-    if ctx.flow.rel_volume > SPRING_QUIET_MAX:
+    if ctx.rel_vol > SPRING_QUIET_MAX:
         return None
 
     zone = _support_zone(ctx)
@@ -171,7 +171,11 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
         return None
 
     # Серия. Одиночное событие пружиной не является по определению.
-    recent = [e for e in ctx.events if e.age_days <= SQUEEZE_WINDOW]
+    last_idx = len(ctx.base) - 1
+    recent = [
+        e for e in ctx.events
+        if last_idx - e.base_idx <= SQUEEZE_WINDOW
+    ]
     if len(recent) < SPRING_MIN_EVENTS:
         return None
 

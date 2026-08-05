@@ -42,6 +42,7 @@ from detectors.flow_core import (
     Zone,
     _median,
     _slope,
+    delta_series,
     homogeneity,
 )
 from detectors.flow_signal import SubcaseSignal, veto_bullish
@@ -239,7 +240,14 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     # На тонком рынке доля покупок скачет от одной заявки. Считаем
     # по медиане позднего окна, а не по 24h: суточный оборот мог
     # быть разовым.
-    med_quote = _median([b.quote for b in late])
+    #
+    # norm_volume, а не quote: правый край ряда неполный, и сырой
+    # оборот последнего бара занижен пропорционально fill. Медиана
+    # из четырнадцати значений одним баром не сдвигается, но при
+    # коротком окне разница уже видна.
+    med_quote = _median([b.norm_volume() for b in late])
+    if med_quote < TAKER_MIN_QUOTE_VOL:
+        return None
     if med_quote < TAKER_MIN_QUOTE_VOL:
         return None
 
@@ -281,7 +289,10 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     )
 
     # ── Однородность ─────────────────────────────────────────
-    hom = homogeneity([b.delta for b in late])
+    # delta_series, а не сырые b.delta: неполный правый бар иначе
+    # вносит вклад пропорционально прожитой части суток и тянет
+    # однородность вниз ровно на самом свежем баре окна.
+    hom = homogeneity(delta_series(late))
     if hom < HOMOGENEITY_MIN:
         sig.apply("lumpy", 0.75)
         sig.add("сдвиг собран неравномерно", homogeneity=hom)
