@@ -787,7 +787,7 @@ STRAT = """
   justify-content:space-between;align-items:flex-end;height:130px;padding:8px 0; position: absolute;
     top: 0;transform: translateY(-26%);right: 10%}
 .lead-list{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-bottom: 20px;}
-.lead-t{font-family:font-size:11px;font-weight:400;
+.lead-t{font-family:font-size:7px;font-weight:300;
   letter-spacing:1px;color:var(--m1)}
 .lead-t.lead-g{color: #d4b476;}
 .lead-t[data-coin]{font-size: 7px;font-weight: 300;letter-spacing: 2.5px;color: rgb(232 234 238 / 56%)}
