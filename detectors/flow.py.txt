@@ -1,14 +1,27 @@
-"""FLOW · диспетчер семейства.
+"""FLOW · диспетчер семейства. Один сигнал на монету.
 
-Один сигнал на монету. Контекст считается один раз, подкейсы
-прогоняются по нему, сильнейший становится вердиктом.
+Контекст считается один раз, подкейсы прогоняются по нему,
+сильнейший становится вердиктом.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import asdict, dataclass, field
 
+from core.binance import (
+    K_CLOSE,
+    K_CLOSE_TIME,
+    K_HIGH,
+    K_LOW,
+    K_OPEN,
+    K_OPEN_TIME,
+    K_QUOTE_VOLUME,
+    K_TAKER_BUY_QUOTE,
+    klines_1d,
+)
 from detectors.flow_config import (
+    AGG_SCALES,
     CAP_CHURN,
     CAP_FUEL,
     CAP_HIDDEN,
@@ -18,8 +31,11 @@ from detectors.flow_config import (
     FLOW_MAX_SCORE,
     FLOW_MIN_RAW_SCORE,
     FLOW_MIN_SCORE,
+    HORIZON_AMP_GAIN,
+    HORIZON_BARS_AHEAD,
+    MIN_BARS,
 )
-from detectors.flow_core import FlowContext, build_context
+from detectors.flow_core import Bar, FlowContext, build_context
 from detectors.flow_signal import SubcaseSignal
 
 import detectors.flow_churn as flow_churn
@@ -29,22 +45,16 @@ import detectors.flow_leverage as flow_leverage
 import detectors.flow_spring as flow_spring
 import detectors.flow_taker as flow_taker
 
+
 # Нижняя точка шкалы семейства. Согласована со scoring.py:
 # отображение 45..100 → 14..34, ниже 45 даёт отрицательный вклад.
 MIN_SCORE = FLOW_MIN_SCORE
 
 # Порог на СЫРОЙ шкале подкейса. Отдельное имя, и это принципиально:
 # raw и score живут в разных шкалах, и раньше порог проверялся уже
-# после приведения — то есть не проверялся вовсе. Отображение
-# монотонно, поэтому даже нулевая фигура давала ровно MIN_SCORE.
-#
-# Сейчас величины совпадают, но связаны они не по смыслу, а по
-# калибровке: сырой порог можно поднять, не трогая шкалу.
+# после приведения — то есть не проверялся вовсе.
 MIN_RAW_SCORE = FLOW_MIN_RAW_SCORE
 
-# Реестр подкейсов. Добавление нового модуля — одна строка здесь,
-# candidate.py и scoring.py не трогаются. Порядок на исход не
-# влияет: победитель выбирается по скору, а не по позиции.
 _RUNNERS = (
     flow_hidden,
     flow_spring,
@@ -54,15 +64,8 @@ _RUNNERS = (
     flow_leverage,
 )
 
-# Подкейсы, которые ходят в сеть сверх дневок. Нужно знать по
-# именам, а не по флагу внутри модуля: при отладке сеть выключается
-# снаружи, и модуль об этом знать не обязан.
 NETWORK_CASES = frozenset({"flow_leverage"})
 
-# Приоритет при близком скоре. Hidden выше всех — единственный
-# опережающий подкейс. Spring выше churn: взведённая пружина —
-# более зрелая фигура, чем одиночное поглощение, у неё за спиной
-# серия попыток, а не одно событие.
 CASE_PRIORITY = {
     "flow_hidden": 4,
     "flow_spring": 3,
@@ -73,8 +76,6 @@ CASE_PRIORITY = {
     "none": 0,
 }
 
-# Потолки подкейсов. Отражают зрелость модуля, а не силу фигуры:
-# сырой скор выше потолка означает, что модуль переоценивает себя.
 CASE_CAP = {
     "flow_hidden": CAP_HIDDEN,
     "flow_spring": CAP_SPRING,
@@ -84,14 +85,9 @@ CASE_CAP = {
     "flow_leverage": CAP_LEVERAGE,
 }
 
-# Разница меньше этого — подкейсы считаются равными, решает зрелость.
 TIE_MARGIN = 5
-
-# Совпадение двух независимых фигур на одной монете — отдельный
-# факт, а не сумма баллов. Складывать скоры нельзя: подкейсы не
-# независимы, они читают одну карту зон. Но и игнорировать нельзя.
 CONFIRM_BONUS = 6
-CONFIRM_MIN_RAW = 35        # спутник ниже этого подтверждением не считается
+CONFIRM_MIN_RAW = 35
 
 _HEADS = {
     "flow_hidden": "Скрытый набор",
@@ -117,8 +113,9 @@ class FlowSignal:
     """Публичный сигнал семейства. Один на монету.
 
     Контракт с candidate.py: detected, score, case, strength_label,
-    horizon_days, verdict, to_dict(). Эти поля не меняются при
-    добавлении новых подкейсов — воронку править больше не нужно.
+    horizon_days, verdict, zone_price, stop_hint, target_hint,
+    to_dict(). Поля не меняются при добавлении новых подкейсов —
+    воронку править больше не нужно.
     """
 
     symbol: str = ""
@@ -129,25 +126,220 @@ class FlowSignal:
     horizon_days: int = 0
     horizon_tf: str = ""
     horizon_readable: bool = False
+
+    # Уровни для построителя стратегии (Э-8). Раньше зона входа
+    # оставалась внутри parts, а candidate.py её не читал: план
+    # сделки строился по общей ветке, R:R выходил 1:0.0 у всех.
+    zone_price: float = 0.0
+    stop_hint: float = 0.0
+    target_hint: float = 0.0
+
     cases: dict = None
     verdict: str = ""
     parts: list[dict] = field(default_factory=list)
     context: dict = field(default_factory=dict)
-
-    # Исключения подкейсов: имя модуля → текст ошибки. В обычном
-    # прогоне пусто. Существует потому, что молчащий подкейс и
-    # упавший подкейс выглядят одинаково, а причины разные:
-    # первое — свойство рынка, второе — опечатка в коде.
     failures: dict = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.cases is None:
             self.cases = {}
 
+    @property
+    def has_levels(self) -> bool:
+        return self.zone_price > 0 and self.stop_hint > 0
+
     def to_dict(self) -> dict:
         return asdict(self)
 
 
+# ─────────────────────────────────────────────────────────────
+# Загрузка баров
+# ─────────────────────────────────────────────────────────────
+def _load_bars(symbol: str) -> list[Bar]:
+    """Дневки Binance → бары ядра.
+
+    Заполнение последнего бара считается ПО ВРЕМЕНИ, а не по факту
+    присутствия в ряду. Иначе величина вырождается в константу:
+    последний бар есть всегда, и вся ветка нормировки неполного бара
+    становится мёртвой, внешне неотличимой от рабочей.
+    """
+    raw = klines_1d(symbol)
+    if not raw:
+        return []
+
+    import time
+    now_ms = time.time() * 1000.0
+
+    out: list[Bar] = []
+    for k in raw:
+        try:
+            o = float(k[K_OPEN])
+            h = float(k[K_HIGH])
+            lo = float(k[K_LOW])
+            c = float(k[K_CLOSE])
+            quote = float(k[K_QUOTE_VOLUME])
+            buy = float(k[K_TAKER_BUY_QUOTE])
+            t_open = float(k[K_OPEN_TIME])
+            t_close = float(k[K_CLOSE_TIME])
+        except (TypeError, ValueError, IndexError):
+            continue
+
+        if c <= 0 or quote <= 0:
+            continue
+
+        span = t_close - t_open
+        if span > 0 and now_ms < t_close:
+            fill = max(0.0, min(1.0, (now_ms - t_open) / span))
+        else:
+            fill = 1.0
+
+        buy = min(buy, quote)
+        out.append(
+            Bar(
+                ts=int(t_open),
+                open=o,
+                high=h,
+                low=lo,
+                close=c,
+                volume=quote,
+                buy_volume=buy,
+                sell_volume=max(0.0, quote - buy),
+                fill=fill,
+            )
+        )
+
+    return out
+
+
+# ─────────────────────────────────────────────────────────────
+# Горизонт
+# ─────────────────────────────────────────────────────────────
+def _horizon(ctx: FlowContext) -> dict:
+    """Самый крупный масштаб, на котором картина ещё читается.
+
+    Не про силу сигнала, а про то, сколько ждать. В скор не входит.
+
+    Масштаб засчитывается, только если даёт существенный прирост
+    амплитуды против базового ряда той же монеты. Случайное блуждание
+    расширяет бар как корень масштаба; прирост в пределах этого не
+    проявляет ничего нового и лишь удлиняет ожидание.
+    """
+    base = ctx.by_scale.get(1) or ctx.bars
+    if len(base) < 10:
+        return {"wait_days": 0, "label": "дни", "readable": False, "scale": 1}
+
+    tail = base[-30:]
+    shares = [b.range / b.close for b in tail if b.close > 0]
+    if not shares:
+        return {"wait_days": 0, "label": "дни", "readable": False, "scale": 1}
+
+    base_amp = sorted(shares)[len(shares) // 2]
+    if base_amp <= 0:
+        return {"wait_days": 0, "label": "дни", "readable": False, "scale": 1}
+
+    best_scale = 1
+    for scale in sorted(ctx.by_scale):
+        if scale <= 1:
+            continue
+        bars = ctx.by_scale[scale]
+        chunk = bars[-30:]
+        if len(chunk) < 10:
+            continue
+        vals = [b.range / b.close for b in chunk if b.close > 0]
+        if not vals:
+            continue
+        amp = sorted(vals)[len(vals) // 2]
+        if amp >= base_amp * math.sqrt(scale) * HORIZON_AMP_GAIN:
+            best_scale = scale
+
+    days = int(best_scale * HORIZON_BARS_AHEAD)
+    if days <= 3:
+        label = "дни"
+    elif days <= 10:
+        label = "неделя"
+    elif days <= 25:
+        label = "недели"
+    else:
+        label = "месяц+"
+
+    return {
+        "wait_days": max(1, days),
+        "label": label,
+        "readable": best_scale > 1,
+        "scale": best_scale,
+    }
+
+
+# ─────────────────────────────────────────────────────────────
+# Сериализация контекста
+# ─────────────────────────────────────────────────────────────
+def _context_dict(ctx: FlowContext, hz: dict) -> dict:
+    """Срез контекста для отчёта.
+
+    Зоны отдаются ПОЛНОСТЬЮ, без фильтра по confirmed и без среза:
+    подкейсы работают со всей картой, и срез обязан показывать ту же,
+    иначе диагностика ложная. Признак confirmed остаётся внутри
+    каждой зоны — фильтровать по нему должен читатель.
+
+    fills — состояние ИЗМЕРИТЕЛЯ, а не рынка. Именно отсутствие этого
+    поля держало мёртвой всю ветку неполного бара: величина, от
+    которой зависел расчёт, нигде не показывалась.
+    """
+    return {
+        "price": round(ctx.price, 10),
+        "scales": sorted(ctx.by_scale),
+        "fills": {
+            scale: round(bars[-1].fill, 3)
+            for scale, bars in sorted(ctx.by_scale.items())
+            if bars
+        },
+        "events_total": len(ctx.events),
+        "zones": [
+            {
+                "price": round(z.price, 10),
+                "events": len(z.events),
+                "scales": sorted(z.scales),
+                "confirmed": z.confirmed,
+                "tier_sum": z.tier_sum,
+                "absorbed_ratio": round(z.absorbed_ratio, 2),
+                "strength": round(z.strength, 2),
+                "tests": z.tests,
+                "plateau": z.plateau,
+                "broken": z.broken,
+            }
+            for z in ctx.zones
+        ],
+        "zones_confirmed": sum(1 for z in ctx.zones if z.confirmed),
+        "flow": {
+            "slope": round(ctx.flow.slope, 4),
+            "homogeneity": round(ctx.flow.homogeneity, 3),
+            "net": round(ctx.flow.net, 2),
+            "accumulating": ctx.flow.accumulating,
+            "distributing": ctx.flow.distributing,
+        },
+        "vortex": {
+            "scale": ctx.vortex.scale,
+            "direction": ctx.vortex.direction,
+            "strength": round(ctx.vortex.strength, 3),
+            "extrema": ctx.vortex.extrema,
+            "sell_peaks": ctx.vortex.sell_peaks,
+            "buy_lows": ctx.vortex.buy_lows,
+            "mult": round(ctx.vortex.multiplier, 3),
+        },
+        "drop": {
+            "drop_pct": round(ctx.drop.drop_pct * 100, 1),
+            "bars_since_bottom": ctx.drop.bars_since_bottom,
+            "distrust_zones": ctx.drop.distrust_zones,
+        },
+        "rel_vol": round(ctx.rel_vol, 2),
+        "atr_share": round(ctx.atr_share, 4),
+        "horizon": hz["label"],
+    }
+
+
+# ─────────────────────────────────────────────────────────────
+# Скор и вердикт
+# ─────────────────────────────────────────────────────────────
 def _strength(score: int) -> str:
     if score >= 85:
         return "экстремальный"
@@ -159,56 +351,69 @@ def _strength(score: int) -> str:
 
 
 def _to_family_score(raw: float) -> int:
-    #     """Приводит шкалу подкейса 0..100 к шкале семейства 45..100.
-    #
-    #     scoring.py отображает 45..100 в 14..34 и на входе ниже 45 даёт
-    #     отрицательные баллы. Подкейсы про эту шкалу не знают и не
-    #     должны: они меряют силу фигуры, а не место монеты в отчёте.
-    #
-    #     ВАЖНО: приведение делается ТОЛЬКО после того, как сырой скор
-    #     прошёл MIN_RAW_SCORE. Само по себе оно ничего не отсекает —
-    #     нижняя точка отображения совпадает с порогом семейства.
-    #     """
-    # Два разных «100» в одной формуле. RAW_MAX — верх сырой шкалы
-    # подкейса, он задан контрактом SubcaseSignal (__post_init__
-    # клампит в 0..100) и в конфиге ему не место. FLOW_MAX_SCORE —
-    # верх шкалы семейства, он калибруется.
-    RAW_MAX = 100.0
-    raw = max(0.0, min(RAW_MAX, raw))
-    span = FLOW_MAX_SCORE - MIN_SCORE
-    return int(round(MIN_SCORE + raw * span / RAW_MAX))
+    """Приводит сырую шкалу подкейса к шкале семейства 45..100.
 
-
-def _horizon(ctx: FlowContext) -> dict:
-    """Ярлык времени. В пороги и скор не входит."""
-    return {
-        "wait_days": ctx.horizon_bars,
-        "label": ctx.horizon_label,
-        "readable": ctx.horizon_scale > 1,
-    }
+    Отображается НЕ 0..100, а диапазон, который реально может прийти:
+    от MIN_RAW_SCORE до 100. Порог проверяется выше по коду, значит
+    меньшие значения сюда не попадают, и растягивать от нуля означает
+    выбросить нижнюю половину шкалы семейства.
+    """
+    raw = max(MIN_RAW_SCORE, min(100.0, raw))
+    span_raw = 100.0 - MIN_RAW_SCORE
+    span_out = FLOW_MAX_SCORE - MIN_SCORE
+    if span_raw <= 0:
+        return MIN_SCORE
+    return int(round(MIN_SCORE + (raw - MIN_RAW_SCORE) * span_out / span_raw))
 
 
 def _verdict(name: str, sig: SubcaseSignal, confirmed_by: str = "") -> str:
-    """Собирает вердикт из причин победителя.
-
-    Причины уже отсортированы по порядку применения: сначала
-    качество фигуры, затем контекст. Берём первые три — дальше идут
-    поправки, они интересны только при разборе ошибок.
-    """
     head = _HEADS.get(name, "Поток")
-
     if not sig.reasons:
         text = f"{head}."
     else:
         text = f"{head}: {'; '.join(sig.reasons[:3])}."
-
     if confirmed_by:
         tail = _TAILS.get(confirmed_by, "вторым подкейсом")
         text += f" Подтверждено {tail}."
-
     return text
 
 
+def _levels(ctx: FlowContext, sig: SubcaseSignal) -> tuple[float, float, float]:
+    """Зона входа, стоп и первая цель (Э-8).
+
+    Вход — уровень фигуры, найденный подкейсом. Стоп — под ближайшей
+    опорой, а если её нет, отступ от зоны на долю ATR. Цель — ближайший
+    завал сверху: именно там встретится предложение.
+    """
+    from detectors.flow_config import (
+        FLOW_STOP_PCT,
+        FLOW_TARGET_FALLBACK_PCT,
+    )
+
+    entry = float(getattr(sig, "zone_price", 0.0) or 0.0)
+    if entry <= 0:
+        entry = ctx.price
+    if entry <= 0:
+        return 0.0, 0.0, 0.0
+
+    support = ctx.nearest_below()
+    if support is not None and 0 < support.price < entry:
+        stop = support.price * (1.0 - FLOW_STOP_PCT)
+    else:
+        stop = entry * (1.0 - FLOW_STOP_PCT)
+
+    resist = ctx.nearest_above()
+    if resist is not None and resist.price > entry:
+        target = resist.price
+    else:
+        target = entry * (1.0 + FLOW_TARGET_FALLBACK_PCT)
+
+    return entry, stop, target
+
+
+# ─────────────────────────────────────────────────────────────
+# Точка входа
+# ─────────────────────────────────────────────────────────────
 def detect_flow(
     symbol: str,
     quote_volume_24h: float = 0.0,
@@ -219,14 +424,22 @@ def detect_flow(
     Контекст считается ОДИН раз: дневки берутся из RunCache, агрегаты
     строятся из них, поэтому масштабы бесплатны.
 
-    allow_network выключает подкейсы, которым нужны funding и OI.
-    Нужно для быстрой отладки дневного ядра: два лишних запроса на
-    монету при двухстах монетах — это минуты, а на выводы о зонах
-    и событиях они не влияют.
+    allow_network выключает подкейсы, которым нужны funding и OI: два
+    лишних запроса на монету при двухстах монетах — это минуты, а на
+    выводы о зонах и событиях они не влияют.
     """
-    ctx = build_context(symbol, quote_volume_24h)
-    if not ctx.valid:
+    bars = _load_bars(symbol)
+    if len(bars) < MIN_BARS:
         return FlowSignal(symbol=symbol)
+
+    ctx = build_context(symbol, bars)
+    if ctx is None or not ctx.ready:
+        return FlowSignal(symbol=symbol)
+
+    ctx.quote_volume_24h = quote_volume_24h
+
+    hz = _horizon(ctx)
+    ctx_dict = _context_dict(ctx, hz)
 
     results: list[tuple[str, SubcaseSignal]] = []
     failures: dict[str, str] = {}
@@ -234,10 +447,7 @@ def detect_flow(
     for module in _RUNNERS:
         # __name__ у импортированного модуля полный: "detectors.flow_leverage".
         # Сравнение с NETWORK_CASES по нему всегда ложно, и allow_network
-        # молча перестаёт действовать — сеть выключается снаружи, а модуль
-        # об этом не узнаёт. Атрибут name объявлен протоколом Subcase, но
-        # опираться только на него нельзя: его отсутствие не ошибка импорта,
-        # оно ничем себя не проявляет.
+        # молча перестаёт действовать.
         mod_name = getattr(module, "name", module.__name__.rsplit(".", 1)[-1])
 
         if not allow_network and mod_name in NETWORK_CASES:
@@ -246,23 +456,15 @@ def detect_flow(
         try:
             sig = module.detect(ctx)
         except Exception as exc:
-            # Падение одного подкейса не должно ронять семейство:
-            # монет двести, а модулей шесть. Но и терять ошибку
-            # молча нельзя — иначе неработающий модуль выглядит
-            # как модуль, которому нечего сказать.
+            # Падение одного подкейса не должно ронять семейство.
+            # Но и терять ошибку молча нельзя: неработающий модуль
+            # выглядит как модуль, которому нечего сказать.
             failures[mod_name] = f"{type(exc).__name__}: {exc}"
             continue
 
         if sig is None:
             continue
 
-        # Потолок зрелости. Применяется здесь, а не в подкейсе:
-        # модуль не обязан знать, насколько ему доверяют.
-        #
-        # Дефолта нет сознательно. Значение по умолчанию 100 снимало
-        # бы потолок с модуля, чьё имя не нашлось в таблице, — то есть
-        # ровно с того, где ограничение и нужно. Промах по ключу это
-        # дефект кода, а не свойство рынка, и он обязан быть виден.
         cap = CASE_CAP.get(sig.subcase)
         if cap is None:
             failures[mod_name] = (
@@ -270,6 +472,7 @@ def detect_flow(
                 f"ожидались {sorted(CASE_CAP)}"
             )
             cap = min(CASE_CAP.values())
+
         if sig.score > cap:
             sig.score = float(cap)
 
@@ -290,28 +493,16 @@ def detect_flow(
         return FlowSignal(
             symbol=symbol,
             cases={},
-            context=ctx.to_dict(),
+            context=ctx_dict,
             failures=failures,
         )
 
     # ── Победитель ───────────────────────────────────────────
-    # Двухпроходный выбор, и это необходимость, а не стиль.
-    # Однопроходный цикл со сравнением «лучше текущего» здесь
-    # неприменим: отношение предпочтения не транзитивно. Подкейс A
-    # проигрывает B по зрелости, B проигрывает C по скору, но A мог
-    # бы обойти C — и исход зависел от того, в каком порядке они
-    # встретились, то есть от порядка модулей в _RUNNERS. На рынок
-    # эта величина не влияет никак.
-    #
-    # Сначала берём максимум по скору как опорную точку, затем
-    # среди всех, кто отстал не больше чем на TIE_MARGIN, выбираем
-    # самого зрелого. Разница в пару баллов между подкейсами ничего
-    # не значит, а зрелость фигуры значит.
+    # Двухпроходный выбор — необходимость, а не стиль: отношение
+    # предпочтения не транзитивно, и однопроходный цикл сделал бы
+    # исход зависимым от порядка модулей в _RUNNERS.
     top_score = max(s.score for _, s in results)
-    contenders = [
-        (n, s) for n, s in results
-        if s.score >= top_score - TIE_MARGIN
-    ]
+    contenders = [(n, s) for n, s in results if s.score >= top_score - TIE_MARGIN]
     best_name, best_sig = max(
         contenders,
         key=lambda x: (CASE_PRIORITY.get(x[0], 0), x[1].score),
@@ -320,10 +511,6 @@ def detect_flow(
     raw = best_sig.score
 
     # ── Подтверждение вторым подкейсом ───────────────────────
-    # Две независимые фигуры на одной монете сильнее одной. Бонус
-    # фиксированный и небольшой: подкейсы читают общую карту зон,
-    # то есть частично коррелированы, и складывать их скоры было
-    # бы двойным счётом.
     confirmed_by = ""
     others = [
         (n, s) for n, s in results
@@ -331,38 +518,23 @@ def detect_flow(
     ]
     if others:
         confirmed_by = max(others, key=lambda x: x[1].score)[0]
-        # Бонус не имеет права пробивать потолок зрелости. Кап
-        # выражает доверие к модулю, а подтверждение соседом
-        # доверия к модулю не добавляет — оно добавляет веса
-        # конкретной фигуре. Иначе fuel при потолке 80 отдавал бы
-        # 86, и ограничение работало бы только там, где монета
-        # неинтересна.
         cap = CASE_CAP.get(best_name, 100)
         raw = min(float(cap), raw + CONFIRM_BONUS)
 
-    # ── Порог ────────────────────────────────────────────────
-    # Проверяется на СЫРОЙ шкале. После приведения проверять
-    # бессмысленно: нижняя точка отображения равна порогу.
+    # ── Порог на СЫРОЙ шкале ─────────────────────────────────
     if raw < MIN_RAW_SCORE:
-        # Фигура собралась, но вклад символический. Разбор
-        # отдаём — воронке нужно видеть, насколько не дотянули.
         return FlowSignal(
             symbol=symbol,
             score=int(round(raw)),
             cases=cases,
-            context=ctx.to_dict(),
+            context=ctx_dict,
             failures=failures,
         )
 
     score = _to_family_score(raw)
-    hz = _horizon(ctx)
-    verdict = _verdict(best_name, best_sig, confirmed_by)
+    entry, stop, target = _levels(ctx, best_sig)
 
-    if hz["readable"] and hz["wait_days"]:
-        verdict += (
-            f" Картина читается на {hz['label']}, "
-            f"ожидание порядка {hz['wait_days']} дней."
-        )
+    verdict = _verdict(best_name, best_sig, confirmed_by)
 
     return FlowSignal(
         symbol=symbol,
@@ -373,16 +545,22 @@ def detect_flow(
         horizon_days=hz["wait_days"],
         horizon_tf=hz["label"],
         horizon_readable=hz["readable"],
+        zone_price=entry,
+        stop_hint=stop,
+        target_hint=target,
         cases=cases,
         verdict=verdict,
         parts=[
             {
-                "zone_price": best_sig.zone_price,
+                "zone_price": entry,
+                "stop_hint": stop,
+                "target_hint": target,
+                "confirmed_by": confirmed_by,
                 "reasons": best_sig.reasons,
-                "facts": best_sig.facts,
+                "facts": getattr(best_sig, "facts", {}),
                 "mults": best_sig.mults,
             }
         ],
-        context=ctx.to_dict(),
+        context=ctx_dict,
         failures=failures,
     )

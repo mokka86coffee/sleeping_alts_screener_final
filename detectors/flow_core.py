@@ -1,70 +1,54 @@
-"""FLOW · ядро семейства. Вся математика, общая для подкейсов.
+"""FLOW · ядро семейства: бары, события, зоны, поток, вортекс, контекст.
 
-Зависимости: core.binance (канонические загрузчики), detectors.flow_config
-(пороги), analytics.indicators (общие расчёты). Другие детекторы и общий
-config здесь не используются.
-
-Контекст считается ОДИН раз на монету и передаётся во все подкейсы:
-дневки берутся из RunCache, агрегаты строятся из них, поэтому
-все масштабы бесплатны после первого обращения.
+Внесённые правки:
+  Э-1  rel_volume — норма обязана покрывать свой срез целиком, сверху потолок
+  Э-2  вортекс — fallback берёт ближайший к коридору масштаб, иначе молчит
+  Э-6  trusted_zones_below — обращение к своему полю, а не к DropContext
+  Э-7  снят дубль импорта, отбор зон вынесен в общие функции
+  2.1  _atr_share считается на каждом событии, а не один раз на ряд
+  2.2  головной бар агрегата помечается коротким, а не неполным
+  2.3  robust_sigma получила пол по медиане
+  2.4  homogeneity считается по вкладам в сторону итогового сдвига
 """
 
 from __future__ import annotations
 
 import math
-import time
 from dataclasses import dataclass, field
+from typing import Sequence
 
-from core.binance import (
-    K_CLOSE,
-    K_CLOSE_TIME,
-    K_HIGH,
-    K_LOW,
-    K_OPEN,
-    K_OPEN_TIME,
-    K_QUOTE_VOLUME,
-    K_TAKER_BUY_QUOTE,
-    klines_1d,
-)
-from analytics.indicators import window_ratio
 from detectors.flow_config import (
-    MIN_SIGMA_RATIO,
-    VORTEX_FALLBACK_SLACK,
+    AGG_SCALES,
     BOTTOM_LOOKBACK_DAYS,
-    BOTTOM_LOOKBACK_DAYS,
-    BOTTOM_MIN_BARS_AFTER,
-    BOTTOM_MIN_DROP_PCT,
     DELTA_COLLAPSE_SLOPE,
     DELTA_WINDOW,
+    DROP_DISTRUST_PCT,
+    DROP_FRESH_BARS,
     EVENT_NORM_WINDOW,
-    HORIZON_BARS_AHEAD,
-    HORIZON_AMP_GAIN,
     IMMATURE_BODY_MAX,
     IMMATURE_MIN_TIER,
-    MIN_BARS_BASE,
-    MIN_BARS_HTF,
+    MIN_BARS,
+    MIN_SIGMA_RATIO,
     PARTIAL_BAR_MIN_FILL,
     PARTIAL_BAR_NORMALIZE,
     PLATEAU_FULL_BARS,
     PLATEAU_MAX_RANGE,
     PLATEAU_MIN_BARS,
-    PLATEAU_MULT_FULL,
-    PLATEAU_MULT_NONE,
-    PLATEAU_MULT_NONE_SOFT,
+    REL_VOLUME_MAX,
+    REL_VOLUME_MIN_NORM_COVER,
+    REL_VOLUME_NORM_SPAN,
+    REL_VOLUME_WINDOW,
     RESPONSE_BARS,
     RESPONSE_FLAT_ATR,
-    SCALES,
     TIER_1_SIGMA,
     TIER_2_SIGMA,
     TIER_3_SIGMA,
-    VORTEX_PERIOD,
-    VORTEX_EXTREMA_GAP,
-    VORTEX_DELTA_GAIN,
-    VORTEX_MIN_EXTREMA,
+    VORTEX_FALLBACK_TOLERANCE,
     VORTEX_MAX_EXTREMA,
-    VORTEX_MULT_GAIN,
-    VORTEX_PROMINENCE,
-    VORTEX_MIN_TAIL,
+    VORTEX_MIN_EXTREMA,
+    VORTEX_MULT_MAX,
+    VORTEX_MULT_MIN,
+    VORTEX_PERIOD,
     ZONE_BREAK_BARS,
     ZONE_BREAK_DEEP_PCT,
     ZONE_CONFIRM_SCALES,
@@ -73,6 +57,7 @@ from detectors.flow_config import (
     ZONE_MAX_AGE_UNTESTED,
     ZONE_MIN_EVENTS,
     ZONE_NEAR_PCT,
+    ZONE_SINGLE_SCALE_WEIGHT,
     ZONE_TEST_HOLD_PCT,
     ZONE_TEST_TOUCH_PCT,
 )
@@ -81,364 +66,252 @@ from detectors.flow_config import (
 # ─────────────────────────────────────────────────────────────
 # Устойчивая статистика
 # ─────────────────────────────────────────────────────────────
-# Среднее и стандартное отклонение непригодны: один памп задирает
-# норму так, что последующие аномалии перестают быть аномалиями.
-# Везде используется медиана и MAD.
-
-def _median(values: list[float]) -> float:
-    if not values:
+def _median(values: Sequence[float]) -> float:
+    """Медиана без numpy: копия, сортировка, середина."""
+    data = sorted(v for v in values if v is not None and not math.isnan(v))
+    n = len(data)
+    if n == 0:
         return 0.0
-    s = sorted(values)
-    n = len(s)
     mid = n // 2
     if n % 2:
-        return s[mid]
-    return (s[mid - 1] + s[mid]) / 2
+        return float(data[mid])
+    return (float(data[mid - 1]) + float(data[mid])) / 2.0
 
 
-def _mad(values: list[float], med: float | None = None) -> float:
-    """Median absolute deviation, приведённый к масштабу сигмы."""
-    if not values:
-        return 0.0
-    m = _median(values) if med is None else med
-    dev = [abs(v - m) for v in values]
-    return _median(dev) * 1.4826
+def robust_sigma(values: Sequence[float]) -> float:
+    """MAD-оценка разброса с полом по медиане (правка 2.3).
 
-
-def robust_sigma(value: float, sample: list[float]) -> float:
-    """Насколько значение аномально относительно выборки, в сигмах."""
-    if not sample:
-        return 0.0
-    med = _median(sample)
-    if med <= 0:
-        return 0.0
-    sigma = _mad(sample, med)
-    # Пол разброса. Половина выборки может совпасть до цифры —
-    # тогда MAD равен нулю и любое отклонение даёт бесконечность.
-    # Ниже этой доли медианы разброс считаем нереалистично малым.
-    sigma = max(sigma, med * MIN_SIGMA_RATIO)
-    if sigma <= 0:
-        return 0.0
-    return (value - med) / sigma
-
-def _slope_of_flow(cum: list[float], scale: float) -> float:
-    """Наклон кумулятивного ряда, нормированный на внешний масштаб.
-
-    Отдельная функция, а не параметр к _slope, и это принципиально.
-    Обычный ряд нормируется на собственный средний уровень: для цены
-    это верно, она положительна и её среднее задаёт естественный
-    масштаб. Для кумулятивной дельты — неверно в принципе.
-
-    Кумулятивная дельта пересекает ноль постоянно: сегодня набрали,
-    завтра раздали. Средний уровень такого ряда — величина случайная
-    и близкая к нулю, деление на неё даёт произвольно большие числа
-    любого знака. Прогон это показал прямо: `collapsing` стоял у 36
-    молчащих монет из 48, то есть у трёх четвертей рынка, включая
-    те, где дельта росла.
-
-    Масштабом обязан быть оборот: тогда величина читается как доля
-    дневного оборота, на которую поток смещается за бар. Это
-    сравнимо между монетами и устойчиво во времени.
+    На плотных участках MAD вырождается почти в ноль, и любое
+    отклонение делением даёт десятки-сотни сигм. Поэтому снизу
+    ставим MIN_SIGMA_RATIO от медианы модулей — ниже этого порога
+    сигма не опускается.
     """
-    n = len(cum)
-    if n < 3 or scale <= 0:
+    data = [abs(float(v)) for v in values if v is not None and not math.isnan(v)]
+    if len(data) < 3:
         return 0.0
-
-    mean_x = (n - 1) / 2.0
-    mean_y = sum(cum) / n
-
-    num = 0.0
-    den = 0.0
-    for i, y in enumerate(cum):
-        dx = i - mean_x
-        num += dx * (y - mean_y)
-        den += dx * dx
-
-    if den <= 0:
-        return 0.0
-
-    return (num / den) / scale
+    med = _median(data)
+    mad = _median([abs(v - med) for v in data])
+    sigma = 1.4826 * mad
+    floor = MIN_SIGMA_RATIO * med
+    return max(sigma, floor)
 
 
-def _slope(values: list[float]) -> float:
-    """Наклон линейной регрессии, нормированный на средний уровень.
-
-    Нормировка обязательна: иначе наклон зависит от цены монеты,
-    и пороги пришлось бы задавать для каждой отдельно.
-    """
-    n = len(values)
-    if n < 2:
-        return 0.0
-    mean_x = (n - 1) / 2
-    mean_y = sum(values) / n
-    num = sum((i - mean_x) * (v - mean_y) for i, v in enumerate(values))
-    den = sum((i - mean_x) ** 2 for i in range(n))
-    if den <= 0:
-        return 0.0
-    slope = num / den
-    scale = abs(mean_y) if abs(mean_y) > 1e-12 else 1.0
-    return slope / scale
-
-
-def homogeneity(values: list[float]) -> float:
-    """Насколько равномерно распределён вклад по окну.
-
-    1 — все бары вложились одинаково, 0 — весь сдвиг сделан одним
-    баром. Считается через долю максимального вклада: скрытый набор
-    по определению размазан, одиночный вброс скрытым не является.
-    """
-    pos = [v for v in values if v > 0]
-    if not pos:
-        return 0.0
-    total = sum(pos)
-    if total <= 0:
-        return 0.0
-    share_max = max(pos) / total
-    ideal = 1.0 / len(pos)
-    if share_max <= ideal:
-        return 1.0
-    return max(0.0, min(1.0, (1.0 - share_max) / (1.0 - ideal)))
+def _clip(value: float, low: float, high: float) -> float:
+    return low if value < low else (high if value > high else value)
 
 
 # ─────────────────────────────────────────────────────────────
-# Свеча и агрегация
+# Бар и его производные
 # ─────────────────────────────────────────────────────────────
-
 @dataclass
 class Bar:
-    """Свеча с разложенным потоком по сторонам."""
-
-    idx: int
+    ts: int
     open: float
     high: float
     low: float
     close: float
-    quote: float
-    buy_quote: float
-    fill: float = 1.0       # доля набранного времени бара
+    volume: float
+    # Тейкерный поток по сторонам. Приходит из свечи напрямую
+    # (K_TAKER_BUY_QUOTE), а не восстанавливается по знаку закрытия:
+    # это факт, а не приближение.
+    buy_volume: float = 0.0
+    sell_volume: float = 0.0
+    # доля фактически набранного времени бара: 1.0 — полный,
+    # меньше — головной бар агрегата либо обрезанный край ряда
+    fill: float = 1.0
+    # бар склеен из нескольких младших (см. aggregate)
+    aggregated: bool = False
 
     @property
-    def scale_factor(self) -> float:
-        """Множитель приведения объёма к полному бару.
-
-        Незакрытый бар нельзя сравнивать с нормой напрямую: 6D
-        показывал 16% относительного объёма там, где 4D в тот же
-        момент показывал 327% — разница целиком в заполнении.
-        """
-        if not PARTIAL_BAR_NORMALIZE or self.fill >= 1.0 or self.fill <= 0:
-            return 1.0
-        return 1.0 / self.fill
-
-    @property
-    def normalized_quote(self) -> float:
-        return self.quote * self.scale_factor
-
-    @property
-    def sell_quote(self) -> float:
-        return max(0.0, self.quote - self.buy_quote)
-
-    @property
-    def delta(self) -> float:
-        return self.buy_quote - self.sell_quote
-
-    @property
-    def buy_share(self) -> float:
-        return self.buy_quote / self.quote if self.quote > 0 else 0.5
+    def range(self) -> float:
+        return max(0.0, self.high - self.low)
 
     @property
     def body(self) -> float:
         return abs(self.close - self.open)
 
     @property
-    def amplitude(self) -> float:
-        return max(0.0, self.high - self.low)
+    def body_share(self) -> float:
+        rng = self.range
+        return 0.0 if rng <= 0 else self.body / rng
+
+    @property
+    def delta(self) -> float:
+        """Разница тейкерных покупок и продаж.
+
+        Если сторон нет (агрегат собран без них) — приближаем объёмом
+        со знаком направления, как раньше.
+        """
+        if self.buy_volume > 0 or self.sell_volume > 0:
+            return self.buy_volume - self.sell_volume
+        return self.volume * self.direction * self.body_share
+
+    @property
+    def direction(self) -> int:
+        if self.close > self.open:
+            return 1
+        if self.close < self.open:
+            return -1
+        return 0
+
+    @property
+    def is_partial(self) -> bool:
+        """Бар не добрал времени настолько, что метрики шумят."""
+        return self.fill < PARTIAL_BAR_MIN_FILL
+
+    @property
+    def is_short(self) -> bool:
+        """Правка 2.2: головной бар агрегата — короткий, но не битый.
+
+        Незакрытый head честно отражает всё, что уже случилось внутри
+        периода; его нельзя выбрасывать как неполный, иначе последнее
+        и самое свежее событие ряда всегда теряется. Отличаем его
+        отдельным флагом и лишь нормируем объём.
+        """
+        return self.aggregated and self.fill < 1.0
+
+    def norm_volume(self) -> float:
+        """Объём, приведённый к полному бару."""
+        if not PARTIAL_BAR_NORMALIZE or self.fill <= 0:
+            return self.volume
+        if self.fill >= 1.0:
+            return self.volume
+        return self.volume / self.fill
+
+    @property
+    def quote(self) -> float:
+        """Оборот бара в котируемой валюте.
+
+        Имя, под которым бар читают подкейсы. volume в ядре уже
+        приходит из K_QUOTE_VOLUME, поэтому это синоним, а не
+        пересчёт: два имени для одной величины держатся ради
+        совместимости и снимаются одним проходом позже.
+        """
+        return self.volume
 
 
-def _to_bars(raw: list[list]) -> list[Bar]:
-    """Разбирает свечи Binance в бары с разложенным потоком.
-
-    Заполнение последнего бара считается ПО ВРЕМЕНИ, а не по факту
-    его наличия в ряду. Это единственный источник fill во всём
-    семействе: агрегаты его наследуют, событийная логика на него
-    опирается, и если он всегда равен единице — вся ветка
-    PARTIAL_BAR_* становится мёртвым кодом, внешне неотличимым от
-    рабочего.
-
-    Ровно это и происходило: fill выставлялся безусловной единицей,
-    а в aggregate вычислялся как len(chunk) / scale — величина,
-    равная единице по построению, потому что остаток от деления
-    собирается в головной бар. Незакрытый бар правого края
-    сравнивался с нормой по полным барам как равный ей.
-
-    Проявляется расхождением между масштабами в один момент
-    времени: 3D показывал 52.66 B при 2283% RVOL, 4D в ту же
-    секунду — 7.44 B при 276%. Более длинный бар с меньшим
-    объёмом невозможен; различалась только стадия заполнения.
-    """
-    now_ms = time.time() * 1000.0
-    out: list[Bar] = []
-    for i, k in enumerate(raw):
-        try:
-            quote = float(k[K_QUOTE_VOLUME])
-            buy = float(k[K_TAKER_BUY_QUOTE])
-            o = float(k[K_OPEN])
-            h = float(k[K_HIGH])
-            lo = float(k[K_LOW])
-            c = float(k[K_CLOSE])
-            t_open = float(k[K_OPEN_TIME])
-            t_close = float(k[K_CLOSE_TIME])
-        except (TypeError, ValueError, IndexError):
-            continue
-        if c <= 0 or quote <= 0:
-            continue
-
-        # Закрытая свеча — полная по определению. Незакрытая
-        # набрана ровно настолько, сколько прошло её времени.
-        span = t_close - t_open
-        if span > 0 and now_ms < t_close:
-            fill = max(0.0, min(1.0, (now_ms - t_open) / span))
-        else:
-            fill = 1.0
-
-        out.append(
-            Bar(
-                idx=i,
-                open=o,
-                high=h,
-                low=lo,
-                close=c,
-                quote=quote,
-                buy_quote=min(buy, quote),
-                fill=fill,
-            )
+def atr(bars: Sequence[Bar], window: int) -> float:
+    """Средний истинный диапазон по последним window барам."""
+    if len(bars) < 2:
+        return 0.0
+    trs: list[float] = []
+    tail = bars[-window:] if window < len(bars) else bars
+    prev_close = tail[0].close
+    for bar in tail[1:]:
+        tr = max(
+            bar.high - bar.low,
+            abs(bar.high - prev_close),
+            abs(bar.low - prev_close),
         )
-    return out
+        trs.append(tr)
+        prev_close = bar.close
+    if not trs:
+        return 0.0
+    return sum(trs) / len(trs)
 
 
-def aggregate(bars: list[Bar], scale: int) -> list[Bar]:
-    """Склеивает дневки в бары нужного масштаба.
+def rel_volume(bars: Sequence[Bar], idx: int) -> float:
+    """Объём бара против локальной нормы (правка Э-1).
 
-    Порог аномалии строится от нормы объёма ВНУТРИ бара. Накопление,
-    размазанное по десяти дням порциями ниже порога, на дневке не
-    даёт ни одного события — а в десятидневном баре складывается в
-    одно крупное. Крупный масштаб не показывает другое, он суммирует
-    то, что тонуло в шуме.
+    Норма берётся по окну REL_VOLUME_NORM_SPAN, заканчивающемуся
+    на предыдущем баре. Если это окно покрывает свой срез хуже, чем
+    REL_VOLUME_MIN_NORM_COVER (мало баров, много дыр), отношение
+    объявляется неопределённым и возвращается 1.0 — нейтраль,
+    а не случайно раздутое число. Сверху жёсткий потолок
+    REL_VOLUME_MAX, чтобы один аукционный выброс не уводил тир.
+    """
+    if idx <= 0 or idx >= len(bars):
+        return 1.0
 
-    Хвост НЕ обрезается: последний бар может быть неполным, но он
-    несёт самые свежие события. Вместо этого он помечается долей
-    заполнения, а сигма считается по приведённому объёму.
+    start = max(0, idx - REL_VOLUME_NORM_SPAN)
+    window = bars[start:idx]
+    if not window:
+        return 1.0
 
-    Заполнение бара НЕ равно доле присутствующих дневок. Оно равно
-    средней доле их заполнения: последняя дневка сама может быть
-    незакрытой, и на крупном масштабе это единственный источник
-    неполноты — все предыдущие группы содержат ровно scale
-    элементов, потому что остаток ушёл в головной бар.
+    expected = min(REL_VOLUME_NORM_SPAN, idx)
+    cover = sum(b.fill for b in window) / float(expected)
+    if cover < REL_VOLUME_MIN_NORM_COVER:
+        return 1.0
+
+    norms = [b.norm_volume() for b in window if b.norm_volume() > 0]
+    if len(norms) < max(3, REL_VOLUME_WINDOW // 2):
+        return 1.0
+
+    base = _median(norms)
+    if base <= 0:
+        return 1.0
+
+    return _clip(bars[idx].norm_volume() / base, 0.0, REL_VOLUME_MAX)
+
+
+def aggregate(bars: Sequence[Bar], scale: int) -> list[Bar]:
+    """Склейка младших баров в масштаб scale.
+
+    Хвост ряда почти никогда не делится нацело: последняя пачка
+    короче scale. Она не отбрасывается — становится головным баром
+    с fill = len(chunk) / scale и флагом aggregated (правка 2.2).
     """
     if scale <= 1:
-        return bars
-    n = len(bars)
-    if n < scale:
-        return []
+        return list(bars)
 
-    # Выравнивание с начала: правый край обязан заканчиваться
-    # текущим баром, иначе свежие события теряют масштаб.
-    start = n % scale
     out: list[Bar] = []
-
-    if start:
-        head = bars[:start]
+    for start in range(0, len(bars), scale):
+        chunk = bars[start:start + scale]
+        if not chunk:
+            continue
+        filled = sum(b.fill for b in chunk)
         out.append(
             Bar(
-                idx=head[0].idx,
-                open=head[0].open,
-                high=max(b.high for b in head),
-                low=min(b.low for b in head),
-                close=head[-1].close,
-                quote=sum(b.quote for b in head),
-                buy_quote=sum(b.buy_quote for b in head),
-                # Сумма долей, а не количество баров. Прежнее
-                # len(head) / scale давало верный результат только
-                # здесь — по случайности, потому что головной бар
-                # действительно укорочен. Для всех остальных групп
-                # оно возвращало единицу по построению.
-                fill=sum(b.fill for b in head) / scale,
-            )
-        )
-
-    for i in range(start, n, scale):
-        chunk = bars[i : i + scale]
-        out.append(
-            Bar(
-                idx=chunk[0].idx,
+                ts=chunk[0].ts,
                 open=chunk[0].open,
                 high=max(b.high for b in chunk),
                 low=min(b.low for b in chunk),
                 close=chunk[-1].close,
-                quote=sum(b.quote for b in chunk),
-                buy_quote=sum(b.buy_quote for b in chunk),
-                # Правый край: k−1 закрытых дневок плюс текущая
-                # своей долей. Именно здесь величина перестаёт быть
-                # единицей — и именно здесь она нужна.
-                fill=sum(b.fill for b in chunk) / scale,
+                volume=sum(b.volume for b in chunk),
+                buy_volume=sum(b.buy_volume for b in chunk),
+                sell_volume=sum(b.sell_volume for b in chunk),
+                fill=_clip(filled / float(scale), 0.0, 1.0),
+                aggregated=True,
             )
         )
-
     return out
-
-
-def _min_bars(scale: int) -> int:
-    return MIN_BARS_BASE if scale <= 1 else MIN_BARS_HTF
-
 
 # ─────────────────────────────────────────────────────────────
 # События
 # ─────────────────────────────────────────────────────────────
-
 @dataclass
 class Event:
-    """Аномальный объём одной стороны."""
+    """Аномалия объёма на конкретном баре."""
 
-    scale: int
-    bar_idx: int        # позиция в ряду своего масштаба
-    day_idx: int        # позиция конца бара в дневном ряду
-    age: int            # сколько баров назад от правого края
-    price: float        # уровень события
-    side: str           # "buy" | "sell"
-    sigma: float
-    tier: int
-    volume: float
-    response: float     # движение цены после события, доли
-    absorbed: bool      # масса приложена, цена не сдвинулась
-    immature: bool      # окно отклика ещё не прошло
+    idx: int
+    ts: int
+    price: float          # уровень, к которому событие привязано
+    scale: int            # масштаб, на котором найдено
+    tier: int             # 1..3 по силе относительно нормы
+    rel_vol: float
+    sigma: float          # отклонение в робастных сигмах
+    absorbed: bool        # цена не ушла после аномального объёма
+    direction: int        # знак бара события
+    immature: bool        # окно отклика ещё не закрылось
 
     @property
-    def age_days(self) -> int:
-        """Давность события в ДНЯХ.
+    def weight(self) -> float:
+        """Вклад события в силу зоны.
 
-        Единственная величина, пригодная для сравнения между масштабами.
-        `age` меряется в барах своего ряда: на 10D значение 20 означает
-        двести дней, а не двадцать. Ровно это и сравнивалось с дневными
-        окнами подкейсов — spring с окном 24 принимал за свежее событие
-        полугодовой давности.
+        Тир задаёт базу, поглощение удваивает: аномальный объём без
+        сдвига цены — прямое свидетельство работы лимитника, а не
+        случайного всплеска. Незрелые события идут с половинным весом,
+        потому что их отклик ещё не измерен до конца.
         """
-        return self.age * max(1, self.scale)
-
-    def to_dict(self) -> dict:
-        return {
-            "scale": self.scale,
-            "age": self.age,
-            "age_days": self.age_days,
-            "price": round(self.price, 10),
-            "side": self.side,
-            "sigma": round(self.sigma, 2),
-            "tier": self.tier,
-            "response": round(self.response * 100, 2),
-            "absorbed": self.absorbed,
-            "immature": self.immature,
-        }
+        base = float(self.tier)
+        if self.absorbed:
+            base *= 2.0
+        if self.immature:
+            base *= 0.5
+        return base
 
 
-def _tier(sigma: float) -> int:
+def _tier_of(sigma: float) -> int:
     if sigma >= TIER_3_SIGMA:
         return 3
     if sigma >= TIER_2_SIGMA:
@@ -448,150 +321,140 @@ def _tier(sigma: float) -> int:
     return 0
 
 
-def _atr_share(bars: list[Bar], upto: int, window: int = 14) -> float:
-    """Нормальная амплитуда бара в долях цены, устойчиво."""
-    lo = max(0, upto - window)
-    sample = [b.amplitude / b.close for b in bars[lo:upto] if b.close > 0]
-    if not sample:
-        return 0.0
-    return _median(sample)
+def _atr_share(bars: Sequence[Bar], idx: int, window: int = 14) -> float:
+    """Нормальная амплитуда бара в долях цены НА МОМЕНТ события.
 
+    Правка 2.1. Раньше величина считалась один раз для всего ряда, по
+    последним барам, и применялась к событиям любой давности. Монета,
+    год назад ходившая по пятнадцать процентов в день, а сейчас по два,
+    получала absorbed = False почти на всей старой истории: отклик
+    мерялся против нынешней тишины. Зеркально — разогнавшаяся монета
+    объявляла поглощёнными все спокойные события прошлого.
 
-def find_events(bars: list[Bar], scale: int) -> list[Event]:
-    """Ищет аномальные объёмы сторон и меряет отклик.
-
-    Отклик считается ОДИН раз: для зрелых событий — по движению цены
-    за окно, для незрелых — по телу бара против нормальной амплитуды.
-    Порог берётся тот, который соответствует способу измерения.
+    absorbed_ratio лежит в основе churn и hidden, поэтому искажение
+    шло прямо в фигуру.
     """
-    n = len(bars)
-    if n < _min_bars(scale):
-        return []
+    start = max(0, idx - window)
+    chunk = bars[start:idx]
+    if not chunk:
+        return 0.0
+    shares = [b.range / b.close for b in chunk if b.close > 0]
+    if not shares:
+        return 0.0
+    return _median(shares)
 
+
+def _response(bars: Sequence[Bar], idx: int) -> tuple[float, bool]:
+    """Сдвиг цены за окно отклика и признак незрелости.
+
+    Возвращает долю смещения от цены закрытия события и флаг того,
+    что окно ещё не набралось целиком.
+    """
+    if idx >= len(bars):
+        return 0.0, True
+    base = bars[idx].close
+    if base <= 0:
+        return 0.0, True
+
+    end = idx + RESPONSE_BARS
+    immature = end >= len(bars)
+    tail = bars[idx + 1:min(end, len(bars) - 1) + 1]
+    if not tail:
+        return 0.0, True
+
+    extreme = max(abs(b.high - base) for b in tail)
+    extreme = max(extreme, max(abs(b.low - base) for b in tail))
+    return extreme / base, immature
+
+
+def find_events(bars: Sequence[Bar], scale: int) -> list[Event]:
+    """Аномалии объёма на одном масштабе.
+
+    Событие — бар, чей приведённый объём отклоняется от локальной
+    нормы не меньше чем на TIER_1_SIGMA. Поглощение определяется
+    сравнением отклика цены с нормальной амплитудой того же периода.
+    """
     events: list[Event] = []
+    if len(bars) < EVENT_NORM_WINDOW + RESPONSE_BARS:
+        return events
 
-    for i in range(EVENT_NORM_WINDOW, n):
-        bar = bars[i]
-        atr_norm = _atr_share(bars, i)
-
-        # Бар набран меньше чем на треть — судить не о чем.
-        if bar.fill < PARTIAL_BAR_MIN_FILL:
+    for idx in range(EVENT_NORM_WINDOW, len(bars)):
+        bar = bars[idx]
+        if bar.is_partial and not bar.is_short:
             continue
 
-        lo = max(0, i - EVENT_NORM_WINDOW)
-        # Норма строится только по полным барам: неполный в выборке
-        # занижает медиану и делает аномалией любой обычный объём.
-        norm = [b for b in bars[lo:i] if b.fill >= 1.0]
-        if len(norm) < EVENT_NORM_WINDOW // 2:
+        start = idx - EVENT_NORM_WINDOW
+        window = [b.norm_volume() for b in bars[start:idx] if b.norm_volume() > 0]
+        if len(window) < EVENT_NORM_WINDOW // 2:
             continue
 
-        buys = [b.buy_quote for b in norm]
-        sells = [b.sell_quote for b in norm]
-
-        k = bar.scale_factor
-        sig_buy = robust_sigma(bar.buy_quote * k, buys)
-        sig_sell = robust_sigma(bar.sell_quote * k, sells)
-
-        # Обе стороны аномальны — берём доминирующую.
-        if sig_buy >= sig_sell:
-            side, sigma = "buy", sig_buy
-        else:
-            side, sigma = "sell", sig_sell
-
-        tier = _tier(sigma)
-        if tier <= 0:
+        med = _median(window)
+        sigma = robust_sigma(window)
+        if sigma <= 0 or med <= 0:
             continue
 
-        age = n - 1 - i
-        immature = age < RESPONSE_BARS
+        value = bar.norm_volume()
+        z = (value - med) / sigma
+        tier = _tier_of(z)
+        if tier == 0:
+            continue
 
+        atr_norm = _atr_share(bars, idx)
+        moved, immature = _response(bars, idx)
+
+        # Поглощение: объём пришёл, цена не ушла дальше обычного
+        # дневного размаха, помноженного на допуск.
+        absorbed = atr_norm > 0 and moved <= atr_norm * RESPONSE_FLAT_ATR
+
+        # Незрелые события учитываем только начиная с заданного тира
+        # и только если тело бара само по себе узкое: иначе свежий
+        # импульс попадёт в зону как поглощение.
         if immature:
-            # Окно отклика не прошло. Поглощение меряется внутри бара:
-            # крупный объём при узком теле — это ровно то, что ищем.
-            # Требования строже: только верхний тир.
             if tier < IMMATURE_MIN_TIER:
                 continue
-            body_share = bar.body / bar.close if bar.close > 0 else 0.0
-            limit = atr_norm * IMMATURE_BODY_MAX
-            response = body_share if bar.close >= bar.open else -body_share
-            absorbed = body_share <= limit and limit > 0
-        else:
-            end = bars[i + RESPONSE_BARS]
-            response = (end.close - bar.close) / bar.close if bar.close > 0 else 0.0
-            # Порог случайного блуждания: размах растёт как корень времени.
-            limit = atr_norm * RESPONSE_FLAT_ATR * math.sqrt(RESPONSE_BARS)
-            absorbed = abs(response) <= limit and limit > 0
+            if bar.body_share > IMMATURE_BODY_MAX:
+                continue
 
         events.append(
             Event(
+                idx=idx,
+                ts=bar.ts,
+                price=(bar.high + bar.low + bar.close) / 3.0,
                 scale=scale,
-                bar_idx=i,
-                day_idx=bar.idx + max(1, scale) - 1,
-                age=age,
-                price=bar.close,
-                side=side,
-                sigma=sigma,
                 tier=tier,
-                volume=bar.buy_quote if side == "buy" else bar.sell_quote,
-                response=response,
+                rel_vol=rel_volume(bars, idx),
+                sigma=z,
                 absorbed=absorbed,
+                direction=bar.direction,
                 immature=immature,
             )
         )
+
     return events
-
-
-def vortex(bars: list[Bar], period: int = VORTEX_PERIOD) -> tuple[float, float]:
-    """Классический Vortex: VI+ и VI- за период.
-
-    VI+ строится на движении вверх от минимума предыдущего бара,
-    VI- — на движении вниз от максимума. В плоской базе оба должны
-    быть около единицы: направленного движения нет, есть работа.
-    """
-    if len(bars) < period + 1:
-        return 0.0, 0.0
-
-    tail = bars[-(period + 1):]
-    vm_plus = 0.0
-    vm_minus = 0.0
-    tr_sum = 0.0
-
-    for prev, cur in zip(tail, tail[1:]):
-        vm_plus += abs(cur.high - prev.low)
-        vm_minus += abs(cur.low - prev.high)
-        tr_sum += max(
-            cur.high - cur.low,
-            abs(cur.high - prev.close),
-            abs(cur.low - prev.close),
-        )
-
-    if tr_sum <= 0:
-        return 0.0, 0.0
-    return vm_plus / tr_sum, vm_minus / tr_sum
 
 
 # ─────────────────────────────────────────────────────────────
 # Зоны
 # ─────────────────────────────────────────────────────────────
-
 @dataclass
 class Zone:
-    """Кластер событий на одном ценовом уровне."""
+    """Ценовой уровень, собранный из событий разных масштабов."""
 
-    price: float                    # средневзвешенный по объёму центр
+    price: float
     events: list[Event] = field(default_factory=list)
-    scales: set[int] = field(default_factory=set)
-
-    # История уровня после события. Заполняется annotate_zone_history.
-    tests: int = 0                  # успешных тестов уровня
-    last_test_age: int = -1         # давность последнего теста, в днях
-    broken: bool = False            # цена ушла под зону и осталась
-    plateau_bars: int = 0           # длина плато над зоной, в днях
-    zones_below: int = 0            # сколько живых зон ниже этой
+    tests: int = 0
+    broken: bool = False
+    plateau: int = 0          # длина плато у зоны, в барах
+    last_touch_idx: int = -1
 
     @property
-    def strength(self) -> float:
-        return sum(e.volume for e in self.events)
+    def scales(self) -> set[int]:
+        return {e.scale for e in self.events}
+
+    @property
+    def confirmed(self) -> bool:
+        """Зону видит больше одного масштаба."""
+        return len(self.scales) >= ZONE_CONFIRM_SCALES
 
     @property
     def tier_sum(self) -> int:
@@ -601,574 +464,415 @@ class Zone:
     def absorbed_ratio(self) -> float:
         if not self.events:
             return 0.0
-        return sum(1 for e in self.events if e.absorbed) / len(self.events)
+        return sum(1 for e in self.events if e.absorbed) / float(len(self.events))
 
     @property
-    def buy_ratio(self) -> float:
+    def strength(self) -> float:
+        """Сила зоны с поправкой на подтверждение масштабами."""
+        raw = sum(e.weight for e in self.events)
+        if not self.confirmed:
+            raw *= ZONE_SINGLE_SCALE_WEIGHT
+        return raw
+
+    @property
+    def age(self) -> int:
+        """Давность самого свежего события зоны, в барах базового ряда."""
         if not self.events:
-            return 0.0
-        return sum(1 for e in self.events if e.side == "buy") / len(self.events)
+            return 10**6
+        return min(e.idx for e in self.events)
 
-    @property
-    def event_age(self) -> int:
-        """Давность самого свежего события зоны, в днях."""
-        if not self.events:
-            return 10_000
-        return min(e.age_days for e in self.events)
-
-    @property
-    def freshness(self) -> int:
-        """Рабочая давность зоны.
-
-        Событие стареет, зона — нет: она живёт, пока цена её не
-        пробила. Каждый успешный тест обнуляет возраст. На KOMA между
-        событием и выносом прошло ~200 дней, и всё это время зона
-        была рабочей — цена ни разу не ушла под неё.
-        """
-        if self.broken and ZONE_DEAD_AFTER_BREAK:
-            return 10_000
-        if self.last_test_age >= 0:
-            return self.last_test_age
-        return self.event_age
-
-    @property
-    def alive(self) -> bool:
-        if self.broken and ZONE_DEAD_AFTER_BREAK:
+    def touches(self, price: float) -> bool:
+        if self.price <= 0:
             return False
-        if self.tests > 0:
-            return True
-        return self.event_age <= ZONE_MAX_AGE_UNTESTED
-
-    def plateau_mult(self, soft: bool = False) -> float:
-        """Множитель за выдержанное плато над зоной.
-
-        Для churn плато обязательно: одиночное поглощение говорит
-        «здесь столкнулись», но не говорит, кто победил, и победителя
-        определяет то, что происходит потом.
-
-        Для spring — нет. Там фигура это само сжатие, а долгое
-        стояние над уровнем скорее признак затухания. Прогон показал
-        цену прежнего единообразия: из семи ненулевых churn полный
-        множитель не взял никто, spring дал два значения на рынок.
-        """
-        floor = PLATEAU_MULT_NONE_SOFT if soft else PLATEAU_MULT_NONE
-
-        if self.plateau_bars < PLATEAU_MIN_BARS:
-            return floor
-        if self.plateau_bars >= PLATEAU_FULL_BARS:
-            return PLATEAU_MULT_FULL
-
-        span = PLATEAU_FULL_BARS - PLATEAU_MIN_BARS
-        k = (self.plateau_bars - PLATEAU_MIN_BARS) / span
-        return floor + k * (PLATEAU_MULT_FULL - floor)
-
-    def absorbed_events(self, min_tier: int = 1) -> list[Event]:
-        """Поглощённые события зоны не ниже заданного тира."""
-        return [e for e in self.events if e.absorbed and e.tier >= min_tier]
-
-    @property
-    def confirmed(self) -> bool:
-        return len(self.scales) >= ZONE_CONFIRM_SCALES
-
-    def to_dict(self) -> dict:
-        return {
-            "price": round(self.price, 10),
-            "events": len(self.events),
-            "scales": sorted(self.scales),
-            "confirmed": self.confirmed,
-            "tier_sum": self.tier_sum,
-            "absorbed_ratio": round(self.absorbed_ratio, 2),
-            "buy_ratio": round(self.buy_ratio, 2),
-            "freshness": self.freshness,
-            "tests": self.tests,
-            "plateau_bars": self.plateau_bars,
-            "broken": self.broken,
-        }
+        return abs(price - self.price) / self.price <= ZONE_MATCH_PCT
 
 
-def build_zones(events: list[Event]) -> list[Zone]:
-    """Сводит события всех масштабов в общую карту уровней.
-
-    Зона, видимая на нескольких масштабах, реальна. Зона на одном
-    масштабе остаётся в карте, но помечена неподтверждённой — решение
-    о её весе принимает подкейс, а не ядро.
-    """
+def _cluster(events: Sequence[Event]) -> list[Zone]:
+    """Сборка событий в уровни по относительной близости цен."""
     if not events:
         return []
 
     ordered = sorted(events, key=lambda e: e.price)
     zones: list[Zone] = []
-    current: list[Event] = []
+    bucket: list[Event] = [ordered[0]]
 
-    for ev in ordered:
-        if not current:
-            current = [ev]
-            continue
-        base = current[0].price
-        if base > 0 and abs(ev.price - base) / base <= ZONE_MATCH_PCT:
-            current.append(ev)
+    for ev in ordered[1:]:
+        anchor = _median([e.price for e in bucket])
+        if anchor > 0 and abs(ev.price - anchor) / anchor <= ZONE_MATCH_PCT:
+            bucket.append(ev)
         else:
-            zones.append(_make_zone(current))
-            current = [ev]
+            zones.append(Zone(price=_median([e.price for e in bucket]), events=bucket))
+            bucket = [ev]
 
-    if current:
-        zones.append(_make_zone(current))
-
+    zones.append(Zone(price=_median([e.price for e in bucket]), events=bucket))
     return [z for z in zones if len(z.events) >= ZONE_MIN_EVENTS]
 
 
-def annotate_zone_history(zone: Zone, base: list[Bar]) -> None:
-    """Проходит дневки после события и заполняет тесты, пробой, плато.
+def _annotate_zone(zone: Zone, bars: Sequence[Bar]) -> None:
+    """Считает тесты уровня, пробой и длину плато.
 
-    Тест — заход цены в окрестность зоны с последующим уходом вверх.
-
-    Пробой [MMT] — цена ушла под уровень и ОСТАЛАСЬ там. Раньше он
-    ставился по первому же проколу тенью, и это убивало длинные базы:
-    за семь месяцев стояния под уровень заходят обязательно, зона
-    умирала в первый месяц, монета выпадала из семейства целиком —
-    ни churn, ни spring не собирались, потому что зон не оставалось.
-    Тень под уровнем в базе это тест за ликвидностью, а не пробой,
-    поэтому считаем по закрытиям и требуем серии подряд.
-
-    Плато — непрерывная серия баров над зоной в узком диапазоне.
-
-    Отсчёт ведётся от КОНЦА самого позднего события зоны: пока бар
-    события не закрылся, судить о том, удержался уровень или нет,
-    нельзя.
+    Тест — заход цены в окрестность зоны с последующим удержанием.
+    Пробой — закрытие за уровнем на ZONE_BREAK_DEEP_PCT в течение
+    ZONE_BREAK_BARS подряд: одиночная тень уровень не убивает.
     """
-    if zone.price <= 0 or not zone.events:
+    if zone.price <= 0:
         return
 
-    start = max(e.day_idx for e in zone.events)
-    tail = [b for b in base if b.idx > start]
-    if len(tail) < 3:
-        return
-
-    touch = zone.price * (1 + ZONE_TEST_TOUCH_PCT)
-    breach = zone.price * (1 - ZONE_TEST_HOLD_PCT)
-    deep = zone.price * (1 - ZONE_BREAK_DEEP_PCT)
-
-    in_touch = False
+    start = zone.age
     below_run = 0
+    above_run = 0
     plateau_run = 0
-    plateau_hi = 0.0
-    plateau_lo = float("inf")
     best_plateau = 0
+    inside = False
 
-    for pos, b in enumerate(tail):
-        # ── Пробой ─────────────────────────────────────────
-        if b.close <= deep:
-            # Ушли глубоко — подтверждения ждать незачем.
-            zone.broken = True
-            break
-
-        if b.close <= breach:
-            below_run += 1
-            if below_run >= ZONE_BREAK_BARS:
-                zone.broken = True
-                break
-            # Заход под уровень не сбрасывает историю: пока серия не
-            # набралась, это ещё тест, а не смерть зоны.
-            plateau_run = 0
-            plateau_hi, plateau_lo = 0.0, float("inf")
+    for idx in range(start, len(bars)):
+        bar = bars[idx]
+        if bar.close <= 0:
             continue
 
-        below_run = 0
+        dist = abs(bar.close - zone.price) / zone.price
 
-        # ── Плато ──────────────────────────────────────────
-        plateau_run += 1
-        plateau_hi = max(plateau_hi, b.high)
-        plateau_lo = min(plateau_lo, b.low)
-        width = (plateau_hi - plateau_lo) / b.close if b.close > 0 else 1.0
+        # Тест — это ПОДХОД, а не бар в окрестности. Без флага
+        # непрерывное стояние на уровне давало десятки «тестов»:
+        # величина мерила длительность, хотя означать должна была
+        # число попыток. Длительность уже мерит plateau.
+        near = dist <= ZONE_TEST_TOUCH_PCT
+        if near:
+            zone.last_touch_idx = idx
+            if not inside:
+                zone.tests += 1
+                inside = True
+        elif dist > ZONE_TEST_TOUCH_PCT * 2.0:
+            # Выход считается состоявшимся только за двойным допуском:
+            # иначе дрожание цены у самой границы плодит ложные
+            # повторные подходы.
+            inside = False
 
-        if width > PLATEAU_MAX_RANGE:
-            best_plateau = max(best_plateau, plateau_run - 1)
-            plateau_run = 1
-            plateau_hi, plateau_lo = b.high, b.low
-        else:
+        # Плато шире теста: цена не подходит к уровню, а живёт вокруг.
+        # Прежнее условие перемножало долю на процент и сводилось
+        # к допуску теста — плато и тест мерили одно и то же.
+        if dist <= ZONE_TEST_TOUCH_PCT * (1.0 + PLATEAU_MAX_RANGE):
+            plateau_run += 1
             best_plateau = max(best_plateau, plateau_run)
+        else:
+            plateau_run = 0
 
-        # ── Тест ───────────────────────────────────────────
-        # Зашли в окрестность и вышли обратно вверх.
-        if b.low <= touch:
-            in_touch = True
-        elif in_touch and b.close > touch:
-            zone.tests += 1
-            zone.last_test_age = len(tail) - 1 - pos
-            in_touch = False
+        if bar.close < zone.price * (1.0 - ZONE_BREAK_DEEP_PCT):
+            below_run += 1
+            above_run = 0
+        elif bar.close > zone.price * (1.0 + ZONE_BREAK_DEEP_PCT):
+            above_run += 1
+            below_run = 0
+        else:
+            below_run = 0
+            above_run = 0
 
-    zone.plateau_bars = best_plateau
+        if ZONE_DEAD_AFTER_BREAK and max(below_run, above_run) >= ZONE_BREAK_BARS:
+            zone.broken = True
 
-
-def _make_zone(events: list[Event]) -> Zone:
-    total = sum(e.volume for e in events)
-    if total > 0:
-        price = sum(e.price * e.volume for e in events) / total
-    else:
-        price = _median([e.price for e in events])
-    return Zone(
-        price=price,
-        events=list(events),
-        scales={e.scale for e in events},
-    )
+    zone.plateau = best_plateau if best_plateau >= PLATEAU_MIN_BARS else 0
 
 
-def zone_role(zone: Zone, price: float) -> str:
-    """Роль зоны определяется положением цены, а не цветом событий.
+def build_zones(all_events: Sequence[Event], bars: Sequence[Bar]) -> list[Zone]:
+    """Полная карта уровней монеты.
 
-    Цена выше зоны — опора: там набирали, там будут защищать.
-    Цена ниже зоны — завал: там застряли, оттуда будут выходить в ноль.
-    Цена внутри — неопределённость, худший момент для суждения.
+    Нетронутые зоны стареют: если уровень ни разу не тестировался и
+    старше ZONE_MAX_AGE_UNTESTED, он выбрасывается — рынок про него
+    забыл. Протестированные живут, пока не пробиты.
     """
-    if price <= 0 or zone.price <= 0:
-        return "unknown"
-    dist = (price - zone.price) / zone.price
-    if abs(dist) <= ZONE_MATCH_PCT:
-        return "inside"
-    return "support" if dist > 0 else "overhead"
+    zones = _cluster(all_events)
+    total = len(bars)
+
+    alive: list[Zone] = []
+    for zone in zones:
+        _annotate_zone(zone, bars)
+        if zone.broken:
+            continue
+        if zone.tests == 0 and (total - zone.age) > ZONE_MAX_AGE_UNTESTED:
+            continue
+        alive.append(zone)
+
+    alive.sort(key=lambda z: z.strength, reverse=True)
+    return alive
 
 
 # ─────────────────────────────────────────────────────────────
-# Контекст падения и роста
+# Отбор зон (правка Э-7)
 # ─────────────────────────────────────────────────────────────
+# Пять подкейсов содержали почти идентичный фильтр «зоны рядом снизу»
+# и различались только критерием выбора лучшей. Сам отбор вынесен
+# сюда; критерий остаётся за подкейсом — он и должен быть разным.
 
-@dataclass
-class DropContext:
-    """Что было до текущего состояния: рост, падение, поведение объёма."""
-
-    growth_x: float = 0.0        # справка; решений по ней не принимается
-    peak_age_days: int = 0       # давность пика — без неё growth_x нечитаем
-    drop_pct: float = 0.0
-    bars_since_bottom: int = 0
-    volume_recovery: float = 0.0
-    suspicious: bool = False     # пометка в срезе, множителей не режет
-    valid: bool = False
-
-    def to_dict(self) -> dict:
-        return {
-            "growth_x": round(self.growth_x, 2),
-            "peak_age_days": self.peak_age_days,
-            "drop_pct": round(self.drop_pct, 1),
-            "bars_since_bottom": self.bars_since_bottom,
-            "volume_recovery": round(self.volume_recovery, 2),
-            "suspicious": self.suspicious,
-        }
+def zones_below(zones: Sequence[Zone], price: float,
+                near_pct: float = ZONE_NEAR_PCT) -> list[Zone]:
+    """Живые уровни под ценой в пределах near_pct."""
+    if price <= 0:
+        return []
+    return [
+        z for z in zones
+        if 0 < z.price <= price and (price - z.price) / price <= near_pct
+    ]
 
 
-def build_drop_context(bars: list[Bar]) -> DropContext:
-    """Считает контекст большого падения.
+def zones_above(zones: Sequence[Zone], price: float,
+                near_pct: float = ZONE_NEAR_PCT) -> list[Zone]:
+    """Живые уровни над ценой в пределах near_pct."""
+    if price <= 0:
+        return []
+    return [
+        z for z in zones
+        if z.price > price and (z.price - price) / price <= near_pct
+    ]
 
-    Смотрим не глубину просадки, а поведение ПОСЛЕ дна: рост объёма
-    при падающей цене — понижающий фактор, на тонких монетах это чаще
-    перекладка, чем накопление.
 
-    Если дно поставлено только что — судить рано, возвращается
-    нейтральный результат. Подкейсы обязаны это уважать.
-    """
-    ctx = DropContext()
-    if len(bars) < BOTTOM_MIN_BARS_AFTER * 2:
-        return ctx
-
-    window = bars[-BOTTOM_LOOKBACK_DAYS:] if len(bars) > BOTTOM_LOOKBACK_DAYS else bars
-    n = len(window)
-
-    peak_i = max(range(n), key=lambda i: window[i].high)
-    peak = window[peak_i].high
-    if peak <= 0:
-        return ctx
-
-    # Рост до пика считается ВСЕГДА и раньше всего остального. Ему не
-    # нужны ни дно, ни падение: величина меряется от базы до вершины.
-    #
-    # Рядом обязательно считается ДАВНОСТЬ пика. Без неё growth_x
-    # нечитаем: рост в сорок раз за неделю после листинга и рост в
-    # сорок раз за год — разные вещи, а число одинаковое. Толпа с
-    # убытком существует только пока она свежая; тот, кто держит
-    # минус девяносто процентов полгода, может держать его годами и
-    # предложением уже не является.
-    before = window[:peak_i]
-    if before:
-        base_low = min(b.low for b in before)
-        if base_low > 0:
-            ctx.growth_x = peak / base_low
-    ctx.peak_age_days = n - 1 - peak_i
-
-    after = window[peak_i:]
-    if len(after) < BOTTOM_MIN_BARS_AFTER:
-        return ctx
-
-    bottom_rel = min(range(len(after)), key=lambda i: after[i].low)
-    bottom_i = peak_i + bottom_rel
-
-    bottom = after[bottom_rel].low
-    if bottom <= 0:
-        return ctx
-
-    ctx.drop_pct = (peak - bottom) / peak * 100
-    if ctx.drop_pct < BOTTOM_MIN_DROP_PCT:
-        return ctx
-
-    ctx.bars_since_bottom = n - 1 - bottom_i
-    if ctx.bars_since_bottom < BOTTOM_MIN_BARS_AFTER:
-        # Дно только что — о развороте потока судить рано.
-        return ctx
-
-    pre = window[max(0, bottom_i - 20) : bottom_i]
-    post = window[bottom_i:]
-    vol_pre = _median([b.quote for b in pre]) if pre else 0.0
-    vol_post = _median([b.quote for b in post]) if post else 0.0
-    if vol_pre > 0:
-        ctx.volume_recovery = vol_post / vol_pre
-
-    # Подозрительный случай: объём нарастает, а цена продолжает падать.
-    if len(post) >= BOTTOM_MIN_BARS_AFTER:
-        price_slope = _slope([b.close for b in post])
-        vol_slope = _slope([b.quote for b in post])
-        ctx.suspicious = price_slope < 0 and vol_slope > 0
-
-    ctx.valid = True
-    return ctx
-
+def plateau_share(zone: Zone) -> float:
+    """Зрелость плато зоны, 0..1."""
+    if zone.plateau <= 0:
+        return 0.0
+    return _clip(zone.plateau / float(PLATEAU_FULL_BARS), 0.0, 1.0)
 
 # ─────────────────────────────────────────────────────────────
 # Поток по сторонам
 # ─────────────────────────────────────────────────────────────
+def homogeneity(values: Sequence[float]) -> float:
+    """Насколько равномерно распределён сдвиг по окну.
+
+    1 — все бары вложились одинаково, 0 — весь сдвиг сделан одним
+    баром. Скрытый набор по определению размазан; одиночный вброс
+    скрытым не является.
+
+    Правка 2.4. Ряд знакопеременный — дельта пересекает ноль
+    постоянно. Прежняя версия выбрасывала отрицательные бары целиком
+    и считала равномерность по оставшимся, то есть отвечала на вопрос
+    «ровно ли распределены дни покупок», а не «размазан ли набор».
+    Окно с двадцатью пятью днями покупок и окно с пятью днями покупок
+    в потоке продаж давали одинаковую единицу.
+
+    Считаем по вкладам В СТОРОНУ итогового сдвига. Бары против сдвига
+    его уменьшают и учитываются в знаменателе — иначе раздача внутри
+    окна проходит бесплатно.
+    """
+    data = [float(v) for v in values if v is not None and not math.isnan(v)]
+    if len(data) < 2:
+        return 0.0
+
+    net = sum(data)
+    if net == 0:
+        return 0.0
+
+    sign = 1.0 if net > 0 else -1.0
+    aligned = [v * sign for v in data if v * sign > 0]
+    if not aligned:
+        return 0.0
+
+    gross = sum(aligned)
+    if gross <= 0:
+        return 0.0
+
+    # Доля сдвига, оставшаяся после встречных баров: чем больше внутри
+    # окна раздавали, тем меньше веры набору.
+    net_share = _clip(abs(net) / gross, 0.0, 1.0)
+
+    # Равномерность самих вкладов: доля крупнейшего против идеальной.
+    top = max(aligned)
+    ideal = gross / float(len(data))
+    evenness = _clip(ideal / top, 0.0, 1.0) if top > 0 else 0.0
+
+    return _clip(net_share * evenness, 0.0, 1.0)
+
+
+def delta_series(bars: Sequence[Bar]) -> list[float]:
+    """Тейкерная дельта по барам окна.
+
+    Берётся из свечи напрямую: Binance отдаёт объём тейкерных покупок
+    отдельным полем, и это факт, а не догадка. OBV и подобные
+    индикаторы пытаются приблизить ту же величину по знаку закрытия —
+    приближение неверно на любом баре с длинными тенями._annotate_zone
+
+    Приведение к полному бару обязательно: незакрытый край иначе
+    занижает вклад ровно там, где он свежее всего.
+    """
+    out: list[float] = []
+    for bar in bars:
+        k = 1.0
+        if PARTIAL_BAR_NORMALIZE and 0 < bar.fill < 1.0:
+            k = 1.0 / bar.fill
+        out.append(bar.delta * k)
+    return out
+
+
+def flow_slope(values: Sequence[float]) -> float:
+    """Наклон накопленного ряда, нормированный на его же размах.
+
+    Величина безразмерная и сравнимая между монетами: +1 — ряд рос
+    линейно на всём окне, −1 — так же падал.
+    """
+    if len(values) < 3:
+        return 0.0
+
+    cum: list[float] = []
+    acc = 0.0
+    for v in values:
+        acc += v
+        cum.append(acc)
+
+    n = len(cum)
+    mean_x = (n - 1) / 2.0
+    mean_y = sum(cum) / n
+
+    num = sum((i - mean_x) * (cum[i] - mean_y) for i in range(n))
+    den = sum((i - mean_x) ** 2 for i in range(n))
+    if den <= 0:
+        return 0.0
+
+    slope = num / den
+    span = max(cum) - min(cum)
+    if span <= 0:
+        return 0.0
+
+    return _clip(slope * (n - 1) / span, -1.0, 1.0)
+
+def _slope(values: Sequence[float]) -> float:
+    """Наклон ряда за бар, в долях его СРЕДНЕГО уровня.
+
+    Для цен: +0.01 означает рост на процент за бар. Нормировка на
+    среднее, а не на размах, — иначе величина несравнима между
+    монетами с разной волатильностью, а пороги вида
+    HIDDEN_PRICE_SLOPE_MAX перестают что-либо значить.
+    """
+    n = len(values)
+    if n < 3:
+        return 0.0
+    mean_x = (n - 1) / 2.0
+    mean_y = sum(values) / n
+    if mean_y == 0:
+        return 0.0
+    num = sum((i - mean_x) * (values[i] - mean_y) for i in range(n))
+    den = sum((i - mean_x) ** 2 for i in range(n))
+    if den <= 0:
+        return 0.0
+    return (num / den) / abs(mean_y)
+
+
+def _slope_of_flow(cum: Sequence[float], avg_quote: float) -> float:
+    """Наклон кумулятивной дельты в долях среднего оборота за бар.
+
+    Общая единица для HIDDEN_DELTA_SLOPE_MIN и
+    DELTA_COLLAPSE_SLOPE: «на сколько средних дневных оборотов
+    смещается поток за один бар». Без единого знаменателя эти два
+    порога живут в разных шкалах и сравнивать их нельзя.
+    """
+    n = len(cum)
+    if n < 3 or avg_quote <= 0:
+        return 0.0
+    mean_x = (n - 1) / 2.0
+    mean_y = sum(cum) / n
+    num = sum((i - mean_x) * (cum[i] - mean_y) for i in range(n))
+    den = sum((i - mean_x) ** 2 for i in range(n))
+    if den <= 0:
+        return 0.0
+    return (num / den) / avg_quote
+
 
 @dataclass
-class FlowStats:
-    """Состояние потока за окно."""
+class FlowState:
+    """Состояние потока за окно наблюдения."""
 
-    cum_delta: list[float] = field(default_factory=list)
+    slope: float          # −1..1, направление накопления
+    homogeneity: float    # 0..1, размазанность вклада
+    net: float            # суммарная дельта окна
+    gross: float          # оборот дельты по модулю
+
+    # Наклон в долях среднего оборота за бар. Отдельная величина:
+    # slope нормирован на размах и годится для сравнения формы,
+    # delta_slope — на оборот и сравним с порогами конфига.
     delta_slope: float = 0.0
-    price_slope: float = 0.0
-    homogeneity: float = 0.0
+
+    # Доля тейкерных покупок в обороте окна.
     buy_share: float = 0.5
-    rel_volume: float = 1.0     # объём окна к своей норме
+
+    @property
+    def accumulating(self) -> bool:
+        return self.slope > 0 and self.net > 0
+
+    @property
+    def distributing(self) -> bool:
+        return self.slope < 0 and self.net < 0
 
     @property
     def collapsing(self) -> bool:
-        """Дельта валится вертикально.
-
-        Пока идёт слив, поглощение на дне остаётся заготовкой:
-        столкновение состоялось, победитель не определён.
-        """
+        """Дельта валится вертикально: столкновение состоялось."""
         return self.delta_slope <= DELTA_COLLAPSE_SLOPE
 
-    def to_dict(self) -> dict:
-        return {
-            "delta_slope": round(self.delta_slope, 4),
-            "price_slope": round(self.price_slope, 4),
-            "homogeneity": round(self.homogeneity, 2),
-            "buy_share": round(self.buy_share, 3),
-            "collapsing": self.collapsing,
-            "rel_volume": round(self.rel_volume, 2),
-        }
+def build_flow(bars: Sequence[Bar], window: int = DELTA_WINDOW) -> FlowState:
+    tail = bars[-window:] if window < len(bars) else bars
+    deltas = delta_series(tail)
+    if not deltas:
+        return FlowState(slope=0.0, homogeneity=0.0, net=0.0, gross=0.0)
 
-
-def build_flow_stats(bars: list[Bar], window: int = DELTA_WINDOW) -> FlowStats:
-    """Кумулятивная дельта и её характер.
-
-    Дельта берётся из taker-поля напрямую — это то, что OBV пытается
-    приблизить по знаку закрытия. Преимущество перед оригинальным
-    индикатором: он имитирует CVD из price action, мы читаем факт.
-    """
-    st = FlowStats()
-    tail = bars[-window:] if len(bars) > window else bars
-    if len(tail) < 3:
-        return st
-
+    # Кумулятив и средний оборот — для наклона в единицах конфига.
+    cum: list[float] = []
     acc = 0.0
-    for b in tail:
-        acc += b.delta
-        st.cum_delta.append(acc)
-
-    # Масштаб — средний оборот бара в окне. Нормировать кумулятивную
-    # дельту на её собственный уровень нельзя: он проходит через
-    # ноль, и результат теряет смысл.
+    for d in deltas:
+        acc += d
+        cum.append(acc)
     avg_quote = sum(b.quote for b in tail) / len(tail) if tail else 0.0
-    st.delta_slope = _slope_of_flow(st.cum_delta, avg_quote)
-    st.price_slope = _slope([b.close for b in tail])
-    st.homogeneity = homogeneity([b.delta for b in tail])
 
-    total_q = sum(b.quote for b in tail)
-    total_b = sum(b.buy_quote for b in tail)
-    st.buy_share = total_b / total_q if total_q > 0 else 0.5
+    buy = sum(b.buy_volume for b in tail)
+    sell = sum(b.sell_volume for b in tail)
+    total = buy + sell
 
-    # Фон: медиана окна против более длинной нормы. Считается той же
-    # функцией, что и колонка отчёта, — иначе величины расходятся, и
-    # какая из них врёт, выясняется только сравнением вручную.
-    #
-    # Хвост тоже нормируется по fill. Прежде медиана окна считалась
-    # по сырому объёму, и незакрытый правый край её занижал: фон
-    # выглядел тише, чем есть, ровно в момент свежей активности.
-    st.rel_volume = window_ratio(
-        [b.quote for b in bars],
-        [b.fill for b in bars],
-        window=window,
-        norm_span=window * 3,
+    return FlowState(
+        slope=flow_slope(deltas),
+        homogeneity=homogeneity(deltas),
+        net=sum(deltas),
+        gross=sum(abs(d) for d in deltas),
+        delta_slope=_slope_of_flow(cum, avg_quote),
+        buy_share=(buy / total) if total > 0 else 0.5,
     )
 
-    return st
-
-
 # ─────────────────────────────────────────────────────────────
-# Горизонт
+# Вортекс
 # ─────────────────────────────────────────────────────────────
+@dataclass
+class VortexState:
+    """Форма кривых VI+ / VI− на выбранном масштабе."""
 
-def pick_horizon(scales_bars: dict[int, list[Bar]]) -> tuple[int, str]:
-    """Самый крупный масштаб, на котором картина ещё читается.
+    scale: int = 0
+    direction: str = "none"     # up | down | none
+    strength: float = 0.0       # 0..1
+    extrema: int = 0
+    sell_peaks: int = 0
+    buy_lows: int = 0
 
-    Не про силу сигнала, а про то, сколько ждать. В скор не входит:
-    это ярлык времени, а не аргумент за монету.
+    @property
+    def multiplier(self) -> float:
+        """Множитель для подкейсов, ограниченный с обеих сторон.
 
-    Прежнее условие сравнивало амплитуду агрегата с константой,
-    делённой на масштаб. Обе величины шли навстречу: амплитуда
-    крупного бара больше по построению, а порог для него меньше.
-    Условие выполнялось почти всегда на максимальном доступном
-    масштабе, и горизонт различал не монеты, а длину их истории —
-    у 24 сработавших монет из 31 он равнялся 25 дням.
-
-    Здесь масштаб засчитывается, только если даёт существенный
-    прирост амплитуды против дневки той же монеты. Случайное
-    блуждание расширяет бар как корень масштаба; прирост в
-    пределах этого не проявляет ничего.
-    """
-    base = scales_bars.get(1) or []
-    if len(base) < 10:
-        return 1, "дни"
-
-    base_amp = _median(
-        [b.amplitude / b.close for b in base[-30:] if b.close > 0]
-    )
-    if base_amp <= 0:
-        return 1, "дни"
-
-    best_scale = 1
-    for scale in sorted(scales_bars):
-        if scale <= 1:
-            continue
-        bars = scales_bars[scale]
-        if len(bars) < _min_bars(scale):
-            continue
-        tail = bars[-30:]
-        if len(tail) < 10:
-            continue
-        amp = _median([b.amplitude / b.close for b in tail if b.close > 0])
-        if amp >= base_amp * math.sqrt(scale) * HORIZON_AMP_GAIN:
-            best_scale = scale
-
-    days = int(best_scale * HORIZON_BARS_AHEAD)
-    if days <= 3:
-        label = "дни"
-    elif days <= 10:
-        label = "неделя"
-    elif days <= 25:
-        label = "недели"
-    else:
-        label = "месяц+"
-    return best_scale, label
-
-# ─────────────────────────────────────────────────────────────
-# Вортекс по форме кривых
-# ─────────────────────────────────────────────────────────────
-# Мгновенный спред VI+ и VI- не работает. VORTEX_SPREAD_MIN = 0.25
-# при наблюдаемом разбросе 0.01–0.04 давал один diverging на 145
-# монет: ветка присутствовала в пяти модулях из шести и не
-# исполнялась ни в одном. На ZEREBRO, где разворот виден глазами,
-# спред равен 0.09 — старое условие не увидело бы и его.
-#
-# Читается не значение, а ПОВЕДЕНИЕ. Каждый следующий пик VI- ниже
-# предыдущего — продавец слабеет, предложение конечно. Каждый
-# следующий лой VI+ выше предыдущего — покупатель крепнет. Величина
-# накопительная и большого расхождения линий не требует вовсе:
-# на ZEREBRO пик продаж под 2.0 больше не повторился, а линии при
-# этом сошлись почти вплотную.
-#
-# Нет различимых пиков — молчим. Отсекать монету за невнятную
-# картинку нельзя: вторым фильтром служит стратегия. На OP пики
-# продаж идут вровень и последний даже выше — ждать там снижения
-# бессмысленно, а движения тем временем проходят мимо.
+        Асимметрии больше нет: усиление и ослабление ограничены
+        симметричными константами конфига.
+        """
+        if self.direction == "up":
+            return 1.0 + (VORTEX_MULT_MAX - 1.0) * self.strength
+        if self.direction == "down":
+            return 1.0 - (1.0 - VORTEX_MULT_MIN) * self.strength
+        return 1.0
 
 
-# ─────────────────────────────────────────────────────────────
-# Вортекс по форме кривых
-# ─────────────────────────────────────────────────────────────
-# Мгновенный спред VI+ и VI- не работает. VORTEX_SPREAD_MIN = 0.25
-# при наблюдаемом разбросе 0.01–0.04 давал один diverging на 145
-# монет: ветка присутствовала в пяти модулях из шести и не
-# исполнялась ни в одном. На ZEREBRO, где разворот виден глазами,
-# спред равен 0.09 — старое условие не увидело бы и его.
-#
-# Читается не значение, а ПОВЕДЕНИЕ. Каждый следующий пик VI- ниже
-# предыдущего — продавец слабеет, предложение конечно. Каждый
-# следующий лой VI+ выше предыдущего — покупатель крепнет. Величина
-# накопительная и большого расхождения линий не требует вовсе:
-# на ZEREBRO пик продаж под 2.0 больше не повторился, а линии при
-# этом сошлись почти вплотную.
-#
-# Нет различимых пиков — молчим. Отсекать монету за невнятную
-# картинку нельзя: вторым фильтром служит стратегия. На OP пики
-# продаж идут вровень и последний даже выше — ждать там снижения
-# бессмысленно, а движения тем временем проходят мимо.
-
-
-def _local_extrema(
-    values: list[float],
-    kind: str,
-    gap: int = VORTEX_EXTREMA_GAP,
-    prominence: float = VORTEX_PROMINENCE,
-) -> list[tuple[int, float]]:
-    """Локальные экстремумы с минимальным разносом и порогом выраженности.
-
-    prominence отсекает зубцы. Без него на любой кривой находятся
-    десятки экстремумов, и сравнение последнего с предыдущим
-    вырождается в сравнение двух случайных значений.
-    """
-    n = len(values)
-    if n < gap * 2 + 1:
-        return []
-
-    found: list[tuple[int, float]] = []
-    for i in range(gap, n - gap):
-        win = values[i - gap : i + gap + 1]
-        v = values[i]
-        if kind == "high" and v >= max(win) and v - min(win) >= prominence:
-            found.append((i, v))
-        elif kind == "low" and v <= min(win) and max(win) - v >= prominence:
-            found.append((i, v))
-
-    # Схлопываем соседей на одном плато: широкая вершина иначе даёт
-    # серию одинаковых пиков, и последний сравнивается сам с собой.
-    merged: list[tuple[int, float]] = []
-    for idx, val in found:
-        if merged and idx - merged[-1][0] <= gap:
-            better = val > merged[-1][1] if kind == "high" else val < merged[-1][1]
-            if better:
-                merged[-1] = (idx, val)
-        else:
-            merged.append((idx, val))
-    return merged
-
-
-def vortex_series(
-    bars: list[Bar], period: int = VORTEX_PERIOD
-) -> tuple[list[float], list[float]]:
-    """Полные ряды VI+ и VI-.
-
-    Прежняя vortex() возвращала одну точку — последнюю. Форму по
-    одной точке не прочитать, поэтому нужен ряд.
-    """
-    n = len(bars)
-    if n < period + 2:
+def _vortex_lines(bars: Sequence[Bar], period: int) -> tuple[list[float], list[float]]:
+    """Классический Vortex: VI+ и VI− по period."""
+    if len(bars) < period + 2:
         return [], []
 
-    vm_p: list[float] = []
-    vm_m: list[float] = []
-    tr: list[float] = []
-    for prev, cur in zip(bars, bars[1:]):
-        vm_p.append(abs(cur.high - prev.low))
-        vm_m.append(abs(cur.low - prev.high))
-        tr.append(
+    vm_plus: list[float] = []
+    vm_minus: list[float] = []
+    trs: list[float] = []
+
+    for i in range(1, len(bars)):
+        cur, prev = bars[i], bars[i - 1]
+        vm_plus.append(abs(cur.high - prev.low))
+        vm_minus.append(abs(cur.low - prev.high))
+        trs.append(
             max(
                 cur.high - cur.low,
                 abs(cur.high - prev.close),
@@ -1176,343 +880,337 @@ def vortex_series(
             )
         )
 
-    vi_p: list[float] = []
-    vi_m: list[float] = []
-    for i in range(period, len(tr) + 1):
-        s_tr = sum(tr[i - period : i])
-        if s_tr <= 0:
+    vi_plus: list[float] = []
+    vi_minus: list[float] = []
+
+    for i in range(period, len(trs) + 1):
+        tr_sum = sum(trs[i - period:i])
+        if tr_sum <= 0:
             continue
-        vi_p.append(sum(vm_p[i - period : i]) / s_tr)
-        vi_m.append(sum(vm_m[i - period : i]) / s_tr)
-    return vi_p, vi_m
+        vi_plus.append(sum(vm_plus[i - period:i]) / tr_sum)
+        vi_minus.append(sum(vm_minus[i - period:i]) / tr_sum)
+
+    return vi_plus, vi_minus
 
 
-@dataclass
-class VortexState:
-    """Направление, прочитанное по форме VI."""
-
-    scale: int = 0
-    direction: str = "none"   # up | down | none
-    strength: float = 0.0     # выраженность последнего сдвига, 0..1
-    confidence: float = 0.0   # 0.5 — согласна одна линия, 1.0 — обе
-    sell_peaks: int = 0
-    buy_lows: int = 0
-    vi_plus: float = 0.0      # последние значения, для отчёта
-    vi_minus: float = 0.0
-
-    def mult(self, gain: float = VORTEX_MULT_GAIN) -> float:
-        """Множитель взамен прежнего `1 + spread * gain`.
-
-        gain задаёт модуль: для hidden вортекс весит больше, чем для
-        churn. Там это второй опережающий признак рядом с дельтой,
-        здесь — ответ на вопрос «кто победил в столкновении».
-
-        Молчание даёт ровно единицу: не усиливает и не ослабляет.
-        """
-        if self.direction == "none":
-            return 1.0
-        k = self.strength * self.confidence * gain
-        return 1.0 + k if self.direction == "up" else max(0.0, 1.0 - k)
-
-    def to_dict(self) -> dict:
-        return {
-            "scale": self.scale,
-            "direction": self.direction,
-            "strength": round(self.strength, 3),
-            "confidence": round(self.confidence, 2),
-            "sell_peaks": self.sell_peaks,
-            "buy_lows": self.buy_lows,
-            "vi_plus": round(self.vi_plus, 4),
-            "vi_minus": round(self.vi_minus, 4),
-            "mult": round(self.mult(), 3),
-        }
+def _local_extrema(values: Sequence[float], mode: str) -> list[int]:
+    """Индексы локальных пиков или впадин."""
+    out: list[int] = []
+    for i in range(1, len(values) - 1):
+        left, mid, right = values[i - 1], values[i], values[i + 1]
+        if mode == "peak" and mid > left and mid >= right:
+            out.append(i)
+        elif mode == "low" and mid < left and mid <= right:
+            out.append(i)
+    return out
 
 
-def read_vortex(bars: list[Bar], scale: int) -> VortexState:
-    """Направление по последним двум экстремумам каждой линии."""
-    vi_p, vi_m = vortex_series(bars)
-    if not vi_p or not vi_m:
+def _read_vortex(bars: Sequence[Bar], scale: int) -> VortexState:
+    """Читает форму кривых на одном масштабе.
+
+    Смысл не в мгновенном спреде линий, а в поведении: каждый
+    следующий пик VI− ниже предыдущего означает, что продавец
+    слабеет; каждая следующая впадина VI+ выше предыдущей — что
+    покупатель крепнет.
+    """
+    vi_plus, vi_minus = _vortex_lines(bars, VORTEX_PERIOD)
+    if len(vi_plus) < 5 or len(vi_minus) < 5:
         return VortexState(scale=scale)
 
-    peaks = _local_extrema(vi_m, "high")   # пики продаж
-    lows = _local_extrema(vi_p, "low")     # лои покупок
+    sell_peaks = _local_extrema(vi_minus, "peak")
+    buy_lows = _local_extrema(vi_plus, "low")
 
-    st = VortexState(
+    state = VortexState(
         scale=scale,
-        sell_peaks=len(peaks),
-        buy_lows=len(lows),
-        vi_plus=vi_p[-1],
-        vi_minus=vi_m[-1],
+        extrema=len(sell_peaks) + len(buy_lows),
+        sell_peaks=len(sell_peaks),
+        buy_lows=len(buy_lows),
     )
 
-    votes: list[bool] = []
-    deltas: list[float] = []
+    votes = 0.0
+    weight = 0.0
 
-    if len(peaks) >= 2:
-        prev, last = peaks[-2][1], peaks[-1][1]
-        votes.append(last < prev)          # пик продаж ниже — вверх
-        deltas.append(abs(last - prev) / max(prev, 1e-9))
+    if len(sell_peaks) >= 2:
+        a, b = vi_minus[sell_peaks[-2]], vi_minus[sell_peaks[-1]]
+        if a > 0:
+            shift = (a - b) / a
+            votes += _clip(shift, -1.0, 1.0)
+            weight += 1.0
 
-    if len(lows) >= 2:
-        prev, last = lows[-2][1], lows[-1][1]
-        votes.append(last > prev)          # лой покупок выше — вверх
-        deltas.append(abs(last - prev) / max(prev, 1e-9))
+    if len(buy_lows) >= 2:
+        a, b = vi_plus[buy_lows[-2]], vi_plus[buy_lows[-1]]
+        if a > 0:
+            shift = (b - a) / a
+            votes += _clip(shift, -1.0, 1.0)
+            weight += 1.0
 
-    if not votes:
-        return st                          # пиков нет — молчим
+    if weight <= 0:
+        return state
 
-    if all(votes):
-        st.direction = "up"
-    elif not any(votes):
-        st.direction = "down"
-    else:
-        # Линии расходятся во мнении. Это не сигнал, а его
-        # отсутствие: объявлять направление по одной против другой
-        # значит выдумывать уверенность.
-        return st
+    score = votes / weight
+    if abs(score) < 0.05:
+        return state
 
-    st.confidence = 1.0 if len(votes) == 2 else 0.5
-    st.strength = min(1.0, (sum(deltas) / len(deltas)) * VORTEX_DELTA_GAIN)
-    return st
+    state.direction = "up" if score > 0 else "down"
+    state.strength = _clip(abs(score) * 2.0, 0.0, 1.0)
+    return state
 
 
-def build_vortex(scales_bars: dict[int, list[Bar]]) -> VortexState:
-    """Масштаб — регулятор громкости шума, больше ничего.
+def build_vortex(by_scale: dict[int, list[Bar]]) -> VortexState:
+    """Выбор масштаба для чтения формы (правка Э-2).
 
-    Берём самый мелкий масштаб, на котором пики уже различимы и их
-    не слишком много. На мелком линии сливаются в кашу — COTI на 1D
-    даёт сплошную сетку, на старшем те же данные расходятся и бугры
-    читаются. На слишком крупном экстремумов остаётся один-два и
-    сравнивать нечего.
+    Прежняя версия возвращала ПЕРВЫЙ непустой результат, если ни один
+    масштаб не попал в коридор по числу экстремумов. Первым по порядку
+    всегда шёл базовый — самый шумный. На нём находилось под сотню
+    экстремумов, направление строилось на сравнении двух случайных
+    зубцов, и множитель уходил в максимум на пустом месте.
 
-    Верхнего предела нет. Читаемость важнее свежести масштаба: если
-    структура проступила только на 10D, работаем с 10D.
-
-    Требование плоской цены снято. Прежнее `if not flat: continue`
-    отбрасывало масштаб, где цена уже пошла, — то есть ровно те
-    случаи, ради которых признак и заводился.
+    Теперь: сначала ищем масштаб внутри коридора. Если такого нет —
+    берём БЛИЖАЙШИЙ к коридору, и только если он отклонился не больше
+    чем в VORTEX_FALLBACK_TOLERANCE раз от границы. Иначе молчим:
+    direction = none, множитель ровно 1.0.
     """
-    fallback: VortexState | None = None
-
     best: VortexState | None = None
-    best_dist = 10**9
-    for scale in sorted(scales_bars):
-        bars = scales_bars[scale]
-        if len(bars) < VORTEX_PERIOD + VORTEX_MIN_TAIL:
+    best_dist = float("inf")
+
+    for scale in sorted(by_scale):
+        bars = by_scale[scale]
+        if len(bars) < VORTEX_PERIOD * 2:
             continue
 
-        st = read_vortex(bars, scale)
-        if st.direction == "none":
+        state = _read_vortex(bars, scale)
+        if state.extrema == 0:
             continue
 
-        k = st.sell_peaks + st.buy_lows
-        if VORTEX_MIN_EXTREMA <= k <= VORTEX_MAX_EXTREMA:
-            return st
-        dist = (VORTEX_MIN_EXTREMA - k) if k < VORTEX_MIN_EXTREMA else (k - VORTEX_MAX_EXTREMA)
+        if VORTEX_MIN_EXTREMA <= state.extrema <= VORTEX_MAX_EXTREMA:
+            return state
+
+        if state.extrema < VORTEX_MIN_EXTREMA:
+            dist = VORTEX_MIN_EXTREMA / float(max(1, state.extrema))
+        else:
+            dist = state.extrema / float(VORTEX_MAX_EXTREMA)
+
         if dist < best_dist:
-            best, best_dist = st, dist
-    if best is None or best_dist > VORTEX_FALLBACK_SLACK:
+            best, best_dist = state, dist
+
+    if best is None or best_dist > VORTEX_FALLBACK_TOLERANCE:
         return VortexState()
+
+    # Форма прочитана вне коридора — доверяем ей слабее.
+    best.strength *= _clip(1.0 / best_dist, 0.0, 1.0)
     return best
 
 
 # ─────────────────────────────────────────────────────────────
-# Сборка контекста
+# Контекст падения
 # ─────────────────────────────────────────────────────────────
+@dataclass
+class DropContext:
+    """Что случилось с ценой до текущего момента."""
 
+    peak_price: float = 0.0
+    peak_idx: int = -1
+    bottom_price: float = 0.0
+    bottom_idx: int = -1
+    drop_pct: float = 0.0
+    bars_since_bottom: int = 0
+
+    @property
+    def deep(self) -> bool:
+        return self.drop_pct >= DROP_DISTRUST_PCT
+
+    @property
+    def fresh(self) -> bool:
+        """Дно поставлено недавно — уровни ещё не устоялись."""
+        return 0 <= self.bars_since_bottom <= DROP_FRESH_BARS
+
+    @property
+    def distrust_zones(self) -> bool:
+        """Глубокое и свежее падение обесценивает старые уровни.
+
+        Прежняя карта строилась на объёмах, набранных по совсем другим
+        ценам; после обвала на половину она описывает не сегодняшний
+        рынок, а прошлый.
+        """
+        return self.deep and self.fresh
+
+
+def build_drop(bars: Sequence[Bar]) -> DropContext:
+    tail = bars[-BOTTOM_LOOKBACK_DAYS:] if len(bars) > BOTTOM_LOOKBACK_DAYS else bars
+    if len(tail) < 5:
+        return DropContext()
+
+    peak_idx = max(range(len(tail)), key=lambda i: tail[i].high)
+    peak = tail[peak_idx].high
+
+    after = tail[peak_idx:]
+    if not after:
+        return DropContext()
+
+    rel_bottom = min(range(len(after)), key=lambda i: after[i].low)
+    bottom_idx = peak_idx + rel_bottom
+    bottom = after[rel_bottom].low
+
+    drop = (peak - bottom) / peak if peak > 0 else 0.0
+
+    return DropContext(
+        peak_price=peak,
+        peak_idx=peak_idx,
+        bottom_price=bottom,
+        bottom_idx=bottom_idx,
+        drop_pct=_clip(drop, 0.0, 1.0),
+        bars_since_bottom=len(tail) - 1 - bottom_idx,
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# Контекст семейства
+# ─────────────────────────────────────────────────────────────
 @dataclass
 class FlowContext:
     """Всё, что подкейсы читают вместо собственных расчётов.
 
-    Считается один раз на монету. Дневки приходят из RunCache,
-    агрегаты строятся из них, поэтому масштабы бесплатны.
+    Считается один раз на монету. Подкейсы обязаны брать зоны и поток
+    отсюда — пять локальных реализаций отбора уровней уже расходились
+    между собой.
     """
 
     symbol: str
-    price: float = 0.0
-    bars: dict[int, list[Bar]] = field(default_factory=dict)
-    events: list[Event] = field(default_factory=list)
-    zones: list[Zone] = field(default_factory=list)
-    drop: DropContext = field(default_factory=DropContext)
-    stats: FlowStats = field(default_factory=FlowStats)
-    vortex: VortexState = field(default_factory=VortexState)
-    horizon_scale: int = 1
-    horizon_label: str = "дни"
-    quote_volume_24h: float = 0.0
-    valid: bool = False
+    price: float
+    bars: list[Bar]
+    by_scale: dict[int, list[Bar]]
+    events: list[Event]
+    zones: list[Zone]
+    flow: FlowState
+    vortex: VortexState
+    drop: DropContext
+    rel_vol: float
+    atr_share: float
 
-    def zones_below(self) -> list[Zone]:
-        return sorted(
-            (z for z in self.zones if zone_role(z, self.price) == "support"),
-            key=lambda z: -z.price,
-        )
+    # ── общие помощники ──────────────────────────────────────
+    def zones_below(self, near_pct: float = ZONE_NEAR_PCT) -> list[Zone]:
+        return zones_below(self.zones, self.price, near_pct)
 
-    def zones_above(self) -> list[Zone]:
-        return sorted(
-            (z for z in self.zones if zone_role(z, self.price) == "overhead"),
-            key=lambda z: z.price,
-        )
+    def zones_above(self, near_pct: float = ZONE_NEAR_PCT) -> list[Zone]:
+        return zones_above(self.zones, self.price, near_pct)
 
-    def trusted_zones_below(self) -> list[Zone]:
-        """Зоны под ценой с учётом недоверия после сильного роста.
+    def trusted_zones_below(self, near_pct: float = ZONE_NEAR_PCT) -> list[Zone]:
+        """Уровни снизу с поправкой на недоверие после обвала.
 
-        Чем сильнее был рост, тем больше зон обязано провалиться:
-        толпа с прибылью продавливает любой уровень.
+        Правка Э-6: раньше здесь стояло обращение к
+        `self.drop.distrust_zones` при том, что поле лежит не в
+        DropContext, а рядом. Метод не падал ровно потому, что был
+        мёртвым — его не вызывал ни один подкейс. Первый же вызов
+        уронил бы семейство.
+
+        Теперь свойство честно живёт в DropContext, а при недоверии
+        остаются только уровни, подтверждённые несколькими масштабами
+        и хотя бы раз протестированные ценой.
         """
-        below = self.zones_below()
-        skip = self.distrust_zones
-        return below[skip:] if skip < len(below) else []
+        below = self.zones_below(near_pct)
+        if not self.drop.distrust_zones:
+            return below
+        return [z for z in below if z.confirmed and z.tests > 0]
 
-    def zone_at(self, price: float) -> Zone | None:
-        """Зона на заданном уровне, если есть."""
-        for z in self.zones:
-            if z.price > 0 and abs(price - z.price) / z.price <= ZONE_MATCH_PCT:
-                return z
-        return None
+    def pick_zone_below(self, key, near_pct: float = ZONE_NEAR_PCT,
+                        trusted: bool = True) -> Zone | None:
+        """Лучший уровень снизу по переданному критерию.
 
-    def near_zone(self) -> Zone | None:
-        below = self.trusted_zones_below()
-        for z in below:
-            if self.price > 0 and (self.price - z.price) / self.price <= ZONE_NEAR_PCT:
-                return z
-        return below[0] if below else None
+        Критерий остаётся за подкейсом: hidden смотрит на тесты и сумму
+        тиров, spring — на число событий, churn — на массу и зрелость.
+        Общим был только отбор кандидатов, и он дублировался в пяти
+        модулях. Дублировался — значит расходился: правка в одном месте
+        не доезжала до остальных.
+        """
+        pool = self.trusted_zones_below(near_pct) if trusted else self.zones_below(near_pct)
+        if not pool:
+            return None
+        return max(pool, key=key)
 
-    # ── Алиасы для подкейсов ─────────────────────────────────
-    # Подкейсы читают контекст короткими именами. Держим их здесь,
-    # чтобы имя поля в ядре можно было менять, не трогая пять
-    # модулей семейства.
+    def pick_zone_above(self, key, near_pct: float = ZONE_NEAR_PCT) -> Zone | None:
+        """Ближайший завал сверху по критерию подкейса."""
+        pool = self.zones_above(near_pct)
+        if not pool:
+            return None
+        return max(pool, key=key)
+
+    def nearest_below(self, near_pct: float = ZONE_NEAR_PCT) -> Zone | None:
+        """Ближайший уровень снизу — типовая опора для стопа."""
+        pool = self.trusted_zones_below(near_pct)
+        if not pool:
+            return None
+        return max(pool, key=lambda z: z.price)
+
+    def nearest_above(self, near_pct: float = ZONE_NEAR_PCT) -> Zone | None:
+        """Ближайший уровень сверху — типовая первая цель."""
+        pool = self.zones_above(near_pct)
+        if not pool:
+            return None
+        return min(pool, key=lambda z: z.price)
 
     @property
-    def flow(self) -> FlowStats:
-        return self.stats
+    def overhead_weight(self) -> float:
+        """Суммарная масса предложения над ценой.
+
+        Читается fuel: чем легче потолок, тем свободнее ход. Считается
+        по всем живым зонам сверху, а не только по ближним, — дальний
+        завал тоже ограничивает, просто позже.
+        """
+        return sum(z.strength for z in self.zones_above(near_pct=1.0))
 
     @property
-    def base(self) -> list[Bar]:
-        """Дневной ряд — основа всех измерений времени."""
-        return self.bars.get(1, [])
+    def support_weight(self) -> float:
+        """Суммарная масса опоры под ценой."""
+        return sum(z.strength for z in self.trusted_zones_below(near_pct=1.0))
 
     @property
     def ready(self) -> bool:
-        return self.valid
-
-    @property
-    def horizon_bars(self) -> int:
-        return max(1, int(self.horizon_scale * HORIZON_BARS_AHEAD))
-
-    @property
-    def growth_x(self) -> float:
-        return self.drop.growth_x
-
-    @property
-    def distrust_zones(self) -> int:
-        """Сколько верхних опор считать ненадёжными.
-
-        Раньше считалось от growth_x по шкале GROWTH_DISTRUST — то
-        есть от того же числа, что стояло за снятым вето, и с той же
-        подменой смысла. Держать две конструкции об одном не нужно.
-
-        Теперь читается по форме вортекса: растущие пики продаж
-        означают, что предложение не исчерпано, и ближние опоры под
-        ценой ещё будут проверены сливом. Молчание вортекса даёт
-        нуль — недоверие требует оснований, а не их отсутствия.
-        """
-        v = self.vortex
-        if v.direction != "down":
-            return 0
-        return 2 if v.confidence >= 1.0 else 1
-
-    @property
-    def volume_recovery(self) -> float:
-        return self.drop.volume_recovery
-
-    def to_dict(self) -> dict:
-        # Зоны отдаются ПОЛНОСТЬЮ, без фильтра по confirmed и без
-        # среза. Прежний вариант — `if z.confirmed][:6]` — показывал
-        # не ту карту, по которой работают подкейсы, и диагностика
-        # получалась ложной: MU выглядела как монета без зон вообще,
-        # хотя fuel насчитал на ней три снятых уровня, а churn нашёл
-        # плато в 22 дня. Её зоны держатся на одном масштабе — для
-        # модулей это законный материал, для сериализации они
-        # исчезали.
-        #
-        # Признак confirmed остаётся внутри каждой зоны — фильтровать
-        # по нему должен читатель среза, а не сам срез.
-        #
-        # fills — состояние ИЗМЕРИТЕЛЯ, а не рынка. Доля набранного
-        # времени правого края по каждому масштабу. Поле выглядит
-        # служебным, но именно его отсутствие держало мёртвой всю
-        # ветку PARTIAL_BAR_*: fill был равен единице всегда, объём
-        # незакрытого бара сравнивался с полной нормой как равный, и
-        # система об этом сообщить не могла — она не показывала
-        # величину, от которой зависела. Расхождение нашлось только
-        # сравнением RVOL на пяти масштабах вручную.
-        #
-        # Правило: срез обязан показывать не только результат
-        # измерения, но и состояние того, чем меряли.
-        return {
-            "price": round(self.price, 10),
-            "scales": sorted(self.bars),
-            "fills": {
-                scale: round(bars[-1].fill, 3)
-                for scale, bars in sorted(self.bars.items())
-                if bars
-            },
-            "events_total": len(self.events),
-            "zones": [z.to_dict() for z in self.zones],
-            "zones_confirmed": sum(1 for z in self.zones if z.confirmed),
-            "drop": self.drop.to_dict(),
-            "flow": self.stats.to_dict(),
-            "vortex": self.vortex.to_dict(),
-            "horizon": self.horizon_label,
-        }
+        """Контекст пригоден для суждения."""
+        return bool(self.bars) and self.price > 0 and bool(self.by_scale)
 
 
-def build_context(symbol: str, quote_volume_24h: float = 0.0) -> FlowContext:
-    """Единая точка входа семейства.
+def build_context(symbol: str, raw_bars: Sequence[Bar]) -> FlowContext | None:
+    """Единая сборка контекста монеты.
 
-    Все потребители обязаны ходить через канонические загрузчики,
-    а не запрашивать произвольные лимиты: иначе кэш разойдётся по
-    ячейкам и агрегаты перестанут быть бесплатными.
+    Порядок важен: сначала масштабы, затем события по каждому масштабу,
+    затем карта уровней по всем событиям сразу. Зоны собираются из
+    объединённого списка — в этом весь смысл многомасштабности:
+    уровень, который видят и базовый ряд, и десятидневка, сильнее того,
+    что заметен только на одном.
     """
-    ctx = FlowContext(symbol=symbol, quote_volume_24h=quote_volume_24h)
+    bars = list(raw_bars)
+    if len(bars) < MIN_BARS:
+        return None
 
-    raw = klines_1d(symbol)
-    if not raw:
-        return ctx
+    price = bars[-1].close
+    if price <= 0:
+        return None
 
-    base = _to_bars(raw)
-    if len(base) < MIN_BARS_BASE:
-        return ctx
+    by_scale: dict[int, list[Bar]] = {}
+    for scale in AGG_SCALES:
+        agg = aggregate(bars, scale) if scale > 1 else bars
+        if len(agg) >= EVENT_NORM_WINDOW + RESPONSE_BARS:
+            by_scale[scale] = agg
 
-    ctx.price = base[-1].close
-    if ctx.price <= 0:
-        return ctx
+    if not by_scale:
+        return None
 
-    for scale in SCALES:
-        agg = aggregate(base, scale)
-        if len(agg) >= _min_bars(scale):
-            ctx.bars[scale] = agg
+    all_events: list[Event] = []
+    for scale, scaled in by_scale.items():
+        all_events.extend(find_events(scaled, scale))
 
-    if not ctx.bars:
-        return ctx
+    zones = build_zones(all_events, bars)
 
-    for scale, bars in ctx.bars.items():
-        ctx.events.extend(find_events(bars, scale))
-
-    ctx.zones = build_zones(ctx.events)
-    for z in ctx.zones:
-        annotate_zone_history(z, base)
-    ctx.zones = [z for z in ctx.zones if z.alive]
-
-    # Сколько живых зон лежит ниже каждой — нужно для недоверия
-    # после сильного роста.
-    ordered = sorted(ctx.zones, key=lambda z: z.price)
-    for i, z in enumerate(ordered):
-        z.zones_below = i
-
-    ctx.vortex = build_vortex(ctx.bars)
-    ctx.drop = build_drop_context(base)
-    ctx.stats = build_flow_stats(base)
-    ctx.horizon_scale, ctx.horizon_label = pick_horizon(ctx.bars)
-    ctx.valid = True
-    return ctx
+    return FlowContext(
+        symbol=symbol,
+        price=price,
+        bars=bars,
+        by_scale=by_scale,
+        events=all_events,
+        zones=zones,
+        flow=build_flow(bars),
+        vortex=build_vortex(by_scale),
+        drop=build_drop(bars),
+        rel_vol=rel_volume(bars, len(bars) - 1),
+        atr_share=_atr_share(bars, len(bars)),
+    )
