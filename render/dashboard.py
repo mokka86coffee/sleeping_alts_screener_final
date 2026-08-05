@@ -309,6 +309,9 @@ FUNNEL_FALLBACK = [
 SECTOR_FALLBACK = [("ai", 12.4), ("gamefi", 4.1), ("meme", -3.8),
                    ("defi", -7.2), ("l1/l2", -8.0)]
 
+# Пока нет источника 2-недельного объёма нигде в системе — фолбэк
+# по макету, тикеры без USDT (их добавляет сопоставление с candidates).
+LEADERS_FALLBACK = ["BICO", "HFT", "BROCOLLI", "LAB", "BLESS", "HOLO", "HOME"]
 FN_TONE = ["#C8DCE8", "#F5A623", "#D9B84A", "#C4703A", "#8FA0B0", "#4FCF8A"]
 
 ICONS = {
@@ -760,6 +763,43 @@ FLOW_NODES = [
     ("lever", 373, 13.0, "шорты перегружены",    False),
 ]
 
+# ─────────────────────────────────────────────────────────────
+# Блок · лидеры по объёму (боковая панель рядом с лентой FLOW)
+# ─────────────────────────────────────────────────────────────
+def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
+    """Топ-7 тикеров по обороту за 2 недели.
+
+    ЧТО ПОДКЛЮЧИТЬ: snapshot.volume_leaders_2w — список символов,
+    отсортированный по обороту за 2 недели. Источника пока нет нигде
+    в системе, поэтому при пустом поле показываем LEADERS_FALLBACK
+    по макету — вёрстка видна, строки в этом режиме некликабельны.
+
+    Строка кликабельна (открывает карточку монеты), только если тикер
+    нашёлся среди candidates — иначе data-coin вести будет некуда.
+    """
+    src = getattr(snapshot, "volume_leaders_2w", None) or []
+    symbols = [str(s).upper() for s in src][:7] if src else list(LEADERS_FALLBACK)
+
+    by_symbol = {c.symbol.upper(): c for c in candidates}
+
+    rows = ""
+    for i, sym in enumerate(symbols, 1):
+        c = by_symbol.get(sym if sym.endswith("USDT") else f"{sym}USDT")
+        attr = f' data-coin="{esc(c.symbol)}"' if c is not None else ""
+        rows += (
+            f'<div class="lrow"{attr}>'
+            f'<span class="lrow-i">{i:02d}</span>'
+            f'<span class="lrow-t">{esc(sym)}</span>'
+            f'</div>'
+        )
+
+    return f"""
+<div class="b b-card c-gd g-lead">
+  <div class="b-in">
+    {_title('лидеры', 'по объёму · 2 нед')}
+    <div class="lrows">{rows}</div>
+  </div>
+</div>"""
 
 def _blk_flow(candidates: list[Candidate]) -> str:
     flow = [c for c in candidates if c.flow]
@@ -985,7 +1025,10 @@ def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot) ->
     ])
 
     # ряд стратегий между блоками и вторым рядом
-    strat = f'<div class="row row-s">{_blk_flow(candidates)}</div>'
+    strat = (
+        f'<div class="row row-s">'
+        f'{_blk_flow(candidates)}{_blk_leaders(candidates, snapshot)}</div>'
+    )
 
     # Панели-таблицы строим для ВСЕХ срезов, включая скрытые:
     # на них ведут узлы воронки.

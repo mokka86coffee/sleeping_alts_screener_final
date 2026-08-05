@@ -754,7 +754,8 @@ CARD = """
 # РЯД СТРАТЕГИЙ · лента FLOW
 # ═══════════════════════════════════════════════════
 STRAT = """
-.row-s{display:block;margin-bottom:52px}
+.row-s{display:flex;align-items:flex-start;gap:28px;margin-bottom:52px}
+.strat{flex:1;min-width:0}
 .strat{position:relative;padding:8px 0 0;cursor:pointer}
 .c-fl{--c:#D9A441;--h1:rgba(217,164,65,.30);--h2:rgba(184,134,11,.08)}
 .strat .halo{width:56%;height:96px;top:2px}
@@ -780,6 +781,21 @@ STRAT = """
 .fl:hover .fl-node{opacity:.55}
 .fl:hover .fl-node:hover{opacity:1}
 .fl-node:hover .fl-c{fill:#FFF4D8}
+
+/* заголовок — общий шрифт блоков (_title), тикеры — mono, отдельно */
+.g-lead{width:224px;flex:none}
+.g-lead>.b-in{padding:14px 18px 16px}
+.g-lead .b-t{text-align:left;margin-top:0}
+.lrows{margin-top:14px;display:flex;flex-direction:column}
+.lrow{display:grid;grid-template-columns:18px 1fr;align-items:center;gap:10px;
+  padding:7px 0;border-bottom:1px solid var(--hr)}
+.lrow:last-child{border-bottom:none}
+.lrow-i{font-size:8px;font-weight:300;color:var(--m4);
+  font-variant-numeric:tabular-nums}
+.lrow-t{font-family:var(--mono);font-size:12px;font-weight:600;
+  letter-spacing:.5px;color:var(--t2)}
+.lrow[data-coin]{cursor:pointer}
+.lrow[data-coin]:hover .lrow-t{color:var(--gd)}
 """
 
 # ═══════════════════════════════════════════════════
@@ -999,6 +1015,8 @@ RESPONSIVE = """
   .fr-in{grid-template-columns:150px 64px 96px 92px 1fr 92px 86px 84px 96px;
          gap:0 12px;padding:0 20px}
   .fl{max-width:560px}
+  .row-s{flex-wrap:wrap}
+    .g-lead{width:100%}
 }
 
 @media (max-width:760px){
