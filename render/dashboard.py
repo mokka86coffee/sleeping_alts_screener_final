@@ -862,7 +862,7 @@ def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
     by_symbol = {c.symbol.upper(): c for c in candidates}
 
     items = ""
-    for sym in order[:LEAD_MAX]:
+    for sym in order:
         cls = ["lead-t"]
         if sym in flow_j:
             cls.append("lead-f")
