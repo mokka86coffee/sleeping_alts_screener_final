@@ -801,50 +801,40 @@ STRAT = """
 
 /* Правый край ленты FLOW · «кто двигает рынок».
 
-   Две метки, и они не альтернативы, а разные утверждения.
-   lead-f — монета отобрана стратегией: подкейс сработал,
-   план построен. lead-g — объём выше x50 на одном из окон,
-   факт без интерпретации.
+   Порядок задаёт кратность объёма, а не источник, поэтому
+   золотые и белые идут вперемешку — так и задумано.
 
-   Цвет отдан объёму, кант — отбору: признаки не спорят за одно
-   свойство и читаются вместе. Монета с обеими метками — самый
-   сильный случай на панели. */
-
-.g-lead{flex:0 0 132px;display:flex;flex-direction:column;
+   Кант под первой буквой — лидер выборки FLOW.
+   Цвет и яркость — объём: x50 / x100 / x200.
+   Признаки не спорят за одно свойство и читаются вместе. */
+.g-lead{flex:0 0 auto;display:flex;flex-direction:column;
   align-items:flex-end;justify-content:flex-end;
-  gap:14px;padding:8px 0 12px}
-/* заголовок — общий шрифт блоков (_title), тикеры — mono, отдельно */
-.g-lead{height:196px; overflow: auto}
-.lead-list::-webkit-scrollbar-thumb {
-    border-radius: 5px;
-    border: 1px solid #ffa5002b;
-    box-shadow: inset 0 0 5px #000;
-    padding-right: 6px;
-}
-.lead-list::-webkit-scrollbar {
-  width: 1px; /* ширина полосы */
-}
-.lead-list::-webkit-scrollbar-track {
-  background: transparent; /* цвет дорожки */
-}
-.lead-list{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+  gap:12px;padding:8px 0 12px}
+
+/* Колонки вместо одной длинной ленты: список растёт влево,
+   и все тикеры видны без скролла — как в планшетной раскладке.
+   Строк ровно 7: восьмая монета начинает новую колонку,
+   а не удлиняет блок и не давит на воронку снизу. */
+.lead-list{display:grid;grid-auto-flow:column;
+  grid-template-rows:repeat(7,auto);
+  grid-auto-columns:max-content;
+  justify-content:end;justify-items:end;
+  gap:6px 18px;direction:rtl}
+.lead-list>*{direction:ltr}
 
 .lead-t{font-size:7px;font-weight:300;letter-spacing:2.5px;
   color:rgba(232,234,238,.56);transition:color .14s}
 
-/* объём x50 и выше — золото */
-.lead-t.lead-g{color:#D4B476}
+/* три ступени объёма: приглушённое золото → полное → светлое.
+   Одного цвета мало: x50 и x200 одинаково жёлтыми сливаются,
+   и топ теряется ровно там, где он важнее всего. */
+.lead-t.lead-g1{color:#B99B5C}
+.lead-t.lead-g2{color:#D4B476}
+.lead-t.lead-g3{color:#FFE0A0;text-shadow:0 0 8px rgba(217,164,65,.4)}
 
-/* лидер выборки FLOW — кант под тикером целиком.
-   Раньше подчёркивалась одна буква: на списке из семи имён
-   это читалось как дефект шрифта, а не как признак. */
-.lead-t.lead-f{border-bottom:1px solid rgba(255,186,0,.55);
-  padding-bottom:2px}
-
-/* оба признака сразу: кант ярче и со свечением,
-   иначе на золотом тексте он теряется */
-.lead-t.lead-f.lead-g{border-bottom-color:rgba(255,208,120,.85);
-  text-shadow:0 0 8px rgba(217,164,65,.35)}
+/* лидер выборки FLOW — кант под первой буквой */
+.lead-t.lead-f::first-letter{border-bottom:1px solid rgba(255,186,0,.55)}
+.lead-t.lead-f.lead-g3::first-letter{border-bottom-color:rgba(255,208,120,.9)}
 
 /* журналы пусты — панель гаснет, а не исчезает:
    пропавший блок читается как поломка вёрстки */

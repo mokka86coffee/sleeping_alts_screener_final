@@ -10,6 +10,7 @@
 from __future__ import annotations
 import json
 from pathlib import Path
+import random
 
 from core.config import ANOMALY_PATH, LEADERS_PATH
 from core.models import Candidate, RunSnapshot
@@ -836,9 +837,9 @@ def _shuffle_key(sym: str) -> int:
 # Ступени взрывного объёма. Одного порога мало: x50 и x200 —
 # события разного веса, а одним цветом они сливаются в «жёлтое».
 # Три ступени дают шкалу, читаемую без чисел.
-LEAD_X1 = 50.0
-LEAD_X2 = 100.0
-LEAD_X3 = 200.0
+LEAD_X1 = 30.0
+LEAD_X2 = 50.0
+LEAD_X3 = 100.0
 
 
 def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
@@ -879,8 +880,13 @@ def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
     for sym in vol_syms:
         ranked.setdefault(sym, _max_vol_ratio(vol_j.get(sym) or {}))
 
-    # Порядок — разнобой, а не рейтинг: см. _shuffle_key.
-    order = sorted(ranked, key=_shuffle_key)
+    # Порядок — разнобой. Никакого рейтинга: вес монеты уже сказан
+    # цветом (объём) и кантом (лидер FLOW), и дублировать его
+    # позицией незачем. Сортировка по кратности вдобавок расслаивала
+    # панель — сверху сплошное золото, снизу сплошное белое, — и она
+    # читалась как две ленты вместо одной.
+    order = list(ranked)
+    random.shuffle(order)
 
     by_symbol = {c.symbol.upper(): c for c in candidates}
 
