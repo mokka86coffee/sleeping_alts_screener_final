@@ -853,8 +853,8 @@ def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
             seen.add(sym)
             order.append(sym)
     for sym, _x in vol_ranked:
-        if len(order) >= LEAD_MAX:
-            break
+#         if len(order) >= LEAD_MAX:
+#             break
         if sym not in seen:
             seen.add(sym)
             order.append(sym)
