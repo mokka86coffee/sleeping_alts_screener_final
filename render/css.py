@@ -798,13 +798,13 @@ STRAT = """
   justify-content:space-between;align-items:flex-end;height:130px;padding:8px 0; position: absolute;
     top: 0;transform: translateY(-26%);right: 10%}
 .lead-list{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-bottom: 20px; overflow: auto}
-lead-list::-webkit-scrollbar {
+.lead-list::-webkit-scrollbar {
   width: 1px; /* ширина полосы */
 }
-lead-list::-webkit-scrollbar-track {
+.lead-list::-webkit-scrollbar-track {
   background: #888; /* цвет дорожки */
 }
-lead-list::-webkit-scrollbar-thumb {
+.lead-list::-webkit-scrollbar-thumb {
   background-color: #888; /* цвет бегунка */
   border-radius: 5px; /* скруглённые углы */
   border: 1px solid orange; /* граница */
