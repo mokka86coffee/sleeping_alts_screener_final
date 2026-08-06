@@ -799,11 +799,22 @@ STRAT = """
 .fl:hover .fl-node:hover{opacity:1}
 .fl-node:hover .fl-c{fill:#FFF4D8}
 
+/* Правый край ленты FLOW · «кто двигает рынок».
+
+   Две метки, и они не альтернативы, а разные утверждения.
+   lead-f — монета отобрана стратегией: подкейс сработал,
+   план построен. lead-g — объём выше x50 на одном из окон,
+   факт без интерпретации.
+
+   Цвет отдан объёму, кант — отбору: признаки не спорят за одно
+   свойство и читаются вместе. Монета с обеими метками — самый
+   сильный случай на панели. */
+
+.g-lead{flex:0 0 132px;display:flex;flex-direction:column;
+  align-items:flex-end;justify-content:flex-end;
+  gap:14px;padding:8px 0 12px}
 /* заголовок — общий шрифт блоков (_title), тикеры — mono, отдельно */
-.g-lead{flex:0 0 auto;display:flex;flex-direction:column;
-  justify-content:space-between;align-items:flex-end;height:196px;padding:8px 0; position: absolute;
-    top: 0;transform: translateY(-38%);right: 10%}
-.lead-list{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-bottom: 20px; overflow: auto;padding-right: 6px}
+.g-lead{height:196px}
 .lead-list::-webkit-scrollbar-thumb {
     border-radius: 5px;
     border: 1px solid #ffa5002b;
@@ -816,20 +827,6 @@ STRAT = """
 .lead-list::-webkit-scrollbar-track {
   background: transparent; /* цвет дорожки */
 }
-/* Правый край ленты FLOW · «кто двигает рынок».
-
-   Две метки, и они не альтернативы, а разные утверждения.
-   lead-f — монета отобрана стратегией: подкейс сработал,
-   план построен. lead-g — объём выше x50 на одном из окон,
-   факт без интерпретации.
-
-   Цвет отдан объёму, кант — отбору: признаки не спорят за одно
-   свойство и читаются вместе. Монета с обеими метками — самый
-   сильный случай на панели. */
-.g-lead{flex:0 0 132px;display:flex;flex-direction:column;
-  align-items:flex-end;justify-content:flex-end;
-  gap:14px;padding:8px 0 12px}
-
 .lead-list{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 
 .lead-t{font-size:7px;font-weight:300;letter-spacing:2.5px;
@@ -1079,7 +1076,8 @@ RESPONSIVE = """
          gap:0 12px;padding:0 20px}
   .fl{max-width:560px}
   .row-s{flex-wrap:wrap}
-    .g-lead{width:100%}
+    .g-lead{flex:1 1 100%;align-items:center;padding-top:0}
+    .lead-list{flex-direction:row;flex-wrap:wrap;justify-content:center;gap:6px 16px}
 }
 
 @media (max-width:760px){
