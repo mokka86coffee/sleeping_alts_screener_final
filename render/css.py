@@ -798,6 +798,18 @@ STRAT = """
   justify-content:space-between;align-items:flex-end;height:130px;padding:8px 0; position: absolute;
     top: 0;transform: translateY(-26%);right: 10%}
 .lead-list{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-bottom: 20px; overflow: auto}
+lead-list::-webkit-scrollbar {
+  width: 1px; /* ширина полосы */
+}
+lead-list::-webkit-scrollbar-track {
+  background: #888; /* цвет дорожки */
+}
+lead-list::-webkit-scrollbar-thumb {
+  background-color: #888; /* цвет бегунка */
+  border-radius: 5px; /* скруглённые углы */
+  border: 1px solid orange; /* граница */
+  box-shadow: inset 0 0 5px #000; /* внутренняя тень для глубины */
+}
 .lead-t{font-size: 7px;font-weight: 300;letter-spacing: 2.5px;color: rgb(232 234 238 / 56%)}
 .lead-t.lead-g{color: #d4b476;}
 .lead-t.lead-f::first-letter {border-bottom: 1px solid #ffba008a}

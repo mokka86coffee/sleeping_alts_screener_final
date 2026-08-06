@@ -327,6 +327,18 @@ summary::-webkit-details-marker{display:none}
   justify-content:space-between;align-items:flex-end;height:130px;padding:8px 0; position: absolute;
     top: 0;transform: translateY(-26%);right: 10%}
 .lead-list{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-bottom: 20px; overflow: auto}
+lead-list::-webkit-scrollbar {
+  width: 1px; /* ширина полосы */
+}
+lead-list::-webkit-scrollbar-track {
+  background: #888; /* цвет дорожки */
+}
+lead-list::-webkit-scrollbar-thumb {
+  background-color: #888; /* цвет бегунка */
+  border-radius: 5px; /* скруглённые углы */
+  border: 1px solid orange; /* граница */
+  box-shadow: inset 0 0 5px #000; /* внутренняя тень для глубины */
+}
 .lead-t{font-size: 7px;font-weight: 300;letter-spacing: 2.5px;color: rgb(232 234 238 / 56%)}
 .lead-t.lead-g{color: #d4b476;}
 .lead-t.lead-f::first-letter {border-bottom: 1px solid #ffba008a}
@@ -1283,7 +1295,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
     <span class="b-ic"><svg viewBox="-13 -13 26 26"><path d="M-8 4 L-2 -4 L4 1 L9 -6 M9 -6 h-5 M9 -6 v5" fill="none" stroke="#A8F0C8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
     <div class="b-t" data-slice="setups">сетапы
       <span>1 из 1 · r:r ≥ 2</span></div>
-    <div class="set-list"><div class="set-row" data-coin="HEIUSDT"><div><div class="set-sym">HEIUSDT</div><div class="set-sub">trend · объём ×0.5</div></div><svg class="set-dial" viewBox="-15 -15 30 30"><circle r="13" fill="none" stroke="#fff" stroke-opacity=".07" stroke-width="2.5"/><circle r="13" fill="none" stroke="#4FCF8A" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="71.37 10.31" transform="rotate(-90)"/></svg><span class="set-rr gr">1:4.4</span><span class="set-in">вход 0.3382</span></div></div>
+    <div class="set-list"><div class="set-row" data-coin="HEIUSDT"><div><div class="set-sym">HEIUSDT</div><div class="set-sub">trend · объём ×0.5</div></div><svg class="set-dial" viewBox="-15 -15 30 30"><circle r="13" fill="none" stroke="#fff" stroke-opacity=".07" stroke-width="2.5"/><circle r="13" fill="none" stroke="#4FCF8A" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="72.26 9.43" transform="rotate(-90)"/></svg><span class="set-rr gr">1:4.4</span><span class="set-in">вход 0.3366</span></div></div>
   </div>
 </div>
 <div class="b c-am g-imp empty" data-slice="hourly">
@@ -1303,7 +1315,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <div class="b-in">
     <span class="b-ic"><svg viewBox="-13 -13 26 26"><path d="M-8 5 h16 M-8 5 v-4 M-3 5 v-8 M2 5 v-11 M7 5 v-6" fill="none" stroke="#D8C0F8" stroke-width="1.8" stroke-linecap="round"/></svg></span>
     <div class="b-t">сектора <span>за 24 часа</span></div>
-    <div class="rows"><div class="srow" data-slice="sector:DEFI"><span class="srow-n">DEFI</span><span class="srow-t"><i class="up" style="width:50%"></i></span><span class="srow-v up">+26.1%</span></div></div>
+    <div class="rows"><div class="srow" data-slice="sector:DEFI"><span class="srow-n">DEFI</span><span class="srow-t"><i class="up" style="width:50%"></i></span><span class="srow-v up">+25.5%</span></div></div>
   </div>
 </div></div>
   
@@ -1346,8 +1358,8 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <td><span class="sx-sb empty"></span></td>
   <td><span class="sx-bar" style="width:40px"><i style="width:9%;background:#FFD98A"></i></span></td>
 
-  <td><b class="sx-n up">+26.1%</b></td>
-  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,20.9 3.1,21.1 6.3,20.6 9.4,20.6 12.5,20.5 15.7,20.9 18.8,21.4 21.9,21.7 25.0,21.9 28.2,21.2 31.3,21.5 34.4,21.7 37.6,21.9 40.7,22.6 43.8,22.8 47.0,22.6 50.1,23.0 53.2,22.9 56.3,22.3 59.5,22.9 62.6,22.5 65.7,19.2 68.9,8.4 72.0,3.0" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="3.0" r="2" fill="#93ff00"/></svg></td>
+  <td><b class="sx-n up">+25.5%</b></td>
+  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,20.9 3.1,21.1 6.3,20.6 9.4,20.6 12.5,20.5 15.7,20.8 18.8,21.4 21.9,21.7 25.0,21.9 28.2,21.2 31.3,21.5 34.4,21.7 37.6,21.9 40.7,22.6 43.8,22.7 47.0,22.6 50.1,23.0 53.2,22.9 56.3,22.3 59.5,22.9 62.6,22.5 65.7,19.2 68.9,8.3 72.0,3.0" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="3.0" r="2" fill="#93ff00"/></svg></td>
   <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
 
   <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="sx-sub2">trend</span></td>
@@ -1355,11 +1367,11 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <td><span class="sx-sub2">defi</span></td>
 
   <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#C4703A"></i><i></i><i></i></span><span class="sx-veto-l bad">squeeze</span></div></td>
-  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-4.277%</b></td>
+  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-4.363%</b></td>
   <td><b class="sx-rr up">1:4.4</b></td>
 
-  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">0.3382</b></td>
-  <td><b class="sx-n">0.3382</b></td>
+  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">0.3366</b></td>
+  <td><b class="sx-n">0.3366</b></td>
   <td><div class="sx-act go">открыть</div></td>
 </tr></tbody></table></div>
   <div class="sx-f"><span>всего 1 монет</span>
@@ -1390,8 +1402,8 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <td><span class="sx-sb empty"></span></td>
   <td><span class="sx-bar" style="width:40px"><i style="width:9%;background:#FFD98A"></i></span></td>
 
-  <td><b class="sx-n up">+26.1%</b></td>
-  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,20.9 3.1,21.1 6.3,20.6 9.4,20.6 12.5,20.5 15.7,20.9 18.8,21.4 21.9,21.7 25.0,21.9 28.2,21.2 31.3,21.5 34.4,21.7 37.6,21.9 40.7,22.6 43.8,22.8 47.0,22.6 50.1,23.0 53.2,22.9 56.3,22.3 59.5,22.9 62.6,22.5 65.7,19.2 68.9,8.4 72.0,3.0" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="3.0" r="2" fill="#93ff00"/></svg></td>
+  <td><b class="sx-n up">+25.5%</b></td>
+  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,20.9 3.1,21.1 6.3,20.6 9.4,20.6 12.5,20.5 15.7,20.8 18.8,21.4 21.9,21.7 25.0,21.9 28.2,21.2 31.3,21.5 34.4,21.7 37.6,21.9 40.7,22.6 43.8,22.7 47.0,22.6 50.1,23.0 53.2,22.9 56.3,22.3 59.5,22.9 62.6,22.5 65.7,19.2 68.9,8.3 72.0,3.0" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="3.0" r="2" fill="#93ff00"/></svg></td>
   <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
 
   <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="sx-sub2">trend</span></td>
@@ -1399,11 +1411,11 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <td><span class="sx-sub2">defi</span></td>
 
   <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#C4703A"></i><i></i><i></i></span><span class="sx-veto-l bad">squeeze</span></div></td>
-  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-4.277%</b></td>
+  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-4.363%</b></td>
   <td><b class="sx-rr up">1:4.4</b></td>
 
-  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">0.3382</b></td>
-  <td><b class="sx-n">0.3382</b></td>
+  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">0.3366</b></td>
+  <td><b class="sx-n">0.3366</b></td>
   <td><div class="sx-act go">открыть</div></td>
 </tr></tbody></table></div>
   <div class="sx-f"><span>всего 1 монет</span>
@@ -1445,8 +1457,8 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <td><span class="sx-sb empty"></span></td>
   <td><span class="sx-bar" style="width:40px"><i style="width:9%;background:#FFD98A"></i></span></td>
 
-  <td><b class="sx-n up">+26.1%</b></td>
-  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,20.9 3.1,21.1 6.3,20.6 9.4,20.6 12.5,20.5 15.7,20.9 18.8,21.4 21.9,21.7 25.0,21.9 28.2,21.2 31.3,21.5 34.4,21.7 37.6,21.9 40.7,22.6 43.8,22.8 47.0,22.6 50.1,23.0 53.2,22.9 56.3,22.3 59.5,22.9 62.6,22.5 65.7,19.2 68.9,8.4 72.0,3.0" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="3.0" r="2" fill="#93ff00"/></svg></td>
+  <td><b class="sx-n up">+25.5%</b></td>
+  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,20.9 3.1,21.1 6.3,20.6 9.4,20.6 12.5,20.5 15.7,20.8 18.8,21.4 21.9,21.7 25.0,21.9 28.2,21.2 31.3,21.5 34.4,21.7 37.6,21.9 40.7,22.6 43.8,22.7 47.0,22.6 50.1,23.0 53.2,22.9 56.3,22.3 59.5,22.9 62.6,22.5 65.7,19.2 68.9,8.3 72.0,3.0" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="3.0" r="2" fill="#93ff00"/></svg></td>
   <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
 
   <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="sx-sub2">trend</span></td>
@@ -1454,11 +1466,11 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <td><span class="sx-sub2">defi</span></td>
 
   <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#C4703A"></i><i></i><i></i></span><span class="sx-veto-l bad">squeeze</span></div></td>
-  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-4.277%</b></td>
+  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-4.363%</b></td>
   <td><b class="sx-rr up">1:4.4</b></td>
 
-  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">0.3382</b></td>
-  <td><b class="sx-n">0.3382</b></td>
+  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">0.3366</b></td>
+  <td><b class="sx-n">0.3366</b></td>
   <td><div class="sx-act go">открыть</div></td>
 </tr></tbody></table></div>
   <div class="sx-f"><span>всего 1 монет</span>
@@ -1522,8 +1534,8 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <td><span class="sx-sb empty"></span></td>
   <td><span class="sx-bar" style="width:40px"><i style="width:9%;background:#FFD98A"></i></span></td>
 
-  <td><b class="sx-n up">+26.1%</b></td>
-  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,20.9 3.1,21.1 6.3,20.6 9.4,20.6 12.5,20.5 15.7,20.9 18.8,21.4 21.9,21.7 25.0,21.9 28.2,21.2 31.3,21.5 34.4,21.7 37.6,21.9 40.7,22.6 43.8,22.8 47.0,22.6 50.1,23.0 53.2,22.9 56.3,22.3 59.5,22.9 62.6,22.5 65.7,19.2 68.9,8.4 72.0,3.0" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="3.0" r="2" fill="#93ff00"/></svg></td>
+  <td><b class="sx-n up">+25.5%</b></td>
+  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,20.9 3.1,21.1 6.3,20.6 9.4,20.6 12.5,20.5 15.7,20.8 18.8,21.4 21.9,21.7 25.0,21.9 28.2,21.2 31.3,21.5 34.4,21.7 37.6,21.9 40.7,22.6 43.8,22.7 47.0,22.6 50.1,23.0 53.2,22.9 56.3,22.3 59.5,22.9 62.6,22.5 65.7,19.2 68.9,8.3 72.0,3.0" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="3.0" r="2" fill="#93ff00"/></svg></td>
   <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
 
   <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="sx-sub2">trend</span></td>
@@ -1531,11 +1543,11 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <td><span class="sx-sub2">defi</span></td>
 
   <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#C4703A"></i><i></i><i></i></span><span class="sx-veto-l bad">squeeze</span></div></td>
-  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-4.277%</b></td>
+  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-4.363%</b></td>
   <td><b class="sx-rr up">1:4.4</b></td>
 
-  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">0.3382</b></td>
-  <td><b class="sx-n">0.3382</b></td>
+  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">0.3366</b></td>
+  <td><b class="sx-n">0.3366</b></td>
   <td><div class="sx-act go">открыть</div></td>
 </tr></tbody></table></div>
   <div class="sx-f"><span>всего 1 монет</span>
@@ -1577,8 +1589,8 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <td><span class="sx-sb empty"></span></td>
   <td><span class="sx-bar" style="width:40px"><i style="width:9%;background:#FFD98A"></i></span></td>
 
-  <td><b class="sx-n up">+26.1%</b></td>
-  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,20.9 3.1,21.1 6.3,20.6 9.4,20.6 12.5,20.5 15.7,20.9 18.8,21.4 21.9,21.7 25.0,21.9 28.2,21.2 31.3,21.5 34.4,21.7 37.6,21.9 40.7,22.6 43.8,22.8 47.0,22.6 50.1,23.0 53.2,22.9 56.3,22.3 59.5,22.9 62.6,22.5 65.7,19.2 68.9,8.4 72.0,3.0" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="3.0" r="2" fill="#93ff00"/></svg></td>
+  <td><b class="sx-n up">+25.5%</b></td>
+  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,20.9 3.1,21.1 6.3,20.6 9.4,20.6 12.5,20.5 15.7,20.8 18.8,21.4 21.9,21.7 25.0,21.9 28.2,21.2 31.3,21.5 34.4,21.7 37.6,21.9 40.7,22.6 43.8,22.7 47.0,22.6 50.1,23.0 53.2,22.9 56.3,22.3 59.5,22.9 62.6,22.5 65.7,19.2 68.9,8.3 72.0,3.0" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="3.0" r="2" fill="#93ff00"/></svg></td>
   <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
 
   <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="sx-sub2">trend</span></td>
@@ -1586,11 +1598,11 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <td><span class="sx-sub2">defi</span></td>
 
   <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#C4703A"></i><i></i><i></i></span><span class="sx-veto-l bad">squeeze</span></div></td>
-  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-4.277%</b></td>
+  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-4.363%</b></td>
   <td><b class="sx-rr up">1:4.4</b></td>
 
-  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">0.3382</b></td>
-  <td><b class="sx-n">0.3382</b></td>
+  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">0.3366</b></td>
+  <td><b class="sx-n">0.3366</b></td>
   <td><div class="sx-act go">открыть</div></td>
 </tr></tbody></table></div>
   <div class="sx-f"><span>всего 1 монет</span>
@@ -1632,8 +1644,8 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <td><span class="sx-sb empty"></span></td>
   <td><span class="sx-bar" style="width:40px"><i style="width:9%;background:#FFD98A"></i></span></td>
 
-  <td><b class="sx-n up">+26.1%</b></td>
-  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,20.9 3.1,21.1 6.3,20.6 9.4,20.6 12.5,20.5 15.7,20.9 18.8,21.4 21.9,21.7 25.0,21.9 28.2,21.2 31.3,21.5 34.4,21.7 37.6,21.9 40.7,22.6 43.8,22.8 47.0,22.6 50.1,23.0 53.2,22.9 56.3,22.3 59.5,22.9 62.6,22.5 65.7,19.2 68.9,8.4 72.0,3.0" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="3.0" r="2" fill="#93ff00"/></svg></td>
+  <td><b class="sx-n up">+25.5%</b></td>
+  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,20.9 3.1,21.1 6.3,20.6 9.4,20.6 12.5,20.5 15.7,20.8 18.8,21.4 21.9,21.7 25.0,21.9 28.2,21.2 31.3,21.5 34.4,21.7 37.6,21.9 40.7,22.6 43.8,22.7 47.0,22.6 50.1,23.0 53.2,22.9 56.3,22.3 59.5,22.9 62.6,22.5 65.7,19.2 68.9,8.3 72.0,3.0" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="3.0" r="2" fill="#93ff00"/></svg></td>
   <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
 
   <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="sx-sub2">trend</span></td>
@@ -1641,11 +1653,11 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <td><span class="sx-sub2">defi</span></td>
 
   <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#C4703A"></i><i></i><i></i></span><span class="sx-veto-l bad">squeeze</span></div></td>
-  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-4.277%</b></td>
+  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-4.363%</b></td>
   <td><b class="sx-rr up">1:4.4</b></td>
 
-  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">0.3382</b></td>
-  <td><b class="sx-n">0.3382</b></td>
+  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">0.3366</b></td>
+  <td><b class="sx-n">0.3366</b></td>
   <td><div class="sx-act go">открыть</div></td>
 </tr></tbody></table></div>
   <div class="sx-f"><span>всего 1 монет</span>
@@ -1663,7 +1675,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
 <div class="modal" data-coin="HEIUSDT"><div class="modal-bd"></div><div class="modal-in"><button class="modal-x">✕</button><div class="card glow g-am">
 <div class="card-in">
   <div class="hdr amber">
-    <div class="hdr-cl"><div class="hdr-gh">+26.1%</div></div>
+    <div class="hdr-cl"><div class="hdr-gh">+25.5%</div></div>
     <div class="hdr-in">
       <div class="hdr-rk"><b>RANK 001</b><i></i></div>
       <a class="hdr-sym-a" href="https://www.tradingview.com/chart/?symbol=BINANCE:HEIUSDT.P" target="_blank" rel="noopener">
@@ -1671,7 +1683,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
       </a>
       <div class="hdr-ph">trend</div>
     </div>
-    <div class="hdr-pr">$0.3382</div>
+    <div class="hdr-pr">$0.3366</div>
   </div>
   <div class="med-link"></div>
   <div class="med " style="--p:79">
@@ -1681,15 +1693,15 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <div class="wrap">
     <div class="rvol">
       <div class="rvol-i">📊</div>
-      <div class="rvol-v">0.52×</div>
+      <div class="rvol-v">0.54×</div>
       <div class="rvol-l">RVOL 1H</div>
       <div class="rvol-d">в норме</div>
     </div>
-    <div class="sigs"><div class="sig"><span class="sig-i">📊</span><div style="min-width:0"><div class="sig-t">VOL SURGE ×49.8 ▲</div><div class="sig-d">$841.07M против $35.84M</div></div></div><div class="sig rd"><span class="sig-i">!</span><div style="min-width:0"><div class="sig-t">SQUEEZE EXTREME · 75</div><div class="sig-d">сжатие волатильности, риск выброса</div></div></div><div class="sig"><span class="sig-i">✓</span><div style="min-width:0"><div class="sig-t">TAIKO CONFIRMED · 100</div><div class="sig-d">разворот подтверждён на старшем ТФ</div></div></div><div class="sig-row"><div class="sig half"><span class="sig-i">≈</span><div style="min-width:0"><div class="sig-t">FUNDING</div><div class="sig-d">-0.0428%</div></div></div><div class="sig half"><span class="sig-i">↑</span><div style="min-width:0"><div class="sig-t">OPEN INTEREST</div><div class="sig-d">$18.07M</div></div></div></div></div>
+    <div class="sigs"><div class="sig"><span class="sig-i">📊</span><div style="min-width:0"><div class="sig-t">VOL SURGE ×49.8 ▲</div><div class="sig-d">$842.16M против $35.84M</div></div></div><div class="sig rd"><span class="sig-i">!</span><div style="min-width:0"><div class="sig-t">SQUEEZE EXTREME · 75</div><div class="sig-d">сжатие волатильности, риск выброса</div></div></div><div class="sig"><span class="sig-i">✓</span><div style="min-width:0"><div class="sig-t">TAIKO CONFIRMED · 100</div><div class="sig-d">разворот подтверждён на старшем ТФ</div></div></div><div class="sig-row"><div class="sig half"><span class="sig-i">≈</span><div style="min-width:0"><div class="sig-t">FUNDING</div><div class="sig-d">-0.0436%</div></div></div><div class="sig half"><span class="sig-i">↑</span><div style="min-width:0"><div class="sig-t">OPEN INTEREST</div><div class="sig-d">$17.89M</div></div></div></div></div>
   </div>
   <div class="veto"><div class="veto-h">ПОД ВЕТО · 1</div><div class="veto-row"><span class="veto-k">SQUEEZE</span><span class="veto-v">риск EXTREME, скор 75</span></div></div>
-  <div class="perf"><div><div class="perf-k">7D</div><div class="perf-v up">+322.5%</div></div><div><div class="perf-k">30D</div><div class="perf-v up">+204.1%</div></div><div><div class="perf-k">ATH</div><div class="perf-v dn">-73.6%</div></div><div><div class="perf-k">OBV</div><div class="perf-v up">+72.5%</div></div></div>
-  <div class="tech">SRSI 17.8 · ATR 13.09 · BB 223.67 · SPOT 8% · VI+ 1.2616/0.4984</div>
+  <div class="perf"><div><div class="perf-k">7D</div><div class="perf-v up">+320.5%</div></div><div><div class="perf-k">30D</div><div class="perf-v up">+202.6%</div></div><div><div class="perf-k">ATH</div><div class="perf-v dn">-73.7%</div></div><div><div class="perf-k">OBV</div><div class="perf-v up">+72.6%</div></div></div>
+  <div class="tech">SRSI 17.5 · ATR 13.15 · BB 222.87 · SPOT 8% · VI+ 1.2616/0.4984</div>
   
 <div class="blk b1"><div class="blk-n">01</div><div class="b1-in">
   <div class="b1-h"><span class="tw"><svg viewBox="0 0 24 24"><path d="M23 4.9c-.8.4-1.7.6-2.6.8 1-.6 1.7-1.5 2-2.6-.9.5-1.9.9-3 1.1a4.7 4.7 0 0 0-8 4.3C7.5 8.3 4 6.5 1.7 3.7a4.7 4.7 0 0 0 1.5 6.3c-.8 0-1.5-.2-2.1-.6 0 2.3 1.6 4.2 3.8 4.6-.4.1-.8.2-1.2.2-.3 0-.6 0-.9-.1.6 1.9 2.4 3.3 4.4 3.3A9.5 9.5 0 0 1 0 19.5a13.3 13.3 0 0 0 7.2 2.1c8.7 0 13.4-7.2 13.4-13.4v-.6c.9-.7 1.7-1.5 2.4-2.7z"/></svg></span>
@@ -1706,7 +1718,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
     </div>
     <span class="b2-c"></span>
   </summary>
-  <div class="b2-body"><p>CONFIRMED BREAKOUT. TAIKO Reversal: падение -74% от пика старшего ТФ. дивергенция Vortex [1W], VI+ 0.86→0.89, VI- 1.08→0.71. бычья дивергенция OBV. объёмная кульминация ×17.5. капитуляция 41д назад. Volume Surge ×49.8 (экстремальный): текущий дневной объём $1.78B против среднего $35.84M за 30 дней. Свеча зелёная +26.0%. Аномальная активность: крупный игрок, новость или начало движения. Heima — DeFi Lending. Ранг 658, $28.4M, микрокап. Динамика: за год -12%; за 30 дней +170%, сильный откат от дна. TVL $0, маленький протокол. Настроение 60% бычье. Смотреть на utilization rate и риски оракула, здесь случаются чёрные лебеди.</p><p>EXTREME SQUEEZE RISK — классический manipulated памп. После разворота возможен откат 60–80%. Лонг не открывать, шорт только после подтверждённого разворота.</p></div>
+  <div class="b2-body"><p>CONFIRMED BREAKOUT. TAIKO Reversal: падение -74% от пика старшего ТФ. дивергенция Vortex [1W], VI+ 0.86→0.89, VI- 1.08→0.71. бычья дивергенция OBV. объёмная кульминация ×17.5. капитуляция 41д назад. Volume Surge ×49.8 (экстремальный): текущий дневной объём $1.78B против среднего $35.84M за 30 дней. Свеча зелёная +25.4%. Аномальная активность: крупный игрок, новость или начало движения. Heima — DeFi Lending. Ранг 658, $28.4M, микрокап. Динамика: за год -12%; за 30 дней +170%, сильный откат от дна. TVL $0, маленький протокол. Настроение 60% бычье. Смотреть на utilization rate и риски оракула, здесь случаются чёрные лебеди.</p><p>EXTREME SQUEEZE RISK — классический manipulated памп. После разворота возможен откат 60–80%. Лонг не открывать, шорт только после подтверждённого разворота.</p></div>
 </details>
 <div class="blk b3">
   <div class="blk-n">03</div>
@@ -1720,20 +1732,20 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
         <svg viewBox="0 0 100 100" aria-hidden="true">
           <circle class="rr-trk" cx="50" cy="50" r="42"/>
           <circle class="rr-arc" cx="50" cy="50" r="42"
-                  stroke-dasharray="227.9 263.89"/>
+                  stroke-dasharray="229.27 263.89"/>
         </svg>
         <div class="rr-val">1:4.4</div>
         <div class="rr-cap">R : R</div>
       </div>
       <div class="rr-nums">
         <div class="rr-c"><span class="rr-l">ВХОД</span>
-          <span class="rr-p rr-e">$0.33817</span></div>
+          <span class="rr-p rr-e">$0.33658</span></div>
         <div class="rr-c"><span class="rr-l">СТОП</span>
-          <span class="rr-p rr-s">$0.29083</span>
+          <span class="rr-p rr-s">$0.28946</span>
           <span class="rr-d">-14.0%</span></div>
         <div class="rr-c"><span class="rr-l">ЦЕЛЬ 1</span>
           <span class="rr-p rr-t">$0.54500</span>
-          <span class="rr-d">+61.2%</span></div>
+          <span class="rr-d">+61.9%</span></div>
       </div>
     </div>
     <div class="b3-d">Конфликт сигналов. TAIKO даёт разворот, но squeeze-риск EXTREME со скором 75 — часть роста обеспечена ликвидациями шортов. Вход половинным объёмом либо ожидание отката и повторного теста базы.</div>
