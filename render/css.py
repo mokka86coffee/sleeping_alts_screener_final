@@ -796,14 +796,14 @@ STRAT = """
 /* заголовок — общий шрифт блоков (_title), тикеры — mono, отдельно */
 .g-lead{flex:0 0 auto;display:flex;flex-direction:column;
   justify-content:space-between;align-items:flex-end;height:196px;padding:8px 0; position: absolute;
-    top: 0;transform: translateY(-43%);right: 10%}
+    top: 0;transform: translateY(-39%);right: 10%}
+.lead-list{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-bottom: 20px; overflow: auto;padding-right: 6px}
 .lead-list::-webkit-scrollbar-thumb {
     border-radius: 5px;
     border: 1px solid #ffa5002b;
     box-shadow: inset 0 0 5px #000;
     padding-right: 6px;
 }
-.lead-list{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-bottom: 20px; overflow: auto}
 .lead-list::-webkit-scrollbar {
   width: 1px; /* ширина полосы */
 }
