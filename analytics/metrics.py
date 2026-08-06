@@ -13,7 +13,7 @@ from core.binance import (
     get_funding_rate, get_open_interest, get_spot_ticker,
     klines_1d, klines_1h, klines_4h, klines_1w, series,
 )
-from core.config import MIN_HISTORY_DAYS, VOL_MEDIAN_WINDOW, MIN_BAR_FILL
+from core.config import MIN_HISTORY_DAYS, VOL_MEDIAN_WINDOW, MIN_BAR_FILL, ANOMALY_WINDOW
 
 # Короткие ряды, которые остаются в снимке для отрисовки спарклайнов
 KEEP_SERIES = ("spark_1d", "spark_vol")
@@ -107,6 +107,46 @@ def vol_ratio(klines: list[list]) -> float | None:
         min_fill=MIN_BAR_FILL,
     )
 
+def aggregate_quote_fill(klines: list[list], scale: int) -> tuple[list[float], list[float]]:
+    """Группирует часовые клайны по N штук, свежий край всегда полный.
+
+    Остаток обрезается СНИЗУ (со старой стороны) явно — если этого не
+    сделать, при len % scale != 0 самая свежая группа окажется короче
+    scale и её fill будет занижен не рынком, а арифметикой.
+    """
+    if scale <= 1:
+        return series(klines, K_QUOTE_VOLUME), [bar_fill(k) for k in klines]
+
+    trimmed = klines[len(klines) % scale:]
+    quotes: list[float] = []
+    fills: list[float] = []
+    for i in range(0, len(trimmed), scale):
+        chunk = trimmed[i:i + scale]
+        quotes.append(sum(float(k[K_QUOTE_VOLUME]) for k in chunk))
+        fills.append(min(1.0, sum(bar_fill(k) for k in chunk) / scale))
+    return quotes, fills
+
+
+def volume_ratios_5(kl_1h: list[list], kl_4h: list[list], kl_1d: list[list]) -> dict[str, float]:
+    """Кратность текущего бара к медиане ANOMALY_WINDOW предыдущих
+    закрытых — на пяти масштабах: 2ч/4ч/6ч/12ч/1д. Источник — уже
+    загруженные для других целей клайны, дополнительной сети ноль.
+    """
+    out: dict[str, float] = {}
+
+    for label, hours in (("2h", 2), ("6h", 6), ("12h", 12)):
+        quotes, fills = aggregate_quote_fill(kl_1h, hours) if kl_1h else ([], [])
+        r = volume_ratio(quotes, fills, window=ANOMALY_WINDOW, min_fill=MIN_BAR_FILL)
+        out[label] = round(r, 2) if r is not None else 0.0
+
+    for label, kl in (("4h", kl_4h), ("1d", kl_1d)):
+        quotes = series(kl, K_QUOTE_VOLUME) if kl else []
+        fills = [bar_fill(k) for k in kl] if kl else []
+        r = volume_ratio(quotes, fills, window=ANOMALY_WINDOW, min_fill=MIN_BAR_FILL)
+        out[label] = round(r, 2) if r is not None else 0.0
+
+    return out
+
 BOTTOM_WINDOW = 60
 def _from_bottom(lows: list[float], price: float) -> tuple[float, int]:
     """Рост от минимума окна и его давность в днях.
@@ -156,6 +196,10 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
     closes_1h = series(kl_1h, K_CLOSE, tail=48) if kl_1h else []
     volumes_1h = series(kl_1h, K_VOLUME, tail=48) if kl_1h else []
 
+    vol_x_1h = vol_ratio(kl_1h)
+    vol_x_4h = vol_ratio(kl_4h)
+    vol_x_1d = vol_ratio(kl_1d)
+    vol_ratio_5 = volume_ratios_5(kl_1h, kl_4h, kl_1d)
     # ── Изменения цены ──
     ch_24h = pct_change(closes_1d, 1)
     ch_7d = pct_change(closes_1d, 7)
@@ -220,6 +264,7 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
         "vol_x_1h": vol_x_1h,
         "vol_x_4h": vol_x_4h,
         "vol_x_1d": vol_x_1d,
+        "vol_ratio": vol_ratio_5,
         "ch_30d": ch_30d,
         "ath": ath,
         "ath_drop": ath_drop,

@@ -29,6 +29,7 @@ import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from analytics.leaders import update_leaders
 from analytics.candidate import build_candidate
 from core.binance import get_futures_tickers
 from core.config import (
@@ -40,7 +41,6 @@ from core.config import (
 from core.http import log
 from core.models import Candidate, FunnelStage, RunSnapshot
 from sources.storage import compare_with_previous, save_snapshot, write_atomic
-
 
 # ─────────────────────────────────────────────────────────────
 # Отбор символов
@@ -535,6 +535,16 @@ def run_once(args: argparse.Namespace) -> int:
 
         path = save_snapshot(snapshot)
         log(f"→ Снимок сохранён: {path}")
+
+    # Лидер прогона FLOW и аномальные объёмы — накопительные файлы
+    # в output/ (analytics/leaders.py), не часть самого отчёта.
+    #
+    # Пишется ДО git_publish(): он коммитит output/ через `git add .`,
+    # и если leaders/anomaly лягут после коммита — уедут в git только
+    # со следующего прогона, на один run позже самого отчёта.
+    flow_leaders_path, anomaly_path = update_leaders(candidates, snapshot)
+    log(f"→ Лидер FLOW: {flow_leaders_path}")
+    log(f"→ Аномальные объёмы: {anomaly_path}")
 
     # ── Отчёт ──
     published = False

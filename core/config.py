@@ -117,6 +117,22 @@ BUCKET_GOOD = 35
 BUCKET_SCOUT = 20
 
 # ─────────────────────────────────────────────────────────────
+# Лидер FLOW и аномальные объёмы
+# ─────────────────────────────────────────────────────────────
+
+# ── leaders.py: лидер FLOW и аномальные объёмы ──
+LEADERS_PATH = OUTPUT_DIR / "leaders.json"
+ANOMALY_PATH = OUTPUT_DIR / "anomaly_volume.json"
+LEADERS_ARCHIVE_PATH = OUTPUT_DIR / "leaders_archive.jsonl"
+LEADERS_MAX_AGE_DAYS = 14
+
+# Отдельная от VOL_MEDIAN_WINDOW константа. Числа сейчас совпадают (30),
+# но константы независимы — тот же принцип, что уже у MIN_BAR_FILL и
+# PARTIAL_BAR_MIN_FILL в flow_config.
+ANOMALY_WINDOW = 30
+ANOMALY_RATIO_MIN = 5.0
+
+# ─────────────────────────────────────────────────────────────
 # Исключения из выборки
 # ─────────────────────────────────────────────────────────────
 STABLECOINS = {
