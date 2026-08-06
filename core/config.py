@@ -130,7 +130,7 @@ LEADERS_MAX_AGE_DAYS = 14
 # но константы независимы — тот же принцип, что уже у MIN_BAR_FILL и
 # PARTIAL_BAR_MIN_FILL в flow_config.
 ANOMALY_WINDOW = 30
-ANOMALY_RATIO_MIN = 5.0
+ANOMALY_RATIO_MIN = 25.0
 
 # ─────────────────────────────────────────────────────────────
 # Исключения из выборки
