@@ -882,7 +882,7 @@ def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
     return f"""
 <div class="g-lead">
   <div class="lead-list">{items}</div>
-  <div class="lead-hd">лидеры по объёму - flow<s>журнал</s></div>
+  <div class="lead-hd">объём - flow</div>
 </div>"""
 
 def _blk_flow(candidates: list[Candidate]) -> str:
