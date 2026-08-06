@@ -811,53 +811,76 @@ def _max_vol_ratio(rec: dict) -> float:
             continue
     return max(values, default=0.0)
 
+def _shuffle_key(sym: str) -> int:
+    """Стабильный псевдослучайный ключ порядка.
+
+    Порядок в панели не несёт смысла: вес монеты сказан цветом
+    (объём) и кантом (отбор FLOW). Сортировка по кратности эту
+    информацию дублировала и заодно расслаивала список — сверху
+    сплошное золото, снизу сплошное белое. Читается как две
+    ленты, а не как одна.
+
+    Перемешивание даёт разнобой, но не случайное: ключ выведен
+    из имени, поэтому между прогонами порядок один и тот же.
+    Список, тасующийся при каждом обновлении, глаз перестаёт
+    узнавать, и панель превращается в шум.
+
+    FNV-1a, а не hash(): встроенный хеш строк рандомизирован
+    солью процесса, и порядок менялся бы при каждом запуске.
+    """
+    h = 2166136261
+    for ch in sym:
+        h = ((h ^ ord(ch)) * 16777619) & 0xFFFFFFFF
+    return h
+
+# Ступени взрывного объёма. Одного порога мало: x50 и x200 —
+# события разного веса, а одним цветом они сливаются в «жёлтое».
+# Три ступени дают шкалу, читаемую без чисел.
+LEAD_X1 = 50.0
+LEAD_X2 = 100.0
+LEAD_X3 = 200.0
+
 
 def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
     """Кто двигает рынок — правый край строки FLOW.
 
-    Два источника, и они не равнозначны. leaders.json — лидеры
-    выборки FLOW, монеты со сработавшим подкейсом и построенным
-    планом. anomaly_volume.json — журнал аномальных объёмов,
-    факт без интерпретации.
+    Два источника. leaders.json — лидеры выборки FLOW: подкейс
+    сработал, план построен. anomaly_volume.json — журнал
+    аномальных объёмов, факт без интерпретации.
 
-    Лидеры FLOW идут первыми и всегда: это отобранное, а не
-    замеченное. Объёмные добираются следом, отсортированные по
-    кратности.
+    Порядок ОБЩИЙ и задан кратностью объёма, а не источником.
+    Раньше список склеивался встык — сначала весь FLOW, потом
+    весь объём, — и читался как две несвязанные ленты, где
+    верхняя половина всегда одного цвета. Источник кодируется
+    кантом, поэтому в порядке он не нужен.
+
+    Лидер FLOW без записи в журнале объёмов получает 0 и уходит
+    в хвост: про его объём мы ничего не знаем, и притворяться,
+    что знаем, нельзя. Из списка он не выпадает — держит кант.
 
     Классы:
-      lead-f — лидер выборки FLOW
-      lead-g — объём выше LEAD_HOT_X на любом из пяти окон
+      lead-f  — лидер выборки FLOW (кант под первой буквой)
+      lead-g1/g2/g3 — объём выше x50 / x100 / x200
 
-    Классы не исключают друг друга и вешаются оба: монета,
-    попавшая в оба журнала, — самый сильный случай на панели,
-    и терять половину сигнала при отрисовке нельзя.
+    Признаки не исключают друг друга: цвет отдан объёму, кант —
+    отбору, и монета с обоими видна как самый сильный случай.
     """
     flow_j = _read_json(LEADERS_PATH)
     vol_j = _read_json(ANOMALY_PATH)
 
-    # Служебный ключ журнала лидеров: там лежит last_leader,
-    # а не монета. Отфильтровать по префиксу, а не по имени:
-    # служебных ключей может стать больше.
+    # Служебные ключи журналов (last_leader и прочее) не монеты.
+    # Фильтр по префиксу, а не по имени: их может стать больше.
     flow_syms = [k for k in flow_j if not k.startswith("_")]
+    vol_syms = [k for k in vol_j if not k.startswith("_")]
 
-    # Объёмные — по убыванию максимальной кратности.
-    vol_ranked = sorted(
-        ((k, _max_vol_ratio(v)) for k, v in vol_j.items() if not k.startswith("_")),
-        key=lambda p: -p[1],
-    )
-
-    seen: set[str] = set()
-    order: list[str] = []
+    ranked: dict[str, float] = {}
     for sym in flow_syms:
-        if sym not in seen:
-            seen.add(sym)
-            order.append(sym)
-    for sym, _x in vol_ranked:
-#         if len(order) >= LEAD_MAX:
-#             break
-        if sym not in seen:
-            seen.add(sym)
-            order.append(sym)
+        ranked[sym] = _max_vol_ratio(vol_j.get(sym) or {})
+    for sym in vol_syms:
+        ranked.setdefault(sym, _max_vol_ratio(vol_j.get(sym) or {}))
+
+    # Порядок — разнобой, а не рейтинг: см. _shuffle_key.
+    order = sorted(ranked, key=_shuffle_key)
 
     by_symbol = {c.symbol.upper(): c for c in candidates}
 
@@ -866,15 +889,23 @@ def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
         cls = ["lead-t"]
         if sym in flow_j:
             cls.append("lead-f")
-        if _max_vol_ratio(vol_j.get(sym) or {}) >= LEAD_HOT_X:
-            cls.append("lead-g")
+        x = ranked[sym]
+        if x >= LEAD_X3:
+            cls.append("lead-g3")
+        elif x >= LEAD_X2:
+            cls.append("lead-g2")
+        elif x >= LEAD_X1:
+            cls.append("lead-g1")
 
         c = by_symbol.get(sym.upper())
         # Клик открывает карточку только если монета есть в этом
         # прогоне: журнал переживает прогоны, модалки — нет.
         attr = f' data-coin="{esc(c.symbol)}"' if c is not None else ""
         label = sym[:-4] if sym.endswith("USDT") else sym
-        items += f'<span class="{" ".join(cls)}"{attr}>{esc(label)}</span>'
+        title = f' title="×{x:.0f}"' if x else ""
+        items += (
+            f'<span class="{" ".join(cls)}"{attr}{title}>{esc(label)}</span>'
+        )
 
     if not items:
         items = '<span class="lead-t off">нет данных</span>'
@@ -882,7 +913,7 @@ def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
     return f"""
 <div class="g-lead">
   <div class="lead-list">{items}</div>
-  <div class="lead-hd">объём - flow</div>
+  <div class="lead-hd">объём · flow</div>
 </div>"""
 
 def _blk_flow(candidates: list[Candidate]) -> str:

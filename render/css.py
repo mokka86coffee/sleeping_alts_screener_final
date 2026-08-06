@@ -1077,7 +1077,8 @@ RESPONSIVE = """
   .fl{max-width:560px}
   .row-s{flex-wrap:wrap}
     .g-lead{flex:1 1 100%;align-items:center;padding-top:0}
-    .lead-list{flex-direction:row;flex-wrap:wrap;justify-content:center;gap:6px 16px}
+  .lead-list{display:flex;flex-direction:row;flex-wrap:wrap;
+    justify-content:center;gap:6px 16px;direction:ltr}
 }
 
 @media (max-width:760px){
