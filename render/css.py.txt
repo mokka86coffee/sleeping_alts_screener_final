@@ -754,7 +754,8 @@ CARD = """
 # РЯД СТРАТЕГИЙ · лента FLOW
 # ═══════════════════════════════════════════════════
 STRAT = """
-.row-s{display:block;margin-bottom:52px}
+.row-s{display:flex;align-items:flex-start;gap:28px;margin-bottom:52px}
+.strat{flex:1;min-width:0}
 .strat{position:relative;padding:8px 0 0;cursor:pointer}
 .c-fl{--c:#D9A441;--h1:rgba(217,164,65,.30);--h2:rgba(184,134,11,.08)}
 .strat .halo{width:56%;height:96px;top:2px}
@@ -780,6 +781,20 @@ STRAT = """
 .fl:hover .fl-node{opacity:.55}
 .fl:hover .fl-node:hover{opacity:1}
 .fl-node:hover .fl-c{fill:#FFF4D8}
+
+/* заголовок — общий шрифт блоков (_title), тикеры — mono, отдельно */
+.g-lead{flex:0 0 auto;display:flex;flex-direction:column;
+  justify-content:space-between;align-items:flex-end;height:130px;padding:8px 0; position: absolute;
+    top: 0;transform: translateY(-26%);right: 10%}
+.lead-list{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-bottom: 20px;}
+.lead-t{font-size: 7px;font-weight: 300;letter-spacing: 2.5px;color: rgb(232 234 238 / 56%)}
+.lead-t.lead-g{color: #d4b476;}
+.lead-t.lead-f::first-letter {border-bottom: 1px solid #ffba008a}
+.lead-t[data-coin]{position: relative}
+.lead-t[data-coin]:hover{color:var(--gd)}
+.lead-hd{font-weight:300;letter-spacing: 2.5px;font-size: 6px;letter-spacing: 3px;color: #6b5c38;
+  white-space:nowrap}
+.lead-hd s{text-decoration:none}
 """
 
 # ═══════════════════════════════════════════════════
@@ -802,6 +817,18 @@ FLOWREP = """
 .t-gd{--fc:#FFB020;--fl:#FFD25E;--fw:#FFEBB0;--fo:.65}
 .t-gr{--fc:#22E08A;--fl:#6BFFB4;--fw:#BFFFDF;--fo:.60}
 .t-rd{--fc:#FF6B35;--fl:#FF9B6B;--fw:#FFC4A0;--fo:.45}
+
+/* состояние импульса: 4 сегмента, 3 тона. Заполнение растёт
+   вместе с риском, поэтому шкала читается наоборот к фазе:
+   больше сегментов — хуже, а не лучше. */
+.fr-imp{display:flex;gap:3px}
+.fr-imp i{width:9px;height:4px;border-radius:2px;background:#1e1f26}
+.fr-imp.flat i.on{background:#4FCF8A}
+.fr-imp.up i.on{background:#F5A623}
+.fr-imp.cross i.on{background:#C4703A}
+.fr-imp.none{opacity:.3}
+.fr-impv{font-size:8px;font-weight:300;letter-spacing:1px;color:#7f838c}
+.fr-imp-off{font-size:7px;font-weight:300;letter-spacing:1px;color:#4a4a54}
 
 /* стекло + свет из левого нижнего угла */
 .fr::before{content:'';position:absolute;inset:0;border-radius:inherit;
@@ -844,7 +871,7 @@ FLOWREP = """
 .fr-sym:hover{color:var(--fl)}
 
 .fr-in{position:relative;z-index:1;display:grid;
-       grid-template-columns:188px 68px 104px 116px 158px 100px 92px 92px 84px;
+       grid-template-columns:188px 68px 104px 116px 158px 100px 92px 92px 104px;
        align-items:center;gap:0 14px;min-height:136px;padding:0 26px}
 /* чип паттерна: ярлык, не абзац — перенос запрещён */
 .fr-chip{align-self:flex-start;max-width:100%;height:16px;line-height:14px;
@@ -984,9 +1011,11 @@ RESPONSIVE = """
   .fn-line{left:60px;right:80px}
   .fn-node{width:64px}
   .risk-cap{right:auto;left:0}
-  .fr-in{grid-template-columns:150px 64px 96px 92px 1fr 92px 86px 84px 78px;
+  .fr-in{grid-template-columns:150px 64px 96px 92px 1fr 92px 86px 84px 96px;
          gap:0 12px;padding:0 20px}
   .fl{max-width:560px}
+  .row-s{flex-wrap:wrap}
+    .g-lead{width:100%}
 }
 
 @media (max-width:760px){

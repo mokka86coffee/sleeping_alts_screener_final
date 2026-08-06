@@ -8,10 +8,7 @@
 """
 
 from __future__ import annotations
-import json
-from pathlib import Path
 
-from core.config import ANOMALY_PATH, LEADERS_PATH
 from core.models import Candidate, RunSnapshot
 from render.card import render_card
 from render.table import render_slice_pane
@@ -312,6 +309,9 @@ FUNNEL_FALLBACK = [
 SECTOR_FALLBACK = [("ai", 12.4), ("gamefi", 4.1), ("meme", -3.8),
                    ("defi", -7.2), ("l1/l2", -8.0)]
 
+# Пока нет источника 2-недельного объёма нигде в системе — фолбэк
+# по макету, тикеры без USDT (их добавляет сопоставление с candidates).
+LEADERS_FALLBACK = ["BICO", "HFT", "BROCOLLI", "LAB", "BLESS", "HOLO", "HOME"]
 FN_TONE = ["#C8DCE8", "#F5A623", "#D9B84A", "#C4703A", "#8FA0B0", "#4FCF8A"]
 
 ICONS = {
@@ -764,125 +764,33 @@ FLOW_NODES = [
 ]
 
 # ─────────────────────────────────────────────────────────────
-# Журналы наблюдения · output/*.json
+# Блок · лидеры по объёму (боковая панель рядом с лентой FLOW)
 # ─────────────────────────────────────────────────────────────
-# Оба файла пишет прогон и живут они между прогонами, поэтому
-# читаются здесь, а не приходят в snapshot: снимок описывает
-# ОДИН прогон, а журнал — накопленную историю. Класть накопитель
-# в снимок значило бы дублировать его в каждом файле runs/.
-
-# Кратность, с которой объём считается взрывным. Хватает ОДНОГО
-# таймфрейма из пяти: аномалия на двухчасовке и аномалия на
-# дневке — разные события, но обе означают, что в монету пришли.
-LEAD_HOT_X = 50.0
-
-# Сколько тикеров помещается в правый край ленты FLOW.
-LEAD_MAX = 7
-
-
-def _read_json(path: Path) -> dict:
-    """Журнал с диска. Отсутствие файла — не ошибка.
-
-    Первый прогон на чистой машине их не находит, и падать
-    из-за этого отчёт не должен: панель просто останется пустой.
-    """
-    try:
-        with open(path, encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, ValueError):
-        return {}
-    return data if isinstance(data, dict) else {}
-
-
-def _max_vol_ratio(rec: dict) -> float:
-    """Максимальная кратность объёма по всем окнам записи.
-
-    Максимум, а не среднее: усреднение по пяти окнам топит
-    аномалию, живущую в одном из них. У 1000RATS дневка даёт
-    ×31 при 2h ×0.34 — по среднему монета невидима, хотя
-    событие произошло.
-    """
-    vr = rec.get("vol_ratio") or {}
-    values = []
-    for v in vr.values():
-        try:
-            values.append(float(v))
-        except (TypeError, ValueError):
-            continue
-    return max(values, default=0.0)
-
-
 def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
-    """Кто двигает рынок — правый край строки FLOW.
+    """Лидеры по объёму за 2 недели — правый край строки FLOW.
 
-    Два источника, и они не равнозначны. leaders.json — лидеры
-    выборки FLOW, монеты со сработавшим подкейсом и построенным
-    планом. anomaly_volume.json — журнал аномальных объёмов,
-    факт без интерпретации.
+    Без карточки: голый список, как «кто двигает рынок» у ленты —
+    подпись снизу, тикеры сверху, прижаты к правому краю.
 
-    Лидеры FLOW идут первыми и всегда: это отобранное, а не
-    замеченное. Объёмные добираются следом, отсортированные по
-    кратности.
-
-    Классы:
-      lead-f — лидер выборки FLOW
-      lead-g — объём выше LEAD_HOT_X на любом из пяти окон
-
-    Классы не исключают друг друга и вешаются оба: монета,
-    попавшая в оба журнала, — самый сильный случай на панели,
-    и терять половину сигнала при отрисовке нельзя.
+    ЧТО ПОДКЛЮЧИТЬ: snapshot.volume_leaders_2w — список символов,
+    отсортированный по обороту за 2 недели. Источника пока нет нигде
+    в системе, поэтому при пустом поле — LEADERS_FALLBACK по макету.
     """
-    flow_j = _read_json(LEADERS_PATH)
-    vol_j = _read_json(ANOMALY_PATH)
-
-    # Служебный ключ журнала лидеров: там лежит last_leader,
-    # а не монета. Отфильтровать по префиксу, а не по имени:
-    # служебных ключей может стать больше.
-    flow_syms = [k for k in flow_j if not k.startswith("_")]
-
-    # Объёмные — по убыванию максимальной кратности.
-    vol_ranked = sorted(
-        ((k, _max_vol_ratio(v)) for k, v in vol_j.items() if not k.startswith("_")),
-        key=lambda p: -p[1],
-    )
-
-    seen: set[str] = set()
-    order: list[str] = []
-    for sym in flow_syms:
-        if sym not in seen:
-            seen.add(sym)
-            order.append(sym)
-    for sym, _x in vol_ranked:
-        if len(order) >= LEAD_MAX:
-            break
-        if sym not in seen:
-            seen.add(sym)
-            order.append(sym)
+    src = getattr(snapshot, "volume_leaders_2w", None) or []
+    symbols = [str(s).upper() for s in src][:7] if src else list(LEADERS_FALLBACK)
 
     by_symbol = {c.symbol.upper(): c for c in candidates}
 
     items = ""
-    for sym in order[:LEAD_MAX]:
-        cls = ["lead-t"]
-        if sym in flow_j:
-            cls.append("lead-f")
-        if _max_vol_ratio(vol_j.get(sym) or {}) >= LEAD_HOT_X:
-            cls.append("lead-g")
-
-        c = by_symbol.get(sym.upper())
-        # Клик открывает карточку только если монета есть в этом
-        # прогоне: журнал переживает прогоны, модалки — нет.
+    for sym in symbols:
+        c = by_symbol.get(sym if sym.endswith("USDT") else f"{sym}USDT")
         attr = f' data-coin="{esc(c.symbol)}"' if c is not None else ""
-        label = sym[:-4] if sym.endswith("USDT") else sym
-        items += f'<span class="{" ".join(cls)}"{attr}>{esc(label)}</span>'
-
-    if not items:
-        items = '<span class="lead-t off">нет данных</span>'
+        items += f'<span class="lead-t"{attr}>{esc(sym)}</span>'
 
     return f"""
 <div class="g-lead">
   <div class="lead-list">{items}</div>
-  <div class="lead-hd">лидеры по объёму - flow<s>журнал</s></div>
+  <div class="lead-hd">лидеры по объёму <s>2 нед</s></div>
 </div>"""
 
 def _blk_flow(candidates: list[Candidate]) -> str:

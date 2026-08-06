@@ -123,7 +123,7 @@ BUCKET_SCOUT = 20
 # ── leaders.py: лидер FLOW и аномальные объёмы ──
 LEADERS_PATH = OUTPUT_DIR / "leaders.json"
 ANOMALY_PATH = OUTPUT_DIR / "anomaly_volume.json"
-LEADERS_ARCHIVE_PATH = OUTPUT_DIR / "leaders_archive.jsonl"
+LEADERS_ARCHIVE_PATH = OUTPUT_DIR / "leaders_archive.json"
 LEADERS_MAX_AGE_DAYS = 14
 
 # Отдельная от VOL_MEDIAN_WINDOW константа. Числа сейчас совпадают (30),
