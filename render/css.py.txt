@@ -45,7 +45,6 @@ TOKENS = """
   --mono:'SF Mono',SFMono-Regular,Consolas,'Liberation Mono',monospace;
 }
 """
-
 # ═══════════════════════════════════════════════════
 # БАЗА · ФОН
 # ═══════════════════════════════════════════════════
@@ -56,6 +55,18 @@ body{
   font-family:'Helvetica Neue',Inter,-apple-system,BlinkMacSystemFont,Arial,sans-serif;
   font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;
   overflow-x:hidden;
+}
+body::-webkit-scrollbar {
+  width: 1px; /* ширина полосы */
+}
+body::-webkit-scrollbar-track {
+  background: #888; /* цвет дорожки */
+}
+body::-webkit-scrollbar-thumb {
+  background-color: #888; /* цвет бегунка */
+  border-radius: 5px; /* скруглённые углы */
+  border: 1px solid orange; /* граница */
+  box-shadow: inset 0 0 5px #000; /* внутренняя тень для глубины */
 }
 
 a{text-decoration:none;color:inherit}
@@ -754,9 +765,15 @@ CARD = """
 # РЯД СТРАТЕГИЙ · лента FLOW
 # ═══════════════════════════════════════════════════
 STRAT = """
-.row-s{display:flex;align-items:flex-start;gap:28px;margin-bottom:52px}
-.strat{flex:1;min-width:0}
-.strat{position:relative;padding:8px 0 0;cursor:pointer}
+/* Ряд стратегий: лента + правая колонка «кто двигает рынок».
+
+   Колонка стоит в потоке обычной флекс-ячейкой. Раньше она
+   вырывалась в absolute — из-за этого её высота не влияла на
+   строку, и при семи тикерах список наезжал на воронку снизу.
+   Теперь строка растёт вместе с содержимым, а лента остаётся
+   по центру за счёт flex:1 и margin:0 auto внутри .fl. */
+.row-s{display:flex;align-items:stretch;gap:28px;margin-bottom:52px}
+.strat{position:relative;flex:1 1 auto;min-width:0;padding:8px 0 0;cursor:pointer}
 .c-fl{--c:#D9A441;--h1:rgba(217,164,65,.30);--h2:rgba(184,134,11,.08)}
 .strat .halo{width:56%;height:96px;top:2px}
 .strat.empty{opacity:.45;pointer-events:none}
@@ -782,17 +799,61 @@ STRAT = """
 .fl:hover .fl-node:hover{opacity:1}
 .fl-node:hover .fl-c{fill:#FFF4D8}
 
+/* Правый край ленты FLOW · «кто двигает рынок».
+
+   Две метки, и они не альтернативы, а разные утверждения.
+   lead-f — монета отобрана стратегией: подкейс сработал,
+   план построен. lead-g — объём выше x50 на одном из окон,
+   факт без интерпретации.
+
+   Цвет отдан объёму, кант — отбору: признаки не спорят за одно
+   свойство и читаются вместе. Монета с обеими метками — самый
+   сильный случай на панели. */
+
+.g-lead{flex:0 0 132px;display:flex;flex-direction:column;
+  align-items:flex-end;justify-content:flex-end;
+  gap:14px;padding:8px 0 12px}
 /* заголовок — общий шрифт блоков (_title), тикеры — mono, отдельно */
-.g-lead{flex:0 0 auto;display:flex;flex-direction:column;
-  justify-content:space-between;align-items:flex-end;height:130px;padding:8px 0; position: absolute;
-    top: 0;transform: translateY(-26%);right: 10%}
-.lead-list{display:flex;flex-direction:column;align-items:flex-end;gap:6px;margin-bottom: 20px;}
-.lead-t{font-size: 7px;font-weight: 300;letter-spacing: 2.5px;color: rgb(232 234 238 / 56%)}
-.lead-t.lead-g{color: #d4b476;}
-.lead-t.lead-f::first-letter {border-bottom: 1px solid #ffba008a}
-.lead-t[data-coin]{position: relative}
+.g-lead{height:196px}
+.lead-list::-webkit-scrollbar-thumb {
+    border-radius: 5px;
+    border: 1px solid #ffa5002b;
+    box-shadow: inset 0 0 5px #000;
+    padding-right: 6px;
+}
+.lead-list::-webkit-scrollbar {
+  width: 1px; /* ширина полосы */
+}
+.lead-list::-webkit-scrollbar-track {
+  background: transparent; /* цвет дорожки */
+}
+.lead-list{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+
+.lead-t{font-size:7px;font-weight:300;letter-spacing:2.5px;
+  color:rgba(232,234,238,.56);transition:color .14s}
+
+/* объём x50 и выше — золото */
+.lead-t.lead-g{color:#D4B476}
+
+/* лидер выборки FLOW — кант под тикером целиком.
+   Раньше подчёркивалась одна буква: на списке из семи имён
+   это читалось как дефект шрифта, а не как признак. */
+.lead-t.lead-f{border-bottom:1px solid rgba(255,186,0,.55);
+  padding-bottom:2px}
+
+/* оба признака сразу: кант ярче и со свечением,
+   иначе на золотом тексте он теряется */
+.lead-t.lead-f.lead-g{border-bottom-color:rgba(255,208,120,.85);
+  text-shadow:0 0 8px rgba(217,164,65,.35)}
+
+/* журналы пусты — панель гаснет, а не исчезает:
+   пропавший блок читается как поломка вёрстки */
+.lead-t.off{color:#3a3a44;letter-spacing:2px}
+
+.lead-t[data-coin]{position:relative;cursor:pointer}
 .lead-t[data-coin]:hover{color:var(--gd)}
-.lead-hd{font-weight:300;letter-spacing: 2.5px;font-size: 6px;letter-spacing: 3px;color: #6b5c38;
+
+.lead-hd{font-weight:300;font-size:6px;letter-spacing:3px;color:#6b5c38;
   white-space:nowrap}
 .lead-hd s{text-decoration:none}
 """
@@ -1015,7 +1076,8 @@ RESPONSIVE = """
          gap:0 12px;padding:0 20px}
   .fl{max-width:560px}
   .row-s{flex-wrap:wrap}
-    .g-lead{width:100%}
+    .g-lead{flex:1 1 100%;align-items:center;padding-top:0}
+    .lead-list{flex-direction:row;flex-wrap:wrap;justify-content:center;gap:6px 16px}
 }
 
 @media (max-width:760px){

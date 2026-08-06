@@ -814,7 +814,7 @@ STRAT = """
   align-items:flex-end;justify-content:flex-end;
   gap:14px;padding:8px 0 12px}
 /* заголовок — общий шрифт блоков (_title), тикеры — mono, отдельно */
-.g-lead{height:196px}
+.g-lead{height:196px; overflow: auto}
 .lead-list::-webkit-scrollbar-thumb {
     border-radius: 5px;
     border: 1px solid #ffa5002b;
