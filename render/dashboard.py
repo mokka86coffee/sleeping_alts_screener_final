@@ -787,7 +787,7 @@ def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
         attr = f' data-coin="{esc(c.symbol)}"' if c is not None else ""
         items += f'<span class="lead-t"{attr}>{esc(sym)}</span>'
 
-    items += f'<span class="lead-t lead-g" data-coin="STO">STO</span>'
+    items += f'<span class="lead-t lead-g lead-f" data-coin="STO">STO</span>'
 
     return f"""
 <div class="g-lead">
