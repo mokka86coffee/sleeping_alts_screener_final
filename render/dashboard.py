@@ -838,8 +838,8 @@ def _shuffle_key(sym: str) -> int:
 # события разного веса, а одним цветом они сливаются в «жёлтое».
 # Три ступени дают шкалу, читаемую без чисел.
 LEAD_X1 = 50.0
-LEAD_X2 = 80.0
-LEAD_X3 = 100.0
+LEAD_X2 = 100.0
+LEAD_X3 = 150.0
 
 
 def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
@@ -888,11 +888,44 @@ def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
     order = list(ranked)
     random.shuffle(order)
 
+    def _tier(sym: str) -> int:
+        x = ranked[sym]
+        if x >= LEAD_X3: return 3
+        if x >= LEAD_X2: return 2
+        if x >= LEAD_X1: return 1
+        return 0
+
+    # Первая колонка (7 монет) — единственное, что видно без наведения.
+    # Золотые не должны зависеть от того, куда их бросил shuffle: меняем
+    # местами с нетиерными в её пределах. Порядок внутри каждой части
+    # всё равно вперемешку — полосатости, от которой уже отказались
+    # раньше (сплошное золото сверху/снизу), это не создаёт.
+    # Потолок на промоушен: без него, если тиерных монет в выборке
+    # много, они вытесняют ВСЕ нетиерные из семёрки — та же полосатость,
+    # от которой уже отказались раньше, просто внутри одной видимой
+    # колонки вместо всей ленты. LEAD_PROMOTE_MAX держит контраст даже
+    # когда почти весь прогон золотой.
+    LEAD_PROMOTE_MAX = 2
+    visible, rest = order[:7], order[7:]
+    promoted = 0
+    for sym in [s for s in rest if _tier(s) > 0]:
+        if promoted >= LEAD_PROMOTE_MAX:
+            break
+        demote = next((s for s in visible if _tier(s) == 0), None)
+        if demote is None:
+            break
+        vi, ri = visible.index(demote), rest.index(sym)
+        visible[vi], rest[ri] = rest[ri], visible[vi]
+        promoted += 1
+    order = visible + rest
+
     by_symbol = {c.symbol.upper(): c for c in candidates}
 
     items = ""
-    for sym in order:
+    for i, sym in enumerate(order):
         cls = ["lead-t"]
+        if i >= 7:
+            cls.append("lead-x")
         if sym in flow_j:
             cls.append("lead-f")
         x = ranked[sym]

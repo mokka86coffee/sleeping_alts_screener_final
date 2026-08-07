@@ -772,7 +772,8 @@ STRAT = """
    строку, и при семи тикерах список наезжал на воронку снизу.
    Теперь строка растёт вместе с содержимым, а лента остаётся
    по центру за счёт flex:1 и margin:0 auto внутри .fl. */
-.row-s{display:flex;align-items:stretch;gap:28px;margin-bottom:52px}
+.row-s{display:flex;align-items:stretch;gap:28px;margin-bottom:52px;
+  position:relative}
 .strat{position:relative;flex:1 1 auto;min-width:0;padding:8px 0 0;cursor:pointer}
 .c-fl{--c:#D9A441;--h1:rgba(217,164,65,.30);--h2:rgba(184,134,11,.08)}
 .strat .halo{width:56%;height:96px;top:2px}
@@ -807,8 +808,8 @@ STRAT = """
    Кант под первой буквой — лидер выборки FLOW.
    Цвет и яркость — объём: x50 / x100 / x200.
    Признаки не спорят за одно свойство и читаются вместе. */
-.g-lead{flex:0 0 auto;display:flex;flex-direction:column;
-  align-items:flex-end;justify-content:flex-end;
+.g-lead{position:absolute;right:0;top:-23px;
+  display:flex;flex-direction:column;align-items:flex-end;
   gap:12px;padding:8px 0 12px}
 
 /* Колонки вместо одной длинной ленты: список растёт влево,
@@ -821,6 +822,8 @@ STRAT = """
   justify-content:end;justify-items:end;
   gap:6px 18px;direction:rtl}
 .lead-list>*{direction:ltr}
+.lead-t.lead-x{opacity:0;transform: translateX(-10px);pointer-events:none;transition:opacity, transform .18s ease}
+.g-lead:hover .lead-t.lead-x{opacity:1;pointer-events:auto;transform: translateX(0)}
 
 .lead-t{font-size:7px;font-weight:300;letter-spacing:2.5px;
   color:rgba(232,234,238,.56);transition:color .14s}
@@ -844,7 +847,7 @@ STRAT = """
 .lead-t[data-coin]:hover{color:var(--gd)}
 
 .lead-hd{font-weight:300;font-size:6px;letter-spacing:3px;color:#6b5c38;
-  white-space:nowrap}
+  white-space:nowrap;align-self:right}
 .lead-hd s{text-decoration:none}
 """
 
@@ -1066,9 +1069,11 @@ RESPONSIVE = """
          gap:0 12px;padding:0 20px}
   .fl{max-width:560px}
   .row-s{flex-wrap:wrap}
-    .g-lead{flex:1 1 100%;align-items:center;padding-top:0}
+    .g-lead{flex:1 1 100%;align-items:center;padding-top:0; position:static}
   .lead-list{display:flex;flex-direction:row;flex-wrap:wrap;
-    justify-content:center;gap:6px 16px;direction:ltr}
+    max-width:none;overflow:visible}
+  .lead-t.lead-x{opacity:1;pointer-events:auto}
+  .lead-hd{align-self:center}
 }
 
 @media (max-width:760px){
