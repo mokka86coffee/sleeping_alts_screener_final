@@ -1180,7 +1180,6 @@ def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot) ->
 
     # ряд стратегий между блоками и вторым рядом
     strat = (
-        f'<div class="row row-s">'
         f'{_blk_flow(candidates)}{_blk_leaders(candidates, snapshot)}</div>'
     )
 

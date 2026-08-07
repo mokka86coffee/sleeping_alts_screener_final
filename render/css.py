@@ -774,7 +774,7 @@ STRAT = """
    по центру за счёт flex:1 и margin:0 auto внутри .fl. */
 .row-s{display:flex;align-items:stretch;gap:28px;margin-bottom:52px;
   position:relative}
-.strat{position:relative;flex:1 1 auto;min-width:0;padding:8px 0 0;cursor:pointer}
+.strat{position:relative;flex:1 1 auto;min-width:0;padding:8px 0 0;cursor:pointer; margin-bottom: 30px}
 .c-fl{--c:#D9A441;--h1:rgba(217,164,65,.30);--h2:rgba(184,134,11,.08)}
 .strat .halo{width:56%;height:96px;top:2px}
 .strat.empty{opacity:.45;pointer-events:none}
@@ -808,22 +808,32 @@ STRAT = """
    Кант под первой буквой — лидер выборки FLOW.
    Цвет и яркость — объём: x50 / x100 / x200.
    Признаки не спорят за одно свойство и читаются вместе. */
-.g-lead{position:absolute;right:0;top:-23px;
+
+    .g-lead{
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding-top: 0;
+        position: static;
+        justify-content: center;
+    }
+/*.g-lead{position:absolute;right:0;top:-23px;
   display:flex;flex-direction:column;align-items:flex-end;
-  gap:12px;padding:8px 0 12px}
+  gap:12px;padding:8px 0 12px}*/
 
 /* Колонки вместо одной длинной ленты: список растёт влево,
    и все тикеры видны без скролла — как в планшетной раскладке.
    Строк ровно 7: восьмая монета начинает новую колонку,
    а не удлиняет блок и не давит на воронку снизу. */
-.lead-list{display:grid;grid-auto-flow:column;
-  /*grid-template-rows:repeat(7,auto);*/
-  grid-auto-columns:max-content;
-  justify-content:end;justify-items:end;
-  gap:6px 18px;direction:rtl}
-.lead-list>*{direction:ltr}
-.lead-t.lead-x{opacity:0;transform: translateX(-10px);pointer-events:none;transition:opacity, transform .18s ease}
-.g-lead:hover .lead-t.lead-x{opacity:1;pointer-events:auto;transform: translateX(0)}
+.lead-list{
+    max-width: none;
+    margin-bottom: 18px;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    overflow: visible;
+    gap: 10px;
+   }
 
 .lead-t{font-size:7px;font-weight:300;letter-spacing:2.5px;
   color:rgba(232,234,238,.56);transition:color .14s}
