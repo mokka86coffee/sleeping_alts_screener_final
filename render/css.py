@@ -1072,7 +1072,7 @@ RESPONSIVE = """
     .g-lead{flex:1 1 100%;align-items:center;padding-top:0; position:static}
   .lead-list{display:flex;flex-direction:row;flex-wrap:wrap;
     max-width:none;overflow:visible}
-  .lead-t.lead-x{opacity:1;pointer-events:auto}
+  .lead-t.lead-x{opacity:1;transform: translateX(0);pointer-events:auto}
   .lead-hd{align-self:center}
 }
 
