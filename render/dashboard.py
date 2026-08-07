@@ -1180,7 +1180,7 @@ def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot) ->
 
     # ряд стратегий между блоками и вторым рядом
     strat = (
-        f'{_blk_flow(candidates)}{_blk_leaders(candidates, snapshot)}</div>'
+        f'{_blk_flow(candidates)}{_blk_leaders(candidates, snapshot)}'
     )
 
     # Панели-таблицы строим для ВСЕХ срезов, включая скрытые:
