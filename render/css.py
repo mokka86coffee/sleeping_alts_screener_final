@@ -817,7 +817,7 @@ STRAT = """
    Строк ровно 7: восьмая монета начинает новую колонку,
    а не удлиняет блок и не давит на воронку снизу. */
 .lead-list{display:grid;grid-auto-flow:column;
-  grid-template-rows:repeat(7,auto);
+  /*grid-template-rows:repeat(7,auto);*/
   grid-auto-columns:max-content;
   justify-content:end;justify-items:end;
   gap:6px 18px;direction:rtl}
