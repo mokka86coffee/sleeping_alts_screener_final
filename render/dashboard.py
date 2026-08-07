@@ -876,7 +876,7 @@ def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
 
     ranked: dict[str, float] = {}
     for sym in flow_syms:
-        ranked[sym] = _max_vol_ratio(vol_j.get(sym) or {})
+        ranked[sym] = _max_vol_ratio(flow_j.get(sym) or {})
     for sym in vol_syms:
         ranked.setdefault(sym, _max_vol_ratio(vol_j.get(sym) or {}))
 
