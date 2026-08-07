@@ -836,7 +836,17 @@ STRAT = """
    }
 
 .lead-t{font-size:7px;font-weight:300;letter-spacing:2.5px;
-  color:rgba(232,234,238,.56);transition:color .14s}
+  color:rgba(232,234,238,.56);transition:color .14s;
+      border-radius: 100%;
+    /*transition: transform .2s, box-shadow .2s, background .1s, text-shadow .2s;*/
+  }
+  /* .lead-t:hover {
+      transform: scale(3);
+      background: radial-gradient(circle, #0012fd, transparent) 131% / 1029px;
+      box-shadow: 0 0 19px 8px #0012fdde;
+      text-shadow: 1px 1px 1px black, 1px 1px 1px black;
+      z-index: 2;
+  } */
 
 /* три ступени объёма: приглушённое золото → полное → светлое.
    Одного цвета мало: x50 и x200 одинаково жёлтыми сливаются,
