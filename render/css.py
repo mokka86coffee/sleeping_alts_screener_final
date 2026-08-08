@@ -1210,7 +1210,7 @@ ORBIT = """
 }
 /* Дрейф семейства: оборот за 4 минуты. Крутится группа без фильтров —
    размытая подсветка лежит внутри и на кадр не пересчитывается. */
-.ob-spin{transform-origin:500px 320px;animation:ob-drift 240s linear infinite}
+/* .ob-spin{transform-origin:500px 320px;animation:ob-drift 240s linear infinite} */
 /* Встречный слой медленнее и в другую сторону: два одинаковых направления
    читались бы как одно, разница скоростей даёт параллакс. */
 .ob-spin-back{transform-origin:500px 320px;
