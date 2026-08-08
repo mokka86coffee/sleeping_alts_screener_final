@@ -1283,7 +1283,7 @@ def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot) ->
     # Куб идёт между FLOW и лидерами: в .row-s он встаёт справа от ленты,
     # а на узких экранах ряд переносится и куб скрывается медиазапросом.
     strat = (
-        f'{_blk_flow(candidates)}{_blk_cube()}'
+        f'{_blk_flow(candidates)}'
         f'{_blk_leaders(candidates, snapshot)}'
     )
 
@@ -1301,6 +1301,7 @@ def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot) ->
   {strat}
   <div class="row row-2">{row2}</div>
   {_funnel(snapshot)}
+  {_blk_cube()}
 </div>
 <div class="screen hide" id="panes">{panes}</div>
 {_modals(candidates)}
