@@ -1949,7 +1949,7 @@ ORBIT_JS = """
   buildDust();
   buildStars();
   build();
-  requestAnimationFrame(frame);
+  // requestAnimationFrame(frame);
 })();
 </script>
 """

@@ -1200,7 +1200,7 @@ ORBIT = """
 @keyframes ob-shine{0%,100%{opacity:var(--o,.6)}50%{opacity:1}}
 
 @keyframes ob-drift{to{transform:rotate(360deg)}}
-@keyframes ob-driftBack{to{transform:rotate(-60deg)}}
+@keyframes ob-driftBack{to{transform:rotate(-360deg)}}
 @keyframes ob-run{to{stroke-dashoffset:-1000}}
 @keyframes ob-twinkle{0%,100%{opacity:.15}50%{opacity:.7}}
 @keyframes ob-pulse{0%,100%{opacity:.30}50%{opacity:.55}}
@@ -1210,7 +1210,7 @@ ORBIT = """
 }
 /* Дрейф семейства: оборот за 4 минуты. Крутится группа без фильтров —
    размытая подсветка лежит внутри и на кадр не пересчитывается. */
-/* .ob-spin{transform-origin:500px 320px;animation:ob-drift 240s linear infinite} */
+.ob-spin{transform-origin:500px 320px;animation:ob-drift 240s linear infinite}
 /* Встречный слой медленнее и в другую сторону: два одинаковых направления
    читались бы как одно, разница скоростей даёт параллакс. */
 .ob-spin-back{transform-origin:500px 320px;
