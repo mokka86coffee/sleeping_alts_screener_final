@@ -2120,6 +2120,9 @@ def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot) ->
 DASH_JS = """
 <script>
 (function () {
+    // автоперезагрузка для обновления данных
+    setTimeout(() => location.reload(), 1000 * 60 * 68);
+
   var dash = document.getElementById('dash');
   var panes = document.getElementById('panes');
 
