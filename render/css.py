@@ -1144,7 +1144,49 @@ RESPONSIVE = """
 }
 """
 
+# ═══════════════════════════════════════════════════
+# КАМЕННЫЙ КУБ · декор справа от ряда стратегий
+# Вставить в css.py ПЕРЕД блоком RESPONSIVE
+# ═══════════════════════════════════════════════════
+CUBE = """
+/* Куб стоит третьим элементом в .row-s, справа от FLOW.
+   flex:0 0 — ширина фиксирована, чтобы он не отбирал место
+   у ленты FLOW, которая тянется по flex:1. */
+.g-cube{flex:0 0 300px;display:flex;align-items:center;justify-content:center;
+  pointer-events:none;
+  /* Палитра куба. Сменить эти четыре значения — сменить породу целиком.
+     По умолчанию янтарь, в тон ряду FLOW рядом.
+     Синий вариант: #1a2030 / #2e3850 / #A8C4FF / #4A72E0 / #78A0FF */
+  --cb-dark:#22201a; --cb-rock:#3a352a; --cb-lit:#F5D089;
+  --cb-glow:#D9A441; --cb-spec:#FFCF80}
+
+/* Анимируем сам элемент svg, а не группу внутри: результат фильтров
+   растеризуется один раз и дальше вращается композитором. Поворот
+   внутренней группы заставлял бы пересчитывать feTurbulence
+   и feDisplacementMap на каждом кадре. */
+.cb{display:block;width:100%;height:auto;overflow:visible;
+  will-change:transform;transform-origin:50% 55%;
+  animation:cb-sway 7s ease-in-out infinite}
+
+/* Покачивание ±4°: предмет читается живым, но это не выглядит вращением.
+   Не нужна анимация — убери строку animation выше, картинка останется. */
+@keyframes cb-sway{
+  0%,100%{transform:rotate(-4deg)}
+  50%    {transform:rotate(4deg)}
+}
+
+@media (prefers-reduced-motion:reduce){.cb{animation:none}}
+
+@media (max-width:1240px){
+  .g-cube{flex:0 0 220px}
+}
+@media (max-width:760px){
+  /* На узком экране ряд и так переносится — декор только мешает */
+  .g-cube{display:none}
+}
+"""
+
 CSS = "".join([
     TOKENS, BASE, HEAD, BLOCK, VOL, SOC, BARS, SET, IMP, RISK,
-    STRAT, FUNNEL, PANES, FLOWREP, SCAN, CARD, RESPONSIVE,
+    STRAT, FUNNEL, PANES, FLOWREP, SCAN, CARD, CUBE, RESPONSIVE,
 ])

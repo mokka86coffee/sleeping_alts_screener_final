@@ -834,6 +834,107 @@ def _shuffle_key(sym: str) -> int:
         h = ((h ^ ord(ch)) * 16777619) & 0xFFFFFFFF
     return h
 
+# ─────────────────────────────────────────────────────────────
+# КАМЕННЫЙ КУБ · декор ряда стратегий
+# Вставить в dashboard.py рядом с остальными _blk_* функциями
+#
+# Все id внутри SVG с префиксом cb-: отчёт это один документ,
+# и id фильтров/градиентов в нём общие — без префикса они бы
+# столкнулись с fl-base, fl-ring и прочими из блока FLOW.
+# ─────────────────────────────────────────────────────────────
+def _blk_cube() -> str:
+    return """
+<div class="g-cube" aria-hidden="true">
+  <svg class="cb" viewBox="0 0 600 600">
+    <defs>
+      <linearGradient id="cb-top" x1="0" y1="0" x2="1" y2="0.4">
+        <stop offset="0"   stop-color="var(--cb-dark)"/>
+        <stop offset="0.6" stop-color="var(--cb-rock)"/>
+        <stop offset="1"   stop-color="var(--cb-lit)"/>
+      </linearGradient>
+      <linearGradient id="cb-left" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#0b0b0e"/>
+        <stop offset="1" stop-color="var(--cb-dark)"/>
+      </linearGradient>
+      <linearGradient id="cb-right" x1="0" y1="0.2" x2="0.9" y2="1">
+        <stop offset="0" stop-color="var(--cb-rock)"/>
+        <stop offset="1" stop-color="var(--cb-dark)"/>
+      </linearGradient>
+      <radialGradient id="cb-hot" cx="88%" cy="48%" r="44%">
+        <stop offset="0"    stop-color="var(--cb-lit)"  stop-opacity=".58"/>
+        <stop offset="0.35" stop-color="var(--cb-glow)" stop-opacity=".32"/>
+        <stop offset="1"    stop-color="var(--cb-glow)" stop-opacity="0"/>
+      </radialGradient>
+
+      <!-- Рельеф породы. Анизотропная частота (по X редко, по Y часто)
+           кладёт шум слоями — получается слоистый камень, а не шагрень.
+           Свет считает feDiffuseLighting прямо по этому шуму. -->
+      <filter id="cb-rock" x="-12%" y="-12%" width="124%" height="124%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.01 0.075"
+                      numOctaves="6" seed="5" result="n"/>
+        <feDiffuseLighting in="n" surfaceScale="5" diffuseConstant="1.25"
+                           lighting-color="#e8dcc4" result="dif">
+          <feDistantLight azimuth="215" elevation="52"/>
+        </feDiffuseLighting>
+        <feSpecularLighting in="n" surfaceScale="5" specularConstant="1.15"
+                            specularExponent="16"
+                            lighting-color="var(--cb-spec)" result="spec">
+          <fePointLight x="500" y="300" z="90"/>
+        </feSpecularLighting>
+        <feBlend in="dif" in2="SourceGraphic" mode="multiply" result="base"/>
+        <feComposite in="base" in2="SourceGraphic" operator="in" result="base2"/>
+        <feComposite in="spec" in2="SourceGraphic" operator="in" result="spec2"/>
+        <feComposite in="spec2" in2="base2" operator="arithmetic"
+                     k1="0" k2="1" k3="1" k4="0"/>
+      </filter>
+
+      <!-- Скол граней: крупный шум рвёт силуэт кусками,
+           мелкий добавляет крошку по краю -->
+      <filter id="cb-chip" x="-25%" y="-25%" width="150%" height="150%">
+        <feTurbulence type="fractalNoise" baseFrequency="0.006"
+                      numOctaves="3" seed="11" result="t1"/>
+        <feDisplacementMap in="SourceGraphic" in2="t1" scale="44"
+                           xChannelSelector="R" yChannelSelector="G" result="d1"/>
+        <feTurbulence type="fractalNoise" baseFrequency="0.05"
+                      numOctaves="2" seed="4" result="t2"/>
+        <feDisplacementMap in="d1" in2="t2" scale="9"
+                           xChannelSelector="R" yChannelSelector="G"/>
+      </filter>
+
+      <filter id="cb-bloom" x="-100%" y="-100%" width="300%" height="300%">
+        <feGaussianBlur stdDeviation="26"/>
+      </filter>
+      <filter id="cb-rim" x="-60%" y="-60%" width="220%" height="220%">
+        <feGaussianBlur stdDeviation="7"/>
+      </filter>
+    </defs>
+
+    <g transform="rotate(-16 300 330)">
+      <path d="M460 240 L460 420 L300 510 L300 330 Z" fill="var(--cb-glow)"
+            filter="url(#cb-bloom)" opacity=".45"/>
+
+      <g filter="url(#cb-chip)">
+        <path d="M300 150 L460 240 L300 330 L140 240 Z"
+              fill="url(#cb-top)"   filter="url(#cb-rock)"/>
+        <path d="M140 240 L300 330 L300 510 L140 420 Z"
+              fill="url(#cb-left)"  filter="url(#cb-rock)"/>
+        <path d="M460 240 L460 420 L300 510 L300 330 Z"
+              fill="url(#cb-right)" filter="url(#cb-rock)"/>
+
+        <path d="M140 240 L300 330 L300 510 L140 420 Z" fill="#050508" opacity=".55"/>
+        <path d="M300 150 L460 240 L300 330 L140 240 Z" fill="#0a0806" opacity=".28"/>
+        <path d="M300 150 L460 240 L460 420 L300 510 L140 420 L140 240 Z"
+              fill="url(#cb-hot)"/>
+      </g>
+
+      <path d="M300 150 L460 240 L460 420 L300 510" fill="none"
+            stroke="var(--cb-lit)" stroke-width="3"
+            filter="url(#cb-rim)" opacity=".7"/>
+    </g>
+  </svg>
+</div>
+"""
+
 # Ступени взрывного объёма. Одного порога мало: x50 и x200 —
 # события разного веса, а одним цветом они сливаются в «жёлтое».
 # Три ступени дают шкалу, читаемую без чисел.
@@ -1178,9 +1279,12 @@ def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot) ->
         _blk_sectors(snapshot),
     ])
 
-    # ряд стратегий между блоками и вторым рядом
+    # ряд стратегий между блоками и вторым рядом.
+    # Куб идёт между FLOW и лидерами: в .row-s он встаёт справа от ленты,
+    # а на узких экранах ряд переносится и куб скрывается медиазапросом.
     strat = (
-        f'{_blk_flow(candidates)}{_blk_leaders(candidates, snapshot)}'
+        f'{_blk_flow(candidates)}{_blk_cube()}'
+        f'{_blk_leaders(candidates, snapshot)}'
     )
 
     # Панели-таблицы строим для ВСЕХ срезов, включая скрытые:
