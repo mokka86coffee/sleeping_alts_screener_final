@@ -1153,6 +1153,808 @@ def _blk_flow(candidates: list[Candidate]) -> str:
 </div>"""
 
 # ─────────────────────────────────────────────────────────────
+# ОРБИТА · верхний экран дашборда
+# Вставить в dashboard.py рядом с остальными _blk_* функциями.
+# json уже импортирован в шапке файла.
+#
+# Клик по узлу устроен как клик по блоку: на узле и подписи стоит
+# data-slice, дальше срабатывает общий делегат из DASH_JS. Своего
+# обработчика клика у орбиты нет намеренно — иначе логика показа
+# панелей жила бы в двух местах и разъезжалась при правках.
+# ─────────────────────────────────────────────────────────────
+
+# Цвета берём из токенов, а не хардкодом: узел орбиты и раздел под ним
+# должны совпадать по цвету, а токены — единственное место, где он живёт.
+ORBIT_COLORS = {
+    "surge":  "var(--am)",
+    "flow":   "var(--gd)",
+    "lead":   "var(--am-l)",
+    "setups": "var(--gr)",
+    "hourly": "var(--bl)",
+    "sector": "var(--vi)",
+    "vetoed": "var(--ru)",
+}
+
+
+def _orbit_nodes(candidates: list[Candidate], snapshot: RunSnapshot,
+                 slices: list[dict]) -> list[dict]:
+    """Данные семи узлов. Считаются из тех же источников, что и блоки,
+    чтобы орбита не разъезжалась с дашбордом под ней."""
+
+    def items(sid: str) -> list[Candidate]:
+        return _pick(slices, sid)["items"]
+
+    def bars(pairs: list[tuple[str, str, float]]) -> list[list]:
+        """Доля бара — от максимума в своей же тройке, а не от общего
+        числа: иначе у слабых срезов все бары схлопываются в ноль."""
+        peak = max((v for _, _, v in pairs), default=0) or 1
+        return [[k, txt, round(v / peak * 100)] for k, txt, v in pairs]
+
+    def spark(src: list[Candidate]) -> list[float]:
+        """Точки мини-графика — то же, что в _blk_volume: распределение
+        rvol_1h по монетам среза, а не временной ряд. Настоящей истории
+        объёма нет, и рисовать вместо неё красивую кривую нельзя."""
+        return [round(_num(c, "rvol_1h"), 2)
+                for c in sorted(src, key=lambda c: _num(c, "rvol_1h"))][-40:]
+
+    out: list[dict] = []
+
+    # ОБЪЁМ · три монеты те же, что под графиком в блоке объёмов
+    surge = items("surge")
+    top = sorted(surge, key=lambda c: -_num(c, "rvol_1h"))[:3]
+    out.append({
+        "id": "surge", "name": "ОБЪЁМ", "val": str(len(surge)),
+        "c": ORBIT_COLORS["surge"], "w": 0.6, "slice": "surge",
+        "note": SURGE_NOTE, "spark": spark(surge),
+        "rows": bars([(_tick(c), f'×{_num(c, "rvol_1h"):.1f}',
+                       _num(c, "rvol_1h")) for c in top]),
+    })
+
+    # ПОТОК · разбивка по подкейсам, как в кольцах строки FLOW
+    flow = [c for c in candidates if c.flow]
+    by_case: dict[str, int] = {}
+    for c in flow:
+        k = case_key((c.flow or {}).get("case", "")) or "—"
+        by_case[k] = by_case.get(k, 0) + 1
+    lead = max(flow, key=lambda c: getattr(c, "score", 0) or 0, default=None)
+    out.append({
+        "id": "flow", "name": "ПОТОК", "val": str(len(flow)),
+        "c": ORBIT_COLORS["flow"], "w": 0.7, "slice": "strat:flow",
+        "note": (f"лидер прогона · {_tick(lead)}") if lead else "кто двигает рынок",
+        "rows": bars([(case, str(by_case.get(case, 0)),
+                       float(by_case.get(case, 0)))
+                      for case, *_ in FLOW_NODES]),
+    })
+
+    # ЛИДЕРЫ · та же лента, что под рядом стратегий
+    out.append(_orbit_leaders(candidates))
+
+    # СЕТАП · топ-3 по R:R
+    setups = items("setups")
+    st = sorted(setups, key=lambda c: -(getattr(c, "rr", 0) or 0))[:3]
+    out.append({
+        "id": "setups", "name": "СЕТАП", "val": str(len(setups)),
+        "c": ORBIT_COLORS["setups"], "w": 1.0, "slice": "setups",
+        "note": f"из {len(candidates)} · r:r ≥ {RR_MIN}",
+        "rows": bars([(_tick(c), f'1:{(getattr(c, "rr", 0) or 0):.1f}',
+                       float(getattr(c, "rr", 0) or 0)) for c in st]),
+    })
+
+    # ИМПУЛЬС · те же монеты, что в блоке часового импульса
+    hourly = items("hourly")
+    hs = sorted(hourly, key=lambda c: -_num(c, "rvol_1h"))[:3]
+    out.append({
+        "id": "hourly", "name": "ИМПУЛЬС", "val": str(len(hourly)),
+        "c": ORBIT_COLORS["hourly"], "w": 0.25, "slice": "hourly",
+        "note": IMP_NOTE, "spark": spark(hourly),
+        "rows": bars([(_tick(c), f'×{_num(c, "rvol_1h"):.1f}',
+                       _num(c, "rvol_1h")) for c in hs]),
+    })
+
+    # СЕКТОР · ведёт в панель лидирующего сектора, как строка в блоке
+    src = getattr(snapshot, "sectors", None) or []
+    pairs = sorted(
+        [(str(_get(r, "sector", "") or ""), float(_get(r, "avg_change_24h", 0) or 0))
+         for r in src], key=lambda p: -p[1])[:3]
+    out.append({
+        "id": "sector", "name": "СЕКТОР", "val": (pairs[0][0] if pairs else "—"),
+        "c": ORBIT_COLORS["sector"], "w": 0.45,
+        "slice": (f"sector:{pairs[0][0]}" if pairs else ""),
+        "note": "ротация за 24 часа",
+        "rows": bars([(n, f"{v:+.1f}%", abs(v)) for n, v in pairs]),
+    })
+
+    # ВЕТО
+    vetoed = items("vetoed")
+    share = (len(vetoed) / len(candidates) * 100) if candidates else 0
+    out.append({
+        "id": "vetoed", "name": "ВЕТО", "val": str(len(vetoed)),
+        "c": ORBIT_COLORS["vetoed"], "w": 0.3, "slice": "vetoed",
+        "note": f"отсеяно риском · {share:.0f}% выборки",
+        "rows": bars([(_tick(c), "—", 1.0) for c in vetoed[:3]]),
+    })
+
+    return out
+
+
+def _orbit_leaders(candidates: list[Candidate]) -> dict:
+    """Лента тикеров. Источники и пороги те же, что у _blk_leaders,
+    иначе одна и та же монета была бы золотой внизу и серой на орбите.
+
+    Узел не ведёт в панель: своего среза у этой ленты нет. Зато каждый
+    тикер несёт data-coin и открывает карточку монеты — как в .lead-list.
+    """
+    flow_j = _read_json(LEADERS_PATH)
+    vol_j = _read_json(ANOMALY_PATH)
+    flow_syms = [k for k in flow_j if not k.startswith("_")]
+    vol_syms = [k for k in vol_j if not k.startswith("_")]
+
+    ranked: dict[str, float] = {}
+    for sym in flow_syms:
+        ranked[sym] = _max_vol_ratio(flow_j.get(sym) or {})
+    for sym in vol_syms:
+        ranked.setdefault(sym, _max_vol_ratio(vol_j.get(sym) or {}))
+
+    by_symbol = {c.symbol.upper(): c for c in candidates}
+
+    def tier(x: float) -> int:
+        if x >= LEAD_X3: return 3
+        if x >= LEAD_X2: return 2
+        if x >= LEAD_X1: return 1
+        return 0
+
+    # В карточку помещается около двух десятков: берём самые весомые,
+    # а не первые попавшиеся. В ленте внизу порядок намеренно случайный,
+    # но там виден весь список — здесь отбор, и он должен быть по весу.
+    order = sorted(ranked, key=lambda s: -ranked[s])[:21]
+
+    lst = []
+    for sym in order:
+        c = by_symbol.get(sym.upper())
+        label = sym[:-4] if sym.endswith("USDT") else sym
+        lst.append([label, tier(ranked[sym]), (c.symbol if c is not None else "")])
+
+    return {
+        "id": "lead", "name": "ЛИДЕРЫ", "val": str(len(ranked)),
+        "c": ORBIT_COLORS["lead"], "w": 0.9, "slice": "",
+        "note": "топ flow + аномальный объём", "list": lst,
+    }
+
+
+
+# Окно журнала лидеров — 14 дней, столько же живёт запись в leaders.py.
+# Свежесть считается от него, чтобы шкала яркости совпадала со сроком
+# хранения: монета гаснет ровно к моменту, когда выпадает из журнала.
+STAR_WINDOW_DAYS = 14.0
+
+# Поля даты пробуем по очереди: точной схемы записи журнала я не знаю,
+# а падать из-за отсутствующего ключа отчёт не должен. Если ни одного
+# нет — свежесть берётся из порядка записей в файле (см. _orbit_stars).
+STAR_TS_KEYS = ("first_seen", "added", "since", "created", "ts", "started")
+
+
+def _star_age_days(rec: dict) -> float | None:
+    """Возраст записи в днях или None, если даты в записи нет."""
+    import datetime as _dt
+    for key in STAR_TS_KEYS:
+        raw = rec.get(key)
+        if raw is None:
+            continue
+        try:
+            if isinstance(raw, (int, float)):
+                # эпоха в секундах или миллисекундах
+                ts = float(raw)
+                if ts > 1e11:
+                    ts /= 1000.0
+                when = _dt.datetime.fromtimestamp(ts, _dt.timezone.utc)
+            else:
+                when = _dt.datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+                if when.tzinfo is None:
+                    when = when.replace(tzinfo=_dt.timezone.utc)
+        except (ValueError, OSError, OverflowError):
+            continue
+        delta = _dt.datetime.now(_dt.timezone.utc) - when
+        return max(0.0, delta.total_seconds() / 86400.0)
+    return None
+
+
+def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
+    """Лидер FLOW и монеты журнала лидеров — отдельными звёздами.
+
+    На орбите они были бы восьмым узлом и спорили бы с категориями.
+    Здесь другой смысл: не срез выборки, а история отбора, поэтому
+    и место другое — поле вокруг кольца.
+
+    Три признака, три разных свойства, чтобы они читались вместе:
+      свежесть → размер и яркость
+      объём ≥ x50 → цвет и второй луч с кольцом
+      текущий лидер прогона → подпись тикером
+    """
+    flow_j = _read_json(LEADERS_PATH)
+    syms = [k for k in flow_j if not k.startswith("_")]
+    if not syms:
+        return []
+
+    ages = {s: _star_age_days(flow_j.get(s) or {}) for s in syms}
+    dated = [a for a in ages.values() if a is not None]
+
+    lead = max((c for c in candidates if c.flow),
+               key=lambda c: getattr(c, "score", 0) or 0, default=None)
+    lead_sym = lead.symbol.upper() if lead is not None else ""
+    by_symbol = {c.symbol.upper(): c for c in candidates}
+
+    out = []
+    for i, sym in enumerate(syms):
+        if ages[sym] is not None:
+            fresh = max(0.0, min(1.0, 1.0 - ages[sym] / STAR_WINDOW_DAYS))
+        elif dated:
+            fresh = 0.5          # часть записей с датой, эта без — середина шкалы
+        else:
+            # Даты нет ни у кого: журнал дописывается в конец, поэтому
+            # порядок ключей и есть порядок появления. Приближение, но
+            # честное — и шкала не схлопывается в одинаковые точки.
+            fresh = (i + 1) / len(syms)
+
+        ratio = _max_vol_ratio(flow_j.get(sym) or {})
+        c = by_symbol.get(sym.upper())
+        label = sym[:-4] if sym.endswith("USDT") else sym
+        out.append({
+            "t": label,
+            "f": round(fresh, 3),
+            "hot": bool(ratio >= LEAD_X1),
+            "x": round(ratio),
+            "lead": sym.upper() == lead_sym,
+            "coin": (c.symbol if c is not None else ""),
+        })
+
+    # Лидер рисуется последним — поверх остальных, если рядом окажется сосед
+    out.sort(key=lambda s: (s["lead"], s["f"]))
+    return out
+
+
+def _blk_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
+               slices: list[dict]) -> str:
+    nodes = _orbit_nodes(candidates, snapshot, slices)
+    stars = _orbit_stars(candidates)
+
+    # Данные уходят отдельным <script type="application/json">, а не
+    # склеиваются в разметку: экранировать нужно только "<".
+    blob = json.dumps({"nodes": nodes, "stars": stars},
+                      ensure_ascii=False).replace("<", "\\u003c")
+
+    regime = esc(str(getattr(snapshot, "regime", "") or "RISK-OFF"))
+    appetite = esc(str(getattr(snapshot, "appetite", "") or "—"))
+    btc_d = esc(str(getattr(snapshot, "btc_dominance", "") or "—"))
+    viral_n = len(_pick(slices, "viral")["items"])
+    soc = f"{viral_n} всплеск" if viral_n else "тихо"
+
+    return f"""
+<div class="ob" id="ob">
+  <svg viewBox="0 0 1000 640" preserveAspectRatio="xMidYMid slice">
+    <defs>
+      <radialGradient id="ob-sky" cx="62%" cy="72%" r="78%">
+        <stop offset="0" stop-color="#1a1508"/>
+        <stop offset="0.45" stop-color="#0e0e14"/>
+        <stop offset="1" stop-color="#08080b"/>
+      </radialGradient>
+      <radialGradient id="ob-haze" cx="50%" cy="50%" r="50%">
+        <stop offset="0" stop-color="#F5A623" stop-opacity=".13"/>
+        <stop offset="0.6" stop-color="#F5A623" stop-opacity=".04"/>
+        <stop offset="1" stop-color="#F5A623" stop-opacity="0"/>
+      </radialGradient>
+
+      <!-- Дальний край семейства растворяется: одна маска на всю группу
+           дешевле, чем прозрачность на каждой из сотни дуг -->
+      <linearGradient id="ob-fadeg" x1="0.1" y1="0.9" x2="0.95" y2="0.05">
+        <stop offset="0" stop-color="#fff" stop-opacity=".9"/>
+        <stop offset="0.5" stop-color="#fff" stop-opacity=".45"/>
+        <stop offset="1" stop-color="#fff" stop-opacity=".06"/>
+      </linearGradient>
+      <mask id="ob-fade"><rect width="1000" height="640" fill="url(#ob-fadeg)"/></mask>
+
+      <radialGradient id="ob-bandg" cx="34%" cy="70%" r="40%">
+        <stop offset="0" stop-color="#fff" stop-opacity="1"/>
+        <stop offset="0.55" stop-color="#fff" stop-opacity=".45"/>
+        <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+      </radialGradient>
+      <mask id="ob-band"><rect width="1000" height="640" fill="url(#ob-bandg)"/></mask>
+
+      <filter id="ob-glow" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="5"/>
+      </filter>
+      <filter id="ob-spark" x="-300%" y="-300%" width="700%" height="700%">
+        <feGaussianBlur stdDeviation="4"/>
+      </filter>
+      <filter id="ob-soft" x="-60%" y="-60%" width="220%" height="220%">
+        <feGaussianBlur stdDeviation="34"/>
+      </filter>
+      <filter id="ob-grain">
+        <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3"/>
+      </filter>
+    </defs>
+
+    <rect width="1000" height="640" fill="url(#ob-sky)"/>
+    <ellipse cx="500" cy="320" rx="430" ry="250" fill="url(#ob-haze)"
+             class="ob-breathe"/>
+
+    <!-- Встречный слой: спицы и редкие дуги, идут в другую сторону
+         и медленнее — параллакс вместо плоского кольца -->
+    <g class="ob-spin-back" opacity=".5">
+      <g id="ob-spokes" stroke="#cbd3da" opacity=".05"></g>
+      <g id="ob-arcsBack" fill="none" opacity=".5"></g>
+    </g>
+
+    <g class="ob-spin">
+      <g id="ob-arcs" fill="none" mask="url(#ob-fade)"></g>
+      <g mask="url(#ob-band)">
+        <g id="ob-arcsB" fill="none" filter="url(#ob-glow)" opacity=".5"></g>
+        <g id="ob-arcsS" fill="none"></g>
+      </g>
+    </g>
+
+    <g id="ob-dust" class="ob-dust"></g>
+    <g id="ob-stars"></g>
+    <g id="ob-links"></g>
+    <g id="ob-orbit"></g>
+    <g id="ob-nodes"></g>
+
+    <!-- Зерно: статичный слой, пересчёта на кадр нет -->
+    <rect width="1000" height="640" filter="url(#ob-grain)" opacity=".05"
+          style="pointer-events:none"/>
+    <ellipse cx="820" cy="140" rx="330" ry="240" fill="#2a2418"
+             opacity=".5" filter="url(#ob-soft)"/>
+  </svg>
+
+  <div class="ob-core">
+    <div class="ob-core-k">РЕЖИМ РЫНКА</div>
+    <div class="ob-core-v">{regime}</div>
+    <div class="ob-core-s">аппетит <b>{appetite}</b> · btc.d <b>{btc_d}</b>
+      · соцсети <b>{soc}</b></div>
+  </div>
+
+  <div class="ob-wrap" id="ob-wrap"></div>
+</div>
+<script type="application/json" id="ob-data">{blob}</script>
+{ORBIT_JS}"""
+
+
+ORBIT_JS = """
+<script>
+(function () {
+  var NS = 'http://www.w3.org/2000/svg';
+  var orb = document.getElementById('ob');
+  if (!orb) return;
+  var DATA = JSON.parse(document.getElementById('ob-data').textContent);
+  var BLOCKS = DATA.nodes || [], STARS = DATA.stars || [];
+  if (!BLOCKS.length) return;
+
+  var CX = 500, CY = 320, RX = 372, RY = 168, TILT = -9;
+  var NODE_LEN = [], cometEl = null, TOTAL_LEN = 0;
+
+  /* Иконки категорий: пути в локальных координатах узла (±5).
+     Кольцо-обводка рисуется отдельно и от иконки не зависит —
+     размер и толщина настраиваются независимо друг от друга. */
+  var ICON = {
+    surge:  { d:'M-4.4 3.4 V-1.2 M0 3.4 V-4.4 M4.4 3.4 V0.4', s:1 },
+    flow:   { d:'M-4.8 1.2 C-3 -2.6 -1.2 2.8 0.6 -0.8 C2 -3.4 3.6 -1 4.8 -2.2', s:1 },
+    lead:   { d:'M0 -4.8 L1.25 -1.4 L4.8 -1.4 L1.95 0.85 L3 4.4 L0 2.25 '
+               + 'L-3 4.4 L-1.95 0.85 L-4.8 -1.4 L-1.25 -1.4 Z' },
+    setups: { d:'M0 -4.4 A4.4 4.4 0 1 1 -0.01 -4.4 M0 -1.5 A1.5 1.5 0 1 1 -0.01 -1.5', s:1 },
+    hourly: { d:'M1.6 -4.8 L-3.2 0.7 H-0.4 L-1.6 4.8 L3.2 -0.9 H0.4 Z' },
+    sector: { d:'M0 -4.4 A4.4 4.4 0 1 1 -0.01 -4.4 M0 0 L0 -4.4 A4.4 4.4 0 0 1 3.8 2.2 Z', s:1 },
+    vetoed: { d:'M0 -4.4 A4.4 4.4 0 1 1 -0.01 -4.4 M-3.1 3.1 L3.1 -3.1', s:1 }
+  };
+
+  function el(tag, attrs) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  /* Эллипс двумя дугами вместо <ellipse>: наклон задаётся параметром
+     дуги, и не нужен отдельный transform на каждую из сотни линий. */
+  function ellipsePath(cx, cy, a, b, rot) {
+    var r = rot * Math.PI / 180;
+    var dx = a * Math.cos(r), dy = a * Math.sin(r);
+    return 'M' + (cx - dx).toFixed(1) + ' ' + (cy - dy).toFixed(1) +
+           'A' + a.toFixed(1) + ' ' + b.toFixed(1) + ' ' + rot.toFixed(1) +
+           ' 0 1 ' + (cx + dx).toFixed(1) + ' ' + (cy + dy).toFixed(1) +
+           'A' + a.toFixed(1) + ' ' + b.toFixed(1) + ' ' + rot.toFixed(1) +
+           ' 0 1 ' + (cx - dx).toFixed(1) + ' ' + (cy - dy).toFixed(1);
+  }
+
+  /* Семейство дуг. Толщина и прозрачность идут волной, а не линейно:
+     при линейной прогрессии лента читается плоской штриховкой. */
+  function buildArcs() {
+    var N = 104, A0 = 90, A1 = 452, T0 = TILT - 22, T1 = TILT + 16;
+    var host = document.getElementById('ob-arcs');
+    var gb = document.getElementById('ob-arcsB');
+    var gs = document.getElementById('ob-arcsS');
+
+    for (var i = 0; i < N; i++) {
+      var t = i / (N - 1);
+      var a = A0 + (A1 - A0) * t;
+      var b = a * (0.30 + 0.17 * t);
+      var rot = T0 + (T1 - T0) * t;
+      var wave = Math.pow(Math.sin(t * Math.PI), 0.6);
+      var d = ellipsePath(CX, CY, a, b, rot);
+
+      host.appendChild(el('path', { d: d, stroke: '#cbd3da',
+        'stroke-width': (0.28 + 0.42 * wave).toFixed(2),
+        opacity: (0.05 + 0.17 * wave).toFixed(3) }));
+
+      var k = 1 - Math.abs(i - 62) / 15;
+      if (k > 0) {
+        var gold = { d: d, stroke: '#FFC46B',
+          'stroke-width': (0.3 + 0.95 * k).toFixed(2),
+          opacity: (0.12 + 0.42 * k).toFixed(3) };
+        gs.appendChild(el('path', gold));
+        gb.appendChild(el('path', gold));
+      }
+    }
+  }
+
+  /* Спицы и редкие встречные дуги: фон, а не рисунок — задают
+     радиальную сетку, из-за которой кольцо перестаёт быть плоским. */
+  function buildBack() {
+    var sp = document.getElementById('ob-spokes');
+    for (var i = 0; i < 24; i++) {
+      var a = i / 24 * Math.PI * 2;
+      sp.appendChild(el('line', {
+        x1: (CX + Math.cos(a) * 70).toFixed(1),
+        y1: (CY + Math.sin(a) * 32).toFixed(1),
+        x2: (CX + Math.cos(a) * 470).toFixed(1),
+        y2: (CY + Math.sin(a) * 212).toFixed(1), 'stroke-width': .5 }));
+    }
+    var back = document.getElementById('ob-arcsBack');
+    for (var j = 0; j < 14; j++) {
+      var t = j / 13, a2 = 130 + 330 * t;
+      back.appendChild(el('path', {
+        d: ellipsePath(CX, CY, a2, a2 * (0.5 - 0.14 * t), 26 - 30 * t),
+        stroke: '#9fb0c8', 'stroke-width': .4,
+        opacity: (0.10 + 0.10 * t).toFixed(2) }));
+    }
+  }
+
+  /* Пылинки: глубина без фильтров и перерисовки — только прозрачность */
+  function buildDust() {
+    var host = document.getElementById('ob-dust');
+    for (var i = 0; i < 46; i++) {
+      var ang = Math.random() * Math.PI * 2;
+      var rad = 0.35 + Math.random() * 0.75;
+      var c = el('circle', {
+        cx: (CX + Math.cos(ang) * RX * rad * 1.15).toFixed(1),
+        cy: (CY + Math.sin(ang) * RY * rad * 1.5).toFixed(1),
+        r: (0.6 + Math.random() * 1.3).toFixed(2),
+        fill: Math.random() > 0.6 ? '#FFD98A' : '#dfe6ec' });
+      c.style.animation = 'ob-twinkle ' + (3 + Math.random() * 6).toFixed(1) +
+                          's ease-in-out ' + (Math.random() * 5).toFixed(1) +
+                          's infinite';
+      host.appendChild(c);
+    }
+  }
+
+
+  /* FNV-1a от тикера: положение звезды не должно прыгать между
+     прогонами, иначе поле перестаёт узнаваться глазом. Тот же приём,
+     что у _shuffle_key в отчёте. */
+  function hash(str) {
+    var h = 2166136261;
+    for (var i = 0; i < str.length; i++) {
+      h = (h ^ str.charCodeAt(i)) * 16777619 >>> 0;
+    }
+    return h;
+  }
+
+  /* Луч звезды: четырёхконечная вспышка. Тонкие «иглы» вместо кружка —
+     кружков на сцене и так хватает, а вспышка читается как объект
+     другого рода, не как ещё один узел. */
+  function rayPath(r, w) {
+    return 'M0 ' + (-r) + ' Q' + w + ' ' + (-w) + ' ' + r + ' 0 Q' + w + ' ' + w +
+           ' 0 ' + r + ' Q' + (-w) + ' ' + w + ' ' + (-r) + ' 0 Q' + (-w) + ' ' +
+           (-w) + ' 0 ' + (-r) + ' Z';
+  }
+
+  /* Звёзды стоят вне кольца узлов: точка отвергается, если попала
+     в полосу орбиты или в центральный прямоугольник, где всплывает
+     карточка. Сдвиг детерминированный, поэтому перебор не случайный. */
+  function starSpot(sym) {
+    var h = hash(sym);
+    for (var k = 0; k < 24; k++) {
+      var a = ((h >>> (k % 8)) % 3600) / 3600 * Math.PI * 2;
+      var rr = 0.28 + ((h >>> ((k + 3) % 12)) % 1000) / 1000 * 1.05;
+      var x = CX + Math.cos(a) * RX * rr;
+      var y = CY + Math.sin(a) * RY * rr * 1.35;
+      var band = Math.abs(rr - 1);
+      var inCard = Math.abs(x - CX) < 185 && Math.abs(y - CY) < 140;
+      /* И подальше от узлов с подписями: звезда, севшая на «ЛИДЕРЫ 46»,
+         читается как часть этой категории, хотя смысл у неё другой. */
+      var nearNode = false;
+      for (var n = 0; n < BLOCKS.length; n++) {
+        var np = pos(n);
+        if (Math.hypot(np.x - x, np.y - y) < 86) { nearNode = true; break; }
+      }
+      if (band > 0.18 && !inCard && !nearNode &&
+          x > 40 && x < 960 && y > 40 && y < 600) {
+        return { x: x, y: y };
+      }
+      h = (h * 16777619 + 1) >>> 0;
+    }
+    return { x: CX + RX * 1.2, y: CY - RY * 1.1 };
+  }
+
+  function buildStars() {
+    var host = document.getElementById('ob-stars');
+    STARS.forEach(function (s) {
+      var p = starSpot(s.t);
+      var f = s.f;                              // свежесть 0..1
+      var r = (s.lead ? 9 : 4) + f * 6;         // размер несёт свежесть
+      var op = 0.28 + f * 0.62;
+
+      var g = el('g', { class: 'ob-star' });
+      if (s.coin) g.dataset.coin = s.coin;      // клик откроет карточку монеты
+      g.setAttribute('transform', 'translate(' + p.x.toFixed(1) + ' ' +
+                                  p.y.toFixed(1) + ')');
+
+      var tip = document.createElementNS(NS, 'title');
+      tip.textContent = s.t + (s.x ? ' · ×' + s.x : '') +
+                        (s.lead ? ' · лидер прогона' : '');
+      g.appendChild(tip);
+
+      /* Цвет отдан объёму: золото у x50 и выше, холодное серебро ниже.
+         Свежесть уже сказана размером и яркостью — двум признакам
+         одного свойства не хватило бы. */
+      var col = s.hot ? '#FFD98A' : '#cfdae6';
+
+      g.appendChild(el('circle', { class: 'ob-glow', r: r * 1.5, fill: col,
+        filter: 'url(#ob-spark)', opacity: (op * 0.5).toFixed(2) }));
+      g.appendChild(el('path', { class: 'ob-ray', d: rayPath(r, r * 0.13),
+        fill: col, opacity: op.toFixed(2) }));
+
+      if (s.hot) {
+        /* Доп. элемент для x50: второй луч под 45° даёт восьмиконечную
+           вспышку, плюс расходящееся кольцо. Событие редкое — заметность
+           здесь важнее сдержанности. */
+        g.appendChild(el('path', { class: 'ob-ray', d: rayPath(r * 0.62, r * 0.1),
+          fill: col, opacity: (op * 0.8).toFixed(2),
+          transform: 'rotate(45)' }));
+        var halo = el('circle', { class: 'ob-star-ring', r: r * 1.6 });
+        halo.style.transformOrigin = '0 0';
+        halo.style.animationDelay = (hash(s.t) % 4000) + 'ms';
+        g.appendChild(halo);
+      }
+
+      g.appendChild(el('circle', { r: Math.max(1, r * 0.16), fill: '#fff',
+        opacity: op.toFixed(2) }));
+
+      // Подпись только у текущего лидера: у всех сразу поле стало бы списком
+      if (s.lead) {
+        var t = el('text', { class: 'ob-star-lbl', x: 0, y: r + 12,
+          'text-anchor': 'middle' });
+        t.textContent = s.t;
+        g.appendChild(t);
+      }
+
+      host.appendChild(g);
+    });
+  }
+
+  function pos(i) {
+    var ang = -Math.PI / 2 + i * (2 * Math.PI / BLOCKS.length);
+    var x = Math.cos(ang) * RX, y = Math.sin(ang) * RY;
+    var r = TILT * Math.PI / 180;
+    return { x: CX + x * Math.cos(r) - y * Math.sin(r),
+             y: CY + x * Math.sin(r) + y * Math.cos(r) };
+  }
+
+  function sparkSVG(vals, color) {
+    if (!vals || vals.length < 2) return '';
+    var hi = Math.max.apply(null, vals) || 1;
+    var pts = vals.map(function (v, i) {
+      return (i / (vals.length - 1) * 280).toFixed(1) + ' ' +
+             (26 - v / hi * 24).toFixed(1);
+    }).join(' ');
+    return '<svg class="ob-card-spark" viewBox="0 0 280 26" ' +
+           'preserveAspectRatio="none"><polyline points="' + pts +
+           '" fill="none" stroke="' + color + '" stroke-width="1.1"/></svg>';
+  }
+
+  function build() {
+    var orbitG = document.getElementById('ob-orbit');
+    var linkG = document.getElementById('ob-links');
+    var nodeG = document.getElementById('ob-nodes');
+    var wrap = document.getElementById('ob-wrap');
+    var ringPath = ellipsePath(CX, CY, RX, RY, TILT);
+
+    orbitG.appendChild(el('path', { d: ringPath, fill: 'none',
+      stroke: '#2e2a20', 'stroke-width': .5, opacity: '.9' }));
+
+    var comet = el('path', { d: ringPath, fill: 'none', stroke: '#FFE9C0',
+      'stroke-width': .6, 'stroke-linecap': 'round', pathLength: 1000,
+      'stroke-dasharray': '22 978', filter: 'url(#ob-spark)', opacity: '.95' });
+    orbitG.appendChild(comet);
+    cometEl = comet;
+
+    /* Попутные частицы на чистом CSS: их позицию читать не нужно,
+       в отличие от кометы — она одна ведётся из JS. */
+    [[19000, 0], [31000, -320], [44000, -640]].forEach(function (m) {
+      var mote = el('path', { d: ringPath, fill: 'none', stroke: '#cbd3da',
+        'stroke-width': .35, 'stroke-linecap': 'round', pathLength: 1000,
+        'stroke-dasharray': '7 993', opacity: '.6' });
+      mote.setAttribute('class', 'ob-mote');
+      mote.style.animationDuration = m[0] + 'ms';
+      mote.style.strokeDashoffset = m[1];
+      orbitG.appendChild(mote);
+    });
+
+    /* Длина дуги эллипса не пропорциональна углу, поэтому позицию
+       сегмента ищем по самому пути. Иначе цветные дуги уезжают от узлов. */
+    var probe = el('path', { d: ringPath });
+    orbitG.appendChild(probe);
+    TOTAL_LEN = probe.getTotalLength();
+    var SAMPLES = [];
+    for (var q = 0; q <= 720; q++) {
+      var L = TOTAL_LEN * q / 720;
+      SAMPLES.push({ L: L, p: probe.getPointAtLength(L) });
+    }
+    probe.remove();
+
+    function lengthAt(pt) {
+      var best = 0, bd = Infinity;
+      SAMPLES.forEach(function (s) {
+        var d = (s.p.x - pt.x) * (s.p.x - pt.x) + (s.p.y - pt.y) * (s.p.y - pt.y);
+        if (d < bd) { bd = d; best = s.L; }
+      });
+      return best;
+    }
+
+    var SEG = TOTAL_LEN / BLOCKS.length;
+
+    BLOCKS.forEach(function (b, i) {
+      var p = pos(i);
+
+      /* Доля категории — цветной сегмент на самой орбите: длина дуги
+         пропорциональна величине, и кольцо читается как распределение. */
+      var shown = SEG * 0.82 * (b.w || 0.5);
+      var seg = el('path', { class: 'ob-seg', d: ringPath, fill: 'none',
+        stroke: b.c, 'stroke-width': .5, 'stroke-linecap': 'round',
+        opacity: '.95',
+        'stroke-dasharray': shown.toFixed(1) + ' ' + TOTAL_LEN.toFixed(1),
+        'stroke-dashoffset': (-(lengthAt(p) - shown / 2)).toFixed(1) });
+      seg.dataset.id = b.id;
+      orbitG.appendChild(seg);
+
+      var link = el('line', { class: 'ob-link', x1: p.x, y1: p.y,
+        x2: CX, y2: CY, stroke: b.c, 'stroke-width': .6 });
+      link.dataset.id = b.id;
+      linkG.appendChild(link);
+
+      var g = el('g', { class: 'ob-node' });
+      g.dataset.id = b.id;
+      if (b.slice) g.dataset.slice = b.slice;   // клик подхватит DASH_JS
+      g.style.setProperty('--c', b.c);
+
+      var ping = el('circle', { class: 'ob-ping', cx: p.x, cy: p.y, r: 13,
+        fill: 'none', stroke: b.c, 'stroke-width': 1 });
+      ping.style.transformOrigin = p.x + 'px ' + p.y + 'px';
+      g.appendChild(ping);
+      g.appendChild(el('circle', { class: 'ob-glow', cx: p.x, cy: p.y, r: 12,
+        fill: b.c, filter: 'url(#ob-spark)' }));
+      g.appendChild(el('circle', { class: 'ob-ring', cx: p.x, cy: p.y, r: 13,
+        stroke: b.c }));
+      var ic = ICON[b.id] || ICON.surge;
+      g.appendChild(el('path', { class: 'ob-ic', d: ic.d,
+        transform: 'translate(' + p.x.toFixed(1) + ' ' + p.y.toFixed(1) + ')',
+        fill: ic.s ? 'none' : b.c, stroke: b.c,
+        'stroke-width': ic.s ? 1.1 : 0,
+        'stroke-linecap': 'round', 'stroke-linejoin': 'round' }));
+      nodeG.appendChild(g);
+
+      var vx = p.x - CX, vy = p.y - CY, len = Math.hypot(vx, vy) || 1;
+      var lab = document.createElement('div');
+      lab.className = 'ob-lab';
+      lab.dataset.id = b.id;
+      if (b.slice) lab.dataset.slice = b.slice;
+      lab.style.setProperty('--c', b.c);
+      lab.innerHTML = '<div class="ob-lab-n">' + b.name + '</div>' +
+                      '<div class="ob-lab-v">' + b.val + '</div>';
+      /* Отступ по нормали на постоянное расстояние, а не умножением
+         радиуса: орбита сплюснута вдвое, и при пропорциональном отступе
+         верхний с нижним узлы прилипали бы к линии. */
+      lab.style.left = ((p.x + vx / len * 54) / 1000 * 100) + '%';
+      lab.style.top  = ((p.y + vy / len * 54) / 640 * 100) + '%';
+      orb.appendChild(lab);
+
+      var card = document.createElement('div');
+      card.className = 'ob-card';
+      card.dataset.id = b.id;
+      card.style.setProperty('--c', b.c);
+      var html = '<div class="ob-card-h"><span class="ob-card-n">' + b.name +
+                 '</span><span class="ob-card-v">' + b.val + '</span></div>' +
+                 '<div class="ob-card-note">' + b.note + '</div>';
+      if (b.list) {
+        /* Тикеров два десятка: строка с баром на каждый превратила бы
+           карточку в простыню, поэтому лента чипов. */
+        html += '<div class="ob-chips">';
+        b.list.forEach(function (c) {
+          html += '<span class="ob-chip t' + c[1] + '"' +
+                  (c[2] ? ' data-coin="' + c[2] + '"' : '') + '>' + c[0] + '</span>';
+        });
+        html += '</div>';
+      } else {
+        (b.rows || []).forEach(function (r) {
+          html += '<div class="ob-card-r"><span class="ob-card-k">' + r[0] +
+                  '</span><span class="ob-card-bar"><i style="width:' + r[2] +
+                  '%"></i></span><span class="ob-card-x">' + r[1] + '</span></div>';
+        });
+        html += sparkSVG(b.spark, b.c);
+      }
+      card.innerHTML = html;
+      wrap.appendChild(card);
+
+      NODE_LEN.push({ id: b.id, L: lengthAt(p) });
+    });
+  }
+
+  /* ── Облёт ────────────────────────────────────────────────
+     Комету ведёт JS, а не CSS: по её длине вдоль пути определяется,
+     над какой категорией она сейчас, и по этому же значению всплывает
+     карточка. У CSS-анимации позицию не спросить. */
+  var LAP = 26000, HOLD = 0.055;
+  var paused = false, pinned = null, lastHit = null;
+
+  function setActive(id) {
+    orb.classList.toggle('picked', !!id);
+    orb.classList.toggle('showing', !!id);
+    orb.querySelectorAll('.ob-node,.ob-lab,.ob-card,.ob-link,.ob-seg')
+       .forEach(function (n) { n.classList.toggle('on', n.dataset.id === id); });
+  }
+
+  function frame(now) {
+    if (!paused) {
+      var prog = (now % LAP) / LAP;
+      cometEl.setAttribute('stroke-dashoffset', (-prog * 1000).toFixed(2));
+      if (!pinned) {
+        var L = prog * TOTAL_LEN, hit = null;
+        NODE_LEN.forEach(function (n) {
+          /* Расстояние по кольцу, а не по прямой: узел у нулевой отметки
+             иначе не срабатывал бы при подходе кометы с другой стороны. */
+          var d = Math.abs(n.L - L);
+          d = Math.min(d, TOTAL_LEN - d);
+          if (d < TOTAL_LEN * HOLD) hit = n.id;
+        });
+        if (hit !== lastHit) { setActive(hit); lastHit = hit; }
+      }
+    }
+    requestAnimationFrame(frame);
+  }
+
+  /* Наведение перехватывает управление: иначе карточка уезжает
+     из-под курсора ровно тогда, когда начинаешь её читать. */
+  orb.addEventListener('pointerover', function (e) {
+    var t = e.target.closest ? e.target.closest('.ob-node,.ob-lab') : null;
+    if (!t) return;
+    pinned = t.dataset.id; paused = true;
+    setActive(pinned); lastHit = pinned;
+  });
+  orb.addEventListener('pointerout', function (e) {
+    var from = e.target.closest ? e.target.closest('.ob-node,.ob-lab') : null;
+    var to = e.relatedTarget && e.relatedTarget.closest
+             ? e.relatedTarget.closest('.ob-node,.ob-lab') : null;
+    if (from && !to) { pinned = null; paused = false; }
+  });
+
+  buildArcs();
+  buildBack();
+  buildDust();
+  buildStars();
+  build();
+  requestAnimationFrame(frame);
+})();
+</script>
+"""
+
+# ─────────────────────────────────────────────────────────────
 # Воронка
 # ─────────────────────────────────────────────────────────────
 def _funnel(snapshot: RunSnapshot) -> str:
@@ -1293,19 +2095,23 @@ def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot) ->
              + _sector_panes(candidates, snapshot)
              + render_flow_report(candidates))     # ← новый отчёт
 
+    # Орбита лежит ВНУТРИ #dash, сразу под шапкой. Это не косметика:
+    # showPane() в DASH_JS вешает .hide на #dash целиком, поэтому при
+    # открытии панели среза орбита уезжает вместе с дашбордом сама.
+    # Снаружи её пришлось бы прятать отдельной правкой в DASH_JS.
     return f"""
-{_bg()}
-<div class="screen" id="dash">
-  {_head(snapshot)}
-  <div class="row row-1">{row1}</div>
-  {strat}
-  <div class="row row-2">{row2}</div>
-  {_funnel(snapshot)}
-  {_blk_cube()}
-</div>
-<div class="screen hide" id="panes">{panes}</div>
-{_modals(candidates)}
-{DASH_JS}"""
+    {_bg()}
+    <div class="screen" id="dash">
+      {_head(snapshot)}
+      {_blk_orbit(candidates, snapshot, slices)}
+      <div class="row row-1">{row1}</div>
+      {strat}
+      <div class="row row-2">{row2}</div>
+      {_funnel(snapshot)}
+    </div>
+    <div class="screen hide" id="panes">{panes}</div>
+    {_modals(candidates)}
+    {DASH_JS}"""
 
 
 DASH_JS = """

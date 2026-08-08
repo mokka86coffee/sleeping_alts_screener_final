@@ -1075,6 +1075,140 @@ FLOWREP = """
 """
 
 # ═══════════════════════════════════════════════════
+# ОРБИТА · верхний экран дашборда
+# Вставить в css.py ПЕРЕД блоком RESPONSIVE
+#
+# Всё с префиксом .ob- : в отчёте уже заняты .card и .chip,
+# без префикса орбита сломала бы карточки монет.
+# ═══════════════════════════════════════════════════
+ORBIT = """
+.ob{position:relative;height:76vh;min-height:540px;max-height:820px;
+  margin:0 0 40px;overflow:hidden;border-radius:14px}
+.ob > svg{position:absolute;inset:0;width:100%;height:100%}
+
+/* Подписи узлов — HTML поверх SVG: у отчёта своя гарнитура и трекинг,
+   текст внутри SVG жил бы по своим правилам и не совпал бы с блоками. */
+.ob-lab{position:absolute;transform:translate(-50%,-50%);text-align:center;
+  cursor:pointer;user-select:none;white-space:nowrap;z-index:3;
+  transition:opacity .3s ease}
+.ob-lab-n{font-size:8px;font-weight:300;letter-spacing:3.5px;color:var(--m1);
+  transition:color .3s ease}
+.ob-lab-v{font-size:20px;font-weight:200;letter-spacing:2px;margin-top:2px;
+  color:var(--c,var(--t3));opacity:.82;transition:opacity .3s ease}
+.ob-lab:hover .ob-lab-n,.ob-lab.on .ob-lab-n{color:var(--c,var(--am-l))}
+.ob-lab:hover .ob-lab-v,.ob-lab.on .ob-lab-v{opacity:1}
+/* Невыбранные притухают, но не исчезают — орбита должна читаться целиком */
+.ob.picked .ob-lab:not(.on){opacity:.42}
+
+.ob-core{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  text-align:center;width:340px;pointer-events:none;z-index:3;
+  transition:opacity .35s ease}
+.ob-core-k{font-size:7px;letter-spacing:3px;color:#43434e}
+.ob-core-v{font-size:26px;font-weight:200;letter-spacing:6px;color:var(--t1);
+  margin-top:5px}
+.ob-core-s{font-size:9px;letter-spacing:2px;color:var(--m2);margin-top:12px}
+.ob-core-s b{color:var(--gd);font-weight:400}
+/* Режим рынка уступает место карточке и возвращается, когда её нет */
+.ob.showing .ob-core{opacity:0}
+
+/* Цвет категории приходит инлайновой переменной --c с каждого узла,
+   поэтому правила одни на все семь, а палитра живёт в данных. */
+.ob-node{cursor:pointer}
+.ob-node .ob-ring{fill:none;stroke-width:.9;opacity:.5;transition:opacity .3s ease}
+.ob-node .ob-ic{opacity:.8;transition:opacity .3s ease}
+.ob-node .ob-glow{opacity:.14;transition:opacity .4s ease}
+.ob-node .ob-ping{opacity:0}
+.ob-node:hover .ob-ring,.ob-node:hover .ob-ic{opacity:1}
+.ob-node.on .ob-ring{opacity:1;stroke-width:1.3}
+.ob-node.on .ob-ic{opacity:1}
+.ob-node.on .ob-glow{opacity:.5}
+/* Пинг только у выбранного: у всех семи сразу экран стал бы мигалкой */
+.ob-node.on .ob-ping{animation:ob-ping 2.6s ease-out infinite}
+
+/* Сегмент доли на орбите подсвечивается вместе со своим узлом:
+   иначе выделение живёт только на точке, а дуга остаётся ровной. */
+.ob-seg{transition:opacity .3s ease,stroke-width .3s ease}
+.ob-seg.on{opacity:1;stroke-width:1.4}
+/* Выноска от узла к центру — появляется только у активного */
+.ob-link{stroke-dasharray:2 4;opacity:0;transition:opacity .35s ease}
+.ob-link.on{opacity:.4}
+
+/* Содержимое категории показывается в центре орбиты, а не у узла:
+   центр — единственное место, где ничего не перекрывается дугами,
+   и взгляд не бегает за кометой по кругу. */
+.ob-wrap{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:300px;z-index:4;pointer-events:none}
+.ob-wrap::before{content:'';position:absolute;left:50%;top:50%;
+  width:540px;height:410px;transform:translate(-50%,-50%);
+  background:radial-gradient(ellipse at center,rgba(6,6,9,.92),
+    rgba(6,6,9,.6) 45%,rgba(6,6,9,0) 72%);
+  opacity:0;transition:opacity .4s ease;pointer-events:none}
+.ob.showing .ob-wrap::before{opacity:1}
+
+.ob-card{position:absolute;left:50%;top:50%;width:300px;
+  transform:translate(-50%,-50%) scale(.96);opacity:0;
+  transition:opacity .4s ease,transform .5s cubic-bezier(.2,.9,.25,1.1)}
+.ob-card.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.ob-card-h{text-align:center;margin-bottom:2px}
+.ob-card-n{display:block;font-size:8px;letter-spacing:3.5px;color:var(--c)}
+.ob-card-v{display:block;font-size:30px;font-weight:200;letter-spacing:3px;
+  color:var(--t1);font-variant-numeric:tabular-nums;margin-top:4px}
+.ob-card-note{font-size:8px;letter-spacing:2px;color:#5b606a;
+  margin-bottom:14px;text-align:center}
+.ob-card-r{display:grid;grid-template-columns:66px 1fr 46px;align-items:center;
+  gap:9px;margin-top:7px}
+.ob-card-k{font-size:9px;color:var(--t3);overflow:hidden;text-overflow:ellipsis}
+.ob-card-bar{height:2px;background:var(--trk);position:relative}
+.ob-card-bar i{position:absolute;inset:0 auto 0 0;background:var(--c);opacity:.85}
+.ob-card-x{font-size:9px;text-align:right;color:#8b929c;
+  font-variant-numeric:tabular-nums}
+.ob-card-spark{display:block;width:100%;height:26px;margin-top:10px;opacity:.75}
+
+.ob-chips{display:flex;flex-wrap:wrap;gap:5px 9px;margin-top:2px;
+  justify-content:center;pointer-events:auto}
+/* Три ступени яркости вместо трёх цветов: цвет уже занят категорией,
+   а кратность объёма читается светимостью — как в ленте .lead-list. */
+.ob-chip{font-size:9px;letter-spacing:1.5px}
+.ob-chip[data-coin]{cursor:pointer}
+.ob-chip.t0{color:#5f6572}
+.ob-chip.t1{color:#8a7c58}
+.ob-chip.t2{color:#D4B476}
+.ob-chip.t3{color:#FFE0A0;text-shadow:0 0 8px rgba(217,164,65,.4)}
+
+@keyframes ob-drift{to{transform:rotate(360deg)}}
+@keyframes ob-driftBack{to{transform:rotate(-360deg)}}
+@keyframes ob-run{to{stroke-dashoffset:-1000}}
+@keyframes ob-twinkle{0%,100%{opacity:.15}50%{opacity:.7}}
+@keyframes ob-pulse{0%,100%{opacity:.30}50%{opacity:.55}}
+@keyframes ob-ping{
+  0%{transform:scale(1);opacity:.55}
+  70%,100%{transform:scale(2.6);opacity:0}
+}
+/* Дрейф семейства: оборот за 4 минуты. Крутится группа без фильтров —
+   размытая подсветка лежит внутри и на кадр не пересчитывается. */
+.ob-spin{transform-origin:500px 320px;animation:ob-drift 240s linear infinite}
+/* Встречный слой медленнее и в другую сторону: два одинаковых направления
+   читались бы как одно, разница скоростей даёт параллакс. */
+.ob-spin-back{transform-origin:500px 320px;
+  animation:ob-driftBack 380s linear infinite}
+.ob-breathe{animation:ob-pulse 9s ease-in-out infinite}
+/* Попутные частицы: те же дуги орбиты коротким штрихом, разные скорости
+   и фазы дают ощущение потока, а не одной кометы. */
+.ob-mote{animation:ob-run linear infinite}
+
+@media (prefers-reduced-motion:reduce){
+  .ob-spin,.ob-spin-back,.ob-breathe,.ob-dust circle,
+  .ob-node .ob-ping,.ob-mote{animation:none}
+}
+@media (max-width:900px){
+  .ob{height:60vh;min-height:420px}
+  .ob-lab-v{font-size:16px}
+  .ob-core-v{font-size:20px}
+  .ob-wrap,.ob-card{width:250px}
+}
+"""
+
+# ═══════════════════════════════════════════════════
 # АДАПТИВ · ВСЕГДА В КОНЦЕ
 # ═══════════════════════════════════════════════════
 RESPONSIVE = """
@@ -1188,5 +1322,5 @@ CUBE = """
 
 CSS = "".join([
     TOKENS, BASE, HEAD, BLOCK, VOL, SOC, BARS, SET, IMP, RISK,
-    STRAT, FUNNEL, PANES, FLOWREP, SCAN, CARD, CUBE, RESPONSIVE,
+    STRAT, FUNNEL, PANES, FLOWREP, SCAN, CARD, CUBE, ORBIT, RESPONSIVE,
 ])
