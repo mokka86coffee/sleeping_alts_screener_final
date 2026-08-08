@@ -1082,7 +1082,7 @@ FLOWREP = """
 # без префикса орбита сломала бы карточки монет.
 # ═══════════════════════════════════════════════════
 ORBIT = """
-.ob{position:relative;height:88vh;min-height:560px;max-height:900px;
+.ob{position:relative;height:100vh;min-height:560px;max-height:100vh;
   overflow:hidden;
   /* Выход из сетки .screen на всю ширину окна. Блок остаётся ВНУТРИ #dash:
      showPane() вешает .hide на #dash целиком, и вынеси мы орбиту наружу —
