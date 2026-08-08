@@ -1672,7 +1672,7 @@ ORBIT_JS = """
       var nearNode = false;
       for (var n = 0; n < BLOCKS.length; n++) {
         var np = pos(n);
-        if (Math.hypot(np.x - x, np.y - y) < 86) { nearNode = true; break; }
+        if (Math.hypot(np.x - x, np.y - y) < 128) { nearNode = true; break; }
       }
       if (band > 0.18 && !inCard && !nearNode &&
           x > 40 && x < 960 && y > 40 && y < 600) {
@@ -2095,23 +2095,26 @@ def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot) ->
              + _sector_panes(candidates, snapshot)
              + render_flow_report(candidates))     # ← новый отчёт
 
-    # Орбита лежит ВНУТРИ #dash, сразу под шапкой. Это не косметика:
-    # showPane() в DASH_JS вешает .hide на #dash целиком, поэтому при
-    # открытии панели среза орбита уезжает вместе с дашбордом сама.
-    # Снаружи её пришлось бы прятать отдельной правкой в DASH_JS.
+# Орбита стоит ПЕРВОЙ внутри #dash — выше шапки и на всю ширину окна
+# (из сетки .screen она выходит стилями, см. блок ORBIT в css.py).
+#
+# Внутри #dash, а не снаружи, намеренно: showPane() в DASH_JS вешает
+# .hide на #dash целиком, поэтому при открытии панели среза орбита
+# уезжает вместе с дашбордом сама. Вынеси её наружу — пришлось бы
+# дописывать скрытие руками и держать эту логику в двух местах.
     return f"""
-    {_bg()}
-    <div class="screen" id="dash">
-      {_head(snapshot)}
-      {_blk_orbit(candidates, snapshot, slices)}
-      <div class="row row-1">{row1}</div>
-      {strat}
-      <div class="row row-2">{row2}</div>
-      {_funnel(snapshot)}
-    </div>
-    <div class="screen hide" id="panes">{panes}</div>
-    {_modals(candidates)}
-    {DASH_JS}"""
+{_bg()}
+<div class="screen" id="dash">
+  {_blk_orbit(candidates, snapshot, slices)}
+  {_head(snapshot)}
+  <div class="row row-1">{row1}</div>
+  {strat}
+  <div class="row row-2">{row2}</div>
+  {_funnel(snapshot)}
+</div>
+<div class="screen hide" id="panes">{panes}</div>
+{_modals(candidates)}
+{DASH_JS}"""
 
 
 DASH_JS = """

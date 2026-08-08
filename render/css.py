@@ -1082,8 +1082,14 @@ FLOWREP = """
 # без префикса орбита сломала бы карточки монет.
 # ═══════════════════════════════════════════════════
 ORBIT = """
-.ob{position:relative;height:76vh;min-height:540px;max-height:820px;
-  margin:0 0 40px;overflow:hidden;border-radius:14px}
+.ob{position:relative;height:88vh;min-height:560px;max-height:900px;
+  overflow:hidden;
+  /* Выход из сетки .screen на всю ширину окна. Блок остаётся ВНУТРИ #dash:
+     showPane() вешает .hide на #dash целиком, и вынеси мы орбиту наружу —
+     её пришлось бы прятать отдельной правкой в DASH_JS.
+     Отрицательный margin-top съедает верхний padding .screen, чтобы
+     экран начинался от края окна, а не с отступом. */
+  width:100vw;margin-left:calc(50% - 50vw);margin-top:-34px;margin-bottom:44px}
 .ob > svg{position:absolute;inset:0;width:100%;height:100%}
 
 /* Подписи узлов — HTML поверх SVG: у отчёта своя гарнитура и трекинг,
@@ -1175,6 +1181,24 @@ ORBIT = """
 .ob-chip.t2{color:#D4B476}
 .ob-chip.t3{color:#FFE0A0;text-shadow:0 0 8px rgba(217,164,65,.4)}
 
+/* ── Звёзды: лидер FLOW и монеты из журнала ──────────────────
+   Стоят вне орбиты, чтобы не путаться с узлами категорий.
+   Свежесть попадания в журнал несёт размер и яркость, кратность
+   объёма — цвет и второй луч. Признаки не спорят за одно свойство. */
+.ob-star{cursor:pointer}
+.ob-star .ob-ray{transition:opacity .3s ease}
+.ob-star:hover .ob-ray{opacity:1}
+.ob-star-lbl{font-size:7px;letter-spacing:2px;fill:var(--am-l);opacity:.7;
+  paint-order:stroke;stroke:rgba(6,6,9,.9);stroke-width:2.5}
+/* Кольцо только у ×50 и выше: доп. признак, а не украшение у всех */
+.ob-star-ring{fill:none;stroke:var(--am-l);stroke-width:.4;opacity:.35;
+  animation:ob-halo 4.5s ease-in-out infinite}
+@keyframes ob-halo{
+  0%,100%{transform:scale(1);opacity:.35}
+  50%{transform:scale(1.5);opacity:.08}
+}
+@keyframes ob-shine{0%,100%{opacity:var(--o,.6)}50%{opacity:1}}
+
 @keyframes ob-drift{to{transform:rotate(360deg)}}
 @keyframes ob-driftBack{to{transform:rotate(-360deg)}}
 @keyframes ob-run{to{stroke-dashoffset:-1000}}
@@ -1198,10 +1222,10 @@ ORBIT = """
 
 @media (prefers-reduced-motion:reduce){
   .ob-spin,.ob-spin-back,.ob-breathe,.ob-dust circle,
-  .ob-node .ob-ping,.ob-mote{animation:none}
+  .ob-node .ob-ping,.ob-mote,.ob-star-ring,.ob-star{animation:none}
 }
 @media (max-width:900px){
-  .ob{height:60vh;min-height:420px}
+  .ob{height:64vh;min-height:420px;margin-top:-24px}
   .ob-lab-v{font-size:16px}
   .ob-core-v{font-size:20px}
   .ob-wrap,.ob-card{width:250px}

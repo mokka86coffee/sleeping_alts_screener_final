@@ -1025,8 +1025,14 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   .g-cube{display:none}
 }
 
-.ob{position:relative;height:76vh;min-height:540px;max-height:820px;
-  margin:0 0 40px;overflow:hidden;border-radius:14px}
+.ob{position:relative;height:88vh;min-height:560px;max-height:900px;
+  overflow:hidden;
+  /* Выход из сетки .screen на всю ширину окна. Блок остаётся ВНУТРИ #dash:
+     showPane() вешает .hide на #dash целиком, и вынеси мы орбиту наружу —
+     её пришлось бы прятать отдельной правкой в DASH_JS.
+     Отрицательный margin-top съедает верхний padding .screen, чтобы
+     экран начинался от края окна, а не с отступом. */
+  width:100vw;margin-left:calc(50% - 50vw);margin-top:-34px;margin-bottom:44px}
 .ob > svg{position:absolute;inset:0;width:100%;height:100%}
 
 /* Подписи узлов — HTML поверх SVG: у отчёта своя гарнитура и трекинг,
@@ -1118,6 +1124,24 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
 .ob-chip.t2{color:#D4B476}
 .ob-chip.t3{color:#FFE0A0;text-shadow:0 0 8px rgba(217,164,65,.4)}
 
+/* ── Звёзды: лидер FLOW и монеты из журнала ──────────────────
+   Стоят вне орбиты, чтобы не путаться с узлами категорий.
+   Свежесть попадания в журнал несёт размер и яркость, кратность
+   объёма — цвет и второй луч. Признаки не спорят за одно свойство. */
+.ob-star{cursor:pointer}
+.ob-star .ob-ray{transition:opacity .3s ease}
+.ob-star:hover .ob-ray{opacity:1}
+.ob-star-lbl{font-size:7px;letter-spacing:2px;fill:var(--am-l);opacity:.7;
+  paint-order:stroke;stroke:rgba(6,6,9,.9);stroke-width:2.5}
+/* Кольцо только у ×50 и выше: доп. признак, а не украшение у всех */
+.ob-star-ring{fill:none;stroke:var(--am-l);stroke-width:.4;opacity:.35;
+  animation:ob-halo 4.5s ease-in-out infinite}
+@keyframes ob-halo{
+  0%,100%{transform:scale(1);opacity:.35}
+  50%{transform:scale(1.5);opacity:.08}
+}
+@keyframes ob-shine{0%,100%{opacity:var(--o,.6)}50%{opacity:1}}
+
 @keyframes ob-drift{to{transform:rotate(360deg)}}
 @keyframes ob-driftBack{to{transform:rotate(-360deg)}}
 @keyframes ob-run{to{stroke-dashoffset:-1000}}
@@ -1141,10 +1165,10 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
 
 @media (prefers-reduced-motion:reduce){
   .ob-spin,.ob-spin-back,.ob-breathe,.ob-dust circle,
-  .ob-node .ob-ping,.ob-mote{animation:none}
+  .ob-node .ob-ping,.ob-mote,.ob-star-ring,.ob-star{animation:none}
 }
 @media (max-width:900px){
-  .ob{height:60vh;min-height:420px}
+  .ob{height:64vh;min-height:420px;margin-top:-24px}
   .ob-lab-v{font-size:16px}
   .ob-core-v{font-size:20px}
   .ob-wrap,.ob-card{width:250px}
@@ -1218,7 +1242,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
 </head>
 <body>
 
-    
+
 <div class="bg">
   <svg viewBox="0 0 1200 810" preserveAspectRatio="xMidYMid slice">
     <g stroke="#15151b" fill="none" stroke-width="1">
@@ -1228,36 +1252,8 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
     </g>
   </svg>
 </div>
-    <div class="screen" id="dash">
-      
-<div class="hd">
-  <div>
-    <h1 class="hd-t">SLEEPING ALTS</h1>
-    <div class="hd-d"></div>
-  </div>
-  <div class="cap">
-    <svg width="30" height="30" viewBox="-15 -15 30 30">
-      <circle r="12" fill="none" stroke="#252c33" stroke-width="3"/>
-      <circle r="12" fill="none" stroke="#D8E4EE" stroke-width="3"
-              stroke-linecap="round" stroke-dasharray="75.40 0.00"
-              transform="rotate(-90)"/>
-      <circle r="3" fill="#D8E4EE"/>
-    </svg>
-    <div>
-      <div class="cap-k">режим рынка</div>
-      <div class="cap-v">RISK-OFF</div>
-    </div>
-    <div class="cap-g">
-      <span class="cap-dots"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span>
-      <span class="cap-ap">аппетит 5/5</span>
-    </div>
-    <div class="cap-btc">
-      <span class="cap-k">btc.d</span>
-      <b>58%</b>
-    </div>
-  </div>
-</div>
-      
+<div class="screen" id="dash">
+  
 <div class="ob" id="ob">
   <svg viewBox="0 0 1000 640" preserveAspectRatio="xMidYMid slice">
     <defs>
@@ -1343,7 +1339,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
 
   <div class="ob-wrap" id="ob-wrap"></div>
 </div>
-<script type="application/json" id="ob-data">{"nodes": [{"id": "surge", "name": "ОБЪЁМ", "val": "1", "c": "var(--am)", "w": 0.6, "slice": "surge", "note": "монет · surge ≥ 4×", "spark": [1.45], "rows": [["TUT", "×1.4", 100]]}, {"id": "flow", "name": "ПОТОК", "val": "0", "c": "var(--gd)", "w": 0.7, "slice": "strat:flow", "note": "кто двигает рынок", "rows": [["hidden", "0", 0], ["spring", "0", 0], ["churn", "0", 0], ["fuel", "0", 0], ["taker", "0", 0], ["lever", "0", 0]]}, {"id": "lead", "name": "ЛИДЕРЫ", "val": "49", "c": "var(--am-l)", "w": 0.9, "slice": "", "note": "топ flow + аномальный объём", "list": [["CTSI", 3, ""], ["CYS", 3, ""], ["HEI", 3, ""], ["1000CAT", 3, ""], ["KMNO", 3, ""], ["HFT", 3, ""], ["BLUAI", 3, ""], ["CETUS", 3, ""], ["TUT", 3, "TUTUSDT"], ["BICO", 3, ""], ["STG", 3, ""], ["BLESS", 3, ""], ["C98", 3, ""], ["ARC", 2, ""], ["ZBT", 2, ""], ["XAI", 2, ""], ["COTI", 2, ""], ["KGEN", 2, ""], ["ACE", 2, ""], ["TAKE", 1, ""], ["POWR", 1, ""]]}, {"id": "setups", "name": "СЕТАП", "val": "0", "c": "var(--gr)", "w": 1.0, "slice": "setups", "note": "из 1 · r:r ≥ 2", "rows": []}, {"id": "hourly", "name": "ИМПУЛЬС", "val": "0", "c": "var(--bl)", "w": 0.25, "slice": "hourly", "note": "rvol ≥ 2.2× сейчас", "spark": [], "rows": []}, {"id": "sector", "name": "СЕКТОР", "val": "AI", "c": "var(--vi)", "w": 0.45, "slice": "sector:AI", "note": "ротация за 24 часа", "rows": [["AI", "+93.4%", 100]]}, {"id": "vetoed", "name": "ВЕТО", "val": "0", "c": "var(--ru)", "w": 0.3, "slice": "vetoed", "note": "отсеяно риском · 0% выборки", "rows": []}], "stars": [{"t": "HFT", "f": 0.837, "hot": true, "x": 379, "lead": false, "coin": ""}, {"t": "BICO", "f": 0.839, "hot": true, "x": 266, "lead": false, "coin": ""}, {"t": "ACE", "f": 0.857, "hot": true, "x": 116, "lead": false, "coin": ""}, {"t": "TST", "f": 0.927, "hot": true, "x": 77, "lead": false, "coin": ""}, {"t": "ESP", "f": 0.956, "hot": false, "x": 5, "lead": false, "coin": ""}, {"t": "MMT", "f": 0.976, "hot": false, "x": 32, "lead": false, "coin": ""}, {"t": "CETUS", "f": 0.997, "hot": true, "x": 335, "lead": false, "coin": ""}]}</script>
+<script type="application/json" id="ob-data">{"nodes": [{"id": "surge", "name": "ОБЪЁМ", "val": "1", "c": "var(--am)", "w": 0.6, "slice": "surge", "note": "монет · surge ≥ 4×", "spark": [1.6], "rows": [["TUT", "×1.6", 100]]}, {"id": "flow", "name": "ПОТОК", "val": "0", "c": "var(--gd)", "w": 0.7, "slice": "strat:flow", "note": "кто двигает рынок", "rows": [["hidden", "0", 0], ["spring", "0", 0], ["churn", "0", 0], ["fuel", "0", 0], ["taker", "0", 0], ["lever", "0", 0]]}, {"id": "lead", "name": "ЛИДЕРЫ", "val": "49", "c": "var(--am-l)", "w": 0.9, "slice": "", "note": "топ flow + аномальный объём", "list": [["CTSI", 3, ""], ["CYS", 3, ""], ["HEI", 3, ""], ["1000CAT", 3, ""], ["KMNO", 3, ""], ["HFT", 3, ""], ["BLUAI", 3, ""], ["CETUS", 3, ""], ["TUT", 3, "TUTUSDT"], ["BICO", 3, ""], ["STG", 3, ""], ["BLESS", 3, ""], ["C98", 3, ""], ["ARC", 2, ""], ["ZBT", 2, ""], ["XAI", 2, ""], ["COTI", 2, ""], ["KGEN", 2, ""], ["ACE", 2, ""], ["TAKE", 1, ""], ["POWR", 1, ""]]}, {"id": "setups", "name": "СЕТАП", "val": "0", "c": "var(--gr)", "w": 1.0, "slice": "setups", "note": "из 1 · r:r ≥ 2", "rows": []}, {"id": "hourly", "name": "ИМПУЛЬС", "val": "0", "c": "var(--bl)", "w": 0.25, "slice": "hourly", "note": "rvol ≥ 2.2× сейчас", "spark": [], "rows": []}, {"id": "sector", "name": "СЕКТОР", "val": "AI", "c": "var(--vi)", "w": 0.45, "slice": "sector:AI", "note": "ротация за 24 часа", "rows": [["AI", "+93.0%", 100]]}, {"id": "vetoed", "name": "ВЕТО", "val": "0", "c": "var(--ru)", "w": 0.3, "slice": "vetoed", "note": "отсеяно риском · 0% выборки", "rows": []}], "stars": [{"t": "HFT", "f": 0.837, "hot": true, "x": 379, "lead": false, "coin": ""}, {"t": "BICO", "f": 0.838, "hot": true, "x": 266, "lead": false, "coin": ""}, {"t": "ACE", "f": 0.856, "hot": true, "x": 116, "lead": false, "coin": ""}, {"t": "TST", "f": 0.926, "hot": true, "x": 77, "lead": false, "coin": ""}, {"t": "ESP", "f": 0.956, "hot": false, "x": 5, "lead": false, "coin": ""}, {"t": "MMT", "f": 0.976, "hot": false, "x": 32, "lead": false, "coin": ""}, {"t": "CETUS", "f": 0.997, "hot": true, "x": 335, "lead": false, "coin": ""}]}</script>
 
 <script>
 (function () {
@@ -1498,7 +1494,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
       var nearNode = false;
       for (var n = 0; n < BLOCKS.length; n++) {
         var np = pos(n);
-        if (Math.hypot(np.x - x, np.y - y) < 86) { nearNode = true; break; }
+        if (Math.hypot(np.x - x, np.y - y) < 128) { nearNode = true; break; }
       }
       if (band > 0.18 && !inCard && !nearNode &&
           x > 40 && x < 960 && y > 40 && y < 600) {
@@ -1779,7 +1775,35 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
 })();
 </script>
 
-      <div class="row row-1">
+  
+<div class="hd">
+  <div>
+    <h1 class="hd-t">SLEEPING ALTS</h1>
+    <div class="hd-d"></div>
+  </div>
+  <div class="cap">
+    <svg width="30" height="30" viewBox="-15 -15 30 30">
+      <circle r="12" fill="none" stroke="#252c33" stroke-width="3"/>
+      <circle r="12" fill="none" stroke="#D8E4EE" stroke-width="3"
+              stroke-linecap="round" stroke-dasharray="75.40 0.00"
+              transform="rotate(-90)"/>
+      <circle r="3" fill="#D8E4EE"/>
+    </svg>
+    <div>
+      <div class="cap-k">режим рынка</div>
+      <div class="cap-v">RISK-OFF</div>
+    </div>
+    <div class="cap-g">
+      <span class="cap-dots"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span>
+      <span class="cap-ap">аппетит 5/5</span>
+    </div>
+    <div class="cap-btc">
+      <span class="cap-k">btc.d</span>
+      <b>58%</b>
+    </div>
+  </div>
+</div>
+  <div class="row row-1">
 <div class="b c-am g-vol" data-slice="surge">
   <span class="halo"></span>
   <div class="b-in">
@@ -1805,7 +1829,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
       </svg>
     </div>
     <div class="hr"></div>
-    <div class="vol-legend"><span>TUT ×1.4</span></div>
+    <div class="vol-legend"><span>TUT ×1.6</span></div>
   </div>
 </div>
 <div class="b b-card c-bl g-soc empty" data-slice="viral">
@@ -1888,7 +1912,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
     <div class="risk-legs"><span>squeeze<b class="ru">9</b></span><span>фандинг<b class="gl">6</b></span><span>ликвид.<b class="st">8</b></span></div>
   </div>
 </div></div>
-      
+  
 <div class="strat c-fl empty" data-slice="strat:flow">
   <span class="halo"></span>
   <svg class="fl" viewBox="-14 0 560 130">
@@ -2023,10 +2047,10 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   </svg>
 </div>
 <div class="g-lead">
-  <div class="lead-list"><span class="lead-t lead-g1" title="×96">TAKE</span><span class="lead-t lead-g1" title="×79">DODOX</span><span class="lead-t lead-g1" title="×82">AIOT</span><span class="lead-t" title="×29">BSB</span><span class="lead-t lead-g3" title="×595">HEI</span><span class="lead-t lead-f lead-g3" title="×335">CETUS</span><span class="lead-t" title="×31">BTW</span><span class="lead-t lead-x" title="×33">TRADOOR</span><span class="lead-t lead-x lead-f" title="×5">ESP</span><span class="lead-t lead-x lead-g3" title="×341">BLUAI</span><span class="lead-t lead-x" title="×26">ZKP</span><span class="lead-t lead-x" title="×36">KOMA</span><span class="lead-t lead-x" title="×33">SIREN</span><span class="lead-t lead-x lead-g1" title="×60">FLNC</span><span class="lead-t lead-x lead-f lead-g3" title="×379">HFT</span><span class="lead-t lead-x lead-g2" title="×119">COTI</span><span class="lead-t lead-x" title="×25">NIL</span><span class="lead-t lead-x lead-f" title="×32">MMT</span><span class="lead-t lead-x lead-g3" title="×491">KMNO</span><span class="lead-t lead-x" title="×41">SKYAI</span><span class="lead-t lead-x" title="×26">ACT</span><span class="lead-t lead-x lead-g3" title="×152">C98</span><span class="lead-t lead-x lead-f lead-g2" title="×116">ACE</span><span class="lead-t lead-x" title="×27">RECALL</span><span class="lead-t lead-x lead-f lead-g3" title="×266">BICO</span><span class="lead-t lead-x lead-g3" title="×201">BLESS</span><span class="lead-t lead-x lead-f lead-g1" title="×77">TST</span><span class="lead-t lead-x lead-g1" title="×73">GWEI</span><span class="lead-t lead-x" title="×33">POWER</span><span class="lead-t lead-x lead-g3" title="×201">STG</span><span class="lead-t lead-x lead-g1" title="×83">POWR</span><span class="lead-t lead-x lead-g3" data-coin="TUTUSDT" title="×275">TUT</span><span class="lead-t lead-x" title="×43">DEEP</span><span class="lead-t lead-x" title="×33">RIVER</span><span class="lead-t lead-x" title="×40">BSP</span><span class="lead-t lead-x" title="×37">VIC</span><span class="lead-t lead-x" title="×31">SKR</span><span class="lead-t lead-x lead-g2" title="×140">ZBT</span><span class="lead-t lead-x lead-g2" title="×139">XAI</span><span class="lead-t lead-x lead-g3" title="×595">1000CAT</span><span class="lead-t lead-x" title="×37">NOM</span><span class="lead-t lead-x lead-g3" title="×1954">CTSI</span><span class="lead-t lead-x lead-g2" title="×118">KGEN</span><span class="lead-t lead-x lead-g1" title="×68">COOKIE</span><span class="lead-t lead-x lead-g3" title="×704">CYS</span><span class="lead-t lead-x" title="×32">1000RATS</span><span class="lead-t lead-x" title="×29">STAR</span><span class="lead-t lead-x" title="×39">OGN</span><span class="lead-t lead-x lead-g2" title="×141">ARC</span></div>
+  <div class="lead-list"><span class="lead-t lead-f lead-g2" title="×116">ACE</span><span class="lead-t lead-g2" title="×139">XAI</span><span class="lead-t lead-g1" title="×68">COOKIE</span><span class="lead-t lead-g3" title="×152">C98</span><span class="lead-t lead-g3" title="×704">CYS</span><span class="lead-t lead-g3" title="×201">BLESS</span><span class="lead-t lead-g3" title="×491">KMNO</span><span class="lead-t lead-x" title="×31">SKR</span><span class="lead-t lead-x" title="×33">RIVER</span><span class="lead-t lead-x" title="×25">NIL</span><span class="lead-t lead-x" title="×32">1000RATS</span><span class="lead-t lead-x" title="×33">TRADOOR</span><span class="lead-t lead-x lead-g3" title="×341">BLUAI</span><span class="lead-t lead-x" title="×29">BSB</span><span class="lead-t lead-x lead-g1" title="×79">DODOX</span><span class="lead-t lead-x" title="×26">ZKP</span><span class="lead-t lead-x lead-f" title="×5">ESP</span><span class="lead-t lead-x lead-g1" title="×82">AIOT</span><span class="lead-t lead-x lead-f" title="×32">MMT</span><span class="lead-t lead-x lead-f lead-g1" title="×77">TST</span><span class="lead-t lead-x" title="×33">SIREN</span><span class="lead-t lead-x lead-f lead-g3" title="×379">HFT</span><span class="lead-t lead-x lead-g1" title="×60">FLNC</span><span class="lead-t lead-x lead-g2" title="×141">ARC</span><span class="lead-t lead-x" title="×43">DEEP</span><span class="lead-t lead-x lead-g1" title="×73">GWEI</span><span class="lead-t lead-x" title="×27">RECALL</span><span class="lead-t lead-x lead-g3" title="×595">HEI</span><span class="lead-t lead-x lead-g3" title="×201">STG</span><span class="lead-t lead-x lead-g2" title="×140">ZBT</span><span class="lead-t lead-x" title="×37">VIC</span><span class="lead-t lead-x" title="×29">STAR</span><span class="lead-t lead-x" title="×33">POWER</span><span class="lead-t lead-x lead-g3" title="×1954">CTSI</span><span class="lead-t lead-x lead-g3" title="×595">1000CAT</span><span class="lead-t lead-x lead-f lead-g3" title="×266">BICO</span><span class="lead-t lead-x" title="×36">KOMA</span><span class="lead-t lead-x" title="×39">OGN</span><span class="lead-t lead-x lead-g2" title="×118">KGEN</span><span class="lead-t lead-x" title="×31">BTW</span><span class="lead-t lead-x" title="×26">ACT</span><span class="lead-t lead-x" title="×41">SKYAI</span><span class="lead-t lead-x lead-g1" title="×96">TAKE</span><span class="lead-t lead-x lead-f lead-g3" title="×335">CETUS</span><span class="lead-t lead-x" title="×37">NOM</span><span class="lead-t lead-x" title="×40">BSP</span><span class="lead-t lead-x lead-g3" data-coin="TUTUSDT" title="×275">TUT</span><span class="lead-t lead-x lead-g1" title="×83">POWR</span><span class="lead-t lead-x lead-g2" title="×119">COTI</span></div>
   <div class="lead-hd">объём · flow</div>
 </div>
-      <div class="row row-2">
+  <div class="row row-2">
 <div class="b b-glass gl-gr c-gr g-set">
   <span class="halo"></span>
   <div class="b-in">
@@ -2053,10 +2077,10 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <div class="b-in">
     <span class="b-ic"><svg viewBox="-13 -13 26 26"><path d="M-8 5 h16 M-8 5 v-4 M-3 5 v-8 M2 5 v-11 M7 5 v-6" fill="none" stroke="#D8C0F8" stroke-width="1.8" stroke-linecap="round"/></svg></span>
     <div class="b-t">сектора <span>за 24 часа</span></div>
-    <div class="rows"><div class="srow" data-slice="sector:AI"><span class="srow-n">AI</span><span class="srow-t"><i class="up" style="width:50%"></i></span><span class="srow-v up">+93.4%</span></div></div>
+    <div class="rows"><div class="srow" data-slice="sector:AI"><span class="srow-n">AI</span><span class="srow-t"><i class="up" style="width:50%"></i></span><span class="srow-v up">+93.0%</span></div></div>
   </div>
 </div></div>
-      
+  
 <div class="fn">
   <span class="halo" style="width:840px;height:80px;top:-6px"></span>
   <div class="fn-cap">путь отбора · 1 → 0</div>
@@ -2069,8 +2093,8 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
     </div>
   </div>
 </div>
-    </div>
-    <div class="screen hide" id="panes">
+</div>
+<div class="screen hide" id="panes">
 <div class="pane" data-pane="all">
   <div class="pane-hd">
     <button class="pane-back">← назад</button>
@@ -2088,15 +2112,15 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
     <span class="sx-sub">ai · перп</span>
   </td>
   <td class="sx-c-soc"><div class="sx-mut">—</div></td>
-  <td class="sx-c-surge"><div class="sx-surge"><span class="sx-badge" style="--bc:#F5A623">×1.4</span><span class=sx-sub2>экстремальный</span></div></td>
+  <td class="sx-c-surge"><div class="sx-surge"><span class="sx-badge" style="--bc:#F5A623">×1.6</span><span class=sx-sub2>экстремальный</span></div></td>
   <td class="sx-c-taiko"><div class="sx-mut">—</div></td>
 
   <td><svg class="sx-ring" viewBox="-18.0 -18.0 36 36"><circle r="15" fill="none" stroke="#1d2127" stroke-width="2.5"/><circle r="15" fill="none" stroke="#8FA0B0" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round" stroke-dasharray="38.64 55.61" transform="rotate(-90)"/><text class="sx-ring-v" y="3.5" text-anchor="middle">41</text></svg></td>
-  <td><b class="sx-n am">1.4×</b><span class="sx-bar" style="width:52px"><i style="width:14%;background:#F5A623"></i></span></td>
+  <td><b class="sx-n am">1.6×</b><span class="sx-bar" style="width:52px"><i style="width:16%;background:#F5A623"></i></span></td>
   <td><span class="sx-sb empty"></span></td>
-  <td><span class="sx-bar" style="width:40px"><i style="width:24%;background:#FFD98A"></i></span></td>
+  <td><span class="sx-bar" style="width:40px"><i style="width:27%;background:#FFD98A"></i></span></td>
 
-  <td><b class="sx-n up">+93.4%</b></td>
+  <td><b class="sx-n up">+93.0%</b></td>
   <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,23.0 3.1,22.9 6.3,22.9 9.4,23.0 12.5,22.6 15.7,22.3 18.8,22.8 21.9,22.7 25.0,22.4 28.2,22.3 31.3,22.0 34.4,22.4 37.6,22.5 40.7,22.6 43.8,22.3 47.0,22.0 50.1,21.5 53.2,21.5 56.3,20.6 59.5,20.2 62.6,18.0 65.7,19.3 68.9,14.7 72.0,3.0" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="3.0" r="2" fill="#93ff00"/></svg></td>
   <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
 
@@ -2105,11 +2129,11 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <td><span class="sx-sub2">ai</span></td>
 
   <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#D9B84A"></i><i></i><i></i></span><span class="sx-veto-l bad">squeeze</span></div></td>
-  <td><span class="sx-bp"><i style="left:50%;width:50%;background:#C4703A"></i></span><b class="sx-bp-v" style="color:#C4703A">+0.284%</b></td>
+  <td><span class="sx-bp"><i style="left:50%;width:50%;background:#C4703A"></i></span><b class="sx-bp-v" style="color:#C4703A">+0.355%</b></td>
   <td><b class="sx-rr mut">—</b></td>
 
   <td><span class="sx-lv empty">уровней нет</span></td>
-  <td><b class="sx-n">0.0753</b></td>
+  <td><b class="sx-n">0.0752</b></td>
   <td><div class="sx-act">→</div></td>
 </tr></tbody></table></div>
   <div class="sx-f"><span>всего 1 монет</span>
@@ -2132,15 +2156,15 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
     <span class="sx-sub">ai · перп</span>
   </td>
   <td class="sx-c-soc"><div class="sx-mut">—</div></td>
-  <td class="sx-c-surge"><div class="sx-surge"><span class="sx-badge" style="--bc:#F5A623">×1.4</span><span class=sx-sub2>экстремальный</span></div></td>
+  <td class="sx-c-surge"><div class="sx-surge"><span class="sx-badge" style="--bc:#F5A623">×1.6</span><span class=sx-sub2>экстремальный</span></div></td>
   <td class="sx-c-taiko"><div class="sx-mut">—</div></td>
 
   <td><svg class="sx-ring" viewBox="-18.0 -18.0 36 36"><circle r="15" fill="none" stroke="#1d2127" stroke-width="2.5"/><circle r="15" fill="none" stroke="#8FA0B0" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round" stroke-dasharray="38.64 55.61" transform="rotate(-90)"/><text class="sx-ring-v" y="3.5" text-anchor="middle">41</text></svg></td>
-  <td><b class="sx-n am">1.4×</b><span class="sx-bar" style="width:52px"><i style="width:14%;background:#F5A623"></i></span></td>
+  <td><b class="sx-n am">1.6×</b><span class="sx-bar" style="width:52px"><i style="width:16%;background:#F5A623"></i></span></td>
   <td><span class="sx-sb empty"></span></td>
-  <td><span class="sx-bar" style="width:40px"><i style="width:24%;background:#FFD98A"></i></span></td>
+  <td><span class="sx-bar" style="width:40px"><i style="width:27%;background:#FFD98A"></i></span></td>
 
-  <td><b class="sx-n up">+93.4%</b></td>
+  <td><b class="sx-n up">+93.0%</b></td>
   <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,23.0 3.1,22.9 6.3,22.9 9.4,23.0 12.5,22.6 15.7,22.3 18.8,22.8 21.9,22.7 25.0,22.4 28.2,22.3 31.3,22.0 34.4,22.4 37.6,22.5 40.7,22.6 43.8,22.3 47.0,22.0 50.1,21.5 53.2,21.5 56.3,20.6 59.5,20.2 62.6,18.0 65.7,19.3 68.9,14.7 72.0,3.0" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="3.0" r="2" fill="#93ff00"/></svg></td>
   <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
 
@@ -2149,11 +2173,11 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <td><span class="sx-sub2">ai</span></td>
 
   <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#D9B84A"></i><i></i><i></i></span><span class="sx-veto-l bad">squeeze</span></div></td>
-  <td><span class="sx-bp"><i style="left:50%;width:50%;background:#C4703A"></i></span><b class="sx-bp-v" style="color:#C4703A">+0.284%</b></td>
+  <td><span class="sx-bp"><i style="left:50%;width:50%;background:#C4703A"></i></span><b class="sx-bp-v" style="color:#C4703A">+0.355%</b></td>
   <td><b class="sx-rr mut">—</b></td>
 
   <td><span class="sx-lv empty">уровней нет</span></td>
-  <td><b class="sx-n">0.0753</b></td>
+  <td><b class="sx-n">0.0752</b></td>
   <td><div class="sx-act">→</div></td>
 </tr></tbody></table></div>
   <div class="sx-f"><span>всего 1 монет</span>
@@ -2275,15 +2299,15 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
     <span class="sx-sub">ai · перп</span>
   </td>
   <td class="sx-c-soc"><div class="sx-mut">—</div></td>
-  <td class="sx-c-surge"><div class="sx-surge"><span class="sx-badge" style="--bc:#F5A623">×1.4</span><span class=sx-sub2>экстремальный</span></div></td>
+  <td class="sx-c-surge"><div class="sx-surge"><span class="sx-badge" style="--bc:#F5A623">×1.6</span><span class=sx-sub2>экстремальный</span></div></td>
   <td class="sx-c-taiko"><div class="sx-mut">—</div></td>
 
   <td><svg class="sx-ring" viewBox="-18.0 -18.0 36 36"><circle r="15" fill="none" stroke="#1d2127" stroke-width="2.5"/><circle r="15" fill="none" stroke="#8FA0B0" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round" stroke-dasharray="38.64 55.61" transform="rotate(-90)"/><text class="sx-ring-v" y="3.5" text-anchor="middle">41</text></svg></td>
-  <td><b class="sx-n am">1.4×</b><span class="sx-bar" style="width:52px"><i style="width:14%;background:#F5A623"></i></span></td>
+  <td><b class="sx-n am">1.6×</b><span class="sx-bar" style="width:52px"><i style="width:16%;background:#F5A623"></i></span></td>
   <td><span class="sx-sb empty"></span></td>
-  <td><span class="sx-bar" style="width:40px"><i style="width:24%;background:#FFD98A"></i></span></td>
+  <td><span class="sx-bar" style="width:40px"><i style="width:27%;background:#FFD98A"></i></span></td>
 
-  <td><b class="sx-n up">+93.4%</b></td>
+  <td><b class="sx-n up">+93.0%</b></td>
   <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,23.0 3.1,22.9 6.3,22.9 9.4,23.0 12.5,22.6 15.7,22.3 18.8,22.8 21.9,22.7 25.0,22.4 28.2,22.3 31.3,22.0 34.4,22.4 37.6,22.5 40.7,22.6 43.8,22.3 47.0,22.0 50.1,21.5 53.2,21.5 56.3,20.6 59.5,20.2 62.6,18.0 65.7,19.3 68.9,14.7 72.0,3.0" fill="none" stroke="#93ff00" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="3.0" r="2" fill="#93ff00"/></svg></td>
   <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
 
@@ -2292,11 +2316,11 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <td><span class="sx-sub2">ai</span></td>
 
   <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#D9B84A"></i><i></i><i></i></span><span class="sx-veto-l bad">squeeze</span></div></td>
-  <td><span class="sx-bp"><i style="left:50%;width:50%;background:#C4703A"></i></span><b class="sx-bp-v" style="color:#C4703A">+0.284%</b></td>
+  <td><span class="sx-bp"><i style="left:50%;width:50%;background:#C4703A"></i></span><b class="sx-bp-v" style="color:#C4703A">+0.355%</b></td>
   <td><b class="sx-rr mut">—</b></td>
 
   <td><span class="sx-lv empty">уровней нет</span></td>
-  <td><b class="sx-n">0.0753</b></td>
+  <td><b class="sx-n">0.0752</b></td>
   <td><div class="sx-act">→</div></td>
 </tr></tbody></table></div>
   <div class="sx-f"><span>всего 1 монет</span>
@@ -2311,10 +2335,10 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   </div>
   <div class="fr-list"><div class="fr-empty">в этом прогоне flow не сработал</div></div>
 </div></div>
-    <div class="modal" data-coin="TUTUSDT"><div class="modal-bd"></div><div class="modal-in"><button class="modal-x">✕</button><div class="card glow g-am">
+<div class="modal" data-coin="TUTUSDT"><div class="modal-bd"></div><div class="modal-in"><button class="modal-x">✕</button><div class="card glow g-am">
 <div class="card-in">
   <div class="hdr amber">
-    <div class="hdr-cl"><div class="hdr-gh">+93.4%</div></div>
+    <div class="hdr-cl"><div class="hdr-gh">+93.0%</div></div>
     <div class="hdr-in">
       <div class="hdr-rk"><b>RANK 001</b><i></i></div>
       <a class="hdr-sym-a" href="https://www.tradingview.com/chart/?symbol=BINANCE:TUTUSDT.P" target="_blank" rel="noopener">
@@ -2322,7 +2346,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
       </a>
       <div class="hdr-ph">trend</div>
     </div>
-    <div class="hdr-pr">$0.07532</div>
+    <div class="hdr-pr">$0.07516</div>
   </div>
   <div class="med-link"></div>
   <div class="med " style="--p:41">
@@ -2332,15 +2356,15 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
   <div class="wrap">
     <div class="rvol">
       <div class="rvol-i">📊</div>
-      <div class="rvol-v">1.45×</div>
+      <div class="rvol-v">1.60×</div>
       <div class="rvol-l">RVOL 1H</div>
-      <div class="rvol-d">в норме</div>
+      <div class="rvol-d">выше нормы</div>
     </div>
-    <div class="sigs"><div class="sig"><span class="sig-i">📊</span><div style="min-width:0"><div class="sig-t">VOL SURGE ×81.6 ▲</div><div class="sig-d">$434.69M против $7.76M</div></div></div><div class="sig rd"><span class="sig-i">!</span><div style="min-width:0"><div class="sig-t">SQUEEZE HIGH · 65</div><div class="sig-d">сжатие волатильности, риск выброса</div></div></div><div class="sig-row"><div class="sig half"><span class="sig-i">≈</span><div style="min-width:0"><div class="sig-t">FUNDING</div><div class="sig-d">0.0028%</div></div></div><div class="sig half"><span class="sig-i">↑</span><div style="min-width:0"><div class="sig-t">OPEN INTEREST</div><div class="sig-d">$37.05M</div></div></div></div></div>
+    <div class="sigs"><div class="sig"><span class="sig-i">📊</span><div style="min-width:0"><div class="sig-t">VOL SURGE ×81.8 ▲</div><div class="sig-d">$438.43M против $7.76M</div></div></div><div class="sig rd"><span class="sig-i">!</span><div style="min-width:0"><div class="sig-t">SQUEEZE HIGH · 65</div><div class="sig-d">сжатие волатильности, риск выброса</div></div></div><div class="sig-row"><div class="sig half"><span class="sig-i">≈</span><div style="min-width:0"><div class="sig-t">FUNDING</div><div class="sig-d">0.0036%</div></div></div><div class="sig half"><span class="sig-i">↑</span><div style="min-width:0"><div class="sig-t">OPEN INTEREST</div><div class="sig-d">$37.27M</div></div></div></div></div>
   </div>
   <div class="veto"><div class="veto-h">ПОД ВЕТО · 1</div><div class="veto-row"><span class="veto-k">SQUEEZE</span><span class="veto-v">риск HIGH, скор 65</span></div></div>
-  <div class="perf"><div><div class="perf-k">7D</div><div class="perf-v up">+329.9%</div></div><div><div class="perf-k">30D</div><div class="perf-v up">+609.2%</div></div><div><div class="perf-k">ATH</div><div class="perf-v dn">-59.9%</div></div><div><div class="perf-k">OBV</div><div class="perf-v up">+15352.5%</div></div></div>
-  <div class="tech">SRSI 100.0 · ATR 9.22 · BB 261.71 · SPOT 7% · VI+ 1.5175/0.4209</div>
+  <div class="perf"><div><div class="perf-k">7D</div><div class="perf-v up">+329.0%</div></div><div><div class="perf-k">30D</div><div class="perf-v up">+607.7%</div></div><div><div class="perf-k">ATH</div><div class="perf-v dn">-60.0%</div></div><div><div class="perf-k">OBV</div><div class="perf-v up">+15410.9%</div></div></div>
+  <div class="tech">SRSI 100.0 · ATR 9.24 · BB 261.21 · SPOT 7% · VI+ 1.5175/0.4209</div>
   
 <div class="blk b1"><div class="blk-n">01</div><div class="b1-in">
   <div class="b1-h"><span class="tw"><svg viewBox="0 0 24 24"><path d="M23 4.9c-.8.4-1.7.6-2.6.8 1-.6 1.7-1.5 2-2.6-.9.5-1.9.9-3 1.1a4.7 4.7 0 0 0-8 4.3C7.5 8.3 4 6.5 1.7 3.7a4.7 4.7 0 0 0 1.5 6.3c-.8 0-1.5-.2-2.1-.6 0 2.3 1.6 4.2 3.8 4.6-.4.1-.8.2-1.2.2-.3 0-.6 0-.9-.1.6 1.9 2.4 3.3 4.4 3.3A9.5 9.5 0 0 1 0 19.5a13.3 13.3 0 0 0 7.2 2.1c8.7 0 13.4-7.2 13.4-13.4v-.6c.9-.7 1.7-1.5 2.4-2.7z"/></svg></span>
@@ -2353,11 +2377,11 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
     <div class="blk-n">02</div>
     <div class="b2-in">
       <div class="b2-t">АНАЛИЗ · 2 БЛОКА</div>
-      <div class="b2-p">Volume Surge ×81.6 (экстремальный): текущий дневной объём $63…</div>
+      <div class="b2-p">Volume Surge ×81.8 (экстремальный): текущий дневной объём $63…</div>
     </div>
     <span class="b2-c"></span>
   </summary>
-  <div class="b2-body"><p>Volume Surge ×81.6 (экстремальный): текущий дневной объём $632.88M против среднего $7.76M за 30 дней. Свеча зелёная +93.3%. Аномальная активность: крупный игрок, новость или начало движения. Tutorial — MEME. Tutorial is a token from a dev who made a tutorial on how to launch token on BNB chain 10 month ago, the OG Tutorial token was on testnet, so he decided to launch it on mainnet as a meme. Ранг 390, $55.5M, малая капитализация. Динамика: за год +11%; за 30 дней +537%, сильный откат от дна. Настроение 69% бычье. Чистая спекуляция: играется на новостях и вирусности, фундамента нет.</p><p>HIGH SQUEEZE RISK — признаки выжимания шортов. Тренд может продолжиться, но соотношение риска к прибыли плохое. Если в позиции — фиксировать лесенкой, стопы жёсткие.</p></div>
+  <div class="b2-body"><p>Volume Surge ×81.8 (экстремальный): текущий дневной объём $634.49M против среднего $7.76M за 30 дней. Свеча зелёная +92.9%. Аномальная активность: крупный игрок, новость или начало движения. Tutorial — MEME. Tutorial is a token from a dev who made a tutorial on how to launch token on BNB chain 10 month ago, the OG Tutorial token was on testnet, so he decided to launch it on mainnet as a meme. Ранг 390, $55.5M, малая капитализация. Динамика: за год +11%; за 30 дней +537%, сильный откат от дна. Настроение 69% бычье. Чистая спекуляция: играется на новостях и вирусности, фундамента нет.</p><p>HIGH SQUEEZE RISK — признаки выжимания шортов. Тренд может продолжиться, но соотношение риска к прибыли плохое. Если в позиции — фиксировать лесенкой, стопы жёсткие.</p></div>
 </details>
 <div class="blk b3">
   <div class="blk-n">03</div>
@@ -2371,7 +2395,7 @@ td:nth-child(6) .sx-ring{width:36px;height:36px}
 </div>
   <div class="lnks"><a class="lnk pri" href="https://www.tradingview.com/chart/?symbol=BINANCE:TUTUSDT.P" target="_blank" rel="noopener"><i>📈</i>TRADINGVIEW ↗</a><a class="lnk" href="https://www.binance.com/en/futures/TUTUSDT" target="_blank" rel="noopener"><i>🅱</i>BINANCE ↗</a><a class="lnk" href="https://www.coingecko.com/en/search?query=TUT" target="_blank" rel="noopener"><i>🦎</i>COINGECKO ↗</a><a class="lnk" href="https://x.com/search?q=%24TUT&amp;f=live" target="_blank" rel="noopener"><i>𝕏</i>TWITTER ↗</a></div>
 </div></div></div></div>
-    
+
 <script>
 (function () {
   var dash = document.getElementById('dash');
