@@ -17,7 +17,8 @@ from core.models import Candidate, RunSnapshot
 from render.card import render_card
 from render.table import render_slice_pane
 from render.theme import esc
-from render.flow_report import case_key, render_flow_report
+from render.flow_report import (case_key, render_flow_report,
+                                CASE_RU, _cap, _data)
 
 # ─────────────────────────────────────────────────────────────
 # Хелперы
@@ -1155,6 +1156,14 @@ def _blk_flow(candidates: list[Candidate]) -> str:
 
 # ─────────────────────────────────────────────────────────────
 # ОРБИТА · верхний экран дашборда
+# Заменить в dashboard.py строки 1157..2162
+# (от комментария «ОРБИТА · верхний экран» до закрывающих
+#  кавычек ORBIT_JS включительно)
+#
+# ВАЖНО: дополнить импорт в шапке файла —
+#   from render.flow_report import (case_key, render_flow_report,
+#                                   CASE_RU, _cap, _data)
+# ─────────────────────────────────────────────────────────────
 # Вставить в dashboard.py рядом с остальными _blk_* функциями.
 # json уже импортирован в шапке файла.
 #
@@ -1368,6 +1377,38 @@ def _star_age_days(rec: dict) -> float | None:
     return None
 
 
+
+def _star_card(c: Candidate | None) -> dict:
+    """Поля карточки монеты, всплывающей при наведении на звезду.
+
+    Монеты из журнала, не попавшей в текущий прогон, у нас нет в
+    candidates — тогда карточка покажет только тикер и журнальные
+    поля. Это честнее, чем тянуть устаревшие числа из журнала.
+    """
+    if c is None:
+        return {"score": 0, "sector": "—", "pattern": "—"}
+
+    d = _data(c)
+    cats = getattr(c, "categories", None) or []
+    return {
+        "score": int(getattr(c, "score", 0) or 0),
+        "sector": (cats[0] if cats else "—").lower(),
+        "cap": _cap(d["cap"]),
+        "ath": round(d["ath"]),
+        "pattern": CASE_RU.get(case_key(_flow_case(c)), "—"),
+        "v1h": d["v1h"], "v4h": d["v4h"], "v1d": d["v1d"],
+        "p1d": round(d["p1d"], 1),
+        "p3d": round(d["p3d"], 1),
+        "p7d": round(d["p7d"], 1),
+        "fund": round(d["fund"], 4),
+        "series": [round(float(v), 6) for v in (d["series"] or [])],
+    }
+
+
+def _flow_case(c: Candidate) -> str:
+    return str((c.flow or {}).get("case", "") or "")
+
+
 def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
     """Лидер FLOW и монеты журнала лидеров — отдельными звёздами.
 
@@ -1429,6 +1470,10 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
             "coin": (c.symbol if c is not None else ""),
             "up": round(float(raw.get("up_from_low") or 0)),
             "updays": int(raw.get("days_from_low") or 0),
+            # Числа карточки берём тем же _data(), что кормит карточки
+            # отчёта: иначе одна монета показывала бы на орбите и в
+            # отчёте разные цифры, и расхождение всплыло бы не сразу.
+            **_star_card(c),
         })
 
     # Лидер рисуется последним — поверх остальных, если рядом окажется сосед
@@ -1593,17 +1638,6 @@ ORBIT_JS = """
   var orb = document.getElementById('ob');
   if (!orb) return;
 
-  /* На мобильных не просто прячем стилями, а убираем узел из документа
-     и выходим до сборки: скрытый SVG всё равно занимал бы память,
-     а getTotalLength и getPointAtLength на display:none элементе
-     в части браузеров бросают исключение. Условие то же, что в CSS. */
-  if (window.matchMedia('(pointer: coarse)').matches ||
-      window.matchMedia('(max-width: 1100px)').matches) {
-    orb.remove();
-    var blob = document.getElementById('ob-data');
-    if (blob) blob.remove();
-    return;
-  }
   var DATA = JSON.parse(document.getElementById('ob-data').textContent);
   var BLOCKS = DATA.nodes || [], STARS = DATA.stars || [];
   if (!BLOCKS.length) return;
@@ -1801,6 +1835,88 @@ ORBIT_JS = """
     return fb;
   }
 
+  /* Разметка карточки монеты. Держится отдельно от отрисовки звезды:
+     блок большой, и внутри отрисовки его было бы не найти. */
+  function coinCard(s) {
+    // Знак задаёт класс, а не цвет в разметке: цвета живут в стилях
+    function sg(v) { return (v || 0) >= 0 ? 'up' : 'dn'; }
+    function num(v) { return ((v || 0) >= 0 ? '+' : '') + (v || 0); }
+
+    var R = 17, C = 2 * Math.PI * R;
+    var dash = (C * Math.min(100, s.score || 0) / 100).toFixed(1);
+
+    // Логарифм: между x3 и x709 линейная полоса делает первую невидимой
+    function vol(label, v) {
+      if (!v) return '<span class="ob-sc-v off"><i>' + label +
+                     '</i><b>—</b><s></s></span>';
+      var w = Math.min(100, Math.log10(v) / Math.log10(1000) * 100);
+      return '<span class="ob-sc-v"><i>' + label + '</i><b>×' +
+             (v >= 10 ? Math.round(v) : v.toFixed(1)) +
+             '</b><s><u style="width:' + w.toFixed(0) + '%"></u></s></span>';
+    }
+
+    var ser = s.series || [], spark = '';
+    if (ser.length > 1) {
+      var lo = Math.min.apply(null, ser), hi = Math.max.apply(null, ser);
+      var rng = (hi - lo) || 1;
+      spark = '<svg class="ob-sc-spark" viewBox="0 0 104 26" ' +
+        'preserveAspectRatio="none"><polyline points="' +
+        ser.map(function (v, i) {
+          return (i / (ser.length - 1) * 104).toFixed(1) + ' ' +
+                 (25 - (v - lo) / rng * 24).toFixed(1);
+        }).join(' ') + '" fill="none" stroke="' + ((s.p7d || 0) >= 0 ? 'var(--up)' : 'var(--dn)') +
+        '" stroke-width="1.2"/></svg>';
+    }
+
+    var fund = s.fund || 0;
+    var fx = Math.max(2, Math.min(94, 50 + fund / 0.2 * 50));
+    var left = Math.max(0, 14 - (s.days || 0));
+
+    return '' +
+      '<div class="ob-sc-id">' +
+        '<div class="ob-sc-hd">' +
+          '<span style="flex:1 1 auto;min-width:0">' +
+            '<span class="ob-sc-t">' + s.t + '</span>' +
+            '<span class="ob-sc-sec">' + (s.sector || '—') + '</span></span>' +
+          '<svg class="ob-sc-ring" viewBox="-22 -22 44 44">' +
+            '<circle class="trk" r="' + R + '"/>' +
+            '<circle class="val" r="' + R + '" transform="rotate(-90)" ' +
+              'stroke-dasharray="' + dash + ' ' + C.toFixed(1) + '"/>' +
+            '<text y="4" text-anchor="middle">' + (s.score || '—') + '</text>' +
+          '</svg>' +
+        '</div>' +
+        '<div class="ob-sc-tags">' +
+          '<span class="ob-sc-tag"><u>' + (s.cap || '—') + '</u> кап</span>' +
+          '<span class="ob-sc-tag ath"><u>' + (s.ath || 0) + '%</u> от ath</span>' +
+          '<span class="ob-sc-tag up">+' + (s.up || 0) + '% от дна · ' +
+            (s.updays || 0) + ' дн</span>' +
+        '</div>' +
+        '<span class="ob-sc-chip">' + (s.pattern || '—') + '</span>' +
+      '</div>' +
+
+      '<div class="ob-sc-st">' +
+        '<div class="ob-sc-vols">' + vol('1Ч', s.v1h) + vol('4Ч', s.v4h) +
+          vol('1Д', s.v1d) + '</div>' +
+        '<div class="ob-sc-row">' +
+          '<span><span class="ob-sc-p7 ' + sg(s.p7d) + '">' + num(s.p7d) +
+            '%</span>' +
+          '<div class="ob-sc-pd">7д · 1д <b class="' + sg(s.p1d) + '">' +
+            num(s.p1d) + '%</b> · 3д <b class="' + sg(s.p3d) + '">' +
+            num(s.p3d) + '%</b></div></span>' + spark +
+        '</div>' +
+        '<div class="ob-sc-foot">' +
+          '<span class="ob-sc-fund ' + (fund >= 0 ? 'pos' : 'neg') +
+            '">фандинг<s><u style="left:' + fx.toFixed(0) +
+            '%"></u></s><b>' + (fund >= 0 ? '+' : '') + fund.toFixed(3) +
+            '%</b></span>' +
+          '<span>в топе <b>' + (s.streak || 1) + '×</b></span>' +
+          '<span>в журнале <b>' + (s.days || 0) + '</b> из 14 дн</span>' +
+        '</div>' +
+        '<div class="ob-sc-life"><u style="width:' +
+          Math.round(left / 14 * 100) + '%"></u></div>' +
+      '</div>';
+  }
+
   function buildStars() {
     var host = document.getElementById('ob-stars');
     STARS.forEach(function (s, idx) {
@@ -1818,10 +1934,6 @@ ORBIT_JS = """
       // фаза мерцания своя у каждой — иначе восемь звёзд пульсируют в такт
       if (s.new) g.style.animationDelay = (hash(s.t) % 3600) + 'ms';
 
-      var tip = document.createElementNS(NS, 'title');
-      tip.textContent = s.t + (s.x ? ' · ×' + s.x : '') +
-                        (s.lead ? ' · лидер прогона' : '');
-      g.appendChild(tip);
 
       /* Цвет отдан объёму: золото у x50 и выше, холодное серебро ниже.
          Свежесть уже сказана размером и яркостью — двум признакам
@@ -1909,6 +2021,37 @@ ORBIT_JS = """
         u.textContent = '+' + s.up + '%' + (s.updays ? ' · ' + s.updays + 'д' : '');
         g.appendChild(u);
       }
+
+      /* Карточка монеты. Стоит по ту же сторону, что и подпись, но дальше:
+         так она не накрывает саму звезду и не уходит за край кадра. */
+      var side = p.x < 640 ? 1 : -1;
+      var cx = Math.max(215, Math.min(785, p.x + side * 215));
+      var cy = Math.max(120, Math.min(520, p.y));
+
+      var card = document.createElement('div');
+      card.className = 'ob-scard';
+      // Тон по score, как в отчёте: 90+ золото, ниже зелёный
+      card.style.setProperty('--tone', (s.score || 0) >= 90 ? '#FFB020' : '#22E08A');
+      card.innerHTML = coinCard(s);
+      orb.appendChild(card);
+
+      /* Наведение вешаем на группу звезды, а не на карточку: карточка
+         сама pointer-events:none, иначе она перехватывала бы курсор
+         и мигала бы при каждом входе-выходе. */
+      /* Облёт на время останавливаем: иначе комета продолжает
+         переключать карточки категорий под открытой карточкой монеты. */
+      g.addEventListener('pointerenter', function () {
+        card.classList.add('on');
+        g.classList.add('hot');
+        orb.classList.add('starred');
+        paused = true;
+      });
+      g.addEventListener('pointerleave', function () {
+        card.classList.remove('on');
+        g.classList.remove('hot');
+        orb.classList.remove('starred');
+        paused = false;
+      });
 
       host.appendChild(g);
     });

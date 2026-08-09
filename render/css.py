@@ -1073,15 +1073,117 @@ FLOWREP = """
 .fr-rr{font-size:15px;font-weight:200;color:var(--fl);
        font-variant-numeric:tabular-nums}
 """
-
 # ═══════════════════════════════════════════════════
 # ОРБИТА · верхний экран дашборда
-# Вставить в css.py ПЕРЕД блоком RESPONSIVE
+# Заменить в css.py весь блок ORBIT целиком — строки 1084..1285
 #
-# Всё с префиксом .ob- : в отчёте уже заняты .card и .chip,
+# Всё с префиксом .ob- : в отчёте заняты .card и .chip,
 # без префикса орбита сломала бы карточки монет.
+# Порядок правил важен — он повторяет прототип.
 # ═══════════════════════════════════════════════════
 ORBIT = """
+/* ── Карточка монеты ────────────────────────────────────────
+   Без подложки: панель отсекала кусок сцены и превращала наведение
+   в «окно поверх экрана». Читаемость держат тень текста и тонкие
+   разделители, как у подписей звёзд.
+
+   Композиция из двух частей: слева вертикальная колонка с тем, что
+   отвечает на «что это за монета», справа горизонтальная полоса с тем,
+   что отвечает на «что с ней сейчас». Разные вопросы — разные оси. */
+/* Цвет в карточке.
+   ТОН (золото при score ≥ 90, иначе зелёный) отвечает ровно на один
+   вопрос — топ это или нет, и живёт только на кольце и подписи паттерна.
+   Остальным величинам цвет назначен по их природе, а не по качеству
+   монеты: цена — зелёный/ржавый по знаку, объём — синий, фандинг — по
+   знаку, служебное — серый. Иначе карточка красится целиком в один цвет
+   и перестаёт читаться.
+
+   Шрифты тоже разведены: цифры моноширинные, подписи — тот же тонкий
+   гротеск, что на всём экране. Разная гарнитура делает то же, что разный
+   цвет, только не тратя палитру. */
+.ob-scard{--up:#48A97C;--dn:#FF6B35;--vol:#63A6E0;--mut:#8b929c;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+.ob-scard{position:absolute;left:50%;top:50%;z-index:6;
+  display:flex;align-items:stretch;gap:16px;
+  padding:2px;pointer-events:none;
+  transform:translate(-50%,-50%) scale(.97);opacity:0;
+  text-shadow:0 1px 10px rgba(4,4,7,.95),0 0 3px rgba(4,4,7,.9);
+  transition:opacity .2s ease,transform .28s cubic-bezier(.2,.9,.25,1.1)}
+.ob-scard.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
+/* Затемнение под карточкой. Смещено влево и вытянуто: правая половина
+   карточки и так лежит на тёмном центре, а левая колонка попадает на
+   светлый край ленты, где сквозь неё просвечивают дуги и подписи звёзд.
+   Радиальный градиент без резкой границы — панель отсекала бы кусок
+   сцены, а здесь фон просто густеет. */
+.ob-scard::before{content:'';position:absolute;left:-46%;top:50%;
+  width:150%;height:280%;transform:translateY(-50%);z-index:-1;
+  background:radial-gradient(ellipse 55% 50% at 38% 50%,
+    rgba(4,4,7,.93),rgba(4,4,7,.72) 45%,rgba(4,4,7,0) 78%);
+  pointer-events:none}
+/* --- левая колонка: идентичность --- */
+.ob-sc-id{flex:0 0 128px;display:flex;flex-direction:column;gap:9px}
+.ob-sc-hd{display:flex;align-items:flex-start;gap:9px}
+.ob-sc-t{font-size:16px;font-weight:200;letter-spacing:3px;color:var(--t1);
+  display:block;line-height:1}
+.ob-sc-sec{font-size:8px;letter-spacing:1.3px;color:#6a6f79;margin-top:4px;
+  display:block;line-height:1.3}
+.ob-sc-ring{flex:0 0 auto;width:40px;height:40px;overflow:visible}
+.ob-sc-ring circle{fill:none;stroke-width:2.2}
+.ob-sc-ring .trk{stroke:rgba(200,220,232,.12)}
+.ob-sc-ring .val{stroke:var(--tone);stroke-linecap:round}
+.ob-sc-ring text{font-size:12px;font-weight:200;fill:var(--t1)}
+.ob-sc-tags{display:flex;flex-direction:column;gap:4px;align-items:flex-start}
+.ob-sc-tag{font-size:8px;letter-spacing:1px;color:#8b929c}
+.ob-sc-tag u{text-decoration:none;font-family:var(--mono);color:#c8ccd4}
+.ob-sc-tag.up{color:var(--up)}
+.ob-sc-tag.ath u{color:#c98f78}
+.ob-sc-chip{font-size:8.5px;letter-spacing:1.6px;color:var(--tone);
+  padding-top:7px;border-top:1px solid rgba(200,220,232,.1);align-self:stretch}
+/* --- правая полоса: состояние --- */
+.ob-sc-st{flex:0 0 auto;display:flex;flex-direction:column;gap:11px;
+  padding-left:16px;border-left:1px solid rgba(200,220,232,.1)}
+/* Объёмы в строку, а не столбиком: три горизонта — это одна величина
+   в трёх масштабах, и рядом они сравниваются взглядом без чтения. */
+.ob-sc-vols{display:flex;gap:14px}
+.ob-sc-v{min-width:44px}
+.ob-sc-v i{font-style:normal;display:block;font-size:7px;letter-spacing:2px;
+  color:#5b606a}
+.ob-sc-v b{display:block;font-family:var(--mono);font-weight:400;font-size:13px;
+  letter-spacing:0;color:#cfe0f0;font-variant-numeric:tabular-nums;margin-top:2px}
+.ob-sc-v s{text-decoration:none;display:block;height:2px;margin-top:4px;
+  background:rgba(200,220,232,.1);position:relative}
+.ob-sc-v s u{position:absolute;inset:0 auto 0 0;background:var(--vol);
+  opacity:.9;display:block}
+.ob-sc-v.off b{color:#3a3d45}
+.ob-sc-v.off s u{display:none}
+.ob-sc-row{display:flex;align-items:flex-end;gap:14px}
+.ob-sc-p7{font-family:var(--mono);font-size:20px;font-weight:300;line-height:1;
+  font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+.ob-sc-p7.up{color:var(--up)}
+.ob-sc-p7.dn{color:var(--dn)}
+.ob-sc-pd{font-size:8px;letter-spacing:1px;color:#8b929c;margin-top:5px;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+.ob-sc-pd b{font-family:var(--mono);font-weight:400;color:#c8ccd4}
+.ob-sc-pd b.up{color:var(--up)}
+.ob-sc-pd b.dn{color:var(--dn)}
+.ob-sc-spark{width:104px;height:26px;display:block}
+.ob-sc-foot{display:flex;align-items:center;gap:14px;font-size:8px;
+  letter-spacing:1.1px;color:#5b606a;white-space:nowrap}
+.ob-sc-foot b{font-family:var(--mono);font-weight:400;font-size:9.5px;
+  color:#c8ccd4;font-variant-numeric:tabular-nums}
+.ob-sc-fund{display:flex;align-items:center;gap:7px}
+.ob-sc-fund s{text-decoration:none;width:52px;height:2px;
+  background:rgba(200,220,232,.1);position:relative;display:block}
+.ob-sc-fund s u{position:absolute;top:-2px;width:6px;height:6px;
+  border-radius:2px;display:block}
+.ob-sc-fund.pos u{background:var(--dn)}
+.ob-sc-fund.pos b{color:var(--dn)}
+.ob-sc-fund.neg u{background:var(--vol)}
+.ob-sc-fund.neg b{color:var(--vol)}
+/* Остаток 14-дневного окна — тонкая линия под всей правой полосой */
+.ob-sc-life{height:1px;background:rgba(200,220,232,.1);position:relative}
+.ob-sc-life u{position:absolute;inset:0 auto 0 0;background:var(--mut);
+  opacity:.45;display:block}
 .ob{position:relative;height:88vh;min-height:560px;max-height:900px;
   overflow:hidden;
   /* Выход из сетки .screen на всю ширину окна. Блок остаётся ВНУТРИ #dash:
@@ -1091,7 +1193,13 @@ ORBIT = """
      экран начинался от края окна, а не с отступом. */
   width:100vw;margin-left:calc(50% - 50vw);margin-top:-34px;margin-bottom:44px}
 .ob > svg{position:absolute;inset:0;width:100%;height:100%}
-
+/* Затемнение слева. Карточка монеты и подписи узлов живут в левой
+   половине, а лента дуг там же самая светлая — текст ложился прямо
+   на золото. Градиент гасит фон, но не трогает содержимое: он лежит
+   под слоем подписей (z-index 3) и над сценой. */
+.ob::before{content:'';position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:linear-gradient(90deg,
+    rgba(4,4,7,.78) 0%,rgba(4,4,7,.55) 18%,rgba(4,4,7,.22) 36%,transparent 52%)}
 /* Подписи узлов — HTML поверх SVG: у отчёта своя гарнитура и трекинг,
    текст внутри SVG жил бы по своим правилам и не совпал бы с блоками. */
 .ob-lab{position:absolute;transform:translate(-50%,-50%);text-align:center;
@@ -1109,7 +1217,6 @@ ORBIT = """
 .ob-lab:hover .ob-lab-v,.ob-lab.on .ob-lab-v{opacity:1}
 /* Невыбранные притухают, но не исчезают — орбита должна читаться целиком */
 .ob.picked .ob-lab:not(.on){opacity:.42}
-
 .ob-core{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
   text-align:center;width:340px;pointer-events:none;z-index:3;
   transition:opacity .35s ease}
@@ -1120,7 +1227,15 @@ ORBIT = """
 .ob-core-s b{color:var(--gd);font-weight:400}
 /* Режим рынка уступает место карточке и возвращается, когда её нет */
 .ob.showing .ob-core{opacity:0}
-
+/* Наведение на звезду забирает центр себе: карточка категории и режим
+   рынка гаснут, затемняющая подложка остаётся ради читаемости. */
+.ob.starred .ob-core{opacity:0}
+.ob.starred .ob-card{opacity:0}
+.ob.starred .ob-wrap::before{opacity:1}
+/* Подписи звёзд уходят под карточку и мешают её читать. Пока карточка
+   открыта, гасим их все, кроме той звезды, на которую навели. */
+.ob.starred .ob-star{transition:opacity .25s ease}
+.ob.starred .ob-star:not(.hot){opacity:.18}
 /* Цвет категории приходит инлайновой переменной --c с каждого узла,
    поэтому правила одни на все семь, а палитра живёт в данных. */
 .ob-node{cursor:pointer}
@@ -1134,7 +1249,6 @@ ORBIT = """
 .ob-node.on .ob-glow{opacity:.5}
 /* Пинг только у выбранного: у всех семи сразу экран стал бы мигалкой */
 .ob-node.on .ob-ping{animation:ob-ping 2.6s ease-out infinite}
-
 /* Сегмент доли на орбите подсвечивается вместе со своим узлом:
    иначе выделение живёт только на точке, а дуга остаётся ровной. */
 .ob-seg{transition:opacity .3s ease,stroke-width .3s ease}
@@ -1142,7 +1256,6 @@ ORBIT = """
 /* Выноска от узла к центру — появляется только у активного */
 .ob-link{stroke-dasharray:2 4;opacity:0;transition:opacity .35s ease}
 .ob-link.on{opacity:.4}
-
 /* Содержимое категории показывается в центре орбиты, а не у узла:
    центр — единственное место, где ничего не перекрывается дугами,
    и взгляд не бегает за кометой по кругу. */
@@ -1154,7 +1267,6 @@ ORBIT = """
     rgba(6,6,9,.6) 45%,rgba(6,6,9,0) 72%);
   opacity:0;transition:opacity .4s ease;pointer-events:none}
 .ob.showing .ob-wrap::before{opacity:1}
-
 /* Карточка узкая: полоса во всю ширину заставляла глаз проделывать
    путь от тикера до значения и терять строку. Ширина ленты сжата
    примерно втрое, тикер и число теперь в одном взгляде. */
@@ -1186,7 +1298,6 @@ ORBIT = """
 .ob-card-x{font-size:11px;text-align:right;color:#8b929c;
   font-variant-numeric:tabular-nums}
 .ob-card-spark{display:block;width:100%;height:26px;margin-top:10px;opacity:.75}
-
 .ob-chips{display:flex;flex-wrap:wrap;gap:5px 9px;margin-top:2px;
   justify-content:center;pointer-events:auto}
 /* Три ступени яркости вместо трёх цветов: цвет уже занят категорией,
@@ -1197,7 +1308,6 @@ ORBIT = """
 .ob-chip.t1{color:#8a7c58}
 .ob-chip.t2{color:#D4B476}
 .ob-chip.t3{color:#FFE0A0;text-shadow:0 0 8px rgba(217,164,65,.4)}
-
 /* ── Звёзды: лидер FLOW и монеты из журнала ──────────────────
    Стоят вне орбиты, чтобы не путаться с узлами категорий.
    Свежесть попадания в журнал несёт размер и яркость, кратность
@@ -1224,25 +1334,10 @@ ORBIT = """
   0%,100%{transform:scale(1);opacity:.35}
   50%{transform:scale(1.5);opacity:.08}
 }
-/* Мерцание — только у попавших в лидеры за последние 5 дней.
-   Движение притягивает взгляд сильнее любого другого канала, поэтому
-   отдано бинарному признаку «новая», а не непрерывной свежести:
-   размер уже несёт её плавно, а мерцание отвечает на «что появилось». */
-/* Мерцаем яркостью, а не прозрачностью: прозрачность упирается в 1,
-   выше «ярче» уже не сделать — только тусклее в основании. brightness
-   поднимает пик выше нормы, что и читается как вспышка.
-
-   Свечение и подпись мерцают раздельно: у текста тот же ритм, но
-   амплитуда втрое меньше — иначе читаемый тикер начинает пульсировать
-   наравне со звездой и мешает читать. Фаза берётся у родителя через
-   animation-delay:inherit, поэтому вспышка и подпись идут синхронно. */
-@keyframes ob-shine{0%,100%{filter:brightness(1)}50%{filter:brightness(2)}}
-@keyframes ob-shine-t{0%,100%{filter:brightness(1)}50%{filter:brightness(1.33)}}
 .ob-star.fresh > *:not(text){
   animation:ob-shine 1.5s ease-in-out infinite;animation-delay:inherit}
 /* У выбранного мерцание гасим: оно спорит с радарным пингом */
 .ob-star.fresh:hover > *{animation:none}
-
 @keyframes ob-drift{to{transform:rotate(360deg)}}
 @keyframes ob-driftBack{to{transform:rotate(-360deg)}}
 @keyframes ob-run{to{stroke-dashoffset:-1000}}
@@ -1263,24 +1358,10 @@ ORBIT = """
 /* Попутные частицы: те же дуги орбиты коротким штрихом, разные скорости
    и фазы дают ощущение потока, а не одной кометы. */
 .ob-mote{animation:ob-run linear infinite}
-
 @media (prefers-reduced-motion:reduce){
   .ob-spin,.ob-spin-back,.ob-breathe,.ob-dust circle,
   .ob-node .ob-ping,.ob-mote,.ob-star-ring,.ob-star,
   .ob-star.fresh > *{animation:none}
-}
-/* Орбита — только для настольных браузеров.
-   На телефонах и планшетах сцену тормозит не анимация, а растеризация:
-   при DPR 3 экран во всю ширину это миллионы физических пикселей,
-   поверх которых лежат две маски и feTurbulence зерна. Урезанная
-   версия выглядела бы хуже и всё равно не летала, поэтому блок
-   скрывается целиком — мобильный вариант будет отдельным.
-
-   Признак — грубый указатель, а не ширина: планшет бывает широким
-   и медленным. Узкое окно на десктопе тоже отсекаем: орбита в него
-   просто не помещается, семь подписей встают друг на друга. */
-@media (pointer:coarse), (max-width:1100px){
-  .ob{display:none}
 }
 """
 
