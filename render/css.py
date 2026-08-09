@@ -1240,8 +1240,6 @@ ORBIT = """
 @keyframes ob-shine-t{0%,100%{filter:brightness(1)}50%{filter:brightness(1.33)}}
 .ob-star.fresh > *:not(text){
   animation:ob-shine 1.5s ease-in-out infinite;animation-delay:inherit}
-.ob-star.fresh > text{
-  animation:ob-shine-t 1.5s ease-in-out infinite;animation-delay:inherit}
 /* У выбранного мерцание гасим: оно спорит с радарным пингом */
 .ob-star.fresh:hover > *{animation:none}
 
