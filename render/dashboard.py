@@ -1151,7 +1151,6 @@ def _blk_flow(candidates: list[Candidate]) -> str:
     <text class="fl-note" x="440" y="102">КТО ДВИГАЕТ РЫНОК</text>
   </svg>
 </div>"""
-
 # ─────────────────────────────────────────────────────────────
 # ОРБИТА · верхний экран дашборда
 # Вставить в dashboard.py рядом с остальными _blk_* функциями.
@@ -1210,20 +1209,24 @@ def _orbit_nodes(candidates: list[Candidate], snapshot: RunSnapshot,
                        _num(c, "rvol_1h")) for c in top]),
     })
 
-    # ПОТОК · разбивка по подкейсам, как в кольцах строки FLOW
+    # ПОТОК · две монеты с лучшим score.
+    # Счётчики подкейсов отсюда убраны: «fuel 14» не говорит, стоит ли
+    # туда смотреть — четырнадцать слабых сигналов хуже одного сильного.
+    # Разбивка по подкейсам никуда не делась, она в кольцах строки FLOW.
     flow = [c for c in candidates if c.flow]
-    by_case: dict[str, int] = {}
-    for c in flow:
-        k = case_key((c.flow or {}).get("case", "")) or "—"
-        by_case[k] = by_case.get(k, 0) + 1
-    lead = max(flow, key=lambda c: getattr(c, "score", 0) or 0, default=None)
+    ranked = sorted(flow, key=lambda c: -(getattr(c, "score", 0) or 0))[:2]
+    lead = ranked[0] if ranked else None
     out.append({
         "id": "flow", "name": "ПОТОК", "val": str(len(flow)),
         "c": ORBIT_COLORS["flow"], "w": 0.7, "slice": "strat:flow",
         "note": (f"лидер прогона · {_tick(lead)}") if lead else "кто двигает рынок",
-        "rows": bars([(case, str(by_case.get(case, 0)),
-                       float(by_case.get(case, 0)))
-                      for case, *_ in FLOW_NODES]),
+        # Шкала абсолютная, а не от максимума пары: при нормировке
+        # по паре первая монета всегда упиралась бы в край и разрыв
+        # между «сильной» и «чуть слабее» пропадал.
+        "rows": [[_tick(c), str(round(getattr(c, "score", 0) or 0)),
+                  min(100, round(getattr(c, "score", 0) or 0)),
+                  case_key((c.flow or {}).get("case", "")) or ""]
+                 for c in ranked],
     })
 
     # ЛИДЕРЫ · та же лента, что под рядом стратегий
@@ -1398,6 +1401,10 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
         ratio = _max_vol_ratio(flow_j.get(sym) or {})
         c = by_symbol.get(sym.upper())
         label = sym[:-4] if sym.endswith("USDT") else sym
+        # up_from_low / days_from_low — те же поля, что читает
+        # _numbers() во flow_report. Для монет, которых нет в текущем
+        # прогоне, роста не будет: raw есть только у кандидатов.
+        raw = (getattr(c, "raw", None) or {}) if c is not None else {}
         out.append({
             "t": label,
             "f": round(fresh, 3),
@@ -1405,6 +1412,8 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
             "x": round(ratio),
             "lead": sym.upper() == lead_sym,
             "coin": (c.symbol if c is not None else ""),
+            "up": round(float(raw.get("up_from_low") or 0)),
+            "updays": int(raw.get("days_from_low") or 0),
         })
 
     # Лидер рисуется последним — поверх остальных, если рядом окажется сосед
@@ -1468,6 +1477,46 @@ def _blk_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
       <filter id="ob-soft" x="-60%" y="-60%" width="220%" height="220%">
         <feGaussianBlur stdDeviation="34"/>
       </filter>
+      <!-- Заливка лучей: белое ядро, цвет в середине, прозрачность
+           на остриях. Сплошной цвет делал звезду плоской наклейкой —
+           у настоящей вспышки яркость падает к концам. -->
+      <radialGradient id="ob-starG">
+        <stop offset="0" stop-color="#FFFBF0"/>
+        <stop offset="0.22" stop-color="#FFE3AE"/>
+        <stop offset="0.55" stop-color="#FFC46B" stop-opacity=".75"/>
+        <stop offset="1" stop-color="#FFB347" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="ob-starS">
+        <stop offset="0" stop-color="#FFFFFF"/>
+        <stop offset="0.18" stop-color="#DCEBFF"/>
+        <stop offset="0.5" stop-color="#7FB4FF" stop-opacity=".8"/>
+        <stop offset="1" stop-color="#4A86E8" stop-opacity="0"/>
+      </radialGradient>
+      <!-- Ореол вокруг ядра: тоже градиентом, а не размытием —
+           падение мягче, чем у гауссова блюра, и считается дешевле -->
+      <!-- Холодный ореол — база. Золотой ниже достаётся только тем,
+           у кого объём ≥ x50: иначе золотит всю сцену и признак
+           перестаёт быть признаком. -->
+      <radialGradient id="ob-starHc">
+        <stop offset="0" stop-color="#FFFFFF" stop-opacity=".9"/>
+        <stop offset="0.13" stop-color="#B7D6FF" stop-opacity=".5"/>
+        <stop offset="0.4" stop-color="#5C93E8" stop-opacity=".16"/>
+        <stop offset="1" stop-color="#3F72C8" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="ob-starH">
+        <stop offset="0" stop-color="#FFFDF5" stop-opacity=".85"/>
+        <stop offset="0.14" stop-color="#FFE3AE" stop-opacity=".5"/>
+        <stop offset="0.42" stop-color="#FFC46B" stop-opacity=".15"/>
+        <stop offset="1" stop-color="#FFC46B" stop-opacity="0"/>
+      </radialGradient>
+
+      <!-- Лёгкое размытие лучей. Идеально острые векторные грани
+           читаются как корпус аппарата, а не как свет: у настоящей
+           звезды край всегда мягкий. Ядро под фильтр не попадает. -->
+      <filter id="ob-starBlur" x="-30%" y="-30%" width="160%" height="160%">
+        <feGaussianBlur stdDeviation="0.4"/>
+      </filter>
+
       <filter id="ob-grain">
         <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="3"/>
       </filter>
@@ -1493,7 +1542,6 @@ def _blk_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
     </g>
 
     <g id="ob-dust" class="ob-dust"></g>
-    <g id="ob-stars"></g>
     <g id="ob-links"></g>
     <g id="ob-orbit"></g>
     <g id="ob-nodes"></g>
@@ -1503,6 +1551,11 @@ def _blk_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
           style="pointer-events:none"/>
     <ellipse cx="820" cy="140" rx="330" ry="240" fill="#2a2418"
              opacity=".5" filter="url(#ob-soft)"/>
+
+    <!-- Звёзды идут последними, поверх зерна и дымки: стоя раньше них,
+         они припудривались обоими слоями и тонули на светлых участках
+         ленты. Это передний план сцены, а не часть фона. -->
+    <g id="ob-stars"></g>
   </svg>
 
   <div class="ob-core">
@@ -1524,12 +1577,25 @@ ORBIT_JS = """
   var NS = 'http://www.w3.org/2000/svg';
   var orb = document.getElementById('ob');
   if (!orb) return;
+
+  /* На мобильных не просто прячем стилями, а убираем узел из документа
+     и выходим до сборки: скрытый SVG всё равно занимал бы память,
+     а getTotalLength и getPointAtLength на display:none элементе
+     в части браузеров бросают исключение. Условие то же, что в CSS. */
+  if (window.matchMedia('(pointer: coarse)').matches ||
+      window.matchMedia('(max-width: 1100px)').matches) {
+    orb.remove();
+    var blob = document.getElementById('ob-data');
+    if (blob) blob.remove();
+    return;
+  }
   var DATA = JSON.parse(document.getElementById('ob-data').textContent);
   var BLOCKS = DATA.nodes || [], STARS = DATA.stars || [];
   if (!BLOCKS.length) return;
 
   var CX = 500, CY = 320, RX = 372, RY = 168, TILT = -9;
   var NODE_LEN = [], cometEl = null, TOTAL_LEN = 0;
+  var cometHead = null, cometHalo = null;
 
   /* Иконки категорий: пути в локальных координатах узла (±5).
      Кольцо-обводка рисуется отдельно и от иконки не зависит —
@@ -1649,18 +1715,44 @@ ORBIT_JS = """
   /* Луч звезды: четырёхконечная вспышка. Тонкие «иглы» вместо кружка —
      кружков на сцене и так хватает, а вспышка читается как объект
      другого рода, не как ещё один узел. */
-  function rayPath(r, w) {
-    return 'M0 ' + (-r) + ' Q' + w + ' ' + (-w) + ' ' + r + ' 0 Q' + w + ' ' + w +
-           ' 0 ' + r + ' Q' + (-w) + ' ' + w + ' ' + (-r) + ' 0 Q' + (-w) + ' ' +
-           (-w) + ' 0 ' + (-r) + ' Z';
+  /* Луч — треугольная игла: остриё на конце, основание в центре.
+     Прежний ромб был толще всего в середине луча, и звезда читалась
+     как значок. У настоящей вспышки ширина максимальна у ядра и
+     сходит в точку — форма из четырёх таких игл даёт нужный силуэт. */
+  function spikes(len, w, count) {
+    var d = '';
+    for (var i = 0; i < count; i++) {
+      var a = i * (360 / count);
+      d += 'M0 ' + (-len).toFixed(2) + 'L' + w.toFixed(2) + ' 0L' +
+           (-w).toFixed(2) + ' 0Z';
+      if (a) { /* повороты применяем через отдельные пути ниже */ }
+    }
+    return d;
+  }
+
+  /* Один луч, дальше группа поворачивается — так путь остаётся коротким,
+     а количество и угол лучей задаются параметром. */
+  function spike(len, w) {
+    return 'M0 ' + (-len).toFixed(2) + 'L' + w.toFixed(2) + ' 0L0 ' +
+           (w * 0.5).toFixed(2) + 'L' + (-w).toFixed(2) + ' 0Z';
+  }
+
+  function cross(g, len, w, grad, op, rot, count) {
+    for (var i = 0; i < count; i++) {
+      g.appendChild(el('path', { class: 'ob-ray', d: spike(len, w),
+        fill: grad, opacity: op,
+        transform: 'rotate(' + (rot + i * (360 / count)) + ')' }));
+    }
   }
 
   /* Звёзды стоят вне кольца узлов: точка отвергается, если попала
      в полосу орбиты или в центральный прямоугольник, где всплывает
      карточка. Сдвиг детерминированный, поэтому перебор не случайный. */
-  function starSpot(sym) {
+  var PLACED = [];
+
+  function starSpot(sym, idx) {
     var h = hash(sym);
-    for (var k = 0; k < 24; k++) {
+    for (var k = 0; k < 60; k++) {
       var a = ((h >>> (k % 8)) % 3600) / 3600 * Math.PI * 2;
       var rr = 0.28 + ((h >>> ((k + 3) % 12)) % 1000) / 1000 * 1.05;
       var x = CX + Math.cos(a) * RX * rr;
@@ -1674,22 +1766,35 @@ ORBIT_JS = """
         var np = pos(n);
         if (Math.hypot(np.x - x, np.y - y) < 128) { nearNode = true; break; }
       }
-      if (band > 0.18 && !inCard && !nearNode &&
-          x > 40 && x < 960 && y > 40 && y < 600) {
+      /* И не ближе 78 к уже поставленной звезде: без этой проверки две
+         соседние подписи накладываются и обе становятся нечитаемыми. */
+      var tooClose = false;
+      for (var m = 0; m < PLACED.length; m++) {
+        if (Math.hypot(PLACED[m].x - x, PLACED[m].y - y) < 78) { tooClose = true; break; }
+      }
+      if (band > 0.18 && !inCard && !nearNode && !tooClose &&
+          x > 95 && x < 905 && y > 115 && y < 545) {
+        PLACED.push({ x: x, y: y });
         return { x: x, y: y };
       }
       h = (h * 16777619 + 1) >>> 0;
     }
-    return { x: CX + RX * 1.2, y: CY - RY * 1.1 };
+    /* Место не нашлось: раскладываем по запасной дуге с шагом от индекса,
+       иначе все «лишние» звёзды сели бы в одну точку друг на друга. */
+    var fb = { x: 120 + (idx % 6) * 130, y: 130 + Math.floor(idx / 6) * 46 };
+    PLACED.push(fb);
+    return fb;
   }
 
   function buildStars() {
     var host = document.getElementById('ob-stars');
-    STARS.forEach(function (s) {
-      var p = starSpot(s.t);
+    STARS.forEach(function (s, idx) {
+      var p = starSpot(s.t, idx);
       var f = s.f;                              // свежесть 0..1
-      var r = (s.lead ? 9 : 4) + f * 6;         // размер несёт свежесть
-      var op = 0.28 + f * 0.62;
+      /* Диапазон сжат: было 4..15, стало 3..8. Разброс всё ещё читается,
+         но свежая звезда больше не спорит по весу с узлом категории. */
+      var r = (s.lead ? 4 : 2.4) + f * 2.1;
+      var op = 0.2 + f * 0.45;   // тусклее: звезда светит, а не горит
 
       var g = el('g', { class: 'ob-star' });
       if (s.coin) g.dataset.coin = s.coin;      // клик откроет карточку монеты
@@ -1704,35 +1809,88 @@ ORBIT_JS = """
       /* Цвет отдан объёму: золото у x50 и выше, холодное серебро ниже.
          Свежесть уже сказана размером и яркостью — двум признакам
          одного свойства не хватило бы. */
-      var col = s.hot ? '#FFD98A' : '#cfdae6';
+      /* Синий — база, золото целиком достаётся тем, у кого объём ≥ x50.
+         Признак должен читаться цветом самой звезды, а не деталью:
+         подсветка одними короткими лучами терялась при нитевидных лучах. */
+      var col = s.hot ? '#FFD98A' : '#BFDCFF';
+      var grad = s.hot ? 'url(#ob-starG)' : 'url(#ob-starS)';
+      var accent = 'url(#ob-starG)';
 
-      g.appendChild(el('circle', { class: 'ob-glow', r: r * 1.5, fill: col,
-        filter: 'url(#ob-spark)', opacity: (op * 0.5).toFixed(2) }));
-      g.appendChild(el('path', { class: 'ob-ray', d: rayPath(r, r * 0.13),
-        fill: col, opacity: op.toFixed(2) }));
+      /* Ореол ярче и плотнее у центра: именно он читается как свечение,
+         лучи только задают характер. */
+      g.appendChild(el('circle', { r: r * 2.2,
+        fill: s.hot ? 'url(#ob-starH)' : 'url(#ob-starHc)',
+        opacity: op.toFixed(2) }));
+
+      /* Каждая звезда чуть повёрнута по своему хешу: одинаковый наклон
+         у всех восьми читался как повторённая наклейка. */
+      var tilt = (hash(s.t) % 22) - 11;
+
+      /* Лучи живут в своей группе под фильтром размытия, ядро — снаружи:
+         размывать пересвеченную точку нельзя, она и держит центр. */
+      var rays = el('g', { filter: 'url(#ob-starBlur)' });
+
+      // длинные тонкие иглы — основной крест
+      cross(rays, r * 3.8, r * 0.085, grad, op.toFixed(2), tilt, 4);
+      // короткие под 45° — у x50 золотом, это и есть подсветка признака
+      cross(rays, r * 1.35, r * 0.055, s.hot ? accent : grad,
+            (op * (s.hot ? 0.8 : 0.5)).toFixed(2), tilt + 45, 4);
+      /* Веер коротких лучиков вокруг ядра: на референсе именно он
+         отличает источник света от нарисованного креста. */
+      cross(rays, r * 0.95, r * 0.03, grad, (op * 0.35).toFixed(2), tilt + 22, 12);
 
       if (s.hot) {
-        /* Доп. элемент для x50: второй луч под 45° даёт восьмиконечную
-           вспышку, плюс расходящееся кольцо. Событие редкое — заметность
-           здесь важнее сдержанности. */
-        g.appendChild(el('path', { class: 'ob-ray', d: rayPath(r * 0.62, r * 0.1),
-          fill: col, opacity: (op * 0.8).toFixed(2),
-          transform: 'rotate(45)' }));
-        var halo = el('circle', { class: 'ob-star-ring', r: r * 1.6 });
+        /* Блик-растяжка поперёк: даёт объектив, а не рисунок.
+           Только у x50 — на всех сразу читался бы как дефект. */
+        rays.appendChild(el('ellipse', { rx: r * 4.6, ry: Math.max(.25, r * 0.022),
+          fill: accent, opacity: (op * 0.5).toFixed(2),
+          transform: 'rotate(' + tilt + ')' }));
+        var halo = el('circle', { class: 'ob-star-ring', r: r * 1.35 });
         halo.style.transformOrigin = '0 0';
         halo.style.animationDelay = (hash(s.t) % 4000) + 'ms';
         g.appendChild(halo);
       }
 
-      g.appendChild(el('circle', { r: Math.max(1, r * 0.16), fill: '#fff',
-        opacity: op.toFixed(2) }));
+      g.appendChild(rays);
 
-      // Подпись только у текущего лидера: у всех сразу поле стало бы списком
-      if (s.lead) {
-        var t = el('text', { class: 'ob-star-lbl', x: 0, y: r + 12,
-          'text-anchor': 'middle' });
-        t.textContent = s.t;
-        g.appendChild(t);
+      // ядро: маленькое и почти белое, оно и создаёт ощущение свечения
+      g.appendChild(el('circle', { r: Math.max(.75, r * 0.22), fill: '#FFFFFF',
+        opacity: '1' }));
+
+      /* Подпись у каждой звезды: без тикера объект опознать нельзя,
+         а тултип требует навести курсор и найти нужную точку.
+         Иерархию держит не наличие подписи, а её вес — прозрачность
+         идёт по свежести, поэтому свежие читаются сразу, а старые
+         не превращают поле в список. */
+      /* Подпись сбоку, а не под звездой: луч вытянут по вертикали,
+         и текст снизу ложился бы прямо на него. У правого края
+         сторона меняется, иначе подпись уходит за кадр. */
+      var right = p.x < 640;
+      var dx = right ? r * 1.7 + 5 : -(r * 1.7 + 5);
+      var anchor = right ? 'start' : 'end';
+      /* Подпись читается сразу и одинаково у всех звёзд. Свежесть уже
+         сказана размером и яркостью самой звезды — гасить ещё и текст
+         значит прятать то единственное, ради чего он тут есть. */
+
+      var t = el('text', {
+        class: 'ob-star-lbl' + (s.lead ? ' lead' : ''),
+        x: dx, y: s.up ? -0.6 : 1.8, 'text-anchor': anchor,
+        fill: s.hot || s.lead ? '#FFD98A' : '#DCE6F2', opacity: '.95'
+      });
+      t.textContent = s.t;
+      g.appendChild(t);
+
+      // Рост от дна: величина, ради которой монета попала в журнал
+      if (s.up) {
+        /* Светлый тёплый, а не зелёный и не приглушённый: зелёный поверх
+           золотых дуг режет глаз и читается как статус, а песочный впотьмах
+           сливался с фоном. Здесь нужна читаемость — это и есть величина,
+           ради которой монета попала в журнал. Иерархию с тикером держит
+           кегль и трекинг, а не яркость. */
+        var u = el('text', { class: 'ob-star-up', x: dx, y: 6.2,
+          'text-anchor': anchor, fill: '#EDE6D8', opacity: '.95' });
+        u.textContent = '+' + s.up + '%' + (s.updays ? ' · ' + s.updays + 'д' : '');
+        g.appendChild(u);
       }
 
       host.appendChild(g);
@@ -1774,6 +1932,16 @@ ORBIT_JS = """
       'stroke-dasharray': '22 978', filter: 'url(#ob-spark)', opacity: '.95' });
     orbitG.appendChild(comet);
     cometEl = comet;
+
+    /* Голова кометы. Штрих через stroke-dasharray сам по себе даёт
+       ровный хвост без явного начала — точка возвращает направление
+       движения. Позиция берётся из getPointAtLength того же пути,
+       поэтому голова не может разъехаться с хвостом. */
+    cometHead = el('circle', { r: 1.7, fill: '#FFF3DC', opacity: '.95' });
+    cometHalo = el('circle', { r: 4.5, fill: '#FFD98A', opacity: '.5',
+      filter: 'url(#ob-spark)' });
+    orbitG.appendChild(cometHalo);
+    orbitG.appendChild(cometHead);
 
     /* Попутные частицы на чистом CSS: их позицию читать не нужно,
        в отличие от кометы — она одна ведётся из JS. */
@@ -1882,12 +2050,27 @@ ORBIT_JS = """
         });
         html += '</div>';
       } else {
-        (b.rows || []).forEach(function (r) {
-          html += '<div class="ob-card-r"><span class="ob-card-k">' + r[0] +
-                  '</span><span class="ob-card-bar"><i style="width:' + r[2] +
-                  '%"></i></span><span class="ob-card-x">' + r[1] + '</span></div>';
-        });
-        html += sparkSVG(b.spark, b.c);
+        var rowsHTML = function (rows) {
+          var h = '';
+          (rows || []).forEach(function (r) {
+            /* Четвёртый элемент строки, если есть, — подпись под ключом.
+               Тот же приём, что <s> в отчёте. */
+            h += '<div class="ob-card-r"><span class="ob-card-k">' + r[0] +
+                 (r[3] ? '<s>' + r[3] + '</s>' : '') +
+                 '</span><span class="ob-card-bar"><i style="width:' + r[2] +
+                 '%"></i></span><span class="ob-card-x">' + r[1] + '</span></div>';
+          });
+          return h;
+        };
+        if (b.groups) {
+          // сгруппированная карточка: подкейс, под ним его сильнейшие монеты
+          b.groups.forEach(function (grp) {
+            html += '<div class="ob-card-g">' + grp.g + '</div>' +
+                    rowsHTML(grp.rows);
+          });
+        } else {
+          html += rowsHTML(b.rows) + sparkSVG(b.spark, b.c);
+        }
       }
       card.innerHTML = html;
       wrap.appendChild(card);
@@ -1900,7 +2083,9 @@ ORBIT_JS = """
      Комету ведёт JS, а не CSS: по её длине вдоль пути определяется,
      над какой категорией она сейчас, и по этому же значению всплывает
      карточка. У CSS-анимации позицию не спросить. */
-  var LAP = 26000, HOLD = 0.055;
+  /* Круг за 78 секунд вместо 26: окно показа карточки задано долей
+     оборота, поэтому замедление кометы втрое продлевает и чтение. */
+  var LAP = 78000, HOLD = 0.055;
   var paused = false, pinned = null, lastHit = null;
 
   function setActive(id) {
@@ -1914,6 +2099,11 @@ ORBIT_JS = """
     if (!paused) {
       var prog = (now % LAP) / LAP;
       cometEl.setAttribute('stroke-dashoffset', (-prog * 1000).toFixed(2));
+      var hp = cometEl.getPointAtLength(prog * TOTAL_LEN + 22);
+      cometHead.setAttribute('cx', hp.x.toFixed(1));
+      cometHead.setAttribute('cy', hp.y.toFixed(1));
+      cometHalo.setAttribute('cx', hp.x.toFixed(1));
+      cometHalo.setAttribute('cy', hp.y.toFixed(1));
       if (!pinned) {
         var L = prog * TOTAL_LEN, hit = null;
         NODE_LEN.forEach(function (n) {

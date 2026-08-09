@@ -1082,7 +1082,7 @@ FLOWREP = """
 # без префикса орбита сломала бы карточки монет.
 # ═══════════════════════════════════════════════════
 ORBIT = """
-.ob{position:relative;height:100vh;min-height:560px;max-height:100vh;
+.ob{position:relative;height:88vh;min-height:560px;max-height:900px;
   overflow:hidden;
   /* Выход из сетки .screen на всю ширину окна. Блок остаётся ВНУТРИ #dash:
      showPane() вешает .hide на #dash целиком, и вынеси мы орбиту наружу —
@@ -1097,10 +1097,14 @@ ORBIT = """
 .ob-lab{position:absolute;transform:translate(-50%,-50%);text-align:center;
   cursor:pointer;user-select:none;white-space:nowrap;z-index:3;
   transition:opacity .3s ease}
-.ob-lab-n{font-size:8px;font-weight:300;letter-spacing:3.5px;color:var(--m1);
-  transition:color .3s ease}
+/* Названия категорий держим приглушёнными: они постоянны от прогона
+   к прогону и в чтении не нуждаются — подсвечиваются при наведении
+   и у активного узла. Верхний слой экрана отдан монетам, они меняются. */
+.ob-lab-n{font-size:8px;font-weight:300;letter-spacing:3.5px;color:var(--m2);
+  opacity:.6;transition:color .3s ease,opacity .3s ease}
 .ob-lab-v{font-size:20px;font-weight:200;letter-spacing:2px;margin-top:2px;
-  color:var(--c,var(--t3));opacity:.82;transition:opacity .3s ease}
+  color:var(--c,var(--t3));opacity:.5;transition:opacity .3s ease}
+.ob-lab:hover .ob-lab-n,.ob-lab.on .ob-lab-n{opacity:1}
 .ob-lab:hover .ob-lab-n,.ob-lab.on .ob-lab-n{color:var(--c,var(--am-l))}
 .ob-lab:hover .ob-lab-v,.ob-lab.on .ob-lab-v{opacity:1}
 /* Невыбранные притухают, но не исчезают — орбита должна читаться целиком */
@@ -1151,7 +1155,10 @@ ORBIT = """
   opacity:0;transition:opacity .4s ease;pointer-events:none}
 .ob.showing .ob-wrap::before{opacity:1}
 
-.ob-card{position:absolute;left:50%;top:50%;width:300px;
+/* Карточка узкая: полоса во всю ширину заставляла глаз проделывать
+   путь от тикера до значения и терять строку. Ширина ленты сжата
+   примерно втрое, тикер и число теперь в одном взгляде. */
+.ob-card{position:absolute;left:50%;top:50%;width:150px;
   transform:translate(-50%,-50%) scale(.96);opacity:0;
   transition:opacity .4s ease,transform .5s cubic-bezier(.2,.9,.25,1.1)}
 .ob-card.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
@@ -1159,14 +1166,24 @@ ORBIT = """
 .ob-card-n{display:block;font-size:8px;letter-spacing:3.5px;color:var(--c)}
 .ob-card-v{display:block;font-size:30px;font-weight:200;letter-spacing:3px;
   color:var(--t1);font-variant-numeric:tabular-nums;margin-top:4px}
-.ob-card-note{font-size:8px;letter-spacing:2px;color:#5b606a;
+.ob-card-note{font-size:10px;letter-spacing:1.6px;color:#5b606a;
   margin-bottom:14px;text-align:center}
-.ob-card-r{display:grid;grid-template-columns:66px 1fr 46px;align-items:center;
-  gap:9px;margin-top:7px}
-.ob-card-k{font-size:9px;color:var(--t3);overflow:hidden;text-overflow:ellipsis}
+/* Заголовок подкейса внутри карточки. Первому не нужен верхний отступ —
+   он идёт сразу за подписью категории. */
+.ob-card-g{font-size:9px;letter-spacing:2.5px;color:#5b606a;
+  margin:13px 0 2px;text-transform:uppercase}
+.ob-card-g:first-of-type{margin-top:0}
+/* Колонки подогнаны под содержимое: пустота между тикером и полосой
+   заставляла глаз делать лишний скачок. Полоса теперь короткая —
+   она показывает соотношение, а точное значение стоит рядом цифрой. */
+.ob-card-r{display:grid;grid-template-columns:46px 34px 42px;align-items:center;
+  gap:7px;margin-top:8px}
+.ob-card-k{font-size:11px;color:var(--t3);overflow:hidden;text-overflow:ellipsis}
+.ob-card-k s{display:block;font-size:7px;letter-spacing:1.5px;color:#5b606a;
+  text-decoration:none;margin-top:1px}
 .ob-card-bar{height:2px;background:var(--trk);position:relative}
 .ob-card-bar i{position:absolute;inset:0 auto 0 0;background:var(--c);opacity:.85}
-.ob-card-x{font-size:9px;text-align:right;color:#8b929c;
+.ob-card-x{font-size:11px;text-align:right;color:#8b929c;
   font-variant-numeric:tabular-nums}
 .ob-card-spark{display:block;width:100%;height:26px;margin-top:10px;opacity:.75}
 
@@ -1188,8 +1205,18 @@ ORBIT = """
 .ob-star{cursor:pointer}
 .ob-star .ob-ray{transition:opacity .3s ease}
 .ob-star:hover .ob-ray{opacity:1}
-.ob-star-lbl{font-size:7px;letter-spacing:2px;fill:var(--am-l);opacity:.7;
-  paint-order:stroke;stroke:rgba(6,6,9,.9);stroke-width:2.5}
+.ob-star-lbl{font-size:5.7px;letter-spacing:1.2px;
+  paint-order:stroke;stroke:rgba(6,6,9,.92);stroke-width:2;
+  transition:opacity .25s ease}
+.ob-star-lbl.lead{font-size:6.6px;letter-spacing:1.6px}
+/* Рост от дна — вторая строка подписи. Цвет наследуется от звезды
+   (задаётся при отрисовке), а не берётся зелёным: зелёный на тёмном
+   фоне среди золота бьёт по глазам и читается как отдельный статус,
+   хотя это просто величина. */
+.ob-star-up{font-size:5px;letter-spacing:.6px;font-weight:400;
+  paint-order:stroke;stroke:rgba(6,6,9,.92);stroke-width:2.5;
+  transition:opacity .25s ease}
+.ob-star:hover .ob-star-lbl,.ob-star:hover .ob-star-up{opacity:1}
 /* Кольцо только у ×50 и выше: доп. признак, а не украшение у всех */
 .ob-star-ring{fill:none;stroke:var(--am-l);stroke-width:.4;opacity:.35;
   animation:ob-halo 4.5s ease-in-out infinite}
@@ -1224,11 +1251,60 @@ ORBIT = """
   .ob-spin,.ob-spin-back,.ob-breathe,.ob-dust circle,
   .ob-node .ob-ping,.ob-mote,.ob-star-ring,.ob-star{animation:none}
 }
-@media (max-width:900px){
-  .ob{height:64vh;min-height:420px;margin-top:-24px}
-  .ob-lab-v{font-size:16px}
-  .ob-core-v{font-size:20px}
-  .ob-wrap,.ob-card{width:250px}
+/* Орбита — только для настольных браузеров.
+   На телефонах и планшетах сцену тормозит не анимация, а растеризация:
+   при DPR 3 экран во всю ширину это миллионы физических пикселей,
+   поверх которых лежат две маски и feTurbulence зерна. Урезанная
+   версия выглядела бы хуже и всё равно не летала, поэтому блок
+   скрывается целиком — мобильный вариант будет отдельным.
+
+   Признак — грубый указатель, а не ширина: планшет бывает широким
+   и медленным. Узкое окно на десктопе тоже отсекаем: орбита в него
+   просто не помещается, семь подписей встают друг на друга. */
+@media (pointer:coarse), (max-width:1100px){
+  .ob{display:none}
+}
+"""
+
+# ═══════════════════════════════════════════════════
+# КАМЕННЫЙ КУБ · декор справа от ряда стратегий
+# Вставить в css.py ПЕРЕД блоком RESPONSIVE
+# ═══════════════════════════════════════════════════
+CUBE = """
+/* Куб стоит третьим элементом в .row-s, справа от FLOW.
+   flex:0 0 — ширина фиксирована, чтобы он не отбирал место
+   у ленты FLOW, которая тянется по flex:1. */
+.g-cube{flex:0 0 300px;display:flex;align-items:center;justify-content:center;
+  pointer-events:none;
+  /* Палитра куба. Сменить эти четыре значения — сменить породу целиком.
+     По умолчанию янтарь, в тон ряду FLOW рядом.
+     Синий вариант: #1a2030 / #2e3850 / #A8C4FF / #4A72E0 / #78A0FF */
+  --cb-dark:#22201a; --cb-rock:#3a352a; --cb-lit:#F5D089;
+  --cb-glow:#D9A441; --cb-spec:#FFCF80}
+
+/* Анимируем сам элемент svg, а не группу внутри: результат фильтров
+   растеризуется один раз и дальше вращается композитором. Поворот
+   внутренней группы заставлял бы пересчитывать feTurbulence
+   и feDisplacementMap на каждом кадре. */
+.cb{display:block;width:100%;height:auto;overflow:visible;
+  will-change:transform;transform-origin:50% 55%;
+  animation:cb-sway 7s ease-in-out infinite}
+
+/* Покачивание ±4°: предмет читается живым, но это не выглядит вращением.
+   Не нужна анимация — убери строку animation выше, картинка останется. */
+@keyframes cb-sway{
+  0%,100%{transform:rotate(-4deg)}
+  50%    {transform:rotate(4deg)}
+}
+
+@media (prefers-reduced-motion:reduce){.cb{animation:none}}
+
+@media (max-width:1240px){
+  .g-cube{flex:0 0 220px}
+}
+@media (max-width:760px){
+  /* На узком экране ряд и так переносится — декор только мешает */
+  .g-cube{display:none}
 }
 """
 
@@ -1299,48 +1375,6 @@ RESPONSIVE = """
   .b3-grid{flex-direction:column;align-items:flex-start;gap:12px}
   .rr-nums{gap:16px;width:100%}
   .grid{grid-template-columns:1fr}
-}
-"""
-
-# ═══════════════════════════════════════════════════
-# КАМЕННЫЙ КУБ · декор справа от ряда стратегий
-# Вставить в css.py ПЕРЕД блоком RESPONSIVE
-# ═══════════════════════════════════════════════════
-CUBE = """
-/* Куб стоит третьим элементом в .row-s, справа от FLOW.
-   flex:0 0 — ширина фиксирована, чтобы он не отбирал место
-   у ленты FLOW, которая тянется по flex:1. */
-.g-cube{flex:0 0 300px;display:flex;align-items:center;justify-content:center;
-  pointer-events:none;
-  /* Палитра куба. Сменить эти четыре значения — сменить породу целиком.
-     По умолчанию янтарь, в тон ряду FLOW рядом.
-     Синий вариант: #1a2030 / #2e3850 / #A8C4FF / #4A72E0 / #78A0FF */
-  --cb-dark:#22201a; --cb-rock:#3a352a; --cb-lit:#F5D089;
-  --cb-glow:#D9A441; --cb-spec:#FFCF80}
-
-/* Анимируем сам элемент svg, а не группу внутри: результат фильтров
-   растеризуется один раз и дальше вращается композитором. Поворот
-   внутренней группы заставлял бы пересчитывать feTurbulence
-   и feDisplacementMap на каждом кадре. */
-.cb{display:block;width:100%;height:auto;overflow:visible;
-  will-change:transform;transform-origin:50% 55%;
-  animation:cb-sway 7s ease-in-out infinite}
-
-/* Покачивание ±4°: предмет читается живым, но это не выглядит вращением.
-   Не нужна анимация — убери строку animation выше, картинка останется. */
-@keyframes cb-sway{
-  0%,100%{transform:rotate(-4deg)}
-  50%    {transform:rotate(4deg)}
-}
-
-@media (prefers-reduced-motion:reduce){.cb{animation:none}}
-
-@media (max-width:1240px){
-  .g-cube{flex:0 0 220px}
-}
-@media (max-width:760px){
-  /* На узком экране ряд и так переносится — декор только мешает */
-  .g-cube{display:none}
 }
 """
 
