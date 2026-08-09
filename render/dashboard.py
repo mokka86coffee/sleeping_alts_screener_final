@@ -1151,6 +1151,8 @@ def _blk_flow(candidates: list[Candidate]) -> str:
     <text class="fl-note" x="440" y="102">КТО ДВИГАЕТ РЫНОК</text>
   </svg>
 </div>"""
+
+
 # ─────────────────────────────────────────────────────────────
 # ОРБИТА · верхний экран дашборда
 # Вставить в dashboard.py рядом с остальными _blk_* функциями.
@@ -1330,6 +1332,11 @@ def _orbit_leaders(candidates: list[Candidate]) -> dict:
 # хранения: монета гаснет ровно к моменту, когда выпадает из журнала.
 STAR_WINDOW_DAYS = 14.0
 
+# Порог «новой» звезды: попала в лидеры не позже пяти суток назад.
+# Признак бинарный и отдан мерцанию — размер несёт свежесть плавно,
+# а мерцание отвечает на другой вопрос: что появилось недавно.
+STAR_NEW_DAYS = 5.0
+
 # Поля даты пробуем по очереди: точной схемы записи журнала я не знаю,
 # а падать из-за отсутствующего ключа отчёт не должен. Если ни одного
 # нет — свежесть берётся из порядка записей в файле (см. _orbit_stars).
@@ -1405,9 +1412,17 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
         # _numbers() во flow_report. Для монет, которых нет в текущем
         # прогоне, роста не будет: raw есть только у кандидатов.
         raw = (getattr(c, "raw", None) or {}) if c is not None else {}
+        # Если даты нет ни у кого, свежесть выведена из порядка ключей —
+        # тогда и «новизну» считаем по той же шкале, а не по возрасту.
+        if ages[sym] is not None:
+            is_new = ages[sym] <= STAR_NEW_DAYS
+        else:
+            is_new = fresh >= 1.0 - STAR_NEW_DAYS / STAR_WINDOW_DAYS
+
         out.append({
             "t": label,
             "f": round(fresh, 3),
+            "new": bool(is_new),
             "hot": bool(ratio >= LEAD_X1),
             "x": round(ratio),
             "lead": sym.upper() == lead_sym,
@@ -1796,10 +1811,12 @@ ORBIT_JS = """
       var r = (s.lead ? 4 : 2.4) + f * 2.1;
       var op = 0.2 + f * 0.45;   // тусклее: звезда светит, а не горит
 
-      var g = el('g', { class: 'ob-star' });
+      var g = el('g', { class: 'ob-star' + (s.new ? ' fresh' : '') });
       if (s.coin) g.dataset.coin = s.coin;      // клик откроет карточку монеты
       g.setAttribute('transform', 'translate(' + p.x.toFixed(1) + ' ' +
                                   p.y.toFixed(1) + ')');
+      // фаза мерцания своя у каждой — иначе восемь звёзд пульсируют в такт
+      if (s.new) g.style.animationDelay = (hash(s.t) % 3600) + 'ms';
 
       var tip = document.createElementNS(NS, 'title');
       tip.textContent = s.t + (s.x ? ' · ×' + s.x : '') +

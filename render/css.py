@@ -1224,7 +1224,26 @@ ORBIT = """
   0%,100%{transform:scale(1);opacity:.35}
   50%{transform:scale(1.5);opacity:.08}
 }
-@keyframes ob-shine{0%,100%{opacity:var(--o,.6)}50%{opacity:1}}
+/* Мерцание — только у попавших в лидеры за последние 5 дней.
+   Движение притягивает взгляд сильнее любого другого канала, поэтому
+   отдано бинарному признаку «новая», а не непрерывной свежести:
+   размер уже несёт её плавно, а мерцание отвечает на «что появилось». */
+/* Мерцаем яркостью, а не прозрачностью: прозрачность упирается в 1,
+   выше «ярче» уже не сделать — только тусклее в основании. brightness
+   поднимает пик выше нормы, что и читается как вспышка.
+
+   Свечение и подпись мерцают раздельно: у текста тот же ритм, но
+   амплитуда втрое меньше — иначе читаемый тикер начинает пульсировать
+   наравне со звездой и мешает читать. Фаза берётся у родителя через
+   animation-delay:inherit, поэтому вспышка и подпись идут синхронно. */
+@keyframes ob-shine{0%,100%{filter:brightness(1)}50%{filter:brightness(2)}}
+@keyframes ob-shine-t{0%,100%{filter:brightness(1)}50%{filter:brightness(1.33)}}
+.ob-star.fresh > *:not(text){
+  animation:ob-shine 1.5s ease-in-out infinite;animation-delay:inherit}
+.ob-star.fresh > text{
+  animation:ob-shine-t 1.5s ease-in-out infinite;animation-delay:inherit}
+/* У выбранного мерцание гасим: оно спорит с радарным пингом */
+.ob-star.fresh:hover > *{animation:none}
 
 @keyframes ob-drift{to{transform:rotate(360deg)}}
 @keyframes ob-driftBack{to{transform:rotate(-360deg)}}
@@ -1249,7 +1268,8 @@ ORBIT = """
 
 @media (prefers-reduced-motion:reduce){
   .ob-spin,.ob-spin-back,.ob-breathe,.ob-dust circle,
-  .ob-node .ob-ping,.ob-mote,.ob-star-ring,.ob-star{animation:none}
+  .ob-node .ob-ping,.ob-mote,.ob-star-ring,.ob-star,
+  .ob-star.fresh > *{animation:none}
 }
 /* Орбита — только для настольных браузеров.
    На телефонах и планшетах сцену тормозит не анимация, а растеризация:
