@@ -139,6 +139,35 @@ def _orbit_nodes(candidates: list[Candidate], snapshot: RunSnapshot,
     return out
 
 
+def _orbit_flow_leader(candidates: list[Candidate]) -> Candidate | None:
+    """Тот же отбор, что «ПОТОК» на орбите: лучший score среди
+    FLOW-детектированных. Пересчитывается отдельно от _orbit_nodes,
+    чтобы _orbit_market не зависел от порядка вызовов."""
+    flow = [c for c in candidates if c.flow]
+    return max(flow, key=lambda c: getattr(c, "score", 0) or 0, default=None)
+
+
+def _orbit_flow_bigvol(candidates: list[Candidate]) -> list[dict]:
+    """Монеты из выборки FLOW, у которых объём ≥ ×30 на любом ТФ.
+
+    ×30 — не порог качества сигнала, а порог заметности объёма: та же
+    величина, что читает карточка монеты (v1h/v4h/v1d из _data), а не
+    отдельная метрика. Список отсортирован по максимальному множителю,
+    он же и подписывается в строке.
+    """
+    from render.dashboard import _tick
+
+    THRESHOLD = 30.0
+    out = []
+    for c in [c for c in candidates if c.flow]:
+        d = _data(c)
+        best = max(d.get("v1h") or 0, d.get("v4h") or 0, d.get("v1d") or 0)
+        if best >= THRESHOLD:
+            out.append({"t": _tick(c), "x": round(best, 1), "cap": _cap(d["cap"])})
+    out.sort(key=lambda r: -r["x"])
+    return out
+
+
 def _orbit_leaders(candidates: list[Candidate]) -> dict:
     """Лента тикеров. Источники и пороги те же, что у _blk_leaders,
     иначе одна и та же монета была бы золотой внизу и серой на орбите.
@@ -196,7 +225,7 @@ STAR_WINDOW_DAYS = 14.0
 # Порог «новой» звезды: попала в лидеры не позже двух суток назад.
 # Признак бинарный и отдан мерцанию — размер несёт свежесть плавно,
 # а мерцание отвечает на другой вопрос: что появилось недавно.
-STAR_NEW_DAYS = 2.0
+STAR_NEW_DAYS = 5.0
 
 # Поля даты пробуем по очереди: точной схемы записи журнала я не знаю,
 # а падать из-за отсутствующего ключа отчёт не должен. Если ни одного
@@ -338,41 +367,66 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
 
 
 
-def _orbit_market(snapshot: RunSnapshot, slices: list[dict]) -> dict:
-    """Строка рынка для сводки при входе.
+def _orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
+                  slices: list[dict]) -> dict:
+    """Строка рынка и связанные строки сводки при входе.
 
-    Названий полей снимка для биткоина я не знаю наверняка, поэтому
-    читаю через getattr с несколькими вариантами: промах по имени здесь
-    молчалив, а строка просто покажет прочерк вместо числа.
+    Режим и аппетит лежат в snapshot.market_regime (словарь: label /
+    appetite / text) — тот же источник, что читает _head() для капсулы
+    в шапке дашборда. Раньше я пробовал их как плоские атрибуты
+    snapshot.regime / snapshot.appetite, которых не существует.
+
+    BTC.D — не прогонная величина, а константа BTC_D из dashboard.py
+    (см. комментарий там: «источник предстоит найти»). Здесь она
+    честно остаётся той же заглушкой, а не превращается в фальшивые
+    «прогонные» данные.
+
+    Изменения цены BTC за сутки и недельного ряда в системе нет вообще
+    — ни под каким именем. Это не ошибка в названии поля, а отсутствие
+    источника: поля просто отдаются пустыми, и сводка честно покажет
+    «—» вместо выдуманного числа. Записано в тех долг.
     """
-    from render.dashboard import _get
+    from render.dashboard import _get, BTC_D
 
-    def pick(*names, default=None):
-        for n in names:
-            v = getattr(snapshot, n, None)
-            if v not in (None, ""):
-                return v
-        return default
-
-    btc = pick("btc_change_24h", "btc_ch_24h", "btc_24h")
-    dom = pick("btc_dominance", "btc_d")
-    series = list(pick("btc_spark_1d", "btc_series", default=[]) or [])[-7:]
+    reg = getattr(snapshot, "market_regime", None) or {}
+    label = str(reg.get("label", "risk-off"))
+    try:
+        appetite = int(reg.get("appetite", 0) or 0)
+    except (TypeError, ValueError):
+        appetite = 0
 
     src = getattr(snapshot, "sectors", None) or []
     top = sorted(
         [(str(_get(r, "sector", "") or ""), float(_get(r, "avg_change_24h", 0) or 0))
          for r in src], key=lambda p: -p[1])[:1]
 
-    regime = str(getattr(snapshot, "regime", "") or "")
+    leader = _orbit_flow_leader(candidates)
+    from render.dashboard import _pick, _num, _tick
+
+    def top3(sid: str) -> list[dict]:
+        items = sorted(_pick(slices, sid)["items"],
+                       key=lambda c: -_num(c, "rvol_1h"))[:3]
+        return [{"t": _tick(c), "x": round(_num(c, "rvol_1h"), 1),
+                 "cap": _cap(_data(c)["cap"])} for c in items]
+
+    hourly_items = _pick(slices, "hourly")["items"]
+
     return {
         # «спокойный» и «осторожный» — пересказ режима, а не прогноз
-        "calm": regime.upper().replace("-", "").startswith("RISKON"),
-        "appetite": str(pick("appetite", default="—")),
-        "btc": (f"{float(btc):+.1f}%" if btc is not None else "—"),
-        "btcUp": (float(btc) >= 0 if btc is not None else True),
-        "dom": (f"{float(dom):.0f}%" if dom is not None else "—"),
-        "series": [round(float(v), 4) for v in series],
+        "calm": label.upper().replace("-", "").startswith("RISKON"),
+        "appetite": f"{appetite}/5",
+        "btc": None,     # источника нет — см. docstring и тех долг
+        "btcUp": True,
+        "dom": BTC_D,    # константа, не прогонное значение
+        "series": [],
         "sector": (f"{top[0][0]} {top[0][1]:+.1f}%" if top else "—"),
+        "leader": ({"t": _tick(leader),
+                    "score": round(getattr(leader, "score", 0) or 0),
+                    "case": case_key((leader.flow or {}).get("case", "")) or "—",
+                    "cap": _cap(_data(leader)["cap"])} if leader else {}),
+        "topVol": top3("surge"),
+        "hourly": {"n": len(hourly_items), "list": top3("hourly")},
+        "flowVol": _orbit_flow_bigvol(candidates),
     }
 
 
@@ -388,12 +442,19 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
     # Данные уходят отдельным <script type="application/json">, а не
     # склеиваются в разметку: экранировать нужно только "<".
     blob = json.dumps({"nodes": nodes, "stars": stars,
-                       "market": _orbit_market(snapshot, slices)},
+                       "market": _orbit_market(candidates, snapshot, slices)},
                       ensure_ascii=False).replace("<", "\\u003c")
 
-    regime = esc(str(getattr(snapshot, "regime", "") or "RISK-OFF"))
-    appetite = esc(str(getattr(snapshot, "appetite", "") or "—"))
-    btc_d = esc(str(getattr(snapshot, "btc_dominance", "") or "—"))
+    # Тот же источник, что читает _head() для капсулы режима: см.
+    # docstring _orbit_market — прежде это были несуществующие атрибуты.
+    from render.dashboard import BTC_D
+    reg = getattr(snapshot, "market_regime", None) or {}
+    regime = esc(str(reg.get("label", "RISK-OFF")).upper())
+    try:
+        appetite = esc(f'{int(reg.get("appetite", 0) or 0)}/5')
+    except (TypeError, ValueError):
+        appetite = esc("—")
+    btc_d = esc(str(BTC_D))
     viral_n = len(_pick(slices, "viral")["items"])
     soc = f"{viral_n} всплеск" if viral_n else "тихо"
 

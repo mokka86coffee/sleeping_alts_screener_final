@@ -1290,6 +1290,10 @@ ORBIT = """
 .obf-p .dn{color:#FF6B35}
 .obf-p .gd{color:var(--gd)}
 .obf-p .mut{color:#5b606a}
+/* Капитализация — контекст к имени: моноширинная, приглушённая,
+   мельче тикера. Уточняет масштаб, не участвует в сравнении. */
+.obf-p .obf-cap{font-family:var(--mono);font-size:11px;letter-spacing:0;
+  color:#5b606a}
 /* Предупреждение о выходных — единственная строка, которая говорит не
    о монетах, а о том, стоит ли вообще действовать сегодня */
 .obf-p .warn{color:var(--dn);letter-spacing:1.4px}

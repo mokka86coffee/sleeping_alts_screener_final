@@ -40,7 +40,7 @@ BRIEF_JS = """
   var STARS = O.stars || [], phase = O.phase, toStop = O.toStop;
   if (!phase || !STARS.length) return;
 
-  var BRIEF_LAP = 60000;
+  var BRIEF_LAP = 105000;
 
   /* Печать по символу. Задержка одна на строку, а не на каждый символ —
      иначе при длинном тексте набегает секунда лишнего ожидания. */
@@ -106,11 +106,12 @@ BRIEF_JS = """
 
     function names(list, cls) {
       return list.slice(0, 3).map(function (s) {
-        return '<span class="t ' + (cls || '') + '">' + s.t + '</span>';
+        return '<span class="t ' + (cls || '') + '">' + s.t + '</span>' + cap(s);
       }).join(', ');
     }
     function plain(list) {
-      return list.slice(0, 3).map(function (s) { return s.t; }).join(', ');
+      return list.slice(0, 3).map(function (s) {
+        return s.t + capP(s); }).join(', ');
     }
 
     /* Формулировка фона выводится из режима, а не придумывается:
@@ -120,7 +121,9 @@ BRIEF_JS = """
     var M = O.market || {};
     var calm = !!M.calm;
     /* Недельная форма BTC, а не один процент: −2.1% одинаково выглядит
-       и у ровного сползания, и у отскока от провала. */
+       и у ровного сползания, и у отскока от провала. Источника пока
+       нет (см. render/orbit.py, _orbit_market) — при пустом ряде
+       график просто не рисуется, а не подставляет нули. */
     var bs = M.series || [], btcSpark = '';
     if (bs.length > 1) {
       var blo = Math.min.apply(null, bs), bhi = Math.max.apply(null, bs);
@@ -131,6 +134,7 @@ BRIEF_JS = """
         }).join(' ') + '" stroke="' + (M.btcUp ? '#48A97C' : '#FF6B35') +
         '"/></svg>';
     }
+    var btcTxt = M.btc || '—';
 
     /* День недели считаем в МСК явно (UTC+3, без перевода часов):
        окно привязано к торговой неделе, а не к часовому поясу читателя.
@@ -157,19 +161,82 @@ BRIEF_JS = """
        изменение, а не про состояние — и потому самая заметная. */
     var fresh3 = STARS.filter(function (s) { return s.newTop3; }).slice(0, 3);
 
+    function cap(s) { return s.cap ? ' <span class="obf-cap">' + s.cap + '</span>' : ''; }
+    function capP(s) { return s.cap ? ' ' + s.cap : ''; }
+
+    var L = M.leader || {};
+    var TV = (M.topVol || []).slice(0, 3);
+    var HR = M.hourly || { n: 0, list: [] };
+    /* Все монеты FLOW с объёмом ×30+ на любом ТФ */
+    var bigVol = (M.flowVol || []).slice(0, 5);
+    /* Пересечение с журналом ищем здесь, а не в Python: обоим спискам
+       уже нужно было прийти на страницу, и сверять тикеры проще на
+       том же массиве STARS, чем тащить отдельный флаг из снимка. */
+    var VI = bigVol.filter(function (v) {
+      return STARS.some(function (s) { return s.t === v.t; });
+    }).slice(0, 3);
+
     var lines = [
       { p: 'Сегодня фон ' + (calm ? 'спокойный' : 'осторожный') +
              ', аппетит ' + (M.appetite || '—') + '.',
         h: 'Сегодня фон <span class="gd">' + (calm ? 'спокойный' : 'осторожный') +
            '</span>, аппетит <span class="n">' + (M.appetite || '—') +
            '</span>.' },
-      { p: 'Биткоин ' + M.btc + ' за сутки, доминация ' + M.dom +
-             ', сектор дня ' + M.sector + '.',
-        h: 'Биткоин <span class="' + (M.btcUp ? 'up' : 'dn') + ' n">' + M.btc +
+      { p: 'Биткоин ' + btcTxt + ' за сутки, доминация ' + (M.dom || '—') +
+             ', сектор дня ' + (M.sector || '—') + '.',
+        h: 'Биткоин <span class="' + (M.btcUp ? 'up' : 'dn') + ' n">' + btcTxt +
            '</span> за сутки' + btcSpark + ', доминация <span class="n">' +
-           M.dom + '</span>, сектор дня <span class="up">' + M.sector +
-           '</span>.' },
+           (M.dom || '—') + '</span>, сектор дня <span class="up">' +
+           (M.sector || '—') + '</span>.' },
       wknd,
+
+      /* Лидер потока — та же монета, что «ПОТОК» на орбите: лучший
+         score среди FLOW-детектированных. */
+      L.t
+        ? { p: 'Лидер потока ' + L.t + capP(L) + ' — ' + L.case + ', score ' + L.score + '.',
+            h: 'Лидер потока <span class="t gd">' + L.t + '</span>' + cap(L) +
+               ' — ' + L.case + ', score <span class="n">' + L.score +
+               '</span>.' }
+        : null,
+
+      /* Все монеты FLOW с объёмом ×30+ на любом ТФ — не только лидер:
+         сильный по score не обязан быть объёмным, и наоборот. */
+      bigVol.length
+        ? { p: 'Объём ×30+ у ' + bigVol.map(function (v) {
+              return v.t + capP(v) + ' ×' + v.x; }).join(', ') + '.',
+            h: 'Объём ×30+ у ' + bigVol.map(function (v) {
+              return '<span class="t">' + v.t + '</span>' + cap(v) +
+                ' <span class="n">×' + v.x + '</span>'; }).join(', ') + '.' }
+        : null,
+
+      /* Топ-3 по объёму за сутки — те же монеты, что под графиком
+         в блоке ОБЪЁМ на орбите. */
+      TV.length
+        ? { p: 'Больше всех объёма ' + TV.map(function (v) {
+              return v.t + capP(v) + ' ×' + v.x; }).join(', ') + '.',
+            h: 'Больше всех объёма ' + TV.map(function (v) {
+              return '<span class="t">' + v.t + '</span>' + cap(v) +
+                ' <span class="n">×' + v.x + '</span>'; }).join(', ') + '.' }
+        : null,
+
+      /* Активность за час — единственная строка про «прямо сейчас» */
+      HR.list.length
+        ? { p: 'За час ожили ' + HR.n + ': ' + HR.list.map(function (v) {
+              return v.t + capP(v) + ' ×' + v.x; }).join(', ') + '.',
+            h: 'За час ожили <span class="n">' + HR.n + '</span>: ' +
+               HR.list.map(function (v) {
+                 return '<span class="t">' + v.t + '</span>' + cap(v) +
+                   ' <span class="n">×' + v.x + '</span>'; }).join(', ') + '.' }
+        : null,
+
+      /* Совпадение объёмного отбора и журнала — редкое событие,
+         поэтому отдельная строка, а не пометка внутри списка. */
+      VI.length
+        ? { p: 'Объём пришёл в ' + plain(VI) + ' — они уже в потоке.',
+            h: 'Объём пришёл в ' + names(VI, 'gd') +
+               ' — они <span class="gd">уже в потоке</span>.' }
+        : null,
+
       fresh3.length
         ? { p: 'Новые в топ-3 по flow: ' + plain(fresh3) + '.',
             h: 'Новые в <span class="gd">топ-3 по flow</span>: ' +
@@ -192,11 +259,12 @@ BRIEF_JS = """
         : null,
       near.length
         ? { p: 'У уровня ' + near.map(function (s) {
-              return s.t + ' −' + toStop(s) + '%'; }).join(', ') +
+              return s.t + capP(s) + ' −' + toStop(s) + '%'; }).join(', ') +
               ' — решаются сегодня.',
             h: 'У уровня ' + near.map(function (s) {
-              return '<span class="t">' + s.t + '</span> <span class="dn n">−' +
-                toStop(s) + '%</span>'; }).join(', ') + ' — решаются сегодня.' }
+              return '<span class="t">' + s.t + '</span>' + cap(s) +
+                ' <span class="dn n">−' + toStop(s) + '%</span>';
+            }).join(', ') + ' — решаются сегодня.' }
         : null
     ].filter(Boolean);
 
