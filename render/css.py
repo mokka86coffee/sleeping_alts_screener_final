@@ -1074,12 +1074,12 @@ FLOWREP = """
        font-variant-numeric:tabular-nums}
 """
 # ═══════════════════════════════════════════════════
-# ОРБИТА · верхний экран дашборда
-# Заменить в css.py весь блок ORBIT целиком — строки 1084..1285
+# ОРБИТА + СВОДКА · стили
+# Заменить в css.py весь блок ORBIT целиком (строки 1084..1366).
 #
-# Всё с префиксом .ob- : в отчёте заняты .card и .chip,
+# Всё с префиксом .ob- / .obf- : в отчёте заняты .card и .chip,
 # без префикса орбита сломала бы карточки монет.
-# Порядок правил важен — он повторяет прототип.
+# Порядок правил повторяет прототип — каскад от него зависит.
 # ═══════════════════════════════════════════════════
 ORBIT = """
 /* ── Карточка монеты ────────────────────────────────────────
@@ -1137,6 +1137,49 @@ ORBIT = """
 .ob-sc-tag u{text-decoration:none;font-family:var(--mono);color:#c8ccd4}
 .ob-sc-tag.up{color:var(--up)}
 .ob-sc-tag.ath u{color:#c98f78}
+/* Гейт пройден — нейтральная отметка, она не должна тянуть внимание */
+.ob-sc-tag.low{color:#8b929c}
+/* Превышение порога роста — тем же ржавым, что и остальные риски */
+.ob-sc-tag.over{color:var(--dn);border-color:rgba(255,107,53,.35)}
+/* ── Два уровня карточки ──────────────────────────────────
+   Краткий вид по наведению, подробный по клику. Смысл не в экономии
+   места: подробная карточка требует чтения, а решение принимается по
+   трём вещам — что делать, как идёт цена, сколько до уровня. Всё
+   остальное нужно, только когда решение уже под вопросом. */
+.ob-scard.brief .ob-sc-det{display:none}
+.ob-sc-det{display:flex;align-items:stretch;gap:16px}
+.ob-scard.full .ob-sc-brief{display:none}
+.ob-sc-brief{width:196px;text-align:center;padding:4px 2px}
+.ob-b-t{font-size:19px;font-weight:200;letter-spacing:5px;color:var(--t1)}
+.ob-b-act{margin-top:9px;font-size:11px;letter-spacing:1.6px}
+.ob-b-act.go{color:var(--up)}
+.ob-b-act.wait{color:#8b929c}
+/* График крупнее, чем в подробной: здесь он несёт основную нагрузку */
+.ob-sc-brief .ob-sc-spark{width:100%;height:52px;margin-top:14px}
+.ob-b-lvl{margin-top:8px;font-size:9px;letter-spacing:1.4px;color:#5b606a}
+.ob-b-lvl b{font-family:var(--mono);font-weight:400;font-size:11px;
+  color:var(--dn)}
+.ob-sc-brief .ob-sc-risk{justify-content:center;margin-top:9px}
+/* Подсказка про клик — почти невидима, появляется при наведении */
+.ob-b-more{margin-top:13px;font-size:7px;letter-spacing:2.6px;color:#3a3d45;
+  transition:color .25s ease}
+.ob-scard.brief:hover .ob-b-more,.ob-star:hover ~ .ob-scard .ob-b-more{
+  color:#5b606a}
+/* Вывод — самая крупная строка левой колонки: карточка должна отвечать
+   «что делать», а не «какие числа». Остальное её обосновывает. */
+.ob-sc-act{margin-top:10px;font-size:11px;letter-spacing:1.6px}
+.ob-sc-act.go{color:var(--up)}
+.ob-sc-act.wait{color:#8b929c}
+/* Риск ржавым, а не красным: это предупреждение, а не запрет */
+.ob-sc-risk{margin-top:5px;display:flex;flex-wrap:wrap;gap:4px}
+.ob-sc-risk span{font-size:8px;letter-spacing:1px;color:var(--dn);
+  border:1px solid rgba(255,107,53,.35);border-radius:5px;padding:1px 5px}
+.ob-sc-spark .wk{fill:none;stroke-width:1;opacity:.45}
+.ob-sc-spark .d3{fill:none;stroke-width:1.6}
+/* Уровень инвалидации: пунктир, потому что это граница, а не величина */
+.ob-sc-spark .stop{stroke:var(--dn);stroke-width:.8;stroke-dasharray:3 3;
+  opacity:.55}
+.ob-sc-spark .hit{fill:none;stroke:#cfe0f0;stroke-width:1;opacity:.8}
 .ob-sc-chip{font-size:8.5px;letter-spacing:1.6px;color:var(--tone);
   padding-top:7px;border-top:1px solid rgba(200,220,232,.1);align-self:stretch}
 /* --- правая полоса: состояние --- */
@@ -1156,6 +1199,19 @@ ORBIT = """
   opacity:.9;display:block}
 .ob-sc-v.off b{color:#3a3d45}
 .ob-sc-v.off s u{display:none}
+/* Засечка на дорожке — объём на момент попадания в журнал.
+   Один и тот же трек несёт обе величины: заливка это «сейчас»,
+   риска «тогда». Две отдельные полосы удвоили бы блок и заставили
+   сравнивать глазом два ряда вместо одного. */
+.ob-sc-v s e{position:absolute;top:-2px;bottom:-2px;width:1px;
+  background:#cfe0f0;opacity:.55;display:block}
+.ob-sc-v em{font-style:normal;display:block;font-family:var(--mono);
+  font-size:8px;letter-spacing:0;color:#5b606a;margin-top:3px;
+  font-variant-numeric:tabular-nums}
+/* Стрелка направления: ускорение или затухание относительно входа */
+.ob-sc-v b span{font-family:inherit;font-size:9px;margin-left:2px}
+.ob-sc-v.gain b span{color:var(--vol)}
+.ob-sc-v.fade b span{color:#6b7280}
 .ob-sc-row{display:flex;align-items:flex-end;gap:14px}
 .ob-sc-p7{font-family:var(--mono);font-size:20px;font-weight:300;line-height:1;
   font-variant-numeric:tabular-nums;letter-spacing:-.5px}
@@ -1166,7 +1222,7 @@ ORBIT = """
 .ob-sc-pd b{font-family:var(--mono);font-weight:400;color:#c8ccd4}
 .ob-sc-pd b.up{color:var(--up)}
 .ob-sc-pd b.dn{color:var(--dn)}
-.ob-sc-spark{width:104px;height:26px;display:block}
+.ob-sc-spark{width:128px;height:40px;display:block;overflow:visible}
 .ob-sc-foot{display:flex;align-items:center;gap:14px;font-size:8px;
   letter-spacing:1.1px;color:#5b606a;white-space:nowrap}
 .ob-sc-foot b{font-family:var(--mono);font-weight:400;font-size:9.5px;
@@ -1184,6 +1240,117 @@ ORBIT = """
 .ob-sc-life{height:1px;background:rgba(200,220,232,.1);position:relative}
 .ob-sc-life u{position:absolute;inset:0 auto 0 0;background:var(--mut);
   opacity:.45;display:block}
+/* Появление по очереди: сводку читают сверху вниз, и порядок показа
+   задаёт порядок чтения. Задержка у каждого блока своя, в --d. */
+.rise{opacity:0;transform:translateY(6px);
+  animation:obf-rise .6s cubic-bezier(.2,.9,.25,1) var(--d,0s) forwards}
+@keyframes obf-rise{to{opacity:1;transform:none}}
+/* Дыхание фона: экран живёт секунды, статичный прямоугольник за это
+   время успевает показаться мёртвым */
+.obf-glow{position:absolute;left:50%;top:44%;width:900px;height:560px;
+  transform:translate(-50%,-50%);pointer-events:none;
+  background:radial-gradient(ellipse at center,rgba(245,166,35,.07),
+    rgba(245,166,35,0) 62%);
+  animation:obf-breathe 7s ease-in-out infinite}
+@keyframes obf-breathe{0%,100%{opacity:.6;transform:translate(-50%,-50%) scale(1)}
+  50%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}}
+/* Каретка печати: гаснет, когда строка допечатана */
+.obf-reg i{display:inline-block;width:2px;height:22px;margin-left:6px;
+  background:var(--am);vertical-align:-2px;animation:obf-blink .9s step-end infinite}
+.obf-reg.done i{display:none}
+@keyframes obf-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+.obf-spark{width:84px;height:22px;display:block}
+.obf-spark polyline{stroke-dasharray:200;stroke-dashoffset:200;
+  animation:obf-draw 1.1s ease-out 1.6s forwards}
+@keyframes obf-draw{to{stroke-dashoffset:0}}
+/* Отдельная строка «у уровня» — это те, кто решается сегодня */
+.obf-near{margin-top:18px;text-align:center;font-size:9px;letter-spacing:1.6px;
+  color:#5b606a}
+.obf-near b{font-family:var(--mono);font-weight:400;color:var(--dn)}
+.obf-near em{font-style:normal;color:var(--t3);letter-spacing:2px}
+@media (prefers-reduced-motion:reduce){
+  .rise{animation:none;opacity:1;transform:none}
+  .obf-glow,.obf-reg i,.obf-spark polyline{animation:none}
+  .obf-spark polyline{stroke-dashoffset:0}
+}
+/* Текстовая сводка вместо колонок с числами. Причина не в экономии:
+   таблица заставляет сравнивать, а связный текст — читать. На экране,
+   который живёт минуту, второе быстрее.
+
+   Печатается построчно: каждая строка набирается открытым текстом, а
+   по завершении подменяется размеченной версией — так подсветка
+   тикеров и чисел не мешает набору. */
+.obf-in{width:min(660px,88vw)}
+.obf-text{margin-top:26px;min-height:210px}
+.obf-p{font-size:14px;line-height:2.05;letter-spacing:.6px;color:#9aa3ae;
+  margin:0 0 4px}
+.obf-p .t{color:var(--t1);letter-spacing:2px}
+.obf-p .n{font-family:var(--mono);color:#c8ccd4}
+.obf-p .up{color:#48A97C}
+.obf-p .dn{color:#FF6B35}
+.obf-p .gd{color:var(--gd)}
+.obf-p .mut{color:#5b606a}
+/* Предупреждение о выходных — единственная строка, которая говорит не
+   о монетах, а о том, стоит ли вообще действовать сегодня */
+.obf-p .warn{color:var(--dn);letter-spacing:1.4px}
+.obf-p .sp{display:inline-block;width:64px;height:14px;vertical-align:-3px;
+  margin:0 4px}
+.obf-p .sp polyline{fill:none;stroke-width:1.2;stroke-dasharray:120;
+  stroke-dashoffset:120;animation:obf-draw .9s ease-out forwards}
+/* Каретка бежит по последней набираемой строке */
+.obf-p.typing::after{content:'';display:inline-block;width:7px;height:14px;
+  background:var(--am);vertical-align:-2px;margin-left:3px;opacity:.85;
+  animation:obf-blink .8s step-end infinite}
+.obf-foot,.obf-bar{opacity:0;transition:opacity .6s ease}
+.obf-foot.on,.obf-bar.on{opacity:1}
+/* ── Сводка при входе ───────────────────────────────────────
+   Экран поверх дашборда: что с рынком и что сегодня смотреть.
+   Гаснет сам примерно через минуту, снимается кликом или Esc.
+
+   Собирается из того же дерева фаз, что и карточки: сводка не
+   отдельный список, а срез уже существующей логики — иначе она
+   начнёт расходиться с карточками при первой же правке порогов. */
+.ob-brief{position:fixed;inset:0;z-index:40;display:flex;
+  flex-direction:column;align-items:center;justify-content:center;
+  background:radial-gradient(1100px 700px at 50% 42%,#0d0d13,#050508 70%);
+  opacity:0;pointer-events:none;transition:opacity .5s ease}
+.ob-brief.on{opacity:1;pointer-events:auto}
+.obf-in{width:min(940px,90vw)}
+.obf-date{font-size:8px;letter-spacing:4px;color:#43434e;text-align:center}
+/* Строка рынка: только факты, без вывода — режим и аппетит уже
+   являются оценкой, дальше идти нельзя */
+.obf-mkt{display:flex;justify-content:center;align-items:baseline;gap:22px;
+  margin-top:14px;font-size:11px;letter-spacing:1.6px;color:#8b929c}
+.obf-mkt b{font-family:var(--mono);font-weight:400;color:var(--t3)}
+.obf-mkt .dn{color:#FF6B35}
+.obf-mkt .up{color:#48A97C}
+.obf-reg{text-align:center;margin-top:10px;font-size:26px;font-weight:200;
+  letter-spacing:7px;color:var(--t1)}
+.obf-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;
+  margin-top:40px}
+.obf-col h3{margin:0 0 12px;font-size:8px;letter-spacing:3.4px;
+  font-weight:300;color:#5b606a;text-align:center}
+.obf-col.go h3{color:var(--up)}
+.obf-col.wait h3{color:#8b929c}
+.obf-col.hold h3{color:var(--gd)}
+.obf-row{display:flex;align-items:baseline;justify-content:space-between;
+  gap:10px;padding:7px 0;border-top:1px solid rgba(200,220,232,.07)}
+.obf-row:first-of-type{border-top:0}
+.obf-t{font-size:13px;font-weight:300;letter-spacing:2.4px;color:var(--t1)}
+.obf-w{font-size:8.5px;letter-spacing:1px;color:#5b606a}
+.obf-v{font-family:var(--mono);font-size:10px;color:#8b929c}
+.obf-empty{font-size:9px;letter-spacing:1.4px;color:#3a3d45;text-align:center;
+  padding:10px 0}
+.obf-foot{margin-top:38px;text-align:center;font-size:7px;letter-spacing:3px;
+  color:#3a3d45}
+/* Полоса времени: экран уходит сам, и это должно быть видно заранее */
+.obf-bar{height:1px;background:rgba(200,220,232,.08);margin-top:12px;
+  position:relative;overflow:hidden}
+.obf-bar u{position:absolute;inset:0 auto 0 0;background:#5b606a;
+  display:block;width:100%;transform-origin:left;
+  animation:obf-run var(--lap,60s) linear forwards}
+@keyframes obf-run{to{transform:scaleX(0)}}
+@media (prefers-reduced-motion:reduce){.obf-bar u{animation:none}}
 .ob{position:relative;height:88vh;min-height:560px;max-height:900px;
   overflow:hidden;
   /* Выход из сетки .screen на всю ширину окна. Блок остаётся ВНУТРИ #dash:
@@ -1363,6 +1530,102 @@ ORBIT = """
   .ob-node .ob-ping,.ob-mote,.ob-star-ring,.ob-star,
   .ob-star.fresh > *{animation:none}
 }
+/* Орбита — только для настольных браузеров.
+   На телефонах и планшетах сцену тормозит не анимация, а растеризация:
+   при DPR 3 экран во всю ширину это миллионы физических пикселей,
+   поверх которых лежат две маски и feTurbulence зерна. Урезанная
+   версия выглядела бы хуже и всё равно не летала, поэтому блок
+   скрывается целиком — мобильный вариант будет отдельным.
+
+   Признак — грубый указатель, а не ширина: планшет бывает широким
+   и медленным. Узкое окно на десктопе тоже отсекаем: орбита в него
+   просто не помещается, семь подписей встают друг на друга. */
+/* гейт для мобильных в демо снят */
+
+
+
+
+/* Появление по очереди: сводку читают сверху вниз, и порядок показа
+   задаёт порядок чтения. Задержка у каждого блока своя, в --d. */
+.rise{opacity:0;transform:translateY(6px);
+  animation:obf-rise .6s cubic-bezier(.2,.9,.25,1) var(--d,0s) forwards}
+@keyframes obf-rise{to{opacity:1;transform:none}}
+/* Дыхание фона: экран живёт секунды, статичный прямоугольник за это
+   время успевает показаться мёртвым */
+.obf-glow{position:absolute;left:50%;top:44%;width:900px;height:560px;
+  transform:translate(-50%,-50%);pointer-events:none;
+  background:radial-gradient(ellipse at center,rgba(245,166,35,.07),
+    rgba(245,166,35,0) 62%);
+  animation:obf-breathe 7s ease-in-out infinite}
+@keyframes obf-breathe{0%,100%{opacity:.6;transform:translate(-50%,-50%) scale(1)}
+  50%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}}
+/* Каретка печати: гаснет, когда строка допечатана */
+.obf-reg i{display:inline-block;width:2px;height:22px;margin-left:6px;
+  background:var(--am);vertical-align:-2px;animation:obf-blink .9s step-end infinite}
+.obf-reg.done i{display:none}
+@keyframes obf-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+.obf-spark{width:84px;height:22px;display:block}
+.obf-spark polyline{stroke-dasharray:200;stroke-dashoffset:200;
+  animation:obf-draw 1.1s ease-out 1.6s forwards}
+@keyframes obf-draw{to{stroke-dashoffset:0}}
+/* Отдельная строка «у уровня» — это те, кто решается сегодня */
+.obf-near{margin-top:18px;text-align:center;font-size:9px;letter-spacing:1.6px;
+  color:#5b606a}
+.obf-near b{font-family:var(--mono);font-weight:400;color:var(--dn)}
+.obf-near em{font-style:normal;color:var(--t3);letter-spacing:2px}
+@media (prefers-reduced-motion:reduce){
+  .rise{animation:none;opacity:1;transform:none}
+  .obf-glow,.obf-reg i,.obf-spark polyline{animation:none}
+  .obf-spark polyline{stroke-dashoffset:0}
+}
+/* ── Сводка при входе ───────────────────────────────────────
+   Экран поверх дашборда: что с рынком и что сегодня смотреть.
+   Гаснет сам примерно через минуту, снимается кликом или Esc.
+
+   Собирается из того же дерева фаз, что и карточки: сводка не
+   отдельный список, а срез уже существующей логики — иначе она
+   начнёт расходиться с карточками при первой же правке порогов. */
+.ob-brief{position:fixed;inset:0;z-index:40;display:flex;
+  flex-direction:column;align-items:center;justify-content:center;
+  background:radial-gradient(1100px 700px at 50% 42%,#0d0d13,#050508 70%);
+  opacity:0;pointer-events:none;transition:opacity .5s ease}
+.ob-brief.on{opacity:1;pointer-events:auto}
+.obf-in{width:min(940px,90vw)}
+.obf-date{font-size:8px;letter-spacing:4px;color:#43434e;text-align:center}
+/* Строка рынка: только факты, без вывода — режим и аппетит уже
+   являются оценкой, дальше идти нельзя */
+.obf-mkt{display:flex;justify-content:center;align-items:baseline;gap:22px;
+  margin-top:14px;font-size:11px;letter-spacing:1.6px;color:#8b929c}
+.obf-mkt b{font-family:var(--mono);font-weight:400;color:var(--t3)}
+.obf-mkt .dn{color:#FF6B35}
+.obf-mkt .up{color:#48A97C}
+.obf-reg{text-align:center;margin-top:10px;font-size:26px;font-weight:200;
+  letter-spacing:7px;color:var(--t1)}
+.obf-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;
+  margin-top:40px}
+.obf-col h3{margin:0 0 12px;font-size:8px;letter-spacing:3.4px;
+  font-weight:300;color:#5b606a;text-align:center}
+.obf-col.go h3{color:var(--up)}
+.obf-col.wait h3{color:#8b929c}
+.obf-col.hold h3{color:var(--gd)}
+.obf-row{display:flex;align-items:baseline;justify-content:space-between;
+  gap:10px;padding:7px 0;border-top:1px solid rgba(200,220,232,.07)}
+.obf-row:first-of-type{border-top:0}
+.obf-t{font-size:13px;font-weight:300;letter-spacing:2.4px;color:var(--t1)}
+.obf-w{font-size:8.5px;letter-spacing:1px;color:#5b606a}
+.obf-v{font-family:var(--mono);font-size:10px;color:#8b929c}
+.obf-empty{font-size:9px;letter-spacing:1.4px;color:#3a3d45;text-align:center;
+  padding:10px 0}
+.obf-foot{margin-top:38px;text-align:center;font-size:7px;letter-spacing:3px;
+  color:#3a3d45}
+/* Полоса времени: экран уходит сам, и это должно быть видно заранее */
+.obf-bar{height:1px;background:rgba(200,220,232,.08);margin-top:12px;
+  position:relative;overflow:hidden}
+.obf-bar u{position:absolute;inset:0 auto 0 0;background:#5b606a;
+  display:block;width:100%;transform-origin:left;
+  animation:obf-run var(--lap,60s) linear forwards}
+@keyframes obf-run{to{transform:scaleX(0)}}
+@media (prefers-reduced-motion:reduce){.obf-bar u{animation:none}}
 """
 
 # ═══════════════════════════════════════════════════
