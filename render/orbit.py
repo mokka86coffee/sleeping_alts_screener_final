@@ -427,6 +427,34 @@ def _market_breadth(candidates: list[Candidate]) -> dict:
         "tailPct": FROZEN_TAIL_PCT,
     }
 
+def _peak_volume(candidates: list[Candidate]) -> dict:
+    """Монета с наибольшей кратностью объёма к своей норме.
+
+    Именно кратностью, а не оборотом в долларах: абсолютный оборот
+    каждый день выводит одни и те же ликвидные имена, то есть
+    является константой и новостью не бывает. Кратность уже
+    посчитана в collect_metrics — это тот же vol_ratio, что кормит
+    корзину аномалий, сети здесь ноль.
+
+    Берётся максимум по ПЯТИ масштабам сразу: всплеск бывает
+    двухчасовым и суточным, и спрашивать только один масштаб значит
+    пропускать половину случаев.
+    """
+    best_sym, best_x = "", 0.0
+
+    for c in candidates:
+        ratios = (c.raw.get("vol_ratio") or {}).values()
+        for x in ratios:
+            try:
+                x = float(x)
+            except (TypeError, ValueError):
+                continue
+            if x > best_x:
+                best_x, best_sym = x, c.base
+
+    if best_x <= 0:
+        return {}
+    return {"sym": best_sym, "x": round(best_x)}
 
 def _orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
                   slices: list[dict]) -> dict:
@@ -452,6 +480,8 @@ def _orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
     reg = getattr(snapshot, "market_regime", None) or {}
     _btc = get_btc_context()
     _breadth = _market_breadth(candidates)
+    _peak = _peak_volume(candidates)
+
     label = str(reg.get("label", "risk-off"))
     try:
         appetite = int(reg.get("appetite", 0) or 0)
@@ -495,7 +525,16 @@ def _orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
         "tail": _breadth["tail"],
         "tailPct": _breadth.get("tailPct"),
         "weekend": _weekend_state(),
+        # Сектор дня убран из плашки: усреднение по сектору живёт час,
+        # деньги за это время уже в другом. Поле оставлено — его читает
+        # брифинг ниже, где оно идёт одной фразой среди прочих, а не
+        # претендует на роль признака.
         "sector": (f"{top[0][0]} {top[0][1]:+.1f}%" if top else "—"),
+
+        # Кратность объёма: отвечает на то, чего не говорят цены —
+        # есть ли вообще деньги в рынке. Стоящая цена при живом объёме
+        # и стоящая цена при мёртвом это разные дни.
+        "peakVol": _peak,
         "leader": ({"t": _tick(leader),
                     "score": round(getattr(leader, "score", 0) or 0),
                     "case": case_key((leader.flow or {}).get("case", "")) or "—",
