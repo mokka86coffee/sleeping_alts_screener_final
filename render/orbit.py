@@ -556,8 +556,13 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
 
     # Данные уходят отдельным <script type="application/json">, а не
     # склеиваются в разметку: экранировать нужно только "<".
-    blob = json.dumps({"nodes": nodes, "stars": stars,
-                       "market": _orbit_market(candidates, snapshot, slices)},
+    # Словарь рынка считается ОДИН раз и в переменную: его читают двое —
+    # JSON для брифинга и подстановки разметки ниже. Прежде он собирался
+    # прямо внутри json.dumps, и разметка не имела к нему доступа вовсе:
+    # орбита показывала PUMP ON над строкой «рынок замер» в брифинге.
+    market = _orbit_market(candidates, snapshot, slices)
+
+    blob = json.dumps({"nodes": nodes, "stars": stars, "market": market},
                       ensure_ascii=False).replace("<", "\\u003c")
 
     # Тот же источник, что читает _head() для капсулы режима: см.
@@ -574,7 +579,7 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
     soc = f"{viral_n} всплеск" if viral_n else "тихо"
 
     # ── Фон рынка ────────────────────────────────────────────
-    _mk = _orbit_market(candidates, snapshot, slices) or {}
+    _mk = market or {}
     _frozen = bool(_mk.get("frozen"))
     _wknd = _mk.get("weekend") or ""
 
@@ -1055,7 +1060,12 @@ ORBIT_JS = """
           { id: 'obcG', x: 1220, y:  200, ang: -15.9,  dx: -560, dy:  160,
             len: 165, w: 1.7, dly: -19.5,
             cols: ['#FFF8E7', '#E0C060', '#8A6A14'] }
-        ].forEach(comet);
+            // Обёртка обязательна: forEach передаёт колбэку (элемент, индекс,
+          // массив), и при прямой передаче comet вторым аргументом уезжает
+          // индекс. Для comet второй аргумент — признак «красная», поэтому
+          // все кометы кроме нулевой помечались красными и исчезали с
+          // живого рынка.
+          ].forEach(function (cfg) { comet(cfg, false); });
       }
 
       /* Кометы замершего рынка. Четыре сверх обычных, с красными хвостами
