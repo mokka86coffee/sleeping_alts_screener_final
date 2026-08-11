@@ -625,7 +625,7 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
     btc7_txt, btc7_cls = _btc_cell(_mk.get("btc7d"))
 
     return f"""
-<div class="ob" id="ob">
+<div class="ob{frozen_cls}" id="ob">
     <svg viewBox="0 0 1000 563" preserveAspectRatio="xMidYMid slice">
     <defs>
       <radialGradient id="ob-sky" cx="62%" cy="72%" r="78%">
