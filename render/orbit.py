@@ -14,6 +14,7 @@
 from __future__ import annotations
 import json
 
+from core.config import ORBIT_BG_SRC
 from core.models import Candidate, RunSnapshot
 from render.theme import esc
 from render.flow_report import case_key, CASE_RU, _cap, _data
@@ -460,7 +461,7 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
 
     return f"""
 <div class="ob" id="ob">
-  <svg viewBox="0 0 1000 640" preserveAspectRatio="xMidYMid slice">
+    <svg viewBox="0 0 1000 563" preserveAspectRatio="xMidYMid slice">
     <defs>
       <radialGradient id="ob-sky" cx="62%" cy="72%" r="78%">
         <stop offset="0" stop-color="#1a1508"/>
@@ -480,15 +481,33 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
         <stop offset="0.5" stop-color="#fff" stop-opacity=".45"/>
         <stop offset="1" stop-color="#fff" stop-opacity=".06"/>
       </linearGradient>
-      <mask id="ob-fade"><rect width="1000" height="640" fill="url(#ob-fadeg)"/></mask>
+      <mask id="ob-fade"><rect width="1000" height="563" fill="url(#ob-fadeg)"/></mask>
 
       <radialGradient id="ob-bandg" cx="34%" cy="70%" r="40%">
         <stop offset="0" stop-color="#fff" stop-opacity="1"/>
         <stop offset="0.55" stop-color="#fff" stop-opacity=".45"/>
         <stop offset="1" stop-color="#fff" stop-opacity="0"/>
       </radialGradient>
-      <mask id="ob-band"><rect width="1000" height="640" fill="url(#ob-bandg)"/></mask>
-
+      <mask id="ob-band"><rect width="1000" height="563" fill="url(#ob-bandg)"/></mask>
+    <!-- Пыль: три тона. Тёплый над плотной частью диска, холодный
+           по краям, нейтральный для середины. Однотонное облако
+           ложится как запотевшее стекло — разнотонное читается как
+           расстояние. -->
+      <radialGradient id="ob-cl-w">
+        <stop offset="0"   stop-color="#C9A76B" stop-opacity=".16"/>
+        <stop offset="0.5" stop-color="#8A7550" stop-opacity=".07"/>
+        <stop offset="1"   stop-color="#5A4A32" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="ob-cl-c">
+        <stop offset="0"   stop-color="#6E8FC8" stop-opacity=".13"/>
+        <stop offset="0.5" stop-color="#48608F" stop-opacity=".06"/>
+        <stop offset="1"   stop-color="#2A3A5C" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="ob-cl-n">
+        <stop offset="0"   stop-color="#9AA4B4" stop-opacity=".10"/>
+        <stop offset="0.5" stop-color="#6A7382" stop-opacity=".045"/>
+        <stop offset="1"   stop-color="#3E4653" stop-opacity="0"/>
+      </radialGradient>
       <filter id="ob-glow" x="-40%" y="-40%" width="180%" height="180%">
         <feGaussianBlur stdDeviation="5"/>
       </filter>
@@ -543,8 +562,9 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
       </filter>
     </defs>
 
-    <rect width="1000" height="640" fill="url(#ob-sky)"/>
-    <ellipse cx="500" cy="320" rx="430" ry="250" fill="url(#ob-haze)"
+    <image x="0" y="0" width="1000" height="563"
+           preserveAspectRatio="xMidYMid slice" href="{ORBIT_BG_SRC}"/>
+    <ellipse cx="500" cy="281" rx="430" ry="220" fill="url(#ob-haze)"
              class="ob-breathe"/>
 
     <!-- Встречный слой: спицы и редкие дуги, идут в другую сторону
@@ -562,21 +582,18 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
       </g>
     </g>
 
+    <g id="ob-cloud" class="ob-cloud"></g>
+
     <g id="ob-dust" class="ob-dust"></g>
     <g id="ob-links"></g>
     <g id="ob-orbit"></g>
     <g id="ob-nodes"></g>
 
-    <!-- Зерно: статичный слой, пересчёта на кадр нет -->
-    <rect width="1000" height="640" filter="url(#ob-grain)" opacity=".05"
-          style="pointer-events:none"/>
-    <ellipse cx="820" cy="140" rx="330" ry="240" fill="#2a2418"
-             opacity=".5" filter="url(#ob-soft)"/>
-
     <!-- Звёзды идут последними, поверх зерна и дымки: стоя раньше них,
          они припудривались обоими слоями и тонули на светлых участках
          ленты. Это передний план сцены, а не часть фона. -->
-    <g id="ob-stars"></g>
+        <g id="ob-stars"></g>
+        <g id="ob-comets"></g>
   </svg>
 
   <div class="ob-core">
@@ -604,7 +621,7 @@ ORBIT_JS = """
   var BLOCKS = DATA.nodes || [], STARS = DATA.stars || [];
   if (!BLOCKS.length) return;
 
-  var CX = 500, CY = 320, RX = 372, RY = 168, TILT = -9;
+  var CX = 500, CY = 281, RX = 372, RY = 148, TILT = -9;
   var NODE_LEN = [], cometEl = null, TOTAL_LEN = 0;
   var cometHead = null, cometHalo = null;
 
@@ -643,7 +660,7 @@ ORBIT_JS = """
   /* Семейство дуг. Толщина и прозрачность идут волной, а не линейно:
      при линейной прогрессии лента читается плоской штриховкой. */
   function buildArcs() {
-    var N = 104, A0 = 90, A1 = 452, T0 = TILT - 22, T1 = TILT + 16;
+    var N = 190, A0 = 82, A1 = 430, T0 = TILT - 23, T1 = TILT + 17;
     var host = document.getElementById('ob-arcs');
     var gb = document.getElementById('ob-arcsB');
     var gs = document.getElementById('ob-arcsS');
@@ -660,11 +677,14 @@ ORBIT_JS = """
         'stroke-width': (0.28 + 0.42 * wave).toFixed(2),
         opacity: (0.05 + 0.17 * wave).toFixed(3) }));
 
-      var k = 1 - Math.abs(i - 62) / 15;
+    // Ядро диска: узкая полоса около i=118. Спад степенной, а не
+      // линейный — у резкой границы лента читается наклейкой.
+      var k = 1 - Math.abs(i - 118) / 18;
       if (k > 0) {
+        k = Math.pow(k, 0.75);
         var gold = { d: d, stroke: '#FFC46B',
-          'stroke-width': (0.3 + 0.95 * k).toFixed(2),
-          opacity: (0.12 + 0.42 * k).toFixed(3) };
+          'stroke-width': (0.28 + 1.05 * k).toFixed(2),
+          opacity: (0.10 + 0.52 * k).toFixed(3) };
         gs.appendChild(el('path', gold));
         gb.appendChild(el('path', gold));
       }
@@ -679,13 +699,13 @@ ORBIT_JS = """
       var a = i / 24 * Math.PI * 2;
       sp.appendChild(el('line', {
         x1: (CX + Math.cos(a) * 70).toFixed(1),
-        y1: (CY + Math.sin(a) * 32).toFixed(1),
+        y1: (CY + Math.sin(a) * 28).toFixed(1),
         x2: (CX + Math.cos(a) * 470).toFixed(1),
-        y2: (CY + Math.sin(a) * 212).toFixed(1), 'stroke-width': .5 }));
+        y2: (CY + Math.sin(a) * 186).toFixed(1), 'stroke-width': .5 }));
     }
     var back = document.getElementById('ob-arcsBack');
     for (var j = 0; j < 14; j++) {
-      var t = j / 13, a2 = 130 + 330 * t;
+      var t = j / 13, a2 = 120 + 310 * t;
       back.appendChild(el('path', {
         d: ellipsePath(CX, CY, a2, a2 * (0.5 - 0.14 * t), 26 - 30 * t),
         stroke: '#9fb0c8', 'stroke-width': .4,
@@ -710,6 +730,136 @@ ORBIT_JS = """
       host.appendChild(c);
     }
   }
+
+  /* Пылевое облако. Содержимое рисуется дважды: на месте и со сдвигом
+       на ширину кадра влево. Группа едет вправо ровно на 1000 (см.
+       ob-cloudrun в css.py) — в конце цикла вторая копия занимает место
+       первой, и склейки не видно.
+
+       Все пятна умещаются по ширине в один период. Шире периода пятно
+       обрезалось бы при сдвиге, и шов стал бы заметен.
+
+       Наклон -9° тот же, что у кольца: пыль лежит в плоскости диска,
+       а не поперёк него. */
+    var CLOUD = [
+      { x: 120, y: 210, rx: 250, ry: 130, g: 'ob-cl-c', o: 1.00 },
+      { x: 330, y: 330, rx: 300, ry: 155, g: 'ob-cl-n', o: 0.85 },
+      { x: 560, y: 250, rx: 270, ry: 120, g: 'ob-cl-w', o: 1.00 },
+      { x: 760, y: 360, rx: 230, ry: 140, g: 'ob-cl-w', o: 0.75 },
+      { x: 900, y: 190, rx: 210, ry: 110, g: 'ob-cl-c', o: 0.80 },
+      { x: 450, y: 460, rx: 320, ry: 105, g: 'ob-cl-n', o: 0.65 }
+    ];
+
+    function buildCloud() {
+      var host = document.getElementById('ob-cloud');
+      [-1000, 0].forEach(function (shift) {
+        CLOUD.forEach(function (c) {
+          host.appendChild(el('ellipse', {
+            cx: c.x + shift, cy: c.y, rx: c.rx, ry: c.ry,
+            fill: 'url(#' + c.g + ')', opacity: c.o,
+            transform: 'rotate(-9 ' + (c.x + shift) + ' ' + c.y + ')' }));
+        });
+      });
+    }
+
+    /* Градиенты хвоста и головы. Собираются здесь, а не в разметке:
+         четыре кометы это шестнадцать определений, и держать их руками
+         значит править цвет в четырёх местах вместо одного.
+         cols — тройка [светлый, средний, глубокий]. */
+      function cometGrads(id, cols) {
+        var defs = document.querySelector('#ob defs');
+
+        function lin(sfx, stops) {
+          var g = el('linearGradient', { id: id + sfx, x1: '0', y1: '0',
+                                         x2: '1', y2: '0' });
+          stops.forEach(function (s) {
+            g.appendChild(el('stop', { offset: s[0], 'stop-color': s[1],
+                                       'stop-opacity': s[2] }));
+          });
+          defs.appendChild(g);
+        }
+
+        lin('1', [[0, cols[0], .95], [0.28, cols[1], .55], [1, cols[2], 0]]);
+        lin('2', [[0, cols[1], .70], [0.50, cols[1], .30], [1, cols[2], 0]]);
+        lin('3', [[0, cols[0], .50], [1, cols[2], 0]]);
+
+        // Ореол головы градиентом, а не размытием: фильтр на летящем
+        // объекте пересчитывается каждый кадр, градиент — ни разу.
+        var hd = el('radialGradient', { id: id + 'h' });
+        [[0, '#FFFFFF', 1], [0.22, cols[0], .8],
+         [0.55, cols[1], .28], [1, cols[2], 0]].forEach(function (s) {
+          hd.appendChild(el('stop', { offset: s[0], 'stop-color': s[1],
+                                      'stop-opacity': s[2] }));
+        });
+        defs.appendChild(hd);
+      }
+
+      /* Одна комета. Голова в нуле, хвост уходит в +X, вся группа
+         развёрнута под угол полёта — поэтому направление задаётся одним
+         числом, а не пересчётом координат каждой пряди.
+
+         Прядей три: длинная тусклая, средняя яркая и короткая почти
+         белая у самой головы. Разная длина и есть то, что отличает свет
+         от нарисованной стрелки: одна градиентная полоса выглядит
+         плоской, сколько её ни подкрашивай. */
+      function comet(cfg) {
+        var host = document.getElementById('ob-comets');
+        cometGrads(cfg.id, cfg.cols);
+
+        var outer = el('g', { transform: 'translate(' + cfg.x + ' ' + cfg.y + ')' });
+        var mover = el('g', { class: 'ob-comet' });
+        mover.style.setProperty('--dx', cfg.dx + 'px');
+        mover.style.setProperty('--dy', cfg.dy + 'px');
+        mover.style.setProperty('--dly', cfg.dly + 's');
+
+        var rot = el('g', { transform: 'rotate(' + cfg.ang + ')' });
+        var len = cfg.len, w = cfg.w;
+
+        // [доля длины, доля ширины, номер градиента]
+        [[1.00, 1.00, '1'], [0.62, 0.55, '2'], [1.35, 0.32, '3']]
+          .forEach(function (s) {
+            var L = len * s[0], W = w * s[1];
+            rot.appendChild(el('path', {
+              d: 'M0 ' + (-W) + ' L' + L + ' ' + (-W * 0.14) +
+                 ' L' + L + ' ' + (W * 0.14) + ' L0 ' + W + ' Z',
+              fill: 'url(#' + cfg.id + s[2] + ')' }));
+          });
+
+        rot.appendChild(el('circle', { r: w * 4.2,
+          fill: 'url(#' + cfg.id + 'h)', opacity: '.85' }));
+        rot.appendChild(el('circle', { r: w * 0.72, fill: '#FFFFFF' }));
+
+        mover.appendChild(rot);
+        outer.appendChild(mover);
+        host.appendChild(outer);
+      }
+
+      /* Четыре кометы с четырёх сторон, сдвинутые на четверть цикла.
+         Одинаковое направление у всех читалось бы как метеорный поток из
+         одной точки — здесь нужен случайный трафик, а не дождь.
+
+         ang — угол хвоста, он равен направлению, обратному движению:
+         хвост тянется туда, откуда комета пришла. Считается от вектора
+         (dx, dy), а не подбирается на глаз. */
+      function buildComets() {
+        [
+          { id: 'obcV', x: 1230, y: -90,  ang: -45,    dx: -450, dy:  450,
+            len: 150, w: 2.4, dly: 0,
+            cols: ['#EDE4FF', '#A78BFA', '#7C3AED'] },
+
+          { id: 'obcA', x: 1200, y:  650, ang:  41.5,  dx: -430, dy: -380,
+            len: 128, w: 2.0, dly: -6.5,
+            cols: ['#FFF3DC', '#FFC46B', '#B36A10'] },
+
+          { id: 'obcB', x: -190, y: -70,  ang: -139.6, dx:  470, dy:  400,
+            len: 138, w: 2.1, dly: -13,
+            cols: ['#E6F2FF', '#7FB4FF', '#3E9BE0'] },
+
+          { id: 'obcG', x: 1220, y:  200, ang: -15.9,  dx: -560, dy:  160,
+            len: 165, w: 1.7, dly: -19.5,
+            cols: ['#FFF8E7', '#E0C060', '#8A6A14'] }
+        ].forEach(comet);
+      }
 
 
   /* FNV-1a от тикера: положение звезды не должно прыгать между
@@ -784,7 +934,7 @@ ORBIT_JS = """
         if (Math.hypot(PLACED[m].x - x, PLACED[m].y - y) < 78) { tooClose = true; break; }
       }
       if (band > 0.18 && !inCard && !nearNode && !tooClose &&
-          x > 95 && x < 905 && y > 115 && y < 545) {
+          x > 95 && x < 905 && y > 100 && y < 479) {
         PLACED.push({ x: x, y: y });
         return { x: x, y: y };
       }
@@ -1320,7 +1470,7 @@ ORBIT_JS = """
          радиуса: орбита сплюснута вдвое, и при пропорциональном отступе
          верхний с нижним узлы прилипали бы к линии. */
       lab.style.left = ((p.x + vx / len * 54) / 1000 * 100) + '%';
-      lab.style.top  = ((p.y + vy / len * 54) / 640 * 100) + '%';
+      lab.style.top  = ((p.y + vy / len * 54) / 563 * 100) + '%';
       orb.appendChild(lab);
 
       var card = document.createElement('div');
@@ -1468,9 +1618,11 @@ ORBIT_JS = """
 
   buildArcs();
   buildBack();
+  buildCloud();
   buildDust();
   buildStars();
   build();
+  buildComets();
   requestAnimationFrame(frame);
 })();
 </script>

@@ -1526,18 +1526,56 @@ transition:border-color .2s ease}
 }
 /* Дрейф семейства: оборот за 4 минуты. Крутится группа без фильтров —
    размытая подсветка лежит внутри и на кадр не пересчитывается. */
-.ob-spin{transform-origin:500px 320px;animation:ob-drift 240s linear infinite}
+.ob-spin{transform-origin:500px 281px;animation:ob-drift 240s linear infinite}
 /* Встречный слой медленнее и в другую сторону: два одинаковых направления
    читались бы как одно, разница скоростей даёт параллакс. */
-.ob-spin-back{transform-origin:500px 320px;
+.ob-spin-back{transform-origin:500px 281px;
   animation:ob-driftBack 380s linear infinite}
 .ob-breathe{animation:ob-pulse 9s ease-in-out infinite}
 /* Попутные частицы: те же дуги орбиты коротким штрихом, разные скорости
    и фазы дают ощущение потока, а не одной кометы. */
 .ob-mote{animation:ob-run linear infinite}
+/* Пылевое облако: бесшовный цикл сдвигом ровно на ширину кадра.
+   Содержимое нарисовано дважды со смещением на тот же период (см.
+   buildCloud), поэтому в конце прохода вторая копия занимает место
+   первой и склейки не видно.
+
+   Собрано из мягких эллипсов, без feTurbulence: шум на движущемся
+   слое пересчитывается каждый кадр. На прозрачности в десять
+   процентов разница не читается, цена отличается на порядок. */
+@keyframes ob-cloudrun{
+  from{transform:translateX(0)}
+  to  {transform:translateX(1000px)}
+}
+.ob-cloud{animation:ob-cloudrun 110s linear infinite;
+  will-change:transform;pointer-events:none}
+
+/* Летящие кометы. Один набор кадров на все четыре: направление
+   задаётся переменными --dx/--dy на самом элементе. Иначе четыре
+   кометы означали бы четыре почти одинаковых блока, и правка
+   скорости требовала бы четырёх правок вместо одной.
+
+   Цикл 26 секунд, сам пролёт занимает 19% из них — около пяти
+   секунд. Четыре кометы со сдвигом на четверть цикла дают пролёт
+   примерно раз в шесть с половиной секунд.
+
+   Двигается только transform, фильтров на группе нет: гауссово
+   размытие на летящем объекте пересчитывается каждый кадр и стоит
+   дороже всей остальной сцены. Свечение головы поэтому радиальный
+   градиент, а не blur. */
+@keyframes ob-fly{
+  0%   {transform:translate(0,0);                 opacity:0}
+  1.2% {opacity:1}
+  16%  {opacity:1}
+  19%  {transform:translate(var(--dx),var(--dy)); opacity:0}
+  100% {transform:translate(var(--dx),var(--dy)); opacity:0}
+}
+.ob-comet{animation:ob-fly 26s linear infinite;
+  animation-delay:var(--dly,0s);will-change:transform}
 @media (prefers-reduced-motion:reduce){
   .ob-spin,.ob-spin-back,.ob-breathe,.ob-dust circle,
   .ob-node .ob-ping,.ob-mote,.ob-star-ring,.ob-star,
+  .ob-cloud,.ob-comet,
   .ob-star.fresh > *{animation:none}
 }
 /* Орбита — только для настольных браузеров.
