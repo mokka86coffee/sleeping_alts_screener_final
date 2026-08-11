@@ -143,7 +143,6 @@ BRIEF_JS = """
        месте, здесь только чтение. */
     var wk = M.weekend || '';
 
-var wknd = null;
     if (wk === 'soon') {
       wknd = { p: 'Завтра выходные — ликвидность начнёт уходить уже ' +
                   'к вечеру, торговать сегодня с осторожностью.',
@@ -361,7 +360,7 @@ var wknd = null;
                 ' <span class="dn n">−' + toStop(s) + '%</span>';
             }).join(', ') + ' — решаются сегодня.' }
         : null
-    ].filter(Boolean);
+    ]).filter(Boolean);
 
     var reduce = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
     var els = lines.map(function (l) {
