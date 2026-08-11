@@ -304,6 +304,10 @@ def build_market_regime(candidates: list[Candidate], sectors: list[dict]) -> dic
         "tradable_share": round(tradable_share * 100, 1),
         "leading_sector": sectors[0]["sector"] if sectors else "",
         "lagging_sector": sectors[-1]["sector"] if sectors else "",
+        # green_share считается в build_market_regime и лежит в снимке,
+        # но наружу до сих пор не выходил — как и median_change_24h,
+        # tradable_share, leading_sector, lagging_sector.
+        "greenShare": green_share,
         "note": note,
     }
 

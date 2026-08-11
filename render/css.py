@@ -1574,8 +1574,8 @@ transition:border-color .2s ease}
   animation-delay:var(--dly,0s);will-change:transform}
 
 
-/* Кометы замершего рынка. Показываются только при классе frozen на
-   .ob: сам факт учащения трафика и есть сигнал.
+/* Кометы замершего рынка. Показываются только при frozen: сам факт
+   учащения трафика и есть сигнал, подписи он не требует.
 
    display, а не opacity — при скрытии анимация сбрасывается, и при
    возврате состояния кометы стартуют с начала цикла, а не выныривают
@@ -1590,10 +1590,10 @@ transition:border-color .2s ease}
 .ob.frozen .v-live{display:none}
 .ob.frozen .v-frost{display:block}
 
-/* Подсветка тёплая, а не красная. Красное несут кометы — они про
-   состояние рынка. Надпись про то, что с этим состоянием делать, и по
-   этой стратегии делать надо противоположное тревоге. Будь оба
-   красными, экран говорил бы «опасно» дважды и ни разу «пора». */
+/* Подсветка стоит на PUMP OFF, хотя для рынка это «плохое»
+   состояние: она отмечает не оценку рынка, а то, что момент рабочий.
+   Свечение тёплое, а не красное — цвет должен звать, а не
+   останавливать. Красное здесь несут кометы, они про сам рынок. */
 @keyframes ob-frost-glow{
   0%,100%{text-shadow:0 0 22px rgba(245,166,35,.30),
                       0 0 60px rgba(245,166,35,.12)}
@@ -1602,19 +1602,28 @@ transition:border-color .2s ease}
 }
 .v-frost{color:var(--am-n);animation:ob-frost-glow 5.5s ease-in-out infinite}
 
-/* Плашка замера. Появляется только во frozen: в живом рынке эти два
-   числа ничего не сообщают и лишь загромождают центр. */
+/* Плашка. Показывается во frozen ИЛИ когда в ней есть пилюля
+   выходных: пятница на живом рынке — тоже повод её показать, хотя
+   класса frozen тогда нет. Отсюда второе правило через :has(). */
 .ob-frost{display:none;margin-top:16px;align-items:center;
   justify-content:center;gap:14px;flex-wrap:wrap}
 .ob.frozen .ob-frost{display:flex}
+.ob-frost:has(.ob-frost-w){display:flex}
+
 .ob-frost-t{font-size:8px;font-weight:500;letter-spacing:3.4px;
   text-transform:uppercase;color:#E0796B;
   border:1px solid rgba(217,107,94,.35);border-radius:999px;
   padding:4px 11px 3px}
+.ob-frost-w{font-size:8px;font-weight:500;letter-spacing:3.4px;
+  text-transform:uppercase;color:var(--am);
+  border:1px solid rgba(245,166,35,.32);border-radius:999px;
+  padding:4px 11px 3px}
 .ob-frost-n{font-size:8.5px;font-weight:300;letter-spacing:1.9px;
   color:#8b8a92}
 .ob-frost-n b{font-weight:500;color:#D8CFC8}
+.ob-frost-n b.sec{color:var(--am-l)}
 .ob-core-s b.dn{color:#D96B5E}
+.ob-core-s b.mute{color:#5f6169}
 
 @media (prefers-reduced-motion:reduce){
   .ob-spin,.ob-spin-back,.ob-breathe,.ob-dust circle,

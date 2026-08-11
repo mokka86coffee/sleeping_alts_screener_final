@@ -573,37 +573,51 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
     viral_n = len(_pick(slices, "viral")["items"])
     soc = f"{viral_n} всплеск" if viral_n else "тихо"
 
-    # Состояние фона: замирание и выходные складываются в одну плашку.
-    # Выходные при замершем рынке не отдельная новость, а усиление того
-    # же — ликвидности нет по обеим причинам сразу, и разносить их по
-    # двум строкам значит просить читателя сложить их самому.
+    # ── Фон рынка ────────────────────────────────────────────
     _mk = _orbit_market(candidates, snapshot, slices) or {}
     _frozen = bool(_mk.get("frozen"))
     _wknd = _mk.get("weekend") or ""
 
-    frozen_cls = " frozen" if (_frozen or _wknd) else ""
+    # Класс на .ob, а не на отдельный слой: состояние касается всего
+    # экрана — от него красятся и кометы, и надпись режима.
+    frozen_cls = " frozen" if _frozen else ""
 
-    if _frozen and _wknd == "now":
-        frost_label = "выходные · рынок замер"
-    elif _frozen and _wknd == "soon":
-        frost_label = "рынок замер · завтра выходные"
+    # Пилюли собираются списком, а не условной строкой: их может быть
+    # ноль, одна или две, и склейка через «·» в четырёх ветках
+    # выродилась бы в лестницу if-ов ради пунктуации.
+    _pills = []
+    if _frozen:
+        _pills.append('<span class="ob-frost-t">рынок замер</span>')
+    if _wknd == "soon":
+        _pills.append('<span class="ob-frost-w">завтра выходные</span>')
     elif _wknd == "now":
-        frost_label = "выходные · ликвидность уходит"
-    elif _wknd == "soon":
-        frost_label = "завтра выходные"
-    else:
-        frost_label = "рынок замер"
+        _pills.append('<span class="ob-frost-w">выходные</span>')
+    frost_pills = "".join(_pills)
 
     _mx = _mk.get("maxChange")
     frost_max = f"+{_mx:.0f}%" if _mx is not None else "—"
     frost_tail = str(_mk.get("tail", 0))
     frost_tail_pct = f"{_mk.get('tailPct') or 20:.0f}"
 
+    # Объёма может не быть вовсе — тогда не показываем ничего.
+    # Прочерк на месте величины, которой не бывает, читается как
+    # поломка, а не как отсутствие данных.
+    _pv = _mk.get("peakVol") or {}
+    frost_vol = (
+        f'<span class="ob-frost-n">объём '
+        f'<b class="sec">{esc(_pv["sym"])}</b> <b>×{_pv["x"]}</b></span>'
+        if _pv.get("sym") else ""
+    )
+
     # Биткоин: None означает «данных нет» и печатается прочерком.
-    # Ноль тут был бы враньём — это не «не изменился», это «не знаем».
-    _bt = _mk.get("btc")
-    btc_txt = f"{_bt:+.1f}%" if _bt is not None else "—"
-    btc_cls = "up" if (_bt or 0) >= 0 else "dn"
+    # Ноль был бы враньём — это не «не изменился», это «не знаем».
+    def _btc_cell(v):
+        if v is None:
+            return "—", "mute"
+        return f"{v:+.1f}%", ("up" if v >= 0 else "dn")
+
+    btc_txt, btc_cls = _btc_cell(_mk.get("btc"))
+    btc7_txt, btc7_cls = _btc_cell(_mk.get("btc7d"))
 
     return f"""
 <div class="ob" id="ob">
@@ -742,20 +756,44 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
         <g id="ob-comets"></g>
   </svg>
 
-  <div class="ob-core">
+<div class="ob-core">
     <div class="ob-core-k">РЕЖИМ РЫНКА</div>
-    <div class="ob-core-v v-live">{regime}</div>
-    <div class="ob-core-v v-frost">RISK-ON</div>
-    <div class="ob-core-s">аппетит <b>{appetite}</b> · btc <b class="{btc_cls}">{btc_txt}</b>
-      · btc.d <b>{btc_d}</b></div>
 
-    <!-- Строка замера отдельно от режима, а не в той же строке:
-         режим — это оценка, а здесь два измеренных числа, и смешивать
-         их значит выдать одно за другое. -->
+    <!-- PUMP ON / OFF описывает ФАКТ: идут пампы или нет. Прежние
+         RISK-ON/RISK-OFF были оценкой, и оценка расходилась — для
+         рынка замирание плохо, для этой стратегии наоборот. С
+         фактическим словом спорить нечему, а «хорошо это или плохо»
+         говорят подсветка и плашка ниже.
+
+         Слово считается из тех же двух чисел, что и плашка. Раньше
+         оно приходило из доли зелёных, а плашка из хвоста
+         распределения, и они могли противоречить: «RISK-ON» над
+         «аппетит 2/5», где двойка означает risk-off.
+
+         Побочно: расчётный режим из run.py и аппетит на экран больше
+         не выводятся. Это и была дублирующая статистика — доля
+         зелёных, разложенная по пяти ступеням и названная словом. -->
+    <div class="ob-core-v v-live">PUMP ON</div>
+    <div class="ob-core-v v-frost">PUMP OFF</div>
+
+    <div class="ob-core-s">btc <b class="{btc_cls}">{btc_txt}</b> · неделя
+      <b class="{btc7_cls}">{btc7_txt}</b> · btc.d <b>{btc_d}</b></div>
+
+    <!-- Замирание и выходные — две отдельные пилюли, а не строка
+         через точку: независимые причины с одинаковым следствием, и
+         слитый текст через месяц не даст понять, что из двух было в
+         тот день. Цвета разные — замирание это состояние рынка,
+         выходные это календарь.
+
+         Три числа рядом отвечают на разные вопросы: максимум дня —
+         далеко ли ушла цена, счётчик — многие ли, объём — есть ли
+         деньги в рынке вообще. PUMP OFF при объёме ×1954 и PUMP OFF
+         при ×3 — принципиально разные дни. -->
     <div class="ob-frost">
-      <span class="ob-frost-t">{frost_label}</span>
+      {frost_pills}
       <span class="ob-frost-n">максимум дня <b>{frost_max}</b></span>
       <span class="ob-frost-n">выше +{frost_tail_pct}% — <b>{frost_tail}</b></span>
+      {frost_vol}
     </div>
   </div>
 
