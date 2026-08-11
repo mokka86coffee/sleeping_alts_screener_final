@@ -267,8 +267,7 @@ BRIEF_JS = """
         (M.dom || '—') + '</span>' + tail);
     }
 
-    var lines = bg.concat(wknd ? [wknd] : []).concat([
-      frostLine,
+    var lines = bg.concat(wknd.p ? [wknd] : []).concat(frostLine ? [frostLine] : []).concat([
       { p: 'Сегодня фон ' + (calm ? 'спокойный' : 'осторожный') +
              ', аппетит ' + (M.appetite || '—') + '.',
         h: 'Сегодня фон <span class="gd">' + (calm ? 'спокойный' : 'осторожный') +
