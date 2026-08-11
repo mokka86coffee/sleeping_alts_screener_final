@@ -165,16 +165,27 @@ BRIEF_JS = """
     function capP(s) { return s.cap ? ' ' + s.cap : ''; }
 
     var L = M.leader || {};
-    var TV = (M.topVol || []).slice(0, 3);
-    var HR = M.hourly || { n: 0, list: [] };
-    /* Все монеты FLOW с объёмом ×30+ на любом ТФ */
-    var bigVol = (M.flowVol || []).slice(0, 5);
-    /* Пересечение с журналом ищем здесь, а не в Python: обоим спискам
-       уже нужно было прийти на страницу, и сверять тикеры проще на
-       том же массиве STARS, чем тащить отдельный флаг из снимка. */
-    var VI = bigVol.filter(function (v) {
-      return STARS.some(function (s) { return s.t === v.t; });
-    }).slice(0, 3);
+
+    /* Объём — новость только на входе из спячки. Монете, которая уже
+       подтвердилась (сидит в «В работе»), отдельная строка «у неё
+       объём» не нужна — это не открытие, а его подтверждение, и ему
+       место рядом с самой монетой в «В работе». Поэтому все три
+       объёмных списка ниже отфильтрованы от тикеров «В работе». */
+    var heldT = {};
+    hold.forEach(function (s) { heldT[s.t] = true; });
+    function freshOnly(list) {
+      return list.filter(function (v) { return !heldT[v.t]; });
+    }
+
+    var TV = freshOnly(M.topVol || []).slice(0, 3);
+    var HRfull = M.hourly || { n: 0, list: [] };
+    var HR = { n: HRfull.n, list: freshOnly(HRfull.list || []) };
+    /* Полный список ×30+, до фильтра — нужен ещё раз ниже, чтобы
+       пометить «· объём» у тех из «В работе», кто в него попал. */
+    var bigVolAll = M.flowVol || [];
+    var bigVol = freshOnly(bigVolAll).slice(0, 5);
+    var bigVolT = {};
+    bigVolAll.forEach(function (v) { bigVolT[v.t] = true; });
 
     var lines = [
       { p: 'Сегодня фон ' + (calm ? 'спокойный' : 'осторожный') +
@@ -229,14 +240,6 @@ BRIEF_JS = """
                    ' <span class="n">×' + v.x + '</span>'; }).join(', ') + '.' }
         : null,
 
-      /* Совпадение объёмного отбора и журнала — редкое событие,
-         поэтому отдельная строка, а не пометка внутри списка. */
-      VI.length
-        ? { p: 'Объём пришёл в ' + plain(VI) + ' — они уже в потоке.',
-            h: 'Объём пришёл в ' + names(VI, 'gd') +
-               ' — они <span class="gd">уже в потоке</span>.' }
-        : null,
-
       fresh3.length
         ? { p: 'Новые в топ-3 по flow: ' + plain(fresh3) + '.',
             h: 'Новые в <span class="gd">топ-3 по flow</span>: ' +
@@ -252,10 +255,21 @@ BRIEF_JS = """
             h: 'Ждут сигнала ' + names(wait) +
                ' — <span class="mut">первый разгон, входить рано</span>.' }
         : null,
+    /* Прогресс у каждой свой — общая фраза «тренд подтверждается»
+         не отличала быстрого разгонщика от монеты, которая неделю
+         топчется у дна. Метка «· объём» — то же подтверждение, что
+         раньше жило отдельной строкой, теперь пришита к своей монете. */
       hold.length
-        ? { p: 'В работе ' + plain(hold) + ' — тренд подтверждается.',
-            h: 'В работе ' + names(hold, 'gd') +
-               ' — тренд подтверждается.' }
+        ? { p: 'В работе ' + hold.slice(0, 3).map(function (s) {
+              return s.t + capP(s) + ' ' + (s.up >= 0 ? '+' : '') + s.up +
+                '% за ' + (s.days || 0) + ' дн' + (bigVolT[s.t] ? ' · объём' : '');
+            }).join(', ') + '.',
+            h: 'В работе ' + hold.slice(0, 3).map(function (s) {
+              return '<span class="t gd">' + s.t + '</span>' + cap(s) +
+                ' <span class="n">' + (s.up >= 0 ? '+' : '') + s.up +
+                '%</span> за ' + (s.days || 0) + ' дн' +
+                (bigVolT[s.t] ? ' <span class="up">· объём</span>' : '');
+            }).join(', ') + '.' }
         : null,
       near.length
         ? { p: 'У уровня ' + near.map(function (s) {
