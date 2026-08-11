@@ -192,20 +192,6 @@ BRIEF_JS = """
        остальное ниже описывает движение, которого нет.
        Строка не печатается на живом рынке: тогда эти числа
        сообщают только то, что всё в порядке. */
-    var frostLine = null;
-    if (M.frozen) {
-      var mx = (M.maxChange === null || M.maxChange === undefined)
-        ? '—' : ('+' + Math.round(M.maxChange) + '%');
-      var tp = Math.round(M.tailPct || 20);
-      frostLine = {
-        p: 'Рынок замер: лучшая монета дня ' + mx + ', выше +' + tp +
-           '% всего ' + (M.tail || 0) + '. Ехать сегодня некуда.',
-        h: '<span class="warn">Рынок замер</span>: лучшая монета дня ' +
-           '<span class="n">' + mx + '</span>, выше +' + tp +
-           '% всего <span class="n">' + (M.tail || 0) +
-           '</span>. Ехать сегодня некуда.',
-      };
-    }
 
     /* ── Фон рынка ──────────────────────────────────────────
        Семь фраз, из них пять про фон. Числа не выносятся в подписи
@@ -275,7 +261,7 @@ function removeTags(str) {
 
     bg = bg.map(function (h) { return { p: removeTags(h), h: h }; })
 
-    var lines = bg.concat(wknd.p ? [wknd] : []).concat(frostLine ? [frostLine] : []).concat([
+    var lines = bg.concat(wknd.p ? [wknd] : []).concat([
       { p: 'Сегодня фон ' + (calm ? 'спокойный' : 'осторожный') +
              ', аппетит ' + (M.appetite || '—') + '.',
         h: 'Сегодня фон <span class="gd">' + (calm ? 'спокойный' : 'осторожный') +
