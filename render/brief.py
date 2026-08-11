@@ -267,7 +267,7 @@ BRIEF_JS = """
         (M.dom || '—') + '</span>' + tail);
     }
 
-    bg = bg.map(t => ({ p: t, h: t }));
+    bg = bg.map(t => ({ p: '...', h: t }));
 
     var lines = bg.concat(wknd.p ? [wknd] : []).concat(frostLine ? [frostLine] : []).concat([
       { p: 'Сегодня фон ' + (calm ? 'спокойный' : 'осторожный') +
