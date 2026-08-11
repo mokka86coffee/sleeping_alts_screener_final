@@ -1305,6 +1305,12 @@ ORBIT = """
 .obf-p.typing::after{content:'';display:inline-block;width:7px;height:14px;
   background:var(--am);vertical-align:-2px;margin-left:3px;opacity:.85;
   animation:obf-blink .8s step-end infinite}
+/* Тикер — ссылка на TradingView. Наследует цвет, чтобы не выглядеть
+ как обычная синяя ссылка среди остального текста; подчёркивание
+ появляется только при наведении — сигнал кликабельности, а не шум. */
+.ob-tv{color:inherit;text-decoration:none;border-bottom:1px solid transparent;
+transition:border-color .2s ease}
+.ob-tv:hover{border-color:currentColor}
 .obf-foot,.obf-bar{opacity:0;transition:opacity .6s ease}
 .obf-foot.on,.obf-bar.on{opacity:1}
 /* ── Сводка при входе ───────────────────────────────────────

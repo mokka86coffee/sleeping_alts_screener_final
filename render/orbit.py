@@ -839,6 +839,16 @@ ORBIT_JS = """
     function vfmt(v) { return v >= 10 ? Math.round(v) : v.toFixed(1); }
     function pct(v) { return Math.min(100, Math.log10(v) / Math.log10(1000) * 100); }
 
+    // Ссылка на TradingView. Если символа нет (звезда из журнала без
+    // текущего кандидата) — тикер остаётся обычным текстом, не битой
+    // ссылкой в никуда.
+    function tvLink(sym, inner) {
+      if (!sym) return inner;
+      var url = 'https://www.tradingview.com/chart/?symbol=BINANCE%3A' + sym + '.P';
+      return '<a href="' + url + '" target="_blank" rel="noopener" ' +
+             'class="ob-tv" onclick="event.stopPropagation()">' + inner + '</a>';
+    }
+
     /* Две величины в одной колонке: крупно — объём сейчас, риской на
        дорожке и подписью снизу — объём на момент попадания в журнал.
        Сравнение отвечает на вопрос, разгоняется монета или затухает,
@@ -917,7 +927,7 @@ ORBIT_JS = """
        двадцать чисел там, где решают три. */
     var brief =
       '<div class="ob-sc-brief">' +
-        '<div class="ob-b-t">' + s.t + '</div>' +
+        '<div class="ob-b-t">' + tvLink(s.coin, s.t) + '</div>' +
         '<div class="ob-b-act ' + p.k + '">' + p.a + '</div>' +
         spark +
         '<div class="ob-b-lvl">до уровня <b>' +
@@ -934,7 +944,7 @@ ORBIT_JS = """
       '<div class="ob-sc-id">' +
         '<div class="ob-sc-hd">' +
           '<span style="flex:1 1 auto;min-width:0">' +
-            '<span class="ob-sc-t">' + s.t + '</span>' +
+            '<span class="ob-sc-t">' + tvLink(s.coin, s.t) + '</span>' +
             '<span class="ob-sc-sec">' + (s.sector || '—') + '</span></span>' +
           '<svg class="ob-sc-ring" viewBox="-22 -22 44 44">' +
             '<circle class="trk" r="' + R + '"/>' +
