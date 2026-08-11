@@ -1572,12 +1572,57 @@ transition:border-color .2s ease}
 }
 .ob-comet{animation:ob-fly 26s linear infinite;
   animation-delay:var(--dly,0s);will-change:transform}
+
+
+/* Кометы замершего рынка. Показываются только при классе frozen на
+   .ob: сам факт учащения трафика и есть сигнал.
+
+   display, а не opacity — при скрытии анимация сбрасывается, и при
+   возврате состояния кометы стартуют с начала цикла, а не выныривают
+   из середины пролёта. */
+.ob-comet-risk{display:none}
+.ob.frozen .ob-comet-risk{display:block}
+
+/* Два состояния режима — разные узлы, а не подмена текста скриптом:
+   подсветка у них разная, и держать её на классе проще, чем
+   переключать три свойства из JS. */
+.v-frost{display:none}
+.ob.frozen .v-live{display:none}
+.ob.frozen .v-frost{display:block}
+
+/* Подсветка тёплая, а не красная. Красное несут кометы — они про
+   состояние рынка. Надпись про то, что с этим состоянием делать, и по
+   этой стратегии делать надо противоположное тревоге. Будь оба
+   красными, экран говорил бы «опасно» дважды и ни разу «пора». */
+@keyframes ob-frost-glow{
+  0%,100%{text-shadow:0 0 22px rgba(245,166,35,.30),
+                      0 0 60px rgba(245,166,35,.12)}
+  50%    {text-shadow:0 0 30px rgba(245,166,35,.46),
+                      0 0 84px rgba(245,166,35,.20)}
+}
+.v-frost{color:var(--am-n);animation:ob-frost-glow 5.5s ease-in-out infinite}
+
+/* Плашка замера. Появляется только во frozen: в живом рынке эти два
+   числа ничего не сообщают и лишь загромождают центр. */
+.ob-frost{display:none;margin-top:16px;align-items:center;
+  justify-content:center;gap:14px;flex-wrap:wrap}
+.ob.frozen .ob-frost{display:flex}
+.ob-frost-t{font-size:8px;font-weight:500;letter-spacing:3.4px;
+  text-transform:uppercase;color:#E0796B;
+  border:1px solid rgba(217,107,94,.35);border-radius:999px;
+  padding:4px 11px 3px}
+.ob-frost-n{font-size:8.5px;font-weight:300;letter-spacing:1.9px;
+  color:#8b8a92}
+.ob-frost-n b{font-weight:500;color:#D8CFC8}
+.ob-core-s b.dn{color:#D96B5E}
+
 @media (prefers-reduced-motion:reduce){
   .ob-spin,.ob-spin-back,.ob-breathe,.ob-dust circle,
   .ob-node .ob-ping,.ob-mote,.ob-star-ring,.ob-star,
-  .ob-cloud,.ob-comet,
+  .ob-cloud,.ob-comet,.v-frost,
   .ob-star.fresh > *{animation:none}
 }
+
 /* Орбита — только для настольных браузеров.
    На телефонах и планшетах сцену тормозит не анимация, а растеризация:
    при DPR 3 экран во всю ширину это миллионы физических пикселей,

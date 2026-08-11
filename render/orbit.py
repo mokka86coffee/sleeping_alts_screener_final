@@ -13,8 +13,12 @@
 """
 from __future__ import annotations
 import json
+from datetime import datetime, timedelta, timezone
 
-from core.config import ORBIT_BG_SRC
+from core.binance import get_btc_context
+from core.config import (
+    FROZEN_MAX_CHANGE_PCT, FROZEN_TAIL_MIN, FROZEN_TAIL_PCT, ORBIT_BG_SRC,
+)
 from core.models import Candidate, RunSnapshot
 from render.theme import esc
 from render.flow_report import case_key, CASE_RU, _cap, _data
@@ -366,6 +370,62 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
     out.sort(key=lambda s: (s["lead"], s["f"]))
     return out
 
+# Торговая неделя привязана к Москве, а не к часовому поясу читателя:
+# окно ликвидности задаёт биржа и её основной поток, а не то, откуда
+# смотрят на отчёт. UTC+3 фиксированный, перевода часов нет.
+MSK = timezone(timedelta(hours=3))
+
+
+def _weekend_state(now: datetime | None = None) -> str:
+    """Положение относительно выходных: 'soon', 'now' или пустая строка.
+
+    Пятница — «выходные близко»: ликвидность начинает уходить уже к
+    вечеру. Суббота и воскресенье — сами выходные.
+
+    Единственная реализация на проект. Вторая жила в brief.py на JS и
+    считала то же самое по своему часовому поясу.
+    """
+    moment = now or datetime.now(MSK)
+    day = moment.astimezone(MSK).weekday()   # 0 пн … 6 вс
+    if day == 4:
+        return "soon"
+    if day in (5, 6):
+        return "now"
+    return ""
+
+
+def _market_breadth(candidates: list[Candidate]) -> dict:
+    """Хвост распределения суточных изменений по всей выборке.
+
+    Отвечает на вопрос «есть ли вообще куда ехать», на который доля
+    зелёных не отвечает: рынок бывает зелёным на 60% при росте в
+    пределах двух процентов, и это ровно замирание.
+
+    Два числа, а не одно. Максимум говорит, был ли сегодня хоть один
+    сильный ход; счётчик — единичный это выброс или движение рынка.
+    Замиранием считаем, когда провалены оба: одна улетевшая монета
+    при мёртвом остальном рынке движением не является.
+    """
+    from render.dashboard import _num
+
+    changes = []
+    for c in candidates:
+        v = _num(c, "ch_24h")
+        if v is not None:
+            changes.append(float(v))
+
+    if not changes:
+        return {"frozen": False, "maxChange": None, "tail": 0}
+
+    top = max(changes)
+    tail = sum(1 for x in changes if x >= FROZEN_TAIL_PCT)
+
+    return {
+        "frozen": top < FROZEN_MAX_CHANGE_PCT and tail < FROZEN_TAIL_MIN,
+        "maxChange": round(top, 1),
+        "tail": tail,
+        "tailPct": FROZEN_TAIL_PCT,
+    }
 
 
 def _orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
@@ -390,6 +450,8 @@ def _orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
     from render.dashboard import _get, BTC_D
 
     reg = getattr(snapshot, "market_regime", None) or {}
+    _btc = get_btc_context()
+    _breadth = _market_breadth(candidates)
     label = str(reg.get("label", "risk-off"))
     try:
         appetite = int(reg.get("appetite", 0) or 0)
@@ -416,10 +478,23 @@ def _orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
         # «спокойный» и «осторожный» — пересказ режима, а не прогноз
         "calm": label.upper().replace("-", "").startswith("RISKON"),
         "appetite": f"{appetite}/5",
-        "btc": None,     # источника нет — см. docstring и тех долг
-        "btcUp": True,
-        "dom": BTC_D,    # константа, не прогонное значение
-        "series": [],
+        # Биткоин: отдельный запрос, в выборку он не входит (MAJOR_TOKENS).
+        # Пустой словарь от загрузчика означает «данных нет», и поля
+        # честно остаются None — сводка покажет «—», а не ноль.
+        "btc": _btc.get("ch_24h"),
+        "btcUp": (_btc.get("ch_24h") or 0) >= 0,
+        "btc7d": _btc.get("ch_7d"),
+        "dom": BTC_D,    # доминации в системе по-прежнему нет, константа
+        "series": _btc.get("spark") or [],
+
+        # Замирание рынка и положение относительно выходных.
+        # Оба — состояние фона, а не оценка монеты, и место им здесь,
+        # рядом с режимом.
+        "frozen": _breadth["frozen"],
+        "maxChange": _breadth["maxChange"],
+        "tail": _breadth["tail"],
+        "tailPct": _breadth.get("tailPct"),
+        "weekend": _weekend_state(),
         "sector": (f"{top[0][0]} {top[0][1]:+.1f}%" if top else "—"),
         "leader": ({"t": _tick(leader),
                     "score": round(getattr(leader, "score", 0) or 0),
@@ -458,6 +533,38 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
     btc_d = esc(str(BTC_D))
     viral_n = len(_pick(slices, "viral")["items"])
     soc = f"{viral_n} всплеск" if viral_n else "тихо"
+
+    # Состояние фона: замирание и выходные складываются в одну плашку.
+    # Выходные при замершем рынке не отдельная новость, а усиление того
+    # же — ликвидности нет по обеим причинам сразу, и разносить их по
+    # двум строкам значит просить читателя сложить их самому.
+    _mk = _orbit_market(candidates, snapshot, slices) or {}
+    _frozen = bool(_mk.get("frozen"))
+    _wknd = _mk.get("weekend") or ""
+
+    frozen_cls = " frozen" if (_frozen or _wknd) else ""
+
+    if _frozen and _wknd == "now":
+        frost_label = "выходные · рынок замер"
+    elif _frozen and _wknd == "soon":
+        frost_label = "рынок замер · завтра выходные"
+    elif _wknd == "now":
+        frost_label = "выходные · ликвидность уходит"
+    elif _wknd == "soon":
+        frost_label = "завтра выходные"
+    else:
+        frost_label = "рынок замер"
+
+    _mx = _mk.get("maxChange")
+    frost_max = f"+{_mx:.0f}%" if _mx is not None else "—"
+    frost_tail = str(_mk.get("tail", 0))
+    frost_tail_pct = f"{_mk.get('tailPct') or 20:.0f}"
+
+    # Биткоин: None означает «данных нет» и печатается прочерком.
+    # Ноль тут был бы враньём — это не «не изменился», это «не знаем».
+    _bt = _mk.get("btc")
+    btc_txt = f"{_bt:+.1f}%" if _bt is not None else "—"
+    btc_cls = "up" if (_bt or 0) >= 0 else "dn"
 
     return f"""
 <div class="ob" id="ob">
@@ -598,9 +705,19 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
 
   <div class="ob-core">
     <div class="ob-core-k">РЕЖИМ РЫНКА</div>
-    <div class="ob-core-v">{regime}</div>
-    <div class="ob-core-s">аппетит <b>{appetite}</b> · btc.d <b>{btc_d}</b>
-      · соцсети <b>{soc}</b></div>
+    <div class="ob-core-v v-live">{regime}</div>
+    <div class="ob-core-v v-frost">RISK-ON</div>
+    <div class="ob-core-s">аппетит <b>{appetite}</b> · btc <b class="{btc_cls}">{btc_txt}</b>
+      · btc.d <b>{btc_d}</b></div>
+
+    <!-- Строка замера отдельно от режима, а не в той же строке:
+         режим — это оценка, а здесь два измеренных числа, и смешивать
+         их значит выдать одно за другое. -->
+    <div class="ob-frost">
+      <span class="ob-frost-t">{frost_label}</span>
+      <span class="ob-frost-n">максимум дня <b>{frost_max}</b></span>
+      <span class="ob-frost-n">выше +{frost_tail_pct}% — <b>{frost_tail}</b></span>
+    </div>
   </div>
 
   <div class="ob-wrap" id="ob-wrap"></div>
@@ -802,11 +919,14 @@ ORBIT_JS = """
          белая у самой головы. Разная длина и есть то, что отличает свет
          от нарисованной стрелки: одна градиентная полоса выглядит
          плоской, сколько её ни подкрашивай. */
-      function comet(cfg) {
+    function comet(cfg, risk) {
         var host = document.getElementById('ob-comets');
         cometGrads(cfg.id, cfg.cols);
 
         var outer = el('g', { transform: 'translate(' + cfg.x + ' ' + cfg.y + ')' });
+        // Признак вешается на ВНЕШНЮЮ группу, а не на движущуюся: скрывать
+        // надо комету целиком, вместе с поворотом и хвостом.
+        if (risk) outer.setAttribute('class', 'ob-comet-risk');
         var mover = el('g', { class: 'ob-comet' });
         mover.style.setProperty('--dx', cfg.dx + 'px');
         mover.style.setProperty('--dy', cfg.dy + 'px');
@@ -861,6 +981,35 @@ ORBIT_JS = """
         ].forEach(comet);
       }
 
+      /* Кометы замершего рынка. Четыре сверх обычных, с красными хвостами
+           и своими направлениями: вместе с базовыми выходит пролёт примерно
+           раз в три секунды против шести с половиной. Учащение трафика
+           читается раньше, чем глаз доберётся до чисел в центре, поэтому
+           отдельной подписи у него нет.
+
+           Направления намеренно не повторяют базовые: пойди красные теми же
+           трассами, они выглядели бы перекрашенными теми же кометами, а не
+           дополнительными. */
+        function buildRiskComets() {
+          [
+            { id: 'obcR1', x: -170, y:  620, ang:  138.8, dx:  480, dy: -420,
+              len: 142, w: 2.2, dly: -3,
+              cols: ['#FFE3E0', '#E8746A', '#8A2320'] },
+
+            { id: 'obcR2', x:  600, y: -120, ang:  -58,   dx: -300, dy:  480,
+              len: 134, w: 2.0, dly: -9.5,
+              cols: ['#FFD9E2', '#D9536E', '#7A1E33'] },
+
+            { id: 'obcR3', x: 1210, y:   60, ang:  -30,   dx: -520, dy:  300,
+              len: 158, w: 1.9, dly: -16,
+              cols: ['#FFE3E0', '#E8746A', '#8A2320'] },
+
+            { id: 'obcR4', x:  300, y:  660, ang:  136.4, dx:  420, dy: -400,
+              len: 126, w: 2.1, dly: -22.5,
+              cols: ['#FFD9E2', '#D9536E', '#7A1E33'] }
+          ].forEach(function (cfg) { comet(cfg, true); });
+        }
+
 
   /* FNV-1a от тикера: положение звезды не должно прыгать между
      прогонами, иначе поле перестаёт узнаваться глазом. Тот же приём,
@@ -911,13 +1060,26 @@ ORBIT_JS = """
      карточка. Сдвиг детерминированный, поэтому перебор не случайный. */
   var PLACED = [];
 
+  /* Поле, в котором вообще могут стоять звёзды. Значения те же, что
+       стояли в проверке ниже, но теперь это ещё и область выборки. */
+    var SKY = { x0: 95, x1: 905, y0: 100, y1: 479 };
+
   function starSpot(sym, idx) {
     var h = hash(sym);
     for (var k = 0; k < 60; k++) {
-      var a = ((h >>> (k % 8)) % 3600) / 3600 * Math.PI * 2;
-      var rr = 0.28 + ((h >>> ((k + 3) % 12)) % 1000) / 1000 * 1.05;
-      var x = CX + Math.cos(a) * RX * rr;
-      var y = CY + Math.sin(a) * RY * rr * 1.35;
+      /* Точка берётся прямо из прямоугольника кадра, а не как угол на
+         эллипсе. Прежняя выборка была равномерной по УГЛУ, а не по
+         месту, и это давало горизонтальные ряды: у сплюснутого эллипса
+         dy/da обращается в ноль на верхней и нижней точках, поэтому
+         широкий диапазон углов там укладывается почти в одну высоту.
+         При RX = 372 против RY * 1.35 ≈ 200 сгущение неизбежно при
+         любом наборе тикеров — дело не в хешах. */
+      var x = SKY.x0 + ((h >>> (k % 8)) % 1000) / 1000 * (SKY.x1 - SKY.x0);
+      var y = SKY.y0 + ((h >>> ((k + 3) % 12)) % 1000) / 1000 * (SKY.y1 - SKY.y0);
+
+      /* Полоса орбиты теперь считается ОТ точки, а не задаёт её:
+         единица — само кольцо, band — отклонение в любую сторону. */
+      var rr = Math.hypot((x - CX) / RX, (y - CY) / (RY * 1.35));
       var band = Math.abs(rr - 1);
       var inCard = Math.abs(x - CX) < 185 && Math.abs(y - CY) < 140;
       /* И подальше от узлов с подписями: звезда, севшая на «ЛИДЕРЫ 46»,
@@ -925,7 +1087,7 @@ ORBIT_JS = """
       var nearNode = false;
       for (var n = 0; n < BLOCKS.length; n++) {
         var np = pos(n);
-        if (Math.hypot(np.x - x, np.y - y) < 128) { nearNode = true; break; }
+        if (Math.hypot(np.x - x, np.y - y) < 104) { nearNode = true; break; }
       }
       /* И не ближе 78 к уже поставленной звезде: без этой проверки две
          соседние подписи накладываются и обе становятся нечитаемыми. */
@@ -933,16 +1095,23 @@ ORBIT_JS = """
       for (var m = 0; m < PLACED.length; m++) {
         if (Math.hypot(PLACED[m].x - x, PLACED[m].y - y) < 78) { tooClose = true; break; }
       }
-      if (band > 0.18 && !inCard && !nearNode && !tooClose &&
-          x > 95 && x < 905 && y > 100 && y < 479) {
+      if (band > 0.18 && !inCard && !nearNode && !tooClose) {
         PLACED.push({ x: x, y: y });
         return { x: x, y: y };
       }
       h = (h * 16777619 + 1) >>> 0;
     }
-    /* Место не нашлось: раскладываем по запасной дуге с шагом от индекса,
-       иначе все «лишние» звёзды сели бы в одну точку друг на друга. */
-    var fb = { x: 120 + (idx % 6) * 130, y: 130 + Math.floor(idx / 6) * 46 };
+    /* Место не нашлось. Раскладываем по золотому углу: шаг 2.39996
+       радиан не укладывается ни в какую долю оборота, поэтому точки
+       не выстраиваются в лучи и кольца — сетка 6 в ряд выдавала себя
+       мгновенно. Радиус берём заведомо снаружи кольца и зажимаем в
+       границы поля. */
+    var ga = idx * 2.39996;
+    var fr = 1.22 + (idx % 3) * 0.16;
+    var fb = {
+      x: Math.min(SKY.x1, Math.max(SKY.x0, CX + Math.cos(ga) * RX * fr)),
+      y: Math.min(SKY.y1, Math.max(SKY.y0, CY + Math.sin(ga) * RY * 1.35 * fr))
+    };
     PLACED.push(fb);
     return fb;
   }
@@ -1616,14 +1785,15 @@ ORBIT_JS = """
     return;
   }
 
-  buildArcs();
-  buildBack();
-  buildCloud();
-  buildDust();
-  buildStars();
-  build();
-  buildComets();
-  requestAnimationFrame(frame);
+    buildArcs();
+    buildBack();
+    buildCloud();
+    buildDust();
+    buildStars();
+    build();
+    buildComets();
+    buildRiskComets();
+    requestAnimationFrame(frame);
 })();
 </script>
 """
