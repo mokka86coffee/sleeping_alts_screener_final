@@ -266,8 +266,14 @@ BRIEF_JS = """
         pct(M.btc7d) + '</span> за неделю, доминация <span class="n">' +
         (M.dom || '—') + '</span>' + tail);
     }
+function removeTags(str) {
+  if (str === null || str === '') {
+    return '';
+  }
+  return str.replace(/<[^>]*>/g, '');
+}
 
-    bg = bg.map(function (h) { return { p: strip(h), h: h }; })
+    bg = bg.map(function (h) { return { p: removeTags(h), h: h }; })
 
     var lines = bg.concat(wknd.p ? [wknd] : []).concat(frostLine ? [frostLine] : []).concat([
       { p: 'Сегодня фон ' + (calm ? 'спокойный' : 'осторожный') +
