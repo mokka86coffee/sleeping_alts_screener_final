@@ -219,22 +219,35 @@ BRIEF_JS = """
 
     var bg = [];
 
+    if (M.frozen) {
+      bg.push('Рынок сегодня <span class="warn">замер</span>. Лучшая монета ' +
+        'дня прибавила <span class="n">' + pct(M.maxChange, 0) + '</span>, ' +
+        'и дальше плюс двадцати ушли всего <span class="n">' + (M.tail || 0) +
+        '</span> монет — при живом рынке их бывают десятки. ' +
+        'Ехать сегодня некуда.');
+    } else {
+      bg.push('Рынок <span class="gd">двигается</span>. Лучшая монета дня ' +
+        '<span class="n">' + pct(M.maxChange, 0) + '</span>, дальше плюс ' +
+        'двадцати ушли <span class="n">' + (M.tail || 0) + '</span> монет — ' +
+        'движение широкое, а не один выброс.');
+    }
+
     /* Объём отдельной фразой, потому что отвечает на другой вопрос.
        Стоящая цена при живом объёме и стоящая цена при мёртвом —
        разные дни, и по ценам их не различить. */
     if (M.peakVol && M.peakVol.sym) {
-      bg.push({p: '', h: 'Деньги в рынке ' + (M.frozen ? 'при этом ' : '') +
+      bg.push('Деньги в рынке ' + (M.frozen ? 'при этом ' : '') +
         'есть: максимум объёма на <span class="gd">' + M.peakVol.sym +
-        '</span>, <span class="n">×' + M.peakVol.x + '</span> к своей норме.'});
+        '</span>, <span class="n">×' + M.peakVol.x + '</span> к своей норме.');
     }
 
     /* Ширина рынка — три состояния, а не число с подписью. */
     var gs = M.greenShare;
     if (gs !== null && gs !== undefined) {
-      bg.push({p: '', h: 'В плюсе <span class="n">' + Math.round(gs) + '%</span> выборки' +
+      bg.push('В плюсе <span class="n">' + Math.round(gs) + '%</span> выборки' +
         (gs >= 55 ? ', растёт почти весь рынок.'
          : gs <= 42 ? ', то есть падает большинство.'
-         : ', рынок разделился примерно поровну.')});
+         : ', рынок разделился примерно поровну.'));
     }
 
     /* Биткоин: вывод делается по СОЧЕТАНИЮ суточного, недельного и
@@ -247,14 +260,16 @@ BRIEF_JS = """
       } else if (M.btc7d > 0 && parseFloat(M.dom) < 56) {
         tail = ' — доминация сдаёт, это окно для альтов.';
       }
-      bg.push({p: '', h: 'Биткоин ' + (M.btc >= 0 ? 'прибавил' : 'потерял') +
+      bg.push('Биткоин ' + (M.btc >= 0 ? 'прибавил' : 'потерял') +
         ' <span class="' + sgn(M.btc) + ' n">' + pct(Math.abs(M.btc)) +
         '</span> за сутки и <span class="' + sgn(M.btc7d) + ' n">' +
         pct(M.btc7d) + '</span> за неделю, доминация <span class="n">' +
-        (M.dom || '—') + '</span>' + tail});
+        (M.dom || '—') + '</span>' + tail);
     }
 
-    var lines = (frostLine ? [frostLine] : []).concat(bg).concat(wknd.p ? [wknd] : []).concat([
+    bg = bg.map(function (h) { return { p: strip(h), h: h }; })
+
+    var lines = bg.concat(wknd.p ? [wknd] : []).concat(frostLine ? [frostLine] : []).concat([
       { p: 'Сегодня фон ' + (calm ? 'спокойный' : 'осторожный') +
              ', аппетит ' + (M.appetite || '—') + '.',
         h: 'Сегодня фон <span class="gd">' + (calm ? 'спокойный' : 'осторожный') +
