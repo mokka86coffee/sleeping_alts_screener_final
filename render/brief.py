@@ -305,7 +305,7 @@ function removeTags(str) {
       /* Все монеты FLOW с объёмом ×30+ на любом ТФ — не только лидер:
          сильный по score не обязан быть объёмным, и наоборот. */
       bigVol.length
-        ? { p: 'Объём ×30+ у ' + bigVol.map(function (v) {
+        ? { p: 'Аномалия объёма ×30+ у ' + bigVol.map(function (v) {
               return v.t + capP(v) + ' ×' + v.x; }).join(', ') + '.',
             h: 'Объём ×30+ у ' + bigVol.map(function (v) {
               return '<span class="t">' + v.t + '</span>' + cap(v) +
@@ -315,9 +315,9 @@ function removeTags(str) {
       /* Топ-3 по объёму за сутки — те же монеты, что под графиком
          в блоке ОБЪЁМ на орбите. */
       TV.length
-        ? { p: 'Больше всех объёма ' + TV.map(function (v) {
+        ? { p: 'Больше всех объёма за сутки' + TV.map(function (v) {
               return v.t + capP(v) + ' ×' + v.x; }).join(', ') + '.',
-            h: 'Больше всех объёма ' + TV.map(function (v) {
+            h: 'Больше всех объёма за сутки ' + TV.map(function (v) {
               return '<span class="t">' + v.t + '</span>' + cap(v) +
                 ' <span class="n">×' + v.x + '</span>'; }).join(', ') + '.' }
         : null,
