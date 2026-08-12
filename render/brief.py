@@ -493,6 +493,47 @@ function removeTags(str) {
 
     bg = bg.map(function (h) { return { p: removeTags(h), h: h }; })
 
+    /* Блоки лидеров. Возвращают null, если рядов нет: пустой
+           график хуже отсутствующего — он выглядит поломкой, а не
+           нехваткой данных. */
+        var LC = M.leaderChart || {}, VC = M.volChart || {};
+
+        var leaderBlock = (L.t && (LC.series || []).length >= 4) ? {
+          block: {
+            acc: '79,207,138',
+            ghost: L.t,
+            role: 'лидер потока',
+            meta: 'фигура <b>' + (LC.case || '—') + '</b>' +
+              (LC.horizonDays ? ' · горизонт <b>' + LC.horizonDays + ' дн</b>' : '') +
+              ' <span class="cap">· ' + (L.cap || '') + '</span>',
+            stat: (LC.stop ? '<span>стоп <b>' + LC.stop + '</b></span>' : '') +
+              (LC.target ? '<span>цель <b>' + LC.target + '</b></span>' : '') +
+              '<span>' + LC.series.length + ' дней</span>',
+            chart: leaderChart(LC),
+            ring: chartRing('obfR1', '#2E7A55', '#8FE8B4',
+              (LC.score || 0) / 100, LC.score || 0, 13),
+          }
+        } : null;
+
+        var volBlock = ((VC.ratios || []).length >= 4) ? {
+          block: {
+            acc: '245,166,35',
+            ghost: VC.sym,
+            role: 'максимум объёма',
+            meta: '<b>×' + VC.x + '</b> к своей норме за 30 дней ' +
+              '<span class="cap">· ' + (VC.cap || '') + '</span>',
+            stat: '<span>1ч <b>×' + VC.v1h + '</b></span>' +
+              '<span>4ч <b>×' + VC.v4h + '</b></span>' +
+              '<span>1д <b>×' + VC.v1d + '</b></span>' +
+              '<span>фандинг <b>' + VC.funding + '%</b></span>',
+            chart: volChart(VC),
+            // Кольцо всегда полное: это не доля от чего-то, а рекорд
+            // прогона. Дуга в 60% рядом с «×635» читалась бы как
+            // «шестьсот тридцать пять из тысячи».
+            ring: chartRing('obfR2', '#B4761A', '#FFE0A0', 1, '×' + VC.x, 10),
+          }
+        } : null;
+
     var lines = bg.concat(wknd.p ? [wknd] : []).concat([
       wknd,
 
