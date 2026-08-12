@@ -20,6 +20,12 @@ rel_volume в противоположные стороны.
 затухании, чем о силе. Первый прогон показал цену прежнего
 единообразия: два ненулевых значения на 224 монеты — подкейс был
 задушен множителем, писавшимся под другую фигуру.
+
+Каждый отказ идёт через ctx.reject(): возврат остаётся None, но
+причина попадает в ctx.notes и дальше в failures сигнала. Молчание
+подкейса без причины неотличимо от отсутствия материала — spring
+ушёл с трёх срабатываний до нуля за десять дней, и восстановить
+почему удалось только симуляцией по старым дампам.
 """
 
 from __future__ import annotations
@@ -158,17 +164,20 @@ def _base_score(
 
 def detect(ctx: FlowContext) -> SubcaseSignal | None:
     """Собирает фигуру spring либо возвращает None."""
-    if veto_bullish(ctx):
-        return None
+    stop = veto_bullish(ctx)
+    if stop:
+        return ctx.reject(name, stop)
 
     # Фон обязан быть тихим. Шумный фон — территория churn:
     # там поток идёт и его принимают, здесь потока нет вовсе.
     if ctx.rel_vol > SPRING_QUIET_MAX:
-        return None
+        return ctx.reject(
+            name, f"фон шумный: rel_vol {ctx.rel_vol:.2f} > {SPRING_QUIET_MAX}",
+        )
 
     zone = _support_zone(ctx)
     if zone is None:
-        return None
+        return ctx.reject(name, "нет опорной зоны под ценой")
 
     # Серия. Одиночное событие пружиной не является по определению.
     last_idx = len(ctx.base) - 1
@@ -177,7 +186,11 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
         if last_idx - e.base_idx <= SQUEEZE_WINDOW
     ]
     if len(recent) < SPRING_MIN_EVENTS:
-        return None
+        return ctx.reject(
+            name,
+            f"событий за {SQUEEZE_WINDOW} баров {len(recent)} "
+            f"< {SPRING_MIN_EVENTS}",
+        )
 
     squeeze = _squeeze_ratio(ctx.base)
     width = _range_width(ctx.base)
@@ -189,9 +202,14 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     #
     # Отсечка по 1.0 принимала любое сужение, включая шум оценки.
     if squeeze > SPRING_SQUEEZE_MAX:
-        return None
+        return ctx.reject(
+            name, f"не сжалась: squeeze {squeeze:.2f} > {SPRING_SQUEEZE_MAX}",
+        )
     if width > PLATEAU_MAX_RANGE:
-        return None
+        return ctx.reject(
+            name,
+            f"диапазон широк: {width * 100:.1f}% > {PLATEAU_MAX_RANGE * 100:.0f}%",
+        )
 
     score, facts = _base_score(len(recent), squeeze, width)
     facts["zone_price"] = zone.price
@@ -265,9 +283,12 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     # В тишине небольшой, но устойчивый перекос в покупку весит
     # больше, чем крупный перекос в шуме: продавать некому.
     #
-    # Пороги привязаны к наблюдаемому разбросу (0.479..0.509),
-    # а не к интуитивным долям. Прежние 0.55 и 0.42 не достигались
-    # на рынке ни разу — обе ветки были мёртвым кодом.
+    # Пороги привязаны к наблюдаемому разбросу (0.471..0.511 при
+    # медиане 0.495), а не к интуитивным долям. Прежние 0.502 и
+    # 0.492 стояли ВНУТРИ шума: sell_bias срабатывал у большинства
+    # рынка, и множитель 0.7 получала монета со средним перекосом,
+    # а не с раздачей. Множитель, который получают почти все, —
+    # это не признак, а сдвиг базы.
     if ctx.flow.buy_share >= SPRING_BUY_BIAS:
         sig.apply("buy_bias", 1.15)
         sig.add(
@@ -290,4 +311,8 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
             zones_below=float(zone.zones_below),
         )
 
-    return sig if not sig.weak else None
+    if sig.weak:
+        return ctx.reject(
+            name, f"фигура собралась, но скор {sig.score:.1f} < 20 после множителей",
+        )
+    return sig

@@ -477,6 +477,11 @@ class Zone:
     events: list[Event] = field(default_factory=list)
     tests: int = 0
     broken: bool = False
+    # Цена ушла от уровня в НЕсмертельную для него сторону и там
+    # закрепилась. Для поддержки это уход вверх: предложение с уровня
+    # снято, и это ровно тот материал, который ищет flow_fuel.
+    # Отдельно от broken, потому что смысл противоположный.
+    passed_through: bool = False
     plateau: int = 0          # длина плато у зоны, в барах
     last_touch_idx: int = -1
     # Давность последнего события зоны, в базовых барах.
@@ -627,6 +632,19 @@ def _annotate_zone(zone: Zone, bars: Sequence[Bar]) -> None:
     best_plateau = 0
     inside = False
 
+    # Роль уровня: где стояла цена, когда зона в последний раз
+    # подтверждалась событием. Берётся один раз до цикла — внутри
+    # него значение не меняется, а пересчёт на каждом баре сделал бы
+    # роль плавающей и зависящей от текущего движения.
+    #
+    # Уровень без валидного бара считаем поддержкой: это осторожная
+    # сторона, она сохраняет зону, а не удаляет её.
+    is_support = True
+    if 0 <= zone.last_idx < len(bars):
+        anchor = bars[zone.last_idx].close
+        if anchor > 0:
+            is_support = anchor >= zone.price
+
     for idx in range(start, len(bars)):
         bar = bars[idx]
         if bar.close <= 0:
@@ -673,12 +691,23 @@ def _annotate_zone(zone: Zone, bars: Sequence[Bar]) -> None:
         # Уровень, размеченный на старой истории и подтверждённый
         # недавно, иначе умирает от движения, случившегося между
         # его собственными событиями.
-        if (
-            ZONE_DEAD_AFTER_BREAK
-            and idx > zone.last_idx
-            and max(below_run, above_run) >= ZONE_BREAK_BARS
-        ):
-            zone.broken = True
+        #
+        # И только в СВОЮ сторону. Роль уровня задаётся тем, с какой
+        # стороны стояла цена в момент его последнего события:
+        # закрылась выше — это поддержка, и убить её может лишь
+        # провал вниз; закрылась ниже — сопротивление, и его убивает
+        # уход вверх. Прежнее max(below_run, above_run) убивало
+        # уровень движением в любую сторону, из-за чего доживали
+        # только зоны с событием у самого конца ряда — отсюда ноль
+        # зон у половины выборки.
+        if idx > zone.last_idx:
+            fatal = below_run if is_support else above_run
+            spared = above_run if is_support else below_run
+
+            if ZONE_DEAD_AFTER_BREAK and fatal >= ZONE_BREAK_BARS:
+                zone.broken = True
+            elif spared >= ZONE_BREAK_BARS:
+                zone.passed_through = True
 
     zone.plateau = best_plateau if best_plateau >= PLATEAU_MIN_BARS else 0
     # Давность: от последнего события зоны до конца ряда.

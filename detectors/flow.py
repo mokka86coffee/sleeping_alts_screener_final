@@ -29,7 +29,7 @@ from detectors.flow_config import (
     CAP_SPRING,
     CAP_TAKER,
     FLOW_MAX_SCORE,
-    FLOW_MIN_RAW_SCORE,
+    FLOW_RAW_FLOOR,
     FLOW_MIN_SCORE,
     HORIZON_AMP_GAIN,
     HORIZON_BARS_AHEAD,
@@ -56,7 +56,8 @@ MIN_SCORE = FLOW_MIN_SCORE
 # Порог на СЫРОЙ шкале подкейса. Отдельное имя, и это принципиально:
 # raw и score живут в разных шкалах, и раньше порог проверялся уже
 # после приведения — то есть не проверялся вовсе.
-MIN_RAW_SCORE = FLOW_MIN_RAW_SCORE
+# Нижняя граница растяжки. Порогом отбора не является — см. конфиг.
+RAW_FLOOR = FLOW_RAW_FLOOR
 
 _RUNNERS = (
     flow_hidden,
@@ -353,20 +354,28 @@ def _strength(score: int) -> str:
     return ""
 
 
+# Верх растяжки. Сотня была фикцией: подкейс упирается в свой CASE_CAP
+# задолго до неё, и по замеру 174 монет наблюдаемый максимум сырого
+# скора равен 61.4 при медиане 38. Растягивая до ста, мы отдавали
+# верхнюю треть шкалы семейства под значения, которые не приходят —
+# итоговые скоры жались в 49..73 из доступных 45..100.
+RAW_CEIL = 75.0
+
+
 def _to_family_score(raw: float) -> int:
     """Приводит сырую шкалу подкейса к шкале семейства 45..100.
 
-    Отображается НЕ 0..100, а диапазон, который реально может прийти:
-    от MIN_RAW_SCORE до 100. Порог проверяется выше по коду, значит
-    меньшие значения сюда не попадают, и растягивать от нуля означает
-    выбросить нижнюю половину шкалы семейства.
+    Отображается диапазон, который реально приходит: RAW_FLOOR..RAW_CEIL.
+    Обе границы взяты из замера, а не из вида шкалы 0..100 — иначе
+    половина выходного диапазона не используется, и разница между
+    средней фигурой и сильной сжимается до нескольких баллов.
     """
-    raw = max(MIN_RAW_SCORE, min(100.0, raw))
-    span_raw = 100.0 - MIN_RAW_SCORE
+    raw = max(RAW_FLOOR, min(RAW_CEIL, raw))
+    span_raw = RAW_CEIL - RAW_FLOOR
     span_out = FLOW_MAX_SCORE - MIN_SCORE
     if span_raw <= 0:
         return MIN_SCORE
-    return int(round(MIN_SCORE + (raw - MIN_RAW_SCORE) * span_out / span_raw))
+    return int(round(MIN_SCORE + (raw - RAW_FLOOR) * span_out / span_raw))
 
 
 def _verdict(name: str, sig: SubcaseSignal, confirmed_by: str = "") -> str:
@@ -527,16 +536,6 @@ def detect_flow(
         confirmed_by = max(others, key=lambda x: x[1].score)[0]
         cap = CASE_CAP.get(best_name, 100)
         raw = min(float(cap), raw + CONFIRM_BONUS)
-
-    # ── Порог на СЫРОЙ шкале ─────────────────────────────────
-    if raw < MIN_RAW_SCORE:
-        return FlowSignal(
-            symbol=symbol,
-            score=int(round(raw)),
-            cases=cases,
-            context=ctx_dict,
-            failures=failures,
-        )
 
     score = _to_family_score(raw)
     entry, stop, target = _levels(ctx, best_sig)

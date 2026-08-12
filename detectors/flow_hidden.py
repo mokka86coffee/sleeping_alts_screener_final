@@ -8,6 +8,12 @@
 Контракт: возврат SubcaseSignal либо None. Отказ — это None,
 а не объект с флагом: диспетчер третьего состояния не знает и
 пустышку положил бы в results наравне с закрытой фигурой.
+
+Каждый отказ проходит через ctx.reject(): None остаётся None, но
+причина попадает в ctx.notes и дальше в failures сигнала. Без этого
+молчащий подкейс неотличим от подкейса, которому нечего сказать —
+за десять дней hidden ушёл с трёх срабатываний до нуля, и понять
+почему можно было только симуляцией по дампам.
 """
 
 from __future__ import annotations
@@ -49,17 +55,21 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     """
     # Зоны необязательны: набор бывает и вне размеченного уровня,
     # уровень здесь усиливает фигуру, а не создаёт её.
-    if veto_bullish(ctx, require_zones=False):
-        return None
+    stop = veto_bullish(ctx, require_zones=False)
+    if stop:
+        return ctx.reject(NAME, stop)
 
     bars = ctx.base
     if len(bars) < HIDDEN_MIN_BARS:
-        return None
+        return ctx.reject(NAME, f"баров {len(bars)} < {HIDDEN_MIN_BARS}")
 
     # Ликвидность. На тонкой монете дельта — это две сделки,
     # и любая форма на ней случайна.
     if ctx.quote_volume_24h < HIDDEN_MIN_QUOTE_24H:
-        return None
+        return ctx.reject(
+            NAME,
+            f"оборот {ctx.quote_volume_24h:,.0f} < {HIDDEN_MIN_QUOTE_24H:,.0f}",
+        )
 
     flow = ctx.flow
 
@@ -67,22 +77,41 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     window = min(HIDDEN_WINDOW, len(bars))
     price_slope = _slope([b.close for b in bars[-window:]])
     if price_slope > HIDDEN_PRICE_SLOPE_MAX:
-        return None
+        return ctx.reject(
+            NAME,
+            f"цена растёт: наклон {price_slope:.5f} > {HIDDEN_PRICE_SLOPE_MAX}",
+        )
     if flow.delta_slope < HIDDEN_DELTA_SLOPE_MIN:
-        return None
+        return ctx.reject(
+            NAME,
+            f"поток не растёт: наклон {flow.delta_slope:.5f} "
+            f"< {HIDDEN_DELTA_SLOPE_MIN}",
+        )
 
     # Набор, собранный одним баром, — разовый вход, а не накопление.
     if flow.homogeneity < HIDDEN_HOMOGENEITY_MIN:
-        return None
+        return ctx.reject(
+            NAME,
+            f"набор комкОм: однородность {flow.homogeneity:.2f} "
+            f"< {HIDDEN_HOMOGENEITY_MIN}",
+        )
 
     # Растущая дельта при паритете сторон — артефакт разметки.
     if flow.buy_share < HIDDEN_BUY_SHARE_MIN:
-        return None
+        return ctx.reject(
+            NAME,
+            f"паритет сторон: доля покупок {flow.buy_share:.4f} "
+            f"< {HIDDEN_BUY_SHARE_MIN}",
+        )
 
     # Ноль от ядра означает «мерить нечего», а не «объём мёртв»:
     # порогом проверяется только измеренная величина.
     if 0 < ctx.volume_recovery < HIDDEN_VOLUME_RECOVERY_MIN:
-        return None
+        return ctx.reject(
+            NAME,
+            f"объём не вернулся: x{ctx.volume_recovery:.2f} "
+            f"< {HIDDEN_VOLUME_RECOVERY_MIN}",
+        )
 
     # ── Фигура закрыта ─────────────────────────────────────
     # Опора под набором: протестированный уровень с наибольшей
