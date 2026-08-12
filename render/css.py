@@ -1733,10 +1733,13 @@ transition:border-color .2s ease}
    Рамки нет намеренно: блок держат луч слева, свечение из-под
    содержимого и воздух вокруг. Рамка замыкала бы его в отдельный
    экран, а он — часть чтения, идущая между строк текста. */
+/* Прозрачность на самом блоке убрана: раньше он проявлялся целиком,
+   и внутренняя очередь была не видна под общим фейдом. Видимость
+   теперь решают дочерние элементы, каждый в свой черёд. */
 .obf-blk{position:relative;margin:22px 0 24px;padding:18px 8px 16px 22px;
   display:flex;align-items:center;gap:24px;flex-wrap:wrap;overflow:hidden;
-  opacity:0;transition:opacity 1.2s ease}
-.obf-blk.on{opacity:1}
+  visibility:hidden}
+.obf-blk.on{visibility:visible}
 
 .obf-blk::after{content:'';position:absolute;inset:0;z-index:-1;
   background:radial-gradient(120% 140% at 6% 80%,
@@ -1770,7 +1773,10 @@ transition:border-color .2s ease}
   text-transform:uppercase;color:rgba(var(--acc-rgb),.7);margin-bottom:7px}
 .obf-meta{font-size:12px;font-weight:300;color:#8b8a92;letter-spacing:.3px}
 .obf-meta b{font-weight:400;color:rgba(var(--acc-rgb),.92)}
-.obf-meta .cap{color:#5f6169;font-size:10.5px}
+/* Имя obf-cap, а не cap: .cap в этом файле — капсула шапки
+   дашборда, с рамкой и градиентом. Совпадение имён рисовало
+   овал вокруг подписи капитализации. */
+.obf-meta .obf-cap{color:#5f6169;font-size:10.5px}
 
 .obf-stat{display:flex;gap:16px;flex-wrap:wrap;margin-top:11px;
   padding-top:10px;border-top:1px solid rgba(255,255,255,.045);
@@ -1792,20 +1798,61 @@ transition:border-color .2s ease}
   50%{transform:scale(2.2);opacity:0}
 }
 
-.obf-drawn{stroke-dasharray:700;stroke-dashoffset:700;
-  animation:obf-draw 4.6s cubic-bezier(.22,.61,.36,1) var(--d,0s) forwards}
-.obf-ring circle.v{stroke-dasharray:151;stroke-dashoffset:151;
-  animation:obf-ring 3.8s cubic-bezier(.22,.61,.36,1) var(--d,0s) forwards}
+/* Начальное состояние. Держится до класса .on: разметка блока
+   вставляется в дерево заранее (иначе первый кадр уходит на разбор
+   SVG и прорисовка стартует рывком), а анимация обязана начаться
+   в момент показа. Без этой развязки кривая дорисовывалась ещё
+   во время печати предыдущих строк, и блок появлялся готовым. */
+.obf-drawn{stroke-dasharray:700;stroke-dashoffset:700}
+.obf-ring circle.v{stroke-dasharray:151;stroke-dashoffset:151}
 .obf-wave line{transform-origin:center;transform-box:fill-box;
-  animation:obf-grow 1.9s cubic-bezier(.22,.61,.36,1) var(--d,0s) backwards}
-.obf-lat{opacity:0;animation:obf-fade 2.4s ease var(--d,0s) forwards}
-.obf-pulse{transform-origin:center;transform-box:fill-box;
+  transform:scaleY(0)}
+.obf-lat{opacity:0}
+.obf-blk .obf-k,.obf-blk .obf-meta,.obf-blk .obf-stat{opacity:0}
+.obf-blk .obf-ghost{opacity:0}
+.obf-blk .obf-rail u{animation:none}
+
+/* Запуск. Все задержки отсчитываются от появления блока. */
+.obf-blk.on .obf-drawn{
+  animation:obf-draw 4.6s cubic-bezier(.22,.61,.36,1) var(--d,0s) forwards}
+.obf-blk.on .obf-ring circle.v{
+  animation:obf-ring 3.8s cubic-bezier(.22,.61,.36,1) var(--d,0s) forwards}
+.obf-blk.on .obf-wave line{
+  animation:obf-grow 1.9s cubic-bezier(.22,.61,.36,1) var(--d,0s) forwards}
+.obf-blk.on .obf-lat{
+  animation:obf-fade 2.4s ease var(--d,0s) forwards}
+.obf-blk.on .obf-pulse{transform-origin:center;transform-box:fill-box;
   animation:obf-pulse 3.6s ease-out infinite}
+.obf-blk.on .obf-rail u{
+  animation:obf-rail 3.4s ease-in-out infinite}
+
+/* Текст внутри блока — своей очередью, а не разом с графиком.
+   Порядок тот же, в каком его читают: роль, потом суть, потом
+   числа. Призрак первым: он задаёт, о какой монете речь. */
+@keyframes obf-in{
+  from{opacity:0;transform:translateY(6px)}
+  to  {opacity:1;transform:none}
+}
+.obf-blk.on .obf-ghost{
+  animation:obf-fade 2.2s ease .1s forwards}
+.obf-blk.on .obf-k{
+  animation:obf-in 1.1s cubic-bezier(.22,.61,.36,1) .5s forwards}
+.obf-blk.on .obf-meta{
+  animation:obf-in 1.1s cubic-bezier(.22,.61,.36,1) 1.2s forwards}
+.obf-blk.on .obf-stat{
+  animation:obf-in 1.1s cubic-bezier(.22,.61,.36,1) 2.1s forwards}
 
 @media (prefers-reduced-motion:reduce){
-  .obf-drawn,.obf-ring circle.v,.obf-wave line,.obf-lat,
-  .obf-rail u,.obf-pulse{animation:none;opacity:1}
-  .obf-drawn{stroke-dashoffset:0}
+  .obf-blk.on .obf-drawn,.obf-blk.on .obf-ring circle.v,
+  .obf-blk.on .obf-wave line,.obf-blk.on .obf-lat,
+  .obf-blk.on .obf-rail u,.obf-blk.on .obf-pulse,
+  .obf-blk.on .obf-ghost,.obf-blk.on .obf-k,
+  .obf-blk.on .obf-meta,.obf-blk.on .obf-stat{animation:none}
+  .obf-blk .obf-drawn{stroke-dashoffset:0}
+  .obf-blk .obf-wave line{transform:none}
+  .obf-blk .obf-lat,.obf-blk .obf-ghost,.obf-blk .obf-k,
+  .obf-blk .obf-meta,.obf-blk .obf-stat{opacity:1}
+  .obf-blk .obf-ring circle.v{stroke-dashoffset:var(--off)}
 }
 
 /* Орбита снимается на мобильных, брифинг остаётся — но графики

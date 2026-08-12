@@ -421,14 +421,14 @@ BRIEF_JS = """
     if (M.frozen) {
       bg.push('Рынок сейчас <span class="warn">замер</span>. Лучшая монета ' +
         'дня прибавила <span class="n">' + pct(M.maxChange, 0) + '</span>, ' +
-        'и дальше плюс двадцати ушли всего <span class="n">' + (M.tail || 0) +
-        '</span> ' + plural(M.tail || 0, 'монета', 'монеты', 'монет') +
+        'и дальше плюс двадцати ушли всего <span class="n">' + (M.tail || 0) + '</span> ' +
+                                                   plural(M.tail || 0, 'монета', 'монеты', 'монет') +
         ' — при живом рынке их бывают десятки. ' +
         'Ехать сегодня некуда.');
     } else {
       bg.push('Рынок <span class="gd">двигается</span>. Лучшая монета дня ' +
-        '<span class="n">' + pct(M.maxChange, 0) + '</span>, дальше плюс ' +
-        'двадцати ушли <span class="n">' + plural(M.tail || 0, 'монета', 'монеты', 'монет') + '</span> ' +
+        '<span class="n">' + (M.tail || 0) + '</span> ' +
+                plural(M.tail || 0, 'монета', 'монеты', 'монет') + '</span> ' +
                                                                    ' — движение широкое, а не один выброс.');
     }
 
@@ -505,7 +505,7 @@ function removeTags(str) {
             role: 'лидер потока',
             meta: 'фигура <b>' + (LC.case || '—') + '</b>' +
               (LC.horizonDays ? ' · горизонт <b>' + LC.horizonDays + ' дн</b>' : '') +
-              ' <span class="cap">· ' + (L.cap || '') + '</span>',
+              ' <span class="obf-cap">· ' + (L.cap || '') + '</span>',
             stat: (LC.stop ? '<span>стоп <b>' + LC.stop + '</b></span>' : '') +
               (LC.target ? '<span>цель <b>' + LC.target + '</b></span>' : '') +
               '<span>' + LC.series.length + ' дней</span>',
@@ -521,7 +521,7 @@ function removeTags(str) {
             ghost: VC.sym,
             role: 'максимум объёма',
             meta: '<b>×' + VC.x + '</b> к своей норме за 30 дней ' +
-              '<span class="cap">· ' + (VC.cap || '') + '</span>',
+              '<span class="obf-cap">· ' + (VC.cap || '') + '</span>',
             stat: '<span>1ч <b>×' + VC.v1h + '</b></span>' +
               '<span>4ч <b>×' + VC.v4h + '</b></span>' +
               '<span>1д <b>×' + VC.v1d + '</b></span>' +
@@ -637,7 +637,11 @@ function removeTags(str) {
        (прорисовка кривой 4.6с) плюс время на разглядывание. Меньше
        — и следующая строка начинает печататься поверх ещё
        рисующегося графика. */
-    var BLOCK_HOLD = 6200;
+    /* Складывается из очереди текста внутри блока (последняя строка
+       стартует на 2.1с) и самой длинной анимации графика — кривая
+       рисуется 4.6с. Меньше — и следующая строка начинает
+       печататься поверх ещё рисующегося графика. */
+    var BLOCK_HOLD = 7400;
 
     function typeLine(i) {
       if (i >= lines.length) { tail(); return; }

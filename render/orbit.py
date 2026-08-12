@@ -466,11 +466,21 @@ def _leader_chart(c: Candidate | None) -> dict:
         return {}
 
     f = c.flow or {}
+    from analytics.metrics import fmt_price_short
+
+    # Число уходит в JS дважды и в разных ролях: zone нужен как
+    # величина (по нему считается шкала графика), stop и target —
+    # только как подпись. Поэтому первое остаётся float, а вторые
+    # форматируются здесь: у монеты за четыре цента полное float
+    # представление это семнадцать знаков в строке.
+    stop = float(f.get("stop_hint") or 0.0)
+    target = float(f.get("target_hint") or 0.0)
+
     return {
         "series": s,
         "zone": float(f.get("zone_price") or 0.0),
-        "stop": float(f.get("stop_hint") or 0.0),
-        "target": float(f.get("target_hint") or 0.0),
+        "stop": fmt_price_short(stop) if stop > 0 else "",
+        "target": fmt_price_short(target) if target > 0 else "",
         "score": int(getattr(c, "score", 0) or 0),
         "case": ((f.get("case") or "").replace("flow_", "") or "—"),
         "horizonDays": int(f.get("horizon_days") or 0),
