@@ -1728,6 +1728,93 @@ transition:border-color .2s ease}
   animation:obf-run var(--lap,60s) linear forwards}
 @keyframes obf-run{to{transform:scaleX(0)}}
 @media (prefers-reduced-motion:reduce){.obf-bar u{animation:none}}
+
+/* ── Блок монеты в брифинге ──────────────────────────────
+   Рамки нет намеренно: блок держат луч слева, свечение из-под
+   содержимого и воздух вокруг. Рамка замыкала бы его в отдельный
+   экран, а он — часть чтения, идущая между строк текста. */
+.obf-blk{position:relative;margin:22px 0 24px;padding:18px 8px 16px 22px;
+  display:flex;align-items:center;gap:24px;flex-wrap:wrap;overflow:hidden;
+  opacity:0;transition:opacity 1.2s ease}
+.obf-blk.on{opacity:1}
+
+.obf-blk::after{content:'';position:absolute;inset:0;z-index:-1;
+  background:radial-gradient(120% 140% at 6% 80%,
+    rgba(var(--acc-rgb),.10), rgba(var(--acc-rgb),.03) 42%,
+    transparent 72%)}
+
+/* Тикер стоит ЗДЕСЬ и больше нигде: в шапке он дублировался,
+   и оба раза читались как разные элементы. */
+.obf-ghost{position:absolute;left:20px;top:-10px;
+  font-size:96px;font-weight:200;letter-spacing:-2px;line-height:1;
+  color:rgba(var(--acc-rgb),.115);pointer-events:none;user-select:none}
+
+.obf-rail{position:absolute;left:0;top:12%;bottom:12%;width:2px;
+  border-radius:2px;background:rgba(var(--acc-rgb),.16);overflow:hidden}
+.obf-rail u{position:absolute;left:0;width:2px;height:34%;border-radius:2px;
+  text-decoration:none;
+  background:linear-gradient(180deg,
+    transparent, rgb(var(--acc-rgb)), transparent);
+  filter:blur(.4px);animation:obf-rail 3.4s ease-in-out infinite}
+@keyframes obf-rail{
+  0%{transform:translateY(-40%);opacity:0}
+  18%{opacity:1} 82%{opacity:1}
+  100%{transform:translateY(300%);opacity:0}
+}
+
+.obf-bl{position:relative;flex:1 1 300px;min-width:270px;padding-top:26px}
+.obf-br{position:relative;display:flex;align-items:center;gap:16px;
+  margin-left:auto}
+
+.obf-k{font-size:8px;font-weight:500;letter-spacing:3.2px;
+  text-transform:uppercase;color:rgba(var(--acc-rgb),.7);margin-bottom:7px}
+.obf-meta{font-size:12px;font-weight:300;color:#8b8a92;letter-spacing:.3px}
+.obf-meta b{font-weight:400;color:rgba(var(--acc-rgb),.92)}
+.obf-meta .cap{color:#5f6169;font-size:10.5px}
+
+.obf-stat{display:flex;gap:16px;flex-wrap:wrap;margin-top:11px;
+  padding-top:10px;border-top:1px solid rgba(255,255,255,.045);
+  font-size:10.5px;font-weight:300;color:#8b8a92;letter-spacing:.4px}
+.obf-stat b{font-weight:400;color:#c9ccd2;
+  font-family:'SF Mono',ui-monospace,monospace}
+
+.obf-mini{display:block;width:214px;height:auto}
+.obf-ring{display:block;width:58px;height:58px;flex:none}
+
+/* Прорисовка. Втрое медленнее первого варианта: брифинг читают,
+   и быстрый рост линии читается как мигание, а не как появление. */
+@keyframes obf-draw{to{stroke-dashoffset:0}}
+@keyframes obf-ring{to{stroke-dashoffset:var(--off)}}
+@keyframes obf-grow{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes obf-fade{from{opacity:0}to{opacity:1}}
+@keyframes obf-pulse{
+  0%,100%{transform:scale(1);opacity:.32}
+  50%{transform:scale(2.2);opacity:0}
+}
+
+.obf-drawn{stroke-dasharray:700;stroke-dashoffset:700;
+  animation:obf-draw 4.6s cubic-bezier(.22,.61,.36,1) var(--d,0s) forwards}
+.obf-ring circle.v{stroke-dasharray:151;stroke-dashoffset:151;
+  animation:obf-ring 3.8s cubic-bezier(.22,.61,.36,1) var(--d,0s) forwards}
+.obf-wave line{transform-origin:center;transform-box:fill-box;
+  animation:obf-grow 1.9s cubic-bezier(.22,.61,.36,1) var(--d,0s) backwards}
+.obf-lat{opacity:0;animation:obf-fade 2.4s ease var(--d,0s) forwards}
+.obf-pulse{transform-origin:center;transform-box:fill-box;
+  animation:obf-pulse 3.6s ease-out infinite}
+
+@media (prefers-reduced-motion:reduce){
+  .obf-drawn,.obf-ring circle.v,.obf-wave line,.obf-lat,
+  .obf-rail u,.obf-pulse{animation:none;opacity:1}
+  .obf-drawn{stroke-dashoffset:0}
+}
+
+/* Орбита снимается на мобильных, брифинг остаётся — но графики
+   на узком экране встают под текст и съедают половину высоты.
+   Текст важнее: он и есть содержание сводки. */
+@media (max-width:760px){
+  .obf-br{display:none}
+  .obf-ghost{font-size:64px}
+}
 """
 
 # ═══════════════════════════════════════════════════

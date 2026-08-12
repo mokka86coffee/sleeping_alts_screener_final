@@ -22,7 +22,7 @@ from core.config import (
 from core.models import Candidate, RunSnapshot
 from render.theme import esc
 from render.flow_report import case_key, CASE_RU, _cap, _data
-
+from analytics.indicators import median
 
 ORBIT_COLORS = {
     "surge":  "var(--am)",
@@ -427,6 +427,94 @@ def _market_breadth(candidates: list[Candidate]) -> dict:
         "tailPct": FROZEN_TAIL_PCT,
     }
 
+def _day_ratios(vals: list) -> list[float]:
+    """Кратности дневного объёма к собственной медиане ряда.
+
+    Считается ЗДЕСЬ, а не в JS. Объём в этом проекте уже мерился
+    тремя разными способами под одним словом (бар к медиане нормы,
+    час к среднему за сутки, максимум по пяти масштабам), и четвёртое
+    место расчёта — в браузере, вне досягаемости пробы — сделало бы
+    расхождение неотлаживаемым.
+
+    Медиана, а не среднее: один аномальный день в ряду задирает
+    среднее так, что все остальные дни становятся «ниже нормы».
+    """
+    clean = [float(v) for v in vals if v and float(v) > 0]
+    if len(clean) < 4:
+        return []
+    med = median(clean)
+    if med <= 0:
+        return []
+    return [
+        round(float(v) / med, 2) if v and float(v) > 0 else 0.0
+        for v in vals
+    ]
+
+
+def _leader_chart(c: Candidate | None) -> dict:
+    """Ряд цены лидера потока плюс уровни его фигуры.
+
+    Уровень зоны идёт вместе с рядом не для украшения: без него
+    график сообщает «монета росла» — ровно то, что уже сказано
+    процентом в тексте. Фигура FLOW построена вокруг уровня, и
+    только он делает график осмысленным.
+    """
+    if c is None:
+        return {}
+    s = [float(x) for x in (c.raw.get("spark_1d") or []) if x]
+    if len(s) < 4:
+        return {}
+
+    f = c.flow or {}
+    return {
+        "series": s,
+        "zone": float(f.get("zone_price") or 0.0),
+        "stop": float(f.get("stop_hint") or 0.0),
+        "target": float(f.get("target_hint") or 0.0),
+        "score": int(getattr(c, "score", 0) or 0),
+        "case": ((f.get("case") or "").replace("flow_", "") or "—"),
+        "horizonDays": int(f.get("horizon_days") or 0),
+    }
+
+
+def _vol_chart(candidates: list[Candidate]) -> dict:
+    """Монета с наибольшей кратностью объёма и её дневной ряд.
+
+    Кратностью, а не оборотом в долларах: абсолютный оборот каждый
+    день выводит одни и те же ликвидные имена, то есть является
+    константой и новостью не бывает.
+
+    Максимум берётся по ПЯТИ масштабам сразу — всплеск бывает
+    двухчасовым и суточным, и спрашивать один масштаб значит
+    пропускать половину случаев.
+    """
+    from render.dashboard import _data, _tick
+
+    best, best_x = None, 0.0
+    for c in candidates:
+        for x in (c.raw.get("vol_ratio") or {}).values():
+            try:
+                x = float(x)
+            except (TypeError, ValueError):
+                continue
+            if x > best_x:
+                best_x, best = x, c
+
+    if best is None or best_x <= 0:
+        return {}
+
+    d = _data(best)
+    return {
+        "sym": _tick(best),
+        "x": round(best_x),
+        "cap": _cap(d["cap"]),
+        "ratios": _day_ratios(best.raw.get("spark_vol") or []),
+        "v1h": round(d.get("v1h") or 0, 1),
+        "v4h": round(d.get("v4h") or 0, 1),
+        "v1d": round(d.get("v1d") or 0, 1),
+        "funding": round(float(best.raw.get("funding") or 0.0), 3),
+    }
+
 def _peak_volume(candidates: list[Candidate]) -> dict:
     """Монета с наибольшей кратностью объёма к своей норме.
 
@@ -480,7 +568,11 @@ def _orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
     reg = getattr(snapshot, "market_regime", None) or {}
     _btc = get_btc_context()
     _breadth = _market_breadth(candidates)
-    _peak = _peak_volume(candidates)
+    # Один вызов на обе величины: плашка на орбите берёт из него имя
+    # и кратность, брифинг — тот же расчёт плюс ряд для графика.
+    # Раздельные вызовы позволили бы лидеру объёма разойтись между
+    # двумя местами экрана.
+    _vol = _vol_chart(candidates)
 
     label = str(reg.get("label", "risk-off"))
     try:
@@ -534,7 +626,13 @@ def _orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
         # Кратность объёма: отвечает на то, чего не говорят цены —
         # есть ли вообще деньги в рынке. Стоящая цена при живом объёме
         # и стоящая цена при мёртвом это разные дни.
-        "peakVol": _peak,
+        # peakVol остаётся для плашки на орбите — там нужны только имя
+        # и кратность. volChart — тот же расчёт плюс ряд для графика;
+        # обе величины берутся из одного вызова, чтобы лидер объёма в
+        # плашке и в брифинге не мог разойтись.
+        "peakVol": {"sym": _vol.get("sym", ""), "x": _vol.get("x", 0)},
+        "volChart": _vol,
+        "leaderChart": _leader_chart(leader),
         "leader": ({"t": _tick(leader),
                     "score": round(getattr(leader, "score", 0) or 0),
                     "case": case_key((leader.flow or {}).get("case", "")) or "—",

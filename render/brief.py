@@ -80,6 +80,209 @@ BRIEF_JS = """
     });
   }
 
+  /* ═════════════════════════════════════════════════════════
+       Графики лидеров. Строятся из рядов, которые уже лежат в
+       снимке: spark_1d и spark_vol по 24 точки, оставлены в
+       KEEP_SERIES. Дополнительных данных не запрашивается.
+       ═════════════════════════════════════════════════════════ */
+    var CH_W = 214, CH_H = 76, CH_PAD = 2, CH_RIGHT = 182;
+
+    /* Сглаживание Катмулла-Рома, переведённое в кубические кривые.
+       Ломаная из 24 точек в поле шириной 200px выглядит рваной.
+       Помнить при этом надо: сглаживание рисует значения МЕЖДУ
+       днями, которых не было. Для иллюстрации в тексте это
+       допустимо, для разбора уровней — нет. */
+    function smoothPath(pts) {
+      if (pts.length < 2) return '';
+      var d = 'M' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
+      for (var i = 0; i < pts.length - 1; i++) {
+        var p0 = pts[i > 0 ? i - 1 : 0], p1 = pts[i],
+            p2 = pts[i + 1], p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
+        d += ' C' + (p1[0] + (p2[0] - p0[0]) / 12).toFixed(1) + ' ' +
+                    (p1[1] + (p2[1] - p0[1]) / 12).toFixed(1) + ', ' +
+                    (p2[0] - (p3[0] - p1[0]) / 12).toFixed(1) + ' ' +
+                    (p2[1] - (p3[1] - p1[1]) / 12).toFixed(1) + ', ' +
+                    p2[0].toFixed(1) + ' ' + p2[1].toFixed(1);
+      }
+      return d;
+    }
+
+    /* График лидера потока. Шкала строится по цене И уровню зоны
+       сразу: если считать только по цене, зона уезжает за пределы
+       поля ровно тогда, когда цена от неё далеко ушла — то есть в
+       самом интересном случае. */
+    function leaderChart(d) {
+      var s = d.series || [];
+      if (s.length < 4) return '';
+
+      var lo = Math.min.apply(null, s), hi = Math.max.apply(null, s);
+      if (d.zone > 0) { lo = Math.min(lo, d.zone); hi = Math.max(hi, d.zone); }
+      var span = (hi - lo) || 1, top = 12, bottom = 70;
+
+      function y(v) { return bottom - (v - lo) / span * (bottom - top); }
+      var pts = s.map(function (v, i) {
+        return [CH_PAD + i * (CH_RIGHT - CH_PAD) / (s.length - 1), y(v)];
+      });
+
+      var line = smoothPath(pts), last = pts[pts.length - 1];
+      var side = pts.map(function (p) { return [p[0] + 6, p[1] + 10]; });
+      var wall = line + ' L' + side[side.length - 1][0].toFixed(1) + ' ' +
+                 side[side.length - 1][1].toFixed(1) + ' ' +
+                 smoothPath(side.slice().reverse()).replace(/^M[^C]*/, '') + ' Z';
+
+      var zone = '';
+      if (d.zone > 0) {
+        var zy = y(d.zone);
+        zone = '<g class="obf-lat" style="--d:0s">' +
+          '<line x1="2" y1="' + zy.toFixed(1) + '" x2="' + CH_RIGHT + '" y2="' +
+            zy.toFixed(1) + '" stroke="#F5A623" stroke-width=".6" ' +
+            'stroke-dasharray="2.5 4" opacity=".5"/>' +
+          '<text x="' + (CH_RIGHT + 4) + '" y="' + (zy + 2.5).toFixed(1) +
+            '" font-size="6" fill="#F5A623" opacity=".85" ' +
+            'letter-spacing=".8">зона</text></g>';
+      }
+
+      return '<svg class="obf-mini" viewBox="0 0 ' + CH_W + ' ' + CH_H + '">' +
+        '<defs>' +
+          '<linearGradient id="obfPS" x1="0" y1="0" x2="1" y2="0">' +
+            '<stop offset="0" stop-color="#2E7A55"/>' +
+            '<stop offset="0.55" stop-color="#4FCF8A"/>' +
+            '<stop offset="1" stop-color="#E4FFF0"/></linearGradient>' +
+          '<linearGradient id="obfPW" x1="0" y1="0" x2="0" y2="1">' +
+            '<stop offset="0" stop-color="#2E7A55" stop-opacity=".7"/>' +
+            '<stop offset="1" stop-color="#12321F" stop-opacity=".12"/>' +
+          '</linearGradient>' +
+          '<radialGradient id="obfFL">' +
+            '<stop offset="0" stop-color="#FFFFFF" stop-opacity=".95"/>' +
+            '<stop offset="0.3" stop-color="#BFFFD9" stop-opacity=".45"/>' +
+            '<stop offset="1" stop-color="#4FCF8A" stop-opacity="0"/>' +
+          '</radialGradient>' +
+          '<linearGradient id="obfST" x1="0" y1="0" x2="1" y2="0">' +
+            '<stop offset="0" stop-color="#4FCF8A" stop-opacity="0"/>' +
+            '<stop offset="0.5" stop-color="#DFFFEC" stop-opacity=".65"/>' +
+            '<stop offset="1" stop-color="#4FCF8A" stop-opacity="0"/>' +
+          '</linearGradient>' +
+          '<filter id="obfSO" x="-30%" y="-50%" width="160%" height="200%">' +
+            '<feGaussianBlur stdDeviation="3"/></filter>' +
+        '</defs>' + zone +
+        '<path class="obf-lat" style="--d:1.6s" d="' + wall +
+          '" fill="url(#obfPW)"/>' +
+        '<path class="obf-drawn" style="--d:0s" filter="url(#obfSO)" ' +
+          'opacity=".5" d="' + line + '" fill="none" stroke="url(#obfPS)" ' +
+          'stroke-width="5" stroke-linecap="round"/>' +
+        '<path class="obf-drawn" style="--d:0s" d="' + line +
+          '" fill="none" stroke="url(#obfPS)" stroke-width="1.9" ' +
+          'stroke-linecap="round"/>' +
+        '<g class="obf-lat" style="--d:3.4s">' +
+          '<ellipse cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) +
+            '" rx="30" ry="1.1" fill="url(#obfST)"/>' +
+          '<circle cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) +
+            '" r="13" fill="url(#obfFL)"/>' +
+          '<circle class="obf-pulse" cx="' + last[0].toFixed(1) + '" cy="' +
+            last[1].toFixed(1) + '" r="4.5" fill="#4FCF8A"/>' +
+          '<circle cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) +
+            '" r="2.4" fill="#F2FFF7"/></g>' +
+      '</svg>';
+    }
+
+    /* График лидера объёма. Шкала логарифмическая, и это не выбор
+       оформления: кратность ×635 рядом с обычными днями на линейной
+       шкале не рисуется вовсе — столбик выходил выше соседей раза в
+       четыре вместо шестисот, то есть график врал. Здесь шаг вверх
+       это умножение на десять, и три порядка укладываются честно.
+
+       Зеркальность даёт всплеску вдвое больше высоты при той же
+       высоте блока. */
+    function volChart(d) {
+      var r = d.ratios || [];
+      if (r.length < 4) return '';
+
+      var hs = r.map(function (v) { return Math.log10(Math.max(v, 0) + 1); });
+      var mx = Math.max.apply(null, hs) || 1;
+
+      /* Подсвечивается МАКСИМУМ, а не последний день: аномалия
+         бывает и в середине ряда, и тогда подпись «максимум объёма»
+         относилась бы к другому дню, чем горящая линия. */
+      var hot = hs.indexOf(mx);
+      var cy = 38, maxH = 30;
+      var step = (CH_RIGHT - 6 - CH_PAD * 2) / (r.length - 1);
+      var out = '';
+
+      hs.forEach(function (h, i) {
+        if (i === hot) return;
+        var x = CH_PAD + 4 + i * step;
+        var a = Math.max(1.6, h / mx * maxH);
+        out += '<line style="--d:' + (i * 0.095).toFixed(3) + 's" x1="' +
+          x.toFixed(1) + '" y1="' + (cy - a).toFixed(1) + '" x2="' +
+          x.toFixed(1) + '" y2="' + (cy + a).toFixed(1) + '"/>';
+      });
+
+      var hx = CH_PAD + 4 + hot * step;
+      var hd = (r.length * 0.095 + 0.3).toFixed(2);
+
+      return '<svg class="obf-mini obf-wave" viewBox="0 0 ' + CH_W + ' ' +
+        CH_H + '">' +
+        '<defs>' +
+          '<linearGradient id="obfWG" x1="0" y1="0" x2="0" y2="1">' +
+            '<stop offset="0" stop-color="#FFF0CE"/>' +
+            '<stop offset="0.5" stop-color="#F5A623"/>' +
+            '<stop offset="1" stop-color="#FFF0CE"/></linearGradient>' +
+          '<filter id="obfWL" x="-140%" y="-40%" width="380%" height="180%">' +
+            '<feGaussianBlur stdDeviation="4.5"/></filter>' +
+        '</defs>' +
+        '<g class="obf-lat" style="--d:0s">' +
+          '<line x1="2" y1="' + cy + '" x2="' + CH_RIGHT + '" y2="' + cy +
+            '" stroke="#8b8a92" stroke-width=".5" stroke-dasharray="2 3.5" ' +
+            'opacity=".4"/>' +
+          '<text x="' + (CH_RIGHT + 4) + '" y="' + (cy + 2.5) +
+            '" font-size="6" fill="#8b8a92" opacity=".8" ' +
+            'letter-spacing=".8">норма</text></g>' +
+        '<g stroke="#7e848e" stroke-width="2.6" stroke-linecap="round" ' +
+          'opacity=".55">' + out + '</g>' +
+        '<g class="obf-lat" style="--d:' + hd + 's">' +
+          '<line x1="' + hx.toFixed(1) + '" y1="' + (cy - maxH) + '" x2="' +
+            hx.toFixed(1) + '" y2="' + (cy + maxH) + '" stroke="#F5A623" ' +
+            'stroke-width="5" stroke-linecap="round" opacity=".5" ' +
+            'filter="url(#obfWL)"/>' +
+          '<line x1="' + hx.toFixed(1) + '" y1="' + (cy - maxH) + '" x2="' +
+            hx.toFixed(1) + '" y2="' + (cy + maxH) + '" stroke="url(#obfWG)" ' +
+            'stroke-width="3.2" stroke-linecap="round"/>' +
+          '<circle class="obf-pulse" cx="' + hx.toFixed(1) + '" cy="' + cy +
+            '" r="9" fill="#FFD98A"/></g>' +
+      '</svg>';
+    }
+
+    function chartRing(id, from, to, frac, label, size) {
+      var C = 2 * Math.PI * 18;
+      var off = C * (1 - Math.max(0.04, Math.min(1, frac)));
+      return '<svg class="obf-ring" viewBox="0 0 44 44">' +
+        '<defs><linearGradient id="' + id + '" x1="0" y1="1" x2="1" y2="0">' +
+          '<stop offset="0" stop-color="' + from + '"/>' +
+          '<stop offset="1" stop-color="' + to + '"/></linearGradient></defs>' +
+        '<circle cx="22" cy="22" r="18" fill="none" ' +
+          'stroke="rgba(255,255,255,.06)" stroke-width="2.5"/>' +
+        '<circle class="v" cx="22" cy="22" r="18" fill="none" ' +
+          'stroke="url(#' + id + ')" stroke-width="2.5" stroke-linecap="round" ' +
+          'transform="rotate(-90 22 22)" style="--off:' + off.toFixed(1) +
+          ';--d:1s"/>' +
+        '<text x="22" y="' + (size > 11 ? 25.5 : 25) + '" font-size="' + size +
+          '" font-weight="300" text-anchor="middle" fill="#E8EEF4">' + label +
+          '</text></svg>';
+    }
+
+    /* Сборка блока. Разметка одна на оба вида — различаются только
+       акцентный цвет, подписи и то, какой график внутри. */
+    function blockHTML(b) {
+      return '<div class="obf-rail"><u></u></div>' +
+        '<div class="obf-ghost">' + b.ghost + '</div>' +
+        '<div class="obf-bl">' +
+          '<div class="obf-k">' + b.role + '</div>' +
+          '<div class="obf-meta">' + b.meta + '</div>' +
+          '<div class="obf-stat">' + b.stat + '</div>' +
+        '</div>' +
+        '<div class="obf-br">' + b.chart + b.ring + '</div>';
+    }
+
   function buildBrief() {
     var wrap = document.getElementById('obBrief');
     var host = document.getElementById('obfText');
@@ -293,14 +496,10 @@ function removeTags(str) {
     var lines = bg.concat(wknd.p ? [wknd] : []).concat([
       wknd,
 
-      /* Лидер потока — та же монета, что «ПОТОК» на орбите: лучший
-         score среди FLOW-детектированных. */
-      L.t
-        ? { p: 'Лидер потока ' + L.t + capP(L) + ' — ' + L.case + ', score ' + L.score + '.',
-            h: 'Лидер потока <span class="t gd">' + L.t + '</span>' + cap(L) +
-               ' — ' + L.case + ', score <span class="n">' + L.score +
-               '</span>.' }
-        : null,
+     /* Текстовая строка про лидера убрана: блок ниже говорит то же
+              самое и подробнее. Оставить обе значило бы дважды сообщить
+              имя, фигуру и скор. */
+           leaderBlock,
 
       /* Все монеты FLOW с объёмом ×30+ на любом ТФ — не только лидер:
          сильный по score не обязан быть объёмным, и наоборот. */
@@ -312,15 +511,7 @@ function removeTags(str) {
                 ' <span class="n">×' + v.x + '</span>'; }).join(', ') + '.' }
         : null,
 
-      /* Топ-3 по объёму за сутки — те же монеты, что под графиком
-         в блоке ОБЪЁМ на орбите. */
-      TV.length
-        ? { p: 'Больше всех объёма за сутки' + TV.map(function (v) {
-              return v.t + capP(v) + ' ×' + v.x; }).join(', ') + '.',
-            h: 'Больше всех объёма за сутки ' + TV.map(function (v) {
-              return '<span class="t">' + v.t + '</span>' + cap(v) +
-                ' <span class="n">×' + v.x + '</span>'; }).join(', ') + '.' }
-        : null,
+      volBlock,
 
       /* Активность за час — единственная строка про «прямо сейчас» */
       HR.list.length
@@ -377,8 +568,18 @@ function removeTags(str) {
     var reduce = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
     var els = lines.map(function (l) {
       var d = document.createElement('div');
-      d.className = 'obf-p';
-      if (reduce) d.innerHTML = l.h;
+      if (l.block) {
+        d.className = 'obf-blk';
+        d.style.setProperty('--acc-rgb', l.block.acc);
+        /* Разметка вставляется сразу, а показ откладывается классом:
+           если строить SVG в момент показа, первый кадр уходит на
+           разбор дерева и прорисовка начинается рывком. */
+        d.innerHTML = blockHTML(l.block);
+        if (reduce) d.classList.add('on');
+      } else {
+        d.className = 'obf-p';
+        if (reduce) d.innerHTML = l.h;
+      }
       host.appendChild(d);
       return d;
     });
@@ -391,8 +592,23 @@ function removeTags(str) {
     /* Набор идёт спокойно: около двадцати секунд на весь текст при
        окне показа в минуту. Быстрая печать превращается в мигание —
        строка появляется раньше, чем глаз успевает начать читать. */
+    /* Пауза на блок. Складывается из самой длинной анимации внутри
+       (прорисовка кривой 4.6с) плюс время на разглядывание. Меньше
+       — и следующая строка начинает печататься поверх ещё
+       рисующегося графика. */
+    var BLOCK_HOLD = 6200;
+
     function typeLine(i) {
       if (i >= lines.length) { tail(); return; }
+
+      /* Блок не печатается: он рисуется сам, и посимвольный набор
+         поверх прорисовки читался бы как два движения разом. */
+      if (lines[i].block) {
+        els[i].classList.add('on');
+        setTimeout(function () { typeLine(i + 1); }, BLOCK_HOLD);
+        return;
+      }
+
       var el = els[i], txt = lines[i].p, k = 0;
       el.classList.add('typing');
       (function step() {
