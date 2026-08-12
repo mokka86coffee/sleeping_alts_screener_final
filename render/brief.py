@@ -216,7 +216,7 @@ BRIEF_JS = """
     var bg = [];
 
     if (M.frozen) {
-      bg.push('Рынок сегодня <span class="warn">замер</span>. Лучшая монета ' +
+      bg.push('Рынок сейчас <span class="warn">замер</span>. Лучшая монета ' +
         'дня прибавила <span class="n">' + pct(M.maxChange, 0) + '</span>, ' +
         'и дальше плюс двадцати ушли всего <span class="n">' + (M.tail || 0) +
         '</span> ' + plural(M.tail || 0, 'монета', 'монеты', 'монет') +
