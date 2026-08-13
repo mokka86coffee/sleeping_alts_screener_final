@@ -38,6 +38,7 @@ from core.config import (
     LOOP_INTERVAL_SEC, REPORT_PATH, BASE_DIR, GIT_ADD_ALL_CHANGED,
     GIT_TIMEOUT_SEC, COMMIT_MSG,
 )
+from analytics.leaders import tracked_symbols
 from core.http import log
 from core.models import Candidate, FunnelStage, RunSnapshot
 from sources.storage import compare_with_previous, save_snapshot, write_atomic
@@ -52,6 +53,9 @@ def select_symbols(limit: int = MAX_SYMBOLS) -> tuple[list[tuple[str, float]], d
     для первого узла воронки.
     """
     tickers = get_futures_tickers()
+    # Обороты всех USDT-пар, включая отсеянные. Нужен для добавки
+    # журнала ниже: там встречаются монеты, не дошедшие до picked.
+    vol_seen: dict[str, float] = {}
     stats = {
         "total_pairs": len(tickers),
         "not_usdt": 0,
@@ -86,6 +90,12 @@ def select_symbols(limit: int = MAX_SYMBOLS) -> tuple[list[tuple[str, float]], d
         except (TypeError, ValueError):
             qvol = 0.0
 
+        # Оборот запоминается ДО отсечки. Монета журнала выпадает
+        # обычно именно здесь — она затихла, — а оборот у неё всё
+        # равно нужен: build_candidate принимает его вторым аргументом
+        # и без него посчитает долю спота от нуля.
+        vol_seen[symbol] = qvol
+
         if qvol < MIN_QUOTE_VOLUME_24H:
             stats["low_volume"] += 1
             continue
@@ -95,7 +105,35 @@ def select_symbols(limit: int = MAX_SYMBOLS) -> tuple[list[tuple[str, float]], d
     # Самые ликвидные вперёд
     picked.sort(key=lambda x: -x[1])
     picked = picked[:limit]
+
+    # ── Монеты журнала ──────────────────────────────────────
+    # Добавляются сверх лимита и сверх порога по обороту.
+    #
+    # Иначе наблюдение обрывается на самом интересном месте: монета
+    # попадает в журнал на всплеске, через несколько дней затихает,
+    # выпадает из топа — и запись замирает с последними известными
+    # числами. Карточка на орбите честно рисует прочерки, но чинить
+    # надо не отображение, а состав выборки: журнал заведён ровно для
+    # того, чтобы смотреть, чем кончилось.
+    #
+    # Стоимость ограничена сверху размером журнала: записи живут не
+    # дольше LEADERS_MAX_AGE_DAYS, и пересечение с топом велико —
+    # реальная добавка это единицы монет, а не сотня.
+    #
+    # Пара, а не голый символ: analyze_all распаковывает элементы
+    # списка как (символ, оборот).
+    have = {s for s, _ in picked}
+    extra = [
+        (s, vol_seen.get(s, 0.0))
+        for s in sorted(tracked_symbols())
+        if s not in have and s.endswith("USDT")
+    ]
+    if extra:
+        picked.extend(extra)
+        log(f"  → отбор: +{len(extra)} из журнала сверх лимита")
+
     stats["selected"] = len(picked)
+    stats["from_journal"] = len(extra)
 
     return picked, stats
 

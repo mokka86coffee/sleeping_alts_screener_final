@@ -378,11 +378,6 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
             "hot": bool(ratio >= LEAD_X1),
             "x": round(ratio),
             "st": st,
-            # Возраст записи в журнале. Его читает rate() при расчёте
-            # яркости, и без него ВСЕ звёзды получали одну и ту же
-            # прозрачность 0.43: rate возвращал null, темп подменялся
-            # серединой шкалы. Канал был мёртв с момента заведения.
-            "days": (round(ages[sym]) if ages[sym] is not None else 0),
             "lead": sym.upper() == lead_sym,
             "coin": (c.symbol if c is not None else ""),
             "up": round(float(raw.get("up_from_low") or 0)),
@@ -697,13 +692,7 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
     # орбита показывала PUMP ON над строкой «рынок замер» в брифинге.
     market = _orbit_market(candidates, snapshot, slices)
 
-    # CASE_RU уходит в данные, а не дублируется в скрипте. Имя подкейса
-    # уже названо один раз во flow_report и оттуда же попадает в чип
-    # карточки; второй список в JS разошёлся с первым сразу — легенда
-    # говорила «топливо сверху», карточка «путь свободен», и это про
-    # одну и ту же монету на одном экране.
-    blob = json.dumps({"nodes": nodes, "stars": stars, "market": market,
-                       "names": CASE_RU},
+    blob = json.dumps({"nodes": nodes, "stars": stars, "market": market},
                       ensure_ascii=False).replace("<", "\\u003c")
 
     # Тот же источник, что читает _head() для капсулы режима: см.
@@ -1326,11 +1315,8 @@ ORBIT_JS = """
          соседние подписи накладываются и обе становятся нечитаемыми. */
       var tooClose = false;
       for (var m = 0; m < PLACED.length; m++) {
-        if (Math.hypot(PLACED[m].x - x, PLACED[m].y - y) < 96) { tooClose = true; break; }
+        if (Math.hypot(PLACED[m].x - x, PLACED[m].y - y) < 78) { tooClose = true; break; }
       }
-      /* Порог расстояния поднят с 78 до 96 вместе с размером звезды:
-         прежний ставился под радиус 4.5, при 7.6 подписи снова
-         наезжают. Считается в tooClose выше по функции. */
       if (band > 0.18 && !inCard && !nearNode && !tooClose) {
         PLACED.push({ x: x, y: y });
         return { x: x, y: y };
@@ -1342,35 +1328,12 @@ ORBIT_JS = """
        не выстраиваются в лучи и кольца — сетка 6 в ряд выдавала себя
        мгновенно. Радиус берём заведомо снаружи кольца и зажимаем в
        границы поля. */
-    /* Запасная раскладка теперь тоже разводит соседей. Прежняя ставила
-       точку по золотому углу и возвращала её как есть — а попадали
-       сюда именно те звёзды, которым не нашлось места, то есть на
-       плотном поле их несколько, и ложились они друг на друга.
-       Спираль расширяется, пока не найдёт свободное место либо не
-       упрётся в потолок попыток. */
-    var fb = null;
-    for (var t = 0; t < 40; t++) {
-      var ga = (idx + t * 7) * 2.39996;
-      var fr = 1.22 + ((idx + t) % 3) * 0.16 + t * 0.03;
-      var cand = {
-        x: Math.min(SKY.x1, Math.max(SKY.x0, CX + Math.cos(ga) * RX * fr)),
-        y: Math.min(SKY.y1, Math.max(SKY.y0, CY + Math.sin(ga) * RY * 1.35 * fr))
-      };
-      var busy = false;
-      for (var u = 0; u < PLACED.length; u++) {
-        if (Math.hypot(PLACED[u].x - cand.x, PLACED[u].y - cand.y) < 84) {
-          busy = true; break;
-        }
-      }
-      if (!busy) { fb = cand; break; }
-    }
-    if (!fb) {
-      var gz = idx * 2.39996;
-      fb = {
-        x: Math.min(SKY.x1, Math.max(SKY.x0, CX + Math.cos(gz) * RX * 1.3)),
-        y: Math.min(SKY.y1, Math.max(SKY.y0, CY + Math.sin(gz) * RY * 1.35 * 1.3))
-      };
-    }
+    var ga = idx * 2.39996;
+    var fr = 1.22 + (idx % 3) * 0.16;
+    var fb = {
+      x: Math.min(SKY.x1, Math.max(SKY.x0, CX + Math.cos(ga) * RX * fr)),
+      y: Math.min(SKY.y1, Math.max(SKY.y0, CY + Math.sin(ga) * RY * 1.35 * fr))
+    };
     PLACED.push(fb);
     return fb;
   }
@@ -1562,9 +1525,7 @@ ORBIT_JS = """
             : '<span class="ob-sc-tag up">+' + (s.up || 0) + '% от дна · ' +
               (s.updays || 0) + ' дн</span>') +
         '</div>' +
-        '<span class="ob-sc-chip"><i class="ob-sc-dot" style="background:' +
-          stratOf(s).c + ';color:' + stratOf(s).c + '"></i>' +
-          (s.pattern || '—') + '</span>' +
+        '<span class="ob-sc-chip">' + (s.pattern || '—') + '</span>' +
         act(s) +
       '</div>' +
 
@@ -1620,24 +1581,19 @@ ORBIT_JS = """
      Стадия здесь выражена ТОЛЬКО цветом. Радиусом её выразить
      нельзя: starSpot запрещает полосу ±0.18 вокруг кольца, и на
      три пояса поля не хватает (см. шапку патча). */
-  /* Здесь только цвет и стадия. Имя приходит из CASE_RU через данные:
-     оно уже названо в одном месте и попадает в чип карточки, а второй
-     список рядом гарантированно разойдётся с первым. */
-  var NAMES = DATA.names || {};
   var STRAT = {
-    hidden:   { c: '#7FE3D4', stage: 0 },
-    spring:   { c: '#6FC9E8', stage: 0 },
-    churn:    { c: '#F0B85C', stage: 1 },
-    taker:    { c: '#FFD98A', stage: 1 },
-    leverage: { c: '#E89AB0', stage: 1 },
-    fuel:     { c: '#C4703A', stage: 2 }
+    hidden:   { c: '#7FE3D4', n: 'скрытый набор',  stage: 0 },
+    spring:   { c: '#6FC9E8', n: 'пружина',        stage: 0 },
+    churn:    { c: '#F0B85C', n: 'поглощение',     stage: 1 },
+    taker:    { c: '#FFD98A', n: 'агрессия',       stage: 1 },
+    leverage: { c: '#E89AB0', n: 'перекос плеча',  stage: 1 },
+    fuel:     { c: '#C4703A', n: 'топливо сверху', stage: 2 }
   };
-  function stratName(k) { return NAMES[k] || k; }
 
   /* Монета из журнала, выпавшая из текущей выборки и не имеющая
      entry_case. Серый, а не цвет какой-нибудь стратегии: неизвестное
      обязано выглядеть неизвестным, иначе оно читается как факт. */
-  var STRAT_NONE = { c: '#8D97A6', stage: -1 };
+  var STRAT_NONE = { c: '#8D97A6', n: 'фигура неизвестна', stage: -1 };
 
   var STAGE = [
     'у предполагаемого дна',
@@ -1688,48 +1644,26 @@ ORBIT_JS = """
     var keys = Object.keys(live);
     if (!keys.length) { host.style.display = 'none'; return; }
 
-    /* Шапка живёт всегда и в свёрнутом виде остаётся единственным,
-       что видно: ряд цветных точек. Когда открыта карточка монеты,
-       легенда мешает — но исчезать ей нельзя, иначе цвет звезды под
-       карточкой становится нечитаемым. Поэтому сворачивается, а не
-       прячется, и раскрывается наведением. */
-    var dots = keys.map(function (k) {
-      return '<i class="ob-leg-d" style="background:' + STRAT[k].c +
-             ';color:' + STRAT[k].c + '"></i>';
-    }).join('');
-    var html = '<div class="ob-leg-h"><span>стратегии</span>' +
-               '<span class="ob-leg-dots">' + dots + '</span></div>' +
-               '<div class="ob-leg-body">';
-
+    var html = '<div class="ob-leg-h">стратегии</div>';
     STAGE.forEach(function (title, i) {
       var inStage = keys.filter(function (k) { return STRAT[k].stage === i; });
       if (!inStage.length) return;
       html += '<div class="ob-leg-g"><div class="ob-leg-s">' + title + '</div>';
       inStage.forEach(function (k) {
-        /* Тикеры, а не счётчик. Сколько монет в стадии — видно по
-           самим звёздам; чего по ним не видно, так это КТО именно,
-           потому что подписи мелкие и разбросаны по всему полю. */
-        var syms = STARS.filter(function (s) { return s.st === k; })
-                        .map(function (s) { return s.t; });
+        var n = STARS.filter(function (s) { return s.st === k; }).length;
         html += '<div class="ob-leg-r">' +
           '<span class="ob-leg-d" style="background:' + STRAT[k].c +
           ';color:' + STRAT[k].c + '"></span>' +
-          '<span class="ob-leg-n">' + stratName(k) + '</span></div>' +
-          '<div class="ob-leg-c" style="color:' + STRAT[k].c + '">' +
-          syms.join(' · ') + '</div>';
+          '<span class="ob-leg-n">' + STRAT[k].n + '</span>' +
+          '<span class="ob-leg-x">' + n + '</span></div>';
       });
       html += '</div>';
     });
-    host.innerHTML = html + '</div>';
+    host.innerHTML = html;
   }
 
   function buildStars() {
     var host = document.getElementById('ob-stars');
-    /* Список занятых мест чистится при каждой сборке. Без этого
-       повторный рендер видел все прежние точки занятыми, перебор
-       упирался в лимит и уходил в запасную раскладку — где проверки
-       на соседей нет вовсе. */
-    PLACED.length = 0;
     Object.keys(STRAT).forEach(function (k) {
       tintGrad('ob-sg-' + k, STRAT[k].c, false);
       tintGrad('ob-sh-' + k, STRAT[k].c, true);
@@ -1745,12 +1679,7 @@ ORBIT_JS = """
       var f = s.f;                              // свежесть 0..1
       /* Диапазон сжат: было 4..15, стало 3..8. Разброс всё ещё читается,
          но свежая звезда больше не спорит по весу с узлом категории. */
-      /* Было 2.4..4.5 у обычной звезды. При поле 1000×563 это точка в
-         три пикселя с подписью в 5.7 — цвет на такой площади не
-         различается вовсе, а именно цвет теперь несёт стратегию.
-         Увеличено примерно вдвое; коллизии разводит starSpot, у
-         которого порог расстояния поднят тем же патчем. */
-      var r = (s.lead ? 6.2 : 4.2) + f * 3.4;
+      var r = (s.lead ? 4 : 2.4) + f * 2.1;
             /* Яркость отдана темпу, а не свежести: свежесть уже несёт размер,
                дублировать её в яркости — терять канал впустую. Звезда, которая
                быстро набирает %, должна светить ярче звезды, которая столько
@@ -1761,13 +1690,7 @@ ORBIT_JS = """
             var RATE_REF = 20;
             var rt = rate(s);
             var rateNorm = rt === null ? 0.5 : Math.max(0, Math.min(1, rt / RATE_REF));
-            /* Нижняя граница поднята с 0.18 до 0.46. Прежняя ставилась
-               в расчёте на живой темп, но rate() читал s.days, которого
-               в звезде не было — величина всегда возвращала null, и
-               ВСЕ звёзды садились на 0.43. Теперь days приходит, темп
-               считается, и пол нужен другой: даже самая медленная
-               звезда обязана читаться цветом. */
-            var op = 0.46 + rateNorm * 0.42;
+            var op = 0.18 + rateNorm * 0.5;
 
       var g = el('g', { class: 'ob-star' + (s.new ? ' fresh' : '') });
       if (s.coin) g.dataset.coin = s.coin;      // клик откроет карточку монеты
