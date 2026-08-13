@@ -325,17 +325,6 @@ def _context_dict(ctx: FlowContext, hz: dict) -> dict:
             "net": round(ctx.flow.net, 2),
             "accumulating": ctx.flow.accumulating,
             "distributing": ctx.flow.distributing,
-            # Наклон дельты и вывод из него.
-            #
-            # Обе величины вместе намеренно: collapsing — это
-            # delta_slope, сравнённый с DELTA_COLLAPSE_SLOPE, и по
-            # булеву не видно, монета далеко за порогом или стоит на
-            # нём. Пока поля не было, разброс приходилось собирать из
-            # текстов причин отказа — а они есть только у тех, кто
-            # отказал, то есть выборка обрезана сверху.
-            "delta_slope": round(ctx.flow.delta_slope, 5),
-            "collapsing": ctx.flow.collapsing,
-            "buy_share": round(ctx.flow.buy_share, 4),
         },
         "vortex": {
             "scale": ctx.vortex.scale,
@@ -350,15 +339,6 @@ def _context_dict(ctx: FlowContext, hz: dict) -> dict:
             "drop_pct": round(ctx.drop.drop_pct * 100, 1),
             "bars_since_bottom": ctx.drop.bars_since_bottom,
             "distrust_zones": ctx.drop.distrust_zones,
-            # growth_x и peak_age_days читает fuel, наружу не отдавал
-            # никто. Окно DropContext — 240 дней против 14 у журнала
-            # лидеров, и признак «первый разгон после ЭТОГО падения»
-            # выводится отсюда. Формула не выбрана, разброс нужен
-            # раньше выбора.
-            "growth_x": round(ctx.drop.growth_x, 2),
-            "peak_age_days": ctx.drop.peak_age_days,
-            "deep": ctx.drop.deep,
-            "fresh": ctx.drop.fresh,
         },
         "rel_vol": round(ctx.rel_vol, 2),
         "atr_share": round(ctx.atr_share, 4),
@@ -599,5 +579,4 @@ def detect_flow(
         ],
         context=ctx_dict,
         failures=failures,
-        rejects=rejects,
     )
