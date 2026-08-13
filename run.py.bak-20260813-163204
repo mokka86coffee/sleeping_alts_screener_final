@@ -46,18 +46,11 @@ from sources.storage import compare_with_previous, save_snapshot, write_atomic
 # ─────────────────────────────────────────────────────────────
 # Отбор символов
 # ─────────────────────────────────────────────────────────────
-def select_symbols(
-    limit: int = MAX_SYMBOLS,
-    with_journal: bool = True,
-) -> tuple[list[tuple[str, float]], dict]:
+def select_symbols(limit: int = MAX_SYMBOLS) -> tuple[list[tuple[str, float]], dict]:
     """Отбирает USDT-перпы по обороту.
 
     Возвращает список пар (символ, оборот) и статистику отсева
     для первого узла воронки.
-
-    with_journal управляет добавкой монет журнала сверх лимита.
-    Отдельным флагом, а не сравнением limit с MAX_SYMBOLS внутри:
-    сравнение угадывало бы намерение вызывающего, а решает его он.
     """
     tickers = get_futures_tickers()
     # Обороты всех USDT-пар, включая отсеянные. Нужен для добавки
@@ -130,21 +123,16 @@ def select_symbols(
     # Пара, а не голый символ: analyze_all распаковывает элементы
     # списка как (символ, оборот).
     have = {s for s, _ in picked}
-    extra: list[tuple[str, float]] = []
-    if with_journal:
-        extra = [
-            (s, vol_seen.get(s, 0.0))
-            for s in sorted(tracked_symbols())
-            if s not in have and s.endswith("USDT")
-        ]
+    extra = [
+        (s, vol_seen.get(s, 0.0))
+        for s in sorted(tracked_symbols())
+        if s not in have and s.endswith("USDT")
+    ]
     if extra:
         picked.extend(extra)
         log(f"  → отбор: +{len(extra)} из журнала сверх лимита")
 
     stats["selected"] = len(picked)
-    # Сколько монет пришло из журнала сверх лимита. Отдельным числом:
-    # в «отобрано N» они неотличимы от прошедших по обороту, и рост
-    # выборки выглядел бы как оживление рынка.
     stats["from_journal"] = len(extra)
 
     return picked, stats
@@ -531,13 +519,7 @@ def run_once(args: argparse.Namespace) -> int:
         log(f"→ Явно заданы {len(symbols)} монет")
     else:
         log("→ Загружаю тикеры Binance Futures")
-        # Журнал добавляется только на полном прогоне. Явный --limit
-        # в докстроке файла описан как «только N монет, для отладки»,
-        # то есть означает «столько и ни одной больше» — добавка
-        # сверх него превращала прогон на одной монете в сотню.
-        symbols, select_stats = select_symbols(
-            args.limit, with_journal=(args.limit >= MAX_SYMBOLS),
-        )
+        symbols, select_stats = select_symbols(args.limit)
         if not symbols:
             log("✗ Не удалось получить тикеры")
             return 1
