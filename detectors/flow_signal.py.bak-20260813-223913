@@ -56,18 +56,6 @@ class SubcaseSignal:
     # непонятно, слабая фигура или сильная, но зарезанная.
     base_score: float = 0.0
 
-    # Фигура собралась, но описывает уже состоявшееся движение.
-    #
-    # Отдельный признак, а не множитель и не вето. Множитель уже был
-    # и не помогал: он снимает проценты, а проблема не в величине
-    # вклада — сигнал верен. Вето тоже неправильно: выбросив его, мы
-    # потеряли бы верное наблюдение о том, что предложение снято.
-    #
-    # Ложно ровно одно утверждение — что такой фигурой стоит
-    # ПРЕДСТАВЛЯТЬ монету. Поэтому признак влияет только на выбор
-    # победителя в диспетчере и больше ни на что.
-    late: bool = False
-
     def __post_init__(self) -> None:
         self.score = max(0.0, min(100.0, float(self.score)))
         self.horizon_bars = max(1, int(self.horizon_bars))
@@ -117,7 +105,6 @@ class SubcaseSignal:
             "score": round(self.score, 1),
             "base_score": round(self.base_score, 1),
             "cut": round(self.cut, 3),
-            "late": self.late,
             "horizon_bars": self.horizon_bars,
             "zone_price": self.zone_price,
             "reasons": list(self.reasons),

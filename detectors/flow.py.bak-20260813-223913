@@ -547,19 +547,8 @@ def detect_flow(
     # Двухпроходный выбор — необходимость, а не стиль: отношение
     # предпочтения не транзитивно, и однопроходный цикл сделал бы
     # исход зависимым от порядка модулей в _RUNNERS.
-    # Поздние фигуры не участвуют в выборе, пока есть хоть одна не
-    # поздняя. Отсечка стоит ДО расчёта top_score намеренно: иначе
-    # поздний лидер задирал бы планку и утаскивал за собой окно
-    # TIE_MARGIN, оставляя ранние фигуры за его пределами.
-    #
-    # Если поздние все — выбираем из них, ничего не пряча. Фигура
-    # верна, монета просто уже поехала, и это надо показать, а не
-    # заменить пустотой.
-    early = [(n, s) for n, s in results if not getattr(s, "late", False)]
-    pool = early or results
-
-    top_score = max(s.score for _, s in pool)
-    contenders = [(n, s) for n, s in pool if s.score >= top_score - TIE_MARGIN]
+    top_score = max(s.score for _, s in results)
+    contenders = [(n, s) for n, s in results if s.score >= top_score - TIE_MARGIN]
     best_name, best_sig = max(
         contenders,
         key=lambda x: (CASE_PRIORITY.get(x[0], 0), x[1].score),
@@ -569,9 +558,6 @@ def detect_flow(
 
     # ── Подтверждение вторым подкейсом ───────────────────────
     confirmed_by = ""
-    # Подтверждать победителя поздняя фигура вправе: «предложение
-    # снято» остаётся верным доводом рядом с фигурой входа. Здесь
-    # берётся весь results, а не pool.
     others = [
         (n, s) for n, s in results
         if n != best_name and s.score >= CONFIRM_MIN_RAW
