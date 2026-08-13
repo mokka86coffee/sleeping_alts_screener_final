@@ -91,26 +91,7 @@ def _funding_state(symbol: str) -> dict | None:
      if len(rates) < 6:
          return None
 
-     # Интервал выплат берём из самих данных, а не из допущения.
-     # У части контрактов он четырёхчасовой, и на них зашитые восемь
-     # часов занижают APR ровно вдвое — то есть настоящий перекос
-     # читается как средний и не проходит ступени скора.
-     # Медиана, а не разность крайних: в истории бывают пропуски и
-     # смена интервала биржей, и одна дыра сдвинула бы оценку.
-     times = []
-     for item in raw:
-         try:
-             times.append(float(item["fundingTime"]))
-         except (KeyError, TypeError, ValueError):
-             continue
-     gaps = [
-         (times[i] - times[i - 1]) / 3_600_000.0
-         for i in range(1, len(times))
-         if times[i] > times[i - 1]
-     ]
-     interval_h = _median(gaps) if len(gaps) >= 3 else 8.0
-
-     aprs = [_to_apr(r, interval_h) for r in rates]
+     aprs = [_to_apr(r) for r in rates]
      neg = sum(1 for a in aprs if a < 0)
 
      return {

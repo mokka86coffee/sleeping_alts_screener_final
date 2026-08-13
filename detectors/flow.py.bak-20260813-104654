@@ -43,7 +43,11 @@ import detectors.flow_fuel as flow_fuel
 import detectors.flow_churn as flow_churn
 import detectors.flow_spring as flow_spring
 import detectors.flow_taker as flow_taker
-import detectors.flow_leverage as flow_leverage
+#
+# Остальные подкейсы временно отключены: они писались под другой
+# набор имён в flow_config и валят импорт всего пакета. Возвращаем
+# по одному, по мере сверки констант.
+# import detectors.flow_leverage as flow_leverage
 
 # Нижняя точка шкалы семейства. Согласована со scoring.py:
 # отображение 45..100 → 14..34, ниже 45 даёт отрицательный вклад.
@@ -61,7 +65,7 @@ _RUNNERS = (
     flow_churn,
     flow_spring,
     flow_taker,
-    flow_leverage,
+#     flow_leverage,
 )
 
 NETWORK_CASES = frozenset({"flow_leverage"})
@@ -138,16 +142,7 @@ class FlowSignal:
     verdict: str = ""
     parts: list[dict] = field(default_factory=list)
     context: dict = field(default_factory=dict)
-    # Подкейс упал: исключение, имя → тип и текст.
     failures: dict = field(default_factory=dict)
-    # Подкейс отказался: фигура не собралась, имя → причина.
-    #
-    # Отдельно от failures намеренно. «Упал» и «посмотрел и не нашёл» —
-    # разные состояния, и складывать их в одно поле значит повторить
-    # ровно ту ошибку, против которой заведён раздел 0: неизвестное
-    # начинает выглядеть как проверенное. Пока hidden падал на каждом
-    # отказе, различить их было нельзя вообще.
-    rejects: dict = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.cases is None:
@@ -499,10 +494,6 @@ def detect_flow(
 
         results.append((sig.subcase, sig))
 
-    # Причины отказов накопились в контексте: он один на монету и
-    # переживает всех подкейсов, в отличие от их возвращаемых значений.
-    rejects = dict(ctx.notes)
-
     cases = {
         name: {
             "score": round(sig.score, 1),
@@ -520,7 +511,6 @@ def detect_flow(
             cases={},
             context=ctx_dict,
             failures=failures,
-            rejects=rejects,
         )
 
     # ── Победитель ───────────────────────────────────────────
