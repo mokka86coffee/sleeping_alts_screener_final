@@ -22,7 +22,7 @@ from collections import Counter
 from datetime import datetime
 
 from core.binance import drop_symbol_cache, get_futures_tickers
-from detectors.flow import MIN_RAW_SCORE, detect_flow
+from detectors.flow import detect_flow
 
 MIN_QUOTE_VOLUME = 5_000_000  # ниже этого монета неторгуема, шум в статистике
 
@@ -102,8 +102,25 @@ FIELDS = [
     "horizon_days", "horizon_tf",
     *CASES,
     "zone_price", "events", "zones", "zones_conf",
-    "vortex_scale", "vortex_spread",
-    "collapsing", "growth_x", "failures", "error",
+    # Форма вортекса. Прежняя колонка vortex_spread читала поле,
+    # которого в срезе нет: «спред» описывал трактовку до правки Э-2,
+    # когда форма читалась мгновенным разрывом линий. Сейчас
+    # _read_vortex читает затухание пиков, и его результат — это
+    # направление и сила.
+    "vortex_scale", "vortex_dir", "vortex_str",
+    # delta_slope рядом с collapsing, а не вместо него: collapsing —
+    # это delta_slope, сравнённый с DELTA_COLLAPSE_SLOPE, и по одному
+    # булеву не видно, монета далеко за порогом или стоит на нём. При
+    # калибровке нужен разброс, а не вердикт. Эта же величина —
+    # единственная, по которой проверяется HIDDEN_DELTA_SLOPE_MIN.
+    "collapsing", "delta_slope", "buy_share",
+    # Поля DropContext. Окно у него 240 дней против 14 у журнала
+    # лидеров, и именно отсюда выводится признак «первый разгон после
+    # ЭТОГО падения» — прежде чем выбирать формулу, нужен разброс.
+    "growth_x", "peak_age", "drop_pct",
+    # Падения и отказы — разные колонки. «Упал» и «посмотрел, фигура
+    # не собралась» неразличимы, если складывать их в одно поле.
+    "failures", "rejects", "error",
 ]
 
 
@@ -147,6 +164,42 @@ def _stats(values: list[float]) -> str:
     )
 
 
+def _spread(values: list[float]) -> str:
+    """Разброс непрерывной величины: края, медиана, квартили.
+
+    Отдельно от _stats: та считает по ненулевым и предназначена для
+    скоров, где ноль означает «не сработал». Здесь ноль — законное
+    значение, и отбрасывать его нельзя. Нужна для калибровки порогов
+    вроде HIDDEN_DELTA_SLOPE_MIN, где решает именно форма
+    распределения, а не число попаданий.
+    """
+    live = sorted(v for v in values if v is not None)
+    if len(live) < 4:
+        return "мало данных"
+    n = len(live)
+    return (
+        f"n {n:3d}  мин {live[0]:8.4f}  q25 {live[n // 4]:8.4f}  "
+        f"медиана {live[n // 2]:8.4f}  q75 {live[3 * n // 4]:8.4f}  "
+        f"макс {live[-1]:8.4f}"
+    )
+
+
+def _numeric(rows: list[dict], key: str) -> list[float]:
+    """Колонка как числа. Пустые ячейки пропускаются, а не нулятся:
+    отсутствие замера и замер, равный нулю, — разные вещи.
+    """
+    out: list[float] = []
+    for r in rows:
+        v = r.get(key, "")
+        if v == "" or v is None:
+            continue
+        try:
+            out.append(float(v))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
 def main() -> None:
     allow_network = "--no-net" not in sys.argv
     skip_tokenized = "--with-tokenized" not in sys.argv
@@ -167,6 +220,10 @@ def main() -> None:
     deep: list[dict] = []
     fail_counter: Counter[str] = Counter()
     fail_samples: dict[str, str] = {}
+    # Причины отказов копятся живым счётчиком, а не разбором CSV
+    # обратно: в файле они лежат склеенной строкой, и парсить
+    # собственный вывод ради сводки — лишний способ ошибиться.
+    reject_counter: Counter[tuple[str, str]] = Counter()
     started = time.time()
 
     for i, (symbol, qv) in enumerate(symbols, 1):
@@ -187,6 +244,9 @@ def main() -> None:
             drop = ctx.get("drop") or {}
             vortex = ctx.get("vortex") or {}
             fails = d.get("failures") or {}
+            # Пусто до применения патча ctx.reject — колонка просто
+            # останется незаполненной, прогон от этого не падает.
+            rejs = d.get("rejects") or {}
 
             row.update(
                 detected=int(bool(d.get("detected"))),
@@ -199,11 +259,22 @@ def main() -> None:
                 zones=len(ctx.get("zones") or []),
                 zones_conf=ctx.get("zones_confirmed", 0),
                 vortex_scale=vortex.get("scale", ""),
-                vortex_spread=vortex.get("spread", ""),
+                vortex_dir=vortex.get("direction", ""),
+                vortex_str=vortex.get("strength", ""),
                 collapsing=int(bool(flow.get("collapsing"))),
+                delta_slope=flow.get("delta_slope", ""),
+                buy_share=flow.get("buy_share", ""),
                 growth_x=drop.get("growth_x", ""),
+                peak_age=drop.get("peak_age_days", ""),
+                drop_pct=drop.get("drop_pct", ""),
                 zone_price=(parts[0].get("zone_price") if parts else ""),
                 failures=";".join(sorted(fails)),
+                # В файл идёт текст причины, а не только имя подкейса:
+                # CSV — это то, к чему возвращаются через неделю, и
+                # имя без причины там бесполезно.
+                rejects=" | ".join(
+                    f"{mod}={text}" for mod, text in sorted(rejs.items())
+                ),
             )
             for c in CASES:
                 row[c] = _case_score(cases, c)
@@ -211,6 +282,9 @@ def main() -> None:
             for mod, text in fails.items():
                 fail_counter[mod] += 1
                 fail_samples.setdefault(mod, text)
+
+            for mod, text in rejs.items():
+                reject_counter[(mod, text)] += 1
 
             if (d.get("detected") or symbol in WATCH) and len(deep) < DEEP_DUMP_LIMIT:
                 deep.append(d)
@@ -288,6 +362,20 @@ def main() -> None:
         vals = [r[c] for r in ok if isinstance(r[c], (int, float))]
         print(f"  {c:9s} {_stats(vals)}")
 
+    # ── Разброс контекстных величин ──
+    # Пороги семейства задаются в этих единицах, и ставить их без
+    # распределения — это история churn: порог выше рыночного
+    # максимума, ноль срабатываний, калибровать не на чем.
+    print("\nРазброс величин, по которым стоят пороги:")
+    for key, label in (
+        ("delta_slope", "delta_slope"),
+        ("buy_share", "buy_share "),
+        ("growth_x", "growth_x  "),
+        ("peak_age", "peak_age  "),
+        ("drop_pct", "drop_pct  "),
+    ):
+        print(f"  {label} {_spread(_numeric(ok, key))}")
+
     # ── Тихие падения ──
     # Подкейс, который ни разу не сработал, может быть либо честно
     # молчащим, либо сломанным. Различить можно только здесь:
@@ -307,15 +395,30 @@ def main() -> None:
     if silent:
         print(f"Ни разу не собрались: {', '.join(silent)}")
 
-    # ── Недобор ──
-    near = [
-        r for r in ok
-        if r["detected"] == 0 and r["score"] >= MIN_RAW_SCORE - 10
-    ]
-    print(f"\nНедобрали до порога в пределах 10 баллов: {len(near)}")
-    for r in sorted(near, key=lambda x: -x["score"])[:15]:
-        parts = " ".join(f"{c[0]}{r[c]:5.1f}" for c in CASES)
-        print(f"  {r['symbol']:14s} {r['score']:3d}  {parts}")
+    # ── На чём выходят подкейсы ──
+    # Заменяет прежний раздел «недобор». Тот сравнивал скор семейства
+    # с порогом, но у несработавшей монеты скор всегда ровно ноль:
+    # у detect_flow нет ветки «фигура собралась, но слабая» — есть
+    # либо результат, либо пустота. Порог не достигался никогда, и
+    # раздел печатал ноль при любом состоянии рынка.
+    #
+    # Причина отказа — единственное, что отличает «подкейс посмотрел и
+    # не нашёл» от «подкейс не работает». Группируем по тексту, а не
+    # по монете: калибруется порог, а не отдельная монета.
+    if reject_counter:
+        print("\n" + "─" * 52)
+        print("На какой проверке выходят подкейсы")
+        for c in CASES:
+            group = [
+                (text, n) for (mod, text), n in reject_counter.items()
+                if mod == f"flow_{c}" or mod == c
+            ]
+            if not group:
+                continue
+            group.sort(key=lambda x: -x[1])
+            print(f"\n  {c}")
+            for text, n in group[:6]:
+                print(f"    {n:4d}  {text}")
 
     # ── Наблюдаемые ──
     # Монеты из WATCH, которые не сработали. Их разбор лежит в JSON,
