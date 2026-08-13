@@ -9,12 +9,14 @@
     python flow_probe.py --no-net     без funding и OI, быстрее
     python flow_probe.py --limit 50   первые 50 монет по обороту
     python flow_probe.py --with-tokenized   не отсеивать акции и сырьё
+    python flow_probe.py --with-excluded    не отсеивать мажоры
 """
 
 from __future__ import annotations
 
 import csv
 import json
+import re
 import sys
 import time
 import traceback
@@ -22,9 +24,17 @@ from collections import Counter
 from datetime import datetime
 
 from core.binance import drop_symbol_cache, get_futures_tickers
+from core.config import EXCLUDE_TOKENS, MAX_SYMBOLS, MIN_QUOTE_VOLUME_24H
 from detectors.flow import detect_flow
 
-MIN_QUOTE_VOLUME = 5_000_000  # ниже этого монета неторгуема, шум в статистике
+# Границы выборки берутся из core.config, а не задаются здесь.
+#
+# Своя константа расходилась с боевой молча: проба мерила популяцию,
+# которой в проде нет. В срезе 13 августа среди 169 монет оказались
+# все одиннадцать MAJOR_TOKENS — BTC, ETH, SOL, BNB и прочие. У них
+# длинная история, живая норма объёма и много зон, то есть они тянут
+# распределения ровно в обратную от спящих альтов сторону, а пороги
+# калибруются по этим распределениям.
 
 # Сколько монет сохранить с полным контекстом.
 #
@@ -124,12 +134,27 @@ FIELDS = [
 ]
 
 
-def load_universe(limit: int = 0, skip_tokenized: bool = True) -> list[tuple[str, float]]:
-    """Символы с объёмом, отсортированные по убыванию ликвидности."""
+def load_universe(
+    limit: int = 0,
+    skip_tokenized: bool = True,
+    skip_excluded: bool = True,
+) -> list[tuple[str, float]]:
+    """Символы с объёмом, отсортированные по убыванию ликвидности.
+
+    Отсев двухступенчатый и ступени разные по смыслу. EXCLUDE_TOKENS
+    из core.config режет по БАЗОВОМУ токену и повторяет боевую
+    выборку: стейблы, мажоры, акции, сырьё. NON_CRYPTO режет по
+    полному символу и добирает то, чего в конфиге нет.
+
+    Потолок MAX_SYMBOLS тоже общий с боевым: без него проба могла
+    бы мерить хвост, до которого скринер не доходит.
+    """
     out: list[tuple[str, float]] = []
     for t in get_futures_tickers():
         sym = t.get("symbol", "")
         if not sym.endswith("USDT"):
+            continue
+        if skip_excluded and sym[:-4] in EXCLUDE_TOKENS:
             continue
         if skip_tokenized and sym in NON_CRYPTO:
             continue
@@ -137,10 +162,11 @@ def load_universe(limit: int = 0, skip_tokenized: bool = True) -> list[tuple[str
             qv = float(t.get("quoteVolume", 0))
         except (TypeError, ValueError):
             continue
-        if qv >= MIN_QUOTE_VOLUME:
+        if qv >= MIN_QUOTE_VOLUME_24H:
             out.append((sym, qv))
     out.sort(key=lambda x: -x[1])
-    return out[:limit] if limit else out
+    cap = limit or MAX_SYMBOLS
+    return out[:cap]
 
 
 def _case_score(cases: dict, short: str) -> float:
@@ -184,6 +210,41 @@ def _spread(values: list[float]) -> str:
     )
 
 
+# Числа внутри текста причины. Первый вариант ловит разряды через
+# запятую («оборот 3,000,000»), второй — обычные и дробные.
+RE_NUM = re.compile(r"-?\d{1,3}(?:,\d{3})+(?:\.\d+)?|-?\d+(?:\.\d+)?")
+
+
+def _reason_shape(text: str) -> tuple[str, list[float]]:
+    """Причина без чисел плюс сами числа.
+
+    Тексты причин содержат замеренные величины, поэтому по полному
+    тексту почти каждая строка уникальна: в срезе 13 августа вышло
+    152 «разных» причины при десяти настоящих, и сводка показывала
+    шум вместо картины.
+
+    Числа не выбрасываются, а возвращаются отдельно: разброс замеров
+    внутри одной причины — это ровно та величина, по которой ставится
+    порог, и другого способа её увидеть у нас нет.
+    """
+    nums: list[float] = []
+    for m in RE_NUM.finditer(text):
+        try:
+            nums.append(float(m.group().replace(",", "")))
+        except ValueError:
+            continue
+    return RE_NUM.sub("N", text), nums
+
+
+def _slot_line(values: list[float]) -> str:
+    """Разброс одного числового слота причины."""
+    live = sorted(values)
+    lo, hi = live[0], live[-1]
+    if lo == hi:
+        return f"= {lo:g}"
+    return f"{lo:.4g} … {hi:.4g}   медиана {live[len(live) // 2]:.4g}"
+
+
 def _numeric(rows: list[dict], key: str) -> list[float]:
     """Колонка как числа. Пустые ячейки пропускаются, а не нулятся:
     отсутствие замера и замер, равный нулю, — разные вещи.
@@ -203,6 +264,7 @@ def _numeric(rows: list[dict], key: str) -> list[float]:
 def main() -> None:
     allow_network = "--no-net" not in sys.argv
     skip_tokenized = "--with-tokenized" not in sys.argv
+    skip_excluded = "--with-excluded" not in sys.argv
     limit = 0
     if "--limit" in sys.argv:
         try:
@@ -210,9 +272,13 @@ def main() -> None:
         except (IndexError, ValueError):
             limit = 0
 
-    symbols = load_universe(limit, skip_tokenized=skip_tokenized)
+    symbols = load_universe(
+        limit, skip_tokenized=skip_tokenized, skip_excluded=skip_excluded,
+    )
     net = "включена" if allow_network else "выключена"
-    filt = "крипта" if skip_tokenized else "всё, включая акции и сырьё"
+    filt = "как в боевом прогоне" if skip_excluded else "включая мажоры"
+    if not skip_tokenized:
+        filt += ", с акциями и сырьём"
     print(f"Монет к прогону: {len(symbols)}, сеть для leverage: {net}")
     print(f"Состав выборки: {filt}")
 
@@ -224,6 +290,7 @@ def main() -> None:
     # обратно: в файле они лежат склеенной строкой, и парсить
     # собственный вывод ради сводки — лишний способ ошибиться.
     reject_counter: Counter[tuple[str, str]] = Counter()
+    reject_nums: dict[tuple[str, str], list[list[float]]] = {}
     started = time.time()
 
     for i, (symbol, qv) in enumerate(symbols, 1):
@@ -284,7 +351,14 @@ def main() -> None:
                 fail_samples.setdefault(mod, text)
 
             for mod, text in rejs.items():
-                reject_counter[(mod, text)] += 1
+                shape, nums = _reason_shape(text)
+                key = (mod, shape)
+                reject_counter[key] += 1
+                slots = reject_nums.setdefault(key, [])
+                for i, v in enumerate(nums):
+                    while len(slots) <= i:
+                        slots.append([])
+                    slots[i].append(v)
 
             if (d.get("detected") or symbol in WATCH) and len(deep) < DEEP_DUMP_LIMIT:
                 deep.append(d)
@@ -410,15 +484,22 @@ def main() -> None:
         print("На какой проверке выходят подкейсы")
         for c in CASES:
             group = [
-                (text, n) for (mod, text), n in reject_counter.items()
-                if mod == f"flow_{c}" or mod == c
+                (shape, n, mod) for (mod, shape), n in reject_counter.items()
+                if mod in (f"flow_{c}", c)
             ]
             if not group:
                 continue
             group.sort(key=lambda x: -x[1])
             print(f"\n  {c}")
-            for text, n in group[:6]:
-                print(f"    {n:4d}  {text}")
+            for shape, n, mod in group:
+                print(f"    {n:4d}  {shape}")
+                # Разброс печатается только по слотам, которые
+                # меняются: постоянный слот — это порог, он и так
+                # виден в конфиге, а меняющийся — замер, ради
+                # которого прогон и делается.
+                for i, vals in enumerate(reject_nums.get((mod, shape), []), 1):
+                    if vals and min(vals) != max(vals):
+                        print(f"          N{i}  {_slot_line(vals)}")
 
     # ── Наблюдаемые ──
     # Монеты из WATCH, которые не сработали. Их разбор лежит в JSON,

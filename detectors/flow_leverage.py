@@ -2,8 +2,8 @@
 
 Фигура: шорты перегружены. Фандинг устойчиво отрицательный, открытый
 интерес растёт, цена стоит. Позиция набрана против движения, которого
-нет, и держать её стоит денег — каждые восемь часов шорты платят
-лонгам за право оставаться в позиции.
+нет, и держать её стоит денег — каждый интервал шорты платят лонгам
+за право оставаться в позиции.
 
 Такая конструкция сама себе топливо. Ей не нужен покупатель: хватит
 отсутствия продавца, чтобы вынести стопы, а вынесенные стопы — это
@@ -12,13 +12,18 @@
 
 Отличие от detect_squeeze: там перегрев ЛОНГОВ и охота за ними,
 положительный экстремальный фандинг. Здесь зеркальная сторона —
-перегруженность шортов. Пересечения нет по знаку, и это проверяется
-явно: при фандинге выше LEV_FUNDING_HOT_APR подкейс молчит, потому
-что территория чужая.
+перегруженность шортов.
 
 Единственный модуль семейства, который ходит в сеть сверх дневок.
 Поэтому он ленивый: без сработавшего дневного ядра запросы не
 делаются вовсе — detected всё равно был бы ложью.
+
+Каждый отказ проходит через ctx.reject(): возврат остаётся None, но
+причина попадает в ctx.notes и дальше в rejects сигнала. Прежде
+подкейс выходил голым return None, и в прогоне 13 августа это дало
+ноль срабатываний при нуле объяснений — отличить «пороги не пустили»
+от «вышел на первом же гейте» было нечем, а пороги LEV_* при этом
+никогда не калибровались и стоят наугад.
 """
 
 from __future__ import annotations
@@ -67,101 +72,112 @@ def _to_apr(rate: float, interval_hours: float = 8.0) -> float:
     return rate * (24.0 / interval_hours) * 365.0 * 100.0
 
 
+def _funding_interval(raw: list[dict]) -> float:
+    """Интервал выплат в часах, выведенный из самих данных.
+
+    Восемь часов — не константа биржи, а частый случай: у части
+    контрактов интервал четырёхчасовой, и на них зашитая восьмёрка
+    занижает APR ровно вдвое. Настоящий перекос −40% читается как
+    −20% и не проходит ступень LEV_FUNDING_EXTREME_APR.
+
+    Медиана, а не разность крайних: в истории бывают пропуски и
+    смена интервала биржей, и одна дыра сдвинула бы оценку.
+    """
+    times: list[float] = []
+    for item in raw:
+        try:
+            times.append(float(item["fundingTime"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+
+    gaps = [
+        (times[i] - times[i - 1]) / 3_600_000.0
+        for i in range(1, len(times))
+        if times[i] > times[i - 1]
+    ]
+    return _median(gaps) if len(gaps) >= 3 else 8.0
+
+
 def _funding_state(symbol: str) -> dict | None:
-     """Состояние фандинга за доступную историю.
+    """Состояние фандинга за доступную историю.
 
-     Возвращает медианный APR, долю отрицательных интервалов и
-     минимум — либо None, если данных нет.
-     """
-     limit = int(LEV_HISTORY_DAYS * LEV_FUNDING_PER_DAY)
-     try:
-         raw = get_funding_history(symbol, limit=limit)
-     except Exception:
-         return None
-     if not raw or len(raw) < 6:
-         return None
+    Возвращает медианный APR, долю отрицательных интервалов и
+    минимум — либо None, если данных нет.
+    """
+    limit = int(LEV_HISTORY_DAYS * LEV_FUNDING_PER_DAY)
+    try:
+        raw = get_funding_history(symbol, limit=limit)
+    except Exception:
+        return None
+    if not raw or len(raw) < 6:
+        return None
 
-     rates: list[float] = []
-     for item in raw:
-         try:
-             rates.append(float(item["fundingRate"]))
-         except (KeyError, TypeError, ValueError):
-             continue
+    rates: list[float] = []
+    for item in raw:
+        try:
+            rates.append(float(item["fundingRate"]))
+        except (KeyError, TypeError, ValueError):
+            continue
 
-     if len(rates) < 6:
-         return None
+    if len(rates) < 6:
+        return None
 
-     # Интервал выплат берём из самих данных, а не из допущения.
-     # У части контрактов он четырёхчасовой, и на них зашитые восемь
-     # часов занижают APR ровно вдвое — то есть настоящий перекос
-     # читается как средний и не проходит ступени скора.
-     # Медиана, а не разность крайних: в истории бывают пропуски и
-     # смена интервала биржей, и одна дыра сдвинула бы оценку.
-     times = []
-     for item in raw:
-         try:
-             times.append(float(item["fundingTime"]))
-         except (KeyError, TypeError, ValueError):
-             continue
-     gaps = [
-         (times[i] - times[i - 1]) / 3_600_000.0
-         for i in range(1, len(times))
-         if times[i] > times[i - 1]
-     ]
-     interval_h = _median(gaps) if len(gaps) >= 3 else 8.0
+    interval_h = _funding_interval(raw)
+    aprs = [_to_apr(r, interval_h) for r in rates]
+    neg = sum(1 for a in aprs if a < 0)
 
-     aprs = [_to_apr(r, interval_h) for r in rates]
-     neg = sum(1 for a in aprs if a < 0)
-
-     return {
-         "median_apr": _median(aprs),
-         "min_apr": min(aprs),
-         "last_apr": aprs[-1],
-         "neg_share": neg / len(aprs),
-         "samples": float(len(aprs)),
-         "slope": _slope(aprs),
-     }
+    return {
+        "median_apr": _median(aprs),
+        "min_apr": min(aprs),
+        "last_apr": aprs[-1],
+        "neg_share": neg / len(aprs),
+        "samples": float(len(aprs)),
+        "slope": _slope(aprs),
+        # Наружу — чтобы величина была видна в фактах сигнала, а не
+        # влияла на все пороги молча.
+        "interval_h": interval_h,
+    }
 
 
 def _oi_state(symbol: str) -> dict | None:
-     """Динамика открытого интереса в долларах.
+    """Динамика открытого интереса в долларах.
 
-     Берём именно долларовую величину, а не количество контрактов:
-     при движении цены счёт контрактов растёт и падает сам по себе,
-     и рост OI в штуках может означать сокращение позиции в деньгах.
+    Берём именно долларовую величину, а не количество контрактов:
+    при движении цены счёт контрактов растёт и падает сам по себе,
+    и рост OI в штуках может означать сокращение позиции в деньгах.
 
-     История доступна только за 30 дней — жёсткий потолок Binance,
-     поэтому окно сравнения короткое по построению.
-     """
-     try:
-         raw = get_oi_history(symbol, period="1d", limit=30)
-     except Exception:
-         return None
-     if not raw or len(raw) < LEV_OI_WINDOW:
-         return None
+    История доступна только за 30 дней — жёсткий потолок Binance,
+    поэтому окно сравнения короткое по построению.
+    """
+    try:
+        raw = get_oi_history(symbol, period="1d", limit=30)
+    except Exception:
+        return None
+    if not raw or len(raw) < LEV_OI_WINDOW:
+        return None
 
-     values: list[float] = []
-     for item in raw:
-         try:
-             values.append(float(item["sumOpenInterestValue"]))
-         except (KeyError, TypeError, ValueError):
-             continue
+    values: list[float] = []
+    for item in raw:
+        try:
+            values.append(float(item["sumOpenInterestValue"]))
+        except (KeyError, TypeError, ValueError):
+            continue
 
-     if len(values) < LEV_OI_WINDOW:
-         return None
+    if len(values) < LEV_OI_WINDOW:
+        return None
 
-     tail = values[-LEV_OI_WINDOW:]
-     half = LEV_OI_WINDOW // 2
-     first = _median(tail[:half])
-     last = _median(tail[half:])
+    tail = values[-LEV_OI_WINDOW:]
+    half = LEV_OI_WINDOW // 2
+    first = _median(tail[:half])
+    last = _median(tail[half:])
 
-     growth = (last - first) / first if first > 0 else 0.0
+    growth = (last - first) / first if first > 0 else 0.0
 
-     return {
-         "current": values[-1],
-         "growth": growth,
-         "slope": _slope(tail),
-     }
+    return {
+        "current": values[-1],
+        "growth": growth,
+        "slope": _slope(tail),
+    }
 
 
 # ─────────────────────────────────────────────────────────────
@@ -254,6 +270,7 @@ def _base_score(
     facts = {
         "funding_apr": apr,
         "funding_min_apr": fund["min_apr"],
+        "funding_interval_h": fund["interval_h"],
         "neg_share": fund["neg_share"],
         "oi_growth": growth,
         "oi_usd": oi["current"],
@@ -271,52 +288,82 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     Сетевые запросы делаются ТОЛЬКО после того, как отработали все
     дешёвые проверки: без валидного контекста и живых зон результат
     всё равно был бы отброшен, а запросов — двести штук впустую.
+    Порядок отсечек ниже — это и порядок расходов, менять его без
+    нужды нельзя.
     """
     # Зона желательна, но не обязательна: перекос в плече существует
     # независимо от карты уровней.
-    if veto_bullish(ctx, require_zones=False):
-        return None
+    stop = veto_bullish(ctx, require_zones=False)
+    if stop:
+        return ctx.reject(name, stop)
 
     # ── Ленивая загрузка ─────────────────────────────────────
     # Требование дневного ядра: без зон под ценой фигура не имеет
     # направления, и платить за сеть незачем.
     if LEV_REQUIRE_CORE and not ctx.zones:
-        return None
+        return ctx.reject(name, "нет живых зон, сеть не запрашивалась")
 
     flat, move = _price_flat(ctx)
     if not flat:
         # Цена идёт — перекос либо уже отработал, либо шорт прав.
-        return None
+        return ctx.reject(
+            name,
+            f"цена идёт: {move:+.1f}% за {LEV_OI_WINDOW} баров "
+            f"> {LEV_PRICE_FLAT_PCT}%",
+        )
 
     fund = _funding_state(ctx.symbol)
     if fund is None:
-        return None
+        return ctx.reject(name, "истории фандинга нет")
 
-    # ── Разграничение с detect_squeeze ───────────────────────
-    # Положительный горячий фандинг — перегрев лонгов, чужая
-    # территория. Пересечения между семействами быть не должно.
-    if fund["median_apr"] >= LEV_FUNDING_HOT_APR:
-        return None
-
-    if fund["median_apr"] > LEV_FUNDING_NEG_APR:
-        return None
+    # ── Знак фандинга ────────────────────────────────────────
+    # Раньше здесь стояли две отсечки подряд: сначала по
+    # LEV_FUNDING_HOT_APR, потом по LEV_FUNDING_NEG_APR. Вторая
+    # строго шире первой — любой APR, прошедший горячий порог, всё
+    # равно отсекался следующей строкой, и разграничение с
+    # detect_squeeze существовало как комментарий, но решения не
+    # принимало никогда.
+    #
+    # Теперь отсечка одна, а константа выбирает ФОРМУЛИРОВКУ: в
+    # причине видно, чужая это территория или просто не тот знак.
+    apr = fund["median_apr"]
+    if apr > LEV_FUNDING_NEG_APR:
+        why = (
+            "перегрев лонгов, территория squeeze"
+            if apr >= LEV_FUNDING_HOT_APR
+            else "фандинг не отрицательный"
+        )
+        return ctx.reject(
+            name, f"{why}: {apr:.1f}% APR > {LEV_FUNDING_NEG_APR}%",
+        )
 
     if fund["neg_share"] < LEV_NEG_SHARE_MIN:
-        return None
+        return ctx.reject(
+            name,
+            f"перекос неустойчив: в минусе {fund['neg_share']:.2f} "
+            f"< {LEV_NEG_SHARE_MIN}",
+        )
 
     oi = _oi_state(ctx.symbol)
     if oi is None:
-        return None
+        return ctx.reject(name, "истории открытого интереса нет")
 
     # ── Ликвидность позиции ──────────────────────────────────
     # Если OI меньше порога, закрывать позицию некуда: сквиз
     # упрётся в пустой стакан и не даст движения, на котором
     # можно выйти.
     if oi["current"] < LEV_MIN_OI_USD:
-        return None
+        return ctx.reject(
+            name,
+            f"открытый интерес {oi['current']:,.0f} < {LEV_MIN_OI_USD:,.0f}",
+        )
 
     if oi["growth"] < LEV_OI_GROWTH_MIN:
-        return None
+        return ctx.reject(
+            name,
+            f"позицию не набирают: OI {oi['growth']:.3f} "
+            f"< {LEV_OI_GROWTH_MIN}",
+        )
 
     score, facts = _base_score(fund, oi, flat)
     facts["price_move_pct"] = move
@@ -393,4 +440,8 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
             buy_share=ctx.flow.buy_share,
         )
 
-    return sig if not sig.weak else None
+    if sig.weak:
+        return ctx.reject(
+            name, f"фигура собралась, но скор {sig.score:.1f} < 20 после множителей",
+        )
+    return sig
