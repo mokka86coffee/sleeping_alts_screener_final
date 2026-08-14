@@ -3,6 +3,14 @@
 dashboard.py только вызывает render_podium() и вставляет результат,
 как и в случае brief.py.
 
+Экран свой, а не блок внутри сводки. Первая редакция жила внутри
+.ob-brief — и не появлялась вовсе: там position:fixed с
+justify-content:center и без прокрутки, а текст плюс сцена в шестьсот
+пикселей высотой в окно не помещаются. Столбики уезжали за нижний край
+без возможности доскроллить. Своим слоем сцена получает всю высоту, и
+порядок чтения становится явным: сначала что происходит сейчас, потом
+кто в журнале и что с ними.
+
 Данных своих у модуля нет: он читает window.ORB.stars, который
 выставляет render.orbit. Второй источник тех же чисел разошёлся бы
 с орбитой при первой правке, и монета показывала бы на двух экранах
@@ -44,7 +52,19 @@ from __future__ import annotations
 
 
 def render_podium() -> str:
-    return PODIUM_JS
+    return PODIUM_HTML + PODIUM_JS
+
+
+PODIUM_HTML = """
+<div class="ob-podium" id="obPodium">
+  <div class="obp-in">
+    <div class="obp-h">лидеры прогона</div>
+    <div class="obp-scene" id="obfPodium"></div>
+    <div class="obp-cap" id="obfPodiumCap"></div>
+    <div class="obp-foot">клик в любом месте — к дашборду</div>
+  </div>
+</div>
+"""
 
 
 PODIUM_JS = """
@@ -375,6 +395,42 @@ PODIUM_JS = """
     cap.textContent = 'высота · от дна   ·   линия · объём сейчас   ·   ' +
       'радиус · рекорд объёма';
   }
+
+  /* ── Очередь экранов ──────────────────────────────────────────
+     Сводка → сцена → дашборд. Подписки на закрытие сводки нет:
+     brief.js своё закрытие наружу не отдаёт, а лезть в его
+     внутренности значило бы связать два модуля намертво. Вместо
+     этого следим за классом .on на самой сводке — он и есть её
+     публичное состояние, видимое из разметки.
+
+     Наблюдатель снимается после первого срабатывания: сцена
+     показывается один раз за загрузку, дальше она обычный экран. */
+  var brief = document.getElementById('obBrief');
+  var pod = document.getElementById('obPodium');
+  if (!pod) return;
+
+  function show() {
+    pod.classList.add('on');
+    var t = setTimeout(hide, 26000);
+    function hide() { clearTimeout(t); pod.classList.remove('on'); }
+    pod.addEventListener('click', hide);
+    document.addEventListener('keydown', function () {
+      if (pod.classList.contains('on')) hide();
+    });
+  }
+
+  if (!brief) { show(); return; }
+
+  var seen = brief.classList.contains('on');
+  var mo = new MutationObserver(function () {
+    var on = brief.classList.contains('on');
+    if (on) { seen = true; return; }
+    /* Сводка закрылась — но только если до этого открывалась.
+       Без флага сцена выскакивала бы сразу при загрузке, пока
+       сводка ещё не успела получить свой класс. */
+    if (seen) { mo.disconnect(); show(); }
+  });
+  mo.observe(brief, { attributes: true, attributeFilter: ['class'] });
 })();
 </script>
 """

@@ -26,8 +26,6 @@ BRIEF_HTML = """
          из того же window.ORB, что кормит текст выше. Отдельный
          список монет здесь не собирается — он разошёлся бы с
          карточками при первой правке. -->
-    <div class="obf-podium" id="obfPodium"></div>
-    <div class="obf-podium-cap" id="obfPodiumCap"></div>
     <div class="obf-foot" id="obfFoot">клик в любом месте — к дашборду</div>
     <div class="obf-bar" id="obfBar"><u></u></div>
   </div>

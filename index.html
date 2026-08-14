@@ -1318,6 +1318,83 @@ transition:border-color .2s ease}
   .obf-podium,.obf-podium-cap{display:none}
 }
 
+/* ── Экран лидеров ───────────────────────────────────────────
+   Третий экран в очереди: сводка → лидеры → дашборд. Своим слоем, а
+   не блоком внутри сводки: там центрирование без прокрутки, и сцена
+   в шестьсот пикселей высотой просто не помещается в окно.
+
+   Материал тот же, что у сводки, вплоть до градиента подложки —
+   переход между экранами должен читаться как смена содержимого, а
+   не как переход в другое приложение. */
+.ob-podium{position:fixed;inset:0;z-index:41;display:flex;
+  flex-direction:column;align-items:center;justify-content:center;
+  background:radial-gradient(1100px 700px at 50% 46%,#0d0b09,#050406 70%);
+  opacity:0;pointer-events:none;transition:opacity .5s ease}
+.ob-podium.on{opacity:1;pointer-events:auto}
+.obp-in{width:min(1240px,96vw)}
+.obp-h{font-size:11px;letter-spacing:.58em;text-transform:uppercase;
+  color:#6E6656;text-align:center;text-indent:.58em}
+.obp-scene{margin-top:18px}
+.pd-svg{width:100%;height:auto;display:block;overflow:visible}
+.obp-cap{margin-top:12px;text-align:center;font-size:7px;
+  letter-spacing:3px;text-transform:uppercase;color:#3C362D}
+.obp-foot{margin-top:26px;text-align:center;font-size:7px;
+  letter-spacing:3px;text-transform:uppercase;color:#2E2A24}
+
+/* ── Появление ──
+   Сцена собирается снизу вверх и по слоям: основание, затем столбики
+   от левого края к правому, потом линии и звёзды. Порядок повторяет
+   порядок чтения — глаз успевает понять устройство сцены прежде, чем
+   она станет плотной.
+
+   Задержка приходит инлайном через --d: считать её в CSS нечем, а
+   таблица задержек в скрипте дублировала бы порядок столбиков. */
+@keyframes pd-rise{
+  from{opacity:0;transform:translateY(26px)}
+  to  {opacity:1;transform:none}
+}
+@keyframes pd-grow{
+  from{opacity:0;transform:scaleY(.04)}
+  to  {opacity:1;transform:none}
+}
+@keyframes pd-pop{
+  0%  {opacity:0;transform:scale(.2)}
+  62% {opacity:1;transform:scale(1.16)}
+  100%{opacity:1;transform:none}
+}
+@keyframes pd-draw{to{stroke-dashoffset:0}}
+@keyframes pd-fade{from{opacity:0}to{opacity:1}}
+
+.pd-rise{opacity:0;animation:pd-rise .78s cubic-bezier(.18,.72,.22,1) forwards;
+  animation-delay:var(--d,0s)}
+/* transform-box обязателен: без него точка отсчёта у SVG-элемента
+   берётся от начала координат холста, и столбик не растёт из
+   основания, а уезжает за кадр. */
+.pd-grow{opacity:0;transform-box:fill-box;transform-origin:bottom;
+  animation:pd-grow .8s cubic-bezier(.18,.72,.22,1) forwards;
+  animation-delay:var(--d,0s)}
+.pd-pop{opacity:0;transform-box:fill-box;transform-origin:center;
+  animation:pd-pop .62s cubic-bezier(.2,1.5,.4,1) forwards;
+  animation-delay:var(--d,0s)}
+.pd-fade{opacity:0;animation:pd-fade 1.1s ease forwards;
+  animation-delay:var(--d,0s)}
+.pd-px{stroke-dasharray:420;stroke-dashoffset:420;
+  animation:pd-draw 1.5s cubic-bezier(.3,.7,.2,1) forwards;
+  animation-delay:var(--d,0s)}
+
+@media (prefers-reduced-motion:reduce){
+  .pd-rise,.pd-grow,.pod-pop,.pd-pop,.pd-fade{
+    opacity:1!important;animation:none!important;transform:none!important}
+  .pd-px{stroke-dashoffset:0!important;animation:none!important}
+}
+
+/* На узком экране экран лидеров пропускается целиком, а не ужимается:
+   половина сцены объясняет хуже, чем её отсутствие. Сводка при этом
+   остаётся — это текст, он ничего не стоит. */
+@media (max-width:900px){
+  .ob-podium{display:none}
+}
+
 .obf-foot,.obf-bar{opacity:0;transition:opacity .6s ease}
 .obf-foot.on,.obf-bar.on{opacity:1}
 /* ── Сводка при входе ───────────────────────────────────────
@@ -2199,8 +2276,8 @@ transition:border-color .2s ease}
     <div class="ob-core-v v-live">PUMP ON</div>
     <div class="ob-core-v v-frost">PUMP OFF</div>
 
-    <div class="ob-core-s">btc <b class="up">+0.1%</b> · неделя
-      <b class="dn">-2.1%</b> · btc.d <b>58%</b></div>
+    <div class="ob-core-s">btc <b class="up">+0.0%</b> · неделя
+      <b class="dn">-2.2%</b> · btc.d <b>58%</b></div>
 
     <!-- Замирание и выходные — две отдельные пилюли, а не строка
          через точку: независимые причины с одинаковым следствием, и
@@ -2214,7 +2291,7 @@ transition:border-color .2s ease}
          при ×3 — принципиально разные дни. -->
     <div class="ob-frost">
       <span class="ob-frost-t">рынок замер</span><span class="ob-frost-w">завтра выходные</span>
-      <span class="ob-frost-n">максимум дня <b>+-4%</b></span>
+      <span class="ob-frost-n">максимум дня <b>+-5%</b></span>
       <span class="ob-frost-n">выше +20% — <b>0</b></span>
       <span class="ob-frost-n">объём <b class="sec">KORU</b> <b>×4</b></span>
     </div>
@@ -2222,7 +2299,7 @@ transition:border-color .2s ease}
 
   <div class="ob-wrap" id="ob-wrap"></div>
 </div>
-<script type="application/json" id="ob-data">{"nodes": [{"id": "surge", "name": "ОБЪЁМ", "val": "0", "c": "var(--am)", "w": 0.6, "slice": "surge", "note": "монет · surge ≥ 4×", "spark": [], "rows": []}, {"id": "flow", "name": "ПОТОК", "val": "0", "c": "var(--gd)", "w": 0.7, "slice": "strat:flow", "note": "кто двигает рынок", "rows": []}, {"id": "lead", "name": "ЛИДЕРЫ", "val": "126", "c": "var(--am-l)", "w": 0.9, "slice": "", "note": "топ flow + аномальный объём", "list": [["CTSI", 3, ""], ["TUT", 3, ""], ["BMT", 3, ""], ["APR", 3, ""], ["BSP", 3, ""], ["VELVET", 3, ""], ["CYS", 3, ""], ["LSK", 3, ""], ["IOTX", 3, ""], ["HEI", 3, ""], ["1000CAT", 3, ""], ["VELODROME", 3, ""], ["KMNO", 3, ""], ["ONE", 3, ""], ["BR", 3, ""], ["BLUAI", 3, ""], ["CATI", 3, ""], ["CETUS", 3, ""], ["MITO", 3, ""], ["PROM", 3, ""], ["HOLO", 3, ""]]}, {"id": "setups", "name": "СЕТАП", "val": "1", "c": "var(--gr)", "w": 1.0, "slice": "setups", "note": "из 1 · r:r ≥ 2", "rows": [["KORU", "1:222.2", 100]]}, {"id": "hourly", "name": "ИМПУЛЬС", "val": "0", "c": "var(--bl)", "w": 0.25, "slice": "hourly", "note": "rvol ≥ 2.2× сейчас", "spark": [], "rows": []}, {"id": "sector", "name": "СЕКТОР", "val": "MEME", "c": "var(--vi)", "w": 0.45, "slice": "sector:MEME", "note": "ротация за 24 часа", "rows": [["MEME", "-4.5%", 100]]}, {"id": "vetoed", "name": "ВЕТО", "val": "0", "c": "var(--ru)", "w": 0.3, "slice": "vetoed", "note": "отсеяно риском · 0% выборки", "rows": []}], "stars": [{"t": "BICO", "f": 0.455, "new": false, "hot": true, "x": 266, "st": "churn", "days": 8, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "SKYAI", "f": 0.455, "new": false, "hot": false, "x": 41, "st": "fuel", "days": 8, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "ACE", "f": 0.473, "new": false, "hot": true, "x": 116, "st": "fuel", "days": 7, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "TST", "f": 0.543, "new": false, "hot": true, "x": 82, "st": "fuel", "days": 6, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "TUT", "f": 0.552, "new": false, "hot": true, "x": 1540, "st": "fuel", "days": 6, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "ESP", "f": 0.572, "new": false, "hot": false, "x": 5, "st": "fuel", "days": 6, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "MMT", "f": 0.592, "new": false, "hot": false, "x": 32, "st": "fuel", "days": 6, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "CETUS", "f": 0.613, "new": false, "hot": true, "x": 335, "st": "fuel", "days": 5, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "1000CAT", "f": 0.613, "new": false, "hot": true, "x": 595, "st": "fuel", "days": 5, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "APR", "f": 0.633, "new": false, "hot": true, "x": 1032, "st": "fuel", "days": 5, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "SAGA", "f": 0.652, "new": true, "hot": true, "x": 182, "st": "fuel", "days": 5, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "BMT", "f": 0.655, "new": true, "hot": true, "x": 1313, "st": "fuel", "days": 5, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "MUBARAK", "f": 0.661, "new": true, "hot": true, "x": 60, "st": "fuel", "days": 5, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "INX", "f": 0.661, "new": true, "hot": false, "x": 49, "st": "fuel", "days": 5, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "BOME", "f": 0.706, "new": true, "hot": false, "x": 26, "st": "fuel", "days": 4, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "COOKIE", "f": 0.71, "new": true, "hot": true, "x": 90, "st": "fuel", "days": 4, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "BTR", "f": 0.716, "new": true, "hot": true, "x": 177, "st": "fuel", "days": 4, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "SQD", "f": 0.744, "new": true, "hot": true, "x": 194, "st": "fuel", "days": 4, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "GUA", "f": 0.748, "new": true, "hot": true, "x": 179, "st": "taker", "days": 4, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "PROM", "f": 0.759, "new": true, "hot": true, "x": 288, "st": "fuel", "days": 3, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "BULLA", "f": 0.782, "new": true, "hot": false, "x": 1, "st": "taker", "days": 3, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "LSK", "f": 0.846, "new": true, "hot": true, "x": 686, "st": "fuel", "days": 2, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "CL", "f": 0.883, "new": true, "hot": false, "x": 3, "st": "spring", "days": 2, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "AVAAI", "f": 0.883, "new": true, "hot": true, "x": 205, "st": "fuel", "days": 2, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "ACU", "f": 0.947, "new": true, "hot": true, "x": 269, "st": "fuel", "days": 1, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "EDEN", "f": 0.975, "new": true, "hot": true, "x": 211, "st": "fuel", "days": 0, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}], "market": {"calm": false, "appetite": "1/5", "btc": 0.0817880539013327, "btcUp": true, "btc7d": -2.1218949101030504, "dom": "58%", "series": [66082.0, 65069.6, 64116.5, 64338.1, 65375.1, 63720.8, 63903.6, 63958.9, 64750.0, 62859.9, 62792.3, 63550.0, 63497.2, 64075.5, 64633.9, 64300.0, 64885.4, 64928.5, 64867.8, 63939.3, 63572.0, 63454.7, 63456.7, 63508.6], "frozen": true, "maxChange": -4.5, "tail": 0, "tailPct": 20.0, "weekend": "soon", "sector": "MEME -4.5%", "peakVol": {"sym": "KORU", "x": 4}, "volChart": {"sym": "KORU", "x": 4, "cap": "$7K", "ratios": [1.19, 0.92, 1.05, 0.08, 0.1, 1.12, 1.54, 2.82, 2.03, 1.87, 0.12, 0.18, 1.12, 1.46, 1.33, 1.39, 1.1, 0.04, 0.05, 0.66, 0.63, 0.78, 0.95, 0.12], "v1h": 4.8, "v4h": 4.5, "v1d": 0, "funding": -0.02}, "leaderChart": {}, "leader": {}, "topVol": [], "hourly": {"n": 0, "list": []}, "flowVol": []}, "names": {"hidden": "скрытый набор", "spring": "сжатие", "churn": "поглощение", "fuel": "путь свободен", "taker": "смена агрессора", "leverage": "перекос плеча"}}</script>
+<script type="application/json" id="ob-data">{"nodes": [{"id": "surge", "name": "ОБЪЁМ", "val": "0", "c": "var(--am)", "w": 0.6, "slice": "surge", "note": "монет · surge ≥ 4×", "spark": [], "rows": []}, {"id": "flow", "name": "ПОТОК", "val": "0", "c": "var(--gd)", "w": 0.7, "slice": "strat:flow", "note": "кто двигает рынок", "rows": []}, {"id": "lead", "name": "ЛИДЕРЫ", "val": "126", "c": "var(--am-l)", "w": 0.9, "slice": "", "note": "топ flow + аномальный объём", "list": [["CTSI", 3, ""], ["TUT", 3, ""], ["BMT", 3, ""], ["APR", 3, ""], ["BSP", 3, ""], ["VELVET", 3, ""], ["CYS", 3, ""], ["LSK", 3, ""], ["IOTX", 3, ""], ["HEI", 3, ""], ["1000CAT", 3, ""], ["VELODROME", 3, ""], ["KMNO", 3, ""], ["ONE", 3, ""], ["BR", 3, ""], ["BLUAI", 3, ""], ["CATI", 3, ""], ["CETUS", 3, ""], ["MITO", 3, ""], ["PROM", 3, ""], ["HOLO", 3, ""]]}, {"id": "setups", "name": "СЕТАП", "val": "1", "c": "var(--gr)", "w": 1.0, "slice": "setups", "note": "из 1 · r:r ≥ 2", "rows": [["KORU", "1:223.1", 100]]}, {"id": "hourly", "name": "ИМПУЛЬС", "val": "0", "c": "var(--bl)", "w": 0.25, "slice": "hourly", "note": "rvol ≥ 2.2× сейчас", "spark": [], "rows": []}, {"id": "sector", "name": "СЕКТОР", "val": "MEME", "c": "var(--vi)", "w": 0.45, "slice": "sector:MEME", "note": "ротация за 24 часа", "rows": [["MEME", "-4.9%", 100]]}, {"id": "vetoed", "name": "ВЕТО", "val": "0", "c": "var(--ru)", "w": 0.3, "slice": "vetoed", "note": "отсеяно риском · 0% выборки", "rows": []}], "stars": [{"t": "BICO", "f": 0.455, "new": false, "hot": true, "x": 266, "st": "churn", "days": 8, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "SKYAI", "f": 0.455, "new": false, "hot": false, "x": 41, "st": "fuel", "days": 8, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "ACE", "f": 0.473, "new": false, "hot": true, "x": 116, "st": "fuel", "days": 7, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "TST", "f": 0.543, "new": false, "hot": true, "x": 82, "st": "fuel", "days": 6, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "TUT", "f": 0.552, "new": false, "hot": true, "x": 1540, "st": "fuel", "days": 6, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "ESP", "f": 0.572, "new": false, "hot": false, "x": 5, "st": "fuel", "days": 6, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "MMT", "f": 0.592, "new": false, "hot": false, "x": 32, "st": "fuel", "days": 6, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "CETUS", "f": 0.613, "new": false, "hot": true, "x": 335, "st": "fuel", "days": 5, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "1000CAT", "f": 0.613, "new": false, "hot": true, "x": 595, "st": "fuel", "days": 5, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "APR", "f": 0.633, "new": false, "hot": true, "x": 1032, "st": "fuel", "days": 5, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "SAGA", "f": 0.651, "new": true, "hot": true, "x": 182, "st": "fuel", "days": 5, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "BMT", "f": 0.654, "new": true, "hot": true, "x": 1313, "st": "fuel", "days": 5, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "MUBARAK", "f": 0.66, "new": true, "hot": true, "x": 60, "st": "fuel", "days": 5, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "INX", "f": 0.66, "new": true, "hot": false, "x": 49, "st": "fuel", "days": 5, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "BOME", "f": 0.706, "new": true, "hot": false, "x": 26, "st": "fuel", "days": 4, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "COOKIE", "f": 0.71, "new": true, "hot": true, "x": 90, "st": "fuel", "days": 4, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "BTR", "f": 0.716, "new": true, "hot": true, "x": 177, "st": "fuel", "days": 4, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "SQD", "f": 0.743, "new": true, "hot": true, "x": 194, "st": "fuel", "days": 4, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "GUA", "f": 0.747, "new": true, "hot": true, "x": 179, "st": "taker", "days": 4, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "PROM", "f": 0.758, "new": true, "hot": true, "x": 288, "st": "fuel", "days": 3, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "BULLA", "f": 0.781, "new": true, "hot": false, "x": 1, "st": "taker", "days": 3, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "LSK", "f": 0.845, "new": true, "hot": true, "x": 686, "st": "fuel", "days": 2, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "CL", "f": 0.883, "new": true, "hot": false, "x": 3, "st": "spring", "days": 2, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "AVAAI", "f": 0.883, "new": true, "hot": true, "x": 205, "st": "fuel", "days": 2, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "ACU", "f": 0.946, "new": true, "hot": true, "x": 269, "st": "fuel", "days": 1, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}, {"t": "EDEN", "f": 0.975, "new": true, "hot": true, "x": 211, "st": "fuel", "days": 0, "lead": false, "coin": "", "up": 0, "updays": 0, "score": 0, "sector": "—", "pattern": "—"}], "market": {"calm": false, "appetite": "1/5", "btc": 0.02489886804704078, "btcUp": true, "btc7d": -2.177531463164284, "dom": "58%", "series": [66082.0, 65069.6, 64116.5, 64338.1, 65375.1, 63720.8, 63903.6, 63958.9, 64750.0, 62859.9, 62792.3, 63550.0, 63497.2, 64075.5, 64633.9, 64300.0, 64885.4, 64928.5, 64867.8, 63939.3, 63572.0, 63454.7, 63456.7, 63472.5], "frozen": true, "maxChange": -4.9, "tail": 0, "tailPct": 20.0, "weekend": "soon", "sector": "MEME -4.9%", "peakVol": {"sym": "KORU", "x": 4}, "volChart": {"sym": "KORU", "x": 4, "cap": "$7K", "ratios": [1.19, 0.92, 1.05, 0.08, 0.1, 1.12, 1.54, 2.82, 2.03, 1.87, 0.12, 0.18, 1.12, 1.46, 1.33, 1.39, 1.1, 0.04, 0.05, 0.66, 0.63, 0.78, 0.95, 0.13], "v1h": 4.3, "v4h": 4.4, "v1d": 0, "funding": -0.019}, "leaderChart": {}, "leader": {}, "topVol": [], "hourly": {"n": 0, "list": []}, "flowVol": []}, "names": {"hidden": "скрытый набор", "spring": "сжатие", "churn": "поглощение", "fuel": "путь свободен", "taker": "смена агрессора", "leverage": "перекос плеча"}}</script>
 
 <script>
 
@@ -3753,7 +3830,7 @@ transition:border-color .2s ease}
   </svg>
 </div>
 <div class="g-lead">
-  <div class="lead-list"><span class="lead-t lead-g1" title="×83">POWR</span><span class="lead-t lead-g3" title="×1954">CTSI</span><span class="lead-t lead-g3" title="×341">CATI</span><span class="lead-t lead-g3" title="×491">KMNO</span><span class="lead-t lead-g1" title="×71">GPS</span><span class="lead-t lead-g3" title="×156">RARE</span><span class="lead-t lead-g3" title="×217">WEN</span><span class="lead-t lead-x" title="×42">LISTA</span><span class="lead-t lead-x lead-g2" title="×141">ARC</span><span class="lead-t lead-x" title="×32">DUSK</span><span class="lead-t lead-x lead-g3" title="×195">STORJ</span><span class="lead-t lead-x" title="×42">DYM</span><span class="lead-t lead-x" title="×36">BROCCOLI714</span><span class="lead-t lead-x lead-f lead-g3" title="×686">LSK</span><span class="lead-t lead-x lead-g1" title="×60">FLNC</span><span class="lead-t lead-x" title="×33">TRADOOR</span><span class="lead-t lead-x lead-f lead-g3" title="×1313">BMT</span><span class="lead-t lead-x lead-g1" title="×96">DRAM</span><span class="lead-t lead-x lead-g3" title="×843">VELVET</span><span class="lead-t lead-x lead-g2" title="×139">XAI</span><span class="lead-t lead-x lead-g1" title="×67">CSCO</span><span class="lead-t lead-x lead-f lead-g3" title="×1032">APR</span><span class="lead-t lead-x" title="×37">VIC</span><span class="lead-t lead-x lead-f lead-g3" title="×266">BICO</span><span class="lead-t lead-x" title="×38">TA</span><span class="lead-t lead-x" title="×32">CGPT</span><span class="lead-t lead-x lead-g3" title="×160">RVN</span><span class="lead-t lead-x lead-f lead-g3" title="×288">PROM</span><span class="lead-t lead-x" title="×37">NOM</span><span class="lead-t lead-x lead-f" title="×3">CL</span><span class="lead-t lead-x lead-g3" title="×240">LUNA2</span><span class="lead-t lead-x" title="×35">MON</span><span class="lead-t lead-x lead-g1" title="×82">AKE</span><span class="lead-t lead-x lead-f" title="×32">MMT</span><span class="lead-t lead-x" title="×31">AXTI</span><span class="lead-t lead-x lead-f lead-g3" title="×179">GUA</span><span class="lead-t lead-x lead-g1" title="×50">GUN</span><span class="lead-t lead-x" title="×40">HUMA</span><span class="lead-t lead-x lead-f lead-g1" title="×60">MUBARAK</span><span class="lead-t lead-x lead-g1" title="×79">DODOX</span><span class="lead-t lead-x lead-f" title="×49">INX</span><span class="lead-t lead-x lead-g1" title="×59">TRB</span><span class="lead-t lead-x lead-g1" title="×82">AIOT</span><span class="lead-t lead-x lead-g3" title="×346">BLUAI</span><span class="lead-t lead-x lead-g3" title="×201">STG</span><span class="lead-t lead-x lead-f lead-g3" title="×177">BTR</span><span class="lead-t lead-x lead-g1" title="×77">TRUST</span><span class="lead-t lead-x lead-f lead-g3" title="×335">CETUS</span><span class="lead-t lead-x" title="×47">AVNT</span><span class="lead-t lead-x lead-g1" title="×96">TAKE</span><span class="lead-t lead-x" title="×27">RECALL</span><span class="lead-t lead-x lead-f" title="×41">SKYAI</span><span class="lead-t lead-x lead-g3" title="×282">HOLO</span><span class="lead-t lead-x lead-g1" title="×96">BANANAS31</span><span class="lead-t lead-x" title="×39">OGN</span><span class="lead-t lead-x lead-f lead-g3" title="×211">EDEN</span><span class="lead-t lead-x lead-g1" title="×95">ONDS</span><span class="lead-t lead-x" title="×26">OPEN</span><span class="lead-t lead-x" title="×43">DEEP</span><span class="lead-t lead-x" title="×38">NIL</span><span class="lead-t lead-x" title="×42">BROCCOLIF3B</span><span class="lead-t lead-x lead-g1" title="×73">GWEI</span><span class="lead-t lead-x lead-g3" title="×201">BLESS</span><span class="lead-t lead-x" title="×28">LAB</span><span class="lead-t lead-x" title="×31">BTW</span><span class="lead-t lead-x lead-g3" title="×406">ONE</span><span class="lead-t lead-x lead-f lead-g3" title="×269">ACU</span><span class="lead-t lead-x lead-g1" title="×56">INTW</span><span class="lead-t lead-x lead-g2" title="×140">ZBT</span><span class="lead-t lead-x lead-g1" title="×86">BE</span><span class="lead-t lead-x lead-g2" title="×111">WDC</span><span class="lead-t lead-x lead-g2" title="×132">XAN</span><span class="lead-t lead-x lead-g1" title="×54">ID</span><span class="lead-t lead-x lead-g3" title="×239">JOE</span><span class="lead-t lead-x lead-g3" title="×314">MITO</span><span class="lead-t lead-x" title="×33">RIVER</span><span class="lead-t lead-x lead-g3" title="×231">2Z</span><span class="lead-t lead-x lead-g1" title="×75">CBRS</span><span class="lead-t lead-x lead-g1" title="×77">ACT</span><span class="lead-t lead-x" title="×29">STAR</span><span class="lead-t lead-x lead-g3" title="×674">IOTX</span><span class="lead-t lead-x lead-f lead-g3" title="×205">AVAAI</span><span class="lead-t lead-x lead-g3" title="×704">CYS</span><span class="lead-t lead-x lead-g3" title="×557">VELODROME</span><span class="lead-t lead-x" title="×33">POWER</span><span class="lead-t lead-x lead-g2" title="×119">COTI</span><span class="lead-t lead-x lead-f" title="×1">BULLA</span><span class="lead-t lead-x lead-f" title="×5">ESP</span><span class="lead-t lead-x" title="×26">ME</span><span class="lead-t lead-x" title="×26">ZKP</span><span class="lead-t lead-x lead-g1" title="×87">ROBO</span><span class="lead-t lead-x lead-g3" title="×152">C98</span><span class="lead-t lead-x lead-g3" title="×173">SHELL</span><span class="lead-t lead-x lead-f lead-g1" title="×90">COOKIE</span><span class="lead-t lead-x" title="×32">1000RATS</span><span class="lead-t lead-x lead-f lead-g3" title="×1540">TUT</span><span class="lead-t lead-x lead-g2" title="×101">ASTS</span><span class="lead-t lead-x lead-f" title="×26">BOME</span><span class="lead-t lead-x" title="×36">KOMA</span><span class="lead-t lead-x lead-g3" title="×265">HIMS</span><span class="lead-t lead-x" title="×29">BSB</span><span class="lead-t lead-x" title="×40">COHR</span><span class="lead-t lead-x lead-g1" title="×56">QNTX</span><span class="lead-t lead-x lead-f lead-g3" title="×182">SAGA</span><span class="lead-t lead-x lead-g1" title="×91">MOVR</span><span class="lead-t lead-x" title="×42">AT</span><span class="lead-t lead-x" title="×31">SKR</span><span class="lead-t lead-x lead-g3" title="×356">BR</span><span class="lead-t lead-x" title="×33">SIREN</span><span class="lead-t lead-x lead-g1" title="×92">THE</span><span class="lead-t lead-x lead-g3" title="×945">BSP</span><span class="lead-t lead-x lead-g1" title="×56">AMAT</span><span class="lead-t lead-x" title="×45">USAR</span><span class="lead-t lead-x lead-g3" title="×199">SCRT</span><span class="lead-t lead-x lead-f lead-g3" title="×194">SQD</span><span class="lead-t lead-x lead-g3" title="×595">HEI</span><span class="lead-t lead-x lead-g2" title="×118">KGEN</span><span class="lead-t lead-x lead-f lead-g1" title="×82">TST</span><span class="lead-t lead-x lead-g1" title="×83">PIXEL</span><span class="lead-t lead-x lead-g1" data-coin="KORUUSDT" title="×60">KORU</span><span class="lead-t lead-x lead-f lead-g3" title="×595">1000CAT</span><span class="lead-t lead-x" title="×49">MYX</span><span class="lead-t lead-x lead-f lead-g2" title="×116">ACE</span><span class="lead-t lead-x lead-g1" title="×71">MAV</span><span class="lead-t lead-x" title="×38">CLO</span><span class="lead-t lead-x" title="×30">XPIN</span></div>
+  <div class="lead-list"><span class="lead-t lead-g1" title="×87">ROBO</span><span class="lead-t lead-g1" title="×91">MOVR</span><span class="lead-t lead-g1" title="×75">CBRS</span><span class="lead-t lead-f lead-g3" title="×269">ACU</span><span class="lead-t lead-f lead-g1" title="×90">COOKIE</span><span class="lead-t" title="×26">ME</span><span class="lead-t lead-g1" title="×56">INTW</span><span class="lead-t lead-x" title="×33">RIVER</span><span class="lead-t lead-x lead-f" title="×49">INX</span><span class="lead-t lead-x lead-f lead-g3" title="×686">LSK</span><span class="lead-t lead-x lead-g3" title="×595">HEI</span><span class="lead-t lead-x lead-g2" title="×140">ZBT</span><span class="lead-t lead-x" title="×38">TA</span><span class="lead-t lead-x" title="×35">MON</span><span class="lead-t lead-x lead-g2" title="×141">ARC</span><span class="lead-t lead-x lead-f lead-g3" title="×194">SQD</span><span class="lead-t lead-x lead-f lead-g3" title="×1313">BMT</span><span class="lead-t lead-x lead-f" title="×41">SKYAI</span><span class="lead-t lead-x" title="×28">LAB</span><span class="lead-t lead-x lead-f" title="×32">MMT</span><span class="lead-t lead-x lead-g3" title="×156">RARE</span><span class="lead-t lead-x lead-g1" title="×56">QNTX</span><span class="lead-t lead-x lead-f lead-g3" title="×266">BICO</span><span class="lead-t lead-x lead-f lead-g3" title="×179">GUA</span><span class="lead-t lead-x lead-g2" title="×111">WDC</span><span class="lead-t lead-x lead-g2" title="×132">XAN</span><span class="lead-t lead-x" title="×26">ZKP</span><span class="lead-t lead-x" title="×32">CGPT</span><span class="lead-t lead-x lead-g1" title="×50">GUN</span><span class="lead-t lead-x lead-g1" title="×83">PIXEL</span><span class="lead-t lead-x" title="×31">AXTI</span><span class="lead-t lead-x lead-g1" title="×95">ONDS</span><span class="lead-t lead-x lead-f lead-g3" title="×177">BTR</span><span class="lead-t lead-x lead-f lead-g1" title="×60">MUBARAK</span><span class="lead-t lead-x lead-g3" title="×557">VELODROME</span><span class="lead-t lead-x lead-g1" title="×77">ACT</span><span class="lead-t lead-x lead-f lead-g3" title="×1540">TUT</span><span class="lead-t lead-x lead-g1" data-coin="KORUUSDT" title="×60">KORU</span><span class="lead-t lead-x" title="×36">BROCCOLI714</span><span class="lead-t lead-x lead-f" title="×26">BOME</span><span class="lead-t lead-x" title="×45">USAR</span><span class="lead-t lead-x lead-g1" title="×71">GPS</span><span class="lead-t lead-x lead-g3" title="×239">JOE</span><span class="lead-t lead-x lead-g2" title="×119">COTI</span><span class="lead-t lead-x" title="×29">STAR</span><span class="lead-t lead-x lead-g1" title="×54">ID</span><span class="lead-t lead-x" title="×42">AT</span><span class="lead-t lead-x lead-g3" title="×173">SHELL</span><span class="lead-t lead-x" title="×27">RECALL</span><span class="lead-t lead-x lead-f" title="×5">ESP</span><span class="lead-t lead-x" title="×26">OPEN</span><span class="lead-t lead-x lead-g1" title="×82">AIOT</span><span class="lead-t lead-x lead-g2" title="×101">ASTS</span><span class="lead-t lead-x lead-g1" title="×96">BANANAS31</span><span class="lead-t lead-x lead-f lead-g1" title="×82">TST</span><span class="lead-t lead-x lead-g1" title="×92">THE</span><span class="lead-t lead-x lead-g1" title="×83">POWR</span><span class="lead-t lead-x" title="×49">MYX</span><span class="lead-t lead-x" title="×33">TRADOOR</span><span class="lead-t lead-x lead-g1" title="×67">CSCO</span><span class="lead-t lead-x lead-g1" title="×82">AKE</span><span class="lead-t lead-x" title="×39">OGN</span><span class="lead-t lead-x" title="×40">COHR</span><span class="lead-t lead-x lead-g1" title="×96">DRAM</span><span class="lead-t lead-x lead-f lead-g3" title="×1032">APR</span><span class="lead-t lead-x lead-g3" title="×674">IOTX</span><span class="lead-t lead-x lead-g3" title="×282">HOLO</span><span class="lead-t lead-x lead-g2" title="×139">XAI</span><span class="lead-t lead-x lead-g1" title="×71">MAV</span><span class="lead-t lead-x lead-g3" title="×199">SCRT</span><span class="lead-t lead-x" title="×38">NIL</span><span class="lead-t lead-x lead-f lead-g3" title="×288">PROM</span><span class="lead-t lead-x lead-g3" title="×341">CATI</span><span class="lead-t lead-x" title="×32">DUSK</span><span class="lead-t lead-x lead-g3" title="×265">HIMS</span><span class="lead-t lead-x" title="×47">AVNT</span><span class="lead-t lead-x lead-g2" title="×118">KGEN</span><span class="lead-t lead-x lead-g3" title="×201">STG</span><span class="lead-t lead-x lead-g1" title="×60">FLNC</span><span class="lead-t lead-x" title="×32">1000RATS</span><span class="lead-t lead-x lead-f" title="×3">CL</span><span class="lead-t lead-x" title="×33">SIREN</span><span class="lead-t lead-x lead-g3" title="×201">BLESS</span><span class="lead-t lead-x lead-g3" title="×704">CYS</span><span class="lead-t lead-x lead-g1" title="×73">GWEI</span><span class="lead-t lead-x lead-g1" title="×59">TRB</span><span class="lead-t lead-x lead-f lead-g3" title="×205">AVAAI</span><span class="lead-t lead-x" title="×36">KOMA</span><span class="lead-t lead-x" title="×38">CLO</span><span class="lead-t lead-x lead-g3" title="×356">BR</span><span class="lead-t lead-x lead-g3" title="×160">RVN</span><span class="lead-t lead-x lead-f lead-g3" title="×335">CETUS</span><span class="lead-t lead-x lead-f lead-g2" title="×116">ACE</span><span class="lead-t lead-x" title="×42">DYM</span><span class="lead-t lead-x lead-f lead-g3" title="×595">1000CAT</span><span class="lead-t lead-x" title="×42">BROCCOLIF3B</span><span class="lead-t lead-x lead-g3" title="×240">LUNA2</span><span class="lead-t lead-x lead-g3" title="×314">MITO</span><span class="lead-t lead-x lead-g3" title="×843">VELVET</span><span class="lead-t lead-x lead-g3" title="×152">C98</span><span class="lead-t lead-x" title="×30">XPIN</span><span class="lead-t lead-x lead-f lead-g3" title="×211">EDEN</span><span class="lead-t lead-x lead-g3" title="×217">WEN</span><span class="lead-t lead-x lead-g1" title="×56">AMAT</span><span class="lead-t lead-x" title="×31">BTW</span><span class="lead-t lead-x lead-g1" title="×79">DODOX</span><span class="lead-t lead-x lead-g3" title="×231">2Z</span><span class="lead-t lead-x lead-g3" title="×195">STORJ</span><span class="lead-t lead-x lead-g3" title="×491">KMNO</span><span class="lead-t lead-x lead-g1" title="×96">TAKE</span><span class="lead-t lead-x" title="×37">VIC</span><span class="lead-t lead-x lead-g3" title="×1954">CTSI</span><span class="lead-t lead-x" title="×37">NOM</span><span class="lead-t lead-x" title="×40">HUMA</span><span class="lead-t lead-x" title="×29">BSB</span><span class="lead-t lead-x lead-g3" title="×945">BSP</span><span class="lead-t lead-x" title="×31">SKR</span><span class="lead-t lead-x" title="×33">POWER</span><span class="lead-t lead-x" title="×42">LISTA</span><span class="lead-t lead-x lead-g3" title="×406">ONE</span><span class="lead-t lead-x lead-f lead-g3" title="×182">SAGA</span><span class="lead-t lead-x lead-g3" title="×346">BLUAI</span><span class="lead-t lead-x" title="×43">DEEP</span><span class="lead-t lead-x lead-f" title="×1">BULLA</span><span class="lead-t lead-x lead-g1" title="×77">TRUST</span><span class="lead-t lead-x lead-g1" title="×86">BE</span></div>
   <div class="lead-hd">объём · flow</div>
 </div>
   <div class="row row-2">
@@ -3763,7 +3840,7 @@ transition:border-color .2s ease}
     <span class="b-ic"><svg viewBox="-13 -13 26 26"><path d="M-8 4 L-2 -4 L4 1 L9 -6 M9 -6 h-5 M9 -6 v5" fill="none" stroke="#A8F0C8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
     <div class="b-t" data-slice="setups">сетапы
       <span>1 из 1 · r:r ≥ 2</span></div>
-    <div class="set-list"><div class="set-row" data-coin="KORUUSDT"><div><div class="set-sym">KORUUSDT</div><div class="set-sub">trend · объём ×1.4</div></div><svg class="set-dial" viewBox="-15 -15 30 30"><circle r="13" fill="none" stroke="#fff" stroke-opacity=".07" stroke-width="2.5"/><circle r="13" fill="none" stroke="#4FCF8A" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="81.68 0.00" transform="rotate(-90)"/></svg><span class="set-rr gr">1:222.2</span><span class="set-in">вход 20.9600</span></div></div>
+    <div class="set-list"><div class="set-row" data-coin="KORUUSDT"><div><div class="set-sym">KORUUSDT</div><div class="set-sub">trend · объём ×1.6</div></div><svg class="set-dial" viewBox="-15 -15 30 30"><circle r="13" fill="none" stroke="#fff" stroke-opacity=".07" stroke-width="2.5"/><circle r="13" fill="none" stroke="#4FCF8A" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="81.68 0.00" transform="rotate(-90)"/></svg><span class="set-rr gr">1:223.1</span><span class="set-in">вход 20.8800</span></div></div>
   </div>
 </div>
 <div class="b c-am g-imp empty" data-slice="hourly">
@@ -3783,7 +3860,7 @@ transition:border-color .2s ease}
   <div class="b-in">
     <span class="b-ic"><svg viewBox="-13 -13 26 26"><path d="M-8 5 h16 M-8 5 v-4 M-3 5 v-8 M2 5 v-11 M7 5 v-6" fill="none" stroke="#D8C0F8" stroke-width="1.8" stroke-linecap="round"/></svg></span>
     <div class="b-t">сектора <span>за 24 часа</span></div>
-    <div class="rows"><div class="srow" data-slice="sector:MEME"><span class="srow-n">MEME</span><span class="srow-t"><i class="dn" style="width:50%"></i></span><span class="srow-v dn">-4.5%</span></div></div>
+    <div class="rows"><div class="srow" data-slice="sector:MEME"><span class="srow-n">MEME</span><span class="srow-t"><i class="dn" style="width:50%"></i></span><span class="srow-v dn">-4.9%</span></div></div>
   </div>
 </div></div>
   
@@ -3818,16 +3895,16 @@ transition:border-color .2s ease}
     <span class="sx-sub">meme · перп</span>
   </td>
   <td class="sx-c-soc"><div class="sx-mut">—</div></td>
-  <td class="sx-c-surge"><div class="sx-mut">1.4×</div></td>
+  <td class="sx-c-surge"><div class="sx-mut">1.6×</div></td>
   <td class="sx-c-taiko"><div class="sx-mut">—</div></td>
 
   <td><svg class="sx-ring" viewBox="-18.0 -18.0 36 36"><circle r="15" fill="none" stroke="#1d2127" stroke-width="2.5"/><circle r="15" fill="none" stroke="#8FA0B0" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round" stroke-dasharray="14.14 80.11" transform="rotate(-90)"/><text class="sx-ring-v" y="3.5" text-anchor="middle">15</text></svg></td>
-  <td><b class="sx-n am">1.4×</b><span class="sx-bar" style="width:52px"><i style="width:14%;background:#F5A623"></i></span></td>
+  <td><b class="sx-n am">1.6×</b><span class="sx-bar" style="width:52px"><i style="width:16%;background:#F5A623"></i></span></td>
   <td><span class="sx-sb empty"></span></td>
-  <td><span class="sx-bar" style="width:40px"><i style="width:23%;background:#FFD98A"></i></span></td>
+  <td><span class="sx-bar" style="width:40px"><i style="width:26%;background:#FFD98A"></i></span></td>
 
-  <td><b class="sx-n dn">-4.5%</b></td>
-  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,3.7 3.1,3.6 6.3,11.9 9.4,9.6 12.5,6.8 15.7,13.9 18.8,17.1 21.9,23.0 25.0,13.5 28.2,17.3 31.3,17.3 34.4,14.7 37.6,13.7 40.7,9.6 43.8,11.4 47.0,13.0 50.1,12.7 53.2,12.4 56.3,12.3 59.5,14.4 62.6,11.5 65.7,5.9 68.9,3.0 72.0,5.1" fill="none" stroke="#C4703A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="5.1" r="2" fill="#C4703A"/></svg></td>
+  <td><b class="sx-n dn">-4.9%</b></td>
+  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,3.7 3.1,3.6 6.3,11.9 9.4,9.6 12.5,6.8 15.7,13.9 18.8,17.1 21.9,23.0 25.0,13.5 28.2,17.3 31.3,17.3 34.4,14.7 37.6,13.7 40.7,9.6 43.8,11.4 47.0,13.0 50.1,12.7 53.2,12.4 56.3,12.3 59.5,14.4 62.6,11.5 65.7,5.9 68.9,3.0 72.0,5.2" fill="none" stroke="#C4703A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="5.2" r="2" fill="#C4703A"/></svg></td>
   <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
 
   <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="sx-sub2">trend</span></td>
@@ -3835,11 +3912,11 @@ transition:border-color .2s ease}
   <td><span class="sx-sub2">meme</span></td>
 
   <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#8FA0B0"></i><i></i><i></i></span><span class="sx-veto-l bad">нет спота</span></div></td>
-  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-1.958%</b></td>
-  <td><b class="sx-rr up">1:222.2</b></td>
+  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-1.920%</b></td>
+  <td><b class="sx-rr up">1:223.1</b></td>
 
-  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">20.9600</b></td>
-  <td><b class="sx-n">20.9600</b></td>
+  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">20.8800</b></td>
+  <td><b class="sx-n">20.8800</b></td>
   <td><div class="sx-act go">открыть</div></td>
 </tr></tbody></table></div>
   <div class="sx-f"><span>всего 1 монет</span>
@@ -3928,16 +4005,16 @@ transition:border-color .2s ease}
     <span class="sx-sub">meme · перп</span>
   </td>
   <td class="sx-c-soc"><div class="sx-mut">—</div></td>
-  <td class="sx-c-surge"><div class="sx-mut">1.4×</div></td>
+  <td class="sx-c-surge"><div class="sx-mut">1.6×</div></td>
   <td class="sx-c-taiko"><div class="sx-mut">—</div></td>
 
   <td><svg class="sx-ring" viewBox="-18.0 -18.0 36 36"><circle r="15" fill="none" stroke="#1d2127" stroke-width="2.5"/><circle r="15" fill="none" stroke="#8FA0B0" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round" stroke-dasharray="14.14 80.11" transform="rotate(-90)"/><text class="sx-ring-v" y="3.5" text-anchor="middle">15</text></svg></td>
-  <td><b class="sx-n am">1.4×</b><span class="sx-bar" style="width:52px"><i style="width:14%;background:#F5A623"></i></span></td>
+  <td><b class="sx-n am">1.6×</b><span class="sx-bar" style="width:52px"><i style="width:16%;background:#F5A623"></i></span></td>
   <td><span class="sx-sb empty"></span></td>
-  <td><span class="sx-bar" style="width:40px"><i style="width:23%;background:#FFD98A"></i></span></td>
+  <td><span class="sx-bar" style="width:40px"><i style="width:26%;background:#FFD98A"></i></span></td>
 
-  <td><b class="sx-n dn">-4.5%</b></td>
-  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,3.7 3.1,3.6 6.3,11.9 9.4,9.6 12.5,6.8 15.7,13.9 18.8,17.1 21.9,23.0 25.0,13.5 28.2,17.3 31.3,17.3 34.4,14.7 37.6,13.7 40.7,9.6 43.8,11.4 47.0,13.0 50.1,12.7 53.2,12.4 56.3,12.3 59.5,14.4 62.6,11.5 65.7,5.9 68.9,3.0 72.0,5.1" fill="none" stroke="#C4703A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="5.1" r="2" fill="#C4703A"/></svg></td>
+  <td><b class="sx-n dn">-4.9%</b></td>
+  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,3.7 3.1,3.6 6.3,11.9 9.4,9.6 12.5,6.8 15.7,13.9 18.8,17.1 21.9,23.0 25.0,13.5 28.2,17.3 31.3,17.3 34.4,14.7 37.6,13.7 40.7,9.6 43.8,11.4 47.0,13.0 50.1,12.7 53.2,12.4 56.3,12.3 59.5,14.4 62.6,11.5 65.7,5.9 68.9,3.0 72.0,5.2" fill="none" stroke="#C4703A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="5.2" r="2" fill="#C4703A"/></svg></td>
   <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
 
   <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="sx-sub2">trend</span></td>
@@ -3945,11 +4022,11 @@ transition:border-color .2s ease}
   <td><span class="sx-sub2">meme</span></td>
 
   <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#8FA0B0"></i><i></i><i></i></span><span class="sx-veto-l bad">нет спота</span></div></td>
-  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-1.958%</b></td>
-  <td><b class="sx-rr up">1:222.2</b></td>
+  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-1.920%</b></td>
+  <td><b class="sx-rr up">1:223.1</b></td>
 
-  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">20.9600</b></td>
-  <td><b class="sx-n">20.9600</b></td>
+  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">20.8800</b></td>
+  <td><b class="sx-n">20.8800</b></td>
   <td><div class="sx-act go">открыть</div></td>
 </tr></tbody></table></div>
   <div class="sx-f"><span>всего 1 монет</span>
@@ -3983,16 +4060,16 @@ transition:border-color .2s ease}
     <span class="sx-sub">meme · перп</span>
   </td>
   <td class="sx-c-soc"><div class="sx-mut">—</div></td>
-  <td class="sx-c-surge"><div class="sx-mut">1.4×</div></td>
+  <td class="sx-c-surge"><div class="sx-mut">1.6×</div></td>
   <td class="sx-c-taiko"><div class="sx-mut">—</div></td>
 
   <td><svg class="sx-ring" viewBox="-18.0 -18.0 36 36"><circle r="15" fill="none" stroke="#1d2127" stroke-width="2.5"/><circle r="15" fill="none" stroke="#8FA0B0" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round" stroke-dasharray="14.14 80.11" transform="rotate(-90)"/><text class="sx-ring-v" y="3.5" text-anchor="middle">15</text></svg></td>
-  <td><b class="sx-n am">1.4×</b><span class="sx-bar" style="width:52px"><i style="width:14%;background:#F5A623"></i></span></td>
+  <td><b class="sx-n am">1.6×</b><span class="sx-bar" style="width:52px"><i style="width:16%;background:#F5A623"></i></span></td>
   <td><span class="sx-sb empty"></span></td>
-  <td><span class="sx-bar" style="width:40px"><i style="width:23%;background:#FFD98A"></i></span></td>
+  <td><span class="sx-bar" style="width:40px"><i style="width:26%;background:#FFD98A"></i></span></td>
 
-  <td><b class="sx-n dn">-4.5%</b></td>
-  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,3.7 3.1,3.6 6.3,11.9 9.4,9.6 12.5,6.8 15.7,13.9 18.8,17.1 21.9,23.0 25.0,13.5 28.2,17.3 31.3,17.3 34.4,14.7 37.6,13.7 40.7,9.6 43.8,11.4 47.0,13.0 50.1,12.7 53.2,12.4 56.3,12.3 59.5,14.4 62.6,11.5 65.7,5.9 68.9,3.0 72.0,5.1" fill="none" stroke="#C4703A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="5.1" r="2" fill="#C4703A"/></svg></td>
+  <td><b class="sx-n dn">-4.9%</b></td>
+  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,3.7 3.1,3.6 6.3,11.9 9.4,9.6 12.5,6.8 15.7,13.9 18.8,17.1 21.9,23.0 25.0,13.5 28.2,17.3 31.3,17.3 34.4,14.7 37.6,13.7 40.7,9.6 43.8,11.4 47.0,13.0 50.1,12.7 53.2,12.4 56.3,12.3 59.5,14.4 62.6,11.5 65.7,5.9 68.9,3.0 72.0,5.2" fill="none" stroke="#C4703A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="5.2" r="2" fill="#C4703A"/></svg></td>
   <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
 
   <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="sx-sub2">trend</span></td>
@@ -4000,11 +4077,11 @@ transition:border-color .2s ease}
   <td><span class="sx-sub2">meme</span></td>
 
   <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#8FA0B0"></i><i></i><i></i></span><span class="sx-veto-l bad">нет спота</span></div></td>
-  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-1.958%</b></td>
-  <td><b class="sx-rr up">1:222.2</b></td>
+  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-1.920%</b></td>
+  <td><b class="sx-rr up">1:223.1</b></td>
 
-  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">20.9600</b></td>
-  <td><b class="sx-n">20.9600</b></td>
+  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">20.8800</b></td>
+  <td><b class="sx-n">20.8800</b></td>
   <td><div class="sx-act go">открыть</div></td>
 </tr></tbody></table></div>
   <div class="sx-f"><span>всего 1 монет</span>
@@ -4038,16 +4115,16 @@ transition:border-color .2s ease}
     <span class="sx-sub">meme · перп</span>
   </td>
   <td class="sx-c-soc"><div class="sx-mut">—</div></td>
-  <td class="sx-c-surge"><div class="sx-mut">1.4×</div></td>
+  <td class="sx-c-surge"><div class="sx-mut">1.6×</div></td>
   <td class="sx-c-taiko"><div class="sx-mut">—</div></td>
 
   <td><svg class="sx-ring" viewBox="-18.0 -18.0 36 36"><circle r="15" fill="none" stroke="#1d2127" stroke-width="2.5"/><circle r="15" fill="none" stroke="#8FA0B0" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round" stroke-dasharray="14.14 80.11" transform="rotate(-90)"/><text class="sx-ring-v" y="3.5" text-anchor="middle">15</text></svg></td>
-  <td><b class="sx-n am">1.4×</b><span class="sx-bar" style="width:52px"><i style="width:14%;background:#F5A623"></i></span></td>
+  <td><b class="sx-n am">1.6×</b><span class="sx-bar" style="width:52px"><i style="width:16%;background:#F5A623"></i></span></td>
   <td><span class="sx-sb empty"></span></td>
-  <td><span class="sx-bar" style="width:40px"><i style="width:23%;background:#FFD98A"></i></span></td>
+  <td><span class="sx-bar" style="width:40px"><i style="width:26%;background:#FFD98A"></i></span></td>
 
-  <td><b class="sx-n dn">-4.5%</b></td>
-  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,3.7 3.1,3.6 6.3,11.9 9.4,9.6 12.5,6.8 15.7,13.9 18.8,17.1 21.9,23.0 25.0,13.5 28.2,17.3 31.3,17.3 34.4,14.7 37.6,13.7 40.7,9.6 43.8,11.4 47.0,13.0 50.1,12.7 53.2,12.4 56.3,12.3 59.5,14.4 62.6,11.5 65.7,5.9 68.9,3.0 72.0,5.1" fill="none" stroke="#C4703A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="5.1" r="2" fill="#C4703A"/></svg></td>
+  <td><b class="sx-n dn">-4.9%</b></td>
+  <td><svg class="sx-sl" viewBox="0 0 72 26"><polyline points="0.0,3.7 3.1,3.6 6.3,11.9 9.4,9.6 12.5,6.8 15.7,13.9 18.8,17.1 21.9,23.0 25.0,13.5 28.2,17.3 31.3,17.3 34.4,14.7 37.6,13.7 40.7,9.6 43.8,11.4 47.0,13.0 50.1,12.7 53.2,12.4 56.3,12.3 59.5,14.4 62.6,11.5 65.7,5.9 68.9,3.0 72.0,5.2" fill="none" stroke="#C4703A" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/><circle cx="72.0" cy="5.2" r="2" fill="#C4703A"/></svg></td>
   <td><b class="sx-n mut">0%</b><span class="sx-bar" style="width:40px"><i style="width:100%;background:#C4703A"></i></span></td>
 
   <td><span class="sx-steps" style="--sc:#D9B84A"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="sx-sub2">trend</span></td>
@@ -4055,11 +4132,11 @@ transition:border-color .2s ease}
   <td><span class="sx-sub2">meme</span></td>
 
   <td><div class="sx-veto"><span class="sx-dots"><i class="on" style="background:#8FA0B0"></i><i></i><i></i></span><span class="sx-veto-l bad">нет спота</span></div></td>
-  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-1.958%</b></td>
-  <td><b class="sx-rr up">1:222.2</b></td>
+  <td><span class="sx-bp"><i style="right:50%;width:50%;background:#8FA0B0"></i></span><b class="sx-bp-v" style="color:#8FA0B0">-1.920%</b></td>
+  <td><b class="sx-rr up">1:223.1</b></td>
 
-  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">20.9600</b></td>
-  <td><b class="sx-n">20.9600</b></td>
+  <td><span class="sx-lv"><i class="s"></i><i class="e" style="left:100%"></i><i class="t"></i></span><b class="sx-lv-v">20.8800</b></td>
+  <td><b class="sx-n">20.8800</b></td>
   <td><div class="sx-act go">открыть</div></td>
 </tr></tbody></table></div>
   <div class="sx-f"><span>всего 1 монет</span>
@@ -4077,7 +4154,7 @@ transition:border-color .2s ease}
 <div class="modal" data-coin="KORUUSDT"><div class="modal-bd"></div><div class="modal-in"><button class="modal-x">✕</button><div class="card">
 <div class="card-in">
   <div class="hdr amber">
-    <div class="hdr-cl"><div class="hdr-gh">-4.5%</div></div>
+    <div class="hdr-cl"><div class="hdr-gh">-4.9%</div></div>
     <div class="hdr-in">
       <div class="hdr-rk"><b>RANK 001</b><i></i></div>
       <a class="hdr-sym-a" href="https://www.tradingview.com/chart/?symbol=BINANCE:KORUUSDT.P" target="_blank" rel="noopener">
@@ -4085,7 +4162,7 @@ transition:border-color .2s ease}
       </a>
       <div class="hdr-ph">trend</div>
     </div>
-    <div class="hdr-pr">$20.96</div>
+    <div class="hdr-pr">$20.88</div>
   </div>
   <div class="med-link"></div>
   <div class="med " style="--p:15">
@@ -4095,15 +4172,15 @@ transition:border-color .2s ease}
   <div class="wrap">
     <div class="rvol">
       <div class="rvol-i">📊</div>
-      <div class="rvol-v">1.37×</div>
+      <div class="rvol-v">1.56×</div>
       <div class="rvol-l">RVOL 1H</div>
-      <div class="rvol-d">в норме</div>
+      <div class="rvol-d">выше нормы</div>
     </div>
-    <div class="sigs"><div class="sig-row"><div class="sig half"><span class="sig-i">≈</span><div style="min-width:0"><div class="sig-t">FUNDING</div><div class="sig-d">-0.0196%</div></div></div><div class="sig half"><span class="sig-i">↑</span><div style="min-width:0"><div class="sig-t">OPEN INTEREST</div><div class="sig-d">$73.00M</div></div></div></div></div>
+    <div class="sigs"><div class="sig-row"><div class="sig half"><span class="sig-i">≈</span><div style="min-width:0"><div class="sig-t">FUNDING</div><div class="sig-d">-0.0192%</div></div></div><div class="sig half"><span class="sig-i">↑</span><div style="min-width:0"><div class="sig-t">OPEN INTEREST</div><div class="sig-d">$72.92M</div></div></div></div></div>
   </div>
   <div class="veto"><div class="veto-h">ПОД ВЕТО · 1</div><div class="veto-row"><span class="veto-k">НЕТ СПОТА</span><span class="veto-v">спот 0.0% оборота</span></div></div>
-  <div class="perf"><div><div class="perf-k">7D</div><div class="perf-v up">+21.5%</div></div><div><div class="perf-k">30D</div><div class="perf-v dn">-1.9%</div></div><div><div class="perf-k">ATH</div><div class="perf-v dn">-98.1%</div></div><div><div class="perf-k">OBV</div><div class="perf-v dn">-118.0%</div></div></div>
-  <div class="tech">SRSI 29.2 · ATR 10.05 · BB 51.01 · SPOT 0% · VI+ 1.257/0.6879</div>
+  <div class="perf"><div><div class="perf-k">7D</div><div class="perf-v up">+21.0%</div></div><div><div class="perf-k">30D</div><div class="perf-v dn">-2.2%</div></div><div><div class="perf-k">ATH</div><div class="perf-v dn">-98.1%</div></div><div><div class="perf-k">OBV</div><div class="perf-v dn">-118.2%</div></div></div>
+  <div class="tech">SRSI 24.1 · ATR 10.08 · BB 50.88 · SPOT 0% · VI+ 1.257/0.6879</div>
   
 <div class="blk b1"><div class="blk-n">01</div><div class="b1-in">
   <div class="b1-h"><span class="tw"><svg viewBox="0 0 24 24"><path d="M23 4.9c-.8.4-1.7.6-2.6.8 1-.6 1.7-1.5 2-2.6-.9.5-1.9.9-3 1.1a4.7 4.7 0 0 0-8 4.3C7.5 8.3 4 6.5 1.7 3.7a4.7 4.7 0 0 0 1.5 6.3c-.8 0-1.5-.2-2.1-.6 0 2.3 1.6 4.2 3.8 4.6-.4.1-.8.2-1.2.2-.3 0-.6 0-.9-.1.6 1.9 2.4 3.3 4.4 3.3A9.5 9.5 0 0 1 0 19.5a13.3 13.3 0 0 0 7.2 2.1c8.7 0 13.4-7.2 13.4-13.4v-.6c.9-.7 1.7-1.5 2.4-2.7z"/></svg></span>
@@ -4136,18 +4213,18 @@ transition:border-color .2s ease}
           <circle class="rr-arc" cx="50" cy="50" r="42"
                   stroke-dasharray="263.89 263.89"/>
         </svg>
-        <div class="rr-val">1:222.2</div>
+        <div class="rr-val">1:223.1</div>
         <div class="rr-cap">R : R</div>
       </div>
       <div class="rr-nums">
         <div class="rr-c"><span class="rr-l">ВХОД</span>
-          <span class="rr-p rr-e">$20.9600</span></div>
+          <span class="rr-p rr-e">$20.8800</span></div>
         <div class="rr-c"><span class="rr-l">СТОП</span>
-          <span class="rr-p rr-s">$18.0256</span>
+          <span class="rr-p rr-s">$17.9568</span>
           <span class="rr-d">-14.0%</span></div>
         <div class="rr-c"><span class="rr-l">ЦЕЛЬ 1</span>
           <span class="rr-p rr-t">$673.00</span>
-          <span class="rr-d">+3110.9%</span></div>
+          <span class="rr-d">+3123.2%</span></div>
       </div>
     </div>
     <div class="b3-d">Тренд. Работать по направлению, коррекции откупать от EMA21. цели на сопротивлениях.</div>
@@ -4165,8 +4242,6 @@ transition:border-color .2s ease}
          из того же window.ORB, что кормит текст выше. Отдельный
          список монет здесь не собирается — он разошёлся бы с
          карточками при первой правке. -->
-    <div class="obf-podium" id="obfPodium"></div>
-    <div class="obf-podium-cap" id="obfPodiumCap"></div>
     <div class="obf-foot" id="obfFoot">клик в любом месте — к дашборду</div>
     <div class="obf-bar" id="obfBar"><u></u></div>
   </div>
@@ -4826,6 +4901,15 @@ function removeTags(str) {
 </script>
 
 
+<div class="ob-podium" id="obPodium">
+  <div class="obp-in">
+    <div class="obp-h">лидеры прогона</div>
+    <div class="obp-scene" id="obfPodium"></div>
+    <div class="obp-cap" id="obfPodiumCap"></div>
+    <div class="obp-foot">клик в любом месте — к дашборду</div>
+  </div>
+</div>
+
 <script>
 (function () {
   var host = document.getElementById('obfPodium');
@@ -5153,6 +5237,42 @@ function removeTags(str) {
     cap.textContent = 'высота · от дна   ·   линия · объём сейчас   ·   ' +
       'радиус · рекорд объёма';
   }
+
+  /* ── Очередь экранов ──────────────────────────────────────────
+     Сводка → сцена → дашборд. Подписки на закрытие сводки нет:
+     brief.js своё закрытие наружу не отдаёт, а лезть в его
+     внутренности значило бы связать два модуля намертво. Вместо
+     этого следим за классом .on на самой сводке — он и есть её
+     публичное состояние, видимое из разметки.
+
+     Наблюдатель снимается после первого срабатывания: сцена
+     показывается один раз за загрузку, дальше она обычный экран. */
+  var brief = document.getElementById('obBrief');
+  var pod = document.getElementById('obPodium');
+  if (!pod) return;
+
+  function show() {
+    pod.classList.add('on');
+    var t = setTimeout(hide, 26000);
+    function hide() { clearTimeout(t); pod.classList.remove('on'); }
+    pod.addEventListener('click', hide);
+    document.addEventListener('keydown', function () {
+      if (pod.classList.contains('on')) hide();
+    });
+  }
+
+  if (!brief) { show(); return; }
+
+  var seen = brief.classList.contains('on');
+  var mo = new MutationObserver(function () {
+    var on = brief.classList.contains('on');
+    if (on) { seen = true; return; }
+    /* Сводка закрылась — но только если до этого открывалась.
+       Без флага сцена выскакивала бы сразу при загрузке, пока
+       сводка ещё не успела получить свой класс. */
+    if (seen) { mo.disconnect(); show(); }
+  });
+  mo.observe(brief, { attributes: true, attributeFilter: ['class'] });
 })();
 </script>
 
