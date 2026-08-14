@@ -73,9 +73,20 @@ PODIUM_JS = """
   var host = document.getElementById('obfPodium');
   if (!host) return;
 
+  /* Молчаливый выход опаснее отказа: пустой экран неотличим от
+     сломанного модуля, и первый же прогон на --limit 1 стоил
+     получаса разбора — сцены не было, а почему, сказать было
+     нечем. Дальше все ранние выходы пишут причину. */
+  function bail(why) {
+    var n = document.createElement('div');
+    n.className = 'obp-empty';
+    n.textContent = why;
+    host.appendChild(n);
+  }
+
   var O = window.ORB || {};
   var STARS = (O.stars || []).slice();
-  if (!STARS.length) return;
+  if (!STARS.length) { bail('журнал лидеров пуст'); return; }
 
   /* Палитра и стадии — те же, что у звёзд на орбите. Держать здесь
      копию таблицы пришлось бы синхронизировать руками, поэтому берём
@@ -126,7 +137,15 @@ PODIUM_JS = """
     ((s.series && s.series.length >= 4 && (+s.up || 0) >= 12) ? BARS : CUBES)
       .push(s);
   });
-  if (!BARS.length) return;
+  if (!BARS.length) {
+    /* Самый частый случай — отладочный прогон: при явном --limit
+       монеты журнала в выборку не добираются, у них нет ни ряда
+       цены, ни расстояния от дна, и столбику неоткуда взяться. */
+    bail('в журнале ' + STARS.length + ' монет, но ни по одной нет ' +
+         'данных прогона — столбику неоткуда взяться. Обычно это ' +
+         'прогон с --limit: монеты журнала в выборку не добираются.');
+    return;
+  }
 
   var VB_W = 1240, VB_H = 600;
   var CX = VB_W / 2, GROUND = 452;

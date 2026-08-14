@@ -98,6 +98,10 @@ from render.podium import render_podium
   letter-spacing:3px;text-transform:uppercase;color:#3C362D}
 .obp-foot{margin-top:26px;text-align:center;font-size:7px;
   letter-spacing:3px;text-transform:uppercase;color:#2E2A24}
+/* Причина пустой сцены. Пустой экран неотличим от сломанного
+   модуля — а отличать надо, и в первую очередь себе. */
+.obp-empty{max-width:46ch;margin:60px auto;text-align:center;
+  font-size:12px;line-height:1.7;color:#5E564A}
 
 /* ── Появление ──
    Сцена собирается снизу вверх и по слоям: основание, затем столбики
