@@ -18,13 +18,11 @@ from core.binance import (
     K_OPEN_TIME,
     K_QUOTE_VOLUME,
     K_TAKER_BUY_QUOTE,
-    K_TRADES,
     klines_1d,
 )
 from detectors.flow_config import (
     AGG_SCALES,
     CAP_CHURN,
-    CAP_DORMANT,
     CAP_FUEL,
     CAP_HIDDEN,
     CAP_LEVERAGE,
@@ -46,7 +44,6 @@ import detectors.flow_churn as flow_churn
 import detectors.flow_spring as flow_spring
 import detectors.flow_taker as flow_taker
 import detectors.flow_leverage as flow_leverage
-import detectors.flow_dormant as flow_dormant
 
 # Нижняя точка шкалы семейства. Согласована со scoring.py:
 # отображение 45..100 → 14..34, ниже 45 даёт отрицательный вклад.
@@ -65,17 +62,11 @@ _RUNNERS = (
     flow_spring,
     flow_taker,
     flow_leverage,
-    flow_dormant,
 )
 
 NETWORK_CASES = frozenset({"flow_leverage"})
 
 CASE_PRIORITY = {
-    # Спячка выше всех: она единственная описывает состояние ДО
-    # движения, а вся шкала приоритетов ради этого и заведена.
-    # Если на монете видно и спячку, и что-то ещё — «ещё» это уже
-    # начавшееся движение, и представлять монету должно не оно.
-    "flow_dormant": 5,
     "flow_hidden": 4,
     "flow_spring": 3,
     "flow_churn": 2,
@@ -86,7 +77,6 @@ CASE_PRIORITY = {
 }
 
 CASE_CAP = {
-    "flow_dormant": CAP_DORMANT,
     "flow_hidden": CAP_HIDDEN,
     "flow_spring": CAP_SPRING,
     "flow_churn": CAP_CHURN,
@@ -100,7 +90,6 @@ CONFIRM_BONUS = 6
 CONFIRM_MIN_RAW = 35
 
 _HEADS = {
-    "flow_dormant": "Спячка",
     "flow_hidden": "Скрытый набор",
     "flow_spring": "Пружина",
     "flow_churn": "Поглощение на уровне",
@@ -199,7 +188,6 @@ def _load_bars(symbol: str) -> list[Bar]:
             c = float(k[K_CLOSE])
             quote = float(k[K_QUOTE_VOLUME])
             buy = float(k[K_TAKER_BUY_QUOTE])
-            trades = float(k[K_TRADES])
             t_open = float(k[K_OPEN_TIME])
             t_close = float(k[K_CLOSE_TIME])
         except (TypeError, ValueError, IndexError):
@@ -225,7 +213,6 @@ def _load_bars(symbol: str) -> list[Bar]:
                 volume=quote,
                 buy_volume=buy,
                 sell_volume=max(0.0, quote - buy),
-                trades=trades,
                 fill=fill,
             )
         )

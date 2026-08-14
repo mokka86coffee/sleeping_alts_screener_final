@@ -24,7 +24,6 @@ from core.binance import (
 from detectors.flow_config import (
     AGG_SCALES,
     CAP_CHURN,
-    CAP_DORMANT,
     CAP_FUEL,
     CAP_HIDDEN,
     CAP_LEVERAGE,

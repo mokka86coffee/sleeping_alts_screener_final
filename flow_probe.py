@@ -45,7 +45,14 @@ DEEP_DUMP_LIMIT = 80
 
 # Подкейсы в порядке зрелости. Одно место, из которого берутся и
 # колонки CSV, и разделы сводки: добавление модуля — одна строка.
-CASES = ("hidden", "spring", "churn", "taker", "fuel", "leverage")
+# Порядок — от состояния ДО движения к состоянию ПОСЛЕ. Он же
+# определяет порядок колонок в CSV и разделов в сводке, поэтому
+# читается как шкала стадии, а не как алфавит.
+#
+# Добавление подкейса — одна строка ЗДЕСЬ. Пропуск этой строки не
+# ломает прогон и ничего не печатает: новый подкейс просто исчезает
+# из отчёта целиком, как случилось с dormant в прогоне 14 августа.
+CASES = ("dormant", "hidden", "spring", "churn", "taker", "fuel", "leverage")
 
 # Монеты, разбор которых сохраняется в JSON независимо от того,
 # сработали они или нет. Нужен, чтобы видеть ПРИЧИНУ молчания:
@@ -132,6 +139,27 @@ FIELDS = [
     # не собралась» неразличимы, если складывать их в одно поле.
     "failures", "rejects", "error",
 ]
+
+
+def _check_cases() -> None:
+    """Сверяет CASES с реестром диспетчера.
+
+    Расхождение молчаливо: подкейс, которого нет в CASES, исчезает из
+    отчёта целиком — ни колонки, ни шкалы, ни причин отказа, — и
+    выглядит это как «подкейс не сработал». Проба заведена как раз
+    для того, чтобы такое видеть, поэтому она обязана видеть и себя.
+    """
+    try:
+        from detectors.flow import CASE_CAP
+    except Exception:
+        return
+    live = {n.replace("flow_", "") for n in CASE_CAP}
+    lost = sorted(live - set(CASES))
+    extra = sorted(set(CASES) - live)
+    if lost:
+        print(f"⚠ подкейсы вне отчёта: {', '.join(lost)} — добавь в CASES")
+    if extra:
+        print(f"⚠ в CASES есть лишние: {', '.join(extra)} — их нет в диспетчере")
 
 
 def load_universe(
@@ -272,6 +300,7 @@ def main() -> None:
         except (IndexError, ValueError):
             limit = 0
 
+    _check_cases()
     symbols = load_universe(
         limit, skip_tokenized=skip_tokenized, skip_excluded=skip_excluded,
     )
