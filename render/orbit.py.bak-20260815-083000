@@ -1625,7 +1625,6 @@ ORBIT_JS = """
      список рядом гарантированно разойдётся с первым. */
   var NAMES = DATA.names || {};
   var STRAT = {
-    dormant:  { c: '#7E9AB5', stage: 0 },
     hidden:   { c: '#7FE3D4', stage: 0 },
     spring:   { c: '#6FC9E8', stage: 0 },
     churn:    { c: '#F0B85C', stage: 1 },

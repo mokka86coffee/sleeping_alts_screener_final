@@ -86,13 +86,13 @@ PODIUM_JS = """
 
   var O = window.ORB || {};
   var STARS = (O.stars || []).slice();
-  if (!STARS.length) { bail('журнал лидеров пуст'); return; }
 
   /* Палитра и стадии — те же, что у звёзд на орбите. Держать здесь
      копию таблицы пришлось бы синхронизировать руками, поэтому берём
      из ORB, а свой список оставляем только запасным. */
   var STRAT = O.strat || {
-    hidden:  { c: '#7FE3D4', stage: 0 }, spring:   { c: '#6FC9E8', stage: 0 },
+    dormant: { c: '#7E9AB5', stage: 0 }, hidden:   { c: '#7FE3D4', stage: 0 },
+    spring:  { c: '#6FC9E8', stage: 0 },
     churn:   { c: '#F0B85C', stage: 1 }, taker:    { c: '#FFD98A', stage: 1 },
     leverage:{ c: '#E89AB0', stage: 1 }, fuel:     { c: '#C4703A', stage: 2 }
   };
@@ -124,6 +124,23 @@ PODIUM_JS = """
     return function () { h = (h * 1103515245 + 12345) | 0;
       return ((h >>> 16) & 0x7fff) / 0x7fff; };
   }
+
+  /* ── Сцена строится В МОМЕНТ ПОКАЗА, а не при разборе страницы ──
+     Первая редакция рисовала её сразу, и анимации появления никто не
+     видел: слой прозрачен до закрытия сводки, а это десятки секунд —
+     задержки в полторы секунды отыгрывали в пустоту, и к показу
+     оставался готовый блок целиком.
+
+     Отложенная сборка заодно бесплатна, если до сцены не дошли:
+     полторы сотни узлов SVG не создаются вовсе. */
+  var pod = document.getElementById('obPodium');
+  var built = false;
+  function build() {
+    if (built) return;
+    built = true;
+    pod.classList.remove('pd-go');
+
+    if (!STARS.length) { bail('журнал лидеров пуст'); return; }
 
   var volNow = function (s) {
     return Math.max(+s.v1h || 0, +s.v4h || 0, +s.v1d || 0); };
@@ -414,6 +431,7 @@ PODIUM_JS = """
     cap.textContent = 'высота · от дна   ·   линия · объём сейчас   ·   ' +
       'радиус · рекорд объёма';
   }
+  }   /* конец build() */
 
   /* ── Очередь экранов ──────────────────────────────────────────
      Сводка → сцена → дашборд. Подписки на закрытие сводки нет:
@@ -425,11 +443,32 @@ PODIUM_JS = """
      Наблюдатель снимается после первого срабатывания: сцена
      показывается один раз за загрузку, дальше она обычный экран. */
   var brief = document.getElementById('obBrief');
-  var pod = document.getElementById('obPodium');
   if (!pod) return;
 
+  var shown = false;
   function show() {
+    if (shown) return;
+    shown = true;
+    /* Сначала узлы, потом класс: анимации стартуют при вставке
+       элемента, и если сделать наоборот, первый кадр слой уже
+       непрозрачен, а сцена ещё пуста. */
+    build();
     pod.classList.add('on');
+    /* Снятие паузы с анимаций.
+    
+       В CSS все pd-* объявлены с animation-play-state:paused, и до
+       этой строки не двигается ничего. Косвенный способ — «собрать
+       сцену в нужный момент и понадеяться, что анимации стартуют при
+       вставке» — уже подводил: узлы могут оказаться в документе
+       раньше показа по десятку причин, и тогда весь разбег отыгрывает
+       в прозрачном слое.
+    
+       requestAnimationFrame нужен, чтобы браузер успел применить
+       вставку до снятия паузы: в одном кадре с appendChild класс
+       иногда не даёт перезапуска. */
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { pod.classList.add('pd-go'); });
+    });
     var t = setTimeout(hide, 26000);
     function hide() { clearTimeout(t); pod.classList.remove('on'); }
     pod.addEventListener('click', hide);
@@ -440,16 +479,29 @@ PODIUM_JS = """
 
   if (!brief) { show(); return; }
 
+  /* Пауза перед показом равна затуханию сводки (.5s в CSS) плюс
+     запас. Без неё оба перехода идут одновременно, и полсекунды на
+     экране видно и гаснущий текст, и проявляющиеся столбики — читается
+     как наложение, а не как смена экрана. */
+  var HANDOVER = 560;
+
   var seen = brief.classList.contains('on');
   var mo = new MutationObserver(function () {
-    var on = brief.classList.contains('on');
-    if (on) { seen = true; return; }
-    /* Сводка закрылась — но только если до этого открывалась.
-       Без флага сцена выскакивала бы сразу при загрузке, пока
-       сводка ещё не успела получить свой класс. */
-    if (seen) { mo.disconnect(); show(); }
+    if (brief.classList.contains('on')) { seen = true; return; }
+    /* Сводка закрылась — но только если до этого открывалась. Без
+       флага сцена выскочила бы сразу при загрузке, пока сводка ещё
+       не получила свой класс. */
+    if (seen) { mo.disconnect(); setTimeout(show, HANDOVER); }
   });
   mo.observe(brief, { attributes: true, attributeFilter: ['class'] });
+
+  /* Запасной путь: если сводка не открылась вовсе — данных не
+     хватило, разметка изменилась, что угодно — сцена всё равно
+     покажется. Молчаливая зависимость от чужого модуля хуже, чем
+     лишний таймер. */
+  setTimeout(function () {
+    if (!seen && !shown) { mo.disconnect(); show(); }
+  }, 4000);
 })();
 </script>
 """
