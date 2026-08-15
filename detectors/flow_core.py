@@ -26,6 +26,8 @@ from detectors.flow_config import (
     DELTA_WINDOW,
     DROP_DISTRUST_PCT,
     DROP_FRESH_BARS,
+    RALLY_MIN_PCT,
+    RALLY_RETRACE_MIN,
     EVENT_NORM_WINDOW,
     IMMATURE_BODY_MAX,
     IMMATURE_MIN_TIER,
@@ -1309,6 +1311,17 @@ class DropContext:
     growth_x: float = 1.0
     bars_since_bottom: int = 0
 
+    # Сколько разгонов от дна монета уже отработала и какой был
+    # крупнейшим.
+    #
+    # Разгон — подъём от дна выше RALLY_MIN_PCT с последующим
+    # возвратом хотя бы наполовину. Требование возврата обязательно:
+    # без него текущее незакрытое движение считалось бы отработанным
+    # циклом, и признак «первый разгон» гас бы ровно тогда, когда он
+    # нужен.
+    rallies: int = 0
+    max_rally_pct: float = 0.0
+
     @property
     def peak_age_days(self) -> int:
         """Сколько баров назад стоял пик.
@@ -1318,6 +1331,21 @@ class DropContext:
         величина не восстанавливается.
         """
         return self._peak_age
+
+    @property
+    def first_run(self) -> bool:
+        """Текущее движение — первое после этого падения.
+
+        Самое подтверждённое правило проекта: первый разгон после
+        долгого падения — вынос, а не начало тренда (BICO, BMT, TUT,
+        ACU). Правило до сих пор жило внутри flow_dormant побочным
+        эффектом требования «отскок был и вернулся»; здесь оно
+        становится величиной, которую видят все подкейсы.
+
+        Ноль отработанных разгонов означает именно это: движения от
+        дна ещё не было ни разу, значит идущее сейчас — первое.
+        """
+        return self.rallies == 0
 
     @property
     def deep(self) -> bool:
@@ -1363,6 +1391,8 @@ def build_drop(bars: Sequence[Bar]) -> DropContext:
     low_before = min((b.low for b in before if b.low > 0), default=0.0)
     growth = (peak / low_before) if low_before > 0 else 1.0
 
+    rallies, max_rally = _count_rallies(tail[bottom_idx:])
+
     return DropContext(
         peak_price=peak,
         peak_idx=peak_idx,
@@ -1372,7 +1402,66 @@ def build_drop(bars: Sequence[Bar]) -> DropContext:
         bars_since_bottom=len(tail) - 1 - bottom_idx,
         _peak_age=len(tail) - 1 - peak_idx,
         growth_x=_clip(growth, 1.0, 1000.0),
+        rallies=rallies,
+        max_rally_pct=max_rally,
     )
+
+
+def _count_rallies(after: Sequence[Bar]) -> tuple[int, float]:
+    """Сколько ОТРАБОТАННЫХ разгонов было после дна и какой крупнейший.
+
+    Отработанный — поднялся выше RALLY_MIN_PCT от опоры и вернул
+    хотя бы RALLY_RETRACE_MIN пройденного. Возврат в определении
+    обязателен: без него текущее незакрытое движение засчиталось бы
+    как цикл, и признак «первый разгон» гас бы ровно в тот момент,
+    когда он нужен.
+
+    Явный автомат из двух состояний, а не бегущие максимум с
+    минимумом. Первая редакция считала одним проходом и на одном
+    отскоке давала два разгона, на двух — девять: после засчитанного
+    цикла максимум сохранялся, опора продолжала сползать, и из хвоста
+    того же падения собирался фантомный следующий цикл.
+
+    В поиске опора едет вниз за ценой — это ещё формирование дна.
+    В разгоне опора зафиксирована, и считается отданная доля хода.
+    """
+    if len(after) < 4:
+        return 0, 0.0
+
+    lows = [b.low for b in after if b.low > 0]
+    if not lows:
+        return 0, 0.0
+
+    base = lows[0]
+    top = base
+    in_rally = False
+    count, best = 0, 0.0
+
+    for b in after:
+        if b.low <= 0 or b.high <= 0:
+            continue
+        if not in_rally:
+            if b.low < base:
+                base = b.low
+            if base > 0 and (b.high - base) / base * 100.0 >= RALLY_MIN_PCT:
+                in_rally = True
+                top = b.high
+            continue
+
+        if b.high > top:
+            top = b.high
+        span = top - base
+        if span <= 0:
+            in_rally = False
+            continue
+        if (top - b.low) / span >= RALLY_RETRACE_MIN:
+            count += 1
+            best = max(best, span / base * 100.0)
+            base = b.low
+            top = base
+            in_rally = False
+
+    return count, best
 
 
 # ─────────────────────────────────────────────────────────────

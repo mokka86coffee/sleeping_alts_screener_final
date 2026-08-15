@@ -372,6 +372,16 @@ def _context_dict(ctx: FlowContext, hz: dict) -> dict:
             "peak_age_days": ctx.drop.peak_age_days,
             "deep": ctx.drop.deep,
             "fresh": ctx.drop.fresh,
+            # Отработанные разгоны от дна и признак первого. Правило
+            # «первый разгон после долгого падения — вынос» до сих
+            # пор нигде не было величиной.
+            "rallies": ctx.drop.rallies,
+            "max_rally_pct": round(ctx.drop.max_rally_pct, 1),
+            "first_run": ctx.drop.first_run,
+            # Характер спуска кумулятивной дельты: планомерный съезд
+            # или обвал. Считается с 13 августа и наружу не выходил,
+            # поэтому разброса по рынку у него нет.
+            "descent": ctx.flow.descent,
         },
         "rel_vol": round(ctx.rel_vol, 2),
         "atr_share": round(ctx.atr_share, 4),
