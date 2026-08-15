@@ -7,10 +7,6 @@
 from __future__ import annotations
 
 import math
-# Медиана из stdlib, а не из analytics.indicators: детекторы не
-# зависят от analytics, и заводить зависимость ради одной функции,
-# которая есть в стандартной библиотеке, не стоит.
-from statistics import median
 from dataclasses import asdict, dataclass, field
 
 from core.binance import (
@@ -23,9 +19,6 @@ from core.binance import (
     K_QUOTE_VOLUME,
     K_TAKER_BUY_QUOTE,
     K_TRADES,
-    K_VOLUME,
-    get_funding_history,
-    get_oi_history,
     klines_1d,
     klines_1w,
 )
@@ -286,155 +279,6 @@ def _life_span(symbol: str) -> tuple[float, float]:
         cand.append(opens[peak_idx])
     low_before = min(cand, default=0.0)
     return highs[peak_idx], low_before
-
-
-def _life_vwap(symbol: str) -> dict:
-    """VWAP всей жизни контракта и дистанция цены до него (И-3).
-
-    Средний безубыток всего капитала, прошедшего через монету: на
-    разборе BLESS апрельский вынос умер ровно на этой линии, и
-    крупнейшая агрессивная продажа истории легла на касание. Считается
-    по тем же недельным свечам, что _life_span, — ряд уже в RunCache,
-    сети ноль.
-
-    VWAP = Σ(quote) / Σ(base): quote-объём свечи и есть Σ(цена·штуки)
-    внутри неё, поэтому отношение двух сумм даёт средневзвешенную цену
-    без выбора, какой ценой представлять бар.
-
-    Пустой словарь — «жизни не видели», как у остальных life-величин.
-    VWAP волн (rally_vwap из И-3) сюда не входит: он требует вершин
-    разгонов из _count_rallies, а менять её сигнатуру без потребителя
-    не стоит — она недавно чинена после кортежей разной длины.
-    """
-    kl = klines_1w(symbol)
-    if not kl or len(kl) < 2:
-        return {}
-
-    quote = 0.0
-    base = 0.0
-    last_close = 0.0
-    for k in kl:
-        try:
-            quote += float(k[K_QUOTE_VOLUME])
-            base += float(k[K_VOLUME])
-            c = float(k[K_CLOSE])
-        except (TypeError, ValueError, IndexError):
-            continue
-        if c > 0:
-            last_close = c
-
-    if quote <= 0 or base <= 0:
-        return {}
-
-    vwap = quote / base
-    out = {"vwap": round(vwap, 10)}
-    if last_close > 0 and vwap > 0:
-        out["dist_pct"] = round((last_close / vwap - 1) * 100, 1)
-    return out
-
-
-def _funding_stats(symbol: str) -> dict:
-    """Фандинг рядом, а не точкой (И-2).
-
-    Точка ставки не значит почти ничего: на разборе BLESS текущее
-    значение породило теорию перекоса, которую история из месяца
-    опровергла за секунду. Значение имеют форма ряда: медианы окон,
-    доля отрицательных ставок, стрик одного знака. drift — сдвиг
-    короткой медианы против длинной — ранний признак конца баланса,
-    ЕСЛИ цена при этом плоская; плоскость цены здесь не проверяется,
-    она уже есть в пейлоаде, складывать величины — дело читателя.
-
-    Единицы — проценты за интервал, интервалов три в сутки:
-    med7 — медиана ~7 дней (21 ставка), med30 — всей доступной
-    истории (лимит Binance 100 ставок ≈ 33 дня). streak — знаковый:
-    +N подряд положительных, −N подряд отрицательных, 0 если
-    последняя ставка нулевая. Пустой словарь — истории меньше
-    двух суток.
-    """
-    hist = get_funding_history(symbol, limit=100)
-    rates: list[float] = []
-    for r in hist or []:
-        try:
-            rates.append(float(r.get("fundingRate", 0)) * 100)
-        except (TypeError, ValueError, AttributeError):
-            continue
-    if len(rates) < 6:
-        return {}
-
-    med7 = median(rates[-21:])
-    med30 = median(rates[-90:])
-    tail = rates[-90:]
-    neg_share = sum(1 for r in tail if r < 0) / len(tail)
-
-    streak = 0
-    last = rates[-1]
-    sign = 1 if last > 0 else (-1 if last < 0 else 0)
-    if sign:
-        for r in reversed(rates):
-            s = 1 if r > 0 else (-1 if r < 0 else 0)
-            if s != sign:
-                break
-            streak += 1
-        streak *= sign
-
-    return {
-        "med7": round(med7, 4),
-        "med30": round(med30, 4),
-        "neg_share": round(neg_share, 2),
-        "streak": streak,
-        "drift": round(med7 - med30, 4),
-    }
-
-
-def _oi_stats(symbol: str) -> dict:
-    """Ряд открытого интереса за окно Binance (И-1).
-
-    Различитель «сквиз или набор», которого нет у ценового следа:
-    вынос, ПОСТРОИВШИЙ интерес и удержавший его (плато), и вынос,
-    схлопнувшийся вместе с движением, по свечам неотличимы. Binance
-    отдаёт максимум 30 дневных точек, поэтому подъём и удержание
-    меряются по пику окна OI, без выравнивания с вершинами ценовых
-    разгонов; выравнивание — следующим шагом, когда у величин
-    появится потребитель (техдолг И-1).
-
-    x — текущий OI к медиане окна без последней точки; rise_x — во
-    сколько раз пик окна выше минимума до него (набор); held_pct —
-    сколько процентов пика дожило до сегодня (плато против сброса);
-    peak_age_days — давность пика. Знака направления у OI нет
-    намеренно: плато не говорит, кто в позиции, — направление
-    добавляет фандинг, по отдельности обе величины немые.
-
-    Пустой словарь — точек меньше восьми, мерить нечего.
-    """
-    hist = get_oi_history(symbol, period="1d", limit=30)
-    vals: list[float] = []
-    for r in hist or []:
-        try:
-            v = float(r.get("sumOpenInterest", 0))
-        except (TypeError, ValueError, AttributeError):
-            continue
-        if v > 0:
-            vals.append(v)
-    if len(vals) < 8:
-        return {}
-
-    cur = vals[-1]
-    med = median(vals[:-1])
-    if med <= 0:
-        return {}
-
-    peak_idx = max(range(len(vals)), key=lambda i: vals[i])
-    peak = vals[peak_idx]
-    low_before = min(vals[:peak_idx + 1])
-    rise = (peak / low_before) if low_before > 0 else 0.0
-    held = (cur / peak * 100) if peak > 0 else 0.0
-
-    return {
-        "x": round(cur / med, 2),
-        "rise_x": round(rise, 2),
-        "held_pct": round(held, 1),
-        "peak_age_days": len(vals) - 1 - peak_idx,
-    }
 
 
 # ─────────────────────────────────────────────────────────────
@@ -724,18 +568,6 @@ def detect_flow(
 
     hz = _horizon(ctx)
     ctx_dict = _context_dict(ctx, hz)
-
-    # И-1…И-3: ряды OI и фандинга и VWAP жизни — в пейлоад, к пробе.
-    # Гейтов и множителей нет намеренно: порог выбирается по разбросу
-    # рынка, а не придумывается. VWAP жизни вне сетевого гейта по той
-    # же причине, что _life_span: недельки уже загружены метриками и
-    # лежат в RunCache. Ряды OI и фандинга — сеть (по весу 1, с
-    # кэшем), поэтому под allow_network; при выключенной сети ключей
-    # просто нет — отсутствие честнее пустых нулей.
-    ctx_dict["life_vwap"] = _life_vwap(symbol)
-    if allow_network:
-        ctx_dict["oi_hist"] = _oi_stats(symbol)
-        ctx_dict["funding_hist"] = _funding_stats(symbol)
 
     results: list[tuple[str, SubcaseSignal]] = []
     failures: dict[str, str] = {}
