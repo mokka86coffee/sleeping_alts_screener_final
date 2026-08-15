@@ -26,7 +26,6 @@ from detectors.flow_config import (
     DELTA_WINDOW,
     DROP_DISTRUST_PCT,
     DROP_FRESH_BARS,
-    HOLD_TOL_PCT,
     RALLY_MIN_PCT,
     RALLY_RETRACE_MIN,
     EVENT_NORM_WINDOW,
@@ -1323,14 +1322,6 @@ class DropContext:
     rallies: int = 0
     max_rally_pct: float = 0.0
 
-    # Новое дно относительно старого, в процентах. Ноль и выше —
-    # цена вернулась к прежнему дну и не пробила его.
-    #
-    # Знак здесь важнее величины: −2% и +2% это одно и то же
-    # состояние, а −40% — уже другое. Поэтому величина отдаётся
-    # как есть, а порог живёт в свойстве held.
-    hold_pct: float = 0.0
-
     @property
     def peak_age_days(self) -> int:
         """Сколько баров назад стоял пик.
@@ -1340,23 +1331,6 @@ class DropContext:
         величина не восстанавливается.
         """
         return self._peak_age
-
-    @property
-    def held(self) -> bool:
-        """Дно удержано после последнего выноса.
-
-        Вынос на большом объёме означает, что продавец вышел. Если
-        цена вернулась к старому дну и не пробила его, предложение по
-        этой цене кончилось. Если пробила — вынос был раздачей.
-
-        Форма в обоих случаях одинакова: памп, слив, база. Различает
-        их только это число, и до сих пор оно нигде не считалось.
-
-        Допуск нужен: точное совпадение минимумов на дневках не
-        встречается, а пробой на процент — это шум, а не смена
-        состояния.
-        """
-        return self.rallies > 0 and self.hold_pct >= -HOLD_TOL_PCT
 
     @property
     def first_run(self) -> bool:
@@ -1417,7 +1391,7 @@ def build_drop(bars: Sequence[Bar]) -> DropContext:
     low_before = min((b.low for b in before if b.low > 0), default=0.0)
     growth = (peak / low_before) if low_before > 0 else 1.0
 
-    rallies, max_rally, hold = _count_rallies(tail[bottom_idx:])
+    rallies, max_rally = _count_rallies(tail[bottom_idx:])
 
     return DropContext(
         peak_price=peak,
@@ -1430,7 +1404,6 @@ def build_drop(bars: Sequence[Bar]) -> DropContext:
         growth_x=_clip(growth, 1.0, 1000.0),
         rallies=rallies,
         max_rally_pct=max_rally,
-        hold_pct=hold,
     )
 
 
@@ -1463,10 +1436,6 @@ def _count_rallies(after: Sequence[Bar]) -> tuple[int, float]:
     top = base
     in_rally = False
     count, best = 0, 0.0
-    # Опора ПЕРЕД последним засчитанным разгоном и дно ПОСЛЕ него.
-    # Разница между ними и есть удержание: пробила цена прежнее дно
-    # или встала на нём.
-    hold_from, hold_to = 0.0, 0.0
 
     for b in after:
         if b.low <= 0 or b.high <= 0:
@@ -1488,24 +1457,11 @@ def _count_rallies(after: Sequence[Bar]) -> tuple[int, float]:
         if (top - b.low) / span >= RALLY_RETRACE_MIN:
             count += 1
             best = max(best, span / base * 100.0)
-            # Запоминаем обе точки до переноса опоры: hold_from — дно,
-            # с которого разгон начался, hold_to — куда вернулись.
-            hold_from, hold_to = base, b.low
             base = b.low
             top = base
             in_rally = False
 
-    # После последнего разгона цена могла уйти ниже точки возврата —
-    # тогда удержания нет, и меряем по фактическому минимуму, а не по
-    # тому, где разгон закончился.
-    if hold_from > 0:
-        tail_low = min((b.low for b in after if b.low > 0), default=hold_to)
-        hold_to = min(hold_to, tail_low)
-        hold = (hold_to - hold_from) / hold_from * 100.0
-    else:
-        hold = 0.0
-
-    return count, best, hold
+    return count, best
 
 
 # ─────────────────────────────────────────────────────────────

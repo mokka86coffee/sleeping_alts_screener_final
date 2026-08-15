@@ -378,11 +378,6 @@ def _context_dict(ctx: FlowContext, hz: dict) -> dict:
             "rallies": ctx.drop.rallies,
             "max_rally_pct": round(ctx.drop.max_rally_pct, 1),
             "first_run": ctx.drop.first_run,
-            # Удержание дна после последнего выноса. Знак важнее
-            # величины: ноль и выше — предложение по этой цене
-            # кончилось, минус сорок — вынос был раздачей.
-            "hold_pct": round(ctx.drop.hold_pct, 1),
-            "held": ctx.drop.held,
             # Характер спуска кумулятивной дельты: планомерный съезд
             # или обвал. Считается с 13 августа и наружу не выходил,
             # поэтому разброса по рынку у него нет.
