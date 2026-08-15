@@ -1,82 +1,160 @@
-"""Лидеры прогона · объёмная сцена под сводкой при входе.
+"""Лидеры прогона · состояние каждой монеты, отдельным экраном.
 
-dashboard.py только вызывает render_podium() и вставляет результат,
-как и в случае brief.py.
+dashboard.py вызывает render_podium() и вставляет результат, как и в
+случае brief.py.
 
-Экран свой, а не блок внутри сводки. Первая редакция жила внутри
-.ob-brief — и не появлялась вовсе: там position:fixed с
-justify-content:center и без прокрутки, а текст плюс сцена в шестьсот
-пикселей высотой в окно не помещаются. Столбики уезжали за нижний край
-без возможности доскроллить. Своим слоем сцена получает всю высоту, и
-порядок чтения становится явным: сначала что происходит сейчас, потом
-кто в журнале и что с ними.
+Сцена со столбиками снята целиком. Она отвечала на вопрос «кто дальше
+всех ушёл от дна» и на нём заканчивалась: чтобы понять, что с монетой
+происходит СЕЙЧАС, приходилось идти на орбиту и открывать карточки по
+одной. Экран лидеров для того и заведён, чтобы этого не делать.
 
-Данных своих у модуля нет: он читает window.ORB.stars, который
-выставляет render.orbit. Второй источник тех же чисел разошёлся бы
-с орбитой при первой правке, и монета показывала бы на двух экранах
-разные значения.
+Теперь карточка на монету. Четыре величины, ряд цены и вердикт — ровно
+столько, сколько читается беглым взглядом. Пятая величина начала бы
+дублировать одну из четырёх, а карточка, которую надо изучать, ничем
+не лучше карточки на орбите.
 
-Что чем закодировано — и почему именно так:
+Данных своих у модуля нет: читает window.ORB.stars, который выставляет
+render.orbit. Второй источник тех же чисел разошёлся бы с орбитой при
+первой правке, и монета показывала бы на двух экранах разное.
 
-  высота столбика   расстояние от дна (up_from_low)
-                    Ход с момента попадания в журнал сюда не годится:
-                    он зависит от даты, когда монету заметили, и
-                    одинаковые столбики означали бы лишь совпадение
-                    дат. Расстояние от дна — свойство самой монеты,
-                    поэтому столбики сравнимы между собой.
-
-  цвет              подкейс, та же палитра, что у звёзд на орбите.
-                    Семейство цвета несёт стадию: холодные у дна,
-                    тёплые в движении, ржавый после.
-
-  линия над         объём СЕЙЧАС, максимум кратности по 1ч/4ч/1д.
-                    Единственная величина здесь, которая меняется
-                    между прогонами, — ей и место в самом заметном
-                    канале.
-
-  радиус звезды     РЕКОРД объёма за всё наблюдение (поле x). В
-                    журнале vol_ratio сливается через _merge_max,
-                    то есть хранит максимум, а не последнее значение.
-                    Пара говорящая: линия про сегодня, радиус про то,
-                    на что монета была способна.
-
-  линия внутри      две недели цены, время снизу вверх.
-
-Монеты без данных текущего прогона рисуются блеклыми блоками на
-переднем плане. Они в журнале и обязаны быть на экране: сцена,
-показывающая одни успехи, отвечает не на тот вопрос — журнал заведён
-мерить, чем кончилось.
+СТИЛИ ЛЕЖАТ ЗДЕСЬ, а не в css.py — намеренно. Блок подиума в css.py
+трижды дублировался от повторного применения патчей, и каждый раз это
+чинилось отдельным скриптом. Модуль, который несёт свою разметку, свой
+скрипт и свои стили, разойтись сам с собой не может. Прежние правила
+.obp-* и .pd-* в css.py после этой замены мертвы и удаляются.
 """
 
 from __future__ import annotations
 
 
 def render_podium() -> str:
-    return PODIUM_HTML + PODIUM_JS
+    return PODIUM_CSS + PODIUM_HTML + PODIUM_JS
 
+
+PODIUM_CSS = """
+<style>
+/* ── Экран лидеров ───────────────────────────────────────────
+   Третий в очереди: сводка → лидеры → дашборд. Материал тот же, что
+   у сводки, вплоть до градиента подложки: переход между экранами
+   должен читаться как смена содержимого, а не как другое
+   приложение.
+
+   overflow-y:auto обязателен — карточек бывает под шесть десятков,
+   и прежняя сцена не прокручивалась вовсе. */
+.ob-podium{position:fixed;inset:0;z-index:41;overflow-y:auto;
+  background:radial-gradient(1100px 700px at 50% -5%,#0d0b09,#050406 70%);
+  opacity:0;pointer-events:none;transition:opacity .5s ease}
+.ob-podium.on{opacity:1;pointer-events:auto}
+.obp-in{max-width:1480px;margin:0 auto;padding:34px 22px 72px}
+
+.obp-top{display:flex;align-items:baseline;justify-content:space-between;
+  gap:20px;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.055);
+  padding-bottom:13px}
+.obp-h{font-family:ui-monospace,Menlo,monospace;font-size:11px;
+  letter-spacing:.34em;text-transform:uppercase;color:#8E96A2}
+.obp-stamp{font-family:ui-monospace,Menlo,monospace;font-size:10px;color:#454C57}
+
+.obp-band{margin-top:24px}
+.obp-bh{display:flex;align-items:center;gap:9px;margin-bottom:11px}
+.obp-bh i{width:7px;height:7px;border-radius:50%;box-shadow:0 0 7px currentColor}
+.obp-bh span{font-family:ui-monospace,Menlo,monospace;font-size:9px;
+  letter-spacing:.22em;text-transform:uppercase;color:#6C7480}
+.obp-bh b{margin-left:auto;font-family:ui-monospace,Menlo,monospace;
+  font-size:10px;color:#454C57;font-weight:400}
+
+.obp-grid{display:grid;gap:9px;
+  grid-template-columns:repeat(auto-fill,minmax(258px,1fr))}
+
+.obc{background:#0D0F14;border:1px solid rgba(255,255,255,.055);
+  border-radius:9px;padding:11px 12px 10px;position:relative;overflow:hidden;
+  cursor:pointer;transition:border-color .2s ease,background .2s ease}
+.obc:hover{border-color:rgba(255,255,255,.13);background:#11141A}
+/* Полоса стратегии слева: тот же цвет, что у звезды на орбите. Узкая
+   и без подписи — имя стоит в шапке, полоса нужна чтобы карточки
+   читались группами при беглом просмотре. */
+.obc::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;
+  background:currentColor;opacity:.75}
+
+.obc-h{display:flex;align-items:baseline;gap:7px}
+.obc-t{font-family:ui-monospace,Menlo,monospace;font-size:14.5px;
+  letter-spacing:.05em}
+.obc-p{font-size:9.5px;opacity:.72;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.obc-cap{margin-left:auto;font-family:ui-monospace,Menlo,monospace;
+  font-size:10px;color:#565E6A;white-space:nowrap}
+
+.obc-spark{margin:8px 0 7px;height:34px;display:block;width:100%}
+
+.obc-m{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;
+  border-top:1px solid rgba(255,255,255,.055);padding-top:7px}
+.obc-m>div{min-width:0}
+.obc-k{font-family:ui-monospace,Menlo,monospace;font-size:7.5px;
+  letter-spacing:.11em;text-transform:uppercase;color:#454C57;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.obc-v{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;
+  margin-top:2px;white-space:nowrap;color:#D6DCE4}
+.obc-v.off{color:#454C57}
+.obc-v.pos{color:#7FD9A6}
+
+.obc-w{margin-top:7px;font-size:10px;line-height:1.45;color:#6C7480;
+  border-top:1px solid rgba(255,255,255,.055);padding-top:6px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden}
+
+.obp-foot{margin-top:30px;text-align:center;font-size:7px;letter-spacing:3px;
+  text-transform:uppercase;color:#2E2A24}
+.obp-empty{max-width:46ch;margin:60px auto;text-align:center;font-size:12px;
+  line-height:1.7;color:#5E564A}
+
+/* ── Появление ──
+   Карточки проявляются волной по полосам. Задержка приходит инлайном
+   через --d: считать её в CSS нечем, а таблица задержек в скрипте
+   дублировала бы порядок карточек.
+
+   Анимации стоят на паузе до класса pd-go на слое. Управлять стартом
+   через момент сборки ненадёжно: узлы могут оказаться в документе
+   раньше показа, и тогда весь разбег отыграет в прозрачном слое. */
+@keyframes obp-rise{
+  from{opacity:0;transform:translateY(14px)}
+  to  {opacity:1;transform:none}
+}
+.obc,.obp-bh{opacity:0;animation:obp-rise .5s cubic-bezier(.2,.7,.2,1) forwards;
+  animation-delay:var(--d,0s);animation-play-state:paused}
+.ob-podium.pd-go .obc,.ob-podium.pd-go .obp-bh{animation-play-state:running}
+
+@media (prefers-reduced-motion:reduce){
+  .obc,.obp-bh{opacity:1!important;animation:none!important;
+    transform:none!important}
+}
+@media (max-width:900px){
+  .obp-grid{grid-template-columns:1fr}
+  .obp-in{padding:24px 14px 48px}
+}
+</style>
+"""
 
 PODIUM_HTML = """
 <div class="ob-podium" id="obPodium">
   <div class="obp-in">
-    <div class="obp-h">лидеры прогона</div>
-    <div class="obp-scene" id="obfPodium"></div>
-    <div class="obp-cap" id="obfPodiumCap"></div>
-    <div class="obp-foot">клик в любом месте — к дашборду</div>
+    <div class="obp-top">
+      <div class="obp-h">лидеры прогона</div>
+      <div class="obp-stamp" id="obPodStamp"></div>
+    </div>
+    <div id="obPodBands"></div>
+    <div class="obp-foot">клик по карточке — к монете на орбите</div>
   </div>
 </div>
 """
 
-
 PODIUM_JS = """
 <script>
 (function () {
-  var host = document.getElementById('obfPodium');
-  if (!host) return;
+  var pod = document.getElementById('obPodium');
+  var host = document.getElementById('obPodBands');
+  if (!pod || !host) return;
 
   /* Молчаливый выход опаснее отказа: пустой экран неотличим от
-     сломанного модуля, и первый же прогон на --limit 1 стоил
-     получаса разбора — сцены не было, а почему, сказать было
-     нечем. Дальше все ранние выходы пишут причину. */
+     сломанного модуля. Все ранние выходы называют причину. */
   function bail(why) {
     var n = document.createElement('div');
     n.className = 'obp-empty';
@@ -87,17 +165,21 @@ PODIUM_JS = """
   var O = window.ORB || {};
   var STARS = (O.stars || []).slice();
 
-  /* Палитра и стадии — те же, что у звёзд на орбите. Держать здесь
-     копию таблицы пришлось бы синхронизировать руками, поэтому берём
-     из ORB, а свой список оставляем только запасным. */
+  /* Палитра и стадии — те же, что у звёзд на орбите. Берём из ORB,
+     свой список только запасной: третий набор цветов на третьем
+     экране гарантированно разойдётся с первыми двумя. */
   var STRAT = O.strat || {
-    dormant: { c: '#7E9AB5', stage: 0 }, hidden:   { c: '#7FE3D4', stage: 0 },
-    spring:  { c: '#6FC9E8', stage: 0 },
-    churn:   { c: '#F0B85C', stage: 1 }, taker:    { c: '#FFD98A', stage: 1 },
-    leverage:{ c: '#E89AB0', stage: 1 }, fuel:     { c: '#C4703A', stage: 2 }
+    dormant:  { c: '#7E9AB5', stage: 0 }, hidden:   { c: '#7FE3D4', stage: 0 },
+    spring:   { c: '#6FC9E8', stage: 0 }, churn:    { c: '#F0B85C', stage: 1 },
+    taker:    { c: '#FFD98A', stage: 1 }, leverage: { c: '#E89AB0', stage: 1 },
+    fuel:     { c: '#C4703A', stage: 2 }
   };
-  var NONE = { c: '#8D97A6', stage: -1 };
-  var stratOf = function (s) { return STRAT[s.st] || NONE; };
+  var NONE = { c: '#8D97A6', stage: 1 };
+  var STAGE = [
+    { n: 'у предполагаемого дна', c: '#7FE3D4' },
+    { n: 'движение идёт',         c: '#F0B85C' },
+    { n: 'движение состоялось',   c: '#C4703A' }
+  ];
 
   var NS = 'http://www.w3.org/2000/svg';
   function el(n, a) {
@@ -105,35 +187,106 @@ PODIUM_JS = """
     for (var k in a) e.setAttribute(k, a[k]);
     return e;
   }
-  function anim(node, cls, d) {
-    node.setAttribute('class', cls);
-    node.setAttribute('style', '--d:' + d.toFixed(2) + 's');
-    return node;
+  function stratOf(s) { return STRAT[s.st] || NONE; }
+  function volNow(s) {
+    return Math.max(+s.v1h || 0, +s.v4h || 0, +s.v1d || 0);
   }
-  /* Осветление цвета стратегии под текст: чистый цвет на теле
-     столбика, тонированном тем же цветом, съедается подложкой. */
-  function lift(hex, k) {
-    var n = parseInt(hex.slice(1), 16), m = function (v) {
-      return Math.round(v + (255 - v) * k); };
-    return '#' + [m(n >> 16 & 255), m(n >> 8 & 255), m(n & 255)]
-      .map(function (v) { return ('0' + v.toString(16)).slice(-2); }).join('');
-  }
-  function hash(s) {
-    var h = 0;
-    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
-    return function () { h = (h * 1103515245 + 12345) | 0;
-      return ((h >>> 16) & 0x7fff) / 0x7fff; };
+  function xfmt(v) {
+    if (!v) return '\\u2014';
+    return v >= 10 ? '\\u00d7' + Math.round(v) : '\\u00d7' + v.toFixed(1);
   }
 
-  /* ── Сцена строится В МОМЕНТ ПОКАЗА, а не при разборе страницы ──
-     Первая редакция рисовала её сразу, и анимации появления никто не
-     видел: слой прозрачен до закрытия сводки, а это десятки секунд —
-     задержки в полторы секунды отыгрывали в пустоту, и к показу
-     оставался готовый блок целиком.
+  /* ── Ряд цены ──
+     Настоящий, из _star_card. Рисуется заливкой под линией: у
+     половины монет линия почти плоская, и одна линия там не читается
+     как форма. */
+  function spark(c, col, idx) {
+    var ser = (c.series || []).slice(-21);
+    var w = 236, h = 34, pad = 3;
+    var svg = el('svg', { 'class': 'obc-spark',
+      viewBox: '0 0 ' + w + ' ' + h, preserveAspectRatio: 'none' });
+    if (ser.length < 4) return svg;
 
-     Отложенная сборка заодно бесплатна, если до сцены не дошли:
-     полторы сотни узлов SVG не создаются вовсе. */
-  var pod = document.getElementById('obPodium');
+    var lo = Math.min.apply(null, ser), hi = Math.max.apply(null, ser);
+    var rng = (hi - lo) || 1;
+    var pts = ser.map(function (v, i) {
+      return (i / (ser.length - 1) * w).toFixed(1) + ',' +
+             (h - pad - (v - lo) / rng * (h - pad * 2)).toFixed(1);
+    });
+
+    /* Идентификатор градиента по индексу, а не по тикеру: тикеры
+       бывают с не-латиницей, и они попадали бы в id как есть. */
+    var gid = 'obpg' + idx;
+    var defs = el('defs', {});
+    var lg = el('linearGradient', { id: gid, x1: '0', y1: '0', x2: '0', y2: '1' });
+    lg.appendChild(el('stop', { offset: 0, 'stop-color': col, 'stop-opacity': .34 }));
+    lg.appendChild(el('stop', { offset: 1, 'stop-color': col, 'stop-opacity': 0 }));
+    defs.appendChild(lg);
+    svg.appendChild(defs);
+
+    svg.appendChild(el('path', {
+      d: 'M0,' + h + ' L' + pts.join(' L') + ' L' + w + ',' + h + ' Z',
+      fill: 'url(#' + gid + ')' }));
+    svg.appendChild(el('polyline', { points: pts.join(' '), fill: 'none',
+      stroke: col, 'stroke-width': 1.3, 'stroke-linejoin': 'round' }));
+    var last = pts[pts.length - 1].split(',');
+    svg.appendChild(el('circle', { cx: last[0], cy: last[1], r: 2.1,
+      fill: '#FFE9B8' }));
+    return svg;
+  }
+
+  function card(c, delay, idx) {
+    var sc = stratOf(c);
+    var d = document.createElement('div');
+    d.className = 'obc';
+    d.setAttribute('style', 'color:' + sc.c + ';--d:' + delay.toFixed(2) + 's');
+
+    var head = document.createElement('div');
+    head.className = 'obc-h';
+    head.innerHTML =
+      '<span class="obc-t" style="color:' + sc.c + '">' + c.t + '</span>' +
+      '<span class="obc-p" style="color:' + sc.c + '">' +
+        (c.pattern || '\\u2014') + '</span>' +
+      '<span class="obc-cap">' + (c.cap || '') + '</span>';
+    d.appendChild(head);
+    d.appendChild(spark(c, sc.c, idx));
+
+    /* Четыре величины, отвечающие на разные вопросы: где монета
+       стоит, что с объёмом сейчас, на что была способна, давно ли
+       под наблюдением. Пятая начала бы дублировать одну из них. */
+    var up = +c.up || 0;
+    var now = volNow(c);
+    var rec = +c.x || 0;
+    var m = document.createElement('div');
+    m.className = 'obc-m';
+    m.innerHTML =
+      '<div><div class="obc-k">от дна</div><div class="obc-v ' +
+        (up > 0 ? 'pos' : 'off') + '">' + Math.round(up) + '%</div></div>' +
+      '<div><div class="obc-k">объём</div><div class="obc-v ' +
+        (now >= 2 ? '' : 'off') + '">' + xfmt(now) + '</div></div>' +
+      '<div><div class="obc-k">рекорд</div><div class="obc-v ' +
+        (rec >= 10 ? '' : 'off') + '">' + xfmt(rec) + '</div></div>' +
+      '<div><div class="obc-k">в журнале</div><div class="obc-v off">' +
+        (c.days || 0) + '\\u0434</div></div>';
+    d.appendChild(m);
+
+    if (c.verdict) {
+      var w = document.createElement('div');
+      w.className = 'obc-w';
+      w.textContent = c.verdict;
+      d.appendChild(w);
+    }
+
+    /* Клик уводит на орбиту к этой монете. Экран лидеров отвечает
+       «что происходит», карточка на орбите — «почему»; разрывать эту
+       пару отдельной навигацией незачем. */
+    d.addEventListener('click', function () {
+      pod.classList.remove('on');
+      if (typeof window.obShowStar === 'function') window.obShowStar(c.t);
+    });
+    return d;
+  }
+
   var built = false;
   function build() {
     if (built) return;
@@ -142,365 +295,81 @@ PODIUM_JS = """
 
     if (!STARS.length) { bail('журнал лидеров пуст'); return; }
 
-  var volNow = function (s) {
-    return Math.max(+s.v1h || 0, +s.v4h || 0, +s.v1d || 0); };
+    var shown = 0, delay = 0.05, idx = 0;
+    STAGE.forEach(function (stg, i) {
+      var list = STARS.filter(function (s) { return stratOf(s).stage === i; });
+      if (!list.length) return;
+      /* Внутри полосы — по ходу от дна: наверху то, что дальше всего
+         ушло. Порядок по скору был бы порядком уверенности детектора,
+         а не состояния монеты. */
+      list.sort(function (a, b) { return (+b.up || 0) - (+a.up || 0); });
 
-  /* Столбик получают монеты, по которым есть данные прогона и виден
-     ход от дна. Остальные — блоки переднего плана: у них нечего
-     ставить в высоту, и рисовать им плинтус значило бы утверждать,
-     что они у самого дна, хотя мы просто не знаем. */
-  var BARS = [], CUBES = [];
-  STARS.forEach(function (s) {
-    ((s.series && s.series.length >= 4 && (+s.up || 0) >= 12) ? BARS : CUBES)
-      .push(s);
-  });
-  if (!BARS.length) {
-    /* Самый частый случай — отладочный прогон: при явном --limit
-       монеты журнала в выборку не добираются, у них нет ни ряда
-       цены, ни расстояния от дна, и столбику неоткуда взяться. */
-    bail('в журнале ' + STARS.length + ' монет, но ни по одной нет ' +
-         'данных прогона — столбику неоткуда взяться. Обычно это ' +
-         'прогон с --limit: монеты журнала в выборку не добираются.');
-    return;
-  }
+      var band = document.createElement('div');
+      band.className = 'obp-band';
+      var bh = document.createElement('div');
+      bh.className = 'obp-bh';
+      bh.setAttribute('style', '--d:' + delay.toFixed(2) + 's');
+      bh.innerHTML = '<i style="background:' + stg.c + ';color:' + stg.c +
+        '"></i><span>' + stg.n + '</span><b>' + list.length + '</b>';
+      band.appendChild(bh);
+      delay += 0.06;
 
-  var VB_W = 1240, VB_H = 600;
-  var CX = VB_W / 2, GROUND = 452;
-  var GAP = 10, DX = 13, DY = -10;
-  var HMIN = 46, HMAX = 196;
-
-  /* Ширина столбика подстраивается под число монет: журнал держит
-     записи LEADERS_MAX_AGE_DAYS, и их бывает и восемь, и тридцать.
-     Фиксированная ширина в первом случае оставляла бы дыру, во
-     втором уводила бы край сцены за кадр. */
-  var BW = Math.max(14, Math.min(36, Math.floor(980 / BARS.length) - GAP));
-
-  var maxLow = Math.max.apply(null, BARS.map(function (s) {
-    return +s.up || 0; })) || 1;
-  /* Степенная шкала: расстояние от дна расходится на порядок, и при
-     линейной весь хвост лёг бы в плинтус. */
-  var hOf = function (v) {
-    return HMIN + (HMAX - HMIN) * Math.pow((+v || 0) / maxLow, 0.62); };
-
-  /* Порядок — гора: самое высокое в центре, дальше по убыванию в обе
-     стороны. Ранг слева направо от этого не читается, и его несут
-     подписи; зато центральная группа становится самой плотной, что и
-     держит композицию. */
-  var sorted = BARS.slice().sort(function (a, b) {
-    return (+b.up || 0) - (+a.up || 0); });
-  var L = [], R = [];
-  sorted.forEach(function (x, i) { (i % 2 ? L : R).push(x); });
-  var ORDER = L.reverse().concat(R);
-
-  var svg = el('svg', { viewBox: '0 0 ' + VB_W + ' ' + VB_H,
-    'class': 'pd-svg', role: 'img',
-    'aria-label': 'Лидеры прогона: расстояние от дна и объём' });
-  var defs = el('defs');
-  svg.appendChild(defs);
-
-  function grad(id, stops, x1, y1, x2, y2) {
-    var g = el('linearGradient', { id: id, x1: x1, y1: y1, x2: x2, y2: y2 });
-    stops.forEach(function (s) {
-      g.appendChild(el('stop', { offset: s[0], 'stop-color': s[1],
-        'stop-opacity': s[2] === undefined ? 1 : s[2] }));
+      var grid = document.createElement('div');
+      grid.className = 'obp-grid';
+      list.forEach(function (c) {
+        grid.appendChild(card(c, delay, idx++));
+        delay += 0.022;
+        shown++;
+      });
+      band.appendChild(grid);
+      host.appendChild(band);
     });
-    defs.appendChild(g);
-  }
-  function rgrad(id, stops) {
-    var g = el('radialGradient', { id: id });
-    stops.forEach(function (s) {
-      g.appendChild(el('stop', { offset: s[0], 'stop-color': s[1],
-        'stop-opacity': s[2] === undefined ? 1 : s[2] }));
-    });
-    defs.appendChild(g);
+
+    if (!shown) bail('ни у одной монеты журнала нет стратегии');
+
+    var stamp = document.getElementById('obPodStamp');
+    if (stamp) stamp.textContent = STARS.length + ' монет под наблюдением';
   }
 
-  /* Тело столбика тонируется стратегией К ВЕРШИНЕ, низ у всех общий.
-     Разный цвет по всей высоте разорвал бы сцену на группы; общий
-     расплав внизу говорит, что растут все из одного места. */
-  Object.keys(STRAT).forEach(function (k) {
-    grad('pd-f-' + k, [[0, '#2A1105'], [.26, '#8E3A0B'], [.58, '#F08A2A'],
-      [.84, STRAT[k].c], [1, '#FFF0C8']], '0%', '100%', '0%', '0%');
-  });
-  grad('pd-f-none', [[0, '#2A1105'], [.5, '#6B4A38'], [1, '#B9B3AA']],
-    '0%', '100%', '0%', '0%');
-  grad('pd-side', [[0, '#180A03'], [.5, '#6B2A08'], [1, '#B85E1B']],
-    '0%', '100%', '0%', '0%');
-  grad('pd-top', [[0, '#FFF6DC'], [1, '#FFC24D']], '0%', '0%', '100%', '100%');
-  rgrad('pd-lava', [[0, '#FFE9B8', .95], [.28, '#FF8A1E', .65],
-    [.62, '#C43C05', .25], [1, '#3A0F02', 0]]);
-  rgrad('pd-haze', [[0, '#FF8A1E', .22], [1, '#FF8A1E', 0]]);
-
-  [['pd-soft', 9], ['pd-soft-s', 3.2], ['pd-glow', 2.4],
-   ['pd-soft-l', 24]].forEach(function (f) {
-    var fl = el('filter', { id: f[0], x: '-60%', y: '-60%',
-      width: '220%', height: '220%' });
-    fl.appendChild(el('feGaussianBlur', { stdDeviation: f[1] }));
-    defs.appendChild(fl);
-  });
-
-  var lava = el('g'), behind = el('g'), bars = el('g'), front = el('g');
-  [lava, behind, bars, front].forEach(function (g) { svg.appendChild(g); });
-
-  /* Основание: зарево, пятна, каркасные дуги. Каркас важнее свечения —
-     без него рельеф читается как туман, а не как масса. */
-  lava.appendChild(anim(el('ellipse', { cx: CX, cy: GROUND + 40, rx: 470,
-    ry: 82, fill: 'url(#pd-lava)', filter: 'url(#pd-soft-l)',
-    opacity: .85 }), 'pd-fade', 0));
-  var r0 = hash('lava');
-  for (var i = 0; i < 18; i++) {
-    var a = r0() * Math.PI * 2, rr = Math.pow(r0(), .6);
-    lava.appendChild(el('ellipse', {
-      cx: CX + Math.cos(a) * rr * 420, cy: GROUND + 26 + Math.sin(a) * rr * 52,
-      rx: 24 + r0() * 62, ry: 7 + r0() * 16, fill: 'url(#pd-lava)',
-      filter: 'url(#pd-soft)', opacity: (.14 + r0() * .44).toFixed(2) }));
-  }
-  for (var i = 0; i < 8; i++) {
-    lava.appendChild(el('ellipse', { cx: CX, cy: GROUND + 30,
-      rx: 120 + i * 44, ry: 20 + i * 7.2, fill: 'none', stroke: '#FF9A2E',
-      'stroke-width': (.9 - i * .07).toFixed(2),
-      opacity: (.26 - i * .028).toFixed(3) }));
-  }
-
-  var totalW = ORDER.length * BW + (ORDER.length - 1) * GAP;
-  var x0 = CX - totalW / 2;
-
-  ORDER.forEach(function (c, i) {
-    var r = hash(c.t);
-    var sc = stratOf(c);
-    var sid = STRAT[c.st] ? c.st : 'none';
-    var h = hOf(c.up);
-    var x = x0 + i * (BW + GAP);
-    var y = GROUND - h;
-    var d = Math.abs(x + BW / 2 - CX) / (totalW / 2);
-    var core = +(1 - d * 0.42).toFixed(2);
-    var dB = 0.22 + i * 0.03;
-
-    bars.appendChild(el('ellipse', { cx: x + BW / 2, cy: GROUND + 5,
-      rx: BW * 1.35, ry: 13, fill: 'url(#pd-haze)', filter: 'url(#pd-soft)',
-      opacity: (.5 * core).toFixed(2) }));
-
-    bars.appendChild(anim(el('path', { d: 'M' + (x + BW) + ' ' + y +
-      ' L' + (x + BW + DX) + ' ' + (y + DY) +
-      ' L' + (x + BW + DX) + ' ' + (GROUND + DY) +
-      ' L' + (x + BW) + ' ' + GROUND + ' Z',
-      fill: 'url(#pd-side)', opacity: core }), 'pd-grow', dB));
-
-    bars.appendChild(anim(el('rect', { x: x, y: y, width: BW, height: h,
-      fill: 'url(#pd-f-' + sid + ')', opacity: core }), 'pd-grow', dB));
-
-    /* ── Две недели цены внутри столбика ──
-       Время снизу вверх, отклонение влево-вправо. Утверждение цельное:
-       столбик говорит, СКОЛЬКО прошло, линия внутри — КАК шло.
-
-       Три слоя. Тёмный канал обязателен: оранжевое на оранжевом без
-       него не отделяется, а с ним линия читается прорезью в теле, а
-       не наклейкой поверх. */
-    var ser = (c.series || []).slice(-14);
-    if (ser.length >= 4) {
-      var lo = Math.min.apply(null, ser), hi = Math.max.apply(null, ser);
-      var rng = (hi - lo) || 1, amp = BW * 0.30;
-      var path = ser.map(function (v, k) {
-        var t = k / (ser.length - 1);
-        return (k ? 'L' : 'M') +
-          (x + BW / 2 + ((v - lo) / rng - 0.5) * 2 * amp).toFixed(1) + ' ' +
-          (GROUND - 5 - t * (h - 10)).toFixed(1);
-      }).join(' ');
-      var dPx = 0.5 + i * 0.03;
-      bars.appendChild(anim(el('path', { d: path, fill: 'none',
-        stroke: '#150902', 'stroke-width': 4, opacity: (.68 * core).toFixed(2),
-        'stroke-linejoin': 'round', 'stroke-linecap': 'round' }), 'pd-px', dPx));
-      bars.appendChild(anim(el('path', { d: path, fill: 'none',
-        stroke: '#FF7A18', 'stroke-width': 3.4, filter: 'url(#pd-glow)',
-        opacity: (.85 * core).toFixed(2),
-        'stroke-linejoin': 'round', 'stroke-linecap': 'round' }), 'pd-px', dPx));
-      bars.appendChild(anim(el('path', { d: path, fill: 'none',
-        stroke: '#FFC44D', 'stroke-width': 1.4, opacity: core,
-        'stroke-linejoin': 'round', 'stroke-linecap': 'round' }), 'pd-px', dPx));
-
-      var lastX = x + BW / 2 +
-        ((ser[ser.length - 1] - lo) / rng - 0.5) * 2 * amp;
-      bars.appendChild(el('circle', { cx: lastX.toFixed(1),
-        cy: (GROUND - 5 - (h - 10)).toFixed(1), r: 5,
-        fill: '#FF9A1E', opacity: (.5 * core).toFixed(2),
-        filter: 'url(#pd-glow)' }));
-      bars.appendChild(el('circle', { cx: lastX.toFixed(1),
-        cy: (GROUND - 5 - (h - 10)).toFixed(1), r: 2.1,
-        fill: '#FFE9B8', opacity: core }));
-    }
-
-    bars.appendChild(anim(el('path', { d: 'M' + x + ' ' + y +
-      ' L' + (x + DX) + ' ' + (y + DY) + ' L' + (x + BW + DX) + ' ' + (y + DY) +
-      ' L' + (x + BW) + ' ' + y + ' Z',
-      fill: 'url(#pd-top)', opacity: core }), 'pd-rise', dB + 0.3));
-    bars.appendChild(anim(el('path', { d: 'M' + x + ' ' + y +
-      ' L' + (x + BW) + ' ' + y, stroke: '#FFF6DC', 'stroke-width': 1.6,
-      opacity: core }), 'pd-rise', dB + 0.3));
-
-    /* Имя на вершине. Пять знаков — предел при таком шаге колонки;
-       обрезанные помечены многоточием, иначе «1000C» читается как
-       настоящий тикер, а «MUBAR» и «MUBARAK» — как разные монеты. */
-    var short = c.t.length > 5 ? c.t.slice(0, 5) + '\\u2026' : c.t;
-    var tk = el('text', { x: x + BW / 2 + DX / 2, y: y + DY - 11,
-      'text-anchor': 'middle', 'font-size': 9, 'letter-spacing': 1.1,
-      'font-weight': 500, fill: lift(sc.c, .55), stroke: '#1A0B04',
-      'stroke-width': 3, 'paint-order': 'stroke',
-      opacity: (.95 * core).toFixed(2) });
-    tk.textContent = short;
-    bars.appendChild(anim(tk, 'pd-rise', dB + 0.42));
-
-    /* ── Линия объёма и звезда ──
-       Линия начинается выше имени, а не от кромки: иначе проходит
-       сквозь надпись, и обводка спасает лишь частично. */
-    var vol = volNow(c);
-    var vn = Math.min(1, Math.log(1 + vol) / Math.log(27));
-    var lh = 30 + vn * 190;
-    var lx = x + BW / 2 + DX / 2;
-    var foot = y + DY - 22;
-    var sy = foot - lh;
-
-    behind.appendChild(anim(el('path', { d: 'M' + lx + ' ' + foot +
-      ' L' + lx + ' ' + sy, stroke: sc.c,
-      'stroke-width': (0.5 + vn * 1.9).toFixed(2),
-      opacity: (.14 + vn * .46).toFixed(2) }), 'pd-grow', 0.7 + i * 0.03));
-    if (vn > .62) {
-      behind.appendChild(el('path', { d: 'M' + lx + ' ' + foot +
-        ' L' + lx + ' ' + sy, stroke: sc.c, 'stroke-width': 5,
-        opacity: (vn * .22).toFixed(2), filter: 'url(#pd-soft-s)' }));
-    }
-
-    /* Радиус — рекорд объёма (поле x), яркость — свежесть записи.
-       Две величины на одном объекте, но по разным каналам: размер
-       спрашивает «на что способна», свечение — «давно ли в журнале». */
-    var fr = Math.max(0, Math.min(1, +c.f || 0));
-    var vmn = Math.min(1, Math.log(1 + (+c.x || 0)) / Math.log(61));
-    var sr = 3 + vmn * 8.6;
-    behind.appendChild(el('circle', { cx: lx, cy: sy, r: sr * 2.9,
-      fill: sc.c, opacity: (.09 + fr * .09).toFixed(2),
-      filter: 'url(#pd-soft-s)' }));
-    behind.appendChild(anim(el('circle', { cx: lx, cy: sy, r: sr,
-      fill: sc.c, opacity: (.55 + fr * .4).toFixed(2) }),
-      'pd-pop', 1.05 + i * 0.03));
-    behind.appendChild(anim(el('circle', { cx: lx, cy: sy, r: sr * 0.42,
-      fill: '#FFFDF4', opacity: (.5 + fr * .4).toFixed(2) }),
-      'pd-pop', 1.1 + i * 0.03));
-    if (c.hot) {
-      behind.appendChild(el('circle', { cx: lx, cy: sy, r: sr + 4.5,
-        fill: 'none', stroke: sc.c, 'stroke-width': .7, opacity: .34 }));
-    }
-
-    /* Капитализация: ×20 на трёхмиллионной монете и на трёхмиллиардной —
-       разные события, а масштаб больше взять неоткуда. */
-    if (c.cap) {
-      var ct = el('text', { x: lx + sr + 6, y: sy + 3, 'text-anchor': 'start',
-        'font-size': 7.5, 'letter-spacing': .4, fill: '#9C907C',
-        stroke: '#07080C', 'stroke-width': 2.2, 'paint-order': 'stroke',
-        opacity: .9 });
-      ct.textContent = c.cap;
-      behind.appendChild(anim(ct, 'pd-rise', 1.22 + i * 0.03));
-    }
-  });
-
-  /* Передний план: монеты журнала без данных прогона. */
-  var rc = hash('cubes');
-  var span = Math.min(1040, Math.max(320, CUBES.length * 96));
-  CUBES.forEach(function (c, i) {
-    var sc = stratOf(c);
-    var w = 46 + rc() * 26, hh = 12 + rc() * 14;
-    var x = CX - span / 2 + (i + 0.5) * (span / CUBES.length) - w / 2;
-    var y = GROUND + 34 + rc() * 22;
-    var op = .16;
-    front.appendChild(anim(el('rect', { x: x, y: y - hh, width: w,
-      height: hh, fill: sc.c, opacity: op }), 'pd-grow', 1.4 + i * 0.05));
-    front.appendChild(el('path', { d: 'M' + x + ' ' + (y - hh) +
-      ' L' + (x + 8) + ' ' + (y - hh - 6) + ' L' + (x + w + 8) + ' ' +
-      (y - hh - 6) + ' L' + (x + w) + ' ' + (y - hh) + ' Z',
-      fill: sc.c, opacity: op * 1.7 }));
-    var t = el('text', { x: x + w / 2, y: y + 14, 'text-anchor': 'middle',
-      'font-size': 8, 'letter-spacing': 1.2, fill: lift(sc.c, .2),
-      stroke: '#07080C', 'stroke-width': 2.2, 'paint-order': 'stroke',
-      opacity: .75 });
-    t.textContent = c.t.length > 5 ? c.t.slice(0, 5) + '\\u2026' : c.t;
-    front.appendChild(anim(t, 'pd-rise', 1.52 + i * 0.05));
-  });
-
-  host.appendChild(svg);
-
-  var cap = document.getElementById('obfPodiumCap');
-  if (cap) {
-    cap.textContent = 'высота · от дна   ·   линия · объём сейчас   ·   ' +
-      'радиус · рекорд объёма';
-  }
-  }   /* конец build() */
-
-  /* ── Очередь экранов ──────────────────────────────────────────
-     Сводка → сцена → дашборд. Подписки на закрытие сводки нет:
+  /* ── Очередь экранов ──
+     Сводка → лидеры → дашборд. Подписки на закрытие сводки нет:
      brief.js своё закрытие наружу не отдаёт, а лезть в его
-     внутренности значило бы связать два модуля намертво. Вместо
-     этого следим за классом .on на самой сводке — он и есть её
-     публичное состояние, видимое из разметки.
-
-     Наблюдатель снимается после первого срабатывания: сцена
-     показывается один раз за загрузку, дальше она обычный экран. */
+     внутренности значило бы связать два модуля намертво. Следим за
+     классом .on — это её публичное состояние, видимое из разметки. */
   var brief = document.getElementById('obBrief');
-  if (!pod) return;
+  var opened = false;
 
-  var shown = false;
   function show() {
-    if (shown) return;
-    shown = true;
-    /* Сначала узлы, потом класс: анимации стартуют при вставке
-       элемента, и если сделать наоборот, первый кадр слой уже
-       непрозрачен, а сцена ещё пуста. */
+    if (opened) return;
+    opened = true;
     build();
     pod.classList.add('on');
-    /* Снятие паузы с анимаций.
-    
-       В CSS все pd-* объявлены с animation-play-state:paused, и до
-       этой строки не двигается ничего. Косвенный способ — «собрать
-       сцену в нужный момент и понадеяться, что анимации стартуют при
-       вставке» — уже подводил: узлы могут оказаться в документе
-       раньше показа по десятку причин, и тогда весь разбег отыгрывает
-       в прозрачном слое.
-    
-       requestAnimationFrame нужен, чтобы браузер успел применить
-       вставку до снятия паузы: в одном кадре с appendChild класс
-       иногда не даёт перезапуска. */
+    /* Сначала узлы, потом класс, и снятие паузы через два кадра:
+       браузер должен успеть применить вставку, иначе класс не даёт
+       перезапуска анимаций. */
     requestAnimationFrame(function () {
       requestAnimationFrame(function () { pod.classList.add('pd-go'); });
     });
-    var t = setTimeout(hide, 26000);
-    function hide() { clearTimeout(t); pod.classList.remove('on'); }
-    pod.addEventListener('click', hide);
     document.addEventListener('keydown', function () {
-      if (pod.classList.contains('on')) hide();
+      pod.classList.remove('on');
     });
   }
 
   if (!brief) { show(); return; }
 
-  /* Пауза перед показом равна затуханию сводки (.5s в CSS) плюс
-     запас. Без неё оба перехода идут одновременно, и полсекунды на
-     экране видно и гаснущий текст, и проявляющиеся столбики — читается
-     как наложение, а не как смена экрана. */
   var HANDOVER = 560;
-
   var seen = brief.classList.contains('on');
   var mo = new MutationObserver(function () {
     if (brief.classList.contains('on')) { seen = true; return; }
-    /* Сводка закрылась — но только если до этого открывалась. Без
-       флага сцена выскочила бы сразу при загрузке, пока сводка ещё
-       не получила свой класс. */
     if (seen) { mo.disconnect(); setTimeout(show, HANDOVER); }
   });
   mo.observe(brief, { attributes: true, attributeFilter: ['class'] });
 
-  /* Запасной путь: если сводка не открылась вовсе — данных не
-     хватило, разметка изменилась, что угодно — сцена всё равно
-     покажется. Молчаливая зависимость от чужого модуля хуже, чем
-     лишний таймер. */
+  /* Запасной путь: если сводка не открылась вовсе, экран всё равно
+     покажется. Молчаливая зависимость от чужого модуля хуже лишнего
+     таймера. */
   setTimeout(function () {
-    if (!seen && !shown) { mo.disconnect(); show(); }
+    if (!seen && !opened) { mo.disconnect(); show(); }
   }, 4000);
 })();
 </script>
