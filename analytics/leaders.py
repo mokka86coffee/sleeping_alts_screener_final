@@ -224,10 +224,6 @@ def update_leaders(
             rec["target_hint"] = rec.get("target_hint") or float(f.get("target_hint") or 0.0)
             rec["horizon_days"] = rec.get("horizon_days") or int(f.get("horizon_days") or 0)
             rec["horizon_tf"] = rec.get("horizon_tf") or f.get("horizon_tf", "")
-            rec["vol_ratio"] = _merge_max(
-                rec.get("vol_ratio", {}), leader.raw.get("vol_ratio", {}),
-            )
-
             prev = meta.get("last_leader")
             rec["streak"] = (rec.get("streak", 0) + 1) if prev == leader.symbol else 1
 
@@ -253,7 +249,6 @@ def update_leaders(
         ratios = c.raw.get("vol_ratio") or {}
         if c.symbol in anomaly_store:
             rec = anomaly_store[c.symbol]
-            rec["vol_ratio"] = _merge_max(rec.get("vol_ratio", {}), ratios)
             # Попадание засчитывается только когда объём аномален
             # СЕЙЧАС. Запись живёт до LEADERS_MAX_AGE_DAYS независимо
             # от текущего объёма, и считать присутствие в файле за
@@ -267,7 +262,16 @@ def update_leaders(
             hit = ", ".join(k for k, v in ratios.items() if v >= ANOMALY_RATIO_MIN)
             log(f"  → leaders: новая аномалия объёма {c.symbol} ({hit})")
 
-    # ── цена и MFE/MAE — всем в обеих выборках, кого видно в этом прогоне ──
+    # ── цена, MFE/MAE и рекорд объёма — всем, кого видно в прогоне ──
+    #
+    # Рекорд объёма обновляется ЗДЕСЬ, а не только у лидера.
+    #
+    # Прежде слияние стояло внутри ветки лидера, и запись переставала
+    # набирать объём в тот момент, когда лидером становилась другая
+    # монета. Поле называлось рекордом, а хранило последнее значение
+    # на момент лидерства: у HEMI на карточке стоял «рекорд ×143» при
+    # текущем объёме ×249, то есть рекорд был меньше текущего —
+    # арифметически невозможное состояние для максимума.
     for store in (flow_store, anomaly_store):
         for symbol, rec in store.items():
             c = by_symbol.get(symbol)
@@ -276,6 +280,9 @@ def update_leaders(
             price = float(c.raw.get("price") or 0.0)
             if price > 0:
                 _touch_price(rec, price, now)
+            rec["vol_ratio"] = _merge_max(
+                rec.get("vol_ratio", {}), c.raw.get("vol_ratio") or {},
+            )
 
     # ── чистка по возрасту, с архивом вместо тихой потери ──
     cutoff = now - timedelta(days=max_age_days)
