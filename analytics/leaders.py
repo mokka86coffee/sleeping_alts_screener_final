@@ -32,6 +32,10 @@ from sources.storage import ensure_dirs, write_atomic
 
 # Символ прошлого лидера — иначе streak не отличить от «монета снова
 # стала лидером через неделю тишины».
+#
+# Здесь же счётчик прогонов: без него частота попаданий не считается.
+# Пять попаданий за двое суток и пять за двадцать — разные монеты, а
+# по одному счётчику hits они неотличимы.
 _META_KEY = "_meta"
 
 
@@ -59,9 +63,24 @@ def _merge_max(old: dict[str, float], new: dict[str, float]) -> dict[str, float]
     return out
 
 
-def _new_record(now: datetime, price: float, ratios: dict[str, float]) -> dict:
+def _new_record(
+    now: datetime,
+    price: float,
+    ratios: dict[str, float],
+    run_no: int = 0,
+) -> dict:
     return {
         "first_seen": now.isoformat(),
+        # Номер прогона, на котором запись заведена. Частота попаданий
+        # считается от него: hits / (текущий прогон − since_run).
+        # Хранится номер, а не дата, потому что интервал прогонов
+        # меняется (--loop с любым --interval), и пересчёт из дат дал
+        # бы разное число для одинакового поведения.
+        "since_run": run_no,
+        # Сколько прогонов монета была лидером (для flow) либо
+        # держалась в корзине (для аномалий). Считает ПОПАДАНИЯ, а не
+        # непрерывность — этим отличается от streak.
+        "hits": 0,
         "entry_price": price,
         "price": price,
         "change_pct": 0.0,
@@ -172,6 +191,12 @@ def update_leaders(
     flow_store, meta = _load(flow_path)
     anomaly_store, _ = _load(anomaly_path)
 
+    # Номер прогона. Увеличивается один раз за вызов, до всякой
+    # записи: если считать его после, первая запись прогона получила
+    # бы номер предыдущего.
+    run_no = int(meta.get("runs", 0)) + 1
+    meta["runs"] = run_no
+
     by_symbol = {c.symbol: c for c in candidates}
 
     # ── flow: лидер прогона ──
@@ -183,7 +208,9 @@ def update_leaders(
         if price > 0:
             if leader.symbol not in flow_store:
                 moved = anomaly_store.pop(leader.symbol, None)
-                flow_store[leader.symbol] = moved or _new_record(now, price, {})
+                flow_store[leader.symbol] = moved or _new_record(
+                    now, price, {}, run_no,
+                )
                 log(
                     f"  → leaders: {leader.symbol} перенесена из аномальных в flow"
                     if moved else f"  → leaders: новый лидер {leader.symbol} @ {price:g}"
@@ -203,6 +230,15 @@ def update_leaders(
 
             prev = meta.get("last_leader")
             rec["streak"] = (rec.get("streak", 0) + 1) if prev == leader.symbol else 1
+
+            # Попадание в лидеры. Отдельно от streak: streak меряет
+            # непрерывность и обнуляется, как только лидером стала
+            # другая монета, а hits копится за всё время жизни записи.
+            #
+            # Монета, дважды за день ставшая лидером с перерывом,
+            # по streak неотличима от разовой — по hits отличима.
+            rec["hits"] = int(rec.get("hits", 0)) + 1
+            rec.setdefault("since_run", run_no)
             meta["last_leader"] = leader.symbol
     else:
         meta["last_leader"] = None   # прогон без лидера рвёт цепочку стрика
@@ -216,11 +252,18 @@ def update_leaders(
             continue
         ratios = c.raw.get("vol_ratio") or {}
         if c.symbol in anomaly_store:
-            anomaly_store[c.symbol]["vol_ratio"] = _merge_max(
-                anomaly_store[c.symbol].get("vol_ratio", {}), ratios,
-            )
+            rec = anomaly_store[c.symbol]
+            rec["vol_ratio"] = _merge_max(rec.get("vol_ratio", {}), ratios)
+            # Попадание засчитывается только когда объём аномален
+            # СЕЙЧАС. Запись живёт до LEADERS_MAX_AGE_DAYS независимо
+            # от текущего объёма, и считать присутствие в файле за
+            # попадание значило бы мерить возраст записи, а не рынок.
+            if _is_anomalous(ratios):
+                rec["hits"] = int(rec.get("hits", 0)) + 1
+            rec.setdefault("since_run", run_no)
         elif _is_anomalous(ratios):
-            anomaly_store[c.symbol] = _new_record(now, price, ratios)
+            anomaly_store[c.symbol] = _new_record(now, price, ratios, run_no)
+            anomaly_store[c.symbol]["hits"] = 1
             hit = ", ".join(k for k, v in ratios.items() if v >= ANOMALY_RATIO_MIN)
             log(f"  → leaders: новая аномалия объёма {c.symbol} ({hit})")
 
@@ -238,6 +281,15 @@ def update_leaders(
     cutoff = now - timedelta(days=max_age_days)
     flow_store = _sweep(flow_store, archive_path, "flow", cutoff, now)
     anomaly_store = _sweep(anomaly_store, archive_path, "anomaly", cutoff, now)
+
+    # Частота попаданий. Считается при записи, а не при чтении:
+    # потребителю иначе пришлось бы знать про meta и номера прогонов,
+    # и каждый читатель посчитал бы её по-своему.
+    for store in (flow_store, anomaly_store):
+        for symbol, rec in store.items():
+            span = max(1, run_no - int(rec.get("since_run", run_no)) + 1)
+            rec["runs_seen"] = span
+            rec["hit_rate"] = round(int(rec.get("hits", 0)) / span, 3)
 
     flow_store[_META_KEY] = meta
     write_atomic(flow_path, json.dumps(flow_store, ensure_ascii=False, indent=2))
