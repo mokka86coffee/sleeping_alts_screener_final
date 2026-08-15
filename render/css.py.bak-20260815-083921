@@ -1644,27 +1644,26 @@ transition:border-color .2s ease}
    max-height, а не display: скачок высоты без перехода читается как
    подёргивание блока, а анимировать display нельзя. Потолок взят с
    запасом под шесть стратегий с тикерами. */
-/* Свёрнута по умолчанию, раскрывается наведением. Состояние орбиты
-   на это больше не влияет: палитра не меняется от того, открыта
-   карточка или нет, и привязывать к этому вид легенды было незачем. */
-.ob-leg-body{overflow:hidden;max-height:0;opacity:0;
+.ob-leg-body{overflow:hidden;max-height:520px;
   transition:max-height .3s ease,opacity .25s ease}
-.ob-leg:hover .ob-leg-body{max-height:520px;opacity:1}
+.ob.showing .ob-leg-body,.ob.starred .ob-leg-body{max-height:0;opacity:0}
+.ob.showing .ob-leg:hover .ob-leg-body,
+.ob.starred .ob-leg:hover .ob-leg-body{max-height:520px;opacity:1}
 
 /* В свёрнутом виде подложка чуть плотнее и рамка теплее: полоска
    должна читаться как живой элемент, к которому имеет смысл
-   подвести курсор, а не как остаток панели. Теперь это состояние по
-   умолчанию, а наведение возвращает обычный материал. */
-.ob-leg{background:rgba(10,12,17,.72);
-  border-color:rgba(255,217,138,.16)}
-.ob-leg:hover{background:rgba(6,8,12,.72);
-  border-color:rgba(255,255,255,.05)}
+   подвести курсор, а не как остаток панели. */
+.ob.showing .ob-leg,.ob.starred .ob-leg{
+  background:rgba(10,12,17,.72);border-color:rgba(255,217,138,.16)}
+.ob.showing .ob-leg:hover,.ob.starred .ob-leg:hover{
+  background:rgba(6,8,12,.72);border-color:rgba(255,255,255,.05)}
 
 .ob-leg-h{display:flex;align-items:center;gap:8px;
   font-size:7px;letter-spacing:3px;text-transform:uppercase;
   color:#43434e;margin-bottom:9px;transition:margin .3s ease}
-.ob-leg-h{margin-bottom:0}
-.ob-leg:hover .ob-leg-h{margin-bottom:9px}
+.ob.showing .ob-leg-h,.ob.starred .ob-leg-h{margin-bottom:0}
+.ob.showing .ob-leg:hover .ob-leg-h,
+.ob.starred .ob-leg:hover .ob-leg-h{margin-bottom:9px}
 
 /* Ряд точек в шапке. Виден всегда, но работает как опознавательный
    знак именно в свёрнутом виде. */
