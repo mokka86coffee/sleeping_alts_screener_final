@@ -1240,39 +1240,6 @@ ORBIT = """
 .ob-sc-life{height:1px;background:rgba(200,220,232,.1);position:relative}
 .ob-sc-life u{position:absolute;inset:0 auto 0 0;background:var(--mut);
   opacity:.45;display:block}
-/* Появление по очереди: сводку читают сверху вниз, и порядок показа
-   задаёт порядок чтения. Задержка у каждого блока своя, в --d. */
-.rise{opacity:0;transform:translateY(6px);
-  animation:obf-rise .6s cubic-bezier(.2,.9,.25,1) var(--d,0s) forwards}
-@keyframes obf-rise{to{opacity:1;transform:none}}
-/* Дыхание фона: экран живёт секунды, статичный прямоугольник за это
-   время успевает показаться мёртвым */
-.obf-glow{position:absolute;left:50%;top:44%;width:900px;height:560px;
-  transform:translate(-50%,-50%);pointer-events:none;
-  background:radial-gradient(ellipse at center,rgba(245,166,35,.07),
-    rgba(245,166,35,0) 62%);
-  animation:obf-breathe 7s ease-in-out infinite}
-@keyframes obf-breathe{0%,100%{opacity:.6;transform:translate(-50%,-50%) scale(1)}
-  50%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}}
-/* Каретка печати: гаснет, когда строка допечатана */
-.obf-reg i{display:inline-block;width:2px;height:22px;margin-left:6px;
-  background:var(--am);vertical-align:-2px;animation:obf-blink .9s step-end infinite}
-.obf-reg.done i{display:none}
-@keyframes obf-blink{0%,49%{opacity:1}50%,100%{opacity:0}}
-.obf-spark{width:84px;height:22px;display:block}
-.obf-spark polyline{stroke-dasharray:200;stroke-dashoffset:200;
-  animation:obf-draw 1.1s ease-out 1.6s forwards}
-@keyframes obf-draw{to{stroke-dashoffset:0}}
-/* Отдельная строка «у уровня» — это те, кто решается сегодня */
-.obf-near{margin-top:18px;text-align:center;font-size:9px;letter-spacing:1.6px;
-  color:#5b606a}
-.obf-near b{font-family:var(--mono);font-weight:400;color:var(--dn)}
-.obf-near em{font-style:normal;color:var(--t3);letter-spacing:2px}
-@media (prefers-reduced-motion:reduce){
-  .rise{animation:none;opacity:1;transform:none}
-  .obf-glow,.obf-reg i,.obf-spark polyline{animation:none}
-  .obf-spark polyline{stroke-dashoffset:0}
-}
 /* Текстовая сводка вместо колонок с числами. Причина не в экономии:
    таблица заставляет сравнивать, а связный текст — читать. На экране,
    который живёт минуту, второе быстрее.
@@ -1320,131 +1287,12 @@ transition:border-color .2s ease}
 .pd-svg{width:100%;height:auto;display:block;overflow:visible}
 .obf-podium-cap{margin-top:10px;text-align:center;font-size:7px;
   letter-spacing:3px;text-transform:uppercase;color:#3C362D}
-
-/* ── Появление ──
-   Сцена собирается снизу вверх и по слоям: основание, затем столбики
-   от левого края к правому, потом линии и звёзды. Порядок повторяет
-   порядок чтения — глаз успевает понять устройство сцены прежде, чем
-   она станет плотной.
-
-   Задержка приходит инлайном через --d: считать её в CSS нечем, а
-   таблица задержек в скрипте дублировала бы порядок столбиков. */
-@keyframes pd-rise{
-  from{opacity:0;transform:translateY(26px)}
-  to  {opacity:1;transform:none}
-}
-@keyframes pd-grow{
-  from{opacity:0;transform:scaleY(.04)}
-  to  {opacity:1;transform:none}
-}
-@keyframes pd-pop{
-  0%  {opacity:0;transform:scale(.2)}
-  62% {opacity:1;transform:scale(1.16)}
-  100%{opacity:1;transform:none}
-}
-@keyframes pd-draw{to{stroke-dashoffset:0}}
-@keyframes pd-fade{from{opacity:0}to{opacity:1}}
-
-.pd-rise{opacity:0;animation:pd-rise .78s cubic-bezier(.18,.72,.22,1) forwards;
-  animation-delay:var(--d,0s)}
-/* transform-box обязателен: без него точка отсчёта у SVG-элемента
-   берётся от начала координат холста, и столбик не растёт из
-   основания, а уезжает за кадр. */
-.pd-grow{opacity:0;transform-box:fill-box;transform-origin:bottom;
-  animation:pd-grow .8s cubic-bezier(.18,.72,.22,1) forwards;
-  animation-delay:var(--d,0s)}
-.pd-pop{opacity:0;transform-box:fill-box;transform-origin:center;
-  animation:pd-pop .62s cubic-bezier(.2,1.5,.4,1) forwards;
-  animation-delay:var(--d,0s)}
-.pd-fade{opacity:0;animation:pd-fade 1.1s ease forwards;
-  animation-delay:var(--d,0s)}
-.pd-px{stroke-dasharray:420;stroke-dashoffset:420;
-  animation:pd-draw 1.5s cubic-bezier(.3,.7,.2,1) forwards;
-  animation-delay:var(--d,0s)}
-
-@media (prefers-reduced-motion:reduce){
-  .pd-rise,.pd-grow,.pod-pop,.pd-pop,.pd-fade{
-    opacity:1!important;animation:none!important;transform:none!important}
-  .pd-px{stroke-dashoffset:0!important;animation:none!important}
-}
-
 /* На узком экране сцена снимается целиком, а не ужимается: половина
    сцены объясняет хуже, чем её отсутствие, а текст сводки на мобильных
    остаётся — он ничего не стоит. */
 @media (max-width:900px){
   .obf-podium,.obf-podium-cap{display:none}
 }
-
-/* ── Экран лидеров ───────────────────────────────────────────
-   Третий экран в очереди: сводка → лидеры → дашборд. Своим слоем, а
-   не блоком внутри сводки: там центрирование без прокрутки, и сцена
-   в шестьсот пикселей высотой просто не помещается в окно.
-
-   Материал тот же, что у сводки, вплоть до градиента подложки —
-   переход между экранами должен читаться как смена содержимого, а
-   не как переход в другое приложение. */
-.ob-podium{position:fixed;inset:0;z-index:41;display:flex;
-  flex-direction:column;align-items:center;justify-content:center;
-  background:radial-gradient(1100px 700px at 50% 46%,#0d0b09,#050406 70%);
-  opacity:0;pointer-events:none;transition:opacity .5s ease}
-.ob-podium.on{opacity:1;pointer-events:auto}
-.obp-in{width:min(1240px,96vw)}
-.obp-h{font-size:11px;letter-spacing:.58em;text-transform:uppercase;
-  color:#6E6656;text-align:center;text-indent:.58em}
-.obp-scene{margin-top:18px}
-.pd-svg{width:100%;height:auto;display:block;overflow:visible}
-.obp-cap{margin-top:12px;text-align:center;font-size:7px;
-  letter-spacing:3px;text-transform:uppercase;color:#3C362D}
-.obp-foot{margin-top:26px;text-align:center;font-size:7px;
-  letter-spacing:3px;text-transform:uppercase;color:#2E2A24}
-
-/* ── Появление ──
-   Сцена собирается снизу вверх и по слоям: основание, затем столбики
-   от левого края к правому, потом линии и звёзды. Порядок повторяет
-   порядок чтения — глаз успевает понять устройство сцены прежде, чем
-   она станет плотной.
-
-   Задержка приходит инлайном через --d: считать её в CSS нечем, а
-   таблица задержек в скрипте дублировала бы порядок столбиков. */
-@keyframes pd-rise{
-  from{opacity:0;transform:translateY(26px)}
-  to  {opacity:1;transform:none}
-}
-@keyframes pd-grow{
-  from{opacity:0;transform:scaleY(.04)}
-  to  {opacity:1;transform:none}
-}
-@keyframes pd-pop{
-  0%  {opacity:0;transform:scale(.2)}
-  62% {opacity:1;transform:scale(1.16)}
-  100%{opacity:1;transform:none}
-}
-@keyframes pd-draw{to{stroke-dashoffset:0}}
-@keyframes pd-fade{from{opacity:0}to{opacity:1}}
-
-.pd-rise{opacity:0;animation:pd-rise .78s cubic-bezier(.18,.72,.22,1) forwards;
-  animation-delay:var(--d,0s)}
-/* transform-box обязателен: без него точка отсчёта у SVG-элемента
-   берётся от начала координат холста, и столбик не растёт из
-   основания, а уезжает за кадр. */
-.pd-grow{opacity:0;transform-box:fill-box;transform-origin:bottom;
-  animation:pd-grow .8s cubic-bezier(.18,.72,.22,1) forwards;
-  animation-delay:var(--d,0s)}
-.pd-pop{opacity:0;transform-box:fill-box;transform-origin:center;
-  animation:pd-pop .62s cubic-bezier(.2,1.5,.4,1) forwards;
-  animation-delay:var(--d,0s)}
-.pd-fade{opacity:0;animation:pd-fade 1.1s ease forwards;
-  animation-delay:var(--d,0s)}
-.pd-px{stroke-dasharray:420;stroke-dashoffset:420;
-  animation:pd-draw 1.5s cubic-bezier(.3,.7,.2,1) forwards;
-  animation-delay:var(--d,0s)}
-
-@media (prefers-reduced-motion:reduce){
-  .pd-rise,.pd-grow,.pod-pop,.pd-pop,.pd-fade{
-    opacity:1!important;animation:none!important;transform:none!important}
-  .pd-px{stroke-dashoffset:0!important;animation:none!important}
-}
-
 /* На узком экране экран лидеров пропускается целиком, а не ужимается:
    половина сцены объясняет хуже, чем её отсутствие. Сводка при этом
    остаётся — это текст, он ничего не стоит. */
@@ -1535,54 +1383,6 @@ transition:border-color .2s ease}
 
 .obf-foot,.obf-bar{opacity:0;transition:opacity .6s ease}
 .obf-foot.on,.obf-bar.on{opacity:1}
-/* ── Сводка при входе ───────────────────────────────────────
-   Экран поверх дашборда: что с рынком и что сегодня смотреть.
-   Гаснет сам примерно через минуту, снимается кликом или Esc.
-
-   Собирается из того же дерева фаз, что и карточки: сводка не
-   отдельный список, а срез уже существующей логики — иначе она
-   начнёт расходиться с карточками при первой же правке порогов. */
-.ob-brief{position:fixed;inset:0;z-index:40;display:flex;
-  flex-direction:column;align-items:center;justify-content:center;
-  background:radial-gradient(1100px 700px at 50% 42%,#0d0d13,#050508 70%);
-  opacity:0;pointer-events:none;transition:opacity .5s ease}
-.ob-brief.on{opacity:1;pointer-events:auto}
-.obf-in{width:min(940px,90vw)}
-.obf-date{font-size:8px;letter-spacing:4px;color:#43434e;text-align:center}
-/* Строка рынка: только факты, без вывода — режим и аппетит уже
-   являются оценкой, дальше идти нельзя */
-.obf-mkt{display:flex;justify-content:center;align-items:baseline;gap:22px;
-  margin-top:14px;font-size:11px;letter-spacing:1.6px;color:#8b929c}
-.obf-mkt b{font-family:var(--mono);font-weight:400;color:var(--t3)}
-.obf-mkt .dn{color:#FF6B35}
-.obf-mkt .up{color:#48A97C}
-.obf-reg{text-align:center;margin-top:10px;font-size:26px;font-weight:200;
-  letter-spacing:7px;color:var(--t1)}
-.obf-cols{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;
-  margin-top:40px}
-.obf-col h3{margin:0 0 12px;font-size:8px;letter-spacing:3.4px;
-  font-weight:300;color:#5b606a;text-align:center}
-.obf-col.go h3{color:var(--up)}
-.obf-col.wait h3{color:#8b929c}
-.obf-col.hold h3{color:var(--gd)}
-.obf-row{display:flex;align-items:baseline;justify-content:space-between;
-  gap:10px;padding:7px 0;border-top:1px solid rgba(200,220,232,.07)}
-.obf-row:first-of-type{border-top:0}
-.obf-t{font-size:13px;font-weight:300;letter-spacing:2.4px;color:var(--t1)}
-.obf-w{font-size:8.5px;letter-spacing:1px;color:#5b606a}
-.obf-v{font-family:var(--mono);font-size:10px;color:#8b929c}
-.obf-empty{font-size:9px;letter-spacing:1.4px;color:#3a3d45;text-align:center;
-  padding:10px 0}
-.obf-foot{margin-top:38px;text-align:center;font-size:7px;letter-spacing:3px;
-  color:#3a3d45}
-/* Полоса времени: экран уходит сам, и это должно быть видно заранее */
-.obf-bar{height:1px;background:rgba(200,220,232,.08);margin-top:12px;
-  position:relative;overflow:hidden}
-.obf-bar u{position:absolute;inset:0 auto 0 0;background:#5b606a;
-  display:block;width:100%;transform-origin:left;
-  animation:obf-run var(--lap,60s) linear forwards}
-@keyframes obf-run{to{transform:scaleX(0)}}
-@media (prefers-reduced-motion:reduce){.obf-bar u{animation:none}}
 .ob{position:relative;height:88vh;min-height:560px;max-height:900px;
   overflow:hidden;
   /* Выход из сетки .screen на всю ширину окна. Блок остаётся ВНУТРИ #dash:
