@@ -3,15 +3,21 @@
 dashboard.py вызывает render_podium() и вставляет результат, как и в
 случае brief.py.
 
-Сцена со столбиками снята целиком. Она отвечала на вопрос «кто дальше
-всех ушёл от дна» и на нём заканчивалась: чтобы понять, что с монетой
-происходит СЕЙЧАС, приходилось идти на орбиту и открывать карточки по
-одной. Экран лидеров для того и заведён, чтобы этого не делать.
+Сетка карточек заменена круглым залом. Причина не в оформлении: в сетке
+стадия сделки была подписью над группой, то есть требовала прочитать
+заголовок и запомнить его. Здесь стадию несёт ВЫСОТА яруса — вверху
+то, что ещё не началось, посередине то, что идёт, внизу отработавшее.
+Положение в пространстве запоминается само, подпись только называет.
 
-Теперь карточка на монету. Четыре величины, ряд цены и вердикт — ровно
-столько, сколько читается беглым взглядом. Пятая величина начала бы
-дублировать одну из четырёх, а карточка, которую надо изучать, ничем
-не лучше карточки на орбите.
+Второе следствие зала: у монеты появляется место. В ленте место есть
+только у первой и последней карточки, остальные различаются лишь
+порядком; в комнате монета остаётся там, где её оставили, и к ней
+возвращаются поворотом головы.
+
+Цена решения названа прямо: зал показывает пять-шесть карточек разом
+против двух десятков в сетке. Для «пробежать глазами» это хуже, для
+«разглядеть, что с монетой» — лучше. Экран лидеров заведён ради
+второго.
 
 Данных своих у модуля нет: читает window.ORB.stars, который выставляет
 render.orbit. Второй источник тех же чисел разошёлся бы с орбитой при
@@ -20,8 +26,7 @@ render.orbit. Второй источник тех же чисел разошё�
 СТИЛИ ЛЕЖАТ ЗДЕСЬ, а не в css.py — намеренно. Блок подиума в css.py
 трижды дублировался от повторного применения патчей, и каждый раз это
 чинилось отдельным скриптом. Модуль, который несёт свою разметку, свой
-скрипт и свои стили, разойтись сам с собой не может. Прежние правила
-.obp-* и .pd-* в css.py после этой замены мертвы и удаляются.
+скрипт и свои стили, разойтись сам с собой не может.
 """
 
 from __future__ import annotations
@@ -33,116 +38,346 @@ def render_podium() -> str:
 
 PODIUM_CSS = """
 <style>
-/* ── Экран лидеров ───────────────────────────────────────────
-   Третий в очереди: сводка → лидеры → дашборд. Материал тот же, что
-   у сводки, вплоть до градиента подложки: переход между экранами
-   должен читаться как смена содержимого, а не как другое
-   приложение.
-
-   overflow-y:auto обязателен — карточек бывает под шесть десятков,
-   и прежняя сцена не прокручивалась вовсе. */
-.ob-podium{position:fixed;inset:0;z-index:41;overflow-y:auto;
+/* ── Зал ─────────────────────────────────────────────────────
+   Третий экран в очереди: сводка → лидеры → дашборд. Подложка та
+   же, что у сводки: переход должен читаться как смена содержимого,
+   а не как другое приложение. */
+.ob-podium{position:fixed;inset:0;z-index:41;overflow:hidden;
   background:radial-gradient(1100px 700px at 50% -5%,#0d0b09,#050406 70%);
-  opacity:0;pointer-events:none;transition:opacity .5s ease}
+  opacity:0;pointer-events:none;transition:opacity .5s ease;
+  cursor:grab;perspective:1200px;perspective-origin:50% 46%}
 .ob-podium.on{opacity:1;pointer-events:auto}
-.obp-in{max-width:1480px;margin:0 auto;padding:34px 22px 72px}
+.ob-podium.obp-drag{cursor:grabbing}
 
-.obp-top{display:flex;align-items:baseline;justify-content:space-between;
-  gap:20px;flex-wrap:wrap;border-bottom:1px solid rgba(255,255,255,.055);
-  padding-bottom:13px}
+/* Купол: свет по краю, звёзды к центру. Он и сообщает, что мы
+   внутри помещения, а не смотрим на ленту карточек. */
+.obp-dome{position:absolute;left:-10%;right:-10%;top:-42%;height:96%;
+  border-radius:50%;pointer-events:none;
+  background:
+    radial-gradient(60% 52% at 50% 100%, rgba(60,110,220,.22), transparent 70%),
+    radial-gradient(90% 70% at 50% 108%, rgba(20,50,140,.16), transparent 72%)}
+
+/* Пол: отражения нижнего яруса лежат на нём, поэтому не просто
+   градиент, а поверхность с бликом от центра. */
+.obp-floor{position:absolute;left:-20%;right:-20%;bottom:0;height:46%;
+  pointer-events:none;
+  background:
+    radial-gradient(46% 78% at 50% 0%, rgba(255,190,90,.09), transparent 66%),
+    linear-gradient(180deg, rgba(10,14,26,0), rgba(6,9,18,.85) 42%, #050406)}
+
+.obp-sky{position:absolute;inset:0;pointer-events:none}
+
+.obp-top{position:absolute;left:26px;right:26px;top:20px;z-index:6;
+  display:flex;align-items:baseline;justify-content:space-between;gap:20px}
 .obp-h{font-family:ui-monospace,Menlo,monospace;font-size:11px;
   letter-spacing:.34em;text-transform:uppercase;color:#8E96A2}
 .obp-stamp{font-family:ui-monospace,Menlo,monospace;font-size:10px;color:#454C57}
 
-.obp-band{margin-top:24px}
-.obp-bh{display:flex;align-items:center;gap:9px;margin-bottom:11px}
-.obp-bh i{width:7px;height:7px;border-radius:50%;box-shadow:0 0 7px currentColor}
-.obp-bh span{font-family:ui-monospace,Menlo,monospace;font-size:9px;
-  letter-spacing:.22em;text-transform:uppercase;color:#6C7480}
-.obp-bh b{margin-left:auto;font-family:ui-monospace,Menlo,monospace;
-  font-size:10px;color:#454C57;font-weight:400}
+/* ── Сцена ───────────────────────────────────────────────────
+   Панели стоят по цилиндру, наблюдатель внутри. Без CSS-перехода:
+   угол доводится покадрово, и переход поверх дал бы двойное
+   сглаживание — зал отставал бы от жеста рывками. */
+.obp-stage{position:absolute;left:50%;top:44%;width:0;height:0;
+  transform-style:preserve-3d}
 
-.obp-grid{display:grid;gap:9px;
-  grid-template-columns:repeat(auto-fill,minmax(258px,1fr))}
+.obp-pan{position:absolute;width:210px;height:300px;margin:-150px 0 0 -105px;
+  transform-style:preserve-3d;cursor:pointer;transition:opacity .35s ease}
+/* Панели вне поля обзора не только прозрачны, но и не ловят курсор:
+   иначе невидимая карточка перехватывала бы клик по видимой. */
+.obp-pan.obp-off{opacity:0;pointer-events:none}
 
-.obc{background:#0D0F14;border:1px solid rgba(255,255,255,.055);
-  border-radius:9px;padding:11px 12px 10px;position:relative;overflow:hidden;
-  cursor:pointer;transition:border-color .2s ease,background .2s ease}
-.obc:hover{border-color:rgba(255,255,255,.13);background:#11141A}
-/* Полоса стратегии слева: тот же цвет, что у звезды на орбите. Узкая
-   и без подписи — имя стоит в шапке, полоса нужна чтобы карточки
-   читались группами при беглом просмотре. */
-.obc::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;
-  background:currentColor;opacity:.75}
+/* ── Рама ────────────────────────────────────────────────────
+   Матовая плита, а не залитый цветом прямоугольник: сквозь неё
+   виден фон зала. */
+.obp-frame{position:relative;width:100%;height:100%;overflow:hidden;
+  border-radius:10px;
+  background:linear-gradient(168deg,
+    rgba(255,255,255,.055), rgba(255,255,255,.012) 42%,
+    rgba(4,6,12,.55) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--c),.22),
+    inset 0 1px 0 rgba(255,255,255,.10),
+    0 0 44px -12px rgba(var(--c),.45);
+  transition:box-shadow .3s ease}
+.obp-pan:hover .obp-frame{box-shadow:
+    inset 0 0 0 1px rgba(var(--c),.62),
+    inset 0 1px 0 rgba(255,255,255,.16),
+    0 0 76px -6px rgba(var(--c),.75)}
 
-.obc-h{display:flex;align-items:baseline;gap:7px}
-.obc-t{font-family:ui-monospace,Menlo,monospace;font-size:14.5px;
-  letter-spacing:.05em}
-.obc-p{font-size:9.5px;opacity:.72;white-space:nowrap;overflow:hidden;
-  text-overflow:ellipsis}
-.obc-cap{margin-left:auto;font-family:ui-monospace,Menlo,monospace;
-  font-size:10px;color:#565E6A;white-space:nowrap}
+/* Техническая сетка: даёт поверхности фактуру и почти не видна. */
+.obp-frame::after{content:'';position:absolute;inset:0;pointer-events:none;
+  opacity:.5;
+  background:
+    repeating-linear-gradient(90deg,
+      rgba(var(--c),.055) 0 1px, transparent 1px 13px),
+    repeating-linear-gradient(0deg,
+      rgba(var(--c),.045) 0 1px, transparent 1px 13px)}
 
-.obc-spark{margin:8px 0 7px;height:34px;display:block;width:100%}
+/* Световая полоса делит раму на зону заголовка и зону графика.
+   Свет здесь не украшение, а разделитель. */
+.obp-beam{position:absolute;left:-8%;right:-8%;top:58px;height:2px;
+  pointer-events:none;
+  background:linear-gradient(90deg,
+    transparent, rgba(var(--c),.85) 32%, #fff 50%,
+    rgba(var(--c),.85) 68%, transparent)}
+.obp-beam::before{content:'';position:absolute;left:0;right:0;top:-26px;
+  height:54px;filter:blur(7px);
+  background:radial-gradient(58% 100% at 50% 50%,
+    rgba(var(--c),.55), transparent 72%)}
 
-.obc-m{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;
-  border-top:1px solid rgba(255,255,255,.055);padding-top:7px}
-.obc-m>div{min-width:0}
-.obc-k{font-family:ui-monospace,Menlo,monospace;font-size:7.5px;
-  letter-spacing:.11em;text-transform:uppercase;color:#454C57;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.obc-v{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;
-  margin-top:2px;white-space:nowrap;color:#D6DCE4}
-.obc-v.off{color:#454C57}
-.obc-v.pos{color:#7FD9A6}
+/* Уголковые скобы: рамка намечена, а не замкнута — панель читается
+   как элемент интерфейса, а не картина в багете. */
+.obp-br{position:absolute;width:13px;height:13px;pointer-events:none;
+  border:1px solid rgba(var(--c),.55)}
+.obp-br.tl{left:7px;top:7px;border-right:0;border-bottom:0}
+.obp-br.tr{right:7px;top:7px;border-left:0;border-bottom:0}
+.obp-br.bl{left:7px;bottom:7px;border-right:0;border-top:0}
+.obp-br.brr{right:7px;bottom:7px;border-left:0;border-top:0}
 
-.obc-w{margin-top:7px;font-size:10px;line-height:1.45;color:#6C7480;
-  border-top:1px solid rgba(255,255,255,.055);padding-top:6px;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
-  overflow:hidden}
+.obp-tick{position:absolute;left:0;right:0;top:16px;text-align:center;
+  font-family:ui-monospace,Menlo,monospace;
+  font-size:15px;font-weight:300;letter-spacing:3.8px;color:#E8EEF4;
+  text-shadow:0 0 18px rgba(var(--c),.6)}
+.obp-state{position:absolute;left:0;right:0;top:38px;text-align:center;
+  font-size:8.5px;font-weight:400;letter-spacing:2.6px;
+  text-transform:uppercase;color:rgba(var(--c),.85);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 10px}
 
-.obp-foot{margin-top:30px;text-align:center;font-size:7px;letter-spacing:3px;
-  text-transform:uppercase;color:#2E2A24}
-.obp-empty{max-width:46ch;margin:60px auto;text-align:center;font-size:12px;
-  line-height:1.7;color:#5E564A}
+.obp-art{position:absolute;left:0;right:0;bottom:74px;height:126px}
+.obp-art svg{display:block;width:100%;height:100%}
 
-/* ── Появление ──
-   Карточки проявляются волной по полосам. Задержка приходит инлайном
-   через --d: считать её в CSS нечем, а таблица задержек в скрипте
-   дублировала бы порядок карточек.
+/* ── Приборы ─────────────────────────────────────────────────
+   Три величины — три формы, а не четыре одинаковых числа в строку.
+   В приборной панели так не бывает: там скорость это дуга, заряд —
+   полоса, и различить их можно не читая. */
+.obp-nums{position:absolute;left:0;right:0;bottom:0;height:74px;
+  padding:9px 12px 10px;display:flex;align-items:center;gap:10px;
+  background:linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.46) 38%);
+  border-top:1px solid rgba(255,255,255,.05)}
 
-   Анимации стоят на паузе до класса pd-go на слое. Управлять стартом
-   через момент сборки ненадёжно: узлы могут оказаться в документе
-   раньше показа, и тогда весь разбег отыграет в прозрачном слое. */
-@keyframes obp-rise{
-  from{opacity:0;transform:translateY(14px)}
-  to  {opacity:1;transform:none}
-}
-.obc,.obp-bh{opacity:0;animation:obp-rise .5s cubic-bezier(.2,.7,.2,1) forwards;
-  animation-delay:var(--d,0s);animation-play-state:paused}
-.ob-podium.pd-go .obc,.ob-podium.pd-go .obp-bh{animation-play-state:running}
+.obp-gau{position:relative;width:54px;height:54px;flex:none}
+.obp-gau svg{display:block;width:100%;height:100%}
+.obp-gau-v{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;padding-top:2px}
+.obp-gau-v b{font-family:ui-monospace,Menlo,monospace;
+  font-size:13px;font-weight:400;color:#7FD9A6}
+.obp-gau-v i{font-size:6px;font-style:normal;letter-spacing:1.4px;
+  text-transform:uppercase;color:#454C57;margin-top:1px}
+
+.obp-rows{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
+.obp-row{display:flex;align-items:center;gap:7px}
+.obp-row i{font-size:6.5px;font-style:normal;letter-spacing:1.3px;
+  text-transform:uppercase;color:#454C57;width:34px;flex:none}
+.obp-row b{font-family:ui-monospace,Menlo,monospace;font-size:11px;
+  font-weight:400;color:#c9ccd2;margin-left:auto;flex:none}
+
+/* Сегменты: тусклые — рекорд за наблюдение, светлые — сегодня.
+   Полоса отвечает на вопрос, которого голое число не задаёт:
+   далеко ли сегодня до собственного максимума. */
+.obp-seg{display:flex;gap:2px;flex:1;min-width:0}
+.obp-seg u{flex:1;height:7px;border-radius:1px;text-decoration:none;
+  background:rgba(var(--c),.13)}
+.obp-seg u.on{background:rgba(var(--c),.85);
+  box-shadow:0 0 7px rgba(var(--c),.55)}
+.obp-seg u.rec{background:rgba(var(--c),.30)}
+
+/* Насечки дней: всего четырнадцать — столько живёт запись.
+   Видно и сколько прошло, и сколько осталось. */
+.obp-tk{display:flex;gap:1.5px;flex:1;min-width:0;align-items:flex-end}
+.obp-tk u{flex:1;height:5px;border-radius:.5px;text-decoration:none;
+  background:rgba(255,255,255,.10)}
+.obp-tk u.on{height:10px;background:rgba(var(--c),.75)}
+
+/* Отражение только у нижнего яруса: пол один, и картины верхних
+   этажей на нём отражаться не могут. */
+.obp-pan .obp-refl{display:none}
+.obp-pan.obp-floorlvl .obp-refl{display:block}
+.obp-refl{position:absolute;left:0;top:100%;width:100%;height:132px;
+  transform:scaleY(-1);opacity:.20;filter:blur(1.6px);
+  -webkit-mask-image:linear-gradient(180deg,transparent,#000 88%);
+  mask-image:linear-gradient(180deg,transparent,#000 88%);
+  pointer-events:none;overflow:hidden}
+.obp-refl .obp-frame{height:300px;box-shadow:none}
+
+/* ── Подписи ярусов ──────────────────────────────────────────
+   Высота несёт стадию, и это надо назвать словом, а не оставить
+   угадывать по цвету. */
+.obp-tiers{position:absolute;left:26px;top:0;bottom:0;width:170px;
+  pointer-events:none;z-index:4}
+.obp-tl{position:absolute;left:0;transform:translateY(-50%)}
+.obp-tl-n{font-size:8.5px;font-weight:500;letter-spacing:3.2px;
+  text-transform:uppercase;color:rgba(var(--c),.9)}
+.obp-tl-c{font-family:ui-monospace,Menlo,monospace;font-size:20px;
+  font-weight:300;color:#8b8a92;margin-top:4px}
+.obp-tl-c small{font-size:9px;color:#454C57;margin-left:5px}
+.obp-tl::before{content:'';position:absolute;left:-14px;top:4px;
+  width:2px;height:26px;border-radius:2px;background:rgba(var(--c),.55)}
+
+.obp-hint{position:absolute;left:0;right:0;bottom:16px;text-align:center;
+  font-size:8px;letter-spacing:3px;text-transform:uppercase;
+  color:#2E2A24;pointer-events:none}
+.obp-empty{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  max-width:46ch;text-align:center;font-size:12px;line-height:1.7;
+  color:#5E564A}
+
+/* ── Раскрытая карточка ──────────────────────────────────────
+   Форма другая, чем у панелей на стене, и намеренно: там плитка в
+   ряду, здесь она одна. Одинаковая форма означала бы, что мы
+   просто увеличили плитку. */
+.obz{position:absolute;inset:0;z-index:9;display:none;
+  align-items:center;justify-content:center;
+  background:radial-gradient(60% 60% at 50% 50%,
+    rgba(3,4,7,.74), rgba(3,4,7,.95));
+  opacity:0;transition:opacity .3s ease}
+.obz.on{display:flex;opacity:1}
+
+/* Перспектива на самой коробке: внутри две плоскости, и без неё
+   поворот второй дал бы просто сплющенный прямоугольник.
+   overflow не ставим — наклонённая панель выходит за нижнюю
+   границу, и обрезка съела бы ровно её. */
+.obz-box{width:660px;max-width:92vw;border-radius:16px;position:relative;
+  padding-bottom:8px;perspective:1500px;perspective-origin:50% 24%;
+  background:
+    radial-gradient(120% 90% at 50% 118%, rgba(var(--c),.16), transparent 62%),
+    linear-gradient(180deg, rgba(255,255,255,.05), rgba(4,6,12,.96) 46%);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--c),.34),
+    inset 0 1px 0 rgba(255,255,255,.13),
+    0 0 120px -18px rgba(var(--c),.7);
+  transform:scale(.94);transition:transform .34s cubic-bezier(.22,.61,.36,1)}
+.obz.on .obz-box{transform:scale(1)}
+
+.obz-head{padding:22px 26px 0;display:flex;align-items:baseline;gap:13px}
+.obz-t{font-family:ui-monospace,Menlo,monospace;font-size:30px;
+  font-weight:300;letter-spacing:5px;color:#E8EEF4;
+  text-shadow:0 0 30px rgba(var(--c),.65)}
+.obz-s{font-size:8.5px;font-weight:400;letter-spacing:3px;
+  text-transform:uppercase;color:rgba(var(--c),.9)}
+.obz-cap{margin-left:auto;font-family:ui-monospace,Menlo,monospace;
+  font-size:12px;color:#565E6A}
+
+.obz-stack{transform-style:preserve-3d}
+
+/* Экран с графиком: вертикальная плоскость, чуть вынесенная на
+   зрителя — иначе две плоскости смыкаются в одну. */
+.obz-art{height:196px;margin-top:12px;transform:translateZ(26px);
+  transform-style:preserve-3d}
+.obz-art svg{display:block;width:100%;height:100%}
+
+/* Световой шов на ребре между экраном и консолью. */
+.obz-seam{position:relative;height:1px;margin:0 26px;
+  background:linear-gradient(90deg,
+    transparent, rgba(var(--c),.7) 22%, #fff 50%,
+    rgba(var(--c),.7) 78%, transparent)}
+.obz-seam::after{content:'';position:absolute;left:0;right:0;top:-9px;
+  height:20px;filter:blur(6px);
+  background:radial-gradient(50% 100% at 50% 50%,
+    rgba(var(--c),.5), transparent 70%)}
+
+/* Приборная панель лежит под 32°, точка поворота у верхнего края:
+   уходит ВНИЗ от линии графика, а не проваливается серединой.
+   Угол выбран по читаемости — на 32° вертикальное сжатие около
+   0.85, цифры ещё читаются без усилия. */
+.obz-dash{position:relative;margin-top:14px;padding:22px 26px 30px;
+  display:flex;align-items:center;justify-content:space-between;gap:18px;
+  transform:rotateX(32deg);transform-origin:50% 0%;
+  transform-style:preserve-3d;
+  background:linear-gradient(180deg,
+    rgba(255,255,255,.045), rgba(0,0,0,.35) 78%);
+  border-top:1px solid rgba(var(--c),.28);
+  border-radius:0 0 14px 14px;
+  box-shadow:0 -14px 40px -22px rgba(var(--c),.6)}
+/* Дальний край темнее ближнего: на наклонной поверхности свет
+   падает неравномерно, и ровная заливка выдаёт подделку. */
+.obz-dash::after{content:'';position:absolute;inset:0;pointer-events:none;
+  border-radius:0 0 14px 14px;
+  background:linear-gradient(180deg, transparent 30%, rgba(0,0,0,.45))}
+
+.obz-met{width:150px;flex:none}
+.obz-met.r{text-align:right}
+.obz-met-k{font-size:7.5px;font-weight:500;letter-spacing:2.4px;
+  text-transform:uppercase;color:#454C57;margin-bottom:7px}
+.obz-met-v{font-family:ui-monospace,Menlo,monospace;font-size:19px;
+  font-weight:300;color:#d8dde4}
+.obz-met-v small{font-size:9px;color:#454C57;margin-left:4px}
+.obz-met .obp-seg,.obz-met .obp-tk{margin-top:9px}
+.obz-met .obp-seg u{height:8px}
+.obz-met .obp-tk u{height:6px}
+.obz-met .obp-tk u.on{height:12px}
+
+/* Циферблат развёрнут ОТДЕЛЬНО от панели, на которой лежит: он
+   смотрит мимо зрителя и от этого читается как деталь корпуса, а
+   не круг, нарисованный на поверхности. Вбок меньше, чем панель
+   вниз — два сильных разворота подряд превращают шкалу в щель. */
+.obz-gau{position:relative;width:200px;height:200px;flex:none;
+  transform:rotateY(-26deg);transform-style:preserve-3d}
+.obz-gau svg{display:block;width:100%;height:100%}
+/* Веер виден только с той стороны, куда прибор отвёрнут: не ореол
+   вокруг, а отдельная деталь позади. */
+.obz-fan{position:absolute;inset:-26px;transform:translateZ(-42px);
+  pointer-events:none}
+.obz-gau-c{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;transform:translateZ(10px)}
+.obz-gau-c b{font-family:ui-monospace,Menlo,monospace;font-size:34px;
+  font-weight:300;color:#fff;text-shadow:0 0 26px rgba(var(--c),.6)}
+.obz-gau-c i{font-size:8px;font-style:normal;letter-spacing:3px;
+  text-transform:uppercase;color:#454C57;margin-top:3px}
+
+.obz-verdict{padding:2px 26px 0;font-size:11px;line-height:1.5;
+  color:#6C7480;max-width:62ch}
+.obz-close{position:absolute;right:18px;top:14px;font-size:9px;
+  letter-spacing:2.4px;text-transform:uppercase;color:#454C57;
+  cursor:pointer;z-index:2}
+.obz-close:hover{color:#E8EEF4}
+.obz-goto{position:absolute;left:26px;bottom:-30px;font-size:9px;
+  letter-spacing:2.4px;text-transform:uppercase;
+  color:rgba(var(--c),.75);cursor:pointer}
+.obz-goto:hover{color:#fff}
 
 @media (prefers-reduced-motion:reduce){
-  .obc,.obp-bh{opacity:1!important;animation:none!important;
-    transform:none!important}
+  .obp-pan,.obz,.obz-box{transition:none}
 }
+
+/* ── Узкий экран ─────────────────────────────────────────────
+   Зал разбирается: те же рамы ложатся обычной сеткой. Разметка не
+   меняется, меняется только раскладка — иначе пришлось бы держать
+   две версии карточки и чинить обе. */
 @media (max-width:900px){
-  .obp-grid{grid-template-columns:1fr}
-  .obp-in{padding:24px 14px 48px}
+  .ob-podium{overflow-y:auto;perspective:none;cursor:auto}
+  .obp-dome,.obp-floor,.obp-sky,.obp-tiers,.obp-hint{display:none}
+  .obp-stage{position:static;transform:none!important;width:auto;height:auto;
+    display:grid;gap:9px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+    padding:64px 14px 40px}
+  .obp-pan{position:static;transform:none!important;margin:0;
+    width:auto;height:300px;opacity:1!important}
+  .obp-pan.obp-off{opacity:1!important;pointer-events:auto}
+  .obp-refl{display:none!important}
+  .obz-box{perspective:none}
+  .obz-dash{transform:none;padding:18px 20px 22px}
+  .obz-art{transform:none}
+  .obz-gau{transform:none;width:150px;height:150px}
+  .obz-fan{display:none}
 }
 </style>
 """
 
 PODIUM_HTML = """
 <div class="ob-podium" id="obPodium">
-  <div class="obp-in">
-    <div class="obp-top">
-      <div class="obp-h">лидеры прогона</div>
-      <div class="obp-stamp" id="obPodStamp"></div>
-    </div>
-    <div id="obPodBands"></div>
-    <div class="obp-foot">клик по карточке — к монете на орбите</div>
+  <div class="obp-dome"></div>
+  <svg class="obp-sky" id="obpSky"></svg>
+  <div class="obp-floor"></div>
+
+  <div class="obp-top">
+    <div class="obp-h">лидеры прогона</div>
+    <div class="obp-stamp" id="obPodStamp"></div>
   </div>
+
+  <div class="obp-tiers" id="obpTiers"></div>
+  <div class="obp-stage" id="obpStage"></div>
+
+  <div class="obz" id="obpZoom"><div class="obz-box" id="obpZbox"></div></div>
+
+  <div class="obp-hint">тяните мышью · колесо · клик по карточке</div>
 </div>
 """
 
@@ -150,8 +385,8 @@ PODIUM_JS = """
 <script>
 (function () {
   var pod = document.getElementById('obPodium');
-  var host = document.getElementById('obPodBands');
-  if (!pod || !host) return;
+  var stage = document.getElementById('obpStage');
+  if (!pod || !stage) return;
 
   /* Молчаливый выход опаснее отказа: пустой экран неотличим от
      сломанного модуля. Все ранние выходы называют причину. */
@@ -159,7 +394,7 @@ PODIUM_JS = """
     var n = document.createElement('div');
     n.className = 'obp-empty';
     n.textContent = why;
-    host.appendChild(n);
+    pod.appendChild(n);
   }
 
   var O = window.ORB || {};
@@ -167,7 +402,10 @@ PODIUM_JS = """
 
   /* Палитра и стадии — те же, что у звёзд на орбите. Берём из ORB,
      свой список только запасной: третий набор цветов на третьем
-     экране гарантированно разойдётся с первыми двумя. */
+     экране гарантированно разойдётся с первыми двумя.
+
+     На сегодня ORB.strat не выставляется, и работает запасной —
+     это безобидно ровно до первой правки цветов в orbit.py. */
   var STRAT = O.strat || {
     dormant:  { c: '#7E9AB5', stage: 0 }, hidden:   { c: '#7FE3D4', stage: 0 },
     spring:   { c: '#6FC9E8', stage: 0 }, churn:    { c: '#F0B85C', stage: 1 },
@@ -181,148 +419,484 @@ PODIUM_JS = """
     { n: 'движение состоялось',   c: '#C4703A' }
   ];
 
-  var NS = 'http://www.w3.org/2000/svg';
-  function el(n, a) {
-    var e = document.createElementNS(NS, n);
-    for (var k in a) e.setAttribute(k, a[k]);
-    return e;
-  }
   function stratOf(s) { return STRAT[s.st] || NONE; }
-  function volNow(s) {
-    return Math.max(+s.v1h || 0, +s.v4h || 0, +s.v1d || 0);
-  }
+  function volNow(s) { return Math.max(+s.v1h || 0, +s.v4h || 0, +s.v1d || 0); }
   function xfmt(v) {
-    if (!v) return '\\u2014';
-    return v >= 10 ? '\\u00d7' + Math.round(v) : '\\u00d7' + v.toFixed(1);
+    if (!v) return '—';
+    return v >= 10 ? '×' + Math.round(v) : '×' + v.toFixed(1);
+  }
+  /* Цвет приходит как #rrggbb, а в CSS-переменную нужен «r,g,b»:
+     тени и заливки строятся через rgba(var(--c),.5). */
+  function rgbOf(hex) {
+    var h = String(hex || '').replace('#', '');
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var n = parseInt(h, 16);
+    if (isNaN(n)) return '141,151,166';
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255].join(',');
   }
 
+  /* ── Геометрия зала ──────────────────────────────────────────
+     Радиус 1400 при перспективе 1200 даёт масштаб дальней стены
+     0.46 и около одиннадцати панелей в кадре. Шаг выводится из
+     радиуса, а не задаётся числом: хорда между соседними равна
+     ширине панели с зазором. Вплотную рамы читались бы как одно
+     сплошное полотно. */
+  var R = 1400, PW = 210, GAP = 1.35, PERSP = 1200;
+  var BASE_STEP = 2 * (180 / Math.PI) * Math.asin(PW * GAP / 2 / R);
+
+  /* Ярус не может занять больше 340°: дальше кольцо замыкается и
+     панели наезжают на самих себя. При длинном ярусе шаг сжимается,
+     но не ниже двух третей — за этим пределом тикер на дальней
+     стене становится нечитаемым, и честнее показать часть с
+     счётчиком скрытых, чем всё нечитаемо. */
+  var MAX_ARC = 340, MIN_K = 0.66;
+  var TIER_Y = [-350, 0, 350];
+
+  var NS = 'http://www.w3.org/2000/svg';
+
   /* ── Ряд цены ──
-     Настоящий, из _star_card. Рисуется заливкой под линией: у
-     половины монет линия почти плоская, и одна линия там не читается
-     как форма. */
-  function spark(c, col, idx) {
-    var ser = (c.series || []).slice(-21);
-    var w = 236, h = 34, pad = 3;
-    var svg = el('svg', { 'class': 'obc-spark',
-      viewBox: '0 0 ' + w + ' ' + h, preserveAspectRatio: 'none' });
-    if (ser.length < 4) return svg;
+     Заливка под линией: у половины монет линия почти плоская, и
+     одна линия там не читается как форма.
+
+     Сглаживание рисует значения МЕЖДУ днями, которых не было. Для
+     иллюстрации это допустимо; если график начнут использовать для
+     разбора уровней — сглаживание снимать. */
+  function smooth(pts) {
+    if (pts.length < 2) return '';
+    var d = 'M' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
+    for (var i = 0; i < pts.length - 1; i++) {
+      var p0 = pts[i > 0 ? i - 1 : 0], p1 = pts[i],
+          p2 = pts[i + 1], p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
+      d += ' C' + (p1[0] + (p2[0] - p0[0]) / 12).toFixed(1) + ' ' +
+                  (p1[1] + (p2[1] - p0[1]) / 12).toFixed(1) + ', ' +
+                  (p2[0] - (p3[0] - p1[0]) / 12).toFixed(1) + ' ' +
+                  (p2[1] - (p3[1] - p1[1]) / 12).toFixed(1) + ', ' +
+                  p2[0].toFixed(1) + ' ' + p2[1].toFixed(1);
+    }
+    return d;
+  }
+
+  function art(c, col, W, H) {
+    var ser = (c.series || []).slice(-21).map(Number).filter(function (v) {
+      return isFinite(v);
+    });
+    if (ser.length < 4) return '<svg viewBox="0 0 ' + W + ' ' + H + '"></svg>';
 
     var lo = Math.min.apply(null, ser), hi = Math.max.apply(null, ser);
     var rng = (hi - lo) || 1;
     var pts = ser.map(function (v, i) {
-      return (i / (ser.length - 1) * w).toFixed(1) + ',' +
-             (h - pad - (v - lo) / rng * (h - pad * 2)).toFixed(1);
+      return [i * W / (ser.length - 1), H - 10 - (v - lo) / rng * (H - 38)];
     });
+    var d = smooth(pts), last = pts[pts.length - 1];
 
-    /* Идентификатор градиента по индексу, а не по тикеру: тикеры
-       бывают с не-латиницей, и они попадали бы в id как есть. */
-    var gid = 'obpg' + idx;
-    var defs = el('defs', {});
-    var lg = el('linearGradient', { id: gid, x1: '0', y1: '0', x2: '0', y2: '1' });
-    lg.appendChild(el('stop', { offset: 0, 'stop-color': col, 'stop-opacity': .34 }));
-    lg.appendChild(el('stop', { offset: 1, 'stop-color': col, 'stop-opacity': 0 }));
-    defs.appendChild(lg);
-    svg.appendChild(defs);
+    /* Узел входа в журнал: бар, на котором монета попала под
+       наблюдение. Без него график показывает «что было», с ним —
+       «что было ПОСЛЕ входа», а это и есть вопрос, ради которого
+       журнал ведётся. */
+    var ei = Math.max(0, Math.min(pts.length - 1,
+      pts.length - 1 - (+c.days || 0)));
+    var e = pts[ei];
 
-    svg.appendChild(el('path', {
-      d: 'M0,' + h + ' L' + pts.join(' L') + ' L' + w + ',' + h + ' Z',
-      fill: 'url(#' + gid + ')' }));
-    svg.appendChild(el('polyline', { points: pts.join(' '), fill: 'none',
-      stroke: col, 'stroke-width': 1.3, 'stroke-linejoin': 'round' }));
-    var last = pts[pts.length - 1].split(',');
-    svg.appendChild(el('circle', { cx: last[0], cy: last[1], r: 2.1,
-      fill: '#FFE9B8' }));
-    return svg;
+    var id = 'z' + Math.random().toString(36).slice(2, 8);
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' +
+      '<defs>' +
+        '<linearGradient id="s' + id + '" x1="0" y1="0" x2="1" y2="0">' +
+          '<stop offset="0" stop-color="' + col + '" stop-opacity=".28"/>' +
+          '<stop offset="0.6" stop-color="' + col + '"/>' +
+          '<stop offset="1" stop-color="#ffffff"/></linearGradient>' +
+        '<linearGradient id="f' + id + '" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0" stop-color="' + col + '" stop-opacity=".42"/>' +
+          '<stop offset="1" stop-color="' + col + '" stop-opacity="0"/>' +
+        '</linearGradient>' +
+        '<radialGradient id="n' + id + '">' +
+          '<stop offset="0" stop-color="#fff" stop-opacity=".9"/>' +
+          '<stop offset="0.35" stop-color="' + col + '" stop-opacity=".5"/>' +
+          '<stop offset="1" stop-color="' + col + '" stop-opacity="0"/>' +
+        '</radialGradient>' +
+        '<filter id="b' + id + '" x="-30%" y="-60%" width="160%" height="220%">' +
+          '<feGaussianBlur stdDeviation="3"/></filter>' +
+      '</defs>' +
+      '<path d="' + d + ' L' + W + ' ' + H + ' L0 ' + H + ' Z" ' +
+        'fill="url(#f' + id + ')"/>' +
+      '<line x1="0" y1="' + e[1].toFixed(1) + '" x2="' + W + '" y2="' +
+        e[1].toFixed(1) + '" stroke="' + col + '" stroke-width=".7" ' +
+        'stroke-dasharray="2 4" opacity=".38"/>' +
+      '<path d="' + d + '" fill="none" stroke="url(#s' + id + ')" ' +
+        'stroke-width="4" stroke-linecap="round" opacity=".45" ' +
+        'filter="url(#b' + id + ')"/>' +
+      '<path d="' + d + '" fill="none" stroke="url(#s' + id + ')" ' +
+        'stroke-width="1.6" stroke-linecap="round"/>' +
+      '<circle cx="' + e[0].toFixed(1) + '" cy="' + e[1].toFixed(1) +
+        '" r="9" fill="url(#n' + id + ')"/>' +
+      '<circle cx="' + e[0].toFixed(1) + '" cy="' + e[1].toFixed(1) +
+        '" r="2.6" fill="none" stroke="#fff" stroke-width="1" opacity=".85"/>' +
+      '<circle cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) +
+        '" r="2.6" fill="#FFE9B8"/>' +
+    '</svg>';
   }
 
-  function card(c, delay, idx) {
-    var sc = stratOf(c);
-    var d = document.createElement('div');
-    d.className = 'obc';
-    d.setAttribute('style', 'color:' + sc.c + ';--d:' + delay.toFixed(2) + 's');
+  /* ── Дуга со шкалой ──
+     Диапазон 0..300%: выше начинается редкий хвост, и растягивать
+     шкалу под него значит прижать к нулю всё остальное. Что вышло
+     за предел — упирается в конец дуги, и это честнее сжатой шкалы. */
+  function gauge(pct, col, size) {
+    var S = size || 54, k = S / 54;
+    var A0 = -128, A1 = 128, RR = 21 * k, CX = 27 * k, CY = 27 * k;
+    var f = Math.max(0, Math.min(1, pct / 300));
 
-    var head = document.createElement('div');
-    head.className = 'obc-h';
-    head.innerHTML =
-      '<span class="obc-t" style="color:' + sc.c + '">' + c.t + '</span>' +
-      '<span class="obc-p" style="color:' + sc.c + '">' +
-        (c.pattern || '\\u2014') + '</span>' +
-      '<span class="obc-cap">' + (c.cap || '') + '</span>';
-    d.appendChild(head);
-    d.appendChild(spark(c, sc.c, idx));
-
-    /* Четыре величины, отвечающие на разные вопросы: где монета
-       стоит, что с объёмом сейчас, на что была способна, давно ли
-       под наблюдением. Пятая начала бы дублировать одну из них. */
-    var up = +c.up || 0;
-    var now = volNow(c);
-    var rec = +c.x || 0;
-    var m = document.createElement('div');
-    m.className = 'obc-m';
-    m.innerHTML =
-      '<div><div class="obc-k">от дна</div><div class="obc-v ' +
-        (up > 0 ? 'pos' : 'off') + '">' + Math.round(up) + '%</div></div>' +
-      '<div><div class="obc-k">объём</div><div class="obc-v ' +
-        (now >= 2 ? '' : 'off') + '">' + xfmt(now) + '</div></div>' +
-      '<div><div class="obc-k">рекорд</div><div class="obc-v ' +
-        (rec >= 10 ? '' : 'off') + '">' + xfmt(rec) + '</div></div>' +
-      '<div><div class="obc-k">в журнале</div><div class="obc-v off">' +
-        (c.days || 0) + '\\u0434</div></div>';
-    d.appendChild(m);
-
-    if (c.verdict) {
-      var w = document.createElement('div');
-      w.className = 'obc-w';
-      w.textContent = c.verdict;
-      d.appendChild(w);
+    function pt(a, r) {
+      var t = (a - 90) * Math.PI / 180;
+      return [CX + Math.cos(t) * r, CY + Math.sin(t) * r];
+    }
+    function arc(a0, a1, r) {
+      var s = pt(a0, r), e = pt(a1, r);
+      return 'M' + s[0].toFixed(1) + ' ' + s[1].toFixed(1) +
+        ' A' + r.toFixed(1) + ' ' + r.toFixed(1) + ' 0 ' +
+        (a1 - a0 > 180 ? 1 : 0) + ' 1 ' + e[0].toFixed(1) + ' ' + e[1].toFixed(1);
     }
 
-    /* Клик уводит на орбиту к этой монете. Экран лидеров отвечает
-       «что происходит», карточка на орбите — «почему»; разрывать эту
-       пару отдельной навигацией незачем. */
-    d.addEventListener('click', function () {
-      pod.classList.remove('on');
-      if (typeof window.obShowStar === 'function') window.obShowStar(c.t);
-    });
-    return d;
+    var ticks = '';
+    for (var i = 0; i <= 16; i++) {
+      var a = A0 + (A1 - A0) * i / 16, big = i % 4 === 0;
+      var p1 = pt(a, RR + 2.5 * k), p2 = pt(a, RR + (big ? 6.5 : 4.5) * k);
+      ticks += '<line x1="' + p1[0].toFixed(1) + '" y1="' + p1[1].toFixed(1) +
+        '" x2="' + p2[0].toFixed(1) + '" y2="' + p2[1].toFixed(1) +
+        '" stroke="' + col + '" stroke-width="' + (big ? 1.1 : .7) +
+        '" opacity="' + (big ? .55 : .28) + '"/>';
+    }
+
+    var id = 'q' + Math.random().toString(36).slice(2, 7);
+    return '<svg viewBox="0 0 ' + S + ' ' + S + '">' +
+      '<defs><linearGradient id="' + id + '" x1="0" y1="1" x2="1" y2="0">' +
+        '<stop offset="0" stop-color="' + col + '" stop-opacity=".45"/>' +
+        '<stop offset="1" stop-color="#fff" stop-opacity=".92"/>' +
+      '</linearGradient></defs>' + ticks +
+      '<path d="' + arc(A0, A1, RR) + '" fill="none" ' +
+        'stroke="rgba(255,255,255,.09)" stroke-width="' + (2.6 * k).toFixed(1) +
+        '" stroke-linecap="round"/>' +
+      (f > 0.01
+        ? '<path d="' + arc(A0, A0 + (A1 - A0) * f, RR) + '" fill="none" ' +
+          'stroke="url(#' + id + ')" stroke-width="' + (2.6 * k).toFixed(1) +
+          '" stroke-linecap="round"/>'
+        : '') +
+    '</svg>';
   }
 
+  /* Сегментная полоса. Шкала логарифмическая: при рекорде ×1540 и
+     сегодняшних ×2 на линейной не загорится ни одно деление. */
+  function segs(now, rec, n) {
+    n = n || 10;
+    var L = function (v) { return Math.log10(Math.max(v, 0) + 1); };
+    var top = Math.max(L(rec), L(now)) || 1;
+    var kn = Math.round(L(now) / top * n), kr = Math.round(L(rec) / top * n);
+    var out = '';
+    for (var i = 0; i < n; i++) {
+      out += '<u class="' + (i < kn ? 'on' : (i < kr ? 'rec' : '')) + '"></u>';
+    }
+    return '<span class="obp-seg">' + out + '</span>';
+  }
+
+  function ticksDays(d, max) {
+    max = max || 14;
+    var out = '';
+    for (var i = 0; i < max; i++) {
+      out += '<u class="' + (i < d ? 'on' : '') + '"></u>';
+    }
+    return '<span class="obp-tk">' + out + '</span>';
+  }
+
+  function frameHTML(c, col) {
+    var up = Math.round(+c.up || 0);
+    return '<div class="obp-frame">' +
+      '<i class="obp-br tl"></i><i class="obp-br tr"></i>' +
+      '<i class="obp-br bl"></i><i class="obp-br brr"></i>' +
+      '<div class="obp-tick">' + c.t + '</div>' +
+      '<div class="obp-state">' + (c.pattern || '—') + '</div>' +
+      '<div class="obp-beam"></div>' +
+      '<div class="obp-art">' + art(c, col, 210, 126) + '</div>' +
+      '<div class="obp-nums">' +
+        '<span class="obp-gau">' + gauge(up, col) +
+          '<span class="obp-gau-v"><b>' + up + '%</b><i>от дна</i></span>' +
+        '</span>' +
+        '<span class="obp-rows">' +
+          '<span class="obp-row"><i>объём</i>' +
+            segs(volNow(c), +c.x || 0) +
+            '<b>' + xfmt(volNow(c)) + '</b></span>' +
+          '<span class="obp-row"><i>журнал</i>' + ticksDays(+c.days || 0) +
+            '<b>' + (+c.days || 0) + 'д</b></span>' +
+        '</span>' +
+      '</div>' +
+    '</div>';
+  }
+
+  /* ── Веер за прибором ──
+     Лопасти обрываются, не доходя до края: между ними видна тёмная
+     щель, и она делает кольцо сегментным, а не сплошным свечением. */
+  function fan(col) {
+    var CX = 126, CY = 126, out = '';
+    var id = 'F' + Math.random().toString(36).slice(2, 7);
+    for (var i = 0; i < 13; i++) {
+      var a0 = -104 + i * 15.6, a1 = a0 + 11.4;
+      var t0 = (a0 - 90) * Math.PI / 180, t1 = (a1 - 90) * Math.PI / 180;
+      var p = [
+        [CX + Math.cos(t0) * 62, CY + Math.sin(t0) * 62],
+        [CX + Math.cos(t0) * 118, CY + Math.sin(t0) * 118],
+        [CX + Math.cos(t1) * 118, CY + Math.sin(t1) * 118],
+        [CX + Math.cos(t1) * 62, CY + Math.sin(t1) * 62]
+      ];
+      var k = 1 - Math.abs(i - 6) / 7;
+      out += '<path d="M' + p.map(function (q) {
+          return q[0].toFixed(1) + ' ' + q[1].toFixed(1);
+        }).join(' L') + ' Z" fill="url(#' + id + ')" opacity="' +
+        (0.18 + 0.62 * k).toFixed(2) + '"/>';
+    }
+    return '<svg viewBox="0 0 252 252">' +
+      '<defs><radialGradient id="' + id + '" cx="50%" cy="50%" r="50%">' +
+        '<stop offset="0.45" stop-color="' + col + '" stop-opacity="0"/>' +
+        '<stop offset="0.72" stop-color="' + col + '" stop-opacity=".85"/>' +
+        '<stop offset="1" stop-color="#FFF0CE" stop-opacity=".95"/>' +
+      '</radialGradient>' +
+      '<filter id="b' + id + '" x="-30%" y="-30%" width="160%" height="160%">' +
+        '<feGaussianBlur stdDeviation="4"/></filter></defs>' +
+      '<g filter="url(#b' + id + ')">' + out + '</g></svg>';
+  }
+
+  /* ── Большой прибор ──
+     Три концентрических пояса разной частоты: точечный обод, пояс
+     насечек и сама шкала. Один пояс читается как круговая
+     диаграмма, три — как прибор. */
+  function bigGauge(pct, col) {
+    var CX = 100, CY = 100, RR = 62, A0 = -134, A1 = 134;
+    var f = Math.max(0, Math.min(1, pct / 300));
+
+    function pt(a, r) {
+      var t = (a - 90) * Math.PI / 180;
+      return [CX + Math.cos(t) * r, CY + Math.sin(t) * r];
+    }
+    function arc(a0, a1, r) {
+      var s = pt(a0, r), e = pt(a1, r);
+      return 'M' + s[0].toFixed(1) + ' ' + s[1].toFixed(1) +
+        ' A' + r + ' ' + r + ' 0 ' + (a1 - a0 > 180 ? 1 : 0) + ' 1 ' +
+        e[0].toFixed(1) + ' ' + e[1].toFixed(1);
+    }
+
+    var dots = '';
+    for (var i = 0; i <= 72; i++) {
+      var q = pt(A0 + (A1 - A0) * i / 72, RR + 22);
+      dots += '<circle cx="' + q[0].toFixed(1) + '" cy="' + q[1].toFixed(1) +
+        '" r=".9" fill="' + col + '" opacity="' + (i % 6 === 0 ? .5 : .18) + '"/>';
+    }
+    var ticks = '';
+    for (var j = 0; j <= 40; j++) {
+      var b = A0 + (A1 - A0) * j / 40, big = j % 4 === 0;
+      var p1 = pt(b, RR + 6), p2 = pt(b, RR + (big ? 15 : 10.5));
+      ticks += '<line x1="' + p1[0].toFixed(1) + '" y1="' + p1[1].toFixed(1) +
+        '" x2="' + p2[0].toFixed(1) + '" y2="' + p2[1].toFixed(1) +
+        '" stroke="' + col + '" stroke-width="' + (big ? 1.5 : .8) +
+        '" opacity="' + (big ? .6 : .26) + '"/>';
+    }
+
+    var id = 'B' + Math.random().toString(36).slice(2, 7);
+    return '<svg viewBox="0 0 200 200">' +
+      '<defs>' +
+        '<pattern id="p' + id + '" width="3.2" height="3.2" ' +
+          'patternUnits="userSpaceOnUse">' +
+          '<circle cx="1.6" cy="1.6" r=".55" fill="' + col + '" opacity=".16"/>' +
+        '</pattern>' +
+        '<linearGradient id="z' + id + '" x1="0" y1="0" x2="1" y2="1">' +
+          '<stop offset="0" stop-color="#2b3038"/>' +
+          '<stop offset="0.5" stop-color="#0a0d13"/>' +
+          '<stop offset="1" stop-color="#23272f"/></linearGradient>' +
+        '<linearGradient id="a' + id + '" x1="0" y1="1" x2="1" y2="0">' +
+          '<stop offset="0" stop-color="' + col + '" stop-opacity=".35"/>' +
+          '<stop offset="0.7" stop-color="' + col + '"/>' +
+          '<stop offset="1" stop-color="#fff"/></linearGradient>' +
+        '<radialGradient id="d' + id + '" cx="50%" cy="38%" r="62%">' +
+          '<stop offset="0" stop-color="#12161f"/>' +
+          '<stop offset="1" stop-color="#05070c"/></radialGradient>' +
+        '<filter id="g' + id + '" x="-40%" y="-40%" width="180%" height="180%">' +
+          '<feGaussianBlur stdDeviation="5"/></filter>' +
+      '</defs>' + dots + ticks +
+      '<path d="' + arc(A0, A1, RR) + '" fill="none" ' +
+        'stroke="rgba(255,255,255,.07)" stroke-width="4" stroke-linecap="round"/>' +
+      (f > 0.01
+        ? '<path d="' + arc(A0, A0 + (A1 - A0) * f, RR) + '" fill="none" ' +
+            'stroke="url(#a' + id + ')" stroke-width="4" stroke-linecap="round" ' +
+            'opacity=".55" filter="url(#g' + id + ')"/>' +
+          '<path d="' + arc(A0, A0 + (A1 - A0) * f, RR) + '" fill="none" ' +
+            'stroke="url(#a' + id + ')" stroke-width="4" stroke-linecap="round"/>'
+        : '') +
+      '<circle cx="100" cy="100" r="48" fill="url(#d' + id + ')"/>' +
+      '<circle cx="100" cy="100" r="48" fill="url(#p' + id + ')"/>' +
+      '<circle cx="100" cy="100" r="48" fill="none" stroke="' + col + '" ' +
+        'stroke-width="1" opacity=".45"/>' +
+      '<circle cx="100" cy="100" r="48" fill="none" stroke="' + col + '" ' +
+        'stroke-width="3" opacity=".22" filter="url(#g' + id + ')"/>' +
+      '<path d="M59 81 A48 48 0 0 1 141 81" fill="none" stroke="#fff" ' +
+        'stroke-width="1.6" opacity=".17" stroke-linecap="round"/>' +
+      '<ellipse cx="100" cy="73" rx="36" ry="13" fill="#fff" opacity=".05"/>' +
+      '<circle cx="100" cy="100" r="92" fill="none" ' +
+        'stroke="url(#z' + id + ')" stroke-width="11"/>' +
+      '<circle cx="100" cy="100" r="97" fill="none" ' +
+        'stroke="rgba(255,255,255,.09)" stroke-width="1"/>' +
+      '<path d="M38 42 A92 92 0 0 0 24 128" fill="none" stroke="#fff" ' +
+        'stroke-width="2.4" opacity=".30" stroke-linecap="round"/>' +
+    '</svg>';
+  }
+
+  /* ── Небо ──
+     Детерминированное: зал должен выглядеть одинаково при каждом
+     заходе, иначе глаз не запоминает место. */
+  var seed = 20260812;
+  function rnd() {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  }
+  function sky() {
+    var svg = document.getElementById('obpSky');
+    if (!svg) return;
+    var W = window.innerWidth, H = window.innerHeight;
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    var out = '';
+    for (var i = 0; i < 240; i++) {
+      out += '<circle cx="' + (rnd() * W).toFixed(0) + '" cy="' +
+        (rnd() * H * 0.62).toFixed(0) + '" r="' +
+        (0.3 + Math.pow(rnd(), 2.6) * 1.5).toFixed(2) +
+        '" fill="#dfe8f5" opacity="' + (0.12 + rnd() * 0.55).toFixed(2) + '"/>';
+    }
+    svg.innerHTML = out;
+  }
+
+  /* ── Раскрытая карточка ── */
+  var zoom = document.getElementById('obpZoom');
+  var zbox = document.getElementById('obpZbox');
+
+  function openZoom(c) {
+    var sc = stratOf(c), col = sc.c, up = Math.round(+c.up || 0);
+    zbox.style.setProperty('--c', rgbOf(col));
+    zbox.innerHTML =
+      '<div class="obz-close" id="obpZclose">закрыть</div>' +
+      '<div class="obz-head">' +
+        '<span class="obz-t">' + c.t + '</span>' +
+        '<span class="obz-s">' + (c.pattern || '—') + '</span>' +
+        '<span class="obz-cap">' + (c.cap || '') + '</span>' +
+      '</div>' +
+      '<div class="obz-stack">' +
+        '<div class="obz-art">' + art(c, col, 610, 196) + '</div>' +
+        '<div class="obz-seam"></div>' +
+        /* Прибор по центру, шкалы по краям. Симметрия не ради
+           красоты: боковые величины сравниваются между собой, а
+           центральная ни с чем — она итог. */
+        '<div class="obz-dash">' +
+          '<span class="obz-met">' +
+            '<span class="obz-met-k">объём сейчас</span>' +
+            '<span class="obz-met-v">' + xfmt(volNow(c)) +
+              '<small>рекорд ' + xfmt(+c.x || 0) + '</small></span>' +
+            segs(volNow(c), +c.x || 0, 14) +
+          '</span>' +
+          '<span class="obz-gau">' +
+            '<span class="obz-fan">' + fan(col) + '</span>' +
+            bigGauge(up, col) +
+            '<span class="obz-gau-c"><b>' + up + '%</b><i>от дна</i></span>' +
+          '</span>' +
+          '<span class="obz-met r">' +
+            '<span class="obz-met-k">в журнале</span>' +
+            '<span class="obz-met-v">' + (+c.days || 0) +
+              '<small>из 14 дней</small></span>' +
+            ticksDays(+c.days || 0) +
+          '</span>' +
+        '</div>' +
+      '</div>' +
+      (c.verdict ? '<div class="obz-verdict">' + c.verdict + '</div>' : '') +
+      '<div class="obz-goto" id="obpZgoto">показать на орбите</div>';
+
+    zoom.classList.add('on');
+    document.getElementById('obpZclose').onclick = closeZoom;
+
+    /* Экран лидеров отвечает «что происходит», карточка на орбите —
+       «почему»; разрывать эту пару отдельной навигацией незачем. */
+    document.getElementById('obpZgoto').onclick = function () {
+      closeZoom();
+      pod.classList.remove('on');
+      if (typeof window.obShowStar === 'function') window.obShowStar(c.t);
+    };
+  }
+  function closeZoom() { zoom.classList.remove('on'); }
+  zoom.addEventListener('click', function (e) {
+    if (e.target === zoom) closeZoom();
+  });
+
+  /* ── Сборка ── */
+  var PANS = [];
   var built = false;
+
   function build() {
     if (built) return;
     built = true;
-    pod.classList.remove('pd-go');
+    sky();
 
     if (!STARS.length) { bail('журнал лидеров пуст'); return; }
 
-    var shown = 0, delay = 0.05, idx = 0;
-    STAGE.forEach(function (stg, i) {
-      var list = STARS.filter(function (s) { return stratOf(s).stage === i; });
+    var tiersHost = document.getElementById('obpTiers');
+    var shown = 0;
+
+    STAGE.forEach(function (stg, ti) {
+      var list = STARS.filter(function (s) { return stratOf(s).stage === ti; });
       if (!list.length) return;
-      /* Внутри полосы — по ходу от дна: наверху то, что дальше всего
-         ушло. Порядок по скору был бы порядком уверенности детектора,
-         а не состояния монеты. */
+
+      /* Внутри яруса — по ходу от дна: слева то, что дальше всего
+         ушло. Порядок по скору был бы порядком уверенности
+         детектора, а не состояния монеты. */
       list.sort(function (a, b) { return (+b.up || 0) - (+a.up || 0); });
 
-      var band = document.createElement('div');
-      band.className = 'obp-band';
-      var bh = document.createElement('div');
-      bh.className = 'obp-bh';
-      bh.setAttribute('style', '--d:' + delay.toFixed(2) + 's');
-      bh.innerHTML = '<i style="background:' + stg.c + ';color:' + stg.c +
-        '"></i><span>' + stg.n + '</span><b>' + list.length + '</b>';
-      band.appendChild(bh);
-      delay += 0.06;
+      var step = BASE_STEP, hidden = 0;
+      if (list.length > 1) {
+        step = Math.max(BASE_STEP * MIN_K,
+                        Math.min(BASE_STEP, MAX_ARC / (list.length - 1)));
+      }
+      var cap = Math.floor(MAX_ARC / step) + 1;
+      if (list.length > cap) { hidden = list.length - cap; list = list.slice(0, cap); }
 
-      var grid = document.createElement('div');
-      grid.className = 'obp-grid';
-      list.forEach(function (c) {
-        grid.appendChild(card(c, delay, idx++));
-        delay += 0.022;
+      var scale = step / BASE_STEP;
+      var half = (list.length - 1) / 2;
+
+      list.forEach(function (c, i) {
+        var a = (i - half) * step;
+        var sc = stratOf(c);
+        var d = document.createElement('div');
+        d.className = 'obp-pan' + (ti === STAGE.length - 1 ? ' obp-floorlvl' : '');
+        d.style.setProperty('--c', rgbOf(sc.c));
+
+        /* МИНУС R: плюс вынес бы панель на камеру, и та, что стоит
+           по курсу, заслонила бы собой всё остальное. Минус ставит
+           её на дальнюю стену — как в комнате, а не в карусели.
+           scale сжимает раму на длинных ярусах, чтобы соседи не
+           наезжали друг на друга. */
+        d.style.transform = 'rotateY(' + a.toFixed(2) + 'deg) translateZ(' +
+          (-R) + 'px) translateY(' + TIER_Y[ti] + 'px)' +
+          (scale < 0.999 ? ' scale(' + scale.toFixed(3) + ')' : '');
+
+        d.innerHTML = frameHTML(c, sc.c) +
+          '<div class="obp-refl">' + frameHTML(c, sc.c) + '</div>';
+        d.addEventListener('click', function () { openZoom(c); });
+        stage.appendChild(d);
+        PANS.push({ el: d, a: a });
         shown++;
       });
-      band.appendChild(grid);
-      host.appendChild(band);
+
+      /* Экранная высота подписи выводится из перспективы:
+         y = P * y_world / (P + R). Держать её числом значило бы
+         ловить рассинхрон при каждой правке радиуса. */
+      var lab = document.createElement('div');
+      lab.className = 'obp-tl';
+      lab.style.setProperty('--c', rgbOf(stg.c));
+      lab.style.top = 'calc(46% + ' +
+        (PERSP * TIER_Y[ti] / (PERSP + R)).toFixed(0) + 'px)';
+      lab.innerHTML = '<div class="obp-tl-n">' + stg.n + '</div>' +
+        '<div class="obp-tl-c">' + (list.length + hidden) +
+        (hidden ? '<small>+' + hidden + ' не помещается</small>' : '') +
+        '</div>';
+      tiersHost.appendChild(lab);
     });
 
     if (!shown) bail('ни у одной монеты журнала нет стратегии');
@@ -331,11 +905,69 @@ PODIUM_JS = """
     if (stamp) stamp.textContent = STARS.length + ' монет под наблюдением';
   }
 
+  /* ── Поворот ─────────────────────────────────────────────────
+     Видна только ДАЛЬНЯЯ половина цилиндра: ближняя проходит
+     сквозь камеру, и панели оттуда лезут в кадр огромными и вверх
+     ногами. Порог 62° — дальше панель уходит за край сама. */
+  var VISIBLE = 62, ang = 0, target = 0, raf = 0;
+
+  function norm(a) { return ((a + 180) % 360 + 360) % 360 - 180; }
+
+  function apply() {
+    stage.style.transform = 'rotateY(' + (-ang) + 'deg)';
+    for (var i = 0; i < PANS.length; i++) {
+      var p = PANS[i], rel = Math.abs(norm(p.a - ang));
+      if (rel > VISIBLE) { p.el.classList.add('obp-off'); continue; }
+      p.el.classList.remove('obp-off');
+      // Плавное затухание последней трети дуги: панель уходит в
+      // темноту зала, а не исчезает щелчком.
+      p.el.style.opacity = (rel < VISIBLE * 0.62
+        ? 1 : 1 - (rel - VISIBLE * 0.62) / (VISIBLE * 0.38)).toFixed(2);
+    }
+  }
+
+  function loop() {
+    var d = target - ang;
+    if (Math.abs(d) < 0.02) { ang = target; apply(); raf = 0; return; }
+    ang += d * 0.14;
+    apply();
+    raf = requestAnimationFrame(loop);
+  }
+  function kick() { if (!raf) raf = requestAnimationFrame(loop); }
+
+  var down = false, x0 = 0, a0 = 0;
+  pod.addEventListener('mousedown', function (e) {
+    if (zoom.classList.contains('on')) return;
+    down = true; x0 = e.clientX; a0 = ang; target = ang;
+    if (raf) { cancelAnimationFrame(raf); raf = 0; }
+    pod.classList.add('obp-drag');
+  });
+  window.addEventListener('mouseup', function () {
+    down = false; pod.classList.remove('obp-drag');
+  });
+  window.addEventListener('mousemove', function (e) {
+    if (!down) return;
+    // Перетаскивание напрямую, без доводки: рука уже задаёт темп,
+    // и сглаживание поверх неё ощущается как залипание.
+    ang = target = a0 + (e.clientX - x0) * -0.073;
+    apply();
+  });
+
+  /* Колесо меряется РАССТОЯНИЕМ, а не щелчками: браузер шлёт
+     десятки событий на один смах тачпада, и фиксированный шаг за
+     событие пролетал бы пять-шесть карточек. */
+  pod.addEventListener('wheel', function (e) {
+    if (zoom.classList.contains('on')) return;
+    e.preventDefault();
+    target += (e.deltaY / 420) * BASE_STEP;
+    kick();
+  }, { passive: false });
+
   /* ── Очередь экранов ──
      Сводка → лидеры → дашборд. Подписки на закрытие сводки нет:
      brief.js своё закрытие наружу не отдаёт, а лезть в его
      внутренности значило бы связать два модуля намертво. Следим за
-     классом .on — это её публичное состояние, видимое из разметки. */
+     классом .on — это её публичное состояние. */
   var brief = document.getElementById('obBrief');
   var opened = false;
 
@@ -343,17 +975,20 @@ PODIUM_JS = """
     if (opened) return;
     opened = true;
     build();
+    apply();
     pod.classList.add('on');
-    /* Сначала узлы, потом класс, и снятие паузы через два кадра:
-       браузер должен успеть применить вставку, иначе класс не даёт
-       перезапуска анимаций. */
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () { pod.classList.add('pd-go'); });
-    });
-    document.addEventListener('keydown', function () {
-      pod.classList.remove('on');
-    });
   }
+
+  document.addEventListener('keydown', function (e) {
+    if (!opened) return;
+    if (zoom.classList.contains('on')) {
+      if (e.key === 'Escape') closeZoom();
+      return;
+    }
+    if (e.key === 'ArrowRight') { target += BASE_STEP; kick(); return; }
+    if (e.key === 'ArrowLeft')  { target -= BASE_STEP; kick(); return; }
+    pod.classList.remove('on');
+  });
 
   if (!brief) { show(); return; }
 
