@@ -356,14 +356,9 @@ PODIUM_CSS = """
    меняется, меняется только раскладка — иначе пришлось бы держать
    две версии карточки и чинить обе. */
 @media (max-width:900px){
-  /* display:block вместо флекса — обязателен, а не косметика.
-     Флекс с центрированием по обеим осям давал одну колонку (дочерний
-     элемент сжимался по содержимому) и убивал прокрутку (верх
-     переполнения уезжал выше точки старта и становился недоступен). */
-  .ob-podium{display:block;overflow-y:auto;-webkit-overflow-scrolling:touch;
-    perspective:none;cursor:auto}
+  .ob-podium{overflow-y:auto;perspective:none;cursor:auto}
   .obp-dome,.obp-floor,.obp-sky,.obp-tiers,.obp-hint{display:none}
-  .obp-stage{position:static;transform:none!important;width:100%;height:auto;
+  .obp-stage{position:static;transform:none!important;width:auto;height:auto;
     display:grid;gap:9px;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
     padding:64px 14px 40px}
   .obp-pan{position:static;transform:none!important;margin:0;
@@ -433,44 +428,10 @@ PODIUM_JS = """
   };
   var NONE = { c: '#8D97A6', stage: 1 };
   var STAGE = [
-    { n: 'у дна',    c: '#7FE3D4' },
-    { n: 'движется', c: '#F0B85C' }
+    { n: 'у предполагаемого дна', c: '#7FE3D4' },
+    { n: 'движение идёт',         c: '#F0B85C' },
+    { n: 'движение состоялось',   c: '#C4703A' }
   ];
-
-  /* Граница ярусов — доля пройденного пути от дна к пику ЖИЗНИ.
-     Проценты, не кратность.
-
-     Кратность от дна на эту роль не годится: она не знает, из какой
-     ямы монета выбирается. HEMI на ×2.16 прошла 2.5% своего пути,
-     BULLA на ×4.59 — 2.9%, а BTW на ×1.21 уже 76%, потому что
-     падала всего на 21%. По кратности первые две «движутся», а
-     третья стоит «у дна» — порядок обратный правильному.
-
-     Граница по разбросу пробы 16 августа (61 монета): мин 0.07,
-     q25 1.04, медиана 3.50, q75 14.82, макс 79.6. Двадцать стоит
-     выше q75, и за ней начинается видимо другая популяция. */
-  var TIER_MOVE_PCT = 20.0;
-
-  /* Восстановленный путь из двух полей звезды, без новых величин в
-     ядре. Вывод: цена = дно × upX, пик = дно / (1 − lifeDrop),
-     отсюда доля = (upX − 1)·(1 − lifeDrop) / lifeDrop. Дно
-     сокращается, поэтому сама цена не нужна.
-
-     Ноль означает «не мерили»: величины нет, а не «монета на дне».
-     Отправляем в нижний ярус — там она хотя бы попадётся на глаза,
-     тогда как в «движется» утверждала бы то, чего мы не знаем.
-     Падение ровно на сто процентов делит на ноль и означает, что
-     пик жизни неизвестен, — тот же случай. */
-  function recoveredPct(s) {
-    var ux = +s.upX || 0;
-    var ld = Math.abs(+s.lifeDrop || 0) / 100;
-    if (ux <= 1 || ld <= 0 || ld >= 1) return 0;
-    return (ux - 1) * (1 - ld) / ld * 100;
-  }
-
-  function tierOf(s) {
-    return recoveredPct(s) >= TIER_MOVE_PCT ? 1 : 0;
-  }
 
   function stratOf(s) { return STRAT[s.st] || NONE; }
   function volNow(s) { return Math.max(+s.v1h || 0, +s.v4h || 0, +s.v1d || 0); }
@@ -503,10 +464,7 @@ PODIUM_JS = """
      стене становится нечитаемым, и честнее показать часть с
      счётчиком скрытых, чем всё нечитаемо. */
   var MAX_ARC = 340, MIN_K = 0.66;
-  /* Два яруса вместо трёх — и разведены шире: при трёх средний
-     занимал горизонт, при двух горизонт остаётся между ними, и
-     каждый читается отдельным этажом. */
-  var TIER_Y = [-190, 190];
+  var TIER_Y = [-350, 0, 350];
 
   var NS = 'http://www.w3.org/2000/svg';
 
@@ -897,29 +855,13 @@ PODIUM_JS = """
     var shown = 0;
 
     STAGE.forEach(function (stg, ti) {
-      var list = STARS.filter(function (s) { return tierOf(s) === ti; });
+      var list = STARS.filter(function (s) { return stratOf(s).stage === ti; });
       if (!list.length) return;
 
-      /* Порядок внутри яруса отвечает на вопрос самого яруса.
-         У дна вопрос «какая живее»: отскок, вернувшийся на дно и не
-         пробивший его, означает, что предложение по этой цене снова
-         разобрали, и чем таких больше, тем монета живее. Ход от дна
-         там ничего не сообщает — у дна все стоят одинаково.
-         В «движется» вопрос обратный: кто дальше ушёл, тот ближе к
-         концу своей волны и тем менее интересен для входа, поэтому
-         дальние уходят вправо.
-         Скор в обе сортировки не входит: это уверенность детектора,
-         а не состояние монеты. */
-      if (ti === 0) {
-        list.sort(function (a, b) {
-          var d = (+b.heldRallies || 0) - (+a.heldRallies || 0);
-          return d || recoveredPct(a) - recoveredPct(b);
-        });
-      } else {
-        list.sort(function (a, b) {
-          return recoveredPct(a) - recoveredPct(b);
-        });
-      }
+      /* Внутри яруса — по ходу от дна: слева то, что дальше всего
+         ушло. Порядок по скору был бы порядком уверенности
+         детектора, а не состояния монеты. */
+      list.sort(function (a, b) { return (+b.up || 0) - (+a.up || 0); });
 
       var step = BASE_STEP, hidden = 0;
       if (list.length > 1) {

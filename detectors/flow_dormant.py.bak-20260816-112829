@@ -27,8 +27,6 @@ spring — сжимающийся клин, churn — шум. Ничего эт�
 from __future__ import annotations
 
 from detectors.flow_config import (
-    DORMANT_LIFE_DROP_MIN,
-    DORMANT_LIFE_GROWTH_MIN,
     DORMANT_TAIL_BARS,
     DORMANT_WAKE_X,
     DORMANT_MULT_WAKE,
@@ -259,32 +257,11 @@ def detect(ctx: FlowContext) -> SubcaseSignal | None:
     # Без этого условия подкейс соберёт все мёртвые альты, которых
     # на бирже сотни и которые мертвы всегда. Спячка интересна
     # только там, где был настоящий цикл: есть кому возвращаться.
-    #
-    # Цикл засчитывается по окну ИЛИ по всей жизни контракта.
-    # Окно ограничено BOTTOM_LOOKBACK_DAYS, и у монеты с более
-    # старым пиком growth_x схлопывается к единице — подкейс
-    # отвергал «цикла не было» ровно там, где цикл был крупнейшим.
-    # HEMI: оконный x1.42 при жизненном x11.87 и падении 97.9% от
-    # пика жизни.
-    #
-    # У жизненной ветки два отличия, и оба по смыслу. Порог выше:
-    # оконный рост означает «толпа свежая», жизненный — только
-    # «когда-то был цикл», а трёхкратку за пару лет набирает почти
-    # всё. И к ней добавлено падение ОТ ПИКА ЖИЗНИ: без него сюда
-    # прошла бы монета, выросшая вдесятеро и стоящая у вершины —
-    # цикл был, но спячки нет (TRX: жизненный x10.11 при падении
-    # всего 31.6%).
-    lived_window = drop.growth_x >= DORMANT_GROWTH_MIN
-    lived_life = (
-        drop.life_growth_x >= DORMANT_LIFE_GROWTH_MIN
-        and drop.life_drop_pct * 100.0 >= DORMANT_LIFE_DROP_MIN
-    )
-    if not lived_window and not lived_life:
+    if drop.growth_x < DORMANT_GROWTH_MIN:
         return ctx.reject(
             NAME,
             f"цикла не было: рост до пика x{drop.growth_x:.2f} "
-            f"< x{DORMANT_GROWTH_MIN}, за жизнь x{drop.life_growth_x:.2f} "
-            f"при падении {drop.life_drop_pct * 100.0:.1f}%",
+            f"< x{DORMANT_GROWTH_MIN}",
         )
 
     # ── Монета упала ─────────────────────────────────────────
