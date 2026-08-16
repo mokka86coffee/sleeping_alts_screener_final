@@ -821,11 +821,6 @@ def _orbit_journal() -> dict:
     if not recs:
         return {}
 
-    # Условный портфель считается в журнале, здесь только берётся:
-    # правило вложения живёт рядом с записями, а не в отрисовке.
-    from analytics.leaders import portfolio_stats
-    port = portfolio_stats(j)
-
     def _lbl(sym: str) -> str:
         return sym[:-4] if sym.endswith("USDT") else sym
 
@@ -840,7 +835,6 @@ def _orbit_journal() -> dict:
     return {
         "n": len(recs),
         "fresh": fresh[:3],
-        "port": port,
         "best": {"t": _lbl(best_sym),
                  "chg": round(float(best.get("change_pct") or 0.0), 1)},
         "worst": {"t": _lbl(worst_sym),

@@ -361,18 +361,6 @@ BRIEF_JS = """
     var near = STARS.filter(function (s) { return s.stop && toStop(s) <= 8; })
       .sort(function (a, b) { return toStop(a) - toStop(b); }).slice(0, 3);
 
-    /* Деньги короткой формой: тысячи с буквой, иначе строка
-       разъезжается на пяти цифрах. */
-    function fmtMoney(v) {
-      var n = +v || 0;
-      return n >= 10000 ? '$' + (n / 1000).toFixed(1) + 'K' :
-             '$' + Math.round(n);
-    }
-    function signed(v) {
-      var n = +v || 0;
-      return (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
-    }
-
     /* Причина ожидания у каждой монеты своя. Прежняя подпись
        «первый разгон, входить рано» приписывала одну причину всем,
        хотя в wait сваливаются и «вне зоны дна», и «ровный рост».
@@ -726,18 +714,6 @@ function removeTags(str) {
       /* Хвост журнала — единственная строка экрана про сам скринер:
          работает ли отбор. Первый потребитель счётчиков hits/runs_seen
          и лучшего/худшего хода от входа. */
-      (J.port && J.port.invested)
-        ? { p: 'По тысяче в каждую: ' + fmtMoney(J.port.value) + ' из ' +
-              fmtMoney(J.port.invested) + ', ' + signed(J.port.pnl_pct) +
-              '. По максимумам вышло бы ' + signed(J.port.peak_pct) + '.',
-            h: 'По тысяче в каждую: <b>' + fmtMoney(J.port.value) +
-              '</b> из ' + fmtMoney(J.port.invested) + ', <b class="' +
-              (J.port.pnl_pct >= 0 ? 'up' : 'dn') + '">' +
-              signed(J.port.pnl_pct) + '</b>. По максимумам вышло бы ' +
-              '<b class="up">' + signed(J.port.peak_pct) + '</b>' +
-              (J.port.adds ? ' · доборов ' + J.port.adds : '') + '.' }
-        : null,
-
       J.n
         ? { p: 'Журнал: ' + J.n + ' ' +
               plural(J.n, 'монета', 'монеты', 'монет') +

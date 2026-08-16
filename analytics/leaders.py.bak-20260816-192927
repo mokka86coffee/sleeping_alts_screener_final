@@ -71,57 +71,13 @@ def _merge_max(old: dict[str, float], new: dict[str, float]) -> dict[str, float]
     return out
 
 
-# ── Правила входа ────────────────────────────────────────────
-# Рост от дна, выше которого вход на выходных не делается даже на
-# плоском дне. Пятьдесят процентов — граница из описания стратегии:
-# отскок от базы, а не уже состоявшийся разгон.
-SKIP_WEEKEND_UP_MAX = 50.0
-
-# Просадка, начиная с которой монета попадает в отдельный список на
-# ручной разбор.
-DEEP_LOSS_PCT = -30.0
-
-
-def _entry_rules(now: datetime, raw: dict, flow: dict) -> dict:
-    """Взяли бы позицию по правилам или пропустили, и почему.
-
-    Записывается в момент заведения, а не считается потом: `first_run`
-    и рост от дна к следующему прогону уже другие, и восстановить их
-    задним числом нечем.
-
-    Пропуск не мешает вести запись. Монета остаётся в журнале и
-    наблюдается как обычно — правило влияет только на условный
-    портфель, то есть на оценку, а не на само наблюдение.
-    """
-    drop = (flow.get("context") or {}).get("drop") or {}
-    case = str(flow.get("case") or "")
-
-    if drop.get("first_run"):
-        return {"skip": "первый разгон"}
-
-    # Пятница считается будним днём: суббота и воскресенье — 5 и 6.
-    if now.weekday() >= 5:
-        try:
-            up = float(raw.get("up_from_low") or 0.0)
-        except (TypeError, ValueError):
-            up = 0.0
-        flat_base = case.endswith("dormant")
-        if not (flat_base and up <= SKIP_WEEKEND_UP_MAX):
-            return {"skip": "выходные"}
-
-    return {}
-
-
 def _new_record(
     now: datetime,
     price: float,
     ratios: dict[str, float],
     run_no: int = 0,
-    rules: dict | None = None,
 ) -> dict:
-    base = dict(rules or {})
     return {
-        **base,
         "first_seen": now.isoformat(),
         # Момент последнего СОБЫТИЯ: срабатывание FLOW либо обновление
         # аномального объёма. По нему считается выбытие.
@@ -280,24 +236,6 @@ def _touch_cycle(rec: dict, up_x: float, peak_x: float = 0.0,
 # увидеть разгон, и мало, чтобы карта не росла в записи бесконечно.
 DENSITY_DAYS = 7
 
-# ── Условный портфель ────────────────────────────────────────
-# Не торговый счёт, а мерка находок: во что превратились бы деньги,
-# вложенные механически в каждый сигнал. Нужна затем, что скринер
-# иначе оценивается на глаз, а на глаз он всегда хорош.
-PORT_STAKE = 1000.0
-
-# Добор на возврате после просадки. Половина базовой ставки: правило
-# подтверждает разворот, но подтверждение слабее самого сигнала —
-# иначе вторая покупка весила бы столько же, сколько первая, а
-# оснований у неё меньше.
-PORT_ADD = 500.0
-
-# Насколько глубоко монета должна была просесть, чтобы возврат
-# считался подтверждением. По разбросу журнала 16 августа: медиана
-# просадки −13.8%, первая четверть −25.1%. Двадцать проходят между
-# ними и отделяют обычный шум от настоящего провала.
-PORT_DIP_PCT = 20.0
-
 
 def _touch_density(rec: dict, now: datetime) -> None:
     """Отмечает попадание в карте по дням и подрезает хвост.
@@ -341,311 +279,6 @@ def _days_since(stamp: str | None, now: datetime) -> float:
     if when.tzinfo is None:
         when = when.replace(tzinfo=timezone.utc)
     return max(0.0, (now - when).total_seconds() / 86400.0)
-
-
-def _touch_exit(rec: dict, raw: dict, price: float, now: datetime) -> None:
-    """Выход по крупной продаже на дневном баре.
-
-    Красный пузырь на пампе означает, что разгон встретил предложение.
-    Проверяются два последних дневных бара: метка появляется на баре, а
-    прогон идёт каждый час, и требовать попадания ровно в текущий бар
-    значило бы ловить событие в одном прогоне из двадцати четырёх.
-
-    Условие «монета выше входа» обязательно: продажа на падающей
-    монете ничего не завершает, там и завершать нечего.
-
-    Выход один и окончательный. Позиция закрыта — дальнейшие движения
-    цены её не касаются, иначе метрика перестала бы отвечать на
-    вопрос «сколько бы взяли по правилам».
-    """
-    if rec.get("exit_price") or rec.get("skip"):
-        return
-    if price <= 0:
-        return
-    try:
-        if float(rec.get("change_pct") or 0.0) <= 0:
-            return
-    except (TypeError, ValueError):
-        return
-
-    big = (raw or {}).get("daily_big") or {}
-    marks = big.get("marks") or []
-    if not marks:
-        return
-
-    tail = int(big.get("tail") or 48)
-    for m in marks:
-        try:
-            fresh = int(m.get("i", -1)) >= tail - 2
-        except (TypeError, ValueError):
-            continue
-        if fresh and m.get("side") == "sell":
-            rec["exit_price"] = price
-            rec["exit_at"] = now.isoformat()
-            rec["exit_why"] = "крупная продажа на пампе"
-            return
-
-
-def _touch_portfolio(rec: dict, price: float, now: datetime,
-                     run_no: int) -> None:
-    """Добор, если монета вернулась выше входа после просадки.
-
-    Вызывается ПОСЛЕ _touch_price: тот уже обновил change_pct и
-    min_change_pct, и здесь читаются свежие величины.
-
-    Условие проверяется на каждом прогоне, а срабатывает один раз —
-    дальше поле add_price занято и путь закрыт. Повторные доборы
-    превратили бы метрику в усреднение убытка, а она измеряет
-    подтверждение разворота.
-
-    Момент фиксируется ценой ТОГО прогона, где условие впервые
-    выполнилось, а не ценой входа. Разница невелика — пересечение
-    происходит около входа, — но подставлять вход значило бы
-    записать догадку там, где есть замер.
-    """
-    if rec.get("add_price"):
-        return
-    if price <= 0:
-        return
-
-    try:
-        dip = float(rec.get("min_change_pct") or 0.0)
-        chg = float(rec.get("change_pct") or 0.0)
-    except (TypeError, ValueError):
-        return
-
-    if dip <= -PORT_DIP_PCT and chg > 0:
-        rec["add_price"] = price
-        rec["add_run"] = int(run_no)
-        rec["add_at"] = now.isoformat()
-
-
-def portfolio_stats(store: dict) -> dict:
-    """Во что превратился бы механический вход в каждую находку.
-
-    Три величины, и вместе они отвечают на разные вопросы. Текущая
-    стоимость — сколько стоит бездействие. Стоимость по максимумам —
-    сколько стоила бы фиксация в лучшей точке каждой позиции, то есть
-    потолок находок. Разрыв между ними и есть цена отсутствующего
-    правила выхода: на 16 августа это +1% против +50%.
-
-    Максимум по добору берётся тем же отношением цен, что и текущее
-    значение: путь позиции между добором и максимумом в записи не
-    хранится, и точнее посчитать нечем. Величина завышена ровно
-    настолько, насколько максимум цены случился ДО добора; на
-    подтверждении разворота это редкий случай.
-    """
-    invested = value = peak = 0.0
-    r_invested = r_value = 0.0
-    adds = skipped = exits = 0
-    losers: list[dict] = []
-
-    for symbol, rec in store.items():
-        if symbol.startswith("_") or not isinstance(rec, dict):
-            continue
-        try:
-            entry = float(rec.get("entry_price") or 0.0)
-            price = float(rec.get("price") or 0.0)
-            chg = float(rec.get("change_pct") or 0.0)
-            mx = float(rec.get("max_change_pct") or 0.0)
-        except (TypeError, ValueError):
-            continue
-        if entry <= 0 or price <= 0:
-            continue
-
-        if chg <= DEEP_LOSS_PCT:
-            losers.append({
-                "t": symbol[:-4] if symbol.endswith("USDT") else symbol,
-                "chg": round(chg, 1),
-                "case": str(rec.get("entry_case") or "").replace("flow_", ""),
-                "at": str(rec.get("first_seen") or "")[:10],
-                "entry": entry,
-            })
-
-        # ── Портфель по правилам ──
-        # Пропущенные не участвуют вовсе, вышедшие зафиксированы по
-        # цене выхода. Считается рядом с механическим, а не вместо:
-        # без пары чисел неизвестно, помогают правила или мешают.
-        if rec.get("skip"):
-            skipped += 1
-        else:
-            r_invested += PORT_STAKE
-            try:
-                exit_at = float(rec.get("exit_price") or 0.0)
-            except (TypeError, ValueError):
-                exit_at = 0.0
-            if exit_at > 0:
-                exits += 1
-                r_value += PORT_STAKE * (exit_at / entry)
-            else:
-                r_value += PORT_STAKE * (1.0 + chg / 100.0)
-
-        invested += PORT_STAKE
-        value += PORT_STAKE * (1.0 + chg / 100.0)
-        peak += PORT_STAKE * (1.0 + mx / 100.0)
-
-        try:
-            add_at = float(rec.get("add_price") or 0.0)
-        except (TypeError, ValueError):
-            add_at = 0.0
-        if add_at > 0:
-            adds += 1
-            invested += PORT_ADD
-            value += PORT_ADD * (price / add_at)
-            max_price = float(rec.get("max_price") or price)
-            peak += PORT_ADD * (max(max_price, price) / add_at)
-
-    if invested <= 0:
-        return {}
-
-    losers.sort(key=lambda d: d["chg"])
-
-    out = {
-        "invested": round(invested, 0),
-        "value": round(value, 0),
-        "pnl_pct": round((value / invested - 1.0) * 100.0, 1),
-        "peak_pct": round((peak / invested - 1.0) * 100.0, 1),
-        "adds": adds,
-        "skipped": skipped,
-        "exits": exits,
-        "losers": losers[:6],
-        "losers_all": len(losers),
-    }
-    if r_invested > 0:
-        out["rules_pnl_pct"] = round((r_value / r_invested - 1.0) * 100.0, 1)
-        out["rules_value"] = round(r_value, 0)
-    return out
-
-
-def _touch_portfolio(rec: dict, price: float, now: datetime,
-                     run_no: int) -> None:
-    """Добор, если монета вернулась выше входа после просадки.
-
-    Вызывается ПОСЛЕ _touch_price: тот уже обновил change_pct и
-    min_change_pct, и здесь читаются свежие величины.
-
-    Условие проверяется на каждом прогоне, а срабатывает один раз —
-    дальше поле add_price занято и путь закрыт. Повторные доборы
-    превратили бы метрику в усреднение убытка, а она измеряет
-    подтверждение разворота.
-
-    Момент фиксируется ценой ТОГО прогона, где условие впервые
-    выполнилось, а не ценой входа. Разница невелика — пересечение
-    происходит около входа, — но подставлять вход значило бы
-    записать догадку там, где есть замер.
-    """
-    if rec.get("add_price"):
-        return
-    if price <= 0:
-        return
-
-    try:
-        dip = float(rec.get("min_change_pct") or 0.0)
-        chg = float(rec.get("change_pct") or 0.0)
-    except (TypeError, ValueError):
-        return
-
-    if dip <= -PORT_DIP_PCT and chg > 0:
-        rec["add_price"] = price
-        rec["add_run"] = int(run_no)
-        rec["add_at"] = now.isoformat()
-
-
-def portfolio_stats(store: dict) -> dict:
-    """Во что превратился бы механический вход в каждую находку.
-
-    Три величины, и вместе они отвечают на разные вопросы. Текущая
-    стоимость — сколько стоит бездействие. Стоимость по максимумам —
-    сколько стоила бы фиксация в лучшей точке каждой позиции, то есть
-    потолок находок. Разрыв между ними и есть цена отсутствующего
-    правила выхода: на 16 августа это +1% против +50%.
-
-    Максимум по добору берётся тем же отношением цен, что и текущее
-    значение: путь позиции между добором и максимумом в записи не
-    хранится, и точнее посчитать нечем. Величина завышена ровно
-    настолько, насколько максимум цены случился ДО добора; на
-    подтверждении разворота это редкий случай.
-    """
-    invested = value = peak = 0.0
-    r_invested = r_value = 0.0
-    adds = skipped = exits = 0
-    losers: list[dict] = []
-
-    for symbol, rec in store.items():
-        if symbol.startswith("_") or not isinstance(rec, dict):
-            continue
-        try:
-            entry = float(rec.get("entry_price") or 0.0)
-            price = float(rec.get("price") or 0.0)
-            chg = float(rec.get("change_pct") or 0.0)
-            mx = float(rec.get("max_change_pct") or 0.0)
-        except (TypeError, ValueError):
-            continue
-        if entry <= 0 or price <= 0:
-            continue
-
-        if chg <= DEEP_LOSS_PCT:
-            losers.append({
-                "t": symbol[:-4] if symbol.endswith("USDT") else symbol,
-                "chg": round(chg, 1),
-                "case": str(rec.get("entry_case") or "").replace("flow_", ""),
-                "at": str(rec.get("first_seen") or "")[:10],
-                "entry": entry,
-            })
-
-        # ── Портфель по правилам ──
-        # Пропущенные не участвуют вовсе, вышедшие зафиксированы по
-        # цене выхода. Считается рядом с механическим, а не вместо:
-        # без пары чисел неизвестно, помогают правила или мешают.
-        if rec.get("skip"):
-            skipped += 1
-        else:
-            r_invested += PORT_STAKE
-            try:
-                exit_at = float(rec.get("exit_price") or 0.0)
-            except (TypeError, ValueError):
-                exit_at = 0.0
-            if exit_at > 0:
-                exits += 1
-                r_value += PORT_STAKE * (exit_at / entry)
-            else:
-                r_value += PORT_STAKE * (1.0 + chg / 100.0)
-
-        invested += PORT_STAKE
-        value += PORT_STAKE * (1.0 + chg / 100.0)
-        peak += PORT_STAKE * (1.0 + mx / 100.0)
-
-        try:
-            add_at = float(rec.get("add_price") or 0.0)
-        except (TypeError, ValueError):
-            add_at = 0.0
-        if add_at > 0:
-            adds += 1
-            invested += PORT_ADD
-            value += PORT_ADD * (price / add_at)
-            max_price = float(rec.get("max_price") or price)
-            peak += PORT_ADD * (max(max_price, price) / add_at)
-
-    if invested <= 0:
-        return {}
-
-    losers.sort(key=lambda d: d["chg"])
-
-    out = {
-        "invested": round(invested, 0),
-        "value": round(value, 0),
-        "pnl_pct": round((value / invested - 1.0) * 100.0, 1),
-        "peak_pct": round((peak / invested - 1.0) * 100.0, 1),
-        "adds": adds,
-        "skipped": skipped,
-        "exits": exits,
-        "losers": losers[:6],
-        "losers_all": len(losers),
-    }
-    if r_invested > 0:
-        out["rules_pnl_pct"] = round((r_value / r_invested - 1.0) * 100.0, 1)
-        out["rules_value"] = round(r_value, 0)
-    return out
 
 
 def _touch_price(rec: dict, price: float, now: datetime) -> None:
@@ -822,7 +455,6 @@ def update_leaders(
                 moved = anomaly_store.pop(leader.symbol, None)
                 flow_store[leader.symbol] = moved or _new_record(
                     now, price, {}, run_no,
-                    _entry_rules(now, leader.raw or {}, leader.flow or {}),
                 )
                 log(
                     f"  → leaders: {leader.symbol} перенесена из аномальных в flow"
@@ -893,16 +525,6 @@ def update_leaders(
             price = float(c.raw.get("price") or 0.0)
             if price > 0:
                 _touch_price(rec, price, now)
-                # Строго после _touch_price: добор и выход читают
-                # свежие change_pct и min_change_pct, которые тот и
-                # пишет.
-                _touch_portfolio(rec, price, now, run_no)
-                _touch_exit(rec, c.raw or {}, price, now)
-                # Строго после _touch_price: добор и выход читают
-                # свежие change_pct и min_change_pct, которые тот и
-                # пишет.
-                _touch_portfolio(rec, price, now, run_no)
-                _touch_exit(rec, c.raw or {}, price, now)
             ratios = c.raw.get("vol_ratio") or {}
             rec["vol_ratio"] = _merge_max(rec.get("vol_ratio", {}), ratios)
 

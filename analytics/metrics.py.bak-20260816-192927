@@ -8,7 +8,6 @@ from analytics.indicators import (
     obv_slope_pct, pct_change, rvol, stoch_rsi, vortex_phase,
     median, volume_ratio,
 )
-from analytics.intraday import big_trades as intraday_big
 from analytics.intraday import scan as intraday_scan
 from core.binance import (
     K_CLOSE, K_HIGH, K_LOW, K_QUOTE_VOLUME, K_VOLUME, K_CLOSE_TIME, K_OPEN_TIME,
@@ -245,16 +244,6 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
     # добавление второй шкалы см. techdebt-intraday.md, пункт П-3.
     intraday = intraday_scan(kl_1h, "1h") if kl_1h else {}
 
-    # Крупные заявки на ДНЕВНОМ масштабе: по ним журнал закрывает
-    # позицию, увидев продажу на пампе. Норма и хвост здесь те же
-    # 168 и 48 баров, но это уже дни, а не часы, — то есть норма за
-    # полгода и метки за полтора месяца. tail отдаётся наружу, чтобы
-    # читатель знал, от какого хвоста отсчитаны позиции, и не
-    # угадывал длину.
-    daily_big = intraday_big(kl_1d) if kl_1d else {}
-    if daily_big:
-        daily_big["tail"] = 48
-
     # ── Деривативы ──
     funding = get_funding_rate(symbol) * 100
     oi = get_open_interest(symbol)
@@ -306,7 +295,6 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
         "fut_vol": fut_vol,
         "history_days": len(closes_1d),
         "intraday": intraday,
-        "daily_big": daily_big,
         # Короткие ряды для спарклайнов, остаются в снимке
         "spark_1d": _thin(closes_1d),
         "spark_vol": _thin(quote_1d),
