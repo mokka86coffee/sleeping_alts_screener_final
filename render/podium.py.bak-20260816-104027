@@ -391,7 +391,7 @@ PODIUM_HTML = """
 
   <div class="obz" id="obpZoom"><div class="obz-box" id="obpZbox"></div></div>
 
-  <div class="obp-hint" id="obpHint">тяните мышью · колесо · клик по карточке · esc — выход</div>
+  <div class="obp-hint">тяните мышью · колесо · клик по карточке · esc — выход</div>
 </div>
 """
 
@@ -967,40 +967,6 @@ PODIUM_JS = """
     apply();
   });
 
-  /* ── Палец ──
-     Те же три переменные и та же формула, что у мыши: развести
-     раскладки означало бы чинить потом две.
-
-     touchmove гасит прокрутку страницы (passive: false), иначе
-     горизонтальный смах уводит экран вместо сцены. Одним пальцем —
-     вращение; два и больше отдаём системе, это масштабирование.
-
-     Тап по панели остаётся кликом: браузер шлёт click после
-     короткого касания сам, и обработчик карточки срабатывает без
-     нашего участия. Поэтому здесь только вращение. */
-  pod.addEventListener('touchstart', function (e) {
-    if (zoom.classList.contains('on')) return;
-    if (e.touches.length !== 1) return;
-    down = true; x0 = e.touches[0].clientX; a0 = ang; target = ang;
-    if (raf) { cancelAnimationFrame(raf); raf = 0; }
-    pod.classList.add('obp-drag');
-  }, { passive: true });
-
-  pod.addEventListener('touchmove', function (e) {
-    if (!down || e.touches.length !== 1) return;
-    e.preventDefault();
-    ang = target = a0 + (e.touches[0].clientX - x0) * -0.073;
-    apply();
-  }, { passive: false });
-
-  function touchEnd() {
-    if (!down) return;
-    down = false;
-    pod.classList.remove('obp-drag');
-  }
-  window.addEventListener('touchend', touchEnd);
-  window.addEventListener('touchcancel', touchEnd);
-
   /* Колесо меряется РАССТОЯНИЕМ, а не щелчками: браузер шлёт
      десятки событий на один смах тачпада, и фиксированный шаг за
      событие пролетал бы пять-шесть карточек. */
@@ -1036,24 +1002,11 @@ PODIUM_JS = """
     pod.classList.remove('on');
   }
 
-  /* Подсказка по способу ввода. Тип указателя здесь как раз к месту:
-     вопрос не в размере экрана, а в том, есть ли мышь и клавиатура.
-     На планшете строка про колесо и Esc описывает то, чего у
-     человека в руках нет. */
-  if (window.matchMedia('(pointer: coarse)').matches) {
-    var hintEl = document.getElementById('obpHint');
-    if (hintEl) hintEl.textContent = 'смахните · касание по карточке';
-  }
-
   var exitBtn = document.getElementById('obpExit');
   if (exitBtn) {
     /* mousedown гасится до всплытия: на зале висит перетаскивание,
-       и без этого нажатие на кнопку уводит сцену вбок. touchstart —
-       по той же причине: палец на кнопке иначе начинает вращение, и
-       сцена уезжает из-под пальца ещё до отпускания. */
+       и без этого нажатие на кнопку уводит сцену вбок. */
     exitBtn.addEventListener('mousedown', function (e) { e.stopPropagation(); });
-    exitBtn.addEventListener('touchstart', function (e) { e.stopPropagation(); },
-                             { passive: true });
     exitBtn.addEventListener('click', function (e) {
       e.stopPropagation();
       hide();
