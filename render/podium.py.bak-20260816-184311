@@ -236,17 +236,13 @@ PODIUM_CSS = """
 /* Наблюдение словами вместо блока чисел. Прижато к низу рамки:
    график остаётся главным, подпись читается под ним, а не спорит
    с ним за верх карточки. */
-.obp-note{position:absolute;left:10px;right:10px;bottom:24px;
-  text-align:center;
-  font-size:13px;line-height:1.4;letter-spacing:.02em;color:#D8E0EA;
-  /* Тень под текстом: подпись лежит поверх подсветки рамки, и на
-     светлом крае панели без неё теряется контраст. */
-  text-shadow:0 1px 14px rgba(0,0,0,.75)}
-.obp-note b{font-weight:600;color:#FFFFFF}
-.obp-note b.up{color:#5FE39C} .obp-note b.dn{color:#FF8A72}
-.obp-note b.am{color:#FFC96B}
-.obp-note-q{display:block;margin-top:4px;font-size:10px;letter-spacing:.16em;
-  text-transform:uppercase;color:#7C8694}
+.obp-note{position:absolute;left:12px;right:12px;bottom:11px;
+  font-size:10px;line-height:1.45;letter-spacing:.03em;color:#B9C2CE}
+.obp-note b{font-weight:600;color:#E3E8EF}
+.obp-note b.up{color:#4FCF8A} .obp-note b.dn{color:#E8705A}
+.obp-note b.am{color:#F0B85C}
+.obp-note-q{display:block;margin-top:3px;font-size:9px;letter-spacing:.16em;
+  text-transform:uppercase;color:#5A6270}
 
 .obz-sum{padding:12px 20px;font-size:13px;line-height:1.6;color:#E3E8EF;
   background:rgba(127,227,212,.05);
