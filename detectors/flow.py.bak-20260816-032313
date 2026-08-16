@@ -38,7 +38,6 @@ from detectors.flow_config import (
     CAP_LEVERAGE,
     CAP_SPRING,
     CAP_TAKER,
-    CYCLE_COMPLETE_X,
     FLOW_MAX_SCORE,
     FLOW_RAW_FLOOR,
     FLOW_MIN_SCORE,
@@ -287,25 +286,6 @@ def _life_span(symbol: str) -> tuple[float, float]:
         cand.append(opens[peak_idx])
     low_before = min(cand, default=0.0)
     return highs[peak_idx], low_before
-
-
-def _cycle_up_x(ctx: FlowContext) -> float:
-    """Во сколько раз цена ушла от дна цикла.
-
-    Дно берётся из DropContext (окно BOTTOM_LOOKBACK_DAYS), а не из
-    метрик: там up_from_low считается по окну в 60 дней, и у монеты,
-    которая уже поехала, локальное дно уползает вверх следом за
-    ценой — кратность выходит заниженной ровно у тех, кого правило
-    должно ловить.
-
-    Ноль означает «дна не нашли»: величины нет, и потребитель обязан
-    отличать это от единицы. Порог, сработавший на нуле, выбросил бы
-    монету, про которую мы ничего не знаем.
-    """
-    bottom = float(ctx.drop.bottom_price or 0.0)
-    if bottom <= 0 or ctx.price <= 0:
-        return 0.0
-    return ctx.price / bottom
 
 
 def _life_vwap(symbol: str) -> dict:
@@ -594,14 +574,6 @@ def _context_dict(ctx: FlowContext, hz: dict) -> dict:
             # раньше выбора.
             "growth_x": round(ctx.drop.growth_x, 2),
             "peak_age_days": ctx.drop.peak_age_days,
-            # Дно цикла и кратность от него. Наружу идут обе: цена
-            # дна нужна как уровень (журнал считает от неё, отчёт
-            # рисует), кратность — как готовая величина, чтобы
-            # каждый потребитель не делил заново и не разошёлся в
-            # третьем знаке. Мерка одна на проект: и журнал, и вето
-            # семейства, и отбор смотрят на это число.
-            "bottom_price": round(ctx.drop.bottom_price, 10),
-            "up_x": round(_cycle_up_x(ctx), 2),
             # Слой жизни: кратность до пика ЖИЗНИ и падение от него к
             # текущему дну, в процентах — как drop_pct выше. Наружу —
             # раньше гейта: порог для dormant выбирается по разбросу
@@ -616,11 +588,6 @@ def _context_dict(ctx: FlowContext, hz: dict) -> dict:
             # «первый разгон после долгого падения — вынос» до сих
             # пор нигде не было величиной.
             "rallies": ctx.drop.rallies,
-            # Сколько отскоков вернулись на дно, не пробив его.
-            # rallies отвечает «сколько раз пробовали», held_rallies —
-            # «сколько раз дно выдержало»; вторая величина и есть
-            # живость монеты, и до сих пор её не существовало.
-            "held_rallies": ctx.drop.held_rallies,
             "max_rally_pct": round(ctx.drop.max_rally_pct, 1),
             "first_run": ctx.drop.first_run,
             # Удержание дна после последнего выноса. Знак важнее
@@ -754,22 +721,6 @@ def detect_flow(
     # и фильтр ликвидности снимал все монеты подряд.
     if quote_volume_24h > 0:
         ctx.quote_volume_24h = quote_volume_24h
-
-    # Вето по завершённому циклу. Монета, ушедшая от дна в
-    # CYCLE_COMPLETE_X раз, свою волну отработала — семейство ищет
-    # начало движения, а не его конец, и тратить на неё подкейсы
-    # незачем.
-    #
-    # Проверка стоит ДО подкейсов и после контекста: раньше нет дна,
-    # позже уже посчитано лишнее. Ноль кратности означает «дна не
-    # нашли» и вето не поднимает — выбрасывать монету по величине,
-    # которой нет, нельзя.
-    up_x = _cycle_up_x(ctx)
-    if up_x >= CYCLE_COMPLETE_X:
-        return FlowSignal(
-            symbol=symbol,
-            verdict=f"цикл отработан: ×{up_x:.1f} от дна",
-        )
 
     hz = _horizon(ctx)
     ctx_dict = _context_dict(ctx, hz)

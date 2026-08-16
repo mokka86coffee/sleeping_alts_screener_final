@@ -1335,16 +1335,6 @@ class DropContext:
     # циклом, и признак «первый разгон» гас бы ровно тогда, когда он
     # нужен.
     rallies: int = 0
-
-    # Сколько из них ВЕРНУЛИСЬ на дно, не пробив его глубже допуска.
-    #
-    # Отдельно от rallies, потому что отвечает на другой вопрос.
-    # Отскок с возвратом на прежнее дно означает, что предложение по
-    # этой цене снова разобрали: чем больше таких, тем живее монета.
-    # Отскок, после которого цена ушла ниже, — раздача, и в этот счёт
-    # он не входит, хотя отработанным разгоном остаётся.
-    held_rallies: int = 0
-
     max_rally_pct: float = 0.0
 
     # Новое дно относительно старого, в процентах. Ноль и выше —
@@ -1449,7 +1439,7 @@ def build_drop(bars: Sequence[Bar],
     low_before = min((b.low for b in before if b.low > 0), default=0.0)
     growth = (peak / low_before) if low_before > 0 else 1.0
 
-    rs = _count_rallies(tail[bottom_idx:])
+    rallies, max_rally, hold = _count_rallies(tail[bottom_idx:])
 
     # Слой жизни. Падение меряется от пика жизни к ТЕКУЩЕМУ дну окна:
     # вопрос будущего гейта — «монета выросла и обвалилась», и дно у
@@ -1466,32 +1456,15 @@ def build_drop(bars: Sequence[Bar],
         bars_since_bottom=len(tail) - 1 - bottom_idx,
         _peak_age=len(tail) - 1 - peak_idx,
         growth_x=_clip(growth, 1.0, 1000.0),
-        rallies=rs.count,
-        held_rallies=rs.held_count,
-        max_rally_pct=rs.max_pct,
-        hold_pct=rs.hold_pct,
+        rallies=rallies,
+        max_rally_pct=max_rally,
+        hold_pct=hold,
         life_growth_x=_clip(life_growth, 0.0, 1000.0),
         life_drop_pct=_clip(life_drop, 0.0, 1.0),
     )
 
 
-@dataclass
-class RallyStats:
-    """Итог обхода разгонов. Структура, а не кортеж, и это по делу.
-
-    Прежняя редакция возвращала кортеж, и однажды из трёх точек
-    выхода вернулись два значения вместо трёх — распаковка на
-    стороне вызова падала только на монетах с короткой историей,
-    то есть не сразу. Добавление поля в структуру такого класса
-    ошибок не создаёт вовсе.
-    """
-    count: int = 0
-    held_count: int = 0
-    max_pct: float = 0.0
-    hold_pct: float = 0.0
-
-
-def _count_rallies(after: Sequence[Bar]) -> RallyStats:
+def _count_rallies(after: Sequence[Bar]) -> tuple[int, float]:
     """Сколько ОТРАБОТАННЫХ разгонов было после дна и какой крупнейший.
 
     Отработанный — поднялся выше RALLY_MIN_PCT от опоры и вернул
@@ -1509,12 +1482,15 @@ def _count_rallies(after: Sequence[Bar]) -> RallyStats:
     В поиске опора едет вниз за ценой — это ещё формирование дна.
     В разгоне опора зафиксирована, и считается отданная доля хода.
     """
+    # Три величины во ВСЕХ точках возврата, включая ранние.
+    # Кортеж разной длины из одной функции — это ошибка, которая
+    # прячется до первой монеты с короткой историей.
     if len(after) < 4:
-        return RallyStats()
+        return 0, 0.0, 0.0
 
     lows = [b.low for b in after if b.low > 0]
     if not lows:
-        return RallyStats()
+        return 0, 0.0, 0.0
 
     base = lows[0]
     top = base
@@ -1525,26 +1501,12 @@ def _count_rallies(after: Sequence[Bar]) -> RallyStats:
     # или встала на нём.
     hold_from, hold_to = 0.0, 0.0
 
-    # По паре на каждый засчитанный разгон: опора до него и самый
-    # низкий минимум после него.
-    #
-    # Второе число живое: пока идёт поиск следующего разгона, опора
-    # едет вниз за ценой, и вместе с ней едет запись. Иначе разгон,
-    # вернувшийся ровно на дно, а через неделю провалившийся, до
-    # конца обхода считался бы удержавшим.
-    spans: list[list[float]] = []
-
     for b in after:
         if b.low <= 0 or b.high <= 0:
             continue
         if not in_rally:
             if b.low < base:
                 base = b.low
-                # Опора уехала вниз — уезжает и минимум последнего
-                # разгона: удержание меряется по факту, а не по
-                # точке, где разгон закончился.
-                if spans:
-                    spans[-1][1] = base
             if base > 0 and (b.high - base) / base * 100.0 >= RALLY_MIN_PCT:
                 in_rally = True
                 top = b.high
@@ -1562,7 +1524,6 @@ def _count_rallies(after: Sequence[Bar]) -> RallyStats:
             # Запоминаем обе точки до переноса опоры: hold_from — дно,
             # с которого разгон начался, hold_to — куда вернулись.
             hold_from, hold_to = base, b.low
-            spans.append([base, b.low])
             base = b.low
             top = base
             in_rally = False
@@ -1577,16 +1538,7 @@ def _count_rallies(after: Sequence[Bar]) -> RallyStats:
     else:
         hold = 0.0
 
-    # Удержавшие считаются по тому же допуску, что и свойство held:
-    # порог один на понятие, иначе «дно удержано» в двух местах
-    # означало бы разное.
-    held_count = sum(
-        1 for lo, hi in spans
-        if lo > 0 and (hi - lo) / lo * 100.0 >= -HOLD_TOL_PCT
-    )
-
-    return RallyStats(count=count, held_count=held_count,
-                      max_pct=best, hold_pct=hold)
+    return count, best, hold
 
 
 # ─────────────────────────────────────────────────────────────

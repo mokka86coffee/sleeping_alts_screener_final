@@ -616,11 +616,6 @@ def _context_dict(ctx: FlowContext, hz: dict) -> dict:
             # «первый разгон после долгого падения — вынос» до сих
             # пор нигде не было величиной.
             "rallies": ctx.drop.rallies,
-            # Сколько отскоков вернулись на дно, не пробив его.
-            # rallies отвечает «сколько раз пробовали», held_rallies —
-            # «сколько раз дно выдержало»; вторая величина и есть
-            # живость монеты, и до сих пор её не существовало.
-            "held_rallies": ctx.drop.held_rallies,
             "max_rally_pct": round(ctx.drop.max_rally_pct, 1),
             "first_run": ctx.drop.first_run,
             # Удержание дна после последнего выноса. Знак важнее

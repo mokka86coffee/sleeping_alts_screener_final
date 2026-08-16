@@ -26,12 +26,6 @@ from core.config import (
     ANOMALY_PATH, ANOMALY_RATIO_MIN, LEADERS_ARCHIVE_PATH,
     LEADERS_MAX_AGE_DAYS, LEADERS_PATH,
 )
-# Пороги завершения цикла живут в конфиге семейства — там же, где их
-# читает сам детектор. Импорт наружу из слоя analytics осознанный:
-# альтернатива это две копии одного числа в двух файлах, а они
-# однажды разойдутся и никто не заметит. Переехать обоим в
-# core/config стоит вместе с прочими LEADERS_*.
-from detectors.flow_config import CYCLE_COMPLETE_X, CYCLE_TREND_DONE_X
 from core.http import log
 from core.models import Candidate, RunSnapshot
 from sources.storage import ensure_dirs, write_atomic
@@ -77,15 +71,6 @@ def _new_record(
 ) -> dict:
     return {
         "first_seen": now.isoformat(),
-        # Момент последнего СОБЫТИЯ: срабатывание FLOW либо обновление
-        # аномального объёма. По нему считается выбытие.
-        #
-        # Отдельное поле, а не last_seen, и это не педантизм:
-        # tracked_symbols возвращает журнальные монеты в выборку
-        # каждый прогон, и last_seen обновляется у всех и всегда.
-        # Чистка по нему не сработала бы ни разу — молча, как и
-        # положено ошибке этого класса.
-        "last_hit": now.isoformat(),
         # Номер прогона, на котором запись заведена. Частота попаданий
         # считается от него: hits / (текущий прогон − since_run).
         # Хранится номер, а не дата, потому что интервал прогонов
@@ -106,41 +91,6 @@ def _new_record(
         "vol_ratio": dict(ratios or {}),
         "last_seen": now.isoformat(),
     }
-
-
-def _cycle_up_x(c: Candidate) -> float:
-    """Кратность от дна цикла из пейлоада FLOW.
-
-    Читается защитно: у монеты, на которой семейство не отработало,
-    словаря может не быть вовсе, и это нормальное состояние, а не
-    сбой. Ноль означает «мерки нет» — и тогда проверка порога ниже
-    просто не срабатывает. Направление отказа выбрано намеренно:
-    запись остаётся, а не выбывает по величине, которой мы не
-    получили.
-    """
-    flow = getattr(c, "flow", None) or {}
-    drop = (flow.get("context") or {}).get("drop") or {}
-    try:
-        return float(drop.get("up_x") or 0.0)
-    except (TypeError, ValueError):
-        return 0.0
-
-
-def _touch_cycle(rec: dict, up_x: float) -> None:
-    """Кратность от дна: текущая, максимум за жизнь записи и метка.
-
-    Решение о выбытии принимается по ТЕКУЩЕЙ: монета, сходившая на
-    двадцать концов и вернувшаяся к восьми, снова кандидат, а не
-    покойник — подкейсы у дна живут ровно возвратами. Максимум
-    хранится рядом, потому что без него в архиве не отличить «отдала
-    и вернулась» от «ушла и не вернулась», а это и есть материал для
-    следующей правки порога.
-    """
-    if up_x <= 0:
-        return
-    rec["up_x"] = round(up_x, 2)
-    rec["max_up_x"] = round(max(float(rec.get("max_up_x") or 0.0), up_x), 2)
-    rec["trend_done"] = up_x >= CYCLE_TREND_DONE_X
 
 
 def _touch_price(rec: dict, price: float, now: datetime) -> None:
@@ -179,49 +129,12 @@ def _archive(path: Path, symbol: str, rec: dict, reason: str, now: datetime) -> 
 def _sweep(
     store: dict, archive_path: Path, basket: str, cutoff: datetime, now: datetime,
 ) -> dict:
-    """Два выхода из журнала, и оба содержательные.
-
-    Отработала. Цена ушла от дна цикла в CYCLE_COMPLETE_X раз —
-    монета сделала свою волну, ловить в ней начало движения больше
-    нечего. Проверяется первой: у такой записи может быть свежее
-    событие, и по бездействию она не выбыла бы никогда.
-
-    Затихла. С последнего события прошло больше срока. Считается по
-    last_hit, а не по first_seen: календарный возраст записи годился
-    для fuel, но не для подкейсов у дна — у dormant, hidden и spring
-    тезис в том и состоит, что монета лежит на базе месяцами. Пока
-    у неё обновляются аномальные объёмы или срабатывает семейство,
-    наблюдение продолжается; замолчала — выбывает.
-
-    Причины в архиве разные, и это не украшение: корзину «отработала»
-    потом читают, чтобы проверить сам порог — ушла ли выброшенная
-    монета дальше или встала. По общей причине этот вопрос не
-    задать.
-
-    Старые записи без last_hit получают first_seen: до этой правки
-    поля не существовало, и судить по нему задним числом не о чем.
-    """
     kept: dict[str, dict] = {}
     for symbol, rec in store.items():
-        up_x = float(rec.get("up_x") or 0.0)
-        if up_x >= CYCLE_COMPLETE_X:
-            _archive(archive_path, symbol, rec,
-                     reason=f"completed:{CYCLE_COMPLETE_X:g}x:{basket}", now=now)
-            continue
-
-        last = rec.get("last_hit") or rec.get("first_seen")
-        try:
-            quiet_since = datetime.fromisoformat(last)
-        except (TypeError, ValueError):
-            # Дата не разобралась — запись оставляем. Потерять монету
-            # из-за битого поля хуже, чем подержать лишнюю.
-            kept[symbol] = rec
-            continue
-
-        if quiet_since >= cutoff:
+        if datetime.fromisoformat(rec["first_seen"]) >= cutoff:
             kept[symbol] = rec
         else:
-            _archive(archive_path, symbol, rec, reason=f"stale:{basket}", now=now)
+            _archive(archive_path, symbol, rec, reason=f"max_age:{basket}", now=now)
     return kept
 
 
@@ -247,12 +160,9 @@ def tracked_symbols(flow_path: Path = LEADERS_PATH) -> set[str]:
     интересным. У BULLA vol_ratio в журнале лежит в 0.66..1.33:
     оборот вернулся к норме, монета ушла из выборки, карточка пустая.
 
-    Потолка на добавку нет намеренно. Журнал ограничен сверху не
-    возрастом записи, а окном бездействия: запись живёт, пока у
-    монеты обновляются аномальные объёмы или срабатывает семейство
-    (см. _sweep). Живых монет конечное число, поэтому выборка не
-    растёт бесконечно — а любое усечение по количеству выкинуло бы
-    из неё именно ту звезду, ради которой всё и делается.
+    Потолка на добавку нет намеренно. Журнал ограничен сверху сроком
+    жизни записи (LEADERS_MAX_AGE_DAYS), а любое усечение выкинуло бы
+    из выборки именно ту звезду, ради которой всё и делается.
 
     Возвращается множество, а не список: единственный вопрос к
     результату — «есть ли символ внутри», порядок ничего не значит.
@@ -370,22 +280,9 @@ def update_leaders(
             price = float(c.raw.get("price") or 0.0)
             if price > 0:
                 _touch_price(rec, price, now)
-            ratios = c.raw.get("vol_ratio") or {}
-            rec["vol_ratio"] = _merge_max(rec.get("vol_ratio", {}), ratios)
-
-            # Кратность от дна цикла — мерка выбытия, одна на проект.
-            _touch_cycle(rec, _cycle_up_x(c))
-
-            # Событие продлевает жизнь записи. Условие ШИРЕ, чем
-            # попадание в журнал: попасть сюда может только лидер
-            # прогона, а удержаться — любая монета, на которой
-            # сработало семейство либо обновился аномальный объём.
-            # Иначе монета, честно отработавшая подкейсом, но не
-            # ставшая лидером ни разу, выбывала бы по тишине, которой
-            # на самом деле не было.
-            if bool((getattr(c, "flow", None) or {}).get("detected")) \
-                    or _is_anomalous(ratios):
-                rec["last_hit"] = now.isoformat()
+            rec["vol_ratio"] = _merge_max(
+                rec.get("vol_ratio", {}), c.raw.get("vol_ratio") or {},
+            )
 
     # ── чистка по возрасту, с архивом вместо тихой потери ──
     cutoff = now - timedelta(days=max_age_days)
