@@ -395,19 +395,14 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
             "updays": int(raw.get("days_from_low") or 0),
             # ── Поля журнала: их читает сводка при входе ──
             # px/stop оживляют строку «у уровня», streak — «в работе»,
-            # hitCount/runsSeen — справку персистентности в рядах
-            # отбора, chg — ход от входа в журнал. До этого сводка
-            # читала px, stop, streak, firstRun — и ни одно поле сюда
-            # не писалось: четыре её строки были мертвы с заведения.
-            #
-            # hitCount, а НЕ hits: под именем hits coinCard ждёт
-            # список индексов в ряду спарклайна (метки попаданий), и
-            # целое число там роняет .map — вместе со звёздами,
-            # узлами и кометой, потому что падает вся сборка.
+            # hits/runsSeen — справку персистентности в рядах отбора,
+            # chg — ход от входа в журнал. До этого сводка читала
+            # px, stop, streak, firstRun — и ни одно поле сюда не
+            # писалось: четыре её строки были мертвы с заведения.
             "px": float(rec.get("price") or 0.0),
             "stop": float(rec.get("stop_hint") or 0.0),
             "streak": int(rec.get("streak") or 0),
-            "hitCount": int(rec.get("hits") or 0),
+            "hits": int(rec.get("hits") or 0),
             "runsSeen": int(rec.get("runs_seen") or 0),
             "chg": round(float(rec.get("change_pct") or 0.0), 1),
             "firstRun": bool(fdrop.get("first_run")),

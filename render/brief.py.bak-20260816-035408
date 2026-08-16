@@ -380,7 +380,7 @@ BRIEF_JS = """
        весь экран, а не два разных числа в двух местах. */
     function rowHTML(s, i) {
       var hist = (s.runsSeen || 0) > 0
-        ? 'в лидерах <b>' + (s.hitCount || 0) + ' из ' + s.runsSeen +
+        ? 'в лидерах <b>' + (s.hits || 0) + ' из ' + s.runsSeen +
           '</b> прогонов · ' + (s.days || 0) + ' дн в журнале'
         : '—';
       var move = '<b>' + (s.up >= 0 ? '+' : '') + (s.up || 0) +
