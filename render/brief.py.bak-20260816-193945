@@ -637,40 +637,7 @@ function removeTags(str) {
           }
         } : null;
 
-    /* Портфель идёт ПЕРЕД описанием рынка. Отчёт открывают, чтобы
-       узнать, чего стоят находки; режим рынка и лидеры отвечают на
-       другой вопрос и могут подождать одну строку. */
-    var portLine = (J.port && J.port.invested)
-      ? [{ p: 'По тысяче в каждую: ' + fmtMoney(J.port.value) + ' из ' +
-             fmtMoney(J.port.invested) + ', ' + signed(J.port.pnl_pct) +
-             '. По максимумам вышло бы ' + signed(J.port.peak_pct) + '.',
-           h: 'По тысяче в каждую: <b>' + fmtMoney(J.port.value) +
-             '</b> из ' + fmtMoney(J.port.invested) + ', <b class="' +
-             (J.port.pnl_pct >= 0 ? 'up' : 'dn') + '">' +
-             signed(J.port.pnl_pct) + '</b>' +
-             (J.port.rules_pnl_pct !== undefined
-               ? ', по правилам <b class="' +
-                 (J.port.rules_pnl_pct >= 0 ? 'up' : 'dn') + '">' +
-                 signed(J.port.rules_pnl_pct) + '</b>' : '') +
-             '. По максимумам вышло бы <b class="up">' +
-             signed(J.port.peak_pct) + '</b>.' }]
-      : [];
-
-    /* Монеты в глубокой просадке — сразу следом. Их разбирают руками,
-       и список должен попасться на глаза раньше, чем начнётся
-       описание рынка. */
-    var lossLine = (J.port && (J.port.losers || []).length)
-      ? [{ p: 'Разобрать: ' + J.port.losers.map(function (d) {
-             return d.t + ' ' + signed(d.chg) + ' (' + (d.case || '?') +
-               ', ' + (d.at || '').slice(5) + ')'; }).join(', ') + '.',
-           h: 'Разобрать: ' + J.port.losers.map(function (d) {
-             return '<span class="t">' + d.t + '</span> <b class="dn">' +
-               signed(d.chg) + '</b> <span class="mut">' + (d.case || '?') +
-               ', ' + (d.at || '').slice(5) + '</span>'; }).join(', ') + '.' }]
-      : [];
-
-    var lines = portLine.concat(lossLine).concat(bg)
-      .concat(wknd.p ? [wknd] : []).concat([
+    var lines = bg.concat(wknd.p ? [wknd] : []).concat([
      /* Текстовая строка про лидера убрана: блок ниже говорит то же
               самое и подробнее. Оставить обе значило бы дважды сообщить
               имя, фигуру и скор. */
@@ -759,6 +726,18 @@ function removeTags(str) {
       /* Хвост журнала — единственная строка экрана про сам скринер:
          работает ли отбор. Первый потребитель счётчиков hits/runs_seen
          и лучшего/худшего хода от входа. */
+      (J.port && J.port.invested)
+        ? { p: 'По тысяче в каждую: ' + fmtMoney(J.port.value) + ' из ' +
+              fmtMoney(J.port.invested) + ', ' + signed(J.port.pnl_pct) +
+              '. По максимумам вышло бы ' + signed(J.port.peak_pct) + '.',
+            h: 'По тысяче в каждую: <b>' + fmtMoney(J.port.value) +
+              '</b> из ' + fmtMoney(J.port.invested) + ', <b class="' +
+              (J.port.pnl_pct >= 0 ? 'up' : 'dn') + '">' +
+              signed(J.port.pnl_pct) + '</b>. По максимумам вышло бы ' +
+              '<b class="up">' + signed(J.port.peak_pct) + '</b>' +
+              (J.port.adds ? ' · доборов ' + J.port.adds : '') + '.' }
+        : null,
+
       J.n
         ? { p: 'Журнал: ' + J.n + ' ' +
               plural(J.n, 'монета', 'монеты', 'монет') +
