@@ -31,7 +31,9 @@ from core.config import (
 # альтернатива это две копии одного числа в двух файлах, а они
 # однажды разойдутся и никто не заметит. Переехать обоим в
 # core/config стоит вместе с прочими LEADERS_*.
-from detectors.flow_config import CYCLE_COMPLETE_X, CYCLE_TREND_DONE_X
+from detectors.flow_config import (
+    CYCLE_COMPLETE_X, CYCLE_TREND_DONE_X, cycle_done,
+)
 from core.http import log
 from core.models import Candidate, RunSnapshot
 from sources.storage import ensure_dirs, write_atomic
@@ -121,26 +123,84 @@ def _cycle_up_x(c: Candidate) -> float:
     flow = getattr(c, "flow", None) or {}
     drop = (flow.get("context") or {}).get("drop") or {}
     try:
-        return float(drop.get("up_x") or 0.0)
+        from_flow = float(drop.get("up_x") or 0.0)
+    except (TypeError, ValueError):
+        from_flow = 0.0
+    if from_flow > 0:
+        return from_flow
+
+    # Запасной путь: рост от минимума окна метрик. Считается для
+    # каждой монеты выборки, а журнальные монеты возвращает в неё
+    # tracked_symbols — значит величина есть всегда.
+    #
+    # Окно короче (60 дней против 240), поэтому при дне цикла старше
+    # двух месяцев кратность выходит заниженной, и выбытие сработает
+    # позже. Ошибаться в эту сторону безопаснее: заниженная величина
+    # монету сохраняет.
+    raw = getattr(c, "raw", None) or {}
+    try:
+        up_pct = float(raw.get("up_from_low") or 0.0)
     except (TypeError, ValueError):
         return 0.0
+    return 1.0 + up_pct / 100.0 if up_pct > 0 else 0.0
 
 
-def _touch_cycle(rec: dict, up_x: float) -> None:
-    """Кратность от дна: текущая, максимум за жизнь записи и метка.
+def _cycle_peak_x(c: Candidate) -> tuple[float, float]:
+    """Вершина хода и текущее положение — обе от минимума окна.
 
-    Решение о выбытии принимается по ТЕКУЩЕЙ: монета, сходившая на
-    двадцать концов и вернувшаяся к восьми, снова кандидат, а не
-    покойник — подкейсы у дна живут ровно возвратами. Максимум
-    хранится рядом, потому что без него в архиве не отличить «отдала
-    и вернулась» от «ушла и не вернулась», а это и есть материал для
-    следующей правки порога.
+    Пара, а не одно число: правило завершения читает и высоту, и
+    отданную от неё долю, и обе обязаны меряться от одного дна.
+
+    Нули означают «не мерили»: у монеты без срабатывания семейства
+    пейлоада нет вовсе. Восстановлением из цены занимается
+    _touch_cycle — там для этого есть история записи.
     """
-    if up_x <= 0:
+    flow = getattr(c, "flow", None) or {}
+    drop = (flow.get("context") or {}).get("drop") or {}
+    try:
+        return (float(drop.get("peak_up_x") or 0.0),
+                float(drop.get("now_up_x") or 0.0))
+    except (TypeError, ValueError):
+        return 0.0, 0.0
+
+
+def _touch_cycle(rec: dict, up_x: float, peak_x: float = 0.0,
+                 now_x: float = 0.0) -> None:
+    """Где цена сейчас и до какой высоты доходила — обе от дна цикла.
+
+    Решение о выбытии читает пару: вершина задаёт масштаб хода,
+    текущая кратность — сколько от него отдано. Одной текущей мало,
+    одной вершины тоже: монета, стоящая на ×20, и монета, отдавшая
+    ход с ×20 до ×3, — разные состояния.
+
+    Вершина берётся из пейлоада, если семейство отработало. Если
+    нет — восстанавливается из max_price, которую _touch_price ведёт
+    с первого дня записи: дно выводится из текущей пары price / up_x,
+    и максимум цены переводится в кратность тем же дном. Так вынос,
+    случившийся и отыгравшийся между прогонами, не теряется.
+    """
+    if up_x <= 0 and now_x <= 0:
         return
-    rec["up_x"] = round(up_x, 2)
-    rec["max_up_x"] = round(max(float(rec.get("max_up_x") or 0.0), up_x), 2)
-    rec["trend_done"] = up_x >= CYCLE_TREND_DONE_X
+    if up_x > 0:
+        rec["up_x"] = round(up_x, 2)
+
+    # Текущее положение для правила: из пейлоада, если он есть, иначе
+    # up_x из метрик. Обе меряют «где цена относительно базы», просто
+    # с разной точностью окна.
+    now = float(now_x or 0.0) or float(up_x or 0.0)
+    rec["now_up_x"] = round(now, 2)
+
+    peak = max(float(rec.get("max_up_x") or 0.0), float(peak_x or 0.0), now)
+
+    price = float(rec.get("price") or 0.0)
+    peak_price = float(rec.get("max_price") or 0.0)
+    # _touch_price вызывается раньше в том же проходе, обе цены здесь
+    # уже свежие. Ноль означает «не мерили» — остаёмся на том, что есть.
+    if price > 0 and peak_price > price and now > 0:
+        peak = max(peak, peak_price * now / price)
+
+    rec["max_up_x"] = round(peak, 2)
+    rec["trend_done"] = peak >= CYCLE_TREND_DONE_X
 
 
 def _touch_price(rec: dict, price: float, now: datetime) -> None:
@@ -203,10 +263,19 @@ def _sweep(
     """
     kept: dict[str, dict] = {}
     for symbol, rec in store.items():
-        up_x = float(rec.get("up_x") or 0.0)
-        if up_x >= CYCLE_COMPLETE_X:
-            _archive(archive_path, symbol, rec,
-                     reason=f"completed:{CYCLE_COMPLETE_X:g}x:{basket}", now=now)
+        now_x = float(rec.get("now_up_x") or rec.get("up_x") or 0.0)
+        peak_x = float(rec.get("max_up_x") or 0.0)
+        if cycle_done(now_x, peak_x):
+            # Причина в архиве различает два случая: вершина сама по
+            # себе против отданного хода. Корзину потом читают, чтобы
+            # проверить пороги, и по общей причине этот вопрос не
+            # задать.
+            top = max(peak_x, now_x)
+            if top >= CYCLE_COMPLETE_X:
+                why = f"completed:{CYCLE_COMPLETE_X:g}x:{basket}"
+            else:
+                why = f"giveback:{top:.0f}x→{now_x:.1f}x:{basket}"
+            _archive(archive_path, symbol, rec, reason=why, now=now)
             continue
 
         last = rec.get("last_hit") or rec.get("first_seen")
@@ -373,8 +442,10 @@ def update_leaders(
             ratios = c.raw.get("vol_ratio") or {}
             rec["vol_ratio"] = _merge_max(rec.get("vol_ratio", {}), ratios)
 
-            # Кратность от дна цикла — мерка выбытия, одна на проект.
-            _touch_cycle(rec, _cycle_up_x(c))
+            # Кратность и вершина от дна цикла — мерка выбытия,
+            # одна на проект.
+            peak_x, now_x = _cycle_peak_x(c)
+            _touch_cycle(rec, _cycle_up_x(c), peak_x, now_x)
 
             # Событие продлевает жизнь записи. Условие ШИРЕ, чем
             # попадание в журнал: попасть сюда может только лидер

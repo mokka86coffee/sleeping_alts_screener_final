@@ -1312,6 +1312,21 @@ class DropContext:
     growth_x: float = 1.0
     bars_since_bottom: int = 0
 
+    # ── Ход от минимума окна ──
+    # peak_up_x — до какой высоты цена уходила от минимума окна,
+    # now_up_x — где она относительно того же минимума сейчас.
+    #
+    # Обе НЕ равны up_x из пейлоада: тот считается от bottom_price,
+    # то есть от минимума после пика окна. У монеты со свежим
+    # выносом это разные дна, и различие принципиально — от
+    # bottom_price кратность выноса не видна вовсе.
+    #
+    # 0.0 означает «не мерили» и отличимо от единицы: порог,
+    # сработавший на нуле, выбросил бы монету, про которую мы ничего
+    # не знаем.
+    peak_up_x: float = 0.0
+    now_up_x: float = 0.0
+
     # ── Слой «жизнь контракта» ──
     # Кратность роста до пика ЖИЗНИ и падение от него к текущему дну.
     # Зачем отдельно: окно выше ограничено BOTTOM_LOOKBACK_DAYS, и у
@@ -1451,6 +1466,29 @@ def build_drop(bars: Sequence[Bar],
 
     rs = _count_rallies(tail[bottom_idx:])
 
+    # ── Ход от минимума окна ──
+    # Пара для правила завершения цикла: до какой высоты монета
+    # уходила от своей базы и где стоит сейчас. Обе от ОДНОГО дна —
+    # минимума окна, а не от bottom_price: тот ищется после пика
+    # окна, и у монеты со свежим выносом оказывается ВЫШЕ базы, с
+    # которой вынос начинался.
+    #
+    # Максимум берётся после минимума, а не по всему окну: ход,
+    # случившийся до базы, к этой базе отношения не имеет.
+    #
+    # Считается по high и low, а не по close: вынос, отыгранный
+    # внутри бара, всё равно был — в нём торговали.
+    lows_w = [(i, b.low) for i, b in enumerate(tail) if b.low > 0]
+    if lows_w:
+        low_i, low_w = min(lows_w, key=lambda p: p[1])
+        highs_after = [b.high for b in tail[low_i:] if b.high > 0]
+        peak_after = max(highs_after) if highs_after else 0.0
+        last_close = tail[-1].close
+        peak_up = peak_after / low_w if low_w > 0 and peak_after > 0 else 0.0
+        now_up = last_close / low_w if low_w > 0 and last_close > 0 else 0.0
+    else:
+        peak_up = now_up = 0.0
+
     # Слой жизни. Падение меряется от пика жизни к ТЕКУЩЕМУ дну окна:
     # вопрос будущего гейта — «монета выросла и обвалилась», и дно у
     # него то же, у которого цена стоит сейчас.
@@ -1460,6 +1498,8 @@ def build_drop(bars: Sequence[Bar],
     return DropContext(
         peak_price=peak,
         peak_idx=peak_idx,
+        peak_up_x=_clip(peak_up, 0.0, 10000.0),
+        now_up_x=_clip(now_up, 0.0, 10000.0),
         bottom_price=bottom,
         bottom_idx=bottom_idx,
         drop_pct=_clip(drop, 0.0, 1.0),

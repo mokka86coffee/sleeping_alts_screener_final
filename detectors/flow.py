@@ -46,6 +46,7 @@ from detectors.flow_config import (
     HORIZON_BARS_AHEAD,
     MIN_BARS,
 )
+from detectors.flow_config import cycle_done
 from detectors.flow_core import Bar, FlowContext, build_context
 from detectors.flow_signal import SubcaseSignal
 
@@ -602,6 +603,13 @@ def _context_dict(ctx: FlowContext, hz: dict) -> dict:
             # семейства, и отбор смотрят на это число.
             "bottom_price": round(ctx.drop.bottom_price, 10),
             "up_x": round(_cycle_up_x(ctx), 2),
+            # Ход от минимума окна: вершина и текущее положение.
+            # Обе от ОДНОГО дна и не равны up_x выше — тот считается
+            # от bottom_price, минимума ПОСЛЕ пика окна, и у монеты
+            # со свежим выносом кратности выноса не показывает вовсе.
+            # Правило завершения читает именно эту пару.
+            "peak_up_x": round(ctx.drop.peak_up_x, 2),
+            "now_up_x": round(ctx.drop.now_up_x, 2),
             # Слой жизни: кратность до пика ЖИЗНИ и падение от него к
             # текущему дну, в процентах — как drop_pct выше. Наружу —
             # раньше гейта: порог для dormant выбирается по разбросу
@@ -765,11 +773,22 @@ def detect_flow(
     # нашли» и вето не поднимает — выбрасывать монету по величине,
     # которой нет, нельзя.
     up_x = _cycle_up_x(ctx)
-    if up_x >= CYCLE_COMPLETE_X:
-        return FlowSignal(
-            symbol=symbol,
-            verdict=f"цикл отработан: ×{up_x:.1f} от дна",
-        )
+    # Правило завершения читает пару от минимума окна, а не up_x:
+    # см. комментарий у peak_up_x в пейлоаде.
+    peak_x = float(ctx.drop.peak_up_x or 0.0)
+    now_x = float(ctx.drop.now_up_x or 0.0)
+    if cycle_done(now_x, peak_x):
+        # Две причины отказа читаются по-разному, и в вердикте их
+        # стоит различать: вершина сама по себе против отданного
+        # хода. Без этого при разборе прогона непонятно, монета
+        # улетела или сложилась.
+        if max(peak_x, now_x) >= CYCLE_COMPLETE_X:
+            reason = f"цикл отработан: вершина ×{max(peak_x, now_x):.1f} от базы"
+        else:
+            given = (1.0 - now_x / peak_x) * 100.0 if peak_x > 0 else 0.0
+            reason = (f"ход отдан: вершина ×{peak_x:.1f}, "
+                      f"сейчас ×{now_x:.1f}, отдано {given:.0f}%")
+        return FlowSignal(symbol=symbol, verdict=reason)
 
     hz = _horizon(ctx)
     ctx_dict = _context_dict(ctx, hz)
