@@ -259,6 +259,28 @@ def range_pos(klines: list[list], bars: int = RANGE_BARS) -> float | None:
     return round((closes[-1] - lo) / (hi - lo) * 100, 1)
 
 
+def background(klines: list[list], window: int = 24) -> float | None:
+    """Фон суток против недельной нормы, кратностью.
+
+    Отвечает «монета вообще торгуется в эти сутки», в отличие от
+    объёма последнего бара, который отвечает «сейчас всплеск». Одно
+    число смешивало оба вопроса: у монеты с мёртвой неделей и живым
+    последним часом и у монеты с ровным приличным оборотом кратность
+    выходила похожей.
+
+    None означает «мерить нечем» — истории не хватило. Отличимо от
+    единицы, которая значит «фон ровно как обычно».
+    """
+    quotes = [q for q in _col(klines, K_QUOTE_VOLUME) if q > 0]
+    if len(quotes) < BIG_NORM_BARS // 2:
+        return None
+    norm = median(quotes[-BIG_NORM_BARS:])
+    if norm <= 0:
+        return None
+    recent = median(quotes[-window:])
+    return round(recent / norm, 2)
+
+
 def prominence(klines: list[list]) -> dict:
     """Насколько крупная заявка ЗАМЕТНА именно на этой шкале.
 
@@ -401,6 +423,9 @@ def scan(klines: list[list], scale: str) -> dict:
     pos = range_pos(klines)
     if pos is not None:
         out["range_pos"] = pos
+    bg = background(klines)
+    if bg is not None:
+        out["bg"] = bg
     prom = prominence(klines)
     if prom:
         out["prom"] = prom

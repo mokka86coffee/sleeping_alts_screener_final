@@ -232,38 +232,6 @@ def _touch_cycle(rec: dict, up_x: float, peak_x: float = 0.0,
     rec["trend_done"] = peak >= CYCLE_TREND_DONE_X
 
 
-# Сколько суток держим в карте плотности. Семи хватает, чтобы
-# увидеть разгон, и мало, чтобы карта не росла в записи бесконечно.
-DENSITY_DAYS = 7
-
-
-def _touch_density(rec: dict, now: datetime) -> None:
-    """Отмечает попадание в карте по дням и подрезает хвост.
-
-    Ключ — календарная дата в UTC, а не «сутки назад»: при часовых
-    прогонах скользящее окно давало бы разное число в зависимости от
-    момента замера, и сравнивать дни между собой стало бы нельзя.
-
-    Подрезка на каждом попадании, а не отдельной уборкой: карта
-    маленькая, а забытая уборка означала бы запись, растущую весь
-    срок жизни монеты.
-    """
-    day = now.date().isoformat()
-    src = rec.get("hits_by_day")
-    if not isinstance(src, dict):
-        src = {}
-
-    try:
-        src[day] = int(src.get(day) or 0) + 1
-    except (TypeError, ValueError):
-        src[day] = 1
-
-    cutoff = (now.date() - timedelta(days=DENSITY_DAYS - 1)).isoformat()
-    rec["hits_by_day"] = {
-        k: v for k, v in src.items() if isinstance(k, str) and k >= cutoff
-    }
-
-
 def _days_since(stamp: str | None, now: datetime) -> float:
     """Сколько дней прошло с отметки. Ноль, если отметки нет.
 
@@ -547,7 +515,6 @@ def update_leaders(
             if bool((getattr(c, "flow", None) or {}).get("detected")) \
                     or _is_anomalous(ratios):
                 rec["last_hit"] = now.isoformat()
-                _touch_density(rec, now)
 
     # ── чистка по возрасту, с архивом вместо тихой потери ──
     cutoff = now - timedelta(days=max_age_days)
