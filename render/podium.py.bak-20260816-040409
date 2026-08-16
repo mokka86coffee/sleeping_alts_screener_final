@@ -73,19 +73,6 @@ PODIUM_CSS = """
   letter-spacing:.34em;text-transform:uppercase;color:#8E96A2}
 .obp-stamp{font-family:ui-monospace,Menlo,monospace;font-size:10px;color:#454C57}
 
-/* Выход. Не крестик: значок пришлось бы объяснять, а слово говорит
-   само. Рамка тонкая и холодная — кнопка обязана быть найдена, но
-   не обязана спорить за внимание с карточками. */
-.obp-exit{position:absolute;right:26px;top:14px;z-index:8;
-  font-family:ui-monospace,Menlo,monospace;font-size:9px;
-  letter-spacing:.3em;text-transform:uppercase;color:#6E7684;
-  padding:7px 14px;border:1px solid rgba(255,255,255,.10);
-  border-radius:999px;cursor:pointer;background:rgba(8,10,16,.55);
-  transition:color .2s ease,border-color .2s ease,background .2s ease}
-.obp-exit:hover{color:#D6DCE6;border-color:rgba(255,255,255,.24);
-  background:rgba(18,22,32,.8)}
-.obp-exit:focus-visible{outline:2px solid #7FE3D4;outline-offset:2px}
-
 /* ── Сцена ───────────────────────────────────────────────────
    Панели стоят по цилиндру, наблюдатель внутри. Без CSS-перехода:
    угол доводится покадрово, и переход поверх дал бы двойное
@@ -384,14 +371,13 @@ PODIUM_HTML = """
     <div class="obp-h">лидеры прогона</div>
     <div class="obp-stamp" id="obPodStamp"></div>
   </div>
-  <button class="obp-exit" id="obpExit" type="button">к дашборду</button>
 
   <div class="obp-tiers" id="obpTiers"></div>
   <div class="obp-stage" id="obpStage"></div>
 
   <div class="obz" id="obpZoom"><div class="obz-box" id="obpZbox"></div></div>
 
-  <div class="obp-hint">тяните мышью · колесо · клик по карточке · esc — выход</div>
+  <div class="obp-hint">тяните мышью · колесо · клик по карточке</div>
 </div>
 """
 
@@ -993,26 +979,6 @@ PODIUM_JS = """
     pod.classList.add('on');
   }
 
-  /* Выход один на все способы: кнопка, Esc и любая клавиша ведут
-     сюда. Раскрытую карточку закрываем вместе с залом — иначе она
-     останется висеть и всплывёт поверх дашборда при следующем
-     открытии. */
-  function hide() {
-    closeZoom();
-    pod.classList.remove('on');
-  }
-
-  var exitBtn = document.getElementById('obpExit');
-  if (exitBtn) {
-    /* mousedown гасится до всплытия: на зале висит перетаскивание,
-       и без этого нажатие на кнопку уводит сцену вбок. */
-    exitBtn.addEventListener('mousedown', function (e) { e.stopPropagation(); });
-    exitBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      hide();
-    });
-  }
-
   document.addEventListener('keydown', function (e) {
     if (!opened) return;
     if (zoom.classList.contains('on')) {
@@ -1021,7 +987,7 @@ PODIUM_JS = """
     }
     if (e.key === 'ArrowRight') { target += BASE_STEP; kick(); return; }
     if (e.key === 'ArrowLeft')  { target -= BASE_STEP; kick(); return; }
-    hide();
+    pod.classList.remove('on');
   });
 
   if (!brief) { show(); return; }
