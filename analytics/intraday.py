@@ -20,6 +20,8 @@
 
 from __future__ import annotations
 
+import math
+
 from analytics.indicators import median, true_ranges, vortex_phase
 from core.binance import (
     K_CLOSE, K_HIGH, K_LOW, K_QUOTE_VOLUME, K_TAKER_BUY_QUOTE, K_TRADES,
@@ -63,6 +65,22 @@ CROSS_LOOKBACK = 72
 
 # ── Диапазон ─────────────────────────────────────────────────
 RANGE_BARS = 168
+
+# ── Импакт: цена за единицу давления ─────────────────────────
+# Минимальная глубина ноги, при которой она считается ногой, а не
+# колебанием. Заглушка: на часах шесть процентов ловят и настоящие
+# проливы, и крупную рябь. Калибровать по разбросу — П-10.
+IMPACT_LEG_PCT = 6.0
+
+# Дельта приводится к миллионам: в сырых долларах импакт получается
+# числом с шестью нулями после запятой и глазом не читается.
+IMPACT_UNIT = 1_000_000.0
+
+# Сколько ног отдаём наружу. Три — минимум, на котором видно
+# направление: одна ничего не сравнивает, две дают знак, три
+# показывают, устойчив ли он.
+IMPACT_LEGS = 3
+
 
 # ── Заметность и скорость ────────────────────────────────────
 # Минимум баров, на которых процентиль ещё является процентилем.
@@ -281,6 +299,270 @@ def background(klines: list[list], window: int = 24) -> float | None:
     return round(recent / norm, 2)
 
 
+def _delta_series(klines: list[list]) -> list[float]:
+    """Чистая дельта тейкеров по барам, в валюте котировки.
+
+    Покупки тейкером приходят полем, продажи считаются как остаток:
+    оборот минус покупки. Отсюда дельта = 2 × покупки − оборот. По
+    знаку закрытия дельту не восстанавливают — бар может закрыться
+    вверх на чистых продажах и наоборот.
+    """
+    quotes = _col(klines, K_QUOTE_VOLUME)
+    buys = _col(klines, K_TAKER_BUY_QUOTE)
+    return [2.0 * b - q for b, q in zip(buys, quotes)]
+
+
+def _pivots(closes: list[float], pct: float) -> list[tuple[int, float]]:
+    """Точки разворота ряда: зигзаг с порогом в процентах.
+
+    Нужен, чтобы разбить ряд на ноги. Порог в процентах, а не в ATR,
+    сознательно: ATR сам меняется вместе с волатильностью, и на
+    затухающем рынке ноги начали бы дробиться, а на разгоне —
+    слипаться. Постоянный порог даёт ноги, сравнимые между собой во
+    времени, а это и есть цель.
+    """
+    if len(closes) < 3:
+        return []
+    thr = pct / 100.0
+    vals = [(i, v) for i, v in enumerate(closes) if v > 0]
+    if len(vals) < 3:
+        return []
+
+    out: list[tuple[int, float]] = []
+    # Пока направление не определено, следим за обоими краями: первым
+    # пробитый порог и задаёт сторону, а вершиной ноги становится тот
+    # край, от которого пробили. Слежение за одним краем сразу после
+    # старта давало бы ложную первую ногу на любом ряду, начавшемся
+    # с движения против будущего тренда.
+    hi_i, hi_v = vals[0]
+    lo_i, lo_v = vals[0]
+    direction = 0
+    ext_i, ext_v = vals[0]
+
+    for i, v in vals[1:]:
+        if direction == 0:
+            if v > hi_v:
+                hi_i, hi_v = i, v
+            if v < lo_v:
+                lo_i, lo_v = i, v
+            if hi_v > 0 and (hi_v - v) / hi_v >= thr:
+                out.append((hi_i, hi_v))
+                direction, ext_i, ext_v = -1, i, v
+            elif lo_v > 0 and (v - lo_v) / lo_v >= thr:
+                out.append((lo_i, lo_v))
+                direction, ext_i, ext_v = 1, i, v
+            continue
+
+        if direction > 0:
+            if v > ext_v:
+                ext_i, ext_v = i, v
+            elif ext_v > 0 and (ext_v - v) / ext_v >= thr:
+                out.append((ext_i, ext_v))
+                direction, ext_i, ext_v = -1, i, v
+        else:
+            if v < ext_v:
+                ext_i, ext_v = i, v
+            elif ext_v > 0 and (v - ext_v) / ext_v >= thr:
+                out.append((ext_i, ext_v))
+                direction, ext_i, ext_v = 1, i, v
+
+    out.append((ext_i, ext_v))
+    return out
+
+
+def impact(klines: list[list], pct: float = IMPACT_LEG_PCT) -> dict:
+    """Сколько цены съедает миллион чистых продаж — по нисходящим ногам.
+
+    Цена движется не от объёма, а от того, сколько пассивной
+    ликвидности стоит против агрессии. Значит отношение «сдвиг цены к
+    чистой дельте» — прямая мера глубины стакана: те же продажи,
+    сдвинувшие цену вдвое слабее, означают вдвое больше покупателей
+    на этих уровнях.
+
+    BLESS 12-14 августа: два пролива по 400 миллионов чистых продаж
+    уронили цену на 43% и на 25%. Второй при этом был крупнее в
+    ШТУКАХ — доллары те же, а цена ниже, — то есть разрыв ещё больше,
+    чем в процентах.
+
+    Три вещи, из-за которых величина считается именно так.
+
+    Сдвиг берётся логарифмом, а не процентом: −43% и −25% в процентах
+    несравнимы между собой, в логарифмах −0.55 и −0.29 складываются и
+    делятся честно.
+
+    Дельта суммируется по ноге целиком, включая положительные бары:
+    вопрос в ЧИСТОМ давлении, а откуп внутри пролива это давление и
+    уменьшает.
+
+    Рядом отдаётся скорость подачи — дельта на бар. Без неё каскад
+    ликвидаций и спокойная раздача сливаются в одно число: импакт
+    зависит не только от суммы, но и от того, за сколько времени её
+    подали. Первый пролив BLESS был вертикальной свечой, второй
+    растянут — и часть разницы объясняется этим, а не глубиной
+    стакана.
+    """
+    closes = _col(klines, K_CLOSE)
+    if len(closes) < 20:
+        return {}
+    piv = _pivots(closes, pct)
+    if len(piv) < 2:
+        return {}
+
+    deltas = _delta_series(klines)
+    legs: list[dict] = []
+    for (i0, v0), (i1, v1) in zip(piv, piv[1:]):
+        if v1 >= v0 or v0 <= 0 or v1 <= 0 or i1 <= i0:
+            continue
+        drop = math.log(v1 / v0)                       # отрицательный
+        net = sum(deltas[i0:i1 + 1])
+        bars = i1 - i0
+        leg = {
+            "drop_pct": round((v1 / v0 - 1) * 100, 1),
+            "bars": bars,
+            "delta_m": round(net / IMPACT_UNIT, 1),
+        }
+        if net < 0:
+            press = -net / IMPACT_UNIT
+            leg["impact"] = round(abs(drop) / press, 4)
+            leg["rate_m"] = round(press / max(1, bars), 2)
+        legs.append(leg)
+
+    if not legs:
+        return {}
+    legs = legs[-IMPACT_LEGS:]
+
+    out: dict = {"legs": legs}
+    scored = [l for l in legs if "impact" in l]
+    if len(scored) >= 2:
+        last, prev = scored[-1]["impact"], scored[-2]["impact"]
+        out["last"] = last
+        out["prev"] = prev
+        if prev > 0:
+            # Меньше единицы — та же продажа двигает цену слабее, чем
+            # в прошлый раз. Это утверждение о ПРОШЛОЙ упругости, а не
+            # предсказание: новый продавец может прийти любого размера.
+            out["ratio"] = round(last / prev, 2)
+    elif scored:
+        out["last"] = scored[-1]["impact"]
+    return out
+
+
+# Ниже этой доли чистый перевес считается шумом: на любом отрезке
+# покупки и продажи не сходятся ровно, и пара процентов расхождения
+# ничего не означают.
+BALANCE_MIN_SHARE = 0.03
+
+
+def flow_balance(klines: list[list], pct: float = IMPACT_LEG_PCT) -> dict:
+    """Кто кого принял: агрессия против пассивной стороны.
+
+    Цена движется не от агрессии, а от того, приняли её или нет.
+    Тейкер бьёт по рынку и оставляет след в дельте; мейкер стоит
+    лимитами и в дельте не виден вовсе — виден только по тому, что
+    агрессия не сдвинула цену.
+
+    Отсюда четыре случая, и информация живёт в двух из них:
+
+        цена вниз, дельта минус  — слив, знаки сошлись
+        цена вниз, дельта ПЛЮС   — РАЗДАЧА: покупали агрессивно,
+                                   а приняли лимитными продажами
+        цена вверх, дельта плюс  — разгон, знаки сошлись
+        цена вверх, дельта МИНУС — ПОГЛОЩЕНИЕ: продавали агрессивно,
+                                   а приняли лимитными покупками
+
+    Совпадение знаков означает, что рынок просто ехал. Расхождение
+    означает, что против толпы кто-то стоял, и это единственный
+    способ его увидеть: пассивная сторона в потоке не отражается.
+
+    BLESS за наблюдаемый период: чистая агрессия положительная —
+    выносы дали +5.2 и +6.28 млрд покупок против примерно двенадцати
+    млрд продаж, — а цена ниже, чем была до первого выноса. Значит
+    всю эту массу выбрали лимитные продавцы.
+
+    Оговорка, которая меняет смысл слова «раздача». Это фьючерс:
+    тейкер-покупка открывает лонг против мейкера, встающего в шорт.
+    Пассивная сторона не сбрасывала актив, а НАБИРАЛА короткую
+    позицию. Различает открытый интерес: рос вместе с выносом —
+    строили шорт, падал — закрывались лонги, и это уже капитуляция.
+    Здесь OI не читается, поэтому величина называет расхождение, а не
+    трактует его.
+
+    Перевес нормируется на оборот той же ноги: в долларах монеты
+    несравнимы между собой, в долях оборота — вполне.
+    """
+    closes = _col(klines, K_CLOSE)
+    if len(closes) < 20:
+        return {}
+    piv = _pivots(closes, pct)
+    if len(piv) < 2:
+        return {}
+
+    deltas = _delta_series(klines)
+    quotes = _col(klines, K_QUOTE_VOLUME)
+
+    legs: list[dict] = []
+    distrib = absorb = 0.0
+    for (i0, v0), (i1, v1) in zip(piv, piv[1:]):
+        if i1 <= i0 or v0 <= 0 or v1 <= 0:
+            continue
+        net = sum(deltas[i0:i1 + 1])
+        turn = sum(quotes[i0:i1 + 1])
+        if turn <= 0:
+            continue
+        share = abs(net) / turn
+        down = v1 < v0
+        if down and net > 0:
+            kind = "раздача"
+        elif not down and net < 0:
+            kind = "поглощение"
+        else:
+            kind = "слив" if down else "разгон"
+
+        if share >= BALANCE_MIN_SHARE:
+            if kind == "раздача":
+                distrib += abs(net)
+            elif kind == "поглощение":
+                absorb += abs(net)
+
+        legs.append({
+            "dir": "down" if down else "up",
+            "move_pct": round((v1 / v0 - 1) * 100, 1),
+            "delta_m": round(net / IMPACT_UNIT, 1),
+            "share": round(share, 3),
+            "kind": kind,
+            "bars": i1 - i0,
+        })
+
+    if not legs:
+        return {}
+
+    # Окно целиком. Самое сильное утверждение получается не по ногам,
+    # а по всему отрезку: чистая агрессия одного знака при цене,
+    # ушедшей в другую сторону, означает, что всю её приняли.
+    first = next((c for c in closes if c > 0), 0.0)
+    last = next((c for c in reversed(closes) if c > 0), 0.0)
+    net_all = sum(deltas)
+    turn_all = sum(quotes)
+    out: dict = {
+        "legs": legs[-IMPACT_LEGS:],
+        "net_m": round(net_all / IMPACT_UNIT, 1),
+        "distrib_m": round(distrib / IMPACT_UNIT, 1),
+        "absorb_m": round(absorb / IMPACT_UNIT, 1),
+    }
+    if first > 0 and last > 0:
+        out["price_pct"] = round((last / first - 1) * 100, 1)
+        share_all = abs(net_all) / turn_all if turn_all > 0 else 0.0
+        if share_all >= BALANCE_MIN_SHARE:
+            if net_all > 0 and last < first:
+                out["window"] = "раздача"
+            elif net_all < 0 and last > first:
+                out["window"] = "поглощение"
+            else:
+                out["window"] = "согласие"
+            out["share"] = round(share_all, 3)
+    return out
+
+
 def prominence(klines: list[list]) -> dict:
     """Насколько крупная заявка ЗАМЕТНА именно на этой шкале.
 
@@ -432,6 +714,12 @@ def scan(klines: list[list], scale: str) -> dict:
     spd = move_speed(klines)
     if spd:
         out["speed"] = spd
+    imp = impact(klines)
+    if imp:
+        out["impact"] = imp
+    bal = flow_balance(klines)
+    if bal:
+        out["balance"] = bal
     return out
 
 
