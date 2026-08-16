@@ -20,7 +20,7 @@
 
 from __future__ import annotations
 
-from analytics.indicators import median, vortex_phase
+from analytics.indicators import median, true_ranges, vortex_phase
 from core.binance import (
     K_CLOSE, K_HIGH, K_LOW, K_QUOTE_VOLUME, K_TAKER_BUY_QUOTE, K_TRADES,
 )
@@ -63,6 +63,23 @@ CROSS_LOOKBACK = 72
 
 # ── Диапазон ─────────────────────────────────────────────────
 RANGE_BARS = 168
+
+# ── Заметность и скорость ────────────────────────────────────
+# Минимум баров, на которых процентиль ещё является процентилем.
+# На мелкой шкале с тремя сделками в баре «медиана размера сделки»
+# перестаёт описывать что-либо, и заметность начинает срабатывать на
+# случайностях.
+PROM_MIN_BARS = 50
+
+# Нижняя граница знаменателя заметности. Совершенно однородная шкала
+# дала бы деление на ноль, а по смыслу — бесконечную заметность
+# любого всплеска. Ограничиваем и то и другое.
+PROM_FLOOR = 0.05
+PROM_CAP = 50.0
+
+# Период ATR для скорости хода. Тот же, что у вортекса, — чтобы обе
+# величины описывали одно окно наблюдения.
+ATR_PERIOD = 14
 
 
 def _col(klines: list[list], idx: int) -> list[float]:
@@ -242,6 +259,121 @@ def range_pos(klines: list[list], bars: int = RANGE_BARS) -> float | None:
     return round((closes[-1] - lo) / (hi - lo) * 100, 1)
 
 
+def prominence(klines: list[list]) -> dict:
+    """Насколько крупная заявка ЗАМЕТНА именно на этой шкале.
+
+    Механика, из которой растёт величина. Заявка размером X на баре с
+    оборотом V поднимает средний размер сделки примерно в (1 + X/V)
+    раз. Значит заметность одной и той же заявки — это её доля в
+    обороте бара, и чем мельче шкала, тем меньше V и тем крупнее
+    след. Часовой бар вбирает вшестеро больший оборот, чем
+    десятиминутный, и та же заявка в нём тонет. Поэтому у PROM памп
+    12 августа читался на десятиминутке и не читался на часе.
+
+    Мельче — заметнее, но лишь до предела: норма считается медианой,
+    а медиана по трём сделкам на баре медианой не является. Оптимум
+    там, где след заявки уже виден, а норма ещё устойчива, и находится
+    он замером, а не рассуждением.
+
+    Отсюда формула. Кратность самого крупного бара сравнивается не с
+    назначенным порогом, а с СОБСТВЕННЫМ разбросом шкалы:
+
+        q = (max_x − 1) / (p90_x − 1)
+
+    Единица вычитается, потому что x = 1 означает «ровно норма», то
+    есть отсутствие события; мерить надо превышение над нормой, а не
+    саму кратность. Если самый крупный бар даёт ×5 при девяностом
+    процентиле ×2.5 — событие для этой шкалы заурядно, q около трёх.
+    Те же ×5 при процентиле ×1.2 — q двадцать, событие торчит.
+
+    Величина безразмерная, поэтому «×5 на десяти минутах» и «×20 на
+    шести часах» назначать не нужно: оба порога выводятся из данных
+    сами, а сравнивать шкалы можно напрямую.
+    """
+    quotes = _col(klines, K_QUOTE_VOLUME)
+    trades = _col(klines, K_TRADES)
+    sizes = [
+        (q / t) if t > 0 and q > 0 else 0.0
+        for q, t in zip(quotes, trades)
+    ]
+    norm_src = [s for s in sizes[-BIG_NORM_BARS:] if s > 0]
+    if len(norm_src) < PROM_MIN_BARS:
+        return {}
+    norm = median(norm_src)
+    if norm <= 0:
+        return {}
+
+    xs = sorted(s / norm for s in norm_src)
+    p90 = xs[min(len(xs) - 1, int(len(xs) * 0.9))]
+
+    tail = [s for s in sizes[-BIG_TAIL_BARS:] if s > 0]
+    if not tail:
+        return {}
+    max_x = max(tail) / norm
+
+    if max_x <= 1.0:
+        return {"q": 0.0, "max_x": round(max_x, 2), "p90_x": round(p90, 2)}
+
+    denom = max(p90 - 1.0, PROM_FLOOR)
+    return {
+        "q": round(min((max_x - 1.0) / denom, PROM_CAP), 2),
+        "max_x": round(max_x, 2),
+        "p90_x": round(p90, 2),
+        "trades_med": round(median([t for t in trades[-BIG_NORM_BARS:] if t > 0] or [0]), 1),
+    }
+
+
+def move_speed(klines: list[list], bars: int = BIG_TAIL_BARS) -> dict:
+    """Скорость крупнейшего хода: сколько ATR набирается за бар.
+
+    Памп за два часа и рост за сутки отличаются не амплитудой, а
+    амплитудой на единицу времени. Причём мерить её в процентах
+    нельзя: десять процентов у спокойной монеты и у волатильной —
+    разные события. Нормируем на собственный ATR шкалы:
+
+        v = (вершина − дно) / (ATR × баров между ними)
+
+    Двадцать ATR за двенадцать баров — событие. Те же двадцать ATR за
+    двести баров — тренд. Величина безразмерная и сравнима между
+    шкалами так же, как заметность.
+
+    Ход ищется как крупнейший подъём: минимум окна и максимум ПОСЛЕ
+    него. Ход до минимума к этому минимуму отношения не имеет.
+    """
+    highs = _col(klines, K_HIGH)[-bars:]
+    lows = _col(klines, K_LOW)[-bars:]
+    closes = _col(klines, K_CLOSE)[-bars:]
+    if len(closes) < ATR_PERIOD + 2:
+        return {}
+
+    trs = true_ranges(highs, lows, closes)
+    if len(trs) < ATR_PERIOD:
+        return {}
+    atr = sum(trs[-ATR_PERIOD:]) / ATR_PERIOD
+    if atr <= 0:
+        return {}
+
+    valid = [(i, v) for i, v in enumerate(lows) if v > 0]
+    if not valid:
+        return {}
+    low_i, low_v = min(valid, key=lambda p: p[1])
+    after = [(i, v) for i, v in enumerate(highs[low_i:], low_i) if v > 0]
+    if not after:
+        return {}
+    hi_i, hi_v = max(after, key=lambda p: p[1])
+
+    span = max(1, hi_i - low_i)
+    amp = hi_v - low_v
+    if amp <= 0:
+        return {"atr_move": 0.0, "bars": span, "v": 0.0}
+
+    return {
+        "atr_move": round(amp / atr, 1),
+        "bars": span,
+        "v": round(amp / atr / span, 3),
+    }
+
+
 def scan(klines: list[list], scale: str) -> dict:
     """Все интрадей-величины одной шкалы одним словарём.
 
@@ -269,6 +401,39 @@ def scan(klines: list[list], scale: str) -> dict:
     pos = range_pos(klines)
     if pos is not None:
         out["range_pos"] = pos
+    prom = prominence(klines)
+    if prom:
+        out["prom"] = prom
+    spd = move_speed(klines)
+    if spd:
+        out["speed"] = spd
+    return out
+
+
+def pick_scale(scans: list[dict]) -> dict:
+    """На какой шкале смотреть эту монету.
+
+    Два независимых ответа, и это не избыточность. Заметность
+    отвечает «где виден крупный участник», скорость — «где виден сам
+    ход». Совпали — подтверждение. Разошлись — на монете идут два
+    разных события, и смотреть надо оба места; молча выбрать одно
+    значило бы половину потерять.
+    """
+    by_prom = max(
+        (s for s in scans if (s.get("prom") or {}).get("q")),
+        key=lambda s: s["prom"]["q"], default=None,
+    )
+    by_speed = max(
+        (s for s in scans if (s.get("speed") or {}).get("v")),
+        key=lambda s: s["speed"]["v"], default=None,
+    )
+    out: dict = {}
+    if by_prom:
+        out["by_prom"] = {"scale": by_prom["scale"], "q": by_prom["prom"]["q"]}
+    if by_speed:
+        out["by_speed"] = {"scale": by_speed["scale"], "v": by_speed["speed"]["v"]}
+    if by_prom and by_speed:
+        out["agree"] = by_prom["scale"] == by_speed["scale"]
     return out
 
 
