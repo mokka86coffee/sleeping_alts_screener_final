@@ -145,7 +145,7 @@ BUCKET_SCOUT = 20
 LEADERS_PATH = OUTPUT_DIR / "leaders.json"
 ANOMALY_PATH = OUTPUT_DIR / "anomaly_volume.json"
 LEADERS_ARCHIVE_PATH = OUTPUT_DIR / "leaders_archive.json"
-LEADERS_MAX_AGE_DAYS = 14
+LEADERS_MAX_AGE_DAYS = 26
 
 # Отдельная от VOL_MEDIAN_WINDOW константа. Числа сейчас совпадают (30),
 # но константы независимы — тот же принцип, что уже у MIN_BAR_FILL и
