@@ -106,7 +106,7 @@ PODIUM_CSS = """
 .obp-stage{position:absolute;left:50%;top:44%;width:0;height:0;
   transform-style:preserve-3d}
 
-.obp-pan{position:absolute;width:315px;height:450px;margin:-225px 0 0 -157.5px;
+.obp-pan{position:absolute;width:315px;height:400px;margin:-225px 0 0 -157.5px;
   transform-style:preserve-3d;cursor:pointer;transition:opacity .35s ease}
 /* Панели вне поля обзора не только прозрачны, но и не ловят курсор:
    иначе невидимая карточка перехватывала бы клик по видимой. */
@@ -251,7 +251,7 @@ PODIUM_CSS = """
    с ним за верх карточки. */
 .obp-note{position:absolute;left:10px;right:10px;bottom:24px;
   text-align:center;
-  font-size:13px;line-height:1.4;letter-spacing:.02em;color:#D8E0EA;
+  font-size:18px;line-height:1.4;letter-spacing:.02em;color:#D8E0EA;
   /* Тень под текстом: подпись лежит поверх подсветки рамки, и на
      светлом крае панели без неё теряется контраст. */
   text-shadow:0 1px 14px rgba(0,0,0,.75)}
