@@ -287,17 +287,12 @@ CARDSCENE_CSS = """
 /* ── Оболочка ───────────────────────────────────────────────
    Карточка занимает весь экран, а не коробку по центру: пейзажу
    нужен горизонт, а в коробке 660 пикселей горизонта нет. */
-/* Закрытая карточка не должна ни рисоваться, ни ловить нажатия.
-   display:none снимает отрисовку, visibility и pointer-events —
-   попадания: на планшете промах по невидимому слою открывал карточку
-   поверх дашборда, потому что слой лежал во весь экран. */
 #obcRoot{position:fixed;inset:0;z-index:60;display:none;
-  visibility:hidden;pointer-events:none;
   align-items:center;justify-content:center;background:#04070B;
   opacity:0;transition:opacity .45s ease;
   font-family:'Helvetica Neue',Inter,system-ui,sans-serif;
   -webkit-font-smoothing:antialiased;color:#E8EEF4}
-#obcRoot.on{display:flex;visibility:visible;pointer-events:auto;opacity:1}
+#obcRoot.on{display:flex;opacity:1}
 #obcRoot *{box-sizing:border-box}
 
 /* ── Листание ───────────────────────────────────────────────
@@ -533,30 +528,6 @@ CARDSCENE_JS = """
   }
 
   var RIDGE_N = 28, HOURS_N = 24;
-
-  /* Часовой ряд бывает пустым, и это не редкость. Плоская линия из
-     подставленных нулей выглядит как показание — «объём весь день
-     ровный», — хотя означает «мы ничего не знаем». Порог в шесть
-     точек взят тот же, что у панели на стене зала (h48HTML), чтобы
-     карточка и панель молчали в одних и тех же случаях. */
-  function hoursOf(c) {
-    var s = (c.h48 || []).map(Number).filter(function (v) {
-      return isFinite(v) && v > 0;
-    });
-    return s.length < 6 ? null : resample(s, HOURS_N);
-  }
-
-  /* Дни от дна. Считаем по сырому ряду цены, а не по выровненному:
-     после resample шаг ряда уже не свой, а наш, и счёт съедет.
-     Возвращаем число шагов от минимума до конца — при дневном ряде
-     это и есть дни. Если минимум последний, ход ещё не начался. */
-  function fromLow(c) {
-    var s = (c.series || []).map(Number).filter(isFinite);
-    if (s.length < 3) return null;
-    var lo = 0;
-    for (var i = 1; i < s.length; i++) if (s[i] < s[lo]) lo = i;
-    return s.length - 1 - lo;
-  }
 
   /* Часовой ряд бывает пустым, и это не редкость. Плоская линия из
      подставленных нулей выглядит как показание — «объём весь день
@@ -935,23 +906,15 @@ CARDSCENE_JS = """
   }
 
   /* ── Вода ───────────────────────────────────────────────────── */
-  /* Отражение — самая дорогая часть кадра: по строке drawImage на
-     каждый пиксель высоты воды, триста пятьдесят вызовов за кадр.
-     На слабой машине это и есть тормоз. Шаг увеличиваем вдвое —
-     строки рисуются вдвое толще, на глаз разница в размытой воде не
-     видна, а вызовов вдвое меньше. */
-  const STEP = (navigator.hardwareConcurrency || 4) <= 4 ||
-               matchMedia('(hover: none)').matches ? 2 : 1;
-
   function water(t){
     const hgt = H - WATER;
-    for (let j = 0; j < hgt; j += STEP){
+    for (let j = 0; j < hgt; j++){
       const src = WATER - 1 - j * (WATER/hgt) * .82;
       if (src < 0) break;
       const k = j/hgt;
       const dx = Math.sin(j*.055 + t*.0009) * (2 + k*11) * (.4 + k);
       ctx.globalAlpha = (1 - k) * .62;
-      ctx.drawImage(sky, 0, Math.floor(src), W, 1, dx, WATER + j, W, STEP + .2);
+      ctx.drawImage(sky, 0, Math.floor(src), W, 1, dx, WATER + j, W, 1.2);
     }
     ctx.globalAlpha = 1;
     ctx.fillStyle = 'rgba(200,225,245,.10)';
@@ -962,9 +925,6 @@ CARDSCENE_JS = """
   }
 
   function frame(t){
-    /* Проверка стоит первой, а не в конце: закрытая карточка не должна
-       дорисовать даже один лишний кадр — на планшете он заметен. */
-    if (!live) return;
     const dt = last ? Math.min(64, t - last) : 16; last = t;
 
     if (tp < 1){
@@ -989,7 +949,7 @@ CARDSCENE_JS = """
     ctx.fillRect(0, WATER - .5, W, 1);
     // цикл живёт только пока карточка открыта: за ней стоит зал
     // со своей 3D-сценой, и два кадра одновременно ей дорого
-    requestAnimationFrame(frame);
+    if (live) requestAnimationFrame(frame);
   }
 
   /* ── Подписи ────────────────────────────────────────────────── */
@@ -1202,12 +1162,6 @@ CARDSCENE_JS = """
   function close() {
     live = false;                 /* кадр остановится сам на ближайшем тике */
     root.classList.remove('on', 'drawer');
-    /* Холст и разметку чистим: закрытая карточка не держит в памяти
-       последнюю монету и не показывает её на долю секунды при
-       следующем открытии, до первого кадра. */
-    ctx.clearRect(0, 0, W, H);
-    document.getElementById('obcDiag').innerHTML = '';
-    lay.querySelectorAll('.col').forEach(function (e) { e.remove(); });
   }
 
   /* Стрелки листают, esc закрывает — но сначала ящик, если он открыт:

@@ -106,7 +106,7 @@ PODIUM_CSS = """
 .obp-stage{position:absolute;left:50%;top:44%;width:0;height:0;
   transform-style:preserve-3d}
 
-.obp-pan{position:absolute;width:210px;height:300px;margin:-150px 0 0 -105px;
+.obp-pan{position:absolute;width:315px;height:450px;margin:-225px 0 0 -157.5px;
   transform-style:preserve-3d;cursor:pointer;transition:opacity .35s ease}
 /* Панели вне поля обзора не только прозрачны, но и не ловят курсор:
    иначе невидимая карточка перехватывала бы клик по видимой. */
@@ -586,7 +586,7 @@ PODIUM_JS = """
      радиуса, а не задаётся числом: хорда между соседними равна
      ширине панели с зазором. Вплотную рамы читались бы как одно
      сплошное полотно. */
-  var R = 1400, PW = 210, GAP = 1.35, PERSP = 1200;
+  var R = 1400, PW = 315, GAP = 1.35, PERSP = 1200;
   var BASE_STEP = 2 * (180 / Math.PI) * Math.asin(PW * GAP / 2 / R);
 
   /* Ярус не может занять больше 340°: дальше кольцо замыкается и
@@ -595,10 +595,13 @@ PODIUM_JS = """
      стене становится нечитаемым, и честнее показать часть с
      счётчиком скрытых, чем всё нечитаемо. */
   var MAX_ARC = 340, MIN_K = 0.66;
-  /* Два яруса вместо трёх — и разведены шире: при трёх средний
-     занимал горизонт, при двух горизонт остаётся между ними, и
-     каждый читается отдельным этажом. */
-  var TIER_Y = [-190, 190];
+  /* Высоты рядов больше не заданы таблицей. Ярус, который не влезает
+     в одну дугу, раскладывается в два ряда, и сколько всего рядов
+     окажется на стене — известно только после подсчёта. Поэтому
+     задаётся шаг между рядами, а сами высоты считаются так, чтобы
+     вся стопка стояла симметрично относительно горизонта.
+     Шаг чуть больше высоты панели: ряды не должны соприкасаться. */
+  var ROW_PITCH = 470;
 
   var NS = 'http://www.w3.org/2000/svg';
 
@@ -1088,6 +1091,12 @@ PODIUM_JS = """
   }
 
   function openZoom(c, zi) {
+    /* Без открытого зала карточки быть не может. Проверка нужна на
+       планшете: там промах по панели проходил сквозь закрытый зал и
+       карточка вылезала поверх дашборда. Зал — единственная дверь в
+       неё, и дверь должна быть открыта. */
+    if (!pod.classList.contains('on')) return;
+
     /* Карточка-пейзаж живёт в render/cardscene.py и берёт на себя весь
        показ. Если модуль не подключён, работает прежняя карточка ниже —
        это и есть способ сравнить обе, не откатывая правку. */
@@ -1271,6 +1280,15 @@ PODIUM_JS = """
     var tiersHost = document.getElementById('obpTiers');
     var shown = 0;
 
+    /* Раскладка идёт в два прохода. В первом считаем, сколько рядов
+       займёт каждый ярус: ярус, который не помещается в одну дугу,
+       разворачивается в два ряда через один — соседи по ряду тогда
+       стоят на полном шаге, а по стене чередуются верх и низ. Только
+       после этого известна общая высота стопки, и ряды можно поднять
+       так, чтобы горизонт оказался посередине. */
+    var oneRowCap = Math.floor(MAX_ARC / BASE_STEP) + 1;
+    var plan = [];
+
     STAGE.forEach(function (stg, ti) {
       var list = STARS.filter(function (s) { return tierOf(s) === ti; });
       if (!list.length) return;
@@ -1296,19 +1314,40 @@ PODIUM_JS = """
         });
       }
 
-      var step = BASE_STEP, hidden = 0;
+      plan.push({ ti: ti, stg: stg, list: list,
+                  rows: list.length > oneRowCap ? 2 : 1 });
+    });
+
+    /* Стопка рядов центрируется на горизонте: при трёх рядах средний
+       окажется ровно на нём, при двух и четырёх горизонт останется
+       между ними — в обоих случаях кадр не заваливается. */
+    var totalRows = plan.reduce(function (n, p) { return n + p.rows; }, 0);
+    var yTop = -(totalRows - 1) / 2 * ROW_PITCH;
+    var cursor = 0;
+
+    plan.forEach(function (p) {
+      var stg = p.stg, ti = p.ti, list = p.list;
+      var rowY = [];
+      for (var r = 0; r < p.rows; r++) rowY.push(yTop + (cursor + r) * ROW_PITCH);
+      var labY = yTop + (cursor + (p.rows - 1) / 2) * ROW_PITCH;
+      cursor += p.rows;
+
+      /* В два ряда шаг вдвое мельче: по стене панели идут чаще, но в
+         пределах одного ряда между соседями остаётся полный шаг. */
+      var full = BASE_STEP / p.rows, step = full, hidden = 0;
       if (list.length > 1) {
-        step = Math.max(BASE_STEP * MIN_K,
-                        Math.min(BASE_STEP, MAX_ARC / (list.length - 1)));
+        step = Math.max(full * MIN_K,
+                        Math.min(full, MAX_ARC / (list.length - 1)));
       }
       var cap = Math.floor(MAX_ARC / step) + 1;
       if (list.length > cap) { hidden = list.length - cap; list = list.slice(0, cap); }
 
-      var scale = step / BASE_STEP;
+      var scale = step / full;
       var half = (list.length - 1) / 2;
 
       list.forEach(function (c, i) {
         var a = (i - half) * step;
+        var y = rowY[p.rows === 1 ? 0 : (i % 2)];
         var sc = stratOf(c);
         var d = document.createElement('div');
         d.className = 'obp-pan' + (ti === STAGE.length - 1 ? ' obp-floorlvl' : '');
@@ -1320,7 +1359,7 @@ PODIUM_JS = """
            scale сжимает раму на длинных ярусах, чтобы соседи не
            наезжали друг на друга. */
         d.style.transform = 'rotateY(' + a.toFixed(2) + 'deg) translateZ(' +
-          (-R) + 'px) translateY(' + TIER_Y[ti] + 'px)' +
+          (-R) + 'px) translateY(' + y.toFixed(0) + 'px)' +
           (scale < 0.999 ? ' scale(' + scale.toFixed(3) + ')' : '');
 
         d.innerHTML = frameHTML(c, sc.c) +
@@ -1340,7 +1379,7 @@ PODIUM_JS = """
       lab.className = 'obp-tl';
       lab.style.setProperty('--c', rgbOf(stg.c));
       lab.style.top = 'calc(46% + ' +
-        (PERSP * TIER_Y[ti] / (PERSP + R)).toFixed(0) + 'px)';
+        (PERSP * labY / (PERSP + R)).toFixed(0) + 'px)';
       lab.innerHTML = '<div class="obp-tl-n">' + stg.n + '</div>' +
         '<div class="obp-tl-c">' + (list.length + hidden) +
         (hidden ? '<small>+' + hidden + ' не помещается</small>' : '') +

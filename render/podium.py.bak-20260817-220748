@@ -261,6 +261,19 @@ PODIUM_CSS = """
 .obp-note-q{display:block;margin-top:4px;font-size:10px;letter-spacing:.16em;
   text-transform:uppercase;color:#7C8694}
 
+/* Пробелы. Нейтральный серый и рамка пунктиром: это не ошибка, а
+   место под ручную работу. Красным было бы неправдой — расчёт
+   исправен, данных нет у биржи. */
+.obz-gaps{margin-top:14px;padding:9px 11px;border-radius:6px;
+  border:1px dashed rgba(255,255,255,.13);font-size:11px;line-height:1.6;
+  color:#8D97A6}
+.obz-gaps b{color:#B9C2CE;font-weight:600}
+.obz-gaps i{font-style:normal;color:#5A6270;letter-spacing:.24em;
+  text-transform:uppercase;font-size:9px;display:block;margin-bottom:4px}
+
+.obp-port .gaps{color:#6E7684}
+.obp-port .gaps b{color:#9AA6B5}
+
 .obz-sum{padding:12px 20px;font-size:13px;line-height:1.6;color:#E3E8EF;
   background:rgba(127,227,212,.05);
   border-top:1px solid rgba(255,255,255,.08)}
@@ -1062,7 +1075,40 @@ PODIUM_JS = """
   var zoom = document.getElementById('obpZoom');
   var zbox = document.getElementById('obpZbox');
 
-  function openZoom(c) {
+  /* Фраза наблюдения для сцены: те же два наблюдения, что и в старой
+     сводке, но без обёртки — в пейзаже у неё своё место и свой стиль. */
+  function noteText(c) {
+    var all = notes(c);
+    var day = all.filter(function (n) { return n.span === 'day'; })[0];
+    var wk = all.filter(function (n) { return n.span === 'weeks'; })[0];
+    var parts = [];
+    if (day) parts.push(day.full);
+    if (wk) parts.push(wk.full);
+    return parts.join(' · ');
+  }
+
+  function openZoom(c, zi) {
+    /* Без открытого зала карточки быть не может. Проверка нужна на
+       планшете: там промах по панели проходил сквозь закрытый зал и
+       карточка вылезала поверх дашборда. Зал — единственная дверь в
+       неё, и дверь должна быть открыта. */
+    if (!pod.classList.contains('on')) return;
+
+    /* Карточка-пейзаж живёт в render/cardscene.py и берёт на себя весь
+       показ. Если модуль не подключён, работает прежняя карточка ниже —
+       это и есть способ сравнить обе, не откатывая правку. */
+    if (window.OBCARD && ZLIST.length) {
+      window.OBCARD.open(ZLIST, zi || 0,
+        function (s) {
+          return { note: noteText(s), body: blocksHTML(s, stratOf(s).c) };
+        },
+        function (t) {
+          pod.classList.remove('on');
+          if (typeof window.obShowStar === 'function') window.obShowStar(t);
+        });
+      return;
+    }
+
     var sc = stratOf(c), col = sc.c, up = Math.round(+c.up || 0);
     zbox.style.setProperty('--c', rgbOf(col));
     zbox.innerHTML =
@@ -1183,6 +1229,15 @@ PODIUM_JS = """
         }).join('') + '</span></span>';
     }
 
+    /* Список пробелов конкретной монеты. Идёт последним: сначала то,
+       что известно, потом то, что предстоит дописать. */
+    var gaps = '';
+    if (c.gaps && c.gaps.length) {
+      gaps = '<div class="obz-gaps"><i>заполнить руками</i>' +
+        c.gaps.map(function (t) { return '<b>' + t + '</b>'; }).join(' · ') +
+        '</div>';
+    }
+
     var out = '<div class="obz-blocks">';
     if (weeks) {
       out += '<div class="obz-blk"><div class="obz-blk-k">за недели</div>' +
@@ -1195,7 +1250,7 @@ PODIUM_JS = """
         h48HTML(c, col, 610, 84) +
         '<div class="obz-grid">' + today + days + '</div></div>';
     }
-    return out + '</div>';
+    return out + gaps + '</div>';
   }
 
   function closeZoom() { zoom.classList.remove('on'); }
@@ -1205,6 +1260,11 @@ PODIUM_JS = """
 
   /* ── Сборка ── */
   var PANS = [];
+  /* Порядок, в котором монеты стоят на стене: сверху вниз по ярусам,
+     внутри яруса — по сортировке самого яруса. Стрелки в раскрытой
+     карточке листают именно по нему, поэтому «следующая» означает
+     «соседняя на стене», а не «следующая в журнале». */
+  var ZLIST = [];
   var built = false;
 
   function build() {
@@ -1271,7 +1331,9 @@ PODIUM_JS = """
 
         d.innerHTML = frameHTML(c, sc.c) +
           '<div class="obp-refl">' + frameHTML(c, sc.c) + '</div>';
-        d.addEventListener('click', function () { openZoom(c); });
+        var zi = ZLIST.length;
+        ZLIST.push(c);
+        d.addEventListener('click', function () { openZoom(c, zi); });
         stage.appendChild(d);
         PANS.push({ el: d, a: a });
         shown++;
@@ -1428,6 +1490,19 @@ PODIUM_JS = """
       out += ' <span class="sep">·</span> по правилам <b class="' +
         (p.rules_pnl_pct >= 0 ? 'up' : 'dn') + '">' +
         sign(p.rules_pnl_pct) + '</b>';
+    }
+
+    // Пробелы в данных — рядом с деньгами, но отдельной частью: это
+    // не результат, а работа, которую предстоит сделать руками.
+    var g = j.gaps;
+    if (g && g.gaps) {
+      out += ' <span class="sep">·</span> <span class="gaps">заполнить <b>' +
+        g.gaps + '</b>';
+      if (g.worst && g.worst.n) {
+        out += ', чаще всего <b>' + g.worst.label + '</b> (' +
+          g.worst.n + ' из ' + g.coins + ')';
+      }
+      out += '</span>';
     }
 
     var L = p.losers || [];

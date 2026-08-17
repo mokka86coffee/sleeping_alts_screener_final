@@ -287,17 +287,12 @@ CARDSCENE_CSS = """
 /* ── Оболочка ───────────────────────────────────────────────
    Карточка занимает весь экран, а не коробку по центру: пейзажу
    нужен горизонт, а в коробке 660 пикселей горизонта нет. */
-/* Закрытая карточка не должна ни рисоваться, ни ловить нажатия.
-   display:none снимает отрисовку, visibility и pointer-events —
-   попадания: на планшете промах по невидимому слою открывал карточку
-   поверх дашборда, потому что слой лежал во весь экран. */
 #obcRoot{position:fixed;inset:0;z-index:60;display:none;
-  visibility:hidden;pointer-events:none;
   align-items:center;justify-content:center;background:#04070B;
   opacity:0;transition:opacity .45s ease;
   font-family:'Helvetica Neue',Inter,system-ui,sans-serif;
   -webkit-font-smoothing:antialiased;color:#E8EEF4}
-#obcRoot.on{display:flex;visibility:visible;pointer-events:auto;opacity:1}
+#obcRoot.on{display:flex;opacity:1}
 #obcRoot *{box-sizing:border-box}
 
 /* ── Листание ───────────────────────────────────────────────
@@ -534,42 +529,6 @@ CARDSCENE_JS = """
 
   var RIDGE_N = 28, HOURS_N = 24;
 
-  /* Часовой ряд бывает пустым, и это не редкость. Плоская линия из
-     подставленных нулей выглядит как показание — «объём весь день
-     ровный», — хотя означает «мы ничего не знаем». Порог в шесть
-     точек взят тот же, что у панели на стене зала (h48HTML), чтобы
-     карточка и панель молчали в одних и тех же случаях. */
-  function hoursOf(c) {
-    var s = (c.h48 || []).map(Number).filter(function (v) {
-      return isFinite(v) && v > 0;
-    });
-    return s.length < 6 ? null : resample(s, HOURS_N);
-  }
-
-  /* Дни от дна. Считаем по сырому ряду цены, а не по выровненному:
-     после resample шаг ряда уже не свой, а наш, и счёт съедет.
-     Возвращаем число шагов от минимума до конца — при дневном ряде
-     это и есть дни. Если минимум последний, ход ещё не начался. */
-  function fromLow(c) {
-    var s = (c.series || []).map(Number).filter(isFinite);
-    if (s.length < 3) return null;
-    var lo = 0;
-    for (var i = 1; i < s.length; i++) if (s[i] < s[lo]) lo = i;
-    return s.length - 1 - lo;
-  }
-
-  /* Часовой ряд бывает пустым, и это не редкость. Плоская линия из
-     подставленных нулей выглядит как показание — «объём весь день
-     ровный», — хотя означает «мы ничего не знаем». Порог в шесть
-     точек взят тот же, что у панели на стене зала (h48HTML), чтобы
-     карточка и панель молчали в одних и тех же случаях. */
-  function hoursOf(c) {
-    var s = (c.h48 || []).map(Number).filter(function (v) {
-      return isFinite(v) && v > 0;
-    });
-    return s.length < 6 ? null : resample(s, HOURS_N);
-  }
-
   /* Дни от дна. Считаем по сырому ряду цены, а не по выровненному:
      после resample шаг ряда уже не свой, а наш, и счёт съедет.
      Возвращаем число шагов от минимума до конца — при дневном ряде
@@ -623,7 +582,7 @@ CARDSCENE_JS = """
          назад, сколько она в нём лежит. */
       entry: Math.max(0, Math.min(1, (RIDGE_N - 1 - days) / (RIDGE_N - 1))),
       cols: cols, foot: foot,
-      hours: hoursOf(c),
+      hours: resample(c.h48, HOURS_N),
       arcs: [['объём к рекорду', rec > 1 && vol > 1 ? Math.min(1, Math.log(vol) / Math.log(rec)) : 0]],
       /* Столб «от дна» говорит, насколько далеко ушли. Это — сколько
          времени ушло. Далеко и быстро против далеко и медленно —
@@ -935,23 +894,15 @@ CARDSCENE_JS = """
   }
 
   /* ── Вода ───────────────────────────────────────────────────── */
-  /* Отражение — самая дорогая часть кадра: по строке drawImage на
-     каждый пиксель высоты воды, триста пятьдесят вызовов за кадр.
-     На слабой машине это и есть тормоз. Шаг увеличиваем вдвое —
-     строки рисуются вдвое толще, на глаз разница в размытой воде не
-     видна, а вызовов вдвое меньше. */
-  const STEP = (navigator.hardwareConcurrency || 4) <= 4 ||
-               matchMedia('(hover: none)').matches ? 2 : 1;
-
   function water(t){
     const hgt = H - WATER;
-    for (let j = 0; j < hgt; j += STEP){
+    for (let j = 0; j < hgt; j++){
       const src = WATER - 1 - j * (WATER/hgt) * .82;
       if (src < 0) break;
       const k = j/hgt;
       const dx = Math.sin(j*.055 + t*.0009) * (2 + k*11) * (.4 + k);
       ctx.globalAlpha = (1 - k) * .62;
-      ctx.drawImage(sky, 0, Math.floor(src), W, 1, dx, WATER + j, W, STEP + .2);
+      ctx.drawImage(sky, 0, Math.floor(src), W, 1, dx, WATER + j, W, 1.2);
     }
     ctx.globalAlpha = 1;
     ctx.fillStyle = 'rgba(200,225,245,.10)';
@@ -962,9 +913,6 @@ CARDSCENE_JS = """
   }
 
   function frame(t){
-    /* Проверка стоит первой, а не в конце: закрытая карточка не должна
-       дорисовать даже один лишний кадр — на планшете он заметен. */
-    if (!live) return;
     const dt = last ? Math.min(64, t - last) : 16; last = t;
 
     if (tp < 1){
@@ -989,7 +937,7 @@ CARDSCENE_JS = """
     ctx.fillRect(0, WATER - .5, W, 1);
     // цикл живёт только пока карточка открыта: за ней стоит зал
     // со своей 3D-сценой, и два кадра одновременно ей дорого
-    requestAnimationFrame(frame);
+    if (live) requestAnimationFrame(frame);
   }
 
   /* ── Подписи ────────────────────────────────────────────────── */
@@ -1044,43 +992,35 @@ CARDSCENE_JS = """
      ════════════════════════════════════════════════════════════ */
   function diagram(d){
     const VW = 1240, VH = 200, base = 152, top = 26, x0 = 300, x1 = 940;
-    /* Ряда за сутки может не быть вовсе, и это не редкость. Плоская
-       линия из подставленных нулей читалась бы как показание — «объём
-       весь день ровный», — хотя означает «мы ничего не знаем». Поэтому
-       при пустом ряде линия и гребёнка не рисуются, а подпись прямо
-       говорит, чего нет. Приборы по краям остаются: они на этот ряд
-       не опираются. */
-    const H = d.hours || [], has = H.length > 1;
-    const px = i => x0 + (x1 - x0) * i / Math.max(1, H.length - 1);
+    const px = i => x0 + (x1 - x0) * i / (d.hours.length - 1);
     const py = v => base - (base - top) * v;
 
-    let hair = '', hn = 0, path = '', lx = x1, ly = base;
+    let hair = '', hn = 0;
     const dly = () => `style="animation-delay:${(.84 + hn++ * .024).toFixed(3)}s"`;
-    if (has) H.forEach((v, i) => {
+    d.hours.forEach((v, i) => {
       hair += `<line ${dly()} x1="${px(i).toFixed(1)}" y1="${py(v).toFixed(1)}"
                x2="${px(i).toFixed(1)}" y2="${base}"/>`;
       // между узлами ещё по два волоска — частая гребёнка читается
       // как заливка светом, редкая как столбики
-      if (i < H.length - 1)
+      if (i < d.hours.length - 1)
         for (let k = 1; k < 3; k++){
           const t = (i + k/3), a = Math.floor(t), f = t - a;
-          const vv = H[a] + (H[a+1] - H[a]) * f;
+          const vv = d.hours[a] + (d.hours[a+1] - d.hours[a]) * f;
           hair += `<line ${dly()} x1="${px(t).toFixed(1)}" y1="${py(vv).toFixed(1)}"
                    x2="${px(t).toFixed(1)}" y2="${base}" stroke-opacity=".45"/>`;
         }
     });
 
-    if (has) {
-      H.forEach((v, i) => {
-        const x = px(i), y = py(v);
-        if (!i) path = `M${x.toFixed(1)},${y.toFixed(1)}`;
-        else {
-          const xp = px(i-1), yp = py(H[i-1]), cx = (xp + x)/2;
-          path += ` C${cx.toFixed(1)},${yp.toFixed(1)} ${cx.toFixed(1)},${y.toFixed(1)} ${x.toFixed(1)},${y.toFixed(1)}`;
-        }
-      });
-      lx = px(H.length-1); ly = py(H[H.length-1]);
-    }
+    let path = '';
+    d.hours.forEach((v, i) => {
+      const x = px(i), y = py(v);
+      if (!i) path = `M${x.toFixed(1)},${y.toFixed(1)}`;
+      else {
+        const xp = px(i-1), yp = py(d.hours[i-1]), cx = (xp + x)/2;
+        path += ` C${cx.toFixed(1)},${yp.toFixed(1)} ${cx.toFixed(1)},${y.toFixed(1)} ${x.toFixed(1)},${y.toFixed(1)}`;
+      }
+    });
+    const lx = px(d.hours.length-1), ly = py(d.hours[d.hours.length-1]);
 
     // Дуга: незамкнутое кольцо, значение — длина штриха. Обод и
     // цифра внутри, подпись под ним, как на приборе.
@@ -1132,13 +1072,12 @@ CARDSCENE_JS = """
       </defs>
       <g class="hair">${hair}</g>
       <line class="rule" x1="60" y1="${base}" x2="1180" y2="${base}"/>
-      ${has ? [0,6,12,18,23].map(i => `<line class="tk" x1="${px(i).toFixed(1)}" y1="${base}"
-          x2="${px(i).toFixed(1)}" y2="${base+7}"/>`).join('') : ''}
-      ${has ? `<path class="ln" d="${path}" filter="url(#gl)"/>
+      ${[0,6,12,18,23].map(i => `<line class="tk" x1="${px(i).toFixed(1)}" y1="${base}"
+          x2="${px(i).toFixed(1)}" y2="${base+7}"/>`).join('')}
+      <path class="ln" d="${path}" filter="url(#gl)"/>
       <circle class="tipdot" cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="3.6"
-              fill="#FFE7BE" filter="url(#gl)"/>` : ''}
-      <text x="${x0}" y="${base+22}" class="cap2" text-anchor="start">${
-        has ? '24 часа · объём' : '24 часа · ряда нет'}</text>
+              fill="#FFE7BE" filter="url(#gl)"/>
+      <text x="${x0}" y="${base+22}" class="cap2" text-anchor="start">24 часа · объём</text>
       <g filter="url(#gl)">${arc(150, d.arcs[0])}${tally(1090, d.lowDays)}</g>
     </svg>`;
   }
@@ -1202,12 +1141,6 @@ CARDSCENE_JS = """
   function close() {
     live = false;                 /* кадр остановится сам на ближайшем тике */
     root.classList.remove('on', 'drawer');
-    /* Холст и разметку чистим: закрытая карточка не держит в памяти
-       последнюю монету и не показывает её на долю секунды при
-       следующем открытии, до первого кадра. */
-    ctx.clearRect(0, 0, W, H);
-    document.getElementById('obcDiag').innerHTML = '';
-    lay.querySelectorAll('.col').forEach(function (e) { e.remove(); });
   }
 
   /* Стрелки листают, esc закрывает — но сначала ящик, если он открыт:

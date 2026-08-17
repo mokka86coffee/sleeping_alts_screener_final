@@ -146,8 +146,12 @@ CARDSCENE_CSS = """
    Живёт в самом низу, где вода темнее всего, поэтому под ней
    лежит собственная подложка — иначе тонкие светящиеся линии
    тонут в отражении столбов. */
-#obcRoot #diag{position:absolute;left:0;right:0;bottom:0;height:15%}
-#obcRoot #diag svg{width:100%;height:100%;display:block}
+/* Полоса приборов стоит над сценой. Раньше она вставала туда сама,
+   потому что селектор писался на #diag, а элемент называется obcDiag,
+   и правило до него не доставало. Положение прижилось, поэтому теперь
+   оно задано намеренно: высота по своей пропорции, ширина по кадру. */
+#obcRoot #obcDiag{position:absolute;left:0;right:0;top:0}
+#obcRoot #obcDiag svg{width:100%;height:auto;display:block}
 #obcRoot .scrim{position:absolute;left:0;right:0;bottom:0;height:26%;
   background:linear-gradient(transparent,rgba(3,7,11,.86) 62%)}
 
@@ -165,17 +169,20 @@ CARDSCENE_CSS = """
 #obcRoot .app{animation:ocAppear 2.5s cubic-bezier(.16,.84,.3,1) both}
 /* Надписям на парусе нужна своя версия появления: общая гасит
    transform в конце и вместе с ним поворот по парусу. */
+/* Столбец проявляется сверху вниз и мягко: резкий въезд спорил бы
+   с водой, где всё держится на затухании. Тикер приходит первым,
+   подпись за ним — тем же порядком, каким их читают. */
 @keyframes ocSail{
-  from{opacity:0;letter-spacing:.32em;filter:blur(7px);
-       transform:rotate(-3deg) translateY(14px)}
-  to  {opacity:1;filter:blur(0);transform:rotate(-3deg) translateY(0)}
+  from{opacity:0;filter:blur(6px);transform:translateY(-12px)}
+  to  {opacity:1;filter:blur(0);transform:translateY(0)}
 }
-#obcRoot .bname.app, #obcRoot .bstr.app{animation:ocSail 2.5s cubic-bezier(.16,.84,.3,1) both}
+#obcRoot .bname.app{animation:ocSail 2.6s cubic-bezier(.16,.84,.3,1) both}
+#obcRoot .bstr.app{animation:ocSail 2.6s .45s cubic-bezier(.16,.84,.3,1) both}
 #obcRoot .cin{position:relative;animation:ocAppear 2.4s cubic-bezier(.16,.84,.3,1) both}
 /* Первая половина перехода: старые подписи уезжают вниз, к воде,
    и тонут вместе со своими столбами. */
-#obcRoot .col, #obcRoot .foot, #obcRoot #diag{transition:opacity 1.35s ease,transform 1.35s ease}
-#obcRoot .lay.out .col, #obcRoot .lay.out .foot, #obcRoot .lay.out #diag{opacity:0;transform:translateY(14px)}
+#obcRoot .col, #obcRoot .foot, #obcRoot #obcDiag{transition:opacity 1.35s ease,transform 1.35s ease}
+#obcRoot .lay.out .col, #obcRoot .lay.out .foot, #obcRoot .lay.out #obcDiag{opacity:0;transform:translateY(14px)}
 
 /* Приборы: линия рисуется слева направо, гребёнка проявляется
    вслед за ней, дуги доезжают до значения, огонёк на конце
@@ -208,25 +215,36 @@ CARDSCENE_CSS = """
 @keyframes ocTilt{from{transform:rotate(-1.5deg)}  to{transform:rotate(1.6deg)}}
 #obcRoot .boat svg{width:100%;height:auto;display:block;overflow:visible}
 
-/* Имя написано крупно и почти в цвет неба, на полтона темнее.
-   Так оно перестаёт спорить со столбами: читается вторым взглядом,
-   как надпись на самом фоне, а не как подпись поверх картинки.
-   Светлая кромка снизу вместо тени — буква получается вдавленной
-   в фон, а не лежащей на нём. */
-#obcRoot .bname{position:absolute;left:4.5%;top:14%;
+/* ── Шапка ──────────────────────────────────────────────────
+   Имя стояло рукописным во весь кадр и занимало его левую
+   половину. На таком кегле почерк перестаёт быть почерком и
+   становится пятном: места много, прочесть нечем.
+
+   Теперь это вертикальный столбец у правого поля — так, как
+   подписывают свиток. Правая сторона кадра пустует, вертикаль
+   рифмуется со столбами света, а к берегу с пагодой и соснами
+   эта форма подписи принадлежит по праву рождения.
+
+   Тикер набирается прямостоящими буквами: он такая же величина,
+   как остальные, и должен читаться сразу. Стратегия остаётся
+   росчерком и идёт вдоль поля, как подпись на полях, — она
+   единственное в кадре, что не измерено, а названо. */
+#obcRoot .bname{position:absolute;right:3.6%;top:22%;
+  writing-mode:vertical-rl;text-orientation:upright;
+  font-size:clamp(11px,1.35vw,20px);font-weight:200;letter-spacing:.34em;
+  color:#E9F1F8;
+  text-shadow:0 2px 10px rgba(0,0,0,.85),0 0 24px rgba(150,195,235,.22)}
+/* Волосок между тикером и стратегией: короткий, гаснущий книзу.
+   Он не разделяет их, а показывает, что подпись идёт следом. */
+#obcRoot .bname::after{content:'';position:absolute;left:50%;top:100%;
+  transform:translateX(-50%);margin-top:16px;
+  width:1px;height:clamp(18px,3vh,38px);
+  background:linear-gradient(rgba(190,215,235,.36),transparent)}
+#obcRoot .bstr{position:absolute;right:3.6%;top:53%;
+  writing-mode:vertical-rl;
   font-family:Caveat,'Segoe Script','Bradley Hand',cursive;
-  font-size:clamp(34px,6.4vw,96px);font-weight:600;letter-spacing:.02em;
-  line-height:.9;color:#11202D;transform:rotate(-3deg);
-  /* мягкая широкая тень отделяет букву от неба, тонкая светлая
-     кромка снизу оставляет её вдавленной, а не наклеенной */
-  text-shadow:0 10px 26px rgba(0,0,0,.8),0 3px 8px rgba(0,0,0,.6),
-    0 1.5px 0 rgba(160,205,240,.13),0 -1px 0 rgba(0,0,0,.55)}
-#obcRoot .bstr{position:absolute;left:5.5%;top:26.5%;
-  font-family:Caveat,'Segoe Script','Bradley Hand',cursive;
-  font-size:clamp(14px,2.1vw,32px);letter-spacing:.03em;
-  color:#162836;transform:rotate(-3deg);
-  text-shadow:0 7px 18px rgba(0,0,0,.75),0 2px 5px rgba(0,0,0,.55),
-    0 1.2px 0 rgba(160,205,240,.11),0 -1px 0 rgba(0,0,0,.5)}
+  font-size:clamp(11px,1.35vw,19px);letter-spacing:.02em;
+  color:#D9A253;text-shadow:0 2px 8px rgba(0,0,0,.85)}
 
 /* Тёплое пятно на воде от фонаря: свет должен куда-то падать. */
 #obcRoot .pool{position:absolute;left:6%;top:66%;width:88%;height:34%;
@@ -330,9 +348,31 @@ CARDSCENE_CSS = """
 
 /* Строка наблюдения — единственная фраза словами в кадре. Стоит
    над приборами, потому что она их вывод, а не подпись к ним. */
-#obcRoot .obc-note{position:absolute;left:8%;right:8%;bottom:22.5%;
-  text-align:center;font-size:clamp(9px,1.05vw,13px);line-height:1.5;
-  color:#94A6B4;text-shadow:0 2px 6px rgba(0,0,0,.9)}
+/* Фраза стояла по центру и попадала ровно под нижний ряд подписей —
+   два разных текста в одной точке, оба нечитаемы. Левая треть кадра
+   пуста, там её ничто не перекрывает. Ширину ограничиваем, чтобы
+   строка не доехала до столбов: пусть лучше ляжет в две строки. */
+#obcRoot .obc-note{position:absolute;left:4.5%;right:auto;max-width:27%;
+  bottom:22.5%;text-align:left;padding-left:2.4em;
+  font-size:clamp(9.5px,1.1vw,13.5px);line-height:1.6;
+  color:#AFC1CF;text-shadow:0 2px 6px rgba(0,0,0,.9)}
+/* Печать. Нижняя строка — это показания приборов: прописные,
+   мелкие, разрядка. Наблюдение — единственная фраза в кадре,
+   написанная человеческим языком, и набирать её тем же способом
+   значит выдать вывод за очередное деление шкалы.
+
+   Знак вместо буквицы взят потому, что фраза начинается с чего
+   угодно: со слова, с числа, со знака умножения. Рукописная
+   заглавная работала бы через раз, а печать стоит всегда одна и
+   та же — и тем помечает не первую букву, а сам жанр записи.
+   Волосок вниз держит абзац на её оси. */
+#obcRoot .obc-note::before{content:'';position:absolute;left:0;top:.15em;
+  width:1.5em;height:1.5em;border-radius:50%;
+  border:1px solid rgba(232,178,90,.55);
+  box-shadow:0 0 14px rgba(232,178,90,.22),inset 0 0 0 .34em rgba(232,178,90,.14)}
+#obcRoot .obc-note::after{content:'';position:absolute;left:.75em;top:2em;
+  width:1px;height:calc(100% - 2.2em);
+  background:linear-gradient(rgba(232,178,90,.3),transparent)}
 #obcRoot .obc-note b{color:#E3E8EF;font-weight:400}
 #obcRoot .obc-note b.up{color:#6FE3B4} #obcRoot .obc-note b.dn{color:#FF8A52}
 #obcRoot .obc-note b.am{color:#F0B85F}
@@ -424,8 +464,8 @@ CARDSCENE_HTML = """
     </svg>
         </div></div></div>
       </div>
-      <div class="bname d3" id="obcName"></div>
-      <div class="bstr d3"  id="obcStr"></div>
+      <div class="bname" id="obcName"></div>
+      <div class="bstr" id="obcStr"></div>
       <div class="scrim"></div>
       <div id="obcDiag"></div>
       <div class="foot" id="obcFoot"></div>
@@ -489,6 +529,54 @@ CARDSCENE_JS = """
 
   var RIDGE_N = 28, HOURS_N = 24;
 
+  /* Часовой ряд бывает пустым, и это не редкость. Плоская линия из
+     подставленных нулей выглядит как показание — «объём весь день
+     ровный», — хотя означает «мы ничего не знаем». Порог в шесть
+     точек взят тот же, что у панели на стене зала (h48HTML), чтобы
+     карточка и панель молчали в одних и тех же случаях. */
+  function hoursOf(c) {
+    var s = (c.h48 || []).map(Number).filter(function (v) {
+      return isFinite(v) && v > 0;
+    });
+    return s.length < 6 ? null : resample(s, HOURS_N);
+  }
+
+  /* Дни от дна. Считаем по сырому ряду цены, а не по выровненному:
+     после resample шаг ряда уже не свой, а наш, и счёт съедет.
+     Возвращаем число шагов от минимума до конца — при дневном ряде
+     это и есть дни. Если минимум последний, ход ещё не начался. */
+  function fromLow(c) {
+    var s = (c.series || []).map(Number).filter(isFinite);
+    if (s.length < 3) return null;
+    var lo = 0;
+    for (var i = 1; i < s.length; i++) if (s[i] < s[lo]) lo = i;
+    return s.length - 1 - lo;
+  }
+
+  /* Часовой ряд бывает пустым, и это не редкость. Плоская линия из
+     подставленных нулей выглядит как показание — «объём весь день
+     ровный», — хотя означает «мы ничего не знаем». Порог в шесть
+     точек взят тот же, что у панели на стене зала (h48HTML), чтобы
+     карточка и панель молчали в одних и тех же случаях. */
+  function hoursOf(c) {
+    var s = (c.h48 || []).map(Number).filter(function (v) {
+      return isFinite(v) && v > 0;
+    });
+    return s.length < 6 ? null : resample(s, HOURS_N);
+  }
+
+  /* Дни от дна. Считаем по сырому ряду цены, а не по выровненному:
+     после resample шаг ряда уже не свой, а наш, и счёт съедет.
+     Возвращаем число шагов от минимума до конца — при дневном ряде
+     это и есть дни. Если минимум последний, ход ещё не начался. */
+  function fromLow(c) {
+    var s = (c.series || []).map(Number).filter(isFinite);
+    if (s.length < 3) return null;
+    var lo = 0;
+    for (var i = 1; i < s.length; i++) if (s[i] < s[lo]) lo = i;
+    return s.length - 1 - lo;
+  }
+
   function adapt(c) {
     var up = num(c.up), drop = num(c.lifeDrop), press = num(c.press);
     var vol = volNow(c), rec = num(c.x) || 0, days = num(c.days) || 0;
@@ -530,9 +618,12 @@ CARDSCENE_JS = """
          назад, сколько она в нём лежит. */
       entry: Math.max(0, Math.min(1, (RIDGE_N - 1 - days) / (RIDGE_N - 1))),
       cols: cols, foot: foot,
-      hours: resample(c.h48, HOURS_N),
-      arcs: [['объём к рекорду', rec > 1 && vol > 1 ? Math.min(1, Math.log(vol) / Math.log(rec)) : 0],
-             ['путь от дна', up === null ? 0 : Math.min(1, up / 300)]],
+      hours: hoursOf(c),
+      arcs: [['объём к рекорду', rec > 1 && vol > 1 ? Math.min(1, Math.log(vol) / Math.log(rec)) : 0]],
+      /* Столб «от дна» говорит, насколько далеко ушли. Это — сколько
+         времени ушло. Далеко и быстро против далеко и медленно —
+         разные монеты, и по одному проценту их не различить. */
+      lowDays: fromLow(c),
       raw: c
     };
   }
@@ -907,7 +998,10 @@ CARDSCENE_JS = """
       el.className = 'col';
       el.style.left = (gm.cx / W * 100) + '%';
       const far = i % 2 === 0;
-      el.style.top    = ((WATER + (far ? 34 : 122)) / H * 100) + '%';
+      /* Ближний ряд поднят на 20: он уходил в самый низ воды, где под
+         ним уже стоит приборная полоса, и пара «давление · объём»
+         читалась впритык к ней. */
+      el.style.top    = ((WATER + (far ? 34 : 102)) / H * 100) + '%';
       el.style.zIndex = far ? 1 : 2;
       const yaw = ((gm.cx - 680) / 240) * 15;
       el.style.transform = `translateX(-50%) perspective(760px)
@@ -934,38 +1028,56 @@ CARDSCENE_JS = """
      ════════════════════════════════════════════════════════════ */
   function diagram(d){
     const VW = 1240, VH = 200, base = 152, top = 26, x0 = 300, x1 = 940;
-    const px = i => x0 + (x1 - x0) * i / (d.hours.length - 1);
+    /* Ряда за сутки может не быть вовсе, и это не редкость. Плоская
+       линия из подставленных нулей читалась бы как показание — «объём
+       весь день ровный», — хотя означает «мы ничего не знаем». Поэтому
+       при пустом ряде линия и гребёнка не рисуются, а подпись прямо
+       говорит, чего нет. Приборы по краям остаются: они на этот ряд
+       не опираются. */
+    const H = d.hours || [], has = H.length > 1;
+    const px = i => x0 + (x1 - x0) * i / Math.max(1, H.length - 1);
     const py = v => base - (base - top) * v;
 
-    let hair = '', hn = 0;
+    let hair = '', hn = 0, path = '', lx = x1, ly = base;
     const dly = () => `style="animation-delay:${(.84 + hn++ * .024).toFixed(3)}s"`;
-    d.hours.forEach((v, i) => {
+    if (has) H.forEach((v, i) => {
       hair += `<line ${dly()} x1="${px(i).toFixed(1)}" y1="${py(v).toFixed(1)}"
                x2="${px(i).toFixed(1)}" y2="${base}"/>`;
       // между узлами ещё по два волоска — частая гребёнка читается
       // как заливка светом, редкая как столбики
-      if (i < d.hours.length - 1)
+      if (i < H.length - 1)
         for (let k = 1; k < 3; k++){
           const t = (i + k/3), a = Math.floor(t), f = t - a;
-          const vv = d.hours[a] + (d.hours[a+1] - d.hours[a]) * f;
+          const vv = H[a] + (H[a+1] - H[a]) * f;
           hair += `<line ${dly()} x1="${px(t).toFixed(1)}" y1="${py(vv).toFixed(1)}"
                    x2="${px(t).toFixed(1)}" y2="${base}" stroke-opacity=".45"/>`;
         }
     });
 
-    let path = '';
-    d.hours.forEach((v, i) => {
-      const x = px(i), y = py(v);
-      if (!i) path = `M${x.toFixed(1)},${y.toFixed(1)}`;
-      else {
-        const xp = px(i-1), yp = py(d.hours[i-1]), cx = (xp + x)/2;
-        path += ` C${cx.toFixed(1)},${yp.toFixed(1)} ${cx.toFixed(1)},${y.toFixed(1)} ${x.toFixed(1)},${y.toFixed(1)}`;
-      }
-    });
-    const lx = px(d.hours.length-1), ly = py(d.hours[d.hours.length-1]);
+    if (has) {
+      H.forEach((v, i) => {
+        const x = px(i), y = py(v);
+        if (!i) path = `M${x.toFixed(1)},${y.toFixed(1)}`;
+        else {
+          const xp = px(i-1), yp = py(H[i-1]), cx = (xp + x)/2;
+          path += ` C${cx.toFixed(1)},${yp.toFixed(1)} ${cx.toFixed(1)},${y.toFixed(1)} ${x.toFixed(1)},${y.toFixed(1)}`;
+        }
+      });
+      lx = px(H.length-1); ly = py(H[H.length-1]);
+    }
 
     // Дуга: незамкнутое кольцо, значение — длина штриха. Обод и
     // цифра внутри, подпись под ним, как на приборе.
+    /* Дни — счёт, а не доля, поэтому дугу заполнения кольцо не несёт:
+       у доли есть предел, у счёта его нет, и любой предел был бы нашей
+       выдумкой. Но обод остаётся — как циферблат без стрелки. Пара
+       приборов по краям держит полосу, а пустой обод честнее ложной
+       шкалы. */
+    const tally = (cx, n) => `<g transform="translate(${cx},${base-46})">
+        <circle r="30" class="ring"/>
+        <text class="num" y="5">${n === null || n === undefined ? '—' : n}<tspan class="pc"> дн</tspan></text>
+        <text class="cap2" y="46">дней от дна</text></g>`;
+
     const arc = (cx, [name, frac]) => {
       const r = 30, c = 2 * Math.PI * r;
       return `<g transform="translate(${cx},${base-46})">
@@ -1004,13 +1116,14 @@ CARDSCENE_JS = """
       </defs>
       <g class="hair">${hair}</g>
       <line class="rule" x1="60" y1="${base}" x2="1180" y2="${base}"/>
-      ${[0,6,12,18,23].map(i => `<line class="tk" x1="${px(i).toFixed(1)}" y1="${base}"
-          x2="${px(i).toFixed(1)}" y2="${base+7}"/>`).join('')}
-      <path class="ln" d="${path}" filter="url(#gl)"/>
+      ${has ? [0,6,12,18,23].map(i => `<line class="tk" x1="${px(i).toFixed(1)}" y1="${base}"
+          x2="${px(i).toFixed(1)}" y2="${base+7}"/>`).join('') : ''}
+      ${has ? `<path class="ln" d="${path}" filter="url(#gl)"/>
       <circle class="tipdot" cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="3.6"
-              fill="#FFE7BE" filter="url(#gl)"/>
-      <text x="${x0}" y="${base+22}" class="cap2" text-anchor="start">24 часа · объём</text>
-      <g filter="url(#gl)">${arc(150, d.arcs[0])}${arc(1090, d.arcs[1])}</g>
+              fill="#FFE7BE" filter="url(#gl)"/>` : ''}
+      <text x="${x0}" y="${base+22}" class="cap2" text-anchor="start">${
+        has ? '24 часа · объём' : '24 часа · ряда нет'}</text>
+      <g filter="url(#gl)">${arc(150, d.arcs[0])}${tally(1090, d.lowDays)}</g>
     </svg>`;
   }
 
