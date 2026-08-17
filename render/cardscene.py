@@ -888,7 +888,7 @@ CARDSCENE_JS = """
   /* ── Подписи ────────────────────────────────────────────────── */
   function labels(d){
     lay.querySelectorAll('.col').forEach(e => e.remove());
-    ['bname','bstr'].forEach((id, k) => {
+    ['obcName','obcStr'].forEach((id, k) => {
       const el = document.getElementById(id), t = [d.tick, d.verdict][k];
       el.textContent = t; el.dataset.t = t;
       el.classList.remove('app'); void el.offsetWidth; el.classList.add('app');
