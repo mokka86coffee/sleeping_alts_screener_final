@@ -353,19 +353,6 @@ def _quiet_days(rec: dict) -> int:
     return max(0, int(delta.total_seconds() // 86400))
 
 
-def _manual_gaps(rec: dict) -> list[str]:
-    """Подписи незаполненных полей, которые считает человек.
-
-    Подписи, а не ключи: список идёт прямо на экран, и `oi_base_m`
-    там читалось бы хуже, чем «база OI». Порядок фиксирован в
-    спецификации, чтобы пробелы у всех монет шли одинаково и глаз к
-    нему привыкал.
-    """
-    from analytics.manual_fields import labels, missing
-
-    return labels(missing(rec))
-
-
 def _hits_by_day(rec: dict, days: int = 7) -> list[int]:
     """Попадания по дням, свежий день последний.
 
@@ -574,11 +561,6 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
             # записи больше ничего не значит — запись живёт, пока
             # события есть, поэтому на экран идёт тишина, а не срок.
             "quiet": _quiet_days(rec),
-
-            # Чего в записи не хватает из того, что код узнать не
-            # может. Не ошибка и не предупреждение: список того, что
-            # заполняется руками с графика.
-            "gaps": _manual_gaps(rec),
 
             # Плотность попаданий по дням: семь чисел, свежий день
             # последний. Отвечает «жива ли монета в эти сутки», в
@@ -842,9 +824,7 @@ def _orbit_journal() -> dict:
     # Условный портфель считается в журнале, здесь только берётся:
     # правило вложения живёт рядом с записями, а не в отрисовке.
     from analytics.leaders import portfolio_stats
-    from analytics.manual_fields import stats as manual_stats
     port = portfolio_stats(j)
-    gaps = manual_stats(j)
 
     def _lbl(sym: str) -> str:
         return sym[:-4] if sym.endswith("USDT") else sym
@@ -861,7 +841,6 @@ def _orbit_journal() -> dict:
         "n": len(recs),
         "fresh": fresh[:3],
         "port": port,
-        "gaps": gaps,
         "best": {"t": _lbl(best_sym),
                  "chg": round(float(best.get("change_pct") or 0.0), 1)},
         "worst": {"t": _lbl(worst_sym),

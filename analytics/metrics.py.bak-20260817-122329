@@ -8,10 +8,11 @@ from analytics.indicators import (
     obv_slope_pct, pct_change, rvol, stoch_rsi, vortex_phase,
     median, volume_ratio,
 )
+from analytics.intraday import big_trades as intraday_big
 from analytics.intraday import scan as intraday_scan
 from core.binance import (
     K_CLOSE, K_HIGH, K_LOW, K_QUOTE_VOLUME, K_VOLUME, K_CLOSE_TIME, K_OPEN_TIME,
-    get_funding_rate, get_open_interest, get_spot_ticker,
+    get_funding_rate, get_oi_history, get_open_interest, get_spot_ticker,
     klines_1d, klines_1h, klines_4h, klines_1w, series,
 )
 from core.config import MIN_HISTORY_DAYS, VOL_MEDIAN_WINDOW, MIN_BAR_FILL, ANOMALY_WINDOW
@@ -242,9 +243,31 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
     # Получасовки сюда пока не приходят: их нет в кэше, а запрос на
     # всю выборку стоит веса. Модуль шкалы не знает и примет любую —
     # добавление второй шкалы см. techdebt-intraday.md, пункт П-3.
-    intraday = intraday_scan(kl_1h, "1h") if kl_1h else {}
+    # Часовые свечи плюс часовой ряд OI. Лестница шкал (2ч, 3ч, 6ч,
+    # 12ч) складывается внутри из этих же часовых агрегацией — сети
+    # на неё не нужно.
+    intraday = intraday_scan(kl_1h, "1h", oi_hourly) if kl_1h else {}
+
+    # Крупные заявки на ДНЕВНОМ масштабе: по ним журнал закрывает
+    # позицию, увидев продажу на пампе. Норма и хвост здесь те же
+    # 168 и 48 баров, но это уже дни, а не часы, — то есть норма за
+    # полгода и метки за полтора месяца. tail отдаётся наружу, чтобы
+    # читатель знал, от какого хвоста отсчитаны позиции, и не
+    # угадывал длину.
+    daily_big = intraday_big(kl_1d) if kl_1d else {}
+    if daily_big:
+        daily_big["tail"] = 48
 
     # ── Деривативы ──
+    # Часовой ряд открытого интереса. Нужен интрадей-слою, чтобы
+    # различать набор и выход: у дельты и цены этого различия нет.
+    # Вес запроса 1, кэш общий с остальными вызовами прогона.
+    oi_hourly = [
+        float(r.get("sumOpenInterest") or 0.0)
+        for r in (get_oi_history(symbol, period="1h", limit=200) or [])
+        if isinstance(r, dict)
+    ]
+
     funding = get_funding_rate(symbol) * 100
     oi = get_open_interest(symbol)
     oi_usd = oi * price if oi > 0 else 0.0
@@ -295,6 +318,7 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
         "fut_vol": fut_vol,
         "history_days": len(closes_1d),
         "intraday": intraday,
+        "daily_big": daily_big,
         # Короткие ряды для спарклайнов, остаются в снимке
         "spark_1d": _thin(closes_1d),
         "spark_vol": _thin(quote_1d),

@@ -25,7 +25,7 @@ import sys
 import time
 
 from analytics.intraday import scan
-from core.binance import get_futures_tickers, klines_1h
+from core.binance import get_futures_tickers, get_oi_history, klines_1h
 
 
 def _pick_symbols(limit: int | None) -> list[str]:
@@ -85,7 +85,13 @@ def main() -> int:
         except Exception as exc:                      # noqa: BLE001
             print(f"  {sym}: {exc}")
             continue
-        s = scan(kl, "1h")
+        try:
+            oi = [float(r.get("sumOpenInterest") or 0.0)
+                  for r in (get_oi_history(sym, period="1h", limit=200) or [])
+                  if isinstance(r, dict)]
+        except Exception:                             # noqa: BLE001
+            oi = []
+        s = scan(kl, "1h", oi)
         if not s:
             continue
         s["symbol"] = sym
@@ -159,6 +165,28 @@ def main() -> int:
     _spread("перевес, доля", [(r.get("balance") or {}).get("share") for r in rows], 3)
     _spread("раздача, М", [(r.get("balance") or {}).get("distrib_m") for r in rows], 1)
     _spread("поглощение, М", [(r.get("balance") or {}).get("absorb_m") for r in rows], 1)
+
+    print("\nЛЕСТНИЦА ШКАЛ (П-8):")
+    best = [(r.get("ladder") or {}).get("best", {}).get("scale") for r in rows]
+    for sc in ("1h", "2h", "3h", "6h", "12h"):
+        n = sum(1 for b in best if b == sc)
+        print(f"  лучшая {sc:4s} {n:3d} из {len(rows)}")
+    print(f"  без лестницы  {sum(1 for b in best if not b):3d} из {len(rows)}")
+
+    print("\nЧТО ПРОИСХОДИТ (связка с OI):")
+    verds = [(r.get("stance") or {}).get("verdict") for r in rows]
+    for name in ("накопление", "выход толпы", "набор шорта", "делеверидж"):
+        print(f"  {name:14s} {sum(1 for v in verds if v == name):3d} из {len(rows)}")
+    print(f"  {'без вердикта':14s} {sum(1 for v in verds if not v):3d} из {len(rows)}")
+    _spread("изм. OI, %", [(r.get("stance") or {}).get("oi_pct") for r in rows], 1)
+
+    print("\nУРОВНИ КРУПНЫХ ПОКУПОК:")
+    kinds = [(r.get("big_levels") or {}).get("kind") for r in rows]
+    print(f"  поддержка {sum(1 for k in kinds if k == 'поддержка'):3d}  "
+          f"навес {sum(1 for k in kinds if k == 'навес'):3d}  "
+          f"нет меток {sum(1 for k in kinds if not k):3d}")
+    _spread("до средней, %", [(r.get("big_levels") or {}).get("vs_price_pct")
+                              for r in rows], 1)
 
     print("\nОСТАЛЬНОЕ:")
     _spread("перевес, п.п.", g("pressure", "delta"), 1)
