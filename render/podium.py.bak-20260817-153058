@@ -1075,34 +1075,7 @@ PODIUM_JS = """
   var zoom = document.getElementById('obpZoom');
   var zbox = document.getElementById('obpZbox');
 
-  /* Фраза наблюдения для сцены: те же два наблюдения, что и в старой
-     сводке, но без обёртки — в пейзаже у неё своё место и свой стиль. */
-  function noteText(c) {
-    var all = notes(c);
-    var day = all.filter(function (n) { return n.span === 'day'; })[0];
-    var wk = all.filter(function (n) { return n.span === 'weeks'; })[0];
-    var parts = [];
-    if (day) parts.push(day.full);
-    if (wk) parts.push(wk.full);
-    return parts.join(' · ');
-  }
-
-  function openZoom(c, zi) {
-    /* Карточка-пейзаж живёт в render/cardscene.py и берёт на себя весь
-       показ. Если модуль не подключён, работает прежняя карточка ниже —
-       это и есть способ сравнить обе, не откатывая правку. */
-    if (window.OBCARD && ZLIST.length) {
-      window.OBCARD.open(ZLIST, zi || 0,
-        function (s) {
-          return { note: noteText(s), body: blocksHTML(s, stratOf(s).c) };
-        },
-        function (t) {
-          pod.classList.remove('on');
-          if (typeof window.obShowStar === 'function') window.obShowStar(t);
-        });
-      return;
-    }
-
+  function openZoom(c) {
     var sc = stratOf(c), col = sc.c, up = Math.round(+c.up || 0);
     zbox.style.setProperty('--c', rgbOf(col));
     zbox.innerHTML =
@@ -1254,11 +1227,6 @@ PODIUM_JS = """
 
   /* ── Сборка ── */
   var PANS = [];
-  /* Порядок, в котором монеты стоят на стене: сверху вниз по ярусам,
-     внутри яруса — по сортировке самого яруса. Стрелки в раскрытой
-     карточке листают именно по нему, поэтому «следующая» означает
-     «соседняя на стене», а не «следующая в журнале». */
-  var ZLIST = [];
   var built = false;
 
   function build() {
@@ -1325,9 +1293,7 @@ PODIUM_JS = """
 
         d.innerHTML = frameHTML(c, sc.c) +
           '<div class="obp-refl">' + frameHTML(c, sc.c) + '</div>';
-        var zi = ZLIST.length;
-        ZLIST.push(c);
-        d.addEventListener('click', function () { openZoom(c, zi); });
+        d.addEventListener('click', function () { openZoom(c); });
         stage.appendChild(d);
         PANS.push({ el: d, a: a });
         shown++;

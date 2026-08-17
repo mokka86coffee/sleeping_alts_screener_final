@@ -22,7 +22,6 @@ from render.flow_report import (case_key, render_flow_report,
 from render.orbit import render_orbit
 from render.brief import render_brief
 from render.podium import render_podium
-from render.cardscene import render_cardscene
 
 # ─────────────────────────────────────────────────────────────
 # Хелперы
@@ -1321,7 +1320,6 @@ def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot) ->
 {_modals(candidates)}
 {render_brief()}
 {render_podium()}
-{render_cardscene()}
 {DASH_JS}"""
 
 
