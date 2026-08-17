@@ -13,13 +13,55 @@ from analytics.intraday import scan as intraday_scan
 from core.binance import (
     K_CLOSE, K_HIGH, K_LOW, K_QUOTE_VOLUME, K_VOLUME, K_CLOSE_TIME, K_OPEN_TIME,
     get_funding_rate, get_oi_history, get_open_interest, get_spot_ticker,
-    klines_1d, klines_1h, klines_4h, klines_1w, series,
+    klines_1d, klines_1h, klines_15m, klines_4h, klines_1w, series,
 )
 from core.config import MIN_HISTORY_DAYS, VOL_MEDIAN_WINDOW, MIN_BAR_FILL, ANOMALY_WINDOW
 
 # Короткие ряды, которые остаются в снимке для отрисовки спарклайнов
 KEEP_SERIES = ("spark_1d", "spark_vol")
 SPARK_POINTS = 24
+
+
+# ── Мелкая шкала: только для монет журнала ──────────────────
+# Что это. Множество символов, за которыми следит журнал лидеров,
+# и время правки файла, по которому оно обновляется.
+#
+# Почему так. Пятнадцатиминутки стоят пять веса на монету; на всей
+# выборке это лишняя тысяча за прогон и риск упереться в лимит биржи
+# ради монет, на которые никто не смотрит. Журнал — ровно тот
+# список, который открывают, и он же невелик.
+#
+# Читается с диска, не по сети. Ключ — время правки, потому что
+# планировщик крутит прогоны в одном процессе: закешированное
+# навсегда множество устарело бы на первом же обновлении журнала.
+_JOURNAL = {"mtime": None, "symbols": frozenset()}
+
+
+def _journal_symbols() -> frozenset:
+    """Символы журнала лидеров. Сети не трогает, ошибки гасит.
+
+    Импорт leaders отложен внутрь функции намеренно: leaders тянет
+    detectors.flow_config, а тот исполняет пакет detectors, который
+    сам ходит в analytics. На уровне модуля это замкнуло бы импорт;
+    внутри вызова — нет.
+
+    Любая ошибка означает «журнала нет», и монета просто останется
+    без мелкой шкалы. Терять из-за этого всю метрику не за что.
+    """
+    try:
+        from core.config import LEADERS_PATH
+        mtime = LEADERS_PATH.stat().st_mtime
+    except OSError:
+        return frozenset()
+
+    if _JOURNAL["mtime"] != mtime:
+        try:
+            from analytics.leaders import tracked_symbols
+            _JOURNAL["symbols"] = frozenset(tracked_symbols())
+            _JOURNAL["mtime"] = mtime
+        except Exception:                              # noqa: BLE001
+            return _JOURNAL["symbols"]
+    return _JOURNAL["symbols"]
 
 
 def fmt_pct(x: float | None, digits: int = 1) -> str:
@@ -275,6 +317,21 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
     # полгода и метки за полтора месяца. tail отдаётся наружу, чтобы
     # читатель знал, от какого хвоста отсчитаны позиции, и не
     # угадывал длину.
+    # Мелкая шкала. Крупная заявка, заметная на пятнадцати минутах, в
+    # часовом баре тонет: сторона берётся по доле тейкер-покупок ВСЕГО
+    # бара, и покупка внутри продавцового часа уходит в нейтраль. Для
+    # монет журнала это ровно тот случай, ради которого слой и нужен —
+    # откуп на проливе внутри идущего движения.
+    #
+    # Ряд OI сюда не передаётся: часовой ряд на мелкой шкале
+    # растянулся бы по четыре бара на точку и дал бы вердикт, которого
+    # не мерили. Связка с OI остаётся часовой.
+    intraday_fine: dict = {}
+    if symbol in _journal_symbols():
+        kl_15m = klines_15m(symbol)
+        if kl_15m:
+            intraday_fine = intraday_scan(kl_15m, "15m")
+
     daily_big = intraday_big(kl_1d) if kl_1d else {}
     if daily_big:
         daily_big["tail"] = 48
@@ -330,6 +387,7 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
         "fut_vol": fut_vol,
         "history_days": len(closes_1d),
         "intraday": intraday,
+        "intraday_fine": intraday_fine,
         "daily_big": daily_big,
         # Короткие ряды для спарклайнов, остаются в снимке
         "spark_1d": _thin(closes_1d),
