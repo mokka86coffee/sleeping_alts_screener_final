@@ -181,26 +181,8 @@ CARDSCENE_CSS = """
 #obcRoot .cin{position:relative;animation:ocAppear 2.4s cubic-bezier(.16,.84,.3,1) both}
 /* Первая половина перехода: старые подписи уезжают вниз, к воде,
    и тонут вместе со своими столбами. */
-/* Уходить должно всё, что написано словами, иначе половина кадра
-   растворяется, а вторая подменяется рывком — это и читается как
-   дефект. Имя, стратегия, фраза и капитализация теперь гаснут вместе
-   с подписями и приборной полосой. */
-#obcRoot .col, #obcRoot .foot, #obcRoot #obcDiag,
-#obcRoot .bname, #obcRoot .bstr, #obcRoot .obc-note, #obcRoot .obc-cap{
-  transition:opacity 1.75s ease,transform 1.75s ease}
-#obcRoot .lay.out .col, #obcRoot .lay.out #obcDiag,
-#obcRoot .lay.out .obc-note{opacity:0;transform:translateY(14px)}
-/* У нижней строки и капитализации есть собственный наклон, и правило
-   ухода его затирало: перспектива слетала в первом же кадре, отчего
-   уход читался рывком, а не уходом. Свой поворот переносим сюда
-   целиком и добавляем сдвиг к нему, а не вместо него. */
-#obcRoot .lay.out .foot{opacity:0;
-  transform:perspective(900px) rotateX(16deg) translateY(14px)}
-#obcRoot .lay.out .obc-cap{opacity:0;
-  transform:perspective(800px) rotateX(12deg) rotateY(9deg) translateY(14px)}
-/* Столбец тикера уходит вверх, откуда и пришёл, — вниз ему некуда:
-   он стоит вертикально и упирается в край кадра. */
-#obcRoot .lay.out .bname, #obcRoot .lay.out .bstr{opacity:0;transform:translateY(-12px)}
+#obcRoot .col, #obcRoot .foot, #obcRoot #obcDiag{transition:opacity 1.35s ease,transform 1.35s ease}
+#obcRoot .lay.out .col, #obcRoot .lay.out .foot, #obcRoot .lay.out #obcDiag{opacity:0;transform:translateY(14px)}
 
 /* Приборы: линия рисуется слева направо, гребёнка проявляется
    вслед за ней, дуги доезжают до значения, огонёк на конце
@@ -224,24 +206,7 @@ CARDSCENE_CSS = """
    не нужен размер — только присутствие. Ватерлиния по-прежнему
    режет корпус, поэтому при смене размера едет и верх блока. */
 #obcRoot .boat{position:absolute;left:17%;top:54%;width:11.5%;pointer-events:none}
-/* ── Парус несёт вортекс ────────────────────────────────────
-   У лодки был парус, который ничего не значил. Теперь он наполнен в
-   ту сторону, куда тянет вортекс, а крен корпуса взят из скорости
-   хода. «Вниз двенадцать баров при 1.3 ATR» видно на воде раньше,
-   чем прочитано хоть одно число, — и мы не добавили в кадр ни одного
-   нового предмета, только объяснили тот, что уже плавал.
-
-   Зеркалим парус относительно мачты: она стоит на x=150, значит
-   отражение это x' = 300 − x. */
-#obcRoot .boat .sail{transform-origin:0 0}
-#obcRoot .boat.wind-l .sail{transform:translateX(300px) scaleX(-1)}
-#obcRoot .boat{transform:rotate(var(--heel,0deg));
-  transform-origin:50% 68%;transition:transform 1.6s ease}
 #obcRoot .boat .drift{animation:ocDrift 26s ease-in-out infinite alternate}
-/* Лодку на переходе не трогаем. Смена длительности у идущей анимации
-   пересчитывает фазу, и качка прыгает — а лодка и так всё время
-   покачивается, этого достаточно. Единственное живое движение в
-   кадре не должно спотыкаться ровно там, где на него смотрят. */
 #obcRoot .boat .bob{animation:ocBob 5.2s ease-in-out infinite alternate}
 #obcRoot .boat .tilt{animation:ocTilt 7.4s ease-in-out infinite alternate;
   transform-origin:50% 90%}
@@ -366,7 +331,7 @@ CARDSCENE_CSS = """
 /* Отражение строится вокруг самой ватерлинии, а не вокруг края
    блока: точка опоры — 66% высоты кадра лодки, там вода. */
 #obcRoot .boat.mir{opacity:.24;filter:blur(1.7px);
-  transform:scaleY(-1) rotate(var(--heel,0deg));transform-origin:50% 66%;
+  transform:scaleY(-1);transform-origin:50% 66%;
   -webkit-mask-image:linear-gradient(transparent 10%,#000 58%);
   mask-image:linear-gradient(transparent 10%,#000 58%)}
 #obcRoot .boat.mir .bob{animation-duration:5.9s}
@@ -514,7 +479,6 @@ CARDSCENE_HTML = """
     <!-- Парус несёт имя, поэтому он и есть главная форма: пять
     реек как на джонке, лёгкий пузырь по ветру, светлая
     кромка по наветренной стороне. -->
-    <g class="sail">
     <path d="M150,18 C214,34 246,74 250,132 L150,146 Z"
     fill="rgba(24,32,42,.92)" stroke="rgba(190,215,235,.30)" stroke-width="1.2"/>
     <g stroke="rgba(190,215,235,.16)" stroke-width="1" fill="none">
@@ -522,7 +486,6 @@ CARDSCENE_HTML = """
     <path d="M150,70 C186,78 204,96 212,122"/>
     <path d="M150,96 C178,102 194,114 202,130"/>
     <path d="M150,122 C170,126 182,132 190,138"/>
-    </g>
     </g>
     <!-- мачта и ванты: без них парус висит в воздухе -->
     <path d="M150,10 L150,164" stroke="#04070A" stroke-width="3.4"/>
@@ -555,7 +518,6 @@ CARDSCENE_HTML = """
     <!-- Парус несёт имя, поэтому он и есть главная форма: пять
     реек как на джонке, лёгкий пузырь по ветру, светлая
     кромка по наветренной стороне. -->
-    <g class="sail">
     <path d="M150,18 C214,34 246,74 250,132 L150,146 Z"
     fill="rgba(24,32,42,.92)" stroke="rgba(190,215,235,.30)" stroke-width="1.2"/>
     <g stroke="rgba(190,215,235,.16)" stroke-width="1" fill="none">
@@ -563,7 +525,6 @@ CARDSCENE_HTML = """
     <path d="M150,70 C186,78 204,96 212,122"/>
     <path d="M150,96 C178,102 194,114 202,130"/>
     <path d="M150,122 C170,126 182,132 190,138"/>
-    </g>
     </g>
     <!-- мачта и ванты: без них парус висит в воздухе -->
     <path d="M150,10 L150,164" stroke="#04070A" stroke-width="3.4"/>
@@ -791,8 +752,7 @@ CARDSCENE_JS = r"""
       (c.vxAgo >= 0 ? ' · ' + c.vxAgo + ' бар' : ' · держится'),
       c.vxDir === 'up' ? '' : 'hot']);
     if (c.speedV) foot.push(['скорость хода', c.speedV + ' ATR/бар', '']);
-    /* «В диапазоне» переехало в левый прибор: в подвале эта величина
-       стояла бы вторым экземпляром той же самой. */
+    if (num(c.rangePos) !== null) foot.push(['в диапазоне', Math.round(c.rangePos) + '% снизу', '']);
     if (c.runsSeen) foot.push(['в лидерах', (c.hitCount || 0) + ' из ' + c.runsSeen, '']);
     if (num(c.volBg) !== null) foot.push(['фон суток', '×' + xf(c.volBg), 'warm']);
 
@@ -804,12 +764,7 @@ CARDSCENE_JS = r"""
       entry: Math.max(0, Math.min(1, (RIDGE_N - 1 - days) / (RIDGE_N - 1))),
       cols: cols, foot: foot,
       hours: hoursOf(c),
-      /* Прибор прежний, величина другая. «Объём к рекорду» повторял
-         высоту столба объёма слово в слово: log(vol)/log(rec) — то же
-         выражение. Положение в диапазоне суток не повторяет ничего,
-         и у него есть настоящий потолок, а кольцу без потолка нельзя. */
-      arcs: [['в диапазоне', num(c.rangePos) === null ? 0
-                             : Math.min(1, Math.max(0, c.rangePos / 100))]],
+      arcs: [['объём к рекорду', rec > 1 && vol > 1 ? Math.min(1, Math.log(vol) / Math.log(rec)) : 0]],
       /* Столб «от дна» говорит, насколько далеко ушли. Это — сколько
          времени ушло. Далеко и быстро против далеко и медленно —
          разные монеты, и по одному проценту их не различить. */
@@ -931,7 +886,7 @@ CARDSCENE_JS = r"""
   /* ════════════════════════════════════════════════════════════
      СИЛУЭТЫ
      ════════════════════════════════════════════════════════════ */
-  function pagoda(g, x, base, hgt, lamp){
+  function pagoda(g, x, base, hgt){
     /* Пагода узнаётся пропорцией и кровлей, а не числом этажей.
        Было три яруса с почти прямыми навесами — выходила башня.
        Стало пять, каждый заметно уже нижнего, и кровля вогнутая:
@@ -985,7 +940,7 @@ CARDSCENE_JS = r"""
 
     /* Свет только на двух нижних ярусах: наверху пагоды жилья нет,
        и ровный ряд огней до самой макушки выдал бы декорацию. */
-    g.fillStyle = 'rgba(255,132,50,' + (.75 * (lamp === undefined ? 1 : lamp)).toFixed(3) + ')';
+    g.fillStyle = 'rgba(255,132,50,.75)';
     for (let i = 0; i < 2; i++){
       const w = hgt * (.52 - i * .068), ww = w * .44;
       const yt = y0 - i * band + hgt * .042;
@@ -1013,9 +968,7 @@ CARDSCENE_JS = r"""
     }
   }
 
-  /* sw — порыв ветра: добавка к углу, накапливающаяся вглубь ветвей,
-     поэтому ствол почти стоит, а концы качаются заметно. */
-  function bonsai(g, x, y, len, ang, wid, depth, r, sw){
+  function bonsai(g, x, y, len, ang, wid, depth, r){
     if (depth === 0 || len < 4) return;
     const x2 = x + Math.cos(ang) * len, y2 = y + Math.sin(ang) * len;
     g.strokeStyle = '#04070A'; g.lineWidth = wid; g.lineCap = 'round';
@@ -1033,7 +986,7 @@ CARDSCENE_JS = r"""
     }
     const br = 2 + (r() > .6 ? 1 : 0);
     for (let i = 0; i < br; i++)
-      bonsai(g, x2, y2, len*(.62 + r()*.16), ang + (r()-.5)*1.5 - .1 + (sw || 0), wid*.6, depth-1, r, sw);
+      bonsai(g, x2, y2, len*(.62 + r()*.16), ang + (r()-.5)*1.5 - .1, wid*.6, depth-1, r);
   }
 
   function rock(g, x, y, w, h, r){
@@ -1111,17 +1064,14 @@ CARDSCENE_JS = r"""
   /* Берег одинаков для всех монет, и это осознанно: пейзаж — это
      рама, монета — свет в ней. Меняющиеся между переходами камни
      читались бы как другое место, а не как другая монета. */
-  function buildFG(sway, lamp){
+  function buildFG(){
     const g = fgL.getContext('2d'), r = mulberry(7);
-    g.clearRect(0, 0, W, WATER);
     rock(g, 690, WATER, 190, 34, r);
     rock(g, 930, WATER, 150, 28, r);
     rock(g, 205, WATER, 120, 26, r);
-    bonsai(g, 700, WATER - 18, 52, -1.5, 6, 4, r, sway || 0);
-    // второе дерево качается слабее и с запозданием: одинаковый
-    // ход у обоих читался бы качанием кадра, а не ветром
-    bonsai(g, 940, WATER - 14, 44, -1.45, 5, 4, r, (sway || 0) * -.7);
-    pagoda(g, 118, WATER - 6, 240, lamp === undefined ? 1 : lamp);
+    bonsai(g, 700, WATER - 18, 52, -1.5, 6, 4, r);
+    bonsai(g, 940, WATER - 14, 44, -1.45, 5, 4, r);
+    pagoda(g, 118, WATER - 6, 240);
   }
 
   /* Гряда перетекает: цены двух монет смешиваются по одной кривой.
@@ -1149,11 +1099,11 @@ CARDSCENE_JS = r"""
   function sinkF(set, p){ return set.map((_, i) =>
     1 - eIn(cl((p - (set.length-1-i) * .07) / .70))); }
 
-  function drawSet(g, set, fs, mul){
+  function drawSet(g, set, fs){
     set.forEach((c, i) => {
       const f = fs[i];
       if (f <= .002) return;
-      g.globalAlpha = Math.min(1, f * 1.5) * (mul === undefined ? 1 : mul);
+      g.globalAlpha = Math.min(1, f * 1.5);
       g.drawImage(c.cv, c.x, WATER - c.h * f, c.w, c.h * f);
     });
     g.globalAlpha = 1;
@@ -1169,12 +1119,6 @@ CARDSCENE_JS = r"""
       if (from !== to && out < 1) drawSet(g, prepare(from), sinkF(prepare(from), out));
       drawSet(g, prepare(to), riseF(prepare(to), inn));
     } else {
-      /* След предыдущей монеты. Столбы у всех монет стоят на одних и
-         тех же местах, поэтому слабая копия старой видна ровно там,
-         где та была ВЫШЕ новой, и нигде больше. Получается не вторая
-         картинка, а разница между двумя — то самое «выше или ниже»,
-         которое иначе приходится держать в памяти при листании. */
-      if (from !== to) drawSet(g, prepare(from), prepare(from).map(() => 1), .13);
       drawSet(g, prepare(to), prepare(to).map(() => 1));
     }
     g.globalCompositeOperation = 'source-over';
@@ -1187,21 +1131,7 @@ CARDSCENE_JS = r"""
     if (tp < 1) return;            // не перебиваем идущий переход
     from = cur; to = k; cur = k; tp = 0; swapped = false; hover = -1;
     lay.querySelectorAll('.col').forEach(el => el.style.opacity = '');
-
-    /* Снимаем класс появления с текстов, которые его носят. Анимация
-       заведена с fill both, то есть после проигрывания она продолжает
-       держать конечные значения прозрачности и сдвига — и правило
-       ухода до элемента просто не доходит. Отсюда и то, что тикер,
-       стратегия, капитализация и нижняя строка висели неподвижно всю
-       первую половину перехода, а потом подменялись рывком: гасли
-       только те, у кого этой анимации нет. */
-    ['obcName', 'obcStr', 'obcCap', 'obcFoot'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.classList.remove('app');
-    });
-
     lay.classList.add('out');
-    root.classList.add('moving');
   }
 
   /* ── Вода ───────────────────────────────────────────────────── */
@@ -1242,20 +1172,9 @@ CARDSCENE_JS = r"""
       const a = CARDS[from].price, b = CARDS[to].price, m = eIO(tp);
       buildBG(a.map((v, i) => v + (b[i] - v) * m),
               CARDS[from].entry + (CARDS[to].entry - CARDS[from].entry) * m);
-
-      /* Берег на переходе не стоит истуканом: по деревьям проходит
-         порыв, а свет в окнах приседает и разгорается обратно. Сильнее
-         всего в середине, где меняются данные, — env как раз и есть
-         половина синусоиды от начала к концу. Пересчёт слоя идёт
-         только пока идёт переход; в покое он печётся один раз. */
-      const env = Math.sin(Math.PI * tp);
-      /* Порыв на треть градуса у концов веток: заметно, что воздух
-         шевельнулся, и не заметно, что кто-то качает деревья. */
-      buildFG(Math.sin(t * .0032) * .018 * env, 1 - .72 * env);
-      if (tp === 1) { buildFG(0, 1); root.classList.remove('moving'); }
       // подписи меняем в момент, когда старые столбы уже утонули,
       // а новые ещё не поднялись: провал в середине перехода
-      if (!swapped && tp >= .42){ swapped = true; applyCard(CARDS[to]); }
+      if (!swapped && tp >= .42){ swapped = true; labels(CARDS[to]); lay.classList.remove('out'); }
       compose();
     }
 
@@ -1466,49 +1385,22 @@ CARDSCENE_JS = r"""
   var pos  = document.getElementById('obcPos');
   var draw = document.getElementById('obcDrawBody');
 
-  /* Подстановка содержимого. Раньше текст, ящик и счётчик менялись в
-     тот же миг, когда начинался переход: старая фраза ещё висела на
-     экране и вдруг становилась новой. Отсюда и ощущение скачка —
-     столбы плавно тонули, а слова подменялись рывком.
-
-     Теперь всё содержимое ставится одним куском в провале посередине,
-     когда старое уже утонуло, а новое ещё не поднялось. */
-  function applyCard(card) {
+  function show(i, animated) {
+    IDX = (i + CARDS.length) % CARDS.length;
+    var card = CARDS[IDX];
     var det = DETAIL ? DETAIL(card.raw) : null;
     note.innerHTML = levels(det && det.note);
     draw.innerHTML = (det && det.body) || '';
     pos.innerHTML = '<b>' + (IDX + 1) + '</b> из ' + CARDS.length;
-    root.classList.toggle('buyers', !!card.buyers);
-
-    /* Крен от скорости хода, сторона — от вортекса. Потолок в шесть
-       градусов: дальше лодка выглядит опрокидывающейся, а не идущей. */
-    var vx = card.raw && card.raw.vxDir, sp = parseFloat(card.raw && card.raw.speedV) || 0;
-    var heel = Math.min(6, 1.4 + sp * 1.7) * (vx === 'down' ? -1 : 1);
-    [document.getElementById('obcBoat'), document.getElementById('obcBoatM')]
-      .forEach(function (b) {
-        b.style.setProperty('--heel', (vx ? heel.toFixed(1) : 0) + 'deg');
-        b.classList.toggle('wind-l', vx === 'down');
-      });
-
-    labels(card);
-    lay.classList.remove('out');
-  }
-
-  function show(i, animated) {
-    IDX = (i + CARDS.length) % CARDS.length;
     root.classList.remove('drawer');
-    if (animated) { go(IDX); return; }
-
-    /* Первый заход из зала. Прежде карточка возникала целиком и сразу,
-       без единого движения, — а потом при первом же листании вдруг
-       оказывалась живой. Теперь вход идёт тем же переходом, только
-       уходить нечему: from и to совпадают, поэтому фаза утопления
-       пропускается сама, и остаётся один подъём из воды. */
-    cur = from = to = IDX; tp = 0; swapped = false;
-    lay.classList.add('out');
-    root.classList.add('moving');
-    buildBG(CARDS[IDX].price, CARDS[IDX].entry);
-    compose();
+    root.classList.toggle('buyers', !!card.buyers);
+    if (animated) go(IDX);
+    else {
+      cur = from = to = IDX; tp = 1;
+      buildBG(card.price, card.entry);
+      compose();
+      labels(card);
+    }
   }
 
   function step(d) { if (tp >= 1) show(IDX + d, true); }
