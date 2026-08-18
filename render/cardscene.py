@@ -130,11 +130,10 @@ CARDSCENE_CSS = """
 /* ── Нижняя строка ──────────────────────────────────────────
    Всё, что не заслужило столба, но нужно на глаз: одна строка
    у нижнего края, набранная тише всего в кадре. */
-#obcRoot .foot{position:absolute;left:3.4%;right:3.4%;bottom:4.4%;
+#obcRoot .foot{position:absolute;left:3.4%;right:3.4%;top:80%;
   display:flex;gap:clamp(14px,2.6vw,42px);flex-wrap:wrap;
   font-size:clamp(6.5px,.76vw,9.5px);letter-spacing:.2em;text-transform:uppercase;
-  color:#7E8F9D;bottom:17.5%;
-  transform:perspective(900px) rotateX(16deg);transform-origin:50% 100%}
+  color:#7E8F9D;transform:perspective(900px) rotateX(16deg);transform-origin:50% 100%}
 #obcRoot .foot b{font-weight:400;letter-spacing:.08em;text-transform:none;
   font-size:1.35em;color:#B9C7D3;margin-left:.7em;
   text-shadow:0 1px 0 rgba(0,0,0,.8),0 0 9px currentColor,0 0 24px currentColor}
@@ -789,6 +788,21 @@ CARDSCENE_JS = r"""
       (c.vxAgo >= 0 ? ' · ' + c.vxAgo + ' бар' : ' · держится'),
       c.vxDir === 'up' ? '' : 'hot']);
     if (c.speedV) foot.push(['скорость хода', c.speedV + ' ATR/бар', '']);
+    if (num(c.floatPct) !== null) foot.push(['выпущено',
+      Math.round(c.floatPct) + '%' +
+      (num(c.fdvRatio) !== null ? ' · FDV ×' + xf(c.fdvRatio) : ''), '']);
+    /* «В диапазоне» переехало в левый прибор: в подвале эта величина
+       стояла бы вторым экземпляром той же самой. */
+    /* Место в текущем прогоне вместо повторяемости. «В лидерах 2 из
+       179» отвечает на вопрос «часто ли всплывает», и он никуда не
+       делся — та же величина стоит в нижнем ящике, в блоке за недели.
+       Здесь полезнее другое: где монета в этом прогоне и с каким
+       score. Монеты журнала вне выборки говорят об этом прямо. */
+    foot.push(['в выборке',
+               c.fpos ? '№' + c.fpos + ' · ' + (num(c.score) || 0) : 'нет',
+               '']);
+    if (num(c.volBg) !== null) foot.push(['фон суток', '×' + xf(c.volBg), 'warm']);
+
     /* Разлок. Единственная величина на карточке, смотрящая ВПЕРЁД.
        Размер печатается в днях оборота, а не в долларах: рынок
        переваривает предложение объёмом торгов, и один и тот же процент
@@ -806,20 +820,6 @@ CARDSCENE_JS = r"""
         (c.unlockIns ? ' · инсайдеры' : '') +
         (c.unlockInferred ? ' · оценка' : ''), ut]);
     }
-    if (num(c.floatPct) !== null) foot.push(['выпущено',
-      Math.round(c.floatPct) + '%' +
-      (num(c.fdvRatio) !== null ? ' · FDV ×' + xf(c.fdvRatio) : ''), '']);
-    /* «В диапазоне» переехало в левый прибор: в подвале эта величина
-       стояла бы вторым экземпляром той же самой. */
-    /* Место в текущем прогоне вместо повторяемости. «В лидерах 2 из
-       179» отвечает на вопрос «часто ли всплывает», и он никуда не
-       делся — та же величина стоит в нижнем ящике, в блоке за недели.
-       Здесь полезнее другое: где монета в этом прогоне и с каким
-       score. Монеты журнала вне выборки говорят об этом прямо. */
-    foot.push(['в выборке',
-               c.fpos ? '№' + c.fpos + ' · ' + (num(c.score) || 0) : 'нет',
-               '']);
-    if (num(c.volBg) !== null) foot.push(['фон суток', '×' + xf(c.volBg), 'warm']);
 
     return {
       tick: c.t, verdict: c.pattern || '', cap: c.cap || '',
