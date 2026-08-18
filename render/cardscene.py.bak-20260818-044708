@@ -737,6 +737,30 @@ CARDSCENE_JS = r"""
     return s.length - 1 - lo;
   }
 
+  /* Часовой ряд бывает пустым, и это не редкость. Плоская линия из
+     подставленных нулей выглядит как показание — «объём весь день
+     ровный», — хотя означает «мы ничего не знаем». Порог в шесть
+     точек взят тот же, что у панели на стене зала (h48HTML), чтобы
+     карточка и панель молчали в одних и тех же случаях. */
+  function hoursOf(c) {
+    var s = (c.h48 || []).map(Number).filter(function (v) {
+      return isFinite(v) && v > 0;
+    });
+    return s.length < 6 ? null : resample(s, HOURS_N);
+  }
+
+  /* Дни от дна. Считаем по сырому ряду цены, а не по выровненному:
+     после resample шаг ряда уже не свой, а наш, и счёт съедет.
+     Возвращаем число шагов от минимума до конца — при дневном ряде
+     это и есть дни. Если минимум последний, ход ещё не начался. */
+  function fromLow(c) {
+    var s = (c.series || []).map(Number).filter(isFinite);
+    if (s.length < 3) return null;
+    var lo = 0;
+    for (var i = 1; i < s.length; i++) if (s[i] < s[lo]) lo = i;
+    return s.length - 1 - lo;
+  }
+
   function adapt(c) {
     var up = num(c.up), drop = num(c.lifeDrop), press = num(c.press);
     var vol = volNow(c), rec = num(c.x) || 0, days = num(c.days) || 0;

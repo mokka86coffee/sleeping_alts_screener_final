@@ -327,31 +327,6 @@ def _star_intraday(raw: dict) -> dict:
         out["speedV"] = float(spd["v"])
         out["speedAtr"] = float(spd.get("atr_move") or 0.0)
 
-    # Что было за последние часы. Мелкая шкала предпочтительнее
-    # часовой: сторона у big_trades берётся по доле тейкер-покупок
-    # ВСЕГО бара, и крупная покупка внутри продавцового часа уходит в
-    # нейтраль — именно тот случай, ради которого слой и заведён.
-    # Пятнадцатиминутки грузятся только для монет журнала, поэтому у
-    # остальных остаётся часовой ответ, и шкала едет рядом с числами:
-    # без неё «две покупки» с разных монет означали бы разное.
-    fine = (raw or {}).get("intraday_fine") or {}
-    src = fine if (fine.get("shake") or {}) else intra
-    shake = src.get("shake") or {}
-    if shake:
-        out["shakeScale"] = str(src.get("scale") or "")
-        out["shakeHours"] = float(shake.get("hours") or 0)
-        out["shakeBuys"] = int(shake.get("buys") or 0)
-        out["shakeSells"] = int(shake.get("sells") or 0)
-        out["shakeMax"] = float(shake.get("max_x") or 0.0)
-        out["shakeMove"] = float(shake.get("move_pct") or 0.0)
-        # Ход в ATR и пробой низа приходят не всегда: у монеты с
-        # нулевым ATR первого нет, у короткого ряда нет второго.
-        # Ноль здесь соврал бы — «цена стояла» вместо «не мерили».
-        if shake.get("move_atr") is not None:
-            out["shakeAtr"] = float(shake["move_atr"])
-        if shake.get("low_break") is not None:
-            out["shakeLow"] = bool(shake["low_break"])
-
     return out
 
 
