@@ -264,38 +264,6 @@ def _star_age_days(rec: dict) -> float | None:
 
 
 
-def _star_unlocks(raw: dict) -> dict:
-    """Разлоки в звезду. Пусто — значит монету не заполняли.
-
-    Ключей нет вовсе, а не нули: пробел на экране должен отличаться от
-    «разлоков нет». Величины отдаются как есть, без вердикта — дни,
-    доли и признак инсайдерского транша, а «опасно» решает человек.
-    """
-    u = (raw or {}).get("unlocks") or {}
-    if not u:
-        return {}
-
-    out: dict = {}
-    pairs = (
-        ("unlockDays", "next_days"), ("unlockDate", "next_date"),
-        ("unlockUsd", "next_usd"), ("unlockDaysVol", "next_days_vol"),
-        ("unlockPct", "next_pct_float"), ("unlockAfter", "next_after_days"),
-        ("unlockInsShare", "next_insider_share"),
-        ("floatPct", "circ_pct"), ("fdvRatio", "fdv_ratio"),
-        ("insNow", "insiders_now"), ("insGrow", "insiders_grow"),
-    )
-    for star_key, src_key in pairs:
-        if u.get(src_key) is not None:
-            out[star_key] = u[src_key]
-    if u.get("next_insider") is not None:
-        out["unlockIns"] = bool(u["next_insider"])
-    if u.get("inferred"):
-        out["unlockInferred"] = True
-    if u.get("next_rounds"):
-        out["unlockRounds"] = list(u["next_rounds"])
-    return out
-
-
 def _star_intraday(raw: dict) -> dict:
     """Интрадей-величины для панели и карточки.
 
@@ -688,7 +656,6 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
             # Из метрик, а не из пейлоада: метрики считаются для всей
             # выборки, пейлоад — только для сработавших.
             **_star_intraday(raw),
-            **_star_unlocks(raw),
             # Место в текущем прогоне. У монеты журнала, выпавшей из
             # выборки, поля нет вовсе — экран тогда скажет «вне
             # выборки», а не нарисует нулевой номер, который выглядел

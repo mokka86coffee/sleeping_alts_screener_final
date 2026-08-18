@@ -9,7 +9,6 @@ from analytics.indicators import (
     median, volume_ratio,
 )
 from analytics.intraday import big_trades as intraday_big
-from analytics.unlocks import for_symbol as unlocks_for
 from analytics.intraday import scan as intraday_scan
 from core.binance import (
     K_CLOSE, K_HIGH, K_LOW, K_QUOTE_VOLUME, K_VOLUME, K_CLOSE_TIME, K_OPEN_TIME,
@@ -333,12 +332,6 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
         if kl_15m:
             intraday_fine = intraday_scan(kl_15m, "15m")
 
-    # Разлоки. Ручные данные, сети не трогают; пустой словарь означает
-    # «монету не заполняли», а не «разлоков нет» — отрисовка обязана
-    # показать пробел. Оборот нужен, чтобы перевести объём разлока в дни
-    # торгов: рынок переваривает предложение объёмом, а не капитализацией.
-    unlocks = unlocks_for(symbol, quote_volume_24h)
-
     daily_big = intraday_big(kl_1d) if kl_1d else {}
     if daily_big:
         daily_big["tail"] = 48
@@ -395,7 +388,6 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
         "history_days": len(closes_1d),
         "intraday": intraday,
         "intraday_fine": intraday_fine,
-        "unlocks": unlocks,
         "daily_big": daily_big,
         # Короткие ряды для спарклайнов, остаются в снимке
         "spark_1d": _thin(closes_1d),
