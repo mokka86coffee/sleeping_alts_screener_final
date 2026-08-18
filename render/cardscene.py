@@ -1343,6 +1343,38 @@ CARDSCENE_JS = r"""
 
   }
 
+
+  var LANTERNS = [
+      {
+        x: 328,
+        y: 58,
+        sp: 110,
+        amp: 0.22,
+        r: 7.6
+      },
+      {
+        x: 368,
+        y: 106,
+        sp: 22,
+        amp: 0.26,
+        r: 8.6
+      },
+      {
+        x: 611,
+        y: 76,
+        sp: 22,
+        amp: 0.26,
+        r: 9
+      },
+      {
+        x: 810,
+        y: 52,
+        sp: 55,
+        amp: 0.28,
+        r: 6.8
+      },
+  ];
+
   function lanterns(t){
     LANTERNS.forEach(L => {
       const x = L.x + Math.sin(t * L.sp * 6) * L.amp;
