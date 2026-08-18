@@ -258,14 +258,6 @@ PODIUM_CSS = """
 .obp-note b{font-weight:600;color:#FFFFFF}
 .obp-note b.up{color:#5FE39C} .obp-note b.dn{color:#FF8A72}
 .obp-note b.am{color:#FFC96B}
-/* Место в текущем прогоне. Стоит в углу рамы и набрано тише тикера:
-   это не имя монеты, а её номер в очереди, и спорить с именем он не
-   должен. Score под номером ещё тише — он объясняет номер, а не
-   существует сам по себе. */
-.obp-rank{position:absolute;right:9px;top:8px;text-align:right;
-  font-size:12px;font-weight:300;letter-spacing:.04em;color:#93A4B3}
-.obp-rank i{display:block;font-style:normal;font-size:8.5px;
-  letter-spacing:.14em;color:#5E6E7C;margin-top:1px}
 .obp-note-q{display:block;margin-top:4px;font-size:10px;letter-spacing:.16em;
   text-transform:uppercase;color:#7C8694}
 
@@ -996,8 +988,6 @@ PODIUM_JS = """
     return '<div class="obp-frame">' +
       '<i class="obp-br tl"></i><i class="obp-br tr"></i>' +
       '<i class="obp-br bl"></i><i class="obp-br brr"></i>' +
-      (c.fpos ? '<div class="obp-rank">' + c.fpos +
-                '<i>' + (c.score || 0) + '</i></div>' : '') +
       '<div class="obp-tick">' + c.t + '</div>' +
       '<div class="obp-state">' + (c.pattern || '—') + '</div>' +
       '<div class="obp-beam"></div>' +

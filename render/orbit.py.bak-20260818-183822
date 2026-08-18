@@ -21,7 +21,7 @@ from core.config import (
 )
 from core.models import Candidate, RunSnapshot
 from render.theme import esc
-from render.flow_report import case_key, CASE_RU, _cap, _data, flow_order
+from render.flow_report import case_key, CASE_RU, _cap, _data
 from analytics.indicators import median
 
 ORBIT_COLORS = {
@@ -505,13 +505,6 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
     lead_sym = lead.symbol.upper() if lead is not None else ""
     by_symbol = {c.symbol.upper(): c for c in candidates}
 
-    # Место монеты в текущем списке FLOW и размер этого списка.
-    # Порядок берём у flow_order — той же функции, которой сортируется
-    # сам отчёт, чтобы номер на карточке и строка в списке не разошлись.
-    order = flow_order(candidates)
-    fpos = {c.symbol.upper(): i + 1 for i, c in enumerate(order)}
-    ftotal = len(order)
-
     out = []
     for i, sym in enumerate(syms):
         if ages[sym] is not None:
@@ -656,13 +649,6 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
             # Из метрик, а не из пейлоада: метрики считаются для всей
             # выборки, пейлоад — только для сработавших.
             **_star_intraday(raw),
-            # Место в текущем прогоне. У монеты журнала, выпавшей из
-            # выборки, поля нет вовсе — экран тогда скажет «вне
-            # выборки», а не нарисует нулевой номер, который выглядел
-            # бы как первое место наоборот.
-            **({"fpos": fpos[sym.upper()], "ftotal": ftotal}
-               if sym.upper() in fpos else {}),
-
             # Числа карточки берём тем же _data(), что кормит карточки
             # отчёта: иначе одна монета показывала бы на орбите и в
             # отчёте разные цифры, и расхождение всплыло бы не сразу.

@@ -8,7 +8,6 @@
     python flow_probe.py              полный прогон, сеть включена
     python flow_probe.py --no-net     без funding и OI, быстрее
     python flow_probe.py --limit 50   первые 50 монет по обороту
-    python flow_probe.py --symbols MYX,ZEC   только эти монеты
     python flow_probe.py --with-tokenized   не отсеивать акции и сырьё
     python flow_probe.py --with-excluded    не отсеивать мажоры
 """
@@ -163,27 +162,10 @@ def _check_cases() -> None:
         print(f"⚠ в CASES есть лишние: {', '.join(extra)} — их нет в диспетчере")
 
 
-def parse_symbols(raw: str) -> set[str]:
-    """Список монет через запятую в набор полных символов.
-
-    Принимаем и «MYX», и «MYXUSDT», и в любом регистре: набирать
-    руками в консоли будут как придётся, а разбираться потом с пустым
-    прогоном из-за нижнего регистра — худший способ потратить час.
-    """
-    out: set[str] = set()
-    for part in raw.split(","):
-        s = part.strip().upper()
-        if not s:
-            continue
-        out.add(s if s.endswith("USDT") else s + "USDT")
-    return out
-
-
 def load_universe(
     limit: int = 0,
     skip_tokenized: bool = True,
     skip_excluded: bool = True,
-    only: set[str] | None = None,
 ) -> list[tuple[str, float]]:
     """Символы с объёмом, отсортированные по убыванию ликвидности.
 
@@ -194,36 +176,23 @@ def load_universe(
 
     Потолок MAX_SYMBOLS тоже общий с боевым: без него проба могла
     бы мерить хвост, до которого скринер не доходит.
-
-    Именной список (only) сильнее всех этих правил. Названная монета
-    проходит мимо отсева мажоров, мимо порога оборота и мимо потолка:
-    прося конкретный символ, человек уже принял решение, что смотреть,
-    и молча получить пустой прогон вместо BTC — не помощь, а ловушка.
-    Проба тем и отличается от боевого прогона, что ей задают вопрос
-    про отдельную монету, в том числе про ту, которой в выборке нет.
     """
     out: list[tuple[str, float]] = []
     for t in get_futures_tickers():
         sym = t.get("symbol", "")
         if not sym.endswith("USDT"):
             continue
-        named = bool(only) and sym in only
-        if not named:
-            if only:
-                continue
-            if skip_excluded and sym[:-4] in EXCLUDE_TOKENS:
-                continue
-            if skip_tokenized and sym in NON_CRYPTO:
-                continue
+        if skip_excluded and sym[:-4] in EXCLUDE_TOKENS:
+            continue
+        if skip_tokenized and sym in NON_CRYPTO:
+            continue
         try:
             qv = float(t.get("quoteVolume", 0))
         except (TypeError, ValueError):
-            qv = 0.0
-        if named or qv >= MIN_QUOTE_VOLUME_24H:
+            continue
+        if qv >= MIN_QUOTE_VOLUME_24H:
             out.append((sym, qv))
     out.sort(key=lambda x: -x[1])
-    if only:
-        return out
     cap = limit or MAX_SYMBOLS
     return out[:cap]
 
@@ -330,33 +299,15 @@ def main() -> None:
             limit = int(sys.argv[sys.argv.index("--limit") + 1])
         except (IndexError, ValueError):
             limit = 0
-    only: set[str] = set()
-    if "--symbols" in sys.argv:
-        try:
-            only = parse_symbols(sys.argv[sys.argv.index("--symbols") + 1])
-        except IndexError:
-            only = set()
 
     _check_cases()
     symbols = load_universe(
         limit, skip_tokenized=skip_tokenized, skip_excluded=skip_excluded,
-        only=only,
     )
     net = "включена" if allow_network else "выключена"
     filt = "как в боевом прогоне" if skip_excluded else "включая мажоры"
     if not skip_tokenized:
         filt += ", с акциями и сырьём"
-    if only:
-        filt = "именной список, отсев и потолок не применяются"
-        # Ненайденное называем вслух. Опечатка в тикере даёт ровно тот
-        # же пустой прогон, что и монета без фьючерса, и без этой
-        # строки они неразличимы.
-        missing = sorted(s for s in only if s not in {x for x, _ in symbols})
-        if missing:
-            print(f"⚠ нет среди фьючерсов: {', '.join(missing)}")
-        if not symbols:
-            print("Прогон пуст: ни одна из названных монет не найдена")
-            return
     print(f"Монет к прогону: {len(symbols)}, сеть для leverage: {net}")
     print(f"Состав выборки: {filt}")
 
@@ -438,10 +389,7 @@ def main() -> None:
                         slots.append([])
                     slots[i].append(v)
 
-            # Названная монета попадает в JSON всегда, как и WATCH:
-            # её и просили ради разбора причины, а не ради строки CSV.
-            if ((d.get("detected") or symbol in WATCH or symbol in only)
-                    and len(deep) < DEEP_DUMP_LIMIT):
+            if (d.get("detected") or symbol in WATCH) and len(deep) < DEEP_DUMP_LIMIT:
                 deep.append(d)
 
         except Exception as exc:

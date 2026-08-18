@@ -461,25 +461,12 @@ def _card(c: Candidate, idx: int) -> str:
 </div>"""
 
 
-def flow_order(candidates: list[Candidate]) -> list[Candidate]:
-    """Монеты FLOW в порядке отчёта: по убыванию score.
-
-    Порядок вынесен из render_flow_report, потому что его спрашивают
-    уже в двух местах — сам список и подпись позиции на карточке. Два
-    независимых sorted разошлись бы при первой правке правила, и номер
-    на карточке перестал бы совпадать со строкой в списке. Такое
-    расхождение не падает и не логируется — его замечают глазами через
-    неделю.
-    """
-    return sorted(
+def render_flow_report(candidates: list[Candidate]) -> str:
+    """Панель отчёта FLOW. Открывается кликом по ленте стратегии."""
+    items = sorted(
         (c for c in candidates if c.flow),
         key=lambda c: -(getattr(c, "score", 0) or 0),
     )
-
-
-def render_flow_report(candidates: list[Candidate]) -> str:
-    """Панель отчёта FLOW. Открывается кликом по ленте стратегии."""
-    items = flow_order(candidates)
     if not items:
         body = '<div class="fr-empty">в этом прогоне flow не сработал</div>'
     else:
