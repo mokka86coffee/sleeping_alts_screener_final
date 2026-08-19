@@ -165,40 +165,14 @@ CARDSCENE_CSS = """
   from{opacity:0;transform:translateY(10px);letter-spacing:.6em;filter:blur(4px)}
   to  {opacity:1;transform:translateY(0);filter:blur(0)}
 }
-#obcRoot .app{animation:ocAppear 2.5s cubic-bezier(.16,.84,.3,1) both}
-
-/* Нижняя строка и капитализация стоят под собственным наклоном, а общая
-   анимация появления задаёт свой transform — и на всё время удержания
-   (fill both) наклон подменяется плоским сдвигом. Элемент приезжает
-   плоским, стоит плоским, а на старте следующего перехода класс
-   снимается, наклон возвращается рывком — и это читается как вторая,
-   лишняя анимация. Даём им свои кадры, где собственный поворот
-   сохранён, а сдвиг добавляется к нему. */
-@keyframes ocFoot{
-  from{opacity:0;letter-spacing:.5em;filter:blur(4px);
-       transform:perspective(900px) rotateX(16deg) translateY(10px)}
-  to  {opacity:1;filter:blur(0);
-       transform:perspective(900px) rotateX(16deg) translateY(0)}
-}
-@keyframes ocCap{
-  from{opacity:0;letter-spacing:.4em;filter:blur(4px);
-       transform:perspective(800px) rotateX(12deg) rotateY(9deg) translateY(10px)}
-  to  {opacity:1;filter:blur(0);
-       transform:perspective(800px) rotateX(12deg) rotateY(9deg) translateY(0)}
-}
-#obcRoot .foot.app{animation:ocFoot 2.5s cubic-bezier(.16,.84,.3,1) both}
-#obcRoot .obc-cap.app{animation:ocCap 2.5s cubic-bezier(.16,.84,.3,1) both}
-/* Надписям на парусе нужна своя версия появления: общая гасит
-   transform в конце и вместе с ним поворот по парусу. */
+/* Класс появления снят со всех: приход и уход текста делает переход.
+   Кадры ocAppear остаются — ими живут подписи столбов, у них своя
+   ступенчатая задержка, и переходом её не выразить. */
 /* Столбец проявляется сверху вниз и мягко: резкий въезд спорил бы
    с водой, где всё держится на затухании. Тикер приходит первым,
    подпись за ним — тем же порядком, каким их читают. */
-@keyframes ocSail{
-  from{opacity:0;filter:blur(6px);transform:translateY(-12px)}
-  to  {opacity:1;filter:blur(0);transform:translateY(0)}
-}
-#obcRoot .bname.app{animation:ocSail 2.6s cubic-bezier(.16,.84,.3,1) both}
-#obcRoot .bstr.app{animation:ocSail 2.6s .45s cubic-bezier(.16,.84,.3,1) both}
+/* Своих кадров у столбца тикера больше нет: он приходит и уходит тем
+   же переходом, что и остальной текст. */
 #obcRoot .cin{position:relative;animation:ocAppear 2.4s cubic-bezier(.16,.84,.3,1) both}
 /* Первая половина перехода: старые подписи уезжают вниз, к воде,
    и тонут вместе со своими столбами. */
@@ -206,22 +180,40 @@ CARDSCENE_CSS = """
    растворяется, а вторая подменяется рывком — это и читается как
    дефект. Имя, стратегия, фраза и капитализация теперь гаснут вместе
    с подписями и приборной полосой. */
+/* Уход и приход — один и тот же переход, в обе стороны. Раньше уход
+   делал переход, а приход — отдельная анимация с fill both, и они
+   спорили за одни и те же свойства: анимация после проигрывания
+   продолжает удерживать конечные значения, поэтому снимать её
+   приходилось руками, а снятие давало рывок. Двух механизмов на одно
+   движение быть не должно — здесь остаётся один.
+
+   Разрядка и размытие переводятся тем же переходом, поэтому эффект
+   схождения букв никуда не делся: он просто перестал быть отдельной
+   сущностью со своей жизнью. */
 #obcRoot .col, #obcRoot .foot, #obcRoot #obcDiag,
 #obcRoot .bname, #obcRoot .bstr, #obcRoot .obc-note, #obcRoot .obc-cap{
-  transition:opacity 1.75s ease,transform 1.75s ease}
+  transition:opacity 1.75s ease, transform 1.75s ease,
+             letter-spacing 1.75s ease, filter 1.75s ease}
 #obcRoot .lay.out .col, #obcRoot .lay.out #obcDiag,
 #obcRoot .lay.out .obc-note{opacity:0;transform:translateY(14px)}
 /* У нижней строки и капитализации есть собственный наклон, и правило
    ухода его затирало: перспектива слетала в первом же кадре, отчего
    уход читался рывком, а не уходом. Свой поворот переносим сюда
    целиком и добавляем сдвиг к нему, а не вместо него. */
-#obcRoot .lay.out .foot{opacity:0;
+#obcRoot .lay.out .foot{opacity:0;letter-spacing:.5em;filter:blur(4px);
   transform:perspective(900px) rotateX(16deg) translateY(14px)}
-#obcRoot .lay.out .obc-cap{opacity:0;
+#obcRoot .lay.out .obc-cap{opacity:0;letter-spacing:.4em;filter:blur(4px);
   transform:perspective(800px) rotateX(12deg) rotateY(9deg) translateY(14px)}
 /* Столбец тикера уходит вверх, откуда и пришёл, — вниз ему некуда:
    он стоит вертикально и упирается в край кадра. */
-#obcRoot .lay.out .bname, #obcRoot .lay.out .bstr{opacity:0;transform:translateY(-12px)}
+#obcRoot .lay.out .bname, #obcRoot .lay.out .bstr{
+  opacity:0;transform:translateY(-12px);filter:blur(5px)}
+#obcRoot .lay.out .bname{letter-spacing:.8em}
+#obcRoot .lay.out .bstr{letter-spacing:.3em}
+/* Подпись приходит следом за тикером, но уходит вместе с ним:
+   задержка нужна только на возвращении. */
+#obcRoot .bstr{transition-delay:.35s}
+#obcRoot .lay.out .bstr{transition-delay:0s}
 
 /* Приборы: линия рисуется слева направо, гребёнка проявляется
    вслед за ней, дуги доезжают до значения, огонёк на конце
@@ -1277,17 +1269,9 @@ CARDSCENE_JS = r"""
     from = cur; to = k; cur = k; tp = 0; swapped = false; hover = -1;
     lay.querySelectorAll('.col').forEach(el => el.style.opacity = '');
 
-    /* Снимаем класс появления с текстов, которые его носят. Анимация
-       заведена с fill both, то есть после проигрывания она продолжает
-       держать конечные значения прозрачности и сдвига — и правило
-       ухода до элемента просто не доходит. Отсюда и то, что тикер,
-       стратегия, капитализация и нижняя строка висели неподвижно всю
-       первую половину перехода, а потом подменялись рывком: гасли
-       только те, у кого этой анимации нет. */
-    ['obcName', 'obcStr', 'obcCap', 'obcFoot'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.classList.remove('app');
-    });
+    /* Класс появления здесь больше не снимается: у текстов его нет.
+       Приход и уход делает один переход, снимать нечего — и именно
+       это снятие раньше давало рывок. */
 
     lay.classList.add('out');
     root.classList.add('moving');
@@ -1343,37 +1327,6 @@ CARDSCENE_JS = r"""
 
   }
 
-
-  var LANTERNS = [
-      {
-        x: 328,
-        y: 58,
-        sp: 110,
-        amp: 0.22,
-        r: 7.6
-      },
-      {
-        x: 368,
-        y: 106,
-        sp: 22,
-        amp: 0.26,
-        r: 8.6
-      },
-      {
-        x: 611,
-        y: 76,
-        sp: 22,
-        amp: 0.26,
-        r: 9
-      },
-      {
-        x: 810,
-        y: 52,
-        sp: 55,
-        amp: 0.28,
-        r: 6.8
-      },
-  ];
 
   function lanterns(t){
     LANTERNS.forEach(L => {
@@ -1454,14 +1407,11 @@ CARDSCENE_JS = r"""
     ['obcName','obcStr'].forEach((id, k) => {
       const el = document.getElementById(id), t = [d.tick, d.verdict][k];
       el.textContent = t; el.dataset.t = t;
-      el.classList.remove('app'); void el.offsetWidth; el.classList.add('app');
     });
     const capEl = document.getElementById('obcCap');
     capEl.textContent = d.cap; capEl.dataset.t = d.cap; capEl.classList.add('d3');
-    capEl.classList.remove('app'); void capEl.offsetWidth; capEl.classList.add('app');
     const ft = document.getElementById('obcFoot');
     ft.innerHTML = d.foot.map(([n,v,c]) => `<span class="${c}">${n}<b>${v}</b></span>`).join('');
-    ft.classList.remove('app'); void ft.offsetWidth; ft.classList.add('app');
     diagram(d);
 
     d.cols.forEach((c, i) => {
