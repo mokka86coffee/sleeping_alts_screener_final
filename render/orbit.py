@@ -278,8 +278,15 @@ def _star_unlocks(raw: dict) -> dict:
     out: dict = {}
     pairs = (
         ("unlockDays", "next_days"), ("unlockDate", "next_date"),
-        ("unlockUsd", "next_usd"), ("unlockDaysVol", "next_days_vol"),
-        ("unlockPct", "next_pct_float"), ("unlockAfter", "next_after_days"),
+        ("unlockUsd", "next_usd"),
+        # Размер транша — в токенах, двумя долями. Дни оборота отсюда
+        # убраны: их знаменатель берётся из ТЕКУЩЕГО объёма, а карточку
+        # смотрят на всплеске, когда объём выше нормы в десятки раз.
+        # Тот же транш на пампе выглядел безобидным ровно тогда, когда
+        # он опаснее всего — в этот всплеск и раздают.
+        ("unlockPctSupply", "next_pct_supply"),
+        ("unlockPctFloat", "next_pct_float"),
+        ("unlockAfter", "next_after_days"),
         ("unlockInsShare", "next_insider_share"),
         ("floatPct", "circ_pct"), ("fdvRatio", "fdv_ratio"),
         ("insNow", "insiders_now"), ("insGrow", "insiders_grow"),

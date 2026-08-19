@@ -84,7 +84,10 @@ CARDSCENE_CSS = """
   font-size:clamp(7px,.82vw,10px);letter-spacing:.32em;text-transform:uppercase;
   color:#E8B25A;transform:perspective(800px) rotateX(12deg) rotateY(-7deg);
   transform-origin:0 100%}
-#obcRoot .cap{position:absolute;right:3.4%;top:5.6%;
+/* Класс переименован: `cap` есть и в глобальных стилях дашборда,
+   оттуда у капитализации бралась пилюля с рамкой, а все здешние
+   правила — переход и уход — до неё не доходили вовсе. */
+#obcRoot .obc-cap{position:absolute;right:3.4%;top:5.6%;
   font-size:clamp(9px,1.1vw,14px);font-weight:300;letter-spacing:.12em;color:#8FA3B4;
   transform:perspective(800px) rotateX(12deg) rotateY(9deg);transform-origin:100% 100%}
 
@@ -141,6 +144,45 @@ CARDSCENE_CSS = """
 #obcRoot .foot .warm b{color:#F0B85F}
 
 /* ── Переключатель монет ────────────────────────────────────── */
+/* ── Значки предложения и инвесторов ────────────────────────
+   Пейзаж отвечает «что происходит», значки — «из чего это следует».
+   Оба признака уже показаны формой: фонарь горит по весу инвесторов,
+   туман стоит по срокам разлока. Но форма даёт впечатление, а не
+   имена и не числа, поэтому рядом нужен способ спросить.
+
+   Раскрытие по наведению и по касанию: на планшете наведения нет, а
+   значок без ответа хуже отсутствующего. */
+#obcRoot .obc-marks{position:absolute;right:3.4%;top:72%;z-index:4;
+  display:flex;gap:14px;pointer-events:auto}
+#obcRoot .obc-mark{position:relative;width:22px;height:22px;cursor:default}
+#obcRoot .obc-mark svg{width:100%;height:100%;fill:none;
+  stroke:rgba(150,175,198,.55);stroke-width:1.3;stroke-linecap:round;
+  transition:stroke .3s ease}
+#obcRoot .obc-mark svg .dot{fill:rgba(255,198,124,.9);stroke:none}
+#obcRoot .obc-mark:hover svg{stroke:rgba(225,238,250,.9)}
+/* Пустой признак гаснет, но не исчезает: «данных нет» — это тоже
+   ответ, и спросить о нём человек должен иметь возможность. */
+#obcRoot .obc-mark.off svg{stroke:rgba(120,140,160,.28)}
+#obcRoot .obc-mark.off svg .dot{fill:rgba(140,155,170,.35)}
+#obcRoot .obc-mark.hot svg{stroke:rgba(255,150,70,.8)}
+#obcRoot .obc-mark.hot svg .dot{fill:rgba(255,170,90,.95)}
+#obcRoot .obc-mark.free svg{stroke:rgba(110,225,175,.75)}
+
+#obcRoot .obc-tip{position:absolute;right:0;bottom:150%;min-width:150px;
+  padding:9px 11px;border-radius:3px;pointer-events:none;
+  background:rgba(8,13,19,.96);border:1px solid rgba(150,190,225,.22);
+  box-shadow:0 12px 32px rgba(0,0,0,.7);
+  font-size:10.5px;line-height:1.55;letter-spacing:.04em;color:#A9BCCB;
+  text-align:left;text-transform:none;
+  opacity:0;transform:translateY(4px);transition:opacity .25s ease,transform .25s ease}
+#obcRoot .obc-mark:hover .obc-tip,#obcRoot .obc-mark.open .obc-tip{
+  opacity:1;transform:translateY(0)}
+#obcRoot .obc-tip b{display:block;color:#E3E9F0;font-weight:400;
+  letter-spacing:.16em;text-transform:uppercase;font-size:8.5px;
+  margin-bottom:5px}
+#obcRoot .obc-tip i{font-style:normal;color:#FF8A52}
+#obcRoot .obc-tip u{text-decoration:none;color:#6FE3B4}
+
 /* ── Приборная полоса ───────────────────────────────────────
    Живёт в самом низу, где вода темнее всего, поэтому под ней
    лежит собственная подложка — иначе тонкие светящиеся линии
@@ -191,11 +233,13 @@ CARDSCENE_CSS = """
    схождения букв никуда не делся: он просто перестал быть отдельной
    сущностью со своей жизнью. */
 #obcRoot .col, #obcRoot .foot, #obcRoot #obcDiag,
-#obcRoot .bname, #obcRoot .bstr, #obcRoot .obc-note, #obcRoot .obc-cap{
+#obcRoot .bname, #obcRoot .bstr, #obcRoot .obc-note, #obcRoot .obc-cap,
+#obcRoot .obc-marks{
   transition:opacity 1.75s ease, transform 1.75s ease,
              letter-spacing 1.75s ease, filter 1.75s ease}
 #obcRoot .lay.out .col, #obcRoot .lay.out #obcDiag,
-#obcRoot .lay.out .obc-note{opacity:0;transform:translateY(14px)}
+#obcRoot .lay.out .obc-note, #obcRoot .lay.out .obc-marks{
+  opacity:0;transform:translateY(14px)}
 /* У нижней строки и капитализации есть собственный наклон, и правило
    ухода его затирало: перспектива слетала в первом же кадре, отчего
    уход читался рывком, а не уходом. Свой поворот переносим сюда
@@ -247,6 +291,24 @@ CARDSCENE_CSS = """
    Зеркалим парус относительно мачты: она стоит на x=150, значит
    отражение это x' = 300 − x. */
 #obcRoot .boat .sail{transform-origin:0 0}
+/* ── Фонарь как признак инвесторов ──────────────────────────
+   Кто стоит за монетой — не показание, а свойство: инвестор не
+   меняется годами и не говорит «покупай». Он говорит, какого размера
+   движение вообще возможно. Отдельного знака под это заводить не
+   нужно — на лодке уже горит фонарь, и «под чьим флагом идёт судно»
+   выражается его силой, а не второй эмблемой рядом.
+
+   Считается не числом имён, а весом: фонд первого тира тянет втрое
+   против третьего. Три безымянных мелких фонда не должны светить
+   ярче, чем один DWF. */
+#obcRoot .boat .lamp{transform-box:fill-box;transform-origin:50% 50%;
+  /* Нижняя граница не ноль и не почти ноль: лодка идёт ночью в любом
+     случае, и потухший фонарь читается поломкой, а не отсутствием
+     инвесторов. Разницу несёт верхняя половина шкалы. */
+  opacity:calc(.62 + var(--inv,0) * .38);
+  transform:scale(calc(.88 + var(--inv,0) * .46));
+  transition:opacity 1.2s ease, transform 1.2s ease}
+#obcRoot .pool{opacity:calc(.55 + var(--inv,0) * .45)}
 #obcRoot .boat.wind-l .sail{transform:translateX(300px) scaleX(-1)}
 #obcRoot .boat{transform:rotate(var(--heel,0deg));
   transform-origin:50% 68%;transition:transform 1.6s ease}
@@ -520,7 +582,7 @@ CARDSCENE_HTML = """
   <div class="scene" id="obcScene">
     <canvas id="obcCv"></canvas>
     <div class="lay" id="obcLay">
-      <div class="cap"  id="obcCap"></div>
+      <div class="obc-cap" id="obcCap"></div>
       <div class="boat" id="obcBoat">
         <div class="drift"><div class="bob"><div class="tilt">
           <svg viewBox="0 0 340 230">
@@ -555,8 +617,11 @@ CARDSCENE_HTML = """
     <rect x="96" y="128" width="56" height="12" fill="rgba(255,150,60,.34)"/>
     <!-- фонарь на носу — единственный тёплый огонь на воде -->
     <path d="M52,104 L52,132" stroke="#04070A" stroke-width="2"/>
+    <g class="lamp">
     <circle cx="52" cy="112" r="5" fill="rgba(255,178,92,.9)"/>
     <circle cx="52" cy="112" r="15" fill="rgba(255,150,60,.14)"/>
+    <circle cx="52" cy="112" r="26" fill="rgba(255,150,60,.10)"/>
+    </g>
     </svg>
         </div></div></div>
         <div class="pool"></div>
@@ -596,8 +661,11 @@ CARDSCENE_HTML = """
     <rect x="96" y="128" width="56" height="12" fill="rgba(255,150,60,.34)"/>
     <!-- фонарь на носу — единственный тёплый огонь на воде -->
     <path d="M52,104 L52,132" stroke="#04070A" stroke-width="2"/>
+    <g class="lamp">
     <circle cx="52" cy="112" r="5" fill="rgba(255,178,92,.9)"/>
     <circle cx="52" cy="112" r="15" fill="rgba(255,150,60,.14)"/>
+    <circle cx="52" cy="112" r="26" fill="rgba(255,150,60,.10)"/>
+    </g>
     </svg>
         </div></div></div>
       </div>
@@ -667,6 +735,24 @@ CARDSCENE_HTML = """
       <div id="obcDiag"></div>
       <div class="foot" id="obcFoot"></div>
       <div class="obc-note" id="obcNote"></div>
+
+      <div class="obc-marks" id="obcMarks">
+        <div class="obc-mark" id="obcMarkInv">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <circle cx="12" cy="12" r="7"/><circle class="dot" cx="12" cy="12" r="2.6"/>
+            <path d="M12 1.5v2.4M12 20.1v2.4M1.5 12h2.4M20.1 12h2.4"/>
+          </svg>
+          <div class="obc-tip"></div>
+        </div>
+        <div class="obc-mark" id="obcMarkSup">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path class="w1" d="M2 9c3-2 6 2 9 0s6-2 11 0"/>
+            <path class="w2" d="M2 14c3-2 6 2 9 0s6-2 11 0"/>
+            <path class="w3" d="M2 19c3-2 6 2 9 0s6-2 11 0"/>
+          </svg>
+          <div class="obc-tip"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -795,23 +881,11 @@ CARDSCENE_JS = r"""
                '']);
     if (num(c.volBg) !== null) foot.push(['фон суток', '×' + xf(c.volBg), 'warm']);
 
-    /* Разлок. Единственная величина на карточке, смотрящая ВПЕРЁД.
-       Размер печатается в днях оборота, а не в долларах: рынок
-       переваривает предложение объёмом торгов, и один и тот же процент
-       капитализации на разной ликвидности значит разное.
-       Тон горячий, когда транш весит больше суток оборота ИЛИ идёт
-       инсайдерам — это не вердикт, а выделение того, что стоит
-       посмотреть. Нет данных — строки нет вовсе: пробел обязан
-       отличаться от «разлоков нет». */
-    if (num(c.unlockDays) !== null) {
-      var uv = num(c.unlockDaysVol);
-      var ut = ((uv !== null && uv >= 1) || c.unlockIns) ? 'hot' : 'warm';
-      foot.push(['разлок',
-        c.unlockDays + ' дн' +
-        (uv !== null ? ' · ' + uv + ' дн оборота' : '') +
-        (c.unlockIns ? ' · инсайдеры' : '') +
-        (c.unlockInferred ? ' · оценка' : ''), ut]);
-    }
+    /* Разлок ушёл из подвала: он теперь показан туманом на воде и
+       раскрывается значком справа. В строке он стоял третьим набором
+       чисел про одно и то же — срок, вес, инсайдеры, — и читался
+       дольше, чем занимал места. */
+
 
     return {
       tick: c.t, verdict: c.pattern || '', cap: c.cap || '',
@@ -831,6 +905,30 @@ CARDSCENE_JS = r"""
          времени ушло. Далеко и быстро против далеко и медленно —
          разные монеты, и по одному проценту их не различить. */
       lowDays: fromLow(c),
+
+      /* До трёх инвесторов: больше на парусе не помещается, а первые
+         три и есть те, кого называют. Тир по умолчанию третий —
+         неизвестный тир не должен выглядеть первым. */
+      inv: (c.investors || []).slice(0, 3).map(function (v) {
+        return { n: v.n || v.name || '', tier: Math.min(3, Math.max(1, +v.tier || 3)) };
+      }),
+
+      /* Разлок: дни до него, вес транша в днях оборота, идёт ли
+         инсайдерам. Нет дней — нет и объекта: пустой разлок не должен
+         превращаться в стену нулевой высоты у самого берега. */
+      floatPct: num(c.floatPct),
+      /* Размер транша — в токенах, двумя долями. Дни оборота сюда не
+         приходят намеренно: их знаменатель берётся из текущего объёма,
+         а карточку смотрят на всплеске, когда объём выше нормы в
+         десятки раз, и тот же транш выглядит безобидным ровно тогда,
+         когда он опаснее всего. */
+      unlock: num(c.unlockDays) === null ? null : {
+        days: num(c.unlockDays),
+        sup: num(c.unlockPctSupply),
+        flo: num(c.unlockPctFloat),
+        ins: !!c.unlockIns,
+        inferred: !!c.unlockInferred,
+      },
       /* Перевес на стороне покупки — единственное условие, при котором
          в кадре появляется живое. */
       buyers: press !== null && press > 0,
@@ -1205,7 +1303,7 @@ CARDSCENE_JS = r"""
      Зерно раскладывается сеяным генератором, поэтому точки стоят
      на месте, пока под ними меняется форма, — иначе гряда мерцала
      бы шумом весь переход. */
-  function buildBG(price, entry){
+  function buildBG(price, entry, unlock, alpha){
     const g = bgL.getContext('2d');
     g.clearRect(0, 0, W, WATER);
     ridge(g, price, entry, mulberry(21));
@@ -1216,7 +1314,93 @@ CARDSCENE_JS = r"""
     g.globalCompositeOperation = 'lighter';
     g.fillStyle = bl; g.fillRect(0, 0, W, WATER);
     g.globalCompositeOperation = 'source-over';
+    /* Туман набирает силу вместе со столбами. Слой гряды строится
+       заново каждый кадр перехода, и без множителя стена возникала бы
+       целиком в первом же кадре — единственный предмет в кадре,
+       появляющийся мгновенно. */
+    if (unlock && (alpha === undefined || alpha > .002)) {
+      g.globalAlpha = alpha === undefined ? 1 : alpha;
+      wall(g, unlock);
+      g.globalAlpha = 1;
+    }
   }
+
+  /* ── Стена разлока ──────────────────────────────────────────
+     Единственное в кадре, что смотрит вперёд. Всё остальное — прошлое
+     и настоящее, поэтому и место у неё отдельное: полоса тумана низко
+     по воде справа, идущая к берегу.
+
+     Расстояние до берега — дни до разлока. Высота — вес транша в днях
+     оборота: рынок переваривает предложение объёмом торгов, и один и
+     тот же процент капитализации на разной ликвидности значит разное.
+     Тёплая кромка по верху — если транш идёт инсайдерам.
+
+     Стена не доходит до столбов никогда: даже завтрашний разлок
+     останавливается правее их. Иначе она читалась бы шестым столбом,
+     а это не измерение. */
+  function wall(g, u){
+    const near = Math.min(1, Math.max(0, (u.days || 0) / 30));
+    const x0 = 935 + near * 265;             // ближе разлок — левее стена
+    /* Высоту несёт доля от ЦИРКУЛЯЦИИ: продаётся то, что уже
+       торгуется, и давление создаёт именно эта часть. Десять процентов
+       обращения — потолок шкалы: выше разница между большим и очень
+       большим решения уже не меняет. */
+    const w = u.flo === null || u.flo === undefined ? 3 : u.flo;
+    const h = 26 + Math.min(1, w / 10) * 64;
+
+    /* Туман — это не фигура с контуром, а множество мягких пятен без
+       краёв. Прежняя версия строила его одним многоугольником, и
+       кромка выдавала треугольник: у тумана кромки нет вовсе, есть
+       сгущение и разрежение.
+
+       Пятна кладутся сеяным генератором, поэтому туман не кипит от
+       кадра к кадру, и гуще к правому краю: плотность падает по мере
+       удаления от источника, то есть влево, к берегу. */
+    const r = mulberry(97);
+    const N = 46;
+    for (let i = 0; i < N; i++){
+      const t = Math.pow(r(), .6);           // гуще справа
+      const x = x0 - 30 + t * (W + 90 - x0);
+      const y = WATER - h * (.15 + r() * .75) + r() * 10;
+      const rx = 40 + r() * 90, ry = rx * (.28 + r() * .22);
+      const dens = Math.min(1, (x - x0 + 60) / 180);   // к берегу редеет
+      const a = (.030 + r() * .045) * Math.max(0, dens);
+      if (a <= .001) continue;
+      const gr = g.createRadialGradient(x, y, 0, x, y, rx);
+      gr.addColorStop(0, 'rgba(176,198,220,' + a.toFixed(3) + ')');
+      gr.addColorStop(.55, 'rgba(160,184,210,' + (a * .45).toFixed(3) + ')');
+      gr.addColorStop(1, 'rgba(150,175,200,0)');
+      g.save();
+      g.translate(x, y); g.scale(1, ry / rx);
+      g.fillStyle = gr;
+      g.beginPath(); g.arc(0, 0, rx, 0, 7); g.fill();
+      g.restore();
+    }
+
+    /* Подошва: у самой воды туман всегда плотнее, потому что там он и
+       рождается. Без неё полоса висит над поверхностью. */
+    const base = g.createLinearGradient(0, WATER - h * .35, 0, WATER + 4);
+    base.addColorStop(0, 'rgba(150,175,200,0)');
+    base.addColorStop(1, 'rgba(140,166,194,.20)');
+    g.fillStyle = base;
+    g.fillRect(x0 - 20, WATER - h * .35, W - x0 + 20, h * .35 + 4);
+
+    if (u.ins){
+      /* Транш идёт инсайдерам — по верхней кромке проходит тёплый
+         отсвет. Не линия: линия вернула бы туману контур. */
+      for (let i = 0; i < 14; i++){
+        const x = x0 + (r() * (W + 40 - x0));
+        const y = WATER - h * (.55 + r() * .35);
+        const rr = 30 + r() * 60;
+        const gr = g.createRadialGradient(x, y, 0, x, y, rr);
+        gr.addColorStop(0, 'rgba(255,150,70,.10)');
+        gr.addColorStop(1, 'rgba(255,150,70,0)');
+        g.fillStyle = gr;
+        g.beginPath(); g.arc(x, y, rr, 0, 7); g.fill();
+      }
+    }
+  }
+
 
   /* Столбы уходят справа налево, а поднимаются слева направо: у
      перехода появляется направление, и он читается как смена, а
@@ -1398,7 +1582,8 @@ CARDSCENE_JS = r"""
       tp = Math.min(1, tp + dt/DUR);
       const a = CARDS[from].price, b = CARDS[to].price, m = eIO(tp);
       buildBG(a.map((v, i) => v + (b[i] - v) * m),
-              CARDS[from].entry + (CARDS[to].entry - CARDS[from].entry) * m);
+              CARDS[from].entry + (CARDS[to].entry - CARDS[from].entry) * m,
+              CARDS[to].unlock, cl((tp - .42) / .58));
 
       /* Берег на переходе не стоит истуканом: по деревьям проходит
          порыв, а свет в окнах приседает и разгорается обратно. Сильнее
@@ -1629,6 +1814,56 @@ CARDSCENE_JS = r"""
 
      Теперь всё содержимое ставится одним куском в провале посередине,
      когда старое уже утонуло, а новое ещё не поднялось. */
+  /* ── Значки ─────────────────────────────────────────────────
+     Три состояния у предложения, и они разные по смыслу, а не по
+     степени: разлок впереди, весь объём уже в обращении, данных нет.
+     Средний случай — не «ноль дней до разлока», а его отсутствие как
+     свойство: давить сверху больше нечему. Красить его тем же цветом,
+     что и близкий разлок, значит спутать угрозу с её отсутствием. */
+  function marks(card) {
+    const mi = document.getElementById('obcMarkInv');
+    const ms = document.getElementById('obcMarkSup');
+    const inv = card.inv || [];
+
+    mi.className = 'obc-mark' + (inv.length ? '' : ' off');
+    mi.querySelector('.obc-tip').innerHTML = inv.length
+      ? '<b>инвесторы</b>' + inv.map(function (v) {
+          return v.n + ' · тир ' + v.tier;
+        }).join('<br>')
+      : '<b>инвесторы</b>не известны';
+
+    const u = card.unlock, fp = card.floatPct;
+    let cls = ' off', tip = '<b>предложение</b>данных нет';
+
+    if (u) {
+      /* Горячо, если транш весит больше пяти процентов обращения ИЛИ
+         идёт инсайдерам. Не вердикт, а выделение того, что стоит
+         посмотреть. */
+      const hot = (u.flo !== null && u.flo >= 5) || u.ins;
+      cls = hot ? ' hot' : '';
+      tip = '<b>предложение</b>разлок через ' +
+            (u.days === 0 ? '<i>сегодня</i>' : '<i>' + u.days + ' дн</i>') +
+            (u.sup !== null ? '<br>' + u.sup + '% всей эмиссии' : '') +
+            (u.flo !== null ? '<br>' + u.flo + '% того, что в обращении' : '') +
+            (u.ins ? '<br><i>идёт инсайдерам</i>' : '') +
+            (u.inferred ? '<br>срок оценочный' : '') +
+            (fp !== null ? '<br>сейчас в обращении ' + Math.round(fp) + '%' : '');
+    } else if (fp !== null && fp >= 99) {
+      /* Весь объём в обращении — состояние, а не пропуск: сверху
+         больше не сыплется, и это единственный случай, когда у
+         предложения хорошие новости. Отсюда и свой цвет. */
+      cls = ' free';
+      tip = '<b>предложение</b><u>весь объём в обращении</u>' +
+            '<br>разлоков впереди нет';
+    } else if (fp !== null) {
+      cls = '';
+      tip = '<b>предложение</b>в обращении ' + Math.round(fp) + '%' +
+            '<br>сроки разлока не известны';
+    }
+    ms.className = 'obc-mark' + cls;
+    ms.querySelector('.obc-tip').innerHTML = tip;
+  }
+
   function applyCard(card) {
     var det = DETAIL ? DETAIL(card.raw) : null;
     note.innerHTML = levels(det && det.note);
@@ -1638,14 +1873,22 @@ CARDSCENE_JS = r"""
 
     /* Крен от скорости хода, сторона — от вортекса. Потолок в шесть
        градусов: дальше лодка выглядит опрокидывающейся, а не идущей. */
+    /* Вес инвесторов: первый тир — три доли, второй — две, третий —
+       одна, потолок в пять долей. Больше пяти уже не различается на
+       глаз, а шкала без потолка однажды пересветит весь кадр. */
+    var inv = (card.inv || []).reduce(function (a, v) { return a + (4 - v.tier); }, 0);
+    var lamp = Math.min(1, inv / 5);
+
     var vx = card.raw && card.raw.vxDir, sp = parseFloat(card.raw && card.raw.speedV) || 0;
     var heel = Math.min(6, 1.4 + sp * 1.7) * (vx === 'down' ? -1 : 1);
     [document.getElementById('obcBoat'), document.getElementById('obcBoatM')]
       .forEach(function (b) {
         b.style.setProperty('--heel', (vx ? heel.toFixed(1) : 0) + 'deg');
+        b.style.setProperty('--inv', lamp.toFixed(3));
         b.classList.toggle('wind-l', vx === 'down');
       });
 
+    marks(card);
     labels(card);
     lay.classList.remove('out');
   }
@@ -1666,7 +1909,9 @@ CARDSCENE_JS = r"""
        столбов встают по colGeom, а его заполняет compose. Вызвав
        applyCard раньше, мы получаем пустой colGeom — и все пять
        подписей садятся в одну точку по запасному значению. */
-    buildBG(CARDS[IDX].price, CARDS[IDX].entry);
+    /* На входе туман тоже начинается с нуля: время уже стоит на точке
+       подмены, и первый же кадр цикла продолжит его проявление. */
+    buildBG(CARDS[IDX].price, CARDS[IDX].entry, CARDS[IDX].unlock, 0);
     compose();
     applyCard(CARDS[IDX]);
   }
@@ -1677,6 +1922,22 @@ CARDSCENE_JS = r"""
   document.getElementById('obcNext').onclick = function () { step(1); };
   document.getElementById('obcMore').onclick = function () { root.classList.toggle('drawer'); };
   document.getElementById('obcDrawX').onclick = function () { root.classList.remove('drawer'); };
+  /* На планшете наведения нет: значок открывается касанием и
+     закрывается касанием мимо. Второе важнее первого — подсказка,
+     которую нечем убрать, закрывает собой кадр. */
+  document.getElementById('obcMarks').addEventListener('click', function (e) {
+    const m = e.target.closest('.obc-mark');
+    [].forEach.call(this.children, function (c) {
+      c.classList.toggle('open', c === m && !c.classList.contains('open'));
+    });
+    e.stopPropagation();
+  });
+  document.getElementById('obcScene').addEventListener('click', function () {
+    [].forEach.call(document.getElementById('obcMarks').children, function (c) {
+      c.classList.remove('open');
+    });
+  });
+
   document.getElementById('obcClose').onclick = close;
 
   /* Экран лидеров отвечает «что происходит», карточка на орбите —
