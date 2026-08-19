@@ -1,0 +1,2 @@
+symbol,detected,score,case,strength,horizon_days,horizon_tf,dormant,hidden,spring,churn,taker,fuel,leverage,zone_price,events,zones,zones_conf,vortex_scale,vortex_dir,vortex_str,collapsing,delta_slope,buy_share,growth_x,peak_age,drop_pct,failures,rejects,error
+PORTALUSDT,1,80,flow_dormant,сильный,25,недели,54.9,0.0,0.0,0.0,0.0,0.0,0.0,0.00926,127,12,7,10,none,0.0,0,0.00147,0.5017,6.81,79,81.4,,flow_hidden=поток не растёт: наклон 0.00147 < 0.01 | flow_leverage=фандинг не отрицательный: 11.0% APR > -5.0% | flow_spring=фон шумный: rel_vol 10.00 > 0.95,
