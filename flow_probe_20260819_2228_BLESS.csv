@@ -1,0 +1,2 @@
+symbol,detected,score,case,strength,horizon_days,horizon_tf,dormant,hidden,spring,churn,taker,fuel,leverage,zone_price,events,zones,zones_conf,vortex_scale,vortex_dir,vortex_str,collapsing,delta_slope,buy_share,growth_x,peak_age,drop_pct,failures,rejects,error
+BLESSUSDT,1,82,flow_fuel,сильный,2,дни,37.5,0.0,0.0,0.0,29.6,50.7,0.0,0.005591000000000001,86,7,2,3,none,0.0,0,0.01213,0.5032,9.27,127,89.6,,flow_hidden=цена растёт: наклон 0.00873 > 0.002 | flow_leverage=цена идёт: -69.9% за 14 баров > 10.0% | flow_spring=диапазон широк: 308.5% > 35%,
