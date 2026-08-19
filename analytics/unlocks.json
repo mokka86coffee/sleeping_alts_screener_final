@@ -13,16 +13,16 @@
       "insiders_final": "доля инсайдеров после всех разлоков — если она растёт, будущие транши идут к ним",
       "events_done": "сколько событий расписания уже прошло",
       "events_total": "сколько всего",
-      "events": "ближайшие события: дата, объём в долларах, доля от предложения и от циркуляции, раунды с признаком инсайдерского"
+      "events": "ближайшие события: дата, объём в долларах, доля от ВСЕЙ эмиссии и от циркуляции, раунды с признаком инсайдерского"
     },
     "rules": [
       "Пустая запись означает НЕТ ДАННЫХ, а не отсутствие разлоков — на экране это пробел, как в manual_fields.",
       "Считаем не дату, а расстояние до неё: LAB обвалилась за пять дней ДО разлока, рынок отрабатывает событие заранее.",
-      "Вердикт не выносим. Печатаем дни, проценты и признак инсайдерского транша — решение за человеком.",
+      "Размер меряем В ТОКЕНАХ — долей от эмиссии и долей от циркуляции. Дни оборота считать нельзя: оборот берётся текущий, а карточку смотрят на всплеске, когда он выше нормы в десятки раз. Тот же транш на пампе выглядит безобидным именно тогда, когда он опаснее всего.",
+      "Вердикт не выносим. Печатаем дни и доли, признак инсайдерского транша — решение за человеком.",
       "DefiLlama помечает часть расписаний как выведенные из графика источника, а не из документов. Такие записи держать с оговоркой inferred: true."
     ]
   },
-
   "PORTALUSDT": {
     "source": "https://defillama.com/unlocks/portal",
     "checked_at": "2026-08-18",
@@ -42,10 +42,114 @@
         "pct_supply": 0.5,
         "pct_float": 0.8,
         "rounds": [
-          {"name": "Ecosystem & Incubation", "usd": 200600, "tokens": "24.68m", "insider": false},
-          {"name": "Strategic Network Participants", "usd": 89499, "tokens": "11.01m", "insider": true},
-          {"name": "Core Contributors", "usd": 80240, "tokens": "9.87m", "insider": true},
-          {"name": "Guardian Nodes", "usd": 39349, "tokens": "4.84m", "insider": false}
+          {
+            "name": "Ecosystem & Incubation",
+            "usd": 200600,
+            "tokens": "24.68m",
+            "insider": false
+          },
+          {
+            "name": "Strategic Network Participants",
+            "usd": 89499,
+            "tokens": "11.01m",
+            "insider": true
+          },
+          {
+            "name": "Core Contributors",
+            "usd": 80240,
+            "tokens": "9.87m",
+            "insider": true
+          },
+          {
+            "name": "Guardian Nodes",
+            "usd": 39349,
+            "tokens": "4.84m",
+            "insider": false
+          }
+        ]
+      }
+    ]
+  },
+  "BLESSUSDT": {
+    "source": "https://dropstab.com/ru/coins/bless/vesting",
+    "checked_at": "2026-08-19",
+    "price": 0.007632,
+    "mcap_usd": 18860000,
+    "circ_pct": 25.61,
+    "fdv_ratio": 4.05,
+    "events_done": 0,
+    "events_total": 11,
+    "events": [
+      {
+        "date": "2026-08-24",
+        "usd": 315428,
+        "pct_supply": 0.41,
+        "pct_float": 1.61,
+        "rounds": [
+          {
+            "name": "Community Incentives",
+            "usd": 315428,
+            "tokens": "41.16m",
+            "insider": false
+          }
+        ]
+      },
+      {
+        "date": "2026-09-24",
+        "usd": 3600000,
+        "pct_supply": 4.7,
+        "pct_float": 18.36,
+        "rounds": [
+          {
+            "name": "Pre-seed",
+            "usd": 673451,
+            "tokens": "87.88m",
+            "insider": true
+          },
+          {
+            "name": "Seed",
+            "usd": 1050000,
+            "tokens": "137.18m",
+            "insider": true
+          },
+          {
+            "name": "Foundation",
+            "usd": 851455,
+            "tokens": "111.11m",
+            "insider": true
+          },
+          {
+            "name": "Team",
+            "usd": 604610,
+            "tokens": "78.90m",
+            "insider": true
+          },
+          {
+            "name": "Ecosystem",
+            "usd": 301031,
+            "tokens": "39.28m",
+            "insider": false
+          },
+          {
+            "name": "Advisors",
+            "usd": 120922,
+            "tokens": "15.78m",
+            "insider": true
+          }
+        ]
+      },
+      {
+        "date": "2026-10-24",
+        "usd": 47893,
+        "pct_supply": 0.06,
+        "pct_float": 0.24,
+        "rounds": [
+          {
+            "name": "Strategic",
+            "usd": 47893,
+            "tokens": "6.25m",
+            "insider": true
+          }
         ]
       }
     ]

@@ -1309,11 +1309,16 @@ transition:border-color .2s ease}
    Материал тот же, что у сводки, вплоть до градиента подложки —
    переход между экранами должен читаться как смена содержимого, а
    не как переход в другое приложение. */
+/* Второе описание зала: правило из render/podium.py идёт позже и
+   перекрывает его, но расходиться они не должны — иначе однажды
+   поменяют одно и будут искать, почему поведение прежнее. */
 .ob-podium{position:fixed;inset:0;z-index:41;display:flex;
   flex-direction:column;align-items:center;justify-content:center;
   background:radial-gradient(1100px 700px at 50% 46%,#0d0b09,#050406 70%);
-  opacity:0;pointer-events:none;transition:opacity .5s ease}
-.ob-podium.on{opacity:1;pointer-events:auto}
+  opacity:0;pointer-events:none;visibility:hidden;
+  transition:opacity .5s ease, visibility 0s linear .5s}
+.ob-podium.on{opacity:1;pointer-events:auto;visibility:visible;
+  transition:opacity .5s ease, visibility 0s}
 .obp-in{width:min(1240px,96vw)}
 .obp-h{font-size:11px;letter-spacing:.58em;text-transform:uppercase;
   color:#6E6656;text-align:center;text-indent:.58em}

@@ -42,11 +42,23 @@ PODIUM_CSS = """
    Третий экран в очереди: сводка → лидеры → дашборд. Подложка та
    же, что у сводки: переход должен читаться как смена содержимого,
    а не как другое приложение. */
+/* Закрытый зал должен исчезать из страницы, а не становиться
+   прозрачным. На узком экране он превращается в прокручиваемый слой
+   во весь экран (см. ветку max-width:900px), а такой слой на
+   планшете продолжает ловить касания даже с pointer-events:none —
+   инерция прокрутки живёт своей жизнью и съедает первые нажатия.
+   Отсюда и мёртвый блок FLOW на дашборде после закрытия.
+
+   visibility снимает попадания надёжно и для прокрутки тоже, но
+   гасить её надо ПОСЛЕ затухания: с нулевой задержкой зал пропадал
+   бы мгновенно, без перехода. */
 .ob-podium{position:fixed;inset:0;z-index:41;overflow:hidden;
   background:radial-gradient(1100px 700px at 50% -5%,#0d0b09,#050406 70%);
-  opacity:0;pointer-events:none;transition:opacity .5s ease;
+  opacity:0;pointer-events:none;visibility:hidden;
+  transition:opacity .5s ease, visibility 0s linear .5s;
   cursor:grab;perspective:1200px;perspective-origin:50% 46%}
-.ob-podium.on{opacity:1;pointer-events:auto}
+.ob-podium.on{opacity:1;pointer-events:auto;visibility:visible;
+  transition:opacity .5s ease, visibility 0s}
 .ob-podium.obp-drag{cursor:grabbing}
 
 /* Купол: свет по краю, звёзды к центру. Он и сообщает, что мы
@@ -1639,6 +1651,10 @@ PODIUM_JS = """
   function hide() {
     closeZoom();
     pod.classList.remove('on');
+    /* Прокрутку возвращаем в начало: на узком экране зал прокручивается,
+       и его остановленная инерция — вторая причина, по которой первые
+       касания после закрытия уходили в никуда. */
+    pod.scrollTop = 0;
   }
 
   /* Подсказка по способу ввода. Тип указателя здесь как раз к месту:
