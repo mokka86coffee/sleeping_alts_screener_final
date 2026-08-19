@@ -30,6 +30,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from analytics.leaders import update_leaders
+from analytics import pulse
 from analytics.candidate import build_candidate
 from core.binance import get_futures_tickers
 from core.config import (
@@ -605,6 +606,16 @@ def run_once(args: argparse.Namespace) -> int:
     flow_leaders_path, anomaly_path = update_leaders(candidates, snapshot)
     log(f"→ Лидер FLOW: {flow_leaders_path}")
     log(f"→ Аномальные объёмы: {anomaly_path}")
+
+    # Пульс: показания всей выборки за последние двое суток. Рядом с
+    # журналом и по той же причине — здесь у кандидатов уже посчитаны
+    # метрики, сеть не нужна, а публикация ещё впереди.
+    #
+    # Пишется по ВСЕЙ выборке, а не по лидерам: монета попадает в журнал
+    # ровно в тот момент, когда её карточку смотрят впервые, и без
+    # предыстории эта карточка окажется без единой дельты — то есть без
+    # ответа на вопрос, ради которого её открыли.
+    log(f"→ Пульс: {pulse.record(candidates)}")
 
     # ── Отчёт ──
     published = False
