@@ -988,6 +988,52 @@ PODIUM_JS = """
         (c.rallies || c.heldRallies));
     }
 
+    /* Состояние плеча — готовая метка analytics_momentum.oi_state(),
+       а не свой порог: то же слово, что уже показывает карточка.
+       held — самое настороженное (GPS перед обвалом стоял здесь,
+       cycles=0 — цикл ни разу не закрывался), repeat — уже сдувался
+       в этом окне (BLESS), cleared показывать не нужно — это
+       позитивное состояние, не наблюдение-предупреждение. */
+    if (c.oiState === 'held' || c.oiState === 'repeat') {
+      var oiW = (c.oiRise - 1) + c.oiHeld / 100;
+      add(oiW, 'day',
+        'плечо ×' + xfmtRaw(c.oiRise) + (c.oiState === 'held' ? ', не проверено' : ', уже сдувалось'),
+        'плечо выросло <b class="' + (c.oiState === 'held' ? 'dn' : 'am') + '">×' +
+        xfmtRaw(c.oiRise) + '</b> и держит ' + Math.round(c.oiHeld) + '%' +
+        (c.oiState === 'held' ? ' — этот цикл ещё ни разу не закрывался'
+          : ', цикл ' + ((c.oiCycles || 0) + 1)));
+    }
+
+    /* Флаг диспетчера: победивший подкейс сам себя пометил поздним
+       (flow_fuel, growth_load) — фигура собралась, но описывает уже
+       состоявшееся движение. Вес фиксированный и высокий: это не
+       наблюдение о рынке, а предупреждение о самом сигнале. */
+    if (c.late) {
+      add(2, 'day', 'фигура уже отыграна',
+        'фигура <b class="dn">уже отыграна</b> — движение состоялось ' +
+        'раньше входа');
+    }
+
+    /* Ход уже отдан, независимо от гейта выбытия из журнала (Ч-11):
+       cycle_done() не поймает giveback ниже вершины ×10, а карточка
+       уже предупреждает об этом отдельной строкой. */
+    if (num(c.cycleGivenPct) !== undefined && c.cycleGivenPct) {
+      add(c.cycleGivenPct / 40, 'weeks',
+        'отдано ' + Math.round(c.cycleGivenPct) + '% хода',
+        'от вершины ×' + xfmtRaw(c.cyclePeakX) + ' отдано <b class="dn">' +
+        Math.round(c.cycleGivenPct) + '%</b> хода');
+    }
+
+    /* Дивергенция цены и OBV: второй пик цены не ниже первого, поток
+       слабее — тот же вопрос, что показал Klinger Oscillator на
+       BLESS, только на уже посчитанном OBV. */
+    if (num(c.divShare) !== undefined && c.divShare) {
+      add(1.5 + c.divShare, 'day',
+        'поток слабее на повторном пике',
+        'цена ' + (c.divPricePct >= 0 ? '+' : '') + c.divPricePct.toFixed(1) +
+        '% ко второму пику, а поток <b class="dn">слабее</b> первого');
+    }
+
     out.sort(function (a, b) { return b.w - a.w; });
     return out;
   }
@@ -1282,7 +1328,15 @@ PODIUM_JS = """
       cell('вершина хода', c.peakX ? '×' + c.peakX : null) +
       cell('отскоки', c.rallies ? (c.heldRallies || 0) + ' из ' + c.rallies : null) +
       cell('в лидерах', c.runsSeen ? (c.hitCount || 0) + ' из ' + c.runsSeen : null) +
-      cell('в журнале', (+c.days || 0) + 'д · тишина ' + (+c.quiet || 0));
+      cell('в журнале', (+c.days || 0) + 'д · тишина ' + (+c.quiet || 0)) +
+      cell('плечо', c.oiState
+        ? '×' + xfmt(c.oiRise) + ' · ' + Math.round(c.oiHeld || 0) + '%' +
+          (c.oiState === 'cleared' ? ' · разгружено'
+            : c.oiState === 'repeat' ? ' · цикл ' + ((c.oiCycles || 0) + 1)
+            : ' · не проверено')
+        : null, c.oiState === 'held' ? 'dn' : null) +
+      cell('ход', num(c.cycleGivenPct) !== undefined && c.cycleGivenPct
+        ? 'отдано ' + Math.round(c.cycleGivenPct) + '%' : null, 'dn');
 
     var today =
       cell('объём сейчас', xfmt(volNow(c))) +

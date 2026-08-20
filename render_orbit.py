@@ -23,7 +23,9 @@ from core_models import Candidate, RunSnapshot
 from render_theme import esc
 from render_flow_report import case_key, CASE_RU, _cap, _data, flow_order
 from analytics_indicators import median
-from analytics_momentum import star_oi, star_late, star_pulse, star_cycle
+from analytics_momentum import (
+    star_oi, star_late, star_pulse, star_cycle, star_divergence,
+)
 
 ORBIT_COLORS = {
     "surge":  "var(--am)",
@@ -374,6 +376,42 @@ def _star_intraday(raw: dict) -> dict:
         out["speedV"] = float(spd["v"])
         out["speedAtr"] = float(spd.get("atr_move") or 0.0)
 
+    # Вердикт цена+дельта+OI вместе — то, чем разбирались все кейсы
+    # вручную (GPS/PORTAL/ONG/BLESS). Пусто по построению, если OI не
+    # передан или тройка не сложилась ни в один из четырёх случаев —
+    # это честное «нечего сказать», а не пропуск.
+    st = intra.get("stance") or {}
+    if st.get("verdict"):
+        out["stanceVerdict"] = str(st["verdict"])
+        out["stancePricePct"] = float(st.get("price_pct") or 0.0)
+        out["stanceOiPct"] = float(st.get("oi_pct") or 0.0)
+
+    # Упругость: та же продажа двигает цену слабее или сильнее, чем в
+    # прошлый раз. Меньше единицы — сопротивление растёт (та же
+    # продажа даёт меньший сдвиг), больше — стакан истончается.
+    imp = intra.get("impact") or {}
+    if imp.get("ratio") is not None:
+        out["impactRatio"] = float(imp["ratio"])
+
+    # Раздача/поглощение по всему окну, без OI (в отличие от stance):
+    # цена и дельта разошлись — кто-то стоял против агрессии. Раздача
+    # — покупали агрессивно, а цена всё равно ушла вниз (приняли
+    # пассивные шорты). Поглощение — обратное, бычий знак.
+    bal = intra.get("balance") or {}
+    if bal.get("window"):
+        out["balanceWindow"] = str(bal["window"])
+        if bal.get("share") is not None:
+            out["balanceShare"] = float(bal["share"])
+
+    # Средняя цена крупных покупок против текущей: опора снизу или
+    # навес сверху. Опора — крупный покупатель в плюсе, не спешит.
+    # Навес — он в минусе и ждёт безубытка, то есть сам является
+    # будущим предложением.
+    lv = intra.get("big_levels") or {}
+    if lv.get("kind"):
+        out["bigLevelKind"] = str(lv["kind"])
+        out["bigLevelPct"] = float(lv.get("vs_price_pct") or 0.0)
+
     # Последние часы против суток. Мелкая шкала предпочтительнее
     # часовой: на пятнадцати минутах крупная сделка меньше тонет в
     # среднем размере бара. Пятнадцатиминутки грузятся только для
@@ -708,6 +746,7 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
             **star_late(c),
             **star_pulse(sym),
             **star_cycle(rec.get("max_up_x"), rec.get("up_x")),
+            **star_divergence(c),
             # Место в текущем прогоне. У монеты журнала, выпавшей из
             # выборки, поля нет вовсе — экран тогда скажет «вне
             # выборки», а не нарисует нулевой номер, который выглядел
