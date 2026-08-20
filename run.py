@@ -29,20 +29,20 @@ import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from analytics.leaders import update_leaders
-from analytics import pulse
-from analytics.candidate import build_candidate
-from core.binance import get_futures_tickers
-from core.config import (
+from analytics_leaders import update_leaders
+# import pulse
+from analytics_candidate import build_candidate
+from core_binance import get_futures_tickers
+from core_config import (
     EXCLUDE_TOKENS, MAX_SYMBOLS, MAX_WORKERS,
     MIN_QUOTE_VOLUME_24H, RVOL_WARM, STABLECOINS,
     LOOP_INTERVAL_SEC, REPORT_PATH, BASE_DIR, GIT_ADD_ALL_CHANGED,
     GIT_TIMEOUT_SEC, COMMIT_MSG,
 )
-from analytics.leaders import tracked_symbols
-from core.http import log
-from core.models import Candidate, FunnelStage, RunSnapshot
-from sources.storage import compare_with_previous, save_snapshot, write_atomic
+from analytics_leaders import tracked_symbols
+from core_http import log
+from core_models import Candidate, FunnelStage, RunSnapshot
+from sources_storage import compare_with_previous, save_snapshot, write_atomic
 
 # ─────────────────────────────────────────────────────────────
 # Отбор символов
@@ -408,7 +408,7 @@ def build_snapshot(
 def render_report(candidates: list[Candidate], snapshot: RunSnapshot) -> bool:
     """Генерирует HTML в корень проекта. Отсутствие рендера не роняет прогон."""
     try:
-        from render.page import build_page
+        from render_page import build_page
     except ImportError as e:
         log(f"Рендер недоступен, отчёт не собран: {e}")
         return False
@@ -615,7 +615,7 @@ def run_once(args: argparse.Namespace) -> int:
     # ровно в тот момент, когда её карточку смотрят впервые, и без
     # предыстории эта карточка окажется без единой дельты — то есть без
     # ответа на вопрос, ради которого её открыли.
-    log(f"→ Пульс: {pulse.record(candidates)}")
+    #     log(f"→ Пульс: {pulse.record(candidates)}")
 
     # ── Отчёт ──
     published = False

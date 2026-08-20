@@ -24,8 +24,8 @@ import json
 import sys
 import time
 
-from analytics.intraday import scan
-from core.binance import get_futures_tickers, get_oi_history, klines_1h
+from analytics_intraday import scan
+from core_binance import get_futures_tickers, get_oi_history, klines_1h
 
 
 def _pick_symbols(limit: int | None) -> list[str]:

@@ -26,22 +26,22 @@ import time
 import traceback
 from datetime import datetime, timezone
 
-from core.binance import (
+from core_binance import (
     K_CLOSE, K_CLOSE_TIME, K_HIGH, K_LOW, K_OPEN, K_OPEN_TIME,
     K_QUOTE_VOLUME, K_TAKER_BUY_QUOTE, K_TRADES, K_VOLUME,
     get_funding_history, get_funding_rate, get_futures_tickers,
     get_oi_history, get_open_interest, get_spot_ticker,
     klines_1d, klines_1h, klines_1w, klines_4h,
 )
-from detectors.flow_core import build_context
-from detectors.flow_signal import veto_bullish, veto_common
+from detectors_flow_core import build_context
+from detectors_flow_signal import veto_bullish, veto_common
 
-import detectors.flow_churn as flow_churn
-import detectors.flow_fuel as flow_fuel
-import detectors.flow_hidden as flow_hidden
-import detectors.flow_leverage as flow_leverage
-import detectors.flow_spring as flow_spring
-import detectors.flow_taker as flow_taker
+import detectors_flow_churn as flow_churn
+import detectors_flow_fuel as flow_fuel
+import detectors_flow_hidden as flow_hidden
+import detectors_flow_leverage as flow_leverage
+import detectors_flow_spring as flow_spring
+import detectors_flow_taker as flow_taker
 
 # Порядок зрелости, тот же что в диспетчере.
 RUNNERS = (

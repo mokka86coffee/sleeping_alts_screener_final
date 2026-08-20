@@ -24,11 +24,11 @@ import traceback
 from collections import Counter
 from datetime import datetime
 
-from core.binance import drop_symbol_cache, get_futures_tickers
-from core.config import EXCLUDE_TOKENS, MAX_SYMBOLS, MIN_QUOTE_VOLUME_24H
-from detectors.flow import detect_flow
+from core_binance import drop_symbol_cache, get_futures_tickers
+from core_config import EXCLUDE_TOKENS, MAX_SYMBOLS, MIN_QUOTE_VOLUME_24H
+from detectors_flow import detect_flow
 
-# Границы выборки берутся из core.config, а не задаются здесь.
+# Границы выборки берутся из core_config, а не задаются здесь.
 #
 # Своя константа расходилась с боевой молча: проба мерила популяцию,
 # которой в проде нет. В срезе 13 августа среди 169 монет оказались
@@ -151,7 +151,7 @@ def _check_cases() -> None:
     для того, чтобы такое видеть, поэтому она обязана видеть и себя.
     """
     try:
-        from detectors.flow import CASE_CAP
+        from detectors_flow import CASE_CAP
     except Exception:
         return
     live = {n.replace("flow_", "") for n in CASE_CAP}
@@ -188,7 +188,7 @@ def load_universe(
     """Символы с объёмом, отсортированные по убыванию ликвидности.
 
     Отсев двухступенчатый и ступени разные по смыслу. EXCLUDE_TOKENS
-    из core.config режет по БАЗОВОМУ токену и повторяет боевую
+    из core_config режет по БАЗОВОМУ токену и повторяет боевую
     выборку: стейблы, мажоры, акции, сырьё. NON_CRYPTO режет по
     полному символу и добирает то, чего в конфиге нет.
 
