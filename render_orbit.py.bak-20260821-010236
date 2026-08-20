@@ -351,13 +351,6 @@ def _star_intraday(raw: dict) -> dict:
     if vx:
         out["vxDir"] = str(vx.get("dir") or "")
         out["vxAgo"] = int(vx.get("bars_ago", -1))
-        # Сила перекреста, а не только сторона — vortex_cross() её уже
-        # считает (vi_plus − vi_minus), но раньше терялась здесь же.
-        # Направление без силы неотличимо между «едва развернулся» и
-        # «разошлись уверенно» — тот же пробел, что был у OI до
-        # появления состояния held/repeat/cleared.
-        if vx.get("spread") is not None:
-            out["vxSpread"] = float(vx["spread"])
 
     if intra.get("range_pos") is not None:
         out["rangePos"] = float(intra["range_pos"])
