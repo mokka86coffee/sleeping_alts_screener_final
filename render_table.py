@@ -289,82 +289,12 @@ def render_scan_table(candidates: list[Candidate]) -> str:
         f'<th class="{cls}">{esc(label)}</th>' for label, cls in HEAD_COLS
     )
 
-    rows = ""
-
-    # Хвост приглушаем только когда список длинный: иначе на коротком срезе
-    # (2-5 строк) под fade попадает вся таблица целиком.
-    fade_from = total_shown if total_shown <= FADE_TAIL * 2 else total_shown - FADE_TAIL
-
-    for i, c in enumerate(shown, 1):
-        ch24 = _raw(c, "ch_24h")
-        rr = getattr(c, "rr", 0) or 0
-        lv = getattr(c.strategy, "levels", None)
-        entry = float(getattr(lv, "entry", 0) or 0)
-        stop = float(getattr(lv, "stop", 0) or 0)
-        take = float(getattr(lv, "take", 0) or 0)
-
-        cls = ["sxr"]
-        if c.vetoed:
-            cls.append("vetoed")
-        if i - 1 >= fade_from:
-            cls.append("faded")
-
-        # цвет риски слева = доминирующий сигнал строки
-        if c.vetoed:
-            accent = RUST
-        elif getattr(c, "tradable", False):
-            accent = GREEN
-        elif c.taiko:
-            accent = AMBER_L
-        elif c.surge:
-            accent = AMBER
-        else:
-            accent = STEEL
-
-        score_c = tone_for_score(c.score)
-        ath = _raw(c, "from_ath")
-        rvol = _raw(c, "rvol_1h")
-        imp = _raw(c, "rvol_1h")
-        phase_n = int((c.phase or {}).get("num", 0) or 0)
-        phase_l = str((c.phase or {}).get("label", "—")).lower()
-        sector = (c.sector or "—").lower()
-        up = ch24 >= 0
-        rr_cls = "up" if rr >= 3 else ("am" if rr >= 2 else "mut")
-
-        rows += f"""
-<tr class="{' '.join(cls)}" style="--acc:{accent}">
-  <td class="sx-idx">{i:02d}</td>
-  <td class="sx-c-sym">
-    <a class="sx-sym" href="{esc(tv_url(c.symbol))}" target="_blank"
-       rel="noopener">{_tick(c)}<svg viewBox="0 0 8 8"><path d="M2 6 L6 2 M3 2h3v3"
-       fill="none" stroke="currentColor" stroke-width="1"/></svg></a>
-    <span class="sx-sub">{esc(sector)} · перп</span>
-  </td>
-  <td class="sx-c-soc">{_cell_social(c)}</td>
-  <td class="sx-c-surge">{_cell_surge(c)}</td>
-  <td class="sx-c-taiko">{_cell_taiko(c)}</td>
-
-  <td>{_ring(c.score, min(c.score, 100), score_c, r=15, size=36)}</td>
-  <td><b class="sx-n am">{rvol:.1f}×</b>{_bar(min(rvol / 10 * 100, 100), AMBER)}</td>
-  <td>{_sparkbars(_seq(c, "vol_7d"), AMBER)}</td>
-  <td>{_bar(min(imp / 6 * 100, 100), AMBER_L, 40)}</td>
-
-  <td><b class="sx-n {'up' if up else 'dn'}">{ch24:+.1f}%</b></td>
-  <td>{_sparkline(_seq(c, "spark_1d"), up)}</td>
-  <td><b class="sx-n mut">{ath:.0f}%</b>{_bar(max(0, 100 + ath), RUST, 40)}</td>
-
-  <td>{_steps(phase_n, 4, GOLD)}<span class="sx-sub2">{esc(phase_l)}</span></td>
-  <td>{_cell_signals(c)}</td>
-  <td><span class="sx-sub2">{esc(sector)}</span></td>
-
-  <td>{_cell_veto(c)}</td>
-  <td>{_bipolar(_raw(c, "funding") * 100)}</td>
-  <td><b class="sx-rr {rr_cls}">{f"1:{rr:.1f}" if rr else "—"}</b></td>
-
-  <td>{_levels(entry, stop, take)}</td>
-  <td><b class="sx-n">{_price(_raw(c, "price"))}</b></td>
-  <td>{_cell_action(c)}</td>
-</tr>"""
+    # Строки строит _rows() — та же функция, что и render_table().
+    # Раньше здесь жила отдельная копия того же цикла: она падала на
+    # total_shown (не определена в этой функции) и вдобавок не
+    # проставляла data-coin в <tr>, из-за чего клик по строке не
+    # открывал бы карточку монеты, даже не падая (Ч-7 тех.долга).
+    rows = _rows(shown, total_shown=len(shown))
 
     more = (f'<span class="sx-f-m">показано {len(shown)} из {total}</span>'
             if total > len(shown) else "")

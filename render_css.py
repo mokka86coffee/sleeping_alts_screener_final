@@ -1072,6 +1072,22 @@ FLOWREP = """
 .fr-veto.bad{color:#FF6B35}
 .fr-rr{font-size:15px;font-weight:200;color:var(--fl);
        font-variant-numeric:tabular-nums}
+
+/* Плечо / late / скидка за уход от дна — та же метка состояния,
+   что уже в карточке-пейзаже и зале (analytics_momentum.oi_state(),
+   cases[..]["late"], cases[..]["mults"]["up_discount"]). Пилюли, а
+   не строка текста: их может быть от нуля до трёх сразу, и ряд
+   должен растягиваться, а не переполнять карточку. */
+.fr-state-row{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:8px;
+  padding:0 26px 18px;margin-top:-6px}
+.fr-state{display:inline-flex;align-items:center;height:18px;
+  padding:0 10px;border-radius:9px;font-size:8.5px;font-weight:300;
+  letter-spacing:.8px;color:#c9ced6;background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08)}
+.fr-state.hot{color:#FF9B6B;background:rgba(255,107,53,.08);
+  border-color:rgba(255,107,53,.32)}
+.fr-state.warm{color:#F0B85C;background:rgba(245,166,35,.08);
+  border-color:rgba(245,166,35,.28)}
 """
 # ═══════════════════════════════════════════════════
 # ОРБИТА + СВОДКА · стили

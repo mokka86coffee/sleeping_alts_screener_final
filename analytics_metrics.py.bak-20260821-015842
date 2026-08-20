@@ -250,10 +250,6 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
     ch_7d = pct_change(closes_1d, 7)
     ch_30d = pct_change(closes_1d, 30)
     ch_3d = pct_change(closes_1d, 3)
-    # Ч-6 тех.долга: без этой точки четырёхдневный ход не ловился
-    # нигде — ch_3d режет его хвост, ch_7d размазывает в окно вдвое
-    # длиннее самого события.
-    ch_4d = pct_change(closes_1d, 4)
 
     # Пересчёт этих трёх стоял здесь второй раз подряд. Сети он не
     # стоил — ряды из кэша, — но медиана по пятистам барам гонялась
@@ -373,7 +369,6 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
         "ch_24h": ch_24h,
         "ch_7d": ch_7d,
         "ch_3d": ch_3d,
-        "ch_4d": ch_4d,
         "vol_x_1h": vol_x_1h,
         "vol_x_4h": vol_x_4h,
         "vol_x_1d": vol_x_1d,

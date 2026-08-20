@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from core_models import Candidate
 from render_theme import esc
+from analytics_momentum import oi_state
 
 # ── палитра статусов ──────────────────────────────────────────
 # золото — топ прогона, зелёный — чисто, оранж — под вето.
@@ -80,24 +81,42 @@ def _impulse(c: Candidate) -> str:
     Длительность нужна для выбора масштаба, поэтому подменять её
     более удобным числом нельзя.
 
-    Четырёхдневный случай (BEAT) сейчас не ловится: поля ch_4d нет,
-    а ch_7d слишком грубое — семидневный рост может целиком лежать
-    в первых двух днях. Это отдельный пункт долга.
+    Четырёхдневный случай (BEAT) теперь ловится: ch_4d считается
+    той же pct_change(), что и остальные точки (Ч-6 тех.долга).
     """
     r = c.raw or {}
     d1 = float(r.get("ch_24h") or 0)
     d3 = float(r.get("ch_3d") or 0)
+    d4 = float(r.get("ch_4d") or 0)
 
     if d1 >= IMPULSE_MIN_PCT:
         pct, days = d1, 1
     elif d3 >= IMPULSE_MIN_PCT:
         pct, days = d3, 3
+    elif d4 >= IMPULSE_MIN_PCT:
+        pct, days = d4, 4
     else:
         return '<span class="fr-imp-off">не в импульсе</span>'
 
-    imp = ((c.flow or {}).get("context") or {}).get("impulse") or {}
-    level = int(imp.get("vortex_level") or 0)
-    tf = str(imp.get("tf") or "")
+    # Уровень продавца — impact.ratio (analytics_intraday), не
+    # context.impulse: того поля не существует нигде в диспетчере, и
+    # level был всегда 0 (Ч-5 тех.долга). ratio уже подключён к
+    # звезде/карточке тем же приёмом (Ч-5 доп.: stance/impact), здесь
+    # читается прямо из c.raw["intraday"] без нового расчёта.
+    intra = (c.raw or {}).get("intraday") or {}
+    ratio = (intra.get("impact") or {}).get("ratio")
+
+    if ratio is None:
+        level, tf = 0, ""
+    elif ratio <= 0.8:
+        level, tf = 1, "упругость растёт"
+    elif ratio <= 1.2:
+        level, tf = 2, "без изменений"
+    elif ratio <= 1.8:
+        level, tf = 3, "стакан тает"
+    else:
+        level, tf = 4, "стакан истончился"
+
     state, _label = VORTEX_STATE.get(level, ("none", "нет данных"))
 
     segs = "".join(
@@ -296,6 +315,44 @@ def _fund_bar(pct: float) -> str:
             f'<i class="{side}" style="{style}"></i></span>'
             f'<span class="fr-fv {side}">{pct:+.3f}%</span>')
 
+def _state_row(c: Candidate) -> str:
+    """Плечо/поздно/скидка — то же определение состояния, что уже
+    показывают карточка и зал (analytics_momentum.oi_state(),
+    cases[..]["late"], cases[..]["mults"]["up_discount"]). Отчёт
+    читает те же поля context/cases, поэтому вызывает ту же функцию,
+    а не пересчитывает признак заново.
+
+    Пусто, если ни один из трёх флагов не сработал — карточка отчёта
+    не обязана нести пустую строку там, где сказать нечего.
+    """
+    flow = c.flow or {}
+    ctx = flow.get("context") or {}
+    oi = ctx.get("oi_hist") or {}
+    state = oi_state(oi)
+
+    case = case_key(flow.get("case") or "")
+    info = (flow.get("cases") or {}).get(flow.get("case") or "") or {}
+    late = bool(info.get("late"))
+    up_mult = float((info.get("mults") or {}).get("up_discount") or 1.0)
+
+    bits: list[str] = []
+    if state and state["label"] in ("held", "repeat"):
+        word = "не проверено" if state["label"] == "held" else \
+            f"цикл {int(state.get('cycles', 0)) + 1}"
+        bits.append(
+            f'<span class="fr-state hot">плечо ×{state["rise_x"]:.1f} · {esc(word)}</span>'
+        )
+    if late:
+        bits.append('<span class="fr-state hot">фигура уже отыграна</span>')
+    if up_mult < 1.0:
+        bits.append(
+            f'<span class="fr-state warm">скидка ×{up_mult:.2f} за уход от дна</span>'
+        )
+    if not bits:
+        return ""
+    return f'<div class="fr-c fr-state-row">{"".join(bits)}</div>'
+
+
 def _zones(c: Candidate) -> str:
     """Ближайшая опора снизу и ближайший завал сверху.
 
@@ -457,6 +514,7 @@ def _card(c: Candidate, idx: int) -> str:
       <span class="fr-k">ИМПУЛЬС</span>
       {_impulse(c)}
     </div>
+    {_state_row(c)}
   </div>
 </div>"""
 
