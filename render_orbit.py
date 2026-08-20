@@ -23,6 +23,7 @@ from core_models import Candidate, RunSnapshot
 from render_theme import esc
 from render_flow_report import case_key, CASE_RU, _cap, _data, flow_order
 from analytics_indicators import median
+from analytics_momentum import star_oi, star_late, star_pulse
 
 ORBIT_COLORS = {
     "surge":  "var(--am)",
@@ -301,43 +302,6 @@ def _star_unlocks(raw: dict) -> dict:
     if u.get("next_rounds"):
         out["unlockRounds"] = list(u["next_rounds"])
     return out
-
-
-def _star_oi(c: Candidate | None) -> dict:
-    """Профиль открытого интереса в звезду: рост, удержание, циклы.
-
-    Источник — context.oi_hist, единственная формула на проект
-    (analytics_momentum.oi_cycle, см. Ч-1 тех.долга). Пусто, если
-    семейство не отработало или ряда OI не было: ноль здесь соврал
-    бы — «плечо не набрано» и «не мерили» разные ответы.
-    """
-    if c is None or not c.flow:
-        return {}
-    oi = ((c.flow.get("context") or {}).get("oi_hist")) or {}
-    if not oi:
-        return {}
-    out: dict = {}
-    if oi.get("rise_x") is not None:
-        out["oiRise"] = float(oi["rise_x"])
-    if oi.get("held_pct") is not None:
-        out["oiHeld"] = float(oi["held_pct"])
-    if oi.get("cycles") is not None:
-        out["oiCycles"] = int(oi["cycles"])
-    return out
-
-
-def _star_late(c: Candidate | None) -> dict:
-    """Победивший подкейс помечен late — фигура уже отыграна (Ч-4).
-
-    Диспетчер кладёт признак внутрь cases[имя_кейса] и раньше нигде
-    не читал его дальше себя самого. Здесь — первое место, где он
-    долетает до экрана.
-    """
-    if c is None or not c.flow:
-        return {}
-    case = str(c.flow.get("case") or "")
-    info = (c.flow.get("cases") or {}).get(case) or {}
-    return {"late": True} if info.get("late") else {}
 
 
 def _star_intraday(raw: dict) -> dict:
@@ -733,8 +697,9 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
             # выборки, пейлоад — только для сработавших.
             **_star_intraday(raw),
             **_star_unlocks(raw),
-            **_star_oi(c),
-            **_star_late(c),
+            **star_oi(c),
+            **star_late(c),
+            **star_pulse(sym),
             # Место в текущем прогоне. У монеты журнала, выпавшей из
             # выборки, поля нет вовсе — экран тогда скажет «вне
             # выборки», а не нарисует нулевой номер, который выглядел

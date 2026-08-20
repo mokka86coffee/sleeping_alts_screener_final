@@ -867,20 +867,24 @@ CARDSCENE_JS = r"""
       c.vxDir === 'up' ? '' : 'hot']);
     if (c.speedV) foot.push(['скорость хода', c.speedV + ' ATR/бар', '']);
 
-    /* Момент OI: во сколько раз набрали и какая доля удержана, плюс
-       цикличность. Разбор GPS/PORTAL/ONG/BLESS показал, что один
-       снимок «рост+удержание» не различает балласт и топливо — нужен
-       ещё счётчик: сколько раз этот же подъём уже сдувался. cycles=0
-       при заметном росте — не «спокойно», а «ещё не проверено»
-       временем: ровно случай GPS перед обвалом (rise_x=2.98,
-       held_pct=100, cycles=0). ONG в это же время держит третий
-       подряд подъём без единого отката. */
-    if (num(c.oiRise) !== null && num(c.oiHeld) !== null) {
-      var oiHot = c.oiRise >= 2 && c.oiHeld >= 70;
+    /* Состояние плеча — готовая метка из analytics_momentum.oi_state(),
+       а не свой порог. Раньше «горячо» решалось прямо здесь
+       (rise>=2 && held>=70) — то же самое, независимо от кода, уже
+       решает сервер, и держать два места принятия одного решения
+       значит однажды их развести, как разошлись две реализации
+       volume_ratio. held — самое настороженное: цикл ещё ни разу не
+       закрывался (GPS перед обвалом стоял именно здесь). repeat —
+       тот же подъём уже сдувался в этом окне хотя бы раз (BLESS).
+       cleared — плечо разгружено, мешать некому. */
+    if (c.oiState) {
+      var oiWord = c.oiState === 'cleared' ? 'разгружено'
+        : c.oiState === 'repeat' ? 'цикл ' + ((c.oiCycles || 0) + 1)
+        : 'не проверено';
+      var oiTone = c.oiState === 'held' ? 'hot'
+        : c.oiState === 'repeat' ? 'warm' : '';
       foot.push(['плечо',
-        '×' + xf(c.oiRise) + ' · держит ' + Math.round(c.oiHeld) + '%' +
-        (num(c.oiCycles) !== null ? ' · цикл ' + (c.oiCycles + 1) : ''),
-        oiHot ? 'hot' : '']);
+        '×' + xf(c.oiRise) + ' · держит ' + Math.round(c.oiHeld) + '% · ' + oiWord,
+        oiTone]);
     }
     if (num(c.floatPct) !== null) foot.push(['выпущено',
       Math.round(c.floatPct) + '%' +
@@ -899,6 +903,33 @@ CARDSCENE_JS = r"""
     /* Ч-4: fuel помечает себя late на свежем росте (growth_load) —
        диспетчер это уже знает при выборе победителя, экран молчал. */
     if (c.late) foot.push(['осторожно', 'фигура уже отыграна', 'hot']);
+
+    /* Этаж 2: что изменилось за последние часы — единственная строка
+       подвала, отвечающая не «какое состояние сейчас», а «куда оно
+       движется». Источник — analytics_pulse через
+       analytics_momentum.star_pulse(): одно наблюдение, самое
+       значимое из score/плеча/перевеса сторон/цены/разворота
+       вортекса за ближайший из трёх горизонтов (прошлый прогон,
+       6 часов, сутки). Пусто, пока история короче двух точек —
+       это нормально в первые прогоны после подключения pulse. */
+    if (c.pulseKind) {
+      var pSpan = c.pulseSpan === 'prev' ? 'с прошлого прогона'
+        : c.pulseSpan === 'h6' ? 'за 6 часов' : 'за сутки';
+      var pTxt = '';
+      if (c.pulseKind === 'score')
+        pTxt = (c.pulseDelta >= 0 ? '+' : '') + Math.round(c.pulseDelta) + ' очков';
+      else if (c.pulseKind === 'oi_x')
+        pTxt = (c.pulseDelta >= 0 ? '+' : '') + c.pulseDelta.toFixed(2) + ' плечо';
+      else if (c.pulseKind === 'buy_share')
+        pTxt = (c.pulseDelta >= 0 ? 'покупка +' : 'продажа ') +
+          Math.abs(c.pulseDelta * 100).toFixed(1) + ' п.п.';
+      else if (c.pulseKind === 'price_pct')
+        pTxt = (c.pulseDelta >= 0 ? '+' : '') + c.pulseDelta.toFixed(1) + '%';
+      else if (c.pulseKind === 'vx_flip')
+        pTxt = 'вортекс ' + c.pulseFrom + ' → ' + c.pulseTo;
+      if (pTxt) foot.push(['за час-двое', pTxt + ' · ' + pSpan,
+        c.pulseKind === 'vx_flip' ? 'hot' : '']);
+    }
 
     /* Разлок ушёл из подвала: он теперь показан туманом на воде и
        раскрывается значком справа. В строке он стоял третьим набором

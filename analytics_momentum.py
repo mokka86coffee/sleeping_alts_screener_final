@@ -29,6 +29,8 @@ _count_rallies в detectors_flow_core.py, только на ряду OI, а не
 
 from __future__ import annotations
 
+from analytics_pulse import for_symbol as _pulse_for_symbol
+
 # Доля отката от локального пика ряда OI, ниже которой цикл считается
 # сдувшимся, а не просто просевшим. Ряд шумит сам по себе, порог
 # отделяет шум от настоящего выхода позиций.
@@ -110,3 +112,204 @@ def oi_cycle(values: list[float]) -> dict:
         "peak_age": len(row) - 1 - peak_idx,
         "cycles": cycles,
     }
+
+
+# ─────────────────────────────────────────────────────────────
+# Определение состояния плеча
+# ─────────────────────────────────────────────────────────────
+# Ниже этого роста плечо не набрано заметно: профиль не выдаёт
+# состояния вовсе, а не подставляет неверную метку на шуме ряда.
+STATE_RISE_MIN = 1.3
+
+# Ниже этой доли удержания позиции считаются вышедшими: плечо
+# разгружено, идти вверх мешать некому через ликвидации.
+STATE_CLEARED_MAX = 40.0
+
+
+def oi_state(profile: dict) -> dict:
+    """Единая словесная метка состояния плеча по профилю oi_cycle().
+
+    Не пересчёт — свод уже посчитанных чисел в одну из трёх меток,
+    чтобы карточка, зал, орбита и отчёт называли одно и то же
+    состояние монеты одинаково, а не как «путь свободен» и «топливо
+    сверху» про один и тот же случай (эта путаница уже была в
+    проекте между fuel и growth_load, см. Ч-4 тех.долга).
+
+      held    — плечо набрано и держится, ЭТОТ подъём ещё ни разу не
+                 закрывался (cycles == 0) в пределах видимого окна.
+                 Самое настороженное состояние: GPS перед обвалом стоял
+                 именно здесь — rise_x=2.98, held_pct=100, cycles=0.
+                 Читается как «не проверено», а не как «спокойно».
+      repeat  — то же самое, но такой подъём в этом же окне уже был
+                 и сдулся хотя бы раз (cycles >= 1). Не безопаснее
+                 held, но есть с чем сравнивать: BLESS стоял здесь
+                 дважды за полгода, и оба раза сдувался.
+      cleared — held_pct низкий: плечо разгружено, продавать сверху
+                 особо некому.
+
+    Пустой словарь — рост ниже STATE_RISE_MIN либо профиля нет
+    вовсе: состояние не определено, а не «спокойно».
+
+    Пороги не откалиброваны, как и в oi_cycle() — та же оговорка:
+    взяты по порядку величины, требуют правки после первого прогона.
+    """
+    if not profile:
+        return {}
+    rise = float(profile.get("rise_x") or 0.0)
+    held = float(profile.get("held_pct") or 0.0)
+    cycles = int(profile.get("cycles") or 0)
+
+    if rise < STATE_RISE_MIN:
+        return {}
+
+    if held < STATE_CLEARED_MAX:
+        label = "cleared"
+    elif cycles > 0:
+        label = "repeat"
+    else:
+        label = "held"
+
+    return {"label": label, "rise_x": rise, "held_pct": held, "cycles": cycles}
+
+
+# ─────────────────────────────────────────────────────────────
+# Поля для звезды / карточки монеты
+# ─────────────────────────────────────────────────────────────
+# Читают Candidate целиком, а не сырой context: источник один на весь
+# путь данных — context.oi_hist уже посчитан detectors_flow._oi_stats()
+# через oi_cycle() выше. Раньше эта сборка жила прямо в render_orbit.py;
+# перенесена сюда, чтобы зал, отчёт и орбита звали ОДНУ функцию, а не
+# держали рядом свою копию — ровно так разошлись когда-то две реализации
+# volume_ratio (см. analytics_indicators.volume_ratio).
+
+def star_oi(candidate) -> dict:
+    """Профиль и состояние плеча в плоские поля звезды/карточки.
+
+    Пусто, если семейство не отработало или ряда OI не было: ноль
+    здесь соврал бы — «плечо не набрано» и «не мерили» разные ответы.
+    """
+    flow = getattr(candidate, "flow", None) if candidate is not None else None
+    if not flow:
+        return {}
+    oi = (flow.get("context") or {}).get("oi_hist") or {}
+    if not oi:
+        return {}
+
+    out: dict = {}
+    if oi.get("rise_x") is not None:
+        out["oiRise"] = float(oi["rise_x"])
+    if oi.get("held_pct") is not None:
+        out["oiHeld"] = float(oi["held_pct"])
+    if oi.get("cycles") is not None:
+        out["oiCycles"] = int(oi["cycles"])
+
+    state = oi_state(oi)
+    if state:
+        out["oiState"] = state["label"]
+    return out
+
+
+def star_late(candidate) -> dict:
+    """Победивший подкейс помечен late — фигура уже отыграна.
+
+    Диспетчер кладёт признак внутрь cases[имя_кейса] (см. Ч-4
+    тех.долга) и раньше нигде не читал его дальше себя самого.
+    """
+    flow = getattr(candidate, "flow", None) if candidate is not None else None
+    if not flow:
+        return {}
+    case = str(flow.get("case") or "")
+    info = (flow.get("cases") or {}).get(case) or {}
+    return {"late": True} if info.get("late") else {}
+
+
+# ─────────────────────────────────────────────────────────────
+# Этап 2: что изменилось за последние часы
+# ─────────────────────────────────────────────────────────────
+# Этаж 1 (столбы сцены, oi_state выше) отвечает «готова ли монета
+# сейчас». Этаж 2 — единственный вопрос, ради которого заведён
+# analytics_pulse.py: что произошло с прошлого прогона, за шесть
+# часов, за сутки. Материал уже копится в pulse.json (record()
+# вызывается из run.py), для_symbol() уже умеет доставать дельты —
+# не хватало только выбора ОДНОГО наблюдения на экран из нескольких
+# горизонтов и полей сразу.
+
+# Вес горизонта: свежее решает больше, но не единолично — сдвиг за
+# сутки всё равно может перевесить, если он заметно крупнее.
+_HORIZON_WEIGHT = {"prev": 1.0, "h6": 0.85, "h24": 0.6}
+
+# Пороги отсечки шума по каждому полю — ниже них дельта не
+# отличима от дрожания замера и не годится в наблюдение.
+_NOISE = {
+    "score": 5.0,        # баллов
+    "oi_x": 0.3,         # кратности
+    "buy_share": 0.01,   # долей единицы
+    "price_pct": 3.0,    # процентов цены
+}
+
+
+def pulse_note(symbol: str) -> dict:
+    """Самое значимое изменение по pulse.json за час/шесть/сутки.
+
+    Тот же приём взвешивания, что podium.notes() уже применяет к
+    интрадей-полям: вес относительно СОБСТВЕННОГО порога поля, чтобы
+    разные оси (score, плечо, перевес сторон, цена) были сравнимы
+    между собой, а не просто отсортированы по абсолютной величине.
+
+    Разворот вортекса (vx_flip) идёт отдельной строкой с фиксированным
+    высоким весом: это качественная смена, а не количественный сдвиг,
+    сравнивать её в тех же единицах не с чем.
+
+    Пустой словарь — истории меньше двух точек (for_symbol сам это
+    возвращает пустым) либо ни одна дельта не прошла порог шума.
+    """
+    hist = _pulse_for_symbol(symbol)
+    if not hist:
+        return {}
+
+    scored: list[tuple[float, str, dict]] = []
+
+    for span in ("prev", "h6", "h24"):
+        d = hist.get(span)
+        if not d:
+            continue
+        w = _HORIZON_WEIGHT.get(span, 0.5)
+
+        for key, unit in (("score", 10.0), ("oi_x", 1.0),
+                          ("buy_share", 0.01), ("price_pct", 5.0)):
+            v = d.get(key)
+            if v is None or abs(v) < _NOISE[key]:
+                continue
+            scored.append((abs(v) / unit * w, span, {"kind": key, "delta": v}))
+
+    flip = hist.get("vx_flip")
+    if flip:
+        scored.append((3.0, "prev", {
+            "kind": "vx_flip", "from": flip.get("from"), "to": flip.get("to"),
+        }))
+
+    if not scored:
+        return {}
+
+    scored.sort(key=lambda t: -t[0])
+    _, span, info = scored[0]
+    info["span"] = span
+    return info
+
+
+def star_pulse(symbol: str) -> dict:
+    """Плоские поля для звезды: что изменилось за ближайший горизонт.
+
+    Одно наблюдение, не весь pulse_note() целиком — экран показывает
+    одну строку, а не таблицу; выбор уже сделан внутри pulse_note().
+    """
+    note = pulse_note(symbol)
+    if not note:
+        return {}
+    out = {"pulseKind": note["kind"], "pulseSpan": note["span"]}
+    if "delta" in note:
+        out["pulseDelta"] = note["delta"]
+    if "from" in note:
+        out["pulseFrom"] = note["from"]
+        out["pulseTo"] = note["to"]
+    return out
