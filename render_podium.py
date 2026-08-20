@@ -1017,7 +1017,7 @@ PODIUM_JS = """
     /* Ход уже отдан, независимо от гейта выбытия из журнала (Ч-11):
        cycle_done() не поймает giveback ниже вершины ×10, а карточка
        уже предупреждает об этом отдельной строкой. */
-    if (num(c.cycleGivenPct) !== undefined && c.cycleGivenPct) {
+    if (c.cycleGivenPct !== undefined && c.cycleGivenPct) {
       add(c.cycleGivenPct / 40, 'weeks',
         'отдано ' + Math.round(c.cycleGivenPct) + '% хода',
         'от вершины ×' + xfmtRaw(c.cyclePeakX) + ' отдано <b class="dn">' +
@@ -1027,7 +1027,7 @@ PODIUM_JS = """
     /* Дивергенция цены и OBV: второй пик цены не ниже первого, поток
        слабее — тот же вопрос, что показал Klinger Oscillator на
        BLESS, только на уже посчитанном OBV. */
-    if (num(c.divShare) !== undefined && c.divShare) {
+    if (c.divShare !== undefined && c.divShare) {
       add(1.5 + c.divShare, 'day',
         'поток слабее на повторном пике',
         'цена ' + (c.divPricePct >= 0 ? '+' : '') + c.divPricePct.toFixed(1) +
@@ -1335,7 +1335,7 @@ PODIUM_JS = """
             : c.oiState === 'repeat' ? ' · цикл ' + ((c.oiCycles || 0) + 1)
             : ' · не проверено')
         : null, c.oiState === 'held' ? 'dn' : null) +
-      cell('ход', num(c.cycleGivenPct) !== undefined && c.cycleGivenPct
+      cell('ход', (c.cycleGivenPct !== undefined && c.cycleGivenPct)
         ? 'отдано ' + Math.round(c.cycleGivenPct) + '%' : null, 'dn');
 
     var today =
