@@ -1079,11 +1079,6 @@ def _orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
     hourly_items = _pick(slices, "hourly")["items"]
 
     return {
-        # Момент самого прогона, а не момент открытия страницы браузером.
-        # Раньше этого поля не было вовсе ни под каким именем, и брифинг
-        # был вынужден брать new Date() в JS — честная замена мёртвому
-        # полю, а не опечатка в имени.
-        "ts": str(getattr(snapshot, "timestamp", "") or ""),
         # «спокойный» и «осторожный» — пересказ режима, а не прогноз
         "calm": label.upper().replace("-", "").startswith("RISKON"),
         "appetite": f"{appetite}/5",

@@ -328,15 +328,9 @@ BRIEF_JS = """
     if (!wrap || !host) return;
 
     /* Отчёт статический: важно не «сегодня», а когда был прогон —
-       иначе легко читать вчерашние числа как свежие.
-       Раньше здесь стоял new Date() — момент открытия страницы
-       браузером, а не момент прогона: поля со временем прогона не
-       было вовсе ни под каким именем (см. _orbit_market). Читаю
-       O.market напрямую, а не через M: M объявляется ниже по
-       функции, и на этой строке она ещё не существует. */
-    var runTs = (O.market && O.market.ts) ? new Date(O.market.ts) : new Date();
+       иначе легко читать вчерашние числа как свежие. */
     document.getElementById('obfDate').textContent = 'ПРОГОН · ' +
-      runTs.toLocaleString('ru-RU', { day: 'numeric', month: 'long',
+      new Date().toLocaleString('ru-RU', { day: 'numeric', month: 'long',
         hour: '2-digit', minute: '2-digit' }).toUpperCase();
 
     /* Группы — тот же срез дерева фаз, что и в карточках, только
