@@ -23,7 +23,7 @@ from core_models import Candidate, RunSnapshot
 from render_theme import esc
 from render_flow_report import case_key, CASE_RU, _cap, _data, flow_order
 from analytics_indicators import median
-from analytics_momentum import star_oi, star_late, star_pulse, star_cycle
+from analytics_momentum import star_oi, star_late, star_pulse
 
 ORBIT_COLORS = {
     "surge":  "var(--am)",
@@ -700,7 +700,6 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
             **star_oi(c),
             **star_late(c),
             **star_pulse(sym),
-            **star_cycle(rec.get("max_up_x"), rec.get("up_x")),
             # Место в текущем прогоне. У монеты журнала, выпавшей из
             # выборки, поля нет вовсе — экран тогда скажет «вне
             # выборки», а не нарисует нулевой номер, который выглядел
