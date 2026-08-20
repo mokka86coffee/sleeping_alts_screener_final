@@ -149,7 +149,6 @@ def snapshot(c: Candidate) -> dict:
         ("vx_strength", vortex.get("strength")),
         ("oi_x", oi.get("x")),
         ("oi_held", oi.get("held_pct")),
-        ("oi_cycles", oi.get("cycles")),
         ("rel_vol", ctx.get("rel_vol")),
     ):
         n = _num(val)
@@ -224,13 +223,10 @@ def _pick(pts: list[dict], hours: float) -> dict | None:
 # Величины, по которым считаются разницы. Остальное в снимке лежит для
 # будущих потребителей, но в дельты не идёт: разница цены полезна,
 # разница фандинга — нет, он и так меняется ступеньками.
-# vol_1h/vol_4h/rvol_1h убраны: они мерят возраст текущего бара, а не
-# рынок, и дельта по ним отвечает не на тот вопрос (см. Ч-2 тех.долга).
-# funding и oi_held добавлены — их снимок уже пишет, дельты не было.
 DELTA_KEYS = (
-    "price", "vol_1d", "atr_pct", "funding",
-    "up_low", "buy_share", "oi_x", "oi_held", "oi_usd", "vx_strength",
-    "rel_vol", "score",
+    "price", "vol_1h", "vol_4h", "vol_1d", "rvol_1h", "atr_pct",
+    "up_low", "buy_share", "oi_x", "oi_usd", "vx_strength", "rel_vol",
+    "score",
 )
 
 

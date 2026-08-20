@@ -49,7 +49,6 @@ from detectors_flow_config import (
 from detectors_flow_config import cycle_done
 from detectors_flow_core import Bar, FlowContext, build_context
 from detectors_flow_signal import SubcaseSignal
-from analytics_momentum import oi_cycle
 
 import detectors_flow_hidden as flow_hidden
 import detectors_flow_fuel as flow_fuel
@@ -419,13 +418,12 @@ def _oi_stats(symbol: str) -> dict:
     разгонов; выравнивание — следующим шагом, когда у величин
     появится потребитель (техдолг И-1).
 
-    rise_x/held_pct/peak_age_days/cycles считает analytics_momentum
-    .oi_cycle() — общая формула для карточки, зала, орбиты и отчёта.
-    Раньше та же идея жила ещё в analytics_metrics.oi_profile() и
-    в detectors_flow_leverage._oi_state() с другими окнами и другой
-    формулой held_pct — три источника расходились между собой (см.
-    Ч-1 тех.долга). x остаётся здесь отдельно: он читает медиану
-    ряда, а не его профиль подъёма.
+    x — текущий OI к медиане окна без последней точки; rise_x — во
+    сколько раз пик окна выше минимума до него (набор); held_pct —
+    сколько процентов пика дожило до сегодня (плато против сброса);
+    peak_age_days — давность пика. Знака направления у OI нет
+    намеренно: плато не говорит, кто в позиции, — направление
+    добавляет фандинг, по отдельности обе величины немые.
 
     Пустой словарь — точек меньше восьми, мерить нечего.
     """
@@ -441,16 +439,23 @@ def _oi_stats(symbol: str) -> dict:
     if len(vals) < 8:
         return {}
 
-    profile = oi_cycle(vals)
-    if not profile:
-        return {}
-
     cur = vals[-1]
     med = median(vals[:-1])
-    out = dict(profile)
-    out["peak_age_days"] = out.pop("peak_age")
-    out["x"] = round(cur / med, 2) if med > 0 else 0.0
-    return out
+    if med <= 0:
+        return {}
+
+    peak_idx = max(range(len(vals)), key=lambda i: vals[i])
+    peak = vals[peak_idx]
+    low_before = min(vals[:peak_idx + 1])
+    rise = (peak / low_before) if low_before > 0 else 0.0
+    held = (cur / peak * 100) if peak > 0 else 0.0
+
+    return {
+        "x": round(cur / med, 2),
+        "rise_x": round(rise, 2),
+        "held_pct": round(held, 1),
+        "peak_age_days": len(vals) - 1 - peak_idx,
+    }
 
 
 # ─────────────────────────────────────────────────────────────
@@ -856,11 +861,6 @@ def detect_flow(
             "cut": round(sig.cut, 2),
             "reasons": sig.reasons[:3],
             "mults": sig.mults,
-            # Признак прежде оседал только внутри диспетчера (влиял
-            # на выбор победителя) и никуда не долетал дальше. Ч-4
-            # тех.долга: фигура fuel помечает себя late на свежем
-            # росте (growth_load), но экран об этом молчал.
-            "late": bool(getattr(sig, "late", False)),
         }
         for name, sig in results
     }

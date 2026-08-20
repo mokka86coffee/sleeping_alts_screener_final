@@ -30,7 +30,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from analytics_leaders import update_leaders
-from analytics_pulse import record as record_pulse
+# import pulse
 from analytics_candidate import build_candidate
 from core_binance import get_futures_tickers
 from core_config import (
@@ -615,7 +615,7 @@ def run_once(args: argparse.Namespace) -> int:
     # ровно в тот момент, когда её карточку смотрят впервые, и без
     # предыстории эта карточка окажется без единой дельты — то есть без
     # ответа на вопрос, ради которого её открыли.
-    log(f"→ Пульс: {record_pulse(candidates)}")
+    #     log(f"→ Пульс: {pulse.record(candidates)}")
 
     # ── Отчёт ──
     published = False
