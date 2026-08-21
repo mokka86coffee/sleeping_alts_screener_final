@@ -64,6 +64,19 @@ BRIEF_HTML = """
                transform .55s cubic-bezier(.2,.8,.25,1);
   }
   #obfText .ch.on{opacity:1; filter:blur(0); transform:translateY(0) scale(1);}
+  /* Раскраска по смыслу — та же палитра, что раньше была у .obf-p
+     (см. css.py): числа моноширинным серым, рост/падение зелёным/
+     оранжевым, тикеры светлым акцентом, капитализация мельче и тише. */
+  #obfText .t{color:var(--t1);}
+  #obfText .n{font-family:var(--mono);color:#c8ccd4;}
+  #obfText .up{color:#48A97C;}
+  #obfText .dn{color:#FF6B35;}
+  #obfText .gd{color:var(--gd);}
+  #obfText .mut{color:#5b606a;}
+  #obfText .warn{color:var(--dn);}
+  #obfText .dorm{color:#8FA8FF;}
+  #obfText .obf-cap{font-family:var(--mono);font-size:.72em;color:#5f6169;}
+  #obfText .obf-sep{color:#5d5c66;}
   @media (prefers-reduced-motion:reduce){
     #obfText .ch{transition:none; opacity:1; filter:none; transform:none;}
   }
@@ -394,32 +407,62 @@ BRIEF_JS = """
     requestAnimationFrame(frame);
   }
 
-  /* Перенос строк: своя canvas-разметка для замера ширины (без
-     letter-spacing — реальный рендер добавит его через CSS, и без
-     учёта здесь браузер доламывал бы строку ещё раз). */
-  function wrapLines(text, font, maxWidth){
-    var off = document.createElement('canvas');
-    var octx = off.getContext('2d');
-    octx.font = font;
-    var words = text.split(' ');
-    var lines = [], cur = '';
-    for (var i=0;i<words.length;i++){
-      var word = words[i];
-      var test = cur ? cur+' '+word : word;
-      if (octx.measureText(test).width > maxWidth && cur){ lines.push(cur); cur = word; }
-      else cur = test;
-    }
-    if (cur) lines.push(cur);
-    if (lines.length > 1 && lines[lines.length-1].length <= 4){
-      var prev = lines[lines.length-2].split(' ');
-      var moved = prev.pop();
-      lines[lines.length-2] = prev.join(' ');
-      lines[lines.length-1] = moved + ' ' + lines[lines.length-1];
-    }
-    return lines;
+  /* Разноцветность вернулась: сегмент несёт seg.html (разметка с
+     <span class="up">/"dn"/"n"/"t"/... — та же палитра, что была в
+     старой посимвольной печати), а не голый текст. htmlToTokens()
+     разбирает эту разметку в плоский список {text, cls} — по одному
+     токену на текстовый узел/цветной элемент верхнего уровня. Вложенные
+     теги (было такое только в строке журнала) сознательно не
+     поддерживаются: один уровень цвета на сегмент — этого достаточно
+     для того, что здесь красится, и не усложняет разбор.  */
+  function htmlToTokens(html){
+    var div = document.createElement('div');
+    div.innerHTML = html;
+    var tokens = [];
+    div.childNodes.forEach(function (node) {
+      if (node.nodeType === 3) tokens.push({text: node.textContent, cls: ''});
+      else if (node.nodeType === 1) tokens.push({text: node.textContent, cls: node.className || ''});
+    });
+    return tokens;
   }
 
-  var STEP_MS = 42*1.3, CHAR_DUR = 550*1.3, HOLD_MS = 2300;
+  /* Перенос строк — естественный, браузерный: раньше ширина строки
+     мерилась вручную на canvas (без letter-spacing, который добавляет
+     CSS) и это давало текст ЧУТЬ шире реального контейнера — строки
+     выходили за пределы кольца. Слово — свой inline-block (буквы не
+     разъезжаются при переносе), пробел между словами — обычный
+     текстовый узел (место переноса для браузера), сама ширина
+     ограничена через CSS max-width на контейнере. */
+  function buildTextDOM(tokens){
+    var frag = document.createDocumentFragment();
+    var idxChar = 0;
+    tokens.forEach(function (tok) {
+      var words = tok.text.split(' ');
+      words.forEach(function (word, wi) {
+        if (wi > 0) frag.appendChild(document.createTextNode(' '));
+        if (!word) return;
+        var wordSpan = document.createElement('span');
+        wordSpan.style.display = 'inline-block';
+        if (tok.cls) wordSpan.className = tok.cls;
+        for (var i=0;i<word.length;i++){
+          var chSpan = document.createElement('span');
+          chSpan.className = 'ch';
+          chSpan.style.transitionDelay = (idxChar*STEP_MS) + 'ms';
+          idxChar++;
+          chSpan.textContent = word[i];
+          wordSpan.appendChild(chSpan);
+        }
+        frag.appendChild(wordSpan);
+      });
+    });
+    return { frag: frag, totalChars: idxChar };
+  }
+
+  function stripTags(html){ return html.replace(/<[^>]*>/g, ''); }
+
+  // Задержка перед следующим сегментом — на пару секунд дольше, чем
+  // раньше (было 2300).
+  var STEP_MS = 42*1.3, CHAR_DUR = 550*1.3, HOLD_MS = 2300 + 2000;
   var BLOCK_ACCENTS = ['#7FB4FF', '#F5A623', '#6FE3B4', '#FFD98A', '#E89AB0'];
 
   var runToken = 0, running = false;
@@ -429,23 +472,18 @@ BRIEF_JS = """
       var seg = SEGMENTS[idx];
       var cx = ringGeo.cx, cy = ringGeo.cy, rx = ringGeo.rx;
       var fontPx = (Math.min(27, Math.max(16, w()/48)) * Math.min(1.15, RING_SCALE)) * 0.5 * 0.8;
-      var font = 'italic 600 ' + fontPx + 'px Georgia, serif';
-      var maxWidth = Math.min(w()*0.78, rx*1.55);
-      var lines = wrapLines(seg.text, font, maxWidth);
 
       txtEl.style.fontSize = fontPx+'px';
       txtEl.style.top = cy+'px';
+      // Сужено с rx*1.55: строка реально вылезала за силуэт кольца —
+      // 1.55 был запас больше, чем видимый диаметр.
+      txtEl.style.maxWidth = Math.min(w()*0.7, rx*1.3) + 'px';
 
-      var idxChar = 0;
-      var totalChars = lines.reduce(function (s, l) { return s+l.length; }, 0);
-      txtEl.innerHTML = lines.map(function (line) {
-        var chars = line.split('').map(function (ch) {
-          var delay = idxChar*STEP_MS; idxChar++;
-          var safe = ch === '<' ? '&lt;' : ch;
-          return '<span class="ch" style="transition-delay:'+delay+'ms">'+safe+'</span>';
-        }).join('');
-        return '<div style="white-space:nowrap">'+chars+'</div>';
-      }).join('');
+      var tokens = htmlToTokens(seg.html);
+      var built = buildTextDOM(tokens);
+      txtEl.innerHTML = '';
+      txtEl.appendChild(built.frag);
+      var totalChars = built.totalChars;
 
       requestAnimationFrame(function () {
         if (token !== runToken) return;
@@ -557,37 +595,45 @@ BRIEF_JS = """
   var bigVolAll = M.flowVol || [];
   var bigVol = freshOnly(bigVolAll).slice(0, 5);
 
+  /* Цветной cap() — та же справка о капитализации, что и раньше,
+     мельче и тише (класс .obf-cap), не голым довеском к тикеру. */
+  function cap(s) { return s.cap ? ' <span class="obf-cap">' + s.cap + '</span>' : ''; }
+
   var wk = M.weekend || '';
   var wknd = '';
   if (wk === 'soon') {
-    wknd = 'Завтра выходные — ликвидность начнёт уходить уже к вечеру, ' +
-           'торговать сегодня с осторожностью.';
+    wknd = '<span class="warn">Завтра выходные</span> — ликвидность начнёт ' +
+           'уходить уже к вечеру, торговать сегодня с осторожностью.';
   } else if (wk === 'now') {
-    wknd = 'Выходные — тонкий стакан, движения рваные. Лучше не торговать.';
+    wknd = '<span class="warn">Выходные</span> — тонкий стакан, движения ' +
+           'рваные. Лучше не торговать.';
   }
 
   /* Фон рынка — та же цепочка условий, что и раньше (см. Ч-12
-     тех.долга про биткоин/доминацию), просто без span-разметки. */
+     тех.долга про биткоин/доминацию), с той же раскраской, что была
+     у .obf-p до упрощения на голый текст. */
   var bg = [];
   if (M.frozen) {
-    bg.push('Рынок сейчас замер. Лучшая монета дня прибавила ' +
-      pct(M.maxChange, 0) + ', и дальше плюс двадцати ушли всего ' +
-      (M.tail || 0) + ' ' + plural(M.tail || 0, 'монета', 'монеты', 'монет') +
+    bg.push('Рынок сейчас <span class="warn">замер</span>. Лучшая монета дня ' +
+      'прибавила <span class="n">' + pct(M.maxChange, 0) + '</span>, и дальше ' +
+      'плюс двадцати ушли всего <span class="n">' + (M.tail || 0) + '</span> ' +
+      plural(M.tail || 0, 'монета', 'монеты', 'монет') +
       ' — при живом рынке их бывают десятки. Ехать сегодня некуда.');
   } else {
-    bg.push('Рынок двигается. Лучшая монета дня ' + pct(M.maxChange, 0) +
-      ', дальше плюс двадцати ушли ' + (M.tail || 0) + ' ' +
+    bg.push('Рынок <span class="gd">двигается</span>. Лучшая монета дня ' +
+      '<span class="n">' + pct(M.maxChange, 0) + '</span>, дальше плюс ' +
+      'двадцати ушли <span class="n">' + (M.tail || 0) + '</span> ' +
       plural(M.tail || 0, 'монета', 'монеты', 'монет') +
       ' — движение широкое, а не один выброс.');
   }
   if (M.peakVol && M.peakVol.sym) {
     bg.push('Деньги в рынке ' + (M.frozen ? 'при этом ' : '') +
-      'есть: максимум объёма на ' + M.peakVol.sym + ', ×' + M.peakVol.x +
-      ' к своей норме.');
+      'есть: максимум объёма на <span class="gd">' + M.peakVol.sym +
+      '</span>, <span class="n">×' + M.peakVol.x + '</span> к своей норме.');
   }
   var gs = M.greenShare;
   if (gs !== null && gs !== undefined) {
-    bg.push('В плюсе ' + Math.round(gs) + '% выборки' +
+    bg.push('В плюсе <span class="n">' + Math.round(gs) + '%</span> выборки' +
       (gs >= 55 ? ', растёт почти весь рынок.'
        : gs <= 42 ? ', то есть падает большинство.'
        : ', рынок разделился примерно поровну.'));
@@ -609,22 +655,30 @@ BRIEF_JS = """
       tail = ' — за неделю почти без движения.';
     }
     bg.push('Биткоин ' + (M.btc >= 0 ? 'прибавил' : 'потерял') + ' ' +
-      Math.abs(M.btc).toFixed(1) + '% за сутки, за неделю ' + pct(M.btc7d) +
-      ', доминация ' + (M.dom || '—') + tail);
+      '<span class="' + sgn(M.btc) + ' n">' + Math.abs(M.btc).toFixed(1) +
+      '%</span> за сутки, за неделю <span class="' + sgn(M.btc7d) + ' n">' +
+      pct(M.btc7d) + '</span>, доминация <span class="n">' + (M.dom || '—') +
+      '</span>' + tail);
   }
+  function sgn(v) { return v > 0 ? 'up' : (v < 0 ? 'dn' : ''); }
 
   var portLine = (J.port && J.port.invested)
-    ? ['По тысяче в каждую: ' + fmtMoney(J.port.value) + ' из ' +
-       fmtMoney(J.port.invested) + ', ' + signed(J.port.pnl_pct) +
-       (J.port.rules_pnl_pct !== undefined
-         ? ', по правилам ' + signed(J.port.rules_pnl_pct) : '') +
-       '. По максимумам вышло бы ' + signed(J.port.peak_pct) + '.']
+    ? ['По тысяче в каждую: <b>' + fmtMoney(J.port.value) + '</b> из ' +
+       fmtMoney(J.port.invested) + ', <b class="' +
+       (J.port.pnl_pct >= 0 ? 'up' : 'dn') + '">' + signed(J.port.pnl_pct) +
+       '</b>' + (J.port.rules_pnl_pct !== undefined
+         ? ', по правилам <b class="' +
+           (J.port.rules_pnl_pct >= 0 ? 'up' : 'dn') + '">' +
+           signed(J.port.rules_pnl_pct) + '</b>' : '') +
+       '. По максимумам вышло бы <b class="up">' + signed(J.port.peak_pct) +
+       '</b>.']
     : [];
 
   var lossLine = (J.port && (J.port.losers || []).length)
     ? ['Разобрать: ' + J.port.losers.map(function (d) {
-        return d.t + ' ' + signed(d.chg) + ' (' + (d.case || '?') + ', ' +
-          (d.at || '').slice(5) + ')'; }).join(', ') + '.']
+        return '<span class="t">' + d.t + '</span> <b class="dn">' +
+          signed(d.chg) + '</b> <span class="mut">' + (d.case || '?') + ', ' +
+          (d.at || '').slice(5) + '</span>'; }).join(', ') + '.']
     : [];
 
   var LC = M.leaderChart || {}, VC = M.volChart || {};
@@ -639,33 +693,40 @@ BRIEF_JS = """
   }
 
   var leaderSeg = (L.t && (LC.series || []).length >= 4)
-    ? { text: 'лидер потока — ' + L.t + capP(L) + ', фигура ' +
-             (LC.case || '—') +
-             (LC.horizonDays ? ', горизонт ' + LC.horizonDays + ' дн' : '') +
-             ', скор ' + (LC.score || 0) + '.',
+    ? { html: 'лидер потока — <span class="t">' + L.t + '</span>' + cap(L) +
+             ', фигура <span class="gd">' + (LC.case || '—') + '</span>' +
+             (LC.horizonDays ? ', горизонт <span class="n">' + LC.horizonDays +
+               '</span> дн' : '') +
+             ', скор <span class="n">' + (LC.score || 0) + '</span>.',
         pts: normPts(LC.series) }
     : null;
 
   var volSeg = ((VC.ratios || []).length >= 4)
-    ? { text: 'максимум объёма — ' + VC.sym + capP(VC) + ', ×' + VC.x +
-             ' к своей норме за 30 дней.',
+    ? { html: 'максимум объёма — <span class="t">' + VC.sym + '</span>' +
+             cap(VC) + ', <span class="n">×' + VC.x + '</span> к своей норме ' +
+             'за 30 дней.',
         pts: normPts(VC.ratios) }
     : null;
 
   var goLine = go.length
     ? 'Рассмотреть стоит (первая фаза, у дна): ' +
-      go.slice(0, 3).map(function (s) { return s.t + capP(s); }).join(', ') + '.'
-    : 'Сегодня брать нечего.';
+      go.slice(0, 3).map(function (s) {
+        return '<span class="t">' + s.t + '</span>' + cap(s); }).join(', ') + '.'
+    : '<span class="mut">Сегодня брать нечего.</span>';
 
   var dormLine = DORM.length
-    ? 'Спят ' + DORM.map(function (d) { return d.t + (d.cap ? ' ' + d.cap : ''); })
-        .join(', ') + ' — цикл был, база узкая. Движения ещё нет: ' +
-        'наблюдать, не входить.'
+    ? 'Спят ' + DORM.map(function (d) {
+        return '<span class="t dorm">' + d.t + '</span>' +
+          (d.cap ? ' <span class="obf-cap">' + d.cap + '</span>' : ''); })
+        .join(', ') + ' — <span class="dorm">цикл был, база узкая</span>. ' +
+        'Движения ещё нет: наблюдать, не входить.'
     : '';
 
   var waitLine = wait.length
     ? 'Ждут сигнала ' + wait.slice(0, 3).map(function (s) {
-        return s.t + capP(s) + ' — ' + waitWhy(s); }).join(' · ') + '.'
+        return '<span class="t">' + s.t + '</span>' + cap(s) +
+          ' <span class="mut">— ' + waitWhy(s) + '</span>'; })
+        .join(' <span class="obf-sep">·</span> ') + '.'
     : '';
 
   var bigVolT = {};
@@ -673,37 +734,43 @@ BRIEF_JS = """
 
   var holdLine = hold.length
     ? 'В работе ' + hold.slice(0, 3).map(function (s) {
-        return s.t + capP(s) + ' ' + (s.up >= 0 ? '+' : '') + s.up +
-          '% за ' + (s.days || 0) + ' дн' + (bigVolT[s.t] ? ' · объём' : '');
+        return '<span class="t gd">' + s.t + '</span>' + cap(s) +
+          ' <span class="n">' + (s.up >= 0 ? '+' : '') + s.up + '%</span> за ' +
+          (s.days || 0) + ' дн' +
+          (bigVolT[s.t] ? ' <span class="up">· объём</span>' : '');
       }).join(', ') + '.'
     : '';
 
   var nearLine = near.length
     ? 'У уровня ' + near.map(function (s) {
-        return s.t + capP(s) + ' −' + toStop(s) + '%'; }).join(', ') +
+        return '<span class="t">' + s.t + '</span>' + cap(s) +
+          ' <span class="dn n">−' + toStop(s) + '%</span>'; }).join(', ') +
       ' — решаются сегодня.'
     : '';
 
   var journalLine = J.n
-    ? 'Журнал: ' + J.n + ' ' + plural(J.n, 'монета', 'монеты', 'монет') +
+    ? 'Журнал: <b>' + J.n + '</b> ' + plural(J.n, 'монета', 'монеты', 'монет') +
       (J.fresh && J.fresh.length
-        ? ', новых этим прогоном — ' + J.fresh.join(', ') : '') +
-      '. Лучший ход от входа ' + J.best.t + ' ' +
-      (J.best.chg >= 0 ? '+' : '') + J.best.chg + '%' +
+        ? ', новых этим прогоном — <b>' + J.fresh.join(', ') + '</b>' : '') +
+      '. Лучший ход от входа <b class="up">' + J.best.t + ' ' +
+      (J.best.chg >= 0 ? '+' : '') + J.best.chg + '%</b>' +
       (J.worst.t !== J.best.t
-        ? ', худший ' + J.worst.t + ' ' +
-          (J.worst.chg >= 0 ? '+' : '') + J.worst.chg + '%'
+        ? ', худший <b class="dn">' + J.worst.t + ' ' +
+          (J.worst.chg >= 0 ? '+' : '') + J.worst.chg + '%</b>'
         : '') + '.'
     : '';
 
   var bigVolLine = bigVol.length
     ? 'Аномалия объёма ×30+ у ' + bigVol.map(function (v) {
-        return v.t + capP(v) + ' ×' + v.x; }).join(', ') + '.'
+        return '<span class="t">' + v.t + '</span>' + cap(v) +
+          ' <span class="n">×' + v.x + '</span>'; }).join(', ') + '.'
     : '';
 
   var hrLine = HR.list.length
-    ? 'За час ожили ' + HR.n + ': ' + HR.list.map(function (v) {
-        return v.t + capP(v) + ' ×' + v.x; }).join(', ') + '.'
+    ? 'За час ожили <span class="n">' + HR.n + '</span>: ' +
+      HR.list.map(function (v) {
+        return '<span class="t">' + v.t + '</span>' + cap(v) +
+          ' <span class="n">×' + v.x + '</span>'; }).join(', ') + '.'
     : '';
 
   /* Порядок строк — тот же, что и раньше: портфель и разбор убытков
@@ -724,10 +791,11 @@ BRIEF_JS = """
     .concat(nearLine ? [nearLine] : [])
     .concat(journalLine ? [journalLine] : []);
 
-  /* Приводим всё к единому виду {text, pts, accent}: строки-строки
-     оборачиваются как есть, leaderSeg/volSeg уже несут pts. */
+  /* Приводим всё к единому виду {html, pts, accent}: строки-строки
+     оборачиваются как есть (это уже готовая цветная разметка),
+     leaderSeg/volSeg уже несут и html, и pts. */
   var SEGMENTS = raw.filter(Boolean).map(function (item, i) {
-    var seg = (typeof item === 'string') ? { text: item } : item;
+    var seg = (typeof item === 'string') ? { html: item } : item;
     seg.accent = BLOCK_ACCENTS[i % BLOCK_ACCENTS.length];
     return seg;
   });
@@ -746,7 +814,7 @@ BRIEF_JS = """
     // Без анимации: последняя строка выводится статично сразу — сама
     // сцена (кольцо/дюна) достаточно тиха, чтобы не требовать полного
     // отключения, но набор текста и полёт частиц не идут.
-    txtEl.textContent = SEGMENTS[SEGMENTS.length - 1].text;
+    txtEl.textContent = stripTags(SEGMENTS[SEGMENTS.length - 1].html);
     txtEl.style.opacity = '1';
     tail();
   } else {
