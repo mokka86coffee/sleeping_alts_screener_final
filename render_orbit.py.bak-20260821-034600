@@ -540,7 +540,7 @@ def _star_card(c: Candidate | None) -> dict:
 
     d = _data(c)
     cats = getattr(c, "categories", None) or []
-    out = {
+    return {
         "score": int(getattr(c, "score", 0) or 0),
         "sector": (cats[0] if cats else "—").lower(),
         "cap": _cap(d["cap"]),
@@ -553,19 +553,6 @@ def _star_card(c: Candidate | None) -> dict:
         "fund": round(d["fund"], 4),
         "series": [round(float(v), 6) for v in (d["series"] or [])],
     }
-    # Н-7 тех.долга: FDV/капитализация уже считается в candidate.py
-    # (raw["fdv_ratio"]) и нигде не читалась — ни в скоринге, ни на
-    # экране. Величина двусторонняя (малый флоат = и потенциал хода,
-    # и риск на разлоке — см. Н-5), поэтому отдаётся числом, а не
-    # вердиктом; решение остаётся за человеком.
-    #
-    # 0.0 в candidate.py означает «капитализация неизвестна», то есть
-    # честное «не измерено», а не «флоат полный» — ключ поэтому не
-    # добавляется вовсе, как и у остальных величин в этой функции.
-    fdv = float((getattr(c, "raw", None) or {}).get("fdv_ratio") or 0.0)
-    if fdv > 0:
-        out["fdv"] = round(fdv, 2)
-    return out
 
 
 def _flow_case(c: Candidate) -> str:
@@ -2016,14 +2003,6 @@ ORBIT_JS = """
               (s.updays || 0) + ' дн</span>'
             : '<span class="ob-sc-tag up">+' + (s.up || 0) + '% от дна · ' +
               (s.updays || 0) + ' дн</span>') +
-          /* Н-7 тех.долга: FDV/капитализация — число, не вердикт.
-             Величина двусторонняя (малый флоат = и потенциал хода, и
-             риск на разлоке, см. Н-5), поэтому без «хорошо/плохо» —
-             решает человек. Поля нет вовсе, если не измерено (Н-7,
-             star_card), а не ноль или прочерк. */
-          (s.fdv
-            ? '<span class="ob-sc-tag">FDV/кап <u>×' + s.fdv + '</u></span>'
-            : '') +
         '</div>' +
         '<span class="ob-sc-chip"><i class="ob-sc-dot" style="background:' +
           stratOf(s).c + ';color:' + stratOf(s).c + '"></i>' +
