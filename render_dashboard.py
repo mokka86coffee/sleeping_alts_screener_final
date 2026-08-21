@@ -22,6 +22,8 @@ from render_theme import esc
 # и отбор FLOW → analytics_flow, словарь подписей → render_common.
 from render_flow_report import render_flow_report
 from analytics_flow import case_counts, flow_candidates, flow_leader
+from analytics_leaders import read_store
+from analytics_metrics import LEAD_X1, LEAD_X2, LEAD_X3, max_vol_ratio
 from render_orbit import render_orbit
 from render_brief import render_brief
 from render_podium import render_podium
@@ -32,9 +34,8 @@ from render_cardscene import render_cardscene
 # что этот файл импортирует orbit на уровне модуля и обратный импорт
 # на уровне модуля дал бы цикл. См. docstring render_common.py.
 from render_common import (
-    _num, _get, _tick, _pick, _read_json, _max_vol_ratio,
+    _num, _get, _tick, _pick,
     FLOW_NODES, RR_MIN, SURGE_NOTE, IMP_NOTE,
-    LEAD_X1, LEAD_X2, LEAD_X3,
 )
 from core_binance import get_btc_dominance
 
@@ -910,8 +911,8 @@ def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
     Признаки не исключают друг друга: цвет отдан объёму, кант —
     отбору, и монета с обоими видна как самый сильный случай.
     """
-    flow_j = _read_json(LEADERS_PATH)
-    vol_j = _read_json(ANOMALY_PATH)
+    flow_j = read_store(LEADERS_PATH)
+    vol_j = read_store(ANOMALY_PATH)
 
     # Служебные ключи журналов (last_leader и прочее) не монеты.
     # Фильтр по префиксу, а не по имени: их может стать больше.
@@ -920,9 +921,9 @@ def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
 
     ranked: dict[str, float] = {}
     for sym in flow_syms:
-        ranked[sym] = _max_vol_ratio(flow_j.get(sym) or {})
+        ranked[sym] = max_vol_ratio(flow_j.get(sym) or {})
     for sym in vol_syms:
-        ranked.setdefault(sym, _max_vol_ratio(vol_j.get(sym) or {}))
+        ranked.setdefault(sym, max_vol_ratio(vol_j.get(sym) or {}))
 
     # Порядок — разнобой. Никакого рейтинга: вес монеты уже сказан
     # цветом (объём) и кантом (лидер FLOW), и дублировать его

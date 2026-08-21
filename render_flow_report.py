@@ -18,8 +18,7 @@ from analytics_metrics import card_data, fmt_cap
 # Ключ подкейса и порядок отчёта — вычисление над списком монет,
 # а не отрисовка: их спрашивают дашборд и орбита тоже, и раньше
 # оба брали их отсюда, из соседнего рендера.
-from analytics_flow import case_key, flow_order
-from render_common import CASE_RU
+from analytics_flow import CASE_RU, case_key, flow_order
 
 # ── палитра статусов ──────────────────────────────────────────
 # золото — топ прогона, зелёный — чисто, оранж — под вето.
