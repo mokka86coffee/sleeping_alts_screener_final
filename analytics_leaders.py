@@ -517,6 +517,60 @@ def portfolio_stats(store: dict) -> dict:
     return out
 
 
+def journal_summary(path: Path = LEADERS_PATH) -> dict:
+    """Итог журнала целиком — для хвоста сводки.
+
+    Считается при чтении, потому что это агрегат по всему файлу, а не
+    поле записи: лучший и худший ход имеют смысл только на фоне
+    остальных. «Новые» — записи, заведённые текущим прогоном:
+    since_run записи совпадает со счётчиком прогонов в _meta.
+    Это честная замена мёртвой строке «новые в топ-3» — поле newTop3
+    никто никогда не писал, а since_run пишется каждым прогоном.
+
+    Живёт здесь, а не в орбите, где лежала раньше: ни одно из этих
+    чисел не относится к конкретной звезде и к тому, как она
+    рисуется, — это журнал целиком, схемой которого владеет именно
+    этот модуль (_new_record/_touch_*). Читает своим же _load(),
+    без чтения json на стороне рендера.
+    """
+    recs, meta = _load(path)
+    run_no = int(meta.get("runs") or 0)
+
+    recs = {k: v for k, v in recs.items()
+            if not k.startswith("_") and isinstance(v, dict)}
+    if not recs:
+        return {}
+
+    # Условный портфель и пробелы ручных полей считаются своими
+    # владельцами, здесь только собираются вместе: правило вложения
+    # живёт рядом с записями, а не в отрисовке.
+    from analytics_manual_fields import stats as manual_stats
+    port = portfolio_stats(recs)
+    gaps = manual_stats(recs)
+
+    def _lbl(sym: str) -> str:
+        return sym[:-4] if sym.endswith("USDT") else sym
+
+    fresh = [_lbl(s) for s, r in recs.items()
+             if run_no > 0 and int(r.get("since_run") or 0) == run_no]
+
+    by_chg = sorted(recs.items(),
+                    key=lambda kv: float(kv[1].get("change_pct") or 0.0))
+    worst_sym, worst = by_chg[0]
+    best_sym, best = by_chg[-1]
+
+    return {
+        "n": len(recs),
+        "fresh": fresh[:3],
+        "port": port,
+        "gaps": gaps,
+        "best": {"t": _lbl(best_sym),
+                 "chg": round(float(best.get("change_pct") or 0.0), 1)},
+        "worst": {"t": _lbl(worst_sym),
+                  "chg": round(float(worst.get("change_pct") or 0.0), 1)},
+    }
+
+
 def _touch_price(rec: dict, price: float, now: datetime) -> None:
     entry = rec["entry_price"]
     rec["price"] = price

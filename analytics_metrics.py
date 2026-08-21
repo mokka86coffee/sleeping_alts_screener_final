@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import time
+from datetime import datetime, timedelta, timezone
 
 from analytics_indicators import (
     atr_pct, bb_width_pct, bb_width_rank, drawdown_from_high,
@@ -16,7 +17,11 @@ from core_binance import (
     get_funding_rate, get_oi_history, get_open_interest, get_spot_ticker,
     klines_1d, klines_1h, klines_15m, klines_4h, klines_1w, series,
 )
-from core_config import MIN_HISTORY_DAYS, VOL_MEDIAN_WINDOW, MIN_BAR_FILL, ANOMALY_WINDOW
+from core_config import (
+    MIN_HISTORY_DAYS, VOL_MEDIAN_WINDOW, MIN_BAR_FILL, ANOMALY_WINDOW,
+    FROZEN_MAX_CHANGE_PCT, FROZEN_TAIL_MIN, FROZEN_TAIL_PCT,
+)
+from core_models import Candidate
 
 # Короткие ряды, которые остаются в снимке для отрисовки спарклайнов
 KEEP_SERIES = ("spark_1d", "spark_vol")
@@ -88,6 +93,66 @@ def fmt_big(x: float | None) -> str:
     if x >= 1e3:
         return f"${x/1e3:.1f}K"
     return f"${x:.0f}"
+
+
+def fmt_cap(v: float | None) -> str:
+    """Капитализация для плотных мест: «$11M», а не «$11.00M».
+
+    Существует рядом с fmt_big() намеренно, а не по недосмотру. Обе
+    считают одно и то же, но округляют по-разному, и обе величины уже
+    показаны пользователю: fmt_big кормит таблицы метрик, где два
+    знака после запятой различают соседние строки, fmt_cap — плашки и
+    подписи графиков, где длина строки ограничена вёрсткой. Тихо
+    свести их к одной значит незаметно изменить то, что видно на
+    экране, — если сводить, то осознанно и отдельной задачей.
+
+    Раньше жила в render_flow_report.py как _cap и импортировалась
+    оттуда в орбиту и дашборд: рендер зависел от рендера. Сама по
+    себе это не отрисовка, а форматирование числа, поэтому место ей
+    здесь.
+    """
+    v = float(v or 0.0)
+    if v <= 0:
+        return "—"
+    if v >= 1e9:
+        return f"${v / 1e9:.1f}B"
+    if v >= 1e6:
+        return f"${v / 1e6:.0f}M"
+    return f"${v / 1e3:.0f}K"
+
+
+def card_data(c: Candidate) -> dict:
+    """Числа карточки из raw кандидата.
+
+    Все ключи скалярные: strip_series оставляет их в снимке, и они
+    доживают до рендера после drop_symbol_cache — свечей монеты в
+    памяти к этому моменту уже нет.
+
+    mcap_usd, а не market_cap: поле CoinFundamentals называется
+    именно так. Промах по имени здесь молчалив — .get вернул бы
+    ноль, и колонка показывала бы прочерк при живых данных.
+
+    Раньше жила в render_flow_report.py как _data. Ни одного тега и
+    ни одного esc() внутри: это выборка и приведение полей, а не
+    отрисовка, — поэтому карточка потока, орбита и любой следующий
+    экран берут её отсюда, а не друг у друга.
+    """
+    r = c.raw or {}
+    return {
+        "v1h": r.get("vol_x_1h"),
+        "v4h": r.get("vol_x_4h"),
+        "v1d": r.get("vol_x_1d"),
+        "p1d": float(r.get("ch_24h") or 0),
+        "p3d": float(r.get("ch_3d") or 0),
+        "p7d": float(r.get("ch_7d") or 0),
+        "fund": float(r.get("funding") or 0),
+        "cap": float(r.get("mcap_usd") or 0),
+        "ath": float(r.get("ath_drop") or 0),
+        # spark_1d — дневные закрытия, уже в KEEP_SERIES
+        "series": list(r.get("spark_1d") or [])[-14:],
+        "up": float(r.get("up_from_low") or 0),
+        "up_days": int(r.get("days_from_low") or 0),
+    }
 
 
 def fmt_price_short(p: float) -> str:
@@ -465,3 +530,231 @@ def strip_series(m: dict) -> dict:
         k: v for k, v in m.items()
         if not isinstance(v, list) or k in KEEP_SERIES
     }
+
+
+# ═════════════════════════════════════════════════════════════
+# Фон рынка и ряды для графиков · перенесено из render_orbit.py
+#
+# Почему переехало. Эти величины считались внутри орбиты, хотя не
+# имеют отношения к тому, как рисуются звёзды: это метрики по всей
+# выборке (хвост распределения суточных изменений, кратности объёма,
+# ряды цены и объёма для графиков). Орбита была не владельцем
+# расчёта, а первым его потребителем.
+#
+# Почему это стало важно именно сейчас. Сводка (render_brief.py)
+# брала те же числа из window.ORB — глобальной переменной, которую
+# выставлял скрипт орбиты В ТОМ ЖЕ документе. При переезде экранов в
+# отдельные iframe этот канал исчезает вовсе: у каждого документа
+# своё window. Данные больше не передаются между экранами — каждый
+# экран вызывает эти функции сам при сборке своего файла.
+# ═════════════════════════════════════════════════════════════
+
+
+def base_symbol(symbol: str) -> str:
+    """Тикер без котируемой валюты: ONGUSDT → ONG.
+
+    Без esc(): экранирование — забота рендера, и слой аналитики о
+    HTML знать не должен. Тот, кто вставляет результат в разметку,
+    экранирует его у себя.
+    """
+    return symbol[:-4] if symbol.endswith("USDT") else symbol
+
+
+# Торговая неделя привязана к Москве, а не к часовому поясу читателя:
+# окно ликвидности задаёт биржа и её основной поток, а не то, откуда
+# смотрят на отчёт. UTC+3 фиксированный, перевода часов нет.
+#
+# Пока рынок один, и это просто константа. Место ей всё равно здесь,
+# а не в рендере: если позже понадобится время открытия других рынков
+# (Нью-Йорк и остальные), это то же семейство вычислений — с
+# параметром рынка вместо жёстко зашитой Москвы.
+MSK = timezone(timedelta(hours=3))
+
+
+def weekend_state(now: datetime | None = None) -> str:
+    """Положение относительно выходных: 'soon', 'now' или пустая строка.
+
+    Пятница — «выходные близко»: ликвидность начинает уходить уже к
+    вечеру. Суббота и воскресенье — сами выходные.
+
+    Единственная реализация на проект. Вторая жила в brief.py на JS и
+    считала то же самое по своему часовому поясу.
+    """
+    moment = now or datetime.now(MSK)
+    day = moment.astimezone(MSK).weekday()   # 0 пн … 6 вс
+    if day == 4:
+        return "soon"
+    if day in (5, 6):
+        return "now"
+    return ""
+
+
+def market_breadth(candidates: list[Candidate]) -> dict:
+    """Хвост распределения суточных изменений по всей выборке.
+
+    Отвечает на вопрос «есть ли вообще куда ехать», на который доля
+    зелёных не отвечает: рынок бывает зелёным на 60% при росте в
+    пределах двух процентов, и это ровно замирание.
+
+    Два числа, а не одно. Максимум говорит, был ли сегодня хоть один
+    сильный ход; счётчик — единичный это выброс или движение рынка.
+    Замиранием считаем, когда провалены оба: одна улетевшая монета
+    при мёртвом остальном рынке движением не является.
+
+    Монета без ch_24h считается нулём, а не выбрасывается из выборки:
+    так было в орбите (там это давал _num с нулём по умолчанию), и
+    менять это заодно с переездом нельзя — пропуск данных и нулевое
+    изменение по-разному сдвигают максимум на рынке, где почти всё
+    красное.
+    """
+    changes = []
+    for c in candidates:
+        try:
+            changes.append(float((c.raw or {}).get("ch_24h") or 0.0))
+        except (TypeError, ValueError):
+            changes.append(0.0)
+
+    if not changes:
+        return {"frozen": False, "maxChange": None, "tail": 0}
+
+    top = max(changes)
+    tail = sum(1 for x in changes if x >= FROZEN_TAIL_PCT)
+
+    return {
+        "frozen": top < FROZEN_MAX_CHANGE_PCT and tail < FROZEN_TAIL_MIN,
+        "maxChange": round(top, 1),
+        "tail": tail,
+        "tailPct": FROZEN_TAIL_PCT,
+    }
+
+
+def day_ratios(vals: list) -> list[float]:
+    """Кратности дневного объёма к собственной медиане ряда.
+
+    Считается ЗДЕСЬ, а не в JS. Объём в этом проекте уже мерился
+    тремя разными способами под одним словом (бар к медиане нормы,
+    час к среднему за сутки, максимум по пяти масштабам), и четвёртое
+    место расчёта — в браузере, вне досягаемости пробы — сделало бы
+    расхождение неотлаживаемым.
+
+    Медиана, а не среднее: один аномальный день в ряду задирает
+    среднее так, что все остальные дни становятся «ниже нормы».
+    """
+    clean = [float(v) for v in vals if v and float(v) > 0]
+    if len(clean) < 4:
+        return []
+    med = median(clean)
+    if med <= 0:
+        return []
+    return [
+        round(float(v) / med, 2) if v and float(v) > 0 else 0.0
+        for v in vals
+    ]
+
+
+def leader_chart(c: Candidate | None) -> dict:
+    """Ряд цены лидера потока плюс уровни его фигуры.
+
+    Уровень зоны идёт вместе с рядом не для украшения: без него
+    график сообщает «монета росла» — ровно то, что уже сказано
+    процентом в тексте. Фигура FLOW построена вокруг уровня, и
+    только он делает график осмысленным.
+    """
+    if c is None:
+        return {}
+    s = [float(x) for x in (c.raw.get("spark_1d") or []) if x]
+    if len(s) < 4:
+        return {}
+
+    f = c.flow or {}
+
+    # Число уходит в JS дважды и в разных ролях: zone нужен как
+    # величина (по нему считается шкала графика), stop и target —
+    # только как подпись. Поэтому первое остаётся float, а вторые
+    # форматируются здесь: у монеты за четыре цента полное float
+    # представление это семнадцать знаков в строке.
+    stop = float(f.get("stop_hint") or 0.0)
+    target = float(f.get("target_hint") or 0.0)
+
+    return {
+        "series": s,
+        "zone": float(f.get("zone_price") or 0.0),
+        "stop": fmt_price_short(stop) if stop > 0 else "",
+        "target": fmt_price_short(target) if target > 0 else "",
+        "score": int(getattr(c, "score", 0) or 0),
+        "case": ((f.get("case") or "").replace("flow_", "") or "—"),
+        "horizonDays": int(f.get("horizon_days") or 0),
+    }
+
+
+def vol_chart(candidates: list[Candidate]) -> dict:
+    """Монета с наибольшей кратностью объёма и её дневной ряд.
+
+    Кратностью, а не оборотом в долларах: абсолютный оборот каждый
+    день выводит одни и те же ликвидные имена, то есть является
+    константой и новостью не бывает.
+
+    Максимум берётся по ПЯТИ масштабам сразу — всплеск бывает
+    двухчасовым и суточным, и спрашивать один масштаб значит
+    пропускать половину случаев.
+    """
+    best, best_x = None, 0.0
+    for c in candidates:
+        for x in (c.raw.get("vol_ratio") or {}).values():
+            try:
+                x = float(x)
+            except (TypeError, ValueError):
+                continue
+            if x > best_x:
+                best_x, best = x, c
+
+    if best is None or best_x <= 0:
+        return {}
+
+    d = card_data(best)
+    return {
+        "sym": base_symbol(best.symbol),
+        "x": round(best_x),
+        "cap": fmt_cap(d["cap"]),
+        "ratios": day_ratios(best.raw.get("spark_vol") or []),
+        "v1h": round(d.get("v1h") or 0, 1),
+        "v4h": round(d.get("v4h") or 0, 1),
+        "v1d": round(d.get("v1d") or 0, 1),
+        "funding": round(float(best.raw.get("funding") or 0.0), 3),
+    }
+
+
+def peak_volume(candidates: list[Candidate]) -> dict:
+    """Монета с наибольшей кратностью объёма к своей норме.
+
+    ВНИМАНИЕ: на момент переезда эту функцию не вызывает никто — ни
+    орбита, где она лежала, ни какой-либо другой модуль. Перенесена
+    как есть, чтобы решение о её судьбе принималось отдельно и явно,
+    а не молча вместе с уборкой слоёв. Тот же максимум по vol_ratio
+    считает vol_chart(), только полнее.
+
+    Кратностью, а не оборотом в долларах: абсолютный оборот каждый
+    день выводит одни и те же ликвидные имена, то есть является
+    константой и новостью не бывает. Кратность уже посчитана в
+    collect_metrics — это тот же vol_ratio, что кормит корзину
+    аномалий, сети здесь ноль.
+
+    Берётся максимум по ПЯТИ масштабам сразу: всплеск бывает
+    двухчасовым и суточным, и спрашивать только один масштаб значит
+    пропускать половину случаев.
+    """
+    best_sym, best_x = "", 0.0
+
+    for c in candidates:
+        ratios = (c.raw.get("vol_ratio") or {}).values()
+        for x in ratios:
+            try:
+                x = float(x)
+            except (TypeError, ValueError):
+                continue
+            if x > best_x:
+                best_x, best_sym = x, base_symbol(c.symbol)
+
+    if best_x <= 0:
+        return {}
+    return {"sym": best_sym, "x": round(best_x)}

@@ -10,6 +10,16 @@ from __future__ import annotations
 from core_models import Candidate
 from render_theme import esc
 from analytics_momentum import oi_state
+# Форматирование капитализации и выборка чисел карточки жили здесь
+# и импортировались отсюда орбитой и дашбордом — рендер зависел от
+# рендера. Ни там, ни там нет ни тега, ни esc(): это вычисление, и
+# теперь оно берётся из слоя аналитики, как и всё остальное.
+from analytics_metrics import card_data, fmt_cap
+# Ключ подкейса и порядок отчёта — вычисление над списком монет,
+# а не отрисовка: их спрашивают дашборд и орбита тоже, и раньше
+# оба брали их отсюда, из соседнего рендера.
+from analytics_flow import case_key, flow_order
+from render_common import CASE_RU
 
 # ── палитра статусов ──────────────────────────────────────────
 # золото — топ прогона, зелёный — чисто, оранж — под вето.
@@ -23,32 +33,6 @@ TONE = {
     "ok": ("gr", "#22E08A", "#6BFFB4"),
     "veto": ("rd", "#FF6B35", "#FF9B6B"),
 }
-
-# Короткие подписи: в чипе карточки длинная формулировка переносится
-# на вторую строку и ломает сетку. Полные описания живут на ленте
-# стратегии, здесь нужен ярлык, а не определение.
-CASE_RU = {
-    "hidden": "скрытый набор",
-    "spring": "сжатие",
-    "churn": "поглощение",
-    "fuel": "путь свободен",
-    "dormant": "спячка",
-    "taker": "смена агрессора",
-    "leverage": "перекос плеча",
-}
-
-
-def case_key(raw: str) -> str:
-    """Диспетчер отдаёт subcase с префиксом модуля: flow_hidden.
-
-    Внутри семейства это правильно — имя совпадает с именем модуля
-    и с ключами CASE_CAP. Наружу префикс смысла не несёт и ломает
-    сопоставление по короткому ключу, поэтому режем ровно на
-    границе рендера, а не в семействе.
-
-    Публичная: dashboard читает тот же ключ при сборке ленты.
-    """
-    return str(raw or "").removeprefix("flow_")
 
 # ── состояние импульса · техдолг «Панель состояния импульса» ───
 # Фильтр отбора считается по дневным полям и работает уже сейчас.
@@ -167,45 +151,6 @@ def _mult(v) -> str:
     if v is None or v <= 0:
         return "—"
     return f"×{v:.0f}" if v >= 10 else f"×{v:.1f}"
-
-
-def _cap(v: float) -> str:
-    if v <= 0:
-        return "—"
-    if v >= 1e9:
-        return f"${v / 1e9:.1f}B"
-    if v >= 1e6:
-        return f"${v / 1e6:.0f}M"
-    return f"${v / 1e3:.0f}K"
-
-
-def _data(c: Candidate) -> dict:
-    """Числа карточки из raw кандидата.
-
-    Все ключи скалярные: strip_series оставляет их в снимке, и они
-    доживают до рендера после drop_symbol_cache — свечей монеты в
-    памяти к этому моменту уже нет.
-
-    mcap_usd, а не market_cap: поле CoinFundamentals называется
-    именно так. Промах по имени здесь молчалив — .get вернул бы
-    ноль, и колонка показывала бы прочерк при живых данных.
-    """
-    r = c.raw or {}
-    return {
-        "v1h": r.get("vol_x_1h"),
-        "v4h": r.get("vol_x_4h"),
-        "v1d": r.get("vol_x_1d"),
-        "p1d": float(r.get("ch_24h") or 0),
-        "p3d": float(r.get("ch_3d") or 0),
-        "p7d": float(r.get("ch_7d") or 0),
-        "fund": float(r.get("funding") or 0),
-        "cap": float(r.get("mcap_usd") or 0),
-        "ath": float(r.get("ath_drop") or 0),
-        # spark_1d — дневные закрытия, уже в KEEP_SERIES
-        "series": list(r.get("spark_1d") or [])[-14:],
-        "up": float(r.get("up_from_low") or 0),
-        "up_days": int(r.get("days_from_low") or 0),
-    }
 
 
 def _background(c: Candidate) -> tuple[int, str]:
@@ -418,7 +363,7 @@ def _card(c: Candidate, idx: int) -> str:
         f'<i class="{"on" if i < bg_lvl else ""}"></i>' for i in range(3)
     )
 
-    d = _data(c)
+    d = card_data(c)
     coords, lx, ly = _spark(d["series"], w=150.0, h=40.0)
     # Ведущая величина карточки — неделя. Дневное изменение внутри
     # импульса скачет и на глаз сообщает меньше, чем форма недели.
@@ -442,7 +387,7 @@ def _card(c: Candidate, idx: int) -> str:
             target="_blank" rel="noopener">{sym}</a>
         <span class="fr-sec">{sector}</span>
         <span class="fr-caps">
-            <b class="fr-tag">{_cap(d['cap'])}</b>
+            <b class="fr-tag">{fmt_cap(d['cap'])}</b>
             <b class="fr-tag gh">{d['ath']:+.0f}% ath</b>
             <b class="fr-tag up">+{d['up']:.0f}% от дна</b>
         </span>
@@ -517,22 +462,6 @@ def _card(c: Candidate, idx: int) -> str:
     {_state_row(c)}
   </div>
 </div>"""
-
-
-def flow_order(candidates: list[Candidate]) -> list[Candidate]:
-    """Монеты FLOW в порядке отчёта: по убыванию score.
-
-    Порядок вынесен из render_flow_report, потому что его спрашивают
-    уже в двух местах — сам список и подпись позиции на карточке. Два
-    независимых sorted разошлись бы при первой правке правила, и номер
-    на карточке перестал бы совпадать со строкой в списке. Такое
-    расхождение не падает и не логируется — его замечают глазами через
-    неделю.
-    """
-    return sorted(
-        (c for c in candidates if c.flow),
-        key=lambda c: -(getattr(c, "score", 0) or 0),
-    )
 
 
 def render_flow_report(candidates: list[Candidate]) -> str:

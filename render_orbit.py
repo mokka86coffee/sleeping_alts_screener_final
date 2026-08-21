@@ -15,23 +15,30 @@ _tick, _read_json, _max_vol_ratio, FLOW_NODES, LEAD_X* и т.д.),
 """
 from __future__ import annotations
 import json
-from datetime import datetime, timedelta, timezone
 
 from core_binance import get_btc_context, get_btc_dominance
-from core_config import (
-    FROZEN_MAX_CHANGE_PCT, FROZEN_TAIL_MIN, FROZEN_TAIL_PCT, ORBIT_BG_SRC,
-    LEADERS_PATH, ANOMALY_PATH,
-)
+from core_config import ORBIT_BG_SRC, LEADERS_PATH, ANOMALY_PATH
 from core_models import Candidate, RunSnapshot
 from render_theme import esc
-from render_flow_report import case_key, CASE_RU, _cap, _data, flow_order
-from analytics_indicators import median
+from analytics_flow import (
+    big_volume, case_key, case_of, flow_leader, flow_order,
+)
 from analytics_momentum import (
     star_oi, star_late, star_pulse, star_cycle, star_divergence,
 )
+# Фон рынка, ряды для графиков и форматирование чисел — из аналитики,
+# не из соседнего рендера. Раньше половина этого считалась прямо здесь,
+# а сводка забирала результат через window.ORB — глобальную переменную
+# в общем документе. В отдельных iframe общего документа нет: каждый
+# экран зовёт эти функции сам при сборке своего файла.
+from analytics_metrics import (
+    base_symbol, card_data, fmt_cap,
+    leader_chart, market_breadth, vol_chart, weekend_state,
+)
+from analytics_leaders import journal_summary
 from render_common import (
     _pick, _num, _get, _tick, _read_json, _max_vol_ratio,
-    FLOW_NODES, RR_MIN, SURGE_NOTE, IMP_NOTE,
+    CASE_RU, FLOW_NODES, RR_MIN, SURGE_NOTE, IMP_NOTE,
     LEAD_X1, LEAD_X2, LEAD_X3,
 )
 
@@ -84,11 +91,11 @@ def _orbit_nodes(candidates: list[Candidate], snapshot: RunSnapshot,
     # Счётчики подкейсов отсюда убраны: «fuel 14» не говорит, стоит ли
     # туда смотреть — четырнадцать слабых сигналов хуже одного сильного.
     # Разбивка по подкейсам никуда не делась, она в кольцах строки FLOW.
-    flow = [c for c in candidates if c.flow]
-    ranked = sorted(flow, key=lambda c: -(getattr(c, "score", 0) or 0))[:2]
+    order = flow_order(candidates)
+    ranked = order[:2]
     lead = ranked[0] if ranked else None
     out.append({
-        "id": "flow", "name": "ПОТОК", "val": str(len(flow)),
+        "id": "flow", "name": "ПОТОК", "val": str(len(order)),
         "c": ORBIT_COLORS["flow"], "w": 0.7, "slice": "strat:flow",
         "note": (f"лидер прогона · {_tick(lead)}") if lead else "кто двигает рынок",
         # Шкала абсолютная, а не от максимума пары: при нормировке
@@ -96,7 +103,7 @@ def _orbit_nodes(candidates: list[Candidate], snapshot: RunSnapshot,
         # между «сильной» и «чуть слабее» пропадал.
         "rows": [[_tick(c), str(round(getattr(c, "score", 0) or 0)),
                   min(100, round(getattr(c, "score", 0) or 0)),
-                  case_key((c.flow or {}).get("case", "")) or ""]
+                  case_key(case_of(c)) or ""]
                  for c in ranked],
     })
 
@@ -151,33 +158,6 @@ def _orbit_nodes(candidates: list[Candidate], snapshot: RunSnapshot,
     return out
 
 
-def _orbit_flow_leader(candidates: list[Candidate]) -> Candidate | None:
-    """Тот же отбор, что «ПОТОК» на орбите: лучший score среди
-    FLOW-детектированных. Пересчитывается отдельно от _orbit_nodes,
-    чтобы _orbit_market не зависел от порядка вызовов."""
-    flow = [c for c in candidates if c.flow]
-    return max(flow, key=lambda c: getattr(c, "score", 0) or 0, default=None)
-
-
-def _orbit_flow_bigvol(candidates: list[Candidate]) -> list[dict]:
-    """Монеты из выборки FLOW, у которых объём ≥ ×30 на любом ТФ.
-
-    ×30 — не порог качества сигнала, а порог заметности объёма: та же
-    величина, что читает карточка монеты (v1h/v4h/v1d из _data), а не
-    отдельная метрика. Список отсортирован по максимальному множителю,
-    он же и подписывается в строке.
-    """
-    THRESHOLD = 30.0
-    out = []
-    for c in [c for c in candidates if c.flow]:
-        d = _data(c)
-        best = max(d.get("v1h") or 0, d.get("v4h") or 0, d.get("v1d") or 0)
-        if best >= THRESHOLD:
-            out.append({"t": _tick(c), "x": round(best, 1), "cap": _cap(d["cap"])})
-    out.sort(key=lambda r: -r["x"])
-    return out
-
-
 def _orbit_leaders(candidates: list[Candidate]) -> dict:
     """Лента тикеров. Источники и пороги те же, что у _blk_leaders,
     иначе одна и та же монета была бы золотой внизу и серой на орбите.
@@ -212,8 +192,8 @@ def _orbit_leaders(candidates: list[Candidate]) -> dict:
     lst = []
     for sym in order:
         c = by_symbol.get(sym.upper())
-        label = sym[:-4] if sym.endswith("USDT") else sym
-        lst.append([label, tier(ranked[sym]), (c.symbol if c is not None else "")])
+        lst.append([base_symbol(sym), tier(ranked[sym]),
+                    (c.symbol if c is not None else "")])
 
     return {
         "id": "lead", "name": "ЛИДЕРЫ", "val": str(len(ranked)),
@@ -538,14 +518,14 @@ def _star_card(c: Candidate | None) -> dict:
     if c is None:
         return {"score": 0, "sector": "—", "pattern": "—"}
 
-    d = _data(c)
+    d = card_data(c)
     cats = getattr(c, "categories", None) or []
     out = {
         "score": int(getattr(c, "score", 0) or 0),
         "sector": (cats[0] if cats else "—").lower(),
-        "cap": _cap(d["cap"]),
+        "cap": fmt_cap(d["cap"]),
         "ath": round(d["ath"]),
-        "pattern": CASE_RU.get(case_key(_flow_case(c)), "—"),
+        "pattern": CASE_RU.get(case_key(case_of(c)), "—"),
         "v1h": d["v1h"], "v4h": d["v4h"], "v1d": d["v1d"],
         "p1d": round(d["p1d"], 1),
         "p3d": round(d["p3d"], 1),
@@ -568,10 +548,6 @@ def _star_card(c: Candidate | None) -> dict:
     return out
 
 
-def _flow_case(c: Candidate) -> str:
-    return str((c.flow or {}).get("case", "") or "")
-
-
 def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
     """Лидер FLOW и монеты журнала лидеров — отдельными звёздами.
 
@@ -592,8 +568,7 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
     ages = {s: _star_age_days(flow_j.get(s) or {}) for s in syms}
     dated = [a for a in ages.values() if a is not None]
 
-    lead = max((c for c in candidates if c.flow),
-               key=lambda c: getattr(c, "score", 0) or 0, default=None)
+    lead = flow_leader(candidates)
     lead_sym = lead.symbol.upper() if lead is not None else ""
     by_symbol = {c.symbol.upper(): c for c in candidates}
 
@@ -633,13 +608,11 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
         # Префикс flow_ снимается здесь, а не в JS: имя подкейса —
         # это ключ палитры, и разбирать его на стороне отрисовки
         # значит держать знание о формате имён в двух местах.
-        case = ""
-        if c is not None and c.flow:
-            case = str(c.flow.get("case") or "")
+        case = case_of(c) if c is not None else ""
         if not case:
             case = str(rec.get("entry_case") or "")
-        st = case[5:] if case.startswith("flow_") else case
-        label = sym[:-4] if sym.endswith("USDT") else sym
+        st = case_key(case)
+        label = base_symbol(sym)
         # up_from_low / days_from_low — те же поля, что читает
         # _numbers() во flow_report. Для монет, которых нет в текущем
         # прогоне, роста не будет: raw есть только у кандидатов.
@@ -761,7 +734,7 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
             **({"fpos": fpos[sym.upper()], "ftotal": ftotal}
                if sym.upper() in fpos else {}),
 
-            # Числа карточки берём тем же _data(), что кормит карточки
+            # Числа карточки берём тем же card_data(), что кормит карточки
             # отчёта: иначе одна монета показывала бы на орбите и в
             # отчёте разные цифры, и расхождение всплыло бы не сразу.
             **_star_card(c),
@@ -770,186 +743,6 @@ def _orbit_stars(candidates: list[Candidate]) -> list[dict]:
     # Лидер рисуется последним — поверх остальных, если рядом окажется сосед
     out.sort(key=lambda s: (s["lead"], s["f"]))
     return out
-
-# Торговая неделя привязана к Москве, а не к часовому поясу читателя:
-# окно ликвидности задаёт биржа и её основной поток, а не то, откуда
-# смотрят на отчёт. UTC+3 фиксированный, перевода часов нет.
-MSK = timezone(timedelta(hours=3))
-
-
-def _weekend_state(now: datetime | None = None) -> str:
-    """Положение относительно выходных: 'soon', 'now' или пустая строка.
-
-    Пятница — «выходные близко»: ликвидность начинает уходить уже к
-    вечеру. Суббота и воскресенье — сами выходные.
-
-    Единственная реализация на проект. Вторая жила в brief.py на JS и
-    считала то же самое по своему часовому поясу.
-    """
-    moment = now or datetime.now(MSK)
-    day = moment.astimezone(MSK).weekday()   # 0 пн … 6 вс
-    if day == 4:
-        return "soon"
-    if day in (5, 6):
-        return "now"
-    return ""
-
-
-def _market_breadth(candidates: list[Candidate]) -> dict:
-    """Хвост распределения суточных изменений по всей выборке.
-
-    Отвечает на вопрос «есть ли вообще куда ехать», на который доля
-    зелёных не отвечает: рынок бывает зелёным на 60% при росте в
-    пределах двух процентов, и это ровно замирание.
-
-    Два числа, а не одно. Максимум говорит, был ли сегодня хоть один
-    сильный ход; счётчик — единичный это выброс или движение рынка.
-    Замиранием считаем, когда провалены оба: одна улетевшая монета
-    при мёртвом остальном рынке движением не является.
-    """
-    changes = []
-    for c in candidates:
-        v = _num(c, "ch_24h")
-        if v is not None:
-            changes.append(float(v))
-
-    if not changes:
-        return {"frozen": False, "maxChange": None, "tail": 0}
-
-    top = max(changes)
-    tail = sum(1 for x in changes if x >= FROZEN_TAIL_PCT)
-
-    return {
-        "frozen": top < FROZEN_MAX_CHANGE_PCT and tail < FROZEN_TAIL_MIN,
-        "maxChange": round(top, 1),
-        "tail": tail,
-        "tailPct": FROZEN_TAIL_PCT,
-    }
-
-def _day_ratios(vals: list) -> list[float]:
-    """Кратности дневного объёма к собственной медиане ряда.
-
-    Считается ЗДЕСЬ, а не в JS. Объём в этом проекте уже мерился
-    тремя разными способами под одним словом (бар к медиане нормы,
-    час к среднему за сутки, максимум по пяти масштабам), и четвёртое
-    место расчёта — в браузере, вне досягаемости пробы — сделало бы
-    расхождение неотлаживаемым.
-
-    Медиана, а не среднее: один аномальный день в ряду задирает
-    среднее так, что все остальные дни становятся «ниже нормы».
-    """
-    clean = [float(v) for v in vals if v and float(v) > 0]
-    if len(clean) < 4:
-        return []
-    med = median(clean)
-    if med <= 0:
-        return []
-    return [
-        round(float(v) / med, 2) if v and float(v) > 0 else 0.0
-        for v in vals
-    ]
-
-
-def _leader_chart(c: Candidate | None) -> dict:
-    """Ряд цены лидера потока плюс уровни его фигуры.
-
-    Уровень зоны идёт вместе с рядом не для украшения: без него
-    график сообщает «монета росла» — ровно то, что уже сказано
-    процентом в тексте. Фигура FLOW построена вокруг уровня, и
-    только он делает график осмысленным.
-    """
-    if c is None:
-        return {}
-    s = [float(x) for x in (c.raw.get("spark_1d") or []) if x]
-    if len(s) < 4:
-        return {}
-
-    f = c.flow or {}
-    from analytics_metrics import fmt_price_short
-
-    # Число уходит в JS дважды и в разных ролях: zone нужен как
-    # величина (по нему считается шкала графика), stop и target —
-    # только как подпись. Поэтому первое остаётся float, а вторые
-    # форматируются здесь: у монеты за четыре цента полное float
-    # представление это семнадцать знаков в строке.
-    stop = float(f.get("stop_hint") or 0.0)
-    target = float(f.get("target_hint") or 0.0)
-
-    return {
-        "series": s,
-        "zone": float(f.get("zone_price") or 0.0),
-        "stop": fmt_price_short(stop) if stop > 0 else "",
-        "target": fmt_price_short(target) if target > 0 else "",
-        "score": int(getattr(c, "score", 0) or 0),
-        "case": ((f.get("case") or "").replace("flow_", "") or "—"),
-        "horizonDays": int(f.get("horizon_days") or 0),
-    }
-
-
-def _vol_chart(candidates: list[Candidate]) -> dict:
-    """Монета с наибольшей кратностью объёма и её дневной ряд.
-
-    Кратностью, а не оборотом в долларах: абсолютный оборот каждый
-    день выводит одни и те же ликвидные имена, то есть является
-    константой и новостью не бывает.
-
-    Максимум берётся по ПЯТИ масштабам сразу — всплеск бывает
-    двухчасовым и суточным, и спрашивать один масштаб значит
-    пропускать половину случаев.
-    """
-    best, best_x = None, 0.0
-    for c in candidates:
-        for x in (c.raw.get("vol_ratio") or {}).values():
-            try:
-                x = float(x)
-            except (TypeError, ValueError):
-                continue
-            if x > best_x:
-                best_x, best = x, c
-
-    if best is None or best_x <= 0:
-        return {}
-
-    d = _data(best)
-    return {
-        "sym": _tick(best),
-        "x": round(best_x),
-        "cap": _cap(d["cap"]),
-        "ratios": _day_ratios(best.raw.get("spark_vol") or []),
-        "v1h": round(d.get("v1h") or 0, 1),
-        "v4h": round(d.get("v4h") or 0, 1),
-        "v1d": round(d.get("v1d") or 0, 1),
-        "funding": round(float(best.raw.get("funding") or 0.0), 3),
-    }
-
-def _peak_volume(candidates: list[Candidate]) -> dict:
-    """Монета с наибольшей кратностью объёма к своей норме.
-
-    Именно кратностью, а не оборотом в долларах: абсолютный оборот
-    каждый день выводит одни и те же ликвидные имена, то есть
-    является константой и новостью не бывает. Кратность уже
-    посчитана в collect_metrics — это тот же vol_ratio, что кормит
-    корзину аномалий, сети здесь ноль.
-
-    Берётся максимум по ПЯТИ масштабам сразу: всплеск бывает
-    двухчасовым и суточным, и спрашивать только один масштаб значит
-    пропускать половину случаев.
-    """
-    best_sym, best_x = "", 0.0
-
-    for c in candidates:
-        ratios = (c.raw.get("vol_ratio") or {}).values()
-        for x in ratios:
-            try:
-                x = float(x)
-            except (TypeError, ValueError):
-                continue
-            if x > best_x:
-                best_x, best_sym = x, c.base
-
-    if best_x <= 0:
-        return {}
-    return {"sym": best_sym, "x": round(best_x)}
 
 def _orbit_dormant(candidates: list[Candidate],
                    leader: Candidate | None) -> list[dict]:
@@ -969,60 +762,11 @@ def _orbit_dormant(candidates: list[Candidate],
             continue
         out.append({
             "t": _tick(c),
-            "cap": _cap(_data(c)["cap"]),
+            "cap": fmt_cap(card_data(c)["cap"]),
             "score": int(getattr(c, "score", 0) or 0),
         })
     out.sort(key=lambda d: -d["score"])
     return out[:3]
-
-
-def _orbit_journal() -> dict:
-    """Итог журнала лидеров — для хвоста сводки.
-
-    Считается при чтении, потому что это агрегат по всему файлу, а не
-    поле записи: лучший и худший ход имеют смысл только на фоне
-    остальных. «Новые» — записи, заведённые текущим прогоном:
-    since_run записи совпадает со счётчиком прогонов в _meta.
-    Это честная замена мёртвой строке «новые в топ-3» — поле newTop3
-    никто никогда не писал, а since_run пишется каждым прогоном.
-    """
-    j = _read_json(LEADERS_PATH)
-    meta = j.get("_meta") or {}
-    run_no = int(meta.get("runs") or 0)
-
-    recs = {k: v for k, v in j.items()
-            if not k.startswith("_") and isinstance(v, dict)}
-    if not recs:
-        return {}
-
-    # Условный портфель считается в журнале, здесь только берётся:
-    # правило вложения живёт рядом с записями, а не в отрисовке.
-    from analytics_leaders import portfolio_stats
-    from analytics_manual_fields import stats as manual_stats
-    port = portfolio_stats(j)
-    gaps = manual_stats(j)
-
-    def _lbl(sym: str) -> str:
-        return sym[:-4] if sym.endswith("USDT") else sym
-
-    fresh = [_lbl(s) for s, r in recs.items()
-             if run_no > 0 and int(r.get("since_run") or 0) == run_no]
-
-    by_chg = sorted(recs.items(),
-                    key=lambda kv: float(kv[1].get("change_pct") or 0.0))
-    worst_sym, worst = by_chg[0]
-    best_sym, best = by_chg[-1]
-
-    return {
-        "n": len(recs),
-        "fresh": fresh[:3],
-        "port": port,
-        "gaps": gaps,
-        "best": {"t": _lbl(best_sym),
-                 "chg": round(float(best.get("change_pct") or 0.0), 1)},
-        "worst": {"t": _lbl(worst_sym),
-                  "chg": round(float(worst.get("change_pct") or 0.0), 1)},
-    }
 
 
 def _orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
@@ -1046,12 +790,12 @@ def _orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
     """
     reg = getattr(snapshot, "market_regime", None) or {}
     _btc = get_btc_context()
-    _breadth = _market_breadth(candidates)
+    _breadth = market_breadth(candidates)
     # Один вызов на обе величины: плашка на орбите берёт из него имя
     # и кратность, брифинг — тот же расчёт плюс ряд для графика.
     # Раздельные вызовы позволили бы лидеру объёма разойтись между
     # двумя местами экрана.
-    _vol = _vol_chart(candidates)
+    _vol = vol_chart(candidates)
 
     label = str(reg.get("label", "risk-off"))
     try:
@@ -1064,13 +808,13 @@ def _orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
         [(str(_get(r, "sector", "") or ""), float(_get(r, "avg_change_24h", 0) or 0))
          for r in src], key=lambda p: -p[1])[:1]
 
-    leader = _orbit_flow_leader(candidates)
+    leader = flow_leader(candidates)
 
     def top3(sid: str) -> list[dict]:
         items = sorted(_pick(slices, sid)["items"],
                        key=lambda c: -_num(c, "rvol_1h"))[:3]
         return [{"t": _tick(c), "x": round(_num(c, "rvol_1h"), 1),
-                 "cap": _cap(_data(c)["cap"])} for c in items]
+                 "cap": fmt_cap(card_data(c)["cap"])} for c in items]
 
     hourly_items = _pick(slices, "hourly")["items"]
 
@@ -1100,7 +844,7 @@ def _orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
         "maxChange": _breadth["maxChange"],
         "tail": _breadth["tail"],
         "tailPct": _breadth.get("tailPct"),
-        "weekend": _weekend_state(),
+        "weekend": weekend_state(),
         # Сектор дня убран из плашки: усреднение по сектору живёт час,
         # деньги за это время уже в другом. Поле оставлено — его читает
         # брифинг ниже, где оно идёт одной фразой среди прочих, а не
@@ -1116,19 +860,19 @@ def _orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
         # плашке и в брифинге не мог разойтись.
         "peakVol": {"sym": _vol.get("sym", ""), "x": _vol.get("x", 0)},
         "volChart": _vol,
-        "leaderChart": _leader_chart(leader),
+        "leaderChart": leader_chart(leader),
         "leader": ({"t": _tick(leader),
                     "score": round(getattr(leader, "score", 0) or 0),
-                    "case": case_key((leader.flow or {}).get("case", "")) or "—",
-                    "cap": _cap(_data(leader)["cap"])} if leader else {}),
+                    "case": case_key(case_of(leader)) or "—",
+                    "cap": fmt_cap(card_data(leader)["cap"])} if leader else {}),
         "topVol": top3("surge"),
         "hourly": {"n": len(hourly_items), "list": top3("hourly")},
-        "flowVol": _orbit_flow_bigvol(candidates),
+        "flowVol": big_volume(candidates),
         # Спячка и итог журнала — читает только сводка при входе.
         # Спячка идёт из кандидатов (до лидерства журнала не бывает),
         # итог журнала — агрегат по файлу, не поле записи.
         "dormant": _orbit_dormant(candidates, leader),
-        "journal": _orbit_journal(),
+        "journal": journal_summary(),
     }
 
 

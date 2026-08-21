@@ -15,8 +15,13 @@ from core_models import Candidate, RunSnapshot
 from render_card import render_card
 from render_table import render_slice_pane
 from render_theme import esc
-from render_flow_report import (case_key, render_flow_report,
-                                CASE_RU, _cap, _data)
+# Из соседнего рендера теперь берётся только сама отрисовка отчёта.
+# Всё остальное, что раньше приходило отсюда, переехало по слоям:
+# _cap/_data → analytics_metrics (fmt_cap/card_data, этот файл их и
+# не использовал — импорт был мёртвым со времени Ч-8), ключ подкейса
+# и отбор FLOW → analytics_flow, словарь подписей → render_common.
+from render_flow_report import render_flow_report
+from analytics_flow import case_counts, flow_candidates, flow_leader
 from render_orbit import render_orbit
 from render_brief import render_brief
 from render_podium import render_podium
@@ -995,13 +1000,9 @@ def _blk_leaders(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
 </div>"""
 
 def _blk_flow(candidates: list[Candidate]) -> str:
-    flow = [c for c in candidates if c.flow]
-    by_case: dict[str, int] = {}
-    for c in flow:
-        case = case_key((c.flow or {}).get("case", ""))
-        by_case[case] = by_case.get(case, 0) + 1
-
-    lead = max(flow, key=lambda c: getattr(c, "score", 0) or 0, default=None)
+    flow = flow_candidates(candidates)
+    by_case = case_counts(candidates)
+    lead = flow_leader(candidates)
 
     nodes = ""
     for case, cx, rx, _sub, underline in FLOW_NODES:
