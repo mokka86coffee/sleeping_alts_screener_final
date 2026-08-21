@@ -245,6 +245,11 @@ _NOISE = {
     "oi_x": 0.3,         # кратности
     "buy_share": 0.01,   # долей единицы
     "price_pct": 3.0,    # процентов цены
+    # Спред часового вортекса карточки (intraday.vortex, то же поле,
+    # что рисует «вортекс … едва/уверенно»). Порог не откалиброван —
+    # взят по порядку величины того же рода признаков (buy_share);
+    # первый прогон покажет разброс spread по рынку.
+    "ivx_spread": 0.03,
 }
 
 
@@ -276,7 +281,8 @@ def pulse_note(symbol: str) -> dict:
         w = _HORIZON_WEIGHT.get(span, 0.5)
 
         for key, unit in (("score", 10.0), ("oi_x", 1.0),
-                          ("buy_share", 0.01), ("price_pct", 5.0)):
+                          ("buy_share", 0.01), ("price_pct", 5.0),
+                          ("ivx_spread", 0.1)):
             v = d.get(key)
             if v is None or abs(v) < _NOISE[key]:
                 continue
@@ -286,6 +292,16 @@ def pulse_note(symbol: str) -> dict:
     if flip:
         scored.append((3.0, "prev", {
             "kind": "vx_flip", "from": flip.get("from"), "to": flip.get("to"),
+        }))
+
+    # Флип часового вортекса карточки — тот же приём, что vx_flip
+    # выше, но для intraday.vortex (ivx_*), а не для дневного
+    # FLOW-вортекса. Разные источники держатся раздельно: смешать их
+    # значило бы потерять, какой именно вортекс развернулся.
+    iflip = hist.get("ivx_flip")
+    if iflip:
+        scored.append((3.0, "prev", {
+            "kind": "ivx_flip", "from": iflip.get("from"), "to": iflip.get("to"),
         }))
 
     if not scored:

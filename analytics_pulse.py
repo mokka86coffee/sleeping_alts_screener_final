@@ -137,6 +137,26 @@ def snapshot(c: Candidate) -> dict:
     if n is not None:
         out["vi_m"] = round(n, 4)
 
+    # Тот же вортекс, что рисует карточка: intraday.vortex, часовой
+    # vortex_cross() из analytics_intraday.py. Разбор ONG 21 августа —
+    # именно этот индикатор сближался несколько прогонов подряд ДО
+    # разворота, но раньше его нигде не сохраняли между прогонами:
+    # vi_p/vi_m выше — другой расчёт (4h-фаза), vx_dir ниже — третий
+    # (дневной VortexState из ядра FLOW, и только если оно сработало).
+    # Имена с префиксом ivx_, чтобы не столкнуться с этими двумя.
+    ivx = (raw.get("intraday") or {}).get("vortex") or {}
+    n = _num(ivx.get("vi_plus"))
+    if n is not None:
+        out["ivx_p"] = round(n, 4)
+    n = _num(ivx.get("vi_minus"))
+    if n is not None:
+        out["ivx_m"] = round(n, 4)
+    n = _num(ivx.get("spread"))
+    if n is not None:
+        out["ivx_spread"] = round(n, 4)
+    if ivx.get("dir"):
+        out["ivx_dir"] = str(ivx["dir"])
+
     # Контекст FLOW — сверху и только если он есть. Без этой развилки
     # половина выборки писала бы пустые снимки.
     ctx = (c.flow or {}).get("context") or {}
@@ -231,6 +251,11 @@ DELTA_KEYS = (
     "price", "vol_1d", "atr_pct", "funding",
     "up_low", "buy_share", "oi_x", "oi_held", "oi_usd", "vx_strength",
     "rel_vol", "score",
+    # Спред часового вортекса карточки — непрерывная величина, а не
+    # только флип: разбор ONG 21 августа, VI+ формально ещё выше VI−
+    # несколько прогонов подряд, но разрыв заметно сжимался. Дельта
+    # ловит СБЛИЖЕНИЕ до флипа, а не только сам факт смены стороны.
+    "ivx_spread",
 )
 
 
@@ -267,5 +292,13 @@ def for_symbol(symbol: str) -> dict:
     prev_dir = pts[-2].get("vx_dir")
     if prev_dir and now.get("vx_dir") and prev_dir != now["vx_dir"]:
         out["vx_flip"] = {"from": prev_dir, "to": now["vx_dir"]}
+
+    # Тот же флип, но для часового вортекса карточки (ivx_*), а не
+    # для дневного FLOW-вортекса выше. Разные источники, разные флаги:
+    # смешать их в один значило бы потерять то, какой именно вортекс
+    # развернулся — карточка показывает часовой, не дневной.
+    prev_ivx = pts[-2].get("ivx_dir")
+    if prev_ivx and now.get("ivx_dir") and prev_ivx != now["ivx_dir"]:
+        out["ivx_flip"] = {"from": prev_ivx, "to": now["ivx_dir"]}
 
     return out

@@ -272,30 +272,6 @@ def get_btc_context() -> dict:
     if rank is not None:
         out["vol_rank"] = round(rank, 1)
 
-    # Н-1 тех.долга: тейкерский перекос по биткоину — тот же вопрос,
-    # что PUMP ON/OFF, но по потоку, а не по цене. Поля 9 и 10 свечей
-    # (K_TAKER_BUY_BASE, K_TAKER_BUY_QUOTE) проект уже парсит для
-    # дельты FLOW; здесь тот же приём на том же ряду BTC.
-    #
-    # Окно — семь дней, порядок величины «на этой неделе». Не
-    # откалибровано: число по порядку величины, первый прогон покажет
-    # разброс.
-    #
-    # None — окно короче семи дней либо продаж в нём не было вовсе
-    # (sell <= 0): отсутствие перекоса должно выглядеть отсутствием,
-    # а не единицей или нулём.
-    BTC_TAKER_SKEW_DAYS = 7
-    if len(kl) >= BTC_TAKER_SKEW_DAYS:
-        tail = kl[-BTC_TAKER_SKEW_DAYS:]
-        try:
-            buy = sum(float(k[K_TAKER_BUY_QUOTE]) for k in tail)
-            turn = sum(float(k[K_QUOTE_VOLUME]) for k in tail)
-        except (TypeError, ValueError, IndexError):
-            buy = turn = 0.0
-        sell = turn - buy
-        if sell > 0:
-            out["taker_skew"] = round(buy / sell, 3)
-
     return out
 
 
