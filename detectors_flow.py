@@ -915,6 +915,47 @@ def detect_flow(
     score = _to_family_score(raw)
     entry, stop, target = _levels(ctx, best_sig)
 
+    # К-1 (чтение момента, 19 августа): цель ниже цены — сигнал
+    # описывает вход, который уже прошёл. R:R в выдаче считается от
+    # зоны, а не от текущей цены, и поэтому выглядел бы приличным,
+    # хотя сделка уже не имеет смысла. Снимает GPS целиком
+    # (target_hint 0.017447 при цене 0.017633).
+    #
+    # Диагностика сохраняется тем же способом, что у cycle_done()
+    # выше и у пустого results: cases/context/rejects остаются,
+    # чтобы разбор прогона видел причину, а не тишину.
+    if target > 0 and ctx.price >= target:
+        reason = (f"цель уже позади цены: цель {target:.10g} "
+                  f"при цене {ctx.price:.10g} — сигнал отыгран")
+        return FlowSignal(
+            symbol=symbol,
+            cases=cases,
+            context=ctx_dict,
+            failures=failures,
+            rejects=rejects,
+            verdict=reason,
+        )
+
+    # К-4, часть 1 (чтение момента, 19 августа): цена ушла от зоны
+    # входа слишком далеко — сигнал устарел. У PORTAL было +29% от
+    # зоны, у GPS +13% (GPS дополнительно снимается К-1 выше, но это
+    # правило о том же самом факте с другой стороны — от входа, а не
+    # от цели). Порог не откалиброван, взят серединой диапазона
+    # 10–15% из разбора; первый прогон покажет разброс.
+    STALE_ZONE_DRIFT_PCT = 0.12
+    if entry > 0 and ctx.price > entry * (1.0 + STALE_ZONE_DRIFT_PCT):
+        drift = (ctx.price / entry - 1.0) * 100.0
+        reason = (f"цена ушла от зоны входа на {drift:.0f}% "
+                  f"(зона {entry:.10g}, цена {ctx.price:.10g}) — сигнал устарел")
+        return FlowSignal(
+            symbol=symbol,
+            cases=cases,
+            context=ctx_dict,
+            failures=failures,
+            rejects=rejects,
+            verdict=reason,
+        )
+
     verdict = _verdict(best_name, best_sig, confirmed_by)
 
     return FlowSignal(

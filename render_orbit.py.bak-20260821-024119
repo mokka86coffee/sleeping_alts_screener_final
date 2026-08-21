@@ -1845,8 +1845,6 @@ ORBIT_JS = """
     var p = phase(s), risks = [];
     if (s.firstRun) risks.push('первый разгон');
     if (s.topBubble) risks.push('пузырь на вершине');
-    if (s.oiState === 'held') risks.push('плечо не проверено');
-    if (s.late) risks.push('фигура уже отыграна');
     return '<div class="ob-sc-act ' + p.k + '">' + p.a + '</div>' +
       (risks.length
         ? '<div class="ob-sc-risk">' + risks.map(function (r) {
@@ -1947,10 +1945,6 @@ ORBIT_JS = """
     var p = phase(s), risks = [];
     if (s.firstRun) risks.push('первый разгон');
     if (s.topBubble) risks.push('пузырь на вершине');
-    // Плечо не проверено (GPS перед обвалом) / фигура уже отыграна —
-    // те же поля, что уже показывают подвал карточки и зал.
-    if (s.oiState === 'held') risks.push('плечо не проверено');
-    if (s.late) risks.push('фигура уже отыграна');
 
     /* Краткий вид: только то, что нужно для решения — что делать, как
        выглядит движение, сколько до уровня. Подробности прячутся за

@@ -28,10 +28,9 @@ from render_cardscene import render_cardscene
 # на уровне модуля дал бы цикл. См. docstring render_common.py.
 from render_common import (
     _num, _get, _tick, _pick, _read_json, _max_vol_ratio,
-    FLOW_NODES, RR_MIN, SURGE_NOTE, IMP_NOTE,
+    FLOW_NODES, RR_MIN, SURGE_NOTE, IMP_NOTE, BTC_D,
     LEAD_X1, LEAD_X2, LEAD_X3,
 )
-from core_binance import get_btc_dominance
 
 # ─────────────────────────────────────────────────────────────
 # Хелперы
@@ -357,13 +356,11 @@ def _head(snapshot: RunSnapshot) -> str:
     #   2) шкала аппетита — 5 сегментов, знаменатель захардкожен
     #   3) text (длинное пояснение) в капсулу не помещается: тултип
     #      или отдельная строка — решить отдельно
-    #   4) BTC.D — core_binance.get_btc_dominance() (Ч-9 тех.долга
-    #      закрыт: раньше здесь была константа-заглушка).
+    #   4) BTC.D в market_regime НЕТ, источник предстоит найти.
+    #      Сейчас константа BTC_D
     # =====================================================================
     reg = getattr(snapshot, "market_regime", None) or {}
     label = str(reg.get("label", "risk-off")).upper()
-    _dom = get_btc_dominance()
-    dom_txt = f"{_dom:.0f}%" if _dom is not None else "—"
     try:
         appetite = int(reg.get("appetite", 2) or 0)
     except (TypeError, ValueError):
@@ -399,7 +396,7 @@ def _head(snapshot: RunSnapshot) -> str:
     </div>
     <div class="cap-btc">
       <span class="cap-k">btc.d</span>
-      <b>{dom_txt}</b>
+      <b>{BTC_D}</b>
     </div>
   </div>
 </div>"""

@@ -201,16 +201,8 @@ def _from_bottom(lows: list[float], price: float) -> tuple[float, int]:
     Для второго есть ath_drop, и величины дополняют друг друга —
     −80% от ATH при +150% от дна и −80% при +5% описывают разные
     монеты, хотя первая цифра у них общая.
-
-    К-7 тех.долга (чтение момента, 19 августа): монете короче
-    BOTTOM_WINDOW дней окно не сокращается — оно просто мельче своей
-    заявленной длины, и «минимум» тогда почти всегда листинговый
-    бар с аномальным разбросом на открытии торгов, а не дно цикла.
-    У AKE так получалось +4940% от «дна». Ниже полного окна величина
-    честно не измеряется: 0.0/0 здесь означает «рано мерить», а не
-    «роста нет».
     """
-    if len(lows) < BOTTOM_WINDOW or price <= 0:
+    if not lows or price <= 0:
         return 0.0, 0
     tail = lows[-BOTTOM_WINDOW:]
     low = min(tail)
@@ -282,15 +274,7 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
 
     # ── Осцилляторы и волатильность ──
     srsi = stoch_rsi(closes_4h, 14) if closes_4h else None
-    # К-7 тех.долга: тот же корень, что у up_from_low выше — при
-    # MIN_HISTORY_DAYS=30 листинговый бар (аномальный разброс на
-    # открытии торгов) ещё может сидеть внутри 14-барного окна ATR.
-    # У BEAT так выходило 374%, у TUT 143%. Порог вдвое шире периода
-    # ATR — заведомо выводит листинговый бар за пределы окна; число
-    # не откалибровано, взято по порядку величины.
-    ATR_FRESH_LISTING_MIN_DAYS = 14 * 2
-    atr_p = (atr_pct(highs_1d, lows_1d, closes_1d, 14)
-             if len(closes_1d) >= ATR_FRESH_LISTING_MIN_DAYS else None)
+    atr_p = atr_pct(highs_1d, lows_1d, closes_1d, 14)
     bb = bb_width_pct(closes_1d, 20, 2.0)
     bb_rank = bb_width_rank(closes_1d, 20, 120)
 
