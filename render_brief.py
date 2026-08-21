@@ -2,12 +2,27 @@
 
 dashboard.py только вызывает render_brief() и вставляет результат.
 
-Разметка пустая: текст собирает скрипт из window.ORB, который
+Разметка пустая: содержимое собирает скрипт из window.ORB, который
 выставляет render.orbit. Отдельного списка монет здесь нет намеренно —
 он разошёлся бы с карточками при первой правке порогов фаз.
 
 Модуль не зависит от орбиты визуально: на мобильных орбита снимается,
 а сводка остаётся, потому что это текст и он ничего не стоит.
+
+ПЕРЕДЕЛАНО целиком (дизайн одобрен в HTML-прототипе, см. переписку):
+раньше строки печатались по символу через setTimeout, блоки лидера/
+объёма рисовали насыщенные SVG-карточки (график + стоп/цель/дни/
+фандинг + кольцо скора). По решению пользователя детальная статистика
+блоков убрана — «графика будет достаточно»: осталась одна строка
+текста плюс компактный график на настоящих данных (LC.series /
+VC.ratios), без стопа/цели/дней/фандинга.
+
+Новая сцена — атмосферный фон (кольцо из пыли + дюна с рельефными
+пиками + ветер, сдувающий частицы с края кольца) и посимвольный
+каскад букв вместо печати. Все параметры (масштаб кольца, плотность
+дюны, скорость каскада и т.д.) — результат прямого тестирования в
+браузере (Playwright + скриншоты на каждом шаге), а не догадка;
+числа сохранены как были откалиброваны.
 """
 from __future__ import annotations
 
@@ -18,52 +33,46 @@ def render_brief() -> str:
 
 BRIEF_HTML = """
 <style>
-/* Стили нижней части сводки. Живут в модуле, а не в css.py, по той
-   же причине, что у podium.py: общий файл стилей уже ловил дубли
-   блоков при патчах. Дублирование правил у .obf-ring ниже —
-   страховка: базовые размеры кольца объявлены в css.py рядом с
-   блоками лидеров, и если их когда-нибудь заскопируют под .obf-br,
-   кольца в рядах не должны развалиться. */
-.obf-go{margin:10px 0 4px;opacity:0;transition:opacity .5s ease}
-.obf-go.on{opacity:1}
-.obf-sk{font-size:10px;letter-spacing:.4em;color:#8b8a92;margin-bottom:2px}
-.obf-sw{font-size:12px;color:#5d5c66;margin-bottom:10px}
-.obf-row{display:grid;grid-template-columns:3px 112px 62px 1fr 215px 46px;
-  gap:13px;align-items:center;padding:8px 12px 8px 0;border-radius:8px;
-  background:linear-gradient(90deg,rgba(255,255,255,.025),transparent 55%);
-  margin-bottom:7px;opacity:0;transform:translateY(6px);
-  transition:opacity .6s ease var(--d,0s),transform .6s ease var(--d,0s)}
-.obf-go.on .obf-row{opacity:1;transform:none}
-.obf-rr{height:100%;border-radius:2px;background:#4FCF8A}
-.obf-rt{font-size:16px;font-weight:600;letter-spacing:.07em}
-.obf-rc{font-size:12.5px;color:#4FCF8A}
-.obf-rw{font-size:13px;color:#8b8a92}
-.obf-rw b{color:#E8EEF4;font-weight:600}
-.obf-rh{font-size:12px;color:#5d5c66;text-align:right}
-.obf-rh b{color:#8b8a92;font-weight:600}
-.obf-row .obf-ring{width:44px;height:44px}
-.obf-row .obf-ring circle.v{stroke-dasharray:113;stroke-dashoffset:var(--off)}
-.dorm{color:#8FA8FF}
-.obf-sep{color:#5d5c66;padding:0 2px}
-.obf-tail{font-size:13px;color:#8b8a92}
-.obf-tail b{color:#E8EEF4;font-weight:600}
-@media (max-width:760px){
-  .obf-row{grid-template-columns:3px 90px 1fr 42px;gap:10px}
-  .obf-rc,.obf-rh{display:none}
-}
+/* Стили нижней части сводки (footer/прогресс-бар автозакрытия) живут
+   в модуле, а не в css.py, по той же причине, что у podium.py: общий
+   файл стилей уже ловил дубли блоков при патчах. Остальное оформление
+   сцены (кольцо/дюна/текст) — тоже здесь, ниже, вторым style-блоком,
+   рядом со сценой, которую оно красит. */
+.obf-foot,.obf-bar{opacity:0;transition:opacity .6s ease}
+.obf-foot.on,.obf-bar.on{opacity:1}
+</style>
+<style>
+  /* Сцена целиком — canvas на весь экран сводки плюс слой текста
+     поверх него. .ob-brief уже position:fixed;inset:0 (css.py) —
+     сцена просто заполняет собой этот контейнер. */
+  #obfCanvas{position:absolute;inset:0;display:block;width:100%;height:100%;}
+  #obfText{
+    position:absolute; left:50%; text-align:center;
+    transform:translate(-50%,-50%);
+    font-family:'Segoe UI', Helvetica, Arial, sans-serif;
+    font-style:normal; font-weight:300; color:#F1ECE0;
+    text-transform:uppercase;
+    letter-spacing:.22em; line-height:1.6;
+    text-shadow:0 0 22px rgba(0,0,0,.65);
+    max-width:82vw; pointer-events:none;
+  }
+  #obfText .ch{
+    display:inline-block; white-space:pre;
+    opacity:0; filter:blur(6px);
+    transform:translateY(10px) scale(1.12);
+    transition:opacity .5s ease, filter .5s ease,
+               transform .55s cubic-bezier(.2,.8,.25,1);
+  }
+  #obfText .ch.on{opacity:1; filter:blur(0); transform:translateY(0) scale(1);}
+  @media (prefers-reduced-motion:reduce){
+    #obfText .ch{transition:none; opacity:1; filter:none; transform:none;}
+  }
 </style>
 <div class="ob-brief" id="obBrief">
-  <div class="obf-glow"></div>
-  <div class="obf-in">
-    <div class="obf-date rise" style="--d:.1s" id="obfDate"></div>
-    <div class="obf-text" id="obfText"></div>
-    <!-- Сцена лидеров. Пустая разметка: её наполняет render/podium.py
-         из того же window.ORB, что кормит текст выше. Отдельный
-         список монет здесь не собирается — он разошёлся бы с
-         карточками при первой правке. -->
-    <div class="obf-foot" id="obfFoot">клик в любом месте — к дашборду</div>
-    <div class="obf-bar" id="obfBar"><u></u></div>
-  </div>
+  <canvas id="obfCanvas"></canvas>
+  <div id="obfText"></div>
+  <div class="obf-foot" id="obfFoot">клик в любом месте — к дашборду</div>
+  <div class="obf-bar" id="obfBar"><u></u></div>
 </div>
 """
 
@@ -72,7 +81,7 @@ BRIEF_JS = """
 <script>
 (function () {
   /* Сводка при входе. Работает поверх дашборда и не зависит от орбиты:
-     на мобильных орбита снимается, а текст остаётся — он ничего не
+     на мобильных орбита снимается, а сводка остаётся — она ничего не
      стоит. Данные и чтение фазы берём из window.ORB, который орбита
      выставляет до своего мобильного гейта. */
   var O = window.ORB || {};
@@ -81,820 +90,683 @@ BRIEF_JS = """
 
   var BRIEF_LAP = 105000;
 
-  /* Печать по символу. Задержка одна на строку, а не на каждый символ —
-     иначе при длинном тексте набегает секунда лишнего ожидания. */
-  function typeIn(el, text, delay) {
-    if (!el) return;
-    var reduce = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
-    if (reduce) { el.textContent = text; el.parentNode.classList.add('done'); return; }
-    el.textContent = '';
-    setTimeout(function () {
-      var i = 0;
-      (function step() {
-        el.textContent = text.slice(0, ++i);
-        if (i < text.length) setTimeout(step, 55);
-        else setTimeout(function () { el.parentNode.classList.add('done'); }, 700);
-      })();
-    }, delay);
+  var wrap = document.getElementById('obBrief');
+  var canvas = document.getElementById('obfCanvas');
+  var txtEl = document.getElementById('obfText');
+  if (!wrap || !canvas || !txtEl) return;
+  var ctx = canvas.getContext('2d');
+
+  function w(){ return wrap.clientWidth || window.innerWidth; }
+  function h(){ return wrap.clientHeight || window.innerHeight; }
+
+  /* ═════════════════════════════════════════════════════════
+     Атмосферная сцена: кольцо из пыли + дюна с рельефными пиками.
+     Числа ниже — не эстетический произвол, а результат прямого
+     тестирования в браузере (Playwright, скриншот на каждом шаге):
+     плотность частиц, амплитуда пиков дюны, разрывы кольца — всё
+     подбиралось глазами против референса, отражённого в переписке.
+     ═════════════════════════════════════════════════════════ */
+
+  // Глоу-спрайт для пролетающей пыли: белое ядро → цвет → прозрачность.
+  var sprites = {};
+  function getSprite(color){
+    if (sprites[color]) return sprites[color];
+    var s = 40, off = document.createElement('canvas');
+    off.width = off.height = s;
+    var octx = off.getContext('2d');
+    var g = octx.createRadialGradient(s/2,s/2,0, s/2,s/2,s/2);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(.2, 'rgba(255,255,255,.9)');
+    g.addColorStop(.45, color+'cc');
+    g.addColorStop(1, color+'00');
+    octx.fillStyle = g; octx.fillRect(0,0,s,s);
+    sprites[color] = off;
+    return off;
   }
 
-  /* Счётчики: число, доехавшее до значения, читается как измеренное,
-     а не как подставленное. Знак и суффикс берутся из разметки. */
-  function countUp(root, delay) {
-    var reduce = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
-    root.querySelectorAll('[data-num]').forEach(function (el) {
-      var to = parseFloat(el.dataset.num), suf = el.dataset.suf || '';
-      var sign = el.hasAttribute('data-sign') || to < 0;
-      var frac = (String(to).split('.')[1] || '').length;
-      if (reduce) { el.textContent = (sign && to > 0 ? '+' : '') + to + suf; return; }
-      setTimeout(function () {
-        var t0 = performance.now(), dur = 850;
-        (function step(now) {
-          var k = Math.min(1, (now - t0) / dur);
-          var v = to * (1 - Math.pow(1 - k, 3));
-          el.textContent = (sign && to > 0 ? '+' : '') + v.toFixed(frac) + suf;
-          if (k < 1) requestAnimationFrame(step);
-        })(t0);
-      }, delay);
+  var ringGeo = null, ringDust = [], duneDust = [];
+
+  // Кольцо — 1.44×0.8 от исходного черновика (несколько раундов
+  // «увеличь/уменьши» в тестировании сошлись на этом масштабе).
+  var RING_SCALE = 1.44 * 0.8;
+
+  function buildAmbient(){
+    var cx = w()*0.5, cy = h()*0.50;
+    var rx = Math.min(250, w()*0.21) * RING_SCALE, ry = rx*0.92;
+    var rot = -8*Math.PI/180;
+    ringGeo = {cx:cx, cy:cy, rx:rx, ry:ry, rot:rot};
+
+    ringDust = [];
+    // Два разрыва в кольце, симметрично друг напротив друга — не
+    // идеальный замкнутый круг, а разомкнутая спираль в перспективе,
+    // как в референсе.
+    var GAP_HALF = 8*Math.PI/180, FADE_HALF = 26*Math.PI/180;
+    var G1 = 183*Math.PI/180, G2 = G1 + Math.PI;
+    function gapFactor(a){
+      var gaps = [G1, G2];
+      for (var i=0;i<gaps.length;i++){
+        var d = Math.abs(a-gaps[i]) % (Math.PI*2);
+        if (d > Math.PI) d = Math.PI*2-d;
+        if (d < GAP_HALF) return 0;
+        if (d < GAP_HALF+FADE_HALF) return (d-GAP_HALF)/FADE_HALF;
+      }
+      return 1;
+    }
+    var placed = 0, tries = 0;
+    while (placed < 3000 && tries < 60000){
+      tries++;
+      var a = Math.random()*Math.PI*2;
+      var gf = gapFactor(a);
+      if (gf <= 0) continue;
+      var jitter = (Math.random()-.5)*(26+14*gf)*RING_SCALE;
+      ringDust.push({a:a, jitter:jitter, cx:cx, cy:cy, rx:rx, ry:ry, rot:rot,
+        r:.35+Math.random()*.55, a0:(0.10+gf*0.45),
+        tw:Math.random()*Math.PI*2, speed:.4+Math.random()*1,
+        driftPhase:Math.random()*Math.PI*2, driftAmp:1.5+Math.random()*2.5});
+      placed++;
+    }
+
+    // Дюна: волна с тремя острыми «пиками» поверх мягкой основы —
+    // читается как рельефный силуэт, а не гладкая синусоида.
+    duneDust = [];
+    var DUNE_DEPTH = h()*0.34;
+    for (var i=0;i<11000;i++){
+      var x = Math.random()*w();
+      var baseWave = Math.sin(x/w()*Math.PI*1.6)*46
+                   + Math.sin(x/w()*Math.PI*4.2+1)*20
+                   + Math.sin(x/w()*Math.PI*9+2)*8;
+      var spike1 = Math.sin(x/w()*Math.PI*2.7+2.1);
+      var spike2 = Math.sin(x/w()*Math.PI*5.3+4.4);
+      var spike3 = Math.sin(x/w()*Math.PI*1.3+0.6);
+      var peaks = Math.sign(spike1)*Math.pow(Math.abs(spike1),4)*95
+                + Math.sign(spike2)*Math.pow(Math.abs(spike2),5)*55
+                + Math.sign(spike3)*Math.pow(Math.abs(spike3),6)*70;
+      var wave = baseWave + peaks;
+      var baseY = h()*0.58 + wave;
+      var depth = Math.pow(Math.random(),1.3)*DUNE_DEPTH;
+      var y = baseY + depth;
+      var depthNorm = Math.min(1, depth/DUNE_DEPTH);
+
+      // Мягкий градиент сверху вниз — с полом, не обрыв в ноль.
+      var gradient = 0.22 + 0.85*Math.pow(1-depthNorm, 1.9);
+      // Рябь от ветра под углом к гребню — не вертикальная штриховка.
+      var ripplePhase = x*0.045 + depthNorm*11;
+      var ripple = 0.82 + 0.18*Math.sin(ripplePhase);
+      var grain = Math.pow(Math.random(), 2.0);
+      var base = gradient * ripple * (0.35+0.75*grain);
+      var warm = Math.random() > (0.22 + 0.3*depthNorm);
+
+      duneDust.push({x0:x, y0:y, r:.3+Math.random()*.8, warm:warm,
+        tw:Math.random()*Math.PI*2, speed:.3+Math.random()*.9,
+        driftPhase:Math.random()*Math.PI*2, driftAmp:1+Math.random()*2.2,
+        base:base});
+    }
+  }
+
+  function resizeScene(){
+    canvas.width = w()*devicePixelRatio; canvas.height = h()*devicePixelRatio;
+    canvas.style.width = w()+'px'; canvas.style.height = h()+'px';
+    ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+    buildAmbient();
+  }
+  window.addEventListener('resize', resizeScene);
+
+  function drawAmbient(t){
+    var g = ctx.createRadialGradient(w()*0.5, ringGeo.cy, 10, w()*0.5, ringGeo.cy, w()*0.35);
+    g.addColorStop(0, 'rgba(200,200,215,.10)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0,0,w(),h());
+
+    var p, flick, dx, dy;
+    for (var i=0;i<duneDust.length;i++){
+      p = duneDust[i];
+      flick = 0.5+0.5*Math.sin(t*0.0009*p.speed+p.tw);
+      dx = Math.sin(t*0.0004+p.driftPhase)*p.driftAmp;
+      dy = Math.cos(t*0.00035+p.driftPhase)*p.driftAmp*0.6;
+      p.x = p.x0+dx; p.y = p.y0+dy;
+      ctx.globalAlpha = p.base * (0.35+flick*0.65);
+      ctx.fillStyle = p.warm ? '#D9A15E' : '#9a8a78';
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+    }
+    var spin = t*0.000045;
+    for (var j=0;j<ringDust.length;j++){
+      p = ringDust[j];
+      flick = 0.5+0.5*Math.sin(t*0.0009*p.speed+p.tw);
+      var drift = Math.sin(t*0.0006+p.driftPhase)*p.driftAmp;
+      var aa = p.a+spin;
+      var px = Math.cos(aa)*(p.rx+p.jitter+drift), py = Math.sin(aa)*(p.ry+p.jitter+drift);
+      var rx2 = px*Math.cos(p.rot)-py*Math.sin(p.rot), ry2 = px*Math.sin(p.rot)+py*Math.cos(p.rot);
+      ctx.globalAlpha = p.a0*(0.45+flick*0.55)*0.85;
+      ctx.fillStyle = '#dfe6ec';
+      ctx.beginPath(); ctx.arc(p.cx+rx2,p.cy+ry2,p.r,0,Math.PI*2); ctx.fill();
+    }
+    for (var k=0;k<duneDust.length;k++){
+      p = duneDust[k];
+      if (p.y < h()*0.62-((RING_SCALE-1)*70) || p.y > h()*0.685) continue;
+      flick = 0.5+0.5*Math.sin(t*0.0009*p.speed+p.tw);
+      ctx.globalAlpha = p.base * (0.3+flick*0.4);
+      ctx.fillStyle = p.warm ? '#D9A15E' : '#9a8a78';
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /* Ветер: пыль срывается с узкой полосы на правом краю кольца и
+     сдувается сквозняком через него, на 100px за дальний край —
+     дистанция считается от РЕАЛЬНОГО радиуса кольца, а не взята с
+     потолка. Точка старта каждый раз новая (±25° вокруг правого
+     края) — не всегда одна и та же высота. */
+  var flyDust = [];
+  function spawnFlyDust(){
+    var rx = ringGeo.rx, ry = ringGeo.ry, rot = ringGeo.rot;
+    var ringCx = ringGeo.cx, ringCy = ringGeo.cy;
+    var N = 20;
+    var baseAngle = (Math.random()-0.5) * (50*Math.PI/180);
+    var bpx = Math.cos(baseAngle)*rx, bpy = Math.sin(baseAngle)*ry;
+    var brx = bpx*Math.cos(rot) - bpy*Math.sin(rot);
+    var bry = bpx*Math.sin(rot) + bpy*Math.cos(rot);
+    var originX = ringCx + brx, originY = ringCy + bry;
+    var bandHeight = 20 + Math.random()*6;
+    var dist = rx*2 + 100;
+    for (var i=0;i<N;i++){
+      var sy = originY + (Math.random()-0.5)*bandHeight;
+      var sx = originX;
+      var drift = (Math.random()-0.5)*44;
+      flyDust.push({
+        x:sx, y:sy, tx: sx-dist, ty: sy+drift,
+        t0: performance.now()+Math.random()*450,
+        dur: 800+Math.random()*600,
+        r: (0.5+Math.random()*0.9) / 3 / 2,
+        wobble: Math.random()*Math.PI*2
+      });
+    }
+  }
+  function easeInOutSine(k){ return -(Math.cos(Math.PI*k)-1)/2; }
+
+  /* Прорисовка/стирание графика — не альфа туда-сюда, а линия,
+     растущая от начала к концу при появлении и стирающаяся тем же
+     способом при скрытии (retract), как в проверенном прототипе. */
+  var diagramActive = -1, diagramPhase = 'idle', diagramT0 = 0;
+  var DRAW_IN_MS = 750*1.3, DRAW_OUT_MS = 520*1.3;
+
+  function drawDiagram(idx, accent, progress){
+    if (progress <= 0.002) return;
+    var seg = SEGMENTS[idx];
+    if (!seg || !seg.pts) return;
+    var pts = seg.pts, N = pts.length;
+    var cx = ringGeo.cx, cy = ringGeo.cy;
+    var W = Math.min(w()*0.5, 420) * 0.5 * 1.2 * 1.3;
+    var H = W * 0.42;
+    var baseY = cy + H*0.62;
+    var alpha = 0.9 * 0.85 * 0.9;
+
+    var path = pts.map(function (v, i) {
+      var x = cx - W/2 + (i/(N-1))*W;
+      var y = baseY - H*0.55 - v*H*0.5;
+      return [x, y];
     });
+
+    var totalSeg = N-1;
+    var shown = progress * totalSeg;
+    var fullSeg = Math.floor(shown);
+    var frac = shown - fullSeg;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.shadowColor = accent;
+    ctx.shadowBlur = 6;
+
+    ctx.beginPath();
+    ctx.moveTo(cx-W/2, baseY);
+    ctx.lineTo(cx-W/2+W*progress, baseY);
+    ctx.strokeStyle = accent; ctx.lineWidth = 0.6;
+    ctx.globalAlpha = alpha*0.35;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(path[0][0], path[0][1]);
+    for (var i=1;i<=fullSeg && i<N;i++) ctx.lineTo(path[i][0], path[i][1]);
+    if (fullSeg < totalSeg){
+      var p0 = path[fullSeg], p1 = path[fullSeg+1];
+      ctx.lineTo(p0[0]+(p1[0]-p0[0])*frac, p0[1]+(p1[1]-p0[1])*frac);
+    }
+    ctx.strokeStyle = accent; ctx.lineWidth = 1.2;
+    ctx.globalAlpha = alpha*0.9;
+    ctx.stroke();
+
+    path.forEach(function (pt, i) {
+      if (i > fullSeg) return;
+      ctx.beginPath();
+      ctx.arc(pt[0], pt[1], 1.4, 0, Math.PI*2);
+      ctx.fillStyle = accent;
+      ctx.globalAlpha = alpha*0.7;
+      ctx.fill();
+    });
+
+    ctx.shadowBlur = 0;
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  function frame(t){
+    ctx.clearRect(0,0,w(),h());
+    drawAmbient(t);
+
+    if (diagramActive >= 0){
+      var now2 = performance.now(), progress;
+      if (diagramPhase === 'in'){
+        progress = Math.min(1, (now2-diagramT0)/DRAW_IN_MS);
+      } else {
+        progress = Math.max(0, 1-(now2-diagramT0)/DRAW_OUT_MS);
+        if (progress <= 0){ diagramActive = -1; diagramPhase = 'idle'; }
+      }
+      if (diagramActive >= 0){
+        drawDiagram(diagramActive, SEGMENTS[diagramActive].accent, progress);
+      }
+    }
+
+    var now = performance.now();
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    var sprite = getSprite('#F5E6C8');
+    flyDust = flyDust.filter(function (p) {
+      var k = (now-p.t0)/p.dur;
+      if (k < 0) return true;
+      if (k > 1) return false;
+      var e = easeInOutSine(k);
+      var turb = Math.sin(k*7+p.wobble)*6 + Math.sin(k*17+p.wobble*2)*2.5;
+      var x = p.x+(p.tx-p.x)*e;
+      var y = p.y+(p.ty-p.y)*e + turb;
+      var alpha = Math.sin(k*Math.PI);
+      for (var g=0; g<4; g++){
+        var gk = Math.max(0, k - g*0.08);
+        var ge = easeInOutSine(gk);
+        var gx = p.x+(p.tx-p.x)*ge;
+        var gy = p.y+(p.ty-p.y)*ge + Math.sin(gk*7+p.wobble)*6 + Math.sin(gk*17+p.wobble*2)*2.5;
+        var size = Math.max(3.4, p.r*(11-g*1.3));
+        ctx.globalAlpha = alpha*0.21*(1-g*0.22);
+        ctx.drawImage(sprite, gx-size/2, gy-size/2, size, size);
+      }
+      return true;
+    });
+    ctx.restore();
+    ctx.globalAlpha = 1;
+
+    requestAnimationFrame(frame);
+  }
+
+  /* Перенос строк: своя canvas-разметка для замера ширины (без
+     letter-spacing — реальный рендер добавит его через CSS, и без
+     учёта здесь браузер доламывал бы строку ещё раз). */
+  function wrapLines(text, font, maxWidth){
+    var off = document.createElement('canvas');
+    var octx = off.getContext('2d');
+    octx.font = font;
+    var words = text.split(' ');
+    var lines = [], cur = '';
+    for (var i=0;i<words.length;i++){
+      var word = words[i];
+      var test = cur ? cur+' '+word : word;
+      if (octx.measureText(test).width > maxWidth && cur){ lines.push(cur); cur = word; }
+      else cur = test;
+    }
+    if (cur) lines.push(cur);
+    if (lines.length > 1 && lines[lines.length-1].length <= 4){
+      var prev = lines[lines.length-2].split(' ');
+      var moved = prev.pop();
+      lines[lines.length-2] = prev.join(' ');
+      lines[lines.length-1] = moved + ' ' + lines[lines.length-1];
+    }
+    return lines;
+  }
+
+  var STEP_MS = 42*1.3, CHAR_DUR = 550*1.3, HOLD_MS = 2300;
+  var BLOCK_ACCENTS = ['#7FB4FF', '#F5A623', '#6FE3B4', '#FFD98A', '#E89AB0'];
+
+  var runToken = 0, running = false;
+
+  function showSegment(idx, token){
+    return new Promise(function (resolve) {
+      var seg = SEGMENTS[idx];
+      var cx = ringGeo.cx, cy = ringGeo.cy, rx = ringGeo.rx;
+      var fontPx = (Math.min(27, Math.max(16, w()/48)) * Math.min(1.15, RING_SCALE)) * 0.5 * 0.8;
+      var font = 'italic 600 ' + fontPx + 'px Georgia, serif';
+      var maxWidth = Math.min(w()*0.78, rx*1.55);
+      var lines = wrapLines(seg.text, font, maxWidth);
+
+      txtEl.style.fontSize = fontPx+'px';
+      txtEl.style.top = cy+'px';
+
+      var idxChar = 0;
+      var totalChars = lines.reduce(function (s, l) { return s+l.length; }, 0);
+      txtEl.innerHTML = lines.map(function (line) {
+        var chars = line.split('').map(function (ch) {
+          var delay = idxChar*STEP_MS; idxChar++;
+          var safe = ch === '<' ? '&lt;' : ch;
+          return '<span class="ch" style="transition-delay:'+delay+'ms">'+safe+'</span>';
+        }).join('');
+        return '<div style="white-space:nowrap">'+chars+'</div>';
+      }).join('');
+
+      requestAnimationFrame(function () {
+        if (token !== runToken) return;
+        var chs = txtEl.querySelectorAll('.ch');
+        for (var i=0;i<chs.length;i++) chs[i].classList.add('on');
+      });
+      spawnFlyDust();
+      if (seg.pts){
+        diagramActive = idx; diagramPhase = 'in'; diagramT0 = performance.now();
+      } else {
+        diagramActive = -1; diagramPhase = 'idle';
+      }
+
+      var revealDur = (totalChars-1)*STEP_MS + CHAR_DUR;
+      var hold = HOLD_MS + (seg.pts ? 900 : 0);
+
+      setTimeout(function () {
+        if (token !== runToken) return;
+        var chs = txtEl.querySelectorAll('.ch');
+        for (var i=0;i<chs.length;i++){
+          chs[i].style.transitionDelay = '0ms';
+          chs[i].classList.remove('on');
+        }
+        if (seg.pts){ diagramPhase = 'out'; diagramT0 = performance.now(); }
+        setTimeout(function () { if (token === runToken) resolve(); }, 550);
+      }, revealDur + hold);
+    });
+  }
+
+  async function playAll(){
+    if (running) return;
+    var myToken = runToken;
+    running = true;
+    for (var i=0;i<SEGMENTS.length;i++){
+      if (myToken !== runToken) return;
+      await showSegment(i, myToken);
+    }
+    if (myToken === runToken) running = false;
   }
 
   /* ═════════════════════════════════════════════════════════
-       Графики лидеров. Строятся из рядов, которые уже лежат в
-       снимке: spark_1d и spark_vol по 24 точки, оставлены в
-       KEEP_SERIES. Дополнительных данных не запрашивается.
+       Данные. Логика сбора и формулировок не менялась — только
+       финальная форма: раньше строка несла пару {p, h} (простой
+       текст и HTML с цветными span), теперь только текст, который
+       уже есть в бывшем .p почти везде без изменений. Насыщенные
+       блоки лидера потока и объёма (график + стоп/цель/дни/
+       фандинг + кольцо скора) по решению пользователя схлопнуты
+       в одну строку текста плюс компактный график на тех же самых
+       данных (LC.series / VC.ratios) — деталей меньше, но график
+       настоящий, не нарисованный по случайному блужданию.
        ═════════════════════════════════════════════════════════ */
-    var CH_W = 214, CH_H = 76, CH_PAD = 2, CH_RIGHT = 182;
 
-    /* Сглаживание Катмулла-Рома, переведённое в кубические кривые.
-       Ломаная из 24 точек в поле шириной 200px выглядит рваной.
-       Помнить при этом надо: сглаживание рисует значения МЕЖДУ
-       днями, которых не было. Для иллюстрации в тексте это
-       допустимо, для разбора уровней — нет. */
-    function smoothPath(pts) {
-      if (pts.length < 2) return '';
-      var d = 'M' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
-      for (var i = 0; i < pts.length - 1; i++) {
-        var p0 = pts[i > 0 ? i - 1 : 0], p1 = pts[i],
-            p2 = pts[i + 1], p3 = pts[i + 2 < pts.length ? i + 2 : i + 1];
-        d += ' C' + (p1[0] + (p2[0] - p0[0]) / 12).toFixed(1) + ' ' +
-                    (p1[1] + (p2[1] - p0[1]) / 12).toFixed(1) + ', ' +
-                    (p2[0] - (p3[0] - p1[0]) / 12).toFixed(1) + ' ' +
-                    (p2[1] - (p3[1] - p1[1]) / 12).toFixed(1) + ', ' +
-                    p2[0].toFixed(1) + ' ' + p2[1].toFixed(1);
-      }
-      return d;
-    }
+  var go = [], wait = [], hold = [];
+  STARS.forEach(function (s) {
+    var p = phase(s);
+    if ((s.streak || 1) >= 3 && (s.days || 0) >= 4) hold.push(s);
+    else if (p.k === 'go' && !s.firstRun) go.push(s);
+    else wait.push(s);
+  });
 
-    /* График лидера потока. Шкала строится по цене И уровню зоны
-       сразу: если считать только по цене, зона уезжает за пределы
-       поля ровно тогда, когда цена от неё далеко ушла — то есть в
-       самом интересном случае. */
-    function leaderChart(d) {
-      var s = d.series || [];
-      if (s.length < 4) return '';
+  go.sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
+  wait.sort(function (a, b) { return (b.f || 0) - (a.f || 0); });
+  hold.sort(function (a, b) { return (b.streak || 0) - (a.streak || 0); });
 
-      var lo = Math.min.apply(null, s), hi = Math.max.apply(null, s);
-      if (d.zone > 0) { lo = Math.min(lo, d.zone); hi = Math.max(hi, d.zone); }
-      var span = (hi - lo) || 1, top = 12, bottom = 70;
+  var near = STARS.filter(function (s) { return s.stop && toStop(s) <= 8; })
+    .sort(function (a, b) { return toStop(a) - toStop(b); }).slice(0, 3);
 
-      function y(v) { return bottom - (v - lo) / span * (bottom - top); }
-      var pts = s.map(function (v, i) {
-        return [CH_PAD + i * (CH_RIGHT - CH_PAD) / (s.length - 1), y(v)];
-      });
-
-      var line = smoothPath(pts), last = pts[pts.length - 1];
-      var side = pts.map(function (p) { return [p[0] + 6, p[1] + 10]; });
-      var wall = line + ' L' + side[side.length - 1][0].toFixed(1) + ' ' +
-                 side[side.length - 1][1].toFixed(1) + ' ' +
-                 smoothPath(side.slice().reverse()).replace(/^M[^C]*/, '') + ' Z';
-
-      var zone = '';
-      if (d.zone > 0) {
-        var zy = y(d.zone);
-        zone = '<g class="obf-lat" style="--d:0s">' +
-          '<line x1="2" y1="' + zy.toFixed(1) + '" x2="' + CH_RIGHT + '" y2="' +
-            zy.toFixed(1) + '" stroke="#F5A623" stroke-width=".6" ' +
-            'stroke-dasharray="2.5 4" opacity=".5"/>' +
-          '<text x="' + (CH_RIGHT + 4) + '" y="' + (zy + 2.5).toFixed(1) +
-            '" font-size="6" fill="#F5A623" opacity=".85" ' +
-            'letter-spacing=".8">зона</text></g>';
-      }
-
-      return '<svg class="obf-mini" viewBox="0 0 ' + CH_W + ' ' + CH_H + '">' +
-        '<defs>' +
-          '<linearGradient id="obfPS" x1="0" y1="0" x2="1" y2="0">' +
-            '<stop offset="0" stop-color="#2E7A55"/>' +
-            '<stop offset="0.55" stop-color="#4FCF8A"/>' +
-            '<stop offset="1" stop-color="#E4FFF0"/></linearGradient>' +
-          '<linearGradient id="obfPW" x1="0" y1="0" x2="0" y2="1">' +
-            '<stop offset="0" stop-color="#2E7A55" stop-opacity=".7"/>' +
-            '<stop offset="1" stop-color="#12321F" stop-opacity=".12"/>' +
-          '</linearGradient>' +
-          '<radialGradient id="obfFL">' +
-            '<stop offset="0" stop-color="#FFFFFF" stop-opacity=".95"/>' +
-            '<stop offset="0.3" stop-color="#BFFFD9" stop-opacity=".45"/>' +
-            '<stop offset="1" stop-color="#4FCF8A" stop-opacity="0"/>' +
-          '</radialGradient>' +
-          '<linearGradient id="obfST" x1="0" y1="0" x2="1" y2="0">' +
-            '<stop offset="0" stop-color="#4FCF8A" stop-opacity="0"/>' +
-            '<stop offset="0.5" stop-color="#DFFFEC" stop-opacity=".65"/>' +
-            '<stop offset="1" stop-color="#4FCF8A" stop-opacity="0"/>' +
-          '</linearGradient>' +
-          '<filter id="obfSO" x="-30%" y="-50%" width="160%" height="200%">' +
-            '<feGaussianBlur stdDeviation="3"/></filter>' +
-        '</defs>' + zone +
-        '<path class="obf-lat" style="--d:1.6s" d="' + wall +
-          '" fill="url(#obfPW)"/>' +
-        '<path class="obf-drawn" style="--d:0s" filter="url(#obfSO)" ' +
-          'opacity=".5" d="' + line + '" fill="none" stroke="url(#obfPS)" ' +
-          'stroke-width="5" stroke-linecap="round"/>' +
-        '<path class="obf-drawn" style="--d:0s" d="' + line +
-          '" fill="none" stroke="url(#obfPS)" stroke-width="1.9" ' +
-          'stroke-linecap="round"/>' +
-        '<g class="obf-lat" style="--d:3.4s">' +
-          '<ellipse cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) +
-            '" rx="30" ry="1.1" fill="url(#obfST)"/>' +
-          '<circle cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) +
-            '" r="13" fill="url(#obfFL)"/>' +
-          '<circle class="obf-pulse" cx="' + last[0].toFixed(1) + '" cy="' +
-            last[1].toFixed(1) + '" r="4.5" fill="#4FCF8A"/>' +
-          '<circle cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) +
-            '" r="2.4" fill="#F2FFF7"/></g>' +
-      '</svg>';
-    }
-
-    /* График лидера объёма. Шкала логарифмическая, и это не выбор
-       оформления: кратность ×635 рядом с обычными днями на линейной
-       шкале не рисуется вовсе — столбик выходил выше соседей раза в
-       четыре вместо шестисот, то есть график врал. Здесь шаг вверх
-       это умножение на десять, и три порядка укладываются честно.
-
-       Зеркальность даёт всплеску вдвое больше высоты при той же
-       высоте блока. */
-    function volChart(d) {
-      var r = d.ratios || [];
-      if (r.length < 4) return '';
-
-      var hs = r.map(function (v) { return Math.log10(Math.max(v, 0) + 1); });
-      var mx = Math.max.apply(null, hs) || 1;
-
-      /* Подсвечивается МАКСИМУМ, а не последний день: аномалия
-         бывает и в середине ряда, и тогда подпись «максимум объёма»
-         относилась бы к другому дню, чем горящая линия. */
-      var hot = hs.indexOf(mx);
-      var cy = 38, maxH = 30;
-      var step = (CH_RIGHT - 6 - CH_PAD * 2) / (r.length - 1);
-      var out = '';
-
-      hs.forEach(function (h, i) {
-        if (i === hot) return;
-        var x = CH_PAD + 4 + i * step;
-        var a = Math.max(1.6, h / mx * maxH);
-        out += '<line style="--d:' + (i * 0.095).toFixed(3) + 's" x1="' +
-          x.toFixed(1) + '" y1="' + (cy - a).toFixed(1) + '" x2="' +
-          x.toFixed(1) + '" y2="' + (cy + a).toFixed(1) + '"/>';
-      });
-
-      var hx = CH_PAD + 4 + hot * step;
-      var hd = (r.length * 0.095 + 0.3).toFixed(2);
-
-      return '<svg class="obf-mini obf-wave" viewBox="0 0 ' + CH_W + ' ' +
-        CH_H + '">' +
-        '<defs>' +
-          '<linearGradient id="obfWG" x1="0" y1="0" x2="0" y2="1">' +
-            '<stop offset="0" stop-color="#FFF0CE"/>' +
-            '<stop offset="0.5" stop-color="#F5A623"/>' +
-            '<stop offset="1" stop-color="#FFF0CE"/></linearGradient>' +
-          '<filter id="obfWL" x="-140%" y="-40%" width="380%" height="180%">' +
-            '<feGaussianBlur stdDeviation="4.5"/></filter>' +
-        '</defs>' +
-        '<g class="obf-lat" style="--d:0s">' +
-          '<line x1="2" y1="' + cy + '" x2="' + CH_RIGHT + '" y2="' + cy +
-            '" stroke="#8b8a92" stroke-width=".5" stroke-dasharray="2 3.5" ' +
-            'opacity=".4"/>' +
-          '<text x="' + (CH_RIGHT + 4) + '" y="' + (cy + 2.5) +
-            '" font-size="6" fill="#8b8a92" opacity=".8" ' +
-            'letter-spacing=".8">норма</text></g>' +
-        '<g stroke="#7e848e" stroke-width="2.6" stroke-linecap="round" ' +
-          'opacity=".55">' + out + '</g>' +
-        '<g class="obf-lat" style="--d:' + hd + 's">' +
-          '<line x1="' + hx.toFixed(1) + '" y1="' + (cy - maxH) + '" x2="' +
-            hx.toFixed(1) + '" y2="' + (cy + maxH) + '" stroke="#F5A623" ' +
-            'stroke-width="5" stroke-linecap="round" opacity=".5" ' +
-            'filter="url(#obfWL)"/>' +
-          '<line x1="' + hx.toFixed(1) + '" y1="' + (cy - maxH) + '" x2="' +
-            hx.toFixed(1) + '" y2="' + (cy + maxH) + '" stroke="url(#obfWG)" ' +
-            'stroke-width="3.2" stroke-linecap="round"/>' +
-          '<circle class="obf-pulse" cx="' + hx.toFixed(1) + '" cy="' + cy +
-            '" r="9" fill="#FFD98A"/></g>' +
-      '</svg>';
-    }
-
-    function chartRing(id, from, to, frac, label, size) {
-      var C = 2 * Math.PI * 18;
-      var off = C * (1 - Math.max(0.04, Math.min(1, frac)));
-      return '<svg class="obf-ring" viewBox="0 0 44 44">' +
-        '<defs><linearGradient id="' + id + '" x1="0" y1="1" x2="1" y2="0">' +
-          '<stop offset="0" stop-color="' + from + '"/>' +
-          '<stop offset="1" stop-color="' + to + '"/></linearGradient></defs>' +
-        '<circle cx="22" cy="22" r="18" fill="none" ' +
-          'stroke="rgba(255,255,255,.06)" stroke-width="2.5"/>' +
-        '<circle class="v" cx="22" cy="22" r="18" fill="none" ' +
-          'stroke="url(#' + id + ')" stroke-width="2.5" stroke-linecap="round" ' +
-          'transform="rotate(-90 22 22)" style="--off:' + off.toFixed(1) +
-          ';--d:1s"/>' +
-        '<text x="22" y="' + (size > 11 ? 25.5 : 25) + '" font-size="' + size +
-          '" font-weight="300" text-anchor="middle" fill="#E8EEF4">' + label +
-          '</text></svg>';
-    }
-
-    /* Сборка блока. Разметка одна на оба вида — различаются только
-       акцентный цвет, подписи и то, какой график внутри. */
-    function blockHTML(b) {
-      return '<div class="obf-rail"><u></u></div>' +
-        '<div class="obf-ghost">' + b.ghost + '</div>' +
-        '<div class="obf-bl">' +
-          '<div class="obf-k">' + b.role + '</div>' +
-          '<div class="obf-meta">' + b.meta + '</div>' +
-          '<div class="obf-stat">' + b.stat + '</div>' +
-        '</div>' +
-        '<div class="obf-br">' + b.chart + b.ring + '</div>';
-    }
-
-  function buildBrief() {
-    var wrap = document.getElementById('obBrief');
-    var host = document.getElementById('obfText');
-    if (!wrap || !host) return;
-
-    /* Отчёт статический: важно не «сегодня», а когда был прогон —
-       иначе легко читать вчерашние числа как свежие.
-       Раньше здесь стоял new Date() — момент открытия страницы
-       браузером, а не момент прогона: поля со временем прогона не
-       было вовсе ни под каким именем (см. _orbit_market). Читаю
-       O.market напрямую, а не через M: M объявляется ниже по
-       функции, и на этой строке она ещё не существует. */
-    var runTs = (O.market && O.market.ts) ? new Date(O.market.ts) : new Date();
-    document.getElementById('obfDate').textContent = 'ПРОГОН · ' +
-      runTs.toLocaleString('ru-RU', { day: 'numeric', month: 'long',
-        hour: '2-digit', minute: '2-digit' }).toUpperCase();
-
-    /* Группы — тот же срез дерева фаз, что и в карточках, только
-       пересказанный словами. Отдельного списка нет намеренно: он бы
-       разошёлся с карточками при первой правке порогов. */
-    var go = [], wait = [], hold = [];
-    STARS.forEach(function (s) {
-      var p = phase(s);
-      if ((s.streak || 1) >= 3 && (s.days || 0) >= 4) hold.push(s);
-      else if (p.k === 'go' && !s.firstRun) go.push(s);
-      else wait.push(s);
-    });
-
-    /* Порядок внутри групп. STARS отсортированы по свежести ПО
-       ВОЗРАСТАНИЮ (так рисует орбита: лидер поверх всех), и прежний
-       slice(0,3) без пересортировки брал три самые СТАРЫЕ записи
-       журнала. «Рассмотреть» ранжируется силой текущего прогона:
-       вопрос строки — готовность, и это то же число, что в кольце
-       лидера. Персистентность журнала (hits/runsSeen) в ранг не
-       вмешивается и стоит рядом справкой — готовность и «кто
-       возвращается» отвечают на разные вопросы, смешивать их в один
-       балл нельзя. «Ждут» — свежестью по убыванию: score им пока
-       нечем набрать, единственная новость про них — что появились. */
-    go.sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
-    wait.sort(function (a, b) { return (b.f || 0) - (a.f || 0); });
-    hold.sort(function (a, b) { return (b.streak || 0) - (a.streak || 0); });
-
-    var near = STARS.filter(function (s) { return s.stop && toStop(s) <= 8; })
-      .sort(function (a, b) { return toStop(a) - toStop(b); }).slice(0, 3);
-
-    /* Деньги короткой формой: тысячи с буквой, иначе строка
-       разъезжается на пяти цифрах. */
-    function fmtMoney(v) {
-      var n = +v || 0;
-      return n >= 10000 ? '$' + (n / 1000).toFixed(1) + 'K' :
-             '$' + Math.round(n);
-    }
-    function signed(v) {
-      var n = +v || 0;
-      return (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
-    }
-
-    /* Причина ожидания у каждой монеты своя. Прежняя подпись
-       «первый разгон, входить рано» приписывала одну причину всем,
-       хотя в wait сваливаются и «вне зоны дна», и «ровный рост».
-       Порядок проверок повторяет phase(): сначала гейт по ATH,
-       потом первый разгон, остальное — ровный рост без сквиза. */
-    function waitWhy(s) {
-      if (s.ath === undefined) return 'нет данных прогона';
-      if ((s.ath || 0) > -80) return 'вне зоны дна, ' +
-        Math.round(s.ath) + '% от ATH';
-      if (s.firstRun) return 'первый разгон, входить рано';
-      return 'ровный рост, ждать сквиза';
-    }
-
-    /* Ряд отбора. Один ряд — одна монета, порядок рядов и есть ранг:
-       верхняя строка сильнее нижней, и это видно без чисел. Кольцо —
-       тот же chartRing, что у лидера потока: одно понятие «силы» на
-       весь экран, а не два разных числа в двух местах. */
-    function rowHTML(s, i) {
-      var hist = (s.runsSeen || 0) > 0
-        ? 'в лидерах <b>' + (s.hitCount || 0) + ' из ' + s.runsSeen +
-          '</b> прогонов · ' + (s.days || 0) + ' дн в журнале'
-        : '—';
-      var move = '<b>' + (s.up >= 0 ? '+' : '') + (s.up || 0) +
-        '%</b> от дна за <b>' + (s.updays || 0) + ' дн</b>' +
-        (s.chg !== undefined
-          ? ' · от входа <b>' + (s.chg >= 0 ? '+' : '') + s.chg + '%</b>'
-          : '');
-      return '<div class="obf-row" style="--d:' + (i * 0.22).toFixed(2) +
-        's"><div class="obf-rr"></div>' +
-        '<div class="obf-rt">' + s.t + cap(s) + '</div>' +
-        '<div class="obf-rc">' + (s.st || '—') + '</div>' +
-        '<div class="obf-rw">' + move + '</div>' +
-        '<div class="obf-rh">' + hist + '</div>' +
-        chartRing('obfRow' + i, '#2E7A55', '#8FE8B4',
-          (s.score || 0) / 100, s.score || 0, 12) +
-      '</div>';
-    }
-
-    /* names()/plain() удалены: последние читатели — старые строки
-       «новые в топ-3», «рассмотреть» и «ждут» — заменены рядами и
-       строками с индивидуальной причиной, где разметка своя. */
-
-    /* Формулировка фона выводится из режима, а не придумывается:
-       «спокойный» и «осторожный» — это пересказ RISK-ON / RISK-OFF,
-       а не прогноз. Дальше по тексту нет ни одного утверждения о
-       будущем — только состояние. */
-    var M = O.market || {};
-    var calm = !!M.calm;
-    /* Недельная форма BTC, а не один процент: −2.1% одинаково выглядит
-       и у ровного сползания, и у отскока от провала. Источника пока
-       нет (см. render/orbit.py, _orbit_market) — при пустом ряде
-       график просто не рисуется, а не подставляет нули. */
-    var bs = M.series || [], btcSpark = '';
-    if (bs.length > 1) {
-      var blo = Math.min.apply(null, bs), bhi = Math.max.apply(null, bs);
-      btcSpark = '<svg class="sp" viewBox="0 0 64 14" preserveAspectRatio="none">' +
-        '<polyline points="' + bs.map(function (v, i) {
-          return (i / (bs.length - 1) * 64).toFixed(1) + ' ' +
-                 (12 - (v - blo) / ((bhi - blo) || 1) * 10).toFixed(1);
-        }).join(' ') + '" stroke="' + (M.btcUp ? '#48A97C' : '#FF6B35') +
-        '"/></svg>';
-    }
-    var btcTxt = M.btc || '—';
-
-    /* Положение относительно выходных приходит готовым из
-       _weekend_state в orbit.py. Раньше считалось здесь второй раз,
-       по часовому поясу браузера — то есть у читателя из другого
-       пояса пятничная строка появлялась не в пятницу. Расчёт в одном
-       месте, здесь только чтение. */
-    var wk = M.weekend || '';
-    var wknd = {p: '', h: ''};
-
-    if (wk === 'soon') {
-      wknd = { p: 'Завтра выходные — ликвидность начнёт уходить уже ' +
-                  'к вечеру, торговать сегодня с осторожностью.',
-               h: '<span class="warn">Завтра выходные</span> — ликвидность ' +
-                  'начнёт уходить уже к вечеру, торговать сегодня ' +
-                  'с осторожностью.' };
-    } else if (wk === 'now') {
-      wknd = { p: 'Выходные — тонкий стакан, движения рваные. ' +
-                  'Лучше не торговать.',
-               h: '<span class="warn">Выходные</span> — тонкий стакан, ' +
-                  'движения рваные. Лучше не торговать.' };
-    }
-
-    /* «Новые в топ-3» удалены: поле newTop3 никто никогда не писал,
-       строка была мертва с заведения. Честная замена — «новые в
-       журнале этим прогоном»: она считается в Python
-       (_orbit_journal, since_run == счётчику прогонов) и приходит
-       готовой в M.journal, вместе с лучшим и худшим ходом от входа.
-       Спячка — из кандидатов прогона (M.dormant), не из журнала:
-       в журнал попадают лидеры, а спячка случается раньше. */
-    var J = M.journal || {};
-    var DORM = M.dormant || [];
-
-    function cap(s) { return s.cap ? ' <span class="obf-cap">' + s.cap + '</span>' : ''; }
-    function capP(s) { return s.cap ? ' ' + s.cap : ''; }
-
-    var L = M.leader || {};
-
-    /* Объём — новость только на входе из спячки. Монете, которая уже
-       подтвердилась (сидит в «В работе»), отдельная строка «у неё
-       объём» не нужна — это не открытие, а его подтверждение, и ему
-       место рядом с самой монетой в «В работе». Поэтому все три
-       объёмных списка ниже отфильтрованы от тикеров «В работе». */
-    var heldT = {};
-    hold.forEach(function (s) { heldT[s.t] = true; });
-    function freshOnly(list) {
-      return list.filter(function (v) { return !heldT[v.t]; });
-    }
-
-    var TV = freshOnly(M.topVol || []).slice(0, 3);
-    var HRfull = M.hourly || { n: 0, list: [] };
-    var HR = { n: HRfull.n, list: freshOnly(HRfull.list || []) };
-    /* Полный список ×30+, до фильтра — нужен ещё раз ниже, чтобы
-       пометить «· объём» у тех из «В работе», кто в него попал. */
-    var bigVolAll = M.flowVol || [];
-    var bigVol = freshOnly(bigVolAll).slice(0, 5);
-    var bigVolT = {};
-    bigVolAll.forEach(function (v) { bigVolT[v.t] = true; });
-
-    /* Замирание — первая строка сводки. Если ехать некуда, всё
-       остальное ниже описывает движение, которого нет.
-       Строка не печатается на живом рынке: тогда эти числа
-       сообщают только то, что всё в порядке. */
-
-    /* ── Фон рынка ──────────────────────────────────────────
-       Семь фраз, из них пять про фон. Числа не выносятся в подписи
-       и не собираются в таблицу: каждое идёт внутри предложения
-       вместе с тем, что оно означает. */
-    function pct(v, d) {
-      if (v === null || v === undefined) return '—';
-      return (v > 0 ? '+' : '') + v.toFixed(d === undefined ? 1 : d) + '%';
-    }
-    function sgn(v) { return v > 0 ? 'up' : (v < 0 ? 'dn' : ''); }
-    /* Русские числительные: 1 монета, 2-4 монеты, 5+ монет.
-       Исключение — 11-14, они ведут себя как множественное число
-       несмотря на последнюю цифру. */
-    function plural(n, one, few, many) {
-      var a = Math.abs(n) % 100;
-      if (a >= 11 && a <= 14) return many;
-      a %= 10;
-      if (a === 1) return one;
-      if (a >= 2 && a <= 4) return few;
-      return many;
-    }
-    var bg = [];
-
-    if (M.frozen) {
-      bg.push('Рынок сейчас <span class="warn">замер</span>. Лучшая монета ' +
-        'дня прибавила <span class="n">' + pct(M.maxChange, 0) + '</span>, ' +
-        'и дальше плюс двадцати ушли всего <span class="n">' + (M.tail || 0) + '</span> ' +
-                                                   plural(M.tail || 0, 'монета', 'монеты', 'монет') +
-        ' — при живом рынке их бывают десятки. ' +
-        'Ехать сегодня некуда.');
-    } else {
-         bg.push('Рынок <span class="gd">двигается</span>. Лучшая монета дня ' +
-           '<span class="n">' + pct(M.maxChange, 0) + '</span>, дальше плюс ' +
-           'двадцати ушли <span class="n">' + (M.tail || 0) + '</span> ' +
-           plural(M.tail || 0, 'монета', 'монеты', 'монет') +
-           ' — движение широкое, а не один выброс.');
-    }
-
-    /* Объём отдельной фразой, потому что отвечает на другой вопрос.
-       Стоящая цена при живом объёме и стоящая цена при мёртвом —
-       разные дни, и по ценам их не различить. */
-    if (M.peakVol && M.peakVol.sym) {
-      bg.push('Деньги в рынке ' + (M.frozen ? 'при этом ' : '') +
-        'есть: максимум объёма на <span class="gd">' + M.peakVol.sym +
-        '</span>, <span class="n">×' + M.peakVol.x + '</span> к своей норме.');
-    }
-
-    /* Ширина рынка — три состояния, а не число с подписью. */
-    var gs = M.greenShare;
-    if (gs !== null && gs !== undefined) {
-      bg.push('В плюсе <span class="n">' + Math.round(gs) + '%</span> выборки' +
-        (gs >= 55 ? ', растёт почти весь рынок.'
-         : gs <= 42 ? ', то есть падает большинство.'
-         : ', рынок разделился примерно поровну.'));
-    }
-
-    /* Биткоин: вывод делается по СОЧЕТАНИЮ суточного, недельного и
-       доминации. По одному числу вывода не бывает — падение при
-       растущей доминации и падение при падающей означают разное. */
-    if (M.btc !== null && M.btc !== undefined) {
-      /* Вывод делается по НЕДЕЛЬНОМУ движению, а не по суточному.
-         Суточное в пределах процента — шум: −0.3% давало фразу
-         «деньги сидят в биткоине», то есть диагноз по величине,
-         которой нет. Неделя усредняет шум и отвечает на вопрос,
-         который фраза и задаёт: куда идут деньги, а не что было
-         вчера.
-
-         Порог в полтора процента за неделю — примерно та граница,
-         за которой движение перестаёт быть дрейфом. Проверяется
-         наблюдением: если фраза не появляется неделями, порог
-         высок. */
-      var tail = '.';
-      var dom = parseFloat(M.dom);
-      if (M.btc7d <= -1.5 && dom >= 57) {
-        tail = ' — деньги уходят из риска, альтам ничего не достаётся.';
-      } else if (M.btc7d <= -1.5 && dom < 57) {
-        /* Ч-12: биткоин падает, а доминация не растёт — альты падают
-           вместе с ним, убежища в BTC нет. Без ветки случай тонул в
-           тишине: первая требует dom>=57, третья — |btc7d|<1.5. */
-        tail = ' — падают вместе: биткоин без роста доминации, альтам ' +
-          'спрятаться некуда.';
-      } else if (M.btc7d >= 1.5 && dom < 56) {
-        tail = ' — биткоин растёт, а доминация сдаёт: окно для альтов.';
-      } else if (M.btc7d >= 1.5 && dom >= 56) {
-        /* Ч-12: биткоин растёт и тянет доминацию за собой — деньги идут
-           в рынок широко, а не утекают из альтов конкретно в BTC.
-           Случай из разбора: +14.3% за неделю при доминации 58%, рынок
-           был широким (плюс двадцати монет), не BTC-only. */
-        tail = ' — биткоин растёт и тянет доминацию за собой: деньги идут ' +
-          'в рынок широко, а не утекают из альтов.';
-      } else if (Math.abs(M.btc7d) < 1.5) {
-        tail = ' — за неделю почти без движения.';
-      }
-      /* Знак несёт глагол, поэтому число печатается без него.
-         pct() ставит плюс всему положительному, а Math.abs() делает
-         положительным всё — вместе выходило «потерял +0.3%». */
-      bg.push('Биткоин ' + (M.btc >= 0 ? 'прибавил' : 'потерял') +
-        ' <span class="' + sgn(M.btc) + ' n">' +
-        Math.abs(M.btc).toFixed(1) + '%</span> за сутки, за неделю ' +
-        '<span class="' + sgn(M.btc7d) + ' n">' + pct(M.btc7d) +
-        '</span>, доминация <span class="n">' + (M.dom || '—') +
-        '</span>' + tail);
-    }
-function removeTags(str) {
-  if (str === null || str === '') {
-    return '';
+  function fmtMoney(v) {
+    var n = +v || 0;
+    return n >= 10000 ? '$' + (n / 1000).toFixed(1) + 'K' : '$' + Math.round(n);
   }
-  return str.replace(/<[^>]*>/g, '');
-}
+  function signed(v) {
+    var n = +v || 0;
+    return (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
+  }
+  function waitWhy(s) {
+    if (s.ath === undefined) return 'нет данных прогона';
+    if ((s.ath || 0) > -80) return 'вне зоны дна, ' + Math.round(s.ath) + '% от ATH';
+    if (s.firstRun) return 'первый разгон, входить рано';
+    return 'ровный рост, ждать сквиза';
+  }
+  function pct(v, d) {
+    if (v === null || v === undefined) return '—';
+    return (v > 0 ? '+' : '') + v.toFixed(d === undefined ? 1 : d) + '%';
+  }
+  function plural(n, one, few, many) {
+    var a = Math.abs(n) % 100;
+    if (a >= 11 && a <= 14) return many;
+    a %= 10;
+    if (a === 1) return one;
+    if (a >= 2 && a <= 4) return few;
+    return many;
+  }
+  function capP(s) { return s.cap ? ' ' + s.cap : ''; }
 
-    bg = bg.map(function (h) { return { p: removeTags(h), h: h }; })
+  var M = O.market || {};
+  var J = M.journal || {};
+  var DORM = M.dormant || [];
+  var L = M.leader || {};
 
-    /* Блоки лидеров. Возвращают null, если рядов нет: пустой
-           график хуже отсутствующего — он выглядит поломкой, а не
-           нехваткой данных. */
-        var LC = M.leaderChart || {}, VC = M.volChart || {};
-
-        var leaderBlock = (L.t && (LC.series || []).length >= 4) ? {
-          block: {
-            acc: '79,207,138',
-            ghost: L.t,
-            role: 'лидер потока',
-            meta: 'фигура <b>' + (LC.case || '—') + '</b>' +
-              (LC.horizonDays ? ' · горизонт <b>' + LC.horizonDays + ' дн</b>' : '') +
-              ' <span class="obf-cap">· ' + (L.cap || '') + '</span>',
-            stat: (LC.stop ? '<span>стоп <b>' + LC.stop + '</b></span>' : '') +
-              (LC.target ? '<span>цель <b>' + LC.target + '</b></span>' : '') +
-              '<span>' + LC.series.length + ' дней</span>',
-            chart: leaderChart(LC),
-            ring: chartRing('obfR1', '#2E7A55', '#8FE8B4',
-              (LC.score || 0) / 100, LC.score || 0, 13),
-          }
-        } : null;
-
-        var volBlock = ((VC.ratios || []).length >= 4) ? {
-          block: {
-            acc: '245,166,35',
-            ghost: VC.sym,
-            role: 'максимум объёма',
-            meta: '<b>×' + VC.x + '</b> к своей норме за 30 дней ' +
-              '<span class="obf-cap">· ' + (VC.cap || '') + '</span>',
-            stat: '<span>1ч <b>×' + VC.v1h + '</b></span>' +
-              '<span>4ч <b>×' + VC.v4h + '</b></span>' +
-              '<span>1д <b>×' + VC.v1d + '</b></span>' +
-              '<span>фандинг <b>' + VC.funding + '%</b></span>',
-            chart: volChart(VC),
-            // Кольцо всегда полное: это не доля от чего-то, а рекорд
-            // прогона. Дуга в 60% рядом с «×635» читалась бы как
-            // «шестьсот тридцать пять из тысячи».
-            ring: chartRing('obfR2', '#B4761A', '#FFE0A0', 1, '×' + VC.x, 10),
-          }
-        } : null;
-
-    /* Портфель идёт ПЕРЕД описанием рынка. Отчёт открывают, чтобы
-       узнать, чего стоят находки; режим рынка и лидеры отвечают на
-       другой вопрос и могут подождать одну строку. */
-    var portLine = (J.port && J.port.invested)
-      ? [{ p: 'По тысяче в каждую: ' + fmtMoney(J.port.value) + ' из ' +
-             fmtMoney(J.port.invested) + ', ' + signed(J.port.pnl_pct) +
-             '. По максимумам вышло бы ' + signed(J.port.peak_pct) + '.',
-           h: 'По тысяче в каждую: <b>' + fmtMoney(J.port.value) +
-             '</b> из ' + fmtMoney(J.port.invested) + ', <b class="' +
-             (J.port.pnl_pct >= 0 ? 'up' : 'dn') + '">' +
-             signed(J.port.pnl_pct) + '</b>' +
-             (J.port.rules_pnl_pct !== undefined
-               ? ', по правилам <b class="' +
-                 (J.port.rules_pnl_pct >= 0 ? 'up' : 'dn') + '">' +
-                 signed(J.port.rules_pnl_pct) + '</b>' : '') +
-             '. По максимумам вышло бы <b class="up">' +
-             signed(J.port.peak_pct) + '</b>.' }]
-      : [];
-
-    /* Монеты в глубокой просадке — сразу следом. Их разбирают руками,
-       и список должен попасться на глаза раньше, чем начнётся
-       описание рынка. */
-    var lossLine = (J.port && (J.port.losers || []).length)
-      ? [{ p: 'Разобрать: ' + J.port.losers.map(function (d) {
-             return d.t + ' ' + signed(d.chg) + ' (' + (d.case || '?') +
-               ', ' + (d.at || '').slice(5) + ')'; }).join(', ') + '.',
-           h: 'Разобрать: ' + J.port.losers.map(function (d) {
-             return '<span class="t">' + d.t + '</span> <b class="dn">' +
-               signed(d.chg) + '</b> <span class="mut">' + (d.case || '?') +
-               ', ' + (d.at || '').slice(5) + '</span>'; }).join(', ') + '.' }]
-      : [];
-
-    var lines = portLine.concat(lossLine).concat(bg)
-      .concat(wknd.p ? [wknd] : []).concat([
-     /* Текстовая строка про лидера убрана: блок ниже говорит то же
-              самое и подробнее. Оставить обе значило бы дважды сообщить
-              имя, фигуру и скор. */
-           leaderBlock,
-
-      /* Все монеты FLOW с объёмом ×30+ на любом ТФ — не только лидер:
-         сильный по score не обязан быть объёмным, и наоборот. */
-      bigVol.length
-        ? { p: 'Аномалия объёма ×30+ у ' + bigVol.map(function (v) {
-              return v.t + capP(v) + ' ×' + v.x; }).join(', ') + '.',
-            h: 'Объём ×30+ у ' + bigVol.map(function (v) {
-              return '<span class="t">' + v.t + '</span>' + cap(v) +
-                ' <span class="n">×' + v.x + '</span>'; }).join(', ') + '.' }
-        : null,
-
-      volBlock,
-
-      /* Активность за час — единственная строка про «прямо сейчас» */
-      HR.list.length
-        ? { p: 'За час ожили ' + HR.n + ': ' + HR.list.map(function (v) {
-              return v.t + capP(v) + ' ×' + v.x; }).join(', ') + '.',
-            h: 'За час ожили <span class="n">' + HR.n + '</span>: ' +
-               HR.list.map(function (v) {
-                 return '<span class="t">' + v.t + '</span>' + cap(v) +
-                   ' <span class="n">×' + v.x + '</span>'; }).join(', ') + '.' }
-        : null,
-
-      /* Отбор — рядами, не перечислением: у строки-действия должно
-         быть видно, ПОЧЕМУ монета здесь и какая сильнее. */
-      go.length
-        ? { rows: go.slice(0, 3), label: 'РАССМОТРЕТЬ СТОИТ',
-            why: 'первая фаза, у дна · порядок — по силе прогона' }
-        : { p: 'Сегодня брать нечего.', h: '<span class="mut">Сегодня брать нечего.</span>' },
-
-      /* Спячка — единственное состояние ДО движения; до этой строки
-         сводка пересказывала только то, что уже идёт или прошло.
-         «База узкая» — гейт подкейса, а не оценка, поэтому фраза
-         честна для любой монеты списка. */
-      DORM.length
-        ? { p: 'Спят ' + DORM.map(function (d) {
-              return d.t + (d.cap ? ' ' + d.cap : ''); }).join(', ') +
-              ' — цикл был, база узкая. Движения ещё нет: наблюдать, ' +
-              'не входить.',
-            h: 'Спят ' + DORM.map(function (d) {
-              return '<span class="t dorm">' + d.t + '</span>' +
-                (d.cap ? ' <span class="obf-cap">' + d.cap + '</span>' : '');
-            }).join(', ') +
-            ' — <span class="dorm">цикл был, база узкая</span>. ' +
-            'Движения ещё нет: наблюдать, не входить.' }
-        : null,
-
-      wait.length
-        ? { p: 'Ждут сигнала ' + wait.slice(0, 3).map(function (s) {
-              return s.t + capP(s) + ' — ' + waitWhy(s); }).join(' · ') + '.',
-            h: 'Ждут сигнала ' + wait.slice(0, 3).map(function (s) {
-              return '<span class="t">' + s.t + '</span>' + cap(s) +
-                ' <span class="mut">— ' + waitWhy(s) + '</span>';
-            }).join(' <span class="obf-sep">·</span> ') + '.' }
-        : null,
-    /* Прогресс у каждой свой — общая фраза «тренд подтверждается»
-         не отличала быстрого разгонщика от монеты, которая неделю
-         топчется у дна. Метка «· объём» — то же подтверждение, что
-         раньше жило отдельной строкой, теперь пришита к своей монете. */
-      hold.length
-        ? { p: 'В работе ' + hold.slice(0, 3).map(function (s) {
-              return s.t + capP(s) + ' ' + (s.up >= 0 ? '+' : '') + s.up +
-                '% за ' + (s.days || 0) + ' дн' + (bigVolT[s.t] ? ' · объём' : '');
-            }).join(', ') + '.',
-            h: 'В работе ' + hold.slice(0, 3).map(function (s) {
-              return '<span class="t gd">' + s.t + '</span>' + cap(s) +
-                ' <span class="n">' + (s.up >= 0 ? '+' : '') + s.up +
-                '%</span> за ' + (s.days || 0) + ' дн' +
-                (bigVolT[s.t] ? ' <span class="up">· объём</span>' : '');
-            }).join(', ') + '.' }
-        : null,
-      near.length
-        ? { p: 'У уровня ' + near.map(function (s) {
-              return s.t + capP(s) + ' −' + toStop(s) + '%'; }).join(', ') +
-              ' — решаются сегодня.',
-            h: 'У уровня ' + near.map(function (s) {
-              return '<span class="t">' + s.t + '</span>' + cap(s) +
-                ' <span class="dn n">−' + toStop(s) + '%</span>';
-            }).join(', ') + ' — решаются сегодня.' }
-        : null,
-
-      /* Хвост журнала — единственная строка экрана про сам скринер:
-         работает ли отбор. Первый потребитель счётчиков hits/runs_seen
-         и лучшего/худшего хода от входа. */
-      J.n
-        ? { p: 'Журнал: ' + J.n + ' ' +
-              plural(J.n, 'монета', 'монеты', 'монет') +
-              (J.fresh && J.fresh.length
-                ? ', новых этим прогоном — ' + J.fresh.join(', ') : '') +
-              '. Лучший ход от входа ' + J.best.t + ' ' +
-              (J.best.chg >= 0 ? '+' : '') + J.best.chg + '%' +
-              (J.worst.t !== J.best.t
-                ? ', худший ' + J.worst.t + ' ' +
-                  (J.worst.chg >= 0 ? '+' : '') + J.worst.chg + '%'
-                : '') + '.',
-            h: '<span class="obf-tail">Журнал: <b>' + J.n + '</b> ' +
-              plural(J.n, 'монета', 'монеты', 'монет') +
-              (J.fresh && J.fresh.length
-                ? ', новых этим прогоном — <b>' + J.fresh.join(', ') +
-                  '</b>' : '') +
-              '. Лучший ход от входа <b class="up">' + J.best.t + ' ' +
-              (J.best.chg >= 0 ? '+' : '') + J.best.chg + '%</b>' +
-              (J.worst.t !== J.best.t
-                ? ', худший <b class="dn">' + J.worst.t + ' ' +
-                  (J.worst.chg >= 0 ? '+' : '') + J.worst.chg + '%</b>'
-                : '') + '.</span>' }
-        : null
-    ]).filter(Boolean);
-
-    var reduce = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
-    var els = lines.map(function (l) {
-      var d = document.createElement('div');
-      if (l.block) {
-        d.className = 'obf-blk';
-        d.style.setProperty('--acc-rgb', l.block.acc);
-        /* Разметка вставляется сразу, а показ откладывается классом:
-           если строить SVG в момент показа, первый кадр уходит на
-           разбор дерева и прорисовка начинается рывком. */
-        d.innerHTML = blockHTML(l.block);
-        if (reduce) d.classList.add('on');
-      } else if (l.rows) {
-        /* Секция рядов отбора: как блок — не печатается, въезжает
-           классом, ряды со ступенчатой задержкой через --d. */
-        d.className = 'obf-go';
-        d.innerHTML = '<div class="obf-sk">' + l.label + '</div>' +
-          '<div class="obf-sw">' + l.why + '</div>' +
-          l.rows.map(rowHTML).join('');
-        if (reduce) d.classList.add('on');
-      } else {
-        d.className = 'obf-p';
-        if (reduce) d.innerHTML = l.h;
-      }
-      host.appendChild(d);
-      return d;
-    });
-
-    function tail() {
-      document.getElementById('obfFoot').classList.add('on');
-      document.getElementById('obfBar').classList.add('on');
-    }
-
-    /* Набор идёт спокойно: около двадцати секунд на весь текст при
-       окне показа в минуту. Быстрая печать превращается в мигание —
-       строка появляется раньше, чем глаз успевает начать читать. */
-    /* Пауза на блок. Складывается из самой длинной анимации внутри
-       (прорисовка кривой 4.6с) плюс время на разглядывание. Меньше
-       — и следующая строка начинает печататься поверх ещё
-       рисующегося графика. */
-    /* Складывается из очереди текста внутри блока (последняя строка
-       стартует на 2.1с) и самой длинной анимации графика — кривая
-       рисуется 4.6с. Меньше — и следующая строка начинает
-       печататься поверх ещё рисующегося графика. */
-    var BLOCK_HOLD = 7400;
-
-    /* Пауза на секцию рядов. Въезд короткий (три ряда за ~1.1с),
-       но это самая плотная строка экрана — три монеты с числами,
-       на чтение нужно больше, чем на график с одной кривой. */
-    var ROWS_HOLD = 5200;
-
-    function typeLine(i) {
-      if (i >= lines.length) { tail(); return; }
-
-      /* Блок не печатается: он рисуется сам, и посимвольный набор
-         поверх прорисовки читался бы как два движения разом.
-         Секция рядов ведёт себя так же, но пауза своя. */
-      if (lines[i].block || lines[i].rows) {
-        els[i].classList.add('on');
-        setTimeout(function () { typeLine(i + 1); },
-          lines[i].rows ? ROWS_HOLD : BLOCK_HOLD);
-        return;
-      }
-
-      var el = els[i], txt = lines[i].p, k = 0;
-      el.classList.add('typing');
-      (function step() {
-        el.textContent = txt.slice(0, ++k);
-        if (k < txt.length) return setTimeout(step, 48);
-        el.classList.remove('typing');
-        el.innerHTML = lines[i].h;          // подмена на размеченную версию
-        setTimeout(function () { typeLine(i + 1); }, 700);
-      })();
-    }
-
-    wrap.style.setProperty('--lap', (BRIEF_LAP / 1000) + 's');
-    requestAnimationFrame(function () { wrap.classList.add('on'); });
-    if (reduce) tail(); else setTimeout(function () { typeLine(0); }, 700);
-
-    var t = setTimeout(close, BRIEF_LAP);
-    function close() { clearTimeout(t); wrap.classList.remove('on'); }
-    wrap.addEventListener('click', close);
-    document.addEventListener('keydown', function () {
-      if (wrap.classList.contains('on')) close();
-    });
-    window.showBrief = function () {
-      wrap.classList.add('on');
-      t = setTimeout(close, BRIEF_LAP);
-    };
+  var heldT = {};
+  hold.forEach(function (s) { heldT[s.t] = true; });
+  function freshOnly(list) {
+    return list.filter(function (v) { return !heldT[v.t]; });
   }
 
-  buildBrief();
+  var HRfull = M.hourly || { n: 0, list: [] };
+  var HR = { n: HRfull.n, list: freshOnly(HRfull.list || []) };
+  var bigVolAll = M.flowVol || [];
+  var bigVol = freshOnly(bigVolAll).slice(0, 5);
+
+  var wk = M.weekend || '';
+  var wknd = '';
+  if (wk === 'soon') {
+    wknd = 'Завтра выходные — ликвидность начнёт уходить уже к вечеру, ' +
+           'торговать сегодня с осторожностью.';
+  } else if (wk === 'now') {
+    wknd = 'Выходные — тонкий стакан, движения рваные. Лучше не торговать.';
+  }
+
+  /* Фон рынка — та же цепочка условий, что и раньше (см. Ч-12
+     тех.долга про биткоин/доминацию), просто без span-разметки. */
+  var bg = [];
+  if (M.frozen) {
+    bg.push('Рынок сейчас замер. Лучшая монета дня прибавила ' +
+      pct(M.maxChange, 0) + ', и дальше плюс двадцати ушли всего ' +
+      (M.tail || 0) + ' ' + plural(M.tail || 0, 'монета', 'монеты', 'монет') +
+      ' — при живом рынке их бывают десятки. Ехать сегодня некуда.');
+  } else {
+    bg.push('Рынок двигается. Лучшая монета дня ' + pct(M.maxChange, 0) +
+      ', дальше плюс двадцати ушли ' + (M.tail || 0) + ' ' +
+      plural(M.tail || 0, 'монета', 'монеты', 'монет') +
+      ' — движение широкое, а не один выброс.');
+  }
+  if (M.peakVol && M.peakVol.sym) {
+    bg.push('Деньги в рынке ' + (M.frozen ? 'при этом ' : '') +
+      'есть: максимум объёма на ' + M.peakVol.sym + ', ×' + M.peakVol.x +
+      ' к своей норме.');
+  }
+  var gs = M.greenShare;
+  if (gs !== null && gs !== undefined) {
+    bg.push('В плюсе ' + Math.round(gs) + '% выборки' +
+      (gs >= 55 ? ', растёт почти весь рынок.'
+       : gs <= 42 ? ', то есть падает большинство.'
+       : ', рынок разделился примерно поровну.'));
+  }
+  if (M.btc !== null && M.btc !== undefined) {
+    var tail = '.';
+    var dom = parseFloat(M.dom);
+    if (M.btc7d <= -1.5 && dom >= 57) {
+      tail = ' — деньги уходят из риска, альтам ничего не достаётся.';
+    } else if (M.btc7d <= -1.5 && dom < 57) {
+      tail = ' — падают вместе: биткоин без роста доминации, альтам ' +
+        'спрятаться некуда.';
+    } else if (M.btc7d >= 1.5 && dom < 56) {
+      tail = ' — биткоин растёт, а доминация сдаёт: окно для альтов.';
+    } else if (M.btc7d >= 1.5 && dom >= 56) {
+      tail = ' — биткоин растёт и тянет доминацию за собой: деньги идут ' +
+        'в рынок широко, а не утекают из альтов.';
+    } else if (Math.abs(M.btc7d) < 1.5) {
+      tail = ' — за неделю почти без движения.';
+    }
+    bg.push('Биткоин ' + (M.btc >= 0 ? 'прибавил' : 'потерял') + ' ' +
+      Math.abs(M.btc).toFixed(1) + '% за сутки, за неделю ' + pct(M.btc7d) +
+      ', доминация ' + (M.dom || '—') + tail);
+  }
+
+  var portLine = (J.port && J.port.invested)
+    ? ['По тысяче в каждую: ' + fmtMoney(J.port.value) + ' из ' +
+       fmtMoney(J.port.invested) + ', ' + signed(J.port.pnl_pct) +
+       (J.port.rules_pnl_pct !== undefined
+         ? ', по правилам ' + signed(J.port.rules_pnl_pct) : '') +
+       '. По максимумам вышло бы ' + signed(J.port.peak_pct) + '.']
+    : [];
+
+  var lossLine = (J.port && (J.port.losers || []).length)
+    ? ['Разобрать: ' + J.port.losers.map(function (d) {
+        return d.t + ' ' + signed(d.chg) + ' (' + (d.case || '?') + ', ' +
+          (d.at || '').slice(5) + ')'; }).join(', ') + '.']
+    : [];
+
+  var LC = M.leaderChart || {}, VC = M.volChart || {};
+
+  /* Нормировка ряда к [-1,1] — тот же приём, что и в прототипе, но
+     теперь на настоящих числах: LC.series (цена лидера потока) и
+     VC.ratios (кратности объёма по дням), а не случайное блуждание. */
+  function normPts(arr) {
+    var lo = Math.min.apply(null, arr), hi = Math.max.apply(null, arr);
+    var span = (hi-lo) || 1;
+    return arr.map(function (v) { return ((v-lo)/span)*2 - 1; });
+  }
+
+  var leaderSeg = (L.t && (LC.series || []).length >= 4)
+    ? { text: 'лидер потока — ' + L.t + capP(L) + ', фигура ' +
+             (LC.case || '—') +
+             (LC.horizonDays ? ', горизонт ' + LC.horizonDays + ' дн' : '') +
+             ', скор ' + (LC.score || 0) + '.',
+        pts: normPts(LC.series) }
+    : null;
+
+  var volSeg = ((VC.ratios || []).length >= 4)
+    ? { text: 'максимум объёма — ' + VC.sym + capP(VC) + ', ×' + VC.x +
+             ' к своей норме за 30 дней.',
+        pts: normPts(VC.ratios) }
+    : null;
+
+  var goLine = go.length
+    ? 'Рассмотреть стоит (первая фаза, у дна): ' +
+      go.slice(0, 3).map(function (s) { return s.t + capP(s); }).join(', ') + '.'
+    : 'Сегодня брать нечего.';
+
+  var dormLine = DORM.length
+    ? 'Спят ' + DORM.map(function (d) { return d.t + (d.cap ? ' ' + d.cap : ''); })
+        .join(', ') + ' — цикл был, база узкая. Движения ещё нет: ' +
+        'наблюдать, не входить.'
+    : '';
+
+  var waitLine = wait.length
+    ? 'Ждут сигнала ' + wait.slice(0, 3).map(function (s) {
+        return s.t + capP(s) + ' — ' + waitWhy(s); }).join(' · ') + '.'
+    : '';
+
+  var bigVolT = {};
+  bigVolAll.forEach(function (v) { bigVolT[v.t] = true; });
+
+  var holdLine = hold.length
+    ? 'В работе ' + hold.slice(0, 3).map(function (s) {
+        return s.t + capP(s) + ' ' + (s.up >= 0 ? '+' : '') + s.up +
+          '% за ' + (s.days || 0) + ' дн' + (bigVolT[s.t] ? ' · объём' : '');
+      }).join(', ') + '.'
+    : '';
+
+  var nearLine = near.length
+    ? 'У уровня ' + near.map(function (s) {
+        return s.t + capP(s) + ' −' + toStop(s) + '%'; }).join(', ') +
+      ' — решаются сегодня.'
+    : '';
+
+  var journalLine = J.n
+    ? 'Журнал: ' + J.n + ' ' + plural(J.n, 'монета', 'монеты', 'монет') +
+      (J.fresh && J.fresh.length
+        ? ', новых этим прогоном — ' + J.fresh.join(', ') : '') +
+      '. Лучший ход от входа ' + J.best.t + ' ' +
+      (J.best.chg >= 0 ? '+' : '') + J.best.chg + '%' +
+      (J.worst.t !== J.best.t
+        ? ', худший ' + J.worst.t + ' ' +
+          (J.worst.chg >= 0 ? '+' : '') + J.worst.chg + '%'
+        : '') + '.'
+    : '';
+
+  var bigVolLine = bigVol.length
+    ? 'Аномалия объёма ×30+ у ' + bigVol.map(function (v) {
+        return v.t + capP(v) + ' ×' + v.x; }).join(', ') + '.'
+    : '';
+
+  var hrLine = HR.list.length
+    ? 'За час ожили ' + HR.n + ': ' + HR.list.map(function (v) {
+        return v.t + capP(v) + ' ×' + v.x; }).join(', ') + '.'
+    : '';
+
+  /* Порядок строк — тот же, что и раньше: портфель и разбор убытков
+     сразу (это про то, чего стоят находки), потом фон рынка, потом
+     лидер потока с графиком, аномалии объёма, максимум объёма с
+     графиком, часовая активность, отбор, спячка, ожидание, работа,
+     уровни, журнал. */
+  var raw = portLine.concat(lossLine).concat(bg)
+    .concat(wknd ? [wknd] : [])
+    .concat([leaderSeg])
+    .concat(bigVolLine ? [bigVolLine] : [])
+    .concat([volSeg])
+    .concat(hrLine ? [hrLine] : [])
+    .concat([goLine])
+    .concat(dormLine ? [dormLine] : [])
+    .concat(waitLine ? [waitLine] : [])
+    .concat(holdLine ? [holdLine] : [])
+    .concat(nearLine ? [nearLine] : [])
+    .concat(journalLine ? [journalLine] : []);
+
+  /* Приводим всё к единому виду {text, pts, accent}: строки-строки
+     оборачиваются как есть, leaderSeg/volSeg уже несут pts. */
+  var SEGMENTS = raw.filter(Boolean).map(function (item, i) {
+    var seg = (typeof item === 'string') ? { text: item } : item;
+    seg.accent = BLOCK_ACCENTS[i % BLOCK_ACCENTS.length];
+    return seg;
+  });
+
+  if (!SEGMENTS.length) return;
+
+  function tail() {
+    document.getElementById('obfFoot').classList.add('on');
+    document.getElementById('obfBar').classList.add('on');
+  }
+
+  var reduce = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+
+  resizeScene();
+  if (reduce) {
+    // Без анимации: последняя строка выводится статично сразу — сама
+    // сцена (кольцо/дюна) достаточно тиха, чтобы не требовать полного
+    // отключения, но набор текста и полёт частиц не идут.
+    txtEl.textContent = SEGMENTS[SEGMENTS.length - 1].text;
+    txtEl.style.opacity = '1';
+    tail();
+  } else {
+    requestAnimationFrame(frame);
+    setTimeout(function () { playAll().then(tail); }, 500);
+  }
+
+  wrap.style.setProperty('--lap', (BRIEF_LAP / 1000) + 's');
+  requestAnimationFrame(function () { wrap.classList.add('on'); });
+
+  var closeTimer = setTimeout(close, BRIEF_LAP);
+  function close() { clearTimeout(closeTimer); wrap.classList.remove('on'); }
+  wrap.addEventListener('click', close);
+  document.addEventListener('keydown', function () {
+    if (wrap.classList.contains('on')) close();
+  });
+  window.showBrief = function () {
+    wrap.classList.add('on');
+    closeTimer = setTimeout(close, BRIEF_LAP);
+  };
 })();
 </script>
 """
