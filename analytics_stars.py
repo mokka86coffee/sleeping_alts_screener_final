@@ -34,6 +34,7 @@ from analytics_calendar import calendar_state
 from analytics_flow import CASE_RU, case_key, case_of, flow_leader, flow_order
 from analytics_leaders import read_store
 from analytics_action import decide as decide_action
+from analytics_actionlog import log_actions
 from analytics_decisions import load_decisions
 from analytics_exit import exit_watch
 from analytics_size import position_size
@@ -750,6 +751,15 @@ def build_stars(candidates: list[Candidate],
             s["exitWhy"] = ex["why"]
             if ex["deadlineDays"] is not None:
                 s["exitDeadline"] = ex["deadlineDays"]
+
+    # Р-28: предложения записываются ЗАРАНЕЕ, до всякого показа.
+    # Стратегия выхода — гипотеза; проверить её можно только по логу,
+    # сделанному до исхода. Пишется лишь смена предложения, ошибка
+    # записи прогон не роняет: это материал замера, а не работа.
+    try:
+        log_actions(out)
+    except Exception:
+        pass
 
     # Лидер рисуется последним — поверх остальных, если рядом окажется сосед
     out.sort(key=lambda s: (s["lead"], s["f"]))

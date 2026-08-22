@@ -631,7 +631,13 @@ def _archive(path: Path, symbol: str, rec: dict, reason: str, now: datetime) -> 
 def _sweep(
     store: dict, archive_path: Path, basket: str, cutoff: datetime, now: datetime,
 ) -> dict:
-    """Два выхода из журнала, и оба содержательные.
+    """Две ОТМЕТКИ выбытия — но не удаление (правило 22.08).
+
+    Прежде эти два правила выбрасывали запись из журнала. Теперь они
+    только помечают её (retired_at / retired_why) и кладут копию в
+    архив: стратегия выхода — гипотеза, и судить её можно лишь по
+    записям, дожившим до исхода. Удаляет из журнала человек.
+
 
     Отработала. Цена ушла от дна цикла в CYCLE_COMPLETE_X раз —
     монета сделала свою волну, ловить в ней начало движения больше
@@ -662,6 +668,16 @@ def _sweep(
             kept[symbol] = rec
             continue
 
+        # ЖУРНАЛ НЕ ЧИСТИТСЯ КОДОМ (правило 22.08). Стратегия выхода
+        # пока гипотеза: она не посчитана и не проверена. Проверить её
+        # можно ТОЛЬКО на записях, доживших до исхода, — а запись,
+        # удалённая правилом за три дня до движения, уносит с собой
+        # ответ на вопрос, ради которого затевалась.
+        # Поэтому обе прежние причины выбытия («отработала», «затихла»)
+        # больше не удаляют, а ПОМЕЧАЮТ: копия уходит в архив как
+        # раньше, запись остаётся в журнале с отметкой и датой.
+        # Убирает из журнала только человек.
+
         now_x = float(rec.get("now_up_x") or rec.get("up_x") or 0.0)
         peak_x = float(rec.get("max_up_x") or 0.0)
         peak_age = rec.get("peak_up_age")
@@ -676,6 +692,9 @@ def _sweep(
             else:
                 why = f"giveback:{top:.0f}x→{now_x:.1f}x:{basket}"
             _archive(archive_path, symbol, rec, reason=why, now=now)
+            rec.setdefault("retired_at", now.isoformat())
+            rec["retired_why"] = why
+            kept[symbol] = rec
             continue
 
         last = rec.get("last_hit") or rec.get("first_seen")
@@ -691,6 +710,9 @@ def _sweep(
             kept[symbol] = rec
         else:
             _archive(archive_path, symbol, rec, reason=f"stale:{basket}", now=now)
+            rec.setdefault("retired_at", now.isoformat())
+            rec["retired_why"] = f"stale:{basket}"
+            kept[symbol] = rec
     return kept
 
 

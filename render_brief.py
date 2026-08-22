@@ -783,8 +783,15 @@ BRIEF_JS = """
     });
   }
 
+  /* Мест вокруг кольца ровно четырнадцать (5+5 по бокам, 2 сверху,
+     2 снизу). Пятнадцатая строка встала бы поверх четвёртой — лучше
+     не показать её вовсе, чем показать нечитаемую кашу. Сегмент при
+     этом всё равно проговаривается вслух, просто не остаётся. */
+  var FIG_SLOTS = 14;
+
   function figAdd(seg){
     if (!seg || !seg.k || !seg.v || !ringGeo) return;
+    if (figRows.length >= FIG_SLOTS) return;
     var mirror = figSlot(figRows.length,
       Math.max(figRows.length+1, FIG_TOTAL)).mirror;
     var el = document.createElement('div');
@@ -863,7 +870,7 @@ BRIEF_JS = """
       /* Финал не гаснет сам: последний сегмент ждёт полминуты или
          клика. «Дочитал» решает человек, а не таймер — иначе итог
          исчезает ровно тогда, когда его можно наконец прочесть. */
-      var last = (idx === SEGMENTS.length-1);
+      var last = (idx === LAST_SHOW);
       var fired = false;
       function leave(){
         if (fired || token !== runToken) return;
@@ -1053,34 +1060,49 @@ BRIEF_JS = """
   /* Фон рынка — та же цепочка условий, что и раньше (см. Ч-12
      тех.долга про биткоин/доминацию), с той же раскраской, что была
      у .obf-p до упрощения на голый текст. */
+  /* Строки фона тоже садятся в фигуру: раньше они были голыми
+     строками без ярлыка, figAdd их отбрасывал — и половина сводки
+     просто исчезала с экрана вместо того, чтобы встать у кольца.
+     tag() навешивает ярлык и значение прямо там, где строка
+     рождается: у места создания известны числа, из которых она
+     собрана, а разбирать готовый текст регулярками — гарантированно
+     сломаться на первой правке формулировки. */
   var bg = [];
+  function bgPush(html, k, v, g){ bg.push(tagSeg({html: html}, k, v, g)); }
   if (M.frozen) {
-    bg.push('Рынок сейчас <span class="warn">замер</span>. Лучшая монета дня ' +
+    bgPush('Рынок сейчас <span class="warn">замер</span>. Лучшая монета дня ' +
       'прибавила <span class="n">' + pct(M.maxChange, 0) + '</span>, и дальше ' +
       'плюс двадцати ' +
       plural(M.tail || 0, 'ушла', 'ушли', 'ушло') +
       ' всего <span class="n">' + (M.tail || 0) + '</span> ' +
       plural(M.tail || 0, 'монета', 'монеты', 'монет') +
-      ' — при живом рынке их бывают десятки. Ехать сегодня некуда.');
+      ' — при живом рынке их бывают десятки. Ехать сегодня некуда.',
+      'рынок', 'замер · ' + (M.tail || 0),
+      {t:'ticks', on: Math.min(7, M.tail || 0), all: 7, tone: 'dn'});
   } else {
-    bg.push('Рынок <span class="gd">двигается</span>. Лучшая монета дня ' +
+    bgPush('Рынок <span class="gd">двигается</span>. Лучшая монета дня ' +
       '<span class="n">' + pct(M.maxChange, 0) + '</span>, дальше плюс ' +
       'двадцати ' + plural(M.tail || 0, 'ушла', 'ушли', 'ушло') +
       ' <span class="n">' + (M.tail || 0) + '</span> ' +
       plural(M.tail || 0, 'монета', 'монеты', 'монет') +
-      ' — движение широкое, а не один выброс.');
+      ' — движение широкое, а не один выброс.',
+      'рынок', 'двигается · ' + (M.tail || 0),
+      {t:'ticks', on: Math.min(7, M.tail || 0), all: 7});
   }
   if (M.peakVol && M.peakVol.sym) {
-    bg.push('Деньги в рынке ' + (M.frozen ? 'при этом ' : '') +
+    bgPush('Деньги в рынке ' + (M.frozen ? 'при этом ' : '') +
       'есть: максимум объёма на <span class="gd">' + M.peakVol.sym +
-      '</span>, <span class="n">×' + M.peakVol.x + '</span> к своей норме.');
+      '</span>, <span class="n">×' + M.peakVol.x + '</span> к своей норме.',
+      'деньги', M.peakVol.sym + ' ×' + M.peakVol.x, null);
   }
   var gs = M.greenShare;
   if (gs !== null && gs !== undefined) {
-    bg.push('В плюсе <span class="n">' + Math.round(gs) + '%</span> выборки' +
+    bgPush('В плюсе <span class="n">' + Math.round(gs) + '%</span> выборки' +
       (gs >= 55 ? ', растёт почти весь рынок.'
        : gs <= 42 ? ', то есть падает большинство.'
-       : ', рынок разделился примерно поровну.'));
+       : ', рынок разделился примерно поровну.'),
+      'в плюсе', Math.round(gs) + '% выборки',
+      {t:'fill', pct: gs, mark: 50});
   }
   if (M.btc !== null && M.btc !== undefined) {
     /* btcTail, а НЕ tail: имя tail уже занято функцией показа подвала
@@ -1104,12 +1126,16 @@ BRIEF_JS = """
     } else if (Math.abs(M.btc7d) < 1.5) {
       btcTail = ' — за неделю почти без движения.';
     }
-    bg.push('Биткоин ' + (M.btc >= 0 ? 'прибавил' : 'потерял') + ' ' +
+    bgPush('Биткоин ' + (M.btc >= 0 ? 'прибавил' : 'потерял') + ' ' +
       '<span class="' + sgn(M.btc) + ' n">' + Math.abs(M.btc).toFixed(1) +
       '%</span> за сутки, за неделю <span class="' + sgn(M.btc7d) + ' n">' +
       pct(M.btc7d) + '</span>, доминация <span class="n">' +
       (isFinite(parseFloat(M.dom)) ? parseFloat(M.dom).toFixed(1) + '%' : '—') +
-      '</span>' + btcTail);
+      '</span>' + btcTail,
+      'биткоин',
+      (M.btc >= 0 ? '+' : '') + Math.abs(M.btc).toFixed(1) + '%' +
+        (isFinite(parseFloat(M.dom)) ? ' · ' + parseFloat(M.dom).toFixed(1) + '%' : ''),
+      isFinite(parseFloat(M.dom)) ? {t:'fill', pct: parseFloat(M.dom), mark: 50} : null);
   }
   function sgn(v) { return v > 0 ? 'up' : (v < 0 ? 'dn' : ''); }
 
@@ -1285,15 +1311,6 @@ BRIEF_JS = """
         {t:'ticks', on:((M.permission || {}).warnCount || 0),
          all:((M.permission || {}).knownCount || 0), tone:'dn'}) : null;
 
-  var btcSeg = null;
-  if (M.btc !== null && M.btc !== undefined && bg.length){
-    var domN = parseFloat(M.dom);
-    btcSeg = tagSeg({html: bg.shift()}, 'биткоин',
-      (M.btc >= 0 ? '+' : '') + Math.abs(M.btc).toFixed(1) + '%' +
-      (isFinite(domN) ? ' · ' + domN.toFixed(1) + '%' : ''),
-      isFinite(domN) ? {t:'fill', pct:domN, mark:50} : null);
-  }
-
   var closeSeg = closeLine ? tagSeg({html: closeLine}, 'итог',
       (((M.permission || {}).warnCount || 0) >= 2 ? 'наблюдение' : 'можно'),
       null) : null;
@@ -1327,7 +1344,7 @@ BRIEF_JS = """
       (J.port && J.port.invested ? '$' + J.port.invested : ''), null))
     .concat(T(lossLine, 'разобрать',
       ((J.port && (J.port.losers || []).length) || '') + '', null))
-    .concat(btcSeg ? [btcSeg] : []).concat(bg)
+    .concat(bg)
     .concat(wknd ? [tagSeg({html: wknd}, 'выходные', 'тонкий стакан', null)] : [])
     .concat([leaderSeg ? tagSeg(leaderSeg, 'лидер', leaderSeg.tag,
              leaderSeg.glyph) : leaderSeg])
@@ -1377,7 +1394,18 @@ BRIEF_JS = """
      это сегменты с ярлыком и значением. Знать заранее обязательно,
      иначе шаг по вертикали пришлось бы пересчитывать на каждой новой
      строке, и фигура ползала бы всю сводку. */
-  FIG_TOTAL = SEGMENTS.filter(function (x) { return x.k && x.v; }).length;
+  FIG_TOTAL = Math.min(FIG_SLOTS,
+    SEGMENTS.filter(function (x) { return x.k && x.v; }).length);
+
+  /* Последний ВИДИМЫЙ сегмент, а не последний в списке. Сегменты без
+     текста (альт-доля, резервуар) садятся в фигуру мгновенно и стоят
+     в конце — из-за них «last» приходился на невидимую запись, тридцать
+     секунд ожидания доставались ей, а настоящий финальный текст гас
+     через обычные четыре. Именно это и выглядело как «исчезает сразу». */
+  var LAST_SHOW = -1;
+  for (var li = SEGMENTS.length - 1; li >= 0; li--) {
+    if (SEGMENTS[li].html) { LAST_SHOW = li; break; }
+  }
 
   function tail() {
     document.getElementById('obfFoot').classList.add('on');
