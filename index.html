@@ -60,12 +60,14 @@
   // реально лежит на диске, иначе обнаруживается только пустым
   // экраном у пользователя.
   var ALLOWED = ["dashboard", "brief", "podium"];
-  var START = "dashboard";
+  var START = "brief";
+  var SEQUENCE = {"brief": "podium", "podium": "dashboard"};
   var MIN_SHOW_MS = 350;
   var FAILSAFE_MS = 12000;
 
   var loader = document.getElementById('obShellLoader');
   var frame = null;          // текущий iframe; между экранами — null
+  var current = '';          // имя экрана в рамке; нужно для ob:done
   var shownAt = 0;           // когда лоадер показан, для MIN_SHOW_MS
   var hideTimer = 0, failTimer = 0;
 
@@ -120,6 +122,7 @@
     f.src = name + '.html';
     document.body.appendChild(f);
     frame = f;
+    current = name;
   }
 
   window.addEventListener('message', function (e) {
@@ -128,8 +131,26 @@
     // оказаться что угодно, что туда однажды загрузят.
     if (e.origin !== window.location.origin) return;
     var msg = e.data;
-    if (!msg || msg.type !== 'ob:switchScreen') return;
-    switchScreen(String(msg.screen || ''));
+    if (!msg) return;
+
+    // Явный переход: экран сам называет, куда идти.
+    if (msg.type === 'ob:switchScreen') {
+      switchScreen(String(msg.screen || ''));
+      return;
+    }
+
+    // «Я закончил» — куда дальше, решает оболочка по SEQUENCE. Экран
+    // не называет преемника и потому не обязан о нём знать.
+    if (msg.type === 'ob:done') {
+      var from = String(msg.screen || '');
+      var next = SEQUENCE[from];
+      // Сверка с тем, что сейчас в рамке: сообщение от экрана,
+      // который уже сменили, иначе увело бы с нового экрана. Такое
+      // бывает при закрытии по таймеру, который успел сработать
+      // после ручного перехода.
+      if (next && from === current) switchScreen(next);
+      return;
+    }
   });
 
   switchScreen(START);

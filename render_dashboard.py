@@ -25,9 +25,10 @@ from analytics_flow import case_counts, flow_candidates, flow_leader
 from analytics_leaders import read_store
 from analytics_metrics import LEAD_X1, LEAD_X2, LEAD_X3, max_vol_ratio
 from render_orbit import render_orbit
-from render_brief import render_brief
-from render_podium import render_podium
-from render_cardscene import render_cardscene
+# Сводка, зал и сцена карточки больше не вкладываются в дашборд.
+# Сводка и зал — самостоятельные документы, их собирает render_page.
+# Сцена карточки уехала В ЗАЛ: открывает её только он (window.OBCARD),
+# и в разных документах этот вызов не дошёл бы до адресата.
 # Ч-8 тех.долга: общие с render_orbit.py помощники и константы теперь
 # в третьем модуле без зависимостей от dashboard/orbit — раньше orbit
 # доставал их отложенным (внутрифункционным) импортом отсюда, потому
@@ -1204,8 +1205,14 @@ def _modals(candidates: list[Candidate]) -> str:
 # ─────────────────────────────────────────────────────────────
 # Сборка
 # ─────────────────────────────────────────────────────────────
-def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
-    slices = build_slices(candidates, snapshot)
+def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot,
+                          slices: list[dict], market: dict,
+                          stars: list[dict]) -> str:
+    """Документ дашборда.
+
+    Срезы, строка рынка и звёзды приходят готовыми: их же показывают
+    сводка и зал, и считает их один раз render_page.
+    """
     total = len(candidates)
 
     row1 = "".join([
@@ -1244,7 +1251,7 @@ def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot) ->
     return f"""
 {_bg()}
 <div class="screen" id="dash">
-  {render_orbit(candidates, snapshot, slices)}
+  {render_orbit(candidates, snapshot, slices, market, stars)}
   {_head(snapshot)}
   <div class="row row-1">{row1}</div>
   {strat}
@@ -1253,9 +1260,6 @@ def render_dashboard_page(candidates: list[Candidate], snapshot: RunSnapshot) ->
 </div>
 <div class="screen hide" id="panes">{panes}</div>
 {_modals(candidates)}
-{render_brief()}
-{render_podium()}
-{render_cardscene()}
 {DASH_JS}"""
 
 

@@ -52,7 +52,22 @@ import json
 SCREENS = ("dashboard", "brief", "podium")
 
 # Экран, с которого начинается отчёт.
-START_SCREEN = "dashboard"
+START_SCREEN = "brief"
+
+# Что показывать после того, как экран доиграл сам себя. Экран,
+# которого здесь нет, — конечный: доиграв, он просто остаётся.
+#
+# Последовательность живёт ЗДЕСЬ, а не внутри экранов, и это главное
+# отличие от прежней схемы. Раньше зал сам следил за сводкой через
+# MutationObserver: ждал, когда с чужого узла снимется класс .on, и
+# запускался через 560 мс после этого. Работало, но означало, что зал
+# знает о существовании сводки, о её разметке и о том, каким классом
+# она отмечает своё состояние. Теперь экран сообщает только «я
+# закончил» и не знает, кто идёт следом и идёт ли вообще.
+SEQUENCE = {
+    "brief": "podium",
+    "podium": "dashboard",
+}
 
 # Сколько лоадер висит минимум. Без нижней границы лоадер, мелькнувший
 # на сорок миллисекунд при переходе на закешированный экран, читается
@@ -70,6 +85,7 @@ def build_shell(screens: tuple[str, ...] = SCREENS,
     """Полный HTML оболочки. Ни одного экрана внутри."""
     allowed = json.dumps(list(screens), ensure_ascii=False)
     start_js = json.dumps(start)
+    sequence = json.dumps(SEQUENCE, ensure_ascii=False)
 
     return f"""<!DOCTYPE html>
 <html lang="ru">
@@ -134,11 +150,13 @@ def build_shell(screens: tuple[str, ...] = SCREENS,
   // экраном у пользователя.
   var ALLOWED = {allowed};
   var START = {start_js};
+  var SEQUENCE = {sequence};
   var MIN_SHOW_MS = {MIN_SHOW_MS};
   var FAILSAFE_MS = {FAILSAFE_MS};
 
   var loader = document.getElementById('obShellLoader');
   var frame = null;          // текущий iframe; между экранами — null
+  var current = '';          // имя экрана в рамке; нужно для ob:done
   var shownAt = 0;           // когда лоадер показан, для MIN_SHOW_MS
   var hideTimer = 0, failTimer = 0;
 
@@ -193,6 +211,7 @@ def build_shell(screens: tuple[str, ...] = SCREENS,
     f.src = name + '.html';
     document.body.appendChild(f);
     frame = f;
+    current = name;
   }}
 
   window.addEventListener('message', function (e) {{
@@ -201,8 +220,26 @@ def build_shell(screens: tuple[str, ...] = SCREENS,
     // оказаться что угодно, что туда однажды загрузят.
     if (e.origin !== window.location.origin) return;
     var msg = e.data;
-    if (!msg || msg.type !== 'ob:switchScreen') return;
-    switchScreen(String(msg.screen || ''));
+    if (!msg) return;
+
+    // Явный переход: экран сам называет, куда идти.
+    if (msg.type === 'ob:switchScreen') {{
+      switchScreen(String(msg.screen || ''));
+      return;
+    }}
+
+    // «Я закончил» — куда дальше, решает оболочка по SEQUENCE. Экран
+    // не называет преемника и потому не обязан о нём знать.
+    if (msg.type === 'ob:done') {{
+      var from = String(msg.screen || '');
+      var next = SEQUENCE[from];
+      // Сверка с тем, что сейчас в рамке: сообщение от экрана,
+      // который уже сменили, иначе увело бы с нового экрана. Такое
+      // бывает при закрытии по таймеру, который успел сработать
+      // после ручного перехода.
+      if (next && from === current) switchScreen(next);
+      return;
+    }}
   }});
 
   switchScreen(START);

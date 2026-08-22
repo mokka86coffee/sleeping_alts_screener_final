@@ -11,26 +11,34 @@
       └── brief.html       ↑ каждый в тот же iframe, по очереди
       └── podium.html      ↑ предыдущий при этом уничтожается
 
-Переезд идёт по одному экрану, и это намеренно. Сейчас в свой файл
-вынесен только дашборд, а сводка, зал и сцена карточки по-прежнему
-лежат внутри него и переключаются как раньше. Отчёт от этого шага
-работает ровно так же, как работал, — добавилась только оболочка
-снаружи. Вынести все три сразу значило бы поменять точку входа,
-источник данных и способ выхода у каждого одним прогоном, и при
-первой же поломке было бы неизвестно, какая из девяти правок виновата.
+Сводка и зал переехали вместе, и по-другому было нельзя: их связывала
+очередь показа. Зал дожидался сводки, следя за классом на её узле, —
+разнеси их по документам поодиночке, и наблюдение сорвалось бы в
+сторожевой таймер, показав зал поверх ещё играющей сводки. Очередь
+теперь ведёт оболочка (SEQUENCE в render_shell.py), и оба экрана о
+существовании друг друга не знают.
 
-Список SCREENS в render_shell.py опережает реальность: он уже
-перечисляет brief и podium. Это не ошибка — белый список оболочки
-описывает, что ей РАЗРЕШЕНО грузить, а попытка перейти на ещё не
-существующий файл кончается снятым лоадером и пустой рамкой, а не
-поломкой. Файлы появятся на следующих шагах.
+Сцена карточки осталась внутри дашборда намеренно: это не экран
+очереди, а модальное окно, открываемое кликом по карточке. Свой
+документ ей не нужен и мешал бы — она обязана лежать поверх того, из
+чего её открыли.
+
+ЭТОТ МОДУЛЬ — единственное место, где данные собираются для всех
+экранов сразу. Звёзды считаются одним вызовом build_stars() и уходят
+и в сводку, и в зал, и в дашборд: второй источник тех же чисел
+разошёлся бы при первой правке, и монета показывала бы на двух
+экранах разное.
 """
 
 from __future__ import annotations
 
 from core_models import Candidate, RunSnapshot
+from analytics_stars import build_stars
 from render_css import CSS
-from render_dashboard import render_dashboard_page
+from render_brief import render_brief
+from render_dashboard import build_slices, render_dashboard_page
+from render_orbit import orbit_market
+from render_podium import render_podium
 from render_shell import build_shell
 
 FONTS_LINK = (
@@ -78,9 +86,21 @@ def build_pages(candidates: list[Candidate],
     Ключ — имя файла, и оно обязано совпадать с именем экрана в
     render_shell.SCREENS: оболочка переходит по name + '.html'.
     """
+    # Считается ОДИН раз на все экраны. Срезы и строка рынка нужны и
+    # дашборду для его блоков, и сводке с залом как содержимое, —
+    # пересчёт в каждом дал бы три независимых прохода по выборке и
+    # три возможности разойтись.
+    slices = build_slices(candidates, snapshot)
+    stars = build_stars(candidates)
+    market = orbit_market(candidates, snapshot, slices)
+
     return {
         "index.html": build_shell(),
-        "dashboard.html": document(render_dashboard_page(candidates, snapshot)),
+        "dashboard.html": document(
+            render_dashboard_page(candidates, snapshot, slices,
+                                  market, stars)),
+        "brief.html": document(render_brief(stars, market)),
+        "podium.html": document(render_podium(stars, market)),
     }
 
 
@@ -92,5 +112,13 @@ def build_page(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
     ровно в том случае, когда отчёт смотрят с диска (file://), где
     iframe с соседними файлами упирается в политику источника, а
     postMessage между документами не проходит вовсе.
+
+    Сводки и зала здесь НЕТ: они теперь самостоятельные документы и
+    поверх дашборда не ложатся. Это именно дашборд одним файлом, а не
+    прежний отчёт целиком.
     """
-    return document(render_dashboard_page(candidates, snapshot))
+    slices = build_slices(candidates, snapshot)
+    return document(render_dashboard_page(
+        candidates, snapshot, slices,
+        orbit_market(candidates, snapshot, slices),
+        build_stars(candidates)))
