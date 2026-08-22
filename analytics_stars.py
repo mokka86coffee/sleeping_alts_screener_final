@@ -35,9 +35,9 @@ from analytics_flow import CASE_RU, case_key, case_of, flow_leader, flow_order
 from analytics_leaders import read_store
 from analytics_action import decide as decide_action
 from analytics_actionlog import log_actions
-from analytics_portfolio import open_trade_symbols
+from analytics_portfolio import open_trade_positions
 from analytics_exit import exit_watch
-from analytics_size import position_size
+from analytics_size import entry_plan, position_size
 from analytics_link import unlock_leverage_link
 from analytics_metrics import (
     LEAD_X1, base_symbol, card_data, fmt_cap, max_vol_ratio,
@@ -144,6 +144,7 @@ def _star_unlocks(raw: dict) -> dict:
             out[star_key] = u[src_key]
     if u.get("next_insider") is not None:
         out["unlockIns"] = bool(u["next_insider"])
+
     if u.get("inferred"):
         out["unlockInferred"] = True
     if u.get("next_rounds"):
@@ -521,7 +522,7 @@ def build_stars(candidates: list[Candidate],
 
     # Состав ТОРГОВОЙ книги — из журнала предположений. Без цен: для
     # группы нужен только состав позиций.
-    book = open_trade_symbols()
+    book = open_trade_positions()
 
     # ЧТО ЗНАЧИТ «ВЗЯТО» (уточнено 22.08 вечером). Попадание монеты в
     # журнал лидеров и ЕСТЬ вход: отбор в лидеры делается затем, чтобы
@@ -750,7 +751,11 @@ def build_stars(candidates: list[Candidate],
         # HOLD — инвестиционная книга: вся запись журнала, без правил.
         s["hold"] = bool(s.get("days") is not None)
         # Торговая книга решает отдельно и знает только свой состав.
-        s["act"] = decide_action(s, permission, s["t"] + "USDT" in book)
+        # План входа — до решения: правило «брать» печатает первую
+        # часть, а добор сверяется с общим лимитом плана.
+        s["entry"] = entry_plan(s, permission)
+        s["book"] = book.get(s["t"] + "USDT") or {}
+        s["act"] = decide_action(s, permission, bool(s["book"]))
 
         ex = exit_watch(s, cal_items)
         if ex["watch"]:

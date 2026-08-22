@@ -187,25 +187,52 @@ def _cascade_component(series: dict) -> dict:
     """
     if not series:
         return {"known": False, "warn": False, "note": "каскад: пульса нет"}
-    n = hit = 0
+    n = hit = up = down = 0
     for rows in series.values():
         p, r = rows[-2], rows[-1]
         if not (p.get("oi_usd") and r.get("oi_usd")
                 and p.get("price") and r.get("price")):
             continue
         n += 1
+        move = r["price"] / p["price"] - 1
         if (r["oi_usd"] < p["oi_usd"] * CASCADE_OI_DROP
-                and abs(r["price"] / p["price"] - 1) > CASCADE_PX_JERK):
+                and abs(move) > CASCADE_PX_JERK):
             hit += 1
+            if move > 0:
+                up += 1
+            else:
+                down += 1
     if not n:
         return {"known": False, "warn": False, "note": "каскад: нет пар точек"}
     share = hit / n
     live = share >= CASCADE_SHARE
     note = f"каскадных монет на последнем шаге: {share * 100:.0f}%"
-    if live:
-        note += " — каскад идёт, движок закрывает счета"
+
+    # СТОРОНА КАСКАДА. Правило симметрично по построению и ловит оба
+    # выноса одинаково — но читаются они противоположно, и одна подпись
+    # на два случая вводит в заблуждение ровно в тот момент, когда
+    # решение принимается быстро.
+    #   вниз — выносят ЛОНГИ: под ценой пусто, вход в падающий нож;
+    #   вверх — выносят ШОРТЫ: топливо сквиза сгорает, и вход уже
+    #           поздний, потому что двигали не покупатели, а закрытие.
+    # Порог для стороны не вводим: сторона — это описание уже
+    # признанного события, а не второе условие.
+    side = ""
+    if live and hit:
+        if up > down * 2:
+            side = "up"
+            note += " — каскад ВВЕРХ, выносят шорты: топливо сгорает"
+        elif down > up * 2:
+            side = "down"
+            note += " — каскад ВНИЗ, выносят лонги: под ценой пусто"
+        else:
+            side = "mixed"
+            note += " — каскад идёт, обе стороны: движок закрывает счета"
+
+
     return {"known": True, "warn": live, "share": round(share, 2),
-            "note": note}
+            "side": side, "upShare": round(up / n, 2),
+            "downShare": round(down / n, 2), "note": note}
 
 
 def market_permission(candidates: list[Candidate],

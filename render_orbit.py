@@ -467,8 +467,13 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
         _cls = ("ob-frost-t" if _it["kind"] in ("risk", "unlock")
                 else "ob-frost-w")
         _pills.append(f'<span class="{_cls}">{_it["title"]} · {_when}</span>')
-    if (_perm.get("cascade") or {}).get("warn"):
-        _pills.append('<span class="ob-frost-t">каскад идёт · движок закрывает счета</span>')
+    _casc = _perm.get("cascade") or {}
+    if _casc.get("warn"):
+        _side = _casc.get("side") or ""
+        _lbl = ("каскад ↑ шорты" if _side == "up" else
+                "каскад ↓ лонги" if _side == "down" else "каскад идёт")
+        _pills.append(f'<span class="ob-frost-t">{_lbl}</span>')
+
     frost_pills = "".join(_pills)
 
     _mx = _mk.get("maxChange")

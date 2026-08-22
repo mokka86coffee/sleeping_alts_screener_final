@@ -112,12 +112,19 @@ def log_actions(stars: list[dict], path: Path = ACTIONS_LOG) -> int:
         tier = (s.get("size") or {}).get("tier") or ""
         if tier:
             rec["tier"] = tier
-        usd = (s.get("size") or {}).get("usd")
-        add = (s.get("size") or {}).get("add")
-        if name == "брать" and usd is not None:
-            rec["usd"] = usd
-        elif name == "добрать" and add is not None:
-            rec["usd"] = add
+        # Вход пишет ПЕРВУЮ ЧАСТЬ и общий план: по логу должно быть
+        # видно не только сколько взяли, но и сколько собирались —
+        # иначе добор остатка не отличить от добора после сквиза.
+        entry = s.get("entry") or {}
+        book = s.get("book") or {}
+        if name == "брать" and entry.get("first"):
+            rec["usd"] = entry["first"]
+            rec["plan"] = entry.get("total")
+            rec["parts"] = entry.get("parts")
+        elif name == "добрать":
+            left = float(entry.get("total") or 0) - float(book.get("usd") or 0)
+            rec["usd"] = (round(left) if left > 1
+                          else (s.get("size") or {}).get("add"))
         lines.append(json.dumps(rec, ensure_ascii=False))
 
     if not lines:

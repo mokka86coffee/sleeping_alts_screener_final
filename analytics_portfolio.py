@@ -169,23 +169,42 @@ def _walk(ops: list[dict], prices: dict[str, float],
     }
 
 
-def open_trade_symbols(path: Path = ACTIONS_LOG) -> set[str]:
-    """Что держит ТРЕЙДИНГ сейчас. Без цен — только состав.
+def open_trade_positions(path: Path = ACTIONS_LOG) -> dict[str, dict]:
+    """Открытые позиции трейдинга: сколько вложено и по какой цене.
 
-    Нужно раньше портфеля: зал должен знать, в какой книге стоит
-    монета, ещё до того, как посчитаны деньги.
+    Не просто состав, а РАЗМЕР: вход теперь дробится на части, и
+    правило должно знать, сколько уже набрано, чтобы предложить
+    добрать остаток плана — или не предлагать, если план выбран.
     """
-    pos: set[str] = set()
+    pos: dict[str, dict] = {}
     for op in _machine_ops(path):
         sym = str(op.get("symbol") or "")
         act = str(op.get("act") or "")
         if not sym:
             continue
-        if act in OPEN_ACTS:
-            pos.add(sym)
+        try:
+            usd = float(op.get("usd") or 0.0)
+            px = float(op.get("price") or 0.0)
+        except (TypeError, ValueError):
+            usd = px = 0.0
+        p = pos.get(sym)
+        if act in OPEN_ACTS and not p:
+            pos[sym] = {"usd": usd or POSITION_USD, "px": px,
+                        "parts": 1, "plan": float(op.get("plan") or 0.0)}
+        elif act in ADD_ACTS and p:
+            p["usd"] += usd or ADD_USD
+            p["parts"] += 1
+        elif act in CUT_ACTS and p:
+            p["usd"] /= 2.0
         elif act in CLOSE_ACTS:
-            pos.discard(sym)
+            pos.pop(sym, None)
     return pos
+
+
+def open_trade_symbols(path: Path = ACTIONS_LOG) -> set[str]:
+    """Состав книги. Обёртка над open_trade_positions для читателей,
+    которым размер не нужен."""
+    return set(open_trade_positions(path))
 
 
 def _hold_book(stars: list[dict]) -> dict:

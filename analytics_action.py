@@ -169,6 +169,25 @@ def decide(star: dict, permission: dict | None = None,
             return {"act": "хеджировать", "group": "trade",
                     "why": "выходные — тонкий стакан, прокол проходит глубже"}
 
+    # ── 4б. Добор ОСТАТКА ПЛАНА входа ──
+    # Хвост дробного входа добирается по УЛУЧШЕНИЮ, а не по таймеру:
+    # добор по расписанию ничем не отличался бы от входа всей суммой,
+    # только с лишним шагом. Условие улучшения — окно стало чище, чем
+    # было при первой части, и цена не убежала: догонять собственный
+    # вход дороже на пятнадцать процентов смысла нет.
+    book = star.get("book") or {}
+    plan_total = float((star.get("entry") or {}).get("total") or 0.0)
+    got = float(book.get("usd") or 0.0)
+    if held and plan_total and got and got < plan_total * 0.95:
+        warn_now = int((permission or {}).get("warnCount") or 0)
+        px_now = float(star.get("px") or 0.0)
+        px_in = float(book.get("px") or 0.0)
+        ran = (px_in > 0 and px_now > 0 and px_now / px_in - 1 > 0.15)
+        if warn_now <= 1 and not ran:
+            left = round(plan_total - got)
+            return {"act": "добрать", "group": "trade",
+                    "why": f"окно очистилось — добрать остаток плана ${left}"}
+
     # ── 5. Добор после сквиза: плечо слито, фигура жива ──
     held_pct = star.get("oiHeld")
     if held and held_pct is not None:
@@ -194,6 +213,15 @@ def decide(star: dict, permission: dict | None = None,
         return {"act": "держать", "group": "trade", "why": ahead_note}
 
     # ── 6. Без позиции: брать или ждать ──
+    # ВХОД — СОБЫТИЕ, А НЕ СОСТОЯНИЕ (правка 23.08).
+    # Раньше условием было «фаза go и фигура жива» — состояние, под
+    # которое подходит почти весь журнал: вся альта на дне с живыми
+    # фигурами. На первом же прогоне книга открыла тридцать две позиции
+    # разом и просто повторила HOLD с задержкой в прогон. Сравнивать
+    # два подхода бессмысленно, если второй копирует первый.
+    # Событие — это ПОЯВЛЕНИЕ монеты в журнале (или возврат после
+    # выхода из книги). «Стоит пятый день с живой фигурой» событием не
+    # является.
     if star.get("linkNote"):
         return {"act": "мимо", "group": "take",
                 "why": "связка плеча с траншем — вход в чужую раздачу"}
@@ -206,10 +234,23 @@ def decide(star: dict, permission: dict | None = None,
         # Знание пришло раньше действия: входить ещё можно, но зная
         # срок и меньшим размером — история кончится этой датой.
         return {"act": "ждать", "group": "take", "why": ahead_note}
+    fresh = bool(star.get("firstRun")) or (
+        star.get("days") is not None and int(star.get("days") or 0) <= 0)
     phase = (star.get("phase") or {}).get("k")
-    if phase == "go" and (gap is None or gap <= 3):
-        size = (star.get("size") or {}).get("tier") or ""
-        return {"act": "брать", "group": "take",
-                "why": ("размером " + size) if size else ""}
+
+    if fresh and phase == "go" and (gap is None or gap <= 3):
+        plan = star.get("entry") or {}
+        parts = int(plan.get("parts") or 1)
+        first = plan.get("first")
+        why = plan.get("why") or ""
+        if parts > 1 and first:
+            why = f"вход {parts} частями, первая ${first:.0f} — " + why
+        elif first:
+            why = f"вход одной суммой ${first:.0f}"
+        return {"act": "брать", "group": "take", "why": why}
+
+    if fresh:
+        return {"act": "ждать", "group": "take",
+                "why": "новая в журнале, но фигура не подтверждена"}
     return {"act": "ждать", "group": "take",
-            "why": (star.get("phase") or {}).get("a") or ""}
+            "why": (star.get("phase") or {}).get("a") or "события входа нет"}

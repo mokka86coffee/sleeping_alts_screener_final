@@ -58,6 +58,13 @@ EXIT_OI_UP_PCT = 8.0
 EXIT_PX_FLAT_PCT = 1.0
 EXIT_FLOW_HOURS = 24
 
+# ЗАСТРЯВШЕЕ ПЛЕЧО. Два условия сразу: интерес держится кратно выше
+# тихой базы окна И цена уже далеко откатила от пика этого же окна.
+# Порознь каждое ничего не значит: высокий OI на растущей цене — это
+# просто набор, а откат при ушедшем плече — обычное остывание.
+STUCK_OI_X = 2.5             # во сколько раз OI выше тихой базы
+STUCK_PX_BACK_PCT = 35.0     # насколько цена отошла от пика окна
+
 # Сделочная половина: сколько крупных продаж на свежем хвосте считать
 # сигналом. Двойка, а не единица: одна крупная продажа бывает у любой
 # монеты в любой день, две подряд — уже поведение.
@@ -86,7 +93,37 @@ def _pulse_flow(symbol: str, hours: int = EXIT_FLOW_HOURS) -> dict | None:
         return None
     if p0 <= 0 or o0 <= 0:
         return None
-    return {"px": (p1 / p0 - 1) * 100.0, "oi": (o1 / o0 - 1) * 100.0}
+    # ЗАСТРЯВШЕЕ ПЛЕЧО (правка 23.08, случай ONG).
+    # Суточная дельта отвечает «уходит ли плечо СЕЙЧАС» — и на этот
+    # вопрос честно отвечает «уходит», когда OI откатывает от пика.
+    # Но вопрос выхода другой: ОСТАЛОСЬ ли плечо после того, как ход
+    # закончился. У ONG открытый интерес вырос с базы в пять раз до и
+    # во время пампа, цена вернулась почти на старт — а OI остался
+    # впятеро выше базы. Это не опустошение, это завершённая раздача:
+    # толпа сидит в лонгах, и правило по суточной дельте её не видит.
+    # Поэтому меряем УРОВЕНЬ против базы окна, а не изменение.
+    oi_all = [float(r["oi_usd"]) for r in rows
+              if r.get("oi_usd") and float(r.get("oi_usd") or 0) > 0]
+    px_all = [float(r["price"]) for r in rows
+              if r.get("price") and float(r.get("price") or 0) > 0]
+    over_base = px_over_base = off_peak = None
+    if len(oi_all) >= 4 and len(px_all) >= 4:
+        # База — самая тихая четверть окна, а не первая точка: одна
+        # точка может попасть в чей-то всплеск и увести всю меру.
+        base_oi = sorted(oi_all)[max(0, len(oi_all) // 4 - 1)]
+        base_px = sorted(px_all)[max(0, len(px_all) // 4 - 1)]
+        if base_oi > 0:
+            over_base = o1 / base_oi
+        if base_px > 0:
+            px_over_base = p1 / base_px
+        peak_px = max(px_all)
+        if peak_px > 0:
+            off_peak = (1.0 - p1 / peak_px) * 100.0
+
+
+    return {"px": (p1 / p0 - 1) * 100.0, "oi": (o1 / o0 - 1) * 100.0,
+            "oiOverBase": over_base, "pxOverBase": px_over_base,
+            "pxOffPeak": off_peak}
 
 
 def exit_watch(star: dict, calendar_items: list[dict] | None = None) -> dict:
@@ -140,6 +177,19 @@ def exit_watch(star: dict, calendar_items: list[dict] | None = None) -> dict:
         if flow["oi"] >= EXIT_OI_UP_PCT and flow["px"] <= EXIT_PX_FLAT_PCT:
             why.append(f"OI +{flow['oi']:.0f}% при цене {flow['px']:+.0f}% "
                        "— толпу завели, идёт раздача")
+
+    # ── 2б. Застрявшее плечо: ход кончился, а позиции остались ──
+    # Работает и НИЖЕ входа — в отличие от прочих половин. Причина:
+    # здесь речь не о защите прибыли, а о том, что сверху висит толпа
+    # в убытке, и каждый отскок будет ею продан. Это не истощение
+    # позиции, это состояние рынка в монете.
+    if flow and flow.get("oiOverBase") and flow.get("pxOffPeak") is not None:
+        if (flow["oiOverBase"] >= STUCK_OI_X
+                and flow["pxOffPeak"] >= STUCK_PX_BACK_PCT):
+            why.append(
+                f"плечо застряло: OI ×{flow['oiOverBase']:.1f} к базе, "
+                f"а цена уже {flow['pxOffPeak']:.0f}% от пика — "
+                "раздача состоялась, сверху толпа в убытке")
 
     # ── 3. Крупные продажи выше входа ──
     try:
