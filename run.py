@@ -388,6 +388,36 @@ def build_snapshot(
         "watch": sum(1 for c in candidates if c.bucket == "watch"),
     }
 
+    # ── Числа для ретроспективы, отдельным блоком ──
+    # to_dict() не сохраняет raw, и до 22.08 снимок хранил ход и цену
+    # только внутри ЭКРАННЫХ строк metrics («+1.6%») — ретроспектива
+    # выпаривала числа из вёрстки и ослепла бы при первой смене
+    # подписи. Замеры Р-9 (процентили против своей истории), Р-16,
+    # Р-22, Р-23 читают именно этот блок. Четыре числа на монету —
+    # единицы килобайт на снимок.
+    #
+    # Имена ключей повторяют raw как есть: блок — выписка, а не новая
+    # схема, и переименования здесь стали бы вторым словарём тех же
+    # величин.
+    def _nums(c: Candidate) -> dict:
+        raw = c.raw or {}
+        out = {}
+        for key in ("price", "ch_24h", "ch_7d", "funding"):
+            v = raw.get(key)
+            if v is None:
+                continue
+            try:
+                out[key] = float(v)
+            except (TypeError, ValueError):
+                continue
+        return out
+
+    dicts = []
+    for c in candidates:
+        entry = c.to_dict()
+        entry["nums"] = _nums(c)
+        dicts.append(entry)
+
     return RunSnapshot(
         timestamp=RunSnapshot.now_iso(),
         total_scanned=total_scanned,
@@ -398,7 +428,7 @@ def build_snapshot(
         sectors=sectors,
         market_regime=build_market_regime(candidates, sectors),
         veto_stats=build_veto_stats(candidates),
-        candidates=[c.to_dict() for c in candidates],
+        candidates=dicts,
     )
 
 

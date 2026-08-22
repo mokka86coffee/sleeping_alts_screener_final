@@ -29,6 +29,7 @@ raw нет — она есть только у монет со сработав�
 from __future__ import annotations
 
 from analytics_metrics import weekend_state
+from analytics_reservoir import reservoir_state
 from core_models import Candidate
 
 # ── Пороги-прикидки (заменить процентилями по Р-9) ─────────────
@@ -128,6 +129,10 @@ def market_permission(candidates: list[Candidate],
         "btc": _btc_component(btc),
         "weekend": _weekend_component(now),
         "funding": _funding_component(candidates),
+        # Резервуарный контур (Р-20): ручной файл, одно число в
+        # неделю. warn не поднимает никогда — гейт объясняет, а не
+        # предупреждает; см. docstring reservoir_state.
+        "reservoir": reservoir_state(),
         # Честные заглушки: строка «нет данных» отличима от «спокойно».
         "oi": {"known": False, "warn": False,
                "note": "суммарный OI: появится с циклом Р-8"},

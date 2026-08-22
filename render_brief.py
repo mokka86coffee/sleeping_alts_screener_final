@@ -670,8 +670,16 @@ BRIEF_JS = """
         (AS.d7 < 50 ? ' — <span class="mut">прилив до альтов не дошёл</span>.'
                     : '.')
       : '';
+    /* Резервуар — не причина и не предупреждение, а объяснение,
+       почему журнал лежит: печатается после альт-доли, тем же
+       спокойным тоном. Нет файла — нет строки: подсказка «заведите
+       файл» уместна в консоли прогона, не в утреннем брифе. */
+    var rsv = pp.reservoir || {};
+    var rsvTail = (rsv.known && rsv.note)
+      ? ' <span class="mut">' + rsv.note + '.</span>'
+      : '';
     permLine = head + (reasons.length ? ': ' + reasons.join('; ') : '') +
-      '.' + fuelTail + altTail;
+      '.' + fuelTail + altTail + rsvTail;
   }
 
   var wk = M.weekend || '';
