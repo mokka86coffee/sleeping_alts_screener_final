@@ -143,10 +143,7 @@ PODIUM_CSS = """
 .obp-stage{position:absolute;left:50%;top:44%;width:0;height:0;
   transform-style:preserve-3d}
 
-/* Высота 276 вместо 400 (22.08): при трёх группах и сорока с лишним
-   монетами в кадр должно помещаться ДВА ряда, а не один. Отступ сверху
-   пересчитан от той же середины панели. */
-.obp-pan{position:absolute;width:315px;height:276px;margin:-138px 0 0 -157.5px;
+.obp-pan{position:absolute;width:315px;height:400px;margin:-225px 0 0 -157.5px;
   transform-style:preserve-3d;cursor:pointer;transition:opacity .35s ease}
 /* Панели вне поля обзора не только прозрачны, но и не ловят курсор:
    иначе невидимая карточка перехватывала бы клик по видимой. */
@@ -264,6 +261,29 @@ PODIUM_CSS = """
   mask-image:linear-gradient(180deg,transparent,#000 88%);
   pointer-events:none;overflow:hidden}
 .obp-refl .obp-frame{height:300px;box-shadow:none}
+
+/* ── Переключатель групп ─────────────────────────────────────
+   Стоит по центру сверху: это первое, что видно при входе, и оно же
+   объясняет, что зал показывает не всё сразу. Счётчик на кнопке
+   обязателен — иначе переключение вслепую, и пустая группа выглядит
+   как поломка. */
+.obp-groups{position:absolute;left:50%;top:56px;transform:translateX(-50%);
+  z-index:6;display:flex;border:1px solid rgba(255,255,255,.09);
+  border-radius:3px;overflow:hidden;background:rgba(8,10,15,.72);
+  backdrop-filter:blur(6px)}
+.obp-gb{font:400 10.5px/1 var(--mono,ui-monospace,monospace);letter-spacing:.16em;
+  text-transform:uppercase;color:#5A5F69;background:transparent;border:0;
+  padding:10px 20px;cursor:pointer;border-right:1px solid rgba(255,255,255,.06);
+  transition:color .2s ease,background .2s ease}
+.obp-gb:last-child{border-right:0}
+.obp-gb b{font-weight:400;margin-left:8px;color:#3A3E47}
+.obp-gb:hover{color:#8A8F99}
+.obp-gb.on{color:#D8DCE4;background:rgba(255,255,255,.045)}
+.obp-gb.on b{color:#8A8F99}
+/* Цвет активной вкладки — цвет самой группы: экран сразу окрашен тем,
+   о чём он. */
+.obp-gb.on[data-g="exit"]{color:#FFB4A0;background:rgba(255,107,53,.09)}
+.obp-gb.on[data-g="take"]{color:#9EDCF5;background:rgba(111,201,232,.07)}
 
 /* ── Подписи ярусов ──────────────────────────────────────────
    Высота несёт стадию, и это надо назвать словом, а не оставить
@@ -516,6 +536,7 @@ PODIUM_HTML = """
   </div>
   <button class="obp-exit" id="obpExit" type="button">к дашборду</button>
 
+  <div class="obp-groups" id="obpGroups"></div>
   <div class="obp-tiers" id="obpTiers"></div>
   <div class="obp-stage" id="obpStage"></div>
 
@@ -572,11 +593,19 @@ PODIUM_JS = """
      трогать нет), ВЫХОДИТЬ (срок или истощение).
      Порядок сверху вниз — по срочности: ближе к полу то, что решается
      сегодня. */
+  /* Группы стали ВКЛАДКАМИ, а не ярусами. Ярусы делили один экран на
+     три, и каждой группе доставалась треть высоты — при сорока с
+     лишним монетах это заставляло мельчить карточки. Одна группа за
+     раз возвращает панели полный размер и полную дугу; цена — нужно
+     переключаться, и поэтому счётчики стоят прямо на кнопках.
+     Открывается зал на «выходить»: это единственная группа, где
+     промедление стоит денег. */
   var STAGE = [
-    { n: 'брать',    c: '#6FC9E8', key: 'take' },
+    { n: 'выходить', c: '#FF6B35', key: 'exit' },
     { n: 'держать',  c: '#8A8F99', key: 'hold' },
-    { n: 'выходить', c: '#FF6B35', key: 'exit' }
+    { n: 'брать',    c: '#6FC9E8', key: 'take' }
   ];
+  var GROUP_KEYS = ['exit', 'hold', 'take'];
 
   /* Граница ярусов — доля пройденного пути от дна к пику ЖИЗНИ.
      Проценты, не кратность.
@@ -629,7 +658,7 @@ PODIUM_JS = """
      фигуры и открытую позицию. Пройденный путь остался величиной
      сортировки внутри яруса — он по-прежнему отвечает «кто дальше
      ушёл», просто это больше не вопрос уровня. */
-  var GROUP_INDEX = { take: 0, hold: 1, exit: 2 };
+  var GROUP_INDEX = { exit: 0, hold: 1, take: 2 };
 
   function tierOf(s) {
     var g = (s.act && s.act.group) || 'take';
@@ -673,10 +702,8 @@ PODIUM_JS = """
      окажется на стене — известно только после подсчёта. Поэтому
      задаётся шаг между рядами, а сами высоты считаются так, чтобы
      вся стопка стояла симметрично относительно горизонта.
-     Шаг чуть больше высоты панели: ряды не должны соприкасаться.
-     Панель стала ниже (276 вместо 400) — шаг сжат соразмерно, иначе
-     между рядами осталась бы пустая полоса в треть экрана. */
-  var ROW_PITCH = 312;
+     Шаг чуть больше высоты панели: ряды не должны соприкасаться. */
+  var ROW_PITCH = 470;
 
   var NS = 'http://www.w3.org/2000/svg';
 
@@ -1522,16 +1549,52 @@ PODIUM_JS = """
      карточке листают именно по нему, поэтому «следующая» означает
      «соседняя на стене», а не «следующая в журнале». */
   var ZLIST = [];
-  var built = false;
+  /* Флага «уже собрано» больше нет: стена ПЕРЕСТРАИВАЕТСЯ при каждой
+     смене группы, и однократная сборка здесь была бы ровно тем, что
+     ломает переключатель. */
+  var GROUP = 'exit';
+  /* Угол поворота объявлен ЗДЕСЬ, а не у обработчиков вращения ниже:
+     build() сбрасывает его при смене группы и обращается к нему
+     раньше, чем выполнится тот блок. */
+  var ang = 0, target = 0, raf = 0;      // при входе — то, где промедление стоит денег
+
+  /* Монеты группы. «Брать» — особый случай: там не список, а СЦЕНА
+     ЛИДЕРА. Раз фигура есть почти у всей выборки, показывать двадцать
+     восемь одинаковых карточек бессмысленно — вопрос не «у кого
+     фигура», а «кто сейчас первый». Поэтому берём лидера прогона и
+     тех, кто идёт за ним со второго по пятое место в порядке FLOW;
+     монеты журнала, выпавшие из текущей выборки, места не имеют и
+     сюда не попадают. */
+  var TAKE_PLACES = 5;
+
+  function groupList(key) {
+    var list = STARS.filter(function (s) {
+      return ((s.act && s.act.group) || 'take') === key;
+    });
+    if (key !== 'take') return list;
+    return list.filter(function (s) {
+      var p = +s.fpos || 0;
+      return p >= 1 && p <= TAKE_PLACES;
+    }).sort(function (a, b) { return (+a.fpos || 99) - (+b.fpos || 99); });
+  }
+
+  /* Пустая группа — законный ответ, а не сбой, и текст обязан это
+     говорить: «нечего» читается иначе, чем «сломалось». */
+  var EMPTY = {
+    exit: 'выходить не из чего — сроков и истощения нет',
+    hold: 'открытых позиций нет — журнал решений пуст или всё закрыто',
+    take: 'в топе FLOW сейчас никого'
+  };
 
   function build() {
-    if (built) return;
-    built = true;
     sky();
 
     if (!STARS.length) { bail('журнал лидеров пуст'); return; }
 
     var tiersHost = document.getElementById('obpTiers');
+    tiersHost.innerHTML = '';
+    stage.innerHTML = '';
+    PANS = []; ZLIST = [];
     var shown = 0;
 
     /* Раскладка идёт в два прохода. В первом считаем, сколько рядов
@@ -1544,20 +1607,16 @@ PODIUM_JS = """
     var plan = [];
 
     STAGE.forEach(function (stg, ti) {
-      var list = STARS.filter(function (s) { return tierOf(s) === ti; });
-      if (!list.length) return;
+      if (stg.key !== GROUP) return;      // на стене одна группа за раз
+      var list = groupList(stg.key);
+      if (!list.length) { bail(EMPTY[stg.key]); return; }
 
-      /* Порядок внутри яруса отвечает на вопрос самого яруса.
-         У дна вопрос «какая живее»: отскок, вернувшийся на дно и не
-         пробивший его, означает, что предложение по этой цене снова
-         разобрали, и чем таких больше, тем монета живее. Ход от дна
-         там ничего не сообщает — у дна все стоят одинаково.
-         В «движется» вопрос обратный: кто дальше ушёл, тот ближе к
-         концу своей волны и тем менее интересен для входа, поэтому
-         дальние уходят вправо.
-         Скор в обе сортировки не входит: это уверенность детектора,
-         а не состояние монеты. */
-      if (ti === 2) {
+      /* Порядок внутри группы отвечает на вопрос самой группы.
+         Скор ни в одну сортировку не входит: это уверенность
+         детектора, а не состояние монеты. */
+      if (stg.key === 'take') {
+        // Порядок уже задан местом в FLOW — лидер первым.
+      } else if (stg.key === 'exit') {
         /* «Выходить»: первым то, что нельзя отложить. Внутри —
            ближайший срок вперёд: транш через два дня решается раньше,
            чем через двенадцать. */
@@ -1570,22 +1629,12 @@ PODIUM_JS = """
           var db = (b.exitDeadline === undefined) ? 99 : b.exitDeadline;
           return da - db;
         });
-      } else if (ti === 1) {
+      } else if (stg.key === 'hold') {
         /* «Держать»: сначала те, где есть что делать (добор, хедж),
            потом спокойные. */
         list.sort(function (a, b) {
           var wa = ((a.act || {}).why) ? 0 : 1, wb = ((b.act || {}).why) ? 0 : 1;
           return wa - wb || recoveredPct(a) - recoveredPct(b);
-        });
-      } else {
-        /* «Брать»: вопрос «какая живее». Отскок, вернувшийся на дно и
-           не пробивший его, означает, что предложение по этой цене
-           снова разобрали — чем таких больше, тем монета живее.
-           Скор в сортировку не входит: это уверенность детектора, а
-           не состояние монеты. */
-        list.sort(function (a, b) {
-          var d = (+b.heldRallies || 0) - (+a.heldRallies || 0);
-          return d || recoveredPct(a) - recoveredPct(b);
         });
       }
 
@@ -1619,9 +1668,19 @@ PODIUM_JS = """
 
       var scale = step / full;
       var half = (list.length - 1) / 2;
+      /* В «брать» лидер стоит ПО ЦЕНТРУ дуги, а не первым слева:
+         остальные расходятся от него в стороны по местам. Зал при
+         входе в эту группу смотрит ровно на первого. */
+      var centered = (stg.key === 'take');
 
       list.forEach(function (c, i) {
-        var a = (i - half) * step;
+        /* Порядок мест вокруг центра: 1 в середине, дальше 2 слева,
+           3 справа, 4 левее, 5 правее — глаз читает от лидера
+           наружу, а не слева направо мимо него. */
+        var slot = centered
+          ? ((i === 0) ? 0 : (i % 2 ? -Math.ceil(i / 2) : Math.ceil(i / 2)))
+          : (i - half);
+        var a = slot * step;
         var y = rowY[p.rows === 1 ? 0 : (i % 2)];
         var sc = stratOf(c);
         var d = document.createElement('div');
@@ -1662,17 +1721,45 @@ PODIUM_JS = """
       tiersHost.appendChild(lab);
     });
 
-    if (!shown) bail('ни у одной монеты журнала нет стратегии');
+    if (!shown && plan.length) bail('ни у одной монеты группы нет стратегии');
 
     var stamp = document.getElementById('obPodStamp');
     if (stamp) stamp.textContent = STARS.length + ' монет под наблюдением';
+
+    /* Стена перестроена — поворот сбрасывается на центр. Иначе после
+       переключения группы зал смотрел бы в пустоту на том же угле,
+       на котором стоял в прежней. */
+    ang = target = 0;
+    apply();
+    paintGroups();
+  }
+
+  function paintGroups() {
+    var host = document.getElementById('obpGroups');
+    if (!host) return;
+    host.innerHTML = '';
+    STAGE.forEach(function (stg) {
+      var n = groupList(stg.key).length;
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'obp-gb' + (stg.key === GROUP ? ' on' : '');
+      b.setAttribute('data-g', stg.key);
+      b.innerHTML = stg.n + '<b>' + n + '</b>';
+      b.onclick = function () {
+        if (GROUP === stg.key) return;
+        GROUP = stg.key;
+        closeZoom();
+        build();
+      };
+      host.appendChild(b);
+    });
   }
 
   /* ── Поворот ─────────────────────────────────────────────────
      Видна только ДАЛЬНЯЯ половина цилиндра: ближняя проходит
      сквозь камеру, и панели оттуда лезут в кадр огромными и вверх
      ногами. Порог 62° — дальше панель уходит за край сама. */
-  var VISIBLE = 62, ang = 0, target = 0, raf = 0;
+  var VISIBLE = 62;
 
   function norm(a) { return ((a + 180) % 360 + 360) % 360 - 180; }
 
