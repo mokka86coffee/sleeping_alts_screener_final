@@ -634,6 +634,40 @@ BRIEF_JS = """
      мельче и тише (класс .obf-cap), не голым довеском к тикеру. */
   function cap(s) { return s.cap ? ' <span class="obf-cap">' + s.cap + '</span>' : ''; }
 
+  /* ── Р-1: строка разрешения рынка, первый сегмент ──
+     «Пока не понятно, что с рынком, список альтов читать
+     бессмысленно» — поэтому строка открывает бриф, до портфеля и
+     фона. Выходные в перечень причин НЕ включаются: у них ниже своя
+     развёрнутая строка, а правило одно — у каждой причины ровно одно
+     место в тексте. Счёт же считает все причины, включая выходные:
+     число и перечень отвечают на разные вопросы. */
+  var P = M.permission || {};
+  var AS = M.altShare || {};
+  var permLine = '';
+  if (P.knownCount) {
+    var pp = P.parts || {};
+    var reasons = [];
+    if ((pp.btc || {}).warn)
+      reasons.push('рывок биткоина — окно каскада');
+    if ((pp.funding || {}).warn)
+      reasons.push('толпа в лонге, фандинг положителен у ' +
+        Math.round(((pp.funding || {}).posShare || 0) * 100) + '%');
+    var head = (P.warnCount
+      ? 'Окно рынка: <span class="warn">' + P.warnCount + ' ' +
+        plural(P.warnCount, 'предупреждение', 'предупреждения',
+               'предупреждений') + '</span>'
+      : 'Окно рынка: <span class="gd">явных предупреждений нет</span>') +
+      ' из ' + P.knownCount + ' составляющих';
+    var altTail = (AS.d7 !== undefined && AS.d7 !== null)
+      ? ' Биткоин за неделю обошли <span class="n">' + AS.d7 +
+        '%</span> выборки' +
+        (AS.d7 < 50 ? ' — <span class="mut">прилив до альтов не дошёл</span>.'
+                    : '.')
+      : '';
+    permLine = head + (reasons.length ? ': ' + reasons.join('; ') : '') +
+      '.' + altTail;
+  }
+
   var wk = M.weekend || '';
   var wknd = '';
   if (wk === 'soon') {
@@ -743,8 +777,17 @@ BRIEF_JS = """
         pts: normPts(VC.ratios) }
     : null;
 
+  /* Р-6: при закрытом окне список НЕ пустеет и не переупорядочивается
+     — меняется только подпись: те же монеты, но как наблюдение, а не
+     входы. Порог «две независимые причины» — правило ПОКАЗА, живёт
+     здесь и в скор не проникает; одна причина (например, просто
+     выходные) окно не закрывает — у неё есть своя строка. */
+  var gateClosed = (P.warnCount || 0) >= 2;
+  var goHead = gateClosed
+    ? '<span class="warn">Окно закрыто</span> — список наблюдения, не входов: '
+    : 'Рассмотреть стоит (первая фаза, у дна): ';
   var goLine = go.length
-    ? 'Рассмотреть стоит (первая фаза, у дна): ' +
+    ? goHead +
       go.slice(0, 3).map(function (s) {
         return '<span class="t">' + s.t + '</span>' + cap(s); }).join(', ') + '.'
     : '<span class="mut">Сегодня брать нечего.</span>';
@@ -813,7 +856,8 @@ BRIEF_JS = """
      лидер потока с графиком, аномалии объёма, максимум объёма с
      графиком, часовая активность, отбор, спячка, ожидание, работа,
      уровни, журнал. */
-  var raw = portLine.concat(lossLine).concat(bg)
+  var raw = (permLine ? [permLine] : [])
+    .concat(portLine).concat(lossLine).concat(bg)
     .concat(wknd ? [wknd] : [])
     .concat([leaderSeg])
     .concat(bigVolLine ? [bigVolLine] : [])

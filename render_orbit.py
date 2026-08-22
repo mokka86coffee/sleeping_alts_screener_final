@@ -37,6 +37,7 @@ from analytics_metrics import (
     leader_chart, market_breadth, vol_chart, weekend_state,
 )
 from analytics_leaders import journal_summary, read_store
+from analytics_permission import altseason_share, market_permission
 # Звёзды считаются один раз на два экрана: их показывает и орбита, и
 # сводка, а после переезда в отдельные iframe передать готовое между
 # документами нечем. Здесь остаётся только раскладка и отрисовка.
@@ -296,6 +297,13 @@ def orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
         "btc": _btc.get("ch_24h"),
         "btcUp": (_btc.get("ch_24h") or 0) >= 0,
         "btc7d": _btc.get("ch_7d"),
+
+        # Р-1 минимальным составом и Р-19 на коротких окнах. Лежат в
+        # словаре рынка, а не отдельным каналом: словарь и так едет во
+        # все три экрана, и строка разрешения обязана быть одной и той
+        # же на брифе, орбите и в зале.
+        "permission": market_permission(candidates, _btc),
+        "altShare": altseason_share(candidates, _btc),
         # Ч-9 тех.долга закрыт: раньше здесь была константа-заглушка.
         "dom": get_btc_dominance(),
         "series": _btc.get("spark") or [],
@@ -401,6 +409,16 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
         _pills.append('<span class="ob-frost-w">завтра выходные</span>')
     elif _wknd == "now":
         _pills.append('<span class="ob-frost-w">выходные</span>')
+
+    # Р-1: предупреждения разрешения рынка — те же пилюли, тот же ряд.
+    # Выходные НЕ дублируются: их пилюля уже стоит выше, и правило
+    # одно — у каждой причины ровно одно место на экране. Отсюда
+    # добавляются только рывок биткоина и перекос фандинга.
+    _perm = (_mk.get("permission") or {}).get("parts") or {}
+    if (_perm.get("btc") or {}).get("warn"):
+        _pills.append('<span class="ob-frost-t">рывок btc · окно каскада</span>')
+    if (_perm.get("funding") or {}).get("warn"):
+        _pills.append('<span class="ob-frost-t">толпа в лонге · фандинг+</span>')
     frost_pills = "".join(_pills)
 
     _mx = _mk.get("maxChange")
@@ -427,6 +445,14 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
 
     btc_txt, btc_cls = _btc_cell(_mk.get("btc"))
     btc7_txt, btc7_cls = _btc_cell(_mk.get("btc7d"))
+
+    # Р-19: доля выборки, обошедшая биткоин. Окно — в подписи (7д),
+    # и с публичным 90-дневным индексом это число несравнимо, см.
+    # техдолг. Нет данных — нет ячейки: прочерк на месте величины,
+    # которой не бывает, читается как поломка.
+    _as = _mk.get("altShare") or {}
+    alt_cell = (f' · альты&gt;btc <b>{_as["d7"]}%</b> за 7д'
+                if _as.get("d7") is not None else "")
 
     return f"""
 <div class="ob{frozen_cls}" id="ob">
@@ -591,7 +617,7 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
     <div class="ob-core-v v-frost">PUMP OFF</div>
 
     <div class="ob-core-s">btc <b class="{btc_cls}">{btc_txt}</b> · неделя
-      <b class="{btc7_cls}">{btc7_txt}</b> · btc.d <b>{btc_d}</b></div>
+      <b class="{btc7_cls}">{btc7_txt}</b> · btc.d <b>{btc_d}</b>{alt_cell}</div>
 
     <!-- Замирание и выходные — две отдельные пилюли, а не строка
          через точку: независимые причины с одинаковым следствием, и
