@@ -234,6 +234,18 @@ def _orbit_dormant(candidates: list[Candidate],
     return out[:3]
 
 
+def _round_dom(value) -> float | None:
+    """Доминация биткоина с одним знаком. None — величины нет.
+
+    Ноль здесь был бы враньём: «доминации нет» и «доминация 0%» —
+    разные утверждения, и второе невозможно.
+    """
+    try:
+        return round(float(value), 1)
+    except (TypeError, ValueError):
+        return None
+
+
 def orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
                  slices: list[dict]) -> dict:
     """Строка рынка и связанные строки сводки при входе.
@@ -318,7 +330,12 @@ def orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
         "strat": CASE_STRAT,
         "maxAge": LEADERS_MAX_AGE_DAYS,
         # Ч-9 тех.долга закрыт: раньше здесь была константа-заглушка.
-        "dom": get_btc_dominance(),
+        # Доминация округляется В ДАННЫХ, а не при показе: сеть
+        # отдаёт её с полутора десятками знаков, и каждый экран,
+        # забывший форматирование, печатал бы «58.89487806512701».
+        # Один знак после запятой — предел осмысленной точности:
+        # доля рынка на сотых долях процента не читается никем.
+        "dom": _round_dom(get_btc_dominance()),
         "series": _btc.get("spark") or [],
 
         # Замирание рынка и положение относительно выходных.

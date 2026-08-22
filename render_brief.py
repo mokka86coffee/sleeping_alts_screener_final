@@ -757,7 +757,8 @@ BRIEF_JS = """
     bg.push('Биткоин ' + (M.btc >= 0 ? 'прибавил' : 'потерял') + ' ' +
       '<span class="' + sgn(M.btc) + ' n">' + Math.abs(M.btc).toFixed(1) +
       '%</span> за сутки, за неделю <span class="' + sgn(M.btc7d) + ' n">' +
-      pct(M.btc7d) + '</span>, доминация <span class="n">' + (M.dom || '—') +
+      pct(M.btc7d) + '</span>, доминация <span class="n">' +
+      (isFinite(parseFloat(M.dom)) ? parseFloat(M.dom).toFixed(1) + '%' : '—') +
       '</span>' + btcTail);
   }
   function sgn(v) { return v > 0 ? 'up' : (v < 0 ? 'dn' : ''); }
