@@ -402,7 +402,10 @@ def build_snapshot(
     def _nums(c: Candidate) -> dict:
         raw = c.raw or {}
         out = {}
-        for key in ("price", "ch_24h", "ch_7d", "funding"):
+        # ch_30d добавлен 22.08 вечером: окно d30 появилось в Р-19
+        # позже первой версии блока, и без него месячная ретроспектива
+        # не восстановилась бы из снимков.
+        for key in ("price", "ch_24h", "ch_7d", "ch_30d", "funding"):
             v = raw.get(key)
             if v is None:
                 continue

@@ -27,16 +27,33 @@ def write_atomic(path: Path, content: str) -> None:
     tmp.replace(path)
 
 
+# Дневной архив живёт рядом с рабочими снимками, но ротации не
+# подчиняется. Смысл: prune_runs держит только последние RUNS_KEEP
+# прогонов — при прогоне каждые три часа это считанные дни, а замеры
+# Р-16/Р-22/Р-23 (сигнал → ход, пропущенные против взятых, «в списке
+# до повода») строят распределения на НЕДЕЛЯХ. До 22.08 материал этих
+# замеров стирался самим хранилищем. Цена архива — один файл в день,
+# ~365 файлов в год; файл дня перезаписывается каждым прогоном, так
+# что в архиве остаётся ПОСЛЕДНИЙ снимок дня — то же прореживание,
+# которым замеры и читают историю.
+DAILY_DIR_NAME = "daily"
+
+
 def save_snapshot(snapshot: RunSnapshot) -> Path:
-    """Сохраняет снимок прогона и обновляет latest."""
+    """Сохраняет снимок прогона, обновляет latest и дневной архив."""
     ensure_dirs()
 
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M")
+    now = datetime.now(timezone.utc)
+    stamp = now.strftime("%Y%m%d-%H%M")
     path = RUNS_DIR / f"run-{stamp}.json"
 
     payload = json.dumps(snapshot.to_dict(), ensure_ascii=False, indent=1)
     write_atomic(path, payload)
     write_atomic(LATEST_JSON, payload)
+
+    daily_dir = RUNS_DIR / DAILY_DIR_NAME
+    daily_dir.mkdir(parents=True, exist_ok=True)
+    write_atomic(daily_dir / f"run-{now.strftime('%Y%m%d')}.json", payload)
 
     prune_runs()
     return path
@@ -46,7 +63,10 @@ def prune_runs(keep: int = RUNS_KEEP) -> int:
     """Удаляет старые снимки, оставляя последние keep штук."""
     if not RUNS_DIR.exists():
         return 0
-    files = sorted(RUNS_DIR.glob("run-*.json"))
+    # glob по файлам каталога не заходит в подкаталог daily — и не
+    # должен: архив вне ротации по построению. Страховка на случай
+    # будущих правок шаблона: берём только файлы.
+    files = sorted(f for f in RUNS_DIR.glob("run-*.json") if f.is_file())
     doomed = files[:-keep] if len(files) > keep else []
     for f in doomed:
         try:
