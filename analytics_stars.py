@@ -35,7 +35,7 @@ from analytics_flow import CASE_RU, case_key, case_of, flow_leader, flow_order
 from analytics_leaders import read_store
 from analytics_action import decide as decide_action
 from analytics_actionlog import log_actions
-from analytics_decisions import load_decisions
+from analytics_portfolio import open_trade_symbols
 from analytics_exit import exit_watch
 from analytics_size import position_size
 from analytics_link import unlock_leverage_link
@@ -519,20 +519,17 @@ def build_stars(candidates: list[Candidate],
     # Макродаты частокола (Р-7) — один раз на прогон, как и медианы.
     cal_items = (calendar_state() or {}).get("items") or []
 
-    # Какие монеты мы ДЕРЖИМ — из журнала решений (Р-14): вход без
-    # последующего выхода. Без журнала множество пусто, и зал честно
-    # покажет все монеты в «брать»: скринер не знает, чем мы владеем,
-    # и придумывать это за человека нельзя.
-    held_syms = set()
-    for rec in (load_decisions() or []):
-        sym = str(rec.get("symbol") or "").upper().replace("USDT", "")
-        act = str(rec.get("action") or "")
-        if not sym:
-            continue
-        if act == "вход":
-            held_syms.add(sym)
-        elif act == "выход":
-            held_syms.discard(sym)
+    # Состав ТОРГОВОЙ книги — из журнала предположений. Без цен: для
+    # группы нужен только состав позиций.
+    book = open_trade_symbols()
+
+    # ЧТО ЗНАЧИТ «ВЗЯТО» (уточнено 22.08 вечером). Попадание монеты в
+    # журнал лидеров и ЕСТЬ вход: отбор в лидеры делается затем, чтобы
+    # взять. Раньше «держим» бралось из журнала решений, и пока тот был
+    # пуст, весь журнал оказывался в «брать» — сорок четыре монеты,
+    # которые давно в работе, выглядели как кандидаты на покупку.
+    # Теперь позиция есть у каждой записи журнала, а «брать» остаётся
+    # для новых монет прогона.
 
 
 
@@ -743,8 +740,17 @@ def build_stars(candidates: list[Candidate],
         # Р-27: действие и его группа — из готовых полей звезды плюс
         # разрешение рынка. Считается ПОСЛЕ размера: ступень входит в
         # причину «брать половиной».
-        s["act"] = decide_action(s, permission, bool(held_syms and
-                                                    s.get("t") in held_syms))
+        # ДВА ПОДХОДА К ОДНИМ МОНЕТАМ (22.08).
+        # HOLD (инвестирование) — попал в лидеры, взял на $1000, держу;
+        # выходов нет, правила не применяются вовсе.
+        # ТРЕЙДИНГ — те же монеты по правилам, со своим составом
+        # позиций. Поэтому held берётся из ТОРГОВОЙ книги, а не из
+        # журнала лидеров: иначе у трейдинга появились бы позиции,
+        # которых он не открывал.
+        # HOLD — инвестиционная книга: вся запись журнала, без правил.
+        s["hold"] = bool(s.get("days") is not None)
+        # Торговая книга решает отдельно и знает только свой состав.
+        s["act"] = decide_action(s, permission, s["t"] + "USDT" in book)
 
         ex = exit_watch(s, cal_items)
         if ex["watch"]:

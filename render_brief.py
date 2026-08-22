@@ -1275,6 +1275,61 @@ BRIEF_JS = """
      и чего ждать. Ступень размера и ближайшая дата иначе видны только
      в карточке зала, то есть их надо искать — а это самые действенные
      величины дня. */
+  /* ═══ Два счёта (Р-29) ═══
+     HOLD — попал в лидеры, взял на $1000, держу; правила не
+     применяются. Трейдинг — те же монеты по правилам, со своими
+     входами и выходами. Считаны на ОДНИХ ценах, поэтому разница между
+     ними читается прямо: стоило ли торговать то, что можно было
+     просто держать. Пустой счёт не печатается вовсе — «правила ещё не
+     сделали ни одной сделки» и «ноль долларов» разные утверждения. */
+  var PF = M.portfolios || {};
+  function money(v){
+    var a = Math.abs(v);
+    if (a >= 1000) return (v < 0 ? '−$' : '$') + (a/1000).toFixed(1) + 'K';
+    return (v < 0 ? '−$' : '$') + a.toFixed(0);
+  }
+  function acct(p, name, tone){
+    if (!p || (!p.trades && !p.open)) return '';
+    var pnl = +p.pnl || 0;
+    var cls = pnl > 0 ? 'up' : (pnl < 0 ? 'dn' : 'mut');
+    return name + ': <span class="n">' + p.open + '</span> ' +
+      plural(p.open, 'позиция', 'позиции', 'позиций') +
+      ' на <span class="n">' + money(p.invested) + '</span>, ' +
+      'итог <span class="' + cls + ' n">' + (pnl >= 0 ? '+' : '') +
+      money(pnl) + '</span>' +
+      (p.pnlPct !== null && p.pnlPct !== undefined
+        ? ' <span class="' + cls + '">(' + (p.pnlPct >= 0 ? '+' : '') +
+          p.pnlPct + '%)</span>' : '') +
+      (tone ? ' <span class="mut">' + tone + '</span>' : '');
+  }
+  var acctLine = '';
+  (function () {
+    var m = acct(PF.hold, 'HOLD', 'взял и держу'),
+        h = acct(PF.trade, 'Трейдинг', 'по правилам');
+    if (!m && !h) return;
+    var parts = [];
+    if (m) parts.push(m);
+    if (h) parts.push(h);
+    acctLine = parts.join('. ') + '.';
+    /* Разница — единственное, ради чего оба счёта и ведутся. Пока
+       сделок мало, она ничего не значит, и это сказано прямо. */
+    /* Разница читается в одну сторону: трейдинг МИНУС hold. Это и
+       есть ответ на вопрос затеи — стоит ли торговать то, что можно
+       было просто держать. Порядок вычитания важен: обратный знак
+       читался бы как «сколько потерял, что не держал», а вопрос не в
+       этом. */
+    var mp = (PF.hold || {}).pnl, hp = (PF.trade || {}).pnl;
+    var tr = (PF.trade || {}).trades || 0;
+    if (m && h && mp !== undefined && hp !== undefined) {
+      var d = hp - mp;
+      acctLine += (tr < 10)
+        ? ' <span class="mut">Сделок пока мало — разницу не читать.</span>'
+        : ' Торговля дала <span class="' + (d >= 0 ? 'up' : 'dn') + ' n">' +
+          (d >= 0 ? '+' : '') + money(d) + '</span> ' +
+          '<span class="mut">к простому удержанию.</span>';
+    }
+  })();
+
   var closeLine = '';
   (function () {
     var pp2 = (M.permission || {}).parts || {};
@@ -1363,6 +1418,9 @@ BRIEF_JS = """
     .concat(T(journalLine, 'журнал', (J.n || 0) + '', null))
     .concat(altSeg ? [altSeg] : [])
     .concat(rsvSeg ? [rsvSeg] : [])
+    .concat(acctLine ? [tagSeg({html: acctLine}, 'счета',
+      ((PF.hold || {}).open || 0) + ' / ' + ((PF.trade || {}).open || 0),
+      null)] : [])
     .concat(closeSeg ? [closeSeg] : []);
 
   /* Приводим всё к единому виду {html, pts, accent}: строки-строки

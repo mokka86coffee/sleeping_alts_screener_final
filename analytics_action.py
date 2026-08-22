@@ -94,12 +94,15 @@ def decide(star: dict, permission: dict | None = None,
     из трёх действий читался бы как «делай что-нибудь» и не помогал
     бы решать.
 
-    held — открыта ли позиция (из журнала решений, Р-14). Без неё
-    монета может только попасть в «брать»: советовать «сократить» по
-    монете, которой у нас нет, бессмысленно.
+    held — открыта ли позиция В ТОРГОВОЙ КНИГЕ (журнал предположений).
+    Не в журнале лидеров: журнал есть у обоих подходов, а правила
+    решают только за трейдинг. Без позиции монета может попасть только
+    в «брать» — советовать «сократить» по тому, чего нет, бессмысленно.
 
-    Возвращает {"act", "why", "group"}. group — колонка зала:
-    "take" / "hold" / "exit".
+    Возвращает {"act", "why", "group"} — группа ТОРГОВОЙ книги:
+    "take" (взять сейчас) / "trade" (в работе) / "exit" (выходить).
+    Инвестиционная книга HOLD сюда не приходит вовсе: к ней правила
+    не применяются, и решать за неё нечего.
     """
     parts = ((permission or {}).get("parts") or {})
     cal = (parts.get("calendar") or {}).get("items") or []
@@ -158,12 +161,12 @@ def decide(star: dict, permission: dict | None = None,
         for it in cal:
             if it.get("kind") in ("risk", "macro") and not it.get("running") \
                     and int(it.get("days") or 99) <= HEDGE_MACRO_DAYS:
-                return {"act": "хеджировать", "group": "hold",
+                return {"act": "хеджировать", "group": "trade",
                         "why": f"{it.get('title')} через "
                                f"{int(it.get('days') or 0)} дн — знак "
                                "непредсказуем, снять риск на событие"}
         if (parts.get("weekend") or {}).get("warn"):
-            return {"act": "хеджировать", "group": "hold",
+            return {"act": "хеджировать", "group": "trade",
                     "why": "выходные — тонкий стакан, прокол проходит глубже"}
 
     # ── 5. Добор после сквиза: плечо слито, фигура жива ──
@@ -175,12 +178,20 @@ def decide(star: dict, permission: dict | None = None,
             empty = False
         alive = gap is None or gap <= 3
         if empty and alive and not (parts.get("cascade") or {}).get("warn"):
-            return {"act": "добрать", "group": "hold",
+            return {"act": "добрать", "group": "trade",
                     "why": f"плечо слито (держится {float(held_pct):.0f}%), "
                            "фигура жива — движение пойдёт с пустого"}
 
     if held:
-        return {"act": "держать", "group": "hold", "why": ahead_note}
+        # Новая монета прогона — это и есть «взять сейчас»: она только
+        # что попала в журнал, позиции по ней ещё нет. Дальше та же
+        # монета живёт в «держать», пока не появится повод действовать.
+        if star.get("firstRun") or (star.get("days") is not None
+                                    and int(star.get("days") or 0) <= 0):
+            size = (star.get("size") or {}).get("tier") or ""
+            return {"act": "брать", "group": "take",
+                    "why": ("размером " + size) if size else ""}
+        return {"act": "держать", "group": "trade", "why": ahead_note}
 
     # ── 6. Без позиции: брать или ждать ──
     if star.get("linkNote"):

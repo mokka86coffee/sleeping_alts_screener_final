@@ -33,6 +33,7 @@
 from __future__ import annotations
 
 from core_models import Candidate, RunSnapshot
+from analytics_portfolio import portfolios
 from analytics_stars import build_stars
 from render_css import CSS
 from render_brief import render_brief
@@ -96,6 +97,11 @@ def build_pages(candidates: list[Candidate],
     # заставил бы считать разрешение дважды — и однажды разойтись.
     market = orbit_market(candidates, snapshot, slices)
     stars = build_stars(candidates, market.get("permission"))
+    # Р-29: два счёта считаются ПОСЛЕ звёзд — им нужны цены и ступени
+    # размера. Рынок при этом уже собран, поэтому дописываем в него:
+    # это по-прежнему один словарь на все экраны, второго источника
+    # тех же чисел не заводим.
+    market["portfolios"] = portfolios(stars)
 
     return {
         "index.html": build_shell(),
@@ -125,6 +131,7 @@ def build_page(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
     # разрешения. Здесь это просмотр с диска, но расходиться двум
     # сборкам нельзя — иначе file:// покажет другие ступени размера.
     market = orbit_market(candidates, snapshot, slices)
+    stars = build_stars(candidates, market.get("permission"))
+    market["portfolios"] = portfolios(stars)
     return document(render_dashboard_page(
-        candidates, snapshot, slices, market,
-        build_stars(candidates, market.get("permission"))))
+        candidates, snapshot, slices, market, stars))

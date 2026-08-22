@@ -106,6 +106,18 @@ def log_actions(stars: list[dict], path: Path = ACTIONS_LOG) -> int:
                 rec["score"] = int(s["score"])
             except (TypeError, ValueError):
                 pass
+        # Сумма операции — чтобы лог читался как учёт, а не как лента
+        # намерений: «выйти» без денег не отличить от «подумал выйти».
+        # Ступень размера (Р-15) уже посчитана в звезде.
+        tier = (s.get("size") or {}).get("tier") or ""
+        if tier:
+            rec["tier"] = tier
+        usd = (s.get("size") or {}).get("usd")
+        add = (s.get("size") or {}).get("add")
+        if name == "брать" and usd is not None:
+            rec["usd"] = usd
+        elif name == "добрать" and add is not None:
+            rec["usd"] = add
         lines.append(json.dumps(rec, ensure_ascii=False))
 
     if not lines:
