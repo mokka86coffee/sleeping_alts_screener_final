@@ -42,6 +42,9 @@ BTC_SURGE_7D_PCT = 15.0
 # Перекос фандинга: после выноса шортов толпа переворачивается в
 # лонг, держать лонг платно, слабые руки выносит первыми. По пробе
 # BTC 22.08: 91 период подряд положительный, отрицательных ноль.
+#
+# Порог один на оба хвоста: перекос — это перекос, с какой стороны
+# ни смотри. Разное У НИХ следствие, и оно ниже, в компоненте.
 FUNDING_CROWD_SHARE = 0.70
 
 
@@ -72,7 +75,19 @@ def _weekend_component(now=None) -> dict:
 
 
 def _funding_component(candidates: list[Candidate]) -> dict:
-    """Перекос фандинга по выборке: какая доля монет платит за лонг."""
+    """Перекос фандинга по выборке. ТОПЛИВО ИМЕЕТ СТОРОНУ.
+
+    Симметрия обязательна, и хвосты НЕ равнозначны. Перекос в лонг —
+    предупреждение: это топливо каскада против нас, слабые руки
+    выносит первыми. Перекос в шорт — НЕ предупреждение и НЕ сигнал
+    входа: это строка состояния «заряжено вверх». Ровно она была
+    измерима перед 19 августа, когда четыре миллиарда шортов стали
+    горючим хода, а новостной фон говорил ждать продолжения падения.
+    Момент поджига (повод) в данных не бывает — печатается только
+    заряд.
+
+    Наружу: side — "long" / "short" / "" (без перекоса).
+    """
     vals = []
     for c in candidates:
         try:
@@ -80,14 +95,23 @@ def _funding_component(candidates: list[Candidate]) -> dict:
         except (TypeError, ValueError):
             continue
     if not vals:
-        return {"known": False, "warn": False, "note": "фандинг: нет данных"}
+        return {"known": False, "warn": False, "side": "",
+                "note": "фандинг: нет данных"}
     pos = sum(1 for v in vals if v > 0) / len(vals)
-    crowd = pos >= FUNDING_CROWD_SHARE
-    note = f"фандинг положителен у {pos * 100:.0f}% выборки"
-    if crowd:
-        note += " — толпа в лонге и платит"
-    return {"known": True, "warn": crowd, "posShare": round(pos, 2),
-            "note": note}
+    neg = sum(1 for v in vals if v < 0) / len(vals)
+    if pos >= FUNDING_CROWD_SHARE:
+        return {"known": True, "warn": True, "side": "long",
+                "posShare": round(pos, 2),
+                "note": f"фандинг положителен у {pos * 100:.0f}% выборки "
+                        "— толпа в лонге, топливо каскада"}
+    if neg >= FUNDING_CROWD_SHARE:
+        return {"known": True, "warn": False, "side": "short",
+                "posShare": round(pos, 2),
+                "note": f"фандинг отрицателен у {neg * 100:.0f}% выборки "
+                        "— толпа в шорте, топливо сквиза вверх"}
+    return {"known": True, "warn": False, "side": "",
+            "posShare": round(pos, 2),
+            "note": f"фандинг положителен у {pos * 100:.0f}% выборки"}
 
 
 def market_permission(candidates: list[Candidate],

@@ -419,6 +419,10 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
         _pills.append('<span class="ob-frost-t">рывок btc · окно каскада</span>')
     if (_perm.get("funding") or {}).get("warn"):
         _pills.append('<span class="ob-frost-t">толпа в лонге · фандинг+</span>')
+    elif (_perm.get("funding") or {}).get("side") == "short":
+        # Не предупреждение — состояние заряда. Пилюля календарного
+        # тона (как выходные), а не тревожного: топливо вверх.
+        _pills.append('<span class="ob-frost-w">толпа в шорте · заряд вверх</span>')
     frost_pills = "".join(_pills)
 
     _mx = _mk.get("maxChange")
