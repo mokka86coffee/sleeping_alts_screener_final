@@ -33,6 +33,8 @@ from core_models import Candidate
 from analytics_calendar import calendar_state
 from analytics_flow import CASE_RU, case_key, case_of, flow_leader, flow_order
 from analytics_leaders import read_store
+from analytics_action import decide as decide_action
+from analytics_decisions import load_decisions
 from analytics_exit import exit_watch
 from analytics_size import position_size
 from analytics_link import unlock_leverage_link
@@ -516,6 +518,21 @@ def build_stars(candidates: list[Candidate],
     # Макродаты частокола (Р-7) — один раз на прогон, как и медианы.
     cal_items = (calendar_state() or {}).get("items") or []
 
+    # Какие монеты мы ДЕРЖИМ — из журнала решений (Р-14): вход без
+    # последующего выхода. Без журнала множество пусто, и зал честно
+    # покажет все монеты в «брать»: скринер не знает, чем мы владеем,
+    # и придумывать это за человека нельзя.
+    held_syms = set()
+    for rec in (load_decisions() or []):
+        sym = str(rec.get("symbol") or "").upper().replace("USDT", "")
+        act = str(rec.get("action") or "")
+        if not sym:
+            continue
+        if act == "вход":
+            held_syms.add(sym)
+        elif act == "выход":
+            held_syms.discard(sym)
+
 
 
     out = []
@@ -721,6 +738,12 @@ def build_stars(candidates: list[Candidate],
         # и рыночные из разрешения — единственного источника истины
         # для окна выборки.
         s["size"] = position_size(s, permission)
+
+        # Р-27: действие и его группа — из готовых полей звезды плюс
+        # разрешение рынка. Считается ПОСЛЕ размера: ступень входит в
+        # причину «брать половиной».
+        s["act"] = decide_action(s, permission, bool(held_syms and
+                                                    s.get("t") in held_syms))
 
         ex = exit_watch(s, cal_items)
         if ex["watch"]:
