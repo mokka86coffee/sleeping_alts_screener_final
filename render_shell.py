@@ -33,11 +33,10 @@
 какой-то будущей версии браузера, без единого предупреждения.
 postMessage с явной проверкой origin переживёт это ужесточение.
 
-ЛОАДЕР ЗДЕСЬ — ЗАГЛУШКА. Разметка и механика настоящие, оформление
-намеренно минимальное: сама анимация загрузки — задача на прототип, а
-не на то, чтобы её молча придумал этот файл. Менять нужно только
-содержимое #obShellLoader и его стили; вся логика показа/скрытия к
-оформлению не привязана.
+Лоадер — пульсирующая звезда. Утверждён по HTML-прототипу (вариант 2
+из трёх). Оформление и логика показа не связаны: чтобы поменять вид,
+достаточно содержимого #obShellLoader и его стилей, MIN_SHOW_MS и
+затухание к нему не привязаны.
 """
 
 from __future__ import annotations
@@ -72,7 +71,12 @@ SEQUENCE = {
 # Сколько лоадер висит минимум. Без нижней границы лоадер, мелькнувший
 # на сорок миллисекунд при переходе на закешированный экран, читается
 # как дефект отрисовки, а не как загрузка.
-MIN_SHOW_MS = 350
+#
+# 700, а не 350: на живых экранах переход выглядел скачком. Затухание
+# занимает 350 мс само по себе, то есть при прежнем пороге лоадер
+# начинал гаснуть ровно тогда, когда закончил появляться, и стадии
+# «висит» не было вовсе — глаз читал это как рывок, а не как паузу.
+MIN_SHOW_MS = 700
 
 # Предохранитель: если экран не догрузился (404, оборванная сеть),
 # событие load может не прийти вовсе. Лоадер обязан сняться в любом
@@ -122,25 +126,88 @@ def build_shell(screens: tuple[str, ...] = SCREENS,
   #obShellLoader.off {{ opacity: 0; }}
   #obShellLoader.gone {{ display: none; }}
 
-  /* ── ЗАГЛУШКА ─────────────────────────────────────────────
-     Всё, что ниже, — временное оформление, чтобы механику можно
-     было проверить сейчас. Настоящая анимация загрузки идёт
-     отдельным прототипом. */
-  .obShellDot {{
-    width: 6px; height: 6px; border-radius: 50%;
-    background: #C9915A; opacity: .25;
-    animation: obShellPulse 1.4s ease-in-out infinite;
+  /* ── Пробуждение ──────────────────────────────────────────
+     Звезда разгорается и гаснет, рядом чуть дышат тусклые соседи.
+     Буквально то, что ищет скринер: спящая монета, которая начинает
+     светиться.
+
+     Утверждено по HTML-прототипу (loader-prototype.html), вариант 2
+     из трёх. Вариант с орбитой отклонён по делу: там период 2.6 с, а
+     лоадер живёт около секунды — полного оборота не видит никто, и от
+     орбиты остаётся дёргающаяся крошка. Пульс читается с первого
+     кадра, и это ровно то, что от лоадера требуется.
+
+     Период 1.6 с, а не 2.4 с как в прототипе: при минимальном показе
+     в 700 мс более длинный цикл не успевал дойти до пика, и звезда
+     гасла, ни разу не загоревшись. Отрицательная задержка стартует
+     цикл не с нижней точки — пик приходится примерно на 400-ю
+     миллисекунду и попадает в окно даже самого быстрого перехода. */
+  .obShellWake {{
+    position: relative; width: 132px; height: 132px;
+    display: grid; place-items: center;
   }}
-  @keyframes obShellPulse {{
-    0%, 100% {{ opacity: .18; transform: scale(1); }}
-    50%      {{ opacity: .75; transform: scale(1.6); }}
+  .obShellWake i {{
+    position: absolute; background: #FFD98A; border-radius: 50%;
+    animation: obShellBreath 1.6s ease-in-out -.4s infinite;
   }}
-  /* ── /ЗАГЛУШКА ───────────────────────────────────────────── */
+  .obShellWake .core {{ width: 8px; height: 8px; }}
+  .obShellWake .halo {{
+    width: 8px; height: 8px; filter: blur(9px); opacity: .55;
+    animation: obShellHalo 1.6s ease-in-out -.4s infinite;
+  }}
+  .obShellWake u {{
+    position: absolute; height: 1px; width: 96px; opacity: 0;
+    background: linear-gradient(90deg, transparent, #FFD98A 50%, transparent);
+    animation: obShellSpike 1.6s ease-in-out -.4s infinite;
+  }}
+  .obShellWake u.v {{ transform: rotate(90deg); }}
+  .obShellWake s {{
+    position: absolute; width: 2px; height: 2px; border-radius: 50%;
+    background: #8FA0B0; opacity: .3; text-decoration: none;
+    animation: obShellDim 1.6s ease-in-out infinite;
+  }}
+
+  /* Нижняя точка цикла — НЕ ноль. Метка, пропадающая насовсем,
+     читается как сбой отрисовки, а не как пауза дыхания. */
+  @keyframes obShellBreath {{
+    0%, 100% {{ opacity: .34; transform: scale(.78); }}
+    50%      {{ opacity: 1;   transform: scale(1.2); }}
+  }}
+  @keyframes obShellHalo {{
+    0%, 100% {{ opacity: .12; transform: scale(2.2); }}
+    50%      {{ opacity: .6;  transform: scale(4.6); }}
+  }}
+  @keyframes obShellSpike {{
+    0%, 100% {{ opacity: 0; }}
+    50%      {{ opacity: .62; }}
+  }}
+  @keyframes obShellDim {{
+    0%, 100% {{ opacity: .16; }}
+    50%      {{ opacity: .55; }}
+  }}
+
+  /* Движение снимается целиком, но метка остаётся: пустой чёрный
+     экран на месте лоадера неотличим от зависшей загрузки. */
+  @media (prefers-reduced-motion: reduce) {{
+    .obShellWake i, .obShellWake u, .obShellWake s {{ animation: none; }}
+    .obShellWake .core {{ opacity: 1; }}
+    .obShellWake .halo {{ opacity: .45; transform: scale(3.4); }}
+  }}
+  /* ── /Пробуждение ────────────────────────────────────────── */
 </style>
 </head>
 <body>
 
-<div id="obShellLoader"><div class="obShellDot"></div></div>
+<div id="obShellLoader">
+  <div class="obShellWake" aria-hidden="true">
+    <s style="left:22px;top:38px"></s>
+    <s style="left:104px;top:52px;animation-delay:.34s"></s>
+    <s style="left:44px;top:96px;animation-delay:.6s"></s>
+    <s style="left:92px;top:104px;animation-delay:.93s"></s>
+    <u></u><u class="v"></u>
+    <i class="halo"></i><i class="core"></i>
+  </div>
+</div>
 
 <script>
 (function () {{

@@ -4,7 +4,7 @@
 и вставляет результат в разметку страницы.
 
 Помощники и константы, общие с render_dashboard.py (_pick, _num,
-_tick, FLOW_NODES и т.д.),
+_tick и т.д.),
 раньше доставались отложенным (внутрифункционным) импортом прямо
 из render_dashboard.py — тот файл импортирует orbit на уровне
 модуля, и обратный импорт на уровне модуля дал бы цикл.
@@ -43,7 +43,7 @@ from analytics_leaders import journal_summary, read_store
 from analytics_stars import build_stars
 from render_common import (
     _pick, _num, _get, _tick,
-    FLOW_NODES, RR_MIN, SURGE_NOTE, IMP_NOTE,
+    RR_MIN, SURGE_NOTE, IMP_NOTE,
 )
 
 ORBIT_COLORS = {

@@ -1007,7 +1007,7 @@ def _blk_flow(candidates: list[Candidate]) -> str:
     lead = flow_leader(candidates)
 
     nodes = ""
-    for case, cx, rx, _sub, underline in FLOW_NODES:
+    for case, cap, cx, rx, _sub, underline in FLOW_NODES:
         n = by_case.get(case, 0)
         ry = rx * 0.317
         dim = "" if n else " off"
@@ -1028,7 +1028,7 @@ def _blk_flow(candidates: list[Candidate]) -> str:
                stroke-opacity=".24" stroke-width=".8"/>
       <path d="M{-rx:.1f} 0 A{rx:.1f} {ry:.1f} 0 0 0 {rx:.1f} 0" fill="none"
             stroke="#FFEBB8" stroke-opacity=".8" stroke-width="1.4"/>
-      <text class="fl-c" y="42" text-anchor="middle">{case.upper()}</text>
+      <text class="fl-c" y="42" text-anchor="middle">{cap}</text>
       {line}
     </g>"""
 

@@ -756,39 +756,3 @@ def vol_chart(candidates: list[Candidate]) -> dict:
         "v1d": round(d.get("v1d") or 0, 1),
         "funding": round(float(best.raw.get("funding") or 0.0), 3),
     }
-
-
-def peak_volume(candidates: list[Candidate]) -> dict:
-    """Монета с наибольшей кратностью объёма к своей норме.
-
-    ВНИМАНИЕ: на момент переезда эту функцию не вызывает никто — ни
-    орбита, где она лежала, ни какой-либо другой модуль. Перенесена
-    как есть, чтобы решение о её судьбе принималось отдельно и явно,
-    а не молча вместе с уборкой слоёв. Тот же максимум по vol_ratio
-    считает vol_chart(), только полнее.
-
-    Кратностью, а не оборотом в долларах: абсолютный оборот каждый
-    день выводит одни и те же ликвидные имена, то есть является
-    константой и новостью не бывает. Кратность уже посчитана в
-    collect_metrics — это тот же vol_ratio, что кормит корзину
-    аномалий, сети здесь ноль.
-
-    Берётся максимум по ПЯТИ масштабам сразу: всплеск бывает
-    двухчасовым и суточным, и спрашивать только один масштаб значит
-    пропускать половину случаев.
-    """
-    best_sym, best_x = "", 0.0
-
-    for c in candidates:
-        ratios = (c.raw.get("vol_ratio") or {}).values()
-        for x in ratios:
-            try:
-                x = float(x)
-            except (TypeError, ValueError):
-                continue
-            if x > best_x:
-                best_x, best_sym = x, base_symbol(c.symbol)
-
-    if best_x <= 0:
-        return {}
-    return {"sym": best_sym, "x": round(best_x)}
