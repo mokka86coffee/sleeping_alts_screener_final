@@ -953,6 +953,12 @@ FLOWREP = """
          white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
          color:var(--fl);background:color-mix(in srgb,var(--fc) 10%,transparent);
          border:1px solid color-mix(in srgb,var(--fc) 30%,transparent)}
+/* Р-6: отметка своего обстоятельства монеты. Приглушённее чипа
+   паттерна намеренно — это контекст, а не запрет: монета остаётся в
+   списке, и подпись не должна кричать громче самой фигуры. */
+.fr-chip.fr-warn{color:#E8C27A;
+         background:color-mix(in srgb,#E8C27A 8%,transparent);
+         border-color:color-mix(in srgb,#E8C27A 26%,transparent)}
 
 /* зоны: стрелка · дистанция · подпись */
 .fr-zn{display:flex;align-items:baseline;gap:5px}

@@ -30,10 +30,15 @@ import math
 
 from core_config import LEADERS_PATH
 from core_models import Candidate
+from analytics_calendar import calendar_state
 from analytics_flow import CASE_RU, case_key, case_of, flow_leader, flow_order
 from analytics_leaders import read_store
+from analytics_exit import exit_watch
+from analytics_size import position_size
+from analytics_link import unlock_leverage_link
 from analytics_metrics import (
     LEAD_X1, base_symbol, card_data, fmt_cap, max_vol_ratio,
+    relative_moves, sample_medians,
 )
 from analytics_momentum import (
     star_oi, star_late, star_pulse, star_cycle, star_divergence,
@@ -465,8 +470,16 @@ def stop_pct(star: dict) -> int:
     return math.floor((px - stop) / px * 100 + 0.5)
 
 
-def build_stars(candidates: list[Candidate]) -> list[dict]:
+def build_stars(candidates: list[Candidate],
+                permission: dict | None = None) -> list[dict]:
     """Лидер FLOW и монеты журнала лидеров — отдельными звёздами.
+
+    permission приходит АРГУМЕНТОМ, а не считается здесь: разрешение
+    рынка уже посчитано для словаря рынка, оно требует контекста
+    биткоина и сетевых величин, и второй вызов дал бы и лишнюю
+    работу, и второй источник тех же чисел. Без него ступень размера
+    учтёт только монетные признаки — это честное поведение при
+    неполном входе, а не ошибка.
 
     На орбите они были бы восьмым узлом и спорили бы с категориями.
     Здесь другой смысл: не срез выборки, а история отбора, поэтому
@@ -495,6 +508,15 @@ def build_stars(candidates: list[Candidate]) -> list[dict]:
     order = flow_order(candidates)
     fpos = {c.symbol.upper(): i + 1 for i, c in enumerate(order)}
     ftotal = len(order)
+
+    # Р-5: знаменатель прилива. Считается ОДИН раз на прогон — он общий
+    # для всех звёзд, а внутри цикла пересчитывался бы двести раз.
+    medians = sample_medians(candidates)
+
+    # Макродаты частокола (Р-7) — один раз на прогон, как и медианы.
+    cal_items = (calendar_state() or {}).get("items") or []
+
+
 
     out = []
     for i, sym in enumerate(syms):
@@ -592,6 +614,11 @@ def build_stars(candidates: list[Candidate]) -> list[dict]:
             "aliveGapDays": _alive_gap_days(rec),
             "runsSeen": int(rec.get("runs_seen") or 0),
             "chg": round(float(rec.get("change_pct") or 0.0), 1),
+
+            # Р-5: опережение выборки в ПУНКТАХ по окнам d1/d7/d30.
+            # Пусто у монеты, выпавшей из текущей выборки: хода нет —
+            # нечего и сравнивать, а ноль читался бы как «шла вровень».
+            "rel": relative_moves(getattr(c, "raw", None), medians),
             "firstRun": bool(fdrop.get("first_run")),
 
             # ── Положение в цикле ──
@@ -628,6 +655,12 @@ def build_stars(candidates: list[Candidate]) -> list[dict]:
             # может. Не ошибка и не предупреждение: список того, что
             # заполняется руками с графика.
             "gaps": _manual_gaps(rec),
+
+            # Ручное поле характера истории — в звезду плоским ключом:
+            # его читает правило размера (Р-15), а у распила «упала на
+            # 96%» не означает «пережила цикл».
+            **({"listingKind": str(rec["listing_kind"])}
+               if rec.get("listing_kind") else {}),
 
             # Плотность попаданий по дням: семь чисел, свежий день
             # последний. Отвечает «жива ли монета в эти сутки», в
@@ -673,6 +706,27 @@ def build_stars(candidates: list[Candidate]) -> list[dict]:
     for s in out:
         s["phase"] = star_phase(s)
         s["stopPct"] = stop_pct(s)
+        # Р-12: связка плеча и транша. Считается ЗДЕСЬ, а не внутри
+        # сборки, по той же причине, что фаза: ей нужны уже готовые
+        # поля обеих половин (unlockDays от _star_unlocks, oiRise и
+        # oiHeld от star_oi). Пустой словарь — ключей не добавится.
+        s.update(unlock_leverage_link(s))
+        # Р-11/Р-17: правило выхода. Здесь же, по готовым полям —
+        # календарь монеты, поток из пульса, крупные сделки. Макродаты
+        # приходят аргументом: они общие для всей выборки, и читать их
+        # заново на каждую звезду значило бы открывать один файл
+        # двести раз за прогон.
+        # Р-4/Р-15: ступень размера. Считается ПОСЛЕ связки и до
+        # показа: ей нужны и монетные признаки (флоат, транш, связка),
+        # и рыночные из разрешения — единственного источника истины
+        # для окна выборки.
+        s["size"] = position_size(s, permission)
+
+        ex = exit_watch(s, cal_items)
+        if ex["watch"]:
+            s["exitWhy"] = ex["why"]
+            if ex["deadlineDays"] is not None:
+                s["exitDeadline"] = ex["deadlineDays"]
 
     # Лидер рисуется последним — поверх остальных, если рядом окажется сосед
     out.sort(key=lambda s: (s["lead"], s["f"]))

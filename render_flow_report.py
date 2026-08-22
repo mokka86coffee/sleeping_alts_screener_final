@@ -18,7 +18,9 @@ from analytics_metrics import card_data, fmt_cap
 # Ключ подкейса и порядок отчёта — вычисление над списком монет,
 # а не отрисовка: их спрашивают дашборд и орбита тоже, и раньше
 # оба брали их отсюда, из соседнего рендера.
-from analytics_flow import CASE_RU, case_key, flow_order
+from analytics_flow import (
+    CASE_RU, case_key, coin_window, flow_order_windowed,
+)
 
 # ── палитра статусов ──────────────────────────────────────────
 # золото — топ прогона, зелёный — чисто, оранж — под вето.
@@ -339,6 +341,20 @@ def _zones(c: Candidate) -> str:
 
     return out
 
+def _window_chip(c: Candidate) -> str:
+    """Отметка своего обстоятельства монеты (Р-6).
+
+    Пусто при открытом окне: молчание и есть «мешать нечему». Тон
+    приглушённый — это предупреждение о контексте, а не запрет: из
+    списка монета не выбывает, и подпись не должна кричать громче
+    самой фигуры.
+    """
+    w = coin_window(c)
+    if w["open"] or not w["why"]:
+        return ""
+    return f'<span class="fr-chip fr-warn">{esc(w["why"])}</span>'
+
+
 def _card(c: Candidate, idx: int) -> str:
     tone = _tone(c, idx)
     key, base, light = TONE[tone]
@@ -403,6 +419,7 @@ def _card(c: Candidate, idx: int) -> str:
     <div class="fr-c">
       <span class="fr-k">ПАТТЕРН</span>
       <span class="fr-chip">{esc(CASE_RU.get(case, case) or "—")}</span>
+      {_window_chip(c)}
       <span class="fr-k">ФАЗА</span>
       <span class="fr-steps">{steps}</span>
     </div>
@@ -465,7 +482,12 @@ def _card(c: Candidate, idx: int) -> str:
 
 def render_flow_report(candidates: list[Candidate]) -> str:
     """Панель отчёта FLOW. Открывается кликом по ленте стратегии."""
-    items = flow_order(candidates)
+    # Р-6: порядок ПОКАЗА, а не порядок скора. Монеты со своими
+    # обстоятельствами (транш рядом, отыгранная фигура) уходят вниз
+    # списка с отметкой, но из списка не исчезают: «зонт, а не отмена
+    # поездки». Номера звёзд и позиции карточек считаются от чистого
+    # flow_order и не съезжают.
+    items = flow_order_windowed(candidates)
     if not items:
         body = '<div class="fr-empty">в этом прогоне flow не сработал</div>'
     else:

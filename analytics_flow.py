@@ -92,6 +92,14 @@ def flow_candidates(candidates: list[Candidate]) -> list[Candidate]:
     return [c for c in candidates if c.flow]
 
 
+# Р-6/Р-12: пороги «своих обстоятельств» монеты. Окно транша то же,
+# что у календаря частокола (Р-7) и связки (Р-12) — один горизонт
+# внимания на весь проект.
+UNLOCK_NEAR_DAYS = 5
+LINK_OI_RISE_X = 1.5
+LINK_OI_HELD_PCT = 70.0
+
+
 def flow_order(candidates: list[Candidate]) -> list[Candidate]:
     """Монеты FLOW в порядке отчёта: по убыванию score.
 
@@ -106,6 +114,76 @@ def flow_order(candidates: list[Candidate]) -> list[Candidate]:
         flow_candidates(candidates),
         key=lambda c: -(getattr(c, "score", 0) or 0),
     )
+
+
+def coin_window(c: Candidate) -> dict:
+    """Р-6: окно КОНКРЕТНОЙ монеты. Не вердикт, а причина словами.
+
+    Разрешение рынка (Р-1) действует на всю выборку одинаково и живёт
+    в строке брифа. Здесь другое: у монеты бывают СВОИ обстоятельства,
+    которых нет у соседа по списку — транш через три дня, связка плеча
+    с траншем, отыгранная фигура. Список из-за них не пустеет и по
+    скору не переупорядочивается: меняются подпись и порядок показа.
+
+    Аналогия из нулевого раздела: поездку не отменяют из-за дождя в
+    первые дни — кладут зонт. Монета с разлоком через три дня и монета
+    с чистым горизонтом обе остаются в списке, но человек видит
+    разницу ДО того, как принимает решение.
+
+    Возвращает {"open": bool, "why": str}. Пустая причина при open —
+    норма: сказать нечего, потому что мешать нечему.
+    """
+    raw = getattr(c, "raw", None) or {}
+    flow = getattr(c, "flow", None) or {}
+
+    u = raw.get("unlocks") or {}
+    days = u.get("next_days")
+    if days is not None:
+        try:
+            days_i = int(days)
+        except (TypeError, ValueError):
+            days_i = -1
+        if 0 <= days_i <= UNLOCK_NEAR_DAYS:
+            # Связка (Р-12) сильнее одиночного транша и заслуживает
+            # своей формулировки: плечо сверху и предложение снизу.
+            oi = (flow.get("context") or {}).get("oi_hist") or {}
+            rise = oi.get("rise_x")
+            held = oi.get("held_pct")
+            try:
+                linked = (rise is not None and held is not None
+                          and float(rise) >= LINK_OI_RISE_X
+                          and float(held) >= LINK_OI_HELD_PCT)
+            except (TypeError, ValueError):
+                linked = False
+            when = ("сегодня" if days_i == 0 else
+                    "завтра" if days_i == 1 else f"через {days_i} дн")
+            return {"open": False,
+                    "why": (f"плечо набрано, транш {when}" if linked
+                            else f"транш {when}")}
+
+    case = str(flow.get("case") or "")
+    if ((flow.get("cases") or {}).get(case) or {}).get("late"):
+        return {"open": False, "why": "фигура отыграна"}
+
+    return {"open": True, "why": ""}
+
+
+def flow_order_windowed(candidates: list[Candidate]) -> list[Candidate]:
+    """Порядок показа с учётом окна монеты (Р-6).
+
+    Строится НА flow_order, а не вместо него: сначала прежний порядок
+    по скору, затем УСТОЙЧИВОЕ разделение на две группы — открытое
+    окно вперёд. Внутри групп относительный порядок сохраняется, то
+    есть скор по-прежнему решает всё, кроме одного: монета со своим
+    обстоятельством уходит вниз, а не исчезает.
+
+    Отдельная функция, а не флаг в flow_order: номер звезды на орбите
+    и позиция на карточке считаются от ЧИСТОГО порядка по скору, и
+    менять его под показ значило бы разъехаться с ними молча.
+    """
+    order = flow_order(candidates)
+    return ([c for c in order if coin_window(c)["open"]]
+            + [c for c in order if not coin_window(c)["open"]])
 
 
 def flow_leader(candidates: list[Candidate]) -> Candidate | None:

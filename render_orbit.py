@@ -34,7 +34,7 @@ from analytics_momentum import (
 from analytics_metrics import (
     LEAD_X1, LEAD_X2, LEAD_X3,
     base_symbol, card_data, fmt_cap, max_vol_ratio,
-    leader_chart, market_breadth, vol_chart, weekend_state,
+    leader_chart, market_breadth, vol_chart, weekend_state, sample_medians,
 )
 from analytics_leaders import journal_summary, read_store
 from analytics_permission import altseason_share, market_permission
@@ -311,6 +311,10 @@ def orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
         # ORB умер при переезде на отдельные документы, и подпись «из
         # 14 дней» в зале врала при сроке 26. Теперь канал — словарь
         # рынка: он и так едет во все экраны.
+        # Р-5: медианный ход выборки — знаменатель относительной меры.
+        # Едет в данных, чтобы подпись «рынок за 7д +N%» не считалась
+        # заново в каждом экране по-своему.
+        "medians": sample_medians(candidates),
         "strat": CASE_STRAT,
         "maxAge": LEADERS_MAX_AGE_DAYS,
         # Ч-9 тех.долга закрыт: раньше здесь была константа-заглушка.
@@ -1135,6 +1139,18 @@ ORBIT_JS = """
     if (s.firstRun) risks.push('первый разгон');
     if (s.topBubble) risks.push('пузырь на вершине');
     if (s.oiState === 'held') risks.push('плечо не проверено');
+    // Р-12: связка сильнее каждой половины, поэтому отдельным риском,
+    // а не подписью к разлоку. Формулировка без вердикта — факт с
+    // числами, как договорено в нулевом разделе.
+    if (s.linkNote) risks.push('плечо + транш через ' + s.linkDays + ' дн');
+    // Р-11/Р-17: причины выхода словами — они длиннее прочих рисков,
+    // потому что каждая называет механизм, а не ярлык.
+    (s.exitWhy || []).forEach(function (w) { risks.push(w); });
+    // Р-4/Р-15: причины пониженной ступени. Не «риск» в смысле
+    // угрозы, а объяснение размера — но место то же: человек читает
+    // подвал перед решением, и разносить это по разным углам значило
+    // бы заставить его собирать картину самому.
+    ((s.size || {}).why || []).forEach(function (w) { risks.push(w); });
     if (s.late) risks.push('фигура уже отыграна');
     return '<div class="ob-sc-act ' + p.k + '">' + p.a + '</div>' +
       (risks.length

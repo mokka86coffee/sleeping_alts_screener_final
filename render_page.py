@@ -91,8 +91,11 @@ def build_pages(candidates: list[Candidate],
     # пересчёт в каждом дал бы три независимых прохода по выборке и
     # три возможности разойтись.
     slices = build_slices(candidates, snapshot)
-    stars = build_stars(candidates)
+    # Рынок считается ПЕРВЫМ: в нём живёт разрешение (Р-1), которое
+    # звёздам нужно для ступени размера (Р-15). Обратный порядок
+    # заставил бы считать разрешение дважды — и однажды разойтись.
     market = orbit_market(candidates, snapshot, slices)
+    stars = build_stars(candidates, market.get("permission"))
 
     return {
         "index.html": build_shell(),
@@ -118,7 +121,10 @@ def build_page(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
     прежний отчёт целиком.
     """
     slices = build_slices(candidates, snapshot)
+    # Тот же порядок, что в build_pages: рынок первым, звёзды от его
+    # разрешения. Здесь это просмотр с диска, но расходиться двум
+    # сборкам нельзя — иначе file:// покажет другие ступени размера.
+    market = orbit_market(candidates, snapshot, slices)
     return document(render_dashboard_page(
-        candidates, snapshot, slices,
-        orbit_market(candidates, snapshot, slices),
-        build_stars(candidates)))
+        candidates, snapshot, slices, market,
+        build_stars(candidates, market.get("permission"))))

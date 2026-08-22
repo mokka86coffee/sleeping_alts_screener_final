@@ -1,168 +1,560 @@
 {
-  "_meta": {
-    "what": "Расписание разлоков по монетам журнала. Заполняется руками: у DefiLlama раздел unlocks в платном тарифе, у DropsTab свой коммерческий API, а страницы собираются на клиенте и скрейпингу не поддаются.",
-    "how": "Пользователь присылает ссылку на монету, ассистент снимает с неё числа и дописывает запись сюда. Пересматривать раз в квартал либо после того, как транш отработал.",
-    "fields": {
-      "source": "откуда сняты числа",
-      "checked_at": "когда сняты — данные стареют, дни до события считаются от этой даты",
-      "price": "цена на момент снятия, для сверки процентов",
-      "mcap_usd": "капитализация на момент снятия",
-      "circ_pct": "какая доля выпуска уже в обращении",
-      "fdv_ratio": "FDV к капитализации; чем выше, тем меньше флоат",
-      "insiders_now": "доля инсайдеров сейчас, в процентах предложения",
-      "insiders_final": "доля инсайдеров после всех разлоков — если она растёт, будущие транши идут к ним",
-      "events_done": "сколько событий расписания уже прошло",
-      "events_total": "сколько всего",
-      "events": "ближайшие события: дата, объём в долларах, доля от предложения и от циркуляции, раунды с признаком инсайдерского"
-    },
-    "rules": [
-      "Пустая запись означает НЕТ ДАННЫХ, а не отсутствие разлоков — на экране это пробел, как в manual_fields.",
-      "Считаем не дату, а расстояние до неё: LAB обвалилась за пять дней ДО разлока, рынок отрабатывает событие заранее.",
-      "Вердикт не выносим. Печатаем дни, проценты и признак инсайдерского транша — решение за человеком.",
-      "DefiLlama помечает часть расписаний как выведенные из графика источника, а не из документов. Такие записи держать с оговоркой inferred: true."
+ "_meta": {
+  "what": "Расписание разлоков по монетам журнала. Заполняется руками: у DefiLlama раздел unlocks в платном тарифе, у DropsTab свой коммерческий API, а страницы собираются на клиенте и скрейпингу не поддаются.",
+  "how": "Пользователь присылает ссылку на монету, ассистент снимает с неё числа и дописывает запись сюда. Пересматривать раз в квартал либо после того, как транш отработал.",
+  "fields": {
+   "source": "откуда сняты числа",
+   "checked_at": "когда сняты — данные стареют, дни до события считаются от этой даты",
+   "price": "цена на момент снятия, для сверки процентов",
+   "mcap_usd": "капитализация на момент снятия",
+   "circ_pct": "какая доля выпуска уже в обращении",
+   "fdv_ratio": "FDV к капитализации; чем выше, тем меньше флоат",
+   "insiders_now": "доля инсайдеров сейчас, в процентах предложения",
+   "insiders_final": "доля инсайдеров после всех разлоков — если она растёт, будущие транши идут к ним",
+   "events_done": "сколько событий расписания уже прошло",
+   "events_total": "сколько всего",
+   "events": "ближайшие события: дата, объём в долларах, доля от предложения и от циркуляции, раунды с признаком инсайдерского"
+  },
+  "rules": [
+   "Пустая запись означает НЕТ ДАННЫХ, а не отсутствие разлоков — на экране это пробел, как в manual_fields.",
+   "Считаем не дату, а расстояние до неё: LAB обвалилась за пять дней ДО разлока, рынок отрабатывает событие заранее.",
+   "Вердикт не выносим. Печатаем дни, проценты и признак инсайдерского транша — решение за человеком.",
+   "DefiLlama помечает часть расписаний как выведенные из графика источника, а не из документов. Такие записи держать с оговоркой inferred: true."
+  ]
+ },
+ "PORTALUSDT": {
+  "source": "coingecko:portal-2",
+  "checked_at": "2026-08-22",
+  "inferred": true,
+  "price": 0.0081,
+  "mcap_usd": 51330000,
+  "circ_pct": 89.1,
+  "fdv_ratio": 1.12,
+  "insiders_now": 49.9,
+  "insiders_final": 59.7,
+  "events_done": 30,
+  "events_total": 84,
+  "events": [
+   {
+    "date": "2026-08-21",
+    "usd": 409687,
+    "pct_supply": 0.5,
+    "pct_float": 0.8,
+    "rounds": [
+     {
+      "name": "Ecosystem & Incubation",
+      "usd": 200600,
+      "tokens": "24.68m",
+      "insider": false
+     },
+     {
+      "name": "Strategic Network Participants",
+      "usd": 89499,
+      "tokens": "11.01m",
+      "insider": true
+     },
+     {
+      "name": "Core Contributors",
+      "usd": 80240,
+      "tokens": "9.87m",
+      "insider": true
+     },
+     {
+      "name": "Guardian Nodes",
+      "usd": 39349,
+      "tokens": "4.84m",
+      "insider": false
+     }
     ]
-  },
-  "PORTALUSDT": {
-    "source": "https://defillama.com/unlocks/portal",
-    "checked_at": "2026-08-21",
-    "inferred": true,
-    "price": 0.0081,
-    "mcap_usd": 51330000,
-    "circ_pct": 63.2,
-    "fdv_ratio": 1.58,
-    "insiders_now": 49.9,
-    "insiders_final": 59.7,
-    "events_done": 30,
-    "events_total": 84,
-    "events": [
-      {
-        "date": "2026-08-21",
-        "usd": 409687,
-        "pct_supply": 0.5,
-        "pct_float": 0.8,
-        "rounds": [
-          {
-            "name": "Ecosystem & Incubation",
-            "usd": 200600,
-            "tokens": "24.68m",
-            "insider": false
-          },
-          {
-            "name": "Strategic Network Participants",
-            "usd": 89499,
-            "tokens": "11.01m",
-            "insider": true
-          },
-          {
-            "name": "Core Contributors",
-            "usd": 80240,
-            "tokens": "9.87m",
-            "insider": true
-          },
-          {
-            "name": "Guardian Nodes",
-            "usd": 39349,
-            "tokens": "4.84m",
-            "insider": false
-          }
-        ]
-      }
+   }
+  ],
+  "ath_usd": 3.36,
+  "ath_date": "2024-02-29",
+  "atl_usd": 0.00735009,
+  "atl_date": "2026-05-29"
+ },
+ "PROMUSDT": {
+  "source": "coingecko:prometeus",
+  "checked_at": "2026-08-22",
+  "price": 1.85,
+  "mcap_usd": 33890000,
+  "circ_pct": 94.8,
+  "fdv_ratio": 1.05,
+  "vesting_done": true,
+  "note": "Вестинг закрыт: последний разлок 17.04.2023, заблокировано 0. Инвестор — DWF Labs (Tier 1). 55.75% выпуска в графике не отслеживается (community & minting).",
+  "events": [],
+  "ath_usd": 105.94,
+  "ath_date": "2021-04-29",
+  "atl_usd": 0.088747,
+  "atl_date": "2019-11-08"
+ },
+ "BTWUSDT": {
+  "source": "https://dropstab.com/ru/coins/bitway",
+  "checked_at": "2026-08-18",
+  "price": 0.7164,
+  "mcap_usd": 2030000000,
+  "circ_pct": 27.1,
+  "fdv_ratio": 3.53,
+  "note": "Команда и инвесторы 36.33% под 12-месячным клиффом: первый инсайдерский разлок ~март 2027, дальше линейно до 2030. Привлечено $5.44M (YZi Labs экс-Binance Labs Tier 1, сид вели HTX Ventures и Tron) — биржевые деньги. На Binance спота НЕТ, только бессрочный фьючерс; доля спота ~8% оборота. Рейтинг X слабый. ×69 от дна за 5 месяцев, вершина жизни 19.08.2026. ВНИМАНИЕ: страница отдалась из кэша от 18.08 (BTC там 64.4k против 77k сегодня) — цену и капитализацию пересверить.",
+  "events": [
+   {
+    "date": "2027-03-02",
+    "pct_supply": 36.33,
+    "rounds": [
+     {
+      "name": "Team",
+      "insider": true
+     },
+     {
+      "name": "Investors",
+      "insider": true
+     }
     ]
-  },
-  "PROMUSDT": {
-    "source": "https://dropstab.com/ru/coins/prometeus/vesting",
-    "checked_at": "2026-08-21",
-    "price": 1.85,
-    "mcap_usd": 33890000,
-    "circ_pct": 100.0,
-    "fdv_ratio": 1.05,
-    "vesting_done": true,
-    "note": "Вестинг закрыт: последний разлок 17.04.2023, заблокировано 0. Инвестор — DWF Labs (Tier 1). 55.75% выпуска в графике не отслеживается (community & minting).",
-    "events": []
-  },
-  "BTWUSDT": {
-    "source": "https://dropstab.com/ru/coins/bitway",
-    "checked_at": "2026-08-18",
-    "price": 0.7164,
-    "mcap_usd": 2030000000,
-    "circ_pct": 27.1,
-    "fdv_ratio": 3.53,
-    "note": "Команда и инвесторы 36.33% под 12-месячным клиффом: первый инсайдерский разлок ~март 2027, дальше линейно до 2030. Привлечено $5.44M (YZi Labs экс-Binance Labs Tier 1, сид вели HTX Ventures и Tron) — биржевые деньги. На Binance спота НЕТ, только бессрочный фьючерс; доля спота ~8% оборота. Рейтинг X слабый. ×69 от дна за 5 месяцев, вершина жизни 19.08.2026. ВНИМАНИЕ: страница отдалась из кэша от 18.08 (BTC там 64.4k против 77k сегодня) — цену и капитализацию пересверить.",
-    "events": [
-      {
-        "date": "2027-03-02",
-        "pct_supply": 36.33,
-        "rounds": [
-          {
-            "name": "Team",
-            "insider": true
-          },
-          {
-            "name": "Investors",
-            "insider": true
-          }
-        ]
-      }
-    ],
-    "stale_page": true
-  },
-  "SANTOSUSDT": {
-    "source": "https://dropstab.com/ru/coins/santos-fc-fan-token/vesting",
-    "checked_at": "2026-08-21",
-    "price": 0.514,
-    "mcap_usd": 8270000,
-    "circ_pct": 52.86,
-    "fdv_ratio": 1.86,
-    "note": "Фан-токен Binance Launchpool, инвесторов нет. Линейный вестинг 96 месяцев до декабря 2030, пройдено 52.86%, осталось 1563 дня. Транши идут кварталами примерно по 9.43% циркуляции (~17.5% капитализации). Оборот $15.77M при капе $8.27M и почти весь фьючерсный — «дни оборота» по нему считать нельзя, нужен спотовый знаменатель.",
-    "events": [
-      {
-        "date": "2026-08-18",
-        "usd": 1450000,
-        "pct_supply": 9.43,
-        "pct_float": 9.43,
-        "rounds": [
-          {
-            "name": "Developer Fund",
-            "insider": true
-          },
-          {
-            "name": "User Fund",
-            "insider": false
-          },
-          {
-            "name": "Loyalty Subscription",
-            "insider": false
-          },
-          {
-            "name": "Team",
-            "insider": true
-          }
-        ]
-      },
-      {
-        "date": "2026-11-28",
-        "usd": 1453863,
-        "pct_supply": 9.43,
-        "pct_float": 9.43,
-        "rounds": [
-          {
-            "name": "Developer Fund",
-            "insider": true
-          },
-          {
-            "name": "User Fund",
-            "insider": false
-          },
-          {
-            "name": "Loyalty Subscription",
-            "insider": false
-          },
-          {
-            "name": "Team",
-            "insider": true
-          }
-        ]
-      }
+   }
+  ],
+  "stale_page": true
+ },
+ "SANTOSUSDT": {
+  "source": "coingecko:santos-fc-fan-token",
+  "checked_at": "2026-08-22",
+  "price": 0.514,
+  "mcap_usd": 8270000,
+  "circ_pct": 53.6,
+  "fdv_ratio": 1.86,
+  "note": "Фан-токен Binance Launchpool, инвесторов нет. Линейный вестинг 96 месяцев до декабря 2030, пройдено 52.86%, осталось 1563 дня. Транши идут кварталами примерно по 9.43% циркуляции (~17.5% капитализации). Оборот $15.77M при капе $8.27M и почти весь фьючерсный — «дни оборота» по нему считать нельзя, нужен спотовый знаменатель.",
+  "events": [
+   {
+    "date": "2026-08-18",
+    "usd": 1450000,
+    "pct_supply": 9.43,
+    "pct_float": 9.43,
+    "rounds": [
+     {
+      "name": "Developer Fund",
+      "insider": true
+     },
+     {
+      "name": "User Fund",
+      "insider": false
+     },
+     {
+      "name": "Loyalty Subscription",
+      "insider": false
+     },
+     {
+      "name": "Team",
+      "insider": true
+     }
     ]
-  }
+   },
+   {
+    "date": "2026-11-28",
+    "usd": 1453863,
+    "pct_supply": 9.43,
+    "pct_float": 9.43,
+    "rounds": [
+     {
+      "name": "Developer Fund",
+      "insider": true
+     },
+     {
+      "name": "User Fund",
+      "insider": false
+     },
+     {
+      "name": "Loyalty Subscription",
+      "insider": false
+     },
+     {
+      "name": "Team",
+      "insider": true
+     }
+    ]
+   }
+  ],
+  "ath_usd": 22.34,
+  "ath_date": "2022-09-25",
+  "atl_usd": 0.456612,
+  "atl_date": "2026-08-18"
+ },
+ "ACEUSDT": {
+  "circ_pct": 73.2,
+  "fdv_ratio": 1.36,
+  "ath_usd": 16.73,
+  "ath_date": "2023-12-21",
+  "atl_usd": 0.061748,
+  "atl_date": "2026-07-18",
+  "source": "coingecko:endurance",
+  "checked_at": "2026-08-22"
+ },
+ "ACUUSDT": {
+  "circ_pct": 34.7,
+  "fdv_ratio": 2.88,
+  "ath_usd": 0.315928,
+  "ath_date": "2026-01-23",
+  "atl_usd": 0.065109,
+  "atl_date": "2026-06-06",
+  "source": "coingecko:acurast",
+  "checked_at": "2026-08-22"
+ },
+ "AIOUSDT": {
+  "circ_pct": 23.0,
+  "fdv_ratio": 4.34,
+  "ath_usd": 0.234986,
+  "ath_date": "2026-06-11",
+  "atl_usd": 0.03416411,
+  "atl_date": "2026-08-03",
+  "source": "coingecko:olaxbt",
+  "checked_at": "2026-08-22"
+ },
+ "APRUSDT": {
+  "circ_pct": 27.8,
+  "fdv_ratio": 3.6,
+  "ath_usd": 0.73956,
+  "ath_date": "2025-10-23",
+  "atl_usd": 0.064576,
+  "atl_date": "2026-02-05",
+  "source": "coingecko:apriori",
+  "checked_at": "2026-08-22"
+ },
+ "BERAUSDT": {
+  "circ_pct": 57.1,
+  "fdv_ratio": 1.75,
+  "ath_usd": 14.83,
+  "ath_date": "2025-02-06",
+  "atl_usd": 0.137662,
+  "atl_date": "2026-08-14",
+  "source": "coingecko:berachain-bera",
+  "checked_at": "2026-08-22"
+ },
+ "BICOUSDT": {
+  "circ_pct": 100.0,
+  "fdv_ratio": 1.0,
+  "ath_usd": 21.45,
+  "ath_date": "2021-12-01",
+  "atl_usd": 0.01125079,
+  "atl_date": "2026-07-29",
+  "source": "coingecko:biconomy",
+  "checked_at": "2026-08-22"
+ },
+ "BLESSUSDT": {
+  "circ_pct": 18.4,
+  "fdv_ratio": 5.43,
+  "ath_usd": 0.218135,
+  "ath_date": "2025-10-15",
+  "atl_usd": 0.00394635,
+  "atl_date": "2026-06-05",
+  "source": "coingecko:bless-2",
+  "checked_at": "2026-08-22"
+ },
+ "BMTUSDT": {
+  "circ_pct": 72.5,
+  "fdv_ratio": 1.38,
+  "ath_usd": 0.317341,
+  "ath_date": "2025-03-18",
+  "atl_usd": 0.01087138,
+  "atl_date": "2026-07-29",
+  "source": "coingecko:bubblemaps",
+  "checked_at": "2026-08-22"
+ },
+ "BOMEUSDT": {
+  "circ_pct": 100.0,
+  "fdv_ratio": 1.0,
+  "ath_usd": 0.02688878,
+  "ath_date": "2024-03-16",
+  "atl_usd": 5.848e-05,
+  "atl_date": "2024-03-14",
+  "source": "coingecko:book-of-meme",
+  "checked_at": "2026-08-22"
+ },
+ "BTRUSDT": {
+  "circ_pct": 26.2,
+  "fdv_ratio": 3.82,
+  "ath_usd": 0.237163,
+  "ath_date": "2026-02-14",
+  "atl_usd": 0.01583658,
+  "atl_date": "2026-07-18",
+  "source": "coingecko:bitlayer-bitvm",
+  "checked_at": "2026-08-22"
+ },
+ "BULLAUSDT": {
+  "circ_pct": 100.0,
+  "fdv_ratio": 1.0,
+  "ath_usd": 0.490702,
+  "ath_date": "2026-02-01",
+  "atl_usd": 0.00403668,
+  "atl_date": "2026-06-06",
+  "source": "coingecko:bulla-3",
+  "checked_at": "2026-08-22"
+ },
+ "1000CATUSDT": {
+  "circ_pct": 83.4,
+  "fdv_ratio": 1.08,
+  "ath_usd": 6.811e-05,
+  "ath_date": "2024-12-16",
+  "atl_usd": 1.24e-06,
+  "atl_date": "2026-07-01",
+  "source": "coingecko:simon-s-cat",
+  "checked_at": "2026-08-22"
+ },
+ "CETUSUSDT": {
+  "circ_pct": 96.1,
+  "fdv_ratio": 1.04,
+  "ath_usd": 0.487663,
+  "ath_date": "2024-11-09",
+  "atl_usd": 0.0142984,
+  "atl_date": "2026-02-05",
+  "source": "coingecko:cetus-protocol",
+  "checked_at": "2026-08-22"
+ },
+ "CLOUSDT": {
+  "circ_pct": 12.9,
+  "fdv_ratio": 7.75,
+  "ath_usd": 0.910057,
+  "ath_date": "2026-01-12",
+  "atl_usd": 0.053637,
+  "atl_date": "2026-02-06",
+  "source": "coingecko:yei-finance",
+  "checked_at": "2026-08-22"
+ },
+ "COOKIEUSDT": {
+  "circ_pct": 79.4,
+  "fdv_ratio": 1.26,
+  "ath_usd": 0.753574,
+  "ath_date": "2025-01-10",
+  "atl_usd": 0.00740834,
+  "atl_date": "2026-07-30",
+  "source": "coingecko:cookie",
+  "checked_at": "2026-08-22"
+ },
+ "EDENUSDT": {
+  "circ_pct": 42.2,
+  "fdv_ratio": 2.37,
+  "ath_usd": 1.31,
+  "ath_date": "2025-09-30",
+  "atl_usd": 0.02581362,
+  "atl_date": "2026-03-30",
+  "source": "coingecko:openeden",
+  "checked_at": "2026-08-22"
+ },
+ "ESPUSDT": {
+  "circ_pct": 18.5,
+  "fdv_ratio": 5.41,
+  "ath_usd": 0.217368,
+  "ath_date": "2026-02-24",
+  "atl_usd": 0.05223,
+  "atl_date": "2026-02-15",
+  "source": "coingecko:espresso",
+  "checked_at": "2026-08-22"
+ },
+ "ETHFIUSDT": {
+  "circ_pct": 101.8,
+  "fdv_ratio": 1.0,
+  "ath_usd": 8.53,
+  "ath_date": "2024-03-27",
+  "atl_usd": 0.26653,
+  "atl_date": "2026-06-05",
+  "source": "coingecko:ether-fi",
+  "checked_at": "2026-08-22"
+ },
+ "FHEUSDT": {
+  "circ_pct": 24.9,
+  "fdv_ratio": 4.02,
+  "ath_usd": 0.296941,
+  "ath_date": "2026-01-20",
+  "atl_usd": 0.01478145,
+  "atl_date": "2025-12-05",
+  "source": "coingecko:mind-network",
+  "checked_at": "2026-08-22"
+ },
+ "GPSUSDT": {
+  "circ_pct": 58.4,
+  "fdv_ratio": 1.71,
+  "ath_usd": 0.2198,
+  "ath_date": "2025-01-30",
+  "atl_usd": 0.00441135,
+  "atl_date": "2025-12-18",
+  "source": "coingecko:goplus-security",
+  "checked_at": "2026-08-22"
+ },
+ "GUAUSDT": {
+  "circ_pct": 4.5,
+  "fdv_ratio": 22.22,
+  "ath_usd": 1.68,
+  "ath_date": "2026-05-25",
+  "atl_usd": 0.03355232,
+  "atl_date": "2026-08-08",
+  "source": "coingecko:superfortune",
+  "checked_at": "2026-08-22"
+ },
+ "HUSDT": {
+  "circ_pct": 19.9,
+  "fdv_ratio": 5.02,
+  "ath_usd": 0.853746,
+  "ath_date": "2026-06-02",
+  "atl_usd": 0.01810273,
+  "atl_date": "2025-06-26",
+  "source": "coingecko:humanity",
+  "checked_at": "2026-08-22"
+ },
+ "HEMIUSDT": {
+  "circ_pct": 9.8,
+  "fdv_ratio": 10.23,
+  "ath_usd": 0.191509,
+  "ath_date": "2025-09-24",
+  "atl_usd": 0.00413336,
+  "atl_date": "2026-07-14",
+  "source": "coingecko:hemi",
+  "checked_at": "2026-08-22"
+ },
+ "HYPEUSDT": {
+  "circ_pct": 22.2,
+  "fdv_ratio": 4.49,
+  "ath_usd": 82.43,
+  "ath_date": "2026-08-22",
+  "atl_usd": 3.81,
+  "atl_date": "2024-11-29",
+  "source": "coingecko:hyperliquid",
+  "checked_at": "2026-08-22"
+ },
+ "INXUSDT": {
+  "circ_pct": 19.9,
+  "fdv_ratio": 5.01,
+  "ath_usd": 0.03339159,
+  "ath_date": "2026-01-30",
+  "atl_usd": 0.00633684,
+  "atl_date": "2026-06-10",
+  "source": "coingecko:infinex-2",
+  "checked_at": "2026-08-22"
+ },
+ "LSKUSDT": {
+  "circ_pct": 58.3,
+  "fdv_ratio": 1.72,
+  "ath_usd": 34.92,
+  "ath_date": "2018-01-06",
+  "atl_usd": 0.070266,
+  "atl_date": "2026-08-03",
+  "source": "coingecko:lisk",
+  "checked_at": "2026-08-22"
+ },
+ "MEUSDT": {
+  "circ_pct": 61.2,
+  "fdv_ratio": 1.63,
+  "ath_usd": 17.0,
+  "ath_date": "2024-12-10",
+  "atl_usd": 0.055311,
+  "atl_date": "2026-06-30",
+  "source": "coingecko:magic-eden",
+  "checked_at": "2026-08-22"
+ },
+ "MMTUSDT": {
+  "circ_pct": 20.4,
+  "fdv_ratio": 4.9,
+  "ath_usd": 4.03,
+  "ath_date": "2025-11-04",
+  "atl_usd": 0.099513,
+  "atl_date": "2026-06-06",
+  "source": "coingecko:momentum-3",
+  "checked_at": "2026-08-22"
+ },
+ "MUBARAKUSDT": {
+  "circ_pct": 100.0,
+  "fdv_ratio": 1.0,
+  "ath_usd": 0.211228,
+  "ath_date": "2025-03-17",
+  "atl_usd": 0.00921873,
+  "atl_date": "2026-06-25",
+  "source": "coingecko:mubarak",
+  "checked_at": "2026-08-22"
+ },
+ "NEIROUSDT": {
+  "circ_pct": 100.0,
+  "fdv_ratio": 1.0,
+  "ath_usd": 0.00301761,
+  "ath_date": "2024-11-12",
+  "atl_usd": 2.44e-06,
+  "atl_date": "2024-07-31",
+  "source": "coingecko:neiro-3",
+  "checked_at": "2026-08-22"
+ },
+ "NILUSDT": {
+  "circ_pct": 49.5,
+  "fdv_ratio": 2.02,
+  "ath_usd": 0.897077,
+  "ath_date": "2025-03-24",
+  "atl_usd": 0.02739273,
+  "atl_date": "2026-08-01",
+  "source": "coingecko:nillion",
+  "checked_at": "2026-08-22"
+ },
+ "ONGUSDT": {
+  "circ_pct": 47.9,
+  "fdv_ratio": 1.67,
+  "ath_usd": 4.39,
+  "ath_date": "2018-09-28",
+  "atl_usd": 0.0402394,
+  "atl_date": "2026-08-12",
+  "source": "coingecko:ong",
+  "checked_at": "2026-08-22"
+ },
+ "SAGAUSDT": {
+  "circ_pct": 37.7,
+  "fdv_ratio": 2.65,
+  "ath_usd": 7.6,
+  "ath_date": "2024-04-09",
+  "atl_usd": 0.01174197,
+  "atl_date": "2026-06-10",
+  "source": "coingecko:saga-2",
+  "checked_at": "2026-08-22"
+ },
+ "SKYAIUSDT": {
+  "circ_pct": 99.8,
+  "fdv_ratio": 1.0,
+  "ath_usd": 0.855653,
+  "ath_date": "2026-05-06",
+  "atl_usd": 0.01433298,
+  "atl_date": "2025-10-10",
+  "source": "coingecko:skyai",
+  "checked_at": "2026-08-22"
+ },
+ "SQDUSDT": {
+  "circ_pct": 96.1,
+  "fdv_ratio": 1.04,
+  "ath_usd": 0.284777,
+  "ath_date": "2025-06-11",
+  "atl_usd": 0.0228513,
+  "atl_date": "2024-11-16",
+  "source": "coingecko:subsquid",
+  "checked_at": "2026-08-22"
+ },
+ "TREEUSDT": {
+  "circ_pct": 45.5,
+  "fdv_ratio": 1.24,
+  "ath_usd": 0.429346,
+  "ath_date": "2025-08-12",
+  "atl_usd": 0.047353,
+  "atl_date": "2024-01-22",
+  "source": "coingecko:tree-capital",
+  "checked_at": "2026-08-22"
+ },
+ "TSTUSDT": {
+  "circ_pct": 93.8,
+  "fdv_ratio": 1.07,
+  "ath_usd": 0.511293,
+  "ath_date": "2025-02-09",
+  "atl_usd": 0.00775548,
+  "atl_date": "2026-03-29",
+  "source": "coingecko:test-3",
+  "checked_at": "2026-08-22"
+ },
+ "WLDUSDT": {
+  "circ_pct": 36.1,
+  "fdv_ratio": 2.77,
+  "ath_usd": 11.74,
+  "ath_date": "2024-03-09",
+  "atl_usd": 0.229961,
+  "atl_date": "2026-05-18",
+  "source": "coingecko:worldcoin-wld",
+  "checked_at": "2026-08-22"
+ }
 }
