@@ -651,7 +651,7 @@ BRIEF_JS = """
        правки брифа. Выходные исключены — у них ниже своя развёрнутая
        строка (правило «у причины одно место в тексте»). */
     var reasons = [];
-    ['btc', 'funding', 'oi', 'cascade'].forEach(function (k) {
+    ['btc', 'funding', 'oi', 'cascade', 'calendar'].forEach(function (k) {
       var part = pp[k] || {};
       if (part.warn && part.note) reasons.push(part.note);
     });
@@ -677,12 +677,20 @@ BRIEF_JS = """
        почему журнал лежит: печатается после альт-доли, тем же
        спокойным тоном. Нет файла — нет строки: подсказка «заведите
        файл» уместна в консоли прогона, не в утреннем брифе. */
+    /* Календарь без предупреждения — тоже новость: «серия выкупов
+       идёт» это состояние, которое меняет чтение фазы. Печатается
+       спокойным хвостом, как резервуар; при warn он уже ушёл в
+       причины выше и здесь не дублируется. */
+    var cal = pp.calendar || {};
+    var calTail = (cal.known && !cal.warn && (cal.items || []).length)
+      ? ' <span class="mut">' + cal.note + '.</span>'
+      : '';
     var rsv = pp.reservoir || {};
     var rsvTail = (rsv.known && rsv.note)
       ? ' <span class="mut">' + rsv.note + '.</span>'
       : '';
     permLine = head + (reasons.length ? ': ' + reasons.join('; ') : '') +
-      '.' + fuelTail + altTail + rsvTail;
+      '.' + fuelTail + altTail + calTail + rsvTail;
   }
 
   var wk = M.weekend || '';

@@ -434,6 +434,18 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
         _pills.append('<span class="ob-frost-w">толпа в шорте · заряд вверх</span>')
     if (_perm.get("oi") or {}).get("warn"):
         _pills.append('<span class="ob-frost-t">OI раздут · топливо каскада</span>')
+    _cal = (_perm.get("calendar") or {}).get("items") or []
+    if _cal:
+        _it = _cal[0]
+        _when = ("идёт" if _it["running"] else
+                 "сегодня" if _it["days"] == 0 else
+                 "завтра" if _it["days"] == 1 else f"через {_it['days']} дн")
+        # Тон по знаку: риск и разлок тревожным классом, поддержка и
+        # фон — календарным. Событие показывается ОДНО: частокол в
+        # оверлее превратился бы в ленту новостей.
+        _cls = ("ob-frost-t" if _it["kind"] in ("risk", "unlock")
+                else "ob-frost-w")
+        _pills.append(f'<span class="{_cls}">{_it["title"]} · {_when}</span>')
     if (_perm.get("cascade") or {}).get("warn"):
         _pills.append('<span class="ob-frost-t">каскад идёт · движок закрывает счета</span>')
     frost_pills = "".join(_pills)

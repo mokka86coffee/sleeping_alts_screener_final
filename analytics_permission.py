@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 
+from analytics_calendar import calendar_state
 from analytics_metrics import weekend_state
 from analytics_pulse import PULSE_PATH
 from analytics_reservoir import reservoir_state
@@ -226,14 +227,20 @@ def market_permission(candidates: list[Candidate],
         # неделю. warn не поднимает никогда — гейт объясняет, а не
         # предупреждает; см. docstring reservoir_state.
         "reservoir": reservoir_state(),
+        # Календарь частокола (Р-7): единственная составляющая, которая
+        # знает БУДУЩЕЕ — даты поводов известны заранее, сами поводы в
+        # наших данных не бывают. Предупреждает только риск в окне
+        # ожидания; поддержка и фон известны, но не запрещают.
+        "calendar": calendar_state(),
         # Плечевой контур из пульса: заглушка «появится с Р-8»
         # закрыта 22.08 — пульс уже пишет oi_usd по всей выборке
         # каждый прогон, десятиминутный цикл для этого не нужен.
         "oi": _oi_component(pulse),
         "cascade": _cascade_component(pulse),
-        # Честная заглушка: строка «нет данных» отличима от «спокойно».
-        "unlocks": {"known": False, "warn": False,
-                    "note": "разлоки по рынку: появятся с Р-7"},
+        # Заглушка разлоков снята 22.08: их место занял календарь
+        # (записи kind="unlock"). Отдельная составляющая означала бы
+        # два источника одного факта — а BLESS 23.09 и HYPE 6.09
+        # ничем не отличаются от прочего частокола, кроме адресности.
     }
     known = [p for p in parts.values() if p["known"]]
     warns = [p["note"] for p in known if p["warn"]]
