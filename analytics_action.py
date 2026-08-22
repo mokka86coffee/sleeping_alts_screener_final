@@ -236,9 +236,18 @@ def decide(star: dict, permission: dict | None = None,
         return {"act": "ждать", "group": "take", "why": ahead_note}
     fresh = bool(star.get("firstRun")) or (
         star.get("days") is not None and int(star.get("days") or 0) <= 0)
+    # ВОЗВРАТ ПОСЛЕ ВЫХОДА — вторая половина события входа. В правиле
+    # она записана с самого начала («появление в журнале ИЛИ возврат
+    # после выхода»), а в коде не жила: вышедшая монета получала
+    # «ждать» навсегда. Возврат — не «фигура всё ещё жива» (это то
+    # самое состояние, с которого Р-30 начинался), а «ПРИЧИНА ВЫХОДА
+    # СНЯТА»: поток чист (exitWhy пуст), фигура подтверждается; транш
+    # и связка проверены выше и закрывают вход своими «мимо»/«ждать».
+    returned = (bool(star.get("wasClosed"))
+                and not (star.get("exitWhy") or []))
     phase = (star.get("phase") or {}).get("k")
 
-    if fresh and phase == "go" and (gap is None or gap <= 3):
+    if (fresh or returned) and phase == "go" and (gap is None or gap <= 3):
         plan = star.get("entry") or {}
         parts = int(plan.get("parts") or 1)
         first = plan.get("first")
@@ -247,6 +256,9 @@ def decide(star: dict, permission: dict | None = None,
             why = f"вход {parts} частями, первая ${first:.0f} — " + why
         elif first:
             why = f"вход одной суммой ${first:.0f}"
+        if returned and not fresh:
+            why = ("возврат: причина выхода снята — " + why) if why else \
+                  "возврат: причина выхода снята, фигура подтверждается"
         return {"act": "брать", "group": "take", "why": why}
 
     if fresh:

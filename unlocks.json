@@ -224,8 +224,9 @@
   "ath_date": "2025-02-06",
   "atl_usd": 0.137662,
   "atl_date": "2026-08-14",
-  "source": "coingecko:berachain-bera",
-  "checked_at": "2026-08-22"
+  "source": "tokenomist.ai/berachain-bera",
+  "checked_at": "2026-08-23",
+  "note": "вестинг ЛИНЕЙНЫЙ (Validator/Emission 32.57%, Investors 23.13%, Core Contributors 11.33%); эмиссия бесконечная. Исторически низкая волатильность через 7 дней после разлока"
  },
  "BICOUSDT": {
   "circ_pct": 100.0,
@@ -374,8 +375,9 @@
   "ath_date": "2025-01-30",
   "atl_usd": 0.00441135,
   "atl_date": "2025-12-18",
-  "source": "coingecko:goplus-security",
-  "checked_at": "2026-08-22"
+  "source": "coinmarketcap.com/cmc-ai/goplus-security",
+  "checked_at": "2026-08-23",
+  "note": "ИСТОРИЯ РАЗЛОКОВ ИЗМЕРЕНА: в среднем −13.6% за 7 дней после события, июньский разлок 2026 дал −9.4%. Размер следующего транша у трекеров расходится в разы (109.25M против 711.57M токенов) — точную дилюцию оценить нельзя. Лок через Magna (ончейн-прозрачность) с 20.03.2026"
  },
  "GUAUSDT": {
   "circ_pct": 4.5,
@@ -394,8 +396,9 @@
   "ath_date": "2026-06-02",
   "atl_usd": 0.01810273,
   "atl_date": "2025-06-26",
-  "source": "coingecko:humanity",
-  "checked_at": "2026-08-22"
+  "source": "cryptorank.io, обзор разлоков 22–28.06.2026",
+  "checked_at": "2026-08-23",
+  "note": "разлок 25.06.2026: 266 млн токенов ≈ $54.77M = 9.41% обращения — прошедшее событие, ориентир масштаба будущих"
  },
  "HEMIUSDT": {
   "circ_pct": 9.8,
@@ -404,8 +407,22 @@
   "ath_date": "2025-09-24",
   "atl_usd": 0.00413336,
   "atl_date": "2026-07-14",
-  "source": "coingecko:hemi",
-  "checked_at": "2026-08-22"
+  "source": "app.tokenomics.com/tokenomics/hemi/unlocks",
+  "checked_at": "2026-08-23",
+  "events": [
+   {
+    "date": "2026-08-29",
+    "pct_supply": null,
+    "usd": null,
+    "note": "крупнейший разлок графика: 14.8% капитализации; распределение по 4 группам (Community 32%, Private Investors, Insiders, Foundation)",
+    "rounds": [
+     {
+      "insider": true
+     }
+    ]
+   }
+  ],
+  "note": "26 будущих разлоков выпустят 78.2% эмиссии до 29.08.2028; инвесторы 28% и команда 25% — вестинг 36 мес с 12-мес клиффом; на старте команда контролировала 85.5% обращения (реальный флоат ~1%)"
  },
  "HYPEUSDT": {
   "circ_pct": 22.2,
@@ -414,8 +431,22 @@
   "ath_date": "2026-08-22",
   "atl_usd": 3.81,
   "atl_date": "2024-11-29",
-  "source": "coingecko:hyperliquid",
-  "checked_at": "2026-08-22"
+  "source": "app.tokenomics.com/tokenomics/hyperliquid/unlocks",
+  "checked_at": "2026-08-23",
+  "events": [
+   {
+    "date": "2026-08-29",
+    "pct_supply": 1.4,
+    "usd": null,
+    "note": "14 175 778 HYPE = 1.4% эмиссии, 2.7% капитализации"
+   },
+   {
+    "date": "2026-09-06",
+    "usd": 589000000,
+    "note": "крупный транш, стоит в частоколе"
+   }
+  ],
+  "note": "график с 29.11.2024 по 29.11.2029, 61 событие; разлочено 52% эмиссии, в обращении 22.2%"
  },
  "INXUSDT": {
   "circ_pct": 19.9,
@@ -534,8 +565,9 @@
   "ath_date": "2025-08-12",
   "atl_usd": 0.047353,
   "atl_date": "2024-01-22",
-  "source": "coingecko:tree-capital",
-  "checked_at": "2026-08-22"
+  "source": "coinmarketcap.com/cmc-ai/treehouse",
+  "checked_at": "2026-08-23",
+  "note": "в обращении 15.6% из 1 млрд; токены команды и инвесторов вестятся. ВСТРЕЧНАЯ СИЛА: предложение TIP-4 — направлять 50% протокольной выручки (MEY с tETH) на еженедельный выкуп TREE с рынка в резервы DAO; на обсуждении, дальше голосование"
  },
  "TSTUSDT": {
   "circ_pct": 93.8,
@@ -554,7 +586,8 @@
   "ath_date": "2024-03-09",
   "atl_usd": 0.229961,
   "atl_date": "2026-05-18",
-  "source": "coingecko:worldcoin-wld",
-  "checked_at": "2026-08-22"
+  "source": "tokenomist.ai/worldcoin-wld",
+  "checked_at": "2026-08-23",
+  "note": "вестинг ЛИНЕЙНЫЙ (Community 75%, Investors 13.78%, Team 10.02%): предложение размазано, разовых обрывов нет. Исторически низкая волатильность через 7 дней после разлока"
  }
 }

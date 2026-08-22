@@ -44,6 +44,7 @@ from pathlib import Path
 
 from analytics_actionlog import ACTIONS_LOG
 from analytics_decisions import DECISIONS_PATH
+from analytics_leaders import LEADERS_PATH, read_store
 
 CAPITAL_USD = 1_000_000.0
 POSITION_USD = 1_000.0
@@ -51,6 +52,11 @@ ADD_USD = 500.0
 
 # Доля позиции по ступени размера (Р-15). «Полный» — база.
 TIER_SHARE = {"полный": 1.0, "половина": 0.5, "четверть": 0.25}
+
+# Просадка, с которой запись попадает в список «разобрать». Порог
+# приехал вместе с расчётом из analytics_leaders (см. _journal_extras)
+# и там был выведен по разбросу журнала, а не назначен.
+DEEP_LOSS_PCT = -30.0
 
 # Что делает каждое предложение с позицией. Хедж денег не двигает:
 # он снимает риск на событие, а не меняет размер — иначе в счёте
@@ -121,17 +127,35 @@ def _walk(ops: list[dict], prices: dict[str, float],
             continue
         p = pos.get(sym)
 
+        # Размер — ИЗ ЗАПИСИ, правило лишь запасной вариант для
+        # старых строк без поля usd. Р-30 дробит вход на части и
+        # пишет сумму каждой; считать здесь по полному правилу
+        # значило бы держать в одном модуле две книги разного
+        # размера — open_trade_positions читает usd, и счёт обязан
+        # видеть те же деньги.
+        try:
+            op_usd = float(op.get("usd") or 0.0)
+        except (TypeError, ValueError):
+            op_usd = 0.0
+
         if act in OPEN_ACTS and not p:
-            usd = POSITION_USD * tiers.get(sym, 1.0)
-            pos[sym] = {"usd": usd, "px": px, "added": False}
+            usd = op_usd or POSITION_USD * tiers.get(sym, 1.0)
+            pos[sym] = {"usd": usd, "px": px}
             trades += 1
-        elif act in ADD_ACTS and p and not p["added"]:
-            usd = ADD_USD * tiers.get(sym, 1.0)
+        elif act in ADD_ACTS and p:
+            # Каждый записанный добор исполняется. Прежний предохранитель
+            # «добор один раз» ограничивал СЧЁТ, но не книгу —
+            # open_trade_positions применяла всё, и при дробном входе
+            # Р-30 (часть → добрать остаток → добор после сквиза) две
+            # книги одного модуля расходились. Ограничивать ЧИСЛО
+            # доборов — дело правила, которое их предлагает
+            # (analytics_action), а не проигрывателя журнала: журнал
+            # и есть книга.
+            usd = op_usd or ADD_USD * tiers.get(sym, 1.0)
             total = p["usd"] + usd
             # Средняя по деньгам: цена входа взвешивается вложенным.
             p["px"] = (p["px"] * p["usd"] + px * usd) / total
             p["usd"] = total
-            p["added"] = True
             trades += 1
         elif act in CUT_ACTS and p:
             half = p["usd"] / 2.0
@@ -199,6 +223,22 @@ def open_trade_positions(path: Path = ACTIONS_LOG) -> dict[str, dict]:
         elif act in CLOSE_ACTS:
             pos.pop(sym, None)
     return pos
+
+
+def closed_trade_symbols(path: Path = ACTIONS_LOG) -> set[str]:
+    """Монеты, которые книга открывала и ПОЛНОСТЬЮ закрыла.
+
+    Нужна возврату (Р-30): вход — событие, и вторая его половина —
+    «возврат после выхода». Чтобы отличить возврат от «стоит в
+    журнале пятый день», надо знать, что позиция здесь БЫЛА.
+    Считается тем же журналом, что книга: открытые когда-либо минус
+    открытые сейчас.
+    """
+    opened: set[str] = set()
+    for op in _machine_ops(path):
+        if str(op.get("act") or "") in OPEN_ACTS and op.get("symbol"):
+            opened.add(str(op["symbol"]))
+    return opened - set(open_trade_positions(path))
 
 
 def open_trade_symbols(path: Path = ACTIONS_LOG) -> set[str]:
@@ -336,6 +376,61 @@ def _walk_human(ops: list[dict], prices: dict[str, float]) -> dict:
     }
 
 
+def _journal_extras(path: Path = LEADERS_PATH) -> dict:
+    """Потолок находок и просадки на разбор — прямо из журнала.
+
+    Расчёт жил в analytics_leaders.portfolio_stats и был ВТОРЫМ
+    источником портфельной истины (найдено 23.08): рядом с книгами
+    этого модуля там считались «механический» портфель и «по
+    правилам» на разметке exit_price/skip — оба вытеснены книгами
+    HOLD и трейдинга, которые отвечают на те же вопросы честнее.
+    Сюда переехало только то, чего у книг не было.
+
+    ПОТОЛОК НАХОДОК — стоимость журнала при фиксации в лучшей точке
+    каждой позиции. Разрыв между HOLD и потолком — цена
+    отсутствующего правила выхода: то самое число, ради которого
+    трейдинг-книга и заведена. База — книга HOLD ($1000 на запись,
+    без доборов). Прежний расчёт подмешивал механический добор $500
+    по просадке — правило, которого в HOLD нет, и потолок выходил
+    потолком несуществующей книги; поэтому число слегка отличается
+    от прежнего, и это исправление, а не потеря.
+
+    ПРОСАДКИ («разобрать») — записи глубже DEEP_LOSS_PCT, каждая с
+    фигурой и датой входа: при разборе вопрос не «сколько потеряли»,
+    а «какая стратегия и когда сюда завела».
+    """
+    recs = read_store(path)
+    invested = peak = 0.0
+    losers: list[dict] = []
+    for symbol, rec in recs.items():
+        if symbol.startswith("_") or not isinstance(rec, dict):
+            continue
+        try:
+            entry = float(rec.get("entry_price") or 0.0)
+            chg = float(rec.get("change_pct") or 0.0)
+            mx = float(rec.get("max_change_pct") or 0.0)
+        except (TypeError, ValueError):
+            continue
+        if entry <= 0:
+            continue
+        invested += POSITION_USD
+        peak += POSITION_USD * (1.0 + mx / 100.0)
+        if chg <= DEEP_LOSS_PCT:
+            losers.append({
+                "t": symbol[:-4] if symbol.endswith("USDT") else symbol,
+                "chg": round(chg, 1),
+                "case": str(rec.get("entry_case") or "").replace("flow_", ""),
+                "at": str(rec.get("first_seen") or "")[:10],
+            })
+    losers.sort(key=lambda d: d["chg"])
+    return {
+        "peakPct": (round((peak / invested - 1.0) * 100.0, 1)
+                    if invested > 0 else None),
+        "losers": losers[:6],
+        "losersAll": len(losers),
+    }
+
+
 def portfolios(stars: list[dict]) -> dict:
     """Два счёта на одних ценах. Пустой журнал — не ошибка, а ноль."""
     prices = _prices(stars)
@@ -352,4 +447,8 @@ def portfolios(stars: list[dict]) -> dict:
         # то, что человек отметил сам, с размерами и выходами,
         # отличными от базовых. Пуст, пока журнал решений пуст.
         "human": _walk_human(_human_ops(), prices),
+        # Потолок находок и просадки «разобрать» — из журнала (см.
+        # _journal_extras). Единственное место, где они считаются:
+        # прежний расчёт в analytics_leaders снят 23.08.
+        **_journal_extras(),
     }

@@ -832,6 +832,21 @@ BRIEF_JS = """
 
   function showSegment(idx, token){
     return new Promise(function (resolve) {
+      try { showSegmentInner(idx, token, resolve); }
+      catch (e) {
+        /* СТРАХОВКА. Исключение внутри сегмента раньше убивало всю
+           очередь молча: экран замирал на последней успевшей фразе.
+           Теперь сбойный сегмент пропускается, причина с его номером
+           уходит в консоль, а сводка доигрывает до конца. */
+        if (window.console) console.warn('бриф: сегмент ' + idx +
+          ' не показан — ' + (e && e.message ? e.message : e));
+        setTimeout(resolve, 60);
+      }
+    });
+  }
+
+  function showSegmentInner(idx, token, resolve){
+    {
       var seg = SEGMENTS[idx];
       /* Сегмент без текста — только для фигуры (альт-доля, резервуар:
          в центре они уже прозвучали хвостом строки разрешения).
@@ -895,7 +910,7 @@ BRIEF_JS = """
         }
         setTimeout(leave, last ? LAST_HOLD_MS : hold);
       }, revealDur);
-    });
+    }
   }
 
   async function playAll(){
@@ -937,8 +952,8 @@ BRIEF_JS = """
     .sort(function (a, b) { return toStop(a) - toStop(b); }).slice(0, 3);
 
   function fmtMoney(v) {
-    var n = +v || 0;
-    return n >= 10000 ? '$' + (n / 1000).toFixed(1) + 'K' : '$' + Math.round(n);
+    var n = +v || 0, a = Math.abs(n), t = n < 0 ? '−$' : '$';
+    return t + (a >= 10000 ? (a / 1000).toFixed(1) + 'K' : Math.round(a));
   }
   function signed(v) {
     var n = +v || 0;
@@ -1139,20 +1154,56 @@ BRIEF_JS = """
   }
   function sgn(v) { return v > 0 ? 'up' : (v < 0 ? 'dn' : ''); }
 
-  var portLine = (J.port && J.port.invested)
-    ? ['По тысяче в каждую: <b>' + fmtMoney(J.port.value) + '</b> из ' +
-       fmtMoney(J.port.invested) + ', <b class="' +
-       (J.port.pnl_pct >= 0 ? 'up' : 'dn') + '">' + signed(J.port.pnl_pct) +
-       '</b>' + (J.port.rules_pnl_pct !== undefined
-         ? ', по правилам <b class="' +
-           (J.port.rules_pnl_pct >= 0 ? 'up' : 'dn') + '">' +
-           signed(J.port.rules_pnl_pct) + '</b>' : '') +
-       '. По максимумам вышло бы <b class="up">' + signed(J.port.peak_pct) +
-       '</b>.']
-    : [];
+  /* ── Сводка счетов (Р-29/Р-30) ──
+     Один источник про деньги — analytics_portfolio, словарь
+     M.portfolios. Прежняя строка «по тысяче в каждую» читала второй
+     расчёт из журнала лидеров (J.port); он снят 23.08 — два
+     источника одной истины разошлись бы.
 
-  var lossLine = (J.port && (J.port.losers || []).length)
-    ? ['Разобрать: ' + J.port.losers.map(function (d) {
+     Два подхода к ОДНИМ монетам. HOLD — попал в журнал, взял,
+     держу, правил нет. Трейдинг — те же монеты по правилам, книга
+     начинается пустой. Разница между ними — цена стратегии, и
+     печатается она только когда есть что судить: после десяти
+     сделок, как условлено. */
+  var PF = M.portfolios || {};
+  var PH = PF.hold || {}, PT = PF.trade || {};
+
+  var portLine = [];
+  if (PH.invested || PT.trades) {
+    var txt = 'HOLD: <span class="n">' + (PH.open || 0) + '</span> позиций на <b>' +
+      fmtMoney(PH.invested || 0) + '</b>, <b class="' + sgn(PH.pnlPct) + '">' +
+      signed(PH.pnlPct || 0) + '</b> — взял и держу. Трейдинг: ';
+    if (PT.open) {
+      txt += '<span class="n">' + PT.open + '</span> на <b>' +
+        fmtMoney(PT.invested) + '</b>, <b class="' + sgn(PT.pnlPct) + '">' +
+        signed(PT.pnlPct || 0) + '</b> по правилам.';
+    } else if (PT.trades) {
+      txt += 'позиций нет, зафиксировано <b class="' + sgn(PT.realized) +
+        '">' + fmtMoney(PT.realized) + '</b> за ' + PT.trades + ' сделок.';
+    } else {
+      txt += '<span class="mut">книга пуста — правила ещё не входили.</span>';
+    }
+    if (PT.trades >= 10 && PT.pnlPct !== null && PT.pnlPct !== undefined &&
+        PH.pnlPct !== null && PH.pnlPct !== undefined) {
+      var dpp = PT.pnlPct - PH.pnlPct;
+      /* Пункты, не проценты: signed() дописал бы «%», и единица
+         задвоилась бы — «−4.0% п.п.» читается как опечатка. */
+      txt += ' Разница <b class="' + sgn(dpp) + '">' +
+        (dpp >= 0 ? '+' : '') + dpp.toFixed(1) +
+        ' п.п.</b> — трейдинг минус HOLD, цена стратегии.';
+    }
+    /* Потолок находок — не украшение, а мера того, сколько стоит
+       отсутствие правила выхода: разрыв между «держали до сих пор»
+       и «зафиксировали в лучшей точке каждой позиции». */
+    if (PF.peakPct !== undefined && PF.peakPct !== null) {
+      txt += ' Потолок находок <b class="up">' + signed(PF.peakPct) +
+        '</b> <span class="mut">— столько стоит отсутствие выхода.</span>';
+    }
+    portLine = [txt];
+  }
+
+  var lossLine = (PF.losers || []).length
+    ? ['Разобрать: ' + PF.losers.map(function (d) {
         return '<span class="t">' + d.t + '</span> <b class="dn">' +
           signed(d.chg) + '</b> <span class="mut">' + (d.case || '?') + ', ' +
           (d.at || '').slice(5) + '</span>'; }).join(', ') + '.']
@@ -1395,10 +1446,10 @@ BRIEF_JS = """
     : null;
 
   var raw = (permSeg ? [permSeg] : [])
-    .concat(T(portLine, 'портфель',
-      (J.port && J.port.invested ? '$' + J.port.invested : ''), null))
+    .concat(T(portLine, 'счета',
+      (PH.invested ? fmtMoney(PH.invested) : ''), null))
     .concat(T(lossLine, 'разобрать',
-      ((J.port && (J.port.losers || []).length) || '') + '', null))
+      ((PF.losers || []).length || '') + '', null))
     .concat(bg)
     .concat(wknd ? [tagSeg({html: wknd}, 'выходные', 'тонкий стакан', null)] : [])
     .concat([leaderSeg ? tagSeg(leaderSeg, 'лидер', leaderSeg.tag,

@@ -31,11 +31,12 @@ import math
 from core_config import LEADERS_PATH
 from core_models import Candidate
 from analytics_calendar import calendar_state
+from analytics_demand import for_symbol as demand_for, phrase as demand_phrase
 from analytics_flow import CASE_RU, case_key, case_of, flow_leader, flow_order
 from analytics_leaders import read_store
 from analytics_action import decide as decide_action
 from analytics_actionlog import log_actions
-from analytics_portfolio import open_trade_positions
+from analytics_portfolio import closed_trade_symbols, open_trade_positions
 from analytics_exit import exit_watch
 from analytics_size import entry_plan, position_size
 from analytics_link import unlock_leverage_link
@@ -523,6 +524,10 @@ def build_stars(candidates: list[Candidate],
     # Состав ТОРГОВОЙ книги — из журнала предположений. Без цен: для
     # группы нужен только состав позиций.
     book = open_trade_positions()
+    # Закрытые книгой — для события «возврат после выхода» (Р-30):
+    # без этого знания вышедшая монета неотличима от просто стоящей
+    # в журнале, и правило не вошло бы в неё уже никогда.
+    closed = closed_trade_symbols()
 
     # ЧТО ЗНАЧИТ «ВЗЯТО» (уточнено 22.08 вечером). Попадание монеты в
     # журнал лидеров и ЕСТЬ вход: отбор в лидеры делается затем, чтобы
@@ -753,8 +758,23 @@ def build_stars(candidates: list[Candidate],
         # Торговая книга решает отдельно и знает только свой состав.
         # План входа — до решения: правило «брать» печатает первую
         # часть, а добор сверяется с общим лимитом плана.
+        # Р-31: структурный спрос — обратная сторона разлоков. Размер
+        # считается, если известны капитализация и выручка; иначе
+        # отдаётся сама отметка без числа. В решение НЕ входит: это
+        # причина держать глазами, а не триггер.
+        dem = demand_for(s["t"] + "USDT",
+                         mcap_usd=(getattr(c, "raw", None) or {}).get("mcap_usd"),
+                         revenue_30d_usd=(getattr(c, "raw", None) or {}).get("revenue_30d"))
+        if dem:
+            s["demand"] = dem
+            s["demandNote"] = demand_phrase(dem)
+
         s["entry"] = entry_plan(s, permission)
-        s["book"] = book.get(s["t"] + "USDT") or {}
+        # None, а не пустой словарь: звезда уходит в JSON зала как
+        # есть, а {} в JS истинен — зал посчитал бы монету взятой и
+        # положил в «в работе» весь журнал при пустой книге.
+        s["book"] = book.get(s["t"] + "USDT") or None
+        s["wasClosed"] = (s["t"] + "USDT") in closed
         s["act"] = decide_action(s, permission, bool(s["book"]))
 
         ex = exit_watch(s, cal_items)

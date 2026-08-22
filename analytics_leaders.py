@@ -77,9 +77,6 @@ def _merge_max(old: dict[str, float], new: dict[str, float]) -> dict[str, float]
 # отскок от базы, а не уже состоявшийся разгон.
 SKIP_WEEKEND_UP_MAX = 50.0
 
-# Просадка, начиная с которой монета попадает в отдельный список на
-# ручной разбор.
-DEEP_LOSS_PCT = -30.0
 
 
 def _entry_rules(now: datetime, raw: dict, flow: dict) -> dict:
@@ -280,17 +277,14 @@ def _touch_cycle(rec: dict, up_x: float, peak_x: float = 0.0,
 # увидеть разгон, и мало, чтобы карта не росла в записи бесконечно.
 DENSITY_DAYS = 7
 
-# ── Условный портфель ────────────────────────────────────────
-# Не торговый счёт, а мерка находок: во что превратились бы деньги,
-# вложенные механически в каждый сигнал. Нужна затем, что скринер
-# иначе оценивается на глаз, а на глаз он всегда хорош.
-PORT_STAKE = 1000.0
-
-# Добор на возврате после просадки. Половина базовой ставки: правило
-# подтверждает разворот, но подтверждение слабее самого сигнала —
-# иначе вторая покупка весила бы столько же, сколько первая, а
-# оснований у неё меньше.
-PORT_ADD = 500.0
+# ── Разметка добора ──────────────────────────────────────────
+# Условный портфель, который здесь считался (PORT_STAKE/PORT_ADD,
+# portfolio_stats), снят 23.08: рядом жил второй расчёт того же —
+# analytics_portfolio с книгами HOLD и трейдинга, и два источника
+# одной истины однажды разошлись бы. Потолок находок и список
+# «разобрать» переехали туда же (_journal_extras). Здесь осталась
+# только РАЗМЕТКА добора: _maybe_add пишет add_price в запись —
+# это данные журнала, а не расчёт, и владеет ими этот модуль.
 
 # Насколько глубоко монета должна была просесть, чтобы возврат
 # считался подтверждением. По разбросу журнала 16 августа: медиана
@@ -420,103 +414,6 @@ def _touch_portfolio(rec: dict, price: float, now: datetime,
         rec["add_at"] = now.isoformat()
 
 
-def portfolio_stats(store: dict) -> dict:
-    """Во что превратился бы механический вход в каждую находку.
-
-    Три величины, и вместе они отвечают на разные вопросы. Текущая
-    стоимость — сколько стоит бездействие. Стоимость по максимумам —
-    сколько стоила бы фиксация в лучшей точке каждой позиции, то есть
-    потолок находок. Разрыв между ними и есть цена отсутствующего
-    правила выхода: на 16 августа это +1% против +50%.
-
-    Максимум по добору берётся тем же отношением цен, что и текущее
-    значение: путь позиции между добором и максимумом в записи не
-    хранится, и точнее посчитать нечем. Величина завышена ровно
-    настолько, насколько максимум цены случился ДО добора; на
-    подтверждении разворота это редкий случай.
-    """
-    invested = value = peak = 0.0
-    r_invested = r_value = 0.0
-    adds = skipped = exits = 0
-    losers: list[dict] = []
-
-    for symbol, rec in store.items():
-        if symbol.startswith("_") or not isinstance(rec, dict):
-            continue
-        try:
-            entry = float(rec.get("entry_price") or 0.0)
-            price = float(rec.get("price") or 0.0)
-            chg = float(rec.get("change_pct") or 0.0)
-            mx = float(rec.get("max_change_pct") or 0.0)
-        except (TypeError, ValueError):
-            continue
-        if entry <= 0 or price <= 0:
-            continue
-
-        if chg <= DEEP_LOSS_PCT:
-            losers.append({
-                "t": symbol[:-4] if symbol.endswith("USDT") else symbol,
-                "chg": round(chg, 1),
-                "case": str(rec.get("entry_case") or "").replace("flow_", ""),
-                "at": str(rec.get("first_seen") or "")[:10],
-                "entry": entry,
-            })
-
-        # ── Портфель по правилам ──
-        # Пропущенные не участвуют вовсе, вышедшие зафиксированы по
-        # цене выхода. Считается рядом с механическим, а не вместо:
-        # без пары чисел неизвестно, помогают правила или мешают.
-        if rec.get("skip"):
-            skipped += 1
-        else:
-            r_invested += PORT_STAKE
-            try:
-                exit_at = float(rec.get("exit_price") or 0.0)
-            except (TypeError, ValueError):
-                exit_at = 0.0
-            if exit_at > 0:
-                exits += 1
-                r_value += PORT_STAKE * (exit_at / entry)
-            else:
-                r_value += PORT_STAKE * (1.0 + chg / 100.0)
-
-        invested += PORT_STAKE
-        value += PORT_STAKE * (1.0 + chg / 100.0)
-        peak += PORT_STAKE * (1.0 + mx / 100.0)
-
-        try:
-            add_at = float(rec.get("add_price") or 0.0)
-        except (TypeError, ValueError):
-            add_at = 0.0
-        if add_at > 0:
-            adds += 1
-            invested += PORT_ADD
-            value += PORT_ADD * (price / add_at)
-            max_price = float(rec.get("max_price") or price)
-            peak += PORT_ADD * (max(max_price, price) / add_at)
-
-    if invested <= 0:
-        return {}
-
-    losers.sort(key=lambda d: d["chg"])
-
-    out = {
-        "invested": round(invested, 0),
-        "value": round(value, 0),
-        "pnl_pct": round((value / invested - 1.0) * 100.0, 1),
-        "peak_pct": round((peak / invested - 1.0) * 100.0, 1),
-        "adds": adds,
-        "skipped": skipped,
-        "exits": exits,
-        "losers": losers[:6],
-        "losers_all": len(losers),
-    }
-    if r_invested > 0:
-        out["rules_pnl_pct"] = round((r_value / r_invested - 1.0) * 100.0, 1)
-        out["rules_value"] = round(r_value, 0)
-    return out
-
-
 def read_store(path: Path) -> dict:
     """Журнал с диска как есть, вместе с _meta. Отсутствие файла — не ошибка.
 
@@ -565,11 +462,11 @@ def journal_summary(path: Path = LEADERS_PATH) -> dict:
     if not recs:
         return {}
 
-    # Условный портфель и пробелы ручных полей считаются своими
-    # владельцами, здесь только собираются вместе: правило вложения
-    # живёт рядом с записями, а не в отрисовке.
+    # Пробелы ручных полей считаются своим владельцем, здесь только
+    # собираются: правило живёт рядом с записями, а не в отрисовке.
+    # Портфель отсюда уехал (23.08) — оба счёта и потолок находок
+    # теперь в analytics_portfolio, единственном месте про деньги.
     from analytics_manual_fields import stats as manual_stats
-    port = portfolio_stats(recs)
     gaps = manual_stats(recs)
 
     def _lbl(sym: str) -> str:
@@ -586,7 +483,6 @@ def journal_summary(path: Path = LEADERS_PATH) -> dict:
     return {
         "n": len(recs),
         "fresh": fresh[:3],
-        "port": port,
         "gaps": gaps,
         "best": {"t": _lbl(best_sym),
                  "chg": round(float(best.get("change_pct") or 0.0), 1)},

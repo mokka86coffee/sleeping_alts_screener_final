@@ -1,0 +1,26 @@
+{
+ "_meta": {
+  "what": "структурный спрос: выкупы, сжигание, комиссия в токен, длинные локи",
+  "why": "обратная сторона unlocks.json — известное заранее и измеримое",
+  "rule": "значок без размера не сигнал; статус proposed/voting/active различать",
+  "updated": "2026-08-23"
+ },
+ "TREEUSDT": {
+  "kind": "buyback",
+  "status": "proposed",
+  "share_of_revenue": 50,
+  "cadence": "weekly",
+  "note": "TIP-4: направлять 50% протокольной выручки (Market Efficiency Yield с tETH) на еженедельный выкуп TREE с рынка, купленное — в резервы DAO. На обсуждении, дальше формальное голосование Snapshot. Встречная сила навесу: в обращении 15.6% из 1 млрд, токены команды и инвесторов вестятся",
+  "source": "coinmarketcap.com/cmc-ai/treehouse (блог Treehouse, TIP-4)",
+  "checked_at": "2026-08-23"
+ },
+ "HYPEUSDT": {
+  "kind": "buyback",
+  "status": "active",
+  "share_of_revenue": 99,
+  "cadence": "continuous",
+  "note": "почти вся выручка протокола идёт в выкуп и сжигание: по отчётности за Q2 2026 выкуп $148.65M при валовой выручке $204.04M. Единственная монета журнала с работающим выкупом такого масштаба",
+  "source": "defillama.com/token/HYPE, Income Statement",
+  "checked_at": "2026-08-23"
+ }
+}
