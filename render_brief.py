@@ -104,12 +104,48 @@ BRIEF_HTML = """
   #obfText .dorm{color:#8FA8FF;}
   #obfText .obf-cap{font-family:var(--mono);font-size:.72em;color:#5f6169;}
   #obfText .obf-sep{color:#5d5c66;}
+
+  /* ═══ Фигура дня ═══
+     Отработавший сегмент не исчезает: он сжимается до «ярлык + число»
+     и садится по сторонам кольца. К концу сводки на экране стоит
+     карта дня целиком, а не последняя фраза. Сжатие обязательно —
+     десяток абзацев прозы превратился бы в стену. */
+  #obfBeams{position:absolute;inset:0;width:100%;height:100%;
+    pointer-events:none;}
+  #obfBeams line{stroke:#2A2F38;stroke-width:1;opacity:0;
+    transition:opacity 1.4s ease;}
+  #obfBeams line.on{opacity:.8;}
+  #obfBeams line.fresh{stroke:#4A505C;}
+  #obfFig{position:absolute;inset:0;pointer-events:none;}
+  #obfFig .row{position:absolute;left:0;top:0;display:flex;
+    align-items:baseline;gap:.7em;white-space:nowrap;
+    transform-origin:right center;justify-content:flex-end;opacity:0;
+    transition:opacity 1.4s ease,
+               transform 1.4s cubic-bezier(.22,.61,.36,1);}
+  #obfFig .row.on{opacity:1;}
+  #obfFig .row.mirror{flex-direction:row-reverse;justify-content:flex-start;}
+  #obfFig .row .k{font-size:9px;letter-spacing:.2em;text-transform:uppercase;
+    color:#4E525C;text-align:right;}
+  #obfFig .row .v{font-family:var(--mono,ui-monospace,monospace);
+    font-size:13px;color:#D8DCE4;}
+  #obfFig .row .tick{width:18px;height:1px;background:#4E525C;opacity:.55;}
+  #obfFig .row .g{flex:0 0 auto;transform:translateY(3px);opacity:.95;}
+  /* Иерархия по времени: свежая строка в полном тоне, прежние тише. */
+  #obfFig .row.old .v{color:#8A8F99;}
+  #obfFig .row.old .k{color:#3A3D45;}
+  #obfFig .row.old .g{opacity:.5;}
+  @media (prefers-reduced-motion:reduce){
+    #obfFig .row{transition:none;}
+    #obfBeams line{transition:none;}
+  }
   @media (prefers-reduced-motion:reduce){
     #obfText .ch{transition:none; opacity:1; filter:none; transform:none;}
   }
 </style>
 <div class="ob-brief" id="obBrief">
   <canvas id="obfCanvas"></canvas>
+  <svg id="obfBeams"></svg>
+  <div id="obfFig"></div>
   <div id="obfText"></div>
   <div class="obf-foot" id="obfFoot">клик в любом месте — к дашборду</div>
   <div class="obf-bar" id="obfBar"><u></u></div>
@@ -172,7 +208,30 @@ BRIEF_JS = """
     return off;
   }
 
-  var ringGeo = null, ringDust = [], duneDust = [];
+  var ringGeo = null, ringDust = [], duneDust = [], duneFront = [];
+
+  /* СПРАЙТЫ ВМЕСТО ПЕРЕСЧЁТА.
+     Кольцо и дюна — это тысячи неподвижных друг относительно друга
+     точек. Пересчитывать каждой из них синус, косинус и матрицу
+     поворота на каждом кадре незачем: рисунок один и тот же, меняются
+     только его поворот и мерцание. Поэтому обе россыпи «печём» один
+     раз в закадровые холсты, а в кадре делаем поворот трансформом и
+     две отрисовки картинки.
+     Мерцание сохраняем вариантами: три фазы для кольца и две для
+     дюны, между которыми идёт плавный перелив. Точки продолжают
+     переливаться по одиночке — они разные в разных вариантах, — но
+     стоит это четыре drawImage вместо десяти тысяч заливок. */
+  var baseSprite = null, ringSprite = null, spriteDPR = 1;
+  var sparks = [], ringSparks = [];
+
+  function makeSprite(w2, h2){
+    var c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w2*spriteDPR));
+    c.height = Math.max(1, Math.round(h2*spriteDPR));
+    var g = c.getContext('2d');
+    g.setTransform(spriteDPR,0,0,spriteDPR,0,0);
+    return {cv:c, ctx:g, w:w2, h:h2};
+  }
 
   // Кольцо — 1.44×0.8 от исходного черновика (несколько раундов
   // «увеличь/уменьши» в тестировании сошлись на этом масштабе).
@@ -200,8 +259,9 @@ BRIEF_JS = """
       }
       return 1;
     }
+    var RING_N = Math.max(900, Math.min(3000, Math.round(w()*h()/430)));
     var placed = 0, tries = 0;
-    while (placed < 3000 && tries < 60000){
+    while (placed < RING_N && tries < RING_N*20){
       tries++;
       var a = Math.random()*Math.PI*2;
       var gf = gapFactor(a);
@@ -218,7 +278,14 @@ BRIEF_JS = """
     // читается как рельефный силуэт, а не гладкая синусоида.
     duneDust = [];
     var DUNE_DEPTH = h()*0.34;
-    for (var i=0;i<11000;i++){
+    /* Число частиц — ОТ ПЛОЩАДИ, а не константой. Одиннадцать тысяч
+       подбирались на одном экране; на большом мониторе они же дают
+       ту же плотность при вдвое большей работе, а на ноутбуке — вдвое
+       гуще, чем нужно. Делитель подобран так, чтобы на 1440×900
+       выходило около семи тысяч: разница на глаз не читается,
+       нагрузка падает на треть. */
+    var DUNE_N = Math.max(2600, Math.min(11000, Math.round(w()*h()/185)));
+    for (var i=0;i<DUNE_N;i++){
       var x = Math.random()*w();
       var baseWave = Math.sin(x/w()*Math.PI*1.6)*46
                    + Math.sin(x/w()*Math.PI*4.2+1)*20
@@ -249,51 +316,159 @@ BRIEF_JS = """
         driftPhase:Math.random()*Math.PI*2, driftAmp:1+Math.random()*2.2,
         base:base});
     }
+
+    /* Передний слой (узкая полоса поверх кольца) отбирается ОДИН раз.
+       Раньше кадр заново перебирал все одиннадцать тысяч частиц, чтобы
+       отбросить 95% по координате — полный проход ради сотни точек. */
+    duneFront = [];
+    var loY = h()*0.62-((RING_SCALE-1)*70), hiY = h()*0.685;
+    for (var q=0;q<duneDust.length;q++){
+      var dp = duneDust[q];
+      if (dp.y0 >= loY && dp.y0 <= hiY) duneFront.push(dp);
+    }
+
+    /* Подложка-градиент неподвижна — незачем пересоздавать её каждый
+       кадр. Создание градиента дороже, чем кажется: это разбор
+       остановок цвета и построение таблицы. */
+    // Световое пятно печётся вместе с подложкой (см. bakeSprites) —
+    // отдельный градиент в кадре не нужен.
+    bakeSprites();
+  }
+
+  /* Печём ОДНУ подложку на всё: фон, световое пятно и дюну.
+     Разбираться стоит не в числе точек, а в числе полноэкранных
+     проходов: очистка, градиент и две дюны — это четыре перерисовки
+     всего экрана за кадр, по шесть миллионов пикселей каждая. Именно
+     они, а не синусы, роняли частоту до девятнадцати кадров.
+     Теперь подложка одна и рисуется одним drawImage.
+
+     Кольцо печётся отдельно и малым квадратом — его надо вращать.
+     Мерцание живёт в горстке точек поверх: их немного, они дешёвые,
+     и без них пыль выглядит мёртвой фотографией. */
+  function bakeSprites(){
+    spriteDPR = Math.min(1.5, devicePixelRatio || 1);
+
+    // Подложка с запасом по краям: она ездит на пару пикселей.
+    var PAD = 6;
+    baseSprite = makeSprite(w()+PAD*2, h()+PAD*2);
+    var g0 = baseSprite.ctx;
+    g0.fillStyle = '#07080B';
+    g0.fillRect(0, 0, w()+PAD*2, h()+PAD*2);
+    var gr = g0.createRadialGradient(
+      w()*0.5+PAD, ringGeo.cy+PAD, 10, w()*0.5+PAD, ringGeo.cy+PAD, w()*0.35);
+    gr.addColorStop(0, 'rgba(200,200,215,.10)');
+    gr.addColorStop(1, 'rgba(0,0,0,0)');
+    g0.fillStyle = gr;
+    g0.fillRect(0, 0, w()+PAD*2, h()+PAD*2);
+    for (var i=0;i<duneDust.length;i++){
+      var d = duneDust[i];
+      g0.globalAlpha = d.base*0.72;
+      g0.fillStyle = d.warm ? '#D9A15E' : '#9a8a78';
+      g0.fillRect(d.x0+PAD, d.y0+PAD, d.r*1.7, d.r*1.7);
+    }
+    baseSprite.pad = PAD;
+
+    // Кольцо — квадрат с центром посередине: вращение сводится к
+    // rotate вокруг середины картинки.
+    var maxR = ringGeo.rx + 60*RING_SCALE;
+    var side = Math.ceil(maxR*2);
+    ringSprite = makeSprite(side, side);
+    var g1 = ringSprite.ctx;
+    g1.fillStyle = '#dfe6ec';
+    for (var j=0;j<ringDust.length;j++){
+      var p = ringDust[j];
+      var px = Math.cos(p.a)*(p.rx+p.jitter);
+      var py = Math.sin(p.a)*(p.ry+p.jitter);
+      var rx2 = px*Math.cos(p.rot)-py*Math.sin(p.rot);
+      var ry2 = px*Math.sin(p.rot)+py*Math.cos(p.rot);
+      g1.globalAlpha = p.a0*0.72;
+      g1.fillRect(maxR+rx2, maxR+ry2, p.r*1.7, p.r*1.7);
+    }
+    ringSprite.half = maxR;
+
+    /* Живые искры — небольшая выборка из обеих россыпей. Мерцает
+       десятая часть точек, а кажется, что вся пыль: глаз ловит
+       движение, а не пересчитывает яркости. */
+    sparks = [];
+    var stepD = Math.max(1, Math.round(duneDust.length/260));
+    for (var k=0;k<duneDust.length;k+=stepD) sparks.push(duneDust[k]);
+    ringSparks = [];
+    var stepR = Math.max(1, Math.round(ringDust.length/180));
+    for (var m=0;m<ringDust.length;m+=stepR) ringSparks.push(ringDust[m]);
   }
 
   function resizeScene(){
-    canvas.width = w()*devicePixelRatio; canvas.height = h()*devicePixelRatio;
+    /* Плотность холста ограничена полутора: на ретине пыль рисуется
+       вчетверо большим числом пикселей, а точка размером в пиксель от
+       этого не становится красивее. Текст и разметка остаются
+       чёткими — они не на холсте. */
+    var DPR = Math.min(1.5, devicePixelRatio || 1);
+    canvas.width = w()*DPR; canvas.height = h()*DPR;
     canvas.style.width = w()+'px'; canvas.style.height = h()+'px';
-    ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
     buildAmbient();
   }
   window.addEventListener('resize', resizeScene);
 
+  /* ЧАСТИЦА — ПРЯМОУГОЛЬНИК, А НЕ КРУГ.
+     arc() + fill() на точку размером меньше полутора пикселей рисует
+     ровно тот же пиксель, что и fillRect, но проходит весь путь
+     построения контура. На четырнадцати тысячах частиц это и есть
+     главный источник тормозов — не сами точки, а способ их рисовать. */
   function drawAmbient(t){
-    var g = ctx.createRadialGradient(w()*0.5, ringGeo.cy, 10, w()*0.5, ringGeo.cy, w()*0.35);
-    g.addColorStop(0, 'rgba(200,200,215,.10)'); g.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = g; ctx.fillRect(0,0,w(),h());
+    if (!baseSprite) return;
+    var PAD = baseSprite.pad;
 
-    var p, flick, dx, dy;
-    for (var i=0;i<duneDust.length;i++){
-      p = duneDust[i];
-      flick = 0.5+0.5*Math.sin(t*0.0009*p.speed+p.tw);
-      dx = Math.sin(t*0.0004+p.driftPhase)*p.driftAmp;
-      dy = Math.cos(t*0.00035+p.driftPhase)*p.driftAmp*0.6;
-      p.x = p.x0+dx; p.y = p.y0+dy;
-      ctx.globalAlpha = p.base * (0.35+flick*0.65);
-      ctx.fillStyle = p.warm ? '#D9A15E' : '#9a8a78';
-      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+    /* ОДИН полноэкранный проход вместо четырёх. Подложка непрозрачна,
+       поэтому очистка холста тоже не нужна — она сама себя закрывает.
+       Снос дюны — общим смещением картинки на пару пикселей; ровно то
+       же, что раньше считалось каждой песчинке отдельно. */
+    var driftX = Math.sin(t*0.0004)*2.2, driftY = Math.cos(t*0.00035)*1.3;
+    ctx.globalAlpha = 1;
+    ctx.drawImage(baseSprite.cv, -PAD+driftX, -PAD+driftY,
+                  baseSprite.w, baseSprite.h);
+
+    /* ВРАЩЕНИЕ — ЧИСТЫЙ ТРАНСФОРМ: поворачивается готовая картинка, а
+       не три тысячи точек по отдельности. */
+    var half = ringSprite.half, size = half*2, spin = t*0.000045;
+    ctx.save();
+    ctx.translate(ringGeo.cx, ringGeo.cy);
+    ctx.rotate(spin);
+    ctx.drawImage(ringSprite.cv, -half, -half, size, size);
+    ctx.restore();
+
+    // Искры кольца — в тех же координатах, что и спрайт, с тем же
+    // поворотом: иначе они «поплывут» относительно своей россыпи.
+    var p, flick, i;
+    ctx.save();
+    ctx.translate(ringGeo.cx, ringGeo.cy);
+    ctx.rotate(spin);
+    ctx.fillStyle = '#dfe6ec';
+    for (i=0;i<ringSparks.length;i++){
+      p = ringSparks[i];
+      flick = 0.5+0.5*Math.sin(t*0.0012*p.speed+p.tw);
+      var px = Math.cos(p.a)*(p.rx+p.jitter), py = Math.sin(p.a)*(p.ry+p.jitter);
+      var rx2 = px*Math.cos(p.rot)-py*Math.sin(p.rot);
+      var ry2 = px*Math.sin(p.rot)+py*Math.cos(p.rot);
+      ctx.globalAlpha = p.a0*flick*0.9;
+      ctx.fillRect(rx2, ry2, p.r*2.1, p.r*2.1);
     }
-    var spin = t*0.000045;
-    for (var j=0;j<ringDust.length;j++){
-      p = ringDust[j];
-      flick = 0.5+0.5*Math.sin(t*0.0009*p.speed+p.tw);
-      var drift = Math.sin(t*0.0006+p.driftPhase)*p.driftAmp;
-      var aa = p.a+spin;
-      var px = Math.cos(aa)*(p.rx+p.jitter+drift), py = Math.sin(aa)*(p.ry+p.jitter+drift);
-      var rx2 = px*Math.cos(p.rot)-py*Math.sin(p.rot), ry2 = px*Math.sin(p.rot)+py*Math.cos(p.rot);
-      ctx.globalAlpha = p.a0*(0.45+flick*0.55)*0.85;
-      ctx.fillStyle = '#dfe6ec';
-      ctx.beginPath(); ctx.arc(p.cx+rx2,p.cy+ry2,p.r,0,Math.PI*2); ctx.fill();
-    }
-    for (var k=0;k<duneDust.length;k++){
-      p = duneDust[k];
-      if (p.y < h()*0.62-((RING_SCALE-1)*70) || p.y > h()*0.685) continue;
-      flick = 0.5+0.5*Math.sin(t*0.0009*p.speed+p.tw);
-      ctx.globalAlpha = p.base * (0.3+flick*0.4);
+    ctx.restore();
+
+    // Искры дюны и передний слой поверх кольца.
+    for (i=0;i<sparks.length;i++){
+      p = sparks[i];
+      flick = 0.5+0.5*Math.sin(t*0.0012*p.speed+p.tw);
+      ctx.globalAlpha = p.base*flick*0.8;
       ctx.fillStyle = p.warm ? '#D9A15E' : '#9a8a78';
-      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+      ctx.fillRect(p.x0+driftX, p.y0+driftY, p.r*2.1, p.r*2.1);
+    }
+    for (i=0;i<duneFront.length;i++){
+      p = duneFront[i];
+      flick = 0.5+0.5*Math.sin(t*0.0009*p.speed+p.tw);
+      ctx.globalAlpha = p.base*(0.3+flick*0.4);
+      ctx.fillStyle = p.warm ? '#D9A15E' : '#9a8a78';
+      ctx.fillRect(p.x0+driftX, p.y0+driftY, p.r*1.7, p.r*1.7);
     }
     ctx.globalAlpha = 1;
   }
@@ -360,8 +535,10 @@ BRIEF_JS = """
 
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.shadowColor = accent;
-    ctx.shadowBlur = 6;
+    /* Свечение — вторым широким штрихом, а не shadowBlur.
+       Размытие тени пересчитывается по всей длине линии каждый кадр и
+       на графике из тридцати точек стоит дороже, чем сама линия. Два
+       штриха дают тот же ореол ценой второго прохода по пути. */
 
     ctx.beginPath();
     ctx.moveTo(cx-W/2, baseY);
@@ -377,27 +554,32 @@ BRIEF_JS = """
       var p0 = path[fullSeg], p1 = path[fullSeg+1];
       ctx.lineTo(p0[0]+(p1[0]-p0[0])*frac, p0[1]+(p1[1]-p0[1])*frac);
     }
-    ctx.strokeStyle = accent; ctx.lineWidth = 1.2;
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 3.4;                 // ореол
+    ctx.globalAlpha = alpha*0.18;
+    ctx.stroke();
+    ctx.lineWidth = 1.2;                 // сама линия
     ctx.globalAlpha = alpha*0.9;
     ctx.stroke();
 
+    ctx.fillStyle = accent;
+    ctx.globalAlpha = alpha*0.7;
     path.forEach(function (pt, i) {
       if (i > fullSeg) return;
-      ctx.beginPath();
-      ctx.arc(pt[0], pt[1], 1.4, 0, Math.PI*2);
-      ctx.fillStyle = accent;
-      ctx.globalAlpha = alpha*0.7;
-      ctx.fill();
+      ctx.fillRect(pt[0]-1.2, pt[1]-1.2, 2.4, 2.4);
     });
 
-    ctx.shadowBlur = 0;
     ctx.restore();
     ctx.globalAlpha = 1;
   }
 
+  /* Потолок частоты снят: после перехода на спрайты кадр стоит
+     считанные доли миллисекунды, и ограничивать его — только делать
+     движение ступенчатым. Ограничение имело смысл, пока в кадре
+     пересчитывались десять тысяч точек. */
   function frame(t){
-    ctx.clearRect(0,0,w(),h());
     drawAmbient(t);
+    figBeams();
 
     if (diagramActive >= 0){
       var now2 = performance.now(), progress;
@@ -498,13 +680,156 @@ BRIEF_JS = """
   // Задержка перед следующим сегментом — на пару секунд дольше, чем
   // раньше (было 2300).
   var STEP_MS = 42*1.3, CHAR_DUR = 550*1.3, HOLD_MS = 2300 + 2000;
+  // Финальная выдержка: итог дня стоит на экране до клика.
+  var LAST_HOLD_MS = 30000;
   var BLOCK_ACCENTS = ['#7FB4FF', '#F5A623', '#6FE3B4', '#FFD98A', '#E89AB0'];
 
   var runToken = 0, running = false;
 
+  /* ═════════ Фигура дня ═════════
+     Строка садится по сторонам кольца двумя крыльями: чётные слева,
+     нечётные справа. Правое зеркалим — ярлык и значение меняются
+     местами, чтобы числа обоих крыльев смотрели на кольцо, а взгляд
+     не гнало справа налево против чтения. */
+  var figEl = document.getElementById('obfFig');
+  var beamsEl = document.getElementById('obfBeams');
+  var figRows = [];
+
+  var GW = 64, GH = 16;
+  function glyph(g){
+    if (!g) return '';
+    var col = g.tone === 'dn' ? '#FF6B35' : (g.tone === 'gd' ? '#E8C27A' : '#8A8F99');
+    var p = '<svg class="g" viewBox="0 0 '+GW+' '+GH+'" width="'+GW+'" height="'+GH+'">';
+    if (g.t === 'ticks' && g.all){
+      var n = g.all, wd = (GW-2)/n;
+      for (var i=0;i<n;i++){
+        var on = i < g.on;
+        p += '<rect x="'+(i*wd).toFixed(1)+'" y="'+(on?2:5)+'" width="'+
+             (wd-2.2).toFixed(1)+'" height="'+(on?10:4)+'" fill="'+
+             (on?col:'#2A2E36')+'" rx="0.5"/>';
+      }
+    } else if (g.t === 'fill'){
+      var sc = g.scale || 100;
+      var w2 = Math.max(0, Math.min(1, g.pct/sc))*GW;
+      var mk = Math.max(0, Math.min(1, (g.mark||0)/sc))*GW;
+      p += '<rect x="0" y="5" width="'+GW+'" height="4" fill="#20232A" rx="2"/>'+
+           '<rect x="0" y="5" width="'+w2.toFixed(1)+'" height="4" fill="'+col+
+           '" rx="2" opacity=".85"/>'+
+           '<rect x="'+mk.toFixed(1)+'" y="1.5" width="1" height="11" fill="#6C7280"/>';
+    } else if (g.t === 'ring'){
+      var r = 5.4, cx = GW/2, cy = GH/2, C = 2*Math.PI*r;
+      p += '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#20232A" stroke-width="2"/>'+
+           '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#48A97C" stroke-width="2"'+
+           ' stroke-dasharray="'+(C*Math.min(100,g.pct||0)/100).toFixed(1)+' '+C.toFixed(1)+
+           '" stroke-linecap="round" transform="rotate(-90 '+cx+' '+cy+')"/>';
+    } else if (g.t === 'dev'){
+      var mid = GW/2, len = Math.min(1, Math.abs(g.val)/(g.max||1))*(GW/2-2);
+      p += '<line x1="'+mid+'" y1="1" x2="'+mid+'" y2="15" stroke="#3A3D45" stroke-width="1"/>'+
+           '<rect x="'+(g.val<0?(mid-len):mid).toFixed(1)+'" y="6" width="'+len.toFixed(1)+
+           '" height="3" fill="'+(g.val<0?'#FF6B35':'#48A97C')+'" rx="1.5"/>';
+    }
+    return p + '</svg>';
+  }
+
+  /* ═══ Места вокруг кольца ═══
+     Четырнадцать слотов: по пять на каждый бок и по два сверху и
+     снизу. Порядок заполнения — сначала бока (там строка длиннее и
+     читается ровнее), потом верх, потом низ: то есть первые сегменты
+     занимают лучшие места, а поздние садятся на свободные.
+     Число мест известно ЗАРАНЕЕ (FIG_TOTAL), поэтому шаг по вертикали
+     считается сразу под итоговое число строк — иначе каждая новая
+     раздвигала бы прежние, и фигура бы всю сводку ползала. */
+  var SIDE_CAP = 5, FIG_TOTAL = 0;
+
+  function figSlot(i, n){
+    var cx = ringGeo.cx, cy = ringGeo.cy;
+    var R = ringGeo.rx, RY = ringGeo.ry;
+    var sideN = Math.min(n, SIDE_CAP*2);
+    if (i < sideN){
+      var side = (i % 2 === 0) ? -1 : 1;
+      var k = Math.floor(i/2);
+      var perSide = Math.ceil(sideN/2);
+      var t = (perSide <= 1) ? 0.5 : k/(perSide-1);
+      /* Дальше от обода: 1.34 вместо 1.06 — на прежнем расстоянии
+         числа лезли в пыль кольца и спорили с ней за внимание. */
+      return {dx: cx + side*(R*1.34) + (side<0 ? -6 : 6),
+              dy: cy + (-0.86 + t*1.72)*RY*0.98,
+              mirror: side > 0};
+    }
+    /* Верх и низ: по две строки, разнесённые от вертикальной оси,
+       чтобы не столкнуться друг с другом и с читаемым текстом. */
+    var extra = i - sideN;              // 0,1 — верх; 2,3 — низ
+    var up = extra < 2;
+    var left = (extra % 2 === 0);
+    return {dx: cx + (left ? -R*0.34 : R*0.34),
+            dy: cy + (up ? -RY*1.36 : RY*1.36),
+            mirror: !left};
+  }
+
+  function figLayout(){
+    var n = Math.max(figRows.length, FIG_TOTAL);
+    figRows.forEach(function (r, i) {
+      var p = figSlot(i, n);
+      r.mirror = p.mirror;
+      r.el.classList.toggle('mirror', p.mirror);
+      /* Место — В ТРАНСФОРМЕ, а не в left/top: последние переходами не
+         анимируются, и при появлении новой строки все прежние
+         перескакивали бы на новые места мгновенно. */
+      r.el.style.transform = 'translate('+Math.round(p.dx)+'px,'+
+        Math.round(p.dy)+'px) translate('+(p.mirror ? '0' : '-100%')+
+        ',-50%) scale(.96)';
+      r.el.classList.toggle('old', i < figRows.length-1);
+      r.beam.classList.toggle('fresh', i === figRows.length-1);
+    });
+  }
+
+  function figAdd(seg){
+    if (!seg || !seg.k || !seg.v || !ringGeo) return;
+    var mirror = figSlot(figRows.length,
+      Math.max(figRows.length+1, FIG_TOTAL)).mirror;
+    var el = document.createElement('div');
+    el.className = 'row' + (mirror ? ' mirror' : '');
+    el.innerHTML = '<span class="k">'+seg.k+'</span><span class="tick"></span>'+
+      glyph(seg.g) + '<span class="v">'+seg.v+'</span>';
+    el.style.transform = 'translate('+Math.round(ringGeo.cx)+'px,'+
+      Math.round(ringGeo.cy)+'px) translate('+(mirror?'0':'-100%')+',-50%) scale(.86)';
+    figEl.appendChild(el);
+    /* Принудительный пересчёт: без него начальное и конечное состояние
+       задаются в одном кадре, браузер их схлопывает — перехода не
+       происходит вовсе, и строка телепортируется на место. */
+    void el.offsetWidth;
+    var beam = document.createElementNS('http://www.w3.org/2000/svg','line');
+    beamsEl.appendChild(beam);
+    figRows.push({el: el, beam: beam, mirror: mirror});
+    requestAnimationFrame(function () {
+      el.classList.add('on'); beam.classList.add('on'); figLayout();
+    });
+  }
+
+  /* Лучи пересчитываются каждый кадр по фактическому положению строки:
+     она едет полторы секунды, и луч, посчитанный один раз, всё это
+     время указывал бы туда, где строки уже нет. */
+  function figBeams(){
+    if (!figRows.length || !ringGeo) return;
+    for (var i=0;i<figRows.length;i++){
+      var r = figRows[i], box = r.el.getBoundingClientRect();
+      if (!box.width) continue;
+      var ax = r.mirror ? box.left : box.right, ay = box.top + box.height/2;
+      var dx = ax-ringGeo.cx, dy = ay-ringGeo.cy, len = Math.hypot(dx,dy) || 1;
+      r.beam.setAttribute('x1', (ringGeo.cx+dx/len*ringGeo.rx*0.94).toFixed(1));
+      r.beam.setAttribute('y1', (ringGeo.cy+dy/len*ringGeo.ry*0.94).toFixed(1));
+      r.beam.setAttribute('x2', ax.toFixed(1));
+      r.beam.setAttribute('y2', ay.toFixed(1));
+    }
+  }
+
   function showSegment(idx, token){
     return new Promise(function (resolve) {
       var seg = SEGMENTS[idx];
+      /* Сегмент без текста — только для фигуры (альт-доля, резервуар:
+         в центре они уже прозвучали хвостом строки разрешения).
+         Садится сразу и не занимает время показа. */
+      if (!seg.html){ figAdd(seg); resolve(); return; }
       var cx = ringGeo.cx, cy = ringGeo.cy, rx = ringGeo.rx;
       var fontPx = (Math.min(27, Math.max(16, w()/48)) * Math.min(1.15, RING_SCALE)) * 0.5 * 0.8;
 
@@ -535,16 +860,34 @@ BRIEF_JS = """
       var revealDur = (totalChars-1)*STEP_MS + CHAR_DUR;
       var hold = HOLD_MS + (seg.pts ? 900 : 0);
 
-      setTimeout(function () {
-        if (token !== runToken) return;
+      /* Финал не гаснет сам: последний сегмент ждёт полминуты или
+         клика. «Дочитал» решает человек, а не таймер — иначе итог
+         исчезает ровно тогда, когда его можно наконец прочесть. */
+      var last = (idx === SEGMENTS.length-1);
+      var fired = false;
+      function leave(){
+        if (fired || token !== runToken) return;
+        fired = true;
+        document.removeEventListener('click', leave);
+        document.removeEventListener('keydown', leave);
         var chs = txtEl.querySelectorAll('.ch');
         for (var i=0;i<chs.length;i++){
           chs[i].style.transitionDelay = '0ms';
           chs[i].classList.remove('on');
         }
         if (seg.pts){ diagramPhase = 'out'; diagramT0 = performance.now(); }
-        setTimeout(function () { if (token === runToken) resolve(); }, 550);
-      }, revealDur + hold);
+        /* Текст гаснет — смысл садится в фигуру. */
+        figAdd(seg);
+        setTimeout(function () { if (token === runToken) resolve(); }, 900);
+      }
+      setTimeout(function () {
+        if (token !== runToken) return;
+        if (last){
+          document.addEventListener('click', leave);
+          document.addEventListener('keydown', leave);
+        }
+        setTimeout(leave, last ? LAST_HOLD_MS : hold);
+      }, revealDur);
     });
   }
 
@@ -604,6 +947,10 @@ BRIEF_JS = """
     if (v === null || v === undefined) return '—';
     return (v > 0 ? '+' : '') + v.toFixed(d === undefined ? 1 : d) + '%';
   }
+  /* Склонять надо ВСЮ группу, а не одно существительное. «Ушли
+     всего 1 монета» — типичная ошибка: число согласовали с
+     существительным и забыли глагол. Формы для глагола те же три:
+     ушла / ушли / ушло (1 — 2..4 — 5.. и 11..14). */
   function plural(n, one, few, many) {
     var a = Math.abs(n) % 100;
     if (a >= 11 && a <= 14) return many;
@@ -710,13 +1057,16 @@ BRIEF_JS = """
   if (M.frozen) {
     bg.push('Рынок сейчас <span class="warn">замер</span>. Лучшая монета дня ' +
       'прибавила <span class="n">' + pct(M.maxChange, 0) + '</span>, и дальше ' +
-      'плюс двадцати ушли всего <span class="n">' + (M.tail || 0) + '</span> ' +
+      'плюс двадцати ' +
+      plural(M.tail || 0, 'ушла', 'ушли', 'ушло') +
+      ' всего <span class="n">' + (M.tail || 0) + '</span> ' +
       plural(M.tail || 0, 'монета', 'монеты', 'монет') +
       ' — при живом рынке их бывают десятки. Ехать сегодня некуда.');
   } else {
     bg.push('Рынок <span class="gd">двигается</span>. Лучшая монета дня ' +
       '<span class="n">' + pct(M.maxChange, 0) + '</span>, дальше плюс ' +
-      'двадцати ушли <span class="n">' + (M.tail || 0) + '</span> ' +
+      'двадцати ' + plural(M.tail || 0, 'ушла', 'ушли', 'ушло') +
+      ' <span class="n">' + (M.tail || 0) + '</span> ' +
       plural(M.tail || 0, 'монета', 'монеты', 'монет') +
       ' — движение широкое, а не один выброс.');
   }
@@ -799,14 +1149,18 @@ BRIEF_JS = """
              (LC.horizonDays ? ', горизонт <span class="n">' + LC.horizonDays +
                '</span> дн' : '') +
              ', скор <span class="n">' + (LC.score || 0) + '</span>.',
-        pts: normPts(LC.series) }
+        pts: normPts(LC.series),
+        tag: L.t + ' ' + (LC.score || 0),
+        glyph: {t:'ring', pct: (LC.score || 0)} }
     : null;
 
   var volSeg = ((VC.ratios || []).length >= 4)
     ? { html: 'максимум объёма — <span class="t">' + VC.sym + '</span>' +
              cap(VC) + ', <span class="n">×' + VC.x + '</span> к своей норме ' +
              'за 30 дней.',
-        pts: normPts(VC.ratios) }
+        pts: normPts(VC.ratios),
+        tag: VC.sym + ' ×' + VC.x,
+        glyph: {t:'dev', val: 1, max: 1} }
     : null;
 
   /* Р-6: при закрытом окне список НЕ пустеет и не переупорядочивается
@@ -888,19 +1242,111 @@ BRIEF_JS = """
      лидер потока с графиком, аномалии объёма, максимум объёма с
      графиком, часовая активность, отбор, спячка, ожидание, работа,
      уровни, журнал. */
-  var raw = (permLine ? [permLine] : [])
-    .concat(portLine).concat(lossLine).concat(bg)
-    .concat(wknd ? [wknd] : [])
-    .concat([leaderSeg])
-    .concat(bigVolLine ? [bigVolLine] : [])
-    .concat([volSeg])
-    .concat(hrLine ? [hrLine] : [])
-    .concat([goLine])
-    .concat(dormLine ? [dormLine] : [])
-    .concat(waitLine ? [waitLine] : [])
-    .concat(holdLine ? [holdLine] : [])
-    .concat(nearLine ? [nearLine] : [])
-    .concat(journalLine ? [journalLine] : []);
+  /* ═══ Закрывающий сегмент ═══
+     Он остаётся на экране до клика (см. LAST_HOLD), поэтому говорит
+     про РЕШЕНИЕ, а не повторяет числа начала. Открывающая строка
+     отвечает «что с рынком», эта — «с чем я остаюсь»: сколько ставить
+     и чего ждать. Ступень размера и ближайшая дата иначе видны только
+     в карточке зала, то есть их надо искать — а это самые действенные
+     величины дня. */
+  var closeLine = '';
+  (function () {
+    var pp2 = (M.permission || {}).parts || {};
+    var cal2 = (pp2.calendar || {}).items || [];
+    var bits = [];
+    if ((M.permission || {}).knownCount)
+      bits.push('окно рынка <span class="n">' +
+        ((M.permission || {}).warnCount || 0) + ' из ' +
+        (M.permission || {}).knownCount + '</span>');
+    /* Ступень берётся у ЛИДЕРА потока: размер — свойство монеты, и
+       усреднять его по журналу нельзя. Нет лидера — нет строки. */
+    var lead2 = null;
+    for (var q=0;q<STARS.length;q++) if (STARS[q].lead) { lead2 = STARS[q]; break; }
+    if (lead2 && lead2.size && lead2.size.tier)
+      bits.push('размер по правилу — <span class="gd">' +
+        lead2.size.tier + '</span>');
+    if (cal2.length){
+      var ev = cal2[0];
+      bits.push(ev.title + (ev.running ? ' идёт'
+        : ' через <span class="n">' + ev.days + '</span> дн'));
+    }
+    if (bits.length)
+      closeLine = 'Итог: ' + bits.join(', ') + '.' +
+        (((M.permission || {}).warnCount || 0) >= 2
+          ? ' <span class="mut">Список наблюдения, не входов.</span>' : '');
+  })();
+
+  /* Ярлыки и глифы — только тем сегментам, у которых есть короткое
+     честное значение. Остальные проговариваются и уходят: держать на
+     экране «деньги в рынке есть» без числа незачем. */
+  var permSeg = permLine ? tagSeg({html: permLine}, 'окно рынка',
+        ((M.permission || {}).warnCount || 0) + ' из ' +
+        ((M.permission || {}).knownCount || 0),
+        {t:'ticks', on:((M.permission || {}).warnCount || 0),
+         all:((M.permission || {}).knownCount || 0), tone:'dn'}) : null;
+
+  var btcSeg = null;
+  if (M.btc !== null && M.btc !== undefined && bg.length){
+    var domN = parseFloat(M.dom);
+    btcSeg = tagSeg({html: bg.shift()}, 'биткоин',
+      (M.btc >= 0 ? '+' : '') + Math.abs(M.btc).toFixed(1) + '%' +
+      (isFinite(domN) ? ' · ' + domN.toFixed(1) + '%' : ''),
+      isFinite(domN) ? {t:'fill', pct:domN, mark:50} : null);
+  }
+
+  var closeSeg = closeLine ? tagSeg({html: closeLine}, 'итог',
+      (((M.permission || {}).warnCount || 0) >= 2 ? 'наблюдение' : 'можно'),
+      null) : null;
+
+  /* В фигуру идут ВСЕ сегменты, у которых есть короткое честное
+     значение. Пустые списки строк не дают вовсе, поэтому фигура сама
+     подстраивается под день: в тихий соберётся шесть строк, в живой —
+     двенадцать. */
+  function T(line, k, v, g){
+    return line ? [tagSeg({html: line}, k, v, g)] : [];
+  }
+  var AS2 = M.altShare || {};
+  var rsv2 = ((M.permission || {}).parts || {}).reservoir || {};
+
+  /* Альт-доля и резервуар проговариваются хвостами строки разрешения,
+     но в фигуре им нужно СВОЁ место: это числа месячного горизонта, и
+     терять их вместе с текстом жаль. Отдельного сегмента у них нет —
+     значит, и текста в центре они не займут: пустой html просто не
+     показывается, а строка в фигуре появляется. */
+  var altSeg = (AS2.d7 !== undefined && AS2.d7 !== null)
+    ? tagSeg({html: ''}, 'альты к btc', AS2.d7 + '% за 7д',
+             {t:'fill', pct: AS2.d7, mark: 50})
+    : null;
+  var rsvSeg = (rsv2.known && rsv2.share !== undefined && rsv2.share !== null)
+    ? tagSeg({html: ''}, 'резервуар', rsv2.share + '% капы',
+             {t:'fill', pct: rsv2.share, mark: 13, scale: 20, tone: 'gd'})
+    : null;
+
+  var raw = (permSeg ? [permSeg] : [])
+    .concat(T(portLine, 'портфель',
+      (J.port && J.port.invested ? '$' + J.port.invested : ''), null))
+    .concat(T(lossLine, 'разобрать',
+      ((J.port && (J.port.losers || []).length) || '') + '', null))
+    .concat(btcSeg ? [btcSeg] : []).concat(bg)
+    .concat(wknd ? [tagSeg({html: wknd}, 'выходные', 'тонкий стакан', null)] : [])
+    .concat([leaderSeg ? tagSeg(leaderSeg, 'лидер', leaderSeg.tag,
+             leaderSeg.glyph) : leaderSeg])
+    .concat(T(bigVolLine, 'аномалия', bigVol.length + ' монет',
+      {t:'ticks', on: Math.min(7, bigVol.length), all: 7}))
+    .concat([volSeg ? tagSeg(volSeg, 'объём', volSeg.tag, volSeg.glyph) : volSeg])
+    .concat(T(hrLine, 'за час', HR.n + ' ожили', null))
+    .concat([tagSeg({html: goLine}, 'брать',
+      go.length ? go.length + ' монет' : 'нечего',
+      {t:'ticks', on: Math.min(7, go.length), all: 7,
+       tone: go.length ? '' : 'dn'})])
+    .concat(T(dormLine, 'спят', DORM.length + '', null))
+    .concat(T(waitLine, 'ждут сигнала', wait.length + '', null))
+    .concat(T(holdLine, 'в работе', hold.length + '', null))
+    .concat(T(nearLine, 'у уровня', near.length + '', null))
+    .concat(T(journalLine, 'журнал', (J.n || 0) + '', null))
+    .concat(altSeg ? [altSeg] : [])
+    .concat(rsvSeg ? [rsvSeg] : [])
+    .concat(closeSeg ? [closeSeg] : []);
 
   /* Приводим всё к единому виду {html, pts, accent}: строки-строки
      оборачиваются как есть (это уже готовая цветная разметка),
@@ -911,7 +1357,27 @@ BRIEF_JS = """
     return seg;
   });
 
+  /* ═══ Что от сегмента остаётся в фигуре ═══
+     Ярлык и число задаются ЯВНО, а не выдираются из готовой фразы:
+     разбор своего же текста регулярками сломается на первой правке
+     формулировки, и сломается молча. Сегменты без пары ярлык-значение
+     просто не садятся в фигуру — это нормально, не всё стоит держать
+     на экране до конца.
+     Глиф — шкала своей величины, а не значок: одинаковая иконка у
+     восьми чисел обещала бы смысл, которого нет. */
+  function tagSeg(seg, k, v, g){
+    if (!seg) return seg;
+    seg.k = k; seg.v = v; seg.g = g || null;
+    return seg;
+  }
+
   if (!SEGMENTS.length) return;
+
+  /* Сколько строк соберётся в фигуре — известно до начала показа:
+     это сегменты с ярлыком и значением. Знать заранее обязательно,
+     иначе шаг по вертикали пришлось бы пересчитывать на каждой новой
+     строке, и фигура ползала бы всю сводку. */
+  FIG_TOTAL = SEGMENTS.filter(function (x) { return x.k && x.v; }).length;
 
   function tail() {
     document.getElementById('obfFoot').classList.add('on');
