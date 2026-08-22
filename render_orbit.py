@@ -44,8 +44,9 @@ from analytics_permission import altseason_share, market_permission
 from analytics_stars import build_stars
 from render_common import (
     _pick, _num, _get, _tick,
-    RR_MIN, SURGE_NOTE, IMP_NOTE,
+    CASE_STRAT, RR_MIN, SURGE_NOTE, IMP_NOTE,
 )
+from core_config import LEADERS_MAX_AGE_DAYS
 
 ORBIT_COLORS = {
     "surge":  "var(--am)",
@@ -304,6 +305,14 @@ def orbit_market(candidates: list[Candidate], snapshot: RunSnapshot,
         # же на брифе, орбите и в зале.
         "permission": market_permission(candidates, _btc),
         "altShare": altseason_share(candidates, _btc),
+
+        # Палитра стадий и срок журнала — В ДАННЫХ, а не в JS каждого
+        # экрана. Хендофф записал замену зашитых «14» через ORB.maxAge;
+        # ORB умер при переезде на отдельные документы, и подпись «из
+        # 14 дней» в зале врала при сроке 26. Теперь канал — словарь
+        # рынка: он и так едет во все экраны.
+        "strat": CASE_STRAT,
+        "maxAge": LEADERS_MAX_AGE_DAYS,
         # Ч-9 тех.долга закрыт: раньше здесь была константа-заглушка.
         "dom": get_btc_dominance(),
         "series": _btc.get("spark") or [],
@@ -423,6 +432,10 @@ def render_orbit(candidates: list[Candidate], snapshot: RunSnapshot,
         # Не предупреждение — состояние заряда. Пилюля календарного
         # тона (как выходные), а не тревожного: топливо вверх.
         _pills.append('<span class="ob-frost-w">толпа в шорте · заряд вверх</span>')
+    if (_perm.get("oi") or {}).get("warn"):
+        _pills.append('<span class="ob-frost-t">OI раздут · топливо каскада</span>')
+    if (_perm.get("cascade") or {}).get("warn"):
+        _pills.append('<span class="ob-frost-t">каскад идёт · движок закрывает счета</span>')
     frost_pills = "".join(_pills)
 
     _mx = _mk.get("maxChange")
@@ -1206,7 +1219,6 @@ ORBIT_JS = """
 
     var fund = s.fund || 0;
     var fx = Math.max(2, Math.min(94, 50 + fund / 0.2 * 50));
-    var left = Math.max(0, 14 - (s.days || 0));
 
     var p = phase(s), risks = [];
     if (s.firstRun) risks.push('первый разгон');
@@ -1313,8 +1325,11 @@ ORBIT_JS = """
                       (rate(s) === null ? '—' : (rate(s) >= 0 ? '+' : '') +
                         rate(s).toFixed(1) + '%/д') + '</b></span>' +
         '</div>' +
+        /* Полоса жизни — из s.f, свежести, посчитанной аналитикой
+           (1 − возраст/окно). Прежний пересчёт «(14 − days)/14» дублировал
+           STAR_WINDOW_DAYS литералом и разошёлся бы молча при смене окна. */
         '<div class="ob-sc-life"><u style="width:' +
-          Math.round(left / 14 * 100) + '%"></u></div>' +
+          Math.round((s.f || 0) * 100) + '%"></u></div>' +
       '</div>' +
       '</div>';
   }
@@ -1338,7 +1353,9 @@ ORBIT_JS = """
      оно уже названо в одном месте и попадает в чип карточки, а второй
      список рядом гарантированно разойдётся с первым. */
   var NAMES = DATA.names || {};
-  var STRAT = {
+  /* Таблица приходит с данными (render_common.CASE_STRAT); встроенная
+     копия — запасная и обязана совпадать со словарём в Python. */
+  var STRAT = (DATA.market && DATA.market.strat) || {
     dormant:  { c: '#7E9AB5', stage: 0 },
     hidden:   { c: '#7FE3D4', stage: 0 },
     spring:   { c: '#6FC9E8', stage: 0 },

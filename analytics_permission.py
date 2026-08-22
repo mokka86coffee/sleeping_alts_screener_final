@@ -28,7 +28,10 @@ raw нет — она есть только у монет со сработав�
 
 from __future__ import annotations
 
+import json
+
 from analytics_metrics import weekend_state
+from analytics_pulse import PULSE_PATH
 from analytics_reservoir import reservoir_state
 from core_models import Candidate
 
@@ -47,6 +50,21 @@ BTC_SURGE_7D_PCT = 15.0
 # Порог один на оба хвоста: перекос — это перекос, с какой стороны
 # ни смотри. Разное У НИХ следствие, и оно ниже, в компоненте.
 FUNDING_CROWD_SHARE = 0.70
+
+# Раздутие суммарного OI по выборке: условие каскада, не предсказание
+# момента. Прикидка; 19–21.08 сквиз дал +8% за 48ч БЕЗ раздутия по
+# этому порогу — и каскад 22.08 всё равно случился, потому что бил по
+# перекосу толпы, а не по сумме. Порог живёт до процентилей Р-9.
+OI_SWELL_48H_PCT = 15.0
+
+# Каскад прямо сейчас (Р-2): доля монет, у которых на ПОСЛЕДНЕМ шаге
+# пульса одновременно упал OI и дёрнулась цена. Калибровка на живом
+# событии 22.08: каскадное окно дало 82% выборки при фоне 0–16% с
+# медианой ~5% — порог 25% отделяет с многократным запасом с обеих
+# сторон.
+CASCADE_SHARE = 0.25
+CASCADE_OI_DROP = 0.97   # OI ниже 97% прошлой точки = падение
+CASCADE_PX_JERK = 0.03   # цена дальше ±3% за шаг = игла
 
 
 def _btc_component(btc: dict | None) -> dict:
@@ -115,6 +133,80 @@ def _funding_component(candidates: list[Candidate]) -> dict:
             "note": f"фандинг положителен у {pos * 100:.0f}% выборки"}
 
 
+def _pulse_series() -> dict:
+    """Ряды пульса как лежат: {symbol: [точки]}. Пульс пишет вся
+    выборка каждый прогон (analytics_pulse.record), окно 48 часов.
+    Нет файла — пустой словарь: составляющие честно скажут «нет
+    данных», как OI-заглушка говорила до подключения."""
+    try:
+        with open(PULSE_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return {}
+    return {k: v for k, v in data.items()
+            if k != "_meta" and isinstance(v, list) and len(v) >= 2}
+
+
+def _oi_component(series: dict) -> dict:
+    """Суммарный OI по выборке и его ход. ОКНА — В ПОДПИСИ (24ч/48ч):
+    рост OI на часах и на месяцах — разные величины с разными
+    смыслами (Р-10), и здесь печатаются только короткие окна пульса."""
+    if not series:
+        return {"known": False, "warn": False,
+                "note": "суммарный OI: пульса нет"}
+    def total(frac: float) -> float:
+        tot = 0.0
+        for rows in series.values():
+            v = rows[min(int(len(rows) * frac), len(rows) - 1)].get("oi_usd")
+            if v:
+                tot += float(v)
+        return tot
+    now, d24, d48 = total(0.999), total(0.5), total(0.0)
+    if not (now and d48):
+        return {"known": False, "warn": False,
+                "note": "суммарный OI: в пульсе нет oi_usd"}
+    ch24 = now / d24 * 100 - 100 if d24 else 0.0
+    ch48 = now / d48 * 100 - 100
+    swollen = ch48 >= OI_SWELL_48H_PCT
+    note = (f"OI выборки ${now / 1e9:.1f} млрд · "
+            f"{ch24:+.0f}% за 24ч · {ch48:+.0f}% за 48ч")
+    if swollen:
+        note += " — раздут, топливо каскада накоплено"
+    return {"known": True, "warn": swollen, "usd": round(now),
+            "ch24": round(ch24, 1), "ch48": round(ch48, 1), "note": note}
+
+
+def _cascade_component(series: dict) -> dict:
+    """Каскад прямо сейчас: рыночное событие, а не монетное (Р-2).
+
+    Считает долю монет, у которых на последнем шаге пульса
+    ОДНОВРЕМЕННО упал OI и дёрнулась цена. Одна монета так падает от
+    собственных новостей; две трети выборки в одну метку времени —
+    это движок закрывает счета, и внутрь такого не входят.
+    """
+    if not series:
+        return {"known": False, "warn": False, "note": "каскад: пульса нет"}
+    n = hit = 0
+    for rows in series.values():
+        p, r = rows[-2], rows[-1]
+        if not (p.get("oi_usd") and r.get("oi_usd")
+                and p.get("price") and r.get("price")):
+            continue
+        n += 1
+        if (r["oi_usd"] < p["oi_usd"] * CASCADE_OI_DROP
+                and abs(r["price"] / p["price"] - 1) > CASCADE_PX_JERK):
+            hit += 1
+    if not n:
+        return {"known": False, "warn": False, "note": "каскад: нет пар точек"}
+    share = hit / n
+    live = share >= CASCADE_SHARE
+    note = f"каскадных монет на последнем шаге: {share * 100:.0f}%"
+    if live:
+        note += " — каскад идёт, движок закрывает счета"
+    return {"known": True, "warn": live, "share": round(share, 2),
+            "note": note}
+
+
 def market_permission(candidates: list[Candidate],
                       btc: dict | None,
                       now=None) -> dict:
@@ -125,6 +217,7 @@ def market_permission(candidates: list[Candidate],
     подписывать топ «списком наблюдения», решает показ (Р-6), а не
     этот модуль: здесь состояние, там правило показа.
     """
+    pulse = _pulse_series()
     parts = {
         "btc": _btc_component(btc),
         "weekend": _weekend_component(now),
@@ -133,9 +226,12 @@ def market_permission(candidates: list[Candidate],
         # неделю. warn не поднимает никогда — гейт объясняет, а не
         # предупреждает; см. docstring reservoir_state.
         "reservoir": reservoir_state(),
-        # Честные заглушки: строка «нет данных» отличима от «спокойно».
-        "oi": {"known": False, "warn": False,
-               "note": "суммарный OI: появится с циклом Р-8"},
+        # Плечевой контур из пульса: заглушка «появится с Р-8»
+        # закрыта 22.08 — пульс уже пишет oi_usd по всей выборке
+        # каждый прогон, десятиминутный цикл для этого не нужен.
+        "oi": _oi_component(pulse),
+        "cascade": _cascade_component(pulse),
+        # Честная заглушка: строка «нет данных» отличима от «спокойно».
         "unlocks": {"known": False, "warn": False,
                     "note": "разлоки по рынку: появятся с Р-7"},
     }
@@ -165,9 +261,16 @@ def altseason_share(candidates: list[Candidate],
     if not btc:
         return {}
     out: dict = {}
-    for key, raw_key in (("d1", "ch_24h"), ("d7", "ch_7d")):
+    for key, raw_key in (("d1", "ch_24h"), ("d7", "ch_7d"),
+                         ("d30", "ch_30d")):
+        # Нет базы по биткоину за это окно — нет и доли: сравнение с
+        # нулём вместо биткоина посчитало бы «долю выросших», другую
+        # величину под тем же именем. get_btc_context отдаёт ch_30d
+        # не всегда — тогда ключа d30 просто нет.
+        if btc.get(raw_key) is None:
+            continue
         try:
-            base = float(btc.get(raw_key) or 0.0)
+            base = float(btc[raw_key])
         except (TypeError, ValueError):
             continue
         vals = []
@@ -183,4 +286,5 @@ def altseason_share(candidates: list[Candidate],
             continue
         ahead = sum(1 for v in vals if v > base) / len(vals)
         out[key] = round(ahead * 100)
+
     return out

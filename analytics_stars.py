@@ -56,6 +56,28 @@ STAR_NEW_DAYS = 5.0
 STAR_TS_KEYS = ("first_seen", "added", "since", "created", "ts", "started")
 
 
+def _alive_gap_days(rec: dict) -> float | None:
+    """Дни с последнего подтверждения фигуры детектором (Р-25).
+
+    Считает от last_alive — поля, которое журнал пишет только по
+    flow.detected. last_hit сюда не годится: он обновляется и
+    аномалией объёма, а всплеск на трупе фигуры не делает труп живым.
+    None — поле ещё не накопилось (записи старше 22.08).
+    """
+    import datetime as _dt
+    raw = rec.get("last_alive")
+    if not raw:
+        return None
+    try:
+        when = _dt.datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        if when.tzinfo is None:
+            when = when.replace(tzinfo=_dt.timezone.utc)
+    except ValueError:
+        return None
+    gap = (_dt.datetime.now(_dt.timezone.utc) - when).total_seconds() / 86400
+    return round(max(0.0, gap), 1)
+
+
 def _star_age_days(rec: dict) -> float | None:
     """Возраст записи в днях или None, если даты в записи нет."""
     import datetime as _dt
@@ -560,6 +582,14 @@ def build_stars(candidates: list[Candidate]) -> list[dict]:
             "stop": float(rec.get("stop_hint") or 0.0),
             "streak": int(rec.get("streak") or 0),
             "hitCount": int(rec.get("hits") or 0),
+
+            # Р-25: сколько дней фигура не подтверждалась детектором.
+            # 0 или около — признаки держатся (ожидание повода);
+            # большой разрыв — распались (смерть фигуры). None —
+            # поле ещё не копилось: last_alive пишется с 22.08, и у
+            # старых записей отличать «нет данных» от «давно мертва»
+            # обязан читатель, а не ноль-враньё.
+            "aliveGapDays": _alive_gap_days(rec),
             "runsSeen": int(rec.get("runs_seen") or 0),
             "chg": round(float(rec.get("change_pct") or 0.0), 1),
             "firstRun": bool(fdrop.get("first_run")),

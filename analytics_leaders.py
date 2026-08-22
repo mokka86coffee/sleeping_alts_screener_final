@@ -870,8 +870,8 @@ def update_leaders(
             # Иначе монета, честно отработавшая подкейсом, но не
             # ставшая лидером ни разу, выбывала бы по тишине, которой
             # на самом деле не было.
-            if bool((getattr(c, "flow", None) or {}).get("detected")) \
-                    or _is_anomalous(ratios):
+            alive = bool((getattr(c, "flow", None) or {}).get("detected"))
+            if alive or _is_anomalous(ratios):
                 rec["last_hit"] = now.isoformat()
                 _touch_density(rec, now)
                 # Тем же условием, что и density: К-6 тех.долга —
@@ -885,6 +885,19 @@ def update_leaders(
                 # здесь без разбора хранилища задвоило бы счётчик.
                 if store is flow_store:
                     rec["hits"] = int(rec.get("hits", 0)) + 1
+
+            # Р-25: жизнь ФИГУРЫ отдельно от жизни записи. last_hit
+            # смешивает детект и аномалию объёма — по нему нельзя
+            # ответить «признаки держатся или распались»: всплеск
+            # объёма на трупе фигуры обновил бы last_hit и труп
+            # выглядел бы живым. last_alive пишется ТОЛЬКО по
+            # flow.detected, и разрыв от него — то различение из
+            # Р-25: держатся = ожидание повода, распались = смерть.
+            # Поле начинает копиться с этого прогона; у старых
+            # записей его нет, и читатель обязан отличать «нет
+            # поля» от «давно не жива».
+            if store is flow_store and alive:
+                rec["last_alive"] = now.isoformat()
 
     # ── чистка по возрасту, с архивом вместо тихой потери ──
     cutoff = now - timedelta(days=max_age_days)

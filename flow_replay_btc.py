@@ -82,7 +82,8 @@ def replay(symbol: str, step: int, out_path: str) -> int:
             except Exception as exc:  # одна дата не роняет реплей
                 rows.append({"date": _fmt_day(asof_ms), "close": "",
                              "case": "ОШИБКА", "score": "",
-                             "verdict": f"{type(exc).__name__}: {exc}"})
+                             "verdict": f"{type(exc).__name__}: {exc}",
+                             "rejects": ""})
                 continue
 
             close = float(cut_d[-1][K_CLOSE])
@@ -98,13 +99,21 @@ def replay(symbol: str, step: int, out_path: str) -> int:
                 # «мало данных» — разные молчания, и различать их
                 # при чтении против известных ответов обязательно.
                 "verdict": (sig.verdict or "")[:120],
+                # Причины отказов — тем более: первый прогон показал,
+                # что «почему молчал август-2026» из файла не
+                # прочесть было вовсе. У сработавшего среза колонка
+                # пуста — отказы там есть тоже, но читают их у
+                # молчания.
+                "rejects": ("" if sig.detected else "; ".join(
+                    f"{k}={v}" for k, v in sorted(
+                        (sig.rejects or {}).items()))[:200]),
             })
     finally:
         df.klines_1d, df.klines_1w = orig_1d, orig_1w
 
     with open(out_path, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=["date", "close", "case",
-                                          "score", "verdict"])
+                                          "score", "verdict", "rejects"])
         w.writeheader()
         w.writerows(rows)
 

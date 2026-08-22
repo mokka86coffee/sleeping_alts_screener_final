@@ -550,7 +550,11 @@ PODIUM_JS = """
 
      На сегодня ORB.strat не выставляется, и работает запасной —
      это безобидно ровно до первой правки цветов в orbit.py. */
-  var STRAT = O.strat || {
+  /* Таблица приходит со словарём рынка (render_common.CASE_STRAT);
+     O.strat оставлен в цепочке на случай старых сборок. Встроенная
+     копия — запасная. */
+  var MAXD = +((O.market || {}).maxAge) || 14;
+  var STRAT = (O.market && O.market.strat) || O.strat || {
     dormant:  { c: '#7E9AB5', stage: 0 }, hidden:   { c: '#7FE3D4', stage: 0 },
     spring:   { c: '#6FC9E8', stage: 0 }, churn:    { c: '#F0B85C', stage: 1 },
     taker:    { c: '#FFD98A', stage: 1 }, leverage: { c: '#E89AB0', stage: 1 },
@@ -1297,10 +1301,28 @@ PODIUM_JS = """
           '</span>' +
           '<span class="obz-met r">' +
             '<span class="obz-met-k">в журнале</span>' +
+            /* MAXD, не литерал: хендофф заменял зашитые «14» через
+               ORB.maxAge, канал умер с переездом на документы, и
+               подпись врала при сроке журнала 26. */
             '<span class="obz-met-v">' + (+c.days || 0) +
-              '<small>из 14 дней</small></span>' +
-            ticksDays(+c.days || 0) +
+              '<small>из ' + MAXD + ' дней</small></span>' +
+            ticksDays(+c.days || 0, MAXD) +
           '</span>' +
+          /* Р-25: жива ли фигура — различение «ожидание повода»
+             против «держим труп». aliveGapDays == null означает
+             «поле ещё не копилось» (записи старше 22.08) и НЕ
+             показывается: нет данных — нет строки, ноль здесь
+             соврал бы. Порог трёх дней — прикидка: детектор
+             пересчитывается каждый прогон, три дня тишины при
+             восьми прогонах в сутки — это не пропуск, а распад. */
+          (c.aliveGapDays === null || c.aliveGapDays === undefined ? '' :
+            '<span class="obz-met r">' +
+              '<span class="obz-met-k">фигура</span>' +
+              (c.aliveGapDays <= 3
+                ? '<span class="obz-met-v up">жива<small>признаки держатся</small></span>'
+                : '<span class="obz-met-v dn">распалась<small>' +
+                  Math.round(c.aliveGapDays) + ' дн без сигнала</small></span>') +
+            '</span>') +
         '</div>' +
       '</div>' +
       (c.verdict ? '<div class="obz-verdict">' + c.verdict + '</div>' : '') +
