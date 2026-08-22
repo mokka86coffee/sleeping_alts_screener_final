@@ -406,21 +406,49 @@ def build_snapshot(
 # Отчёт
 # ─────────────────────────────────────────────────────────────
 def render_report(candidates: list[Candidate], snapshot: RunSnapshot) -> bool:
-    """Генерирует HTML в корень проекта. Отсутствие рендера не роняет прогон."""
+    """Генерирует документы отчёта в корень проекта.
+
+    Отчёт перестал быть одним файлом. Оболочка лежит по REPORT_PATH —
+    туда же, где раньше лежала вся страница, чтобы ссылка на отчёт не
+    менялась и GitHub Pages по-прежнему отдавал его как index. Экраны
+    пишутся рядом, в тот же каталог: оболочка грузит их относительным
+    путём, и разъехаться каталогам нельзя.
+
+    Отсутствие рендера по-прежнему не роняет прогон.
+    """
     try:
-        from render_page import build_page
+        from render_page import build_pages
     except ImportError as e:
         log(f"Рендер недоступен, отчёт не собран: {e}")
         return False
 
     try:
-        html = build_page(candidates, snapshot)
-        write_atomic(REPORT_PATH, html)
-        return True
+        pages = build_pages(candidates, snapshot)
     except Exception as e:
         log(f"Ошибка сборки отчёта: {type(e).__name__}: {e}")
         traceback.print_exc()
         return False
+
+    # Сборка ВСЕХ документов идёт до первой записи. Иначе падение на
+    # третьем экране оставило бы на диске два новых файла и один
+    # вчерашний — отчёт, склеенный из двух прогонов, где сводка
+    # ссылается на монеты, которых уже нет в дашборде. Такое
+    # расхождение не падает и не логируется, его замечают глазами.
+    out_dir = REPORT_PATH.parent
+    for name, html in pages.items():
+        # Оболочка идёт по REPORT_PATH под своим прежним именем, чем бы
+        # оно ни было в core_config: имя index.html из build_pages —
+        # это ключ экрана, а не решение о том, куда писать отчёт.
+        path = REPORT_PATH if name == "index.html" else out_dir / name
+        try:
+            write_atomic(path, html)
+        except Exception as e:
+            log(f"✗ Не записан {path.name}: {type(e).__name__}: {e}")
+            return False
+
+    log(f"→ Документов записано: {len(pages)} "
+        f"({', '.join(sorted(pages))})")
+    return True
 
 
 # ─────────────────────────────────────────────────────────────
