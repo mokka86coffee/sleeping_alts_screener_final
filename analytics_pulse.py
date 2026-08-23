@@ -1,4 +1,4 @@
-"""Пульс: показания каждой монеты за последние двое суток.
+"""Пульс: показания монет — рабочее окно неделя + архив 30 дней.
 
 Зачем это есть. Всё, что показывает карточка, — уровни: «покупка 1.4»,
 «объём ×16», «в диапазоне 93%». Уровень не говорит ничего. Решение
@@ -46,8 +46,9 @@
 
 from __future__ import annotations
 
+import gzip
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from core_models import Candidate
@@ -56,14 +57,29 @@ from sources_storage import ensure_dirs, write_atomic
 # Файл лежит рядом с модулем и ходит вместе с кодом.
 PULSE_PATH = Path(__file__).resolve().parent / "pulse.json"
 
-# Глубина окна. Двое суток — это ~16 снимков при трёхчасовом прогоне и
-# ~48 при часовом: хватает и на «прошлый прогон», и на «вчера в это же
-# время».
-WINDOW_HOURS = 48
+# Глубина рабочего окна. Неделя ([stated] 24.08: «окно с 48ч до
+# недели, дальше в архив») — при часовом прогоне ~168 снимков:
+# хватает на ретро-проверки внутри недели (случай сквиза 19.08,
+# когда среда выпала из 48ч, больше не повторится). Всё старше
+# уезжает в АРХИВ (ниже), не выбрасывается.
+WINDOW_HOURS = 168
 
-# Потолок на монету. Защита от прогонов чаще часа: без него отладочный
-# минутный цикл за сутки положит в файл полторы тысячи записей.
-MAX_POINTS = 120
+# Потолок на монету. Неделя часовых прогонов с запасом; защита от
+# отладочных минутных циклов остаётся — потолок отрезает лишнее.
+MAX_POINTS = 200
+
+# ── Архив пульса ──
+# Точки старше рабочего окна доливаются в дневные файлы
+# pulse_archive/ГГГГ-ММ-ДД.jsonl.gz (строка = {"sym": ..., точка}).
+# Дозапись — конкатенацией gzip-членов: это валидный gzip, читается
+# одним потоком. Закрытые дни больше не меняются — git хранит один
+# блоб на день (~сотни КБ). Ротация: файлы старше ARCHIVE_DAYS
+# удаляются при записи ([stated]: «архив хранит до 30 дней, иначе
+# гит меня выкинет»). Честная оговорка: история git помнит и
+# удалённые блобы, репозиторий прирастает ~5–10 МБ в месяц навсегда;
+# если станет тесно — архив переезжает в output/ одной строкой пути.
+ARCHIVE_DIR = Path(__file__).resolve().parent / "pulse_archive"
+ARCHIVE_DAYS = 30
 
 _CACHE: dict = {"mtime": None, "data": {}}
 
@@ -185,6 +201,74 @@ def snapshot(c: Candidate) -> dict:
     return out
 
 
+def _archive_write(spill: dict[str, list[str]]) -> None:
+    """Долить строки в дневные .jsonl.gz и удалить файлы старше
+    ARCHIVE_DAYS. Дозапись — конкатенацией gzip-членов (валидна для
+    чтения одним потоком); ошибка молча глотается, как у пульса."""
+    if not spill:
+        _rotate_archive()
+        return
+    try:
+        ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+        for day, lines in spill.items():
+            blob = gzip.compress(("\n".join(lines) + "\n").encode("utf-8"))
+            with open(ARCHIVE_DIR / f"{day}.jsonl.gz", "ab") as f:
+                f.write(blob)
+    except OSError:
+        return
+    _rotate_archive()
+
+
+def _rotate_archive() -> None:
+    """Стереть дневные файлы старше ARCHIVE_DAYS ([stated]: держим
+    до 30 дней, иначе репозиторий распухнет)."""
+    try:
+        edge = (datetime.now(timezone.utc).date()
+                - timedelta(days=ARCHIVE_DAYS)).isoformat()
+        for f in ARCHIVE_DIR.glob("*.jsonl.gz"):
+            if f.stem.split(".")[0] < edge:
+                f.unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def load_archive(days_back: int = ARCHIVE_DAYS) -> dict[str, list[dict]]:
+    """История из архива за N дней: символ → точки по возрастанию t.
+    Для ретро-проверок (С-4, С-5, Р-26, Р-9): склейка с рабочим окном
+    — read_history(). Битые строки и файлы пропускаются молча."""
+    out: dict[str, list[dict]] = {}
+    if not ARCHIVE_DIR.exists():
+        return out
+    edge = (datetime.now(timezone.utc).date()
+            - timedelta(days=days_back)).isoformat()
+    for f in sorted(ARCHIVE_DIR.glob("*.jsonl.gz")):
+        if f.stem.split(".")[0] < edge:
+            continue
+        try:
+            text = gzip.open(f, "rt", encoding="utf-8").read()
+        except (OSError, EOFError):
+            continue
+        for line in text.splitlines():
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            sym = row.pop("sym", None)
+            if sym:
+                out.setdefault(sym, []).append(row)
+    for pts in out.values():
+        pts.sort(key=lambda p: p.get("t") or 0)
+    return out
+
+
+def read_history(symbol: str, days_back: int = ARCHIVE_DAYS) -> list[dict]:
+    """Архив + рабочее окно одной лентой для одной монеты."""
+    pts = load_archive(days_back).get(symbol, [])
+    pts += _load().get(symbol) or []
+    pts.sort(key=lambda p: p.get("t") or 0)
+    return pts
+
+
 def record(candidates: list[Candidate], path: Path = PULSE_PATH) -> Path:
     """Дописать снимки по всей выборке и обрезать окно.
 
@@ -198,23 +282,46 @@ def record(candidates: list[Candidate], path: Path = PULSE_PATH) -> Path:
     data = dict(_load())
     edge = _now() - WINDOW_HOURS * 3600
 
+    spill: dict[str, list[str]] = {}   # дата → строки jsonl для архива
+
+    def _spill(sym: str, p: dict) -> None:
+        t = _num(p.get("t"))
+        if t is None:
+            return
+        day = datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%d")
+        spill.setdefault(day, []).append(
+            json.dumps({"sym": sym, **p}, ensure_ascii=False))
+
+    live_syms = {getattr(c, "symbol", "") for c in candidates}
     for c in candidates:
         if not getattr(c, "symbol", ""):
             continue
-        pts = [
-            p for p in (data.get(c.symbol) or [])
-            if _num(p.get("t")) is not None and p["t"] >= edge
-        ]
-        pts.append(snapshot(c))
-        data[c.symbol] = pts[-MAX_POINTS:]
+        keep: list[dict] = []
+        for p in (data.get(c.symbol) or []):
+            t = _num(p.get("t"))
+            if t is None:
+                continue
+            if t >= edge:
+                keep.append(p)
+            else:
+                _spill(c.symbol, p)
+        keep.append(snapshot(c))
+        data[c.symbol] = keep[-MAX_POINTS:]
 
-    # Монеты, выпавшие из выборки, дочищаются здесь же: иначе файл растёт
-    # вечно за счёт тех, кого больше не считают.
-    data = {k: v for k, v in data.items() if v}
+    # Монеты, выпавшие из выборки: их хвост тоже уходит в архив,
+    # а не в мусор — иначе история рвётся на смене состава.
+    for sym in list(data.keys()):
+        if sym not in live_syms:
+            for p in data[sym]:
+                _spill(sym, p)
+            del data[sym]
+
+    _archive_write(spill)
 
     payload = {
         "_meta": {
-            "what": "показания монет за последние двое суток, шаг — прогон",
+            "what": "показания монет за последнюю неделю, шаг — прогон; "
+                    "старше — в pulse_archive/ (до 30 дн)",
             "why": "карточка сравнивает не уровни, а изменения",
             "window_hours": WINDOW_HOURS,
             "symbols": len(data),
