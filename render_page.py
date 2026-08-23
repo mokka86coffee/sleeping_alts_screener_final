@@ -76,6 +76,9 @@ def document(body: str, title: str = "Sleeping Alts Screener") -> str:
 """
 
 
+from core_http import log
+
+
 def build_pages(candidates: list[Candidate],
                 snapshot: RunSnapshot) -> dict[str, str]:
     """Все документы отчёта: имя файла → готовый HTML.
@@ -106,6 +109,17 @@ def build_pages(candidates: list[Candidate],
     # это по-прежнему один словарь на все экраны, второго источника
     # тех же чисел не заводим.
     market["portfolios"] = portfolios(stars)
+
+    # Мост к внешнему пузырь-боту: список флэтовых монет у дна.
+    # Пишет только боевая сборка (persist=True) — как журнал и
+    # unlocks_seen; file://-сборка ниже файл не трогает. На сам
+    # скринер мост не влияет: он только выписывает наружу то, что
+    # звёзды уже знают.
+    try:
+        from analytics_flatwatch import collect_flat_watch
+        log(f"→ Флэт-вотч: {collect_flat_watch(candidates, stars, persist=True)}")
+    except Exception as e:
+        log(f"✗ Флэт-вотч: {type(e).__name__}: {e}")
 
     return {
         "index.html": build_shell(),
