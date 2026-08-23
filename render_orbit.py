@@ -1153,6 +1153,12 @@ ORBIT_JS = """
   function toStop(s) {
     return s.stopPct || 0;
   }
+  function fmtStop(s) {
+    /* Отрицательное расстояние — уровень ПРОБИТ: прежняя склейка
+       '−' + (−118) печатала «−−118%» (найдено проходом 23.08). */
+    var v = toStop(s);
+    return v >= 0 ? '−' + v + '%' : 'пробит ' + Math.abs(v) + '%';
+  }
 
   /* Риск не заменяет действие, а стоит рядом: подмена вывода была бы
      решением за человека, а пометка оставляет выбор ему. */
@@ -1288,7 +1294,7 @@ ORBIT_JS = """
         '<div class="ob-b-act ' + p.k + '">' + p.a + '</div>' +
         spark +
         '<div class="ob-b-lvl">до уровня <b>' +
-          (s.stop ? '−' + toStop(s) + '%' : '—') + '</b></div>' +
+          (s.stop ? fmtStop(s) : '—') + '</b></div>' +
         (risks.length
           ? '<div class="ob-sc-risk">' + risks.map(function (r) {
               return '<span>' + r + '</span>'; }).join('') + '</div>'
@@ -1353,7 +1359,7 @@ ORBIT_JS = """
             '%</span>' +
           '<div class="ob-sc-pd">неделя · до уровня <b class="' +
             (toStop(s) <= 10 ? 'dn' : '') + '">' +
-            (s.stop ? '−' + toStop(s) + '%' : '—') + '</b></div></span>' +
+            (s.stop ? fmtStop(s) : '—') + '</b></div></span>' +
           spark +
         '</div>' +
         '<div class="ob-sc-foot">' +

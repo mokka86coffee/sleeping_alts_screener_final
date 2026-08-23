@@ -969,8 +969,17 @@ BRIEF_JS = """
   wait.sort(function (a, b) { return (b.f || 0) - (a.f || 0); });
   hold.sort(function (a, b) { return (b.streak || 0) - (a.streak || 0); });
 
-  var near = STARS.filter(function (s) { return s.stop && toStop(s) <= 8; })
-    .sort(function (a, b) { return toStop(a) - toStop(b); }).slice(0, 3);
+  /* «У уровня» заменён зарядом на сжим (С-2, решение 23.08):
+     сегмент был ещё и сломан — фильтр toStop(s) <= 8 пропускал
+     ОТРИЦАТЕЛЬНЫЕ расстояния (монета давно ниже уровня), и минус
+     двоился («−−118%»). Заряд — предвестник, уровень — след; в
+     брифе место предвестнику. toStop остаётся: им пользуется showdown
+     ниже, где расстояние считается честно. */
+  var sq = STARS.filter(function (s) {
+    return s.squeeze && s.squeeze.charged;
+  }).sort(function (a, b) {
+    return (b.squeeze.negRun || 0) - (a.squeeze.negRun || 0);
+  });
 
   function fmtMoney(v) {
     var n = +v || 0, a = Math.abs(n), t = n < 0 ? '−$' : '$';
@@ -1125,7 +1134,15 @@ BRIEF_JS = """
       'рынок', 'двигается · ' + (M.tail || 0),
       {t:'ticks', on: Math.min(7, M.tail || 0), all: 7});
   }
-  if (M.peakVol && M.peakVol.sym) {
+  /* Дубль найден проходом по сайту 23.08: «деньги TAC ×119» и
+     «объём TAC ×119» стояли в двух крыльях с одинаковым числом, и
+     тексты сегментов почти совпадали. Когда сегмент объёма (ниже, с
+     графиком) покажет ТОТ ЖЕ символ — сегмент денег молчит: одно
+     знание звучит один раз, у объёма оно полнее. Расходятся символы —
+     оба сегмента законны, это разные монеты. */
+  var volDup = ((M.volChart || {}).ratios || []).length >= 4 &&
+               M.peakVol && (M.volChart || {}).sym === M.peakVol.sym;
+  if (M.peakVol && M.peakVol.sym && !volDup) {
     bgPush('Деньги в рынке ' + (M.frozen ? 'при этом ' : '') +
       'есть: максимум объёма на <span class="gd">' + M.peakVol.sym +
       '</span>, <span class="n">×' + M.peakVol.x + '</span> к своей норме.',
@@ -1345,12 +1362,29 @@ BRIEF_JS = """
       (bookPos.length > 3 ? ' и ещё ' + (bookPos.length - 3) : '') + '.'
     : '';
 
-  var nearLine = near.length
-    ? 'У уровня ' + near.map(function (s) {
-        return '<span class="t">' + s.t + '</span>' + cap(s) +
-          ' <span class="dn n">−' + toStop(s) + '%</span>'; }).join(', ') +
-      ' — решаются сегодня.'
+  /* Тёплая строка, не предупреждение: шорт-перекос при росте — заряд
+     ВВЕРХ (симметрия рамки). Серия во всё окно уже помечена «48+»
+     самим детектором — здесь только собираем. Пусто — сегмента нет:
+     заряд либо есть, либо о нём молчат. */
+  var squeezeLine = sq.length
+    ? 'Заряжены на сжим ' + sq.slice(0, 3).map(function (s) {
+        var q = s.squeeze;
+        return '<span class="t gd">' + s.t + '</span>' + cap(s) +
+          ' <span class="mut">— фандинг минус</span> <span class="n">' +
+          (q.negRun || 0) + (q.capped ? '+' : '') +
+          '</span> <span class="mut">' + barWord(q.negRun || 0) +
+          ' при</span> <span class="up n">' +
+          (q.pxChg >= 0 ? '+' : '') + q.pxChg + '%</span>' +
+          (q.thin ? ' <span class="up">· флоат тонкий</span>' : '');
+      }).join(', ') +
+      ' — <span class="gd">шорты платят и уже в убытке</span>.'
     : '';
+  function barWord(n) {
+    if (n % 10 === 1 && n % 100 !== 11) return 'бар';
+    if ([2,3,4].indexOf(n % 10) >= 0 &&
+        [12,13,14].indexOf(n % 100) < 0) return 'бара';
+    return 'баров';
+  }
 
   var journalLine = J.n
     ? 'Журнал: <b>' + J.n + '</b> ' + plural(J.n, 'монета', 'монеты', 'монет') +
@@ -1489,14 +1523,17 @@ BRIEF_JS = """
       {t:'ticks', on: Math.min(7, bigVol.length), all: 7}))
     .concat([volSeg ? tagSeg(volSeg, 'объём', volSeg.tag, volSeg.glyph) : volSeg])
     .concat(T(hrLine, 'за час', HR.n + ' ожили', null))
-    .concat([tagSeg({html: goLine}, 'брать',
+    /* Ярлык сменён с «брать»: в зале «брать» — счёт ЗАЯВОК книги, а
+       здесь — список фазы go. Одно слово с двумя смыслами на соседних
+       экранах путало (найдено проходом 23.08). */
+    .concat([tagSeg({html: goLine}, 'кандидаты',
       go.length ? go.length + ' монет' : 'нечего',
       {t:'ticks', on: Math.min(7, go.length), all: 7,
        tone: go.length ? '' : 'dn'})])
     .concat(T(dormLine, 'спят', DORM.length + '', null))
     .concat(T(waitLine, 'ждут сигнала', wait.length + '', null))
     .concat(T(holdLine, 'в работе', bookPos.length + '', null))
-    .concat(T(nearLine, 'у уровня', near.length + '', null))
+    .concat(T(squeezeLine, 'сжим', sq.length + '', null))
     .concat(T(journalLine, 'журнал', (J.n || 0) + '', null))
     .concat(altSeg ? [altSeg] : [])
     .concat(rsvSeg ? [rsvSeg] : [])
