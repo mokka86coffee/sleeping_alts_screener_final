@@ -365,3 +365,48 @@ def with_reaction(state: dict | None, highs: list[float], lows: list[float],
         if r:
             d["reaction"] = r
     return state
+
+# ── Модельное плечо как ЧАСТНЫЙ СЛУЧАЙ уровня ──
+# Решение пользователя (24.08): модельная карта ликвидаций не живёт
+# отдельной сущностью, она дополняет уровни. Причина в том, чего
+# модель не знает: скопление плеча не обещает похода к нему и
+# пробоя. Там может набирать позицию крупный участник — тогда
+# уровень не пробьют никогда; он же может снять заявки и добирать
+# ниже. Значит вес модели по определению мал, и держать её как
+# самостоятельный сигнал было бы ошибкой дважды.
+#
+# Зато СОВПАДЕНИЕ ценно: если структурный уровень (вершина или
+# опора с касаниями) и модельная плита стоят на одной цене — два
+# независимых способа указали одно место. Это и записывается.
+LIQ_CONFLUENCE_PCT = 1.5    # плита и уровень ближе этого — одно место
+
+
+def merge_liq(state: dict | None, zones: list[dict] | None) -> dict | None:
+    """Дописывает модельное плечо в состояние уровней.
+
+    В each стороне (above/below) появляется ключ "liq" — только
+    когда модельная плита совпала с уровнем по цене. Не совпавшие
+    плиты кладутся в state["liqOnly"] как СЛАБАЯ гипотеза, отдельно
+    и с меткой модели, чтобы их нельзя было спутать со структурой.
+    """
+    if not state or not zones:
+        return state
+    used: set[int] = set()
+    for key in ("above", "below"):
+        d = state.get(key)
+        if not d or not d.get("price"):
+            continue
+        for idx, z in enumerate(zones):
+            if idx in used or not z.get("price"):
+                continue
+            near = abs(z["price"] / d["price"] - 1) * 100 <= LIQ_CONFLUENCE_PCT
+            if near:
+                used.add(idx)
+                d["liq"] = {"side": z.get("side"), "weight": z.get("weight")}
+                d["note_liq"] = (f"на уровне стоит плечо {z.get('side')} "
+                                 f"(модель) — совпали структура и плечо")
+                break
+    rest = [z for i, z in enumerate(zones) if i not in used][:4]
+    if rest:
+        state["liqOnly"] = [dict(z, model=True) for z in rest]
+    return state

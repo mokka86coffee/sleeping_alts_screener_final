@@ -12,7 +12,8 @@ from analytics_indicators import (
 from analytics_intraday import big_trades as intraday_big
 from analytics_unlocks import for_symbol as unlocks_for
 from analytics_intraday import scan as intraday_scan
-from analytics_levels import nearby_levels, with_reaction
+from analytics_levels import merge_liq, nearby_levels, with_reaction
+from analytics_liqmap import liq_zones
 from core_binance import (
     K_CLOSE, K_HIGH, K_LOW, K_QUOTE_VOLUME, K_VOLUME, K_CLOSE_TIME, K_OPEN_TIME,
     get_funding_rate, get_oi_history, get_open_interest, get_spot_ticker,
@@ -521,9 +522,16 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
         # прямо сейчас. Считает analytics_levels теми же swing_*,
         # что уже дают стопы и цели стратегии, — второго поиска
         # уровней в проекте нет. Дневные ряды уже здесь, сети ноль.
-        "levels": with_reaction(
-            nearby_levels(highs_1d, lows_1d, price, atr_p or 0.0),
-            highs_1d, lows_1d, closes_1d),
+        # Уровни: структура (где) + реакция (защитили или сняли) +
+        # модельное плечо как их частный случай (почему там топливо).
+        # Порядок важен: модель дописывается ПОСЛЕДНЕЙ и только туда,
+        # где совпала со структурой.
+        "levels": merge_liq(
+            with_reaction(
+                nearby_levels(highs_1d, lows_1d, price, atr_p or 0.0),
+                highs_1d, lows_1d, closes_1d),
+            liq_zones(highs_1d, lows_1d, closes_1d, volumes_1d,
+                      price, atr_p or 0.0)),
         "days_from_low": days_from_low,
     }
 
