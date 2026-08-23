@@ -714,6 +714,16 @@ def run_once(args: argparse.Namespace) -> int:
             except Exception as e:
                 log(f"✗ Письмо: {type(e).__name__}: {e}")
 
+            # Та же сводка — в Телеграм (send_brief_telegram: тот же
+            # текст из brief.html, транспорт — Bot API). Без
+            # заполненного output/telegram_config.json — тихий
+            # пропуск; сбой прогона не роняет.
+            try:
+                from send_brief_telegram import send_after_run as tg
+                tg()
+            except Exception as e:
+                log(f"✗ Телеграм: {type(e).__name__}: {e}")
+
     log(f"\n✓ Прогон завершён за {duration:.0f}с · "
         f"{snapshot.counts['tradable']} монет к работе "
         f"из {len(candidates)} проанализированных"
