@@ -678,6 +678,16 @@ def run_once(args: argparse.Namespace) -> int:
     # ответа на вопрос, ради которого её открыли.
     log(f"→ Пульс: {record_pulse(candidates)}")
 
+    # Киты Hyperliquid (Т-1): срез позиций отслеживаемых адресов из
+    # ручного hl_whales.json → output/hl_state.json. Сеть здесь, на
+    # этапе прогона; analytics-слой дальше читает готовый файл.
+    # Пустой список адресов или сбой API — лог и пропуск.
+    try:
+        from sources_hyperliquid import collect_hyperliquid
+        log(f"→ Hyperliquid: {collect_hyperliquid(candidates)}")
+    except Exception as e:
+        log(f"→ Hyperliquid пропущен: {type(e).__name__}: {e}")
+
     # ── Отчёт ──
     published = False
     if not args.no_html:

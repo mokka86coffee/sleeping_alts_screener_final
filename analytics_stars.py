@@ -36,8 +36,10 @@ from analytics_flow import CASE_RU, case_key, case_of, flow_leader, flow_order
 from analytics_leaders import read_store
 from analytics_action import decide as decide_action
 from analytics_actionlog import log_actions
-from analytics_squeeze import squeeze_for, thin_float as squeeze_thin
+from analytics_squeeze import (absorption_for, squeeze_for,
+                               thin_float as squeeze_thin)
 from analytics_unlocks import unlock_shifts
+from analytics_hyperliquid import whale_bias
 from analytics_portfolio import closed_trade_symbols, open_trade_positions
 from analytics_exit import exit_watch
 from analytics_size import entry_plan, position_size
@@ -803,6 +805,29 @@ def build_stars(candidates: list[Candidate],
                     "binance smart chain", "bep20", "bep-20"):
                 sq["note"] += ", и это BNB Chain — профиль схемы"
         s["squeeze"] = sq
+
+        # Т-4: перегрев лонгов — топливо ПРОТИВ позиции. Строка идёт
+        # в exitWhy и только при открытой позиции книги: без позиции
+        # перегрев — чужая толпа, предупреждать не о чем.
+        if s.get("book") and sq.get("hot") and sq.get("hotNote"):
+            why = list(s.get("exitWhy") or [])
+            if sq["hotNote"] not in why:
+                why.append(sq["hotNote"])
+            s["exitWhy"] = why
+
+        # Т-3: поглощение у дна — поле знания рядом с зарядом; на
+        # экран не выводится до свода пометок карточки (Э-7), скор и
+        # отбор не трогаются.
+        ab = absorption_for(sym)
+        if ab.get("absorbed"):
+            s["absorb"] = ab
+
+        # Т-1: перекос отслеживаемых китов Hyperliquid по монете —
+        # чтение готового среза (сеть отработала шагом прогона).
+        # Контекст, не сигнал: в решения не входит; пусто — молчим.
+        hw = whale_bias(sym)
+        if hw:
+            s["hlWhales"] = hw
 
         s["entry"] = entry_plan(s, permission)
         # None, а не пустой словарь: звезда уходит в JSON зала как

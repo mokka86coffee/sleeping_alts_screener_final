@@ -1,4 +1,12 @@
-"""Заряд на сжим (техдолг «сжим на тонком флоате», С-2 и флаг С-1).
+"""Пульс-детекторы топлива: заряд, разряд, перегрев, поглощение.
+
+Файл начинался как детектор заряда (С-2) и вырос в дом для всех
+детекторов, читающих производные из пульса: заряд на сжим, разряд
+после него (С-4), перегрев лонгов (Т-4) и поглощение у дна (Т-3).
+Общее у них одно — ноль сетевых запросов: всё считается из уже
+записанных точек пульса.
+
+Заряд на сжим (техдолг «сжим на тонком флоате», С-2 и флаг С-1).
 
 Предвестник, а не след: отрицательный фандинг несколько баров подряд
 ПРИ растущей цене означает, что коротких больше, чем длинных, и они
@@ -121,6 +129,12 @@ def _bars_word(n: int) -> str:
     return "баров"
 
 
+def absorption_for(symbol: str) -> dict:
+    """Поглощение у дна для одной монеты по текущему пульсу."""
+    rows = _pulse().get(symbol)
+    return absorption_from_rows(rows if isinstance(rows, list) else [])
+
+
 def thin_float(unlock_state: dict | None) -> bool:
     """Флаг С-1: тонкий флоат при высоком FDV, из уже посчитанного."""
     u = unlock_state or {}
@@ -132,6 +146,115 @@ def thin_float(unlock_state: dict | None) -> bool:
         return False
 
 
+_PULSE_CACHE: dict = {"mtime": None, "data": {}}
+
+
+def _pulse() -> dict:
+    """Пульс с кешем на процесс: сборка звёзд зовёт детекторы на
+    каждую монету, и без кеша файл в мегабайты перечитывался бы
+    десятки раз за прогон. Ключ свежести — mtime файла."""
+    try:
+        mtime = PULSE_PATH.stat().st_mtime
+    except OSError:
+        return {}
+    if _PULSE_CACHE["mtime"] != mtime:
+        try:
+            with open(PULSE_PATH, encoding="utf-8") as f:
+                _PULSE_CACHE["data"] = json.load(f)
+            _PULSE_CACHE["mtime"] = mtime
+        except (OSError, ValueError):
+            return _PULSE_CACHE["data"] or {}
+    return _PULSE_CACHE["data"]
+
+
+# Порог перегрева лонгов (Т-4): фандинг в пульсе лежит в процентах,
+# ставка за период ≥ 0.03% считается экстремальной — толпа в лонге
+# платит заметные деньги за удержание, и это топливо ПРОТИВ позиции.
+HOT_FUNDING_PCT = 0.03
+HOT_BARS = 3
+
+
+def heat_from_rows(rows: list[dict],
+                   hot_bars: int = HOT_BARS,
+                   thresh: float = HOT_FUNDING_PCT) -> dict:
+    """Т-4: перегрев лонгов — фандинг у экстремума серию баров.
+
+    Симметрия заряда: заряд — шорты платят при росте, перегрев —
+    лонги платят экстремальную ставку. Смысл разный: заряд —
+    топливо ВВЕРХ и тёплая строка, перегрев — топливо ПРОТИВ
+    открытой позиции, и потребитель у него один — exitWhy (строку
+    дописывает второй проход звёзд, только при позиции книги).
+    """
+    out = {"hotRun": 0, "hot": False, "note": None}
+    run = 0
+    for r in reversed(rows):
+        f = r.get("funding")
+        if f is not None and f >= thresh:
+            run += 1
+        else:
+            break
+    out["hotRun"] = run
+    if run >= hot_bars:
+        out["hot"] = True
+        out["note"] = (f"фандинг перегрет: лонги платят "
+                       f"{run} {_bars_word(run)} подряд — "
+                       f"толпа на нашей стороне переполнена")
+    return out
+
+
+def absorption_from_rows(rows: list[dict],
+                         press_bars: int = 3,
+                         drop_pct: float = 5.0,
+                         near_pct: float = 6.0) -> dict:
+    """Т-3: поглощение у дна — самый надёжный сигнал дна по
+    методологии трейдеров: вынос лонгов (цена и OI падают), после
+    которого цена ДЕРЖИТСЯ при продолжающихся агрессивных продажах —
+    спрос стоит под ценой и молча забирает предложение.
+
+    Полного CVD у нас нет; приближение из пульса: (а) в окне был
+    вынос — падение цены ≥ drop_pct при снижении OI от пика к лою;
+    (б) после лоя прошло ≥ press_bars баров и нового минимума нет;
+    (в) на последних press_bars барах давление продавцов не слабее
+    покупателей (vi_m ≥ vi_p — без этих полей сигнала нет: держаться
+    без продаж умеет любой отскок); (г) цена ещё у дна (не дальше
+    near_pct от лоя). Скор и отбор не трогаются — поле знания.
+    """
+    out = {"absorbed": False, "lowAgoBars": None, "note": None}
+    if len(rows) < press_bars + 3:
+        return out
+    px = [r.get("price") for r in rows]
+    if any(not v for v in px):
+        return out
+    ilow = min(range(len(px)), key=lambda i: px[i])
+    ago = len(px) - 1 - ilow
+    out["lowAgoBars"] = ago
+    if ago < press_bars:
+        return out
+    peak_before = max(px[:ilow + 1])
+    if not peak_before or (1 - px[ilow] / peak_before) * 100 < drop_pct:
+        return out
+    ois = [r.get("oi_usd") for r in rows[:ilow + 1]]
+    ois = [v for v in ois if v]
+    if len(ois) >= 2 and ois[-1] >= max(ois):
+        return out                      # OI не сдувался — выноса не было
+    tail = rows[-press_bars:]
+    vm = [r.get("vi_m") for r in tail]
+    vp = [r.get("vi_p") for r in tail]
+    if any(v is None for v in vm) or any(v is None for v in vp):
+        return out
+    if sum(vm) < sum(vp):
+        return out                      # продавцы не давят — не абсорбция
+    if min(px[ilow + 1:]) < px[ilow]:
+        return out                      # новый минимум — дно не держится
+    if px[-1] > px[ilow] * (1 + near_pct / 100):
+        return out                      # цена уже уехала — не «у дна»
+    out["absorbed"] = True
+    out["note"] = (f"поглощение у дна: продавцы давят "
+                   f"{press_bars} {_bars_word(press_bars)}, а нового "
+                   f"минимума нет — спрос стоит под ценой")
+    return out
+
+
 def squeeze_for(symbol: str, unlock_state: dict | None = None) -> dict:
     """Заряд для одной монеты по текущему пульсу.
 
@@ -139,16 +262,22 @@ def squeeze_for(symbol: str, unlock_state: dict | None = None) -> dict:
     файл, а не поле звезды. При недоступном пульсе — пустой заряд,
     сборка не падает.
     """
-    try:
-        with open(PULSE_PATH, encoding="utf-8") as f:
-            pulse = json.load(f)
-    except (OSError, ValueError):
+    pulse = _pulse()
+    if not pulse:
         return {"negRun": 0, "pxChg": None, "charged": False,
-                "note": None, "thin": thin_float(unlock_state)}
+                "note": None, "capped": False, "hotRun": 0,
+                "hot": False, "hotNote": None,
+                "thin": thin_float(unlock_state)}
     rows = pulse.get(symbol)
     # В пульсе рядом с монетами живут служебные ключи (не-списки);
     # заряд считается только по настоящему ряду.
-    out = charge_from_rows(rows if isinstance(rows, list) else [])
+    rows = rows if isinstance(rows, list) else []
+    out = charge_from_rows(rows)
+    # Т-4 едет тем же полем звезды: перегрев — та же шкала фандинга,
+    # что и заряд, только другой конец; потребитель — exitWhy.
+    heat = heat_from_rows(rows)
+    out["hotRun"], out["hot"] = heat["hotRun"], heat["hot"]
+    out["hotNote"] = heat["note"]
     # thin считается из переданного состояния, если оно есть; звёзды
     # передают его вторым проходом (см. analytics_stars) — там
     # floatPct/fdvRatio уже разложены, и хвост «флоат тонкий — сжиму
