@@ -46,12 +46,17 @@ DropsTab свой коммерческий API, а страницы собира
 
 from __future__ import annotations
 
+import datetime as _dt
+
 import json
 from datetime import date, datetime, timezone
 from pathlib import Path
 
 # Файл лежит рядом с модулем: правится руками, ходит вместе с кодом.
 UNLOCKS_PATH = Path(__file__).resolve().parent / "unlocks.json"
+# С-3: состояние «какую ближайшую дату мы уже видели» и история сдвигов.
+# Машинный файл — живёт в output/ рядом с журналом предположений.
+SHIFTS_PATH = Path(__file__).resolve().parent / "output" / "unlocks_seen.json"
 
 # Кэш на время процесса с проверкой времени правки. Планировщик крутит
 # прогоны в одном процессе, и закешированное навсегда расписание
@@ -86,6 +91,71 @@ def _days_until(iso: str, today: date | None = None) -> int | None:
     return (when - now).days
 
 
+def unlock_shifts(persist: bool = False) -> dict:
+    """С-3: сдвиги расписания разлоков — признак организатора.
+
+    Сравнивает ближайшую будущую дату каждой монеты с той, что была
+    ВИДЕНА прошлыми прогонами, и ведёт историю сдвигов. Механизм не
+    зависит от того, КТО поменял файл — рука или fill_unlocks: здесь
+    сравнивается прочитанное с виденным. Сдвиг ВПЕРЁД (days > 0) —
+    единственный доступный нам признак того, что за движением стоит
+    организатор: рынок расписание менять не может.
+
+    persist — тот же урок, что у журнала предположений: состояние
+    пишет только БОЕВАЯ сборка, иначе первая из двух сборок прогона
+    «съедала» бы сдвиг до показа. При persist=False сравнение то же,
+    просто ничего не сохраняется.
+
+    Возвращает {symbol: последний сдвиг} — {"at", "from", "to",
+    "days"}; days считается to − from в днях.
+    """
+    data = _load() or {}
+    try:
+        seen_doc = json.loads(SHIFTS_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        seen_doc = {}
+    seen = dict(seen_doc.get("seen") or {})
+    hist = {k: list(v) for k, v in (seen_doc.get("history") or {}).items()}
+
+    today = _dt.date.today()
+    cur: dict[str, str] = {}
+    for sym, rec in data.items():
+        best: str | None = None
+        for e in (rec or {}).get("events") or []:
+            d = str(e.get("date") or "")[:10]
+            try:
+                if _dt.date.fromisoformat(d) < today:
+                    continue
+            except ValueError:
+                continue
+            if best is None or d < best:
+                best = d
+        if best is None:
+            continue
+        cur[sym] = best
+        old_seen = seen.get(sym)
+        if old_seen and old_seen != best:
+            try:
+                days = (_dt.date.fromisoformat(best) -
+                        _dt.date.fromisoformat(old_seen)).days
+            except ValueError:
+                days = 0
+            hist.setdefault(sym, []).append({
+                "at": today.isoformat(), "from": old_seen,
+                "to": best, "days": days})
+
+    if persist:
+        try:
+            SHIFTS_PATH.parent.mkdir(parents=True, exist_ok=True)
+            SHIFTS_PATH.write_text(json.dumps(
+                {"seen": {**seen, **cur}, "history": hist},
+                ensure_ascii=False, indent=1), encoding="utf-8")
+        except OSError:
+            pass  # история — материал, не работа: прогон не роняем
+
+    return {sym: shifts[-1] for sym, shifts in hist.items() if shifts}
+
+
 def for_symbol(symbol: str, quote_volume_24h: float = 0.0,
                today: date | None = None) -> dict:
     """Ближайший разлок и постоянные величины монеты.
@@ -102,9 +172,18 @@ def for_symbol(symbol: str, quote_volume_24h: float = 0.0,
 
     out: dict = {}
     for key in ("circ_pct", "fdv_ratio", "insiders_now", "insiders_final",
-                "events_done", "events_total"):
+                "events_done", "events_total", "chain"):
         if rec.get(key) is not None:
             out[key] = rec[key]
+    # С-7: возраст листинга. Дату кладёт рука или fill_unlocks — здесь
+    # только счёт дней: у свежих монет up_from_low и atr считаются от
+    # несуществующего дна, и потребителю нужно число, а не дата.
+    if rec.get("listed_at"):
+        try:
+            listed = _dt.date.fromisoformat(str(rec["listed_at"])[:10])
+            out["listed_days"] = ((_dt.date.today()) - listed).days
+        except (ValueError, TypeError):
+            pass
     if rec.get("inferred"):
         # Часть расписаний DefiLlama выводит из графика источника, а не из
         # документов проекта. Такие числа на экране обязаны отличаться от

@@ -36,6 +36,8 @@ from analytics_flow import CASE_RU, case_key, case_of, flow_leader, flow_order
 from analytics_leaders import read_store
 from analytics_action import decide as decide_action
 from analytics_actionlog import log_actions
+from analytics_squeeze import squeeze_for, thin_float as squeeze_thin
+from analytics_unlocks import unlock_shifts
 from analytics_portfolio import closed_trade_symbols, open_trade_positions
 from analytics_exit import exit_watch
 from analytics_size import entry_plan, position_size
@@ -139,6 +141,9 @@ def _star_unlocks(raw: dict) -> dict:
         ("unlockInsShare", "next_insider_share"),
         ("floatPct", "circ_pct"), ("fdvRatio", "fdv_ratio"),
         ("insNow", "insiders_now"), ("insGrow", "insiders_grow"),
+        # С-9 и С-7: сеть контракта и возраст листинга — постоянные
+        # поля unlocks.json, добываются рукой или fill_unlocks.
+        ("chain", "chain"), ("listingDays", "listed_days"),
     )
     for star_key, src_key in pairs:
         if u.get(src_key) is not None:
@@ -525,6 +530,9 @@ def build_stars(candidates: list[Candidate],
     # Состав ТОРГОВОЙ книги — из журнала предположений. Без цен: для
     # группы нужен только состав позиций.
     book = open_trade_positions()
+    # С-3: сдвиги расписания разлоков. Состояние «что видели» пишет
+    # только боевая сборка — тот же урок, что у журнала предположений.
+    shifts = unlock_shifts(persist=write_log)
     # Закрытые книгой — для события «возврат после выхода» (Р-30):
     # без этого знания вышедшая монета неотличима от просто стоящей
     # в журнале, и правило не вошло бы в неё уже никогда.
@@ -705,6 +713,14 @@ def build_stars(candidates: list[Candidate],
             **star_oi(c),
             **star_late(c),
             **star_pulse(sym),
+            # Заряд на сжим (техдолг С-2): предвестник из пульса —
+            # отрицательный фандинг серию баров при растущей цене.
+            # Флаг тонкого флоата (С-1) детектор читает из этой же
+            # звезды ниже, когда floatPct/fdvRatio уже разложены, —
+            # поэтому здесь заряд без флага, а флаг добавляется
+            # вторым проходом после сборки словаря. Скор и отбор не
+            # трогаются: это строка знания, не вето.
+            "squeeze": squeeze_for(sym),
             **star_cycle(rec.get("max_up_x"), rec.get("up_x")),
             **star_divergence(c),
             # Место в текущем прогоне. У монеты журнала, выпавшей из
@@ -770,11 +786,34 @@ def build_stars(candidates: list[Candidate],
             s["demand"] = dem
             s["demandNote"] = demand_phrase(dem)
 
+        # Флаг тонкого флоата (С-1) — вторым проходом: floatPct и
+        # fdvRatio к этому моменту уже разложены в звезду, и thin
+        # читает их прямо из неё. Сочетание с зарядом дописывает
+        # хвост строки — «сжиму есть где разогнаться».
+        sq = s.get("squeeze") or {}
+        sq["thin"] = squeeze_thin(s)
+        if sq.get("charged") and sq["thin"] and sq.get("note"):
+            sq["note"] += "; флоат тонкий — сжиму есть где разогнаться"
+            # С-9: та же сеть, что у MYX, SIREN, ARIA (Odaily: общее у
+            # манипулированных — низкий флоат на Binance и BNB Chain).
+            # Хвост только ПРИ тонком флоате: сеть сама по себе — общая
+            # инфраструктура, а не вина монеты.
+            if str(s.get("chain") or "").lower() in (
+                    "bsc", "bnb", "bnb chain", "opbnb",
+                    "binance smart chain", "bep20", "bep-20"):
+                sq["note"] += ", и это BNB Chain — профиль схемы"
+        s["squeeze"] = sq
+
         s["entry"] = entry_plan(s, permission)
         # None, а не пустой словарь: звезда уходит в JSON зала как
         # есть, а {} в JS истинен — зал посчитал бы монету взятой и
         # положил в «в работе» весь журнал при пустой книге.
         s["book"] = book.get(s["t"] + "USDT") or None
+        # С-3: последний сдвиг расписания. days > 0 — дату отодвинули:
+        # признак организатора за движением, рынок так не умеет.
+        sh = shifts.get(s["t"] + "USDT")
+        if sh:
+            s["unlockShift"] = sh
         s["wasClosed"] = (s["t"] + "USDT") in closed
         s["act"] = decide_action(s, permission, bool(s["book"]))
 
