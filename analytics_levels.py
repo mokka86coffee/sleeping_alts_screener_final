@@ -204,3 +204,164 @@ def build_targets(
 
     source = "projection" if not levels else "capped"
     return projected, source
+
+# ── Уровни как ЗНАНИЕ, а не как цели сделки ──
+# Всё выше отвечает на вопрос «куда ставить стоп и цель». Ниже —
+# на другой: «что стоит над головой прямо сейчас».
+#
+# Живой урок (GPS, 17 августа): монета дважды всплескивала и гасла
+# на одних отметках; третий всплеск подошёл к той же зоне — там его
+# и встретили. Уровень был нарисован прошлыми всплесками заранее.
+# Тот же уровень виден на карте ликвидаций как плита застрявших
+# лонгов: два независимых способа дают одно число, но карта у нас
+# закрыта тарифом, а дневные свечи уже в кэше прогона.
+#
+# Расстояние меряется в ATR — общей единице проекта (в ней же живут
+# усилие-против-результата и буфер стопа): проценты несравнимы между
+# спокойной монетой и дёрганой, ATR сравним.
+NEAR_ATR = 1.5          # «цена у уровня»
+NEARBY_LOOKBACK = 180   # та же глубина, что у сопротивлений
+
+
+def nearby_levels(highs: list[float], lows: list[float], price: float,
+                  atr_pct: float = 0.0,
+                  lookback: int = NEARBY_LOOKBACK) -> dict | None:
+    """Ближайший уровень сверху и снизу с расстоянием в ATR.
+
+    Возврат: {"above"?, "below"?, "near"?, "note"?} либо None.
+    Каждая сторона — {price, touches, pct, atr?}. Поля near и note
+    появляются, только когда расстояние ИЗМЕРЕНО в ATR: без ATR
+    близость неизвестна, и выдумывать её нельзя.
+
+    Переиспользует swing_* и cluster_levels модуля — отдельного
+    поиска уровней в проекте быть не должно.
+    """
+    if price <= 0 or not highs or not lows:
+        return None
+
+    hw = highs[-lookback:] if len(highs) > lookback else highs
+    lw = lows[-lookback:] if len(lows) > lookback else lows
+    peaks = [hw[i] for i in swing_highs(hw, lookback=3)]
+    troughs = [lw[i] for i in swing_lows(lw, lookback=3)]
+    if not peaks and not troughs:
+        return None
+
+    # Пробитая вершина работает опорой, а отданная опора — потолком,
+    # поэтому стороны выбираются по ЦЕНЕ, а не по происхождению точки.
+    marks = cluster_levels([p for p in peaks + troughs if p > 0])
+    above = [m for m in marks if m["price"] > price]
+    below = [m for m in marks if m["price"] < price]
+
+    def _pack(m: dict) -> dict:
+        pct = (m["price"] / price - 1) * 100
+        d = {"price": m["price"], "touches": m["touches"], "pct": round(pct, 2)}
+        if atr_pct and atr_pct > 0:
+            d["atr"] = round(abs(pct) / atr_pct, 2)
+        return d
+
+    out: dict = {}
+    if above:
+        out["above"] = _pack(min(above, key=lambda m: m["price"]))
+    if below:
+        out["below"] = _pack(max(below, key=lambda m: m["price"]))
+    if not out:
+        return None
+
+    near_key = None
+    for key in ("above", "below"):
+        d = out.get(key) or {}
+        if d.get("atr") is not None and d["atr"] <= NEAR_ATR:
+            if near_key is None or d["atr"] < out[near_key]["atr"]:
+                near_key = key
+    if near_key:
+        d = out[near_key]
+        side = "сверху" if near_key == "above" else "снизу"
+        touch = (f"касаний {d['touches']}" if d["touches"] > 1
+                 else "одно касание")
+        tail = (" — там гасли прошлые ходы"
+                if near_key == "above" and d["touches"] > 1 else "")
+        out["near"] = side
+        out["note"] = (f"уровень {side} на {d['pct']:+.1f}% "
+                       f"({d['atr']:.1f} ATR, {touch}){tail}")
+    return out
+
+# ── Реакция от уровня ──
+# Метод, повторённый трейдером дважды (GPS 17.08, ACE 15.08), звучит
+# так: «жду уровней и РЕАКЦИИ от них». Уровень отвечает ГДЕ, реакция
+# — КОГДА, и без второй половины первая только место на графике.
+#
+# Реакция читается по хвостам дневных баров, а не по факту касания:
+# бар сходил к уровню и вернулся — отбой; закрылся за ним дважды —
+# приняли, уровень сменил сторону. Ровно та же логика, по которой
+# бот ждёт белый пузырь у границы коридора, а не входит по касанию.
+REACT_BARS = 5          # сколько последних дней смотрим
+REACT_TOUCH_PCT = 1.5   # «сходил к уровню» — ближе этого
+REACT_HOLD_BARS = 2     # столько закрытий за уровнем = приняли
+
+
+def level_reaction(highs: list[float], lows: list[float],
+                   closes: list[float], level: float,
+                   side: str, bars: int = REACT_BARS) -> dict | None:
+    """Что цена сделала у уровня за последние дни.
+
+    side: "above" — уровень над ценой (потолок), "below" — под (опора).
+    Возврат: {"kind": "отбой"|"приняли", "bars_ago", "note"} или None,
+    когда цена к уровню не подходила — молчание честнее выдумки.
+    """
+    if level <= 0 or not closes:
+        return None
+    n = min(len(highs), len(lows), len(closes))
+    if n < 2:
+        return None
+    h, lo, c = highs[-bars:], lows[-bars:], closes[-bars:]
+    tol = level * REACT_TOUCH_PCT / 100
+
+    beyond = 0
+    for i in range(len(c)):
+        if side == "above":
+            if c[i] > level:
+                beyond += 1
+            else:
+                beyond = 0
+        else:
+            if c[i] < level:
+                beyond += 1
+            else:
+                beyond = 0
+        if beyond >= REACT_HOLD_BARS:
+            word = "пробит вверх" if side == "above" else "пробит вниз"
+            return {"kind": "приняли", "bars_ago": len(c) - 1 - i,
+                    "note": f"уровень {word} и удержан {beyond} дня — "
+                            f"он больше не преграда, а опора с другой стороны"}
+
+    # Отбой ищем от свежего к старому: важна последняя реакция.
+    for i in range(len(c) - 1, -1, -1):
+        if side == "above":
+            touched = h[i] >= level - tol
+            rejected = touched and c[i] < level
+        else:
+            touched = lo[i] <= level + tol
+            rejected = touched and c[i] > level
+        if rejected:
+            ago = len(c) - 1 - i
+            when = "сегодня" if ago == 0 else f"{ago} дн назад"
+            where = "сверху" if side == "above" else "снизу"
+            return {"kind": "отбой", "bars_ago": ago,
+                    "note": f"реакция от уровня {where} ({when}): "
+                            f"сходили и вернулись — уровень держит"}
+    return None
+
+
+def with_reaction(state: dict | None, highs: list[float], lows: list[float],
+                  closes: list[float]) -> dict | None:
+    """Дописывает реакцию в обе стороны готового состояния уровней."""
+    if not state:
+        return state
+    for key in ("above", "below"):
+        d = state.get(key)
+        if not d:
+            continue
+        r = level_reaction(highs, lows, closes, d.get("price") or 0, key)
+        if r:
+            d["reaction"] = r
+    return state

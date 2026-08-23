@@ -856,6 +856,10 @@ def build_stars(candidates: list[Candidate],
         ef = effort_state(c.raw or {}, c.flow)
         if ef:
             s["effort"] = ef
+        # Уровни: ближайший потолок и опора в ATR. Считаны метриками.
+        lv = (c.raw or {}).get("levels")
+        if lv:
+            s["levels"] = lv
 
         s["entry"] = entry_plan(s, permission)
         # None, а не пустой словарь: звезда уходит в JSON зала как
