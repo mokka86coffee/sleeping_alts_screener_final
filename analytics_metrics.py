@@ -434,11 +434,24 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
     # ── Спот против фьючерса ──
     spot = get_spot_ticker(symbol)
     spot_vol = 0.0
+    spot_last = 0.0
     if spot:
         try:
             spot_vol = float(spot.get("quoteVolume", 0))
         except (TypeError, ValueError):
             spot_vol = 0.0
+        try:
+            spot_last = float(spot.get("lastPrice", 0))
+        except (TypeError, ValueError):
+            spot_last = 0.0
+
+    # Базис перп−спот (перенос из методик Hyperliquid-стратегий):
+    # перп выше спота — рынок переполнен лонгами, ниже — паника.
+    # Дополняет фандинг: тот говорит, КТО платит, базис — НАСКОЛЬКО
+    # разъехались цены. Берётся из уже сделанного запроса тикера,
+    # ноль сетевой цены. Нет спот-пары — поля нет (None), не ноль.
+    basis_pct = (round((price / spot_last - 1) * 100, 3)
+                 if spot_last > 0 and price > 0 else None)
 
     fut_vol = quote_volume_24h
     if fut_vol <= 0 and quote_1d:
@@ -477,6 +490,7 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
         # context.oi_hist, единая формула на проект (см. Ч-1).
         # Отдельного поля здесь больше нет: было мёртвым дублем.
         "spot_ratio": spot_ratio,
+        "basis_pct": basis_pct,
         "spot_vol": spot_vol,
         "fut_vol": fut_vol,
         "history_days": len(closes_1d),

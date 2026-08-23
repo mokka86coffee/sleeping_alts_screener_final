@@ -33,10 +33,12 @@ from core_models import Candidate
 from analytics_calendar import calendar_state
 from analytics_demand import for_symbol as demand_for, phrase as demand_phrase
 from analytics_flow import CASE_RU, case_key, case_of, flow_leader, flow_order
-from analytics_leaders import read_store
+from analytics_coinglass import liq_bias
+from analytics_leaders import journal_expectancy, read_store
+from analytics_pulse import for_symbol as pulse_deltas
 from analytics_action import decide as decide_action
 from analytics_actionlog import log_actions
-from analytics_squeeze import (absorption_for, squeeze_for,
+from analytics_squeeze import (absorption_for, effort_state, squeeze_for,
                                thin_float as squeeze_thin)
 from analytics_unlocks import unlock_shifts
 from analytics_hyperliquid import whale_bias
@@ -828,6 +830,32 @@ def build_stars(candidates: list[Candidate],
         hw = whale_bias(sym)
         if hw:
             s["hlWhales"] = hw
+
+        # К-переносы из оценки трейдеров (24.08). Три поля знания,
+        # показ ждёт Э-7, скор и отбор не трогаются:
+        # согласованность трёх окон пульса (6ч/24ч/неделя — верить
+        # монете, чей ход совпал на всех), корзина сработавших
+        # подкейсов FLOW (сколько согласны, а не только победитель)
+        # и ожидание по журналу (средний ход вверх против среднего
+        # отката — поведенческая метрика вместо частоты попаданий).
+        al = (pulse_deltas(sym) or {}).get("aligned")
+        if al:
+            s["aligned"] = al
+        fired = len(((c.flow or {}).get("cases")) or {})
+        if fired > 1:
+            s["flowFired"] = fired
+        je = journal_expectancy(sym)
+        if je:
+            s["journalExp"] = je
+        # Coinglass: живые суммы ликвидаций за сутки — реактивное
+        # подтверждение стороны каскада. Контекст, показ ждёт Э-7.
+        lq = liq_bias(sym)
+        if lq:
+            s["liq24h"] = lq
+        # Т-6: усилие против результата — из готовых полей, без сети.
+        ef = effort_state(c.raw or {}, c.flow)
+        if ef:
+            s["effort"] = ef
 
         s["entry"] = entry_plan(s, permission)
         # None, а не пустой словарь: звезда уходит в JSON зала как

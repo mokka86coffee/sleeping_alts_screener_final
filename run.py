@@ -694,6 +694,15 @@ def run_once(args: argparse.Namespace) -> int:
     except Exception as e:
         log(f"→ Hyperliquid пропущен: {type(e).__name__}: {e}")
 
+    # Coinglass (Т-5): ликвидации по монетам журнала + BTC →
+    # output/coinglass_state.json. Ключ в output/coinglass_config.json
+    # (вне git); без ключа — тихий пропуск, как почта без конфига.
+    try:
+        from sources_coinglass import collect as collect_coinglass
+        log(f"→ Coinglass: {collect_coinglass()}")
+    except Exception as e:
+        log(f"→ Coinglass пропущен: {type(e).__name__}: {e}")
+
     # ── Отчёт ──
     published = False
     if not args.no_html:

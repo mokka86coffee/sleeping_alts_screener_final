@@ -438,6 +438,55 @@ def read_store(path: Path) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def journal_expectancy(symbol: str,
+                       path: Path = LEADERS_PATH,
+                       archive_path: Path = LEADERS_ARCHIVE_PATH) -> dict | None:
+    """Ожидание монеты по эпизодам журнала: средний ход вверх против
+    среднего отката, а не частота попаданий.
+
+    Перенос из оценки трейдеров (DropsTab по Hyperliquid): кошелёк
+    может выигрывать в 57% сделок и терять деньги, если средний
+    убыток больше среднего выигрыша. Реактивные метрики (частота,
+    попадания) подтверждают результат; поведенческие (ожидание)
+    говорят, повторится ли он. Живой пример из нашего журнала:
+    ALPINE попадала в 97% прогонов — и в минусе.
+
+    Эпизод = запись журнала (живая или архивная): max_change_pct =
+    сколько монета дала вверх после попадания, min_change_pct =
+    сколько откатила. Возврат: {"avgUp", "avgDown", "expPct", "n"}
+    или None, когда эпизодов нет. В решения не входит; показ — Э-7.
+    """
+    ups: list[float] = []
+    downs: list[float] = []
+
+    def _eat(rec: dict) -> None:
+        try:
+            ups.append(float(rec.get("max_change_pct") or 0.0))
+            downs.append(abs(float(rec.get("min_change_pct") or 0.0)))
+        except (TypeError, ValueError):
+            pass
+
+    recs, _meta = _load(path)
+    rec = recs.get(symbol)
+    if isinstance(rec, dict):
+        _eat(rec)
+    if archive_path.exists():
+        # Архивные строки плоские: {"symbol", "archived_at", **запись}.
+        for line in archive_path.read_text(encoding="utf-8").splitlines():
+            try:
+                entry = json.loads(line)
+            except ValueError:
+                continue
+            if entry.get("symbol") == symbol:
+                _eat(entry)
+    if not ups:
+        return None
+    avg_up = sum(ups) / len(ups)
+    avg_dn = sum(downs) / len(downs) if downs else 0.0
+    return {"avgUp": round(avg_up, 2), "avgDown": round(avg_dn, 2),
+            "expPct": round(avg_up - avg_dn, 2), "n": len(ups)}
+
+
 def journal_summary(path: Path = LEADERS_PATH) -> dict:
     """Итог журнала целиком — для хвоста сводки.
 

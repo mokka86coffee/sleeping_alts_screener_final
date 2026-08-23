@@ -72,6 +72,21 @@ NEAR_LOW_PCT = 25.0       # «у нижней границы» — нижняя 
 # комиссии тейкера съели бы ~0.2% из этих 2% — у нас виртуал без
 # комиссий, при переносе в реал это первый вопрос.
 PARTIAL_PCT = 2.0        # этап 2: частичное закрытие половины
+
+# Т-5 · риск-сайзинг (школа фандед-трейдеров / Ван Тарп): постоянен
+# РИСК на сделку, а не размер. size = RISK_USD / (доля пути до стопа);
+# узкий коридор → позиция больше, широкий → меньше, статистика сделок
+# становится сравнимой. Капы держат размер в разумном коридоре.
+RISK_USD = 0.50          # риск на сделку в долларах (≈ прежние $5 при стопе 10%)
+SIZE_MIN_USD = 2.0       # не мельчить
+SIZE_MAX_USD = 10.0      # и не раздувать на узких коридорах
+
+# Т-5 · буфер стопа за низом коридора. Два независимых источника:
+# спека FLOW («флэт завершается обманным проколом вниз, прокол фигуру
+# не отменяет» — первый кандидат калибровки) и практика ликвидационных
+# карт («не ставь стоп прямо в кластер — его снимут викой»). Стоп
+# уходит на процент ПОД границу; прокол на полпроцента больше не выбивает.
+STOP_BUF_PCT = 1.0
 DCA_DROP_PCT = 4.0       # добор на столько ниже входа
 # Размеры микроскопические сознательно: сейчас важны ПРОГОНЫ и
 # калибровка порогов, а не судьба виртуального счёта. Полная позиция
@@ -374,9 +389,9 @@ def step() -> None:
                 "note": "добор на просадке"})
             _log(f"{sym} ДОБОР @ {price:.6g} (просадка {pnl_pct:+.1f}%)")
             continue
-        elif low and price < low and not p.get("partial"):
-            exit_reason = "стоп: пробой вниз"
-        elif low and price < low:
+        elif low and price < p.get("stopLine", low) and not p.get("partial"):
+            exit_reason = "стоп: пробой вниз (за буфером)"
+        elif low and price < p.get("stopLine", low):
             exit_reason = "низ коридора при остатке"
 
         if exit_reason:
@@ -389,12 +404,14 @@ def step() -> None:
                 "at": _now(), "sym": sym, "case": case, "ev": "exit",
                 "price": price, "pnlUsd": round(pnl_usd, 2),
                 "note": exit_reason})
+            risk0 = p.get("initialRisk") or 0
             append_trade({
                 "sym": sym, "case": case, "opened": p["opened"],
                 "closed": _now(), "entry": avg_entry, "exit": price,
                 "invested": invested,
                 "pnlUsd": round(pnl_usd, 2),
                 "pnlPct": round(pnl_usd / invested * 100, 2),
+                "r": round(pnl_usd / risk0, 2) if risk0 > 0 else None,
                 "dca": p["dca"], "partial": bool(p.get("partial")),
                 "hedged": p.get("hadHedge", False),
                 "reason": exit_reason,
@@ -429,13 +446,21 @@ def step() -> None:
         # кто-то крупно откупает у дна (семантика спеки)
         big_white = last_delta > 0 and last_delta >= avg * BUBBLE_K
         if near_low and big_white:
-            qty = POS_USD / price
+            stop_line = low * (1 - STOP_BUF_PCT / 100)
+            stop_frac = (price - stop_line) / price
+            if stop_frac <= 0:
+                continue
+            size_usd = max(SIZE_MIN_USD,
+                           min(SIZE_MAX_USD, RISK_USD / stop_frac))
+            qty = size_usd / price
             case = c.get("case", c.get("reason", "?"))
             pos[sym] = {
                 "opened": _now(), "entry": price, "qty": qty,
-                "cost": POS_USD, "invested": POS_USD, "dca": False,
+                "cost": size_usd, "invested": size_usd, "dca": False,
                 "partial": False, "be": None, "hedge": None,
                 "realized": 0.0, "hadHedge": False,
+                "stopLine": stop_line,
+                "initialRisk": round(size_usd * stop_frac, 4),
                 "case": case, "low": low, "high": high,
             }
             append_event({
@@ -443,7 +468,9 @@ def step() -> None:
                 "price": price,
                 "note": f"белый ×{last_delta/avg:.1f} у дна коридора"})
             _log(f"{sym} ВХОД LONG @ {price:.6g} [{case}] · белый "
-                 f"пузырь (покупки ×{last_delta/avg:.1f}) у дна коридора")
+                 f"пузырь (покупки ×{last_delta/avg:.1f}) у дна · "
+                 f"размер ${size_usd:.2f} (риск ${size_usd*stop_frac:.2f} "
+                 f"до стопа {stop_line:.6g})")
 
     save_state(st)
 
@@ -544,6 +571,28 @@ def report() -> str:
         by_reason[t["reason"]] = by_reason.get(t["reason"], 0) + 1
     lines.append("выходы: " + ", ".join(f"{k} ×{v}"
                  for k, v in sorted(by_reason.items(), key=lambda x: -x[1])))
+    # Т-5 · метрики профи: ожидание в единицах риска и просадка.
+    # Expectancy = сколько R приносит средняя сделка; положительное
+    # ожидание при любом винрейте — единственная цель калибровки.
+    rs = [t["r"] for t in trades if t.get("r") is not None]
+    if rs:
+        win_r = [r for r in rs if r > 0]
+        loss_r = [r for r in rs if r <= 0]
+        exp_r = sum(rs) / len(rs)
+        lines.append(
+            f"ожидание: {exp_r:+.2f}R на сделку "
+            f"(средний плюс {sum(win_r)/len(win_r):+.2f}R, "
+            f"средний минус {sum(loss_r)/len(loss_r):+.2f}R)"
+            if win_r and loss_r else
+            f"ожидание: {exp_r:+.2f}R на сделку")
+    # просадка кривой накопления по порядку закрытий
+    eq = peak = dd = 0.0
+    for t in trades:
+        eq += t["pnlUsd"]
+        peak = max(peak, eq)
+        dd = max(dd, peak - eq)
+    lines.append(f"макс. просадка накопителя: ${dd:.2f}")
+
     # разрез по кейсам FLOW — на каких фигурах вход работает
     by_case: dict[str, list] = {}
     for t in trades:

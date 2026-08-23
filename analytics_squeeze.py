@@ -285,3 +285,79 @@ def squeeze_for(symbol: str, unlock_state: dict | None = None) -> dict:
     # есть где разогнаться» дописывается именно там, один раз.
     out["thin"] = thin_float(unlock_state)
     return out
+
+# ── Т-6 · усилие против результата (школа потока ордеров) ──
+# Профессионалы меряют не объём и не ход, а их ОТНОШЕНИЕ. Много
+# усилия без результата — поглощение: кто-то держит уровень
+# лимитками. Результат при иссякшем усилии — истощение. Это ответ
+# на «rel_vol=10 у половины выборки ничего не различает»: rel_vol
+# меряет только усилие; делённый на ход в ATR, он различает GPS
+# (усилие ×10, ход +119% — отработало, ждать нечего) и BLESS
+# (усилие есть, хода нет — льют и поглощают).
+#
+# Пороги — первая калибровка на глаз, ждут Р-9 как все.
+EFFORT_MIN_RVOL = 4.0       # «усилие есть»: объём ×4 к своей норме
+EFFORT_FLAT_ATR = 0.6       # «результата нет»: ход ≤ 0.6 дневного ATR
+EFFORT_SPENT_ATR = 3.0      # «усилие отработало»: ход ≥ 3 ATR
+EXHAUST_MIN_UP = 60.0       # истощение только НАВЕРХУ: ≥60% от дна окна
+EXHAUST_MAX_RVOL = 1.2      # объём уже не приходит
+
+
+def effort_state(raw: dict, flow: dict | None = None) -> dict | None:
+    """Состояние «усилие против результата» из готовых полей.
+
+    Ничего сетевого: rel_vol, atr_pct, ch_24h, up_from_low уже в
+    метриках, delta_slope — в контексте FLOW, когда семейство
+    отработало. Возврат None — состояния нет (обычный рынок), иначе
+    {"ratio", "state", "note"} и опционально "divergence".
+
+    Состояния взаимоисключающие; дивергенция дельты — независимый
+    флаг поверх: цена наверху, а наклон накопленной дельты
+    отрицательный — покупатели выдыхаются (признак GPS, которым
+    никто не пользовался, теперь записан).
+    """
+    try:
+        rel = float(raw.get("rel_vol") or 0.0)
+        atr = float(raw.get("atr_pct") or 0.0)
+        ch = float(raw.get("ch_24h") or 0.0)
+        up = float(raw.get("up_from_low") or 0.0)
+    except (TypeError, ValueError):
+        return None
+    if atr <= 0:
+        return None
+
+    result_atr = abs(ch) / atr
+    ratio = round(rel / max(result_atr, 0.25), 1)
+
+    state = note = None
+    if rel >= EFFORT_MIN_RVOL and result_atr <= EFFORT_FLAT_ATR:
+        state = "absorbing"
+        note = (f"объём ×{rel:.1f} при ходе {result_atr:.1f} ATR — "
+                f"льют и поглощают, уровень держат")
+    elif rel >= EFFORT_MIN_RVOL and result_atr >= EFFORT_SPENT_ATR:
+        state = "spent"
+        note = (f"усилие ×{rel:.1f} отработало ходом {result_atr:.1f} ATR — "
+                f"продолжения ждать не от чего")
+    elif up >= EXHAUST_MIN_UP and rel <= EXHAUST_MAX_RVOL and ch >= 0:
+        state = "exhausting"
+        note = (f"цена высоко (+{up:.0f}% от дна), объём иссяк "
+                f"(×{rel:.1f}) — истощение хода")
+
+    dslope = None
+    ctx = (flow or {}).get("context") or {}
+    try:
+        if ctx.get("delta_slope") is not None:
+            dslope = float(ctx["delta_slope"])
+    except (TypeError, ValueError):
+        dslope = None
+    divergence = bool(dslope is not None and dslope < 0
+                      and up >= EXHAUST_MIN_UP)
+
+    if state is None and not divergence:
+        return None
+    out = {"ratio": ratio, "state": state, "note": note}
+    if divergence:
+        out["divergence"] = True
+        div_note = "дельта гаснет на верхах — покупатели выдыхаются"
+        out["note"] = f"{note}; {div_note}" if note else div_note
+    return out

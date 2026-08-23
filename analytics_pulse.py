@@ -139,6 +139,7 @@ def snapshot(c: Candidate) -> dict:
         ("oi_usd", raw.get("oi_usd")),
         ("up_low", raw.get("up_from_low")),
         ("ch_24h", raw.get("ch_24h")),
+        ("basis", raw.get("basis_pct")),
     ):
         n = _num(val)
         if n is not None:
@@ -198,6 +199,12 @@ def snapshot(c: Candidate) -> dict:
         out["vx_dir"] = str(vortex["direction"])
     if c.score:
         out["score"] = int(c.score)
+    # Корзина детекторов (перенос из копитрейдинга: «корзина вместо
+    # одного источника»): сколько подкейсов FLOW сработало разом, а не
+    # только победитель. Пишется только при FLOW — как весь контекст.
+    fired = len(((c.flow or {}).get("cases")) or {})
+    if fired:
+        out["flow_fired"] = fired
     return out
 
 
@@ -379,7 +386,8 @@ def for_symbol(symbol: str) -> dict:
     now = pts[-1]
     out: dict = {"points": len(pts), "age_min": round((_now() - now["t"]) / 60)}
 
-    for name, ref in (("prev", pts[-2]), ("h6", _pick(pts, 6)), ("h24", _pick(pts, 24))):
+    for name, ref in (("prev", pts[-2]), ("h6", _pick(pts, 6)),
+                      ("h24", _pick(pts, 24)), ("h168", _pick(pts, 168))):
         if not ref:
             continue
         d = {}
@@ -393,6 +401,22 @@ def for_symbol(symbol: str) -> dict:
         if d:
             d["ago_min"] = round((now["t"] - ref["t"]) / 60)
             out[name] = d
+
+    # Согласованность трёх окон (перенос из оценки трейдеров: верить
+    # тому, кто держится на 24 часах, неделе и месяце разом). Наши
+    # горизонты: шесть часов, сутки, неделя. Совпадение ЗНАКА хода
+    # цены на всех трёх сильнее любого одного; поле пишется только
+    # при полном комплекте и единогласии.
+    signs = []
+    for span in ("h6", "h24", "h168"):
+        pp = (out.get(span) or {}).get("price_pct")
+        if pp is None or pp == 0:
+            signs = []
+            break
+        signs.append(1 if pp > 0 else -1)
+    if len(signs) == 3 and len(set(signs)) == 1:
+        out["aligned"] = {"dir": "up" if signs[0] > 0 else "down",
+                          "spans": ["h6", "h24", "h168"]}
 
     # Разворот направления вортекса — единственное, что читается сразу и
     # без величины: сменился знак хода, а не его размер.
