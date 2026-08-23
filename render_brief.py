@@ -832,7 +832,21 @@ BRIEF_JS = """
 
   function showSegment(idx, token){
     return new Promise(function (resolve) {
-      try { showSegmentInner(idx, token, resolve); }
+      var done = false, wd = 0;
+      function finish(){
+        if (done) return;
+        done = true; clearTimeout(wd); resolve();
+      }
+      /* СТОРОЖ. Страховка ниже ловит только синхронный сбой; всё,
+         что вырвется из таймера или кадра (leave, rAF), уходит мимо
+         неё — без сторожа очередь висла бы на таком сегменте вечно,
+         а экран молча замирал. */
+      wd = setTimeout(function () {
+        if (window.console) console.warn('бриф: сегмент ' + idx +
+          ' застрял — пропускаю');
+        finish();
+      }, HOLD_MS + LAST_HOLD_MS + 25000);
+      try { showSegmentInner(idx, token, finish); }
       catch (e) {
         /* СТРАХОВКА. Исключение внутри сегмента раньше убивало всю
            очередь молча: экран замирал на последней успевшей фразе.
@@ -840,7 +854,7 @@ BRIEF_JS = """
            уходит в консоль, а сводка доигрывает до конца. */
         if (window.console) console.warn('бриф: сегмент ' + idx +
           ' не показан — ' + (e && e.message ? e.message : e));
-        setTimeout(resolve, 60);
+        setTimeout(finish, 60);
       }
     });
   }
@@ -892,14 +906,21 @@ BRIEF_JS = """
         fired = true;
         document.removeEventListener('click', leave);
         document.removeEventListener('keydown', leave);
-        var chs = txtEl.querySelectorAll('.ch');
-        for (var i=0;i<chs.length;i++){
-          chs[i].style.transitionDelay = '0ms';
-          chs[i].classList.remove('on');
+        try {
+          var chs = txtEl.querySelectorAll('.ch');
+          for (var i=0;i<chs.length;i++){
+            chs[i].style.transitionDelay = '0ms';
+            chs[i].classList.remove('on');
+          }
+          if (seg.pts){ diagramPhase = 'out'; diagramT0 = performance.now(); }
+          /* Текст гаснет — смысл садится в фигуру. */
+          figAdd(seg);
+        } catch (e) {
+          /* Ошибке ухода нельзя держать очередь: строка в фигуре
+             пропадёт, показ продолжится. */
+          if (window.console) console.warn('бриф: сегмент ' + idx +
+            ' не сел в фигуру — ' + (e && e.message ? e.message : e));
         }
-        if (seg.pts){ diagramPhase = 'out'; diagramT0 = performance.now(); }
-        /* Текст гаснет — смысл садится в фигуру. */
-        figAdd(seg);
         setTimeout(function () { if (token === runToken) resolve(); }, 900);
       }
       setTimeout(function () {
@@ -1191,6 +1212,10 @@ BRIEF_JS = """
       txt += ' Разница <b class="' + sgn(dpp) + '">' +
         (dpp >= 0 ? '+' : '') + dpp.toFixed(1) +
         ' п.п.</b> — трейдинг минус HOLD, цена стратегии.';
+    } else if (PT.trades > 0 && PH.invested) {
+      /* Разница — единственное, ради чего оба счёта ведутся, но на
+         горстке сделок она ничего не значит, и это сказано прямо. */
+      txt += ' <span class="mut">Сделок пока мало — разницу не читать.</span>';
     }
     /* Потолок находок — не украшение, а мера того, сколько стоит
        отсутствие правила выхода: разрыв между «держали до сих пор»
@@ -1334,52 +1359,13 @@ BRIEF_JS = """
      просто держать. Пустой счёт не печатается вовсе — «правила ещё не
      сделали ни одной сделки» и «ноль долларов» разные утверждения. */
   var PF = M.portfolios || {};
-  function money(v){
-    var a = Math.abs(v);
-    if (a >= 1000) return (v < 0 ? '−$' : '$') + (a/1000).toFixed(1) + 'K';
-    return (v < 0 ? '−$' : '$') + a.toFixed(0);
-  }
-  function acct(p, name, tone){
-    if (!p || (!p.trades && !p.open)) return '';
-    var pnl = +p.pnl || 0;
-    var cls = pnl > 0 ? 'up' : (pnl < 0 ? 'dn' : 'mut');
-    return name + ': <span class="n">' + p.open + '</span> ' +
-      plural(p.open, 'позиция', 'позиции', 'позиций') +
-      ' на <span class="n">' + money(p.invested) + '</span>, ' +
-      'итог <span class="' + cls + ' n">' + (pnl >= 0 ? '+' : '') +
-      money(pnl) + '</span>' +
-      (p.pnlPct !== null && p.pnlPct !== undefined
-        ? ' <span class="' + cls + '">(' + (p.pnlPct >= 0 ? '+' : '') +
-          p.pnlPct + '%)</span>' : '') +
-      (tone ? ' <span class="mut">' + tone + '</span>' : '');
-  }
-  var acctLine = '';
-  (function () {
-    var m = acct(PF.hold, 'HOLD', 'взял и держу'),
-        h = acct(PF.trade, 'Трейдинг', 'по правилам');
-    if (!m && !h) return;
-    var parts = [];
-    if (m) parts.push(m);
-    if (h) parts.push(h);
-    acctLine = parts.join('. ') + '.';
-    /* Разница — единственное, ради чего оба счёта и ведутся. Пока
-       сделок мало, она ничего не значит, и это сказано прямо. */
-    /* Разница читается в одну сторону: трейдинг МИНУС hold. Это и
-       есть ответ на вопрос затеи — стоит ли торговать то, что можно
-       было просто держать. Порядок вычитания важен: обратный знак
-       читался бы как «сколько потерял, что не держал», а вопрос не в
-       этом. */
-    var mp = (PF.hold || {}).pnl, hp = (PF.trade || {}).pnl;
-    var tr = (PF.trade || {}).trades || 0;
-    if (m && h && mp !== undefined && hp !== undefined) {
-      var d = hp - mp;
-      acctLine += (tr < 10)
-        ? ' <span class="mut">Сделок пока мало — разницу не читать.</span>'
-        : ' Торговля дала <span class="' + (d >= 0 ? 'up' : 'dn') + ' n">' +
-          (d >= 0 ? '+' : '') + money(d) + '</span> ' +
-          '<span class="mut">к простому удержанию.</span>';
-    }
-  })();
+  /* Сегмент счетов ЗВУЧАЛ ДВАЖДЫ: ранняя строка (второй в
+     очереди, сразу после окна рынка) и поздний acctLine перед
+     итогом — два рассказа об одном и два места «счета» в фигуре.
+     Поздний снят вместе со своими помощниками (money/acct):
+     деньги должны звучать один раз и рано, пока внимание свежее;
+     его формулировка про малое число сделок перенесена в раннюю
+     строку. */
 
   var closeLine = '';
   (function () {
@@ -1469,9 +1455,6 @@ BRIEF_JS = """
     .concat(T(journalLine, 'журнал', (J.n || 0) + '', null))
     .concat(altSeg ? [altSeg] : [])
     .concat(rsvSeg ? [rsvSeg] : [])
-    .concat(acctLine ? [tagSeg({html: acctLine}, 'счета',
-      ((PF.hold || {}).open || 0) + ' / ' + ((PF.trade || {}).open || 0),
-      null)] : [])
     .concat(closeSeg ? [closeSeg] : []);
 
   /* Приводим всё к единому виду {html, pts, accent}: строки-строки
@@ -1533,7 +1516,16 @@ BRIEF_JS = """
     tail();
   } else {
     requestAnimationFrame(frame);
-    setTimeout(function () { playAll().then(tail); }, 500);
+    setTimeout(function () {
+      playAll().then(function () {
+        tail();
+        /* Переход — по СОБЫТИЮ «очередь доиграла», а не по
+           секундомеру. Финальный сегмент уже отстоял свои полминуты
+           (или получил клик), фигуре — мгновение на прочтение, и
+           экран отдаётся оболочке. */
+        setTimeout(close, 1400);
+      });
+    }, 500);
   }
 
   wrap.style.setProperty('--lap', (BRIEF_LAP / 1000) + 's');
@@ -1565,7 +1557,19 @@ BRIEF_JS = """
     } catch (e) { /* открыт вне оболочки — просто гаснем */ }
   }
 
-  var closeTimer = setTimeout(close, BRIEF_LAP);
+  /* ПРЕДОХРАНИТЕЛЬ, а не расписание. Прежде здесь стоял выход по
+     BRIEF_LAP — кругу СТАРОЙ сводки на восемь фраз: очередь с двумя
+     крыльями выросла до ~16 сегментов и трёх минут, а таймер остался
+     на 105 секундах и резал показ на восьмом-девятом сегменте —
+     всегда в одном месте и без финальных тридцати секунд. Снаружи
+     это выглядело «после объёма всё вылетает». Теперь выход зовёт
+     сама очередь (playAll().then выше); таймер оставлен страховкой
+     на случай, если очередь встала бы намертво, — с запасом на самый
+     длинный сценарий. При reduced-motion очереди нет — там прежний
+     круг. */
+  var closeBudget = reduce ? BRIEF_LAP
+      : SEGMENTS.length * (HOLD_MS + 9000) + LAST_HOLD_MS + 20000;
+  var closeTimer = setTimeout(close, closeBudget);
   wrap.addEventListener('click', close);
   document.addEventListener('keydown', function () {
     if (wrap.classList.contains('on')) close();

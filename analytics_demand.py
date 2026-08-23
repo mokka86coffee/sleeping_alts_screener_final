@@ -49,7 +49,10 @@ from pathlib import Path
 
 from core_config import BASE_DIR
 
-DEMAND_PATH = BASE_DIR / "output" / "demand.json"
+# КОРЕНЬ, не output/ — ручной файл, та же ошибка пути, что у
+# календаря (см. заметку в analytics_calendar, найдено 23.08). Из-за
+# неё строка «спрос» на TREE и HYPE не показывалась вовсе.
+DEMAND_PATH = BASE_DIR / "demand.json"
 
 KINDS = ("buyback", "burn", "feeswitch", "lockup")
 STATUSES = ("proposed", "voting", "active")

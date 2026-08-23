@@ -35,7 +35,9 @@ from pathlib import Path
 
 from core_config import BASE_DIR
 
-RESERVOIR_PATH = BASE_DIR / "output" / "reservoir.json"
+# КОРЕНЬ, не output/ — ручной файл, та же ошибка пути, что у
+# календаря (см. заметку в analytics_calendar, найдено 23.08).
+RESERVOIR_PATH = BASE_DIR / "reservoir.json"
 
 # Старше этого запись считается протухшей: контур живёт месяцами, но
 # показывать июньскую долю как «текущую» в сентябре — враньё тоном

@@ -4,6 +4,11 @@
   "revenue30d": null,
   "note": "протокол без строки выручки"
  },
+ "1000LUNCUSDT": {
+  "ticker": "LUNC",
+  "revenue30d": null,
+  "note": "нет в базе протоколов"
+ },
  "ACEUSDT": {
   "ticker": "ACE",
   "revenue30d": null,
@@ -165,6 +170,13 @@
   "revenue30d": 6329.0,
   "revenue7d": 1378.0,
   "protocols": "Momentum",
+  "ambiguous": false
+ },
+ "MONUSDT": {
+  "ticker": "MON",
+  "revenue30d": 197759.0,
+  "revenue7d": 56148.0,
+  "protocols": "Monad",
   "ambiguous": false
  },
  "MUBARAKUSDT": {
