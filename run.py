@@ -685,6 +685,18 @@ def run_once(args: argparse.Namespace) -> int:
             log(f"✓ Отчёт готов: {REPORT_PATH}")
             if not args.no_git:
                 published = git_publish()
+            # Письмо-рапорт прогона: бриф и группы зала на почту.
+            # Источник — только что записанный brief.html (тот же
+            # вшитый JSON, что читают экраны), поэтому письмо не
+            # пересобирает звёзды и не трогает журнал. Сбой почты
+            # прогона не роняет: всё погашено внутри; без
+            # заполненного output/email_config.json — тихий пропуск
+            # (при первом запуске скрипт сам напишет шаблон).
+            try:
+                from send_brief_email import send_after_run
+                send_after_run()
+            except Exception as e:
+                log(f"✗ Письмо: {type(e).__name__}: {e}")
 
     log(f"\n✓ Прогон завершён за {duration:.0f}с · "
         f"{snapshot.counts['tradable']} монет к работе "
