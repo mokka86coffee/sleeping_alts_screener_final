@@ -140,6 +140,7 @@ def snapshot(c: Candidate) -> dict:
         ("up_low", raw.get("up_from_low")),
         ("ch_24h", raw.get("ch_24h")),
         ("basis", raw.get("basis_pct")),
+        ("spot_share", raw.get("spot_ratio")),
     ):
         n = _num(val)
         if n is not None:
@@ -364,6 +365,9 @@ def _pick(pts: list[dict], hours: float) -> dict | None:
 DELTA_KEYS = (
     "price", "vol_1d", "atr_pct", "funding",
     "up_low", "buy_share", "oi_x", "oi_held", "oi_usd", "vx_strength",
+    # Тренд перекоса перп/спот: растёт доля спота — приходит реальный
+    # покупатель; падает при растущей цене — едут на одном плече.
+    "spot_share",
     "rel_vol", "score",
     # Спред часового вортекса карточки — непрерывная величина, а не
     # только флип: разбор ONG 21 августа, VI+ формально ещё выше VI−

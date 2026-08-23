@@ -249,6 +249,16 @@ def _probe() -> None:
         ("карта ликвидаций BTC (нужен Professional)",
          "/api/futures/liquidation/aggregated-map",
          {"symbol": "BTC", "range": "1d"}),
+        # Ниже — кандидаты на перенос в прогон, если тариф отдаёт.
+        # Оба сильнее наших биржевых: у нас фандинг и OI ТОЛЬКО с
+        # Binance, а здесь агрегат по всем площадкам — Р-11 и Т-4
+        # станут мерить рынок, а не одну биржу.
+        ("фандинг по всем биржам (OI-взвешенный)",
+         "/api/futures/funding-rate/oi-weight-history",
+         {"symbol": "BTC", "interval": "1h", "limit": 3}),
+        ("открытый интерес агрегированный",
+         "/api/futures/open-interest/aggregated-history",
+         {"symbol": "BTC", "interval": "1h", "limit": 3}),
     ):
         print(f"\n── {title} ──")
         try:

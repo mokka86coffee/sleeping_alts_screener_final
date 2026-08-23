@@ -490,6 +490,13 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
         # context.oi_hist, единая формула на проект (см. Ч-1).
         # Отдельного поля здесь больше нет: было мёртвым дублем.
         "spot_ratio": spot_ratio,
+        # Тот же факт в форме Coinglass: во сколько раз перп-оборот
+        # больше спотового. Доля отвечает «сколько спота», множитель —
+        # «насколько рынок перекошен в плечо», и второе читается
+        # привычнее (BTC живёт около ×9, RAVE с 79% в перпах — ×3.8).
+        # Ноль спота → None: делить не на что, и это не «×0».
+        "perp_spot_x": (round((1 - spot_ratio) / spot_ratio, 2)
+                        if spot_ratio > 0 else None),
         "basis_pct": basis_pct,
         "spot_vol": spot_vol,
         "fut_vol": fut_vol,
@@ -535,6 +542,9 @@ def build_metric_rows(m: dict) -> list[dict]:
         {"key": "Funding", "val": f"{m['funding']:.4f}%", "cls": cls_by_sign(m["funding"])},
         {"key": "OI", "val": fmt_big(m["oi_usd"]), "cls": ""},
         {"key": "Spot ratio", "val": f"{m['spot_ratio']*100:.0f}%", "cls": ""},
+        {"key": "Перп/спот", "val": (f"×{m['perp_spot_x']:.1f}"
+                                     if m.get("perp_spot_x") else "—"),
+         "cls": ""},
     ]
 
 
