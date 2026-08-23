@@ -65,6 +65,10 @@ BRIEF_HTML = """
    файл стилей уже ловил дубли блоков при патчах. Остальное оформление
    сцены (кольцо/дюна/текст) — тоже здесь, ниже, вторым style-блоком,
    рядом со сценой, которую оно красит. */
+.obf-ran{position:fixed;top:16px;left:50%;transform:translateX(-50%);
+  font:500 11px/1 'JetBrains Mono',monospace;letter-spacing:.14em;
+  color:rgba(214,222,240,.38);text-transform:uppercase;z-index:4;
+  pointer-events:none}
 .obf-foot,.obf-bar{opacity:0;transition:opacity .6s ease}
 .obf-foot.on,.obf-bar.on{opacity:1}
 </style>
@@ -147,6 +151,7 @@ BRIEF_HTML = """
   <svg id="obfBeams"></svg>
   <div id="obfFig"></div>
   <div id="obfText"></div>
+  <div class="obf-ran" id="obfRan"></div>
   <div class="obf-foot" id="obfFoot">клик в любом месте — к дашборду</div>
   <div class="obf-bar" id="obfBar"><u></u></div>
 </div>
@@ -883,6 +888,12 @@ BRIEF_JS = """
 
       requestAnimationFrame(function () {
         if (token !== runToken) return;
+        /* Вставка и запуск попадали в ОДИН кадр — браузер схлопывал
+           переход, и при тёплом кэше (перезагрузка) первый сегмент
+           появлялся целиком, без печати (найдено пользователем
+           23.08). Та же ловушка, что ловили в прототипах: лечится
+           принудительным reflow между состояниями. */
+        void txtEl.offsetWidth;
         var chs = txtEl.querySelectorAll('.ch');
         for (var i=0;i<chs.length;i++) chs[i].classList.add('on');
       });
@@ -989,12 +1000,6 @@ BRIEF_JS = """
     var n = +v || 0;
     return (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
   }
-  function waitWhy(s) {
-    if (s.ath === undefined) return 'нет данных прогона';
-    if ((s.ath || 0) > -80) return 'вне зоны дна, ' + Math.round(s.ath) + '% от ATH';
-    if (s.firstRun) return 'первый разгон, входить рано';
-    return 'ровный рост, ждать сквиза';
-  }
   function pct(v, d) {
     if (v === null || v === undefined) return '—';
     return (v > 0 ? '+' : '') + v.toFixed(d === undefined ? 1 : d) + '%';
@@ -1014,6 +1019,21 @@ BRIEF_JS = """
   function capP(s) { return s.cap ? ' ' + s.cap : ''; }
 
   var M = O.market || {};
+  /* Время прогона — вверху и видно СРАЗУ: сводка живёт минуты, и
+     без даты непонятно, на какой прогон смотришь (вернули 23.08 по
+     просьбе — раньше стояло вверху страницы старого отчёта). */
+  (function () {
+    var el = document.getElementById('obfRan');
+    var raw = String(M.ts || '');
+    if (!el || !raw) return;
+    var d = new Date(raw.replace(' ', 'T'));
+    el.textContent = 'прогон ' + (isNaN(d.getTime()) ? raw.slice(0, 16)
+      : ('0' + d.getDate()).slice(-2) + '.' +
+        ('0' + (d.getMonth() + 1)).slice(-2) + ' · ' +
+        ('0' + d.getHours()).slice(-2) + ':' +
+        ('0' + d.getMinutes()).slice(-2));
+  })();
+
   var J = M.journal || {};
   var DORM = M.dormant || [];
   var L = M.leader || {};
@@ -1324,11 +1344,26 @@ BRIEF_JS = """
         'Движения ещё нет: наблюдать, не входить.'
     : '';
 
-  var waitLine = wait.length
-    ? 'Ждут сигнала ' + wait.slice(0, 3).map(function (s) {
-        return '<span class="t">' + s.t + '</span>' + cap(s) +
-          ' <span class="mut">— ' + waitWhy(s) + '</span>'; })
-        .join(' <span class="obf-sep">·</span> ') + '.'
+  /* Сегмент «ждут сигнала» заменён на «закрыть» (23.08, по просьбе):
+     позиции КНИГИ, которым слой действия говорит выходить, — тем же
+     критерием, что группа «выходить» зала: act.group === 'exit'.
+     Причина — словами самого слоя (act.why, запасным ходом exitWhy).
+     Пусто — сегмента нет: закрывать нечего, и об этом молчат. */
+  var closing = STARS.filter(function (s) {
+    return s.book && (s.book.usd || s.book.px) &&
+           s.act && s.act.group === 'exit';
+  }).sort(function (a, b) {
+    return (+b.book.usd || 0) - (+a.book.usd || 0);
+  });
+  var closingLine = closing.length
+    ? 'Закрыть ' + closing.slice(0, 3).map(function (s) {
+        var why = (s.act && s.act.why) ||
+                  (s.exitWhy && s.exitWhy[0]) || '';
+        return '<span class="t">' + s.t + '</span> ' +
+          fmtMoney(s.book.usd) +
+          (why ? ' <span class="mut">— ' + why + '</span>' : '');
+      }).join(' <span class="obf-sep">·</span> ') +
+      (closing.length > 3 ? ' и ещё ' + (closing.length - 3) : '') + '.'
     : '';
 
   var bigVolT = {};
@@ -1531,7 +1566,7 @@ BRIEF_JS = """
       {t:'ticks', on: Math.min(7, go.length), all: 7,
        tone: go.length ? '' : 'dn'})])
     .concat(T(dormLine, 'спят', DORM.length + '', null))
-    .concat(T(waitLine, 'ждут сигнала', wait.length + '', null))
+    .concat(T(closingLine, 'закрыть', closing.length + '', null))
     .concat(T(holdLine, 'в работе', bookPos.length + '', null))
     .concat(T(squeezeLine, 'сжим', sq.length + '', null))
     .concat(T(journalLine, 'журнал', (J.n || 0) + '', null))
@@ -1597,8 +1632,21 @@ BRIEF_JS = """
     txtEl.style.opacity = '1';
     tail();
   } else {
+    // Сцена (кольцо, дюна, частицы) дышит сразу — под лоадером ей
+    // и место: к снятию экран уже живой. А вот ПЕЧАТЬ ждёт сигнала
+    // «тебя показали»: печать от момента загрузки при тёплом кэше
+    // успевала отыграть под лоадером оболочки, и первый сегмент
+    // после перезагрузки появлялся допечатанным (найдено
+    // пользователем 24.08 — reflow-фикс лечил другой, малый слой
+    // той же жалобы). Три пути к старту: сигнал ob:shown от
+    // оболочки; страховка 2.5 с, если оболочка старой сборки и
+    // сигнала не пошлёт; прежние 500 мс, когда документ открыт
+    // напрямую, без рамки.
     requestAnimationFrame(frame);
-    setTimeout(function () {
+    var printed = false;
+    function startPrinting() {
+      if (printed) return;
+      printed = true;
       playAll().then(function () {
         tail();
         /* Переход — по СОБЫТИЮ «очередь доиграла», а не по
@@ -1607,7 +1655,18 @@ BRIEF_JS = """
            экран отдаётся оболочке. */
         setTimeout(close, 1400);
       });
-    }, 500);
+    }
+    if (window.parent === window) {
+      setTimeout(startPrinting, 500);
+    } else {
+      window.addEventListener('message', function (e) {
+        if (e.origin !== window.location.origin) return;
+        if (e.data && e.data.type === 'ob:shown') {
+          setTimeout(startPrinting, 120);
+        }
+      });
+      setTimeout(startPrinting, 2500);
+    }
   }
 
   wrap.style.setProperty('--lap', (BRIEF_LAP / 1000) + 's');
