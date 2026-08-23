@@ -29,6 +29,7 @@ from pathlib import Path
 try:
     from core_config import BASE_DIR
     from core_http import log
+    from analytics_squeeze import absorption_for, squeeze_for
 except ImportError:
     BASE_DIR = Path(__file__).resolve().parent
     def log(msg: str) -> None:
@@ -57,16 +58,21 @@ def collect_flat_watch(candidates: list, stars: list,
                        persist: bool = False) -> str:
     """Пишет output/flat_watch.json: монеты во флэте у дна для бота.
 
-    candidates — для цены/ATR/коридора (raw), stars — для наших
-    донных вердиктов (absorb/squeeze/phase), собранных build_stars.
+    Отбор идёт по ВСЕЙ выборке кандидатов, не по звёздам: скор звёзд
+    любит движение, а дно-флэт по построению живёт вне подиума —
+    поглощение и заряд находились по всем 281, и мост ищет там же.
+    stars нужны только чтобы исключить монеты в фазе go (разгон).
+    Донные вердикты — те же детекторы analytics_squeeze, что и у
+    звёзд (absorption_for / squeeze_for, кеш пульса по mtime).
     """
-    by_sym = {getattr(c, "symbol", "").upper(): c for c in candidates}
+    going = {(s.get("t") or "") + "USDT" for s in stars
+             if (s.get("phase") or {}).get("k") == "go"}
     picked: list[dict] = []
+    flat_price = 0   # диагностика воронки: сколько лежит по цене
 
-    for s in stars:
-        sym = (s.get("t") or "") + "USDT"
-        c = by_sym.get(sym)
-        if c is None:
+    for c in candidates:
+        sym = getattr(c, "symbol", "").upper()
+        if not sym or sym in going:
             continue
         raw = getattr(c, "raw", {}) or {}
 
@@ -78,15 +84,16 @@ def collect_flat_watch(candidates: list, stars: list,
             continue
         if ch > FLAT_PCT or atr > MAX_ATR:
             continue
+        flat_price += 1
 
-        # не в разгоне: звезда не в фазе go
-        if (s.get("phase") or {}).get("k") == "go":
-            continue
-
-        # подтверждение дна — любой донный признак
-        bottom = bool(s.get("absorb")) or \
-            bool((s.get("squeeze") or {}).get("charged"))
-        if not bottom:
+        # подтверждение дна — любой донный признак по пульсу
+        try:
+            ab = absorption_for(sym)
+            sq = squeeze_for(sym)
+        except Exception:
+            ab, sq = {}, {}
+        absorbed = bool(ab.get("absorbed"))
+        if not (absorbed or sq.get("charged")):
             continue
 
         corr = _corridor(c)
@@ -99,7 +106,7 @@ def collect_flat_watch(candidates: list, stars: list,
             "sym": sym,
             "price": price,
             "atrPct": atr,
-            "reason": ("поглощение" if s.get("absorb") else "заряд"),
+            "reason": ("поглощение" if absorbed else "заряд"),
         }
         if corr:
             entry["low"], entry["high"] = corr
@@ -113,6 +120,7 @@ def collect_flat_watch(candidates: list, stars: list,
         "_meta": {
             "at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "count": len(picked),
+            "flatByPrice": flat_price,
             "flatPct": FLAT_PCT,
             "note": ("Монеты во флэте у дна для bubble_bot. Пишет "
                      "скринер, читает бот. Границы low/high — коридор "
@@ -124,4 +132,6 @@ def collect_flat_watch(candidates: list, stars: list,
         WATCH_PATH.parent.mkdir(parents=True, exist_ok=True)
         WATCH_PATH.write_text(
             json.dumps(doc, ensure_ascii=False, indent=1), encoding="utf-8")
-    return f"{WATCH_PATH.name}: {len(picked)} монет во флэте"
+    return (f"{WATCH_PATH.name}: {len(picked)} монет "
+            f"(лежат по цене {flat_price}, с донным признаком "
+            f"{len(picked)})")
