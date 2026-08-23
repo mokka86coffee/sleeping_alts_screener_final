@@ -65,36 +65,40 @@ def collect_flat_watch(candidates: list, stars: list,
     Донные вердикты — те же детекторы analytics_squeeze, что и у
     звёзд (absorption_for / squeeze_for, кеш пульса по mtime).
     """
-    going = {(s.get("t") or "") + "USDT" for s in stars
-             if (s.get("phase") or {}).get("k") == "go"}
     picked: list[dict] = []
-    flat_price = 0   # диагностика воронки: сколько лежит по цене
+    flat_price = 0   # диагностика: сколько из выборки лежит по цене
 
     for c in candidates:
         sym = getattr(c, "symbol", "").upper()
-        if not sym or sym in going:
+        if not sym:
             continue
         raw = getattr(c, "raw", {}) or {}
 
-        # узкий суточный коридор
+        # v4 ([stated] «подходит любая структура»): фильтров по цене
+        # НЕТ — боту уходит вся выборка, включая фазу go. Флэт/ход —
+        # только метка; момент входа выбирает сам бот (белый пузырь
+        # у дна суточного коридора).
         try:
             ch = abs(float(raw.get("ch_24h") or 0))
-            atr = float(raw.get("atr_pct") or 0)
         except (TypeError, ValueError):
-            continue
-        if ch > FLAT_PCT or atr > MAX_ATR:
-            continue
-        flat_price += 1
+            ch = 0.0
+        is_flat = ch <= FLAT_PCT
+        if is_flat:
+            flat_price += 1
 
-        # подтверждение дна — любой донный признак по пульсу
+        # Донный признак — МЕТКА качества, не отсев (v3): пользователь
+        # изначально просил «всё, что идёт во флэте», а живой прогон
+        # 24.08 показал воронку 4 лежащих / 0 с признаком — жёсткое
+        # условие оставляло бота без скринерских монет. Момент входа
+        # фильтрует сам бот (белый пузырь у дна), фаза go уже
+        # исключена выше — крышу у хаёв не покупаем.
         try:
             ab = absorption_for(sym)
             sq = squeeze_for(sym)
         except Exception:
             ab, sq = {}, {}
         absorbed = bool(ab.get("absorbed"))
-        if not (absorbed or sq.get("charged")):
-            continue
+        charged = bool(sq.get("charged"))
 
         corr = _corridor(c)
         try:
@@ -105,8 +109,10 @@ def collect_flat_watch(candidates: list, stars: list,
         entry = {
             "sym": sym,
             "price": price,
-            "atrPct": atr,
-            "reason": ("поглощение" if absorbed else "заряд"),
+            "atrPct": float(raw.get("atr_pct") or 0),
+            "reason": ("поглощение" if absorbed
+                       else "заряд" if charged
+                       else "флэт" if is_flat else "ход"),
         }
         if corr:
             entry["low"], entry["high"] = corr
@@ -132,6 +138,73 @@ def collect_flat_watch(candidates: list, stars: list,
         WATCH_PATH.parent.mkdir(parents=True, exist_ok=True)
         WATCH_PATH.write_text(
             json.dumps(doc, ensure_ascii=False, indent=1), encoding="utf-8")
-    return (f"{WATCH_PATH.name}: {len(picked)} монет "
-            f"(лежат по цене {flat_price}, с донным признаком "
-            f"{len(picked)})")
+    with_bottom = sum(1 for c in picked
+                      if c["reason"] in ("поглощение", "заряд"))
+    doc["_meta"]["withBottom"] = with_bottom
+    if persist:
+        WATCH_PATH.write_text(
+            json.dumps(doc, ensure_ascii=False, indent=1),
+            encoding="utf-8")
+    return (f"{WATCH_PATH.name}: {len(picked)} монет — вся выборка "
+            f"(во флэте {flat_price}, с донным признаком {with_bottom})")
+
+
+FLOW_WATCH_PATH = WATCH_PATH.with_name("flow_watch.json")
+
+
+def collect_flow_watch(candidates: list, persist: bool = False) -> str:
+    """Мост v2 «FLOW-полигон» ([stated] 24.08: «прогонять наш список
+    flow и понимать, как лучше выстраивать ТВХ»). Боту уходят ТОЛЬКО
+    монеты списка FLOW — те же, что на ленте стратегии, — вместе с
+    коротким ключом подкейса (hidden/spring/churn/fuel/dormant/
+    taker/leverage). Бот гоняет по ним три этапа (тех → ход →
+    закрытие) на 5m и журналирует события ведения; разрез статистики
+    по кейсам потом скажет, на каких фигурах какая механика работает.
+    Старый collect_flat_watch остаётся соседом, но боевая сборка
+    зовёт этот."""
+    from analytics_flow import case_key, case_of
+
+    picked: list[dict] = []
+    for c in candidates:
+        sym = getattr(c, "symbol", "").upper()
+        if not sym or not getattr(c, "flow", None):
+            continue
+        raw = getattr(c, "raw", {}) or {}
+        try:
+            price = float(raw.get("price") or 0)
+        except (TypeError, ValueError):
+            continue
+        if price <= 0:
+            continue
+        corr = _corridor(c)
+        if corr is None:
+            try:
+                atr = float(raw.get("atr_pct") or 0)
+            except (TypeError, ValueError):
+                atr = 0.0
+            span = price * max(atr, 1.0) / 100.0
+            corr = (price - span, price + span)
+        low, high = corr
+        picked.append({
+            "sym": sym,
+            "case": case_key(case_of(c)) or "flow",
+            "price": price,
+            "low": low,
+            "high": high,
+        })
+
+    doc = {"coins": picked,
+           "_meta": {"count": len(picked),
+                     "src": "flow",
+                     "at": datetime.now(timezone.utc)
+                     .isoformat(timespec="seconds")}}
+    if persist:
+        FLOW_WATCH_PATH.write_text(
+            json.dumps(doc, ensure_ascii=False, indent=1),
+            encoding="utf-8")
+    cases: dict[str, int] = {}
+    for p in picked:
+        cases[p["case"]] = cases.get(p["case"], 0) + 1
+    по_кейсам = ", ".join(f"{k} {v}" for k, v in sorted(cases.items()))
+    return (f"{FLOW_WATCH_PATH.name}: {len(picked)} монет FLOW"
+            + (f" ({по_кейсам})" if по_кейсам else ""))

@@ -116,8 +116,8 @@ def build_pages(candidates: list[Candidate],
     # скринер мост не влияет: он только выписывает наружу то, что
     # звёзды уже знают.
     try:
-        from analytics_flatwatch import collect_flat_watch
-        log(f"→ Флэт-вотч: {collect_flat_watch(candidates, stars, persist=True)}")
+        from analytics_flatwatch import collect_flow_watch
+        log(f"→ FLOW-вотч: {collect_flow_watch(candidates, persist=True)}")
     except Exception as e:
         log(f"✗ Флэт-вотч: {type(e).__name__}: {e}")
 
