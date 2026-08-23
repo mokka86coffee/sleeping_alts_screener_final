@@ -143,6 +143,20 @@ def for_symbol(symbol: str, quote_volume_24h: float = 0.0,
         out["next_pct_float"] = float(ev["pct_float"])
     if ev.get("pct_supply") is not None:
         out["next_pct_supply"] = float(ev["pct_supply"])
+    # Доля ОБРАЩЕНИЯ выводится из доли эмиссии, когда своей нет:
+    # pct_supply / circ_pct. Это арифметика единиц, а не новое
+    # правило — ступени Р-27 считаются по обращению, и событие с
+    # заполненной эмиссией, но пустым float молчало (HYPE 29.08:
+    # 1.4% эмиссии при 22.2% в обращении = 6.3% обращения — ступень
+    # «сократить», а не фон). Найдено 23.08 по молчанию HEMI.
+    if out.get("next_pct_float") is None and out.get("next_pct_supply") is not None:
+        try:
+            circ = float(rec.get("circ_pct") or 0.0)
+        except (TypeError, ValueError):
+            circ = 0.0
+        if circ > 0:
+            out["next_pct_float"] = round(
+                float(out["next_pct_supply"]) / circ * 100.0, 1)
 
     rounds = ev.get("rounds") or []
     if rounds:

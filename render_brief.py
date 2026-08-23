@@ -1245,12 +1245,31 @@ BRIEF_JS = """
     return arr.map(function (v) { return ((v-lo)/span)*2 - 1; });
   }
 
+  /* Транш у лидера обязан звучать ЗДЕСЬ: HEMI стоял в топе с
+     разлоком через шесть дней, и сегмент об этом молчал (найдено
+     пользователем 23.08). Причину не сочиняем — берём у слоя
+     действия: «мимо» и всё про транш печатаются его же словами. */
+  /* M.leader — короткий словарь орбиты (тикер, скор, фигура, капа),
+     действия в нём нет и не будет: действие живёт у ЗВЕЗДЫ. Берём её
+     из общего списка — по флагу lead, запасным ходом по тикеру. */
+  var leadStar = null;
+  for (var li = 0; li < STARS.length; li++) {
+    var cand = STARS[li];
+    if (cand.lead) { leadStar = cand; break; }
+    if (!leadStar && L.t && cand.t === L.t) leadStar = cand;
+  }
+  var leadA = (leadStar && leadStar.act) || null;
+  var leadWhy = (leadA && leadA.why &&
+      (leadA.act === 'мимо' || leadA.why.indexOf('транш') >= 0))
+    ? ' <span class="warn">' + (leadA.act === 'мимо' ? 'Вход закрыт: ' : '') +
+      leadA.why + '.</span>'
+    : '';
   var leaderSeg = (L.t && (LC.series || []).length >= 4)
     ? { html: 'лидер потока — <span class="t">' + L.t + '</span>' + cap(L) +
              ', фигура <span class="gd">' + (LC.case || '—') + '</span>' +
              (LC.horizonDays ? ', горизонт <span class="n">' + LC.horizonDays +
                '</span> дн' : '') +
-             ', скор <span class="n">' + (LC.score || 0) + '</span>.',
+             ', скор <span class="n">' + (LC.score || 0) + '</span>.' + leadWhy,
         pts: normPts(LC.series),
         tag: L.t + ' ' + (LC.score || 0),
         glyph: {t:'ring', pct: (LC.score || 0)} }
@@ -1298,13 +1317,32 @@ BRIEF_JS = """
   var bigVolT = {};
   bigVolAll.forEach(function (v) { bigVolT[v.t] = true; });
 
-  var holdLine = hold.length
-    ? 'В работе ' + hold.slice(0, 3).map(function (s) {
-        return '<span class="t gd">' + s.t + '</span>' + cap(s) +
-          ' <span class="n">' + (s.up >= 0 ? '+' : '') + s.up + '%</span> за ' +
-          (s.days || 0) + ' дн' +
+  /* «В работе» — это КНИГА (Р-30), не зрелость журнала. Прежняя
+     версия показывала монеты со стажем (streak ≥ 3, days ≥ 4) — под
+     новым словарём это читалось как открытые позиции, которых нет
+     (найдено пользователем 23.08). Теперь сегмент говорит ровно то,
+     что говорят зал и счёт: позиции книги с их деньгами и ходом от
+     СВОЕГО входа. Книга пуста — сегмента нет: строка счетов уже
+     сказала «книга пуста», второй раз не повторяем. */
+  var bookPos = STARS.filter(function (s) {
+    return s.book && (s.book.usd || s.book.px);
+  }).sort(function (a, b) {
+    return (+b.book.usd || 0) - (+a.book.usd || 0);
+  });
+  function posPnl(s) {
+    var e = +s.book.px || 0, p = +s.px || 0;
+    return (e > 0 && p > 0) ? (p / e - 1) * 100 : null;
+  }
+  var holdLine = bookPos.length
+    ? 'В работе ' + bookPos.slice(0, 3).map(function (s) {
+        var d = posPnl(s);
+        return '<span class="t gd">' + s.t + '</span> ' +
+          fmtMoney(s.book.usd) +
+          (d === null ? '' : ' <span class="' + sgn(d) + ' n">' +
+            signed(d) + '</span>') +
           (bigVolT[s.t] ? ' <span class="up">· объём</span>' : '');
-      }).join(', ') + '.'
+      }).join(', ') +
+      (bookPos.length > 3 ? ' и ещё ' + (bookPos.length - 3) : '') + '.'
     : '';
 
   var nearLine = near.length
@@ -1389,9 +1427,16 @@ BRIEF_JS = """
         : ' через <span class="n">' + ev.days + '</span> дн'));
     }
     if (bits.length)
+      /* Хвост обязан объяснять себя сам: обрубок «список наблюдения,
+         не входов» читался как ошибка вёрстки (найдено 23.08). Это
+         правило показа Р-6: при двух и больше предупреждениях топ —
+         те же монеты, но как наблюдение; и правило входа Р-30: вход
+         только по событию, частями. */
       closeLine = 'Итог: ' + bits.join(', ') + '.' +
         (((M.permission || {}).warnCount || 0) >= 2
-          ? ' <span class="mut">Список наблюдения, не входов.</span>' : '');
+          ? ' <span class="mut">Окно с предупреждениями, поэтому топ ' +
+            'сегодня — список наблюдения, а не входов: правила входят ' +
+            'только по событию и частями.</span>' : '');
   })();
 
   /* Ярлыки и глифы — только тем сегментам, у которых есть короткое
@@ -1450,7 +1495,7 @@ BRIEF_JS = """
        tone: go.length ? '' : 'dn'})])
     .concat(T(dormLine, 'спят', DORM.length + '', null))
     .concat(T(waitLine, 'ждут сигнала', wait.length + '', null))
-    .concat(T(holdLine, 'в работе', hold.length + '', null))
+    .concat(T(holdLine, 'в работе', bookPos.length + '', null))
     .concat(T(nearLine, 'у уровня', near.length + '', null))
     .concat(T(journalLine, 'журнал', (J.n || 0) + '', null))
     .concat(altSeg ? [altSeg] : [])

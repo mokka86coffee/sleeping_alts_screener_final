@@ -77,7 +77,10 @@ def _btc_component(btc: dict | None) -> dict:
     surge = d1 >= BTC_SURGE_1D_PCT or d7 >= BTC_SURGE_7D_PCT
     note = f"BTC {d1:+.1f}% за сутки · {d7:+.1f}% за неделю"
     if surge:
-        note += " — рывок, окно каскада"
+        # Направление обязано звучать: «окно каскада» без стороны
+        # заставляло гадать, кого выносит (найдено пользователем 23.08).
+        # Рывок BTC открывает окно разгрузки — каскад ВНИЗ, по лонгам.
+        note += " — рывок, окно каскада вниз (разгрузка бьёт по лонгам)"
     return {"known": True, "warn": surge, "d1": round(d1, 1),
             "d7": round(d7, 1), "note": note}
 
@@ -123,7 +126,7 @@ def _funding_component(candidates: list[Candidate]) -> dict:
         return {"known": True, "warn": True, "side": "long",
                 "posShare": round(pos, 2),
                 "note": f"фандинг положителен у {pos * 100:.0f}% выборки "
-                        "— толпа в лонге, топливо каскада"}
+                        "— толпа в лонге, топливо каскада вниз (вынос лонгов)"}
     if neg >= FUNDING_CROWD_SHARE:
         return {"known": True, "warn": False, "side": "short",
                 "posShare": round(pos, 2),
