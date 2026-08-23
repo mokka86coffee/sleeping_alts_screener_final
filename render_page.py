@@ -96,7 +96,11 @@ def build_pages(candidates: list[Candidate],
     # звёздам нужно для ступени размера (Р-15). Обратный порядок
     # заставил бы считать разрешение дважды — и однажды разойтись.
     market = orbit_market(candidates, snapshot, slices)
-    stars = build_stars(candidates, market.get("permission"))
+    # write_log: журнал предположений пишет ТОЛЬКО эта, боевая сборка
+    # страниц — один раз за прогон. Одиночный file://-документ ниже
+    # не пишет ничего: это просмотр, а не прогон (см. analytics_stars).
+    stars = build_stars(candidates, market.get("permission"),
+                        write_log=True)
     # Р-29: два счёта считаются ПОСЛЕ звёзд — им нужны цены и ступени
     # размера. Рынок при этом уже собран, поэтому дописываем в него:
     # это по-прежнему один словарь на все экраны, второго источника
