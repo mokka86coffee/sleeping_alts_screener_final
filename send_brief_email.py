@@ -155,9 +155,10 @@ def build_letter(stars: list, market: dict) -> tuple[str, str]:
             add(f"  · {_plain(n)}")
     elif p.get("note"):
         add(f"  · {_plain(p['note'])}")
-    if market.get("weekend"):
+    said = "\n".join(lines)
+    if market.get("weekend") and "выходные" not in said:
         add("  · выходные — тонкий стакан")
-    if market.get("frozen"):
+    if market.get("frozen") and "рынок замер" not in said:
         add("  · рынок замер")
     add("")
 
@@ -174,14 +175,38 @@ def build_letter(stars: list, market: dict) -> tuple[str, str]:
             .replace(",", " "))
     add("")
 
-    # ── Лидер с причиной действия ──
+    # ── Лидер: полная строка, как сегмент брифа ──
     leader = market.get("leader") or {}
     if leader.get("t"):
         star = next((s for s in stars if s.get("t") == leader["t"]), {})
+        lc = market.get("leaderChart") or {}
+        bits = [leader["t"], f"скор {leader.get('score', '—')}"]
+        case = leader.get("case") or lc.get("case")
+        if case and case != "—":
+            bits.append(f"фигура {case}")
+        if lc.get("horizonDays"):
+            bits.append(f"горизонт {lc['horizonDays']} дн")
+        cap = leader.get("cap")
+        if cap and cap != "—":
+            bits.append(str(cap))
         act = star.get("act") or {}
-        why = f" — {act.get('act', '')}: {act['why']}" if act.get("why") else ""
-        add(f"ЛИДЕР: {leader['t']} · score {leader.get('score', '—')} · "
-            f"{leader.get('cap', '')}{why}")
+        if act.get("why"):
+            bits.append(f"{act.get('act', 'ждать')} — {_plain(act['why'])}")
+        add("ЛИДЕР: " + " · ".join(bits))
+        add("")
+
+    # ── Топ объёма ──
+    vc = market.get("volChart") or market.get("peakVol") or {}
+    top_vol = market.get("topVol") or []
+    if vc.get("sym"):
+        add(f"ТОП ОБЪЁМА: {vc['sym']} ×{vc.get('x', '?')} к своей "
+            f"норме за 30 дней")
+        rest = [t for t in top_vol
+                if (t.get("sym") or t.get("t")) != vc.get("sym")][:2]
+        if rest:
+            add("  ещё: " + ", ".join(
+                f"{t.get('sym') or t.get('t')} ×{t.get('x', '?')}"
+                for t in rest))
         add("")
 
     # ── Заряжены на сжим ──
@@ -220,6 +245,43 @@ def build_letter(stars: list, market: dict) -> tuple[str, str]:
         names = ", ".join(s.get("t", "?") for s in go[:15])
         more = f" и ещё {len(go) - 15}" if len(go) > 15 else ""
         add(f"КАНДИДАТЫ ФАЗЫ GO ({len(go)}): {names}{more}")
+        add("")
+
+    # ── Спят (кандидаты спячки из орбиты) ──
+    dorm = market.get("dormant") or []
+    if dorm:
+        names = ", ".join(
+            (d.get("t") or d.get("sym") or "?") if isinstance(d, dict)
+            else str(d) for d in dorm[:6])
+        more = f" и ещё {len(dorm) - 6}" if len(dorm) > 6 else ""
+        add(f"СПЯТ ({len(dorm)}): {names}{more}")
+        add("")
+
+    # ── События (частокол календаря) ──
+    cal = ((p.get("calendar") or {}).get("items")) or []
+    if cal:
+        add("СОБЫТИЯ:")
+        for ev in cal[:3]:
+            when = "идёт" if ev.get("running") else                 f"через {ev.get('days', '?')} дн"
+            add(f"  · {_plain(ev.get('title') or 'событие')} — {when}")
+        add("")
+
+    # ── Итог: окно, ступень лидера, ближайшее событие ──
+    итог: list[str] = []
+    if p.get("knownCount"):
+        итог.append(f"окно рынка {p.get('warnCount', 0)} из "
+                    f"{p['knownCount']}")
+    lead_star = next((s for s in stars if s.get("lead")), None)
+    tier = ((lead_star or {}).get("size") or {}).get("tier")
+    if tier:
+        итог.append(f"размер по правилу — {tier}")
+    if cal:
+        ev = cal[0]
+        итог.append(f"{_plain(ev.get('title') or 'событие')} "
+                    + ("идёт" if ev.get("running")
+                       else f"через {ev.get('days', '?')} дн"))
+    if итог:
+        add("ИТОГ: " + ", ".join(итог))
         add("")
 
     subject = (f"Скринер · прогон {ts} · "
