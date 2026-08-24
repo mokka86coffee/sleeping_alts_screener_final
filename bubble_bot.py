@@ -189,14 +189,20 @@ def auto_corridor(sym: str) -> tuple[float, float] | None:
     return (lo, hi) if hi > lo > 0 else None
 
 
-def build_watchlist() -> list[dict]:
+def build_watchlist(open_syms: set[str] | None = None) -> list[dict]:
     """Скринерский флэт-вотч + ручные монеты, без дублей.
 
     При совпадении побеждает скринер: его коридор считан на часовых
     данных, где флэт виден лучше, чем в суточном окне бота.
+
+    open_syms — монеты с уже открытой позицией: их автокоридор не
+    пересчитывается. Границы такой монеты всё равно заморожены в
+    позиции (см. ведение), так что суточное окно было бы лишним
+    сетевым запросом в каждом цикле впустую.
     """
     watch = load_watch()
     seen = {c.get("sym") for c in watch}
+    held = open_syms or set()
     for m in load_manual():
         sym = m["sym"]
         if sym in seen:
@@ -205,6 +211,8 @@ def build_watchlist() -> list[dict]:
         low, high = m.get("low"), m.get("high")
         if low and high and high > low:
             entry["low"], entry["high"] = float(low), float(high)
+        elif sym in held:
+            pass                    # ведётся по границам из позиции
         else:
             corr = auto_corridor(sym)
             if not corr:
@@ -289,12 +297,16 @@ def _delta_stats(sym: str) -> tuple[float, float, float, int]:
 
 
 def step() -> None:
-    watch = build_watchlist()
-    if not watch:
-        _log("список пуст: скринер монет не передал, ручной список пуст")
-        return
     st = load_state()
     pos = st["positions"]
+    watch = build_watchlist(set(pos))
+    if not watch and not pos:
+        # Раньше пустой список обрывал цикл ЦЕЛИКОМ — и открытые
+        # позиции оставались без ведения: ни стопов, ни частичек,
+        # пока скринер не вернёт монеты. Теперь пустота списка
+        # останавливает только поиск входов; всё живое ведётся.
+        _log("список пуст: скринер монет не передал, ручной список пуст")
+        return
     watch_by = {c["sym"]: c for c in watch}
 
     prices: dict[str, float] = {}
@@ -311,9 +323,16 @@ def step() -> None:
         if not price:
             continue
         prices[sym] = price
-        corr = watch_by.get(sym)
-        low = (corr or p).get("low")
-        high = (corr or p).get("high")
+        # Границы, замороженные при входе. Событие ведения обязано
+        # меряться тем же коридором, что и вход: уехавшее окно
+        # (скринер пересчитал флэт, суточное окно ручной монеты
+        # сползло за ценой) превращает сделанный ход в «середину» —
+        # раздача у верха и пробой меряются по движущейся мишени.
+        # Живой коридор — только запасной путь для позиций старого
+        # формата, где границы в записи не сохранялись.
+        corr = watch_by.get(sym) or {}
+        low = p.get("low") or corr.get("low")
+        high = p.get("high") or corr.get("high")
 
         avg_entry = p["cost"] / p["qty"]
         pnl_pct = (price / avg_entry - 1) * 100
@@ -398,7 +417,7 @@ def step() -> None:
             continue
         # Добор — один, только ДО частички (усреднять уже
         # зафиксированное нелогично), и раньше стопа-вниз.
-        elif (not p["dca"] and not p.get("partial")
+        elif (not p.get("dca") and not p.get("partial")
               and pnl_pct <= -DCA_DROP_PCT):
             add_qty = DCA_USD / price
             p["qty"] += add_qty
@@ -411,10 +430,12 @@ def step() -> None:
                 "note": "добор на просадке"})
             _log(f"{sym} ДОБОР @ {price:.6g} (просадка {pnl_pct:+.1f}%)")
             continue
+        # После частички отдельного стопа за низом нет и не нужно:
+        # be-стоп остатка стоит на среднем входе, то есть ВЫШЕ низа
+        # коридора, и любое падение под границу срежется им раньше
+        # (была ветка «низ коридора при остатке» — недостижимая).
         elif low and price < p.get("stopLine", low) and not p.get("partial"):
             exit_reason = "стоп: пробой вниз (за буфером)"
-        elif low and price < p.get("stopLine", low):
-            exit_reason = "низ коридора при остатке"
 
         if exit_reason:
             rest_pnl = (price - avg_entry) * p["qty"]
@@ -434,7 +455,7 @@ def step() -> None:
                 "pnlUsd": round(pnl_usd, 2),
                 "pnlPct": round(pnl_usd / invested * 100, 2),
                 "r": round(pnl_usd / risk0, 2) if risk0 > 0 else None,
-                "dca": p["dca"], "partial": bool(p.get("partial")),
+                "dca": bool(p.get("dca")), "partial": bool(p.get("partial")),
                 "hedged": p.get("hadHedge", False),
                 "reason": exit_reason,
             })
@@ -519,7 +540,7 @@ def step() -> None:
                 f" [{p.get('case', '?')}]",
                 " [½]" if p.get("partial") else "",
                 " [hedge]" if p.get("hedge") else "",
-                " [добор]" if p["dca"] else ""])
+                " [добор]" if p.get("dca") else ""])
             _log(f"  {sym} long @{ae:.6g} · сейчас {cur:.6g} "
                  f"({(cur / ae - 1) * 100:+.1f}%) · коридор "
                  f"{p['low']:.6g}–{p['high']:.6g}{метки}")
