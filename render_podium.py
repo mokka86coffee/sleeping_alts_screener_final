@@ -553,93 +553,230 @@ PODIUM_CSS = """
   .obz-fan{display:none}
 }
 /* ── Ворота зала ─────────────────────────────────────────────
-   Первый экран после бриза: светящаяся линия, четыре диска и одна
-   строка о том, что делать. Стена не строится, пока человек не
-   выберет — иначе зал открывается посреди чужого списка, и первый
-   вопрос не «что делать», а «где я». */
+   Первый экран после бриза и постоянный дом зала. Слева сцена
+   (волна прогона, ядро с числом выбранной группы, спутники),
+   справа сам зал — список монет вместо стены карточек: он всегда
+   перед глазами, и сцена не уходит.
+
+   Все классы с приставкой obg-/obr-: экран лежит поверх подиума,
+   и общие имена вроде .row или .panel столкнулись бы с его
+   стилями.
+
+   Палитра индиго — своя у ворот. Ярусы стены сохраняют прежние
+   цвета STAGE, здесь же группам назначен индиго-набор, чтобы
+   сцена читалась как один предмет. */
 .obp-gate{position:absolute;inset:0;z-index:46;display:none;
-  align-items:center;justify-content:center;padding:22px 18px;
+  align-items:center;justify-content:center;padding:28px 20px;overflow:hidden;
   background:
-    radial-gradient(90% 60% at 50% 46%,rgba(232,165,85,.07) 0%,transparent 62%),
-    radial-gradient(100% 80% at 50% 112%,rgba(6,8,12,.9) 0%,transparent 72%);
-  animation:obgIn .5s cubic-bezier(.2,.7,.3,1) both}
+    radial-gradient(90% 70% at 50% 22%,#333a6b 0%,transparent 62%),
+    radial-gradient(80% 60% at 50% 96%,rgba(236,111,94,.10) 0%,transparent 66%),
+    linear-gradient(180deg,#2a2f59 0%,#232748 46%,#1a1e3a 100%)}
+.obp-gate::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(120% 90% at 50% 50%,transparent 44%,rgba(14,17,34,.55) 100%)}
 .obp-gate.on{display:flex}
-@keyframes obgIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
-.obg-inner{display:flex;flex-direction:column;align-items:center;gap:30px}
 
-/* График без рамки и плашки: просто светящаяся линия на звёздах. */
-.obg-chart{width:min(660px,80vw)}
-.obg-chart svg{display:block;width:100%;height:auto}
+.obg-stage{position:relative;z-index:3;display:flex;align-items:center;
+  gap:44px;width:min(1560px,96vw);height:100%}
+.obg-inner{flex:1;min-width:0;display:flex;flex-direction:column;
+  align-items:center;gap:30px;
+  animation:obgRise 2.1s cubic-bezier(.2,.75,.3,1) both}
+@keyframes obgRise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
 
-/* Верньеры. Цвет каждого — цвет его группы (--c и --rgb приходят из
-   STAGE), поэтому кнопки различимы между собой и не спорят с
-   янтарным графиком. Фон почти прозрачный: сквозь диск виден зал,
-   объём держат блик по верхней грани, внутренняя тень и ободок. */
-.obg-dials{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
-.obg-d{position:relative;background:none;border:0;padding:6px 4px 0;cursor:pointer;
-  display:flex;flex-direction:column;align-items:center;gap:12px;width:112px;
-  font:inherit;-webkit-tap-highlight-color:transparent}
-.obg-face{position:relative;width:80px;height:80px;border-radius:50%;
-  display:grid;place-items:center;font-size:22px;letter-spacing:-.02em;
-  color:var(--c,#c09672);
+/* ── Волна прогона ── */
+.obg-wave{position:relative;width:100%;min-height:300px;isolation:isolate}
+.obg-wave svg{position:relative;z-index:1;display:block;width:100%;height:auto;
+  max-height:34vh}
+/* Призрачное число — нижний слой: лента и сетка идут поверх и режут его. */
+.obg-ghost{position:absolute;z-index:0;left:50%;top:62%;
+  transform:translate(-50%,-50%);font-size:230px;font-weight:700;
+  letter-spacing:-.05em;line-height:1;color:rgba(255,255,255,.055);
+  pointer-events:none;user-select:none;
+  text-shadow:0 0 60px rgba(255,255,255,.04)}
+
+/* ── Ядро и спутники ── */
+.obg-hero{display:flex;align-items:center;justify-content:center;gap:56px;
+  width:100%;flex-wrap:wrap;min-height:288px}
+#obgHero{width:100%;display:flex;flex-direction:column;align-items:center;
+  gap:30px;min-height:456px;justify-content:flex-start}
+/* Высоты и ширины ЗАКРЕПЛЕНЫ: подписи групп разной длины, и без этого
+   при переключении прыгал весь экран. */
+.obg-core{position:relative;display:flex;flex-direction:column;align-items:center;
+  gap:18px;background:none;border:0;padding:0;cursor:pointer;font:inherit;
+  min-height:284px;width:300px;justify-content:flex-start}
+.obg-ring{position:relative;width:196px;height:196px;display:grid;
+  place-items:center;transition:transform .75s}
+.obg-ring svg{position:absolute;inset:0;width:100%;height:100%}
+.obg-disc{position:absolute;inset:26px;border-radius:50%;
   background:
-    linear-gradient(180deg,rgba(230,237,241,.07) 0%,transparent 30%),
-    radial-gradient(circle at 50% 118%,rgba(var(--rgb,34 37 41),.16) 0%,rgba(12,13,16,.16) 74%);
-  -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
-  box-shadow:
-    inset 0 2px 2px rgba(230,237,241,.13),
-    inset 0 -10px 18px -8px rgba(0,0,0,.55),
-    0 0 0 1px rgba(var(--rgb,36 38 42),.22),
-    0 16px 26px -16px rgba(0,0,0,.8);
-  transition:transform .2s,color .2s,box-shadow .2s}
-.obg-face::before{content:"";position:absolute;inset:9px;border-radius:50%;
-  border:1px solid rgba(var(--rgb,230 237 241),.2);
-  box-shadow:inset 0 6px 12px rgba(0,0,0,.7),0 1px 0 rgba(230,237,241,.06);
-  pointer-events:none;transition:border-color .2s,box-shadow .2s}
-.obg-cap{font-size:9.5px;letter-spacing:.28em;text-transform:uppercase;
-  color:var(--c,#a97a5f);opacity:.75}
-.obg-d[data-live="1"] .obg-face{
+    radial-gradient(circle at 50% 32%,rgba(255,255,255,.14) 0%,transparent 40%),
+    radial-gradient(circle at 50% 60%,rgba(var(--rgb),.24) 0%,rgba(38,43,80,.6) 66%);
+  box-shadow:inset 0 2px 2px rgba(255,255,255,.16),
+             inset 0 -18px 34px -18px rgba(10,12,26,.9),
+             0 0 44px rgba(var(--rgb),.28)}
+.obg-num{position:relative;z-index:2;font-size:51px;font-weight:200;
+  letter-spacing:-.04em;color:#fff;text-shadow:0 0 30px rgba(var(--rgb),.75)}
+.obg-core:hover .obg-ring{transform:translateY(-3px)}
+.obg-mark{display:flex;align-items:center;gap:14px}
+.obg-mark i{display:block;width:46px;height:1px;position:relative;
+  background:linear-gradient(90deg,transparent,rgba(var(--rgb),.55))}
+.obg-mark i:last-child{background:linear-gradient(90deg,rgba(var(--rgb),.55),transparent)}
+.obg-mark i::after{content:"";position:absolute;top:-2px;width:1px;height:5px;
+  background:rgba(var(--rgb),.7)}
+.obg-mark i:first-child::after{right:0}
+.obg-mark i:last-child::after{left:0}
+.obg-cap{font-size:12px;letter-spacing:.52em;text-transform:uppercase;
+  font-weight:600;color:var(--c);text-indent:.52em;
+  text-shadow:0 0 22px rgba(var(--rgb),.55),0 0 46px rgba(var(--rgb),.25)}
+.obg-sub{margin-top:9px;font-size:8px;letter-spacing:.22em;text-transform:uppercase;
+  color:#6c74a6;font-weight:500}
+.obg-sub b{color:#98a0cc;font-weight:600}
+
+.obg-side{display:flex;flex-direction:column;gap:12px;width:236px}
+.obg-sat{display:flex;align-items:center;gap:14px;width:236px;
+  background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);
+  padding:8px 18px 8px 8px;border-radius:999px;cursor:pointer;font:inherit;
+  transition:background .6s,transform .6s,border-color .6s}
+.obg-sat:hover{background:rgba(255,255,255,.05);
+  border-color:rgba(var(--rgb),.35);transform:translateX(3px)}
+.obg-pill{flex:0 0 auto;width:54px;height:54px;border-radius:50%;display:grid;
+  place-items:center;font-size:18px;font-weight:300;color:var(--c);
   background:
-    linear-gradient(180deg,rgba(230,237,241,.09) 0%,transparent 30%),
-    radial-gradient(circle at 50% 118%,rgba(var(--rgb),.26) 0%,rgba(12,13,16,.2) 74%);
-  box-shadow:
-    inset 0 2px 2px rgba(230,237,241,.18),
-    inset 0 -10px 18px -8px rgba(0,0,0,.6),
-    0 0 0 1px rgba(var(--rgb),.55),
-    0 0 26px rgba(var(--rgb),.34),
-    0 18px 34px -14px rgba(var(--rgb),.4);
-  text-shadow:0 0 14px rgba(var(--rgb),.85)}
-.obg-d[data-live="1"] .obg-face::before{border-color:rgba(var(--rgb),.8);
-  box-shadow:inset 0 0 18px rgba(var(--rgb),.24),0 0 12px rgba(var(--rgb),.5)}
-.obg-d[data-live="1"] .obg-cap{opacity:1}
-.obg-d[data-zero="1"]{opacity:.4}
-.obg-d:hover .obg-face{transform:translateY(-3px)}
-.obg-d:focus-visible .obg-face{outline:2px solid var(--c,#e8a555);outline-offset:5px}
+    linear-gradient(180deg,rgba(255,255,255,.08),transparent 34%),
+    radial-gradient(circle at 50% 118%,rgba(var(--rgb),.2),rgba(30,34,64,.5) 74%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16),
+             0 0 0 1px rgba(var(--rgb),.3),0 0 20px rgba(var(--rgb),.14)}
+.obg-sat .obg-scap{flex:1;text-align:left;font-size:10px;letter-spacing:.28em;
+  text-transform:uppercase;color:var(--c);opacity:.8;font-weight:500}
+.obg-sat.obg-zero{opacity:.45}
 
-.obg-hint{margin:0;text-align:center;font-size:12px;color:#b8bec6;max-width:440px}
-.obg-hint b{color:#fff;font-weight:600}
+/* ── Подсказка и панель чисел ── */
+.obg-hint{margin:0;text-align:center;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:9px;min-height:74px}
+.obg-say{font-size:22px;font-weight:200;letter-spacing:-.01em;color:#e8ecfb}
+.obg-say b{font-weight:400;color:#4fc98a;text-shadow:0 0 26px rgba(79,201,138,.6)}
+.obg-tail{position:relative;font-size:10px;letter-spacing:.12em;
+  text-transform:lowercase;color:#8f97c6;padding-top:11px}
+.obg-tail::before{content:"";position:absolute;top:0;left:50%;
+  transform:translateX(-50%);width:54px;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(143,151,198,.5),transparent)}
+.obg-panel{display:flex;border-radius:16px;overflow:hidden;
+  background:linear-gradient(180deg,rgba(63,70,124,.5),rgba(38,43,80,.5));
+  border:1px solid rgba(255,255,255,.06);
+  box-shadow:0 24px 50px -30px rgba(8,10,24,.9)}
+.obg-panel div{position:relative;padding:10px 20px;text-align:center;
+  border-right:1px solid rgba(255,255,255,.05);transition:background .6s}
+.obg-panel div:last-child{border-right:0}
+.obg-panel div:hover{background:rgba(255,255,255,.03)}
+.obg-panel div.obg-up::before{content:"";position:absolute;top:0;left:26%;right:26%;
+  height:1px;opacity:.6;
+  background:linear-gradient(90deg,transparent,#4fc98a,transparent)}
+.obg-panel span{display:block;font-size:5.8px;letter-spacing:.28em;
+  text-transform:uppercase;color:#6c74a6;font-weight:600}
+.obg-panel b{display:block;margin-top:5px;font-size:12.8px;font-weight:200;
+  letter-spacing:-.02em;color:#eef1fb;font-variant-numeric:tabular-nums}
+.obg-panel b i{font-style:normal;font-size:8.2px;font-weight:400;margin-left:7px;
+  color:#4fc98a}
+.obg-panel b.obg-up{color:#4fc98a;text-shadow:0 0 20px rgba(79,201,138,.35)}
 
-/* Пока ворота открыты, верхняя строка групп молчит: два ряда одних
-   и тех же кнопок — это две развилки вместо одной. */
+/* ── Зал колонкой ─────────────────────────────────────────────
+   Высота колонки постоянна, список внутри тянется, место под полосу
+   прокрутки зарезервировано: иначе при переходе к пустой группе блок
+   схлопывался и весь экран дёргался. */
+.obr{width:392px;flex:0 0 auto;height:100%;display:flex;flex-direction:column;
+  gap:10px;padding:18px 0}
+.obr-head{display:flex;align-items:baseline;justify-content:space-between;
+  padding:0 4px 10px;border-bottom:1px solid rgba(255,255,255,.07);
+  animation:obgFade 1.2s ease both}
+.obr-head b{font-size:11px;letter-spacing:.34em;text-transform:uppercase;
+  font-weight:600;color:var(--c)}
+.obr-head span{font-size:9px;letter-spacing:.2em;text-transform:uppercase;
+  color:#6c74a6}
+.obr-list{flex:1;min-height:0;display:flex;flex-direction:column;gap:5px;
+  overflow-y:auto;padding-right:4px;scrollbar-gutter:stable;
+  scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.12) transparent}
+.obr-list::-webkit-scrollbar{width:5px}
+.obr-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);
+  border-radius:3px}
+.obr-empty{flex:1;min-height:0;display:grid;place-items:center;text-align:center;
+  font-size:11px;letter-spacing:.14em;color:#6c74a6;
+  animation:obgFade 1.2s ease both}
+
+.obr-row{position:relative;display:grid;grid-template-columns:78px 1fr 62px;
+  align-items:center;gap:12px;padding:9px 12px 9px 15px;border-radius:11px;
+  border:1px solid rgba(255,255,255,.05);cursor:pointer;
+  background:linear-gradient(90deg,rgba(var(--rgb),.07),rgba(255,255,255,.012) 42%);
+  transition:background .54s,border-color .54s,transform .54s;
+  animation:obrRowIn 1.26s cubic-bezier(.2,.75,.3,1) both}
+.obr-row:hover{border-color:rgba(var(--rgb),.34);transform:translateX(-3px);
+  background:linear-gradient(90deg,rgba(var(--rgb),.13),rgba(255,255,255,.03) 42%)}
+/* цвет стратегии — полоса слева */
+.obr-row::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:2px;
+  border-radius:2px;background:var(--c);box-shadow:0 0 10px rgba(var(--rgb),.6)}
+.obr-tk{font-size:12px;font-weight:500;letter-spacing:.06em;color:#e8ecfb}
+.obr-cs{display:block;margin-top:3px;font-size:7.4px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--c);opacity:.85;white-space:nowrap}
+.obr-row svg{display:block;width:100%;height:34px}
+.obr-pnl{text-align:right;font-size:13px;font-weight:300;
+  font-variant-numeric:tabular-nums}
+.obr-pnl.obg-up{color:#4fc98a} .obr-pnl.obg-dn{color:#ec6f5e}
+.obr-pnl em{display:block;font-style:normal;margin-top:2px;font-size:7.4px;
+  letter-spacing:.16em;text-transform:uppercase;color:#6c74a6}
+
+/* ── Движение ─────────────────────────────────────────────────
+   Отрисовка нарочно медленная: сначала проступает сетка, по ней
+   рисуется линия, СЛЕДОМ наливается тело. Тело показывалось сразу —
+   и волна выглядела готовой, сколько бы линия ни рисовалась. */
+@keyframes obgFade{from{opacity:0}to{opacity:1}}
+@keyframes obgTextIn{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+@keyframes obrRowIn{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}
+@keyframes obrDraw{to{stroke-dashoffset:0}}
+@keyframes obgWaveDraw{to{stroke-dashoffset:0}}
+@keyframes obgSpin{to{transform:rotate(360deg)}}
+#obgHero .obg-hero{animation:obgTextIn 1.32s cubic-bezier(.2,.75,.3,1) both}
+#obgHero .obg-hint{animation:obgTextIn 1.32s cubic-bezier(.2,.75,.3,1) both .27s}
+#obgHero .obg-panel{animation:obgTextIn 1.32s cubic-bezier(.2,.75,.3,1) both .48s}
+.obg-wave .obg-wv{stroke-dasharray:2600;stroke-dashoffset:2600;
+  animation:obgWaveDraw 5.7s cubic-bezier(.3,.75,.35,1) .45s both}
+.obg-wave .obg-mesh{animation:obgFade 3.6s ease .3s both}
+.obg-wave .obg-body{animation:obgFade 3.2s ease 1.6s both}
+.obg-wave .obg-head{animation:obgFade 1.5s ease 5.6s both}
+.obg-wave .obg-node{animation:obgFade 1.8s ease 4.2s both}
+.obr-row svg .obr-ln{stroke-dasharray:420;stroke-dashoffset:420;
+  animation:obrDraw 2.4s cubic-bezier(.25,.8,.3,1) both}
+.obr-row svg .obr-mk,.obr-row svg .obr-lvl{animation:obgFade 1.5s ease both}
+.obg-spin{transform-origin:50% 50%;animation:obgSpin 78s linear infinite}
+.obg-spin.obg-rev{animation:obgSpin 102s linear infinite reverse}
+
+/* Пока ворота открыты, верхний ряд групп и «заново» молчат. */
 .ob-podium.obp-gated .obp-groups,
 .ob-podium.obp-gated .obp-hint,
 .ob-podium.obp-gated .obp-again{opacity:0;pointer-events:none}
-
-/* «Заново» возвращает к воротам без перезагрузки: прототип смотрят
-   подряд по многу раз, и F5 каждый раз стоит бриза. */
 .obp-again{right:auto;left:26px;color:#8a6a3f;
   border-color:rgba(232,165,85,.22);background:rgba(14,11,8,.6)}
 .obp-again:hover{color:#ffcb7d;border-color:rgba(232,165,85,.45);
   background:rgba(28,20,12,.85)}
-.obp-again:focus-visible{outline:2px solid #e8a555}
 
-@media (max-width:640px){
-  .obg-d{width:84px}
-  .obg-face{width:62px;height:62px;font-size:18px}
+@media (max-width:1180px){
+  .obg-stage{flex-direction:column;gap:26px;height:auto}
+  .obr{width:100%;height:auto}
+  .obr-list{max-height:290px}
+}
+@media (max-width:760px){
+  .obg-hero{gap:26px}
+  .obg-ring{width:158px;height:158px}
+  .obg-num{font-size:40px}
+  .obg-ghost{font-size:140px;top:58%}
+  .obg-side{flex-direction:row;flex-wrap:wrap;justify-content:center;width:auto}
+  .obg-panel{flex-wrap:wrap}
 }
 @media (prefers-reduced-motion:reduce){
-  .obp-gate{animation:none}
-  .obg-face{transition:none}
+  .obg-inner,.obr-row,.obr-row svg .obr-ln,.obr-row svg .obr-mk,
+  .obr-row svg .obr-lvl,.obr-head,.obr-empty,.obg-spin,
+  #obgHero .obg-hero,#obgHero .obg-hint,#obgHero .obg-panel,
+  .obg-wave .obg-wv,.obg-wave .obg-mesh,.obg-wave .obg-body,
+  .obg-wave .obg-head,.obg-wave .obg-node{animation:none}
+  .obr-row svg .obr-ln,.obg-wave .obg-wv{stroke-dashoffset:0}
+  .obg-ring{transition:none}
 }
 </style>
 """
@@ -662,14 +799,14 @@ PODIUM_HTML = """
   <div class="obp-tiers" id="obpTiers"></div>
   <div class="obp-stage" id="obpStage"></div>
 
-  <!-- Ворота зала: первый экран после бриза. Только диски по
-       центру и светящаяся линия над ними — человек выбирает
-       сам, куда идти. Стена не строится, пока не выберет. -->
+  <!-- Ворота зала: первый экран после бриза и постоянный дом зала.
+       Слева сцена — волна прогона, ядро выбранной группы и спутники;
+       справа зал списком вместо стены карточек, он всегда на виду.
+       Стена по-прежнему живёт своей жизнью и открывается кликом. -->
   <div class="obp-gate" id="obpGate">
-    <div class="obg-inner">
-      <div class="obg-chart" id="obgChart"></div>
-      <div class="obg-dials" id="obgDials" role="tablist"></div>
-      <p class="obg-hint" id="obgHint"></p>
+    <div class="obg-stage">
+      <div class="obg-inner" id="obgInner"></div>
+      <aside class="obr" id="obgRail"></aside>
     </div>
   </div>
 
@@ -2208,135 +2345,399 @@ PODIUM_JS = """
 
   /* ── Ворота зала ───────────────────────────────────────────────
      Зал открывался сразу стеной выбранной группы: человек попадал
-     внутрь списка, не выбрав его. Теперь после бриза стоят диски и
-     светящаяся линия — развилка вместо чужого решения. */
+     внутрь списка, не выбрав его. Теперь после бриза стоит сцена —
+     волна прогона, ядро с числом группы, спутники — а справа сам
+     зал списком. Стена никуда не делась: клик по строке или по
+     ядру открывает её. */
   var GATE = document.getElementById('obpGate');
+  var GATE_KEY = TRADE_ANY ? 'exit' : 'hold';
 
-  /* '#7FE3D4' → '127 227 212' для rgba(var(--rgb), a). Через пробел,
-     а не запятые — так значение подставляется в rgba() целиком. */
-  function hexRgb(hex) {
-    var h = String(hex || '').replace('#', '');
-    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
-    var n = parseInt(h, 16);
-    if (isNaN(n)) return '230 237 241';
-    return ((n >> 16) & 255) + ' ' + ((n >> 8) & 255) + ' ' + (n & 255);
+  /* Цвета ворот СВОИ. Ярусы стены сохраняют прежние STAGE-цвета —
+     их менять нельзя, на них завязано свечение карточек, — а сцена
+     живёт в индиго, чтобы читаться одним предметом. */
+  var GATE_C = {
+    hold: { c: '#8b93c4', rgb: '139 147 196' },
+    take: { c: '#6b7ae0', rgb: '107 122 224' },
+    trade: { c: '#4fc98a', rgb: '79 201 138' },
+    exit: { c: '#ec6f5e', rgb: '236 111 94' }
+  };
+  /* Кейс FLOW лежит в поле st. Цвет кейса — цвет СТРАТЕГИИ в строке
+     зала: по нему видно, почему монета вообще в списке. */
+  var GATE_CASE = {
+    hidden:   { n: 'скрытый спрос',   c: '#d9b96e', rgb: '217 185 110' },
+    spring:   { n: 'пружина',         c: '#6b7ae0', rgb: '107 122 224' },
+    churn:    { n: 'перемол',         c: '#8b93c4', rgb: '139 147 196' },
+    fuel:     { n: 'топливо',         c: '#f0a878', rgb: '240 168 120' },
+    dormant:  { n: 'спячка',          c: '#5c6598', rgb: '92 101 152' },
+    taker:    { n: 'смена агрессора', c: '#c98ce0', rgb: '201 140 224' },
+    leverage: { n: 'плечо',           c: '#ec6f5e', rgb: '236 111 94' }
+  };
+  function caseOf(s) {
+    return GATE_CASE[s && s.st] ||
+      { n: 'без кейса', c: '#7b83b8', rgb: '123 131 184' };
+  }
+  function gcol(key) { return GATE_C[key] || GATE_C.hold; }
+
+  /* ── Волна прогона: ряд рынка на перспективной сетке ─────────── */
+  function smoothAt(d, t) {
+    var n = d.length - 1, f = t * n, i = Math.min(n - 1, Math.floor(f)), u = f - i;
+    var p0 = d[Math.max(0, i - 1)], p1 = d[i], p2 = d[i + 1], p3 = d[Math.min(n, i + 2)];
+    return 0.5 * ((2 * p1) + (-p0 + p2) * u +
+      (2 * p0 - 5 * p1 + 4 * p2 - p3) * u * u +
+      (-p0 + 3 * p1 - 3 * p2 + p3) * u * u * u);
   }
 
-  /* Светящаяся линия над дисками: ход рынка из данных прогона,
-     разлив под ним и точка на конце. Ни рамки, ни подписей —
-     решение принимают по дискам, линия только задаёт настроение. */
-  function gateSpark() {
+  function gateWave(w, h) {
     var d = ((O.market || {}).series || []).slice();
     if (d.length < 3) return '';
-    var W = 700, H = 150, L = 6, R = 6, TOP = 26, BOT = 124;
-    var max = -Infinity, min = Infinity, i;
+    /* Поля по краям: кривая не упирается в границу кадра, а
+       растворяется маской — иначе она обрывалась о колонку. */
+    var L = 26, R = 130, TOP = 46, BASE = h - 42, i, r;
+    var max = -Infinity, min = Infinity;
     for (i = 0; i < d.length; i++) {
       if (d[i] > max) max = d[i];
       if (d[i] < min) min = d[i];
     }
-    var rng = (max - min) || 1, span = W - L - R;
+    var rng = (max - min) || 1, span = w - L - R;
+    var N = 160, ROWS = 13, DX = 5.2, DY = 7.4;
 
-    /* Сглаживание по узлам — линия идёт плавно, а не ломано. */
-    function at(t) {
-      var n = d.length - 1, f = t * n, k = Math.min(n - 1, Math.floor(f)), u = f - k;
-      var p0 = d[Math.max(0, k - 1)], p1 = d[k], p2 = d[k + 1], p3 = d[Math.min(n, k + 2)];
-      return 0.5 * ((2 * p1) + (-p0 + p2) * u +
-        (2 * p0 - 5 * p1 + 4 * p2 - p3) * u * u +
-        (-p0 + 3 * p1 - 3 * p2 + p3) * u * u * u);
+    function px(i2, r2) { return L + i2 / N * span + r2 * DX; }
+    function py(i2, r2) {
+      var k = 1 - r2 * 0.055;
+      return BASE + r2 * DY - ((smoothAt(d, i2 / N) - min) / rng) * (BASE - TOP) * k;
     }
-    var N = 160, line = '', x, y;
-    for (i = 0; i <= N; i++) {
-      x = L + i / N * span;
-      y = BOT - ((at(i / N) - min) / rng) * (BOT - TOP);
-      line += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+    function row(r2) {
+      var s2 = '', i3;
+      for (i3 = 0; i3 <= N; i3++) {
+        s2 += (i3 ? 'L' : 'M') + px(i3, r2).toFixed(1) + ' ' + py(i3, r2).toFixed(1) + ' ';
+      }
+      return s2;
     }
-    var hx = L + span, hy = BOT - ((d[d.length - 1] - min) / rng) * (BOT - TOP);
-    var chg = (d[d.length - 1] / d[0] - 1) * 100;
+    var mesh = '';
+    for (r = ROWS; r >= 1; r--) {
+      mesh += '<path d="' + row(r) + '" fill="none" stroke="#7d86c8" stroke-opacity="' +
+        (0.16 - r * 0.009).toFixed(3) + '" stroke-width="1"/>';
+    }
+    var ribs = '', c2;
+    for (c2 = 0; c2 <= N; c2 += 5) {
+      var d2 = '', r3;
+      for (r3 = 0; r3 <= ROWS; r3++) {
+        d2 += (r3 ? 'L' : 'M') + px(c2, r3).toFixed(1) + ' ' + py(c2, r3).toFixed(1) + ' ';
+      }
+      ribs += '<path d="' + d2 + '" fill="none" stroke="#7d86c8" ' +
+        'stroke-opacity=".08" stroke-width="1"/>';
+    }
+    var front = row(0), hx = px(N, 0), hy = py(N, 0);
+    var fx = px(Math.round(N * 0.66), 0), fy = py(Math.round(N * 0.66), 0);
 
-    return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="ход рынка' +
-      ' за ' + d.length + ' дней, изменение ' + chg.toFixed(1) + ' процента">' +
+    return '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none" ' +
+      'role="img" aria-label="ход рынка за ' + d.length + ' дней">' +
       '<defs>' +
-        '<linearGradient id="obgLine" x1="0" y1="0" x2="1" y2="0">' +
-          '<stop offset="0%" stop-color="#6a311d"/>' +
-          '<stop offset="45%" stop-color="#df8a43"/>' +
-          '<stop offset="100%" stop-color="#e8a555"/></linearGradient>' +
-        '<linearGradient id="obgUnder" x1="0" y1="0" x2="0" y2="1">' +
-          '<stop offset="0%" stop-color="#e8a555" stop-opacity=".22"/>' +
-          '<stop offset="100%" stop-color="#e8a555" stop-opacity="0"/></linearGradient>' +
-        '<filter id="obgBlur" x="-20%" y="-80%" width="140%" height="300%">' +
-          '<feGaussianBlur stdDeviation="9"/></filter>' +
-        '<filter id="obgLit" x="-20%" y="-80%" width="140%" height="300%">' +
-          '<feGaussianBlur stdDeviation="2.6" result="b"/>' +
-          '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>' +
+        '<linearGradient id="obgWv" x1="0" y1="0" x2="1" y2="0">' +
+          '<stop offset="0%" stop-color="#8b93c4"/>' +
+          '<stop offset="34%" stop-color="#ec6f5e"/>' +
+          '<stop offset="72%" stop-color="#f0a878"/>' +
+          '<stop offset="100%" stop-color="#ffd2ac"/></linearGradient>' +
+        '<linearGradient id="obgUf" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0%" stop-color="#ec6f5e" stop-opacity=".2"/>' +
+          '<stop offset="100%" stop-color="#ec6f5e" stop-opacity="0"/></linearGradient>' +
+        '<filter id="obgSh" x="-20%" y="-60%" width="140%" height="260%">' +
+          '<feGaussianBlur stdDeviation="16"/></filter>' +
+        '<filter id="obgGl" x="-20%" y="-90%" width="140%" height="320%">' +
+          '<feGaussianBlur stdDeviation="3" result="q"/>' +
+          '<feMerge><feMergeNode in="q"/><feMergeNode in="SourceGraphic"/></feMerge>' +
         '</filter>' +
+        '<linearGradient id="obgFadeX" x1="0" y1="0" x2="1" y2="0">' +
+          '<stop offset="0%" stop-color="#fff" stop-opacity="0"/>' +
+          '<stop offset="7%" stop-color="#fff" stop-opacity="1"/>' +
+          '<stop offset="72%" stop-color="#fff" stop-opacity="1"/>' +
+          '<stop offset="100%" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
+        '<mask id="obgMFade"><rect x="0" y="0" width="' + w + '" height="' + h +
+          '" fill="url(#obgFadeX)"/></mask>' +
+        '<linearGradient id="obgFadeL" x1="0" y1="0" x2="1" y2="0">' +
+          '<stop offset="0%" stop-color="#fff" stop-opacity="0"/>' +
+          '<stop offset="6%" stop-color="#fff" stop-opacity="1"/>' +
+          '<stop offset="84%" stop-color="#fff" stop-opacity="1"/>' +
+          '<stop offset="100%" stop-color="#fff" stop-opacity="0"/></linearGradient>' +
+        '<mask id="obgMLine"><rect x="0" y="0" width="' + w + '" height="' + h +
+          '" fill="url(#obgFadeL)"/></mask>' +
       '</defs>' +
-      '<path d="' + line + 'L ' + (L + span) + ' ' + BOT + ' L ' + L + ' ' + BOT +
-        ' Z" fill="url(#obgUnder)"/>' +
-      '<path d="' + line + '" fill="none" stroke="#e8a555" stroke-width="10" ' +
-        'stroke-opacity=".3" filter="url(#obgBlur)"/>' +
-      '<path d="' + line + '" fill="none" stroke="url(#obgLine)" stroke-width="2" ' +
-        'stroke-linecap="round" stroke-linejoin="round" filter="url(#obgLit)"/>' +
-      '<circle cx="' + hx.toFixed(1) + '" cy="' + hy.toFixed(1) + '" r="3.4" ' +
-        'fill="#ffe6c2" filter="url(#obgLit)"/>' +
+      '<g class="obg-mesh" mask="url(#obgMFade)">' + mesh + ribs + '</g>' +
+      '<g class="obg-body" mask="url(#obgMFade)">' +
+        '<path d="' + front + '" fill="none" stroke="#0f1226" stroke-width="26" ' +
+          'stroke-opacity=".55" filter="url(#obgSh)" transform="translate(0,22)"/>' +
+        '<path d="' + front + 'L ' + (L + span) + ' ' + BASE + ' L ' + L + ' ' +
+          BASE + ' Z" fill="url(#obgUf)"/>' +
+        '<path d="' + front + '" fill="none" stroke="#ec6f5e" stroke-width="12" ' +
+          'stroke-opacity=".3" filter="url(#obgSh)"/>' +
+      '</g>' +
+      '<g mask="url(#obgMLine)">' +
+        '<path class="obg-wv" d="' + front + '" fill="none" stroke="url(#obgWv)" ' +
+          'stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" ' +
+          'filter="url(#obgGl)"/>' +
+      '</g>' +
+      '<g class="obg-node" transform="translate(' + fx.toFixed(1) + ',' +
+        fy.toFixed(1) + ')">' +
+        '<circle r="30" fill="none" stroke="#ffd2ac" stroke-opacity=".26" ' +
+          'stroke-dasharray="1.5 6" class="obg-spin"/>' +
+        '<circle r="20" fill="none" stroke="#ffd2ac" stroke-opacity=".4" ' +
+          'stroke-dasharray="1.5 5" class="obg-spin obg-rev"/>' +
+        '<circle r="9" fill="none" stroke="#ffd2ac" stroke-opacity=".8"/>' +
+        '<circle r="3.6" fill="#fff1e2" filter="url(#obgGl)"/>' +
+      '</g>' +
+      '<g class="obg-head">' +
+        '<circle cx="' + hx.toFixed(1) + '" cy="' + hy.toFixed(1) + '" r="17" ' +
+          'fill="#ffd2ac" fill-opacity=".1" filter="url(#obgSh)"/>' +
+        '<circle cx="' + hx.toFixed(1) + '" cy="' + hy.toFixed(1) + '" r="4.6" ' +
+          'fill="#fff1e2" filter="url(#obgGl)"><animate attributeName="r" ' +
+          'values="4;6;4" dur="9s" repeatCount="indefinite"/></circle>' +
+      '</g></svg>';
+  }
+
+  /* ── Строка зала: две недели и точка входа ───────────────────
+     Ряд series — ровно 14 суточных точек. Цену входа знаем точно
+     (book.px), а ДАТЫ входа в данных нет: поэтому уровень входа —
+     сплошной факт (пунктир через всю ширину), а отметка ставится
+     там, где ряд ПОСЛЕДНИЙ РАЗ пересёк этот уровень. Выдумывать
+     день входа мы не будем. */
+  function railSpark(s, dly) {
+    var d = (s.series || []).slice(-14), i;
+    if (d.length < 3) return '';
+    var W = 150, H = 34, PAD = 3;
+    var entry = s.book && s.book.px ? +s.book.px : null;
+    var max = -Infinity, min = Infinity;
+    for (i = 0; i < d.length; i++) {
+      if (d[i] > max) max = d[i];
+      if (d[i] < min) min = d[i];
+    }
+    if (entry !== null) { if (entry > max) max = entry; if (entry < min) min = entry; }
+    var rng = (max - min) || 1;
+    function X(i2) { return PAD + i2 / (d.length - 1) * (W - PAD * 2); }
+    function Y(v) { return H - PAD - (v - min) / rng * (H - PAD * 2); }
+
+    var e = -1;
+    if (entry !== null) {
+      for (i = d.length - 2; i >= 0; i--) {
+        if ((d[i] - entry) * (d[i + 1] - entry) <= 0) { e = i + 1; break; }
+      }
+      if (e < 0) e = 0;
+    }
+    var noEntry = e < 0;
+    var cut = noEntry ? 0 : e;
+    var before = '', after = '';
+    for (i = 0; i <= cut; i++) {
+      before += (i ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(d[i]).toFixed(1) + ' ';
+    }
+    for (i = cut; i < d.length; i++) {
+      after += (i === cut ? 'M' : 'L') + X(i).toFixed(1) + ' ' + Y(d[i]).toFixed(1) + ' ';
+    }
+    var ey = Y(entry === null ? d[cut] : entry), ex = X(cut);
+    var pnl = (entry && s.px) ? (s.px / entry - 1) * 100 : 0;
+    var col = pnl >= 0 ? '#4fc98a' : '#ec6f5e';
+
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" ' +
+      'aria-hidden="true">' +
+      (noEntry ? '' :
+        '<line class="obr-lvl" x1="0" y1="' + ey.toFixed(1) + '" x2="' + W +
+        '" y2="' + ey.toFixed(1) + '" stroke="#ffffff" stroke-opacity=".16" ' +
+        'stroke-dasharray="2 4" style="animation-delay:' + (dly + 1860) + 'ms"/>') +
+      '<path class="obr-ln" d="' + before + '" fill="none" stroke="#8b93c4" ' +
+        'stroke-opacity=".38" stroke-width="1.2" stroke-linejoin="round" ' +
+        'style="animation-delay:' + dly + 'ms"/>' +
+      '<path class="obr-ln" d="' + after + '" fill="none" stroke="' + col + '" ' +
+        'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" ' +
+        'style="animation-delay:' + (dly + 780) + 'ms"/>' +
+      (noEntry ? '' :
+        '<circle class="obr-mk" cx="' + ex.toFixed(1) + '" cy="' + ey.toFixed(1) +
+        '" r="3.4" fill="none" stroke="#fff" stroke-opacity=".55" ' +
+        'style="animation-delay:' + (dly + 900) + 'ms"/>' +
+        '<circle class="obr-mk" cx="' + ex.toFixed(1) + '" cy="' + ey.toFixed(1) +
+        '" r="1.5" fill="#fff" style="animation-delay:' + (dly + 900) + 'ms"/>') +
       '</svg>';
   }
 
-  /* Горит ровно один диск — тот, где сегодня есть работа, и порядок
-     тот же, что в жизни: срочное вперёд. */
-  function liveKey(counts) {
-    if (counts.exit) return 'exit';
-    if (counts.trade) return 'trade';
-    if (counts.take) return 'take';
-    return 'hold';
+  /* ── Зал колонкой ── */
+  function railList(key) {
+    if (key === 'hold') {
+      return STARS.filter(function (s) { return s.hold; });
+    }
+    return groupList(key);
   }
 
-  function gateHint(counts, live) {
-    var W = {
-      exit: 'Есть <b>' + counts.exit + '</b> — там, где ждать больше нельзя. С них и начните.',
-      trade: 'Держим <b>' + counts.trade + '</b>. Входов сегодня правила не предлагают.',
-      take: 'Брать сегодня <b>' + counts.take + '</b>. Открытых позиций нет.',
-      hold: 'Сегодня действий нет — журнал держит <b>' + counts.hold + '</b> монет.'
-    };
-    return W[live] || '';
+  function paintRail() {
+    var host = document.getElementById('obgRail');
+    if (!host) return;
+    var stg = null, i;
+    for (i = 0; i < STAGE.length; i++) {
+      if (STAGE[i].key === GATE_KEY) stg = STAGE[i];
+    }
+    if (!stg) return;
+    var col = gcol(GATE_KEY), rows = railList(GATE_KEY);
+    var withEntry = GATE_KEY === 'trade' || GATE_KEY === 'exit';
+    var out = '<div class="obr-head" style="--c:' + col.c + '">' +
+      '<b>' + stg.n + ' · ' + rows.length + '</b>' +
+      '<span>две недели' + (withEntry ? ' · твх' : '') + '</span></div>';
+    if (!rows.length) {
+      host.innerHTML = out + '<div class="obr-empty">в этой группе сегодня пусто</div>';
+      return;
+    }
+    /* Порядок — по ходу от входа, лучшие сверху: список читают
+       сверху вниз, и первым должно стоять то, что работает. */
+    rows = rows.slice().sort(function (a, b) {
+      return (pnlOf(b) - pnlOf(a));
+    });
+    out += '<div class="obr-list">';
+    for (i = 0; i < rows.length; i++) {
+      var s = rows[i], c = caseOf(s), p = pnlOf(s);
+      out += '<div class="obr-row" data-sym="' + s.t + '" style="--c:' + c.c +
+        ';--rgb:' + c.rgb + ';animation-delay:' + (i * 165) + 'ms">' +
+        '<div><span class="obr-tk">' + s.t + '</span>' +
+          '<span class="obr-cs">' + c.n + '</span></div>' +
+        '<div>' + railSpark(s, i * 165) + '</div>' +
+        '<div class="obr-pnl ' + (p >= 0 ? 'obg-up' : 'obg-dn') + '">' +
+          (p >= 0 ? '+' : '') + p.toFixed(1) + '%' +
+          '<em>' + (s.book && s.book.px ? 'от твх' : 'две недели') + '</em></div>' +
+        '</div>';
+    }
+    host.innerHTML = out + '</div>';
+  }
+
+  /* Ход монеты: от входа, если позиция есть; иначе за две недели. */
+  function pnlOf(s) {
+    if (s.book && s.book.px && s.px) return (s.px / s.book.px - 1) * 100;
+    var d = (s.series || []);
+    if (d.length > 1 && d[0]) return (d[d.length - 1] / d[0] - 1) * 100;
+    return 0;
+  }
+
+  /* ── Сцена ── */
+  function ringsFor(g) {
+    /* Первый операнд ОБЯЗАН стоять на строке с return: иначе движок
+       сам подставит точку с запятой и функция вернёт пустоту. */
+    return '<svg viewBox="0 0 200 200" aria-hidden="true">' +
+      '<circle cx="100" cy="100" r="96" fill="none" stroke="rgba(' +
+        g.rgb.split(' ').join(',') + ',.28)" stroke-dasharray="2 7" class="obg-spin"/>' +
+      '<circle cx="100" cy="100" r="84" fill="none" stroke="rgba(' +
+        g.rgb.split(' ').join(',') + ',.5)" stroke-dasharray="2 6" ' +
+        'class="obg-spin obg-rev"/>' +
+      '<circle cx="100" cy="100" r="72" fill="none" stroke="rgba(' +
+        g.rgb.split(' ').join(',') + ',.75)" stroke-width="1.4"/>' +
+      '</svg>';
+  }
+
+  function gateHint(key, n) {
+    if (key === 'take') {
+      return n ? { say: 'Есть вход', tail: 'правила предлагают взять' }
+               : { say: 'Брать сегодня нечего', tail: 'правила не нашли ни одного входа' };
+    }
+    if (key === 'exit') {
+      return n ? { say: 'Пора выходить', tail: 'позиция просит закрытия' }
+               : { say: 'Выходить не из чего', tail: 'ни одна позиция не просит выхода' };
+    }
+    if (key === 'hold') {
+      return { say: 'Журнал держит всё', tail: 'подход без выходов, просто ждём' };
+    }
+    return n ? { say: 'Позиции в работе', tail: 'ведём по правилам' }
+             : { say: 'Книга пуста', tail: 'открытых позиций нет' };
+  }
+
+  function money(v) {
+    var n = +v || 0, a = Math.abs(n), t = n < 0 ? '−$' : '$';
+    if (a >= 1e6) return t + (a / 1e6).toFixed(1) + 'M';
+    return t + (a >= 1000 ? (a / 1000).toFixed(1) + 'K' : Math.round(a));
+  }
+  function pct(v) {
+    if (v === null || v === undefined || !isFinite(v)) return '—';
+    return (v >= 0 ? '+' : '') + (+v).toFixed(1) + '%';
+  }
+
+  function paintHero() {
+    var host = document.getElementById('obgHero');
+    if (!host) return;
+    var g = null, others = [], i;
+    for (i = 0; i < STAGE.length; i++) {
+      if (STAGE[i].key === GATE_KEY) { g = STAGE[i]; } else { others.push(STAGE[i]); }
+    }
+    if (!g) return;
+    var col = gcol(g.key), n = railList(g.key).length;
+    var sats = '', k, kc, kn;
+    for (i = 0; i < others.length; i++) {
+      k = others[i]; kc = gcol(k.key); kn = railList(k.key).length;
+      sats += '<button class="obg-sat' + (kn ? '' : ' obg-zero') + '" type="button" ' +
+        'data-gkey="' + k.key + '" style="--c:' + kc.c + ';--rgb:' + kc.rgb + '">' +
+        '<span class="obg-pill">' + kn + '</span>' +
+        '<span class="obg-scap">' + k.n + '</span></button>';
+    }
+    var h = gateHint(g.key, n);
+    var PF = (O.market || {}).portfolios || {};
+    var H = PF.hold || {}, T = PF.trade || {};
+    host.innerHTML =
+      '<div class="obg-hero">' +
+        '<button class="obg-core" type="button" data-gkey="' + g.key + '" ' +
+          'style="--c:' + col.c + ';--rgb:' + col.rgb + '">' +
+          '<span class="obg-ring">' + ringsFor(col) +
+            '<span class="obg-disc"></span>' +
+            '<span class="obg-num">' + n + '</span></span>' +
+          '<span class="obg-mark"><i></i><span class="obg-cap">' + g.n +
+            '</span><i></i></span>' +
+          '<span class="obg-sub">из <b>' + STARS.length + '</b> в журнале</span>' +
+        '</button>' +
+        '<div class="obg-side">' + sats + '</div>' +
+      '</div>' +
+      '<div class="obg-hint">' +
+        '<div class="obg-say">' + h.say + '</div>' +
+        '<div class="obg-tail">' + h.tail + '</div>' +
+      '</div>' +
+      '<div class="obg-panel">' +
+        '<div class="obg-up"><span>hold</span><b>' + money(H.value) +
+          '<i>' + pct(H.pnlPct) + '</i></b></div>' +
+        '<div class="obg-up"><span>по правилам</span><b class="obg-up">' +
+          pct(T.pnlPct) + '</b></div>' +
+        '<div><span>в работе</span><b>' + money(T.invested) + '</b></div>' +
+        '<div class="obg-up"><span>потолок</span><b class="obg-up">' +
+          pct(PF.peakPct) + '</b></div>' +
+      '</div>';
+    var gh = document.getElementById('obgGhost');
+    if (gh) gh.innerHTML = n;
+    bindGate();
+  }
+
+  /* Привязку зовём после КАЖДОЙ перерисовки: узлы новые. */
+  function bindGate() {
+    var btns = document.querySelectorAll('[data-gkey]'), i;
+    for (i = 0; i < btns.length; i++) {
+      (function (b) {
+        b.onclick = function (e) {
+          e.stopPropagation();
+          var k = b.getAttribute('data-gkey');
+          if (k === GATE_KEY) { enterHall(k); return; }
+          GATE_KEY = k;
+          paintHero();
+          paintRail();
+        };
+      })(btns[i]);
+    }
+    var rows = document.querySelectorAll('.obr-row'), j;
+    for (j = 0; j < rows.length; j++) {
+      (function (r) {
+        r.onclick = function () { enterHall(GATE_KEY); };
+      })(rows[j]);
+    }
   }
 
   function openGate() {
     if (!GATE) { build(); return; }
-    var counts = {};
-    STAGE.forEach(function (stg) { counts[stg.key] = groupList(stg.key).length; });
-    var live = liveKey(counts);
-
-    var ch = document.getElementById('obgChart');
-    if (ch) ch.innerHTML = gateSpark();
-
-    var host = document.getElementById('obgDials');
-    if (host) {
-      host.innerHTML = '';
-      STAGE.forEach(function (stg) {
-        var c = counts[stg.key];
-        var b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'obg-d';
-        b.setAttribute('role', 'tab');
-        if (stg.key === live) b.setAttribute('data-live', '1');
-        if (!c) b.setAttribute('data-zero', '1');
-        /* Цвет группы — тот же, что у ярусов зала. */
-        b.style.setProperty('--c', stg.c);
-        b.style.setProperty('--rgb', hexRgb(stg.c));
-        b.innerHTML = '<span class="obg-face">' + c + '</span>' +
-                      '<span class="obg-cap">' + stg.n + '</span>';
-        b.onclick = function () { enterHall(stg.key); };
-        /* Зал слушает перетаскивание: без остановки всплытия нажатие
-           уводит сцену вбок ещё до отпускания. */
-        b.addEventListener('mousedown', function (e) { e.stopPropagation(); });
-        b.addEventListener('touchstart', function (e) { e.stopPropagation(); },
-                           { passive: true });
-        host.appendChild(b);
-      });
+    var inner = document.getElementById('obgInner');
+    if (inner) {
+      /* Волна строится ОДИН раз: перестраивать её на каждом переходе
+         значило бы каждый раз заново проигрывать её отрисовку. */
+      inner.innerHTML =
+        '<div class="obg-wave"><div class="obg-ghost" id="obgGhost"></div>' +
+          gateWave(1000, 300) + '</div>' +
+        '<div id="obgHero"></div>';
     }
-    var hint = document.getElementById('obgHint');
-    if (hint) hint.innerHTML = gateHint(counts, live);
-
+    paintHero();
+    paintRail();
     pod.classList.add('obp-gated');
     GATE.classList.add('on');
   }
