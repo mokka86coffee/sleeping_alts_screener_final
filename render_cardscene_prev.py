@@ -158,20 +158,24 @@ CARDSCENE_CSS = """
    внутри, чем одна поверх столба. */
 #obcRoot .rl{position:absolute;transform:translate(-50%,-50%);
   text-align:center;white-space:normal}
-/* Текст в кольце идёт БЕЗ теней. Прежде под буквами лежала
-   многослойная подложка, гасившая ореол обода; вблизи она читалась
-   грязным пятном вокруг каждой строки. Контраст держат сами цвета:
-   кольцо тонкое, фон под ним тёмный, подложка не нужна. */
+/* Тень принадлежит БУКВАМ, а не блоку: тёмное пятно под текстом
+   гасило и обод, и отражение — читалось как дырка в кадре. Тень
+   набрана слоями: короткая жёсткая держит контур на светлом, две
+   широких мягких съедают ореол обода вокруг самих букв, и ничего
+   не трогают вокруг. */
 #obcRoot .rl-k{font-size:clamp(5.5px,.64vw,8px);letter-spacing:.4em;
-  text-transform:uppercase;color:#7C8B9A}
+  text-transform:uppercase;color:#7C8B9A;
+  text-shadow:0 1px 2px rgba(0,0,0,.98),0 0 6px rgba(3,7,12,.95),0 0 16px rgba(3,7,12,.85),0 0 34px rgba(3,7,12,.6)}
 #obcRoot .rl-v{margin-top:.3em;font-size:clamp(7.5px,.88vw,11px);
-  font-weight:300;letter-spacing:.06em;color:#E4EEF8}
+  font-weight:300;letter-spacing:.06em;color:#E4EEF8;
+  text-shadow:0 1px 2px rgba(0,0,0,.98),0 0 6px rgba(3,7,12,.95),0 0 16px rgba(3,7,12,.85),0 0 34px rgba(3,7,12,.6)}
 #obcRoot .rl-s{margin-top:.3em;font-size:clamp(5.5px,.66vw,8.5px);
-  letter-spacing:.06em;color:#95A6B5}
+  letter-spacing:.06em;color:#95A6B5;
+  text-shadow:0 1px 2px rgba(0,0,0,.98),0 0 6px rgba(3,7,12,.95),0 0 16px rgba(3,7,12,.85),0 0 34px rgba(3,7,12,.6)}
 #obcRoot .rl-s em{font-style:normal;color:#B9C7D3}
 #obcRoot .rl-s s{text-decoration:none;color:#63A6E0}
-#obcRoot .rl.up .rl-v{color:#FF8A52}
-#obcRoot .rl.dn .rl-v{color:#6FE3B4}
+#obcRoot .rl.up .rl-v{color:#FF8A52;text-shadow:0 0 16px rgba(255,138,82,.45)}
+#obcRoot .rl.dn .rl-v{color:#6FE3B4;text-shadow:0 0 16px rgba(111,227,180,.45)}
 #obcRoot .rl.px .rl-k{color:#B9C7D3;letter-spacing:.34em}
 
 /* Центр кольца — как надпись внутри кольца на референсе: тихо,
@@ -180,14 +184,18 @@ CARDSCENE_CSS = """
 #obcRoot .rl-core{position:absolute;transform:translate(-50%,-50%);
   text-align:center;white-space:normal}
 #obcRoot .rl-x{font-size:clamp(13px,1.6vw,22px);font-weight:200;
-  letter-spacing:.02em;line-height:1;color:#FFC978}
-#obcRoot .rl-x.mute{color:#7E8F9D}
+  letter-spacing:.02em;line-height:1;color:#FFC978;
+  text-shadow:0 1px 2px rgba(0,0,0,.98),0 0 8px rgba(3,7,12,.9),
+              0 0 20px rgba(255,201,120,.55),0 0 54px rgba(240,184,95,.28)}
+#obcRoot .rl-x.mute{color:#7E8F9D;text-shadow:none}
 #obcRoot .rl-w{margin-top:.55em;font-size:clamp(6.5px,.78vw,9.5px);
-  line-height:1.5;color:#B4C5D4}
+  line-height:1.5;color:#B4C5D4;
+  text-shadow:0 1px 2px rgba(0,0,0,.98),0 0 6px rgba(3,7,12,.95),0 0 16px rgba(3,7,12,.85),0 0 34px rgba(3,7,12,.6)}
 #obcRoot .rl-w b{font-weight:400;color:#E6ECF3}
 #obcRoot .rl-w b.dn{color:#FF8A52} #obcRoot .rl-w b.up{color:#6FE3B4}
 #obcRoot .rl-t{margin-top:.9em;font-size:clamp(6px,.72vw,9px);
-  letter-spacing:.16em;text-transform:uppercase;color:#95A6B5}
+  letter-spacing:.16em;text-transform:uppercase;color:#95A6B5;
+  text-shadow:0 1px 2px rgba(0,0,0,.98),0 0 6px rgba(3,7,12,.95),0 0 16px rgba(3,7,12,.85),0 0 34px rgba(3,7,12,.6)}
 #obcRoot .rl-t b{font-weight:400}
 #obcRoot .rl-t b.ok{color:#6FE3B4} #obcRoot .rl-t b.no{color:#FF8A52}
 
