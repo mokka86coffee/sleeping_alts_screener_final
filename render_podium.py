@@ -552,7 +552,6 @@ PODIUM_CSS = """
   .obz-gau{transform:none;width:150px;height:150px}
   .obz-fan{display:none}
 }
-</style>
 /* ── Ворота зала ─────────────────────────────────────────────
    Первый экран после бриза: светящаяся линия, четыре диска и одна
    строка о том, что делать. Стена не строится, пока человек не
@@ -642,7 +641,7 @@ PODIUM_CSS = """
   .obp-gate{animation:none}
   .obg-face{transition:none}
 }
-
+</style>
 """
 
 PODIUM_HTML = """
