@@ -964,42 +964,53 @@ CARDSCENE_JS = r"""
   function rings(c) {
     var sq = c.squeeze || {}, ef = c.effort || null, wt = c.wyckoffTest || null;
 
-    /* ВОПРОС ПЕРВЫЙ: кончился ли продавец. */
-    var sv = [], sn = 0;
-    if (wt && wt.note) { sn++; if (wt.tested) sv.push('тест'); }
-    if (ef && ef.state) { sn++; if (ef.state === 'absorbing') sv.push('поглощение'); }
-    if (sq.negRun !== undefined) { sn++; if (sq.charged) sv.push('заряд'); }
-    if (c.press !== undefined && c.press !== null) {
-      sn++; if (+c.press > 0) sv.push('перевес покупок');
+    /* ВОПРОС ПЕРВЫЙ: кончился ли продавец.
+
+       Голоса «за» и «против» держатся врозь. Раньше список был
+       один — согласные, — и при отрицательном вердикте строка
+       читалась наоборот: «продавец жив · тест» выглядело так,
+       будто это тест утверждает, что продавец жив. Теперь сторона
+       подписана словом, и спутать нельзя. */
+    var spro = [], scon = [], sn = 0;
+    if (wt && wt.note) { sn++; (wt.tested ? spro : scon).push('второй заход'); }
+    if (ef && ef.state) {
+      sn++; (ef.state === 'absorbing' ? spro : scon).push(
+        ef.state === 'spent' ? 'ход отработан'
+        : ef.state === 'exhausting' ? 'истощение' : 'поглощение');
     }
-    /* Порог писался под четырёх ответивших. Когда отвечают двое,
-       «ноль из двух» читается как поломка прибора, а вывод «жив» на
-       двух голосах — перебор. Меньше трёх ответивших — вердикта нет,
-       и так и сказано. */
-    var sell = { n: sv.length, of: sn, why: sv.slice(0, 2).join(' · '),
+    if (sq.negRun !== undefined) { sn++; (sq.charged ? spro : scon).push('заряд'); }
+    if (c.press !== undefined && c.press !== null) {
+      sn++; (+c.press > 0 ? spro : scon).push('перевес сторон');
+    }
+    var sell = { n: spro.length, of: sn,
+      pro: spro.slice(0, 2).join(' · '), con: scon.slice(0, 2).join(' · '),
       word: !sn ? 'нечем мерить'
         : sn < 3 ? 'мало данных'
-        : sv.length >= 3 ? 'иссяк' : sv.length === 2 ? 'сдаёт' : 'жив' };
+        : spro.length >= 3 ? 'иссяк' : spro.length === 2 ? 'сдаёт' : 'жив' };
 
-    /* ВОПРОС ВТОРОЙ: на чьей стороне топливо. Голос со знаком:
-       плюс — заряжено вверх, минус — вниз. */
-    var f = 0, fn2 = 0, fw = [];
+    /* ВОПРОС ВТОРОЙ: на чьей стороне топливо. Так же врозь: кто
+       тянет вверх и кто вниз. */
+    var f = 0, fn2 = 0, fup = [], fdn = [];
     if (sq.negRun !== undefined) {
-      fn2++; if (sq.charged) { f++; fw.push('шорты платят'); }
+      fn2++; if (sq.charged) { f++; fup.push('шорты платят'); }
     }
     if (c.fund !== undefined && c.fund !== null) {
       fn2++;
-      if (+c.fund < 0) { f++; fw.push('фандинг минусовой'); }
-      else if (+c.fund > 0.02) { f--; fw.push('лонги перегреты'); }
+      if (+c.fund < 0) { f++; fup.push('фандинг минусовой'); }
+      else if (+c.fund > 0.02) { f--; fdn.push('лонги перегреты'); }
     }
-    if (c.vxDir) { fn2++; if (c.vxDir === 'up') f++; else { f--; fw.push('вортекс вниз'); } }
+    if (c.vxDir) {
+      fn2++;
+      if (c.vxDir === 'up') { f++; fup.push('вортекс вверх'); }
+      else { f--; fdn.push('вортекс вниз'); }
+    }
     if (c.oiState) {
       fn2++;
-      if (c.oiState === 'held') { f--; fw.push('плечо застряло'); }
-      else if (c.oiState === 'cleared') { f++; fw.push('плечо разгружено'); }
+      if (c.oiState === 'held') { f--; fdn.push('плечо застряло'); }
+      else if (c.oiState === 'cleared') { f++; fup.push('плечо разгружено'); }
     }
     var fuel = { sign: f > 0 ? 1 : f < 0 ? -1 : 0, n: Math.abs(f), of: fn2,
-      why: fw.slice(0, 2).join(' · '),
+      pro: fup.slice(0, 2).join(' · '), con: fdn.slice(0, 2).join(' · '),
       word: !fn2 ? 'нечем мерить'
         : f > 0 ? 'вверх' : f < 0 ? 'вниз' : 'ровно' };
 
@@ -2262,9 +2273,13 @@ CARDSCENE_JS = r"""
           '</div>' + (ef.word ? '<div class="rl-w">' + ef.word + '</div>' : '');
       }
       if (ts){
-        html += '<div class="rl-t">тест <b class="' + (ts.ok ? 'ok' : 'no') + '">' +
-          (ts.ok ? 'пройден' : 'не пройден') + '</b>' +
-          (ts.share === null ? '' : ' · ' + ts.share + '%') + '</div>';
+        /* Было просто «тест» — слово ни о чём не говорит. Теперь
+           названо действие: цена во второй раз сходила к минимуму,
+           и вопрос в том, тише ли прошёл этот заход. */
+        html += '<div class="rl-t">второй заход к дну <b class="' +
+          (ts.ok ? 'ok' : 'no') + '">' + (ts.ok ? 'тише' : 'так же шумно') +
+          '</b>' + (ts.share === null ? '' : ' · ' + ts.share +
+          '% объёма прокола') + '</div>';
       }
       html += '</div>';
     }
@@ -2378,6 +2393,13 @@ CARDSCENE_JS = r"""
        кольцо, чтобы отвечать раньше слов. */
     const qring = (cx, q, name, bipolar) => {
       const r = 30, cc = 2 * Math.PI * r;
+      /* Подпись стороны. Показываем тех, кто держит ВЕРДИКТ: при
+         «иссяк» это голоса за, при «жив» — против. Иначе строка
+         объясняет не то, что написано над ней. */
+      const pos = bipolar ? q.sign > 0 : (q.n >= Math.ceil(q.of / 2));
+      const list = pos ? q.pro : q.con;
+      const label = bipolar ? (pos ? 'за рост' : 'за спад') : (pos ? 'за' : 'против');
+      const side = list ? label + ': ' + list : '';
       const frac = q.of ? Math.min(1, q.n / q.of) : 0;
       const sweep = cc * frac * (bipolar ? 0.42 : 0.75);
       const rot = bipolar ? (q.sign < 0 ? 90 : -90) : -215;
@@ -2393,7 +2415,7 @@ CARDSCENE_JS = r"""
             transform="rotate(${rot})"/></g>` : ''}
         <text class="num" y="5">${center}</text>
         <text class="cap2" y="46">${name} · ${q.word}</text>
-        ${q.why ? `<text class="cap2" y="60" opacity=".62">${q.why}</text>` : ''}
+        ${side ? `<text class="cap2" y="60" opacity=".62">${side}</text>` : ''}
       </g>`;
     };
 

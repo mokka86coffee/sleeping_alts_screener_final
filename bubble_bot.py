@@ -247,23 +247,45 @@ def _now() -> str:
 # ─────────────────────────────────────────────────────────────
 # Один цикл
 # ─────────────────────────────────────────────────────────────
-def _delta_stats(sym: str) -> tuple[float, float, float]:
-    """Средняя |дельта| за окно, дельта последнего бара, его close.
+def _delta_stats(sym: str) -> tuple[float, float, float, int]:
+    """Средняя |дельта| окна, дельта ПОСЛЕДНЕГО ЗАКРЫТОГО бара,
+    текущая цена и время открытия того бара.
 
-    Один запрос klines — по §10 спеки этого достаточно: сторона
-    тейкера лежит в самом баре, точно для каждого бара окна.
+    Здесь была ошибка, из-за которой бот почти не торговал. Решение
+    принималось по ПОСЛЕДНЕМУ бару, а последний бар у биржи — ещё
+    не закрытый: его дельта копится с нуля от открытия свечи, а
+    сравнивалась она со средней по ДВАДЦАТИ ПОЛНЫМ барам. Опрос
+    идёт раз в три минуты при пятиминутной свече, то есть бар
+    попадался в среднем на половине жизни, с половиной объёма.
+    Чтобы недоросший бар дал тройное превышение полной средней,
+    нужно совпадение почти невозможное — отсюда одна сделка за
+    десять часов вместо десятков.
+
+    Это противоречило и спеке: событие там — свойство ЗАВЕРШЁННОГО
+    бара («вверх по лестнице таймфреймов, работать на предыдущем»).
+    Теперь дельта берётся у последнего закрытого бара, среднее — у
+    двадцати перед ним, а цена остаётся живой: решаем по факту,
+    входим по рынку.
+
+    Возвращается ещё и время открытия решающего бара: при опросе
+    чаще длины свечи один и тот же бар попадается дважды, и без
+    этой отметки одно событие сработало бы двумя входами.
     """
-    ks = klines(sym, BARS_LOOKBACK + 1)
-    if len(ks) < BARS_LOOKBACK + 1:
-        return 0.0, 0.0, 0.0
-    hist = [abs(bar_delta(k)) for k in ks[:-1]]
+    ks = klines(sym, BARS_LOOKBACK + 2)      # +1 закрытый, +1 текущий
+    if len(ks) < BARS_LOOKBACK + 2:
+        return 0.0, 0.0, 0.0, 0
+    closed = ks[-2]                          # последний ЗАКРЫТЫЙ
+    hist = [abs(bar_delta(k)) for k in ks[:-2]]
     avg = sum(hist) / len(hist) if hist else 0.0
-    last = ks[-1]
     try:
-        price = float(last[4])
+        price = float(ks[-1][4])             # цена — из текущего бара
     except (IndexError, TypeError, ValueError):
         price = 0.0
-    return avg, bar_delta(last), price
+    try:
+        bar_open = int(closed[0])
+    except (IndexError, TypeError, ValueError):
+        bar_open = 0
+    return avg, bar_delta(closed), price, bar_open
 
 
 def step() -> None:
@@ -281,7 +303,7 @@ def step() -> None:
     for sym in list(pos.keys()):
         p = pos[sym]
         try:
-            avg, last_delta, price = _delta_stats(sym)
+            avg, last_delta, price, bar_open = _delta_stats(sym)
         except Exception as e:
             _log(f"{sym}: сеть/данные недоступны ({type(e).__name__}) — "
                  f"пропускаю монету в этом цикле")
@@ -431,7 +453,7 @@ def step() -> None:
         if not (low and high and high > low):
             continue
         try:
-            avg, last_delta, price = _delta_stats(sym)
+            avg, last_delta, price, bar_open = _delta_stats(sym)
         except Exception as e:
             _log(f"{sym}: сеть/данные недоступны ({type(e).__name__}) — "
                  f"пропускаю монету в этом цикле")
@@ -439,6 +461,13 @@ def step() -> None:
         if avg <= 0 or not price:
             continue
         prices[sym] = price
+
+        # Опрос чаще длины свечи: один и тот же закрытый бар
+        # попадается дважды. Без отметки последнего сыгравшего бара
+        # событие открыло бы две позиции подряд — а это уже не
+        # механика, а дубль.
+        if bar_open and st.get("lastBar", {}).get(sym) == bar_open:
+            continue
 
         # у нижней границы коридора?
         near_low = price <= low + (high - low) * NEAR_LOW_PCT / 100
@@ -454,6 +483,7 @@ def step() -> None:
                            min(SIZE_MAX_USD, RISK_USD / stop_frac))
             qty = size_usd / price
             case = c.get("case", c.get("reason", "?"))
+            st.setdefault("lastBar", {})[sym] = bar_open
             pos[sym] = {
                 "opened": _now(), "entry": price, "qty": qty,
                 "cost": size_usd, "invested": size_usd, "dca": False,

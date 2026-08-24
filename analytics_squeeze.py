@@ -423,11 +423,11 @@ def wyckoff_test_from_rows(rows: list[dict],
         out["barsAfter"] = i - ilow
         if ratio <= vol_ratio:
             out["tested"] = True
-            out["note"] = (f"тест пройден: повторный заход к минимуму на "
-                           f"объёме {ratio:.0%} от прокола — продавец иссяк")
+            out["note"] = (f"второй заход к дну прошёл тише: {ratio:.0%} "
+                           f"объёма прокола — продавец иссяк")
         else:
-            out["note"] = (f"тест НЕ пройден: у минимума объём {ratio:.0%} "
-                           f"от прокола — предложение не иссякло, рано")
+            out["note"] = (f"второй заход к дну на {ratio:.0%} объёма "
+                           f"прокола — так же шумно, предложение живо")
         return out
     return out
 
