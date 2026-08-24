@@ -267,23 +267,55 @@ PODIUM_CSS = """
    объясняет, что зал показывает не всё сразу. Счётчик на кнопке
    обязателен — иначе переключение вслепую, и пустая группа выглядит
    как поломка. */
+/* ── Переключатель групп ─────────────────────────────────────
+   Была коробка с жёсткими перегородками: рамка, разделители в
+   пиксель и залитая плашка у активной вкладки. Плашка спорила с
+   залом по весу, «в работе» ломалось на две строки, а счётчики
+   читались наравне с названиями.
+
+   Теперь это стеклянная планка с бликом по верхней кромке — тот
+   же материал, что у капсулы дашборда и рамок панелей. Активная
+   вкладка не заливается, а подсвечивается снизу тонкой чертой в
+   цвет своей группы: подчёркивание указывает, заливка загораживает.
+   Счётчик стоит тише названия — он уточняет, а не называет. */
 .obp-groups{position:absolute;left:50%;top:56px;transform:translateX(-50%);
-  z-index:6;display:flex;border:1px solid rgba(255,255,255,.09);
-  border-radius:3px;overflow:hidden;background:rgba(8,10,15,.72);
-  backdrop-filter:blur(6px)}
-.obp-gb{font:400 10.5px/1 var(--mono,ui-monospace,monospace);letter-spacing:.16em;
-  text-transform:uppercase;color:#5A5F69;background:transparent;border:0;
-  padding:10px 20px;cursor:pointer;border-right:1px solid rgba(255,255,255,.06);
-  transition:color .2s ease,background .2s ease}
-.obp-gb:last-child{border-right:0}
-.obp-gb b{font-weight:400;margin-left:8px;color:#3A3E47}
-.obp-gb:hover{color:#8A8F99}
-.obp-gb.on{color:#D8DCE4;background:rgba(255,255,255,.045)}
-.obp-gb.on b{color:#8A8F99}
-/* Цвет активной вкладки — цвет самой группы: экран сразу окрашен тем,
-   о чём он. */
-.obp-gb.on[data-g="exit"]{color:#FFB4A0;background:rgba(255,107,53,.09)}
-.obp-gb.on[data-g="take"]{color:#9EDCF5;background:rgba(111,201,232,.07)}
+  z-index:6;display:flex;gap:2px;padding:4px;border-radius:999px;
+  background:linear-gradient(180deg,rgba(200,220,232,.055),rgba(8,10,15,.72));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.1),
+             inset 0 0 0 1px rgba(200,220,232,.08),
+             0 14px 34px -16px rgba(0,0,0,.95);
+  backdrop-filter:blur(7px)}
+/* Блик по верхней кромке — как у капсулы дашборда */
+.obp-groups::after{content:'';position:absolute;top:0;left:16%;right:16%;
+  height:1px;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(200,220,232,.45) 30%,
+    rgba(200,220,232,.45) 70%,transparent)}
+
+.obp-gb{position:relative;--a:#C8D2DE;
+  font:400 10px/1 var(--mono,ui-monospace,monospace);letter-spacing:.2em;
+  text-transform:uppercase;color:#6B717C;background:transparent;border:0;
+  padding:10px 20px 11px;border-radius:999px;cursor:pointer;
+  white-space:nowrap;                      /* «в работе» больше не ломается */
+  transition:color .22s ease,background .22s ease}
+.obp-gb[data-g="take"]{--a:#9EDCF5}
+.obp-gb[data-g="trade"]{--a:#7FE3D4}
+.obp-gb[data-g="exit"]{--a:#FFB4A0}
+.obp-gb b{font-weight:400;margin-left:9px;color:#454A54;
+  transition:color .22s ease}
+.obp-gb:hover{color:#A2AAB6;background:rgba(200,220,232,.045)}
+.obp-gb:hover b{color:#6B717C}
+.obp-gb:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+
+/* Черта под активной: короткая, светящаяся, в цвет группы */
+.obp-gb::after{content:'';position:absolute;left:50%;bottom:5px;
+  width:0;height:1.5px;border-radius:1px;transform:translateX(-50%);
+  background:var(--a);box-shadow:0 0 10px var(--a);opacity:0;
+  transition:width .28s cubic-bezier(.2,.8,.3,1),opacity .22s ease}
+.obp-gb.on::after{width:calc(100% - 34px);opacity:.95}
+.obp-gb.on{color:var(--a);text-shadow:0 0 16px color-mix(in srgb,var(--a) 45%,transparent)}
+.obp-gb.on b{color:color-mix(in srgb,var(--a) 62%,#6B717C)}
+/* Пустая группа не притворяется живой: счётчик в нуле гаснет */
+.obp-gb b:empty{display:none}
 
 /* ── Подписи ярусов ──────────────────────────────────────────
    Высота несёт стадию, и это надо назвать словом, а не оставить

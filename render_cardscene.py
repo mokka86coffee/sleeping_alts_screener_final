@@ -135,18 +135,69 @@ CARDSCENE_CSS = """
     rgba(4,10,16,.62),rgba(4,10,16,.34) 46%,transparent 74%);
   filter:blur(4px);z-index:-1}
 
-/* ── Нижняя строка ──────────────────────────────────────────
-   Всё, что не заслужило столба, но нужно на глаз: одна строка
-   у нижнего края, набранная тише всего в кадре. */
-#obcRoot .foot{position:absolute;left:3.4%;right:3.4%;top:80%;
-  display:flex;gap:clamp(14px,2.6vw,42px);flex-wrap:wrap;
-  font-size:clamp(6.5px,.76vw,9.5px);letter-spacing:.2em;text-transform:uppercase;
-  color:#7E8F9D;transform:perspective(900px) rotateX(16deg);transform-origin:50% 100%}
-#obcRoot .foot b{font-weight:400;letter-spacing:.08em;text-transform:none;
-  font-size:1.35em;color:#B9C7D3;margin-left:.7em;
-  text-shadow:0 1px 0 rgba(0,0,0,.8),0 0 9px currentColor,0 0 24px currentColor}
-#obcRoot .foot .hot b{color:#FF7A45}
-#obcRoot .foot .warm b{color:#F0B85F}
+/* ── Кольцо краткосрока ─────────────────────────────────────
+   Полоса внизу ушла целиком. Коридор входа стал КОЛЬЦОМ, стоящим
+   на воде: низ обода касается поверхности, верх поднят в небо,
+   светящаяся точка цены едет по ободу.
+
+   Почему кольцо, а не шкала. Во-первых, направление: вверх по
+   ободу — вверх по цене, и объяснять это не надо. Во-вторых,
+   кольцо нарисовано ВНУТРИ сцены, до столбов, — поэтому столбы
+   проходят перед ним, а вода отражает его сама, тем же кодом,
+   что отражает лодку. Полоса поверх кадра отражаться не умела и
+   всегда оставалась наклейкой.
+
+   На холсте живёт только свет: обод, засечки в один ATR, узлы
+   опоры и потолка, точка цены. Подписи — HTML поверх: у отчёта
+   своя гарнитура и трекинг, текст внутри холста жил бы по своим
+   правилам. Слой подписей сквозной для мыши — он ничего не ловит. */
+#obcRoot .near{position:absolute;inset:0;pointer-events:none;z-index:3}
+/* Ширина подписи ограничена самим ободом и приходит инлайном из
+   геометрии: строка, вылезшая за кольцо, попадает на свет столбов
+   и становится нечитаемой. Перенос разрешён — лучше две строки
+   внутри, чем одна поверх столба. */
+#obcRoot .rl{position:absolute;transform:translate(-50%,-50%);
+  text-align:center;white-space:normal}
+/* Тень принадлежит БУКВАМ, а не блоку: тёмное пятно под текстом
+   гасило и обод, и отражение — читалось как дырка в кадре. Тень
+   набрана слоями: короткая жёсткая держит контур на светлом, две
+   широких мягких съедают ореол обода вокруг самих букв, и ничего
+   не трогают вокруг. */
+#obcRoot .rl-k{font-size:clamp(5.5px,.64vw,8px);letter-spacing:.4em;
+  text-transform:uppercase;color:#7C8B9A;
+  text-shadow:0 1px 2px rgba(0,0,0,.98),0 0 6px rgba(3,7,12,.95),0 0 16px rgba(3,7,12,.85),0 0 34px rgba(3,7,12,.6)}
+#obcRoot .rl-v{margin-top:.3em;font-size:clamp(7.5px,.88vw,11px);
+  font-weight:300;letter-spacing:.06em;color:#E4EEF8;
+  text-shadow:0 1px 2px rgba(0,0,0,.98),0 0 6px rgba(3,7,12,.95),0 0 16px rgba(3,7,12,.85),0 0 34px rgba(3,7,12,.6)}
+#obcRoot .rl-s{margin-top:.3em;font-size:clamp(5.5px,.66vw,8.5px);
+  letter-spacing:.06em;color:#95A6B5;
+  text-shadow:0 1px 2px rgba(0,0,0,.98),0 0 6px rgba(3,7,12,.95),0 0 16px rgba(3,7,12,.85),0 0 34px rgba(3,7,12,.6)}
+#obcRoot .rl-s em{font-style:normal;color:#B9C7D3}
+#obcRoot .rl-s s{text-decoration:none;color:#63A6E0}
+#obcRoot .rl.up .rl-v{color:#FF8A52;text-shadow:0 0 16px rgba(255,138,82,.45)}
+#obcRoot .rl.dn .rl-v{color:#6FE3B4;text-shadow:0 0 16px rgba(111,227,180,.45)}
+#obcRoot .rl.px .rl-k{color:#B9C7D3;letter-spacing:.34em}
+
+/* Центр кольца — как надпись внутри кольца на референсе: тихо,
+   разрядкой, по центру. Здесь стоит проверка усилия и исход теста:
+   два вывода, которые не привязаны ни к какому уровню. */
+#obcRoot .rl-core{position:absolute;transform:translate(-50%,-50%);
+  text-align:center;white-space:normal}
+#obcRoot .rl-x{font-size:clamp(13px,1.6vw,22px);font-weight:200;
+  letter-spacing:.02em;line-height:1;color:#FFC978;
+  text-shadow:0 1px 2px rgba(0,0,0,.98),0 0 8px rgba(3,7,12,.9),
+              0 0 20px rgba(255,201,120,.55),0 0 54px rgba(240,184,95,.28)}
+#obcRoot .rl-x.mute{color:#7E8F9D;text-shadow:none}
+#obcRoot .rl-w{margin-top:.55em;font-size:clamp(6.5px,.78vw,9.5px);
+  line-height:1.5;color:#B4C5D4;
+  text-shadow:0 1px 2px rgba(0,0,0,.98),0 0 6px rgba(3,7,12,.95),0 0 16px rgba(3,7,12,.85),0 0 34px rgba(3,7,12,.6)}
+#obcRoot .rl-w b{font-weight:400;color:#E6ECF3}
+#obcRoot .rl-w b.dn{color:#FF8A52} #obcRoot .rl-w b.up{color:#6FE3B4}
+#obcRoot .rl-t{margin-top:.9em;font-size:clamp(6px,.72vw,9px);
+  letter-spacing:.16em;text-transform:uppercase;color:#95A6B5;
+  text-shadow:0 1px 2px rgba(0,0,0,.98),0 0 6px rgba(3,7,12,.95),0 0 16px rgba(3,7,12,.85),0 0 34px rgba(3,7,12,.6)}
+#obcRoot .rl-t b{font-weight:400}
+#obcRoot .rl-t b.ok{color:#6FE3B4} #obcRoot .rl-t b.no{color:#FF8A52}
 
 /* ── Переключатель монет ────────────────────────────────────── */
 /* ── Значки предложения и инвесторов ────────────────────────
@@ -157,23 +208,56 @@ CARDSCENE_CSS = """
 
    Раскрытие по наведению и по касанию: на планшете наведения нет, а
    значок без ответа хуже отсутствующего. */
-#obcRoot .obc-marks{position:absolute;right:3.4%;top:72%;z-index:4;
-  display:flex;gap:14px;pointer-events:auto}
-#obcRoot .obc-mark{position:relative;width:22px;height:22px;cursor:default}
-#obcRoot .obc-mark svg{width:100%;height:100%;fill:none;
-  stroke:rgba(150,175,198,.55);stroke-width:1.3;stroke-linecap:round;
-  transition:stroke .3s ease}
-#obcRoot .obc-mark svg .dot{fill:rgba(255,198,124,.9);stroke:none}
-#obcRoot .obc-mark:hover svg{stroke:rgba(225,238,250,.9)}
-/* Пустой признак гаснет, но не исчезает: «данных нет» — это тоже
-   ответ, и спросить о нём человек должен иметь возможность. */
-#obcRoot .obc-mark.off svg{stroke:rgba(120,140,160,.28)}
-#obcRoot .obc-mark.off svg .dot{fill:rgba(140,155,170,.35)}
-#obcRoot .obc-mark.hot svg{stroke:rgba(255,150,70,.8)}
-#obcRoot .obc-mark.hot svg .dot{fill:rgba(255,170,90,.95)}
-#obcRoot .obc-mark.free svg{stroke:rgba(110,225,175,.75)}
+/* ── Планка у нижнего края кадра ──
+   Не под экраном, а внизу самой картинки: она подпись к кадру и
+   должна лежать в нём, на тёмном подножии, где вода уже погасла.
+   Слой сквозной для мыши, ловят только сами приборы. */
+#obcRoot .obc-bar{position:absolute;left:3.4%;right:3.4%;bottom:7.2%;
+  z-index:4;display:flex;align-items:center;
+  gap:clamp(12px,1.8vw,26px);pointer-events:none}
 
-#obcRoot .obc-tip{position:absolute;right:0;bottom:150%;min-width:150px;
+/* ── Знаки ──
+   Подложки убраны совсем: купол и фаска делали из двух признаков
+   пару кнопок, а нажимать здесь нечего — это показания. Осталось
+   то, что и должно было остаться: знак, его свечение и подпись
+   при наведении.
+
+   Начертание иероглифическое, и это не украшение. Кадр — вода,
+   пагода, сосны, фонари; латинская пиктограмма в нём читалась бы
+   как наклейка из другого набора. Знаки выбраны по смыслу:
+   «хозяин» — кто стоит за монетой, «дождь» — предложение, которое
+   ещё сыплется сверху. Каждый нарисован кистью: концы скруглены,
+   толщина черт разная, как в письме. */
+#obcRoot .obc-mark{position:relative;width:30px;height:30px;cursor:default;
+  transition:transform .25s ease}
+#obcRoot .obc-mark:hover{transform:translateY(-2px)}
+#obcRoot .obc-mark svg{position:absolute;inset:0;width:100%;height:100%;
+  fill:none;stroke:rgba(220,177,118,.62);stroke-width:1.5;
+  stroke-linecap:round;stroke-linejoin:round;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.95))
+         drop-shadow(0 0 9px rgba(216,170,106,.3));
+  transition:stroke .3s ease,filter .3s ease}
+/* Знак всегда одного тона со стратегией: это подписи одного рода, и
+   разный цвет заставлял бы искать разницу там, где её нет.
+   Состояние несут не черты, а показание внутри знака — точка у
+   «хозяина», капли у «дождя», — и сила свечения вокруг. */
+#obcRoot .obc-mark svg .dot{fill:rgba(220,177,118,.9);stroke:none}
+#obcRoot .obc-mark:hover svg{stroke:rgba(244,214,166,.95);
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.95))
+         drop-shadow(0 0 14px rgba(216,170,106,.5))}
+#obcRoot .obc-mark.off svg{stroke:rgba(220,177,118,.3);
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.9))}
+#obcRoot .obc-mark.off svg .dot{fill:rgba(200,190,178,.34)}
+#obcRoot .obc-mark.hot svg{stroke:rgba(220,177,118,.92);
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.95))
+         drop-shadow(0 0 14px rgba(255,150,70,.5))}
+#obcRoot .obc-mark.hot svg .dot{fill:rgba(255,178,96,.98)}
+#obcRoot .obc-mark.free svg{stroke:rgba(220,177,118,.88);
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.95))
+         drop-shadow(0 0 13px rgba(110,225,175,.42))}
+#obcRoot .obc-mark.free svg .dot{fill:rgba(122,232,186,.95)}
+
+#obcRoot .obc-tip{position:absolute;right:0;bottom:135%;min-width:150px;
   padding:9px 11px;border-radius:3px;pointer-events:none;
   background:rgba(8,13,19,.96);border:1px solid rgba(150,190,225,.22);
   box-shadow:0 12px 32px rgba(0,0,0,.7);
@@ -237,7 +321,7 @@ CARDSCENE_CSS = """
    Разрядка и размытие переводятся тем же переходом, поэтому эффект
    схождения букв никуда не делся: он просто перестал быть отдельной
    сущностью со своей жизнью. */
-#obcRoot .col, #obcRoot .foot, #obcRoot #obcDiag,
+#obcRoot .col, #obcRoot .near, #obcRoot #obcDiag,
 #obcRoot .bname, #obcRoot .bstr, #obcRoot .obc-note, #obcRoot .obc-cap,
 #obcRoot .obc-marks{
   transition:opacity 1.75s ease, transform 1.75s ease,
@@ -249,7 +333,7 @@ CARDSCENE_CSS = """
    ухода его затирало: перспектива слетала в первом же кадре, отчего
    уход читался рывком, а не уходом. Свой поворот переносим сюда
    целиком и добавляем сдвиг к нему, а не вместо него. */
-#obcRoot .lay.out .foot{opacity:0;letter-spacing:.5em;filter:blur(4px);
+#obcRoot .lay.out .near{opacity:0;letter-spacing:.5em;filter:blur(4px);
   transform:perspective(900px) rotateX(16deg) translateY(14px)}
 #obcRoot .lay.out .obc-cap{opacity:0;letter-spacing:.4em;filter:blur(4px);
   transform:perspective(800px) rotateX(12deg) rotateY(9deg) translateY(14px)}
@@ -355,11 +439,22 @@ CARDSCENE_CSS = """
   transform:translateX(-50%);margin-top:16px;
   width:1px;height:clamp(18px,3vh,38px);
   background:linear-gradient(rgba(190,215,235,.36),transparent)}
-#obcRoot .bstr{position:absolute;right:3.6%;top:53%;
-  writing-mode:vertical-rl;
-  font-family:Caveat,'Segoe Script','Bradley Hand',cursive;
-  font-size:clamp(11px,1.35vw,19px);letter-spacing:.02em;
-  color:#D9A253;text-shadow:0 2px 8px rgba(0,0,0,.85)}
+/* Рукописный шрифт здесь не работал: на кегле в полтора десятка
+   пикселей почерк перестаёт быть почерком и становится пятном, а
+   рядом с гротеском всего остального кадра читается как чужая
+   наклейка. Гарнитура теперь общая, а отличие несут разрядка,
+   вес и тон — тем же способом, каким различаются подписи столбов.
+   Тикер стоит прямыми буквами, стратегия повёрнута: две вертикали
+   не сливаются. */
+/* Табличка снята: гравировка спорила с кадром и превращала подпись
+   в элемент интерфейса. Остались буквы — разрядка и тон делают всё
+   остальное. */
+#obcRoot .bstr{position:relative;
+  font-size:clamp(9px,1.02vw,13px);font-weight:300;
+  letter-spacing:.4em;text-transform:lowercase;white-space:nowrap;
+  color:#DCB176;
+  text-shadow:0 1px 2px rgba(0,0,0,.98),0 0 8px rgba(3,7,12,.9),
+              0 0 20px rgba(216,170,106,.42)}
 
 /* ── Стая ───────────────────────────────────────────────────
    Дельфины выходят только тогда, когда перевес на стороне покупки.
@@ -735,29 +830,48 @@ CARDSCENE_HTML = """
         <div class="pod-wake"></div>
       </div>
       <div class="bname" id="obcName"></div>
-      <div class="bstr" id="obcStr"></div>
+      
       <div class="scrim"></div>
       <div id="obcDiag"></div>
-      <div class="foot" id="obcFoot"></div>
+      <div class="near" id="obcNear"></div>
       <div class="obc-note" id="obcNote"></div>
 
+      <!-- Планка внизу КАРТИНКИ, а не экрана: она часть кадра и лежит
+           на его тёмном подножии, там где вода уже погасла. -->
+      <div class="obc-bar">
+    <div class="bstr" id="obcStr"></div>
       <div class="obc-marks" id="obcMarks">
         <div class="obc-mark" id="obcMarkInv">
           <svg viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="12" cy="12" r="7"/><circle class="dot" cx="12" cy="12" r="2.6"/>
-            <path d="M12 1.5v2.4M12 20.1v2.4M1.5 12h2.4M20.1 12h2.4"/>
+            <!-- 主 «хозяин»: кто стоит за монетой. Верхняя точка —
+                 показание: разгорается на известном организаторе. -->
+            <path class="dot" d="M12 2.6a1.35 1.35 0 1 1 0 2.7 1.35 1.35 0 0 1 0-2.7z"/>
+            <path d="M7.2 8.1h9.6" stroke-width="1.7"/>
+            <path d="M8.6 13.1h6.8" stroke-width="1.4"/>
+            <path d="M5.6 18.6h12.8" stroke-width="1.9"/>
+            <path d="M12 8.1v10.5" stroke-width="1.6"/>
           </svg>
           <div class="obc-tip"></div>
         </div>
         <div class="obc-mark" id="obcMarkSup">
           <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path class="w1" d="M2 9c3-2 6 2 9 0s6-2 11 0"/>
-            <path class="w2" d="M2 14c3-2 6 2 9 0s6-2 11 0"/>
-            <path class="w3" d="M2 19c3-2 6 2 9 0s6-2 11 0"/>
+            <!-- 雨 «дождь»: предложение, которое ещё сыплется сверху.
+                 Капли внутри — показание: теплеют к близкому траншу. -->
+            <path d="M3.8 5.2h16.4" stroke-width="1.7"/>
+            <path d="M6.6 8.6h10.8" stroke-width="1.4"/>
+            <path d="M6.6 8.6v10.6M17.4 8.6v10.6" stroke-width="1.5"/>
+            <path d="M12 5.2v14" stroke-width="1.6"/>
+            <path class="dot" d="M9.1 11.2a.85.85 0 1 1 0 1.7.85.85 0 0 1 0-1.7z
+                                 M9.1 15.1a.85.85 0 1 1 0 1.7.85.85 0 0 1 0-1.7z
+                                 M14.9 11.2a.85.85 0 1 1 0 1.7.85.85 0 0 1 0-1.7z
+                                 M14.9 15.1a.85.85 0 1 1 0 1.7.85.85 0 0 1 0-1.7z"/>
           </svg>
           <div class="obc-tip"></div>
         </div>
       </div>
+  </div>
+
+
     </div>
   </div>
 
@@ -829,21 +943,65 @@ CARDSCENE_JS = r"""
     return s.length < 6 ? null : resample(s, HOURS_N);
   }
 
-  /* Дни от дна. Считаем по сырому ряду цены, а не по выровненному:
-     после resample шаг ряда уже не свой, а наш, и счёт съедет.
-     Возвращаем число шагов от минимума до конца — при дневном ряде
-     это и есть дни. Если минимум последний, ход ещё не начался. */
-  function fromLow(c) {
-    var s = (c.series || []).map(Number).filter(isFinite);
-    if (s.length < 3) return null;
-    var lo = 0;
-    for (var i = 1; i < s.length; i++) if (s[i] < s[lo]) lo = i;
-    return s.length - 1 - lo;
+  /* ── Два вопроса карточки ────────────────────────────────────
+     Каждый прибор отдаёт ОДИН голос, голоса считаются. Складывать
+     сами величины нельзя — они разной природы, — а спросить каждого
+     и посчитать согласных можно, и это честнее любого взвешенного
+     индекса: веса пришлось бы выдумать.
+
+     Молчание прибора не голос: поля может не быть вовсе, и тогда он
+     просто не участвует. Поэтому знаменатель — сколько приборов
+     ответило, а не сколько их всего. Ноль ответивших — кольцо пустое
+     и подписано «нечем мерить», а не нулём. */
+  function rings(c) {
+    var sq = c.squeeze || {}, ef = c.effort || null, wt = c.wyckoffTest || null;
+
+    /* ВОПРОС ПЕРВЫЙ: кончился ли продавец. */
+    var sv = [], sn = 0;
+    if (wt && wt.note) { sn++; if (wt.tested) sv.push('тест'); }
+    if (ef && ef.state) { sn++; if (ef.state === 'absorbing') sv.push('поглощение'); }
+    if (sq.negRun !== undefined) { sn++; if (sq.charged) sv.push('заряд'); }
+    if (c.press !== undefined && c.press !== null) {
+      sn++; if (+c.press > 0) sv.push('перевес покупок');
+    }
+    /* Порог писался под четырёх ответивших. Когда отвечают двое,
+       «ноль из двух» читается как поломка прибора, а вывод «жив» на
+       двух голосах — перебор. Меньше трёх ответивших — вердикта нет,
+       и так и сказано. */
+    var sell = { n: sv.length, of: sn, why: sv.slice(0, 2).join(' · '),
+      word: !sn ? 'нечем мерить'
+        : sn < 3 ? 'мало данных'
+        : sv.length >= 3 ? 'иссяк' : sv.length === 2 ? 'сдаёт' : 'жив' };
+
+    /* ВОПРОС ВТОРОЙ: на чьей стороне топливо. Голос со знаком:
+       плюс — заряжено вверх, минус — вниз. */
+    var f = 0, fn2 = 0, fw = [];
+    if (sq.negRun !== undefined) {
+      fn2++; if (sq.charged) { f++; fw.push('шорты платят'); }
+    }
+    if (c.fund !== undefined && c.fund !== null) {
+      fn2++;
+      if (+c.fund < 0) { f++; fw.push('фандинг минусовой'); }
+      else if (+c.fund > 0.02) { f--; fw.push('лонги перегреты'); }
+    }
+    if (c.vxDir) { fn2++; if (c.vxDir === 'up') f++; else { f--; fw.push('вортекс вниз'); } }
+    if (c.oiState) {
+      fn2++;
+      if (c.oiState === 'held') { f--; fw.push('плечо застряло'); }
+      else if (c.oiState === 'cleared') { f++; fw.push('плечо разгружено'); }
+    }
+    var fuel = { sign: f > 0 ? 1 : f < 0 ? -1 : 0, n: Math.abs(f), of: fn2,
+      why: fw.slice(0, 2).join(' · '),
+      word: !fn2 ? 'нечем мерить'
+        : f > 0 ? 'вверх' : f < 0 ? 'вниз' : 'ровно' };
+
+    return { sell: sell, fuel: fuel };
   }
 
   function adapt(c) {
     var up = num(c.up), drop = num(c.lifeDrop), press = num(c.press);
     var vol = volNow(c), rec = num(c.x) || 0, days = num(c.days) || 0;
+    var je = c.journalExp || null;
     var price = resample(c.series, RIDGE_N);
 
     var cols = [
@@ -861,152 +1019,95 @@ CARDSCENE_JS = r"""
       { n: 'объём', s: rec ? 'рекорд ×' + xf(rec) : 'рекорда нет', tone: 'gold',
         v: vol > 0 ? '×' + xf(vol) : '—',
         h: (rec > 1 && vol > 1) ? Math.min(1, Math.log(vol) / Math.log(rec)) : 0 },
-      { n: 'журнал', s: 'дней до выбытия', tone: 'pale',
-        v: days + '/14', h: Math.min(1, days / 14) }
+      /* Здесь стоял срок в журнале — «12 из 14 дней до выбытия».
+         Это метрика НАШЕЙ системы, а не монеты: рынку всё равно,
+         сколько ей осталось лежать в списке. Столб занимал место
+         рядом с четырьмя рыночными величинами и читался как пятая
+         такая же.
+
+         На его месте — ожидание по прошлым эпизодам: средний ход
+         вверх против среднего отката. Реактивная метрика (как часто
+         всплывала) не обещает ничего — ALPINE попадала в 97%
+         прогонов и была в минусе. Поведенческая отвечает на другой
+         вопрос: повторится ли. Высота — по модулю ожидания,
+         потолок 20%: выше разница уже не решает. */
+      { n: 'ожидание', s: je ? je.n + ' эпизода' : 'эпизодов нет',
+        tone: !je ? 'flat' : (je.expPct >= 0 ? 'cool' : 'hot'),
+        v: !je ? '—' : (je.expPct >= 0 ? '+' : '') + je.expPct.toFixed(1) + '%',
+        h: !je ? 0 : Math.min(1, Math.abs(je.expPct) / 20) }
     ];
 
-    var foot = [];
-    /* Сила перекреста рядом со стороной: без неё «вверх» одинаково
-       читается и на едва состоявшемся развороте, и на уверенно
-       разошедшихся линиях. Порог не откалиброван — взят по порядку
-       величины разброса VI в наблюдённых примерах. */
-    if (c.vxDir) {
-      var vxWeak = num(c.vxSpread) !== null && Math.abs(c.vxSpread) < 0.05;
-      foot.push(['вортекс',
-        (c.vxDir === 'up' ? 'вверх' : 'вниз') +
-        (c.vxAgo >= 0 ? ' · ' + c.vxAgo + ' бар' : ' · держится') +
-        (vxWeak ? ' · едва' : ''),
-        c.vxDir === 'up' ? '' : 'hot']);
-    }
-    if (c.speedV) foot.push(['скорость хода', c.speedV + ' ATR/бар', '']);
+    /* ── Краткосрок ──
+       Прежний подвал собирался здесь же: восемь строк «что не
+       заслужило столба». Все они целы и лежат в ящике «все
+       величины» — плечо, вортекс, скорость, дивергенция, позиции,
+       упругость, поток против цены. Здесь их больше нет не потому,
+       что они не нужны, а потому что полоса теперь отвечает на
+       вопрос, а не перечисляет.
 
-    /* Состояние плеча — готовая метка из analytics_momentum.oi_state(),
-       а не свой порог. Раньше «горячо» решалось прямо здесь
-       (rise>=2 && held>=70) — то же самое, независимо от кода, уже
-       решает сервер, и держать два места принятия одного решения
-       значит однажды их развести, как разошлись две реализации
-       volume_ratio. held — самое настороженное: цикл ещё ни разу не
-       закрывался (GPS перед обвалом стоял именно здесь). repeat —
-       тот же подъём уже сдувался в этом окне хотя бы раз (BLESS).
-       cleared — плечо разгружено, мешать некому. */
-    if (c.oiState) {
-      var oiWord = c.oiState === 'cleared' ? 'разгружено'
-        : c.oiState === 'repeat' ? 'цикл ' + ((c.oiCycles || 0) + 1)
-        : 'не проверено';
-      var oiTone = c.oiState === 'held' ? 'hot'
-        : c.oiState === 'repeat' ? 'warm' : '';
-      foot.push(['плечо',
-        '×' + xf(c.oiRise) + ' · держит ' + Math.round(c.oiHeld) + '% · ' + oiWord,
-        oiTone]);
-    }
-    if (num(c.floatPct) !== null) foot.push(['выпущено',
-      Math.round(c.floatPct) + '%' +
-      (num(c.fdvRatio) !== null ? ' · FDV ×' + xf(c.fdvRatio) : ''), '']);
-    /* «В диапазоне» переехало в левый прибор: в подвале эта величина
-       стояла бы вторым экземпляром той же самой. */
-    /* Место в текущем прогоне вместо повторяемости. «В лидерах 2 из
-       179» отвечает на вопрос «часто ли всплывает», и он никуда не
-       делся — та же величина стоит в нижнем ящике, в блоке за недели.
-       Здесь полезнее другое: где монета в этом прогоне и с каким
-       score. Монеты журнала вне выборки говорят об этом прямо. */
-    foot.push(['в выборке',
-               c.fpos ? '№' + c.fpos + ' · ' + (num(c.score) || 0) : 'нет',
-               '']);
-    if (num(c.volBg) !== null) foot.push(['фон суток', '×' + xf(c.volBg), 'warm']);
-    /* Ч-4: fuel помечает себя late на свежем росте (growth_load) —
-       диспетчер это уже знает при выборе победителя, экран молчал. */
-    if (c.late) foot.push(['осторожно', 'фигура уже отыграна', 'hot']);
+       Три источника, все уже посчитаны на стороне Python и ничего
+       не стоят экрану: уровни со структурой, реакцией и модельным
+       плечом; проверка усилия против результата; тест после
+       прокола. Любого может не быть — полоса тогда просто короче,
+       а если нет ни одного, она говорит об этом словами. */
+    var lv = c.levels || null;
+    var ef = c.effort || null;
+    var wt = c.wyckoffTest || null;
 
-    /* Ч-11: ход уже отдан, но cycle_done() ниже вершины ×10 этого не
-       ловит (BLESS: пик ×7.74, отдано 76%, added_manually глушит и
-       эту проверку). Это не решение о выбытии из журнала — просто
-       предупреждение на экране, независимое от него. */
-    if (num(c.cycleGivenPct) !== null) {
-      foot.push(['ход',
-        'отдано ' + Math.round(c.cycleGivenPct) + '% от ×' + xf(c.cyclePeakX),
-        'hot']);
+    function side(d, kind) {
+      if (!d) return null;
+      var r = d.reaction || null;
+      return {
+        /* Число, а не строка: раньше процент форматировался здесь и
+           ещё раз при отрисовке — вторая попытка получала «+7.3%» и
+           давала NaN. Адаптер отдаёт величины, подписи делает
+           разметка; смешение и было причиной. */
+        pct: (d.pct === undefined || d.pct === null) ? null : +d.pct,
+        atr: (d.atr === undefined || d.atr === null) ? null : +d.atr,
+        touches: +d.touches || 1,
+        /* Реакция — вторая половина уровня: он говорит ГДЕ, она
+           КОГДА. Без неё уровень остаётся местом на графике. */
+        react: r ? (r.kind === 'приняли'
+                    ? (kind === 'up' ? 'пробит и удержан' : 'отдан и удержан')
+                    : 'сходили и вернулись') : null,
+        /* Совпадение структуры с модельным плечом. Метка отдельная и
+           синяя: два независимых способа указали одно место, но один
+           из них — гипотеза. */
+        liq: d.liq ? ('плечо ' + (d.liq.side || '') + ' · модель') : null
+      };
     }
 
-    /* Дивергенция цены и OBV: та же классика, что Klinger Oscillator
-       показал на BLESS (второй пик цены не ниже первого, осциллятор
-       ниже) — только на уже посчитанном OBV, а не на новом
-       индикаторе. Порог не откалиброван. */
-    if (num(c.divShare) !== null) {
-      foot.push(['дивергенция',
-        'цена ' + (c.divPricePct >= 0 ? '+' : '') + c.divPricePct.toFixed(1) +
-        '%, поток слабее', 'hot']);
+    var near = {
+      up: side(lv && lv.above, 'up'),
+      dn: side(lv && lv.below, 'dn'),
+      eff: null, test: null
+    };
+
+    if (ef) {
+      var word = ef.state === 'absorbing' ? 'льют и <b>поглощают</b>'
+        : ef.state === 'spent' ? 'усилие <b>отработало</b>'
+        : ef.state === 'exhausting' ? '<b>истощение</b> хода'
+        : null;
+      if (ef.divergence) {
+        word = (word ? word + ', ' : '') + 'дельта <b class="dn">гаснет</b> на верхах';
+      }
+      near.eff = {
+        /* Отношение печатается всегда, даже когда состояние не
+           сложилось: само число и есть проверка, а состояние —
+           её прочтение. */
+        x: (ef.ratio === undefined || ef.ratio === null) ? null : +ef.ratio,
+        word: word,
+        state: ef.state || null
+      };
     }
 
-    /* Вердикт цена+дельта+OI вместе (analytics_intraday.stance) —
-       уже посчитан, раньше нигде не показывался. Тон по знаку
-       вердикта: набор шорта опаснее всего для лонговой карточки,
-       выход толпы и делеверидж — повод насторожиться мягче. */
-    if (c.stanceVerdict) {
-      var stTone = c.stanceVerdict === 'набор шорта' ? 'hot'
-        : (c.stanceVerdict === 'выход толпы' || c.stanceVerdict === 'делеверидж') ? 'warm'
-        : '';
-      foot.push(['позиции', c.stanceVerdict, stTone]);
+    if (wt && wt.note) {
+      near.test = {
+        ok: !!wt.tested,
+        share: (wt.volRatio === undefined || wt.volRatio === null)
+               ? null : Math.round(+wt.volRatio * 100)
+      };
     }
-
-    /* Упругость стакана: та же продажа двигает цену слабее или
-       сильнее, чем в прошлый раз (analytics_intraday.impact.ratio).
-       Меньше единицы — сопротивление растёт, больше — стакан
-       истончается и цена начинает падать легче. */
-    if (num(c.impactRatio) !== null) {
-      foot.push(['упругость', '×' + xf(c.impactRatio) + ' к прошлой ноге',
-        c.impactRatio > 1 ? 'hot' : '']);
-    }
-
-    /* Раздача/поглощение по всему окну (analytics_intraday.balance) —
-       цена и дельта разошлись, кто-то стоял против агрессии. Раздача
-       опаснее для лонга, поглощение — бычий знак. */
-    if (c.balanceWindow && c.balanceWindow !== 'согласие') {
-      foot.push(['поток против цены', c.balanceWindow,
-        c.balanceWindow === 'раздача' ? 'hot' : '']);
-    }
-
-    /* Навес/опора от крупных покупок (analytics_intraday.big_levels):
-       навес — крупный покупатель в минусе и сам является будущим
-       предложением на безубытке. */
-    if (c.bigLevelKind) {
-      foot.push(['крупные покупки',
-        c.bigLevelKind + ' ' + (c.bigLevelPct >= 0 ? '+' : '') +
-        c.bigLevelPct.toFixed(1) + '%',
-        c.bigLevelKind === 'навес' ? 'warm' : '']);
-    }
-
-    /* Этаж 2: что изменилось за последние часы — единственная строка
-       подвала, отвечающая не «какое состояние сейчас», а «куда оно
-       движется». Источник — analytics_pulse через
-       analytics_momentum.star_pulse(): одно наблюдение, самое
-       значимое из score/плеча/перевеса сторон/цены/разворота
-       вортекса за ближайший из трёх горизонтов (прошлый прогон,
-       6 часов, сутки). Пусто, пока история короче двух точек —
-       это нормально в первые прогоны после подключения pulse. */
-    if (c.pulseKind) {
-      var pSpan = c.pulseSpan === 'prev' ? 'с прошлого прогона'
-        : c.pulseSpan === 'h6' ? 'за 6 часов' : 'за сутки';
-      var pTxt = '';
-      if (c.pulseKind === 'score')
-        pTxt = (c.pulseDelta >= 0 ? '+' : '') + Math.round(c.pulseDelta) + ' очков';
-      else if (c.pulseKind === 'oi_x')
-        pTxt = (c.pulseDelta >= 0 ? '+' : '') + c.pulseDelta.toFixed(2) + ' плечо';
-      else if (c.pulseKind === 'buy_share')
-        pTxt = (c.pulseDelta >= 0 ? 'покупка +' : 'продажа ') +
-          Math.abs(c.pulseDelta * 100).toFixed(1) + ' п.п.';
-      else if (c.pulseKind === 'price_pct')
-        pTxt = (c.pulseDelta >= 0 ? '+' : '') + c.pulseDelta.toFixed(1) + '%';
-      else if (c.pulseKind === 'vx_flip')
-        pTxt = 'вортекс ' + c.pulseFrom + ' → ' + c.pulseTo;
-      if (pTxt) foot.push(['за час-двое', pTxt + ' · ' + pSpan,
-        c.pulseKind === 'vx_flip' ? 'hot' : '']);
-    }
-
-    /* Разлок ушёл из подвала: он теперь показан туманом на воде и
-       раскрывается значком справа. В строке он стоял третьим набором
-       чисел про одно и то же — срок, вес, инсайдеры, — и читался
-       дольше, чем занимал места. */
-
 
     return {
       tick: c.t, verdict: c.pattern || '', cap: c.cap || '',
@@ -1014,18 +1115,25 @@ CARDSCENE_JS = r"""
       /* Вход стоит там, где монета попала в журнал: столько дней
          назад, сколько она в нём лежит. */
       entry: Math.max(0, Math.min(1, (RIDGE_N - 1 - days) / (RIDGE_N - 1))),
-      cols: cols, foot: foot,
+      cols: cols, near: near,
       hours: hoursOf(c),
       /* Прибор прежний, величина другая. «Объём к рекорду» повторял
          высоту столба объёма слово в слово: log(vol)/log(rec) — то же
          выражение. Положение в диапазоне суток не повторяет ничего,
          и у него есть настоящий потолок, а кольцу без потолка нельзя. */
-      arcs: [['в диапазоне', num(c.rangePos) === null ? 0
-                             : Math.min(1, Math.max(0, c.rangePos / 100))]],
-      /* Столб «от дна» говорит, насколько далеко ушли. Это — сколько
-         времени ушло. Далеко и быстро против далеко и медленно —
-         разные монеты, и по одному проценту их не различить. */
-      lowDays: fromLow(c),
+      /* ── Два кольца наверху ──
+         Здесь стояли «в диапазоне» и «дней от дна»: самое видное
+         место кадра занимали две служебные величины, которые никто
+         не смотрел первыми. Место обязано нести главное, а главное
+         у нас — два вопроса, на которые карточка отвечает целиком:
+         кончился ли продавец и на чьей стороне топливо. Всё
+         остальное в кадре — из чего эти два ответа собраны.
+
+         Кольцо считает СОГЛАСНЫХ, а не величину: приборы разной
+         природы нельзя складывать в одно число, но можно спросить
+         каждого и посчитать голоса. Заполнение — доля согласия,
+         подпись — сам ответ словами. */
+      rings: rings(c),
 
       /* До трёх инвесторов: больше на парусе не помещается, а первые
          три и есть те, кого называют. Тир по умолчанию третий —
@@ -1388,7 +1496,10 @@ CARDSCENE_JS = r"""
   const PAD = 26;
   function prepare(k){
     if (prep[k]) return prep[k];
-    const d = CARDS[k], span = 380, left = 490, set = [];
+    /* Столбы сдвинуты вправо на ширину одного столба: слева у воды
+       теперь стоит кольцо, и прежнее начало ленты упиралось в его
+       подписи. Справа места хватало — там был пустой берег. */
+    const d = CARDS[k], span = 380, left = 578, set = [];
     d.cols.forEach((c, i) => {
       const cx = left + span * i/(d.cols.length-1) + (i%2 ? 14 : -10);
       const w  = 74 + (i%3)*11;
@@ -1424,6 +1535,13 @@ CARDSCENE_JS = r"""
      Зерно раскладывается сеяным генератором, поэтому точки стоят
      на месте, пока под ними меняется форма, — иначе гряда мерцала
      бы шумом весь переход. */
+  /* Кольцо уходящей монеты не пропадает щелчком: оно сматывается
+     обратно в воду тем же ходом, каким рисовалось — ветви бегут
+     назад к подножию, искры на их концах живут до самого конца.
+     Появление было красивым, а исчезновение рвалось; теперь это
+     одно движение в две стороны. */
+  var NEAR = null, NEAR_PREV = null, RING_OUT = 0;
+
   function buildBG(price, entry, unlock, alpha){
     const g = bgL.getContext('2d');
     g.clearRect(0, 0, W, WATER);
@@ -1444,6 +1562,10 @@ CARDSCENE_JS = r"""
       wall(g, unlock);
       g.globalAlpha = 1;
     }
+    /* Кольцо — последним в слое гряды: перед ним пройдут столбы,
+       а вода отразит его вместе со всем остальным. */
+    if (RING_OUT > .004 && NEAR_PREV) drawRing(g, NEAR_PREV, RING_OUT);
+    drawRing(g, NEAR, alpha === undefined ? 1 : alpha);
   }
 
   /* ── Стена разлока ──────────────────────────────────────────
@@ -1572,6 +1694,7 @@ CARDSCENE_JS = r"""
   function go(k){
     if (tp < 1) return;            // не перебиваем идущий переход
     from = cur; to = k; cur = k; tp = 0; swapped = false; hover = -1;
+    NEAR_PREV = (CARDS[from] || {}).near || null;
     lay.querySelectorAll('.col').forEach(el => el.style.opacity = '');
 
     /* Класс появления здесь больше не снимается: у текстов его нет.
@@ -1701,6 +1824,9 @@ CARDSCENE_JS = r"""
 
     if (tp < 1){
       tp = Math.min(1, tp + dt/DUR);
+      /* Обратный ход занимает первую часть перехода — ровно ту, где
+         тонут столбы уходящей монеты. */
+      RING_OUT = from !== to ? Math.max(0, 1 - tp / .42) : 0;
       const a = CARDS[from].price, b = CARDS[to].price, m = eIO(tp);
       buildBG(a.map((v, i) => v + (b[i] - v) * m),
               CARDS[from].entry + (CARDS[to].entry - CARDS[from].entry) * m,
@@ -1715,7 +1841,7 @@ CARDSCENE_JS = r"""
       /* Порыв на треть градуса у концов веток: заметно, что воздух
          шевельнулся, и не заметно, что кто-то качает деревья. */
       buildFG(Math.sin(t * .0032) * .018 * env, 1 - .72 * env);
-      if (tp === 1) { buildFG(0, 1); root.classList.remove('moving'); }
+      if (tp === 1) { RING_OUT = 0; buildFG(0, 1); root.classList.remove('moving'); }
       // подписи меняем в момент, когда старые столбы уже утонули,
       // а новые ещё не поднялись: провал в середине перехода
       if (!swapped && tp >= .42){ swapped = true; applyCard(CARDS[to]); }
@@ -1738,6 +1864,389 @@ CARDSCENE_JS = r"""
     requestAnimationFrame(frame);
   }
 
+  /* ── Строка решения ─────────────────────────────────────────
+     Здесь была сводка из двух вопросов и положения цены — и она
+     дублировала всё сразу: шапку повторяли кольца наверху, крупную
+     строку и хвост повторяли подписи внутри обода. Повтор в кадре
+     хуже пустоты: глаз читает дважды и оба раза не находит нового.
+
+     Осталось единственное, чего картинка не показывает и показать
+     не может: ЧТО ДЕЛАТЬ и почему. Действие приходит готовым из
+     слоя решений (тот же act, что печатает зал), поэтому карточка
+     ничего не решает сама — она лишь перестаёт молчать о решении.
+
+     Причина обязательна: «ждать» без причины — это приказ, а с
+     причиной — довод, который можно оспорить. Ниже — ближайший
+     срок, если он есть: событие, которое сделает решение
+     несвоевременным. */
+  function verdictHTML(card){
+    const c = (card && card.raw) || {};
+    const act = c.act || null;
+    if (!act || !act.act) return '<span class="nq">решение не посчитано</span>';
+
+    const TONE = { 'брать': 'up', 'добрать': 'up', 'держать': 'am',
+                   'ждать': 'am', 'хеджировать': 'am',
+                   'сократить': 'dn', 'выйти': 'dn', 'мимо': 'dn' };
+    const tone = TONE[act.act] || 'am';
+
+    const why = (act.why || '').trim();
+    const soon = (c.exitWhy || [])[0] || '';
+
+    return '<span class="nq">решение</span>' +
+      '<span class="nk ' + tone + '">' + act.act + '</span>' +
+      (why ? '<span class="nq">' + why + '</span>' : '') +
+      (soon ? '<span class="nq">' + soon + '</span>' : '');
+  }
+
+  /* ── Кольцо краткосрока ─────────────────────────────────────
+     Одна геометрия на два слоя: свет рисует холст, подписи ставит
+     HTML. Считается она здесь и ровно один раз, поэтому засечки и
+     подписи не могут разъехаться.
+
+     Устройство обода: низ — опора, верх — потолок, точка цены едет
+     по правой половине. Доля пути от опоры к потолку меряется в
+     ATR: проценты у спокойной монеты и у дёрганой несравнимы, а
+     ATR сравним, и та же мера уже стоит в усилии и в буфере стопа.
+
+     Кольца нет, когда мерить нечего: ни одного измеренного уровня
+     — ни обода, ни подписей. Пустой круг был бы прибором со
+     сломанной стрелкой. */
+  /* Кольцо стоит слева от столбов и ниже: в середине кадра оно
+     спорило с ними за внимание и накрывало гряду. Слева у воды
+     пусто — там ему и место, а низ обода по-прежнему лежит ровно
+     на линии воды. */
+  var RING_CX = 300, RING_R = 145;
+
+  function ringGeom(n){
+    if (!n) return null;
+    const up = n.up, dn = n.dn;
+    const haveU = up && up.atr !== null, haveD = dn && dn.atr !== null;
+    if (!haveU && !haveD) return null;
+
+    const total = (haveU ? up.atr : 0) + (haveD ? dn.atr : 0);
+    /* Односторонний уровень — обычное дело: у монеты на дне нет
+       опоры под ней, у вершины нет потолка над ней. Тогда шкала
+       идёт от точки цены к единственному известному концу. */
+    const t = !total ? 0.5
+      : haveU && haveD ? dn.atr / total
+      : haveD ? 0.92 : 0.08;
+
+    const CY = WATER - RING_R;
+    const at = f => {                       // f: 0 — низ, 1 — верх
+      const a = Math.PI * f;
+      return [RING_CX + Math.sin(a) * RING_R, CY + Math.cos(a) * RING_R];
+    };
+    /* Две параметризации кольца существовали одновременно, и это
+       был баг: обод рисовался по ПОЛНОЙ окружности (f: 0 — низ,
+       .5 — верх, 1 — снова низ), а точки считались по ПОЛОВИНЕ
+       (f: 0 — низ, 1 — верх). Головы прорисовки, посчитанные не той
+       формулой, уезжали куда угодно — отсюда и «одна снизу, другая
+       сверху». Теперь обе формулы объявлены рядом и названы: at —
+       по правой половине (там живут уровни и цена), atFull — по
+       всему ободу (там идёт прорисовка). */
+    const atFull = f => {
+      const a = Math.PI / 2 + f * 2 * Math.PI;
+      return [RING_CX + Math.cos(a) * RING_R, CY + Math.sin(a) * RING_R];
+    };
+    return { cx: RING_CX, cy: CY, r: RING_R, t: t, total: total,
+             at: at, atFull: atFull, px: at(t),
+             up: haveU ? up : null, dn: haveD ? dn : null };
+  }
+
+  /* ── Свет кольца на холсте ──
+     Рисуется в слой гряды, ДО столбов: столбы проходят перед
+     кольцом, а вода отражает его сама — тем же кодом, что отражает
+     лодку и пагоду. Ради этого кольцо и живёт на холсте. */
+  /* Кольцо не ПОЯВЛЯЕТСЯ, а РИСУЕТСЯ: свет выходит из воды в двух
+     точках у подножия и растёт по ободу навстречу самому себе,
+     смыкаясь наверху. Проявление прозрачностью выдавало картинку,
+     наложенную на кадр; прорисовка читается как событие внутри
+     него — тем более что низ обода лежит ровно на воде, откуда
+     свет и поднимается.
+
+     Ход берётся из того же счётчика перехода, что ведёт всю
+     сцену, поэтому кольцо строится ровно тогда, когда встают
+     столбы, и отдельной синхронизации не нужно. */
+  function drawRing(g, n, prog){
+    const R = ringGeom(n);
+    if (!R) return;
+    const pr = prog === undefined ? 1 : Math.max(0, Math.min(1, prog));
+    if (pr <= 0.004) return;
+    const a = 1;
+    const half = pr / 2;                    // докуда доросли обе ветви
+    const drawn = f => f <= half || f >= 1 - half;
+    g.save();
+    g.globalAlpha = a;
+    g.globalCompositeOperation = 'lighter';
+
+    /* ── Шлейф ──
+       Голое кольцо выглядело наклейкой: свет обязан во что-то
+       упираться. Поэтому вокруг него три слоя воздуха и один на
+       воде.
+
+       Первый — широкое дальнее зарево: оно даёт кольцу объём и
+       съедает резкую границу с небом. Второй — ближний ореол у
+       самого обода. Третий — дымка у подножия, там где свет
+       встречает воду: у любого источника над водой есть такая
+       полоса. И, наконец, световая дорожка по воде вниз от
+       кольца — та же, что тянется от фонарей на воде. */
+    const bloom = g.createRadialGradient(R.cx, R.cy, R.r * .35,
+                                         R.cx, R.cy, R.r * 2.35);
+    bloom.addColorStop(0, 'rgba(126,186,222,' + (.055 * pr).toFixed(3) + ')');
+    bloom.addColorStop(.42, 'rgba(126,186,222,' + (.032 * pr).toFixed(3) + ')');
+    bloom.addColorStop(1, 'rgba(126,186,222,0)');
+    g.fillStyle = bloom;
+    g.beginPath(); g.arc(R.cx, R.cy, R.r * 2.35, 0, 7); g.fill();
+
+    const halo = g.createRadialGradient(R.cx, R.cy, R.r * 0.78,
+                                        R.cx, R.cy, R.r * 1.3);
+    halo.addColorStop(0, 'rgba(150,205,235,0)');
+    halo.addColorStop(.46, 'rgba(150,205,235,' + (.13 * pr).toFixed(3) + ')');
+    halo.addColorStop(1, 'rgba(150,205,235,0)');
+    g.fillStyle = halo;
+    g.beginPath(); g.arc(R.cx, R.cy, R.r * 1.3, 0, 7); g.fill();
+
+    // дымка у подножия: свет встречает воду
+    const mist = g.createRadialGradient(R.cx, WATER - 6, 0,
+                                        R.cx, WATER - 6, R.r * 1.15);
+    mist.addColorStop(0, 'rgba(176,214,240,' + (.16 * pr).toFixed(3) + ')');
+    mist.addColorStop(.55, 'rgba(176,214,240,' + (.055 * pr).toFixed(3) + ')');
+    mist.addColorStop(1, 'rgba(176,214,240,0)');
+    g.save();
+    g.translate(R.cx, WATER - 6); g.scale(1, .32); g.translate(-R.cx, -(WATER - 6));
+    g.fillStyle = mist;
+    g.beginPath(); g.arc(R.cx, WATER - 6, R.r * 1.15, 0, 7); g.fill();
+    g.restore();
+
+    // дорожка по воде — прямо под кольцом, как от фонаря
+    const track = g.createLinearGradient(0, WATER - 4, 0, WATER + 120);
+    track.addColorStop(0, 'rgba(190,225,248,' + (.2 * pr).toFixed(3) + ')');
+    track.addColorStop(1, 'rgba(190,225,248,0)');
+    g.fillStyle = track;
+    g.fillRect(R.cx - R.r * .16, WATER - 4, R.r * .32, 124);
+
+    /* ── Переливы обода ──
+       Ровная линия читается чертежом. На референсе обод живой:
+       вверху почти белый, к бокам уходит в холодную синь, местами
+       вспыхивает. Собирается посегментно — цвет и яркость зависят
+       от места на окружности, — и тремя проходами: мягкое гало,
+       средний слой, острая нить. Одна дуга одним цветом такого не
+       даёт ни при какой толщине. */
+    const SEG = 96;
+    const tone = f => {                      // f: 0 низ, .5 верх, 1 низ
+      const k = Math.sin(Math.PI * f);       // 0 у воды, 1 наверху
+      const r = Math.round(120 + 118 * k), gg = Math.round(178 + 70 * k),
+            b = Math.round(206 + 46 * k);
+      return [r, gg, b, .30 + .68 * k];
+    };
+    /* Две вспышки: наверху, где на референсе обод пересекает свет,
+       и на самой точке цены — там, где сейчас происходит дело. */
+    const flare = f => {
+      const dTop = Math.abs(f - .5);
+      const dPx = Math.min(Math.abs(f - R.t / 2), Math.abs(f - (1 - R.t / 2)));
+      return Math.max(0, 1 - dTop / .07) * .55 + Math.max(0, 1 - dPx / .05) * .75;
+    };
+    [[8, .10, 0], [3.2, .30, 0], [1.25, 1, 1]].forEach(([w, mul, sharp]) => {
+      for (let i = 0; i < SEG; i++){
+        const f0 = i / SEG, f1 = (i + 1.02) / SEG;
+        if (!drawn(f0)) continue;           // ветви ещё не дошли сюда
+        const [rr, gg, bb, al] = tone(f0);
+        /* Живая неровность яркости: идеально ровная окружность
+           выдаёт вектор. Волна медленная и слабая — глаз не ловит
+           её как узор, но перестаёт видеть штамп. */
+        const wob = 1 + Math.sin(f0 * Math.PI * 6 + 1.1) * .10
+                      + Math.sin(f0 * Math.PI * 14 + .4) * .05;
+        const fl = flare(f0) * wob;
+        const A = Math.min(1, (al * wob + fl) * mul);
+        if (A <= .004) continue;
+        g.lineWidth = w + (sharp ? fl * 1.1 : fl * 2.2);
+        g.strokeStyle = 'rgba(' + Math.min(255, rr + fl * 90) + ',' +
+          Math.min(255, gg + fl * 60) + ',' + Math.min(255, bb + fl * 30) + ',' +
+          A.toFixed(3) + ')';
+        g.beginPath();
+        g.arc(R.cx, R.cy, R.r, Math.PI / 2 + f0 * 2 * Math.PI,
+              Math.PI / 2 + f1 * 2 * Math.PI);
+        g.stroke();
+      }
+    });
+
+    /* Пылинки в свете обода — те же боке, что на референсе. Сеяный
+       генератор: они должны стоять на месте, а не кипеть. */
+    let sd = 4177;
+    const rnd2 = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296;
+    for (let i = 0; i < 26; i++){
+      const a = rnd2() * Math.PI * 2, rr = R.r * (.42 + rnd2() * .56);
+      const x = R.cx + Math.cos(a) * rr, y = R.cy + Math.sin(a) * rr;
+      g.fillStyle = 'rgba(214,238,252,' + (.03 + rnd2() * .10).toFixed(3) + ')';
+      g.beginPath(); g.arc(x, y, .8 + rnd2() * 2.6, 0, 7); g.fill();
+    }
+
+    // засечки через один ATR по рабочей половине обода
+    if (R.total > 0){
+      for (let k = 0; k <= Math.floor(R.total + 0.001); k++){
+        const f = k / R.total;
+        if (f > 1) break;
+        if (!drawn(f / 2) && !drawn(1 - f / 2)) continue;
+        const big = k % 5 === 0, p = R.at(f);
+        const inn = [R.cx + (p[0] - R.cx) * (1 - (big ? .052 : .032)),
+                     R.cy + (p[1] - R.cy) * (1 - (big ? .052 : .032))];
+        g.lineWidth = big ? 1.4 : .9;
+        g.strokeStyle = big ? 'rgba(200,225,245,.55)' : 'rgba(200,225,245,.3)';
+        g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(inn[0], inn[1]); g.stroke();
+      }
+    }
+
+    // узлы уровней: опора внизу, потолок вверху; плита модели —
+    // мягкое синее пятно на ободе, без кромки
+    const node = (f, col, liq) => {
+      const p = R.at(f);
+      if (liq){
+        const gl = g.createRadialGradient(p[0], p[1], 0, p[0], p[1], 54);
+        gl.addColorStop(0, 'rgba(99,166,224,.42)');
+        gl.addColorStop(1, 'rgba(99,166,224,0)');
+        g.fillStyle = gl;
+        g.beginPath(); g.arc(p[0], p[1], 54, 0, 7); g.fill();
+      }
+      /* Узлу — свой ореол: точка без свечения на светящемся ободе
+         читается как грязь на стекле. */
+      g.save(); g.globalAlpha = a * .5; g.fillStyle = col; g.filter = 'blur(6px)';
+      g.beginPath(); g.arc(p[0], p[1], 8, 0, 7); g.fill(); g.restore();
+      g.fillStyle = col;
+      g.beginPath(); g.arc(p[0], p[1], 3.4, 0, 7); g.fill();
+      g.lineWidth = 1; g.strokeStyle = col;
+      g.globalAlpha = a * .5;
+      g.beginPath(); g.arc(p[0], p[1], 9, 0, 7); g.stroke();
+      g.globalAlpha = a;
+    };
+    if (R.dn) node(0, '#6FE3B4', R.dn.liq);            // с ним свет и начинается
+    if (R.up && pr > .985) node(1, '#FF8A52', R.up.liq); // ветви сомкнулись
+
+    // точка цены: единственное по-настоящему яркое пятно кадра
+    const p = R.px;
+    if (drawn(R.t / 2)) {
+    /* Короткий шлейф по ободу вокруг точки: свет не обрывается
+       ступенькой, а стекает по кольцу в обе стороны. */
+    g.save();
+    g.globalAlpha = a * .55;
+    g.strokeStyle = 'rgba(255,240,205,.75)';
+    g.lineWidth = 3.4;
+    g.filter = 'blur(4px)';
+    g.beginPath();
+    g.arc(R.cx, R.cy, R.r, Math.PI / 2 + (R.t / 2) * 2 * Math.PI - .13,
+          Math.PI / 2 + (R.t / 2) * 2 * Math.PI + .13);
+    g.stroke();
+    g.restore();
+    const hot = g.createRadialGradient(p[0], p[1], 0, p[0], p[1], 34);
+    hot.addColorStop(0, 'rgba(255,238,200,.55)');
+    hot.addColorStop(1, 'rgba(255,238,200,0)');
+    g.fillStyle = hot;
+    g.beginPath(); g.arc(p[0], p[1], 34, 0, 7); g.fill();
+    g.fillStyle = '#FFF6E2';
+    g.beginPath(); g.arc(p[0], p[1], 4.2, 0, 7); g.fill();
+    }
+
+    /* Головы ветвей: пока кольцо строится, на концах горят искры —
+       по ним и видно, что это рисование, а не проявление.
+
+       Обе идут ОТ НИЗА в разные стороны, по той же формуле, что и
+       обод, и гаснут не щелчком: последнюю пятую часть пути они
+       плавно тускнеют и мельчают, а у самого начала так же плавно
+       разгораются. Резкое исчезновение искры читается как сбой
+       отрисовки, а не как конец движения. */
+    const headFade = Math.min(1, pr / .06) * Math.min(1, (1 - pr) / .2);
+    if (headFade > .01){
+      [half, 1 - half].forEach(f => {
+        const q = R.atFull(f);
+        const rad = 12 + 16 * headFade;
+        g.globalAlpha = a * headFade;
+        const hg = g.createRadialGradient(q[0], q[1], 0, q[0], q[1], rad);
+        hg.addColorStop(0, 'rgba(226,244,255,.8)');
+        hg.addColorStop(1, 'rgba(226,244,255,0)');
+        g.fillStyle = hg;
+        g.beginPath(); g.arc(q[0], q[1], rad, 0, 7); g.fill();
+        g.fillStyle = '#F2FAFF';
+        g.beginPath(); g.arc(q[0], q[1], 1.4 + 1.6 * headFade, 0, 7); g.fill();
+        g.globalAlpha = a;
+      });
+    }
+    g.restore();
+  }
+
+  /* ── Подписи вокруг кольца ──
+     Три места: потолок над верхом, опора у воды, цена рядом со
+     своей точкой. Внутри кольца — проверка усилия и исход теста:
+     это выводы, не привязанные ни к одному уровню, и место в
+     центре им по смыслу. */
+  function nearBand(n){
+    const host = document.getElementById('obcNear');
+    if (!host) return;
+    const R = ringGeom(n);
+    n = n || {};
+    if (!R){ host.innerHTML = ''; return; }
+
+    /* Весь текст ушёл ВНУТРЬ обода. Снаружи он расползался по кадру
+       и спорил со столбами; внутри кольцо само работает рамкой, и
+       читать его нужно сверху вниз — ровно в том порядке, в каком
+       стоят уровни: потолок, цена между ними, опора. */
+    /* Ширина считается по ХОРДЕ на высоте подписи, а не по диаметру:
+       у верхней и нижней строк места меньше, чем у середины, и
+       единая ширина вылезала бы за обод сверху и снизу. */
+    const pc = (x, y, wf) => {
+      const dy = Math.abs(y - R.cy) / R.r;
+      const chord = 2 * R.r * Math.sqrt(Math.max(0.08, 1 - dy * dy)) * .82;
+      return 'left:' + (x / W * 100).toFixed(2) + '%;top:' +
+        (y / H * 100).toFixed(2) + '%;max-width:' +
+        ((wf === undefined ? chord : wf) / W * 100).toFixed(2) + '%';
+    };
+    const dist = d => (d.pct === null ? '—'
+      : (d.pct >= 0 ? '+' : '') + d.pct.toFixed(1) + '%') +
+      (d.atr === null ? '' : ' · ' + d.atr.toFixed(1) + ' ATR');
+    const sub = d => [
+      d.touches > 1 ? 'касаний ' + d.touches : 'одно касание',
+      d.react ? '<em>' + d.react + '</em>' : null,
+      d.liq ? '<s>' + d.liq + '</s>' : null
+    ].filter(Boolean).join(' · ');
+
+    let html = '';
+
+    if (R.up){
+      html += '<div class="rl up" style="' + pc(R.cx, R.cy - R.r * .56) + '">' +
+        '<div class="rl-k">потолок</div><div class="rl-v">' + dist(R.up) +
+        '</div><div class="rl-s">' + sub(R.up) + '</div></div>';
+    }
+    if (R.dn){
+      html += '<div class="rl dn" style="' + pc(R.cx, R.cy + R.r * .58) + '">' +
+        '<div class="rl-k">опора</div><div class="rl-v">' + dist(R.dn) +
+        '</div><div class="rl-s">' + sub(R.dn) + '</div></div>';
+    }
+
+    /* Слова «цена» здесь нет намеренно. Оно вылезало правее обода
+       на свет столба и почти ложилось на подпись опоры. И оно
+       ничего не добавляло: точка цены — единственное тёплое пятно
+       кадра, с ореолом, и едет между зелёным узлом опоры и ржавым
+       узлом потолка. Что это цена, видно без подписи.
+
+       */
+
+    const ef = n.eff, ts = n.test;
+    if (ef || ts){
+      html += '<div class="rl-core" style="' + pc(R.cx, R.cy + 2) + '">';
+      if (ef){
+        html += '<div class="rl-x' + (ef.x === null ? ' mute' : '') + '">' +
+            (ef.x === null ? '—' : '×' + (ef.x >= 10 ? Math.round(ef.x) : ef.x.toFixed(1))) +
+          '</div>' + (ef.word ? '<div class="rl-w">' + ef.word + '</div>' : '');
+      }
+      if (ts){
+        html += '<div class="rl-t">тест <b class="' + (ts.ok ? 'ok' : 'no') + '">' +
+          (ts.ok ? 'пройден' : 'не пройден') + '</b>' +
+          (ts.share === null ? '' : ' · ' + ts.share + '%') + '</div>';
+      }
+      html += '</div>';
+    }
+
+    host.innerHTML = html;
+  }
+
   /* ── Подписи ────────────────────────────────────────────────── */
   function labels(d){
     lay.querySelectorAll('.col').forEach(e => e.remove());
@@ -1747,8 +2256,7 @@ CARDSCENE_JS = r"""
     });
     const capEl = document.getElementById('obcCap');
     capEl.textContent = d.cap; capEl.dataset.t = d.cap; capEl.classList.add('d3');
-    const ft = document.getElementById('obcFoot');
-    ft.innerHTML = d.foot.map(([n,v,c]) => `<span class="${c}">${n}<b>${v}</b></span>`).join('');
+    nearBand(d.near);
     diagram(d);
 
     d.cols.forEach((c, i) => {
@@ -1837,6 +2345,33 @@ CARDSCENE_JS = r"""
         <text class="num" y="5">${n === null || n === undefined ? '—' : n}<tspan class="pc"> дн</tspan></text>
         <text class="cap2" y="46">дней от дна</text></g>`;
 
+    /* Кольцо вопроса. Заполнение — доля согласных приборов, в
+       центре их счёт, под кольцом — ответ словами. У топлива дуга
+       БИПОЛЯРНАЯ: от верхней точки вправо, когда заряжено вверх, и
+       влево, когда вниз. Одинаковая дуга на оба знака заставила бы
+       читать подпись, чтобы понять сторону, — а кольцо на то и
+       кольцо, чтобы отвечать раньше слов. */
+    const qring = (cx, q, name, bipolar) => {
+      const r = 30, cc = 2 * Math.PI * r;
+      const frac = q.of ? Math.min(1, q.n / q.of) : 0;
+      const sweep = cc * frac * (bipolar ? 0.42 : 0.75);
+      const rot = bipolar ? (q.sign < 0 ? 90 : -90) : -215;
+      const dir = bipolar && q.sign < 0 ? ' transform="scale(-1,1)"' : '';
+      const center = !q.of ? '—'
+        : (bipolar ? (q.sign > 0 ? '↑' : q.sign < 0 ? '↓' : '·') + q.n
+                   : q.n + '<tspan class="pc">/' + q.of + '</tspan>');
+      return `<g transform="translate(${cx},${base-46})">
+        <circle r="${r}" class="ring"/>
+        ${frac > 0.01 ? `<g${dir}><circle r="${r}" class="val"
+            stroke-dasharray="${sweep.toFixed(1)} ${cc}"
+            style="stroke-dashoffset:${sweep.toFixed(1)}"
+            transform="rotate(${rot})"/></g>` : ''}
+        <text class="num" y="5">${center}</text>
+        <text class="cap2" y="46">${name} · ${q.word}</text>
+        ${q.why ? `<text class="cap2" y="60" opacity=".62">${q.why}</text>` : ''}
+      </g>`;
+    };
+
     const arc = (cx, [name, frac]) => {
       const r = 30, c = 2 * Math.PI * r;
       return `<g transform="translate(${cx},${base-46})">
@@ -1882,7 +2417,8 @@ CARDSCENE_JS = r"""
               fill="#FFE7BE" filter="url(#gl)"/>` : ''}
       <text x="${x0}" y="${base+22}" class="cap2" text-anchor="start">${
         has ? '24 часа · объём' : '24 часа · ряда нет'}</text>
-      <g filter="url(#gl)">${arc(150, d.arcs[0])}${tally(1090, d.lowDays)}</g>
+      <g filter="url(#gl)">${qring(150, d.rings.sell, 'продавец')}${
+        qring(1090, d.rings.fuel, 'топливо', true)}</g>
     </svg>`;
   }
 
@@ -1987,7 +2523,18 @@ CARDSCENE_JS = r"""
 
   function applyCard(card) {
     var det = DETAIL ? DETAIL(card.raw) : null;
-    note.innerHTML = levels(det && det.note);
+    /* Здесь была фраза про частоту попаданий — «сегодня 29 против
+       17». Это реактивная метрика нашей же системы, ровно та, от
+       которой мы отказались: частота ничего не обещает (ALPINE
+       попадала в 97% прогонов и была в минусе). И она конкурировала
+       с полосой внизу за роль вывода.
+
+       Сводка в кадре должна быть ОДНА. Теперь она собирается из тех
+       же двух вопросов, что и кольца наверху, и заканчивается тем,
+       что решается сегодня. Крупная строка — положение цены
+       относительно ближайшего уровня: это и есть ответ «где мы
+       сейчас», ради которого карточку открывают. */
+    note.innerHTML = verdictHTML(card);
     draw.innerHTML = (det && det.body) || '';
     pos.innerHTML = '<b>' + (IDX + 1) + '</b> из ' + CARDS.length;
     root.classList.toggle('buyers', !!card.buyers);
@@ -2009,6 +2556,7 @@ CARDSCENE_JS = r"""
         b.classList.toggle('wind-l', vx === 'down');
       });
 
+    NEAR = card.near;
     marks(card);
     labels(card);
     lay.classList.remove('out');
@@ -2032,6 +2580,7 @@ CARDSCENE_JS = r"""
        подписей садятся в одну точку по запасному значению. */
     /* На входе туман тоже начинается с нуля: время уже стоит на точке
        подмены, и первый же кадр цикла продолжит его проявление. */
+    NEAR = CARDS[IDX].near;
     buildBG(CARDS[IDX].price, CARDS[IDX].entry, CARDS[IDX].unlock, 0);
     compose();
     applyCard(CARDS[IDX]);
