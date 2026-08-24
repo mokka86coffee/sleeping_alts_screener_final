@@ -398,7 +398,16 @@
   "atl_date": "2025-06-26",
   "source": "cryptorank.io, обзор разлоков 22–28.06.2026",
   "checked_at": "2026-08-23",
-  "note": "разлок 25.06.2026: 266 млн токенов ≈ $54.77M = 9.41% обращения — прошедшее событие, ориентир масштаба будущих"
+  "note": "разлок 25.06.2026: 266 млн токенов ≈ $54.77M = 9.41% обращения — прошедшее событие, ориентир масштаба будущих",
+  "events": [
+   {
+    "date": "2026-08-25",
+    "usd": 20100000,
+    "pct_supply": 2.86,
+    "pct_float": 14.71,
+    "note": "дайджест whaletalks; Tokenomist давал $15.5M / 8.6% обращения — расхождение источников, записано худшее из двух"
+   }
+  ]
  },
  "HEMIUSDT": {
   "circ_pct": 9.8,
@@ -590,5 +599,248 @@
   "source": "tokenomist.ai/worldcoin-wld",
   "checked_at": "2026-08-23",
   "note": "вестинг ЛИНЕЙНЫЙ (Community 75%, Investors 13.78%, Team 10.02%): предложение размазано, разовых обрывов нет. Исторически низкая волатильность через 7 дней после разлока"
+ },
+ "SOSOUSDT": {
+  "source": "t.me/whaletalks · дайджест разлоков 24–30.08 (Bitunix)",
+  "checked_at": "2026-08-24",
+  "inferred": true,
+  "circ_pct": 34.3,
+  "fdv_ratio": 2.92,
+  "note": "запись из дайджеста; circ_pct/fdv_ratio выведены как pct_supply/pct_float — сверить по tokenomist",
+  "events": [
+   {
+    "date": "2026-08-24",
+    "usd": 8200000,
+    "pct_supply": 2.61,
+    "pct_float": 7.62
+   }
+  ]
+ },
+ "XPLUSDT": {
+  "source": "t.me/whaletalks · дайджест разлоков 24–30.08 (Bitunix)",
+  "checked_at": "2026-08-24",
+  "inferred": true,
+  "circ_pct": 18.0,
+  "fdv_ratio": 5.56,
+  "note": "запись из дайджеста; circ_pct/fdv_ratio выведены как pct_supply/pct_float — сверить по tokenomist",
+  "events": [
+   {
+    "date": "2026-08-25",
+    "usd": 8700000,
+    "pct_supply": 0.89,
+    "pct_float": 4.94
+   }
+  ]
+ },
+ "COAIUSDT": {
+  "source": "t.me/whaletalks · дайджест разлоков 24–30.08 (Bitunix)",
+  "checked_at": "2026-08-24",
+  "inferred": true,
+  "circ_pct": 18.8,
+  "fdv_ratio": 5.32,
+  "note": "запись из дайджеста; circ_pct/fdv_ratio выведены как pct_supply/pct_float — сверить по tokenomist",
+  "events": [
+   {
+    "date": "2026-08-25",
+    "usd": 2350000,
+    "pct_supply": 0.83,
+    "pct_float": 4.42,
+    "note": "монета из инсайдерской серии (кластер LAB/SIREN/RIVER/MYX…)"
+   }
+  ]
+ },
+ "PRLUSDT": {
+  "source": "t.me/whaletalks · дайджест разлоков 24–30.08 (Bitunix)",
+  "checked_at": "2026-08-24",
+  "inferred": true,
+  "circ_pct": 17.6,
+  "fdv_ratio": 5.68,
+  "note": "запись из дайджеста; circ_pct/fdv_ratio выведены как pct_supply/pct_float — сверить по tokenomist",
+  "events": [
+   {
+    "date": "2026-08-25",
+    "usd": 2300000,
+    "pct_supply": 1.0,
+    "pct_float": 5.69
+   }
+  ]
+ },
+ "IRYSUSDT": {
+  "source": "t.me/whaletalks · дайджест разлоков 24–30.08 (Bitunix)",
+  "checked_at": "2026-08-24",
+  "inferred": true,
+  "circ_pct": 19.9,
+  "fdv_ratio": 5.03,
+  "note": "запись из дайджеста; circ_pct/fdv_ratio выведены как pct_supply/pct_float — сверить по tokenomist",
+  "events": [
+   {
+    "date": "2026-08-25",
+    "usd": 1030000,
+    "pct_supply": 0.74,
+    "pct_float": 3.72
+   }
+  ]
+ },
+ "TAKEUSDT": {
+  "source": "t.me/whaletalks · дайджест разлоков 24–30.08 (Bitunix)",
+  "checked_at": "2026-08-24",
+  "inferred": true,
+  "circ_pct": 33.3,
+  "fdv_ratio": 3.0,
+  "note": "запись из дайджеста; circ_pct/fdv_ratio выведены как pct_supply/pct_float — сверить по tokenomist",
+  "events": [
+   {
+    "date": "2026-08-25",
+    "usd": 1090000,
+    "pct_supply": 1.93,
+    "pct_float": 5.8
+   }
+  ]
+ },
+ "HUMAUSDT": {
+  "source": "t.me/whaletalks · дайджест разлоков 24–30.08 (Bitunix)",
+  "checked_at": "2026-08-24",
+  "inferred": true,
+  "circ_pct": 17.3,
+  "fdv_ratio": 5.78,
+  "note": "запись из дайджеста; circ_pct/fdv_ratio выведены как pct_supply/pct_float — сверить по tokenomist",
+  "events": [
+   {
+    "date": "2026-08-26",
+    "usd": 9900000,
+    "pct_supply": 4.59,
+    "pct_float": 26.47,
+    "note": "26.47% капы — ступень «выйти»; аллокация в дайджесте не названа"
+   }
+  ]
+ },
+ "SAHARAUSDT": {
+  "source": "t.me/whaletalks · дайджест разлоков 24–30.08 (Bitunix)",
+  "checked_at": "2026-08-24",
+  "inferred": true,
+  "circ_pct": 20.4,
+  "fdv_ratio": 4.9,
+  "note": "запись из дайджеста; circ_pct/fdv_ratio выведены как pct_supply/pct_float — сверить по tokenomist",
+  "events": [
+   {
+    "date": "2026-08-26",
+    "usd": 1350000,
+    "pct_supply": 1.62,
+    "pct_float": 7.95
+   }
+  ]
+ },
+ "AEONUSDT": {
+  "source": "t.me/whaletalks · дайджест разлоков 24–30.08 (Bitunix)",
+  "checked_at": "2026-08-24",
+  "inferred": true,
+  "circ_pct": 18.8,
+  "fdv_ratio": 5.32,
+  "note": "запись из дайджеста; circ_pct/fdv_ratio выведены как pct_supply/pct_float — сверить по tokenomist",
+  "events": [
+   {
+    "date": "2026-08-27",
+    "usd": 2940000,
+    "pct_supply": 4.91,
+    "pct_float": 26.11,
+    "note": "26.11% капы — ступень «выйти»; аллокация в дайджесте не названа"
+   }
+  ]
+ },
+ "GRASSUSDT": {
+  "source": "t.me/whaletalks · дайджест разлоков 24–30.08 (Bitunix)",
+  "checked_at": "2026-08-24",
+  "inferred": true,
+  "circ_pct": 65.6,
+  "fdv_ratio": 1.52,
+  "note": "запись из дайджеста; circ_pct/fdv_ratio выведены как pct_supply/pct_float — сверить по tokenomist",
+  "events": [
+   {
+    "date": "2026-08-28",
+    "usd": 11300000,
+    "pct_supply": 3.16,
+    "pct_float": 4.82
+   }
+  ]
+ },
+ "CORNUSDT": {
+  "source": "t.me/whaletalks · дайджест разлоков 24–30.08 (Bitunix)",
+  "checked_at": "2026-08-24",
+  "inferred": true,
+  "circ_pct": 25.0,
+  "fdv_ratio": 4.0,
+  "note": "запись из дайджеста; circ_pct/fdv_ratio выведены как pct_supply/pct_float — сверить по tokenomist",
+  "events": [
+   {
+    "date": "2026-08-28",
+    "usd": 1560000,
+    "pct_supply": 2.92,
+    "pct_float": 11.69
+   }
+  ]
+ },
+ "SIGNUSDT": {
+  "source": "t.me/whaletalks · дайджест разлоков 24–30.08 (Bitunix)",
+  "checked_at": "2026-08-24",
+  "inferred": true,
+  "circ_pct": 12.0,
+  "fdv_ratio": 8.33,
+  "note": "запись из дайджеста; circ_pct/fdv_ratio выведены как pct_supply/pct_float — сверить по tokenomist",
+  "events": [
+   {
+    "date": "2026-08-28",
+    "usd": 1200000,
+    "pct_supply": 1.56,
+    "pct_float": 13.02
+   }
+  ]
+ },
+ "FFUSDT": {
+  "source": "t.me/whaletalks · дайджест разлоков 24–30.08 (Bitunix)",
+  "checked_at": "2026-08-24",
+  "inferred": true,
+  "circ_pct": 23.4,
+  "fdv_ratio": 4.27,
+  "note": "запись из дайджеста; circ_pct/fdv_ratio выведены как pct_supply/pct_float — сверить по tokenomist",
+  "events": [
+   {
+    "date": "2026-08-29",
+    "usd": 10600000,
+    "pct_supply": 1.23,
+    "pct_float": 5.26
+   }
+  ]
+ },
+ "NIGHTUSDT": {
+  "source": "t.me/whaletalks · дайджест разлоков 24–30.08 (Bitunix)",
+  "checked_at": "2026-08-24",
+  "inferred": true,
+  "circ_pct": 20.7,
+  "fdv_ratio": 4.83,
+  "note": "запись из дайджеста; circ_pct/fdv_ratio выведены как pct_supply/pct_float — сверить по tokenomist",
+  "events": [
+   {
+    "date": "2026-08-29",
+    "usd": 2540000,
+    "pct_supply": 1.78,
+    "pct_float": 8.59
+   }
+  ]
+ },
+ "B2USDT": {
+  "source": "t.me/whaletalks · дайджест разлоков 24–30.08 (Bitunix)",
+  "checked_at": "2026-08-24",
+  "inferred": true,
+  "circ_pct": 32.1,
+  "fdv_ratio": 3.12,
+  "note": "запись из дайджеста; circ_pct/fdv_ratio выведены как pct_supply/pct_float — сверить по tokenomist",
+  "events": [
+   {
+    "date": "2026-08-30",
+    "usd": 1400000,
+    "pct_supply": 1.58,
+    "pct_float": 4.92
+   }
+  ]
  }
 }
