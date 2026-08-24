@@ -216,6 +216,14 @@ CARDSCENE_CSS = """
   z-index:4;display:flex;align-items:center;
   gap:clamp(12px,1.8vw,26px);pointer-events:none}
 
+/* Раскладка знаков. Правило было потеряно при замене блока ручек, и
+   вместе с ним пропало разрешение ловить курсор: слой сцены сквозной
+   для мыши (.lay), поэтому каждый интерактивный элемент внутри обязан
+   включать pointer-events сам. Без этого знаки вставали столбиком и
+   молчали на наведение. */
+#obcRoot .obc-marks{display:flex;flex-direction:row;align-items:center;
+  gap:clamp(10px,1.2vw,16px);margin-left:auto;pointer-events:auto}
+
 /* ── Знаки ──
    Подложки убраны совсем: купол и фаска делали из двух признаков
    пару кнопок, а нажимать здесь нечего — это показания. Осталось
@@ -1054,6 +1062,18 @@ CARDSCENE_JS = r"""
     var ef = c.effort || null;
     var wt = c.wyckoffTest || null;
 
+    /* Давность реакции словами. Ноль — «сегодня»: «0 дн назад»
+       читается как ошибка счётчика, а не как сегодня. */
+    function agoWord(n) {
+      var k = (n === undefined || n === null) ? null : Math.round(n);
+      if (k === null) return '';
+      if (k <= 0) return 'сегодня';
+      var last = k % 10, two = k % 100;
+      var word = (last === 1 && two !== 11) ? 'день'
+        : (last >= 2 && last <= 4 && (two < 12 || two > 14)) ? 'дня' : 'дней';
+      return k + ' ' + word + ' назад';
+    }
+
     function side(d, kind) {
       if (!d) return null;
       var r = d.reaction || null;
@@ -1067,9 +1087,14 @@ CARDSCENE_JS = r"""
         touches: +d.touches || 1,
         /* Реакция — вторая половина уровня: он говорит ГДЕ, она
            КОГДА. Без неё уровень остаётся местом на графике. */
-        react: r ? (r.kind === 'приняли'
-                    ? (kind === 'up' ? 'пробит и удержан' : 'отдан и удержан')
-                    : 'сходили и вернулись') : null,
+        /* Слова «отдан и удержан» были невнятны: у уровня ПОД ценой
+           «приняли» означает, что его пробили ВНИЗ и цена закрывалась
+           под ним, а сейчас вернулась выше. Говорим прямо, что
+           случилось и когда — без давности реакция читается как
+           происходящее сейчас, хотя ей может быть неделя. */
+        react: r ? ((r.kind === 'приняли'
+                      ? (kind === 'up' ? 'пробит вверх' : 'пробита вниз')
+                      : 'сходили и вернулись') + ' ' + agoWord(r.bars_ago)) : null,
         /* Совпадение структуры с модельным плечом. Метка отдельная и
            синяя: два независимых способа указали одно место, но один
            из них — гипотеза. */
@@ -2482,12 +2507,19 @@ CARDSCENE_JS = r"""
     const ms = document.getElementById('obcMarkSup');
     const inv = card.inv || [];
 
-    mi.className = 'obc-mark' + (inv.length ? '' : ' off');
-    mi.querySelector('.obc-tip').innerHTML = inv.length
-      ? '<b>инвесторы</b>' + inv.map(function (v) {
+    /* Знак «хозяин» и фонарь на лодке говорят одно и то же и потому
+       зажигаются от одного правила: известный организатор. Прочие
+       инвесторы остаются в подсказке — знать их полезно, но масштаб
+       возможного движения меняют не они. */
+    var org = organizerOf(card);
+    mi.className = 'obc-mark' + (org ? ' hot' : (inv.length ? '' : ' off'));
+    mi.querySelector('.obc-tip').innerHTML = (org
+      ? '<b>организатор</b><i>' + org + '</i>'
+      : '<b>инвесторы</b>') + (inv.length
+      ? (org ? '<br>' : '') + inv.map(function (v) {
           return v.n + ' · тир ' + v.tier;
         }).join('<br>')
-      : '<b>инвесторы</b>не известны';
+      : (org ? '' : 'не известны'));
 
     const u = card.unlock, fp = card.floatPct;
     let cls = ' off', tip = '<b>предложение</b>данных нет';
@@ -2521,6 +2553,33 @@ CARDSCENE_JS = r"""
     ms.querySelector('.obc-tip').innerHTML = tip;
   }
 
+  /* ── Известные организаторы ──
+     Список короткий и именной сознательно: «фонарь» отмечает не
+     наличие инвестора, а присутствие тех, кто способен вести
+     монету сам. Имена набраны по расследованиям, лежащим в основе
+     техдолга схем; список пополняется руками, как и должен —
+     автоматически такое не выводится.
+
+     Сверка по нормализованной подстроке: в данных встречаются и
+     «YZi Labs», и «Binance Labs (YZi)», и «DWF». */
+  var ORGANIZERS = ['yzi', 'binance labs', 'dwf', 'hsbg'];
+
+  function organizerOf(card) {
+    var c = (card && card.raw) || {};
+    var names = [];
+    if (c.organizer) names.push(String(c.organizer));
+    (c.investors || []).forEach(function (v) {
+      names.push(String(v.n || v.name || ''));
+    });
+    for (var i = 0; i < names.length; i++) {
+      var low = names[i].toLowerCase();
+      for (var k = 0; k < ORGANIZERS.length; k++) {
+        if (low.indexOf(ORGANIZERS[k]) >= 0) return names[i];
+      }
+    }
+    return null;
+  }
+
   function applyCard(card) {
     var det = DETAIL ? DETAIL(card.raw) : null;
     /* Здесь была фраза про частоту попаданий — «сегодня 29 против
@@ -2539,21 +2598,26 @@ CARDSCENE_JS = r"""
     pos.innerHTML = '<b>' + (IDX + 1) + '</b> из ' + CARDS.length;
     root.classList.toggle('buyers', !!card.buyers);
 
-    /* Крен от скорости хода, сторона — от вортекса. Потолок в шесть
-       градусов: дальше лодка выглядит опрокидывающейся, а не идущей. */
-    /* Вес инвесторов: первый тир — три доли, второй — две, третий —
-       одна, потолок в пять долей. Больше пяти уже не различается на
-       глаз, а шкала без потолка однажды пересветит весь кадр. */
-    var inv = (card.inv || []).reduce(function (a, v) { return a + (4 - v.tier); }, 0);
-    var lamp = Math.min(1, inv / 5);
+    /* ── Лодка несёт ОДИН смысл ──
+       Было три: парус показывал сторону вортекса, крен — скорость
+       хода, фонарь — сумму тиров инвесторов. Первые два никто не
+       различал: наклон в пару градусов и зеркальный парус не
+       читаются, а обе величины уже сказаны в другом месте —
+       направление вортекса голосует в кольце топлива, скорость
+       лежит в ящике. Третий был мёртв: поля инвесторов в пейлоаде
+       нет, и фонарь всегда горел вполсилы.
 
-    var vx = card.raw && card.raw.vxDir, sp = parseFloat(card.raw && card.raw.speedV) || 0;
-    var heel = Math.min(6, 1.4 + sp * 1.7) * (vx === 'down' ? -1 : 1);
+       Осталось одно: фонарь разгорается, когда за монетой стоит
+       ИЗВЕСТНЫЙ организатор. Не «инвестор вообще» и не сумма тиров
+       — именно имя из короткого списка тех, чьё присутствие само по
+       себе меняет масштаб возможного движения. Парус и крен замерли:
+       лодка просто идёт, покачиваясь на волне. */
+    var org = organizerOf(card);
     [document.getElementById('obcBoat'), document.getElementById('obcBoatM')]
       .forEach(function (b) {
-        b.style.setProperty('--heel', (vx ? heel.toFixed(1) : 0) + 'deg');
-        b.style.setProperty('--inv', lamp.toFixed(3));
-        b.classList.toggle('wind-l', vx === 'down');
+        b.style.setProperty('--heel', '0deg');
+        b.style.setProperty('--inv', org ? '1' : '0');
+        b.classList.remove('wind-l');
       });
 
     NEAR = card.near;

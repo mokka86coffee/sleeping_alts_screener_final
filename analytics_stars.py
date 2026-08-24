@@ -39,6 +39,7 @@ from analytics_pulse import for_symbol as pulse_deltas
 from analytics_action import decide as decide_action
 from analytics_actionlog import log_actions
 from analytics_squeeze import (absorption_for, effort_state, squeeze_for,
+                               wyckoff_test_for,
                                thin_float as squeeze_thin)
 from analytics_unlocks import unlock_shifts
 from analytics_hyperliquid import whale_bias
@@ -860,6 +861,12 @@ def build_stars(candidates: list[Candidate],
         lv = (c.raw or {}).get("levels")
         if lv:
             s["levels"] = lv
+        # Вайкофф: тест после прокола — подтверждение накопления.
+        # Пишем ОБА исхода: «не пройден» ценнее «пройден», потому
+        # что это прямой запрет на преждевременный вход.
+        wt = wyckoff_test_for(sym)
+        if wt.get("note"):
+            s["wyckoffTest"] = wt
 
         s["entry"] = entry_plan(s, permission)
         # None, а не пустой словарь: звезда уходит в JSON зала как

@@ -361,3 +361,78 @@ def effort_state(raw: dict, flow: dict | None = None) -> dict | None:
         div_note = "дельта гаснет на верхах — покупатели выдыхаются"
         out["note"] = f"{note}; {div_note}" if note else div_note
     return out
+
+# ── Тест Вайкоффа: повторный заход к минимуму на МЕНЬШЕМ объёме ──
+# Из разбора Вайкоффа (24.08): подтверждение накопления — не сама
+# пружина, а ТЕСТ после неё. Цена прокалывает поддержку, возвращается,
+# затем идёт повторно к минимуму, но удержать уровень требуется уже
+# меньше усилия. Меньше усилия на тот же результат = продавец кончился.
+# «Тест важнее самой пружины».
+#
+# Родня, но не дубль: absorption_from_rows читает удержание ПОСЛЕ
+# выноса по давлению (vi), а здесь сравниваются два подхода к одному
+# уровню по ОБЪЁМУ. Вайкоффу нужен именно объём, и именно
+# относительный: не «фон тихий», а «на тесте тише, чем на проколе».
+TEST_NEAR_PCT = 4.0      # «повторно к минимуму» — ближе этого к лою
+TEST_VOL_RATIO = 0.7     # объём теста к объёму прокола
+TEST_MIN_GAP = 2         # столько баров между проколом и тестом
+
+
+def wyckoff_test_from_rows(rows: list[dict],
+                           near_pct: float = TEST_NEAR_PCT,
+                           vol_ratio: float = TEST_VOL_RATIO,
+                           min_gap: int = TEST_MIN_GAP) -> dict:
+    """Прошла ли монета тест после прокола минимума.
+
+    Читает пульс: price и rvol_1h. Возврат: {"tested", "volRatio",
+    "barsAfter", "note"}. tested=False, когда прокола не было, теста
+    ещё не случилось или он пришёл на ТАКОМ ЖЕ объёме — последнее
+    важнее всего: высокий объём на тесте означает, что предложение
+    не иссякло, и вход преждевременен.
+
+    Скор и отбор не трогаются — поле знания.
+    """
+    out = {"tested": False, "volRatio": None, "barsAfter": None, "note": None}
+    px = [r.get("price") for r in rows]
+    if len(px) < min_gap + 3 or any(not v for v in px):
+        return out
+    vols = [r.get("rvol_1h") for r in rows]
+
+    ilow = min(range(len(px)), key=lambda i: px[i])
+    low = px[ilow]
+    if not low or ilow > len(px) - 1 - min_gap:
+        return out                     # минимум только что — теста не было
+    v_low = vols[ilow]
+    if not v_low or v_low <= 0:
+        return out                     # без объёма прокола сравнивать не с чем
+
+    # Между проколом и тестом цена обязана ОТОЙТИ: заход к тому же
+    # уровню без возврата — это не тест, а продолжение падения.
+    away = max(px[ilow:])
+    if not away or (away / low - 1) * 100 < near_pct:
+        return out
+
+    for i in range(ilow + min_gap, len(px)):
+        if (px[i] / low - 1) * 100 > near_pct:
+            continue                   # ещё не вернулись к минимуму
+        v = vols[i]
+        if not v or v <= 0:
+            continue
+        ratio = v / v_low
+        out["volRatio"] = round(ratio, 2)
+        out["barsAfter"] = i - ilow
+        if ratio <= vol_ratio:
+            out["tested"] = True
+            out["note"] = (f"тест пройден: повторный заход к минимуму на "
+                           f"объёме {ratio:.0%} от прокола — продавец иссяк")
+        else:
+            out["note"] = (f"тест НЕ пройден: у минимума объём {ratio:.0%} "
+                           f"от прокола — предложение не иссякло, рано")
+        return out
+    return out
+
+
+def wyckoff_test_for(symbol: str) -> dict:
+    """Тест по текущему пульсу одной монеты."""
+    rows = _pulse().get(symbol)
+    return wyckoff_test_from_rows(rows if isinstance(rows, list) else [])
