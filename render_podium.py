@@ -553,6 +553,96 @@ PODIUM_CSS = """
   .obz-fan{display:none}
 }
 </style>
+/* ── Ворота зала ─────────────────────────────────────────────
+   Первый экран после бриза: светящаяся линия, четыре диска и одна
+   строка о том, что делать. Стена не строится, пока человек не
+   выберет — иначе зал открывается посреди чужого списка, и первый
+   вопрос не «что делать», а «где я». */
+.obp-gate{position:absolute;inset:0;z-index:46;display:none;
+  align-items:center;justify-content:center;padding:22px 18px;
+  background:
+    radial-gradient(90% 60% at 50% 46%,rgba(232,165,85,.07) 0%,transparent 62%),
+    radial-gradient(100% 80% at 50% 112%,rgba(6,8,12,.9) 0%,transparent 72%);
+  animation:obgIn .5s cubic-bezier(.2,.7,.3,1) both}
+.obp-gate.on{display:flex}
+@keyframes obgIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+.obg-inner{display:flex;flex-direction:column;align-items:center;gap:30px}
+
+/* График без рамки и плашки: просто светящаяся линия на звёздах. */
+.obg-chart{width:min(660px,80vw)}
+.obg-chart svg{display:block;width:100%;height:auto}
+
+/* Верньеры. Цвет каждого — цвет его группы (--c и --rgb приходят из
+   STAGE), поэтому кнопки различимы между собой и не спорят с
+   янтарным графиком. Фон почти прозрачный: сквозь диск виден зал,
+   объём держат блик по верхней грани, внутренняя тень и ободок. */
+.obg-dials{display:flex;gap:18px;flex-wrap:wrap;justify-content:center}
+.obg-d{position:relative;background:none;border:0;padding:6px 4px 0;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;gap:12px;width:112px;
+  font:inherit;-webkit-tap-highlight-color:transparent}
+.obg-face{position:relative;width:80px;height:80px;border-radius:50%;
+  display:grid;place-items:center;font-size:22px;letter-spacing:-.02em;
+  color:var(--c,#c09672);
+  background:
+    linear-gradient(180deg,rgba(230,237,241,.07) 0%,transparent 30%),
+    radial-gradient(circle at 50% 118%,rgba(var(--rgb,34 37 41),.16) 0%,rgba(12,13,16,.16) 74%);
+  -webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);
+  box-shadow:
+    inset 0 2px 2px rgba(230,237,241,.13),
+    inset 0 -10px 18px -8px rgba(0,0,0,.55),
+    0 0 0 1px rgba(var(--rgb,36 38 42),.22),
+    0 16px 26px -16px rgba(0,0,0,.8);
+  transition:transform .2s,color .2s,box-shadow .2s}
+.obg-face::before{content:"";position:absolute;inset:9px;border-radius:50%;
+  border:1px solid rgba(var(--rgb,230 237 241),.2);
+  box-shadow:inset 0 6px 12px rgba(0,0,0,.7),0 1px 0 rgba(230,237,241,.06);
+  pointer-events:none;transition:border-color .2s,box-shadow .2s}
+.obg-cap{font-size:9.5px;letter-spacing:.28em;text-transform:uppercase;
+  color:var(--c,#a97a5f);opacity:.75}
+.obg-d[data-live="1"] .obg-face{
+  background:
+    linear-gradient(180deg,rgba(230,237,241,.09) 0%,transparent 30%),
+    radial-gradient(circle at 50% 118%,rgba(var(--rgb),.26) 0%,rgba(12,13,16,.2) 74%);
+  box-shadow:
+    inset 0 2px 2px rgba(230,237,241,.18),
+    inset 0 -10px 18px -8px rgba(0,0,0,.6),
+    0 0 0 1px rgba(var(--rgb),.55),
+    0 0 26px rgba(var(--rgb),.34),
+    0 18px 34px -14px rgba(var(--rgb),.4);
+  text-shadow:0 0 14px rgba(var(--rgb),.85)}
+.obg-d[data-live="1"] .obg-face::before{border-color:rgba(var(--rgb),.8);
+  box-shadow:inset 0 0 18px rgba(var(--rgb),.24),0 0 12px rgba(var(--rgb),.5)}
+.obg-d[data-live="1"] .obg-cap{opacity:1}
+.obg-d[data-zero="1"]{opacity:.4}
+.obg-d:hover .obg-face{transform:translateY(-3px)}
+.obg-d:focus-visible .obg-face{outline:2px solid var(--c,#e8a555);outline-offset:5px}
+
+.obg-hint{margin:0;text-align:center;font-size:12px;color:#b8bec6;max-width:440px}
+.obg-hint b{color:#fff;font-weight:600}
+
+/* Пока ворота открыты, верхняя строка групп молчит: два ряда одних
+   и тех же кнопок — это две развилки вместо одной. */
+.ob-podium.obp-gated .obp-groups,
+.ob-podium.obp-gated .obp-hint,
+.ob-podium.obp-gated .obp-again{opacity:0;pointer-events:none}
+
+/* «Заново» возвращает к воротам без перезагрузки: прототип смотрят
+   подряд по многу раз, и F5 каждый раз стоит бриза. */
+.obp-again{right:auto;left:26px;color:#8a6a3f;
+  border-color:rgba(232,165,85,.22);background:rgba(14,11,8,.6)}
+.obp-again:hover{color:#ffcb7d;border-color:rgba(232,165,85,.45);
+  background:rgba(28,20,12,.85)}
+.obp-again:focus-visible{outline:2px solid #e8a555}
+
+@media (max-width:640px){
+  .obg-d{width:84px}
+  .obg-face{width:62px;height:62px;font-size:18px}
+}
+@media (prefers-reduced-motion:reduce){
+  .obp-gate{animation:none}
+  .obg-face{transition:none}
+}
+
 """
 
 PODIUM_HTML = """
@@ -567,10 +657,22 @@ PODIUM_HTML = """
     <div class="obp-stamp" id="obPodStamp"></div>
   </div>
   <button class="obp-exit" id="obpExit" type="button">к дашборду</button>
+  <button class="obp-exit obp-again" id="obpAgain" type="button">заново</button>
 
   <div class="obp-groups" id="obpGroups"></div>
   <div class="obp-tiers" id="obpTiers"></div>
   <div class="obp-stage" id="obpStage"></div>
+
+  <!-- Ворота зала: первый экран после бриза. Только диски по
+       центру и светящаяся линия над ними — человек выбирает
+       сам, куда идти. Стена не строится, пока не выберет. -->
+  <div class="obp-gate" id="obpGate">
+    <div class="obg-inner">
+      <div class="obg-chart" id="obgChart"></div>
+      <div class="obg-dials" id="obgDials" role="tablist"></div>
+      <p class="obg-hint" id="obgHint"></p>
+    </div>
+  </div>
 
   <div class="obz" id="obpZoom"><div class="obz-box" id="obpZbox"></div></div>
 
@@ -652,7 +754,7 @@ PODIUM_JS = """
   var STAGE = [
     { n: 'hold',     c: '#8A8F99', key: 'hold' },
     { n: 'брать',    c: '#6FC9E8', key: 'take' },
-    { n: 'в работе', c: '#7FE3D4', key: 'trade' },
+    { n: 'держать',  c: '#7FE3D4', key: 'trade' },
     { n: 'выходить', c: '#FF6B35', key: 'exit' }
   ];
 
@@ -1745,7 +1847,15 @@ PODIUM_JS = """
        стоят на полном шаге, а по стене чередуются верх и низ. Только
        после этого известна общая высота стопки, и ряды можно поднять
        так, чтобы горизонт оказался посередине. */
-    var oneRowCap = Math.floor(MAX_ARC / BASE_STEP) + 1;
+    /* Сколько панелей помещается В КАДРЕ, а не в кольце. Прежде
+       здесь стояла вся дуга 340°: она вмещает двадцать панелей в
+       ряд, и двенадцать монет получали ОДИН ряд — но видно из них
+       только восемь, остальные приходилось выкручивать колесом.
+       Экран показывает 124° (VISIBLE в обе стороны), по нему и
+       считаем: сначала кадр заполняется тремя рядами, и только
+       потом лишнее уезжает за край. */
+    var visArc = 2 * ((typeof VISIBLE === 'number' ? VISIBLE : 62));
+    var oneRowCap = Math.max(1, Math.floor(visArc / BASE_STEP) + 1);
     var plan = [];
 
     STAGE.forEach(function (stg, ti) {
@@ -2096,12 +2206,186 @@ PODIUM_JS = """
     host.innerHTML = out;
   }
 
+
+  /* ── Ворота зала ───────────────────────────────────────────────
+     Зал открывался сразу стеной выбранной группы: человек попадал
+     внутрь списка, не выбрав его. Теперь после бриза стоят диски и
+     светящаяся линия — развилка вместо чужого решения. */
+  var GATE = document.getElementById('obpGate');
+
+  /* '#7FE3D4' → '127 227 212' для rgba(var(--rgb), a). Через пробел,
+     а не запятые — так значение подставляется в rgba() целиком. */
+  function hexRgb(hex) {
+    var h = String(hex || '').replace('#', '');
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var n = parseInt(h, 16);
+    if (isNaN(n)) return '230 237 241';
+    return ((n >> 16) & 255) + ' ' + ((n >> 8) & 255) + ' ' + (n & 255);
+  }
+
+  /* Светящаяся линия над дисками: ход рынка из данных прогона,
+     разлив под ним и точка на конце. Ни рамки, ни подписей —
+     решение принимают по дискам, линия только задаёт настроение. */
+  function gateSpark() {
+    var d = ((O.market || {}).series || []).slice();
+    if (d.length < 3) return '';
+    var W = 700, H = 150, L = 6, R = 6, TOP = 26, BOT = 124;
+    var max = -Infinity, min = Infinity, i;
+    for (i = 0; i < d.length; i++) {
+      if (d[i] > max) max = d[i];
+      if (d[i] < min) min = d[i];
+    }
+    var rng = (max - min) || 1, span = W - L - R;
+
+    /* Сглаживание по узлам — линия идёт плавно, а не ломано. */
+    function at(t) {
+      var n = d.length - 1, f = t * n, k = Math.min(n - 1, Math.floor(f)), u = f - k;
+      var p0 = d[Math.max(0, k - 1)], p1 = d[k], p2 = d[k + 1], p3 = d[Math.min(n, k + 2)];
+      return 0.5 * ((2 * p1) + (-p0 + p2) * u +
+        (2 * p0 - 5 * p1 + 4 * p2 - p3) * u * u +
+        (-p0 + 3 * p1 - 3 * p2 + p3) * u * u * u);
+    }
+    var N = 160, line = '', x, y;
+    for (i = 0; i <= N; i++) {
+      x = L + i / N * span;
+      y = BOT - ((at(i / N) - min) / rng) * (BOT - TOP);
+      line += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+    }
+    var hx = L + span, hy = BOT - ((d[d.length - 1] - min) / rng) * (BOT - TOP);
+    var chg = (d[d.length - 1] / d[0] - 1) * 100;
+
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="ход рынка' +
+      ' за ' + d.length + ' дней, изменение ' + chg.toFixed(1) + ' процента">' +
+      '<defs>' +
+        '<linearGradient id="obgLine" x1="0" y1="0" x2="1" y2="0">' +
+          '<stop offset="0%" stop-color="#6a311d"/>' +
+          '<stop offset="45%" stop-color="#df8a43"/>' +
+          '<stop offset="100%" stop-color="#e8a555"/></linearGradient>' +
+        '<linearGradient id="obgUnder" x1="0" y1="0" x2="0" y2="1">' +
+          '<stop offset="0%" stop-color="#e8a555" stop-opacity=".22"/>' +
+          '<stop offset="100%" stop-color="#e8a555" stop-opacity="0"/></linearGradient>' +
+        '<filter id="obgBlur" x="-20%" y="-80%" width="140%" height="300%">' +
+          '<feGaussianBlur stdDeviation="9"/></filter>' +
+        '<filter id="obgLit" x="-20%" y="-80%" width="140%" height="300%">' +
+          '<feGaussianBlur stdDeviation="2.6" result="b"/>' +
+          '<feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>' +
+        '</filter>' +
+      '</defs>' +
+      '<path d="' + line + 'L ' + (L + span) + ' ' + BOT + ' L ' + L + ' ' + BOT +
+        ' Z" fill="url(#obgUnder)"/>' +
+      '<path d="' + line + '" fill="none" stroke="#e8a555" stroke-width="10" ' +
+        'stroke-opacity=".3" filter="url(#obgBlur)"/>' +
+      '<path d="' + line + '" fill="none" stroke="url(#obgLine)" stroke-width="2" ' +
+        'stroke-linecap="round" stroke-linejoin="round" filter="url(#obgLit)"/>' +
+      '<circle cx="' + hx.toFixed(1) + '" cy="' + hy.toFixed(1) + '" r="3.4" ' +
+        'fill="#ffe6c2" filter="url(#obgLit)"/>' +
+      '</svg>';
+  }
+
+  /* Горит ровно один диск — тот, где сегодня есть работа, и порядок
+     тот же, что в жизни: срочное вперёд. */
+  function liveKey(counts) {
+    if (counts.exit) return 'exit';
+    if (counts.trade) return 'trade';
+    if (counts.take) return 'take';
+    return 'hold';
+  }
+
+  function gateHint(counts, live) {
+    var W = {
+      exit: 'Есть <b>' + counts.exit + '</b> — там, где ждать больше нельзя. С них и начните.',
+      trade: 'Держим <b>' + counts.trade + '</b>. Входов сегодня правила не предлагают.',
+      take: 'Брать сегодня <b>' + counts.take + '</b>. Открытых позиций нет.',
+      hold: 'Сегодня действий нет — журнал держит <b>' + counts.hold + '</b> монет.'
+    };
+    return W[live] || '';
+  }
+
+  function openGate() {
+    if (!GATE) { build(); return; }
+    var counts = {};
+    STAGE.forEach(function (stg) { counts[stg.key] = groupList(stg.key).length; });
+    var live = liveKey(counts);
+
+    var ch = document.getElementById('obgChart');
+    if (ch) ch.innerHTML = gateSpark();
+
+    var host = document.getElementById('obgDials');
+    if (host) {
+      host.innerHTML = '';
+      STAGE.forEach(function (stg) {
+        var c = counts[stg.key];
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'obg-d';
+        b.setAttribute('role', 'tab');
+        if (stg.key === live) b.setAttribute('data-live', '1');
+        if (!c) b.setAttribute('data-zero', '1');
+        /* Цвет группы — тот же, что у ярусов зала. */
+        b.style.setProperty('--c', stg.c);
+        b.style.setProperty('--rgb', hexRgb(stg.c));
+        b.innerHTML = '<span class="obg-face">' + c + '</span>' +
+                      '<span class="obg-cap">' + stg.n + '</span>';
+        b.onclick = function () { enterHall(stg.key); };
+        /* Зал слушает перетаскивание: без остановки всплытия нажатие
+           уводит сцену вбок ещё до отпускания. */
+        b.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+        b.addEventListener('touchstart', function (e) { e.stopPropagation(); },
+                           { passive: true });
+        host.appendChild(b);
+      });
+    }
+    var hint = document.getElementById('obgHint');
+    if (hint) hint.innerHTML = gateHint(counts, live);
+
+    pod.classList.add('obp-gated');
+    GATE.classList.add('on');
+  }
+
+  function enterHall(key) {
+    if (GATE) GATE.classList.remove('on');
+    pod.classList.remove('obp-gated');
+    GROUP = key;
+    closeZoom();
+    build();
+    apply();
+  }
+
+  /* Возврат к воротам без перезагрузки. Стена снимается целиком —
+     панели, их список для зума и прежнее сообщение о пустой группе:
+     если оставить хоть что-то, оно проступит при следующем входе. */
+  function backToGate() {
+    closeZoom();
+    var tiersHost = document.getElementById('obpTiers');
+    if (tiersHost) tiersHost.innerHTML = '';
+    stage.innerHTML = '';
+    PANS = []; ZLIST = [];
+    bail('');
+    ang = target = 0;
+    apply();
+    openGate();
+  }
+
+  var againBtn = document.getElementById('obpAgain');
+  if (againBtn) {
+    againBtn.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+    againBtn.addEventListener('touchstart', function (e) { e.stopPropagation(); },
+                              { passive: true });
+    againBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      backToGate();
+    });
+  }
+
   function show() {
     if (opened) return;
     opened = true;
-    build();
-    apply();
+    /* Небо рисуем сразу: ворота стоят поверх зала, и за ними должен
+       быть зал, а не пустота. Стена ждёт выбора. */
+    sky();
     portLine();
+    paintGroups();
+    openGate();
     pod.classList.add('on');
   }
 
