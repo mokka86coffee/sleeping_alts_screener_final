@@ -316,8 +316,29 @@ def effort_state(raw: dict, flow: dict | None = None) -> dict | None:
     отрицательный — покупатели выдыхаются (признак GPS, которым
     никто не пользовался, теперь записан).
     """
+    # ДЕФЕКТ 25.08: читалось поле "rel_vol", которого в снимке метрик
+    # НЕТ — там vol_x_1d (и vol_ratio["1d"] как запасной). Пустое
+    # чтение давало rel = 0, а нулевой объём выполняет условие
+    # «объём иссяк» — и монета с ×3 оборота получала вердикт
+    # «истощение хода ×0.0», то есть ПРОТИВОПОЛОЖНЫЙ настоящему
+    # («поглощение»). Отсюда и ноль во всех карточках.
+    #
+    # Отсутствие данных теперь не становится выводом: когда объёма
+    # нет ни под одним именем, возвращаем None — «нечем мерить», и
+    # карточка честно рисует прочерк вместо числа.
+    rel = None
+    for key in ("rel_vol", "vol_x_1d"):
+        if raw.get(key) is not None:
+            rel = raw.get(key)
+            break
+    if rel is None:
+        vr = raw.get("vol_ratio")
+        if isinstance(vr, dict):
+            rel = vr.get("1d")
+    if rel is None:
+        return None
     try:
-        rel = float(raw.get("rel_vol") or 0.0)
+        rel = float(rel)
         atr = float(raw.get("atr_pct") or 0.0)
         ch = float(raw.get("ch_24h") or 0.0)
         up = float(raw.get("up_from_low") or 0.0)

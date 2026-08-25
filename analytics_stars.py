@@ -26,6 +26,7 @@
 
 from __future__ import annotations
 
+import json
 import math
 
 from core_config import LEADERS_PATH
@@ -747,6 +748,16 @@ def build_stars(candidates: list[Candidate],
     # словаря — обоим правилам нужны уже готовые поля (ath, up, px,
     # stop), и повторять их выборку незачем.
     for s in out:
+        # ДЕФЕКТ 25.08: этот цикл идёт по ГОТОВЫМ звёздам, а sym и c
+        # остались от последнего шага цикла сборки выше. Всё, что
+        # ниже считалось «по монете», на деле считалось по одной и
+        # той же — уровни, тест Вайкоффа и ожидание журнала выходили
+        # ОДИНАКОВЫМИ у всех 52 звёзд. Поймано сравнением карточек
+        # между собой: значения были правдоподобные, просто чужие.
+        # Восстанавливаем монету ИЗ САМОЙ ЗВЕЗДЫ — так же, как это
+        # делает строка с книгой ниже, которая поэтому и работала.
+        sym = s["t"] + "USDT"
+        c = by_symbol.get(sym) or by_symbol.get(s["t"].upper())
         s["phase"] = star_phase(s)
         s["stopPct"] = stop_pct(s)
         # Р-12: связка плеча и транша. Считается ЗДЕСЬ, а не внутри
@@ -842,7 +853,9 @@ def build_stars(candidates: list[Candidate],
         al = (pulse_deltas(sym) or {}).get("aligned")
         if al:
             s["aligned"] = al
-        fired = len(((c.flow or {}).get("cases")) or {})
+        craw = (c.raw if c is not None else None) or {}
+        cflow = (c.flow if c is not None else None) or {}
+        fired = len((cflow.get("cases")) or {})
         if fired > 1:
             s["flowFired"] = fired
         je = journal_expectancy(sym)
@@ -854,11 +867,11 @@ def build_stars(candidates: list[Candidate],
         if lq:
             s["liq24h"] = lq
         # Т-6: усилие против результата — из готовых полей, без сети.
-        ef = effort_state(c.raw or {}, c.flow)
+        ef = effort_state(craw, cflow)
         if ef:
             s["effort"] = ef
         # Уровни: ближайший потолок и опора в ATR. Считаны метриками.
-        lv = (c.raw or {}).get("levels")
+        lv = craw.get("levels")
         if lv:
             s["levels"] = lv
         # Вайкофф: тест после прокола — подтверждение накопления.
@@ -907,7 +920,54 @@ def build_stars(candidates: list[Candidate],
     except Exception:
         pass
 
+    _warn_broadcast(out)
+
     # Лидер рисуется последним — поверх остальных, если рядом окажется сосед
     out.sort(key=lambda s: (s["lead"], s["f"]))
     return out
+
+
+# Поля, у которых ОДНО значение на всю выборку — это норма: они
+# описывают рынок или журнал целиком, а не монету.
+_SHARED_OK = {
+    "hold", "wasClosed", "trendDone", "firstRun", "new", "hot", "lead",
+    "gaps", "shakeScale", "shakeHours", "entry", "exitDeadline",
+}
+
+
+def _warn_broadcast(stars: list[dict]) -> None:
+    """Предупреждает, когда ЛИЧНОЕ поле одинаково у всех монет.
+
+    Зачем. 25.08 три поля — уровни, тест Вайкоффа и ожидание журнала —
+    месяц приходили в карточку от ОДНОЙ монеты: второй цикл сборки не
+    переприсваивал sym и c. Значения были правдоподобные: настоящие
+    цены, настоящие ноты, ничего не выглядело сломанным. Поймать это
+    проверкой значения нельзя в принципе — только сравнением МЕЖДУ
+    монетами. Отсюда и правило: личное поле, одинаковое у всех, —
+    всегда дефект, даже если число красивое.
+
+    Прогон не роняем: это предупреждение, а не работа.
+    """
+    if len(stars) < 3:
+        return
+    keys: set[str] = set()
+    for s in stars:
+        keys.update(s.keys())
+    bad: list[str] = []
+    for k in sorted(keys):
+        if k in _SHARED_OK:
+            continue
+        vals = [s.get(k) for s in stars]
+        have = sum(1 for v in vals if v not in (None, "", [], {}))
+        if have < max(3, len(stars) // 2):
+            continue                      # редкое поле — не о чем судить
+        try:
+            uniq = len({json.dumps(v, sort_keys=True, default=str) for v in vals})
+        except (TypeError, ValueError):
+            continue
+        if uniq == 1:
+            bad.append(k)
+    if bad:
+        print("  ⚠ ОДНО ЗНАЧЕНИЕ НА ВСЕХ (" + str(len(stars)) + " монет): "
+              + ", ".join(bad) + " — поле личное, а пришло общим")
 

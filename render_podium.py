@@ -541,6 +541,17 @@ PODIUM_CSS = """
   background:radial-gradient(120% 90% at 50% 50%,transparent 44%,rgba(14,17,34,.55) 100%)}
 .obp-gate.on{display:flex}
 
+/* Выход из зала. Тихая, но всегда на месте: экран без видимого
+   выхода — ловушка на любом устройстве без клавиатуры. */
+.obg-out{position:absolute;top:14px;right:16px;z-index:9;
+  padding:7px 15px;border-radius:999px;cursor:pointer;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+  color:#98a0cc;font:inherit;font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;transition:color .3s,border-color .3s,background .3s}
+.obg-out:hover{color:#e8ecfb;border-color:rgba(255,255,255,.22);
+  background:rgba(255,255,255,.09)}
+.obg-out:active{transform:translateY(1px)}
+
 .obg-stage{position:relative;z-index:3;display:flex;align-items:center;
   gap:44px;width:min(1560px,96vw);height:100%}
 .obg-inner{flex:1;min-width:0;display:flex;flex-direction:column;
@@ -707,7 +718,12 @@ PODIUM_CSS = """
 /* цвет стратегии — полоса слева */
 .obr-row::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:2px;
   border-radius:2px;background:var(--c);box-shadow:0 0 10px rgba(var(--rgb),.6)}
-.obr-tk{font-size:12px;font-weight:500;letter-spacing:.06em;color:#e8ecfb}
+.obr-tk{font-size:12px;font-weight:500;letter-spacing:.06em;color:#e8ecfb;
+  text-decoration:none;cursor:pointer;transition:color .25s}
+.obr-tk:hover{color:var(--c);text-decoration:underline;
+  text-underline-offset:3px;text-decoration-thickness:1px}
+.obr-tk:focus-visible{outline:1px solid var(--c);outline-offset:3px;
+  border-radius:3px}
 .obr-cs{display:block;margin-top:3px;font-size:7.4px;letter-spacing:.2em;
   text-transform:uppercase;color:var(--c);opacity:.85;white-space:nowrap}
 .obr-row svg{display:block;width:100%;height:34px}
@@ -751,10 +767,42 @@ PODIUM_CSS = """
 .obp-again:hover{color:#ffcb7d;border-color:rgba(232,165,85,.45);
   background:rgba(28,20,12,.85)}
 
+/* ── Планшет и узкий экран ──
+   Было: сцена вставала над списком со своими жёсткими минимумами
+   (волна 300, ядро со спутниками 456, подсказка 74 — больше 800px
+   в сумме). Сцена съедала почти весь экран, а списку доставалась
+   полоска в две-три строки, да ещё ниже сгиба.
+
+   Стало: ворота остаются колонкой, но высоту делят ЯВНО. Сцена
+   получает не больше сорока четырёх сотых высоты окна и сжимается
+   внутри — минимумы здесь снимаются, иначе они распирают колонку
+   изнутри. Остаток забирает список и прокручивается сам. */
 @media (max-width:1180px){
-  .obg-stage{flex-direction:column;gap:26px;height:auto}
-  .obr{width:100%;height:auto}
-  .obr-list{max-height:290px}
+  .obp-gate{padding:20px 16px}
+  .obg-stage{flex-direction:column;gap:18px;height:100%;
+    align-items:stretch;justify-content:flex-start}
+
+  .obg-inner{flex:0 0 auto;max-height:44vh;overflow:hidden;gap:16px}
+  .obg-wave{min-height:0}
+  .obg-wave svg{max-height:20vh}
+  .obg-ghost{font-size:120px;top:60%}
+  .obg-hero{min-height:0;gap:24px}
+  #obgHero{min-height:0;gap:16px}
+  .obg-core{min-height:0;width:auto}
+  .obg-hint{min-height:0}
+
+  /* Список — рабочая часть экрана: забирает всё, что осталось, и
+     прокручивается внутри себя, а не уезжает за нижний край. */
+  .obr{width:100%;flex:1 1 auto;min-height:0;height:auto;padding:0 0 10px}
+  .obr-list{max-height:none;flex:1 1 auto;min-height:0;overflow-y:auto}
+}
+
+/* Совсем низкие окна (планшет лёжа): сцене остаётся ещё меньше —
+   иначе список опять схлопывается до пары строк. */
+@media (max-width:1180px) and (max-height:820px){
+  .obg-inner{max-height:36vh}
+  .obg-wave svg{max-height:15vh}
+  .obg-ghost{font-size:92px}
 }
 @media (max-width:760px){
   .obg-hero{gap:26px}
@@ -796,6 +844,12 @@ PODIUM_HTML = """
        справа зал списком вместо стены карточек, он всегда на виду.
        Стена по-прежнему живёт своей жизнью и открывается кликом. -->
   <div class="obp-gate" id="obpGate">
+    <!-- Выход был только на клавиатуре: на планшете и телефоне
+         клавиатуры нет, и уйти из зала было НЕЧЕМ. Кнопка стоит
+         поверх сцены, у верхнего края, и не отнимает высоты у
+         списка (position:absolute). -->
+    <button class="obg-out" id="obgOut" type="button"
+            aria-label="закрыть зал">закрыть</button>
     <div class="obg-stage">
       <div class="obg-inner" id="obgInner"></div>
       <aside class="obr" id="obgRail"></aside>
@@ -2104,6 +2158,16 @@ PODIUM_JS = """
      сплошной факт (пунктир через всю ширину), а отметка ставится
      там, где ряд ПОСЛЕДНИЙ РАЗ пересёк этот уровень. Выдумывать
      день входа мы не будем. */
+  /* Адрес графика собираем ТЕМ ЖЕ способом, что и ссылки кандидата
+     в analytics_candidate: BINANCE:<пара>.P — бессрочный контракт.
+     Берём готовую пару из данных, а не склеиваем из тикера: у монет
+     вроде 1000LUNC пара на бирже пишется не так, как имя на экране. */
+  function tvUrl(s) {
+    var pair = (s && s.coin) ? s.coin : ((s && s.t ? s.t : '') + 'USDT');
+    return 'https://www.tradingview.com/chart/?symbol=BINANCE:' +
+           encodeURIComponent(pair) + '.P';
+  }
+
   function railSpark(s, dly) {
     var d = (s.series || []).slice(-14), i;
     if (d.length < 3) return '';
@@ -2205,7 +2269,8 @@ PODIUM_JS = """
       out += '<div class="obr-row" data-sym="' + s.t +
         '" data-case="' + c.n + '" style="--c:' + c.c +
         ';--rgb:' + c.rgb + ';animation-delay:' + (i * 165) + 'ms">' +
-        '<div><span class="obr-tk">' + s.t + '</span>' +
+        '<div><a class="obr-tk" href="' + tvUrl(s) + '" target="_blank" ' +
+            'rel="noopener" title="открыть график на TradingView">' + s.t + '</a>' +
           '<span class="obr-cs">' + c.n + '</span></div>' +
         '<div>' + railSpark(s, i * 165) + '</div>' +
         '<div class="obr-pnl ' + (p >= 0 ? 'obg-up' : 'obg-dn') + '">' +
@@ -2221,6 +2286,13 @@ PODIUM_JS = """
     bindRows(rows);
     bindFind();
   }
+
+  /* Кнопка выхода живёт в разметке ворот и переживает перерисовку
+     списка — вешаем один раз, а не на каждую смену группы. */
+  (function bindOut() {
+    var b = document.getElementById('obgOut');
+    if (b) b.onclick = function (e) { e.stopPropagation(); hide(); };
+  })();
 
   /* Фильтр по тикеру И по названию кейса: «топливо» тоже ищется.
      Прячем строки классом, а не перерисовкой — иначе на каждой букве
@@ -2264,6 +2336,11 @@ PODIUM_JS = """
     var els = document.querySelectorAll('.obr-row'), i;
     for (i = 0; i < els.length; i++) {
       (function (el, idx) {
+        /* Две цели в одной строке: тикер уводит на график, всё
+           остальное открывает карточку. Ближняя цель не должна
+           перехватывать дальнюю — гасим всплытие на самой ссылке. */
+        var tk = el.querySelector('.obr-tk');
+        if (tk) tk.onclick = function (e) { e.stopPropagation(); };
         el.onclick = function (e) {
           e.stopPropagation();
           openZoom(rows[idx], idx);
@@ -2500,6 +2577,13 @@ PODIUM_JS = """
     var t = e.target;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' ||
               t.isContentEditable)) return;
+    /* Открытая карточка забирает клавиатуру себе: у неё свой
+       обработчик со стрелками и Escape, и он ловит нажатие РАНЬШЕ
+       нашего (перехват). Без этой проверки стрелка листала карточку
+       и тем же нажатием прятала весь экран — перелистывание
+       выглядело сломанным. Проверяем НОВУЮ карточку, а не старую:
+       раньше сверялись со старым зумом, который давно не включается. */
+    if (window.OBCARD && window.OBCARD.isOpen && window.OBCARD.isOpen()) return;
     if (zoom.classList.contains('on')) {
       if (e.key === 'Escape') closeZoom();
       return;

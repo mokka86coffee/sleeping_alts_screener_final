@@ -432,7 +432,16 @@ CARDSCENE_CSS = """
   writing-mode:vertical-rl;text-orientation:upright;
   font-size:clamp(11px,1.35vw,20px);font-weight:200;letter-spacing:.34em;
   color:#E9F1F8;
-  text-shadow:0 2px 10px rgba(0,0,0,.85),0 0 24px rgba(150,195,235,.22)}
+  text-shadow:0 2px 10px rgba(0,0,0,.85),0 0 24px rgba(150,195,235,.22);
+  /* Слой подписей сквозной для мыши (pointer-events:none у .lay) —
+     иначе он накрыл бы сцену. Ссылке клики возвращаем точечно: она
+     единственное, что здесь нажимается. */
+  pointer-events:auto;text-decoration:none;cursor:pointer;
+  transition:color .3s,text-shadow .3s}
+#obcRoot .bname:hover{color:#fff;
+  text-shadow:0 2px 10px rgba(0,0,0,.85),0 0 30px rgba(150,195,235,.5)}
+#obcRoot .bname:focus-visible{outline:1px solid rgba(150,195,235,.7);
+  outline-offset:6px;border-radius:4px}
 /* Волосок между тикером и стратегией: короткий, гаснущий книзу.
    Он не разделяет их, а показывает, что подпись идёт следом. */
 #obcRoot .bname::after{content:'';position:absolute;left:50%;top:100%;
@@ -829,7 +838,8 @@ CARDSCENE_HTML = """
         </div></div></div></div>
         <div class="pod-wake"></div>
       </div>
-      <div class="bname" id="obcName"></div>
+      <a class="bname" id="obcName" target="_blank" rel="noopener"
+         title="открыть график на TradingView"></a>
       
       <div class="scrim"></div>
       <div id="obcDiag"></div>
@@ -1139,6 +1149,9 @@ CARDSCENE_JS = r"""
 
     return {
       tick: c.t, verdict: c.pattern || '', cap: c.cap || '',
+      /* Пара с биржи, а не склейка из тикера: у монет вроде 1000LUNC
+         они не совпадают. Нужна только для адреса графика. */
+      pair: c.coin || ((c.t || '') + 'USDT'),
       price: price,
       /* Вход стоит там, где монета попала в журнал: столько дней
          назад, сколько она в нём лежит. */
@@ -2286,6 +2299,10 @@ CARDSCENE_JS = r"""
       const el = document.getElementById(id), t = [d.tick, d.verdict][k];
       el.textContent = t; el.dataset.t = t;
     });
+    /* Тот же вид адреса, что у ссылок кандидата: BINANCE:<пара>.P */
+    const nameEl = document.getElementById('obcName');
+    nameEl.href = 'https://www.tradingview.com/chart/?symbol=BINANCE:' +
+      encodeURIComponent(d.pair || '') + '.P';
     const capEl = document.getElementById('obcCap');
     capEl.textContent = d.cap; capEl.dataset.t = d.cap; capEl.classList.add('d3');
     nearBand(d.near);
