@@ -659,6 +659,33 @@ PODIUM_CSS = """
   font-weight:600;color:var(--c)}
 .obr-head span{font-size:9px;letter-spacing:.2em;text-transform:uppercase;
   color:#6c74a6}
+/* Поиск по списку. Фильтрует УЖЕ отрисованные строки, а не
+   перерисовывает список: перерисовка на каждой букве заново
+   проигрывала бы отрисовку линий и мигала. */
+.obr-find{position:relative;flex:0 0 auto}
+.obr-find input{width:100%;padding:8px 30px 8px 30px;border-radius:9px;
+  background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);
+  color:#e8ecfb;font:inherit;font-size:11px;letter-spacing:.08em;
+  outline:none;transition:border-color .3s,background .3s}
+.obr-find input::placeholder{color:#6c74a6;letter-spacing:.16em;
+  text-transform:uppercase;font-size:9.5px}
+.obr-find input:focus{border-color:rgba(255,255,255,.2);
+  background:rgba(255,255,255,.055)}
+.obr-find .obr-mag{position:absolute;left:11px;top:50%;width:9px;height:9px;
+  margin-top:-6px;border:1.4px solid #6c74a6;border-radius:50%;
+  pointer-events:none}
+.obr-find .obr-mag::after{content:"";position:absolute;right:-4px;bottom:-3px;
+  width:5px;height:1.4px;background:#6c74a6;transform:rotate(45deg)}
+.obr-find .obr-clr{position:absolute;right:8px;top:50%;transform:translateY(-50%);
+  width:18px;height:18px;border:0;border-radius:50%;cursor:pointer;
+  background:rgba(255,255,255,.06);color:#98a0cc;font:inherit;font-size:11px;
+  line-height:1;display:none}
+.obr-find.obr-has .obr-clr{display:block}
+.obr-row.obr-hide{display:none}
+.obr-none{padding:22px 6px;text-align:center;font-size:10.5px;
+  letter-spacing:.14em;color:#6c74a6;display:none}
+.obr-none.obr-on{display:block}
+
 .obr-list{flex:1;min-height:0;display:flex;flex-direction:column;gap:5px;
   overflow-y:auto;padding-right:4px;scrollbar-gutter:stable;
   scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.12) transparent}
@@ -2153,7 +2180,12 @@ PODIUM_JS = """
     var withEntry = GATE_KEY === 'trade' || GATE_KEY === 'exit';
     var out = '<div class="obr-head" style="--c:' + col.c + '">' +
       '<b>' + stg.n + ' · ' + rows.length + '</b>' +
-      '<span>две недели' + (withEntry ? ' · твх' : '') + '</span></div>';
+      '<span>две недели' + (withEntry ? ' · твх' : '') + '</span></div>' +
+      '<div class="obr-find" id="obgFind"><i class="obr-mag"></i>' +
+        '<input type="text" id="obgQ" placeholder="поиск по монете" ' +
+          'autocomplete="off" spellcheck="false">' +
+        '<button class="obr-clr" type="button" id="obgClr" ' +
+          'aria-label="очистить">×</button></div>';
     if (!rows.length) {
       host.innerHTML = out + '<div class="obr-empty">в этой группе сегодня пусто</div>';
       return;
@@ -2170,7 +2202,8 @@ PODIUM_JS = """
     out += '<div class="obr-list">';
     for (i = 0; i < rows.length; i++) {
       var s = rows[i], c = caseOf(s), p = pnlOf(s);
-      out += '<div class="obr-row" data-sym="' + s.t + '" style="--c:' + c.c +
+      out += '<div class="obr-row" data-sym="' + s.t +
+        '" data-case="' + c.n + '" style="--c:' + c.c +
         ';--rgb:' + c.rgb + ';animation-delay:' + (i * 165) + 'ms">' +
         '<div><span class="obr-tk">' + s.t + '</span>' +
           '<span class="obr-cs">' + c.n + '</span></div>' +
@@ -2180,11 +2213,50 @@ PODIUM_JS = """
           '<em>' + (s.book && s.book.px ? 'от твх' : 'две недели') + '</em></div>' +
         '</div>';
     }
-    host.innerHTML = out + '</div>';
+    host.innerHTML = out + '</div><div class="obr-none" id="obgNone">' +
+      'ничего не найдено</div>';
     /* Привязку строк зовём ПОСЛЕ отрисовки: раньше она стояла в
        paintHero, который отрабатывает раньше списка, — узлов ещё не
        было, и клик по монете не делал ничего. */
     bindRows(rows);
+    bindFind();
+  }
+
+  /* Фильтр по тикеру И по названию кейса: «топливо» тоже ищется.
+     Прячем строки классом, а не перерисовкой — иначе на каждой букве
+     заново запускалась бы отрисовка линий. */
+  function bindFind() {
+    var box = document.getElementById('obgFind');
+    var inp = document.getElementById('obgQ');
+    var clr = document.getElementById('obgClr');
+    var none = document.getElementById('obgNone');
+    if (!inp) return;
+
+    function apply() {
+      var q = (inp.value || '').trim().toLowerCase();
+      var els = document.querySelectorAll('.obr-row'), i, shown = 0;
+      for (i = 0; i < els.length; i++) {
+        var el = els[i];
+        var sym = (el.getAttribute('data-sym') || '').toLowerCase();
+        var cs = el.getAttribute('data-case') || '';
+        var hit = !q || sym.indexOf(q) >= 0 || cs.indexOf(q) >= 0;
+        if (hit) { el.classList.remove('obr-hide'); shown++; }
+        else { el.classList.add('obr-hide'); }
+      }
+      if (box) { if (q) box.classList.add('obr-has'); else box.classList.remove('obr-has'); }
+      if (none) { if (!shown && q) none.classList.add('obr-on');
+                  else none.classList.remove('obr-on'); }
+    }
+    inp.oninput = apply;
+    /* Внутри поля клавиши НАШИ: общий обработчик иначе закрыл бы
+       экран на первой же букве. */
+    inp.onkeydown = function (e) {
+      e.stopPropagation();
+      if (e.key === 'Escape') { inp.value = ''; apply(); inp.blur(); }
+    };
+    if (clr) clr.onclick = function (e) {
+      e.stopPropagation(); inp.value = ''; apply(); inp.focus();
+    };
   }
 
   /* Клик по строке — карточка монеты, а не стена: этот экран уже зал. */
@@ -2423,6 +2495,11 @@ PODIUM_JS = """
 
   document.addEventListener('keydown', function (e) {
     if (!opened) return;
+    /* Печать в поле поиска — не команда экрану. Без этой проверки
+       любая буква закрывала бы подиум на первом же нажатии. */
+    var t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' ||
+              t.isContentEditable)) return;
     if (zoom.classList.contains('on')) {
       if (e.key === 'Escape') closeZoom();
       return;
