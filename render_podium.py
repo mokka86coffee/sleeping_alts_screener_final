@@ -611,6 +611,9 @@ PODIUM_CSS = """
 .obg-sub b{color:#98a0cc;font-weight:600}
 
 .obg-side{display:flex;flex-direction:column;gap:12px;width:236px}
+/* Выбранная группа на десктопе не дублируется: её называет ядро.
+   Кнопка при этом существует — она нужна узким экранам. */
+.obg-sat.obg-cur{display:none}
 .obg-sat{display:flex;align-items:center;gap:14px;width:236px;
   background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.05);
   padding:8px 18px 8px 8px;border-radius:999px;cursor:pointer;font:inherit;
@@ -767,51 +770,136 @@ PODIUM_CSS = """
 .obp-again:hover{color:#ffcb7d;border-color:rgba(232,165,85,.45);
   background:rgba(28,20,12,.85)}
 
-/* ── Планшет и узкий экран ──
-   Было: сцена вставала над списком со своими жёсткими минимумами
-   (волна 300, ядро со спутниками 456, подсказка 74 — больше 800px
-   в сумме). Сцена съедала почти весь экран, а списку доставалась
-   полоска в две-три строки, да ещё ниже сгиба.
+/* ═══════════════════════════════════════════════════════════════
+   ПЛАНШЕТ И ТЕЛЕФОН · отдельная раскладка, а не сжатый десктоп
 
-   Стало: ворота остаются колонкой, но высоту делят ЯВНО. Сцена
-   получает не больше сорока четырёх сотых высоты окна и сжимается
-   внутри — минимумы здесь снимаются, иначе они распирают колонку
-   изнутри. Остаток забирает список и прокручивается сам. */
+   Что было не так. Сцена вставала над списком со своими жёсткими
+   минимумами (волна 300, ядро со спутниками 456, подсказка 74 —
+   больше 800px в сумме). Она съедала почти весь экран, призрачное
+   число уезжало за верхний край, а списку оставалась полоска в
+   две-три строки ниже сгиба.
+
+   Что сделано. Сцена превращается в ГОРИЗОНТ: волна сжимается в
+   ленту во всю ширину, по которой едет счёт выбранной группы.
+   Ядро с кольцами и призрачное число уходят совсем — их работу
+   берут на себя вкладки: четыре кнопки, в каждой свой счёт.
+   Панель из четырёх плиток становится одной строкой. Всё, что
+   осталось по высоте, забирает список и прокручивается сам.
+   ═══════════════════════════════════════════════════════════════ */
 @media (max-width:1180px){
-  .obp-gate{padding:20px 16px}
-  .obg-stage{flex-direction:column;gap:18px;height:100%;
+  .obp-gate{padding:0;align-items:stretch;justify-content:flex-start}
+  .obg-stage{flex-direction:column;gap:0;height:100%;width:100%;
     align-items:stretch;justify-content:flex-start}
 
-  .obg-inner{flex:0 0 auto;max-height:44vh;overflow:hidden;gap:16px}
-  .obg-wave{min-height:0}
-  .obg-wave svg{max-height:20vh}
-  .obg-ghost{font-size:120px;top:60%}
-  .obg-hero{min-height:0;gap:24px}
-  #obgHero{min-height:0;gap:16px}
-  .obg-core{min-height:0;width:auto}
-  .obg-hint{min-height:0}
+  /* Сцена — не блок с содержимым, а система координат для горизонта.
+     Высота её частей задаётся здесь и только здесь. */
+  .obg-inner{position:relative;flex:0 0 auto;gap:0;animation:none}
 
-  /* Список — рабочая часть экрана: забирает всё, что осталось, и
-     прокручивается внутри себя, а не уезжает за нижний край. */
-  .obr{width:100%;flex:1 1 auto;min-height:0;height:auto;padding:0 0 10px}
+  /* ── Горизонт ── */
+  .obg-wave{position:relative;height:56px;min-height:0;overflow:hidden}
+  .obg-wave svg{position:absolute;inset:0;width:100%;height:100%;
+    max-height:none}
+  .obg-ghost{display:none}          /* именно оно уезжало за край */
+
+  /* Счёт едет ПО горизонту: ядро вынимается из потока и ложится
+     на ленту. От него остаются число и название группы. */
+  #obgHero{position:static;min-height:0;gap:0}
+  .obg-hero{position:static;min-height:0;gap:0;display:block}
+  .obg-core{position:absolute;left:0;top:0;z-index:4;
+    width:auto;min-height:0;height:56px;
+    display:flex;align-items:center;padding-left:16px}
+  .obg-core-in{display:flex;align-items:baseline;gap:9px}
+  .obg-ring{width:auto;height:auto;position:static;display:contents}
+  .obg-ring svg,.obg-disc,.obg-sub{display:none}
+  .obg-num{position:static;font-size:26px;line-height:1}
+  .obg-mark{display:flex;align-items:center;gap:0}
+  .obg-mark i{display:none}
+  .obg-cap{font-size:9px;letter-spacing:.28em}
+
+  /* ── Вкладки групп ── */
+  .obg-side{display:flex;flex-direction:row;gap:6px;width:auto;
+    padding:10px 12px 0}
+  .obg-sat,.obg-sat.obg-cur{display:flex;flex:1 1 0;width:auto;min-width:0;
+    flex-direction:column;align-items:center;gap:2px;
+    padding:7px 4px 8px;border-radius:10px;
+    background:rgba(255,255,255,.025);border:1px solid transparent}
+  .obg-sat.obg-cur{background:rgba(255,255,255,.075);
+    border-color:rgba(255,255,255,.14)}
+  .obg-pill{width:auto;height:auto;border:0;background:none;
+    font-size:17px;font-weight:200;line-height:1.1;color:var(--c)}
+  .obg-scap{font-size:7.5px;letter-spacing:.2em;text-align:center;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .obg-sat.obg-zero{opacity:.42}
+  .obg-sat.obg-zero.obg-cur{opacity:.8}
+
+  /* Подсказка молчит: на узком экране каждая строка — это строка
+     списка, которой не хватило. */
+  .obg-hint{display:none}
+
+  /* ── Сводка одной строкой ── */
+  .obg-panel{display:flex;margin:10px 12px 0;border-radius:0;
+    background:none;border-top:1px solid rgba(255,255,255,.07);
+    border-bottom:1px solid rgba(255,255,255,.07);flex-wrap:nowrap}
+  .obg-panel > div{flex:1 1 0;min-width:0;padding:7px 4px;text-align:center;
+    border-right:1px solid rgba(255,255,255,.07);border-left:0}
+  .obg-panel > div:last-child{border-right:0}
+  .obg-panel span{font-size:6.5px;letter-spacing:.16em}
+  .obg-panel b{font-size:11px;margin-top:2px}
+  .obg-panel i{font-size:8px}
+
+  /* ── Список забирает остаток и прокручивается внутри себя ── */
+  .obr{width:100%;flex:1 1 auto;min-height:0;height:auto;padding:10px 12px 12px}
   .obr-list{max-height:none;flex:1 1 auto;min-height:0;overflow-y:auto}
+  .obr-row{min-height:46px}          /* палец, а не курсор */
+  .obg-out{top:auto;bottom:14px;right:14px;
+    background:rgba(20,22,44,.82);backdrop-filter:blur(6px)}
 }
 
-/* Совсем низкие окна (планшет лёжа): сцене остаётся ещё меньше —
-   иначе список опять схлопывается до пары строк. */
-@media (max-width:1180px) and (max-height:820px){
-  .obg-inner{max-height:36vh}
-  .obg-wave svg{max-height:15vh}
-  .obg-ghost{font-size:92px}
+/* Планшет лёжа: ширина вернулась — горизонт, вкладки и сводка уходят
+   в левую колонку, список занимает всю правую. */
+@media (max-width:1180px) and (min-width:781px) and (orientation:landscape){
+  .obg-stage{flex-direction:row}
+  .obg-inner{flex:0 0 300px;border-right:1px solid rgba(255,255,255,.07);
+    display:flex;flex-direction:column}
+  .obg-wave{height:72px}
+  .obg-core{height:72px}
+  .obg-side{flex-direction:column;padding:12px 12px 0}
+  .obg-sat,.obg-sat.obg-cur{flex-direction:row;justify-content:space-between;
+    align-items:baseline;padding:8px 11px}
+  .obg-scap{text-align:left}
+  .obg-panel{flex-direction:column;margin:12px 12px 0;border:0}
+  .obg-panel > div{display:flex;align-items:baseline;justify-content:space-between;
+    text-align:left;border-right:0;padding:6px 2px;
+    border-bottom:1px solid rgba(255,255,255,.07)}
+  .obg-panel b{margin-top:0}
+  .obr{flex:1 1 auto;padding:12px}
 }
-@media (max-width:760px){
-  .obg-hero{gap:26px}
-  .obg-ring{width:158px;height:158px}
-  .obg-num{font-size:40px}
-  .obg-ghost{font-size:140px;top:58%}
-  .obg-side{flex-direction:row;flex-wrap:wrap;justify-content:center;width:auto}
-  .obg-panel{flex-wrap:wrap}
+
+/* ── Телефон ──
+   Четыре вкладки в ряд не помещаются: подписи «выходить» и
+   «держать» слипаются. Раскладываем сеткой два на два, сводку
+   тоже, и урезаем горизонт — на телефоне дорога каждая строка. */
+@media (max-width:560px){
+  .obg-wave{height:44px}
+  .obg-core{height:44px;padding-left:12px}
+  .obg-num{font-size:21px}
+  .obg-cap{font-size:8px;letter-spacing:.22em}
+  .obg-side{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:9px 10px 0}
+  .obg-sat,.obg-sat.obg-cur{flex-direction:row;justify-content:space-between;
+    align-items:baseline;padding:7px 10px}
+  .obg-pill{font-size:15px}
+  .obg-scap{text-align:right;font-size:7px}
+  .obg-panel{display:grid;grid-template-columns:1fr 1fr;margin:9px 10px 0;
+    border:1px solid rgba(255,255,255,.07);border-radius:10px;overflow:hidden}
+  .obg-panel > div{border-right:1px solid rgba(255,255,255,.07);
+    border-bottom:1px solid rgba(255,255,255,.07)}
+  .obg-panel > div:nth-child(2n){border-right:0}
+  .obg-panel > div:nth-child(n+3){border-bottom:0}
+  .obr{padding:9px 10px 10px}
+  .obr-row{grid-template-columns:74px 1fr 62px;min-height:44px}
+  .obr-find input{font-size:12px}   /* меньше 12px — iOS зумит поле */
 }
+
 @media (prefers-reduced-motion:reduce){
   .obg-inner,.obr-row,.obr-row svg .obr-ln,.obr-row svg .obr-mk,
   .obr-row svg .obr-lvl,.obr-head,.obr-empty,.obg-spin,
@@ -2401,16 +2489,22 @@ PODIUM_JS = """
   function paintHero() {
     var host = document.getElementById('obgHero');
     if (!host) return;
-    var g = null, others = [], i;
+    var g = null, i;
     for (i = 0; i < STAGE.length; i++) {
-      if (STAGE[i].key === GATE_KEY) { g = STAGE[i]; } else { others.push(STAGE[i]); }
+      if (STAGE[i].key === GATE_KEY) { g = STAGE[i]; }
     }
     if (!g) return;
     var col = gcol(g.key), n = railList(g.key).length;
+    /* Спутники строим по ВСЕМ четырём группам, а выбранную помечаем.
+       Десктоп прячет помеченную стилем: там её работу делает ядро, и
+       вид остаётся прежним. На планшете и телефоне ядра нет — там из
+       этих же кнопок собирается ряд вкладок, и выбранная обязана
+       быть среди них, иначе не видно, где ты находишься. */
     var sats = '', k, kc, kn;
-    for (i = 0; i < others.length; i++) {
-      k = others[i]; kc = gcol(k.key); kn = railList(k.key).length;
-      sats += '<button class="obg-sat' + (kn ? '' : ' obg-zero') + '" type="button" ' +
+    for (i = 0; i < STAGE.length; i++) {
+      k = STAGE[i]; kc = gcol(k.key); kn = railList(k.key).length;
+      sats += '<button class="obg-sat' + (kn ? '' : ' obg-zero') +
+        (k.key === GATE_KEY ? ' obg-cur' : '') + '" type="button" ' +
         'data-gkey="' + k.key + '" style="--c:' + kc.c + ';--rgb:' + kc.rgb + '">' +
         '<span class="obg-pill">' + kn + '</span>' +
         '<span class="obg-scap">' + k.n + '</span></button>';

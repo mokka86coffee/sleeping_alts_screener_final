@@ -264,5 +264,104 @@ def decide(star: dict, permission: dict | None = None,
     if fresh:
         return {"act": "ждать", "group": "take",
                 "why": "новая в журнале, но фигура не подтверждена"}
-    return {"act": "ждать", "group": "take",
-            "why": (star.get("phase") or {}).get("a") or "события входа нет"}
+    out = {"act": "ждать", "group": "take", "why": wait_reason(star)}
+    det = wait_detail(star)
+    if det:
+        out["whyFull"] = det["all"]      # развёрнуто — вниз карточки
+        out["whyLift"] = det["lift"]     # что снимет запрет
+    return out
+
+
+# ── Почему ждать: возражения ─────────────────────────────────
+# Было: сюда подставлялась ФАЗА («ровный рост · ждать сквиза»).
+# Фаза отвечает, где монета в своём цикле, а не почему нельзя
+# входить СЕЙЧАС, — и одна и та же строка стояла у монет с разной
+# причиной отказа. «Ждать» без причины — приказ; с причиной — довод,
+# который можно оспорить.
+#
+# Каждая проверка даёт ТРИ вещи: короткую запись (наверх карточки),
+# развёрнутую (вниз, рядом со стратегией) и условие снятия — что
+# именно должно измениться, чтобы запрет перестал действовать.
+# Порядок = сила возражения. Наверху показываем первое, внизу все:
+# решение принимается по самому жёсткому, но знать надо обо всех.
+
+# Ниже этой капитализации свой же вход двигает цену: даже верный
+# сценарий не исполнится по расчёту.
+THIN_BOOK_USD = 3_000_000
+# Опора ближе этой доли ATR не отделяет ошибку от обычного шума.
+STOP_NOISE_ATR = 0.5
+
+
+def _wait_checks(star: dict) -> list[dict]:
+    """Все сработавшие возражения, от самого жёсткого к мягкому."""
+    out: list[dict] = []
+
+    try:
+        cap = float(star.get("capUsd") or (star.get("raw") or {}).get("mcap_usd") or 0)
+    except (TypeError, ValueError):
+        cap = 0.0
+    if 0 < cap < THIN_BOOK_USD:
+        out.append({
+            "short": f"книга тонка (${cap/1e3:.0f}K)",
+            "full": (f"капитализация ${cap/1e3:.0f}K — свой же вход и выход "
+                     f"двигают цену; проскальзывание съест разницу между "
+                     f"расчётом и результатом, стоп исполнится не там, где стоит"),
+            "lift": "снимется только ростом книги — ждать тут нечего"})
+
+    lv = star.get("levels") or {}
+    below, above = (lv.get("below") or {}), (lv.get("above") or {})
+
+    def _f(d, k):
+        try:
+            return float(d.get(k))
+        except (TypeError, ValueError):
+            return None
+
+    batr, aatr = _f(below, "atr"), _f(above, "atr")
+    if batr is not None and 0 < batr < STOP_NOISE_ATR:
+        out.append({
+            "short": f"опора в {batr:.1f} ATR",
+            "full": (f"опора всего в {batr:.1f} ATR под ценой — это шум, "
+                     f"а не защита: стоп под ней вынесет обычным колебанием, "
+                     f"без движения против позиции"),
+            "lift": "снимется, когда опора отойдёт дальше 0.5 ATR"})
+
+    wt = star.get("wyckoffTest") or {}
+    if wt.get("note") and not wt.get("tested"):
+        vr = wt.get("volRatio")
+        tail = f" — {float(vr)*100:.0f}% объёма прокола" if vr else ""
+        out.append({
+            "short": "второй заход не тише",
+            "full": (f"второй заход к дну прошёл не тише первого{tail}: "
+                     f"удержать уровень стоило столько же усилия, "
+                     f"значит предложение не иссякло"),
+            "lift": "снимется, когда заход к дну пройдёт тише прокола"})
+
+    if aatr is not None and batr is not None and 0 < aatr < batr:
+        out.append({
+            "short": f"до потолка {aatr:.1f} ATR",
+            "full": (f"до потолка {aatr:.1f} ATR, до опоры {batr:.1f} — "
+                     f"вход берёт весь риск ради остатка хода; отношение "
+                     f"перевёрнуто, и сетап не созревает, а отработан"),
+            "lift": "снимется откатом к зоне входа"})
+    return out
+
+
+def wait_reason(star: dict) -> str:
+    """Короткая запись наверх: самое жёсткое возражение."""
+    ch = _wait_checks(star)
+    if ch:
+        return ch[0]["short"]
+    return (star.get("phase") or {}).get("a") or "события входа нет"
+
+
+def wait_detail(star: dict) -> dict:
+    """Развёрнутый ответ вниз карточки: все возражения и что их снимет.
+
+    Пусто, когда возражений нет: молчать честнее, чем повторять
+    короткую строку другими словами.
+    """
+    ch = _wait_checks(star)
+    if not ch:
+        return {}
+    return {"all": [c["full"] for c in ch], "lift": ch[0]["lift"]}

@@ -458,6 +458,21 @@ CARDSCENE_CSS = """
 /* Табличка снята: гравировка спорила с кадром и превращала подпись
    в элемент интерфейса. Остались буквы — разрядка и тон делают всё
    остальное. */
+/* Развёрнутый ответ занимает остаток полосы. Кегль меньше
+   стратегии и цвет холоднее: это пояснение, а не заголовок, и
+   спорить с ним за внимание оно не должно. */
+#obcRoot .bwhy{flex:1 1 auto;min-width:0;
+  display:flex;flex-direction:column;gap:2px;
+  font-size:clamp(7px,.78vw,10px);font-weight:300;line-height:1.5;
+  letter-spacing:.05em;color:#93A7BC;
+  text-shadow:0 1px 2px rgba(0,0,0,.95),0 0 10px rgba(3,7,12,.8)}
+#obcRoot .bwhy:empty{display:none}
+#obcRoot .bwhy b{font-weight:300;color:#B9CBDD}
+/* Условие снятия — единственное светлое пятно в блоке: это то,
+   ради чего его читают. */
+#obcRoot .bwhy .lift{color:#DCB176;opacity:.82}
+#obcRoot .bwhy .lift::before{content:"→ ";opacity:.6}
+
 #obcRoot .bstr{position:relative;
   font-size:clamp(9px,1.02vw,13px);font-weight:300;
   letter-spacing:.4em;text-transform:lowercase;white-space:nowrap;
@@ -850,6 +865,12 @@ CARDSCENE_HTML = """
            на его тёмном подножии, там где вода уже погасла. -->
       <div class="obc-bar">
     <div class="bstr" id="obcStr"></div>
+        <!-- Развёрнутый ответ. Наверху карточки стоит короткая запись
+             («ждать · книга тонка»), здесь — почему именно, целиком.
+             Место выбрано не случайно: полоса читается последней,
+             когда приборы уже посмотрены и вопрос «почему нет» уже
+             возник. Пусто — узел молчит и не занимает ширины. -->
+        <div class="bwhy" id="obcWhy"></div>
       <div class="obc-marks" id="obcMarks">
         <div class="obc-mark" id="obcMarkInv">
           <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -2299,6 +2320,18 @@ CARDSCENE_JS = r"""
       const el = document.getElementById(id), t = [d.tick, d.verdict][k];
       el.textContent = t; el.dataset.t = t;
     });
+    /* Развёрнутый ответ приходит готовым из слоя решений — карточка
+       ничего не досочиняет. Первое возражение выделено: по нему
+       принято решение, остальные объясняют, почему оно не одиноко. */
+    const whyEl = document.getElementById('obcWhy');
+    const act = (d.raw && d.raw.act) || {};
+    const full = act.whyFull || [];
+    whyEl.innerHTML = !full.length ? '' :
+      full.map(function (t, i) {
+        return '<span>' + (i ? '' : '<b>') + t + (i ? '' : '</b>') + '</span>';
+      }).join('') +
+      (act.whyLift ? '<span class="lift">' + act.whyLift + '</span>' : '');
+
     /* Тот же вид адреса, что у ссылок кандидата: BINANCE:<пара>.P */
     const nameEl = document.getElementById('obcName');
     nameEl.href = 'https://www.tradingview.com/chart/?symbol=BINANCE:' +
