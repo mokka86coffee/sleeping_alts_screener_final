@@ -352,6 +352,18 @@ CARDSCENE_CSS = """
    стратегия. Приходит последним из всей полосы: его читают, когда
    приборы уже посмотрены, и появляться раньше них ему незачем.
    Уходит без задержки, вместе со всеми: прощание общее. */
+/* Ворота скрыты в норме — не «прозрачны», а не занимают места: иначе
+   в полосе оставалась бы дыра там, где ничего не случилось. */
+#obcRoot .obc-gate{display:none}
+#obcRoot .obc-gate.on{display:block}
+#obcRoot .obc-gate.warn{color:#ffd678}
+#obcRoot .obc-gate.hot{color:#ffb266}
+#obcRoot .obc-gate.burn{color:#ff7d7d;
+  animation:obcGate 1.9s ease-in-out infinite}
+@keyframes obcGate{0%,100%{opacity:1}50%{opacity:.42}}
+/* Засов у горящих ворот шире: створки сомкнуты, а не притворены. */
+#obcRoot .obc-gate.burn .dot,#obcRoot .obc-gate.hot .dot{stroke-width:2.6}
+
 #obcRoot .bwhy{transition-delay:.6s}
 #obcRoot .lay.out .bwhy{transition-delay:0s;
   opacity:0;transform:translateY(12px);filter:blur(4px)}
@@ -929,6 +941,21 @@ CARDSCENE_HTML = """
           </svg>
           <div class="obc-tip"></div>
         </div>
+        <!-- 門 «ворота»: доступ к торгам. Створки сходятся, засов
+             посередине. Значок ПОЯВЛЯЕТСЯ только при угрозе листингу и
+             в норме скрыт: у разлока три состояния и все осмысленны, а
+             у листинга нормальное состояние одно — торги идут, — и
+             показывать его нечем и незачем. Пустое место здесь и есть
+             хорошая новость. -->
+        <div class="obc-mark obc-gate" id="obcMarkGate">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M4.2 4.4h15.6" stroke-width="1.7"/>
+            <path d="M6.4 4.4v15.2M17.6 4.4v15.2" stroke-width="1.6"/>
+            <path d="M6.4 19.6h11.2" stroke-width="1.5"/>
+            <path class="dot" d="M6.4 12.1h11.2" stroke-width="2.1"/>
+          </svg>
+          <div class="obc-tip"></div>
+        </div>
       </div>
   </div>
 
@@ -1243,6 +1270,11 @@ CARDSCENE_JS = r"""
          а карточку смотрят на всплеске, когда объём выше нормы в
          десятки раз, и тот же транш выглядит безобидным ровно тогда,
          когда он опаснее всего. */
+      /* Состояние листинга приходит целиком объектом из
+         analytics_listing: level, act, why, days. Разбирать его здесь
+         нечем и незачем — ступень уже выбрана в расчёте, а карточка
+         только показывает. */
+      delist: c.delist || null,
       unlock: num(c.unlockDays) === null ? null : {
         days: num(c.unlockDays),
         sup: num(c.unlockPctSupply),
@@ -2645,6 +2677,40 @@ CARDSCENE_JS = r"""
     }
     ms.className = 'obc-mark' + cls;
     ms.querySelector('.obc-tip').innerHTML = tip;
+
+    /* ── Ворота: состояние листинга ──
+       Стоит ТРЕТЬИМ и по устройству отличается от соседей: те всегда
+       на месте и меняют цвет, этот появляется только при угрозе.
+
+       Причина в том, что у листинга нет средних состояний. У
+       предложения их три и каждое что-то значит: транш впереди, весь
+       объём в обращении, данных нет. У листинга либо торги идут — и
+       говорить не о чем, — либо стакан закрывается, и это перекрывает
+       всё остальное на карточке.
+
+       Дефект, ради которого сделано (25.08.2026): STORJ показывался
+       как заряженный на сжим, а у него на следующий день был
+       принудительный расчёт по фьючерсам. Отрицательный фандинг там
+       означал выход перед расчётом, а не будущий вынос шортов. */
+    const gt = document.getElementById('obcMarkGate');
+    const dl = card.delist;
+    if (!dl || !dl.level) {
+      gt.className = 'obc-mark obc-gate';
+      gt.querySelector('.obc-tip').innerHTML = '';
+    } else {
+      const days = (dl.days === null || dl.days === undefined) ? null : +dl.days;
+      let gcls = ' on';
+      if (dl.level === 'наблюдательная метка') gcls += ' warn';
+      else if (days === null || days <= 3) gcls += ' burn';
+      else gcls += ' hot';
+      gt.className = 'obc-mark obc-gate' + gcls;
+      gt.querySelector('.obc-tip').innerHTML =
+        '<b>листинг</b><u>' + dl.level + '</u>' +
+        (days !== null ? '<br>торги закрываются через <i>' +
+           (days <= 1 ? 'сутки' : days.toFixed(0) + ' дн') + '</i>' : '') +
+        (dl.act ? '<br><i>' + dl.act + '</i>' : '') +
+        (dl.why ? '<br>' + dl.why : '');
+    }
   }
 
   /* ── Известные организаторы ──

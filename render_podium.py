@@ -696,6 +696,17 @@ PODIUM_CSS = """
   line-height:1;display:none}
 .obr-find.obr-has .obr-clr{display:block}
 .obr-row.obr-hide{display:none}
+/* Метка делистинга. Янтарь — предупреждение биржи, красный — решение
+   принято. Мигание только у срочного: если мигает всё, не мигает
+   ничего. */
+.obr-dl{display:inline-block;margin-left:7px;padding:1px 6px;border-radius:4px;
+  font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;vertical-align:2px;
+  border:1px solid rgba(255,178,102,.5);color:#ffb266;background:rgba(255,178,102,.09)}
+.obr-dl-w{border-color:rgba(255,214,120,.42);color:#ffd678;
+  background:rgba(255,214,120,.07)}
+.obr-dl-x{border-color:rgba(255,110,110,.62);color:#ff7d7d;
+  background:rgba(255,110,110,.13);animation:obrDl 1.9s ease-in-out infinite}
+@keyframes obrDl{0%,100%{opacity:1}50%{opacity:.45}}
 .obr-none{padding:22px 6px;text-align:center;font-size:10.5px;
   letter-spacing:.14em;color:#6c74a6;display:none}
 .obr-none.obr-on{display:block}
@@ -2359,6 +2370,7 @@ PODIUM_JS = """
         ';--rgb:' + c.rgb + ';animation-delay:' + (i * 165) + 'ms">' +
         '<div><a class="obr-tk" href="' + tvUrl(s) + '" target="_blank" ' +
             'rel="noopener" title="открыть график на TradingView">' + s.t + '</a>' +
+          delistTag(s) +
           '<span class="obr-cs">' + c.n + '</span></div>' +
         '<div>' + railSpark(s, i * 165) + '</div>' +
         '<div class="obr-pnl ' + (p >= 0 ? 'obg-up' : 'obg-dn') + '">' +
@@ -2373,6 +2385,39 @@ PODIUM_JS = """
        было, и клик по монете не делал ничего. */
     bindRows(rows);
     bindFind();
+  }
+
+  /* ── Метка делистинга в строке ──
+     Стоит ВПЛОТНУЮ к тикеру, а не в столбце хода: делистинг — свойство
+     инструмента, а не его движения. Монета с закрывающимся стаканом не
+     должна выглядеть как обычная строка списка, даже если ход у неё
+     лучший в зале.
+
+     Почему отдельно от разлока: транш можно пересидеть, закрытие
+     стакана пересидеть нельзя. Позицию закроют принудительно по цене,
+     которую выберет площадка. Поэтому у метки свой цвет и она горит,
+     а не тлеет.
+
+     Дефект, из-за которого это появилось (25.08.2026): STORJ стоял в
+     зале обычной строкой и держался в списке ЗАРЯЖЕННЫХ НА СЖИМ, а у
+     него фьючерсы закрывались принудительным расчётом на следующий
+     день. */
+  function delistTag(s) {
+    var d = s.delist;
+    if (!d || !d.level) return '';
+    var days = (d.days === null || d.days === undefined) ? null : +d.days;
+    var cls = 'obr-dl', txt;
+    if (d.level === 'наблюдательная метка') {
+      cls += ' obr-dl-w'; txt = 'метка';
+    } else if (days !== null && days <= 3) {
+      cls += ' obr-dl-x'; txt = days <= 1 ? 'делистинг завтра' : 'делистинг ' + days.toFixed(0) + ' дн';
+    } else if (days !== null) {
+      txt = 'делистинг ' + days.toFixed(0) + ' дн';
+    } else {
+      cls += ' obr-dl-x'; txt = 'торги стоят';
+    }
+    return '<span class="' + cls + '" title="' + (d.why || '').replace(/"/g,'') + '">' +
+           txt + '</span>';
   }
 
   /* Кнопка выхода живёт в разметке ворот и переживает перерисовку
