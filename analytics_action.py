@@ -85,7 +85,7 @@ def unlock_horizon(share_pct: float | None) -> int:
     return unlock_tier(share_pct)["days"]
 
 
-def decide(star: dict, permission: dict | None = None,
+def _decide(star: dict, permission: dict | None = None,
            held: bool = False) -> dict:
     """Одно действие на монету. Одно, а не список.
 
@@ -264,12 +264,7 @@ def decide(star: dict, permission: dict | None = None,
     if fresh:
         return {"act": "ждать", "group": "take",
                 "why": "новая в журнале, но фигура не подтверждена"}
-    out = {"act": "ждать", "group": "take", "why": wait_reason(star)}
-    det = wait_detail(star)
-    if det:
-        out["whyFull"] = det["all"]      # развёрнуто — вниз карточки
-        out["whyLift"] = det["lift"]     # что снимет запрет
-    return out
+    return {"act": "ждать", "group": "take", "why": wait_reason(star)}
 
 
 # ── Почему ждать: возражения ─────────────────────────────────
@@ -292,14 +287,31 @@ THIN_BOOK_USD = 3_000_000
 STOP_NOISE_ATR = 0.5
 
 
-def _wait_checks(star: dict) -> list[dict]:
-    """Все сработавшие возражения, от самого жёсткого к мягкому."""
-    out: list[dict] = []
+def _objections(star: dict) -> list[dict]:
+    """Все сработавшие возражения по монете, от жёсткого к мягкому.
 
-    try:
-        cap = float(star.get("capUsd") or (star.get("raw") or {}).get("mcap_usd") or 0)
-    except (TypeError, ValueError):
-        cap = 0.0
+    Считается ОДИН раз и прикладывается к ЛЮБОМУ решению — раньше
+    разбор жил внутри ветки «ждать», и монета с открытой позицией
+    («держать», «хеджировать», «сократить») получала одну строку без
+    объяснения. Перекос был обратный здравому смыслу: развёрнутый
+    ответ доставался тому, у кого денег в монете НЕТ, а тому, у кого
+    позиция открыта, — нет. Цена ошибки как раз во втором случае выше.
+
+    Часть проверок общая, часть включается только при позиции: пока
+    монета не куплена, «плечо не разгружено» не возражение, а
+    наблюдение.
+    """
+    out: list[dict] = []
+    held = bool((star.get("book") or {}).get("usd"))
+
+    def _f(d, k):
+        try:
+            return float((d or {}).get(k))
+        except (TypeError, ValueError):
+            return None
+
+    # 1. Размер важнее правоты: тонкую книгу не исполнить по расчёту.
+    cap = _f(star, "capUsd") or _f(star.get("raw") or {}, "mcap_usd") or 0.0
     if 0 < cap < THIN_BOOK_USD:
         out.append({
             "short": f"книга тонка (${cap/1e3:.0f}K)",
@@ -310,14 +322,9 @@ def _wait_checks(star: dict) -> list[dict]:
 
     lv = star.get("levels") or {}
     below, above = (lv.get("below") or {}), (lv.get("above") or {})
-
-    def _f(d, k):
-        try:
-            return float(d.get(k))
-        except (TypeError, ValueError):
-            return None
-
     batr, aatr = _f(below, "atr"), _f(above, "atr")
+
+    # 2. Стоп внутри шума.
     if batr is not None and 0 < batr < STOP_NOISE_ATR:
         out.append({
             "short": f"опора в {batr:.1f} ATR",
@@ -326,6 +333,7 @@ def _wait_checks(star: dict) -> list[dict]:
                      f"без движения против позиции"),
             "lift": "снимется, когда опора отойдёт дальше 0.5 ATR"})
 
+    # 3. Тест Вайкоффа не пройден.
     wt = star.get("wyckoffTest") or {}
     if wt.get("note") and not wt.get("tested"):
         vr = wt.get("volRatio")
@@ -337,22 +345,81 @@ def _wait_checks(star: dict) -> list[dict]:
                      f"значит предложение не иссякло"),
             "lift": "снимется, когда заход к дну пройдёт тише прокола"})
 
+    # 4. Ход сделан: до потолка ближе, чем до опоры.
     if aatr is not None and batr is not None and 0 < aatr < batr:
         out.append({
             "short": f"до потолка {aatr:.1f} ATR",
             "full": (f"до потолка {aatr:.1f} ATR, до опоры {batr:.1f} — "
-                     f"вход берёт весь риск ради остатка хода; отношение "
-                     f"перевёрнуто, и сетап не созревает, а отработан"),
+                     f"риск больше остатка хода; отношение перевёрнуто, "
+                     f"и сетап не созревает, а отработан"),
             "lift": "снимется откатом к зоне входа"})
+
+    # 5. Транш в горизонте — тем острее, чем ближе.
+    ud = star.get("unlockDays")
+    try:
+        ud = int(ud) if ud is not None else None
+    except (TypeError, ValueError):
+        ud = None
+    if ud is not None and 0 <= ud <= UNLOCK_NEAR_DAYS:
+        when = "сегодня" if ud == 0 else f"через {ud} дн"
+        out.append({
+            "short": f"транш {when}",
+            "full": (f"разлок {when} — предложение приходит в стакан "
+                     f"и встречает любой ход сверху; входить перед раздачей "
+                     f"значит покупать у того, кто выходит"),
+            "lift": "снимется после транша — по тому, забрали его или нет"})
+
+    # ── Дальше только при ОТКРЫТОЙ позиции ──
+    if not held:
+        return out
+
+    # 6. Плечо не разгрузилось: цена и открытый интерес разошлись.
+    px, oi = _f(star, "stancePricePct"), _f(star, "stanceOiPct")
+    if px is not None and oi is not None and px > 0 and oi > -LEV_UNLOAD_PCT:
+        out.append({
+            "short": "плечо не сброшено",
+            "full": (f"цена ушла на {px:+.0f}%, а открытый интерес на "
+                     f"{oi:+.0f}% — толпа, зашедшая на ходе, не вышла; "
+                     f"этот навес висит НАД ценой и продаст вперёд вас"),
+            "lift": f"снимется падением интереса за {LEV_UNLOAD_PCT:.0f}% "
+                    f"при стоячей цене — это и есть вымывание"})
     return out
+
+
+# Транш ближе этого срока считается «в горизонте» решения.
+UNLOCK_NEAR_DAYS = 7
+# Насколько должен упасть открытый интерес, чтобы счесть плечо сброшенным.
+LEV_UNLOAD_PCT = 15.0
 
 
 def wait_reason(star: dict) -> str:
     """Короткая запись наверх: самое жёсткое возражение."""
-    ch = _wait_checks(star)
+    ch = _objections(star)
     if ch:
         return ch[0]["short"]
     return (star.get("phase") or {}).get("a") or "события входа нет"
+
+
+def decide(star: dict, permission: dict | None = None,
+           held: bool = False) -> dict:
+    """Решение плюс разбор возражений — одной точкой на все ветки.
+
+    Само решение считает _decide: восемнадцать веток, каждая со своей
+    короткой причиной. Разбор прикладывается ЗДЕСЬ, поверх любой из
+    них, — иначе пришлось бы дописывать восемнадцать возвратов и при
+    следующей правке забыть один.
+
+    Короткую причину обёртка НЕ трогает: у «хеджировать» наверху
+    останется «событие через день», у «выйти» — своя. Внизу карточки
+    к ней добавится полный список того, что видно по монете. Решение
+    и объяснение — разные вещи, и склеивать их незачем.
+    """
+    out = _decide(star, permission, held)
+    ch = _objections(star)
+    if ch:
+        out["whyFull"] = [c["full"] for c in ch]
+        out["whyLift"] = ch[0]["lift"]
+    return out
 
 
 def wait_detail(star: dict) -> dict:
@@ -361,7 +428,7 @@ def wait_detail(star: dict) -> dict:
     Пусто, когда возражений нет: молчать честнее, чем повторять
     короткую строку другими словами.
     """
-    ch = _wait_checks(star)
+    ch = _objections(star)
     if not ch:
         return {}
     return {"all": [c["full"] for c in ch], "lift": ch[0]["lift"]}

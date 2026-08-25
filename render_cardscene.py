@@ -323,7 +323,7 @@ CARDSCENE_CSS = """
    сущностью со своей жизнью. */
 #obcRoot .col, #obcRoot .near, #obcRoot #obcDiag,
 #obcRoot .bname, #obcRoot .bstr, #obcRoot .obc-note, #obcRoot .obc-cap,
-#obcRoot .obc-marks{
+#obcRoot .bwhy, #obcRoot .obc-marks{
   transition:opacity 1.75s ease, transform 1.75s ease,
              letter-spacing 1.75s ease, filter 1.75s ease}
 #obcRoot .lay.out .col, #obcRoot .lay.out #obcDiag,
@@ -347,6 +347,36 @@ CARDSCENE_CSS = """
    задержка нужна только на возвращении. */
 #obcRoot .bstr{transition-delay:.35s}
 #obcRoot .lay.out .bstr{transition-delay:0s}
+
+/* Развёрнутый ответ уходит ВНИЗ, к воде, — вверх ему некуда, там
+   стратегия. Приходит последним из всей полосы: его читают, когда
+   приборы уже посмотрены, и появляться раньше них ему незачем.
+   Уходит без задержки, вместе со всеми: прощание общее. */
+#obcRoot .bwhy{transition-delay:.6s}
+#obcRoot .lay.out .bwhy{transition-delay:0s;
+  opacity:0;transform:translateY(12px);filter:blur(4px)}
+
+/* Строки внутри приходят лесенкой — сверху вниз, тем же порядком,
+   каким их читают. Задержка своя у каждой, поэтому переходом её не
+   выразить: здесь нужны кадры. */
+#obcRoot .bwhy > span{animation:ocWhy 1.5s cubic-bezier(.16,.84,.3,1) both}
+#obcRoot .bwhy > span:nth-child(2){animation-delay:.12s}
+#obcRoot .bwhy > span:nth-child(3){animation-delay:.24s}
+#obcRoot .bwhy > span:nth-child(4){animation-delay:.36s}
+#obcRoot .bwhy > span:nth-child(5){animation-delay:.48s}
+#obcRoot .bwhy > span:nth-child(6){animation-delay:.60s}
+/* Дальше шестой ступень не растёт: возражений может быть до семи,
+   но лесенка длиннее полутора секунд перестаёт читаться как одно
+   движение и начинает выглядеть подвисанием. Остальные приходят
+   вместе с шестой. */
+#obcRoot .bwhy > span:nth-child(n+7){animation-delay:.60s}
+@keyframes ocWhy{
+  from{opacity:0;transform:translateY(6px);filter:blur(3px)}
+  to{opacity:1;transform:none;filter:none}}
+/* На уходе кадры внутри снимаются: иначе они удерживали бы конечные
+   значения и спорили бы с переходом самого блока — та же ошибка двух
+   механизмов на одно движение, что уже разбиралась выше. */
+#obcRoot .lay.out .bwhy > span{animation:none}
 
 /* Приборы: линия рисуется слева направо, гребёнка проявляется
    вслед за ней, дуги доезжают до значения, огонёк на конце
