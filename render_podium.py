@@ -2409,7 +2409,7 @@ PODIUM_JS = """
     var cls = 'obr-dl', txt;
     if (d.level === 'наблюдательная метка') {
       cls += ' obr-dl-w'; txt = 'метка';
-    } else if (days !== null && days <= 3) {
+    } else if (days !== null && days <= 2) {
       cls += ' obr-dl-x'; txt = days <= 1 ? 'делистинг завтра' : 'делистинг ' + days.toFixed(0) + ' дн';
     } else if (days !== null) {
       txt = 'делистинг ' + days.toFixed(0) + ' дн';

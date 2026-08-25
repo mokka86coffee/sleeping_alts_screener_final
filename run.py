@@ -13,6 +13,10 @@
     python run.py --loop                     бесконечно, каждые 3 часа
     python run.py --loop --interval 3600     каждый час
     python run.py --no-git                   без публикации
+    python run.py --done reservoir           отметить ручное дело сделанным
+
+Ручные дела печатаются В НАЧАЛЕ прогона и только те, чей срок подошёл.
+Список и сроки — в analytics_manual. Отметить сделанным: --done КЛЮЧ.
 """
 
 from __future__ import annotations
@@ -40,6 +44,7 @@ from core_config import (
     GIT_TIMEOUT_SEC, COMMIT_MSG,
 )
 from analytics_leaders import tracked_symbols
+from analytics_manual import report as manual_report, mark_done as manual_done
 from core_http import log
 from core_models import Candidate, FunnelStage, RunSnapshot
 from sources_storage import compare_with_previous, save_snapshot, write_atomic
@@ -559,6 +564,12 @@ def parse_args() -> argparse.Namespace:
                   help="повторять прогон бесконечно с интервалом --interval")
     p.add_argument("--interval", type=int, default=LOOP_INTERVAL_SEC,
                   help="интервал между прогонами в секундах, по умолчанию 3 часа")
+    # Отметка ручного дела сделанным. Отдельным ключом, а не вопросом в
+    # консоли: прогон часто идёт в цикле без человека, и любой запрос
+    # ввода его подвесил бы.
+    p.add_argument("--done", metavar="КЛЮЧ",
+                   help="отметить ручное дело сделанным: listing, reservoir, "
+                        "unlocks, events, journal, predictions")
     p.add_argument("--no-git", action="store_true",
                   help="не публиковать результат в git")
     return p.parse_args()
@@ -584,7 +595,22 @@ def resolve_explicit_symbols(raw: str) -> list[tuple[str, float]]:
 def run_once(args: argparse.Namespace) -> int:
     """Один полный прогон. Возвращает код возврата."""
     started = time.monotonic()
-    started = time.monotonic()
+
+    # ── Ручное: печатается ПЕРВЫМ ──
+    #
+    # Первым, а не последним: в конце прогона уже отчёт и ссылка, туда
+    # не смотрят. И только то, чему срок ПОДОШЁЛ — постоянный список
+    # из шести дел перестают читать на третий день, это та же ошибка,
+    # что «и ещё 6» в частоколе: тревога без знания.
+    #
+    # Дефект, из-за которого появилось (25.08.2026): reservoir.json
+    # пролежал с одной записью, и бриф третий день показывал одно
+    # число без направления. Расчёт был исправен — некому было
+    # напомнить.
+    if args.done:
+        manual_done(args.done, BASE_DIR)
+        log(f"→ Ручное «{args.done}» отмечено сделанным")
+    manual_report(BASE_DIR, log=log)
 
     # ── Отбор ──
     if args.symbols:

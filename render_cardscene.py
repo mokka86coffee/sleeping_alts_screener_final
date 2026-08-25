@@ -1911,31 +1911,83 @@ CARDSCENE_JS = r"""
       },
   ];
 
+  /* ── Состояние листинга на воде ──
+     Ворота — значок в углу, их надо искать. Фонари занимают половину
+     кадра: если стакан закрывается, это должно быть видно, не глядя
+     ни на что конкретно.
+
+     Отрыв метки от нормы сделан ФОРМОЙ, а не оттенком. Оранжевый —
+     сосед янтаря по кругу, одним тоном его не различить: пробовали,
+     не читается. Поэтому на тревожных ступенях ореол СЖИМАЕТСЯ и
+     становится плотнее, а в огне появляется белое ядро — рассеянное
+     тёплое пятно превращается в резкую точку. Разница в форме
+     ловится боковым зрением, разница в оттенке нет.
+
+     Гашение фонарей по одному пробовали и отбросили: оно давало
+     второе показание поверх цвета, а показание должно быть одно. */
+  const LAMP_ST = {
+    ok:   {warm:[255,196,120], halo:[255,168,80], a:.42, blink:0, sat:0},
+    warn: {warm:[255,186,96],  halo:[255,122,20], a:.62, blink:0, sat:1},
+    hot:  {warm:[255,125,125], halo:[255,70,70],  a:.60, blink:0, sat:1},
+    burn: {warm:[255,110,110], halo:[255,50,50],  a:.66, blink:1, sat:1},
+  };
+
+  /* Ступень берётся из готового состояния листинга: решение принято в
+     analytics_listing, карточка только показывает. Порог последней
+     ступени — ДВОЕ суток, а не трое: за двое ещё можно выйти по своей
+     цене, дальше начинается расчёт по чужой. */
+  function lampState(){
+    const d = CARDS[to] && CARDS[to].delist;
+    if (!d || !d.level) return LAMP_ST.ok;
+    if (d.level === 'наблюдательная метка') return LAMP_ST.warn;
+    const days = (d.days === null || d.days === undefined) ? null : +d.days;
+    return (days === null || days <= 2) ? LAMP_ST.burn : LAMP_ST.hot;
+  }
+
   function lanterns(t){
+    const st = lampState();
+    /* Период мигания тот же, что у значка ворот: два красных сигнала
+       об одном событии, моргающие вразнобой, разваливают кадр.
+       Дно 0.4, а не 0 — погасшая вода читается как отсутствие данных,
+       а не как тревога. */
+    const br = st.blink ? (.4 + .6 * (.5 + .5 * Math.sin(t / 1900 * Math.PI * 2))) : 1;
+    const HW = st.warm, HH = st.halo, HA = st.a * br;
     LANTERNS.forEach(L => {
       const x = L.x + Math.sin(t * L.sp * 6) * L.amp;
       const y = WATER + L.y + Math.sin(t * .0007 + L.x) * 1.6;
 
-      // ореол
-      const halo = ctx.createRadialGradient(x, y, 0, x, y, L.r * 4.2);
-      halo.addColorStop(0, 'rgba(255,168,80,.42)');
-      halo.addColorStop(.45, 'rgba(255,140,60,.12)');
-      halo.addColorStop(1, 'rgba(255,130,50,0)');
+      // ореол: на тревожных ступенях туже и плотнее
+      const R = st.sat ? L.r * 3.0 : L.r * 4.2;
+      const halo = ctx.createRadialGradient(x, y, 0, x, y, R);
+      halo.addColorStop(0, `rgba(${HH[0]},${HH[1]},${HH[2]},${HA})`);
+      halo.addColorStop(st.sat ? .28 : .45,
+        `rgba(${HH[0]},${HH[1]},${HH[2]},${HA * (st.sat ? .5 : .28)})`);
+      halo.addColorStop(1, `rgba(${HH[0]},${HH[1]},${HH[2]},0)`);
       ctx.fillStyle = halo;
-      ctx.fillRect(x - L.r * 4.2, y - L.r * 4.2, L.r * 8.4, L.r * 8.4);
+      ctx.fillRect(x - R, y - R, R * 2, R * 2);
 
       // хвост блика вниз: он и сажает огонь на воду
+      /* Отражение — половина того, что видно: если огонь красный, а
+         блик под ним янтарный, кадр разваливается. */
       const tail = ctx.createLinearGradient(0, y, 0, y + L.r * 9);
-      tail.addColorStop(0, 'rgba(255,170,86,.34)');
-      tail.addColorStop(1, 'rgba(255,150,60,0)');
+      tail.addColorStop(0, `rgba(${HH[0]},${HH[1]},${HH[2]},${HA * .8})`);
+      tail.addColorStop(1, `rgba(${HH[0]},${HH[1]},${HH[2]},0)`);
       ctx.fillStyle = tail;
       ctx.fillRect(x - L.r * .42, y, L.r * .84, L.r * 9);
 
       // сам фонарь
-      ctx.fillStyle = 'rgba(255,196,120,.95)';
+      ctx.fillStyle = `rgba(${HW[0]},${HW[1]},${HW[2]},${.95 * br})`;
       ctx.beginPath();
       ctx.ellipse(x, y, L.r * .52, L.r * .40, 0, 0, 7);
       ctx.fill();
+      /* Раскалённая сердцевина только на тревожных: огонь перестаёт
+         быть уютным пятном и становится источником. */
+      if (st.sat) {
+        ctx.fillStyle = `rgba(255,244,232,${.8 * br})`;
+        ctx.beginPath();
+        ctx.ellipse(x, y, L.r * .24, L.r * .18, 0, 0, 7);
+        ctx.fill();
+      }
       ctx.fillStyle = 'rgba(20,12,6,.8)';
       ctx.fillRect(x - L.r * .52, y + L.r * .30, L.r * 1.04, L.r * .14);
     });
@@ -2701,7 +2753,7 @@ CARDSCENE_JS = r"""
       const days = (dl.days === null || dl.days === undefined) ? null : +dl.days;
       let gcls = ' on';
       if (dl.level === 'наблюдательная метка') gcls += ' warn';
-      else if (days === null || days <= 3) gcls += ' burn';
+      else if (days === null || days <= 2) gcls += ' burn';
       else gcls += ' hot';
       gt.className = 'obc-mark obc-gate' + gcls;
       gt.querySelector('.obc-tip').innerHTML =
