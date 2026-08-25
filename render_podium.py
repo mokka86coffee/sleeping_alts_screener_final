@@ -84,7 +84,7 @@ PODIUM_CSS = """
   cursor:grab;perspective:1200px;perspective-origin:50% 46%}
 .ob-podium.on{opacity:1;pointer-events:auto;visibility:visible;
   transition:opacity .5s ease, visibility 0s}
-.ob-podium.obp-drag{cursor:grabbing}
+
 
 /* Купол: свет по краю, звёзды к центру. Он и сообщает, что мы
    внутри помещения, а не смотрим на ленту карточек. */
@@ -140,41 +140,21 @@ PODIUM_CSS = """
    Панели стоят по цилиндру, наблюдатель внутри. Без CSS-перехода:
    угол доводится покадрово, и переход поверх дал бы двойное
    сглаживание — зал отставал бы от жеста рывками. */
-.obp-stage{position:absolute;left:50%;top:44%;width:0;height:0;
-  transform-style:preserve-3d}
 
-.obp-pan{position:absolute;width:315px;height:400px;margin:-225px 0 0 -157.5px;
-  transform-style:preserve-3d;cursor:pointer;transition:opacity .35s ease}
+
+
 /* Панели вне поля обзора не только прозрачны, но и не ловят курсор:
    иначе невидимая карточка перехватывала бы клик по видимой. */
-.obp-pan.obp-off{opacity:0;pointer-events:none}
+
 
 /* ── Рама ────────────────────────────────────────────────────
    Матовая плита, а не залитый цветом прямоугольник: сквозь неё
    виден фон зала. */
-.obp-frame{position:relative;width:100%;height:100%;overflow:hidden;
-  border-radius:10px;
-  background:linear-gradient(168deg,
-    rgba(255,255,255,.055), rgba(255,255,255,.012) 42%,
-    rgba(4,6,12,.55) 100%);
-  box-shadow:
-    inset 0 0 0 1px rgba(var(--c),.22),
-    inset 0 1px 0 rgba(255,255,255,.10),
-    0 0 44px -12px rgba(var(--c),.45);
-  transition:box-shadow .3s ease}
-.obp-pan:hover .obp-frame{box-shadow:
-    inset 0 0 0 1px rgba(var(--c),.62),
-    inset 0 1px 0 rgba(255,255,255,.16),
-    0 0 76px -6px rgba(var(--c),.75)}
+
+
 
 /* Техническая сетка: даёт поверхности фактуру и почти не видна. */
-.obp-frame::after{content:'';position:absolute;inset:0;pointer-events:none;
-  opacity:.5;
-  background:
-    repeating-linear-gradient(90deg,
-      rgba(var(--c),.055) 0 1px, transparent 1px 13px),
-    repeating-linear-gradient(0deg,
-      rgba(var(--c),.045) 0 1px, transparent 1px 13px)}
+
 
 /* Световая полоса делит раму на зону заголовка и зону графика.
    Свет здесь не украшение, а разделитель. */
@@ -206,8 +186,8 @@ PODIUM_CSS = """
   text-transform:uppercase;color:rgba(var(--c),.85);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 10px}
 
-.obp-art{position:absolute;left:0;right:0;bottom:74px;height:126px}
-.obp-art svg{display:block;width:100%;height:100%}
+
+
 
 /* ── Приборы ─────────────────────────────────────────────────
    Три величины — три формы, а не четыре одинаковых числа в строку.
@@ -218,8 +198,8 @@ PODIUM_CSS = """
   background:linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.46) 38%);
   border-top:1px solid rgba(255,255,255,.05)}
 
-.obp-gau{position:relative;width:54px;height:54px;flex:none}
-.obp-gau svg{display:block;width:100%;height:100%}
+
+
 .obp-gau-v{position:absolute;inset:0;display:flex;flex-direction:column;
   align-items:center;justify-content:center;padding-top:2px}
 .obp-gau-v b{font-family:ui-monospace,Menlo,monospace;
@@ -253,14 +233,10 @@ PODIUM_CSS = """
 
 /* Отражение только у нижнего яруса: пол один, и картины верхних
    этажей на нём отражаться не могут. */
-.obp-pan .obp-refl{display:none}
-.obp-pan.obp-floorlvl .obp-refl{display:block}
-.obp-refl{position:absolute;left:0;top:100%;width:100%;height:132px;
-  transform:scaleY(-1);opacity:.20;filter:blur(1.6px);
-  -webkit-mask-image:linear-gradient(180deg,transparent,#000 88%);
-  mask-image:linear-gradient(180deg,transparent,#000 88%);
-  pointer-events:none;overflow:hidden}
-.obp-refl .obp-frame{height:300px;box-shadow:none}
+
+
+
+
 
 /* ── Переключатель групп ─────────────────────────────────────
    Стоит по центру сверху: это первое, что видно при входе, и оно же
@@ -278,18 +254,9 @@ PODIUM_CSS = """
    вкладка не заливается, а подсвечивается снизу тонкой чертой в
    цвет своей группы: подчёркивание указывает, заливка загораживает.
    Счётчик стоит тише названия — он уточняет, а не называет. */
-.obp-groups{position:absolute;left:50%;top:56px;transform:translateX(-50%);
-  z-index:6;display:flex;gap:2px;padding:4px;border-radius:999px;
-  background:linear-gradient(180deg,rgba(200,220,232,.055),rgba(8,10,15,.72));
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.1),
-             inset 0 0 0 1px rgba(200,220,232,.08),
-             0 14px 34px -16px rgba(0,0,0,.95);
-  backdrop-filter:blur(7px)}
+
 /* Блик по верхней кромке — как у капсулы дашборда */
-.obp-groups::after{content:'';position:absolute;top:0;left:16%;right:16%;
-  height:1px;pointer-events:none;
-  background:linear-gradient(90deg,transparent,rgba(200,220,232,.45) 30%,
-    rgba(200,220,232,.45) 70%,transparent)}
+
 
 .obp-gb{position:relative;--a:#C8D2DE;
   font:400 10px/1 var(--mono,ui-monospace,monospace);letter-spacing:.2em;
@@ -320,8 +287,7 @@ PODIUM_CSS = """
 /* ── Подписи ярусов ──────────────────────────────────────────
    Высота несёт стадию, и это надо назвать словом, а не оставить
    угадывать по цвету. */
-.obp-tiers{position:absolute;left:26px;top:0;bottom:0;width:170px;
-  pointer-events:none;z-index:4}
+
 .obp-tl{position:absolute;left:0;transform:translateY(-50%)}
 .obp-tl-n{font-size:8.5px;font-weight:500;letter-spacing:3.2px;
   text-transform:uppercase;color:rgba(var(--c),.9)}
@@ -600,11 +566,12 @@ PODIUM_CSS = """
   gap:30px;min-height:456px;justify-content:flex-start}
 /* Высоты и ширины ЗАКРЕПЛЕНЫ: подписи групп разной длины, и без этого
    при переключении прыгал весь экран. */
-.obg-core{position:relative;display:flex;flex-direction:column;align-items:center;
-  gap:18px;background:none;border:0;padding:0;cursor:pointer;font:inherit;
-  min-height:284px;width:300px;justify-content:flex-start}
+/* Ядро — показание, не кнопка: ни указателя, ни отклика на наведение.
+   Внутренний слой держит переменные цвета группы. */
+.obg-core{position:relative;min-height:284px;width:300px}
+.obg-core-in{display:flex;flex-direction:column;align-items:center;gap:18px}
 .obg-ring{position:relative;width:196px;height:196px;display:grid;
-  place-items:center;transition:transform .75s}
+  place-items:center}
 .obg-ring svg{position:absolute;inset:0;width:100%;height:100%}
 .obg-disc{position:absolute;inset:26px;border-radius:50%;
   background:
@@ -615,7 +582,8 @@ PODIUM_CSS = """
              0 0 44px rgba(var(--rgb),.28)}
 .obg-num{position:relative;z-index:2;font-size:51px;font-weight:200;
   letter-spacing:-.04em;color:#fff;text-shadow:0 0 30px rgba(var(--rgb),.75)}
-.obg-core:hover .obg-ring{transform:translateY(-3px)}
+/* Строка списка — единственная дверь в карточку монеты, поэтому
+   отклик на наведение остался только у неё. */
 .obg-mark{display:flex;align-items:center;gap:14px}
 .obg-mark i{display:block;width:46px;height:1px;position:relative;
   background:linear-gradient(90deg,transparent,rgba(var(--rgb),.55))}
@@ -795,9 +763,6 @@ PODIUM_HTML = """
   <button class="obp-exit" id="obpExit" type="button">к дашборду</button>
   <button class="obp-exit obp-again" id="obpAgain" type="button">заново</button>
 
-  <div class="obp-groups" id="obpGroups"></div>
-  <div class="obp-tiers" id="obpTiers"></div>
-  <div class="obp-stage" id="obpStage"></div>
 
   <!-- Ворота зала: первый экран после бриза и постоянный дом зала.
        Слева сцена — волна прогона, ядро выбранной группы и спутники;
@@ -812,7 +777,7 @@ PODIUM_HTML = """
 
   <div class="obz" id="obpZoom"><div class="obz-box" id="obpZbox"></div></div>
 
-  <div class="obp-hint" id="obpHint">тяните мышью · колесо · клик по карточке · esc — выход</div>
+  <div class="obp-hint">колесо — список · клик по строке — карточка · esc — выход</div>
 </div>
 """
 
@@ -820,8 +785,8 @@ PODIUM_JS = """
 <script>
 (function () {
   var pod = document.getElementById('obPodium');
-  var stage = document.getElementById('obpStage');
-  if (!pod || !stage) return;
+  /* Узел стены снят вместе со стеной; зал живёт в воротах. */
+  if (!pod) return;
 
   /* Молчаливый выход опаснее отказа: пустой экран неотличим от
      сломанного модуля. Все ранние выходы называют причину. */
@@ -1003,23 +968,6 @@ PODIUM_JS = """
      радиуса, а не задаётся числом: хорда между соседними равна
      ширине панели с зазором. Вплотную рамы читались бы как одно
      сплошное полотно. */
-  var R = 1400, PW = 315, GAP = 1.35, PERSP = 1200;
-  var BASE_STEP = 2 * (180 / Math.PI) * Math.asin(PW * GAP / 2 / R);
-
-  /* Ярус не может занять больше 340°: дальше кольцо замыкается и
-     панели наезжают на самих себя. При длинном ярусе шаг сжимается,
-     но не ниже двух третей — за этим пределом тикер на дальней
-     стене становится нечитаемым, и честнее показать часть с
-     счётчиком скрытых, чем всё нечитаемо. */
-  var MAX_ARC = 340, MIN_K = 0.66;
-  /* Высоты рядов больше не заданы таблицей. Ярус, который не влезает
-     в одну дугу, раскладывается в два ряда, и сколько всего рядов
-     окажется на стене — известно только после подсчёта. Поэтому
-     задаётся шаг между рядами, а сами высоты считаются так, чтобы
-     вся стопка стояла симметрично относительно горизонта.
-     Шаг чуть больше высоты панели: ряды не должны соприкасаться. */
-  var ROW_PITCH = 470;
-
   var NS = 'http://www.w3.org/2000/svg';
 
   /* ── Ряд цены ──
@@ -1107,51 +1055,6 @@ PODIUM_JS = """
      Диапазон 0..300%: выше начинается редкий хвост, и растягивать
      шкалу под него значит прижать к нулю всё остальное. Что вышло
      за предел — упирается в конец дуги, и это честнее сжатой шкалы. */
-  function gauge(pct, col, size) {
-    var S = size || 54, k = S / 54;
-    var A0 = -128, A1 = 128, RR = 21 * k, CX = 27 * k, CY = 27 * k;
-    var f = Math.max(0, Math.min(1, pct / 300));
-
-    function pt(a, r) {
-      var t = (a - 90) * Math.PI / 180;
-      return [CX + Math.cos(t) * r, CY + Math.sin(t) * r];
-    }
-    function arc(a0, a1, r) {
-      var s = pt(a0, r), e = pt(a1, r);
-      return 'M' + s[0].toFixed(1) + ' ' + s[1].toFixed(1) +
-        ' A' + r.toFixed(1) + ' ' + r.toFixed(1) + ' 0 ' +
-        (a1 - a0 > 180 ? 1 : 0) + ' 1 ' + e[0].toFixed(1) + ' ' + e[1].toFixed(1);
-    }
-
-    var ticks = '';
-    for (var i = 0; i <= 16; i++) {
-      var a = A0 + (A1 - A0) * i / 16, big = i % 4 === 0;
-      var p1 = pt(a, RR + 2.5 * k), p2 = pt(a, RR + (big ? 6.5 : 4.5) * k);
-      ticks += '<line x1="' + p1[0].toFixed(1) + '" y1="' + p1[1].toFixed(1) +
-        '" x2="' + p2[0].toFixed(1) + '" y2="' + p2[1].toFixed(1) +
-        '" stroke="' + col + '" stroke-width="' + (big ? 1.1 : .7) +
-        '" opacity="' + (big ? .55 : .28) + '"/>';
-    }
-
-    var id = 'q' + Math.random().toString(36).slice(2, 7);
-    return '<svg viewBox="0 0 ' + S + ' ' + S + '">' +
-      '<defs><linearGradient id="' + id + '" x1="0" y1="1" x2="1" y2="0">' +
-        '<stop offset="0" stop-color="' + col + '" stop-opacity=".45"/>' +
-        '<stop offset="1" stop-color="#fff" stop-opacity=".92"/>' +
-      '</linearGradient></defs>' + ticks +
-      '<path d="' + arc(A0, A1, RR) + '" fill="none" ' +
-        'stroke="rgba(255,255,255,.09)" stroke-width="' + (2.6 * k).toFixed(1) +
-        '" stroke-linecap="round"/>' +
-      (f > 0.01
-        ? '<path d="' + arc(A0, A0 + (A1 - A0) * f, RR) + '" fill="none" ' +
-          'stroke="url(#' + id + ')" stroke-width="' + (2.6 * k).toFixed(1) +
-          '" stroke-linecap="round"/>'
-        : '') +
-    '</svg>';
-  }
-
-  /* Сегментная полоса. Шкала логарифмическая: при рекорде ×1540 и
-     сегодняшних ×2 на линейной не загорится ни одно деление. */
   function segs(now, rec, n) {
     n = n || 10;
     var L = function (v) { return Math.log10(Math.max(v, 0) + 1); };
@@ -1226,32 +1129,6 @@ PODIUM_JS = """
   /* Строка «сегодня» на панели. Три коротких факта, каждый — ответ
      на отдельный вопрос: куда наклонён поток, откупали ли на
      проливе, жива ли монета в эти сутки. */
-  function todayLine(c) {
-    var bits = [];
-    if (c.press !== undefined) {
-      var up = +c.press >= 0;
-      bits.push('<b class="' + (up ? 'up' : 'dn') + '">' +
-        (up ? '↑' : '↓') + '</b>');
-    }
-    if (c.bigBuys) bits.push(c.bigBuys + ' откуп' +
-      (c.bigBuys === 1 ? '' : c.bigBuys < 5 ? 'а' : 'ов'));
-    var day = (c.byDay && c.byDay.length) ? c.byDay[c.byDay.length - 1] : null;
-    var right = day !== null ? day + ' попад.' : '';
-    if (!bits.length && !right) return '';
-    return '<div class="obp-today"><span>сегодня ' + bits.join(' ') +
-      '</span><span>' + right + '</span></div>';
-  }
-
-  /* ── Наблюдения ──
-     Каждое возвращает вес и две формы: короткую для панели и полную
-     для карточки. Вес — во сколько раз перекрыт собственный порог
-     срабатывания, поэтому наблюдения разной природы сравнимы между
-     собой: всплеск объёма в три раза выше порога весит столько же,
-     сколько втрое перекрытый порог по перекосу сторон.
-
-     Горизонт помечен у каждого: в карточку идут два наблюдения, по
-     одному с каждого, иначе обе строки окажутся про один и тот же
-     всплеск. */
   function notes(c) {
     var out = [];
     function add(w, span, short, full) {
@@ -1441,29 +1318,6 @@ PODIUM_JS = """
     return n >= 10 ? Math.round(n) : n.toFixed(1);
   }
 
-  function frameHTML(c, col) {
-    /* Блока чисел здесь больше нет намеренно. Рост от дна, объём,
-       фон и срок в журнале пересказывали то, что видно по звёздам на
-       орбите, а сам факт карточки означает, что монета в лидерах.
-       Числа остались в крупной карточке — там по ним проверяется,
-       из чего собрана подпись. */
-    var n = notes(c)[0];
-    return '<div class="obp-frame">' +
-      '<i class="obp-br tl"></i><i class="obp-br tr"></i>' +
-      '<i class="obp-br bl"></i><i class="obp-br brr"></i>' +
-      (c.fpos ? '<div class="obp-rank">' + c.fpos +
-                '<i>' + (c.score || 0) + '</i></div>' : '') +
-      '<div class="obp-tick">' + c.t + '</div>' +
-      '<div class="obp-state">' + (c.pattern || '—') + '</div>' +
-      '<div class="obp-beam"></div>' +
-      '<div class="obp-art">' + art(c, col, 210, 126) + '</div>' +
-      (n ? '<div class="obp-note">' + n.short + '</div>' : '') +
-    '</div>';
-  }
-
-  /* ── Веер за прибором ──
-     Лопасти обрываются, не доходя до края: между ними видна тёмная
-     щель, и она делает кольцо сегментным, а не сплошным свечением. */
   function fan(col) {
     var CX = 126, CY = 126, out = '';
     var id = 'F' + Math.random().toString(36).slice(2, 7);
@@ -1866,16 +1720,15 @@ PODIUM_JS = """
     if (e.target === zoom) closeZoom();
   });
 
-  /* ── Сборка ── */
-  var PANS = [];
-  /* Порядок, в котором монеты стоят на стене: сверху вниз по ярусам,
-     внутри яруса — по сортировке самого яруса. Стрелки в раскрытой
+  /* ── Сборка ──
+     Стена карточек на цилиндре снята 25.08: её место занял зал
+     списком в воротах. Вместе с ней ушли сборка панелей, вращение,
+     перетаскивание, ярусы и верхний ряд групп.
+
+     Порядок, в котором монеты идут в списке зала. Стрелки в раскрытой
      карточке листают именно по нему, поэтому «следующая» означает
-     «соседняя на стене», а не «следующая в журнале». */
+     «соседняя в списке». Наполняет его paintRail. */
   var ZLIST = [];
-  /* Флага «уже собрано» больше нет: стена ПЕРЕСТРАИВАЕТСЯ при каждой
-     смене группы, и однократная сборка здесь была бы ровно тем, что
-     ломает переключатель. */
   /* Есть ли вообще открытые позиции. Если журнал решений пуст, две из
      трёх групп будут пусты не «сегодня», а всегда — и открывать зал на
      пустой вкладке значит показывать поломку вместо работы. Поэтому в
@@ -1886,12 +1739,8 @@ PODIUM_JS = """
   });
   /* Пока торговая книга пуста (а она начинается пустой), смотреть в
      ней нечего — зал открывается на HOLD, на том, что реально держим.
-     Как только правила что-то ведут, вход переезжает на «выходить». */
-  var GROUP = TRADE_ANY ? 'exit' : 'hold';
-  /* Угол поворота объявлен ЗДЕСЬ, а не у обработчиков вращения ниже:
-     build() сбрасывает его при смене группы и обращается к нему
-     раньше, чем выполнится тот блок. */
-  var ang = 0, target = 0, raf = 0;      // при входе — то, где промедление стоит денег
+     Как только правила что-то ведут, вход переезжает на «выходить».
+     Выбранную группу держит GATE_KEY ниже. */
 
   /* Монеты группы. «Брать» — ПОРЯДОК, а не отбор: лидер прогона встаёт
      в центр дуги, места со второго по пятое — вплотную по бокам,
@@ -1965,296 +1814,24 @@ PODIUM_JS = """
       : 'торговая книга пуста, выходить не из чего')
   };
 
-  function build() {
-    sky();
-
-    if (!STARS.length) { bail('журнал лидеров пуст'); return; }
-
-    var tiersHost = document.getElementById('obpTiers');
-    tiersHost.innerHTML = '';
-    stage.innerHTML = '';
-    PANS = []; ZLIST = [];
-    bail('');                    // прежнее сообщение снимается всегда
-    var shown = 0;
-
-    /* Раскладка идёт в два прохода. В первом считаем, сколько рядов
-       займёт каждый ярус: ярус, который не помещается в одну дугу,
-       разворачивается в два ряда через один — соседи по ряду тогда
-       стоят на полном шаге, а по стене чередуются верх и низ. Только
-       после этого известна общая высота стопки, и ряды можно поднять
-       так, чтобы горизонт оказался посередине. */
-    /* Сколько панелей помещается В КАДРЕ, а не в кольце. Прежде
-       здесь стояла вся дуга 340°: она вмещает двадцать панелей в
-       ряд, и двенадцать монет получали ОДИН ряд — но видно из них
-       только восемь, остальные приходилось выкручивать колесом.
-       Экран показывает 124° (VISIBLE в обе стороны), по нему и
-       считаем: сначала кадр заполняется тремя рядами, и только
-       потом лишнее уезжает за край. */
-    var visArc = 2 * ((typeof VISIBLE === 'number' ? VISIBLE : 62));
-    var oneRowCap = Math.max(1, Math.floor(visArc / BASE_STEP) + 1);
-    var plan = [];
-
-    STAGE.forEach(function (stg, ti) {
-      if (stg.key !== GROUP) return;      // на стене одна группа за раз
-      var list = groupList(stg.key);
-      if (!list.length) { bail(EMPTY[stg.key]); return; }
-
-      /* Порядок внутри группы отвечает на вопрос самой группы.
-         Скор ни в одну сортировку не входит: это уверенность
-         детектора, а не состояние монеты. */
-      if (stg.key === 'take') {
-        // Порядок уже задан местом в FLOW — лидер первым.
-      } else if (stg.key === 'exit') {
-        /* «Выходить»: первым то, что нельзя отложить. Внутри —
-           ближайший срок вперёд: транш через два дня решается раньше,
-           чем через двенадцать. */
-        var RANK = { 'выйти': 0, 'сократить': 1, 'хеджировать': 2 };
-        list.sort(function (a, b) {
-          var ra = RANK[(a.act || {}).act], rb = RANK[(b.act || {}).act];
-          ra = (ra === undefined) ? 9 : ra; rb = (rb === undefined) ? 9 : rb;
-          if (ra !== rb) return ra - rb;
-          var da = (a.exitDeadline === undefined) ? 99 : a.exitDeadline;
-          var db = (b.exitDeadline === undefined) ? 99 : b.exitDeadline;
-          return da - db;
-        });
-      } else if (stg.key === 'trade') {
-        /* «В работе»: сначала те, где есть что делать (добор, хедж),
-           потом спокойные. */
-        list.sort(function (a, b) {
-          var wa = ((a.act || {}).why) ? 0 : 1, wb = ((b.act || {}).why) ? 0 : 1;
-          return wa - wb || recoveredPct(a) - recoveredPct(b);
-        });
-      }
-
-      /* Сколько рядов нужно, чтобы поместился ВЕСЬ список. Раньше
-         рядов было максимум два, и длинный журнал обрезался счётчиком
-         «не помещается» — то есть монеты снова пропадали, только уже
-         тихо. Три ряда при высоте панели 400 ещё читаются; дальше не
-         идём, иначе стена превращается в мозаику. */
-      var need = Math.min(3, Math.ceil(list.length / oneRowCap));
-      plan.push({ ti: ti, stg: stg, list: list,
-                  rows: Math.max(1, need) });
-    });
-
-    /* Стопка рядов центрируется на горизонте: при трёх рядах средний
-       окажется ровно на нём, при двух и четырёх горизонт останется
-       между ними — в обоих случаях кадр не заваливается. */
-    var totalRows = plan.reduce(function (n, p) { return n + p.rows; }, 0);
-    var yTop = -(totalRows - 1) / 2 * ROW_PITCH;
-    var cursor = 0;
-
-    plan.forEach(function (p) {
-      var stg = p.stg, ti = p.ti, list = p.list;
-      var rowY = [];
-      for (var r = 0; r < p.rows; r++) rowY.push(yTop + (cursor + r) * ROW_PITCH);
-      var labY = yTop + (cursor + (p.rows - 1) / 2) * ROW_PITCH;
-      cursor += p.rows;
-
-      /* В два ряда шаг вдвое мельче: по стене панели идут чаще, но в
-         пределах одного ряда между соседями остаётся полный шаг. */
-      var full = BASE_STEP / p.rows, step = full, hidden = 0;
-      if (list.length > 1) {
-        step = Math.max(full * MIN_K,
-                        Math.min(full, MAX_ARC / (list.length - 1)));
-      }
-      var cap = Math.floor(MAX_ARC / step) + 1;
-      if (list.length > cap) { hidden = list.length - cap; list = list.slice(0, cap); }
-
-      var scale = step / full;
-      var half = (list.length - 1) / 2;
-      /* В «брать» лидер стоит ПО ЦЕНТРУ дуги, а не первым слева:
-         остальные расходятся от него в стороны по местам. Зал при
-         входе в эту группу смотрит ровно на первого. */
-      var centered = (stg.key === 'take' || stg.key === 'hold');
-
-      list.forEach(function (c, i) {
-        /* Порядок мест вокруг центра: 1 в середине, дальше 2 слева,
-           3 справа, 4 левее, 5 правее — глаз читает от лидера
-           наружу, а не слева направо мимо него. */
-        var slot = centered
-          ? ((i === 0) ? 0 : (i % 2 ? -Math.ceil(i / 2) : Math.ceil(i / 2)))
-          : (i - half);
-        var a = slot * step;
-        /* Ряд выбирается по МЕСТУ на дуге, а не по порядковому номеру.
-           При счёте от центра соседи слева и справа получают номера
-           через один, и выбор по номеру разносил их в разные ряды —
-           стена разъезжалась на две отдельные дуги. По модулю места
-           зеркальная пара стоит в одном ряду, а чередование верх-низ
-           сохраняется вдоль дуги, как и задумано. */
-        /* Ряд — по ЗНАКОВОМУ остатку места. Через модуль абсолютного
-           значения зеркальная пара (−1 и +1) попадала в один ряд с
-           разрывом всего в два шага, а нужен полный: при трёх рядах
-           это 2/3 ширины панели, и карточки слипались. Знаковый
-           остаток разводит −1 и +1 по разным рядам, а в пределах ряда
-           соседи стоят ровно через rows шагов, то есть на полной
-           ширине панели с зазором. */
-        var y = rowY[p.rows === 1 ? 0
-          : (centered ? ((slot % p.rows) + p.rows) % p.rows
-                      : (i % p.rows))];
-        var sc = stratOf(c);
-        var d = document.createElement('div');
-        d.className = 'obp-pan' + (ti === STAGE.length - 1 ? ' obp-floorlvl' : '');
-        d.style.setProperty('--c', rgbOf(sc.c));
-
-        /* МИНУС R: плюс вынес бы панель на камеру, и та, что стоит
-           по курсу, заслонила бы собой всё остальное. Минус ставит
-           её на дальнюю стену — как в комнате, а не в карусели.
-           scale сжимает раму на длинных ярусах, чтобы соседи не
-           наезжали друг на друга. */
-        d.style.transform = 'rotateY(' + a.toFixed(2) + 'deg) translateZ(' +
-          (-R) + 'px) translateY(' + y.toFixed(0) + 'px)' +
-          (scale < 0.999 ? ' scale(' + scale.toFixed(3) + ')' : '');
-
-        d.innerHTML = frameHTML(c, sc.c) +
-          '<div class="obp-refl">' + frameHTML(c, sc.c) + '</div>';
-        var zi = ZLIST.length;
-        ZLIST.push(c);
-        d.addEventListener('click', function () { openZoom(c, zi); });
-        stage.appendChild(d);
-        PANS.push({ el: d, a: a });
-        shown++;
-      });
-
-      /* Экранная высота подписи выводится из перспективы:
-         y = P * y_world / (P + R). Держать её числом значило бы
-         ловить рассинхрон при каждой правке радиуса. */
-      var lab = document.createElement('div');
-      lab.className = 'obp-tl';
-      lab.style.setProperty('--c', rgbOf(stg.c));
-      lab.style.top = 'calc(46% + ' +
-        (PERSP * labY / (PERSP + R)).toFixed(0) + 'px)';
-      lab.innerHTML = '<div class="obp-tl-n">' + stg.n + '</div>' +
-        '<div class="obp-tl-c">' + (list.length + hidden) +
-        (hidden ? '<small>+' + hidden + ' не помещается</small>' : '') +
-        '</div>';
-      tiersHost.appendChild(lab);
-    });
-
-    if (!shown && plan.length) bail('ни у одной монеты группы нет стратегии');
-
-    var stamp = document.getElementById('obPodStamp');
-    if (stamp) stamp.textContent = STARS.length + ' монет под наблюдением';
-
-    /* Стена перестроена — поворот сбрасывается на центр. Иначе после
-       переключения группы зал смотрел бы в пустоту на том же угле,
-       на котором стоял в прежней. */
-    ang = target = 0;
-    apply();
-    paintGroups();
-  }
-
-  function paintGroups() {
-    var host = document.getElementById('obpGroups');
-    if (!host) return;
-    host.innerHTML = '';
-    STAGE.forEach(function (stg) {
-      var n = groupList(stg.key).length;
-      var b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'obp-gb' + (stg.key === GROUP ? ' on' : '');
-      b.setAttribute('data-g', stg.key);
-      b.innerHTML = stg.n + '<b>' + n + '</b>';
-      b.onclick = function () {
-        if (GROUP === stg.key) return;
-        GROUP = stg.key;
-        closeZoom();
-        build();
-      };
-      host.appendChild(b);
-    });
-  }
-
-  /* ── Поворот ─────────────────────────────────────────────────
-     Видна только ДАЛЬНЯЯ половина цилиндра: ближняя проходит
-     сквозь камеру, и панели оттуда лезут в кадр огромными и вверх
-     ногами. Порог 62° — дальше панель уходит за край сама. */
-  var VISIBLE = 62;
-
-  function norm(a) { return ((a + 180) % 360 + 360) % 360 - 180; }
-
-  function apply() {
-    stage.style.transform = 'rotateY(' + (-ang) + 'deg)';
-    for (var i = 0; i < PANS.length; i++) {
-      var p = PANS[i], rel = Math.abs(norm(p.a - ang));
-      if (rel > VISIBLE) { p.el.classList.add('obp-off'); continue; }
-      p.el.classList.remove('obp-off');
-      // Плавное затухание последней трети дуги: панель уходит в
-      // темноту зала, а не исчезает щелчком.
-      p.el.style.opacity = (rel < VISIBLE * 0.62
-        ? 1 : 1 - (rel - VISIBLE * 0.62) / (VISIBLE * 0.38)).toFixed(2);
-    }
-  }
-
-  function loop() {
-    var d = target - ang;
-    if (Math.abs(d) < 0.02) { ang = target; apply(); raf = 0; return; }
-    ang += d * 0.14;
-    apply();
-    raf = requestAnimationFrame(loop);
-  }
-  function kick() { if (!raf) raf = requestAnimationFrame(loop); }
-
-  var down = false, x0 = 0, a0 = 0;
-  pod.addEventListener('mousedown', function (e) {
-    if (zoom.classList.contains('on')) return;
-    down = true; x0 = e.clientX; a0 = ang; target = ang;
-    if (raf) { cancelAnimationFrame(raf); raf = 0; }
-    pod.classList.add('obp-drag');
-  });
-  window.addEventListener('mouseup', function () {
-    down = false; pod.classList.remove('obp-drag');
-  });
-  window.addEventListener('mousemove', function (e) {
-    if (!down) return;
-    // Перетаскивание напрямую, без доводки: рука уже задаёт темп,
-    // и сглаживание поверх неё ощущается как залипание.
-    ang = target = a0 + (e.clientX - x0) * -0.073;
-    apply();
-  });
-
-  /* ── Палец ──
-     Те же три переменные и та же формула, что у мыши: развести
-     раскладки означало бы чинить потом две.
-
-     touchmove гасит прокрутку страницы (passive: false), иначе
-     горизонтальный смах уводит экран вместо сцены. Одним пальцем —
-     вращение; два и больше отдаём системе, это масштабирование.
-
-     Тап по панели остаётся кликом: браузер шлёт click после
-     короткого касания сам, и обработчик карточки срабатывает без
-     нашего участия. Поэтому здесь только вращение. */
-  pod.addEventListener('touchstart', function (e) {
-    if (zoom.classList.contains('on')) return;
-    if (e.touches.length !== 1) return;
-    down = true; x0 = e.touches[0].clientX; a0 = ang; target = ang;
-    if (raf) { cancelAnimationFrame(raf); raf = 0; }
-    pod.classList.add('obp-drag');
-  }, { passive: true });
-
-  pod.addEventListener('touchmove', function (e) {
-    if (!down || e.touches.length !== 1) return;
-    e.preventDefault();
-    ang = target = a0 + (e.touches[0].clientX - x0) * -0.073;
-    apply();
-  }, { passive: false });
-
-  function touchEnd() {
-    if (!down) return;
-    down = false;
-    pod.classList.remove('obp-drag');
-  }
-  window.addEventListener('touchend', touchEnd);
-  window.addEventListener('touchcancel', touchEnd);
-
-  /* Колесо меряется РАССТОЯНИЕМ, а не щелчками: браузер шлёт
-     десятки событий на один смах тачпада, и фиксированный шаг за
-     событие пролетал бы пять-шесть карточек. */
+  /* Колесом раньше крутилась стена. Стены нет: внутри списка зала
+     прокрутка отдаётся браузеру, мимо него — гасится, чтобы страница
+     под экраном не ехала. */
   pod.addEventListener('wheel', function (e) {
     if (zoom.classList.contains('on')) return;
+    if (inRail(e.target)) return;
     e.preventDefault();
-    target += (e.deltaY / 420) * BASE_STEP;
-    kick();
   }, { passive: false });
+
+  /* Событие приходит от самой глубокой ячейки строки, поэтому идём
+     вверх по родителям и ищем список. */
+  function inRail(el) {
+    while (el && el !== pod) {
+      if (el.classList && el.classList.contains('obr-list')) return true;
+      el = el.parentNode;
+    }
+    return false;
+  }
 
   /* Очередь экранов (сводка → лидеры → дашборд) теперь ведёт
      оболочка. Здесь остался только флаг «уже показались»: show()
@@ -2586,6 +2163,10 @@ PODIUM_JS = """
     rows = rows.slice().sort(function (a, b) {
       return (pnlOf(b) - pnlOf(a));
     });
+    /* Карточка листает соседей по ZLIST. Раньше его наполняла только
+       стена, поэтому из списка карточка не открывалась вовсе. Теперь
+       список сам кладёт туда монеты В ТОМ ЖЕ ПОРЯДКЕ, что и строки. */
+    ZLIST = rows.slice();
     out += '<div class="obr-list">';
     for (i = 0; i < rows.length; i++) {
       var s = rows[i], c = caseOf(s), p = pnlOf(s);
@@ -2600,6 +2181,23 @@ PODIUM_JS = """
         '</div>';
     }
     host.innerHTML = out + '</div>';
+    /* Привязку строк зовём ПОСЛЕ отрисовки: раньше она стояла в
+       paintHero, который отрабатывает раньше списка, — узлов ещё не
+       было, и клик по монете не делал ничего. */
+    bindRows(rows);
+  }
+
+  /* Клик по строке — карточка монеты, а не стена: этот экран уже зал. */
+  function bindRows(rows) {
+    var els = document.querySelectorAll('.obr-row'), i;
+    for (i = 0; i < els.length; i++) {
+      (function (el, idx) {
+        el.onclick = function (e) {
+          e.stopPropagation();
+          openZoom(rows[idx], idx);
+        };
+      })(els[i], i);
+    }
   }
 
   /* Ход монеты: от входа, если позиция есть; иначе за две недели. */
@@ -2673,15 +2271,20 @@ PODIUM_JS = """
     var H = PF.hold || {}, T = PF.trade || {};
     host.innerHTML =
       '<div class="obg-hero">' +
-        '<button class="obg-core" type="button" data-gkey="' + g.key + '" ' +
-          'style="--c:' + col.c + ';--rgb:' + col.rgb + '">' +
+        /* Ядро — ПОКАЗАНИЕ, а не кнопка: оно называет выбранную группу.
+           Раньше клик по нему уводил в стену карточек, хотя стена и
+           есть этот экран — переход был в никуда. */
+        '<div class="obg-core">' +
+          '<span class="obg-core-in" style="--c:' + col.c +
+            ';--rgb:' + col.rgb + '">' +
           '<span class="obg-ring">' + ringsFor(col) +
             '<span class="obg-disc"></span>' +
             '<span class="obg-num">' + n + '</span></span>' +
           '<span class="obg-mark"><i></i><span class="obg-cap">' + g.n +
             '</span><i></i></span>' +
           '<span class="obg-sub">из <b>' + STARS.length + '</b> в журнале</span>' +
-        '</button>' +
+          '</span>' +
+        '</div>' +
         '<div class="obg-side">' + sats + '</div>' +
       '</div>' +
       '<div class="obg-hint">' +
@@ -2699,34 +2302,30 @@ PODIUM_JS = """
       '</div>';
     var gh = document.getElementById('obgGhost');
     if (gh) gh.innerHTML = n;
-    bindGate();
+    bindGroups();
   }
 
-  /* Привязку зовём после КАЖДОЙ перерисовки: узлы новые. */
-  function bindGate() {
+  /* Привязку зовём после КАЖДОЙ перерисовки: узлы новые.
+     Здесь только спутники — переключение группы. Строки списка
+     привязывает bindRows, и обязательно после его отрисовки. */
+  function bindGroups() {
     var btns = document.querySelectorAll('[data-gkey]'), i;
     for (i = 0; i < btns.length; i++) {
       (function (b) {
         b.onclick = function (e) {
           e.stopPropagation();
           var k = b.getAttribute('data-gkey');
-          if (k === GATE_KEY) { enterHall(k); return; }
+          if (k === GATE_KEY) return;
           GATE_KEY = k;
           paintHero();
           paintRail();
         };
       })(btns[i]);
     }
-    var rows = document.querySelectorAll('.obr-row'), j;
-    for (j = 0; j < rows.length; j++) {
-      (function (r) {
-        r.onclick = function () { enterHall(GATE_KEY); };
-      })(rows[j]);
-    }
   }
 
   function openGate() {
-    if (!GATE) { build(); return; }
+    if (!GATE) { bail('ворота не найдены'); return; }
     var inner = document.getElementById('obgInner');
     if (inner) {
       /* Волна строится ОДИН раз: перестраивать её на каждом переходе
@@ -2742,27 +2341,13 @@ PODIUM_JS = """
     GATE.classList.add('on');
   }
 
-  function enterHall(key) {
-    if (GATE) GATE.classList.remove('on');
-    pod.classList.remove('obp-gated');
-    GROUP = key;
-    closeZoom();
-    build();
-    apply();
-  }
-
-  /* Возврат к воротам без перезагрузки. Стена снимается целиком —
-     панели, их список для зума и прежнее сообщение о пустой группе:
-     если оставить хоть что-то, оно проступит при следующем входе. */
+  /* «Заново» — переиграть вход: сцена собирается с нуля, волна
+     рисуется заново. Раньше здесь снималась стена; стены больше нет,
+     поэтому осталось только закрыть карточку и пересобрать ворота. */
   function backToGate() {
     closeZoom();
-    var tiersHost = document.getElementById('obpTiers');
-    if (tiersHost) tiersHost.innerHTML = '';
-    stage.innerHTML = '';
-    PANS = []; ZLIST = [];
+    ZLIST = [];
     bail('');
-    ang = target = 0;
-    apply();
     openGate();
   }
 
@@ -2780,11 +2365,9 @@ PODIUM_JS = """
   function show() {
     if (opened) return;
     opened = true;
-    /* Небо рисуем сразу: ворота стоят поверх зала, и за ними должен
-       быть зал, а не пустота. Стена ждёт выбора. */
+    /* Небо и шапка — фон под воротами; сам зал живёт в воротах. */
     sky();
     portLine();
-    paintGroups();
     openGate();
     pod.classList.add('on');
   }
@@ -2844,8 +2427,8 @@ PODIUM_JS = """
       if (e.key === 'Escape') closeZoom();
       return;
     }
-    if (e.key === 'ArrowRight') { target += BASE_STEP; kick(); return; }
-    if (e.key === 'ArrowLeft')  { target -= BASE_STEP; kick(); return; }
+    /* Стрелки крутили стену. Стены нет — список листается колесом,
+       а любая другая клавиша по-прежнему уводит с экрана. */
     hide();
   });
 
