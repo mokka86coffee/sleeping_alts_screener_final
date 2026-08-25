@@ -26,9 +26,16 @@
  },
  "APRUSDT": {
   "ticker": "APR",
-  "revenue30d": 751.97,
-  "revenue7d": 204.19,
+  "revenue30d": 771.6,
+  "revenue7d": 225.99,
   "protocols": "aPriori",
+  "ambiguous": false
+ },
+ "ATHUSDT": {
+  "ticker": "ATH",
+  "revenue30d": 564955.26,
+  "revenue7d": 44844.0,
+  "protocols": "Aethir",
   "ambiguous": false
  },
  "AVAAIUSDT": {
@@ -38,8 +45,8 @@
  },
  "BERAUSDT": {
   "ticker": "BERA",
-  "revenue30d": 1992.0,
-  "revenue7d": 814.0,
+  "revenue30d": 2131.0,
+  "revenue7d": 736.0,
   "protocols": "Berachain, Berachain Incentive Buys",
   "ambiguous": true
  },
@@ -70,22 +77,22 @@
  },
  "BULLAUSDT": {
   "ticker": "BULLA",
-  "revenue30d": 92.42,
+  "revenue30d": 73.17,
   "revenue7d": 0.0,
   "protocols": "Bulla Exchange",
   "ambiguous": false
  },
  "CETUSUSDT": {
   "ticker": "CETUS",
-  "revenue30d": 49331.0,
-  "revenue7d": 18329.0,
+  "revenue30d": 68659.0,
+  "revenue7d": 39043.0,
   "protocols": "Cetus CLMM, Cetus DLMM",
   "ambiguous": true
  },
  "CLOUSDT": {
   "ticker": "CLO",
-  "revenue30d": 339.0,
-  "revenue7d": 49.0,
+  "revenue30d": 257.0,
+  "revenue7d": 0.0,
   "protocols": "YeiLend",
   "ambiguous": false
  },
@@ -99,6 +106,13 @@
   "revenue30d": null,
   "note": "протокол без строки выручки"
  },
+ "CVXUSDT": {
+  "ticker": "CVX",
+  "revenue30d": 855655.0,
+  "revenue7d": 357903.0,
+  "protocols": "Convex Finance",
+  "ambiguous": false
+ },
  "EDENUSDT": {
   "ticker": "EDEN",
   "revenue30d": null,
@@ -111,8 +125,8 @@
  },
  "ETHFIUSDT": {
   "ticker": "ETHFI",
-  "revenue30d": 3014494.0,
-  "revenue7d": 728374.0,
+  "revenue30d": 3051604.0,
+  "revenue7d": 760960.0,
   "protocols": "ether.fi Stake, ether.fi Liquid, EtherFi Borrowing Market, EtherFi Cash Liquid",
   "ambiguous": true
  },
@@ -123,8 +137,8 @@
  },
  "GPSUSDT": {
   "ticker": "GPS",
-  "revenue30d": 6373.43,
-  "revenue7d": 913.75,
+  "revenue30d": 6858.67,
+  "revenue7d": 1261.02,
   "protocols": "GoPlus Locker V2, GoPlus Security App",
   "ambiguous": true
  },
@@ -145,8 +159,8 @@
  },
  "HYPEUSDT": {
   "ticker": "HYPE",
-  "revenue30d": 38432166.0,
-  "revenue7d": 15256343.0,
+  "revenue30d": 43855660.0,
+  "revenue7d": 21511400.0,
   "protocols": "Hyperliquid HLP, Hyperliquid Spot Orderbook, Hyperliquid Perps",
   "ambiguous": true
  },
@@ -160,6 +174,11 @@
   "revenue30d": null,
   "note": "нет в базе протоколов"
  },
+ "MELANIAUSDT": {
+  "ticker": "MELANIA",
+  "revenue30d": null,
+  "note": "протокол без строки выручки"
+ },
  "MEUSDT": {
   "ticker": "ME",
   "revenue30d": null,
@@ -167,17 +186,24 @@
  },
  "MMTUSDT": {
   "ticker": "MMT",
-  "revenue30d": 6329.0,
-  "revenue7d": 1378.0,
+  "revenue30d": 7750.0,
+  "revenue7d": 2863.0,
   "protocols": "Momentum",
   "ambiguous": false
  },
  "MONUSDT": {
   "ticker": "MON",
-  "revenue30d": 197759.0,
-  "revenue7d": 56148.0,
+  "revenue30d": 222069.0,
+  "revenue7d": 85396.0,
   "protocols": "Monad",
   "ambiguous": false
+ },
+ "MOVEUSDT": {
+  "ticker": "MOVE",
+  "revenue30d": 8.83,
+  "revenue7d": 5.63,
+  "protocols": "BlueMove Staking, Movement",
+  "ambiguous": true
  },
  "MUBARAKUSDT": {
   "ticker": "MUBARAK",
@@ -209,6 +235,11 @@
   "revenue30d": null,
   "note": "нет в базе протоколов"
  },
+ "RAYSOLUSDT": {
+  "ticker": "RAYSOL",
+  "revenue30d": null,
+  "note": "нет в базе протоколов"
+ },
  "SAGAUSDT": {
   "ticker": "SAGA",
   "revenue30d": null,
@@ -219,22 +250,49 @@
   "revenue30d": null,
   "note": "нет в базе протоколов"
  },
+ "SHELLUSDT": {
+  "ticker": "SHELL",
+  "revenue30d": null,
+  "note": "протокол без строки выручки"
+ },
  "SKYAIUSDT": {
   "ticker": "SKYAI",
   "revenue30d": null,
   "note": "нет в базе протоколов"
+ },
+ "SPKUSDT": {
+  "ticker": "SPK",
+  "revenue30d": -280000.0,
+  "revenue7d": -118500.0,
+  "protocols": "SparkLend, Spark Liquidity Layer",
+  "ambiguous": true
  },
  "SQDUSDT": {
   "ticker": "SQD",
   "revenue30d": null,
   "note": "протокол без строки выручки"
  },
+ "STORJUSDT": {
+  "ticker": "STORJ",
+  "revenue30d": null,
+  "note": "нет в базе протоколов"
+ },
+ "STXUSDT": {
+  "ticker": "STX",
+  "revenue30d": null,
+  "note": "протокол без строки выручки"
+ },
  "TREEUSDT": {
   "ticker": "TREE",
-  "revenue30d": 58441.7,
-  "revenue7d": 16242.74,
+  "revenue30d": 58649.65,
+  "revenue7d": 15700.31,
   "protocols": "Treehouse Protocol, Tree News",
   "ambiguous": true
+ },
+ "TRUMPUSDT": {
+  "ticker": "TRUMP",
+  "revenue30d": null,
+  "note": "протокол без строки выручки"
  },
  "TSTUSDT": {
   "ticker": "TST",
@@ -247,5 +305,12 @@
   "ticker": "WLD",
   "revenue30d": null,
   "note": "протокол без строки выручки"
+ },
+ "ZROUSDT": {
+  "ticker": "ZRO",
+  "revenue30d": 131592.0,
+  "revenue7d": 0.0,
+  "protocols": "LayerZero V2, LayerZero V1",
+  "ambiguous": true
  }
 }

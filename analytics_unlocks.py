@@ -51,6 +51,7 @@ import datetime as _dt
 import json
 from datetime import date, datetime, timezone
 from pathlib import Path
+from core_http import log
 
 # Файл лежит рядом с модулем: правится руками, ходит вместе с кодом.
 UNLOCKS_PATH = Path(__file__).resolve().parent / "unlocks.json"
@@ -237,7 +238,30 @@ def for_symbol(symbol: str, quote_volume_24h: float = 0.0,
             out["next_pct_float"] = round(
                 float(out["next_pct_supply"]) / circ * 100.0, 1)
 
+    # Ручной файл, и формат в нём портится руками. Дефект 25.08.2026:
+    # в четыре записи вместо списка долей положили СТРОКУ с описанием
+    # получателей — и разбор монеты падал целиком, унося с собой все
+    # остальные её показания. Одна кривая запись в ручном файле не
+    # должна ронять монету: пропускаем то, что не разбирается, и
+    # считаем по остатку.
+    #
+    # Молча пропускать нельзя — иначе испорченный формат живёт годами:
+    # ошибка есть, а следа нет. Поэтому предупреждение в лог.
     rounds = ev.get("rounds") or []
+    if isinstance(rounds, str):
+        log(f"⚠ unlocks: у {symbol} поле rounds — строка, а не список "
+            f"долей; получатели прочитаны не будут. Строка: {rounds[:60]}")
+        rounds = []
+    elif not isinstance(rounds, list):
+        log(f"⚠ unlocks: у {symbol} поле rounds неожиданного типа "
+            f"{type(rounds).__name__}")
+        rounds = []
+    else:
+        skipped = [r for r in rounds if not isinstance(r, dict)]
+        if skipped:
+            log(f"⚠ unlocks: у {symbol} {len(skipped)} доль(и) не словари "
+                f"— пропущены")
+        rounds = [r for r in rounds if isinstance(r, dict)]
     if rounds:
         ins = [r for r in rounds if r.get("insider")]
         out["next_insider"] = bool(ins)
