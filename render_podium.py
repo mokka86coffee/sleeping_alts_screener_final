@@ -3150,6 +3150,10 @@ PODIUM_JS = """
     var n = [];
     function num(lab, val, kind) { if (val !== null) n.push([lab, val, kind || '']); }
     num('цена', s.px === undefined ? null : px4(s.px));
+    /* Капитализация приходит уже подписанной строкой, вроде «$78M».
+       Прочерк в данных означает «не знаем» — такую не показываем вовсе:
+       пустое место честнее, чем строка с прочерком. */
+    num('капитализация', (s.cap && s.cap !== '—') ? s.cap : null);
     num('ход за сутки', s.p1d === undefined || s.p1d === null ? null : pct(s.p1d),
         (+s.p1d >= 0 ? 'up' : 'dn'));
     num('от дна', s.up === undefined || s.up === null ? null : '+' + Math.round(s.up) + '%', 'up');
@@ -3161,7 +3165,9 @@ PODIUM_JS = """
         (+s.fund < 0 ? 'up' : ''));
     if (n.length) {
       h += '<div class="obc-nums">';
-      for (i = 0; i < n.length && i < 7; i++) {
+      /* Потолок восемь, а не семь: иначе новое число вытеснило бы
+         фандинг, стоящий последним. */
+      for (i = 0; i < n.length && i < 8; i++) {
         h += '<div class="obc-num obc-anim ' + n[i][2] + '" style="--nd:' +
           (nd++) + '"><b>' + n[i][0] + '</b><i>' + n[i][1] + '</i></div>';
       }
