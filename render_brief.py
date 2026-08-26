@@ -1,43 +1,25 @@
-"""Сводка при входе · САМОСТОЯТЕЛЬНЫЙ ДОКУМЕНТ.
+"""Сводка утра — ЛИСТАЛКА.
 
-Был экраном поверх дашборда, в одном с ним документе. Стал отдельным
-файлом brief.html, который оболочка грузит в iframe первым.
+ЧТО ИЗМЕНИЛОСЬ ПРОТИВ ПРЕЖНЕЙ СВОДКИ. Раньше это была одна сцена на
+canvas: текст печатался посимвольно поверх дюны, сегмент за сегментом,
+и прочитанное уходило безвозвратно. Претензии к ней были такие:
+  · всё шло сплошняком, разделов не видно;
+  · «и ещё 8» прятало события, среди которых был самый тяжёлый транш;
+  · не успел прочитать — назад не вернуться;
+  · подробности открывались наведением, а на планшете наведения нет.
 
-Что из этого следует, по пунктам.
+Теперь — страницы. Одна мысль на страницу, листаются сами, стрелками
+можно вернуться, курсор на листе останавливает ход. Все подробности
+видны сразу, без наведения.
 
-Данные приходят АРГУМЕНТОМ и вшиваются в документ при сборке. Раньше
-скрипт читал window.ORB — глобальную переменную, которую выставляла
-орбита рядом. В своём документе никакого «рядом» нет: у каждого iframe
-своё окно, и window.ORB там пуст. Собирает эти данные render_page,
-один раз на все экраны.
+ЧТО ОСТАЛОСЬ ПРЕЖНИМ. Контракт с оболочкой: документ живёт в кадре,
+ждёт сообщения «показан», по окончании шлёт «доиграл» и гаснет.
+Страховочный таймер на случай, если очередь встанет.
 
-Список монет здесь по-прежнему не считается свой — он бы разошёлся с
-карточками при первой правке порогов фаз. Но теперь это не «беру у
-соседа», а «получаю то же, что и он»: build_stars() из analytics_stars
-вызывается один раз, и результат уходит в оба экрана.
-
-Выход — сообщение оболочке, а не снятие класса. Сводка не знает, что
-идёт следом: она сообщает «я закончила», и очередь экранов решает
-оболочка (SEQUENCE в render_shell.py).
-
-Модуль не зависит от орбиты визуально: на мобильных орбита снимается,
-а сводка остаётся, потому что это текст и он ничего не стоит.
-
-ПЕРЕДЕЛАНО целиком (дизайн одобрен в HTML-прототипе, см. переписку):
-раньше строки печатались по символу через setTimeout, блоки лидера/
-объёма рисовали насыщенные SVG-карточки (график + стоп/цель/дни/
-фандинг + кольцо скора). По решению пользователя детальная статистика
-блоков убрана — «графика будет достаточно»: осталась одна строка
-текста плюс компактный график на настоящих данных (LC.series /
-VC.ratios), без стопа/цели/дней/фандинга.
-
-Новая сцена — атмосферный фон (кольцо из пыли + дюна с рельефными
-пиками + ветер, сдувающий частицы с края кольца) и посимвольный
-каскад букв вместо печати. Все параметры (масштаб кольца, плотность
-дюны, скорость каскада и т.д.) — результат прямого тестирования в
-браузере (Playwright + скриншоты на каждом шаге), а не догадка;
-числа сохранены как были откалиброваны.
+ДАННЫЕ. Те же, что у зала: stars и market. Страницы собираются ИЗ НИХ,
+а не вшиты в разметку: изменился прогон — изменились страницы.
 """
+
 from __future__ import annotations
 
 import json
@@ -47,11 +29,10 @@ def render_brief(stars: list[dict], market: dict) -> str:
     """Тело документа сводки. Данные вшиваются, а не читаются из окна."""
     blob = json.dumps({"stars": stars, "market": market},
                       ensure_ascii=False, separators=(",", ":"))
-    # Данные идут в <script type="application/json">, а не в
-    # присваивание переменной: внутри JSON-блока браузер не разбирает
-    # разметку, и последовательность вроде </script> в тексте поля не
-    # закроет скрипт раньше времени. Экранируется только сам этот
-    # случай — остальное JSON.parse читает как есть.
+    # Данные идут в <script type="application/json">, а не в присваивание
+    # переменной: внутри JSON-блока браузер не разбирает разметку, и
+    # последовательность вроде </script> в тексте поля не закроет скрипт
+    # раньше времени. Экранируется только сам этот случай.
     safe = blob.replace("</", "<\\/")
     return (BRIEF_HTML
             + f'<script id="obfData" type="application/json">{safe}</script>'
@@ -59,101 +40,323 @@ def render_brief(stars: list[dict], market: dict) -> str:
 
 
 BRIEF_HTML = """
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;800&family=Playfair+Display:wght@400;500&display=swap" rel="stylesheet">
 <style>
-/* Стили нижней части сводки (footer/прогресс-бар автозакрытия) живут
-   в модуле, а не в css.py, по той же причине, что у podium.py: общий
-   файл стилей уже ловил дубли блоков при патчах. Остальное оформление
-   сцены (кольцо/дюна/текст) — тоже здесь, ниже, вторым style-блоком,
-   рядом со сценой, которую оно красит. */
-.obf-ran{position:fixed;top:16px;left:50%;transform:translateX(-50%);
-  font:500 11px/1 'JetBrains Mono',monospace;letter-spacing:.14em;
-  color:rgba(214,222,240,.38);text-transform:uppercase;z-index:4;
-  pointer-events:none}
-.obf-foot,.obf-bar{opacity:0;transition:opacity .6s ease}
-.obf-foot.on,.obf-bar.on{opacity:1}
-</style>
-<style>
-  /* Сцена целиком — canvas на весь экран сводки плюс слой текста
-     поверх него. .ob-brief уже position:fixed;inset:0 (css.py) —
-     сцена просто заполняет собой этот контейнер. */
-  #obfCanvas{position:absolute;inset:0;display:block;width:100%;height:100%;}
-  #obfText{
-    position:absolute; left:50%; text-align:center;
-    transform:translate(-50%,-50%);
-    font-family:'Segoe UI', Helvetica, Arial, sans-serif;
-    font-style:normal; font-weight:300; color:#F1ECE0;
-    text-transform:uppercase;
-    letter-spacing:.22em; line-height:1.6;
-    text-shadow:0 0 22px rgba(0,0,0,.65);
-    max-width:82vw; pointer-events:none;
-  }
-  #obfText .ch{
-    display:inline-block; white-space:pre;
-    opacity:0; filter:blur(6px);
-    transform:translateY(10px) scale(1.12);
-    transition:opacity .5s ease, filter .5s ease,
-               transform .55s cubic-bezier(.2,.8,.25,1);
-  }
-  #obfText .ch.on{opacity:1; filter:blur(0); transform:translateY(0) scale(1);}
-  /* Раскраска по смыслу — та же палитра, что раньше была у .obf-p
-     (см. css.py): числа моноширинным серым, рост/падение зелёным/
-     оранжевым, тикеры светлым акцентом, капитализация мельче и тише. */
-  #obfText .t{color:var(--t1);}
-  #obfText .n{font-family:var(--mono);color:#c8ccd4;}
-  #obfText .up{color:#48A97C;}
-  #obfText .dn{color:#FF6B35;}
-  #obfText .gd{color:var(--gd);}
-  #obfText .mut{color:#5b606a;}
-  #obfText .warn{color:var(--dn);}
-  #obfText .dorm{color:#8FA8FF;}
-  #obfText .obf-cap{font-family:var(--mono);font-size:.72em;color:#5f6169;}
-  #obfText .obf-sep{color:#5d5c66;}
+/* ШРИФТЫ. Montserrat в двух КРАЙНИХ весах — 200 и 800. Между ними
+   ничего: контраст тонкого и жирного и есть приём, на нём держится вся
+   раскладка. Playfair — антиква для подписей вразрядку.
+   Запасные стеки подобраны по РИСУНКУ, а не по имени: Futura и Century
+   Gothic — те же геометрические гротески, Didot и Bodoni — та же
+   антиква с тонкими засечками. Если сеть закрыта, лист не рассыплется. */
+.ob-brief{
+  --pg:#8d939c; --bg1:#f2f3f5; --bg2:#c6ccd3;
+  --ink:#464c57; --ink2:#6c737f; --mut:#9aa1ab;
+  --acc:#e8873f; --up:#4f8a63; --dn:#b5573f;
+  --dark:#22262e;
+  --sans:'Montserrat',Futura,'Century Gothic','Avenir Next','Trebuchet MS',sans-serif;
+  --serif:'Playfair Display',Didot,'Bodoni MT',Georgia,serif;
 
-  /* ═══ Фигура дня ═══
-     Отработавший сегмент не исчезает: он сжимается до «ярлык + число»
-     и садится по сторонам кольца. К концу сводки на экране стоит
-     карта дня целиком, а не последняя фраза. Сжатие обязательно —
-     десяток абзацев прозы превратился бы в стену. */
-  #obfBeams{position:absolute;inset:0;width:100%;height:100%;
-    pointer-events:none;}
-  #obfBeams line{stroke:#2A2F38;stroke-width:1;opacity:0;
-    transition:opacity 1.4s ease;}
-  #obfBeams line.on{opacity:.8;}
-  #obfBeams line.fresh{stroke:#4A505C;}
-  #obfFig{position:absolute;inset:0;pointer-events:none;}
-  #obfFig .row{position:absolute;left:0;top:0;display:flex;
-    align-items:baseline;gap:.7em;white-space:nowrap;
-    transform-origin:right center;justify-content:flex-end;opacity:0;
-    transition:opacity 1.4s ease,
-               transform 1.4s cubic-bezier(.22,.61,.36,1);}
-  #obfFig .row.on{opacity:1;}
-  #obfFig .row.mirror{flex-direction:row-reverse;justify-content:flex-start;}
-  #obfFig .row .k{font-size:9px;letter-spacing:.2em;text-transform:uppercase;
-    color:#4E525C;text-align:right;}
-  #obfFig .row .v{font-family:var(--mono,ui-monospace,monospace);
-    font-size:13px;color:#D8DCE4;}
-  #obfFig .row .tick{width:18px;height:1px;background:#4E525C;opacity:.55;}
-  #obfFig .row .g{flex:0 0 auto;transform:translateY(3px);opacity:.95;}
-  /* Иерархия по времени: свежая строка в полном тоне, прежние тише. */
-  #obfFig .row.old .v{color:#8A8F99;}
-  #obfFig .row.old .k{color:#3A3D45;}
-  #obfFig .row.old .g{opacity:.5;}
-  @media (prefers-reduced-motion:reduce){
-    #obfFig .row{transition:none;}
-    #obfBeams line{transition:none;}
-  }
-  @media (prefers-reduced-motion:reduce){
-    #obfText .ch{transition:none; opacity:1; filter:none; transform:none;}
-  }
+  /* ЧЕТЫРЕ РЫЧАГА СКОРОСТИ, и они связаны: время стояния страницы
+     обязано быть БОЛЬШЕ, чем разбег плюс появление последней строки,
+     иначе лист уедет, не дорисовавшись. Биржа не про спешку. */
+  --step:1.02s;     /* разбег строк внутри страницы */
+  --dur:4.5s;       /* появление одной строки */
+  --wipe:3.15s;     /* переход между страницами */
+  --dwell:26s;      /* сколько страница стоит сама */
+
+  background:var(--pg);
+  font-family:var(--sans);font-weight:300;color:var(--ink);
+  padding:26px;display:block}
+
+.obf-frame{border:14px solid #fff;
+  background:linear-gradient(160deg,var(--bg1),var(--bg2));
+  max-width:1240px;height:calc(100vh - 52px);min-height:600px;margin:0 auto;
+  display:grid;grid-template-columns:1fr 322px;overflow:hidden;position:relative}
+
+/* ── левый лист: колода страниц ── */
+.obf-sheet{position:relative;overflow:hidden}
+.obf-page{position:absolute;inset:0;padding:30px 46px 88px;
+  display:flex;flex-direction:column;visibility:hidden;
+  background:linear-gradient(160deg,var(--bg1),var(--bg2))}
+.obf-page.on{visibility:visible;z-index:1}
+
+/* ПЕРЕХОД — ДИАГОНАЛЬНЫЙ СРЕЗ. Кадры сходятся косыми гранями: новая
+   страница входит клином, а не выцветает. Вперёд клин идёт справа,
+   назад — слева, чтобы направление читалось само. */
+@keyframes obfInFwd{
+  from{clip-path:polygon(125% 0,125% 0,125% 100%,125% 100%)}
+  to  {clip-path:polygon(-30% 0,125% 0,125% 100%,0 100%)}
+}
+@keyframes obfInBack{
+  from{clip-path:polygon(-30% 0,-30% 0,-30% 100%,-30% 100%)}
+  to  {clip-path:polygon(-30% 0,125% 0,125% 100%,0 100%)}
+}
+.obf-page.on.fwd {animation:obfInFwd  var(--wipe) cubic-bezier(.22,.61,.36,1)}
+.obf-page.on.back{animation:obfInBack var(--wipe) cubic-bezier(.22,.61,.36,1)}
+
+/* УХОД. Уходящий лист лежит ПОВЕРХ входящего и остаётся ПЛОТНЫМ до
+   конца: он не растворяется, а съезжает косой гранью и открывает
+   следующий. Затухания здесь нет намеренно — с ним текст обеих
+   страниц накладывался и читался кашей. */
+@keyframes obfOutFwd{
+  from{clip-path:polygon(-30% 0,125% 0,125% 100%,0 100%)}
+  to  {clip-path:polygon(-30% 0,-30% 0,-30% 100%,-55% 100%)}
+}
+@keyframes obfOutBack{
+  from{clip-path:polygon(-30% 0,125% 0,125% 100%,0 100%)}
+  to  {clip-path:polygon(125% 0,125% 0,150% 100%,125% 100%)}
+}
+.obf-page.out{visibility:visible;z-index:2}
+.obf-page.out.fwd {animation:obfOutFwd  calc(var(--wipe) * 1.15) cubic-bezier(.4,0,.5,1) forwards}
+.obf-page.out.back{animation:obfOutBack calc(var(--wipe) * 1.15) cubic-bezier(.4,0,.5,1) forwards}
+
+/* ── появление строк ── */
+@keyframes obfWedge{
+  from{opacity:0;clip-path:polygon(0 0,0 0,0 100%,0 100%);transform:translateX(-14px)}
+  to  {opacity:1;clip-path:polygon(0 0,130% 0,130% 100%,0 100%);transform:none}
+}
+.obf-st{opacity:0}
+.obf-page.on .obf-st{animation:obfWedge var(--dur) cubic-bezier(.22,.61,.36,1) forwards;
+  animation-delay:calc(var(--i) * var(--step) + .35s)}
+
+/* УХОДЯЩАЯ СТРАНИЦА УДЕРЖИВАЕТ КОНЕЧНОЕ СОСТОЯНИЕ.
+   Появление привязано к «.on». Стоило снять этот класс — правило
+   переставало действовать, и строки МГНОВЕННО возвращались в
+   невидимость: уезжал пустой лист, а глаз читал щелчок. Здесь строки
+   остаются на месте, линия дорисована, полоса на всю длину. */
+.obf-page.out .obf-st{opacity:1;animation:none;transform:none;
+  clip-path:polygon(0 0,130% 0,130% 100%,0 100%)}
+.obf-page.out .obf-big .obf-bar{width:80%;animation:none}
+.obf-page.out .obf-chart .ln{stroke-dashoffset:0;animation:none}
+.obf-page.out .obf-chart .dot{opacity:1;animation:none}
+
+.obf-top{display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid rgba(70,76,87,.16);padding-bottom:14px;flex:0 0 auto}
+.obf-logo{display:flex;align-items:center;gap:12px;font-weight:800;
+  font-size:12.5px;letter-spacing:.3em}
+.obf-logo .o{width:22px;height:22px;border-radius:50%;background:#fff;
+  display:grid;place-items:center;color:var(--acc);font-size:14px;
+  font-weight:300;line-height:1}
+.obf-stamp{font-family:var(--serif);font-size:10.5px;letter-spacing:.3em;
+  text-transform:uppercase;color:var(--mut)}
+
+.obf-serif{font-family:var(--serif);font-weight:400;letter-spacing:.44em;
+  text-transform:uppercase;color:var(--ink2)}
+.obf-mid{flex:1 1 auto;display:flex;flex-direction:column;
+  justify-content:center;min-height:0}
+.obf-kick{font-size:13px;margin-bottom:18px}
+
+.obf-big{position:relative;display:inline-block;font-weight:800;
+  font-size:104px;line-height:.94;letter-spacing:-.015em;align-self:flex-start}
+.obf-big .g{position:relative;z-index:2;color:var(--ink)}
+.obf-big .obf-bar{position:absolute;left:-16px;top:34px;height:22px;
+  background:var(--acc);z-index:1;width:0}
+.obf-page.on .obf-big .obf-bar{animation:obfGrow 3.9s cubic-bezier(.22,.61,.36,1) forwards;
+  animation-delay:4.05s}
+@keyframes obfGrow{to{width:80%}}
+.obf-sub{margin-top:22px;font-size:14px;line-height:1.75;max-width:600px;
+  color:var(--ink2)}
+.obf-sub b{color:var(--ink);font-weight:800}
+
+/* ── ГРАФИК: ЦЕНА, а не объём ──
+   Объём после сквиза на 90% бывает огромным и не значит НИЧЕГО, если
+   цена не пошла. Поэтому главная линия — цена, объём стоит бледным
+   фоном. Вместе они прямо показывают усилие против результата: высокие
+   столбики под плоской линией — это «льют, а цена стоит». */
+.obf-chart{margin:22px 0 22px;max-width:520px}
+.obf-chart svg{display:block;width:100%;height:104px;overflow:visible}
+.obf-chart .ln{fill:none;stroke:var(--acc);stroke-width:2;
+  stroke-linejoin:round;stroke-linecap:round;
+  stroke-dasharray:1400;stroke-dashoffset:1400}
+.obf-page.on .obf-chart .ln{animation:obfDraw 5.7s cubic-bezier(.3,.7,.4,1) forwards;
+  animation-delay:2.55s}
+@keyframes obfDraw{to{stroke-dashoffset:0}}
+.obf-chart .dot{fill:var(--acc);opacity:0}
+.obf-page.on .obf-chart .dot{animation:obfPop 1.5s ease forwards;animation-delay:7.8s}
+@keyframes obfPop{to{opacity:1}}
+.obf-chart .bars rect{fill:var(--ink);opacity:.10}
+.obf-chart .cap{font-family:var(--serif);font-size:9px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--mut);margin-top:11px;line-height:1.8}
+
+.obf-nums{display:flex;gap:40px;flex-wrap:wrap}
+.obf-num{cursor:default}
+.obf-num .v{font-weight:200;font-size:34px;line-height:1;color:var(--ink)}
+.obf-num .v.acc{color:var(--acc)}
+.obf-num .v.up{color:var(--up)} .obf-num .v.dn{color:var(--dn)}
+.obf-num .c{font-family:var(--serif);font-size:9px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--mut);margin-top:8px}
+/* Подробность видна СРАЗУ: на планшете и телефоне наведения нет, и
+   спрятанное там становится недоступным. Обычная приписка — спокойным
+   серым, оговорка о качестве данных — акцентом. */
+.obf-num .d{font-size:10.5px;color:var(--ink2);line-height:1.5;margin-top:7px;
+  max-width:230px}
+.obf-num .d.warn{color:var(--acc)}
+
+.obf-pos{display:grid;grid-template-columns:repeat(2,1fr);gap:12px 34px}
+.obf-p .r{display:flex;align-items:baseline;gap:10px}
+.obf-p .t{font-weight:800;font-size:13px;letter-spacing:.06em;color:var(--ink)}
+.obf-p .n{font-weight:200;font-size:19px}
+.obf-p .n.up{color:var(--up)} .obf-p .n.dn{color:var(--dn)}
+.obf-p .n.acc{color:var(--acc)}
+/* Метка лидера прогона — рамкой, а не цветом тикера: цвет тикера уже
+   занят под направление хода, и второй смысл на том же месте читался
+   бы как оценка монеты. */
+.obf-now{font-style:normal;margin-left:9px;padding:1px 7px;border-radius:3px;
+  font-family:var(--serif);font-size:7.5px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--acc);
+  border:1px solid rgba(232,135,63,.5);background:rgba(232,135,63,.08)}
+.obf-p .d{font-size:10.5px;color:var(--ink2);line-height:1.5;margin-top:4px;
+  max-width:290px}
+
+.obf-plain{font-size:15px;line-height:1.8;color:var(--ink2);max-width:620px}
+.obf-plain b{color:var(--ink);font-weight:800}
+.obf-empty{font-weight:200;font-size:52px;color:var(--mut)}
+.obf-tick{display:inline-block;font-weight:800;font-size:14px;
+  letter-spacing:.1em;color:var(--ink2);margin:0 20px 8px 0}
+
+/* ── управление ── */
+.obf-nav{position:absolute;left:46px;bottom:22px;width:calc(100% - 414px);
+  display:flex;align-items:center;gap:16px;z-index:9}
+.obf-arrow{width:31px;height:31px;border-radius:50%;background:var(--acc);
+  color:#fff;display:grid;place-items:center;font-size:14px;font-weight:300;
+  cursor:pointer;user-select:none;flex:0 0 auto;
+  transition:opacity .25s,transform .25s}
+.obf-arrow:hover{transform:scale(1.09)}
+.obf-arrow.off{opacity:.24;cursor:default;transform:none}
+.obf-count{font-family:var(--serif);font-size:11px;letter-spacing:.3em;
+  color:var(--mut)}
+.obf-ticks{display:flex;gap:5px;flex:1 1 auto}
+.obf-tk{height:2px;flex:1;background:rgba(70,76,87,.18);cursor:pointer;
+  position:relative}
+.obf-tk i{position:absolute;inset:0;width:0;background:var(--acc);display:block}
+.obf-tk.done i{width:100%}
+.obf-tk.now i{animation:obfFill var(--dwell) linear forwards}
+@keyframes obfFill{to{width:100%}}
+.obf-paused .obf-tk.now i{animation-play-state:paused}
+.obf-hint{font-family:var(--serif);font-size:9.5px;letter-spacing:.24em;
+  text-transform:uppercase;color:var(--mut);opacity:0;transition:opacity .3s}
+.obf-paused .obf-hint{opacity:1}
+
+/* ── тёмная колонка: то, что надвигается ── */
+.obf-rail{background:var(--dark);color:#dfe3ea;position:relative;overflow:hidden}
+/* Решётка живёт СВОИМ слоем поверх колонки, а не внутри списка: иначе
+   она едет вместе с прокруткой. Почти невидима — фактура, не рисунок. */
+.obf-mesh{position:absolute;inset:0;opacity:.055;pointer-events:none;z-index:0}
+.obf-list{position:absolute;inset:0;padding:28px 20px 22px 24px;z-index:1;
+  overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;
+  scrollbar-color:rgba(255,255,255,.18) transparent}
+.obf-list::-webkit-scrollbar{width:4px}
+.obf-list::-webkit-scrollbar-thumb{background:rgba(255,255,255,.18);border-radius:2px}
+.obf-list::-webkit-scrollbar-track{background:transparent}
+.obf-h{font-family:var(--serif);letter-spacing:.4em;text-transform:uppercase;
+  font-size:10px;color:#8d94a2;margin-bottom:18px}
+.obf-ev{padding:10px 0;border-bottom:1px solid rgba(255,255,255,.07)}
+.obf-ev .w{font-family:var(--serif);font-size:8.5px;letter-spacing:.24em;
+  text-transform:uppercase;color:#767e8d;margin-bottom:4px}
+.obf-ev .w.now{color:var(--acc)}
+.obf-ev .t{font-size:11.3px;line-height:1.42;color:#cfd5df}
+.obf-ev .t b{color:#fff;font-weight:800}
+.obf-ev .k{font-family:var(--serif);font-size:8px;letter-spacing:.2em;
+  text-transform:uppercase;color:#6d7484;margin-left:6px}
+.obf-ev .k.book{color:#e88b8b}
+.obf-ev .d{font-size:10px;line-height:1.5;color:#8a92a1;margin-top:5px}
+.obf-more{margin-top:14px;padding-top:14px;
+  border-top:1px solid rgba(255,255,255,.07);font-family:var(--serif);
+  font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#6d7484;
+  line-height:1.9}
+
+/* ── узкие экраны ──
+   Колонка событий уходит вниз отдельной страницей: в 322 пикселя рядом
+   с листом она не помещается, а прятать события нельзя — их видимость
+   и была целью. */
+/* Страница событий существует ВСЕГДА, но на широком экране скрыта:
+   там те же события стоят колонкой справа, и вторая копия была бы
+   лишней страницей ни о чём. На узком — наоборот: колонка уходит,
+   страница появляется. Прятать события совсем нельзя, ради их
+   видимости всё и затевалось. */
+.obf-page.narrow{display:none}
+@media (max-width:900px){
+  .ob-brief{padding:12px}
+  .obf-frame{border-width:8px;grid-template-columns:1fr;height:calc(100vh - 24px)}
+  .obf-rail{display:none}
+  .obf-page.narrow{display:flex}
+  .obf-page .obf-ev{padding:9px 0}
+  /* Одиннадцать событий с пояснениями в экран телефона не влезают.
+     Сначала я отдал списку overflow:visible — и он полез ВВЕРХ, на
+     шапку: середина страницы центрирует содержимое, а содержимое
+     оказалось выше самой страницы.
+     Здесь список прокручивается ВНУТРИ страницы, а середина
+     выравнивает по верху: у длинного списка нет «центра», у него
+     есть начало. */
+  .obf-page.narrow .obf-mid{justify-content:flex-start}
+  .obf-page .obf-list{position:static;padding:0 6px 0 0;
+    flex:1 1 auto;min-height:0;overflow-y:auto}
+
+  /* ЦВЕТА ПЕРЕВОРАЧИВАЮТСЯ. Разметка событий одна на два места, а
+     места разные: в колонке она лежит на тёмном и набрана светлым, на
+     странице — на светлом листе. Без этой правки текст был светлым на
+     светлом и почти не читался. */
+  .obf-page .obf-h{color:var(--mut)}
+  .obf-page .obf-ev{border-bottom-color:rgba(70,76,87,.14)}
+  .obf-page .obf-ev .t{color:var(--ink);font-size:13px}
+  .obf-page .obf-ev .t b{color:var(--ink);font-weight:800}
+  .obf-page .obf-ev .w{color:var(--mut)}
+  .obf-page .obf-ev .w.now{color:var(--acc)}
+  .obf-page .obf-ev .k{color:var(--mut)}
+  .obf-page .obf-ev .k.book{color:var(--dn)}
+  .obf-page .obf-ev .d{color:var(--ink2);font-size:11px}
+  .obf-page .obf-more{color:var(--mut);border-top-color:rgba(70,76,87,.14)}
+  .obf-page .obf-list::-webkit-scrollbar-thumb{background:rgba(70,76,87,.22)}
+  .obf-page{padding:22px 26px 78px}
+  .obf-big{font-size:64px}
+  .obf-nav{left:26px;width:calc(100% - 52px)}
+  .obf-nums{gap:26px}
+  .obf-pos{grid-template-columns:1fr}
+}
+
+/* На телефоне тринадцать полосок в ряд превращаются в мельтешение:
+   каждая уже пальца, попасть нельзя, а места они занимают всю строку.
+   Оставляем стрелки и счётчик — этого хватает, чтобы понять, где ты
+   и как вернуться. */
+@media (max-width:560px){
+  .obf-ticks{display:none}
+  .obf-hint{margin-left:auto}
+  .obf-big{font-size:52px}
+  .obf-page{padding:18px 20px 74px}
+  .obf-nav{left:20px;width:calc(100% - 40px)}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .obf-page,.obf-page.on .obf-st,.obf-page.on .obf-big .obf-bar,
+  .obf-page.on .obf-chart .ln,.obf-page.on .obf-chart .dot,.obf-tk.now i{
+    animation:none !important}
+  .obf-st{opacity:1}
+  .obf-big .obf-bar{width:80%}
+  .obf-chart .ln{stroke-dashoffset:0}
+  .obf-chart .dot{opacity:1}
+}
 </style>
-<div class="ob-brief" id="obBrief">
-  <canvas id="obfCanvas"></canvas>
-  <svg id="obfBeams"></svg>
-  <div id="obfFig"></div>
-  <div id="obfText"></div>
-  <div class="obf-ran" id="obfRan"></div>
-  <div class="obf-foot" id="obfFoot">клик в любом месте — к дашборду</div>
-  <div class="obf-bar" id="obfBar"><u></u></div>
+<div class="obf-frame">
+  <div class="obf-sheet" id="obfSheet"></div>
+  <div class="obf-rail">
+    <svg class="obf-mesh" viewBox="0 0 322 900" preserveAspectRatio="none">
+      <g stroke="#fff" stroke-width="1" fill="none">
+        <path d="M0 150 L161 -30 L322 150 L161 330 Z"/>
+        <path d="M0 510 L161 330 L322 510 L161 690 Z"/>
+        <path d="M0 870 L161 690 L322 870"/>
+        <path d="M-40 330 L362 330 M-40 690 L362 690"/>
+        <path d="M161 -30 L161 900"/>
+      </g>
+    </svg>
+    <div class="obf-list" id="obfRail"></div>
+  </div>
+  <div class="obf-nav">
+    <div class="obf-arrow" id="obfPrev">&#8592;</div>
+    <div class="obf-arrow" id="obfNext">&#8594;</div>
+    <div class="obf-count" id="obfCount"></div>
+    <div class="obf-ticks" id="obfTicks"></div>
+    <div class="obf-hint">пауза &#183; читайте</div>
+  </div>
 </div>
 """
 
@@ -161,1560 +364,622 @@ BRIEF_HTML = """
 BRIEF_JS = """
 <script>
 (function () {
-  /* Данные вшиты в документ при сборке — см. render_brief() выше.
-     Раньше здесь читался window.ORB от орбиты; в своём iframe соседа
-     нет, и читать неоткуда. */
-  var O = {};
-  try { O = JSON.parse(document.getElementById('obfData').textContent); }
-  catch (e) { O = {}; }
-  var STARS = O.stars || [];
-  if (!STARS.length) return;
+  var DATA = {};
+  try { DATA = JSON.parse(document.getElementById('obfData').textContent); }
+  catch (e) { DATA = {}; }
+  var ST = DATA.stars || [], M = DATA.market || {};
+  var wrap = document.querySelector('.ob-brief');
+  if (!wrap) return;
+  var reduce = window.matchMedia &&
+    window.matchMedia('(prefers-reduced-motion:reduce)').matches;
 
-  /* Фаза и расстояние до стопа посчитаны в питоне (analytics_stars) и
-     приехали полями звезды. Функции оставлены ради мест вызова ниже —
-     их тут около десятка, и разворачивать каждое в обращение к полю
-     значило бы переписать половину файла ради нуля пользы. */
-  function phase(s) { return s.phase || { a: '', k: 'wait' }; }
-  function toStop(s) { return s.stopPct || 0; }
+  /* ── помощники ── */
+  function num(v){ var n = +v; return isFinite(n) ? n : null; }
+  function esc(s){ return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function pct(v, d){ var n = num(v); if (n === null) return '—';
+    return (n > 0 ? '+' : '') + n.toFixed(d === undefined ? 1 : d) + '%'; }
+  function money(v){ var n = num(v); if (n === null) return '—';
+    var a = Math.abs(n);
+    if (a >= 1e9) return '$' + (n/1e9).toFixed(1) + 'B';
+    if (a >= 1e6) return '$' + (n/1e6).toFixed(1) + 'M';
+    if (a >= 1e3) return '$' + Math.round(n/1e3) + 'K';
+    return '$' + Math.round(n); }
+  function sign(v){ var n = num(v); return n === null ? '' : (n >= 0 ? 'up' : 'dn'); }
+  function star(t){ for (var i=0;i<ST.length;i++) if (ST[i].t === t) return ST[i];
+    return null; }
 
-  var BRIEF_LAP = 105000;
-
-  var wrap = document.getElementById('obBrief');
-  var canvas = document.getElementById('obfCanvas');
-  var txtEl = document.getElementById('obfText');
-  if (!wrap || !canvas || !txtEl) return;
-  var ctx = canvas.getContext('2d');
-
-  function w(){ return wrap.clientWidth || window.innerWidth; }
-  function h(){ return wrap.clientHeight || window.innerHeight; }
-
-  /* ═════════════════════════════════════════════════════════
-     Атмосферная сцена: кольцо из пыли + дюна с рельефными пиками.
-     Числа ниже — не эстетический произвол, а результат прямого
-     тестирования в браузере (Playwright, скриншот на каждом шаге):
-     плотность частиц, амплитуда пиков дюны, разрывы кольца — всё
-     подбиралось глазами против референса, отражённого в переписке.
-     ═════════════════════════════════════════════════════════ */
-
-  // Глоу-спрайт для пролетающей пыли: белое ядро → цвет → прозрачность.
-  var sprites = {};
-  function getSprite(color){
-    if (sprites[color]) return sprites[color];
-    var s = 40, off = document.createElement('canvas');
-    off.width = off.height = s;
-    var octx = off.getContext('2d');
-    var g = octx.createRadialGradient(s/2,s/2,0, s/2,s/2,s/2);
-    g.addColorStop(0, 'rgba(255,255,255,1)');
-    g.addColorStop(.2, 'rgba(255,255,255,.9)');
-    g.addColorStop(.45, color+'cc');
-    g.addColorStop(1, color+'00');
-    octx.fillStyle = g; octx.fillRect(0,0,s,s);
-    sprites[color] = off;
-    return off;
+  /* Ход позиции считаем ОТ ЦЕНЫ ВХОДА, а не берём готовым: в звезде
+     лежит ход от появления в журнале, а в книге — своя цена входа,
+     и это разные числа. */
+  function bookChg(s){
+    var b = s.book || {}, px = num(s.px), en = num(b.px);
+    if (px === null || en === null || !en) return null;
+    return (px/en - 1) * 100;
   }
 
-  var ringGeo = null, ringDust = [], duneDust = [], duneFront = [];
-
-  /* СПРАЙТЫ ВМЕСТО ПЕРЕСЧЁТА.
-     Кольцо и дюна — это тысячи неподвижных друг относительно друга
-     точек. Пересчитывать каждой из них синус, косинус и матрицу
-     поворота на каждом кадре незачем: рисунок один и тот же, меняются
-     только его поворот и мерцание. Поэтому обе россыпи «печём» один
-     раз в закадровые холсты, а в кадре делаем поворот трансформом и
-     две отрисовки картинки.
-     Мерцание сохраняем вариантами: три фазы для кольца и две для
-     дюны, между которыми идёт плавный перелив. Точки продолжают
-     переливаться по одиночке — они разные в разных вариантах, — но
-     стоит это четыре drawImage вместо десяти тысяч заливок. */
-  var baseSprite = null, ringSprite = null, spriteDPR = 1;
-  var sparks = [], ringSparks = [];
-
-  function makeSprite(w2, h2){
-    var c = document.createElement('canvas');
-    c.width = Math.max(1, Math.round(w2*spriteDPR));
-    c.height = Math.max(1, Math.round(h2*spriteDPR));
-    var g = c.getContext('2d');
-    g.setTransform(spriteDPR,0,0,spriteDPR,0,0);
-    return {cv:c, ctx:g, w:w2, h:h2};
-  }
-
-  // Кольцо — 1.44×0.8 от исходного черновика (несколько раундов
-  // «увеличь/уменьши» в тестировании сошлись на этом масштабе).
-  var RING_SCALE = 1.44 * 0.8;
-
-  function buildAmbient(){
-    var cx = w()*0.5, cy = h()*0.50;
-    var rx = Math.min(250, w()*0.21) * RING_SCALE, ry = rx*0.92;
-    var rot = -8*Math.PI/180;
-    ringGeo = {cx:cx, cy:cy, rx:rx, ry:ry, rot:rot};
-
-    ringDust = [];
-    // Два разрыва в кольце, симметрично друг напротив друга — не
-    // идеальный замкнутый круг, а разомкнутая спираль в перспективе,
-    // как в референсе.
-    var GAP_HALF = 8*Math.PI/180, FADE_HALF = 26*Math.PI/180;
-    var G1 = 183*Math.PI/180, G2 = G1 + Math.PI;
-    function gapFactor(a){
-      var gaps = [G1, G2];
-      for (var i=0;i<gaps.length;i++){
-        var d = Math.abs(a-gaps[i]) % (Math.PI*2);
-        if (d > Math.PI) d = Math.PI*2-d;
-        if (d < GAP_HALF) return 0;
-        if (d < GAP_HALF+FADE_HALF) return (d-GAP_HALF)/FADE_HALF;
-      }
-      return 1;
+  /* ── график: ломаная по ряду ── */
+  function linePath(ser, w, h, pad){
+    if (!ser || ser.length < 2) return null;
+    var lo = Math.min.apply(null, ser), hi = Math.max.apply(null, ser);
+    var rng = (hi - lo) || 1, out = [], i, x, y;
+    for (i = 0; i < ser.length; i++) {
+      x = pad + i * (w - 2*pad) / (ser.length - 1);
+      y = h - pad - (ser[i] - lo) / rng * (h - 2*pad);
+      out.push(x.toFixed(1) + ' ' + y.toFixed(1));
     }
-    var RING_N = Math.max(900, Math.min(3000, Math.round(w()*h()/430)));
-    var placed = 0, tries = 0;
-    while (placed < RING_N && tries < RING_N*20){
-      tries++;
-      var a = Math.random()*Math.PI*2;
-      var gf = gapFactor(a);
-      if (gf <= 0) continue;
-      var jitter = (Math.random()-.5)*(26+14*gf)*RING_SCALE;
-      ringDust.push({a:a, jitter:jitter, cx:cx, cy:cy, rx:rx, ry:ry, rot:rot,
-        r:.35+Math.random()*.55, a0:(0.10+gf*0.45),
-        tw:Math.random()*Math.PI*2, speed:.4+Math.random()*1,
-        driftPhase:Math.random()*Math.PI*2, driftAmp:1.5+Math.random()*2.5});
-      placed++;
+    return { d: 'M' + out.join(' L'),
+             lx: (pad + (w - 2*pad)).toFixed(1),
+             ly: (h - pad - (ser[ser.length-1] - lo)/rng*(h - 2*pad)).toFixed(1) };
+  }
+  /* Столбики объёма — по логарифму. При линейной шкале ×1057 придавил
+     бы все остальные в ноль, и график стал бы одним столбом. */
+  function volBars(rat, w, h, pad){
+    if (!rat || !rat.length) return '';
+    var lr = rat.map(function(v){ return Math.log10(1 + Math.max(0, +v || 0)); });
+    var mx = Math.max.apply(null, lr) || 1;
+    var bw = (w - 2*pad)/rat.length - 2, out = [], i, bh, x;
+    for (i = 0; i < lr.length; i++) {
+      bh = Math.max(1.5, lr[i]/mx * (h - 2*pad - 6));
+      x = pad + i * (w - 2*pad)/rat.length;
+      out.push('<rect x="' + x.toFixed(1) + '" y="' + (h - pad - bh).toFixed(1) +
+               '" width="' + bw.toFixed(1) + '" height="' + bh.toFixed(1) + '"/>');
     }
-
-    // Дюна: волна с тремя острыми «пиками» поверх мягкой основы —
-    // читается как рельефный силуэт, а не гладкая синусоида.
-    duneDust = [];
-    var DUNE_DEPTH = h()*0.34;
-    /* Число частиц — ОТ ПЛОЩАДИ, а не константой. Одиннадцать тысяч
-       подбирались на одном экране; на большом мониторе они же дают
-       ту же плотность при вдвое большей работе, а на ноутбуке — вдвое
-       гуще, чем нужно. Делитель подобран так, чтобы на 1440×900
-       выходило около семи тысяч: разница на глаз не читается,
-       нагрузка падает на треть. */
-    var DUNE_N = Math.max(2600, Math.min(11000, Math.round(w()*h()/185)));
-    for (var i=0;i<DUNE_N;i++){
-      var x = Math.random()*w();
-      var baseWave = Math.sin(x/w()*Math.PI*1.6)*46
-                   + Math.sin(x/w()*Math.PI*4.2+1)*20
-                   + Math.sin(x/w()*Math.PI*9+2)*8;
-      var spike1 = Math.sin(x/w()*Math.PI*2.7+2.1);
-      var spike2 = Math.sin(x/w()*Math.PI*5.3+4.4);
-      var spike3 = Math.sin(x/w()*Math.PI*1.3+0.6);
-      var peaks = Math.sign(spike1)*Math.pow(Math.abs(spike1),4)*95
-                + Math.sign(spike2)*Math.pow(Math.abs(spike2),5)*55
-                + Math.sign(spike3)*Math.pow(Math.abs(spike3),6)*70;
-      var wave = baseWave + peaks;
-      var baseY = h()*0.58 + wave;
-      var depth = Math.pow(Math.random(),1.3)*DUNE_DEPTH;
-      var y = baseY + depth;
-      var depthNorm = Math.min(1, depth/DUNE_DEPTH);
-
-      // Мягкий градиент сверху вниз — с полом, не обрыв в ноль.
-      var gradient = 0.22 + 0.85*Math.pow(1-depthNorm, 1.9);
-      // Рябь от ветра под углом к гребню — не вертикальная штриховка.
-      var ripplePhase = x*0.045 + depthNorm*11;
-      var ripple = 0.82 + 0.18*Math.sin(ripplePhase);
-      var grain = Math.pow(Math.random(), 2.0);
-      var base = gradient * ripple * (0.35+0.75*grain);
-      var warm = Math.random() > (0.22 + 0.3*depthNorm);
-
-      duneDust.push({x0:x, y0:y, r:.3+Math.random()*.8, warm:warm,
-        tw:Math.random()*Math.PI*2, speed:.3+Math.random()*.9,
-        driftPhase:Math.random()*Math.PI*2, driftAmp:1+Math.random()*2.2,
-        base:base});
-    }
-
-    /* Передний слой (узкая полоса поверх кольца) отбирается ОДИН раз.
-       Раньше кадр заново перебирал все одиннадцать тысяч частиц, чтобы
-       отбросить 95% по координате — полный проход ради сотни точек. */
-    duneFront = [];
-    var loY = h()*0.62-((RING_SCALE-1)*70), hiY = h()*0.685;
-    for (var q=0;q<duneDust.length;q++){
-      var dp = duneDust[q];
-      if (dp.y0 >= loY && dp.y0 <= hiY) duneFront.push(dp);
-    }
-
-    /* Подложка-градиент неподвижна — незачем пересоздавать её каждый
-       кадр. Создание градиента дороже, чем кажется: это разбор
-       остановок цвета и построение таблицы. */
-    // Световое пятно печётся вместе с подложкой (см. bakeSprites) —
-    // отдельный градиент в кадре не нужен.
-    bakeSprites();
+    return out.join('');
+  }
+  function chartHTML(ser, rat, cap){
+    var W = 520, H = 104, P = 3;
+    var lp = linePath(ser, W, H, P);
+    if (!lp) return '';
+    return '<div class="obf-chart obf-st" style="--i:2">' +
+      '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">' +
+      '<g class="bars">' + volBars(rat, W, H, P) + '</g>' +
+      '<path class="ln" d="' + lp.d + '"/>' +
+      '<circle class="dot" cx="' + lp.lx + '" cy="' + lp.ly + '" r="4.5"/>' +
+      '</svg><div class="cap">' + cap + '</div></div>';
   }
 
-  /* Печём ОДНУ подложку на всё: фон, световое пятно и дюну.
-     Разбираться стоит не в числе точек, а в числе полноэкранных
-     проходов: очистка, градиент и две дюны — это четыре перерисовки
-     всего экрана за кадр, по шесть миллионов пикселей каждая. Именно
-     они, а не синусы, роняли частоту до девятнадцати кадров.
-     Теперь подложка одна и рисуется одним drawImage.
-
-     Кольцо печётся отдельно и малым квадратом — его надо вращать.
-     Мерцание живёт в горстке точек поверх: их немного, они дешёвые,
-     и без них пыль выглядит мёртвой фотографией. */
-  function bakeSprites(){
-    spriteDPR = Math.min(1.5, devicePixelRatio || 1);
-
-    // Подложка с запасом по краям: она ездит на пару пикселей.
-    var PAD = 6;
-    baseSprite = makeSprite(w()+PAD*2, h()+PAD*2);
-    var g0 = baseSprite.ctx;
-    g0.fillStyle = '#07080B';
-    g0.fillRect(0, 0, w()+PAD*2, h()+PAD*2);
-    var gr = g0.createRadialGradient(
-      w()*0.5+PAD, ringGeo.cy+PAD, 10, w()*0.5+PAD, ringGeo.cy+PAD, w()*0.35);
-    gr.addColorStop(0, 'rgba(200,200,215,.10)');
-    gr.addColorStop(1, 'rgba(0,0,0,0)');
-    g0.fillStyle = gr;
-    g0.fillRect(0, 0, w()+PAD*2, h()+PAD*2);
-    for (var i=0;i<duneDust.length;i++){
-      var d = duneDust[i];
-      g0.globalAlpha = d.base*0.72;
-      g0.fillStyle = d.warm ? '#D9A15E' : '#9a8a78';
-      g0.fillRect(d.x0+PAD, d.y0+PAD, d.r*1.7, d.r*1.7);
-    }
-    baseSprite.pad = PAD;
-
-    // Кольцо — квадрат с центром посередине: вращение сводится к
-    // rotate вокруг середины картинки.
-    var maxR = ringGeo.rx + 60*RING_SCALE;
-    var side = Math.ceil(maxR*2);
-    ringSprite = makeSprite(side, side);
-    var g1 = ringSprite.ctx;
-    g1.fillStyle = '#dfe6ec';
-    for (var j=0;j<ringDust.length;j++){
-      var p = ringDust[j];
-      var px = Math.cos(p.a)*(p.rx+p.jitter);
-      var py = Math.sin(p.a)*(p.ry+p.jitter);
-      var rx2 = px*Math.cos(p.rot)-py*Math.sin(p.rot);
-      var ry2 = px*Math.sin(p.rot)+py*Math.cos(p.rot);
-      g1.globalAlpha = p.a0*0.72;
-      g1.fillRect(maxR+rx2, maxR+ry2, p.r*1.7, p.r*1.7);
-    }
-    ringSprite.half = maxR;
-
-    /* Живые искры — небольшая выборка из обеих россыпей. Мерцает
-       десятая часть точек, а кажется, что вся пыль: глаз ловит
-       движение, а не пересчитывает яркости. */
-    sparks = [];
-    var stepD = Math.max(1, Math.round(duneDust.length/260));
-    for (var k=0;k<duneDust.length;k+=stepD) sparks.push(duneDust[k]);
-    ringSparks = [];
-    var stepR = Math.max(1, Math.round(ringDust.length/180));
-    for (var m=0;m<ringDust.length;m+=stepR) ringSparks.push(ringDust[m]);
-  }
-
-  function resizeScene(){
-    /* Плотность холста ограничена полутора: на ретине пыль рисуется
-       вчетверо большим числом пикселей, а точка размером в пиксель от
-       этого не становится красивее. Текст и разметка остаются
-       чёткими — они не на холсте. */
-    var DPR = Math.min(1.5, devicePixelRatio || 1);
-    canvas.width = w()*DPR; canvas.height = h()*DPR;
-    canvas.style.width = w()+'px'; canvas.style.height = h()+'px';
-    ctx.setTransform(DPR,0,0,DPR,0,0);
-    buildAmbient();
-  }
-  window.addEventListener('resize', resizeScene);
-
-  /* ЧАСТИЦА — ПРЯМОУГОЛЬНИК, А НЕ КРУГ.
-     arc() + fill() на точку размером меньше полутора пикселей рисует
-     ровно тот же пиксель, что и fillRect, но проходит весь путь
-     построения контура. На четырнадцати тысячах частиц это и есть
-     главный источник тормозов — не сами точки, а способ их рисовать. */
-  function drawAmbient(t){
-    if (!baseSprite) return;
-    var PAD = baseSprite.pad;
-
-    /* ОДИН полноэкранный проход вместо четырёх. Подложка непрозрачна,
-       поэтому очистка холста тоже не нужна — она сама себя закрывает.
-       Снос дюны — общим смещением картинки на пару пикселей; ровно то
-       же, что раньше считалось каждой песчинке отдельно. */
-    var driftX = Math.sin(t*0.0004)*2.2, driftY = Math.cos(t*0.00035)*1.3;
-    ctx.globalAlpha = 1;
-    ctx.drawImage(baseSprite.cv, -PAD+driftX, -PAD+driftY,
-                  baseSprite.w, baseSprite.h);
-
-    /* ВРАЩЕНИЕ — ЧИСТЫЙ ТРАНСФОРМ: поворачивается готовая картинка, а
-       не три тысячи точек по отдельности. */
-    var half = ringSprite.half, size = half*2, spin = t*0.000045;
-    ctx.save();
-    ctx.translate(ringGeo.cx, ringGeo.cy);
-    ctx.rotate(spin);
-    ctx.drawImage(ringSprite.cv, -half, -half, size, size);
-    ctx.restore();
-
-    // Искры кольца — в тех же координатах, что и спрайт, с тем же
-    // поворотом: иначе они «поплывут» относительно своей россыпи.
-    var p, flick, i;
-    ctx.save();
-    ctx.translate(ringGeo.cx, ringGeo.cy);
-    ctx.rotate(spin);
-    ctx.fillStyle = '#dfe6ec';
-    for (i=0;i<ringSparks.length;i++){
-      p = ringSparks[i];
-      flick = 0.5+0.5*Math.sin(t*0.0012*p.speed+p.tw);
-      var px = Math.cos(p.a)*(p.rx+p.jitter), py = Math.sin(p.a)*(p.ry+p.jitter);
-      var rx2 = px*Math.cos(p.rot)-py*Math.sin(p.rot);
-      var ry2 = px*Math.sin(p.rot)+py*Math.cos(p.rot);
-      ctx.globalAlpha = p.a0*flick*0.9;
-      ctx.fillRect(rx2, ry2, p.r*2.1, p.r*2.1);
-    }
-    ctx.restore();
-
-    // Искры дюны и передний слой поверх кольца.
-    for (i=0;i<sparks.length;i++){
-      p = sparks[i];
-      flick = 0.5+0.5*Math.sin(t*0.0012*p.speed+p.tw);
-      ctx.globalAlpha = p.base*flick*0.8;
-      ctx.fillStyle = p.warm ? '#D9A15E' : '#9a8a78';
-      ctx.fillRect(p.x0+driftX, p.y0+driftY, p.r*2.1, p.r*2.1);
-    }
-    for (i=0;i<duneFront.length;i++){
-      p = duneFront[i];
-      flick = 0.5+0.5*Math.sin(t*0.0009*p.speed+p.tw);
-      ctx.globalAlpha = p.base*(0.3+flick*0.4);
-      ctx.fillStyle = p.warm ? '#D9A15E' : '#9a8a78';
-      ctx.fillRect(p.x0+driftX, p.y0+driftY, p.r*1.7, p.r*1.7);
-    }
-    ctx.globalAlpha = 1;
-  }
-
-  /* Ветер: пыль срывается с узкой полосы на правом краю кольца и
-     сдувается сквозняком через него, на 100px за дальний край —
-     дистанция считается от РЕАЛЬНОГО радиуса кольца, а не взята с
-     потолка. Точка старта каждый раз новая (±25° вокруг правого
-     края) — не всегда одна и та же высота. */
-  var flyDust = [];
-  function spawnFlyDust(){
-    var rx = ringGeo.rx, ry = ringGeo.ry, rot = ringGeo.rot;
-    var ringCx = ringGeo.cx, ringCy = ringGeo.cy;
-    var N = 20;
-    var baseAngle = (Math.random()-0.5) * (50*Math.PI/180);
-    var bpx = Math.cos(baseAngle)*rx, bpy = Math.sin(baseAngle)*ry;
-    var brx = bpx*Math.cos(rot) - bpy*Math.sin(rot);
-    var bry = bpx*Math.sin(rot) + bpy*Math.cos(rot);
-    var originX = ringCx + brx, originY = ringCy + bry;
-    var bandHeight = 20 + Math.random()*6;
-    var dist = rx*2 + 100;
-    for (var i=0;i<N;i++){
-      var sy = originY + (Math.random()-0.5)*bandHeight;
-      var sx = originX;
-      var drift = (Math.random()-0.5)*44;
-      flyDust.push({
-        x:sx, y:sy, tx: sx-dist, ty: sy+drift,
-        t0: performance.now()+Math.random()*450,
-        dur: 800+Math.random()*600,
-        r: (0.5+Math.random()*0.9) / 3 / 2,
-        wobble: Math.random()*Math.PI*2
-      });
-    }
-  }
-  function easeInOutSine(k){ return -(Math.cos(Math.PI*k)-1)/2; }
-
-  /* Прорисовка/стирание графика — не альфа туда-сюда, а линия,
-     растущая от начала к концу при появлении и стирающаяся тем же
-     способом при скрытии (retract), как в проверенном прототипе. */
-  var diagramActive = -1, diagramPhase = 'idle', diagramT0 = 0;
-  var DRAW_IN_MS = 750*1.3, DRAW_OUT_MS = 520*1.3;
-
-  function drawDiagram(idx, accent, progress){
-    if (progress <= 0.002) return;
-    var seg = SEGMENTS[idx];
-    if (!seg || !seg.pts) return;
-    var pts = seg.pts, N = pts.length;
-    var cx = ringGeo.cx, cy = ringGeo.cy;
-    var W = Math.min(w()*0.5, 420) * 0.5 * 1.2 * 1.3;
-    var H = W * 0.42;
-    var baseY = cy + H*0.62;
-    var alpha = 0.9 * 0.85 * 0.9;
-
-    var path = pts.map(function (v, i) {
-      var x = cx - W/2 + (i/(N-1))*W;
-      var y = baseY - H*0.55 - v*H*0.5;
-      return [x, y];
-    });
-
-    var totalSeg = N-1;
-    var shown = progress * totalSeg;
-    var fullSeg = Math.floor(shown);
-    var frac = shown - fullSeg;
-
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    /* Свечение — вторым широким штрихом, а не shadowBlur.
-       Размытие тени пересчитывается по всей длине линии каждый кадр и
-       на графике из тридцати точек стоит дороже, чем сама линия. Два
-       штриха дают тот же ореол ценой второго прохода по пути. */
-
-    ctx.beginPath();
-    ctx.moveTo(cx-W/2, baseY);
-    ctx.lineTo(cx-W/2+W*progress, baseY);
-    ctx.strokeStyle = accent; ctx.lineWidth = 0.6;
-    ctx.globalAlpha = alpha*0.35;
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(path[0][0], path[0][1]);
-    for (var i=1;i<=fullSeg && i<N;i++) ctx.lineTo(path[i][0], path[i][1]);
-    if (fullSeg < totalSeg){
-      var p0 = path[fullSeg], p1 = path[fullSeg+1];
-      ctx.lineTo(p0[0]+(p1[0]-p0[0])*frac, p0[1]+(p1[1]-p0[1])*frac);
-    }
-    ctx.strokeStyle = accent;
-    ctx.lineWidth = 3.4;                 // ореол
-    ctx.globalAlpha = alpha*0.18;
-    ctx.stroke();
-    ctx.lineWidth = 1.2;                 // сама линия
-    ctx.globalAlpha = alpha*0.9;
-    ctx.stroke();
-
-    ctx.fillStyle = accent;
-    ctx.globalAlpha = alpha*0.7;
-    path.forEach(function (pt, i) {
-      if (i > fullSeg) return;
-      ctx.fillRect(pt[0]-1.2, pt[1]-1.2, 2.4, 2.4);
-    });
-
-    ctx.restore();
-    ctx.globalAlpha = 1;
-  }
-
-  /* Потолок частоты снят: после перехода на спрайты кадр стоит
-     считанные доли миллисекунды, и ограничивать его — только делать
-     движение ступенчатым. Ограничение имело смысл, пока в кадре
-     пересчитывались десять тысяч точек. */
-  function frame(t){
-    drawAmbient(t);
-    figBeams();
-
-    if (diagramActive >= 0){
-      var now2 = performance.now(), progress;
-      if (diagramPhase === 'in'){
-        progress = Math.min(1, (now2-diagramT0)/DRAW_IN_MS);
-      } else {
-        progress = Math.max(0, 1-(now2-diagramT0)/DRAW_OUT_MS);
-        if (progress <= 0){ diagramActive = -1; diagramPhase = 'idle'; }
-      }
-      if (diagramActive >= 0){
-        drawDiagram(diagramActive, SEGMENTS[diagramActive].accent, progress);
-      }
-    }
-
-    var now = performance.now();
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    var sprite = getSprite('#F5E6C8');
-    flyDust = flyDust.filter(function (p) {
-      var k = (now-p.t0)/p.dur;
-      if (k < 0) return true;
-      if (k > 1) return false;
-      var e = easeInOutSine(k);
-      var turb = Math.sin(k*7+p.wobble)*6 + Math.sin(k*17+p.wobble*2)*2.5;
-      var x = p.x+(p.tx-p.x)*e;
-      var y = p.y+(p.ty-p.y)*e + turb;
-      var alpha = Math.sin(k*Math.PI);
-      for (var g=0; g<4; g++){
-        var gk = Math.max(0, k - g*0.08);
-        var ge = easeInOutSine(gk);
-        var gx = p.x+(p.tx-p.x)*ge;
-        var gy = p.y+(p.ty-p.y)*ge + Math.sin(gk*7+p.wobble)*6 + Math.sin(gk*17+p.wobble*2)*2.5;
-        var size = Math.max(3.4, p.r*(11-g*1.3));
-        ctx.globalAlpha = alpha*0.21*(1-g*0.22);
-        ctx.drawImage(sprite, gx-size/2, gy-size/2, size, size);
-      }
-      return true;
-    });
-    ctx.restore();
-    ctx.globalAlpha = 1;
-
-    requestAnimationFrame(frame);
-  }
-
-  /* Разноцветность вернулась: сегмент несёт seg.html (разметка с
-     <span class="up">/"dn"/"n"/"t"/... — та же палитра, что была в
-     старой посимвольной печати), а не голый текст. htmlToTokens()
-     разбирает эту разметку в плоский список {text, cls} — по одному
-     токену на текстовый узел/цветной элемент верхнего уровня. Вложенные
-     теги (было такое только в строке журнала) сознательно не
-     поддерживаются: один уровень цвета на сегмент — этого достаточно
-     для того, что здесь красится, и не усложняет разбор.  */
-  function htmlToTokens(html){
-    var div = document.createElement('div');
-    div.innerHTML = html;
-    var tokens = [];
-    div.childNodes.forEach(function (node) {
-      if (node.nodeType === 3) tokens.push({text: node.textContent, cls: ''});
-      else if (node.nodeType === 1) tokens.push({text: node.textContent, cls: node.className || ''});
-    });
-    return tokens;
-  }
-
-  /* Перенос строк — естественный, браузерный: раньше ширина строки
-     мерилась вручную на canvas (без letter-spacing, который добавляет
-     CSS) и это давало текст ЧУТЬ шире реального контейнера — строки
-     выходили за пределы кольца. Слово — свой inline-block (буквы не
-     разъезжаются при переносе), пробел между словами — обычный
-     текстовый узел (место переноса для браузера), сама ширина
-     ограничена через CSS max-width на контейнере. */
-  function buildTextDOM(tokens){
-    var frag = document.createDocumentFragment();
-    var idxChar = 0;
-    tokens.forEach(function (tok) {
-      var words = tok.text.split(' ');
-      words.forEach(function (word, wi) {
-        if (wi > 0) frag.appendChild(document.createTextNode(' '));
-        if (!word) return;
-        var wordSpan = document.createElement('span');
-        wordSpan.style.display = 'inline-block';
-        if (tok.cls) wordSpan.className = tok.cls;
-        for (var i=0;i<word.length;i++){
-          var chSpan = document.createElement('span');
-          chSpan.className = 'ch';
-          chSpan.style.transitionDelay = (idxChar*STEP_MS) + 'ms';
-          idxChar++;
-          chSpan.textContent = word[i];
-          wordSpan.appendChild(chSpan);
-        }
-        frag.appendChild(wordSpan);
-      });
-    });
-    return { frag: frag, totalChars: idxChar };
-  }
-
-  function stripTags(html){ return html.replace(/<[^>]*>/g, ''); }
-
-  // Задержка перед следующим сегментом — на пару секунд дольше, чем
-  // раньше (было 2300).
-  var STEP_MS = 42*1.3, CHAR_DUR = 550*1.3, HOLD_MS = 2300 + 2000;
-  // Финальная выдержка: итог дня стоит на экране до клика.
-  var LAST_HOLD_MS = 30000;
-  var BLOCK_ACCENTS = ['#7FB4FF', '#F5A623', '#6FE3B4', '#FFD98A', '#E89AB0'];
-
-  var runToken = 0, running = false;
-
-  /* ═════════ Фигура дня ═════════
-     Строка садится по сторонам кольца двумя крыльями: чётные слева,
-     нечётные справа. Правое зеркалим — ярлык и значение меняются
-     местами, чтобы числа обоих крыльев смотрели на кольцо, а взгляд
-     не гнало справа налево против чтения. */
-  var figEl = document.getElementById('obfFig');
-  var beamsEl = document.getElementById('obfBeams');
-  var figRows = [];
-
-  var GW = 64, GH = 16;
-  function glyph(g){
-    if (!g) return '';
-    var col = g.tone === 'dn' ? '#FF6B35' : (g.tone === 'gd' ? '#E8C27A' : '#8A8F99');
-    var p = '<svg class="g" viewBox="0 0 '+GW+' '+GH+'" width="'+GW+'" height="'+GH+'">';
-    if (g.t === 'ticks' && g.all){
-      var n = g.all, wd = (GW-2)/n;
-      for (var i=0;i<n;i++){
-        var on = i < g.on;
-        p += '<rect x="'+(i*wd).toFixed(1)+'" y="'+(on?2:5)+'" width="'+
-             (wd-2.2).toFixed(1)+'" height="'+(on?10:4)+'" fill="'+
-             (on?col:'#2A2E36')+'" rx="0.5"/>';
-      }
-    } else if (g.t === 'fill'){
-      var sc = g.scale || 100;
-      var w2 = Math.max(0, Math.min(1, g.pct/sc))*GW;
-      var mk = Math.max(0, Math.min(1, (g.mark||0)/sc))*GW;
-      p += '<rect x="0" y="5" width="'+GW+'" height="4" fill="#20232A" rx="2"/>'+
-           '<rect x="0" y="5" width="'+w2.toFixed(1)+'" height="4" fill="'+col+
-           '" rx="2" opacity=".85"/>'+
-           '<rect x="'+mk.toFixed(1)+'" y="1.5" width="1" height="11" fill="#6C7280"/>';
-    } else if (g.t === 'ring'){
-      var r = 5.4, cx = GW/2, cy = GH/2, C = 2*Math.PI*r;
-      p += '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#20232A" stroke-width="2"/>'+
-           '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="#48A97C" stroke-width="2"'+
-           ' stroke-dasharray="'+(C*Math.min(100,g.pct||0)/100).toFixed(1)+' '+C.toFixed(1)+
-           '" stroke-linecap="round" transform="rotate(-90 '+cx+' '+cy+')"/>';
-    } else if (g.t === 'dev'){
-      var mid = GW/2, len = Math.min(1, Math.abs(g.val)/(g.max||1))*(GW/2-2);
-      p += '<line x1="'+mid+'" y1="1" x2="'+mid+'" y2="15" stroke="#3A3D45" stroke-width="1"/>'+
-           '<rect x="'+(g.val<0?(mid-len):mid).toFixed(1)+'" y="6" width="'+len.toFixed(1)+
-           '" height="3" fill="'+(g.val<0?'#FF6B35':'#48A97C')+'" rx="1.5"/>';
-    }
-    return p + '</svg>';
-  }
-
-  /* ═══ Места вокруг кольца ═══
-     Четырнадцать слотов: по пять на каждый бок и по два сверху и
-     снизу. Порядок заполнения — сначала бока (там строка длиннее и
-     читается ровнее), потом верх, потом низ: то есть первые сегменты
-     занимают лучшие места, а поздние садятся на свободные.
-     Число мест известно ЗАРАНЕЕ (FIG_TOTAL), поэтому шаг по вертикали
-     считается сразу под итоговое число строк — иначе каждая новая
-     раздвигала бы прежние, и фигура бы всю сводку ползала. */
-  var SIDE_CAP = 5, FIG_TOTAL = 0;
-
-  function figSlot(i, n){
-    var cx = ringGeo.cx, cy = ringGeo.cy;
-    var R = ringGeo.rx, RY = ringGeo.ry;
-    var sideN = Math.min(n, SIDE_CAP*2);
-    if (i < sideN){
-      var side = (i % 2 === 0) ? -1 : 1;
-      var k = Math.floor(i/2);
-      var perSide = Math.ceil(sideN/2);
-      var t = (perSide <= 1) ? 0.5 : k/(perSide-1);
-      /* Дальше от обода: 1.34 вместо 1.06 — на прежнем расстоянии
-         числа лезли в пыль кольца и спорили с ней за внимание. */
-      return {dx: cx + side*(R*1.34) + (side<0 ? -6 : 6),
-              dy: cy + (-0.86 + t*1.72)*RY*0.98,
-              mirror: side > 0};
-    }
-    /* Верх и низ: по две строки, разнесённые от вертикальной оси,
-       чтобы не столкнуться друг с другом и с читаемым текстом. */
-    var extra = i - sideN;              // 0,1 — верх; 2,3 — низ
-    var up = extra < 2;
-    var left = (extra % 2 === 0);
-    return {dx: cx + (left ? -R*0.34 : R*0.34),
-            dy: cy + (up ? -RY*1.36 : RY*1.36),
-            mirror: !left};
-  }
-
-  function figLayout(){
-    var n = Math.max(figRows.length, FIG_TOTAL);
-    figRows.forEach(function (r, i) {
-      var p = figSlot(i, n);
-      r.mirror = p.mirror;
-      r.el.classList.toggle('mirror', p.mirror);
-      /* Место — В ТРАНСФОРМЕ, а не в left/top: последние переходами не
-         анимируются, и при появлении новой строки все прежние
-         перескакивали бы на новые места мгновенно. */
-      r.el.style.transform = 'translate('+Math.round(p.dx)+'px,'+
-        Math.round(p.dy)+'px) translate('+(p.mirror ? '0' : '-100%')+
-        ',-50%) scale(.96)';
-      r.el.classList.toggle('old', i < figRows.length-1);
-      r.beam.classList.toggle('fresh', i === figRows.length-1);
-    });
-  }
-
-  /* Мест вокруг кольца ровно четырнадцать (5+5 по бокам, 2 сверху,
-     2 снизу). Пятнадцатая строка встала бы поверх четвёртой — лучше
-     не показать её вовсе, чем показать нечитаемую кашу. Сегмент при
-     этом всё равно проговаривается вслух, просто не остаётся. */
-  var FIG_SLOTS = 14;
-
-  function figAdd(seg){
-    if (!seg || !seg.k || !seg.v || !ringGeo) return;
-    if (figRows.length >= FIG_SLOTS) return;
-    var mirror = figSlot(figRows.length,
-      Math.max(figRows.length+1, FIG_TOTAL)).mirror;
-    var el = document.createElement('div');
-    el.className = 'row' + (mirror ? ' mirror' : '');
-    el.innerHTML = '<span class="k">'+seg.k+'</span><span class="tick"></span>'+
-      glyph(seg.g) + '<span class="v">'+seg.v+'</span>';
-    el.style.transform = 'translate('+Math.round(ringGeo.cx)+'px,'+
-      Math.round(ringGeo.cy)+'px) translate('+(mirror?'0':'-100%')+',-50%) scale(.86)';
-    figEl.appendChild(el);
-    /* Принудительный пересчёт: без него начальное и конечное состояние
-       задаются в одном кадре, браузер их схлопывает — перехода не
-       происходит вовсе, и строка телепортируется на место. */
-    void el.offsetWidth;
-    var beam = document.createElementNS('http://www.w3.org/2000/svg','line');
-    beamsEl.appendChild(beam);
-    figRows.push({el: el, beam: beam, mirror: mirror});
-    requestAnimationFrame(function () {
-      el.classList.add('on'); beam.classList.add('on'); figLayout();
-    });
-  }
-
-  /* Лучи пересчитываются каждый кадр по фактическому положению строки:
-     она едет полторы секунды, и луч, посчитанный один раз, всё это
-     время указывал бы туда, где строки уже нет. */
-  function figBeams(){
-    if (!figRows.length || !ringGeo) return;
-    for (var i=0;i<figRows.length;i++){
-      var r = figRows[i], box = r.el.getBoundingClientRect();
-      if (!box.width) continue;
-      var ax = r.mirror ? box.left : box.right, ay = box.top + box.height/2;
-      var dx = ax-ringGeo.cx, dy = ay-ringGeo.cy, len = Math.hypot(dx,dy) || 1;
-      r.beam.setAttribute('x1', (ringGeo.cx+dx/len*ringGeo.rx*0.94).toFixed(1));
-      r.beam.setAttribute('y1', (ringGeo.cy+dy/len*ringGeo.ry*0.94).toFixed(1));
-      r.beam.setAttribute('x2', ax.toFixed(1));
-      r.beam.setAttribute('y2', ay.toFixed(1));
-    }
-  }
-
-  function showSegment(idx, token){
-    return new Promise(function (resolve) {
-      var done = false, wd = 0;
-      function finish(){
-        if (done) return;
-        done = true; clearTimeout(wd); resolve();
-      }
-      /* СТОРОЖ. Страховка ниже ловит только синхронный сбой; всё,
-         что вырвется из таймера или кадра (leave, rAF), уходит мимо
-         неё — без сторожа очередь висла бы на таком сегменте вечно,
-         а экран молча замирал. */
-      wd = setTimeout(function () {
-        if (window.console) console.warn('бриф: сегмент ' + idx +
-          ' застрял — пропускаю');
-        finish();
-      }, HOLD_MS + LAST_HOLD_MS + 25000);
-      try { showSegmentInner(idx, token, finish); }
-      catch (e) {
-        /* СТРАХОВКА. Исключение внутри сегмента раньше убивало всю
-           очередь молча: экран замирал на последней успевшей фразе.
-           Теперь сбойный сегмент пропускается, причина с его номером
-           уходит в консоль, а сводка доигрывает до конца. */
-        if (window.console) console.warn('бриф: сегмент ' + idx +
-          ' не показан — ' + (e && e.message ? e.message : e));
-        setTimeout(finish, 60);
-      }
-    });
-  }
-
-  function showSegmentInner(idx, token, resolve){
-    {
-      var seg = SEGMENTS[idx];
-      /* Сегмент без текста — только для фигуры (альт-доля, резервуар:
-         в центре они уже прозвучали хвостом строки разрешения).
-         Садится сразу и не занимает время показа. */
-      if (!seg.html){ figAdd(seg); resolve(); return; }
-      var cx = ringGeo.cx, cy = ringGeo.cy, rx = ringGeo.rx;
-      var fontPx = (Math.min(27, Math.max(16, w()/48)) * Math.min(1.15, RING_SCALE)) * 0.5 * 0.8;
-
-      txtEl.style.fontSize = fontPx+'px';
-      txtEl.style.top = cy+'px';
-      // Сужено с rx*1.55: строка реально вылезала за силуэт кольца —
-      // 1.55 был запас больше, чем видимый диаметр.
-      txtEl.style.maxWidth = Math.min(w()*0.7, rx*1.3) + 'px';
-
-      var tokens = htmlToTokens(seg.html);
-      var built = buildTextDOM(tokens);
-      txtEl.innerHTML = '';
-      txtEl.appendChild(built.frag);
-      var totalChars = built.totalChars;
-
-      requestAnimationFrame(function () {
-        if (token !== runToken) return;
-        /* Вставка и запуск попадали в ОДИН кадр — браузер схлопывал
-           переход, и при тёплом кэше (перезагрузка) первый сегмент
-           появлялся целиком, без печати (найдено пользователем
-           23.08). Та же ловушка, что ловили в прототипах: лечится
-           принудительным reflow между состояниями. */
-        void txtEl.offsetWidth;
-        var chs = txtEl.querySelectorAll('.ch');
-        for (var i=0;i<chs.length;i++) chs[i].classList.add('on');
-      });
-      spawnFlyDust();
-      if (seg.pts){
-        diagramActive = idx; diagramPhase = 'in'; diagramT0 = performance.now();
-      } else {
-        diagramActive = -1; diagramPhase = 'idle';
-      }
-
-      var revealDur = (totalChars-1)*STEP_MS + CHAR_DUR;
-      var hold = HOLD_MS + (seg.pts ? 900 : 0);
-
-      /* Финал не гаснет сам: последний сегмент ждёт полминуты или
-         клика. «Дочитал» решает человек, а не таймер — иначе итог
-         исчезает ровно тогда, когда его можно наконец прочесть. */
-      var last = (idx === LAST_SHOW);
-      var fired = false;
-      function leave(){
-        if (fired || token !== runToken) return;
-        fired = true;
-        document.removeEventListener('click', leave);
-        document.removeEventListener('keydown', leave);
-        try {
-          var chs = txtEl.querySelectorAll('.ch');
-          for (var i=0;i<chs.length;i++){
-            chs[i].style.transitionDelay = '0ms';
-            chs[i].classList.remove('on');
-          }
-          if (seg.pts){ diagramPhase = 'out'; diagramT0 = performance.now(); }
-          /* Текст гаснет — смысл садится в фигуру. */
-          figAdd(seg);
-        } catch (e) {
-          /* Ошибке ухода нельзя держать очередь: строка в фигуре
-             пропадёт, показ продолжится. */
-          if (window.console) console.warn('бриф: сегмент ' + idx +
-            ' не сел в фигуру — ' + (e && e.message ? e.message : e));
-        }
-        setTimeout(function () { if (token === runToken) resolve(); }, 900);
-      }
-      setTimeout(function () {
-        if (token !== runToken) return;
-        if (last){
-          document.addEventListener('click', leave);
-          document.addEventListener('keydown', leave);
-        }
-        setTimeout(leave, last ? LAST_HOLD_MS : hold);
-      }, revealDur);
-    }
-  }
-
-  async function playAll(){
-    if (running) return;
-    var myToken = runToken;
-    running = true;
-    for (var i=0;i<SEGMENTS.length;i++){
-      if (myToken !== runToken) return;
-      await showSegment(i, myToken);
-    }
-    if (myToken === runToken) running = false;
-  }
-
-  /* ═════════════════════════════════════════════════════════
-       Данные. Логика сбора и формулировок не менялась — только
-       финальная форма: раньше строка несла пару {p, h} (простой
-       текст и HTML с цветными span), теперь только текст, который
-       уже есть в бывшем .p почти везде без изменений. Насыщенные
-       блоки лидера потока и объёма (график + стоп/цель/дни/
-       фандинг + кольцо скора) по решению пользователя схлопнуты
-       в одну строку текста плюс компактный график на тех же самых
-       данных (LC.series / VC.ratios) — деталей меньше, но график
-       настоящий, не нарисованный по случайному блужданию.
-       ═════════════════════════════════════════════════════════ */
-
-  var go = [], wait = [], hold = [];
-  STARS.forEach(function (s) {
-    var p = phase(s);
-    if ((s.streak || 1) >= 3 && (s.days || 0) >= 4) hold.push(s);
-    else if (p.k === 'go' && !s.firstRun) go.push(s);
-    else wait.push(s);
-  });
-
-  go.sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
-  wait.sort(function (a, b) { return (b.f || 0) - (a.f || 0); });
-  hold.sort(function (a, b) { return (b.streak || 0) - (a.streak || 0); });
-
-  /* «У уровня» заменён зарядом на сжим (С-2, решение 23.08):
-     сегмент был ещё и сломан — фильтр toStop(s) <= 8 пропускал
-     ОТРИЦАТЕЛЬНЫЕ расстояния (монета давно ниже уровня), и минус
-     двоился («−−118%»). Заряд — предвестник, уровень — след; в
-     брифе место предвестнику. toStop остаётся: им пользуется showdown
-     ниже, где расстояние считается честно. */
-  var sq = STARS.filter(function (s) {
-    return s.squeeze && s.squeeze.charged;
-  }).sort(function (a, b) {
-    return (b.squeeze.negRun || 0) - (a.squeeze.negRun || 0);
-  });
-
-  function fmtMoney(v) {
-    var n = +v || 0, a = Math.abs(n), t = n < 0 ? '−$' : '$';
-    return t + (a >= 10000 ? (a / 1000).toFixed(1) + 'K' : Math.round(a));
-  }
-  function signed(v) {
-    var n = +v || 0;
-    return (n >= 0 ? '+' : '') + n.toFixed(1) + '%';
-  }
-  function pct(v, d) {
-    if (v === null || v === undefined) return '—';
-    return (v > 0 ? '+' : '') + v.toFixed(d === undefined ? 1 : d) + '%';
-  }
-  /* Склонять надо ВСЮ группу, а не одно существительное. «Ушли
-     всего 1 монета» — типичная ошибка: число согласовали с
-     существительным и забыли глагол. Формы для глагола те же три:
-     ушла / ушли / ушло (1 — 2..4 — 5.. и 11..14). */
-  function plural(n, one, few, many) {
-    var a = Math.abs(n) % 100;
-    if (a >= 11 && a <= 14) return many;
-    a %= 10;
-    if (a === 1) return one;
-    if (a >= 2 && a <= 4) return few;
-    return many;
-  }
-  function capP(s) { return s.cap ? ' ' + s.cap : ''; }
-
-  var M = O.market || {};
-  /* Время прогона — вверху и видно СРАЗУ: сводка живёт минуты, и
-     без даты непонятно, на какой прогон смотришь (вернули 23.08 по
-     просьбе — раньше стояло вверху страницы старого отчёта). */
-  (function () {
-    var el = document.getElementById('obfRan');
-    var raw = String(M.ts || '');
-    if (!el || !raw) return;
-    var d = new Date(raw.replace(' ', 'T'));
-    el.textContent = 'прогон ' + (isNaN(d.getTime()) ? raw.slice(0, 16)
-      : ('0' + d.getDate()).slice(-2) + '.' +
-        ('0' + (d.getMonth() + 1)).slice(-2) + ' · ' +
-        ('0' + d.getHours()).slice(-2) + ':' +
-        ('0' + d.getMinutes()).slice(-2));
+  /* ── строительные кирпичи страницы ── */
+  var stamp = (function(){
+    var t = M.ts ? new Date(M.ts) : new Date();
+    function p(n){ return (n < 10 ? '0' : '') + n; }
+    return 'прогон ' + p(t.getDate()) + '.' + p(t.getMonth()+1) +
+           ' · ' + p(t.getHours()) + ':' + p(t.getMinutes());
   })();
 
-  var J = M.journal || {};
-  var DORM = M.dormant || [];
-  var L = M.leader || {};
-
-  var heldT = {};
-  hold.forEach(function (s) { heldT[s.t] = true; });
-  function freshOnly(list) {
-    return list.filter(function (v) { return !heldT[v.t]; });
+  function head(right){
+    return '<div class="obf-top obf-st" style="--i:0">' +
+      '<div class="obf-logo"><span class="o">+</span>СКРИНЕР</div>' +
+      '<div class="obf-stamp">' + esc(right || stamp) + '</div></div>';
+  }
+  function numCell(i, v, cls, cap, det, detWarn){
+    return '<div class="obf-num obf-st" style="--i:' + i + '">' +
+      '<div class="v' + (cls ? ' ' + cls : '') + '">' + v + '</div>' +
+      '<div class="c">' + esc(cap) + '</div>' +
+      (det ? '<div class="d' + (detWarn ? ' warn' : '') + '">' + det + '</div>' : '') +
+      '</div>';
+  }
+  function page(title, body, right){
+    return '<section class="obf-page">' + head(right) +
+      '<div class="obf-mid">' +
+      (title ? '<div class="obf-kick obf-serif obf-st" style="--i:1">' +
+               esc(title) + '</div>' : '') +
+      body + '</div></section>';
   }
 
-  var HRfull = M.hourly || { n: 0, list: [] };
-  var HR = { n: HRfull.n, list: freshOnly(HRfull.list || []) };
-  var bigVolAll = M.flowVol || [];
-  var bigVol = freshOnly(bigVolAll).slice(0, 5);
+  /* ══════════════ СТРАНИЦЫ ══════════════
+     Собираются ИЗ ДАННЫХ. Пустой раздел страницу не создаёт: лист с
+     одним словом «нет данных» — это потерянные двадцать шесть секунд. */
+  var P = M.permission || {}, pp = P.parts || {}, pages = [];
 
-  /* Цветной cap() — та же справка о капитализации, что и раньше,
-     мельче и тише (класс .obf-cap), не голым довеском к тикеру. */
-  function cap(s) { return s.cap ? ' <span class="obf-cap">' + s.cap + '</span>' : ''; }
-
-  /* ── Р-1: строка разрешения рынка, первый сегмент ──
-     «Пока не понятно, что с рынком, список альтов читать
-     бессмысленно» — поэтому строка открывает бриф, до портфеля и
-     фона. Выходные в перечень причин НЕ включаются: у них ниже своя
-     развёрнутая строка, а правило одно — у каждой причины ровно одно
-     место в тексте. Счёт же считает все причины, включая выходные:
-     число и перечень отвечают на разные вопросы. */
-  var P = M.permission || {};
-  var AS = M.altShare || {};
-  var permLine = '';
-  if (P.knownCount) {
-    var pp = P.parts || {};
-    /* Причины — это notes сработавших составляющих, единым правилом:
-       новая составляющая в permission попадает в строку сама, без
-       правки брифа. Выходные исключены — у них ниже своя развёрнутая
-       строка (правило «у причины одно место в тексте»). */
+  /* 1 · окно рынка */
+  (function(){
     var reasons = [];
-    ['btc', 'funding', 'oi', 'cascade', 'calendar'].forEach(function (k) {
+    ['btc','funding','oi','cascade','calendar'].forEach(function(k){
       var part = pp[k] || {};
       if (part.warn && part.note) reasons.push(part.note);
     });
-    /* Шорт-перекос — не предупреждение, а состояние заряда: топливо
-       имеет сторону, и заряд вверх печатается отдельным хвостом,
-       спокойным тоном, вне перечня причин. */
-    var fuelTail = ((pp.funding || {}).side === 'short')
-      ? ' <span class="gd">Толпа в шорте — топливо сквиза вверх.</span>'
-      : '';
-    var head = (P.warnCount
-      ? 'Окно рынка: <span class="warn">' + P.warnCount + ' ' +
-        plural(P.warnCount, 'предупреждение', 'предупреждения',
-               'предупреждений') + '</span>'
-      : 'Окно рынка: <span class="gd">явных предупреждений нет</span>') +
-      ' из ' + P.knownCount + ' составляющих';
-    var altTail = (AS.d7 !== undefined && AS.d7 !== null)
-      ? ' Биткоин за неделю обошли <span class="n">' + AS.d7 +
-        '%</span> выборки' +
-        (AS.d7 < 50 ? ' — <span class="mut">прилив до альтов не дошёл</span>.'
-                    : '.')
-      : '';
-    /* Резервуар — не причина и не предупреждение, а объяснение,
-       почему журнал лежит: печатается после альт-доли, тем же
-       спокойным тоном. Нет файла — нет строки: подсказка «заведите
-       файл» уместна в консоли прогона, не в утреннем брифе. */
-    /* Календарь без предупреждения — тоже новость: «серия выкупов
-       идёт» это состояние, которое меняет чтение фазы. Печатается
-       спокойным хвостом, как резервуар; при warn он уже ушёл в
-       причины выше и здесь не дублируется. */
-    var cal = pp.calendar || {};
-    var calTail = (cal.known && !cal.warn && (cal.items || []).length)
-      ? ' <span class="mut">' + cal.note + '.</span>'
-      : '';
-    var rsv = pp.reservoir || {};
-    var rsvTail = (rsv.known && rsv.note)
-      ? ' <span class="mut">' + rsv.note + '.</span>'
-      : '';
-    permLine = head + (reasons.length ? ': ' + reasons.join('; ') : '') +
-      '.' + fuelTail + altTail + calTail + rsvTail;
-  }
-
-  var wk = M.weekend || '';
-  var wknd = '';
-  if (wk === 'soon') {
-    wknd = '<span class="warn">Завтра выходные</span> — ликвидность начнёт ' +
-           'уходить уже к вечеру, торговать сегодня с осторожностью.';
-  } else if (wk === 'now') {
-    wknd = '<span class="warn">Выходные</span> — тонкий стакан, движения ' +
-           'рваные. Лучше не торговать.';
-  }
-
-  /* Фон рынка — та же цепочка условий, что и раньше (см. Ч-12
-     тех.долга про биткоин/доминацию), с той же раскраской, что была
-     у .obf-p до упрощения на голый текст. */
-  /* Строки фона тоже садятся в фигуру: раньше они были голыми
-     строками без ярлыка, figAdd их отбрасывал — и половина сводки
-     просто исчезала с экрана вместо того, чтобы встать у кольца.
-     tag() навешивает ярлык и значение прямо там, где строка
-     рождается: у места создания известны числа, из которых она
-     собрана, а разбирать готовый текст регулярками — гарантированно
-     сломаться на первой правке формулировки. */
-  var bg = [];
-  function bgPush(html, k, v, g){ bg.push(tagSeg({html: html}, k, v, g)); }
-  if (M.frozen) {
-    bgPush('Рынок сейчас <span class="warn">замер</span>. Лучшая монета дня ' +
-      'прибавила <span class="n">' + pct(M.maxChange, 0) + '</span>, и дальше ' +
-      'плюс двадцати ' +
-      plural(M.tail || 0, 'ушла', 'ушли', 'ушло') +
-      ' всего <span class="n">' + (M.tail || 0) + '</span> ' +
-      plural(M.tail || 0, 'монета', 'монеты', 'монет') +
-      ' — при живом рынке их бывают десятки. Ехать сегодня некуда.',
-      'рынок', 'замер · ' + (M.tail || 0),
-      {t:'ticks', on: Math.min(7, M.tail || 0), all: 7, tone: 'dn'});
-  } else {
-    bgPush('Рынок <span class="gd">двигается</span>. Лучшая монета дня ' +
-      '<span class="n">' + pct(M.maxChange, 0) + '</span>, дальше плюс ' +
-      'двадцати ' + plural(M.tail || 0, 'ушла', 'ушли', 'ушло') +
-      ' <span class="n">' + (M.tail || 0) + '</span> ' +
-      plural(M.tail || 0, 'монета', 'монеты', 'монет') +
-      ' — движение широкое, а не один выброс.',
-      'рынок', 'двигается · ' + (M.tail || 0),
-      {t:'ticks', on: Math.min(7, M.tail || 0), all: 7});
-  }
-  /* Дубль найден проходом по сайту 23.08: «деньги TAC ×119» и
-     «объём TAC ×119» стояли в двух крыльях с одинаковым числом, и
-     тексты сегментов почти совпадали. Когда сегмент объёма (ниже, с
-     графиком) покажет ТОТ ЖЕ символ — сегмент денег молчит: одно
-     знание звучит один раз, у объёма оно полнее. Расходятся символы —
-     оба сегмента законны, это разные монеты. */
-  var volDup = ((M.volChart || {}).ratios || []).length >= 4 &&
-               M.peakVol && (M.volChart || {}).sym === M.peakVol.sym;
-  if (M.peakVol && M.peakVol.sym && !volDup) {
-    bgPush('Деньги в рынке ' + (M.frozen ? 'при этом ' : '') +
-      'есть: максимум объёма на <span class="gd">' + M.peakVol.sym +
-      '</span>, <span class="n">×' + M.peakVol.x + '</span> к своей норме.',
-      'деньги', M.peakVol.sym + ' ×' + M.peakVol.x, null);
-  }
-  var gs = M.greenShare;
-  if (gs !== null && gs !== undefined) {
-    bgPush('В плюсе <span class="n">' + Math.round(gs) + '%</span> выборки' +
-      (gs >= 55 ? ', растёт почти весь рынок.'
-       : gs <= 42 ? ', то есть падает большинство.'
-       : ', рынок разделился примерно поровну.'),
-      'в плюсе', Math.round(gs) + '% выборки',
-      {t:'fill', pct: gs, mark: 50});
-  }
-  if (M.btc !== null && M.btc !== undefined) {
-    /* btcTail, а НЕ tail: имя tail уже занято функцией показа подвала
-       ниже, а var поднимается на всю область — строка затеняла функцию,
-       и tail() в конце падал (в ветке без анимации) или молча
-       игнорировался промисом (в обычной): подпись «клик в любом месте»
-       и полоса прогресса не включались вовсе. Столкновение жило здесь
-       до строки разрешения и вскрылось её проверкой. */
-    var btcTail = '.';
-    var dom = parseFloat(M.dom);
-    if (M.btc7d <= -1.5 && dom >= 57) {
-      btcTail = ' — деньги уходят из риска, альтам ничего не достаётся.';
-    } else if (M.btc7d <= -1.5 && dom < 57) {
-      btcTail = ' — падают вместе: биткоин без роста доминации, альтам ' +
-        'спрятаться некуда.';
-    } else if (M.btc7d >= 1.5 && dom < 56) {
-      btcTail = ' — биткоин растёт, а доминация сдаёт: окно для альтов.';
-    } else if (M.btc7d >= 1.5 && dom >= 56) {
-      btcTail = ' — биткоин растёт и тянет доминацию за собой: деньги идут ' +
-        'в рынок широко, а не утекают из альтов.';
-    } else if (Math.abs(M.btc7d) < 1.5) {
-      btcTail = ' — за неделю почти без движения.';
-    }
-    bgPush('Биткоин ' + (M.btc >= 0 ? 'прибавил' : 'потерял') + ' ' +
-      '<span class="' + sgn(M.btc) + ' n">' + Math.abs(M.btc).toFixed(1) +
-      '%</span> за сутки, за неделю <span class="' + sgn(M.btc7d) + ' n">' +
-      pct(M.btc7d) + '</span>, доминация <span class="n">' +
-      (isFinite(parseFloat(M.dom)) ? parseFloat(M.dom).toFixed(1) + '%' : '—') +
-      '</span>' + btcTail,
-      'биткоин',
-      (M.btc >= 0 ? '+' : '') + Math.abs(M.btc).toFixed(1) + '%' +
-        (isFinite(parseFloat(M.dom)) ? ' · ' + parseFloat(M.dom).toFixed(1) + '%' : ''),
-      isFinite(parseFloat(M.dom)) ? {t:'fill', pct: parseFloat(M.dom), mark: 50} : null);
-  }
-  function sgn(v) { return v > 0 ? 'up' : (v < 0 ? 'dn' : ''); }
-
-  /* ── Сводка счетов (Р-29/Р-30) ──
-     Один источник про деньги — analytics_portfolio, словарь
-     M.portfolios. Прежняя строка «по тысяче в каждую» читала второй
-     расчёт из журнала лидеров (J.port); он снят 23.08 — два
-     источника одной истины разошлись бы.
-
-     Два подхода к ОДНИМ монетам. HOLD — попал в журнал, взял,
-     держу, правил нет. Трейдинг — те же монеты по правилам, книга
-     начинается пустой. Разница между ними — цена стратегии, и
-     печатается она только когда есть что судить: после десяти
-     сделок, как условлено. */
-  var PF = M.portfolios || {};
-  var PH = PF.hold || {}, PT = PF.trade || {};
-
-  var portLine = [];
-  if (PH.invested || PT.trades) {
-    var txt = 'HOLD: <span class="n">' + (PH.open || 0) + '</span> позиций на <b>' +
-      fmtMoney(PH.invested || 0) + '</b>, <b class="' + sgn(PH.pnlPct) + '">' +
-      signed(PH.pnlPct || 0) + '</b> — взял и держу. Трейдинг: ';
-    if (PT.open) {
-      txt += '<span class="n">' + PT.open + '</span> на <b>' +
-        fmtMoney(PT.invested) + '</b>, <b class="' + sgn(PT.pnlPct) + '">' +
-        signed(PT.pnlPct || 0) + '</b> по правилам.';
-    } else if (PT.trades) {
-      txt += 'позиций нет, зафиксировано <b class="' + sgn(PT.realized) +
-        '">' + fmtMoney(PT.realized) + '</b> за ' + PT.trades + ' сделок.';
-    } else {
-      txt += '<span class="mut">книга пуста — правила ещё не входили.</span>';
-    }
-    if (PT.trades >= 10 && PT.pnlPct !== null && PT.pnlPct !== undefined &&
-        PH.pnlPct !== null && PH.pnlPct !== undefined) {
-      var dpp = PT.pnlPct - PH.pnlPct;
-      /* Пункты, не проценты: signed() дописал бы «%», и единица
-         задвоилась бы — «−4.0% п.п.» читается как опечатка. */
-      txt += ' Разница <b class="' + sgn(dpp) + '">' +
-        (dpp >= 0 ? '+' : '') + dpp.toFixed(1) +
-        ' п.п.</b> — трейдинг минус HOLD, цена стратегии.';
-    } else if (PT.trades > 0 && PH.invested) {
-      /* Разница — единственное, ради чего оба счёта ведутся, но на
-         горстке сделок она ничего не значит, и это сказано прямо. */
-      txt += ' <span class="mut">Сделок пока мало — разницу не читать.</span>';
-    }
-    /* Потолок находок — не украшение, а мера того, сколько стоит
-       отсутствие правила выхода: разрыв между «держали до сих пор»
-       и «зафиксировали в лучшей точке каждой позиции». */
-    if (PF.peakPct !== undefined && PF.peakPct !== null) {
-      txt += ' Потолок находок <b class="up">' + signed(PF.peakPct) +
-        '</b> <span class="mut">— столько стоит отсутствие выхода.</span>';
-    }
-    portLine = [txt];
-  }
-
-  var lossLine = (PF.losers || []).length
-    ? ['Разобрать: ' + PF.losers.map(function (d) {
-        return '<span class="t">' + d.t + '</span> <b class="dn">' +
-          signed(d.chg) + '</b> <span class="mut">' + (d.case || '?') + ', ' +
-          (d.at || '').slice(5) + '</span>'; }).join(', ') + '.']
-    : [];
-
-  var LC = M.leaderChart || {}, VC = M.volChart || {};
-
-  /* Нормировка ряда к [-1,1] — тот же приём, что и в прототипе, но
-     теперь на настоящих числах: LC.series (цена лидера потока) и
-     VC.ratios (кратности объёма по дням), а не случайное блуждание. */
-  function normPts(arr) {
-    var lo = Math.min.apply(null, arr), hi = Math.max.apply(null, arr);
-    var span = (hi-lo) || 1;
-    return arr.map(function (v) { return ((v-lo)/span)*2 - 1; });
-  }
-
-  /* Транш у лидера обязан звучать ЗДЕСЬ: HEMI стоял в топе с
-     разлоком через шесть дней, и сегмент об этом молчал (найдено
-     пользователем 23.08). Причину не сочиняем — берём у слоя
-     действия: «мимо» и всё про транш печатаются его же словами. */
-  /* M.leader — короткий словарь орбиты (тикер, скор, фигура, капа),
-     действия в нём нет и не будет: действие живёт у ЗВЕЗДЫ. Берём её
-     из общего списка — по флагу lead, запасным ходом по тикеру. */
-  var leadStar = null;
-  for (var li = 0; li < STARS.length; li++) {
-    var cand = STARS[li];
-    if (cand.lead) { leadStar = cand; break; }
-    if (!leadStar && L.t && cand.t === L.t) leadStar = cand;
-  }
-  var leadA = (leadStar && leadStar.act) || null;
-  var leadWhy = (leadA && leadA.why &&
-      (leadA.act === 'мимо' || leadA.why.indexOf('транш') >= 0))
-    ? ' <span class="warn">' + (leadA.act === 'мимо' ? 'Вход закрыт: ' : '') +
-      leadA.why + '.</span>'
-    : '';
-  var leaderSeg = (L.t && (LC.series || []).length >= 4)
-    ? { html: 'лидер потока — <span class="t">' + L.t + '</span>' + cap(L) +
-             ', фигура <span class="gd">' + (LC.case || '—') + '</span>' +
-             (LC.horizonDays ? ', горизонт <span class="n">' + LC.horizonDays +
-               '</span> дн' : '') +
-             ', скор <span class="n">' + (LC.score || 0) + '</span>.' + leadWhy,
-        pts: normPts(LC.series),
-        tag: L.t + ' ' + (LC.score || 0),
-        glyph: {t:'ring', pct: (LC.score || 0)} }
-    : null;
-
-  var volSeg = ((VC.ratios || []).length >= 4)
-    ? { html: 'максимум объёма — <span class="t">' + VC.sym + '</span>' +
-             cap(VC) + ', <span class="n">×' + VC.x + '</span> к своей норме ' +
-             'за 30 дней.',
-        pts: normPts(VC.ratios),
-        tag: VC.sym + ' ×' + VC.x,
-        glyph: {t:'dev', val: 1, max: 1} }
-    : null;
-
-  /* Р-6: при закрытом окне список НЕ пустеет и не переупорядочивается
-     — меняется только подпись: те же монеты, но как наблюдение, а не
-     входы. Порог «две независимые причины» — правило ПОКАЗА, живёт
-     здесь и в скор не проникает; одна причина (например, просто
-     выходные) окно не закрывает — у неё есть своя строка. */
-  var gateClosed = (P.warnCount || 0) >= 2;
-  var goHead = gateClosed
-    ? '<span class="warn">Окно закрыто</span> — список наблюдения, не входов: '
-    : 'Рассмотреть стоит (первая фаза, у дна): ';
-  var goLine = go.length
-    ? goHead +
-      go.slice(0, 3).map(function (s) {
-        return '<span class="t">' + s.t + '</span>' + cap(s); }).join(', ') + '.'
-    : '<span class="mut">Сегодня брать нечего.</span>';
-
-  var dormLine = DORM.length
-    ? 'Спят ' + DORM.map(function (d) {
-        return '<span class="t dorm">' + d.t + '</span>' +
-          (d.cap ? ' <span class="obf-cap">' + d.cap + '</span>' : ''); })
-        .join(', ') + ' — <span class="dorm">цикл был, база узкая</span>. ' +
-        'Движения ещё нет: наблюдать, не входить.'
-    : '';
-
-  /* Сегмент «ждут сигнала» заменён на «закрыть» (23.08, по просьбе):
-     позиции КНИГИ, которым слой действия говорит выходить, — тем же
-     критерием, что группа «выходить» зала: act.group === 'exit'.
-     Причина — словами самого слоя (act.why, запасным ходом exitWhy).
-     Пусто — сегмента нет: закрывать нечего, и об этом молчат. */
-  var closing = STARS.filter(function (s) {
-    return s.book && (s.book.usd || s.book.px) &&
-           s.act && s.act.group === 'exit';
-  }).sort(function (a, b) {
-    return (+b.book.usd || 0) - (+a.book.usd || 0);
-  });
-  var closingLine = closing.length
-    ? 'Закрыть ' + closing.slice(0, 3).map(function (s) {
-        var why = (s.act && s.act.why) ||
-                  (s.exitWhy && s.exitWhy[0]) || '';
-        return '<span class="t">' + s.t + '</span> ' +
-          fmtMoney(s.book.usd) +
-          (why ? ' <span class="mut">— ' + why + '</span>' : '');
-      }).join(' <span class="obf-sep">·</span> ') +
-      (closing.length > 3 ? ' и ещё ' + (closing.length - 3) : '') + '.'
-    : '';
-
-  var bigVolT = {};
-  bigVolAll.forEach(function (v) { bigVolT[v.t] = true; });
-
-  /* «В работе» — это КНИГА (Р-30), не зрелость журнала. Прежняя
-     версия показывала монеты со стажем (streak ≥ 3, days ≥ 4) — под
-     новым словарём это читалось как открытые позиции, которых нет
-     (найдено пользователем 23.08). Теперь сегмент говорит ровно то,
-     что говорят зал и счёт: позиции книги с их деньгами и ходом от
-     СВОЕГО входа. Книга пуста — сегмента нет: строка счетов уже
-     сказала «книга пуста», второй раз не повторяем. */
-  var bookPos = STARS.filter(function (s) {
-    return s.book && (s.book.usd || s.book.px);
-  }).sort(function (a, b) {
-    return (+b.book.usd || 0) - (+a.book.usd || 0);
-  });
-  function posPnl(s) {
-    var e = +s.book.px || 0, p = +s.px || 0;
-    return (e > 0 && p > 0) ? (p / e - 1) * 100 : null;
-  }
-  var holdLine = bookPos.length
-    ? 'В работе ' + bookPos.slice(0, 3).map(function (s) {
-        var d = posPnl(s);
-        return '<span class="t gd">' + s.t + '</span> ' +
-          fmtMoney(s.book.usd) +
-          (d === null ? '' : ' <span class="' + sgn(d) + ' n">' +
-            signed(d) + '</span>') +
-          (bigVolT[s.t] ? ' <span class="up">· объём</span>' : '');
-      }).join(', ') +
-      (bookPos.length > 3 ? ' и ещё ' + (bookPos.length - 3) : '') + '.'
-    : '';
-
-  /* Тёплая строка, не предупреждение: шорт-перекос при росте — заряд
-     ВВЕРХ (симметрия рамки). Серия во всё окно уже помечена «48+»
-     самим детектором — здесь только собираем. Пусто — сегмента нет:
-     заряд либо есть, либо о нём молчат. */
-  var squeezeLine = sq.length
-    ? 'Заряжены на сжим ' + sq.slice(0, 3).map(function (s) {
-        var q = s.squeeze;
-        return '<span class="t gd">' + s.t + '</span>' + cap(s) +
-          ' <span class="mut">— фандинг минус</span> <span class="n">' +
-          (q.negRun || 0) + (q.capped ? '+' : '') +
-          '</span> <span class="mut">' + barWord(q.negRun || 0) +
-          ' при</span> <span class="up n">' +
-          (q.pxChg >= 0 ? '+' : '') + q.pxChg + '%</span>' +
-          (q.thin ? ' <span class="up">· флоат тонкий</span>' : '');
-      }).join(', ') +
-      ' — <span class="gd">шорты платят и уже в убытке</span>.'
-    : '';
-  function barWord(n) {
-    if (n % 10 === 1 && n % 100 !== 11) return 'бар';
-    if ([2,3,4].indexOf(n % 10) >= 0 &&
-        [12,13,14].indexOf(n % 100) < 0) return 'бара';
-    return 'баров';
-  }
-
-  var journalLine = J.n
-    ? 'Журнал: <b>' + J.n + '</b> ' + plural(J.n, 'монета', 'монеты', 'монет') +
-      (J.fresh && J.fresh.length
-        ? ', новых этим прогоном — <b>' + J.fresh.join(', ') + '</b>' : '') +
-      '. Лучший ход от входа <b class="up">' + J.best.t + ' ' +
-      (J.best.chg >= 0 ? '+' : '') + J.best.chg + '%</b>' +
-      (J.worst.t !== J.best.t
-        ? ', худший <b class="dn">' + J.worst.t + ' ' +
-          (J.worst.chg >= 0 ? '+' : '') + J.worst.chg + '%</b>'
-        : '') + '.'
-    : '';
-
-  var bigVolLine = bigVol.length
-    ? 'Аномалия объёма ×30+ у ' + bigVol.map(function (v) {
-        return '<span class="t">' + v.t + '</span>' + cap(v) +
-          ' <span class="n">×' + v.x + '</span>'; }).join(', ') + '.'
-    : '';
-
-  var hrLine = HR.list.length
-    ? 'За час ожили <span class="n">' + HR.n + '</span>: ' +
-      HR.list.map(function (v) {
-        return '<span class="t">' + v.t + '</span>' + cap(v) +
-          ' <span class="n">×' + v.x + '</span>'; }).join(', ') + '.'
-    : '';
-
-  /* Порядок строк — тот же, что и раньше: портфель и разбор убытков
-     сразу (это про то, чего стоят находки), потом фон рынка, потом
-     лидер потока с графиком, аномалии объёма, максимум объёма с
-     графиком, часовая активность, отбор, спячка, ожидание, работа,
-     уровни, журнал. */
-  /* ═══ Закрывающий сегмент ═══
-     Он остаётся на экране до клика (см. LAST_HOLD), поэтому говорит
-     про РЕШЕНИЕ, а не повторяет числа начала. Открывающая строка
-     отвечает «что с рынком», эта — «с чем я остаюсь»: сколько ставить
-     и чего ждать. Ступень размера и ближайшая дата иначе видны только
-     в карточке зала, то есть их надо искать — а это самые действенные
-     величины дня. */
-  /* ═══ Два счёта (Р-29) ═══
-     HOLD — попал в лидеры, взял на $1000, держу; правила не
-     применяются. Трейдинг — те же монеты по правилам, со своими
-     входами и выходами. Считаны на ОДНИХ ценах, поэтому разница между
-     ними читается прямо: стоило ли торговать то, что можно было
-     просто держать. Пустой счёт не печатается вовсе — «правила ещё не
-     сделали ни одной сделки» и «ноль долларов» разные утверждения. */
-  var PF = M.portfolios || {};
-  /* Сегмент счетов ЗВУЧАЛ ДВАЖДЫ: ранняя строка (второй в
-     очереди, сразу после окна рынка) и поздний acctLine перед
-     итогом — два рассказа об одном и два места «счета» в фигуре.
-     Поздний снят вместе со своими помощниками (money/acct):
-     деньги должны звучать один раз и рано, пока внимание свежее;
-     его формулировка про малое число сделок перенесена в раннюю
-     строку. */
-
-  var closeLine = '';
-  (function () {
-    var pp2 = (M.permission || {}).parts || {};
-    var cal2 = (pp2.calendar || {}).items || [];
-    var bits = [];
-    if ((M.permission || {}).knownCount)
-      bits.push('окно рынка <span class="n">' +
-        ((M.permission || {}).warnCount || 0) + ' из ' +
-        (M.permission || {}).knownCount + '</span>');
-    /* Ступень берётся у ЛИДЕРА потока: размер — свойство монеты, и
-       усреднять его по журналу нельзя. Нет лидера — нет строки. */
-    var lead2 = null;
-    for (var q=0;q<STARS.length;q++) if (STARS[q].lead) { lead2 = STARS[q]; break; }
-    if (lead2 && lead2.size && lead2.size.tier)
-      bits.push('размер по правилу — <span class="gd">' +
-        lead2.size.tier + '</span>');
-    if (cal2.length){
-      var ev = cal2[0];
-      bits.push(ev.title + (ev.running ? ' идёт'
-        : ' через <span class="n">' + ev.days + '</span> дн'));
-    }
-    if (bits.length)
-      /* Хвост обязан объяснять себя сам: обрубок «список наблюдения,
-         не входов» читался как ошибка вёрстки (найдено 23.08). Это
-         правило показа Р-6: при двух и больше предупреждениях топ —
-         те же монеты, но как наблюдение; и правило входа Р-30: вход
-         только по событию, частями. */
-      closeLine = 'Итог: ' + bits.join(', ') + '.' +
-        (((M.permission || {}).warnCount || 0) >= 2
-          ? ' <span class="mut">Окно с предупреждениями, поэтому топ ' +
-            'сегодня — список наблюдения, а не входов: правила входят ' +
-            'только по событию и частями.</span>' : '');
+    var body =
+      '<div class="obf-big obf-st" style="--i:2"><span class="obf-bar"></span>' +
+      '<span class="g">' + (P.warnCount || 0) + ' из ' + (P.knownCount || 7) +
+      '</span></div>' +
+      '<div class="obf-sub obf-st" style="--i:4">' +
+      (P.warnCount ? '<b>' + P.warnCount + '</b> предупреждения из ' +
+        (P.knownCount || 7) + ' составляющих. ' : 'Явных предупреждений нет. ') +
+      (reasons.length ? esc(reasons[0]) + '.' : '') +
+      (M.appetite ? ' Аппетит ' + esc(M.appetite).replace('/', ' из ') + '.' : '') +
+      '</div>';
+    pages.push(page('Окно рынка', body));
   })();
 
-  /* Ярлыки и глифы — только тем сегментам, у которых есть короткое
-     честное значение. Остальные проговариваются и уходят: держать на
-     экране «деньги в рынке есть» без числа незачем. */
-  var permSeg = permLine ? tagSeg({html: permLine}, 'окно рынка',
-        ((M.permission || {}).warnCount || 0) + ' из ' +
-        ((M.permission || {}).knownCount || 0),
-        {t:'ticks', on:((M.permission || {}).warnCount || 0),
-         all:((M.permission || {}).knownCount || 0), tone:'dn'}) : null;
+  /* 2 · фон */
+  (function(){
+    var AS = M.altShare || {}, rs = pp.reservoir || {}, md = M.medians || {};
+    var cells = '', i = 2;
+    if (AS.d7 !== undefined && AS.d7 !== null) {
+      cells += numCell(i++, AS.d7 + '%', '', 'обошли биткоин',
+        AS.d7 < 50 ? 'прилив до альтов не дошёл' : 'прилив дошёл до альтов',
+        AS.d7 < 50);
+    }
+    if (rs.share !== undefined && rs.share !== null) {
+      /* ВОЗРАСТ РУЧНОГО ЧИСЛА ПЕЧАТАЕТСЯ. Раньше стейблы стояли одним
+         и тем же числом четвёртый день, и читалось это как измерение
+         сегодняшнего дня. Возраст в данных был — бриф его не печатал. */
+      var age = num(rs.ageDays);
+      cells += numCell(i++, rs.share + '%', '', 'стейблы к капе',
+        age !== null && age > 2 ? 'данным ' + Math.round(age) +
+          ' дн · файл не обновлялся' : null, true);
+    }
+    if (M.dom) cells += numCell(i++, M.dom + '%', '', 'доминация BTC');
+    if (md.d7 !== undefined) {
+      cells += numCell(i++, pct(md.d7), '', 'медиана за неделю',
+        'за сутки ' + pct(md.d1) + ' · за месяц ' + pct(md.d30));
+    }
+    if (M.sector) {
+      var sp = String(M.sector).split(' ');
+      cells += numCell(i++, esc(sp[0]), 'acc', 'сектор дня',
+        esc(sp.slice(1).join(' ')));
+    }
+    if (cells) pages.push(page('Фон', '<div class="obf-nums">' + cells + '</div>',
+      'фон рынка'));
+  })();
 
-  var closeSeg = closeLine ? tagSeg({html: closeLine}, 'итог',
-      (((M.permission || {}).warnCount || 0) >= 2 ? 'наблюдение' : 'можно'),
-      null) : null;
+  /* 3 · портфели */
+  (function(){
+    var pf = M.portfolios || {}, jr = M.journal || {}, cells = '', i = 2;
+    if (pf.hold && pf.hold.open) {
+      cells += numCell(i++, pct(pf.hold.pnlPct), sign(pf.hold.pnlPct),
+        'журнал · ' + pf.hold.open + ' позиций',
+        'вложено ' + money(pf.hold.invested) + ' · стоит ' +
+        money(pf.hold.value) + ' · ' + money(pf.hold.pnl));
+    }
+    if (pf.trade && pf.trade.open) {
+      cells += numCell(i++, pct(pf.trade.pnlPct), sign(pf.trade.pnlPct),
+        'трейдинг · ' + pf.trade.open + ' позиций',
+        'вложено ' + money(pf.trade.invested) + ' · стоит ' +
+        money(pf.trade.value) + ' · ' + money(pf.trade.pnl));
+    }
+    /* «Лучшая» и «худшая» УБРАНЫ намеренно: минус может быть сквизом
+       для снятия плеч с возвратом, а слово «худшая» приговаривает
+       монету до того, как ход закончен, и тянет закрыть в минус.
+       Осталось только направление. Тикеры одного цвета — красным был
+       приговор, а не измерение. */
+    if (jr.best) cells += numCell(i++, esc(jr.best.t), '', 'дальше всех вверх',
+      pct(jr.best.chg, 1) + ' от входа');
+    if (jr.worst) {
+      var los = (pf.losers || []).filter(function(x){ return x.t !== jr.worst.t; })
+        .slice(0, 3).map(function(x){ return esc(x.t) + ' ' + pct(x.chg, 1); });
+      cells += numCell(i++, esc(jr.worst.t), '', 'дальше всех вниз',
+        pct(jr.worst.chg, 1) + ' от входа' +
+        (los.length ? ' · рядом ' + los.join(', ') : '') + ' · ход не закрыт');
+    }
+    if (cells) pages.push(page('Портфели', '<div class="obf-nums">' + cells + '</div>',
+      'портфели'));
+  })();
 
-  /* В фигуру идут ВСЕ сегменты, у которых есть короткое честное
-     значение. Пустые списки строк не дают вовсе, поэтому фигура сама
-     подстраивается под день: в тихий соберётся шесть строк, в живой —
-     двенадцать. */
-  function T(line, k, v, g){
-    return line ? [tagSeg({html: line}, k, v, g)] : [];
+  /* 4 · лидер */
+  (function(){
+    var L = M.leader, LC = M.leaderChart || {};
+    if (!L || !L.t) return;
+    var s = star(L.t) || {};
+    var cap = 'ход за две недели' +
+      (LC.zone ? ' · зона ' + (+LC.zone).toFixed(5) : '') +
+      (LC.stop ? ' · стоп ' + esc(LC.stop) : '') +
+      (LC.target ? ' · цель ' + esc(LC.target) : '');
+    var body =
+      '<div class="obf-big obf-st" style="--i:2"><span class="obf-bar"></span>' +
+      '<span class="g">' + esc(L.t) + '</span></div>' +
+      chartHTML(LC.series || s.series, null, cap) +
+      '<div class="obf-sub obf-st" style="--i:5">Скор <b>' + (L.score || '—') +
+      '</b>' + (L.case ? ' · фигура ' + esc(L.case) : '') +
+      (LC.horizonDays ? ' · горизонт ' + LC.horizonDays + ' дн' : '') +
+      (L.cap ? ' · ' + esc(L.cap) : '') + '.</div>';
+    pages.push(page('Лидер', body, 'лидер прогона'));
+  })();
+
+  /* 4а · ЛИДЕРЫ ТРЁХ ДНЕЙ
+     Кто держался в топе выборки последние трое суток. Считаем по
+     hits_by_day, а не по last_seen: last_seen стоит почти у всех
+     (59 из 60 в проверенном прогоне) и не фильтрует ничего — монета
+     остаётся «виденной», пока она вообще в журнале. Попадания по дням
+     отвечают на другой вопрос: сколько РАЗ монета была в топе.
+
+     Зачем страница. Разовое попадание — шум; три дня подряд — то, что
+     система выделяет упорно, и это стоит увидеть рядом. Лидер
+     СЕГОДНЯШНЕГО прогона помечен отдельно: он в этом списке не самый
+     частый, и без метки его не отличить от вчерашних. */
+  (function(){
+    var lead = (M.leader || {}).t || null;
+    /* byDay — МАССИВ за семь дней, свежий день последний, нули
+       честные (см. _hits_by_day в analytics_stars). Не словарь с
+       датами: сначала я написал разбор словаря, и ветка не сработала
+       бы вовсе — молча дала бы пустую страницу.
+       Берём три последних дня массива. Дни считаем от конца ряда, а
+       не от сегодняшнего числа: ряд уже выровнен по календарю в
+       источнике, и второй раз выравнивать его нечем. */
+    var rows = ST.map(function(s){
+      var by = s.byDay;
+      if (!by || !by.length) return null;
+      var last3 = by.slice(-3);
+      var n = 0, i;
+      for (i = 0; i < last3.length; i++) n += (+last3[i] || 0);
+      if (!n) return null;
+      var names = ['позавчера', 'вчера', 'сегодня'].slice(-last3.length);
+      return { t: s.t, n: n,
+               days: last3.map(function(v, k){
+                 return { d: names[k], v: +v || 0 }; }),
+               chg: num(s.chg), cs: s.st || '', cap: s.cap || '' };
+    }).filter(Boolean).sort(function(a, b){ return b.n - a.n; });
+
+    if (rows.length < 3) return;
+    var top = rows.slice(0, 8);
+    /* Лидер прогона обязан быть на странице, даже если по числу
+       попаданий он не в первой восьмёрке: страница про него тоже. */
+    var has = top.some(function(r){ return r.t === lead; });
+    if (lead && !has) {
+      var me = rows.filter(function(r){ return r.t === lead; })[0];
+      if (me) { top = top.slice(0, 7); top.push(me); }
+    }
+
+    var body = '<div class="obf-pos">' + top.map(function(r, k){
+      var isLead = r.t === lead;
+      var by = r.days.map(function(x){ return x.d + ' ' + x.v; }).join(' · ');
+      return '<div class="obf-p obf-st" style="--i:' + (2 + (k >> 1)) + '">' +
+        '<div class="r"><span class="t">' + esc(r.t) +
+          (isLead ? '<i class="obf-now">лидер прогона</i>' : '') + '</span>' +
+        '<span class="n ' + (isLead ? 'acc' : sign(r.chg)) + '">' + r.n +
+        '</span></div>' +
+        '<div class="d">' + by + (r.cs ? ' · ' + esc(r.cs) : '') +
+        (r.chg !== null ? ' · ход ' + pct(r.chg, 0) : '') + '</div></div>';
+    }).join('') + '</div>' +
+    '<div class="obf-sub obf-st" style="--i:' + (2 + (top.length >> 1) + 1) +
+      '">Число справа — <b>сколько раз монета попала в топ выборки</b> за ' +
+      'три дня наблюдений. Разовое попадание — шум; повторяющееся — то, ' +
+      'что система выделяет упорно.</div>';
+    pages.push(page('Лидеры трёх дней', body, 'кто держится'));
+  })();
+
+  /* 5 · топ объёма */
+  (function(){
+    var VC = M.volChart || {}, top = (M.topVol || []).slice(0, 3);
+    var lead = M.peakVol || {};
+    if (!lead.sym && !top.length) return;
+    var ls = star(lead.sym) || {};
+    /* ЦЕНА главной линией. Объём после сквиза на 90% бывает огромным и
+       не значит ничего — толку от него ноль, если цена не пошла. */
+    var ch = '';
+    if (ls.series && ls.series.length > 1) {
+      var g = (ls.series[ls.series.length-1] / ls.series[0] - 1) * 100;
+      ch = chartHTML(ls.series, VC.ratios,
+        esc(lead.sym) + ' · цена за две недели, ' + pct(g, 0) + ' · объём фоном');
+    }
+    var cells = '', i = 3;
+    if (lead.sym) cells += numCell(i++, '×' + Math.round(lead.x || 0), 'acc',
+      esc(lead.sym), (VC.cap ? esc(VC.cap) : '') +
+      (VC.funding ? ' · фандинг ' + (+VC.funding).toFixed(2) + '%' : ''));
+    top.forEach(function(v){
+      if (v.t === lead.sym) return;
+      cells += numCell(i++, '×' + (+v.x).toFixed(1), '', esc(v.t), esc(v.cap || ''));
+    });
+    pages.push(page('Топ объёма', ch + '<div class="obf-nums">' + cells + '</div>',
+      'объём'));
+  })();
+
+  /* 6 · брать */
+  (function(){
+    var take = ST.filter(function(s){
+      return (s.act || {}).group === 'take' && (s.act || {}).act === 'брать'; });
+    var body;
+    if (take.length) {
+      body = '<div class="obf-pos">' + take.slice(0, 8).map(function(s, k){
+        return '<div class="obf-p obf-st" style="--i:' + (2 + (k >> 1)) + '">' +
+          '<div class="r"><span class="t">' + esc(s.t) + '</span>' +
+          '<span class="n up">' + esc(s.st || '') + '</span></div>' +
+          '<div class="d">' + esc((s.act || {}).why || '') + '</div></div>';
+      }).join('') + '</div>';
+    } else {
+      body = '<div class="obf-empty obf-st" style="--i:2">нечего</div>' +
+        '<div class="obf-sub obf-st" style="--i:3">Ни одна монета не прошла ' +
+        'порог входа.</div>';
+    }
+    pages.push(page('Брать', body, 'вход'));
+  })();
+
+  /* 7–8 · в работе, плюс и минус отдельно */
+  (function(){
+    var book = ST.filter(function(s){ return (s.book || {}).usd; })
+      .map(function(s){ var c = bookChg(s); return { s: s, c: c }; })
+      .filter(function(o){ return o.c !== null; })
+      .sort(function(a, b){ return b.c - a.c; });
+    if (!book.length) return;
+    function block(list, title, right){
+      /* ОБЩАЯ ПРИЧИНА ПЕЧАТАЕТСЯ ОДИН РАЗ.
+         Событие вроде голосования Solana даёт один и тот же довод всем
+         монетам сразу, и в строках он повторялся шесть раз подряд —
+         шесть одинаковых абзацев вместо шести разных фактов. Считаем,
+         какой довод общий, выносим его над списком, а в строках
+         оставляем только то, что у монеты СВОЁ. */
+      var cnt = {}, top = null, topN = 0;
+      list.forEach(function(o){
+        var w = (o.s.act || {}).why; if (!w) return;
+        cnt[w] = (cnt[w] || 0) + 1;
+        if (cnt[w] > topN) { topN = cnt[w]; top = w; }
+      });
+      var shared = topN >= 2 ? top : null;
+      var body = '<div class="obf-pos">' + list.map(function(o, k){
+        var s = o.s, b = s.book || {};
+        var det = money(b.usd) + (s.st ? ' · ' + esc(s.st) : '') +
+          (b.px ? ' · вход ' + b.px : '');
+        var why = (s.act || {}).why;
+        if (why && why !== shared) det += ' · ' + esc(why);
+        return '<div class="obf-p obf-st" style="--i:' + (2 + (k >> 1)) + '">' +
+          '<div class="r"><span class="t">' + esc(s.t) + '</span>' +
+          '<span class="n ' + sign(o.c) + '">' + pct(o.c) + '</span></div>' +
+          '<div class="d">' + det + '</div></div>';
+      }).join('') + '</div>' +
+      (shared ? '<div class="obf-sub obf-st" style="--i:' +
+        (2 + (list.length >> 1) + 1) + '">Общее для ' + topN +
+        ' позиций: ' + esc(shared) + '.</div>' : '');
+      pages.push(page(title, body, right));
+    }
+    var up = book.filter(function(o){ return o.c >= 0; });
+    var dn = book.filter(function(o){ return o.c < 0; });
+    if (up.length) block(up, 'В работе · плюс', 'в работе · в плюсе');
+    if (dn.length) block(dn, 'В работе · минус', 'в работе · в минусе');
+  })();
+
+  /* 9 · закрыть */
+  (function(){
+    var out = ST.filter(function(s){ return (s.act || {}).group === 'exit'; });
+    var body = out.length
+      ? '<div class="obf-pos">' + out.map(function(s, k){
+          return '<div class="obf-p obf-st" style="--i:' + (2 + (k >> 1)) + '">' +
+            '<div class="r"><span class="t">' + esc(s.t) + '</span>' +
+            '<span class="n dn">' + pct(bookChg(s)) + '</span></div>' +
+            '<div class="d">' + esc(s.exitWhy || (s.act || {}).why || '') +
+            '</div></div>'; }).join('') + '</div>'
+      : '<div class="obf-empty obf-st" style="--i:2">нечего</div>' +
+        '<div class="obf-sub obf-st" style="--i:3">Ни одна позиция не дошла ' +
+        'до правила выхода.</div>';
+    pages.push(page('Закрыть', body, 'выход'));
+  })();
+
+  /* 10 · спят */
+  (function(){
+    var d = M.dormant || [];
+    if (!d.length) return;
+    var body = '<div class="obf-plain obf-st" style="--i:2">' +
+      d.map(function(x){ return '<span class="obf-tick">' + esc(x.t) + '</span>'; })
+       .join('') + '</div>' +
+      '<div class="obf-sub obf-st" style="--i:3">Ни движения, ни объёма. ' +
+      'Держим в выборке — из этого состояния и выходят.</div>';
+    pages.push(page('Спят · ' + d.length, body, 'спящие'));
+  })();
+
+  /* 11 · итог */
+  (function(){
+    var size = (P.warnCount || 0) >= 4 ? 'урезанный'
+             : (P.warnCount || 0) >= 2 ? 'полный' : 'полный';
+    var body =
+      '<div class="obf-big obf-st" style="--i:2"><span class="obf-bar"></span>' +
+      '<span class="g">' + size + '</span></div>' +
+      '<div class="obf-sub obf-st" style="--i:4">Окно рынка ' +
+      (P.warnCount || 0) + ' из ' + (P.knownCount || 7) +
+      ' — размер по правилу <b>' + size + '</b>.</div>';
+    pages.push(page('Итог', body, 'итог прогона'));
+  })();
+
+  /* ══════════════ ЧАСТОКОЛ ══════════════
+     ВСЕ события, без «и ещё восемь». Прежняя строка показывала три и
+     прятала остальные — среди спрятанных оказался самый тяжёлый транш
+     списка. Если событий много, резать надо порог попадания, а не
+     хвост: тогда решает важность, а не место на экране. */
+  function eventsHTML(withHead){
+    var cal = pp.calendar || {}, items = cal.items || [];
+    if (!items.length) return '';
+    var KIND = { delist:'делистинг', unlock:'разлок', risk:'риск',
+                 macro:'макро', support:'опора' };
+    var html = withHead ? '<div class="obf-h">Впереди</div>' : '';
+    items.forEach(function(e){
+      var d = num(e.days);
+      var when = e.running ? 'сегодня · идёт'
+        : d === 0 ? 'сегодня' : d === 1 ? 'завтра' : 'через ' + d + ' дн';
+      var inBook = /МОНЕТА В КНИГЕ|в книге/i.test(e.note || '');
+      html += '<div class="obf-ev">' +
+        '<div class="w' + (e.running || d === 0 ? ' now' : '') + '">' +
+          esc(when) + '</div>' +
+        '<div class="t">' + esc(e.title) +
+          '<span class="k' + (inBook ? ' book' : '') + '">' +
+          esc(inBook ? 'в книге' : (KIND[e.kind] || e.kind || '')) + '</span></div>' +
+        (e.note ? '<div class="d">' + esc(String(e.note).slice(0, 190)) +
+                  '</div>' : '') +
+        '</div>';
+    });
+    html += '<div class="obf-more">' + items.length + ' ' +
+      (items.length === 1 ? 'событие' : items.length < 5 ? 'события' : 'событий') +
+      ' · показаны все</div>';
+    return html;
   }
-  var AS2 = M.altShare || {};
-  var rsv2 = ((M.permission || {}).parts || {}).reservoir || {};
+  (function(){
+    var rail = document.getElementById('obfRail');
+    if (rail) rail.innerHTML = eventsHTML(true);
+    /* Та же разметка — отдельной страницей в конце колоды. На широком
+       экране она скрыта стилем, на узком становится единственным
+       местом, где события видны. */
+    var ev = eventsHTML(false);
+    if (ev) {
+      pages.push('<section class="obf-page narrow">' + head('впереди') +
+        '<div class="obf-mid"><div class="obf-kick obf-serif obf-st" ' +
+        'style="--i:1">Впереди</div>' +
+        '<div class="obf-list obf-st" style="--i:2">' + ev + '</div></div>' +
+        '</section>');
+    }
+  })();
 
-  /* Альт-доля и резервуар проговариваются хвостами строки разрешения,
-     но в фигуре им нужно СВОЁ место: это числа месячного горизонта, и
-     терять их вместе с текстом жаль. Отдельного сегмента у них нет —
-     значит, и текста в центре они не займут: пустой html просто не
-     показывается, а строка в фигуре появляется. */
-  var altSeg = (AS2.d7 !== undefined && AS2.d7 !== null)
-    ? tagSeg({html: ''}, 'альты к btc', AS2.d7 + '% за 7д',
-             {t:'fill', pct: AS2.d7, mark: 50})
-    : null;
-  var rsvSeg = (rsv2.known && rsv2.share !== undefined && rsv2.share !== null)
-    ? tagSeg({html: ''}, 'резервуар', rsv2.share + '% капы',
-             {t:'fill', pct: rsv2.share, mark: 13, scale: 20, tone: 'gd'})
-    : null;
+  /* ══════════════ ЛИСТАЛКА ══════════════ */
+  var sheet = document.getElementById('obfSheet');
+  sheet.innerHTML = pages.join('');
+  var all = [].slice.call(sheet.querySelectorAll('.obf-page'));
+  /* СЧИТАЕМ ТОЛЬКО ВИДИМЫЕ. Страница событий существует всегда, но
+     на широком экране скрыта стилем — если бы листалка считала её,
+     на десятой странице был бы шаг в пустоту и счётчик врал бы.
+     Спрашиваем сам браузер, а не ширину окна: правило может измениться
+     в стилях, и второе место, где та же граница записана числом, рано
+     или поздно разойдётся с первым. */
+  function shown(){
+    return all.filter(function(n){ return getComputedStyle(n).display !== 'none'; });
+  }
+  var els = shown();
+  var ticks = document.getElementById('obfTicks');
+  var count = document.getElementById('obfCount');
+  var prev = document.getElementById('obfPrev');
+  var next = document.getElementById('obfNext');
 
-  var raw = (permSeg ? [permSeg] : [])
-    .concat(T(portLine, 'счета',
-      (PH.invested ? fmtMoney(PH.invested) : ''), null))
-    .concat(T(lossLine, 'разобрать',
-      ((PF.losers || []).length || '') + '', null))
-    .concat(bg)
-    .concat(wknd ? [tagSeg({html: wknd}, 'выходные', 'тонкий стакан', null)] : [])
-    .concat([leaderSeg ? tagSeg(leaderSeg, 'лидер', leaderSeg.tag,
-             leaderSeg.glyph) : leaderSeg])
-    .concat(T(bigVolLine, 'аномалия', bigVol.length + ' монет',
-      {t:'ticks', on: Math.min(7, bigVol.length), all: 7}))
-    .concat([volSeg ? tagSeg(volSeg, 'объём', volSeg.tag, volSeg.glyph) : volSeg])
-    .concat(T(hrLine, 'за час', HR.n + ' ожили', null))
-    /* Ярлык сменён с «брать»: в зале «брать» — счёт ЗАЯВОК книги, а
-       здесь — список фазы go. Одно слово с двумя смыслами на соседних
-       экранах путало (найдено проходом 23.08). */
-    .concat([tagSeg({html: goLine}, 'кандидаты',
-      go.length ? go.length + ' монет' : 'нечего',
-      {t:'ticks', on: Math.min(7, go.length), all: 7,
-       tone: go.length ? '' : 'dn'})])
-    .concat(T(dormLine, 'спят', DORM.length + '', null))
-    .concat(T(closingLine, 'закрыть', closing.length + '', null))
-    .concat(T(holdLine, 'в работе', bookPos.length + '', null))
-    .concat(T(squeezeLine, 'сжим', sq.length + '', null))
-    .concat(T(journalLine, 'журнал', (J.n || 0) + '', null))
-    .concat(altSeg ? [altSeg] : [])
-    .concat(rsvSeg ? [rsvSeg] : [])
-    .concat(closeSeg ? [closeSeg] : []);
+  /* cur = −1, а не 0: защита «не листать на текущую» сравнивает i с cur,
+     и при нуле она же блокировала САМЫЙ ПЕРВЫЙ показ — экран
+     открывался пустым. Минус один значит «страницы ещё не было». */
+  var cur = -1, timer = null, outTimer = null, paused = false, done = false;
+  var css = getComputedStyle(wrap);
+  var WIPE = (parseFloat(css.getPropertyValue('--wipe')) || 3.15) * 1000;
+  var DWELL = (parseFloat(css.getPropertyValue('--dwell')) || 26) * 1000;
 
-  /* Приводим всё к единому виду {html, pts, accent}: строки-строки
-     оборачиваются как есть (это уже готовая цветная разметка),
-     leaderSeg/volSeg уже несут и html, и pts. */
-  var SEGMENTS = raw.filter(Boolean).map(function (item, i) {
-    var seg = (typeof item === 'string') ? { html: item } : item;
-    seg.accent = BLOCK_ACCENTS[i % BLOCK_ACCENTS.length];
-    return seg;
+  var tks = [];
+  function buildTicks(){
+    ticks.innerHTML = '';
+    els.forEach(function(_, i){
+      var t = document.createElement('div');
+      t.className = 'obf-tk';
+      t.innerHTML = '<i></i>';
+      /* Полоски кликабельны: если нужное уже позади, не листать по одной. */
+      t.onclick = function(){ go(i, i < cur ? 'back' : 'fwd'); };
+      ticks.appendChild(t);
+    });
+    tks = [].slice.call(ticks.children);
+  }
+  buildTicks();
+
+  /* ПОВОРОТ ПЛАНШЕТА МЕНЯЕТ СОСТАВ КОЛОДЫ: страница событий то
+     появляется, то уходит. Пересобираем список и полоски, а место в
+     колоде удерживаем по САМОЙ СТРАНИЦЕ, а не по номеру — номера
+     сдвигаются, страница остаётся той же. */
+  var rezTimer = null;
+  window.addEventListener('resize', function(){
+    clearTimeout(rezTimer);
+    rezTimer = setTimeout(function(){
+      var node = cur >= 0 ? els[cur] : null;
+      els = shown();
+      if (!els.length) return;
+      buildTicks();
+      var i = node ? els.indexOf(node) : 0;
+      if (i < 0) i = Math.min(cur < 0 ? 0 : cur, els.length - 1);
+      cur = -1;
+      go(i, 'fwd');
+    }, 220);
   });
 
-  /* ═══ Что от сегмента остаётся в фигуре ═══
-     Ярлык и число задаются ЯВНО, а не выдираются из готовой фразы:
-     разбор своего же текста регулярками сломается на первой правке
-     формулировки, и сломается молча. Сегменты без пары ярлык-значение
-     просто не садятся в фигуру — это нормально, не всё стоит держать
-     на экране до конца.
-     Глиф — шкала своей величины, а не значок: одинаковая иконка у
-     восьми чисел обещала бы смысл, которого нет. */
-  function tagSeg(seg, k, v, g){
-    if (!seg) return seg;
-    seg.k = k; seg.v = v; seg.g = g || null;
-    return seg;
-  }
-
-  if (!SEGMENTS.length) return;
-
-  /* Сколько строк соберётся в фигуре — известно до начала показа:
-     это сегменты с ярлыком и значением. Знать заранее обязательно,
-     иначе шаг по вертикали пришлось бы пересчитывать на каждой новой
-     строке, и фигура ползала бы всю сводку. */
-  FIG_TOTAL = Math.min(FIG_SLOTS,
-    SEGMENTS.filter(function (x) { return x.k && x.v; }).length);
-
-  /* Последний ВИДИМЫЙ сегмент, а не последний в списке. Сегменты без
-     текста (альт-доля, резервуар) садятся в фигуру мгновенно и стоят
-     в конце — из-за них «last» приходился на невидимую запись, тридцать
-     секунд ожидания доставались ей, а настоящий финальный текст гас
-     через обычные четыре. Именно это и выглядело как «исчезает сразу». */
-  var LAST_SHOW = -1;
-  for (var li = SEGMENTS.length - 1; li >= 0; li--) {
-    if (SEGMENTS[li].html) { LAST_SHOW = li; break; }
-  }
-
-  function tail() {
-    document.getElementById('obfFoot').classList.add('on');
-    document.getElementById('obfBar').classList.add('on');
-  }
-
-  var reduce = window.matchMedia('(prefers-reduced-motion:reduce)').matches;
-
-  resizeScene();
-  if (reduce) {
-    // Без анимации: последняя строка выводится статично сразу — сама
-    // сцена (кольцо/дюна) достаточно тиха, чтобы не требовать полного
-    // отключения, но набор текста и полёт частиц не идут.
-    txtEl.textContent = stripTags(SEGMENTS[SEGMENTS.length - 1].html);
-    txtEl.style.opacity = '1';
-    tail();
-  } else {
-    // Сцена (кольцо, дюна, частицы) дышит сразу — под лоадером ей
-    // и место: к снятию экран уже живой. А вот ПЕЧАТЬ ждёт сигнала
-    // «тебя показали»: печать от момента загрузки при тёплом кэше
-    // успевала отыграть под лоадером оболочки, и первый сегмент
-    // после перезагрузки появлялся допечатанным (найдено
-    // пользователем 24.08 — reflow-фикс лечил другой, малый слой
-    // той же жалобы). Три пути к старту: сигнал ob:shown от
-    // оболочки; страховка 2.5 с, если оболочка старой сборки и
-    // сигнала не пошлёт; прежние 500 мс, когда документ открыт
-    // напрямую, без рамки.
-    requestAnimationFrame(frame);
-    var printed = false;
-    function startPrinting() {
-      if (printed) return;
-      printed = true;
-      playAll().then(function () {
-        tail();
-        /* Переход — по СОБЫТИЮ «очередь доиграла», а не по
-           секундомеру. Финальный сегмент уже отстоял свои полминуты
-           (или получил клик), фигуре — мгновение на прочтение, и
-           экран отдаётся оболочке. */
-        setTimeout(close, 1400);
-      });
+  function go(i, dir){
+    if (i < 0 || i >= els.length || i === cur) return;
+    dir = dir || 'fwd';
+    var old = cur >= 0 ? els[cur] : null;
+    if (old) {
+      els.forEach(function(q){ q.classList.remove('out'); });
+      clearTimeout(outTimer);
+      old.classList.remove('on');
+      old.classList.add('out', dir);
+      outTimer = setTimeout(function(){
+        old.classList.remove('out', 'fwd', 'back');
+      }, WIPE * 1.15 + 40);
     }
-    if (window.parent === window) {
-      setTimeout(startPrinting, 500);
-    } else {
-      window.addEventListener('message', function (e) {
-        if (e.origin !== window.location.origin) return;
-        if (e.data && e.data.type === 'ob:shown') {
-          setTimeout(startPrinting, 120);
-        }
-      });
-      setTimeout(startPrinting, 2500);
-    }
+    cur = i;
+    var p = els[cur];
+    /* Перезапуск анимации: браузер не проигрывает её заново, если класс
+       просто вернули. Заставляем пересчитать разметку между снятием и
+       возвратом — иначе вторая страница въезжала бы без клина. */
+    p.classList.remove('on', 'fwd', 'back');
+    void p.offsetWidth;
+    p.classList.add('on', dir);
+    tks.forEach(function(t, k){
+      t.classList.toggle('done', k < cur);
+      t.classList.remove('now');
+    });
+    void tks[cur].offsetWidth;
+    tks[cur].classList.add('now');
+    count.textContent = (cur + 1) + ' / ' + els.length;
+    prev.classList.toggle('off', cur === 0);
+    next.classList.toggle('off', cur === els.length - 1);
+    arm();
   }
 
-  wrap.style.setProperty('--lap', (BRIEF_LAP / 1000) + 's');
-  requestAnimationFrame(function () { wrap.classList.add('on'); });
+  function arm(){
+    clearTimeout(timer);
+    if (paused) return;
+    if (cur >= els.length - 1) {
+      /* Последняя страница стоит дольше и отдаёт экран оболочке сама. */
+      timer = setTimeout(close, DWELL * 1.4);
+      return;
+    }
+    timer = setTimeout(function(){ go(cur + 1, 'fwd'); }, DWELL);
+  }
+
+  /* Курсор на листе — значит читают: ход стоит, полоска замирает.
+     Это и есть ответ на «не успел прочитать»: ловить стрелку не надо. */
+  sheet.onmouseenter = function(){
+    paused = true; wrap.classList.add('obf-paused'); clearTimeout(timer); };
+  sheet.onmouseleave = function(){
+    paused = false; wrap.classList.remove('obf-paused'); arm(); };
+
+  prev.onclick = function(e){ e.stopPropagation(); go(cur - 1, 'back'); };
+  next.onclick = function(e){ e.stopPropagation(); go(cur + 1, 'fwd'); };
+
+  /* ВЫХОД ПО КЛАВИШЕ, А НЕ ПО ЛЮБОМУ КЛИКУ.
+     Прежняя сводка закрывалась от любого нажатия — здесь любой клик это
+     стрелка или полоска, и закрывать по нему нельзя. Esc и пробел
+     оставлены как явный выход, стрелки листают. */
+  document.addEventListener('keydown', function(e){
+    if (!wrap.classList.contains('on')) return;
+    if (e.key === 'ArrowRight') { go(cur + 1, 'fwd'); return; }
+    if (e.key === 'ArrowLeft')  { go(cur - 1, 'back'); return; }
+    if (e.key === 'Escape' || e.key === ' ') close();
+  });
 
   /* ── Выход ──
-     Сводка больше не «закрывается», оставаясь в документе: документ и
-     есть сводка. Она сообщает оболочке, что доиграла, и оболочка
-     уничтожает этот документ вместе со сценой, таймерами и кадрами —
-     останавливать что-либо руками не нужно и нечего забыть.
-
-     Куда переходить, сводка не говорит: очередь экранов знает
-     оболочка. Раньше преемник (зал) сам следил за классом .on на этом
-     узле через MutationObserver — то есть знал и о существовании
-     сводки, и о её разметке.
-
-     Класс .on снимается всё равно: между сообщением и сменой
-     документа проходит кадр-другой, и без затухания это выглядело бы
-     обрывом. */
-  var doneSent = false;
-  function close() {
-    clearTimeout(closeTimer);
+     Сводка не «закрывается», оставаясь в документе: документ и есть
+     сводка. Она сообщает оболочке, что доиграла, и оболочка уничтожает
+     этот документ вместе с таймерами. Класс .on снимается всё равно:
+     между сообщением и сменой документа проходит кадр-другой, и без
+     затухания это выглядело бы обрывом. */
+  function close(){
+    clearTimeout(timer); clearTimeout(outTimer);
     wrap.classList.remove('on');
-    if (doneSent) return;           // клик по уже уходящему экрану
-    doneSent = true;
+    if (done) return;
+    done = true;
     try {
       window.parent.postMessage(
         { type: 'ob:done', screen: 'brief' }, window.location.origin);
     } catch (e) { /* открыт вне оболочки — просто гаснем */ }
   }
 
-  /* ПРЕДОХРАНИТЕЛЬ, а не расписание. Прежде здесь стоял выход по
-     BRIEF_LAP — кругу СТАРОЙ сводки на восемь фраз: очередь с двумя
-     крыльями выросла до ~16 сегментов и трёх минут, а таймер остался
-     на 105 секундах и резал показ на восьмом-девятом сегменте —
-     всегда в одном месте и без финальных тридцати секунд. Снаружи
-     это выглядело «после объёма всё вылетает». Теперь выход зовёт
-     сама очередь (playAll().then выше); таймер оставлен страховкой
-     на случай, если очередь встала бы намертво, — с запасом на самый
-     длинный сценарий. При reduced-motion очереди нет — там прежний
-     круг. */
-  var closeBudget = reduce ? BRIEF_LAP
-      : SEGMENTS.length * (HOLD_MS + 9000) + LAST_HOLD_MS + 20000;
-  var closeTimer = setTimeout(close, closeBudget);
-  wrap.addEventListener('click', close);
-  document.addEventListener('keydown', function () {
-    if (wrap.classList.contains('on')) close();
-  });
+  /* ПРЕДОХРАНИТЕЛЬ, а не расписание: выход зовёт сама очередь выше.
+     Таймер оставлен на случай, если очередь встанет намертво, — с
+     запасом на самый длинный сценарий. */
+  setTimeout(close, els.length * (DWELL + WIPE * 2) + 30000);
+
+  function start(){ if (cur < 0) go(0, 'fwd'); }
+
+  wrap.classList.add('on');
+  if (reduce) {
+    /* Без движения листалка не листается сама: показываем первую и
+       ждём стрелок. Гасим движение, а не смысл. */
+    go(0, 'fwd'); clearTimeout(timer);
+  } else if (window.parent === window) {
+    setTimeout(start, 400);
+  } else {
+    window.addEventListener('message', function(e){
+      if (e.origin !== window.location.origin) return;
+      if (e.data && e.data.type === 'ob:shown') setTimeout(start, 120);
+    });
+    setTimeout(start, 2500);
+  }
 })();
 </script>
 """
