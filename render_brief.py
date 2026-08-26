@@ -18,6 +18,25 @@ canvas: текст печатался посимвольно поверх дюн
 
 ДАННЫЕ. Те же, что у зала: stars и market. Страницы собираются ИЗ НИХ,
 а не вшиты в разметку: изменился прогон — изменились страницы.
+
+ИЗОЛЯЦИЯ. Документ сводки несёт в себе ВЕСЬ общий CSS сайта:
+render_page.document кладёт render_css.CSS в каждый экран целиком, а в
+том файле живут правила прежней сводки на #obBrief и всём, что под ним.
+Превью без общего CSS выглядело верно; живая сборка с ним — с чёрным
+полем вокруг листа и пустой колонкой событий. Какое именно правило
+виновато, отсюда не видно — и не должно быть важно: спорить с общим
+файлом по специфичности значит проигрывать при каждой его правке.
+
+Поэтому разметка и стили сводки живут в ТЕНЕВОМ ДЕРЕВЕ (Shadow DOM)
+на узле #obfHost: внешние стили внутрь не проходят вовсе, а стили
+сводки не выходят наружу. Обёртке #obBrief оставлено одно — класс .on
+для затухания из общего файла. Поле вокруг листа рисует сама рамка
+своей тенью, а не обёртка. Данные (#obfData) остаются в обычном дереве:
+их читает письмо (send_brief_email.load_report_data).
+
+ВЫХОД. Стрелки — на клавиатуре и на экране — листают. Всё остальное
+закрывает: клик в любом месте, кроме полосы навигации, и любая клавиша,
+кроме стрелок и одиноких модификаторов.
 """
 
 from __future__ import annotations
@@ -41,21 +60,26 @@ def render_brief(stars: list[dict], market: dict) -> str:
 
 BRIEF_HTML = """
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@200;300;800&family=Playfair+Display:wght@400;500&display=swap" rel="stylesheet">
+<div class="obf-host" id="obfHost"></div>
+<template id="obfTpl">
 <style>
+/* ТЕНЕВОЕ ДЕРЕВО. Всё, что ниже, вместе с разметкой клонируется из
+   шаблона в shadow root узла #obfHost (см. начало скрипта). Общий CSS
+   сайта сюда не достаёт: ни #obBrief div, ни body{color}, ни
+   переменные с теми же именами. Единственная связь с внешним документом
+   — шрифты: @font-face объявлен снаружи, теневое дерево им пользуется. */
+:host{all:initial;display:block}
+
 /* ШРИФТЫ. Montserrat в двух КРАЙНИХ весах — 200 и 800. Между ними
    ничего: контраст тонкого и жирного и есть приём, на нём держится вся
    раскладка. Playfair — антиква для подписей вразрядку.
    Запасные стеки подобраны по РИСУНКУ, а не по имени: Futura и Century
    Gothic — те же геометрические гротески, Didot и Bodoni — та же
    антиква с тонкими засечками. Если сеть закрыта, лист не рассыплется. */
-/* Переменные объявлены И на корне документа. Раньше они висели только
-   на .ob-brief: если разметка сводки оказывалась ВНЕ этого узла,
-   var(--acc) и остальные не разрешались — градиенты не рисовались
-   вовсе, и лист выходил прозрачным на тёмном фоне оболочки, а
-   оранжевые кнопки теряли заливку и оставались голыми стрелками. */
-:root,
-#obBrief,
-.ob-brief{
+/* Переменные объявлены на самой рамке — узле, который точно есть и
+   точно внутри теневого дерева. Снаружи переопределить их некому, а
+   всё, что ими пользуется, лежит под рамкой. */
+.obf-frame{
   --pg:#8d939c; --bg1:#f2f3f5; --bg2:#c6ccd3;
   --ink:#464c57; --ink2:#6c737f; --mut:#9aa1ab;
   --acc:#e8873f; --up:#4f8a63; --dn:#b5573f;
@@ -71,18 +95,23 @@ BRIEF_HTML = """
   --wipe:3.15s;     /* переход между страницами */
   --dwell:26s;      /* сколько страница стоит сама */
 
-  font-family:var(--sans);font-weight:300;color:var(--ink)}
+  font-family:var(--sans);font-weight:300;color:var(--ink);
 
-/* Поле вокруг листа рисует САМА рамка через свою тень, а не обёртка:
-   обёртка принадлежит оболочке, её оформление приходит из общего файла
-   стилей, и спорить с ним отсюда — гарантированно проиграть при
-   следующей правке того файла. */
-#obBrief,.ob-brief{padding:26px;display:block;background:var(--pg)}
-
-.obf-frame{border:14px solid #fff;
+  /* РАМКА САМА СТАВИТ СЕБЯ В ОКНО И САМА РИСУЕТ ПОЛЕ. Раньше отступ и
+     серое поле давала обёртка #obBrief — и проигрывала общему CSS:
+     обёртка показывала чёрный градиент оболочки, а поле пропадало.
+     Теперь рамка закреплена в окне сама (fixed, отступ 26px, ширина до
+     1240 по центру), а поле вокруг — её собственная тень на всё окно.
+     Обёртка может быть какой угодно: flex, чёрной, без отступов.
+     z-index большой намеренно: у прежней сводки в общем CSS могли
+     остаться украшения на обёртке (::before/::after, линии) — рамка
+     обязана лежать поверх всего, что рисует обёртка. */
+  position:fixed;top:26px;right:26px;bottom:26px;left:26px;
+  margin:0 auto;max-width:1240px;min-height:600px;z-index:99999;
+  box-sizing:border-box;border:14px solid #fff;visibility:visible;
   background:linear-gradient(160deg,var(--bg1),var(--bg2));
-  max-width:1240px;height:calc(100vh - 52px);min-height:600px;margin:0 auto;
-  display:grid;grid-template-columns:1fr 322px;overflow:hidden;position:relative}
+  box-shadow:0 0 0 100vmax var(--pg);
+  display:grid;grid-template-columns:1fr 322px;overflow:hidden}
 
 /* ── левый лист: колода страниц ── */
 .obf-sheet{position:relative;overflow:hidden}
@@ -287,8 +316,8 @@ BRIEF_HTML = """
    видимости всё и затевалось. */
 .obf-page.narrow{display:none}
 @media (max-width:900px){
-  .ob-brief{padding:12px}
-  .obf-frame{border-width:8px;grid-template-columns:1fr;height:calc(100vh - 24px)}
+  .obf-frame{top:12px;right:12px;bottom:12px;left:12px;border-width:8px;
+    grid-template-columns:1fr}
   .obf-rail{display:none}
   .obf-page.narrow{display:flex}
   .obf-page .obf-ev{padding:9px 0}
@@ -369,6 +398,7 @@ BRIEF_HTML = """
     <div class="obf-hint">пауза &#183; читайте</div>
   </div>
 </div>
+</template>
 """
 
 
@@ -390,8 +420,21 @@ BRIEF_JS = """
      нарисовалась, хуже сводки некрасивой. */
   var wrap = document.getElementById('obBrief')
           || document.querySelector('.ob-brief')
-          || document.querySelector('.obf-frame')
           || document.body;
+
+  /* ТЕНЕВОЕ ДЕРЕВО. Разметка и стили лежат в <template> — там они
+     инертны, общий CSS документа их не видит. Клонируем в shadow root
+     узла #obfHost: с этого момента внешние правила внутрь не проходят.
+     Если теневых деревьев в браузере нет (древний движок) — кладём
+     разметку прямо в узел, как было; хуже прежнего не станет.
+     Нет узла или шаблона — это ошибка сборки, и молчать о ней нельзя. */
+  var host = document.getElementById('obfHost');
+  var tpl  = document.getElementById('obfTpl');
+  if (!host || !tpl || !tpl.content) throw new Error('сводка: нет #obfHost или #obfTpl');
+  var root = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
+  root.appendChild(tpl.content.cloneNode(true));
+  function q(sel){ return root.querySelector(sel); }
+  var frame = q('.obf-frame');
   var reduce = window.matchMedia &&
     window.matchMedia('(prefers-reduced-motion:reduce)').matches;
 
@@ -798,10 +841,20 @@ BRIEF_JS = """
      хвост: тогда решает важность, а не место на экране. */
   function eventsHTML(withHead){
     var cal = pp.calendar || {}, items = cal.items || [];
-    if (!items.length) return '';
     var KIND = { delist:'делистинг', unlock:'разлок', risk:'риск',
                  macro:'макро', support:'опора' };
     var html = withHead ? '<div class="obf-h">Впереди</div>' : '';
+    /* ПУСТАЯ КОЛОНКА НЕ МОЛЧИТ. Тёмный столбец без единой строки
+       читается как «сломалось», а не как «событий нет» — и отличить
+       одно от другого с экрана нельзя. Пишем прямо, что случилось:
+       календарь не собран или в горизонте пусто. */
+    if (!items.length) {
+      var why = pp.calendar
+        ? 'в горизонте пяти дней ни разлоков, ни делистингов, ни макродат'
+        : 'календарь в этом прогоне не собран';
+      return html + '<div class="obf-ev"><div class="w">впереди</div>' +
+        '<div class="t">событий нет</div><div class="d">' + why + '</div></div>';
+    }
     items.forEach(function(e){
       var d = num(e.days);
       var when = e.running ? 'сегодня · идёт'
@@ -823,7 +876,7 @@ BRIEF_JS = """
     return html;
   }
   (function(){
-    var rail = document.getElementById('obfRail');
+    var rail = q('#obfRail');
     if (rail) rail.innerHTML = eventsHTML(true);
     /* Та же разметка — отдельной страницей в конце колоды. На широком
        экране она скрыта стилем, на узком становится единственным
@@ -839,7 +892,7 @@ BRIEF_JS = """
   })();
 
   /* ══════════════ ЛИСТАЛКА ══════════════ */
-  var sheet = document.getElementById('obfSheet');
+  var sheet = q('#obfSheet');
   sheet.innerHTML = pages.join('');
   var all = [].slice.call(sheet.querySelectorAll('.obf-page'));
   /* СЧИТАЕМ ТОЛЬКО ВИДИМЫЕ. Страница событий существует всегда, но
@@ -852,16 +905,17 @@ BRIEF_JS = """
     return all.filter(function(n){ return getComputedStyle(n).display !== 'none'; });
   }
   var els = shown();
-  var ticks = document.getElementById('obfTicks');
-  var count = document.getElementById('obfCount');
-  var prev = document.getElementById('obfPrev');
-  var next = document.getElementById('obfNext');
+  var ticks = q('#obfTicks');
+  var count = q('#obfCount');
+  var prev = q('#obfPrev');
+  var next = q('#obfNext');
+  var nav = q('.obf-nav');
 
   /* cur = −1, а не 0: защита «не листать на текущую» сравнивает i с cur,
      и при нуле она же блокировала САМЫЙ ПЕРВЫЙ показ — экран
      открывался пустым. Минус один значит «страницы ещё не было». */
   var cur = -1, timer = null, outTimer = null, paused = false, done = false;
-  var css = getComputedStyle(wrap);
+  var css = getComputedStyle(frame);
   var WIPE = (parseFloat(css.getPropertyValue('--wipe')) || 3.15) * 1000;
   var DWELL = (parseFloat(css.getPropertyValue('--dwell')) || 26) * 1000;
 
@@ -946,23 +1000,47 @@ BRIEF_JS = """
   /* Курсор на листе — значит читают: ход стоит, полоска замирает.
      Это и есть ответ на «не успел прочитать»: ловить стрелку не надо. */
   sheet.onmouseenter = function(){
-    paused = true; wrap.classList.add('obf-paused'); clearTimeout(timer); };
+    paused = true; frame.classList.add('obf-paused'); clearTimeout(timer); };
   sheet.onmouseleave = function(){
-    paused = false; wrap.classList.remove('obf-paused'); arm(); };
+    paused = false; frame.classList.remove('obf-paused'); arm(); };
 
   prev.onclick = function(e){ e.stopPropagation(); go(cur - 1, 'back'); };
   next.onclick = function(e){ e.stopPropagation(); go(cur + 1, 'fwd'); };
 
-  /* ВЫХОД ПО КЛАВИШЕ, А НЕ ПО ЛЮБОМУ КЛИКУ.
-     Прежняя сводка закрывалась от любого нажатия — здесь любой клик это
-     стрелка или полоска, и закрывать по нему нельзя. Esc и пробел
-     оставлены как явный выход, стрелки листают. */
+  /* ВЫХОД: СТРЕЛКИ ЛИСТАЮТ, ВСЁ ОСТАЛЬНОЕ ЗАКРЫВАЕТ.
+     Клавиатура: стрелки вправо и вниз — вперёд, влево и вверх — назад.
+     Любая другая клавиша закрывает сводку. Исключения две, и обе про
+     то, что нажатие не было командой сводке: одинокий модификатор
+     (Shift, Ctrl, Alt, Cmd — сам по себе ничего не значит) и сочетание
+     с Ctrl или Cmd (это команда браузеру: перезагрузить, открыть
+     вкладку, консоль).
+     Мышь и палец: клик в любом месте закрывает — на листе, на колонке
+     событий, на сером поле. Кроме полосы навигации внизу: стрелки,
+     счётчик и полоски листают, и закрывать по ним нельзя.
+     Путь события берём составным (composedPath): клик рождается внутри
+     теневого дерева, и снаружи его цель видна как узел #obfHost. */
+  var MODS = { Shift:1, Control:1, Alt:1, Meta:1, CapsLock:1, NumLock:1,
+               ScrollLock:1, Fn:1, FnLock:1, Hyper:1, Super:1, OS:1,
+               Dead:1, Unidentified:1 };
+  /* До первой страницы ничего не закрываем: клик по окну, пока крутится
+     лоадер оболочки, — это не «хватит», а попытка попасть в окно. */
   document.addEventListener('keydown', function(e){
-    if (!wrap.classList.contains('on')) return;
-    if (e.key === 'ArrowRight') { go(cur + 1, 'fwd'); return; }
-    if (e.key === 'ArrowLeft')  { go(cur - 1, 'back'); return; }
-    if (e.key === 'Escape' || e.key === ' ') close();
+    if (done || cur < 0) return;
+    var k = e.key;
+    if (k === 'ArrowRight' || k === 'ArrowDown') {
+      e.preventDefault(); go(cur + 1, 'fwd'); return; }
+    if (k === 'ArrowLeft' || k === 'ArrowUp') {
+      e.preventDefault(); go(cur - 1, 'back'); return; }
+    if (MODS[k] || e.ctrlKey || e.metaKey) return;
+    close();
   });
+  document.addEventListener('click', function(e){
+    if (done || cur < 0) return;
+    var path = e.composedPath ? e.composedPath() : [], n;
+    if (!path.length) for (n = e.target; n; n = n.parentNode) path.push(n);
+    for (var i = 0; i < path.length; i++) if (path[i] === nav) return;
+    close();
+  }, true);
 
   /* ── Выход ──
      Сводка не «закрывается», оставаясь в документе: документ и есть
@@ -986,7 +1064,14 @@ BRIEF_JS = """
      запасом на самый длинный сценарий. */
   setTimeout(close, els.length * (DWELL + WIPE * 2) + 30000);
 
-  function start(){ if (cur < 0) go(0, 'fwd'); }
+  /* Фокус забираем себе: сводка живёт в iframe, а клавиши приходят
+     тому документу, у которого фокус. Без этого первое нажатие уходило
+     бы оболочке, и «любая клавиша закрывает» не работало бы, пока по
+     сводке не кликнут. */
+  function start(){
+    if (cur < 0) go(0, 'fwd');
+    try { window.focus(); } catch (e) { /* не дали — переживём */ }
+  }
 
   wrap.classList.add('on');
   /* Подстраховка от невидимой сводки. Класс .on гасит прозрачность у
@@ -995,7 +1080,9 @@ BRIEF_JS = """
      полностью рабочем скрипте. Проверяем ФАКТ видимости, а не наличие
      класса — и снимаем прозрачность руками, если она осталась. */
   setTimeout(function(){
-    if (getComputedStyle(wrap).opacity === '0') {
+    var ws = getComputedStyle(wrap);
+    if (ws.display === 'none') wrap.style.display = 'block';
+    if (ws.opacity === '0') {
       wrap.style.opacity = '1';
       wrap.style.pointerEvents = 'auto';
     }
