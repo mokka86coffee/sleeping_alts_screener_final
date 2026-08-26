@@ -48,6 +48,13 @@ BRIEF_HTML = """
    Запасные стеки подобраны по РИСУНКУ, а не по имени: Futura и Century
    Gothic — те же геометрические гротески, Didot и Bodoni — та же
    антиква с тонкими засечками. Если сеть закрыта, лист не рассыплется. */
+/* Переменные объявлены И на корне документа. Раньше они висели только
+   на .ob-brief: если разметка сводки оказывалась ВНЕ этого узла,
+   var(--acc) и остальные не разрешались — градиенты не рисовались
+   вовсе, и лист выходил прозрачным на тёмном фоне оболочки, а
+   оранжевые кнопки теряли заливку и оставались голыми стрелками. */
+:root,
+#obBrief,
 .ob-brief{
   --pg:#8d939c; --bg1:#f2f3f5; --bg2:#c6ccd3;
   --ink:#464c57; --ink2:#6c737f; --mut:#9aa1ab;
@@ -64,9 +71,13 @@ BRIEF_HTML = """
   --wipe:3.15s;     /* переход между страницами */
   --dwell:26s;      /* сколько страница стоит сама */
 
-  background:var(--pg);
-  font-family:var(--sans);font-weight:300;color:var(--ink);
-  padding:26px;display:block}
+  font-family:var(--sans);font-weight:300;color:var(--ink)}
+
+/* Поле вокруг листа рисует САМА рамка через свою тень, а не обёртка:
+   обёртка принадлежит оболочке, её оформление приходит из общего файла
+   стилей, и спорить с ним отсюда — гарантированно проиграть при
+   следующей правке того файла. */
+#obBrief,.ob-brief{padding:26px;display:block;background:var(--pg)}
 
 .obf-frame{border:14px solid #fff;
   background:linear-gradient(160deg,var(--bg1),var(--bg2));
@@ -368,8 +379,19 @@ BRIEF_JS = """
   try { DATA = JSON.parse(document.getElementById('obfData').textContent); }
   catch (e) { DATA = {}; }
   var ST = DATA.stars || [], M = DATA.market || {};
-  var wrap = document.querySelector('.ob-brief');
-  if (!wrap) return;
+  /* ЯКОРЬ — ПО ИДЕНТИФИКАТОРУ, как у прежней сводки.
+     Я взял класс .ob-brief и, не найдя его, скрипт выходил МОЛЧА:
+     страницы оставались скрытыми (без .on), стрелки не слушали
+     нажатий, а на экране был чёрный прямоугольник в белой рамке.
+     Ошибка тихая и потому дорогая — молчание выглядит как «работает,
+     но пусто».
+     Теперь берём #obBrief, а если его нет — рамку или тело документа.
+     Экран должен показаться в любом случае: сводка, которая не
+     нарисовалась, хуже сводки некрасивой. */
+  var wrap = document.getElementById('obBrief')
+          || document.querySelector('.ob-brief')
+          || document.querySelector('.obf-frame')
+          || document.body;
   var reduce = window.matchMedia &&
     window.matchMedia('(prefers-reduced-motion:reduce)').matches;
 
@@ -967,6 +989,17 @@ BRIEF_JS = """
   function start(){ if (cur < 0) go(0, 'fwd'); }
 
   wrap.classList.add('on');
+  /* Подстраховка от невидимой сводки. Класс .on гасит прозрачность у
+     .ob-brief из общего файла стилей; если якорем оказался другой узел,
+     прозрачность может остаться нулевой и экран будет пустым при
+     полностью рабочем скрипте. Проверяем ФАКТ видимости, а не наличие
+     класса — и снимаем прозрачность руками, если она осталась. */
+  setTimeout(function(){
+    if (getComputedStyle(wrap).opacity === '0') {
+      wrap.style.opacity = '1';
+      wrap.style.pointerEvents = 'auto';
+    }
+  }, 60);
   if (reduce) {
     /* Без движения листалка не листается сама: показываем первую и
        ждём стрелок. Гасим движение, а не смысл. */
