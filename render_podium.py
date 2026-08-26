@@ -589,7 +589,9 @@ PODIUM_CSS = """
 
 .obc-head{display:flex;align-items:baseline;gap:22px;width:100%}
 .obc-tk{font-size:52px;font-weight:200;letter-spacing:.03em;color:#eef2fa;
-  line-height:1}
+  line-height:1;text-decoration:none;cursor:pointer;
+  transition:color .25s ease,text-shadow .25s ease}
+.obc-tk:hover{color:#fff;text-shadow:0 0 26px rgba(200,214,255,.5)}
 .obc-cs{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--c)}
 .obc-act{margin-left:auto;text-align:right;font-size:24px;font-weight:300;
   letter-spacing:.06em;text-transform:uppercase;color:var(--ac)}
@@ -793,7 +795,10 @@ PODIUM_CSS = """
    Высота колонки постоянна, список внутри тянется, место под полосу
    прокрутки зарезервировано: иначе при переходе к пустой группе блок
    схлопывался и весь экран дёргался. */
-.obr{width:392px;flex:0 0 auto;height:100%;display:flex;flex-direction:column;
+/* Ширина вдвое меньше прежних трёхсот девяноста двух. В строке одна
+   точка и одно имя — остальное было воздухом, а воздух в колонке
+   отнимает его у центра, где стоит карточка монеты. */
+.obr{width:196px;flex:0 0 auto;height:100%;display:flex;flex-direction:column;
   gap:10px;padding:66px 0 18px}
 .obr-head{display:flex;align-items:baseline;justify-content:space-between;
   padding:0 4px 10px;border-bottom:1px solid rgba(255,255,255,.07);
@@ -839,8 +844,13 @@ PODIUM_CSS = """
 /* Метка делистинга. Янтарь — предупреждение биржи, красный — решение
    принято. Мигание только у срочного: если мигает всё, не мигает
    ничего. */
-.obr-dl{display:inline-block;margin-left:7px;padding:1px 6px;border-radius:4px;
-  font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;vertical-align:2px;
+/* Минимально читаемый размер: шесть с половиной пунктов, разрядка
+   узкая, рамка в полпикселя. Метка обязана быть заметна и не обязана
+   спорить с именем — она приписка, а не второе название. */
+.obr-row > div{display:flex;align-items:center;gap:9px;min-width:0}
+.obr-dl{display:inline-block;margin-left:0;padding:0 4px;border-radius:3px;
+  font-size:6.5px;letter-spacing:.1em;text-transform:uppercase;vertical-align:2px;
+  line-height:1.6;
   border:1px solid rgba(255,178,102,.5);color:#ffb266;background:rgba(255,178,102,.09)}
 .obr-dl-w{border-color:rgba(255,214,120,.42);color:#ffd678;
   background:rgba(255,214,120,.07)}
@@ -861,27 +871,64 @@ PODIUM_CSS = """
   font-size:11px;letter-spacing:.14em;color:#6c74a6;
   animation:obgFade 1.2s ease both}
 
-.obr-row{position:relative;display:grid;grid-template-columns:1fr auto;
-  align-items:center;gap:12px;padding:11px 14px 11px 15px;border-radius:11px;
-  border:1px solid rgba(255,255,255,.05);cursor:pointer;
-  background:linear-gradient(90deg,rgba(var(--rgb),.07),rgba(255,255,255,.012) 42%);
-  transition:background .54s,border-color .54s,transform .54s;
+/* ── Строка монеты ──
+   Карточка убрана. Она занимала всю ширину колонки под два слова и
+   строила из списка стопку плашек: много места, мало сказанного.
+   Осталась волосяная линия снизу — она разделяет, ничего не огораживая.
+
+   Набор антиквой: на тёмном фоне засечки дают воздух, которого у
+   гротеска нет, и список читается оглавлением, а не таблицей. */
+.obr-row{position:relative;display:flex;align-items:center;
+  gap:8px;padding:8px 2px 7px;cursor:pointer;
+  border-bottom:1px solid rgba(255,255,255,.05);
+  transition:border-color .42s ease;
   animation:obrRowIn 1.26s cubic-bezier(.2,.75,.3,1) both}
-.obr-row:hover{border-color:rgba(var(--rgb),.34);transform:translateX(-3px);
-  background:linear-gradient(90deg,rgba(var(--rgb),.13),rgba(255,255,255,.03) 42%)}
+/* Наведение красит саму линию и добавляет имени света СВОИМ цветом.
+   Выбеливать имя нельзя: белое оно теряет стратегию, а она теперь
+   только в цвете. Геометрия не двигается — строка обязана остаться
+   под курсором. */
+.obr-row:hover{border-color:rgba(var(--rgb) / .55)}
+.obr-row:hover .obr-tk{color:#fff}
+.obr-row:hover .obr-dot{box-shadow:0 0 16px rgba(var(--rgb) / 1)}
 /* цвет стратегии — полоса слева */
-.obr-row::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:2px;
-  border-radius:2px;background:var(--c);box-shadow:0 0 10px rgba(var(--rgb),.6)}
-.obr-tk{font-size:12px;font-weight:500;letter-spacing:.06em;color:#e8ecfb;
-  text-decoration:none;cursor:pointer;transition:color .25s}
+
+/* Слово стратегии из строки убрано, и цвет перешёл на САМО ИМЯ —
+   иначе стратегию нести стало бы нечем. Имя остаётся единственным
+   текстом строки и говорит две вещи разом: что за монета и что она
+   такое.
+
+   Кегль на треть меньше прежнего: двадцать один пункт был крупен для
+   строки, из которой ушла вторая половина.
+
+   Цифры принудительно прописные: у антиквы они по умолчанию
+   старостильные, и 1000LUNC получал болтающиеся нули вразнобой. */
+.obr-tk{font-family:Georgia,"Iowan Old Style","Times New Roman",serif;
+  font-size:15px;font-weight:400;letter-spacing:.015em;line-height:1.1;
+  color:#e2e8f6;text-decoration:none;cursor:pointer;
+  font-feature-settings:"lnum" 1;font-variant-numeric:lining-nums;
+  transition:color .3s ease}
+
+/* ── Цвет стратегии несёт ТОЧКА ──
+   Наследница прежней полоски: цвет вынесен из слова и стоит столбцом,
+   по которому список ведут взглядом сверху вниз, не читая имён. Имена
+   при этом все одного света, и тусклые стратегии не проваливаются.
+
+   Первая буква вынесена в разметке отдельно, но не красится: пробовали
+   красить её — красиво в отдельной строке и рассыпается в столбце из
+   полусотни. Разметку оставил на случай возврата, цвета там нет. */
+.obr-tk b{font-weight:400;color:inherit}
+.obr-dot{flex:0 0 auto;width:6px;height:6px;border-radius:50%;
+  background:var(--c);box-shadow:0 0 9px rgba(var(--rgb) / .75);
+  transition:box-shadow .3s ease}
 .obr-tk:hover{color:var(--c);text-decoration:underline;
   text-underline-offset:3px;text-decoration-thickness:1px}
 .obr-tk:focus-visible{outline:1px solid var(--c);outline-offset:3px;
   border-radius:3px}
 /* Стратегия ушла из-под тикера вправо: место освободилось, а строка
    теперь читается в одну линию — что за монета и что она такое. */
-.obr-cs{display:block;justify-self:end;font-size:8.4px;letter-spacing:.2em;
-  text-transform:uppercase;color:var(--c);opacity:.85;white-space:nowrap}
+/* Стратегия курсивом той же антиквы и её цветом. Капса нет намеренно:
+   он спорит с засечками и тянет на себя больше внимания, чем имя. */
+
 .obr-row:hover .obr-cs{opacity:1}
 .obr-row svg{display:block;width:100%;height:34px}
 .obr-pnl{text-align:right;font-size:13px;font-weight:300;
@@ -993,7 +1040,7 @@ PODIUM_CSS = """
    прилёта колонка получала бы новую строку разом — шапка, поиск и
    список ныряли бы вниз ступенькой, пока кнопки ещё в полёте.
    Высота равна росту вкладки: кружок 32 плюс отступы 5 и рамка. */
-.obr-tabs{flex:0 0 auto;min-height:44px}
+.obr-tabs{flex:0 0 auto;min-height:40px}
 
 /* Слой всего меняющегося. Гасим не его целиком, а перечисленных детей —
    ПОИМЁННО. Причина: поле поиска у всех групп одинаковое, и мигать ему
@@ -1009,11 +1056,20 @@ PODIUM_CSS = """
 .obr-body.obr-out .obr-list,
 .obr-body.obr-out .obr-empty{animation:obgSoftOut .44s ease both}
 .obg-side.obg-tucked{flex-direction:row;width:auto;gap:7px}
-.obg-side.obg-tucked .obg-sat{width:auto;flex:1 1 0;min-width:0;gap:9px;
-  padding:5px 11px 5px 5px}
-.obg-side.obg-tucked .obg-pill{width:32px;height:32px;font-size:13px}
-.obg-side.obg-tucked .obg-scap{font-size:8px;letter-spacing:.16em;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* Счёт НАД подписью, а не рядом. В строку они не влезают: на вкладку
+   в узкой колонке приходится шестьдесят с небольшим пикселей, из них
+   число забирает половину, и «выходить» обрезалось. Столбиком каждому
+   достаётся вся ширина, и подпись читается целиком.
+   Заодно это повторяет устройство центра: число, под ним имя группы. */
+.obg-side.obg-tucked .obg-sat{width:auto;flex:1 1 0;min-width:0;
+  flex-direction:column;align-items:center;gap:1px;padding:4px 3px}
+/* Кружок счёта в переехавшем ряду — просто число. Коробка в тридцать
+   два пикселя под ним осталась от вида с диском, а диска здесь нет: в
+   узкой колонке она съедала половину вкладки, и подпись обрезалась. */
+.obg-side.obg-tucked .obg-pill{width:auto;height:auto;font-size:13px;
+  line-height:1.2}
+.obg-side.obg-tucked .obg-scap{flex:0 0 auto;font-size:7px;
+  letter-spacing:.08em;white-space:nowrap;text-align:center}
 .obg-wave .obg-wv{stroke-dasharray:2600;stroke-dashoffset:2600;
   animation:obgWaveDraw 5.7s cubic-bezier(.3,.75,.35,1) .45s both}
 /* Отрисовка при наведении. Была вчетверо короче входной — и от этого
@@ -1104,7 +1160,10 @@ PODIUM_CSS = """
     border-color:rgba(255,255,255,.14)}
   .obg-pill{width:auto;height:auto;border:0;background:none;
     font-size:17px;font-weight:200;line-height:1.1;color:var(--c)}
-  .obg-scap{font-size:7.5px;letter-spacing:.2em;text-align:center;
+  /* Селектор ДВУМЯ классами, как в базовом правиле. Одним он весит
+     меньше и не срабатывал вовсе: подпись всё это время стояла по
+     базовому левому краю, а число слипалось с ней — «56HOLD». */
+  .obg-sat .obg-scap{font-size:7.5px;letter-spacing:.2em;text-align:center;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
   .obg-sat.obg-zero{opacity:.42}
   .obg-sat.obg-zero.obg-cur{opacity:.8}
@@ -1112,6 +1171,44 @@ PODIUM_CSS = """
   /* Подсказка молчит: на узком экране каждая строка — это строка
      списка, которой не хватило. */
   .obg-hint{display:none}
+
+  /* ── Частокол и карточка на узких экранах не живут ──
+     Волна здесь сжата в полосу в пятьдесят шесть пикселей. Частоколу
+     нужна высота: точки стоят ярусами и держат стойки вниз, а шкала
+     подписывает три недели вперёд. В полосе они не помещаются — метки
+     вылезали поверх вкладок, а шкала налезала на саму волну.
+
+     Карточка монеты по той же причине: она встаёт на место ядра, а
+     ядра здесь нет. И наведения на касании тоже нет — вместо него
+     работает клик по строке, он открывает карточку целиком. */
+  .obg-axis,.obg-pins,.obg-now,.obg-tip,.obg-card{display:none}
+
+  /* Место под вкладки не резервируем: переезжать им некуда, ряд и так
+     стоит вверху своей раскладкой. Сорок четыре пикселя пустоты на
+     телефоне — это полторы строки списка. */
+  .obr-tabs{min-height:0;display:none}
+
+  /* ── Деньги НЕ гаснут на узких экранах ──
+     На десктопе панель уходит, чтобы освободить центр под карточку
+     монеты. Здесь карточки нет: панель гасла, но место в потоке
+     держала — восемьдесят восемь пикселей пустоты между вкладками и
+     списком, четверть видимой ленты на телефоне. Гасить то, что никто
+     не займёт, незачем — пусть деньги остаются на виду. */
+  #obgHero.obg-faded .obg-panel,
+  #obgHero.obg-gone .obg-panel{animation:none;opacity:1}
+
+  /* Подпись вкладки прижимается вправо. */
+  .obg-sat .obg-scap{text-align:right}
+
+  /* ── Панель денег во всю ширину ──
+     Сцена центрирует детей, и панель вставала по своему содержимому:
+     сто сорок шесть пикселей посреди пустой строки. Растягиваем. */
+  .obg-panel{align-self:stretch}
+
+  /* ── Запас под кнопки ──
+     «Закрыть» лежит поверх списка у нижнего края, и последняя строка
+     пряталась под ней. Пятьдесят два пикселя — высота кнопки с полями. */
+  .obr-list{padding-bottom:52px}
 
   /* ── Сводка одной строкой ── */
   .obg-panel{display:flex;margin:10px 12px 0;border-radius:0;
@@ -1143,7 +1240,10 @@ PODIUM_CSS = """
   .obg-side{flex-direction:column;padding:12px 12px 0}
   .obg-sat,.obg-sat.obg-cur{flex-direction:row;justify-content:space-between;
     align-items:baseline;padding:8px 11px}
-  .obg-scap{text-align:left}
+  /* Вправо, как в двух других раскладках: подпись растянута на всю
+     оставшуюся ширину, и при выравнивании влево она встаёт вплотную к
+     числу — «56HOLD». Число слева, название справа, между ними воздух. */
+  .obg-sat .obg-scap{text-align:right}
   .obg-panel{flex-direction:column;margin:12px 12px 0;border:0}
   .obg-panel > div{display:flex;align-items:baseline;justify-content:space-between;
     text-align:left;border-right:0;padding:6px 2px;
@@ -1165,7 +1265,7 @@ PODIUM_CSS = """
   .obg-sat,.obg-sat.obg-cur{flex-direction:row;justify-content:space-between;
     align-items:baseline;padding:7px 10px}
   .obg-pill{font-size:15px}
-  .obg-scap{text-align:right;font-size:7px}
+  .obg-sat .obg-scap{text-align:right;font-size:7px}
   .obg-panel{display:grid;grid-template-columns:1fr 1fr;margin:9px 10px 0;
     border:1px solid rgba(255,255,255,.07);border-radius:10px;overflow:hidden}
   .obg-panel > div{border-right:1px solid rgba(255,255,255,.07);
@@ -2202,9 +2302,11 @@ PODIUM_JS = """
     var g = tradeGroupOf(s);
     return g === 'trade' || g === 'exit';
   });
-  /* Пока торговая книга пуста (а она начинается пустой), смотреть в
-     ней нечего — зал открывается на HOLD, на том, что реально держим.
-     Как только правила что-то ведут, вход переезжает на «выходить».
+  /* Зал открывается на HOLD ВСЕГДА. Раньше вход переезжал на
+     «выходить», как только в книге появлялась хоть одна позиция, — и
+     экран начинался с того, чего чаще всего нет: «выходить не из
+     чего». Журнал держим всегда, выход бывает изредка; открываться
+     нужно на первом, а не на втором.
      Выбранную группу держит GATE_KEY ниже. */
 
   /* Монеты группы. «Брать» — ПОРЯДОК, а не отбор: лидер прогона встаёт
@@ -2392,7 +2494,7 @@ PODIUM_JS = """
      зал списком. Стена никуда не делась: клик по строке или по
      ядру открывает её. */
   var GATE = document.getElementById('obpGate');
-  var GATE_KEY = TRADE_ANY ? 'exit' : 'hold';
+  var GATE_KEY = 'hold';
 
   /* Цвета ворот СВОИ. Ярусы стены сохраняют прежние STAGE-цвета —
      их менять нельзя, на них завязано свечение карточек, — а сцена
@@ -2405,6 +2507,16 @@ PODIUM_JS = """
   };
   /* Кейс FLOW лежит в поле st. Цвет кейса — цвет СТРАТЕГИИ в строке
      зала: по нему видно, почему монета вообще в списке. */
+  /* ВНИМАНИЕ, НЕ «ЧИНИТЬ». Составляющие цвета записаны через ПРОБЕЛ, а
+     в стилях зала они вызываются старой записью через запятую. Такая
+     пара недействительна, и правило браузер отбрасывает: ни заливки
+     диска в ядре, ни кружка вокруг счёта в кнопках групп, ни свечений.
+
+     ИМЕННО ЭТОТ ВИД И УТВЕРЖДЁН. Я однажды принял это за поломку и
+     перевёл вызовы на действующую запись — в центре тут же вылезли
+     шары под числами и подсвеченные кружки в кнопках, чего в задуманном
+     виде не было. Правки откачены. Хотите включить — включайте по
+     одному правилу и смотрите, а не разом. */
   var GATE_CASE = {
     hidden:   { n: 'скрытый спрос',   c: '#d9b96e', rgb: '217 185 110' },
     spring:   { n: 'пружина',         c: '#6b7ae0', rgb: '107 122 224' },
@@ -2695,13 +2807,12 @@ PODIUM_JS = """
        стена, поэтому из списка карточка не открывалась вовсе. Теперь
        список сам кладёт туда монеты В ТОМ ЖЕ ПОРЯДКЕ, что и строки. */
     ZLIST = rows.slice();
+    /* В строке имя и стратегия. График на такой ширине читался лишь как
+       направление, а оно и так было в проценте; сам процент строка не
+       считает — ход монеты показывает центр, когда на неё смотрят.
+       railSpark оставлен в коде: он ещё пригодится в центре. */
     out += '<div class="obr-list">';
     for (i = 0; i < rows.length; i++) {
-      /* В строке остались только имя и стратегия. График на такой
-         ширине читался лишь как направление, а оно и так было в
-         проценте; сам процент строка теперь не считает — ход монеты
-         показывает центр, когда на неё смотрят.
-         railSpark оставлен в коде: он ещё пригодится в центре. */
       var s = rows[i], c = caseOf(s);
       if (heads[i]) {
         out += '<div class="obr-grp" data-grp="1">' + heads[i] + '<s></s></div>';
@@ -2709,10 +2820,13 @@ PODIUM_JS = """
       out += '<div class="obr-row" data-sym="' + s.t +
         '" data-case="' + c.n + '" style="--c:' + c.c +
         ';--rgb:' + c.rgb + ';animation-delay:' + (i * 165) + 'ms">' +
-        '<div><a class="obr-tk" href="' + tvUrl(s) + '" target="_blank" ' +
-            'rel="noopener" title="открыть график на TradingView">' + s.t + '</a>' +
-          delistTag(s) + '</div>' +
-        '<span class="obr-cs">' + c.n + '</span>' +
+        '<div><i class="obr-dot"></i>' +
+          '<a class="obr-tk" href="' + tvUrl(s) + '" target="_blank" ' +
+            'rel="noopener" title="открыть график на TradingView">' +
+            /* Первая буква отделена ВСЕГДА, даже когда цвет несёт точка:
+               две разметки под два вида разошлись бы при первой правке. */
+            '<b>' + String(s.t).charAt(0) + '</b>' + String(s.t).slice(1) +
+          '</a>' + delistTag(s) + '</div>' +
         '</div>';
     }
     body.innerHTML = out + '</div><div class="obr-none" id="obgNone">' +
@@ -2835,8 +2949,6 @@ PODIUM_JS = """
           e.stopPropagation();
           openZoom(rows[idx], idx);
         };
-        /* Наведение наполняет центр. Клик по-прежнему открывает
-           карточку целиком — одно другому не мешает. */
         el.onmouseenter = function () { showCoin(rows[idx]); };
       })(els[i], i);
     }
@@ -2853,6 +2965,7 @@ PODIUM_JS = """
      Разлоки: горизонт две недели, дальше монета уходит в «остальное».
      Событие в трёх месяцах не торопит, а место наверху занимает. */
   var RAIL_GROUPS = [
+    { key: 'lead',   n: 'лидер прогона' },
     { key: 'delist', n: 'делистинг и метки' },
     { key: 'unlock', n: 'разлоки впереди' },
     { key: 'news',   n: 'поводы и новости' },
@@ -2863,6 +2976,14 @@ PODIUM_JS = """
   var DEEP_UP = 200;         /* процентов от дна */
 
   function railGroupOf(s) {
+    /* Лидер прогона идёт первым местом — но ТОЛЬКО в журнале. В книге
+       «в работе» и «выходить» место в выборке не значит ничего: там
+       порядок задаёт позиция, а не сегодняшний рейтинг.
+
+       Лидер вынимается из своей группы целиком. Срочность при этом не
+       теряется: метка делистинга и срок транша остаются на самой
+       строке, они не в подписи группы. */
+    if (s.lead && GATE_KEY === 'hold') return 'lead';
     if (s.delist && s.delist.level) return 'delist';
     var d = s.unlockDays;
     if (d !== null && d !== undefined && +d <= UNLOCK_HORIZON) return 'unlock';
@@ -3046,11 +3167,7 @@ PODIUM_JS = """
     if (d === 1) return 'завтра';
     return 'через ' + d + ' дн';
   }
-  /* ВНИМАНИЕ при правке: строка модуля не сырая, и обратный слэш здесь
-     удваивается — в JS уходит одинарный. Напишете \\d одним слэшем, и
-     питон свалится на неизвестном escape ещё до прогона.
-
-     Числа в прозе подсвечиваются. Не украшение: строка «транш 14.8%
+  /* Числа в прозе подсвечиваются. Не украшение: строка «транш 14.8%
      капитализации» читается за долю секунды, если число выделено, и
      за секунду, если нет. Подсвечиваем ТОЛЬКО величины — проценты,
      деньги, кратности, ATR, — и никогда слова. */
@@ -3083,7 +3200,8 @@ PODIUM_JS = """
     var h = '';
 
     h += '<div class="obc-head obc-anim" style="--nd:' + (nd++) + '">' +
-      '<span class="obc-tk">' + s.t + '</span>' +
+      '<a class="obc-tk" href="' + tvUrl(s) + '" target="_blank" ' +
+        'rel="noopener" title="открыть график на TradingView">' + s.t + '</a>' +
       '<span class="obc-cs" style="--c:' + c.c + '">' + c.n + '</span>' +
       (s.act ? '<span class="obc-act" style="--ac:' + ac.c + '">' +
         s.act.act + (s.act.why ? '<s>' + cut(s.act.why, 52) + '</s>' : '') +
@@ -3165,8 +3283,6 @@ PODIUM_JS = """
         (+s.fund < 0 ? 'up' : ''));
     if (n.length) {
       h += '<div class="obc-nums">';
-      /* Потолок восемь, а не семь: иначе новое число вытеснило бы
-         фандинг, стоящий последним. */
       for (i = 0; i < n.length && i < 8; i++) {
         h += '<div class="obc-num obc-anim ' + n[i][2] + '" style="--nd:' +
           (nd++) + '"><b>' + n[i][0] + '</b><i>' + n[i][1] + '</i></div>';
