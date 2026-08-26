@@ -593,6 +593,11 @@ PODIUM_CSS = """
   transition:color .25s ease,text-shadow .25s ease}
 .obc-tk:hover{color:#fff;text-shadow:0 0 26px rgba(200,214,255,.5)}
 .obc-cs{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--c)}
+/* Приписка «ход отработан» рядом с фигурой. Янтарная рамка, а не
+   цвет фигуры: это не свойство монеты, а состояние момента. */
+.obc-spent{font-style:normal;margin-left:10px;padding:1px 6px;
+  border-radius:3px;font-size:7.5px;letter-spacing:.12em;color:#ffb266;
+  border:1px solid rgba(255,178,102,.45);background:rgba(255,178,102,.09)}
 .obc-act{margin-left:auto;text-align:right;font-size:24px;font-weight:300;
   letter-spacing:.06em;text-transform:uppercase;color:var(--ac)}
 /* Подпись строчными, а не капсом: капс у длинной причины съедает
@@ -3307,7 +3312,14 @@ PODIUM_JS = """
     h += '<div class="obc-head obc-anim" style="--nd:' + (nd++) + '">' +
       '<a class="obc-tk" href="' + tvUrl(s) + '" target="_blank" ' +
         'rel="noopener" title="открыть график на TradingView">' + s.t + '</a>' +
-      '<span class="obc-cs" style="--c:' + c.c + '">' + c.n + '</span>' +
+      /* Метка фигуры отвечает «что это за монета», а не «когда».
+         Когда датчик усилия говорит «отработано», фигура остаётся
+         прежней, и карточка читается противоречиво: внизу «сетап
+         отработан», вверху топливо в полную силу. Приписка снимает
+         противоречие, не трогая ни отбор, ни саму метку. */
+      '<span class="obc-cs" style="--c:' + c.c + '">' + c.n +
+        (s.effort && s.effort.state === 'spent'
+          ? '<i class="obc-spent">ход отработан</i>' : '') + '</span>' +
       (s.act ? '<span class="obc-act" style="--ac:' + ac.c + '">' +
         s.act.act + (s.act.why ? '<s>' + cut(s.act.why, 52) + '</s>' : '') +
         '</span>' : '') + '</div>';
@@ -3483,30 +3495,34 @@ PODIUM_JS = """
        нет и не будет — считаются уровни от структуры и ожидание по
        прошлым эпизодам журнала. ── */
     var calc = [];
-    if (s.stop) calc.push('стоп <em>' + px4(s.stop) + '</em>');
+    /* Стоп ВЫШЕ цены — не ошибка знака, а замороженная зона: её
+       посчитали при появлении монеты в журнале и с тех пор не
+       пересчитывали, а цена успела уйти ниже. Печатать такое числом
+       нельзя — оно читается как план, которого нет.
+       Правило зоны не трогаем, только называем вещи своими именами. */
+    if (s.stop) {
+      var pxNow = +s.px || 0;
+      if (pxNow > 0 && +s.stop >= pxNow) {
+        calc.push('стоп <em>' + px4(s.stop) + '</em> УЖЕ ПРОЙДЕН — ' +
+          'цена ниже него на ' + Math.round((1 - pxNow / +s.stop) * 100) +
+          '%, зона не пересчитывалась');
+      } else {
+        calc.push('стоп <em>' + px4(s.stop) + '</em>');
+      }
+    }
     if (s.levels && s.levels.note) calc.push(s.levels.note);
     if (s.journalExp && s.journalExp.n) {
-      calc.push('ожидание по журналу <em>' + pct(s.journalExp.expPct) + '</em> на ' +
-        s.journalExp.n + (s.journalExp.n === 1 ? ' эпизоде' : ' эпизодах'));
-    }
-    /* Реакция на уровень: отбой значит уровень защитили, закрепление
-       за ним — сняли. Это единственное, что отличает «плита впереди»
-       от «плита пробита», и без неё уровень читается наполовину. */
-    var lvb = (s.levels && s.levels.below) || null;
-    var lva = (s.levels && s.levels.above) || null;
-    var rc = (lvb && lvb.reaction) || (lva && lva.reaction) || null;
-    if (rc && rc.kind) {
-      calc.push('реакция на уровень — <em>' + rc.kind + '</em>' +
-        (rc.bars_ago !== undefined ? ' ' + rc.bars_ago + ' д назад' : ''));
-    }
-    /* Согласованность трёх окон: 6ч, сутки, неделя. */
-    if (s.aligned && s.aligned.dir) {
-      calc.push('три окна согласны — ход <em>' +
-        (s.aligned.dir === 'up' ? 'вверх' : 'вниз') + '</em>');
-    }
-    /* Сколько подкейсов FLOW сработало разом. */
-    if (s.flowFired && +s.flowFired > 1) {
-      calc.push('детекторов согласно <em>' + (+s.flowFired) + '</em>');
+      /* Один эпизод — это не ожидание, а единичный случай, и подавать
+         его как величину нельзя: рядом стоят числа, посчитанные по
+         сотням баров. Поэтому при n = 1 меняем и слово, и порядок —
+         сначала оговорка, потом число. */
+      if (+s.journalExp.n === 1) {
+        calc.push('всего <em>один</em> эпизод в журнале, ход был ' +
+          pct(s.journalExp.expPct) + ' — не ожидание, а случай');
+      } else {
+        calc.push('ожидание по журналу <em>' + pct(s.journalExp.expPct) +
+          '</em> на ' + s.journalExp.n + ' эпизодах');
+      }
     }
     /* Реакция на уровень: отбой значит уровень защитили, закрепление
        за ним — сняли. Это единственное, что отличает «плита впереди»
