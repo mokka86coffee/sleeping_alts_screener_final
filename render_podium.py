@@ -554,9 +554,77 @@ PODIUM_CSS = """
 
 .obg-stage{position:relative;z-index:3;display:flex;align-items:center;
   gap:44px;width:min(1560px,96vw);height:100%}
-.obg-inner{flex:1;min-width:0;display:flex;flex-direction:column;
+.obg-inner{position:relative;flex:1;min-width:0;display:flex;flex-direction:column;
   align-items:center;gap:30px;
   animation:obgRise 2.1s cubic-bezier(.2,.75,.3,1) both}
+
+/* ── Карточка монеты ──
+   Встаёт РОВНО туда, где стояло ядро с кнопками, и только после того,
+   как они уехали: до переезда центр занят, и вставать некуда.
+
+   Лежит вне потока и место не занимает — иначе появление карточки
+   раздвигало бы сцену, а исчезновение схлопывало. */
+.obg-card{position:absolute;left:0;right:0;z-index:5;
+  display:flex;flex-direction:column;align-items:flex-start;gap:13px;
+  padding:0 4px;opacity:0;pointer-events:none;transition:opacity .5s ease}
+.obg-card.obg-on{opacity:1}
+/* Выходит СТРОКА ЗА СТРОКОЙ, а не блоками. Разница не косметическая:
+   когда пять фактов появляются разом, они читаются как одно пятно и
+   разбирать их приходится заново, глазами. Появляясь по очереди, они
+   сами задают порядок чтения — и к последней строке первая уже
+   прочитана.
+
+   Шаг между строками почти две секунды, сама строка проступает за
+   шесть с половиной: столько нужно, чтобы строку успели ПРОЧЕСТЬ до
+   прихода следующей, а не только заметить.
+
+   Тринадцать строк разворачиваются около двадцати восьми секунд — и
+   это примерно срок отрисовки линии. Совпадение вышло случайно, но
+   держать его стоит: текст и график заканчиваются вместе, а не так,
+   что один давно готов и ждёт другого. */
+.obg-card.obg-on .obc-anim{animation:obgCardIn 6.6s cubic-bezier(.2,.75,.3,1) both;
+  animation-delay:calc(var(--nd,0) * 1.8s)}
+@keyframes obgCardIn{from{opacity:0;transform:translateY(10px)}
+  to{opacity:1;transform:none}}
+
+.obc-head{display:flex;align-items:baseline;gap:22px;width:100%}
+.obc-tk{font-size:52px;font-weight:200;letter-spacing:.03em;color:#eef2fa;
+  line-height:1}
+.obc-cs{font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--c)}
+.obc-act{margin-left:auto;text-align:right;font-size:24px;font-weight:300;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--ac)}
+/* Подпись строчными, а не капсом: капс у длинной причины съедает
+   полстроки и всё равно упирается в край. */
+.obc-act s{display:block;text-decoration:none;font-size:11px;letter-spacing:.04em;
+  text-transform:none;color:#7b83b8;margin-top:9px;font-weight:400;
+  max-width:420px;margin-left:auto}
+/* Проза — главный текст карточки, а не подпись. Числа в ней подсвечены:
+   глаз цепляется за них первым, а слова объясняют уже подцепленное. */
+.obc-why{font-size:15px;line-height:1.7;color:#b3bcd8;max-width:1020px}
+.obc-why em{font-style:normal;color:#f0b85c}
+
+.obc-facts{display:flex;flex-direction:column;gap:7px;width:100%;max-width:820px}
+.obc-fact{display:flex;gap:14px;align-items:baseline;font-size:11.5px;
+  line-height:1.55;color:#8f98be}
+.obc-fact em{font-style:normal;color:#c9d2e8}
+/* Ярлык прижат вправо и одной ширины у всех: так значения выстраиваются
+   в столбец и читаются как таблица, без линий. */
+.obc-fact b{flex:0 0 92px;text-align:right;font-size:8px;letter-spacing:.2em;
+  text-transform:uppercase;font-weight:500;color:var(--fc,#6b7391)}
+.obc-fact span{flex:1;min-width:0}
+
+.obc-nums{display:flex;gap:42px;flex-wrap:wrap;margin-top:4px}
+.obc-num b{display:block;font-size:8.5px;letter-spacing:.22em;text-transform:uppercase;
+  color:#5d6488;font-weight:400;margin-bottom:8px}
+.obc-num i{font-style:normal;font-size:30px;font-weight:200;color:#dfe6f2;
+  font-variant-numeric:tabular-nums;line-height:1}
+.obc-num.up i{color:#4fc98a}
+.obc-num.dn i{color:#ec6f5e}
+
+.obc-calc{width:100%;max-width:820px;padding-top:10px;
+  border-top:1px solid rgba(255,255,255,.07);
+  font-size:10.5px;line-height:1.65;color:#767ea8}
+.obc-calc em{font-style:normal;color:#c9d2e8}
 @keyframes obgRise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
 
 /* ── Волна прогона ── */
@@ -564,6 +632,67 @@ PODIUM_CSS = """
 .obg-wave svg{position:relative;z-index:1;display:block;width:100%;height:auto;
   max-height:34vh}
 /* Призрачное число — нижний слой: лента и сетка идут поверх и режут его. */
+/* ── Частокол: точки событий и шкала времени ──
+   Волна кончается СЕГОДНЯ — вертикалью. Всё, что правее, ещё не
+   случилось, и линии там нет: сплошная линия вперёд читалась бы как
+   знание. Там стоят только сроки.
+
+   Цвет точки — по источнику, а не по тяжести: делистинг красный,
+   разлок синеватый, событие календаря янтарный, наблюдение зелёное.
+   Тяжесть скажет подсказка, а цвет должен отвечать «откуда это». */
+.obg-pins{position:absolute;inset:0;z-index:4;pointer-events:none}
+.obg-pin{position:absolute;width:13px;height:13px;
+  transform:translate(-50%,-50%);pointer-events:auto;
+  animation:obgPinIn 1.1s cubic-bezier(.2,.8,.3,1) both;
+  animation-delay:calc(1.2s + var(--pd,0) * .34s)}
+@keyframes obgPinIn{from{opacity:0;transform:translate(-50%,-50%) scale(.3)}
+  to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+.obg-pin i{position:absolute;inset:0;border-radius:50%;
+  border:1.5px solid var(--pc);background:#1b1f3a;
+  box-shadow:0 0 12px var(--pg);transition:transform .25s ease}
+.obg-pin:hover i{transform:scale(1.45)}
+/* Стойка вниз — чтобы точку можно было отнести к сроку на шкале.
+   Гаснет, не доходя: доведи её до шкалы, и кадр расчертится в клетку. */
+.obg-pin s{position:absolute;left:50%;top:11px;width:1px;
+  height:var(--ph,46px);text-decoration:none;
+  background:linear-gradient(180deg,var(--pc),transparent);opacity:.5}
+/* Текст подсказки лежит в точке, но НЕ показывается из неё: точки
+   стоят друг над другом ярусами, и всплывающая подсказка накрывала
+   соседей — до нижних было не добраться. Здесь только хранилище. */
+.obg-pin u{display:none}
+
+/* Показывается подсказка в ОДНОМ постоянном месте — в свободном поле
+   под частоколом, правее «сегодня». Там ничего нет по построению:
+   линия кончается сегодня, а точки висят выше. Постоянное место ещё и
+   удобнее: глаз не ищет, куда выскочило, он уже знает куда смотреть. */
+.obg-tip{position:absolute;z-index:8;top:54%;width:33%;
+  padding:12px 14px;border-radius:6px;pointer-events:none;
+  background:rgba(20,24,48,.94);border:1px solid rgba(150,190,225,.18);
+  box-shadow:0 18px 44px rgba(8,10,24,.8);
+  font-size:10.5px;line-height:1.55;color:#a9bccb;text-align:left;
+  opacity:0;transform:translateY(6px);
+  transition:opacity .28s ease,transform .28s ease}
+.obg-tip.obg-on{opacity:1;transform:none}
+.obg-tip b{display:block;font-size:8px;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--pc,#8b93c4);margin-bottom:5px}
+.obg-tip em{font-style:normal;color:#e8ecfb}
+
+.obg-now{position:absolute;z-index:2;top:8%;bottom:0;width:1px;
+  background:linear-gradient(180deg,transparent,rgba(255,210,172,.38) 16%,
+    rgba(255,210,172,.38) 88%,transparent);pointer-events:none;
+  animation:obgFade 1.4s ease .6s both}
+
+.obg-axis{position:relative;width:100%;height:34px;flex:0 0 auto;
+  margin-top:-16px;border-top:1px solid rgba(255,255,255,.06);
+  animation:obgFade 1.6s ease .5s both}
+.obg-tick{position:absolute;top:0;transform:translateX(-50%);text-align:center}
+.obg-tick s{display:block;width:1px;height:5px;margin:0 auto;
+  text-decoration:none;background:rgba(255,255,255,.13)}
+.obg-tick b{display:block;margin-top:6px;font-size:8.5px;letter-spacing:.16em;
+  color:#6b7391;font-weight:400;white-space:nowrap}
+.obg-tick.obg-tnow s{height:9px;background:rgba(255,210,172,.7)}
+.obg-tick.obg-tnow b{color:#ffd2ac;letter-spacing:.2em}
+
 .obg-ghost{position:absolute;z-index:0;left:50%;top:62%;
   transform:translate(-50%,-50%);font-size:230px;font-weight:700;
   letter-spacing:-.05em;line-height:1;color:rgba(255,255,255,.055);
@@ -665,7 +794,7 @@ PODIUM_CSS = """
    прокрутки зарезервировано: иначе при переходе к пустой группе блок
    схлопывался и весь экран дёргался. */
 .obr{width:392px;flex:0 0 auto;height:100%;display:flex;flex-direction:column;
-  gap:10px;padding:18px 0}
+  gap:10px;padding:66px 0 18px}
 .obr-head{display:flex;align-items:baseline;justify-content:space-between;
   padding:0 4px 10px;border-bottom:1px solid rgba(255,255,255,.07);
   animation:obgFade 1.2s ease both}
@@ -696,6 +825,17 @@ PODIUM_CSS = """
   line-height:1;display:none}
 .obr-find.obr-has .obr-clr{display:block}
 .obr-row.obr-hide{display:none}
+
+/* ── Подпись группы ──
+   Без неё порядок был бы невидим: читатель решил бы, что список
+   перемешан. Подпись говорит, ПОЧЕМУ монета здесь. */
+.obr-grp{display:flex;align-items:center;gap:9px;padding:15px 4px 7px;
+  font-size:7.6px;letter-spacing:.24em;text-transform:uppercase;
+  color:#575e82;animation:obgFade 1.2s ease both}
+.obr-grp:first-child{padding-top:0}
+.obr-grp s{flex:1;height:1px;background:rgba(255,255,255,.07);
+  text-decoration:none}
+.obr-grp.obr-hide{display:none}
 /* Метка делистинга. Янтарь — предупреждение биржи, красный — решение
    принято. Мигание только у срочного: если мигает всё, не мигает
    ничего. */
@@ -721,8 +861,8 @@ PODIUM_CSS = """
   font-size:11px;letter-spacing:.14em;color:#6c74a6;
   animation:obgFade 1.2s ease both}
 
-.obr-row{position:relative;display:grid;grid-template-columns:78px 1fr 62px;
-  align-items:center;gap:12px;padding:9px 12px 9px 15px;border-radius:11px;
+.obr-row{position:relative;display:grid;grid-template-columns:1fr auto;
+  align-items:center;gap:12px;padding:11px 14px 11px 15px;border-radius:11px;
   border:1px solid rgba(255,255,255,.05);cursor:pointer;
   background:linear-gradient(90deg,rgba(var(--rgb),.07),rgba(255,255,255,.012) 42%);
   transition:background .54s,border-color .54s,transform .54s;
@@ -738,8 +878,11 @@ PODIUM_CSS = """
   text-underline-offset:3px;text-decoration-thickness:1px}
 .obr-tk:focus-visible{outline:1px solid var(--c);outline-offset:3px;
   border-radius:3px}
-.obr-cs{display:block;margin-top:3px;font-size:7.4px;letter-spacing:.2em;
+/* Стратегия ушла из-под тикера вправо: место освободилось, а строка
+   теперь читается в одну линию — что за монета и что она такое. */
+.obr-cs{display:block;justify-self:end;font-size:8.4px;letter-spacing:.2em;
   text-transform:uppercase;color:var(--c);opacity:.85;white-space:nowrap}
+.obr-row:hover .obr-cs{opacity:1}
 .obr-row svg{display:block;width:100%;height:34px}
 .obr-pnl{text-align:right;font-size:13px;font-weight:300;
   font-variant-numeric:tabular-nums}
@@ -757,13 +900,136 @@ PODIUM_CSS = """
 @keyframes obrDraw{to{stroke-dashoffset:0}}
 @keyframes obgWaveDraw{to{stroke-dashoffset:0}}
 @keyframes obgSpin{to{transform:rotate(360deg)}}
-#obgHero .obg-hero{animation:obgTextIn 1.32s cubic-bezier(.2,.75,.3,1) both}
-#obgHero .obg-hint{animation:obgTextIn 1.32s cubic-bezier(.2,.75,.3,1) both .27s}
-#obgHero .obg-panel{animation:obgTextIn 1.32s cubic-bezier(.2,.75,.3,1) both .48s}
+/* Вступление играет ТОЛЬКО на входе в зал — отсюда класс.
+   Раньше правило висело без него, и при каждой смене группы ряд
+   собирался заново и проигрывал появление сызнова: вся связка «ядро
+   плюс кнопки» дёргалась вниз и проявлялась. Это и был рывок до
+   переезда; после переезда кнопки из ряда вынуты, потому там и чисто. */
+#obgHero.obg-enter .obg-hero{animation:obgTextIn 1.32s cubic-bezier(.2,.75,.3,1) both}
+#obgHero.obg-enter .obg-hint{animation:obgTextIn 1.32s cubic-bezier(.2,.75,.3,1) both .27s}
+#obgHero.obg-enter .obg-panel{animation:obgTextIn 1.32s cubic-bezier(.2,.75,.3,1) both .48s}
+
+/* Смена группы — не вход. Ядро меняет число, цвет и подпись разом, и
+   без единой мягкой подсветки эта подмена читается щелчком. Поэтому
+   ему одному дана короткая проявка, БЕЗ сдвига: двигаться ему некуда,
+   оно стоит на месте. Правило нарочно выше правил гашения — иначе оно
+   вернуло бы ядро на экран после переезда. */
+@keyframes obgSoftIn{from{opacity:0}to{opacity:1}}
+#obgHero.obg-swap .obg-core,
+#obgHero.obg-swap .obg-hint,
+#obgHero.obg-swap .obg-panel{animation:obgSoftIn 2.2s ease both}
+
+/* ── Смена группы: сначала гаснет старое ──
+   Раньше содержимое подменялось в одном кадре: старое исчезало ровно
+   тогда, когда появлялось новое, и это читалось щелчком.
+
+   Гасим АНИМАЦИЕЙ, а не переходом прозрачности. Причина техническая:
+   у всего здесь есть вступительная анимация с удержанием конечного
+   кадра, и она продолжает диктовать прозрачность даже после того, как
+   отыграла. Перекрыть её может только другая анимация.
+
+   Правило стоит ПОСЛЕ проявки и ДО правил переезда: вес у них
+   одинаковый, решает очерёдность. Иначе после переезда погашенное
+   ядро на миг проступило бы. */
+/* Имя obg-out НЕ брать: оно занято кнопкой «закрыть», а та абсолютная.
+   Повесив его на центральный блок, я выдернул его из потока — сцена
+   схлопывалась в комок ровно на время гашения. */
+@keyframes obgSoftOut{from{opacity:1}to{opacity:0}}
+#obgHero.obg-swapout .obg-core,
+#obgHero.obg-swapout .obg-hint,
+#obgHero.obg-swapout .obg-panel{animation:obgSoftOut .88s ease both}
+
+/* Волна и призрачное число живут ВНЕ центрального блока, поэтому у них
+   своя метка — на общем контейнере сцены. Без неё число подменялось
+   в одном кадре: остальное плавно уходило, а оно щёлкало.
+   Гаснут они вместе с центром, тем же сроком.
+   Проявление у числа своё: волна приходит собственной отрисовкой. */
+#obgInner.obg-swapout .obg-wave{animation:obgSoftOut .88s ease both}
+
+/* ── Нажатая кнопка уходит, а не пропадает ──
+   Она становится выбранной группой, а выбранная из ряда прячется — и
+   пряталась разом, в кадр пересборки. Гасим её ЗАРАНЕЕ, с самого
+   клика, ровно за то же время, что идёт до пересборки: к моменту,
+   когда её уберут из разметки, она уже невидима. Место при этом
+   держит до конца, поэтому соседи не дёргаются раньше времени —
+   они сомкнутся переездом, когда ряд соберётся заново. */
+@keyframes obgSatOut{from{opacity:1;transform:none}
+  to{opacity:0;transform:scale(.86)}}
+.obg-side .obg-sat.obg-sat-out{animation:obgSatOut .88s ease both;
+  pointer-events:none}
+#obgInner.obg-swap .obg-ghost{animation:obgSoftIn 2.2s ease both}
+
+/* ── Нижний блок гаснет через десять секунд ──
+   Подсказка и деньги отвечают на вопрос «как дела у журнала целиком».
+   Ответ нужен на входе и один раз; дальше он только занимает низ кадра.
+
+   Гаснет ОПАЦИТИ, а не выносится из потока: у сцены вертикальное
+   центрирование, и убери мы блок совсем — всё остальное подскочило бы
+   вверх на его высоту. Пустое место внизу дешевле прыжка.
+
+   Уходит подсказка, следом деньги: тем же порядком, каким читались. */
+@keyframes obgTextOut{from{opacity:1;transform:none}
+  to{opacity:0;transform:translateY(9px)}}
+#obgHero.obg-faded .obg-hint{animation:obgTextOut 1.6s ease both;
+  pointer-events:none}
+#obgHero.obg-faded .obg-panel{animation:obgTextOut 1.6s ease both .2s;
+  pointer-events:none}
+/* Ядро уходит вместе с ними: открытая группа названа в шапке списка,
+   и держать её ещё и кольцом в центре — повтор. Место остаётся
+   занятым по той же причине, что и у блока ниже. */
+#obgHero.obg-faded .obg-core{animation:obgTextOut 1.6s ease both;
+  pointer-events:none}
+/* Погашенное состояние держится отдельным классом: без него смена
+   группы перерисовала бы блок и вернула его во весь свет. */
+#obgHero.obg-gone .obg-hint,#obgHero.obg-gone .obg-panel,
+#obgHero.obg-gone .obg-core{animation:none;opacity:0;pointer-events:none}
+
+/* ── Вкладки над списком ──
+   Те же кнопки, что стояли в центре: они не создаются заново, а
+   переезжают — подмену копией глаз читает как мигание.
+   Пока не переехали, место пустое и спрятано: иначе колонка
+   начиналась бы с зазора в десять пикселей. */
+/* Место под вкладки держится с самого начала, пустым. Иначе в момент
+   прилёта колонка получала бы новую строку разом — шапка, поиск и
+   список ныряли бы вниз ступенькой, пока кнопки ещё в полёте.
+   Высота равна росту вкладки: кружок 32 плюс отступы 5 и рамка. */
+.obr-tabs{flex:0 0 auto;min-height:44px}
+
+/* Слой всего меняющегося. Гасим не его целиком, а перечисленных детей —
+   ПОИМЁННО. Причина: поле поиска у всех групп одинаковое, и мигать ему
+   не с чего. Погаси мы слой, оно уходило бы вместе со всеми, а потом
+   возвращалось разом — оно единственное здесь без проявления, и этот
+   рывок и было видно перед плавным приходом остального.
+
+   Правило то же, что у вкладок: что не меняется, то не анимируем. */
+.obr-body{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px}
+/* Гашение анимацией, а не прозрачностью: у шапки своя вступительная
+   анимация с удержанием кадра, перекрыть её может только анимация. */
+.obr-body.obr-out .obr-head,
+.obr-body.obr-out .obr-list,
+.obr-body.obr-out .obr-empty{animation:obgSoftOut .44s ease both}
+.obg-side.obg-tucked{flex-direction:row;width:auto;gap:7px}
+.obg-side.obg-tucked .obg-sat{width:auto;flex:1 1 0;min-width:0;gap:9px;
+  padding:5px 11px 5px 5px}
+.obg-side.obg-tucked .obg-pill{width:32px;height:32px;font-size:13px}
+.obg-side.obg-tucked .obg-scap{font-size:8px;letter-spacing:.16em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .obg-wave .obg-wv{stroke-dasharray:2600;stroke-dashoffset:2600;
   animation:obgWaveDraw 5.7s cubic-bezier(.3,.75,.35,1) .45s both}
+/* Отрисовка при наведении. Была вчетверо короче входной — и от этого
+   читалась мельканием: линия успевала лечь раньше, чем глаз находил
+   её начало. Сейчас медленнее входной: смотреть на монету можно
+   столько, сколько нужно, а торопиться некуда. */
+.obg-wave.obg-quick .obg-wv{animation-duration:25.2s;animation-delay:.9s}
+.obg-wave.obg-quick .obg-mesh{animation-duration:16.2s;animation-delay:.9s}
+.obg-wave.obg-quick .obg-body{animation-duration:14.4s;animation-delay:7.2s}
+.obg-wave.obg-quick .obg-head{animation-duration:7.2s;animation-delay:24.3s}
+.obg-wave.obg-quick .obg-node{animation-duration:9s;animation-delay:18s}
 .obg-wave .obg-mesh{animation:obgFade 3.6s ease .3s both}
-.obg-wave .obg-body{animation:obgFade 3.2s ease 1.6s both}
+/* Тело волны — два размытия по 16 пикселей. Просим отдельный слой:
+   иначе движок пересчитывает их вместе с каждым кадром линии. */
+.obg-wave .obg-body{animation:obgFade 3.2s ease 1.6s both;
+  will-change:opacity;transform:translateZ(0)}
 .obg-wave .obg-head{animation:obgFade 1.5s ease 5.6s both}
 .obg-wave .obg-node{animation:obgFade 1.8s ease 4.2s both}
 .obr-row svg .obr-ln{stroke-dasharray:420;stroke-dashoffset:420;
@@ -907,7 +1173,7 @@ PODIUM_CSS = """
   .obg-panel > div:nth-child(2n){border-right:0}
   .obg-panel > div:nth-child(n+3){border-bottom:0}
   .obr{padding:9px 10px 10px}
-  .obr-row{grid-template-columns:74px 1fr 62px;min-height:44px}
+  .obr-row{grid-template-columns:1fr auto;min-height:44px}
   .obr-find input{font-size:12px}   /* меньше 12px — iOS зумит поле */
 }
 
@@ -919,6 +1185,25 @@ PODIUM_CSS = """
   .obg-wave .obg-head,.obg-wave .obg-node{animation:none}
   .obr-row svg .obr-ln,.obg-wave .obg-wv{stroke-dashoffset:0}
   .obg-ring{transition:none}
+
+  /* Всё, добавленное залом сегодня, слушается того же запрета.
+     Причина не только в вежливости: половина новых движений идёт
+     десятками секунд, и для того, кто просил не двигать экран, это
+     было бы не медленно, а мучительно. Содержимое при этом остаётся
+     на месте целиком — гасим движение, а не смысл. */
+  #obgHero.obg-swap .obg-core,#obgHero.obg-swap .obg-hint,
+  #obgHero.obg-swap .obg-panel,#obgHero.obg-swapout .obg-core,
+  #obgHero.obg-swapout .obg-hint,#obgHero.obg-swapout .obg-panel,
+  #obgInner.obg-swapout .obg-wave,#obgInner.obg-swap .obg-ghost,
+  .obg-side .obg-sat.obg-sat-out,
+  .obg-card.obg-on .obc-anim,.obg-pin,.obg-now,.obg-axis,
+  .obg-wave.obg-quick .obg-wv,.obg-wave.obg-quick .obg-mesh,
+  .obg-wave.obg-quick .obg-body,.obg-wave.obg-quick .obg-head,
+  .obg-wave.obg-quick .obg-node{animation:none}
+  .obg-wave.obg-quick .obg-wv{stroke-dashoffset:0}
+  .obg-body{will-change:auto}
+  .obr-body .obr-head,.obr-body .obr-list,.obg-tip,
+  .obg-card,.obg-sat{transition:none}
 }
 </style>
 """
@@ -2144,12 +2429,22 @@ PODIUM_JS = """
       (-p0 + 3 * p1 - 3 * p2 + p3) * u * u * u);
   }
 
-  function gateWave(w, h) {
-    var d = ((O.market || {}).series || []).slice();
+  /* Волна умеет рисовать ЛЮБОЙ ряд, не только рыночный: при наведении
+     на монету это её собственный ход, и красится он цветом её
+     стратегии. Цвета вынесены в переменные — раньше они были вписаны
+     в разметку по месту, и перекрасить волну было нечем. */
+  function gateWave(w, h, opt) {
+    opt = opt || {};
+    var d = (opt.series || (O.market || {}).series || []).slice();
+    var CA = opt.c || '#ec6f5e';    /* тело, тень, заливка под кривой */
+    var CB = opt.c2 || opt.c || '#ffd2ac';  /* хвост кривой и узлы */
     if (d.length < 3) return '';
     /* Поля по краям: кривая не упирается в границу кадра, а
        растворяется маской — иначе она обрывалась о колонку. */
-    var L = 26, R = 130, TOP = 46, BASE = h - 42, i, r;
+    /* R — поле справа. По умолчанию узкое, но когда под волной стоит
+       частокол, справа нужно место под будущее: линия обязана
+       кончаться СЕГОДНЯ, дальше рисовать нечего. */
+    var L = 26, R = (opt.right || 130), TOP = 46, BASE = h - 42, i, r;
     var max = -Infinity, min = Infinity;
     for (i = 0; i < d.length; i++) {
       if (d[i] > max) max = d[i];
@@ -2192,12 +2487,12 @@ PODIUM_JS = """
       '<defs>' +
         '<linearGradient id="obgWv" x1="0" y1="0" x2="1" y2="0">' +
           '<stop offset="0%" stop-color="#8b93c4"/>' +
-          '<stop offset="34%" stop-color="#ec6f5e"/>' +
-          '<stop offset="72%" stop-color="#f0a878"/>' +
-          '<stop offset="100%" stop-color="#ffd2ac"/></linearGradient>' +
+          '<stop offset="34%" stop-color="' + CA + '"/>' +
+          '<stop offset="72%" stop-color="' + CB + '"/>' +
+          '<stop offset="100%" stop-color="' + CB + '"/></linearGradient>' +
         '<linearGradient id="obgUf" x1="0" y1="0" x2="0" y2="1">' +
-          '<stop offset="0%" stop-color="#ec6f5e" stop-opacity=".2"/>' +
-          '<stop offset="100%" stop-color="#ec6f5e" stop-opacity="0"/></linearGradient>' +
+          '<stop offset="0%" stop-color="' + CA + '" stop-opacity=".2"/>' +
+          '<stop offset="100%" stop-color="' + CA + '" stop-opacity="0"/></linearGradient>' +
         '<filter id="obgSh" x="-20%" y="-60%" width="140%" height="260%">' +
           '<feGaussianBlur stdDeviation="16"/></filter>' +
         '<filter id="obgGl" x="-20%" y="-90%" width="140%" height="320%">' +
@@ -2225,21 +2520,32 @@ PODIUM_JS = """
           'stroke-opacity=".55" filter="url(#obgSh)" transform="translate(0,22)"/>' +
         '<path d="' + front + 'L ' + (L + span) + ' ' + BASE + ' L ' + L + ' ' +
           BASE + ' Z" fill="url(#obgUf)"/>' +
-        '<path d="' + front + '" fill="none" stroke="#ec6f5e" stroke-width="12" ' +
+        '<path d="' + front + '" fill="none" stroke="' + CA + '" stroke-width="12" ' +
           'stroke-opacity=".3" filter="url(#obgSh)"/>' +
       '</g>' +
+      /* Свечение линии — ВТОРАЯ ОБВОДКА, а не фильтр размытия.
+         Фильтр на рисующейся линии пересчитывается каждый кадр: сорок
+         восемь кадров в секунду вместо шестидесяти, и это видно как
+         подёргивание. Широкая полупрозрачная обводка под тонкой даёт
+         то же свечение и не стоит ничего — обе рисуются одним штрихом,
+         потому что несут один класс. */
       '<g mask="url(#obgMLine)">' +
         '<path class="obg-wv" d="' + front + '" fill="none" stroke="url(#obgWv)" ' +
-          'stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" ' +
-          'filter="url(#obgGl)"/>' +
+          'stroke-width="11" stroke-opacity=".16" stroke-linecap="round" ' +
+          'stroke-linejoin="round"/>' +
+        '<path class="obg-wv" d="' + front + '" fill="none" stroke="url(#obgWv)" ' +
+          'stroke-width="6" stroke-opacity=".26" stroke-linecap="round" ' +
+          'stroke-linejoin="round"/>' +
+        '<path class="obg-wv" d="' + front + '" fill="none" stroke="url(#obgWv)" ' +
+          'stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>' +
       '</g>' +
       '<g class="obg-node" transform="translate(' + fx.toFixed(1) + ',' +
         fy.toFixed(1) + ')">' +
-        '<circle r="30" fill="none" stroke="#ffd2ac" stroke-opacity=".26" ' +
+        '<circle r="30" fill="none" stroke="' + CB + '" stroke-opacity=".26" ' +
           'stroke-dasharray="1.5 6" class="obg-spin"/>' +
-        '<circle r="20" fill="none" stroke="#ffd2ac" stroke-opacity=".4" ' +
+        '<circle r="20" fill="none" stroke="' + CB + '" stroke-opacity=".4" ' +
           'stroke-dasharray="1.5 5" class="obg-spin obg-rev"/>' +
-        '<circle r="9" fill="none" stroke="#ffd2ac" stroke-opacity=".8"/>' +
+        '<circle r="9" fill="none" stroke="' + CB + '" stroke-opacity=".8"/>' +
         '<circle r="3.6" fill="#fff1e2" filter="url(#obgGl)"/>' +
       '</g>' +
       '<g class="obg-head">' +
@@ -2340,51 +2646,90 @@ PODIUM_JS = """
     }
     if (!stg) return;
     var col = gcol(GATE_KEY), rows = railList(GATE_KEY);
-    var withEntry = GATE_KEY === 'trade' || GATE_KEY === 'exit';
+    /* Остов колонки собираем ОДИН раз, дальше меняем только тело.
+       Причина не в экономии: ряд вкладок лежит ВНУТРИ места под них, и
+       пересборка всей колонки уничтожала его вместе с местом. После
+       переезда вкладки пропадали почти на полсекунды — до тех пор,
+       пока центр не соберётся заново и не вернёт их. */
+    var slot = document.getElementById('obgTabs');
+    var body = document.getElementById('obgBody');
+    if (!slot || !body) {
+      host.innerHTML = '<div class="obr-tabs" id="obgTabs"></div>' +
+                       '<div class="obr-body" id="obgBody"></div>';
+      slot = document.getElementById('obgTabs');
+      body = document.getElementById('obgBody');
+    }
+    /* Тело переживает пересборку, значит метку гашения снимаем руками —
+       раньше она уходила сама вместе со старым узлом. */
+    body.classList.remove('obr-out');
+
     var out = '<div class="obr-head" style="--c:' + col.c + '">' +
-      '<b>' + stg.n + ' · ' + rows.length + '</b>' +
-      '<span>две недели' + (withEntry ? ' · твх' : '') + '</span></div>' +
+      '<b>' + stg.n + ' · ' + rows.length + '</b></div>' +
       '<div class="obr-find" id="obgFind"><i class="obr-mag"></i>' +
         '<input type="text" id="obgQ" placeholder="поиск по монете" ' +
           'autocomplete="off" spellcheck="false">' +
         '<button class="obr-clr" type="button" id="obgClr" ' +
           'aria-label="очистить">×</button></div>';
     if (!rows.length) {
-      host.innerHTML = out + '<div class="obr-empty">в этой группе сегодня пусто</div>';
+      body.innerHTML = out +
+        '<div class="obr-empty">в этой группе сегодня пусто</div>';
+      syncTabs();
       return;
     }
-    /* Порядок — по ходу от входа, лучшие сверху: список читают
-       сверху вниз, и первым должно стоять то, что работает. */
-    rows = rows.slice().sort(function (a, b) {
-      return (pnlOf(b) - pnlOf(a));
-    });
+    /* Раскладываем по группам, внутри — своим порядком, и склеиваем
+       обратно в одну ленту. ZLIST должен идти ТЕМ ЖЕ порядком, что и
+       строки: карточка листает соседей по нему. */
+    var buckets = {}, gi, gk;
+    for (gi = 0; gi < RAIL_GROUPS.length; gi++) buckets[RAIL_GROUPS[gi].key] = [];
+    for (i = 0; i < rows.length; i++) buckets[railGroupOf(rows[i])].push(rows[i]);
+    var ordered = [], heads = {};
+    for (gi = 0; gi < RAIL_GROUPS.length; gi++) {
+      gk = RAIL_GROUPS[gi].key;
+      if (!buckets[gk].length) continue;          /* пустую не подписываем */
+      buckets[gk].sort(railSortIn(gk));
+      heads[ordered.length] = RAIL_GROUPS[gi].n;  /* подпись перед этой строкой */
+      ordered = ordered.concat(buckets[gk]);
+    }
+    rows = ordered;
     /* Карточка листает соседей по ZLIST. Раньше его наполняла только
        стена, поэтому из списка карточка не открывалась вовсе. Теперь
        список сам кладёт туда монеты В ТОМ ЖЕ ПОРЯДКЕ, что и строки. */
     ZLIST = rows.slice();
     out += '<div class="obr-list">';
     for (i = 0; i < rows.length; i++) {
-      var s = rows[i], c = caseOf(s), p = pnlOf(s);
+      /* В строке остались только имя и стратегия. График на такой
+         ширине читался лишь как направление, а оно и так было в
+         проценте; сам процент строка теперь не считает — ход монеты
+         показывает центр, когда на неё смотрят.
+         railSpark оставлен в коде: он ещё пригодится в центре. */
+      var s = rows[i], c = caseOf(s);
+      if (heads[i]) {
+        out += '<div class="obr-grp" data-grp="1">' + heads[i] + '<s></s></div>';
+      }
       out += '<div class="obr-row" data-sym="' + s.t +
         '" data-case="' + c.n + '" style="--c:' + c.c +
         ';--rgb:' + c.rgb + ';animation-delay:' + (i * 165) + 'ms">' +
         '<div><a class="obr-tk" href="' + tvUrl(s) + '" target="_blank" ' +
             'rel="noopener" title="открыть график на TradingView">' + s.t + '</a>' +
-          delistTag(s) +
-          '<span class="obr-cs">' + c.n + '</span></div>' +
-        '<div>' + railSpark(s, i * 165) + '</div>' +
-        '<div class="obr-pnl ' + (p >= 0 ? 'obg-up' : 'obg-dn') + '">' +
-          (p >= 0 ? '+' : '') + p.toFixed(1) + '%' +
-          '<em>' + (s.book && s.book.px ? 'от твх' : 'две недели') + '</em></div>' +
+          delistTag(s) + '</div>' +
+        '<span class="obr-cs">' + c.n + '</span>' +
         '</div>';
     }
-    host.innerHTML = out + '</div><div class="obr-none" id="obgNone">' +
+    body.innerHTML = out + '</div><div class="obr-none" id="obgNone">' +
       'ничего не найдено</div>';
     /* Привязку строк зовём ПОСЛЕ отрисовки: раньше она стояла в
        paintHero, который отрабатывает раньше списка, — узлов ещё не
        было, и клик по монете не делал ничего. */
     bindRows(rows);
     bindFind();
+    /* Уход курсора карточку НЕ гасит. Она не всплывающая подсказка, а
+       содержимое экрана: её читают, отводя глаза от списка, водят по
+       строкам мышью и возвращаются. Сменится она только на другой
+       монете — или когда сменится группа, где этой монеты уже нет. */
+    /* Список перерисован — значит место под вкладки новое, и переехавшие
+       кнопки надо вернуть в него. Без этого смена группы оставляла бы
+       вкладки в старом, уже выброшенном узле. */
+    syncTabs();
   }
 
   /* ── Метка делистинга в строке ──
@@ -2448,6 +2793,18 @@ PODIUM_JS = """
         if (hit) { el.classList.remove('obr-hide'); shown++; }
         else { el.classList.add('obr-hide'); }
       }
+      /* Подпись без строк — хуже, чем её отсутствие: она обещает
+         раздел, которого в выдаче нет. Прячем вместе со своими. */
+      var hs = document.querySelectorAll('.obr-grp'), j, nx, live;
+      for (j = 0; j < hs.length; j++) {
+        live = false; nx = hs[j].nextElementSibling;
+        while (nx && nx.classList.contains('obr-row')) {
+          if (!nx.classList.contains('obr-hide')) live = true;
+          nx = nx.nextElementSibling;
+        }
+        if (live) hs[j].classList.remove('obr-hide');
+        else hs[j].classList.add('obr-hide');
+      }
       if (box) { if (q) box.classList.add('obr-has'); else box.classList.remove('obr-has'); }
       if (none) { if (!shown && q) none.classList.add('obr-on');
                   else none.classList.remove('obr-on'); }
@@ -2478,11 +2835,60 @@ PODIUM_JS = """
           e.stopPropagation();
           openZoom(rows[idx], idx);
         };
+        /* Наведение наполняет центр. Клик по-прежнему открывает
+           карточку целиком — одно другому не мешает. */
+        el.onmouseenter = function () { showCoin(rows[idx]); };
       })(els[i], i);
     }
   }
 
   /* Ход монеты: от входа, если позиция есть; иначе за две недели. */
+  /* ── Порядок списка: по критическому, а не по ходу ──
+     Раньше сверху стояли лучшие по проценту. Процент из строки ушёл,
+     и порядок стал невидимым; но дело не только в этом. Список читают
+     сверху вниз, и первым должно стоять то, что ТОРОПИТ, а не то, что
+     радует: закрывающийся стакан, транш на пороге, свежий повод.
+
+     Пороги вынесены наверх и подписаны — их придётся крутить.
+     Разлоки: горизонт две недели, дальше монета уходит в «остальное».
+     Событие в трёх месяцах не торопит, а место наверху занимает. */
+  var RAIL_GROUPS = [
+    { key: 'delist', n: 'делистинг и метки' },
+    { key: 'unlock', n: 'разлоки впереди' },
+    { key: 'news',   n: 'поводы и новости' },
+    { key: 'deep',   n: 'глубокий откуп' },
+    { key: 'rest',   n: 'остальное' }
+  ];
+  var UNLOCK_HORIZON = 14;   /* дней */
+  var DEEP_UP = 200;         /* процентов от дна */
+
+  function railGroupOf(s) {
+    if (s.delist && s.delist.level) return 'delist';
+    var d = s.unlockDays;
+    if (d !== null && d !== undefined && +d <= UNLOCK_HORIZON) return 'unlock';
+    /* Поле новостей: {t: заголовок, why: пояснение, at: дата}. Пустое —
+       это НЕ «новостей нет», а «мы не смотрели»; для порядка разницы
+       нет, но при чтении держать в уме. */
+    if (s.news && (s.news.t || s.news.why)) return 'news';
+    if (+s.up >= DEEP_UP) return 'deep';
+    return 'rest';
+  }
+
+  /* Внутри группы порядок задаёт САМА группа, а не общий процент:
+     у делистинга и транша это срок, у отката — глубина хода. Общий
+     порядок по ходу остаётся там, где торопить нечему. */
+  function railSortIn(key) {
+    if (key === 'delist') return function (a, b) {
+      var x = (a.delist && a.delist.days), y = (b.delist && b.delist.days);
+      if (x === null || x === undefined) x = 1e9;
+      if (y === null || y === undefined) y = 1e9;
+      return x - y;
+    };
+    if (key === 'unlock') return function (a, b) { return a.unlockDays - b.unlockDays; };
+    if (key === 'deep') return function (a, b) { return (+b.up) - (+a.up); };
+    return function (a, b) { return pnlOf(b) - pnlOf(a); };
+  }
+
   function pnlOf(s) {
     if (s.book && s.book.px && s.px) return (s.px / s.book.px - 1) * 100;
     var d = (s.series || []);
@@ -2531,9 +2937,19 @@ PODIUM_JS = """
     return (v >= 0 ? '+' : '') + (+v).toFixed(1) + '%';
   }
 
+  var ENTERED = false;
   function paintHero() {
     var host = document.getElementById('obgHero');
     if (!host) return;
+    /* Первая отрисовка после открытия — вход, остальные — смена группы. */
+    if (ENTERED) {
+      host.classList.remove('obg-enter');
+      host.classList.add('obg-swap');
+    } else {
+      host.classList.add('obg-enter');
+      host.classList.remove('obg-swap');
+      ENTERED = true;
+    }
     var g = null, i;
     for (i = 0; i < STAGE.length; i++) {
       if (STAGE[i].key === GATE_KEY) { g = STAGE[i]; }
@@ -2604,11 +3020,385 @@ PODIUM_JS = """
           e.stopPropagation();
           var k = b.getAttribute('data-gkey');
           if (k === GATE_KEY) return;
-          GATE_KEY = k;
-          paintHero();
-          paintRail();
+          switchGroup(k);
         };
       })(btns[i]);
+    }
+  }
+
+  /* ── Карточка монеты: всё, что известно, одним взглядом ──
+     Собирается ТОЛЬКО из непустых полей. Пустое место честнее строки
+     с прочерком: прочерк говорит «мы смотрели и там ничего», а у нас
+     чаще «мы не смотрели» — это разные вещи, и путать их нельзя.
+
+     Порядок строк — по тому, что перебивает что. Сначала листинг и
+     транш: они терминальны. Потом повод и спрос. Потом своя позиция.
+     Потом состояние. Числа внизу, потому что их читают вторым
+     заходом, а не первым. */
+  function dm(iso) {
+    var p2 = String(iso || '').split('-');
+    return p2.length === 3 ? p2[2] + '.' + p2[1] : '';
+  }
+  function daysRu(d) {
+    if (d === null || d === undefined) return '';
+    d = +d;
+    if (d <= 0) return 'сегодня';
+    if (d === 1) return 'завтра';
+    return 'через ' + d + ' дн';
+  }
+  /* ВНИМАНИЕ при правке: строка модуля не сырая, и обратный слэш здесь
+     удваивается — в JS уходит одинарный. Напишете \\d одним слэшем, и
+     питон свалится на неизвестном escape ещё до прогона.
+
+     Числа в прозе подсвечиваются. Не украшение: строка «транш 14.8%
+     капитализации» читается за долю секунды, если число выделено, и
+     за секунду, если нет. Подсвечиваем ТОЛЬКО величины — проценты,
+     деньги, кратности, ATR, — и никогда слова. */
+  function mark(t) {
+    return String(t || '')
+      .replace(/(−?\\d[\\d.,]*\\s?(?:%|ATR|×|раз))/g, '<em>$1</em>')
+      .replace(/(\\$[\\d.,]+[KMB]?)/g, '<em>$1</em>')
+      .replace(/(×\\d[\\d.,]*)/g, '<em>$1</em>');
+  }
+  /* Цена монеты приходит сырым числом с плавающей точкой: стоп у STORJ
+     был 0.04649691666666666. Значащих цифр хватает четырёх — остальное
+     не информация, а шум разрядной сетки. */
+  function px4(v) {
+    var n = +v;
+    if (!isFinite(n)) return '';
+    if (Math.abs(n) >= 100) return n.toFixed(2);
+    if (Math.abs(n) >= 1) return n.toFixed(3);
+    return String(+n.toPrecision(4));
+  }
+  function cut(t, n) {
+    t = String(t || '');
+    if (t.length <= n) return t;
+    var i = t.lastIndexOf(' ', n);
+    return t.slice(0, i > 40 ? i : n) + '…';
+  }
+
+  function coinCard(s) {
+    var c = caseOf(s), i, nd = 0;
+    var ac = (s.act && GATE_C[s.act.group]) || GATE_C.hold;
+    var h = '';
+
+    h += '<div class="obc-head obc-anim" style="--nd:' + (nd++) + '">' +
+      '<span class="obc-tk">' + s.t + '</span>' +
+      '<span class="obc-cs" style="--c:' + c.c + '">' + c.n + '</span>' +
+      (s.act ? '<span class="obc-act" style="--ac:' + ac.c + '">' +
+        s.act.act + (s.act.why ? '<s>' + cut(s.act.why, 52) + '</s>' : '') +
+        '</span>' : '') + '</div>';
+
+    var why = (s.act && s.act.whyFull && s.act.whyFull[0]) || s.verdict || '';
+    if (why) h += '<div class="obc-why obc-anim" style="--nd:' + (nd++) + '">' +
+      mark(cut(why, 300)) + '</div>';
+
+    /* ── Факты ── */
+    var f = [];
+    if (s.delist && s.delist.level) {
+      f.push(['#ec6f5e', 'листинг', s.delist.level +
+        (s.delist.days === null || s.delist.days === undefined
+          ? '' : ' · ' + daysRu(s.delist.days)) +
+        (s.delist.why ? ' — ' + cut(s.delist.why, 120) : '')]);
+    }
+    if (s.unlockDays !== null && s.unlockDays !== undefined) {
+      var u = 'транш ' + dm(s.unlockDate) + ' · ' + daysRu(s.unlockDays);
+      if (s.unlockPctFloat) u += ' · ' + (+s.unlockPctFloat).toFixed(1) + '% обращения';
+      if (s.unlockUsd) u += ' · ' + money(s.unlockUsd);
+      u += s.unlockIns ? ' · инсайдерам' : '';
+      if (s.unlockRounds && s.unlockRounds.length && s.unlockRounds[0]) {
+        u += ' (' + s.unlockRounds.join(', ') + ')';
+      }
+      f.push(['#a6b6ff', 'разлок', u]);
+    }
+    if (s.news && (s.news.t || s.news.why)) {
+      f.push(['#ffd678', 'повод', (s.news.t || '') +
+        (s.news.why ? ' — ' + cut(s.news.why, 140) : '')]);
+    }
+    if (s.demand && s.demand.note) {
+      f.push(['#4fc98a', 'спрос', (s.demand.label || '') +
+        (s.demand.statusRu ? ' · ' + s.demand.statusRu : '') +
+        ' — ' + cut(s.demand.note, 150)]);
+    }
+    if (s.book && s.book.usd) {
+      f.push(['#dfe6f2', 'в книге', money(s.book.usd) + ' от ' + px4(s.book.px) +
+        ' · ход ' + pct(pnlOf(s))]);
+    }
+    var st = [];
+    if (s.absorb && s.absorb.note) st.push(s.absorb.note);
+    if (s.squeeze && s.squeeze.note) st.push(s.squeeze.note);
+    if (s.squeeze && s.squeeze.hotNote) st.push(s.squeeze.hotNote);
+    if (s.effort && s.effort.note) st.push(s.effort.note);
+    if (s.wyckoffTest && s.wyckoffTest.note) st.push(s.wyckoffTest.note);
+    if (st.length) f.push(['#8b93c4', 'состояние', cut(st.slice(0, 2).join(' · '), 220)]);
+    if (s.exitWhy && s.exitWhy.length) {
+      f.push(['#f0a878', 'торопит', cut(s.exitWhy.join(' · '), 160)]);
+    }
+    if (f.length) {
+      /* Обёртка НЕ анимируется: иначе задержки сложились бы, и строки
+         внутри поехали бы дважды. Едет каждая строка сама. */
+      h += '<div class="obc-facts">';
+      for (i = 0; i < f.length; i++) {
+        h += '<div class="obc-fact obc-anim" style="--fc:' + f[i][0] +
+          ';--nd:' + (nd++) + '">' +
+          '<b>' + f[i][1] + '</b><span>' + mark(f[i][2]) + '</span></div>';
+      }
+      h += '</div>';
+    }
+
+    /* ── Числа ── */
+    var n = [];
+    function num(lab, val, kind) { if (val !== null) n.push([lab, val, kind || '']); }
+    num('цена', s.px === undefined ? null : px4(s.px));
+    num('ход за сутки', s.p1d === undefined || s.p1d === null ? null : pct(s.p1d),
+        (+s.p1d >= 0 ? 'up' : 'dn'));
+    num('от дна', s.up === undefined || s.up === null ? null : '+' + Math.round(s.up) + '%', 'up');
+    num('от пика', s.ath ? Math.round(s.ath) + '%' : null, 'dn');
+    num('флоат', s.floatPct ? Math.round(s.floatPct) + '%' : null,
+        (+s.floatPct < 25 ? 'dn' : ''));
+    num('объём', s.v1d ? '×' + (+s.v1d).toFixed(1) : null, (+s.v1d > 3 ? 'up' : ''));
+    num('фандинг', s.fund === undefined || s.fund === null ? null : (+s.fund).toFixed(3) + '%',
+        (+s.fund < 0 ? 'up' : ''));
+    if (n.length) {
+      h += '<div class="obc-nums">';
+      for (i = 0; i < n.length && i < 7; i++) {
+        h += '<div class="obc-num obc-anim ' + n[i][2] + '" style="--nd:' +
+          (nd++) + '"><b>' + n[i][0] + '</b><i>' + n[i][1] + '</i></div>';
+      }
+      h += '</div>';
+    }
+
+    /* ── Что СЧИТАЕТ стратегия. Не прогноз: линии будущей цены здесь
+       нет и не будет — считаются уровни от структуры и ожидание по
+       прошлым эпизодам журнала. ── */
+    var calc = [];
+    if (s.stop) calc.push('стоп <em>' + px4(s.stop) + '</em>');
+    if (s.levels && s.levels.note) calc.push(s.levels.note);
+    if (s.journalExp && s.journalExp.n) {
+      calc.push('ожидание по журналу <em>' + pct(s.journalExp.expPct) + '</em> на ' +
+        s.journalExp.n + (s.journalExp.n === 1 ? ' эпизоде' : ' эпизодах'));
+    }
+    if (calc.length) {
+      h += '<div class="obc-calc obc-anim" style="--nd:' + (nd++) + '">' +
+        calc.join(' · ') + '</div>';
+    }
+    return h;
+  }
+
+  /* Карточка живёт только там, где освободилось место, и только пока
+     курсор на строке. Повторное наведение на ту же монету ничего не
+     пересобирает — иначе лесенка играла бы на каждом дрожании мыши. */
+  var CARD_SYM = null;
+  function showCoin(s) {
+    var card = document.getElementById('obgCard');
+    var hero = document.getElementById('obgHero');
+    if (!card || !hero || !s) return;
+    if (!hero.classList.contains('obg-gone')) return;
+    if (CARD_SYM === s.t) return;
+    CARD_SYM = s.t;
+    card.style.top = hero.offsetTop + 'px';
+    card.innerHTML = coinCard(s);
+    card.classList.add('obg-on');
+    paintWave(s);      /* волна становится ходом этой монеты */
+  }
+  /* keepWave — для смены группы: там волна и так будет собрана заново,
+     своим чередом, когда догорит старая. Без этой оговорки карточка
+     тянула волну за собой ПРЯМО В МОМЕНТ КЛИКА: новая линия появлялась
+     поверх ещё гаснущей старой, и вся хореография перехода рушилась. */
+  /* Место карточки считается от ядра и запоминается один раз. Меняется
+     ширина окна — меняется и высота волны, а с ней место ядра; без
+     пересчёта карточка уезжала бы на волну или под неё. */
+  addEventListener('resize', function () {
+    var card = document.getElementById('obgCard');
+    var hero = document.getElementById('obgHero');
+    if (card && hero && CARD_SYM !== null) {
+      card.style.top = hero.offsetTop + 'px';
+    }
+  });
+
+  function hideCoin(keepWave) {
+    var card = document.getElementById('obgCard');
+    if (!card) return;
+    if (CARD_SYM === null) return;   /* уже убрана — волну не дёргаем */
+    CARD_SYM = null;
+    card.classList.remove('obg-on');
+    if (!keepWave) { paintWave(); }
+  }
+
+  /* Волна пересобирается ЦЕЛИКОМ — только так она рисуется заново.
+     Анимация отрисовки играет один раз на узел; чтобы линия пошла с
+     начала, нужен новый узел, а не новый класс. Раньше волна строилась
+     единожды на весь сеанс, и при смене группы менялось только число
+     за ней — оно и щёлкало в одиночку.
+
+     Число вписывает paintHero, поэтому зовём в паре и в этом порядке. */
+  /* ── Что стоит на частоколе ──
+     У монеты — её собственные сроки. Без наведения — календарь рынка:
+     он касается всех, и в этот момент экран говорит про рынок.
+     Возвращаем [дней, вид, срочно, заголовок, пояснение]. */
+  var PIN_C = {
+    dl: ['#ec6f5e', 'rgba(236,111,94,.55)', 'делистинг'],
+    un: ['#a6b6ff', 'rgba(166,182,255,.5)', 'разлок'],
+    ev: ['#ffd678', 'rgba(255,214,120,.45)', 'событие'],
+    pr: ['#7ae8ba', 'rgba(122,232,186,.45)', 'наблюдение']
+  };
+  function eventsFor(coin) {
+    var out = [], i;
+    if (coin) {
+      if (coin.delist && coin.delist.level && coin.delist.days !== null &&
+          coin.delist.days !== undefined) {
+        out.push([+coin.delist.days, 'dl', +coin.delist.days <= 2,
+          coin.delist.level, coin.delist.why || '']);
+      }
+      if (coin.unlockDays !== null && coin.unlockDays !== undefined) {
+        out.push([+coin.unlockDays, 'un', +coin.unlockDays <= 3,
+          'транш ' + dm(coin.unlockDate),
+          (coin.unlockPctFloat ? (+coin.unlockPctFloat).toFixed(1) +
+            '% обращения' : '') + (coin.unlockIns ? ' · инсайдерам' : '')]);
+      }
+      if (coin.squeeze && coin.squeeze.charged) {
+        out.push([0, 'pr', false, 'заряжен на сжим', coin.squeeze.note || '']);
+      }
+      return out;
+    }
+    /* Календарь лежит внутри parts — соседние поля разрешения там же. */
+    var prm = (O.market || {}).permission || {};
+    var cal = ((prm.parts || {}).calendar || {}).items || [];
+    for (i = 0; i < cal.length; i++) {
+      var k = cal[i].kind === 'unlock' ? 'un'
+            : (cal[i].kind === 'delist' ? 'dl' : 'ev');
+      out.push([+cal[i].days || 0, k, !!cal[i].running,
+        cal[i].title || '', cal[i].note || '']);
+    }
+    return out;
+  }
+
+  /* Шкала приблизительная НАРОЧНО: сроки транша и делистинга объявляют
+     по часовому поясу площадки, а «через 4 дн» — это про день, а не про
+     минуту. Точная сетка обещала бы точность, которой нет. */
+  var PICKET_DAYS = 21;
+  function picket(coin, nowFrac) {
+    var ev = eventsFor(coin), i, right = 0.965;
+    var span = right - nowFrac;
+    function xOf(d) {
+      var t = Math.max(0, Math.min(1, (+d) / PICKET_DAYS));
+      return (nowFrac + t * span) * 100;
+    }
+    /* Ярус выбирается по СОСЕДЯМ, а не по порядку в списке. Девять
+       событий рынка приходятся на три дня — по очереди они слипались
+       в ком. Кладём на первый ярус, где ближайшая точка дальше двух с
+       половиной процентов ширины; ближе — этажом выше. */
+    ev = ev.slice().sort(function (a, b) { return a[0] - b[0]; });
+    var busy = [-99, -99, -99, -99], pins = '';
+    for (i = 0; i < ev.length && i < 10; i++) {
+      var c = PIN_C[ev[i][1]] || PIN_C.ev, x = xOf(ev[i][0]), lvl = -1, j;
+      for (j = 0; j < busy.length; j++) {
+        if (x - busy[j] > 2.5) { lvl = j; break; }
+      }
+      if (lvl < 0) {
+        /* Свободного яруса нет — все четыре заняты рядом. Раньше точка
+           садилась на последний, ПОВЕРХ уже стоявшей там: две метки
+           совпадали до пикселя, и до нижней было не дотянуться мышью.
+           Теперь берём ярус, где предыдущая дальше всех, и отодвигаем
+           вправо на ширину точки. Сдвиг врёт о сроке меньше чем на
+           день — шкала и так приблизительная. */
+        var best = 0;
+        for (j = 1; j < busy.length; j++) { if (busy[j] < busy[best]) best = j; }
+        lvl = best;
+        x = Math.max(x, busy[lvl] + 1.4);
+      }
+      busy[lvl] = x;
+      pins += '<div class="obg-pin' + (ev[i][2] ? ' obg-hot' : '') + '" style="left:' +
+        x.toFixed(2) + '%;top:' + (15 + lvl * 11) + '%;--pc:' + c[0] +
+        ';--pg:' + c[1] + ';--ph:' + (66 - lvl * 11) + 'px;--pd:' + i + '">' +
+        '<i></i><s></s><u><b>' + c[2] + ' · ' + daysRu(ev[i][0]) + '</b>' +
+        '<em>' + cut(ev[i][3], 70) + '</em>' +
+        (ev[i][4] ? '<br>' + cut(ev[i][4], 150) : '') + '</u></div>';
+    }
+    /* Шкала: сегодня и дальше шагом в три дня. Прошлое подписей не
+       имеет — там линия, она и есть подпись. */
+    var base = new Date(((O.market || {}).ts || '').slice(0, 10) || Date.now());
+    if (isNaN(base.getTime())) { base = new Date(); }
+    var MON = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн',
+               'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+    var ax = '<div class="obg-tick obg-tnow" style="left:' +
+      (nowFrac * 100).toFixed(2) + '%"><s></s><b>сегодня</b></div>';
+    for (i = 3; i <= PICKET_DAYS; i += 3) {
+      var dt = new Date(base.getTime());
+      dt.setDate(dt.getDate() + i);
+      ax += '<div class="obg-tick" style="left:' + xOf(i).toFixed(2) + '%">' +
+        '<s></s><b>' + dt.getDate() + ' ' + MON[dt.getMonth()] + '</b></div>';
+    }
+    return { pins: pins, axis: ax };
+  }
+
+  /* Наведение на точку переносит её текст в общее окно подсказки.
+     Копируем содержимое, а не строим заново: разметка уже собрана
+     частоколом, и второй сборщик того же текста однажды разошёлся бы
+     с первым. Цвет ярлыка берём у самой точки. */
+  function bindPins(host) {
+    var tip = host.querySelector('.obg-tip');
+    var layer = host.querySelector('.obg-pins');
+    if (!tip || !layer) return;
+    var pins = layer.querySelectorAll('.obg-pin'), i;
+    for (i = 0; i < pins.length; i++) {
+      (function (pin) {
+        pin.onmouseenter = function () {
+          var src = pin.querySelector('u');
+          if (!src) return;
+          tip.innerHTML = src.innerHTML;
+          tip.style.setProperty('--pc', pin.style.getPropertyValue('--pc'));
+          tip.classList.add('obg-on');
+        };
+      })(pins[i]);
+    }
+    /* Гасим на уходе со ВСЕГО слоя точек, а не с каждой: между ярусами
+       есть зазоры, и по ним подсказка мигала бы. */
+    layer.onmouseleave = function () { tip.classList.remove('obg-on'); };
+  }
+
+  function paintWave(coin) {
+    var inner = document.getElementById('obgInner');
+    if (!inner) return;
+    var host = inner.querySelector('.obg-wave');
+    if (!host) return;
+    var opt = null;
+    if (coin && coin.series && coin.series.length > 2) {
+      var cc = caseOf(coin);
+      opt = { series: coin.series, c: cc.c, c2: cc.c };
+    }
+    /* Наведение — не вход в зал: линия рисуется вчетверо быстрее.
+       Шестисекундная церемония на каждое движение мыши была бы пыткой. */
+    if (coin) { host.classList.add('obg-quick'); }
+    else { host.classList.remove('obg-quick'); }
+
+    /* Поле справа под будущее. Держим его ВСЕГДА — и на рынке, и на
+       монете: иначе шкала прыгала бы на каждое наведение. */
+    var RIGHT = 380, L = 26;
+    var nowFrac = (L + (1000 - L - RIGHT)) / 1000;
+    if (!opt) { opt = {}; }
+    opt.right = RIGHT;
+    var pk = picket(coin, nowFrac);
+
+    host.innerHTML = '<div class="obg-ghost" id="obgGhost"></div>' +
+                     gateWave(1000, 300, opt) +
+                     '<div class="obg-now" style="left:' +
+                       (nowFrac * 100).toFixed(2) + '%"></div>' +
+                     '<div class="obg-pins">' + pk.pins + '</div>' +
+                     '<div class="obg-tip" id="obgTip" style="left:' +
+                       (nowFrac * 100 + 1.5).toFixed(2) + '%"></div>';
+    var ax = document.getElementById('obgAxis');
+    if (ax) { ax.innerHTML = pk.axis; }
+    bindPins(host);
+    /* Число за волной вписывает paintHero, и при наведении его нет:
+       за монетой стоит её ход, а не счёт группы. */
+    if (!coin) {
+      var gh = document.getElementById('obgGhost');
+      var g2 = null, i2;
+      for (i2 = 0; i2 < STAGE.length; i2++) {
+        if (STAGE[i2].key === GATE_KEY) { g2 = STAGE[i2]; }
+      }
+      if (gh && g2) { gh.innerHTML = railList(g2.key).length; }
     }
   }
 
@@ -2616,17 +3406,262 @@ PODIUM_JS = """
     if (!GATE) { bail('ворота не найдены'); return; }
     var inner = document.getElementById('obgInner');
     if (inner) {
-      /* Волна строится ОДИН раз: перестраивать её на каждом переходе
-         значило бы каждый раз заново проигрывать её отрисовку. */
-      inner.innerHTML =
-        '<div class="obg-wave"><div class="obg-ghost" id="obgGhost"></div>' +
-          gateWave(1000, 300) + '</div>' +
-        '<div id="obgHero"></div>';
+      inner.innerHTML = '<div class="obg-wave"></div>' +
+                        '<div class="obg-axis" id="obgAxis"></div>' +
+                        '<div id="obgHero"></div>' +
+                        '<div class="obg-card" id="obgCard"></div>';
+      inner.classList.remove('obg-swap');
+      inner.classList.remove('obg-swapout');
     }
+    /* Сцена собрана заново — карточки больше нет. Не забудь мы про неё,
+       и та же монета второй раз не показалась бы: код решил бы, что она
+       уже на экране. */
+    CARD_SYM = null;
+    paintWave();
+    ENTERED = false;
     paintHero();
     paintRail();
     pod.classList.add('obp-gated');
     GATE.classList.add('on');
+    armTailFade();
+  }
+
+  /* Отсчёт до гашения нижнего блока. Таймеры именные и сбрасываются:
+     «заново» переигрывает вход с чистого листа, и старый отсчёт не
+     должен погасить блок посреди новой сцены. */
+  var TAIL_T1 = null, TAIL_T2 = null;
+  function armTailFade() {
+    var hero = document.getElementById('obgHero');
+    if (!hero) return;
+    if (TAIL_T1) { clearTimeout(TAIL_T1); }
+    if (TAIL_T2) { clearTimeout(TAIL_T2); }
+    TUCKED = false;
+    hero.classList.remove('obg-faded');
+    hero.classList.remove('obg-gone');
+    TAIL_T1 = setTimeout(function () {
+      hero.classList.add('obg-faded');
+      /* Ниже 1180 кнопки и так стоят рядом вкладок — своей раскладкой
+         узких экранов. Переезжать им некуда, и трогать их нельзя. */
+      if (window.innerWidth > 1180) tuckTabs();
+    }, 10000);
+    /* Второй класс ставится ПОСЛЕ гашения — он закрепляет результат,
+       чтобы перерисовка не вернула блок. */
+    TAIL_T2 = setTimeout(function () { hero.classList.add('obg-gone'); }, 11900);
+  }
+
+  /* ── Переезд категорий над список ──
+     TUCKED — это состояние, а не разовое действие: список перерисовывается
+     при каждой смене группы, и вкладки надо возвращать в новое место.
+     Поэтому переезд разделён надвое: syncTabs ставит их куда надо молча,
+     tuckTabs делает то же самое, но с полётом, и только один раз. */
+  var TUCKED = false;
+
+  /* ── Смена группы в два приёма ──
+     Сначала старое гаснет, и только потом собирается новое. Одним
+     приёмом это была подмена в один кадр: содержимое менялось целиком
+     и разом, отчего экран щёлкал.
+
+     Кнопки в гашение НЕ входят: они не заменяются, а переезжают на
+     соседние места. Погасить их значило бы показать подмену вместо
+     переезда. Снимок их положения берём в момент пересборки, а не
+     сейчас: за время гашения они никуда не сдвинулись, но правило
+     «мерить прямо перед сменой» надёжнее.
+
+     Повторный клик посреди гашения не ломает очередь: прежний отсчёт
+     сбрасывается, а группу берём последнюю нажатую. */
+  /* Сроки РАЗНЫЕ у списка и у центра, и это не прихоть: каждая часть
+     пересобирается тогда, когда догорела СВОЯ. Возьми один срок на
+     двоих — и та часть, что гаснет дольше, окажется срезана на
+     полпути; возьми срок по самой медленной — и список постоит
+     пустым лишние полсекунды. */
+  var RAIL_T = null, HERO_T = null;
+  var RAIL_MS = 440;   /* столько же, сколько гаснут шапка и строки */
+  var HERO_MS = 880;   /* столько же, сколько гаснет центр */
+
+  function switchGroup(k) {
+    var hero = document.getElementById('obgHero');
+    var body = document.getElementById('obgBody');
+    if (RAIL_T) { clearTimeout(RAIL_T); }
+    if (HERO_T) { clearTimeout(HERO_T); }
+    if (body) { body.classList.add('obr-out'); }
+    var inner = document.getElementById('obgInner');
+    if (inner) {
+      inner.classList.remove('obg-swap');
+      inner.classList.add('obg-swapout');
+    }
+    hideCoin(true);   /* монета из прошлой группы к новой не относится */
+    /* Кнопка нажатой группы сейчас исчезнет из ряда — провожаем её. */
+    var leaving = document.querySelector('.obg-side .obg-sat[data-gkey="' + k + '"]');
+    if (leaving) { leaving.classList.add('obg-sat-out'); }
+    if (hero && !hero.classList.contains('obg-gone')) {
+      /* Вступление снимаем здесь же: пока оно держит конечный кадр,
+         прозрачностью элемента распоряжается оно, и гашение не видно. */
+      hero.classList.remove('obg-enter');
+      hero.classList.remove('obg-swap');
+      hero.classList.add('obg-swapout');
+    }
+    GATE_KEY = k;
+    RAIL_T = setTimeout(function () {
+      RAIL_T = null;
+      paintRail();
+    }, RAIL_MS);
+    HERO_T = setTimeout(function () {
+      HERO_T = null;
+      if (hero) { hero.classList.remove('obg-swapout'); }
+      if (inner) {
+        inner.classList.remove('obg-swapout');
+        inner.classList.add('obg-swap');
+      }
+      /* Снимок берём вплотную к пересборке: к этому времени список уже
+         сменился, и место вкладок могло стать другим. */
+      var was = tabRects();
+      paintWave();
+      paintHero();
+      syncTabs();      /* центр собран заново — вернуть вкладки на место */
+      flipTabs(was);
+    }, HERO_MS);
+  }
+
+  /* ── Кнопки переезжают, а не переставляются ──
+     Ряд собирается заново при каждой смене: выбранная группа из него
+     прячется, прежняя возвращается. Узлы новые, поэтому анимировать
+     нечего — кнопки просто оказывались на новых местах, и это читалось
+     как рывок. Лечится тем же приёмом, что и переезд наверх: помним, где
+     кнопка была, и ведём её оттуда.
+
+     Ищем по .obg-side, а не по месту: ряд может стоять и в центре
+     (первые десять секунд), и над списком — правило одно на оба случая. */
+  function tabRects() {
+    var out = {}, els = document.querySelectorAll('.obg-side .obg-sat'), i, r, k;
+    for (i = 0; i < els.length; i++) {
+      k = els[i].getAttribute('data-gkey');
+      r = els[i].getBoundingClientRect();
+      if (k && r.width) { out[k] = r; }   /* нулевая ширина = спрятанная */
+    }
+    return out;
+  }
+
+  function flipTabs(was) {
+    var els = document.querySelectorAll('.obg-side .obg-sat'), i, el, r, a;
+    if (!els.length) return;
+    for (i = 0; i < els.length; i++) {
+      el = els[i]; r = el.getBoundingClientRect();
+      if (!r.width) continue;
+      a = was[el.getAttribute('data-gkey')];
+      el.style.transition = 'none';
+      if (a) {
+        el.style.transform = 'translate(' + (a.left - r.left).toFixed(1) + 'px,' +
+                             (a.top - r.top).toFixed(1) + 'px)';
+      } else {
+        /* Этой кнопки в прежнем ряду не было — она была выбранной
+           группой. Лететь ей неоткуда, поэтому проступает на месте. */
+        el.style.transform = 'scale(.84)';
+        el.style.opacity = '0';
+      }
+    }
+    void els[0].offsetWidth;
+    for (i = 0; i < els.length; i++) {
+      els[i].style.transition =
+        'transform .62s cubic-bezier(.4,0,.2,1),opacity .62s ease';
+      els[i].style.transform = 'none';
+      els[i].style.opacity = '1';
+    }
+    setTimeout(function () {
+      for (var j = 0; j < els.length; j++) {
+        els[j].style.transition = '';
+        els[j].style.transform = '';
+        els[j].style.opacity = '';
+      }
+    }, 780);
+  }
+
+  /* Распорка на место уехавших кнопок.
+     Ряд «ядро + кнопки» центрируется ЦЕЛИКОМ. Стоит кнопкам уйти, как
+     ядро остаётся одно и перецентровывается — прыгает вправо на
+     половину их ширины с зазором. А оно в этот момент ещё видно: гаснет
+     полторы секунды. Отсюда и было «перескакивает, потом исчезает».
+     Ширина снимается с самих кнопок, а не пишется числом: число
+     разъедется от первой же правки стиля. */
+  function sideSpacer(side) {
+    var ph = document.createElement('div');
+    ph.className = 'obg-side-ph';
+    ph.style.width = side.offsetWidth + 'px';
+    ph.style.flex = '0 0 auto';
+    ph.setAttribute('aria-hidden', 'true');
+    return ph;
+  }
+
+  function syncTabs() {
+    if (!TUCKED) return;
+    var side = document.querySelector('#obgHero .obg-side');
+    var slot = document.getElementById('obgTabs');
+    if (!side || !slot) return;
+    var row = side.parentNode;
+    if (row && !row.querySelector('.obg-side-ph')) {
+      row.insertBefore(sideSpacer(side), side);
+    }
+    /* Прежний ряд убираем ДО переноса. Центр и список пересобираются
+       врозь, и без этого в месте вкладок оседали бы два ряда: один от
+       прошлой сборки, другой от нынешней. */
+    var stale = slot.querySelector('.obg-side');
+    if (stale && stale !== side) { slot.removeChild(stale); }
+    slot.appendChild(side);
+    side.classList.add('obg-tucked');
+  }
+
+  function tuckTabs() {
+    var side = document.querySelector('#obgHero .obg-side');
+    var slot = document.getElementById('obgTabs');
+    if (!side || !slot) { TUCKED = true; return; }
+
+    /* Полёт считается по факту: где кнопка была и где оказалась.
+       Зашитые координаты разъехались бы на другой ширине окна. */
+    var sats = side.querySelectorAll('.obg-sat'), i, was = [], r;
+    for (i = 0; i < sats.length; i++) {
+      r = sats[i].getBoundingClientRect();
+      was.push(r.width ? r : null);   /* скрытая — текущая группа */
+    }
+
+    TUCKED = true;
+    syncTabs();
+
+    for (i = 0; i < sats.length; i++) {
+      if (!was[i]) continue;
+      var b = sats[i].getBoundingClientRect();
+      if (!b.width) continue;
+      /* Разница по ЦЕНТРАМ, а не по левому краю: кнопка на переезде
+         становится уже, и по краю она бы прыгнула вбок на старте. */
+      var dx = (was[i].left + was[i].width / 2) - (b.left + b.width / 2);
+      var dy = (was[i].top + was[i].height / 2) - (b.top + b.height / 2);
+      /* И РАЗМЕР тоже едет. Раньше кнопка мгновенно сжималась до
+         конечной и только потом летела — вот этот щелчок и был виден.
+         Теперь она стартует в прежнюю величину и уменьшается в пути.
+
+         Множитель ОДИН на обе стороны: по ширине кнопка ужимается
+         сильнее, чем по высоте, и раздельный масштаб растянул бы текст.
+         Берём среднее геометрическое — ошибка делится пополам и глазу
+         незаметна, зато буквы не плывут. */
+      var k = Math.sqrt((was[i].width / b.width) * (was[i].height / b.height));
+      sats[i].style.transition = 'none';
+      sats[i].style.transform =
+        'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px) ' +
+        'scale(' + k.toFixed(3) + ')';
+    }
+    /* Без этого браузер схлопнет оба состояния в одно и полёта не будет. */
+    void side.offsetWidth;
+    for (i = 0; i < sats.length; i++) {
+      sats[i].style.transition =
+        'transform 1.6s cubic-bezier(.5,0,.2,1) ' + (i * 90) + 'ms';
+      sats[i].style.transform = 'none';
+    }
+    /* Инлайновые правила снимаем после посадки: иначе они переживут
+       полёт и заглушат обычные переходы кнопки при наведении. */
+    setTimeout(function () {
+      for (var j = 0; j < sats.length; j++) {
+        sats[j].style.transition = '';
+        sats[j].style.transform = '';
+      }
+    }, 1700 + sats.length * 90);
   }
 
   /* «Заново» — переиграть вход: сцена собирается с нуля, волна
