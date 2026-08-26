@@ -13,7 +13,7 @@ from analytics_intraday import big_trades as intraday_big
 from analytics_unlocks import for_symbol as unlocks_for
 from analytics_intraday import scan as intraday_scan
 from analytics_levels import merge_liq, nearby_levels, with_reaction
-from analytics_liqmap import liq_zones
+from analytics_liqmap import fuel_to_cap, liq_zones, liq_zones_oi
 from core_binance import (
     K_CLOSE, K_HIGH, K_LOW, K_QUOTE_VOLUME, K_VOLUME, K_CLOSE_TIME, K_OPEN_TIME,
     get_funding_rate, get_oi_history, get_open_interest, get_spot_ticker,
@@ -397,6 +397,33 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
     # на неё не нужно.
     intraday = intraday_scan(kl_1h, "1h", oi_hourly) if kl_1h else {}
 
+    # ── Свежее плечо: карта на ЧАСОВЫХ барах с весом по приросту OI ──
+    # Дневная карта (liq_zones ниже, в "levels") взвешена ОБЪЁМОМ —
+    # «здесь торговали». Эта взвешена приростом интереса — «здесь
+    # ОТКРЫЛИ позицию», а ликвидируют позиции, не оборот.
+    #
+    # Горизонты разные и складывать их нельзя: часовой ряд OI даёт
+    # 200 точек ≈ 8 суток против 60 дней дневного окна, а доля объёма
+    # и доллары интереса несопоставимы. Поэтому две карты рядом:
+    # дневная — накопленное плечо, часовая — набранное на текущем ходе.
+    #
+    # Сети ноль: kl_1h и oi_hourly уже здесь.
+    liq_fresh: list[dict] = []
+    if kl_1h and oi_hourly:
+        n_fresh = min(len(kl_1h), len(oi_hourly))
+        if n_fresh >= 8:
+            # Фандинг НЕ передаётся намеренно. У нас есть только его
+            # текущее значение, а разложить им бары недельной давности
+            # значило бы приписать прошлому сегодняшний перекос. Без
+            # ряда стороны делятся поровну — и это честнее выдуманного
+            # наклона. Появится часовой ряд фандинга — передать сюда.
+            liq_fresh = liq_zones_oi(
+                series(kl_1h, K_HIGH)[-n_fresh:],
+                series(kl_1h, K_LOW)[-n_fresh:],
+                series(kl_1h, K_CLOSE)[-n_fresh:],
+                oi_hourly[-n_fresh:], price,
+                fundings=None, atr_pct=atr_p or 0.0)
+
     # Крупные заявки на ДНЕВНОМ масштабе: по ним журнал закрывает
     # позицию, увидев продажу на пампе. Норма и хвост здесь те же
     # 168 и 48 баров, но это уже дни, а не часы, — то есть норма за
@@ -488,6 +515,12 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
         "funding": funding,
         "oi": oi,
         "oi_usd": oi_usd,
+        # ── Свежее плечо, вывод 26.08 ──
+        # Зоны в ДОЛЛАРАХ по приросту интереса за последние ~8 суток.
+        # Отдельно от "levels": там дневная карта на объёме, здесь
+        # часовая на позициях, единицы веса разные и складывать их
+        # нельзя. Пустой список — законный ответ: интерес не рос.
+        "liq_fresh": liq_fresh,
         # Движение плеча — analytics_momentum.oi_cycle() через
         # context.oi_hist, единая формула на проект (см. Ч-1).
         # Отдельного поля здесь больше нет: было мёртвым дублем.

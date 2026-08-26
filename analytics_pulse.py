@@ -115,6 +115,23 @@ def _num(v):
     return f if f == f else None
 
 
+def _utc_hour(ts: int | float) -> int | None:
+    try:
+        return datetime.fromtimestamp(ts, tz=timezone.utc).hour
+    # TypeError в списке не для красоты: если в t попадёт строка,
+    # fromtimestamp падает именно им, и без него одна битая метка
+    # уронила бы запись всей точки.
+    except (OverflowError, OSError, TypeError, ValueError):
+        return None
+
+
+def _utc_dow(ts: int | float) -> int | None:
+    try:
+        return datetime.fromtimestamp(ts, tz=timezone.utc).weekday()
+    except (OverflowError, OSError, TypeError, ValueError):
+        return None
+
+
 def snapshot(c: Candidate) -> dict:
     """Один снимок показаний монеты.
 
@@ -124,7 +141,31 @@ def snapshot(c: Candidate) -> dict:
     неизменное сорок восемь раз подряд.
     """
     raw = c.raw or {}
-    out = {"t": round(_now())}
+    ts = round(_now())
+    out = {"t": ts}
+
+    # ── Окно суток и день недели (разбор 26.08) ──
+    # Оба разгона августа — ONG 19-го и BTR 26-го — пришлись на
+    # азиатское окно, оба в среду. Две точки ничего не доказывают,
+    # но проверить это можно только на архиве, а для архива величину
+    # надо начать писать СЕЙЧАС. Две строки на точку, сети ноль.
+    #
+    # Границы окон грубые и перекрываются намеренно: рынки не
+    # открываются по звонку, а ликвидность перетекает. Задача поля —
+    # различить «кто-то торгует» и «не торгует никто», а не расписать
+    # биржевые сессии.
+    hour = _utc_hour(ts)
+    if hour is not None:
+        out["hour"] = hour
+        out["dow"] = _utc_dow(ts)          # 0 — понедельник
+        win = []
+        if 0 <= hour < 8:
+            win.append("asia")
+        if 6 <= hour < 16:
+            win.append("eu")
+        if 13 <= hour < 21:
+            win.append("us")
+        out["sess"] = "+".join(win) if win else "dead"
 
     # Базовый набор — из метрик, они есть у каждой монеты выборки.
     for key, val in (

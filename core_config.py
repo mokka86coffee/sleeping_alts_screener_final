@@ -29,7 +29,7 @@ ORBIT_BG_SRC = "bg.webp"
 
 LOOP_INTERVAL_SEC = 3 * 60 * 60      # 3 часа
 GIT_TIMEOUT_SEC = 120
-COMMIT_MSG = "new"
+COMMIT_MSG = "updated analytics money earn from squeesze"
 GIT_ADD_ALL_CHANGED = "."
 GIT_ADD_HTML_ONLY = "index.html"
 

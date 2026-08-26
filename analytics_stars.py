@@ -35,6 +35,7 @@ from analytics_calendar import calendar_state
 from analytics_demand import for_symbol as demand_for, phrase as demand_phrase
 from analytics_flow import CASE_RU, case_key, case_of, flow_leader, flow_order
 from analytics_coinglass import liq_bias
+from analytics_liqmap import fuel_to_cap, stop_vs_zones
 from analytics_leaders import journal_expectancy, read_store
 from analytics_pulse import for_symbol as pulse_deltas
 from analytics_action import decide as decide_action
@@ -93,6 +94,19 @@ def _alive_gap_days(rec: dict) -> float | None:
         return None
     gap = (_dt.datetime.now(_dt.timezone.utc) - when).total_seconds() / 86400
     return round(max(0.0, gap), 1)
+
+
+def _num(v) -> float | None:
+    """Число или None. Строки, пропуски и NaN отсекаются здесь.
+
+    Тот же приём, что в analytics_pulse: сырьё приходит из разных
+    источников, и один битый ключ не должен ронять монету.
+    """
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if f == f else None
 
 
 def _star_age_days(rec: dict) -> float | None:
@@ -895,6 +909,32 @@ def build_stars(candidates: list[Candidate],
         lv = craw.get("levels")
         if lv:
             s["levels"] = lv
+
+        # ── Свежее плечо и его цена в капитализации (вывод 26.08) ──
+        # Разбор пампов августа: рынок без спотовых денег двигают
+        # чужим плечом, и значимо не сколько его в долларах, а сколько
+        # ОТНОСИТЕЛЬНО размера монеты. По четырём монетам разброс
+        # вышел в 255 раз при сопоставимых ходах — ни одна другая
+        # величина так выборку не делила.
+        #
+        # Всё ниже — поля знания. Скор, отбор и возражения не трогают;
+        # показ ждёт Э-7 вместе с остальными пометками.
+        fresh = craw.get("liq_fresh") or []
+        if fresh:
+            s["liqFresh"] = fresh[:6]
+            cap_usd = _num(craw.get("mcap_usd")) or _num(craw.get("cap"))
+            ftc = fuel_to_cap(fresh, _num(craw.get("price")) or 0.0, cap_usd)
+            if ftc:
+                s["liqFuel"] = ftc
+            # Т-5: стоп внутри плиты снимут виком, не двигая рынок
+            # против позиции. Правило записано давно, проверить его
+            # до сих пор было нечем. Подсказка, а не запрет: карта
+            # модельная и ошибается в обе стороны.
+            sg = stop_vs_zones(_num(s.get("stop")), fresh,
+                               _num(craw.get("price")) or 0.0,
+                               _num(craw.get("atr_pct")) or 0.0)
+            if sg:
+                s["stopInPlate"] = sg
         # Вайкофф: тест после прокола — подтверждение накопления.
         # Пишем ОБА исхода: «не пройден» ценнее «пройден», потому
         # что это прямой запрет на преждевременный вход.
