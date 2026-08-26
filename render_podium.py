@@ -2244,6 +2244,72 @@ PODIUM_JS = """
       cell('скорость хода', c.speedV ? c.speedV + ' ATR/бар' : null) +
       cell('заметность', c.q ? 'q ' + c.q + ' · ' + (c.qScale || '') : null);
 
+    /* ── ТРЕТИЙ БЛОК: ДЕНЬГИ ──
+       Из разбора 26.08. Денег на споте нет — ход оплачен чужим
+       плечом, и вопрос не «сколько его», а откуда оно и держится ли.
+       Всё, что отвечает на этот вопрос, собрано в одном месте:
+       порознь эти величины лежали в разных блоках и не читались
+       вместе, а смысл у них общий.
+
+       Порядок внутри блока — от факта к оценке: сначала наблюдаемое
+       (спот, ликвидации, киты), потом модельное (плиты плеча). Так
+       читатель не примет оценку за измерение. */
+    var money = '';
+    if (c.spotShare !== undefined && c.spotShare !== null) {
+      var sp = +c.spotShare * 100;
+      money += cell('доля спота', (sp <= 0 ? 'спота нет вовсе'
+        : sp < 1 ? sp.toFixed(2) + '%' : Math.round(sp) + '%'),
+        sp <= 0 ? 'dn' : null);
+    }
+    if (c.liq24h) {
+      money += cell('ликвидации за сутки',
+        'лонгов ' + money9(c.liq24h.long) + ' · шортов ' + money9(c.liq24h.short),
+        (+(c.liq24h.long || 0) > +(c.liq24h.short || 0)) ? 'dn' : 'up');
+    }
+    if (c.hlWhales && c.hlWhales.n) {
+      money += cell('киты Hyperliquid',
+        'в лонге ' + (c.hlWhales.long || 0) + ' · в шорте ' + (c.hlWhales.short || 0) +
+        ' из ' + c.hlWhales.n);
+    }
+    if (c.liqFuel) {
+      var bl = +c.liqFuel.below || 0, ab = +c.liqFuel.above || 0;
+      money += cell('плечо под ценой', bl > 0 ? fuelPct(bl) + ' капитализации' : null, 'dn');
+      money += cell('плечо над ценой', ab > 0 ? fuelPct(ab) + ' капитализации' : null, 'up');
+      if (c.liqFuel.below_usd || c.liqFuel.above_usd) {
+        money += cell('в деньгах',
+          money9(c.liqFuel.below_usd) + ' снизу · ' + money9(c.liqFuel.above_usd) + ' сверху');
+      }
+    }
+    if (c.stopInPlate) {
+      money += cell('наш стоп', 'стоит в плите' +
+        (c.stopInPlate.dist_atr !== undefined
+          ? ' (' + c.stopInPlate.dist_atr + ' ATR)' : ''), 'dn');
+    }
+    if (c.liqFresh && c.liqFresh.length) {
+      var nz = c.liqFresh[0];
+      money += cell('крупнейшая плита',
+        px4(nz.price) + ' · ' + (nz.side || '') +
+        (nz.pct !== undefined ? ' · ' + pct(nz.pct) : ''));
+    }
+    /* Профиль инструмента: С-7, С-8, С-9. Не движение, а свойства —
+       кто за монетой, в какой сети, давно ли листинг. */
+    if (c.organizer) money += cell('организатор', c.organizer, 'dn');
+    if (c.chain) money += cell('сеть', c.chain);
+    if (c.listingDays !== undefined && c.listingDays !== null) {
+      money += cell('листинг', (+c.listingDays) + ' дн назад',
+        (+c.listingDays) < 60 ? 'dn' : null);
+    }
+    if (c.unlockShift && +c.unlockShift.days > 0) {
+      money += cell('дату транша двигали', 'на ' + (+c.unlockShift.days) + ' дн', 'dn');
+    }
+    if (c.aligned && c.aligned.dir) {
+      money += cell('три окна', c.aligned.dir === 'up' ? 'согласны вверх' : 'согласны вниз',
+        c.aligned.dir === 'up' ? 'up' : 'dn');
+    }
+    if (c.flowFired && +c.flowFired > 1) {
+      money += cell('детекторов согласно', String(+c.flowFired));
+    }
+
     var days = '';
     if (c.byDay && c.byDay.length) {
       var mx = Math.max.apply(null, c.byDay) || 1;
@@ -2276,6 +2342,11 @@ PODIUM_JS = """
         '<div class="obz-blk-h">горизонт сутки-двое · часовая шкала</div>' +
         h48HTML(c, col, 610, 84) +
         '<div class="obz-grid">' + today + days + '</div></div>';
+    }
+    if (money) {
+      out += '<div class="obz-blk"><div class="obz-blk-k">деньги</div>' +
+        '<div class="obz-blk-h">чем оплачен ход · факт, затем оценка</div>' +
+        '<div class="obz-grid">' + money + '</div></div>';
     }
     return out + gaps + '</div>';
   }
@@ -3189,6 +3260,17 @@ PODIUM_JS = """
   }
   /* Доля капитализации словами. У малых значений целые проценты
      врут: 0.4% и 4% — это разные монеты, а «0%» читается как «нет». */
+  /* Сумма коротко: $2.6M, $537K. Прочерк вместо нуля — ноль
+     ликвидаций и «не измерено» читаются одинаково, а это разное. */
+  function money9(v) {
+    var n = +v || 0;
+    if (!n) return '—';
+    if (n >= 1e9) return '$' + (n / 1e9).toFixed(1) + 'B';
+    if (n >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return '$' + Math.round(n / 1e3) + 'K';
+    return '$' + Math.round(n);
+  }
+
   function fuelPct(v) {
     var p = v * 100;
     if (p >= 10) return Math.round(p) + '%';
@@ -3373,6 +3455,25 @@ PODIUM_JS = """
     if (s.journalExp && s.journalExp.n) {
       calc.push('ожидание по журналу <em>' + pct(s.journalExp.expPct) + '</em> на ' +
         s.journalExp.n + (s.journalExp.n === 1 ? ' эпизоде' : ' эпизодах'));
+    }
+    /* Реакция на уровень: отбой значит уровень защитили, закрепление
+       за ним — сняли. Это единственное, что отличает «плита впереди»
+       от «плита пробита», и без неё уровень читается наполовину. */
+    var lvb = (s.levels && s.levels.below) || null;
+    var lva = (s.levels && s.levels.above) || null;
+    var rc = (lvb && lvb.reaction) || (lva && lva.reaction) || null;
+    if (rc && rc.kind) {
+      calc.push('реакция на уровень — <em>' + rc.kind + '</em>' +
+        (rc.bars_ago !== undefined ? ' ' + rc.bars_ago + ' д назад' : ''));
+    }
+    /* Согласованность трёх окон: 6ч, сутки, неделя. */
+    if (s.aligned && s.aligned.dir) {
+      calc.push('три окна согласны — ход <em>' +
+        (s.aligned.dir === 'up' ? 'вверх' : 'вниз') + '</em>');
+    }
+    /* Сколько подкейсов FLOW сработало разом. */
+    if (s.flowFired && +s.flowFired > 1) {
+      calc.push('детекторов согласно <em>' + (+s.flowFired) + '</em>');
     }
     /* Реакция на уровень: отбой значит уровень защитили, закрепление
        за ним — сняли. Это единственное, что отличает «плита впереди»

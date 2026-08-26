@@ -1062,6 +1062,15 @@ CARDSCENE_JS = r"""
     if (c.press !== undefined && c.press !== null) {
       sn++; (+c.press > 0 ? spro : scon).push('перевес сторон');
     }
+    /* Т-1: киты Hyperliquid. Голос слабый и записан как слабый —
+       кит бывает неправ, урок Loracle стоил ему шестидесяти
+       миллионов на угадывании HYPE. Поэтому он участвует в счёте
+       наравне с остальными и НЕ получает права решать. */
+    if (c.hlWhales && (c.hlWhales.long || c.hlWhales.short)) {
+      sn++;
+      var wl = +c.hlWhales.long || 0, ws = +c.hlWhales.short || 0;
+      (wl > ws ? spro : scon).push('киты ' + (wl > ws ? 'в лонге' : 'в шорте'));
+    }
     var sell = { n: spro.length, of: sn,
       pro: spro.slice(0, 2).join(' · '), con: scon.slice(0, 2).join(' · '),
       word: !sn ? 'нечем мерить'
@@ -1089,12 +1098,106 @@ CARDSCENE_JS = r"""
       if (c.oiState === 'held') { f--; fdn.push('плечо застряло'); }
       else if (c.oiState === 'cleared') { f++; fup.push('плечо разгружено'); }
     }
+    /* ── Голос про ИСТОЧНИК ДЕНЕГ (разбор 26.08) ──
+       Кольцо спрашивает «на чьей стороне топливо». До сих пор все
+       голоса отвечали, КУДА тянет, и ни один — СКОЛЬКО ЕГО. А по
+       разбору августа денег на споте нет, ход оплачен чужим плечом,
+       и значимо не направление, а объём этого плеча относительно
+       размера монеты: у BTR под ценой стояло больше трёх
+       капитализаций, у PROM почти пусто.
+
+       Порог в половину капитализации взят с потолка и ждёт архива.
+       Знак сознательно ВНИЗ при перевесе снизу: плечо под ценой —
+       это лонги, и их сбривают откатом; сверху — шорты, их выносят
+       вверх. Величина модельная, поэтому голос ОДИН, как у всех, а
+       не полтора: оценка не должна весить больше наблюдения. */
+    if (c.liqFuel) {
+      var lbl = +c.liqFuel.below || 0, lab = +c.liqFuel.above || 0;
+      if (lbl > 0 || lab > 0) {
+        fn2++;
+        if (lbl >= lab * 1.5 && lbl >= 0.5) {
+          f--; fdn.push('плечо под ценой');
+        } else if (lab >= lbl * 1.5 && lab >= 0.5) {
+          f++; fup.push('плечо над ценой');
+        } else {
+          fup.push('плечо поровну');
+        }
+      }
+    }
+    /* Ликвидации Coinglass — ФАКТ, в отличие от строки выше. Кого
+       вынесли за сутки, того больше нет: вынос лонгов расчищает низ,
+       вынос шортов — верх. */
+    if (c.liq24h && (c.liq24h.long || c.liq24h.short)) {
+      fn2++;
+      var ll = +c.liq24h.long || 0, ls = +c.liq24h.short || 0;
+      if (ll > ls * 2) { f++; fup.push('лонги вынесены'); }
+      else if (ls > ll * 2) { f--; fdn.push('шорты вынесены'); }
+      else fup.push('выносило обе стороны');
+    }
+    /* Модельные плиты плеча — тоже голос о топливе, и по разбору
+       26.08 самый прямой. Плечо ПОД ценой — это стопы лонгов, топливо
+       каскада вниз; НАД ценой — стопы шортов, топливо сжима вверх.
+       Порог в полтора раза, чтобы близкие величины не голосовали
+       на шуме: перевес в десять процентов не перевес. */
+    if (c.liqFuel) {
+      var lb = +c.liqFuel.below || 0, la = +c.liqFuel.above || 0;
+      if (lb > 0 || la > 0) {
+        fn2++;
+        if (la > lb * 1.5) { f++; fup.push('плечо шортов'); }
+        else if (lb > la * 1.5) { f--; fdn.push('плечо лонгов'); }
+      }
+    }
+    /* Ликвидации Coinglass — ФАКТ против модели выше. Кого выносят
+       сейчас, того топливо и сгорает: лонгов — давление вниз. */
+    if (c.liq24h && (c.liq24h.long || c.liq24h.short)) {
+      fn2++;
+      var ll = +c.liq24h.long || 0, ls = +c.liq24h.short || 0;
+      if (ls > ll * 1.5) { f++; fup.push('выносят шортов'); }
+      else if (ll > ls * 1.5) { f--; fdn.push('выносят лонгов'); }
+    }
     var fuel = { sign: f > 0 ? 1 : f < 0 ? -1 : 0, n: Math.abs(f), of: fn2,
       pro: fup.slice(0, 2).join(' · '), con: fdn.slice(0, 2).join(' · '),
       word: !fn2 ? 'нечем мерить'
         : f > 0 ? 'вверх' : f < 0 ? 'вниз' : 'ровно' };
 
-    return { sell: sell, fuel: fuel };
+    /* ── ВОПРОС ТРЕТИЙ: чем оплачен ход ──
+       Из разбора 26.08. Денег на споте нет — значит ход оплачен чужим
+       плечом, и вопрос не «сколько его», а ОТКУДА оно и держится ли.
+
+       Две машины различались одним признаком:
+         · плечо копится и стоит   — деньги собраны заранее (BTR);
+         · плечо сбривают откатами — деньги берут у выбитых (PROM).
+       Разница у них была в двести пятьдесят пять раз по отношению
+       плеча к капитализации при сопоставимых ходах.
+
+       Кольцо считает не голоса, а ВЕС: сколько плеча стоит против
+       размера монеты. Пять процентов капитализации — уже заметно,
+       сто — монету двигают целиком чужими деньгами. */
+    var mon = { of: 0, n: 0, word: 'нечем мерить', pro: '', con: '' };
+    var mp = [], mc = [];
+    var tot = 0;
+    if (c.liqFuel) {
+      tot = (+c.liqFuel.below || 0) + (+c.liqFuel.above || 0);
+    }
+    if (tot > 0) {
+      mon.of = 1;
+      mon.n = Math.round(tot * 100);
+      mon.word = tot >= 1 ? 'плечом целиком'
+        : tot >= 0.2 ? 'в основном плечом'
+        : tot >= 0.05 ? 'частью плеча' : 'плеча мало';
+      mp.push(Math.round(tot * 100) + '% капитализации');
+    }
+    if (c.oiState === 'held') mc.push('плечо застряло');
+    else if (c.oiState === 'cleared') mp.push('плечо разгружено');
+    else if (c.oiState === 'repeat') mc.push('повторный цикл');
+    if (c.spotShare !== undefined && c.spotShare !== null) {
+      if (+c.spotShare <= 0) mc.push('спота нет вовсе');
+      else if (+c.spotShare < 0.15) mc.push('спота почти нет');
+    }
+    mon.pro = mp.slice(0, 2).join(' · ');
+    mon.con = mc.slice(0, 2).join(' · ');
+
+    return { sell: sell, fuel: fuel, money: mon };
   }
 
   function adapt(c) {
@@ -2547,6 +2650,8 @@ CARDSCENE_JS = r"""
        влево, когда вниз. Одинаковая дуга на оба знака заставила бы
        читать подпись, чтобы понять сторону, — а кольцо на то и
        кольцо, чтобы отвечать раньше слов. */
+    const clip = (t, n) => (t && t.length > n ? t.slice(0, n - 1) + '…' : (t || ''));
+
     const qring = (cx, q, name, bipolar) => {
       const r = 30, cc = 2 * Math.PI * r;
       /* Подпись стороны. Показываем тех, кто держит ВЕРДИКТ: при
@@ -2555,7 +2660,11 @@ CARDSCENE_JS = r"""
       const pos = bipolar ? q.sign > 0 : (q.n >= Math.ceil(q.of / 2));
       const list = pos ? q.pro : q.con;
       const label = bipolar ? (pos ? 'за рост' : 'за спад') : (pos ? 'за' : 'против');
-      const side = list ? label + ': ' + list : '';
+      /* Подпись центрируется на кольце, а крайние кольца стоят у
+         самой границы кадра: длинная строка уезжает за край и
+         пропадает молча. Режем по букве — обрезанное слово честнее
+         невидимого. */
+      const side = list ? clip(label + ': ' + list, 34) : '';
       const frac = q.of ? Math.min(1, q.n / q.of) : 0;
       const sweep = cc * frac * (bipolar ? 0.42 : 0.75);
       const rot = bipolar ? (q.sign < 0 ? 90 : -90) : -215;
@@ -2570,6 +2679,30 @@ CARDSCENE_JS = r"""
             style="stroke-dashoffset:${sweep.toFixed(1)}"
             transform="rotate(${rot})"/></g>` : ''}
         <text class="num" y="5">${center}</text>
+        <text class="cap2" y="46">${name} · ${q.word}</text>
+        ${side ? `<text class="cap2" y="60" opacity=".62">${side}</text>` : ''}
+      </g>`;
+    };
+
+    /* Кольцо третьего вопроса. Считает не голоса, а вес плеча к
+       капитализации, поэтому знаменателя «сколько приборов» здесь
+       нет: величина одна и она непрерывная. Заполнение — логарифм,
+       иначе 5% и 300% выглядели бы одинаково полными. */
+    const mring = (cx, q, name) => {
+      const r = 30, cc = 2 * Math.PI * r;
+      const frac = !q.of ? 0
+        : Math.min(1, Math.log10(1 + Math.max(0, q.n)) / Math.log10(301));
+      const sweep = cc * frac * 0.75;
+      const side = clip(q.con ? 'против: ' + q.con : (q.pro ? q.pro : ''), 40);
+      return `<g transform="translate(${cx},${base-46})">
+        <circle r="${r}" class="ring"/>
+        ${frac > 0.01 ? `<circle r="${r}" class="val"
+            stroke-dasharray="${sweep.toFixed(1)} ${cc}"
+            style="stroke-dashoffset:${sweep.toFixed(1)}"
+            transform="rotate(-215)"/>` : ''}
+        <text class="num" y="5">${!q.of ? '—'
+          : (q.n >= 1000 ? '×' + Math.round(q.n / 100)
+             : q.n + '<tspan class="pc">%</tspan>')}</text>
         <text class="cap2" y="46">${name} · ${q.word}</text>
         ${side ? `<text class="cap2" y="60" opacity=".62">${side}</text>` : ''}
       </g>`;
@@ -2621,6 +2754,7 @@ CARDSCENE_JS = r"""
       <text x="${x0}" y="${base+22}" class="cap2" text-anchor="start">${
         has ? '24 часа · объём' : '24 часа · ряда нет'}</text>
       <g filter="url(#gl)">${qring(150, d.rings.sell, 'продавец')}${
+        mring(620, d.rings.money, 'деньги')}${
         qring(1090, d.rings.fuel, 'топливо', true)}</g>
     </svg>`;
   }
