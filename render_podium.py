@@ -2293,6 +2293,20 @@ PODIUM_JS = """
     }
     /* Профиль инструмента: С-7, С-8, С-9. Не движение, а свойства —
        кто за монетой, в какой сети, давно ли листинг. */
+    /* Дверь для плеча — первым в блоке: по разбору 26.08 это ПЕРВОЕ
+       звено механизма, а не подробность. Свежая дверь важнее старой:
+       контракт есть у всей выборки, а открыли его недавно — у
+       немногих. */
+    if (c.perpAt || c.perpVenue) {
+      money += cell('плечо открыли',
+        (c.perpVenue || '') +
+        (c.perpLev ? ' ×' + (+c.perpLev) : '') +
+        (c.perpDays !== undefined && c.perpDays !== null
+          ? ' · ' + (+c.perpDays === 0 ? 'сегодня' : (+c.perpDays) + ' дн назад')
+          : ''),
+        (c.perpDays !== undefined && c.perpDays !== null && +c.perpDays <= 14)
+          ? 'am' : null);
+    }
     if (c.organizer) money += cell('организатор', c.organizer, 'dn');
     if (c.chain) money += cell('сеть', c.chain);
     if (c.listingDays !== undefined && c.listingDays !== null) {
@@ -3348,6 +3362,25 @@ PODIUM_JS = """
       pf.push('листинг ' + (+s.listingDays) + ' дн назад');
     }
     if (pf.length) f.push(['#8b93c4', 'профиль', pf.join(' · ')]);
+
+    /* ── Дверь для плеча (26.08) ──
+       Разбор BTR, PROM, BMT и STG дал одно общее: перед ходом на
+       монете ОТКРЫВАЛИ доступ к плечу. У PROM причина названа прямо —
+       листинг фьючерсов MEXC с ×20; у BTR Bitget завёл бессрочный
+       с ×50. Чтобы привести чужие деньги, надо сперва открыть дверь,
+       через которую они войдут.
+       Показываем ЧИСЛОМ, без вердикта: порога у нас нет. */
+    if (s.perpAt || s.perpVenue) {
+      var dr = [];
+      if (s.perpVenue) dr.push(s.perpVenue);
+      if (s.perpLev) dr.push('×' + (+s.perpLev));
+      if (s.perpDays !== null && s.perpDays !== undefined) {
+        dr.push(+s.perpDays === 0 ? 'СЕГОДНЯ' : (+s.perpDays) + ' дн назад');
+      } else if (s.perpAt) {
+        dr.push(dm(s.perpAt));
+      }
+      f.push(['#ffd678', 'плечо открыли', dr.join(' · ')]);
+    }
 
     /* ── Плечо: состояние и цена в капитализации ──
        Две величины про одно, поэтому одной строкой. oiState отвечает

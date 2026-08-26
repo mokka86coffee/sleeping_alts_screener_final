@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import json
 import math
+from datetime import date, datetime
 
 from core_config import LEADERS_PATH
 from core_models import Candidate
@@ -94,6 +95,22 @@ def _alive_gap_days(rec: dict) -> float | None:
         return None
     gap = (_dt.datetime.now(_dt.timezone.utc) - when).total_seconds() / 86400
     return round(max(0.0, gap), 1)
+
+
+def _days_since(when: str | None) -> int | None:
+    """Сколько дней прошло с даты вида ГГГГ-ММ-ДД.
+
+    Ручное поле, и рука ошибается: пустая строка, «скоро», опечатка в
+    месяце. Любой разбор мимо — None, а не ноль: «не знаем» и
+    «сегодня» это разные ответы, и путать их нельзя.
+    """
+    if not when or not isinstance(when, str):
+        return None
+    try:
+        d = datetime.strptime(when.strip()[:10], "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return None
+    return (date.today() - d).days
 
 
 def _num(v) -> float | None:
@@ -164,6 +181,23 @@ def _star_unlocks(raw: dict) -> dict:
         # С-9 и С-7: сеть контракта и возраст листинга — постоянные
         # поля unlocks.json, добываются рукой или fill_unlocks.
         ("chain", "chain"), ("listingDays", "listed_days"),
+        # ── ДВЕРЬ ДЛЯ ПЛЕЧА (26.08) ──
+        # Разбор BTR, PROM, BMT и STG дал одно общее: перед ходом на
+        # монете ОТКРЫВАЛИ доступ к плечу. У PROM причина названа
+        # прямым текстом — листинг фьючерсов MEXC с ×20; у BTR Bitget
+        # завёл бессрочный с ×50.
+        #
+        # По выводу того же дня деньги на рынке не находятся, их
+        # приводят. Чтобы привести чужое плечо, надо сперва открыть
+        # дверь, через которую оно войдёт. Новый бессрочный контракт
+        # на спящей монете и есть эта дверь.
+        #
+        # ЕДИНСТВЕННОЕ поле проекта, которое смотрит ВПЕРЁД наравне с
+        # разлоками: дата известна заранее и публикуется биржей.
+        # API её не отдаёт — тот же ручной обход, что у делистингов.
+        ("perpAt", "perp_listed_at"),       # дата листинга контракта
+        ("perpVenue", "perp_venue"),        # биржа
+        ("perpLev", "perp_max_leverage"),   # предельное плечо
     )
     for star_key, src_key in pairs:
         if u.get(src_key) is not None:
@@ -917,6 +951,17 @@ def build_stars(candidates: list[Candidate],
         lv = craw.get("levels")
         if lv:
             s["levels"] = lv
+
+        # ── ДВЕРЬ ДЛЯ ПЛЕЧА: сколько дней она открыта ──
+        # Само по себе «контракт есть» ничего не говорит — он есть у
+        # всей выборки. Говорит СВЕЖЕСТЬ: у PROM ход пошёл в те же
+        # дни, что листинг с ×20. Считаем дни и отдаём числом, вердикт
+        # не выносим: порога у нас нет и взять его пока неоткуда.
+        pa = s.get("perpAt")
+        if pa:
+            d = _days_since(pa)
+            if d is not None:
+                s["perpDays"] = d
 
         # ── Свежее плечо и его цена в капитализации (вывод 26.08) ──
         # Разбор пампов августа: рынок без спотовых денег двигают
