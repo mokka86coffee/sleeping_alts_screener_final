@@ -3,8 +3,8 @@
   "what": "показания монет за последнюю неделю, шаг — прогон; старше — в pulse_archive/ (до 30 дн)",
   "why": "карточка сравнивает не уровни, а изменения",
   "window_hours": 168,
-  "symbols": 211,
-  "written_at": "2026-08-26T02:58:29+00:00"
+  "symbols": 212,
+  "written_at": "2026-08-26T04:03:50+00:00"
  },
  "ACUUSDT": [
   {
@@ -2527,6 +2527,25 @@
    "ivx_p": 1.1859,
    "ivx_m": 0.819,
    "ivx_spread": 0.3669,
+   "ivx_dir": "up",
+   "score": 21
+  },
+  {
+   "t": 1787717031,
+   "price": 0.12954,
+   "rvol_1h": 0.381397,
+   "atr_pct": 17.021769,
+   "obv": 656.862592,
+   "funding": 0.005,
+   "oi_usd": 2766420.6165,
+   "up_low": 81.708515,
+   "ch_24h": 6.87237,
+   "spot_share": 0.0,
+   "vi_p": 1.2341,
+   "vi_m": 0.782,
+   "ivx_p": 1.3135,
+   "ivx_m": 0.7266,
+   "ivx_spread": 0.5869,
    "ivx_dir": "up",
    "score": 21
   }
@@ -5233,6 +5252,26 @@
    "ivx_spread": -0.1316,
    "ivx_dir": "down",
    "score": 32
+  },
+  {
+   "t": 1787717031,
+   "price": 0.02894,
+   "rvol_1h": 0.016804,
+   "atr_pct": 9.613486,
+   "obv": 3.707051,
+   "funding": 0.005,
+   "oi_usd": 6498179.3521,
+   "up_low": 33.733826,
+   "ch_24h": -0.720412,
+   "basis": -0.069,
+   "spot_share": 0.206271,
+   "vi_p": 0.9283,
+   "vi_m": 1.1325,
+   "ivx_p": 0.966,
+   "ivx_m": 1.102,
+   "ivx_spread": -0.136,
+   "ivx_dir": "down",
+   "score": 33
   }
  ],
  "HEMIUSDT": [
@@ -8057,6 +8096,26 @@
    "ivx_spread": -0.0696,
    "ivx_dir": "down",
    "score": 34
+  },
+  {
+   "t": 1787717031,
+   "price": 0.007225,
+   "rvol_1h": 0.014149,
+   "atr_pct": 30.119624,
+   "obv": 29.20834,
+   "funding": 0.005,
+   "oi_usd": 9707608.931925,
+   "up_low": 76.176542,
+   "ch_24h": 0.879643,
+   "basis": 0.069,
+   "spot_share": 0.176008,
+   "vi_p": 0.7919,
+   "vi_m": 1.2707,
+   "ivx_p": 0.9941,
+   "ivx_m": 1.0914,
+   "ivx_spread": -0.0973,
+   "ivx_dir": "down",
+   "score": 34
   }
  ],
  "EDENUSDT": [
@@ -10637,6 +10696,26 @@
    "ivx_spread": 0.5877,
    "ivx_dir": "up",
    "score": 55
+  },
+  {
+   "t": 1787717031,
+   "price": 0.05446,
+   "rvol_1h": 0.119525,
+   "atr_pct": 22.804417,
+   "obv": -0.240149,
+   "funding": -0.080916,
+   "oi_usd": 4196547.74672,
+   "up_low": 53.5815,
+   "ch_24h": 7.437364,
+   "basis": -0.384,
+   "spot_share": 0.167585,
+   "vi_p": 1.2232,
+   "vi_m": 0.8225,
+   "ivx_p": 1.3178,
+   "ivx_m": 0.7099,
+   "ivx_spread": 0.6079,
+   "ivx_dir": "up",
+   "score": 49
   }
  ],
  "ACEUSDT": [
@@ -13761,6 +13840,26 @@
    "ivx_spread": -0.1932,
    "ivx_dir": "down",
    "score": 34
+  },
+  {
+   "t": 1787717031,
+   "price": 0.22323,
+   "rvol_1h": 0.007646,
+   "atr_pct": 35.721965,
+   "obv": -10.433741,
+   "funding": -0.225944,
+   "oi_usd": 11653570.933998,
+   "up_low": 263.566775,
+   "ch_24h": 2.020017,
+   "basis": -0.698,
+   "spot_share": 0.157672,
+   "vi_p": 1.0043,
+   "vi_m": 1.0622,
+   "ivx_p": 0.9186,
+   "ivx_m": 1.1517,
+   "ivx_spread": -0.2331,
+   "ivx_dir": "down",
+   "score": 34
   }
  ],
  "BOMEUSDT": [
@@ -16542,6 +16641,26 @@
    "ivx_p": 0.8467,
    "ivx_m": 1.1858,
    "ivx_spread": -0.3391,
+   "ivx_dir": "down",
+   "score": 39
+  },
+  {
+   "t": 1787717031,
+   "price": 0.001045,
+   "rvol_1h": 0.008623,
+   "atr_pct": 17.077356,
+   "obv": 305.699264,
+   "funding": 0.005,
+   "oi_usd": 10850838.474592,
+   "up_low": 166.165605,
+   "ch_24h": -0.684476,
+   "basis": -0.124,
+   "spot_share": 0.133457,
+   "vi_p": 0.6967,
+   "vi_m": 1.3747,
+   "ivx_p": 0.7909,
+   "ivx_m": 1.2562,
+   "ivx_spread": -0.4653,
    "ivx_dir": "down",
    "score": 39
   }
@@ -19600,6 +19719,34 @@
    "vx_dir": "down",
    "score": 21,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.08116,
+   "rvol_1h": 0.053205,
+   "atr_pct": 18.357917,
+   "obv": 2.993327,
+   "funding": 0.036409,
+   "oi_usd": 3187256.92248,
+   "up_low": 1.411971,
+   "ch_24h": -3.115674,
+   "spot_share": 0.0,
+   "vi_p": 0.6691,
+   "vi_m": 1.3717,
+   "ivx_p": 0.9533,
+   "ivx_m": 1.0825,
+   "ivx_spread": -0.1292,
+   "ivx_dir": "down",
+   "buy_share": 0.4873,
+   "delta_slope": -0.02462,
+   "vx_strength": 0.166,
+   "oi_x": 1.11,
+   "oi_held": 63.4,
+   "oi_cycles": 2.0,
+   "rel_vol": 0.9,
+   "vx_dir": "down",
+   "score": 21,
+   "flow_fired": 1
   }
  ],
  "BULLAUSDT": [
@@ -22228,6 +22375,25 @@
    "ivx_spread": 0.4104,
    "ivx_dir": "up",
    "score": 22
+  },
+  {
+   "t": 1787717031,
+   "price": 0.01653,
+   "rvol_1h": 0.136561,
+   "atr_pct": 12.528304,
+   "obv": -2.537623,
+   "funding": 0.005,
+   "oi_usd": 5625615.45942,
+   "up_low": 192.256011,
+   "ch_24h": 2.747389,
+   "spot_share": 0.0,
+   "vi_p": 1.0624,
+   "vi_m": 1.0428,
+   "ivx_p": 1.2668,
+   "ivx_m": 0.7345,
+   "ivx_spread": 0.5323,
+   "ivx_dir": "up",
+   "score": 26
   }
  ],
  "BMTUSDT": [
@@ -24952,6 +25118,28 @@
    "vx_dir": "none",
    "score": 88,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.02204,
+   "vol_1h": 193.002391,
+   "vol_4h": 99.857209,
+   "rvol_1h": 5.765183,
+   "atr_pct": 16.204304,
+   "obv": 33.787205,
+   "funding": -0.112914,
+   "oi_usd": 6692772.76504,
+   "up_low": 103.133641,
+   "ch_24h": -4.215558,
+   "basis": -0.226,
+   "spot_share": 0.089644,
+   "vi_p": 1.2572,
+   "vi_m": 0.4661,
+   "ivx_p": 1.1796,
+   "ivx_m": 0.6163,
+   "ivx_spread": 0.5633,
+   "ivx_dir": "up",
+   "score": 63
   }
  ],
  "TREEUSDT": [
@@ -28488,6 +28676,35 @@
    "vx_dir": "none",
    "score": 33,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.03706,
+   "rvol_1h": 0.183608,
+   "atr_pct": 9.91057,
+   "obv": 73.946986,
+   "funding": 0.005,
+   "oi_usd": 1947540.57884,
+   "up_low": 15.631825,
+   "ch_24h": -0.080884,
+   "basis": -0.108,
+   "spot_share": 0.240225,
+   "vi_p": 0.8666,
+   "vi_m": 1.1864,
+   "ivx_p": 0.935,
+   "ivx_m": 1.1407,
+   "ivx_spread": -0.2057,
+   "ivx_dir": "down",
+   "buy_share": 0.5025,
+   "delta_slope": 0.0078,
+   "vx_strength": 0.0,
+   "oi_x": 1.16,
+   "oi_held": 38.4,
+   "oi_cycles": 2.0,
+   "rel_vol": 1.23,
+   "vx_dir": "none",
+   "score": 30,
+   "flow_fired": 1
   }
  ],
  "POLUSDT": [
@@ -31068,6 +31285,26 @@
    "ivx_spread": 0.0468,
    "ivx_dir": "up",
    "score": 57
+  },
+  {
+   "t": 1787717031,
+   "price": 0.12119,
+   "rvol_1h": 0.000318,
+   "atr_pct": 7.157592,
+   "obv": 84.692051,
+   "funding": 0.005,
+   "oi_usd": 34943263.38736,
+   "up_low": 79.96733,
+   "ch_24h": -1.11782,
+   "basis": -0.074,
+   "spot_share": 0.202077,
+   "vi_p": 1.1693,
+   "vi_m": 0.857,
+   "ivx_p": 1.0641,
+   "ivx_m": 0.9998,
+   "ivx_spread": 0.0643,
+   "ivx_dir": "up",
+   "score": 53
   }
  ],
  "NILUSDT": [
@@ -34004,6 +34241,26 @@
    "ivx_m": 1.094,
    "ivx_spread": -0.121,
    "ivx_dir": "down",
+   "score": 34
+  },
+  {
+   "t": 1787717031,
+   "price": 0.04237,
+   "rvol_1h": 0.048947,
+   "atr_pct": 14.579049,
+   "obv": -1.916536,
+   "funding": 0.005,
+   "oi_usd": 2281868.220714,
+   "up_low": 55.486239,
+   "ch_24h": 1.728691,
+   "basis": -0.282,
+   "spot_share": 0.183953,
+   "vi_p": 0.927,
+   "vi_m": 1.1327,
+   "ivx_p": 1.1138,
+   "ivx_m": 0.9431,
+   "ivx_spread": 0.1707,
+   "ivx_dir": "up",
    "score": 34
   }
  ],
@@ -37335,6 +37592,26 @@
    "ivx_spread": -0.2693,
    "ivx_dir": "down",
    "score": 21
+  },
+  {
+   "t": 1787717031,
+   "price": 0.25595,
+   "rvol_1h": 0.021684,
+   "atr_pct": 10.175816,
+   "obv": -8.927891,
+   "funding": -0.001708,
+   "oi_usd": 10759341.73955,
+   "up_low": 14.319532,
+   "ch_24h": -0.253313,
+   "basis": -0.137,
+   "spot_share": 0.187031,
+   "vi_p": 0.8305,
+   "vi_m": 1.2198,
+   "ivx_p": 0.877,
+   "ivx_m": 1.1645,
+   "ivx_spread": -0.2875,
+   "ivx_dir": "down",
+   "score": 21
   }
  ],
  "HEIUSDT": [
@@ -39934,6 +40211,26 @@
    "ivx_spread": 0.2704,
    "ivx_dir": "up",
    "score": 44
+  },
+  {
+   "t": 1787717031,
+   "price": 0.13585,
+   "rvol_1h": 0.035766,
+   "atr_pct": 15.83364,
+   "obv": 1.797285,
+   "funding": 0.005,
+   "oi_usd": 4459173.588155,
+   "up_low": 73.035282,
+   "ch_24h": 3.615285,
+   "basis": -0.11,
+   "spot_share": 0.219768,
+   "vi_p": 1.0961,
+   "vi_m": 0.9061,
+   "ivx_p": 1.1375,
+   "ivx_m": 0.8951,
+   "ivx_spread": 0.2424,
+   "ivx_dir": "up",
+   "score": 49
   }
  ],
  "ZAMAUSDT": [
@@ -42680,6 +42977,26 @@
    "ivx_p": 0.6924,
    "ivx_m": 1.3145,
    "ivx_spread": -0.6221,
+   "ivx_dir": "down",
+   "score": 32
+  },
+  {
+   "t": 1787717031,
+   "price": 0.05329,
+   "rvol_1h": 0.034176,
+   "atr_pct": 12.102244,
+   "obv": 53.215634,
+   "funding": -0.008659,
+   "oi_usd": 6996347.16549,
+   "up_low": 78.108289,
+   "ch_24h": 0.225691,
+   "basis": -0.169,
+   "spot_share": 0.278355,
+   "vi_p": 0.9146,
+   "vi_m": 1.1402,
+   "ivx_p": 0.7858,
+   "ivx_m": 1.2632,
+   "ivx_spread": -0.4774,
    "ivx_dir": "down",
    "score": 32
   }
@@ -45433,6 +45750,27 @@
    "ivx_m": 1.1081,
    "ivx_spread": -0.1784,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 11.393,
+   "vol_1h": 0.436871,
+   "vol_4h": 0.339372,
+   "rvol_1h": 0.397373,
+   "atr_pct": 6.640669,
+   "obv": 24.003906,
+   "funding": 0.01,
+   "oi_usd": 113700982.58513,
+   "up_low": 61.145686,
+   "ch_24h": 0.939134,
+   "basis": -0.044,
+   "spot_share": 0.191215,
+   "vi_p": 0.9506,
+   "vi_m": 1.0387,
+   "ivx_p": 1.0076,
+   "ivx_m": 1.1101,
+   "ivx_spread": -0.1025,
+   "ivx_dir": "down"
   }
  ],
  "CHIPUSDT": [
@@ -47975,6 +48313,26 @@
    "ivx_m": 0.9961,
    "ivx_spread": -0.0583,
    "ivx_dir": "down",
+   "score": 44
+  },
+  {
+   "t": 1787717031,
+   "price": 0.03226,
+   "rvol_1h": 0.013291,
+   "atr_pct": 12.11363,
+   "obv": 72.165627,
+   "funding": 0.005,
+   "oi_usd": 8596228.90408,
+   "up_low": 50.256171,
+   "ch_24h": 0.875547,
+   "basis": -0.093,
+   "spot_share": 0.224595,
+   "vi_p": 1.0179,
+   "vi_m": 1.0419,
+   "ivx_p": 1.0765,
+   "ivx_m": 0.9923,
+   "ivx_spread": 0.0842,
+   "ivx_dir": "up",
    "score": 44
   }
  ],
@@ -50524,6 +50882,26 @@
    "vx_dir": "up",
    "score": 61,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.02,
+   "rvol_1h": 0.024305,
+   "atr_pct": 20.739286,
+   "obv": -7.862464,
+   "funding": -0.086881,
+   "oi_usd": 5204327.2,
+   "up_low": 78.412132,
+   "ch_24h": 1.78117,
+   "basis": -0.596,
+   "spot_share": 0.223402,
+   "vi_p": 1.0873,
+   "vi_m": 0.9476,
+   "ivx_p": 1.1277,
+   "ivx_m": 0.8984,
+   "ivx_spread": 0.2293,
+   "ivx_dir": "up",
+   "score": 44
   }
  ],
  "PORTALUSDT": [
@@ -53101,6 +53479,35 @@
    "ivx_spread": -0.0974,
    "ivx_dir": "down",
    "score": 44
+  },
+  {
+   "t": 1787717031,
+   "price": 0.01626,
+   "rvol_1h": 0.058412,
+   "atr_pct": 20.549991,
+   "obv": 13.428666,
+   "funding": 0.005,
+   "oi_usd": 3886487.697336,
+   "up_low": 80.666667,
+   "ch_24h": 12.838307,
+   "basis": -0.245,
+   "spot_share": 0.140292,
+   "vi_p": 1.1451,
+   "vi_m": 0.882,
+   "ivx_p": 1.3005,
+   "ivx_m": 0.7442,
+   "ivx_spread": 0.5563,
+   "ivx_dir": "up",
+   "buy_share": 0.4995,
+   "delta_slope": 0.00114,
+   "vx_strength": 0.0,
+   "oi_x": 1.11,
+   "oi_held": 26.8,
+   "oi_cycles": 1.0,
+   "rel_vol": 8.7,
+   "vx_dir": "none",
+   "score": 82,
+   "flow_fired": 3
   }
  ],
  "WIFUSDT": [
@@ -55617,6 +56024,26 @@
    "ivx_spread": -0.1038,
    "ivx_dir": "down",
    "score": 24
+  },
+  {
+   "t": 1787717031,
+   "price": 0.2023,
+   "rvol_1h": 0.001382,
+   "atr_pct": 8.262128,
+   "obv": -5.771797,
+   "funding": 0.005,
+   "oi_usd": 16952113.78035,
+   "up_low": 52.564103,
+   "ch_24h": 3.584229,
+   "basis": 0.0,
+   "spot_share": 0.084884,
+   "vi_p": 1.0269,
+   "vi_m": 1.0234,
+   "ivx_p": 0.9928,
+   "ivx_m": 1.061,
+   "ivx_spread": -0.0682,
+   "ivx_dir": "down",
+   "score": 24
   }
  ],
  "DASHUSDT": [
@@ -58129,6 +58556,26 @@
    "ivx_p": 0.7414,
    "ivx_m": 1.2568,
    "ivx_spread": -0.5154,
+   "ivx_dir": "down",
+   "score": 25
+  },
+  {
+   "t": 1787717031,
+   "price": 38.63,
+   "rvol_1h": 0.004113,
+   "atr_pct": 8.668318,
+   "obv": 6.214377,
+   "funding": 0.01,
+   "oi_usd": 14298912.11528,
+   "up_low": 33.853084,
+   "ch_24h": 1.979937,
+   "basis": -0.026,
+   "spot_share": 0.220337,
+   "vi_p": 0.8558,
+   "vi_m": 1.2227,
+   "ivx_p": 0.8217,
+   "ivx_m": 1.2377,
+   "ivx_spread": -0.416,
    "ivx_dir": "down",
    "score": 25
   }
@@ -60899,6 +61346,37 @@
    "ivx_dir": "down",
    "buy_share": 0.4851,
    "delta_slope": -0.02643,
+   "vx_strength": 0.0,
+   "oi_x": 0.88,
+   "oi_held": 4.8,
+   "oi_cycles": 0.0,
+   "rel_vol": 0.91,
+   "vx_dir": "none",
+   "score": 33,
+   "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.3914,
+   "vol_1h": 0.725402,
+   "vol_4h": 0.499672,
+   "rvol_1h": 0.649467,
+   "atr_pct": 10.267173,
+   "obv": 16.90721,
+   "funding": 0.001265,
+   "oi_usd": 64123156.3274,
+   "up_low": 33.583618,
+   "ch_24h": 2.139875,
+   "basis": -0.051,
+   "spot_share": 0.132903,
+   "vi_p": 0.9302,
+   "vi_m": 1.0569,
+   "ivx_p": 1.025,
+   "ivx_m": 1.0448,
+   "ivx_spread": -0.0198,
+   "ivx_dir": "down",
+   "buy_share": 0.4851,
+   "delta_slope": -0.02661,
    "vx_strength": 0.0,
    "oi_x": 0.88,
    "oi_held": 4.8,
@@ -64041,6 +64519,26 @@
    "ivx_spread": -0.2654,
    "ivx_dir": "down",
    "score": 26
+  },
+  {
+   "t": 1787717031,
+   "price": 0.02016,
+   "rvol_1h": 0.010896,
+   "atr_pct": 17.32568,
+   "obv": 24.534883,
+   "funding": 0.005,
+   "oi_usd": 6015575.62368,
+   "up_low": 108.479835,
+   "ch_24h": 2.59542,
+   "basis": -0.05,
+   "spot_share": 0.174945,
+   "vi_p": 0.8171,
+   "vi_m": 1.2565,
+   "ivx_p": 1.0433,
+   "ivx_m": 1.0462,
+   "ivx_spread": -0.0029,
+   "ivx_dir": "down",
+   "score": 26
   }
  ],
  "JTOUSDT": [
@@ -66950,6 +67448,26 @@
    "ivx_spread": -0.3322,
    "ivx_dir": "down",
    "score": 24
+  },
+  {
+   "t": 1787717031,
+   "price": 0.5214,
+   "rvol_1h": 0.028225,
+   "atr_pct": 11.347197,
+   "obv": 4.808067,
+   "funding": 0.003178,
+   "oi_usd": 9968177.8614,
+   "up_low": 11.386456,
+   "ch_24h": 0.501157,
+   "basis": -0.172,
+   "spot_share": 0.234942,
+   "vi_p": 0.7712,
+   "vi_m": 1.2641,
+   "ivx_p": 0.839,
+   "ivx_m": 1.2412,
+   "ivx_spread": -0.4022,
+   "ivx_dir": "down",
+   "score": 24
   }
  ],
  "BLESSUSDT": [
@@ -69473,6 +69991,25 @@
    "ivx_p": 0.9655,
    "ivx_m": 1.1095,
    "ivx_spread": -0.144,
+   "ivx_dir": "down",
+   "score": 36
+  },
+  {
+   "t": 1787717031,
+   "price": 0.008921,
+   "rvol_1h": 0.008971,
+   "atr_pct": 15.642064,
+   "obv": -216.31195,
+   "funding": 0.005,
+   "oi_usd": 6047520.011258,
+   "up_low": 39.69621,
+   "ch_24h": 0.529637,
+   "spot_share": 0.0,
+   "vi_p": 1.0134,
+   "vi_m": 1.0476,
+   "ivx_p": 0.9584,
+   "ivx_m": 1.129,
+   "ivx_spread": -0.1706,
    "ivx_dir": "down",
    "score": 36
   }
@@ -72239,6 +72776,35 @@
    "oi_held": 27.5,
    "oi_cycles": 0.0,
    "rel_vol": 3.46,
+   "vx_dir": "up",
+   "score": 68,
+   "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.5199,
+   "rvol_1h": 0.00633,
+   "atr_pct": 6.568571,
+   "obv": 7.753317,
+   "funding": 0.005,
+   "oi_usd": 14768740.91523,
+   "up_low": 33.856849,
+   "ch_24h": 0.931858,
+   "basis": -0.115,
+   "spot_share": 0.12989,
+   "vi_p": 1.1312,
+   "vi_m": 0.9012,
+   "ivx_p": 0.9258,
+   "ivx_m": 1.1443,
+   "ivx_spread": -0.2185,
+   "ivx_dir": "down",
+   "buy_share": 0.4975,
+   "delta_slope": -0.00149,
+   "vx_strength": 0.41,
+   "oi_x": 0.97,
+   "oi_held": 27.5,
+   "oi_cycles": 0.0,
+   "rel_vol": 2.81,
    "vx_dir": "up",
    "score": 68,
    "flow_fired": 1
@@ -75357,6 +75923,35 @@
    "vx_dir": "down",
    "score": 49,
    "flow_fired": 2
+  },
+  {
+   "t": 1787717031,
+   "price": 0.1211,
+   "rvol_1h": 0.027712,
+   "atr_pct": 13.200425,
+   "obv": 73.272057,
+   "funding": -0.000688,
+   "oi_usd": 3670861.7939,
+   "up_low": 22.57085,
+   "ch_24h": 1.508801,
+   "basis": -0.329,
+   "spot_share": 0.154477,
+   "vi_p": 1.0259,
+   "vi_m": 1.0025,
+   "ivx_p": 1.0836,
+   "ivx_m": 0.9625,
+   "ivx_spread": 0.1211,
+   "ivx_dir": "up",
+   "buy_share": 0.4971,
+   "delta_slope": -0.00572,
+   "vx_strength": 0.247,
+   "oi_x": 2.66,
+   "oi_held": 44.7,
+   "oi_cycles": 1.0,
+   "rel_vol": 10.0,
+   "vx_dir": "down",
+   "score": 27,
+   "flow_fired": 1
   }
  ],
  "HYPEUSDT": [
@@ -77855,6 +78450,27 @@
    "ivx_p": 1.0819,
    "ivx_m": 0.9201,
    "ivx_spread": 0.1618,
+   "ivx_dir": "up",
+   "score": 10
+  },
+  {
+   "t": 1787717031,
+   "price": 81.649,
+   "vol_1h": 0.580296,
+   "vol_4h": 0.544063,
+   "rvol_1h": 0.47138,
+   "atr_pct": 6.372924,
+   "obv": 96.230924,
+   "funding": 0.005,
+   "oi_usd": 388652722.32985,
+   "up_low": 59.760894,
+   "ch_24h": 2.530326,
+   "spot_share": 0.0,
+   "vi_p": 1.0023,
+   "vi_m": 0.9838,
+   "ivx_p": 1.1273,
+   "ivx_m": 0.9143,
+   "ivx_spread": 0.213,
    "ivx_dir": "up",
    "score": 10
   }
@@ -80695,6 +81311,28 @@
    "ivx_spread": 0.0209,
    "ivx_dir": "up",
    "score": 63
+  },
+  {
+   "t": 1787717031,
+   "price": 0.10185,
+   "vol_1h": 0.714951,
+   "vol_4h": 2.854358,
+   "rvol_1h": 0.446237,
+   "atr_pct": 21.188723,
+   "obv": 55.92337,
+   "funding": 0.000775,
+   "oi_usd": 12838120.1865,
+   "up_low": 153.610558,
+   "ch_24h": 7.300885,
+   "basis": -0.088,
+   "spot_share": 0.05922,
+   "vi_p": 1.2091,
+   "vi_m": 0.7288,
+   "ivx_p": 1.0011,
+   "ivx_m": 1.0658,
+   "ivx_spread": -0.0647,
+   "ivx_dir": "down",
+   "score": 71
   }
  ],
  "AIOUSDT": [
@@ -83421,6 +84059,25 @@
    "ivx_spread": 0.197,
    "ivx_dir": "up",
    "score": 50
+  },
+  {
+   "t": 1787717031,
+   "price": 0.04212,
+   "rvol_1h": 0.018311,
+   "atr_pct": 24.289445,
+   "obv": 81.193315,
+   "funding": 0.005,
+   "oi_usd": 3650725.18044,
+   "up_low": 25.543964,
+   "ch_24h": -2.160279,
+   "spot_share": 0.0,
+   "vi_p": 1.0647,
+   "vi_m": 0.9919,
+   "ivx_p": 1.1045,
+   "ivx_m": 0.9567,
+   "ivx_spread": 0.1478,
+   "ivx_dir": "up",
+   "score": 50
   }
  ],
  "INJUSDT": [
@@ -86041,6 +86698,26 @@
    "vx_dir": "up",
    "score": 79,
    "flow_fired": 2
+  },
+  {
+   "t": 1787717031,
+   "price": 5.55,
+   "rvol_1h": 0.00104,
+   "atr_pct": 7.603604,
+   "obv": 5.070641,
+   "funding": 0.01,
+   "oi_usd": 21289073.505,
+   "up_low": 40.577508,
+   "ch_24h": -0.28746,
+   "basis": -0.09,
+   "spot_share": 0.156806,
+   "vi_p": 1.0838,
+   "vi_m": 0.9753,
+   "ivx_p": 0.9051,
+   "ivx_m": 1.2152,
+   "ivx_spread": -0.3101,
+   "ivx_dir": "down",
+   "score": 44
   }
  ],
  "LITUSDT": [
@@ -88600,6 +89277,25 @@
    "ivx_spread": -0.2266,
    "ivx_dir": "down",
    "score": 4
+  },
+  {
+   "t": 1787717031,
+   "price": 3.279,
+   "rvol_1h": 0.000252,
+   "atr_pct": 10.142901,
+   "obv": 14.708965,
+   "funding": 0.005,
+   "oi_usd": 58650208.9455,
+   "up_low": 95.387916,
+   "ch_24h": -0.176571,
+   "basis": 341.319,
+   "spot_share": 0.008743,
+   "vi_p": 1.0097,
+   "vi_m": 1.1209,
+   "ivx_p": 0.8759,
+   "ivx_m": 1.2957,
+   "ivx_spread": -0.4198,
+   "ivx_dir": "down"
   }
  ],
  "ORDIUSDT": [
@@ -91143,6 +91839,26 @@
    "ivx_spread": 0.0288,
    "ivx_dir": "up",
    "score": 36
+  },
+  {
+   "t": 1787717031,
+   "price": 4.154,
+   "rvol_1h": 0.005454,
+   "atr_pct": 9.909554,
+   "obv": 15.364197,
+   "funding": 0.005,
+   "oi_usd": 7769532.7652,
+   "up_low": 35.309446,
+   "ch_24h": 2.44143,
+   "basis": -0.144,
+   "spot_share": 0.169732,
+   "vi_p": 1.0099,
+   "vi_m": 1.0378,
+   "ivx_p": 1.0374,
+   "ivx_m": 1.0272,
+   "ivx_spread": 0.0102,
+   "ivx_dir": "up",
+   "score": 36
   }
  ],
  "ESPUSDT": [
@@ -93654,6 +94370,26 @@
    "ivx_spread": -0.0507,
    "ivx_dir": "down",
    "score": 4
+  },
+  {
+   "t": 1787717031,
+   "price": 0.09094,
+   "rvol_1h": 0.012047,
+   "atr_pct": 7.622765,
+   "obv": 25.307979,
+   "funding": 0.005,
+   "oi_usd": 2882120.0423,
+   "up_low": 55.532752,
+   "ch_24h": 1.973537,
+   "basis": 0.0,
+   "spot_share": 0.237178,
+   "vi_p": 1.0513,
+   "vi_m": 1.0097,
+   "ivx_p": 0.9297,
+   "ivx_m": 1.1996,
+   "ivx_spread": -0.2699,
+   "ivx_dir": "down",
+   "score": 4
   }
  ],
  "APRUSDT": [
@@ -96078,6 +96814,25 @@
    "ivx_p": 1.1406,
    "ivx_m": 0.8932,
    "ivx_spread": 0.2474,
+   "ivx_dir": "up",
+   "score": 15
+  },
+  {
+   "t": 1787717031,
+   "price": 0.2289,
+   "rvol_1h": 0.012424,
+   "atr_pct": 35.024652,
+   "obv": 42.391418,
+   "funding": 0.005,
+   "oi_usd": 9103554.6609,
+   "up_low": 59.846369,
+   "ch_24h": -1.037613,
+   "spot_share": 0.0,
+   "vi_p": 1.273,
+   "vi_m": 0.7469,
+   "ivx_p": 1.0995,
+   "ivx_m": 0.9729,
+   "ivx_spread": 0.1266,
    "ivx_dir": "up",
    "score": 15
   }
@@ -98674,6 +99429,28 @@
    "ivx_m": 1.0433,
    "ivx_spread": -0.1073,
    "ivx_dir": "down",
+   "score": 6
+  },
+  {
+   "t": 1787717031,
+   "price": 0.004678,
+   "vol_1h": 0.855058,
+   "vol_4h": 0.764037,
+   "rvol_1h": 0.724521,
+   "atr_pct": 11.735785,
+   "obv": 69.944928,
+   "funding": 0.00296,
+   "oi_usd": 107536144.633846,
+   "up_low": 246.518519,
+   "ch_24h": 3.955556,
+   "basis": -0.107,
+   "spot_share": 0.118997,
+   "vi_p": 0.8341,
+   "vi_m": 1.1369,
+   "ivx_p": 1.0777,
+   "ivx_m": 1.0112,
+   "ivx_spread": 0.0665,
+   "ivx_dir": "up",
    "score": 6
   }
  ],
@@ -101750,6 +102527,26 @@
    "ivx_spread": -0.3619,
    "ivx_dir": "down",
    "score": 10
+  },
+  {
+   "t": 1787717031,
+   "price": 0.01138,
+   "rvol_1h": 0.008752,
+   "atr_pct": 23.686919,
+   "obv": 65.509094,
+   "funding": 0.005,
+   "oi_usd": 8524408.9754,
+   "up_low": 39.119804,
+   "ch_24h": 1.362786,
+   "basis": -0.088,
+   "spot_share": 0.1283,
+   "vi_p": 1.0227,
+   "vi_m": 1.1189,
+   "ivx_p": 1.1374,
+   "ivx_m": 1.2957,
+   "ivx_spread": -0.1583,
+   "ivx_dir": "down",
+   "score": 6
   }
  ],
  "BZUSDT": [
@@ -105133,6 +105930,26 @@
    "ivx_p": 0.7115,
    "ivx_m": 1.321,
    "ivx_spread": -0.6095,
+   "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 85.15,
+   "vol_1h": 0.408828,
+   "vol_4h": 1.145696,
+   "rvol_1h": 0.222221,
+   "atr_pct": 2.603808,
+   "obv": 12.279146,
+   "funding": -0.001256,
+   "oi_usd": 169257292.269,
+   "up_low": 21.313577,
+   "ch_24h": -0.850023,
+   "spot_share": 0.0,
+   "vi_p": 0.6271,
+   "vi_m": 1.3547,
+   "ivx_p": 0.7176,
+   "ivx_m": 1.3465,
+   "ivx_spread": -0.6289,
    "ivx_dir": "down"
   }
  ],
@@ -108529,6 +109346,26 @@
    "ivx_spread": 0.1448,
    "ivx_dir": "up",
    "score": 49
+  },
+  {
+   "t": 1787717031,
+   "price": 1.4634,
+   "rvol_1h": 0.047894,
+   "atr_pct": 10.357973,
+   "obv": 7.169281,
+   "funding": 0.005,
+   "oi_usd": 5608009.57788,
+   "up_low": 56.781658,
+   "ch_24h": 4.253046,
+   "basis": -0.177,
+   "spot_share": 0.160909,
+   "vi_p": 1.1367,
+   "vi_m": 0.8965,
+   "ivx_p": 1.1269,
+   "ivx_m": 0.9221,
+   "ivx_spread": 0.2048,
+   "ivx_dir": "up",
+   "score": 49
   }
  ],
  "MMTUSDT": [
@@ -111043,6 +111880,26 @@
    "ivx_p": 0.9454,
    "ivx_m": 1.0665,
    "ivx_spread": -0.1211,
+   "ivx_dir": "down",
+   "score": 39
+  },
+  {
+   "t": 1787717031,
+   "price": 0.1625,
+   "rvol_1h": 0.02278,
+   "atr_pct": 10.175824,
+   "obv": 83.022327,
+   "funding": 0.005,
+   "oi_usd": 6973733.65,
+   "up_low": 17.753623,
+   "ch_24h": 1.499063,
+   "basis": -0.184,
+   "spot_share": 0.198232,
+   "vi_p": 0.9262,
+   "vi_m": 1.1334,
+   "ivx_p": 0.9944,
+   "ivx_m": 1.0501,
+   "ivx_spread": -0.0557,
    "ivx_dir": "down",
    "score": 39
   }
@@ -113868,6 +114725,25 @@
    "vx_dir": "none",
    "score": 61,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.02763,
+   "rvol_1h": 0.00577,
+   "atr_pct": 9.270462,
+   "obv": 98.286586,
+   "funding": -0.011018,
+   "oi_usd": 28290303.72936,
+   "up_low": 53.41477,
+   "ch_24h": -0.252708,
+   "spot_share": 0.0,
+   "vi_p": 0.9153,
+   "vi_m": 1.1287,
+   "ivx_p": 0.8333,
+   "ivx_m": 1.2574,
+   "ivx_spread": -0.4241,
+   "ivx_dir": "down",
+   "score": 36
   }
  ],
  "VVVUSDT": [
@@ -116859,6 +117735,34 @@
    "vx_dir": "none",
    "score": 40,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 17.053,
+   "rvol_1h": 0.006764,
+   "atr_pct": 8.703119,
+   "obv": 3.785072,
+   "funding": 0.005958,
+   "oi_usd": 16283607.52084,
+   "up_low": 73.974699,
+   "ch_24h": -1.819333,
+   "spot_share": 0.0,
+   "vi_p": 1.0502,
+   "vi_m": 0.9998,
+   "ivx_p": 0.9155,
+   "ivx_m": 1.2423,
+   "ivx_spread": -0.3268,
+   "ivx_dir": "down",
+   "buy_share": 0.5006,
+   "delta_slope": 0.00076,
+   "vx_strength": 0.0,
+   "oi_x": 1.23,
+   "oi_held": 100.0,
+   "oi_cycles": 0.0,
+   "rel_vol": 1.98,
+   "vx_dir": "none",
+   "score": 40,
+   "flow_fired": 1
   }
  ],
  "PENGUUSDT": [
@@ -119685,6 +120589,28 @@
    "ivx_spread": 0.0181,
    "ivx_dir": "up",
    "score": 31
+  },
+  {
+   "t": 1787717031,
+   "price": 0.009484,
+   "vol_1h": 0.531436,
+   "vol_4h": 0.344569,
+   "rvol_1h": 0.522276,
+   "atr_pct": 8.580617,
+   "obv": 7.718139,
+   "funding": 0.005,
+   "oi_usd": 30738391.62372,
+   "up_low": 67.977329,
+   "ch_24h": 1.054875,
+   "basis": -0.011,
+   "spot_share": 0.168631,
+   "vi_p": 1.0564,
+   "vi_m": 1.0523,
+   "ivx_p": 0.9911,
+   "ivx_m": 1.0948,
+   "ivx_spread": -0.1037,
+   "ivx_dir": "down",
+   "score": 31
   }
  ],
  "TIAUSDT": [
@@ -122162,6 +123088,25 @@
    "ivx_m": 1.1203,
    "ivx_spread": -0.2312,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.3527,
+   "rvol_1h": 0.005361,
+   "atr_pct": 8.499737,
+   "obv": -2.557761,
+   "funding": 0.00034,
+   "oi_usd": 9736402.3599,
+   "up_low": 20.539986,
+   "ch_24h": 0.685127,
+   "basis": -0.113,
+   "spot_share": 0.106237,
+   "vi_p": 0.8566,
+   "vi_m": 1.1963,
+   "ivx_p": 0.8867,
+   "ivx_m": 1.1776,
+   "ivx_spread": -0.2909,
+   "ivx_dir": "down"
   }
  ],
  "SPXUSDT": [
@@ -124610,6 +125555,25 @@
    "ivx_spread": 0.4981,
    "ivx_dir": "up",
    "score": 34
+  },
+  {
+   "t": 1787717031,
+   "price": 0.5339,
+   "rvol_1h": 0.006264,
+   "atr_pct": 7.393038,
+   "obv": 21.800201,
+   "funding": 0.005,
+   "oi_usd": 6853521.6046,
+   "up_low": 73.513162,
+   "ch_24h": 4.053791,
+   "spot_share": 0.0,
+   "vi_p": 1.1911,
+   "vi_m": 0.852,
+   "ivx_p": 1.3003,
+   "ivx_m": 0.857,
+   "ivx_spread": 0.4433,
+   "ivx_dir": "up",
+   "score": 42
   }
  ],
  "GUAUSDT": [
@@ -127273,6 +128237,34 @@
    "rel_vol": 0.48,
    "vx_dir": "up",
    "score": 24,
+   "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.03937,
+   "rvol_1h": 0.060541,
+   "atr_pct": 10.795022,
+   "obv": 308.820083,
+   "funding": 0.027993,
+   "oi_usd": 4677885.9198,
+   "up_low": 18.655817,
+   "ch_24h": 3.224961,
+   "spot_share": 0.0,
+   "vi_p": 1.079,
+   "vi_m": 0.9722,
+   "ivx_p": 1.2028,
+   "ivx_m": 0.8505,
+   "ivx_spread": 0.3523,
+   "ivx_dir": "up",
+   "buy_share": 0.4847,
+   "delta_slope": -0.04149,
+   "vx_strength": 0.17,
+   "oi_x": 0.98,
+   "oi_held": 49.5,
+   "oi_cycles": 1.0,
+   "rel_vol": 0.48,
+   "vx_dir": "up",
+   "score": 31,
    "flow_fired": 1
   }
  ],
@@ -130145,6 +131137,26 @@
    "ivx_spread": 0.0107,
    "ivx_dir": "up",
    "score": 40
+  },
+  {
+   "t": 1787717031,
+   "price": 0.6993,
+   "rvol_1h": 0.001113,
+   "atr_pct": 6.111213,
+   "obv": 14.835255,
+   "funding": 0.005,
+   "oi_usd": 73302869.3544,
+   "up_low": 19.151474,
+   "ch_24h": 0.114531,
+   "basis": -0.1,
+   "spot_share": 0.153402,
+   "vi_p": 1.0893,
+   "vi_m": 1.0347,
+   "ivx_p": 1.0547,
+   "ivx_m": 1.0621,
+   "ivx_spread": -0.0074,
+   "ivx_dir": "down",
+   "score": 35
   }
  ],
  "ICPUSDT": [
@@ -132659,6 +133671,26 @@
    "ivx_spread": -0.0455,
    "ivx_dir": "down",
    "score": 29
+  },
+  {
+   "t": 1787717031,
+   "price": 2.398,
+   "rvol_1h": 0.003116,
+   "atr_pct": 6.624568,
+   "obv": 1.213532,
+   "funding": 0.01,
+   "oi_usd": 22146851.298,
+   "up_low": 20.441989,
+   "ch_24h": 0.841043,
+   "basis": -0.167,
+   "spot_share": 0.208729,
+   "vi_p": 0.9763,
+   "vi_m": 1.0633,
+   "ivx_p": 1.0025,
+   "ivx_m": 1.0542,
+   "ivx_spread": -0.0517,
+   "ivx_dir": "down",
+   "score": 30
   }
  ],
  "TSTUSDT": [
@@ -136147,6 +137179,26 @@
    "ivx_spread": 0.2929,
    "ivx_dir": "up",
    "score": 10
+  },
+  {
+   "t": 1787717031,
+   "price": 0.01571,
+   "rvol_1h": 0.026386,
+   "atr_pct": 14.66309,
+   "obv": 4.494174,
+   "funding": 0.005,
+   "oi_usd": 2864868.51479,
+   "up_low": 68.507991,
+   "ch_24h": -1.689612,
+   "basis": -0.064,
+   "spot_share": 0.283587,
+   "vi_p": 1.0221,
+   "vi_m": 1.0336,
+   "ivx_p": 1.1873,
+   "ivx_m": 0.8509,
+   "ivx_spread": 0.3364,
+   "ivx_dir": "up",
+   "score": 4
   }
  ],
  "CLUSDT": [
@@ -139401,6 +140453,26 @@
    "ivx_m": 1.2359,
    "ivx_spread": -0.4413,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 80.26,
+   "vol_1h": 0.718319,
+   "vol_4h": 1.319691,
+   "rvol_1h": 0.543342,
+   "atr_pct": 2.748211,
+   "obv": 4.940782,
+   "funding": 0.0,
+   "oi_usd": 171453509.1938,
+   "up_low": 19.666021,
+   "ch_24h": -0.889108,
+   "spot_share": 0.0,
+   "vi_p": 0.6503,
+   "vi_m": 1.3205,
+   "ivx_p": 0.787,
+   "ivx_m": 1.2807,
+   "ivx_spread": -0.4937,
+   "ivx_dir": "down"
   }
  ],
  "SKYAIUSDT": [
@@ -142334,6 +143406,24 @@
    "ivx_p": 1.0644,
    "ivx_m": 0.9359,
    "ivx_spread": 0.1285,
+   "ivx_dir": "up"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.0536,
+   "rvol_1h": 0.037045,
+   "atr_pct": 26.496535,
+   "obv": 3.897798,
+   "funding": 0.005,
+   "oi_usd": 8610160.62,
+   "up_low": 135.811703,
+   "ch_24h": 10.265377,
+   "spot_share": 0.0,
+   "vi_p": 0.8231,
+   "vi_m": 1.1964,
+   "ivx_p": 1.1525,
+   "ivx_m": 0.8692,
+   "ivx_spread": 0.2833,
    "ivx_dir": "up"
   }
  ],
@@ -145346,6 +146436,26 @@
    "ivx_spread": -0.1672,
    "ivx_dir": "down",
    "score": 23
+  },
+  {
+   "t": 1787717031,
+   "price": 33.89,
+   "rvol_1h": 0.012316,
+   "atr_pct": 12.991612,
+   "obv": 25.975912,
+   "funding": 0.005,
+   "oi_usd": 10792925.5937,
+   "up_low": 44.520256,
+   "ch_24h": 0.118168,
+   "basis": -0.147,
+   "spot_share": 0.199399,
+   "vi_p": 0.7955,
+   "vi_m": 1.2557,
+   "ivx_p": 1.0375,
+   "ivx_m": 1.0264,
+   "ivx_spread": 0.0111,
+   "ivx_dir": "up",
+   "score": 23
   }
  ],
  "PEOPLEUSDT": [
@@ -147956,6 +149066,25 @@
    "ivx_m": 1.0817,
    "ivx_spread": -0.1634,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.008216,
+   "rvol_1h": 0.008945,
+   "atr_pct": 16.343546,
+   "obv": 13.025999,
+   "funding": -0.006441,
+   "oi_usd": 6162759.248776,
+   "up_low": 70.633437,
+   "ch_24h": 5.10426,
+   "basis": -0.17,
+   "spot_share": 0.12054,
+   "vi_p": 0.6763,
+   "vi_m": 1.376,
+   "ivx_p": 1.0326,
+   "ivx_m": 1.0111,
+   "ivx_spread": 0.0215,
+   "ivx_dir": "up"
   }
  ],
  "1000FLOKIUSDT": [
@@ -150427,6 +151556,24 @@
    "ivx_p": 0.9768,
    "ivx_m": 1.0201,
    "ivx_spread": -0.0433,
+   "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.02637,
+   "rvol_1h": 0.010243,
+   "atr_pct": 7.920256,
+   "obv": 14.549802,
+   "funding": 0.01,
+   "oi_usd": 3968677.8801,
+   "up_low": 34.40367,
+   "ch_24h": 0.648855,
+   "spot_share": 0.0,
+   "vi_p": 0.9456,
+   "vi_m": 1.1626,
+   "ivx_p": 1.0018,
+   "ivx_m": 1.0808,
+   "ivx_spread": -0.079,
    "ivx_dir": "down"
   }
  ],
@@ -153866,6 +155013,34 @@
    "vx_dir": "up",
    "score": 49,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.008881,
+   "rvol_1h": 0.029259,
+   "atr_pct": 34.149951,
+   "obv": 8.199299,
+   "funding": 0.005,
+   "oi_usd": 3395337.809848,
+   "up_low": 85.059387,
+   "ch_24h": -0.426057,
+   "spot_share": 0.0,
+   "vi_p": 1.008,
+   "vi_m": 1.041,
+   "ivx_p": 1.0425,
+   "ivx_m": 1.0089,
+   "ivx_spread": 0.0336,
+   "ivx_dir": "up",
+   "buy_share": 0.4928,
+   "delta_slope": -0.01455,
+   "vx_strength": 0.271,
+   "oi_x": 1.15,
+   "oi_held": 33.2,
+   "oi_cycles": 2.0,
+   "rel_vol": 0.68,
+   "vx_dir": "up",
+   "score": 49,
+   "flow_fired": 1
   }
  ],
  "TUTUSDT": [
@@ -156378,6 +157553,28 @@
    "ivx_p": 1.0484,
    "ivx_m": 0.9594,
    "ivx_spread": 0.089,
+   "ivx_dir": "up",
+   "score": 36
+  },
+  {
+   "t": 1787717031,
+   "price": 0.04719,
+   "vol_1h": 0.39233,
+   "vol_4h": 0.312983,
+   "rvol_1h": 0.283554,
+   "atr_pct": 39.572549,
+   "obv": 127.271119,
+   "funding": 0.005,
+   "oi_usd": 16609464.25281,
+   "up_low": 400.424178,
+   "ch_24h": 5.546858,
+   "basis": 0.021,
+   "spot_share": 0.18521,
+   "vi_p": 0.9495,
+   "vi_m": 1.0933,
+   "ivx_p": 1.0554,
+   "ivx_m": 0.9525,
+   "ivx_spread": 0.1029,
    "ivx_dir": "up",
    "score": 36
   }
@@ -158894,6 +160091,26 @@
    "ivx_p": 1.104,
    "ivx_m": 0.8852,
    "ivx_spread": 0.2188,
+   "ivx_dir": "up",
+   "score": 38
+  },
+  {
+   "t": 1787717031,
+   "price": 0.03584,
+   "rvol_1h": 0.009596,
+   "atr_pct": 8.805006,
+   "obv": -74.142672,
+   "funding": 0.005,
+   "oi_usd": 9083085.02528,
+   "up_low": 15.575621,
+   "ch_24h": 1.587302,
+   "basis": -0.167,
+   "spot_share": 0.178785,
+   "vi_p": 0.9961,
+   "vi_m": 1.031,
+   "ivx_p": 1.0993,
+   "ivx_m": 0.9312,
+   "ivx_spread": 0.1681,
    "ivx_dir": "up",
    "score": 38
   }
@@ -161619,6 +162836,34 @@
    "ivx_spread": 0.287,
    "ivx_dir": "up",
    "score": 55
+  },
+  {
+   "t": 1787717031,
+   "price": 0.04094,
+   "rvol_1h": 0.427118,
+   "atr_pct": 11.609324,
+   "obv": 17.980723,
+   "funding": 0.075557,
+   "oi_usd": 5769416.03236,
+   "up_low": 157.971014,
+   "ch_24h": 19.988277,
+   "spot_share": 0.0,
+   "vi_p": 1.2738,
+   "vi_m": 0.7287,
+   "ivx_p": 1.4404,
+   "ivx_m": 0.5881,
+   "ivx_spread": 0.8523,
+   "ivx_dir": "up",
+   "buy_share": 0.4977,
+   "delta_slope": -0.00673,
+   "vx_strength": 0.884,
+   "oi_x": 1.35,
+   "oi_held": 49.4,
+   "oi_cycles": 1.0,
+   "rel_vol": 10.0,
+   "vx_dir": "down",
+   "score": 87,
+   "flow_fired": 2
   }
  ],
  "FHEUSDT": [
@@ -164139,6 +165384,25 @@
    "ivx_spread": 0.0776,
    "ivx_dir": "up",
    "score": 44
+  },
+  {
+   "t": 1787717031,
+   "price": 0.02132,
+   "rvol_1h": 0.016334,
+   "atr_pct": 18.550657,
+   "obv": -2.353675,
+   "funding": 0.005,
+   "oi_usd": 2746616.88288,
+   "up_low": 38.441558,
+   "ch_24h": 2.352376,
+   "spot_share": 0.0,
+   "vi_p": 1.0596,
+   "vi_m": 1.0142,
+   "ivx_p": 1.1045,
+   "ivx_m": 0.9459,
+   "ivx_spread": 0.1586,
+   "ivx_dir": "up",
+   "score": 38
   }
  ],
  "INXUSDT": [
@@ -166657,6 +167921,25 @@
    "ivx_p": 1.2543,
    "ivx_m": 0.6961,
    "ivx_spread": 0.5582,
+   "ivx_dir": "up",
+   "score": 40
+  },
+  {
+   "t": 1787717031,
+   "price": 0.007151,
+   "rvol_1h": 0.070524,
+   "atr_pct": 11.488903,
+   "obv": -25.110792,
+   "funding": 0.056715,
+   "oi_usd": 2269617.381865,
+   "up_low": 24.842877,
+   "ch_24h": 2.744253,
+   "spot_share": 0.0,
+   "vi_p": 1.0846,
+   "vi_m": 0.9619,
+   "ivx_p": 1.2511,
+   "ivx_m": 0.7752,
+   "ivx_spread": 0.4759,
    "ivx_dir": "up",
    "score": 40
   }
@@ -169623,6 +170906,26 @@
    "ivx_m": 1.0446,
    "ivx_spread": 0.2978,
    "ivx_dir": "up"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.09223,
+   "rvol_1h": 0.016507,
+   "atr_pct": 7.939003,
+   "obv": -7.32242,
+   "funding": 0.005,
+   "oi_usd": 1427851.91998,
+   "up_low": 31.53166,
+   "ch_24h": 2.114703,
+   "basis": -0.076,
+   "spot_share": 0.048504,
+   "vi_p": 1.0016,
+   "vi_m": 1.0239,
+   "ivx_p": 1.2641,
+   "ivx_m": 0.8038,
+   "ivx_spread": 0.4603,
+   "ivx_dir": "up",
+   "score": 4
   }
  ],
  "PROMUSDT": [
@@ -172515,6 +173818,28 @@
    "ivx_spread": 0.0849,
    "ivx_dir": "up",
    "score": 60
+  },
+  {
+   "t": 1787717031,
+   "price": 3.936,
+   "vol_1h": 1.973815,
+   "vol_4h": 4.42999,
+   "rvol_1h": 1.298791,
+   "atr_pct": 15.44534,
+   "obv": 332.596328,
+   "funding": -0.050642,
+   "oi_usd": 13762401.12,
+   "up_low": 268.539326,
+   "ch_24h": -4.581818,
+   "basis": -0.178,
+   "spot_share": 0.056144,
+   "vi_p": 1.132,
+   "vi_m": 0.752,
+   "ivx_p": 0.9581,
+   "ivx_m": 1.01,
+   "ivx_spread": -0.0519,
+   "ivx_dir": "down",
+   "score": 68
   }
  ],
  "UNIUSDT": [
@@ -175355,6 +176680,28 @@
    "ivx_p": 0.9546,
    "ivx_m": 1.0772,
    "ivx_spread": -0.1226,
+   "ivx_dir": "down",
+   "score": 30
+  },
+  {
+   "t": 1787717031,
+   "price": 4.288,
+   "vol_1h": 0.509234,
+   "vol_4h": 0.352397,
+   "rvol_1h": 0.462321,
+   "atr_pct": 7.266125,
+   "obv": 9.026174,
+   "funding": 0.01,
+   "oi_usd": 77947941.504,
+   "up_low": 57.937385,
+   "ch_24h": 0.445069,
+   "basis": -0.023,
+   "spot_share": 0.178166,
+   "vi_p": 0.8735,
+   "vi_m": 1.1265,
+   "ivx_p": 0.9513,
+   "ivx_m": 1.1004,
+   "ivx_spread": -0.1491,
    "ivx_dir": "down",
    "score": 30
   }
@@ -178253,6 +179600,26 @@
    "ivx_spread": -0.3505,
    "ivx_dir": "down",
    "score": 40
+  },
+  {
+   "t": 1787717031,
+   "price": 0.5713,
+   "rvol_1h": 0.002312,
+   "atr_pct": 10.903703,
+   "obv": 115.735805,
+   "funding": 0.005,
+   "oi_usd": 24483361.94667,
+   "up_low": 85.426809,
+   "ch_24h": 3.104133,
+   "basis": -0.157,
+   "spot_share": 0.156296,
+   "vi_p": 0.8954,
+   "vi_m": 1.1516,
+   "ivx_p": 0.8881,
+   "ivx_m": 1.2131,
+   "ivx_spread": -0.325,
+   "ivx_dir": "down",
+   "score": 40
   }
  ],
  "METUSDT": [
@@ -180924,6 +182291,35 @@
    "vx_dir": "down",
    "score": 62,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.2092,
+   "rvol_1h": 0.028801,
+   "atr_pct": 10.31139,
+   "obv": 52.456128,
+   "funding": 0.003152,
+   "oi_usd": 3418010.016,
+   "up_low": 64.336214,
+   "ch_24h": -0.664767,
+   "basis": -0.048,
+   "spot_share": 0.105282,
+   "vi_p": 0.8188,
+   "vi_m": 1.2901,
+   "ivx_p": 0.9306,
+   "ivx_m": 1.1499,
+   "ivx_spread": -0.2193,
+   "ivx_dir": "down",
+   "buy_share": 0.4965,
+   "delta_slope": -0.00372,
+   "vx_strength": 0.148,
+   "oi_x": 0.78,
+   "oi_held": 0.0,
+   "oi_cycles": 1.0,
+   "rel_vol": 2.56,
+   "vx_dir": "down",
+   "score": 62,
+   "flow_fired": 1
   }
  ],
  "BTWUSDT": [
@@ -183326,6 +184722,26 @@
    "ivx_p": 0.9125,
    "ivx_m": 1.0943,
    "ivx_spread": -0.1818,
+   "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.40259,
+   "vol_1h": 0.838463,
+   "vol_4h": 0.481674,
+   "rvol_1h": 0.374179,
+   "atr_pct": 32.114381,
+   "obv": -4.752561,
+   "funding": 0.031357,
+   "oi_usd": 81018969.30794,
+   "up_low": 743.473706,
+   "ch_24h": -1.449169,
+   "spot_share": 0.0,
+   "vi_p": 0.9834,
+   "vi_m": 1.0796,
+   "ivx_p": 0.9016,
+   "ivx_m": 1.0995,
+   "ivx_spread": -0.1979,
    "ivx_dir": "down"
   }
  ],
@@ -185776,6 +187192,25 @@
    "ivx_p": 1.0282,
    "ivx_m": 0.9758,
    "ivx_spread": 0.0524,
+   "ivx_dir": "up",
+   "score": 15
+  },
+  {
+   "t": 1787717031,
+   "price": 0.6827,
+   "rvol_1h": 0.0015,
+   "atr_pct": 38.818557,
+   "obv": -43.822073,
+   "funding": 0.014579,
+   "oi_usd": 11890656.2181,
+   "up_low": 211.59288,
+   "ch_24h": 4.660432,
+   "spot_share": 0.0,
+   "vi_p": 1.1917,
+   "vi_m": 0.8468,
+   "ivx_p": 1.0467,
+   "ivx_m": 1.0134,
+   "ivx_spread": 0.0333,
    "ivx_dir": "up",
    "score": 15
   }
@@ -188684,6 +190119,35 @@
    "vx_dir": "up",
    "score": 45,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 443.1,
+   "rvol_1h": 0.001649,
+   "atr_pct": 4.838798,
+   "obv": 42.945809,
+   "funding": 0.01,
+   "oi_usd": 45889939.9581,
+   "up_low": 46.74615,
+   "ch_24h": 0.732018,
+   "basis": 273.294,
+   "spot_share": 0.011381,
+   "vi_p": 1.1588,
+   "vi_m": 0.9238,
+   "ivx_p": 1.0149,
+   "ivx_m": 1.083,
+   "ivx_spread": -0.0681,
+   "ivx_dir": "down",
+   "buy_share": 0.4972,
+   "delta_slope": -0.00379,
+   "vx_strength": 0.245,
+   "oi_x": 1.02,
+   "oi_held": 84.5,
+   "oi_cycles": 1.0,
+   "rel_vol": 0.83,
+   "vx_dir": "up",
+   "score": 45,
+   "flow_fired": 1
   }
  ],
  "WLFIUSDT": [
@@ -191364,6 +192828,26 @@
    "ivx_spread": 0.1277,
    "ivx_dir": "up",
    "score": 34
+  },
+  {
+   "t": 1787717031,
+   "price": 0.05901,
+   "rvol_1h": 0.001373,
+   "atr_pct": 7.248166,
+   "obv": 1.155091,
+   "funding": 0.005,
+   "oi_usd": 113661149.75502,
+   "up_low": 16.620553,
+   "ch_24h": 1.917098,
+   "basis": 0.017,
+   "spot_share": 0.175156,
+   "vi_p": 1.0103,
+   "vi_m": 1.0569,
+   "ivx_p": 1.1095,
+   "ivx_m": 0.9813,
+   "ivx_spread": 0.1282,
+   "ivx_dir": "up",
+   "score": 38
   }
  ],
  "UBUSDT": [
@@ -193789,6 +195273,25 @@
    "ivx_spread": -0.3961,
    "ivx_dir": "down",
    "score": 10
+  },
+  {
+   "t": 1787717031,
+   "price": 0.12413,
+   "rvol_1h": 0.063515,
+   "atr_pct": 9.685123,
+   "obv": -1.00095,
+   "funding": 0.005,
+   "oi_usd": 4414341.47185,
+   "up_low": 88.762165,
+   "ch_24h": 1.438261,
+   "spot_share": 0.0,
+   "vi_p": 1.0618,
+   "vi_m": 1.0596,
+   "ivx_p": 0.8197,
+   "ivx_m": 1.2226,
+   "ivx_spread": -0.4029,
+   "ivx_dir": "down",
+   "score": 4
   }
  ],
  "VELVETUSDT": [
@@ -196207,6 +197710,24 @@
    "ivx_p": 0.8424,
    "ivx_m": 1.1991,
    "ivx_spread": -0.3567,
+   "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.1258,
+   "rvol_1h": 0.00028,
+   "atr_pct": 213.326141,
+   "obv": -9.836513,
+   "funding": 0.005,
+   "oi_usd": 8570922.572,
+   "up_low": 4.225352,
+   "ch_24h": 0.559552,
+   "spot_share": 0.0,
+   "vi_p": 0.5696,
+   "vi_m": 1.4536,
+   "ivx_p": 0.9649,
+   "ivx_m": 1.264,
+   "ivx_spread": -0.2991,
    "ivx_dir": "down"
   }
  ],
@@ -198722,6 +200243,26 @@
    "ivx_spread": 0.0331,
    "ivx_dir": "up",
    "score": 34
+  },
+  {
+   "t": 1787717031,
+   "price": 0.01363,
+   "rvol_1h": 0.093504,
+   "atr_pct": 18.31045,
+   "obv": -2.317904,
+   "funding": 0.005,
+   "oi_usd": 5840849.71117,
+   "up_low": 32.073643,
+   "ch_24h": 2.404207,
+   "basis": -0.293,
+   "spot_share": 0.123292,
+   "vi_p": 1.0458,
+   "vi_m": 1.0063,
+   "ivx_p": 1.0942,
+   "ivx_m": 0.9331,
+   "ivx_spread": 0.1611,
+   "ivx_dir": "up",
+   "score": 38
   }
  ],
  "CETUSUSDT": [
@@ -201205,6 +202746,25 @@
    "ivx_p": 0.8523,
    "ivx_m": 1.155,
    "ivx_spread": -0.3027,
+   "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.02433,
+   "rvol_1h": 0.032726,
+   "atr_pct": 8.572603,
+   "obv": 12.530307,
+   "funding": 0.005,
+   "oi_usd": 1049416.96089,
+   "up_low": 48.807339,
+   "ch_24h": 0.53719,
+   "basis": -0.082,
+   "spot_share": 0.335089,
+   "vi_p": 0.7951,
+   "vi_m": 1.2842,
+   "ivx_p": 0.9179,
+   "ivx_m": 1.1404,
+   "ivx_spread": -0.2225,
    "ivx_dir": "down"
   }
  ],
@@ -203907,6 +205467,28 @@
    "ivx_p": 0.7874,
    "ivx_m": 1.2092,
    "ivx_spread": -0.4218,
+   "ivx_dir": "down",
+   "score": 29
+  },
+  {
+   "t": 1787717031,
+   "price": 0.7611,
+   "vol_1h": 0.512464,
+   "vol_4h": 0.410457,
+   "rvol_1h": 0.475119,
+   "atr_pct": 7.655273,
+   "obv": -2.328131,
+   "funding": 0.01,
+   "oi_usd": 101004040.60971,
+   "up_low": 20.047319,
+   "ch_24h": 0.501783,
+   "basis": -0.013,
+   "spot_share": 0.172138,
+   "vi_p": 0.839,
+   "vi_m": 1.1997,
+   "ivx_p": 0.871,
+   "ivx_m": 1.249,
+   "ivx_spread": -0.378,
    "ivx_dir": "down",
    "score": 29
   }
@@ -206914,6 +208496,37 @@
    "ivx_spread": 0.2501,
    "ivx_dir": "up",
    "score": 33
+  },
+  {
+   "t": 1787717031,
+   "price": 1.1983,
+   "vol_1h": 1.610359,
+   "vol_4h": 1.706611,
+   "rvol_1h": 0.382858,
+   "atr_pct": 9.3883,
+   "obv": 267.604206,
+   "funding": 0.005,
+   "oi_usd": 26657603.36567,
+   "up_low": 69.827098,
+   "ch_24h": 0.133701,
+   "basis": -0.058,
+   "spot_share": 0.152461,
+   "vi_p": 0.9622,
+   "vi_m": 1.0454,
+   "ivx_p": 1.1544,
+   "ivx_m": 1.0479,
+   "ivx_spread": 0.1065,
+   "ivx_dir": "up",
+   "buy_share": 0.4961,
+   "delta_slope": -0.0037,
+   "vx_strength": 0.173,
+   "oi_x": 1.19,
+   "oi_held": 100.0,
+   "oi_cycles": 0.0,
+   "rel_vol": 10.0,
+   "vx_dir": "down",
+   "score": 62,
+   "flow_fired": 2
   }
  ],
  "SQDUSDT": [
@@ -210314,6 +211927,34 @@
    "vx_dir": "up",
    "score": 56,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.03317,
+   "rvol_1h": 0.005167,
+   "atr_pct": 14.787459,
+   "obv": 20.262747,
+   "funding": 0.005,
+   "oi_usd": 1405498.67762,
+   "up_low": 26.89365,
+   "ch_24h": 4.604226,
+   "spot_share": 0.0,
+   "vi_p": 1.1226,
+   "vi_m": 0.9247,
+   "ivx_p": 1.2426,
+   "ivx_m": 0.9879,
+   "ivx_spread": 0.2547,
+   "ivx_dir": "up",
+   "buy_share": 0.4933,
+   "delta_slope": -0.01216,
+   "vx_strength": 0.315,
+   "oi_x": 1.04,
+   "oi_held": 45.2,
+   "oi_cycles": 1.0,
+   "rel_vol": 3.12,
+   "vx_dir": "up",
+   "score": 61,
+   "flow_fired": 1
   }
  ],
  "OPUSDT": [
@@ -212847,6 +214488,26 @@
    "ivx_spread": -0.0766,
    "ivx_dir": "down",
    "score": 28
+  },
+  {
+   "t": 1787717031,
+   "price": 0.1024,
+   "rvol_1h": 0.004508,
+   "atr_pct": 7.677874,
+   "obv": 8.310627,
+   "funding": 0.01,
+   "oi_usd": 12347077.92896,
+   "up_low": 27.047146,
+   "ch_24h": 0.966279,
+   "basis": -0.098,
+   "spot_share": 0.129285,
+   "vi_p": 0.7788,
+   "vi_m": 1.2967,
+   "ivx_p": 0.9823,
+   "ivx_m": 1.094,
+   "ivx_spread": -0.1117,
+   "ivx_dir": "down",
+   "score": 29
   }
  ],
  "ONDOUSDT": [
@@ -215451,6 +217112,27 @@
    "ivx_m": 1.1256,
    "ivx_spread": -0.2474,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.3665,
+   "vol_1h": 0.540782,
+   "vol_4h": 0.384514,
+   "rvol_1h": 0.45207,
+   "atr_pct": 8.390177,
+   "obv": -7.589469,
+   "funding": -0.004438,
+   "oi_usd": 43144886.2831,
+   "up_low": 22.166667,
+   "ch_24h": 0.79758,
+   "basis": -0.082,
+   "spot_share": 0.136194,
+   "vi_p": 0.9011,
+   "vi_m": 1.1254,
+   "ivx_p": 0.9718,
+   "ivx_m": 1.1239,
+   "ivx_spread": -0.1521,
+   "ivx_dir": "down"
   }
  ],
  "1000BONKUSDT": [
@@ -217899,6 +219581,25 @@
    "ivx_spread": -0.2644,
    "ivx_dir": "down",
    "score": 33
+  },
+  {
+   "t": 1787717031,
+   "price": 0.003039,
+   "rvol_1h": 0.035546,
+   "atr_pct": 8.569548,
+   "obv": 8.211664,
+   "funding": -0.001588,
+   "oi_usd": 14254576.256349,
+   "up_low": 37.200903,
+   "ch_24h": 1.604814,
+   "spot_share": 0.0,
+   "vi_p": 0.8665,
+   "vi_m": 1.1926,
+   "ivx_p": 0.8967,
+   "ivx_m": 1.1892,
+   "ivx_spread": -0.2925,
+   "ivx_dir": "down",
+   "score": 34
   }
  ],
  "SANDUSDT": [
@@ -220557,6 +222258,35 @@
    "oi_held": 100.0,
    "oi_cycles": 0.0,
    "rel_vol": 1.91,
+   "vx_dir": "down",
+   "score": 19,
+   "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.04146,
+   "rvol_1h": 0.014342,
+   "atr_pct": 7.980153,
+   "obv": -42.154867,
+   "funding": -0.139438,
+   "oi_usd": 7220085.9045,
+   "up_low": 10.383387,
+   "ch_24h": 1.99262,
+   "basis": -0.289,
+   "spot_share": 0.064661,
+   "vi_p": 0.8144,
+   "vi_m": 1.2481,
+   "ivx_p": 0.9487,
+   "ivx_m": 1.1377,
+   "ivx_spread": -0.189,
+   "ivx_dir": "down",
+   "buy_share": 0.4855,
+   "delta_slope": -0.02513,
+   "vx_strength": 0.119,
+   "oi_x": 1.51,
+   "oi_held": 100.0,
+   "oi_cycles": 0.0,
+   "rel_vol": 1.62,
    "vx_dir": "down",
    "score": 19,
    "flow_fired": 1
@@ -223816,6 +225546,35 @@
    "vx_dir": "up",
    "score": 69,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.011897,
+   "rvol_1h": 0.010208,
+   "atr_pct": 13.200207,
+   "obv": -11.017923,
+   "funding": -0.034768,
+   "oi_usd": 6904195.111205,
+   "up_low": 66.391608,
+   "ch_24h": 2.94194,
+   "basis": -0.193,
+   "spot_share": 0.120465,
+   "vi_p": 1.0208,
+   "vi_m": 1.0166,
+   "ivx_p": 0.8716,
+   "ivx_m": 1.2306,
+   "ivx_spread": -0.359,
+   "ivx_dir": "down",
+   "buy_share": 0.4952,
+   "delta_slope": -0.0088,
+   "vx_strength": 0.11,
+   "oi_x": 0.89,
+   "oi_held": 18.4,
+   "oi_cycles": 1.0,
+   "rel_vol": 0.16,
+   "vx_dir": "up",
+   "score": 69,
+   "flow_fired": 1
   }
  ],
  "HOMEUSDT": [
@@ -226380,6 +228139,26 @@
    "ivx_spread": -0.1353,
    "ivx_dir": "down",
    "score": 38
+  },
+  {
+   "t": 1787717031,
+   "price": 0.006156,
+   "rvol_1h": 0.103004,
+   "atr_pct": 16.63998,
+   "obv": 25.137564,
+   "funding": -0.346916,
+   "oi_usd": 6943866.992352,
+   "up_low": 25.351252,
+   "ch_24h": 0.654022,
+   "basis": -0.71,
+   "spot_share": 0.181079,
+   "vi_p": 1.0098,
+   "vi_m": 1.0325,
+   "ivx_p": 0.8927,
+   "ivx_m": 1.1473,
+   "ivx_spread": -0.2546,
+   "ivx_dir": "down",
+   "score": 38
   }
  ],
  "ATOMUSDT": [
@@ -228875,6 +230654,25 @@
    "ivx_p": 0.9696,
    "ivx_m": 1.0304,
    "ivx_spread": -0.0608,
+   "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 1.529,
+   "rvol_1h": 0.003246,
+   "atr_pct": 6.418761,
+   "obv": 16.437515,
+   "funding": -0.000924,
+   "oi_usd": 15807106.13339,
+   "up_low": 26.468156,
+   "ch_24h": 0.52597,
+   "basis": -0.131,
+   "spot_share": 0.109914,
+   "vi_p": 0.8713,
+   "vi_m": 1.1793,
+   "ivx_p": 1.0464,
+   "ivx_m": 1.0536,
+   "ivx_spread": -0.0072,
    "ivx_dir": "down"
   }
  ],
@@ -232044,6 +233842,35 @@
    "vx_dir": "up",
    "score": 30,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 1.7193,
+   "rvol_1h": 0.006318,
+   "atr_pct": 4.828792,
+   "obv": 21.187809,
+   "funding": 0.005,
+   "oi_usd": 9550106.3064,
+   "up_low": 33.797665,
+   "ch_24h": 0.367776,
+   "basis": -0.041,
+   "spot_share": 0.233586,
+   "vi_p": 0.9594,
+   "vi_m": 1.1118,
+   "ivx_p": 0.9885,
+   "ivx_m": 1.1072,
+   "ivx_spread": -0.1187,
+   "ivx_dir": "down",
+   "buy_share": 0.4917,
+   "delta_slope": -0.01523,
+   "vx_strength": 0.135,
+   "oi_x": 1.1,
+   "oi_held": 70.5,
+   "oi_cycles": 1.0,
+   "rel_vol": 0.66,
+   "vx_dir": "up",
+   "score": 30,
+   "flow_fired": 1
   }
  ],
  "REUSDT": [
@@ -234553,6 +236380,26 @@
    "ivx_spread": 0.0194,
    "ivx_dir": "up",
    "score": 10
+  },
+  {
+   "t": 1787717031,
+   "price": 0.5684,
+   "rvol_1h": 0.008568,
+   "atr_pct": 11.597718,
+   "obv": 32.876083,
+   "funding": 0.005,
+   "oi_usd": 10248277.0096,
+   "up_low": 59.662921,
+   "ch_24h": 3.06437,
+   "basis": -0.105,
+   "spot_share": 0.791171,
+   "vi_p": 1.0923,
+   "vi_m": 0.9394,
+   "ivx_p": 1.1175,
+   "ivx_m": 0.9752,
+   "ivx_spread": 0.1423,
+   "ivx_dir": "up",
+   "score": 15
   }
  ],
  "TRUMPUSDT": [
@@ -237090,6 +238937,28 @@
    "ivx_p": 0.8196,
    "ivx_m": 1.2131,
    "ivx_spread": -0.3935,
+   "ivx_dir": "down",
+   "score": 40
+  },
+  {
+   "t": 1787717031,
+   "price": 2.192,
+   "vol_1h": 0.597884,
+   "vol_4h": 0.427568,
+   "rvol_1h": 0.625184,
+   "atr_pct": 15.201382,
+   "obv": 3221.998621,
+   "funding": -0.014582,
+   "oi_usd": 56361783.3408,
+   "up_low": 60.821717,
+   "ch_24h": 0.92081,
+   "basis": -0.091,
+   "spot_share": 0.077018,
+   "vi_p": 0.7458,
+   "vi_m": 1.2771,
+   "ivx_p": 0.8513,
+   "ivx_m": 1.1924,
+   "ivx_spread": -0.3411,
    "ivx_dir": "down",
    "score": 40
   }
@@ -240474,6 +242343,35 @@
    "vx_dir": "up",
    "score": 29,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.09332,
+   "rvol_1h": 0.015936,
+   "atr_pct": 7.195671,
+   "obv": 17.034363,
+   "funding": -0.003925,
+   "oi_usd": 17363705.940168,
+   "up_low": 29.431345,
+   "ch_24h": 1.269669,
+   "basis": -0.086,
+   "spot_share": 0.190099,
+   "vi_p": 0.7972,
+   "vi_m": 1.2737,
+   "ivx_p": 0.9426,
+   "ivx_m": 1.1607,
+   "ivx_spread": -0.2181,
+   "ivx_dir": "down",
+   "buy_share": 0.4885,
+   "delta_slope": -0.02607,
+   "vx_strength": 0.205,
+   "oi_x": 0.82,
+   "oi_held": 4.5,
+   "oi_cycles": 1.0,
+   "rel_vol": 0.79,
+   "vx_dir": "up",
+   "score": 29,
+   "flow_fired": 1
   }
  ],
  "CAPUSDT": [
@@ -243188,6 +245086,34 @@
    "vx_dir": "up",
    "score": 29,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.07068,
+   "rvol_1h": 0.051982,
+   "atr_pct": 12.549519,
+   "obv": 80.27214,
+   "funding": -0.000776,
+   "oi_usd": 12271106.15028,
+   "up_low": 357.475728,
+   "ch_24h": 1.727116,
+   "spot_share": 0.0,
+   "vi_p": 1.0373,
+   "vi_m": 1.0065,
+   "ivx_p": 1.2199,
+   "ivx_m": 0.8912,
+   "ivx_spread": 0.3287,
+   "ivx_dir": "up",
+   "buy_share": 0.5074,
+   "delta_slope": 0.02032,
+   "vx_strength": 0.107,
+   "oi_x": 0.88,
+   "oi_held": 25.7,
+   "oi_cycles": 2.0,
+   "rel_vol": 0.3,
+   "vx_dir": "up",
+   "score": 29,
+   "flow_fired": 1
   }
  ],
  "SEIUSDT": [
@@ -245690,6 +247616,25 @@
    "ivx_p": 0.9766,
    "ivx_m": 1.0222,
    "ivx_spread": -0.0456,
+   "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.04657,
+   "rvol_1h": 0.009283,
+   "atr_pct": 5.955704,
+   "obv": -19.203063,
+   "funding": 0.01,
+   "oi_usd": 7490143.65023,
+   "up_low": 21.942917,
+   "ch_24h": 1.349293,
+   "basis": -0.043,
+   "spot_share": 0.180867,
+   "vi_p": 0.9358,
+   "vi_m": 1.121,
+   "ivx_p": 0.9959,
+   "ivx_m": 1.0999,
+   "ivx_spread": -0.104,
    "ivx_dir": "down"
   }
  ],
@@ -248454,6 +250399,27 @@
    "ivx_m": 1.2283,
    "ivx_spread": -0.4165,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 783.57,
+   "vol_1h": 0.399327,
+   "vol_4h": 0.523591,
+   "rvol_1h": 0.367408,
+   "atr_pct": 8.576406,
+   "obv": 15.44541,
+   "funding": 0.01,
+   "oi_usd": 411042875.11272,
+   "up_low": 113.059793,
+   "ch_24h": 2.052591,
+   "basis": 0.041,
+   "spot_share": 0.117236,
+   "vi_p": 0.8571,
+   "vi_m": 1.2084,
+   "ivx_p": 0.8893,
+   "ivx_m": 1.2439,
+   "ivx_spread": -0.3546,
+   "ivx_dir": "down"
   }
  ],
  "1000PEPEUSDT": [
@@ -251066,6 +253032,26 @@
    "vx_dir": "up",
    "score": 21,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.003854,
+   "vol_1h": 0.481339,
+   "vol_4h": 0.34362,
+   "rvol_1h": 0.415765,
+   "atr_pct": 8.582547,
+   "obv": 5.944667,
+   "funding": 0.01,
+   "oi_usd": 70217282.172102,
+   "up_low": 73.049295,
+   "ch_24h": 0.892577,
+   "spot_share": 0.0,
+   "vi_p": 0.8882,
+   "vi_m": 1.115,
+   "ivx_p": 0.9522,
+   "ivx_m": 1.1789,
+   "ivx_spread": -0.2267,
+   "ivx_dir": "down"
   }
  ],
  "ENAUSDT": [
@@ -253607,6 +255593,28 @@
    "vx_dir": "none",
    "score": 62,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.1417,
+   "vol_1h": 0.601954,
+   "vol_4h": 0.323147,
+   "rvol_1h": 0.606137,
+   "atr_pct": 10.579696,
+   "obv": 71.847793,
+   "funding": 0.005,
+   "oi_usd": 83817691.9372,
+   "up_low": 102.082145,
+   "ch_24h": -0.784204,
+   "basis": -0.071,
+   "spot_share": 0.100149,
+   "vi_p": 0.777,
+   "vi_m": 1.2714,
+   "ivx_p": 0.8946,
+   "ivx_m": 1.1011,
+   "ivx_spread": -0.2065,
+   "ivx_dir": "down",
+   "score": 33
   }
  ],
  "AVAXUSDT": [
@@ -256637,6 +258645,35 @@
    "vx_dir": "none",
    "score": 29,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 7.362,
+   "rvol_1h": 0.000689,
+   "atr_pct": 5.923274,
+   "obv": 0.71287,
+   "funding": 0.001379,
+   "oi_usd": 57711594.078,
+   "up_low": 22.028841,
+   "ch_24h": 0.532569,
+   "basis": -0.068,
+   "spot_share": 0.163797,
+   "vi_p": 0.9322,
+   "vi_m": 1.142,
+   "ivx_p": 0.9693,
+   "ivx_m": 1.1545,
+   "ivx_spread": -0.1852,
+   "ivx_dir": "down",
+   "buy_share": 0.4855,
+   "delta_slope": -0.02507,
+   "vx_strength": 0.0,
+   "oi_x": 1.03,
+   "oi_held": 30.3,
+   "oi_cycles": 2.0,
+   "rel_vol": 0.73,
+   "vx_dir": "none",
+   "score": 29,
+   "flow_fired": 1
   }
  ],
  "AAVEUSDT": [
@@ -259151,6 +261188,28 @@
    "ivx_spread": -0.0852,
    "ivx_dir": "down",
    "score": 20
+  },
+  {
+   "t": 1787717031,
+   "price": 128.22,
+   "vol_1h": 0.544904,
+   "vol_4h": 0.314649,
+   "rvol_1h": 0.455111,
+   "atr_pct": 7.180738,
+   "obv": 15.553063,
+   "funding": 0.01,
+   "oi_usd": 61873137.99,
+   "up_low": 55.042322,
+   "ch_24h": 1.335652,
+   "basis": -0.039,
+   "spot_share": 0.150356,
+   "vi_p": 0.8371,
+   "vi_m": 1.1747,
+   "ivx_p": 0.964,
+   "ivx_m": 1.1136,
+   "ivx_spread": -0.1496,
+   "ivx_dir": "down",
+   "score": 20
   }
  ],
  "DOTUSDT": [
@@ -261620,6 +263679,25 @@
    "ivx_p": 0.7905,
    "ivx_m": 1.2173,
    "ivx_spread": -0.4268,
+   "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.8563,
+   "rvol_1h": 0.002041,
+   "atr_pct": 6.011745,
+   "obv": -4.174248,
+   "funding": 0.01,
+   "oi_usd": 27885916.77212,
+   "up_low": 18.650409,
+   "ch_24h": 0.610974,
+   "basis": -0.082,
+   "spot_share": 0.125758,
+   "vi_p": 0.8053,
+   "vi_m": 1.2512,
+   "ivx_p": 0.8685,
+   "ivx_m": 1.2034,
+   "ivx_spread": -0.3349,
    "ivx_dir": "down"
   }
  ],
@@ -264092,6 +266170,25 @@
    "ivx_p": 0.7967,
    "ivx_m": 1.2011,
    "ivx_spread": -0.4044,
+   "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.18424,
+   "rvol_1h": 0.00969,
+   "atr_pct": 6.998635,
+   "obv": -7.273472,
+   "funding": 0.01,
+   "oi_usd": 32274081.15848,
+   "up_low": 20.947942,
+   "ch_24h": 1.030928,
+   "basis": -0.033,
+   "spot_share": 0.23001,
+   "vi_p": 0.8236,
+   "vi_m": 1.2413,
+   "ivx_p": 0.8228,
+   "ivx_m": 1.2578,
+   "ivx_spread": -0.435,
    "ivx_dir": "down"
   }
  ],
@@ -266916,6 +269013,25 @@
    "ivx_m": 1.1368,
    "ivx_spread": -0.2601,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.0782,
+   "rvol_1h": 0.007872,
+   "atr_pct": 5.40738,
+   "obv": -2.306298,
+   "funding": 0.01,
+   "oi_usd": 27182162.2706,
+   "up_low": 21.749961,
+   "ch_24h": 0.604657,
+   "basis": -0.026,
+   "spot_share": 0.265348,
+   "vi_p": 0.9899,
+   "vi_m": 1.0911,
+   "ivx_p": 0.8699,
+   "ivx_m": 1.2114,
+   "ivx_spread": -0.3415,
+   "ivx_dir": "down"
   }
  ],
  "1000SHIBUSDT": [
@@ -269675,6 +271791,24 @@
    "ivx_m": 1.1282,
    "ivx_spread": -0.2221,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.005334,
+   "rvol_1h": 0.003072,
+   "atr_pct": 7.141518,
+   "obv": -7.73252,
+   "funding": 0.01,
+   "oi_usd": 23044116.335856,
+   "up_low": 31.573754,
+   "ch_24h": 1.329787,
+   "spot_share": 0.0,
+   "vi_p": 0.9418,
+   "vi_m": 1.1129,
+   "ivx_p": 0.9384,
+   "ivx_m": 1.1661,
+   "ivx_spread": -0.2277,
+   "ivx_dir": "down"
   }
  ],
  "FETUSDT": [
@@ -272383,6 +274517,26 @@
    "ivx_spread": -0.2315,
    "ivx_dir": "down",
    "score": 4
+  },
+  {
+   "t": 1787717031,
+   "price": 0.1655,
+   "rvol_1h": 0.013437,
+   "atr_pct": 8.938282,
+   "obv": 8.393278,
+   "funding": 0.00166,
+   "oi_usd": 21731499.487,
+   "up_low": 38.958858,
+   "ch_24h": 1.846154,
+   "basis": -0.121,
+   "spot_share": 0.25688,
+   "vi_p": 1.0141,
+   "vi_m": 1.0476,
+   "ivx_p": 0.9316,
+   "ivx_m": 1.1567,
+   "ivx_spread": -0.2251,
+   "ivx_dir": "down",
+   "score": 4
   }
  ],
  "LDOUSDT": [
@@ -274902,6 +277056,26 @@
    "ivx_p": 0.9391,
    "ivx_m": 1.0896,
    "ivx_spread": -0.1505,
+   "ivx_dir": "down",
+   "score": 26
+  },
+  {
+   "t": 1787717031,
+   "price": 0.3628,
+   "rvol_1h": 0.009744,
+   "atr_pct": 7.713813,
+   "obv": 17.271986,
+   "funding": 0.01,
+   "oi_usd": 16091703.3972,
+   "up_low": 54.251701,
+   "ch_24h": 0.027571,
+   "basis": -0.11,
+   "spot_share": 0.152774,
+   "vi_p": 0.8298,
+   "vi_m": 1.2489,
+   "ivx_p": 0.9189,
+   "ivx_m": 1.1855,
+   "ivx_spread": -0.2666,
    "ivx_dir": "down",
    "score": 26
   }
@@ -277508,6 +279682,35 @@
    "oi_held": 69.3,
    "oi_cycles": 2.0,
    "rel_vol": 1.79,
+   "vx_dir": "down",
+   "score": 19,
+   "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.5693,
+   "rvol_1h": 0.00109,
+   "atr_pct": 7.309729,
+   "obv": -6.800531,
+   "funding": -0.017628,
+   "oi_usd": 16584928.32674,
+   "up_low": 10.780307,
+   "ch_24h": 1.353035,
+   "basis": -0.123,
+   "spot_share": 0.121487,
+   "vi_p": 0.7353,
+   "vi_m": 1.3307,
+   "ivx_p": 0.7897,
+   "ivx_m": 1.2852,
+   "ivx_spread": -0.4955,
+   "ivx_dir": "down",
+   "buy_share": 0.4759,
+   "delta_slope": -0.03653,
+   "vx_strength": 0.104,
+   "oi_x": 1.07,
+   "oi_held": 69.3,
+   "oi_cycles": 2.0,
+   "rel_vol": 1.63,
    "vx_dir": "down",
    "score": 19,
    "flow_fired": 1
@@ -280314,6 +282517,35 @@
    "oi_held": 39.5,
    "oi_cycles": 0.0,
    "rel_vol": 2.49,
+   "vx_dir": "none",
+   "score": 58,
+   "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.09291,
+   "rvol_1h": 0.001842,
+   "atr_pct": 10.426373,
+   "obv": 5.955162,
+   "funding": 0.005,
+   "oi_usd": 33500775.92358,
+   "up_low": 29.329065,
+   "ch_24h": 2.765181,
+   "basis": -0.032,
+   "spot_share": 0.241585,
+   "vi_p": 0.8632,
+   "vi_m": 1.2222,
+   "ivx_p": 1.0647,
+   "ivx_m": 0.9845,
+   "ivx_spread": 0.0802,
+   "ivx_dir": "up",
+   "buy_share": 0.4891,
+   "delta_slope": -0.01694,
+   "vx_strength": 0.0,
+   "oi_x": 0.97,
+   "oi_held": 39.5,
+   "oi_cycles": 0.0,
+   "rel_vol": 2.17,
    "vx_dir": "none",
    "score": 58,
    "flow_fired": 1
@@ -283267,6 +285499,25 @@
    "ivx_m": 1.0748,
    "ivx_spread": -0.1404,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.3184,
+   "rvol_1h": 0.00981,
+   "atr_pct": 9.034009,
+   "obv": 5.398425,
+   "funding": -0.000123,
+   "oi_usd": 19817424.80672,
+   "up_low": 75.911602,
+   "ch_24h": 1.433578,
+   "basis": -0.094,
+   "spot_share": 0.121563,
+   "vi_p": 0.9577,
+   "vi_m": 1.1107,
+   "ivx_p": 0.9786,
+   "ivx_m": 1.0948,
+   "ivx_spread": -0.1162,
+   "ivx_dir": "down"
   }
  ],
  "VIRTUALUSDT": [
@@ -285978,6 +288229,26 @@
    "ivx_p": 0.9136,
    "ivx_m": 1.0444,
    "ivx_spread": -0.1308,
+   "ivx_dir": "down",
+   "score": 38
+  },
+  {
+   "t": 1787717031,
+   "price": 0.7534,
+   "rvol_1h": 0.002467,
+   "atr_pct": 8.994463,
+   "obv": 11.8292,
+   "funding": 0.005,
+   "oi_usd": 19574331.08374,
+   "up_low": 46.890232,
+   "ch_24h": 1.948579,
+   "basis": -0.04,
+   "spot_share": 0.156369,
+   "vi_p": 1.0647,
+   "vi_m": 0.9855,
+   "ivx_p": 0.987,
+   "ivx_m": 1.0842,
+   "ivx_spread": -0.0972,
    "ivx_dir": "down",
    "score": 38
   }
@@ -288742,6 +291013,26 @@
    "ivx_spread": -0.0114,
    "ivx_dir": "down",
    "score": 23
+  },
+  {
+   "t": 1787717031,
+   "price": 1.7332,
+   "rvol_1h": 0.003065,
+   "atr_pct": 7.674079,
+   "obv": 8.056702,
+   "funding": 0.01,
+   "oi_usd": 15438752.8456,
+   "up_low": 42.007374,
+   "ch_24h": 1.149694,
+   "basis": -0.046,
+   "spot_share": 0.162326,
+   "vi_p": 0.8628,
+   "vi_m": 1.2206,
+   "ivx_p": 1.0021,
+   "ivx_m": 1.0731,
+   "ivx_spread": -0.071,
+   "ivx_dir": "down",
+   "score": 23
   }
  ],
  "RENDERUSDT": [
@@ -291310,6 +293601,26 @@
    "ivx_p": 1.0352,
    "ivx_m": 0.9447,
    "ivx_spread": 0.0905,
+   "ivx_dir": "up",
+   "score": 4
+  },
+  {
+   "t": 1787717031,
+   "price": 1.522,
+   "rvol_1h": 0.005251,
+   "atr_pct": 5.777173,
+   "obv": 9.721869,
+   "funding": 0.005,
+   "oi_usd": 7918852.1544,
+   "up_low": 24.143556,
+   "ch_24h": 1.331558,
+   "basis": 0.0,
+   "spot_share": 0.248217,
+   "vi_p": 1.0199,
+   "vi_m": 1.0252,
+   "ivx_p": 1.0543,
+   "ivx_m": 1.0114,
+   "ivx_spread": 0.0429,
    "ivx_dir": "up",
    "score": 4
   }
@@ -294021,6 +296332,25 @@
    "ivx_m": 1.1213,
    "ivx_spread": -0.2552,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.08991,
+   "rvol_1h": 0.01048,
+   "atr_pct": 5.667572,
+   "obv": -11.210695,
+   "funding": 0.009679,
+   "oi_usd": 7589159.369874,
+   "up_low": 18.944305,
+   "ch_24h": 1.090623,
+   "basis": -0.211,
+   "spot_share": 0.187818,
+   "vi_p": 0.9091,
+   "vi_m": 1.1402,
+   "ivx_p": 0.9153,
+   "ivx_m": 1.1805,
+   "ivx_spread": -0.2652,
+   "ivx_dir": "down"
   }
  ],
  "EIGENUSDT": [
@@ -296710,6 +299040,35 @@
    "ivx_m": 1.0238,
    "ivx_spread": -0.0861,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.2137,
+   "rvol_1h": 0.033225,
+   "atr_pct": 8.807407,
+   "obv": 2.841224,
+   "funding": 0.005,
+   "oi_usd": 5802905.30253,
+   "up_low": 30.384381,
+   "ch_24h": 4.193077,
+   "basis": -0.28,
+   "spot_share": 0.159882,
+   "vi_p": 0.8815,
+   "vi_m": 1.2158,
+   "ivx_p": 1.1062,
+   "ivx_m": 0.9771,
+   "ivx_spread": 0.1291,
+   "ivx_dir": "up",
+   "buy_share": 0.4826,
+   "delta_slope": -0.03029,
+   "vx_strength": 0.163,
+   "oi_x": 0.88,
+   "oi_held": 2.4,
+   "oi_cycles": 0.0,
+   "rel_vol": 1.44,
+   "vx_dir": "up",
+   "score": 28,
+   "flow_fired": 1
   }
  ],
  "JUPUSDT": [
@@ -299241,6 +301600,26 @@
    "vx_dir": "up",
    "score": 34,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.2138,
+   "rvol_1h": 0.006676,
+   "atr_pct": 6.655085,
+   "obv": 10.380299,
+   "funding": 0.005,
+   "oi_usd": 10282061.048,
+   "up_low": 31.004902,
+   "ch_24h": 1.135289,
+   "basis": -0.14,
+   "spot_share": 0.162768,
+   "vi_p": 0.9975,
+   "vi_m": 1.0394,
+   "ivx_p": 1.0649,
+   "ivx_m": 1.0084,
+   "ivx_spread": 0.0565,
+   "ivx_dir": "up",
+   "score": 4
   }
  ],
  "ZENUSDT": [
@@ -301757,6 +304136,26 @@
    "ivx_spread": -0.1571,
    "ivx_dir": "down",
    "score": 32
+  },
+  {
+   "t": 1787717031,
+   "price": 5.203,
+   "rvol_1h": 0.01713,
+   "atr_pct": 8.699651,
+   "obv": 18.974805,
+   "funding": 0.01,
+   "oi_usd": 5656597.54,
+   "up_low": 39.602898,
+   "ch_24h": 1.60125,
+   "basis": -0.096,
+   "spot_share": 0.223029,
+   "vi_p": 0.8041,
+   "vi_m": 1.2725,
+   "ivx_p": 0.9708,
+   "ivx_m": 1.1011,
+   "ivx_spread": -0.1303,
+   "ivx_dir": "down",
+   "score": 33
   }
  ],
  "PNUTUSDT": [
@@ -304599,6 +306998,25 @@
    "ivx_m": 0.9632,
    "ivx_spread": 0.0526,
    "ivx_dir": "up"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.05138,
+   "rvol_1h": 0.020866,
+   "atr_pct": 9.246233,
+   "obv": 34.249548,
+   "funding": 0.005,
+   "oi_usd": 4164186.74196,
+   "up_low": 35.424354,
+   "ch_24h": 1.201497,
+   "basis": 0.156,
+   "spot_share": 0.191483,
+   "vi_p": 0.9198,
+   "vi_m": 1.1419,
+   "ivx_p": 1.0388,
+   "ivx_m": 1.0239,
+   "ivx_spread": 0.0149,
+   "ivx_dir": "up"
   }
  ],
  "TRIAUSDT": [
@@ -306964,6 +309382,24 @@
    "ivx_p": 0.9017,
    "ivx_m": 1.0941,
    "ivx_spread": -0.1924,
+   "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.006447,
+   "rvol_1h": 0.239173,
+   "atr_pct": 17.189612,
+   "obv": -1289.212803,
+   "funding": 0.005,
+   "oi_usd": 4647455.523963,
+   "up_low": 6.862258,
+   "ch_24h": -0.478543,
+   "spot_share": 0.0,
+   "vi_p": 0.8957,
+   "vi_m": 1.1431,
+   "ivx_p": 0.9893,
+   "ivx_m": 1.0529,
+   "ivx_spread": -0.0636,
    "ivx_dir": "down"
   }
  ],
@@ -309571,6 +312007,27 @@
    "ivx_m": 1.078,
    "ivx_spread": -0.1345,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 233.64,
+   "vol_1h": 0.370723,
+   "vol_4h": 0.430108,
+   "rvol_1h": 0.319844,
+   "atr_pct": 6.490449,
+   "obv": 9.879385,
+   "funding": 0.005,
+   "oi_usd": 62261737.17192,
+   "up_low": 27.769879,
+   "ch_24h": 1.950517,
+   "basis": -0.068,
+   "spot_share": 0.15981,
+   "vi_p": 0.9747,
+   "vi_m": 1.0706,
+   "ivx_p": 1.0043,
+   "ivx_m": 1.0865,
+   "ivx_spread": -0.0822,
+   "ivx_dir": "down"
   }
  ],
  "BCHUSDT": [
@@ -312081,6 +314538,25 @@
    "ivx_m": 0.977,
    "ivx_spread": 0.041,
    "ivx_dir": "up"
+  },
+  {
+   "t": 1787717031,
+   "price": 267.94,
+   "rvol_1h": 0.001612,
+   "atr_pct": 6.877872,
+   "obv": 1.793618,
+   "funding": 0.01,
+   "oi_usd": 109343036.82586,
+   "up_low": 42.369819,
+   "ch_24h": 0.725537,
+   "basis": 0.015,
+   "spot_share": 0.116037,
+   "vi_p": 0.9656,
+   "vi_m": 1.0941,
+   "ivx_p": 1.0202,
+   "ivx_m": 1.0419,
+   "ivx_spread": -0.0217,
+   "ivx_dir": "down"
   }
  ],
  "TRXUSDT": [
@@ -315229,6 +317705,26 @@
    "ivx_p": 0.5956,
    "ivx_m": 1.3653,
    "ivx_spread": -0.7697,
+   "ivx_dir": "down",
+   "score": 6
+  },
+  {
+   "t": 1787717031,
+   "price": 0.33719,
+   "rvol_1h": 0.00022,
+   "atr_pct": 1.876009,
+   "obv": 80.481812,
+   "funding": -0.011454,
+   "oi_usd": 84097955.67866,
+   "up_low": 7.436674,
+   "ch_24h": 0.36014,
+   "basis": -0.062,
+   "spot_share": 0.396066,
+   "vi_p": 0.7677,
+   "vi_m": 1.2776,
+   "ivx_p": 0.7093,
+   "ivx_m": 1.3661,
+   "ivx_spread": -0.6568,
    "ivx_dir": "down",
    "score": 6
   }
@@ -318389,6 +320885,25 @@
    "ivx_m": 1.1763,
    "ivx_spread": -0.2232,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 2.5353,
+   "rvol_1h": 0.00361,
+   "atr_pct": 8.447296,
+   "obv": 15.308341,
+   "funding": 0.005,
+   "oi_usd": 12667328.80578,
+   "up_low": 48.315198,
+   "ch_24h": 1.481007,
+   "basis": -0.067,
+   "spot_share": 0.166517,
+   "vi_p": 0.9082,
+   "vi_m": 1.2559,
+   "ivx_p": 1.022,
+   "ivx_m": 1.0497,
+   "ivx_spread": -0.0277,
+   "ivx_dir": "down"
   }
  ],
  "CHZUSDT": [
@@ -320912,6 +323427,25 @@
    "ivx_p": 0.9567,
    "ivx_m": 1.0578,
    "ivx_spread": -0.1011,
+   "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.01402,
+   "rvol_1h": 0.096348,
+   "atr_pct": 5.808029,
+   "obv": -5.739691,
+   "funding": 0.01,
+   "oi_usd": 6344666.89402,
+   "up_low": 20.550301,
+   "ch_24h": 0.286123,
+   "basis": -0.071,
+   "spot_share": 0.163935,
+   "vi_p": 0.869,
+   "vi_m": 1.1845,
+   "ivx_p": 0.9461,
+   "ivx_m": 1.1328,
+   "ivx_spread": -0.1867,
    "ivx_dir": "down"
   }
  ],
@@ -323443,6 +325977,25 @@
    "ivx_m": 1.0922,
    "ivx_spread": -0.1803,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.001844,
+   "rvol_1h": 0.010928,
+   "atr_pct": 10.454757,
+   "obv": 12.242448,
+   "funding": 0.01,
+   "oi_usd": 6050798.192168,
+   "up_low": 40.334855,
+   "ch_24h": 1.374382,
+   "basis": -0.054,
+   "spot_share": 0.141202,
+   "vi_p": 0.8928,
+   "vi_m": 1.1482,
+   "ivx_p": 0.9747,
+   "ivx_m": 1.0884,
+   "ivx_spread": -0.1137,
+   "ivx_dir": "down"
   }
  ],
  "COOKIEUSDT": [
@@ -325955,6 +328508,26 @@
    "ivx_spread": 0.0425,
    "ivx_dir": "up",
    "score": 39
+  },
+  {
+   "t": 1787717031,
+   "price": 0.010954,
+   "rvol_1h": 0.029197,
+   "atr_pct": 11.515037,
+   "obv": 95.186638,
+   "funding": -0.004169,
+   "oi_usd": 1623047.487106,
+   "up_low": 48.428184,
+   "ch_24h": 2.864119,
+   "basis": 0.495,
+   "spot_share": 0.118039,
+   "vi_p": 1.0856,
+   "vi_m": 0.9511,
+   "ivx_p": 1.1964,
+   "ivx_m": 0.8897,
+   "ivx_spread": 0.3067,
+   "ivx_dir": "up",
+   "score": 45
   }
  ],
  "KAITOUSDT": [
@@ -328396,6 +330969,25 @@
    "ivx_m": 1.2298,
    "ivx_spread": -0.4752,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.317,
+   "rvol_1h": 0.041882,
+   "atr_pct": 12.415502,
+   "obv": -29.757871,
+   "funding": 0.005,
+   "oi_usd": 13433879.1609,
+   "up_low": 1.180977,
+   "ch_24h": -0.220334,
+   "basis": -0.189,
+   "spot_share": 0.164097,
+   "vi_p": 0.762,
+   "vi_m": 1.2843,
+   "ivx_p": 0.7157,
+   "ivx_m": 1.3175,
+   "ivx_spread": -0.6018,
+   "ivx_dir": "down"
   }
  ],
  "LABUSDT": [
@@ -330739,6 +333331,24 @@
    "ivx_p": 1.011,
    "ivx_m": 1.0216,
    "ivx_spread": -0.0106,
+   "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.06855,
+   "rvol_1h": 0.017023,
+   "atr_pct": 18.126498,
+   "obv": -30.788307,
+   "funding": 0.005,
+   "oi_usd": 13769547.12285,
+   "up_low": 22.871482,
+   "ch_24h": 2.804439,
+   "spot_share": 0.0,
+   "vi_p": 1.0421,
+   "vi_m": 1.0974,
+   "ivx_p": 1.0009,
+   "ivx_m": 1.0552,
+   "ivx_spread": -0.0543,
    "ivx_dir": "down"
   }
  ],
@@ -333851,6 +336461,34 @@
    "vx_dir": "none",
    "score": 53,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.11818,
+   "rvol_1h": 0.018401,
+   "atr_pct": 7.2311,
+   "obv": 29.754221,
+   "funding": 0.005,
+   "oi_usd": 8729594.9692,
+   "up_low": 36.498036,
+   "ch_24h": -1.063206,
+   "spot_share": 0.0,
+   "vi_p": 0.9985,
+   "vi_m": 1.0785,
+   "ivx_p": 1.0434,
+   "ivx_m": 1.0706,
+   "ivx_spread": -0.0272,
+   "ivx_dir": "down",
+   "buy_share": 0.4946,
+   "delta_slope": -0.01229,
+   "vx_strength": 0.0,
+   "oi_x": 0.94,
+   "oi_held": 30.5,
+   "oi_cycles": 2.0,
+   "rel_vol": 0.78,
+   "vx_dir": "none",
+   "score": 49,
+   "flow_fired": 1
   }
  ],
  "MOVEUSDT": [
@@ -336766,6 +339404,26 @@
    "ivx_spread": 0.3929,
    "ivx_dir": "up",
    "score": 50
+  },
+  {
+   "t": 1787717031,
+   "price": 0.008468,
+   "rvol_1h": 0.148835,
+   "atr_pct": 10.026824,
+   "obv": 52.099006,
+   "funding": -0.21811,
+   "oi_usd": 2591253.04976,
+   "up_low": 47.167188,
+   "ch_24h": 6.168506,
+   "basis": -0.376,
+   "spot_share": 0.096611,
+   "vi_p": 1.0503,
+   "vi_m": 0.9817,
+   "ivx_p": 1.1536,
+   "ivx_m": 0.9283,
+   "ivx_spread": 0.2253,
+   "ivx_dir": "up",
+   "score": 58
   }
  ],
  "1000CATUSDT": [
@@ -339757,6 +342415,26 @@
    "ivx_spread": -0.1926,
    "ivx_dir": "down",
    "score": 24
+  },
+  {
+   "t": 1787717031,
+   "price": 0.001886,
+   "rvol_1h": 0.02416,
+   "atr_pct": 7.135283,
+   "obv": 23.260119,
+   "funding": 0.005,
+   "oi_usd": 1160001.345668,
+   "up_low": 53.084416,
+   "ch_24h": 0.909577,
+   "basis": -0.106,
+   "spot_share": 0.208177,
+   "vi_p": 0.9086,
+   "vi_m": 1.154,
+   "ivx_p": 1.0117,
+   "ivx_m": 1.0497,
+   "ivx_spread": -0.038,
+   "ivx_dir": "down",
+   "score": 24
   }
  ],
  "SAGAUSDT": [
@@ -342490,6 +345168,25 @@
    "ivx_m": 1.0291,
    "ivx_spread": -0.0843,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.0148,
+   "rvol_1h": 0.070201,
+   "atr_pct": 9.348456,
+   "obv": -30.355952,
+   "funding": 0.005,
+   "oi_usd": 3460529.7766,
+   "up_low": 27.806563,
+   "ch_24h": 1.718213,
+   "basis": 0.135,
+   "spot_share": 0.215956,
+   "vi_p": 1.018,
+   "vi_m": 1.1129,
+   "ivx_p": 1.0105,
+   "ivx_m": 1.0557,
+   "ivx_spread": -0.0452,
+   "ivx_dir": "down"
   }
  ],
  "KORUUSDT": [
@@ -344896,6 +347593,27 @@
    "ivx_spread": 0.0476,
    "ivx_dir": "up",
    "score": 6
+  },
+  {
+   "t": 1787717031,
+   "price": 21.32,
+   "vol_1h": 1.489664,
+   "vol_4h": 4.49346,
+   "rvol_1h": 1.0447,
+   "atr_pct": 11.280488,
+   "obv": 55.559437,
+   "funding": -0.046907,
+   "oi_usd": 47472393.7584,
+   "up_low": 102.085308,
+   "ch_24h": 3.394762,
+   "spot_share": 0.0,
+   "vi_p": 0.9368,
+   "vi_m": 1.0021,
+   "ivx_p": 1.0737,
+   "ivx_m": 0.9159,
+   "ivx_spread": 0.1578,
+   "ivx_dir": "up",
+   "score": 6
   }
  ],
  "DRAMUSDT": [
@@ -347281,6 +349999,26 @@
    "ivx_m": 0.9888,
    "ivx_spread": -0.0623,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 56.7,
+   "vol_1h": 0.734971,
+   "vol_4h": 2.609377,
+   "rvol_1h": 0.56491,
+   "atr_pct": 5.309902,
+   "obv": 23.129204,
+   "funding": 0.016775,
+   "oi_usd": 46477212.831,
+   "up_low": 33.129843,
+   "ch_24h": 1.485592,
+   "spot_share": 0.0,
+   "vi_p": 0.8412,
+   "vi_m": 1.1266,
+   "ivx_p": 1.0649,
+   "ivx_m": 0.9987,
+   "ivx_spread": 0.0662,
+   "ivx_dir": "up"
   }
  ],
  "MUUUSDT": [
@@ -349192,6 +351930,25 @@
    "ivx_m": 1.0075,
    "ivx_spread": -0.0486,
    "ivx_dir": "down",
+   "score": 6
+  },
+  {
+   "t": 1787717031,
+   "price": 29.38,
+   "rvol_1h": 0.000619,
+   "atr_pct": 9.719926,
+   "obv": 52.963833,
+   "funding": 0.0,
+   "oi_usd": 6693356.007,
+   "up_low": 0.0,
+   "ch_24h": 1.170799,
+   "spot_share": 0.0,
+   "vi_p": 0.8869,
+   "vi_m": 1.1434,
+   "ivx_p": 1.1925,
+   "ivx_m": 0.9864,
+   "ivx_spread": 0.2061,
+   "ivx_dir": "up",
    "score": 6
   }
  ],
@@ -351569,6 +354326,24 @@
    "ivx_m": 1.0155,
    "ivx_spread": -0.0077,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.1287,
+   "rvol_1h": 0.027864,
+   "atr_pct": 93.240093,
+   "obv": -63.48792,
+   "funding": 0.017938,
+   "oi_usd": 13117323.3048,
+   "up_low": 16.681777,
+   "ch_24h": 3.706688,
+   "spot_share": 0.0,
+   "vi_p": 0.9974,
+   "vi_m": 1.0649,
+   "ivx_p": 1.0675,
+   "ivx_m": 1.0359,
+   "ivx_spread": 0.0316,
+   "ivx_dir": "up"
   }
  ],
  "AKEUSDT": [
@@ -353987,6 +356762,25 @@
    "ivx_p": 0.9686,
    "ivx_m": 1.0623,
    "ivx_spread": -0.0937,
+   "ivx_dir": "down",
+   "score": 10
+  },
+  {
+   "t": 1787717031,
+   "price": 0.008689,
+   "rvol_1h": 0.001203,
+   "atr_pct": 26.549989,
+   "obv": 4.630864,
+   "funding": 0.013016,
+   "oi_usd": 31532614.681966,
+   "up_low": 4925.448236,
+   "ch_24h": 0.905818,
+   "spot_share": 0.0,
+   "vi_p": 1.0511,
+   "vi_m": 0.9936,
+   "ivx_p": 0.9306,
+   "ivx_m": 1.2643,
+   "ivx_spread": -0.3337,
    "ivx_dir": "down",
    "score": 10
   }
@@ -356452,6 +359246,25 @@
    "ivx_m": 1.1237,
    "ivx_spread": -0.2425,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.7215,
+   "rvol_1h": 0.001424,
+   "atr_pct": 7.865558,
+   "obv": 0.587053,
+   "funding": 0.01,
+   "oi_usd": 34938151.0647,
+   "up_low": 18.745885,
+   "ch_24h": 1.391231,
+   "basis": -0.069,
+   "spot_share": 0.089277,
+   "vi_p": 0.852,
+   "vi_m": 1.2047,
+   "ivx_p": 0.9254,
+   "ivx_m": 1.1275,
+   "ivx_spread": -0.2021,
+   "ivx_dir": "down"
   }
  ],
  "DEXEUSDT": [
@@ -358903,6 +361716,26 @@
    "ivx_m": 0.9561,
    "ivx_spread": 0.068,
    "ivx_dir": "up",
+   "score": 4
+  },
+  {
+   "t": 1787717031,
+   "price": 1.882,
+   "rvol_1h": 0.021564,
+   "atr_pct": 8.755883,
+   "obv": -29.948538,
+   "funding": 0.005,
+   "oi_usd": 8342708.35236,
+   "up_low": 46.231546,
+   "ch_24h": 0.641711,
+   "basis": -0.212,
+   "spot_share": 0.26343,
+   "vi_p": 1.0,
+   "vi_m": 1.0344,
+   "ivx_p": 1.0069,
+   "ivx_m": 1.0115,
+   "ivx_spread": -0.0046,
+   "ivx_dir": "down",
    "score": 4
   }
  ],
@@ -361592,6 +364425,34 @@
    "vx_dir": "up",
    "score": 53,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 2.095,
+   "rvol_1h": 0.018722,
+   "atr_pct": 12.41732,
+   "obv": -8.879322,
+   "funding": 0.005,
+   "oi_usd": 5768986.416,
+   "up_low": 8.156944,
+   "ch_24h": 1.649685,
+   "spot_share": 0.0,
+   "vi_p": 0.7625,
+   "vi_m": 1.2876,
+   "ivx_p": 0.9327,
+   "ivx_m": 1.123,
+   "ivx_spread": -0.1903,
+   "ivx_dir": "down",
+   "buy_share": 0.4803,
+   "delta_slope": -0.04215,
+   "vx_strength": 0.153,
+   "oi_x": 1.14,
+   "oi_held": 100.0,
+   "oi_cycles": 1.0,
+   "rel_vol": 0.99,
+   "vx_dir": "up",
+   "score": 53,
+   "flow_fired": 1
   }
  ],
  "USUSDT": [
@@ -364043,6 +366904,25 @@
    "ivx_p": 1.1555,
    "ivx_m": 0.8938,
    "ivx_spread": 0.2617,
+   "ivx_dir": "up",
+   "score": 24
+  },
+  {
+   "t": 1787717031,
+   "price": 0.016253,
+   "rvol_1h": 0.065218,
+   "atr_pct": 31.969043,
+   "obv": -73.091522,
+   "funding": 0.005,
+   "oi_usd": 11302536.355695,
+   "up_low": 56.233779,
+   "ch_24h": 8.360557,
+   "spot_share": 0.0,
+   "vi_p": 0.9002,
+   "vi_m": 1.1502,
+   "ivx_p": 1.2744,
+   "ivx_m": 0.7411,
+   "ivx_spread": 0.5333,
    "ivx_dir": "up",
    "score": 24
   }
@@ -366600,6 +369480,25 @@
    "ivx_m": 0.958,
    "ivx_spread": 0.0451,
    "ivx_dir": "up"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.05119,
+   "rvol_1h": 0.02381,
+   "atr_pct": 7.222393,
+   "obv": 1.558234,
+   "funding": 0.005,
+   "oi_usd": 8538920.30673,
+   "up_low": 55.309466,
+   "ch_24h": 3.101712,
+   "basis": -0.137,
+   "spot_share": 0.546485,
+   "vi_p": 0.9868,
+   "vi_m": 1.0696,
+   "ivx_p": 1.0083,
+   "ivx_m": 1.0878,
+   "ivx_spread": -0.0795,
+   "ivx_dir": "down"
   }
  ],
  "GRASSUSDT": [
@@ -369426,6 +372325,25 @@
    "ivx_spread": -0.4276,
    "ivx_dir": "down",
    "score": 26
+  },
+  {
+   "t": 1787717031,
+   "price": 0.3355,
+   "rvol_1h": 0.024969,
+   "atr_pct": 11.679796,
+   "obv": -12.043049,
+   "funding": 0.005,
+   "oi_usd": 7068203.38565,
+   "up_low": 35.01006,
+   "ch_24h": 2.130898,
+   "spot_share": 0.0,
+   "vi_p": 0.9535,
+   "vi_m": 1.1403,
+   "ivx_p": 0.8888,
+   "ivx_m": 1.1879,
+   "ivx_spread": -0.2991,
+   "ivx_dir": "down",
+   "score": 22
   }
  ],
  "1000LUNCUSDT": [
@@ -372374,6 +375292,25 @@
    "ivx_spread": -0.1153,
    "ivx_dir": "down",
    "score": 31
+  },
+  {
+   "t": 1787717031,
+   "price": 0.05339,
+   "rvol_1h": 0.014219,
+   "atr_pct": 6.857892,
+   "obv": -0.024835,
+   "funding": 0.01,
+   "oi_usd": 3828938.54261,
+   "up_low": 15.412884,
+   "ch_24h": 1.270865,
+   "spot_share": 0.0,
+   "vi_p": 0.9116,
+   "vi_m": 1.1395,
+   "ivx_p": 0.9406,
+   "ivx_m": 1.1256,
+   "ivx_spread": -0.185,
+   "ivx_dir": "down",
+   "score": 31
   }
  ],
  "ENSUSDT": [
@@ -374890,6 +377827,26 @@
    "ivx_spread": -0.0026,
    "ivx_dir": "down",
    "score": 29
+  },
+  {
+   "t": 1787717031,
+   "price": 5.91,
+   "rvol_1h": 0.074469,
+   "atr_pct": 8.061397,
+   "obv": -20.780903,
+   "funding": 0.01,
+   "oi_usd": 5117146.905,
+   "up_low": 57.013815,
+   "ch_24h": 5.160142,
+   "basis": 0.0,
+   "spot_share": 0.165235,
+   "vi_p": 1.0212,
+   "vi_m": 1.0308,
+   "ivx_p": 1.0792,
+   "ivx_m": 0.9634,
+   "ivx_spread": 0.1158,
+   "ivx_dir": "up",
+   "score": 28
   }
  ],
  "STRKUSDT": [
@@ -377663,6 +380620,26 @@
    "ivx_p": 0.8701,
    "ivx_m": 1.2166,
    "ivx_spread": -0.3465,
+   "ivx_dir": "down",
+   "score": 34
+  },
+  {
+   "t": 1787717031,
+   "price": 0.02564,
+   "rvol_1h": 0.006071,
+   "atr_pct": 7.64152,
+   "obv": -4.845552,
+   "funding": 0.005,
+   "oi_usd": 4718182.52156,
+   "up_low": 15.860822,
+   "ch_24h": -0.077942,
+   "basis": -0.039,
+   "spot_share": 0.177944,
+   "vi_p": 0.7601,
+   "vi_m": 1.2846,
+   "ivx_p": 0.8458,
+   "ivx_m": 1.2269,
+   "ivx_spread": -0.3811,
    "ivx_dir": "down",
    "score": 34
   }
@@ -380490,6 +383467,25 @@
    "ivx_spread": 0.0939,
    "ivx_dir": "up",
    "score": 34
+  },
+  {
+   "t": 1787717031,
+   "price": 0.06324,
+   "rvol_1h": 0.006297,
+   "atr_pct": 12.748486,
+   "obv": 18.089234,
+   "funding": 0.005,
+   "oi_usd": 4299484.40988,
+   "up_low": 91.346445,
+   "ch_24h": 2.595717,
+   "spot_share": 0.0,
+   "vi_p": 0.8663,
+   "vi_m": 1.1996,
+   "ivx_p": 1.0875,
+   "ivx_m": 0.9614,
+   "ivx_spread": 0.1261,
+   "ivx_dir": "up",
+   "score": 34
   }
  ],
  "AXSUSDT": [
@@ -382993,6 +385989,25 @@
    "ivx_p": 0.965,
    "ivx_m": 1.0356,
    "ivx_spread": -0.0706,
+   "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.9463,
+   "rvol_1h": 0.021218,
+   "atr_pct": 6.634864,
+   "obv": -1.197945,
+   "funding": 0.005,
+   "oi_usd": 5395647.4068,
+   "up_low": 18.2875,
+   "ch_24h": 0.371235,
+   "basis": -0.074,
+   "spot_share": 0.157162,
+   "vi_p": 0.8568,
+   "vi_m": 1.204,
+   "ivx_p": 0.9312,
+   "ivx_m": 1.1894,
+   "ivx_spread": -0.2582,
    "ivx_dir": "down"
   }
  ],
@@ -385755,6 +388770,26 @@
    "ivx_spread": -0.0261,
    "ivx_dir": "down",
    "score": 33
+  },
+  {
+   "t": 1787717031,
+   "price": 8.8e-05,
+   "rvol_1h": 0.006365,
+   "atr_pct": 12.357836,
+   "obv": 371.835065,
+   "funding": 0.005,
+   "oi_usd": 5474092.538103,
+   "up_low": 56.339286,
+   "ch_24h": 2.709995,
+   "basis": -0.217,
+   "spot_share": 0.210659,
+   "vi_p": 0.8958,
+   "vi_m": 1.1807,
+   "ivx_p": 1.069,
+   "ivx_m": 0.993,
+   "ivx_spread": 0.076,
+   "ivx_dir": "up",
+   "score": 33
   }
  ],
  "MELANIAUSDT": [
@@ -388240,6 +391275,25 @@
    "ivx_m": 0.9731,
    "ivx_spread": 0.0451,
    "ivx_dir": "up",
+   "score": 37
+  },
+  {
+   "t": 1787717031,
+   "price": 0.10531,
+   "rvol_1h": 0.008105,
+   "atr_pct": 11.872431,
+   "obv": 105.2532,
+   "funding": 0.005,
+   "oi_usd": 3306537.889612,
+   "up_low": 56.898093,
+   "ch_24h": 1.484051,
+   "spot_share": 0.0,
+   "vi_p": 0.9798,
+   "vi_m": 1.0924,
+   "ivx_p": 1.0276,
+   "ivx_m": 1.0307,
+   "ivx_spread": -0.0031,
+   "ivx_dir": "down",
    "score": 37
   }
  ],
@@ -391025,6 +394079,26 @@
    "ivx_spread": -0.3659,
    "ivx_dir": "down",
    "score": 28
+  },
+  {
+   "t": 1787717031,
+   "price": 17.562,
+   "rvol_1h": 0.009579,
+   "atr_pct": 9.081702,
+   "obv": 48.766016,
+   "funding": 0.005,
+   "oi_usd": 4898744.28,
+   "up_low": 40.958343,
+   "ch_24h": 1.198571,
+   "basis": -0.102,
+   "spot_share": 0.123822,
+   "vi_p": 0.8137,
+   "vi_m": 1.2507,
+   "ivx_p": 0.8353,
+   "ivx_m": 1.2351,
+   "ivx_spread": -0.3998,
+   "ivx_dir": "down",
+   "score": 28
   }
  ],
  "STORJUSDT": [
@@ -392792,6 +395866,35 @@
    "oi_held": 44.4,
    "oi_cycles": 1.0,
    "rel_vol": 4.67,
+   "vx_dir": "up",
+   "score": 63,
+   "flow_fired": 2
+  },
+  {
+   "t": 1787717031,
+   "price": 0.04063,
+   "rvol_1h": 0.237597,
+   "atr_pct": 17.836926,
+   "obv": 888.648188,
+   "funding": -0.534076,
+   "oi_usd": 2709555.58335,
+   "up_low": 20.99464,
+   "ch_24h": -3.583294,
+   "basis": -3.72,
+   "spot_share": 0.066281,
+   "vi_p": 0.9749,
+   "vi_m": 1.0524,
+   "ivx_p": 0.7016,
+   "ivx_m": 1.2063,
+   "ivx_spread": -0.5047,
+   "ivx_dir": "down",
+   "buy_share": 0.4928,
+   "delta_slope": -0.01801,
+   "vx_strength": 0.121,
+   "oi_x": 1.43,
+   "oi_held": 44.4,
+   "oi_cycles": 1.0,
+   "rel_vol": 5.3,
    "vx_dir": "up",
    "score": 63,
    "flow_fired": 2
@@ -395308,6 +398411,25 @@
    "ivx_p": 0.9211,
    "ivx_m": 1.1201,
    "ivx_spread": -0.199,
+   "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 2.199,
+   "rvol_1h": 0.017287,
+   "atr_pct": 7.396219,
+   "obv": 6.457638,
+   "funding": 0.01,
+   "oi_usd": 4181311.6395,
+   "up_low": 31.283582,
+   "ch_24h": 1.523546,
+   "basis": 0.091,
+   "spot_share": 0.208683,
+   "vi_p": 1.0018,
+   "vi_m": 1.0541,
+   "ivx_p": 0.895,
+   "ivx_m": 1.1743,
+   "ivx_spread": -0.2793,
    "ivx_dir": "down"
   }
  ],
@@ -398109,6 +401231,28 @@
    "ivx_spread": 0.3079,
    "ivx_dir": "up",
    "score": 62
+  },
+  {
+   "t": 1787717031,
+   "price": 0.2776,
+   "vol_1h": 2.138476,
+   "vol_4h": 2.716475,
+   "rvol_1h": 1.248051,
+   "atr_pct": 8.027995,
+   "obv": 141.851021,
+   "funding": -0.312873,
+   "oi_usd": 11838140.6824,
+   "up_low": 136.255319,
+   "ch_24h": 6.974952,
+   "basis": -0.395,
+   "spot_share": 0.086235,
+   "vi_p": 1.1096,
+   "vi_m": 0.8339,
+   "ivx_p": 1.0976,
+   "ivx_m": 0.9008,
+   "ivx_spread": 0.1968,
+   "ivx_dir": "up",
+   "score": 70
   }
  ],
  "BERAUSDT": [
@@ -400784,6 +403928,26 @@
    "ivx_spread": -0.199,
    "ivx_dir": "down",
    "score": 6
+  },
+  {
+   "t": 1787717031,
+   "price": 0.1802,
+   "rvol_1h": 0.014257,
+   "atr_pct": 9.600444,
+   "obv": 54.289158,
+   "funding": 0.005,
+   "oi_usd": 3979695.15976,
+   "up_low": 31.054545,
+   "ch_24h": 1.235955,
+   "basis": 0.0,
+   "spot_share": 0.151837,
+   "vi_p": 0.9327,
+   "vi_m": 1.1235,
+   "ivx_p": 0.9691,
+   "ivx_m": 1.1327,
+   "ivx_spread": -0.1636,
+   "ivx_dir": "down",
+   "score": 6
   }
  ],
  "ONTUSDT": [
@@ -403302,6 +406466,26 @@
    "ivx_spread": 0.0623,
    "ivx_dir": "up",
    "score": 57
+  },
+  {
+   "t": 1787717031,
+   "price": 0.05211,
+   "rvol_1h": 0.010369,
+   "atr_pct": 9.855525,
+   "obv": 19.491788,
+   "funding": -0.1216,
+   "oi_usd": 3361816.447317,
+   "up_low": 50.34622,
+   "ch_24h": -0.401376,
+   "basis": -0.363,
+   "spot_share": 0.21537,
+   "vi_p": 1.1464,
+   "vi_m": 0.8793,
+   "ivx_p": 0.9684,
+   "ivx_m": 1.1071,
+   "ivx_spread": -0.1387,
+   "ivx_dir": "down",
+   "score": 49
   }
  ],
  "SANTOSUSDT": [
@@ -406640,6 +409824,35 @@
    "vx_dir": "up",
    "score": 80,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.5399,
+   "rvol_1h": 0.050624,
+   "atr_pct": 10.087847,
+   "obv": 112.118922,
+   "funding": 0.005,
+   "oi_usd": 1457533.74635,
+   "up_low": 30.916586,
+   "ch_24h": -0.424198,
+   "basis": 0.167,
+   "spot_share": 0.318161,
+   "vi_p": 1.0342,
+   "vi_m": 1.0216,
+   "ivx_p": 1.0277,
+   "ivx_m": 1.0198,
+   "ivx_spread": 0.0079,
+   "ivx_dir": "up",
+   "buy_share": 0.4998,
+   "delta_slope": 0.00138,
+   "vx_strength": 0.26,
+   "oi_x": 0.97,
+   "oi_held": 9.3,
+   "oi_cycles": 1.0,
+   "rel_vol": 1.95,
+   "vx_dir": "up",
+   "score": 74,
+   "flow_fired": 1
   }
  ],
  "SPKUSDT": [
@@ -409328,6 +412541,26 @@
    "vx_dir": "none",
    "score": 49,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.01811,
+   "rvol_1h": 0.016096,
+   "atr_pct": 11.090952,
+   "obv": -4.095405,
+   "funding": 0.005,
+   "oi_usd": 5798755.5363,
+   "up_low": 39.629915,
+   "ch_24h": -1.522567,
+   "basis": -0.083,
+   "spot_share": 0.256928,
+   "vi_p": 0.8063,
+   "vi_m": 1.3451,
+   "ivx_p": 0.8976,
+   "ivx_m": 1.181,
+   "ivx_spread": -0.2834,
+   "ivx_dir": "down",
+   "score": 34
   }
  ],
  "FFUSDT": [
@@ -412243,6 +415476,26 @@
    "ivx_spread": 0.5773,
    "ivx_dir": "up",
    "score": 49
+  },
+  {
+   "t": 1787717031,
+   "price": 0.10019,
+   "rvol_1h": 0.005966,
+   "atr_pct": 6.005019,
+   "obv": 42.664119,
+   "funding": 0.005,
+   "oi_usd": 40381689.80919,
+   "up_low": 75.741098,
+   "ch_24h": -1.125037,
+   "basis": 0.03,
+   "spot_share": 0.211776,
+   "vi_p": 1.2032,
+   "vi_m": 0.8353,
+   "ivx_p": 1.212,
+   "ivx_m": 0.9594,
+   "ivx_spread": 0.2526,
+   "ivx_dir": "up",
+   "score": 49
   }
  ],
  "GRTUSDT": [
@@ -414221,6 +417474,35 @@
    "rel_vol": 1.58,
    "vx_dir": "none",
    "score": 41,
+   "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.01785,
+   "rvol_1h": 0.019438,
+   "atr_pct": 6.690676,
+   "obv": -0.289859,
+   "funding": 0.01,
+   "oi_usd": 3406122.2916,
+   "up_low": 37.625289,
+   "ch_24h": 1.478113,
+   "basis": -0.056,
+   "spot_share": 0.196401,
+   "vi_p": 1.0582,
+   "vi_m": 1.0238,
+   "ivx_p": 0.9277,
+   "ivx_m": 1.1325,
+   "ivx_spread": -0.2048,
+   "ivx_dir": "down",
+   "buy_share": 0.4908,
+   "delta_slope": -0.01287,
+   "vx_strength": 0.0,
+   "oi_x": 0.81,
+   "oi_held": 0.0,
+   "oi_cycles": 0.0,
+   "rel_vol": 1.47,
+   "vx_dir": "none",
+   "score": 35,
    "flow_fired": 1
   }
  ],
@@ -417569,6 +420851,35 @@
    "vx_dir": "up",
    "score": 67,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.06836,
+   "rvol_1h": 0.014328,
+   "atr_pct": 9.289058,
+   "obv": 13.724299,
+   "funding": 0.005,
+   "oi_usd": 2993925.383524,
+   "up_low": 28.303303,
+   "ch_24h": 0.352319,
+   "basis": -0.015,
+   "spot_share": 0.230762,
+   "vi_p": 1.0283,
+   "vi_m": 1.0612,
+   "ivx_p": 0.9227,
+   "ivx_m": 1.1374,
+   "ivx_spread": -0.2147,
+   "ivx_dir": "down",
+   "buy_share": 0.4851,
+   "delta_slope": -0.02732,
+   "vx_strength": 0.162,
+   "oi_x": 1.26,
+   "oi_held": 86.3,
+   "oi_cycles": 0.0,
+   "rel_vol": 1.11,
+   "vx_dir": "up",
+   "score": 67,
+   "flow_fired": 1
   }
  ],
  "CVXUSDT": [
@@ -420123,6 +423434,35 @@
    "vx_dir": "none",
    "score": 73,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 2.026,
+   "rvol_1h": 0.236622,
+   "atr_pct": 8.859822,
+   "obv": 179.749373,
+   "funding": 0.005,
+   "oi_usd": 1984821.7526,
+   "up_low": 95.938104,
+   "ch_24h": -0.049334,
+   "basis": -0.197,
+   "spot_share": 0.274718,
+   "vi_p": 0.9376,
+   "vi_m": 1.0951,
+   "ivx_p": 0.8939,
+   "ivx_m": 1.148,
+   "ivx_spread": -0.2541,
+   "ivx_dir": "down",
+   "buy_share": 0.5014,
+   "delta_slope": 0.00527,
+   "vx_strength": 0.0,
+   "oi_x": 1.03,
+   "oi_held": 44.1,
+   "oi_cycles": 0.0,
+   "rel_vol": 1.73,
+   "vx_dir": "none",
+   "score": 73,
+   "flow_fired": 1
   }
  ],
  "UAIUSDT": [
@@ -422376,6 +425716,25 @@
    "ivx_spread": -0.6703,
    "ivx_dir": "down",
    "score": 10
+  },
+  {
+   "t": 1787717031,
+   "price": 0.2882,
+   "rvol_1h": 0.00016,
+   "atr_pct": 13.562011,
+   "obv": 519.3128,
+   "funding": 0.005,
+   "oi_usd": 6674658.9712,
+   "up_low": 43.383085,
+   "ch_24h": 1.300527,
+   "spot_share": 0.0,
+   "vi_p": 1.029,
+   "vi_m": 0.9956,
+   "ivx_p": 0.7193,
+   "ivx_m": 1.3768,
+   "ivx_spread": -0.6575,
+   "ivx_dir": "down",
+   "score": 10
   }
  ],
  "TACUSDT": [
@@ -424313,6 +427672,27 @@
    "ivx_spread": 0.368,
    "ivx_dir": "up",
    "score": 55
+  },
+  {
+   "t": 1787717031,
+   "price": 0.002533,
+   "vol_1h": 0.69758,
+   "vol_4h": 3.372294,
+   "rvol_1h": 0.571181,
+   "atr_pct": 18.543793,
+   "obv": 146.535823,
+   "funding": 0.0215,
+   "oi_usd": 5591883.255329,
+   "up_low": 143.557692,
+   "ch_24h": -4.198185,
+   "spot_share": 0.0,
+   "vi_p": 1.1866,
+   "vi_m": 0.7527,
+   "ivx_p": 1.0403,
+   "ivx_m": 0.8837,
+   "ivx_spread": 0.1566,
+   "ivx_dir": "up",
+   "score": 63
   }
  ],
  "SHELLUSDT": [
@@ -426635,6 +430015,26 @@
    "ivx_spread": 0.034,
    "ivx_dir": "up",
    "score": 33
+  },
+  {
+   "t": 1787717031,
+   "price": 0.02237,
+   "rvol_1h": 0.074964,
+   "atr_pct": 7.280158,
+   "obv": 35.446819,
+   "funding": 0.017093,
+   "oi_usd": 1730209.57382,
+   "up_low": 28.563218,
+   "ch_24h": 1.130199,
+   "basis": 0.314,
+   "spot_share": 0.236142,
+   "vi_p": 0.9352,
+   "vi_m": 1.143,
+   "ivx_p": 1.0494,
+   "ivx_m": 0.9975,
+   "ivx_spread": 0.0519,
+   "ivx_dir": "up",
+   "score": 33
   }
  ],
  "COHRUSDT": [
@@ -427880,6 +431280,25 @@
    "ivx_spread": 0.0347,
    "ivx_dir": "up",
    "score": 10
+  },
+  {
+   "t": 1787717031,
+   "price": 288.78,
+   "rvol_1h": 0.003847,
+   "atr_pct": 8.038992,
+   "obv": -433.567567,
+   "funding": 0.0,
+   "oi_usd": 8879803.0686,
+   "up_low": 38.796501,
+   "ch_24h": 0.396329,
+   "spot_share": 0.0,
+   "vi_p": 1.0829,
+   "vi_m": 0.9835,
+   "ivx_p": 1.1406,
+   "ivx_m": 1.0488,
+   "ivx_spread": 0.0918,
+   "ivx_dir": "up",
+   "score": 10
   }
  ],
  "AXTIUSDT": [
@@ -429101,6 +432520,24 @@
    "ivx_p": 0.816,
    "ivx_m": 1.2038,
    "ivx_spread": -0.3878,
+   "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 66.82,
+   "rvol_1h": 0.010686,
+   "atr_pct": 11.398426,
+   "obv": -33.730262,
+   "funding": 0.003204,
+   "oi_usd": 9535687.7538,
+   "up_low": 84.432791,
+   "ch_24h": -0.831107,
+   "spot_share": 0.0,
+   "vi_p": 0.9711,
+   "vi_m": 1.0515,
+   "ivx_p": 0.8937,
+   "ivx_m": 1.282,
+   "ivx_spread": -0.3883,
    "ivx_dir": "down"
   }
  ],
@@ -430442,6 +433879,26 @@
    "ivx_p": 0.9766,
    "ivx_m": 1.0436,
    "ivx_spread": -0.067,
+   "ivx_dir": "down",
+   "score": 36
+  },
+  {
+   "t": 1787717031,
+   "price": 0.11324,
+   "rvol_1h": 0.001418,
+   "atr_pct": 7.658828,
+   "obv": 15.839537,
+   "funding": -0.025995,
+   "oi_usd": 2957999.90564,
+   "up_low": 43.160556,
+   "ch_24h": 1.424093,
+   "basis": -0.141,
+   "spot_share": 0.128951,
+   "vi_p": 1.0697,
+   "vi_m": 0.9958,
+   "ivx_p": 0.9711,
+   "ivx_m": 1.1835,
+   "ivx_spread": -0.2124,
    "ivx_dir": "down",
    "score": 36
   }
@@ -432125,6 +435582,34 @@
    "vx_dir": "none",
    "score": 49,
    "flow_fired": 2
+  },
+  {
+   "t": 1787717031,
+   "price": 6.86,
+   "rvol_1h": 0.002467,
+   "atr_pct": 1.796127,
+   "obv": 9.528784,
+   "funding": 0.0,
+   "oi_usd": 10367766.332,
+   "up_low": 13.07071,
+   "ch_24h": 0.882353,
+   "spot_share": 0.0,
+   "vi_p": 1.2592,
+   "vi_m": 0.7749,
+   "ivx_p": 1.3921,
+   "ivx_m": 0.7508,
+   "ivx_spread": 0.6413,
+   "ivx_dir": "up",
+   "buy_share": 0.4915,
+   "delta_slope": -0.01481,
+   "vx_strength": 0.0,
+   "oi_x": 1.08,
+   "oi_held": 75.8,
+   "oi_cycles": 1.0,
+   "rel_vol": 2.59,
+   "vx_dir": "none",
+   "score": 44,
+   "flow_fired": 2
   }
  ],
  "CBRSUSDT": [
@@ -433250,6 +436735,24 @@
    "ivx_m": 1.2132,
    "ivx_spread": -0.415,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 185.85,
+   "rvol_1h": 0.004385,
+   "atr_pct": 8.986126,
+   "obv": -12.009713,
+   "funding": 0.021804,
+   "oi_usd": 12470914.134,
+   "up_low": 14.376269,
+   "ch_24h": 0.912201,
+   "spot_share": 0.0,
+   "vi_p": 0.8479,
+   "vi_m": 1.2024,
+   "ivx_p": 1.2475,
+   "ivx_m": 1.0657,
+   "ivx_spread": 0.1818,
+   "ivx_dir": "up"
   }
  ],
  "HK1810USDT": [
@@ -434350,6 +437853,25 @@
    "ivx_spread": 0.5756,
    "ivx_dir": "up",
    "score": 6
+  },
+  {
+   "t": 1787717031,
+   "price": 29.0,
+   "rvol_1h": 0.060568,
+   "atr_pct": 3.53202,
+   "obv": -29.165737,
+   "funding": 0.010212,
+   "oi_usd": 4989030.08,
+   "up_low": 0.0,
+   "ch_24h": 3.276353,
+   "spot_share": 0.0,
+   "vi_p": 0.99,
+   "vi_m": 1.0359,
+   "ivx_p": 1.2947,
+   "ivx_m": 0.7252,
+   "ivx_spread": 0.5695,
+   "ivx_dir": "up",
+   "score": 4
   }
  ],
  "WDCUSDT": [
@@ -435390,6 +438912,24 @@
    "ivx_m": 1.0071,
    "ivx_spread": -0.0476,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 450.31,
+   "rvol_1h": 0.003781,
+   "atr_pct": 6.191925,
+   "obv": -0.402145,
+   "funding": 0.0,
+   "oi_usd": 6655514.2535,
+   "up_low": 10.140638,
+   "ch_24h": 0.502165,
+   "spot_share": 0.0,
+   "vi_p": 0.904,
+   "vi_m": 1.1237,
+   "ivx_p": 1.3237,
+   "ivx_m": 0.8659,
+   "ivx_spread": 0.4578,
+   "ivx_dir": "up"
   }
  ],
  "REDUSDT": [
@@ -436758,6 +440298,26 @@
    "ivx_spread": -0.1316,
    "ivx_dir": "down",
    "score": 10
+  },
+  {
+   "t": 1787717031,
+   "price": 0.1147,
+   "rvol_1h": 0.024667,
+   "atr_pct": 15.350604,
+   "obv": 34.287141,
+   "funding": 0.005,
+   "oi_usd": 3166434.6957,
+   "up_low": 39.537713,
+   "ch_24h": 1.594331,
+   "basis": -0.087,
+   "spot_share": 0.130594,
+   "vi_p": 1.0497,
+   "vi_m": 0.984,
+   "ivx_p": 0.8503,
+   "ivx_m": 1.254,
+   "ivx_spread": -0.4037,
+   "ivx_dir": "down",
+   "score": 10
   }
  ],
  "PIEVERSEUSDT": [
@@ -437750,6 +441310,25 @@
    "ivx_spread": 0.2615,
    "ivx_dir": "up",
    "score": 15
+  },
+  {
+   "t": 1787717031,
+   "price": 1.0501,
+   "rvol_1h": 0.035045,
+   "atr_pct": 10.506482,
+   "obv": 9.792377,
+   "funding": 0.007777,
+   "oi_usd": 13505908.4045,
+   "up_low": 68.717866,
+   "ch_24h": 0.912935,
+   "spot_share": 0.0,
+   "vi_p": 1.1785,
+   "vi_m": 0.8644,
+   "ivx_p": 1.1765,
+   "ivx_m": 0.8882,
+   "ivx_spread": 0.2883,
+   "ivx_dir": "up",
+   "score": 15
   }
  ],
  "BEUSDT": [
@@ -438734,6 +442313,25 @@
    "ivx_p": 1.0106,
    "ivx_m": 0.9682,
    "ivx_spread": 0.0424,
+   "ivx_dir": "up",
+   "score": 15
+  },
+  {
+   "t": 1787717031,
+   "price": 218.16,
+   "rvol_1h": 0.002125,
+   "atr_pct": 6.468385,
+   "obv": -123.83981,
+   "funding": 0.0,
+   "oi_usd": 9466887.3984,
+   "up_low": 38.286004,
+   "ch_24h": 0.368053,
+   "spot_share": 0.0,
+   "vi_p": 1.2127,
+   "vi_m": 0.8062,
+   "ivx_p": 1.3091,
+   "ivx_m": 0.8946,
+   "ivx_spread": 0.4145,
    "ivx_dir": "up",
    "score": 15
   }
@@ -440067,6 +443665,25 @@
    "ivx_spread": 0.1094,
    "ivx_dir": "up",
    "score": 21
+  },
+  {
+   "t": 1787717031,
+   "price": 1985.22,
+   "rvol_1h": 0.013381,
+   "atr_pct": 3.955589,
+   "obv": 171.027085,
+   "funding": 0.005,
+   "oi_usd": 18573063.1974,
+   "up_low": 46.997801,
+   "ch_24h": 1.029008,
+   "spot_share": 0.0,
+   "vi_p": 1.2509,
+   "vi_m": 0.7673,
+   "ivx_p": 1.1598,
+   "ivx_m": 0.8797,
+   "ivx_spread": 0.2801,
+   "ivx_dir": "up",
+   "score": 21
   }
  ],
  "STARUSDT": [
@@ -441063,6 +444680,25 @@
    "ivx_spread": 0.1446,
    "ivx_dir": "up",
    "score": 21
+  },
+  {
+   "t": 1787717031,
+   "price": 0.15642,
+   "rvol_1h": 0.005812,
+   "atr_pct": 19.410196,
+   "obv": 3648.79242,
+   "funding": 0.036633,
+   "oi_usd": 6710185.40346,
+   "up_low": 121.495327,
+   "ch_24h": -10.693691,
+   "spot_share": 0.0,
+   "vi_p": 1.2179,
+   "vi_m": 0.8123,
+   "ivx_p": 1.0076,
+   "ivx_m": 1.054,
+   "ivx_spread": -0.0464,
+   "ivx_dir": "down",
+   "score": 29
   }
  ],
  "KASUSDT": [
@@ -442013,6 +445649,24 @@
    "ivx_m": 1.2574,
    "ivx_spread": -0.4047,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.02774,
+   "rvol_1h": 0.017839,
+   "atr_pct": 5.731795,
+   "obv": -2.843909,
+   "funding": 0.005,
+   "oi_usd": 2621138.78548,
+   "up_low": 11.048839,
+   "ch_24h": 0.325497,
+   "spot_share": 0.0,
+   "vi_p": 0.9014,
+   "vi_m": 1.1508,
+   "ivx_p": 0.9777,
+   "ivx_m": 1.129,
+   "ivx_spread": -0.1513,
+   "ivx_dir": "down"
   }
  ],
  "INTWUSDT": [
@@ -442926,6 +446580,24 @@
    "ivx_p": 0.7042,
    "ivx_m": 1.2689,
    "ivx_spread": -0.5647,
+   "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 17.85,
+   "rvol_1h": 0.008749,
+   "atr_pct": 10.644258,
+   "obv": -450.211572,
+   "funding": 0.019982,
+   "oi_usd": 2150856.099,
+   "up_low": 0.0,
+   "ch_24h": 0.733634,
+   "spot_share": 0.0,
+   "vi_p": 0.9157,
+   "vi_m": 1.1202,
+   "ivx_p": 0.9818,
+   "ivx_m": 1.1455,
+   "ivx_spread": -0.1637,
    "ivx_dir": "down"
   }
  ],
@@ -443946,6 +447618,34 @@
    "oi_held": 65.9,
    "oi_cycles": 0.0,
    "rel_vol": 2.56,
+   "vx_dir": "down",
+   "score": 67,
+   "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.004985,
+   "rvol_1h": 0.029355,
+   "atr_pct": 8.511248,
+   "obv": 5.791647,
+   "funding": 0.005,
+   "oi_usd": 3167398.4124,
+   "up_low": 37.859513,
+   "ch_24h": 2.27739,
+   "spot_share": 0.0,
+   "vi_p": 1.0463,
+   "vi_m": 1.0048,
+   "ivx_p": 1.0403,
+   "ivx_m": 1.0395,
+   "ivx_spread": 0.0008,
+   "ivx_dir": "up",
+   "buy_share": 0.4828,
+   "delta_slope": -0.02837,
+   "vx_strength": 0.184,
+   "oi_x": 1.0,
+   "oi_held": 65.9,
+   "oi_cycles": 0.0,
+   "rel_vol": 2.35,
    "vx_dir": "down",
    "score": 67,
    "flow_fired": 1
@@ -445165,6 +448865,35 @@
    "vx_dir": "up",
    "score": 51,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.4865,
+   "rvol_1h": 0.036771,
+   "atr_pct": 4.57642,
+   "obv": 51.739846,
+   "funding": 0.01,
+   "oi_usd": 2889429.557,
+   "up_low": 30.849919,
+   "ch_24h": 0.870827,
+   "basis": -0.103,
+   "spot_share": 0.236666,
+   "vi_p": 1.0849,
+   "vi_m": 0.949,
+   "ivx_p": 0.985,
+   "ivx_m": 1.076,
+   "ivx_spread": -0.091,
+   "ivx_dir": "down",
+   "buy_share": 0.4945,
+   "delta_slope": -0.01615,
+   "vx_strength": 0.163,
+   "oi_x": 0.81,
+   "oi_held": 16.0,
+   "oi_cycles": 0.0,
+   "rel_vol": 2.5,
+   "vx_dir": "up",
+   "score": 46,
+   "flow_fired": 1
   }
  ],
  "JASMYUSDT": [
@@ -446097,6 +449826,26 @@
    "ivx_spread": 0.1004,
    "ivx_dir": "up",
    "score": 42
+  },
+  {
+   "t": 1787717031,
+   "price": 0.004898,
+   "rvol_1h": 0.001939,
+   "atr_pct": 7.968267,
+   "obv": 44.208901,
+   "funding": 0.007117,
+   "oi_usd": 3035384.51915,
+   "up_low": 44.313494,
+   "ch_24h": -0.830128,
+   "basis": -0.041,
+   "spot_share": 0.130647,
+   "vi_p": 1.1458,
+   "vi_m": 0.9012,
+   "ivx_p": 1.0186,
+   "ivx_m": 1.1127,
+   "ivx_spread": -0.0941,
+   "ivx_dir": "down",
+   "score": 42
   }
  ],
  "SPELLUSDT": [
@@ -446938,6 +450687,26 @@
    "ivx_spread": -0.3109,
    "ivx_dir": "down",
    "score": 4
+  },
+  {
+   "t": 1787717031,
+   "price": 8.7e-05,
+   "rvol_1h": 0.007019,
+   "atr_pct": 5.989455,
+   "obv": 8.356356,
+   "funding": 0.01,
+   "oi_usd": 1263861.145197,
+   "up_low": 15.446072,
+   "ch_24h": 1.285047,
+   "basis": -0.115,
+   "spot_share": 0.224763,
+   "vi_p": 1.0317,
+   "vi_m": 1.002,
+   "ivx_p": 0.9657,
+   "ivx_m": 1.1943,
+   "ivx_spread": -0.2286,
+   "ivx_dir": "down",
+   "score": 4
   }
  ],
  "RAYSOLUSDT": [
@@ -447670,6 +451439,25 @@
    "ivx_spread": -0.0446,
    "ivx_dir": "down",
    "score": 40
+  },
+  {
+   "t": 1787717031,
+   "price": 0.7868,
+   "rvol_1h": 0.011227,
+   "atr_pct": 5.576839,
+   "obv": 10.526702,
+   "funding": 0.005,
+   "oi_usd": 1821506.43892,
+   "up_low": 34.656854,
+   "ch_24h": 0.305966,
+   "spot_share": 0.0,
+   "vi_p": 1.0553,
+   "vi_m": 0.9737,
+   "ivx_p": 1.0217,
+   "ivx_m": 1.0633,
+   "ivx_spread": -0.0416,
+   "ivx_dir": "down",
+   "score": 40
   }
  ],
  "POPCATUSDT": [
@@ -448275,6 +452063,25 @@
    "ivx_spread": -0.2947,
    "ivx_dir": "down",
    "score": 34
+  },
+  {
+   "t": 1787717031,
+   "price": 0.05864,
+   "rvol_1h": 0.003458,
+   "atr_pct": 7.213506,
+   "obv": 4.396724,
+   "funding": 0.005,
+   "oi_usd": 2787673.23824,
+   "up_low": 47.078004,
+   "ch_24h": 0.445358,
+   "spot_share": 0.0,
+   "vi_p": 1.0419,
+   "vi_m": 1.0143,
+   "ivx_p": 1.036,
+   "ivx_m": 1.0644,
+   "ivx_spread": -0.0284,
+   "ivx_dir": "down",
+   "score": 28
   }
  ],
  "SLXUSDT": [
@@ -448862,6 +452669,25 @@
    "ivx_spread": -0.3515,
    "ivx_dir": "down",
    "score": 10
+  },
+  {
+   "t": 1787717031,
+   "price": 0.06851,
+   "rvol_1h": 0.007769,
+   "atr_pct": 9.534583,
+   "obv": -93.838809,
+   "funding": 0.005,
+   "oi_usd": 3140736.06119,
+   "up_low": 24.224841,
+   "ch_24h": -2.932842,
+   "spot_share": 0.0,
+   "vi_p": 1.0144,
+   "vi_m": 1.0173,
+   "ivx_p": 0.8948,
+   "ivx_m": 1.1762,
+   "ivx_spread": -0.2814,
+   "ivx_dir": "down",
+   "score": 4
   }
  ],
  "MEWUSDT": [
@@ -449488,6 +453314,24 @@
    "ivx_m": 1.1141,
    "ivx_spread": -0.2167,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.000419,
+   "rvol_1h": 0.01957,
+   "atr_pct": 8.27283,
+   "obv": -40.587411,
+   "funding": 0.005,
+   "oi_usd": 961158.588931,
+   "up_low": 34.802187,
+   "ch_24h": 1.723301,
+   "spot_share": 0.0,
+   "vi_p": 0.9584,
+   "vi_m": 1.0719,
+   "ivx_p": 0.8856,
+   "ivx_m": 1.1776,
+   "ivx_spread": -0.292,
+   "ivx_dir": "down"
   }
  ],
  "MOODENGUSDT": [
@@ -450035,6 +453879,25 @@
    "ivx_spread": -0.0264,
    "ivx_dir": "down",
    "score": 32
+  },
+  {
+   "t": 1787717031,
+   "price": 0.0423,
+   "rvol_1h": 0.019067,
+   "atr_pct": 10.410334,
+   "obv": 1.161925,
+   "funding": 0.005,
+   "oi_usd": 1838619.3717,
+   "up_low": 26.836582,
+   "ch_24h": 1.293103,
+   "spot_share": 0.0,
+   "vi_p": 0.8731,
+   "vi_m": 1.1984,
+   "ivx_p": 1.0049,
+   "ivx_m": 1.0547,
+   "ivx_spread": -0.0498,
+   "ivx_dir": "down",
+   "score": 33
   }
  ],
  "VETUSDT": [
@@ -450606,6 +454469,26 @@
    "ivx_spread": 0.0033,
    "ivx_dir": "up",
    "score": 4
+  },
+  {
+   "t": 1787717031,
+   "price": 0.005721,
+   "rvol_1h": 0.063952,
+   "atr_pct": 5.393662,
+   "obv": 2.813553,
+   "funding": 0.01,
+   "oi_usd": 3425228.851923,
+   "up_low": 33.668224,
+   "ch_24h": 0.633245,
+   "basis": -0.087,
+   "spot_share": 0.184644,
+   "vi_p": 1.0112,
+   "vi_m": 1.0512,
+   "ivx_p": 0.984,
+   "ivx_m": 1.1008,
+   "ivx_spread": -0.1168,
+   "ivx_dir": "down",
+   "score": 4
   }
  ],
  "BRUSDT": [
@@ -451166,6 +455049,25 @@
    "vx_dir": "down",
    "score": 38,
    "flow_fired": 2
+  },
+  {
+   "t": 1787717031,
+   "price": 0.25791,
+   "rvol_1h": 0.030924,
+   "atr_pct": 15.748018,
+   "obv": 7.433865,
+   "funding": 0.024487,
+   "oi_usd": 10850197.61655,
+   "up_low": 119.255292,
+   "ch_24h": -2.646082,
+   "spot_share": 0.0,
+   "vi_p": 1.1126,
+   "vi_m": 0.9232,
+   "ivx_p": 0.9803,
+   "ivx_m": 1.0411,
+   "ivx_spread": -0.0608,
+   "ivx_dir": "down",
+   "score": 23
   }
  ],
  "ZKPUSDT": [
@@ -451692,6 +455594,25 @@
    "ivx_m": 1.0733,
    "ivx_spread": -0.1164,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.04073,
+   "rvol_1h": 0.00852,
+   "atr_pct": 7.590053,
+   "obv": -6.927924,
+   "funding": 0.005,
+   "oi_usd": 2432014.89669,
+   "up_low": 6.790771,
+   "ch_24h": 0.717112,
+   "basis": 0.074,
+   "spot_share": 0.17634,
+   "vi_p": 0.9315,
+   "vi_m": 1.1188,
+   "ivx_p": 0.9329,
+   "ivx_m": 1.1315,
+   "ivx_spread": -0.1986,
+   "ivx_dir": "down"
   }
  ],
  "SUSDT": [
@@ -452206,6 +456127,26 @@
    "ivx_spread": -0.1257,
    "ivx_dir": "down",
    "score": 4
+  },
+  {
+   "t": 1787717031,
+   "price": 0.02795,
+   "rvol_1h": 0.005068,
+   "atr_pct": 7.142857,
+   "obv": 15.500641,
+   "funding": 0.005,
+   "oi_usd": 3363464.8203,
+   "up_low": 35.877491,
+   "ch_24h": 2.193784,
+   "basis": -0.179,
+   "spot_share": 0.208179,
+   "vi_p": 1.0168,
+   "vi_m": 1.0272,
+   "ivx_p": 1.0574,
+   "ivx_m": 1.0096,
+   "ivx_spread": 0.0478,
+   "ivx_dir": "up",
+   "score": 4
   }
  ],
  "GMTUSDT": [
@@ -452687,6 +456628,25 @@
    "ivx_p": 0.9115,
    "ivx_m": 1.1775,
    "ivx_spread": -0.266,
+   "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.0072,
+   "rvol_1h": 0.001034,
+   "atr_pct": 7.608135,
+   "obv": -7.872789,
+   "funding": 0.005,
+   "oi_usd": 2504277.6264,
+   "up_low": 24.45981,
+   "ch_24h": 1.565806,
+   "basis": 0.0,
+   "spot_share": 0.190667,
+   "vi_p": 0.9211,
+   "vi_m": 1.1108,
+   "ivx_p": 0.9925,
+   "ivx_m": 1.1168,
+   "ivx_spread": -0.1243,
    "ivx_dir": "down"
   }
  ],
@@ -453174,6 +457134,26 @@
    "ivx_spread": -0.4276,
    "ivx_dir": "down",
    "score": 10
+  },
+  {
+   "t": 1787717031,
+   "price": 0.06764,
+   "rvol_1h": 0.001756,
+   "atr_pct": 11.093394,
+   "obv": -23.69541,
+   "funding": 0.005,
+   "oi_usd": 3406567.11856,
+   "up_low": 29.010109,
+   "ch_24h": -1.771711,
+   "basis": -0.089,
+   "spot_share": 0.199183,
+   "vi_p": 1.0155,
+   "vi_m": 1.0015,
+   "ivx_p": 0.9344,
+   "ivx_m": 1.1944,
+   "ivx_spread": -0.26,
+   "ivx_dir": "down",
+   "score": 4
   }
  ],
  "BASEDUSDT": [
@@ -453616,6 +457596,24 @@
    "ivx_m": 1.0379,
    "ivx_spread": -0.0398,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.07025,
+   "rvol_1h": 0.049936,
+   "atr_pct": 12.823589,
+   "obv": -7.990705,
+   "funding": 0.005,
+   "oi_usd": 4527647.69525,
+   "up_low": 27.727273,
+   "ch_24h": 1.693688,
+   "spot_share": 0.0,
+   "vi_p": 0.9059,
+   "vi_m": 1.155,
+   "ivx_p": 1.0697,
+   "ivx_m": 0.9724,
+   "ivx_spread": 0.0973,
+   "ivx_dir": "up"
   }
  ],
  "HANAUSDT": [
@@ -454140,6 +458138,25 @@
    "ivx_spread": -0.2233,
    "ivx_dir": "down",
    "score": 43
+  },
+  {
+   "t": 1787717031,
+   "price": 0.01901,
+   "rvol_1h": 0.002333,
+   "atr_pct": 19.403322,
+   "obv": -0.710689,
+   "funding": 0.005,
+   "oi_usd": 6027269.13919,
+   "up_low": 14.864048,
+   "ch_24h": -1.092612,
+   "spot_share": 0.0,
+   "vi_p": 1.1244,
+   "vi_m": 0.9205,
+   "ivx_p": 0.8792,
+   "ivx_m": 1.1671,
+   "ivx_spread": -0.2879,
+   "ivx_dir": "down",
+   "score": 43
   }
  ],
  "ESPORTSUSDT": [
@@ -454562,6 +458579,24 @@
    "ivx_spread": -0.0708,
    "ivx_dir": "down",
    "score": 4
+  },
+  {
+   "t": 1787717031,
+   "price": 0.01465,
+   "rvol_1h": 0.009132,
+   "atr_pct": 11.023891,
+   "obv": -2.658988,
+   "funding": 0.09247,
+   "oi_usd": 7937648.33535,
+   "up_low": 16.919393,
+   "ch_24h": -0.812458,
+   "spot_share": 0.0,
+   "vi_p": 0.9672,
+   "vi_m": 1.0821,
+   "ivx_p": 1.0509,
+   "ivx_m": 1.0,
+   "ivx_spread": 0.0509,
+   "ivx_dir": "up"
   }
  ],
  "SOLVUSDT": [
@@ -455052,6 +459087,26 @@
    "ivx_spread": -0.3032,
    "ivx_dir": "down",
    "score": 49
+  },
+  {
+   "t": 1787717031,
+   "price": 0.002839,
+   "rvol_1h": 0.004038,
+   "atr_pct": 8.051125,
+   "obv": 15.013638,
+   "funding": 0.005,
+   "oi_usd": 1868179.588541,
+   "up_low": 32.477835,
+   "ch_24h": 0.070497,
+   "basis": -0.035,
+   "spot_share": 0.252176,
+   "vi_p": 1.1227,
+   "vi_m": 0.9151,
+   "ivx_p": 1.0497,
+   "ivx_m": 1.1539,
+   "ivx_spread": -0.1042,
+   "ivx_dir": "down",
+   "score": 49
   }
  ],
  "TWTUSDT": [
@@ -455515,6 +459570,26 @@
    "ivx_spread": 0.2094,
    "ivx_dir": "up",
    "score": 49
+  },
+  {
+   "t": 1787717031,
+   "price": 0.4627,
+   "rvol_1h": 0.005957,
+   "atr_pct": 4.566365,
+   "obv": 6.459554,
+   "funding": 0.005,
+   "oi_usd": 3492032.0652,
+   "up_low": 42.808642,
+   "ch_24h": 0.39054,
+   "basis": -0.345,
+   "spot_share": 0.199856,
+   "vi_p": 1.1882,
+   "vi_m": 0.8442,
+   "ivx_p": 1.1552,
+   "ivx_m": 1.0405,
+   "ivx_spread": 0.1147,
+   "ivx_dir": "up",
+   "score": 49
   }
  ],
  "PUNDIXUSDT": [
@@ -455892,6 +459967,26 @@
    "ivx_spread": -0.1447,
    "ivx_dir": "down",
    "score": 40
+  },
+  {
+   "t": 1787717031,
+   "price": 0.08942,
+   "rvol_1h": 0.005901,
+   "atr_pct": 5.979008,
+   "obv": 22.746856,
+   "funding": 0.005,
+   "oi_usd": 986721.9798,
+   "up_low": 24.60981,
+   "ch_24h": -1.389502,
+   "basis": 0.134,
+   "spot_share": 0.182493,
+   "vi_p": 1.0137,
+   "vi_m": 1.0233,
+   "ivx_p": 0.9991,
+   "ivx_m": 1.1045,
+   "ivx_spread": -0.1054,
+   "ivx_dir": "down",
+   "score": 42
   }
  ],
  "GOATUSDT": [
@@ -456280,6 +460375,25 @@
    "ivx_spread": -0.4167,
    "ivx_dir": "down",
    "score": 34
+  },
+  {
+   "t": 1787717031,
+   "price": 0.01607,
+   "rvol_1h": 0.002232,
+   "atr_pct": 9.045248,
+   "obv": 10.73696,
+   "funding": 0.005,
+   "oi_usd": 1305115.74547,
+   "up_low": 34.140234,
+   "ch_24h": -0.186335,
+   "spot_share": 0.0,
+   "vi_p": 1.0458,
+   "vi_m": 0.9853,
+   "ivx_p": 0.9519,
+   "ivx_m": 1.221,
+   "ivx_spread": -0.2691,
+   "ivx_dir": "down",
+   "score": 34
   }
  ],
  "KMNOUSDT": [
@@ -456609,6 +460723,26 @@
    "ivx_spread": -0.5109,
    "ivx_dir": "down",
    "score": 22
+  },
+  {
+   "t": 1787717031,
+   "price": 0.02397,
+   "rvol_1h": 0.008117,
+   "atr_pct": 6.561774,
+   "obv": 14.018286,
+   "funding": 0.005,
+   "oi_usd": 2869023.20853,
+   "up_low": 39.441536,
+   "ch_24h": -1.358025,
+   "basis": -0.042,
+   "spot_share": 0.159492,
+   "vi_p": 0.9471,
+   "vi_m": 1.0837,
+   "ivx_p": 0.5907,
+   "ivx_m": 1.5617,
+   "ivx_spread": -0.971,
+   "ivx_dir": "down",
+   "score": 22
   }
  ],
  "DUSKUSDT": [
@@ -456934,6 +461068,26 @@
    "ivx_spread": -0.2106,
    "ivx_dir": "down",
    "score": 34
+  },
+  {
+   "t": 1787717031,
+   "price": 0.07174,
+   "rvol_1h": 0.02953,
+   "atr_pct": 10.760086,
+   "obv": 1.142084,
+   "funding": 0.005,
+   "oi_usd": 2487444.17656,
+   "up_low": 28.797127,
+   "ch_24h": 0.209526,
+   "basis": -0.084,
+   "spot_share": 0.099119,
+   "vi_p": 0.8442,
+   "vi_m": 1.2099,
+   "ivx_p": 0.9236,
+   "ivx_m": 1.155,
+   "ivx_spread": -0.2314,
+   "ivx_dir": "down",
+   "score": 34
   }
  ],
  "TLMUSDT": [
@@ -457240,6 +461394,26 @@
    "ivx_m": 0.8746,
    "ivx_spread": 0.2686,
    "ivx_dir": "up",
+   "score": 15
+  },
+  {
+   "t": 1787717031,
+   "price": 0.001535,
+   "rvol_1h": 0.001136,
+   "atr_pct": 9.050721,
+   "obv": 2.546604,
+   "funding": -0.136604,
+   "oi_usd": 2476489.967455,
+   "up_low": 89.272503,
+   "ch_24h": -1.602564,
+   "basis": -0.454,
+   "spot_share": 0.169438,
+   "vi_p": 1.1238,
+   "vi_m": 0.9116,
+   "ivx_p": 1.098,
+   "ivx_m": 1.1832,
+   "ivx_spread": -0.0852,
+   "ivx_dir": "down",
    "score": 15
   }
  ],
@@ -457548,6 +461722,26 @@
    "ivx_spread": 0.1558,
    "ivx_dir": "up",
    "score": 10
+  },
+  {
+   "t": 1787717031,
+   "price": 0.1432,
+   "rvol_1h": 0.014338,
+   "atr_pct": 12.963887,
+   "obv": 12.770469,
+   "funding": 0.005,
+   "oi_usd": 2217780.68696,
+   "up_low": 30.063579,
+   "ch_24h": -0.762301,
+   "basis": -0.209,
+   "spot_share": 0.217963,
+   "vi_p": 1.0499,
+   "vi_m": 0.9931,
+   "ivx_p": 1.0582,
+   "ivx_m": 1.0767,
+   "ivx_spread": -0.0185,
+   "ivx_dir": "down",
+   "score": 10
   }
  ],
  "KITEUSDT": [
@@ -457830,6 +462024,25 @@
    "ivx_spread": 0.0738,
    "ivx_dir": "up",
    "score": 4
+  },
+  {
+   "t": 1787717031,
+   "price": 0.11313,
+   "rvol_1h": 0.035802,
+   "atr_pct": 6.174944,
+   "obv": -0.917544,
+   "funding": 0.005,
+   "oi_usd": 19616222.05452,
+   "up_low": 26.331658,
+   "ch_24h": 0.882825,
+   "basis": 0.027,
+   "spot_share": 0.234963,
+   "vi_p": 0.9768,
+   "vi_m": 1.0893,
+   "ivx_p": 1.1068,
+   "ivx_m": 0.9584,
+   "ivx_spread": 0.1484,
+   "ivx_dir": "up"
   }
  ],
  "FLNCUSDT": [
@@ -458072,6 +462285,24 @@
    "ivx_m": 1.2863,
    "ivx_spread": -0.533,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 11.29,
+   "rvol_1h": 0.021737,
+   "atr_pct": 5.485259,
+   "obv": -41.651912,
+   "funding": 0.0,
+   "oi_usd": 1288056.0038,
+   "up_low": 8.245446,
+   "ch_24h": 0.26643,
+   "spot_share": 0.0,
+   "vi_p": 0.9679,
+   "vi_m": 1.039,
+   "ivx_p": 1.1586,
+   "ivx_m": 0.931,
+   "ivx_spread": 0.2276,
+   "ivx_dir": "up"
   }
  ],
  "CFGUSDT": [
@@ -458308,6 +462539,25 @@
    "ivx_m": 0.9599,
    "ivx_spread": 0.0581,
    "ivx_dir": "up"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.1388,
+   "rvol_1h": 0.046592,
+   "atr_pct": 9.793125,
+   "obv": -2.932395,
+   "funding": 0.005,
+   "oi_usd": 1915611.1404,
+   "up_low": 18.733961,
+   "ch_24h": 0.0,
+   "basis": -0.072,
+   "spot_share": 0.258947,
+   "vi_p": 0.9505,
+   "vi_m": 1.1264,
+   "ivx_p": 1.0691,
+   "ivx_m": 1.1407,
+   "ivx_spread": -0.0716,
+   "ivx_dir": "down"
   }
  ],
  "BASUSDT": [
@@ -458533,6 +462783,25 @@
    "ivx_m": 1.1656,
    "ivx_spread": -0.3781,
    "ivx_dir": "down"
+  },
+  {
+   "t": 1787717031,
+   "price": 0.022187,
+   "rvol_1h": 0.012532,
+   "atr_pct": 11.933307,
+   "obv": -0.378489,
+   "funding": 0.005,
+   "oi_usd": 2054005.810252,
+   "up_low": 21.839649,
+   "ch_24h": 6.269758,
+   "spot_share": 0.0,
+   "vi_p": 0.9004,
+   "vi_m": 1.1536,
+   "ivx_p": 0.8566,
+   "ivx_m": 1.1488,
+   "ivx_spread": -0.2922,
+   "ivx_dir": "down",
+   "score": 8
   }
  ],
  "BSBUSDT": [
@@ -458740,6 +463009,25 @@
    "ivx_spread": -0.042,
    "ivx_dir": "down",
    "score": 34
+  },
+  {
+   "t": 1787717031,
+   "price": 0.0946,
+   "rvol_1h": 0.01739,
+   "atr_pct": 16.975234,
+   "obv": -12.43404,
+   "funding": 0.005,
+   "oi_usd": 5807405.3598,
+   "up_low": 22.968933,
+   "ch_24h": 0.254345,
+   "spot_share": 0.0,
+   "vi_p": 0.9858,
+   "vi_m": 1.1027,
+   "ivx_p": 0.9738,
+   "ivx_m": 1.0718,
+   "ivx_spread": -0.098,
+   "ivx_dir": "down",
+   "score": 34
   }
  ],
  "CFXUSDT": [
@@ -458934,6 +463222,26 @@
    "ivx_spread": -0.1695,
    "ivx_dir": "down",
    "score": 26
+  },
+  {
+   "t": 1787717031,
+   "price": 0.04778,
+   "rvol_1h": 0.035073,
+   "atr_pct": 5.946899,
+   "obv": 4.235838,
+   "funding": 0.01,
+   "oi_usd": 4234317.06582,
+   "up_low": 27.719861,
+   "ch_24h": 1.963295,
+   "basis": -0.042,
+   "spot_share": 0.198726,
+   "vi_p": 0.9341,
+   "vi_m": 1.1176,
+   "ivx_p": 0.9975,
+   "ivx_m": 1.0861,
+   "ivx_spread": -0.0886,
+   "ivx_dir": "down",
+   "score": 26
   }
  ],
  "KOMAUSDT": [
@@ -459112,6 +463420,34 @@
    "vx_dir": "up",
    "score": 61,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.014417,
+   "rvol_1h": 0.007991,
+   "atr_pct": 11.281325,
+   "obv": 7.443921,
+   "funding": 0.005,
+   "oi_usd": 5100632.38347,
+   "up_low": 121.017937,
+   "ch_24h": 1.836547,
+   "spot_share": 0.0,
+   "vi_p": 1.2144,
+   "vi_m": 0.8117,
+   "ivx_p": 1.2214,
+   "ivx_m": 0.7894,
+   "ivx_spread": 0.432,
+   "ivx_dir": "up",
+   "buy_share": 0.5019,
+   "delta_slope": -0.00362,
+   "vx_strength": 0.128,
+   "oi_x": 0.99,
+   "oi_held": 17.0,
+   "oi_cycles": 1.0,
+   "rel_vol": 2.1,
+   "vx_dir": "up",
+   "score": 61,
+   "flow_fired": 1
   }
  ],
  "HUSDT": [
@@ -459235,6 +463571,25 @@
    "ivx_m": 0.9944,
    "ivx_spread": 0.0417,
    "ivx_dir": "up",
+   "score": 49
+  },
+  {
+   "t": 1787717031,
+   "price": 0.07996,
+   "rvol_1h": 0.008427,
+   "atr_pct": 33.142464,
+   "obv": -56.316891,
+   "funding": 0.027234,
+   "oi_usd": 18530606.062,
+   "up_low": 67.771716,
+   "ch_24h": 0.112683,
+   "spot_share": 0.0,
+   "vi_p": 1.2515,
+   "vi_m": 0.7989,
+   "ivx_p": 1.0313,
+   "ivx_m": 1.0448,
+   "ivx_spread": -0.0135,
+   "ivx_dir": "down",
    "score": 49
   }
  ],
@@ -459402,6 +463757,35 @@
    "vx_dir": "down",
    "score": 69,
    "flow_fired": 2
+  },
+  {
+   "t": 1787717031,
+   "price": 0.1663,
+   "rvol_1h": 0.030027,
+   "atr_pct": 6.863672,
+   "obv": -5.616913,
+   "funding": 0.005,
+   "oi_usd": 2766197.4477,
+   "up_low": 44.986922,
+   "ch_24h": 4.002502,
+   "basis": 0.0,
+   "spot_share": 0.134895,
+   "vi_p": 1.0697,
+   "vi_m": 0.96,
+   "ivx_p": 1.1223,
+   "ivx_m": 0.9669,
+   "ivx_spread": 0.1554,
+   "ivx_dir": "up",
+   "buy_share": 0.4859,
+   "delta_slope": -0.03749,
+   "vx_strength": 0.101,
+   "oi_x": 0.81,
+   "oi_held": 27.5,
+   "oi_cycles": 1.0,
+   "rel_vol": 1.83,
+   "vx_dir": "down",
+   "score": 75,
+   "flow_fired": 2
   }
  ],
  "AVNTUSDT": [
@@ -459532,6 +463916,26 @@
    "ivx_spread": -0.0757,
    "ivx_dir": "down",
    "score": 34
+  },
+  {
+   "t": 1787717031,
+   "price": 0.10355,
+   "rvol_1h": 0.01644,
+   "atr_pct": 10.787059,
+   "obv": 4.123179,
+   "funding": 0.005,
+   "oi_usd": 3427503.23965,
+   "up_low": 33.440722,
+   "ch_24h": -0.096479,
+   "basis": 0.048,
+   "spot_share": 0.176665,
+   "vi_p": 1.049,
+   "vi_m": 0.9796,
+   "ivx_p": 1.0116,
+   "ivx_m": 1.092,
+   "ivx_spread": -0.0804,
+   "ivx_dir": "down",
+   "score": 40
   }
  ],
  "EVAAUSDT": [
@@ -459634,6 +464038,25 @@
    "ivx_p": 1.0861,
    "ivx_m": 0.9325,
    "ivx_spread": 0.1536,
+   "ivx_dir": "up",
+   "score": 47
+  },
+  {
+   "t": 1787717031,
+   "price": 0.7565,
+   "rvol_1h": 0.01496,
+   "atr_pct": 9.027476,
+   "obv": -1.997867,
+   "funding": 0.00531,
+   "oi_usd": 5145967.71355,
+   "up_low": 151.162019,
+   "ch_24h": 1.149886,
+   "spot_share": 0.0,
+   "vi_p": 1.1051,
+   "vi_m": 0.9302,
+   "ivx_p": 1.0945,
+   "ivx_m": 0.979,
+   "ivx_spread": 0.1155,
    "ivx_dir": "up",
    "score": 47
   }
@@ -459790,6 +464213,35 @@
    "vx_dir": "up",
    "score": 37,
    "flow_fired": 1
+  },
+  {
+   "t": 1787717031,
+   "price": 0.8616,
+   "rvol_1h": 0.155251,
+   "atr_pct": 10.113244,
+   "obv": -0.395498,
+   "funding": 0.005,
+   "oi_usd": 3596856.81384,
+   "up_low": 47.711298,
+   "ch_24h": 0.736584,
+   "basis": -0.162,
+   "spot_share": 0.22754,
+   "vi_p": 0.9809,
+   "vi_m": 1.0474,
+   "ivx_p": 1.0539,
+   "ivx_m": 1.0075,
+   "ivx_spread": 0.0464,
+   "ivx_dir": "up",
+   "buy_share": 0.4878,
+   "delta_slope": -0.02582,
+   "vx_strength": 0.088,
+   "oi_x": 0.87,
+   "oi_held": 10.8,
+   "oi_cycles": 0.0,
+   "rel_vol": 0.92,
+   "vx_dir": "up",
+   "score": 33,
+   "flow_fired": 1
   }
  ],
  "POWERUSDT": [
@@ -459894,6 +464346,46 @@
    "ivx_spread": -0.4175,
    "ivx_dir": "down",
    "score": 34
+  },
+  {
+   "t": 1787717031,
+   "price": 0.07357,
+   "rvol_1h": 0.062733,
+   "atr_pct": 11.3876,
+   "obv": 1.310282,
+   "funding": 0.005,
+   "oi_usd": 2682692.01431,
+   "up_low": 12.509558,
+   "ch_24h": 1.433889,
+   "spot_share": 0.0,
+   "vi_p": 0.841,
+   "vi_m": 1.208,
+   "ivx_p": 0.8506,
+   "ivx_m": 1.1687,
+   "ivx_spread": -0.3181,
+   "ivx_dir": "down",
+   "score": 34
+  }
+ ],
+ "FLUIDUSDT": [
+  {
+   "t": 1787717031,
+   "price": 1.581,
+   "rvol_1h": 1.190457,
+   "atr_pct": 6.691064,
+   "obv": 1.78142,
+   "funding": 0.005,
+   "oi_usd": 1703213.1972,
+   "up_low": 95.910781,
+   "ch_24h": 21.802773,
+   "spot_share": 0.0,
+   "vi_p": 1.2403,
+   "vi_m": 0.7397,
+   "ivx_p": 1.3597,
+   "ivx_m": 0.5971,
+   "ivx_spread": 0.7626,
+   "ivx_dir": "up",
+   "score": 61
   }
  ]
 }
