@@ -33,10 +33,15 @@
 какой-то будущей версии браузера, без единого предупреждения.
 postMessage с явной проверкой origin переживёт это ужесточение.
 
-Лоадер — пульсирующая звезда. Утверждён по HTML-прототипу (вариант 2
-из трёх). Оформление и логика показа не связаны: чтобы поменять вид,
-достаточно содержимого #obShellLoader и его стилей, MIN_SHOW_MS и
-затухание к нему не привязаны.
+Лоадер — звезда с орбитой на светлом поле сводки. Утверждён по
+HTML-прототипу proto_switch_orbit.html (26.08) вместо прежней
+пульсирующей звезды на чёрном: сводка стала светлой, и чёрный проход
+между экранами читался как другое приложение. Оформление и логика
+показа не связаны: чтобы поменять вид, достаточно содержимого
+#obShellLoader и его стилей, MIN_SHOW_MS к нему не привязан.
+
+Подпись под звездой называет экран, который грузится: лоадер — проход,
+и проход говорит, куда ведёт. Имена берутся из SCREEN_NAMES ниже.
 """
 
 from __future__ import annotations
@@ -68,6 +73,14 @@ SEQUENCE = {
     "podium": "dashboard",
 }
 
+# Как экран называется в подписи лоадера. Экран без имени подписи не
+# получает — лоадер покажет одну звезду.
+SCREEN_NAMES = {
+    "brief": "сводка",
+    "podium": "зал",
+    "dashboard": "дашборд",
+}
+
 # Сколько лоадер висит минимум. Без нижней границы лоадер, мелькнувший
 # на сорок миллисекунд при переходе на закешированный экран, читается
 # как дефект отрисовки, а не как загрузка.
@@ -90,6 +103,7 @@ def build_shell(screens: tuple[str, ...] = SCREENS,
     allowed = json.dumps(list(screens), ensure_ascii=False)
     start_js = json.dumps(start)
     sequence = json.dumps(SEQUENCE, ensure_ascii=False)
+    names = json.dumps(SCREEN_NAMES, ensure_ascii=False)
 
     return f"""<!DOCTYPE html>
 <html lang="ru">
@@ -97,115 +111,114 @@ def build_shell(screens: tuple[str, ...] = SCREENS,
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Sleeping Alts Screener</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400&display=swap" rel="stylesheet">
 <style>
   /* Свои стили, не из render_css.py. Общий файл стилей принадлежит
      экранам и уезжает внутрь iframe вместе с ними; оболочке из него
      не нужно ничего, а тянуть его сюда значит вернуть ту самую
      общность, ради устранения которой всё и затевалось. */
+  /* ПОЛЕ. Серое поле сводки (#8d939c, её --pg): оболочка, рамка и
+     лоадер одного цвета, чтобы между документами не мигало ни белым,
+     ни чёрным. Зал и дашборд тёмные — к ним лоадер уходит косым
+     срезом, и контраст на срезе читается как переворот листа, а зал
+     со своей стороны ещё и проявляется полсекунды. Сменится поле у
+     сводки — сменить здесь. */
   html, body {{
     margin: 0; padding: 0; height: 100%;
-    background: #050506;   /* тот же фон, что у экранов: без него
-                              между документами мигает белым */
+    background: #8d939c;
     overflow: hidden;
   }}
   #obShellFrame {{
     position: fixed; inset: 0;
     width: 100%; height: 100%;
     border: 0; display: block;
-    background: #050506;
+    background: #8d939c;
   }}
   #obShellLoader {{
     position: fixed; inset: 0;
     z-index: 10;                     /* поверх iframe, всегда */
     display: flex; align-items: center; justify-content: center;
-    background: #050506;
-    opacity: 1; transition: opacity .35s ease;
+    background: #8d939c;
     pointer-events: none;            /* не перехватывает клики, пока
-                                        гаснет */
+                                        уходит */
   }}
-  #obShellLoader.off {{ opacity: 0; }}
+  /* УХОД — КОСОЙ СРЕЗ, тот же, каким листаются страницы сводки:
+     лоадер не растворяется, а съезжает косой гранью и открывает экран.
+     .gone ставится скриптом ПОСЛЕ конца среза (см. hideLoader). */
+  #obShellLoader.off {{
+    animation: obShellWipe .8s cubic-bezier(.4,0,.5,1) forwards;
+  }}
   #obShellLoader.gone {{ display: none; }}
-
-  /* ── Пробуждение ──────────────────────────────────────────
-     Звезда разгорается и гаснет, рядом чуть дышат тусклые соседи.
-     Буквально то, что ищет скринер: спящая монета, которая начинает
-     светиться.
-
-     Утверждено по HTML-прототипу (loader-prototype.html), вариант 2
-     из трёх. Вариант с орбитой отклонён по делу: там период 2.6 с, а
-     лоадер живёт около секунды — полного оборота не видит никто, и от
-     орбиты остаётся дёргающаяся крошка. Пульс читается с первого
-     кадра, и это ровно то, что от лоадера требуется.
-
-     Период 1.6 с, а не 2.4 с как в прототипе: при минимальном показе
-     в 700 мс более длинный цикл не успевал дойти до пика, и звезда
-     гасла, ни разу не загоревшись. Отрицательная задержка стартует
-     цикл не с нижней точки — пик приходится примерно на 400-ю
-     миллисекунду и попадает в окно даже самого быстрого перехода. */
-  .obShellWake {{
-    position: relative; width: 132px; height: 132px;
-    display: grid; place-items: center;
-  }}
-  .obShellWake i {{
-    position: absolute; background: #FFD98A; border-radius: 50%;
-    animation: obShellBreath 1.6s ease-in-out -.4s infinite;
-  }}
-  .obShellWake .core {{ width: 8px; height: 8px; }}
-  .obShellWake .halo {{
-    width: 8px; height: 8px; filter: blur(9px); opacity: .55;
-    animation: obShellHalo 1.6s ease-in-out -.4s infinite;
-  }}
-  .obShellWake u {{
-    position: absolute; height: 1px; width: 96px; opacity: 0;
-    background: linear-gradient(90deg, transparent, #FFD98A 50%, transparent);
-    animation: obShellSpike 1.6s ease-in-out -.4s infinite;
-  }}
-  .obShellWake u.v {{ transform: rotate(90deg); }}
-  .obShellWake s {{
-    position: absolute; width: 2px; height: 2px; border-radius: 50%;
-    background: #8FA0B0; opacity: .3; text-decoration: none;
-    animation: obShellDim 1.6s ease-in-out infinite;
+  @keyframes obShellWipe {{
+    from {{ clip-path: polygon(-30% 0, 125% 0, 125% 100%, 0 100%); }}
+    to   {{ clip-path: polygon(-30% 0, -30% 0, -30% 100%, -55% 100%); }}
   }}
 
-  /* Нижняя точка цикла — НЕ ноль. Метка, пропадающая насовсем,
-     читается как сбой отрисовки, а не как пауза дыхания. */
-  @keyframes obShellBreath {{
-    0%, 100% {{ opacity: .34; transform: scale(.78); }}
-    50%      {{ opacity: 1;   transform: scale(1.2); }}
+  /* ── Орбита ───────────────────────────────────────────────
+     Звезда осталась звездой, но из свечения стала знаком: белая точка
+     в центре, одна тонкая орбита, по ней бежит оранжевая точка — язык
+     дашборда на поле сводки. Свечения на светлом не бывает, потому
+     нет ни ореола, ни лучей.
+
+     Утверждено по прототипу proto_switch_orbit.html (26.08). Прежде
+     орбита была отклонена по делу: период 2.6 с при показе около
+     секунды — полного оборота никто не видел, оставалась дёргающаяся
+     крошка. Здесь период 0.9 с, короче минимального показа в 700 мс
+     плюс уход: полный оборот виден даже на самом быстром переходе, а
+     ход ровный, без ускорений, — ровно то, чего не хватало тогда. */
+  .obShellOrbit {{
+    display: flex; flex-direction: column; align-items: center; gap: 26px;
   }}
-  @keyframes obShellHalo {{
-    0%, 100% {{ opacity: .12; transform: scale(2.2); }}
-    50%      {{ opacity: .6;  transform: scale(4.6); }}
+  .obShellOrbit .orb {{ position: relative; width: 96px; height: 96px; }}
+  .obShellOrbit .ring {{
+    position: absolute; inset: 0; border-radius: 50%;
+    border: 1px solid rgba(70,76,87,.35);
   }}
-  @keyframes obShellSpike {{
-    0%, 100% {{ opacity: 0; }}
-    50%      {{ opacity: .62; }}
+  .obShellOrbit .core {{
+    position: absolute; left: 50%; top: 50%; width: 14px; height: 14px;
+    margin: -7px 0 0 -7px; border-radius: 50%; background: #fff;
+    box-shadow: 0 6px 16px rgba(34,38,46,.25);
   }}
-  @keyframes obShellDim {{
-    0%, 100% {{ opacity: .16; }}
-    50%      {{ opacity: .55; }}
+  .obShellOrbit .sat {{
+    position: absolute; inset: 0;
+    animation: obShellTurn .9s linear infinite;
+  }}
+  .obShellOrbit .sat i {{
+    position: absolute; left: 50%; top: -4px; width: 8px; height: 8px;
+    margin-left: -4px; border-radius: 50%; background: #e8873f; display: block;
+  }}
+  /* Подпись — антиква вразрядку, как штампы сводки. Стек запасных
+     подобран по рисунку: Didot и Bodoni — та же антиква с тонкими
+     засечками, если сеть закрыта. */
+  .obShellOrbit .cap {{
+    font-family: 'Playfair Display', Didot, 'Bodoni MT', Georgia, serif;
+    font-size: 10.5px; letter-spacing: .4em; text-transform: uppercase;
+    color: #6c737f;
+    animation: obShellUp .6s cubic-bezier(.22,.61,.36,1) .25s both;
+  }}
+  .obShellOrbit .cap b {{ font-weight: 400; color: #464c57; }}
+  .obShellOrbit .cap:empty {{ display: none; }}
+  @keyframes obShellTurn {{ to {{ transform: rotate(360deg); }} }}
+  @keyframes obShellUp {{
+    from {{ opacity: 0; transform: translateY(6px); }}
+    to   {{ opacity: 1; transform: none; }}
   }}
 
-  /* Движение снимается целиком, но метка остаётся: пустой чёрный
-     экран на месте лоадера неотличим от зависшей загрузки. */
+  /* Движение снимается целиком, но знак остаётся: пустое поле на
+     месте лоадера неотличимо от зависшей загрузки. */
   @media (prefers-reduced-motion: reduce) {{
-    .obShellWake i, .obShellWake u, .obShellWake s {{ animation: none; }}
-    .obShellWake .core {{ opacity: 1; }}
-    .obShellWake .halo {{ opacity: .45; transform: scale(3.4); }}
+    .obShellOrbit .sat, .obShellOrbit .cap, #obShellLoader.off {{ animation: none; }}
+    #obShellLoader.off {{ opacity: 0; transition: opacity .3s; }}
   }}
-  /* ── /Пробуждение ────────────────────────────────────────── */
+  /* ── /Орбита ─────────────────────────────────────────────── */
 </style>
 </head>
 <body>
 
 <div id="obShellLoader">
-  <div class="obShellWake" aria-hidden="true">
-    <s style="left:22px;top:38px"></s>
-    <s style="left:104px;top:52px;animation-delay:.34s"></s>
-    <s style="left:44px;top:96px;animation-delay:.6s"></s>
-    <s style="left:92px;top:104px;animation-delay:.93s"></s>
-    <u></u><u class="v"></u>
-    <i class="halo"></i><i class="core"></i>
+  <div class="obShellOrbit" aria-hidden="true">
+    <div class="orb"><span class="ring"></span><span class="sat"><i></i></span><span class="core"></span></div>
+    <div class="cap" id="obShellCap"></div>
   </div>
 </div>
 
@@ -218,21 +231,27 @@ def build_shell(screens: tuple[str, ...] = SCREENS,
   var ALLOWED = {allowed};
   var START = {start_js};
   var SEQUENCE = {sequence};
+  var NAMES = {names};
   var MIN_SHOW_MS = {MIN_SHOW_MS};
   var FAILSAFE_MS = {FAILSAFE_MS};
 
   var loader = document.getElementById('obShellLoader');
+  var cap = document.getElementById('obShellCap');
   var frame = null;          // текущий iframe; между экранами — null
   var current = '';          // имя экрана в рамке; нужно для ob:done
   var shownAt = 0;           // когда лоадер показан, для MIN_SHOW_MS
   var hideTimer = 0, failTimer = 0;
 
-  function showLoader() {{
+  function showLoader(name) {{
     clearTimeout(hideTimer); clearTimeout(failTimer);
+    // Подпись: куда идём. Экран без имени — одна звезда.
+    var label = NAMES[name];
+    cap.innerHTML = label ? 'дальше · <b></b>' : '';
+    if (label) cap.querySelector('b').textContent = label;
     loader.classList.remove('gone');
     // Пересчёт стилей между снятием display:none и снятием класса
-    // .off — иначе браузер склеит оба изменения в одно и перехода
-    // не будет вовсе.
+    // .off — иначе браузер склеит оба изменения в одно, и срез при
+    // следующем уходе не проиграется заново.
     void loader.offsetWidth;
     loader.classList.remove('off');
     shownAt = Date.now();
@@ -254,16 +273,21 @@ def build_shell(screens: tuple[str, ...] = SCREENS,
     // после перезагрузки появлялся уже допечатанным). Экраны, не
     // ждущие сигнала, просто не слушают его — совместимо в обе
     // стороны.
-    if (frame && frame.contentWindow) {{
-      try {{
-        frame.contentWindow.postMessage({{type: 'ob:shown'}},
-                                        window.location.origin);
-      }} catch (err) {{ /* рамку могли убрать между кадрами */ }}
-    }}
-    // display:none только после того, как затухание доиграло: снять
-    // его сразу значит оборвать переход на первом кадре.
+    // Сигнал уходит на середине среза, а не в его начале: у сводки
+    // первая страница въезжает своим клином, и два клина разом
+    // читались бы кашей.
     hideTimer = setTimeout(function () {{
-      loader.classList.add('gone');
+      if (frame && frame.contentWindow) {{
+        try {{
+          frame.contentWindow.postMessage({{type: 'ob:shown'}},
+                                          window.location.origin);
+        }} catch (err) {{ /* рамку могли убрать между кадрами */ }}
+      }}
+      // display:none только после того, как срез доиграл (800 мс):
+      // снять его раньше значит оборвать переход на полпути.
+      hideTimer = setTimeout(function () {{
+        loader.classList.add('gone');
+      }}, 450);
     }}, 400);
   }}
 
@@ -271,7 +295,7 @@ def build_shell(screens: tuple[str, ...] = SCREENS,
     if (ALLOWED.indexOf(name) === -1) return;   // молча, не бросая:
                                                 // это защита, а не
                                                 // отладочный канал
-    showLoader();
+    showLoader(name);
 
     // Старый iframe УДАЛЯЕТСЯ, а не переиспользуется под новый src.
     // Две причины. Первая: удаление из DOM уничтожает документ вместе
