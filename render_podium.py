@@ -3187,6 +3187,15 @@ PODIUM_JS = """
     if (Math.abs(n) >= 1) return n.toFixed(3);
     return String(+n.toPrecision(4));
   }
+  /* Доля капитализации словами. У малых значений целые проценты
+     врут: 0.4% и 4% — это разные монеты, а «0%» читается как «нет». */
+  function fuelPct(v) {
+    var p = v * 100;
+    if (p >= 10) return Math.round(p) + '%';
+    if (p >= 1) return p.toFixed(1) + '%';
+    return p.toFixed(2) + '%';
+  }
+
   function cut(t, n) {
     t = String(t || '');
     if (t.length <= n) return t;
@@ -3227,6 +3236,14 @@ PODIUM_JS = """
       if (s.unlockRounds && s.unlockRounds.length && s.unlockRounds[0]) {
         u += ' (' + s.unlockRounds.join(', ') + ')';
       }
+      /* С-3: дату транша отодвинули. Рынок так не умеет — двигать
+         расписание может только организатор. Признак сильный и живёт
+         в той же строке, что сам транш: разносить их значило бы
+         заставить читателя связывать две строки глазами. */
+      if (s.unlockShift && +s.unlockShift.days > 0) {
+        u += ' · ДАТУ ДВИГАЛИ на ' + (+s.unlockShift.days) + ' дн' +
+             (s.unlockShift.to ? ' (' + dm(s.unlockShift.to) + ')' : '');
+      }
       f.push(['#a6b6ff', 'разлок', u]);
     }
     if (s.news && (s.news.t || s.news.why)) {
@@ -3238,6 +3255,63 @@ PODIUM_JS = """
         (s.demand.statusRu ? ' · ' + s.demand.statusRu : '') +
         ' — ' + cut(s.demand.note, 150)]);
     }
+    /* ── Профиль инструмента: С-7, С-8, С-9 ──
+       Не движение, а свойства: кто за монетой, в какой сети и давно
+       ли листинг. Три коротких признака в одной строке — порознь
+       каждый занял бы строку ради двух слов. */
+    var pf = [];
+    if (s.organizer) pf.push('организатор ' + s.organizer);
+    if (s.chain) pf.push(s.chain);
+    if (s.listingDays !== null && s.listingDays !== undefined) {
+      pf.push('листинг ' + (+s.listingDays) + ' дн назад');
+    }
+    if (pf.length) f.push(['#8b93c4', 'профиль', pf.join(' · ')]);
+
+    /* ── Плечо: состояние и цена в капитализации ──
+       Две величины про одно, поэтому одной строкой. oiState отвечает
+       «застряло или разгружено», liqFuel — «сколько его относительно
+       размера монеты». По разбору 26.08 второе и есть источник денег
+       на ход: у BTR под ценой было больше трёх капитализаций, у PROM
+       почти пусто — там плечо сбривают каждым откатом. */
+    var lg = [];
+    if (s.oiState === 'held') lg.push('застряло');
+    else if (s.oiState === 'cleared') lg.push('разгружено');
+    else if (s.oiState === 'repeat') lg.push('повторный цикл');
+    if (s.liqFuel) {
+      var bl = +s.liqFuel.below || 0, ab = +s.liqFuel.above || 0;
+      if (bl > 0) lg.push('снизу ' + fuelPct(bl) + ' капитализации');
+      if (ab > 0) lg.push('сверху ' + fuelPct(ab));
+    }
+    if (lg.length) {
+      f.push(['#c98ce0', 'плечо', lg.join(' · ') +
+        (s.liqFuel ? ' — оценка по модели, не наблюдение' : '')]);
+    }
+
+    /* Ликвидации Coinglass — ФАКТ, а не модель. Держим отдельной
+       строкой от «плеча» именно поэтому: наблюдение и оценка не
+       должны читаться как одно. */
+    if (s.liq24h) {
+      var lqs = s.liq24h.note ||
+        ('лонгов ' + money(s.liq24h.long || 0) +
+         ' против шортов ' + money(s.liq24h.short || 0));
+      f.push(['#ec6f5e', 'ликвидации', 'за сутки ' + cut(lqs, 150)]);
+    }
+
+    /* Т-1: киты Hyperliquid. Контекст, не сигнал — кит бывает неправ,
+       и урок Loracle записан: сорок миллионов на угадывании HYPE. */
+    if (s.hlWhales && (s.hlWhales.n || s.hlWhales.note)) {
+      f.push(['#7ae8ba', 'киты',
+        (s.hlWhales.note || ('лонгов ' + (s.hlWhales.long || 0) +
+         ', шортов ' + (s.hlWhales.short || 0))) +
+        (s.hlWhales.n ? ' · счетов ' + s.hlWhales.n : '')]);
+    }
+
+    /* Т-5: стоп внутри плиты снимут виком, не двигая рынок против
+       позиции. Показываем ТОЛЬКО когда попал: молчание и есть «чисто». */
+    if (s.stopInPlate && s.stopInPlate.note) {
+      f.push(['#ff7d7d', 'стоп', s.stopInPlate.note]);
+    }
+
     if (s.book && s.book.usd) {
       f.push(['#dfe6f2', 'в книге', money(s.book.usd) + ' от ' + px4(s.book.px) +
         ' · ход ' + pct(pnlOf(s))]);
@@ -3299,6 +3373,27 @@ PODIUM_JS = """
     if (s.journalExp && s.journalExp.n) {
       calc.push('ожидание по журналу <em>' + pct(s.journalExp.expPct) + '</em> на ' +
         s.journalExp.n + (s.journalExp.n === 1 ? ' эпизоде' : ' эпизодах'));
+    }
+    /* Реакция на уровень: отбой значит уровень защитили, закрепление
+       за ним — сняли. Это единственное, что отличает «плита впереди»
+       от «плита пробита», и без неё уровень читается наполовину. */
+    var lvb = (s.levels && s.levels.below) || null;
+    var lva = (s.levels && s.levels.above) || null;
+    var rc = (lvb && lvb.reaction) || (lva && lva.reaction) || null;
+    if (rc && rc.kind) {
+      calc.push('реакция на уровень — <em>' + rc.kind + '</em>' +
+        (rc.bars_ago !== undefined ? ' ' + rc.bars_ago + ' д назад' : ''));
+    }
+    /* Согласованность трёх окон: 6ч, сутки, неделя. Верить монете,
+       чей ход совпал на всех трёх, — перенос из оценки трейдеров. */
+    if (s.aligned && s.aligned.dir) {
+      calc.push('три окна согласны — ход <em>' +
+        (s.aligned.dir === 'up' ? 'вверх' : 'вниз') + '</em>');
+    }
+    /* Сколько подкейсов FLOW сработало разом. Победитель показан
+       фигурой, а это — сколько ещё с ним согласны. */
+    if (s.flowFired && +s.flowFired > 1) {
+      calc.push('детекторов согласно <em>' + (+s.flowFired) + '</em>');
     }
     if (calc.length) {
       h += '<div class="obc-calc obc-anim" style="--nd:' + (nd++) + '">' +
