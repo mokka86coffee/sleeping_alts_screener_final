@@ -33,15 +33,19 @@
 какой-то будущей версии браузера, без единого предупреждения.
 postMessage с явной проверкой origin переживёт это ужесточение.
 
-Лоадер — звезда с орбитой на светлом поле сводки. Утверждён по
-HTML-прототипу proto_switch_orbit.html (26.08) вместо прежней
-пульсирующей звезды на чёрном: сводка стала светлой, и чёрный проход
-между экранами читался как другое приложение. Оформление и логика
-показа не связаны: чтобы поменять вид, достаточно содержимого
-#obShellLoader и его стилей, MIN_SHOW_MS к нему не привязан.
+Лоадер — кристалл на поле зала. Сводка стала схемой в языке зала
+(render_scheme, 26.08): та же синь с куполом света, тот же кристалл в
+центре, те же моноширинные подписи. Лоадер повторяет её начало — тот же
+октаэдр, тот же тихий синий ореол, — и переход из лоадера в сводку
+читается как продолжение одного кадра, а не как смена приложения. До
+этого лоадер был светло-серым под белый лист прежней сводки, а ещё
+раньше — пульсирующей звездой на чёрном.
 
-Подпись под звездой называет экран, который грузится: лоадер — проход,
-и проход говорит, куда ведёт. Имена берутся из SCREEN_NAMES ниже.
+Оформление и логика показа не связаны: чтобы поменять вид, достаточно
+содержимого #obShellLoader и его стилей, MIN_SHOW_MS к нему не привязан.
+
+Подпись под кристаллом называет экран, который грузится: лоадер —
+проход, и проход говорит, куда ведёт. Имена берутся из SCREEN_NAMES.
 """
 
 from __future__ import annotations
@@ -111,34 +115,35 @@ def build_shell(screens: tuple[str, ...] = SCREENS,
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Sleeping Alts Screener</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400&display=swap" rel="stylesheet">
 <style>
   /* Свои стили, не из render_css.py. Общий файл стилей принадлежит
      экранам и уезжает внутрь iframe вместе с ними; оболочке из него
      не нужно ничего, а тянуть его сюда значит вернуть ту самую
      общность, ради устранения которой всё и затевалось. */
-  /* ПОЛЕ. Серое поле сводки (#8d939c, её --pg): оболочка, рамка и
-     лоадер одного цвета, чтобы между документами не мигало ни белым,
-     ни чёрным. Зал и дашборд тёмные — к ним лоадер уходит косым
-     срезом, и контраст на срезе читается как переворот листа, а зал
-     со своей стороны ещё и проявляется полсекунды. Сменится поле у
-     сводки — сменить здесь. */
+  /* ПОЛЕ ЗАЛА. Цвета сняты с его экрана: верх-центр #2e335c, светлее к
+     куполу #3f3f67, низ #1b1c34; снизу синий купол и тёплый отсвет, как
+     там. Ровно то же поле у сводки-схемы, поэтому между документами не
+     мигает ни белым, ни чёрным. Сменится поле у зала — сменить здесь. */
   html, body {{
     margin: 0; padding: 0; height: 100%;
-    background: #8d939c;
+    background: #23263f;
     overflow: hidden;
   }}
   #obShellFrame {{
     position: fixed; inset: 0;
     width: 100%; height: 100%;
     border: 0; display: block;
-    background: #8d939c;
+    background: #23263f;
   }}
   #obShellLoader {{
     position: fixed; inset: 0;
     z-index: 10;                     /* поверх iframe, всегда */
     display: flex; align-items: center; justify-content: center;
-    background: #8d939c;
+    background:
+      radial-gradient(60% 52% at 50% 100%, rgba(60,110,220,.20), transparent 70%),
+      radial-gradient(40% 30% at 50% 88%, rgba(120,70,40,.18), transparent 70%),
+      radial-gradient(1100px 700px at 50% -5%, #3f3f67, #2b2e51 45%, #1b1c34 100%);
     pointer-events: none;            /* не перехватывает клики, пока
                                         уходит */
   }}
@@ -154,70 +159,109 @@ def build_shell(screens: tuple[str, ...] = SCREENS,
     to   {{ clip-path: polygon(-30% 0, -30% 0, -30% 100%, -55% 100%); }}
   }}
 
-  /* ── Орбита ───────────────────────────────────────────────
-     Звезда осталась звездой, но из свечения стала знаком: белая точка
-     в центре, одна тонкая орбита, по ней бежит оранжевая точка — язык
-     дашборда на поле сводки. Свечения на светлом не бывает, потому
-     нет ни ореола, ни лучей.
+  /* ── Кристалл ─────────────────────────────────────────────
+     Тот же октаэдр, что стоит в центре сводки-схемы: две
+     четырёхгранные пирамиды основаниями друг к другу, восемь граней,
+     размытые рёбра, вращение вокруг своей оси. Здесь он вдвое меньше и
+     крутится быстрее — двенадцать секунд на оборот против сорока
+     восьми: лоадер живёт около секунды, и медленное вращение выглядело
+     бы неподвижным. Ореол в два слоя, синий и тихий, как там.
 
-     Утверждено по прототипу proto_switch_orbit.html (26.08). Прежде
-     орбита была отклонена по делу: период 2.6 с при показе около
-     секунды — полного оборота никто не видел, оставалась дёргающаяся
-     крошка. Здесь период 0.9 с, короче минимального показа в 700 мс
-     плюс уход: полный оборот виден даже на самом быстром переходе, а
-     ход ровный, без ускорений, — ровно то, чего не хватало тогда. */
-  .obShellOrbit {{
-    display: flex; flex-direction: column; align-items: center; gap: 26px;
+     Прежняя орбита со звездой снята не по вкусу: сводка теперь сама
+     начинается кристаллом, и лоадер показывает её первый кадр до того,
+     как она загрузилась. */
+  .obShellGem {{
+    position: relative;
+    display: flex; flex-direction: column; align-items: center; gap: 30px;
   }}
-  .obShellOrbit .orb {{ position: relative; width: 96px; height: 96px; }}
-  .obShellOrbit .ring {{
-    position: absolute; inset: 0; border-radius: 50%;
-    border: 1px solid rgba(70,76,87,.35);
+  .obShellGem .halo {{
+    position: absolute; left: 50%; top: 46px; border-radius: 50%;
+    pointer-events: none; transform: translate(-50%, -50%);
   }}
-  .obShellOrbit .core {{
-    position: absolute; left: 50%; top: 50%; width: 14px; height: 14px;
-    margin: -7px 0 0 -7px; border-radius: 50%; background: #fff;
-    box-shadow: 0 6px 16px rgba(34,38,46,.25);
+  .obShellGem .h1 {{
+    width: 190px; height: 190px;
+    background: radial-gradient(closest-side,
+      rgba(110,150,240,.38), rgba(90,130,225,.24) 30%,
+      rgba(75,110,205,.10) 60%, transparent 100%);
+    filter: blur(14px); animation: obShellHalo 5s ease-in-out infinite;
   }}
-  .obShellOrbit .sat {{
-    position: absolute; inset: 0;
-    animation: obShellTurn .9s linear infinite;
+  .obShellGem .h2 {{
+    width: 340px; height: 340px;
+    background: radial-gradient(closest-side,
+      rgba(90,130,225,.16), rgba(75,110,205,.06) 50%, transparent 100%);
+    filter: blur(24px); animation: obShellHalo 7s ease-in-out infinite reverse;
   }}
-  .obShellOrbit .sat i {{
-    position: absolute; left: 50%; top: -4px; width: 8px; height: 8px;
-    margin-left: -4px; border-radius: 50%; background: #e8873f; display: block;
+  @keyframes obShellHalo {{
+    0%, 100% {{ transform: translate(-50%,-50%) scale(.94); opacity: .85; }}
+    50%      {{ transform: translate(-50%,-50%) scale(1.06); opacity: 1; }}
   }}
-  /* Подпись — антиква вразрядку, как штампы сводки. Стек запасных
-     подобран по рисунку: Didot и Bodoni — та же антиква с тонкими
-     засечками, если сеть закрыта. */
-  .obShellOrbit .cap {{
-    font-family: 'Playfair Display', Didot, 'Bodoni MT', Georgia, serif;
-    font-size: 10.5px; letter-spacing: .4em; text-transform: uppercase;
-    color: #6c737f;
+  .obShellGem .orb {{
+    position: relative; width: 0; height: 0; margin: 46px 0;
+    transform-style: preserve-3d;
+    animation: obShellSpin 12s linear infinite;
+  }}
+  @keyframes obShellSpin {{
+    from {{ transform: rotateX(-14deg) rotateY(0); }}
+    to   {{ transform: rotateX(-14deg) rotateY(360deg); }}
+  }}
+  .obShellGem .half {{ position: absolute; left: 0; top: 0; transform-style: preserve-3d; }}
+  .obShellGem .half.b {{ transform: rotateX(180deg); }}
+  /* Размытие стоит на грани, а обрезка треугольника — на её вложенном
+     слое: так размывается уже вырезанная грань, и мягкими становятся
+     сами рёбра. Размытие на всём кристалле нельзя — фильтр на родителе
+     сплющит объём. */
+  .obShellGem .f {{
+    position: absolute; left: -38px; top: -66px; width: 76px; height: 66px;
+    transform-origin: 50% 100%; filter: blur(1.1px); opacity: .9;
+  }}
+  .obShellGem .f s {{
+    position: absolute; inset: 0; display: block; text-decoration: none;
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
+    background: linear-gradient(160deg,
+      rgba(125,165,240,.58), rgba(90,125,220,.28) 60%, rgba(110,150,235,.42));
+  }}
+  .obShellGem .f:nth-child(1) {{ transform: rotateY(0)      translateZ(38px) rotateX(35.26deg); }}
+  .obShellGem .f:nth-child(2) {{ transform: rotateY(90deg)  translateZ(38px) rotateX(35.26deg); }}
+  .obShellGem .f:nth-child(3) {{ transform: rotateY(180deg) translateZ(38px) rotateX(35.26deg); }}
+  .obShellGem .f:nth-child(4) {{ transform: rotateY(270deg) translateZ(38px) rotateX(35.26deg); }}
+  .obShellGem .half.b .f {{ opacity: .5; }}
+  .obShellGem .half.b .f s {{
+    background: linear-gradient(160deg, rgba(95,130,225,.3), rgba(70,100,195,.1) 60%);
+  }}
+  /* Подпись — моноширинная вразрядку, как штампы зала и схемы. */
+  .obShellGem .cap {{
+    position: relative; z-index: 2;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 10px; letter-spacing: .3em; text-transform: uppercase;
+    color: #8b93bd;
     animation: obShellUp .6s cubic-bezier(.22,.61,.36,1) .25s both;
   }}
-  .obShellOrbit .cap b {{ font-weight: 400; color: #464c57; }}
-  .obShellOrbit .cap:empty {{ display: none; }}
-  @keyframes obShellTurn {{ to {{ transform: rotate(360deg); }} }}
+  .obShellGem .cap b {{ font-weight: 400; color: #c9d2e8; }}
+  .obShellGem .cap:empty {{ display: none; }}
   @keyframes obShellUp {{
     from {{ opacity: 0; transform: translateY(6px); }}
     to   {{ opacity: 1; transform: none; }}
   }}
 
-  /* Движение снимается целиком, но знак остаётся: пустое поле на
+  /* Движение снимается целиком, но кристалл остаётся: пустое поле на
      месте лоадера неотличимо от зависшей загрузки. */
   @media (prefers-reduced-motion: reduce) {{
-    .obShellOrbit .sat, .obShellOrbit .cap, #obShellLoader.off {{ animation: none; }}
+    .obShellGem .orb, .obShellGem .halo, .obShellGem .cap,
+    #obShellLoader.off {{ animation: none; }}
     #obShellLoader.off {{ opacity: 0; transition: opacity .3s; }}
   }}
-  /* ── /Орбита ─────────────────────────────────────────────── */
+  /* ── /Кристалл ───────────────────────────────────────────── */
 </style>
 </head>
 <body>
 
 <div id="obShellLoader">
-  <div class="obShellOrbit" aria-hidden="true">
-    <div class="orb"><span class="ring"></span><span class="sat"><i></i></span><span class="core"></span></div>
+  <div class="obShellGem" aria-hidden="true">
+    <i class="halo h2"></i><i class="halo h1"></i>
+    <div class="orb">
+      <div class="half"><i class="f"><s></s></i><i class="f"><s></s></i><i class="f"><s></s></i><i class="f"><s></s></i></div>
+      <div class="half b"><i class="f"><s></s></i><i class="f"><s></s></i><i class="f"><s></s></i><i class="f"><s></s></i></div>
+    </div>
     <div class="cap" id="obShellCap"></div>
   </div>
 </div>
