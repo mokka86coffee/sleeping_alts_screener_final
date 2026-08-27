@@ -241,13 +241,32 @@
     // src записи в историю не появляется.
     if (frame) { frame.remove(); frame = null; }
 
-    var f = document.createElement('iframe');
-    f.id = 'obShellFrame';
-    f.setAttribute('title', 'screen');
-    f.addEventListener('load', hideLoader);
-    f.src = name + '.html';
-    document.body.appendChild(f);
-    frame = f;
+    // ЛОАДЕР ДОЛЖЕН УСПЕТЬ ОТРИСОВАТЬСЯ. Найдено на планшете 27.08:
+    // лоадер «зависал» и появлялся только после того, как первый экран
+    // отыграл. Причина не в его анимации: вставка iframe со сразу
+    // выставленным src запускает разбор и раскладку документа экрана
+    // (сотни килобайт со вшитыми данными) в том же главном потоке, и
+    // браузер не успевает нарисовать ни одного кадра лоадера до того,
+    // как поток занят. На быстрой машине это незаметно, на планшете —
+    // целая сцена.
+    // Поэтому рамка создаётся ПОСЛЕ двух кадров отрисовки: первый
+    // показывает лоадер, второй даёт ему начать движение. Задержка
+    // порядка тридцати миллисекунд, MIN_SHOW_MS её покрывает, очередь
+    // экранов не меняется.
+    var makeFrame = function () {
+      var f = document.createElement('iframe');
+      f.id = 'obShellFrame';
+      f.setAttribute('title', 'screen');
+      f.addEventListener('load', hideLoader);
+      f.src = name + '.html';
+      document.body.appendChild(f);
+      frame = f;
+    };
+    if (window.requestAnimationFrame) {
+      requestAnimationFrame(function () { requestAnimationFrame(makeFrame); });
+    } else {
+      setTimeout(makeFrame, 32);
+    }
     current = name;
   }
 

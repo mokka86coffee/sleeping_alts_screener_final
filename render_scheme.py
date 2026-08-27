@@ -117,10 +117,12 @@ SCHEME_HTML = """
    Никакого блока: новости живут в том же движении, что и поле. */
 .news{position:absolute;top:100%;--kc:#8b93bd;
   animation:rise var(--t) linear var(--d) infinite}
-/* сами пузыри событий идут справа, как обычная пыль, а их подписи —
-   внизу по центру под стволом: --xc задаёт место подписи, не пузыря */
-body.n1 .news{left:var(--xr)}
-body.n2 .news{left:var(--xr)}
+/* МЕСТО ПУЗЫРЯ — БЕЗ ОГЛЯДКИ НА BODY. Раньше стояло «body.n1 .news»:
+   в прототипе класс висел на body и работало, а здесь схема живёт в
+   теневом дереве, куда body не достаёт — правило не совпадало ни разу,
+   пузыри теряли left и уезжали в статическую позицию. Найдено 27.08:
+   «пузырьки справа вообще пропали». */
+.news{left:var(--xr)}
 /* пузырь события — того же размера и вида, что пылинка слева; от неё
    отличается только едва заметным ореолом в цвет вида */
 .news i{position:absolute;left:0;top:0;width:3px;height:3px;margin:-1.5px 0 0 -1.5px;border-radius:50%;
@@ -133,11 +135,29 @@ body.n2 .news{left:var(--xr)}
    трансформируется сам, поднимаются его дети, поэтому позиции
    считаются честно. Каждая новость идёт по очереди: время цикла и
    задержка те же, что у пузырей справа. */
-.tells{position:absolute;left:50%;bottom:6%;transform:translateX(-50%);width:520px;height:34vh;
+.tells{position:absolute;left:50%;bottom:4%;transform:translateX(-50%);width:760px;height:26vh;
   text-align:center;z-index:4;pointer-events:none}
 .tells .tl{position:absolute;left:0;right:0;bottom:0;opacity:0;
   animation:tell1 var(--t) linear var(--d) infinite, float1 var(--t) linear var(--d) infinite}
-@keyframes float1{0%,25%{transform:translateY(0)}36%,100%{transform:translateY(-34vh)}}
+/* три дорожки: соседние новости расходятся вбок и по высоте, поэтому
+   их можно показывать разом, не накладывая одну на другую */
+/* СТОЛБЕЦ, НО НЕ НИТЬ. Новости идут одной вертикалью под стволом и
+   всё же не по одной линии: каждая сдвинута от центра на свою малую
+   величину (--x, до сорока пикселей в любую сторону) и всплывает со
+   своей скоростью (--sp, от девяноста до ста двадцати процентов
+   общей). Разброс намеренно узкий: шире — столбец рассыпается, ровно
+   ноль — идёт сплошной нитью.
+   Скорость и высота связаны: кто быстрее, тот уходит дальше — путь
+   считается как --sp от базовых двадцати шести процентов высоты окна,
+   поэтому быстрая новость гаснет выше медленной. */
+.tells .tl{width:340px;left:50%;right:auto;bottom:0;
+  margin-left:calc(-170px + var(--x, 0px))}
+/* всплывание на пятую часть быстрее: тот же путь проходится за
+   меньшую долю цикла (было с 18% до 48%, стало с 18% до 42%).
+   Дальность у каждой своя — множитель --sp. */
+@keyframes float1{
+  0%,18%{transform:translateY(0)}
+  42%,100%{transform:translateY(calc(-26vh * var(--sp, 1)))}}
 /* пузырьки новости — мельче пыли, всплывают вместе с ней */
 .tells .tl u{position:absolute;bottom:-10px;width:2px;height:2px;border-radius:50%;display:block;
   background:#a3abd8;opacity:.3;filter:blur(.5px);box-shadow:0 0 4px var(--kc)}
@@ -158,9 +178,10 @@ body.n2 .news{left:var(--xr)}
    то есть в верхних тридцати процентах экрана. Старт у всех пузырей
    событий ровно с нижнего края, поэтому высота однозначно связана с
    долей пути и окно подписи считается точно. */
-/* окно новости: та же четверть–треть цикла, что и у её пузыря справа,
-   и на этом же участке блок поднимается. Видна ровно одна. */
-@keyframes tell1{0%,25%{opacity:0}28%,32%{opacity:.55}36%,100%{opacity:0}}
+/* ОКНО НОВОСТИ: подпись живёт пятую часть цикла — при равном шаге
+   между новостями это даёт на экране ровно две, не больше. Раньше
+   окно было в треть, и их набиралось три. */
+@keyframes tell1{0%,18%{opacity:0}21%,36%{opacity:.55}39%,100%{opacity:0}}
 62%,74%{opacity:.5}79%,100%{opacity:0}}
 
 .news.k-delist{--kc:#ff8a72}.news.k-unlock{--kc:#ffd166}.news.k-risk{--kc:#ffb266}.news.k-macro{--kc:#8ab4ff}.news.k-support{--kc:#5fe39c}
@@ -396,8 +417,24 @@ SCHEME_JS = """
     .filter(Boolean).sort(function(a,b){ return b.n - a.n; }).slice(0, 6);
   var size = (P.warnCount||0) >= 4 ? 'урезанный' : 'полный';
 
-  /* Гамма только холодная: сталь, голубой, васильковый, бирюза,
+  /* СКОЛЬКО МЫСЛЕЙ. Восьми не хватало: прежняя листалка показывала
+     втрое больше за тот же проход. Здесь восемнадцать — весь состав
+     старых страниц, разобранный на отдельные ветви: окно, фон,
+     медианы, аппетит, доминация, стейблы, портфели, книга, лидер,
+     трое суток, объём, фандинг, спящие, разлоки, ближайшее событие,
+     брать, в работе, итог. Пустые (нет данных) отсеиваются ниже, так
+     что в тихий день ветвей будет меньше — это честнее пустой строки.
+
+     Гамма только холодная: сталь, голубой, васильковый, бирюза,
      лавандовый. Тёплого нет — иначе схема рябит. */
+  var dorm = ST.filter(function(s){ return (s.st || '') === 'dormant'; });
+  var fuel = ST.filter(function(s){ return (s.st || '') === 'fuel'; });
+  var taker = ST.filter(function(s){ return (s.st || '') === 'taker'; });
+  var AS = M.altShare || {}, rs = pp.reservoir || {}, fund = pp.funding || {};
+  var oi = pp.oi || {}, casc = pp.cascade || {}, btcp = pp.btc || {};
+  var cal0 = ((pp.calendar || {}).items || [])[0] || null;
+  var unlocks = ((pp.calendar || {}).items || []).filter(function(e){ return e.kind === 'unlock'; });
+  var top = (M.topVol || []).slice(0, 4);
   var cos = [
     { k:'Окно рынка', v:(P.warnCount||0) + ' из ' + (P.knownCount||7), c:'#cfd8ef',
       s: esc(reasons[0]||'') + (M.appetite ? '. Аппетит ' + esc(M.appetite).replace('/',' из ') : '') },
@@ -420,8 +457,38 @@ SCHEME_JS = """
     { k:'В работе', v: book.length + ' позиций', c:'#b3c6f2',
       s: book.length ? book.map(function(s){ return s.t; }).join(' · ') : 'книга пуста' },
     { k:'Итог', v: size, c:'#c9c3f0',
-      s:'размер по правилу при окне ' + (P.warnCount||0) + ' из ' + (P.knownCount||7) + ' · дальше зал' }
-  ];
+      s:'размер по правилу при окне ' + (P.warnCount||0) + ' из ' + (P.knownCount||7) + ' · дальше зал' },
+
+    /* ── добавлено 27.08: состав прежних страниц ── */
+    { k:'Аппетит', v: M.appetite ? String(M.appetite).replace('/',' из ') : null, c:'#8ab4ff',
+      s:'готовность рынка брать риск' + (M.sector ? ' · сектор дня ' + esc(M.sector) : '') },
+    { k:'Доминация BTC', v: M.dom ? M.dom + '%' : null, c:'#b3c6f2',
+      s:'доля биткоина в капитализации рынка' + (AS.d7 != null ? ' · обошли биткоин за неделю ' + AS.d7 + '% выборки' : '') },
+    { k:'Стейблы к капе', v: rs.share != null ? rs.share + '%' : null, c:'#7fe3d4',
+      s:'резервуар покупательной силы' + (rs.ageDays != null ? ' · данным ' + Math.round(rs.ageDays) + ' дн' : '') },
+    { k:'Фандинг', v: fund.value != null ? pct(fund.value, 2) : (fund.note ? '—' : null), c:'#9fb8ff',
+      s: esc(fund.note || 'плата за плечо: положительный — толпа в лонге') },
+    { k:'Плечо', v: oi.value != null ? String(oi.value) : (oi.note ? '—' : null), c:'#cfd8ef',
+      s: esc(oi.note || 'открытый интерес против цены') },
+    { k:'Каскад', v: casc.value != null ? String(casc.value) : (casc.note ? '—' : null), c:'#b3c6f2',
+      s: esc(casc.note || 'перевес ликвидаций') },
+    { k:'Биткоин', v: M.btc7d != null ? pct(M.btc7d, 1) : null, c:'#e6edff',
+      s:'за неделю' + (btcp.note ? ' · ' + esc(btcp.note) : '') },
+    { k:'Спящие', v: dorm.length ? dorm.length + ' монет' : null, c:'#9aa3c8',
+      s: dorm.slice(0, 12).map(function(s){ return s.t; }).join(' · ') },
+    { k:'Заряжены', v: fuel.length ? fuel.length + ' монет' : null, c:'#7fe3d4',
+      s: fuel.slice(0, 12).map(function(s){ return s.t; }).join(' · ') },
+    { k:'Разбирают', v: taker.length ? taker.length + ' монет' : null, c:'#9fb8ff',
+      s: taker.slice(0, 12).map(function(s){ return s.t; }).join(' · ') },
+    { k:'Разлоки впереди', v: unlocks.length ? unlocks.length + ' траншей' : null, c:'#b3c6f2',
+      s: unlocks.slice(0, 6).map(function(e){
+           var d = num(e.days); return String(e.title).replace(/^разлок */,'') + ' · ' +
+             ((e.running || d === 0) ? 'сегодня' : d === 1 ? 'завтра' : 'через ' + d + ' дн'); }).join(' · ') },
+    { k:'Ближайшее событие', v: cal0 ? esc(String(cal0.title).slice(0, 22)) : null, c:'#cfd8ef',
+      s: cal0 ? esc(String(cal0.note || '').slice(0, 150)) : '' },
+    { k:'Следом по объёму', v: top.length ? top.length + ' монет' : null, c:'#9fb8ff',
+      s: top.map(function(v){ return v.t + ' ×' + (+v.x).toFixed(1); }).join(' · ') }
+  ].filter(function(c){ return c && c.v != null && c.v !== ''; });
 
   /* ГНЁЗДА СЧИТАЮТСЯ ОТ ОКНА. На широком — три с шагом 96 под
      кристаллом; на узком мысль стоит под узлом и занимает больше
@@ -453,14 +520,19 @@ SCHEME_JS = """
     t.onclick = function(e){ e.stopPropagation(); show(i); }; ticks.appendChild(t); });
   tks = [].slice.call(ticks.children);
 
-  /* На ветвях живут не больше двух: текущая и предыдущая. Всё, что
-     старше, тает; всё, что моложе, ещё не проступило. */
-  var DWELL = 5000;
+  /* На ветвях живут ТРИ: текущая и две предыдущие — по числу гнёзд.
+     Было две, при восьми мыслях этого хватало; при восемнадцати экран
+     оказывался пустее, чем прежняя листалка. Всё, что старше, тает;
+     всё, что моложе, ещё не проступило. Шаг чаще: три с половиной
+     секунды вместо пяти, иначе восемнадцать мыслей идут больше
+     полутора минут. ПРАВКА 27.08: плюс две секунды на ветвь — при
+     трёх с половиной глаз не успевал дочитать вторую строку. */
+  var DWELL = 5500;
   function show(i){
     if (i < 0 || i >= els.length) return;
     cur = i; clearTimeout(timer);
     els.forEach(function(e, k){
-      var vis = (k === i || k === i - 1);
+      var vis = (k === i || k === i - 1 || k === i - 2);
       if (vis) { e.classList.remove('off'); e.classList.add('on'); }
       else if (e.classList.contains('on')) { e.classList.remove('on'); e.classList.add('off'); }
       else { e.classList.remove('on', 'off'); }
@@ -481,18 +553,40 @@ SCHEME_JS = """
   if (items.length) {
     /* Один круг событий примерно равен показу всех мыслей: за сводку
        успевают пройти все, каждое по разу. */
-    var CYC = Math.max(48, items.length * 5.5);
+    /* цикл на пятую часть короче прежнего (было 5.5 с на событие):
+       поток гуще, при этом окно показа держит на экране две штуки */
+    var CYC = Math.max(38, items.length * 4.4);
+    /* СКОЛЬКО ИХ. Слева пыли пятьдесят шесть, справа должно быть впятеро
+       меньше — около одиннадцати. Событий может быть и меньше: тогда
+       недостающие пузыри идут пустыми, без подписи, чтобы поток не
+       редел в тихий день. Больше событий — показываем все, поток гуще
+       ровно настолько, насколько богат частокол. */
+    var WANT = Math.round(56 / 5);
     var bub = '', tel = '';
     items.forEach(function(e, i){
       var d = num(e.days), when = (e.running || d === 0) ? 'сегодня'
         : d === 1 ? 'завтра' : 'через ' + d + ' дн';
-      var xr = (40 + rnd()*58).toFixed(2);           /* по всей правой половине, вразнобой */
+      /* по ВСЕЙ ширине, а не в правой половине: от двух до девяноста
+         восьми процентов, вразнобой */
+      var xr = (2 + rnd()*96).toFixed(2);
       var st = '--t:' + CYC + 's;--d:-' + (i * CYC / items.length).toFixed(1) + 's';
+      /* сдвиг от центра и множитель скорости — свои у каждой новости,
+         но одинаковые при каждом открытии одного прогона: генератор
+         тот же, что у пыли. Разброс узкий намеренно: шире — столбец
+         рассыпается, ровно ноль — идёт сплошной нитью. */
+      var stt = st + ';--x:' + Math.round((rnd() - 0.5) * 80) + 'px' +
+                     ';--sp:' + (0.9 + rnd() * 0.3).toFixed(2);
       bub += '<div class="news k-' + esc(e.kind) + '" style="--xr:' + xr + '%;' + st + '"><i></i></div>';
-      tel += '<div class="tl k-' + esc(e.kind) + '" style="' + st + '">' +
+      tel += '<div class="tl k-' + esc(e.kind) + '" style="' + stt + '">' +
         '<u></u><u></u><u></u><b class="w">' + when + '</b>' +
         '<b class="t">' + esc(e.title) + '</b></div>';
     });
+    /* добор до пятой части от левой пыли — пустыми пузырями */
+    for (var k = items.length; k < WANT; k++) {
+      var t = 30 + rnd()*40;
+      bub += '<div class="news" style="--xr:' + (2 + rnd()*96).toFixed(2) + '%;--t:' +
+        t.toFixed(1) + 's;--d:-' + (rnd()*t).toFixed(1) + 's"><i></i></div>';
+    }
     sw.innerHTML = bub;
     var tells = document.createElement('div');
     tells.className = 'tells'; tells.innerHTML = tel;

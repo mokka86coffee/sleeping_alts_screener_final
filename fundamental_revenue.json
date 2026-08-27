@@ -1,316 +1,817 @@
 {
+ "_meta": {
+  "what": "Третий фильтр: откуда в монете деньги — продукт или стакан. Считает fundamental_revenue.py по DefiLlama.",
+  "enriched_at": "2026-08-27",
+  "enriched_what": "К каждой монете добавлены: desc (что за проект), kind (тип), why (почему выручки нет либо чем строка примечательна), in_book (монета в трейдинг-книге), status (см. ниже).",
+  "desc_src": "ЗНАНИЕ МОДЕЛИ, НЕ СВЕРЕНО с сайтами проектов. Проверять перед тем, как выводить в карточку. Названия протоколов в поле protocols — из самой базы Llama и сверки не требуют.",
+  "status_values": {
+   "measured": "выручка измерена, число значимо",
+   "measured_zero": "ИЗМЕРЕННЫЙ НОЛЬ — протокол в базе есть, сборов за окно не было. Это НЕ то же, что отсутствие строки",
+   "measured_negative": "ОТРИЦАТЕЛЬНАЯ — расходы на стимулы больше сборов. В карточке показывать отдельно, не как маленькое число",
+   "no_row": "протокол в базе есть, строки выручки нет — Llama его не считает по dailyRevenue",
+   "not_in_db": "монеты нет в базе протоколов. Это НЕ «выручки нет», это «Llama не считает это протоколом»",
+   "missing": "монеты нет в выдаче прогона вовсе — не было в журнале лидеров на тот момент"
+  },
+  "known_gaps": [
+   "Оборота и отношения выручки к обороту в файле НЕТ: скрипт печатает их в консоль, а в JSON не сохраняет. Главный вывод («деньги биржевые») из этого файла собрать нельзя.",
+   "FF в книге, но записи нет: на момент прогона монеты не было в журнале лидеров.",
+   "Сопоставление по тикеру неоднозначно. Явно сомнительные: CLO → YeiLend, MOVE → BlueMove Staking, TREE → Tree News.",
+   "Дата прогона неизвестна: скрипт не пишет метку времени в файл."
+  ],
+  "run_at": "2026-08-27 08:17 UTC",
+  "counts": {
+   "symbols": 60,
+   "not_in_db_or_no_row": 41,
+   "cheap": 11
+  }
+ },
  "1000CATUSDT": {
   "ticker": "CAT",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 913869.88,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "мем-токен Simon's Cat на BNB Chain",
+  "kind": "meme",
+  "why": "у мема нет продукта, выручке взяться неоткуда",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "1000LUNCUSDT": {
   "ticker": "LUNC",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 4205364.47,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "Terra Classic — остаток сети после краха 2022",
+  "kind": "l1",
+  "why": "сеть жива, но у Llama не заведена как протокол",
+  "desc_src": "модель, не сверено",
+  "in_book": true
  },
  "ACEUSDT": {
   "ticker": "ACE",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 32572969.99,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "Fusionist — игровая экосистема, токен ACE",
+  "kind": "game",
+  "why": "игровая выручка не проходит через DeFi-комиссии",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "ACUUSDT": {
   "ticker": "ACU",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 10372359.06,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "токен ACU",
+  "kind": "unknown",
+  "why": "проекта нет в базе; что именно — не сверено",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "AIOUSDT": {
   "ticker": "AIO",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 6566846.37,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "токен AIO, ИИ-тематика",
+  "kind": "ai",
+  "why": "нет в базе протоколов",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "APRUSDT": {
   "ticker": "APR",
-  "revenue30d": 771.6,
-  "revenue7d": 225.99,
+  "revenue30d": 783.83,
+  "revenue7d": 227.39,
+  "volume24h": 7366360.16,
+  "rev_to_vol30d": 3.55e-06,
+  "status": "measured",
   "protocols": "aPriori",
-  "ambiguous": false
+  "ambiguous": false,
+  "desc": "aPriori — ликвидный стейкинг и MEV на Monad",
+  "kind": "defi",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "ATHUSDT": {
   "ticker": "ATH",
-  "revenue30d": 564955.26,
-  "revenue7d": 44844.0,
+  "revenue30d": 1092881.26,
+  "revenue7d": 695393.0,
+  "volume24h": 1973479.54,
+  "rev_to_vol30d": 0.01845946,
+  "status": "measured",
   "protocols": "Aethir",
-  "ambiguous": false
+  "ambiguous": false,
+  "desc": "Aethir — аренда распределённых GPU (DePIN)",
+  "kind": "depin",
+  "desc_src": "модель, не сверено",
+  "in_book": true
  },
  "AVAAIUSDT": {
   "ticker": "AVAAI",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 4136513.96,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "Ava AI — ИИ-агент, токен AVAAI",
+  "kind": "ai",
+  "why": "нет в базе протоколов",
+  "desc_src": "модель, не сверено",
+  "in_book": true
  },
  "BERAUSDT": {
   "ticker": "BERA",
-  "revenue30d": 2131.0,
-  "revenue7d": 736.0,
+  "revenue30d": 2227.0,
+  "revenue7d": 863.0,
+  "volume24h": 3226655.74,
+  "rev_to_vol30d": 2.301e-05,
+  "status": "measured",
   "protocols": "Berachain, Berachain Incentive Buys",
-  "ambiguous": true
+  "ambiguous": true,
+  "desc": "Berachain — L1 с доказательством ликвидности",
+  "kind": "l1",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "BICOUSDT": {
   "ticker": "BICO",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 186383726.18,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "Biconomy — инфраструктура абстракции счетов",
+  "kind": "infra",
+  "why": "протокол в базе есть, строки выручки нет",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "BLESSUSDT": {
   "ticker": "BLESS",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 22587372.35,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "Bless — сеть распределённых вычислений",
+  "kind": "depin",
+  "why": "нет в базе протоколов",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "BMTUSDT": {
   "ticker": "BMT",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 166727207.87,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "Bubblemaps — визуализация связей кошельков",
+  "kind": "tools",
+  "why": "продукт по подписке, не DeFi-комиссии",
+  "desc_src": "модель, не сверено",
+  "in_book": true
  },
  "BOMEUSDT": {
   "ticker": "BOME",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 11768981.34,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "Book of Meme — мем на Solana",
+  "kind": "meme",
+  "why": "у мема нет продукта",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "BTRUSDT": {
   "ticker": "BTR",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 1253055833.92,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "Bitlayer — Bitcoin-L2",
+  "kind": "l2",
+  "why": "нет в базе протоколов",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "BULLAUSDT": {
   "ticker": "BULLA",
-  "revenue30d": 73.17,
+  "revenue30d": 59.17,
   "revenue7d": 0.0,
+  "volume24h": 2772733.31,
+  "rev_to_vol30d": 7.1e-07,
+  "status": "measured",
   "protocols": "Bulla Exchange",
-  "ambiguous": false
+  "ambiguous": false,
+  "desc": "Bulla Exchange",
+  "kind": "defi",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "CETUSUSDT": {
   "ticker": "CETUS",
-  "revenue30d": 68659.0,
-  "revenue7d": 39043.0,
+  "revenue30d": 73895.0,
+  "revenue7d": 43840.0,
+  "volume24h": 906964.57,
+  "rev_to_vol30d": 0.00271584,
+  "status": "measured",
   "protocols": "Cetus CLMM, Cetus DLMM",
-  "ambiguous": true
+  "ambiguous": true,
+  "desc": "Cetus — DEX на Sui",
+  "kind": "defi",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "CLOUSDT": {
   "ticker": "CLO",
-  "revenue30d": 257.0,
+  "revenue30d": 171.0,
   "revenue7d": 0.0,
+  "volume24h": 8712858.64,
+  "rev_to_vol30d": 6.5e-07,
+  "status": "measured",
   "protocols": "YeiLend",
-  "ambiguous": false
+  "ambiguous": false,
+  "desc": "в базе сопоставлено с YeiLend — СОМНИТЕЛЬНОЕ СОВПАДЕНИЕ по тикеру",
+  "kind": "defi",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "CLUSDT": {
   "ticker": "CL",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 424869336.26,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "токен CL",
+  "kind": "unknown",
+  "why": "протокол в базе есть, строки выручки нет",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "COOKIEUSDT": {
   "ticker": "COOKIE",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 3170136.74,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "Cookie DAO — данные по ИИ-агентам",
+  "kind": "ai",
+  "why": "протокол есть, строки выручки нет",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "CVXUSDT": {
   "ticker": "CVX",
-  "revenue30d": 855655.0,
-  "revenue7d": 357903.0,
+  "revenue30d": 861944.0,
+  "revenue7d": 93017.0,
+  "volume24h": 11831204.47,
+  "rev_to_vol30d": 0.00242845,
+  "status": "measured",
   "protocols": "Convex Finance",
-  "ambiguous": false
+  "ambiguous": false,
+  "desc": "Convex Finance — надстройка над Curve",
+  "kind": "defi",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "EDENUSDT": {
   "ticker": "EDEN",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 96091522.92,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "Eden Network",
+  "kind": "infra",
+  "why": "нет в базе протоколов",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "ESPUSDT": {
   "ticker": "ESP",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 16052009.83,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "токен ESP",
+  "kind": "unknown",
+  "why": "нет в базе протоколов",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "ETHFIUSDT": {
   "ticker": "ETHFI",
-  "revenue30d": 3051604.0,
-  "revenue7d": 760960.0,
+  "revenue30d": 3087481.0,
+  "revenue7d": 779835.0,
+  "volume24h": 15457319.63,
+  "rev_to_vol30d": 0.00665808,
+  "status": "measured",
   "protocols": "ether.fi Stake, ether.fi Liquid, EtherFi Borrowing Market, EtherFi Cash Liquid",
-  "ambiguous": true
+  "ambiguous": true,
+  "desc": "ether.fi — ликвидный рестейкинг эфира",
+  "kind": "defi",
+  "desc_src": "модель, не сверено",
+  "in_book": false
+ },
+ "FFUSDT": {
+  "ticker": "FF",
+  "revenue30d": 0.0,
+  "revenue7d": 0.0,
+  "volume24h": 31969085.08,
+  "rev_to_vol30d": 0.0,
+  "status": "measured_zero",
+  "protocols": "Falcon Finance",
+  "ambiguous": false,
+  "desc": "Falcon Finance — универсальное обеспечение, выпуск стейблкоина USDf",
+  "kind": "defi",
+  "why": "монета в книге; у Llama Falcon Finance как протокол есть, прогнать заново и получить строку",
+  "desc_src": "модель, не сверено",
+  "in_book": true
  },
  "FHEUSDT": {
   "ticker": "FHE",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 1534656.36,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "Mind Network / FHE — полностью гомоморфное шифрование",
+  "kind": "infra",
+  "why": "протокол есть, строки выручки нет",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "GPSUSDT": {
   "ticker": "GPS",
-  "revenue30d": 6858.67,
-  "revenue7d": 1261.02,
+  "revenue30d": 6973.25,
+  "revenue7d": 1140.93,
+  "volume24h": 26249756.73,
+  "rev_to_vol30d": 8.86e-06,
+  "status": "measured",
   "protocols": "GoPlus Locker V2, GoPlus Security App",
-  "ambiguous": true
+  "ambiguous": true,
+  "desc": "GoPlus — безопасность транзакций и локер",
+  "kind": "tools",
+  "desc_src": "модель, не сверено",
+  "in_book": true
  },
  "GUAUSDT": {
   "ticker": "GUA",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 2960224.93,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "Gua — мем на BNB Chain",
+  "kind": "meme",
+  "why": "у мема нет продукта",
+  "desc_src": "модель, не сверено",
+  "in_book": true
  },
  "HEMIUSDT": {
   "ticker": "HEMI",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 26108000.97,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "Hemi — L2 поверх Bitcoin и Ethereum",
+  "kind": "l2",
+  "why": "протокол есть, строки выручки нет",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "HUSDT": {
   "ticker": "H",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 7417700.19,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "Humanity Protocol — доказательство личности",
+  "kind": "infra",
+  "why": "протокол есть, строки выручки нет",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "HYPEUSDT": {
   "ticker": "HYPE",
-  "revenue30d": 43855660.0,
-  "revenue7d": 21511400.0,
+  "revenue30d": 47405540.0,
+  "revenue7d": 22147440.0,
+  "volume24h": 1046343603.0,
+  "rev_to_vol30d": 0.0015102,
+  "status": "measured",
   "protocols": "Hyperliquid HLP, Hyperliquid Spot Orderbook, Hyperliquid Perps",
-  "ambiguous": true
+  "ambiguous": true,
+  "desc": "Hyperliquid — биржа бессрочных контрактов на своей сети",
+  "kind": "dex",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "INXUSDT": {
   "ticker": "INX",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 3834745.66,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "INX — регулируемая площадка ценных бумаг",
+  "kind": "cefi",
+  "why": "выручка вне цепи, Llama её не видит",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "LSKUSDT": {
   "ticker": "LSK",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 20919882.73,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "Lisk — L2 на OP Stack",
+  "kind": "l2",
+  "why": "нет в базе протоколов",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "MELANIAUSDT": {
   "ticker": "MELANIA",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 5540035.6,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "Melania — мем на Solana",
+  "kind": "meme",
+  "why": "у мема нет продукта",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "MEUSDT": {
   "ticker": "ME",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 1611823.3,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "Magic Eden — маркетплейс NFT",
+  "kind": "nft",
+  "why": "комиссии маркетплейса Llama в dailyRevenue не заводит",
+  "desc_src": "модель, не сверено",
+  "in_book": true
  },
  "MMTUSDT": {
   "ticker": "MMT",
-  "revenue30d": 7750.0,
-  "revenue7d": 2863.0,
+  "revenue30d": 7904.0,
+  "revenue7d": 3006.0,
+  "volume24h": 3936433.86,
+  "rev_to_vol30d": 6.693e-05,
+  "status": "measured",
   "protocols": "Momentum",
-  "ambiguous": false
+  "ambiguous": false,
+  "desc": "Momentum — DEX на Sui",
+  "kind": "defi",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "MONUSDT": {
   "ticker": "MON",
-  "revenue30d": 222069.0,
-  "revenue7d": 85396.0,
+  "revenue30d": 237164.0,
+  "revenue7d": 97410.0,
+  "volume24h": 14434066.61,
+  "rev_to_vol30d": 0.0005477,
+  "status": "measured",
   "protocols": "Monad",
-  "ambiguous": false
+  "ambiguous": false,
+  "desc": "Monad — L1 с параллельным исполнением",
+  "kind": "l1",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "MOVEUSDT": {
   "ticker": "MOVE",
-  "revenue30d": 8.83,
-  "revenue7d": 5.63,
+  "revenue30d": 8.61,
+  "revenue7d": 5.19,
+  "volume24h": 8318186.05,
+  "rev_to_vol30d": 3e-08,
+  "status": "measured",
   "protocols": "BlueMove Staking, Movement",
-  "ambiguous": true
+  "ambiguous": true,
+  "desc": "Movement — L2 на Move-VM; в базе слиплось с BlueMove Staking",
+  "kind": "l2",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "MUBARAKUSDT": {
   "ticker": "MUBARAK",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 7573397.35,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "Mubarak — мем на BNB Chain",
+  "kind": "meme",
+  "why": "у мема нет продукта",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "NEIROUSDT": {
   "ticker": "NEIRO",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 6219819.55,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "Neiro — мем",
+  "kind": "meme",
+  "why": "у мема нет продукта",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "NILUSDT": {
   "ticker": "NIL",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 7301201.01,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "Nillion — вычисления над зашифрованными данными",
+  "kind": "infra",
+  "why": "протокол есть, строки выручки нет",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "ONGUSDT": {
   "ticker": "ONG",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 1131922418.35,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "ONG — газовый токен сети Ontology",
+  "kind": "l1",
+  "why": "газ сети, а не выручка протокола",
+  "desc_src": "модель, не сверено",
+  "in_book": true
+ },
+ "ONTUSDT": {
+  "ticker": "ONT",
+  "revenue30d": null,
+  "note": "нет в базе протоколов",
+  "volume24h": 91540425.25,
+  "rev_to_vol30d": null,
+  "status": "not_in_db"
  },
  "PORTALUSDT": {
   "ticker": "PORTAL",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 23565287.35,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "Portal — игровая платформа (НЕ мост Wormhole)",
+  "kind": "game",
+  "why": "слипание по имени, урок 26.08",
+  "desc_src": "модель, не сверено",
+  "in_book": true
  },
  "PROMUSDT": {
   "ticker": "PROM",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 105197144.07,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "Prom — zk-L2 и игровая инфраструктура",
+  "kind": "l2",
+  "why": "прецедент 22.08: оборот $35M в сутки, выручка $681 за квартал",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "RAYSOLUSDT": {
   "ticker": "RAYSOL",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 3341996.57,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "RAYSOL — производный токен вокруг Raydium/Solana",
+  "kind": "meme",
+  "why": "нет в базе протоколов",
+  "desc_src": "модель, не сверено",
+  "in_book": true
  },
  "SAGAUSDT": {
   "ticker": "SAGA",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 3617178.65,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "Saga — платформа игровых цепочек",
+  "kind": "game",
+  "why": "протокол есть, строки выручки нет",
+  "desc_src": "модель, не сверено",
+  "in_book": true
  },
  "SANTOSUSDT": {
   "ticker": "SANTOS",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 915881.87,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "Santos FC — фан-токен клуба",
+  "kind": "fan",
+  "why": "фан-токен, продукта в цепи нет",
+  "desc_src": "модель, не сверено",
+  "in_book": true
  },
  "SHELLUSDT": {
   "ticker": "SHELL",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 1914390.86,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "MyShell — платформа ИИ-ботов",
+  "kind": "ai",
+  "why": "протокол есть, строки выручки нет",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "SKYAIUSDT": {
   "ticker": "SKYAI",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 7259791.93,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "SkyAI",
+  "kind": "ai",
+  "why": "нет в базе протоколов",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "SPKUSDT": {
   "ticker": "SPK",
-  "revenue30d": -280000.0,
-  "revenue7d": -118500.0,
+  "revenue30d": -239379.0,
+  "revenue7d": -44621.0,
+  "volume24h": 8117670.25,
+  "rev_to_vol30d": -0.00098295,
+  "status": "measured_negative",
   "protocols": "SparkLend, Spark Liquidity Layer",
-  "ambiguous": true
+  "ambiguous": true,
+  "desc": "Spark — кредитование, отпочковано от MakerDAO/Sky",
+  "kind": "defi",
+  "why": "ОТРИЦАТЕЛЬНАЯ выручка: расходы на стимулы больше сборов",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "SQDUSDT": {
   "ticker": "SQD",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 1523413.68,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "SQD (Subsquid) — индексация данных цепей",
+  "kind": "infra",
+  "why": "протокол есть, строки выручки нет",
+  "desc_src": "модель, не сверено",
+  "in_book": true
+ },
+ "STGUSDT": {
+  "ticker": "STG",
+  "revenue30d": 149741.07,
+  "revenue7d": 38396.36,
+  "volume24h": 2357996.21,
+  "rev_to_vol30d": 0.00211678,
+  "status": "measured",
+  "protocols": "Stargate V2, Stargate V1",
+  "ambiguous": true
  },
  "STORJUSDT": {
   "ticker": "STORJ",
   "revenue30d": null,
-  "note": "нет в базе протоколов"
+  "note": "нет в базе протоколов",
+  "volume24h": 36622351.68,
+  "rev_to_vol30d": null,
+  "status": "not_in_db",
+  "desc": "Storj — распределённое хранение файлов",
+  "kind": "depin",
+  "why": "платежи вне DeFi, у Llama как протокол не заведён",
+  "desc_src": "модель, не сверено",
+  "in_book": true
  },
  "STXUSDT": {
   "ticker": "STX",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 50006850.76,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "Stacks — слой смарт-контрактов над Bitcoin",
+  "kind": "l2",
+  "why": "протокол есть, строки выручки нет",
+  "desc_src": "модель, не сверено",
+  "in_book": false
+ },
+ "TACUSDT": {
+  "ticker": "TAC",
+  "revenue30d": null,
+  "note": "протокол без строки выручки",
+  "volume24h": 292452792.8,
+  "rev_to_vol30d": null,
+  "status": "no_row"
  },
  "TREEUSDT": {
   "ticker": "TREE",
-  "revenue30d": 58649.65,
-  "revenue7d": 15700.31,
+  "revenue30d": 62690.65,
+  "revenue7d": 18915.31,
+  "volume24h": 2183025.43,
+  "rev_to_vol30d": 0.00095724,
+  "status": "measured",
   "protocols": "Treehouse Protocol, Tree News",
-  "ambiguous": true
+  "ambiguous": true,
+  "desc": "Treehouse — фиксированный доход в DeFi; в базе слиплось с Tree News",
+  "kind": "defi",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "TRUMPUSDT": {
   "ticker": "TRUMP",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 240041551.5,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "официальный мем Трампа на Solana",
+  "kind": "meme",
+  "why": "протокол есть, строки выручки нет",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "TSTUSDT": {
   "ticker": "TST",
   "revenue30d": 0.0,
   "revenue7d": 0.0,
+  "volume24h": 4170768.14,
+  "rev_to_vol30d": 0.0,
+  "status": "measured_zero",
   "protocols": "TeleSwap",
-  "ambiguous": false
+  "ambiguous": false,
+  "desc": "TST — тестовый токен BNB Chain, ставший мемом",
+  "kind": "meme",
+  "why": "ИЗМЕРЕННЫЙ НОЛЬ, а не отсутствие строки",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "WLDUSDT": {
   "ticker": "WLD",
   "revenue30d": null,
-  "note": "протокол без строки выручки"
+  "note": "протокол без строки выручки",
+  "volume24h": 140186820.92,
+  "rev_to_vol30d": null,
+  "status": "no_row",
+  "desc": "Worldcoin — доказательство личности по радужке",
+  "kind": "infra",
+  "why": "протокол есть, строки выручки нет",
+  "desc_src": "модель, не сверено",
+  "in_book": false
  },
  "ZROUSDT": {
   "ticker": "ZRO",
   "revenue30d": 131592.0,
   "revenue7d": 0.0,
+  "volume24h": 49484100.46,
+  "rev_to_vol30d": 8.864e-05,
+  "status": "measured",
   "protocols": "LayerZero V2, LayerZero V1",
-  "ambiguous": true
+  "ambiguous": true,
+  "desc": "LayerZero — межсетевые сообщения",
+  "kind": "infra",
+  "why": "за 7 дней ноль при $131K за 30 — ПРОВЕРИТЬ",
+  "desc_src": "модель, не сверено",
+  "in_book": true
  }
 }

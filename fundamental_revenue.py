@@ -29,11 +29,27 @@
 
 Выход: таблица в консоль + fundamental_revenue.json для будущего
 слоя карточки (руками решите, что из него показывать).
+
+ЧТО ЛЕЖИТ В JSON (правка 27.08). Раньше туда шли только суммы, а
+главный вывод — отношение выручки к обороту, то самое «деньги
+биржевые» — печатался в консоль и терялся. Теперь в файл идут оборот и
+отношение, и ТРИ РАЗНЫХ НУЛЯ разведены полем status:
+    measured          — выручка есть
+    measured_zero     — протокол в базе есть, сборов за окно НЕ БЫЛО
+    measured_negative — расходы на стимулы больше сборов (SPK, 27.08)
+    no_row            — протокол есть, строки выручки нет
+    not_in_db         — монеты нет в базе; это НЕ «выручки нет»
+Разница между последними тремя — не формальность: «ноль» это измерение,
+«нет строки» это молчание источника, и в карточке они значат разное.
+
+Прогон записывает метку времени: без неё нельзя сказать, к какому дню
+относятся числа, а выручка за 30 дней — окно скользящее.
 """
 
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import sys
 import urllib.request
@@ -64,6 +80,7 @@ def base_ticker(symbol: str) -> str:
 
 
 def load_symbols(leaders_path: Path) -> list[str]:
+    """Тикеры журнала. Служебные ключи (_meta и подобные) пропускаются."""
     d = json.loads(leaders_path.read_text(encoding="utf-8"))
     return [k for k in d if not k.startswith("_")]
 
@@ -153,7 +170,13 @@ def main() -> int:
             note = ("нет в базе протоколов" if not protos
                     else "протокол без строки выручки")
             print(f"{t:<9}{vol_s:>12}{'—':>13}{'—':>9}  {note}")
-            out_json[sym] = {"ticker": t, "revenue30d": None, "note": note}
+            out_json[sym] = {
+                "ticker": t, "revenue30d": None, "note": note,
+                "volume24h": round(vol, 2) if vol else None,
+                "rev_to_vol30d": None,
+                # молчание источника и измеренный ноль — разные вещи
+                "status": ("not_in_db" if not protos else "no_row"),
+            }
             absent += 1
             continue
         r30 = sum(float(r.get("total30d") or 0.0) for _, r in matches)
@@ -166,16 +189,44 @@ def main() -> int:
         print(f"{t:<9}{vol_s:>12}{'$' + format(r30, ',.0f'):>13}{ratio_s:>9}"
               f"  {names}{' [неоднозначно]' if len(matches) > 1 else ''}"
               f"{' ← деньги биржевые' if cheap else ''}")
+        r7 = sum(float(r.get("total7d") or 0.0) for _, r in matches)
         out_json[sym] = {
             "ticker": t, "revenue30d": round(r30, 2),
-            "revenue7d": round(sum(float(r.get("total7d") or 0.0)
-                                   for _, r in matches), 2),
+            "revenue7d": round(r7, 2),
+            # оборот и отношение — в файл, а не только на экран
+            "volume24h": round(vol, 2) if vol else None,
+            "rev_to_vol30d": round(ratio, 8) if ratio is not None else None,
+            "status": ("measured_negative" if r30 < 0
+                       else "measured_zero" if r30 == 0 else "measured"),
             "protocols": names,
             "ambiguous": len(matches) > 1,
         }
 
     print(f"\nитог: {len(symbols)} монет | вне базы протоколов: {absent} | "
           f"с выручкой <0.01% месячного оборота: {cheap_n}")
+
+    # МЕТКА ПРОГОНА. Выручка за 30 дней — скользящее окно: без даты
+    # нельзя сказать, к какому дню относится число. Прежние описания
+    # монет (desc/kind/why), если файл уже размечен руками, сохраняются:
+    # они не пересчитываются прогоном и терять их незачем.
+    prev = {}
+    try:
+        prev = json.loads(Path(a.out).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        prev = {}
+    for sym, row in out_json.items():
+        old = prev.get(sym) or {}
+        for k in ("desc", "kind", "why", "desc_src", "in_book"):
+            if k in old and k not in row:
+                row[k] = old[k]
+    meta = prev.get("_meta") or {}
+    meta["run_at"] = datetime.datetime.now(datetime.timezone.utc)\
+        .strftime("%Y-%m-%d %H:%M UTC")
+    meta["counts"] = {
+        "symbols": len(symbols), "not_in_db_or_no_row": absent,
+        "cheap": cheap_n,
+    }
+    out_json = {"_meta": meta, **out_json}
     Path(a.out).write_text(json.dumps(out_json, ensure_ascii=False, indent=1),
                            encoding="utf-8")
     print(f"✓ {a.out}")
