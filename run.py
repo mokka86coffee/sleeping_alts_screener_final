@@ -486,6 +486,7 @@ def render_report(candidates: list[Candidate], snapshot: RunSnapshot) -> bool:
 
     log(f"→ Документов записано: {len(pages)} "
         f"({', '.join(sorted(pages))})")
+
     return True
 
 

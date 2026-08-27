@@ -35,9 +35,9 @@ from __future__ import annotations
 from core_models import Candidate, RunSnapshot
 from analytics_portfolio import portfolios
 from analytics_stars import build_stars
+from core_config import REPORT_PATH
 from render_css import CSS
-from render_brief import render_brief          # прежняя сводка-листалка
-from render_scheme import render_scheme        # сводка-схема (26.08)
+from render_brief import render_brief
 from render_dashboard import build_slices, render_dashboard_page
 from render_orbit import orbit_market
 from render_podium import render_podium
@@ -111,6 +111,27 @@ def build_pages(candidates: list[Candidate],
     # тех же чисел не заводим.
     market["portfolios"] = portfolios(stars)
 
+    # ── ОЗВУЧКА СВОДКИ (27.08) ──
+    # Здесь, а не в run.py: stars и market уже посчитаны один раз, и
+    # второй проход по выборке ради текста был бы и лишней работой, и
+    # вторым источником тех же чисел — ровно тем, чего этот модуль
+    # избегает во всём остальном.
+    #
+    # Только в БОЕВОЙ сборке (эта ветка, write_log=True). Одиночный
+    # file://-документ ниже — просмотр, а не прогон: он не пишет ни
+    # журнал предположений, ни флэт-вотч, и звук ему тоже не нужен.
+    #
+    # Синтез есть только на macOS: на другой системе модуль молча
+    # вернёт отказ, звука не будет, экран не покажет кнопку. Прогон
+    # это не роняет — озвучка побочный продукт, а не часть отчёта.
+    try:
+        from render_voice import render_voice
+        render_voice(stars, market, REPORT_PATH.parent)
+    except ImportError:
+        pass
+    except Exception as e:
+        log(f"озвучка пропущена: {type(e).__name__}: {e}")
+
     # Мост к внешнему пузырь-боту: список флэтовых монет у дна.
     # Пишет только боевая сборка (persist=True) — как журнал и
     # unlocks_seen; file://-сборка ниже файл не трогает. На сам
@@ -127,10 +148,7 @@ def build_pages(candidates: list[Candidate],
         "dashboard.html": document(
             render_dashboard_page(candidates, snapshot, slices,
                                   market, stars)),
-        # СВОДКА — СХЕМА. Прежняя листалка (render_brief) осталась в
-        # своём файле и работает: чтобы вернуться к ней, поменять
-        # render_scheme на render_brief в этой строке, и всё.
-        "brief.html": document(render_scheme(stars, market)),
+        "brief.html": document(render_brief(stars, market)),
         "podium.html": document(render_podium(stars, market)),
     }
 

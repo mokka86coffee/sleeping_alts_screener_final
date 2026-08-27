@@ -89,6 +89,31 @@ SCHEME_HTML = """
 .logo .o{width:22px;height:22px;border-radius:50%;border:1px solid rgba(232,236,251,.35);display:grid;place-items:center;color:var(--cy);font-size:15.4px;box-shadow:0 0 12px rgba(127,227,212,.35)}
 .stamp{font-family:var(--mono);font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--dim)}
 
+/* ── КНОПКА ЗВУКА ──
+   Браузеры не дают звуку играть сам: без касания или щелчка он
+   блокируется, и обойти это нельзя. Поэтому кнопка, а не автозапуск.
+   Появляется, только если файл озвучки существует, — на не-macOS его
+   не будет вовсе, и кнопки тоже.
+   Стоит слева вверху, напротив штампа прогона: два угла заняты
+   поровну, и она не спорит с кристаллом по центру. */
+.snd{position:absolute;left:48px;top:22px;z-index:6;display:none;
+  align-items:center;gap:8px;padding:7px 13px 7px 10px;border-radius:999px;
+  border:1px solid rgba(232,236,251,.16);background:rgba(255,255,255,.04);
+  font-family:var(--mono);font-size:9px;letter-spacing:.26em;text-transform:uppercase;
+  color:var(--lab);cursor:pointer;opacity:.55;transition:opacity .25s,border-color .25s}
+.snd.on{display:flex}
+.snd:hover{opacity:.9;border-color:rgba(232,236,251,.3)}
+.snd i{display:block;width:11px;height:11px;position:relative}
+/* Значок динамика: прямоугольник плюс треугольник, без картинок и
+   шрифтов — иначе значок ждал бы загрузки вместе со шрифтом. */
+.snd i::before{content:'';position:absolute;left:0;top:3px;width:4px;height:5px;
+  background:currentColor}
+.snd i::after{content:'';position:absolute;left:3px;top:0;width:0;height:0;
+  border:5px solid transparent;border-left:6px solid currentColor;border-right:0}
+/* Играет — значок пульсирует, чтобы было видно без звука. */
+.snd.play i{animation:sndPulse 1.6s ease-in-out infinite}
+@keyframes sndPulse{0%,100%{opacity:.5}50%{opacity:1}}
+
 /* звёздная пыль */
 .dust{position:absolute;inset:0;pointer-events:none;z-index:0}
 /* пыль не мигает и не колется: точки размыты и мягко светятся, а не
@@ -268,7 +293,14 @@ SCHEME_HTML = """
 .co .v{font-weight:200;font-size:19.8px;line-height:1.1;color:var(--vc,#dbe3f7);margin-top:3px}
 /* строка целиком: обрезки по двум строкам больше нет, длинные списки
    переносятся; блок шире, чтобы переносов было меньше */
-.co .s{font-size:11px;line-height:1.55;color:#aab2cc;margin-top:3px;opacity:.75}
+/* ВЫСОТА НОТЫ ОГРАНИЧЕНА. Гнёзда стоят с фиксированным шагом, а нота
+   растёт по содержимому: у «ближайшего события» она в четыре строки, и
+   хвост залезал на соседнюю ветвь — на кадре 27.08 «разбирают» ушло
+   под текст STORJ. Ограничение по числу строк, а не по пикселям:
+   шрифт может смениться, строки — нет. Лишнее обрезается многоточием,
+   полный текст есть в зале. */
+.co .s{font-size:11px;line-height:1.55;color:#aab2cc;margin-top:3px;opacity:.75;
+  display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;-webkit-line-clamp:3}
 .co .s b{color:#c9d2e8;font-weight:500}
 .co .tkr{font-family:var(--serif);color:#c9d2e8}
 
@@ -318,6 +350,7 @@ SCHEME_HTML = """
 </style>
 <div class="obs">
   <div class="dust" id="dust"></div>
+  <div class="snd" id="snd"><i></i><span id="sndTxt">слушать</span></div>
   <div class="top"><div class="stamp" id="stamp"></div></div>
   <div class="halo h3"></div><div class="halo h2"></div><div class="halo h1"></div>
   <div class="orb">
@@ -531,7 +564,13 @@ SCHEME_JS = """
   var wrapCos = q('#cos'), H = window.innerHeight, W = window.innerWidth;
   var narrow = W < 900, low = H < 560;
   var top0 = H*0.17 + (low ? 76 : narrow ? 130 : 168);
-  var step = Math.max(46, Math.min(narrow ? 104 : 96, (H - top0 - (low ? 120 : narrow ? 250 : 190)) / 2.4));
+  /* Шаг между гнёздами. Нижняя граница — не произвольные 46, а
+     высота самой ветви: подпись, значение и три строки ноты. Меньше
+     этого гнёзда налезают друг на друга по построению, сколько ни
+     сжимай экран. */
+  var LEAD_MIN = narrow ? 116 : 110;
+  var step = Math.max(LEAD_MIN, Math.min(narrow ? 116 : 108,
+    (H - top0 - (low ? 120 : narrow ? 250 : 190)) / 2.4));
   var SLOT = [0, step, step*2];
   wrapCos.innerHTML = cos.map(function(c, i){
     var y = top0 + SLOT[i % 3] + Math.round((rnd() - 0.5) * 36);
@@ -629,6 +668,44 @@ SCHEME_JS = """
     q('.obs').appendChild(tells);
   }
 
+  /* ── ЗВУК ──
+     Файл ищем ОДНИМ запросом заголовков: полное чтение потянуло бы
+     весь звук ради проверки, что он есть. Нет файла — кнопки нет,
+     и это нормальный ответ, а не сбой: на не-macOS озвучка не
+     собирается вовсе.
+     Клик по кнопке не должен закрывать сводку — она слушает клики
+     как «дальше», поэтому событие останавливается здесь же. */
+  (function(){
+    var snd = q('#snd'), txt = q('#sndTxt'), audio = null;
+    fetch('brief_voice.m4a', {method: 'HEAD'}).then(function(r){
+      if (r.ok) snd.classList.add('on');
+    }).catch(function(){ /* нет файла — молчим */ });
+
+    snd.addEventListener('click', function(e){
+      e.stopPropagation();
+      if (!audio) {
+        audio = new Audio('brief_voice.m4a');
+        audio.addEventListener('ended', function(){
+          snd.classList.remove('play'); txt.textContent = 'слушать';
+        });
+      }
+      if (audio.paused) {
+        audio.play().then(function(){
+          snd.classList.add('play'); txt.textContent = 'звук';
+        }).catch(function(){ txt.textContent = 'не вышло'; });
+      } else {
+        audio.pause();
+        snd.classList.remove('play'); txt.textContent = 'слушать';
+      }
+    });
+
+    /* Уходя с экрана, звук останавливаем: иначе сводка читается
+       поверх зала, и два экрана говорят разное одновременно. */
+    window.addEventListener('pagehide', function(){
+      if (audio && !audio.paused) audio.pause();
+    });
+  })();
+
   /* ── ВЫХОД: стрелки листают, всё остальное закрывает ──
      Клавиатура: стрелки вправо и вниз — вперёд, влево и вверх — назад;
      любая другая клавиша закрывает. Исключения две, и обе про то, что
@@ -653,7 +730,10 @@ SCHEME_JS = """
     if (done || cur < 0) return;
     var path = e.composedPath ? e.composedPath() : [], n;
     if (!path.length) for (n = e.target; n; n = n.parentNode) path.push(n);
-    for (var i = 0; i < path.length; i++) if (path[i] === nav) return;
+    var sndBtn = q('#snd');
+    for (var i = 0; i < path.length; i++) {
+      if (path[i] === nav || path[i] === sndBtn) return;
+    }
     close();
   }, true);
 
