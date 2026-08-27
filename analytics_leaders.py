@@ -46,6 +46,24 @@ from sources_storage import ensure_dirs, write_atomic
 # по одному счётчику hits они неотличимы.
 _META_KEY = "_meta"
 
+# ── НАБЛЮДЕНИЕ ЗА ЛИДЕРСТВОМ (27.08) ──
+# Раньше от лидерства оставался только `_meta["last_leader"]` — кто был
+# лидером вчера в три утра, восстановить было нельзя. Отсюда два
+# вопроса без ответа: с какой ЧАСТОТОЙ монета берёт первое место (это
+# про момент пампа и про то, находим мы его до или после) и в какое
+# ВРЕМЯ суток (крипта торгуется круглосуточно, и час подсказывает, где
+# искать причину — корейское окно, европейское утро).
+#
+# Поэтому каждое лидерство записывается меткой. Ничего на её основе не
+# решается: поля не входят в скор, пороги и отбор. Подробности и
+# список будущих проверок — в NABLUDENIE_LIDEROV.md.
+#
+# Окна ВЕЗДЕ скользящие, от момента прогона назад. Календарные сутки
+# не годятся: прогон в 00:10 иначе видел бы «вчера» пустым.
+LEAD_DAY_HOURS = 24        # окно «за сутки»
+LEAD_WINDOW_HOURS = 72     # окно непрерывности: три отрезка по суткам
+LEAD_TOP_DAY = 2           # сколько монет показывать в топе за сутки
+
 
 def _now(snapshot: RunSnapshot) -> datetime:
     """Момент прогона, не отдельный datetime.now() — одна временная
@@ -148,6 +166,15 @@ def _new_record(
         "min_change_pct": 0.0,
         "vol_ratio": dict(ratios or {}),
         "last_seen": now.isoformat(),
+        # ── лидерства: метки и счётчик ──
+        # Список меток, по одной на каждое первое место. Не обрезается:
+        # при ~50 прогонах в сутки метка около 120 байт даёт меньше
+        # 2.5 МБ в год на весь журнал, а искать закономерности по
+        # времени можно только на длинном ряде.
+        "lead_at": [],
+        # Всего лидерств за всю жизнь записи. Растёт вместе со списком
+        # и держится отдельно, чтобы не считать длину каждый раз.
+        "lead_hits": 0,
     }
 
 
@@ -487,6 +514,109 @@ def journal_expectancy(symbol: str,
             "expPct": round(avg_up - avg_dn, 2), "n": len(ups)}
 
 
+def _lead_marks(rec: dict) -> list[dict]:
+    """Метки лидерства записи, только пригодные к разбору."""
+    out = []
+    for m in (rec.get("lead_at") or []):
+        if isinstance(m, dict) and m.get("t"):
+            out.append(m)
+    return out
+
+
+def _hours_ago(stamp: str, now: datetime) -> float | None:
+    """Сколько часов назад была метка. Разбор мимо — None, не ноль:
+    «не знаем» и «только что» это разные ответы."""
+    try:
+        d = datetime.fromisoformat(str(stamp))
+    except (TypeError, ValueError):
+        return None
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=timezone.utc)
+    return (now - d).total_seconds() / 3600.0
+
+
+def lead_stats(recs: dict, now: datetime) -> dict:
+    """Три взгляда на лидерство, все окна СКОЛЬЗЯЩИЕ от `now`.
+
+    Календарные сутки здесь не годятся принципиально: прогон в 00:10
+    видел бы «вчера» почти пустым, а в 23:50 — полным, при одном и том
+    же поведении рынка. Поэтому ни одно окно не смотрит на дату, только
+    на разницу во времени.
+
+    Возвращает три списка, каждый может быть пустым — это законный
+    ответ, а не сбой: первые трое суток после запуска истории просто
+    нет.
+
+    day  — топ по числу лидерств за последние 24 часа.
+    hold — монеты, у которых есть хотя бы одно лидерство в КАЖДОМ из
+           трёх суточных отрезков последних 72 часов. Пропуск в любом
+           отрезке исключает монету целиком: смысл строки — не «часто
+           мелькала», а «держится третьи сутки подряд».
+    top  — одна монета с наибольшим ростом от дна 60 дней среди тех,
+           кто был лидером за 72 часа, с датами первого и последнего
+           появления в журнале.
+    """
+    day: list[dict] = []
+    hold: list[dict] = []
+    best: tuple[float, str, dict] | None = None
+
+    for sym, rec in recs.items():
+        if sym.startswith("_") or not isinstance(rec, dict):
+            continue
+        marks = _lead_marks(rec)
+        if not marks:
+            continue
+
+        ages = [h for h in (_hours_ago(m.get("t"), now) for m in marks)
+                if h is not None and h >= 0]
+        if not ages:
+            continue
+
+        n_day = sum(1 for h in ages if h < LEAD_DAY_HOURS)
+        n_win = sum(1 for h in ages if h < LEAD_WINDOW_HOURS)
+        lbl = sym[:-4] if sym.endswith("USDT") else sym
+
+        if n_day:
+            day.append({"t": lbl, "n": n_day})
+
+        if n_win:
+            # Три отрезка по суткам: [0..24), [24..48), [48..72).
+            # Нужен непустой каждый — отсюда all(), а не any().
+            slots = [
+                any(lo <= h < lo + LEAD_DAY_HOURS for h in ages)
+                for lo in (0, LEAD_DAY_HOURS, LEAD_DAY_HOURS * 2)
+            ]
+            if all(slots):
+                hold.append({"t": lbl, "n": n_win})
+
+            # Рост от дна берём из САМОЙ СВЕЖЕЙ метки окна, а не из
+            # записи: в записи величина сегодняшняя, а нам нужна та,
+            # что была в момент лидерства.
+            fresh = min(
+                (m for m in marks
+                 if (_hours_ago(m.get("t"), now) or 1e9) < LEAD_WINDOW_HOURS),
+                key=lambda m: _hours_ago(m.get("t"), now) or 1e9,
+                default=None,
+            )
+            up = float((fresh or {}).get("up") or 0.0)
+            if up > 0 and (best is None or up > best[0]):
+                best = (up, lbl, rec)
+
+    day.sort(key=lambda x: (-x["n"], x["t"]))
+    hold.sort(key=lambda x: (-x["n"], x["t"]))
+
+    out = {"day": day[:LEAD_TOP_DAY], "hold": hold}
+    if best is not None:
+        up, lbl, rec = best
+        out["top"] = {
+            "t": lbl,
+            "up": round(up, 1),
+            "first": str(rec.get("first_seen") or ""),
+            "last": str(rec.get("last_seen") or ""),
+        }
+    return out
+
+
 def journal_summary(path: Path = LEADERS_PATH) -> dict:
     """Итог журнала целиком — для хвоста сводки.
 
@@ -529,10 +659,20 @@ def journal_summary(path: Path = LEADERS_PATH) -> dict:
     worst_sym, worst = by_chg[0]
     best_sym, best = by_chg[-1]
 
+    # Момент отсчёта — сейчас, а не время последнего прогона: сводка
+    # читается и открывается позже, чем собиралась, и окна должны
+    # считаться от чтения.
+    lead = lead_stats(recs, datetime.now(timezone.utc))
+
     return {
         "n": len(recs),
         "fresh": fresh[:3],
         "gaps": gaps,
+        # Наблюдение за лидерством (27.08). Пустые ключи не кладём:
+        # экран сам не покажет то, чего нет.
+        **({"leadDay": lead["day"]} if lead.get("day") else {}),
+        **({"leadHold": lead["hold"]} if lead.get("hold") else {}),
+        **({"leadTop": lead["top"]} if lead.get("top") else {}),
         "best": {"t": _lbl(best_sym),
                  "chg": round(float(best.get("change_pct") or 0.0), 1)},
         "worst": {"t": _lbl(worst_sym),
@@ -762,6 +902,35 @@ def update_leaders(
             # продолжает срабатывать, но не выигрывает сравнение
             # каждый раз, копила плотность по дням при hits=0 — у
             # HEI 96 попаданий за четыре дня при частоте 0.0.
+            # ── МЕТКА ЛИДЕРСТВА ──
+            # Пишем момент, номер прогона и то, чем монета была В ЭТУ
+            # МИНУТУ: цену, скор, подкейс и рост от дна. Все четыре
+            # величины позже меняются, а метка должна отвечать на
+            # вопрос «что было, когда она стала первой», а не «что у
+            # неё сейчас».
+            #
+            # `up` — рост от минимума 60 дней (BOTTOM_WINDOW в
+            # analytics_metrics). Окно короткое сознательно: монета за
+            # три года могла вырасти четырежды, и рост от абсолютного
+            # дна ничего не сказал бы о сегодняшнем движении. У монет
+            # короче окна величина не измеряется и приходит нулём —
+            # такие в строку роста не попадут, и это правильно.
+            mark = {
+                "t": now.isoformat(),
+                "run": run_no,
+                "px": round(price, 10),
+                "score": int(leader.score or 0),
+                "case": f.get("case", ""),
+                "up": round(float((leader.raw or {}).get("up_from_low") or 0.0), 1),
+                "up_days": int((leader.raw or {}).get("days_from_low") or 0),
+            }
+            marks = rec.get("lead_at")
+            if not isinstance(marks, list):
+                marks = []
+            marks.append(mark)
+            rec["lead_at"] = marks
+            rec["lead_hits"] = int(rec.get("lead_hits", 0)) + 1
+
             rec.setdefault("since_run", run_no)
             meta["last_leader"] = leader.symbol
     else:

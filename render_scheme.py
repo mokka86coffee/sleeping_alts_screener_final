@@ -85,9 +85,9 @@ SCHEME_HTML = """
     radial-gradient(40% 30% at 50% 88%, rgba(120,70,40,.18), transparent 70%),
     radial-gradient(1100px 700px at 50% -5%, #3f3f67, #2b2e51 45%, #1b1c34 100%)}
 .top{position:absolute;left:48px;right:48px;top:26px;display:flex;justify-content:flex-end;align-items:center;z-index:5}
-.logo{display:none;align-items:center;gap:12px;font-family:var(--mono);font-size:11px;letter-spacing:.34em;color:var(--lab)}
-.logo .o{width:22px;height:22px;border-radius:50%;border:1px solid rgba(232,236,251,.35);display:grid;place-items:center;color:var(--cy);font-size:14px;box-shadow:0 0 12px rgba(127,227,212,.35)}
-.stamp{font-family:var(--mono);font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--dim)}
+.logo{display:none;align-items:center;gap:12px;font-family:var(--mono);font-size:12.1px;letter-spacing:.34em;color:var(--lab)}
+.logo .o{width:22px;height:22px;border-radius:50%;border:1px solid rgba(232,236,251,.35);display:grid;place-items:center;color:var(--cy);font-size:15.4px;box-shadow:0 0 12px rgba(127,227,212,.35)}
+.stamp{font-family:var(--mono);font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--dim)}
 
 /* звёздная пыль */
 .dust{position:absolute;inset:0;pointer-events:none;z-index:0}
@@ -164,8 +164,8 @@ SCHEME_HTML = """
 .tells .tl u:nth-of-type(1){left:34%}
 .tells .tl u:nth-of-type(2){left:50%;bottom:-24px;width:1.5px;height:1.5px}
 .tells .tl u:nth-of-type(3){left:63%;bottom:-4px}
-.tells .w{font-family:var(--mono);font-size:8px;letter-spacing:.3em;text-transform:uppercase;color:var(--lab);opacity:.8;display:block}
-.tells .t{font-family:var(--serif);font-size:13px;line-height:1.35;color:#c9d2e8;display:block;margin-top:3px}
+.tells .w{font-family:var(--mono);font-size:8.8px;letter-spacing:.3em;text-transform:uppercase;color:var(--lab);opacity:.8;display:block}
+.tells .t{font-family:var(--serif);font-size:14.3px;line-height:1.35;color:#c9d2e8;display:block;margin-top:3px}
 /* подпись видна, пока пузырь между сорока двумя и шестьюдесятью пятью
    процентами пути, то есть в середине экрана: в каждый момент видны
    одна-две; вход и выход по пять процентов пути */
@@ -229,7 +229,7 @@ SCHEME_HTML = """
   filter:blur(36px);animation:halo2 9s ease-in-out infinite reverse}
 @keyframes halo{0%,100%{transform:scale(.94);opacity:.85}50%{transform:scale(1.06);opacity:1}}
 @keyframes halo2{0%,100%{transform:scale(.96);opacity:.8}50%{transform:scale(1.05);opacity:1}}
-.orbcap{display:none;position:absolute;left:50%;top:calc(17% + 118px);transform:translateX(-50%);font-family:var(--mono);font-size:9px;letter-spacing:.34em;
+.orbcap{display:none;position:absolute;left:50%;top:calc(17% + 118px);transform:translateX(-50%);font-family:var(--mono);font-size:9.9px;letter-spacing:.34em;
   text-transform:uppercase;color:var(--cy);text-shadow:0 0 10px rgba(127,227,212,.6);white-space:nowrap;z-index:4}
 
 /* СТВОЛ И ВЕТВИ — ПОЧТИ В ЦВЕТ ПОЛЯ. Линии на полтона светлее фона,
@@ -260,15 +260,15 @@ SCHEME_HTML = """
 .co.r .txt{left:164px}
 /* текст вдвое мельче и ближе к полю: цифра пятнадцать, подписи семь
    и восемь с половиной, цвета не белые, а серо-синие, как у подписей */
-.co .k{font-family:var(--mono);font-size:8px;letter-spacing:.3em;text-transform:uppercase;color:var(--lab);opacity:.7}
+.co .k{font-family:var(--mono);font-size:8.8px;letter-spacing:.3em;text-transform:uppercase;color:var(--lab);opacity:.7}
 /* ЦВЕТА НА ВЕТВЯХ — ТОЛЬКО ХОЛОДНЫЕ. Значение берёт свой оттенок из
    узкой холодной гаммы: бирюза, голубой, васильковый, светлая сталь,
    лавандовый. Тёплого нет вовсе — ни жёлтого, ни красного, — иначе
    рябит; разница между мыслями читается тоном, а не яркостью. */
-.co .v{font-weight:200;font-size:18px;line-height:1.1;color:var(--vc,#dbe3f7);margin-top:3px}
+.co .v{font-weight:200;font-size:19.8px;line-height:1.1;color:var(--vc,#dbe3f7);margin-top:3px}
 /* строка целиком: обрезки по двум строкам больше нет, длинные списки
    переносятся; блок шире, чтобы переносов было меньше */
-.co .s{font-size:10px;line-height:1.55;color:#aab2cc;margin-top:3px;opacity:.75}
+.co .s{font-size:11px;line-height:1.55;color:#aab2cc;margin-top:3px;opacity:.75}
 .co .s b{color:#c9d2e8;font-weight:500}
 .co .tkr{font-family:var(--serif);color:#c9d2e8}
 
@@ -280,7 +280,7 @@ SCHEME_HTML = """
 .nav{position:absolute;left:48px;right:48px;bottom:26px;display:flex;align-items:center;gap:16px;z-index:6}
 .arrow{width:34px;height:34px;border-radius:50%;border:1px solid rgba(232,236,251,.28);display:grid;place-items:center;cursor:pointer;user-select:none;background:rgba(255,255,255,.04);opacity:.5}
 .arrow.off{opacity:.12}
-.count{font-family:var(--mono);font-size:10px;letter-spacing:.3em;color:var(--dim)}
+.count{font-family:var(--mono);font-size:11px;letter-spacing:.3em;color:var(--dim)}
 .ticks{display:flex;gap:5px;flex:1 1 auto}
 /* полоски почти прозрачные: дорожка едва угадывается, пройденное —
    бледная бирюза без свечения; за что кликать, видно, но глаз не цепляет */
@@ -312,8 +312,8 @@ SCHEME_HTML = """
   .halo.h2{width:360px;height:360px;margin:-180px 0 0 -180px}
   .halo.h3{width:560px;height:560px;margin:-280px 0 0 -280px}
   .tells{height:24vh;bottom:4%}
-  .co .v{font-size:16px}
-  .co .s{font-size:9.5px}
+  .co .v{font-size:17.6px}
+  .co .s{font-size:10.5px}
 }
 </style>
 <div class="obs">
@@ -427,6 +427,20 @@ SCHEME_JS = """
 
      Гамма только холодная: сталь, голубой, васильковый, бирюза,
      лавандовый. Тёплого нет — иначе схема рябит. */
+  /* ── НАБЛЮДЕНИЕ ЗА ЛИДЕРСТВОМ (27.08) ──
+     Три ветви из журнала: кто держится третьи сутки, кто чаще всех
+     брал первое место за сутки, и кто дальше всех ушёл от дна.
+     Считает analytics_leaders, здесь только показ. Ключей может не
+     быть вовсе — первые трое суток после запуска истории нет, и
+     пустая ветвь просто не появится: отбор ниже отсеивает пустые. */
+  var J = M.journal || {};
+  var leadHold = J.leadHold || [], leadDay = J.leadDay || [], leadTop = J.leadTop || null;
+  function dmy(iso){
+    var d = new Date(String(iso || ''));
+    if (isNaN(d)) return '';
+    return ('0' + d.getDate()).slice(-2) + '.' + ('0' + (d.getMonth() + 1)).slice(-2);
+  }
+
   var dorm = ST.filter(function(s){ return (s.st || '') === 'dormant'; });
   var fuel = ST.filter(function(s){ return (s.st || '') === 'fuel'; });
   var taker = ST.filter(function(s){ return (s.st || '') === 'taker'; });
@@ -487,7 +501,27 @@ SCHEME_JS = """
     { k:'Ближайшее событие', v: cal0 ? esc(String(cal0.title).slice(0, 22)) : null, c:'#cfd8ef',
       s: cal0 ? esc(String(cal0.note || '').slice(0, 150)) : '' },
     { k:'Следом по объёму', v: top.length ? top.length + ' монет' : null, c:'#9fb8ff',
-      s: top.map(function(v){ return v.t + ' ×' + (+v.x).toFixed(1); }).join(' · ') }
+      s: top.map(function(v){ return v.t + ' ×' + (+v.x).toFixed(1); }).join(' · ') },
+
+    /* ── добавлено 27.08: наблюдение за лидерством ── */
+
+    /* Держатся третьи сутки: лидерство было в КАЖДОМ из трёх суточных
+       отрезков последних 72 часов. Пропуск в любом отрезке исключает
+       монету — смысл строки не «часто мелькала», а «не отпускает». */
+    { k:'Держатся третьи сутки', v: leadHold.length ? leadHold.length + ' монет' : null, c:'#7fe3d4',
+      s: leadHold.map(function(x){ return x.t + ' ' + x.n; }).join(' · ') },
+
+    /* Кто чаще брал первое место за последние 24 часа. Окно
+       скользящее: календарные сутки дали бы в 00:10 пустое «вчера». */
+    { k:'Чаще всех за сутки', v: leadDay.length ? leadDay[0].t + ' ' + leadDay[0].n : null, c:'#9fb8ff',
+      s: leadDay.map(function(x){ return x.t + ' — ' + x.n +
+           (x.n === 1 ? ' раз' : (x.n < 5 ? ' раза' : ' раз')); }).join(' · ') },
+
+    /* Дальше всех от дна среди лидеров окна. Дно — минимум 60 дней:
+       за три года монета могла вырасти четырежды, и рост от
+       абсолютного дна ничего не сказал бы о сегодняшнем ходе. */
+    { k:'Дальше всех от дна', v: leadTop ? leadTop.t + ' ' + (leadTop.up > 0 ? '+' : '') + leadTop.up + '%' : null, c:'#e6edff',
+      s: leadTop ? ('в журнале с ' + dmy(leadTop.first) + ' · последний раз ' + dmy(leadTop.last)) : '' }
   ].filter(function(c){ return c && c.v != null && c.v !== ''; });
 
   /* ГНЁЗДА СЧИТАЮТСЯ ОТ ОКНА. На широком — три с шагом 96 под
