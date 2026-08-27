@@ -1124,7 +1124,46 @@ PODIUM_CSS = """
    Панель из четырёх плиток становится одной строкой. Всё, что
    осталось по высоте, забирает список и прокручивается сам.
    ═══════════════════════════════════════════════════════════════ */
-@media (max-width:1180px){
+/* ── ПЛАНШЕТ ВШИРЬ: раскладка как на компьютере, только уже ──
+   От 900 до 1180 сцена и список стоят рядом, как на большом экране:
+   волна во всю ширину сцены, под ней ядро с группами и деньги, справа
+   список. Раньше эта полоса попадала в узкую ветку, и на планшете
+   поперёк список занимал весь экран, а волна сжималась в ленту в
+   пятьдесят шесть пикселей — читать было нечего.
+   Уже, чем на компьютере: сцена ужимается, список сто семьдесят,
+   отступы меньше; частокол и карточка монеты остаются на месте. */
+@media (max-width:1180px) and (min-width:900px){
+  /* ВОЗВРАТ К ДЕСКТОПНОЙ РАСКЛАДКЕ. Правила узкой ветки лежат ещё и в
+     общем файле стилей (render_css.py) — старой копией на 1180, и
+     оттуда они дотягиваются до планшета. Спорить порядком нельзя:
+     копия может оказаться и позже. Поэтому здесь ЯВНО возвращаются
+     десктопные значения всех свойств, которые узкая ветка меняет. */
+  .obg-gate{padding:0 0 0 0;align-items:center;justify-content:center}
+  .obg-stage{flex-direction:row;align-items:center;justify-content:center;
+    gap:20px;width:min(1560px,98vw);height:100%}
+  .obg-inner{flex:1;min-width:0;display:flex;flex-direction:column;
+    align-items:center;gap:16px}
+  .obg-wave{position:relative;height:auto;min-height:210px;overflow:visible}
+  .obg-ghost{display:block}
+  #obgHero,.obg-hero{position:relative;display:flex;min-height:200px;gap:24px}
+  .obg-core{position:relative;left:auto;top:auto;height:auto;width:auto;
+    display:flex;align-items:center;padding:0}
+  .obg-ring{display:block;position:relative;width:auto;height:auto}
+  .obg-ring svg,.obg-disc,.obg-sub{display:block}
+  .obg-num{position:absolute;font-size:inherit}
+  .obg-side{display:flex;flex-direction:column;width:190px;gap:8px;padding:0}
+  .obg-axis,.obg-pins,.obg-now,.obg-tip{display:block}
+  .obr-tabs{display:flex;min-height:auto}
+  .obg-hint{display:block}
+  .obr{width:170px;flex:0 0 auto;height:100%;max-height:none;padding:56px 0 16px}
+  .obr-list{padding-bottom:0}
+  .obg-card{position:absolute;left:0;right:0;opacity:0;pointer-events:none;
+    padding:0 4px;gap:9px}
+  .obg-card.obg-on{opacity:1}
+  .obg-tip{width:40%}
+}
+
+@media (max-width:900px){
   .obp-gate{padding:0;align-items:stretch;justify-content:flex-start}
   .obg-stage{flex-direction:column;gap:0;height:100%;width:100%;
     align-items:stretch;justify-content:flex-start}
@@ -1133,8 +1172,12 @@ PODIUM_CSS = """
      Высота её частей задаётся здесь и только здесь. */
   .obg-inner{position:relative;flex:0 0 auto;gap:0;animation:none}
 
-  /* ── Горизонт ── */
-  .obg-wave{position:relative;height:56px;min-height:0;overflow:hidden}
+  /* ── Горизонт ──
+     Была лента в пятьдесят шесть пикселей: волна не читалась вовсе, а
+     список занимал весь экран. Теперь график держит четверть высоты
+     окна (но не меньше ста сорока и не больше двухсот двадцати) —
+     столько же, сколько на компьютере занимает верх сцены. */
+  .obg-wave{position:relative;height:clamp(140px,26vh,220px);min-height:0;overflow:hidden}
   .obg-wave svg{position:absolute;inset:0;width:100%;height:100%;
     max-height:none}
   .obg-ghost{display:none}          /* именно оно уезжало за край */
@@ -1143,9 +1186,12 @@ PODIUM_CSS = """
      на ленту. От него остаются число и название группы. */
   #obgHero{position:static;min-height:0;gap:0}
   .obg-hero{position:static;min-height:0;gap:0;display:block}
+  /* Счёт группы стоит В УГЛУ волны, но волна теперь высокая — если
+     тянуть ядро на всю её высоту, число повисает посреди графика.
+     Даём ему полосу в сорок четыре пикселя сверху. */
   .obg-core{position:absolute;left:0;top:0;z-index:4;
-    width:auto;min-height:0;height:56px;
-    display:flex;align-items:center;padding-left:16px}
+    width:auto;min-height:0;height:44px;
+    display:flex;align-items:center;padding:0 0 0 16px}
   .obg-core-in{display:flex;align-items:baseline;gap:9px}
   .obg-ring{width:auto;height:auto;position:static;display:contents}
   .obg-ring svg,.obg-disc,.obg-sub{display:none}
@@ -1177,7 +1223,28 @@ PODIUM_CSS = """
      списка, которой не хватило. */
   .obg-hint{display:none}
 
-  /* ── Частокол и карточка на узких экранах не живут ──
+  /* ── КАРТОЧКА МОНЕТЫ ЖИВЁТ И ЗДЕСЬ ──
+     Раньше её прятали: она вставала на место ядра, а ядра в узкой
+     раскладке нет. Но именно в ней весь текст прогона — фигура, довод,
+     цена, — и без неё экран превращался в один список. Теперь карточка
+     стоит в потоке между волной и списком: клик по строке открывает
+     её здесь же, второй клик по той же строке — закрывает. */
+  /* ВЫСОТУ ДЕЛЯТ ТРОЕ: волна, карточка, список — и все внутри окна.
+     Раньше карточка росла по содержимому, и список уезжал за нижний
+     край: на телефоне от него оставалась одна строка. Теперь карточка
+     занимает не больше трети окна и прокручивается внутри себя. */
+  .obg-gate{height:100%;max-height:100%;overflow:hidden}
+  .obg-stage{height:100%;min-height:0}
+  .obg-card{position:static;opacity:1;pointer-events:auto;
+    flex:0 1 auto;min-height:0;padding:10px 14px 2px;gap:8px;
+    max-height:32vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  .obg-card:empty{display:none}
+  /* Цена и капитализация в карточке набраны огромными: на компьютере
+     они занимают освободившийся центр, на телефоне — пол-экрана. */
+  .obg-card .obc-nums{gap:18px}
+  .obg-card .obc-nums b{font-size:22px}
+
+  /* ── Частокол на узких экранах не живёт ──
      Волна здесь сжата в полосу в пятьдесят шесть пикселей. Частоколу
      нужна высота: точки стоят ярусами и держат стойки вниз, а шкала
      подписывает три недели вперёд. В полосе они не помещаются — метки
@@ -1186,7 +1253,7 @@ PODIUM_CSS = """
      Карточка монеты по той же причине: она встаёт на место ядра, а
      ядра здесь нет. И наведения на касании тоже нет — вместо него
      работает клик по строке, он открывает карточку целиком. */
-  .obg-axis,.obg-pins,.obg-now,.obg-tip,.obg-card{display:none}
+  .obg-axis,.obg-pins,.obg-now,.obg-tip{display:none}
 
   /* Место под вкладки не резервируем: переезжать им некуда, ряд и так
      стоит вверху своей раскладкой. Сорок четыре пикселя пустоты на
@@ -1226,8 +1293,12 @@ PODIUM_CSS = """
   .obg-panel b{font-size:11px;margin-top:2px}
   .obg-panel i{font-size:8px}
 
-  /* ── Список забирает остаток и прокручивается внутри себя ── */
-  .obr{width:100%;flex:1 1 auto;min-height:0;height:auto;padding:10px 12px 12px}
+  /* ── Список идёт ПОД графиком и текстом, а не вместо них ──
+     Он берёт остаток высоты, но не больше половины окна: сверху должны
+     помещаться волна, счёт по группам, деньги и карточка монеты. Если
+     монет много — прокручивается внутри себя. */
+  .obr{width:100%;flex:1 1 auto;min-height:0;height:auto;max-height:none;
+    padding:10px 12px 12px}
   .obr-list{max-height:none;flex:1 1 auto;min-height:0;overflow-y:auto}
   .obr-row{min-height:46px}          /* палец, а не курсор */
   .obg-out{top:auto;bottom:14px;right:14px;
@@ -1236,7 +1307,7 @@ PODIUM_CSS = """
 
 /* Планшет лёжа: ширина вернулась — горизонт, вкладки и сводка уходят
    в левую колонку, список занимает всю правую. */
-@media (max-width:1180px) and (min-width:781px) and (orientation:landscape){
+@media (max-width:900px) and (min-width:781px) and (orientation:landscape){
   .obg-stage{flex-direction:row}
   .obg-inner{flex:0 0 300px;border-right:1px solid rgba(255,255,255,.07);
     display:flex;flex-direction:column}
@@ -1262,8 +1333,10 @@ PODIUM_CSS = """
    «держать» слипаются. Раскладываем сеткой два на два, сводку
    тоже, и урезаем горизонт — на телефоне дорога каждая строка. */
 @media (max-width:560px){
-  .obg-wave{height:44px}
-  .obg-core{height:44px;padding-left:12px}
+  /* На телефоне волна не лента: те же четверть высоты, что на планшете,
+     но не выше ста восьмидесяти — иначе списку не остаётся места. */
+  .obg-wave{height:clamp(130px,24vh,180px)}
+  .obg-core{height:clamp(130px,24vh,180px);padding-left:12px;align-items:flex-start;padding-top:10px}
   .obg-num{font-size:21px}
   .obg-cap{font-size:8px;letter-spacing:.22em}
   .obg-side{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:9px 10px 0}
@@ -2926,6 +2999,10 @@ PODIUM_JS = """
        было, и клик по монете не делал ничего. */
     bindRows(rows);
     bindFind();
+    /* На узком экране показываем карточку первой монеты списка сразу:
+       наведения на касании нет, а клик по строке открывает полную
+       сцену — без этого текст прогона не появлялся вовсе. */
+    showLeaderNarrow(rows);
     /* Уход курсора карточку НЕ гасит. Она не всплывающая подсказка, а
        содержимое экрана: её читают, отводя глаза от списка, водят по
        строкам мышью и возвращаются. Сменится она только на другой
@@ -3556,14 +3633,31 @@ PODIUM_JS = """
      курсор на строке. Повторное наведение на ту же монету ничего не
      пересобирает — иначе лесенка играла бы на каждом дрожании мыши. */
   var CARD_SYM = null;
+  /* НА УЗКОМ ЭКРАНЕ КАРТОЧКА ПОКАЗЫВАЕТСЯ САМА. Наведения на касании
+     нет, а клик по строке открывает полную сцену монеты — значит текст
+     прогона на планшете и телефоне не появлялся вовсе. Показываем
+     лидера прогона сразу после сборки; выбор строки заменит его. */
+  function showLeaderNarrow(list) {
+    if (window.innerWidth >= 900) return;
+    var lead = null, i;
+    for (i = 0; i < list.length; i++) if (list[i] && list[i].lead) { lead = list[i]; break; }
+    if (!lead) lead = list[0];
+    if (lead) showCoin(lead);
+  }
   function showCoin(s) {
     var card = document.getElementById('obgCard');
     var hero = document.getElementById('obgHero');
     if (!card || !hero || !s) return;
-    if (!hero.classList.contains('obg-gone')) return;
+    /* На компьютере карточка ждёт, пока ядро уйдёт и освободит место.
+       На узком экране ядра нет вовсе, а карточка стоит в потоке между
+       волной и списком — ждать нечего, иначе весь текст прогона так и
+       не появляется, и остаётся один список. */
+    var flow = window.innerWidth < 900;
+    if (!flow && !hero.classList.contains('obg-gone')) return;
     if (CARD_SYM === s.t) return;
     CARD_SYM = s.t;
-    card.style.top = hero.offsetTop + 'px';
+    /* место считается от ядра только там, где карточка лежит поверх */
+    card.style.top = flow ? '' : hero.offsetTop + 'px';
     card.innerHTML = coinCard(s);
     card.classList.add('obg-on');
     paintWave(s);      /* волна становится ходом этой монеты */
@@ -3579,7 +3673,7 @@ PODIUM_JS = """
     var card = document.getElementById('obgCard');
     var hero = document.getElementById('obgHero');
     if (card && hero && CARD_SYM !== null) {
-      card.style.top = hero.offsetTop + 'px';
+      card.style.top = window.innerWidth < 900 ? '' : hero.offsetTop + 'px';
     }
   });
 

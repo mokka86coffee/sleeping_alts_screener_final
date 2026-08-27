@@ -36,7 +36,8 @@ from core_models import Candidate, RunSnapshot
 from analytics_portfolio import portfolios
 from analytics_stars import build_stars
 from render_css import CSS
-from render_brief import render_brief
+from render_brief import render_brief          # прежняя сводка-листалка
+from render_scheme import render_scheme        # сводка-схема (26.08)
 from render_dashboard import build_slices, render_dashboard_page
 from render_orbit import orbit_market
 from render_podium import render_podium
@@ -126,7 +127,10 @@ def build_pages(candidates: list[Candidate],
         "dashboard.html": document(
             render_dashboard_page(candidates, snapshot, slices,
                                   market, stars)),
-        "brief.html": document(render_brief(stars, market)),
+        # СВОДКА — СХЕМА. Прежняя листалка (render_brief) осталась в
+        # своём файле и работает: чтобы вернуться к ней, поменять
+        # render_scheme на render_brief в этой строке, и всё.
+        "brief.html": document(render_scheme(stars, market)),
         "podium.html": document(render_podium(stars, market)),
     }
 
