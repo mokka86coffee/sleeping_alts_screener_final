@@ -1,4 +1,11 @@
 [
-  {"date": "2026-08-15", "stables_pct": 12.2, "btc_dom_pct": 60.84},
-  {"date": "2026-08-27", "stables_pct": 12.2, "btc_dom_pct": 59.6}
+ {
+  "date": "2026-08-28",
+  "stables_pct": 10.6,
+  "btc_dom_pct": 59.61,
+  "src": "coinmarketcap",
+  "method": "global",
+  "altseason": 33,
+  "stable_turnover": 0.352
+ }
 ]
