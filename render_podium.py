@@ -1437,6 +1437,26 @@ x-pill.hot x-b{color:#f0b3a9}
   93%{opacity:0;max-height:360px}
   100%{opacity:0;max-height:0;min-height:0;height:0;
        margin:0;padding:0;border:0;visibility:hidden}}
+
+/* ── Э-8 (одобрено 29.08): формы суток и зоны ликвидаций ── */
+.obg-spk{vertical-align:-3px;margin-right:4px}
+.obg-spk polyline{fill:none;stroke:#aab3d8;stroke-width:1.2;opacity:.8}
+.obg-liqz{fill:rgba(240,168,120,.07);stroke:rgba(240,168,120,.18);
+  stroke-width:.5}
+
+/* ── Э-9: подписи горизонтов ── */
+.obc-hz{font:600 8px/1 Georgia,serif;letter-spacing:.3em;
+  text-transform:uppercase;color:#5d6488;margin:14px 0 2px;
+  display:flex;align-items:center;gap:10px}
+.obc-hz::after{content:'';flex:1;height:1px;max-width:150px;
+  background:linear-gradient(90deg,rgba(170,179,216,.18),transparent)}
+
+/* ── Г-15: метки строк ── */
+x-rm{display:inline-block;margin-left:7px;font-size:10px;line-height:1;
+  vertical-align:1px;opacity:.75;font-style:normal}
+x-rm.up{color:#8fd6b8;text-shadow:0 0 7px rgba(143,214,184,.35)}
+x-rm.dn{color:#f0a89b;text-shadow:0 0 7px rgba(240,168,155,.35)}
+@media (max-width:900px){x-rm{font-size:9px;margin-left:5px}}
 </style>
 """
 
@@ -3028,6 +3048,35 @@ PODIUM_JS = """
        направление, а оно и так было в проценте; сам процент строка не
        считает — ход монеты показывает центр, когда на неё смотрят.
        railSpark оставлен в коде: он ещё пригодится в центре. */
+    /* ── Г-15: метки строк — сутки пополам (в бою 29.08) ──
+       Правила ночного разбора ONG: тейкер-сдвиг 15%+ между
+       половинами (стрелка), переворот дельты со второй половиной
+       от трети первой (⟲). Половины считает python в срезе —
+       взвешенно по ногам v3.1, без ног средним. Глиф ускорения
+       дельты сознательно НЕ добавлен: правило не калибровано. */
+    function rowMarks(s) {
+      var h = s.cg && s.cg.halves;
+      if (!h) return '';
+      var out = '';
+      if (h.tk1 && h.tk2) {
+        var shift = (h.tk2 - h.tk1) / h.tk1;
+        if (shift <= -0.15) {
+          out += '<x-rm class="dn" title="тейкер съехал вниз: ' +
+            h.tk1.toFixed(2) + ' → ' + h.tk2.toFixed(2) +
+            ' — покупателя не стало">⭣</x-rm>';
+        } else if (shift >= 0.15) {
+          out += '<x-rm class="up" title="тейкер вырос: ' +
+            h.tk1.toFixed(2) + ' → ' + h.tk2.toFixed(2) + '">⭡</x-rm>';
+        }
+      }
+      if (h.d1 !== undefined && h.d2 !== undefined &&
+          h.d1 * h.d2 < 0 && Math.abs(h.d2) >= Math.abs(h.d1) * 0.3) {
+        out += '<x-rm class="' + (h.d2 > 0 ? 'up' : 'dn') +
+          '" title="дельта перевернулась: ' + money(h.d1) + ' → ' +
+          money(h.d2) + '">⟲</x-rm>';
+      }
+      return out;
+    }
     out += '<div class="obr-list">';
     for (i = 0; i < rows.length; i++) {
       var s = rows[i], c = caseOf(s);
@@ -3043,7 +3092,7 @@ PODIUM_JS = """
             /* Первая буква отделена ВСЕГДА, даже когда цвет несёт точка:
                две разметки под два вида разошлись бы при первой правке. */
             '<b>' + String(s.t).charAt(0) + '</b>' + String(s.t).slice(1) +
-          '</a>' + delistTag(s) + '</div>' +
+          '</a>' + delistTag(s) + rowMarks(s) + '</div>' +
         '</div>';
     }
     body.innerHTML = out + '</div><div class="obr-none" id="obgNone">' +
@@ -3545,6 +3594,10 @@ PODIUM_JS = """
         (s.liqFuel ? ' — оценка по модели, не наблюдение' : '')]);
     }
 
+    /* ── Э-9: подписи трёх горизонтов (одобрено 29.08, «заливай
+       сразу») ── Тексты карточки говорят о разном времени;
+       подписи ДЕНЬ · СЕЙЧАС · ТРЕНД группируют, не меняя слов. */
+    f.push(['__hz__', 'день \u00b7 диагноз положения']);
     /* Состояние — вердикт, ему место сразу под кейсом (правка
        владельца 29.08); свод пилюль идёт под ним. */
     var st = [];
@@ -3564,7 +3617,14 @@ PODIUM_JS = """
         (u.ins !== undefined ? ' · инсайдерам <b>' + u.ins + '%</b>' : '') +
         (u.drip ? ' · капля ежедневно' : '')]);
     }
-    if (s.klinger && (s.klinger.crossUp || s.klinger.above)) {
+    if (s.klingerLadder) {
+      /* Э-8 (одобрено 29.08): лестница шкал — локальный импульс против старших.
+         Согласие трёх — сильное чтение, расхождение — само чтение. */
+      var L2 = s.klingerLadder;
+      function kl(v) { return v === 'up' ? '\u2191' : v === 'dn' ? '\u2193' : v; }
+      dg.push(['#8fd6b8', false, 'клингер <b>2ч ' + kl(L2.h2) +
+        ' · 4ч ' + kl(L2.h4) + ' · день ' + kl(L2.d1) + '</b>']);
+    } else if (s.klinger && (s.klinger.crossUp || s.klinger.above)) {
       dg.push(['#8fd6b8', false, s.klinger.crossUp ?
         'клингер: <b>крест вверх у дна</b>' : 'клингер <b>выше сигнала</b>']);
     }
@@ -3587,6 +3647,49 @@ PODIUM_JS = """
       }).join('')]);
     }
 
+    f.push(['__hz__', 'сейчас \u00b7 кто жмёт в эти часы']);
+    /* ── Э-8 (одобрено 29.08): строка-дивер (разбор графиков 29.08) ──
+       Ход за сутки в плюс при отрицательной дельте — цена растёт
+       без денег тейкера; ранний признак раздачи из разбора ONG.
+       Оба числа уже были в карточке порознь — склейка по имени. */
+    if (s.p1d !== undefined && +s.p1d > 1 &&
+        s.cg && s.cg.cvdChg !== undefined && +s.cg.cvdChg < 0) {
+      f.push(['#f0a878', 'дивер',
+        'ход +' + (+s.p1d).toFixed(1) + '% НЕ оплачен дельтой (' +
+        money(s.cg.cvdChg) + ' за сутки) — рост без денег']);
+    }
+    /* ── Э-8 (одобрено 29.08): формы суток мини-рядами — число прячет форму
+       (разбор графиков 29.08: рост OI на пампе и удержание после
+       читаются только рядом). Дельта из cg.series, OI из oiSpark. */
+    function spark(arr, w, h) {
+      if (!arr || arr.length < 4) return '';
+      var mn = Math.min.apply(null, arr), mx = Math.max.apply(null, arr);
+      var sp = (mx - mn) || 1, pts = [];
+      for (var q = 0; q < arr.length; q++) {
+        pts.push((q / (arr.length - 1) * w).toFixed(1) + ',' +
+          (h - (arr[q] - mn) / sp * h).toFixed(1));
+      }
+      return '<svg class="obg-spk" viewBox="0 0 ' + w + ' ' + h +
+        '" width="' + w + '" height="' + h +
+        '"><polyline points="' + pts.join(' ') + '"/></svg>';
+    }
+    var spD = s.cg && s.cg.series ?
+      spark(s.cg.series.map(function (b) { return +b.cvd || 0; }), 64, 14) : '';
+    var spO = s.oiSpark ? spark(s.oiSpark, 64, 14) : '';
+    if (spD || spO) {
+      f.push(['#8b93c4', 'формы суток',
+        (spD ? spD + ' дельта' : '') +
+        (spD && spO ? ' \u00b7 ' : '') +
+        (spO ? spO + ' плечо' : '')]);
+    }
+    /* ── Э-8 (одобрено 29.08): крупные сделки (big из интрадея; поля уже
+       считались каждый прогон и лежали без показа). ── */
+    if (s.bigCount) {
+      f.push(['#9fd0e8', 'крупные',
+        'за двое суток ' + s.bigCount + ' баров крупняка: покупок ' +
+        (s.bigBuys || 0) + ', продаж ' + (s.bigSells || 0) +
+        (s.bigMax ? ' · пик размера ×' + s.bigMax : '')]);
+    }
     /* Г-15: чем оплачено движение — спот против плеча. Пустой спот у
        перповой монеты — не ошибка, а ответ: ход оплачен плечом. */
     if (s.cg && (s.cg.spotUsd || s.cg.taker)) {
@@ -3644,6 +3747,11 @@ PODIUM_JS = """
          внутри поехали бы дважды. Едет каждая строка сама. */
       h += '<div class="obc-facts">';
       for (i = 0; i < f.length; i++) {
+        if (f[i][0] === '__hz__') {
+          h += '<div class="obc-hz obc-anim" style="--nd:' + (nd++) +
+            '">' + f[i][1] + '</div>';
+          continue;
+        }
         if (f[i][0] === '__digest__') {
           h += '<x-dg>' + f[i][1] + '</x-dg>';
           continue;
@@ -3753,7 +3861,9 @@ PODIUM_JS = """
       calc.push('детекторов согласно <em>' + (+s.flowFired) + '</em>');
     }
     if (calc.length) {
-      h += '<div class="obc-calc obc-anim" style="--nd:' + (nd++) + '">' +
+      h += '<div class="obc-hz obc-anim" style="--nd:' + (nd++) +
+        '">тренд \u00b7 структура и стратегия</div>' +
+        '<div class="obc-calc obc-anim" style="--nd:' + (nd++) + '">' +
         calc.join(' · ') + '</div>';
     }
     return h;
@@ -4030,6 +4140,28 @@ PODIUM_JS = """
     /* Подписи уровней — ПРЯМО НА ЛИНИЯХ, слева (правка 29.08):
        как на терминале, без шкалы; правое поле остаётся цене, дну и
        пику. Если линия липнет к дну ряда — подпись уходит под неё. */
+    /* ── Э-8 (одобрено 29.08): зоны ликвидаций на волне (владелец 29.08: не
+       ждать полигон, внедрять и сверять с визуальной картой
+       Coinglass). Полоса плотности с подписью топлива; правило
+       чтения из analytics_liqmap остаётся: скопление плеча НЕ
+       означает, что цена туда пойдёт. */
+    if (s.liqZones) {
+      for (var zi = 0; zi < s.liqZones.length && zi < 3; zi++) {
+        var Z = s.liqZones[zi];
+        var zLo = yOf(Z.lo), zHi = yOf(Z.hi);
+        if (zLo === null || zHi === null) continue;
+        var zt = Math.min(zLo, zHi), zh = Math.abs(zLo - zHi);
+        if (zt > H - 8 || zt + zh < TOP - 6) continue;
+        var zd = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        zd.setAttribute('x', L); zd.setAttribute('y', Math.max(TOP - 6, zt));
+        zd.setAttribute('width', EDGE + 40 - L);
+        zd.setAttribute('height', Math.max(3, zh));
+        zd.setAttribute('class', 'obg-liqz');
+        svg.appendChild(zd);
+        tag(L + 8, zt - 6, 'топливо <b>' + money(Z.fuel) + '</b>',
+            'obg-mk-lv obg-mk-onln');
+      }
+    }
     if (yOp !== null) {
       ln(L, yOp, EDGE + 40, yOp, '1 6', '.3');
       tag(L + 8, yOp + (Math.abs(yOp - yLo) < 12 ? 9 : -7),

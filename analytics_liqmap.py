@@ -120,7 +120,18 @@ def liq_zones(highs: list[float], lows: list[float], closes: list[float],
             d["atr"] = round(abs(pct) / atr_pct, 2)
         out.append(d)
     out.sort(key=lambda z: -z["weight"])
-    return out[:MAX_ZONES]
+    # Отбор с КВОТОЙ сторон (сверка BLESS 29.08 против Coinglass и
+    # R2D2): чистый топ по весу выталкивал свежие шорт-зоны сверху —
+    # лонг-наследие пампа всегда тяжелее, и карта теряла главную
+    # плиту над ценой (0.0131 при эталонных 0.0130–0.0132). Модель
+    # видела зону — резал отбор. Каждой стороне до пяти мест, общий
+    # потолок прежний: завет докстринга про две плиты — в коде.
+    per_side = max(2, MAX_ZONES - 3)
+    ups = [z for z in out if z["pct"] > 0][:per_side]
+    dns = [z for z in out if z["pct"] <= 0][:per_side]
+    pick = (ups + dns)
+    pick.sort(key=lambda z: -z["weight"])
+    return pick[:MAX_ZONES]
 
 
 def liq_state(zones: list[dict], price: float) -> dict | None:

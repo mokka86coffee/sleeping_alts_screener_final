@@ -917,6 +917,25 @@ def build_stars(candidates: list[Candidate],
         if lv:
             s["levels"] = lv
 
+        # Карта ликвидаций в показ (одобрено 29.08, сверка BLESS
+        # против Coinglass и R2D2 пройдена): свежие долларовые зоны
+        # из OI, до трёх сильнейших, полоса шириной кластера модели
+        # (±0.6%), топливо долларами. Пусто — карточка молчит.
+        osp = craw.get("oi_spark")
+        if osp and len(osp) >= 4:
+            s["oiSpark"] = osp
+
+        lf = craw.get("liq_fresh") or []
+        zz = []
+        for z in sorted(lf, key=lambda x: -(x.get("usd") or 0))[:3]:
+            p, usd = z.get("price"), z.get("usd")
+            if not p or not usd:
+                continue
+            zz.append({"lo": round(p * 0.994, 8), "hi": round(p * 1.006, 8),
+                       "fuel": round(usd, 0)})
+        if zz:
+            s["liqZones"] = zz
+
         # ── Свежее плечо и его цена в капитализации (вывод 26.08) ──
         # Разбор пампов августа: рынок без спотовых денег двигают
         # чужим плечом, и значимо не сколько его в долларах, а сколько
