@@ -98,7 +98,10 @@ def _key_stop(err) -> str:
 EXCHANGES = "Binance,OKX,Bybit"     # как в пробнике
 INTERVAL = "1h"
 WINDOW = 24                         # закрытых баров: сутки — просит карточка
-MAX_COINS = 25                      # журнал + BTC; потолок под лимит
+MAX_COINS = 80        # предохранитель от разбухшего журнала, не норма:
+#   29.08 выяснилось, что потолок 25 МОЛЧА резал журнал из 62 монет —
+#   срез выглядел здоровым, а следил за третью списка. Теперь потолок
+#   с запасом, а усечение печатается причиной (см. _journal_coins).
 PAUSE_SEC = 0.8                     # восемьдесят в минуту — с запасом
 TIMEOUT = 20
 
@@ -364,6 +367,12 @@ def _journal_coins() -> tuple[list[str], str | None]:
     for s in ["BTC"] + [_base_coin(x) for x in symbols]:
         if s and s not in coins:
             coins.append(s)
+    if len(coins) > MAX_COINS:
+        # Усечение — только вслух: тихий обрез 29.08 прятал две трети
+        # журнала, и никто не знал.
+        note = ((note + " · ") if note else "") + (
+            f"журнал {len(coins)} монет, взято {MAX_COINS} "
+            f"(потолок MAX_COINS)")
     return coins[:MAX_COINS], note
 
 
@@ -554,6 +563,11 @@ def for_screens() -> dict[str, dict]:
             # cvd; первый час первой половины теряется — накопление
             # стартует не с нуля окна, и это записано, а не довраано.
             "halves": _halves(fut.get("series") or []),
+            # Хвост дельты для мини-ряда «формы суток» (29.08): боевой
+            # компакт не нёс рядов, и спарк в карточке был пуст —
+            # стенд кормился полным series и промаха не видел.
+            "cvdSpark": [round(b.get("cvd") or 0, 0)
+                         for b in (fut.get("series") or [])[-24:]],
             "liqLong": liq.get("long24h"),
             "liqShort": liq.get("short24h"),
         }

@@ -3673,8 +3673,13 @@ PODIUM_JS = """
         '" width="' + w + '" height="' + h +
         '"><polyline points="' + pts.join(' ') + '"/></svg>';
     }
-    var spD = s.cg && s.cg.series ?
-      spark(s.cg.series.map(function (b) { return +b.cvd || 0; }), 64, 14) : '';
+    var spD = '';
+    if (s.cg && s.cg.cvdSpark) {
+      spD = spark(s.cg.cvdSpark, 64, 14);
+    } else if (s.cg && s.cg.series) {   /* стендовый полный ряд */
+      spD = spark(s.cg.series.map(function (b) { return +b.cvd || 0; }),
+                  64, 14);
+    }
     var spO = s.oiSpark ? spark(s.oiSpark, 64, 14) : '';
     if (spD || spO) {
       f.push(['#8b93c4', 'формы суток',

@@ -127,6 +127,16 @@ def _attach_coinglass(stars: list[dict]) -> None:
     except Exception as e:
         log(f"Балансы в показ пропущены: {type(e).__name__}: {e}")
 
+    # Крикун на ТИХУЮ массовую пропажу (урок 29.08: oi_spark молчал
+    # у всех, и никто не знал — гашение отказа в метриках честно по
+    # замыслу, но немо по исполнению). Кричим только при пропаже у
+    # ВСЕХ разом: единичные пустоты — штатный случай вне покрытия.
+    for field, name in (("oiSpark", "ряд OI"), ("liqZones", "зоны ликвидаций"),
+                        ("cg", "срез Coinglass")):
+        if stars and not any(s.get(field) for s in stars):
+            log(f"  ⚠ {name}: пусто у ВСЕХ {len(stars)} монет — "
+                f"труба питания, не рынок")
+
 
 def build_pages(candidates: list[Candidate],
                 snapshot: RunSnapshot) -> dict[str, str]:
