@@ -3571,7 +3571,7 @@ PODIUM_JS = """
            div/b/span сильнее любого моего класса — x-pill им чужой. */
         return '<x-pill class="' + (d[1] ? 'hot' : '') +
           '" style="--pc:' + d[0] + '"><x-i></x-i>' +
-          d[2].replace(/<b>/g, '<x-b>').replace(/<\/b>/g, '</x-b>') +
+          d[2].split('<b>').join('<x-b>').split('</b>').join('</x-b>') +
           '</x-pill>';
       }).join('')]);
     }
@@ -4013,8 +4013,10 @@ PODIUM_JS = """
     }
     /* Опора и плита (29.08): рисуются НА графике, строка из карточки
        снята. Уровень за кадром честно не рисуем. */
-    var lvb = s.levels && s.levels.below && +s.levels.below.px;
-    var lva = s.levels && s.levels.above && +s.levels.above.px;
+    /* Поле цены уровня в боевых метриках зовётся price — сверено по
+       живому документу 29.08 (стендовое px было именем макета). */
+    var lvb = s.levels && s.levels.below && +s.levels.below.price;
+    var lva = s.levels && s.levels.above && +s.levels.above.price;
     var yOp = lvb ? yOf(lvb) : null, yPl = lva ? yOf(lva) : null;
     if (yOp !== null && (yOp < TOP - 6 || yOp > H - 8)) yOp = null;
     if (yPl !== null && (yPl < TOP - 6 || yPl > H - 8)) yPl = null;

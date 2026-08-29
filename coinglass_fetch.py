@@ -305,6 +305,37 @@ def parse_liq_list(doc: dict) -> dict[str, dict]:
 
 # ── монеты и ключ ───────────────────────────────────────────────────
 
+def _halves(series: list) -> dict | None:
+    """Сутки пополам: тейкер и дельта каждой половины.
+
+    Взвешенный тейкер половины = сумма покупок / сумма продаж (ноги
+    b/s в барах v3.1). Без ног — среднее tk половины: хуже, но не
+    враньё. Дельта половины — приращение cvd; у первой теряется час.
+    """
+    n = len(series)
+    if n < 8:
+        return None
+    mid = n // 2
+    out = {}
+    for tag, part in (("1", series[:mid]), ("2", series[mid:])):
+        buys = [b.get("b") for b in part]
+        sells = [b.get("s") for b in part]
+        if all(v is not None for v in buys + sells) and sum(
+                v or 0 for v in sells):
+            out["tk" + tag] = round(sum(buys) / sum(sells), 3)
+        else:
+            tks = [b.get("tk") for b in part if b.get("tk") is not None]
+            if tks:
+                out["tk" + tag] = round(sum(tks) / len(tks), 3)
+    c0 = series[0].get("cvd")
+    cm = series[mid - 1].get("cvd")
+    cl = series[-1].get("cvd")
+    if None not in (c0, cm, cl):
+        out["d1"] = round(cm - c0, 0)
+        out["d2"] = round(cl - cm, 0)
+    return out or None
+
+
 def _base_coin(sym: str) -> str:
     """BTCUSDT → BTC: Coinglass ходит по монете, не по паре."""
     s = sym.upper()
@@ -516,6 +547,13 @@ def for_screens() -> dict[str, dict]:
             # «делить не на что» — это ответ перповой монеты, не ошибка.
             "fsRatio": (round(fut_usd / spot_usd, 1)
                         if spot_usd and fut_usd else None),
+            # Половины суток для меток строк зала (Г-15, прототип):
+            # tk — тейкер половин, ВЗВЕШЕННО по ногам b/s, когда бар
+            # их несёт (срез v3.1+); старый срез без ног — честное
+            # среднее tk по барам. d — дельта половин из накопленного
+            # cvd; первый час первой половины теряется — накопление
+            # стартует не с нуля окна, и это записано, а не довраано.
+            "halves": _halves(fut.get("series") or []),
             "liqLong": liq.get("long24h"),
             "liqShort": liq.get("short24h"),
         }

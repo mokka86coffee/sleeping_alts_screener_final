@@ -767,6 +767,16 @@ def run_once(args: argparse.Namespace) -> int:
         log(f"→ Балансы бирж: {_bal_auto()}")
     except Exception as e:
         log(f"→ Балансы бирж пропущены: {type(e).__name__}: {e}")
+    try:
+        from crowd_coinglass import auto_update as _crowd_auto
+        log(f"→ Толпа: {_crowd_auto()}")
+    except Exception as e:
+        log(f"→ Толпа пропущена: {type(e).__name__}: {e}")
+    try:
+        from netflow_coinglass import auto_update as _flow_auto
+        log(f"→ Приток к капе: {_flow_auto()}")
+    except Exception as e:
+        log(f"→ Приток к капе пропущен: {type(e).__name__}: {e}")
 
     # ── Отчёт ──
     published = False
