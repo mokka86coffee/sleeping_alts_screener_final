@@ -571,8 +571,12 @@ PODIUM_CSS = """
   /* Карточка выросла за день (горизонты, свод, дивер, формы) и низ
      молча уходил за экран (кадр HYPE 29.08). Рост разрешён скроллом
      в пределах окна; полоса скролла тонкая, в тон зала. */
-  max-height:calc(100vh - 150px);overflow-y:auto;overflow-x:hidden;
+  max-height:calc(100vh - 150px);overflow-y:hidden;overflow-x:hidden;
   scrollbar-width:thin;scrollbar-color:rgba(170,179,216,.25) transparent}
+/* Прокрутка ОПЦИОНАЛЬНА (правка владельца 29.08): класс вешает
+   showCoin только когда контента больше потолка — без него полоса
+   торчала у короткой карточки, которой нечего крутить. */
+.obg-card.obg-scroll{overflow-y:auto}
 .obg-card::-webkit-scrollbar{width:5px}
 .obg-card::-webkit-scrollbar-thumb{background:rgba(170,179,216,.22);
   border-radius:3px}
@@ -1450,8 +1454,12 @@ x-pill.hot x-b{color:#f0b3a9}
 /* ── Э-8 (одобрено 29.08): формы суток и зоны ликвидаций ── */
 .obg-spk{vertical-align:-3px;margin-right:4px}
 .obg-spk polyline{fill:none;stroke:#aab3d8;stroke-width:1.2;opacity:.8}
-.obg-liqz{fill:rgba(240,168,120,.07);stroke:rgba(240,168,120,.18);
-  stroke-width:.5}
+.obg-liqz{fill:rgba(240,190,110,.12);stroke:rgba(242,200,122,.34);
+  stroke-width:.7}
+/* Подпись зоны (кадры 29.08): сумма без слова, справа за графиком
+   над полосой, кегль на пятую меньше меточного, тон к жёлтому. */
+.obg-liqt{font:600 8px/1 Georgia,serif;letter-spacing:.12em;
+  fill:rgba(233,206,122,.88)}
 
 /* ── Э-9: подписи горизонтов ── */
 .obc-hz{font:600 8px/1 Georgia,serif;letter-spacing:.3em;
@@ -3580,6 +3588,13 @@ PODIUM_JS = """
       f.push(['#ffd678', 'повод', (s.news.t || '') +
         (s.news.why ? ' — ' + cut(s.news.why, 140) : '')]);
     }
+    /* Г-19 (перенос 29.08): за спиной монеты — из ручного
+       unlocks.json владельца. Профильный факт: кто в капитале,
+       читать разлоки и стакан через это. */
+    if (s.investors && s.investors.length) {
+      f.push(['#b3a6e0', 'инвесторы',
+        cut(s.investors.join(' \u00b7 '), 300)]);
+    }
     if (s.demand && s.demand.note) {
       f.push(['#4fc98a', 'спрос', (s.demand.label || '') +
         (s.demand.statusRu ? ' · ' + s.demand.statusRu : '') +
@@ -3700,6 +3715,30 @@ PODIUM_JS = """
         'ход +' + (+s.p1d).toFixed(1) + '% НЕ оплачен дельтой (' +
         money(s.cg.cvdChg) + ' за сутки) — рост без денег']);
     }
+    /* Полусутки словами (29.08): стрелки у тикеров в списке хороши,
+       но карточка — сводка, и их смысл обязан быть в ней текстом. */
+    if (s.cg && s.cg.halves) {
+      var hv = s.cg.halves, hParts = [];
+      if (hv.tk1 && hv.tk2) {
+        var hShift = (hv.tk2 - hv.tk1) / hv.tk1;
+        if (hShift <= -0.15) {
+          hParts.push('тейкер съехал ' + hv.tk1.toFixed(2) + ' \u2192 ' +
+            hv.tk2.toFixed(2) + ' — покупателя не стало');
+        } else if (hShift >= 0.15) {
+          hParts.push('тейкер вырос ' + hv.tk1.toFixed(2) + ' \u2192 ' +
+            hv.tk2.toFixed(2) + ' — покупатель пришёл');
+        }
+      }
+      if (hv.d1 !== undefined && hv.d2 !== undefined &&
+          hv.d1 * hv.d2 < 0 && Math.abs(hv.d2) >= Math.abs(hv.d1) * 0.3) {
+        hParts.push('дельта перевернулась ' + money(hv.d1) + ' \u2192 ' +
+          money(hv.d2));
+      }
+      if (hParts.length) {
+        f.push(['#e8c37a', 'полусутки', hParts.join(' \u00b7 ')]);
+      }
+    }
+
     /* ── Э-8 (одобрено 29.08): формы суток мини-рядами — число прячет форму
        (разбор графиков 29.08: рост OI на пампе и удержание после
        читаются только рядом). Дельта из cg.series, OI из oiSpark. */
@@ -3978,6 +4017,32 @@ PODIUM_JS = """
     card.innerHTML = coinCard(s);
     card.classList.add('obg-on');
     paintWave(s);      /* волна становится ходом этой монеты */
+    /* Прокрутка опциональна: класс только когда контента больше
+       потолка. Замер после вставки контента и повтором через кадр —
+       геометрия к этому моменту устоялась. */
+    /* Правый столбик чисел — absolute и может быть выше левого
+       потока: scrollHeight его считает, и полоса рисовалась даже
+       короткой карточке. Карточка дорастает до столбика, пока
+       позволяет потолок окна; прокрутка — только упёршись в него. */
+    function fitScroll() {
+      if (flow) {
+        card.style.height = '';
+        card.classList.remove('obg-scroll');
+        return;
+      }
+      card.style.height = '';
+      var ceil = parseFloat(getComputedStyle(card).maxHeight) || 1e9;
+      var need = card.scrollHeight;
+      if (need <= ceil + 1) {
+        if (need > card.clientHeight + 6) card.style.height = need + 'px';
+        card.classList.remove('obg-scroll');
+      } else {
+        card.classList.add('obg-scroll');
+      }
+    }
+    fitScroll();
+    requestAnimationFrame(fitScroll);
+
   }
   /* keepWave — для смены группы: там волна и так будет собрана заново,
      своим чередом, когда догорит старая. Без этой оговорки карточка
@@ -4034,9 +4099,9 @@ PODIUM_JS = """
           (coin.unlockPctFloat ? (+coin.unlockPctFloat).toFixed(1) +
             '% обращения' : '') + (coin.unlockIns ? ' · инсайдерам' : '')]);
       }
-      if (coin.squeeze && coin.squeeze.charged) {
-        out.push([0, 'pr', false, 'заряжен на сжим', coin.squeeze.note || '']);
-      }
+      /* Наблюдения (сжим и подобное) на волну НЕ вешаются (29.08):
+         это не событие с датой, а диагноз — его дом в строке
+         состояния. Точки волны отвечают на «что случится и когда». */
       return out;
     }
     /* Календарь лежит внутри parts — соседние поля разрешения там же. */
@@ -4230,8 +4295,14 @@ PODIUM_JS = """
         zd.setAttribute('height', Math.max(3, zh));
         zd.setAttribute('class', 'obg-liqz');
         svg.appendChild(zd);
-        tag(L + 8, zt - 6, 'топливо <b>' + money(Z.fuel) + '</b>',
-            'obg-mk-lv obg-mk-onln');
+        var zT = document.createElementNS(
+          'http://www.w3.org/2000/svg', 'text');
+        zT.setAttribute('x', EDGE + 36);
+        zT.setAttribute('y', Math.max(TOP + 4, zt - 4));
+        zT.setAttribute('text-anchor', 'end');
+        zT.setAttribute('class', 'obg-liqt');
+        zT.textContent = money(Z.fuel);
+        svg.appendChild(zT);
       }
     }
     if (yOp !== null) {

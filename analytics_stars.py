@@ -500,6 +500,38 @@ def stop_pct(star: dict) -> int:
     return math.floor((px - stop) / px * 100 + 0.5)
 
 
+# ── Г-19: инвесторы из ручного unlocks.json ─────────────────
+# Что это. Строки investors, которые владелец ведёт руками в
+# unlocks.json (тир, раунд, суммы — свободным текстом). Дом
+# инвесторов один — тот файл; здесь только чтение.
+#
+# Почему с диска и с кешем по времени правки: тот же приём, что
+# журнал в метриках — файл правится руками между прогонами, а
+# планировщик крутит прогоны в одном процессе.
+_INVESTORS = {"mtime": None, "map": {}}
+
+
+def _investors_map() -> dict:
+    import json
+    from pathlib import Path
+    p = Path("unlocks.json")
+    try:
+        mt = p.stat().st_mtime
+    except OSError:
+        return {}
+    if _INVESTORS["mtime"] != mt:
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            _INVESTORS["map"] = {
+                k: v["investors"] for k, v in data.items()
+                if isinstance(v, dict) and v.get("investors")
+            }
+            _INVESTORS["mtime"] = mt
+        except Exception:
+            return _INVESTORS["map"]
+    return _INVESTORS["map"]
+
+
 def build_stars(candidates: list[Candidate],
                 permission: dict | None = None,
                 write_log: bool = False) -> list[dict]:
@@ -924,6 +956,10 @@ def build_stars(candidates: list[Candidate],
         osp = craw.get("oi_spark")
         if osp and len(osp) >= 4:
             s["oiSpark"] = osp
+
+        inv = _investors_map().get(sym)
+        if inv:
+            s["investors"] = [str(x) for x in inv][:4]
 
         lf = craw.get("liq_fresh") or []
         zz = []
