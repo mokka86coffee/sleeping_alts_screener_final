@@ -502,6 +502,7 @@ def for_screens() -> dict[str, dict]:
         spot = c.get("spot") or {}
         liq = c.get("liq") or {}
         spot_usd = (spot.get("buyUsd") or 0) + (spot.get("sellUsd") or 0)
+        fut_usd = (fut.get("buyUsd") or 0) + (fut.get("sellUsd") or 0)
         out[sym] = {
             "at": raw.get("at"),
             "taker": fut.get("taker"),
@@ -509,6 +510,12 @@ def for_screens() -> dict[str, dict]:
             "spotUsd": spot_usd or None,
             "spotTaker": spot.get("taker"),
             "oiChgPct": c.get("oiChgPct"),
+            # Г-2: отношение фьючерсного оборота к спотовому — из ТЕХ ЖЕ
+            # ног объёма, что уже в срезе; отдельная точка Coinglass не
+            # нужна (экономия 25 запросов/прогон). Спот пуст → None:
+            # «делить не на что» — это ответ перповой монеты, не ошибка.
+            "fsRatio": (round(fut_usd / spot_usd, 1)
+                        if spot_usd and fut_usd else None),
             "liqLong": liq.get("long24h"),
             "liqShort": liq.get("short24h"),
         }

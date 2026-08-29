@@ -757,6 +757,16 @@ def run_once(args: argparse.Namespace) -> int:
         log(f"→ Резервуар: {_reservoir_auto()}")
     except Exception as e:
         log(f"→ Резервуар пропущен: {type(e).__name__}: {e}")
+    try:
+        from etf_coinglass import auto_update as _etf_auto
+        log(f"→ Фонды ETF: {_etf_auto()}")
+    except Exception as e:
+        log(f"→ Фонды ETF пропущены: {type(e).__name__}: {e}")
+    try:
+        from balances_coinglass import auto_update as _bal_auto
+        log(f"→ Балансы бирж: {_bal_auto()}")
+    except Exception as e:
+        log(f"→ Балансы бирж пропущены: {type(e).__name__}: {e}")
 
     # ── Отчёт ──
     published = False

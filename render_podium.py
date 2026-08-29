@@ -3524,7 +3524,10 @@ PODIUM_JS = """
       } else {
         pay = 'спот ' + money(s.cg.spotUsd) +
           (s.cg.spotTaker ? ', тейкер ' + (+s.cg.spotTaker).toFixed(2) : '') +
-          (s.cg.taker ? ' · фьюч, тейкер ' + (+s.cg.taker).toFixed(2) : '');
+          (s.cg.taker ? ' · фьюч, тейкер ' + (+s.cg.taker).toFixed(2) : '') +
+          /* Г-2: во сколько раз плечо перекрывает спот — дневной
+             вопрос из PROMPT_DAILY_NEWS числом по монете. */
+          (s.cg.fsRatio ? ' · фьюч к споту ×' + s.cg.fsRatio : '');
       }
       if (s.cg.cvdChg) {
         pay += ' · дельта за сутки ' + (s.cg.cvdChg > 0 ? '+' : '') +
