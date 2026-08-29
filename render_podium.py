@@ -1132,36 +1132,13 @@ PODIUM_CSS = """
    пятьдесят шесть пикселей — читать было нечего.
    Уже, чем на компьютере: сцена ужимается, список сто семьдесят,
    отступы меньше; частокол и карточка монеты остаются на месте. */
-@media (max-width:1180px) and (min-width:900px){
-  /* ВОЗВРАТ К ДЕСКТОПНОЙ РАСКЛАДКЕ. Правила узкой ветки лежат ещё и в
-     общем файле стилей (render_css.py) — старой копией на 1180, и
-     оттуда они дотягиваются до планшета. Спорить порядком нельзя:
-     копия может оказаться и позже. Поэтому здесь ЯВНО возвращаются
-     десктопные значения всех свойств, которые узкая ветка меняет. */
-  .obg-gate{padding:0 0 0 0;align-items:center;justify-content:center}
-  .obg-stage{flex-direction:row;align-items:center;justify-content:center;
-    gap:20px;width:min(1560px,98vw);height:100%}
-  .obg-inner{flex:1;min-width:0;display:flex;flex-direction:column;
-    align-items:center;gap:16px}
-  .obg-wave{position:relative;height:auto;min-height:210px;overflow:visible}
-  .obg-ghost{display:block}
-  #obgHero,.obg-hero{position:relative;display:flex;min-height:200px;gap:24px}
-  .obg-core{position:relative;left:auto;top:auto;height:auto;width:auto;
-    display:flex;align-items:center;padding:0}
-  .obg-ring{display:block;position:relative;width:auto;height:auto}
-  .obg-ring svg,.obg-disc,.obg-sub{display:block}
-  .obg-num{position:absolute;font-size:inherit}
-  .obg-side{display:flex;flex-direction:column;width:190px;gap:8px;padding:0}
-  .obg-axis,.obg-pins,.obg-now,.obg-tip{display:block}
-  .obr-tabs{display:flex;min-height:auto}
-  .obg-hint{display:block}
-  .obr{width:170px;flex:0 0 auto;height:100%;max-height:none;padding:56px 0 16px}
-  .obr-list{padding-bottom:0}
-  .obg-card{position:absolute;left:0;right:0;opacity:0;pointer-events:none;
-    padding:0 4px;gap:9px}
-  .obg-card.obg-on{opacity:1}
-  .obg-tip{width:40%}
-}
+/* Блок «возврат к десктопной раскладке» (900–1180) ВЫРЕЗАН 29.08.
+   Он был написан против копии узкой ветки в render_css.py, которой
+   там нет (проверено 26.08): стили зала живут одним экземпляром в
+   этом файле. Дубль перебивал тип-селекторами любые новые классы
+   карточки — на этом ловились пилюли свода. Если планшет 900–1180
+   когда-нибудь поедет — искать настоящую вторую копию, а не
+   возвращать этот блок. */
 
 @media (max-width:900px){
   .obp-gate{padding:0;align-items:stretch;justify-content:flex-start}
@@ -1260,14 +1237,11 @@ PODIUM_CSS = """
      телефоне — это полторы строки списка. */
   .obr-tabs{min-height:0;display:none}
 
-  /* ── Деньги НЕ гаснут на узких экранах ──
-     На десктопе панель уходит, чтобы освободить центр под карточку
-     монеты. Здесь карточки нет: панель гасла, но место в потоке
-     держала — восемьдесят восемь пикселей пустоты между вкладками и
-     списком, четверть видимой ленты на телефоне. Гасить то, что никто
-     не займёт, незачем — пусть деньги остаются на виду. */
-  #obgHero.obg-faded .obg-panel,
-  #obgHero.obg-gone .obg-panel{animation:none;opacity:1}
+  /* ── Деньги гаснут ВЕЗДЕ (владелец перерешал 29.08) ──
+     Прежнее «не гаснут на узких» защищало от 88px пустоты после
+     гашения. Теперь obgBlockOut схлопывает высоту в ноль вместе с
+     прозрачностью — пустоты нет, и блок живёт свои десять секунд
+     на любой ширине одинаково. */
 
   /* Подпись вкладки прижимается вправо. */
   .obg-sat .obg-scap{text-align:right}
@@ -1388,25 +1362,80 @@ PODIUM_CSS = """
    Цена, «от дна» и «от пика» переехали ИЗ полосы чисел СЮДА, в пустое
    поле будущего справа: линия кончается сегодня, правее рисовать
    нечего — место отдано подписям, каждая на высоте своей линии. */
-.obg-mk{position:absolute;font:600 10px/1.2 Georgia,serif;letter-spacing:.14em;
-  text-transform:uppercase;color:#aab3d8;white-space:nowrap;opacity:0;
+.obg-mk{position:absolute;font:600 8.5px/1.2 Georgia,serif;letter-spacing:.13em;
+  text-transform:uppercase;color:#9aa3c9;white-space:nowrap;opacity:0;
   transform:translateY(-50%);animation:obgMkIn .9s ease .7s both;
   pointer-events:none}
-.obg-mk b{font-size:15px;letter-spacing:.02em;color:#e8ecf8;margin-right:6px}
+.obg-mk b{font-size:11.5px;letter-spacing:.02em;color:#dfe4f4;margin-right:5px}
 .obg-mk-px{color:var(--mkc,#ffd2ac)}
-.obg-mk-px b{font-size:19px;color:var(--mkc,#ffd2ac);
-  text-shadow:0 0 14px rgba(232,236,248,.25)}
+.obg-mk-px b{font-size:14px;color:var(--mkc,#ffd2ac);
+  text-shadow:0 0 12px rgba(232,236,248,.2)}
 .obg-mk-dim b{color:#c6cde6}
 @keyframes obgMkIn{from{opacity:0;transform:translateY(-50%) translateX(8px)}
   to{opacity:1;transform:translateY(-50%) translateX(0)}}
 .obg-mkln{opacity:0;animation:obgMkLn 1.1s ease .55s both}
 @keyframes obgMkLn{from{opacity:0}to{opacity:1}}
 @media (max-width:900px){
-  .obg-mk{font-size:9px}
-  .obg-mk b{font-size:13px}
-  .obg-mk-px b{font-size:15px}
+  .obg-mk{font-size:8px}
+  .obg-mk b{font-size:10.5px}
+  .obg-mk-px b{font-size:12px}
   .obg-mkx{display:none}
 }
+
+/* ── Э-7: свод пометок пилюлями (одобрен 29.08) ──
+   Собственные теги x-*: их не достают тип-селекторы чужих правил —
+   урок боя с каскадом на прототипе. */
+x-dg{display:flex;flex-wrap:wrap;gap:6px 8px;margin:2px 0 10px;
+  animation:obgMkLn .9s ease .8s both}
+x-pill{display:inline-flex;flex:0 0 auto;white-space:nowrap;
+  align-items:center;gap:6px;padding:4px 10px 4px 8px;
+  border:1px solid rgba(170,179,216,.13);border-radius:18px;
+  font:600 8.5px/1.2 Georgia,serif;letter-spacing:.12em;
+  text-transform:uppercase;color:#9aa3c9;background:transparent}
+x-i{display:inline-block;width:5px;height:5px;border-radius:50%;
+  background:var(--pc,#aab3d8);box-shadow:0 0 6px var(--pc,#aab3d8);
+  opacity:.8;flex:none}
+x-b{display:inline;font-size:10px;letter-spacing:.03em;font-weight:600;
+  color:#d3daed;margin:0 1px}
+x-pill.hot{border-color:rgba(255,150,140,.25)}
+x-pill.hot x-b{color:#f0b3a9}
+@media (max-width:900px){x-dg{gap:5px}
+  x-pill{padding:3px 8px 3px 6px;font-size:8px}x-b{font-size:9.5px}}
+
+/* ── Полоса тремя группами (правка владельца 29.08): разделитель —
+   чёрточка на ПЕРВОЙ плитке группы; отдельный элемент ломал счёт
+   детей узкой ветки. ── */
+.obc-num.gsep{margin-left:26px;position:relative}
+.obc-num.gsep::before{content:'';position:absolute;left:-14px;top:18%;
+  bottom:14%;width:1px;
+  background:linear-gradient(180deg,transparent,rgba(170,179,216,.22),transparent)}
+@media (max-width:900px){
+  .obc-num.gsep{margin-left:0}
+  .obc-num.gsep::before{display:none}
+}
+
+/* ── «Журнал держит всё» и панель портфеля (правка владельца 29.08):
+   парадный шрифт; ВЕСЬ блок живёт десять секунд на любой ширине и
+   схлопывается — раньше на телефоне жил вечно. Минимум высоты
+   отпускается после полной прозрачности, чтобы сцена не мигнула. ── */
+.obg-say{font:600 34px/1.15 Georgia,serif;letter-spacing:.015em;
+  background:linear-gradient(180deg,#f6f8ff 20%,#c3cdec);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  filter:drop-shadow(0 2px 16px rgba(214,224,255,.16))}
+@media (max-width:900px){.obg-say{font-size:25px}}
+.obg-hint,.obg-panel,
+#obgHero .obg-hint,#obgHero .obg-panel,
+.obg-gate .obg-hint,.obg-gate .obg-panel{overflow:hidden;
+  animation:obgBlockOut 12s ease both}
+#obgHero.obg-gone .obg-hint,#obgHero.obg-gone .obg-panel{
+  max-height:0;min-height:0;height:0;margin:0;padding:0;border:0}
+@keyframes obgBlockOut{
+  0%{opacity:0;max-height:360px}
+  7%{opacity:1}
+  80%{opacity:1;max-height:360px}
+  93%{opacity:0;max-height:360px}
+  100%{opacity:0;max-height:0;min-height:0;height:0;
+       margin:0;padding:0;border:0;visibility:hidden}}
 </style>
 """
 
@@ -3515,6 +3544,38 @@ PODIUM_JS = """
         (s.liqFuel ? ' — оценка по модели, не наблюдение' : '')]);
     }
 
+    /* ── Э-7: свод пометок пилюлями над фактами (одобрен 29.08) ── */
+    var dg = [];
+    if (s.unlock) {
+      var u = s.unlock, uhot = (u.pct >= 10) || (u.ins >= 60 && u.pct >= 2);
+      dg.push([uhot ? '#ff8a80' : '#ffd2ac', uhot,
+        'разлок <b>' + u.days + ' дн</b> · <b>' + u.pct + '%</b> обращения' +
+        (u.ins !== undefined ? ' · инсайдерам <b>' + u.ins + '%</b>' : '') +
+        (u.drip ? ' · капля ежедневно' : '')]);
+    }
+    if (s.klinger && (s.klinger.crossUp || s.klinger.above)) {
+      dg.push(['#8fd6b8', false, s.klinger.crossUp ?
+        'клингер: <b>крест вверх у дна</b>' : 'клингер <b>выше сигнала</b>']);
+    }
+    if (s.balances && s.balances.chg1dPct) {
+      var bp = s.balances.chg1dPct;
+      dg.push([bp > 0 ? '#ffd2ac' : '#9fd0e8', bp >= 1,
+        (bp > 0 ? 'на биржи за сутки <b>+' : 'с бирж за сутки <b>−') +
+        Math.abs(bp).toFixed(1) + '%</b> монет']);
+    }
+    if (s.absorb) dg.push(['#c9b8ff', false, 'поглощение у дна: <b>' +
+      (s.absorb.note || 'продавца съедают') + '</b>']);
+    if (dg.length) {
+      f.push(['__digest__', dg.map(function (d) {
+        /* Собственные теги: тип-селекторы дубля стилей зала бьют по
+           div/b/span сильнее любого моего класса — x-pill им чужой. */
+        return '<x-pill class="' + (d[1] ? 'hot' : '') +
+          '" style="--pc:' + d[0] + '"><x-i></x-i>' +
+          d[2].replace(/<b>/g, '<x-b>').replace(/<\/b>/g, '</x-b>') +
+          '</x-pill>';
+      }).join('')]);
+    }
+
     /* Г-15: чем оплачено движение — спот против плеча. Пустой спот у
        перповой монеты — не ошибка, а ответ: ход оплачен плечом. */
     if (s.cg && (s.cg.spotUsd || s.cg.taker)) {
@@ -3579,6 +3640,10 @@ PODIUM_JS = """
          внутри поехали бы дважды. Едет каждая строка сама. */
       h += '<div class="obc-facts">';
       for (i = 0; i < f.length; i++) {
+        if (f[i][0] === '__digest__') {
+          h += '<x-dg>' + f[i][1] + '</x-dg>';
+          continue;
+        }
         h += '<div class="obc-fact obc-anim" style="--fc:' + f[i][0] +
           ';--nd:' + (nd++) + '">' +
           '<b>' + f[i][1] + '</b><span>' + mark(f[i][2]) + '</span></div>';
@@ -3595,26 +3660,34 @@ PODIUM_JS = """
     /* Капитализация приходит уже подписанной строкой, вроде «$78M».
        Прочерк в данных означает «не знаем» — такую не показываем вовсе:
        пустое место честнее, чем строка с прочерком. */
+    /* Полоса ТРЕМЯ группами (правка владельца 29.08):
+       размер | за сутки | цена плеча. Разделитель — служебная
+       запись '|', рендер ниже рисует её штрихом. */
+    var cg = s.cg || null;
     num('капитализация', (s.cap && s.cap !== '—') ? s.cap : null);
-    num('ход за сутки', s.p1d === undefined || s.p1d === null ? null : pct(s.p1d),
-        (+s.p1d >= 0 ? 'up' : 'dn'));
     num('флоат', s.floatPct ? Math.round(s.floatPct) + '%' : null,
         (+s.floatPct < 25 ? 'dn' : ''));
-    num('объём', s.v1d ? '×' + (+s.v1d).toFixed(1) : null, (+s.v1d > 3 ? 'up' : ''));
-    num('фандинг', s.fund === undefined || s.fund === null ? null : (+s.fund).toFixed(3) + '%',
-        (+s.fund < 0 ? 'up' : ''));
-    /* Г-15: две плитки Coinglass. Тейкер >1 — покупки давят; OI за
-       сутки — набирается плечо или сдувается. Показ, не отбор. */
-    var cg = s.cg || null;
-    if (cg && cg.taker) {
-      num('тейкер', (+cg.taker).toFixed(2), +cg.taker < 1 ? 'dn' : 'up');
-    }
+    /* «к норме» = суточный оборот против медианы месяца.
+       gsep — первая плитка группы: разделитель рисуется НА ней
+       чёрточкой, отдельный элемент ломал счёт детей узкой ветки. */
+    num('объём к норме', s.v1d ? '×' + (+s.v1d).toFixed(1) : null,
+        (+s.v1d > 3 ? 'up gsep' : 'gsep'));
     if (cg && cg.oiChgPct !== undefined && cg.oiChgPct !== null) {
       num('OI за сутки', pct(cg.oiChgPct), +cg.oiChgPct > 0 ? 'up' : 'dn');
     }
+    num('ход за сутки', s.p1d === undefined || s.p1d === null ? null : pct(s.p1d),
+        (+s.p1d >= 0 ? 'up' : 'dn'));
+    /* Бывший «тейкер»: перевес рыночных покупок над продажами за
+       сутки; ×1 — равновесие, ниже — давят продавцы. */
+    if (cg && cg.taker) {
+      num('покупки к продажам', '×' + (+cg.taker).toFixed(2),
+          +cg.taker < 1 ? 'dn' : 'up');
+    }
+    num('фандинг', s.fund === undefined || s.fund === null ? null : (+s.fund).toFixed(3) + '%',
+        (+s.fund < 0 ? 'up gsep' : 'gsep'));
     if (n.length) {
       h += '<div class="obc-nums">';
-      for (i = 0; i < n.length && i < 8; i++) {
+      for (i = 0; i < n.length && i < 12; i++) {
         h += '<div class="obc-num obc-anim ' + n[i][2] + '" style="--nd:' +
           (nd++) + '"><b>' + n[i][0] + '</b><i>' + n[i][1] + '</i></div>';
       }
@@ -3709,6 +3782,11 @@ PODIUM_JS = """
     if (!flow && !hero.classList.contains('obg-gone')) return;
     if (CARD_SYM === s.t) return;
     CARD_SYM = s.t;
+    /* Кнопкам групп нечего делать ПОД карточкой: раннее наведение
+       обгоняло таймер гашения, и кнопки просвечивали сквозь
+       карточку (скрин владельца 29.08). Флаг TUCKED бережёт от
+       повторного полёта. */
+    if (window.innerWidth > 900 && !TUCKED) tuckTabs();
     /* место считается от ядра только там, где карточка лежит поверх */
     card.style.top = flow ? '' : hero.offsetTop + 'px';
     card.innerHTML = coinCard(s);
@@ -3887,14 +3965,27 @@ PODIUM_JS = """
     var front = svg.querySelector('path[stroke^="url"]');
     if (!front || !front.getTotalLength) return;
     var W = 1000, H = 300, L = 26, TOP = 46, EDGE = W - WAVE_RIGHT;
-    var len = front.getTotalLength(), yLo = -Infinity, pEnd = null, k, pt;
+    var len = front.getTotalLength(), yLo = -Infinity, yHi = Infinity,
+        pEnd = null, k, pt;
     for (k = 0; k <= 220; k++) {
       pt = front.getPointAtLength(len * k / 220);
       if (pt.x > EDGE + 1) continue;        /* хвост маски не считаем */
       if (pt.y > yLo) yLo = pt.y;
+      if (pt.y < yHi) yHi = pt.y;
       if (!pEnd || pt.x > pEnd.x) pEnd = pt;
     }
     if (!pEnd) return;
+    /* Цена -> высота: калибровка по краям НАРИСОВАННОЙ кривой, той же,
+       с которой сняты yLo и yHi, — формула шкалы волны не нужна. */
+    var minP = Infinity, maxP = -Infinity;
+    for (k = 0; k < s.series.length; k++) {
+      var pv = +s.series[k];
+      if (pv < minP) minP = pv;
+      if (pv > maxP) maxP = pv;
+    }
+    function yOf(p) {
+      return yHi + (maxP - p) / ((maxP - minP) || 1) * (yLo - yHi);
+    }
     var cc = caseOf(s).c;
     var NS = 'http://www.w3.org/2000/svg';
     function ln(x1, y1, x2, y2, dash, op, stroke) {
@@ -3920,21 +4011,57 @@ PODIUM_JS = """
       el.innerHTML = html;
       host.appendChild(el);
     }
-    /* Развод меток при тесноте: цена главнее, дно и пик уступают. */
-    var yPx = pEnd.y, yDno = yLo - 1, yPik = TOP - 24;
-    if (Math.abs(yPx - yDno) < 26) yDno = yPx + 26;
-    if (yPx - yPik < 26) yPik = yPx - 26;
+    /* Опора и плита (29.08): рисуются НА графике, строка из карточки
+       снята. Уровень за кадром честно не рисуем. */
+    var lvb = s.levels && s.levels.below && +s.levels.below.px;
+    var lva = s.levels && s.levels.above && +s.levels.above.px;
+    var yOp = lvb ? yOf(lvb) : null, yPl = lva ? yOf(lva) : null;
+    if (yOp !== null && (yOp < TOP - 6 || yOp > H - 8)) yOp = null;
+    if (yPl !== null && (yPl < TOP - 6 || yPl > H - 8)) yPl = null;
+    /* Подписи уровней — ПРЯМО НА ЛИНИЯХ, слева (правка 29.08):
+       как на терминале, без шкалы; правое поле остаётся цене, дну и
+       пику. Если линия липнет к дну ряда — подпись уходит под неё. */
+    if (yOp !== null) {
+      ln(L, yOp, EDGE + 40, yOp, '1 6', '.3');
+      tag(L + 8, yOp + (Math.abs(yOp - yLo) < 12 ? 9 : -7),
+          'опора <b>' + px4(lvb) + '</b>', 'obg-mk-lv obg-mk-onln');
+    }
+    if (yPl !== null) {
+      ln(L, yPl, EDGE + 40, yPl, '1 6', '.3');
+      tag(L + 8, yPl - 7, 'плита <b>' + px4(lva) + '</b>',
+          'obg-mk-lv obg-mk-onln');
+    }
+
+    /* Общий развод подписей: желаемые высоты, сортировка, зазор.
+       Цена главнее — соседи уступают ей, не она им. */
     host.style.setProperty('--mkc', cc);
+    var tags = [];
+    if (s.ath) {
+      tags.push({y: TOP - 24, x: EDGE + 26, cls: 'obg-mk-dim',
+        html: '<b>−' + Math.round(+s.ath) + '%</b>от пика' +
+              '<span class="obg-mkx"> · выше кадра</span>'});
+    }
     if (s.px !== undefined && s.px !== null) {
-      tag(EDGE + 46, yPx, '<b>' + px4(s.px) + '</b>сейчас', 'obg-mk-px');
+      tags.push({y: pEnd.y, x: EDGE + 46, cls: 'obg-mk-px', main: true,
+        html: '<b>' + px4(s.px) + '</b>сейчас'});
     }
     if (s.up !== undefined && s.up !== null) {
-      tag(EDGE + 52, yDno, '<b>+' + Math.round(+s.up) + '%</b>от дна',
-          'obg-mk-dim');
+      tags.push({y: yLo - 1, x: EDGE + 52, cls: 'obg-mk-dim',
+        html: '<b>+' + Math.round(+s.up) + '%</b>от дна'});
     }
-    if (s.ath) {
-      tag(EDGE + 26, yPik, '<b>−' + Math.round(+s.ath) + '%</b>от пика' +
-          '<span class="obg-mkx"> · выше кадра</span>', 'obg-mk-dim');
+    var GAP = 17;
+    tags.sort(function (a, b) { return a.y - b.y; });
+    for (k = 1; k < tags.length; k++) {
+      if (tags[k].y - tags[k - 1].y < GAP) {
+        if (tags[k].main) tags[k - 1].y = tags[k].y - GAP;
+        else tags[k].y = tags[k - 1].y + GAP;
+      }
+    }
+    for (k = tags.length - 2; k >= 0; k--) {
+      if (tags[k + 1].y - tags[k].y < GAP) tags[k].y = tags[k + 1].y - GAP;
+    }
+    for (k = 0; k < tags.length; k++) {
+      tag(tags[k].x, tags[k].y, tags[k].html, tags[k].cls);
     }
   }
 
@@ -4017,6 +4144,15 @@ PODIUM_JS = """
     if (!hero) return;
     if (TAIL_T1) { clearTimeout(TAIL_T1); }
     if (TAIL_T2) { clearTimeout(TAIL_T2); }
+    /* Карточка открыта — герой под ней НЕ воскресает:
+       переармирование при смене группы возвращало кнопки в центр
+       под карточку (скрин владельца 29.08). Сцена за монетой. */
+    if (CARD_SYM !== null && window.innerWidth > 900) {
+      hero.classList.add('obg-faded');
+      hero.classList.add('obg-gone');
+      TUCKED = true;
+      return;
+    }
     TUCKED = false;
     hero.classList.remove('obg-faded');
     hero.classList.remove('obg-gone');

@@ -105,6 +105,27 @@ def _attach_coinglass(stars: list[dict]) -> None:
         if not s.get("liq24h") and (g.get("liqLong") or g.get("liqShort")):
             s["liq24h"] = {"long": g.get("liqLong"),
                            "short": g.get("liqShort")}
+    # Пилюли свода (Э-7, одобрен 29.08): разлоки и балансы — те же
+    # готовые файлы суточных контуров, сети ноль. Нет файла — нет
+    # пилюли, карточка молчит; Клингер приходит из метрик сам.
+    try:
+        from unlocks_coinglass import for_screens as unlocks_screens
+        ul = unlocks_screens()
+        for s in stars:
+            u = ul.get(s.get("t"))
+            if u:
+                s["unlock"] = u
+    except Exception as e:
+        log(f"Разлоки в показ пропущены: {type(e).__name__}: {e}")
+    try:
+        from balances_coinglass import for_screens as balances_screens
+        bl = balances_screens()
+        for s in stars:
+            v = bl.get(s.get("t"))
+            if v:
+                s["balances"] = v
+    except Exception as e:
+        log(f"Балансы в показ пропущены: {type(e).__name__}: {e}")
 
 
 def build_pages(candidates: list[Candidate],

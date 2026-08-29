@@ -116,6 +116,38 @@ def collect(symbols: list[str] | None = None, *, key: str | None = None,
     return state
 
 
+_SCREENS_CACHE: dict = {"mtime": None, "data": {}}
+
+
+def for_screens() -> dict[str, dict]:
+    """Срез для ПОКАЗА: тикер → {chg1dPct, chg7dPct} из готового
+    output/coinglass_balances.json, без сети, кеш по mtime. Монеты
+    вне покрытия точки в срезе отсутствуют — карточка молчит."""
+    try:
+        mt = OUT_PATH.stat().st_mtime
+    except OSError:
+        return {}
+    if _SCREENS_CACHE["mtime"] == mt:
+        return _SCREENS_CACHE["data"]
+    try:
+        raw = json.loads(OUT_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    out: dict[str, dict] = {}
+    for sym, c in (raw.get("coins") or {}).items():
+        if not isinstance(c, dict):
+            continue
+        rec = {}
+        if c.get("chg1dPct") is not None:
+            rec["chg1dPct"] = c["chg1dPct"]
+        if c.get("chg7dPct") is not None:
+            rec["chg7dPct"] = c["chg7dPct"]
+        if rec:
+            out[sym] = rec
+    _SCREENS_CACHE.update(mtime=mt, data=out)
+    return out
+
+
 def auto_update(max_age_hours: float = 24.0) -> str:
     """Суточный контур для врезки в run.py — как у разлоков и фондов:
     свежий файл — пропуск без сети (правило владельца про отрезки)."""

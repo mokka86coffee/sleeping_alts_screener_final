@@ -331,6 +331,48 @@ def verify(state: dict, manual_path: Path = MANUAL_PATH) -> list[str]:
     return out
 
 
+_SCREENS_CACHE: dict = {"mtime": None, "data": {}}
+
+
+def for_screens() -> dict[str, dict]:
+    """Срез для ПОКАЗА: тикер → компакт пилюли разлока.
+
+    Читает готовый output/coinglass_unlocks.json без сети, кеш по
+    mtime — как for_screens сборщика. Правила чтения: протухшее
+    расписание не показывается вовсе; у дневной линейки берётся
+    ЗАМЕТНЫЙ транш (клифф), а капля остаётся флагом drip; прошедший
+    транш (days < 0) карточке не нужен.
+    """
+    try:
+        mt = OUT_PATH.stat().st_mtime
+    except OSError:
+        return {}
+    if _SCREENS_CACHE["mtime"] == mt:
+        return _SCREENS_CACHE["data"]
+    try:
+        raw = json.loads(OUT_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    out: dict[str, dict] = {}
+    for sym, e in (raw.get("coins") or {}).items():
+        if not isinstance(e, dict) or e.get("stale"):
+            continue
+        big = e.get("nextBig") or {}
+        days = big.get("days", e.get("nextDays"))
+        pct = big.get("pctCirc", e.get("nextPctCirc"))
+        if days is None or days < 0 or pct is None:
+            continue
+        rec: dict = {"days": int(days), "pct": round(float(pct), 2)}
+        ins = e.get("insiderSharePct")
+        if ins is not None:
+            rec["ins"] = ins
+        if e.get("drip"):
+            rec["drip"] = True
+        out[sym] = rec
+    _SCREENS_CACHE.update(mtime=mt, data=out)
+    return out
+
+
 def auto_update(max_age_hours: float = 24.0) -> str:
     """Суточный контур для врезки в run.py: обновляет срез, только
     если output/coinglass_unlocks.json старше max_age_hours.
