@@ -630,7 +630,7 @@ PODIUM_CSS = """
 
 .obc-calc{width:100%;max-width:820px;padding-top:10px;
   border-top:1px solid rgba(255,255,255,.07);
-  font-size:10.5px;line-height:1.65;color:#767ea8}
+  font-size:12px;line-height:1.6;color:#767ea8}
 .obc-calc em{font-style:normal;color:#c9d2e8}
 @keyframes obgRise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
 
@@ -1388,7 +1388,8 @@ PODIUM_CSS = """
 x-dg{display:flex;flex-wrap:wrap;gap:6px 8px;margin:2px 0 10px;
   animation:obgMkLn .9s ease .8s both}
 x-pill{display:inline-flex;flex:0 0 auto;white-space:nowrap;
-  align-items:center;gap:6px;padding:4px 10px 4px 8px;
+  align-items:center;gap:6px;padding:0 10px 0 8px;height:22px;
+  box-sizing:border-box;
   border:1px solid rgba(170,179,216,.13);border-radius:18px;
   font:600 8.5px/1.2 Georgia,serif;letter-spacing:.12em;
   text-transform:uppercase;color:#9aa3c9;background:transparent}
@@ -3544,6 +3545,16 @@ PODIUM_JS = """
         (s.liqFuel ? ' — оценка по модели, не наблюдение' : '')]);
     }
 
+    /* Состояние — вердикт, ему место сразу под кейсом (правка
+       владельца 29.08); свод пилюль идёт под ним. */
+    var st = [];
+    if (s.absorb && s.absorb.note) st.push(s.absorb.note);
+    if (s.squeeze && s.squeeze.note) st.push(s.squeeze.note);
+    if (s.squeeze && s.squeeze.hotNote) st.push(s.squeeze.hotNote);
+    if (s.effort && s.effort.note) st.push(s.effort.note);
+    if (s.wyckoffTest && s.wyckoffTest.note) st.push(s.wyckoffTest.note);
+    if (st.length) f.push(['#8b93c4', 'состояние', cut(st.slice(0, 2).join(' · '), 220)]);
+
     /* ── Э-7: свод пометок пилюлями над фактами (одобрен 29.08) ── */
     var dg = [];
     if (s.unlock) {
@@ -3625,13 +3636,6 @@ PODIUM_JS = """
       f.push(['#dfe6f2', 'в книге', money(s.book.usd) + ' от ' + px4(s.book.px) +
         ' · ход ' + pct(pnlOf(s))]);
     }
-    var st = [];
-    if (s.absorb && s.absorb.note) st.push(s.absorb.note);
-    if (s.squeeze && s.squeeze.note) st.push(s.squeeze.note);
-    if (s.squeeze && s.squeeze.hotNote) st.push(s.squeeze.hotNote);
-    if (s.effort && s.effort.note) st.push(s.effort.note);
-    if (s.wyckoffTest && s.wyckoffTest.note) st.push(s.wyckoffTest.note);
-    if (st.length) f.push(['#8b93c4', 'состояние', cut(st.slice(0, 2).join(' · '), 220)]);
     if (s.exitWhy && s.exitWhy.length) {
       f.push(['#f0a878', 'торопит', cut(s.exitWhy.join(' · '), 160)]);
     }
@@ -3975,16 +3979,17 @@ PODIUM_JS = """
       if (!pEnd || pt.x > pEnd.x) pEnd = pt;
     }
     if (!pEnd) return;
-    /* Цена -> высота: калибровка по краям НАРИСОВАННОЙ кривой, той же,
-       с которой сняты yLo и yHi, — формула шкалы волны не нужна. */
-    var minP = Infinity, maxP = -Infinity;
-    for (k = 0; k < s.series.length; k++) {
-      var pv = +s.series[k];
-      if (pv < minP) minP = pv;
-      if (pv > maxP) maxP = pv;
-    }
+    /* Цена -> высота: калибровка по ДВУМ точкам самой кривой —
+       конец равен текущей цене, низ равен дну (цена / (1 + up)).
+       Ряд series для этого не нужен: в бою он нормирован формой
+       волны, а не ценами, и калибровка по нему клала опору к
+       потолку (кадр владельца 29.08, BLESS). */
+    var pxNow = +s.px || 0;
+    var lowPx = (s.up !== undefined && s.up !== null && pxNow)
+      ? pxNow / (1 + (+s.up) / 100) : null;
     function yOf(p) {
-      return yHi + (maxP - p) / ((maxP - minP) || 1) * (yLo - yHi);
+      if (!pxNow || lowPx === null || pxNow === lowPx) return null;
+      return pEnd.y + (pxNow - p) / (pxNow - lowPx) * (yLo - pEnd.y);
     }
     var cc = caseOf(s).c;
     var NS = 'http://www.w3.org/2000/svg';
@@ -4018,6 +4023,8 @@ PODIUM_JS = """
     var lvb = s.levels && s.levels.below && +s.levels.below.price;
     var lva = s.levels && s.levels.above && +s.levels.above.price;
     var yOp = lvb ? yOf(lvb) : null, yPl = lva ? yOf(lva) : null;
+    if (yOp !== null && !isFinite(yOp)) yOp = null;
+    if (yPl !== null && !isFinite(yPl)) yPl = null;
     if (yOp !== null && (yOp < TOP - 6 || yOp > H - 8)) yOp = null;
     if (yPl !== null && (yPl < TOP - 6 || yPl > H - 8)) yPl = null;
     /* Подписи уровней — ПРЯМО НА ЛИНИЯХ, слева (правка 29.08):
@@ -4039,16 +4046,16 @@ PODIUM_JS = """
     host.style.setProperty('--mkc', cc);
     var tags = [];
     if (s.ath) {
-      tags.push({y: TOP - 24, x: EDGE + 26, cls: 'obg-mk-dim',
+      tags.push({y: TOP - 24, x: EDGE + 34, cls: 'obg-mk-dim',
         html: '<b>−' + Math.round(+s.ath) + '%</b>от пика' +
               '<span class="obg-mkx"> · выше кадра</span>'});
     }
     if (s.px !== undefined && s.px !== null) {
-      tags.push({y: pEnd.y, x: EDGE + 46, cls: 'obg-mk-px', main: true,
+      tags.push({y: pEnd.y, x: EDGE + 34, cls: 'obg-mk-px', main: true,
         html: '<b>' + px4(s.px) + '</b>сейчас'});
     }
     if (s.up !== undefined && s.up !== null) {
-      tags.push({y: yLo - 1, x: EDGE + 52, cls: 'obg-mk-dim',
+      tags.push({y: yLo - 1, x: EDGE + 34, cls: 'obg-mk-dim',
         html: '<b>+' + Math.round(+s.up) + '%</b>от дна'});
     }
     var GAP = 17;

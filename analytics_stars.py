@@ -1034,6 +1034,13 @@ def _warn_broadcast(stars: list[dict]) -> None:
         except (TypeError, ValueError):
             continue
         if uniq == 1:
+            # Единственное ОБЩЕЕ значение — ноль или ложь — это не
+            # улика, а тихий рынок: счётчики событий (bigCount,
+            # bigBuys…) законно нулевые у всех разом. Живой ложный
+            # крик 29.08: 65 монет без единой крупной сделки за окно.
+            sample = next(v for v in vals if v not in (None, "", [], {}))
+            if sample in (0, 0.0, False):
+                continue
             bad.append(k)
     if bad:
         print("  ⚠ ОДНО ЗНАЧЕНИЕ НА ВСЕХ (" + str(len(stars)) + " монет): "
