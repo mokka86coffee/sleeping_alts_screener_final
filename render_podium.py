@@ -566,7 +566,16 @@ PODIUM_CSS = """
    раздвигало бы сцену, а исчезновение схлопывало. */
 .obg-card{position:absolute;left:0;right:0;z-index:5;
   display:flex;flex-direction:column;align-items:flex-start;gap:13px;
-  padding:0 4px;opacity:0;pointer-events:none;transition:opacity .5s ease}
+  padding:0 4px 28px;opacity:0;pointer-events:none;
+  transition:opacity .5s ease;
+  /* Карточка выросла за день (горизонты, свод, дивер, формы) и низ
+     молча уходил за экран (кадр HYPE 29.08). Рост разрешён скроллом
+     в пределах окна; полоса скролла тонкая, в тон зала. */
+  max-height:calc(100vh - 150px);overflow-y:auto;overflow-x:hidden;
+  scrollbar-width:thin;scrollbar-color:rgba(170,179,216,.25) transparent}
+.obg-card::-webkit-scrollbar{width:5px}
+.obg-card::-webkit-scrollbar-thumb{background:rgba(170,179,216,.22);
+  border-radius:3px}
 .obg-card.obg-on{opacity:1}
 /* Выходит СТРОКА ЗА СТРОКОЙ, а не блоками. Разница не косметическая:
    когда пять фактов появляются разом, они читаются как одно пятно и
@@ -1457,6 +1466,34 @@ x-rm{display:inline-block;margin-left:7px;font-size:10px;line-height:1;
 x-rm.up{color:#8fd6b8;text-shadow:0 0 7px rgba(143,214,184,.35)}
 x-rm.dn{color:#f0a89b;text-shadow:0 0 7px rgba(240,168,155,.35)}
 @media (max-width:900px){x-rm{font-size:9px;margin-left:5px}}
+
+/* ── Компоновка по спец владельца 29.08 ── */
+.obc-right{position:absolute;right:14px;top:4px;
+  display:flex;flex-direction:column;align-items:flex-end;gap:4px;
+  max-width:230px}
+/* тексты не заезжают под правую колонку на широком */
+@media (min-width:1101px){
+  .obc-why,.obc-calc,.obc-facts{max-width:calc(100% - 270px)}
+}
+.obc-act{margin-left:0}
+.obc-nums-v{display:flex;flex-direction:column;flex-wrap:nowrap;
+  gap:11px;margin-top:14px;align-items:flex-end}
+.obc-nums-v .obc-num{text-align:right}
+.obc-nums-v .obc-num b,.obc-nums-v .obc-num i{display:block;
+  text-align:right}
+.obc-two{display:flex;gap:36px;width:100%;align-items:flex-start}
+.obc-col{flex:1 1 0;min-width:0}
+.obc-why{font-size:13px;line-height:1.65}
+.obc-calc{font-size:13px;line-height:1.65}
+.obc-head{align-items:flex-start}
+@media (max-width:1100px){
+  .obc-two{flex-direction:column;gap:2px}
+  .obc-right{position:static;max-width:none;align-items:flex-start}
+  .obc-nums-v{flex-direction:row;flex-wrap:wrap;gap:18px;
+    align-items:flex-start}
+  .obc-nums-v .obc-num,.obc-nums-v .obc-num b,
+  .obc-nums-v .obc-num i{text-align:left}
+}
 </style>
 """
 
@@ -3500,13 +3537,18 @@ PODIUM_JS = """
       '<span class="obc-cs" style="--c:' + c.c + '">' + c.n +
         (s.effort && s.effort.state === 'spent'
           ? '<i class="obc-spent">ход отработан</i>' : '') + '</span>' +
-      (s.act ? '<span class="obc-act" style="--ac:' + ac.c + '">' +
-        s.act.act + (s.act.why ? '<s>' + cut(s.act.why, 52) + '</s>' : '') +
-        '</span>' : '') + '</div>';
+      '<span class="obc-right">' +
+        (s.act ? '<span class="obc-act" style="--ac:' + ac.c + '">' +
+          s.act.act + (s.act.why ? '<s>' + cut(s.act.why, 52) + '</s>' : '') +
+          '</span>' : '') +
+        '<!--NUMS--></span>' + '</div>';
 
     var why = (s.act && s.act.whyFull && s.act.whyFull[0]) || s.verdict || '';
-    if (why) h += '<div class="obc-why obc-anim" style="--nd:' + (nd++) + '">' +
-      mark(cut(why, 300)) + '</div>';
+    /* ── Пара 1+2 наверху (одобрено 29.08): вердикт и
+       стоп-строка друг под другом сразу под кейсом — сравнение
+       на дубли первым, что видишь. Стоп-строка собирается ниже
+       по коду, поэтому здесь маркер, подстановка в конце. */
+    h += '<!--PAIR-->';
 
     /* ── Факты ── */
     var f = [];
@@ -3541,7 +3583,7 @@ PODIUM_JS = """
     if (s.demand && s.demand.note) {
       f.push(['#4fc98a', 'спрос', (s.demand.label || '') +
         (s.demand.statusRu ? ' · ' + s.demand.statusRu : '') +
-        ' — ' + cut(s.demand.note, 150)]);
+        ' — ' + cut(s.demand.note, 600)]);
     }
     /* ── Профиль инструмента: С-7, С-8, С-9 ──
        Не движение, а свойства: кто за монетой, в какой сети и давно
@@ -3751,24 +3793,6 @@ PODIUM_JS = """
       /* Обёртка НЕ анимируется: иначе задержки сложились бы, и строки
          внутри поехали бы дважды. Едет каждая строка сама. */
       h += '<div class="obc-facts">';
-      for (i = 0; i < f.length; i++) {
-        if (f[i][0] === '__hz__') {
-          h += '<div class="obc-hz obc-anim" style="--nd:' + (nd++) +
-            '">' + f[i][1] + '</div>';
-          continue;
-        }
-        if (f[i][0] === '__digest__') {
-          h += '<x-dg>' + f[i][1] + '</x-dg>';
-          continue;
-        }
-        h += '<div class="obc-fact obc-anim" style="--fc:' + f[i][0] +
-          ';--nd:' + (nd++) + '">' +
-          '<b>' + f[i][1] + '</b><span>' + mark(f[i][2]) + '</span></div>';
-      }
-      h += '</div>';
-    }
-
-    /* ── Числа ── */
     var n = [];
     function num(lab, val, kind) { if (val !== null) n.push([lab, val, kind || '']); }
     /* «Цена», «от дна» и «от пика» из полосы СНЯТЫ (29.08): они
@@ -3802,14 +3826,51 @@ PODIUM_JS = """
     }
     num('фандинг', s.fund === undefined || s.fund === null ? null : (+s.fund).toFixed(3) + '%',
         (+s.fund < 0 ? 'up gsep' : 'gsep'));
+    /* ── Э-9 (одобрено 29.08): полоса чисел переехала В «ДЕНЬ» (стрелки
+       владельца 29.08) — объём к норме, OI, ход, покупки, фандинг
+       суть суточная диагностика, а полоса разрывала «сейчас» и
+       «тренд». Собирается заранее, печатается на границе. */
+    var numsHtml = '';
     if (n.length) {
-      h += '<div class="obc-nums">';
+      numsHtml = '<div class="obc-nums">';
       for (i = 0; i < n.length && i < 12; i++) {
-        h += '<div class="obc-num obc-anim ' + n[i][2] + '" style="--nd:' +
-          (nd++) + '"><b>' + n[i][0] + '</b><i>' + n[i][1] + '</i></div>';
+        numsHtml += '<div class="obc-num obc-anim ' + n[i][2] +
+          '" style="--nd:' + (nd++) + '"><b>' + n[i][0] + '</b><i>' +
+          n[i][1] + '</i></div>';
+      }
+      numsHtml += '</div>';
+    }
+      var twoOpen = 0;
+      for (i = 0; i < f.length; i++) {
+        if (f[i][0] === '__hz__') {
+          /* День и сейчас — колонками рядом на широком (спец
+             владельца 29.08); на узком складываются CSS-ом. */
+          if (f[i][1].indexOf('день') === 0) {
+            h += '<div class="obc-two"><div class="obc-col">';
+            twoOpen = 1;
+          } else if (f[i][1].indexOf('сейчас') === 0) {
+            h += (twoOpen ? '</div>' : '<div class="obc-two">') +
+              '<div class="obc-col">';
+            twoOpen = 2;
+          }
+          h += '<div class="obc-hz obc-anim" style="--nd:' + (nd++) +
+            '">' + f[i][1] + '</div>';
+          continue;
+        }
+        if (f[i][0] === '__digest__') {
+          h += '<x-dg>' + f[i][1] + '</x-dg>';
+          continue;
+        }
+        h += '<div class="obc-fact obc-anim" style="--fc:' + f[i][0] +
+          ';--nd:' + (nd++) + '">' +
+          '<b>' + f[i][1] + '</b><span>' + mark(f[i][2]) + '</span></div>';
       }
       h += '</div>';
     }
+
+    /* ── Числа ── */
+    /* сборка полосы переехала ВЫШЕ цикла фактов — см. там */
+
 
     /* ── Что СЧИТАЕТ стратегия. Не прогноз: линии будущей цены здесь
        нет и не будет — считаются уровни от структуры и ожидание по
@@ -3865,12 +3926,18 @@ PODIUM_JS = """
     if (s.flowFired && +s.flowFired > 1) {
       calc.push('детекторов согласно <em>' + (+s.flowFired) + '</em>');
     }
+    if (twoOpen) h += '</div></div>';
+
+    var pairHtml = '';
+    if (why) pairHtml += '<div class="obc-why obc-anim" style="--nd:1">' +
+      mark(cut(why, 300)) + '</div>';
     if (calc.length) {
-      h += '<div class="obc-hz obc-anim" style="--nd:' + (nd++) +
-        '">тренд \u00b7 структура и стратегия</div>' +
-        '<div class="obc-calc obc-anim" style="--nd:' + (nd++) + '">' +
+      pairHtml += '<div class="obc-calc obc-anim" style="--nd:2">' +
         calc.join(' · ') + '</div>';
     }
+    h = h.replace('<!--PAIR-->', pairHtml);
+    h = h.replace('<!--NUMS-->',
+      numsHtml ? numsHtml.replace('obc-nums"', 'obc-nums obc-nums-v"') : '');
     return h;
   }
 
