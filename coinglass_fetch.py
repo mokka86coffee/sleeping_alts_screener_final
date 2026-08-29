@@ -470,6 +470,52 @@ def collect(symbols: list[str] | None = None, *,
 
 # ── показ ───────────────────────────────────────────────────────────
 
+# ── интерфейс для экранов (Г-1) ────────────────────────────────────
+
+_SCREENS_CACHE: dict = {"mtime": None, "data": {}}
+
+
+def for_screens() -> dict[str, dict]:
+    """Срез для ПОКАЗА: тикер → компактный словарь карточки зала.
+
+    Читает готовый output/coinglass_fetch.json (его пишет врезка в
+    run.py) и НЕ ходит в сеть: экраны собираются из файла, как пульс.
+    Кеш по mtime — за сборку страниц вызовов несколько, файл один.
+    Нет файла или он битый — пустой словарь: карточка просто молчит,
+    это показ, а не отбор.
+    """
+    try:
+        mt = STATE_PATH.stat().st_mtime
+    except OSError:
+        return {}
+    if _SCREENS_CACHE["mtime"] == mt:
+        return _SCREENS_CACHE["data"]
+    try:
+        raw = json.loads(STATE_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    out: dict[str, dict] = {}
+    for sym, c in (raw.get("coins") or {}).items():
+        if not isinstance(c, dict):
+            continue
+        fut = c.get("fut") or {}
+        spot = c.get("spot") or {}
+        liq = c.get("liq") or {}
+        spot_usd = (spot.get("buyUsd") or 0) + (spot.get("sellUsd") or 0)
+        out[sym] = {
+            "at": raw.get("at"),
+            "taker": fut.get("taker"),
+            "cvdChg": fut.get("cvdChg"),
+            "spotUsd": spot_usd or None,
+            "spotTaker": spot.get("taker"),
+            "oiChgPct": c.get("oiChgPct"),
+            "liqLong": liq.get("long24h"),
+            "liqShort": liq.get("short24h"),
+        }
+    _SCREENS_CACHE.update(mtime=mt, data=out)
+    return out
+
+
 def _usd(v) -> str:
     if v is None:
         return "—"

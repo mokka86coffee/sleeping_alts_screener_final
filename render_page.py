@@ -81,6 +81,32 @@ def document(body: str, title: str = "Sleeping Alts Screener") -> str:
 from core_http import log
 
 
+def _attach_coinglass(stars: list[dict]) -> None:
+    """Г-15 (29.08): срез Coinglass — в ПОКАЗ карточки зала.
+
+    Скор и вето не трогает — запрет 26.08 действует. Читается готовый
+    output/coinglass_fetch.json через coinglass_fetch.for_screens();
+    нет файла — нет полей, карточка молчит. Одна функция на ОБЕ сборки
+    (build_pages и build_page): два места дописывания разошлись бы.
+    Ликвидации дописываются только если звезда своих не принесла: два
+    источника одной строки — два шанса разойтись.
+    """
+    try:
+        from coinglass_fetch import for_screens
+        cg = for_screens()
+    except Exception as e:
+        log(f"Coinglass в показ пропущен: {type(e).__name__}: {e}")
+        return
+    for s in stars:
+        g = cg.get(s.get("t"))
+        if not g:
+            continue
+        s["cg"] = g
+        if not s.get("liq24h") and (g.get("liqLong") or g.get("liqShort")):
+            s["liq24h"] = {"long": g.get("liqLong"),
+                           "short": g.get("liqShort")}
+
+
 def build_pages(candidates: list[Candidate],
                 snapshot: RunSnapshot) -> dict[str, str]:
     """Все документы отчёта: имя файла → готовый HTML.
@@ -111,6 +137,7 @@ def build_pages(candidates: list[Candidate],
     # это по-прежнему один словарь на все экраны, второго источника
     # тех же чисел не заводим.
     market["portfolios"] = portfolios(stars)
+    _attach_coinglass(stars)
 
     # ── ОЗВУЧКА СВОДКИ (27.08) ──
     # Здесь, а не в run.py: stars и market уже посчитаны один раз, и
@@ -177,5 +204,8 @@ def build_page(candidates: list[Candidate], snapshot: RunSnapshot) -> str:
     market = orbit_market(candidates, snapshot, slices)
     stars = build_stars(candidates, market.get("permission"))
     market["portfolios"] = portfolios(stars)
+    # Тот же срез Coinglass, что в build_pages: file://-просмотр не
+    # должен показывать другую карточку, чем боевой отчёт.
+    _attach_coinglass(stars)
     return document(render_dashboard_page(
         candidates, snapshot, slices, market, stars))

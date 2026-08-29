@@ -1383,6 +1383,30 @@ PODIUM_CSS = """
   .obr-body .obr-head,.obr-body .obr-list,.obg-tip,
   .obg-card,.obg-sat{transition:none}
 }
+
+/* ── Метки монеты на волне (29.08) ──
+   Цена, «от дна» и «от пика» переехали ИЗ полосы чисел СЮДА, в пустое
+   поле будущего справа: линия кончается сегодня, правее рисовать
+   нечего — место отдано подписям, каждая на высоте своей линии. */
+.obg-mk{position:absolute;font:600 10px/1.2 Georgia,serif;letter-spacing:.14em;
+  text-transform:uppercase;color:#aab3d8;white-space:nowrap;opacity:0;
+  transform:translateY(-50%);animation:obgMkIn .9s ease .7s both;
+  pointer-events:none}
+.obg-mk b{font-size:15px;letter-spacing:.02em;color:#e8ecf8;margin-right:6px}
+.obg-mk-px{color:var(--mkc,#ffd2ac)}
+.obg-mk-px b{font-size:19px;color:var(--mkc,#ffd2ac);
+  text-shadow:0 0 14px rgba(232,236,248,.25)}
+.obg-mk-dim b{color:#c6cde6}
+@keyframes obgMkIn{from{opacity:0;transform:translateY(-50%) translateX(8px)}
+  to{opacity:1;transform:translateY(-50%) translateX(0)}}
+.obg-mkln{opacity:0;animation:obgMkLn 1.1s ease .55s both}
+@keyframes obgMkLn{from{opacity:0}to{opacity:1}}
+@media (max-width:900px){
+  .obg-mk{font-size:9px}
+  .obg-mk b{font-size:13px}
+  .obg-mk-px b{font-size:15px}
+  .obg-mkx{display:none}
+}
 </style>
 """
 
@@ -3491,6 +3515,23 @@ PODIUM_JS = """
         (s.liqFuel ? ' — оценка по модели, не наблюдение' : '')]);
     }
 
+    /* Г-15: чем оплачено движение — спот против плеча. Пустой спот у
+       перповой монеты — не ошибка, а ответ: ход оплачен плечом. */
+    if (s.cg && (s.cg.spotUsd || s.cg.taker)) {
+      var pay;
+      if (!s.cg.spotUsd) {
+        pay = 'спота нет — ход оплачен плечом';
+      } else {
+        pay = 'спот ' + money(s.cg.spotUsd) +
+          (s.cg.spotTaker ? ', тейкер ' + (+s.cg.spotTaker).toFixed(2) : '') +
+          (s.cg.taker ? ' · фьюч, тейкер ' + (+s.cg.taker).toFixed(2) : '');
+      }
+      if (s.cg.cvdChg) {
+        pay += ' · дельта за сутки ' + (s.cg.cvdChg > 0 ? '+' : '') +
+          money(s.cg.cvdChg);
+      }
+      f.push(['#9fd0e8', 'чем оплачено', pay]);
+    }
     /* Ликвидации Coinglass — ФАКТ, а не модель. Держим отдельной
        строкой от «плеча» именно поэтому: наблюдение и оценка не
        должны читаться как одно. */
@@ -3545,20 +3586,29 @@ PODIUM_JS = """
     /* ── Числа ── */
     var n = [];
     function num(lab, val, kind) { if (val !== null) n.push([lab, val, kind || '']); }
-    num('цена', s.px === undefined ? null : px4(s.px));
+    /* «Цена», «от дна» и «от пика» из полосы СНЯТЫ (29.08): они
+       переехали на график (markCoinWave) — число о линии читается у
+       самой линии, а не в таблице под ней. */
     /* Капитализация приходит уже подписанной строкой, вроде «$78M».
        Прочерк в данных означает «не знаем» — такую не показываем вовсе:
        пустое место честнее, чем строка с прочерком. */
     num('капитализация', (s.cap && s.cap !== '—') ? s.cap : null);
     num('ход за сутки', s.p1d === undefined || s.p1d === null ? null : pct(s.p1d),
         (+s.p1d >= 0 ? 'up' : 'dn'));
-    num('от дна', s.up === undefined || s.up === null ? null : '+' + Math.round(s.up) + '%', 'up');
-    num('от пика', s.ath ? Math.round(s.ath) + '%' : null, 'dn');
     num('флоат', s.floatPct ? Math.round(s.floatPct) + '%' : null,
         (+s.floatPct < 25 ? 'dn' : ''));
     num('объём', s.v1d ? '×' + (+s.v1d).toFixed(1) : null, (+s.v1d > 3 ? 'up' : ''));
     num('фандинг', s.fund === undefined || s.fund === null ? null : (+s.fund).toFixed(3) + '%',
         (+s.fund < 0 ? 'up' : ''));
+    /* Г-15: две плитки Coinglass. Тейкер >1 — покупки давят; OI за
+       сутки — набирается плечо или сдувается. Показ, не отбор. */
+    var cg = s.cg || null;
+    if (cg && cg.taker) {
+      num('тейкер', (+cg.taker).toFixed(2), +cg.taker < 1 ? 'dn' : 'up');
+    }
+    if (cg && cg.oiChgPct !== undefined && cg.oiChgPct !== null) {
+      num('OI за сутки', pct(cg.oiChgPct), +cg.oiChgPct > 0 ? 'up' : 'dn');
+    }
     if (n.length) {
       h += '<div class="obc-nums">';
       for (i = 0; i < n.length && i < 8; i++) {
@@ -3818,6 +3868,73 @@ PODIUM_JS = """
     layer.onmouseleave = function () { tip.classList.remove('obg-on'); };
   }
 
+  /* Поле будущего справа — ОДНО число на волну и метки: второй
+     экземпляр разошёлся бы при первой правке. */
+  var WAVE_RIGHT = 380;
+
+  /* ── Метки монеты на волне (29.08) ──
+     Координаты снимаются С НАРИСОВАННОЙ кривой, а не пересчитываются
+     по формуле: сглаживание волны перелетает минимум ряда, и линия
+     дна по формуле висела выше видимого низа — поймано глазами на
+     прототипе. Пик почти всегда ЗА кадром (серия короче жизни
+     монеты), поэтому вместо линии — штрихи вверх и подпись. */
+  function markCoinWave(s, host) {
+    var svg = host && host.querySelector('svg');
+    if (!svg || !s || !s.series) return;
+    var front = svg.querySelector('path[stroke^="url"]');
+    if (!front || !front.getTotalLength) return;
+    var W = 1000, H = 300, L = 26, TOP = 46, EDGE = W - WAVE_RIGHT;
+    var len = front.getTotalLength(), yLo = -Infinity, pEnd = null, k, pt;
+    for (k = 0; k <= 220; k++) {
+      pt = front.getPointAtLength(len * k / 220);
+      if (pt.x > EDGE + 1) continue;        /* хвост маски не считаем */
+      if (pt.y > yLo) yLo = pt.y;
+      if (!pEnd || pt.x > pEnd.x) pEnd = pt;
+    }
+    if (!pEnd) return;
+    var cc = caseOf(s).c;
+    var NS = 'http://www.w3.org/2000/svg';
+    function ln(x1, y1, x2, y2, dash, op, stroke) {
+      var l = document.createElementNS(NS, 'line');
+      l.setAttribute('x1', x1); l.setAttribute('y1', y1);
+      l.setAttribute('x2', x2); l.setAttribute('y2', y2);
+      l.setAttribute('stroke', stroke || '#aab3d8');
+      l.setAttribute('stroke-opacity', op);
+      l.setAttribute('stroke-width', '1');
+      if (dash) l.setAttribute('stroke-dasharray', dash);
+      l.setAttribute('class', 'obg-mkln');
+      svg.appendChild(l);
+    }
+    ln(L, yLo, EDGE + 44, yLo, '2 5', '.5');            /* дно      */
+    ln(EDGE + 6, pEnd.y, EDGE + 40, pEnd.y, '', '.55', cc); /* цена */
+    ln(EDGE + 8, TOP - 14, EDGE + 8, TOP - 34, '2 4', '.45'); /* пик */
+    ln(EDGE + 16, TOP - 10, EDGE + 16, TOP - 34, '2 4', '.3');
+    function tag(x, y, html, cls) {
+      var el = document.createElement('div');
+      el.className = 'obg-mk ' + (cls || '');
+      el.style.left = (x / W * 100).toFixed(2) + '%';
+      el.style.top = (y / H * 100).toFixed(2) + '%';
+      el.innerHTML = html;
+      host.appendChild(el);
+    }
+    /* Развод меток при тесноте: цена главнее, дно и пик уступают. */
+    var yPx = pEnd.y, yDno = yLo - 1, yPik = TOP - 24;
+    if (Math.abs(yPx - yDno) < 26) yDno = yPx + 26;
+    if (yPx - yPik < 26) yPik = yPx - 26;
+    host.style.setProperty('--mkc', cc);
+    if (s.px !== undefined && s.px !== null) {
+      tag(EDGE + 46, yPx, '<b>' + px4(s.px) + '</b>сейчас', 'obg-mk-px');
+    }
+    if (s.up !== undefined && s.up !== null) {
+      tag(EDGE + 52, yDno, '<b>+' + Math.round(+s.up) + '%</b>от дна',
+          'obg-mk-dim');
+    }
+    if (s.ath) {
+      tag(EDGE + 26, yPik, '<b>−' + Math.round(+s.ath) + '%</b>от пика' +
+          '<span class="obg-mkx"> · выше кадра</span>', 'obg-mk-dim');
+    }
+  }
+
   function paintWave(coin) {
     var inner = document.getElementById('obgInner');
     if (!inner) return;
@@ -3835,7 +3952,7 @@ PODIUM_JS = """
 
     /* Поле справа под будущее. Держим его ВСЕГДА — и на рынке, и на
        монете: иначе шкала прыгала бы на каждое наведение. */
-    var RIGHT = 380, L = 26;
+    var RIGHT = WAVE_RIGHT, L = 26;
     var nowFrac = (L + (1000 - L - RIGHT)) / 1000;
     if (!opt) { opt = {}; }
     opt.right = RIGHT;
@@ -3851,6 +3968,7 @@ PODIUM_JS = """
     var ax = document.getElementById('obgAxis');
     if (ax) { ax.innerHTML = pk.axis; }
     bindPins(host);
+    if (coin) { markCoinWave(coin, host); }
     /* Число за волной вписывает paintHero, и при наведении его нет:
        за монетой стоит её ход, а не счёт группы. */
     if (!coin) {

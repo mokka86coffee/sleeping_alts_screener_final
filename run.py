@@ -721,12 +721,21 @@ def run_once(args: argparse.Namespace) -> int:
     except Exception as e:
         log(f"→ Hyperliquid пропущен: {type(e).__name__}: {e}")
 
-    # Coinglass (Т-5): ликвидации по монетам журнала + BTC →
-    # output/coinglass_state.json. Ключ в output/coinglass_config.json
-    # (вне git); без ключа — тихий пропуск, как почта без конфига.
+    # Coinglass (Г-1, 29.08): срез по журналу НОВЫМ сборщиком
+    # coinglass_fetch → output/coinglass_fetch.json. Ключ ТОЛЬКО из
+    # окружения COINGLASS_KEY; нет ключа или сбой — лог и пропуск,
+    # как почта. Поток идёт В ПОКАЗ (карточка зала, Г-15), в отбор не
+    # входит. Старый sources_coinglass (Т-5) отключён этой врезкой:
+    # два среза об одном — два шанса разойтись; файл остался соседом.
     try:
-        from sources_coinglass import collect as collect_coinglass
-        log(f"→ Coinglass: {collect_coinglass()}")
+        from coinglass_fetch import collect as collect_coinglass
+        _cg = collect_coinglass(write=True, verbose=False)
+        if _cg.get("error"):
+            log(f"→ Coinglass пропущен: {_cg['error']}")
+        else:
+            log(f"→ Coinglass: монет {len(_cg.get('coins') or {})}, "
+                f"запросов {_cg.get('requests', 0)}, "
+                f"ошибок {len(_cg.get('errors') or {})}")
     except Exception as e:
         log(f"→ Coinglass пропущен: {type(e).__name__}: {e}")
 
