@@ -1,280 +1,379 @@
-"""Coinglass API v4: живые ликвидации по монетам журнала.
+"""Сбор Coinglass: что рынок ДЕЛАЕТ, а не что о нём думают.
 
-Т-5 из техдолга методов трейдеров получил данные: пользователь завёл
-ключ Coinglass. Что берём и почему именно это:
+    python sources_coinglass.py            # показать по журналу
+    python sources_coinglass.py --write    # записать coinglass.json
+    python sources_coinglass.py --probe ONGUSDT   # одна монета подробно
 
-  • COIN LIQUIDATION HISTORY (aggregated-history) — суммы лонг- и
-    шорт-ликвидаций по монете. Это живое подтверждение стороны
-    каскада (Р-2): «за сутки вынесло лонгов на X» — не догадка по
-    свечам, а факт от бирж. Доступна на нижних тарифах.
-  • COIN LIQUIDATION MAP (aggregated-map) — карта уровней-кластеров,
-    те самые «магниты» из практики ликвидационных карт. По прайсу
-    Coinglass она открыта ТОЛЬКО с тарифа Professional; код готов и
-    включится сам, как только probe увидит доступ. До того поле
-    mapAvailable=false честно говорит «тариф ниже».
+ЧЕМ ЭТО ОТЛИЧАЕТСЯ ОТ ВСЕГО ОСТАЛЬНОГО В ПРОЕКТЕ. Наши датчики
+считают по свечам: объём, размах, фигуры. Свеча показывает ИТОГ —
+кто победил за час. Здесь приходят сами сделки, разложенные на
+агрессивные покупки и продажи: видно не итог, а УСИЛИЕ обеих сторон.
+Цена может стоять, пока продавец давит, а покупатель поглощает, — по
+свече это тихий час, по этим числам работа.
 
-Ключ живёт в output/coinglass_config.json (output/ вне git — как у
-почты и телеграма; ключ в репозиторий не попадает). Шаблон файла
-создаётся сам при первом запуске. БЕЗОПАСНОСТЬ: если ключ засветился
-где-то ещё (скриншот, переписка) — перевыпустить в кабинете, это
-одна кнопка.
+ЧЕТЫРЕ ВЕЛИЧИНЫ, все проверены на живом ответе 29.08:
 
-Монеты: журнал (tracked_symbols) + всегда BTC как рыночный фон, с
-потолком MAX_COINS — у нижних тарифов жёсткий лимит запросов в
-минуту, вся выборка в него не влезает, а журнал — то, чем мы
-реально живём. Пауза между запросами держит лимит.
+  · ТЕЙКЕРСКОЕ ОТНОШЕНИЕ — агрессивные покупки к продажам. Ниже
+    единицы значит продавцы бьют по стакану сильнее. По ETH ушло на
+    0.81 — шестилетний минимум; по ONG в ночь на 29.08 было 0.80 при
+    ходе позиции +50%.
 
-Вызывается из run.py рядом с пульсом; сбой — лог и пропуск. Живая
-сверка формата (у меня сети нет, поля обложены терпимым парсером):
-    python sources_coinglass.py --probe
+  · НАКОПЛЕННАЯ ДЕЛЬТА (CVD) — та самая, что на графиках дала сигнал
+    за пять дней до августовского хода. САМИ ПОСЧИТАТЬ НЕ МОЖЕМ:
+    нужны сделки, а у нас только свечи. У ONG за три часа: +207 тыс.,
+    −64 тыс., −498 тыс. — перевернулась и обвалилась.
+
+  · ЛИКВИДАЦИИ ПО СТОРОНАМ — не сумма, а КТО. 19.08 вынесло шорты
+    (85% ликвидаций), 26.08 уже лонги (270 из 324 млн). Смена стороны
+    важнее величины. У ONG в 02:00 лонгов вынесло в шестнадцать раз
+    больше шортов.
+
+  · ПРИТОК К КАПИТАЛИЗАЦИИ — сколько денег привели относительно
+    размера монеты. Ровно тот вопрос, ради которого затевалась вся
+    рамка «денег нет, их приводят». Приходит СПИСКОМ на сто монет
+    одним запросом, с окнами от пяти минут до ста двадцати дней.
+
+ЧЕГО ЗДЕСЬ НЕТ И ПОЧЕМУ. Карта ликвидаций — только с тарифа
+Professional ($879); на Startup закрыта, и код её не просит, чтобы не
+тратить запросы впустую.
+
+ВАЖНОЕ ПРО ФОРМАТ, найдено пробником:
+  · отказ приходит ВНУТРИ кода 200, в поле code — проверять до
+    разбора данных, иначе «не пустили» неотличимо от «данных нет»;
+  · числа приходят СТРОКАМИ ("5501770.193") — приводить явно;
+  · точки с «aggregated» ждут МОНЕТУ (ONG) и обязательный
+    exchange_list; парные ждут ПАРУ (ONGUSDT) и exchange;
+  · в перечне эндпоинтов опечатка: /api/furures/... Настоящий путь
+    без неё, но по монете он пуст — берём список на сто монет.
+
+Ключ — только из окружения COINGLASS_KEY. В код не пишем: файл уходит
+в репозиторий и в переписку, а это оплаченный доступ.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
+import os
+import sys
 import time
+import urllib.error
+import urllib.parse
 import urllib.request
+from datetime import datetime, timezone
 from pathlib import Path
 
 try:
     from core_config import BASE_DIR
     from core_http import log
-except ImportError:                      # запуск вне окружения проекта
+except Exception:
     BASE_DIR = Path(__file__).resolve().parent
-    def log(msg: str) -> None:
-        print(msg)
+    def log(m: str) -> None:
+        print(m)
 
-CG_BASE = "https://open-api-v4.coinglass.com"
-CONFIG_PATH = BASE_DIR / "output" / "coinglass_config.json"
-STATE_PATH = BASE_DIR / "output" / "coinglass_state.json"
-
-MAX_COINS = 25          # журнал + BTC; потолок под лимит запросов/мин
-PAUSE_SEC = 0.35        # бережём лимит нижнего тарифа
-TIMEOUT = 12
-
-_TEMPLATE = {
-    "api_key": "",
-    "enabled": True,
-    "_help": "ключ из кабинета coinglass.com/account; файл вне git "
-             "(output/ в .gitignore). Ключ показывали на скрине — "
-             "лучше перевыпустить после вставки сюда.",
-}
+BASE = "https://open-api-v4.coinglass.com/api"
+OUT_PATH = BASE_DIR / "coinglass.json"
+EXCHANGES = "Binance,OKX,Bybit"     # обязателен для сводных точек
+PAUSE = 0.35                        # 80 запросов в минуту на Startup
+BARS = 24                           # сутки часовых баров
 
 
-def _config() -> dict:
-    """Конфиг с ключом; при отсутствии — создать шаблон и молчать."""
-    try:
-        return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        try:
-            CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-            CONFIG_PATH.write_text(
-                json.dumps(_TEMPLATE, ensure_ascii=False, indent=1),
-                encoding="utf-8")
-        except OSError:
-            pass
-        return {}
+def _get(path: str, params: dict, key: str) -> tuple[dict | None, str]:
+    """Запрос. Возвращает (данные, причина отказа).
 
-
-def _get(path: str, params: dict, api_key: str) -> dict:
-    """GET к Coinglass. Возвращает разобранный JSON целиком.
-
-    Ошибки поднимаются наверх: вызывающий решает, что с ними делать
-    (сборщик пропускает монету, probe печатает).
+    Отказ Coinglass приходит ВНУТРИ кода 200 — поэтому проверяем поле
+    code до того, как трогать data.
     """
-    qs = "&".join(f"{k}={v}" for k, v in params.items())
-    req = urllib.request.Request(
-        f"{CG_BASE}{path}?{qs}",
-        headers={"accept": "application/json", "CG-API-KEY": api_key},
-    )
-    with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
-        return json.loads(r.read().decode("utf-8"))
-
-
-def _num(v) -> float:
+    url = f"{BASE}{path}?{urllib.parse.urlencode(params)}"
+    req = urllib.request.Request(url, headers={
+        "CG-API-KEY": key, "Accept": "application/json"})
     try:
-        f = float(v)
-        return f if f == f else 0.0
+        with urllib.request.urlopen(req, timeout=20) as r:
+            doc = json.loads(r.read().decode())
+    except urllib.error.HTTPError as e:
+        return None, f"HTTP {e.code}"
+    except Exception as e:
+        return None, type(e).__name__
+
+    code = str(doc.get("code", "0"))
+    if code not in ("0", "None"):
+        return None, str(doc.get("msg") or code)[:80]
+    return doc.get("data"), ""
+
+
+def _f(v) -> float:
+    """Число из строки или числа. Пустое и мусор — ноль."""
+    try:
+        x = float(v)
+        return x if x == x else 0.0
     except (TypeError, ValueError):
         return 0.0
 
 
-def parse_liq_history(doc: dict) -> dict | None:
-    """Суммарные ликвидации из ответа aggregated-history.
-
-    Формат обложен терпимо: data — список точек; в точке ищем ключи
-    с подстроками long/short + liquidation/usd (регистр любой,
-    camelCase режется). Берём СУММУ по всем точкам ответа — интервал
-    задаёт запрос, здесь только сложение. Ничего похожего — None,
-    а не нули: «не смогли прочитать» отличимо от «ликвидаций не было».
-    """
-    rows = doc.get("data")
-    if isinstance(rows, dict):           # иногда данные завёрнуты глубже
-        rows = rows.get("data") or rows.get("list")
-    if not isinstance(rows, list) or not rows:
-        return None
-    long_usd = short_usd = 0.0
-    seen = False
-    for row in rows:
-        if not isinstance(row, dict):
-            continue
-        for key, val in row.items():
-            k = key.lower()
-            if "liq" not in k and "usd" not in k:
-                continue
-            if "long" in k:
-                long_usd += _num(val)
-                seen = True
-            elif "short" in k:
-                short_usd += _num(val)
-                seen = True
-    if not seen:
-        return None
-    return {"long": round(long_usd, 2), "short": round(short_usd, 2)}
-
-
-def parse_liq_map(doc: dict) -> list[dict] | None:
-    """Кластеры карты: [{price, level}], топ по величине уровня.
-
-    Формат по докам: data.data = {"<цена>": [[цена, уровень, ...]]}.
-    Возврат None — карта не читается (обычно 4xx по тарифу).
-    """
-    data = doc.get("data")
-    if isinstance(data, dict):
-        data = data.get("data")
-    if not isinstance(data, dict) or not data:
-        return None
-    clusters: list[dict] = []
-    for rows in data.values():
-        if not isinstance(rows, list):
-            continue
-        for row in rows:
-            if isinstance(row, list) and len(row) >= 2:
-                price, level = _num(row[0]), _num(row[1])
-                if price > 0 and level > 0:
-                    clusters.append({"price": price, "level": level})
-    if not clusters:
-        return None
-    clusters.sort(key=lambda c: -c["level"])
-    return clusters[:12]
-
-
-def _base_coin(sym: str) -> str:
-    """BTCUSDT → BTC: Coinglass ходит по монете, не по паре."""
+def _coin(sym: str) -> str:
     s = sym.upper()
-    for tail in ("USDT", "USDC", "BUSD", "USD"):
-        if s.endswith(tail) and len(s) > len(tail):
-            return s[: -len(tail)]
+    for t in ("USDT", "USDC", "BUSD", "USD"):
+        if s.endswith(t) and len(s) > len(t):
+            return s[:-len(t)]
     return s
 
 
-def collect(symbols: list[str] | None = None) -> str:
-    """Шаг прогона: снять ликвидации по журналу + BTC, сложить срез.
+# ── величины по одной монете ─────────────────────────────────────
 
-    Возвращает строку для лога. Без ключа — тихий пропуск (как почта
-    без конфига). Ошибка по монете — пропуск монеты, не прогона.
+def taker(coin: str, key: str) -> dict | None:
+    """Тейкерское отношение: сутки часовых баров + свежий бар.
+
+    Отдаём и ряд, и последнее значение: одно число говорит о моменте,
+    ряд — о том, ухудшается ли давление. У ONG за три часа
+    0.985 → 0.910 → 0.801, и это важнее любого из трёх значений.
     """
-    cfg = _config()
-    key = str(cfg.get("api_key") or "").strip()
-    if not key or cfg.get("enabled") is False:
-        return "coinglass: нет ключа (output/coinglass_config.json) — пропуск"
+    rows, err = _get("/futures/aggregated-taker-buy-sell-volume/history",
+                     {"symbol": coin, "exchange_list": EXCHANGES,
+                      "interval": "1h", "limit": str(BARS)}, key)
+    if not isinstance(rows, list) or not rows:
+        return None
+    ser = []
+    for r in rows:
+        b = _f(r.get("aggregated_buy_volume_usd"))
+        s = _f(r.get("aggregated_sell_volume_usd"))
+        if s > 0:
+            ser.append(round(b / s, 3))
+    if not ser:
+        return None
+    last3 = ser[-3:]
+    return {
+        "now": ser[-1],
+        "avg24": round(sum(ser) / len(ser), 3),
+        "trend": last3,
+        # падает три часа подряд — отдельный признак, его и читать
+        "falling": len(last3) == 3 and last3[0] > last3[1] > last3[2],
+    }
 
-    if symbols is None:
+
+def cvd(coin: str, key: str) -> dict | None:
+    """Накопленная дельта. Знак важнее величины: переход через ноль
+    означает смену того, кто ведёт."""
+    rows, err = _get("/futures/aggregated-cvd/history",
+                     {"symbol": coin, "exchange_list": EXCHANGES,
+                      "interval": "1h", "limit": str(BARS)}, key)
+    if not isinstance(rows, list) or not rows:
+        return None
+    ser = [_f(r.get("cum_vol_delta")) for r in rows]
+    if not ser:
+        return None
+    pos = sum(1 for x in ser if x > 0)
+    return {
+        "now": round(ser[-1]),
+        "sum24": round(sum(ser)),
+        "green_bars": pos,                  # сколько часов из суток вели покупатели
+        # перевернулась в течение суток — из плюса в минус
+        "flipped_down": len(ser) >= 3 and ser[0] > 0 and ser[-1] < 0,
+    }
+
+
+def liq(coin: str, key: str) -> dict | None:
+    """Ликвидации по сторонам. Считаем перекос, а не сумму: важно,
+    КОГО вынесло, а величина у мелких монет всегда мала."""
+    rows, err = _get("/futures/liquidation/aggregated-history",
+                     {"symbol": coin, "exchange_list": EXCHANGES,
+                      "interval": "1h", "limit": str(BARS)}, key)
+    if not isinstance(rows, list) or not rows:
+        return None
+    lo = sum(_f(r.get("aggregated_long_liquidation_usd")) for r in rows)
+    sh = sum(_f(r.get("aggregated_short_liquidation_usd")) for r in rows)
+    if lo + sh <= 0:
+        return None
+    return {
+        "long_usd": round(lo),
+        "short_usd": round(sh),
+        # доля лонгов в выносе: выше 0.7 — выбивают покупателей
+        "long_share": round(lo / (lo + sh), 3),
+        "side": "лонги" if lo > sh * 1.5 else ("шорты" if sh > lo * 1.5 else "поровну"),
+    }
+
+
+# ── одним запросом на весь рынок ──────────────────────────────────
+
+def netflow_all(key: str) -> dict:
+    """Приток по ста монетам разом, с окнами от пяти минут до ста
+    двадцати дней. Здесь же лежит ОТНОШЕНИЕ ПРИТОКА К КАПИТАЛИЗАЦИИ —
+    та самая величина: сколько привели денег относительно размера.
+
+    Один запрос вместо шестидесяти — поэтому берём всегда.
+    """
+    rows, err = _get("/futures/netflow-list", {}, key)
+    if not isinstance(rows, list):
+        return {}
+    out = {}
+    for r in rows:
+        sym = str(r.get("symbol") or "").upper()
+        if not sym:
+            continue
+        cap = _f(r.get("market_cap"))
+        f24 = _f(r.get("net_flow_usd_24h"))
+        out[sym] = {
+            "flow_1h": round(_f(r.get("net_flow_usd_1h"))),
+            "flow_24h": round(f24),
+            "flow_7d": round(_f(r.get("net_flow_usd_7d"))),
+            "cap": round(cap),
+            # ГЛАВНОЕ ЧИСЛО: приток за сутки к капитализации, в процентах.
+            # Оно сравнимо между монетами, в отличие от суммы в долларах.
+            "flow_to_cap": round(f24 / cap * 100, 3) if cap > 0 else None,
+        }
+    return out
+
+
+def collect(symbols: list[str], key: str, quiet: bool = False) -> dict:
+    """Полный срез: список притоков + три величины по каждой монете."""
+    out = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+           "coins": {}, "errors": 0}
+
+    flows = netflow_all(key)
+    out["flow_universe"] = len(flows)
+    time.sleep(PAUSE)
+
+    for sym in symbols:
+        c = _coin(sym)
+        rec = {}
+        for name, fn in (("taker", taker), ("cvd", cvd), ("liq", liq)):
+            try:
+                v = fn(c, key)
+                if v:
+                    rec[name] = v
+            except Exception as e:
+                out["errors"] += 1
+                if not quiet:
+                    log(f"coinglass {c}/{name}: {type(e).__name__}")
+            time.sleep(PAUSE)
+        if c in flows:
+            rec["flow"] = flows[c]
+        if rec:
+            out["coins"][c] = rec
+    return out
+
+
+def for_screens(res: dict) -> dict:
+    """Сводка потока для экранов: карточка, зал, орбита, схема.
+
+    Экраны не должны разбирать сырой ответ — им нужны готовые списки
+    и одно главное значение на каждую величину. Здесь же решается,
+    ЧТО считать главным, и это решение объясняется:
+
+      · тейкер — показываем ХУДШИХ. Раздача на растущей позиции
+        опаснее давления на упавшей, а растущие у нас в книге;
+      · дельта — только перевернувшиеся: само значение без знака
+        мало что говорит, а смена знака говорит всё;
+      · ликвидации — сторона, а не сумма: у мелких монет суммы
+        всегда малы, а перекос виден;
+      · приток — к капитализации, потому что она сравнима между
+        монетами, в отличие от долларов.
+    """
+    coins = res.get("coins") or {}
+    taker_list, flipped, liq_list, flow_list = [], [], [], []
+
+    for c, r in coins.items():
+        t = r.get("taker") or {}
+        if t.get("now") is not None:
+            taker_list.append({"t": c, "v": t["now"], "fall": bool(t.get("falling"))})
+        d = r.get("cvd") or {}
+        if d.get("flipped_down"):
+            flipped.append(c)
+        l = r.get("liq") or {}
+        if l.get("side") and l["side"] != "поровну":
+            liq_list.append({"t": c, "s": l["side"], "share": l.get("long_share")})
+        f = r.get("flow") or {}
+        if f.get("flow_to_cap") is not None:
+            flow_list.append({"t": c, "v": f["flow_to_cap"]})
+
+    taker_list.sort(key=lambda x: x["v"])            # худшие первыми
+    flow_list.sort(key=lambda x: -abs(x["v"]))       # по величине хода денег
+    # сторона выноса по всей выборке: чего больше
+    longs = sum(1 for x in liq_list if x["s"] == "лонги")
+    shorts = sum(1 for x in liq_list if x["s"] == "шорты")
+
+    out = {
+        "takerList": taker_list[:8],
+        "flipped": flipped,
+        "flippedN": len(flipped) or None,
+        "liqList": liq_list[:8],
+        "flowList": flow_list[:8],
+        "at": res.get("at"),
+    }
+    if taker_list:
+        out["takerWorst"] = taker_list[0]
+    if flow_list:
+        out["flowTop"] = flow_list[0]
+    if longs or shorts:
+        out["liqSide"] = ("лонги" if longs > shorts else
+                          "шорты" if shorts > longs else "поровну")
+    return out
+
+
+def _fmt(coin: str, r: dict) -> str:
+    t, d, l, f = r.get("taker"), r.get("cvd"), r.get("liq"), r.get("flow")
+    parts = []
+    if t:
+        mark = " ↓↓↓" if t.get("falling") else ""
+        parts.append(f"тейкер {t['now']}{mark}")
+    if d:
+        parts.append(f"дельта {d['now']:+,}".replace(",", " ")
+                     + (" ⚠ перевернулась" if d.get("flipped_down") else ""))
+    if l:
+        parts.append(f"вынос {l['side']} ({l['long_share']:.0%} лонгов)")
+    if f and f.get("flow_to_cap") is not None:
+        parts.append(f"приток {f['flow_to_cap']:+.2f}% капы")
+    return f"{coin:<10} " + " · ".join(parts)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description="Сбор Coinglass")
+    ap.add_argument("--write", action="store_true")
+    ap.add_argument("--probe", metavar="SYMBOL", help="одна монета подробно")
+    ap.add_argument("--limit", type=int, default=0, help="сколько монет журнала")
+    a = ap.parse_args()
+
+    key = os.environ.get("COINGLASS_KEY")
+    if not key:
+        print("✗ нет COINGLASS_KEY.  export COINGLASS_KEY=ваш_ключ")
+        return 1
+
+    if a.probe:
+        syms = [a.probe]
+    else:
         try:
             from analytics_leaders import tracked_symbols
-            symbols = sorted(tracked_symbols())
+            syms = sorted(tracked_symbols())
         except Exception:
-            symbols = []
-    coins: list[str] = []
-    for s in ["BTC"] + [_base_coin(x) for x in symbols]:
-        if s and s not in coins:
-            coins.append(s)
-    coins = coins[:MAX_COINS]
+            syms = ["BTCUSDT", "ETHUSDT"]
+        if a.limit:
+            syms = syms[:a.limit]
 
-    out: dict = {"at": time.strftime("%Y-%m-%dT%H:%M:%S"),
-                 "coins": {}, "mapAvailable": False, "errors": 0}
+    print(f"монет: {len(syms)}   {datetime.now(timezone.utc):%d.%m %H:%M} UTC")
+    res = collect(syms, key)
 
-    # Карта пробуется ОДИН раз на BTC: доступ тарифный, а не помонетный.
-    try:
-        doc = _get("/api/futures/liquidation/aggregated-map",
-                   {"symbol": "BTC", "range": "1d"}, key)
-        if parse_liq_map(doc):
-            out["mapAvailable"] = True
-    except Exception:
-        pass
-    time.sleep(PAUSE_SEC)
+    print(f"\nсписок притоков: {res.get('flow_universe', 0)} монет рынка\n")
+    for coin, r in res["coins"].items():
+        print(" ", _fmt(coin, r))
 
-    for coin in coins:
+    # то, что стоит увидеть без чтения всего: где давление и раздача
+    bad = [(c, r) for c, r in res["coins"].items()
+           if (r.get("taker") or {}).get("falling")
+           or (r.get("cvd") or {}).get("flipped_down")]
+    if bad:
+        print(f"\n⚠ ухудшение по потоку: {', '.join(c for c, _ in bad)}")
+
+    if a.write:
         try:
-            doc = _get("/api/futures/liquidation/aggregated-history",
-                       {"symbol": coin, "interval": "1h", "limit": 24}, key)
-            liq = parse_liq_history(doc)
-            if liq:
-                out["coins"][coin] = liq
-            if out["mapAvailable"]:
-                mdoc = _get("/api/futures/liquidation/aggregated-map",
-                            {"symbol": coin, "range": "1d"}, key)
-                clusters = parse_liq_map(mdoc)
-                if clusters:
-                    out["coins"].setdefault(coin, {})["map"] = clusters
-                time.sleep(PAUSE_SEC)
-        except Exception as e:
-            out["errors"] += 1
-            log(f"coinglass {coin}: {type(e).__name__} — пропуск")
-        time.sleep(PAUSE_SEC)
-
-    try:
-        STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        STATE_PATH.write_text(json.dumps(out, ensure_ascii=False, indent=1),
-                              encoding="utf-8")
-    except OSError:
-        return "coinglass: срез не записался"
-    карта = "карта доступна" if out["mapAvailable"] else "карта закрыта тарифом"
-    return (f"coinglass: {len(out['coins'])} монет из {len(coins)}, "
-            f"{карта}, ошибок {out['errors']}")
-
-
-def _probe() -> None:
-    """Живой прогон руками: тариф, история BTC, попытка карты."""
-    cfg = _config()
-    key = str(cfg.get("api_key") or "").strip()
-    if not key:
-        print(f"впишите ключ в {CONFIG_PATH} и повторите")
-        return
-    for title, path, params in (
-        ("уровень аккаунта", "/api/user/account-subscription", {}),
-        ("история ликвидаций BTC",
-         "/api/futures/liquidation/aggregated-history",
-         {"symbol": "BTC", "interval": "1h", "limit": 3}),
-        ("карта ликвидаций BTC (нужен Professional)",
-         "/api/futures/liquidation/aggregated-map",
-         {"symbol": "BTC", "range": "1d"}),
-        # Ниже — кандидаты на перенос в прогон, если тариф отдаёт.
-        # Оба сильнее наших биржевых: у нас фандинг и OI ТОЛЬКО с
-        # Binance, а здесь агрегат по всем площадкам — Р-11 и Т-4
-        # станут мерить рынок, а не одну биржу.
-        ("фандинг по всем биржам (OI-взвешенный)",
-         "/api/futures/funding-rate/oi-weight-history",
-         {"symbol": "BTC", "interval": "1h", "limit": 3}),
-        ("открытый интерес агрегированный",
-         "/api/futures/open-interest/aggregated-history",
-         {"symbol": "BTC", "interval": "1h", "limit": 3}),
-    ):
-        print(f"\n── {title} ──")
-        try:
-            doc = _get(path, params, key)
-            print(json.dumps(doc, ensure_ascii=False)[:700])
-            if "history" in path:
-                print("разобрано:", parse_liq_history(doc))
-            if "map" in path:
-                print("кластеров:", len(parse_liq_map(doc) or []))
-        except Exception as e:
-            print(f"{type(e).__name__}: {e}")
+            OUT_PATH.write_text(json.dumps(res, ensure_ascii=False, indent=1),
+                                encoding="utf-8")
+            print(f"\n✓ записано в {OUT_PATH}")
+        except OSError as e:
+            print(f"✗ не записалось: {e}")
+            return 1
+    else:
+        print("\n(добавьте --write, чтобы записать coinglass.json)")
+    return 0
 
 
 if __name__ == "__main__":
-    import sys
-    if "--probe" in sys.argv:
-        _probe()
-    else:
-        print(collect())
+    sys.exit(main())
