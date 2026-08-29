@@ -10,6 +10,7 @@ from analytics_indicators import (
     median, volume_ratio,
 )
 from analytics_intraday import big_trades as intraday_big
+from analytics_klinger import klinger_state
 from analytics_unlocks import for_symbol as unlocks_for
 from analytics_intraday import scan as intraday_scan
 from analytics_levels import merge_liq, nearby_levels, with_reaction
@@ -363,6 +364,14 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
 
     vp_4h = vortex_phase(highs_4h, lows_4h, closes_4h, 14) if closes_4h else {}
 
+    # Г-16 (29.08): Клингер по ТЕМ ЖЕ 4h-свечам, сети ноль. Ретро на
+    # родном масштабе дал «все три» (крест у дна до хода) на BTR, TAC
+    # и BTC; ложные срабатывания не мерились — потому поле знания:
+    # показ ждёт прототипа карточки, скор и отбор не трогаются.
+    # Меньше 68 баров → None: хвост короткого ряда помнит затравку
+    # EMA, analytics_klinger честен про это сам.
+    kv_4h = klinger_state(kl_4h) if kl_4h else None
+
     # ── Интрадей: что происходит прямо сейчас ──
     # Отдельная шкала и отдельный горизонт — сутки-двое против недель
     # у остального в этом словаре. Считается по тем же часовым
@@ -512,6 +521,7 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
         "bb_pct": bb,
         "bb_rank": bb_rank,
         "vortex_4h": vp_4h,
+        "klinger_4h": kv_4h,
         "funding": funding,
         "oi": oi,
         "oi_usd": oi_usd,

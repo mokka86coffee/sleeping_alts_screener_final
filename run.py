@@ -739,6 +739,25 @@ def run_once(args: argparse.Namespace) -> int:
     except Exception as e:
         log(f"→ Coinglass пропущен: {type(e).__name__}: {e}")
 
+    # ── Ручные контуры — по своим отрезкам, не каждый прогон ──
+    # Правило владельца 29.08: всё ручное заводится в прогон, но
+    # запускается ОТ СВЕЖЕСТИ имеющегося файла, а не по кругу.
+    # Разлоки — сутки (расписания медленные, ~26 запросов Coinglass);
+    # резервуар — неделя (его собственный контур и все его стражи:
+    # коридор, не дважды в день, смена среза). Сбой — лог и пропуск.
+    # fill_unlocks и fundamental_revenue сюда не заводятся: им нужен
+    # человек, автомата у платных источников нет.
+    try:
+        from unlocks_coinglass import auto_update as _unlocks_auto
+        log(f"→ Разлоки Coinglass: {_unlocks_auto()}")
+    except Exception as e:
+        log(f"→ Разлоки Coinglass пропущены: {type(e).__name__}: {e}")
+    try:
+        from reservoir_fetch import auto_update as _reservoir_auto
+        log(f"→ Резервуар: {_reservoir_auto()}")
+    except Exception as e:
+        log(f"→ Резервуар пропущен: {type(e).__name__}: {e}")
+
     # ── Отчёт ──
     published = False
     if not args.no_html:

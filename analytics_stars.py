@@ -905,6 +905,13 @@ def build_stars(candidates: list[Candidate],
         ef = effort_state(craw, cflow)
         if ef:
             s["effort"] = ef
+        # Г-16: Клингер (KVO) 4h из метрик. Ретро 29.08 подтвердило
+        # связку вихрь+дельта+Клингер крестом у дна (BTR, TAC, BTC);
+        # ложные срабатывания не мерились. Поле знания: показ ждёт
+        # прототипа карточки, скор и отбор не трогаются.
+        kv = craw.get("klinger_4h")
+        if kv:
+            s["klinger"] = kv
         # Уровни: ближайший потолок и опора в ATR. Считаны метриками.
         lv = craw.get("levels")
         if lv:

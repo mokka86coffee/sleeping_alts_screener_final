@@ -129,6 +129,54 @@ def load_rows(path: Path) -> list[dict]:
     return data if isinstance(data, list) else []
 
 
+def auto_update(min_gap_days: int = 7) -> str:
+    """Недельный контур для врезки в run.py: замер и дозапись, только
+    если последняя запись старше min_gap_days.
+
+    Правило владельца 29.08: ручное — в прогон, по своим отрезкам.
+    СТРАЖИ ТЕ ЖЕ, что в main (коридор правдоподобия, не второй раз в
+    день, смена среза top20/global, отступ) — при изменении править
+    ОБА места, как у пары MIN_BAR_FILL/PARTIAL_BAR_MIN_FILL.
+    Возвращает строку для лога; сетевые исключения выпускает наружу —
+    их гасит try прогона, как у почты.
+    """
+    rows = load_rows(RESERVOIR_PATH)
+    today = date.today()
+    if rows:
+        last = rows[-1]
+        try:
+            gap = (today - datetime.strptime(
+                str(last.get("date")), "%Y-%m-%d").date()).days
+        except ValueError:
+            gap = 999
+        if gap < min_gap_days:
+            return f"запись свежа ({gap} дн назад) — пропуск"
+        if str(last.get("method") or "top20") != "global":
+            return ("✗ последняя запись снята способом "
+                    f"«{last.get('method') or 'top20'}» — смена среза "
+                    "ломает ряд, дозапись руками")
+        if str(last.get("date")) == today.isoformat():
+            return "запись за сегодня уже есть — пропуск"
+    m = measure()
+    share = m.get("pct_global")
+    if share is None or not (SANE[0] <= share <= SANE[1]):
+        return (f"✗ доля {share} вне коридора {SANE[0]}–{SANE[1]}% — "
+                "сломанный ответ, не пишем")
+    row = {"date": today.isoformat(), "stables_pct": round(share, 1),
+           "btc_dom_pct": m["btc_dom_pct"],
+           "src": "coinmarketcap", "method": "global"}
+    if m.get("altseason") is not None:
+        row["altseason"] = m["altseason"]
+    if m.get("stable_turnover") is not None:
+        row["stable_turnover"] = m["stable_turnover"]
+    rows.append(row)
+    RESERVOIR_PATH.write_text(
+        json.dumps(rows, ensure_ascii=False, indent=1) + "\n",
+        encoding="utf-8")
+    return (f"дописано: стейблы {row['stables_pct']}%, доминация "
+            f"{row['btc_dom_pct']}% (записей {len(rows)})")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Резервуар по данным CoinMarketCap")
     ap.add_argument("--write", action="store_true", help="дописать в reservoir.json")
