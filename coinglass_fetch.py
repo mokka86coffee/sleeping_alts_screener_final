@@ -15,12 +15,14 @@
     и тейкерские объёмы (agg_taker_buy_vol / agg_taker_sell_vol), и
     накопленная дельта (cum_vol_delta). Пробник показал, что отдельная
     точка тейкера отдаёт ТЕ ЖЕ числа, поэтому её не зовём: минус один
-    запрос на монету.
-  · СПОТОВАЯ ДЕЛЬТА /spot/aggregated-cvd/history — зеркало. Пустой
+    запрос на монету. Окно — 24 ЗАКРЫТЫХ часа (карточка просит ряд
+    тейкера за сутки); в срез кладётся и свод, и РЯД по барам
+    (t / tk / cvd) — по ряду считаются метки зала.
+  · СПОТОВАЯ ДЕЛЬТА /spot/aggregated-cvd/history — зеркало: имена
+    полей подтверждены живьём 29.08 и совпадают с фьючерсными. Пустой
     ответ у перповой монеты (MAGMA: спота нет на Binance, OKX, Bybit)
     — это ОТВЕТ «движение оплачено плечом», а не поломка; в срезе
-    поле spot = null. Имена спотовых полей вживую не видели — разбор
-    терпимый, по подстрокам buy/sell/delta.
+    поле spot = null.
   · ОТКРЫТЫЙ ИНТЕРЕС /futures/open-interest/aggregated-history и
     ФАНДИНГ /futures/funding-rate/oi-weight-history — агрегат по всем
     биржам: Р-11 и Т-4 меряют рынок, а не одну Binance. Значения
@@ -45,10 +47,12 @@
 
 ЛИМИТ Startup — восемьдесят запросов в минуту. Четыре запроса на
 монету (фьюч-дельта, спот-дельта, OI, фандинг) плюс один общий список
-ликвидаций: на двадцати пяти монетах это ~101 запрос и около полутора
-минут при паузе 0.8 с. Потолок MAX_COINS держит лимит; журнал в него
-влезает с запасом только по срезанному хвосту — расширять вместе с
-паузой, не вместо неё.
+ликвидаций: на двадцати пяти монетах это ~101 запрос; пауза 0.8 с
+ПЛЮС сетевая задержка дают две-три минуты. Показ печатается один раз
+в конце, поэтому ХОД РАБОТЫ идёт строками в stderr — счёт монет,
+ориентир времени, строка на монету: тишина не должна выглядеть
+зависанием (живой урок 29.08). Потолок MAX_COINS держит лимит;
+расширять вместе с паузой, не вместо неё.
 """
 
 from __future__ import annotations
@@ -74,12 +78,26 @@ except ImportError:                      # запуск вне окружени�
 
 BASE = "https://open-api-v4.coinglass.com/api"
 KEY_ENV = "COINGLASS_KEY"
-CONFIG_PATH = BASE_DIR / "output" / "coinglass_config.json"
 STATE_PATH = BASE_DIR / "output" / "coinglass_fetch.json"
+
+
+def _bad_key(msg) -> bool:
+    """Отказ именно по КЛЮЧУ (не по тарифу) — повод остановить прогон:
+    мёртвый ключ убьёт каждый следующий запрос точно так же."""
+    m = str(msg).lower()
+    return "api key" in m or "apikey" in m
+
+
+def _key_stop(err) -> str:
+    return (f"ключ не принят Coinglass ({err}) — прогон остановлен, лимит "
+            f"не жжём. Задайте свежий В ЭТОМ окне терминала: export "
+            f"{KEY_ENV}=… — переменная живёт только в окне, где её задали; "
+            f"новое окно — задать заново")
+
 
 EXCHANGES = "Binance,OKX,Bybit"     # как в пробнике
 INTERVAL = "1h"
-WINDOW = 12                         # закрытых баров в окне (часов)
+WINDOW = 24                         # закрытых баров: сутки — просит карточка
 MAX_COINS = 25                      # журнал + BTC; потолок под лимит
 PAUSE_SEC = 0.8                     # восемьдесят в минуту — с запасом
 TIMEOUT = 20
@@ -186,8 +204,15 @@ def _pick(row: dict, need: tuple[str, ...],
 
 
 def parse_cvd(doc: dict) -> dict | None:
-    """Тейкер и дельта из aggregated-cvd (фьючерсы и спот — одна форма).
+    """Тейкер и дельта из aggregated-cvd — свод ПЛЮС ряд по барам.
 
+    Имена полей у спота подтверждены живьём 29.08 и совпадают с
+    фьючерсными до буквы (agg_taker_buy_vol / agg_taker_sell_vol /
+    cum_vol_delta); терпимый разбор оставлен на случай переименований.
+    Ряд series = [{"t": мс, "tk": тейкер бара, "b"/"s": объёмы сторон,
+    "cvd": накопленная}] — его просят метки зала («тейкер падает»,
+    «дельта перевернулась»: объёмы дают ВЗВЕШЕННЫЕ половины) и
+    ветвь «продавец» карточки; свод остаётся для показа строкой.
     Возврат None — данных нет (пустой data): у перповых монет так
     выглядит спот, и это ответ, а не ошибка.
     """
@@ -196,26 +221,35 @@ def parse_cvd(doc: dict) -> dict | None:
         return None
     buy = sell = 0.0
     seen = False
+    series: list[dict] = []
     cvd_first = cvd_last = None
     for r in rows:
         b = _pick(r, ("buy",), avoid=("sell",))
         s = _pick(r, ("sell",))
+        c = _pick(r, ("delta",))
+        if c is None:
+            c = _pick(r, ("cvd",))
         if b is not None:
             buy += b; seen = True
         if s is not None:
             sell += s; seen = True
-        c = _pick(r, ("delta",))
-        if c is None:
-            c = _pick(r, ("cvd",))
         if c is not None:
             if cvd_first is None:
                 cvd_first = c
             cvd_last = c
+        t = r.get("time") or r.get("timestamp") or r.get("ts")
+        series.append({
+            "t": int(t) if isinstance(t, (int, float)) else None,
+            "tk": round(b / s, 3) if (b is not None and s) else None,
+            "b": round(b, 2) if b is not None else None,
+            "s": round(s, 2) if s is not None else None,
+            "cvd": round(c, 2) if c is not None else None,
+        })
     if not seen and cvd_last is None:
         return None
     out: dict = {"buyUsd": round(buy, 2), "sellUsd": round(sell, 2),
                  "taker": round(buy / sell, 3) if sell > 0 else None,
-                 "bars": len(rows)}
+                 "bars": len(rows), "series": series}
     if cvd_last is not None:
         out["cvd"] = round(cvd_last, 2)
         if cvd_first is not None:
@@ -303,15 +337,15 @@ def _journal_coins() -> tuple[list[str], str | None]:
 
 
 def _key() -> str:
-    """Окружение первым, файл вне гита — запасным. В коде ключа нет."""
-    k = os.environ.get(KEY_ENV, "").strip()
-    if k:
-        return k
-    try:
-        cfg = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-        return str(cfg.get("api_key") or "").strip()
-    except (OSError, ValueError):
-        return ""
+    """Ключ ТОЛЬКО из окружения — правило владельца, теперь в коде буквально.
+
+    Запасной ход через output/coinglass_config.json убран 29.08 после
+    живого сбоя: переменная окружения живёт в том окне терминала, где
+    её задали, — в новом окне её нет, и запасной ход молча подсунул
+    старый отозванный ключ; сотня запросов ушла бы впустую. Честный
+    отказ сразу лучше тихой подмены ключа.
+    """
+    return os.environ.get(KEY_ENV, "").strip()
 
 
 # ── сбор ────────────────────────────────────────────────────────────
@@ -353,13 +387,26 @@ def snap_coin(coin: str, key: str, errors: dict) -> dict:
     return out
 
 
+def _say(msg: str, on: bool) -> None:
+    """Ход работы — в stderr: stdout остаётся чистым показом."""
+    if on:
+        print(msg, file=sys.stderr, flush=True)
+
+
 def collect(symbols: list[str] | None = None, *,
-            key: str | None = None, write: bool = False) -> dict:
-    """Срез по журналу (или названным монетам). write=False — не пишет."""
+            key: str | None = None, write: bool = False,
+            verbose: bool = True) -> dict:
+    """Срез по журналу (или названным монетам). write=False — не пишет.
+
+    verbose=True печатает ход в stderr (счёт монет, ориентир времени,
+    строка на монету) — иначе две-три минуты тишины выглядят
+    зависанием; для врезки в run.py можно передать verbose=False.
+    """
     key = key if key is not None else _key()
     if not key:
-        return {"error": f"нет ключа: переменная {KEY_ENV} "
-                         f"или {CONFIG_PATH}"}
+        return {"error": f"нет ключа: задайте export {KEY_ENV}=… в этом "
+                         f"окне терминала — переменная живёт только в окне, "
+                         f"где её задали; новое окно — задать заново"}
     coins = [_base_coin(s) for s in symbols] if symbols else None
     state: dict = {"at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                    "window": f"{WINDOW}x{INTERVAL}", "coins": {},
@@ -369,24 +416,48 @@ def collect(symbols: list[str] | None = None, *,
         if note:
             state["errors"]["журнал"] = note
 
+    total = len(coins) * 4 + 1
+    secs = total * (PAUSE_SEC + 0.6)          # пауза + сетевая задержка
+    orient = (f"~{secs / 60:.0f}–{secs * 1.6 / 60:.0f} мин" if secs >= 60
+              else f"~{secs:.0f} с")
+    _say(f"coinglass: ключ …{key[-4:]}, монет {len(coins)}, "
+         f"запросов ~{total}, ориентир {orient}; показ придёт в конце",
+         verbose)
+
     # Ликвидации по всем монетам — один запрос на весь журнал.
     liq_all: dict[str, dict] = {}
     try:
         doc = _body(*get("/futures/liquidation/coin-list",
                          {"range": "24h"}, key))
         liq_all = parse_liq_list(doc)
+        _say(f"  общий список ликвидаций: {len(liq_all)} монет", verbose)
     except Denied as e:
         state["errors"]["liq-list"] = str(e)
+        _say(f"  общий список ликвидаций: отказ {e}", verbose)
+        if _bad_key(e):
+            state["error"] = _key_stop(e)
+            _say("  " + state["error"], verbose)
+            state["requests"] += 1
+            return state
     state["requests"] += 1
     time.sleep(PAUSE_SEC)
 
-    for coin in coins:
+    for i, coin in enumerate(coins, 1):
         entry = snap_coin(coin, key, state["errors"])
         state["requests"] += 4
         entry["liq"] = liq_all.get(coin)
         state["coins"][coin] = entry
+        bad = sum(1 for k in state["errors"] if k.startswith(coin + " "))
+        _say(f"  {i}/{len(coins)} {coin}"
+             + (f" — ошибок {bad}" if bad else ""), verbose)
+        dead = next((v for v in state["errors"].values() if _bad_key(v)),
+                    None)
+        if dead:
+            state["error"] = _key_stop(dead)
+            _say("  " + state["error"], verbose)
+            break
 
-    if write:
+    if write and not state.get("error"):
         try:
             STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
             STATE_PATH.write_text(

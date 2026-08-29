@@ -73,6 +73,16 @@ c = cf.parse_cvd(FUT_CVD)
 т("тейкер по закрытым 100/80", c["taker"] == 1.25)
 т("ядовитый неполный бар отброшен", c["buyUsd"] == 100.0)
 т("cvdChg = последний − первый закрытый", c["cvdChg"] == 24.0)
+т("ряд: два закрытых бара, тейкер по барам",
+  len(c["series"]) == 2 and c["series"][0]["tk"] == 1.333
+  and c["series"][1]["tk"] == 1.2)
+т("ряд: объёмы сторон в точке (под взвешенные половины)",
+  c["series"][0]["b"] == 40.0 and c["series"][0]["s"] == 30.0)
+т("ряд: cvd по барам и время в мс",
+  [p["cvd"] for p in c["series"]] == [10.0, 34.0]
+  and c["series"][0]["t"] == 1787965400000)
+т("ядовитого бара нет и в ряду",
+  all(p["tk"] != 99999.0 for p in c["series"]))
 т("спот пустой → None", cf.parse_cvd(SPOT_EMPTY) is None)
 o = cf.parse_ohlc_close(OI)
 т("OI из строк: последний закрытый 120", o["last"] == 120.0)
@@ -111,7 +121,7 @@ m = st["coins"]["MAGMA"]
 т("ликвидации из общего списка", m["liq"]["long24h"] == 63000)
 т("запросов 5 (список + четыре точки)", st["requests"] == 5)
 т("write=False не пишет", not cf.STATE_PATH.exists())
-т("limit просит окно+1", all(p.get("limit") == "13"
+т("limit просит окно+1 (сутки+бар)", all(p.get("limit") == "25"
   for _, p in CALLS if "limit" in p))
 
 print("5. запись по флагу и живой фандинг")
@@ -155,6 +165,53 @@ live = {"at": "x", "window": "12x1h", "requests": 5, "errors": {},
 dl = cf.digest(live)
 т("минус не въехал в спот-колонку", "M0." not in dl)
 т("обе стороны ликвидаций на месте", "132.3M/22.5M" in dl)
+
+print("10. ход работы в stderr, тишина только по просьбе")
+import contextlib
+import io
+cf.get = router()
+err = io.StringIO()
+with contextlib.redirect_stderr(err):
+    cf.collect(["MAGMA"], key="k")
+т("счёт монет и ориентир напечатаны", "монет 1" in err.getvalue()
+  and "ориентир" in err.getvalue())
+т("строка на монету есть", "1/1 MAGMA" in err.getvalue())
+err2 = io.StringIO()
+with contextlib.redirect_stderr(err2):
+    cf.collect(["MAGMA"], key="k", verbose=False)
+т("verbose=False молчит (для run.py)", err2.getvalue() == "")
+
+print("11. мёртвый ключ — стоп на первом запросе, не сотня впустую")
+BADKEY = {"code": "400", "msg": "Invalid API key provided"}
+calls_dead = []
+def dead_get(path, params, key):
+    calls_dead.append(path)
+    return 200, BADKEY
+cf.get = dead_get
+cf.STATE_PATH.unlink(missing_ok=True)
+err3 = io.StringIO()
+with contextlib.redirect_stderr(err3):
+    stD = cf.collect(["MAGMA", "BTC"], key="dead1234", write=True)
+т("оборван на первом запросе", len(calls_dead) == 1)
+т("причина и лекарство в error", "ключ не принят" in stD["error"]
+  and "export COINGLASS_KEY" in stD["error"])
+т("монеты не запрашивались", stD["coins"] == {})
+т("хвост ключа напечатан в шапке", "…1234" in err3.getvalue())
+т("оборванный прогон НЕ пишет срез", not cf.STATE_PATH.exists())
+т("показ говорит человеком", "ключ не принят" in cf.digest(stD))
+
+print("12. ключ умер посреди прогона — стоп после первой монеты")
+calls_mid = []
+def mid_get(path, params, key):
+    calls_mid.append(path)
+    if "liquidation/coin-list" in path:
+        return 200, LIQ_LIST
+    return 200, BADKEY
+cf.get = mid_get
+stM = cf.collect(["MAGMA", "BTC"], key="k", verbose=False)
+т("вторая монета не запрашивалась (1 список + 4 точки)",
+  len(calls_mid) == 5)
+т("стоп записан в error", "ключ не принят" in stM["error"])
 
 cf.STATE_PATH.unlink(missing_ok=True)
 print("\nвсе юниты зелёные")
