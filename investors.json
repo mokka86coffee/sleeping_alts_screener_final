@@ -1,0 +1,41 @@
+{
+  "_meta": {
+    "what": "Инвесторы монет журнала лидеров: пересечение с портфелями YZi Labs (экс Binance Labs) и DWF Labs",
+    "asked": "владелец 29.08.2026, поздняя ночь",
+    "method": "полные категории CoinGecko (обе страницы каждой) пересечены со списком журнала из leaders.json на 29.08 (65 монет)",
+    "sources": {
+      "yzi": "coingecko.com/en/categories/yzi-labs-portfolio · 159 монет · снято 29.08.2026",
+      "dwf": "coingecko.com/en/categories/dwf-labs-portfolio · 129 монет · снято 29.08.2026"
+    },
+    "limits": [
+      "Категория CG для DWF заметно неполна: 129 монет при сотнях сделок фонда; свежие сделки 2024–2026 туда почти не занесены — ноль пересечений с журналом означает «ноль по CG», не «ноль вообще»",
+      "DWF в проекте чаще маркетмейкер, чем классический VC: его присутствие — сигнал о ХАРАКТЕРЕ ликвидности, а не о вестинге",
+      "Журнал живой, состав плавает прогонами; сверять свежие добавления вручную"
+    ]
+  },
+
+  "yzi_labs": {
+    "ENA":   {"src": "cg-category", "note": "плюс контекст 27.08: сид-инвесторов (не YZi) выкупил фонд Ethena — см. razbor_ena_unlock.md"},
+    "ACE":   {"src": "cg-category", "note": "Fusionist"},
+    "BICO":  {"src": "cg-category", "note": "Biconomy"},
+    "GPS":   {"src": "cg-category", "note": "GoPlus Security"},
+    "LUNC":  {"src": "cg-category", "note": "наследие Terra"},
+    "MOVE":  {"src": "cg-category", "note": "Movement"},
+    "MOVR":  {"src": "cg-category", "note": "Moonriver; сегодня же в топ-гейнерах категории +45%"},
+    "SHELL": {"src": "cg-category", "note": "MyShell"},
+    "TREE":  {"src": "cg-category", "note": "Treehouse"}
+  },
+
+  "dwf_labs": {},
+
+  "_dwf_comment": "Пересечений журнала с CG-категорией DWF — ноль на 29.08. Честный ноль по источнику, с оговоркой о его неполноте выше.",
+
+  "candidates_unverified": {
+    "HEMI": {"backer": "YZi Labs", "confidence": "высокая", "why": "раунд Hemi 2024 с участием Binance Labs широко освещался; в CG-категории отсутствует — категория не поспевает за новыми"},
+    "BMT":  {"backer": "YZi Labs", "confidence": "средняя", "why": "Bubblemaps связывали с инкубацией Binance Labs; подтвердить точечным поиском"},
+    "COOKIE": {"backer": "DWF Labs", "confidence": "средняя", "why": "DWF публично поддерживал Cookie DAO; в CG-категории нет"},
+    "ATH":  {"backer": "DWF Labs", "confidence": "низкая", "why": "связка Aethir–DWF мелькала в лентах; проверить"}
+  },
+
+  "usage_note": "Чтение для скринера: монета YZi — за спиной казна CZ, разлоки инсайдеров читать внимательнее (их доля обычно велика); монета DWF — смотреть на характер стакана и резкие свечи, это почерк маркетмейкера. Кандидатов перед использованием подтвердить одним точечным поиском."
+}
