@@ -32,6 +32,8 @@ def load(path: str | None = None) -> bool:
     spots = ([Path(path)] if path else
              [Path("config/cryptoquant_config.json"),
               here / "config" / "cryptoquant_config.json",
+              Path("config/config.json"),        # общий файл ключей
+              here / "config" / "config.json",
               Path("config.json"),               # прежнее место
               here / "config.json"])
     found = False
@@ -55,5 +57,11 @@ def load(path: str | None = None) -> bool:
 if __name__ == "__main__":
     ok = load()
     keys = [k for k in ("CQ_TOKEN", "COINGLASS_KEY") if os.environ.get(k)]
-    print(f"config.json {'найден' if ok else 'не найден'} · "
+    print(f"конфиг {'найден' if ok else 'НЕ найден'} · "
           f"ключи в окружении: {', '.join(keys) or 'нет'}")
+    if not ok:
+        here = Path(__file__).resolve().parent
+        print("искал:", ", ".join(str(p) for p in
+              [Path("config/cryptoquant_config.json"),
+               Path("config/config.json"), Path("config.json"),
+               here / "config" / "config.json"]))
