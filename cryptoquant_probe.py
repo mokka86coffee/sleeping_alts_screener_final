@@ -107,11 +107,18 @@ def main() -> int:
         js = {t.lower() for t in journal}
         inter = sorted({s0 for s0 in syms
                         for t in js if s0.replace("_", "").startswith(t)})
+        Path("cq_symbols.json").write_text(
+            json.dumps(syms, ensure_ascii=False))
         coverage["v2_symbols"] = {"total": len(syms),
+                                  "sample": syms[:12],
                                   "journal_hits": inter[:80]}
         print(f"ШАГ 2 v2 символов всего: {len(syms)} · "
               f"пересечение с журналом: {len(inter)}")
-        print("  " + ", ".join(inter[:40]) if inter else "  пусто")
+        print("  примеры формата:", ", ".join(syms[:8]))
+        print("  полный список сохранён: cq_symbols.json — прислать!")
+        # проба фандинга правильным именем прямо из списка
+        coverage["btc_like_symbol"] = next(
+            (x for x in syms if "btc" in x), None)
     else:
         print(f"ШАГ 2 v2 символы: HTTP {st} — "
               f"{json.dumps(body)[:160] if body else ''}")
@@ -126,6 +133,11 @@ def main() -> int:
         ("v2_funding_ENA", f"{BASE_V2}/market/cq/swap/funding-rate"
          "?exchange=binance&symbol=ENAUSDT&window=day&limit=1"),
     ]
+    if coverage.get("btc_like_symbol"):
+        probes.append(
+            ("v2_funding_btc_из_списка",
+             f"{BASE_V2}/market/cq/swap/funding-rate"
+             f"?symbol={coverage['btc_like_symbol']}&window=day&limit=2"))
     verdict = {200: "ОТКРЫТО", 401: "нет доступа (токен?)",
                402: "не в тарифе", 403: "не в тарифе",
                404: "нет актива/эндпоинта", 429: "лимит", -1: "сеть"}

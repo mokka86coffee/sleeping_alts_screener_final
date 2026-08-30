@@ -1,0 +1,6 @@
+{
+  "bot_token": "8515274047:AAGfOYlwb-ekgX58lHf4ulGAtvT8GoC4AGw",
+  "chat_id": "618887194",
+  "enabled": true,
+  "_note": "Токен — от @BotFather (/newbot). chat_id — спросить у @userinfobot. Своему боту сначала написать любое сообщение, иначе Телеграм не даст ему писать вам. enabled: false выключает отправку без удаления файла."
+}

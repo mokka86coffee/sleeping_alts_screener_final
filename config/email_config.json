@@ -1,0 +1,11 @@
+{
+  "smtp_host": "smtp.yandex.ru",
+  "smtp_port": 465,
+  "user": "vafvaf.vaf",
+  "password": "ekxuvqqlbvfrggxn",
+  "to": [
+    "i@eevgen.ru"
+  ],
+  "from_addr": "",
+  "_note": "Заполните user/password/to. Для Gmail нужен пароль приложения (myaccount.google.com/apppasswords), обычный пароль не подойдёт. Порт 465 — SSL, 587 — STARTTLS. Файл лежит в output/ и в git не попадает — не переносите его в корень: корень публикуется на GitHub Pages."
+}

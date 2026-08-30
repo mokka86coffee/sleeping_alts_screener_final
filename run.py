@@ -739,6 +739,30 @@ def run_once(args: argparse.Namespace) -> int:
     except Exception as e:
         log(f"→ Coinglass пропущен: {type(e).__name__}: {e}")
 
+    # CryptoQuant v2 (30.08): суточный дозабор деривативов журнала
+    # в архив cq_v2/ (funding, OI, ликвидации, свечи, тейкеры — по
+    # <base>_all). Прогон ежечасный, а дневка кванта одна в сутки,
+    # поэтому здесь не сбор, а проверка свежести: ensure_fresh
+    # тянет только если архиву больше двадцати часов — правило
+    # «от свежести файла, не по кругу». Токен ТОЛЬКО из окружения
+    # CQ_TOKEN; нет токена или сбой — лог и пропуск, как почта.
+    try:
+        import os as _os
+        if not _os.environ.get("CQ_TOKEN", "").strip():
+            log("→ CryptoQuant пропущен: нет CQ_TOKEN в окружении")
+        else:
+            from pathlib import Path as _P
+            from cq_scheduler import ensure_fresh as _cq_fresh
+            _base = _P(__file__).resolve().parent
+            _j = _base / "output" / "leaders.json"
+            if not _j.exists():
+                _j = _base / "leaders.json"
+            _ok = _cq_fresh(str(_j), _base / "cq_v2")
+            log("→ CryptoQuant: архив свеж" if _ok
+                else "→ CryptoQuant: дозабор не удался (см. cq_v2/_fetch.log)")
+    except Exception as e:
+        log(f"→ CryptoQuant пропущен: {type(e).__name__}: {e}")
+
     # ── Ручные контуры — по своим отрезкам, не каждый прогон ──
     # Правило владельца 29.08: всё ручное заводится в прогон, но
     # запускается ОТ СВЕЖЕСТИ имеющегося файла, а не по кругу.

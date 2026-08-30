@@ -31,6 +31,7 @@ venv/
 
 cache/
 path/
+config/
 prev/reports/
 cache_fundamental
 output/

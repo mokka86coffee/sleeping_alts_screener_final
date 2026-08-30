@@ -1,0 +1,5 @@
+{
+ "api_key": "651ad374bcf24a86be9156482964f9c0",
+ "enabled": true,
+ "_help": "ключ из кабинета coinglass.com/account; файл вне git (output/ в .gitignore). Ключ показывали на скрине — лучше перевыпустить после вставки сюда."
+}
