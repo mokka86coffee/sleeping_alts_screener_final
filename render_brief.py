@@ -45,6 +45,42 @@ import json
 
 
 def render_brief(stars: list[dict], market: dict) -> str:
+    # Режим рынка (31.08): эталон REGIME_GATE.md — страницей брифа
+    # внизу, рядом с новостями. Нет файла — страницы просто нет.
+    try:
+        import re as _re
+        from pathlib import Path as _P
+        _p = _P("REGIME_GATE.md")
+        if not _p.exists():
+            _p = _P(__file__).resolve().parent / "REGIME_GATE.md"
+        if _p.exists():
+            _md = _p.read_text(encoding="utf-8")
+            _v = _re.search(r"ВЕРДИКТ[^:]*:\s*(.+)", _md)
+            _rd = _re.search(r"## ЭТАЛОННОЕ ЧТЕНИЕ.*?\n(.*?)(?=\n## )",
+                             _md, _re.S)
+            _rows = []
+            if _rd:
+                for _c in _re.findall(r"^\d\.\s+(.+?)(?=^\d\.|\Z)",
+                                      _rd.group(1), _re.S | _re.M):
+                    _h, _, _t = _c.partition(":")
+                    _rows.append([_h.strip(),
+                                  " ".join(_t.split())[:180]])
+            market = dict(market)
+            _pp = dict(market.get("predictions") or {})
+            _cal = dict(_pp.get("calendar") or {})
+            _items = list(_cal.get("items") or [])
+            _vt = (_v.group(1).strip().rstrip(".") if _v else "")
+            _top = " · ".join(r[0] for r in _rows[:4])
+            _items.insert(0, {"kind": "regime", "days": 0,
+                              "running": True,
+                              "title": _vt,
+                              "note": _top})
+            _cal["items"] = _items
+            _pp["calendar"] = _cal
+            market["predictions"] = _pp
+    except Exception:
+        pass
+
     """Тело документа сводки. Данные вшиваются, а не читаются из окна."""
     blob = json.dumps({"stars": stars, "market": market},
                       ensure_ascii=False, separators=(",", ":"))
@@ -589,6 +625,48 @@ BRIEF_JS = """
     }
   })();
 
+  /* 0 · КТО МОЖЕТ ПОЙТИ (31.08): сюжеты растущего класса из
+     репутаций — узнанные шаблоны с прогнозом. Одно сообщение —
+     одна монета, в самое начало. Нет растущих — до двух «рук над
+     сливом» как «Под наблюдением». */
+  (function(){
+    var GROW = ['набор кита', 'лестница руки', 'курок второго',
+                'акт НА ХОДУ', 'ИСКРА', 'подтверждение пришло'];
+    var got = 0;
+    for (var i = 0; i < ST.length && got < 4; i++) {
+      var s0 = ST[i], rp = s0.rep || {};
+      var pl = rp.plot || '';
+      if (!pl) continue;
+      var grow = false;
+      for (var g = 0; g < GROW.length; g++)
+        if (pl.indexOf(GROW[g]) >= 0) { grow = true; break; }
+      if (!grow) continue;
+      var body = '<div class="obf-body">' + esc(pl) + '.' +
+        (rp.phrase ? ' Сегодня в стакане: ' + esc(rp.phrase) + '.' : '') +
+        '</div>';
+      pages.push(page('Пойдёт? · ' + esc(s0.t || s0.sym || ''), body,
+        'сюжет'));
+      got++;
+    }
+    if (!got) {
+      var cand = [];
+      for (var j = 0; j < ST.length; j++) {
+        var sj = ST[j], rj = sj.rep || {};
+        if ((rj.plot || '').indexOf('рука над сливом') >= 0)
+          cand.push([Math.abs(rj.delta_usd || 0), sj]);
+      }
+      cand.sort(function(a, b){ return b[0] - a[0]; });
+      for (var q = 0; q < Math.min(2, cand.length); q++) {
+        var sq = cand[q][1], rq = sq.rep || {};
+        var bq = '<div class="obf-body">' + esc(rq.plot) + '.' +
+          (rq.phrase ? ' Сегодня в стакане: ' + esc(rq.phrase) + '.' : '') +
+          '</div>';
+        pages.push(page('Под наблюдением · ' + esc(sq.t || sq.sym || ''),
+          bq, 'сюжет'));
+      }
+    }
+  })();
+
   /* 1 · окно рынка */
   (function(){
     var reasons = [];
@@ -894,7 +972,7 @@ BRIEF_JS = """
   function eventsHTML(withHead){
     var cal = pp.calendar || {}, items = cal.items || [];
     var KIND = { delist:'делистинг', unlock:'разлок', risk:'риск',
-                 macro:'макро', support:'опора' };
+                 macro:'макро', support:'опора', regime:'режим рынка' };
     var html = withHead ? '<div class="obf-h">Впереди</div>' : '';
     /* ПУСТАЯ КОЛОНКА НЕ МОЛЧИТ. Тёмный столбец без единой строки
        читается как «сломалось», а не как «событий нет» — и отличить

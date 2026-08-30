@@ -817,6 +817,20 @@ def run_once(args: argparse.Namespace) -> int:
                              if v is _loud)[:-4].lower()
         except Exception:
             pass
+        # flow_ для всех монет архива: кнопки ai в списке зала
+        _okn, _bad = 0, 0
+        for _fp in sorted((_base3 / "cq_v2").glob("*.json")):
+            if _fp.name.startswith("_"):
+                continue
+            _b = _fp.stem
+            _rr = _sp.run([_sys.executable, str(_base3 / "make_flow.py"),
+                           "--coin", _b,
+                           "--archive", str(_base3 / "cq_v2"),
+                           "--out", str(_base3 / f"flow_{_b}.html")],
+                          capture_output=True, text=True, timeout=60)
+            _okn += (_rr.returncode == 0)
+            _bad += (_rr.returncode != 0)
+        log(f"→ Потоки монет: собрано {_okn}, сбоев {_bad}")
         _r3 = _sp.run([_sys.executable, str(_base3 / "make_flow.py"),
                        "--coin", _coin,
                        "--archive", str(_base3 / "cq_v2"),
