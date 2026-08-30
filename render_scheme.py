@@ -46,6 +46,42 @@ import json
 
 
 def render_scheme(stars: list[dict], market: dict) -> str:
+    # Режим по биткоину (31.08, перенос одобрен): REGIME_GATE.md —
+    # в нижнюю ленту новостей: вердикт + четыре графы пузырями.
+    try:
+        import re as _re
+        from pathlib import Path as _P
+        _p = _P("REGIME_GATE.md")
+        if not _p.exists():
+            _p = _P(__file__).resolve().parent / "REGIME_GATE.md"
+        if _p.exists():
+            _md = _p.read_text(encoding="utf-8")
+            _v = _re.search(r"ВЕРДИКТ[^:]*:\s*(.+)", _md)
+            _rd = _re.search(r"## ЭТАЛОННОЕ ЧТЕНИЕ.*?\n(.*?)(?=\n## )",
+                             _md, _re.S)
+            _new = []
+            if _v:
+                _new.append({"kind": "regime", "days": 0, "running": True,
+                             "title": "БИТКОИН: " +
+                                      _v.group(1).strip().rstrip(".")})
+            if _rd:
+                for _c in _re.findall(r"^\d\.\s+(.+?)(?=^\d\.|\Z)",
+                                      _rd.group(1), _re.S | _re.M)[:4]:
+                    _h, _, _t = _c.partition(":")
+                    _new.append({"kind": "regime", "days": 0,
+                                 "running": True,
+                                 "title": _h.strip() + " — " +
+                                          " ".join(_t.split())[:90]})
+            if _new:
+                market = dict(market)
+                _pp = dict(market.get("predictions") or {})
+                _cal = dict(_pp.get("calendar") or {})
+                _cal["items"] = _new + list(_cal.get("items") or [])
+                _pp["calendar"] = _cal
+                market["predictions"] = _pp
+    except Exception:
+        pass
+
     """Тело документа сводки-схемы. Данные вшиваются, а не читаются из окна."""
     _wh = {}
     try:
@@ -404,7 +440,7 @@ SCHEME_HTML = """
 """
 
 
-SCHEME_JS = """
+SCHEME_JS = r"""
 <script>
 (function () {
   var DATA = {};
@@ -571,10 +607,32 @@ SCHEME_JS = """
     { k:'Портфели', v: pct(hold.pnlPct,0), c:'#7fe3d4',
       s:'журнал <b>' + (hold.open||0) + '</b> позиций, ' + money(hold.invested) + ' → ' +
         money(hold.value) + ' · книга ' + pct(tr.pnlPct) },
-    { k:'Лидер прогона', v:'<span class="tkr">' + esc(L0.t||'—') + '</span>', c:'#e6edff',
-      s:'скор <b>' + (L0.score||'—') + '</b> · ' + esc(L0.case||'') + ' · ' + esc(L0.cap||'') +
-        ' · ход ' + pct(ls.chg,0) +
+    { k:'Лидер прогона',
+      v:'<span class="tkr">' + esc(L0.t||'—') + '</span> · ' + esc(L0.case||''),
+      c:'#e6edff',
+      s: esc(L0.cap||'') +
+        ((L0.rep && L0.rep.plot) ? ' · ' + esc(String(L0.rep.plot).split(':')[0]) : '') +
+        ((L0.rep && L0.rep.phrase) ? '<br>' + esc(String(L0.rep.phrase).slice(0, 140)) : '') +
         (rws.length ? '<br>трое суток держатся: ' + rws.map(function(r){ return r.t + ' ' + r.n; }).join(' · ') : '') },
+  ].concat((function(){
+    /* ПОЙДЁТ? (31.08, перенос одобрен): сюжеты растущего класса —
+       одна монета, одна ветвь, до четырёх; нет растущих — ветвей нет. */
+    var GROW = ['набор кита', 'лестница руки', 'курок второго',
+                'акт НА ХОДУ', 'ИСКРА', 'подтверждение пришло'];
+    var out = [];
+    for (var gi = 0; gi < ST.length && out.length < 4; gi++) {
+      var gs = ST[gi], gr = gs.rep || {}, gp = gr.plot || '';
+      if (!gp) continue;
+      var hit = false;
+      for (var gg = 0; gg < GROW.length; gg++)
+        if (gp.indexOf(GROW[gg]) >= 0) { hit = true; break; }
+      if (!hit) continue;
+      out.push({ k: 'Пойдёт? · ' + (gs.t || ''),
+                 v: gp.split('(')[0].trim(), c: '#7fe3d4',
+                 s: esc(gp).slice(0, 170) });
+    }
+    return out;
+  })()).concat([
     /* ── ветви потока сделок ── */
 
     /* Тейкерское отношение: ниже единицы — продавцы бьют по стакану
@@ -663,7 +721,7 @@ SCHEME_JS = """
     { k:'Дальше всех от дна', v: leadTop ? leadTop.t + ' ' + (leadTop.up > 0 ? '+' : '') + leadTop.up + '%' : null, c:'#e6edff',
       s: leadTop ? ('в журнале с ' + dmy(leadTop.first) + ' · последний раз ' + dmy(leadTop.last)) : '' },
 
-  ].filter(function(c){ return c && c.v != null && c.v !== ''; });
+  ]).filter(function(c){ return c && c.v != null && c.v !== ''; });
 
   /* ГНЁЗДА СЧИТАЮТСЯ ОТ ОКНА. На широком — три с шагом 96 под
      кристаллом; на узком мысль стоит под узлом и занимает больше

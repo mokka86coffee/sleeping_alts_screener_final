@@ -3355,7 +3355,33 @@ PODIUM_JS = """
     };
     if (key === 'unlock') return function (a, b) { return a.unlockDays - b.unlockDays; };
     if (key === 'deep') return function (a, b) { return (+b.up) - (+a.up); };
-    return function (a, b) { return pnlOf(b) - pnlOf(a); };
+    /* СОРТИРОВКА «КТО БЫСТРЕЕ ПОЙДЁТ» (31.08): внутри каждой
+       группы сверху те, у кого сюжет ближе к развязке вверх.
+       Ранг по классу сюжета: акт НА ХОДУ / ИСКРА / подтверждение —
+       уже идёт (5); взведён курок (4); набор кита и лестница —
+       рука ведёт (3); рука над сливом — цена держится, развязку
+       выбирает рука (2); дёрг (1); финалы и пусто (0). Равный
+       ранг решает свежая дельта: покупки выше продаж. */
+    function goRank(x) {
+      var p = (x.rep && x.rep.plot) || '';
+      var r = 0;
+      if (p.indexOf('НА ХОДУ') >= 0 || p.indexOf('ИСКРА') >= 0 ||
+          p.indexOf('подтверждение пришло') >= 0) r = 5;
+      else if (p.indexOf('курок второго') >= 0) r = 4;
+      else if (p.indexOf('набор кита') >= 0 ||
+               p.indexOf('лестница руки') >= 0) r = 3;
+      else if (p.indexOf('рука над сливом') >= 0) r = 2;
+      else if (p.indexOf('дёрг') >= 0) r = 1;
+      return r;
+    }
+    return function (a, b) {
+      var d = goRank(b) - goRank(a);
+      if (d) return d;
+      var da = (a.rep && +a.rep.delta_usd) || 0,
+          db = (b.rep && +b.rep.delta_usd) || 0;
+      if (db !== da) return db - da;
+      return pnlOf(b) - pnlOf(a);
+    };
   }
 
   function pnlOf(s) {
