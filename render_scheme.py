@@ -659,9 +659,25 @@ SCHEME_JS = r"""
       for (var gg = 0; gg < GROW.length; gg++)
         if (gp.indexOf(GROW[gg]) >= 0) { hit = true; break; }
       if (!hit) continue;
+      /* КОРОТКО (31.08): сюжет режется по СМЫСЛУ, не по символам.
+         Шаблон — в значение ветви; в тело идут две части: чем
+         основан (первая часть до точки с запятой) и сторож
+         (последняя, где «выход», «пока», «сигнал»). Скобку с
+         именем шаблона выбрасываем — она уже в значении. */
+      var raw = gp.replace(/\s*\(шаблон[^)]*\)/, '');
+      var parts = raw.split(/[;·]\s*/).filter(function(x){
+        return x && x.length > 3; });
+      var head = (parts[0] || raw).replace(/^[^:]*:\s*/, '');
+      var tail = parts.length > 1 ? parts[parts.length - 1] : '';
+      function cut(x, n){ x = String(x).trim();
+        if (x.length <= n) return x;
+        var z = x.slice(0, n), p = z.lastIndexOf(' ');
+        return (p > n * 0.6 ? z.slice(0, p) : z) + '…'; }
       out.push({ k: 'Пойдёт? · ' + (gs.t || ''),
                  v: gp.split('(')[0].trim(), c: '#7fe3d4',
-                 s: esc(gp).slice(0, 170) });
+                 s: esc(cut(head, 95)) +
+                    (tail ? '<br><i style="opacity:.62">' +
+                     esc(cut(tail, 85)) + '</i>' : '') });
     }
     return out;
   })().concat([
