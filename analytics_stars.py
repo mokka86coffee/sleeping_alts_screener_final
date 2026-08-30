@@ -995,6 +995,33 @@ def build_stars(candidates: list[Candidate],
                 "streak": t_.get("delta_streak"),
                 "plot": rp.get("plot") or "",
             }
+            # живой пересчёт (30.08): вчерашний шаблон кванта +
+            # свежие числа этого прогона Coinglass — сюжет умеет
+            # выстрелить или развязаться, не дожидаясь дневки
+            try:
+                from reputation_cq import live_refresh
+                cg = s.get("cg") or {}
+                live = {"delta_usd": cg.get("cvdChg"),
+                        "px_chg_pct": s.get("p1d"),
+                        "funding": s.get("fund"),
+                        "vol_mult": s.get("v1d"),
+                        "taker": cg.get("taker")}
+                if live["delta_usd"] is not None:
+                    fresh = live_refresh(
+                        {"today": dict(s["rep"],
+                                       delta_usd=rp.get("today", {})
+                                       .get("delta_usd"),
+                                       delta_streak=s["rep"].get("streak")),
+                         "plot": s["rep"]["plot"]}, live)
+                    ft = fresh.get("today") or {}
+                    s["rep"]["phrase"] = ft.get("phrase") or s["rep"]["phrase"]
+                    s["rep"]["delta_usd"] = ft.get("delta_usd",
+                                                   s["rep"]["delta_usd"])
+                    s["rep"]["streak"] = ft.get("delta_streak",
+                                                s["rep"]["streak"])
+                    s["rep"]["plot"] = fresh.get("plot") or s["rep"]["plot"]
+            except Exception:
+                pass
 
         inv = _investors_map().get(sym)
         if inv:

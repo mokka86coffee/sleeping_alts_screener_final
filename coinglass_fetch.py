@@ -482,7 +482,19 @@ def collect(symbols: list[str] | None = None, *,
     state["requests"] += 1
     time.sleep(PAUSE_SEC)
 
+    import sys as _sys
+    import time as _time
+    _t0 = _time.time()
     for i, coin in enumerate(coins, 1):
+        # Пульс (30.08): «зависло на коинглассе» оказалось долгой
+        # сетью — 273 тихих запроса. Каждые 15 монет — строка ходу
+        # в stderr, всегда: молчание дольше минуты пугает владельца
+        # сильнее, чем лишняя строка в логе.
+        if i % 15 == 1 and i > 1:
+            _sys.stderr.write(
+                f"    coinglass: {i}/{len(coins)} монет, "
+                f"{_time.time() - _t0:.0f} с\n")
+            _sys.stderr.flush()
         entry = snap_coin(coin, key, state["errors"])
         state["requests"] += 4
         entry["liq"] = liq_all.get(coin)

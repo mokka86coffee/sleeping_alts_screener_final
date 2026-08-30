@@ -1,26 +1,44 @@
 #!/usr/bin/env python3
-"""Врезка CryptoQuant в run.py (30.08.2026, ночь).
+"""Врезка CryptoQuant в run.py — версия с конфигом (30.08, ночь).
 
-Прогон крутится каждый час (--loop --interval 3600); квантовому
-архиву нужна одна дневка в сутки. Поэтому в прогон встаёт не сбор,
-а ПРОВЕРКА СВЕЖЕСТИ: ensure_fresh из cq_scheduler смотрит возраст
-cq_v2/_summary.json и тянет дозабор только если архив старше
-двадцати часов — то есть реально раз в сутки, остальные двадцать
-три вызова стоят одну проверку mtime. Точно по правилу владельца
-29.08: «всё ручное заводится в прогон, но запускается ОТ СВЕЖЕСТИ
-имеющегося файла, а не по кругу».
+Двурежимный: на чистом run.py ставит врезку целиком; на run.py с
+уже накатанной первой версией — добавляет в неё чтение config.json.
+Повторный запуск безвреден: скажет, что всё на месте.
 
-Требования: cq_scheduler.py и cryptoquant_fetch.py лежат РЯДОМ с
-run.py; CQ_TOKEN в окружении процесса (нет токена — лог и пропуск,
-как у Coinglass с его ключом). Журнал берётся из output/leaders.json,
-архив — в cq_v2 рядом с run.py (куда лёг годовой прогон).
+Смысл врезки: прогон ежечасный, дневка кванта одна в сутки, поэтому
+встраивается проверка свежести (ensure_fresh тянет дозабор, только
+когда архиву cq_v2 больше двадцати часов). Ключи — из config.json
+рядом с run.py (модуль config.py), явный export главнее файла.
 
-Запуск рядом с run.py:  python3 patch_run_cq.py
+Рядом с run.py должны лежать: config.py, cq_scheduler.py,
+cryptoquant_fetch.py, config.json (по образцу config.example.json).
+Запуск: python3 patch_run_cq.py
 """
 import ast
 
 s = open("run.py", encoding="utf-8").read()
 
+CFG = '''        try:                                  # ключи из config.json,
+            from config import load as _cfg  # export главнее файла
+            _cfg()
+        except Exception:
+            pass
+'''
+TOKEN_CHECK = '        if not _os.environ.get("CQ_TOKEN", "").strip():'
+
+if "CryptoQuant v2 (30.08)" in s:
+    # режим Б: врезка есть — доложить конфиг, если его ещё нет
+    if "from config import load" in s:
+        print("врезка уже с конфигом — делать нечего")
+        raise SystemExit(0)
+    assert s.count(TOKEN_CHECK) == 1, "врезка есть, а якорь проверки — нет"
+    s = s.replace(TOKEN_CHECK, CFG + TOKEN_CHECK)
+    open("run.py", "w", encoding="utf-8").write(s)
+    ast.parse(s)
+    print("врезка обновлена: ключи теперь из config.json")
+    raise SystemExit(0)
+
+# режим А: чистый run.py — полная врезка
 anchor = '''        log(f"→ Coinglass пропущен: {type(e).__name__}: {e}")
 
     # ── Ручные контуры — по своим отрезкам, не каждый прогон ──'''
@@ -33,12 +51,13 @@ insert = '''        log(f"→ Coinglass пропущен: {type(e).__name__}: {e
     # <base>_all). Прогон ежечасный, а дневка кванта одна в сутки,
     # поэтому здесь не сбор, а проверка свежести: ensure_fresh
     # тянет только если архиву больше двадцати часов — правило
-    # «от свежести файла, не по кругу». Токен ТОЛЬКО из окружения
-    # CQ_TOKEN; нет токена или сбой — лог и пропуск, как почта.
+    # «от свежести файла, не по кругу». Ключи — config.json рядом
+    # с run.py (модуль config), явный export главнее; нет токена
+    # или сбой — лог и пропуск, как почта.
     try:
         import os as _os
-        if not _os.environ.get("CQ_TOKEN", "").strip():
-            log("→ CryptoQuant пропущен: нет CQ_TOKEN в окружении")
+''' + CFG + '''        if not _os.environ.get("CQ_TOKEN", "").strip():
+            log("→ CryptoQuant пропущен: нет CQ_TOKEN (config.json?)")
         else:
             from pathlib import Path as _P
             from cq_scheduler import ensure_fresh as _cq_fresh
@@ -57,4 +76,4 @@ insert = '''        log(f"→ Coinglass пропущен: {type(e).__name__}: {e
 s = s.replace(anchor, insert)
 open("run.py", "w", encoding="utf-8").write(s)
 ast.parse(s)
-print("врезка CryptoQuant легла; прогон сам держит архив свежим")
+print("врезка CryptoQuant с конфигом легла")

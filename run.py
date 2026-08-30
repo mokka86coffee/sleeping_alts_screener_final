@@ -748,6 +748,11 @@ def run_once(args: argparse.Namespace) -> int:
     # CQ_TOKEN; нет токена или сбой — лог и пропуск, как почта.
     try:
         import os as _os
+        try:                                  # ключи из config.json,
+            from config import load as _cfg  # export главнее файла
+            _cfg()
+        except Exception:
+            pass
         if not _os.environ.get("CQ_TOKEN", "").strip():
             log("→ CryptoQuant пропущен: нет CQ_TOKEN в окружении")
         else:

@@ -270,6 +270,77 @@ def plot_line(tr: list, oh: list, fu: list, oi: list) -> str:
     return ""
 
 
+def live_refresh(entry: dict, live: dict) -> dict:
+    """Живой пересчёт «сегодня» и сюжета внутри дня (30.08, зазор
+    свежести). Вчерашняя дневка кванта даёт историю и шаблон;
+    свежие числа часового прогона Coinglass — сегодняшний факт.
+    live: {delta_usd, px_chg_pct, funding, vol_mult, taker}.
+    Возвращает копию entry с обновлёнными today.phrase / plot —
+    сюжет «взведён» умеет выстреливать, «рука» — уходить, не
+    дожидаясь завтрашней дневки (урок SKR)."""
+    import copy
+    e = copy.deepcopy(entry)
+    t = e.get("today") or {}
+    d = live.get("delta_usd")
+    px = live.get("px_chg_pct") or 0.0
+    f = live.get("funding")
+    vm = live.get("vol_mult")
+    if d is None:
+        return e
+
+    def _usd(x):
+        x = abs(x)
+        return (f"${x/1e6:.1f}M" if x >= 1e6 else f"${x/1e3:.0f}K")
+
+    # преемственность серии: знак совпал со вчерашним — день N+1
+    streak = t.get("delta_streak") or 0
+    prev_neg = (t.get("delta_usd") or 0) < 0
+    streak = streak + 1 if (d < 0) == prev_neg and d != 0 else 1
+    dayw = f" — {streak}-й день подряд" if streak > 1 else " за сутки"
+    if d < 0:
+        ph = f"продают на {_usd(d)} больше, чем покупают{dayw}"
+        if px > 1:
+            ph += (" · цена при этом растёт — кто-то крупный "
+                   "скупает всё лимитными заявками")
+    else:
+        ph = f"покупают на {_usd(d)} больше, чем продают{dayw}"
+    if f is not None and f >= 0.05:
+        ph += f" · лонги платят за плечо {f:.2f}% — перегрев"
+    elif f is not None and f <= -0.05:
+        ph += f" · шорты платят за перекос {abs(f):.2f}%"
+    t.update({"phrase": ph, "delta_usd": round(d),
+              "delta_streak": streak, "live": True})
+    e["today"] = t
+
+    # горячие переходы сюжета по свежему факту
+    pl = e.get("plot") or ""
+    if "курок второго" in pl and d > 0 and px > 8:
+        e["plot"] = ("второй акт НА ХОДУ (курок выстрелил сегодня): "
+                     f"день покупок и цена +{px:.0f}% — выкуп шортов "
+                     "толкает; по шаблону ONG/SKR акт ярок и короток: "
+                     "выход — чек мельчает, фандинг к нулю или первый "
+                     "день продаж")
+    elif "рука над сливом" in pl and d < 0 and px < -7:
+        e["plot"] = ("рука ушла (развязка сегодня): продажи продавили "
+                     f"цену на {abs(px):.0f}% — шаблон BLESS/TRUMP "
+                     "предупреждал: выходить без иллюзий, возврат "
+                     "интереса только новым циклом набора")
+    elif "лестница руки" in pl and d < 0 and px < -7:
+        e["plot"] = ("финал лестницы (сегодня): продажи совпали с "
+                     f"падением {abs(px):.0f}% — покупатель отпустил; "
+                     "по шаблону PROM дальше перезарядка, не разгон")
+    elif "набор кита" in pl and d > 0 and (vm or 0) >= 8:
+        e["plot"] = ("похоже, ИСКРА (сегодня): на наборе кита пришли "
+                     f"покупки при обороте ×{vm:.0f} — по шаблону BTR "
+                     "дальше возможен розничный шторм; сторожа: чек "
+                     "мельчает и фандинг греется — поздняя стадия")
+    elif "дёрг без подтверждения" in pl and d > 0 and px > 5:
+        e["plot"] = ("подтверждение пришло (сегодня): новый день "
+                     f"покупок и цена +{px:.0f}% — дёрг становится "
+                     "стартом; интерес законен, пока покупки держатся")
+    return e
+
+
 def build(archive: Path) -> dict:
     rep = {"_meta": {"source": "cq_v2", "thresholds": {
         "episode_mult": EPISODE_MULT, "held_ret7": HELD_RET7,
