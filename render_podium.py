@@ -1502,11 +1502,29 @@ x-rm.dn{color:#f0a89b;text-shadow:0 0 7px rgba(240,168,155,.35)}
   .obc-nums-v .obc-num,.obc-nums-v .obc-num b,
   .obc-nums-v .obc-num i{text-align:left}
 }
+
+/* ── кнопка AI: переход в экран-поток (новый вариант зала) ── */
+.ai-btn{position:fixed;right:26px;bottom:26px;z-index:90;
+  width:64px;height:64px;border-radius:50%;display:flex;
+  align-items:center;justify-content:center;text-decoration:none;
+  font:800 20px Arial;letter-spacing:.04em;color:#04080f;
+  background:linear-gradient(135deg,#55d8e8,#ffcf7a);
+  box-shadow:0 0 18px rgba(85,216,232,.55),0 0 44px rgba(240,179,86,.35);
+  animation:aiPulse 2.6s ease-in-out infinite}
+.ai-btn:hover{transform:scale(1.07)}
+.ai-btn small{position:absolute;bottom:-20px;white-space:nowrap;
+  font:600 9px Arial;letter-spacing:.14em;color:#7ae0ea;opacity:0;
+  transition:opacity .25s}
+.ai-btn:hover small{opacity:.9}
+@keyframes aiPulse{0%,100%{box-shadow:0 0 14px rgba(85,216,232,.45),
+  0 0 36px rgba(240,179,86,.25)}50%{box-shadow:0 0 26px
+  rgba(85,216,232,.8),0 0 58px rgba(240,179,86,.5)}}
 </style>
 """
 
 PODIUM_HTML = """
 <div class="ob-podium" id="obPodium">
+  <a class="ai-btn" href="flow.html" title="Экран-поток">AI<small>НОВЫЙ ЭКРАН</small></a>
   <div class="obp-dome"></div>
   <svg class="obp-sky" id="obpSky"></svg>
   <div class="obp-floor"></div>

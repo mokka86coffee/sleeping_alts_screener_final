@@ -153,26 +153,32 @@ def today_print(tr: list, oh: list, fu: list) -> dict:
     f = fu[-1]["funding_rate"] if fu else 0.0
 
     quiet = abs(delta) < QUIET_DELTA * t["quote_volume"]
-    who = ("мелочь" if chk < SMALL_CHK * chk_norm else
-           "крупный" if chk > BIG_CHK * chk_norm else "стакан")
+
+    def _usd(x: float) -> str:
+        x = abs(x)
+        return (f"${x/1e6:.1f}M" if x >= 1e6 else f"${x/1e3:.0f}K")
+
+    # кто в сделках: по размеру среднего чека против своей нормы
+    who = ("сделки мелкие (чек втрое ниже обычного)"
+           if chk < SMALL_CHK * chk_norm else
+           "сделки крупные (чек выше обычного)"
+           if chk > BIG_CHK * chk_norm else "сделки обычного размера")
+    dayword = (f" — {streak}-й день подряд" if streak > 1 else " за сутки")
     if quiet:
-        phrase = "стакан ровный"
+        phrase = "покупки и продажи вровень, перекоса нет"
     elif delta < 0:
-        act = {"мелочь": "мелочь льёт маркетом",
-               "крупный": "крупный сливает маркетом",
-               "стакан": "продают маркетом"}[who]
-        phrase = act + (f", {streak}-й день" if streak > 1 else "")
+        phrase = (f"продают на {_usd(delta)} больше, чем покупают"
+                  f"{dayword} · {who}")
         if px_up:
-            phrase += " — цену держит лимитная рука"
+            phrase += (" · цена при этом не падает — кто-то крупный "
+                       "скупает всё лимитными заявками")
     else:
-        act = {"мелочь": "толпа берёт маркетом",
-               "крупный": "крупный берёт маркетом",
-               "стакан": "покупают маркетом"}[who]
-        phrase = act + (f", {streak}-й день" if streak > 1 else "")
+        phrase = (f"покупают на {_usd(delta)} больше, чем продают"
+                  f"{dayword} · {who}")
     if f >= HOT_FUND:
-        phrase += f" · лонги платят {f:.2f}%"
+        phrase += f" · лонги платят за плечо {f:.2f}% — перегрев"
     elif f <= -HOT_FUND:
-        phrase += f" · шорты платят {abs(f):.2f}%"
+        phrase += f" · шорты платят за перекос {abs(f):.2f}%"
 
     return {"phrase": phrase,
             "vol_mult": round(vols[i] / norm_v, 1),
@@ -201,10 +207,11 @@ def build(archive: Path) -> dict:
         dist = sum(e["verdict"] == "раздали" for e in resolved)
         part = sum(e["verdict"] == "частично отдали" for e in resolved)
         held = sum(e["verdict"] == "удержали" for e in resolved)
-        line = (f"усилий {len(eps)}: раздали {dist}, частично {part}, "
-                f"удержали {held}" if resolved else
-                (f"усилий {len(eps)}, судить рано" if eps
-                 else "усилий не было"))
+        line = (f"всплесков объёма было {len(eps)}: после {dist} цену "
+                f"слили, {held} устояли, {part} отдали наполовину"
+                if resolved else
+                (f"всплесков объёма {len(eps)}, исходы ещё зреют" if eps
+                 else "всплесков объёма не было"))
         rep[fp.stem.upper() + "USDT"] = {
             "episodes": len(eps), "resolved": len(resolved),
             "distributed": dist, "partial": part, "held": held,
