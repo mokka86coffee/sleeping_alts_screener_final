@@ -993,6 +993,7 @@ def build_stars(candidates: list[Candidate],
                 "delta_usd": t_.get("delta_usd"),
                 "vol_mult": t_.get("vol_mult"),
                 "streak": t_.get("delta_streak"),
+                "plot": rp.get("plot") or "",
             }
 
         inv = _investors_map().get(sym)

@@ -537,6 +537,35 @@ BRIEF_JS = """
      одним словом «нет данных» — это потерянные двадцать шесть секунд. */
   var P = M.permission || {}, pp = P.parts || {}, pages = [];
 
+  /* 0 · КТО МОЖЕТ ПОЙТИ (30.08): сюжеты растущего класса из
+     репутаций (s.rep.plot) — узнанные шаблоны BTR/PROM/ONG с
+     прогнозом и сторожами. Одно сообщение — одна монета, в самое
+     начало брифа: слушатель первым делом получает «куда смотреть»,
+     а не фон. До четырёх страниц; нет сюжетов — секции нет. */
+  (function(){
+    var GROW = ['\u043d\u0430\u0431\u043e\u0440 \u043a\u0438\u0442\u0430',
+                '\u043b\u0435\u0441\u0442\u043d\u0438\u0446\u0430 \u0440\u0443\u043a\u0438',
+                '\u043a\u0443\u0440\u043e\u043a \u0432\u0442\u043e\u0440\u043e\u0433\u043e',
+                '\u0430\u043a\u0442 \u041d\u0410 \u0425\u041e\u0414\u0423'];
+    var got = 0;
+    for (var i = 0; i < ST.length && got < 4; i++) {
+      var s0 = ST[i], rp = s0.rep || {};
+      var pl = rp.plot || '';
+      if (!pl) continue;
+      var grow = false;
+      for (var g = 0; g < GROW.length; g++)
+        if (pl.indexOf(GROW[g]) >= 0) { grow = true; break; }
+      if (!grow) continue;
+      var body = '<div class="obf-body">' + esc(pl) + '.' +
+        (rp.phrase ? ' \u0421\u0435\u0433\u043e\u0434\u043d\u044f \u0432 \u0441\u0442\u0430\u043a\u0430\u043d\u0435: ' +
+          esc(rp.phrase) + '.' : '') + '</div>';
+      pages.push(page('\u041f\u043e\u0439\u0434\u0451\u0442? \u00b7 ' +
+        esc(s0.t || s0.sym || ''), body,
+        '\u0441\u044e\u0436\u0435\u0442'));
+      got++;
+    }
+  })();
+
   /* 1 · окно рынка */
   (function(){
     var reasons = [];

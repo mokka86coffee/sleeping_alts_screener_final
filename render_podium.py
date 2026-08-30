@@ -571,7 +571,7 @@ PODIUM_CSS = """
   /* Карточка выросла за день (горизонты, свод, дивер, формы) и низ
      молча уходил за экран (кадр HYPE 29.08). Рост разрешён скроллом
      в пределах окна; полоса скролла тонкая, в тон зала. */
-  max-height:calc(100vh - 150px);overflow-y:hidden;overflow-x:hidden;
+  max-height:calc(100vh - 150px);overflow-y:auto;overflow-x:hidden;
   scrollbar-width:thin;scrollbar-color:rgba(170,179,216,.25) transparent}
 /* Прокрутка ОПЦИОНАЛЬНА (правка владельца 29.08): класс вешает
    showCoin только когда контента больше потолка — без него полоса
@@ -647,10 +647,20 @@ PODIUM_CSS = """
 .obc-calc em{font-style:normal;color:#c9d2e8}
 @keyframes obgRise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
 
+/* ── Сюжет (30.08): предсказание под графиком — узнанный шаблон
+   истории с прогнозом и сторожами из репутаций (s.rep.plot).
+   Читается продолжением волны; пустой — скрыт. ── */
+.obc-plot{margin:10px 26px 4px;padding:10px 16px;
+  border-left:2px solid rgba(127,227,212,.55);
+  font-family:var(--serif);font-style:italic;font-size:14.5px;
+  line-height:1.5;color:#c9d2e8;background:rgba(127,227,212,.045);
+  border-radius:0 10px 10px 0}
+.obc-plot:empty{display:none}
+
 /* ── Волна прогона ── */
-.obg-wave{position:relative;width:100%;min-height:300px;isolation:isolate}
+.obg-wave{position:relative;width:100%;min-height:236px;isolation:isolate}
 .obg-wave svg{position:relative;z-index:1;display:block;width:100%;height:auto;
-  max-height:34vh}
+  max-height:26vh}
 /* Призрачное число — нижний слой: лента и сетка идут поверх и режут его. */
 /* ── Частокол: точки событий и шкала времени ──
    Волна кончается СЕГОДНЯ — вертикалью. Всё, что правее, ещё не
@@ -3611,17 +3621,16 @@ PODIUM_JS = """
        рука в стакане прямо сегодня; цвет по знаку дельты.
        Репутация — профильный факт: как монета обходится с
        усилиями исторически. */
+    var _pl = document.getElementById('obcPlot');
+    if (_pl) {
+      _pl.textContent = (s.rep && s.rep.plot) ? s.rep.plot : '';
+      _pl.style.display = (s.rep && s.rep.plot) ? '' : 'none';
+    }
     if (s.rep && s.rep.phrase) {
       var _rc = (s.rep.delta_usd < 0) ? '#f0a89b'
               : (s.rep.delta_usd > 0) ? '#8fd6b8' : '#8b93c4';
-      var _rt = s.rep.phrase;
-      if (s.rep.delta_usd) {
-        _rt += ' \u00b7 \u0434\u0435\u043b\u044c\u0442\u0430 ' +
-          (s.rep.delta_usd > 0 ? '+' : '\u2212') +
-          Math.abs(s.rep.delta_usd / 1e6).toFixed(1) + 'M';
-      }
       f.push([_rc, '\u0432 \u0441\u0442\u0430\u043a\u0430\u043d\u0435',
-              cut(_rt, 220)]);
+              cut(s.rep.phrase, 260)]);
     }
     if (s.rep && s.rep.line && s.rep.line !== '\u0443\u0441\u0438\u043b\u0438\u0439 \u043d\u0435 \u0431\u044b\u043b\u043e') {
       f.push(['#8b93c4', '\u0440\u0435\u043f\u0443\u0442\u0430\u0446\u0438\u044f',
@@ -4440,6 +4449,7 @@ PODIUM_JS = """
     if (inner) {
       inner.innerHTML = '<div class="obg-wave"></div>' +
                         '<div class="obg-axis" id="obgAxis"></div>' +
+                        '<div class="obc-plot" id="obcPlot"></div>' +
                         '<div id="obgHero"></div>' +
                         '<div class="obg-card" id="obgCard"></div>';
       inner.classList.remove('obg-swap');
