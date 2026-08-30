@@ -348,6 +348,10 @@ SCHEME_HTML = """
 /* текст вдвое мельче и ближе к полю: цифра пятнадцать, подписи семь
    и восемь с половиной, цвета не белые, а серо-синие, как у подписей */
 .co .k{font-family:var(--mono);font-size:8.8px;letter-spacing:.3em;text-transform:uppercase;color:var(--lab);opacity:.7}
+/* Прогнозы по монетам (31.08): имя монеты белым и крупнее — это
+   заголовок мысли, а не служебная метка ветви. */
+.co .k.kgo{font-size:13.5px;letter-spacing:.14em;color:#ffffff;opacity:.95;
+  font-weight:500}
 /* ЦВЕТА НА ВЕТВЯХ — ТОЛЬКО ХОЛОДНЫЕ. Значение берёт свой оттенок из
    узкой холодной гаммы: бирюза, голубой, васильковый, светлая сталь,
    лавандовый. Тёплого нет вовсе — ни жёлтого, ни красного, — иначе
@@ -740,9 +744,11 @@ SCHEME_JS = r"""
   var SLOT = [0, step, step*2];
   wrapCos.innerHTML = cos.map(function(c, i){
     var y = top0 + SLOT[i % 3] + Math.round((rnd() - 0.5) * 36);
-    return '<div class="co ' + (i % 2 ? 'r' : 'l') + '" style="top:' + y + 'px">' +
+    return '<div class="co ' + (i % 2 ? 'r' : 'l') +
+        (String(c.k).indexOf('\u041f\u043e\u0439\u0434') === 0 ? ' cgo' : '') +
+        '" style="top:' + y + 'px">' +
       '<i class="node"></i><i class="ln"></i><div class="txt">' +
-      '<div class="k">' + esc(c.k) + '</div>' +
+      '<div class="k' + (String(c.k).indexOf('\u041f\u043e\u0439\u0434') === 0 ? ' kgo' : '') + '">' + esc(c.k) + '</div>' +
       '<div class="v" style="--vc:' + (c.c || '#dbe3f7') + '">' + c.v + '</div>' +
       '<div class="s">' + c.s + '</div></div></div>'; }).join('');
   /* ствол — до нижнего гнезда с запасом, а не до низа экрана */
@@ -780,8 +786,11 @@ SCHEME_JS = r"""
     count.textContent = (i + 1) + ' / ' + els.length;
     prev.classList.toggle('off', i === 0);
     next.classList.toggle('off', i === els.length - 1);
-    if (i < els.length - 1) { timer = setTimeout(function(){ show(cur + 1); }, DWELL); }
-    else { timer = setTimeout(close, DWELL * 1.4); }   /* последняя мысль постояла — отдаём экран */
+    /* Прогнозам по монетам (31.08) +5 секунд: текста много, надо
+       вникнуть — остальные ветви идут прежним шагом. */
+    var hold = DWELL + (els[i] && els[i].classList.contains('cgo') ? 5000 : 0);
+    if (i < els.length - 1) { timer = setTimeout(function(){ show(cur + 1); }, hold); }
+    else { timer = setTimeout(close, hold * 1.4); }   /* последняя мысль постояла — отдаём экран */
   }
   prev.onclick = function(e){ e.stopPropagation(); show(cur - 1); };
   next.onclick = function(e){ e.stopPropagation(); show(cur + 1); };
