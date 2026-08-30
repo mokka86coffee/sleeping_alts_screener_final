@@ -359,8 +359,15 @@ def build(archive: Path) -> dict:
         dist = sum(e["verdict"] == "раздали" for e in resolved)
         part = sum(e["verdict"] == "частично отдали" for e in resolved)
         held = sum(e["verdict"] == "удержали" for e in resolved)
-        line = (f"всплесков объёма было {len(eps)}: после {dist} цену "
-                f"слили, {held} устояли, {part} отдали наполовину"
+        # Числа обязаны сходиться (правка 31.08). Было: «всплесков
+        # было 8: после 0 цену слили, 2 устояли, 3 отдали наполовину»
+        # — восемь в заголовке, пять в разборе, три пропали молча.
+        # Пропали неразрешённые: их не судят, но и не прятать же.
+        ripe = len(eps) - len(resolved)
+        line = (f"всплесков объёма было {len(eps)}, разрешились "
+                f"{len(resolved)}: после {dist} цену слили, {held} устояли, "
+                f"{part} отдали наполовину"
+                + (f" · {ripe} ещё зреют" if ripe else "")
                 if resolved else
                 (f"всплесков объёма {len(eps)}, исходы ещё зреют" if eps
                  else "всплесков объёма не было"))

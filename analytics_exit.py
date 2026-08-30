@@ -163,8 +163,16 @@ def exit_watch(star: dict, calendar_items: list[dict] | None = None) -> dict:
             why.append(f"транш {when} — дедлайн истории")
 
     # ── 1б. Календарь рынка (Р-7) ──
+    # ТОЛЬКО риск-даты. Раньше сюда же проходили пункты kind="unlock",
+    # а они в частоколе всегда про КОНКРЕТНУЮ монету: из-за этого на
+    # карточке SKR висело «ENA — транш 2.71% обращения через 3 дн —
+    # рынок качнёт», и та же чужая строка стояла у всей выборки разом
+    # (разбор 31.08). Свой транш монеты разобран половиной 1 выше;
+    # чужой мелкий не торопит никого, а место в самой срочной строке
+    # занимает. Рыночный ФОН разлоков — это отдельный пункт частокола
+    # с kind="macro", он сюда и не относился.
     for it in (calendar_items or []):
-        if it.get("kind") in ("risk", "unlock") and not it.get("running"):
+        if it.get("kind") == "risk" and not it.get("running"):
             d = int(it.get("days") or 0)
             if d <= EXIT_DEADLINE_DAYS:
                 deadline = d if deadline is None else min(deadline, d)

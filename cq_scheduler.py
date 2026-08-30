@@ -28,6 +28,7 @@ from pathlib import Path
 FETCH = Path(__file__).resolve().parent / "cryptoquant_fetch.py"
 RUN_AT_UTC = (1, 10)          # час, минута
 STALE_HOURS = 20
+LAG_MIN_HOURS = 3             # реже проверять «источник ещё не выложил день»
 MAX_NEW = 8                   # новичков за один прицельный добор
 RETRIES, RETRY_SLEEP = 3, 1800
 
@@ -107,10 +108,33 @@ def run_fetch_only(bases: list, out: Path) -> bool:
     return r.returncode == 0
 
 
+def archive_data_day(out: Path) -> str:
+    """Дата самой свежей ТОЧКИ архива после полного обхода."""
+    p = out / "_summary.json"
+    if not p.exists():
+        return ""
+    try:
+        return str((json.loads(p.read_text()) or {}).get("full_data_at") or "")
+    except Exception:
+        return ""
+
+
+def last_closed_utc_day(now: dt.datetime = None) -> str:
+    """Последняя дневка, которая у источника точно закрыта.
+
+    День закрывается в полночь UTC, публикация занимает ещё
+    несколько минут — до 01:00 UTC считаем закрытым позавчерашний.
+    """
+    now = now or dt.datetime.now(dt.timezone.utc)
+    back = 2 if now.hour < 1 else 1
+    return (now - dt.timedelta(days=back)).date().isoformat()
+
+
 def ensure_fresh(journal: str, out: Path) -> bool:
-    """Дотянуть архив. Две причины дозабора, независимые друг от друга:
+    """Дотянуть архив. Три независимые причины дозабора:
 
     СОСТАВ — в журнале есть монета, которой нет в архиве;
+    ОТСТАВАНИЕ — в архиве нет последнего закрытого дня;
     ВОЗРАСТ — полному обходу больше STALE_HOURS.
 
     Состав проверяется первым и от возраста НЕ зависит. Новая монета
@@ -121,6 +145,15 @@ def ensure_fresh(journal: str, out: Path) -> bool:
     cq_v2/<base>.json — нет репутации, нет сюжета в зале, нет
     flow_<base>.html, кнопка ai даёт 404. Так ZORA стала лидером и
     осталась без единой строки (30.08).
+
+    ОТСТАВАНИЕ — второй живой случай (30.08): ручной прогон в 02:41
+    по местному (UTC+3) опередил закрытие дневки на девятнадцать
+    минут и принёс данные по 28-е вместо 29-го. Прогон отработал
+    успешно, файл только что записан — по возрасту архив свежий, по
+    содержимому отстал на сутки. Возраст файла и возраст ДАННЫХ —
+    разные вещи, и сторож обязан смотреть на второе.
+    Порог LAG_MIN_HOURS не даёт долбить источник каждый час, если
+    он сам ещё не выложил день.
     """
     ok = True
     miss = sorted(journal_bases(journal) - archive_bases(out))
@@ -130,10 +163,15 @@ def ensure_fresh(journal: str, out: Path) -> bool:
             + (f"; беру {MAX_NEW}, остальных возьмёт следующий прогон"
                if rest else ""))
         ok = run_fetch_only(batch, out)
+
     age = archive_age_hours(out)
-    if age < STALE_HOURS:
+    have, want = archive_data_day(out), last_closed_utc_day()
+    lag = bool(have and have < want and age >= LAG_MIN_HOURS)
+    if age < STALE_HOURS and not lag:
         return ok
-    log(out, f"полный обход старше {STALE_HOURS} ч (возраст {age:.1f} ч)")
+    log(out, f"данные по {have}, ждём {want} (возраст {age:.1f} ч)"
+        if lag else
+        f"полный обход старше {STALE_HOURS} ч (возраст {age:.1f} ч)")
     return run_fetch(journal, out) and ok
 
 

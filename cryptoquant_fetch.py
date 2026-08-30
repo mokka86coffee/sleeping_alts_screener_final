@@ -157,6 +157,7 @@ def main() -> int:
 
     OUT.mkdir(exist_ok=True)
     summary = {"window": window, "days": a.days, "coins": {}}
+    newest = ""                  # самая свежая ТОЧКА ДАННЫХ этого прогона
     print(f"сборщик v2: монет {len(bases)} · окно {window} · "
           f"дней {a.days} · ~{len(bases) * len(METRICS)} запросов")
 
@@ -182,6 +183,14 @@ def main() -> int:
                 rows = rows + [r for r in old[key]
                                if r["datetime"] not in seen]
             coin[key] = rows
+            # Свежая точка идёт первой (так отдаёт API, так же
+            # склеиваем при --update). Дата нужна планировщику:
+            # успешный прогон может принести на день меньше, чем
+            # мог, и по возрасту файла этого не видно.
+            if rows:
+                _d = str(rows[0].get("datetime") or "")[:10]
+                if _d > newest:
+                    newest = _d
         got = {k: len(v) for k, v in coin.items()}
         summary["coins"][b] = got
         tmp = OUT / f".{b}.tmp"
@@ -212,8 +221,12 @@ def main() -> int:
     merged["days"] = a.days
     merged["coins"] = {**(prev.get("coins") or {}), **summary["coins"]}
     merged["at"] = now_iso
+    if newest:
+        merged["data_at"] = newest
     if not targeted:
         merged["full_at"] = now_iso
+        if newest:
+            merged["full_data_at"] = newest
     elif not merged.get("full_at") and sp.exists():
         # у сводки, написанной до этой правки, поля нет — засеваем его
         # её же mtime: это и есть час последнего полного обхода
