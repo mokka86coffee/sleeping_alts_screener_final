@@ -189,6 +189,87 @@ def today_print(tr: list, oh: list, fu: list) -> dict:
             "date": t["datetime"][:10]}
 
 
+def plot_line(tr: list, oh: list, fu: list, oi: list) -> str:
+    """Сюжет: узнанный шаблон истории с человеческим прогнозом.
+    Шаблоны калиброваны ночными разборами 30.08 (ONG/SKR — курок
+    шортов; BTR — кит до взрыва; BLESS/TRUMP — рука над сливом;
+    PROM/STX — лестница руки; NIL — дёрг без подтверждения)."""
+    if len(tr) < 10 or len(oh) < 10:
+        return ""
+    closes = {r["datetime"][:10]: r["close"] for r in oh}
+    days = [t["datetime"][:10] for t in tr]
+    px = [closes.get(d) for d in days]
+    if not all(px[-8:]):
+        return ""
+    vols = [t["quote_volume"] for t in tr]
+    med = _median(vols[-37:-7]) or 1.0
+    dl = [t["quote_buy_volume"] - t["quote_sell_volume"] for t in tr]
+    fu_last = fu[-1]["funding_rate"] if fu else 0.0
+    fu_min7 = min((r["funding_rate"] for r in fu[-7:]), default=0.0)
+    chk = tr[-1]["quote_volume"] / max(1, tr[-1]["trade_count"])
+    chks = [tr[j]["quote_volume"] / max(1, tr[j]["trade_count"])
+            for j in range(max(0, len(tr)-37), len(tr)-7)]
+    chk_norm = _median(chks) or 1.0
+    d_now, d_prev = dl[-1], dl[-2]
+    px_wk = px[-1] / px[-8] - 1 if px[-8] else 0
+    vol_now = vols[-1] / med
+
+    # 1. Курок второго акта (ONG/SKR): шорты платят жирно + мясорубка
+    if fu_min7 <= -0.5 and vol_now >= 8:
+        if d_now > 0:
+            return ("второй акт НА ХОДУ: шорты платят "
+                    f"{abs(fu_last):.1f}% — их выкуп и толкает цену; "
+                    "по шаблону ONG/SKR акт ярок и короток: выход — "
+                    "чек мельчает, фандинг к нулю или первый день "
+                    "продаж")
+        return ("взведён курок второго акта (шаблон ONG/SKR): шорты "
+                f"платят до {abs(fu_min7):.1f}%, оборот-мясорубка ×"
+                f"{vol_now:.0f} — день покупок выше недавнего верха "
+                "может дать резкий вынос; продолжение продаж — отбой")
+    # 2. Рука над сливом (BLESS/TRUMP): дни продаж, а цена не падает
+    neg_streak = 0
+    for j in range(len(dl)-1, -1, -1):
+        if dl[j] < 0:
+            neg_streak += 1
+        else:
+            break
+    if neg_streak >= 3 and px_wk > -0.05:
+        return (f"рука над сливом (шаблон BLESS/TRUMP): продают "
+                f"{neg_streak} дней подряд, а цена держится — крупный "
+                "собирает лимитками; развязку выбирает он: рост "
+                "возможен резкий, но первый день, когда продажи "
+                "продавили цену на 7%+, — рука ушла, выходить без "
+                "иллюзий")
+    # 3. Лестница руки (PROM/STX): цена растёт при перевесе продаж
+    wk_delta = sum(dl[-7:])
+    if px_wk > 0.25 and wk_delta < 0 and fu_last < 0.05:
+        return ("лестница руки (шаблон PROM/STX): за неделю цена +"
+                f"{px_wk*100:.0f}% при перевесе продаж — лимитный "
+                "покупатель ведёт, плечо толпы холодное; ход обычно "
+                "жив до дня, когда продажи совпадут с падением 7%+ "
+                "— это финал лестницы")
+    # 4. Кит до взрыва (BTR): тихо, чек крупный, дельта ≈0
+    if (vol_now >= 1.5 and chk > 1.4 * chk_norm
+            and abs(d_now) < 0.03 * vols[-1] and abs(fu_last) < 0.05):
+        return ("похоже на набор кита (шаблон BTR-до-взрыва): оборот "
+                f"×{vol_now:.1f} при крупном чеке и ровной кассе — "
+                "кто-то собирает лимитками; искрой обычно служит "
+                "вынос шортов, дальше возможен розничный шторм")
+    # 5. Дёрг без подтверждения (NIL): вчера импульс+, сегодня минус
+    if d_prev > 0 and d_now < 0 and px[-2] and px[-2] / px[-3] - 1 > 0.08             and px[-1] < px[-2]:
+        return ("дёрг без подтверждения (шаблон NIL): вчерашний "
+                "импульс сегодня продают — старта не случилось; "
+                "интерес вернёт только новый день покупок с "
+                "удержанием выше вчерашнего верха")
+    # 6. Раздача вторым днём после пика
+    if len(dl) >= 3 and dl[-1] < 0 and dl[-2] < 0 and             max(vols[-5:]) / med >= 8 and px[-1] < max(p for p in px[-5:] if p) * 0.85:
+        return ("раздача после пика (шаблон ONG-финал): второй день "
+                "продаж после мясорубки, от вершины уже −15%+; по "
+                "шаблону дальше тяжело — возврат интереса только "
+                "через новый цикл набора")
+    return ""
+
+
 def build(archive: Path) -> dict:
     rep = {"_meta": {"source": "cq_v2", "thresholds": {
         "episode_mult": EPISODE_MULT, "held_ret7": HELD_RET7,
@@ -217,6 +298,7 @@ def build(archive: Path) -> dict:
             "distributed": dist, "partial": part, "held": held,
             "line": line,
             "today": today_print(tr, oh, fu),
+            "plot": plot_line(tr, oh, fu, oi),
             "last_episode": eps[-1] if eps else None,
         }
     return rep
