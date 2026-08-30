@@ -4241,7 +4241,6 @@ PODIUM_JS = """
     if (s.flowFired && +s.flowFired > 1) {
       calc.push('детекторов согласно <em>' + (+s.flowFired) + '</em>');
     }
-    if (twoOpen) h += '</div></div>';
 
     var pairHtml = '';
     if (why) pairHtml += '<div class="obc-why obc-anim" style="--nd:1">' +
