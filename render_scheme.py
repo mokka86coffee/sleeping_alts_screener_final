@@ -66,12 +66,12 @@ def render_scheme(stars: list[dict], market: dict) -> str:
                                       _v.group(1).strip().rstrip(".")})
             if _rd:
                 for _c in _re.findall(r"^\d\.\s+(.+?)(?=^\d\.|\Z)",
-                                      _rd.group(1), _re.S | _re.M)[:4]:
+                                      _rd.group(1), _re.S | _re.M)[:8]:
                     _h, _, _t = _c.partition(":")
                     _new.append({"kind": "regime", "days": 0,
                                  "running": True,
                                  "title": _h.strip() + " — " +
-                                          " ".join(_t.split())[:90]})
+                                          " ".join(_t.split())[:150]})
             if _new:
                 market = dict(market)
                 _pp = dict(market.get("predictions") or {})
@@ -79,6 +79,16 @@ def render_scheme(stars: list[dict], market: dict) -> str:
                 _cal["items"] = _new + list(_cal.get("items") or [])
                 _pp["calendar"] = _cal
                 market["predictions"] = _pp
+                market["regime"] = {
+                    "verdict": (_v.group(1).strip().rstrip(".")
+                                if _v else ""),
+                    "rows": [[_h2.strip(), " ".join(_t2.split())[:150]]
+                             for _h2, _t2 in
+                             ((c.partition(":")[0], c.partition(":")[2])
+                              for c in _re.findall(
+                                  r"^\d\.\s+(.+?)(?=^\d\.|\Z)",
+                                  _rd.group(1), _re.S | _re.M))][:8]
+                    if _rd else []}
     except Exception:
         pass
 
@@ -131,20 +141,36 @@ SCHEME_HTML = """
     radial-gradient(60% 52% at 50% 100%, rgba(60,110,220,.20), transparent 70%),
     radial-gradient(40% 30% at 50% 88%, rgba(120,70,40,.18), transparent 70%),
     radial-gradient(1100px 700px at 50% -5%, #3f3f67, #2b2e51 45%, #1b1c34 100%)}
-/* ── КИТЫ (31.08, вид утверждён): пузыри справа, всплывают как
-   новости. Цвет несёт сторону: бирюза лонг, янтарь шорт; внутри —
-   тикер (+ при доборе, галочка при закрытии) и % от капы. ── */
-.wb{position:absolute;top:100%;display:flex;flex-direction:column;
-  align-items:center;text-align:center;opacity:.56;
-  animation:rise var(--t) linear var(--d) infinite;z-index:3}
-.wb svg{width:26px;height:14px;margin-bottom:2px;
-  color:rgba(127,227,212,.5);filter:drop-shadow(0 0 5px rgba(127,227,212,.35))}
-.wb.s svg{color:rgba(240,179,86,.5);filter:drop-shadow(0 0 5px rgba(240,179,86,.3))}
-.wb b{display:block;font:700 10px Inter,Arial;line-height:1.25;
-  color:rgba(230,237,255,.21)}
-.wb b:first-of-type{color:rgba(127,227,212,.55)}
-.wb.s b:first-of-type{color:rgba(240,179,86,.55)}
-.wb b .ar{font-style:normal;opacity:.7}
+/* ── КИТЫ · СТАЯ ПО МОНЕТАМ (31.08, вид утверждён): один пузырь —
+   одна монета, внутри плавают её киты. Цвет кита = сторона, метка:
+   + добрал, ✓ закрыл, пусто — открыл. Размер круга — деньги. ── */
+.pods{position:absolute;right:2.5%;top:7%;width:min(400px,32vw);
+  z-index:3;opacity:.86;pointer-events:none}
+.pods h5{font:600 8px Inter,Arial;letter-spacing:.34em;color:#57708a;
+  margin:0 0 12px;text-align:center}
+.pod{position:relative;margin:0 auto 14px;border-radius:50%;
+  border:1px solid rgba(127,227,212,.13);
+  background:radial-gradient(circle at 36% 28%,rgba(127,227,212,.045),
+  rgba(15,22,48,.16) 72%)}
+.pod.s{border-color:rgba(240,179,86,.13);
+  background:radial-gradient(circle at 36% 28%,rgba(240,179,86,.045),
+  rgba(26,20,40,.16) 72%)}
+.pod .ttl{position:absolute;left:0;right:0;top:12%;text-align:center;
+  font:700 10.5px Inter,Arial;color:rgba(230,237,255,.5);
+  letter-spacing:.05em}
+.pod .sub{position:absolute;left:0;right:0;bottom:13%;text-align:center;
+  font:400 8px Inter,Arial;color:rgba(159,184,212,.42)}
+.pod .w{position:absolute;width:21px;height:10px}
+.pod .w svg{width:100%;height:100%;display:block}
+.pod .w.l svg{color:rgba(127,227,212,.62)}
+.pod .w.s svg{color:rgba(240,179,86,.62)}
+.pod .w b{position:absolute;left:104%;top:0;font:700 8px Inter,Arial;
+  color:rgba(230,237,255,.42)}
+@keyframes sw{0%{transform:translate(0,0) scaleX(1)}
+  24%{transform:translate(24px,-7px) scaleX(1)}
+  48%{transform:translate(35px,4px) scaleX(-1)}
+  76%{transform:translate(9px,9px) scaleX(-1)}
+  100%{transform:translate(0,0) scaleX(1)}}
 
 .top{position:absolute;left:48px;right:48px;top:26px;display:flex;justify-content:flex-end;align-items:center;z-index:5}
 .logo{display:none;align-items:center;gap:12px;font-family:var(--mono);font-size:12.1px;letter-spacing:.34em;color:var(--lab)}
@@ -464,7 +490,7 @@ SCHEME_JS = r"""
   var root = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
   root.appendChild(tpl.content.cloneNode(true));
   function q(sel){ return root.querySelector(sel); }
-  /* ── киты: пузыри справа (вид утверждён 31.08) ── */
+  /* ── киты: стая по монетам (31.08) ── */
   (function(){
     var A = (DATA.whales || {}).alerts || [];
     if (!A.length) return;
@@ -472,41 +498,58 @@ SCHEME_JS = r"""
       if (!m) return 0;
       return +m[1] * ({K:1e3, M:1e6, B:1e9})[m[2].toUpperCase()]; }
     var CAP = {};
-    for (var ci = 0; ci < ST.length; ci++) {
-      var cs = ST[ci];
-      CAP[String(cs.t || '').replace(/USDT$/, '')] = musd(cs.cap);
-    }
+    for (var ci = 0; ci < ST.length; ci++)
+      CAP[String(ST[ci].t || '').replace(/USDT$/, '')] = musd(ST[ci].cap);
     CAP.BTC = CAP.BTC || 2.3e12; CAP.ETH = CAP.ETH || 5.6e11;
     CAP.SOL = CAP.SOL || 1.1e11; CAP.HYPE = CAP.HYPE || 1.5e10;
-    var h = '';
-    for (var i = 0; i < Math.min(8, A.length); i++) {
-      var a = A[i] || {};
-      var t = String(a.title || '');
-      var side = t.indexOf('\u0448\u043e\u0440\u0442') >= 0 ? ' s' : '';
+    /* группируем алерты по монете */
+    var G = {}, order = [];
+    for (var i = 0; i < A.length; i++) {
+      var t = String(A[i].title || '');
       var m = t.match(/([A-Z0-9]{2,10})\s+\$([\d.]+[KMB])/);
-      var sym = m ? m[1] : '', usd = m ? '$' + m[2] : '';
-      var vv = musd(usd), cp = CAP[sym] || 0;
-      var pc = (vv && cp) ? (vv / cp * 100) : null;
-      /* округление до десятых; у гигантов (BTC/ETH, капа от $100B)
-         и при мизере (<0.05%) процент не пишем: киты знают больше —
-         и этого достаточно */
-      var shown = (cp >= 1e11 || pc == null || pc < 0.05) ? ''
-        : pc.toFixed(1) + '% \u043a\u0430\u043f\u044b';
+      if (!m) continue;
+      var sym = m[1], usd = musd('$' + m[2]);
+      var side = t.indexOf('\u0448\u043e\u0440\u0442') >= 0 ? 's' : 'l';
       var mk = t.indexOf('\u043d\u0430\u0440\u0430\u0441\u0442\u0438\u043b') >= 0 ? '+'
              : t.indexOf('\u0437\u0430\u043a\u0440\u044b\u043b') >= 0 ? '\u2713' : '';
-      var d = Math.min(84, Math.max(52, shown.length * 6 + sym.length * 5 + 24));
-      var tt = 26 + (i % 5) * 7;
-      var WSVG = '<svg viewBox="0 0 32 16" fill="currentColor">' +
-        '<path d="M2 9c5-6 16-8 24-4l4-4v6l-4-1c1 3-2 6-8 6-8 0-13-1-16-3z"/>' +
-        '<circle cx="23" cy="7" r="1" fill="rgba(4,8,15,.8)"/></svg>';
-      h += '<span class="wb' + side + '" style="right:' + (2.5 + (i % 3) * 6.5) +
-        '%;--t:' + tt + 's;--d:-' +
-        ((i / Math.min(8, A.length)) * tt).toFixed(1) + 's">' + WSVG + '<b>' +
-        esc(sym) + (mk ? ' <i class="ar">' + mk + '</i>' : '') +
-        '</b>' + (shown ? '<b>' + esc(shown) + '</b>' : '') + '</span>';
+      if (!G[sym]) { G[sym] = {w: [], usd: 0}; order.push(sym); }
+      G[sym].w.push([side, mk]);
+      G[sym].usd += usd;
     }
+    order.sort(function(a, b){ return G[b].usd - G[a].usd; });
+    order = order.slice(0, 4);
+    if (!order.length) return;
+    var SVG = '<svg viewBox="0 0 32 16" fill="currentColor">' +
+      '<path d="M2 9c5-6 16-8 24-4l4-4v6l-4-1c1 3-2 6-8 6-8 0-13-1-16-3z"/>' +
+      '<circle cx="23" cy="7" r="1" fill="rgba(4,8,15,.75)"/></svg>';
+    var h = '<h5>\u041a\u0418\u0422\u042b \u00b7 ' +
+            '\u0421\u0422\u0410\u042f \u041f\u041e \u041c\u041e\u041d\u0415\u0422\u0410\u041c</h5>';
+    order.forEach(function(sym, pi){
+      var g = G[sym], n = g.w.length;
+      var lo = g.w.filter(function(x){ return x[0] === 'l'; }).length;
+      var d = Math.max(104, Math.min(178, 78 + n * 21));
+      var cp = CAP[sym] || 0, pc = cp ? (g.usd / cp * 100) : null;
+      var sub = (pc == null || cp >= 1e11 || pc < 0.05) ? ''
+              : pc.toFixed(1) + '% \u043a\u0430\u043f\u044b';
+      h += '<div class="pod' + (lo >= n / 2 ? '' : ' s') + '" style="width:' +
+        d + 'px;height:' + d + 'px"><span class="ttl">' + esc(sym) +
+        ' \u00b7 ' + n + '</span>' +
+        (sub ? '<span class="sub">' + sub + '</span>' : '');
+      g.w.forEach(function(w, k){
+        var ang = (k / n) * 6.283 + pi, r = d * 0.31;
+        var x = d / 2 + Math.cos(ang) * r - 10;
+        var y = d / 2 + Math.sin(ang) * r - 5;
+        h += '<span class="w ' + w[0] + '" style="left:' + x.toFixed(0) +
+          'px;top:' + y.toFixed(0) + 'px;animation:sw ' + (9 + k * 1.7) +
+          's ease-in-out ' + (-k * 2) + 's infinite">' + SVG +
+          (w[1] ? '<b>' + w[1] + '</b>' : '') + '</span>';
+      });
+      h += '</div>';
+    });
     var stage = q('.obs') || root.firstElementChild;
-    if (stage) stage.insertAdjacentHTML('beforeend', h);
+    if (stage)
+      stage.insertAdjacentHTML('beforeend',
+        '<div class="pods">' + h + '</div>');
   })();
   var reduce = window.matchMedia &&
     window.matchMedia('(prefers-reduced-motion:reduce)').matches;
@@ -622,6 +665,15 @@ SCHEME_JS = r"""
     }
     return out;
   })().concat([
+    /* БИТКОИН · РЕЖИМ (31.08): вердикт гейта и его графы прямо
+       ветвью схемы — раньше жил только в ленте новостей. */
+    { k:'Биткоин · режим',
+      v: (M.regime && M.regime.verdict) ?
+         esc(M.regime.verdict).replace(/[«»]/g, '') : null,
+      c:'#ffcf7a',
+      s: (M.regime && M.regime.rows || []).slice(0, 4).map(
+           function(r){ return '<b>' + esc(r[0]) + ':</b> ' +
+             esc(String(r[1]).slice(0, 110)); }).join('<br>') },
     { k:'Окно рынка', v:(P.warnCount||0) + ' из ' + (P.knownCount||7), c:'#cfd8ef',
       s: esc(reasons[0]||'') + (M.appetite ? '. Аппетит ' + esc(M.appetite).replace('/',' из ') : '') },
     { k:'Фон', v: pct(md.d7,1), c:'#8ab4ff',
