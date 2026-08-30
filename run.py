@@ -787,6 +787,44 @@ def run_once(args: argparse.Namespace) -> int:
     except Exception as e:
         log(f"→ Репутации пропущены: {type(e).__name__}: {e}")
 
+    # Экран-поток (30.08): flow.html собирается каждым прогоном —
+    # цель кнопки AI в зале. Монета — самая громкая касса дня из
+    # репутаций (наибольший перевес в стакане по модулю); нет
+    # файла — bless. Сбой — лог и пропуск, кнопка ведёт на
+    # прошлую сборку.
+    try:
+        import json as _json3
+        import subprocess as _sp
+        import sys as _sys
+        from pathlib import Path as _P3
+        _base3 = _P3(__file__).resolve().parent
+        _coin = "bless"
+        try:
+            _rep3 = _json3.loads((_P3("output") / "reputation.json")
+                                 .read_text(encoding="utf-8"))
+            _loud = max((v for k, v in _rep3.items()
+                         if k != "_meta" and isinstance(v, dict)
+                         and (v.get("today") or {}).get("delta_usd")),
+                        key=lambda v: abs(v["today"]["delta_usd"]),
+                        default=None)
+            if _loud:
+                _coin = next(k for k, v in _rep3.items()
+                             if v is _loud)[:-4].lower()
+        except Exception:
+            pass
+        _r3 = _sp.run([_sys.executable, str(_base3 / "make_flow.py"),
+                       "--coin", _coin,
+                       "--archive", str(_base3 / "cq_v2"),
+                       "--out", str(_base3 / "flow.html")],
+                      capture_output=True, text=True, timeout=120)
+        if _r3.returncode == 0:
+            log(f"→ Экран-поток: flow.html собран ({_coin.upper()})")
+        else:
+            _tl = (_r3.stderr or _r3.stdout).strip().splitlines()[-1:]
+            log(f"→ Экран-поток пропущен: {_tl[0] if _tl else 'сбой'}")
+    except Exception as e:
+        log(f"→ Экран-поток пропущен: {type(e).__name__}: {e}")
+
     # ── Ручные контуры — по своим отрезкам, не каждый прогон ──
     # Правило владельца 29.08: всё ручное заводится в прогон, но
     # запускается ОТ СВЕЖЕСТИ имеющегося файла, а не по кругу.
