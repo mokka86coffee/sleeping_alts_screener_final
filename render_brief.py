@@ -564,6 +564,29 @@ BRIEF_JS = """
         '\u0441\u044e\u0436\u0435\u0442'));
       got++;
     }
+    /* Растущих нет (день раздачи) — секция не молчит: показываем
+       до двух «рук над сливом» с держащейся ценой. По шаблону
+       развязку выбирает рука, резкий рост возможен — это честные
+       «под наблюдением», не пустота. */
+    if (!got) {
+      var HAND = '\u0440\u0443\u043a\u0430 \u043d\u0430\u0434 \u0441\u043b\u0438\u0432\u043e\u043c';
+      var cand = [];
+      for (var j = 0; j < ST.length; j++) {
+        var sj = ST[j], rj = sj.rep || {};
+        if ((rj.plot || '').indexOf(HAND) >= 0)
+          cand.push([Math.abs(rj.delta_usd || 0), sj]);
+      }
+      cand.sort(function(a, b){ return b[0] - a[0]; });
+      for (var q = 0; q < Math.min(2, cand.length); q++) {
+        var sq = cand[q][1], rq = sq.rep || {};
+        var bq = '<div class="obf-body">' + esc(rq.plot) + '.' +
+          (rq.phrase ? ' \u0421\u0435\u0433\u043e\u0434\u043d\u044f \u0432 \u0441\u0442\u0430\u043a\u0430\u043d\u0435: ' +
+            esc(rq.phrase) + '.' : '') + '</div>';
+        pages.push(page('\u041f\u043e\u0434 \u043d\u0430\u0431\u043b\u044e\u0434\u0435\u043d\u0438\u0435\u043c \u00b7 ' +
+          esc(sq.t || sq.sym || ''), bq,
+          '\u0441\u044e\u0436\u0435\u0442'));
+      }
+    }
   })();
 
   /* 1 · окно рынка */
