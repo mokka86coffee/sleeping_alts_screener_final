@@ -37,8 +37,8 @@ from analytics_portfolio import portfolios
 from analytics_stars import build_stars
 from core_config import REPORT_PATH
 from render_css import CSS
-from render_brief import render_brief          # прежняя сводка-листалка
-from render_scheme import render_scheme        # сводка-схема (26.08)
+from render_brief import render_brief          # листалка (запасная)
+from render_scheme import render_scheme        # сводка-схема — ЛИЦО брифа
 from render_dashboard import build_slices, render_dashboard_page
 from render_orbit import orbit_market
 from render_podium import render_podium
@@ -207,9 +207,10 @@ def build_pages(candidates: list[Candidate],
         "dashboard.html": document(
             render_dashboard_page(candidates, snapshot, slices,
                                   market, stars)),
-        # СВОДКА — СХЕМА. Прежняя листалка (render_brief) осталась в
-        # своём файле и работает: чтобы вернуться к ней, поменять
-        # render_scheme на render_brief в этой строке, и всё.
+        # СВОДКА — ЛИСТАЛКА (31.08): секция «Пойдёт?», режим в ленте.
+        # Схема НЕ выброшена: публикуется рядом своим документом
+        # scheme.html — открывается прямой ссылкой, очередь оболочки
+        # не трогает. Поменять экраны местами — поменять две строки.
         "brief.html": document(render_scheme(stars, market)),
         "podium.html": document(render_podium(stars, market)),
     }

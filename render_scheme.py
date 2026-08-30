@@ -46,6 +46,43 @@ import json
 
 
 def render_scheme(stars: list[dict], market: dict) -> str:
+    # Режим по биткоину (31.08): REGIME_GATE.md — в нижнюю ленту
+    # новостей схемы: вердикт + четыре главные графы пузырями.
+    try:
+        import re as _re
+        from pathlib import Path as _P
+        _p = _P("REGIME_GATE.md")
+        if not _p.exists():
+            _p = _P(__file__).resolve().parent / "REGIME_GATE.md"
+        if _p.exists():
+            _md = _p.read_text(encoding="utf-8")
+            _v = _re.search(r"ВЕРДИКТ[^:]*:\s*(.+)", _md)
+            _rd = _re.search(r"## ЭТАЛОННОЕ ЧТЕНИЕ.*?\n(.*?)(?=\n## )",
+                             _md, _re.S)
+            _items_new = []
+            if _v:
+                _items_new.append({"kind": "regime", "days": 0,
+                                   "running": True,
+                                   "title": "БИТКОИН: " +
+                                            _v.group(1).strip().rstrip(".")})
+            if _rd:
+                for _c in _re.findall(r"^\d\.\s+(.+?)(?=^\d\.|\Z)",
+                                      _rd.group(1), _re.S | _re.M)[:4]:
+                    _h, _, _t = _c.partition(":")
+                    _items_new.append({"kind": "regime", "days": 0,
+                                       "running": True,
+                                       "title": _h.strip() + " — " +
+                                       " ".join(_t.split())[:90]})
+            if _items_new:
+                market = dict(market)
+                _pp = dict(market.get("predictions") or {})
+                _cal = dict(_pp.get("calendar") or {})
+                _cal["items"] = _items_new + list(_cal.get("items") or [])
+                _pp["calendar"] = _cal
+                market["predictions"] = _pp
+    except Exception:
+        pass
+
     """Тело документа сводки-схемы. Данные вшиваются, а не читаются из окна."""
     blob = json.dumps({"stars": stars, "market": market},
                       ensure_ascii=False, separators=(",", ":"))
@@ -506,6 +543,27 @@ SCHEME_JS = """
       s:'скор <b>' + (L0.score||'—') + '</b> · ' + esc(L0.case||'') + ' · ' + esc(L0.cap||'') +
         ' · ход ' + pct(ls.chg,0) +
         (rws.length ? '<br>трое суток держатся: ' + rws.map(function(r){ return r.t + ' ' + r.n; }).join(' · ') : '') },
+    /* ── ПОЙДЁТ? (31.08): сюжеты растущего класса из репутаций —
+       одна монета, одна ветвь. Пустых не бывает: нет растущих —
+       ветви не появляются (отбор пустых ниже). */
+  ].concat((function(){
+    var GROW = ['набор кита', 'лестница руки', 'курок второго',
+                'акт НА ХОДУ', 'ИСКРА', 'подтверждение пришло'];
+    var out = [];
+    for (var gi = 0; gi < ST.length && out.length < 4; gi++) {
+      var gs = ST[gi], gr = gs.rep || {}, gp = gr.plot || '';
+      if (!gp) continue;
+      var hit = false;
+      for (var gg = 0; gg < GROW.length; gg++)
+        if (gp.indexOf(GROW[gg]) >= 0) { hit = true; break; }
+      if (!hit) continue;
+      out.push({ k: 'Пойдёт? · ' + (gs.t || ''),
+                 v: gp.split('(')[0].trim(),
+                 c: '#7fe3d4',
+                 s: esc(gp).slice(0, 170) });
+    }
+    return out;
+  })()).concat([
     /* ── ветви потока сделок ── */
 
     /* Тейкерское отношение: ниже единицы — продавцы бьют по стакану
