@@ -46,45 +46,19 @@ import json
 
 
 def render_scheme(stars: list[dict], market: dict) -> str:
-    # Режим по биткоину (31.08): REGIME_GATE.md — в нижнюю ленту
-    # новостей схемы: вердикт + четыре главные графы пузырями.
-    try:
-        import re as _re
-        from pathlib import Path as _P
-        _p = _P("REGIME_GATE.md")
-        if not _p.exists():
-            _p = _P(__file__).resolve().parent / "REGIME_GATE.md"
-        if _p.exists():
-            _md = _p.read_text(encoding="utf-8")
-            _v = _re.search(r"ВЕРДИКТ[^:]*:\s*(.+)", _md)
-            _rd = _re.search(r"## ЭТАЛОННОЕ ЧТЕНИЕ.*?\n(.*?)(?=\n## )",
-                             _md, _re.S)
-            _items_new = []
-            if _v:
-                _items_new.append({"kind": "regime", "days": 0,
-                                   "running": True,
-                                   "title": "БИТКОИН: " +
-                                            _v.group(1).strip().rstrip(".")})
-            if _rd:
-                for _c in _re.findall(r"^\d\.\s+(.+?)(?=^\d\.|\Z)",
-                                      _rd.group(1), _re.S | _re.M)[:4]:
-                    _h, _, _t = _c.partition(":")
-                    _items_new.append({"kind": "regime", "days": 0,
-                                       "running": True,
-                                       "title": _h.strip() + " — " +
-                                       " ".join(_t.split())[:90]})
-            if _items_new:
-                market = dict(market)
-                _pp = dict(market.get("predictions") or {})
-                _cal = dict(_pp.get("calendar") or {})
-                _cal["items"] = _items_new + list(_cal.get("items") or [])
-                _pp["calendar"] = _cal
-                market["predictions"] = _pp
-    except Exception:
-        pass
-
     """Тело документа сводки-схемы. Данные вшиваются, а не читаются из окна."""
-    blob = json.dumps({"stars": stars, "market": market},
+    _wh = {}
+    try:
+        import json as _j3
+        from pathlib import Path as _P3
+        _wf = _P3("output") / "whales.json"
+        if not _wf.exists():
+            _wf = _P3(__file__).resolve().parent / "output" / "whales.json"
+        if _wf.exists():
+            _wh = _j3.loads(_wf.read_text(encoding="utf-8"))
+    except Exception:
+        _wh = {}
+    blob = json.dumps({"stars": stars, "market": market, "whales": _wh},
                       ensure_ascii=False, separators=(",", ":"))
     # Данные идут в <script type="application/json">: внутри такого блока
     # браузер не разбирает разметку, и последовательность вроде </script>
@@ -121,6 +95,26 @@ SCHEME_HTML = """
     radial-gradient(60% 52% at 50% 100%, rgba(60,110,220,.20), transparent 70%),
     radial-gradient(40% 30% at 50% 88%, rgba(120,70,40,.18), transparent 70%),
     radial-gradient(1100px 700px at 50% -5%, #3f3f67, #2b2e51 45%, #1b1c34 100%)}
+/* ── КИТЫ (31.08, вид утверждён): пузыри справа, всплывают как
+   новости. Цвет несёт сторону: бирюза лонг, янтарь шорт; внутри —
+   тикер (+ при доборе, галочка при закрытии) и % от капы. ── */
+.wb{position:absolute;top:100%;display:flex;align-items:center;
+  justify-content:center;text-align:center;border-radius:50%;
+  animation:rise var(--t) linear var(--d) infinite;z-index:3;
+  background:radial-gradient(circle at 34% 30%,rgba(127,227,212,.035),
+  rgba(15,22,48,.13) 70%);border:1px solid rgba(127,227,212,.13);
+  box-shadow:0 0 14px rgba(127,227,212,.05),
+  inset 0 0 10px rgba(127,227,212,.025)}
+.wb.s{background:radial-gradient(circle at 34% 30%,rgba(240,179,86,.035),
+  rgba(26,20,40,.13) 70%);border-color:rgba(240,179,86,.13);
+  box-shadow:0 0 14px rgba(240,179,86,.045),
+  inset 0 0 10px rgba(240,179,86,.022)}
+.wb b{display:block;font:700 10px Inter,Arial;line-height:1.25;
+  color:rgba(230,237,255,.21)}
+.wb b:first-child{color:rgba(127,227,212,.55)}
+.wb.s b:first-child{color:rgba(240,179,86,.55)}
+.wb b .ar{font-style:normal;opacity:.7}
+
 .top{position:absolute;left:48px;right:48px;top:26px;display:flex;justify-content:flex-end;align-items:center;z-index:5}
 .logo{display:none;align-items:center;gap:12px;font-family:var(--mono);font-size:12.1px;letter-spacing:.34em;color:var(--lab)}
 .logo .o{width:22px;height:22px;border-radius:50%;border:1px solid rgba(232,236,251,.35);display:grid;place-items:center;color:var(--cy);font-size:15.4px;box-shadow:0 0 12px rgba(127,227,212,.35)}
@@ -435,6 +429,44 @@ SCHEME_JS = """
   var root = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
   root.appendChild(tpl.content.cloneNode(true));
   function q(sel){ return root.querySelector(sel); }
+  /* ── киты: пузыри справа (вид утверждён 31.08) ── */
+  (function(){
+    var A = (DATA.whales || {}).alerts || [];
+    if (!A.length) return;
+    function musd(x){ var m = String(x||'').match(/\$([\d.]+)\s*([KMB])/i);
+      if (!m) return 0;
+      return +m[1] * ({K:1e3, M:1e6, B:1e9})[m[2].toUpperCase()]; }
+    var CAP = {};
+    for (var ci = 0; ci < ST.length; ci++) {
+      var cs = ST[ci];
+      CAP[String(cs.t || '').replace(/USDT$/, '')] = musd(cs.cap);
+    }
+    CAP.BTC = CAP.BTC || 2.3e12; CAP.ETH = CAP.ETH || 5.6e11;
+    CAP.SOL = CAP.SOL || 1.1e11; CAP.HYPE = CAP.HYPE || 1.5e10;
+    var h = '';
+    for (var i = 0; i < Math.min(8, A.length); i++) {
+      var a = A[i] || {};
+      var t = String(a.title || '');
+      var side = t.indexOf('\u0448\u043e\u0440\u0442') >= 0 ? ' s' : '';
+      var m = t.match(/([A-Z0-9]{2,10})\s+\$([\d.]+[KMB])/);
+      var sym = m ? m[1] : '', usd = m ? '$' + m[2] : '';
+      var vv = musd(usd), cp = CAP[sym] || 0;
+      var pc = (vv && cp) ? (vv / cp * 100) : null;
+      var shown = pc == null ? usd
+        : pc.toFixed(4) + '% \u043a\u0430\u043f\u044b';
+      var mk = t.indexOf('\u043d\u0430\u0440\u0430\u0441\u0442\u0438\u043b') >= 0 ? '+'
+             : t.indexOf('\u0437\u0430\u043a\u0440\u044b\u043b') >= 0 ? '\u2713' : '';
+      var d = Math.min(84, Math.max(52, shown.length * 6 + sym.length * 5 + 24));
+      var tt = 26 + (i % 5) * 7;
+      h += '<span class="wb' + side + '" style="right:' + (2.5 + (i % 3) * 6.5) +
+        '%;width:' + d + 'px;height:' + d + 'px;--t:' + tt + 's;--d:-' +
+        ((i / Math.min(8, A.length)) * tt).toFixed(1) + 's"><span><b>' +
+        esc(sym) + (mk ? ' <i class="ar">' + mk + '</i>' : '') +
+        '</b><b>' + esc(shown) + '</b></span></span>';
+    }
+    var stage = q('.obs') || root.firstElementChild;
+    if (stage) stage.insertAdjacentHTML('beforeend', h);
+  })();
   var reduce = window.matchMedia &&
     window.matchMedia('(prefers-reduced-motion:reduce)').matches;
 
@@ -543,27 +575,6 @@ SCHEME_JS = """
       s:'скор <b>' + (L0.score||'—') + '</b> · ' + esc(L0.case||'') + ' · ' + esc(L0.cap||'') +
         ' · ход ' + pct(ls.chg,0) +
         (rws.length ? '<br>трое суток держатся: ' + rws.map(function(r){ return r.t + ' ' + r.n; }).join(' · ') : '') },
-    /* ── ПОЙДЁТ? (31.08): сюжеты растущего класса из репутаций —
-       одна монета, одна ветвь. Пустых не бывает: нет растущих —
-       ветви не появляются (отбор пустых ниже). */
-  ].concat((function(){
-    var GROW = ['набор кита', 'лестница руки', 'курок второго',
-                'акт НА ХОДУ', 'ИСКРА', 'подтверждение пришло'];
-    var out = [];
-    for (var gi = 0; gi < ST.length && out.length < 4; gi++) {
-      var gs = ST[gi], gr = gs.rep || {}, gp = gr.plot || '';
-      if (!gp) continue;
-      var hit = false;
-      for (var gg = 0; gg < GROW.length; gg++)
-        if (gp.indexOf(GROW[gg]) >= 0) { hit = true; break; }
-      if (!hit) continue;
-      out.push({ k: 'Пойдёт? · ' + (gs.t || ''),
-                 v: gp.split('(')[0].trim(),
-                 c: '#7fe3d4',
-                 s: esc(gp).slice(0, 170) });
-    }
-    return out;
-  })()).concat([
     /* ── ветви потока сделок ── */
 
     /* Тейкерское отношение: ниже единицы — продавцы бьют по стакану

@@ -792,6 +792,14 @@ def run_once(args: argparse.Namespace) -> int:
     except Exception as e:
         log(f"→ Репутации пропущены: {type(e).__name__}: {e}")
 
+    # Киты Coinglass (31.08): свежие действия и позиции китов
+    # Hyperliquid → output/whales.json; пузыри схемы читают файл.
+    try:
+        from whales_coinglass import collect as _wh_collect
+        log(f"→ Киты: {_wh_collect(write=True)}")
+    except Exception as e:
+        log(f"→ Киты пропущены: {type(e).__name__}: {e}")
+
     # Экран-поток (30.08): flow.html собирается каждым прогоном —
     # цель кнопки AI в зале. Монета — самая громкая касса дня из
     # репутаций (наибольший перевес в стакане по модулю); нет

@@ -395,7 +395,12 @@ svg{{width:100%;max-width:1600px;height:auto}}
 .leg{{font:600 10px Arial;letter-spacing:.04em}}
 .tickGlow{{font:800 58px Arial;fill:#57d8e8;
   letter-spacing:.02em;opacity:.5}}
-</style></head><body>{svg}</body></html>'''
+.back{{position:fixed;left:18px;top:16px;z-index:9;
+  font:700 11px Arial;letter-spacing:.14em;color:#57d8e8;
+  text-decoration:none;border:1px solid rgba(87,216,232,.5);
+  border-radius:8px;padding:5px 11px;opacity:.75}}
+.back:hover{{opacity:1;border-color:#7ae0ea}}
+</style></head><body><a class="back" href="podium.html">\u2190 \u0437\u0430\u043b</a>{svg}</body></html>'''
 open(A.out, 'w').write(html)
 print(f'{A.coin}: поток собран,', len(html), 'байт · зазор сейчас',
       f'{gap_now*100:+.0f}% · вердикт {verdict}')

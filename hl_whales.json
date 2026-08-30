@@ -1,12 +1,28 @@
 {
-  "whales": [
+  "addresses": [
     {
       "addr": "0x082e843a431aef031264dc232693dd710aedca88",
       "label": "HYPE-лонг ×5 от $38.68, ликв $63.36, топ ROI доски"
     },
     {
-      "addr": "0xa2ce501d9c0c5e23d34272f84402cfb7835b3126",
-      "label": "мульти-6: BTC ×20 от $66.9K, ETH, HYPE, ZEC, SOL — все лонги"
+      "addr": "0x020ca66c30bec2c4fe3861a94e4db4a498a35872",
+      "label": "новый"
+    },
+    {
+      "addr": "0x6436D88D376Ea7FbDe1AB5A8Db7151579Bc90103",
+      "label": "новый"
+    },
+    {
+      "addr": "6ESYXA3tpwxN5v5uHq8HyaDVGdUFSDV2nkzBm3kcwRLW",
+      "label": "новый"
+    },
+    {
+      "addr": "0xc20DE37170B45774e6CD3d2304017fc962f27252",
+      "label": "новый"
+    },
+    {
+      "addr": "0x0392a716dbee1661ea781881826b928daeb5d7d9",
+      "label": "новый"
     }
   ],
   "auto": [

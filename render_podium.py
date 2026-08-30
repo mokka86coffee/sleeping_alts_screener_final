@@ -850,12 +850,16 @@ PODIUM_CSS = """
 .obr-row.obr-hide{display:none}
 /* ai-mini (31.08): вход в экран-поток у каждой монеты списка —
    вместо одной глобальной кнопки; светится в цвет строки */
-.ai-mini{flex:0 0 auto;font:800 9px Arial;letter-spacing:.06em;
-  color:#04080f;background:linear-gradient(135deg,#55d8e8,#ffcf7a);
-  border-radius:8px;padding:2px 6px;text-decoration:none;
-  box-shadow:0 0 8px rgba(85,216,232,.45);opacity:.85}
-.ai-mini:hover{opacity:1;transform:scale(1.08);
-  box-shadow:0 0 14px rgba(85,216,232,.8)}
+.ai-mini{flex:0 0 auto;order:1;margin-left:4px;
+  font:800 9px Arial;letter-spacing:.08em;color:#55d8e8;
+  background:none;border:1px solid rgba(85,216,232,.85);
+  border-radius:7px;padding:1.5px 6px;text-decoration:none;
+  text-shadow:0 0 6px rgba(85,216,232,.6);
+  box-shadow:0 0 7px rgba(85,216,232,.28) inset,
+             0 0 7px rgba(85,216,232,.22);opacity:.8}
+.ai-mini:hover{opacity:1;color:#7ae0ea;border-color:#7ae0ea;
+  box-shadow:0 0 10px rgba(122,224,234,.5) inset,
+             0 0 12px rgba(122,224,234,.45)}
 
 /* ── Подпись группы ──
    Без неё порядок был бы невидим: читатель решил бы, что список
@@ -3159,7 +3163,8 @@ PODIUM_JS = """
         '<div><i class="obr-dot"></i>' +
           '<a class="ai-mini" href="flow_' +
             String(s.t).replace(/USDT$/,'').toLowerCase() +
-            '.html" title="экран-поток">ai</a>' +
+            '.html" title="экран-поток" ' +
+            'onclick="event.stopPropagation()">ai</a>' +
           '<a class="obr-tk" href="' + tvUrl(s) + '" target="_blank" ' +
             'rel="noopener" title="открыть график на TradingView">' +
             /* Первая буква отделена ВСЕГДА, даже когда цвет несёт точка:
