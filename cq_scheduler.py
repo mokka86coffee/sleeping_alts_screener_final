@@ -18,6 +18,7 @@
 """
 import argparse
 import datetime as dt
+import json
 import os
 import subprocess
 import sys
@@ -27,6 +28,7 @@ from pathlib import Path
 FETCH = Path(__file__).resolve().parent / "cryptoquant_fetch.py"
 RUN_AT_UTC = (1, 10)          # час, минута
 STALE_HOURS = 20
+MAX_NEW = 8                   # новичков за один прицельный добор
 RETRIES, RETRY_SLEEP = 3, 1800
 
 
@@ -39,10 +41,44 @@ def log(out: Path, msg: str) -> None:
 
 
 def archive_age_hours(out: Path) -> float:
+    """Возраст ПОЛНОГО обхода журнала.
+
+    Поле full_at пишет только полный прогон сборщика; прицельный
+    добор одной монеты его не трогает — иначе новичок омолаживал бы
+    весь архив и отменял суточный обход. Поля нет (сводка старая) —
+    падаем на mtime файла, как было.
+    """
     p = out / "_summary.json"
     if not p.exists():
         return 1e9
+    try:
+        at = (json.loads(p.read_text()) or {}).get("full_at")
+        if at:
+            t = dt.datetime.strptime(at, "%Y-%m-%dT%H:%M:%SZ")
+            t = t.replace(tzinfo=dt.timezone.utc)
+            return (dt.datetime.now(dt.timezone.utc)
+                    - t).total_seconds() / 3600
+    except Exception:
+        pass
     return (time.time() - p.stat().st_mtime) / 3600
+
+
+def journal_bases(journal: str) -> set:
+    """Тикеры журнала теми же правилами, что у сборщика."""
+    try:
+        raw = json.loads(Path(journal).read_text())
+    except Exception:
+        return set()
+    return {k[:-4].lower() for k in raw
+            if k != "_meta" and k.endswith("USDT")}
+
+
+def archive_bases(out: Path) -> set:
+    """Монеты, у которых файл в архиве уже есть."""
+    if not out.exists():
+        return set()
+    return {p.stem for p in out.glob("*.json")
+            if not p.name.startswith(("_", "."))}
 
 
 def run_fetch(journal: str, out: Path) -> bool:
@@ -59,14 +95,46 @@ def run_fetch(journal: str, out: Path) -> bool:
     return False
 
 
+def run_fetch_only(bases: list, out: Path) -> bool:
+    """Прицельный добор списка монет. Ретраев нет: новичок не должен
+    держать часовой прогон полчаса — не вышло, возьмём следующим."""
+    cmd = [sys.executable, str(FETCH), "--update",
+           "--only", ",".join(bases), "--out", str(out)]
+    log(out, f"добор новичков: {', '.join(bases)}")
+    r = subprocess.run(cmd, capture_output=True, text=True)
+    tail = (r.stdout or r.stderr).strip().splitlines()[-1:] or ["?"]
+    log(out, f"код {r.returncode} · {tail[0]}")
+    return r.returncode == 0
+
+
 def ensure_fresh(journal: str, out: Path) -> bool:
-    """Дотянуть архив, если он старше STALE_HOURS. Для импорта в
-    чужой планировщик: дёшево звать хоть каждый час."""
+    """Дотянуть архив. Две причины дозабора, независимые друг от друга:
+
+    СОСТАВ — в журнале есть монета, которой нет в архиве;
+    ВОЗРАСТ — полному обходу больше STALE_HOURS.
+
+    Состав проверяется первым и от возраста НЕ зависит. Новая монета
+    журнала — единственный случай, когда данные нужны немедленно, а
+    прежний сторож отдавал их последними: новичок приходит в лидеры
+    между суточными обходами, архив при этом свеж, сторож отвечает
+    «всё в порядке» — и дальше молчит вся цепочка. Нет
+    cq_v2/<base>.json — нет репутации, нет сюжета в зале, нет
+    flow_<base>.html, кнопка ai даёт 404. Так ZORA стала лидером и
+    осталась без единой строки (30.08).
+    """
+    ok = True
+    miss = sorted(journal_bases(journal) - archive_bases(out))
+    if miss:
+        batch, rest = miss[:MAX_NEW], miss[MAX_NEW:]
+        log(out, f"нет в архиве: {len(miss)} ({', '.join(miss[:12])})"
+            + (f"; беру {MAX_NEW}, остальных возьмёт следующий прогон"
+               if rest else ""))
+        ok = run_fetch_only(batch, out)
     age = archive_age_hours(out)
     if age < STALE_HOURS:
-        return True
-    log(out, f"архив старше {STALE_HOURS} ч (возраст {age:.1f} ч)")
-    return run_fetch(journal, out)
+        return ok
+    log(out, f"полный обход старше {STALE_HOURS} ч (возраст {age:.1f} ч)")
+    return run_fetch(journal, out) and ok
 
 
 def seconds_to_next_run(now: dt.datetime) -> float:

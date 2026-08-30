@@ -190,9 +190,40 @@ def main() -> int:
         print(f"  [{n}/{len(bases)}] {b}: " +
               " ".join(f"{k}={v}" for k, v in got.items()))
 
-    (OUT / "_summary.json").write_text(
-        json.dumps(summary, ensure_ascii=False, indent=1))
-    print(f"готово: {OUT}/ · сводка _summary.json")
+    # СВОДКА СЛИВАЕТСЯ, А НЕ ЗАТИРАЕТСЯ (31.08). Прицельный добор
+    # (--only zora) писал сводку из ОДНОЙ монеты поверх всего архива —
+    # запись о шестидесяти шести монетах исчезала.
+    #
+    # И вторая беда того же места: планировщик мерил возраст архива по
+    # mtime этого файла, поэтому добор одной новой монеты омолаживал
+    # весь архив и отменял суточный обход. Час ПОЛНОГО обхода пишется
+    # отдельным полем full_at, и прицельный добор его не трогает.
+    now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    sp = OUT / "_summary.json"
+    prev = {}
+    if sp.exists():
+        try:
+            prev = json.loads(sp.read_text())
+        except Exception:
+            prev = {}
+    targeted = bool(a.only or a.hourly)
+    merged = dict(prev)
+    merged["window"] = window
+    merged["days"] = a.days
+    merged["coins"] = {**(prev.get("coins") or {}), **summary["coins"]}
+    merged["at"] = now_iso
+    if not targeted:
+        merged["full_at"] = now_iso
+    elif not merged.get("full_at") and sp.exists():
+        # у сводки, написанной до этой правки, поля нет — засеваем его
+        # её же mtime: это и есть час последнего полного обхода
+        merged["full_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                          time.gmtime(sp.stat().st_mtime))
+    stmp = OUT / "._summary.tmp"
+    stmp.write_text(json.dumps(merged, ensure_ascii=False, indent=1))
+    stmp.replace(sp)
+    print(f"готово: {OUT}/ · сводка _summary.json"
+          + (" (прицельно, full_at не тронут)" if targeted else ""))
     return 0
 
 

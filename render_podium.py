@@ -52,7 +52,29 @@ from render_cardscene import render_cardscene
 
 def render_podium(stars: list[dict], market: dict) -> str:
     """Тело документа зала. Данные вшиваются, а не читаются из окна."""
-    blob = json.dumps({"stars": stars, "market": market},
+    # ГОТОВЫЕ ЭКРАНЫ-ПОТОКИ (31.08). Кнопка «ai» у монеты ведёт на
+    # flow_<base>.html, а собираются эти файлы только по монетам
+    # архива cq_v2. Новая монета приходит в зал раньше, чем у неё
+    # появляются данные, и кнопка вела в 404 — обещание того, чего
+    # нет (живой случай: ZORA стала лидером 30.08).
+    #
+    # Список снимается с диска ЗДЕСЬ, на сборке: рисовалка не ходит
+    # в файловую систему и знать о ней не должна. Пустой список —
+    # законный ответ: ни одного экрана нет, ни одной кнопки.
+    # Глобальный flow.html отсеивается сам — у него пустая база.
+    flows, seen = [], set()
+    try:
+        from pathlib import Path as _P
+        for d in (_P.cwd(), _P(__file__).resolve().parent):
+            for p in d.glob("flow_*.html"):
+                b = p.stem[5:].lower()
+                if b and b not in seen:
+                    seen.add(b)
+                    flows.append(b)
+    except Exception:
+        flows = []
+    blob = json.dumps({"stars": stars, "market": market,
+                       "flows": sorted(flows)},
                       ensure_ascii=False, separators=(",", ":"))
     safe = blob.replace("</", "<\\/")
     return (PODIUM_CSS + PODIUM_HTML
@@ -1036,7 +1058,7 @@ PODIUM_CSS = """
   pointer-events:none}
 #obgInner.obg-swap .obg-ghost{animation:obgSoftIn 2.2s ease both}
 
-/* ── Нижний блок гаснет через десять секунд ──
+/* ── Нижний блок гаснет через две секунды ──
    Подсказка и деньги отвечают на вопрос «как дела у журнала целиком».
    Ответ нужен на входе и один раз; дальше он только занимает низ кадра.
 
@@ -1265,7 +1287,7 @@ PODIUM_CSS = """
   /* ── Деньги гаснут ВЕЗДЕ (владелец перерешал 29.08) ──
      Прежнее «не гаснут на узких» защищало от 88px пустоты после
      гашения. Теперь obgBlockOut схлопывает высоту в ноль вместе с
-     прозрачностью — пустоты нет, и блок живёт свои десять секунд
+     прозрачностью — пустоты нет, и блок живёт свои две секунды
      на любой ширине одинаково. */
 
   /* Подпись вкладки прижимается вправо. */
@@ -1441,7 +1463,7 @@ x-pill.hot x-b{color:#f0b3a9}
 }
 
 /* ── «Журнал держит всё» и панель портфеля (правка владельца 29.08):
-   парадный шрифт; ВЕСЬ блок живёт десять секунд на любой ширине и
+   парадный шрифт; ВЕСЬ блок живёт две секунды на любой ширине и
    схлопывается — раньше на телефоне жил вечно. Минимум высоты
    отпускается после полной прозрачности, чтобы сцена не мигнула. ── */
 .obg-say{font:600 34px/1.15 Georgia,serif;letter-spacing:.015em;
@@ -1452,14 +1474,17 @@ x-pill.hot x-b{color:#f0b3a9}
 .obg-hint,.obg-panel,
 #obgHero .obg-hint,#obgHero .obg-panel,
 .obg-gate .obg-hint,.obg-gate .obg-panel{overflow:hidden;
-  animation:obgBlockOut 12s ease both}
+  animation:obgBlockOut 4s ease both}
 #obgHero.obg-gone .obg-hint,#obgHero.obg-gone .obg-panel{
   max-height:0;min-height:0;height:0;margin:0;padding:0;border:0}
+/* Кадры пересчитаны под четыре секунды (31.08): проявление
+   осталось прежним по времени — было семь процентов от двенадцати
+   секунд, стало двадцать один от четырёх, те же восемь десятых. */
 @keyframes obgBlockOut{
   0%{opacity:0;max-height:360px}
-  7%{opacity:1}
-  80%{opacity:1;max-height:360px}
-  93%{opacity:0;max-height:360px}
+  21%{opacity:1}
+  50%{opacity:1;max-height:360px}
+  80%{opacity:0;max-height:360px}
   100%{opacity:0;max-height:0;min-height:0;height:0;
        margin:0;padding:0;border:0;visibility:hidden}}
 
@@ -3151,6 +3176,19 @@ PODIUM_JS = """
       }
       return out;
     }
+    /* КНОПКА AI — ТОЛЬКО ТЕМ, У КОГО ЭКРАН ЕСТЬ (31.08). Ссылка
+       рисовалась каждой строке, а flow_<base>.html собирается лишь
+       по монетам архива. Список готовых приходит из сборки полем
+       flows; поля нет (документ старой сборки) — ведём себя как
+       раньше и рисуем всем, чтобы правка не гасила кнопки задним
+       числом. */
+    var FLOWS = (O && Array.isArray(O.flows)) ? O.flows : null;
+    function aiLink(s) {
+      var b = String(s.t).replace(/USDT$/, '').toLowerCase();
+      if (FLOWS && FLOWS.indexOf(b) < 0) return '';
+      return '<a class="ai-mini" href="flow_' + b + '.html" ' +
+        'title="экран-поток" onclick="event.stopPropagation()">ai</a>';
+    }
     out += '<div class="obr-list">';
     for (i = 0; i < rows.length; i++) {
       var s = rows[i], c = caseOf(s);
@@ -3161,10 +3199,7 @@ PODIUM_JS = """
         '" data-case="' + c.n + '" style="--c:' + c.c +
         ';--rgb:' + c.rgb + ';animation-delay:' + (i * 165) + 'ms">' +
         '<div><i class="obr-dot"></i>' +
-          '<a class="ai-mini" href="flow_' +
-            String(s.t).replace(/USDT$/,'').toLowerCase() +
-            '.html" title="экран-поток" ' +
-            'onclick="event.stopPropagation()">ai</a>' +
+          aiLink(s) +
           '<a class="obr-tk" href="' + tvUrl(s) + '" target="_blank" ' +
             'rel="noopener" title="открыть график на TradingView">' +
             /* Первая буква отделена ВСЕГДА, даже когда цвет несёт точка:
@@ -4530,10 +4565,13 @@ PODIUM_JS = """
          центра. Ниже 900 узкая ветка сама ставит кнопки рядом
          вкладок — там переезд не нужен и не зовётся. */
       if (window.innerWidth > 900) tuckTabs();
-    }, 10000);
+      /* Две секунды вместо десяти (правка владельца 31.08). Таймер
+         общий: тем же тиком гаснет блок портфеля и переезжают
+         кнопки — это одно событие, блок освобождает им место. */
+    }, 2000);
     /* Второй класс ставится ПОСЛЕ гашения — он закрепляет результат,
        чтобы перерисовка не вернула блок. */
-    TAIL_T2 = setTimeout(function () { hero.classList.add('obg-gone'); }, 11900);
+    TAIL_T2 = setTimeout(function () { hero.classList.add('obg-gone'); }, 3900);
   }
 
   /* ── Переезд категорий над список ──
@@ -4617,7 +4655,7 @@ PODIUM_JS = """
      кнопка была, и ведём её оттуда.
 
      Ищем по .obg-side, а не по месту: ряд может стоять и в центре
-     (первые десять секунд), и над списком — правило одно на оба случая. */
+     (первые две секунды), и над списком — правило одно на оба случая. */
   function tabRects() {
     var out = {}, els = document.querySelectorAll('.obg-side .obg-sat'), i, r, k;
     for (i = 0; i < els.length; i++) {
