@@ -134,21 +134,16 @@ SCHEME_HTML = """
 /* ── КИТЫ (31.08, вид утверждён): пузыри справа, всплывают как
    новости. Цвет несёт сторону: бирюза лонг, янтарь шорт; внутри —
    тикер (+ при доборе, галочка при закрытии) и % от капы. ── */
-.wb{position:absolute;top:100%;display:flex;align-items:center;
-  justify-content:center;text-align:center;border-radius:50%;
-  animation:rise var(--t) linear var(--d) infinite;z-index:3;
-  background:radial-gradient(circle at 34% 30%,rgba(127,227,212,.035),
-  rgba(15,22,48,.13) 70%);border:1px solid rgba(127,227,212,.13);
-  box-shadow:0 0 14px rgba(127,227,212,.05),
-  inset 0 0 10px rgba(127,227,212,.025)}
-.wb.s{background:radial-gradient(circle at 34% 30%,rgba(240,179,86,.035),
-  rgba(26,20,40,.13) 70%);border-color:rgba(240,179,86,.13);
-  box-shadow:0 0 14px rgba(240,179,86,.045),
-  inset 0 0 10px rgba(240,179,86,.022)}
+.wb{position:absolute;top:100%;display:flex;flex-direction:column;
+  align-items:center;text-align:center;opacity:.56;
+  animation:rise var(--t) linear var(--d) infinite;z-index:3}
+.wb svg{width:26px;height:14px;margin-bottom:2px;
+  color:rgba(127,227,212,.5);filter:drop-shadow(0 0 5px rgba(127,227,212,.35))}
+.wb.s svg{color:rgba(240,179,86,.5);filter:drop-shadow(0 0 5px rgba(240,179,86,.3))}
 .wb b{display:block;font:700 10px Inter,Arial;line-height:1.25;
   color:rgba(230,237,255,.21)}
-.wb b:first-child{color:rgba(127,227,212,.55)}
-.wb.s b:first-child{color:rgba(240,179,86,.55)}
+.wb b:first-of-type{color:rgba(127,227,212,.55)}
+.wb.s b:first-of-type{color:rgba(240,179,86,.55)}
 .wb b .ar{font-style:normal;opacity:.7}
 
 .top{position:absolute;left:48px;right:48px;top:26px;display:flex;justify-content:flex-end;align-items:center;z-index:5}
@@ -488,17 +483,23 @@ SCHEME_JS = r"""
       var sym = m ? m[1] : '', usd = m ? '$' + m[2] : '';
       var vv = musd(usd), cp = CAP[sym] || 0;
       var pc = (vv && cp) ? (vv / cp * 100) : null;
-      var shown = pc == null ? usd
-        : pc.toFixed(4) + '% \u043a\u0430\u043f\u044b';
+      /* округление до десятых; у гигантов (BTC/ETH, капа от $100B)
+         и при мизере (<0.05%) процент не пишем: киты знают больше —
+         и этого достаточно */
+      var shown = (cp >= 1e11 || pc == null || pc < 0.05) ? ''
+        : pc.toFixed(1) + '% \u043a\u0430\u043f\u044b';
       var mk = t.indexOf('\u043d\u0430\u0440\u0430\u0441\u0442\u0438\u043b') >= 0 ? '+'
              : t.indexOf('\u0437\u0430\u043a\u0440\u044b\u043b') >= 0 ? '\u2713' : '';
       var d = Math.min(84, Math.max(52, shown.length * 6 + sym.length * 5 + 24));
       var tt = 26 + (i % 5) * 7;
+      var WSVG = '<svg viewBox="0 0 32 16" fill="currentColor">' +
+        '<path d="M2 9c5-6 16-8 24-4l4-4v6l-4-1c1 3-2 6-8 6-8 0-13-1-16-3z"/>' +
+        '<circle cx="23" cy="7" r="1" fill="rgba(4,8,15,.8)"/></svg>';
       h += '<span class="wb' + side + '" style="right:' + (2.5 + (i % 3) * 6.5) +
-        '%;width:' + d + 'px;height:' + d + 'px;--t:' + tt + 's;--d:-' +
-        ((i / Math.min(8, A.length)) * tt).toFixed(1) + 's"><span><b>' +
+        '%;--t:' + tt + 's;--d:-' +
+        ((i / Math.min(8, A.length)) * tt).toFixed(1) + 's">' + WSVG + '<b>' +
         esc(sym) + (mk ? ' <i class="ar">' + mk + '</i>' : '') +
-        '</b><b>' + esc(shown) + '</b></span></span>';
+        '</b>' + (shown ? '<b>' + esc(shown) + '</b>' : '') + '</span>';
     }
     var stage = q('.obs') || root.firstElementChild;
     if (stage) stage.insertAdjacentHTML('beforeend', h);
@@ -598,23 +599,7 @@ SCHEME_JS = r"""
   var cal0 = ((pp.calendar || {}).items || [])[0] || null;
   var unlocks = ((pp.calendar || {}).items || []).filter(function(e){ return e.kind === 'unlock'; });
   var top = (M.topVol || []).slice(0, 4);
-  var cos = [
-    { k:'Окно рынка', v:(P.warnCount||0) + ' из ' + (P.knownCount||7), c:'#cfd8ef',
-      s: esc(reasons[0]||'') + (M.appetite ? '. Аппетит ' + esc(M.appetite).replace('/',' из ') : '') },
-    { k:'Фон', v: pct(md.d7,1), c:'#8ab4ff',
-      s:'медиана выборки за неделю · сутки ' + pct(md.d1) + ' · месяц ' + pct(md.d30) +
-        (M.dom ? ' · доминация ' + M.dom + '%' : '') },
-    { k:'Портфели', v: pct(hold.pnlPct,0), c:'#7fe3d4',
-      s:'журнал <b>' + (hold.open||0) + '</b> позиций, ' + money(hold.invested) + ' → ' +
-        money(hold.value) + ' · книга ' + pct(tr.pnlPct) },
-    { k:'Лидер прогона',
-      v:'<span class="tkr">' + esc(L0.t||'—') + '</span> · ' + esc(L0.case||''),
-      c:'#e6edff',
-      s: esc(L0.cap||'') +
-        ((L0.rep && L0.rep.plot) ? ' · ' + esc(String(L0.rep.plot).split(':')[0]) : '') +
-        ((L0.rep && L0.rep.phrase) ? '<br>' + esc(String(L0.rep.phrase).slice(0, 140)) : '') +
-        (rws.length ? '<br>трое суток держатся: ' + rws.map(function(r){ return r.t + ' ' + r.n; }).join(' · ') : '') },
-  ].concat((function(){
+  var cos = (function(){
     /* ПОЙДЁТ? (31.08, перенос одобрен): сюжеты растущего класса —
        одна монета, одна ветвь, до четырёх; нет растущих — ветвей нет. */
     var GROW = ['набор кита', 'лестница руки', 'курок второго',
@@ -632,7 +617,22 @@ SCHEME_JS = r"""
                  s: esc(gp).slice(0, 170) });
     }
     return out;
-  })()).concat([
+  })().concat([
+    { k:'Окно рынка', v:(P.warnCount||0) + ' из ' + (P.knownCount||7), c:'#cfd8ef',
+      s: esc(reasons[0]||'') + (M.appetite ? '. Аппетит ' + esc(M.appetite).replace('/',' из ') : '') },
+    { k:'Фон', v: pct(md.d7,1), c:'#8ab4ff',
+      s:'медиана выборки за неделю · сутки ' + pct(md.d1) + ' · месяц ' + pct(md.d30) +
+        (M.dom ? ' · доминация ' + M.dom + '%' : '') },
+    { k:'Портфели', v: pct(hold.pnlPct,0), c:'#7fe3d4',
+      s:'журнал <b>' + (hold.open||0) + '</b> позиций, ' + money(hold.invested) + ' → ' +
+        money(hold.value) + ' · книга ' + pct(tr.pnlPct) },
+    { k:'Лидер прогона',
+      v:'<span class="tkr">' + esc(L0.t||'—') + '</span> · ' + esc(L0.case||''),
+      c:'#e6edff',
+      s: esc(L0.cap||'') +
+        ((L0.rep && L0.rep.plot) ? ' · ' + esc(String(L0.rep.plot).split(':')[0]) : '') +
+        ((L0.rep && L0.rep.phrase) ? '<br>' + esc(String(L0.rep.phrase).slice(0, 140)) : '') +
+        (rws.length ? '<br>трое суток держатся: ' + rws.map(function(r){ return r.t + ' ' + r.n; }).join(' · ') : '') },
     /* ── ветви потока сделок ── */
 
     /* Тейкерское отношение: ниже единицы — продавцы бьют по стакану
