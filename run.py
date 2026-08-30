@@ -763,6 +763,30 @@ def run_once(args: argparse.Namespace) -> int:
     except Exception as e:
         log(f"→ CryptoQuant пропущен: {type(e).__name__}: {e}")
 
+    # Репутации усилий (Р-2, 30.08): пересчёт output/reputation.json
+    # из архива cq_v2 — отпечаток покупателя и счёт раздач в карточки
+    # зала. Локальное чтение, секунды, поэтому каждый прогон; свежее
+    # квантовой дневки данные всё равно не станут. Сбой — лог и
+    # пропуск, зал живёт без строк, не падает.
+    try:
+        from reputation_cq import build as _rep_build
+        from pathlib import Path as _P2
+        import json as _json2
+        _arch = _P2(__file__).resolve().parent / "cq_v2"
+        if _arch.exists():
+            _rep = _rep_build(_arch)
+            _dst = _P2("output") / "reputation.json"
+            _dst.parent.mkdir(exist_ok=True)
+            _tmp = _dst.with_suffix(".tmp")
+            _tmp.write_text(_json2.dumps(_rep, ensure_ascii=False))
+            _tmp.replace(_dst)
+            _n = sum(1 for k in _rep if k != "_meta")
+            log(f"→ Репутации: монет {_n} → output/reputation.json")
+        else:
+            log("→ Репутации пропущены: нет архива cq_v2")
+    except Exception as e:
+        log(f"→ Репутации пропущены: {type(e).__name__}: {e}")
+
     # ── Ручные контуры — по своим отрезкам, не каждый прогон ──
     # Правило владельца 29.08: всё ручное заводится в прогон, но
     # запускается ОТ СВЕЖЕСТИ имеющегося файла, а не по кругу.

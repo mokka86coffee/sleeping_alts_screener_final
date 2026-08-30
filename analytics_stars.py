@@ -532,6 +532,33 @@ def _investors_map() -> dict:
     return _INVESTORS["map"]
 
 
+# ── Р-2: репутация усилий и отпечаток покупателя ────────────
+# output/reputation.json пишет reputation_cq.py по архиву cq_v2
+# (суточный дозабор в прогоне). Кеш по времени правки — тот же
+# приём, что журнал и инвесторы.
+_REPUT = {"mtime": None, "map": {}}
+
+
+def _reputation_map() -> dict:
+    import json
+    from pathlib import Path
+    for p in (Path("output/reputation.json"), Path("reputation.json")):
+        try:
+            mt = p.stat().st_mtime
+        except OSError:
+            continue
+        if _REPUT["mtime"] != mt:
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                _REPUT["map"] = {k: v for k, v in data.items()
+                                 if k != "_meta" and isinstance(v, dict)}
+                _REPUT["mtime"] = mt
+            except Exception:
+                pass
+        return _REPUT["map"]
+    return {}
+
+
 def build_stars(candidates: list[Candidate],
                 permission: dict | None = None,
                 write_log: bool = False) -> list[dict]:
@@ -956,6 +983,17 @@ def build_stars(candidates: list[Candidate],
         osp = craw.get("oi_spark")
         if osp and len(osp) >= 4:
             s["oiSpark"] = osp
+
+        rp = _reputation_map().get(sym)
+        if rp:
+            t_ = rp.get("today") or {}
+            s["rep"] = {
+                "line": rp.get("line") or "",
+                "phrase": t_.get("phrase") or "",
+                "delta_usd": t_.get("delta_usd"),
+                "vol_mult": t_.get("vol_mult"),
+                "streak": t_.get("delta_streak"),
+            }
 
         inv = _investors_map().get(sym)
         if inv:
