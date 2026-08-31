@@ -1,21 +1,37 @@
 #!/usr/bin/env python3
-"""Экран-поток v7 — вид одобренного стенда (перенос 01.09).
+"""Экран-поток v10 — три горизонта планами в глубину (перенос 01.09).
 
-Три окна времени, три линии со смыслами:
-  БЕЛАЯ — цена (факт);
-  БИРЮЗОВАЯ, главная — «цена по деньгам»: где цена была бы, если бы
-    её двигал только перекос покупок к продажам;
-  ЯНТАРНАЯ — плечо (открытый интерес).
-Зазор белой над бирюзовой — тёплая подушка долга: цена выше своих
-денег, ход держат заявками. Рисуется частоколом штрихов, заливок нет.
+Одна сцена, три горизонта тремя планами: полгода далеко, мелко и
+тускло; квартал в середине; две недели близко, крупно и резко.
+Ближний план ниже и правее — взгляд скользит от общего к
+сегодняшнему.
 
-Объём даётся КАМЕРОЙ, не геометрией (решение владельца 31.08):
-ближняя линия режет дальнюю тёмной подложкой цветом фона, слои
-отличаются резкостью, крупные расфокусы ложатся ПОВЕРХ линий как
-пылинки перед объективом.
+ГЛАВНОЕ ПРАВИЛО: горизонт тем ярче и резче, чем он ближе к «сейчас».
+Один множитель глубины тянет за собой всё — толщину линий, плотность
+свечей, размер узлов, силу свечения. Это не украшение: глаз сразу
+понимает, куда смотреть первым.
 
-Раскладка: «две недели» крупным вверху слева, справа текстовая
-колонна, внизу «квартал» и «полгода».
+Приёмы, утверждённые владельцем по референсам:
+  ЛИНИЯ-ТРУБКА — тень снизу отрывает её от фона, широкое гало даёт
+    свет, узкий блик сверху читается круглым боком. Без тени линия
+    лежит плоско, сколько ни добавляй свечения.
+  СВЕЧИ из настоящих OHLC — тело от открытия к закрытию, тень от
+    низа к верху; ярче линии, потому что событие важнее фона.
+  ТРИ ГЛАВНЫЕ СВЕЧИ — дни с самым сильным перекосом покупок к
+    продажам. Только на ближнем плане: на дальнем это был бы шум.
+  ГЛУБИНА РЕЗКОСТИ — та же сцена, размытая, видна только по краям
+    через маску. Резкость в середине, углы в расфокусе.
+  ГРАФ под графиком — узлы на линии денег и ветви между ними.
+  СПИРАЛЬ на фоне — водяной знак: логарифмический рост, то есть то
+    же, чем занят экран.
+
+Денежная линия считается перекосом к обороту дня с одной калибровкой
+на весь ряд (правка 31.08), а не накопленными долларами.
+
+Раскладка «плиткой» осталась под --layout a: она пригодится, если
+понадобится сравнить, но по умолчанию собирается планами.
+
+Данные: cq_v2/<монета>.json. Зовётся из patch_run_flow_all.py.
 """
 import argparse
 import json
@@ -23,373 +39,374 @@ import math
 import random
 from pathlib import Path
 
-ap = argparse.ArgumentParser()
-ap.add_argument("--coin", default="bless")
-ap.add_argument("--archive", default="cq_v2")
-ap.add_argument("--out", default="flow.html")
-A = ap.parse_args()
-src = Path(A.archive) / f"{A.coin.lower()}.json"
-if not src.exists() and Path(f"{A.coin.lower()}.json").exists():
-    src = Path(f"{A.coin.lower()}.json")
-d = json.load(open(src))
-for k in d:
-    d[k] = list(reversed(d[k]))
-tr, oh, oi, lq = d['trade'], d['ohlcv'], d['oi'], d['liq']
-days = [t['datetime'][:10] for t in tr]
-close = {r['datetime'][:10]: r['close'] for r in oh}
-oim = {r['datetime'][:10]: r['open_interest'] for r in oi}
-lqm = {r['datetime'][:10]: r for r in lq}
-# ряды разной глубины (trade старше ohlcv) — живём по дням с ценой
-keep = [i for i, dt in enumerate(days) if close.get(dt)]
-days = [days[i] for i in keep]
-tr = [tr[i] for i in keep]
-px = [close[dt] for dt in days]
-deltas = [t['quote_buy_volume'] - t['quote_sell_volume'] for t in tr]
-vols = [t['quote_volume'] for t in tr]
+W, H = 1920, 1080
+AP = argparse.ArgumentParser()
+AP.add_argument('--coin', default='skr')
+AP.add_argument('--layout', default='b', choices=('a', 'b'))
+AP.add_argument('--out', default=None)
+A = AP.parse_args()
 
-# «цена по деньгам»: exp-модель от накопленного ПЕРЕКОСА.
-#
-# Было: накопленная дельта в ДОЛЛАРАХ, и калибровка Q считалась
-# заново в каждом окне так, чтобы размах модели совпал с размахом
-# цены этого окна. Из-за этого провал линии равнялся размаху цены ПО
-# ПОСТРОЕНИЮ: чем шире окно, тем больше размах, тем глубже уходила
-# модель — на полугодии SKR она падала на 74% и утаскивала за собой
-# нижнюю границу кадра, прижимая цену к потолку. Зазор «цена выше
-# своих денег на N%» при этом не измерялся, а изготавливался
-# нормировкой: 49% на двух неделях против 31% на полугодии у одной и
-# той же монеты (разбор 31.08, замечание владельца — «деньги уходят
-# вниз резко на больших тф»).
-#
-# Стало. Шаг дня — ПЕРЕКОС К ОБОРОТУ ЭТОГО ЖЕ ДНЯ, величина
-# безразмерная и ограниченная: у SKR медиана 2.3%, максимум 15%.
-# День с дельтой −$2M при обороте $104M (28.08) теперь весит два
-# процента, а не рисует вертикаль, потому что доллары такого дня
-# затмевали весь остальной ряд.
-#
-# Калибровка K — ОДНА на все окна, считается по всему ряду. Именно
-# она делает зазор сравнимым между таймфреймами: одно и то же число
-# на двух неделях и на полугодии означает одно и то же. Якорь
-# остаётся на левом крае окна — окно показывает расхождение,
-# накопленное В НЁМ, а не с начала истории.
-steps = [(deltas[i] / vols[i] if vols[i] else 0.0)
-         for i in range(len(deltas))]
-cum = []
-c = 0.0
+for c in (Path('cq_v2') / f'{A.coin}.json', Path(f'{A.coin}.json')):
+    if c.exists():
+        D = json.loads(c.read_text(encoding='utf-8'))
+        break
+else:
+    raise SystemExit(f'нет данных: cq_v2/{A.coin}.json')
+
+for k in D:
+    D[k] = list(reversed(D[k]))
+closes = {r['datetime'][:10]: r['close'] for r in D['ohlcv']}
+ohlc = {r['datetime'][:10]: (r.get('open'), r.get('high'), r.get('low'),
+                             r.get('close')) for r in D['ohlcv']}
+oimap = {r['datetime'][:10]: r.get('open_interest') or 0
+         for r in D.get('oi', [])}
+tr = [t for t in D['trade'] if closes.get(t['datetime'][:10])]
+days = [t['datetime'][:10] for t in tr]
+px = [closes[d] for d in days]
+vols = [t['quote_volume'] for t in tr]
+dl = [t['quote_buy_volume'] - t['quote_sell_volume'] for t in tr]
+oi = [oimap.get(d) or 0 for d in days]
+_last = 0.0
+for i in range(len(oi)):
+    if oi[i] > 0:
+        _last = oi[i]
+    else:
+        oi[i] = _last
+N = len(px)
+
+steps = [(dl[i] / vols[i] if vols[i] else 0.0) for i in range(N)]
+cum, c = [], 0.0
 for x in steps:
     c += x
     cum.append(c)
-K_MONEY = ((math.log(max(px) / min(px)) or .2)
-           / ((max(cum) - min(cum)) or 1.0))
+K = (math.log(max(px) / min(px)) or .2) / ((max(cum) - min(cum)) or 1.0)
+money = [px[0] * math.exp(K * v) for v in cum]
+MX = max(abs(x) for x in steps) or 1.0
+random.seed(11)
+
+DEFS = '''
+<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+ <stop offset="0" stop-color="#000306"/><stop offset=".5" stop-color="#030d16"/>
+ <stop offset="1" stop-color="#000205"/></linearGradient>
+<radialGradient id="glowA" cx="50%" cy="50%" r="50%">
+ <stop offset="0" stop-color="#ffb44a" stop-opacity=".9"/>
+ <stop offset="1" stop-color="#ff7a1a" stop-opacity="0"/></radialGradient>
+<radialGradient id="glowC" cx="50%" cy="50%" r="50%">
+ <stop offset="0" stop-color="#8fe8ff" stop-opacity=".9"/>
+ <stop offset="1" stop-color="#2fd8ff" stop-opacity="0"/></radialGradient>
+<radialGradient id="vig" cx="50%" cy="50%" r="74%">
+ <stop offset=".62" stop-color="#000" stop-opacity="0"/>
+ <stop offset="1" stop-color="#000" stop-opacity=".70"/></radialGradient>
+<radialGradient id="dofg" cx="48%" cy="54%" r="64%">
+ <stop offset="0" stop-color="#000"/><stop offset=".44" stop-color="#000"/>
+ <stop offset=".80" stop-color="#999"/><stop offset="1" stop-color="#fff"/>
+</radialGradient>
+<mask id="dof"><rect width="1920" height="1080" fill="url(#dofg)"/></mask>
+<filter id="b3" x="-70%" y="-70%" width="240%" height="240%">
+ <feGaussianBlur stdDeviation="3"/></filter>
+<filter id="b9" x="-70%" y="-70%" width="240%" height="240%">
+ <feGaussianBlur stdDeviation="9"/></filter>
+<filter id="b26" x="-90%" y="-90%" width="280%" height="280%">
+ <feGaussianBlur stdDeviation="26"/></filter>
+<filter id="b60" x="-90%" y="-90%" width="280%" height="280%">
+ <feGaussianBlur stdDeviation="60"/></filter>'''
+
+GR = []                      # градиенты линий: свои на каждое окно
 
 
-# ── ВИД ПО ОДОБРЕННОМУ СТЕНДУ (перенос 01.09) ───────────────────────
-# Стенд flow_ref_stand.py перерисовывал готовый flow_<монета>.html в
-# утверждённом языке. Здесь тот же язык, но рисуется сразу из данных —
-# промежуточного документа больше нет.
-#
-# Что утверждено владельцем и не меняется: объём даётся КАМЕРОЙ, не
-# геометрией. Работают три приёма — ближняя линия режет дальнюю тёмной
-# подложкой цветом фона (подложка тоже растворяется к краям, иначе на
-# концах остаются тёмные обрубки), разная резкость слоёв, и крупные
-# размытые расфокусы ПОВЕРХ линий как пылинки перед объективом.
-# Заливок нет: подушка долга — частокол тонких штрихов.
-# Формула экрана: три линии и две-три точки с текстом, остальное —
-# атрибутика.
-#
-# ЧТО НЕ ПЕРЕНОСИТСЯ СО СТЕНДА: денежная линия. Стенд собран до правки
-# 31.08 и показывал «цена выше своих денег на 297%» при бирюзовой,
-# падающей от края до края, — это старая калибровка, где провал равен
-# размаху цены по построению. Здесь линия считается K_MONEY, как выше.
-random.seed(23)
-
-VB_W, VB_H = 1920, 1080
-C_STEEL, C_TEAL, C_ORNG, C_DARK, TXT = ('#dcecf8', '#3fe4f0', '#ffb054',
-                                        '#06192c', '#9fb8cc')
-RX = 1296                       # текстовая колонна
-N = len(days)
-
-# рамки окон — раскладка владельца: большое сверху слева, два внизу
-WINS = [
-    ('w2', (150, 168, 1080, 440), 'две недели', 22, max(0, N - 15), N, 4),
-    ('qr', (150, 690, 790, 260), 'квартал', 19, max(0, N - 90), N, 2),
-    ('hf', (1020, 690, 790, 260), 'полгода', 19, 0, N, 2),
-]
+def grads(tag, x0, x1):
+    """Линия гаснет к обоим краям своего окна — иначе обрубки."""
+    for nm, stops in (
+            ('hot', (('#ff7a1a', 0), ('#ff9a2e', 1), ('#ffb44a', 1),
+                     ('#ffd07a', 1), ('#ffd07a', 0))),
+            ('cyn', (('#2fd8ff', 0), ('#2fd8ff', .9), ('#7fe8ff', .9),
+                     ('#7fe8ff', .9), ('#7fe8ff', 0))),
+            ('pale', (('#9fc0d8', 0), ('#9fc0d8', .55), ('#c8dcea', .55),
+                      ('#c8dcea', .55), ('#c8dcea', 0)))):
+        offs = (0, .12, .55, .88, 1)
+        body = ''.join(
+            f'<stop offset="{o}" stop-color="{col}" stop-opacity="{op}"/>'
+            for o, (col, op) in zip(offs, stops))
+        GR.append(f'<linearGradient id="{nm}{tag}" '
+                  f'gradientUnits="userSpaceOnUse" x1="{x0}" y1="0" '
+                  f'x2="{x1}" y2="0">{body}</linearGradient>')
 
 
-def smooth(P):
-    """Кривая Катмулла-Рома через точки — та же, что на стенде."""
-    if len(P) < 2:
-        return f'M{P[0][0]:.1f},{P[0][1]:.1f}' if P else 'M0,0'
-    d = f'M{P[0][0]:.1f},{P[0][1]:.1f}'
-    for j in range(len(P) - 1):
-        p0, p1 = P[max(0, j - 1)], P[j]
-        p2, p3 = P[j + 1], P[min(len(P) - 1, j + 2)]
-        c1 = (p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6)
-        c2 = (p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6)
-        d += (f' C{c1[0]:.1f},{c1[1]:.1f} {c2[0]:.1f},{c2[1]:.1f} '
-              f'{p2[0]:.1f},{p2[1]:.1f}')
-    return d
+def window(tag, i0, i1, frame, depth, cap):
+    """Одно окно: те же приёмы, сила — по глубине плана.
 
-
-defs = ['''<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
- <stop offset="0" stop-color="#03101f"/>
- <stop offset=".48" stop-color="#0a2a42"/>
- <stop offset="1" stop-color="#041424"/></linearGradient>
-<radialGradient id="halo" cx="50%" cy="50%" r="50%">
- <stop offset="0" stop-color="#1a5a7a" stop-opacity=".5"/>
- <stop offset="1" stop-color="#1a5a7a" stop-opacity="0"/></radialGradient>
-<radialGradient id="flW" cx="50%" cy="50%" r="50%">
- <stop offset="0" stop-color="#fff8ec" stop-opacity="1"/>
- <stop offset=".3" stop-color="#ffc070" stop-opacity=".6"/>
- <stop offset="1" stop-color="#ffb054" stop-opacity="0"/></radialGradient>
-<radialGradient id="flC" cx="50%" cy="50%" r="50%">
- <stop offset="0" stop-color="#f2feff" stop-opacity="1"/>
- <stop offset=".3" stop-color="#5fe8f2" stop-opacity=".6"/>
- <stop offset="1" stop-color="#3fe4f0" stop-opacity="0"/></radialGradient>
-<radialGradient id="orbB" cx="50%" cy="50%" r="50%">
- <stop offset="0" stop-color="#8fc4e8" stop-opacity=".42"/>
- <stop offset=".62" stop-color="#8fc4e8" stop-opacity=".2"/>
- <stop offset="1" stop-color="#8fc4e8" stop-opacity="0"/></radialGradient>
-<radialGradient id="orbA" cx="50%" cy="50%" r="50%">
- <stop offset="0" stop-color="#ffb35c" stop-opacity=".38"/>
- <stop offset=".62" stop-color="#ffb35c" stop-opacity=".18"/>
- <stop offset="1" stop-color="#ffb35c" stop-opacity="0"/></radialGradient>
-<radialGradient id="vig" cx="50%" cy="48%" r="70%">
- <stop offset=".66" stop-color="#000" stop-opacity="0"/>
- <stop offset="1" stop-color="#000" stop-opacity=".62"/></radialGradient>
-<linearGradient id="topfade" x1="0" y1="0" x2="0" y2="1">
- <stop offset="0" stop-color="#000" stop-opacity=".34"/>
- <stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>
-<filter id="f2" x="-80%" y="-80%" width="260%" height="260%">
- <feGaussianBlur stdDeviation="1.8"/></filter>
-<filter id="f6" x="-80%" y="-80%" width="260%" height="260%">
- <feGaussianBlur stdDeviation="6"/></filter>
-<filter id="f16" x="-90%" y="-90%" width="280%" height="280%">
- <feGaussianBlur stdDeviation="16"/></filter>
-<filter id="f34" x="-90%" y="-90%" width="280%" height="280%">
- <feGaussianBlur stdDeviation="34"/></filter>''']
-for _k, (_nx, _ny, _nw, _nh), *_r in WINS:
-    for _tag, _col in (('s', C_STEEL), ('t', C_TEAL), ('o', C_ORNG),
-                       ('d', C_DARK)):
-        defs.append(
-            f'<linearGradient id="g{_k}{_tag}" gradientUnits="userSpaceOnUse"'
-            f' x1="{_nx}" y1="0" x2="{_nx + _nw}" y2="0">'
-            f'<stop offset="0" stop-color="{_col}" stop-opacity="0"/>'
-            f'<stop offset=".18" stop-color="{_col}" stop-opacity="1"/>'
-            f'<stop offset=".82" stop-color="{_col}" stop-opacity="1"/>'
-            f'<stop offset="1" stop-color="{_col}" stop-opacity="0"/>'
-            f'</linearGradient>')
-
-
-def draw(key, frame, cap, capsz, i0, i1, nlab):
-    """Одно окно: три линии, зазор частоколом, точки с текстом."""
-    nx, ny, nw, nh = frame
+    depth: 1.0 — ближний план (крупно, ярко, резко), 0.25 — дальний.
+    Все размеры и плотности умножаются на него, поэтому дальний
+    горизонт сам собой уходит в фон, а ближний выступает вперёд.
+    """
+    x0, y0, w, h = frame
     n = i1 - i0
     if n < 3:
         return '', ''
-    k = nh / 452.0                      # смещения слоёв к высоте окна
-    xs = [nx + j * nw / (n - 1) for j in range(n)]
-
-    seg_p = px[i0:i1]
-    c0 = cum[i0]
-    seg_m = [seg_p[0] * math.exp(K_MONEY * (cum[i0 + j] - c0))
-             for j in range(n)]
-    seg_o = [oim.get(days[i]) or 0 for i in range(i0, i1)]
-
-    lo = min(min(seg_p), min(seg_m)) * 0.97
-    hi = max(max(seg_p), max(seg_m)) * 1.03
-    olo = min(seg_o) * 0.9
-    ohi = (max(seg_o) * 1.05) or 1.0
+    grads(tag, x0, x0 + w)
+    xs = [x0 + j * w / (n - 1) for j in range(n)]
+    sp, sm = px[i0:i1], money[i0:i1]
+    so = oi[i0:i1]
+    lo = min(min(sp), min(sm)) * .96
+    hi = max(max(sp), max(sm)) * 1.04
+    olo, ohi = ((min(so) * .9, (max(so) * 1.06) or 1.0) if any(so)
+                else (0.0, 1.0))
 
     def Y(v):
-        return ny + nh - (v - lo) / ((hi - lo) or 1) * nh
+        return y0 + h - (v - lo) / ((hi - lo) or 1) * h
 
     def YO(v):
-        return ny + nh - (v - olo) / ((ohi - olo) or 1) * (nh * 0.45)
+        return y0 + h + 26 - (v - olo) / ((ohi - olo) or 1) * h * .34
 
-    # Слои идут от дальнего к ближнему; смещение по вертикали и есть
-    # глубина — плечо ниже и мягче, цена выше и резче.
-    lay = (('плечо', [YO(v) for v in seg_o], f'g{key}o', 20, 62, 4.4, .26,
-            1.1),
-           ('деньги', [Y(v) for v in seg_m], f'g{key}t', 0, 8, 6.0, .46, 1.5),
-           ('цена', [Y(v) for v in seg_p], f'g{key}s', -16, -44, 4.2, .30,
-            1.1))
-    art, P = [], {}
-    for name, ys, grad, dx, dy, glow, gop, sw in lay:
-        pts = [(xs[j] + dx, ys[j] + dy * k) for j in range(n)]
-        P[name] = pts
-        d = smooth(pts)
-        if name != 'плечо':            # ближняя режет дальнюю
-            art.append(f'<path d="{d}" class="ln" stroke="url(#g{key}d)" '
-                       f'stroke-width="{13 * k + 3:.0f}" opacity=".85" '
-                       f'filter="url(#f2)"/>')
-        art.append(f'<path d="{d}" class="ln" stroke="url(#{grad})" '
-                   f'stroke-width="{glow * 2.6:.1f}" '
-                   f'opacity="{gop * .38:.2f}" filter="url(#f16)"/>')
-        art.append(f'<path d="{d}" class="ln" stroke="url(#{grad})" '
-                   f'stroke-width="{glow:.1f}" opacity="{gop:.2f}" '
-                   f'filter="url(#f6)"/>')
-        art.append(f'<path d="{d}" class="ln" stroke="url(#{grad})" '
-                   f'stroke-width="{sw}" opacity="1"/>')
+    def poly(ys, dx=0.0, dy=0.0):
+        return ' '.join(f'{xs[i]+dx:.1f},{ys[i]+dy:.1f}'
+                        for i in range(n))
 
-    # зазор — частокол тонких штрихов, заливок нет
-    wh, cy = P['цена'], P['деньги']
-    for j in range(0, n, max(1, n // 52)):
-        x1, y1 = wh[j]
-        y2 = cy[j][1]
-        if y1 < y2 - 4:
-            art.append(f'<line x1="{x1:.0f}" y1="{y1:.0f}" x2="{x1:.0f}" '
-                       f'y2="{y2:.0f}" stroke="{C_ORNG}" stroke-width=".6" '
-                       f'opacity=".10"/>')
+    def tube(ys, grad, hi_col, base):
+        w_ = base * depth
+        return (
+            f'<polyline points="{poly(ys, 2.2*depth, 4.0*depth)}" fill="none" '
+            f'stroke="#000306" stroke-width="{w_*2.6:.1f}" opacity=".75" '
+            f'filter="url(#b3)"/>'
+            f'<polyline points="{poly(ys)}" fill="none" stroke="url(#{grad})" '
+            f'stroke-width="{w_*19:.0f}" opacity="{.13*depth:.2f}" '
+            f'filter="url(#b60)"/>'
+            f'<polyline points="{poly(ys)}" fill="none" stroke="url(#{grad})" '
+            f'stroke-width="{w_*6.5:.1f}" opacity="{.34*depth:.2f}" '
+            f'filter="url(#b26)"/>'
+            f'<polyline points="{poly(ys)}" fill="none" stroke="url(#{grad})" '
+            f'stroke-width="{w_*2.1:.1f}" opacity="{.78*depth:.2f}" '
+            f'filter="url(#b9)"/>'
+            f'<polyline points="{poly(ys)}" fill="none" stroke="url(#{grad})" '
+            f'stroke-width="{max(.8, w_):.1f}" opacity="{.55+.45*depth:.2f}"/>'
+            f'<polyline points="{poly(ys, 0, -w_*.42)}" fill="none" '
+            f'stroke="{hi_col}" stroke-width="{max(.5, w_*.34):.1f}" '
+            f'opacity="{.85*depth:.2f}"/>')
 
-    # ── события: две-три точки с короткой подписью ──
-    ev = []
-    for j in range(2, n):
-        i = i0 + j
-        dpx = seg_p[j] / seg_p[j - 1] - 1 if seg_p[j - 1] else 0
-        if deltas[i] < 0 and dpx > 0.04 and abs(deltas[i]) > 3e5:
-            ev.append((j, f'+{dpx*100:.0f}% на продажах', 'flW'))
-        elif (seg_o[j] and seg_o[j - 1]
-                and seg_o[j] / seg_o[j - 1] > 1.28):
-            ev.append((j, f'плечо +{(seg_o[j]/seg_o[j-1]-1)*100:.0f}%',
-                       'flW'))
-    picked, last = [], -99
-    for j, txt, fl in ev:
-        if j - last >= max(4, n // 6):
-            picked.append((j, txt, fl))
-            last = j
-    pts_svg, words = [], []
-    for i_, (j, txt, fl) in enumerate(picked[:nlab]):
-        x, y = wh[j]
-        ly = y - (118 if i_ == 0 else 78) * max(.62, k)
-        pts_svg.append(
-            f'<line x1="{x:.0f}" y1="{y:.0f}" x2="{x:.0f}" y2="{ly:.0f}" '
-            f'stroke="#d8f0f8" stroke-width=".9" opacity=".28"/>'
-            f'<circle cx="{x:.0f}" cy="{y:.0f}" r="{46 * k:.0f}" '
-            f'fill="url(#{fl})" opacity=".55" filter="url(#f6)"/>'
-            f'<circle cx="{x:.0f}" cy="{y:.0f}" r="{17 * k:.0f}" '
-            f'fill="url(#{fl})"/>'
-            f'<circle cx="{x:.0f}" cy="{y:.0f}" r="3" fill="#fff"/>')
-        xt = min(max(x, nx + 60), nx + nw - 60)
-        words.append(f'<text x="{xt:.0f}" y="{ly - 10:.0f}" '
-                     f'text-anchor="middle" class="mark" '
-                     f'style="font-size:{capsz}px" opacity=".68">{txt}</text>')
+    yp = [Y(v) for v in sp]
+    ym = [Y(v) for v in sm]
+    yo = [YO(v) for v in so] if any(so) else []
 
-    bx, by = wh[-1]                      # маяк — сегодня
-    pts_svg.append(f'<circle cx="{bx:.0f}" cy="{by:.0f}" r="{40 * k:.0f}" '
-                   f'fill="url(#flC)" opacity=".55" filter="url(#f6)"/>'
-                   f'<circle cx="{bx:.0f}" cy="{by:.0f}" r="{15 * k:.0f}" '
-                   f'fill="url(#flC)"/>'
-                   f'<circle cx="{bx:.0f}" cy="{by:.0f}" r="3" fill="#fff"/>')
-    label = (f'<text x="{nx}" y="{ny - 22}" class="mark" '
-             f'style="font-size:{capsz - 2}px" opacity=".38">{cap}</text>')
-    return ''.join(art) + ''.join(pts_svg), ''.join(words) + label
+    # свечи из настоящих OHLC
+    BW = max(1.6, w / n * .62)
+    cnd = []
+    for j in range(n):
+        o, hg, lw, cl = ohlc.get(days[i0 + j], (None, None, None, None))
+        if not (o and hg and lw and cl):
+            continue
+        up = cl >= o
+        col = '#ffb44a' if up else '#ff6a2a'
+        ya, yb2 = Y(o), Y(cl)
+        yt, yb = min(ya, yb2), max(ya, yb2)
+        if yb - yt < 1.2:
+            yt, yb = yt - .6, yb + .6
+        op = (.5 + abs(steps[i0 + j]) / MX * .45) * (.35 + .65 * depth)
+        cnd.append(
+            f'<line x1="{xs[j]:.1f}" y1="{Y(hg):.1f}" x2="{xs[j]:.1f}" '
+            f'y2="{Y(lw):.1f}" stroke="{col}" stroke-width=".8" '
+            f'opacity="{op*.75:.2f}"/>'
+            f'<rect x="{xs[j]-BW/2:.1f}" y="{yt:.1f}" width="{BW:.1f}" '
+            f'height="{yb-yt:.1f}" fill="{col}" opacity="{op*.5:.2f}" '
+            f'filter="url(#b9)"/>'
+            f'<rect x="{xs[j]-BW/2:.1f}" y="{yt:.1f}" width="{BW:.1f}" '
+            f'height="{yb-yt:.1f}" fill="{col}" opacity="{op:.2f}"/>')
 
+    # три главные свечи — только на ближнем плане, иначе шум
+    hero = []
+    if depth >= .7:
+        for j in sorted(range(n), key=lambda q: -abs(steps[i0 + q]))[:3]:
+            o, hg, lw, cl = ohlc.get(days[i0 + j], (None,)*4)
+            if not (o and hg and lw and cl):
+                continue
+            col = '#ffd07a' if cl >= o else '#ff8a3a'
+            ya, yb2 = Y(o), Y(cl)
+            yt, yb = min(ya, yb2), max(ya, yb2)
+            if yb - yt < 3:
+                yt, yb = yt - 1.5, yb + 1.5
+            bw = BW * 2.2
+            hero.append(
+                f'<line x1="{xs[j]:.1f}" y1="{Y(hg):.1f}" x2="{xs[j]:.1f}" '
+                f'y2="{Y(lw):.1f}" stroke="{col}" stroke-width="6" '
+                f'opacity=".28" filter="url(#b9)"/>'
+                f'<line x1="{xs[j]:.1f}" y1="{Y(hg):.1f}" x2="{xs[j]:.1f}" '
+                f'y2="{Y(lw):.1f}" stroke="#fff6e4" stroke-width="1.4" '
+                f'opacity=".95"/>'
+                f'<rect x="{xs[j]-bw/2-3:.1f}" y="{yt-3:.1f}" '
+                f'width="{bw+6:.1f}" height="{yb-yt+6:.1f}" '
+                f'fill="url(#glowA)" opacity=".7" filter="url(#b9)"/>'
+                f'<rect x="{xs[j]-bw/2:.1f}" y="{yt:.1f}" width="{bw:.1f}" '
+                f'height="{yb-yt:.1f}" fill="{col}" opacity="1"/>'
+                f'<rect x="{xs[j]-bw/2:.1f}" y="{yt:.1f}" width="{bw:.1f}" '
+                f'height="{yb-yt:.1f}" fill="none" stroke="#fffaf0" '
+                f'stroke-width="1.1" opacity=".9"/>')
+
+    # узлы на деньгах и ветви графа
+    mn, gp = [], []
+    st = max(4, n // 14)
+    prev = None
+    for j in range(st, n - 2, st):
+        mn.append(f'<circle cx="{xs[j]:.1f}" cy="{ym[j]:.1f}" '
+                  f'r="{9*depth:.1f}" fill="url(#glowC)" opacity=".5" '
+                  f'filter="url(#b9)"/>'
+                  f'<circle cx="{xs[j]:.1f}" cy="{ym[j]:.1f}" '
+                  f'r="{max(1.2, 2.2*depth):.1f}" fill="#e8fbff"/>')
+        if prev:
+            bx = (prev[0] + xs[j]) / 2
+            by = max(prev[1], ym[j]) + random.uniform(26, 90) * depth
+            gp.append(f'<path d="M{prev[0]:.0f},{prev[1]:.0f} '
+                      f'L{bx:.0f},{by:.0f} L{xs[j]:.0f},{ym[j]:.0f}" '
+                      f'fill="none" stroke="#5f9ec0" stroke-width=".7" '
+                      f'opacity="{.16*depth:.2f}"/>')
+        prev = (xs[j], ym[j])
+
+    body = (''.join(gp)
+            + (tube(yo, f'pale{tag}', '#dcecf8', 1.3) if yo else '')
+            + tube(ym, f'cyn{tag}', '#dffaff', 2.0)
+            + ''.join(cnd)
+            + tube(yp, f'hot{tag}', '#fff6e4', 2.8)
+            + ''.join(mn) + ''.join(hero))
+    lab = (f'<text x="{x0}" y="{y0 - 16}" font-family="Arial" '
+           f'font-weight="800" font-size="{13 + 5*depth:.0f}" '
+           f'fill="#9fb8cc" opacity="{.30 + .28*depth:.2f}" '
+           f'letter-spacing=".26em">{cap}</text>')
+    return body, lab
+
+
+# ── РАСКЛАДКИ ──────────────────────────────────────────────────────
+if A.layout == 'a':
+    WINS = [('w2', max(0, N-15), N, (150, 180, 1080, 400), 1.00, 'две недели'),
+            ('qr', max(0, N-90), N, (150, 700, 780, 300), .70, 'квартал'),
+            ('hf', 0, N, (1030, 700, 780, 300), .55, 'полгода')]
+else:
+    WINS = [('hf', 0, N, (70, 210, 1180, 230), .38, 'полгода'),
+            ('qr', max(0, N-90), N, (300, 430, 1330, 270), .68, 'квартал'),
+            ('w2', max(0, N-15), N, (560, 700, 1290, 280), 1.00, 'две недели')]
 
 scene, over = '', ''
-for _w in WINS:
-    _a, _b = draw(*_w)
-    scene += _a
-    over += _b
+for w in WINS:
+    b_, l_ = window(*w)
+    scene += b_
+    over += l_
 
-# ── вердикт от главной линии ────────────────────────────────────────
+
+def backdrop(cx, cy, R):
+    out = []
+    for k, rr in enumerate((R*.42, R*.68, R*1.0)):
+        out.append(f'<circle cx="{cx}" cy="{cy}" r="{rr:.0f}" fill="none" '
+                   f'stroke="#1b4462" stroke-width="1" '
+                   f'opacity="{.16-k*.035:.2f}"/>')
+    for i in range(24):
+        a_ = i * math.pi / 12
+        f_ = 1.02 if i % 3 == 0 else .74
+        out.append(f'<line x1="{cx+math.cos(a_)*R*.30:.0f}" '
+                   f'y1="{cy+math.sin(a_)*R*.30:.0f}" '
+                   f'x2="{cx+math.cos(a_)*R*f_:.0f}" '
+                   f'y2="{cy+math.sin(a_)*R*f_:.0f}" stroke="#1b4462" '
+                   f'stroke-width=".8" '
+                   f'opacity="{.13 if i%3==0 else .07:.2f}"/>')
+    for turn, (op, wd, col) in enumerate(((.20, 1.3, '#24587c'),
+                                          (.10, .8, '#1b4462'))):
+        pts, th = [], 0.0
+        while th < math.pi * 6.2:
+            r = R * .085 * math.exp(.148 * th)
+            if r > R * 1.16:
+                break
+            ang = th + turn * .55
+            pts.append(f'{cx+math.cos(ang)*r:.0f},{cy+math.sin(ang)*r:.0f}')
+            th += .085
+        out.append(f'<polyline points="{" ".join(pts)}" fill="none" '
+                   f'stroke="{col}" stroke-width="{wd}" opacity="{op}"/>')
+    return ''.join(out)
+
+
+noise = []
+for _ in range(80):
+    x, y = random.uniform(60, W-60), random.uniform(120, H-80)
+    noise.append(f'<rect x="{x:.0f}" y="{y:.0f}" '
+                 f'width="{random.uniform(14,54):.0f}" height="2" '
+                 f'fill="{"#ffb44a" if random.random()<.5 else "#4aa8d8"}" '
+                 f'opacity="{random.uniform(.05,.18):.2f}"/>')
+for cx, cy, cols, rows, st_, col, op in ((520, 300, 14, 8, 12, '#ffb44a', .20),
+                                         (1180, 640, 12, 9, 11, '#4aa8d8', .16)):
+    for r in range(rows):
+        for c2 in range(cols):
+            if random.random() < (c2/cols)*.6:
+                continue
+            noise.append(f'<circle cx="{cx+c2*st_}" cy="{cy+r*st_}" r="1.5" '
+                         f'fill="{col}" opacity="{op:.2f}"/>')
+
+bok = []
+for _ in range(30):
+    x, y, r = random.uniform(0, W), random.uniform(80, H), random.uniform(8, 52)
+    warm = random.random() < .72
+    col = '#ff9a2e' if warm else '#4ad8ff'
+    op = random.uniform(.10, .32)
+    bok.append(f'<circle cx="{x:.0f}" cy="{y:.0f}" r="{r:.0f}" fill="{col}" '
+               f'opacity="{op*.45:.2f}" filter="url(#b9)"/>'
+               f'<circle cx="{x:.0f}" cy="{y:.0f}" r="{r:.0f}" fill="none" '
+               f'stroke="{col}" stroke-width="1.4" opacity="{op:.2f}"/>')
+
+spark = ''.join(
+    f'<circle cx="{random.uniform(0,W):.0f}" cy="{random.uniform(60,H):.0f}" '
+    f'r="{random.uniform(.7,2.0):.1f}" '
+    f'fill="{"#ffc76a" if random.random()<.74 else "#7fe8ff"}" '
+    f'opacity="{random.uniform(.20,.75):.2f}"/>' for _ in range(280))
+
 i0v = max(0, N - 15)
-c0 = cum[i0v]
-mv = px[i0v] * math.exp(K_MONEY * (cum[-1] - c0))
-gap_now = px[-1] / mv - 1
-verdict = ('ЖДАТЬ' if gap_now > 0.10 else
-           'СМОТРЕТЬ ВХОД' if gap_now < -0.10 else 'ДЕРЖАТЬ')
-vcol = C_ORNG if verdict == 'ЖДАТЬ' else C_TEAL
-reason = (f'за две недели цена выше своих денег на {gap_now*100:.0f}% — '
-          f'ход держат заявками, не покупками' if gap_now > 0.10 else
-          f'деньги выше цены на {abs(gap_now)*100:.0f}%' if gap_now < -0.10
-          else 'цена и деньги идут вровень')
+mv = px[i0v] * math.exp(K * (cum[-1] - cum[i0v]))
+gap = px[-1] / mv - 1
+verdict = ('ЖДАТЬ' if gap > .10 else
+           'СМОТРЕТЬ ВХОД' if gap < -.10 else 'ДЕРЖАТЬ')
+why = (f'за две недели цена выше своих денег на {gap*100:.0f}% — '
+       f'ход держат заявками, не покупками' if gap > .10 else
+       f'деньги выше цены на {abs(gap)*100:.0f}%' if gap < -.10
+       else 'цена и деньги идут вровень')
+TILT = ('rotate(-5.5 960 560) scale(1.03) translate(-30,-18)'
+        if A.layout == 'a' else
+        'rotate(-7.5 960 560) scale(1.05) translate(-44,-26)')
 
-# ── воздух: гало, орбы, пыль ───────────────────────────────────────
-air = ['<ellipse cx="700" cy="380" rx="820" ry="300" fill="url(#halo)" '
-       'filter="url(#f34)"/>',
-       '<ellipse cx="1100" cy="880" rx="900" ry="260" fill="url(#halo)" '
-       'opacity=".7" filter="url(#f34)"/>']
-for _cx, _cy, _r, _g in ((286, 246, 36, 'orbB'), (1704, 900, 42, 'orbB'),
-                         (1560, 190, 26, 'orbB'), (640, 606, 32, 'orbA'),
-                         (1420, 640, 24, 'orbA'), (120, 880, 28, 'orbB')):
-    air.append(f'<circle cx="{_cx}" cy="{_cy}" r="{_r}" fill="url(#{_g})" '
-               f'filter="url(#f6)"/>')
-for _ in range(160):
-    _x, _y = random.uniform(0, VB_W), random.uniform(40, VB_H - 20)
-    _c = '#ffc76a' if random.random() < .48 else '#55d8e8'
-    air.append(f'<circle cx="{_x:.0f}" cy="{_y:.0f}" '
-               f'r="{random.uniform(.5, 1.3):.1f}" fill="{_c}" '
-               f'opacity="{random.uniform(.10, .38):.2f}"/>')
-
-# ── передний план: расфокус перед объективом, ПОВЕРХ линий ─────────
-fg = []
-for _cx, _cy, _r, _g, _op in ((372, 470, 112, 'orbA', .45),
-                              (1180, 300, 92, 'orbB', .4),
-                              (860, 860, 128, 'orbB', .34),
-                              (1660, 780, 84, 'orbA', .38),
-                              (196, 760, 74, 'orbB', .3)):
-    fg.append(f'<circle cx="{_cx}" cy="{_cy}" r="{_r}" fill="url(#{_g})" '
-              f'opacity="{_op}" filter="url(#f34)"/>')
-for _ in range(24):
-    _x, _y = random.uniform(60, VB_W - 60), random.uniform(150, VB_H - 80)
-    _c = '#ffc76a' if random.random() < .45 else '#8fd8f0'
-    fg.append(f'<circle cx="{_x:.0f}" cy="{_y:.0f}" '
-              f'r="{random.uniform(5, 15):.0f}" fill="{_c}" '
-              f'opacity="{random.uniform(.10, .20):.2f}" '
-              f'filter="url(#f16)"/>')
-
-TICK = A.coin.upper()
-column = f'''
-<text x="{RX}" y="272" class="tickGlow" filter="url(#f6)">{TICK}</text>
-<text x="{RX}" y="272" class="tick">{TICK}</text>
-<text x="{RX}" y="352" class="verd" fill="{vcol}">{verdict}</text>
-<foreignObject x="{RX - 3}" y="376" width="556" height="130">
- <div xmlns="http://www.w3.org/1999/xhtml" class="why">{reason}</div>
-</foreignObject>
-<text x="{RX}" y="556" class="leg"><tspan fill="{C_STEEL}">— цена</tspan>
-<tspan dx="16" fill="{C_TEAL}">— цена по деньгам</tspan>
-<tspan dx="16" fill="{C_ORNG}">— плечо</tspan></text>
-<text x="{RX}" y="586" class="leg" fill="#7f9bb0">тёплая подушка — цена выше денег</text>
-<text x="{RX}" y="610" class="leg" fill="#7f9bb0">точки — конфликты хода · маяк — сегодня</text>'''
-
-svg = f'''<svg viewBox="0 0 {VB_W} {VB_H}" xmlns="http://www.w3.org/2000/svg">
-<defs>{''.join(defs)}</defs>
-<rect width="{VB_W}" height="{VB_H}" fill="url(#bg)"/>
-{''.join(air)}
-{scene}
-{''.join(fg)}
-{over}
-{column}
-<rect width="{VB_W}" height="150" fill="url(#topfade)"/>
-<rect width="{VB_W}" height="{VB_H}" fill="url(#vig)"/>
+svg = f'''<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg">
+<defs>{DEFS}{''.join(GR)}</defs>
+<rect width="{W}" height="{H}" fill="url(#bg)"/>
+<ellipse cx="1500" cy="240" rx="520" ry="300" fill="url(#glowC)"
+  opacity=".13" filter="url(#b60)"/>
+<ellipse cx="300" cy="900" rx="520" ry="280" fill="url(#glowA)"
+  opacity=".16" filter="url(#b60)"/>
+{backdrop(1560, 290, 600)}
+{''.join(noise)}
+{spark}
+<g id="scene" transform="{TILT}">{scene}{over}</g>
+<use href="#scene" filter="url(#b9)" mask="url(#dof)" opacity=".95"/>
+<use href="#scene" filter="url(#b26)" mask="url(#dof)" opacity=".45"/>
+{''.join(bok)}
+<text x="118" y="962" font-family="Arial" font-weight="800" font-size="58"
+  fill="#fff6e4" letter-spacing=".02em">{A.coin.upper()}</text>
+<text x="118" y="1012" font-family="Arial" font-weight="800" font-size="26"
+  fill="#ffb44a" letter-spacing=".10em">{verdict}</text>
+<text x="118" y="1050" font-family="Georgia,serif" font-style="italic"
+  font-size="17" fill="#a8c4d4" opacity=".9">{why}</text>
+<text x="1800" y="1044" font-family="Arial" font-weight="700" font-size="11"
+  fill="#7f9bb0" letter-spacing=".10em" text-anchor="end">
+  <tspan fill="#ffb44a">— цена</tspan><tspan dx="14" fill="#7fe8ff">— деньги</tspan><tspan dx="14" fill="#c8dcea">— плечо</tspan></text>
+<text x="1800" y="1064" font-family="Arial" font-weight="700" font-size="10"
+  fill="#5f7a90" letter-spacing=".10em" text-anchor="end">свечи — дни; ближний план ярче, дальний тусклее</text>
+<rect width="{W}" height="{H}" fill="url(#vig)"/>
 </svg>'''
 
 html = f'''<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{TICK} \u00b7 поток</title><style>
-*{{box-sizing:border-box;margin:0}}
-html,body{{height:100%}}
-body{{background:#03101f;overflow:hidden}}
+<title>{A.coin.upper()} · поток · раскладка {A.layout.upper()}</title><style>
+*{{box-sizing:border-box;margin:0}}html,body{{height:100%}}
+body{{background:#000306;overflow:hidden}}
 svg{{display:block;width:100vw;height:100vh}}
-.ln{{fill:none;stroke-linecap:round;stroke-linejoin:round}}
-.mark{{font-family:Arial,Helvetica,sans-serif;font-weight:800;
-  fill:{TXT};letter-spacing:.05em}}
-.tick{{font:800 62px Arial;fill:#eef6fb;letter-spacing:.02em}}
-.tickGlow{{font:800 62px Arial;fill:{C_TEAL};letter-spacing:.02em;
-  opacity:.45}}
-.verd{{font:800 36px Arial;letter-spacing:.06em}}
-.why{{font:italic 16px Georgia,serif;color:#a8c4d4;line-height:1.55}}
-.leg{{font:700 12px Arial;letter-spacing:.06em}}
-.back{{position:fixed;left:18px;top:16px;z-index:9;
-  font:700 11px Arial;letter-spacing:.14em;color:#5fe0ea;
-  text-decoration:none;border:1px solid rgba(95,224,234,.35);
-  border-radius:8px;padding:5px 11px;opacity:.55}}
-.back:hover{{opacity:1}}
+.back{{position:fixed;left:18px;top:16px;z-index:9;font:700 11px Arial;
+letter-spacing:.14em;color:#ffb44a;text-decoration:none;
+border:1px solid rgba(255,180,74,.35);border-radius:8px;padding:5px 11px;
+opacity:.55}}.back:hover{{opacity:1}}
 </style></head><body><a class="back" href="podium.html">\u2190 зал</a>
 {svg}</body></html>'''
 
-_out = Path(A.out) if getattr(A, 'out', None) else Path(f'flow_{A.coin}.html')
-_out.write_text(html, encoding='utf-8')
-print(f'{A.coin}: поток собран,', len(html), 'байт · зазор сейчас',
-      f'{gap_now*100:+.0f}% · вердикт {verdict}')
+out = Path(A.out) if A.out else Path(f'flow_{A.coin}.html')
+out.write_text(html, encoding='utf-8')
+print(f'{A.coin}: поток собран, {len(html)} байт · дней {N} · '
+      f'зазор {gap*100:+.0f}% · вердикт {verdict}')

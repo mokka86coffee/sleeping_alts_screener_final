@@ -1538,13 +1538,12 @@ x-rm.dn{color:#f0a89b;text-shadow:0 0 7px rgba(240,168,155,.35)}
 .obc-nums-v .obc-num{text-align:right}
 .obc-nums-v .obc-num b,.obc-nums-v .obc-num i{display:block;
   text-align:right}
-.obc-two{display:flex;gap:36px;width:100%;align-items:flex-start}
-.obc-col{flex:1 1 0;min-width:0}
+/* Стили .obc-two / .obc-col сняты 31.08 вместе с колонками —
+   разметка их больше не выводит. */
 .obc-why{font-size:13px;line-height:1.65}
 .obc-calc{font-size:13px;line-height:1.65}
 .obc-head{align-items:flex-start}
 @media (max-width:1100px){
-  .obc-two{flex-direction:column;gap:2px}
   .obc-right{position:static;max-width:none;align-items:flex-start}
   .obc-nums-v{flex-direction:row;flex-wrap:wrap;gap:18px;
     align-items:flex-start}
@@ -3410,19 +3409,22 @@ PODIUM_JS = """
     /* СОРТИРОВКА «КТО БЫСТРЕЕ ПОЙДЁТ» (31.08): внутри каждой
        группы сверху те, у кого сюжет ближе к развязке вверх.
        Ранг по классу сюжета: акт НА ХОДУ / ИСКРА / подтверждение —
-       уже идёт (5); взведён курок (4); набор кита и лестница —
-       рука ведёт (3); рука над сливом — цена держится, развязку
-       выбирает рука (2); дёрг (1); финалы и пусто (0). Равный
+       уже идёт (5); курок взведён (4); кит набирает тихо и крупняк
+       тащит вверх (3); кит поглощает слив — цена держится, развязку
+       выбирает кит (2); дёрг (1); развязки и пусто (0). Равный
        ранг решает свежая дельта: покупки выше продаж. */
     function goRank(x) {
       var p = (x.rep && x.rep.plot) || '';
       var r = 0;
       if (p.indexOf('НА ХОДУ') >= 0 || p.indexOf('ИСКРА') >= 0 ||
           p.indexOf('подтверждение пришло') >= 0) r = 5;
-      else if (p.indexOf('курок второго') >= 0) r = 4;
-      else if (p.indexOf('набор кита') >= 0 ||
-               p.indexOf('лестница руки') >= 0) r = 3;
-      else if (p.indexOf('рука над сливом') >= 0) r = 2;
+      else if (p.indexOf('курок взведён') >= 0) r = 4;
+      /* «Крупняк отпустил» — развязка, а не рост: проверяем ДО корня
+         «крупняк», иначе он получил бы ранг растущего (01.09). */
+      else if (p.indexOf('крупняк отпустил') >= 0) r = 0;
+      else if (p.indexOf('кит набирает тихо') >= 0 ||
+               p.indexOf('крупняк') >= 0) r = 3;
+      else if (p.indexOf('кит поглощает слив') >= 0) r = 2;
       else if (p.indexOf('дёрг') >= 0) r = 1;
       return r;
     }
@@ -4241,6 +4243,9 @@ PODIUM_JS = """
     if (s.flowFired && +s.flowFired > 1) {
       calc.push('детекторов согласно <em>' + (+s.flowFired) + '</em>');
     }
+    /* Здесь стояло закрытие двух колонок (if (twoOpen) …). Колонки
+       сняты 31.08 вместе с переходом на три полосы, а эта строка
+       осталась и падала на undefined. */
 
     var pairHtml = '';
     if (why) pairHtml += '<div class="obc-why obc-anim" style="--nd:1">' +
