@@ -362,7 +362,15 @@ SCHEME_HTML = """
 .co.l .ln{right:0;transform-origin:right}
 .co.r .ln{left:0;transform-origin:left}
 .co.on .ln{transform:scaleX(1)}
-.co .txt{position:absolute;top:-10px;width:min(330px,42vw);opacity:0;transform:translateY(6px);
+/* ПОТОЛОК ВЕТВИ (правка 01.09). Нота ограничена тремя строками, но
+   высота ветви складывается из метки, подписи, значения И ноты — а
+   значение с 01.09 несёт тикер и полное имя шаблона и легко идёт в
+   две строки. В сумме ветвь перерастала шаг гнёзд и наезжала на
+   соседнюю. Потолок привязан к САМОМУ шагу через переменную --slot,
+   которую ставит JS: шаг меняется от высоты окна, и потолок обязан
+   меняться вместе с ним. */
+.co .txt{max-height:calc(var(--slot,124px) - 18px);overflow:hidden;
+  position:absolute;top:-10px;width:min(330px,42vw);opacity:0;transform:translateY(6px);
   transition:opacity 2.6s ease .8s,transform 2.6s cubic-bezier(.22,.61,.36,1) .8s}
 .co.on .txt{opacity:.7;transform:none}
 .co.off .txt{opacity:0;transform:translateY(-4px);transition:opacity 3s ease,transform 3s ease}
@@ -406,6 +414,12 @@ SCHEME_HTML = """
   display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;-webkit-line-clamp:3}
 .co .s b{color:#c9d2e8;font-weight:500}
 .co .tkr{font-family:var(--serif);color:#c9d2e8}
+/* ИМЯ ШАБЛОНА ВЫДЕЛЕНО (правка 01.09). Значение ветви несёт тикер и
+   имя сюжета, и раньше они шли одним весом — глаз не находил, что
+   здесь главное. Тикер антиквой, имя плотнее и светлее, разделитель
+   приглушён. */
+.co .v b{font-weight:500;color:#ffffff;letter-spacing:.005em}
+.co .v s{text-decoration:none;opacity:.42;margin:0 .28em;font-weight:200}
 
 /* созвездие событий */
 /* имён у звёзд нет: звезда — это только цвет и место, читает её карточка внизу */
@@ -740,14 +754,16 @@ SCHEME_JS = r"""
       var body = esc(cut(head, 95)) +
                  (tail ? '<br><i style="opacity:.62">' +
                   esc(cut(tail, 85)) + '</i>' : '');
+      var vfull = '<span class="tkr">' + esc(gs.t || '') + '</span>' +
+                  '<s>·</s><b>' + esc(vname) + '</b>';
       if (moving) {
         mov.push({ k: 'Уже идёт · ' + (gs.t || ''),
-                   v: vname, c: '#e0b878', moving: 1,
+                   v: vfull, c: '#e0b878', moving: 1,
                    s: body + '<br><i style="opacity:.62">вход дорогой ' +
                       '— ход уже состоялся</i>' });
       } else {
         out.push({ k: 'Пойдёт? · ' + (gs.t || ''),
-                   v: vname, c: '#7fe3d4',
+                   v: vfull, c: '#7fe3d4',
                    s: body + vetoMark });
       }
     }
@@ -804,7 +820,8 @@ SCHEME_JS = r"""
       var ltail = lrest.length > 1 ? lrest[lrest.length - 1] : '';
       out.push({ k: lname.charAt(0).toUpperCase() + lname.slice(1) +
                     ' · ' + lt,
-                 v: '<span class="tkr">' + esc(lt) + '</span> · лидер прогона',
+                 v: '<span class="tkr">' + esc(lt) + '</span><s>·</s><b>' +
+                    esc(lname) + '</b>',
                  c: '#b3a6e0', lead: 1,
                  s: esc(cut(lhead, 95)) +
                     (ltail ? '<br><i style="opacity:.62">' +
@@ -1003,6 +1020,9 @@ SCHEME_JS = r"""
   var step = Math.max(LEAD_MIN, Math.min(narrow ? 130 : 122,
     (H - top0 - (low ? 120 : narrow ? 250 : 190)) / 2.4));
   var SLOT = [0, step, step*2];
+  /* Потолок ветви ходит за шагом (см. .co .txt): иначе на низком
+     окне шаг сжимается, а текст остаётся прежним. */
+  wrapCos.style.setProperty('--slot', step + 'px');
   wrapCos.innerHTML = cos.map(function(c, i){
     var y = top0 + SLOT[i % 3] + Math.round((rnd() - 0.5) * 36);
     var gate = c.k === '\u0411\u0438\u0442\u043a\u043e\u0438\u043d \u00b7 \u0440\u0435\u0436\u0438\u043c';
