@@ -110,6 +110,14 @@ LIQ_WINDOWS = ("24h", "12h", "4h", "1h")
 
 # ── сеть ────────────────────────────────────────────────────────────
 
+# Остаток лимита из заголовков ответа (01.09). Тариф Startup —
+# восемьдесят запросов в минуту; прогон идёт примерно на сорока
+# четырёх, то есть на половине. Но это прикидка по секундомеру, а
+# решать про частоту надо по числу от самого источника. Заголовков
+# может и не быть — тогда строка честно скажет, что их нет.
+RATE = {"last": None, "seen": 0}
+
+
 def get(path: str, params: dict, key: str) -> tuple[int, dict | str]:
     """Как в пробнике: (HTTP-код, разобранное тело либо текст)."""
     url = BASE + path + ("?" + urllib.parse.urlencode(params) if params else "")
@@ -119,6 +127,12 @@ def get(path: str, params: dict, key: str) -> tuple[int, dict | str]:
     })
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+            for _h, _v in r.headers.items():
+                if any(w in _h.lower() for w in
+                       ("ratelimit", "rate-limit", "x-remain", "quota",
+                        "credit", "retry-after")):
+                    RATE["last"] = f"{_h}={_v}"
+                    RATE["seen"] += 1
             return r.status, json.loads(r.read().decode())
     except urllib.error.HTTPError as e:
         body = e.read().decode(errors="replace")[:400]
@@ -597,6 +611,65 @@ def _usd(v) -> str:
     return f"{v:.0f}"
 
 
+def _hot_coins(limit: int = 10) -> list[str]:
+    """Монеты, ради которых стоит ходить чаще часа.
+
+    Полный обход — двести восемьдесят пять запросов и шесть с
+    половиной минут; учетверить его нельзя, тариф Startup даёт
+    восемьдесят запросов в минуту. Но и незачем: между часовыми
+    прогонами интересны единицы монет, а не весь журнал.
+
+    Берём три источника, все уже лежат в output/ и считать заново
+    нечего: сюжеты растущего класса из репутаций, открытые позиции
+    книги и лидер прогона. Ничего нет — короткий круг молчит.
+    """
+    hot: list[str] = []
+
+    def add(sym):
+        c = _base_coin(str(sym or "").upper())
+        if c and c not in hot:
+            hot.append(c)
+
+    rp = Path("output/reputation.json")
+    if rp.exists():
+        try:
+            for sym, e in (json.loads(rp.read_text(encoding="utf-8"))
+                           or {}).items():
+                if sym == "_meta" or not isinstance(e, dict):
+                    continue
+                head = str(e.get("plot") or "").split(":")[0]
+                if any(m in head for m in ("крупняк", "курок взведён",
+                                           "кит набирает тихо")):
+                    add(sym)
+        except ValueError:
+            pass
+
+    for name in ("output/book.json", "book.json", "output/positions.json"):
+        p = Path(name)
+        if not p.exists():
+            continue
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except ValueError:
+            continue
+        rows = d.values() if isinstance(d, dict) else d
+        for r in rows:
+            if isinstance(r, dict):
+                add(r.get("symbol") or r.get("sym") or r.get("t"))
+            else:
+                add(r)
+        break
+
+    lp = Path("output/leaders_last.json")
+    if lp.exists():
+        try:
+            add((json.loads(lp.read_text(encoding="utf-8"))
+                 or {}).get("leader"))
+        except ValueError:
+            pass
+    return hot[:limit]
+
+
 def digest(state: dict) -> str:
     """Одна строка на монету; интерпретаций нет — только числа."""
     if state.get("error"):
@@ -604,7 +677,9 @@ def digest(state: dict) -> str:
     head = (f"coinglass-срез {state.get('at', '')} · окно {state.get('window')} "
             f"· монет {len(state.get('coins', {}))} "
             f"· запросов {state.get('requests', 0)} "
-            f"· ошибок {len(state.get('errors', {}))}")
+            f"· ошибок {len(state.get('errors', {}))}"
+            + (f" · лимит: {RATE['last']}" if RATE["last"]
+               else " · лимит: заголовков нет"))
     lines = [head,
              f"{'монета':<9} {'тейкФ':>6} {'CVDΔ':>9} {'спот':>13}"
              f" {'OI':>8} {'OIΔ%':>7} {'фанд':>8} {'ликв24 Л/Ш':>15}"]
@@ -634,8 +709,17 @@ def main() -> int:
                     help="монеты вместо журнала: MAGMA HEMI (можно с USDT)")
     ap.add_argument("--write", action="store_true",
                     help=f"записать срез в {STATE_PATH}")
+    ap.add_argument("--hot", action="store_true",
+                    help="короткий круг: только кандидаты, книга и лидер")
     a = ap.parse_args()
-    state = collect(a.symbols or None, write=a.write)
+    syms = a.symbols or None
+    if a.hot and not syms:
+        syms = _hot_coins()
+        if not syms:
+            print("короткий круг: горячих монет нет — пропуск")
+            return 0
+        print(f"короткий круг: {len(syms)} монет · {' '.join(syms)}")
+    state = collect(syms, write=a.write)
     print(digest(state))
     if a.write and "write" not in state.get("errors", {}) \
             and not state.get("error"):

@@ -39,7 +39,7 @@ import math
 import random
 from pathlib import Path
 
-W, H = 1920, 1080
+W, H = 1920, 1140
 AP = argparse.ArgumentParser()
 AP.add_argument('--coin', default='skr')
 AP.add_argument('--layout', default='b', choices=('a', 'b'))
@@ -82,6 +82,29 @@ for x in steps:
 K = (math.log(max(px) / min(px)) or .2) / ((max(cum) - min(cum)) or 1.0)
 money = [px[0] * math.exp(K * v) for v in cum]
 MX = max(abs(x) for x in steps) or 1.0
+# ── СЮЖЕТ МОНЕТЫ (01.09) ───────────────────────────────────────────
+# Прогноз строится в reputation_cq и до экрана потока не доходил
+# вовсе: человек видел линии, но не видел, ЧТО система по ним
+# прочла. Читаем готовую карту — своих расчётов здесь нет.
+PLOT = PLOT_WHY = PLOT_GUARD = ""
+for _rp in (Path("output/reputation.json"), Path("reputation.json")):
+    if not _rp.exists():
+        continue
+    try:
+        _e = (json.loads(_rp.read_text(encoding="utf-8"))
+              .get(A.coin.upper() + "USDT") or {})
+    except ValueError:
+        _e = {}
+    _pl = str(_e.get("plot") or "")
+    if _pl:
+        PLOT = _pl.split(":")[0].replace(" (шаблон", "|").split("|")[0]
+        PLOT = PLOT.split("(")[0].strip()
+        _rest = _pl.split(":", 1)[1] if ":" in _pl else ""
+        _parts = [x.strip() for x in _rest.split(";") if x.strip()]
+        PLOT_WHY = _parts[0] if _parts else ""
+        PLOT_GUARD = _parts[-1] if len(_parts) > 1 else ""
+    break
+
 random.seed(11)
 
 DEFS = '''
@@ -101,7 +124,7 @@ DEFS = '''
  <stop offset="0" stop-color="#000"/><stop offset=".44" stop-color="#000"/>
  <stop offset=".80" stop-color="#999"/><stop offset="1" stop-color="#fff"/>
 </radialGradient>
-<mask id="dof"><rect width="1920" height="1080" fill="url(#dofg)"/></mask>
+<mask id="dof"><rect width="1920" height="1140" fill="url(#dofg)"/></mask>
 <filter id="b3" x="-70%" y="-70%" width="240%" height="240%">
  <feGaussianBlur stdDeviation="3"/></filter>
 <filter id="b9" x="-70%" y="-70%" width="240%" height="240%">
@@ -145,7 +168,17 @@ def window(tag, i0, i1, frame, depth, cap):
         return '', ''
     grads(tag, x0, x0 + w)
     xs = [x0 + j * w / (n - 1) for j in range(n)]
-    sp, sm = px[i0:i1], money[i0:i1]
+    sp = px[i0:i1]
+    # ЯКОРЬ ДЕНЕГ — НА НАЧАЛО ОКНА (правка 01.09, случай AIO). Раньше
+    # окно брало кусок глобальной денежной линии, якоренной на начало
+    # ВСЕГО ряда. В коротком окне деньги оказывались привязаны к цене
+    # полугодовой давности, висели далеко от текущей, шкала
+    # растягивалась на обе линии — и движение денег сжималось в черту.
+    # У AIO деньги занимали 10% высоты кадра вместо 46, и цена теряла
+    # с 95 до 86. В одиночной сцене окно было одно и якорь совпадал с
+    # началом ряда, поэтому при переносе на три плана ошибка проехала.
+    _c0 = cum[i0]
+    sm = [sp[0] * math.exp(K * (cum[i0 + j] - _c0)) for j in range(n)]
     so = oi[i0:i1]
     lo = min(min(sp), min(sm)) * .96
     hi = max(max(sp), max(sm)) * 1.04
@@ -156,7 +189,13 @@ def window(tag, i0, i1, frame, depth, cap):
         return y0 + h - (v - lo) / ((hi - lo) or 1) * h
 
     def YO(v):
-        return y0 + h + 26 - (v - olo) / ((ohi - olo) or 1) * h * .34
+        # ПЛЕЧО ЖИВЁТ В ТОМ ЖЕ КАДРЕ (правка 01.09). Я увёл его на 26
+        # пикселей НИЖЕ края окна и урезал полосу с 45% до 34% — и
+        # пересечения плеча с ценой стали невозможны в принципе. А они
+        # содержательные: плечо выше цены значит толпа зашла, ниже —
+        # ход идёт без неё. Возвращаю прежнюю полосу: нижние 45% того
+        # же кадра, без отступа.
+        return y0 + h - (v - olo) / ((ohi - olo) or 1) * h * .45
 
     def poly(ys, dx=0.0, dy=0.0):
         return ' '.join(f'{xs[i]+dx:.1f},{ys[i]+dy:.1f}'
@@ -265,11 +304,51 @@ def window(tag, i0, i1, frame, depth, cap):
             + ''.join(cnd)
             + tube(yp, f'hot{tag}', '#fff6e4', 2.8)
             + ''.join(mn) + ''.join(hero))
+    # ── ПОДПИСИ СОБЫТИЙ (возвращены 01.09) ─────────────────────────
+    # При переписывании экрана я их потерял целиком, и человек видел
+    # линии без единого объяснения, что на них смотреть. Два вида, оба
+    # были в прежней версии и оба считаются из данных:
+    #   цена растёт на ПРОДАЖАХ — ход держат лимитными заявками;
+    #   плечо влилось за день — толпу завели.
+    # На дальнем плане подписей нет: там они были бы шумом.
+    ev = []
+    if depth >= .6:
+        for j in range(2, n):
+            i = i0 + j
+            dpx = sp[j] / sp[j-1] - 1 if sp[j-1] else 0
+            if dl[i] < 0 and dpx > .04 and abs(dl[i]) > 3e5:
+                ev.append((j, f'цена +{dpx*100:.0f}% при продажах '
+                              f'${abs(dl[i])/1e6:.1f}M — держат заявками'))
+            elif (so[j] and so[j-1] and so[j] / so[j-1] > 1.28):
+                ev.append((j, f'плечо влилось +'
+                              f'{(so[j]/so[j-1]-1)*100:.0f}% за день'))
+    picked, last = [], -99
+    for j, txt in ev:
+        if j - last >= max(4, n // 5):
+            picked.append((j, txt)); last = j
+    pins = []
+    for k_, (j, txt) in enumerate(picked[:3 if depth >= .9 else 2]):
+        px_, py_ = xs[j], yp[j]
+        ly = py_ - (52 + k_ * 26) * max(.7, depth)
+        xt = min(max(px_, x0 + 120), x0 + w - 120)
+        pins.append(
+            f'<line x1="{px_:.0f}" y1="{py_:.0f}" x2="{px_:.0f}" '
+            f'y2="{ly:.0f}" stroke="#d8f0f8" stroke-width=".8" '
+            f'opacity=".26"/>'
+            f'<circle cx="{px_:.0f}" cy="{py_:.0f}" r="{16*depth:.0f}" '
+            f'fill="url(#glowA)" opacity=".55" filter="url(#b9)"/>'
+            f'<circle cx="{px_:.0f}" cy="{py_:.0f}" r="2.6" fill="#fff6e4"/>'
+            f'<text x="{xt:.0f}" y="{ly-8:.0f}" text-anchor="middle" '
+            f'font-family="Arial" font-weight="700" '
+            f'font-size="{10 + 3*depth:.0f}" fill="#cfe0ec" '
+            f'opacity="{.45 + .35*depth:.2f}" '
+            f'letter-spacing=".04em">{txt}</text>')
+
     lab = (f'<text x="{x0}" y="{y0 - 16}" font-family="Arial" '
            f'font-weight="800" font-size="{13 + 5*depth:.0f}" '
            f'fill="#9fb8cc" opacity="{.30 + .28*depth:.2f}" '
            f'letter-spacing=".26em">{cap}</text>')
-    return body, lab
+    return body + ''.join(pins), lab
 
 
 # ── РАСКЛАДКИ ──────────────────────────────────────────────────────
@@ -383,8 +462,16 @@ svg = f'''<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg">
   fill="#fff6e4" letter-spacing=".02em">{A.coin.upper()}</text>
 <text x="118" y="1012" font-family="Arial" font-weight="800" font-size="26"
   fill="#ffb44a" letter-spacing=".10em">{verdict}</text>
-<text x="118" y="1050" font-family="Georgia,serif" font-style="italic"
-  font-size="17" fill="#a8c4d4" opacity=".9">{why}</text>
+<!-- КАК СТРОИТСЯ ПРОГНОЗ: имя сюжета крупно, под ним основание и
+     сторож. Раньше это жило только в зале, и на потоке человек видел
+     линии, не зная, что система по ним прочла. -->
+{'' if not PLOT else f'''
+<text x="118" y="1056" font-family="Arial" font-weight="800" font-size="21"
+  fill="#7fe8ff" letter-spacing=".03em">{PLOT}</text>
+<text x="118" y="1082" font-family="Georgia,serif" font-style="italic"
+  font-size="15" fill="#a8c4d4" opacity=".85">{PLOT_WHY[:96]}</text>'''}
+<text x="118" y="{1050 if not PLOT else 1108}" font-family="Georgia,serif"
+  font-style="italic" font-size="15" fill="#8fa8bc" opacity=".7">{why}</text>
 <text x="1800" y="1044" font-family="Arial" font-weight="700" font-size="11"
   fill="#7f9bb0" letter-spacing=".10em" text-anchor="end">
   <tspan fill="#ffb44a">— цена</tspan><tspan dx="14" fill="#7fe8ff">— деньги</tspan><tspan dx="14" fill="#c8dcea">— плечо</tspan></text>

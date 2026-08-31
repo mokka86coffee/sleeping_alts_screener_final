@@ -16,3 +16,6 @@
 2026-08-31 14:40:04 нет в архиве: 1 (flock)
 2026-08-31 14:40:04 добор новичков: flock
 2026-08-31 14:40:17 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json (прицельно, full_at не тронут)
+2026-08-31 21:39:08 полный обход старше 20 ч (возраст 20.4 ч)
+2026-08-31 21:39:08 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-08-31 21:51:19 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json

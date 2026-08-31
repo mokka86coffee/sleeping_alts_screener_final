@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import sys
 import time
 import traceback
@@ -561,6 +562,12 @@ def parse_args() -> argparse.Namespace:
                    help="не собирать HTML, только JSON")
     p.add_argument("--no-save", action="store_true",
                    help="не сохранять снимок прогона")
+    p.add_argument("--hot", action="store_true",
+                  help="короткий круг: пульс, Coinglass по горячим, "
+                       "сюжеты и рендер — без медленных контуров")
+    p.add_argument("--hot-every", type=int, default=0,
+                  help="в цикле: короткий круг каждые N секунд между "
+                       "полными прогонами (0 — не делать)")
     p.add_argument("--loop", action="store_true",
                   help="повторять прогон бесконечно с интервалом --interval")
     p.add_argument("--interval", type=int, default=LOOP_INTERVAL_SEC,
@@ -596,6 +603,19 @@ def resolve_explicit_symbols(raw: str) -> list[tuple[str, float]]:
 def run_once(args: argparse.Namespace) -> int:
     """Один полный прогон. Возвращает код возврата."""
     started = time.monotonic()
+
+    # КОРОТКИЙ КРУГ (01.09). Полный обход идёт шесть с половиной минут
+    # и упирается в тариф Coinglass — восемьдесят запросов в минуту.
+    # Учетверять его нельзя и незачем: между часовыми прогонами
+    # интересны единицы монет, а не весь журнал. В коротком круге
+    # остаются пульс, Coinglass ПО ГОРЯЧИМ, сюжеты, рендер и
+    # публикация — то есть всё, что нужно, чтобы вынос лонгов доехал
+    # до экрана. Пропускаются контуры с суточным смыслом: они всё
+    # равно ничего не изменят за пятнадцать минут.
+    HOT = bool(getattr(args, "hot", False))
+    if HOT:
+        log("→ КОРОТКИЙ КРУГ: горячие монеты, "
+            "медленные контуры пропущены")
 
     # ── Ручное: печатается ПЕРВЫМ ──
     #
@@ -746,6 +766,8 @@ def run_once(args: argparse.Namespace) -> int:
     # тянет только если архиву больше двадцати часов — правило
     # «от свежести файла, не по кругу». Токен ТОЛЬКО из окружения
     # CQ_TOKEN; нет токена или сбой — лог и пропуск, как почта.
+    if HOT:
+        log("→ CryptoQuant: короткий круг, пропуск")
     try:
         import os as _os
         try:                                  # ключи из config.json,
@@ -753,7 +775,9 @@ def run_once(args: argparse.Namespace) -> int:
             _cfg()
         except Exception:
             pass
-        if not _os.environ.get("CQ_TOKEN", "").strip():
+        if HOT:
+            pass
+        elif not _os.environ.get("CQ_TOKEN", "").strip():
             log("→ CryptoQuant пропущен: нет CQ_TOKEN в окружении")
         else:
             from pathlib import Path as _P
@@ -812,9 +836,15 @@ def run_once(args: argparse.Namespace) -> int:
 
     # Киты Coinglass (31.08): свежие действия и позиции китов
     # Hyperliquid → output/whales.json; пузыри схемы читают файл.
+    if HOT:
+        log("→ Киты: короткий круг, пропуск")
     try:
+        if HOT:
+            raise StopIteration
         from whales_coinglass import collect as _wh_collect
         log(f"→ Киты: {_wh_collect(write=True)}")
+    except StopIteration:
+        pass
     except Exception as e:
         log(f"→ Киты пропущены: {type(e).__name__}: {e}")
 
@@ -974,8 +1004,33 @@ def main() -> int:
         nxt = datetime.now() + timedelta(seconds=interval)
         log(f"\n→ Следующий прогон в {nxt:%H:%M:%S}")
 
+        # СОН ДРОБИТСЯ КОРОТКИМИ КРУГАМИ (01.09). Час между полными
+        # прогонами — слишком долго для выноса лонгов: у BLESS плечо
+        # ушло на десять процентов за один час, и к следующему прогону
+        # это была уже история. Короткий круг ходит по горячим монетам
+        # и стоит около тридцати запросов — на тарифе Startup с его
+        # восемьюдесятью в минуту помещается с запасом.
+        every = max(0, getattr(args, "hot_every", 0) or 0)
         try:
-            time.sleep(interval)
+            if not every or every >= interval:
+                time.sleep(interval)
+            else:
+                left = interval
+                while left > 0:
+                    nap = min(every, left)
+                    time.sleep(nap)
+                    left -= nap
+                    if left <= 0:
+                        break
+                    hot_args = copy.copy(args)
+                    hot_args.hot = True
+                    log(f"\n{'─' * 60}\n→ Короткий круг · "
+                        f"{datetime.now():%H:%M:%S}\n{'─' * 60}")
+                    try:
+                        run_once(hot_args)
+                    except Exception as e:
+                        log(f"✗ Короткий круг упал: "
+                            f"{type(e).__name__}: {e}")
         except KeyboardInterrupt:
             log("\n✗ Цикл остановлен")
             return 130

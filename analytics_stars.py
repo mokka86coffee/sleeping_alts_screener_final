@@ -1001,11 +1001,24 @@ def build_stars(candidates: list[Candidate],
             try:
                 from reputation_cq import live_refresh
                 cg = s.get("cg") or {}
+                # ЧАСОВЫЕ ВЕЛИЧИНЫ ИЗ ПУЛЬСА (01.09). Прежде в живой
+                # пересчёт шли только СУТОЧНЫЕ числа, и час с обвалом
+                # в них растворялся: у BLESS падение восемь процентов
+                # за час превращалось в три за сутки, а плечо не
+                # передавалось вовсе. Пульс пишется каждым прогоном,
+                # «prev» — это и есть прошлый час. Суточные оставляем:
+                # у прочих переходов горизонт день.
+                _pv = (pulse_deltas(sym) or {}).get("prev") or {}
                 live = {"delta_usd": cg.get("cvdChg"),
                         "px_chg_pct": s.get("p1d"),
                         "funding": s.get("fund"),
                         "vol_mult": s.get("v1d"),
-                        "taker": cg.get("taker")}
+                        "taker": cg.get("taker"),
+                        "px_chg_1h": _pv.get("price_pct"),
+                        "oi_chg_1h": _pv.get("oi_pct"),
+                        "oi_chg_pct": (cg.get("oiChgPct")
+                                       if isinstance(cg, dict) else None),
+                        "ago_min": _pv.get("ago_min")}
                 if live["delta_usd"] is not None:
                     fresh = live_refresh(
                         {"today": dict(s["rep"],
