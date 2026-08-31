@@ -1,17 +1,21 @@
 #!/usr/bin/env python3
-"""Экран-поток v6 (творение по референсу владельца, ночь 30.08).
+"""Экран-поток v7 — вид одобренного стенда (перенос 01.09).
 
-Три окна времени, линии со смыслами, конфликты геометрией:
+Три окна времени, три линии со смыслами:
   БЕЛАЯ — цена (факт);
-  БИРЮЗОВАЯ, главная и самая светящаяся — «цена по деньгам»:
-    где цена была бы, если бы её двигали только реальные
-    покупки-продажи (накопленная дельта тейкеров, модель);
+  БИРЮЗОВАЯ, главная — «цена по деньгам»: где цена была бы, если бы
+    её двигал только перекос покупок к продажам;
   ЯНТАРНАЯ — плечо (открытый интерес).
-Зазор белой над бирюзовой — тёплая подушка «долга»: цена выше
-своих денег, ход держат заявками. Подписи всплывают на точках
-конфликтов (лучи вверх, как в референсе). Боке — ликвидации:
-янтарные под линией — снятые лонги, бирюзовые над — шорты.
-Вердикт справа — от главной линии. Данные: живой bless.json.
+Зазор белой над бирюзовой — тёплая подушка долга: цена выше своих
+денег, ход держат заявками. Рисуется частоколом штрихов, заливок нет.
+
+Объём даётся КАМЕРОЙ, не геометрией (решение владельца 31.08):
+ближняя линия режет дальнюю тёмной подложкой цветом фона, слои
+отличаются резкостью, крупные расфокусы ложатся ПОВЕРХ линий как
+пылинки перед объективом.
+
+Раскладка: «две недели» крупным вверху слева, справа текстовая
+колонна, внизу «квартал» и «полгода».
 """
 import argparse
 import json
@@ -78,352 +82,314 @@ K_MONEY = ((math.log(max(px) / min(px)) or .2)
            / ((max(cum) - min(cum)) or 1.0))
 
 
-W, PAD = 1520, 56
-def _waves():
-    out = []
-    for bundle in range(3):                     # три пучка глубины
-        base_y = 830 + bundle * 55
-        amp = 46 - bundle * 9
-        blur = ('', ' filter="url(#b2)"', ' filter="url(#b4)"')[bundle]
-        for k in range(9):
-            ph = random.uniform(0, 6.28)
-            yo = base_y + k * 6 + random.uniform(-4, 4)
-            pts = []
-            for xx in range(-40, W + 41, 24):
-                yy = (yo + amp * math.sin(xx / 210 + ph)
-                      + 14 * math.sin(xx / 87 + ph * 1.7))
-                pts.append(f'{xx},{yy:.0f}')
-            col = random.choice(('#2a7a8a', '#3a9aae', '#4ab8c8', '#57d8e8'))
-            op = .10 + bundle * .05 + random.uniform(0, .08)
-            out.append(f'<polyline points="{" ".join(pts)}" fill="none" '
-                       f'stroke="{col}" stroke-width="1" '
-                       f'opacity="{op:.2f}"{blur}/>')
-    return ''.join(out)
+# ── ВИД ПО ОДОБРЕННОМУ СТЕНДУ (перенос 01.09) ───────────────────────
+# Стенд flow_ref_stand.py перерисовывал готовый flow_<монета>.html в
+# утверждённом языке. Здесь тот же язык, но рисуется сразу из данных —
+# промежуточного документа больше нет.
+#
+# Что утверждено владельцем и не меняется: объём даётся КАМЕРОЙ, не
+# геометрией. Работают три приёма — ближняя линия режет дальнюю тёмной
+# подложкой цветом фона (подложка тоже растворяется к краям, иначе на
+# концах остаются тёмные обрубки), разная резкость слоёв, и крупные
+# размытые расфокусы ПОВЕРХ линий как пылинки перед объективом.
+# Заливок нет: подушка долга — частокол тонких штрихов.
+# Формула экрана: три линии и две-три точки с текстом, остальное —
+# атрибутика.
+#
+# ЧТО НЕ ПЕРЕНОСИТСЯ СО СТЕНДА: денежная линия. Стенд собран до правки
+# 31.08 и показывал «цена выше своих денег на 297%» при бирюзовой,
+# падающей от края до края, — это старая калибровка, где провал равен
+# размаху цены по построению. Здесь линия считается K_MONEY, как выше.
+random.seed(23)
 
-seawaves = _waves()
-random.seed(7)
+VB_W, VB_H = 1920, 1080
+C_STEEL, C_TEAL, C_ORNG, C_DARK, TXT = ('#dcecf8', '#3fe4f0', '#ffb054',
+                                        '#06192c', '#9fb8cc')
+RX = 1296                       # текстовая колонна
+N = len(days)
+
+# рамки окон — раскладка владельца: большое сверху слева, два внизу
+WINS = [
+    ('w2', (150, 168, 1080, 440), 'две недели', 22, max(0, N - 15), N, 4),
+    ('qr', (150, 690, 790, 260), 'квартал', 19, max(0, N - 90), N, 2),
+    ('hf', (1020, 690, 790, 260), 'полгода', 19, 0, N, 2),
+]
 
 
-def window(x0, y0, w, h, i0, i1, title, big=False):
-    """Одно окно: линии, зазор, боке, события."""
+def smooth(P):
+    """Кривая Катмулла-Рома через точки — та же, что на стенде."""
+    if len(P) < 2:
+        return f'M{P[0][0]:.1f},{P[0][1]:.1f}' if P else 'M0,0'
+    d = f'M{P[0][0]:.1f},{P[0][1]:.1f}'
+    for j in range(len(P) - 1):
+        p0, p1 = P[max(0, j - 1)], P[j]
+        p2, p3 = P[j + 1], P[min(len(P) - 1, j + 2)]
+        c1 = (p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6)
+        c2 = (p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6)
+        d += (f' C{c1[0]:.1f},{c1[1]:.1f} {c2[0]:.1f},{c2[1]:.1f} '
+              f'{p2[0]:.1f},{p2[1]:.1f}')
+    return d
+
+
+defs = ['''<linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+ <stop offset="0" stop-color="#03101f"/>
+ <stop offset=".48" stop-color="#0a2a42"/>
+ <stop offset="1" stop-color="#041424"/></linearGradient>
+<radialGradient id="halo" cx="50%" cy="50%" r="50%">
+ <stop offset="0" stop-color="#1a5a7a" stop-opacity=".5"/>
+ <stop offset="1" stop-color="#1a5a7a" stop-opacity="0"/></radialGradient>
+<radialGradient id="flW" cx="50%" cy="50%" r="50%">
+ <stop offset="0" stop-color="#fff8ec" stop-opacity="1"/>
+ <stop offset=".3" stop-color="#ffc070" stop-opacity=".6"/>
+ <stop offset="1" stop-color="#ffb054" stop-opacity="0"/></radialGradient>
+<radialGradient id="flC" cx="50%" cy="50%" r="50%">
+ <stop offset="0" stop-color="#f2feff" stop-opacity="1"/>
+ <stop offset=".3" stop-color="#5fe8f2" stop-opacity=".6"/>
+ <stop offset="1" stop-color="#3fe4f0" stop-opacity="0"/></radialGradient>
+<radialGradient id="orbB" cx="50%" cy="50%" r="50%">
+ <stop offset="0" stop-color="#8fc4e8" stop-opacity=".42"/>
+ <stop offset=".62" stop-color="#8fc4e8" stop-opacity=".2"/>
+ <stop offset="1" stop-color="#8fc4e8" stop-opacity="0"/></radialGradient>
+<radialGradient id="orbA" cx="50%" cy="50%" r="50%">
+ <stop offset="0" stop-color="#ffb35c" stop-opacity=".38"/>
+ <stop offset=".62" stop-color="#ffb35c" stop-opacity=".18"/>
+ <stop offset="1" stop-color="#ffb35c" stop-opacity="0"/></radialGradient>
+<radialGradient id="vig" cx="50%" cy="48%" r="70%">
+ <stop offset=".66" stop-color="#000" stop-opacity="0"/>
+ <stop offset="1" stop-color="#000" stop-opacity=".62"/></radialGradient>
+<linearGradient id="topfade" x1="0" y1="0" x2="0" y2="1">
+ <stop offset="0" stop-color="#000" stop-opacity=".34"/>
+ <stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient>
+<filter id="f2" x="-80%" y="-80%" width="260%" height="260%">
+ <feGaussianBlur stdDeviation="1.8"/></filter>
+<filter id="f6" x="-80%" y="-80%" width="260%" height="260%">
+ <feGaussianBlur stdDeviation="6"/></filter>
+<filter id="f16" x="-90%" y="-90%" width="280%" height="280%">
+ <feGaussianBlur stdDeviation="16"/></filter>
+<filter id="f34" x="-90%" y="-90%" width="280%" height="280%">
+ <feGaussianBlur stdDeviation="34"/></filter>''']
+for _k, (_nx, _ny, _nw, _nh), *_r in WINS:
+    for _tag, _col in (('s', C_STEEL), ('t', C_TEAL), ('o', C_ORNG),
+                       ('d', C_DARK)):
+        defs.append(
+            f'<linearGradient id="g{_k}{_tag}" gradientUnits="userSpaceOnUse"'
+            f' x1="{_nx}" y1="0" x2="{_nx + _nw}" y2="0">'
+            f'<stop offset="0" stop-color="{_col}" stop-opacity="0"/>'
+            f'<stop offset=".18" stop-color="{_col}" stop-opacity="1"/>'
+            f'<stop offset=".82" stop-color="{_col}" stop-opacity="1"/>'
+            f'<stop offset="1" stop-color="{_col}" stop-opacity="0"/>'
+            f'</linearGradient>')
+
+
+def draw(key, frame, cap, capsz, i0, i1, nlab):
+    """Одно окно: три линии, зазор частоколом, точки с текстом."""
+    nx, ny, nw, nh = frame
     n = i1 - i0
-    xs = [x0 + j * w / (n - 1) for j in range(n)]
+    if n < 3:
+        return '', ''
+    k = nh / 452.0                      # смещения слоёв к высоте окна
+    xs = [nx + j * nw / (n - 1) for j in range(n)]
+
     seg_p = px[i0:i1]
-    # Модель окна: якорь на левом крае, множитель K_MONEY общий для
-    # всех окон (см. расчёт выше). Своей калибровки у окна больше
-    # НЕТ — она и была источником обрыва на широких кадрах.
     c0 = cum[i0]
     seg_m = [seg_p[0] * math.exp(K_MONEY * (cum[i0 + j] - c0))
              for j in range(n)]
     seg_o = [oim.get(days[i]) or 0 for i in range(i0, i1)]
+
     lo = min(min(seg_p), min(seg_m)) * 0.97
     hi = max(max(seg_p), max(seg_m)) * 1.03
-    olo, ohi = min(seg_o) * 0.9, max(seg_o) * 1.05 or 1
+    olo = min(seg_o) * 0.9
+    ohi = (max(seg_o) * 1.05) or 1.0
 
-    def Y(v):  return y0 + h - (v - lo) / (hi - lo) * h
-    def YO(v): return y0 + h - (v - olo) / (ohi - olo) * (h * 0.45)
+    def Y(v):
+        return ny + nh - (v - lo) / ((hi - lo) or 1) * nh
 
-    def path(vals, yf):
-        P = [(xs[j], yf(v)) for j, v in enumerate(vals)]
-        if len(P) < 3:
-            return 'M' + ' L'.join(f'{x:.1f},{y:.1f}' for x, y in P)
-        d = f'M{P[0][0]:.1f},{P[0][1]:.1f}'
-        for j in range(len(P) - 1):
-            p0 = P[max(0, j - 1)]
-            p1, p2 = P[j], P[j + 1]
-            p3 = P[min(len(P) - 1, j + 2)]
-            c1 = (p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6)
-            c2 = (p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6)
-            d += (f' C{c1[0]:.1f},{c1[1]:.1f} {c2[0]:.1f},{c2[1]:.1f} '
-                  f'{p2[0]:.1f},{p2[1]:.1f}')
-        return d
+    def YO(v):
+        return ny + nh - (v - olo) / ((ohi - olo) or 1) * (nh * 0.45)
 
-    p_white = path(seg_p, Y)
-    p_cyan = path(seg_m, Y)
-    p_amber = path(seg_o, YO)
+    # Слои идут от дальнего к ближнему; смещение по вертикали и есть
+    # глубина — плечо ниже и мягче, цена выше и резче.
+    lay = (('плечо', [YO(v) for v in seg_o], f'g{key}o', 20, 62, 4.4, .26,
+            1.1),
+           ('деньги', [Y(v) for v in seg_m], f'g{key}t', 0, 8, 6.0, .46, 1.5),
+           ('цена', [Y(v) for v in seg_p], f'g{key}s', -16, -44, 4.2, .30,
+            1.1))
+    art, P = [], {}
+    for name, ys, grad, dx, dy, glow, gop, sw in lay:
+        pts = [(xs[j] + dx, ys[j] + dy * k) for j in range(n)]
+        P[name] = pts
+        d = smooth(pts)
+        if name != 'плечо':            # ближняя режет дальнюю
+            art.append(f'<path d="{d}" class="ln" stroke="url(#g{key}d)" '
+                       f'stroke-width="{13 * k + 3:.0f}" opacity=".85" '
+                       f'filter="url(#f2)"/>')
+        art.append(f'<path d="{d}" class="ln" stroke="url(#{grad})" '
+                   f'stroke-width="{glow * 2.6:.1f}" '
+                   f'opacity="{gop * .38:.2f}" filter="url(#f16)"/>')
+        art.append(f'<path d="{d}" class="ln" stroke="url(#{grad})" '
+                   f'stroke-width="{glow:.1f}" opacity="{gop:.2f}" '
+                   f'filter="url(#f6)"/>')
+        art.append(f'<path d="{d}" class="ln" stroke="url(#{grad})" '
+                   f'stroke-width="{sw}" opacity="1"/>')
 
-    # подушка долга: сегментно, только где белая НАД бирюзовой
-    debt_polys = []
-    seg = []
-    for j in range(n):
-        if seg_p[j] > seg_m[j]:
-            seg.append(j)
-        elif seg:
-            debt_polys.append(seg)
-            seg = []
-    if seg:
-        debt_polys.append(seg)
-    debt_svg = ''
-    for sg in debt_polys:
-        if len(sg) < 2:
-            continue
-        pts = [f'{xs[j]:.1f},{Y(seg_p[j]):.1f}' for j in sg]
-        pts += [f'{xs[j]:.1f},{Y(seg_m[j]):.1f}' for j in reversed(sg)]
-        debt_svg += (f'<polygon points="{" ".join(pts)}" '
-                     f'fill="url(#debt)" opacity=".9" filter="url(#b2)"/>')
+    # зазор — частокол тонких штрихов, заливок нет
+    wh, cy = P['цена'], P['деньги']
+    for j in range(0, n, max(1, n // 52)):
+        x1, y1 = wh[j]
+        y2 = cy[j][1]
+        if y1 < y2 - 4:
+            art.append(f'<line x1="{x1:.0f}" y1="{y1:.0f}" x2="{x1:.0f}" '
+                       f'y2="{y2:.0f}" stroke="{C_ORNG}" stroke-width=".6" '
+                       f'opacity=".10"/>')
 
-    # боке-ликвидации
-    bokeh = []
-    for j in range(n):
-        l = lqm.get(days[i0 + j])
-        if not l:
-            continue
-        for usd, col, side in ((l['long_liquidations_usd'], '#f0b356', 1),
-                               (l['short_liquidations_usd'], '#55d8e8', -1)):
-            if usd < 15000:
-                continue
-            r = min(11, 2 + math.sqrt(usd) / 110)
-            yy = Y(seg_p[j]) + side * (14 + r * 2)
-            bokeh.append(f'<circle cx="{xs[j]:.0f}" cy="{yy:.0f}" r="{r:.1f}" '
-                         f'fill="{col}" opacity=".20" filter="url(#b4)"/>')
-
-    # события: конфликты для подписей
+    # ── события: две-три точки с короткой подписью ──
     ev = []
     for j in range(2, n):
         i = i0 + j
-        dpx = seg_p[j] / seg_p[j - 1] - 1
+        dpx = seg_p[j] / seg_p[j - 1] - 1 if seg_p[j - 1] else 0
         if deltas[i] < 0 and dpx > 0.04 and abs(deltas[i]) > 3e5:
-            ev.append((j, -1, f"цена +{dpx*100:.0f}% при продажах "
-                              f"${abs(deltas[i])/1e6:.1f}M — держат заявками"))
-        if seg_o[j] and seg_o[j - 1] and seg_o[j]/seg_o[j-1] > 1.28:
-            ev.append((j, 1, "плечо влилось "
-                             f"+{(seg_o[j]/seg_o[j-1]-1)*100:.0f}% за день"))
-        if seg_o[j] and seg_o[j-1] and seg_o[j]/seg_o[j-1] < 0.86 \
-                and abs(dpx) < 0.03:
-            ev.append((j, 1, "плечо вышло, цена устояла"))
-    # прорядить: не чаще раза в n/5
+            ev.append((j, f'+{dpx*100:.0f}% на продажах', 'flW'))
+        elif (seg_o[j] and seg_o[j - 1]
+                and seg_o[j] / seg_o[j - 1] > 1.28):
+            ev.append((j, f'плечо +{(seg_o[j]/seg_o[j-1]-1)*100:.0f}%',
+                       'flW'))
     picked, last = [], -99
-    for j, s_, txt in sorted(ev, key=lambda e: e[0]):
+    for j, txt, fl in ev:
         if j - last >= max(4, n // 6):
-            picked.append((j, s_, txt))
+            picked.append((j, txt, fl))
             last = j
-    labels = []
-    show_n = 4 if big else (0 if n > 120 else 2)
-    for k_, (j, s_, txt) in enumerate(picked[:show_n]):
-        ax, ay = xs[j], Y(seg_p[j])
-        ly = y0 + (18 + (k_ % 2) * 26 if s_ < 0 else h - 14 - (k_ % 2) * 24)
-        anch = 'start' if xs[j] < x0 + w * 0.6 else 'end'
-        labels.append(
-            f'<line x1="{ax:.0f}" y1="{ay:.0f}" x2="{ax:.0f}" y2="{ly:.0f}" '
-            f'stroke="#a8dce8" stroke-width=".6" opacity=".5"/>'
-            f'<circle cx="{ax:.0f}" cy="{ay:.0f}" r="3.2" fill="#e8f4f8" '
-            f'filter="url(#b2)"/>'
-            f'<text x="{ax:.0f}" y="{ly - 4 if s_ < 0 else ly + 11:.0f}" '
-            f'text-anchor="{anch}" class="lbl">{txt}</text>')
+    pts_svg, words = [], []
+    for i_, (j, txt, fl) in enumerate(picked[:nlab]):
+        x, y = wh[j]
+        ly = y - (118 if i_ == 0 else 78) * max(.62, k)
+        pts_svg.append(
+            f'<line x1="{x:.0f}" y1="{y:.0f}" x2="{x:.0f}" y2="{ly:.0f}" '
+            f'stroke="#d8f0f8" stroke-width=".9" opacity=".28"/>'
+            f'<circle cx="{x:.0f}" cy="{y:.0f}" r="{46 * k:.0f}" '
+            f'fill="url(#{fl})" opacity=".55" filter="url(#f6)"/>'
+            f'<circle cx="{x:.0f}" cy="{y:.0f}" r="{17 * k:.0f}" '
+            f'fill="url(#{fl})"/>'
+            f'<circle cx="{x:.0f}" cy="{y:.0f}" r="3" fill="#fff"/>')
+        xt = min(max(x, nx + 60), nx + nw - 60)
+        words.append(f'<text x="{xt:.0f}" y="{ly - 10:.0f}" '
+                     f'text-anchor="middle" class="mark" '
+                     f'style="font-size:{capsz}px" opacity=".68">{txt}</text>')
 
-    # флажки эпизодов на большом трендовом окне
-    flags = []
-    if not big and n > 120:
-        med = sorted(vols[max(0, i0-30):i0] or vols[:30])[len(vols[:30])//2]
-        j = 0
-        while j < n:
-            i = i0 + j
-            if i < 30:
-                j += 1
-                continue
-            m30 = sorted(vols[i-30:i])
-            base = m30[len(m30)//2]
-            if base and vols[i] >= 4 * base:
-                j2 = j
-                while j2+1 < n and vols[i0+j2+1] >= 2*base:
-                    j2 += 1
-                pk = max(range(j, j2+1), key=lambda q: vols[i0+q])
-                r7 = (seg_p[pk+7]/seg_p[pk]-1) if pk+7 < n else None
-                v = ('зреет' if r7 is None else
-                     'слили' if r7 <= -.25 else
-                     'устояли' if r7 >= -.10 else 'отдали часть')
-                col = {'слили': '#f0b356', 'устояли': '#55d8e8',
-                       'зреет': '#a8dce8', 'отдали часть': '#ffd98c'}[v]
-                mult = vols[i0+pk]/base
-                tier = len(flags) % 3
-                fy = y0 + 8 + tier * 13
-                flags.append(
-                    f'<line x1="{xs[pk]:.0f}" y1="{Y(seg_p[pk]):.0f}" '
-                    f'x2="{xs[pk]:.0f}" y2="{fy+3}" stroke="{col}" '
-                    f'stroke-width=".7" opacity=".5"/>'
-                    f'<text x="{xs[pk]:.0f}" y="{fy}" text-anchor="middle" '
-                    f'class="flg" fill="{col}">×{mult:.0f} · {v}</text>')
-                j = j2 + 8
-            else:
-                j += 1
-
-    # искры: локальные экстремумы белой и бирюзовой
-    sparks = ''
-    rays = ''
-    for j in range(2, n - 2):
-        for vals, colr in ((seg_p, '#ffffff'), (seg_m, '#7ae0ea'),
-                           (seg_o, '#ffcf7a')):
-            v = vals[j]
-            if not v:
-                continue
-            if (v > vals[j-1] and v > vals[j+1]) or \
-               (v < vals[j-1] and v < vals[j+1]):
-                if random.random() > (.5 if big else .3):
-                    continue
-                yv = Y(v) if vals is not seg_o else YO(v)
-                sparks += (f'<circle cx="{xs[j]:.0f}" cy="{yv:.0f}" r="1.6" '
-                           f'fill="{colr}"/>'
-                           f'<circle cx="{xs[j]:.0f}" cy="{yv:.0f}" r="4.5" '
-                           f'fill="{colr}" opacity=".5" filter="url(#b2)"/>'
-                           f'<circle cx="{xs[j]:.0f}" cy="{yv:.0f}" r="9" '
-                           f'fill="{colr}" opacity=".18" filter="url(#b6)"/>')
-                if random.random() < .22:
-                    rays += (f'<line x1="{xs[j]:.0f}" y1="{yv:.0f}" '
-                             f'x2="{xs[j]:.0f}" '
-                             f'y2="{max(y0-30, yv-random.uniform(60,150)):.0f}" '
-                             f'stroke="#b8d8e8" stroke-width=".6" '
-                             f'opacity=".22"/>')
-    # растровые пятна точек — у дней с крупными ликвидациями
-    lq_days = sorted(range(n), key=lambda q: -(
-        (lqm.get(days[i0+q]) or {}).get('total_liquidations_usd', 0)))[:3]
-    for q in lq_days:
-        gx, gy = xs[q], Y(seg_p[q]) + random.choice((-1, 1)) * 46
-        sparks += ''.join(
-            f'<circle cx="{gx + a*7 - 24:.0f}" cy="{gy + b*7 - 14:.0f}" '
-            f'r=".9" fill="#7ab8d8" opacity=".3"/>'
-            for a in range(8) for b in range(5))
-    beads = ''.join(
-        f'<circle cx="{xs[j] + random.uniform(-4, 4):.0f}" '
-        f'cy="{Y(seg_m[j]) + random.uniform(-5, 5):.0f}" '
-        f'r="{random.uniform(1.2, 3.4):.1f}" fill="#7ae0ea" '
-        f'opacity="{random.uniform(.25, .6):.2f}" filter="url(#b2)"/>'
-        for j in range(0, n, max(2, n // 26)))
-    sw_main = 3.2 if big else 2.2
-    return f'''
-  <g>
-    <text x="{x0}" y="{y0 - 8}" class="ttl">{title}</text>
-    {''.join(bokeh)}
-    {debt_svg}
-    <path d="{p_amber}" class="ln" stroke="#f0b356" stroke-width="1.3"
-          opacity=".55" filter="url(#b2)"/>
-    <path d="{p_amber}" class="ln" stroke="#ffcf7a" stroke-width=".9"
-          opacity=".9"/>
-    {rays}
-    <path d="{p_cyan}" class="ln" stroke="#3fb0c8"
-          stroke-width="3" opacity=".28" filter="url(#b6)"/>
-    <path d="{p_cyan}" class="ln" stroke="#7ae0ea"
-          stroke-width="1.4"/>
-    {beads}
-    <path d="{p_white}" class="ln" stroke="#e8f4f8" stroke-width="1.1"
-          opacity=".95"/>
-    {sparks}
-    <circle cx="{xs[-1]:.0f}" cy="{Y(seg_p[-1]):.0f}" r="4.6"
-          fill="#fff" filter="url(#b2)"/>
-    <circle cx="{xs[-1]:.0f}" cy="{Y(seg_p[-1]):.0f}" r="10"
-          fill="#57d8e8" opacity=".25" filter="url(#b6)"/>
-    {''.join(flags)}
-    {''.join(labels)}
-  </g>'''
+    bx, by = wh[-1]                      # маяк — сегодня
+    pts_svg.append(f'<circle cx="{bx:.0f}" cy="{by:.0f}" r="{40 * k:.0f}" '
+                   f'fill="url(#flC)" opacity=".55" filter="url(#f6)"/>'
+                   f'<circle cx="{bx:.0f}" cy="{by:.0f}" r="{15 * k:.0f}" '
+                   f'fill="url(#flC)"/>'
+                   f'<circle cx="{bx:.0f}" cy="{by:.0f}" r="3" fill="#fff"/>')
+    label = (f'<text x="{nx}" y="{ny - 22}" class="mark" '
+             f'style="font-size:{capsz - 2}px" opacity=".38">{cap}</text>')
+    return ''.join(art) + ''.join(pts_svg), ''.join(words) + label
 
 
-N = len(days)
-i0v = N - 15
-# Тот же K_MONEY, что и у окон: вердикт обязан читать ту самую линию,
-# которую видно на экране. Со своей калибровкой он мерил зазор по
-# другой модели, чем рисовал график, и числа расходились молча.
+scene, over = '', ''
+for _w in WINS:
+    _a, _b = draw(*_w)
+    scene += _a
+    over += _b
+
+# ── вердикт от главной линии ────────────────────────────────────────
+i0v = max(0, N - 15)
 c0 = cum[i0v]
 mv = px[i0v] * math.exp(K_MONEY * (cum[-1] - c0))
 gap_now = px[-1] / mv - 1
 verdict = ('ЖДАТЬ' if gap_now > 0.10 else
            'СМОТРЕТЬ ВХОД' if gap_now < -0.10 else 'ДЕРЖАТЬ')
-vcol = '#f0b356' if verdict == 'ЖДАТЬ' else '#55d8e8'
+vcol = C_ORNG if verdict == 'ЖДАТЬ' else C_TEAL
 reason = (f'за две недели цена выше своих денег на {gap_now*100:.0f}% — '
           f'ход держат заявками, не покупками' if gap_now > 0.10 else
           f'деньги выше цены на {abs(gap_now)*100:.0f}%' if gap_now < -0.10
           else 'цена и деньги идут вровень')
 
-def _edge_orbs(k):
-    out = []
-    for _ in range(k):
-        # края и низ кадра — как в референсе
-        if random.random() < .6:
-            x, y = random.uniform(0, W), random.uniform(760, 1000)
-        else:
-            x = random.choice((random.uniform(0, 130),
-                               random.uniform(W - 130, W)))
-            y = random.uniform(80, 1000)
-        r = random.uniform(9, 30)
-        col = random.choice(('#7ab8d8', '#a8d4e8', '#ffcf7a'))
-        out.append(f'<circle cx="{x:.0f}" cy="{y:.0f}" r="{r:.1f}" '
-                   f'fill="{col}" opacity="{random.uniform(.10, .26):.2f}" '
-                   f'filter="url(#b12)"/>')
-    return ''.join(out)
+# ── воздух: гало, орбы, пыль ───────────────────────────────────────
+air = ['<ellipse cx="700" cy="380" rx="820" ry="300" fill="url(#halo)" '
+       'filter="url(#f34)"/>',
+       '<ellipse cx="1100" cy="880" rx="900" ry="260" fill="url(#halo)" '
+       'opacity=".7" filter="url(#f34)"/>']
+for _cx, _cy, _r, _g in ((286, 246, 36, 'orbB'), (1704, 900, 42, 'orbB'),
+                         (1560, 190, 26, 'orbB'), (640, 606, 32, 'orbA'),
+                         (1420, 640, 24, 'orbA'), (120, 880, 28, 'orbB')):
+    air.append(f'<circle cx="{_cx}" cy="{_cy}" r="{_r}" fill="url(#{_g})" '
+               f'filter="url(#f6)"/>')
+for _ in range(160):
+    _x, _y = random.uniform(0, VB_W), random.uniform(40, VB_H - 20)
+    _c = '#ffc76a' if random.random() < .48 else '#55d8e8'
+    air.append(f'<circle cx="{_x:.0f}" cy="{_y:.0f}" '
+               f'r="{random.uniform(.5, 1.3):.1f}" fill="{_c}" '
+               f'opacity="{random.uniform(.10, .38):.2f}"/>')
 
-dust = (_edge_orbs(26)
-        + ''.join(f'<circle cx="{random.uniform(0, W):.0f}" '
-                  f'cy="{random.uniform(60, 990):.0f}" '
-                  f'r="{random.uniform(.6, 1.8):.1f}" fill="#a8dce8" '
-                  f'opacity="{random.uniform(.08, .25):.2f}"/>'
-                  for _ in range(160)))  # пыль
+# ── передний план: расфокус перед объективом, ПОВЕРХ линий ─────────
+fg = []
+for _cx, _cy, _r, _g, _op in ((372, 470, 112, 'orbA', .45),
+                              (1180, 300, 92, 'orbB', .4),
+                              (860, 860, 128, 'orbB', .34),
+                              (1660, 780, 84, 'orbA', .38),
+                              (196, 760, 74, 'orbB', .3)):
+    fg.append(f'<circle cx="{_cx}" cy="{_cy}" r="{_r}" fill="url(#{_g})" '
+              f'opacity="{_op}" filter="url(#f34)"/>')
+for _ in range(24):
+    _x, _y = random.uniform(60, VB_W - 60), random.uniform(150, VB_H - 80)
+    _c = '#ffc76a' if random.random() < .45 else '#8fd8f0'
+    fg.append(f'<circle cx="{_x:.0f}" cy="{_y:.0f}" '
+              f'r="{random.uniform(5, 15):.0f}" fill="{_c}" '
+              f'opacity="{random.uniform(.10, .20):.2f}" '
+              f'filter="url(#f16)"/>')
 
-svg = f'''<svg viewBox="0 0 {W} 1010" xmlns="http://www.w3.org/2000/svg">
-<rect width="{W}" height="1010" fill="url(#bgGrad)"/>
-{seawaves}
-<rect width="{W}" height="1010" fill="url(#vign)" opacity=".7"/>
-<defs>
-  <filter id="b2" x="-80%" y="-80%" width="260%" height="260%">
-    <feGaussianBlur stdDeviation="2"/></filter>
-  <filter id="b4" x="-80%" y="-80%" width="260%" height="260%">
-    <feGaussianBlur stdDeviation="4"/></filter>
-  <filter id="b6" x="-80%" y="-80%" width="260%" height="260%">
-    <feGaussianBlur stdDeviation="6"/></filter>
-  <linearGradient id="bgGrad" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#04101e"/>
-    <stop offset=".62" stop-color="#071826"/>
-    <stop offset="1" stop-color="#0a2430"/>
-  </linearGradient>
-  <radialGradient id="vign" cx="50%" cy="45%" r="75%">
-    <stop offset=".62" stop-color="#000" stop-opacity="0"/>
-    <stop offset="1" stop-color="#000" stop-opacity=".55"/>
-  </radialGradient>
-  <filter id="b12" x="-90%" y="-90%" width="280%" height="280%">
-    <feGaussianBlur stdDeviation="12"/></filter>
-  <filter id="b40" x="-90%" y="-90%" width="280%" height="280%">
-    <feGaussianBlur stdDeviation="40"/></filter>
-  <linearGradient id="debt" x1="0" y1="0" x2="0" y2="1">
-    <stop offset="0" stop-color="#f0b356" stop-opacity=".22"/>
-    <stop offset="1" stop-color="#f0b356" stop-opacity=".04"/>
-  </linearGradient>
-</defs>
-{dust}
-{window(PAD, 96, W - 460, 380, N - 15, N, 'ДВЕ НЕДЕЛИ · ЧАСЫ ПОДКЛЮЧАТСЯ HOURLY-ВЫГРУЗКОЙ', big=True)}
-{window(PAD, 560, (W - PAD*3)//2, 340, N - 90, N, 'КВАРТАЛ')}
-{window(PAD*2 + (W - PAD*3)//2, 560, (W - PAD*3)//2, 340, 0, N, 'ПОЛГОДА · ФЛАЖКИ — ИСХОДЫ ВСПЛЕСКОВ')}
-<text x="{W-390}" y="158" class="tickGlow"
-  filter="url(#b6)">{A.coin.upper()}</text>
-<text x="{W-390}" y="158" class="tick">{A.coin.upper()}</text>
-<text x="{W-390}" y="216" class="verd" fill="{vcol}">{verdict}</text>
-<foreignObject x="{W-392}" y="234" width="330" height="120">
-  <div xmlns="http://www.w3.org/1999/xhtml" class="why">{reason}</div>
+TICK = A.coin.upper()
+column = f'''
+<text x="{RX}" y="272" class="tickGlow" filter="url(#f6)">{TICK}</text>
+<text x="{RX}" y="272" class="tick">{TICK}</text>
+<text x="{RX}" y="352" class="verd" fill="{vcol}">{verdict}</text>
+<foreignObject x="{RX - 3}" y="376" width="556" height="130">
+ <div xmlns="http://www.w3.org/1999/xhtml" class="why">{reason}</div>
 </foreignObject>
-<text x="{W-390}" y="368" class="leg"><tspan fill="#e8f4f8">— цена</tspan>
-<tspan dx="12" fill="#55d8e8">— цена по деньгам</tspan>
-<tspan dx="12" fill="#ffcf7a">— плечо</tspan></text>
-<text x="{W-390}" y="390" class="leg" fill="#7a93a8">тёплая подушка — цена выше денег</text>
-<text x="{W-390}" y="408" class="leg" fill="#7a93a8">боке: янтарь — сняты лонги · бирюза — шорты</text>
+<text x="{RX}" y="556" class="leg"><tspan fill="{C_STEEL}">— цена</tspan>
+<tspan dx="16" fill="{C_TEAL}">— цена по деньгам</tspan>
+<tspan dx="16" fill="{C_ORNG}">— плечо</tspan></text>
+<text x="{RX}" y="586" class="leg" fill="#7f9bb0">тёплая подушка — цена выше денег</text>
+<text x="{RX}" y="610" class="leg" fill="#7f9bb0">точки — конфликты хода · маяк — сегодня</text>'''
+
+svg = f'''<svg viewBox="0 0 {VB_W} {VB_H}" xmlns="http://www.w3.org/2000/svg">
+<defs>{''.join(defs)}</defs>
+<rect width="{VB_W}" height="{VB_H}" fill="url(#bg)"/>
+{''.join(air)}
+{scene}
+{''.join(fg)}
+{over}
+{column}
+<rect width="{VB_W}" height="150" fill="url(#topfade)"/>
+<rect width="{VB_W}" height="{VB_H}" fill="url(#vig)"/>
 </svg>'''
 
 html = f'''<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>{A.coin.upper()} · поток</title><style>
-body{{margin:0;background:#04080f;display:flex;justify-content:center}}
-svg{{width:100%;max-width:1600px;height:auto}}
+<title>{TICK} \u00b7 поток</title><style>
+*{{box-sizing:border-box;margin:0}}
+html,body{{height:100%}}
+body{{background:#03101f;overflow:hidden}}
+svg{{display:block;width:100vw;height:100vh}}
 .ln{{fill:none;stroke-linecap:round;stroke-linejoin:round}}
-.ttl{{font:600 9px Arial;fill:#57708a;letter-spacing:.28em}}
-.lbl{{font:italic 10.5px Georgia;fill:#c9dce8}}
-.flg{{font:700 8px Arial;letter-spacing:.04em}}
-.tick{{font:800 44px Arial;fill:#e8f4f8;letter-spacing:.02em}}
-.verd{{font:800 30px Arial;letter-spacing:.06em}}
-.why{{font:italic 13px Georgia;color:#a8c4d4;line-height:1.5}}
-.leg{{font:600 10px Arial;letter-spacing:.04em}}
-.tickGlow{{font:800 58px Arial;fill:#57d8e8;
-  letter-spacing:.02em;opacity:.5}}
+.mark{{font-family:Arial,Helvetica,sans-serif;font-weight:800;
+  fill:{TXT};letter-spacing:.05em}}
+.tick{{font:800 62px Arial;fill:#eef6fb;letter-spacing:.02em}}
+.tickGlow{{font:800 62px Arial;fill:{C_TEAL};letter-spacing:.02em;
+  opacity:.45}}
+.verd{{font:800 36px Arial;letter-spacing:.06em}}
+.why{{font:italic 16px Georgia,serif;color:#a8c4d4;line-height:1.55}}
+.leg{{font:700 12px Arial;letter-spacing:.06em}}
 .back{{position:fixed;left:18px;top:16px;z-index:9;
-  font:700 11px Arial;letter-spacing:.14em;color:#57d8e8;
-  text-decoration:none;border:1px solid rgba(87,216,232,.5);
-  border-radius:8px;padding:5px 11px;opacity:.75}}
-.back:hover{{opacity:1;border-color:#7ae0ea}}
-</style></head><body><a class="back" href="podium.html">\u2190 \u0437\u0430\u043b</a>{svg}</body></html>'''
-open(A.out, 'w').write(html)
+  font:700 11px Arial;letter-spacing:.14em;color:#5fe0ea;
+  text-decoration:none;border:1px solid rgba(95,224,234,.35);
+  border-radius:8px;padding:5px 11px;opacity:.55}}
+.back:hover{{opacity:1}}
+</style></head><body><a class="back" href="podium.html">\u2190 зал</a>
+{svg}</body></html>'''
+
+_out = Path(A.out) if getattr(A, 'out', None) else Path(f'flow_{A.coin}.html')
+_out.write_text(html, encoding='utf-8')
 print(f'{A.coin}: поток собран,', len(html), 'байт · зазор сейчас',
       f'{gap_now*100:+.0f}% · вердикт {verdict}')
