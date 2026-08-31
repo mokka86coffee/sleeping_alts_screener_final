@@ -639,7 +639,11 @@ PODIUM_CSS = """
    полстроки и всё равно упирается в край. */
 .obc-act s{display:block;text-decoration:none;font-size:11px;letter-spacing:.04em;
   text-transform:none;color:#7b83b8;margin-top:9px;font-weight:400;
-  max-width:420px;margin-left:auto}
+  max-width:420px;margin-left:auto;line-height:1.5;
+  /* Причина переносится в три строки и клипается по ним, а не по
+     символам: обрыв на полуслове хуже, чем недосказанная третья. */
+  display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;
+  -webkit-line-clamp:3}
 /* Проза — главный текст карточки, а не подпись. Числа в ней подсвечены:
    глаз цепляется за них первым, а слова объясняют уже подцепленное. */
 .obc-why{font-size:15px;line-height:1.7;color:#b3bcd8;max-width:1020px}
@@ -3696,7 +3700,12 @@ PODIUM_JS = """
           ? '<i class="obc-spent">ход отработан</i>' : '') + '</span>' +
       '<span class="obc-right">' +
         (s.act ? '<span class="obc-act" style="--ac:' + ac.c + '">' +
-          s.act.act + (s.act.why ? '<s>' + cut(s.act.why, 52) + '</s>' : '') +
+          /* Предел 52 символа резал причину на полуслове: «держится
+             ли приток в…» на ВСЕХ карточках сразу. Причина — это то,
+             ради чего вердикт вообще читают; место под неё есть,
+             строка и так переносится. Подняли до 160 (правка 01.09).
+             Полный текст всё равно ниже, в прозе. */
+          s.act.act + (s.act.why ? '<s>' + cut(s.act.why, 160) + '</s>' : '') +
           '</span>' : '') +
         '<!--NUMS--></span>' + '</div>';
 
