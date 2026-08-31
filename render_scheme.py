@@ -663,17 +663,60 @@ SCHEME_JS = r"""
   var top = (M.topVol || []).slice(0, 4);
   var cos = (function(){
     /* ПОЙДЁТ? (31.08, перенос одобрен): сюжеты растущего класса —
-       одна монета, одна ветвь, до четырёх; нет растущих — ветвей нет. */
+       одна монета, одна ветвь, до четырёх; нет растущих — ветвей нет.
+
+       ДВЕ ПОЛКИ (правка 01.09). Прежде в один список валились обе
+       стадии, и «Пойдёт?» соблазняло тем, что выросло вчера вчетверо:
+       акт НА ХОДУ, ИСКРА и подтверждение — это уже идущий ход, вход в
+       него дорогой. Растущее семейство осталось одним списком, но
+       делится по СТАДИИ: «до движения» идут кандидатами, «в движении»
+       — отдельной полкой с честной подписью.
+       Стадию считает reputation_cq и кладёт полем rep.stage; поля нет
+       (документ старой сборки) — определяем здесь по тем же меткам,
+       чтобы правка не гасила полки задним числом. */
     var GROW = ['набор кита', 'лестница руки', 'курок второго',
+                'курок по связке',
                 'акт НА ХОДУ', 'ИСКРА', 'подтверждение пришло'];
+    var MOVING = ['акт НА ХОДУ', 'ИСКРА', 'подтверждение пришло',
+                  'рука ушла', 'финал лестницы', 'раздача после пика',
+                  'лестница на ходу'];
+    function stageOf(rep) {
+      var st = rep && rep.stage;
+      if (st === 'before' || st === 'moving') return st;
+      var head = String((rep && rep.plot) || '').split(':')[0];
+      for (var q = 0; q < MOVING.length; q++)
+        if (head.indexOf(MOVING[q]) >= 0) return 'moving';
+      return 'before';
+    }
+    /* ВЕТО ФАЗЫ (правка 01.09). Гейт — фазовый слой, и в режиме
+       раздачи сюжет отдельной монеты значения почти не имеет: 31.08
+       весь список ушёл в минус при корреляции альтов 0.87. Список не
+       прячем — помечаем, решение остаётся за человеком. */
+    var rv = String((M.regime || {}).verdict || '').toLowerCase();
+    var against = (rv.indexOf('раздача') >= 0 ||
+                   rv.indexOf('тянет деньги') >= 0 ||
+                   rv.indexOf('сосёт') >= 0);
+    var vetoMark = against
+      ? '<br><i style="opacity:.62">фон против — режим рынка ' +
+        'работает на раздачу</i>' : '';
     var out = [];
-    for (var gi = 0; gi < ST.length && out.length < 4; gi++) {
+    /* Объявлена ЗДЕСЬ, а не в теле цикла (01.09): ветвь лидера ниже
+       зовёт её и когда растущих сюжетов не нашлось ни одного, то
+       есть когда цикл не выполнялся ни разу. */
+    function cut(x, n){ x = String(x).trim();
+      if (x.length <= n) return x;
+      var z = x.slice(0, n), p = z.lastIndexOf(' ');
+      return (p > n * 0.6 ? z.slice(0, p) : z) + '…'; }
+    var mov = [];
+    for (var gi = 0; gi < ST.length && out.length + mov.length < 6; gi++) {
       var gs = ST[gi], gr = gs.rep || {}, gp = gr.plot || '';
       if (!gp) continue;
       var hit = false;
       for (var gg = 0; gg < GROW.length; gg++)
         if (gp.indexOf(GROW[gg]) >= 0) { hit = true; break; }
       if (!hit) continue;
+      var moving = stageOf(gr) === 'moving';
+      if (moving ? mov.length >= 2 : out.length >= 4) continue;
       /* КОРОТКО (31.08): сюжет режется по СМЫСЛУ, не по символам.
          Шаблон — в значение ветви; в тело идут две части: чем
          основан (первая часть до точки с запятой) и сторож
@@ -684,15 +727,53 @@ SCHEME_JS = r"""
         return x && x.length > 3; });
       var head = (parts[0] || raw).replace(/^[^:]*:\s*/, '');
       var tail = parts.length > 1 ? parts[parts.length - 1] : '';
-      function cut(x, n){ x = String(x).trim();
-        if (x.length <= n) return x;
-        var z = x.slice(0, n), p = z.lastIndexOf(' ');
-        return (p > n * 0.6 ? z.slice(0, p) : z) + '…'; }
-      out.push({ k: 'Пойдёт? · ' + (gs.t || ''),
-                 v: gp.split('(')[0].trim(), c: '#7fe3d4',
-                 s: esc(cut(head, 95)) +
-                    (tail ? '<br><i style="opacity:.62">' +
-                     esc(cut(tail, 85)) + '</i>' : '') });
+      var body = esc(cut(head, 95)) +
+                 (tail ? '<br><i style="opacity:.62">' +
+                  esc(cut(tail, 85)) + '</i>' : '');
+      if (moving) {
+        mov.push({ k: 'Уже идёт · ' + (gs.t || ''),
+                   v: gp.split('(')[0].trim(), c: '#e0b878', moving: 1,
+                   s: body + '<br><i style="opacity:.62">вход дорогой ' +
+                      '— ход уже состоялся</i>' });
+      } else {
+        out.push({ k: 'Пойдёт? · ' + (gs.t || ''),
+                   v: gp.split('(')[0].trim(), c: '#7fe3d4',
+                   s: body + vetoMark });
+      }
+    }
+    /* Полка «в движении» идёт ПОСЛЕ кандидатов: она про то, что уже
+       ушло, и открывать ею колесо было бы ровно тем соблазном, от
+       которого разводили. */
+    for (var mi = 0; mi < mov.length; mi++) out.push(mov[mi]);
+    /* ЛИДЕР НЕ БЫВАЕТ НЕМЫМ (правка 01.09, случай AIO). Фильтр
+       пускает в «Пойдёт?» только растущий класс, и это правильно:
+       у «руки над сливом» развязка в обе стороны, кандидатом её
+       звать нельзя. Но у ЛИДЕРА прогона молчание читается как
+       поломка — AIO вышла в лидеры с самым длинным набором дня,
+       тринадцать дней продаж при держащейся цене, и на экране про
+       неё не было ни слова.
+       Поэтому лидеру сюжет показываем всегда, отдельной ветвью и с
+       ЧЕСТНОЙ подписью — именем шаблона, а не «Пойдёт?». Список
+       кандидатов от этого не грязнится: ветвь не его. */
+    var lt = String(L0.t || '');
+    var lp = String(((L0.rep || {}).plot) || '');
+    var dup = false;
+    for (var li = 0; li < out.length; li++)
+      if (out[li].k.indexOf(lt) >= 0) { dup = true; break; }
+    if (lt && lp && !dup) {
+      var lraw = lp.replace(/\s*\(шаблон[^)]*\)/, '');
+      var lname = lraw.split(':')[0].trim();
+      var lrest = lraw.split(/[;·]\s*/).filter(function(x){
+        return x && x.length > 3; });
+      var lhead = (lrest[0] || lraw).replace(/^[^:]*:\s*/, '');
+      var ltail = lrest.length > 1 ? lrest[lrest.length - 1] : '';
+      out.push({ k: lname.charAt(0).toUpperCase() + lname.slice(1) +
+                    ' · ' + lt,
+                 v: '<span class="tkr">' + esc(lt) + '</span> · лидер прогона',
+                 c: '#b3a6e0', lead: 1,
+                 s: esc(cut(lhead, 95)) +
+                    (ltail ? '<br><i style="opacity:.62">' +
+                     esc(cut(ltail, 85)) + '</i>' : '') });
     }
     return out;
   })().concat([
@@ -854,10 +935,15 @@ SCHEME_JS = r"""
     : {'полгода':4, 'недели':3, 'дни':2, 'часы':1, 'счёт':5};
   cos.forEach(function(c, i){
     var go = String(c.k).indexOf('\u041f\u043e\u0439\u0434') === 0;
+    /* Ветвь лидера идёт прологом рядом с «Пойдёт?» (01.09): она про
+       главную монету экрана, а не про фон. Признаком go её не метим —
+       иначе оденется в стиль кандидата и снова будет читаться как
+       «пойдёт», чего мы и избегали. */
+    var lead = !!c.lead || !!c.moving;
     var m = HZ[c.k] || (go ? ['дни', 2] : ['дни', 3]);
     c.h = m[0]; c.g = m[1]; c.go = go; c.i = i;
     /* В порядке А прогноз идёт прологом — раньше всех горизонтов. */
-    c.r = (go && ORDER !== 'Б') ? -1 : RANK[c.h];
+    c.r = ((go || lead) && ORDER !== 'Б') ? -1 : RANK[c.h];
   });
   cos.sort(function(a, b){
     return (a.r - b.r) || (a.g - b.g) || (a.i - b.i); });
