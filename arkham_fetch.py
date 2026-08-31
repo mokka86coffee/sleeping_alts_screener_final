@@ -49,7 +49,29 @@ except Exception:
     pass
 
 BASE = "https://api.arkm.com"
-KEY = os.environ.get("ARKHAM_KEY", "")
+
+
+def _key():
+    """Ключ: окружение главнее, иначе прямо из config/config.json.
+    Проверено 31.08: config.load() значения в окружение НЕ кладёт,
+    поэтому одного os.environ не хватает."""
+    k = os.environ.get("ARKHAM_KEY", "").strip()
+    if k:
+        return k
+    for p in (Path("config/config.json"),
+              Path(__file__).resolve().parent / "config" / "config.json",
+              Path("config.json")):
+        try:
+            if p.exists():
+                v = json.loads(p.read_text(encoding="utf-8")).get("ARKHAM_KEY")
+                if v:
+                    return str(v).strip()
+        except Exception:
+            pass
+    return ""
+
+
+KEY = _key()
 TIMEOUT = 25
 PAUSE = 0.35
 BOOK = ["ENA", "STX", "PROM", "ONG", "ZRO", "TRUMP"]
@@ -63,7 +85,13 @@ def get(path, **params):
     url = BASE + path + ("?" + urllib.parse.urlencode(params)
                          if params else "")
     req = urllib.request.Request(url, headers={
-        "API-Key": KEY, "Accept": "application/json"})
+        "API-Key": KEY,
+        "Accept": "application/json",
+        # Cloudflare режет служебный агент urllib и отдаёт 403 ещё
+        # до Arkham (поймано 31.08: curl проходил, скрипт — нет).
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                      "AppleWebKit/537.36 (KHTML, like Gecko) "
+                      "Chrome/126.0 Safari/537.36"})
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
             body = r.read().decode()
@@ -114,14 +142,22 @@ def probe():
         (f"/counterparties/address/{addr}", {}),
         ("/transfers", {"base": addr, "limit": 5}),
         ("/intelligence/search", {"query": "ethena"}),
-        ("/token/top_flow/ethena", {}),
+        ("/token/top_flow/ethena", {"timeLast": "24h"}),
         ("/marketdata/altcoin_index", {}),
     ]
     print(f"ключ: {'…' + KEY[-4:] if KEY else 'НЕТ (задай ARKHAM_KEY)'}")
     for path, prm in points:
         d, code = get(path, **prm)
-        n = len(d.get("data") or d.get("transfers") or
-                d.get("positions") or []) if isinstance(d, dict) else "-"
+        n = "-"
+        if isinstance(d, dict):
+            for k in ("data", "transfers", "positions", "holders",
+                      "addresses", "counterparties", "results"):
+                v = d.get(k)
+                if isinstance(v, (list, dict)) and len(v):
+                    n = f"{k}:{len(v)}"
+                    break
+            else:
+                n = f"полей:{len(d)}"
         note = "" if code == 200 else f" · {str(d)[:90]}"
         print(f"{path[:52]:54s} {code} rows={n}{note}")
         time.sleep(PAUSE)
@@ -155,13 +191,31 @@ def whales(write=True):
                 "entry": p.get("entryPrice"),
                 "liq": p.get("liquidationPrice"),
                 "pnl": p.get("unrealizedPnl")})
+        # Живые поля summary (сверено по ответу 31.08):
+        # totalUsdValue, perpUsdValue, spotUsdValue,
+        # perpUnrealizedPnl, perpPositionCount.
+        sm = summ or {}
+        def _m(v):
+            v = float(v or 0)
+            a = abs(v)
+            t = "-$" if v < 0 else "$"
+            return (t + f"{a/1e6:.1f}M" if a >= 1e6
+                    else t + f"{a/1e3:.0f}K")
         out["whales"].append({
             "addr": addr, "label": label, "positions": items,
-            "equity": (summ or {}).get("accountValue"),
-            "line": (f"{label or addr[:10]}: позиций {len(items)}" +
+            "equity": sm.get("totalUsdValue"),
+            "perp_usd": sm.get("perpUsdValue"),
+            "spot_usd": sm.get("spotUsdValue"),
+            "pnl_open": sm.get("perpUnrealizedPnl"),
+            "n_pos": sm.get("perpPositionCount"),
+            "line": (f"{label or addr[:10]}: счёт "
+                     f"{_m(sm.get('totalUsdValue'))} · перпы "
+                     f"{_m(sm.get('perpUsdValue'))} · открытая прибыль "
+                     f"{_m(sm.get('perpUnrealizedPnl'))} · позиций "
+                     f"{sm.get('perpPositionCount', len(items))}" +
                      (" · " + ", ".join(
                          f"{i['sym']} {i['side']}" for i in items[:4])
-                      if items else " — пусто"))})
+                      if items else ""))})
     if write:
         Path("output").mkdir(exist_ok=True)
         (Path("output") / "arkham_whales.json").write_text(
@@ -178,8 +232,32 @@ def watch(write=True):
     book = json.loads(p.read_text(encoding="utf-8"))
     out = {"at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
            "alerts": []}
+    def _addrs(info):
+        """investors.json бывает разной формы (31.08): словарь с
+        ключом addresses, голый список адресов, строка с одним
+        адресом или список словарей. Берём адреса из любой."""
+        out = []
+        if isinstance(info, str):
+            out = [info]
+        elif isinstance(info, dict):
+            v = info.get("addresses") or info.get("holders") or []
+            for x in v if isinstance(v, list) else []:
+                if isinstance(x, str):
+                    out.append(x)
+                elif isinstance(x, dict) and x.get("addr"):
+                    out.append(x["addr"])
+        elif isinstance(info, list):
+            for x in info:
+                if isinstance(x, str):
+                    out.append(x)
+                elif isinstance(x, dict):
+                    a = x.get("addr") or x.get("address")
+                    if a:
+                        out.append(a)
+        return [a for a in out if isinstance(a, str) and a.startswith("0x")]
+
     for coin, info in (book.items() if isinstance(book, dict) else []):
-        for addr in (info.get("addresses") or [])[:6]:
+        for addr in _addrs(info)[:6]:
             tr, code = get("/transfers", base=addr, limit=10)
             time.sleep(PAUSE)
             if code != 200:

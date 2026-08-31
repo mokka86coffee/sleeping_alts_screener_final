@@ -1,41 +1,282 @@
 {
-  "_meta": {
-    "what": "Инвесторы монет журнала лидеров: пересечение с портфелями YZi Labs (экс Binance Labs) и DWF Labs",
-    "asked": "владелец 29.08.2026, поздняя ночь",
-    "method": "полные категории CoinGecko (обе страницы каждой) пересечены со списком журнала из leaders.json на 29.08 (65 монет)",
-    "sources": {
-      "yzi": "coingecko.com/en/categories/yzi-labs-portfolio · 159 монет · снято 29.08.2026",
-      "dwf": "coingecko.com/en/categories/dwf-labs-portfolio · 129 монет · снято 29.08.2026"
-    },
-    "limits": [
-      "Категория CG для DWF заметно неполна: 129 монет при сотнях сделок фонда; свежие сделки 2024–2026 туда почти не занесены — ноль пересечений с журналом означает «ноль по CG», не «ноль вообще»",
-      "DWF в проекте чаще маркетмейкер, чем классический VC: его присутствие — сигнал о ХАРАКТЕРЕ ликвидности, а не о вестинге",
-      "Журнал живой, состав плавает прогонами; сверять свежие добавления вручную"
-    ]
-  },
-
-  "yzi_labs": {
-    "ENA":   {"src": "cg-category", "note": "плюс контекст 27.08: сид-инвесторов (не YZi) выкупил фонд Ethena — см. razbor_ena_unlock.md"},
-    "ACE":   {"src": "cg-category", "note": "Fusionist"},
-    "BICO":  {"src": "cg-category", "note": "Biconomy"},
-    "GPS":   {"src": "cg-category", "note": "GoPlus Security"},
-    "LUNC":  {"src": "cg-category", "note": "наследие Terra"},
-    "MOVE":  {"src": "cg-category", "note": "Movement"},
-    "MOVR":  {"src": "cg-category", "note": "Moonriver; сегодня же в топ-гейнерах категории +45%"},
-    "SHELL": {"src": "cg-category", "note": "MyShell"},
-    "TREE":  {"src": "cg-category", "note": "Treehouse"}
-  },
-
-  "dwf_labs": {},
-
-  "_dwf_comment": "Пересечений журнала с CG-категорией DWF — ноль на 29.08. Честный ноль по источнику, с оговоркой о его неполноте выше.",
-
-  "candidates_unverified": {
-    "HEMI": {"backer": "YZi Labs", "confidence": "высокая", "why": "раунд Hemi 2024 с участием Binance Labs широко освещался; в CG-категории отсутствует — категория не поспевает за новыми"},
-    "BMT":  {"backer": "YZi Labs", "confidence": "средняя", "why": "Bubblemaps связывали с инкубацией Binance Labs; подтвердить точечным поиском"},
-    "COOKIE": {"backer": "DWF Labs", "confidence": "средняя", "why": "DWF публично поддерживал Cookie DAO; в CG-категории нет"},
-    "ATH":  {"backer": "DWF Labs", "confidence": "низкая", "why": "связка Aethir–DWF мелькала в лентах; проверить"}
-  },
-
-  "usage_note": "Чтение для скринера: монета YZi — за спиной казна CZ, разлоки инсайдеров читать внимательнее (их доля обычно велика); монета DWF — смотреть на характер стакана и резкие свечи, это почерк маркетмейкера. Кандидатов перед использованием подтвердить одним точечным поиском."
+ "BLESS": {
+  "query": "Bless",
+  "entities": [
+   {
+    "id": "blessssg",
+    "name": "@BlessssG",
+    "type": "individual"
+   },
+   {
+    "id": "blessref2",
+    "name": "@blessref2",
+    "type": "individual"
+   },
+   {
+    "id": "blessence",
+    "name": "@blessence_",
+    "type": "individual"
+   },
+   {
+    "id": "bless-feed",
+    "name": "@bless_feed",
+    "type": "individual"
+   },
+   {
+    "id": "blessnostress",
+    "name": "@blessnostress_",
+    "type": "individual"
+   }
+  ],
+  "addresses": [
+   "tc85D1uKgS6dPSBMvmb2Cy2zwPmh59ymvZ8yzLrbaVj",
+   "0x1d3Edfb61BA4c5BD5745a94AC588dE65D18c278c",
+   "0x46234FccD57237F421070E23C509c8d7f5c97022",
+   "0xAD6B1D5C06A9C65270831cb187Eb630bA9D936CF",
+   "6BBqEznYDDTH5VBkgqgchkKopYzt2x1F9rMqCkfu7NZA"
+  ],
+  "holders": [
+   {
+    "addr": "tc85D1uKgS6dPSBMvmb2Cy2zwPmh59ymvZ8yzLrbaVj",
+    "chain": "solana",
+    "name": "@bless_feed"
+   },
+   {
+    "addr": "0x1d3Edfb61BA4c5BD5745a94AC588dE65D18c278c",
+    "chain": "bsc",
+    "name": "@blessref2"
+   },
+   {
+    "addr": "0x46234FccD57237F421070E23C509c8d7f5c97022",
+    "chain": "ethereum",
+    "name": "@bless_feed"
+   },
+   {
+    "addr": "0xAD6B1D5C06A9C65270831cb187Eb630bA9D936CF",
+    "chain": "base",
+    "name": "@blessdahyhute"
+   },
+   {
+    "addr": "6BBqEznYDDTH5VBkgqgchkKopYzt2x1F9rMqCkfu7NZA",
+    "chain": "solana",
+    "name": "@blessingsrainn"
+   }
+  ]
+ },
+ "ENA": {
+  "query": "Ethena",
+  "entities": [
+   {
+    "id": "ethena",
+    "name": "Ethena",
+    "type": "misc"
+   },
+   {
+    "id": "macromate8",
+    "name": "Seraphim @MacroMate8 (Ethena)",
+    "type": "individual"
+   },
+   {
+    "id": "ethenaintra",
+    "name": "@ethenaintra",
+    "type": "individual"
+   },
+   {
+    "id": "ethkenta",
+    "name": "@ethKenta",
+    "type": "individual"
+   }
+  ],
+  "addresses": [
+   "0xB8734a14fBD4Aa2d44e6aa830405fFc861BA313c",
+   "0x1c3b25019eD4e4876E7Af7903cc3e1e23287C337",
+   "0x43cbE9dfE84E2f7451cF2B5caa28f02040E942F5",
+   "0x4736808151268507a40EB6AC92d67345e8301A74",
+   "0x4655B6A10C83D6bEfF1DC7116436cFD8b4F8d48A"
+  ],
+  "holders": [
+   {
+    "addr": "0xB8734a14fBD4Aa2d44e6aa830405fFc861BA313c",
+    "chain": "ethereum",
+    "name": "Ethena"
+   },
+   {
+    "addr": "0x1c3b25019eD4e4876E7Af7903cc3e1e23287C337",
+    "chain": "ethereum",
+    "name": "Ethena"
+   },
+   {
+    "addr": "0x43cbE9dfE84E2f7451cF2B5caa28f02040E942F5",
+    "chain": "ethereum",
+    "name": "Ethena"
+   },
+   {
+    "addr": "0x4736808151268507a40EB6AC92d67345e8301A74",
+    "chain": "ethereum",
+    "name": "Ethena"
+   },
+   {
+    "addr": "0x4655B6A10C83D6bEfF1DC7116436cFD8b4F8d48A",
+    "chain": "ethereum",
+    "name": "Ethena"
+   }
+  ]
+ },
+ "ONG": {
+  "query": "Ontology Gas",
+  "entities": [
+   {
+    "id": "gas-zip",
+    "name": "Gas.zip",
+    "type": "misc"
+   },
+   {
+    "id": "andy-ji",
+    "name": "Andy Ji (Ontology)",
+    "type": "individual"
+   },
+   {
+    "id": "gas-dao",
+    "name": "Gas DAO",
+    "type": "yield"
+   },
+   {
+    "id": "the-gas-station",
+    "name": "The Gas Station",
+    "type": "misc"
+   },
+   {
+    "id": "ontology",
+    "name": "Ontology",
+    "type": "misc"
+   }
+  ],
+  "addresses": [
+   "0x28322bAE7EfeE47441540022E51dAAF5EF2A1216",
+   "TVKMFZHuE178oaygPG5SHuXARmPxoidLhX",
+   "6MvXFNjBDb7arkEHS68Es6MN2giH7SehdHUvYRPFgbyC",
+   "0xbAd9ADa0E9633ED27Fa183dBdEceef76712a6Ee1",
+   "0x39D085e13D7876ca3311f0aFFB42778799d24F09"
+  ],
+  "holders": [
+   {
+    "addr": "0x28322bAE7EfeE47441540022E51dAAF5EF2A1216",
+    "chain": "base",
+    "name": "Ontology"
+   },
+   {
+    "addr": "TVKMFZHuE178oaygPG5SHuXARmPxoidLhX",
+    "chain": "tron",
+    "name": "неизвестный"
+   },
+   {
+    "addr": "6MvXFNjBDb7arkEHS68Es6MN2giH7SehdHUvYRPFgbyC",
+    "chain": "solana",
+    "name": "OnRe"
+   },
+   {
+    "addr": "0xbAd9ADa0E9633ED27Fa183dBdEceef76712a6Ee1",
+    "chain": "ethereum",
+    "name": "Onebit"
+   },
+   {
+    "addr": "0x39D085e13D7876ca3311f0aFFB42778799d24F09",
+    "chain": "ethereum",
+    "name": "Onebit"
+   }
+  ]
+ },
+ "BMT": {
+  "query": "Bubblemaps",
+  "entities": [
+   {
+    "id": "bubblemaps",
+    "name": "Bubblemaps",
+    "type": "misc"
+   }
+  ],
+  "addresses": [
+   "ATyRZK67Rdw9nKfnWif5KNaL8g9nJpbvDoWF7LyEZjRx",
+   "8XygGv7qQsyfZXY3Eov1Gz5wxuzciVWHMaQhdHN5GhsA",
+   "0x40b049E02f9E92d8FaC494535616F04641D2cc85",
+   "0x60bc67efA43bbffb800f87C983A1BEFaC462DE21",
+   "0x946AB774e8184b38aa6fa7219c052b50f80502Be"
+  ],
+  "holders": [
+   {
+    "addr": "ATyRZK67Rdw9nKfnWif5KNaL8g9nJpbvDoWF7LyEZjRx",
+    "chain": "solana",
+    "name": "Bubblemaps"
+   },
+   {
+    "addr": "8XygGv7qQsyfZXY3Eov1Gz5wxuzciVWHMaQhdHN5GhsA",
+    "chain": "solana",
+    "name": "Bubblemaps"
+   },
+   {
+    "addr": "0x40b049E02f9E92d8FaC494535616F04641D2cc85",
+    "chain": "bsc",
+    "name": "Bubblemaps"
+   },
+   {
+    "addr": "0x60bc67efA43bbffb800f87C983A1BEFaC462DE21",
+    "chain": "bsc",
+    "name": "Bubblemaps"
+   },
+   {
+    "addr": "0x946AB774e8184b38aa6fa7219c052b50f80502Be",
+    "chain": "bsc",
+    "name": "Bubblemaps"
+   }
+  ]
+ },
+ "AIO": {
+  "query": "OlaXBT",
+  "entities": [
+   {
+    "id": "olacity",
+    "name": "Olacity",
+    "type": "misc"
+   },
+   {
+    "id": "ola-bayode",
+    "name": "@Ola_Bayode",
+    "type": "individual"
+   }
+  ],
+  "addresses": [
+   "0xdBFd516D42743CA3f1C555311F7846095D85F6Fd",
+   "0x5fce5D208DC325ff602c77497dC18F8EAdac8ADA",
+   "0x34878F6a484005AA90E7188a546Ea9E52b538F6f",
+   "0x91B66a9Ef4f4CAD7F8AF942855C37Dd53520f151",
+   "0xcc18327e73246D2253310496EEA8D2B8D53C0001"
+  ],
+  "holders": [
+   {
+    "addr": "0xdBFd516D42743CA3f1C555311F7846095D85F6Fd",
+    "chain": "bsc",
+    "name": "Ola Finance"
+   },
+   {
+    "addr": "0x5fce5D208DC325ff602c77497dC18F8EAdac8ADA",
+    "chain": "bsc",
+    "name": "Ola Finance"
+   },
+   {
+    "addr": "0x34878F6a484005AA90E7188a546Ea9E52b538F6f",
+    "chain": "bsc",
+    "name": "Ola Finance"
+   },
+   {
+    "addr": "0x91B66a9Ef4f4CAD7F8AF942855C37Dd53520f151",
+    "chain": "bsc",
+    "name": "Ola Finance"
+   },
+   {
+    "addr": "0xcc18327e73246D2253310496EEA8D2B8D53C0001",
+    "chain": "bsc",
+    "name": "Ola Finance"
+   }
+  ]
+ }
 }

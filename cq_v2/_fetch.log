@@ -19,3 +19,6 @@
 2026-08-31 21:39:08 полный обход старше 20 ч (возраст 20.4 ч)
 2026-08-31 21:39:08 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
 2026-08-31 21:51:19 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json
+2026-08-31 23:02:52 нет в архиве: 1 (arb)
+2026-08-31 23:02:52 добор новичков: arb
+2026-08-31 23:03:04 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json (прицельно, full_at не тронут)
