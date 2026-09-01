@@ -171,7 +171,17 @@ SCHEME_HTML = """
   76%{transform:translate(9px,9px) scaleX(-1)}
   100%{transform:translate(0,0) scaleX(1)}}
 
-.top{position:absolute;left:48px;right:48px;top:26px;display:flex;justify-content:flex-end;align-items:center;z-index:5}
+.top{position:absolute;left:48px;right:48px;top:26px;display:flex;justify-content:space-between;align-items:center;z-index:5}
+/* ЖУРНАЛ ПРОГНОЗОВ (01.09). Вход отсюда, а не из зала: список монет и
+   так стоит первым экраном, и сравнивать прогноз с тем, что было,
+   удобнее рядом с ним. Кальмар — знак страницы. */
+.jrn{display:flex;align-items:center;gap:9px;text-decoration:none;
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.28em;
+  text-transform:uppercase;color:var(--dim);opacity:.5;
+  transition:opacity .25s,color .25s}
+.jrn svg{color:var(--cy);opacity:.75;transition:opacity .25s}
+.jrn:hover{opacity:1;color:var(--lab)}
+.jrn:hover svg{opacity:1}
 .logo{display:none;align-items:center;gap:12px;font-family:var(--mono);font-size:12.1px;letter-spacing:.34em;color:var(--lab)}
 .logo .o{width:22px;height:22px;border-radius:50%;border:1px solid rgba(232,236,251,.35);display:grid;place-items:center;color:var(--cy);font-size:15.4px;box-shadow:0 0 12px rgba(127,227,212,.35)}
 .stamp{font-family:var(--mono);font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--dim)}
@@ -468,7 +478,22 @@ SCHEME_HTML = """
 <div class="obs">
   <div class="dust" id="dust"></div>
   <div class="snd" id="snd"><i></i><span id="sndTxt">слушать</span></div>
-  <div class="top"><div class="stamp" id="stamp"></div></div>
+  <div class="top">
+    <a class="jrn" href="journal.html" title="журнал прогнозов">
+      <svg viewBox="-24 -46 48 100" width="17" height="35">
+        <ellipse cx="0" cy="-16" rx="17" ry="25" fill="none"
+          stroke="currentColor" stroke-width="2.4"/>
+        <circle cx="-6" cy="-12" r="3" fill="currentColor"/>
+        <circle cx="6" cy="-12" r="3" fill="currentColor"/>
+        <path d="M-13,4 C-16,20 -11,30 -15,42" fill="none"
+          stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M0,8 C0,26 3,36 0,48" fill="none" stroke="currentColor"
+          stroke-width="2.4" stroke-linecap="round"/>
+        <path d="M13,4 C16,20 11,30 15,42" fill="none"
+          stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+      </svg><span>журнал</span></a>
+    <div class="stamp" id="stamp"></div>
+  </div>
   <div class="halo h3"></div><div class="halo h2"></div><div class="halo h1"></div>
   <div class="orb">
     <div class="half"><i class="f"><s></s></i><i class="f"><s></s></i><i class="f"><s></s></i><i class="f"><s></s></i></div>

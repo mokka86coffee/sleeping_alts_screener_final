@@ -488,6 +488,22 @@ def render_report(candidates: list[Candidate], snapshot: RunSnapshot) -> bool:
     log(f"→ Документов записано: {len(pages)} "
         f"({', '.join(sorted(pages))})")
 
+    # ЖУРНАЛ ПРОГНОЗОВ — отдельная страница (01.09). Строится ПОСЛЕ
+    # прочих: он читает output/forecasts.jsonl, куда запись легла
+    # раньше в этом же прогоне. Сбой не роняет отчёт — страница просто
+    # не обновится, остальные экраны от неё не зависят.
+    try:
+        import subprocess as _sp
+        _jr = Path(__file__).resolve().parent / "render_journal.py"
+        if _jr.exists():
+            _r = _sp.run(["python3", str(_jr), "--out",
+                          str(out_dir / "journal.html")],
+                         capture_output=True, text=True, timeout=60)
+            _t = (_r.stdout or _r.stderr).strip().splitlines()
+            log("→ Журнал прогнозов: " + (_t[-1] if _t else "тихо"))
+    except Exception as e:
+        log(f"→ Журнал прогнозов пропущен: {type(e).__name__}: {e}")
+
     return True
 
 
