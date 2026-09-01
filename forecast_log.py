@@ -117,6 +117,29 @@ def live_map() -> dict:
     return {}
 
 
+def _prices() -> dict:
+    """Текущая цена по монетам — из пульса, он пишется каждым прогоном.
+
+    В карте сюжетов цены нет вовсе, а без неё запись бесполезна:
+    через неделю не понять, от какого уровня был дан прогноз.
+    """
+    for c in (Path("output/pulse.json"), Path("pulse.json")):
+        if not c.exists():
+            continue
+        try:
+            d = json.loads(c.read_text(encoding="utf-8"))
+        except ValueError:
+            return {}
+        out = {}
+        for sym, rows in (d or {}).items():
+            if isinstance(rows, list) and rows:
+                px = rows[-1].get("price")
+                if px:
+                    out[str(sym).upper()] = px
+        return out
+    return {}
+
+
 def record(rep: dict, against: bool | None = None,
            log_path: Path = LOG) -> int:
     """Записать сегодняшний список сюжетов. Сколько строк добавлено.
@@ -136,13 +159,17 @@ def record(rep: dict, against: bool | None = None,
     rep = {**(rep or {}), **live_map()}
     rows = _read(log_path)
     today = _today()
-    # Ключ включает ШАБЛОН (правка 01.09). Прежде запись была одна на
-    # монету в сутки, и смена сюжета внутри дня терялась: на вопрос
-    # «в каком прогоне появился курок» журнал ответить не мог. Теперь
-    # повтор того же шаблона пропускается, а СМЕНА пишется новой
-    # строкой со временем. Двадцати четырёх одинаковых строк всё равно
-    # не будет — они отсекаются по совпадению шаблона.
-    have = {(r.get("at"), r.get("sym"), r.get("tpl")) for r in rows}
+    now_hm = datetime.now().strftime("%H:%M")
+    px_map = _prices()
+    # ПИШЕМ КАЖДЫЙ ПРОГОН (правка владельца 01.09). Прежде запись была
+    # одна на монету в сутки, потом одна на смену шаблона — и в обоих
+    # случаях терялся РЯД: от какой цены был дан прогноз и как он
+    # держался час за часом. Теперь строка пишется всегда, а «дорожка»
+    # показывает только смены — полный ряд есть, читать его целиком не
+    # приходится.
+    # Отсекается только повтор в ТУ ЖЕ минуту: два вызова подряд не
+    # должны давать двух строк.
+    have = {(r.get("at"), r.get("hm"), r.get("sym")) for r in rows}
     if against is None:
         against = gate_against()
     added = 0
@@ -152,18 +179,15 @@ def record(rep: dict, against: bool | None = None,
         plot = str(e.get("plot") or "")
         sym = str(sym).upper()
         tpl = plot.split(":")[0].strip()[:60]
-        if not plot or (today, sym, tpl) in have:
+        if not plot or (today, now_hm, sym) in have:
             continue
         rows.append({
-            "at": today,
-            # Час и минута прогона — чтобы было видно, В КАКОМ прогоне
-            # шаблон появился и сколько он прожил до смены.
-            "hm": datetime.now().strftime("%H:%M"),
-            "sym": sym, "tpl": tpl,
+            "at": today, "hm": now_hm, "sym": sym, "tpl": tpl,
             "stage": e.get("stage") or "",
+            "px": px_map.get(sym),
             "veto": bool(against),
         })
-        have.add((today, sym, tpl))
+        have.add((today, now_hm, sym))
         added += 1
     if added:
         _write(log_path, rows)
@@ -245,11 +269,14 @@ def report(log_path: Path = LOG) -> str:
     return "\n".join(out)
 
 
-def trail(sym: str = "", log_path: Path = LOG) -> str:
-    """Дорожка сюжетов: когда появился, когда сменился.
+def trail(sym: str = "", log_path: Path = LOG, full: bool = False) -> str:
+    """Дорожка: только СМЕНЫ шаблона, с ценой на момент смены.
 
-    Отвечает на вопрос «в каком прогоне это возникло» — ради него
-    запись и получила время (01.09).
+    Полный ряд теперь пишется каждым прогоном, и печатать его целиком
+    бессмысленно — семьдесят монет на сорок восемь прогонов это три с
+    лишним тысячи строк в сутки. Показываем переломы: что было, что
+    стало, по какой цене и сколько прожил прежний шаблон.
+    full=True — весь ряд, если нужен именно он.
     """
     rows = _read(log_path)
     if sym:
@@ -257,29 +284,41 @@ def trail(sym: str = "", log_path: Path = LOG) -> str:
                 .startswith(sym.upper())]
     if not rows:
         return "в журнале ничего нет"
-    out = []
-    prev = {}
-    for r in sorted(rows, key=lambda x: (x.get("at", ""), x.get("hm", ""))):
+    rows.sort(key=lambda x: (x.get("at", ""), x.get("hm", "")))
+    out, prev = [], {}
+    for r in rows:
         s_ = r.get("sym", "")
         was = prev.get(s_)
-        mark = "  →" if was and was != r.get("tpl") else "   "
+        changed = was is None or was[0] != r.get("tpl")
+        if not (full or changed):
+            continue
+        px = r.get("px")
+        px_s = f"{px:.6g}" if isinstance(px, (int, float)) else "—"
+        mark = "→" if was and changed else " "
+        move = ""
+        if was and changed and isinstance(px, (int, float)) \
+                and isinstance(was[1], (int, float)) and was[1]:
+            move = f"  ({(px / was[1] - 1) * 100:+.1f}% от прошлого)"
         out.append(f"{r.get('at','')} {r.get('hm','--:--')} {s_:<12}"
-                   f"{mark} {r.get('tpl','')[:48]} [{r.get('stage','')}]")
-        prev[s_] = r.get("tpl")
-    return "\n".join(out)
+                   f" {mark} {r.get('tpl','')[:44]:<44}"
+                   f" [{r.get('stage',''):^6}] {px_s:>10}{move}")
+        prev[s_] = (r.get("tpl"), px)
+    return "\n".join(out) or "смен шаблона не было"
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--report", action="store_true")
     ap.add_argument("--trail", nargs="?", const="", default=None,
-                    help="дорожка сюжетов: когда появился, когда сменился")
+                    help="дорожка: только смены шаблона, с ценой")
+    ap.add_argument("--full", action="store_true",
+                    help="с --trail: показать весь ряд, а не только смены")
     ap.add_argument("--score", action="store_true")
     ap.add_argument("--log", default=str(LOG))
     a = ap.parse_args()
     lp = Path(a.log)
     if a.trail is not None:
-        print(trail(a.trail, lp))
+        print(trail(a.trail, lp, full=a.full))
         return 0
     if a.score or not a.report:
         print(f"исходов проставлено: {score(lp)}")
