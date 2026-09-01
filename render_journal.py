@@ -81,8 +81,43 @@ def short(tpl: str) -> str:
 
 DATA = load(Path(A.log))
 if not DATA:
-    raise SystemExit(f"нет записей с ценой в {A.log} — "
-                     "график строить не из чего")
+    # СТРАНИЦА ВСЁ РАВНО ПИШЕТСЯ (правка 01.09). Прежде сборщик
+    # отказывался и выходил — а кнопка в схеме вела в пустоту, 404.
+    # Цены в журнале появляются только с прогонов на новой версии,
+    # старые записи их не имеют; до тех пор честнее показать причину,
+    # чем сломанную ссылку.
+    _n = 0
+    _p = Path(A.log)
+    if _p.exists():
+        _n = sum(1 for x in _p.read_text(encoding="utf-8").splitlines()
+                 if x.strip())
+    stub = f"""<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Журнал прогнозов</title><style>
+*{{box-sizing:border-box;margin:0}}html,body{{height:100%}}
+body{{background:#000306;color:#9fb8cc;font:300 16px/1.7 Arial;
+display:grid;place-items:center;text-align:center;padding:40px}}
+h1{{font-weight:800;font-size:15px;letter-spacing:.26em;color:#9fb8cc;
+margin-bottom:18px}}
+b{{color:#ffb44a;font-weight:700}}
+i{{display:block;margin-top:22px;font-size:13px;color:#5f7a90;
+font-style:italic;max-width:52ch}}
+a{{position:fixed;left:18px;top:16px;font:700 11px Arial;
+letter-spacing:.14em;color:#ffb44a;text-decoration:none;
+border:1px solid rgba(255,180,74,.35);border-radius:8px;padding:5px 11px;
+opacity:.55}}
+</style></head><body><a href="index.html">\u2190 схема</a>
+<div><h1>ЖУРНАЛ ПРОГНОЗОВ</h1>
+<p>записей в журнале: <b>{_n}</b>, из них с ценой: <b>0</b></p>
+<p>график строится по цене, а её в старых записях нет</p>
+<i>Цена пишется с прогонов на новой версии журнала. Появится с
+ближайшего — и страница соберётся сама, дальше будет удлиняться
+каждым прогоном.</i></div></body></html>"""
+    out = Path(A.out)
+    out.parent.mkdir(exist_ok=True)
+    out.write_text(stub, encoding="utf-8")
+    print(f"журнал: записей {_n}, с ценой 0 — страница-заглушка")
+    raise SystemExit(0)
 
 # порядок монет: где больше смен, там интереснее
 ORDER = sorted(DATA, key=lambda s: (-len(switches(DATA[s])), s))

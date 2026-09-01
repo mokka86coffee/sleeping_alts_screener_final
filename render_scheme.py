@@ -171,11 +171,12 @@ SCHEME_HTML = """
   76%{transform:translate(9px,9px) scaleX(-1)}
   100%{transform:translate(0,0) scaleX(1)}}
 
-.top{position:absolute;left:48px;right:48px;top:26px;display:flex;justify-content:space-between;align-items:center;z-index:5}
+.top{position:absolute;left:48px;right:48px;top:26px;display:flex;justify-content:flex-end;align-items:center;gap:26px;z-index:5}
 /* ЖУРНАЛ ПРОГНОЗОВ (01.09). Вход отсюда, а не из зала: список монет и
    так стоит первым экраном, и сравнивать прогноз с тем, что было,
    удобнее рядом с ним. Кальмар — знак страницы. */
 .jrn{display:flex;align-items:center;gap:9px;text-decoration:none;
+  position:relative;z-index:7;   /* выше полотна, чтобы клик доходил */
   font-family:var(--mono);font-size:10.5px;letter-spacing:.28em;
   text-transform:uppercase;color:var(--dim);opacity:.5;
   transition:opacity .25s,color .25s}
@@ -479,7 +480,8 @@ SCHEME_HTML = """
   <div class="dust" id="dust"></div>
   <div class="snd" id="snd"><i></i><span id="sndTxt">слушать</span></div>
   <div class="top">
-    <a class="jrn" href="journal.html" title="журнал прогнозов">
+    <a class="jrn" href="journal.html" title="журнал прогнозов"
+       onclick="event.stopPropagation()">
       <svg viewBox="-24 -46 48 100" width="17" height="35">
         <ellipse cx="0" cy="-16" rx="17" ry="25" fill="none"
           stroke="currentColor" stroke-width="2.4"/>
@@ -492,7 +494,7 @@ SCHEME_HTML = """
         <path d="M13,4 C16,20 11,30 15,42" fill="none"
           stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
       </svg><span>журнал</span></a>
-    <div class="stamp" id="stamp"></div>
+    <div class="stamp" id="stamp"></div><!-- штамп справа от кальмара -->
   </div>
   <div class="halo h3"></div><div class="halo h2"></div><div class="halo h1"></div>
   <div class="orb">
