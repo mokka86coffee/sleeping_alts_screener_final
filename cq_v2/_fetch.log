@@ -25,3 +25,6 @@
 2026-09-01 00:40:34 нет в архиве: 1 (dogs)
 2026-09-01 00:40:34 добор новичков: dogs
 2026-09-01 00:40:46 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json (прицельно, full_at не тронут)
+2026-09-01 01:53:42 данные по 2026-08-30, ждём 2026-08-31 (возраст 4.0 ч)
+2026-09-01 01:53:42 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-09-01 02:06:32 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json
