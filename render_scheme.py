@@ -1221,8 +1221,15 @@ SCHEME_JS = r"""
     var path = e.composedPath ? e.composedPath() : [], n;
     if (!path.length) for (n = e.target; n; n = n.parentNode) path.push(n);
     var sndBtn = q('#snd');
+    /* Кальмар журнала — в тот же белый список (правка 01.09).
+       Обработчик висит на ДОКУМЕНТЕ в фазе ПЕРЕХВАТА: он срабатывает
+       раньше, чем событие дойдёт до ссылки, поэтому
+       event.stopPropagation() на самой кнопке бесполезен — схема
+       закрывалась, а переход не успевал. */
+    var jrnBtn = q('.jrn');
     for (var i = 0; i < path.length; i++) {
-      if (path[i] === nav || path[i] === sndBtn) return;
+      if (path[i] === nav || path[i] === sndBtn ||
+          path[i] === jrnBtn) return;
     }
     close();
   }, true);
