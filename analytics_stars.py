@@ -1033,6 +1033,13 @@ def build_stars(candidates: list[Candidate],
                     s["rep"]["streak"] = ft.get("delta_streak",
                                                 s["rep"]["streak"])
                     s["rep"]["plot"] = fresh.get("plot") or s["rep"]["plot"]
+                    # СТАДИЯ ТОЖЕ ОБНОВЛЯЕТСЯ (01.09). Сюжет
+                    # переписывался, а stage оставался вчерашним — и
+                    # схема делила полки «Пойдёт?» и «Уже идёт» по
+                    # устаревшему полю. Курок, выстреливший на
+                    # коротком круге, оставался кандидатом.
+                    if fresh.get("stage"):
+                        s["rep"]["stage"] = fresh["stage"]
             except Exception:
                 pass
 
@@ -1126,6 +1133,28 @@ def build_stars(candidates: list[Candidate],
 
     # Лидер рисуется последним — поверх остальных, если рядом окажется сосед
     out.sort(key=lambda s: (s["lead"], s["f"]))
+    # ЖИВОЙ СЮЖЕТ НАРУЖУ (01.09). Живой пересчёт переписывает сюжет
+    # ТОЛЬКО в звезде, а reputation.json остаётся дневным и коротким
+    # кругом не двигается. Журнал прогнозов читает файл — и потому
+    # пятнадцатиминутные развороты до него не доходили вовсе, ради
+    # чего короткий круг и заводился.
+    # Пишем отдельный файл, не трогая дневную карту: она нужна как
+    # база, от которой считаются переходы.
+    try:
+        from pathlib import Path
+        _lv = {}
+        for _s in out:
+            _r = _s.get("rep") or {}
+            if _r.get("plot"):
+                _lv[str(_s.get("t", "")).upper() + "USDT"] = {
+                    "plot": _r["plot"], "stage": _r.get("stage") or ""}
+        if _lv:
+            _p = Path("output"); _p.mkdir(exist_ok=True)
+            (_p / "plots_live.json").write_text(
+                json.dumps(_lv, ensure_ascii=False), encoding="utf-8")
+    except Exception:
+        pass
+
     return out
 
 

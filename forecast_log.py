@@ -97,6 +97,26 @@ def gate_against(md: Path = Path("REGIME_GATE.md")) -> bool:
     return False
 
 
+def live_map() -> dict:
+    """Живые сюжеты этого прогона, если analytics_stars их положил.
+
+    Дневная карта reputation.json коротким кругом не двигается — её
+    считает квант раз в сутки. Живой пересчёт переписывает сюжет в
+    звезде и с 01.09 выносит его в plots_live.json. Журналу нужен
+    именно он: иначе пятнадцатиминутные развороты, ради которых
+    короткий круг и заводился, до журнала не доходят.
+    """
+    for c in (Path("output/plots_live.json"), Path("plots_live.json")):
+        if not c.exists():
+            continue
+        try:
+            d = json.loads(c.read_text(encoding="utf-8"))
+        except ValueError:
+            return {}
+        return d if isinstance(d, dict) else {}
+    return {}
+
+
 def record(rep: dict, against: bool | None = None,
            log_path: Path = LOG) -> int:
     """Записать сегодняшний список сюжетов. Сколько строк добавлено.
@@ -111,9 +131,18 @@ def record(rep: dict, against: bool | None = None,
     фильтр не пустил вовсе. Отсев на чтении дешевле, чем нехватка
     данных.
     """
+    # Живая карта главнее дневной: в ней сюжет после пересчёта.
+    # Файла нет — работаем по дневной, как раньше.
+    rep = {**(rep or {}), **live_map()}
     rows = _read(log_path)
     today = _today()
-    have = {(r.get("at"), r.get("sym")) for r in rows}
+    # Ключ включает ШАБЛОН (правка 01.09). Прежде запись была одна на
+    # монету в сутки, и смена сюжета внутри дня терялась: на вопрос
+    # «в каком прогоне появился курок» журнал ответить не мог. Теперь
+    # повтор того же шаблона пропускается, а СМЕНА пишется новой
+    # строкой со временем. Двадцати четырёх одинаковых строк всё равно
+    # не будет — они отсекаются по совпадению шаблона.
+    have = {(r.get("at"), r.get("sym"), r.get("tpl")) for r in rows}
     if against is None:
         against = gate_against()
     added = 0
@@ -122,15 +151,19 @@ def record(rep: dict, against: bool | None = None,
             continue
         plot = str(e.get("plot") or "")
         sym = str(sym).upper()
-        if not plot or (today, sym) in have:   # одна запись в сутки
+        tpl = plot.split(":")[0].strip()[:60]
+        if not plot or (today, sym, tpl) in have:
             continue
         rows.append({
-            "at": today, "sym": sym,
-            "tpl": plot.split(":")[0].strip()[:60],
+            "at": today,
+            # Час и минута прогона — чтобы было видно, В КАКОМ прогоне
+            # шаблон появился и сколько он прожил до смены.
+            "hm": datetime.now().strftime("%H:%M"),
+            "sym": sym, "tpl": tpl,
             "stage": e.get("stage") or "",
             "veto": bool(against),
         })
-        have.add((today, sym))
+        have.add((today, sym, tpl))
         added += 1
     if added:
         _write(log_path, rows)
@@ -212,13 +245,42 @@ def report(log_path: Path = LOG) -> str:
     return "\n".join(out)
 
 
+def trail(sym: str = "", log_path: Path = LOG) -> str:
+    """Дорожка сюжетов: когда появился, когда сменился.
+
+    Отвечает на вопрос «в каком прогоне это возникло» — ради него
+    запись и получила время (01.09).
+    """
+    rows = _read(log_path)
+    if sym:
+        rows = [r for r in rows if r.get("sym", "").upper()
+                .startswith(sym.upper())]
+    if not rows:
+        return "в журнале ничего нет"
+    out = []
+    prev = {}
+    for r in sorted(rows, key=lambda x: (x.get("at", ""), x.get("hm", ""))):
+        s_ = r.get("sym", "")
+        was = prev.get(s_)
+        mark = "  →" if was and was != r.get("tpl") else "   "
+        out.append(f"{r.get('at','')} {r.get('hm','--:--')} {s_:<12}"
+                   f"{mark} {r.get('tpl','')[:48]} [{r.get('stage','')}]")
+        prev[s_] = r.get("tpl")
+    return "\n".join(out)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--report", action="store_true")
+    ap.add_argument("--trail", nargs="?", const="", default=None,
+                    help="дорожка сюжетов: когда появился, когда сменился")
     ap.add_argument("--score", action="store_true")
     ap.add_argument("--log", default=str(LOG))
     a = ap.parse_args()
     lp = Path(a.log)
+    if a.trail is not None:
+        print(trail(a.trail, lp))
+        return 0
     if a.score or not a.report:
         print(f"исходов проставлено: {score(lp)}")
     if a.report:
