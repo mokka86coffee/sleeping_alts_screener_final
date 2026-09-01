@@ -44,9 +44,16 @@ AP = argparse.ArgumentParser()
 AP.add_argument('--coin', default='skr')
 AP.add_argument('--layout', default='b', choices=('a', 'b'))
 AP.add_argument('--out', default=None)
+# Прогон зовёт сборщик С ЭТИМ ФЛАГОМ (run.py, блок «Потоки монет»).
+# При переписывании 01.09 я его потерял, и argparse завершал процесс
+# кодом два: все семьдесят монет ушли бы в «сбоев». Поймано тем, что
+# подписи появлялись только на монетах, пересобранных руками.
+AP.add_argument('--archive', default='cq_v2',
+                help='каталог архива CryptoQuant')
 A = AP.parse_args()
 
-for c in (Path('cq_v2') / f'{A.coin}.json', Path(f'{A.coin}.json')):
+for c in (Path(A.archive) / f'{A.coin}.json',
+          Path('cq_v2') / f'{A.coin}.json', Path(f'{A.coin}.json')):
     if c.exists():
         D = json.loads(c.read_text(encoding='utf-8'))
         break
