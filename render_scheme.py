@@ -144,45 +144,118 @@ SCHEME_HTML = """
    одна монета, внутри плавают её киты. Цвет кита = сторона, метка:
    + добрал, ✓ закрыл, пусто — открыл. Размер круга — деньги. ── */
 .pods{position:absolute;right:2.5%;top:7%;width:min(400px,32vw);
-  z-index:3;opacity:.86;pointer-events:none}
+  z-index:3;opacity:.92;pointer-events:none}
 .pods h5{font:600 8px Inter,Arial;letter-spacing:.34em;color:#57708a;
-  margin:0 0 12px;text-align:center}
-.pod{position:relative;margin:0 auto 14px;border-radius:50%;
-  border:1px solid rgba(127,227,212,.13);
-  background:radial-gradient(circle at 36% 28%,rgba(127,227,212,.045),
-  rgba(15,22,48,.16) 72%)}
-.pod.s{border-color:rgba(240,179,86,.13);
-  background:radial-gradient(circle at 36% 28%,rgba(240,179,86,.045),
-  rgba(26,20,40,.16) 72%)}
-.pod .ttl{position:absolute;left:0;right:0;top:12%;text-align:center;
-  font:700 10.5px Inter,Arial;color:rgba(230,237,255,.5);
-  letter-spacing:.05em}
-.pod .sub{position:absolute;left:0;right:0;bottom:13%;text-align:center;
-  font:400 8px Inter,Arial;color:rgba(159,184,212,.42)}
-.pod .w{position:absolute;width:21px;height:10px}
-.pod .w svg{width:100%;height:100%;display:block}
-.pod .w.l svg{color:rgba(127,227,212,.62)}
-.pod .w.s svg{color:rgba(240,179,86,.62)}
-.pod .w b{position:absolute;left:104%;top:0;font:700 8px Inter,Arial;
-  color:rgba(230,237,255,.42)}
-@keyframes sw{0%{transform:translate(0,0) scaleX(1)}
-  24%{transform:translate(24px,-7px) scaleX(1)}
-  48%{transform:translate(35px,4px) scaleX(-1)}
-  76%{transform:translate(9px,9px) scaleX(-1)}
-  100%{transform:translate(0,0) scaleX(1)}}
+  margin:0 0 18px;text-align:center}
+/* ИМЯ МОНЕТЫ ЖИРНЫМ (02.09). Прежде было тонкое и с разрядкой —
+   выглядело подписью. Теперь плотное, тяжёлое, без разрядки:
+   имя работает фоном, по которому ходят киты. */
+.pod{position:relative;margin:0 auto 8px;display:grid;place-items:center}
+.pod .ttl{font:900 var(--fs,64px)/1 Inter,Arial;letter-spacing:-.03em;
+  color:rgba(232,236,251,.10);white-space:nowrap;user-select:none;
+  text-shadow:0 0 40px rgba(127,227,212,.12)}
+.pod.s .ttl{text-shadow:0 0 40px rgba(240,179,86,.12)}
+/* ДВЕ ПОЛОСЫ, ПО СТОРОНЕ НА КАЖДУЮ (02.09). Одна общая полоса
+   врала по смыслу: «вышли» без стороны ничего не значит — выход из
+   лонга и выход из шорта противоположны. Теперь лонги отдельно,
+   шорты отдельно, у каждой доля открытых к закрытым. */
+.pod .rr{position:absolute;left:50%;bottom:2px;transform:translateX(-50%);
+  width:var(--rw,110px);display:grid;gap:5px}
+.pod .rr .ln{display:grid;grid-template-columns:26px 1fr 34px;gap:6px;
+  align-items:center;
+  font:600 7.5px ui-monospace,Menlo,monospace;letter-spacing:.08em}
+.pod .rr .nm{color:rgba(93,100,136,.9);text-align:right}
+.pod .rr .bar{height:3px;border-radius:2px;overflow:hidden;position:relative;
+  background:rgba(232,236,251,.07)}
+.pod .rr .bar i{position:absolute;top:0;bottom:0;left:0;border-radius:2px}
+.pod .rr .bar u{position:absolute;top:-2px;bottom:-2px;width:1px;
+  background:rgba(232,236,251,.45)}
+.pod .rr .num{color:rgba(93,100,136,.8);white-space:nowrap}
+/* лонги — лайм, шорты — фиолет: те же цвета, что у самих китов */
+.pod .rr .l i{background:linear-gradient(90deg,#9fe870,rgba(159,232,112,.4));
+  box-shadow:0 0 7px rgba(159,232,112,.38)}
+.pod .rr .l .nm{color:rgba(159,232,112,.75)}
+.pod .rr .s2 i{background:linear-gradient(90deg,#b98cff,rgba(185,140,255,.4));
+  box-shadow:0 0 7px rgba(185,140,255,.38)}
+.pod .rr .s2 .nm{color:rgba(185,140,255,.75)}
+.pod .rr .off{opacity:.28}
+.pod .sub{position:absolute;bottom:-30px;left:0;right:0;text-align:center;
+  font:400 7.5px ui-monospace,Menlo,monospace;letter-spacing:.18em;
+  color:rgba(93,100,136,.85)}
+/* КИТ. Размер уменьшен вдвое против прошлой попытки: огромный силуэт
+   закрывал имя и превращался в пятно. Двадцать два на десять —
+   читается как кит и не спорит с буквами. */
+.pod .w{position:absolute;width:14px;height:6.6px;
+  animation:sw 11s ease-in-out infinite}
+.pod .w svg{width:100%;height:100%;display:block;overflow:visible}
+.pod .w.l svg{color:#9fe870}
+.pod .w.s svg{color:#b98cff}
+.pod .w.done svg{opacity:.38}
+.pod .w.live svg{opacity:1;
+  filter:drop-shadow(0 0 3px currentColor) drop-shadow(0 0 8px currentColor)}
+/* МЕТКА КОШЕЛЬКА (02.09). Две буквы после 0x — чтобы отличать
+   китов друг от друга: один и тот же кошелёк может встретиться в
+   нескольких монетах, и это видно только по метке. Держится у хвоста,
+   мелко, чтобы не спорить с силуэтом. */
+.pod .w b{position:absolute;right:100%;top:50%;margin:-5px 4px 0 0;
+  font:600 8px ui-monospace,Menlo,monospace;letter-spacing:.04em;
+  color:currentColor;opacity:.62;text-transform:uppercase;
+  white-space:nowrap}
+.pod .w.l b{color:#b6f096}
+.pod .w.s b{color:#cdaaff}
+.pod .w.done b{opacity:.34}
+/* при зеркальном развороте метка не должна читаться задом наперёд */
+/* Метка НИКОГДА не зеркалится (02.09). Прежде зеркалили весь <span>
+   вместе с подписью, а её разворачивали обратно правилом по атрибуту
+   style — селектор хрупкий, срабатывал не всегда, и часть меток шла
+   задом наперёд. Теперь зеркалим ТОЛЬКО силуэт. */
+.pod .w.flip svg{transform:scaleX(-1)}
+.pod .w.flip b{right:auto;left:100%;margin:-5px 0 0 4px}
+@keyframes sw{
+  0%,100%{transform:translate(0,0) rotate(0deg)}
+  25%{transform:translate(4px,-2px) rotate(-4deg)}
+  50%{transform:translate(7px,0) rotate(0deg)}
+  75%{transform:translate(4px,2px) rotate(4deg)}}
 
 .top{position:absolute;left:48px;right:48px;top:26px;display:flex;justify-content:flex-end;align-items:center;gap:26px;z-index:5}
 /* ЖУРНАЛ ПРОГНОЗОВ (01.09). Вход отсюда, а не из зала: список монет и
    так стоит первым экраном, и сравнивать прогноз с тем, что было,
    удобнее рядом с ним. Кальмар — знак страницы. */
-.jrn{display:flex;align-items:center;gap:9px;text-decoration:none;
-  position:relative;z-index:7;   /* выше полотна, чтобы клик доходил */
-  font-family:var(--mono);font-size:10.5px;letter-spacing:.28em;
-  text-transform:uppercase;color:var(--dim);opacity:.5;
-  transition:opacity .25s,color .25s}
-.jrn svg{color:var(--cy);opacity:.75;transition:opacity .25s}
-.jrn:hover{opacity:1;color:var(--lab)}
-.jrn:hover svg{opacity:1}
+.jrn{position:absolute;left:var(--axis,38%);top:17%;width:0;height:0;
+  z-index:7;pointer-events:none;text-decoration:none}
+/* Узел идёт слева направо перед кристаллом: по горизонтали — ровно,
+   по вертикали — небольшой прогиб вниз посередине, отсюда лёгкая
+   дуга. Назад возвращается прозрачным, чтобы не было видно рывка. */
+.jrn .sat{position:absolute;left:0;top:0;width:0;height:0;
+  pointer-events:none;animation:satX 12s linear infinite}
+/* ДЁШЕВО ДЛЯ ПЛАНШЕТА (02.09). Движется только transform и opacity —
+   это композитор, без перерисовки. Тень одна вместо двух, и элемент
+   поднят на свой слой заранее (will-change), чтобы тень рисовалась
+   один раз, а не каждый кадр. Кристалл при этом не трогается вовсе:
+   узел на слое выше и за него не уходит. */
+.jrn .sat{will-change:transform,opacity}
+.jrn .sat i{position:absolute;left:-7px;top:-7px;width:14px;height:14px;
+  border-radius:50%;pointer-events:auto;cursor:pointer;
+  background:radial-gradient(circle at 50% 50%,#eafcff 0,#7fe3d4 28%,
+    rgba(127,227,212,0) 70%);
+  box-shadow:0 0 14px rgba(127,227,212,.6);
+  will-change:transform;
+  animation:satY 12s ease-in-out infinite}
+@keyframes satX{
+  0%   {transform:translateX(-150px);opacity:0}
+  8%   {opacity:1}
+  84%  {opacity:1}
+  91.6%{transform:translateX(150px);opacity:0}
+  91.7%{transform:translateX(-150px)}
+  100% {transform:translateX(-150px);opacity:0}}
+@keyframes satY{
+  0%,91.6%,100%{transform:translateY(0)}
+  45.8%{transform:translateY(24px)}}
+.jrn .lbl{position:absolute;left:0;top:64px;transform:translateX(-50%);
+  white-space:nowrap;font-family:var(--mono);font-size:9px;
+  letter-spacing:.3em;text-transform:uppercase;color:#9fb8cc;
+  opacity:0;transition:opacity .3s;pointer-events:none}
+.jrn:hover .lbl{opacity:.85}
 .logo{display:none;align-items:center;gap:12px;font-family:var(--mono);font-size:12.1px;letter-spacing:.34em;color:var(--lab)}
 .logo .o{width:22px;height:22px;border-radius:50%;border:1px solid rgba(232,236,251,.35);display:grid;place-items:center;color:var(--cy);font-size:15.4px;box-shadow:0 0 12px rgba(127,227,212,.35)}
 .stamp{font-family:var(--mono);font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--dim)}
@@ -258,7 +331,7 @@ SCHEME_HTML = """
    трансформируется сам, поднимаются его дети, поэтому позиции
    считаются честно. Каждая новость идёт по очереди: время цикла и
    задержка те же, что у пузырей справа. */
-.tells{position:absolute;left:50%;bottom:4%;transform:translateX(-50%);width:760px;height:26vh;
+.tells{position:absolute;left:var(--axis,38%);bottom:4%;transform:translateX(-50%);width:760px;height:26vh;
   text-align:center;z-index:4;pointer-events:none}
 .tells .tl{position:absolute;left:0;right:0;bottom:0;opacity:0;
   animation:tell1 var(--t) linear var(--d) infinite, float1 var(--t) linear var(--d) infinite}
@@ -310,7 +383,7 @@ SCHEME_HTML = """
 .news.k-delist{--kc:#ff8a72}.news.k-unlock{--kc:#ffd166}.news.k-risk{--kc:#ffb266}.news.k-macro{--kc:#8ab4ff}.news.k-support{--kc:#5fe39c}
 
 /* кристалл */
-.orb{position:absolute;left:50%;top:17%;width:0;height:0;z-index:3;transform-style:preserve-3d;perspective:900px;
+.orb{position:absolute;left:var(--axis,38%);top:17%;width:0;height:0;z-index:3;transform-style:preserve-3d;perspective:900px;
   animation:spin 44s linear infinite}
 @keyframes spin{from{transform:rotateX(-14deg) rotateY(0) scale(var(--gs,1))}to{transform:rotateX(-14deg) rotateY(360deg) scale(var(--gs,1))}}
 .orb .half{position:absolute;left:0;top:0;transform-style:preserve-3d}
@@ -334,7 +407,7 @@ SCHEME_HTML = """
    плотный бирюзово-белый свет размером с кристалл, сложен со светом;
    средний — бирюза на полтора кристалла; внешний — широкая синь на три.
    Каждый слой дышит в своём ритме, потому свет живой, а не блин. */
-.halo{position:absolute;left:50%;top:17%;border-radius:50%;z-index:2;pointer-events:none;mix-blend-mode:screen}
+.halo{position:absolute;left:var(--axis,38%);top:17%;border-radius:50%;z-index:2;pointer-events:none;mix-blend-mode:screen}
 /* яркость: две трети от самой густой версии (втрое тише было слишком) */
 /* СВЕТ — СИНИЙ И ТИХИЙ. Не голубой прожектор, а синева на несколько
    тонов светлее поля: кристалл выделяется, не слепит. Ядро — синь с
@@ -352,19 +425,23 @@ SCHEME_HTML = """
   filter:blur(36px);animation:halo2 9s ease-in-out infinite reverse}
 @keyframes halo{0%,100%{transform:scale(.94);opacity:.85}50%{transform:scale(1.06);opacity:1}}
 @keyframes halo2{0%,100%{transform:scale(.96);opacity:.8}50%{transform:scale(1.05);opacity:1}}
-.orbcap{display:none;position:absolute;left:50%;top:calc(17% + 118px);transform:translateX(-50%);font-family:var(--mono);font-size:9.9px;letter-spacing:.34em;
+.orbcap{display:none;position:absolute;left:var(--axis,38%);top:calc(17% + 118px);transform:translateX(-50%);font-family:var(--mono);font-size:9.9px;letter-spacing:.34em;
   text-transform:uppercase;color:var(--cy);text-shadow:0 0 10px rgba(127,227,212,.6);white-space:nowrap;z-index:4}
 
 /* СТВОЛ И ВЕТВИ — ПОЧТИ В ЦВЕТ ПОЛЯ. Линии на полтона светлее фона,
    без свечения: каркас угадывается, а не читается. Узлы — едва видные
    точки. Текст полупрозрачный — как надпись сквозь стекло. */
-.trunk{position:absolute;left:50%;top:calc(17% + 140px);bottom:90px;width:1px;background:rgba(232,236,251,.07);
+.trunk{position:absolute;left:var(--axis,38%);top:calc(17% + 140px);bottom:90px;width:1px;background:rgba(232,236,251,.07);
   transform:scaleY(0);transform-origin:top;animation:grow 3.2s cubic-bezier(.22,.61,.36,1) .6s forwards;z-index:3}
 @keyframes grow{to{transform:scaleY(1)}}
 /* НЕ БОЛЬШЕ ДВУХ РАЗОМ. Появление — медленное, три с половиной
    секунды; уход — ещё медленнее, четыре. Ничего не выскакивает и
    ничего не обрывается: одна мысль тает, пока следующая проступает. */
-.co{position:absolute;left:50%;width:0;height:0;z-index:4}
+/* ОСЬ СЦЕНЫ (02.09). Кристалл, ствол, ветви и новости стояли по
+   центру и налезали на стаю справа. Ось в переменной, сдвинута
+   влево — двигается всё разом. На узком экране возвращается в
+   центр: стая там уходит вниз. */
+.co{position:absolute;left:var(--axis,38%);width:0;height:0;z-index:4}
 .co .node{position:absolute;left:-2.5px;top:-2.5px;width:5px;height:5px;border-radius:50%;background:rgba(232,236,251,.28);
   transform:scale(0);transition:transform 1s cubic-bezier(.22,.61,.36,1)}
 .co.on .node{transform:scale(1)}
@@ -454,6 +531,7 @@ SCHEME_HTML = """
    узлом по центру, а горизонтальная ветвь убирается — ствол с узлами
    остаётся, читается как нить с бусинами. */
 @media (max-width:900px){
+  .obs{--axis:50%}
   .co .ln{display:none}
   .co .txt,.co.l .txt,.co.r .txt{left:50%;right:auto;top:14px;width:min(86vw,360px);
     transform:translateX(-50%) translateY(6px);text-align:center}
@@ -480,23 +558,17 @@ SCHEME_HTML = """
   <div class="dust" id="dust"></div>
   <div class="snd" id="snd"><i></i><span id="sndTxt">слушать</span></div>
   <div class="top">
-    <a class="jrn" href="journal.html" title="журнал прогнозов"
-       onclick="event.stopPropagation()">
-      <svg viewBox="-24 -46 48 100" width="17" height="35">
-        <ellipse cx="0" cy="-16" rx="17" ry="25" fill="none"
-          stroke="currentColor" stroke-width="2.4"/>
-        <circle cx="-6" cy="-12" r="3" fill="currentColor"/>
-        <circle cx="6" cy="-12" r="3" fill="currentColor"/>
-        <path d="M-13,4 C-16,20 -11,30 -15,42" fill="none"
-          stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-        <path d="M0,8 C0,26 3,36 0,48" fill="none" stroke="currentColor"
-          stroke-width="2.4" stroke-linecap="round"/>
-        <path d="M13,4 C16,20 11,30 15,42" fill="none"
-          stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
-      </svg><span>журнал</span></a>
     <div class="stamp" id="stamp"></div><!-- штамп справа от кальмара -->
   </div>
   <div class="halo h3"></div><div class="halo h2"></div><div class="halo h1"></div>
+  <!-- ЖУРНАЛ — узел перед кристаллом (02.09). Без SVG-пути и
+       пересчётов: обычный элемент с CSS-анимацией. Идёт слева направо
+       по слегка выгнутой дуге, всегда ПЕРЕД кристаллом, и уходит
+       обратно за кадром. Узел и есть кнопка; подпись при наведении. -->
+  <a class="jrn" href="journal.html" title="журнал прогнозов">
+    <span class="sat"><i></i></span>
+    <span class="lbl">журнал прогнозов</span>
+  </a>
   <div class="orb">
     <div class="half"><i class="f"><s></s></i><i class="f"><s></s></i><i class="f"><s></s></i><i class="f"><s></s></i></div>
     <div class="half b"><i class="f"><s></s></i><i class="f"><s></s></i><i class="f"><s></s></i><i class="f"><s></s></i></div>
@@ -561,19 +633,54 @@ SCHEME_JS = r"""
       var m = t.match(/([A-Z0-9]{2,10})\s+\$([\d.]+[KMB])/);
       if (!m) continue;
       var sym = m[1], usd = musd('$' + m[2]);
+      /* Кошелёк лежит в note: «кошелёк 0x0e989a67… · ликвидация …».
+         Четыре знака после 0x — хватает, чтобы различить китов между
+         собой; один кошелёк может встретиться в нескольких монетах. */
+      var wm = String(A[i].note || '').match(/0x([0-9a-fA-F]{4})/);
+      var tag = wm ? wm[1] : '';
       var side = t.indexOf('\u0448\u043e\u0440\u0442') >= 0 ? 's' : 'l';
       var mk = t.indexOf('\u043d\u0430\u0440\u0430\u0441\u0442\u0438\u043b') >= 0 ? '+'
              : t.indexOf('\u0437\u0430\u043a\u0440\u044b\u043b') >= 0 ? '\u2713' : '';
       if (!G[sym]) { G[sym] = {w: [], usd: 0}; order.push(sym); }
-      G[sym].w.push([side, mk]);
+      G[sym].w.push([side, mk, tag]);
       G[sym].usd += usd;
     }
     order.sort(function(a, b){ return G[b].usd - G[a].usd; });
     order = order.slice(0, 4);
     if (!order.length) return;
-    var SVG = '<svg viewBox="0 0 32 16" fill="currentColor">' +
-      '<path d="M2 9c5-6 16-8 24-4l4-4v6l-4-1c1 3-2 6-8 6-8 0-13-1-16-3z"/>' +
-      '<circle cx="23" cy="7" r="1" fill="rgba(4,8,15,.75)"/></svg>';
+    var UID = 0;
+    /* СИЛУЭТ КИТА. Прошлые попытки читались рыбой, потому что тело
+       было веретеном. У кита пропорции другие: голова занимает треть
+       длины и тупая, спина ровная, к хвосту тело резко сужается,
+       хвост — две широкие лопасти горизонтально. Грудной плавник
+       снизу и близко к голове, а не посередине. */
+    function SVGF(live){
+      var id = 'wg' + (UID++);
+      return '<svg viewBox="0 0 60 26">' +
+        '<defs><linearGradient id="' + id + '" x1="1" y1="0" x2="0" y2="0">' +
+          '<stop offset="0" stop-color="currentColor" stop-opacity="1"/>' +
+          '<stop offset=".6" stop-color="currentColor" stop-opacity=".78"/>' +
+          '<stop offset="1" stop-color="currentColor" stop-opacity=".2"/>' +
+        '</linearGradient></defs>' +
+        /* тело: тупой нос справа, ровная спина, резкое сужение к хвосту */
+        '<path d="M58 13c0 5-6.4 8.4-15.4 8.4-9 0-19-2.6-27.6-6.2' +
+          'l-2.4 6.4-1.6-.6 1.4-6.6c-3-1.4-5.6-2.8-7.4-4.2' +
+          'C6.8 9.2 9.4 8 12.4 6.8L11 .2l1.6-.6 2.4 6.2' +
+          'C23.6 2.4 33.6 0 42.6 0 51.6 0 58 3.4 58 13z" ' +
+          'fill="url(#' + id + ')"/>' +
+        /* грудной плавник — снизу, ближе к голове */
+        '<path d="M40 19.6c3.6 2.6 8.4 3.4 12.4 2-3.4-2.8-8.2-3.6-12.4-2z" ' +
+          'fill="currentColor" opacity=".4"/>' +
+        /* линия пасти */
+        '<path d="M50 17.4c3-.6 5.6-2 7-3.8" stroke="rgba(20,25,46,.5)" ' +
+          'stroke-width=".9" fill="none" stroke-linecap="round"/>' +
+        '<circle cx="51" cy="10.6" r="1.3" fill="rgba(20,25,46,.9)"/>' +
+        '<circle cx="51.4" cy="10.1" r=".45" fill="rgba(255,255,255,.9)"/>' +
+        (live ? '<path d="M47 4.2c-.4-2.4.4-4.4 2-5.8M50 4c.6-2.2 2-3.8 3.8-4.6"'
+          + ' stroke="currentColor" stroke-width="1.2" fill="none"'
+          + ' stroke-linecap="round" opacity=".5"/>' : '') +
+      '</svg>';
+    }
     var h = '<h5>\u041a\u0418\u0422\u042b \u00b7 ' +
             '\u0421\u0422\u0410\u042f \u041f\u041e \u041c\u041e\u041d\u0415\u0422\u0410\u041c</h5>';
     order.forEach(function(sym, pi){
@@ -583,18 +690,51 @@ SCHEME_JS = r"""
       var cp = CAP[sym] || 0, pc = cp ? (g.usd / cp * 100) : null;
       var sub = (pc == null || cp >= 1e11 || pc < 0.05) ? ''
               : pc.toFixed(1) + '% \u043a\u0430\u043f\u044b';
+      var fs = Math.max(42, Math.min(82, 34 + n * 2.1));
+      /* Считаем ЧЕТЫРЕ числа: у лонгов и у шортов свои открытые и
+         закрытые. Открыл и нарастил — в «открыли», закрыл — в
+         «закрыли». */
+      var lo_o = 0, lo_c = 0, sh_o = 0, sh_c = 0;
+      g.w.forEach(function(x){
+        var closed = (x[1] === '\u2713');
+        if (x[0] === 'l') { closed ? lo_c++ : lo_o++; }
+        else              { closed ? sh_c++ : sh_o++; }
+      });
+      var rw = Math.max(96, Math.min(168, d * 0.74));
+      function bar(nm, op, cl, cls){
+        var t = op + cl;
+        var p = t ? (op / t * 100) : 0;
+        return '<div class="ln ' + cls + (t ? '' : ' off') + '">' +
+          '<span class="nm">' + nm + '</span>' +
+          '<span class="bar"><i style="width:' + p.toFixed(0) + '%"></i>' +
+          (t ? '<u style="left:' + p.toFixed(0) + '%"></u>' : '') +
+          '</span><span class="num">' + (t ? op + '/' + t : '\u2014') +
+          '</span></div>';
+      }
       h += '<div class="pod' + (lo >= n / 2 ? '' : ' s') + '" style="width:' +
-        d + 'px;height:' + d + 'px"><span class="ttl">' + esc(sym) +
-        ' \u00b7 ' + n + '</span>' +
+        d + 'px;height:' + d + 'px;--fs:' + fs.toFixed(0) +
+        'px"><span class="ttl">' + esc(sym) + '</span>' +
+        '<span class="rr" style="--rw:' + rw.toFixed(0) + 'px">' +
+          bar('лонг', lo_o, lo_c, 'l') +
+          bar('шорт', sh_o, sh_c, 's2') +
+        '</span>' +
         (sub ? '<span class="sub">' + sub + '</span>' : '');
       g.w.forEach(function(w, k){
-        var ang = (k / n) * 6.283 + pi, r = d * 0.31;
-        var x = d / 2 + Math.cos(ang) * r - 10;
-        var y = d / 2 + Math.sin(ang) * r - 5;
-        h += '<span class="w ' + w[0] + '" style="left:' + x.toFixed(0) +
-          'px;top:' + y.toFixed(0) + 'px;animation:sw ' + (9 + k * 1.7) +
-          's ease-in-out ' + (-k * 2) + 's infinite">' + SVG +
-          (w[1] ? '<b>' + w[1] + '</b>' : '') + '</span>';
+        /* Ходят по эллипсу вокруг имени: шире, чем выше. Два радиуса
+           вперемешку — у стаи появляется глубина. */
+        var ang = (k / n) * 6.283 + pi * 1.1;
+        var rx = d * (k % 2 ? 0.50 : 0.36);
+        var ry = d * (k % 2 ? 0.30 : 0.20);
+        var x = d / 2 + Math.cos(ang) * rx - 11;
+        var y = d / 2 + Math.sin(ang) * ry - 5;
+        var live = (w[1] !== '\u2713');
+        var flip = Math.cos(ang) < 0 ? ' flip' : '';
+        h += '<span class="w ' + w[0] + ' ' + (live ? 'live' : 'done') +
+          flip + '" style="left:' + x.toFixed(0) + 'px;top:' +
+          y.toFixed(0) + 'px;animation-duration:' + (10 + (k % 5) * 1.8) +
+          's;animation-delay:' + (-k * 1.4).toFixed(1) + 's">' +
+          SVGF(live) + (w[2] ? '<b>' + esc(w[2]) + '</b>' : '') +
+          '</span>';
       });
       h += '</div>';
     });
