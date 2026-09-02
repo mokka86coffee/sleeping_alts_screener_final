@@ -221,7 +221,10 @@ def entry_table(coins_filter=None, horizons=(4, 8, 24)):
     series = {}
     for f in sorted(HOURLY.glob("*.json")):
         coin = f.stem.upper()
-        if coin == "BTC" or (coins_filter and coin not in coins_filter):
+        if coins_filter:
+            if coin not in coins_filter:
+                continue
+        elif coin == "BTC":                  # в общей карте альты без BTC
             continue
         try:
             rows = json.loads(f.read_text(encoding="utf-8"))
@@ -232,11 +235,31 @@ def entry_table(coins_filter=None, horizons=(4, 8, 24)):
     if not series:
         return
     ts = sorted(set().union(*[set(v) for v in series.values()]))
-    # per (day, hour): {h: [breadth over coins]}
-    per_hour = {h: dd(list) for h in range(24)}
+    # ГРУППЫ ДНЕЙ (владелец, 02.09): объединять выходные, понедельник и
+    # пятницу с серединой недели нельзя — это разные рынки. Понедельник
+    # открывает неделю, пятница закрывает, выходные без столов.
+    # Семь дней ОТДЕЛЬНО, у каждого свои 24 часа (владелец, 02.09):
+    # середину недели объединять нельзя — среда и четверг это разные
+    # дни, как показал биткоин.
+    NAMES = ("ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА",
+             "СУББОТА", "ВОСКРЕСЕНЬЕ")
+    GROUPS = tuple((NAMES[d], (d,)) for d in range(7))
+    # per (group, hour): {H: [(ширина, медиана)] по дням}
+    per_hour = {g: {h: dd(list) for h in range(24)} for g, _ in GROUPS}
+    gof = {d: g for g, days in GROUPS for d in days}
+    # и то же по КАЖДОМУ дню недели — для итога по дням
+    per_dow = {dw: {h: dd(list) for h in range(24)} for dw in range(7)}
+    # дневные свечи по Нью-Йорку: (дата) → {монета: (open 00:00, close 23:00)}
+    day_oc = dd(dict)
     STEP = 3600 * 1000
     for t in ts:
         ny = datetime.fromtimestamp(t / 1000, tz=timezone.utc).astimezone(NY)
+        g = gof[ny.weekday()]
+        if ny.hour == 0:
+            for coin, m in series.items():
+                a_ = m.get(t); b_ = m.get(t + 23 * STEP)
+                if a_ and b_:
+                    day_oc[ny.date()][coin] = (a_["o"], b_["c"])
         for H in horizons:
             ups = tot = 0; rets = []
             for coin, m in series.items():
@@ -247,52 +270,212 @@ def entry_table(coins_filter=None, horizons=(4, 8, 24)):
                 rets.append(r); tot += 1
                 if r > 0:
                     ups += 1
-            if tot >= 3:
-                per_hour[ny.hour][H].append((ups / tot * 100, st.median(rets)))
+            need = 1 if (coins_filter and len(coins_filter) < 3) else 3
+            if tot >= need:
+                rec = (ups / tot * 100, st.median(rets))
+                per_hour[g][ny.hour][H].append(rec)
+                per_dow[ny.weekday()][ny.hour][H].append(rec)
     LON = 5; MSK = 7                              # летний сдвиг
-    print(f"\nТОЧКА ВХОДА · монет {len(series)} · вход в начале часа, время Нью-Йорка")
-    print("доля дней, когда через N ч БОЛЬШИНСТВО монет в плюсе · медиана хода")
-    hdr = f"{'NY':>4}{'Лон':>5}{'Мск':>5}"
-    for H in horizons:
-        hdr += f"{'+'+str(H)+'ч':>8}{'ход':>7}"
-    print(hdr + "    n")
-    best = []
-    for h in range(24):
-        line = f"{h:02d}:00{(h+LON)%24:5d}{(h+MSK)%24:5d}"
-        n = 0
-        for H in horizons:
-            v = per_hour[h][H]
-            if not v:
-                line += f"{'·':>8}{'':>7}"; continue
-            n = len(v)
-            frac = sum(1 for b, _ in v if b > 50) / n * 100
-            med = st.median(m for _, m in v)
-            line += f"{frac:7.0f}%{med:+6.2f}%"
-            if H == 24:
-                best.append((frac, med, h))
-        print(line + f"{n:5d}")
-    best.sort(reverse=True)
-    print("\n  лучшие входы по 24 часам (доля дней с плюсом · медиана хода · час NY/Лон/Мск):")
-    for frac, med, h in best[:5]:
-        print(f"    {frac:3.0f}%  {med:+.2f}%   {h:02d}:00 NY · {(h+LON)%24:02d}:00 Лон · {(h+MSK)%24:02d}:00 Мск")
-    print("  худшие:")
-    for frac, med, h in best[-5:]:
-        print(f"    {frac:3.0f}%  {med:+.2f}%   {h:02d}:00 NY · {(h+LON)%24:02d}:00 Лон · {(h+MSK)%24:02d}:00 Мск")
-    print("\n  проверка расхожего правила:")
-    # Четыре расхожих правила. Закрытие Азии и открытие Лондона —
-    # одни и те же часы (03-04 NY): Токио закрывает, Европа открывает.
-    # Владелец: «закрытие Азии почти всегда слив» — проверяем ходом
-    # ВПЕРЁД от этого часа: если слив, вход туда даст худшие +4 ч.
-    for name, hs in (("час после открытия NY (10-11)", (10, 11)),
-                     ("открытие Азии (20-21 NY)", (20, 21)),
-                     ("закрытие Азии = откр. Лондона (03-04)", (3, 4)),
-                     ("закрытие NY (16-17)", (16, 17))):
-        for H in (4, 24):
-            v = [x for h in hs for x in per_hour[h][H]]
-            if v:
-                frac = sum(1 for b, _ in v if b > 50) / len(v) * 100
-                print(f"    {name:38} +{H:2d} ч: в плюсе {frac:3.0f}% дней, "
-                      f"медиана {st.median(m for _, m in v):+.2f}%  n={len(v)}")
+    print(f"\nТОЧКА ВХОДА · монет {len(series)} · вход в начале часа · время Нью-Йорка")
+    print("в ячейке: доля дней, когда через N ч БОЛЬШИНСТВО монет в плюсе · медиана хода")
+    RULES = (("час после откр. NY (10-11)", (10, 11)),
+             ("открытие Азии (20-21)", (20, 21)),
+             ("закрытие Азии = откр. Лондона (03-04)", (3, 4)),
+             ("закрытие NY (16-17)", (16, 17)))
+    for gname, _days in GROUPS:
+        ph = per_hour[gname]
+        n_any = max((len(ph[h][24]) for h in range(24)), default=0)
+        print(f"\n── {gname} · дней {n_any} ──")
+        print(f"{'NY':>5}{'Лон':>4}{'Мск':>4}{'+4ч':>7}{'ход':>7}{'+24ч':>7}{'ход':>7}")
+        best = []
+        for h in range(24):
+            line = f"{h:02d}:00{(h+LON)%24:4d}{(h+MSK)%24:4d}"
+            for H in (4, 24):
+                v = ph[h][H]
+                if not v:
+                    line += f"{'·':>7}{'':>7}"; continue
+                frac = sum(1 for b_, _ in v if b_ > 50) / len(v) * 100
+                med = st.median(m for _, m in v)
+                line += f"{frac:6.0f}%{med:+6.2f}"
+                if H == 24:
+                    best.append((frac, med, h))
+            print(line)
+        if best:
+            best.sort(reverse=True)
+            print("   лучшие на сутки: " + " · ".join(
+                f"{h:02d}:00 NY {f_:.0f}% {m:+.2f}" for f_, m, h in best[:3]))
+            print("   худшие на сутки: " + " · ".join(
+                f"{h:02d}:00 NY {f_:.0f}% {m:+.2f}" for f_, m, h in best[-3:]))
+
+    # ── ИТОГ ПО ДНЯМ НЕДЕЛИ (владелец, 02.09) ──
+    # Дневная свеча по Нью-Йорку: открытие 00:00, закрытие 23:00. По
+    # каждой дате — ширина (доля монет в плюсе за день). Дальше по дню
+    # недели: сколько дней, в скольких росло большинство, средняя
+    # ширина, медиана хода. И лучший/худший час входа этого дня на
+    # суточном горизонте.
+    by_dow = dd(list)
+    for date, oc in day_oc.items():
+        need = 1 if (coins_filter and len(coins_filter) < 3) else 3
+        if len(oc) < need:
+            continue
+        rets = [(c / o - 1) * 100 for o, c in oc.values() if o]
+        up = sum(1 for r in rets if r > 0) / len(rets) * 100
+        by_dow[date.weekday()].append((up, st.median(rets)))
+    print(f"\n══ ИТОГ ПО ДНЯМ НЕДЕЛИ · день по Нью-Йорку 00:00→23:00 ══")
+    print(f"{'день':5}{'дней':>6}{'рост у большинства':>20}{'ширина':>9}"
+          f"{'медиана':>9}   лучший вход (сутки)   худший вход")
+    for dw in range(7):
+        v = by_dow.get(dw, [])
+        if not v:
+            print(f"{DOW[dw]:5}{'—':>6}"); continue
+        frac = sum(1 for u, _ in v if u > 50) / len(v) * 100
+        width = sum(u for u, _ in v) / len(v)
+        med = st.median(m for _, m in v)
+        hrs = []
+        for h in range(24):
+            vv = per_dow[dw][h][24]
+            if len(vv) >= 4:
+                f_ = sum(1 for b_, _ in vv if b_ > 50) / len(vv) * 100
+                hrs.append((f_, st.median(m for _, m in vv), h))
+        if hrs:
+            hrs.sort(reverse=True)
+            bf, bm, bh = hrs[0]; wf, wm, wh = hrs[-1]
+            tail = (f"   {bh:02d}:00 {bf:.0f}% {bm:+.2f}      "
+                    f"{wh:02d}:00 {wf:.0f}% {wm:+.2f}")
+        else:
+            tail = ""
+        print(f"{DOW[dw]:5}{len(v):>6}{frac:>19.0f}%{width:>8.0f}%{med:>+8.2f}%{tail}")
+    print("  «рост у большинства» — доля дней, когда больше половины монет закрылись выше открытия")
+    print("  «ширина» — средняя доля монет в плюсе за день")
+
+
+def btc_regime(hours: int = 12, thr: float = 1.0) -> dict:
+    """{t: 'up'|'down'|'flat'} по ходу биткоина за прошлые `hours` часов.
+
+    Владелец, 02.09: статистику по альтам вести отдельно на флэте
+    биткоина и отдельно на его росте и спаде — расписание альтов может
+    зависеть от того, что делает биткоин. Порог thr в процентах.
+    """
+    f = HOURLY / "btc.json"
+    if not f.exists():
+        return {}
+    try:
+        rows = json.loads(f.read_text(encoding="utf-8"))
+    except ValueError:
+        return {}
+    m = {r["t"]: r["c"] for r in rows if r.get("c")}
+    STEP = 3600 * 1000
+    out = {}
+    for t, c in m.items():
+        p = m.get(t - hours * STEP)
+        if not p:
+            continue
+        ch = (c / p - 1) * 100
+        out[t] = "up" if ch > thr else "down" if ch < -thr else "flat"
+    return out
+
+
+REG_NAME = {"flat": "БИТКОИН ВО ФЛЭТЕ", "up": "БИТКОИН РАСТЁТ",
+            "down": "БИТКОИН ПАДАЕТ"}
+
+
+def turns_table(coins_filter=None, by_regime=False):
+    """ГДЕ ДЕНЬ РАЗВОРАЧИВАЕТСЯ (владелец, 02.09): в какой час всё
+    начинает расти и в какой начинает падать.
+
+    Мера прямая: по каждой монете и каждому дню (Нью-Йорк 00:00→23:00)
+    берём час, где цена была НИЖЕ всего — с него начинается рост, — и
+    час, где ВЫШЕ всего — с него начинается падение. Дальше по каждому
+    дню недели: в какой час минимумы и максимумы попадают чаще всего.
+    Число в ячейке — доля дней, когда у большинства монет минимум (или
+    максимум) пришёлся на этот час. Равномерно было бы ~4% на час.
+    """
+    from collections import defaultdict as dd
+    series = {}
+    for f in sorted(HOURLY.glob("*.json")):
+        coin = f.stem.upper()
+        if coins_filter:
+            if coin not in coins_filter:
+                continue
+        elif coin == "BTC":
+            continue
+        try:
+            rows = json.loads(f.read_text(encoding="utf-8"))
+        except ValueError:
+            continue
+        if rows:
+            series[coin] = {r["t"]: r for r in rows if r.get("l") and r.get("h")}
+    if not series:
+        print("нет часов в hourly/"); return
+    # ЛОКАЛЬНЫЕ РАЗВОРОТЫ, а не минимум дня (правка 02.09 по первому
+    # прогону). Резать по полуночи Нью-Йорка нельзя: ход, идущий через
+    # границу, оставляет минимум на краю, и полночь набирала 9% —
+    # ложно. Теперь час считается ДНОМ, если его low ниже всех в окне
+    # ±W часов, и ПИКОМ, если high выше всех. Границ суток нет, день
+    # недели — по часу самого разворота.
+    W = 6
+    STEP = 3600 * 1000
+    reg = btc_regime() if by_regime else {}
+    turns = []           # (weekday, hour, kind, regime)
+    for coin, m in series.items():
+        ts_c = sorted(m)
+        lows = [m[t]["l"] for t in ts_c]
+        highs = [m[t]["h"] for t in ts_c]
+        for i_, t in enumerate(ts_c):
+            if i_ < W or i_ + W >= len(ts_c):
+                continue
+            # окно должно быть непрерывным по времени
+            if ts_c[i_ + W] - ts_c[i_ - W] != 2 * W * STEP:
+                continue
+            ny = datetime.fromtimestamp(t / 1000, tz=timezone.utc).astimezone(NY)
+            win_l = lows[i_ - W:i_ + W + 1]
+            win_h = highs[i_ - W:i_ + W + 1]
+            # при ничьей разворот — первый из равных, иначе соседние
+            # свечи с общим краем гасят друг друга
+            rg = reg.get(t, "all") if by_regime else "all"
+            if lows[i_] == min(win_l) and win_l.index(lows[i_]) == W:
+                turns.append((ny.weekday(), ny.hour, "lo", rg))
+            if highs[i_] == max(win_h) and win_h.index(highs[i_]) == W:
+                turns.append((ny.weekday(), ny.hour, "hi", rg))
+    # по дню недели: распределение часов разворотов
+    NAMES = ("ПОНЕДЕЛЬНИК", "ВТОРНИК", "СРЕДА", "ЧЕТВЕРГ", "ПЯТНИЦА",
+             "СУББОТА", "ВОСКРЕСЕНЬЕ")
+    LON = 5; MSK = 7
+    print(f"\nГДЕ ХОД РАЗВОРАЧИВАЕТСЯ · монет {len(series)} · окно ±{W} ч · время Нью-Йорка")
+    print("«дно» — доля разворотов вверх в этот час: с него начинается рост")
+    print("«пик» — доля разворотов вниз. ровно было бы 4% на час")
+
+    def block(title, sel):
+        lo = dd(int); hi = dd(int)
+        for dw, h, k, _rg in sel:
+            (lo if k == "lo" else hi)[h] += 1
+        nlo, nhi = sum(lo.values()), sum(hi.values())
+        if not nlo or not nhi:
+            return
+        print(f"\n── {title} · разворотов вверх {nlo}, вниз {nhi} ──")
+        print("час NY " + "".join(f"{h:>4}" for h in range(24)))
+        print("дно  % " + "".join(f"{lo[h]/nlo*100:4.0f}" for h in range(24)))
+        print("пик  % " + "".join(f"{hi[h]/nhi*100:4.0f}" for h in range(24)))
+        top_lo = sorted(range(24), key=lambda h: -lo[h])[:3]
+        top_hi = sorted(range(24), key=lambda h: -hi[h])[:3]
+        print("   рост начинается чаще всего: " + " · ".join(
+            f"{h:02d} NY ({(h+LON)%24:02d} Лон, {(h+MSK)%24:02d} Мск) {lo[h]/nlo*100:.0f}%"
+            for h in top_lo))
+        print("   падение начинается чаще:    " + " · ".join(
+            f"{h:02d} NY ({(h+LON)%24:02d} Лон, {(h+MSK)%24:02d} Мск) {hi[h]/nhi*100:.0f}%"
+            for h in top_hi))
+
+    if by_regime:
+        # три среза по режиму биткоина; внутри каждого — вся неделя,
+        # по дням недели уже слишком тонко
+        for rg in ("flat", "up", "down"):
+            sel = [x for x in turns if x[3] == rg]
+            block(REG_NAME[rg] + " · вся неделя", sel)
+        print("\n  режим: ход биткоина за прошлые 12 ч, порог ±1%")
+        return
+    for dw in range(7):
+        block(NAMES[dw], [x for x in turns if x[0] == dw])
+    block("ВСЯ НЕДЕЛЯ", turns)
 
 
 def main() -> int:
@@ -301,10 +484,22 @@ def main() -> int:
     ap.add_argument("--daily", action="store_true")
     ap.add_argument("--entry", action="store_true",
                     help="точка входа: что через 4/8/24 ч после входа в час")
+    ap.add_argument("--only", nargs="*", default=None,
+                    help="только эти монеты — проверить быстро, не ждать всех")
+    ap.add_argument("--turns", action="store_true",
+                    help="в какой час день делает дно (рост) и пик (падение)")
+    ap.add_argument("--regime", action="store_true",
+                    help="разбить по режиму биткоина: флэт / рост / спад")
     a = ap.parse_args()
+    if a.turns:
+        want = {c.upper() for c in a.only} if a.only else None
+        turns_table(want, by_regime=a.regime)
+        return 0
     if a.entry:
         want = None
-        if a.sector:
+        if a.only:
+            want = {c.upper() for c in a.only}
+        elif a.sector:
             want = {c for c, s_ in sectors.items() if s_ == a.sector}
         entry_table(want)
         return 0
