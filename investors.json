@@ -278,5 +278,148 @@
     "name": "Ola Finance"
    }
   ]
+ },
+ "RIVER": {
+  "contract": "0xda7ad9dea9397cffddae2f8a052b82f1484252b3",
+  "chain": "bsc",
+  "addresses": [
+   "0xFdC8AeCF0Dd49b12583253809A9f188AF19c83DA",
+   "0xaDFffc33cdC9970349CBcEa3D73Ec343d6ed116D",
+   "0xABbEB6E9b9C96A837c99fb9fAA908fC7A1DF2BC1",
+   "0x47f7f94beA3C3f9f150647b774B602A8704b32A4",
+   "0x55E396b8870262e84672D334F95A80BfF6F30Af1",
+   "0x91D3137BF085cb9A0f423592d539B8E9fDe2145F",
+   "0xE3D6871190d7143ea3e14c680f7b9FDd6bDC25A1",
+   "0x0e1D6032ecD2c06D58DF7e3D60631995159E485A",
+   "0x5ed60e6C6183521f3a9F893b4368C407e78b23d5",
+   "0x353e6bE6eBB536725e8Ac0c1Ab6Dd92dFDB8DAdb",
+   "0x3B78B977a0709c832299Dfdde23Fd3f98ff1f22A",
+   "0xD1d5E7fa0d57d1F9FD3c876497006E8CaBe24e1A",
+   "0xdAA4393013F359fD63a133A3b893D311Aba4e471",
+   "0x238a358808379702088667322f80aC48bAd5e6c4",
+   "0x79cE9dC0E5DBe4B2d2a4751d481387Dada30a1a5"
+  ],
+  "holders": [
+   {
+    "addr": "0xFdC8AeCF0Dd49b12583253809A9f188AF19c83DA",
+    "name": "ERC1967Proxy",
+    "usd": 33674708.37495511,
+    "bal": 26515518.405476466,
+    "pct": 0.2651551840547647,
+    "contract": true
+   },
+   {
+    "addr": "0xaDFffc33cdC9970349CBcEa3D73Ec343d6ed116D",
+    "name": "неизвестный",
+    "usd": 3929215.213010449,
+    "bal": 3093870.24646492,
+    "pct": 0.030938702464649203,
+    "contract": false
+   },
+   {
+    "addr": "0xABbEB6E9b9C96A837c99fb9fAA908fC7A1DF2BC1",
+    "name": "RIVER Staking Receipt Token (SRIVER)",
+    "usd": 1856758.7649455683,
+    "bal": 1462014.7755476916,
+    "pct": 0.014620147755476915,
+    "contract": true
+   },
+   {
+    "addr": "0x47f7f94beA3C3f9f150647b774B602A8704b32A4",
+    "name": "Gnosis Safe Proxy",
+    "usd": 1537302.167881627,
+    "bal": 1210474.1479382892,
+    "pct": 0.012104741479382891,
+    "contract": true
+   },
+   {
+    "addr": "0x55E396b8870262e84672D334F95A80BfF6F30Af1",
+    "name": "неизвестный",
+    "usd": 1385500.9522207724,
+    "bal": 1090945.6316698994,
+    "pct": 0.010909456316698995,
+    "contract": false
+   },
+   {
+    "addr": "0x91D3137BF085cb9A0f423592d539B8E9fDe2145F",
+    "name": "неизвестный",
+    "usd": 1270000.000550333,
+    "bal": 1000000.000433333,
+    "pct": 0.010000000004333329,
+    "contract": false
+   },
+   {
+    "addr": "0xE3D6871190d7143ea3e14c680f7b9FDd6bDC25A1",
+    "name": "неизвестный",
+    "usd": 845162.286852004,
+    "bal": 665482.1156314993,
+    "pct": 0.006654821156314993,
+    "contract": false
+   },
+   {
+    "addr": "0x0e1D6032ecD2c06D58DF7e3D60631995159E485A",
+    "name": "неизвестный",
+    "usd": 723697.8221102309,
+    "bal": 569840.8048112055,
+    "pct": 0.0056984080481120546,
+    "contract": false
+   },
+   {
+    "addr": "0x5ed60e6C6183521f3a9F893b4368C407e78b23d5",
+    "name": "неизвестный",
+    "usd": 635000.0006350001,
+    "bal": 500000.0005,
+    "pct": 0.0050000000050000005,
+    "contract": false
+   },
+   {
+    "addr": "0x353e6bE6eBB536725e8Ac0c1Ab6Dd92dFDB8DAdb",
+    "name": "неизвестный",
+    "usd": 635000,
+    "bal": 500000,
+    "pct": 0.005,
+    "contract": false
+   },
+   {
+    "addr": "0x3B78B977a0709c832299Dfdde23Fd3f98ff1f22A",
+    "name": "неизвестный",
+    "usd": 359282.56950165617,
+    "bal": 282899.66102492606,
+    "pct": 0.0028289966102492607,
+    "contract": false
+   },
+   {
+    "addr": "0xD1d5E7fa0d57d1F9FD3c876497006E8CaBe24e1A",
+    "name": "RIVER Staking V2 Receipt Token (SRIVER_V2)",
+    "usd": 203549.16860756575,
+    "bal": 160274.9359114691,
+    "pct": 0.001602749359114691,
+    "contract": true
+   },
+   {
+    "addr": "0xdAA4393013F359fD63a133A3b893D311Aba4e471",
+    "name": "Gnosis Safe Proxy",
+    "usd": 180340,
+    "bal": 142000,
+    "pct": 0.00142,
+    "contract": true
+   },
+   {
+    "addr": "0x238a358808379702088667322f80aC48bAd5e6c4",
+    "name": "PancakeSwap",
+    "usd": 99794.85749122973,
+    "bal": 78578.62794585018,
+    "pct": 0.0007857862794585018,
+    "contract": true
+   },
+   {
+    "addr": "0x79cE9dC0E5DBe4B2d2a4751d481387Dada30a1a5",
+    "name": "неизвестный",
+    "usd": 64770.00000000001,
+    "bal": 51000,
+    "pct": 0.00051,
+    "contract": false
+   }
+  ]
  }
 }

@@ -20,7 +20,8 @@ import arkham_fetch as A
 
 # Имя монеты → как её зовут в базе Arkham (сверено по выводу поиска)
 ALIAS = {"BLESS": "Bless", "ENA": "Ethena", "BMT": "Bubblemaps",
-         "AIO": "OlaXBT", "ONG": "Ontology Gas"}
+         "AIO": "OlaXBT", "ONG": "Ontology Gas",
+         "RIVER": "River Protocol", "AKE": "Akedo"}
 SKIP = ("binance", "okx", "bybit", "gate", "kucoin", "mexc", "bitget",
         "htx", "coinbase", "kraken", "upbit", "bithumb", "hyperliquid",
         "wintermute", "bridge", "null", "burn")
