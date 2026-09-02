@@ -38,6 +38,33 @@ CANDIDATES = ["/futures/price/history"]
 EXCHANGE = "Binance"
 STEP_MS = 3600 * 1000
 PAGE = 1000                                 # свечей за запрос
+END_PARAM = "endTime"                       # ставится из --probe
+END_SECONDS = False
+
+
+def probe_paging(key: str, path: str) -> str | None:
+    """Первый сбор дал ровно 1000 свечей у всех — окно не листалось.
+    Пробуем имена параметра конца окна и единицы времени; живой тот,
+    после которого последняя свеча ответа старше сорока дней."""
+    import datetime as _dt
+    cut = int(time.time()) - 40 * 86400
+    trials = [("endTime", cut * 1000), ("endTime", cut),
+              ("end_time", cut * 1000), ("end_time", cut),
+              ("endTs", cut), ("to", cut)]
+    for name, val in trials:
+        code, body = get(path, {"exchange": EXCHANGE, "symbol": "BTCUSDT",
+                                "interval": "1h", "limit": 5, name: val}, key)
+        rows = [x for x in (_norm(r) for r in _rows(body)) if x]
+        time.sleep(PAUSE_SEC)
+        if not rows:
+            print(f"  {name}={val}: пусто")
+            continue
+        last = max(r["t"] for r in rows) / 1000
+        age = (time.time() - last) / 86400
+        print(f"  {name}={val}: последняя свеча {age:.0f} дн назад")
+        if age >= 30:
+            return name if val == cut * 1000 else name + ":s"
+    return None
 
 
 def probe(key: str) -> str | None:
@@ -109,9 +136,10 @@ def _fetch_pages(coin: str, path: str, key: str, since_ms: int | None,
     out: list[dict] = []
     pages = 0
     while end > floor and pages < 12:
+        _endv = end // 1000 if END_SECONDS else end
         code, body = get(path, {"exchange": EXCHANGE, "symbol": coin,
                                 "interval": "1h", "limit": PAGE,
-                                "endTime": end}, key)
+                                END_PARAM: _endv}, key)
         pages += 1
         rows = [x for x in (_norm(r) for r in _rows(body)) if x]
         time.sleep(PAUSE_SEC)
@@ -120,8 +148,13 @@ def _fetch_pages(coin: str, path: str, key: str, since_ms: int | None,
                 print(f"  {coin}: стр.{pages} код {code}, строк 0 — стоп")
             break
         rows.sort(key=lambda x: x["t"])
-        out = rows + out
         oldest = rows[0]["t"]
+        if out and oldest >= out[0]["t"]:
+            if verbose:
+                print(f"  {coin}: окно не сдвинулось — параметр конца "
+                      "не работает, стоп")
+            break
+        out = rows + out
         if oldest <= floor or len(rows) < PAGE:
             break
         end = oldest - STEP_MS
@@ -142,6 +175,9 @@ def main() -> int:
     ap.add_argument("--only", nargs="*", default=None)
     ap.add_argument("--path", default=None, help="путь, если известен")
     ap.add_argument("-q", action="store_true")
+    ap.add_argument("--end-param", default=None,
+                    help="имя параметра конца окна из --probe, "
+                         "например endTime или endTime:s")
     a = ap.parse_args()
     key = _key()
     if not key:
@@ -151,11 +187,25 @@ def main() -> int:
         print("пробую пути к часовым свечам:")
         p = probe(key)
         print("рабочий:", p or "НЕ НАЙДЕН — пришли ответ, подберу")
+        if p:
+            print("пробую параметр конца окна (нужен для 180 дней):")
+            pg = probe_paging(key, p)
+            print("параметр:", pg or "НИ ОДИН — пришли вывод")
         return 0
     path = a.path or probe(key)
     if not path:
         print("живого пути нет — запусти --probe и пришли вывод")
         return 1
+    global END_PARAM, END_SECONDS
+    ep = a.end_param or probe_paging(key, path)
+    if not ep:
+        print("параметр конца окна не найден — соберётся только "
+              "последняя тысяча свечей (~6 недель)")
+        ep = "endTime"
+    END_SECONDS = ep.endswith(":s")
+    END_PARAM = ep.split(":")[0]
+    print(f"конец окна: {END_PARAM} в "
+          f"{'секундах' if END_SECONDS else 'миллисекундах'}")
     coins = [c.upper() for c in a.only] if a.only else _journal_coins()[0]
     OUT.mkdir(exist_ok=True)
     ok = bad = 0
