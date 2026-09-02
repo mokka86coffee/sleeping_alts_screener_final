@@ -37,7 +37,7 @@ from analytics_flow import CASE_RU, case_key, case_of, flow_leader, flow_order
 from analytics_coinglass import liq_bias
 from analytics_liqmap import fuel_to_cap, stop_vs_zones
 from analytics_leaders import journal_expectancy, read_store
-from analytics_pulse import for_symbol as pulse_deltas
+from analytics_pulse import for_symbol as pulse_deltas, vortex_state as _vx_state
 from analytics_action import decide as decide_action
 from analytics_actionlog import log_actions
 from analytics_squeeze import (absorption_for, effort_state, squeeze_for,
@@ -1018,7 +1018,10 @@ def build_stars(candidates: list[Candidate],
                         "oi_chg_1h": _pv.get("oi_pct"),
                         "oi_chg_pct": (cg.get("oiChgPct")
                                        if isinstance(cg, dict) else None),
-                        "ago_min": _pv.get("ago_min")}
+                        "ago_min": _pv.get("ago_min"),
+                        # Состояние вихря (02.09): сжатие после пика или
+                        # схождение — сторож «импульс кончился».
+                        "vx": _vx_state(sym)}
                 if live["delta_usd"] is not None:
                     fresh = live_refresh(
                         {"today": dict(s["rep"],

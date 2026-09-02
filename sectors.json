@@ -1,0 +1,9 @@
+{
+  "_note": "ЧЕРНОВИК по названиям, править руками. Монета в одном секторе.",
+  "defi":   ["ENA", "CVX", "STG", "MORPHO", "UNI", "CRV", "BICO", "AXL", "ZRO"],
+  "l1_l2":  ["SOL", "ETH", "ARB", "SUI", "APT", "SEI", "STX", "MOVE", "MOVR", "HEMI", "SOMI", "ONT"],
+  "dex":    ["HYPE", "LIT", "RAYSOL", "BULLA"],
+  "meme":   ["TRUMP", "MELANIA", "NEIRO", "DOGS", "PENGU", "1000CAT", "TST", "ANIME", "GUA"],
+  "ai":     ["AIO", "FLOCK", "AVAAI", "COOKIE", "SHELL", "XAN", "SKYAI"],
+  "infra":  ["ONG", "ZKC", "FHE", "INX", "SQD", "CLO", "TAC", "H", "EDEN", "SKR", "NIL", "ZORA", "PROM", "APR", "ATH", "BEAMX", "TREE", "COTI", "BLESS", "BMT", "BTR", "4", "SANTOS", "STORJ", "USELESS", "WLD", "ZEC", "SAGA", "SPK"]
+}
