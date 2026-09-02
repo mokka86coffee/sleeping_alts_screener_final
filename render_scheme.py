@@ -103,7 +103,19 @@ def render_scheme(stars: list[dict], market: dict) -> str:
             _wh = _j3.loads(_wf.read_text(encoding="utf-8"))
     except Exception:
         _wh = {}
-    blob = json.dumps({"stars": stars, "market": market, "whales": _wh},
+    # МЕЛОЧЬ · КОГДА ХОДИТ (02.09, одобрено «огонь»): сводка из
+    # alts_schedule.py --sync --regime --json. Нет файла — нет циферблата.
+    _sc = None
+    for _sp in (_P3("output") / "schedule.json",
+                _P3(__file__).resolve().parent / "output" / "schedule.json"):
+        if _sp.exists():
+            try:
+                _sc = json.loads(_sp.read_text(encoding="utf-8"))
+            except ValueError:
+                _sc = None
+            break
+    blob = json.dumps({"stars": stars, "market": market, "whales": _wh,
+                       "sched": _sc},
                       ensure_ascii=False, separators=(",", ":"))
     # Данные идут в <script type="application/json">: внутри такого блока
     # браузер не разбирает разметку, и последовательность вроде </script>
@@ -143,6 +155,33 @@ SCHEME_HTML = """
 /* ── КИТЫ · СТАЯ ПО МОНЕТАМ (31.08, вид утверждён): один пузырь —
    одна монета, внутри плавают её киты. Цвет кита = сторона, метка:
    + добрал, ✓ закрыл, пусто — открыл. Размер круга — деньги. ── */
+/* ── ЗАТМЕНИЕ ──────────────────────────────────────────────────── */
+.ecl{position:absolute;left:40px;top:56px;width:236px;z-index:5;font-family:var(--mono)}
+.ecl svg{display:block;width:236px;height:236px;overflow:visible}
+.ecl .cap{margin-top:2px;text-align:center;font-size:7.5px;letter-spacing:.22em;
+  color:#4d5478;line-height:1.75}
+.ecl .cap b{font-weight:400;color:#8b93c4}
+.ecl .cap s{text-decoration:none;color:var(--cy)}
+.ecl .cap i{font-style:normal;color:#3d4363}
+
+/* полная таблица при наведении */
+.full{position:absolute;left:calc(100% + 14px);top:24px;width:326px;padding:14px 18px 12px;
+  border-radius:12px;border:1px solid rgba(232,236,251,.10);background:rgba(8,10,24,.78);
+  backdrop-filter:blur(10px);opacity:0;transform:translateX(-8px);pointer-events:none;transition:.25s}
+.ecl:hover .full{opacity:1;transform:translateX(0);pointer-events:auto}
+.full .sub{font-size:7.5px;letter-spacing:.14em;color:#454b6d;margin-bottom:9px;line-height:1.6}
+.full table{width:100%;border-collapse:collapse}
+.full th{font:600 7.5px Inter;letter-spacing:.24em;color:#454b6d;text-transform:uppercase;text-align:right;padding:0 0 5px 8px}
+.full th:first-child{text-align:left;padding-left:0}
+.full td{font-size:11px;letter-spacing:.06em;color:var(--lab);text-align:right;padding:4px 0 4px 8px;border-top:1px solid rgba(232,236,251,.05);white-space:nowrap}
+.full td:first-child{text-align:left;padding-left:0;font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:#7c88b0}
+.full tr.up td{color:var(--cy)}.full tr.up td:first-child{color:rgba(159,240,230,.7)}
+.full tr.dead td{color:#5d6488}
+.full tr.dn td{color:var(--am)}.full tr.dn td:first-child{color:rgba(255,200,122,.7)}
+.full td i{font-style:normal;font-size:8px;color:#454b6d;margin-left:6px}
+.full .foot{margin-top:9px;font-size:8px;letter-spacing:.12em;line-height:1.8;color:#5d6488}
+.full .foot b{font-weight:400;color:#8b93c4}.full .foot s{text-decoration:none;color:var(--cy)}.full .foot u{text-decoration:none;color:var(--am)}
+
 .pods{position:absolute;right:2.5%;top:7%;width:min(400px,32vw);
   z-index:3;opacity:.92;pointer-events:none}
 .pods h5{font:600 8px Inter,Arial;letter-spacing:.34em;color:#57708a;
@@ -614,6 +653,105 @@ SCHEME_JS = r"""
   var root = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
   root.appendChild(tpl.content.cloneNode(true));
   function q(sel){ return root.querySelector(sel); }
+  /* ── мелочь · когда ходит: затмение (02.09) ── */
+  (function(){
+    if (!DATA.sched || !DATA.sched.pump) return;
+    var stage = q('.obs') || root.firstElementChild;
+    if (!stage) return;
+    stage.insertAdjacentHTML('beforeend', '<div class="ecl" id="ecl"></div>');
+    var S = DATA.sched;                 /* сводка из output/schedule.json */
+    var DN=['пн','вт','ср','чт','пт','сб','вс'], NYZ='America/New_York';
+    
+    function nyHourToLocal(h){
+      var now=new Date();
+      var p=new Intl.DateTimeFormat('en-US',{timeZone:NYZ,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(now);
+      var y=+p.find(x=>x.type==='year').value,m=+p.find(x=>x.type==='month').value,d=+p.find(x=>x.type==='day').value;
+      var g=Date.UTC(y,m-1,d,h,0,0);
+      for(var k=0;k<3;k++){var f=new Intl.DateTimeFormat('en-US',{timeZone:NYZ,hour:'2-digit',hour12:false,day:'2-digit'}).formatToParts(new Date(g));
+        var hh=+f.find(x=>x.type==='hour').value%24,dd=+f.find(x=>x.type==='day').value;var diff=(h-hh)+(d-dd)*24;if(!diff)break;g+=diff*3600000;}
+      return new Date(g).getHours();
+    }
+    var C=118, R=86;
+    function pt(hour,r){var a=(hour/24)*Math.PI*2-Math.PI/2;var rr=(r==null?R:r);return [C+Math.cos(a)*rr,C+Math.sin(a)*rr];}
+    function arcPath(h0,h1,r){var span=((h1+1-h0)%24+24)%24;if(!span)span=24;var a=pt(h0,r),b=pt(h0+span,r);
+      return 'M'+a[0].toFixed(1)+','+a[1].toFixed(1)+' A'+(r||R)+','+(r||R)+' 0 '+(span>12?1:0)+' 1 '+b[0].toFixed(1)+','+b[1].toFixed(1);}
+    function pad(n){return (n<10?'0':'')+n;}
+    
+    /* Дуга-корона: три слоя одного пути — широкое сияние в размытии,
+       средний ореол, яркое тонкое ядро. Свет, а не полоса. */
+    /* Сияние слоями без фильтров: размытие рисовало вокруг дуг коробки —
+       границы области фильтра. Пять штрихов от широкого прозрачного к
+       тонкому яркому дают тот же ореол, и коробок нет. */
+    function corona(h0,h1,col){
+      var d=arcPath(h0,h1);
+      return '<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="18" stroke-linecap="round" opacity=".05"/>'+
+             '<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="11" stroke-linecap="round" opacity=".09"/>'+
+             '<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="6" stroke-linecap="round" opacity=".18"/>'+
+             '<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="3" stroke-linecap="round" opacity=".45"/>'+
+             '<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="1.4" stroke-linecap="round" opacity="1"/>'+
+             '<path d="'+d+'" fill="none" stroke="#fff" stroke-width=".5" stroke-linecap="round" opacity=".7"/>';
+    }
+    
+    function build(){
+      var now=new Date(), lh=now.getHours()+now.getMinutes()/60;
+      var ups=S.pump.map(function(s){return [nyHourToLocal(s[0]),nyHourToLocal(s[1])];});
+      var dns=S.dump.map(function(s){return [nyHourToLocal(s[0]),nyHourToLocal(s[1])];});
+      var ev=[];ups.forEach(function(s){ev.push([s[0],'up','рост']);});dns.forEach(function(s){ev.push([s[0],'dn','слив']);});
+      var nxt=ev.map(function(e){var dh=(e[0]-lh+24)%24;return [dh,e];}).sort(function(a,b){return a[0]-b[0];})[0];
+      var inH=Math.floor(nxt[0]),inM=Math.round((nxt[0]-inH)*60);
+      var nc=nxt[1][1]==='up'?'#9ff0e6':'#ffc87a';
+    
+      var s='<svg viewBox="0 0 236 236">'+
+      '<defs>'+
+       '<radialGradient id="disc" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#1d2242" stop-opacity=".55"/><stop offset=".8" stop-color="#232a4e" stop-opacity=".45"/><stop offset="1" stop-color="#3a4275" stop-opacity=".55"/></radialGradient>'+
+       '<radialGradient id="rim" cx="50%" cy="50%" r="50%"><stop offset=".86" stop-color="#fff" stop-opacity="0"/><stop offset=".97" stop-color="#cfd8ff" stop-opacity=".22"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>'+
+      '</defs>';
+      /* мягкое сияние диска в фоне */
+      for(var g=0;g<5;g++) s+='<circle cx="'+C+'" cy="'+C+'" r="'+(R+4+g*6)+'" fill="none" stroke="#7f8dff" stroke-width="6" opacity="'+(0.05-g*0.009).toFixed(3)+'"/>';
+      /* тёмный диск с подсветкой кромки */
+      s+='<circle cx="'+C+'" cy="'+C+'" r="'+R+'" fill="url(#disc)"/>';
+      s+='<circle cx="'+C+'" cy="'+C+'" r="'+(R+3)+'" fill="url(#rim)"/>';
+      s+='<circle cx="'+C+'" cy="'+C+'" r="'+R+'" fill="none" stroke="rgba(207,216,255,.18)" stroke-width=".8"/>';
+      /* мёртвая зона — чуть темнее кромка */
+      S.dead.forEach(function(seg){s+='<path d="'+arcPath(nyHourToLocal(seg[0]),nyHourToLocal(seg[1]))+'" fill="none" stroke="#1a1f38" stroke-width="2.2" opacity=".85"/>';});
+      /* короны */
+      ups.forEach(function(seg){s+=corona(seg[0],seg[1],'#9ff0e6');});
+      dns.forEach(function(seg){s+=corona(seg[0],seg[1],'#ffc87a');});
+      /* внешняя шкала: тонкие штрихи, крупнее на 0/6/12/18 */
+      for(var h=0;h<24;h++){var big=h%6===0,a=pt(h,R+10),b=pt(h,R+(big?17:13));
+        s+='<line x1="'+a[0].toFixed(1)+'" y1="'+a[1].toFixed(1)+'" x2="'+b[0].toFixed(1)+'" y2="'+b[1].toFixed(1)+'" stroke="rgba(232,236,251,'+(big?'.35':'.14')+')" stroke-width="'+(big?1:.7)+'"/>';
+        if(big){var l=pt(h,R+25);s+='<text x="'+l[0].toFixed(1)+'" y="'+(l[1]+2.4).toFixed(1)+'" text-anchor="middle" font-family="ui-monospace,Menlo" font-size="7" fill="#5d6488" letter-spacing=".08em">'+pad(h)+'</text>';}}
+      /* стрелка «сейчас»: тонкая, от центра к кромке, и вспышка на кромке */
+      var n=pt(lh,R+2),n0=pt(lh,26);
+      s+='<line x1="'+n0[0].toFixed(1)+'" y1="'+n0[1].toFixed(1)+'" x2="'+n[0].toFixed(1)+'" y2="'+n[1].toFixed(1)+'" stroke="rgba(255,255,255,.55)" stroke-width=".8"/>';
+      s+='<circle cx="'+n[0].toFixed(1)+'" cy="'+n[1].toFixed(1)+'" r="9" fill="#fff" opacity=".06"/><circle cx="'+n[0].toFixed(1)+'" cy="'+n[1].toFixed(1)+'" r="5.5" fill="#fff" opacity=".12"/>';
+      s+='<circle cx="'+n[0].toFixed(1)+'" cy="'+n[1].toFixed(1)+'" r="2" fill="#fff"/>';
+      /* центр: большая тонкая цифра */
+      s+='<text x="'+C+'" y="'+(C+9)+'" text-anchor="middle" font-family="Inter,Arial" font-weight="100" font-size="34" fill="#eef1ff" letter-spacing=".04em">'+pad(now.getHours())+':'+pad(now.getMinutes())+'</text>';
+      s+='<text x="'+C+'" y="'+(C+24)+'" text-anchor="middle" font-family="ui-monospace,Menlo" font-size="6.5" fill="#5d6488" letter-spacing=".3em">'+Intl.DateTimeFormat().resolvedOptions().timeZone.split('/').pop().replace('_',' ').toUpperCase()+'</text>';
+      s+='<text x="'+C+'" y="'+(C-22)+'" text-anchor="middle" font-family="ui-monospace,Menlo" font-size="7.5" fill="#8b93c4" letter-spacing=".22em">'+nxt[1][2].toUpperCase()+' ЧЕРЕЗ '+inH+':'+pad(inM)+'</text>';
+      s+='<circle cx="'+(C-38)+'" cy="'+(C-24.5)+'" r="1.6" fill="'+nc+'"/>';
+      s+='</svg>';
+    
+      var dow=(now.getDay()+6)%7,tom=(dow+1)%7;
+      var cap='<div class="cap">сегодня <b>'+DN[dow]+'</b>'+(S.days_best.indexOf(dow)>=0?' <s>сильный</s>':'')+
+        ' <i>·</i> завтра <b>'+DN[tom]+'</b>'+(S.days_best.indexOf(tom)>=0?' <s>сильный</s>':'')+
+        '<br><i>мелочь · когда ходит · '+S.coins+' монет</i></div>';
+    
+      function tz(h,o){return pad((h+o+24)%24);}function sp(g,o){return g[0]===g[1]?tz(g[0],o):tz(g[0],o)+'–'+tz(g[1],o);}
+      function row(c,n,segs,note){return segs.map(function(g,i){return '<tr class="'+c+'"><td>'+(i?'':n)+'</td><td>'+sp(g,0)+'</td><td>'+sp(g,7)+'</td><td>'+sp(g,13)+(i===0&&note?'<i>'+note+'</i>':'')+'</td></tr>';}).join('');}
+      var Rg=S.regime;
+      var full='<div class="full"><div class="sub">'+S.coins+' монет · полгода · биткоин стоит<br>≥6 монет вверх, ≥10 вниз в один час</div>'+
+       '<table><tr><th></th><th>Нью-Йорк</th><th>Москва</th><th>Токио</th></tr>'+
+       row('up','пампы',S.pump,tz(S.pump_main,0)+' · '+S.pump_main_n+' соб.')+row('dead','мёртво',S.dead,'')+row('dn','слив',S.dump,'×'+S.dump_main_ratio+' к любому')+
+       '</table><div class="foot">лучшие дни: <b>'+S.days_best.map(function(d){return DN[d];}).join(' · ')+'</b><br>'+
+       'биткоин стоит <s>'+Rg.flat[0]+'/'+Rg.flat[1]+'</s> · растёт <u>'+Rg.up[0]+'/'+Rg.up[1]+'</u> · падает <s>'+Rg.down[0]+'/'+Rg.down[1]+'</s><br>отскоки на падении — с '+tz(S.bounce_hour,0)+' NY</div></div>';
+      var host = q('#ecl'); if (host) host.innerHTML = s+cap+full;
+    }
+    
+    build(); setInterval(build, 30000);
+  })();
+
   /* ── киты: стая по монетам (31.08) ── */
   (function(){
     var A = (DATA.whales || {}).alerts || [];

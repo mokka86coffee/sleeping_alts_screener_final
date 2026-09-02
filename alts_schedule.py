@@ -107,7 +107,8 @@ def heat(cells, base, title, min_n=8):
             print(f"    {name:20} будни {st.mean(wd):4.0f}%   выходные {st.mean(we):4.0f}%")
 
 
-def runs_table(alts, btc, reg, min_pct, w, by_regime):
+def runs_table(alts, btc, reg, min_pct, w, by_regime,
+               state="all", state_days=7, state_pct=10.0):
     """ПРОБЕГИ (владелец, 02.09, BLESS 30.08): ход с 17:00 до 21:45 +13%
     за пять часов — вот что ловить. Не свеча, не фиксированное окно, а
     весь пробег от локального дна до локальной вершины.
@@ -132,10 +133,23 @@ def runs_table(alts, btc, reg, min_pct, w, by_regime):
             if highs[i] == max(wh) and wh.index(highs[i]) == w:
                 ext.append((i, "hi"))
         ext.sort()
+        closes = {t: m[t]["c"] for t in ts_c}
         for (i0, k0), (i1, k1) in zip(ext, ext[1:]):
             if k0 == k1:
                 continue
             t0 = ts_c[i0]
+            # СОСТОЯНИЕ МОНЕТЫ в момент старта (владелец, 02.09): в
+            # семидесяти пяти монетах половина полгода стекала, и их
+            # пробеги — шум умирающих. Считаем только тех, кто в ходу:
+            # где монета была за state_days дней до старта.
+            if state != "all":
+                prev = closes.get(t0 - state_days * 24 * STEP)
+                if not prev:
+                    continue
+                ch = (closes[t0] / prev - 1) * 100
+                st_ = "up" if ch >= state_pct else "down" if ch <= -state_pct else "flat"
+                if st_ != state:
+                    continue
             ny = datetime.fromtimestamp(t0 / 1000, tz=timezone.utc).astimezone(NY)
             rg = reg.get(t0, "?") if by_regime else "all"
             dur = (ts_c[i1] - t0) / STEP
@@ -189,6 +203,166 @@ def runs_table(alts, btc, reg, min_pct, w, by_regime):
         block("ВСЯ ВЫБОРКА", ups, downs)
 
 
+def sync_table(alts, btc, reg, min_pct, w, by_regime, need_up, need_dn, tol):
+    """СИНХРОННЫЕ СТАРТЫ (владелец, 02.09). Событие роста — не меньше
+    need_up монет стартовали пробег вверх в один час, ±tol ч. Событие
+    падения — не меньше need_dn монет стартовали вниз. Одно событие —
+    одна отметка, сколько бы монет в него ни вошло.
+
+    Это снимает обе болезни разом: одиночная монета не считается вовсе,
+    а семьдесят коррелированных монет в один час дают ОДНО событие, а
+    не семьдесят. Порог на падение выше, потому что падают дружнее.
+    """
+    NAMES = ("пн", "вт", "ср", "чт", "пт", "сб", "вс")
+    starts_up = defaultdict(set); starts_dn = defaultdict(set)   # t → {монеты}
+    size_up = defaultdict(list); size_dn = defaultdict(list)
+    for coin, m in alts.items():
+        ts_c = sorted(m)
+        lows = [m[t]["l"] for t in ts_c]; highs = [m[t]["h"] for t in ts_c]
+        ext = []
+        for i in range(w, len(ts_c) - w):
+            if ts_c[i + w] - ts_c[i - w] != 2 * w * STEP:
+                continue
+            wl = lows[i - w:i + w + 1]; wh = highs[i - w:i + w + 1]
+            if lows[i] == min(wl) and wl.index(lows[i]) == w:
+                ext.append((i, "lo"))
+            if highs[i] == max(wh) and wh.index(highs[i]) == w:
+                ext.append((i, "hi"))
+        ext.sort()
+        for (i0, k0), (i1, k1) in zip(ext, ext[1:]):
+            if k0 == k1:
+                continue
+            t0 = ts_c[i0]
+            if k0 == "lo":
+                pct = (highs[i1] / lows[i0] - 1) * 100
+                if pct >= min_pct:
+                    starts_up[t0].add(coin); size_up[t0].append(pct)
+            else:
+                pct = (1 - lows[i1] / highs[i0]) * 100
+                if pct >= min_pct:
+                    starts_dn[t0].add(coin); size_dn[t0].append(pct)
+
+    def events(starts, sizes, need):
+        """Часы, где в окне ±tol набралось need монет. Соседние часы,
+        прошедшие порог, склеиваем в одно событие — берём час с
+        максимумом монет."""
+        ts_all = sorted(set(starts))
+        cand = []
+        for t in ts_all:
+            coins = set()
+            for k in range(-tol, tol + 1):
+                coins |= starts.get(t + k * STEP, set())
+            if len(coins) >= need:
+                cand.append((t, len(coins)))
+        out = []
+        i = 0
+        while i < len(cand):
+            j = i
+            while j + 1 < len(cand) and cand[j + 1][0] - cand[j][0] <= STEP:
+                j += 1
+            best = max(cand[i:j + 1], key=lambda x: x[1])
+            med = st.median(sizes.get(best[0]) or [0])
+            out.append((best[0], best[1], med))
+            i = j + 1
+        return out
+
+    ev_up = events(starts_up, size_up, need_up)
+    ev_dn = events(starts_dn, size_dn, need_dn)
+
+    def block(title, U, D):
+        print(f"\n{'═' * 70}\n{title} · событий роста {len(U)}, падения {len(D)}")
+        if U:
+            print(f"   рост: медиана монет в событии {st.median(n for _, n, _ in U):.0f}, "
+                  f"медиана размера пробега {st.median(m for _, _, m in U):.1f}%")
+        if D:
+            print(f"   падение: медиана монет {st.median(n for _, n, _ in D):.0f}, "
+                  f"размера {st.median(m for _, _, m in D):.1f}%")
+        for kind, E in (("СОБЫТИЯ РОСТА", U), ("СОБЫТИЯ ПАДЕНИЯ", D)):
+            if not E:
+                continue
+            grid = defaultdict(int); hh = defaultdict(int); dd_ = defaultdict(int)
+            for t, n, _ in E:
+                ny = datetime.fromtimestamp(t / 1000, tz=timezone.utc).astimezone(NY)
+                grid[(ny.weekday(), ny.hour)] += 1
+                hh[ny.hour] += 1; dd_[ny.weekday()] += 1
+            print(f"  {kind} · число событий в ячейке")
+            print("     " + "".join(f"{h:>4}" for h in range(24)) + "   всего")
+            for dw in range(7):
+                line = f"{NAMES[dw]:4} "
+                for h in range(24):
+                    v = grid[(dw, h)]
+                    line += f"{v:4d}" if v else "   ·"
+                print(line + f"{dd_[dw]:7d}")
+            print("   по часу суток: " + " ".join(f"{h:02d}:{hh[h]:2d}" for h in range(24)))
+            top = sorted(grid.items(), key=lambda x: -x[1])[:6]
+            print("   чаще всего: " + " · ".join(
+                f"{NAMES[dw]} {h:02d} NY ({(h+5)%24:02d} Лон, {(h+7)%24:02d} Мск) ×{c}"
+                for (dw, h), c in top))
+
+    if by_regime:
+        for key, title in REG:
+            U = [e for e in ev_up if reg.get(e[0]) == key]
+            D = [e for e in ev_dn if reg.get(e[0]) == key]
+            block(title, U, D)
+    else:
+        block("ВСЯ ВЫБОРКА", ev_up, ev_dn)
+    return ev_up, ev_dn
+
+
+def schedule_json(ev_up, ev_dn, reg, ncoins, path):
+    """Сводка для схемы (02.09): часы пампов и сливов на флэте
+    биткоина, лучшие дни, счётчики по режимам. Схема читает
+    output/schedule.json и рисует панель; нет файла — нет панели."""
+    from collections import Counter
+    def hours_days(E):
+        hh = Counter(); dd_ = Counter()
+        for t, _, _ in E:
+            ny = datetime.fromtimestamp(t / 1000, tz=timezone.utc).astimezone(NY)
+            hh[ny.hour] += 1; dd_[ny.weekday()] += 1
+        return hh, dd_
+    flat_up = [e for e in ev_up if reg.get(e[0], "flat") == "flat"]
+    flat_dn = [e for e in ev_dn if reg.get(e[0], "flat") == "flat"]
+    hu, du = hours_days(flat_up); hd, ddn = hours_days(flat_dn)
+    mean_u = (sum(hu.values()) / 24) if hu else 1
+    mean_d = (sum(hd.values()) / 24) if hd else 1
+
+    def clusters(hs):
+        """соседние часы — в отрезки"""
+        hs = sorted(hs); out = []
+        for h in hs:
+            if out and h == out[-1][1] + 1:
+                out[-1][1] = h
+            else:
+                out.append([h, h])
+        return out
+    pump = clusters([h for h in range(24) if hu[h] >= mean_u * 1.35])
+    dead = clusters([h for h in range(24) if hu[h] <= mean_u * 0.6])
+    dump = clusters([h for h in range(24) if hd[h] >= mean_d * 1.8])
+    reg_cnt = {}
+    for key in ("flat", "up", "down"):
+        reg_cnt[key] = [sum(1 for e in ev_up if reg.get(e[0], "flat") == key),
+                        sum(1 for e in ev_dn if reg.get(e[0], "flat") == key)]
+    # старт отскоков на падении биткоина — самый частый час
+    dn_up = [e for e in ev_up if reg.get(e[0]) == "down"]
+    hdu, _ = hours_days(dn_up)
+    bounce_h = max(hdu, key=hdu.get) if hdu else None
+    days_rank = [d for d, _ in du.most_common()]
+    out = {"at": datetime.now().strftime("%Y-%m-%d"), "coins": ncoins,
+           "pump": pump, "pump_main": (max(hu, key=hu.get) if hu else None),
+           "pump_main_n": (max(hu.values()) if hu else 0),
+           "dead": dead, "dump": dump,
+           "dump_main": (max(hd, key=hd.get) if hd else None),
+           "dump_main_n": (max(hd.values()) if hd else 0),
+           "dump_main_ratio": round(max(hd.values()) / sorted(hd.values())[-2], 1)
+                              if len(hd) > 1 else None,
+           "days_best": days_rank[:2], "days_up": {str(d): du[d] for d in range(7)},
+           "days_dn": {str(d): ddn[d] for d in range(7)},
+           "regime": reg_cnt, "bounce_hour": bounce_h}
+    Path(path).parent.mkdir(exist_ok=True)
+    Path(path).write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+    print(f"\nсводка записана: {path}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--majors", nargs="*", default=None,
@@ -207,6 +381,22 @@ def main() -> int:
                     help="минимальный размер пробега, %% (по умолчанию 5)")
     ap.add_argument("--extw", type=int, default=3,
                     help="окно локального экстремума ±ч (по умолчанию 3)")
+    ap.add_argument("--state", choices=("all", "up", "down", "flat"), default="all",
+                    help="состояние МОНЕТЫ на старте: up — росла за неделю до")
+    ap.add_argument("--state-days", type=int, default=7,
+                    help="за сколько дней смотреть состояние монеты")
+    ap.add_argument("--state-pct", type=float, default=10.0,
+                    help="порог состояния, %% (по умолчанию ±10)")
+    ap.add_argument("--sync", action="store_true",
+                    help="синхронные старты: ≥N монет в один час = событие")
+    ap.add_argument("--sync-up", type=int, default=6,
+                    help="монет для события роста (по умолчанию 6)")
+    ap.add_argument("--sync-down", type=int, default=10,
+                    help="монет для события падения (по умолчанию 10)")
+    ap.add_argument("--tol", type=int, default=1,
+                    help="допуск по часу, ± (по умолчанию 1)")
+    ap.add_argument("--json", nargs="?", const="output/schedule.json", default=None,
+                    help="записать сводку для схемы (по умолчанию output/schedule.json)")
     a = ap.parse_args()
     WIN = max(1, a.win)
     majors = set(m.upper() for m in a.majors) if a.majors else MAJORS
@@ -223,11 +413,27 @@ def main() -> int:
     if not alts:
         print("нет микрокапов в hourly/ — сначала backfill_binance.py")
         return 1
+    if a.sync:
+        reg = btc_regime(btc, a.hours, a.thr) if (a.regime and btc) else {}
+        print(f"СИНХРОННЫЕ СТАРТЫ · монет {len(alts)} · пробег от {a.min_pct:.0f}% · "
+              f"рост ≥{a.sync_up} монет, падение ≥{a.sync_down} монет, ±{a.tol} ч · "
+              f"время Нью-Йорка")
+        ev_up, ev_dn = sync_table(alts, btc, reg, a.min_pct, a.extw,
+                                  bool(a.regime and btc), a.sync_up, a.sync_down, a.tol)
+        if a.json:
+            if not reg:
+                reg = btc_regime(btc, a.hours, a.thr) if btc else {}
+            schedule_json(ev_up, ev_dn, reg, len(alts), a.json)
+        return 0
     if a.runs:
         reg = btc_regime(btc, a.hours, a.thr) if (a.regime and btc) else {}
+        st_txt = {"all": "все монеты", "up": f"только РАСТУЩИЕ (+{a.state_pct:.0f}% за {a.state_days} дн до старта)",
+                  "down": f"только падающие (−{a.state_pct:.0f}% за {a.state_days} дн)",
+                  "flat": "только стоящие"}[a.state]
         print(f"ПРОБЕГИ · монет {len(alts)} · порог {a.min_pct:.0f}% · "
-              f"экстремум ±{a.extw} ч · время Нью-Йорка")
-        runs_table(alts, btc, reg, a.min_pct, a.extw, bool(a.regime and btc))
+              f"экстремум ±{a.extw} ч · {st_txt} · время Нью-Йорка")
+        runs_table(alts, btc, reg, a.min_pct, a.extw, bool(a.regime and btc),
+                   a.state, a.state_days, a.state_pct)
         return 0
 
     # ── ширина по ОКНАМ (владелец, 02.09): за час микрокап колеблется в
