@@ -155,19 +155,21 @@ SCHEME_HTML = """
 /* ── КИТЫ · СТАЯ ПО МОНЕТАМ (31.08, вид утверждён): один пузырь —
    одна монета, внутри плавают её киты. Цвет кита = сторона, метка:
    + добрал, ✓ закрыл, пусто — открыл. Размер круга — деньги. ── */
-/* ── НИТИ ── */
-.fib{position:absolute;left:30px;top:40px;width:270px;z-index:5;font-family:var(--mono)}
-.fib svg{display:block;width:270px;height:270px;overflow:visible}
-.fib .spark{animation:spin 120s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.fib .drift{animation:drift 14s ease-in-out infinite}
+/* ── ЧАСЫ · ЗАРЯД (03.09 вечер, выбран из шести языков) ──
+   Сосуд наполняется к ближайшему событию: пусто — двенадцать часов до
+   него, полно — оно идёт. Цвет жидкости — вид события (бирюза рост,
+   розовый слив). Цифра «до события» внутри, снизу два чипа со временем
+   ближайшего роста и слива. Волна на поверхности живёт — только
+   transform, композитор, дёшево для планшета. */
+.fib{position:absolute;left:30px;top:40px;width:150px;z-index:5;font-family:var(--mono)}
+.fib svg{display:block;width:150px;height:150px;overflow:visible}
+.fib .w1{animation:fibwave 9s linear infinite}
+.fib .w2{animation:fibwave 14s linear infinite reverse}
+@keyframes fibwave{to{transform:translateX(-92px)}}
 .fib .colon{animation:pulse 2s ease-in-out infinite}
 .fib .livepulse{animation:lp 1.6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
 @keyframes lp{0%,100%{transform:scale(1);opacity:.8}50%{transform:scale(1.25);opacity:.5}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-@keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(1.5px,-1px)}}
-.fib .cap{margin-top:2px;text-align:center;font-family:ui-monospace,Menlo;font-size:9px;
-  letter-spacing:.3em;color:#b9c6ff;text-transform:uppercase}
 
 /* полная таблица при наведении */
 .full{position:absolute;left:calc(100% + 14px);top:24px;width:326px;padding:14px 18px 12px;
@@ -658,7 +660,7 @@ SCHEME_JS = r"""
   var root = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
   root.appendChild(tpl.content.cloneNode(true));
   function q(sel){ return root.querySelector(sel); }
-  /* ── мелочь · когда ходит: нити (03.09, одобрено) ── */
+  /* ── мелочь · когда ходит: ЗАРЯД (03.09 вечер, выбран из шести языков; нити сняты) ── */
   (function(){
     if (!DATA.sched || !DATA.sched.pump) return;
     var stage = q('.obs') || root.firstElementChild;
@@ -676,46 +678,13 @@ SCHEME_JS = r"""
       return new Date(g).getHours();}
     function pad(n){return (n<10?'0':'')+n;}
     
-    var C=135, R=98;
-    function pt(h,r){var a=(h/24)*Math.PI*2-Math.PI/2;return [C+Math.cos(a)*r,C+Math.sin(a)*r];}
-    
-    /* Режим каждого часа: 1 памп, -1 слив, 0 обычный, 2 мёртво */
-    function modeOf(h,ups,dns,dead){
-      var m=0;
-      dead.forEach(function(s){for(var k=0;k<len(s);k++)if((s[0]+k)%24===h)m=2;});
-      ups.forEach(function(s){for(var k=0;k<len(s);k++)if((s[0]+k)%24===h)m=1;});
-      dns.forEach(function(s){for(var k=0;k<len(s);k++)if((s[0]+k)%24===h)m=-1;});
-      return m;
-    }
     function len(s){var l=((s[1]+1-s[0])%24+24)%24;return l||24;}
-    function lerp(a,b,t){return a+(b-a)*t;}
-    function hex(r,g,b){return '#'+[r,g,b].map(function(v){return ('0'+Math.round(Math.max(0,Math.min(255,v))).toString(16)).slice(-2);}).join('');}
-    
-    /* ОДНА НИТЬ: идёт по кругу, её радиус — плавная функция часа.
-       В хаосе (мёртво) нить гуляет широко и тускло; в порядке (памп/слив)
-       прижимается к кольцу и светится. Между — фиолет. */
-    function strand(i, N, modes, cols){
-      var seed=i*7.13, d='', segs=[];
-      var base=(i/N-0.5)*2;                 // −1…1 — положение в пучке
-      var pts=[];
-      for(var k=0;k<=144;k++){
-        var h=k/6, m=modes[Math.floor(h)%24];
-        var spread = m===2 ? 11 : m===0 ? 5 : 1.6;         // ширина пучка
-        var wob = Math.sin(h*1.7+seed)*Math.cos(h*0.6+seed*0.3);
-        var rr = R + base*spread + wob*(m===2?4:1.2);
-        pts.push(pt(h,rr));
-      }
-      d='M'+pts[0][0].toFixed(1)+','+pts[0][1].toFixed(1);
-      for(var k=1;k<pts.length;k++) d+=' L'+pts[k][0].toFixed(1)+','+pts[k][1].toFixed(1);
-      return d;
-    }
-    
+
     function build(){
       var now=new Date(), lh=now.getHours()+now.getMinutes()/60;
       var ups=S.pump.map(function(s){return [nyHourToLocal(s[0]),nyHourToLocal(s[1])];});
       var dns=S.dump.map(function(s){return [nyHourToLocal(s[0]),nyHourToLocal(s[1])];});
       var dead=S.dead.map(function(s){return [nyHourToLocal(s[0]),nyHourToLocal(s[1])];});
-      var modes=[];for(var h=0;h<24;h++)modes.push(modeOf(h,ups,dns,dead));
       /* ВНУТРИ ОКНА (владелец, 03.09): раньше центр считал до начала того
          же окна завтра — «до роста 22 ч» посреди роста. Теперь: если
          «сейчас» внутри окна — показываем, что оно идёт и сколько
@@ -736,103 +705,67 @@ SCHEME_JS = r"""
       } else { nxt=ev[0]; inH=Math.floor(nxt.dh); inM=Math.round((nxt.dh-inH)*60); }
     
       var nc = nxt.k==='up' ? '#9fe6ff' : '#ff9be0';
-      var s='<svg viewBox="0 0 270 270"><defs>'+
-       '<radialGradient id="glass" cx="50%" cy="42%" r="60%"><stop offset="0" stop-color="#2a2f5c" stop-opacity=".55"/><stop offset=".7" stop-color="#1b2044" stop-opacity=".5"/><stop offset="1" stop-color="#3b3f7a" stop-opacity=".35"/></radialGradient>'+
-       '<radialGradient id="bk" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#b8a6ff" stop-opacity=".22"/><stop offset="1" stop-color="#b8a6ff" stop-opacity="0"/></radialGradient>'+
-       '<radialGradient id="node" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff" stop-opacity="1"/><stop offset=".3" stop-color="#e6f0ff" stop-opacity=".9"/><stop offset=".6" stop-color="#8fd8ff" stop-opacity=".35"/><stop offset="1" stop-color="#8fd8ff" stop-opacity="0"/></radialGradient>'+
-       '<linearGradient id="numG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#e9f2ff"/><stop offset="1" stop-color="'+(nxt.k==='up'?'#9fe6ff':'#ff9be0')+'"/></linearGradient>'+
-       '<linearGradient id="ruleL" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="'+(nxt.k==='up'?'#9fe6ff':'#ff9be0')+'" stop-opacity="0"/><stop offset="1" stop-color="'+(nxt.k==='up'?'#9fe6ff':'#ff9be0')+'" stop-opacity=".9"/></linearGradient>'+
-       '<linearGradient id="ruleR" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="'+(nxt.k==='up'?'#9fe6ff':'#ff9be0')+'" stop-opacity=".9"/><stop offset="1" stop-color="'+(nxt.k==='up'?'#9fe6ff':'#ff9be0')+'" stop-opacity="0"/></linearGradient>'+
+      var W=150, H=150, cx=66, cy=70, r=44, L=2*r+4;
+      /* ЗАРЯД: доля наполнения. Двенадцать часов до события — пусто,
+         событие идёт — полно. */
+      var left=inH+inM/60, fill = live ? .97 : Math.max(.05, Math.min(.97, 1-left/12));
+      var lvl = cy + r - fill*2*r;
+      /* ближайший рост и ближайший слив — для чипов внизу */
+      function nearest(ws){var best=null;ws.forEach(function(w){var d=(w[0]-lh+24)%24;if(best===null||d<best.d)best={d:d,h:w[0]};});return best;}
+      var nu=nearest(ups), nd=nearest(dns);
+      function num(x,y){return pad(Math.round(x)%24)+':00';}
+      function esc(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+      var s='<svg viewBox="0 0 '+W+' '+H+'"><defs>'+
+       '<filter id="fibSoft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3"/></filter>'+
+       '<filter id="fibGlow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.6"/></filter>'+
+       '<linearGradient id="fibNum" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#e9f2ff"/><stop offset="1" stop-color="'+nc+'"/></linearGradient>'+
+       '<radialGradient id="fibDisc" cx="50%" cy="34%" r="72%"><stop offset="0" stop-color="#0b0e22"/><stop offset=".65" stop-color="#05060f"/><stop offset="1" stop-color="#03040b"/></radialGradient>'+
+       '<radialGradient id="fibBlack" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#000"/><stop offset=".78" stop-color="#000"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>'+
+       '<linearGradient id="fibLiq" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="'+nc+'" stop-opacity=".85"/><stop offset=".25" stop-color="'+nc+'" stop-opacity=".5"/><stop offset="1" stop-color="#2a4a9a" stop-opacity=".35"/></linearGradient>'+
+       '<linearGradient id="fibRim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".28"/><stop offset=".5" stop-color="#ffffff" stop-opacity=".06"/><stop offset="1" stop-color="#ffffff" stop-opacity=".12"/></linearGradient>'+
+       '<clipPath id="fibClip"><circle cx="'+cx+'" cy="'+cy+'" r="'+r+'"/></clipPath>'+
        '</defs>';
-      /* боке за всем */
-      [[40,52,20,.5],[236,70,14,.45],[48,214,11,.5],[228,222,24,.35],[135,22,8,.6],[20,140,7,.5]].forEach(function(b){
-        s+='<circle cx="'+b[0]+'" cy="'+b[1]+'" r="'+b[2]+'" fill="url(#bk)" opacity="'+b[3]+'"/>';});
-      /* стеклянный диск */
-      s+='<circle cx="'+C+'" cy="'+C+'" r="'+(R-14)+'" fill="url(#glass)"/>';
-      s+='<circle cx="'+C+'" cy="'+C+'" r="'+(R-14)+'" fill="none" stroke="#c9d3ff" stroke-width=".6" opacity=".12"/>';
-    
-      /* сияние окон под нитями — широкое, чтобы пучок светился */
-      function arcW(h0,h1,r){var l=len([h0,h1]);var a=pt(h0,r),b=pt(h0+l,r);return 'M'+a[0].toFixed(1)+','+a[1].toFixed(1)+' A'+r+','+r+' 0 '+(l>12?1:0)+' 1 '+b[0].toFixed(1)+','+b[1].toFixed(1);}
-      ups.forEach(function(w){[[26,.05],[14,.09],[7,.14]].forEach(function(g){s+='<path d="'+arcW(w[0],w[1],R)+'" fill="none" stroke="#7fd8ff" stroke-width="'+g[0]+'" stroke-linecap="round" opacity="'+g[1]+'"/>';});});
-      dns.forEach(function(w){[[26,.05],[14,.09],[7,.14]].forEach(function(g){s+='<path d="'+arcW(w[0],w[1],R)+'" fill="none" stroke="#ff7fd6" stroke-width="'+g[0]+'" stroke-linecap="round" opacity="'+g[1]+'"/>';});});
-    
-      /* НИТИ: 34 штуки, каждая покрашена по часам через градиент вдоль
-         пути — градиент на path нельзя по длине, поэтому режем нить на
-         24 куска по часу и красим каждый кусок цветом режима */
-      var N=34;
-      s+='<g class="drift">';
-      for(var i=0;i<N;i++){
-        var base=(i/N-0.5)*2, seed=i*7.13;
-        var thin = 0.35+Math.abs(base)*0.5;                // крайние нити тоньше
-        for(var h=0;h<24;h++){
-          var m=modes[h];
-          var col = m===1?'#9fe6ff': m===-1?'#ff9be0': m===2?'#5a4fa8':'#8f7cff';
-          var op  = m===1? .28+ (1-Math.abs(base))*.35 : m===-1? .26+(1-Math.abs(base))*.32 : m===2? .05 : .10+(1-Math.abs(base))*.06;
-          var d='';
-          for(var k=0;k<=6;k++){
-            var hh=h+k/6, mm=modes[Math.floor(hh)%24];
-            var spread = mm===2 ? 11 : mm===0 ? 5 : 1.6;
-            var wob = Math.sin(hh*1.7+seed)*Math.cos(hh*0.6+seed*0.3);
-            var rr = R + base*spread + wob*(mm===2?4:1.2);
-            var q=pt(hh,rr); d+=(k?' L':'M')+q[0].toFixed(1)+','+q[1].toFixed(1);
-          }
-          s+='<path d="'+d+'" fill="none" stroke="'+col+'" stroke-width="'+thin.toFixed(2)+'" opacity="'+op.toFixed(2)+'" stroke-linecap="round"/>';
-        }
-      }
-      s+='</g>';
-      /* яркие сердцевины пучка в окнах — две-три белые нити */
-      [[0,.55],[-.6,.35],[.6,.35]].forEach(function(c){
-        for(var h=0;h<24;h++){var m=modes[h]; if(m!==1&&m!==-1) continue;
-          var d='';for(var k=0;k<=6;k++){var hh=h+k/6;var q=pt(hh,R+c[0]);d+=(k?' L':'M')+q[0].toFixed(1)+','+q[1].toFixed(1);}
-          s+='<path d="'+d+'" fill="none" stroke="#ffffff" stroke-width=".5" opacity="'+c[1]+'" stroke-linecap="round"/>';}
+      /* тёмная подложка и стеклянный диск */
+      s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+8)+'" fill="url(#fibBlack)" opacity=".7"/>';
+      s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="url(#fibDisc)"/>';
+      /* ЖИДКОСТЬ: две волны, каждая шире диска на два периода, чтобы
+         бег по кругу (translateX на длину L) был бесшовным — три
+         полных периода на длину L. Обрезаны кругом. */
+      s+='<g clip-path="url(#fibClip)">';
+      [[2.2,0,.9,'w1'],[1.6,1.9,.55,'w2']].forEach(function(wv){
+        var amp=wv[0], ph=wv[1], op=wv[2], x0=cx-r-2;
+        var d='M'+(x0-L).toFixed(1)+','+lvl.toFixed(1);
+        for(var k=0;k<=180;k++){var x=x0-L+k*(3*L)/180; var y=lvl+Math.sin((x-x0)/L*Math.PI*2*3+ph)*amp; d+=' L'+x.toFixed(1)+','+y.toFixed(1);}
+        d+=' L'+(x0+2*L).toFixed(1)+','+(cy+r+2)+' L'+(x0-L).toFixed(1)+','+(cy+r+2)+' Z';
+        s+='<g class="'+wv[3]+'"><path d="'+d+'" fill="url(#fibLiq)" opacity="'+op+'"/>'+
+           '<path d="'+d+'" fill="none" stroke="'+nc+'" stroke-width=".8" opacity="'+(op*.8).toFixed(2)+'" filter="url(#fibGlow)"/></g>';
       });
-    
-      /* искры вдоль нитей */
-      s+='<g class="spark" style="transform-origin:'+C+'px '+C+'px">';
-      for(var i=0;i<14;i++){var h=(i*1.73)%24, r=R+((i*5)%11-5), m=modes[Math.floor(h)];
-        var q=pt(h,r); var col=m===1?'#dff6ff':m===-1?'#ffd6f2':'#cdbfff';
-        s+='<circle cx="'+q[0].toFixed(1)+'" cy="'+q[1].toFixed(1)+'" r="'+(0.7+(i%3)*0.4)+'" fill="'+col+'" opacity="'+(0.35+(i%4)*0.15)+'"/>';}
+      [[cx-18,lvl+14,1.2],[cx+11,lvl+26,.9],[cx-4,lvl+38,1.4],[cx+22,lvl+9,.7]].forEach(function(b){
+        if (b[1] < cy+r) s+='<circle cx="'+b[0].toFixed(1)+'" cy="'+b[1].toFixed(1)+'" r="'+b[2]+'" fill="#fff" opacity=".35"/>';});
       s+='</g>';
-    
-      /* узел «сейчас» — светящаяся сфера на кольце, как узлы на референсе */
-      var n=pt(lh,R);
-      s+='<circle cx="'+n[0].toFixed(1)+'" cy="'+n[1].toFixed(1)+'" r="'+(live?20:14)+'" fill="url(#node)" opacity="'+(live?'.8':'.55')+'"'+(live?' class="livepulse"':'')+'/>';
-      s+='<circle cx="'+n[0].toFixed(1)+'" cy="'+n[1].toFixed(1)+'" r="3.2" fill="#fff"/>';
-      /* тонкие ответвления от узла внутрь и наружу — нити, которые «входят» */
-      for(var t=0;t<5;t++){var a0=lh-0.9+t*0.45, q0=pt(a0,R+(t%2?7:-7)), q1=n;
-        s+='<path d="M'+q0[0].toFixed(1)+','+q0[1].toFixed(1)+' Q'+((q0[0]+q1[0])/2+2).toFixed(1)+','+((q0[1]+q1[1])/2-2).toFixed(1)+' '+q1[0].toFixed(1)+','+q1[1].toFixed(1)+'" fill="none" stroke="#dfe9ff" stroke-width=".6" opacity=".35"/>';}
-    
-      /* часы: тихие точки на 0/6/12/18 */
-      [0,6,12,18].forEach(function(h){var q=pt(h,R+17);s+='<text x="'+q[0].toFixed(1)+'" y="'+(q[1]+2.5).toFixed(1)+'" text-anchor="middle" font-family="ui-monospace,Menlo" font-size="7" fill="#7f88c4" letter-spacing=".1em" opacity=".8">'+pad(h)+'</text>';});
-    
-      /* ЦЕНТР (03.09). Цифры — не плоский текст, а свет: три слоя
-         свечения штрихом за ними, градиент от белого к цвету события,
-         тонкая белая сердцевина. Двоеточие дышит. Надпись — с двумя
-         гаснущими линейками по бокам, как подпись под узлом на референсе. */
-      var num=inH+':'+pad(inM), y0=C+4;
-      [[9,.05],[5,.09],[2.2,.18]].forEach(function(g){
-        s+='<text x="'+C+'" y="'+y0+'" text-anchor="middle" font-family="Inter,Arial" font-weight="200" font-size="46" fill="none" stroke="'+nc+'" stroke-width="'+g[0]+'" stroke-linejoin="round" opacity="'+g[1]+'" letter-spacing=".02em">'+num+'</text>';});
-      s+='<text x="'+C+'" y="'+y0+'" text-anchor="middle" font-family="Inter,Arial" font-weight="200" font-size="46" fill="url(#numG)" letter-spacing=".02em">'+inH+'<tspan class="colon" fill="'+nc+'">:</tspan>'+pad(inM)+'</text>';
-      s+='<text x="'+C+'" y="'+y0+'" text-anchor="middle" font-family="Inter,Arial" font-weight="100" font-size="46" fill="none" stroke="#fff" stroke-width=".35" opacity=".7" letter-spacing=".02em">'+num+'</text>';
-      /* НАДПИСЬ (03.09, вторая попытка — первая не читалась как перемена):
-         стеклянная капсула, внутри слово градиентом со свечением, по бокам
-         линейки с узелками-огоньками на концах. Размер выше, разрядка шире. */
+      /* кромка сосуда, светлее сверху */
+      s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="url(#fibRim)" stroke-width="1"/>';
+      /* ЦИФРА внутри: свет слоями, градиент к цвету события, белая сердцевина */
+      var numT=inH+':'+pad(inM), size=27, y0=cy+3;
+      [[size*.22,.05],[size*.12,.09],[size*.055,.18]].forEach(function(g){
+        s+='<text x="'+cx+'" y="'+y0+'" text-anchor="middle" font-family="Inter,Arial" font-weight="200" font-size="'+size+'" fill="none" stroke="'+nc+'" stroke-width="'+g[0].toFixed(2)+'" stroke-linejoin="round" opacity="'+g[1]+'">'+numT+'</text>';});
+      s+='<text x="'+cx+'" y="'+y0+'" text-anchor="middle" font-family="Inter,Arial" font-weight="200" font-size="'+size+'" fill="url(#fibNum)">'+inH+'<tspan class="colon" fill="'+nc+'">:</tspan>'+pad(inM)+'</text>';
+      s+='<text x="'+cx+'" y="'+y0+'" text-anchor="middle" font-family="Inter,Arial" font-weight="100" font-size="'+size+'" fill="none" stroke="#fff" stroke-width=".3" opacity=".7">'+numT+'</text>';
       var lab = live ? ((nxt.k==='up'?'РОСТ':'СЛИВ')+' ИДЁТ · ЕЩЁ') : ('ДО '+(nxt.k==='up'?'РОСТА':'СЛИВА'));
-      var ly=C+33, lw=lab.length*8.2, capW=lw+26, capH=17;
-      s+='<rect x="'+(C-capW/2)+'" y="'+(ly-12)+'" width="'+capW+'" height="'+capH+'" rx="8.5" fill="'+nc+'" opacity=".07"/>';
-      s+='<rect x="'+(C-capW/2)+'" y="'+(ly-12)+'" width="'+capW+'" height="'+capH+'" rx="8.5" fill="none" stroke="'+nc+'" stroke-width=".6" opacity=".35"/>';
-      s+='<line x1="'+(C-capW/2-34)+'" y1="'+(ly-3.5)+'" x2="'+(C-capW/2-4)+'" y2="'+(ly-3.5)+'" stroke="url(#ruleL)" stroke-width="1.1"/>';
-      s+='<line x1="'+(C+capW/2+4)+'" y1="'+(ly-3.5)+'" x2="'+(C+capW/2+34)+'" y2="'+(ly-3.5)+'" stroke="url(#ruleR)" stroke-width="1.1"/>';
-      [[C-capW/2-34,'L'],[C+capW/2+34,'R']].forEach(function(e){
-        s+='<circle cx="'+e[0]+'" cy="'+(ly-3.5)+'" r="4" fill="'+nc+'" opacity=".12"/><circle cx="'+e[0]+'" cy="'+(ly-3.5)+'" r="1.5" fill="'+nc+'" opacity=".9"/>';});
-      s+='<text x="'+C+'" y="'+ly+'" text-anchor="middle" font-family="Inter,Arial" font-weight="300" font-size="10.5" fill="none" stroke="'+nc+'" stroke-width="3.5" opacity=".14" letter-spacing=".42em">'+lab+'</text>';
-      s+='<text x="'+C+'" y="'+ly+'" text-anchor="middle" font-family="Inter,Arial" font-weight="300" font-size="10.5" fill="url(#numG)" letter-spacing=".42em">'+lab+'</text>';
-      s+='<text x="'+C+'" y="'+ly+'" text-anchor="middle" font-family="Inter,Arial" font-weight="300" font-size="10.5" fill="none" stroke="#fff" stroke-width=".25" opacity=".6" letter-spacing=".42em">'+lab+'</text>';
-      s+='</svg>';
-    
+      s+='<text x="'+cx+'" y="'+(cy+15)+'" text-anchor="middle" font-family="Inter,Arial" font-weight="300" font-size="5.4" fill="#eef3ff" letter-spacing=".34em"'+(live?' class="livepulse"':'')+'>'+lab+'</text>';
+      /* ЧИПЫ внизу: ближайший рост и ближайший слив */
+      function chip(x,y,col,t,anchor){var w=t.length*4.2+12, x0=anchor==='end'?x-w:x;
+        return '<rect x="'+x0.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="11" rx="5.5" fill="#05060f" opacity=".85"/>'+
+               '<rect x="'+x0.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="11" rx="5.5" fill="none" stroke="'+col+'" stroke-width=".5" opacity=".45"/>'+
+               '<circle cx="'+(x0+6).toFixed(1)+'" cy="'+(y+5.5)+'" r="1.4" fill="'+col+'"/>'+
+               '<text x="'+(x0+10.5).toFixed(1)+'" y="'+(y+7.6)+'" font-family="ui-monospace,Menlo,monospace" font-size="5.6" letter-spacing=".06em" fill="'+col+'">'+esc(t)+'</text>';}
+      if (nu) s+=chip(6,H-16,'#9fe6ff','рост '+num(nu.h),'start');
+      if (nd) s+=chip(W-6,H-16,'#ff9be0','слив '+num(nd.h),'end');
+      /* сильный день — в правом верхнем углу */
       var dow=(now.getDay()+6)%7, tom=(dow+1)%7;
       var st=S.days_best.indexOf(dow)>=0, stt=S.days_best.indexOf(tom)>=0;
-      var cap=(st||stt)?'<div class="cap">'+(st?'сильный день':'завтра сильный день')+'</div>':'';
+      if (st||stt) s+='<text x="'+(W-6)+'" y="12" text-anchor="end" font-family="ui-monospace,Menlo,monospace" font-size="5" letter-spacing=".26em" fill="#b9c6ff" opacity=".9">'+(st?'СИЛЬНЫЙ ДЕНЬ':'ЗАВТРА СИЛЬНЫЙ ДЕНЬ')+'</text>';
+      s+='</svg>';
     
       function tz(h,o){return pad((h+o+24)%24);}function sp(g,o){return g[0]===g[1]?tz(g[0],o):tz(g[0],o)+'–'+tz(g[1],o);}
       function row(c,n,segs,note){return segs.map(function(g,i){return '<tr class="'+c+'"><td>'+(i?'':n)+'</td><td>'+sp(g,0)+'</td><td>'+sp(g,7)+'</td><td>'+sp(g,13)+(i===0&&note?'<i>'+note+'</i>':'')+'</td></tr>';}).join('');}
@@ -842,7 +775,7 @@ SCHEME_JS = r"""
        row('up','пампы',S.pump,tz(S.pump_main,0)+' · '+S.pump_main_n+' соб.')+row('dead','мёртво',S.dead,'')+row('dn','слив',S.dump,'×'+S.dump_main_ratio+' к любому')+
        '</table><div class="foot">лучшие дни: <b>'+S.days_best.map(function(d){return DN[d];}).join(' · ')+'</b><br>'+
        'биткоин стоит <s>'+Rg.flat[0]+'/'+Rg.flat[1]+'</s> · растёт <u>'+Rg.up[0]+'/'+Rg.up[1]+'</u> · падает <s>'+Rg.down[0]+'/'+Rg.down[1]+'</s><br>отскоки на падении — с '+tz(S.bounce_hour,0)+' NY</div></div>';
-      var host = pick('#fib'); if (host) host.innerHTML = s + cap + full;
+      var host = pick('#fib'); if (host) host.innerHTML = s + full;
     }
 
     /* ЖИВОЙ СЧЁТЧИК (03.09). Он считается от часов браузера, прогон ему
