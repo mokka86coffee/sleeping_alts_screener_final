@@ -61,3 +61,6 @@
 2026-09-03 02:26:07 данные по 2026-09-01, ждём 2026-09-02 (возраст 3.0 ч)
 2026-09-03 02:26:07 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
 2026-09-03 02:36:38 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json
+2026-09-03 05:47:07 нет в архиве: 1 (hive)
+2026-09-03 05:47:07 добор новичков: hive
+2026-09-03 05:47:17 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json (прицельно, full_at не тронут)
