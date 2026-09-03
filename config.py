@@ -4,11 +4,11 @@
 Ключи живут в папке config/ проекта, файлом в её стиле именования:
 config/cryptoquant_config.json (рядом с coinglass_config,
 telegram_config и почтовым). Прежнее место config.json в корне
-понимается для совместимости. Модуль читает его и ПОДКЛАДЫВАЕТ значения в окружение
-(setdefault), поэтому все существующие потребители — coinglass_fetch
-(COINGLASS_KEY), cryptoquant_fetch и cq_scheduler (CQ_TOKEN), любые
-будущие — работают без переделки; явный export, если он есть,
-по-прежнему главнее файла.
+понимается для совместимости. С 03.09 (правило владельца: экспорт из
+окружения не используем) ключ читается ИЗ ФАЙЛА функцией get();
+coinglass_fetch уже на ней. load() оставлена для cryptoquant_fetch и
+cq_scheduler, которые пока читают os.environ: она кладёт значения из
+файла в окружение, и файл теперь главнее экспорта.
 
 Формат config/cryptoquant_config.json:
     {
@@ -24,10 +24,46 @@ import os
 from pathlib import Path
 
 
+def _spots(path: str | None = None) -> list[Path]:
+    here = Path(__file__).resolve().parent
+    return ([Path(path)] if path else
+            [Path("config/cryptoquant_config.json"),
+             here / "config" / "cryptoquant_config.json",
+             Path("config/config.json"),        # общий файл ключей
+             here / "config" / "config.json",
+             Path("config.json"),               # прежнее место
+             here / "config.json"])
+
+
+def _read(path: str | None = None) -> dict:
+    for src in _spots(path):
+        if not src.exists():
+            continue
+        try:
+            data = json.loads(src.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(data, dict):
+            return data
+    return {}
+
+
+def get(key: str, path: str | None = None) -> str:
+    """Ключ ТОЛЬКО ИЗ ФАЙЛА конфига (03.09, правило владельца: экспорт из
+    окружения не используем — переменная живёт в одном окне терминала,
+    у цикла и служб её нет, и сборщики молча простаивали сутки).
+    Нет файла или ключа — пустая строка."""
+    v = _read(path).get(key)
+    return v.strip() if isinstance(v, str) else ""
+
+
 def load(path: str | None = None) -> bool:
-    """Подложить ключи из config.json в окружение. Возвращает,
-    нашёлся ли файл. Тихая: нет файла или битый JSON — False без
-    исключений, окружение остаётся как было."""
+    """Положить ключи из файла в окружение — для потребителей, которые
+    ещё читают os.environ (cryptoquant_fetch, cq_scheduler). С 03.09
+    ФАЙЛ ГЛАВНЕЕ: значение из файла перекрывает экспорт, а не уступает
+    ему (было setdefault) — источник ключа один, спорить не с чем.
+    Новым потребителям читать через get(), окружение не трогать.
+    Возвращает, нашёлся ли файл; нет файла или битый JSON — False."""
     here = Path(__file__).resolve().parent
     spots = ([Path(path)] if path else
              [Path("config/cryptoquant_config.json"),
@@ -48,7 +84,7 @@ def load(path: str | None = None) -> bool:
             continue
         for k, v in data.items():
             if isinstance(v, str) and v.strip():
-                os.environ.setdefault(str(k), v.strip())
+                os.environ[str(k)] = v.strip()
         found = True
         break
     return found

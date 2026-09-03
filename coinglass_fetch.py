@@ -1,6 +1,6 @@
 """Сборщик Coinglass по журналу: одна команда — один срез.
 
-    export COINGLASS_KEY=...              # ключ НЕ в коде
+    config/config.json: {"COINGLASS_KEY": "..."}   # ключ НЕ в коде и НЕ в окружении
     python coinglass_fetch.py             # журнал + BTC: показать и НЕ писать
     python coinglass_fetch.py MAGMA HEMI  # только названные монеты
     python coinglass_fetch.py --write     # ещё и записать output/coinglass_fetch.json
@@ -90,9 +90,8 @@ def _bad_key(msg) -> bool:
 
 def _key_stop(err) -> str:
     return (f"ключ не принят Coinglass ({err}) — прогон остановлен, лимит "
-            f"не жжём. Задайте свежий В ЭТОМ окне терминала: export "
-            f"{KEY_ENV}=… — переменная живёт только в окне, где её задали; "
-            f"новое окно — задать заново")
+            f"не жжём. Впишите свежий в config/config.json полем "
+            f"\"{KEY_ENV}\"")
 
 
 EXCHANGES = "Binance,OKX,Bybit"     # как в пробнике
@@ -391,15 +390,21 @@ def _journal_coins() -> tuple[list[str], str | None]:
 
 
 def _key() -> str:
-    """Ключ ТОЛЬКО из окружения — правило владельца, теперь в коде буквально.
+    """Ключ ТОЛЬКО ИЗ ФАЙЛА config/config.json через config.get (03.09).
 
-    Запасной ход через output/coinglass_config.json убран 29.08 после
-    живого сбоя: переменная окружения живёт в том окне терминала, где
-    её задали, — в новом окне её нет, и запасной ход молча подсунул
-    старый отозванный ключ; сотня запросов ушла бы впустую. Честный
-    отказ сразу лучше тихой подмены ключа.
+    Окружение больше не читаем вовсе — правило владельца. История:
+    ключ из окружения жил в одном окне терминала, у цикла run.py --loop
+    его не было, и сборщик с 02.09 сутки отвечал «нет ключа», а прогон
+    молча пропускал шаг — весь этаж Coinglass простоял на вчерашнем
+    срезе, и живой пересчёт сюжетов подмешивал вчерашние же числа.
+    Старый запасной ход через output/coinglass_config.json не
+    возвращаем: ключ один, в config/, рядом с CQ_TOKEN.
     """
-    return os.environ.get(KEY_ENV, "").strip()
+    try:
+        from config import get as _cfg_get
+        return _cfg_get(KEY_ENV)
+    except ImportError:
+        return ""
 
 
 # ── сбор ────────────────────────────────────────────────────────────
@@ -458,9 +463,8 @@ def collect(symbols: list[str] | None = None, *,
     """
     key = key if key is not None else _key()
     if not key:
-        return {"error": f"нет ключа: задайте export {KEY_ENV}=… в этом "
-                         f"окне терминала — переменная живёт только в окне, "
-                         f"где её задали; новое окно — задать заново"}
+        return {"error": f"нет ключа: впишите \"{KEY_ENV}\" в "
+                         f"config/config.json (окружение не читается)"}
     coins = [_base_coin(s) for s in symbols] if symbols else None
     state: dict = {"at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                    "window": f"{WINDOW}x{INTERVAL}", "coins": {},
