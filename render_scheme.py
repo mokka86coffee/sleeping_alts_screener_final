@@ -723,12 +723,17 @@ SCHEME_JS = r"""
       var wins=[];ups.forEach(function(w){wins.push({h:w[0],e:w[0]+len(w),k:'up'});});dns.forEach(function(w){wins.push({h:w[0],e:w[0]+len(w),k:'dn'});});
       var inside=null;
       wins.forEach(function(w){var rel=(lh-w.h+24)%24; if(rel<w.e-w.h){inside={k:w.k,left:w.e-w.h-rel};}});
+      /* Ближайшее начало окна ДРУГОГО вида — даже если своё ещё идёт
+         (03.09: рост 19-21 и слив 21 пересекались, виджет показывал
+         «рост ещё 2 ч» за час до слива). Показываем то, что раньше:
+         конец своего окна или начало чужого. */
+      var ev=wins.map(function(w){return {h:w.h,k:w.k,dh:(w.h-lh+24)%24};}).sort(function(a,b){return a.dh-b.dh;});
       var nxt, inH, inM, live=false;
-      if(inside){ live=true; nxt={k:inside.k}; inH=Math.floor(inside.left); inM=Math.round((inside.left-inH)*60); }
-      else{
-        var ev=wins.map(function(w){return {h:w.h,k:w.k,dh:(w.h-lh+24)%24};}).sort(function(a,b){return a.dh-b.dh;});
-        nxt=ev[0]; inH=Math.floor(nxt.dh); inM=Math.round((nxt.dh-inH)*60);
-      }
+      if(inside){
+        var other=ev.filter(function(e){return e.k!==inside.k;})[0];
+        if(other && other.dh<inside.left){ nxt=other; inH=Math.floor(other.dh); inM=Math.round((other.dh-inH)*60); }
+        else { live=true; nxt={k:inside.k}; inH=Math.floor(inside.left); inM=Math.round((inside.left-inH)*60); }
+      } else { nxt=ev[0]; inH=Math.floor(nxt.dh); inM=Math.round((nxt.dh-inH)*60); }
     
       var nc = nxt.k==='up' ? '#9fe6ff' : '#ff9be0';
       var s='<svg viewBox="0 0 270 270"><defs>'+
@@ -840,7 +845,25 @@ SCHEME_JS = r"""
       var host = pick('#fib'); if (host) host.innerHTML = s + cap + full;
     }
 
-    build(); setInterval(build, 30000);
+    /* ЖИВОЙ СЧЁТЧИК (03.09). Он считается от часов браузера, прогон ему
+       не нужен. Но схема в оболочке живёт в скрытом окне, пока идут
+       другие экраны, и браузер там замораживает таймеры — при возврате
+       показывалось число с прошлого раза. Поэтому пересчёт: по
+       сигналу оболочки «показана», при возврате вкладки, и по таймеру
+       раз в 15 секунд. Каждый вызов под защитой — одно падение не
+       должно убить таймер. */
+    function safeBuild(){ try { build(); } catch (e) {} }
+    safeBuild();
+    setInterval(safeBuild, 15000);
+    try {
+      window.addEventListener('message', function(e){
+        if (e.data && e.data.type === 'ob:shown') safeBuild();
+      });
+      document.addEventListener('visibilitychange', function(){
+        if (!document.hidden) safeBuild();
+      });
+      window.addEventListener('focus', safeBuild);
+    } catch (e) {}
   })();
 
   /* ── киты: стая по монетам (31.08) ── */

@@ -335,9 +335,20 @@ def schedule_json(ev_up, ev_dn, reg, ncoins, path):
             else:
                 out.append([h, h])
         return out
-    pump = clusters([h for h in range(24) if hu[h] >= mean_u * 1.35])
-    dead = clusters([h for h in range(24) if hu[h] <= mean_u * 0.6])
-    dump = clusters([h for h in range(24) if hd[h] >= mean_d * 1.8])
+    pump_h = {h for h in range(24) if hu[h] >= mean_u * 1.35}
+    dump_h = {h for h in range(24) if hd[h] >= mean_d * 1.8}
+    # СПОРНЫЙ ЧАС (03.09): 21 NY был и в пампах, и в сливе, и виджет
+    # показывал «рост ещё 2 ч» за час до слива. Час отдаём тому, у кого
+    # он аномальнее относительно СВОЕЙ нормы: слив 16 при норме 5 бьёт
+    # памп 18 при норме 13.
+    for h in pump_h & dump_h:
+        if hd[h] / mean_d >= hu[h] / mean_u:
+            pump_h.discard(h)
+        else:
+            dump_h.discard(h)
+    pump = clusters(sorted(pump_h))
+    dead = clusters([h for h in range(24) if hu[h] <= mean_u * 0.6 and h not in dump_h])
+    dump = clusters(sorted(dump_h))
     reg_cnt = {}
     for key in ("flat", "up", "down"):
         reg_cnt[key] = [sum(1 for e in ev_up if reg.get(e[0], "flat") == key),
