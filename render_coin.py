@@ -97,13 +97,78 @@ def _journal() -> dict:
     return out
 
 
+def _root_json(name: str):
+    for p in (Path(name), Path(__file__).resolve().parent / name):
+        if p.exists():
+            try:
+                return json.loads(p.read_text(encoding="utf-8"))
+            except ValueError:
+                return None
+    return None
+
+
+def _history(stars: list[dict]) -> dict:
+    """Дневки за полгода из архива CryptoQuant cq_v2/<монета>.json — того
+    же, что кормит три горизонта (make_flow). Только закрытия и края дат:
+    полный архив на восемьдесят монет весил бы мегабайты. Нет файла —
+    холст рисуется по series звезды (две недели)."""
+    out: dict = {}
+    for st in stars:
+        t = str(st.get("t") or "").lower()
+        if not t:
+            continue
+        for p in (Path("cq_v2") / f"{t}.json",
+                  Path(__file__).resolve().parent / "cq_v2" / f"{t}.json"):
+            if not p.exists():
+                continue
+            try:
+                d = json.loads(p.read_text(encoding="utf-8"))
+                rows = sorted((r for r in d.get("ohlcv") or [] if r.get("close")),
+                              key=lambda r: r["datetime"])[-180:]
+                if len(rows) >= 14:
+                    out[t.upper()] = {"c": [round(float(r["close"]), 8) for r in rows],
+                                      "d0": rows[0]["datetime"][:10],
+                                      "d1": rows[-1]["datetime"][:10]}
+            except (ValueError, KeyError, TypeError):
+                pass
+            break
+    return out
+
+
+def _book() -> dict:
+    """leaders.json → позиции и вход журнала: вход, ход от входа, максимум,
+    с какого дня, своя ли (added_manually). Результат позиции мерится ОТ
+    ВХОДА — правило владельца."""
+    L = _root_json("leaders.json") or {}
+    out: dict = {}
+    for sym, r in L.items():
+        if not isinstance(r, dict):
+            continue
+        t = str(sym).upper().replace("USDT", "")
+        out[t] = {"entry": r.get("entry_price"), "chg": r.get("change_pct"),
+                  "maxChg": r.get("max_change_pct"), "minChg": r.get("min_change_pct"),
+                  "since": str(r.get("first_seen") or "")[:10],
+                  "manual": bool(r.get("added_manually")),
+                  "closed": bool(r.get("closed")), "closedPx": r.get("closed_price"),
+                  "upX": r.get("now_up_x") or r.get("up_x"), "maxUpX": r.get("max_up_x"),
+                  "trendDone": bool(r.get("trend_done")), "hits": r.get("hits")}
+    return out
+
+
 def render_coin(stars: list[dict], market: dict) -> str:
     """Тело документа единого экрана монеты. Данные вшиты в JSON."""
     sched = _read_json("schedule.json")
     whales = _read_json("whales.json") or {}
+    crowd = (_read_json("coinglass_crowd.json") or {}).get("coins") or {}
+    flow = {}
+    for r in (_read_json("flow_watch.json") or {}).get("coins") or []:
+        flow[str(r.get("sym") or "").upper().replace("USDT", "")] = {
+            "case": r.get("case"), "low": r.get("low"), "high": r.get("high")}
     blob = json.dumps({"stars": stars, "market": market,
                        "whales": whales.get("by_coin") or {},
-                       "sched": sched, "journal": _journal()},
+                       "sched": sched, "journal": _journal(),
+                       "hist": _history(stars), "book": _book(),
+                       "crowd": crowd, "flow": flow},
                       ensure_ascii=False, separators=(",", ":"))
     safe = blob.replace("</", "<\\/")
     return (COIN_HTML
@@ -137,11 +202,14 @@ COIN_HTML = r"""
 .leaders{position:absolute;inset:0;width:1440px;height:900px;pointer-events:none}
 .mono,.cap{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
 .hd{position:absolute;left:100px;top:40px;display:flex;align-items:baseline;gap:18px}
-.hd .t{font-family:var(--f-name);font-size:26px;font-weight:200;letter-spacing:.22em;color:#fff;text-shadow:0 0 18px rgba(255,255,255,.25)}
+.hd .t{font-family:var(--f-name);font-size:26px;font-weight:200;letter-spacing:.22em;color:#fff;text-shadow:0 0 18px rgba(255,255,255,.25);text-decoration:none;cursor:pointer;transition:.25s}
+.hd .t:hover{color:#ffd98a;text-shadow:0 0 22px rgba(245,169,58,.55)}
 .hd .ch{font-size:9px;color:#8fe0b5;letter-spacing:.04em}.hd .ch.dn{color:#ff9f8a}
 .hd .st{font-family:var(--f-cap);font-size:7px;letter-spacing:.34em;color:#7fb8a0;text-transform:uppercase}
 .hdr{position:absolute;right:100px;top:50px;text-align:right;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.22em;color:#7fb8a0;text-transform:uppercase}
 .hdr b{color:#dfe9e4;font-weight:400}
+.pos{position:absolute;left:100px;top:96px;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.22em;text-transform:uppercase;color:#7fb8a0;opacity:0;animation:fadein .9s ease .3s forwards}
+.pos b{font-weight:400;color:#e8fff4}.pos.mine{color:#f5a93a}.pos.mine b{color:#ffd98a}
 .back{position:absolute;left:100px;top:78px;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.28em;text-transform:uppercase;color:#7fb8a0;text-decoration:none;opacity:.8}
 .back:hover{color:#dfffee}
 /* пометки групп */
@@ -178,16 +246,23 @@ COIN_HTML = r"""
 .cbtn b{font-weight:400;color:#f5a93a}
 .coins:hover .cbtn{border-color:rgba(255,207,110,.7);color:#fff;box-shadow:0 0 24px rgba(245,169,58,.18)}
 .coins:after{content:"";position:absolute;left:-30px;right:-30px;top:100%;height:24px}
-.clist{position:absolute;right:0;top:calc(100% + 10px);display:flex;gap:18px;padding:14px 18px 16px;border-radius:12px;
+.clist{position:absolute;right:0;top:calc(100% + 10px);display:block;padding:14px 18px 12px;border-radius:12px;
   background:rgba(3,18,14,.82);border:1px solid rgba(127,232,176,.3);backdrop-filter:blur(14px);box-shadow:0 30px 80px rgba(0,0,0,.55);
   opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .25s,transform .25s;transition-delay:.35s}
 .clist:before{content:"";position:absolute;left:-20px;right:-20px;top:-18px;height:20px}
 .coins:hover .clist{opacity:1;transform:none;pointer-events:auto;transition-delay:0s}
 .clist .ch{position:absolute;left:18px;top:-9px;padding:0 6px;background:#03120e;font-family:var(--f-cap);font-size:7px;letter-spacing:.28em;text-transform:uppercase;color:#7fb8a0;white-space:nowrap}
-.clist .col{display:flex;flex-direction:column;gap:1px;min-width:84px}
-.clist a{font-family:var(--f-num);font-weight:300;font-size:12.5px;letter-spacing:.12em;color:#dfe9e4;padding:3px 8px;border-radius:6px;cursor:pointer;transition:.15s;border-left:1px solid transparent;text-decoration:none}
+.clist .cols{display:flex;gap:14px}
+.clist .col{display:flex;flex-direction:column;gap:1px;min-width:132px}
+.clist a{display:flex;align-items:center;gap:7px;font-family:var(--f-num);font-weight:300;font-size:12px;letter-spacing:.1em;color:#dfe9e4;padding:3px 8px;border-radius:6px;cursor:pointer;transition:.15s;border-left:1px solid transparent;text-decoration:none;white-space:nowrap}
+.clist a i{width:6px;height:6px;border-radius:50%;flex:0 0 6px;opacity:.9}
+.clist a span{min-width:64px}
+.clist a em{font-style:normal;font-size:9px;line-height:1;opacity:.9}.clist em.ld{color:#f5a93a}.clist em.ht{color:#ff8a70}.clist em.nw{color:#7fe8b0}.clist em.my{color:#ffd98a}
+.clist a u{text-decoration:none;font-family:var(--f-cap);font-size:6.5px;letter-spacing:.16em;text-transform:uppercase;border:1px solid;border-radius:8px;padding:1px 5px;opacity:.85;margin-left:auto}
 .clist a:hover{color:#f5a93a;background:rgba(245,169,58,.08);border-left-color:#f5a93a}
-.clist a.cur{color:#f5a93a}.clist a.cur:after{content:"·";margin-left:6px}
+.clist a.cur{color:#f5a93a}.clist a.cur span:after{content:" ·"}
+.cleg{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:10px;padding-top:9px;border-top:1px dashed rgba(127,232,176,.2);font-family:var(--f-cap);font-size:6.5px;letter-spacing:.18em;text-transform:uppercase;color:#7fb8a0;white-space:nowrap}
+.cleg b{display:inline-flex;align-items:center;gap:5px;font-weight:400}.cleg b i{width:6px;height:6px;border-radius:50%}.cleg s{flex:0 0 100%;height:0}.cleg em{font-style:normal;font-size:9px}
 /* часы и сияние */
 .clockbox{position:absolute;right:96px;bottom:44px;display:flex;align-items:flex-end;gap:14px}
 .cvessel{position:relative;width:100px;height:140px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
@@ -251,7 +326,7 @@ COIN_JS = r"""
   var STARS = (D.stars || []).filter(function (s) { return s && s.t; });
   var BY = {}; STARS.forEach(function (s) { BY[String(s.t).toUpperCase()] = s; });
   var NAMES = Object.keys(BY).sort();
-  var WH = D.whales || {}, SC = D.sched, JR = D.journal || {};
+  var WH = D.whales || {}, SC = D.sched, JR = D.journal || {}, HIST = D.hist || {}, BOOK = D.book || {}, CROWD = D.crowd || {}, FLOW = D.flow || {};
 
   // ── помощники ──
   function esc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -278,6 +353,7 @@ COIN_JS = r"""
     if (lv.note) pr.push(['реакция на уровень', lv.note]);
     if (s.stop) pr.push(['стоп', px4(s.stop) + (s.px && +s.stop >= +s.px ? ' — УЖЕ ПРОЙДЕН' : s.stopPct !== undefined ? ' · ' + pct(-Math.abs(s.stopPct)) + ' от цены' : '')]);
     if (s.liqZones && s.liqZones.length) pr.push(['ликвидации над ценой', s.liqZones.slice(0, 3).map(function (z) { return money(z.fuel) + ' @ ' + px4((z.lo + z.hi) / 2); }).join(' · ')]);
+    var fw = FLOW[String(s.t).toUpperCase()]; if (fw && fw.low && fw.high) pr.push(['коридор потока', px4(fw.low) + ' – ' + px4(fw.high) + (fw.case ? ' · случай ' + fw.case : '')]);
     if (has(s.rangePos)) pr.push(['в диапазоне', Math.round(s.rangePos * (s.rangePos <= 1 ? 100 : 1)) + '%']);
     if (has(s.speedAtr)) pr.push(['скорость хода', f(s.speedAtr) + ' ATR']);
     g.price = { cap: 'где цена', num: has(s.lifeDrop) ? '−' + Math.round(s.lifeDrop) + '%' : (has(s.up) ? '+' + Math.round(s.up) + '%' : '—'),
@@ -323,6 +399,7 @@ COIN_JS = r"""
     if (s.liqFuel && (s.liqFuel.below || s.liqFuel.above)) lr.push(['в капитализации', (s.liqFuel.below ? 'снизу ' + (+s.liqFuel.below * 100).toFixed(1) + '%' : '') + (s.liqFuel.above ? ' · сверху ' + (+s.liqFuel.above * 100).toFixed(1) + '%' : '') + ' — оценка по модели, не наблюдение']);
     if (s.liq24h && (s.liq24h.long || s.liq24h.short)) lr.push(['ликвидации за сутки', 'лонгов ' + (money(s.liq24h.long) || '$0') + ' против шортов ' + (money(s.liq24h.short) || '$0')]);
     if (s.vxDir) lr.push(['топливо', 'вортекс ' + (s.vxDir === 'up' ? 'вверх' : s.vxDir === 'down' ? 'вниз' : s.vxDir) + (has(s.vxSpread) ? ' · разрыв ' + f(s.vxSpread) : '') + (s.vxAgo ? ' · ' + s.vxAgo + ' ч назад' : '')]);
+    var cw = CROWD[String(s.t).toUpperCase()]; if (cw && cw.crowd) lr.push(['толпа', 'в лонге ' + cw.crowd.longPct + '%' + (has(cw.crowd.chg1d) ? ' (за сутки ' + pct(cw.crowd.chg1d) + ')' : '') + (cw.top ? ' · топы ' + cw.top.longPct + '%' : '')]);
     var w = WH[String(s.t).toUpperCase()] || WH[String(s.t)];
     if (w) lr.push(['киты Hyperliquid', 'лонг ' + (money(w.long) || '$0') + ' против шорта ' + (money(w.short) || '$0') + (w.n ? ' · позиций ' + w.n : '')]);
     var levNum = has(cg.oiChgPct) ? pct(cg.oiChgPct) : (has(s.fund) ? (+s.fund).toFixed(3) + '%' : '—');
@@ -332,6 +409,8 @@ COIN_JS = r"""
     if (rep.line) mr.push(['репутация монеты', rep.line]);
     if (has(s.rallies)) mr.push(['отскоки', s.rallies + ' всего' + (has(s.heldRallies) ? ' · удержали ' + s.heldRallies : '')]);
     if (has(s.days)) mr.push(['в журнале', s.days + ' дн' + (has(s.hitCount) ? ' · попаданий ' + s.hitCount : '') + (has(s.runsSeen) ? ' · пробегов ' + s.runsSeen : '')]);
+    var bk = BOOK[String(s.t).toUpperCase()];
+    if (bk && bk.entry) mr.push([bk.manual ? 'твоя позиция' : 'вход журнала', px4(bk.entry) + ' с ' + bk.since.slice(8, 10) + '.' + bk.since.slice(5, 7) + (has(bk.chg) ? ' · ' + pct(bk.chg) + ' от входа' : '') + (has(bk.maxChg) ? ' · максимум ' + pct(bk.maxChg) : '') + (bk.closed ? ' · ЗАКРЫТА' + (bk.closedPx ? ' по ' + px4(bk.closedPx) : '') : '')]);
     var j = JR[String(s.t).toUpperCase()];
     if (j) {
       mr.push(['журнал прогнозов', 'записей ' + j.n + ' · смен ' + j.switches + ' · с ' + j.firstAt + ' по ' + px4(j.first)]);
@@ -456,7 +535,9 @@ COIN_JS = r"""
   function build(tick) {
     var s = BY[tick]; if (!s) { stage.innerHTML = '<div class="empty">монета ' + esc(tick) + ' не в журнале</div>'; return; }
     var g = groups(s), rnd = seeded(tick.split('').reduce(function (a, c) { return a + c.charCodeAt(0); }, 7));
-    var ser = (s.series || []).map(Number).filter(function (v) { return v > 0; });
+    var H = HIST[String(s.t).toUpperCase()], ser, d0 = null, d1 = null;
+    if (H && H.c && H.c.length >= 14) { ser = H.c.slice(); d0 = H.d0; d1 = H.d1; if (s.px && ser[ser.length - 1] !== +s.px) ser.push(+s.px); }
+    else ser = (s.series || []).map(Number).filter(function (v) { return v > 0; });
     if (ser.length < 2 && s.px) ser = [s.px, s.px];
     var lv = s.levels || {}, extra = [];
     if (lv.above && lv.above.price) extra.push(+lv.above.price); if (lv.below && lv.below.price) extra.push(+lv.below.price); if (s.stop) extra.push(+s.stop);
@@ -466,6 +547,7 @@ COIN_JS = r"""
     var P = ser.map(function (v, i) { return [X0 + i * (X1 - X0) / (ser.length - 1), sy(v)]; });
     var days = ser.length, today = new Date();
     function dlab(i) { var d = new Date(today.getTime() - (days - 1 - i) * 864e5); return pad(d.getDate()) + '.' + pad(d.getMonth() + 1); }
+    if (d0) { var _d0 = new Date(d0), _d1 = new Date(d1); dlab = function (i) { var d = new Date(_d0.getTime() + (_d1.getTime() - _d0.getTime()) * i / Math.max(1, days - 1)); return pad(d.getDate()) + '.' + pad(d.getMonth() + 1); }; }
     // плита
     var slab = '<defs><filter id="blur3" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="3"/></filter><filter id="blur6" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="6"/></filter><filter id="blur12" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="12"/></filter><filter id="blur30" x="-40%" y="-80%" width="180%" height="260%"><feGaussianBlur stdDeviation="30"/></filter>' +
       '<linearGradient id="slab" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1fc47c" stop-opacity=".20"/><stop offset=".5" stop-color="#118a5c" stop-opacity=".15"/><stop offset="1" stop-color="#065a3b" stop-opacity=".14"/></linearGradient>' +
@@ -493,16 +575,18 @@ COIN_JS = r"""
     slab += '<line x1="' + (X0 - 26) + '" y1="' + Y0 + '" x2="' + (X0 - 26) + '" y2="' + (Y1 + 4) + '" stroke="' + GOLD + '" stroke-width=".8" opacity=".5"/><path d="M' + (X0 - 26) + ',' + Y1 + ' l-3.5,6 h7 z" fill="' + GOLD + '" opacity=".6"/></g>';
     // решение внутри плиты
     var DX = X0 + 44, DY = Y0 - 146, dec = g.decision;
-    slab += '<g class="an dec"><rect x="' + (DX - 26) + '" y="' + (DY - 30) + '" width="300" height="158" rx="12" fill="#03110c" opacity=".55" filter="url(#blur12)"/></g><g class="an dec"><g opacity=".78">' +
+    slab += '<g class="an dec"><rect x="' + (DX - 26) + '" y="' + (DY - 30) + '" width="300" height="158" rx="12" fill="#03110c" opacity=".38" filter="url(#blur12)"/>' +
+      '<rect x="' + (DX - 22) + '" y="' + (DY - 26) + '" width="292" height="150" rx="10" fill="#041d15" opacity=".42"/>' +
+      '<rect x="' + (DX - 22) + '" y="' + (DY - 26) + '" width="292" height="150" rx="10" fill="none" stroke="#7ff0b8" stroke-width=".6" opacity=".22"/></g><g class="an dec"><g opacity=".78">' +
       '<text x="' + DX + '" y="' + DY + '" class="cap" font-size="7" letter-spacing=".34em" fill="#9fd8bf">РЕШЕНИЕ</text>';
     [[8, .12], [3, .24]].forEach(function (q) { slab += '<text x="' + DX + '" y="' + (DY + 38) + '" font-family="Jost,Inter" font-weight="200" font-size="34" letter-spacing=".2em" fill="none" stroke="#e0891f" stroke-width="' + q[0] + '" opacity="' + q[1] + '">' + esc(dec.verdict) + '</text>'; });
     slab += '<text x="' + DX + '" y="' + (DY + 38) + '" font-family="Jost,Inter" font-weight="200" font-size="34" letter-spacing=".2em" fill="' + GOLD + '">' + esc(dec.verdict) + '</text>';
-    slab += '<text x="' + DX + '" y="' + (DY + 58) + '" font-family="Inter" font-size="10" fill="#e9fff4" opacity=".9">' + esc(String(dec.why).slice(0, 52)) + '</text>';
-    slab += '<text x="' + DX + '" y="' + (DY + 72) + '" font-family="Inter" font-size="8.5" fill="#9fd8bf" opacity=".85">' + esc(dec.exit ? ('снимется: ' + dec.exit).slice(0, 64) : '') + '</text>';
-    slab += '<text x="' + DX + '" y="' + (DY + 84) + '" font-family="Inter" font-size="8.5" fill="#9fd8bf" opacity=".85">' + esc(dec.hurry ? ('торопит ' + dec.hurry).slice(0, 64) : '') + '</text>';
+    slab += '<text x="' + DX + '" y="' + (DY + 58) + '" font-family="Inter" font-size="10" fill="#e9fff4" opacity=".9">' + esc(String(dec.why).slice(0, 46)) + '</text>';
+    slab += '<text x="' + DX + '" y="' + (DY + 72) + '" font-family="Inter" font-size="8.5" fill="#9fd8bf" opacity=".85">' + esc(dec.exit ? ('снимется: ' + dec.exit).slice(0, 56) : '') + '</text>';
+    slab += '<text x="' + DX + '" y="' + (DY + 84) + '" font-family="Inter" font-size="8.5" fill="#9fd8bf" opacity=".85">' + esc(dec.hurry ? ('торопит ' + dec.hurry).slice(0, 56) : '') + '</text>';
     slab += '<line x1="' + DX + '" y1="' + (DY + 95) + '" x2="' + (DX + 250) + '" y2="' + (DY + 95) + '" stroke="#9fd8bf" stroke-width=".5" opacity=".3"/>';
-    slab += '<text x="' + DX + '" y="' + (DY + 108) + '" class="cap" font-size="6.5" letter-spacing=".3em" fill="#7fe8b0">ЗА</text><text x="' + (DX + 44) + '" y="' + (DY + 108) + '" font-family="Inter" font-size="8.5" fill="#bfffe0" opacity=".9">' + esc((dec.pro.join(' · ') || 'нет').slice(0, 60)) + '</text>';
-    slab += '<text x="' + DX + '" y="' + (DY + 121) + '" class="cap" font-size="6.5" letter-spacing=".3em" fill="#ffb59f">ПРОТИВ</text><text x="' + (DX + 44) + '" y="' + (DY + 121) + '" font-family="Inter" font-size="8.5" fill="#ffd9c8" opacity=".9">' + esc((dec.con.join(' · ') || 'нет').slice(0, 60)) + '</text></g></g>';
+    slab += '<text x="' + DX + '" y="' + (DY + 108) + '" class="cap" font-size="6.5" letter-spacing=".3em" fill="#7fe8b0">ЗА</text><text x="' + (DX + 44) + '" y="' + (DY + 108) + '" font-family="Inter" font-size="8.5" fill="#bfffe0" opacity=".9">' + esc((dec.pro.join(' · ') || 'нет').slice(0, 52)) + '</text>';
+    slab += '<text x="' + DX + '" y="' + (DY + 121) + '" class="cap" font-size="6.5" letter-spacing=".3em" fill="#ffb59f">ПРОТИВ</text><text x="' + (DX + 44) + '" y="' + (DY + 121) + '" font-family="Inter" font-size="8.5" fill="#ffd9c8" opacity=".9">' + esc((dec.con.join(' · ') || 'нет').slice(0, 52)) + '</text></g></g>';
     // россыпь значков
     [[200, 190, 'sq'], [420, 120, 'plus'], [560, 240, 'dia'], [700, 160, 'chev'], [330, 250, 'sq']].forEach(function (d) { var inn = { sq: '<rect x="0" y="0" width="10" height="10"/>', plus: '<path d="M5 0 V10 M0 5 H10"/>', chev: '<path d="M0 2 L5 7 L10 2"/>', dia: '<path d="M5 0 L10 5 L5 10 L0 5 Z"/>' }[d[2]]; slab += '<g fill="none" stroke="' + GOLD + '" stroke-width="1" opacity=".5" transform="translate(' + d[0] + ',' + d[1] + ') scale(1.4)">' + inn + '</g>'; });
     // пометки и выноски
@@ -518,14 +602,28 @@ COIN_JS = r"""
     var dzone = '<div class="dzone" style="left:' + Math.round(d1[0]) + 'px;top:' + Math.round(d1[1]) + 'px;width:' + Math.round(d2[0] - d1[0]) + 'px;height:' + Math.round(d2[1] - d1[1]) + 'px">' + cardHtml(g.decision) + '</div>';
     // шапка, монеты, часы
     var chg = has(s.p1d) ? (+s.p1d) : null;
-    var hd = '<div class="hd"><span class="t">' + esc(s.t) + '</span>' + (chg !== null ? '<span class="ch' + (chg < 0 ? ' dn' : '') + '">' + pct(chg) + ' за сутки</span>' : '') + (s.pattern ? '<span class="st">' + esc(s.pattern) + '</span>' : '') + '</div>';
+    var bk2 = BOOK[String(s.t).toUpperCase()], pos = '';
+    if (bk2 && bk2.entry) pos = '<div class="pos' + (bk2.manual ? ' mine' : '') + '">' + (bk2.manual ? 'твоя позиция' : 'вход журнала') + ' <b>' + px4(bk2.entry) + '</b>' + (has(bk2.chg) ? ' · <b>' + pct(bk2.chg) + '</b> от входа' : '') + (bk2.upX && +bk2.upX >= 1.5 ? ' · ×' + (+bk2.upX).toFixed(1) : '') + (bk2.closed ? ' · закрыта' : '') + '</div>';
+    // имя монеты — ссылка на TradingView, бессрочный фьючерс Binance (суффикс .P), в новой вкладке
+    var tvSym = 'BINANCE:' + String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase().replace(/[^A-Z0-9]/g, '') + '.P';
+    var hd = '<div class="hd"><a class="t" href="https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(tvSym) + '" target="_blank" rel="noopener" title="открыть в TradingView · Binance фьючерс">' + esc(s.t) + '</a>' + (chg !== null ? '<span class="ch' + (chg < 0 ? ' dn' : '') + '">' + pct(chg) + ' за сутки</span>' : '') + (s.pattern ? '<span class="st">' + esc(s.pattern) + '</span>' : '') + '</div>' + pos;
     var hdr = '<div class="hdr">' + (s.cap ? 'капитализация <b>' + esc(s.cap) + '</b>' : '') + (has(s.v1d) ? ' · объём к норме <b>×' + (+s.v1d).toFixed(1) + '</b>' : '') + (has(s.fund) ? ' · фандинг <b>' + (+s.fund).toFixed(3) + '%</b>' : '') + '</div>';
-    var cols = '', per = 14; for (i = 0; i < NAMES.length; i += per) cols += '<div class="col">' + NAMES.slice(i, i + per).map(function (c) { return '<a href="#' + esc(c) + '" class="' + (c === tick ? 'cur' : '') + '">' + esc(c) + '</a>'; }).join('') + '</div>';
-    var coins = '<div class="coins"><div class="cbtn"><i></i>монеты <b>' + NAMES.length + '</b></div><div class="clist"><div class="ch">монеты журнала · по алфавиту</div>' + cols + '</div></div>';
+    // значки — как в зале: цвет кейса FLOW (GATE_CASE), группа книги (в работе · брать · выходить), лидер, горячая, новая, своя
+    var CASE_C = { hidden: ['#d9b96e', 'скрытый спрос'], spring: ['#6b7ae0', 'пружина'], churn: ['#8b93c4', 'перемол'], fuel: ['#f0a878', 'топливо'], dormant: ['#5c6598', 'спячка'], taker: ['#c98ce0', 'смена агрессора'], leverage: ['#ec6f5e', 'плечо'] };
+    var GRP_C = { take: ['#6b7ae0', 'брать'], trade: ['#4fc98a', 'в работе'], exit: ['#ec6f5e', 'выходить'] };
+    function grpOf(z) { var inBook = !!(z.book && (z.book.usd || z.book.px)); if (inBook) return (z.act && z.act.group) === 'exit' ? 'exit' : 'trade'; return (z.act && z.act.act) === 'брать' ? 'take' : null; }
+    function marks(z) { var m = ''; if (z.lead) m += '<em class="ld" title="лидер прогона">★</em>'; if (z.hot) m += '<em class="ht" title="горячая: оборот выше порога">●</em>'; if (z.new) m += '<em class="nw" title="новая в журнале">✦</em>'; var b = BOOK[String(z.t).toUpperCase()]; if (b && b.manual && !b.closed) m += '<em class="my" title="твоя позиция">◆</em>'; return m; }
+    var cols = '', per = 14;
+    for (i = 0; i < NAMES.length; i += per) cols += '<div class="col">' + NAMES.slice(i, i + per).map(function (c) {
+      var z = BY[c], cc = CASE_C[z.st] || ['#7b83b8', 'без кейса'], gr = grpOf(z);
+      return '<a href="#' + esc(c) + '" class="' + (c === tick ? 'cur' : '') + '"><i style="background:' + cc[0] + ';box-shadow:0 0 6px ' + cc[0] + '" title="' + cc[1] + '"></i><span>' + esc(c) + '</span>' + marks(z) + (gr ? '<u style="color:' + GRP_C[gr][0] + ';border-color:' + GRP_C[gr][0] + '">' + GRP_C[gr][1] + '</u>' : '') + '</a>';
+    }).join('') + '</div>';
+    var legend = '<div class="cleg">' + Object.keys(CASE_C).map(function (k) { return '<b><i style="background:' + CASE_C[k][0] + '"></i>' + CASE_C[k][1] + '</b>'; }).join('') + '<s></s><b><em class="ld">★</em>лидер</b><b><em class="ht">●</em>горячая</b><b><em class="nw">✦</em>новая</b><b><em class="my">◆</em>твоя</b></div>';
+    var coins = '<div class="coins"><div class="cbtn"><i></i>монеты <b>' + NAMES.length + '</b></div><div class="clist"><div class="ch">монеты журнала · по алфавиту · цвет — кейс, метка — группа книги</div><div class="cols">' + cols + '</div>' + legend + '</div></div>';
     var cs = clockState(), clock = cs ? vessel(cs) : '';
     var aura = '<div class="aura up' + (cs && cs.kind === 'up' ? (cs.live ? ' on' : cs.soon ? ' soon' : '') : '') + '"></div><div class="aura dn' + (cs && cs.kind === 'dn' ? (cs.live ? ' on' : cs.soon ? ' soon' : '') : '') + '"></div>';
     stage.innerHTML = '<div class="beam"></div><div class="floor"></div>' + aura + '<div class="slab"><svg viewBox="0 0 ' + SW + ' ' + SH + '">' + slab + '</svg></div><svg class="leaders" viewBox="0 0 1440 900">' + leaders + '</svg>' +
-      hd + hdr + '<a class="back" href="brief.html">← схема</a>' + coins + notes + dzone + clock + '<div class="replay" id="replay">заново</div><div class="legend">' + (ser.length > 2 ? 'цена · ' + days + ' дневок' : 'ряда цены нет') + ' · наведи на пометку — полная группа</div>' +
+      hd + hdr + '<a class="back" href="brief.html">← схема</a>' + coins + notes + dzone + clock + '<div class="replay" id="replay">заново</div><div class="legend">' + (ser.length > 2 ? 'цена · ' + days + ' дневок' + (d0 ? ' · архив' : ' · звезда') : 'ряда цены нет') + ' · наведи на пометку — полная группа</div>' +
       '<div class="atmo"><div class="vig"></div><svg><filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter><rect width="100%" height="100%" filter="url(#grain)"/></svg></div>';
     root.getElementById('replay').onclick = function () { build(tick); };
     fit();
