@@ -1008,8 +1008,13 @@ def build_stars(candidates: list[Candidate],
                 # передавалось вовсе. Пульс пишется каждым прогоном,
                 # «prev» — это и есть прошлый час. Суточные оставляем:
                 # у прочих переходов горизонт день.
-                _pv = (pulse_deltas(sym) or {}).get("prev") or {}
+                _pd = pulse_deltas(sym) or {}
+                _pv = _pd.get("prev") or {}
+                _p6 = _pd.get("h6") or {}
                 live = {"delta_usd": cg.get("cvdChg"),
+                        # шесть часов — для «старта с места» (03.09)
+                        "px_chg_6h": _p6.get("price_pct"),
+                        "oi_chg_6h": _p6.get("oi_pct"),
                         "px_chg_pct": s.get("p1d"),
                         "funding": s.get("fund"),
                         "vol_mult": s.get("v1d"),
