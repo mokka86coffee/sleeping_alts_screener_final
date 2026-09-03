@@ -1018,6 +1018,15 @@ def run_once(args: argparse.Namespace) -> int:
                 from forecast_log import score as _fc_score
                 log(f"→ Журнал прогнозов: записано {_fc_rec(_rep)} · "
                     f"исходов проставлено {_fc_score()}")
+                # Что изменилось за прогон — появился / сменился / осечка
+                # (03.09): в лог и в output/forecast_changes.json, откуда
+                # рассыльщики письма и Телеграма берут абзац готовым.
+                try:
+                    from forecast_diff import write as _fc_diff
+                    _chg = _fc_diff()
+                    log("→ " + (_chg.get("text") or "прогнозы: пусто").replace("\n", "\n   "))
+                except Exception as _e:
+                    _issue("Изменения прогнозов", f"{type(_e).__name__}: {_e}")
             except Exception as _e:
                 _issue("Журнал прогнозов", f"{type(_e).__name__}: {_e}")
         else:

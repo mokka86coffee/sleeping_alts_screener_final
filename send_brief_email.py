@@ -143,6 +143,22 @@ def build_letter(stars: list, market: dict) -> tuple[str, str]:
     add(SITE_URL)
     add("")
 
+    # ── Прогнозы за прогон (03.09, просьба владельца): появился /
+    # сменился / осечка — первым абзацем, до окна рынка. Один источник
+    # с журналом прогнозов — output/forecasts.jsonl через forecast_diff;
+    # то же самое уходит в Телеграм, потому что он берёт это письмо.
+    _fc_text, _fc_miss = "", 0
+    try:
+        from forecast_diff import changes as _fc_changes, text as _fc_txt
+        _ch = _fc_changes(BASE_DIR / "output" / "forecasts.jsonl")
+        _fc_text = _fc_txt(_ch)
+        _fc_miss = len(_ch.get("miss") or [])
+    except Exception as _e:
+        _fc_text = f"прогнозы за прогон: не посчитаны ({type(_e).__name__})"
+    if _fc_text:
+        add(_fc_text)
+        add("")
+
     # ── Окно рынка ──
     score, total = p.get("score"), p.get("total") or p.get("of")
     head = "ОКНО РЫНКА"
@@ -286,7 +302,8 @@ def build_letter(stars: list, market: dict) -> tuple[str, str]:
 
     subject = (f"Скринер · прогон {ts} · "
                f"брать {len(g['take'])} / в работе {len(g['work'])} / "
-               f"закрыть {len(g['close'])}")
+               f"закрыть {len(g['close'])}"
+               + (f" · осечек {_fc_miss}" if _fc_miss else ""))
     return subject, "\n".join(lines)
 
 
