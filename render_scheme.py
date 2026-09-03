@@ -157,18 +157,19 @@ SCHEME_HTML = """
    + добрал, ✓ закрыл, пусто — открыл. Размер круга — деньги. ── */
 /* ── ЧАСЫ · ЗАРЯД (03.09 вечер, выбран из шести языков) ──
    Сосуд наполняется к ближайшему событию: пусто — двенадцать часов до
-   него, полно — оно идёт. Цвет жидкости — вид события (бирюза рост,
-   розовый слив). Цифра «до события» внутри, снизу два чипа со временем
-   ближайшего роста и слива. Волна на поверхности живёт — только
-   transform, композитор, дёшево для планшета. */
+   него, полно — оно идёт. Ждём — вода в гамме схемы (рост синий, как
+   кристалл; слив роза), цифра главная. Идёт — сосуд включается: рост
+   зеленоватый, слив красный, ореол дышит, главным словом «ИДЁТ».
+   Под сосудом одной строкой ближайший рост и слив. Волна и дыхание —
+   только transform, композитор, дёшево для планшета. */
 .fib{position:absolute;left:30px;top:40px;width:150px;z-index:5;font-family:var(--mono)}
 .fib svg{display:block;width:150px;height:150px;overflow:visible}
 .fib .w1{animation:fibwave 9s linear infinite}
 .fib .w2{animation:fibwave 14s linear infinite reverse}
 @keyframes fibwave{to{transform:translateX(-92px)}}
+.fib .breath{animation:fibbreath 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes fibbreath{0%,100%{opacity:.28;transform:scale(1)}50%{opacity:.42;transform:scale(1.04)}}
 .fib .colon{animation:pulse 2s ease-in-out infinite}
-.fib .livepulse{animation:lp 1.6s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
-@keyframes lp{0%,100%{transform:scale(1);opacity:.8}50%{transform:scale(1.25);opacity:.5}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
 /* полная таблица при наведении */
@@ -704,67 +705,85 @@ SCHEME_JS = r"""
         else { live=true; nxt={k:inside.k}; inH=Math.floor(inside.left); inM=Math.round((inside.left-inH)*60); }
       } else { nxt=ev[0]; inH=Math.floor(nxt.dh); inM=Math.round((nxt.dh-inH)*60); }
     
-      var nc = nxt.k==='up' ? '#9fe6ff' : '#ff9be0';
+      /* ЦВЕТ ВОДЫ: ждём — в гамме схемы (рост синий, как кристалл; слив
+         приглушённая роза); идёт — сосуд включается: рост зеленоватый,
+         слив красный (решение владельца 03.09 вечером). */
+      var WATER = {
+        'up0': {nc:'#a6bcff', top:'#a6bcff', body:'#6b82e0', deep:'#3a4aa6', halo:'#7f93e8'},
+        'up1': {nc:'#b9f5d3', top:'#a8f0c8', body:'#4fc08a', deep:'#1f6e52', halo:'#6fd9a8'},
+        'dn0': {nc:'#f1b3e0', top:'#f1b3e0', body:'#b878cc', deep:'#6a3f8c', halo:'#c48ad6'},
+        'dn1': {nc:'#ffc4b8', top:'#ffb3a7', body:'#e0605a', deep:'#7a2a30', halo:'#e07a78'}};
+      var wtr = WATER[nxt.k+(live?'1':'0')], nc = wtr.nc;
+      var LAV='#c3cdf2', DIMT='#8f98c8', INK='#e8ecfb';
       var W=150, H=150, cx=66, cy=70, r=44, L=2*r+4;
       /* ЗАРЯД: доля наполнения. Двенадцать часов до события — пусто,
          событие идёт — полно. */
       var left=inH+inM/60, fill = live ? .97 : Math.max(.05, Math.min(.97, 1-left/12));
       var lvl = cy + r - fill*2*r;
-      /* ближайший рост и ближайший слив — для чипов внизу */
       function nearest(ws){var best=null;ws.forEach(function(w){var d=(w[0]-lh+24)%24;if(best===null||d<best.d)best={d:d,h:w[0]};});return best;}
       var nu=nearest(ups), nd=nearest(dns);
-      function num(x,y){return pad(Math.round(x)%24)+':00';}
-      function esc(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+      function hh(x){return pad(Math.round(x)%24)+':00';}
       var s='<svg viewBox="0 0 '+W+' '+H+'"><defs>'+
-       '<filter id="fibSoft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3"/></filter>'+
        '<filter id="fibGlow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.6"/></filter>'+
-       '<linearGradient id="fibNum" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".55" stop-color="#e9f2ff"/><stop offset="1" stop-color="'+nc+'"/></linearGradient>'+
-       '<radialGradient id="fibDisc" cx="50%" cy="34%" r="72%"><stop offset="0" stop-color="#0b0e22"/><stop offset=".65" stop-color="#05060f"/><stop offset="1" stop-color="#03040b"/></radialGradient>'+
-       '<radialGradient id="fibBlack" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#000"/><stop offset=".78" stop-color="#000"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>'+
-       '<linearGradient id="fibLiq" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="'+nc+'" stop-opacity=".85"/><stop offset=".25" stop-color="'+nc+'" stop-opacity=".5"/><stop offset="1" stop-color="#2a4a9a" stop-opacity=".35"/></linearGradient>'+
-       '<linearGradient id="fibRim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".28"/><stop offset=".5" stop-color="#ffffff" stop-opacity=".06"/><stop offset="1" stop-color="#ffffff" stop-opacity=".12"/></linearGradient>'+
+       '<filter id="fibHalo" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="7"/></filter>'+
+       '<linearGradient id="fibNum" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset=".6" stop-color="#eef2ff"/><stop offset="1" stop-color="'+nc+'"/></linearGradient>'+
+       '<radialGradient id="fibAura" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="'+wtr.halo+'" stop-opacity=".30"/><stop offset=".55" stop-color="'+wtr.halo+'" stop-opacity=".14"/><stop offset="1" stop-color="'+wtr.halo+'" stop-opacity="0"/></radialGradient>'+
+       '<radialGradient id="fibDisc" cx="50%" cy="30%" r="75%"><stop offset="0" stop-color="#2a3058"/><stop offset=".7" stop-color="#1a1e40"/><stop offset="1" stop-color="#141733"/></radialGradient>'+
+       '<linearGradient id="fibLiq" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="'+wtr.top+'" stop-opacity=".9"/><stop offset=".3" stop-color="'+wtr.body+'" stop-opacity=".82"/><stop offset="1" stop-color="'+wtr.deep+'" stop-opacity=".78"/></linearGradient>'+
+       '<linearGradient id="fibRim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity=".34"/><stop offset=".5" stop-color="#ffffff" stop-opacity=".08"/><stop offset="1" stop-color="#ffffff" stop-opacity=".16"/></linearGradient>'+
        '<clipPath id="fibClip"><circle cx="'+cx+'" cy="'+cy+'" r="'+r+'"/></clipPath>'+
        '</defs>';
-      /* тёмная подложка и стеклянный диск */
-      s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+8)+'" fill="url(#fibBlack)" opacity=".7"/>';
-      s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="url(#fibDisc)"/>';
+      /* ореол как у кристалла (чёрной подложки нет — от неё был резкий переход) */
+      s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+22)+'" fill="url(#fibAura)"/>';
+      if (live){
+        s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+3)+'" fill="none" stroke="'+wtr.halo+'" stroke-width="10" opacity=".28" filter="url(#fibHalo)" class="breath"/>';
+        s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+(r+2.5)+'" fill="none" stroke="'+nc+'" stroke-width="1" opacity=".5"/>';
+      }
+      s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="url(#fibDisc)" opacity=".9"/>';
       /* ЖИДКОСТЬ: две волны, каждая шире диска на два периода, чтобы
          бег по кругу (translateX на длину L) был бесшовным — три
          полных периода на длину L. Обрезаны кругом. */
       s+='<g clip-path="url(#fibClip)">';
-      [[2.2,0,.9,'w1'],[1.6,1.9,.55,'w2']].forEach(function(wv){
+      [[2.2,0,.95,'w1'],[1.6,1.9,.6,'w2']].forEach(function(wv){
         var amp=wv[0], ph=wv[1], op=wv[2], x0=cx-r-2;
         var d='M'+(x0-L).toFixed(1)+','+lvl.toFixed(1);
         for(var k=0;k<=180;k++){var x=x0-L+k*(3*L)/180; var y=lvl+Math.sin((x-x0)/L*Math.PI*2*3+ph)*amp; d+=' L'+x.toFixed(1)+','+y.toFixed(1);}
         d+=' L'+(x0+2*L).toFixed(1)+','+(cy+r+2)+' L'+(x0-L).toFixed(1)+','+(cy+r+2)+' Z';
         s+='<g class="'+wv[3]+'"><path d="'+d+'" fill="url(#fibLiq)" opacity="'+op+'"/>'+
-           '<path d="'+d+'" fill="none" stroke="'+nc+'" stroke-width=".8" opacity="'+(op*.8).toFixed(2)+'" filter="url(#fibGlow)"/></g>';
+           '<path d="'+d+'" fill="none" stroke="#ffffff" stroke-width=".8" opacity="'+(op*.55).toFixed(2)+'" filter="url(#fibGlow)"/></g>';
       });
+      s+='<ellipse cx="'+(cx-18)+'" cy="'+(lvl+6).toFixed(1)+'" rx="14" ry="3" fill="#fff" opacity=".10" filter="url(#fibGlow)"/>';
       [[cx-18,lvl+14,1.2],[cx+11,lvl+26,.9],[cx-4,lvl+38,1.4],[cx+22,lvl+9,.7]].forEach(function(b){
-        if (b[1] < cy+r) s+='<circle cx="'+b[0].toFixed(1)+'" cy="'+b[1].toFixed(1)+'" r="'+b[2]+'" fill="#fff" opacity=".35"/>';});
+        if (b[1] < cy+r) s+='<circle cx="'+b[0].toFixed(1)+'" cy="'+b[1].toFixed(1)+'" r="'+b[2]+'" fill="#fff" opacity=".4"/>';});
       s+='</g>';
-      /* кромка сосуда, светлее сверху */
       s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="url(#fibRim)" stroke-width="1"/>';
-      /* ЦИФРА внутри: свет слоями, градиент к цвету события, белая сердцевина */
-      var numT=inH+':'+pad(inM), size=27, y0=cy+3;
-      [[size*.22,.05],[size*.12,.09],[size*.055,.18]].forEach(function(g){
-        s+='<text x="'+cx+'" y="'+y0+'" text-anchor="middle" font-family="Inter,Arial" font-weight="200" font-size="'+size+'" fill="none" stroke="'+nc+'" stroke-width="'+g[0].toFixed(2)+'" stroke-linejoin="round" opacity="'+g[1]+'">'+numT+'</text>';});
-      s+='<text x="'+cx+'" y="'+y0+'" text-anchor="middle" font-family="Inter,Arial" font-weight="200" font-size="'+size+'" fill="url(#fibNum)">'+inH+'<tspan class="colon" fill="'+nc+'">:</tspan>'+pad(inM)+'</text>';
-      s+='<text x="'+cx+'" y="'+y0+'" text-anchor="middle" font-family="Inter,Arial" font-weight="100" font-size="'+size+'" fill="none" stroke="#fff" stroke-width=".3" opacity=".7">'+numT+'</text>';
-      var lab = live ? ((nxt.k==='up'?'РОСТ':'СЛИВ')+' ИДЁТ · ЕЩЁ') : ('ДО '+(nxt.k==='up'?'РОСТА':'СЛИВА'));
-      s+='<text x="'+cx+'" y="'+(cy+15)+'" text-anchor="middle" font-family="Inter,Arial" font-weight="300" font-size="5.4" fill="#eef3ff" letter-spacing=".34em"'+(live?' class="livepulse"':'')+'>'+lab+'</text>';
-      /* ЧИПЫ внизу: ближайший рост и ближайший слив */
-      function chip(x,y,col,t,anchor){var w=t.length*4.2+12, x0=anchor==='end'?x-w:x;
-        return '<rect x="'+x0.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="11" rx="5.5" fill="#05060f" opacity=".85"/>'+
-               '<rect x="'+x0.toFixed(1)+'" y="'+y+'" width="'+w.toFixed(1)+'" height="11" rx="5.5" fill="none" stroke="'+col+'" stroke-width=".5" opacity=".45"/>'+
-               '<circle cx="'+(x0+6).toFixed(1)+'" cy="'+(y+5.5)+'" r="1.4" fill="'+col+'"/>'+
-               '<text x="'+(x0+10.5).toFixed(1)+'" y="'+(y+7.6)+'" font-family="ui-monospace,Menlo,monospace" font-size="5.6" letter-spacing=".06em" fill="'+col+'">'+esc(t)+'</text>';}
-      if (nu) s+=chip(6,H-16,'#9fe6ff','рост '+num(nu.h),'start');
-      if (nd) s+=chip(W-6,H-16,'#ff9be0','слив '+num(nd.h),'end');
+      /* ЦИФРА: свет слоями, градиент к цвету воды */
+      function bignum(x,y,size,weight){var t='';
+        [[size*.22,.06],[size*.12,.10],[size*.055,.2]].forEach(function(g){
+          t+='<text x="'+x+'" y="'+y+'" text-anchor="middle" font-family="Inter,Arial" font-weight="'+weight+'" font-size="'+size+'" fill="none" stroke="'+nc+'" stroke-width="'+g[0].toFixed(2)+'" stroke-linejoin="round" opacity="'+g[1]+'">'+inH+':'+pad(inM)+'</text>';});
+        t+='<text x="'+x+'" y="'+y+'" text-anchor="middle" font-family="Inter,Arial" font-weight="'+weight+'" font-size="'+size+'" fill="url(#fibNum)">'+inH+'<tspan class="colon" fill="'+nc+'">:</tspan>'+pad(inM)+'</text>';
+        return t;}
+      if (!live){
+        /* ждём — цифра главная */
+        s+=bignum(cx,cy+3,27,200);
+        s+='<text x="'+cx+'" y="'+(cy+15)+'" text-anchor="middle" font-family="Inter,Arial" font-weight="400" font-size="5.8" fill="'+LAV+'" letter-spacing=".32em">ДО '+(nxt.k==='up'?'РОСТА':'СЛИВА')+'</text>';
+      } else {
+        /* идёт — главное слово, цифра ниже и меньше с «ещё» */
+        var lab=(nxt.k==='up'?'РОСТ':'СЛИВ')+' ИДЁТ';
+        s+='<text x="'+cx+'" y="'+(cy+1)+'" text-anchor="middle" font-family="Inter,Arial" font-weight="500" font-size="9.5" fill="none" stroke="'+nc+'" stroke-width="2.4" opacity=".3" letter-spacing=".3em" filter="url(#fibGlow)">'+lab+'</text>';
+        s+='<text x="'+cx+'" y="'+(cy+1)+'" text-anchor="middle" font-family="Inter,Arial" font-weight="500" font-size="9.5" fill="#ffffff" letter-spacing=".3em">'+lab+'</text>';
+        s+='<text x="'+cx+'" y="'+(cy+12)+'" text-anchor="middle" font-family="Inter,Arial" font-weight="400" font-size="6" fill="'+LAV+'" letter-spacing=".26em">ЕЩЁ</text>';
+        s+=bignum(cx,cy+27,14,300);
+      }
+      /* ПОДПИСИ ПОД СОСУДОМ: одной строкой, в цветах текста схемы */
+      s+='<text x="'+cx+'" y="'+(cy+r+19)+'" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-size="9" letter-spacing=".14em">'+
+         (nu?'<tspan fill="'+DIMT+'">РОСТ </tspan><tspan fill="'+INK+'">'+hh(nu.h)+'</tspan>':'')+
+         (nu&&nd?'<tspan fill="'+DIMT+'">  ·  </tspan>':'')+
+         (nd?'<tspan fill="'+DIMT+'">СЛИВ </tspan><tspan fill="'+INK+'">'+hh(nd.h)+'</tspan>':'')+'</text>';
       /* сильный день — в правом верхнем углу */
       var dow=(now.getDay()+6)%7, tom=(dow+1)%7;
       var st=S.days_best.indexOf(dow)>=0, stt=S.days_best.indexOf(tom)>=0;
-      if (st||stt) s+='<text x="'+(W-6)+'" y="12" text-anchor="end" font-family="ui-monospace,Menlo,monospace" font-size="5" letter-spacing=".26em" fill="#b9c6ff" opacity=".9">'+(st?'СИЛЬНЫЙ ДЕНЬ':'ЗАВТРА СИЛЬНЫЙ ДЕНЬ')+'</text>';
+      if (st||stt) s+='<text x="'+(W-6)+'" y="12" text-anchor="end" font-family="ui-monospace,Menlo,monospace" font-size="6" letter-spacing=".26em" fill="'+LAV+'" opacity=".9">'+(st?'СИЛЬНЫЙ ДЕНЬ':'ЗАВТРА СИЛЬНЫЙ ДЕНЬ')+'</text>';
       s+='</svg>';
     
       function tz(h,o){return pad((h+o+24)%24);}function sp(g,o){return g[0]===g[1]?tz(g[0],o):tz(g[0],o)+'–'+tz(g[1],o);}
