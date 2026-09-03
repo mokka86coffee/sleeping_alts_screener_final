@@ -508,6 +508,149 @@ def render_report(candidates: list[Candidate], snapshot: RunSnapshot) -> bool:
 
 
 # ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────────────────────────
+# РЕЕСТР СБОЕВ ПРОГОНА И ВОРОТА ПУБЛИКАЦИИ (03.09, правило владельца)
+#
+# Три правила. (1) Любой сбой запроса — не только строка в момент
+# сбоя, а ещё и ИТОГ в конце прогона: что случилось и почему, одним
+# списком, потому что в конце смотрят на отчёт и ссылку, а середину
+# лога уже не читают. (2) Пульс пишется ВСЕГДА — он идёт до сетевых
+# шагов и от них не зависит; сбрасывать его нельзя. (3) ТАБУ: пушить
+# в git и обновлять сайт недостоверной информацией нельзя. Если
+# критичный источник упал или его срез протух, публикация ОТМЕНЯЕТСЯ:
+# пусть на сайте висит прогон часовой или суточной давности — это
+# честнее, чем свежий штамп поверх вчерашних чисел (так простоял
+# сутки этаж Coinglass 02–03.09, и живой пересчёт подмешивал вчерашние
+# дельты под сегодняшним временем).
+#
+# Критично (публикация отменяется): сбой анализа Binance больше чем у
+# пятой части монет; сборщик Coinglass не отработал (нет ключа, ключ
+# не принят, исключение) или его срез старше COINGLASS_MAX_AGE_H;
+# отчёт не собрался. Остальное — предупреждения: попадают в итог, но
+# сайт не держат. Переопределить руками: --force-publish.
+# ─────────────────────────────────────────────────────────────
+ISSUES: list[dict] = []
+COINGLASS_MAX_AGE_H = 3.0          # срез ежечасный; три часа — уже вчера
+ANALYZE_FAIL_SHARE = 0.20          # доля монет с ошибкой анализа, дальше — не верим выборке
+
+
+def _issue(step: str, why: str, critical: bool = False) -> None:
+    """Записать сбой в реестр и в лог одной строкой."""
+    ISSUES.append({"step": step, "why": str(why), "critical": bool(critical)})
+    log(f"{'✗' if critical else '→'} {step}: {why}"
+        f"{' — КРИТИЧНО, публикация будет отменена' if critical else ''}")
+
+
+def _coinglass_age_h() -> float | None:
+    """Возраст среза Coinglass по его собственному штампу at, часов."""
+    try:
+        import json as _j
+        from datetime import datetime as _dt, timezone as _tz
+        p = BASE_DIR / "output" / "coinglass_fetch.json"
+        at = _j.loads(p.read_text(encoding="utf-8")).get("at")
+        t = _dt.strptime(at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=_tz.utc)
+        return (_dt.now(_tz.utc) - t).total_seconds() / 3600
+    except Exception:
+        return None
+
+
+def _published_stamp() -> str:
+    """Когда сайт обновлялся в последний раз — для строки итога."""
+    try:
+        import json as _j
+        from datetime import datetime as _dt, timezone as _tz
+        p = BASE_DIR / "output" / "_published.json"
+        d = _j.loads(p.read_text(encoding="utf-8"))
+        t = _dt.fromisoformat(d["at"])
+        ago = (_dt.now(_tz.utc) - t).total_seconds() / 3600
+        return f"{t.strftime('%d.%m %H:%M')} UTC, {ago:.0f} ч назад"
+    except Exception:
+        return "неизвестно когда"
+
+
+def _mark_published() -> None:
+    try:
+        import json as _j
+        from datetime import datetime as _dt, timezone as _tz
+        p = BASE_DIR / "output" / "_published.json"
+        p.write_text(_j.dumps({"at": _dt.now(_tz.utc).isoformat()}),
+                     encoding="utf-8")
+    except Exception:
+        pass
+
+
+def alert_telegram(text: str) -> bool:
+    """Тревога владельцу в Телеграм — не бриф, а короткое «сайт не
+    обновлён, вот почему». Настройки — telegram_config.json в config/
+    или output/ (как у рассылки брифа): бот и чат под любым из привычных
+    имён полей. Нет файла или полей — тихий пропуск с одной строкой в
+    лог. Ошибка сети — строка в лог, прогон не роняет."""
+    try:
+        import json as _j
+        import urllib.request as _u
+        import urllib.parse as _up
+        cfg = {}
+        for p in (BASE_DIR / "config" / "telegram_config.json",
+                  BASE_DIR / "output" / "telegram_config.json"):
+            if p.exists():
+                cfg = _j.loads(p.read_text(encoding="utf-8"))
+                break
+        token = next((cfg[k] for k in ("bot_token", "token", "TG_TOKEN",
+                                       "BOT_TOKEN", "TELEGRAM_TOKEN")
+                      if cfg.get(k)), "")
+        chat = next((cfg[k] for k in ("chat_id", "chat", "TG_CHAT",
+                                      "CHAT_ID", "TELEGRAM_CHAT")
+                     if cfg.get(k)), "")
+        if not token or not chat:
+            log("→ Тревога в Телеграм пропущена: нет бота/чата в "
+                "telegram_config.json")
+            return False
+        data = _up.urlencode({"chat_id": chat, "text": text}).encode()
+        with _u.urlopen(f"https://api.telegram.org/bot{token}/sendMessage",
+                        data=data, timeout=10) as r:
+            ok = r.status == 200
+        log("→ Тревога отправлена в Телеграм" if ok
+            else "→ Тревога в Телеграм: ответ не 200")
+        return ok
+    except Exception as e:
+        log(f"→ Тревога в Телеграм не ушла: {type(e).__name__}: {e}")
+        return False
+
+
+def alert_text(blocked: bool) -> str:
+    crit = [i for i in ISSUES if i["critical"]]
+    lines = ["⚠ СКРИНЕР: сайт НЕ обновлён" if blocked else "⚠ СКРИНЕР: сбои прогона",
+             f"на сайте прогон от {_published_stamp()}"]
+    for i in crit[:5]:
+        lines.append(f"✗ {i['step']}: {i['why'][:160]}")
+    return "\n".join(lines)
+
+
+def run_summary(published: bool, blocked: bool) -> None:
+    """Итог прогона: все сбои списком, чем кончилась публикация."""
+    log("\n══ ИТОГ ПРОГОНА ══")
+    if not ISSUES:
+        log("   сбоев не было")
+    else:
+        crit = [i for i in ISSUES if i["critical"]]
+        warn = [i for i in ISSUES if not i["critical"]]
+        if crit:
+            log(f"   КРИТИЧНО ({len(crit)}):")
+            for i in crit:
+                log(f"     ✗ {i['step']}: {i['why']}")
+        if warn:
+            log(f"   предупреждения ({len(warn)}):")
+            for i in warn:
+                log(f"     → {i['step']}: {i['why']}")
+    if published:
+        log("   публикация: сайт обновлён")
+    elif blocked:
+        log(f"   публикация: ОТМЕНЕНА — данные недостоверны; на сайте остаётся "
+            f"прогон от {_published_stamp()}. Пульс и файлы прогона записаны.")
+    else:
+        log("   публикация: не выполнялась")
+
+
 # Публикация в git
 # ─────────────────────────────────────────────────────────────
 def _git(*cmd: str) -> tuple[int, str]:
@@ -596,6 +739,9 @@ def parse_args() -> argparse.Namespace:
                         "unlocks, events, journal, predictions")
     p.add_argument("--no-git", action="store_true",
                   help="не публиковать результат в git")
+    p.add_argument("--force-publish", action="store_true",
+                  help="публиковать даже при критичных сбоях источников "
+                       "(по умолчанию — табу: сайт не обновляется)")
     return p.parse_args()
 
 
@@ -619,6 +765,7 @@ def resolve_explicit_symbols(raw: str) -> list[tuple[str, float]]:
 def run_once(args: argparse.Namespace) -> int:
     """Один полный прогон. Возвращает код возврата."""
     started = time.monotonic()
+    ISSUES.clear()
 
     # КОРОТКИЙ КРУГ (01.09). Полный обход идёт шесть с половиной минут
     # и упирается в тариф Coinglass — восемьдесят запросов в минуту.
@@ -680,6 +827,11 @@ def run_once(args: argparse.Namespace) -> int:
         log(f"\n⚠ Ошибок: {len(errors)} из {len(symbols)}")
         for sym, err in errors[:10]:
             log(f"   {sym}: {err}")
+        share = len(errors) / max(1, len(symbols))
+        _issue("Анализ Binance",
+               f"ошибок {len(errors)} из {len(symbols)} ({share:.0%}), "
+               f"первая: {errors[0][0]} — {errors[0][1]}",
+               critical=share >= ANALYZE_FAIL_SHARE)
 
     if not candidates:
         log("✗ Ни одной монеты не удалось проанализировать")
@@ -755,46 +907,68 @@ def run_once(args: argparse.Namespace) -> int:
         from sources_hyperliquid import collect_hyperliquid
         log(f"→ Hyperliquid: {collect_hyperliquid(candidates)}")
     except Exception as e:
-        log(f"→ Hyperliquid пропущен: {type(e).__name__}: {e}")
+        _issue("Hyperliquid", f"{type(e).__name__}: {e}")
 
     # Coinglass (Г-1, 29.08): срез по журналу НОВЫМ сборщиком
     # coinglass_fetch → output/coinglass_fetch.json. Ключ ТОЛЬКО из
-    # окружения COINGLASS_KEY; нет ключа или сбой — лог и пропуск,
-    # как почта. Поток идёт В ПОКАЗ (карточка зала, Г-15), в отбор не
+    # config/config.json (03.09: окружение не читаем); нет ключа или
+    # сбой — в реестр как КРИТИЧНО: без свежего среза сайт не обновляем. Поток идёт В ПОКАЗ (карточка зала, Г-15), в отбор не
     # входит. Старый sources_coinglass (Т-5) отключён этой врезкой:
     # два среза об одном — два шанса разойтись; файл остался соседом.
     try:
         from coinglass_fetch import collect as collect_coinglass
         _cg = collect_coinglass(write=True, verbose=False)
         if _cg.get("error"):
-            log(f"→ Coinglass пропущен: {_cg['error']}")
+            _issue("Coinglass", _cg["error"], critical=True)
         else:
+            _errs = dict(_cg.get("errors") or {})
+            # «журнал» в errors — не сбой, а заметка про потолок MAX_COINS:
+            # считаем отдельно, чтобы не путать с отказами точек.
+            _cap = _errs.pop("журнал", None)
             log(f"→ Coinglass: монет {len(_cg.get('coins') or {})}, "
-                f"запросов {_cg.get('requests', 0)}, "
-                f"ошибок {len(_cg.get('errors') or {})}")
+                f"запросов {_cg.get('requests', 0)}, ошибок {len(_errs)}")
+            if _cap:
+                _issue("Coinglass", f"потолок: {_cap} — поднять MAX_COINS")
+            if _errs:
+                _k = next(iter(_errs))
+                _issue("Coinglass", f"ошибок по точкам {len(_errs)}, "
+                       f"первая: {_k} — {_errs[_k]}",
+                       critical=len(_errs) > 3)
     except Exception as e:
-        log(f"→ Coinglass пропущен: {type(e).__name__}: {e}")
+        _issue("Coinglass", f"{type(e).__name__}: {e}", critical=True)
+    # Свежесть среза — по его штампу, не по факту вызова: если сборщик
+    # ответил «нет ключа», файл остался вчерашним, а экраны читают файл.
+    _age = _coinglass_age_h()
+    if _age is None:
+        _issue("Coinglass", "срез output/coinglass_fetch.json не читается",
+               critical=True)
+    elif _age > COINGLASS_MAX_AGE_H:
+        _issue("Coinglass", f"срез протух: {_age:.1f} ч (порог "
+               f"{COINGLASS_MAX_AGE_H:.0f} ч) — экраны показали бы "
+               f"вчерашние дельты под сегодняшним штампом", critical=True)
 
     # CryptoQuant v2 (30.08): суточный дозабор деривативов журнала
     # в архив cq_v2/ (funding, OI, ликвидации, свечи, тейкеры — по
     # <base>_all). Прогон ежечасный, а дневка кванта одна в сутки,
     # поэтому здесь не сбор, а проверка свежести: ensure_fresh
     # тянет только если архиву больше двадцати часов — правило
-    # «от свежести файла, не по кругу». Токен ТОЛЬКО из окружения
-    # CQ_TOKEN; нет токена или сбой — лог и пропуск, как почта.
+    # «от свежести файла, не по кругу». Токен из config/config.json
+    # (config.load кладёт его модулям кванта, которые пока читают
+    # переменную); нет токена или сбой — в реестр предупреждением:
+    # дневка суточная, час опоздания сайт не портит.
     if HOT:
         log("→ CryptoQuant: короткий круг, пропуск")
     try:
         import os as _os
-        try:                                  # ключи из config.json,
-            from config import load as _cfg  # export главнее файла
+        try:                                  # ключи из config/config.json —
+            from config import load as _cfg  # файл главнее всего (03.09)
             _cfg()
         except Exception:
             pass
         if HOT:
             pass
         elif not _os.environ.get("CQ_TOKEN", "").strip():
-            log("→ CryptoQuant пропущен: нет CQ_TOKEN в окружении")
+            _issue("CryptoQuant", "нет CQ_TOKEN в config/config.json")
         else:
             from pathlib import Path as _P
             from cq_scheduler import ensure_fresh as _cq_fresh
@@ -803,10 +977,12 @@ def run_once(args: argparse.Namespace) -> int:
             if not _j.exists():
                 _j = _base / "leaders.json"
             _ok = _cq_fresh(str(_j), _base / "cq_v2")
-            log("→ CryptoQuant: архив свеж" if _ok
-                else "→ CryptoQuant: дозабор не удался (см. cq_v2/_fetch.log)")
+            if _ok:
+                log("→ CryptoQuant: архив свеж")
+            else:
+                _issue("CryptoQuant", "дозабор не удался (см. cq_v2/_fetch.log)")
     except Exception as e:
-        log(f"→ CryptoQuant пропущен: {type(e).__name__}: {e}")
+        _issue("CryptoQuant", f"{type(e).__name__}: {e}")
 
     # Репутации усилий (Р-2, 30.08): пересчёт output/reputation.json
     # из архива cq_v2 — отпечаток покупателя и счёт раздач в карточки
@@ -843,12 +1019,11 @@ def run_once(args: argparse.Namespace) -> int:
                 log(f"→ Журнал прогнозов: записано {_fc_rec(_rep)} · "
                     f"исходов проставлено {_fc_score()}")
             except Exception as _e:
-                log(f"→ Журнал прогнозов пропущен: "
-                    f"{type(_e).__name__}: {_e}")
+                _issue("Журнал прогнозов", f"{type(_e).__name__}: {_e}")
         else:
-            log("→ Репутации пропущены: нет архива cq_v2")
+            _issue("Репутации", "нет архива cq_v2")
     except Exception as e:
-        log(f"→ Репутации пропущены: {type(e).__name__}: {e}")
+        _issue("Репутации", f"{type(e).__name__}: {e}")
 
     # Киты Coinglass (31.08): свежие действия и позиции китов
     # Hyperliquid → output/whales.json; пузыри схемы читают файл.
@@ -862,7 +1037,7 @@ def run_once(args: argparse.Namespace) -> int:
     except StopIteration:
         pass
     except Exception as e:
-        log(f"→ Киты пропущены: {type(e).__name__}: {e}")
+        _issue("Киты", f"{type(e).__name__}: {e}")
 
     # Экран-поток (30.08): flow.html собирается каждым прогоном —
     # цель кнопки AI в зале. Монета — самая громкая касса дня из
@@ -903,6 +1078,8 @@ def run_once(args: argparse.Namespace) -> int:
             _okn += (_rr.returncode == 0)
             _bad += (_rr.returncode != 0)
         log(f"→ Потоки монет: собрано {_okn}, сбоев {_bad}")
+        if _bad:
+            _issue("Потоки монет", f"сбоев {_bad} из {_okn + _bad}")
         _r3 = _sp.run([_sys.executable, str(_base3 / "make_flow.py"),
                        "--coin", _coin,
                        "--archive", str(_base3 / "cq_v2"),
@@ -912,9 +1089,9 @@ def run_once(args: argparse.Namespace) -> int:
             log(f"→ Экран-поток: flow.html собран ({_coin.upper()})")
         else:
             _tl = (_r3.stderr or _r3.stdout).strip().splitlines()[-1:]
-            log(f"→ Экран-поток пропущен: {_tl[0] if _tl else 'сбой'}")
+            _issue("Экран-поток", _tl[0] if _tl else "сбой")
     except Exception as e:
-        log(f"→ Экран-поток пропущен: {type(e).__name__}: {e}")
+        _issue("Экран-поток", f"{type(e).__name__}: {e}")
 
     # ── Ручные контуры — по своим отрезкам, не каждый прогон ──
     # Правило владельца 29.08: всё ручное заводится в прогон, но
@@ -928,40 +1105,58 @@ def run_once(args: argparse.Namespace) -> int:
         from unlocks_coinglass import auto_update as _unlocks_auto
         log(f"→ Разлоки Coinglass: {_unlocks_auto()}")
     except Exception as e:
-        log(f"→ Разлоки Coinglass пропущены: {type(e).__name__}: {e}")
+        _issue("Разлоки Coinglass", f"{type(e).__name__}: {e}")
     try:
         from reservoir_fetch import auto_update as _reservoir_auto
         log(f"→ Резервуар: {_reservoir_auto()}")
     except Exception as e:
-        log(f"→ Резервуар пропущен: {type(e).__name__}: {e}")
+        _issue("Резервуар", f"{type(e).__name__}: {e}")
     try:
         from etf_coinglass import auto_update as _etf_auto
         log(f"→ Фонды ETF: {_etf_auto()}")
     except Exception as e:
-        log(f"→ Фонды ETF пропущены: {type(e).__name__}: {e}")
+        _issue("Фонды ETF", f"{type(e).__name__}: {e}")
     try:
         from balances_coinglass import auto_update as _bal_auto
         log(f"→ Балансы бирж: {_bal_auto()}")
     except Exception as e:
-        log(f"→ Балансы бирж пропущены: {type(e).__name__}: {e}")
+        _issue("Балансы бирж", f"{type(e).__name__}: {e}")
     try:
         from crowd_coinglass import auto_update as _crowd_auto
         log(f"→ Толпа: {_crowd_auto()}")
     except Exception as e:
-        log(f"→ Толпа пропущена: {type(e).__name__}: {e}")
+        _issue("Толпа", f"{type(e).__name__}: {e}")
     try:
         from netflow_coinglass import auto_update as _flow_auto
         log(f"→ Приток к капе: {_flow_auto()}")
     except Exception as e:
-        log(f"→ Приток к капе пропущен: {type(e).__name__}: {e}")
+        _issue("Приток к капе", f"{type(e).__name__}: {e}")
 
     # ── Отчёт ──
-    published = False
+    published, blocked = False, False
     if not args.no_html:
         if render_report(candidates, snapshot):
             log(f"✓ Отчёт готов: {REPORT_PATH}")
+            crit = [i for i in ISSUES if i["critical"]]
             if not args.no_git:
-                published = git_publish()
+                if crit and not getattr(args, "force_publish", False):
+                    # ТАБУ: сайт недостоверной информацией не обновляем.
+                    blocked = True
+                    log(f"✗ Публикация ОТМЕНЕНА: критичных сбоев {len(crit)} "
+                        f"({'; '.join(i['step'] for i in crit)}) — на сайте "
+                        f"остаётся прогон от {_published_stamp()}")
+                    alert_telegram(alert_text(blocked=True))
+                else:
+                    if crit:
+                        log("→ --force-publish: публикую несмотря на "
+                            "критичные сбои — ответственность на владельце")
+                    published = git_publish()
+                    if published:
+                        _mark_published()
+        else:
+            _issue("Отчёт", "не собрался — см. строки «Не записан» выше",
+                   critical=True)
+            blocked = not args.no_git
             # Письмо-рапорт прогона: бриф и группы зала на почту.
             # Источник — только что записанный brief.html (тот же
             # вшитый JSON, что читают экраны), поэтому письмо не
@@ -973,7 +1168,7 @@ def run_once(args: argparse.Namespace) -> int:
                 from send_brief_email import send_after_run
                 send_after_run()
             except Exception as e:
-                log(f"✗ Письмо: {type(e).__name__}: {e}")
+                _issue("Письмо", f"{type(e).__name__}: {e}")
 
             # Та же сводка — в Телеграм (send_brief_telegram: тот же
             # текст из brief.html, транспорт — Bot API). Без
@@ -983,12 +1178,13 @@ def run_once(args: argparse.Namespace) -> int:
                 from send_brief_telegram import send_after_run as tg
                 tg()
             except Exception as e:
-                log(f"✗ Телеграм: {type(e).__name__}: {e}")
+                _issue("Телеграм", f"{type(e).__name__}: {e}")
 
+    run_summary(published, blocked)
     log(f"\n✓ Прогон завершён за {duration:.0f}с · "
         f"{snapshot.counts['tradable']} монет к работе "
         f"из {len(candidates)} проанализированных"
-        f"{' · опубликовано' if published else ''}")
+        f"{' · опубликовано' if published else ' · НЕ опубликовано' if blocked else ''}")
     return 0
 
 # ─────────────────────────────────────────────────────────────
@@ -1013,9 +1209,14 @@ def main() -> int:
         try:
             run_once(args)
         except Exception as e:
-            # Падение одного прогона не должно убивать планировщик
+            # Падение одного прогона не должно убивать планировщик.
+            # Итог печатается и здесь: упавший прогон ничего не
+            # публиковал, сайт остаётся на прошлом — сказать это прямо.
             log(f"✗ Прогон #{runs} упал: {type(e).__name__}: {e}")
             traceback.print_exc()
+            _issue("Прогон", f"упал: {type(e).__name__}: {e}", critical=True)
+            run_summary(published=False, blocked=True)
+            alert_telegram(alert_text(blocked=True))
 
         nxt = datetime.now() + timedelta(seconds=interval)
         log(f"\n→ Следующий прогон в {nxt:%H:%M:%S}")

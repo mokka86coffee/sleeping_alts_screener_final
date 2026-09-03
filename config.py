@@ -4,11 +4,19 @@
 Ключи живут в папке config/ проекта, файлом в её стиле именования:
 config/cryptoquant_config.json (рядом с coinglass_config,
 telegram_config и почтовым). Прежнее место config.json в корне
-понимается для совместимости. С 03.09 (правило владельца: экспорт из
-окружения не используем) ключ читается ИЗ ФАЙЛА функцией get();
-coinglass_fetch уже на ней. load() оставлена для cryptoquant_fetch и
-cq_scheduler, которые пока читают os.environ: она кладёт значения из
-файла в окружение, и файл теперь главнее экспорта.
+понимается для совместимости.
+
+С 03.09 ЭКСПОРТА НЕТ (правило владельца): никакого `export KEY=…` в
+терминале ни при каком запуске. Ключ читается ИЗ ФАЙЛА функцией get(),
+файл переживает перезагрузку, окна терминала и службы — задать один раз.
+coinglass_fetch и всё, что берёт сеть через него, уже на get().
+
+load() — не экспорт, а внутренний мостик для двух модулей кванта
+(cryptoquant_fetch, cq_scheduler), которые пока читают переменную
+CQ_TOKEN по старому: она берёт значение из файла и отдаёт им под тем же
+именем, ничего от пользователя не требуя; уже заданный экспорт при этом
+ПЕРЕКРЫВАЕТСЯ файлом. Как только квант перейдёт на get(), load()
+удалить.
 
 Формат config/cryptoquant_config.json:
     {
@@ -36,6 +44,13 @@ def _spots(path: str | None = None) -> list[Path]:
 
 
 def _read(path: str | None = None) -> dict:
+    """Ключи из ВСЕХ найденных файлов конфига, слитые в один словарь:
+    первый файл главнее по совпадающим ключам, недостающие добираются
+    из следующих. Урок 03.09: рядом лежали cryptoquant_config.json с
+    одним CQ_TOKEN и config.json со всеми ключами; чтение «первый
+    найденный — и стоп» возвращало пустой COINGLASS_KEY, и прогон
+    отвечал «нет ключа» при заполненном конфиге."""
+    merged: dict = {}
     for src in _spots(path):
         if not src.exists():
             continue
@@ -44,8 +59,10 @@ def _read(path: str | None = None) -> dict:
         except Exception:
             continue
         if isinstance(data, dict):
-            return data
-    return {}
+            for k, v in data.items():
+                if isinstance(v, str) and v.strip() and k not in merged:
+                    merged[k] = v.strip()
+    return merged
 
 
 def get(key: str, path: str | None = None) -> str:
@@ -91,10 +108,14 @@ def load(path: str | None = None) -> bool:
 
 
 if __name__ == "__main__":
-    ok = load()
-    keys = [k for k in ("CQ_TOKEN", "COINGLASS_KEY") if os.environ.get(k)]
-    print(f"конфиг {'найден' if ok else 'НЕ найден'} · "
-          f"ключи в окружении: {', '.join(keys) or 'нет'}")
+    data = _read()
+    keys = [k for k in ("CQ_TOKEN", "COINGLASS_KEY", "ARKHAM_KEY")
+            if isinstance(data.get(k), str) and data[k].strip()]
+    found = [str(p) for p in _spots() if p.exists()]
+    print(f"конфиг {'найден' if data else 'НЕ найден'} · файлы: "
+          f"{', '.join(found) or 'нет'}")
+    print(f"ключи: {', '.join(k + ' …' + data[k][-4:] for k in keys) or 'нет'}")
+    ok = bool(data)
     if not ok:
         here = Path(__file__).resolve().parent
         print("искал:", ", ".join(str(p) for p in

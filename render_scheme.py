@@ -114,8 +114,17 @@ def render_scheme(stars: list[dict], market: dict) -> str:
             except ValueError:
                 _sc = None
             break
+    # ВОЗРАСТ ИСТОЧНИКОВ (03.09, правило владельца: «всё подсвечивать
+    # всегда — лучше знать, что нет информации, чем неточная»): штампы
+    # Coinglass, кванта, пульса, китов, толпы, разлоков, часов — под
+    # штампом прогона; квант — сутки, остальное — час; старше — красный.
+    try:
+        from render_coin import source_stamps as _src_stamps
+        _src = _src_stamps(stars, market)
+    except Exception:
+        _src = {"run": market.get("ts")}
     blob = json.dumps({"stars": stars, "market": market, "whales": _wh,
-                       "sched": _sc},
+                       "sched": _sc, "sources": _src},
                       ensure_ascii=False, separators=(",", ":"))
     # Данные идут в <script type="application/json">: внутри такого блока
     # браузер не разбирает разметку, и последовательность вроде </script>
@@ -306,22 +315,36 @@ SCHEME_HTML = """
 .logo{display:none;align-items:center;gap:12px;font-family:var(--mono);font-size:12.1px;letter-spacing:.34em;color:var(--lab)}
 .logo .o{width:22px;height:22px;border-radius:50%;border:1px solid rgba(232,236,251,.35);display:grid;place-items:center;color:var(--cy);font-size:15.4px;box-shadow:0 0 12px rgba(127,227,212,.35)}
 .stamp{font-family:var(--mono);font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--dim)}
-/* ── КНОПКА «МОНЕТА» (03.09 ночь) — вход в единый экран монеты
-   (coin.html, концепт «восход»). Светится золотом линии того экрана,
-   дышит; без чёрной подложки — стекло в гамме схемы, как сосуд. */
-.coinbtn{position:relative;z-index:7;display:inline-flex;align-items:center;gap:9px;
-  text-decoration:none;font-family:var(--mono);font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:#f3dcb0;
-  padding:8px 14px 8px 11px;border-radius:18px;border:1px solid rgba(245,169,58,.45);
-  background:linear-gradient(135deg,rgba(40,36,70,.55),rgba(20,22,52,.45));backdrop-filter:blur(8px);
-  box-shadow:0 0 18px rgba(245,169,58,.25),0 0 46px rgba(245,169,58,.12),inset 0 0 12px rgba(245,169,58,.08);
-  animation:coinbreath 3.2s ease-in-out infinite;transition:.25s}
-.coinbtn i{width:7px;height:7px;border:1px solid #ffd27a;transform:rotate(45deg);
-  background:radial-gradient(circle,#fff 0,#ffd27a 45%,rgba(255,210,122,0) 75%);box-shadow:0 0 10px rgba(255,210,122,.9)}
-.coinbtn b{font-weight:400;color:#ffd27a;margin-left:2px}
-.coinbtn:hover{color:#fff;border-color:rgba(255,210,122,.9);box-shadow:0 0 26px rgba(245,169,58,.5),0 0 70px rgba(245,169,58,.22);animation:none}
-@keyframes coinbreath{0%,100%{box-shadow:0 0 18px rgba(245,169,58,.25),0 0 46px rgba(245,169,58,.12),inset 0 0 12px rgba(245,169,58,.08)}
-  50%{box-shadow:0 0 26px rgba(245,169,58,.45),0 0 70px rgba(245,169,58,.2),inset 0 0 16px rgba(245,169,58,.14)}}
-@media (max-width:900px){.coinbtn{padding:7px 11px 7px 9px;font-size:8px}}
+/* ПРОТУХШИЙ ПРОГОН (03.09, правило владельца): если прогону больше
+   двух часов — штамп красный и мигает, рядом «N ч назад». Сайт
+   статический, обновить себя не может — пусть хотя бы кричит. */
+/* строка источников: зелёная точка — свежо, красная мигает — протухло,
+   контур — данных нет. Пороги: квант сутки, остальное час. */
+.srcs{position:absolute;left:50%;top:7px;transform:translateX(-50%);z-index:6;display:flex;flex-wrap:nowrap;justify-content:center;gap:4px 12px;max-width:80%;pointer-events:none}
+.src{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:#9fb8cc;white-space:nowrap;pointer-events:auto}
+.src i{width:6px;height:6px;border-radius:50%;background:#7fe3b0;box-shadow:0 0 7px rgba(127,227,176,.9)}
+.src.stale{color:#ff8a70}.src.stale i{background:#ff5a4a;box-shadow:0 0 8px rgba(255,90,74,.9);animation:staleBlink 1.3s ease-in-out infinite}
+.src.none{color:#6b7590}.src.none i{background:transparent;border:1px solid #6b7590;box-shadow:none}
+@media (max-width:900px){.srcs{top:4px;max-width:96%;flex-wrap:wrap}}
+.stamp.stale{color:#ff6a5a;text-shadow:0 0 10px rgba(255,106,90,.6);animation:staleBlink 1.3s ease-in-out infinite}
+.stamp.stale b{font-weight:400;color:#ffd0c8;margin-left:10px}
+@keyframes staleBlink{0%,100%{opacity:1}50%{opacity:.35}}
+/* ── ВХОД В ЕДИНЫЙ ЭКРАН МОНЕТЫ (03.09 ночь): маленький золотой узел
+   без текста в строке шапки, левее штампа. Дышит золотом того экрана;
+   подпись только при наведении, как у узла журнала. Ссылка на
+   coin.html — документ грузится в тот же iframe. */
+.coinbtn{position:relative;z-index:7;width:22px;height:22px;display:block;text-decoration:none;flex:0 0 22px}
+.coinbtn i{position:absolute;left:4px;top:4px;width:14px;height:14px;border-radius:50%;
+  background:radial-gradient(circle at 50% 45%,#fff3d0 0,#ffd27a 30%,#f5a93a 62%,rgba(245,169,58,0) 74%);
+  box-shadow:0 0 12px rgba(255,210,122,.75),0 0 30px rgba(245,169,58,.35);
+  animation:coinbreath 3.2s ease-in-out infinite;will-change:transform}
+.coinbtn:hover i{animation:none;transform:scale(1.15);box-shadow:0 0 18px rgba(255,210,122,.95),0 0 44px rgba(245,169,58,.5)}
+.coinbtn .lbl{position:absolute;left:50%;top:28px;transform:translateX(-50%);white-space:nowrap;
+  font-family:var(--mono);font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:#f3dcb0;
+  opacity:0;transition:opacity .3s;pointer-events:none}
+.coinbtn:hover .lbl{opacity:.9}
+@keyframes coinbreath{0%,100%{box-shadow:0 0 12px rgba(255,210,122,.75),0 0 30px rgba(245,169,58,.35)}
+  50%{box-shadow:0 0 16px rgba(255,210,122,.95),0 0 44px rgba(245,169,58,.5)}}
 
 /* ── КНОПКА ЗВУКА ──
    Браузеры не дают звуку играть сам: без касания или щелчка он
@@ -620,11 +643,11 @@ SCHEME_HTML = """
 <div class="obs">
   <div class="dust" id="dust"></div>
   <div class="snd" id="snd"><i></i><span id="sndTxt">слушать</span></div>
+  <div class="srcs" id="srcs"></div>
   <div class="top">
-    <!-- вход в единый экран монеты: coin.html (03.09 ночь). Ссылка, как у
-         журнала, — документ грузится в тот же iframe. Стоит в строке
-         шапки слева от штампа, чтобы не лечь на «китов» справа. -->
-    <a class="coinbtn" href="coin.html" title="монета · один экран"><i></i>монета <b>один экран</b></a>
+    <!-- вход в единый экран монеты: coin.html (03.09 ночь). Узел без
+         текста, подпись при наведении; стоит левее штампа. -->
+    <a class="coinbtn" href="coin.html" title="монета · один экран"><i></i><span class="lbl">монета</span></a>
     <div class="stamp" id="stamp"></div><!-- штамп справа от кальмара -->
   </div>
   <div class="halo h3"></div><div class="halo h2"></div><div class="halo h1"></div>
@@ -993,6 +1016,29 @@ SCHEME_JS = r"""
   function p2(n){ return (n < 10 ? '0' : '') + n; }
   q('#stamp').textContent = 'прогон ' + p2(t0.getDate()) + '.' + p2(t0.getMonth()+1) +
     ' · ' + p2(t0.getHours()) + ':' + p2(t0.getMinutes());
+  /* Свежесть прогона считается на месте, от часов зрителя: страница
+     статическая, и штамп в ней — правда только в момент сборки.
+     Старше STALE_H часов — красный мигающий штамп и «N ч назад»;
+     пересчёт раз в минуту, чтобы открытая вкладка тоже покраснела. */
+  var STALE_H = 2;
+  function staleCheck(){
+    if (!M.ts) return;
+    var h = (Date.now() - t0.getTime()) / 36e5, el = q('#stamp');
+    if (h >= STALE_H) {
+      el.classList.add('stale');
+      var b = el.querySelector('b') || el.appendChild(document.createElement('b'));
+      b.textContent = (h < 48 ? Math.floor(h) + ' ч назад' : Math.floor(h / 24) + ' дн назад');
+    } else { el.classList.remove('stale'); var ob = el.querySelector('b'); if (ob) ob.remove(); }
+  }
+  var SRC = DATA.sources || {}, SRC_LIST = [['Coinglass', 'coinglass', 1], ['квант', 'quant', 24], ['пульс', 'pulse', 1], ['киты', 'whales', 1], ['толпа', 'crowd', 24], ['разлоки', 'unlocks', 24], ['часы', 'sched', 48]];
+  function ageH(ts){ if (!ts) return null; var t = Date.parse(String(ts).length === 10 ? ts + 'T23:59:00Z' : ts); return isNaN(t) ? null : (Date.now() - t) / 36e5; }
+  function ageTxt(h){ return h === null ? 'нет данных' : h < 1 ? Math.round(h * 60) + ' мин' : h < 48 ? Math.round(h) + ' ч' : Math.round(h / 24) + ' дн'; }
+  function srcRow(){
+    var el = q('#srcs'); if (!el) return;
+    el.innerHTML = SRC_LIST.map(function(x){ var h = ageH(SRC[x[1]]), cls = h === null ? 'none' : h > x[2] ? 'stale' : 'fresh';
+      return '<span class="src ' + cls + '" title="' + x[0] + ': ' + (SRC[x[1]] || 'нет данных') + ' · порог ' + x[2] + ' ч"><i></i>' + x[0] + ' ' + ageTxt(h) + '</span>'; }).join('');
+  }
+  staleCheck(); srcRow(); setInterval(function(){ staleCheck(); srcRow(); }, 60000);
 
   /* ── пыль: группа пузырей слева ── */
   var dust = q('#dust');
@@ -1591,9 +1637,13 @@ SCHEME_JS = r"""
        event.stopPropagation() на самой кнопке бесполезен — схема
        закрывалась, а переход не успевал. */
     var jrnBtn = q('.jrn');
+    /* Узел монеты (03.09 ночь) — в тот же белый список: перехват на
+       документе иначе закрывал сводку раньше, чем ссылка успевала
+       увести в coin.html. */
+    var coinBtn = q('.coinbtn');
     for (var i = 0; i < path.length; i++) {
       if (path[i] === nav || path[i] === sndBtn ||
-          path[i] === jrnBtn) return;
+          path[i] === jrnBtn || path[i] === coinBtn) return;
     }
     close();
   }, true);

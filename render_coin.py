@@ -37,7 +37,7 @@ from __future__ import annotations
 
 import json
 from collections import OrderedDict
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -126,9 +126,30 @@ def _history(stars: list[dict]) -> dict:
                 rows = sorted((r for r in d.get("ohlcv") or [] if r.get("close")),
                               key=lambda r: r["datetime"])[-180:]
                 if len(rows) >= 14:
-                    out[t.upper()] = {"c": [round(float(r["close"]), 8) for r in rows],
-                                      "d0": rows[0]["datetime"][:10],
-                                      "d1": rows[-1]["datetime"][:10]}
+                    rec = {"c": [round(float(r["close"]), 8) for r in rows],
+                           "d0": rows[0]["datetime"][:10],
+                           "d1": rows[-1]["datetime"][:10]}
+                    # ПАТТЕРНЫ ДНЕВОК (03.09, разбор UNI/BULLA): цикл плеча,
+                    # «продавцы давят — цена держится», шорты как топливо.
+                    # Ряды на две недели, читаются на экране, скор не трогают.
+                    oi = sorted((r for r in d.get("oi") or [] if r.get("open_interest")),
+                                key=lambda r: r["datetime"])[-14:]
+                    tr = sorted((r for r in d.get("trade") or [] if r.get("buy_sell_ratio")),
+                                key=lambda r: r["datetime"])[-14:]
+                    lq = sorted((r for r in d.get("liq") or []), key=lambda r: r["datetime"])[-3:]
+                    vol = [float(r.get("quote_volume") or 0) for r in rows]
+                    rec["oi"] = [round(float(r["open_interest"]) / 1e6, 2) for r in oi]
+                    rec["tk"] = [round(float(r["buy_sell_ratio"]), 3) for r in tr]
+                    rec["v"] = [round(v / 1e6, 3) for v in vol[-14:]]
+                    rec["vmed"] = round(sorted(vol[-60:-7])[len(vol[-60:-7]) // 2] / 1e6, 3) if len(vol) > 60 else None
+                    fu = sorted((r for r in d.get("funding") or [] if r.get("funding_rate") is not None),
+                                key=lambda r: r["datetime"])
+                    if fu:
+                        rec["fundNow"] = float(fu[-1]["funding_rate"])   # у кванта уже в процентах
+                    if lq:
+                        rec["liq"] = [[r["datetime"][5:10], round(float(r.get("long_liquidations_usd") or 0) / 1e6, 2),
+                                       round(float(r.get("short_liquidations_usd") or 0) / 1e6, 2)] for r in lq]
+                    out[t.upper()] = rec
             except (ValueError, KeyError, TypeError):
                 pass
             break
@@ -155,6 +176,73 @@ def _book() -> dict:
     return out
 
 
+def _pulse_stamp():
+    """Последняя точка пульса: pulse.json — словарь тикер → список точек;
+    имя поля времени в точке не фиксировано, пробуем привычные; нет
+    поля — берём время файла."""
+    for p in (Path("pulse.json"), Path(__file__).resolve().parent / "pulse.json",
+              Path("output") / "pulse.json"):
+        if not p.exists():
+            continue
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except ValueError:
+            return None
+        best = None
+        rows = d.values() if isinstance(d, dict) else [d]
+        for v in rows:
+            if not isinstance(v, list) or not v or not isinstance(v[-1], dict):
+                continue
+            for k in ("at", "ts", "t", "time", "datetime"):
+                x = v[-1].get(k)
+                if isinstance(x, (int, float)):
+                    x = datetime.fromtimestamp(x / (1000 if x > 1e12 else 1), tz=timezone.utc).isoformat()
+                if isinstance(x, str) and (best is None or x > best):
+                    best = x
+                    break
+        return best or datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc).isoformat()
+    return None
+
+
+def _quant_stamp():
+    """Свежесть архива кванта: cq_v2/_summary.json (full_at — час полного
+    обхода), иначе самый свежий файл архива по mtime."""
+    for base in (Path("cq_v2"), Path(__file__).resolve().parent / "cq_v2"):
+        if not base.exists():
+            continue
+        sm = base / "_summary.json"
+        if sm.exists():
+            try:
+                d = json.loads(sm.read_text(encoding="utf-8"))
+                for k in ("full_at", "at", "updated"):
+                    if d.get(k):
+                        return str(d[k])
+            except ValueError:
+                pass
+        files = [f for f in base.glob("*.json") if not f.name.startswith("_")]
+        if files:
+            return datetime.fromtimestamp(max(f.stat().st_mtime for f in files), tz=timezone.utc).isoformat()
+    return None
+
+
+def source_stamps(stars: list[dict], market: dict) -> dict:
+    """ВОЗРАСТ ИСТОЧНИКОВ (03.09, правило владельца: «всё подсвечивать
+    всегда — лучше знать, что нет информации, чем неточная»). Штампы
+    каждого источника уходят на экран; экран сам считает возраст и
+    красит: квант — сутки, остальное — час; старше — красный."""
+    whales = _read_json("whales.json") or {}
+    sched = _read_json("schedule.json") or {}
+    return {"run": market.get("ts"),
+            "coinglass": max((str((st.get("cg") or {}).get("at") or "") for st in stars), default="") or None,
+            "quant": _quant_stamp(),
+            "pulse": _pulse_stamp(),
+            "whales": whales.get("at"),
+            "crowd": (_read_json("coinglass_crowd.json") or {}).get("at"),
+            "unlocks": (_read_json("coinglass_unlocks.json") or {}).get("at"),
+            "sched": sched.get("at"),
+            "flow": ((_read_json("flow_watch.json") or {}).get("_meta") or {}).get("at")}
+
+
 def render_coin(stars: list[dict], market: dict) -> str:
     """Тело документа единого экрана монеты. Данные вшиты в JSON."""
     sched = _read_json("schedule.json")
@@ -168,7 +256,8 @@ def render_coin(stars: list[dict], market: dict) -> str:
                        "whales": whales.get("by_coin") or {},
                        "sched": sched, "journal": _journal(),
                        "hist": _history(stars), "book": _book(),
-                       "crowd": crowd, "flow": flow},
+                       "crowd": crowd, "flow": flow,
+                       "sources": source_stamps(stars, market)},
                       ensure_ascii=False, separators=(",", ":"))
     safe = blob.replace("</", "<\\/")
     return (COIN_HTML
@@ -210,6 +299,15 @@ COIN_HTML = r"""
 .hdr b{color:#dfe9e4;font-weight:400}
 .pos{position:absolute;left:100px;top:96px;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.22em;text-transform:uppercase;color:#7fb8a0;opacity:0;animation:fadein .9s ease .3s forwards}
 .pos b{font-weight:400;color:#e8fff4}.pos.mine{color:#f5a93a}.pos.mine b{color:#ffd98a}
+.srcs{position:absolute;left:100px;top:118px;display:flex;flex-wrap:wrap;gap:4px 10px;max-width:560px;opacity:0;animation:fadein .9s ease .4s forwards}
+.src{display:inline-flex;align-items:center;gap:5px;font-family:var(--f-cap);font-size:6.5px;letter-spacing:.2em;text-transform:uppercase;color:#9fd8bf;white-space:nowrap}
+.src i{width:5px;height:5px;border-radius:50%;background:#5fe6a8;box-shadow:0 0 6px rgba(95,230,168,.8)}
+.src.stale{color:#ff8a70}.src.stale i{background:#ff5a4a;box-shadow:0 0 8px rgba(255,90,74,.9);animation:staleBlink 1.3s ease-in-out infinite}
+.src.none{color:#6b7f76}.src.none i{background:transparent;border:1px solid #6b7f76;box-shadow:none}
+@keyframes staleBlink{0%,100%{opacity:1}50%{opacity:.3}}
+.card .card-src{position:static;margin:-4px 0 8px;opacity:1;animation:none;max-width:none}
+.note .num.stale{color:#ff9f8a}.note .num u{display:inline-block;width:6px;height:6px;border-radius:50%;background:#ff5a4a;margin-left:8px;vertical-align:middle;box-shadow:0 0 8px rgba(255,90,74,.9);animation:staleBlink 1.3s ease-in-out infinite}
+.note .sub.stale{color:#ff8a70;opacity:1}
 .back{position:absolute;left:100px;top:78px;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.28em;text-transform:uppercase;color:#7fb8a0;text-decoration:none;opacity:.8}
 .back:hover{color:#dfffee}
 /* пометки групп */
@@ -340,6 +438,58 @@ COIN_JS = r"""
   function hl(t) { return esc(t).replace(NUM, '<b>$1</b>'); }
   function has(v) { return v !== undefined && v !== null && v !== '' && !(typeof v === 'number' && isNaN(v)); }
 
+  // ── ВОЗРАСТ ИСТОЧНИКОВ: считается на месте, от часов зрителя; квант — сутки, остальное — час ──
+  var SRC = D.sources || {};
+  var SRC_LIST = [['прогон', 'run', 1], ['Coinglass', 'coinglass', 1], ['квант', 'quant', 24], ['пульс', 'pulse', 1], ['киты', 'whales', 1], ['толпа', 'crowd', 24], ['разлоки', 'unlocks', 24], ['часы', 'sched', 48], ['поток', 'flow', 1]];
+  function ageH(ts) { if (!ts) return null; var t = Date.parse(String(ts).length === 10 ? ts + 'T23:59:00Z' : ts); return isNaN(t) ? null : (Date.now() - t) / 36e5; }
+  function ageTxt(h) { return h === null ? 'нет данных' : h < 1 ? Math.round(h * 60) + ' мин' : h < 48 ? Math.round(h) + ' ч' : Math.round(h / 24) + ' дн'; }
+  function badge(label, ts, maxH) { var h = ageH(ts), cls = h === null ? 'none' : h > maxH ? 'stale' : 'fresh'; return '<span class="src ' + cls + '" title="' + esc(label) + ': ' + esc(ts || 'нет данных') + ' · порог ' + maxH + ' ч"><i></i>' + esc(label) + ' ' + ageTxt(h) + '</span>'; }
+  function srcLine() { return '<div class="srcs">' + SRC_LIST.map(function (q) { return badge(q[0], SRC[q[1]], q[2]); }).join('') + '</div>'; }
+  function stale(ts, maxH) { var h = ageH(ts); return h === null || h > maxH; }
+
+  // ── ПАТТЕРНЫ ДНЕВОК (03.09, разбор UNI/BULLA) — чтения, не скор ──
+  //  цикл плеча: «разгрузили и залили заново» (BULLA: −46% и +74% за два дня перед выстрелом)
+  //              или «копится N дней подряд» (UNI: +80% за неделю лестницей);
+  //  продавцы давят, цена держится: тейкер ниже 0.97 в N днях из 7, а закрытие не ниже недельной давности;
+  //  шорты — топливо: толпа в лонге меньше 45% или фандинг в минусе; в день хода горят шорты.
+  function patterns(H, cw) {
+    var out = {};
+    var oi = H.oi || [], tk = H.tk || [], c = H.c || [], v = H.v || [];
+    if (oi.length >= 7) {
+      var last = oi[oi.length - 1], win = oi.slice(-8);
+      var mn = Math.min.apply(null, win), imn = win.indexOf(mn), mxBefore = Math.max.apply(null, win.slice(0, imn + 1));
+      var ups = 0; for (var i = 1; i < win.length; i++) if (win[i] > win[i - 1]) ups++;
+      if (mxBefore > 0 && mn / mxBefore <= .7 && last / mn >= 1.5) {
+        out.leverKind = 'reload'; out.leverShort = 'плечо залили заново';
+        out.lever = 'разгрузили на ' + Math.round((1 - mn / mxBefore) * 100) + '% и залили ×' + (last / mn).toFixed(1) + ' за ' + (win.length - 1 - imn) + ' дн — цикл разгрузка→залив, как у BULLA перед выстрелом';
+      } else if (win[0] > 0 && last / win[0] >= 1.5 && ups >= 5) {
+        out.leverKind = 'build'; out.leverShort = 'плечо копится ' + ups + ' дн из 7';
+        out.lever = 'плечо ×' + (last / win[0]).toFixed(1) + ' за неделю, рост в ' + ups + ' днях из 7 — накопление лестницей, как у UNI';
+      } else if (win[0] > 0 && last / win[0] <= .6) {
+        out.leverKind = 'flush'; out.leverShort = 'плечо слито';
+        out.lever = 'плечо −' + Math.round((1 - last / win[0]) * 100) + '% за неделю — разгружено, залива пока нет';
+      }
+    }
+    if (tk.length >= 7 && c.length >= 8) {
+      var sell = tk.slice(-7).filter(function (x) { return x < .97; }).length, chg7 = (c[c.length - 1] / c[c.length - 8] - 1) * 100;
+      if (sell >= 5 && chg7 >= -3) {
+        out.absorb = 'продают ' + sell + ' дн из 7 (тейкер ниже 0.97), а цена за неделю ' + (chg7 >= 0 ? '+' : '') + chg7.toFixed(1) + '% — кто-то принимает лимитками';
+        out.absorbShort = 'продают ' + sell + ' дн из 7, цена держится';
+      }
+    }
+    var sh = [];
+    if (cw && cw.crowd && +cw.crowd.longPct < 45) sh.push('толпа в лонге ' + cw.crowd.longPct + '% — большинство в шорте');
+    if (has(H.fundNow) && +H.fundNow < 0) sh.push('фандинг в минусе — платят шорты');
+    if (H.liq && H.liq.length) { var L = H.liq[H.liq.length - 1]; if (L[2] > L[1] * 1.5 && L[2] >= .05) sh.push('за ' + L[0] + ' вынесено шортов ' + money(L[2] * 1e6) + ' против лонгов ' + money(L[1] * 1e6)); }
+    if (sh.length) { out.short = sh.join(' · '); out.shortShort = sh[0].split(' — ')[0]; }
+    if (v.length >= 7 && H.vmed) {
+      var x = v.slice(-7).map(function (q) { return q / H.vmed; }), last3 = x.slice(-3), quiet = x.slice(0, 4).filter(function (q) { return q < .8; }).length;
+      if (x[x.length - 1] >= 4 && quiet >= 3) out.vol = 'из тишины: ' + quiet + ' дн ниже 0.8 нормы, потом ×' + x[x.length - 1].toFixed(1) + ' — выстрел с пустого места';
+      else if (last3[0] >= 2 && last3[1] >= last3[0] * .9 && last3[2] >= last3[1] * .9 && last3[2] >= 3) out.vol = 'ступенями: ×' + last3.map(function (q) { return q.toFixed(1); }).join(' → ×') + ' — оборот растёт третий день';
+    }
+    return out;
+  }
+
   // ── ШЕСТЬ ГРУПП: цифра, единица, чтение и строки карточки — из полей звезды ──
   function groups(s) {
     var cg = s.cg || {}, rep = s.rep || {}, lv = s.levels || {}, u = s.unlock, act = s.act || {};
@@ -356,7 +506,7 @@ COIN_JS = r"""
     var fw = FLOW[String(s.t).toUpperCase()]; if (fw && fw.low && fw.high) pr.push(['коридор потока', px4(fw.low) + ' – ' + px4(fw.high) + (fw.case ? ' · случай ' + fw.case : '')]);
     if (has(s.rangePos)) pr.push(['в диапазоне', Math.round(s.rangePos * (s.rangePos <= 1 ? 100 : 1)) + '%']);
     if (has(s.speedAtr)) pr.push(['скорость хода', f(s.speedAtr) + ' ATR']);
-    g.price = { cap: 'где цена', num: has(s.lifeDrop) ? '−' + Math.round(s.lifeDrop) + '%' : (has(s.up) ? '+' + Math.round(s.up) + '%' : '—'),
+    g.price = { src: [['архив', 'quant', 24], ['прогон', 'run', 1]], cap: 'где цена', num: has(s.lifeDrop) ? '−' + Math.round(s.lifeDrop) + '%' : (has(s.up) ? '+' + Math.round(s.up) + '%' : '—'),
       unit: has(s.lifeDrop) ? 'от пика' : 'от дна', sub: has(s.up) ? '+' + Math.round(s.up) + '% от дна' + (s.upX ? ' · ×' + s.upX + ' ход' : '') : '', rows: pr, glyph: 'sq' };
     // РЕШЕНИЕ
     var verdict = String(act.act || s.stanceVerdict || s.verdict || 'ждать').toLowerCase();
@@ -376,13 +526,20 @@ COIN_JS = r"""
     if (has(s.fund) && +s.fund > 0.01) con.push('толпа в лонге, фандинг ' + (+s.fund).toFixed(3) + '%');
     if (has(s.fund) && +s.fund < -0.01) pro.push('шорты платят');
     if (rep.delta_usd && +rep.delta_usd > 0) pro.push('дельта дневки в плюс'); else if (rep.delta_usd && +rep.delta_usd < 0) con.push('дельта дневки в минус');
+    var patD = patterns(HIST[String(s.t).toUpperCase()] || {}, CROWD[String(s.t).toUpperCase()]);
+    if (patD.absorbShort) pro.push(patD.absorbShort);
+    if (patD.shortShort) pro.push(patD.shortShort);
+    if (patD.leverShort) (patD.leverKind === 'reload' || patD.leverKind === 'build' ? pro : con).push(patD.leverShort);
     dr.push(['за', pro.length ? pro.join(' · ') : 'нет'], ['против', con.length ? con.join(' · ') : 'нет']);
-    g.decision = { cap: 'решение', num: verdict, verdict: verdict.toUpperCase(), why: why, rows: dr, pro: pro, con: con,
+    g.decision = { src: [['квант', 'quant', 24], ['Coinglass', 'coinglass', 1], ['пульс', 'pulse', 1]], cap: 'решение', num: verdict, verdict: verdict.toUpperCase(), why: why, rows: dr, pro: pro, con: con,
       exit: s.exitWhy || '', hurry: (s.exitDeadline ? 'срок ' + s.exitDeadline : (u && u.days <= 1 ? 'разлок ' + (u.days ? 'завтра' : 'сегодня') : '')) };
     // ПОТОК
     var fr = [];
     if (has(cg.taker)) fr.push(['покупки к продажам', '×' + (+cg.taker).toFixed(2) + (has(cg.cvdChg) ? ' · дельта ' + money(cg.cvdChg) : '')]);
     if (rep.phrase) fr.push(['в стакане · дневка', rep.phrase + (rep.delta_usd ? ' · дельта ' + money(rep.delta_usd) : '')]);
+    var pat0 = patterns(HIST[String(s.t).toUpperCase()] || {}, CROWD[String(s.t).toUpperCase()]);
+    if (pat0.absorb) fr.push(['продавцы давят', pat0.absorb]);
+    if (pat0.vol) fr.push(['оборот по дневкам', pat0.vol]);
     if (has(s.press)) fr.push(['давление', String(s.press) + (has(s.pressShare) ? ' · доля ' + Math.round(+s.pressShare <= 1 ? +s.pressShare * 100 : +s.pressShare) + '%' : '')]);
     if (has(s.v1d)) fr.push(['объём', '×' + (+s.v1d).toFixed(1) + ' к норме' + (has(s.v1h) ? ' · час ×' + (+s.v1h).toFixed(1) : '') + (s.volBg ? ' · фон ' + s.volBg : '')]);
     if (has(cg.spotUsd)) fr.push(['спот', money(cg.spotUsd) + (has(cg.spotTaker) ? ' · тейкер ×' + (+cg.spotTaker).toFixed(2) : '') + (has(cg.fsRatio) ? ' · фьюч к споту ×' + (+cg.fsRatio).toFixed(1) : '')]);
@@ -390,7 +547,7 @@ COIN_JS = r"""
     if (s.klinger) fr.push(['клингер', (s.klinger.crossUp ? 'крест вверх у дна' : s.klinger.crossDn ? 'крест вниз' : s.klinger.above ? 'выше сигнала' : 'ниже сигнала')]);
     if (has(s.shakeX)) fr.push(['вынос', '×' + f(s.shakeX) + (s.shakeHours ? ' за ' + s.shakeHours + ' ч' : '') + (has(s.shakeMove) ? ' · ход ' + pct(s.shakeMove) : '')]);
     var flowNum = has(cg.taker) ? '×' + (+cg.taker).toFixed(2) : (has(s.v1d) ? '×' + (+s.v1d).toFixed(1) : '—');
-    g.flow = { cap: 'поток', num: flowNum, unit: has(cg.taker) ? 'покупки к продажам' : 'объём к норме', sub: rep.phrase ? String(rep.phrase).split(' — ')[0].slice(0, 60) : (has(s.v1d) ? 'объём ×' + (+s.v1d).toFixed(1) + ' к норме' : ''), rows: fr, glyph: 'dia' };
+    g.flow = { stale: stale(SRC.coinglass, 1), src: [['Coinglass', 'coinglass', 1], ['квант', 'quant', 24], ['поток', 'flow', 1]], cap: 'поток', num: flowNum, unit: has(cg.taker) ? 'покупки к продажам' : 'объём к норме', sub: rep.phrase ? String(rep.phrase).split(' — ')[0].slice(0, 60) : (has(s.v1d) ? 'объём ×' + (+s.v1d).toFixed(1) + ' к норме' : ''), rows: fr, glyph: 'dia' };
     // ПЛЕЧО
     var lr = [];
     if (has(cg.oiChgPct)) lr.push(['OI за сутки', pct(cg.oiChgPct) + (has(s.fund) ? ' · фандинг ' + (+s.fund).toFixed(4) + '%' : '')]);
@@ -400,10 +557,15 @@ COIN_JS = r"""
     if (s.liq24h && (s.liq24h.long || s.liq24h.short)) lr.push(['ликвидации за сутки', 'лонгов ' + (money(s.liq24h.long) || '$0') + ' против шортов ' + (money(s.liq24h.short) || '$0')]);
     if (s.vxDir) lr.push(['топливо', 'вортекс ' + (s.vxDir === 'up' ? 'вверх' : s.vxDir === 'down' ? 'вниз' : s.vxDir) + (has(s.vxSpread) ? ' · разрыв ' + f(s.vxSpread) : '') + (s.vxAgo ? ' · ' + s.vxAgo + ' ч назад' : '')]);
     var cw = CROWD[String(s.t).toUpperCase()]; if (cw && cw.crowd) lr.push(['толпа', 'в лонге ' + cw.crowd.longPct + '%' + (has(cw.crowd.chg1d) ? ' (за сутки ' + pct(cw.crowd.chg1d) + ')' : '') + (cw.top ? ' · топы ' + cw.top.longPct + '%' : '')]);
+    // ПАТТЕРНЫ ДНЕВОК (03.09): цикл плеча по архиву — накопление или «разгрузили и залили заново»
+    var Hh = HIST[String(s.t).toUpperCase()] || {};
+    var pat = patterns(Hh, cw);
+    if (pat.lever) lr.push(['цикл по дневкам', pat.lever]);
+    if (pat.short) lr.push(['шорты — топливо', pat.short]);
     var w = WH[String(s.t).toUpperCase()] || WH[String(s.t)];
     if (w) lr.push(['киты Hyperliquid', 'лонг ' + (money(w.long) || '$0') + ' против шорта ' + (money(w.short) || '$0') + (w.n ? ' · позиций ' + w.n : '')]);
     var levNum = has(cg.oiChgPct) ? pct(cg.oiChgPct) : (has(s.fund) ? (+s.fund).toFixed(3) + '%' : '—');
-    g.lever = { cap: 'плечо', num: levNum, unit: has(cg.oiChgPct) ? 'OI за сутки' : 'фандинг', sub: (s.oiState ? (s.oiState === 'held' ? 'застряло' : s.oiState === 'cleared' ? 'разгружено' : 'повторный цикл') : '') + (s.liqFuel && s.liqFuel.below ? ' · ' + (+s.liqFuel.below * 100).toFixed(1) + '% снизу' : '') + (s.liqFuel && s.liqFuel.above ? ' · ' + (+s.liqFuel.above * 100).toFixed(1) + '% сверху' : ''), rows: lr, glyph: 'chev' };
+    g.lever = { stale: stale(SRC.coinglass, 1), src: [['Coinglass', 'coinglass', 1], ['толпа', 'crowd', 24], ['киты', 'whales', 1]], cap: 'плечо', num: levNum, unit: has(cg.oiChgPct) ? 'OI за сутки' : 'фандинг', sub: (s.oiState ? (s.oiState === 'held' ? 'застряло' : s.oiState === 'cleared' ? 'разгружено' : 'повторный цикл') : '') + (s.liqFuel && s.liqFuel.below ? ' · ' + (+s.liqFuel.below * 100).toFixed(1) + '% снизу' : '') + (s.liqFuel && s.liqFuel.above ? ' · ' + (+s.liqFuel.above * 100).toFixed(1) + '% сверху' : ''), rows: lr, glyph: 'chev' };
     // ПАМЯТЬ
     var mr = [];
     if (rep.line) mr.push(['репутация монеты', rep.line]);
@@ -418,7 +580,7 @@ COIN_JS = r"""
     }
     if (s.trendDone) mr.push(['ход', 'отработан']);
     var memNum = has(s.heldRallies) && has(s.rallies) ? s.heldRallies + ' из ' + s.rallies : (j ? String(j.switches) : '—');
-    g.memory = { cap: 'память', num: memNum, unit: has(s.heldRallies) && has(s.rallies) ? 'отскоков устояли' : (j ? 'смен прогноза' : ''), sub: j ? 'журнал: ' + j.n + ' записей · смен ' + j.switches : (has(s.days) ? 'в журнале ' + s.days + ' дн' : ''), rows: mr, glyph: 'plus' };
+    g.memory = { src: [['квант', 'quant', 24], ['пульс', 'pulse', 1]], cap: 'память', num: memNum, unit: has(s.heldRallies) && has(s.rallies) ? 'отскоков устояли' : (j ? 'смен прогноза' : ''), sub: j ? 'журнал: ' + j.n + ' записей · смен ' + j.switches : (has(s.days) ? 'в журнале ' + s.days + ' дн' : ''), rows: mr, glyph: 'plus' };
     // КАЛЕНДАРЬ · ФУНДАМЕНТ
     var cr = [], hot = false;
     if (u) { hot = (u.pct >= 10) || (u.ins >= 60 && u.pct >= 2); cr.push(['разлок', u.days + ' дн · ' + u.pct + '% обращения' + (u.ins !== undefined ? ' · инсайдерам ' + u.ins + '%' : '')]); }
@@ -430,7 +592,7 @@ COIN_JS = r"""
     if (s.sector && s.sector !== '—') cr.push(['сектор', s.sector]);
     if (has(s.fdvRatio)) cr.push(['FDV к капе', '×' + (+s.fdvRatio).toFixed(1)]);
     var calNum = u ? u.days + ' дн' : (s.exitDeadline ? String(s.exitDeadline) : '—');
-    g.calendar = { cap: 'календарь · фундамент', num: calNum, unit: u ? 'до разлока' : (s.exitDeadline ? 'срок' : ''), sub: u ? u.pct + '% обращения' + (u.ins !== undefined ? ' · инсайдерам ' + u.ins + '%' : '') : (s.news && s.news.t ? s.news.t : ''), rows: cr, glyph: 'arrow', hot: hot };
+    g.calendar = { src: [['разлоки', 'unlocks', 24], ['прогон', 'run', 1]], cap: 'календарь · фундамент', num: calNum, unit: u ? 'до разлока' : (s.exitDeadline ? 'срок' : ''), sub: u ? u.pct + '% обращения' + (u.ins !== undefined ? ' · инсайдерам ' + u.ins + '%' : '') : (s.news && s.news.t ? s.news.t : ''), rows: cr, glyph: 'arrow', hot: hot };
     // слоты, которых у монеты нет — подвалом, чтобы было видно место
     var slots = { price: ['вершина хода', 'крупнейшая плита', 'ход и скорость хода'], flow: ['полусутки', 'чем оплачено', 'дивер', 'откупы за сутки', 'доля спота', 'фон суток', 'в книге', 'на биржи/с бирж', 'спрос', 'формы суток'],
       lever: ['киты Hyperliquid', 'плечо открыли', 'плечо под и над ценой'], memory: ['ожидание по эпизодам', 'заметность'], calendar: ['макро-даты', 'листинг/делистинг'] };
@@ -443,7 +605,8 @@ COIN_JS = r"""
       if (r[0] === 'без данных') return '<div class="r slots"><i></i><span class="k">без данных у монеты</span><span class="v">' + esc(r[1]) + '</span></div>';
       return '<div class="r"><i></i><span class="k">' + esc(r[0]) + '</span><span class="v">' + hl(r[1]) + '</span></div>';
     }).join('');
-    return '<div class="card"><div class="head"><span class="cap">' + esc(g.cap) + '</span><span class="hn">' + esc(g.num) + '</span></div>' + rows + '</div>';
+    var sb = (g.src || []).map(function (q) { return badge(q[0], SRC[q[1]], q[2]); }).join('');
+    return '<div class="card"><div class="head"><span class="cap">' + esc(g.cap) + '</span><span class="hn">' + esc(g.num) + '</span></div>' + (sb ? '<div class="srcs card-src">' + sb + '</div>' : '') + rows + '</div>';
   }
 
   // ── ГЕОМЕТРИЯ ПЛИТЫ ──
@@ -596,7 +759,7 @@ COIN_JS = r"""
     var notes = '', leaders = '';
     NOTES.forEach(function (n, ni) { var G = g[n[0]], pr = project(n[3][0], n[3][1]), lx = n[1] + 8, ly = n[2] + 40, ll = Math.hypot(pr[0] - lx, pr[1] - ly);
       leaders += '<line class="ld" x1="' + lx + '" y1="' + ly + '" x2="' + f(pr[0]) + '" y2="' + f(pr[1]) + '" stroke="' + GOLD + '" stroke-width=".6" opacity=".5" style="--L:' + Math.ceil(ll + 2) + ';animation-delay:' + (2.9 + ni * .15).toFixed(2) + 's"/><circle class="an ldc" cx="' + f(pr[0]) + '" cy="' + f(pr[1]) + '" r="2.6" fill="none" stroke="' + GOLD + '" stroke-width=".8" style="animation-delay:' + (3.3 + ni * .15).toFixed(2) + 's"/>';
-      notes += '<div class="note an" style="left:' + n[1] + 'px;top:' + n[2] + 'px;animation-delay:' + (3 + ni * .15).toFixed(2) + 's">' + cardHtml(G) + '<div class="row"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3">' + GLYPH[G.glyph] + '</svg><span class="cap">' + esc(G.cap) + '</span></div><div class="num">' + esc(G.num) + '</div><div class="unit">' + esc(G.unit || '') + '</div><div class="sub' + (G.hot ? ' hot' : '') + '">' + esc(G.sub || '') + '</div></div>';
+      notes += '<div class="note an" style="left:' + n[1] + 'px;top:' + n[2] + 'px;animation-delay:' + (3 + ni * .15).toFixed(2) + 's">' + cardHtml(G) + '<div class="row"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3">' + GLYPH[G.glyph] + '</svg><span class="cap">' + esc(G.cap) + '</span></div><div class="num' + (G.stale ? ' stale' : '') + '">' + esc(G.num) + (G.stale ? '<u title="Coinglass протух или нет данных"></u>' : '') + '</div><div class="unit">' + esc(G.unit || '') + '</div><div class="sub' + (G.hot ? ' hot' : '') + '">' + esc(G.sub || '') + '</div>' + (G.stale ? '<div class="sub stale">Coinglass ' + ageTxt(ageH(SRC.coinglass)) + ' — числа не свежие</div>' : '') + '</div>';
     });
     var d1 = project(DX - 20, DY - 24), d2 = project(DX + 270, DY + 92);
     var dzone = '<div class="dzone" style="left:' + Math.round(d1[0]) + 'px;top:' + Math.round(d1[1]) + 'px;width:' + Math.round(d2[0] - d1[0]) + 'px;height:' + Math.round(d2[1] - d1[1]) + 'px">' + cardHtml(g.decision) + '</div>';
@@ -606,6 +769,7 @@ COIN_JS = r"""
     if (bk2 && bk2.entry) pos = '<div class="pos' + (bk2.manual ? ' mine' : '') + '">' + (bk2.manual ? 'твоя позиция' : 'вход журнала') + ' <b>' + px4(bk2.entry) + '</b>' + (has(bk2.chg) ? ' · <b>' + pct(bk2.chg) + '</b> от входа' : '') + (bk2.upX && +bk2.upX >= 1.5 ? ' · ×' + (+bk2.upX).toFixed(1) : '') + (bk2.closed ? ' · закрыта' : '') + '</div>';
     // имя монеты — ссылка на TradingView, бессрочный фьючерс Binance (суффикс .P), в новой вкладке
     var tvSym = 'BINANCE:' + String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase().replace(/[^A-Z0-9]/g, '') + '.P';
+    var srcs = srcLine();
     var hd = '<div class="hd"><a class="t" href="https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(tvSym) + '" target="_blank" rel="noopener" title="открыть в TradingView · Binance фьючерс">' + esc(s.t) + '</a>' + (chg !== null ? '<span class="ch' + (chg < 0 ? ' dn' : '') + '">' + pct(chg) + ' за сутки</span>' : '') + (s.pattern ? '<span class="st">' + esc(s.pattern) + '</span>' : '') + '</div>' + pos;
     var hdr = '<div class="hdr">' + (s.cap ? 'капитализация <b>' + esc(s.cap) + '</b>' : '') + (has(s.v1d) ? ' · объём к норме <b>×' + (+s.v1d).toFixed(1) + '</b>' : '') + (has(s.fund) ? ' · фандинг <b>' + (+s.fund).toFixed(3) + '%</b>' : '') + '</div>';
     // значки — как в зале: цвет кейса FLOW (GATE_CASE), группа книги (в работе · брать · выходить), лидер, горячая, новая, своя
@@ -623,7 +787,7 @@ COIN_JS = r"""
     var cs = clockState(), clock = cs ? vessel(cs) : '';
     var aura = '<div class="aura up' + (cs && cs.kind === 'up' ? (cs.live ? ' on' : cs.soon ? ' soon' : '') : '') + '"></div><div class="aura dn' + (cs && cs.kind === 'dn' ? (cs.live ? ' on' : cs.soon ? ' soon' : '') : '') + '"></div>';
     stage.innerHTML = '<div class="beam"></div><div class="floor"></div>' + aura + '<div class="slab"><svg viewBox="0 0 ' + SW + ' ' + SH + '">' + slab + '</svg></div><svg class="leaders" viewBox="0 0 1440 900">' + leaders + '</svg>' +
-      hd + hdr + '<a class="back" href="brief.html">← схема</a>' + coins + notes + dzone + clock + '<div class="replay" id="replay">заново</div><div class="legend">' + (ser.length > 2 ? 'цена · ' + days + ' дневок' + (d0 ? ' · архив' : ' · звезда') : 'ряда цены нет') + ' · наведи на пометку — полная группа</div>' +
+      hd + hdr + srcs + '<a class="back" href="brief.html">← схема</a>' + coins + notes + dzone + clock + '<div class="replay" id="replay">заново</div><div class="legend">' + (ser.length > 2 ? 'цена · ' + days + ' дневок' + (d0 ? ' · архив' : ' · звезда') : 'ряда цены нет') + ' · наведи на пометку — полная группа</div>' +
       '<div class="atmo"><div class="vig"></div><svg><filter id="grain" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" stitchTiles="stitch"/><feColorMatrix type="saturate" values="0"/></filter><rect width="100%" height="100%" filter="url(#grain)"/></svg></div>';
     root.getElementById('replay').onclick = function () { build(tick); };
     fit();
