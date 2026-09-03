@@ -71,6 +71,7 @@ def load_config() -> dict | None:
         log(f"  телеграм: конфиг не читается ({e}) — пропуск")
         return None
     if not cfg.get("enabled", True):
+        log("  телеграм: enabled=false в конфиге — пропуск")
         return None
     if not (cfg.get("bot_token") and cfg.get("chat_id")):
         log("  телеграм: bot_token/chat_id не заполнены — пропуск")
@@ -159,8 +160,11 @@ def main(dry: bool = False, file_path: str | None = None) -> int:
 
     cfg = load_config()
     if cfg is None:
-        return 0          # не настроено — тихий пропуск, не ошибка
-    return 0 if send_telegram(text, cfg) else 1
+        return 0          # причина уже в логе (load_config)
+    n = len(split_chunks(text))
+    ok = send_telegram(text, cfg)
+    log(f"  телеграм: {'ушло' if ok else 'НЕ ушло'} · кусков {n} · {len(text)} симв.")
+    return 0 if ok else 1
 
 
 def send_after_run() -> None:

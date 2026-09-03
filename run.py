@@ -1141,6 +1141,23 @@ def run_once(args: argparse.Namespace) -> int:
     except Exception as e:
         _issue("Приток к капе", f"{type(e).__name__}: {e}")
 
+    # ── Лог сбора ликвидности (техдолг Л §8, 04.09) ──
+    # Одна строка на монету за прогон в output/liq_log.jsonl: карты
+    # плеча (дневная и часовая), цели над/под ценой, сборы, флэт, оборот
+    # после сбора, капа, толпа. Через пару дней по нему выводится
+    # формула «за какой ликвидностью идут и когда». Тем же питоном, что
+    # прогон (sys.executable) — так же, как остальные подпроцессы.
+    try:
+        import subprocess
+        _r = subprocess.run([sys.executable, "liq_log.py", "--write"],
+                            cwd=BASE_DIR, capture_output=True, text=True, timeout=900)
+        _tail = (_r.stdout or "").strip().splitlines()
+        log(f"→ Лог ликвидности: {_tail[-1] if _tail else 'пусто'}")
+        if _r.returncode:
+            _issue("Лог ликвидности", (_r.stderr or "").strip()[-300:] or f"код {_r.returncode}")
+    except Exception as e:
+        _issue("Лог ликвидности", f"{type(e).__name__}: {e}")
+
     # ── Отчёт ──
     published, blocked = False, False
     if not args.no_html:
@@ -1166,28 +1183,34 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("Отчёт", "не собрался — см. строки «Не записан» выше",
                    critical=True)
             blocked = not args.no_git
-            # Письмо-рапорт прогона: бриф и группы зала на почту.
-            # Источник — только что записанный brief.html (тот же
-            # вшитый JSON, что читают экраны), поэтому письмо не
-            # пересобирает звёзды и не трогает журнал. Сбой почты
-            # прогона не роняет: всё погашено внутри; без
-            # заполненного output/email_config.json — тихий пропуск
-            # (при первом запуске скрипт сам напишет шаблон).
-            try:
-                from send_brief_email import send_after_run
-                send_after_run()
-            except Exception as e:
-                _issue("Письмо", f"{type(e).__name__}: {e}")
 
-            # Та же сводка — в Телеграм (send_brief_telegram: тот же
-            # текст из brief.html, транспорт — Bot API). Без
-            # заполненного output/telegram_config.json — тихий
-            # пропуск; сбой прогона не роняет.
-            try:
-                from send_brief_telegram import send_after_run as tg
-                tg()
-            except Exception as e:
-                _issue("Телеграм", f"{type(e).__name__}: {e}")
+        # Письмо-рапорт прогона: бриф и группы зала на почту.
+        # Источник — только что записанный brief.html (тот же
+        # вшитый JSON, что читают экраны), поэтому письмо не
+        # пересобирает звёзды и не трогает журнал. Сбой почты
+        # прогона не роняет: всё погашено внутри; без
+        # заполненного output/email_config.json — тихий пропуск
+        # (при первом запуске скрипт сам напишет шаблон).
+        # ПРАВКА 04.09: оба блока стояли внутри else-ветки «отчёт НЕ
+        # собрался» — письмо и Телеграм уходили только при провале
+        # сборки, при удачном прогоне молчали (и в «ИТОГ ПРОГОНА»
+        # сбоя не было, потому что вызова не было). Вынесены на
+        # уровень «отчёт есть или нет — сводку шлём».
+        try:
+            from send_brief_email import send_after_run
+            send_after_run()
+        except Exception as e:
+            _issue("Письмо", f"{type(e).__name__}: {e}")
+
+        # Та же сводка — в Телеграм (send_brief_telegram: тот же
+        # текст из brief.html, транспорт — Bot API). Без
+        # заполненного output/telegram_config.json — тихий
+        # пропуск; сбой прогона не роняет.
+        try:
+            from send_brief_telegram import send_after_run as tg
+            tg()
+        except Exception as e:
+            _issue("Телеграм", f"{type(e).__name__}: {e}")
 
     run_summary(published, blocked)
     log(f"\n✓ Прогон завершён за {duration:.0f}с · "
