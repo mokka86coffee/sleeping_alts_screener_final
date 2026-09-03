@@ -39,6 +39,7 @@ from core_config import REPORT_PATH
 from render_css import CSS
 from render_brief import render_brief          # листалка (запасная)
 from render_scheme import render_scheme        # сводка-схема — ЛИЦО брифа
+from render_coin import render_coin            # единый экран монеты (03.09)
 from render_dashboard import build_slices, render_dashboard_page
 from render_orbit import orbit_market
 from render_podium import render_podium
@@ -213,6 +214,10 @@ def build_pages(candidates: list[Candidate],
         # не трогает. Поменять экраны местами — поменять две строки.
         "brief.html": document(render_scheme(stars, market)),
         "podium.html": document(render_podium(stars, market)),
+        # ЕДИНЫЙ ЭКРАН МОНЕТЫ (03.09): не в очереди оболочки — открывается
+        # золотой кнопкой из схемы (coin.html) и хвостом адреса #ТИКЕР,
+        # как журнал. Те же stars/market, что у сводки и зала.
+        "coin.html": document(render_coin(stars, market), "Монета · один экран"),
     }
 
 

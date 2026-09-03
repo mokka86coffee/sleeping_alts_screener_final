@@ -306,6 +306,22 @@ SCHEME_HTML = """
 .logo{display:none;align-items:center;gap:12px;font-family:var(--mono);font-size:12.1px;letter-spacing:.34em;color:var(--lab)}
 .logo .o{width:22px;height:22px;border-radius:50%;border:1px solid rgba(232,236,251,.35);display:grid;place-items:center;color:var(--cy);font-size:15.4px;box-shadow:0 0 12px rgba(127,227,212,.35)}
 .stamp{font-family:var(--mono);font-size:11px;letter-spacing:.3em;text-transform:uppercase;color:var(--dim)}
+/* ── КНОПКА «МОНЕТА» (03.09 ночь) — вход в единый экран монеты
+   (coin.html, концепт «восход»). Светится золотом линии того экрана,
+   дышит; без чёрной подложки — стекло в гамме схемы, как сосуд. */
+.coinbtn{position:relative;z-index:7;display:inline-flex;align-items:center;gap:9px;
+  text-decoration:none;font-family:var(--mono);font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:#f3dcb0;
+  padding:8px 14px 8px 11px;border-radius:18px;border:1px solid rgba(245,169,58,.45);
+  background:linear-gradient(135deg,rgba(40,36,70,.55),rgba(20,22,52,.45));backdrop-filter:blur(8px);
+  box-shadow:0 0 18px rgba(245,169,58,.25),0 0 46px rgba(245,169,58,.12),inset 0 0 12px rgba(245,169,58,.08);
+  animation:coinbreath 3.2s ease-in-out infinite;transition:.25s}
+.coinbtn i{width:7px;height:7px;border:1px solid #ffd27a;transform:rotate(45deg);
+  background:radial-gradient(circle,#fff 0,#ffd27a 45%,rgba(255,210,122,0) 75%);box-shadow:0 0 10px rgba(255,210,122,.9)}
+.coinbtn b{font-weight:400;color:#ffd27a;margin-left:2px}
+.coinbtn:hover{color:#fff;border-color:rgba(255,210,122,.9);box-shadow:0 0 26px rgba(245,169,58,.5),0 0 70px rgba(245,169,58,.22);animation:none}
+@keyframes coinbreath{0%,100%{box-shadow:0 0 18px rgba(245,169,58,.25),0 0 46px rgba(245,169,58,.12),inset 0 0 12px rgba(245,169,58,.08)}
+  50%{box-shadow:0 0 26px rgba(245,169,58,.45),0 0 70px rgba(245,169,58,.2),inset 0 0 16px rgba(245,169,58,.14)}}
+@media (max-width:900px){.coinbtn{padding:7px 11px 7px 9px;font-size:8px}}
 
 /* ── КНОПКА ЗВУКА ──
    Браузеры не дают звуку играть сам: без касания или щелчка он
@@ -605,6 +621,10 @@ SCHEME_HTML = """
   <div class="dust" id="dust"></div>
   <div class="snd" id="snd"><i></i><span id="sndTxt">слушать</span></div>
   <div class="top">
+    <!-- вход в единый экран монеты: coin.html (03.09 ночь). Ссылка, как у
+         журнала, — документ грузится в тот же iframe. Стоит в строке
+         шапки слева от штампа, чтобы не лечь на «китов» справа. -->
+    <a class="coinbtn" href="coin.html" title="монета · один экран"><i></i>монета <b>один экран</b></a>
     <div class="stamp" id="stamp"></div><!-- штамп справа от кальмара -->
   </div>
   <div class="halo h3"></div><div class="halo h2"></div><div class="halo h1"></div>
