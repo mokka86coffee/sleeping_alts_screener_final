@@ -226,8 +226,10 @@ def read_line(p: dict) -> str:
     up, dn = mp.get("above"), mp.get("below")
     if up and dn:
         r3 = mp.get("short_to_long_3pct")
-        parts.append(f"плечо ±3%: шорты {_m(up['usd_3pct'])} / лонги {_m(dn['usd_3pct'])}"
-                     + (f" (×{r3})" if r3 else ""))
+        su = "пусто" if not up["usd_3pct"] else _m(up["usd_3pct"])
+        sd = "пусто" if not dn["usd_3pct"] else _m(dn["usd_3pct"])
+        parts.append(f"плечо в 3%: шорты сверху {su} / лонги снизу {sd}"
+                     + (f" (×{r3})" if r3 and up["usd_3pct"] and dn["usd_3pct"] else ""))
         parts.append(f"ближайшая плита сверху {up['nearest']['price']:,.0f} (+{up['nearest']['pct']}%), снизу {dn['nearest']['price']:,.0f} ({dn['nearest']['pct']}%)")
         if r3 and r3 >= 1.5 and up["nearest"]["pct"] <= 1.5:
             parts.append("ЗАРЯД НА СКВИЗ ВВЕРХ: шорты плотно в полутора процентах")
@@ -247,7 +249,11 @@ def read_line(p: dict) -> str:
         parts.append(f"премия Coinbase {pr['last']:+.0f}" + (f", плюс {pr['hours_positive']} ч подряд" if pr["hours_positive"] else ""))
     et = p.get("etf")
     if et:
-        parts.append(f"ETF: {_m(et['last_usd'])} за день, {_m(et['sum5_usd'])} за 5 дней ({et['days_positive']} из 5 в плюс)")
+        d = str(et.get("last_at") or "")[:10]
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        when = ("за сегодня ещё не отчитано" if d and d < today and not et["last_usd"] else
+                (f"за {d[8:10]}.{d[5:7]}" if d else "за день"))
+        parts.append(f"ETF: {_m(et['last_usd'])} {when}, {_m(et['sum5_usd'])} за 5 дней ({et['days_positive']} из 5 в плюс)")
     return " · ".join(parts) if parts else "срез биткоина пуст"
 
 

@@ -65,7 +65,7 @@ FIRED_DAYS = 4           # взвод ищем не дальше четырёх 
 PLOT_MOVING_MARKS = (
     "НА ХОДУ", "ИСКРА", "подтверждение пришло", "кит ушёл",
     "крупняк отпустил", "раздача после пика", "крупняк тащит вверх",
-    "лонгов вынесли", "курок сработал",
+    "лонгов вынесли", "курок сработал", "у цели сбора",
 )
 START_PX_6H = 8.0      # старт с места: цена за 6 ч, %
 START_VOL_X = 5.0      # …при обороте к норме
@@ -229,7 +229,86 @@ def today_print(tr: list, oh: list, fu: list) -> dict:
             "date": t["datetime"][:10]}
 
 
-def plot_line(tr: list, oh: list, fu: list, oi: list, lq: list | None = None) -> str:
+TARGET_TOL = 3.0        # % — «у цели», если плотнейшая полоса сверху ближе этого
+TARGET_MIN_RUN = 15.0   # % — за неделю цена прошла минимум столько (иначе это не сбор, а шум у полосы)
+
+
+def _crowd(sym_usdt: str | None) -> dict:
+    """Доля счетов в лонге (толпа, топы) из output/coinglass_crowd.json; пусто — {}."""
+    if not sym_usdt:
+        return {}
+    try:
+        from core_config import BASE_DIR as _B
+    except ImportError:
+        _B = Path(__file__).resolve().parent
+    try:
+        raw = json.loads((_B / "output" / "coinglass_crowd.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    c = raw.get(sym_usdt) or raw.get(sym_usdt.replace("USDT", "")) or {}
+    crowd = ((c.get("crowd") or {}).get("longPct")); top = ((c.get("top") or {}).get("longPct"))
+    return {"crowd": crowd, "top": top}
+
+
+def _at_target(oh: list, oi: list, fu: list, tr: list, px: list, sym: str | None = None) -> str:
+    try:
+        from analytics_liqmap import liq_zones
+    except Exception:  # noqa: BLE001
+        return ""
+    if len(oh) < 20:
+        return ""
+    h = [r.get("high") or r["close"] for r in oh]; l = [r.get("low") or r["close"] for r in oh]
+    c = [r["close"] for r in oh]; v = [r.get("quote_volume") or 0.0 for r in oh]
+    med = _median(v[-60:]) or 0.0
+    vv = [min(x, 3 * med) for x in v] if med else v
+    price = c[-1]
+    if not price or not px[-8]:
+        return ""
+    if price / px[-8] - 1 < TARGET_MIN_RUN / 100:
+        return ""
+    allz = liq_zones(h, l, c, vv, price)
+    zones = [z for z in allz if z["price"] > price]
+    if not zones:
+        return ""
+    top = max(zones, key=lambda z: z["weight"])
+    # топливо по сторонам — сумма весов полос под и над ценой (модель), отношение снизу к сверху
+    f_above = sum(z["weight"] for z in allz if z["price"] > price) or 0.0
+    f_below = sum(z["weight"] for z in allz if z["price"] < price) or 0.0
+    fuel_ratio = (f_below / f_above) if f_above else (9.9 if f_below else 1.0)
+    cw = _crowd(sym); cl = cw.get("crowd"); tl = cw.get("top")
+    crowd_long = max([x for x in (cl, tl) if x is not None] or [0.0])
+    dist = (top["price"] / price - 1) * 100
+    if dist > TARGET_TOL:
+        return ""
+    # кто двигает
+    t = tr[-1]
+    tk = t.get("buy_sell_ratio") or 0.0
+    d = (t.get("quote_buy_volume") or 0.0) - (t.get("quote_sell_volume") or 0.0)
+    oi_now = (oi[-1].get("open_interest") if oi else None) or 0.0
+    oi_prev = (oi[-2].get("open_interest") if len(oi) > 1 else None) or 0.0
+    oi_g = (oi_now / oi_prev - 1) if oi_prev else 0.0
+    px_g = (c[-1] / c[-2] - 1) if len(c) > 1 and c[-2] else 0.0
+    f = fu[-1]["funding_rate"] if fu else 0.0
+    f_prev = fu[-2]["funding_rate"] if len(fu) > 1 else f
+    head = (f"у цели сбора: цена в {dist:.1f}% от плотнейшей полосы стопов "
+            f"{top['price']:.4g} сверху, выше полос нет — ")
+    if tk > 1.0 and d > 0 and oi_g <= max(px_g, 0) + 0.10:
+        return (head + f"ведёт покупатель: тейкер {tk:.2f}, дельта в плюс, плечо "
+                f"{oi_g * 100:+.0f}% при цене {px_g * 100:+.0f}% — держать со стопом под полосой, "
+                "выход в день, когда дельта уйдёт в минус")
+    crowd_txt = (f"толпа в лонге {cl:.0f}%" if cl is not None else "") + (f", топы {tl:.0f}%" if tl is not None else "")
+    fuel_txt = f"топлива снизу в {fuel_ratio:.1f} раза больше, чем сверху" if f_above and f_below else ""
+    if ((px_g <= 0.02 and (oi_g > 0.15 or f > max(f_prev, 0) * 1.5 + 0.01)) or f >= 0.05
+            or (crowd_long >= 60 and fuel_ratio >= 2 and oi_g > 0.10)):
+        return (head + f"толпа набивается в лонг: плечо {oi_g * 100:+.0f}% при цене {px_g * 100:+.0f}%, "
+                f"фандинг {f:.3f}%" + (f", {crowd_txt}" if crowd_txt else "") + (f", {fuel_txt}" if fuel_txt else "")
+                + " — следующий ход вниз, к ближайшей полосе лонгов; снять часть в полосе")
+    return (head + f"кто двигает — неясно: тейкер {tk:.2f}, дельта {d / 1e3:+.0f}K, плечо {oi_g * 100:+.0f}% "
+            "— половину снять, остаток со стопом под полосой")
+
+
+def plot_line(tr: list, oh: list, fu: list, oi: list, lq: list | None = None,
+              sym: str | None = None, src: dict | None = None) -> str:
     """Сюжет: узнанный шаблон истории с человеческим прогнозом.
     Шаблоны калиброваны ночными разборами 30.08 (ONG/SKR — курок
     шортов; BTR — кит до взрыва; BLESS/TRUMP — кит поглощает слив;
@@ -253,6 +332,17 @@ def plot_line(tr: list, oh: list, fu: list, oi: list, lq: list | None = None) ->
     d_now, d_prev = dl[-1], dl[-2]
     px_wk = px[-1] / px[-8] - 1 if px[-8] else 0
     vol_now = vols[-1] / med
+
+    # 0. У ЦЕЛИ СБОРА (05.09, случай «4»): цена в TARGET_TOL от плотнейшей
+    # полосы стопов НАД ценой по своей карте (analytics_liqmap на дневках
+    # со срезом оборота ×3 медианы). Дальше два ответа на «кто двигает»:
+    #   ведёт покупатель — тейкер > 1 и дельта в плюс, плечо растёт не
+    #     быстрее цены → держать со стопом под полосой;
+    #   толпа набивается — цена стоит или ниже, а плечо/фандинг растут →
+    #     следующий ход вниз, к ближайшей полосе лонгов.
+    _at = _at_target(oh, oi, fu, tr, px, sym)
+    if _at:
+        return _at
 
     # 1. Курок второго акта (ONG/SKR): шорты платят жирно + мясорубка
     if fu_min7 <= -0.5 and vol_now >= 8:
@@ -650,6 +740,7 @@ def build(archive: Path) -> dict:
         "episode_mult": EPISODE_MULT, "held_ret7": HELD_RET7,
         "dist_ret7": DIST_RET7}}}
     _LIVE_SRC = _live_sources()
+    _LIVE_DUMP: dict = {}
     for fp in sorted(archive.glob("*.json")):
         if fp.name.startswith("_"):
             continue
@@ -686,19 +777,34 @@ def build(archive: Path) -> dict:
                 if resolved else
                 (f"всплесков объёма {len(eps)}, исходы ещё зреют" if eps
                  else "всплесков объёма не было"))
-        _pl = plot_line(tr_l, oh_l, fu_l, oi_l, lq)
+        _pl = plot_line(tr_l, oh_l, fu_l, oi_l, lq, sym=fp.stem.upper() + "USDT", src=_LIVE_SRC)
+        if _live:
+            _LIVE_DUMP[fp.stem.upper() + "USDT"] = _live
         rep[fp.stem.upper() + "USDT"] = {
             "episodes": len(eps), "resolved": len(resolved),
             "distributed": dist, "partial": part, "held": held,
             "line": line,
             "today": today_print(tr, oh, fu),
             "plot": _pl,
+            # живой день (05.09): что подмешали к дневкам, чтобы было видно глазами
+            "live_day": ({"date": _live["oh"]["datetime"][:10], "px": round(_live["oh"]["close"], 8),
+                          "vol_pace_usd": round(_live["oh"]["quote_volume"], 0),
+                          "taker": round(_live["tr"]["buy_sell_ratio"], 3) if _live["tr"]["buy_sell_ratio"] else None,
+                          "delta_usd": round(_live["tr"]["quote_buy_volume"] - _live["tr"]["quote_sell_volume"], 0),
+                          "oi_usd": _live["oi"]["open_interest"], "funding": _live["fu"]["funding_rate"]} if _live else None),
             # Стадия рядом с сюжетом (01.09): потребителям не нужно
             # знать список имён шаблонов, чтобы отличить «взводится»
             # от «уже идёт».
             "stage": plot_stage(_pl),
             "last_episode": eps[-1] if eps else None,
         }
+    try:
+        _out = archive.parent / "output" / "live_day.json"
+        _out.parent.mkdir(exist_ok=True)
+        _out.write_text(json.dumps({"at": datetime.now().strftime("%Y-%m-%d %H:%M"), "coins": _LIVE_DUMP},
+                                   ensure_ascii=False, indent=1), encoding="utf-8")
+    except OSError:
+        pass
     return rep
 
 

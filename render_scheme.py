@@ -332,7 +332,8 @@ SCHEME_HTML = """
 /* ── ВХОД В ЕДИНЫЙ ЭКРАН МОНЕТЫ (03.09 ночь): маленький золотой узел
    без текста в строке шапки, левее штампа. Дышит золотом того экрана;
    подпись только при наведении, как у узла журнала. Ссылка на
-   coin.html — документ грузится в тот же iframe. */
+   podium.html (05.09: узел ведёт в ЗАЛ, а закрытие сводки — в coin.html,
+   поменяли местами) — документ грузится в тот же iframe. */
 .coinbtn{position:relative;z-index:7;width:22px;height:22px;display:block;text-decoration:none;flex:0 0 22px}
 .coinbtn i{position:absolute;left:4px;top:4px;width:14px;height:14px;border-radius:50%;
   background:radial-gradient(circle at 50% 45%,#fff3d0 0,#ffd27a 30%,#f5a93a 62%,rgba(245,169,58,0) 74%);
@@ -647,7 +648,7 @@ SCHEME_HTML = """
   <div class="top">
     <!-- вход в единый экран монеты: coin.html (03.09 ночь). Узел без
          текста, подпись при наведении; стоит левее штампа. -->
-    <a class="coinbtn" href="coin.html" title="монета · один экран"><i></i><span class="lbl">монета</span></a>
+    <a class="coinbtn" href="podium.html" title="зал"><i></i><span class="lbl">зал</span></a>
     <div class="stamp" id="stamp"></div><!-- штамп справа от кальмара -->
   </div>
   <div class="halo h3"></div><div class="halo h2"></div><div class="halo h1"></div>

@@ -82,3 +82,6 @@
 2026-09-04 22:13:14 нет в архиве: 1 (enj)
 2026-09-04 22:13:14 добор новичков: enj
 2026-09-04 22:13:26 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json (прицельно, full_at не тронут)
+2026-09-04 22:53:42 полный обход старше 20 ч (возраст 20.0 ч)
+2026-09-04 22:53:42 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-09-04 23:08:37 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json

@@ -424,12 +424,13 @@ COIN_HTML = r"""
 .vb .ray{position:absolute;bottom:0;width:1px;height:200px;background:linear-gradient(0deg,rgba(190,220,255,.6),rgba(190,220,255,0));animation:vray var(--rd,6s) ease-in-out var(--rw,0s) infinite alternate;transform-origin:50% 100%}
 .vb .ray::after{content:"";position:absolute;left:-1.5px;top:0;width:3px;height:3px;border-radius:50%;background:#fff;box-shadow:0 0 6px #bfe0ff}
 @keyframes vray{0%{transform:scaleY(.5);opacity:.3}100%{transform:scaleY(1);opacity:.9}}
-.vb .vtxt{position:absolute;left:-40px;bottom:70px;width:220px;text-align:center}
+.vb .vtxt{position:absolute;left:-60px;bottom:70px;width:250px;text-align:center}
+.vb .vtxt.long .vw{font-size:22px;letter-spacing:.14em}   /* длинные вердикты («хеджировать», «закрыть часть») — мельче, чтобы не лезть на блок */
 .vb .vtxt .vcap{font-family:var(--f-cap);font-size:7px;letter-spacing:.34em;text-transform:uppercase;color:#bfe0ff;opacity:.8}
 .vb .vtxt .vw{font-family:var(--f-num);font-weight:300;font-size:30px;letter-spacing:.24em;color:#eaf4ff;text-shadow:0 0 12px rgba(150,200,255,.9),0 0 34px rgba(120,170,255,.6);margin:4px 0 2px;line-height:1.1}
 .vb .vtxt .vwhy{font-family:var(--f-cap);font-size:7px;letter-spacing:.22em;text-transform:uppercase;color:#bfe0ff}
 /* серый блок */
-.vb .grey{--W:230px;--H:145px;--D:110px;--bx:-8deg;--by:-14deg;left:190px;bottom:0;width:var(--W);height:var(--H)}
+.vb .grey{--W:230px;--H:145px;--D:110px;--bx:-8deg;--by:-14deg;left:210px;bottom:0;width:var(--W);height:var(--H)}
 .vb .grey .f.front{transform-style:preserve-3d}.vb .grey .txt{transform:translateZ(1px)}   /* строго в плоскости грани — строки параллельны её верхней кромке */   /* текст лежит в плоскости грани */
 .vb .grey .f{background:#0d1110;border:1px solid rgba(255,255,255,.05)}
 .vb .grey .f.front{background:linear-gradient(180deg,#171c1b,#0a0d0c);box-shadow:inset 0 0 50px rgba(0,0,0,.75)}
@@ -442,7 +443,7 @@ COIN_HTML = r"""
 .vb .grey .txt b{font-family:var(--f-cap);font-weight:500;font-size:7px;letter-spacing:.3em;text-transform:uppercase;padding-top:2px}
 .vb .grey .txt span{font-family:var(--f-cap);font-size:8.5px;line-height:1.55;letter-spacing:.02em}   /* моно, вариант 1 (05.09) */
 .vb .grey .txt .con{color:#6b5f59;text-shadow:0 1px 0 rgba(255,225,205,.2),0 -1px 0 rgba(0,0,0,.95),0 0 6px rgba(0,0,0,.6)}
-.vb .gshadow{position:absolute;left:170px;bottom:-10px;width:280px;height:24px;border-radius:50%;background:radial-gradient(rgba(0,0,0,.8),rgba(0,0,0,0) 70%)}
+.vb .gshadow{position:absolute;left:190px;bottom:-10px;width:280px;height:24px;border-radius:50%;background:radial-gradient(rgba(0,0,0,.8),rgba(0,0,0,0) 70%)}
 .mini.verdict.v-buy{--c:#ffd98a;--g:245,169,58}.mini.verdict.v-hold{--c:#fbe9c4;--g:251,233,196}.mini.verdict.v-wait{--c:#a8f0dc;--g:79,209,168}.mini.verdict.v-exit{--c:#ffc4b3;--g:255,138,112}
 .decbox{left:56px;bottom:56px;width:330px;padding:0;background:none;border:0;box-shadow:none;z-index:4}
 /* монеты */
@@ -644,7 +645,8 @@ COIN_JS = r"""
     if (act.whyFull && act.whyFull.length > 1) act.whyFull.slice(1).forEach(function (w, i) { dr.push([i ? '' : 'основание', w]); });
     if (s.exitWhy) dr.push(['снимется', s.exitWhy + (s.exitDeadline ? ' · до ' + s.exitDeadline : '')]);
     var st = []; ['absorb', 'squeeze', 'effort', 'wyckoffTest'].forEach(function (k) { if (s[k] && s[k].note) st.push(s[k].note); });
-    dr.push(['шаблон', (s.pattern || '—') + (s.phase ? ' · фаза ' + s.phase : '') + (st.length ? ' · состояние: ' + st.slice(0, 2).join(' · ') : '')]);
+    var phz = s.phase && typeof s.phase === 'object' ? (s.phase.a || '') : (s.phase || '');   // фаза приходит объектом {a, k}
+    dr.push(['шаблон', (s.pattern || '—') + (phz ? ' · фаза ' + phz : '') + (st.length ? ' · состояние: ' + st.slice(0, 2).join(' · ') : '')]);
     if (s.st) dr.push(['стадия', String(s.st) + (s.streak ? ' · подряд ' + s.streak : '')]);
     var pro = [], con = [];
     if (cg.taker && +cg.taker > 1) pro.push('покупки ×' + (+cg.taker).toFixed(2) + ' к продажам'); else if (cg.taker && +cg.taker < 0.9) con.push('продают ×' + (1 / +cg.taker).toFixed(2) + ' к покупкам');
@@ -669,8 +671,9 @@ COIN_JS = r"""
     var pat0 = patterns(HIST[String(s.t).toUpperCase()] || {}, CROWD[String(s.t).toUpperCase()]);
     if (pat0.absorb) fr.push(['продавцы давят', pat0.absorb]);
     if (pat0.vol) fr.push(['оборот по дневкам', pat0.vol]);
-    if (has(s.press)) fr.push(['давление', String(s.press) + (has(s.pressShare) ? ' · доля ' + Math.round(+s.pressShare <= 1 ? +s.pressShare * 100 : +s.pressShare) + '%' : '')]);
-    if (has(s.v1d)) fr.push(['объём', '×' + (+s.v1d).toFixed(1) + ' к норме' + (has(s.v1h) ? ' · час ×' + (+s.v1h).toFixed(1) : '') + (s.volBg ? ' · фон ' + s.volBg : '')]);
+    if (has(s.press)) { var pv = +s.press, pw = pv > 0 ? 'перевес покупателей ' : pv < 0 ? 'перевес продавцов ' : 'перевеса нет ';
+      fr.push(['давление', (pv ? pw + Math.abs(pv) + ' п.п.' : pw.trim()) + (has(s.pressShare) ? ' · доля ' + Math.round(+s.pressShare <= 1 ? +s.pressShare * 100 : +s.pressShare) + '% за 24 ч' : '')]); }
+    if (has(s.v1d)) fr.push(['объём', '×' + (+s.v1d).toFixed(1) + ' — 24 ч к норме 30 дн' + (has(s.v1h) ? ' · час ×' + (+s.v1h).toFixed(1) : '') + (s.volBg ? ' · фон последних часов ' + s.volBg : '')]);
     if (has(cg.spotUsd)) fr.push(['спот', money(cg.spotUsd) + (has(cg.spotTaker) ? ' · тейкер ×' + (+cg.spotTaker).toFixed(2) : '') + (has(cg.fsRatio) ? ' · фьюч к споту ×' + (+cg.fsRatio).toFixed(1) : '')]);
     if (has(s.bigCount) && +s.bigCount > 0) fr.push(['крупные', s.bigCount + ' сделок' + (s.bigBuys !== undefined ? ' · покупок ' + s.bigBuys + ', продаж ' + s.bigSells : '') + (s.bigMax ? ' · крупнейшая ' + money(s.bigMax) : '')]);
     if (s.klinger) fr.push(['клингер', (s.klinger.crossUp ? 'крест вверх у дна' : s.klinger.crossDn ? 'крест вниз' : s.klinger.above ? 'выше сигнала' : 'ниже сигнала')]);
@@ -966,32 +969,40 @@ COIN_JS = r"""
     var dzone = ANIM + '<div class="mini verdict ' + vcls + ' dzone decbox vb ' + (window.VERDICT_STYLE || 'dark') + '">' + cardHtml(dec) +
       '<div class="bglow2"></div><div class="bglow"></div>' +
       [[46, 6.2, 0], [62, 7.1, .8], [78, 5.6, 1.6], [94, 6.8, .4], [110, 7.6, 1.2]].map(function (r) { return '<i class="ray" style="left:' + r[0] + 'px;--rd:' + r[1] + 's;--rw:' + (-r[2]) + 's"></i>'; }).join('') +
-      '<div class="vtxt"><div class="vcap">решение</div><div class="vw">' + esc(dec.verdict) + '</div><div class="vwhy">' + esc(String(dec.why).split('—')[0].slice(0, 32)) + '</div></div>' +
+      '<div class="vtxt' + (String(dec.verdict || '').length > 7 ? ' long' : '') + '"><div class="vcap">решение</div><div class="vw">' + esc(dec.verdict) + '</div><div class="vwhy">' + esc(String(dec.why).split('—')[0].slice(0, 32)) + '</div></div>' +
       '<div class="gshadow"></div><div class="box grey">' + BOX6 + '<div class="f front"><div class="txt"><b>за</b><span>' + esc(dec.pro.join(' · ') || 'нет') + '</span><b class="con">против</b><span class="con">' + esc(dec.con.join(' · ') || 'нет') + '</span></div></div></div></div>';
     // ── журнал за две недели — мини-плита: последние 14 дневок, метки смен ──
     (function () {
       var J = JR[String(s.t).toUpperCase()], M = (J && J.marks) || [];
-      var ser14 = ser.slice(-15), n = ser14.length; if (n < 3) return;
-      var W = 320, H = 180, lo = Math.min.apply(null, ser14), hi = Math.max.apply(null, ser14); if (hi === lo) hi = lo * 1.01;
-      var X = function (i) { return 12 + i / (n - 1) * (W - 24); }, Y = function (p) { return 34 + (1 - (p - lo) / (hi - lo)) * (H - 90); };
-      var dpath = ser14.map(function (p, i) { return (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(p).toFixed(1); }).join(' ');
-      var Ln = 0; for (var i = 1; i < n; i++) Ln += Math.hypot(X(i) - X(i - 1), Y(ser14[i]) - Y(ser14[i - 1]));
-      var t1 = d1 ? new Date(d1).getTime() : null, DAY = 864e5, GY = H - 30;
+      // ДНЕВКИ + СЕГОДНЯ ПО ВРЕМЕНИ (05.09): последняя дневка закрыта вчера, а метки смен
+      // ставятся сегодня — раньше всё «после последней дневки» ложилось в одну точку у
+      // правого края и мимо линии. Теперь ось X — время: дневки в полночь своих дат,
+      // последняя точка — текущая цена сейчас; метки — по своему времени и своей цене.
+      var ser14 = ser.slice(-14), n = ser14.length; if (n < 3) return;
+      var DAY = 864e5, t1 = d1 ? new Date(d1).getTime() : Date.now() - DAY, tNow = Date.now();
+      var pts = ser14.map(function (p, i) { return { t: t1 - (n - 1 - i) * DAY, p: p }; });
+      if (has(s.px) && tNow > t1) pts.push({ t: tNow, p: +s.px });
+      var t0 = pts[0].t, tE = pts[pts.length - 1].t;
+      var W = 320, H = 180, GY = H - 30;
+      var lo = Math.min.apply(null, pts.map(function (q) { return q.p; })), hi = Math.max.apply(null, pts.map(function (q) { return q.p; })); if (hi === lo) hi = lo * 1.01;
+      var XT = function (t) { return 12 + (t - t0) / Math.max(1, tE - t0) * (W - 24); }, Y = function (p) { return 34 + (1 - (p - lo) / (hi - lo)) * (H - 90); };
+      var dpath = pts.map(function (q, i) { return (i ? 'L' : 'M') + XT(q.t).toFixed(1) + ',' + Y(q.p).toFixed(1); }).join(' ');
+      var Ln = 0; for (var i = 1; i < pts.length; i++) Ln += Math.hypot(XT(pts[i].t) - XT(pts[i - 1].t), Y(pts[i].p) - Y(pts[i - 1].p));
       var g = '<defs><linearGradient id="hf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + GOLD + '" stop-opacity=".22"/><stop offset="1" stop-color="' + GOLD + '" stop-opacity="0"/></linearGradient></defs>' +
-        '<path d="' + dpath + ' L' + X(n - 1).toFixed(1) + ',' + GY + ' L12,' + GY + ' Z" fill="url(#hf)" opacity=".6"/>' +
+        '<path d="' + dpath + ' L' + XT(tE).toFixed(1) + ',' + GY + ' L12,' + GY + ' Z" fill="url(#hf)" opacity=".6"/>' +
         '<path d="' + dpath + '" fill="none" stroke="' + GOLD + '" stroke-width="5" stroke-linejoin="round" opacity=".18"/>' +
         '<path class="ln" style="--L:' + Math.ceil(Ln + 2) + '" d="' + dpath + '" fill="none" stroke="' + GOLDL + '" stroke-width="1.4" stroke-linejoin="round"/>' +
         '<circle r="2.4" fill="#fff"><animateMotion dur="7s" begin="5.6s" repeatCount="indefinite" path="' + dpath + '"/></circle>';
       var dates = ['2 нед', '1 нед', 'сегодня'];
-      [0, Math.floor((n - 1) / 2), n - 1].forEach(function (ii, k) { g += '<text class="ax" x="' + X(ii).toFixed(1) + '" y="' + (GY + 12) + '" text-anchor="middle">' + dates[k] + '</text>'; });
+      [t0, t0 + (tE - t0) / 2, tE].forEach(function (tt, k) { g += '<text class="ax" x="' + XT(tt).toFixed(1) + '" y="' + (GY + 12) + '" text-anchor="middle">' + dates[k] + '</text>'; });
       M.forEach(function (m, k) {
-        var tm = new Date(m.t).getTime(), fi = t1 ? (n - 1) - (t1 - tm) / DAY : n - 1; fi = Math.max(0, Math.min(n - 1, fi));
-        var x = X(fi), y = Y(+m.px), ty = 12 + (k % 2) * 12, col = m.miss ? '#ffa892' : GOLDL;
+        var tm = new Date(m.t).getTime(); if (!(tm >= t0)) tm = t0; if (tm > tE) tm = tE;
+        var x = XT(tm), y = Y(+m.px), ty = 12 + (k % 2) * 12, col = m.miss ? '#ffa892' : GOLDL;
         g += '<line x1="' + x.toFixed(1) + '" y1="' + y.toFixed(1) + '" x2="' + x.toFixed(1) + '" y2="' + (ty + 4) + '" stroke="' + col + '" stroke-width=".8" stroke-dasharray="2 4" opacity=".7"/>' +
           '<circle class="ring" style="animation-delay:' + (k * .7) + 's" cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="6" fill="none" stroke="' + col + '" stroke-width="1" opacity=".8"/><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="2.2" fill="#fff"/>' +
           '<text class="fc' + (m.miss ? ' miss' : '') + '" x="' + (x - 4).toFixed(1) + '" y="' + ty + '" text-anchor="end">' + esc(m.tpl) + '</text>';
       });
-      g += '<circle cx="' + X(n - 1).toFixed(1) + '" cy="' + Y(ser14[n - 1]).toFixed(1) + '" r="2.6" fill="#fff"/>';
+      g += '<circle cx="' + XT(tE).toFixed(1) + '" cy="' + Y(pts[pts.length - 1].p).toFixed(1) + '" r="2.6" fill="#fff"/>';
       var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '">' + g + '</svg>';
       dzone += '<div class="mini journal"><div class="gglow"></div>' + svg + '<div class="ground"></div><div class="refl">' + svg + '</div></div>';
     })();

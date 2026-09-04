@@ -161,10 +161,10 @@
   // расхождение между тем, что оболочка готова открыть, и тем, что
   // реально лежит на диске, иначе обнаруживается только пустым
   // экраном у пользователя.
-  var ALLOWED = ["dashboard", "brief", "podium"];
+  var ALLOWED = ["dashboard", "brief", "podium", "coin"];
   var START = "brief";
-  var SEQUENCE = {"brief": "podium", "podium": "dashboard"};
-  var NAMES = {"brief": "сводка", "podium": "зал", "dashboard": "дашборд"};
+  var SEQUENCE = {"brief": "coin", "podium": "dashboard"};
+  var NAMES = {"brief": "сводка", "podium": "зал", "coin": "монета", "dashboard": "дашборд"};
   var MIN_SHOW_MS = 700;
   var FAILSAFE_MS = 12000;
 

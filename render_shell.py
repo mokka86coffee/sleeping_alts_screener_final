@@ -57,7 +57,7 @@ import json
 # расходиться с набором файлов, которые реально пишет run.py.
 #
 # Имя = имя файла без расширения: "dashboard" → "dashboard.html".
-SCREENS = ("dashboard", "brief", "podium")
+SCREENS = ("dashboard", "brief", "podium", "coin")
 
 # Экран, с которого начинается отчёт.
 START_SCREEN = "brief"
@@ -73,7 +73,7 @@ START_SCREEN = "brief"
 # она отмечает своё состояние. Теперь экран сообщает только «я
 # закончил» и не знает, кто идёт следом и идёт ли вообще.
 SEQUENCE = {
-    "brief": "podium",
+    "brief": "coin",        # 05.09: после сводки — экран монеты; в зал ведёт золотой узел в шапке сводки
     "podium": "dashboard",
 }
 
@@ -82,6 +82,7 @@ SEQUENCE = {
 SCREEN_NAMES = {
     "brief": "сводка",
     "podium": "зал",
+    "coin": "монета",
     "dashboard": "дашборд",
 }
 
