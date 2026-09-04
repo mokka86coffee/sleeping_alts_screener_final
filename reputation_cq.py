@@ -48,6 +48,13 @@ LADDER_NEG_DAYS = 3      # сколько дней из окна должны б
 # курок сама.
 TRIGGER_VOL_X = 20.0     # оборот к норме, при котором связка сама горит
 TRIGGER_FUND_MAX = 0.0   # фандинг просто отрицательный, без порога
+# КУРОК СРАБОТАЛ (04.09, случай USELESS): третий исход курка помимо
+# «взведён» и «осечка». Вынос состоялся, шорты сгорели, толпа перевернулась
+# в лонг — состояние другое, а журнал держал «взведён» до отката.
+FIRED_PX = 0.25          # цена ≥ +25% от дня взвода
+FIRED_OI_X = 1.5         # плечо ≥ ×1.5 от дня взвода
+FIRED_LIQ_X = 2.0        # шортов ликвидировано ≥ ×2 лонгов за дни выноса
+FIRED_DAYS = 4           # взвод ищем не дальше четырёх дней назад
 
 # Стадия сюжета: «до движения» пускают в «Пойдёт?», «в движении»
 # показывают отдельной полкой с подписью «уже идёт, вход дорогой».
@@ -57,7 +64,7 @@ TRIGGER_FUND_MAX = 0.0   # фандинг просто отрицательны�
 PLOT_MOVING_MARKS = (
     "НА ХОДУ", "ИСКРА", "подтверждение пришло", "кит ушёл",
     "крупняк отпустил", "раздача после пика", "крупняк тащит вверх",
-    "лонгов вынесли",
+    "лонгов вынесли", "курок сработал",
 )
 START_PX_6H = 8.0      # старт с места: цена за 6 ч, %
 START_VOL_X = 5.0      # …при обороте к норме
@@ -221,7 +228,7 @@ def today_print(tr: list, oh: list, fu: list) -> dict:
             "date": t["datetime"][:10]}
 
 
-def plot_line(tr: list, oh: list, fu: list, oi: list) -> str:
+def plot_line(tr: list, oh: list, fu: list, oi: list, lq: list | None = None) -> str:
     """Сюжет: узнанный шаблон истории с человеческим прогнозом.
     Шаблоны калиброваны ночными разборами 30.08 (ONG/SKR — курок
     шортов; BTR — кит до взрыва; BLESS/TRUMP — кит поглощает слив;
@@ -270,6 +277,38 @@ def plot_line(tr: list, oh: list, fu: list, oi: list) -> str:
     # продажи — осечка, из «Пойдёт?» снять. Шорты, которые платили,
     # уже вынесены раньше (ONG 26.08), топлива нет.
     fu_by_day = {r["datetime"][:10]: r["funding_rate"] for r in fu}
+    # КУРОК СРАБОТАЛ (04.09, случай USELESS): за FIRED_DAYS назад был день
+    # взвода (оборот ≥ ×20 при минус-фандинге), а сегодня фандинг ПЛЮС —
+    # платят уже лонги, цена от дня взвода ≥ +25%, плечо ≥ ×1.5, шортов
+    # ликвидировано вдвое больше лонгов. Это не «взведён» (шорты сгорели)
+    # и не «осечка» (ход был). Топливо теперь ПОД ценой — следующий сбор
+    # вниз; выход из состояния: продажи с падением — «раздача после пика».
+    oi_by_day = {r["datetime"][:10]: r.get("open_interest") for r in oi}
+    armed_j = None
+    for j in range(len(tr) - 2, max(-1, len(tr) - 2 - FIRED_DAYS), -1):
+        f_j = fu_by_day.get(days[j])
+        if vols[j] / med >= TRIGGER_VOL_X and f_j is not None and f_j < TRIGGER_FUND_MAX:
+            armed_j = j
+            break
+    if armed_j is not None and fu_last > 0 and px[-1] and px[armed_j] \
+            and px[-1] / px[armed_j] - 1 >= FIRED_PX:
+        oi_a, oi_n = oi_by_day.get(days[armed_j]), oi_by_day.get(days[-1])
+        oi_ok = bool(oi_a and oi_n and oi_n / oi_a >= FIRED_OI_X)
+        liq_ok = True
+        if lq:
+            lq_by = {r["datetime"][:10]: r for r in lq}
+            sh = sum((lq_by.get(days[j]) or {}).get("short_liquidations_usd") or 0
+                     for j in range(armed_j, len(tr)))
+            lo_ = sum((lq_by.get(days[j]) or {}).get("long_liquidations_usd") or 0
+                      for j in range(armed_j, len(tr)))
+            liq_ok = sh >= FIRED_LIQ_X * max(1.0, lo_)
+        if oi_ok and liq_ok:
+            return (f"курок сработал (шаблон USELESS): с дня взвода цена "
+                    f"+{(px[-1] / px[armed_j] - 1) * 100:.0f}%, плечо ×"
+                    f"{oi_n / oi_a:.1f}, фандинг перешёл в плюс {fu_last:.3f}% — "
+                    "шорты сгорели, платят уже лонги, топливо под ценой; "
+                    "держат — крупняк тащит, первый день продаж с падением — "
+                    "раздача после пика")
     armed = 0
     for j in range(len(tr) - 1, -1, -1):
         f_j = fu_by_day.get(days[j])
@@ -460,6 +499,10 @@ def live_refresh(entry: dict, live: dict) -> dict:
                      "толкает; по шаблону ONG/SKR акт ярок и короток: "
                      "выход — чек мельчает, фандинг к нулю или первый "
                      "день продаж")
+    elif "курок сработал" in pl and d < 0 and px < -7:
+        e["plot"] = ("раздача после пика (сегодня): после сработавшего курка "
+                     f"продажи и цена {px:.0f}% — лонги, набранные на выносе, "
+                     "отдают; по шаблону ONG-финал ход отдают быстро")
     elif "кит поглощает слив" in pl and d < 0 and px < -7:
         e["plot"] = ("кит ушёл (развязка сегодня): продажи продавили "
                      f"цену на {abs(px):.0f}% — шаблон BLESS/TRUMP "
@@ -558,7 +601,7 @@ def build(archive: Path) -> dict:
                 if resolved else
                 (f"всплесков объёма {len(eps)}, исходы ещё зреют" if eps
                  else "всплесков объёма не было"))
-        _pl = plot_line(tr, oh, fu, oi)
+        _pl = plot_line(tr, oh, fu, oi, lq)
         rep[fp.stem.upper() + "USDT"] = {
             "episodes": len(eps), "resolved": len(resolved),
             "distributed": dist, "partial": part, "held": held,
