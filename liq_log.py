@@ -312,6 +312,19 @@ def build(sym: str, base: Path, cap: float | None, crowd: dict) -> dict:
     base30 = [x for x in v[-NORM_DAYS - 1:-1] if x]
     row["vol_to_norm30"] = round(v[-1] / statistics.median(base30), 3) if base30 and v[-1] else None
     row["vol_to_oi"] = round(v[-1] / oi[-1], 3) if oi and v[-1] else None
+    # ENA-ПРИЗНАК ЖИВЬЁМ (04.09): после дня-всплеска оборот в следующие дни —
+    # «покупатель остался» (ENA: 140% нормы через 3–5 дн) или «колыхание»
+    # (BLESS/ONG/BMT: 13–35%). Порог выводится по логу, здесь только числа.
+    win = v[-8:-1]
+    if win and max(win):
+        sp = len(v) - 8 + win.index(max(win))
+        row["spike_day"] = _dstr(d["t"][sp])
+        row["days_since_spike"] = len(v) - 1 - sp
+        row["spike_vol_to_norm"] = round(v[sp] / statistics.median(base30), 2) if base30 else None
+        row["vol_to_spike_pct"] = round(v[-1] / v[sp] * 100, 1) if v[-1] else None
+        row["vol_to_yesterday_pct"] = round(v[-1] / v[-2] * 100, 1) if len(v) > 1 and v[-2] and v[-1] else None
+    else:
+        row["spike_day"] = row["days_since_spike"] = row["spike_vol_to_norm"] = row["vol_to_spike_pct"] = row["vol_to_yesterday_pct"] = None
     row["cap_usd"] = cap          # из снимка прогона (output/runs/run-*.json) или --cap
     row["oi_to_cap"] = round(oi[-1] / cap, 4) if oi and cap else None
     if not cap:
