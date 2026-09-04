@@ -73,3 +73,6 @@
 2026-09-03 22:48:24 полный обход старше 20 ч (возраст 20.2 ч)
 2026-09-03 22:48:24 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
 2026-09-03 23:03:03 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json
+2026-09-04 02:38:20 данные по 2026-09-02, ждём 2026-09-03 (возраст 3.6 ч)
+2026-09-04 02:38:20 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-09-04 02:53:09 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json
