@@ -1158,6 +1158,22 @@ def run_once(args: argparse.Namespace) -> int:
     except Exception as e:
         _issue("Лог ликвидности", f"{type(e).__name__}: {e}")
 
+    # ── Срез биткоина (04.09): своя карта плеча по цене, перевес сторон,
+    # ликвидации, премия Coinbase, приток ETF — output/btc_pulse.json,
+    # строка в liq_log.jsonl и строка словами для Телеграма. ──
+    try:
+        _r = subprocess.run([sys.executable, "btc_pulse.py", "--write"],
+                            cwd=BASE_DIR, capture_output=True, text=True, timeout=300)
+        _tail = (_r.stdout or "").strip().splitlines()
+        log(f"→ Биткоин: {_tail[0] if _tail else 'пусто'}")
+        for _ln in _tail[1:]:
+            if _ln.startswith("нет данных"):
+                _issue("Биткоин", _ln[:300])
+        if _r.returncode:
+            _issue("Биткоин", (_r.stderr or "").strip()[-300:] or f"код {_r.returncode}")
+    except Exception as e:
+        _issue("Биткоин", f"{type(e).__name__}: {e}")
+
     # ── Отчёт ──
     published, blocked = False, False
     if not args.no_html:

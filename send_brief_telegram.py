@@ -150,7 +150,16 @@ def main(dry: bool = False, file_path: str | None = None) -> int:
                 f"({type(e).__name__}: {e})")
             return 1
         subject, text = build_letter(stars, market)
-        text = f"{subject}\n\n{text}"
+        # срез биткоина первой строкой (04.09): по правилу владельца разбор
+        # дня начинается с биткоина по часам, альты — производные
+        btc = ""
+        try:
+            _p = json.loads((BASE_DIR / "output" / "btc_pulse.json").read_text(encoding="utf-8"))
+            if _p.get("read"):
+                btc = "БИТКОИН · " + _p["read"] + "\n\n"
+        except (OSError, ValueError):
+            pass
+        text = f"{subject}\n\n{btc}{text}"
 
     if dry:
         print(f"── {subject} ──\n{text}")

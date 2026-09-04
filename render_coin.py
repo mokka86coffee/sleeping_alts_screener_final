@@ -290,7 +290,7 @@ COIN_HTML = r"""
 :host{all:initial}
 *{box-sizing:border-box}
 .wrap{position:fixed;inset:0;overflow:hidden;background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;font-weight:300}
-.stage{position:absolute;left:50%;top:50%;width:1440px;height:900px;transform-origin:50% 50%;
+.stage{position:absolute;left:50%;top:100%;width:1440px;height:900px;transform-origin:50% 100%;
   --f-name:Jost,sans-serif;--f-num:Jost,sans-serif;--f-cap:Jost,sans-serif;--f-text:Inter,sans-serif;
   background:radial-gradient(900px 640px at 86% -4%, #1f7a5c 0%, #0f3f31 30%, #062219 55%, #020907 85%),#020907}
 .beam{position:absolute;left:900px;top:-80px;width:520px;height:900px;background:linear-gradient(rgba(160,255,214,.22),rgba(160,255,214,0));filter:blur(24px);transform:skewX(-14deg);pointer-events:none;will-change:opacity;animation:beam 9s ease-in-out infinite}
@@ -380,14 +380,71 @@ COIN_HTML = r"""
 @keyframes spark{0%,100%{transform:scale(.6);opacity:.3}50%{transform:scale(1.4);opacity:1}}
 
 /* плашка решения слева внизу (04.09) */
-.decbox{left:70px;bottom:104px;width:330px;padding:0;background:none;border:0;box-shadow:none;z-index:4;animation-delay:3.5s}
-.decbox .dcap{font-family:var(--f-cap);font-size:7px;letter-spacing:.34em;text-transform:uppercase;color:#9fd8bf}
-.decbox .dv{font-family:var(--f-num);font-weight:200;font-size:34px;letter-spacing:.2em;color:#f5a93a;line-height:1.1;margin:4px 0 6px;text-shadow:0 0 18px rgba(245,169,58,.35)}
-.decbox .dwhy{font-size:10px;color:#e9fff4;opacity:.9;line-height:1.4}
-.decbox .dsub{font-size:8.5px;color:#9fd8bf;opacity:.85;line-height:1.4;margin-top:2px}
-.decbox .dline{height:1px;background:rgba(159,216,191,.3);margin:8px 0 6px}
-.decbox .drow{display:flex;gap:10px;font-size:8.5px;line-height:1.4;color:#bfffe0;opacity:.9}.decbox .drow b{font-family:var(--f-cap);font-weight:400;font-size:6.5px;letter-spacing:.3em;text-transform:uppercase;color:#7fe8b0;min-width:44px;padding-top:2px}
-.decbox .drow.con{color:#ffd9c8}.decbox .drow.con b{color:#ffb59f}
+/* ── ТРИ МИНИ-ПЛИТЫ ВНИЗУ (04.09, финал): вердикт, журнал за две недели, расписание —
+   уменьшенные копии большой плиты: тот же разворот в перспективе, белая линия земли,
+   золотое свечение под ней, отражение. Без кубов и панелей. ── */
+.mini{position:absolute;bottom:64px;width:320px;height:180px;transform:perspective(900px) rotateX(var(--px)) rotateY(var(--py)) rotateZ(var(--pz)) scale(var(--sc,1));transform-origin:50% 100%;opacity:0;animation:fadein 1.2s ease 3s forwards;--c:#ffd98a;--g:245,169,58}
+/* углы — те, что владелец подобрал на стенде (04.09): ось у нижней кромки */
+.mini.verdict{left:520px}
+.mini.journal{right:80px;--px:-20deg;--py:-18deg;--pz:0deg;bottom:114px;--sc:.91}   /* стенд 05.09 */   /* дальше от зрителя на 50 */
+.mini.sched{left:60px;--px:-15deg;--py:11deg;--pz:-2deg;bottom:214px;width:288px;--sc:.82}   /* стенд 05.09 */      /* дальше на 100 */
+.mini .ground{position:absolute;left:0;right:0;bottom:30px;height:1px;background:#fff6dc;opacity:.55}
+.mini .gglow{position:absolute;left:-10%;right:-10%;bottom:6px;height:44px;border-radius:50%;background:radial-gradient(rgba(var(--g),.55),rgba(var(--g),0) 70%);filter:blur(12px);pointer-events:none}
+.mini .refl{position:absolute;left:0;right:0;top:calc(100% - 30px);height:60px;transform:scaleY(-1);transform-origin:50% 0;opacity:.28;-webkit-mask-image:linear-gradient(#000,transparent);mask-image:linear-gradient(#000,transparent);pointer-events:none}
+.mini svg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible}
+.mini .ax{font-family:var(--f-cap);font-size:6.5px;letter-spacing:.14em;fill:rgba(255,255,255,.45)}
+.mini .fc{font-family:var(--f-num);font-weight:500;font-size:8px;letter-spacing:.14em;text-transform:uppercase;fill:#ffe2a8}.mini .fc.miss{fill:#ffa892}
+.mini .ln{stroke-dasharray:var(--L);stroke-dashoffset:var(--L);animation:draw 2.2s cubic-bezier(.5,0,.3,1) 3.4s forwards}
+.mini .ring{transform-box:fill-box;transform-origin:center;animation:ringp 3s ease-in-out infinite}@keyframes ringp{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.35);opacity:1}}
+.mini .nowp{transform-box:fill-box;transform-origin:center;animation:nowp 2.4s ease-in-out infinite}@keyframes nowp{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.6);opacity:1}}
+.mini .seg{animation:seg 3.2s ease-in-out infinite alternate}@keyframes seg{0%{opacity:.6}100%{opacity:1}}
+/* ВЕРДИКТ (05.09, по референсу): слева синий светящийся куб, над ним в свете висит решение,
+   справа тёмный матовый блок, на его грани — «за» и «против». Настоящие ящики из граней. */
+.mini.verdict{width:420px;height:230px;transform:none;--px:0deg;--py:0deg;--pz:0deg}
+.mini.verdict .ground,.mini.verdict .gglow{display:none}
+.vb .box{position:absolute;transform-style:preserve-3d;transform-origin:50% 100% 0;transform:perspective(900px) rotateX(var(--bx,-12deg)) rotateY(var(--by,14deg))}
+.vb .f{position:absolute;left:0;top:0}
+.vb .f.front{width:var(--W);height:var(--H);transform:translateZ(var(--D))}
+.vb .f.back{width:var(--W);height:var(--H);transform:rotateY(180deg)}
+.vb .f.left{width:var(--D);height:var(--H);transform:rotateY(-90deg);transform-origin:0 0}
+.vb .f.right{width:var(--D);height:var(--H);transform:translateX(var(--W)) rotateY(-90deg);transform-origin:0 0}
+.vb .f.top{width:var(--W);height:var(--D);transform:rotateX(90deg);transform-origin:0 0}
+.vb .f.bottom{width:var(--W);height:var(--D);transform:translateY(var(--H)) rotateX(90deg);transform-origin:0 0}
+/* синий куб */
+.vb .blue{--W:72px;--H:72px;--D:72px;--bx:-12deg;--by:18deg;left:34px;bottom:0;width:var(--W);height:var(--H)}
+.vb .blue .f{border:1px solid rgba(140,185,255,.8);box-shadow:inset 0 0 18px rgba(60,120,255,.7);background-image:linear-gradient(rgba(200,225,255,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(200,225,255,.35) 1px,transparent 1px),linear-gradient(135deg,rgba(40,95,235,.9),rgba(18,55,190,.85) 60%,rgba(8,26,120,.95));background-size:20% 20%,20% 20%,100% 100%}
+.vb .blue .f.top{box-shadow:inset 0 0 26px rgba(150,200,255,.95);background-image:linear-gradient(rgba(220,240,255,.45) 1px,transparent 1px),linear-gradient(90deg,rgba(220,240,255,.45) 1px,transparent 1px),linear-gradient(180deg,rgba(120,180,255,.95),rgba(40,95,235,.9));background-size:20% 20%,20% 20%,100% 100%}
+.vb .blue .f.left,.vb .blue .f.right{filter:brightness(.7)}
+/* светлый вариант куба (как в первом эскизе по референсу) */
+.vb.light .blue .f{border:1px solid rgba(190,220,255,.7);box-shadow:inset 0 0 18px rgba(150,200,255,.7);background-image:linear-gradient(rgba(255,255,255,.28) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.28) 1px,transparent 1px),linear-gradient(135deg,rgba(120,170,255,.55),rgba(40,90,220,.35) 60%,rgba(20,50,160,.5));background-size:33.3% 33.3%,33.3% 33.3%,100% 100%}
+.vb.light .blue .f.top{box-shadow:inset 0 0 26px rgba(220,240,255,.9);background-image:linear-gradient(rgba(255,255,255,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.35) 1px,transparent 1px),linear-gradient(180deg,rgba(220,240,255,.7),rgba(120,170,255,.5));background-size:33.3% 33.3%,33.3% 33.3%,100% 100%}
+.vb.light .blue .f.left,.vb.light .blue .f.right{filter:none}
+.vb .bglow{position:absolute;left:20px;bottom:-14px;width:140px;height:40px;border-radius:50%;background:radial-gradient(#4f8cff,rgba(60,120,255,0) 70%);filter:blur(14px)}
+.vb .bglow2{position:absolute;left:-10px;bottom:30px;width:200px;height:200px;border-radius:50%;background:radial-gradient(rgba(80,140,255,.34),rgba(80,140,255,0) 65%);filter:blur(22px);pointer-events:none}
+.vb .ray{position:absolute;bottom:0;width:1px;height:200px;background:linear-gradient(0deg,rgba(190,220,255,.6),rgba(190,220,255,0));animation:vray var(--rd,6s) ease-in-out var(--rw,0s) infinite alternate;transform-origin:50% 100%}
+.vb .ray::after{content:"";position:absolute;left:-1.5px;top:0;width:3px;height:3px;border-radius:50%;background:#fff;box-shadow:0 0 6px #bfe0ff}
+@keyframes vray{0%{transform:scaleY(.5);opacity:.3}100%{transform:scaleY(1);opacity:.9}}
+.vb .vtxt{position:absolute;left:-40px;bottom:70px;width:220px;text-align:center}
+.vb .vtxt .vcap{font-family:var(--f-cap);font-size:7px;letter-spacing:.34em;text-transform:uppercase;color:#bfe0ff;opacity:.8}
+.vb .vtxt .vw{font-family:var(--f-num);font-weight:300;font-size:30px;letter-spacing:.24em;color:#eaf4ff;text-shadow:0 0 12px rgba(150,200,255,.9),0 0 34px rgba(120,170,255,.6);margin:4px 0 2px;line-height:1.1}
+.vb .vtxt .vwhy{font-family:var(--f-cap);font-size:7px;letter-spacing:.22em;text-transform:uppercase;color:#bfe0ff}
+/* серый блок */
+.vb .grey{--W:230px;--H:145px;--D:110px;--bx:-8deg;--by:-14deg;left:190px;bottom:0;width:var(--W);height:var(--H)}
+.vb .grey .f.front{transform-style:preserve-3d}.vb .grey .txt{transform:translateZ(1px)}   /* строго в плоскости грани — строки параллельны её верхней кромке */   /* текст лежит в плоскости грани */
+.vb .grey .f{background:#0d1110;border:1px solid rgba(255,255,255,.05)}
+.vb .grey .f.front{background:linear-gradient(180deg,#171c1b,#0a0d0c);box-shadow:inset 0 0 50px rgba(0,0,0,.75)}
+.vb .grey .f.top{background:linear-gradient(180deg,#1f2523,#121615)}
+.vb .grey .f.left{background:linear-gradient(90deg,#060807,#111514)}.vb .grey .f.right{background:linear-gradient(270deg,#060807,#111514)}
+.vb .grey .f.back,.vb .grey .f.bottom{background:#080b0a}
+.vb .grey .txt{position:absolute;inset:0;padding:18px 16px;display:grid;grid-template-columns:42px 1fr;gap:10px 8px;align-content:center}
+/* гравировка: одна фактура у всех строк — цвет чуть темнее грани, тонкая светлая кромка снизу и тень сверху */
+.vb .grey .txt b,.vb .grey .txt span{color:#5c6763;text-shadow:0 1px 0 rgba(255,255,255,.22),0 -1px 0 rgba(0,0,0,.95),0 0 6px rgba(0,0,0,.6)}
+.vb .grey .txt b{font-family:var(--f-cap);font-weight:500;font-size:7px;letter-spacing:.3em;text-transform:uppercase;padding-top:2px}
+.vb .grey .txt span{font-family:var(--f-cap);font-size:8.5px;line-height:1.55;letter-spacing:.02em}   /* моно, вариант 1 (05.09) */
+.vb .grey .txt .con{color:#6b5f59;text-shadow:0 1px 0 rgba(255,225,205,.2),0 -1px 0 rgba(0,0,0,.95),0 0 6px rgba(0,0,0,.6)}
+.vb .gshadow{position:absolute;left:170px;bottom:-10px;width:280px;height:24px;border-radius:50%;background:radial-gradient(rgba(0,0,0,.8),rgba(0,0,0,0) 70%)}
+.mini.verdict.v-buy{--c:#ffd98a;--g:245,169,58}.mini.verdict.v-hold{--c:#fbe9c4;--g:251,233,196}.mini.verdict.v-wait{--c:#a8f0dc;--g:79,209,168}.mini.verdict.v-exit{--c:#ffc4b3;--g:255,138,112}
+.decbox{left:56px;bottom:56px;width:330px;padding:0;background:none;border:0;box-shadow:none;z-index:4}
 /* монеты */
 .coins{position:absolute;right:100px;top:74px;z-index:6}
 .cbtn{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.28em;text-transform:uppercase;color:#bfe9d6;cursor:pointer;
@@ -414,7 +471,7 @@ COIN_HTML = r"""
 .cleg{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:10px;padding-top:9px;border-top:1px dashed rgba(127,232,176,.2);font-family:var(--f-cap);font-size:6.5px;letter-spacing:.18em;text-transform:uppercase;color:#7fb8a0;white-space:nowrap}
 .cleg b{display:inline-flex;align-items:center;gap:5px;font-weight:400}.cleg b i{width:6px;height:6px;border-radius:50%}.cleg s{flex:0 0 100%;height:0}.cleg em{font-style:normal;font-size:9px}
 /* часы и сияние */
-.clockbox{position:absolute;right:96px;bottom:44px;display:flex;align-items:flex-end;gap:14px}
+.clockbox{position:absolute}
 .cvessel{position:relative;width:100px;height:140px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
 .cvessel svg{width:100px;height:100px;display:block;overflow:visible}
 .cvessel.dial{height:150px;justify-content:center}.cvessel.dial svg{width:150px;height:150px}
@@ -739,36 +796,25 @@ COIN_JS = r"""
   var WATER = { up0: { nc: '#9ff5d8', top: '#8ff0cc', body: '#2fb98a', deep: '#0f5c44', halo: '#5fe6a8' }, up1: { nc: '#b9f5d3', top: '#a8f0c8', body: '#4fc08a', deep: '#1f6e52', halo: '#6fd9a8' },
     dn0: { nc: '#ffcaa8', top: '#ffc9a6', body: '#c9805e', deep: '#6a3a2a', halo: '#e0a078' }, dn1: { nc: '#ffc4b8', top: '#ffb3a7', body: '#ff5a4a', deep: '#7a2a30', halo: '#ff7a68' } };
   function vessel(cs) {
-    // ЦИФЕРБЛАТ СУТОК (04.09, вместо сосуда): кольцо на 24 часа, окна роста —
-    // мятные дуги, окна слива — тёплые; стрелка — сейчас; в центре — обратный
-    // отсчёт. Без фильтров: один SVG, одна маленькая CSS-анимация на точке.
-    var W = 150, H = 150, cx = 75, cy = 75, r = 52, w = WATER[cs.kind + (cs.live ? '1' : '0')], nc = w.nc;
-    var now = new Date(), lh = now.getHours() + now.getMinutes() / 60;
-    function ang(h) { return (h / 24) * 2 * Math.PI - Math.PI / 2; }
-    function pt(h, rr) { var a = ang(h); return [cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]; }
-    function arc(h0, ln, rr, col, wd, op) { var h1 = h0 + ln, p0 = pt(h0, rr), p1 = pt(h1, rr), big = ln > 12 ? 1 : 0;
-      return '<path d="M' + p0[0].toFixed(1) + ',' + p0[1].toFixed(1) + ' A' + rr + ',' + rr + ' 0 ' + big + ',1 ' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) + '" fill="none" stroke="' + col + '" stroke-width="' + wd + '" stroke-linecap="round" opacity="' + op + '"/>'; }
+    // РАСПИСАНИЕ — мини-плита (04.09): лента суток с окнами роста и слива, метка «сейчас», отсчёт
+    var W = 320, H = 180, x0 = 20, x1 = 300, y = 118, now = new Date(), lh = now.getHours() + now.getMinutes() / 60;
+    function X(h) { return x0 + (h / 24) * (x1 - x0); }
     function len(sg) { var l = ((sg[1] + 1 - sg[0]) % 24 + 24) % 24; return l || 24; }
-    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '"><defs><radialGradient id="dsk" cx="50%" cy="40%" r="70%"><stop offset="0" stop-color="#0b2a20"/><stop offset="1" stop-color="#03110c"/></radialGradient></defs>';
-    s += '<circle cx="' + cx + '" cy="' + cy + '" r="' + (r + 14) + '" fill="url(#dsk)" opacity=".9"/>';
-    s += '<circle cx="' + cx + '" cy="' + cy + '" r="' + r + '" fill="none" stroke="rgba(191,255,224,.16)" stroke-width="1"/>';
-    // деления: 24 штриха, каждые 6 часов длиннее и подписаны
-    for (var h = 0; h < 24; h++) { var big = h % 6 === 0, a = pt(h, r + 2), b2 = pt(h, r + (big ? 8 : 5));
-      s += '<line x1="' + a[0].toFixed(1) + '" y1="' + a[1].toFixed(1) + '" x2="' + b2[0].toFixed(1) + '" y2="' + b2[1].toFixed(1) + '" stroke="#7fb8a0" stroke-width="' + (big ? 1 : .6) + '" opacity="' + (big ? .8 : .45) + '"/>';
-      if (big) { var t = pt(h, r + 15); s += '<text x="' + t[0].toFixed(1) + '" y="' + (t[1] + 2.5).toFixed(1) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="6" letter-spacing=".1em" fill="#7fb8a0">' + pad(h) + '</text>'; } }
-    // окна роста и слива — дуги по кольцу
-    (SC.pump || []).forEach(function (sg) { s += arc(nyHourToLocal(sg[0]), len(sg), r, WATER.up1.halo, 4, .85); });
-    (SC.dump || []).forEach(function (sg) { s += arc(nyHourToLocal(sg[0]), len(sg), r, WATER.dn1.halo, 4, .75); });
-    // стрелка «сейчас»
-    var hp = pt(lh, r - 2), hb = pt(lh, 10);
-    s += '<line x1="' + hb[0].toFixed(1) + '" y1="' + hb[1].toFixed(1) + '" x2="' + hp[0].toFixed(1) + '" y2="' + hp[1].toFixed(1) + '" stroke="#fff" stroke-width="1" opacity=".7"/>';
-    s += '<circle cx="' + hp[0].toFixed(1) + '" cy="' + hp[1].toFixed(1) + '" r="3" fill="#fff"/><circle class="breath" cx="' + hp[0].toFixed(1) + '" cy="' + hp[1].toFixed(1) + '" r="7" fill="none" stroke="' + nc + '" stroke-width="1.5"/>';
-    // центр: отсчёт
-    var inH = Math.floor(cs.dh), inM = Math.round((cs.dh - inH) * 60), num = inH + ':' + pad(inM);
+    var s = '<rect x="' + x0 + '" y="' + (y - 1.25) + '" width="' + (x1 - x0) + '" height="2.5" rx="1.25" fill="rgba(255,255,255,.10)" stroke="rgba(255,255,255,.45)" stroke-width=".6"/>';
+    function seg(sg, col, cls) { var a = nyHourToLocal(sg[0]), l = len(sg), out = '';
+      for (var k = 0; k < 2; k++) { var st = a + (k ? -24 : 0), xa = Math.max(x0, X(st)), xb = Math.min(x1, X(st + l)); if (xb > xa) out += '<rect class="' + cls + '" x="' + xa.toFixed(1) + '" y="' + (y - 1.25) + '" width="' + (xb - xa).toFixed(1) + '" height="2.5" rx="1.25" fill="' + col + '"/>'; }
+      return out; }
+    (SC.pump || []).forEach(function (sg) { s += seg(sg, '#bfffe0', 'seg'); });
+    (SC.dump || []).forEach(function (sg) { s += seg(sg, '#ffb59f', ''); });
+    for (var h = 0; h <= 24; h += 6) s += '<line x1="' + X(h).toFixed(1) + '" y1="' + (y + 6) + '" x2="' + X(h).toFixed(1) + '" y2="' + (y + 11) + '" stroke="#fff" opacity=".5"/><text class="ax" x="' + X(h).toFixed(1) + '" y="' + (y + 24) + '" text-anchor="middle">' + pad(h % 24) + '</text>';
+    s += '<line x1="' + X(lh).toFixed(1) + '" y1="' + (y - 18) + '" x2="' + X(lh).toFixed(1) + '" y2="' + (y + 6) + '" stroke="#fff" stroke-width="1"/><circle class="nowp" cx="' + X(lh).toFixed(1) + '" cy="' + (y - 20) + '" r="3" fill="#fff"/>';
+    var inH = Math.floor(cs.dh), inM = Math.round((cs.dh - inH) * 60), col = cs.kind === 'up' ? '#bfffe0' : '#ffb59f';
     var cap = cs.live ? (cs.kind === 'up' ? 'РОСТ ИДЁТ · ЕЩЁ' : 'СЛИВ ИДЁТ · ЕЩЁ') : (cs.kind === 'up' ? 'ДО РОСТА' : 'ДО СЛИВА');
-    s += '<text x="' + cx + '" y="' + (cy + 5) + '" text-anchor="middle" font-family="Jost,Inter" font-weight="200" font-size="20" letter-spacing=".04em" fill="' + nc + '">' + num + '</text>';
-    s += '<text x="' + cx + '" y="' + (cy + 18) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="5.5" letter-spacing=".26em" fill="#bfe9d6">' + cap + '</text></svg>';
-    return '<div class="clockbox"><div class="cvessel dial">' + s + '</div><div class="ctxt">' + (cs.tUp ? '<div><span class="k">рост</span><b>' + cs.tUp + '</b></div>' : '') + (cs.tDn ? '<div><span class="k">слив</span><b>' + cs.tDn + '</b></div>' : '') + '</div></div>';
+    s += '<text x="' + (W / 2) + '" y="52" text-anchor="middle" font-family="Jost,Inter" font-weight="200" font-size="32" letter-spacing=".06em" fill="' + col + '">' + inH + ':' + pad(inM) + '</text>';
+    s += '<text x="' + (W / 2) + '" y="70" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" letter-spacing=".26em" fill="rgba(255,255,255,.7)">' + cap + '</text>';
+    s += (cs.tUp ? '<text class="fc" x="' + x0 + '" y="' + (y + 40) + '" text-anchor="start" style="fill:#bfffe0;font-size:6.8px">рост ' + cs.tUp + '</text>' : '') +
+         (cs.tDn ? '<text class="fc" x="' + x1 + '" y="' + (y + 40) + '" text-anchor="end" style="fill:#ffb59f;font-size:6.8px">слив ' + cs.tDn + '</text>' : '');
+    return '<div class="clockbox mini sched" style="--c:#bfffe0;--g:127,240,184"><div class="gglow"></div><svg viewBox="0 0 ' + W + ' ' + H + '">' + s + '</svg><div class="ground"></div></div>';
   }
 
   // ── СБОРКА ЭКРАНА ОДНОЙ МОНЕТЫ ──
@@ -902,7 +948,7 @@ COIN_JS = r"""
     // пометки и выноски
     var imin = 0; for (var i = 1; i < P.length; i++) if (P[i][1] > P[imin][1]) imin = i;
     var imax = 0; for (i = 1; i < P.length; i++) if (P[i][1] < P[imax][1]) imax = i;
-    var NOTES = [['lever', 110, 250, P[imax]], ['memory', 700, 28, P[Math.floor(P.length / 2)]], ['flow', 1190, 150, P[Math.max(0, P.length - 3)]], ['price', 700, 760, P[imin]], ['calendar', 1190, 560, P[P.length - 1]]];
+    var NOTES = [['lever', 110, 250, P[imax]], ['memory', 700, 28, P[Math.floor(P.length / 2)]], ['flow', 1190, 150, P[Math.max(0, P.length - 3)]], ['price', 700, 600, P[imin]], ['calendar', 1190, 470, P[P.length - 1]]];
     var notes = '', leaders = '';
     NOTES.forEach(function (n, ni) { var G = g[n[0]], pr = project(n[3][0], n[3][1]), lx = n[1] + 8, ly = n[2] + 40, ll = Math.hypot(pr[0] - lx, pr[1] - ly);
       leaders += '<line class="ld" x1="' + lx + '" y1="' + ly + '" x2="' + f(pr[0]) + '" y2="' + f(pr[1]) + '" stroke="' + GOLD + '" stroke-width=".6" opacity=".5" style="--L:' + Math.ceil(ll + 2) + ';animation-delay:' + (2.9 + ni * .15).toFixed(2) + 's"/><circle class="an ldc" cx="' + f(pr[0]) + '" cy="' + f(pr[1]) + '" r="2.6" fill="none" stroke="' + GOLD + '" stroke-width=".8" style="animation-delay:' + (3.3 + ni * .15).toFixed(2) + 's"/>';
@@ -915,14 +961,40 @@ COIN_JS = r"""
     for (var di = 0; di < 6; di++) { var rx = 120 + ((di * 137) % 1200), ry = 420 + ((di * 71) % 460), dd = 9 + (di % 5) * 2, dw = -(di * 1.3), dx = (di % 2 ? 1 : -1) * (12 + (di * 9) % 40);
       ANIM += '<div class="dust' + (di % 3 === 0 ? ' g' : '') + '" style="left:' + rx + 'px;top:' + ry + 'px;--d:' + dd + 's;--w:' + dw + 's;--x:' + dx + 'px"></div>'; }
     ANIM += '</div><div class="spark" style="left:' + (SL + (X0 - 26) - 3) + 'px;top:' + (ST + Y1 - 10) + 'px"></div><div class="spark b" style="left:' + (SL + (X0 - 26) - 3) + 'px;top:' + (ST + Y0 - 3) + 'px"></div>';
-    var dzone = ANIM + '<div class="dzone decbox an">' + cardHtml(dec) +
-      '<div class="dcap">решение</div><div class="dv">' + esc(dec.verdict) + '</div>' +
-      '<div class="dwhy">' + esc(String(dec.why)) + '</div>' +
-      (dec.exit ? '<div class="dsub">снимется: ' + esc(dec.exit) + '</div>' : '') +
-      (dec.hurry ? '<div class="dsub">торопит ' + esc(dec.hurry) + '</div>' : '') +
-      '<div class="dline"></div>' +
-      '<div class="drow"><b>за</b><span>' + esc(dec.pro.join(' · ') || 'нет') + '</span></div>' +
-      '<div class="drow con"><b>против</b><span>' + esc(dec.con.join(' · ') || 'нет') + '</span></div></div>';
+    var vtxt = String(dec.verdict || '').toLowerCase(), vcls = /брать|купить/.test(vtxt) ? 'v-buy' : /держ/.test(vtxt) ? 'v-hold' : /закр|выход|выйти|прода/.test(vtxt) ? 'v-exit' : 'v-wait';
+    var BOX6 = '<div class="f back"></div><div class="f bottom"></div><div class="f left"></div><div class="f right"></div><div class="f top"></div>';
+    var dzone = ANIM + '<div class="mini verdict ' + vcls + ' dzone decbox vb ' + (window.VERDICT_STYLE || 'dark') + '">' + cardHtml(dec) +
+      '<div class="bglow2"></div><div class="bglow"></div>' +
+      [[46, 6.2, 0], [62, 7.1, .8], [78, 5.6, 1.6], [94, 6.8, .4], [110, 7.6, 1.2]].map(function (r) { return '<i class="ray" style="left:' + r[0] + 'px;--rd:' + r[1] + 's;--rw:' + (-r[2]) + 's"></i>'; }).join('') +
+      '<div class="vtxt"><div class="vcap">решение</div><div class="vw">' + esc(dec.verdict) + '</div><div class="vwhy">' + esc(String(dec.why).split('—')[0].slice(0, 32)) + '</div></div>' +
+      '<div class="gshadow"></div><div class="box grey">' + BOX6 + '<div class="f front"><div class="txt"><b>за</b><span>' + esc(dec.pro.join(' · ') || 'нет') + '</span><b class="con">против</b><span class="con">' + esc(dec.con.join(' · ') || 'нет') + '</span></div></div></div></div>';
+    // ── журнал за две недели — мини-плита: последние 14 дневок, метки смен ──
+    (function () {
+      var J = JR[String(s.t).toUpperCase()], M = (J && J.marks) || [];
+      var ser14 = ser.slice(-15), n = ser14.length; if (n < 3) return;
+      var W = 320, H = 180, lo = Math.min.apply(null, ser14), hi = Math.max.apply(null, ser14); if (hi === lo) hi = lo * 1.01;
+      var X = function (i) { return 12 + i / (n - 1) * (W - 24); }, Y = function (p) { return 34 + (1 - (p - lo) / (hi - lo)) * (H - 90); };
+      var dpath = ser14.map(function (p, i) { return (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(p).toFixed(1); }).join(' ');
+      var Ln = 0; for (var i = 1; i < n; i++) Ln += Math.hypot(X(i) - X(i - 1), Y(ser14[i]) - Y(ser14[i - 1]));
+      var t1 = d1 ? new Date(d1).getTime() : null, DAY = 864e5, GY = H - 30;
+      var g = '<defs><linearGradient id="hf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + GOLD + '" stop-opacity=".22"/><stop offset="1" stop-color="' + GOLD + '" stop-opacity="0"/></linearGradient></defs>' +
+        '<path d="' + dpath + ' L' + X(n - 1).toFixed(1) + ',' + GY + ' L12,' + GY + ' Z" fill="url(#hf)" opacity=".6"/>' +
+        '<path d="' + dpath + '" fill="none" stroke="' + GOLD + '" stroke-width="5" stroke-linejoin="round" opacity=".18"/>' +
+        '<path class="ln" style="--L:' + Math.ceil(Ln + 2) + '" d="' + dpath + '" fill="none" stroke="' + GOLDL + '" stroke-width="1.4" stroke-linejoin="round"/>' +
+        '<circle r="2.4" fill="#fff"><animateMotion dur="7s" begin="5.6s" repeatCount="indefinite" path="' + dpath + '"/></circle>';
+      var dates = ['2 нед', '1 нед', 'сегодня'];
+      [0, Math.floor((n - 1) / 2), n - 1].forEach(function (ii, k) { g += '<text class="ax" x="' + X(ii).toFixed(1) + '" y="' + (GY + 12) + '" text-anchor="middle">' + dates[k] + '</text>'; });
+      M.forEach(function (m, k) {
+        var tm = new Date(m.t).getTime(), fi = t1 ? (n - 1) - (t1 - tm) / DAY : n - 1; fi = Math.max(0, Math.min(n - 1, fi));
+        var x = X(fi), y = Y(+m.px), ty = 12 + (k % 2) * 12, col = m.miss ? '#ffa892' : GOLDL;
+        g += '<line x1="' + x.toFixed(1) + '" y1="' + y.toFixed(1) + '" x2="' + x.toFixed(1) + '" y2="' + (ty + 4) + '" stroke="' + col + '" stroke-width=".8" stroke-dasharray="2 4" opacity=".7"/>' +
+          '<circle class="ring" style="animation-delay:' + (k * .7) + 's" cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="6" fill="none" stroke="' + col + '" stroke-width="1" opacity=".8"/><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="2.2" fill="#fff"/>' +
+          '<text class="fc' + (m.miss ? ' miss' : '') + '" x="' + (x - 4).toFixed(1) + '" y="' + ty + '" text-anchor="end">' + esc(m.tpl) + '</text>';
+      });
+      g += '<circle cx="' + X(n - 1).toFixed(1) + '" cy="' + Y(ser14[n - 1]).toFixed(1) + '" r="2.6" fill="#fff"/>';
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '">' + g + '</svg>';
+      dzone += '<div class="mini journal"><div class="gglow"></div>' + svg + '<div class="ground"></div><div class="refl">' + svg + '</div></div>';
+    })();
     // шапка, монеты, часы
     var chg = has(s.p1d) ? (+s.p1d) : null;
     var bk2 = BOOK[String(s.t).toUpperCase()], pos = '';
@@ -952,7 +1024,7 @@ COIN_JS = r"""
     root.getElementById('replay').onclick = function () { build(tick); };
     fit();
   }
-  function fit() { var W = root.host.ownerDocument.documentElement.clientWidth || window.innerWidth, H = window.innerHeight; var k = Math.min(W / 1440, H / 900); stage.style.transform = 'translate(-50%,-50%) scale(' + k.toFixed(4) + ')'; }
+  function fit() { var W = root.host.ownerDocument.documentElement.clientWidth || window.innerWidth, H = window.innerHeight; var k = Math.min(W / 1440, H / 900); stage.style.transform = 'translate(-50%,-100%) scale(' + k.toFixed(4) + ')'; }   // 04.09: якорь — низ окна, не центр
   function fromHash() { var h = (location.hash || '').replace('#', '').toUpperCase(); return BY[h] ? h : null; }
   function start() {
     var lead = STARS.filter(function (s) { return s.lead; })[0];

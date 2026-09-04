@@ -20,6 +20,7 @@
 import argparse
 import json
 import statistics
+from datetime import datetime
 from pathlib import Path
 
 # ── пороги (первичные, помечены к калибровке) ──
@@ -571,10 +572,84 @@ def live_refresh(entry: dict, live: dict) -> dict:
     return e
 
 
+# ── ЖИВОЙ ДЕНЬ (05.09) ──────────────────────────────────────────
+# Шаблоны считались только по дневкам cq_v2, которые приходят раз в
+# сутки (~08:00 SGT): между ними при прогонах каждые полчаса смен не
+# было в принципе — Coinglass и пульс качались, но в детектор не шли.
+# Теперь текущий (незакрытый) день собирается из своих рядов и
+# дописывается к дневкам как ещё одна строка:
+#   оборот   — сумма ног b+s баров Coinglass с полуночи UTC,
+#              приведённая к темпу полных суток (делим на долю дня);
+#   тейкер   — Σb/Σs тех же баров; дельта — Σb−Σs (в темпе суток);
+#   цена     — последняя из пульса (high/low — экстремумы пульса за день);
+#   интерес, фандинг — последние из пульса.
+# Дневка, когда придёт, эту строку заменит (ключ — дата).
+LIVE_MIN_FRACTION = 0.15      # раньше ~3:40 UTC темп суток слишком шумный — день не дописываем
+LIVE_MIN_BARS = 4             # и минимум четыре бара Coinglass за день
+
+
+def _live_sources():
+    try:
+        from core_config import BASE_DIR as _B
+    except ImportError:
+        _B = Path(__file__).resolve().parent
+    out = {"cg": {}, "pulse": {}}
+    try:
+        cg = json.loads((_B / "output" / "coinglass_fetch.json").read_text(encoding="utf-8"))
+        out["cg"] = cg.get("coins") or {}
+    except (OSError, ValueError):
+        pass
+    for pp in (_B / "pulse.json", _B / "output" / "pulse.json"):
+        try:
+            out["pulse"] = json.loads(pp.read_text(encoding="utf-8"))
+            break
+        except (OSError, ValueError):
+            continue
+    return out
+
+
+def live_day(sym_usdt: str, src: dict, last_daily: str | None):
+    """Строка текущего дня в формате cq_v2 (tr, oh, fu, oi) или None."""
+    from datetime import timezone as _tz
+    now = datetime.now(_tz.utc)
+    today = now.strftime("%Y-%m-%d")
+    if last_daily and last_daily[:10] >= today:
+        return None                                   # дневка за сегодня уже есть
+    frac = (now.hour * 60 + now.minute) / 1440.0
+    if frac < LIVE_MIN_FRACTION:
+        return None
+    c = (src["cg"].get(sym_usdt) or src["cg"].get(sym_usdt.replace("USDT", "")) or {})
+    ser = ((c.get("fut") or {}).get("series")) or []
+    mid = int(datetime(now.year, now.month, now.day, tzinfo=_tz.utc).timestamp() * 1000)
+    bars = [b for b in ser if b.get("t") and b["t"] >= mid and b.get("b") is not None and b.get("s") is not None]
+    if len(bars) < LIVE_MIN_BARS:
+        return None
+    b = sum(x["b"] for x in bars); s_ = sum(x["s"] for x in bars)
+    pace = 1.0 / max(frac, LIVE_MIN_FRACTION)
+    pr = src["pulse"].get(sym_usdt) or []
+    pr = [r for r in pr if r.get("price")]
+    if not pr:
+        return None
+    pr.sort(key=lambda r: r.get("t") or 0)
+    day_rows = [r for r in pr if (r.get("t") or 0) * 1000 >= mid] or pr[-1:]
+    px = float(pr[-1]["price"]); hi = max(float(r["price"]) for r in day_rows); lo = min(float(r["price"]) for r in day_rows)
+    oi_v = pr[-1].get("oi_usd"); fu_v = pr[-1].get("funding")
+    dt = today + " 00:00:00"
+    return {
+        "tr": {"datetime": dt, "quote_buy_volume": b * pace, "quote_sell_volume": s_ * pace,
+               "quote_volume": (b + s_) * pace, "buy_sell_ratio": (b / s_) if s_ else None, "live": True},
+        "oh": {"datetime": dt, "open": float(day_rows[0]["price"]), "high": hi, "low": lo, "close": px,
+               "quote_volume": (b + s_) * pace, "live": True},
+        "fu": {"datetime": dt, "funding_rate": float(fu_v) if fu_v is not None else 0.0, "live": True},
+        "oi": {"datetime": dt, "open_interest": float(oi_v) if oi_v is not None else None, "live": True},
+    }
+
+
 def build(archive: Path) -> dict:
     rep = {"_meta": {"source": "cq_v2", "thresholds": {
         "episode_mult": EPISODE_MULT, "held_ret7": HELD_RET7,
         "dist_ret7": DIST_RET7}}}
+    _LIVE_SRC = _live_sources()
     for fp in sorted(archive.glob("*.json")):
         if fp.name.startswith("_"):
             continue
@@ -584,6 +659,16 @@ def build(archive: Path) -> dict:
         lq = _series(coin, "liq")
         if not tr or not oh:
             continue
+        # живой день поверх дневок (05.09) — только для шаблона; эпизоды
+        # считаются по закрытым дневкам, как и раньше
+        _live = live_day(fp.stem.upper() + "USDT", _LIVE_SRC, oh[-1]["datetime"]) if _LIVE_SRC else None
+        if _live:
+            # число сделок живого дня — по среднему чеку последней недели (Coinglass сделок не даёт)
+            chk = [t["quote_volume"] / t["trade_count"] for t in tr[-7:] if t.get("trade_count") and t.get("quote_volume")]
+            med_chk = statistics.median(chk) if chk else None
+            _live["tr"]["trade_count"] = max(1, int(_live["tr"]["quote_volume"] / med_chk)) if med_chk else 1
+        tr_l, oh_l = (tr + [_live["tr"]], oh + [_live["oh"]]) if _live else (tr, oh)
+        fu_l, oi_l = (fu + [_live["fu"]], oi + [_live["oi"]]) if _live else (fu, oi)
         eps = episodes_of(tr, oh, fu, oi, lq)
         resolved = [e for e in eps if e["verdict"] != "рано судить"]
         dist = sum(e["verdict"] == "раздали" for e in resolved)
@@ -601,7 +686,7 @@ def build(archive: Path) -> dict:
                 if resolved else
                 (f"всплесков объёма {len(eps)}, исходы ещё зреют" if eps
                  else "всплесков объёма не было"))
-        _pl = plot_line(tr, oh, fu, oi, lq)
+        _pl = plot_line(tr_l, oh_l, fu_l, oi_l, lq)
         rep[fp.stem.upper() + "USDT"] = {
             "episodes": len(eps), "resolved": len(resolved),
             "distributed": dist, "partial": part, "held": held,
