@@ -52,6 +52,10 @@ def _read_json(name: str):
     return None
 
 
+# развязка ПРОТИВ прогноза — те же корни имён, что у render_journal
+MISS_WORDS = ("осечка", "ушёл", "отпустил", "раздача")
+
+
 def _journal() -> dict:
     """output/forecasts.jsonl → {тикер: {n, switches, first, firstAt,
     lastSwitch:{tpl, at, px, chg}}}. Тот же ряд, что у render_journal —
@@ -82,17 +86,26 @@ def _journal() -> dict:
                 {"t": t, "px": float(px), "tpl": str(r.get("tpl") or "")})
         for sym, pts in by.items():
             pts.sort(key=lambda x: x["t"])
-            sw, prev, last = 0, None, None
+            sw, prev, last, marks = 0, None, None, []
             for i, q in enumerate(pts):
                 if prev is not None and q["tpl"] != prev:
                     sw += 1
                     last = {"tpl": q["tpl"].split("(")[0].strip()[:40],
                             "at": q["t"].strftime("%d.%m %H:%M"), "px": q["px"],
                             "chg": round((q["px"] / pts[i - 1]["px"] - 1) * 100, 1)}
+                    # МЕТКИ ПРОГНОЗА на плите (04.09): каждая смена — где и что
+                    # за событие, тем же рядом, что у журнала прогнозов.
+                    marks.append({"t": q["t"].strftime("%Y-%m-%dT%H:%M"), "px": q["px"],
+                                  "tpl": last["tpl"],
+                                  "miss": any(w in q["tpl"].lower() for w in MISS_WORDS)})
                 prev = q["tpl"]
+            if not marks and pts[0]["tpl"]:      # смен нет — показываем стартовое состояние
+                marks.append({"t": pts[0]["t"].strftime("%Y-%m-%dT%H:%M"), "px": pts[0]["px"],
+                              "tpl": pts[0]["tpl"].split("(")[0].strip()[:40],
+                              "miss": any(w in pts[0]["tpl"].lower() for w in MISS_WORDS)})
             out[sym] = {"n": len(pts), "switches": sw, "first": pts[0]["px"],
                         "firstAt": pts[0]["t"].strftime("%d.%m %H:%M"),
-                        "lastSwitch": last}
+                        "lastSwitch": last, "marks": marks}
         break
     return out
 
@@ -399,6 +412,15 @@ COIN_HTML = r"""
 .atmo svg{position:absolute;inset:0;width:100%;height:100%;opacity:.07;mix-blend-mode:overlay}
 .empty{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;font-family:var(--f-cap);font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:#7fb8a0}
 @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}.an,.hd,.hdr,.coins,.clockbox,.back{opacity:1}.ln,.ld{stroke-dashoffset:0}}
+/* ── ПРОГНОЗ ЖУРНАЛА на плите (04.09): подпись на 20% крупнее обычной, свечение, подчёркивание светом ── */
+.fc text{font-family:Jost,Inter,sans-serif;font-weight:500;font-size:12px;letter-spacing:.2em;text-transform:uppercase}
+.fc.now text{fill:#ffd98a;filter:url(#fcglow);animation:fcglint 5s ease-in-out infinite}
+.fc.past text{fill:#bfe9d6;font-weight:400;filter:url(#fcglow2)}
+.fc.miss text{fill:#ff9d84;filter:url(#fcglow3)}
+.fc .u{stroke-width:1;stroke-linecap:round}.fc.now .u{stroke:url(#fcu1)}.fc.past .u{stroke:url(#fcu2)}.fc.miss .u{stroke:url(#fcu3)}
+.fc .st{stroke-dasharray:2 5;animation:fcflow 6s linear infinite}
+@keyframes fcglint{0%,100%{opacity:1}50%{opacity:.78}}
+@keyframes fcflow{to{stroke-dashoffset:-70}}
 </style>
 <div class="wrap"><div class="stage" id="stage"></div></div>
 </template>
@@ -736,6 +758,35 @@ COIN_JS = r"""
     slab += '<g class="an lv2"><text x="' + f(nx) + '" y="' + f(ny - 14) + '" text-anchor="middle" font-family="Jost,Inter" font-weight="300" font-size="10" fill="#fff">' + px4(s.px || ser[ser.length - 1]) + ' <tspan fill="#bfe9d6">сейчас</tspan></text>';
     [[0, dlab(0)], [Math.floor(days / 2), dlab(Math.floor(days / 2))], [days - 1, 'сегодня']].forEach(function (d) { slab += '<text x="' + f(P[d[0]][0]) + '" y="' + (Y0 + 18) + '" text-anchor="middle" class="mono" font-size="7" letter-spacing=".16em" fill="#7fb8a0">' + d[1] + '</text>'; });
     slab += '<line x1="' + (X0 - 26) + '" y1="' + Y0 + '" x2="' + (X0 - 26) + '" y2="' + (Y1 + 4) + '" stroke="' + GOLD + '" stroke-width=".8" opacity=".5"/><path d="M' + (X0 - 26) + ',' + Y1 + ' l-3.5,6 h7 z" fill="' + GOLD + '" opacity=".6"/></g>';
+    // ── ПРОГНОЗ ЖУРНАЛА: точка смены на линии, ножка, подпись с подчёркиванием ──
+    // Где и что за событие — те же смены, что на экране журнала. Даты нет:
+    // где на плите, там и когда. Подписи ярусами справа налево, наезда нет.
+    (function () {
+      var J = JR[String(s.t).toUpperCase()], M = J && J.marks;
+      if (!M || !M.length) return;
+      var t0 = d0 ? new Date(d0).getTime() : null, t1 = d1 ? new Date(d1).getTime() : null;
+      slab += '<defs>' +
+        '<filter id="fcglow" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
+        '<filter id="fcglow2" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
+        '<filter id="fcglow3" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur in="SourceGraphic" stdDeviation="1.8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
+        '<linearGradient id="fcu1"><stop offset="0" stop-color="#f5a93a" stop-opacity="0"/><stop offset=".6" stop-color="#ffd98a"/><stop offset="1" stop-color="#fff"/></linearGradient>' +
+        '<linearGradient id="fcu2"><stop offset="0" stop-color="#7fe8b0" stop-opacity="0"/><stop offset=".6" stop-color="#bfe9d6"/><stop offset="1" stop-color="#fff"/></linearGradient>' +
+        '<linearGradient id="fcu3"><stop offset="0" stop-color="#ff5a4a" stop-opacity="0"/><stop offset=".6" stop-color="#ff9d84"/><stop offset="1" stop-color="#fff"/></linearGradient></defs>';
+      var last = M.length - 1;
+      M.forEach(function (m, k) {
+        var tm = new Date(m.t).getTime(), x;
+        if (t0 && t1 && t1 > t0) x = X0 + Math.max(0, Math.min(1, (tm - t0) / (t1 - t0))) * (X1 - X0);
+        else x = P[P.length - 1][0];
+        var y = sy(+m.px), cls = k === last ? 'now' : 'past', col = k === last ? '#ffd98a' : '#bfe9d6';
+        if (m.miss) { cls = k === last ? 'now miss' : 'miss'; col = '#ff9d84'; }
+        var tier = last - k, ty = Y1 + 34 + tier * 22, ex = x - 14, w = m.tpl.length * 7.2;
+        slab += '<g class="an fc ' + cls + '" style="animation-delay:' + (2.2 + k * .2).toFixed(1) + 's">' +
+          '<circle cx="' + f(x) + '" cy="' + f(y) + '" r="' + (k === last ? 12 : 8) + '" fill="' + col + '" opacity=".28" filter="url(#blur6)"/><circle cx="' + f(x) + '" cy="' + f(y) + '" r="2.6" fill="#fff6e4"/>' +
+          '<polyline class="st" points="' + f(x) + ',' + f(y) + ' ' + f(x) + ',' + f(ty + 6) + ' ' + f(ex) + ',' + f(ty + 6) + '" fill="none" stroke="' + col + '" stroke-width="1" opacity=".55"/>' +
+          '<text x="' + f(ex) + '" y="' + f(ty) + '" text-anchor="end">' + esc(m.tpl) + '</text>' +
+          '<line class="u" x1="' + f(ex - w) + '" y1="' + f(ty + 6) + '" x2="' + f(ex) + '" y2="' + f(ty + 6) + '"/></g>';
+      });
+    })();
     // решение внутри плиты
     var DX = X0 + 44, DY = Y0 - 146, dec = g.decision;
     slab += '<g class="an dec"><rect x="' + (DX - 26) + '" y="' + (DY - 30) + '" width="300" height="158" rx="12" fill="#03110c" opacity=".38" filter="url(#blur12)"/>' +
