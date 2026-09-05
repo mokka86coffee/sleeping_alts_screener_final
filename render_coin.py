@@ -296,6 +296,18 @@ def _parse_ts(x):
         return None
 
 
+def _finite(x):
+    """Рекурсивно: float NaN/±inf → None; остальное как есть."""
+    import math
+    if isinstance(x, float):
+        return x if math.isfinite(x) else None
+    if isinstance(x, dict):
+        return {k: _finite(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [_finite(v) for v in x]
+    return x
+
+
 def _liq_history(days: int = 14) -> dict:
     """Карта ликвидаций ВО ВРЕМЕНИ (05.09, по R2D2): каждый прогон liq_log
     пишет полосы; складываем их по монете в ряд [[t_ms, [[цена, вес], …]], …]
@@ -317,6 +329,8 @@ def _liq_history(days: int = 14) -> dict:
             sym = str(r.get("sym") or "").upper()
             if not sym or sym == "BTC":
                 continue
+            if not sym.endswith("USDT"):
+                sym += "USDT"          # лог пишет базу (BLESS), экран ищет пару (BLESSUSDT) — иначе карта во времени пуста
             try:
                 ts = datetime.strptime(r["at"] + " " + r["hm"], "%Y-%m-%d %H:%M").timestamp()
             except (KeyError, ValueError):
@@ -342,15 +356,18 @@ def render_coin(stars: list[dict], market: dict) -> str:
     for r in (_read_json("flow_watch.json") or {}).get("coins") or []:
         flow[str(r.get("sym") or "").upper().replace("USDT", "")] = {
             "case": r.get("case"), "low": r.get("low"), "high": r.get("high")}
-    blob = json.dumps({"stars": stars, "market": market,
-                       "whales": whales.get("by_coin") or {},
-                       "sched": sched, "journal": _journal(),
-                       "hist": _history(stars), "book": _book(),
-                       "crowd": crowd, "flow": flow,
-                       "oitypes": ((_read_json("oi_types.json") or {}).get("coins") or {}),   # плечо по типу (05.09)
-                       "liqhist": _liq_history(),   # карта ликвидаций во времени (05.09)
-                       "sources": source_stamps(stars, market)},
-                      ensure_ascii=False, separators=(",", ":"))
+    payload = {"stars": stars, "market": market,
+               "whales": whales.get("by_coin") or {},
+               "sched": sched, "journal": _journal(),
+               "hist": _history(stars), "book": _book(),
+               "crowd": crowd, "flow": flow,
+               "oitypes": ((_read_json("oi_types.json") or {}).get("coins") or {}),   # плечо по типу (05.09)
+               "liqhist": _liq_history(),   # карта ликвидаций во времени (05.09)
+               "sources": source_stamps(stars, market)}
+    # ЧЁРНЫЙ ЭКРАН (05.09 вечер): NaN/Infinity из числовых рядов (веса полос, приросты) json.dumps
+    # пишет как NaN — это не JSON, JSON.parse в браузере падает, и вся страница пуста.
+    # Чистим: любое нечисло → null; allow_nan=False — страховка, чтобы такое больше не прошло.
+    blob = json.dumps(_finite(payload), ensure_ascii=False, separators=(",", ":"), allow_nan=False)
     safe = blob.replace("</", "<\\/")
     return (COIN_HTML
             + f'<script id="coinData" type="application/json">{safe}</script>'
@@ -1102,13 +1119,16 @@ COIN_JS = r"""
         if (m.miss) { cls = k === last ? 'now miss' : 'miss'; col = '#ff9d84'; }
         // подписи — вереницей справа налево по верху плиты (последняя смена —
         // самая правая), в два ряда, к каждой — прямая выноска от её точки
-        var tier = last - k, w = m.tpl.length * 7.2, ex = X1 + 10 - tier * 170, ty = Y1 + 24 + (tier % 2) * 22;
+        // ПОДПИСИ ТОЛЬКО У ПОСЛЕДНИХ ТРЁХ (05.09: после дозабора смен стало много, подписи
+        // наезжали друг на друга); старые смены — точка на линии без текста, полный ряд — в журнале
+        var tier = last - k, name = String(m.tpl).split('(')[0].trim(), w = name.length * 7.2, ex = X1 + 10 - tier * 200, ty = Y1 + 24 + (tier % 2) * 22;
         if (ex - w < X0) { ex = X0 + w; }
+        var labeled = tier < 3;
         slab += '<g class="an fc ' + cls + '" style="animation-delay:' + (2.2 + k * .2).toFixed(1) + 's">' +
           '<circle cx="' + f(x) + '" cy="' + f(y) + '" r="' + (k === last ? 12 : 8) + '" fill="' + col + '" opacity=".28" filter="url(#blur6)"/><circle cx="' + f(x) + '" cy="' + f(y) + '" r="2.6" fill="#fff6e4"/>' +
-          '<line class="st" x1="' + f(x) + '" y1="' + f(y) + '" x2="' + f(ex - w / 2) + '" y2="' + f(ty + 8) + '" stroke="' + col + '" stroke-width="1" opacity=".55"/>' +
-          '<text x="' + f(ex) + '" y="' + f(ty) + '" text-anchor="end">' + esc(m.tpl) + '</text>' +
-          '<line class="u" x1="' + f(ex - w) + '" y1="' + f(ty + 6) + '" x2="' + f(ex) + '" y2="' + f(ty + 6) + '"/></g>';
+          (labeled ? '<line class="st" x1="' + f(x) + '" y1="' + f(y) + '" x2="' + f(ex - w / 2) + '" y2="' + f(ty + 8) + '" stroke="' + col + '" stroke-width="1" opacity=".55"/>' +
+          '<text x="' + f(ex) + '" y="' + f(ty) + '" text-anchor="end">' + esc(name) + '</text>' +
+          '<line class="u" x1="' + f(ex - w) + '" y1="' + f(ty + 6) + '" x2="' + f(ex) + '" y2="' + f(ty + 6) + '"/>' : '') + '</g>';
       });
     })();
     // РЕШЕНИЕ — ВНЕ ПЛИТЫ (04.09): плашка ушла с графика влево-вниз, HTML-слоем
@@ -1236,9 +1256,11 @@ COIN_JS = r"""
       M.forEach(function (m, k) {
         var tm = new Date(m.t).getTime(); if (!(tm >= t0)) tm = t0; if (tm > tE) tm = tE;
         var x = XT(tm), y = Y(+m.px), ty = 12 + (k % 2) * 12, col = m.miss ? '#ffa892' : GOLDL;
+        var name = String(m.tpl).split('(')[0].trim(), labeled = (M.length - 1 - k) < 2;   // подписи — у двух последних
+        if (!labeled) { g += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="2.2" fill="' + col + '" opacity=".8"/>'; return; }
         g += '<line x1="' + x.toFixed(1) + '" y1="' + y.toFixed(1) + '" x2="' + x.toFixed(1) + '" y2="' + (ty + 4) + '" stroke="' + col + '" stroke-width=".8" stroke-dasharray="2 4" opacity=".7"/>' +
           '<circle class="ring" style="animation-delay:' + (k * .7) + 's" cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="6" fill="none" stroke="' + col + '" stroke-width="1" opacity=".8"/><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="2.2" fill="#fff"/>' +
-          '<text class="fc' + (m.miss ? ' miss' : '') + '" x="' + (x - 4).toFixed(1) + '" y="' + ty + '" text-anchor="end">' + esc(m.tpl) + '</text>';
+          '<text class="fc' + (m.miss ? ' miss' : '') + '" x="' + (x - 4).toFixed(1) + '" y="' + ty + '" text-anchor="end">' + esc(name) + '</text>';
       });
       g += '<circle cx="' + XT(tE).toFixed(1) + '" cy="' + Y(pts[pts.length - 1].p).toFixed(1) + '" r="2.6" fill="#fff"/>';
       var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '">' + g + '</svg>';

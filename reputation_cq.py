@@ -290,8 +290,9 @@ def _at_target(oh: list, oi: list, fu: list, tr: list, px: list, sym: str | None
     px_g = (c[-1] / c[-2] - 1) if len(c) > 1 and c[-2] else 0.0
     f = fu[-1]["funding_rate"] if fu else 0.0
     f_prev = fu[-2]["funding_rate"] if len(fu) > 1 else f
-    head = (f"у цели сбора: цена в {dist:.1f}% от плотнейшей полосы стопов "
-            f"{top['price']:.4g} сверху, выше полос нет — ")
+    # имя КОРОТКОЕ, детали в скобках (05.09: на плите резалось «у цели сбора: цена в 0.6% от плотнейшей»)
+    head = (f"у цели сбора (цена в {dist:.1f}% от плотнейшей полосы стопов "
+            f"{top['price']:.4g} сверху, выше полос нет) — ")
     if tk > 1.0 and d > 0 and oi_g <= max(px_g, 0) + 0.10:
         return (head + f"ведёт покупатель: тейкер {tk:.2f}, дельта в плюс, плечо "
                 f"{oi_g * 100:+.0f}% при цене {px_g * 100:+.0f}% — держать со стопом под полосой, "

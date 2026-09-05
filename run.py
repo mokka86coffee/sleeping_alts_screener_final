@@ -1004,9 +1004,22 @@ def run_once(args: argparse.Namespace) -> int:
                 + (" · СВЕЧА НЕ СНЯТА, данные прошлой" if _st.get("missing") else ""))
             if _st.get("missing"):
                 _issue("Coinglass", f"свеча не снята: {_st.get('why', '')}", critical=True)
-            _nm = sum(1 for v in (_cg.get("coins") or {}).values() if v.get("missing"))
+            _byf: dict = {}
+            _nm = 0
+            for v in (_cg.get("coins") or {}).values():
+                if v.get("missing"):
+                    _nm += 1
+                    for _f in v["missing"]:
+                        _byf[_f] = _byf.get(_f, 0) + 1
             if _nm:
-                _issue("Coinglass", f"монет с неполными точками: {_nm} (флаг missing в срезе)")
+                _names = {"spot": "спот", "fut": "перп", "oi": "интерес", "funding": "фандинг", "liq": "ликвидации"}
+                _det = ", ".join(f"{_names.get(k, k)} {n}" for k, n in sorted(_byf.items(), key=lambda kv: -kv[1]))
+                # нет спота — не сбой, у монеты нет спотового рынка; сбоем считаем перп/интерес/фандинг
+                _real = sum(n for k, n in _byf.items() if k in ("fut", "oi", "funding"))
+                if _real:
+                    _issue("Coinglass", f"неполные точки у {_nm} монет: {_det}")
+                else:
+                    log(f"→ Coinglass: неполные точки у {_nm} монет ({_det}) — не сбой, у монеты нет этого рынка")
             if _cap:
                 _issue("Coinglass", f"потолок: {_cap} — поднять MAX_COINS")
             if _errs:
