@@ -253,15 +253,44 @@ def source_stamps(stars: list[dict], market: dict) -> dict:
     красит: квант — сутки, остальное — час; старше — красный."""
     whales = _read_json("whales.json") or {}
     sched = _read_json("schedule.json") or {}
-    return {"run": market.get("ts"),
-            "coinglass": max((str((st.get("cg") or {}).get("at") or "") for st in stars), default="") or None,
-            "quant": _quant_stamp(),
-            "pulse": _pulse_stamp(),
-            "whales": whales.get("at"),
-            "crowd": (_read_json("coinglass_crowd.json") or {}).get("at"),
-            "unlocks": (_read_json("coinglass_unlocks.json") or {}).get("at"),
-            "sched": sched.get("at"),
-            "flow": ((_read_json("flow_watch.json") or {}).get("_meta") or {}).get("at")}
+    out = {"run": market.get("ts"),
+           "coinglass": max((str((st.get("cg") or {}).get("at") or "") for st in stars), default="") or None,
+           "quant": _quant_stamp(),
+           "pulse": _pulse_stamp(),
+           "whales": whales.get("at"),
+           "crowd": (_read_json("coinglass_crowd.json") or {}).get("at"),
+           "unlocks": (_read_json("coinglass_unlocks.json") or {}).get("at"),
+           "sched": sched.get("at"),
+           "flow": ((_read_json("flow_watch.json") or {}).get("_meta") or {}).get("at")}
+    # ОДИН ОТСЧЁТ ДЛЯ ТОГО, ЧТО СОБИРАЕТСЯ В ПРОГОНЕ (05.09, «всё считается непонятно как»):
+    # Coinglass, пульс, киты и поток снимаются внутри прогона, а прогон длится ~10 мин —
+    # их собственные штампы ложились на 10–30 мин старше публикации и смотрелись
+    # «уже 30 мин» сразу после обновления. Если источник собран в этом прогоне (его
+    # штамп не старше начала прогона больше чем на час), его возраст — возраст ПРОГОНА.
+    # Суточные источники (квант, толпа, разлоки, расписание) считаются по своим штампам.
+    run_ts = _parse_ts(market.get("ts"))
+    if run_ts:
+        for k in ("coinglass", "pulse", "whales", "flow"):
+            own = _parse_ts(out.get(k))
+            if own and (run_ts - own).total_seconds() <= 3600 and own <= run_ts:
+                out[k] = market.get("ts")
+    return out
+
+
+def _parse_ts(x):
+    """ISO-строка или epoch → datetime UTC; иначе None."""
+    if x is None or x == "":
+        return None
+    try:
+        if isinstance(x, (int, float)):
+            return datetime.fromtimestamp(x / (1000 if x > 1e12 else 1), tz=timezone.utc)
+        t = str(x).strip().replace("Z", "+00:00")
+        if len(t) == 10:
+            t += "T00:00:00+00:00"
+        d = datetime.fromisoformat(t)
+        return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError, OSError):
+        return None
 
 
 def _liq_history(days: int = 14) -> dict:
@@ -633,7 +662,9 @@ COIN_JS = r"""
   // ── ВОЗРАСТ ИСТОЧНИКОВ: считается на месте, от часов зрителя; квант — сутки, остальное — час ──
   var SRC = D.sources || {};
   var SRC_LIST = [['прогон', 'run', 1], ['Coinglass', 'coinglass', 1], ['квант', 'quant', 24], ['пульс', 'pulse', 1], ['киты', 'whales', 1], ['толпа', 'crowd', 24], ['разлоки', 'unlocks', 24], ['расписание', 'sched', 48], ['поток', 'flow', 1]];
-  function ageH(ts) { if (!ts) return null; var t = Date.parse(String(ts).length === 10 ? ts + 'T23:59:00Z' : ts); return isNaN(t) ? null : (Date.now() - t) / 36e5; }
+  // штамп из одной даты (расписание пишет «YYYY-MM-DD») читается как ПОЛНОЧЬ этой даты по UTC,
+  // а не как её конец: раньше «часы −736 мин» — штамп ложился в будущее (05.09)
+  function ageH(ts) { if (!ts) return null; var t = Date.parse(String(ts).length === 10 ? ts + 'T00:00:00Z' : ts); if (isNaN(t)) return null; var h = (Date.now() - t) / 36e5; return h < 0 ? 0 : h; }
   function ageTxt(h) { return h === null ? 'нет данных' : h < 1 ? Math.round(h * 60) + ' мин' : h < 48 ? Math.round(h) + ' ч' : Math.round(h / 24) + ' дн'; }
   function badge(label, ts, maxH) { var h = ageH(ts), cls = h === null ? 'none' : h > maxH ? 'stale' : 'fresh'; return '<span class="src ' + cls + '" title="' + esc(label) + ': ' + esc(ts || 'нет данных') + ' · порог ' + maxH + ' ч"><i></i>' + esc(label) + ' ' + ageTxt(h) + '</span>'; }
   // ОДНА метка свежести (04.09): зелёная — все источники в сроке, красная —

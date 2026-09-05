@@ -535,6 +535,10 @@ def collect(symbols: list[str] | None = None, *,
     if write and not state.get("error"):
         try:
             STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
+            # штамп — момент ЗАПИСИ, не старта (05.09): сбор идёт ~8 мин, и «at» на
+            # старте делал срез на экране старее на весь сбор; старт — в started_at
+            state["started_at"] = state.get("at")
+            state["at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
             STATE_PATH.write_text(
                 json.dumps(state, ensure_ascii=False, indent=1),
                 encoding="utf-8")

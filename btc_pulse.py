@@ -145,37 +145,57 @@ def coinglass_block(missing: list[str]) -> dict:
         missing.append(f"coinglass: {key}")
         return out
     # ликвидации за 24 ч по сторонам
+    # 05.09: /futures/liquidation/aggregated-history на тарифе отдаёт пусто — берём
+    # общий список по монетам (coin-list, тот же путь, что у сборщика) и из него BTC
     try:
-        code, data = get("/futures/liquidation/aggregated-history",
-                         {"exchange_list": "ALL", "symbol": "BTC", "interval": "1h", "limit": 24}, key)
-        rows = _rows(data) if code == 200 else []
-        if rows:
-            lo = sum(_first(r, "aggregated_long_liquidation_usd", "long_liquidation_usd", "longLiquidationUsd") or 0 for r in rows)
-            sh = sum(_first(r, "aggregated_short_liquidation_usd", "short_liquidation_usd", "shortLiquidationUsd") or 0 for r in rows)
-            out["liq"] = {"long_24h_usd": round(lo, 0), "short_24h_usd": round(sh, 0),
-                          "hours": len(rows)}
+        from coinglass_fetch import parse_liq_list
+        code, data = get("/futures/liquidation/coin-list", {"range": "24h"}, key)
+        allq = parse_liq_list(data) if code == 200 else {}
+        b = allq.get("BTC") or allq.get("BTCUSDT") or {}
+        if b and (b.get("long24h") or b.get("short24h")):
+            out["liq"] = {"long_24h_usd": round(float(b.get("long24h") or 0), 0),
+                          "short_24h_usd": round(float(b.get("short24h") or 0), 0), "hours": 24}
         else:
-            missing.append(f"liq: код {code}: {str(data)[:120]}")
+            missing.append(f"liq: код {code}: BTC в списке нет" if code == 200 else f"liq: код {code}: {str(data)[:120]}")
     except Exception as e:  # noqa: BLE001
         missing.append(f"liq: {type(e).__name__}: {e}")
-    # премия Coinbase
+    # премия Coinbase — СВОЯ (05.09): индекс Coinglass на тарифе 404. Берём цену Coinbase
+    # BTC-USD и Binance BTCUSDT с публичных API, премия = разница в процентах; ряд копится в
+    # output/btc_premium.jsonl, из него — часы подряд в плюсе и мин/макс за сутки.
     try:
-        code, data = get("/index/coinbase-premium-index", {"interval": "1h", "limit": 30}, key)
-        rows = _rows(data) if code == 200 else []
-        if rows:
-            ser = [_first(r, "premium", "premium_index", "premiumIndex", "value") for r in rows]
-            ser = [x for x in ser if x is not None]
-            if ser:
-                pos = 0
-                for x in reversed(ser):
-                    if x > 0:
-                        pos += 1
-                    else:
-                        break
-                out["premium"] = {"last": ser[-1], "hours_positive": pos,
-                                  "min_24h": min(ser[-24:]), "max_24h": max(ser[-24:])}
-        else:
-            missing.append(f"premium: код {code}: {str(data)[:120]}")
+        import urllib.request as _u
+        def _j(url):
+            req = _u.Request(url, headers={"User-Agent": "sleeping-alts/1.0"})
+            with _u.urlopen(req, timeout=15) as r:
+                return json.loads(r.read().decode())
+        cb = float(_j("https://api.exchange.coinbase.com/products/BTC-USD/ticker")["price"])
+        bn = float(_j("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT")["price"])
+        prem = (cb - bn) / bn * 100
+        jp = BASE_DIR / "output" / "btc_premium.jsonl"
+        jp.parent.mkdir(exist_ok=True)
+        now_ts = int(datetime.now(timezone.utc).timestamp())
+        with jp.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({"t": now_ts, "cb": cb, "bn": bn, "prem": round(prem, 4)}) + "\n")
+        hist = []
+        for line in jp.read_text(encoding="utf-8").splitlines()[-400:]:
+            try:
+                hist.append(json.loads(line))
+            except ValueError:
+                pass
+        day = [h for h in hist if now_ts - h["t"] <= 86400]
+        # часы подряд в плюсе: по часовым корзинам среднее > 0, считаем с конца
+        buckets: dict[int, list] = {}
+        for h in day:
+            buckets.setdefault(h["t"] // 3600, []).append(h["prem"])
+        pos = 0
+        for hb in sorted(buckets, reverse=True):
+            if sum(buckets[hb]) / len(buckets[hb]) > 0:
+                pos += 1
+            else:
+                break
+        out["premium"] = {"last": round(prem, 4), "hours_positive": pos,
+                          "min_24h": round(min(h["prem"] for h in day), 4), "max_24h": round(max(h["prem"] for h in day), 4),
+                          "source": "своя: Coinbase против Binance"}
     except Exception as e:  # noqa: BLE001
         missing.append(f"premium: {type(e).__name__}: {e}")
     # приток ETF (сначала — уже скачанный срез проекта, потом API)
@@ -249,7 +269,17 @@ def read_line(p: dict) -> str:
         parts.append(f"премия Coinbase {pr['last']:+.0f}" + (f", плюс {pr['hours_positive']} ч подряд" if pr["hours_positive"] else ""))
     et = p.get("etf")
     if et:
-        d = str(et.get("last_at") or "")[:10]
+        raw_d = et.get("last_at")
+        d = ""
+        try:
+            if isinstance(raw_d, (int, float)) or (isinstance(raw_d, str) and raw_d.strip().isdigit()):
+                v = float(raw_d)
+                d = datetime.fromtimestamp(v / 1000 if v > 1e11 else v, timezone.utc).strftime("%Y-%m-%d")
+            elif raw_d:
+                d = str(raw_d)[:10]
+                datetime.strptime(d, "%Y-%m-%d")
+        except (ValueError, TypeError, OSError):
+            d = ""
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         when = ("за сегодня ещё не отчитано" if d and d < today and not et["last_usd"] else
                 (f"за {d[8:10]}.{d[5:7]}" if d else "за день"))

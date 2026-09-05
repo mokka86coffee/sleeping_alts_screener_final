@@ -1038,7 +1038,7 @@ SCHEME_JS = r"""
     } else { el.classList.remove('stale'); var ob = el.querySelector('b'); if (ob) ob.remove(); }
   }
   var SRC = DATA.sources || {}, SRC_LIST = [['Coinglass', 'coinglass', 1], ['квант', 'quant', 24], ['пульс', 'pulse', 1], ['киты', 'whales', 1], ['толпа', 'crowd', 24], ['разлоки', 'unlocks', 24], ['часы', 'sched', 48]];
-  function ageH(ts){ if (!ts) return null; var t = Date.parse(String(ts).length === 10 ? ts + 'T23:59:00Z' : ts); return isNaN(t) ? null : (Date.now() - t) / 36e5; }
+  function ageH(ts){ if (!ts) return null; var t = Date.parse(String(ts).length === 10 ? ts + 'T00:00:00Z' : ts); if (isNaN(t)) return null; var h = (Date.now() - t) / 36e5; return h < 0 ? 0 : h; }
   function ageTxt(h){ return h === null ? 'нет данных' : h < 1 ? Math.round(h * 60) + ' мин' : h < 48 ? Math.round(h) + ' ч' : Math.round(h / 24) + ' дн'; }
   function srcRow(){
     var el = q('#srcs'); if (!el) return;
