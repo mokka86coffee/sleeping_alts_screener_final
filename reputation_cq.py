@@ -752,8 +752,30 @@ AS_OF_PX: dict = {}                      # sym_usdt → {open, high, low, close,
 
 
 def live_day(sym_usdt: str, src: dict, last_daily: str | None):
-    """Строка текущего дня в формате cq_v2 (tr, oh, fu, oi) или None."""
+    """Строка текущего дня в формате cq_v2 (tr, oh, fu, oi) или None.
+
+    ОБЩИЙ МОДУЛЬ (06.09): в обычном прогоне живой день берётся из live_day.live_rows —
+    один код на репутацию, фильтр близких и всё, что смотрит «сейчас». Свой разбор ниже
+    остаётся для дозабора «на момент» (AS_OF/AS_OF_PX) и как запасной, если модуля нет."""
     from datetime import timezone as _tz
+    if not AS_OF:
+        try:
+            from live_day import live_rows as _lr
+            now0 = datetime.now(_tz.utc)
+            if last_daily and last_daily[:10] >= now0.strftime("%Y-%m-%d"):
+                return None
+            r = _lr(sym_usdt, src)
+            if r is None:
+                return None
+            # тот же формат и тот же флаг live, что у своего разбора ниже — читатели не отличат
+            return {"tr": {"datetime": r["datetime"], "quote_buy_volume": r["quote_buy_volume"], "quote_sell_volume": r["quote_sell_volume"],
+                           "quote_volume": r["quote_volume"], "buy_sell_ratio": r["buy_sell_ratio"], "live": True},
+                    "oh": {"datetime": r["datetime"], "open": r["open"], "high": r["high"], "low": r["low"], "close": r["close"],
+                           "quote_volume": r["quote_volume"], "live": True},
+                    "fu": {"datetime": r["datetime"], "funding_rate": float(r["funding_rate"]) if r["funding_rate"] is not None else 0.0, "live": True},
+                    "oi": {"datetime": r["datetime"], "open_interest": float(r["open_interest"]) if r["open_interest"] is not None else None, "live": True}}
+        except ImportError:
+            pass
     now = AS_OF if AS_OF else datetime.now(_tz.utc)
     today = now.strftime("%Y-%m-%d")
     if last_daily and last_daily[:10] >= today:

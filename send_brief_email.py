@@ -185,17 +185,27 @@ def build_letter(stars: list, market: dict) -> tuple[str, str]:
     try:
         _nm = json.loads((BASE_DIR / "output" / "near_move.json").read_text(encoding="utf-8"))
         _coins = _nm.get("coins") or {}
-        _lst = _nm.get("near") or [k for k, v in _coins.items() if v.get("near")]
-        _near_n = len(_lst)
-        if _lst:
-            add(f"БЛИЗКИЕ К ХОДУ ({len(_lst)}):")
-            for _sym in _lst[:12]:
+        def _block(title, key, note=""):
+            _lst = _nm.get(key) or []
+            if not _lst:
+                return 0
+            add(f"{title} ({len(_lst)}){note}:")
+            for _sym in _lst[:10]:
                 _v = _coins.get(_sym) or {}
-                _why = " · ".join(_v.get("why") or [])
-                add(f"  · {_sym.replace('USDT', '')} — {_why}")
-        else:
+                _n = _v.get("nums") or {}
+                _short = (f"сбор {str(_n.get('harvest_day', ''))[5:]} ×{_n.get('harvest_x', 0):.0f} · оборот ×{_n.get('lull_x', 0):.1f} · "
+                          f"плечо ×{_n.get('oi_grow', 0):.2f} · шортов ${(_n.get('shorts_3d_usd') or 0) / 1e3:.0f}K"
+                          + (f" · от максимума {_n['from_harvest_high']:+.0f}%" if _n.get("from_harvest_high") is not None else ""))
+                add(f"  · {_sym.replace('USDT', '')} — {_short}")
+            add("")
+            return len(_lst)
+        _near_n = _block("БЛИЗКИЕ К ХОДУ", "holding", " — держат после сбора, ход впереди")
+        _block("ИДУТ", "going", " — второй акт уже идёт, держать до «отпустил»")
+        _block("ОТКАТИЛИСЬ", "pulled", " — отдали 10–35% после сбора, решит первый день продаж")
+        _block("ОТДАЮТ", "giving", " — плечо уходит, отскоки — кандидаты на шорт")
+        if not _near_n and not (_nm.get("going") or _nm.get("giving")):
             add("БЛИЗКИЕ К ХОДУ: пока никого")
-        add("")
+            add("")
     except Exception as _e:
         add(f"БЛИЗКИЕ К ХОДУ: не посчитаны ({type(_e).__name__})")
         add("")

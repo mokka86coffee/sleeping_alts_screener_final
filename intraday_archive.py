@@ -95,6 +95,7 @@ def build_rows(candle_ms: int, only: list[str] | None = None) -> list[dict]:
     cg = _read(BASE_DIR / "output" / "coinglass_fetch.json") or {}
     coins = cg.get("coins") or {}
     rep = _read(BASE_DIR / "output" / "reputation.json") or {}
+    pulse = _read(BASE_DIR / "pulse.json") or {}
     oit = (_read(BASE_DIR / "output" / "oi_types.json") or {}).get("coins") or {}
     liq_last = _last_jsonl_by_sym(BASE_DIR / "output" / "liq_log.jsonl")
     candle = __import__("time").strftime("%Y-%m-%dT%H:%M:00Z", __import__("time").gmtime(candle_ms / 1000))
@@ -120,13 +121,26 @@ def build_rows(candle_ms: int, only: list[str] | None = None) -> list[dict]:
                 break
         if oi_type is None and hours:
             missing.append("oi_type")
-        r = rep.get(sym) or {}
+        r = rep.get(sym) or rep.get(sym.replace("USDT", "")) or {}
         lq = liq_last.get(sym.replace("USDT", "")) or {}
+        # ЦЕНА БАРА — ИЗ ПУЛЬСА (06.09, найдено на ENA: во всех строках стояло закрытие
+        # дневки): последняя точка пульса не позже конца свечи; нет — цена бара Coinglass;
+        # нет — из лога. Дневка — последней, с пометкой в missing.
         px = None
-        for cand in (lq.get("px"), r.get("px"), r.get("close")):
-            if cand:
-                px = float(cand)
-                break
+        pr = [q for q in (pulse.get(sym) or []) if q.get("price") and (q.get("t") or 0) * 1000 <= candle_ms + 1800000 + 60000]
+        if pr:
+            pr.sort(key=lambda q: q.get("t") or 0)
+            px = float(pr[-1]["price"])
+        if px is None:
+            bar = _bar_at((c.get("fut") or {}).get("series") or [], candle_ms)
+            if bar and bar.get("c"):
+                px = float(bar["c"])
+        if px is None:
+            for cand in (lq.get("px"), r.get("px"), r.get("close")):
+                if cand:
+                    px = float(cand)
+                    missing.append("px_daily")
+                    break
         zones = None
         if lq and px:
             zh = lq.get("zones_hour") or lq.get("zones_day") or []

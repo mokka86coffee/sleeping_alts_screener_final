@@ -41,17 +41,39 @@ SHORT_MIN_OI = 0.005  # или ≥ 0.5% интереса
 GIVEBACK = 0.35      # удержание: закрытие ≥ 65% от максимума сбора
 
 
+def _load_live() -> dict:
+    """Живой день — из ОБЩЕГО модуля live_day (06.09): один код на репутацию, фильтр и всё,
+    что смотрит «сейчас»; здесь только вызов."""
+    try:
+        from live_day import load_live
+        return load_live()
+    except ImportError:
+        return {}
+
+
+def _live_row(sym_usdt: str, src: dict) -> dict | None:
+    try:
+        from live_day import live_rows
+        return live_rows(sym_usdt, src)
+    except ImportError:
+        return None
+
+
 def _rows(d: dict, key: str) -> list:
     rows = d.get(key) or []
     return sorted([r for r in rows if isinstance(r, dict) and r.get("datetime")], key=lambda r: r["datetime"])
 
 
-def judge(d: dict) -> dict | None:
+def judge(d: dict, live: dict | None = None) -> dict | None:
     o = _rows(d, "ohlcv")
     if len(o) < 35:
         return None
     oi = {r["datetime"][:10]: r for r in _rows(d, "oi")}
     lq = {r["datetime"][:10]: r for r in _rows(d, "liq")}
+    if live and live["datetime"][:10] > o[-1]["datetime"][:10]:
+        o = o + [live]
+        oi[live["datetime"][:10]] = {"open_interest": live.get("open_interest")}
+        lq[live["datetime"][:10]] = {"short_liquidations_usd": live.get("short_liquidations_usd")}
     vols = [float(r.get("quote_volume") or 0) for r in o]
     norm = statistics.median(vols[-40:-10]) or 0.0
     if not norm:
@@ -95,7 +117,28 @@ def judge(d: dict) -> dict | None:
         if held:
             why.append(f"сбор удержан ({nums['from_harvest_high']:+.0f}% от максимума)")
     score = len(why)
-    return {"score": score, "near": score >= 5, "why": why, "nums": nums, "close": float(last["close"]), "day": k_now}
+    # ЧЕТЫРЕ ГРУППЫ (06.09, владелец): одна подпись «близкая» смешивала тех, кто уже идёт, с теми,
+    # у кого ход впереди. Делим по положению цены и плечу:
+    #   going    — идёт: сбор вчера-сегодня и цена на максимуме (второй акт уже идёт);
+    #   holding  — держат после сбора: сбор 1–5 дн назад, цена в пределах 10% от максимума,
+    #              плечо и оборот приходят — ЭТО «близкие», ход впереди;
+    #   pulled   — откатились: пять из пяти, но цена отдала 10–35% — откат или начало отдачи;
+    #   giving   — отдают: сбор был, оборот и шорты есть, а плечо уходит (×<1) — второй акт не
+    #              сложился, отскоки — кандидаты на шорт.
+    grp = None
+    fh = nums.get("from_harvest_high")
+    if score >= 5:
+        recent = (nums.get("harvest_day") or "") >= o[-2]["datetime"][:10]
+        if fh is not None and fh >= -3 and recent:
+            grp = "going"
+        elif fh is not None and fh >= -10:
+            grp = "holding"
+        else:
+            grp = "pulled"
+    elif score == 4 and grow and grow < 1.0 and hv:
+        grp = "giving"
+    return {"score": score, "near": grp == "holding", "group": grp, "why": why, "nums": nums,
+            "close": float(last["close"]), "day": k_now, "live": bool(last.get("_live"))}
 
 
 def build(only: list[str] | None = None) -> dict:
@@ -106,16 +149,20 @@ def build(only: list[str] | None = None) -> dict:
            "rule": {"harvest_x": HARVEST_X, "harvest_days": HARVEST_DAYS, "lull_x": LULL_X, "oi_grow": OI_GROW,
                     "short_min_usd": SHORT_MIN_USD, "short_min_oi": SHORT_MIN_OI, "giveback": GIVEBACK},
            "coins": {}}
+    src = _load_live()
     for p in files:
         try:
             d = json.loads(p.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
-        j = judge(d)
+        j = judge(d, _live_row(p.stem.upper() + "USDT", src))
         if j:
             out["coins"][p.stem.upper() + "USDT"] = j
-    out["near"] = sorted([s for s, v in out["coins"].items() if v["near"]],
-                         key=lambda s: -(out["coins"][s]["nums"].get("lull_x") or 0))
+    def _lst(g):
+        return sorted([s for s, v in out["coins"].items() if v.get("group") == g],
+                      key=lambda s: -(out["coins"][s]["nums"].get("lull_x") or 0))
+    out["going"], out["holding"], out["pulled"], out["giving"] = _lst("going"), _lst("holding"), _lst("pulled"), _lst("giving")
+    out["near"] = out["holding"]          # «близкие» = держат после сбора
     return out
 
 
@@ -125,9 +172,12 @@ def main() -> int:
     ap.add_argument("--write", action="store_true")
     a = ap.parse_args()
     res = build([x.strip() for x in a.only.split(",")] if a.only else None)
+    NM = {"going": "ИДЁТ", "holding": "БЛИЗКАЯ (держат после сбора)", "pulled": "ОТКАТИЛАСЬ", "giving": "ОТДАЮТ"}
     for sym, v in sorted(res["coins"].items(), key=lambda kv: -kv[1]["score"]):
-        if a.only or v["score"] >= 4:
-            print(f"{sym}: {v['score']}/5 {'БЛИЗКАЯ' if v['near'] else ''} · " + " · ".join(v["why"]) + f" · {v['nums']}")
+        if a.only or v.get("group"):
+            print(f"{sym}: {v['score']}/5 {NM.get(v.get('group'), '')}{' · с живым днём' if v.get('live') else ''} · " + " · ".join(v["why"]) + f" · {v['nums']}")
+    for g in ("going", "holding", "pulled", "giving"):
+        print(f"{NM[g].lower()}: {len(res[g])} — {', '.join(res[g])}")
     print(f"близких: {len(res['near'])} — {', '.join(res['near'])}")
     if a.write:
         p = BASE_DIR / "output" / "near_move.json"

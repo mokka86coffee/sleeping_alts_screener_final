@@ -253,8 +253,10 @@ def read_line(p: dict) -> str:
         parts.append(f"ближайшая плита сверху {up['nearest']['price']:,.0f} (+{up['nearest']['pct']}%), снизу {dn['nearest']['price']:,.0f} ({dn['nearest']['pct']}%)")
         if r3 and r3 >= 1.5 and up["nearest"]["pct"] <= 1.5:
             parts.append("ЗАРЯД НА СКВИЗ ВВЕРХ: шорты плотно в полутора процентах")
+            p["charge"] = "заряд на сквиз вверх"
         elif r3 and r3 <= 0.67 and abs(dn["nearest"]["pct"]) <= 1.5:
             parts.append("ЗАРЯД НА ВЫНОС ВНИЗ: лонги плотно в полутора процентах")
+            p["charge"] = "заряд на вынос вниз"
     elif up and not dn:
         parts.append("плечо только сверху (шорты), снизу пусто")
     elif dn and not up:

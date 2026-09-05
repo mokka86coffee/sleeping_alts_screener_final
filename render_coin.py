@@ -120,7 +120,7 @@ def _journal() -> dict:
                         # ряд за 48 ч по точкам журнала (05.09): мини-журнал рисует его вместо дневок,
                         # чтобы метки смен за день не слипались в одну точку у края
                         "series": [[int(q["t"].timestamp() * 1000), q["px"]] for q in pts
-                                   if (pts[-1]["t"] - q["t"]).total_seconds() <= 14 * 86400][-700:]}
+                                   if q.get("px") and q["px"] > 0 and (pts[-1]["t"] - q["t"]).total_seconds() <= 14 * 86400][-700:]}
         break
     return out
 
@@ -1072,7 +1072,8 @@ COIN_JS = r"""
       var mid = (z.lo + z.hi) / 2, side = mid < _pxNow ? 'down' : 'up', hot = !_bias || side === _bias;
       RL.push({ y: sy(mid), col: hot ? (side === 'down' ? '#ffd0c0' : '#e6d3a3') : '#6f7a75', txt: 'ЛИКВ ' + (money(z.fuel) || '') + (hot && _bias ? ' ← СНИМУТ' : ''), liq: true, hot: !!(hot && _bias), mid: mid, x1: (heatX1 !== null ? heatX1 : X0), dash: hot ? '6 4' : '2 6', w: hot ? (_bias ? 1.1 : .8) : .5, op: hot ? (_bias ? .8 : .55) : .3 });
     });
-    if (heat) slab += heat;   // тепловая карта ликвидаций — поверх плиты, под уровнями
+    // карта во времени с большой плиты снята (06.09): её горизонталь — 120 дней, сутки лога
+    // сжимались в столбик у края («кирпичики»); теперь она на плите журнала справа, где окно — дни
     // ПЛАШКА НАПРАВЛЕНИЯ (05.09): не у точки «сейчас» (там её закрывает график), а в правой
     // колонке под подписью полосы, которую снимут: две строки на тёмной плашке.
     var dirPl = null;
@@ -1305,7 +1306,31 @@ COIN_JS = r"""
       var XT = function (t) { return 12 + (t - t0) / Math.max(1, tE - t0) * (W - 24); }, Y = function (p) { return 34 + (1 - (p - lo) / (hi - lo)) * (H - 90); };
       var dpath = pts.map(function (q, i) { return (i ? 'L' : 'M') + XT(q.t).toFixed(1) + ',' + Y(q.p).toFixed(1); }).join(' ');
       var Ln = 0; for (var i = 1; i < pts.length; i++) Ln += Math.hypot(XT(pts[i].t) - XT(pts[i - 1].t), Y(pts[i].p) - Y(pts[i - 1].p));
-      var g = '<defs><linearGradient id="hf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + GOLD + '" stop-opacity=".22"/><stop offset="1" stop-color="' + GOLD + '" stop-opacity="0"/></linearGradient></defs>' +
+      // КАРТА ЛИКВИДАЦИЙ ВО ВРЕМЕНИ — ЗДЕСЬ (06.09, по R2D2): уровни группируются в ценовые
+      // корзины (0.4%), каждая корзина — горизонтальная полоса от первого прогона, где она
+      // появилась, до последнего, где стояла; яркость — по топливу, сторона «снимут» ярче.
+      var heatJ = '';
+      (function () {
+        var Hq = (D.liqhist || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()] || [];
+        Hq = Hq.filter(function (r) { return r[0] >= t0 - 36e5; }); if (Hq.length < 2) return;
+        var pxNowH = +s.px || 0, buckets = {};
+        Hq.forEach(function (r) {
+          var up = r[1].filter(function (z) { return z[0] > pxNowH; }).sort(function (a, b) { return (b[1] || 0) - (a[1] || 0); }).slice(0, 3);
+          var dn = r[1].filter(function (z) { return z[0] <= pxNowH; }).sort(function (a, b) { return (b[1] || 0) - (a[1] || 0); }).slice(0, 3);
+          up.concat(dn).forEach(function (z) { var key = Math.round(Math.log(z[0]) / 0.004); var b = buckets[key] || (buckets[key] = { p: z[0], t0: r[0], t1: r[0], w: 0 });
+            b.t0 = Math.min(b.t0, r[0]); b.t1 = Math.max(b.t1, r[0]); b.w = Math.max(b.w, z[1] || 0); }); });
+        var arr = Object.keys(buckets).map(function (k) { return buckets[k]; }), mx = 0;
+        arr.forEach(function (b) { if (b.w > mx) mx = b.w; }); if (!mx) return;
+        var lastT = Hq[Hq.length - 1][0];
+        arr.forEach(function (b) {
+          var y = Y(b.p); if (!isFinite(y) || y < 30 || y > GY) return;
+          var side = b.p < pxNowH ? 'down' : 'up', hot = !_bias || side === _bias;
+          var x1 = XT(Math.max(b.t0, t0)), x2 = XT(b.t1 >= lastT ? tE : b.t1);
+          var o = (0.15 + 0.7 * (b.w / mx)) * (hot ? 1 : 0.35), col = side === 'down' ? '#ff8a70' : '#e6d3a3';
+          heatJ += '<rect x="' + x1.toFixed(1) + '" y="' + (y - 1.6).toFixed(1) + '" width="' + Math.max(3, x2 - x1).toFixed(1) + '" height="3.2" rx="1" fill="' + col + '" opacity="' + o.toFixed(2) + '"/>';
+        });
+      })();
+      var g = '<defs><linearGradient id="hf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + GOLD + '" stop-opacity=".22"/><stop offset="1" stop-color="' + GOLD + '" stop-opacity="0"/></linearGradient></defs>' + heatJ +
         '<path d="' + dpath + ' L' + XT(tE).toFixed(1) + ',' + GY + ' L12,' + GY + ' Z" fill="url(#hf)" opacity=".6"/>' +
         '<path d="' + dpath + '" fill="none" stroke="' + GOLD + '" stroke-width="5" stroke-linejoin="round" opacity=".18"/>' +
         '<path class="ln" style="--L:' + Math.ceil(Ln + 2) + '" d="' + dpath + '" fill="none" stroke="' + GOLDL + '" stroke-width="1.4" stroke-linejoin="round"/>' +

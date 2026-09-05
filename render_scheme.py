@@ -565,6 +565,13 @@ SCHEME_HTML = """
   position:absolute;top:-10px;width:min(330px,42vw);opacity:0;transform:translateY(6px);
   transition:opacity 2.6s ease .8s,transform 2.6s cubic-bezier(.22,.61,.36,1) .8s}
 .co.on .txt{opacity:.7;transform:none}
+/* ПОЛНЫЙ ТЕКСТ ПО НАВЕДЕНИЮ (05.09, владелец: «всё, что больше трёх строк, обрезается»):
+   в покое — три строки, чтобы ветви не наезжали; при наведении пузырь раскрывается
+   целиком поверх соседей, на тёмной подложке, обрезки нет */
+.co:hover{z-index:40}
+.co:hover .txt{max-height:none;overflow:visible;opacity:1;background:rgba(10,12,22,.94);
+  box-shadow:0 12px 40px rgba(0,0,0,.6);border-radius:8px;padding:6px 10px;margin:-6px -10px}
+.co:hover .s{-webkit-line-clamp:unset;display:block;overflow:visible;opacity:1}
 .co.off .txt{opacity:0;transform:translateY(-4px);transition:opacity 3s ease,transform 3s ease}
 .co.off .ln{transform:scaleX(0);transition:transform 3s ease}
 .co.off .node{transform:scale(0);transition:transform 3s ease}
@@ -603,7 +610,7 @@ SCHEME_HTML = """
    шрифт может смениться, строки — нет. Лишнее обрезается многоточием,
    полный текст есть в зале. */
 .co .s{font-size:11px;line-height:1.55;color:#aab2cc;margin-top:3px;opacity:.75;
-  display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;-webkit-line-clamp:3}
+  display:-webkit-box;-webkit-box-orient:vertical;overflow:hidden;-webkit-line-clamp:7}
 .co .s b{color:#c9d2e8;font-weight:500}
 .co .tkr{font-family:var(--serif);color:#c9d2e8}
 /* ИМЯ ШАБЛОНА ВЫДЕЛЕНО (правка 01.09). Значение ветви несёт тикер и
@@ -1228,6 +1235,19 @@ SCHEME_JS = r"""
                    s: body + (nearRec && nearRec.why ? '<br><i style="opacity:.62">' + esc(nearRec.why.join(' · ')) + '</i>' : '') + vetoMark });
       }
     }
+    /* ОТДАЮТ (06.09): сбор был, оборот и шорты есть, а плечо уходит — второй акт не сложился;
+       по мысли владельца их отскоки — кандидаты на шорт. До трёх пузырей, честной подписью. */
+    (function () {
+      var NM = (DATA.near || {}), giv = NM.giving || [], cs = NM.coins || {};
+      for (var gi2 = 0; gi2 < giv.length && gi2 < 3; gi2++) {
+        var sym = giv[gi2], rec = cs[sym] || {}, n = rec.nums || {};
+        mov.push({ k: 'Отдают · ' + sym.replace('USDT', ''),
+                   v: '<span class="tkr">' + esc(sym.replace('USDT', '')) + '</span><s>·</s><b>плечо уходит</b>', c: '#ff9d84', moving: 1,
+                   s: 'сбор ' + esc(String(n.harvest_day || '').slice(5)) + ' ×' + Math.round(n.harvest_x || 0) + ' · плечо ×' + (+n.oi_grow || 0).toFixed(2) +
+                      ' · от максимума ' + (n.from_harvest_high != null ? (n.from_harvest_high > 0 ? '+' : '') + Math.round(n.from_harvest_high) + '%' : '—') +
+                      '<br><i style="opacity:.62">второй акт не сложился — отскок как кандидат на шорт</i>' });
+      }
+    })();
     /* Полка «в движении» идёт ПОСЛЕ кандидатов: она про то, что уже
        ушло, и открывать ею колесо было бы ровно тем соблазном, от
        которого разводили. */
@@ -1370,8 +1390,25 @@ SCHEME_JS = r"""
     { k:'Биткоин', v: M.btc7d != null ? pct(M.btc7d, 1) : null, c:'#e6edff',
       s:'за неделю' + (btcp.note ? ' · ' + esc(btcp.note) : '') },
     // срез по часам (05.09): своя карта плеча, ликвидации по сторонам, премия, фонды — из btc_pulse.json
-    { k:'Биткоин · часы', v: (DATA.btcp && DATA.btcp.map && DATA.btcp.map.px) ? Math.round(DATA.btcp.map.px).toLocaleString('ru-RU') : null, c:'#ffd98a',
-      s: (DATA.btcp && DATA.btcp.read) ? esc(String(DATA.btcp.read).replace(/^BTC [\d,]+ · /, '')) : '' },
+    // срез биткоина — ЧЕТЫРЬМЯ пузырями вместо одной длинной строки (05.09: подпись пузыря
+    // режется на трёх строках, видно было несколько слов): плечо, плиты, ликвидации, деньги
+    (function () { var bp = DATA.btcp || {}, mp = bp.map || {}, px = mp.px ? Math.round(mp.px).toLocaleString('ru-RU') : null;
+      if (!px) return { k:'Биткоин · часы', v:null, c:'#ffd98a', s:'' };
+      var up = mp.above || {}, dn = mp.below || {};
+      var su = up.usd_3pct ? '$' + Math.round(up.usd_3pct / 1e6) + 'M' : 'пусто', sd = dn.usd_3pct ? '$' + Math.round(dn.usd_3pct / 1e6) + 'M' : 'пусто';
+      return { k:'Биткоин · плечо', v: px, c:'#ffd98a', s: 'в 3%: шорты сверху ' + su + ' · лонги снизу ' + sd + (mp.short_to_long_3pct ? ' (×' + mp.short_to_long_3pct + ')' : '') + (mp.oi_chg24_pct != null ? ' · интерес ' + (mp.oi_chg24_pct > 0 ? '+' : '') + mp.oi_chg24_pct + '% за сутки' : '') }; })(),
+    (function () { var bp = DATA.btcp || {}, mp = bp.map || {}; var up = mp.above || {}, dn = mp.below || {};
+      if (!up.nearest && !dn.nearest) return { k:'Биткоин · плиты', v:null, c:'#ffd98a', s:'' };
+      var f = function (z) { return z && z.nearest ? Math.round(z.nearest.price).toLocaleString('ru-RU') + ' (' + (z.nearest.pct > 0 ? '+' : '') + z.nearest.pct + '%)' : '—'; };
+      return { k:'Биткоин · плиты', v: f(up), c:'#ffd98a', s: 'ближайшая сверху ' + f(up) + ' · снизу ' + f(dn) + (bp.charge ? ' · ' + esc(bp.charge) : '') }; })(),
+    (function () { var bp = DATA.btcp || {}, lq = bp.liq || {}, pr = bp.premium || {};
+      if (!lq.long_24h_usd && !lq.short_24h_usd && pr.last == null) return { k:'Биткоин · ликвидации', v:null, c:'#ffd98a', s:'' };
+      var v = (lq.long_24h_usd != null) ? 'L $' + Math.round(lq.long_24h_usd / 1e6) + 'M / S $' + Math.round(lq.short_24h_usd / 1e6) + 'M' : null;
+      return { k:'Биткоин · ликвидации', v: v, c:'#ffd98a', s: 'за сутки: лонгов $' + Math.round((lq.long_24h_usd || 0) / 1e6) + 'M, шортов $' + Math.round((lq.short_24h_usd || 0) / 1e6) + 'M' + (pr.last != null ? ' · премия Coinbase ' + (pr.last > 0 ? '+' : '') + (+pr.last).toFixed(3) + '%' + (pr.hours_positive ? ', плюс ' + pr.hours_positive + ' ч' : '') : '') }; })(),
+    (function () { var bp = DATA.btcp || {}, et = bp.etf || {};
+      if (et.last_usd == null) return { k:'Биткоин · фонды', v:null, c:'#ffd98a', s:'' };
+      var m = function (x) { return (x < 0 ? '−' : '+') + '$' + Math.round(Math.abs(x) / 1e6) + 'M'; };
+      return { k:'Биткоин · фонды', v: m(et.last_usd), c:'#ffd98a', s: 'приток за день ' + m(et.last_usd) + ' · за 5 дней ' + m(et.sum5_usd || 0) + ' (' + (et.days_positive || 0) + ' из 5 в плюс)' }; })(),
     // счётчик доски по плечу (05.09): кто открывается на доске за сутки — по монетам
     (function () { var b = DATA.oiboard || {}, NM = { long_open: 'лонги открывают', short_open: 'шорты открывают', short_close: 'шорты закрывают', long_close: 'лонги закрывают', flat: 'тихо' };
       var ks = Object.keys(b).filter(function (k) { return k !== 'flat'; }).sort(function (a, c) { return (b[c] || 0) - (b[a] || 0); });
@@ -1445,7 +1482,7 @@ SCHEME_JS = r"""
     'Лидер прогона':['дни',2], 'Держатся третьи сутки':['дни',2],
     'Разбирают':['дни',3], 'Чаще всех за сутки':['дни',3], 'Брать':['дни',3],
     'Фандинг':['дни',4], 'Ближайшее событие':['дни',4],
-    'Биткоин · часы':['часы',2], 'Плечо по типу':['часы',2],
+    'Биткоин · плечо':['часы',2], 'Биткоин · плиты':['часы',2], 'Биткоин · ликвидации':['часы',2], 'Биткоин · фонды':['часы',2], 'Плечо по типу':['часы',2],
     'Топ объёма':['часы',3], 'Дельта перевернулась':['часы',3],
     'Деньги за сутки':['часы',3], 'Следом по объёму':['часы',3],
     'Продавцы давят':['часы',4], 'Кого выносит':['часы',4],
@@ -1465,7 +1502,7 @@ SCHEME_JS = r"""
        иначе оденется в стиль кандидата и снова будет читаться как
        «пойдёт», чего мы и избегали. */
     var lead = !!c.lead || !!c.moving;
-    var m = HZ[c.k] || (go ? ['дни', 2] : ['дни', 3]);
+    var m = HZ[c.k] || (String(c.k).indexOf('Отдают') === 0 ? ['дни', 3] : go ? ['дни', 2] : ['дни', 3]);
     c.h = m[0]; c.g = m[1]; c.go = go; c.i = i;
     /* В порядке А прогноз идёт прологом — раньше всех горизонтов. */
     c.r = ((go || lead) && ORDER !== 'Б') ? -1 : RANK[c.h];
@@ -1487,15 +1524,18 @@ SCHEME_JS = r"""
   /* +14 к прежним (31.08): метка горизонта — ещё одна строка сверху,
      а этот минимум и есть высота ветви. Не поднять — гнёзда налезут
      друг на друга по построению, сколько ни сжимай экран. */
-  var LEAD_MIN = narrow ? 130 : 124;
-  var step = Math.max(LEAD_MIN, Math.min(narrow ? 130 : 122,
-    (H - top0 - (low ? 120 : narrow ? 250 : 190)) / 2.4));
-  var SLOT = [0, step, step*2];
+  /* ДВА ГНЕЗДА ВМЕСТО ТРЁХ (06.09, владелец: «меньше ветвей одновременно, но не резать —
+     смысл информации, если её обрезать»): шаг в полтора раза выше, текст до семи строк
+     целиком, на ветвях живут текущая и одна предыдущая. */
+  var LEAD_MIN = narrow ? 190 : 184;
+  var step = Math.max(LEAD_MIN, Math.min(narrow ? 200 : 190,
+    (H - top0 - (low ? 120 : narrow ? 250 : 190)) / 1.6));
+  var SLOT = [0, step];
   /* Потолок ветви ходит за шагом (см. .co .txt): иначе на низком
      окне шаг сжимается, а текст остаётся прежним. */
   wrapCos.style.setProperty('--slot', step + 'px');
   wrapCos.innerHTML = cos.map(function(c, i){
-    var y = top0 + SLOT[i % 3] + Math.round((rnd() - 0.5) * 36);
+    var y = top0 + SLOT[i % 2] + Math.round((rnd() - 0.5) * 24);
     var gate = c.k === '\u0411\u0438\u0442\u043a\u043e\u0438\u043d \u00b7 \u0440\u0435\u0436\u0438\u043c';
     return '<div class="co ' + (i % 2 ? 'r' : 'l') +
         (c.go ? ' cgo' : '') + (gate ? ' cgt' : '') +
@@ -1509,7 +1549,7 @@ SCHEME_JS = r"""
   /* ствол — до нижнего гнезда с запасом, а не до низа экрана */
   var trunk = q('.trunk');
   trunk.style.top = Math.round(H*0.17 + (low ? 76 : 110)) + 'px';
-  trunk.style.bottom = Math.max(low ? 60 : 90, H - (top0 + SLOT[2] + (narrow ? 86 : 70))) + 'px';
+  trunk.style.bottom = Math.max(low ? 60 : 90, H - (top0 + SLOT[1] + (narrow ? 120 : 100))) + 'px';
 
   var els = [].slice.call(wrapCos.children);
   var ticks = q('#ticks'), count = q('#count'), prev = q('#prev'), next = q('#next');
@@ -1532,7 +1572,7 @@ SCHEME_JS = r"""
     if (i < 0 || i >= els.length) return;
     cur = i; clearTimeout(timer);
     els.forEach(function(e, k){
-      var vis = (k === i || k === i - 1 || k === i - 2);
+      var vis = (k === i || k === i - 1);   // две ветви: текущая и предыдущая
       if (vis) { e.classList.remove('off'); e.classList.add('on'); }
       else if (e.classList.contains('on')) { e.classList.remove('on'); e.classList.add('off'); }
       else { e.classList.remove('on', 'off'); }
