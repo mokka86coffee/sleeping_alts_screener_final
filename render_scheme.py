@@ -1353,8 +1353,8 @@ SCHEME_JS = r"""
     { k:'Биткоин', v: M.btc7d != null ? pct(M.btc7d, 1) : null, c:'#e6edff',
       s:'за неделю' + (btcp.note ? ' · ' + esc(btcp.note) : '') },
     // срез по часам (05.09): своя карта плеча, ликвидации по сторонам, премия, фонды — из btc_pulse.json
-    { k:'Биткоин · часы', v: (D.btcp && D.btcp.map && D.btcp.map.px) ? Math.round(D.btcp.map.px).toLocaleString('ru-RU') : null, c:'#ffd98a',
-      s: D.btcp && D.btcp.read ? esc(String(D.btcp.read).replace(/^BTC [\d,]+ · /, '')) : '' },
+    { k:'Биткоин · часы', v: (DATA.btcp && DATA.btcp.map && DATA.btcp.map.px) ? Math.round(DATA.btcp.map.px).toLocaleString('ru-RU') : null, c:'#ffd98a',
+      s: (DATA.btcp && DATA.btcp.read) ? esc(String(DATA.btcp.read).replace(/^BTC [\d,]+ · /, '')) : '' },
     { k:'Спящие', v: dorm.length ? dorm.length + ' монет' : null, c:'#9aa3c8',
       s: dorm.slice(0, 12).map(function(s){ return s.t; }).join(' · ') },
     { k:'Заряжены', v: fuel.length ? fuel.length + ' монет' : null, c:'#7fe3d4',
