@@ -65,7 +65,7 @@ def _binance_closed(b_ms: int, interval: str = "30m") -> bool:
 def wait_binance(b_ms: int, interval: str = "30m", log=print) -> float:
     """Ждать закрытую свечу границы b_ms у Binance. Возвращает секунды ожидания."""
     t0 = time.time()
-    deadline = next_edge() - 30
+    deadline = b_ms / 1000 + 2 * INTERVAL_S - 30   # до конца СЛЕДУЮЩЕЙ за целевой свечи
     first = True
     while True:
         try:
@@ -91,7 +91,7 @@ def wait_coinglass(b_ms: int, get_fn, key: str, log=print,
     та же функция запроса, что у сборщика, чтобы лимит считался в одном месте.
     Бар есть, если в ответе строка с t == b_ms (t в мс или с)."""
     t0 = time.time()
-    deadline = next_edge() - 30
+    deadline = b_ms / 1000 + 2 * INTERVAL_S - 30
     first = True
     p = {"exchange": "Binance", "symbol": SENTINEL, "interval": "30m", "limit": 3}
     if params:
@@ -133,6 +133,26 @@ def already_done(path, b_ms: int) -> bool:
         return f'"candle_ms": {b_ms}' in head or f'"candle_ms":{b_ms}' in head
     except OSError:
         return False
+
+
+def target(path, interval_s: int = INTERVAL_S) -> int:
+    """Какую свечу снимать этим прогоном: последнюю закрытую, а если она уже снята
+    (штамп в файле) — СЛЕДУЮЩУЮ, и её надо дождаться. Владелец, 05.09: «пришёл раньше
+    закрытия — жди закрытия», а не пропуск: прогон на каждой свече, ни одного вхолостую."""
+    b = boundary(interval_s=interval_s)
+    return b + interval_s * 1000 if already_done(path, b) else b
+
+
+def wait_closed(b_ms: int, log=print) -> float:
+    """Ждать, пока свеча b_ms закроется ПО ЧАСАМ (без опроса источника): если её конец
+    ещё впереди — спим до него; потом уже опрашивать Binance/Coinglass через wait_*."""
+    end = b_ms / 1000 + INTERVAL_S
+    now = time.time()
+    if end > now:
+        log(f"→ свеча {_hm(b_ms)} ещё идёт — жду её закрытия {end - now:.0f} с")
+        time.sleep(end - now + 2)
+        return end - now
+    return 0.0
 
 
 def missing_stamp(b_ms: int, why: str) -> dict:

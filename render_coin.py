@@ -93,8 +93,11 @@ def _journal() -> dict:
             # имя, не текст: сравнивать короткое имя до скобки (числа в скобках меняются каждый прогон)
             nm = [q["tpl"].split("(")[0].strip() for q in pts]
             sw, prev, last, marks = 0, None, None, []
+            _gap = lambda a, b: (b["t"] - a["t"]).total_seconds() > 2 * 3600   # простой — не сшивать
             for i, q in enumerate(pts):
-                held = (i + 1 < len(pts) and nm[i + 1] == nm[i])
+                if i and _gap(pts[i - 1], q):
+                    prev = None
+                held = (i + 1 < len(pts) and nm[i + 1] == nm[i] and not _gap(q, pts[i + 1]))
                 if prev is not None and nm[i] != prev and held:
                     sw += 1
                     last = {"tpl": q["tpl"].split("(")[0].strip()[:40],

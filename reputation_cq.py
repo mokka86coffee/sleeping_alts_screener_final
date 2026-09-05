@@ -746,10 +746,14 @@ def _live_sources():
     return out
 
 
+AS_OF: "datetime | None" = None        # ДОЗАБОР (05.09): живой день «на момент» этой свечи
+AS_OF_PX: dict = {}                      # sym_usdt → {open, high, low, close, oi, funding} на момент (из Binance)
+
+
 def live_day(sym_usdt: str, src: dict, last_daily: str | None):
     """Строка текущего дня в формате cq_v2 (tr, oh, fu, oi) или None."""
     from datetime import timezone as _tz
-    now = datetime.now(_tz.utc)
+    now = AS_OF if AS_OF else datetime.now(_tz.utc)
     today = now.strftime("%Y-%m-%d")
     if last_daily and last_daily[:10] >= today:
         return None                                   # дневка за сегодня уже есть
@@ -759,19 +763,27 @@ def live_day(sym_usdt: str, src: dict, last_daily: str | None):
     c = (src["cg"].get(sym_usdt) or src["cg"].get(sym_usdt.replace("USDT", "")) or {})
     ser = ((c.get("fut") or {}).get("series")) or []
     mid = int(datetime(now.year, now.month, now.day, tzinfo=_tz.utc).timestamp() * 1000)
-    bars = [b for b in ser if b.get("t") and b["t"] >= mid and b.get("b") is not None and b.get("s") is not None]
+    _upto = int(now.timestamp() * 1000)
+    bars = [b for b in ser if b.get("t") and mid <= b["t"] < _upto and b.get("b") is not None and b.get("s") is not None]
     if len(bars) < LIVE_MIN_BARS:
         return None
     b = sum(x["b"] for x in bars); s_ = sum(x["s"] for x in bars)
     pace = 1.0 / max(frac, LIVE_MIN_FRACTION)
-    pr = src["pulse"].get(sym_usdt) or []
-    pr = [r for r in pr if r.get("price")]
-    if not pr:
-        return None
-    pr.sort(key=lambda r: r.get("t") or 0)
-    day_rows = [r for r in pr if (r.get("t") or 0) * 1000 >= mid] or pr[-1:]
-    px = float(pr[-1]["price"]); hi = max(float(r["price"]) for r in day_rows); lo = min(float(r["price"]) for r in day_rows)
-    oi_v = pr[-1].get("oi_usd"); fu_v = pr[-1].get("funding")
+    if AS_OF and AS_OF_PX.get(sym_usdt):
+        # дозабор: цена дня на момент — из свечей Binance, а не из пульса (его за простой нет)
+        q = AS_OF_PX[sym_usdt]
+        day_rows = [{"price": q["open"]}]
+        px, hi, lo = float(q["close"]), float(q["high"]), float(q["low"])
+        oi_v, fu_v = q.get("oi"), q.get("funding")
+    else:
+        pr = src["pulse"].get(sym_usdt) or []
+        pr = [r for r in pr if r.get("price") and (not AS_OF or (r.get("t") or 0) <= AS_OF.timestamp())]
+        if not pr:
+            return None
+        pr.sort(key=lambda r: r.get("t") or 0)
+        day_rows = [r for r in pr if (r.get("t") or 0) * 1000 >= mid] or pr[-1:]
+        px = float(pr[-1]["price"]); hi = max(float(r["price"]) for r in day_rows); lo = min(float(r["price"]) for r in day_rows)
+        oi_v = pr[-1].get("oi_usd"); fu_v = pr[-1].get("funding")
     dt = today + " 00:00:00"
     return {
         "tr": {"datetime": dt, "quote_buy_volume": b * pace, "quote_sell_volume": s_ * pace,
@@ -796,6 +808,10 @@ def build(archive: Path) -> dict:
         tr, oh = _series(coin, "trade"), _series(coin, "ohlcv")
         fu, oi = _series(coin, "funding"), _series(coin, "oi")
         lq = _series(coin, "liq")
+        if AS_OF:
+            _day = AS_OF.strftime("%Y-%m-%d")
+            _cut = lambda rows: [r for r in rows if str(r.get("datetime", ""))[:10] < _day]
+            tr, oh, fu, oi, lq = _cut(tr), _cut(oh), _cut(fu), _cut(oi), _cut(lq)
         if not tr or not oh:
             continue
         # живой день поверх дневок (05.09) — только для шаблона; эпизоды

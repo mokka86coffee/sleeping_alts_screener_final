@@ -122,8 +122,24 @@ LIQ_WINDOWS = ("24h", "12h", "4h", "1h")
 RATE = {"last": None, "seen": 0}
 
 
+_PACE = {"last": 0.0}
+
+
+def _pace() -> None:
+    """ТЕМП ПО СТАРТУ ЗАПРОСОВ (05.09): раньше пауза 0.8 с шла ПОСЛЕ ответа, и с сетевой
+    задержкой ~0.8 с выходило 1.6–1.7 с на запрос — 91 монета за 10 мин. Лимит тарифа —
+    80 в минуту, значит между стартами достаточно PAUSE_SEC; сетевая задержка теперь
+    входит в паузу, а не добавляется к ней: те же 364 запроса — около 5 мин."""
+    now = time.time()
+    wait = _PACE["last"] + PAUSE_SEC - now
+    if wait > 0:
+        time.sleep(wait)
+    _PACE["last"] = time.time()
+
+
 def get(path: str, params: dict, key: str) -> tuple[int, dict | str]:
     """Как в пробнике: (HTTP-код, разобранное тело либо текст)."""
+    _pace()
     url = BASE + path + ("?" + urllib.parse.urlencode(params) if params else "")
     req = urllib.request.Request(url, headers={
         "CG-API-KEY": key,
@@ -467,7 +483,7 @@ def snap_coin(coin: str, key: str, errors: dict) -> dict:
         except Denied as e:
             out[field] = None
             errors[f"{coin} {field}"] = str(e)
-        time.sleep(PAUSE_SEC)
+        # пауза теперь внутри get() — по времени старта, не после ответа
     if isinstance(out.get("oi"), dict):
         oi = out.pop("oi")
         out["oiUsd"] = oi.get("last")
@@ -488,7 +504,7 @@ def _say(msg: str, on: bool) -> None:
 
 def collect(symbols: list[str] | None = None, *,
             key: str | None = None, write: bool = False,
-            verbose: bool = True) -> dict:
+            verbose: bool = True, candle_ms: int | None = None) -> dict:
     """Срез по журналу (или названным монетам). write=False — не пишет.
 
     verbose=True печатает ход в stderr (счёт монет, ориентир времени,
@@ -516,13 +532,9 @@ def collect(symbols: list[str] | None = None, *,
     gate_waited, gate_missing = 0.0, None
     try:
         import candle_gate as _cg
-        b_ms = _cg.boundary()
-        if write and STATE_PATH.exists() and _cg.already_done(STATE_PATH, b_ms):
-            _say(f"coinglass: свеча {_cg._hm(b_ms)} уже снята — пропуск", verbose)
-            try:
-                return json.loads(STATE_PATH.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                pass
+        # свеча — та, что назвал прогон (одна на Binance и Coinglass); без прогона — своя цель
+        b_ms = int(candle_ms) if candle_ms else (_cg.target(STATE_PATH) if write else _cg.boundary())
+        _cg.wait_closed(b_ms, log=lambda m: _say(m, verbose))   # снята прошлая → ждём следующую
         try:
             gate_waited = _cg.wait_coinglass(b_ms, get, key, log=lambda m: _say(m, verbose))
             state["stamp"] = _cg.stamp(b_ms)
@@ -557,7 +569,6 @@ def collect(symbols: list[str] | None = None, *,
             state["requests"] += 1
             return state
     state["requests"] += 1
-    time.sleep(PAUSE_SEC)
 
     import sys as _sys
     import time as _time

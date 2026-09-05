@@ -266,16 +266,21 @@ def find_caps(base: Path) -> dict:
 
 
 # ── сборка строки ────────────────────────────────────────────────
+AS_OF_MS: int | None = None      # ДОЗАБОР (05.09): строка «на момент» этой свечи — история режется по ней
+
+
 def build(sym: str, base: Path, cap: float | None, crowd: dict) -> dict:
     missing: list[str] = []
-    now = datetime.now(timezone.utc)
+    now = datetime.now(timezone.utc) if not AS_OF_MS else datetime.fromtimestamp(AS_OF_MS / 1000, timezone.utc)
     row: dict = {"at": now.strftime("%Y-%m-%d"), "hm": now.strftime("%H:%M"), "sym": sym}
     try:   # штамп свечи и флаг пустоты (05.09): candle — закрытая получасовка; missing — чего нет
         import candle_gate as _cg
-        row["candle"] = _cg.stamp(_cg.boundary())["candle"]
+        row["candle"] = _cg.stamp(AS_OF_MS if AS_OF_MS else _cg.boundary())["candle"]
     except Exception:  # noqa: BLE001
         row["candle"] = None
     row["missing"] = []
+    if AS_OF_MS:
+        row["backfill"] = True
 
     # капа: сначала external_data.get_fundamentals — CoinGecko через кэш
     # прогона cache_fundamental/ (12 ч); прогон её уже качал, сети ноль.
@@ -293,7 +298,11 @@ def build(sym: str, base: Path, cap: float | None, crowd: dict) -> dict:
     if not cq_path.exists():
         return {**row, "error": f"нет {cq_path}"}
     cq = json.loads(cq_path.read_text(encoding="utf-8"))
-    d = clean_ohlc(rows_of(cq, "ohlcv"))
+    _oh_rows = rows_of(cq, "ohlcv")
+    if AS_OF_MS:
+        _day = datetime.fromtimestamp(AS_OF_MS / 1000, timezone.utc).strftime("%Y-%m-%d")
+        _oh_rows = [r for r in _oh_rows if str(r.get("datetime") or pick(r, "t") or "")[:10] < _day]
+    d = clean_ohlc(_oh_rows)
     if len(d["c"]) < 10:
         return {**row, "error": "дневок меньше десяти"}
     if all(h == c for h, c in zip(d["h"], d["c"])):
@@ -372,6 +381,11 @@ def build(sym: str, base: Path, cap: float | None, crowd: dict) -> dict:
         from core_binance import get_oi_history, klines_1h, ohlcv as _ohlcv
         kl = klines_1h(sym + "USDT")
         oh = get_oi_history(sym + "USDT", "1h", 200)
+        if AS_OF_MS:
+            kl = [k for k in kl if int(k[6]) <= AS_OF_MS]                                   # closeTime ≤ момента
+            oh = [r for r in oh if int(fnum(r.get("timestamp")) or 0) <= AS_OF_MS]
+            if kl:
+                px = float(kl[-1][4]); row["px"] = px                                         # цена на момент — из часовой свечи
         if kl and oh:
             k = _ohlcv(kl, tail=len(oh))
             oi_h = [fnum(r.get("sumOpenInterestValue")) or 0.0 for r in oh]

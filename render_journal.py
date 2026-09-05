@@ -80,12 +80,26 @@ def switches(pts: list) -> list:
     nm = [short(p["tpl"]) for p in pts]
     out, prev = [], None
     for i, p in enumerate(pts):
-        held = (i + 1 < len(pts) and nm[i + 1] == nm[i])
+        # РАЗРЫВ (05.09): если между точками больше 2 ч — был простой; сравнение с
+        # прошлым именем не ведётся, отсчёт начинается заново (не сшиваем через дыру)
+        if i and _gap_between(pts[i - 1], p):
+            prev = None
+        held = (i + 1 < len(pts) and nm[i + 1] == nm[i] and not _gap_between(p, pts[i + 1]))
         if prev is not None and nm[i] != prev and held:
             out.append(i)
         if prev is None or held:
             prev = nm[i]
     return out
+
+
+def _gap_between(a: dict, b: dict, max_s: float = 2 * 3600) -> bool:
+    """Между двумя точками журнала прошло больше max_s — простой."""
+    try:
+        ta = a["t"].timestamp() if hasattr(a["t"], "timestamp") else float(a["t"])
+        tb = b["t"].timestamp() if hasattr(b["t"], "timestamp") else float(b["t"])
+        return (tb - ta) > max_s
+    except (KeyError, TypeError, ValueError, AttributeError):
+        return False
 
 
 def short(tpl: str) -> str:

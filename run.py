@@ -11,7 +11,7 @@
     python run.py --workers 3                другое число потоков
     python run.py                            разовый прогон, отчёт + git push
     python run.py --loop                     бесконечно, каждые 3 часа
-    python run.py --loop --interval 3600     каждый час
+    python run.py --loop                     по закрытию получасовых свечей (следующее время пишет сам)
     python run.py --no-git                   без публикации
     python run.py --done reservoir           отметить ручное дело сделанным
 
@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import json
 import sys
 import time
 import traceback
@@ -176,6 +177,11 @@ def analyze_all(
             for sym, qvol in symbols
         }
 
+        # ЛОГ КОРОТКО (05.09, владелец): не строка на монету, а ход как у Coinglass —
+        # каждые 25 монет «анализ: N/M, K с», в конце итог по корзинам; ОШИБКИ — всегда,
+        # каждая своей строкой. Нужно понимать, что не зависло и что грузится.
+        _t0 = time.time()
+        skipped, buckets = 0, {}
         for future in as_completed(futures):
             sym = futures[future]
             done += 1
@@ -183,24 +189,22 @@ def analyze_all(
                 candidate = future.result()
                 if candidate:
                     results.append(candidate)
-                    marks = []
-                    if candidate.is_viral:
-                        marks.append("viral")
-                    if candidate.vetoed:
-                        marks.append("вето")
-                    if candidate.rr > 0:
-                        flag = "✓" if candidate.rr_ok else "·"
-                        marks.append(f"rr {candidate.rr:.1f}{flag}")
-                    suffix = f" · {' · '.join(marks)}" if marks else ""
-                    log(f"  [{done}/{total}] {sym} · score {candidate.score} · "
-                        f"{candidate.bucket}{suffix}")
+                    buckets[candidate.bucket] = buckets.get(candidate.bucket, 0) + 1
                 else:
-                    log(f"  [{done}/{total}] {sym} · пропуск, мало данных")
+                    skipped += 1
             except Exception as e:
                 msg = f"{type(e).__name__}: {e}"
                 errors.append((sym, msg))
-                log(f"  [{done}/{total}] {sym} · ОШИБКА {msg}")
+                log(f"  ОШИБКА {sym}: {msg}")
                 traceback.print_exc()
+            if done % 25 == 0 and done < total:
+                log(f"    анализ: {done}/{total} монет, {time.time() - _t0:.0f} с")
+        _order = ["strong", "good", "scout", "watch"]
+        _sum = " · ".join(f"{k} {buckets[k]}" for k in _order if buckets.get(k))
+        _rest = " · ".join(f"{k} {v}" for k, v in buckets.items() if k not in _order)
+        log(f"→ Анализ: {total} монет за {time.time() - _t0:.0f} с — {_sum}"
+            + (f" · {_rest}" if _rest else "") + (f" · пропуск {skipped}" if skipped else "")
+            + (f" · ОШИБОК {len(errors)}" if errors else ""))
 
     # Сильные вперёд, ранг присваивается после сортировки
     results.sort(key=lambda c: -c.score)
@@ -733,7 +737,7 @@ def parse_args() -> argparse.Namespace:
                   help="в цикле: короткий круг каждые N секунд между "
                        "полными прогонами (0 — не делать)")
     p.add_argument("--loop", action="store_true",
-                  help="повторять прогон бесконечно с интервалом --interval")
+                  help="повторять прогон бесконечно: старт — закрытие следующей свечи (output/next_run.json)")
     p.add_argument("--interval", type=int, default=LOOP_INTERVAL_SEC,
                   help="интервал между прогонами в секундах, по умолчанию 3 часа")
     # Отметка ручного дела сделанным. Отдельным ключом, а не вопросом в
@@ -822,6 +826,33 @@ def run_once(args: argparse.Namespace) -> int:
             f"исключено {select_stats['excluded']}, "
             f"мало объёма у {select_stats['low_volume']}")
 
+    # ══ РАЗРЫВ (05.09, владелец: «уснул, уехал, батарейка, свет, сервер упал»): если между
+    # записанным временем следующего прогона и «сейчас» больше одной свечи — это простой.
+    # Пишем отрезок в output/gaps.jsonl (с, по, свечей пропущено), чтобы читающие — журнал,
+    # карта во времени, правило двух прогонов — видели дыру и не сшивали через неё.
+    # Дозабор пропущенных свечей — отдельный скрипт (шаг после). ══
+    _gap_range = None
+    try:
+        _nrp = BASE_DIR / "output" / "next_run.json"
+        if _nrp.exists():
+            _nr = json.loads(_nrp.read_text(encoding="utf-8"))
+            _due = datetime.strptime(_nr["next_run_at"], "%Y-%m-%dT%H:%M:%S").timestamp()
+            _late = time.time() - _due
+            if _late > 1800 + 300:
+                _missed = int(_late // 1800)
+                _gap = {"from": _nr.get("next_candle"), "to": time.strftime("%Y-%m-%dT%H:%M:00Z", time.gmtime((time.time() // 1800) * 1800)),
+                        "missed_candles": _missed, "late_s": int(_late),
+                        "noted_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+                (BASE_DIR / "output").mkdir(exist_ok=True)
+                with (BASE_DIR / "output" / "gaps.jsonl").open("a", encoding="utf-8") as _gf:
+                    _gf.write(json.dumps(_gap, ensure_ascii=False) + "\n")
+                _gap_range = (_gap["from"], _gap["to"])
+                log(f"→ ПРОСТОЙ: прогона не было {_late / 3600:.1f} ч — пропущено свечей {_missed} "
+                    f"(с {_gap['from']}); отрезок записан в output/gaps.jsonl, дозабор пойдёт в потоке медленных")
+                _issue("Простой", f"{_late / 3600:.1f} ч без прогона, свечей пропущено {_missed}")
+    except Exception as e:
+        _issue("Простой", f"{type(e).__name__}: {e}")
+
     # ══ ВЕЕР БЫСТРЫХ (05.09, шаг 3 плана): одна калитка свечи на всех — по монете-часовому
     # BTCUSDT ждём закрытую получасовку у Binance; затем Coinglass стартует В СВОЁМ ПОТОКЕ
     # (внутри у него своя калитка и флаги missing), а анализ Binance идёт параллельно.
@@ -830,7 +861,10 @@ def run_once(args: argparse.Namespace) -> int:
     _candle = None
     try:
         import candle_gate as _gate
-        _candle = _gate.boundary()
+        # цель — последняя закрытая свеча, а если она уже снята Coinglass — следующая:
+        # ждём её закрытия по часам, потом закрытия у Binance (владелец: не пропуск, а ожидание)
+        _candle = _gate.target(BASE_DIR / "output" / "coinglass_fetch.json")
+        _gate.wait_closed(_candle, log=log)
         _w = _gate.wait_binance(_candle, log=log)
         log(f"→ Свеча {time.strftime('%H:%M', time.gmtime(_candle / 1000))} UTC закрыта у Binance"
             + (f" — ждали {_w:.0f} с" if _w > 1 else ""))
@@ -841,7 +875,14 @@ def run_once(args: argparse.Namespace) -> int:
     def _cg_job():
         try:
             from coinglass_fetch import collect as collect_coinglass
-            _cg_box["res"] = collect_coinglass(write=True, verbose=False)
+            try:
+                _cg_box["res"] = collect_coinglass(write=True, verbose=False, candle_ms=_candle)   # та же свеча, что у Binance
+            except TypeError as e:
+                if "candle_ms" not in str(e):
+                    raise
+                # старый сборщик без параметра свечи — идём без него, но помечаем
+                _cg_box["old"] = True
+                _cg_box["res"] = collect_coinglass(write=True, verbose=False)
         except Exception as e:  # noqa: BLE001
             _cg_box["exc"] = e
     _cg_thread = None
@@ -873,15 +914,10 @@ def run_once(args: argparse.Namespace) -> int:
     # ── Снимок ──
     snapshot = build_snapshot(candidates, len(symbols), duration, len(errors))
 
-    log("\n→ Воронка отбора")
-    for stage in snapshot.funnel:
-        bar = "█" * max(1, int(stage.share_pct / 3))
-        log(f"   {stage.label:<16} {stage.count:>4}  {bar} {stage.share_pct:>5.1f}%")
-
+    # воронка и вето — одной строкой каждая (05.09, владелец: таблицы в логе «мимо»)
+    log("→ Отбор: " + " → ".join(f"{st.label} {st.count}" for st in snapshot.funnel))
     if snapshot.veto_stats:
-        log("\n→ Причины вето")
-        for v in snapshot.veto_stats:
-            log(f"   {v['label']:<16} {v['count']:>3}  ({v['severity']})")
+        log("→ Вето: " + " · ".join(f"{v['label'].lower()} {v['count']}" for v in snapshot.veto_stats))
 
     regime = snapshot.market_regime
     log(f"\n→ Режим рынка: {regime.get('regime', '—').upper()} · "
@@ -896,15 +932,11 @@ def run_once(args: argparse.Namespace) -> int:
 
     # ── Сравнение с прошлым прогоном ──
     if not args.no_save:
-        diff = compare_with_previous(snapshot)
-        if diff.get("has_previous"):
-            if diff["new"]:
-                log(f"→ Новые в работе: {', '.join(diff['new'][:8])}")
-            if diff["gone"]:
-                log(f"→ Выбыли из работы: {', '.join(diff['gone'][:8])}")
-
-        path = save_snapshot(snapshot)
-        log(f"→ Снимок сохранён: {path}")
+        # «новые/выбыли из работы» — старый отбор «к работе», к журналу и прогнозам
+        # отношения не имеет; в лог не пишем (05.09, владелец). Сравнение оставлено
+        # для снимка. Пути файлов тоже не печатаем — они не меняются.
+        compare_with_previous(snapshot)
+        save_snapshot(snapshot)
 
     # Лидер прогона FLOW и аномальные объёмы — накопительные файлы
     # в output/ (analytics/leaders.py), не часть самого отчёта.
@@ -913,8 +945,7 @@ def run_once(args: argparse.Namespace) -> int:
     # и если leaders/anomaly лягут после коммита — уедут в git только
     # со следующего прогона, на один run позже самого отчёта.
     flow_leaders_path, anomaly_path = update_leaders(candidates, snapshot)
-    log(f"→ Лидер FLOW: {flow_leaders_path}")
-    log(f"→ Аномальные объёмы: {anomaly_path}")
+    log("→ Журнал лидеров и аномальные объёмы: записаны")
 
     # Пульс: показания всей выборки за последние двое суток. Рядом с
     # журналом и по той же причине — здесь у кандидатов уже посчитаны
@@ -954,6 +985,8 @@ def run_once(args: argparse.Namespace) -> int:
         if _cg_thread.is_alive():
             _issue("Coinglass", "сбор не завершился за 25 мин — иду с прошлым срезом", critical=True)
     try:
+        if _cg_box.get("old"):
+            _issue("Coinglass", "старый coinglass_fetch.py без калитки свечи — обновить файл")
         if _cg_box.get("exc"):
             raise _cg_box["exc"]
         _cg = _cg_box.get("res") or {}
@@ -1126,12 +1159,32 @@ def run_once(args: argparse.Namespace) -> int:
                                               stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True), _to)
         except Exception as e:
             _issue(_name, f"не запустился: {type(e).__name__}: {e}")
+    log("→ Быстрые срезы веером: " + ", ".join(_procs) + " — жду; ход раз в минуту")
+    # ожидание с пульсом: раз в минуту — кто ещё идёт и сколько секунд, чтобы «висит» не было
+    _t_fan = time.time()
+    _outs: dict = {}
+    while True:
+        _alive = [n for n, (_p, _to) in _procs.items() if n not in _outs and _p.poll() is None]
+        for n, (_p, _to) in _procs.items():
+            if n in _outs:
+                continue
+            if _p.poll() is not None:
+                _o, _e = _p.communicate()
+                _outs[n] = (_o, _e, False)
+                log(f"    готово: {n} ({time.time() - _t_fan:.0f} с)")
+            elif time.time() - _t_fan > _to:
+                _p.kill(); _o, _e = _p.communicate()
+                _outs[n] = (_o, _e, True)
+                _issue(n, f"не уложился в {_to} с — снят")
+        if len(_outs) == len(_procs):
+            break
+        _el = time.time() - _t_fan
+        if _alive and int(_el) % 60 < 5:
+            log(f"    идут: {', '.join(_alive)} — {_el:.0f} с")
+        time.sleep(5)
     for _name, (_p, _to) in _procs.items():
-        try:
-            _out, _err = _p.communicate(timeout=_to)
-        except subprocess.TimeoutExpired:
-            _p.kill(); _out, _err = _p.communicate()
-            _issue(_name, f"не уложился в {_to} с — снят")
+        _out, _err, _killed = _outs.get(_name, ("", "", True))
+        if _killed:
             continue
         _tail = (_out or "").strip().splitlines()
         if _name == "Плечо по типу":
@@ -1153,6 +1206,19 @@ def run_once(args: argparse.Namespace) -> int:
     # что лежит); поток дожидается конца прогона, чтобы следующий его не догнал. ══
     def _slow_job():
         try:
+            # ДОЗАБОР ПОСЛЕ ПРОСТОЯ (05.09, владелец: «прогон дальше сам»): обнаружен разрыв —
+            # восстанавливаем лог ликвидности и журнал прогнозов за пропущенные свечи из
+            # истории (backfill_gaps.py), здесь, чтобы отчёт не ждал; уже снятые свечи он пропустит.
+            if _gap_range and _gap_range[0] and _gap_range[1]:
+                try:
+                    _rb = subprocess.run([sys.executable, "backfill_gaps.py", "--from", _gap_range[0], "--to", _gap_range[1]],
+                                         cwd=BASE_DIR, capture_output=True, text=True, timeout=3600)
+                    _tb = (_rb.stdout or "").strip().splitlines()
+                    log(f"→ Дозабор простоя: {_tb[-1] if _tb else 'пусто'}")
+                    if _rb.returncode:
+                        _issue("Дозабор", (_rb.stderr or "").strip()[-300:] or f"код {_rb.returncode}")
+                except Exception as e:  # noqa: BLE001
+                    _issue("Дозабор", f"{type(e).__name__}: {e}")
             # CryptoQuant v2 (30.08): суточный дозабор деривативов журнала
             # в архив cq_v2/ (funding, OI, ликвидации, свечи, тейкеры — по
             # <base>_all). Прогон ежечасный, а дневка кванта одна в сутки,
@@ -1337,9 +1403,23 @@ def main() -> int:
     if not args.loop:
         return run_once(args)
 
-    interval = max(60, args.interval)
-    log(f"→ Режим цикла: прогон каждые {interval // 3600}ч "
-        f"{interval % 3600 // 60}мин · Ctrl+C для остановки")
+    # ИНТЕРВАЛА НЕТ (05.09, владелец: «в интервале теряется смысл, он ломает логику»).
+    # Цикл — по свечам: прогон сам пишет следующее время в output/next_run.json и сам
+    # засыпает до него; при перезапуске процесса первым делом читает этот файл и
+    # продолжает с записанного времени. --interval игнорируется (оставлен, чтобы старые
+    # команды запуска не падали).
+    interval = 1800
+    if getattr(args, "interval", None) and args.interval != interval:
+        log(f"→ --interval {args.interval} больше не используется: цикл идёт по закрытию свечей")
+    log("→ Режим цикла: по закрытию получасовых свечей · Ctrl+C для остановки")
+    try:
+        _nr = json.loads((BASE_DIR / "output" / "next_run.json").read_text(encoding="utf-8"))
+        _at = datetime.strptime(_nr["next_run_at"], "%Y-%m-%dT%H:%M:%S").timestamp()
+        if _at > time.time() + 5:
+            log(f"→ По записи прошлого прогона следующий старт в {datetime.fromtimestamp(_at):%H:%M:%S} — жду")
+            time.sleep(_at - time.time())
+    except Exception:
+        pass
 
     runs = 0
     while True:
@@ -1359,19 +1439,35 @@ def main() -> int:
             run_summary(published=False, blocked=True)
             alert_telegram(alert_text(blocked=True))
 
-        # ПО ЧАСАМ, НЕ ПО ИНТЕРВАЛУ (05.09, владелец: «сначала ловим текущую свечу, потом
-        # всё больше опаздываем — следующую»). Интервал от конца прогона сползал на длину
-        # прогона каждый круг. Теперь старт — по сетке часов: ближайшая точка, кратная
-        # interval, минус LOOP_LEAD_S — чтобы медленная часть прошла ДО границы свечи, а
-        # быстрые срезы легли ровно после неё (ждать границу умеет сам прогон).
+        # СЛЕДУЮЩИЙ ПРОГОН — ЗАКРЫТИЕ СЛЕДУЮЩЕЙ СВЕЧИ (05.09, владелец: «прогон сам записывает
+        # следующее время»). Не сетка и не интервал: берём свечу, которую снял этот прогон
+        # (штамп Coinglass), следующая за ней закроется через 30 мин — это и есть старт; если
+        # прогон затянулся и она уже закрыта — стартуем сразу. Время пишется в
+        # output/next_run.json, чтобы его видели экраны и внешний сторож. --interval —
+        # только запасной ход, если candle_gate или штампа нет.
         _now = time.time()
-        _edge = (_now // interval + 1) * interval
-        _start = _edge - LOOP_LEAD_S
-        if _start - _now < 5:             # прогон затянулся — эту точку пропускаем, берём следующую
-            _start += interval
+        try:
+            import candle_gate as _gate2
+            _done = _gate2.boundary()
+            try:
+                _st = json.loads((BASE_DIR / "output" / "coinglass_fetch.json").read_text(encoding="utf-8")).get("stamp") or {}
+                if _st.get("candle_ms"):
+                    _done = int(_st["candle_ms"])
+            except (OSError, ValueError):
+                pass
+            _start = _done / 1000 + 2 * _gate2.INTERVAL_S + 5     # конец следующей свечи + запас
+            if _start <= _now:
+                _start = _now + 5
+            (BASE_DIR / "output").mkdir(exist_ok=True)
+            (BASE_DIR / "output" / "next_run.json").write_text(json.dumps({
+                "next_run_at": datetime.fromtimestamp(_start).strftime("%Y-%m-%dT%H:%M:%S"),
+                "next_candle": time.strftime("%Y-%m-%dT%H:%M:00Z", time.gmtime(_done / 1000 + _gate2.INTERVAL_S)),
+                "last_candle": time.strftime("%Y-%m-%dT%H:%M:00Z", time.gmtime(_done / 1000))}, ensure_ascii=False))
+        except Exception:
+            _start = (int(_now // 1800) + 1) * 1800 + 5     # без калитки — ближайшая граница получаса
         wait = _start - _now
         nxt = datetime.fromtimestamp(_start)
-        log(f"\n→ Следующий прогон в {nxt:%H:%M:%S} (по сетке {interval // 60} мин)")
+        log(f"\n→ Следующий прогон в {nxt:%H:%M:%S} — закрытие следующей свечи")
 
         # СОН ДРОБИТСЯ КОРОТКИМИ КРУГАМИ (01.09). Час между полными
         # прогонами — слишком долго для выноса лонгов: у BLESS плечо

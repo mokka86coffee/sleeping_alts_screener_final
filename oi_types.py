@@ -56,7 +56,13 @@ def coin_types(sym_usdt: str) -> dict | None:
     if not kl or not oh:
         return None
     k = ohlcv(kl, tail=len(oh))
-    oi = [float(r.get("sumOpenInterestValue") or 0) for r in oh]
+    # ИНТЕРЕС В МОНЕТАХ, НЕ В ДОЛЛАРАХ (05.09, найдено по PROM/BLESS — «все свечи зелёные»):
+    # sumOpenInterestValue растёт вместе с ценой даже при неизменных позициях, и любой
+    # рост цены красился «лонги открывают», любое падение — «лонги закрывают»; шортов не
+    # было никогда. Берём sumOpenInterest — число контрактов, оно про позиции, не про цену.
+    oi = [float(r.get("sumOpenInterest") or 0) for r in oh]
+    if not any(oi):
+        oi = [float(r.get("sumOpenInterestValue") or 0) for r in oh]
     ts = [int(r.get("timestamp") or 0) for r in oh]
     m = min(len(k["close"]), len(oi))
     c, oi, ts = k["close"][-m:], oi[-m:], ts[-m:]

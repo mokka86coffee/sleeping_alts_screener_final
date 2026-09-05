@@ -1171,6 +1171,9 @@ def build_stars(candidates: list[Candidate],
 _SHARED_OK = {
     "hold", "wasClosed", "trendDone", "firstRun", "new", "hot", "lead",
     "gaps", "shakeScale", "shakeHours", "entry", "exitDeadline",
+    # qScale — подпись шкалы заметности (таймфрейм окна), одна на всех по природе,
+    # как shakeScale; крик 05.09 «одно значение на всех: qScale» был ложным
+    "qScale",
 }
 
 

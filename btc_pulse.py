@@ -266,7 +266,9 @@ def read_line(p: dict) -> str:
         parts.append(f"ликвидации 24ч: шортов {_m(lq['short_24h_usd'])}, лонгов {_m(lq['long_24h_usd'])}")
     pr = p.get("premium")
     if pr:
-        parts.append(f"премия Coinbase {pr['last']:+.0f}" + (f", плюс {pr['hours_positive']} ч подряд" if pr["hours_positive"] else ""))
+        # своя премия — в процентах цены (сотые-тысячные), не в долларах индекса: три знака
+        parts.append(f"премия Coinbase {pr['last']:+.3f}%" + (f", плюс {pr['hours_positive']} ч подряд" if pr["hours_positive"] else "")
+                     + (f" (за сутки {pr['min_24h']:+.3f}…{pr['max_24h']:+.3f})" if pr.get("min_24h") is not None and pr.get("max_24h") is not None and pr["min_24h"] != pr["max_24h"] else ""))
     et = p.get("etf")
     if et:
         raw_d = et.get("last_at")
