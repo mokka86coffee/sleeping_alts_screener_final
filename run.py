@@ -531,6 +531,10 @@ def render_report(candidates: list[Candidate], snapshot: RunSnapshot) -> bool:
 # ─────────────────────────────────────────────────────────────
 ISSUES: list[dict] = []
 COINGLASS_MAX_AGE_H = 3.0          # срез ежечасный; три часа — уже вчера
+# Суточная пересборка расписания «когда растёт» (05.09): часовые свечи с Binance,
+# затем сводка пробегов по режиму биткоина → output/schedule.json. Флаги — те, что
+# запускались руками; поправить здесь, если скрипт их сменит.
+SCHEDULE_REFRESH = [["backfill_binance.py"], ["alts_schedule.py", "--runs", "--regime"]]
 ANALYZE_FAIL_SHARE = 0.20          # доля монет с ошибкой анализа, дальше — не верим выборке
 
 
@@ -1157,6 +1161,27 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("Лог ликвидности", (_r.stderr or "").strip()[-300:] or f"код {_r.returncode}")
     except Exception as e:
         _issue("Лог ликвидности", f"{type(e).__name__}: {e}")
+
+    # ── СУТОЧНЫЕ ДЕЛА (05.09, «всё, что можно автоматизировать, — автоматизировать»):
+    # расписание «когда растёт» (output/schedule.json) собирается отдельными скриптами и
+    # раньше запускалось руками — лампочка «не обновлено · расписание» горела через двое
+    # суток. Теперь первым прогоном после 09:00 по местному, если файл старше 20 ч:
+    # дозабор часовых свечей с Binance и пересчёт расписания. Сбой — предупреждение в
+    # реестр, прогон не падает. Команды и флаги — в SCHEDULE_REFRESH.
+    try:
+        _sp = BASE_DIR / "output" / "schedule.json"
+        _age_h = (time.time() - _sp.stat().st_mtime) / 3600 if _sp.exists() else 1e9
+        if not HOT and datetime.now().hour >= 9 and _age_h > 20:
+            log(f"→ Расписание: старше {_age_h:.0f} ч — пересобираю")
+            for _cmd in SCHEDULE_REFRESH:
+                _r = subprocess.run([sys.executable] + _cmd, cwd=BASE_DIR, capture_output=True, text=True, timeout=1800)
+                _tail = ((_r.stdout or _r.stderr).strip().splitlines() or ["?"])[-1]
+                log(f"   {_cmd[0]}: код {_r.returncode} · {_tail[:120]}")
+                if _r.returncode:
+                    _issue("Расписание", f"{_cmd[0]}: {(_r.stderr or '').strip()[-200:] or 'код ' + str(_r.returncode)}")
+                    break
+    except Exception as e:
+        _issue("Расписание", f"{type(e).__name__}: {e}")
 
     # ── Плечо по типу (05.09, Leviathan): лонги/шорты открывают/закрывают
     # по часам за 14 дней → output/oi_types.json; экран монеты и счётчик доски. ──

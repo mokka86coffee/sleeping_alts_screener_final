@@ -419,6 +419,15 @@ COIN_HTML = r"""
 @keyframes spark{0%,100%{transform:scale(.6);opacity:.3}50%{transform:scale(1.4);opacity:1}}
 
 /* плашка решения слева внизу (04.09) */
+/* ── вступительная сводка (05.09): текст поверх графика при входе, гаснет по клику/клавише/через 9 с ── */
+.intro{position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:rgba(3,17,12,.55);backdrop-filter:blur(3px);opacity:1;transition:opacity .5s;cursor:pointer}
+.intro.off{opacity:0;pointer-events:none}
+.intro .ibox{width:640px;padding:26px 30px;border:1px solid rgba(127,232,176,.25);border-radius:12px;background:rgba(3,17,12,.82);box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.intro .icap{font-family:var(--f-cap);font-size:8px;letter-spacing:.34em;text-transform:uppercase;color:#9fd8bf;margin-bottom:14px}
+.intro .irow{display:grid;grid-template-columns:110px 1fr;gap:6px 14px;margin:0 0 9px}
+.intro .irow b{font-family:var(--f-cap);font-weight:400;font-size:7.5px;letter-spacing:.3em;text-transform:uppercase;color:#f5a93a;padding-top:3px}
+.intro .irow span{font-size:12px;line-height:1.45;color:#e9fff4}
+.intro .ihint{margin-top:12px;font-family:var(--f-cap);font-size:6.5px;letter-spacing:.24em;text-transform:uppercase;color:#7fb8a0}
 /* ── направление (05.09): стрелка «← снимут» мигает, плашка — при наведении на подпись ── */
 .dirhot .blink{animation:dirblink 1.4s ease-in-out infinite}
 @keyframes dirblink{0%,100%{opacity:1}50%{opacity:.25}}
@@ -437,8 +446,9 @@ COIN_HTML = r"""
 .oit .row i.lo{color:rgba(245,169,58,.7)}.oit .row i.so{color:rgba(255,138,112,.7)}.oit .row i.sc{color:rgba(127,240,184,.7)}.oit .row i.lc{color:rgba(111,184,255,.7)}
 .oit .read{position:absolute;left:0;top:18px;font-family:var(--f-cap);font-size:7px;letter-spacing:.18em;text-transform:uppercase;color:#dffff0}
 .oit .verd{position:absolute;left:0;top:-26px;width:330px;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;color:#ffe2a8;line-height:1.35}
-.oit .lg{position:absolute;left:0;top:30px;white-space:nowrap;font-family:var(--f-cap);font-size:6px;letter-spacing:.12em;text-transform:uppercase;color:#7fb8a0}
-.oit .lg b{display:inline-block;width:7px;height:7px;border-radius:1px;margin:0 3px 0 8px;vertical-align:middle}
+.oit .lg{position:absolute;left:0;top:30px;width:330px;display:flex;flex-wrap:wrap;gap:3px 12px;font-family:var(--f-cap);font-size:6px;letter-spacing:.12em;text-transform:uppercase;color:#7fb8a0}
+.oit .lg span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.oit .lg b{display:inline-block;width:7px;height:7px;border-radius:1px;flex:0 0 7px}
 /* ── ТРИ МИНИ-ПЛИТЫ ВНИЗУ (04.09, финал): вердикт, журнал за две недели, расписание —
    уменьшенные копии большой плиты: тот же разворот в перспективе, белая линия земли,
    золотое свечение под ней, отражение. Без кубов и панелей. ── */
@@ -955,6 +965,7 @@ COIN_JS = r"""
           heat += '<rect x="' + (x - cw / 2).toFixed(1) + '" y="' + (y - 2.5).toFixed(1) + '" width="' + cw.toFixed(1) + '" height="5" fill="' + col + '" opacity="' + o.toFixed(2) + '"/>'; }); });
       if (heat) heat = '<g class="heat">' + heat + '</g>';
     })();
+    var dirInfo = dirPl;   // копия для вступительной сводки (dirPl обнуляется после отрисовки плашки)
     var RL = [];
     LV.forEach(function (l) { RL.push({ y: sy(l[1]), col: l[2], txt: l[0] + ' ' + px4(l[1]), line: true, x1: X0 + 330, dash: '3 5', w: .6, op: .45 }); });
     // НАПРАВЛЕННОЕ СМЕЩЕНИЕ (05.09, по Leviathan): сторона, которую вероятнее снимут, — ярче,
@@ -1085,6 +1096,10 @@ COIN_JS = r"""
     for (var di = 0; di < 6; di++) { var rx = 120 + ((di * 137) % 1200), ry = 420 + ((di * 71) % 460), dd = 9 + (di % 5) * 2, dw = -(di * 1.3), dx = (di % 2 ? 1 : -1) * (12 + (di * 9) % 40);
       ANIM += '<div class="dust' + (di % 3 === 0 ? ' g' : '') + '" style="left:' + rx + 'px;top:' + ry + 'px;--d:' + dd + 's;--w:' + dw + 's;--x:' + dx + 'px"></div>'; }
     ANIM += '</div><div class="spark" style="left:' + (SL + (X0 - 26) - 3) + 'px;top:' + (ST + Y1 - 10) + 'px"></div><div class="spark b" style="left:' + (SL + (X0 - 26) - 3) + 'px;top:' + (ST + Y0 - 3) + 'px"></div>';
+    var INTRO = [];   // вступительная сводка (05.09): текстом поверх графика при входе, потом гаснет
+    INTRO.push(['решение', String(dec.verdict || '') + (dec.why ? ' — ' + String(dec.why).split('—')[0] : '')]);
+    if (s.rep && s.rep.plot) INTRO.push(['журнал', String(s.rep.plot).split(':')[0]]);
+    if (dirInfo) INTRO.push(['направление', dirInfo.l1.toLowerCase() + ' · ' + dirInfo.l2.toLowerCase()]);
     var vtxt = String(dec.verdict || '').toLowerCase(), vcls = /брать|купить/.test(vtxt) ? 'v-buy' : /держ/.test(vtxt) ? 'v-hold' : /закр|выход|выйти|прода/.test(vtxt) ? 'v-exit' : 'v-wait';
     var BOX6 = '<div class="f back"></div><div class="f bottom"></div><div class="f left"></div><div class="f right"></div><div class="f top"></div>';
     var dzone = ANIM + '<div class="mini verdict ' + vcls + ' dzone decbox vb ' + (window.VERDICT_STYLE || 'dark') + '">' + cardHtml(dec) +
@@ -1118,10 +1133,17 @@ COIN_JS = r"""
       var recent = dom(B.slice(-6)), before = dom(B.slice(-18, -6));
       var verdict = VERD[recent] || '';
       if (recent !== before && before !== 'flat' && recent !== 'flat') verdict = 'смена: после «' + NM[before] + '» пошло «' + NM[recent] + '» — ' + verdict;
+      INTRO.push(['плечо', verdict + ' · ' + read24]);
       dzone += '<div class="oit"><div class="cap">плечо по типу · 14 дн по 4 ч</div><div class="verd">' + esc(verdict) + '</div><div class="row">' + row + '</div>' +
         '<div class="read">' + esc(read24) + '</div>' +
-        '<div class="lg"><b style="background:#f5a93a"></b>лонги открывают<b style="background:#ff8a70"></b>шорты открывают<b style="background:#7ff0b8"></b>шорты закрывают<b style="background:#6fb8ff"></b>лонги закрывают</div></div>';
+        '<div class="lg"><span><b style="background:#f5a93a"></b>лонги открывают</span><span><b style="background:#ff8a70"></b>шорты открывают</span><span><b style="background:#7ff0b8"></b>шорты закрывают</span><span><b style="background:#6fb8ff"></b>лонги закрывают</span></div></div>';
     })();
+    (function () { var cgx = s.cg || {}, f = cgx.cvdSpark || [], sp = cgx.spotCvdSpark || []; if (f.length < 4 || sp.length < 4) return;
+      var fd = f[f.length - 1] - f[0], sd = sp[sp.length - 1] - sp[0];
+      INTRO.push(['спот и перп', (fd > 0 && sd <= 0) ? 'перп рвёт, спот стоит — плечо без денег' : (sd > 0 && fd <= 0) ? 'спот покупает, перп продаёт — набор под сквиз' : (sd > 0 && fd > 0) ? 'покупают обе ноги — ход оплачен' : 'продают обе ноги']); })();
+    var introHtml = '<div class="intro" id="intro"><div class="ibox"><div class="icap">' + esc(String(s.t).toUpperCase()) + ' · сводка</div>' +
+      INTRO.map(function (r) { return '<div class="irow"><b>' + esc(r[0]) + '</b><span>' + esc(r[1]) + '</span></div>'; }).join('') +
+      '<div class="ihint">клик или любая клавиша — к графику · гаснет само через 9 с</div></div></div>';
     // ── журнал за две недели — мини-плита: последние 14 дневок, метки смен ──
     (function () {
       var J = JR[String(s.t).toUpperCase()], M = (J && J.marks) || [];
@@ -1181,9 +1203,12 @@ COIN_JS = r"""
     var cs = clockState(), clock = cs ? vessel(cs) : '';
     var aura = '<div class="aura up' + (cs && cs.kind === 'up' ? (cs.live ? ' on' : cs.soon ? ' soon' : '') : '') + '"></div><div class="aura dn' + (cs && cs.kind === 'dn' ? (cs.live ? ' on' : cs.soon ? ' soon' : '') : '') + '"></div>';
     stage.innerHTML = '<div class="beam"></div><div class="floor"></div><div class="sweep"></div>' + aura + '<div class="slab"><svg viewBox="0 0 ' + SW + ' ' + SH + '">' + slab + '</svg></div><svg class="leaders" viewBox="0 0 1440 900">' + leaders + '</svg>' +
-      hd + hdr + srcs + '<a class="back" href="brief.html">← схема</a>' + coins + notes + dzone + clock + '<div class="replay" id="replay">заново</div><div class="legend">' + (ser.length > 2 ? 'цена · ' + days + ' дневок' + (d0 ? ' · архив' : ' · звезда') : 'ряда цены нет') + ' · наведи на пометку — полная группа</div>' +
+      hd + hdr + srcs + '<a class="back" href="brief.html">← схема</a>' + coins + notes + dzone + clock + introHtml + '<div class="replay" id="replay">заново</div><div class="legend">' + (ser.length > 2 ? 'цена · ' + days + ' дневок' + (d0 ? ' · архив' : ' · звезда') : 'ряда цены нет') + ' · наведи на пометку — полная группа</div>' +
       '<div class="atmo"><div class="vig"></div></div>';   // ОПТИМИЗАЦИЯ 04.09: зерно feTurbulence на весь экран снято — на планшете это половина кадра
     root.getElementById('replay').onclick = function () { build(tick); };
+    (function () { var it = root.getElementById('intro'); if (!it) return;
+      var hide = function () { it.classList.add('off'); setTimeout(function () { if (it.parentNode) it.parentNode.removeChild(it); }, 500); document.removeEventListener('keydown', hide); };
+      it.addEventListener('click', hide); document.addEventListener('keydown', hide); setTimeout(hide, 9000); })();
     fit();
   }
   function fit() { var W = root.host.ownerDocument.documentElement.clientWidth || window.innerWidth, H = window.innerHeight; var k = Math.min(W / 1440, H / 900); stage.style.transform = 'translate(-50%,-100%) scale(' + k.toFixed(4) + ')'; }   // 04.09: якорь — низ окна, не центр
