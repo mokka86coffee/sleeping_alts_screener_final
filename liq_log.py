@@ -270,6 +270,12 @@ def build(sym: str, base: Path, cap: float | None, crowd: dict) -> dict:
     missing: list[str] = []
     now = datetime.now(timezone.utc)
     row: dict = {"at": now.strftime("%Y-%m-%d"), "hm": now.strftime("%H:%M"), "sym": sym}
+    try:   # штамп свечи и флаг пустоты (05.09): candle — закрытая получасовка; missing — чего нет
+        import candle_gate as _cg
+        row["candle"] = _cg.stamp(_cg.boundary())["candle"]
+    except Exception:  # noqa: BLE001
+        row["candle"] = None
+    row["missing"] = []
 
     # капа: сначала external_data.get_fundamentals — CoinGecko через кэш
     # прогона cache_fundamental/ (12 ч); прогон её уже качал, сети ноль.
@@ -406,6 +412,12 @@ def build(sym: str, base: Path, cap: float | None, crowd: dict) -> dict:
         missing.append("часовая карта: ни binance, ни pulse")
     row["zones_hour"] = zh
     row["zones_hour_src"] = src_h
+    # флаг пустоты: чего у монеты в этот прогон нет — читающий код обязан смотреть сюда,
+    # а не подставлять ноль (владелец, 05.09: «лучше без информации, чем с ложной»)
+    if not zd:
+        row["missing"].append("zones_day")
+    if not zh:
+        row["missing"].append("zones_hour")
     f2c = fuel_to_cap(zh, px, cap) if zh and cap else None
     row["fuel_above_cap"] = f2c["above"] if f2c else None
     row["fuel_below_cap"] = f2c["below"] if f2c else None

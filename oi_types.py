@@ -104,6 +104,12 @@ def build(only: list[str] | None = None) -> dict:
     for v in out["coins"].values():
         board[v["dominant"]] = board.get(v["dominant"], 0) + 1
     out["board"] = board
+    # штамп свечи (05.09): какую закрытую получасовку описывают часы; missing — монеты без данных
+    try:
+        import candle_gate as _cg
+        out["stamp"] = _cg.stamp(_cg.boundary())
+    except Exception:  # noqa: BLE001
+        out["stamp"] = {"note": "candle_gate не найден"}
     return out
 
 

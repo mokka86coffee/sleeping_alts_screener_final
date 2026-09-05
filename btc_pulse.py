@@ -291,6 +291,11 @@ def build() -> dict:
     missing: list[str] = []
     now = datetime.now(timezone.utc)
     p = {"at": now.strftime("%Y-%m-%d"), "hm": now.strftime("%H:%M"), "sym": "BTC"}
+    try:   # штамп свечи (05.09): какую закрытую получасовку описывает срез
+        import candle_gate as _cg
+        p["stamp"] = _cg.stamp(_cg.boundary())
+    except Exception:  # noqa: BLE001
+        p["stamp"] = {"note": "candle_gate не найден"}
     p["map"] = leverage_map(missing)
     p.update(coinglass_block(missing))
     p["missing"] = missing

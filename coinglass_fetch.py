@@ -210,8 +210,37 @@ def _rows(doc: dict) -> list[dict]:
 
 
 def _closed(rows: list[dict]) -> list[dict]:
-    """Отбросить незакрытый последний бар. Одна строка — не окно."""
-    return rows[:-1] if len(rows) > 1 else []
+    """Оставить только закрытые бары — ПО ВРЕМЕНИ, не по позиции (05.09).
+    Раньше отбрасывался последний бар всегда: если Coinglass ещё не завёл
+    новый бар после границы, выбрасывался только что закрывшийся, и срез
+    отставал на полчаса. Бар закрыт, если t + интервал ≤ сейчас; у бара без
+    времени — прежнее правило (последний долой)."""
+    if not rows:
+        return []
+    now_ms = int(time.time() * 1000)
+    step = _interval_ms()
+    out, untimed = [], False
+    for r in rows:
+        t = r.get("t") or r.get("time") or r.get("ts") or r.get("timestamp")
+        try:
+            t = int(t)
+        except (TypeError, ValueError):
+            untimed = True
+            break
+        if t < 1e12:
+            t *= 1000
+        if t + step <= now_ms:
+            out.append(r)
+    if untimed:
+        return rows[:-1] if len(rows) > 1 else []
+    return out
+
+
+def _interval_ms() -> int:
+    """Длина бара среза в мс из INTERVAL («30m», «1h», «4h», «1d»)."""
+    u = INTERVAL[-1]
+    n = int(INTERVAL[:-1] or 1)
+    return n * {"m": 60_000, "h": 3_600_000, "d": 86_400_000}.get(u, 60_000)
 
 
 def _pick(row: dict, need: tuple[str, ...],
@@ -479,6 +508,31 @@ def collect(symbols: list[str] | None = None, *,
         if note:
             state["errors"]["журнал"] = note
 
+    # КАЛИТКА СВЕЧИ (05.09): сборщик стартует на границе и ЖДЁТ, пока у Coinglass
+    # появится бар именно этой закрытой получасовки (монета-часовой BTC), потом обходит
+    # всех без проверок. Уже снятая свеча — пропуск (запуск раз в 20 мин при свече в 30).
+    # Не дождались до следующей границы — обход идёт, но файл получает пометку
+    # missing: данные прошлой свечи, а не ложные текущие.
+    gate_waited, gate_missing = 0.0, None
+    try:
+        import candle_gate as _cg
+        b_ms = _cg.boundary()
+        if write and STATE_PATH.exists() and _cg.already_done(STATE_PATH, b_ms):
+            _say(f"coinglass: свеча {_cg._hm(b_ms)} уже снята — пропуск", verbose)
+            try:
+                return json.loads(STATE_PATH.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                pass
+        try:
+            gate_waited = _cg.wait_coinglass(b_ms, get, key, log=lambda m: _say(m, verbose))
+            state["stamp"] = _cg.stamp(b_ms)
+        except _cg.GateTimeout as e:
+            gate_missing = str(e)
+            state["stamp"] = _cg.missing_stamp(b_ms, gate_missing)
+        state["stamp"]["gate_waited_s"] = round(gate_waited, 1)
+    except ImportError:
+        state["stamp"] = {"note": "candle_gate не найден — без калитки"}
+
     total = len(coins) * 4 + 1
     secs = total * (PAUSE_SEC + 0.6)          # пауза + сетевая задержка
     orient = (f"~{secs / 60:.0f}–{secs * 1.6 / 60:.0f} мин" if secs >= 60
@@ -521,6 +575,17 @@ def collect(symbols: list[str] | None = None, *,
         entry = snap_coin(coin, key, state["errors"])
         state["requests"] += 4
         entry["liq"] = liq_all.get(coin)
+        # ФЛАГ ПУСТОТЫ ПО МОНЕТЕ (05.09, владелец: «дополучаем что можно, остальное
+        # помечаем, чтобы в коде понимать, что данных нет»): каких точек нет
+        _miss = [k for k in ("fut", "spot") if not entry.get(k)]
+        if entry.get("oiUsd") is None:
+            _miss.append("oi")
+        if entry.get("funding") is None and entry.get("fundingRate") is None:
+            _miss.append("funding")
+        if entry["liq"] is None:
+            _miss.append("liq")
+        if _miss:
+            entry["missing"] = _miss
         state["coins"][coin] = entry
         bad = sum(1 for k in state["errors"] if k.startswith(coin + " "))
         _say(f"  {i}/{len(coins)} {coin}"

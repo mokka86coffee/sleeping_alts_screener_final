@@ -14,6 +14,8 @@
 
 from __future__ import annotations
 
+import time
+
 from core_config import BINANCE_FAPI, BINANCE_SPOT
 from core_http import RunCache, get_json
 
@@ -66,9 +68,26 @@ def get_klines(symbol: str, interval: str, limit: int = 500) -> list[list]:
             {"symbol": symbol, "interval": interval, "limit": limit},
             weight=_klines_weight(limit),
         )
-        return data or []
+        return closed_only(data or [])
 
     return KLINES_CACHE.get_or_call(key, _fetch)
+
+
+def closed_only(klines: list[list]) -> list[list]:
+    """ТОЛЬКО ЗАКРЫТЫЕ СВЕЧИ (05.09). Binance всегда кладёт последней текущую,
+    незакрытую свечу — с частичным объёмом и промежуточным закрытием; анализ,
+    лог ликвидности и плечо по типу считали её как целую. Закрытость — по
+    времени, не по позиции: свеча закрыта, если её closeTime (индекс 6, мс)
+    уже наступил. Незакрытых в ответе может быть только одна, но проверяем все."""
+    now_ms = int(time.time() * 1000)
+    out = []
+    for k in klines:
+        try:
+            if int(k[K_CLOSE_TIME]) <= now_ms:
+                out.append(k)
+        except (TypeError, ValueError, IndexError):
+            out.append(k)
+    return out
 
 
 # ── Канонические загрузчики ──

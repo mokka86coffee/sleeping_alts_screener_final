@@ -531,6 +531,7 @@ def render_report(candidates: list[Candidate], snapshot: RunSnapshot) -> bool:
 # ─────────────────────────────────────────────────────────────
 ISSUES: list[dict] = []
 COINGLASS_MAX_AGE_H = 3.0          # срез ежечасный; три часа — уже вчера
+LOOP_LEAD_S = 0                    # старт ровно на границе сетки: калитка свечи ждёт закрытие сама (05.09)
 # Суточная пересборка расписания «когда растёт» (05.09): часовые свечи с Binance,
 # затем сводка пробегов по режиму биткоина → output/schedule.json. Флаги — те, что
 # запускались руками; поправить здесь, если скрипт их сменит.
@@ -821,6 +822,34 @@ def run_once(args: argparse.Namespace) -> int:
             f"исключено {select_stats['excluded']}, "
             f"мало объёма у {select_stats['low_volume']}")
 
+    # ══ ВЕЕР БЫСТРЫХ (05.09, шаг 3 плана): одна калитка свечи на всех — по монете-часовому
+    # BTCUSDT ждём закрытую получасовку у Binance; затем Coinglass стартует В СВОЁМ ПОТОКЕ
+    # (внутри у него своя калитка и флаги missing), а анализ Binance идёт параллельно.
+    # Сходятся перед логом ликвидности и срезом биткоина — им нужен файл Coinglass. ══
+    import threading as _thr
+    _candle = None
+    try:
+        import candle_gate as _gate
+        _candle = _gate.boundary()
+        _w = _gate.wait_binance(_candle, log=log)
+        log(f"→ Свеча {time.strftime('%H:%M', time.gmtime(_candle / 1000))} UTC закрыта у Binance"
+            + (f" — ждали {_w:.0f} с" if _w > 1 else ""))
+    except Exception as e:
+        _issue("Свеча", f"калитка Binance: {type(e).__name__}: {e} — иду без ожидания")
+
+    _cg_box: dict = {}
+    def _cg_job():
+        try:
+            from coinglass_fetch import collect as collect_coinglass
+            _cg_box["res"] = collect_coinglass(write=True, verbose=False)
+        except Exception as e:  # noqa: BLE001
+            _cg_box["exc"] = e
+    _cg_thread = None
+    if not HOT:
+        _cg_thread = _thr.Thread(target=_cg_job, name="coinglass", daemon=True)
+        _cg_thread.start()
+        log("→ Coinglass: сбор запущен в своём потоке")
+
     # ── Анализ ──
     log(f"→ Обрабатываю в {args.workers} потоках")
     candidates, errors = analyze_all(symbols, args.workers)
@@ -919,24 +948,37 @@ def run_once(args: argparse.Namespace) -> int:
     # сбой — в реестр как КРИТИЧНО: без свежего среза сайт не обновляем. Поток идёт В ПОКАЗ (карточка зала, Г-15), в отбор не
     # входит. Старый sources_coinglass (Т-5) отключён этой врезкой:
     # два среза об одном — два шанса разойтись; файл остался соседом.
+    # ── Coinglass: дождаться потока и разобрать результат ──
+    if _cg_thread is not None:
+        _cg_thread.join(timeout=1500)
+        if _cg_thread.is_alive():
+            _issue("Coinglass", "сбор не завершился за 25 мин — иду с прошлым срезом", critical=True)
     try:
-        from coinglass_fetch import collect as collect_coinglass
-        _cg = collect_coinglass(write=True, verbose=False)
-        if _cg.get("error"):
+        if _cg_box.get("exc"):
+            raise _cg_box["exc"]
+        _cg = _cg_box.get("res") or {}
+        if not _cg and _cg_thread is not None and not _cg_thread.is_alive():
+            _issue("Coinglass", "поток вернул пусто", critical=True)
+        elif _cg.get("error"):
             _issue("Coinglass", _cg["error"], critical=True)
-        else:
+        elif _cg:
             _errs = dict(_cg.get("errors") or {})
-            # «журнал» в errors — не сбой, а заметка про потолок MAX_COINS:
-            # считаем отдельно, чтобы не путать с отказами точек.
             _cap = _errs.pop("журнал", None)
-            log(f"→ Coinglass: монет {len(_cg.get('coins') or {})}, "
-                f"запросов {_cg.get('requests', 0)}, ошибок {len(_errs)}")
+            _st = _cg.get("stamp") or {}
+            log(f"→ Coinglass: монет {len(_cg.get('coins') or {})}, запросов {_cg.get('requests', 0)}, "
+                f"ошибок {len(_errs)}" + (f" · свеча {str(_st.get('candle', ''))[11:16]} UTC" if _st.get('candle') else "")
+                + (f" · ждали бар {_st.get('gate_waited_s', 0):.0f} с" if _st.get('gate_waited_s') else "")
+                + (" · СВЕЧА НЕ СНЯТА, данные прошлой" if _st.get("missing") else ""))
+            if _st.get("missing"):
+                _issue("Coinglass", f"свеча не снята: {_st.get('why', '')}", critical=True)
+            _nm = sum(1 for v in (_cg.get("coins") or {}).values() if v.get("missing"))
+            if _nm:
+                _issue("Coinglass", f"монет с неполными точками: {_nm} (флаг missing в срезе)")
             if _cap:
                 _issue("Coinglass", f"потолок: {_cap} — поднять MAX_COINS")
             if _errs:
                 _k = next(iter(_errs))
-                _issue("Coinglass", f"ошибок по точкам {len(_errs)}, "
-                       f"первая: {_k} — {_errs[_k]}",
+                _issue("Coinglass", f"ошибок по точкам {len(_errs)}, первая: {_k} — {_errs[_k]}",
                        critical=len(_errs) > 3)
     except Exception as e:
         _issue("Coinglass", f"{type(e).__name__}: {e}", critical=True)
@@ -950,43 +992,6 @@ def run_once(args: argparse.Namespace) -> int:
         _issue("Coinglass", f"срез протух: {_age:.1f} ч (порог "
                f"{COINGLASS_MAX_AGE_H:.0f} ч) — экраны показали бы "
                f"вчерашние дельты под сегодняшним штампом", critical=True)
-
-    # CryptoQuant v2 (30.08): суточный дозабор деривативов журнала
-    # в архив cq_v2/ (funding, OI, ликвидации, свечи, тейкеры — по
-    # <base>_all). Прогон ежечасный, а дневка кванта одна в сутки,
-    # поэтому здесь не сбор, а проверка свежести: ensure_fresh
-    # тянет только если архиву больше двадцати часов — правило
-    # «от свежести файла, не по кругу». Токен из config/config.json
-    # (config.load кладёт его модулям кванта, которые пока читают
-    # переменную); нет токена или сбой — в реестр предупреждением:
-    # дневка суточная, час опоздания сайт не портит.
-    if HOT:
-        log("→ CryptoQuant: короткий круг, пропуск")
-    try:
-        import os as _os
-        try:                                  # ключи из config/config.json —
-            from config import load as _cfg  # файл главнее всего (03.09)
-            _cfg()
-        except Exception:
-            pass
-        if HOT:
-            pass
-        elif not _os.environ.get("CQ_TOKEN", "").strip():
-            _issue("CryptoQuant", "нет CQ_TOKEN в config/config.json")
-        else:
-            from pathlib import Path as _P
-            from cq_scheduler import ensure_fresh as _cq_fresh
-            _base = _P(__file__).resolve().parent
-            _j = _base / "output" / "leaders.json"
-            if not _j.exists():
-                _j = _base / "leaders.json"
-            _ok = _cq_fresh(str(_j), _base / "cq_v2")
-            if _ok:
-                log("→ CryptoQuant: архив свеж")
-            else:
-                _issue("CryptoQuant", "дозабор не удался (см. cq_v2/_fetch.log)")
-    except Exception as e:
-        _issue("CryptoQuant", f"{type(e).__name__}: {e}")
 
     # Репутации усилий (Р-2, 30.08): пересчёт output/reputation.json
     # из архива cq_v2 — отпечаток покупателя и счёт раздач в карточки
@@ -1106,112 +1111,152 @@ def run_once(args: argparse.Namespace) -> int:
     except Exception as e:
         _issue("Экран-поток", f"{type(e).__name__}: {e}")
 
-    # ── Ручные контуры — по своим отрезкам, не каждый прогон ──
-    # Правило владельца 29.08: всё ручное заводится в прогон, но
-    # запускается ОТ СВЕЖЕСТИ имеющегося файла, а не по кругу.
-    # Разлоки — сутки (расписания медленные, ~26 запросов Coinglass);
-    # резервуар — неделя (его собственный контур и все его стражи:
-    # коридор, не дважды в день, смена среза). Сбой — лог и пропуск.
-    # fill_unlocks и fundamental_revenue сюда не заводятся: им нужен
-    # человек, автомата у платных источников нет.
-    try:
-        from unlocks_coinglass import auto_update as _unlocks_auto
-        log(f"→ Разлоки Coinglass: {_unlocks_auto()}")
-    except Exception as e:
-        _issue("Разлоки Coinglass", f"{type(e).__name__}: {e}")
-    try:
-        from reservoir_fetch import auto_update as _reservoir_auto
-        log(f"→ Резервуар: {_reservoir_auto()}")
-    except Exception as e:
-        _issue("Резервуар", f"{type(e).__name__}: {e}")
-    try:
-        from etf_coinglass import auto_update as _etf_auto
-        log(f"→ Фонды ETF: {_etf_auto()}")
-    except Exception as e:
-        _issue("Фонды ETF", f"{type(e).__name__}: {e}")
-    try:
-        from balances_coinglass import auto_update as _bal_auto
-        log(f"→ Балансы бирж: {_bal_auto()}")
-    except Exception as e:
-        _issue("Балансы бирж", f"{type(e).__name__}: {e}")
-    try:
-        from crowd_coinglass import auto_update as _crowd_auto
-        log(f"→ Толпа: {_crowd_auto()}")
-    except Exception as e:
-        _issue("Толпа", f"{type(e).__name__}: {e}")
-    try:
-        from netflow_coinglass import auto_update as _flow_auto
-        log(f"→ Приток к капе: {_flow_auto()}")
-    except Exception as e:
-        _issue("Приток к капе", f"{type(e).__name__}: {e}")
+    # ══ БЫСТРЫЕ СРЕЗЫ ВЕЕРОМ (05.09): лог ликвидности, плечо по типу, срез биткоина —
+    # три подпроцесса разом, каждый пишет свой файл; ждём всех, разбираем по очереди. ══
+    import subprocess
+    _jobs = {
+        "Лог ликвидности": (["liq_log.py", "--write"], 900),
+        "Плечо по типу": (["oi_types.py", "--write"], 600),
+        "Биткоин": (["btc_pulse.py", "--write"], 300),
+    }
+    _procs = {}
+    for _name, (_cmd, _to) in _jobs.items():
+        try:
+            _procs[_name] = (subprocess.Popen([sys.executable] + _cmd, cwd=BASE_DIR,
+                                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True), _to)
+        except Exception as e:
+            _issue(_name, f"не запустился: {type(e).__name__}: {e}")
+    for _name, (_p, _to) in _procs.items():
+        try:
+            _out, _err = _p.communicate(timeout=_to)
+        except subprocess.TimeoutExpired:
+            _p.kill(); _out, _err = _p.communicate()
+            _issue(_name, f"не уложился в {_to} с — снят")
+            continue
+        _tail = (_out or "").strip().splitlines()
+        if _name == "Плечо по типу":
+            _bd = [ln for ln in _tail if ln.startswith("доска:")]
+            log(f"→ Плечо по типу: {_bd[0] if _bd else (_tail[-1] if _tail else 'пусто')}")
+        elif _name == "Биткоин":
+            log(f"→ Биткоин: {_tail[0] if _tail else 'пусто'}")
+            for _ln in _tail[1:]:
+                if _ln.startswith("нет данных"):
+                    _issue("Биткоин", _ln[:300])
+        else:
+            log(f"→ Лог ликвидности: {_tail[-1] if _tail else 'пусто'}")
+        if _p.returncode:
+            _issue(_name, (_err or "").strip()[-300:] or f"код {_p.returncode}")
 
-    # ── Лог сбора ликвидности (техдолг Л §8, 04.09) ──
-    # Одна строка на монету за прогон в output/liq_log.jsonl: карты
-    # плеча (дневная и часовая), цели над/под ценой, сборы, флэт, оборот
-    # после сбора, капа, толпа. Через пару дней по нему выводится
-    # формула «за какой ликвидностью идут и когда». Тем же питоном, что
-    # прогон (sys.executable) — так же, как остальные подпроцессы.
-    try:
-        import subprocess
-        _r = subprocess.run([sys.executable, "liq_log.py", "--write"],
-                            cwd=BASE_DIR, capture_output=True, text=True, timeout=900)
-        _tail = (_r.stdout or "").strip().splitlines()
-        log(f"→ Лог ликвидности: {_tail[-1] if _tail else 'пусто'}")
-        if _r.returncode:
-            _issue("Лог ликвидности", (_r.stderr or "").strip()[-300:] or f"код {_r.returncode}")
-    except Exception as e:
-        _issue("Лог ликвидности", f"{type(e).__name__}: {e}")
+    # ══ МЕДЛЕННЫЕ — ПОСЛЕ БЫСТРЫХ, В СВОЁМ ПОТОКЕ (05.09, владелец): квант, разлоки,
+    # резервуар, фонды, балансы, толпа, приток, расписание — каждый по своему порогу
+    # свежести. Стартуют, когда быстрые срезы записаны; отчёт их НЕ ждёт (берёт то,
+    # что лежит); поток дожидается конца прогона, чтобы следующий его не догнал. ══
+    def _slow_job():
+        try:
+            # CryptoQuant v2 (30.08): суточный дозабор деривативов журнала
+            # в архив cq_v2/ (funding, OI, ликвидации, свечи, тейкеры — по
+            # <base>_all). Прогон ежечасный, а дневка кванта одна в сутки,
+            # поэтому здесь не сбор, а проверка свежести: ensure_fresh
+            # тянет только если архиву больше двадцати часов — правило
+            # «от свежести файла, не по кругу». Токен из config/config.json
+            # (config.load кладёт его модулям кванта, которые пока читают
+            # переменную); нет токена или сбой — в реестр предупреждением:
+            # дневка суточная, час опоздания сайт не портит.
+            if HOT:
+                log("→ CryptoQuant: короткий круг, пропуск")
+            try:
+                import os as _os
+                try:                                  # ключи из config/config.json —
+                    from config import load as _cfg  # файл главнее всего (03.09)
+                    _cfg()
+                except Exception:
+                    pass
+                if HOT:
+                    pass
+                elif not _os.environ.get("CQ_TOKEN", "").strip():
+                    _issue("CryptoQuant", "нет CQ_TOKEN в config/config.json")
+                else:
+                    from pathlib import Path as _P
+                    from cq_scheduler import ensure_fresh as _cq_fresh
+                    _base = _P(__file__).resolve().parent
+                    _j = _base / "output" / "leaders.json"
+                    if not _j.exists():
+                        _j = _base / "leaders.json"
+                    _ok = _cq_fresh(str(_j), _base / "cq_v2")
+                    if _ok:
+                        log("→ CryptoQuant: архив свеж")
+                    else:
+                        _issue("CryptoQuant", "дозабор не удался (см. cq_v2/_fetch.log)")
+            except Exception as e:
+                _issue("CryptoQuant", f"{type(e).__name__}: {e}")
 
-    # ── СУТОЧНЫЕ ДЕЛА (05.09, «всё, что можно автоматизировать, — автоматизировать»):
-    # расписание «когда растёт» (output/schedule.json) собирается отдельными скриптами и
-    # раньше запускалось руками — лампочка «не обновлено · расписание» горела через двое
-    # суток. Теперь первым прогоном после 09:00 по местному, если файл старше 20 ч:
-    # дозабор часовых свечей с Binance и пересчёт расписания. Сбой — предупреждение в
-    # реестр, прогон не падает. Команды и флаги — в SCHEDULE_REFRESH.
-    try:
-        _sp = BASE_DIR / "output" / "schedule.json"
-        _age_h = (time.time() - _sp.stat().st_mtime) / 3600 if _sp.exists() else 1e9
-        # условия часа нет: расписание не привязано к закрытию дня, свежесть — единственный критерий
-        if not HOT and _age_h > 20:
-            log(f"→ Расписание: старше {_age_h:.0f} ч — пересобираю")
-            for _cmd in SCHEDULE_REFRESH:
-                _r = subprocess.run([sys.executable] + _cmd, cwd=BASE_DIR, capture_output=True, text=True, timeout=1800)
-                _tail = ((_r.stdout or _r.stderr).strip().splitlines() or ["?"])[-1]
-                log(f"   {_cmd[0]}: код {_r.returncode} · {_tail[:120]}")
-                if _r.returncode:
-                    _issue("Расписание", f"{_cmd[0]}: {(_r.stderr or '').strip()[-200:] or 'код ' + str(_r.returncode)}")
-                    break
-    except Exception as e:
-        _issue("Расписание", f"{type(e).__name__}: {e}")
+            # ── Ручные контуры — по своим отрезкам, не каждый прогон ──
+            # Правило владельца 29.08: всё ручное заводится в прогон, но
+            # запускается ОТ СВЕЖЕСТИ имеющегося файла, а не по кругу.
+            # Разлоки — сутки (расписания медленные, ~26 запросов Coinglass);
+            # резервуар — неделя (его собственный контур и все его стражи:
+            # коридор, не дважды в день, смена среза). Сбой — лог и пропуск.
+            # fill_unlocks и fundamental_revenue сюда не заводятся: им нужен
+            # человек, автомата у платных источников нет.
+            try:
+                from unlocks_coinglass import auto_update as _unlocks_auto
+                log(f"→ Разлоки Coinglass: {_unlocks_auto()}")
+            except Exception as e:
+                _issue("Разлоки Coinglass", f"{type(e).__name__}: {e}")
+            try:
+                from reservoir_fetch import auto_update as _reservoir_auto
+                log(f"→ Резервуар: {_reservoir_auto()}")
+            except Exception as e:
+                _issue("Резервуар", f"{type(e).__name__}: {e}")
+            try:
+                from etf_coinglass import auto_update as _etf_auto
+                log(f"→ Фонды ETF: {_etf_auto()}")
+            except Exception as e:
+                _issue("Фонды ETF", f"{type(e).__name__}: {e}")
+            try:
+                from balances_coinglass import auto_update as _bal_auto
+                log(f"→ Балансы бирж: {_bal_auto()}")
+            except Exception as e:
+                _issue("Балансы бирж", f"{type(e).__name__}: {e}")
+            try:
+                from crowd_coinglass import auto_update as _crowd_auto
+                log(f"→ Толпа: {_crowd_auto()}")
+            except Exception as e:
+                _issue("Толпа", f"{type(e).__name__}: {e}")
+            try:
+                from netflow_coinglass import auto_update as _flow_auto
+                log(f"→ Приток к капе: {_flow_auto()}")
+            except Exception as e:
+                _issue("Приток к капе", f"{type(e).__name__}: {e}")
 
-    # ── Плечо по типу (05.09, Leviathan): лонги/шорты открывают/закрывают
-    # по часам за 14 дней → output/oi_types.json; экран монеты и счётчик доски. ──
-    try:
-        _r = subprocess.run([sys.executable, "oi_types.py", "--write"],
-                            cwd=BASE_DIR, capture_output=True, text=True, timeout=600)
-        _tail = (_r.stdout or "").strip().splitlines()
-        _bd = [ln for ln in _tail if ln.startswith("доска:")]
-        log(f"→ Плечо по типу: {_bd[0] if _bd else (_tail[-1] if _tail else 'пусто')}")
-        if _r.returncode:
-            _issue("Плечо по типу", (_r.stderr or "").strip()[-300:] or f"код {_r.returncode}")
-    except Exception as e:
-        _issue("Плечо по типу", f"{type(e).__name__}: {e}")
+            # ── СУТОЧНЫЕ ДЕЛА (05.09, «всё, что можно автоматизировать, — автоматизировать»):
+            # расписание «когда растёт» (output/schedule.json) собирается отдельными скриптами и
+            # раньше запускалось руками — лампочка «не обновлено · расписание» горела через двое
+            # суток. Теперь первым прогоном после 09:00 по местному, если файл старше 20 ч:
+            # дозабор часовых свечей с Binance и пересчёт расписания. Сбой — предупреждение в
+            # реестр, прогон не падает. Команды и флаги — в SCHEDULE_REFRESH.
+            try:
+                _sp = BASE_DIR / "output" / "schedule.json"
+                _age_h = (time.time() - _sp.stat().st_mtime) / 3600 if _sp.exists() else 1e9
+                # условия часа нет: расписание не привязано к закрытию дня, свежесть — единственный критерий
+                if not HOT and _age_h > 20:
+                    log(f"→ Расписание: старше {_age_h:.0f} ч — пересобираю")
+                    for _cmd in SCHEDULE_REFRESH:
+                        _r = subprocess.run([sys.executable] + _cmd, cwd=BASE_DIR, capture_output=True, text=True, timeout=1800)
+                        _tail = ((_r.stdout or _r.stderr).strip().splitlines() or ["?"])[-1]
+                        log(f"   {_cmd[0]}: код {_r.returncode} · {_tail[:120]}")
+                        if _r.returncode:
+                            _issue("Расписание", f"{_cmd[0]}: {(_r.stderr or '').strip()[-200:] or 'код ' + str(_r.returncode)}")
+                            break
+            except Exception as e:
+                _issue("Расписание", f"{type(e).__name__}: {e}")
 
-    # ── Срез биткоина (04.09): своя карта плеча по цене, перевес сторон,
-    # ликвидации, премия Coinbase, приток ETF — output/btc_pulse.json,
-    # строка в liq_log.jsonl и строка словами для Телеграма. ──
-    try:
-        _r = subprocess.run([sys.executable, "btc_pulse.py", "--write"],
-                            cwd=BASE_DIR, capture_output=True, text=True, timeout=300)
-        _tail = (_r.stdout or "").strip().splitlines()
-        log(f"→ Биткоин: {_tail[0] if _tail else 'пусто'}")
-        for _ln in _tail[1:]:
-            if _ln.startswith("нет данных"):
-                _issue("Биткоин", _ln[:300])
-        if _r.returncode:
-            _issue("Биткоин", (_r.stderr or "").strip()[-300:] or f"код {_r.returncode}")
-    except Exception as e:
-        _issue("Биткоин", f"{type(e).__name__}: {e}")
+
+        except Exception as e:  # noqa: BLE001
+            _issue("Медленные", f"{type(e).__name__}: {e}")
+    _slow_thread = _thr.Thread(target=_slow_job, name="slow", daemon=True)
+    _slow_thread.start()
+    log("→ Медленные: квант, фонды, толпа, расписание — в своём потоке, отчёт их не ждёт")
 
     # ── Отчёт ──
     published, blocked = False, False
@@ -1267,8 +1312,17 @@ def run_once(args: argparse.Namespace) -> int:
         except Exception as e:
             _issue("Телеграм", f"{type(e).__name__}: {e}")
 
+    try:
+        if _slow_thread.is_alive():
+            log("→ Медленные: ещё идут — жду до 20 мин, чтобы следующий прогон их не догнал")
+            _slow_thread.join(timeout=1200)
+    except Exception:
+        pass
     run_summary(published, blocked)
-    log(f"\n✓ Прогон завершён за {duration:.0f}с · "
+    # 05.09: длительность считалась до анализа, а Coinglass, карты, отчёт и публикация
+    # шли после — итог занижался вдвое-втрое (203 с при десяти минутах). Берём полное время.
+    total = time.monotonic() - started
+    log(f"\n✓ Прогон завершён за {total / 60:.0f} мин {total % 60:.0f} с (анализ {duration:.0f} с) · "
         f"{snapshot.counts['tradable']} монет к работе "
         f"из {len(candidates)} проанализированных"
         f"{' · опубликовано' if published else ' · НЕ опубликовано' if blocked else ''}")
@@ -1305,8 +1359,19 @@ def main() -> int:
             run_summary(published=False, blocked=True)
             alert_telegram(alert_text(blocked=True))
 
-        nxt = datetime.now() + timedelta(seconds=interval)
-        log(f"\n→ Следующий прогон в {nxt:%H:%M:%S}")
+        # ПО ЧАСАМ, НЕ ПО ИНТЕРВАЛУ (05.09, владелец: «сначала ловим текущую свечу, потом
+        # всё больше опаздываем — следующую»). Интервал от конца прогона сползал на длину
+        # прогона каждый круг. Теперь старт — по сетке часов: ближайшая точка, кратная
+        # interval, минус LOOP_LEAD_S — чтобы медленная часть прошла ДО границы свечи, а
+        # быстрые срезы легли ровно после неё (ждать границу умеет сам прогон).
+        _now = time.time()
+        _edge = (_now // interval + 1) * interval
+        _start = _edge - LOOP_LEAD_S
+        if _start - _now < 5:             # прогон затянулся — эту точку пропускаем, берём следующую
+            _start += interval
+        wait = _start - _now
+        nxt = datetime.fromtimestamp(_start)
+        log(f"\n→ Следующий прогон в {nxt:%H:%M:%S} (по сетке {interval // 60} мин)")
 
         # СОН ДРОБИТСЯ КОРОТКИМИ КРУГАМИ (01.09). Час между полными
         # прогонами — слишком долго для выноса лонгов: у BLESS плечо
@@ -1316,10 +1381,10 @@ def main() -> int:
         # восемьюдесятью в минуту помещается с запасом.
         every = max(0, getattr(args, "hot_every", 0) or 0)
         try:
-            if not every or every >= interval:
-                time.sleep(interval)
+            if not every or every >= wait:
+                time.sleep(max(0, wait))
             else:
-                left = interval
+                left = wait
                 while left > 0:
                     nap = min(every, left)
                     time.sleep(nap)
