@@ -11,7 +11,7 @@
 Час, где интерес или цена сдвинулись меньше порога, — «тихо» (flat).
 Считается по часовому интересу и часовым свечам Binance (core_binance),
 глубина 14 дней. Пишет output/oi_types.json:
-  {"at":…, "coins": {"BLESSUSDT": {"hours":[[t_ms, type, doi_pct, dp_pct], …],
+  {"at":…, "coins": {"BLESSUSDT": {"hours":[[t_ms, type, doi_pct, dp_pct, close, quote_usd], …],
                                     "last24": {type: часов}, "dominant": type,
                                     "read": "строка словами"}}}
 
@@ -60,13 +60,14 @@ def coin_types(sym_usdt: str) -> dict | None:
     ts = [int(r.get("timestamp") or 0) for r in oh]
     m = min(len(k["close"]), len(oi))
     c, oi, ts = k["close"][-m:], oi[-m:], ts[-m:]
+    qv = (k.get("quote") or k.get("q") or k.get("qv") or [0.0] * m)[-m:]   # оборот часа в долларах
     hours = []
     for i in range(1, m):
         if not oi[i - 1] or not c[i - 1]:
             continue
         doi = (oi[i] / oi[i - 1] - 1) * 100
         dp = (c[i] / c[i - 1] - 1) * 100
-        hours.append([ts[i], classify(doi, dp), round(doi, 2), round(dp, 2)])
+        hours.append([ts[i], classify(doi, dp), round(doi, 2), round(dp, 2), c[i], round(float(qv[i] or 0), 0)])   # [t, тип, Δинтерес %, Δцена %, close, оборот $]
     hours = hours[-HOURS:]
     last = hours[-24:]
     cnt: dict[str, int] = {}

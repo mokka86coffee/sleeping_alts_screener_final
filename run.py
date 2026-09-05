@@ -1171,7 +1171,8 @@ def run_once(args: argparse.Namespace) -> int:
     try:
         _sp = BASE_DIR / "output" / "schedule.json"
         _age_h = (time.time() - _sp.stat().st_mtime) / 3600 if _sp.exists() else 1e9
-        if not HOT and datetime.now().hour >= 9 and _age_h > 20:
+        # условия часа нет: расписание не привязано к закрытию дня, свежесть — единственный критерий
+        if not HOT and _age_h > 20:
             log(f"→ Расписание: старше {_age_h:.0f} ч — пересобираю")
             for _cmd in SCHEDULE_REFRESH:
                 _r = subprocess.run([sys.executable] + _cmd, cwd=BASE_DIR, capture_output=True, text=True, timeout=1800)

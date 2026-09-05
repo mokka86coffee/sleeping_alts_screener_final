@@ -12,10 +12,7 @@ output/forecasts.jsonl — поэтому метка стоит ровно на 
           плохой шаблон от плохого рынка, порогов не поправить.
           У каждой — сколько осечек и ход цены после последней.
   СЛЕВА   список монет, ПРОКРУЧИВАЕТСЯ (01.09 список был SVG и не
-          вертелся). Над ним ПОИСК по тикеру (Enter — открыть первую,
-          Esc — очистить, «/» — в поле) и СОРТИРОВКА: смены (осечки,
-          потом смены — по умолчанию), ход вверх, ход вниз, имя
-          (04.09).
+          вертелся); сортировка по числу смен, потом по осечкам.
   СПРАВА  линия цены по журналу, шкала дат, метки смен с подписью
           нового имени и ходом от прошлой смены; осечки красным.
 
@@ -70,12 +67,24 @@ def load(path: Path) -> dict:
 
 
 def switches(pts: list) -> list:
-    """Точки, где шаблон сменился. Первая — не смена, а начало."""
+    """Точки, где шаблон сменился. Первая — не смена, а начало.
+
+    ДВА ПРОГОНА ПОДРЯД (05.09 ночь): с живым днём шаблон дёргается каждые
+    полчаса; смена засчитывается, когда новое имя повторилось следующим
+    прогоном. Одиночная точка с другим именем — не смена; последняя точка,
+    если она одна, — ждёт подтверждения. То же правило в render_coin._journal.
+    """
+    # ИМЯ, НЕ ТЕКСТ (05.09 ночь): сравнивается короткое имя до скобки — числа в
+    # скобках меняются каждый прогон, и «кит поглощает слив» → «кит поглощает слив»
+    # засчитывалось сменой (HIVE, APR).
+    nm = [short(p["tpl"]) for p in pts]
     out, prev = [], None
     for i, p in enumerate(pts):
-        if prev is not None and p["tpl"] != prev:
+        held = (i + 1 < len(pts) and nm[i + 1] == nm[i])
+        if prev is not None and nm[i] != prev and held:
             out.append(i)
-        prev = p["tpl"]
+        if prev is None or held:
+            prev = nm[i]
     return out
 
 
@@ -132,9 +141,6 @@ for sym, pts in DATA.items():
                short(p["tpl"]), p["stage"]] for p in pts],
         "sw": sw, "miss": misses,
         "chg": round((pts[-1]["px"] / pts[0]["px"] - 1) * 100, 1),
-        "now": short(pts[-1]["tpl"]),          # текущий прогноз (04.09: у монет без смен он был невидим)
-        "nowMiss": is_miss(pts[-1]["tpl"]),
-        "first": short(pts[0]["tpl"]),
         "afterMiss": (round((pts[-1]["px"] / pts[last_miss]["px"] - 1) * 100, 1)
                       if last_miss is not None else None),
     })
@@ -158,7 +164,6 @@ body{background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;fon
 .mono,.cap{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
 .num{font-family:Jost,Inter,sans-serif;font-weight:200}
 .wrap{position:relative;height:100vh;display:grid;grid-template-columns:340px 1fr;grid-template-rows:auto 1fr;gap:0 28px;padding:28px 48px 24px 48px}
-.side{display:flex;flex-direction:column;min-height:0}.side .list{flex:1;min-height:0}
 .head{grid-column:1/3;display:flex;align-items:baseline;gap:26px;flex-wrap:wrap;margin-bottom:14px}
 .head .t{font-family:Jost,Inter,sans-serif;font-size:22px;font-weight:200;letter-spacing:.3em;color:#fff;text-shadow:0 0 18px rgba(255,255,255,.25)}
 .head .s{font-size:11px;color:#7fb8a0}
@@ -178,22 +183,10 @@ body{background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;fon
 .chip s{text-decoration:none;font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:7px;letter-spacing:.16em;text-transform:uppercase;color:#ffb59f}
 .chip em{font-style:normal;font-size:10px;color:#9fd8bf}
 .review .none{font-size:10px;color:#7fb8a0}
-/* поиск и сортировка (04.09 — просьба владельца: «в журнале нет сортировки и нет поиска») */
-.tools{display:flex;align-items:center;gap:8px;margin:0 6px 10px 0}
-.find{flex:1;min-width:0;display:flex;align-items:center;gap:8px;padding:7px 11px;border-radius:9px;background:rgba(3,18,14,.55);border:1px solid rgba(127,232,176,.14);transition:.2s}
-.find:focus-within{border-color:rgba(245,169,58,.55);box-shadow:0 0 16px rgba(245,169,58,.12)}
-.find input{flex:1;min-width:0;background:none;border:0;outline:0;color:#fff;font-family:Jost,Inter,sans-serif;font-size:14px;font-weight:300;letter-spacing:.12em;text-transform:uppercase}
-.find input::placeholder{color:#5e8f7a;text-transform:none;letter-spacing:.02em;font-size:12px}
-.find .x{cursor:pointer;color:#7fb8a0;font-size:14px;line-height:1;padding:0 2px;display:none}.find.has .x{display:block}
-.sort{display:flex;gap:4px}
-.sort span{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:7px;letter-spacing:.16em;text-transform:uppercase;color:#7fb8a0;padding:6px 8px;border-radius:9px;border:1px solid rgba(127,232,176,.12);cursor:pointer;white-space:nowrap;transition:.18s}
-.sort span:hover{color:#dfffee;border-color:rgba(127,232,176,.35)}
-.sort span.on{color:#ffd98a;border-color:rgba(245,169,58,.6);box-shadow:0 0 12px rgba(245,169,58,.15)}
-.list .empty{font-size:11px;color:#7fb8a0;padding:12px}
 /* список */
 .list{overflow:auto;padding-right:6px;scrollbar-width:thin;scrollbar-color:rgba(127,232,176,.25) transparent}
 .list::-webkit-scrollbar{width:6px}.list::-webkit-scrollbar-thumb{background:rgba(127,232,176,.25);border-radius:3px}
-.row{display:grid;grid-template-columns:1fr auto auto;grid-template-areas:"n c w" "f f f";align-items:center;gap:2px 12px;padding:8px 12px;margin-bottom:4px;border-radius:9px;cursor:pointer;
+.row{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:12px;padding:9px 12px;margin-bottom:4px;border-radius:9px;cursor:pointer;
   background:rgba(3,18,14,.45);border:1px solid rgba(127,232,176,.08);transition:.18s}
 .row:hover{border-color:rgba(245,169,58,.35);background:rgba(3,18,14,.7)}
 .row.on{border-color:rgba(245,169,58,.7);box-shadow:0 0 18px rgba(245,169,58,.15)}
@@ -202,10 +195,6 @@ body{background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;fon
 .row .c{font-family:Jost,Inter,sans-serif;font-size:12px;font-weight:300}
 .row .c.up{color:#7fe8b0}.row .c.dn{color:#ff8a70}
 .row .w{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:7px;letter-spacing:.16em;text-transform:uppercase;color:#7fb8a0;white-space:nowrap}
-.row .n{grid-area:n}.row .c{grid-area:c}.row .w{grid-area:w}
-.row .f{grid-area:f;font-size:10px;color:#ffd98a;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.row .f.miss{color:#ff8a70}.row .f.none{color:#5e8f7a}
-.ttl .now{font-family:Jost,Inter,sans-serif;font-size:13px;font-weight:400;letter-spacing:.06em;color:#ffd98a;padding:3px 10px;border-radius:9px;border:1px solid rgba(245,169,58,.35);background:rgba(3,18,14,.5)}
-.ttl .now.miss{color:#ff8a70;border-color:rgba(255,138,112,.4)}.ttl .now.none{color:#7fb8a0;border-color:rgba(127,232,176,.2)}
 /* панель */
 .pane{position:relative;min-width:0}
 .pane svg{display:block;width:100%;height:100%;overflow:visible}
@@ -218,20 +207,14 @@ body{background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;fon
 .ln{stroke-dasharray:var(--L);stroke-dashoffset:var(--L);animation:draw 1.4s cubic-bezier(.5,0,.3,1) .2s forwards}
 @keyframes draw{to{stroke-dashoffset:0}}
 .an{opacity:0;animation:fadein .8s ease forwards}@keyframes fadein{to{opacity:1}}
-@media (max-width:900px){.wrap{grid-template-columns:1fr;grid-template-rows:auto auto 240px 1fr;padding:16px}.head,.review{grid-column:1}.side{max-height:240px}}
+@media (max-width:900px){.wrap{grid-template-columns:1fr;grid-template-rows:auto auto 200px 1fr;padding:16px}.head,.review{grid-column:1}.list{max-height:200px}}
 </style></head><body>
 <div class="bg"></div><div class="beam"></div>
 <div class="wrap">
   <div class="head"><a class="back" href="brief.html">← схема</a><span class="t">ЖУРНАЛ ПРОГНОЗОВ</span><span class="s">когда система сменила мнение и что было с ценой</span>
     <span class="st">монет <b>__NCOINS__</b> · смен <b>__NSW__</b> · осечек <b>__NMISS__</b></span></div>
   <div class="review" id="review"></div>
-  <div class="side">
-    <div class="tools">
-      <label class="find" id="find"><input id="q" type="text" autocomplete="off" spellcheck="false" placeholder="монета…"><span class="x" id="qx" title="очистить">×</span></label>
-      <div class="sort" id="sort"><span data-k="sw" class="on" title="осечки, потом смены">смены</span><span data-k="up" title="ход от начала записи, лучшие сверху">ход ↑</span><span data-k="dn" title="ход от начала записи, худшие сверху">ход ↓</span><span data-k="az">имя</span></div>
-    </div>
-    <div class="list" id="list"></div>
-  </div>
+  <div class="list" id="list"></div>
   <div class="pane" id="pane"></div>
 </div>
 <div class="vig"></div>
@@ -255,37 +238,9 @@ body{background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;fon
     (miss.length ? miss.map(function(c){ return '<span class="chip" data-t="' + esc(c.t) + '"><i></i><b>' + esc(c.t) + '</b><s>осечек ' + c.miss.length + '</s>' + (c.afterMiss !== null ? '<em>после ' + pct(c.afterMiss) + '</em>' : '') + '</span>'; }).join('')
                 : '<span class="none">осечек нет</span>');
 
-  // ── список: поиск + сортировка ──
-  var ls = document.getElementById('list'), q = document.getElementById('q'), find = document.getElementById('find'), sortKey = 'sw';
-  var SORT = {
-    sw: function(a, b){ return (b.miss.length - a.miss.length) || (b.sw.length - a.sw.length) || (a.t < b.t ? -1 : 1); },
-    up: function(a, b){ return (b.chg - a.chg) || (a.t < b.t ? -1 : 1); },
-    dn: function(a, b){ return (a.chg - b.chg) || (a.t < b.t ? -1 : 1); },
-    az: function(a, b){ return a.t < b.t ? -1 : a.t > b.t ? 1 : 0; }
-  };
-  function shown(){
-    var f = (q.value || '').trim().toUpperCase();
-    return D.filter(function(c){ return !f || c.t.indexOf(f) >= 0; }).sort(SORT[sortKey] || SORT.sw);
-  }
-  function renderList(){
-    var on = (document.querySelector('.row.on') || {}).dataset, cur = on && on.t, rows = shown();
-    find.classList.toggle('has', !!q.value);
-    ls.innerHTML = rows.length ? rows.map(function(c){ return '<div class="row' + (c.t === cur ? ' on' : '') + '" data-t="' + esc(c.t) + '"><span class="n">' + (c.miss.length ? '<i title="осечек ' + c.miss.length + '"></i>' : '') + esc(c.t) + '</span><span class="c ' + (c.chg >= 0 ? 'up' : 'dn') + '">' + pct(c.chg) + '</span><span class="w">смен ' + c.sw.length + '</span><span class="f' + (c.nowMiss ? ' miss' : c.now ? '' : ' none') + '">' + (c.now ? esc(c.now) : 'прогноза нет') + '</span></div>'; }).join('')
-                              : '<div class="empty">такой монеты в журнале нет</div>';
-  }
-  renderList();
-  q.addEventListener('input', renderList);
-  q.addEventListener('keydown', function(e){
-    if (e.key === 'Enter') { var r = shown()[0]; if (r) draw(r.t); }
-    if (e.key === 'Escape') { q.value = ''; renderList(); q.blur(); }
-  });
-  document.getElementById('qx').addEventListener('click', function(){ q.value = ''; renderList(); q.focus(); });
-  document.getElementById('sort').addEventListener('click', function(e){
-    var el = e.target.closest('span[data-k]'); if (!el) return;
-    sortKey = el.dataset.k; [].forEach.call(el.parentNode.children, function(x){ x.classList.toggle('on', x === el); }); renderList();
-  });
-  // клавиша «/» — в поиск, как в терминале
-  document.addEventListener('keydown', function(e){ if (e.key === '/' && document.activeElement !== q) { e.preventDefault(); q.focus(); } });
+  // ── список ──
+  var ls = document.getElementById('list');
+  ls.innerHTML = D.map(function(c){ return '<div class="row" data-t="' + esc(c.t) + '"><span class="n">' + (c.miss.length ? '<i title="осечек ' + c.miss.length + '"></i>' : '') + esc(c.t) + '</span><span class="c ' + (c.chg >= 0 ? 'up' : 'dn') + '">' + pct(c.chg) + '</span><span class="w">смен ' + c.sw.length + '</span></div>'; }).join('');
 
   // ── панель ──
   var pane = document.getElementById('pane');
@@ -331,13 +286,12 @@ body{background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;fon
     });
     // начало и сейчас
     var f = P[0], l = P[n - 1];
-    s += '<circle cx="' + X(0).toFixed(0) + '" cy="' + Y(f[1]).toFixed(0) + '" r="3" fill="#9fd8bf"/><text x="' + X(0).toFixed(0) + '" y="' + (Y(f[1]) - 14).toFixed(0) + '" font-family="IBM Plex Mono,Menlo,monospace" font-size="8" letter-spacing=".12em" fill="#9fd8bf">начало записи · ' + px4(f[1]) + (c.first ? ' · ' + esc(c.first) : '') + '</text>';
+    s += '<circle cx="' + X(0).toFixed(0) + '" cy="' + Y(f[1]).toFixed(0) + '" r="3" fill="#9fd8bf"/><text x="' + X(0).toFixed(0) + '" y="' + (Y(f[1]) - 14).toFixed(0) + '" font-family="IBM Plex Mono,Menlo,monospace" font-size="8" letter-spacing=".12em" fill="#9fd8bf">начало записи · ' + px4(f[1]) + '</text>';
     s += '<g class="an" style="animation-delay:1.5s"><circle cx="' + X(n - 1).toFixed(0) + '" cy="' + Y(l[1]).toFixed(0) + '" r="14" fill="#fff" opacity=".2" filter="url(#b12)"/><circle cx="' + X(n - 1).toFixed(0) + '" cy="' + Y(l[1]).toFixed(0) + '" r="3.4" fill="#fff"/>' +
          '<text x="' + (X(n - 1) + 12).toFixed(0) + '" y="' + (Y(l[1]) + 4).toFixed(0) + '" font-family="Jost,Inter,sans-serif" font-weight="300" font-size="13" fill="#fff">' + px4(l[1]) + ' <tspan fill="#bfe9d6" font-size="10">сейчас</tspan></text></g>';
     s += '</svg>';
     var tv = 'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent('BINANCE:' + t + 'USDT.P');
     pane.innerHTML = '<div class="ttl"><a class="t" href="' + tv + '" target="_blank" rel="noopener" title="открыть в TradingView">' + esc(t) + '</a><span class="c ' + (c.chg >= 0 ? 'up' : 'dn') + '">' + pct(c.chg) + '</span>' +
-      '<span class="now' + (c.nowMiss ? ' miss' : c.now ? '' : ' none') + '">' + (c.now ? esc(c.now) : 'прогноза нет') + '</span>' +
       '<span class="s">записей <b>' + n + '</b> · смен прогноза <b>' + c.sw.length + '</b>' + (c.miss.length ? ' · <b style="color:#ff8a70">осечек ' + c.miss.length + '</b>' : '') + ' · с <b>' + dm(f[0]) + ' ' + hm(f[0]) + '</b></span></div>' + s;
     [].forEach.call(document.querySelectorAll('.row,.chip'), function(el){ el.classList.toggle('on', el.dataset.t === t); });
     var row = document.querySelector('.row.on'); if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
