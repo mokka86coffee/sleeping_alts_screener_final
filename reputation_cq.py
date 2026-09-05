@@ -250,6 +250,32 @@ def _crowd(sym_usdt: str | None) -> dict:
     return {"crowd": crowd, "top": top}
 
 
+APPROACH_TOL = 5.0        # второй вход в «у цели»: до полосы меньше 5% …
+APPROACH_BARS = 4         # … и последние 4 полчасовых бара с дельтой в плюс при растущем интересе
+
+
+def _bars_confirm(sym_usdt: str | None) -> dict | None:
+    """ПОДТВЕРЖДЕНИЕ ПО БАРАМ (06.09, случай ENA): последние APPROACH_BARS полчасовых бара
+    Coinglass — дельта каждого в плюс, и интерес по пульсу за это время вырос.
+    Возвращает {"delta": сумма, "oi_grow": ×} или None, если баров/пульса нет."""
+    if not sym_usdt or not _LIVE_SRC:
+        return None
+    _cgm = _LIVE_SRC.get("cg") or {}
+    _cgm = _cgm.get("coins") if isinstance(_cgm.get("coins"), dict) else _cgm   # и обёртка, и голый словарь монет
+    c = _cgm.get(sym_usdt) or _cgm.get(sym_usdt.replace("USDT", "")) or {}
+    bars = [b for b in ((c.get("fut") or {}).get("series") or []) if b.get("b") is not None and b.get("s") is not None][-APPROACH_BARS:]
+    if len(bars) < APPROACH_BARS:
+        return None
+    deltas = [float(b["b"] or 0) - float(b["s"] or 0) for b in bars]
+    pr = [r for r in ((_LIVE_SRC.get("pulse") or {}).get(sym_usdt) or []) if r.get("oi_usd")]
+    pr.sort(key=lambda r: r.get("t") or 0)
+    t_from = (bars[0]["t"] or 0) / 1000
+    pr_win = [r for r in pr if (r.get("t") or 0) >= t_from - 1800] or pr[-2:]
+    oi_grow = (float(pr_win[-1]["oi_usd"]) / float(pr_win[0]["oi_usd"])) if len(pr_win) >= 2 and pr_win[0]["oi_usd"] else 1.0
+    return {"delta": sum(deltas), "all_up": all(d > 0 for d in deltas), "oi_grow": oi_grow,
+            "confirmed": all(d > 0 for d in deltas) and oi_grow >= 1.01}
+
+
 def _at_target(oh: list, oi: list, fu: list, tr: list, px: list, sym: str | None = None) -> str:
     try:
         from analytics_liqmap import liq_zones
@@ -264,7 +290,12 @@ def _at_target(oh: list, oi: list, fu: list, tr: list, px: list, sym: str | None
     price = c[-1]
     if not price or not px[-8]:
         return ""
-    if price / px[-8] - 1 < TARGET_MIN_RUN / 100:
+    # ДВА ВХОДА (06.09): первый — как было, ход за неделю от TARGET_MIN_RUN и полоса в TARGET_TOL;
+    # второй — без недельного хода, но с подтверждением по барам: полоса в APPROACH_TOL и последние
+    # четыре бара покупают при растущем интересе (случай ENA: подход к полосам без хода за неделю)
+    run_ok = price / px[-8] - 1 >= TARGET_MIN_RUN / 100
+    bc = None if run_ok else _bars_confirm(sym)
+    if not run_ok and not (bc and bc["confirmed"]):
         return ""
     allz = liq_zones(h, l, c, vv, price)
     zones = [z for z in allz if z["price"] > price]
@@ -278,8 +309,10 @@ def _at_target(oh: list, oi: list, fu: list, tr: list, px: list, sym: str | None
     cw = _crowd(sym); cl = cw.get("crowd"); tl = cw.get("top")
     crowd_long = max([x for x in (cl, tl) if x is not None] or [0.0])
     dist = (top["price"] / price - 1) * 100
-    if dist > TARGET_TOL:
+    if dist > (TARGET_TOL if run_ok else APPROACH_TOL):
         return ""
+    approach_txt = (f"подход по барам: {APPROACH_BARS} бара покупают, дельта {bc['delta'] / 1e6:+.1f}M, "
+                    f"интерес ×{bc['oi_grow']:.3f}" if (bc and not run_ok) else "")
     # кто двигает
     t = tr[-1]
     tk = t.get("buy_sell_ratio") or 0.0
@@ -292,7 +325,15 @@ def _at_target(oh: list, oi: list, fu: list, tr: list, px: list, sym: str | None
     f_prev = fu[-2]["funding_rate"] if len(fu) > 1 else f
     # имя КОРОТКОЕ, детали в скобках (05.09: на плите резалось «у цели сбора: цена в 0.6% от плотнейшей»)
     head = (f"у цели сбора (цена в {dist:.1f}% от плотнейшей полосы стопов "
-            f"{top['price']:.4g} сверху, выше полос нет) — ")
+            f"{top['price']:.4g} сверху, выше полос нет" + (f"; {approach_txt}" if approach_txt else "") + ") — ")
+    if bc and not run_ok:
+        # вход по барам: кто двигает — видно по самим барам (день целиком может быть в минусе,
+        # как у ENA 06.09: дневная дельта −32M, а последние четыре бара покупают при росте интереса)
+        below = [z for z in allz if z["price"] < price]
+        stop_z = max(below, key=lambda z: z["price"]) if below else None
+        return (head + f"ведут покупатели на барах — цель плотнейшая полоса выше {top['price']:.4g} ({dist:+.1f}%)"
+                + (f", стоп под ближайшей полосой лонгов {stop_z['price']:.4g} ({(stop_z['price'] / price - 1) * 100:+.1f}%)" if stop_z else "")
+                + "; отмена — первый бар с дельтой в минус на обороте выше среднего: тогда это плечо толпы, топливо снизу")
     if tk > 1.0 and d > 0 and oi_g <= max(px_g, 0) + 0.10:
         return (head + f"ведёт покупатель: тейкер {tk:.2f}, дельта в плюс, плечо "
                 f"{oi_g * 100:+.0f}% при цене {px_g * 100:+.0f}% — держать со стопом под полосой, "
@@ -818,7 +859,11 @@ def live_day(sym_usdt: str, src: dict, last_daily: str | None):
     }
 
 
+_LIVE_SRC: dict = {}     # живой срез (Coinglass + пульс) на время build — его читает и _bars_confirm
+
+
 def build(archive: Path) -> dict:
+    global _LIVE_SRC
     rep = {"_meta": {"source": "cq_v2", "thresholds": {
         "episode_mult": EPISODE_MULT, "held_ret7": HELD_RET7,
         "dist_ret7": DIST_RET7}}}

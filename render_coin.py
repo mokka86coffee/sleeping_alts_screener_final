@@ -1236,6 +1236,7 @@ COIN_JS = r"""
       var recent = dom(B.slice(-6)), before = dom(B.slice(-18, -6));
       var verdict = VERD[recent] || '';
       if (recent !== before && before !== 'flat' && recent !== 'flat') verdict = 'смена: после «' + NM[before] + '» пошло «' + NM[recent] + '» — ' + verdict;
+      if (o.quality) verdict = o.quality + ' · ' + verdict;   // качество хода за сутки (по Leviathan): на чём рос/падал
       INTRO.push(['плечо', verdict + ' · ' + read24]);
       // SVG плиты: те же размеры, что у журнала
       var W = 320, H = 180, GY = H - 30, n = B.length, X = function (i) { return 12 + i / Math.max(1, n - 1) * (W - 24); };
@@ -1254,6 +1255,17 @@ COIN_JS = r"""
           '<rect x="' + xl.toFixed(1) + '" y="' + yt.toFixed(1) + '" width="' + wd.toFixed(1) + '" height="1.2" rx=".6" fill="' + col + '" opacity=".6"/>' +
           '<rect x="' + (xl + wd * .62).toFixed(1) + '" y="' + (yt + 1.5).toFixed(1) + '" width="' + (wd * .3).toFixed(1) + '" height="' + Math.max(0, hgt - 3).toFixed(1) + '" rx=".8" fill="#000" opacity=".16"/>' +
           '<title>' + esc(new Date(b[0]).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' +4ч · ' + NM[b[1]] + ' · интерес ' + (b[2] > 0 ? '+' : '') + b[2] + '% · цена ' + (b[3] > 0 ? '+' : '') + b[3] + '%' + (b[5] ? ' · оборот ' + (money(b[5]) || '') : '')) + '</title></g>'; });
+      // СВЯЗКА С КАРТОЙ (06.09, по Leviathan): аномальный бар открытия рождает уровни стопов
+      // (×100/×50/×25 от цены бара); рисуем их тонкими линиями от бара до снятия (или до края):
+      // столбик «лонги открывают» → коралловая линия ниже, «шорты открывают» → золотая выше.
+      var anomHours = hh.map(function (h, i) { return [h, i]; }).filter(function (p) { return p[0].length > 6 && p[0][6] && p[0][6].anom; }).slice(-8);
+      anomHours.forEach(function (p) { var h = p[0], bi = Math.floor(p[1] / 4), col = h[1] === 'long_open' ? COL.short_open : COL.long_open;
+        (h[6].levels || []).forEach(function (lv) { var yl = Y(lv[1]); if (!isFinite(yl) || yl < 30 || yl > GY) return;
+          var xe = X(n - 1); if (lv[2]) { var fi = hh.findIndex(function (q) { return q[0] === lv[2]; }); if (fi >= 0) xe = X(Math.min(n - 1, Math.floor(fi / 4))); }
+          var x0 = X(Math.min(n - 1, bi));
+          g += '<line x1="' + x0.toFixed(1) + '" y1="' + yl.toFixed(1) + '" x2="' + xe.toFixed(1) + '" y2="' + yl.toFixed(1) + '" stroke="' + col + '" stroke-width="' + (lv[0] === 100 ? 1.2 : .8) + '" stroke-dasharray="' + (lv[2] ? '2 3' : '') + '" opacity="' + (lv[2] ? .35 : .75) + '"><title>' + esc((h[1] === 'long_open' ? 'лонги открыли ' : 'шорты открыли ') + new Date(h[0]).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit' }) + ' · стоп ×' + lv[0] + ' на ' + lv[1] + (lv[2] ? ' · снят' : '')) + '</title></line>';
+          if (lv[2]) g += '<circle cx="' + xe.toFixed(1) + '" cy="' + yl.toFixed(1) + '" r="1.8" fill="' + col + '" opacity=".8"/>';
+        }); });
       var dpath = B.map(function (b, i) { return (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(b[4]).toFixed(1); }).join(' ');
       var Ln = 0; for (var i = 1; i < n; i++) Ln += Math.hypot(X(i) - X(i - 1), Y(B[i][4]) - Y(B[i - 1][4]));
       g += '<path d="' + dpath + '" fill="none" stroke="' + GOLD + '" stroke-width="5" stroke-linejoin="round" opacity=".18"/>' +
@@ -1265,7 +1277,7 @@ COIN_JS = r"""
         lines.slice(0, 2).forEach(function (ln, k) { g += '<text class="fc" x="' + X(0).toFixed(1) + '" y="' + (11 + k * 9) + '" text-anchor="start">' + esc(ln) + '</text>'; }); })();
       var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '">' + g + '</svg>';
       dzone += '<div class="mini oit"><div class="gglow"></div>' + svg + '<div class="ground"></div><div class="refl">' + svg + '</div>' +
-        '<div class="oitcap">плечо по типу · 14 дн по 4 ч</div>' +
+        '<div class="oitcap">плечо по типу · 14 дн по 4 ч' + (has(o.lev_ratio) ? ' · интерес к обороту ×' + (+o.lev_ratio).toFixed(2) : '') + (o.anomalies ? ' · аномальных баров ' + o.anomalies : '') + '</div>' +
         '<div class="oitread">' + esc(read24) + '</div>' +
         '<div class="oitlg"><span><b style="background:#2fae78"></b>лонги открывают</span><span><b style="background:#2a6a50"></b>закрывают</span><span><b style="background:#d4574a"></b>шорты открывают</span><span><b style="background:#7a3a33"></b>закрывают</span></div></div>';
     })();
@@ -1330,7 +1342,22 @@ COIN_JS = r"""
           heatJ += '<rect x="' + x1.toFixed(1) + '" y="' + (y - 1.6).toFixed(1) + '" width="' + Math.max(3, x2 - x1).toFixed(1) + '" height="3.2" rx="1" fill="' + col + '" opacity="' + o.toFixed(2) + '"/>';
         });
       })();
-      var g = '<defs><linearGradient id="hf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + GOLD + '" stop-opacity=".22"/><stop offset="1" stop-color="' + GOLD + '" stop-opacity="0"/></linearGradient></defs>' + heatJ +
+      // ПУЗЫРИ РЫНОЧНЫХ ЗАЯВОК (06.09, по Leviathan Market Order Bubbles): полчасовые бары
+      // Coinglass за сутки с оборотом выше среднего на 2σ — кружок на линии цены в час бара,
+      // радиус по обороту, цвет по стороне дельты (покупали — мята, продавали — кирпич).
+      var bubbles = '';
+      (function () {
+        var ser = ((s.cg || {}).fullSeries) || [];   // полный ряд, если срез его отдаёт
+        if (!ser.length) return;
+        var vols = ser.map(function (b) { return (+b.b || 0) + (+b.s || 0); }), mu = vols.reduce(function (a, v) { return a + v; }, 0) / vols.length;
+        var sd = Math.sqrt(vols.reduce(function (a, v) { return a + (v - mu) * (v - mu); }, 0) / vols.length) || 0; if (!sd) return;
+        var mx = Math.max.apply(null, vols);
+        ser.forEach(function (b, i) { var v = vols[i]; if (v < mu + 2 * sd || b.t < t0 || b.t > tE) return;
+          var pt = null, best = 1e18; pts.forEach(function (q) { var dd = Math.abs(q.t - b.t); if (dd < best) { best = dd; pt = q; } }); if (!pt) return;
+          var r = 3 + 7 * Math.sqrt((v - mu) / Math.max(1, mx - mu)), col = (+b.b || 0) >= (+b.s || 0) ? '#5fe6a6' : '#ff7a63';
+          bubbles += '<circle cx="' + XT(b.t).toFixed(1) + '" cy="' + Y(pt.p).toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + col + '" opacity=".28" stroke="' + col + '" stroke-opacity=".7" stroke-width=".8"><title>' + esc(new Date(b.t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' · оборот ' + money(v) + ' · ' + (((+b.b || 0) >= (+b.s || 0)) ? 'покупали' : 'продавали') + ' ' + money(Math.abs((+b.b || 0) - (+b.s || 0)))) + '</title></circle>'; });
+      })();
+      var g = '<defs><linearGradient id="hf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + GOLD + '" stop-opacity=".22"/><stop offset="1" stop-color="' + GOLD + '" stop-opacity="0"/></linearGradient></defs>' + heatJ + bubbles +
         '<path d="' + dpath + ' L' + XT(tE).toFixed(1) + ',' + GY + ' L12,' + GY + ' Z" fill="url(#hf)" opacity=".6"/>' +
         '<path d="' + dpath + '" fill="none" stroke="' + GOLD + '" stroke-width="5" stroke-linejoin="round" opacity=".18"/>' +
         '<path class="ln" style="--L:' + Math.ceil(Ln + 2) + '" d="' + dpath + '" fill="none" stroke="' + GOLDL + '" stroke-width="1.4" stroke-linejoin="round"/>' +

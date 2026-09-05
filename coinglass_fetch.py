@@ -688,6 +688,10 @@ def for_screens() -> dict[str, dict]:
             # продаёт = набор под сквиз
             "spotCvdSpark": [round(b.get("cvd") or 0, 0)
                              for b in (spot.get("series") or [])[-WINDOW:]],
+            # полный ряд перпа за сутки с временем и ногами (06.09): пузыри рыночных заявок
+            # на плите журнала — бары с оборотом выше 2σ, сторона по дельте
+            "fullSeries": [{"t": b.get("t"), "b": round(b.get("b") or 0, 0), "s": round(b.get("s") or 0, 0)}
+                           for b in (fut.get("series") or [])[-WINDOW:] if b.get("t")],
             "liqLong": liq.get("long24h"),
             "liqShort": liq.get("short24h"),
         }

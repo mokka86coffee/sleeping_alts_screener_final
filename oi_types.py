@@ -36,6 +36,8 @@ OUT = BASE_DIR / "output" / "oi_types.json"
 HOURS = 14 * 24
 OI_MIN = 0.15      # % — прирост интереса меньше этого за час — тихо
 PX_MIN = 0.10      # % — ход цены меньше этого за час — тихо
+ANOM_SIGMA = 2.0   # аномальный прирост интереса — выше среднего на 2σ (по приростам за 14 дней)
+LEVERAGES = (100, 50, 25)   # уровни стопов от цены аномального бара, как у Leviathan
 
 NAMES = {"long_open": "лонги открывают", "short_open": "шорты открывают",
          "short_close": "шорты закрывают", "long_close": "лонги закрывают", "flat": "тихо"}
@@ -75,6 +77,32 @@ def coin_types(sym_usdt: str) -> dict | None:
         dp = (c[i] / c[i - 1] - 1) * 100
         hours.append([ts[i], classify(doi, dp), round(doi, 2), round(dp, 2), c[i], round(float(qv[i] or 0), 0)])   # [t, тип, Δинтерес %, Δцена %, close, оборот $]
     hours = hours[-HOURS:]
+    # ── СВЯЗКА С КАРТОЙ (06.09, по Leviathan): аномальный прирост интереса — это открытые
+    # позиции, и их стопы лягут на расстоянии плеча от цены бара: лонги — ниже, шорты — выше.
+    # Порог аномальности — 2σ по приростам за 14 дней (без порога — россыпь полос). Каждый
+    # аномальный бар рождает три уровня (×100, ×50, ×25); уровень «снят», когда цена его
+    # прошла (лонг — минимум ниже, шорт — максимум выше). ──
+    hi_s, lo_s = k["high"][-m:], k["low"][-m:]
+    dois = [h[2] for h in hours if h[2] > 0]
+    mu = sum(dois) / len(dois) if dois else 0.0
+    sd = (sum((x - mu) ** 2 for x in dois) / len(dois)) ** 0.5 if len(dois) > 5 else 0.0
+    thr = mu + ANOM_SIGMA * sd if sd else float("inf")
+    base_i = m - len(hours)
+    for i, h in enumerate(hours):
+        if h[1] not in ("long_open", "short_open") or h[2] < thr:
+            continue
+        px = h[4]
+        lv = []
+        for lev in LEVERAGES:
+            price = px * (1 - 1.0 / lev) if h[1] == "long_open" else px * (1 + 1.0 / lev)
+            filled = None
+            for j in range(i + 1, len(hours)):
+                lo_j, hi_j = lo_s[base_i + j], hi_s[base_i + j]
+                if (h[1] == "long_open" and lo_j <= price) or (h[1] == "short_open" and hi_j >= price):
+                    filled = hours[j][0]
+                    break
+            lv.append([lev, round(price, 10), filled])
+        h.append({"anom": True, "levels": lv})     # h[6]
     last = hours[-24:]
     cnt: dict[str, int] = {}
     for h in last:
@@ -88,7 +116,21 @@ def coin_types(sym_usdt: str) -> dict | None:
     tot: dict[str, int] = {}
     for h in hours:
         tot[h[1]] = tot.get(h[1], 0) + 1
-    return {"hours": hours, "last24": cnt, "dominant": dom, "read": read, "days14": tot}
+    # нагрев плеча (Leverage Ratio): интерес к суточному обороту — выше единицы: позиций больше,
+    # чем торгуется за день, плечо в рынке высокое; ниже — оборот перекрывает позиции
+    q24 = sum(float(h[5] or 0) for h in hours[-24:] if len(h) > 5)
+    oi_usd = (oi[-1] * c[-1]) if oi and c and oi[-1] and c[-1] else 0.0
+    lev_ratio = round(oi_usd / q24, 2) if q24 else None
+    # качество хода за сутки: на чём рос/падал
+    px24 = (c[-1] / c[-25] - 1) * 100 if len(c) > 25 and c[-25] else 0.0
+    quality = None
+    if px24 >= 3:
+        quality = "рост на новых лонгах — они же топливо вниз" if dom == "long_open" else ("рост на выкупе шортов — без новых денег" if dom == "short_close" else None)
+    elif px24 <= -3:
+        quality = "падение на новых шортах — топливо вверх" if dom == "short_open" else ("падение на выходе лонгов — вынос" if dom == "long_close" else None)
+    return {"hours": hours, "last24": cnt, "dominant": dom, "read": read, "days14": tot,
+            "lev_ratio": lev_ratio, "px24": round(px24, 1), "quality": quality,
+            "anomalies": sum(1 for h in hours if len(h) > 6)}
 
 
 def build(only: list[str] | None = None) -> dict:
