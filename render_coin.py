@@ -116,7 +116,11 @@ def _journal() -> dict:
                               "miss": any(w in pts[0]["tpl"].lower() for w in MISS_WORDS)})
             out[sym] = {"n": len(pts), "switches": sw, "first": pts[0]["px"],
                         "firstAt": pts[0]["t"].strftime("%d.%m %H:%M"),
-                        "lastSwitch": last, "marks": marks}
+                        "lastSwitch": last, "marks": marks,
+                        # ряд за 48 ч по точкам журнала (05.09): мини-журнал рисует его вместо дневок,
+                        # чтобы метки смен за день не слипались в одну точку у края
+                        "series": [[int(q["t"].timestamp() * 1000), q["px"]] for q in pts
+                                   if (pts[-1]["t"] - q["t"]).total_seconds() <= 14 * 86400][-700:]}
         break
     return out
 
@@ -363,6 +367,7 @@ def render_coin(stars: list[dict], market: dict) -> str:
                "crowd": crowd, "flow": flow,
                "oitypes": ((_read_json("oi_types.json") or {}).get("coins") or {}),   # плечо по типу (05.09)
                "liqhist": _liq_history(),   # карта ликвидаций во времени (05.09)
+               "near": ((_read_json("near_move.json") or {}).get("coins") or {}),   # близкие к ходу (05.09)
                "sources": source_stamps(stars, market)}
     # ЧЁРНЫЙ ЭКРАН (05.09 вечер): NaN/Infinity из числовых рядов (веса полос, приросты) json.dumps
     # пишет как NaN — это не JSON, JSON.parse в браузере падает, и вся страница пуста.
@@ -485,6 +490,9 @@ COIN_HTML = r"""
 .intro .irow b{font-family:var(--f-cap);font-weight:400;font-size:7.5px;letter-spacing:.3em;text-transform:uppercase;color:#f5a93a;padding-top:3px}
 .intro .irow span{font-size:12px;line-height:1.45;color:#e9fff4}
 .intro .ihint{margin-top:12px;font-family:var(--f-cap);font-size:6.5px;letter-spacing:.24em;text-transform:uppercase;color:#7fb8a0}
+/* ── близкие к ходу (05.09, владелец: «не иконками, само название пусть мигает») ── */
+.clist a.near span{color:#ffe2a8;text-shadow:0 0 8px rgba(255,217,138,.75),0 0 18px rgba(245,169,58,.35);animation:nearpulse 1.6s ease-in-out infinite}
+@keyframes nearpulse{0%,100%{opacity:1;text-shadow:0 0 8px rgba(255,217,138,.75),0 0 18px rgba(245,169,58,.35)}50%{opacity:.55;text-shadow:0 0 2px rgba(255,217,138,.3)}}
 /* ── направление (05.09): стрелка «← снимут» мигает, плашка — при наведении на подпись ── */
 .dirhot .blink{animation:dirblink 1.4s ease-in-out infinite}
 @keyframes dirblink{0%,100%{opacity:1}50%{opacity:.25}}
@@ -665,13 +673,34 @@ COIN_JS = r"""
   var STARS = (D.stars || []).filter(function (s) { return s && s.t; });
   var BY = {}; STARS.forEach(function (s) { BY[String(s.t).toUpperCase()] = s; });
   var NAMES = Object.keys(BY).sort();
-  var WH = D.whales || {}, SC = D.sched, JR = D.journal || {}, HIST = D.hist || {}, BOOK = D.book || {}, CROWD = D.crowd || {}, FLOW = D.flow || {}, OIT = D.oitypes || {};
+  var WH = D.whales || {}, SC = D.sched, JR = D.journal || {}, HIST = D.hist || {}, BOOK = D.book || {}, CROWD = D.crowd || {}, FLOW = D.flow || {}, OIT = D.oitypes || {}, NEAR = D.near || {};
 
   // ── помощники ──
   function esc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
   function f(x) { return (Math.round(x * 100) / 100).toString(); }
   function pct(v, d) { if (v === undefined || v === null || isNaN(+v)) return null; var n = +v; return (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n).toFixed(d === undefined ? 1 : d) + '%'; }
   function px4(v) { v = +v; if (!v) return '—'; return v >= 100 ? v.toFixed(1) : v >= 1 ? v.toFixed(3) : v >= 0.01 ? v.toFixed(4) : v.toFixed(6); }
+  // КОРОТКИЕ ИМЕНА ПРОГНОЗОВ (05.09, владелец: «названия можно сокращать, и не надо урезать»)
+  var TPL_SHORT = [['крупняк начал тащить вверх', 'начал тащить'], ['крупняк тащит вверх', 'тащит'], ['кит поглощает слив', 'кит поглощает'],
+    ['курок взведён на шорты', 'курок'], ['у цели сбора', 'у цели'], ['разгон на спросе', 'разгон'], ['разгон отпустил', 'отпустил'],
+    ['дёрг без подтверждения', 'дёрг'], ['осечка', 'осечка'], ['отбой', 'отбой']];
+  // ЧТО ПОКАЗЫВАТЬ НА ПЛИТАХ (05.09, владелец): журнал и Телеграм — все смены, они работают как
+  // сигналы; на карте важнее НАЧАЛО движения и его ПРОДОЛЖЕНИЕ или КОНЕЦ. Показываем две метки:
+  // начало текущего движения (последняя метка первого рода: начал тащить, курок, кит поглощает, дёрг)
+  // и самую последнюю метку; промежуточные («у цели», если пошли дальше) — точкой без подписи.
+  // Каждый отскок может стать концом, поэтому последняя метка видна всегда, но заменяется следующей.
+  var TPL_START = ['крупняк начал тащить', 'курок', 'кит поглощает', 'дёрг'];
+  function isStart(t) { t = String(t || '').toLowerCase(); return TPL_START.some(function (w) { return t.indexOf(w) === 0; }); }
+  function shownMarks(M) {
+    if (!M || !M.length) return {};
+    var last = M.length - 1, start = -1;
+    for (var i = last; i >= 0; i--) { if (isStart(M[i].tpl)) { start = i; break; } }
+    // подряд идущие «начала» — одно движение (кит поглощает → крупняк начал тащить):
+    // показываем САМОЕ ПЕРВОЕ из цепочки, следующие — его продолжение (владелец, 05.09)
+    while (start > 0 && isStart(M[start - 1].tpl)) start--;
+    var out = {}; out[last] = true; if (start >= 0) out[start] = true; return out;
+  }
+  function tplShort(t) { t = String(t || '').split('(')[0].trim(); for (var i = 0; i < TPL_SHORT.length; i++) { if (t.toLowerCase().indexOf(TPL_SHORT[i][0]) === 0) return TPL_SHORT[i][1]; } return t.split(' — ')[0].split(':')[0].slice(0, 24); }
   function money(v) { v = +v; if (!v) return null; var a = Math.abs(v), s = v < 0 ? '−' : '';
     return s + '$' + (a >= 1e9 ? (a / 1e9).toFixed(1) + 'B' : a >= 1e6 ? (a / 1e6).toFixed(1) + 'M' : a >= 1e3 ? (a / 1e3).toFixed(0) + 'K' : a.toFixed(0)); }
   function pad(n) { return (n < 10 ? '0' : '') + n; }
@@ -1006,17 +1035,31 @@ COIN_JS = r"""
     // ТЕПЛОВАЯ КАРТА ЛИКВИДАЦИЙ ВО ВРЕМЕНИ (05.09, по R2D2): полосы каждого прогона liq_log
     // ложатся за линию цены — по X время прогона, по Y цена, яркость — плотность.
     // Ложится только на тот кусок плиты, который лог уже покрыл.
+    var _pxNow = +s.px || 0, _fb = (s.liqFuel || {}).below_usd || 0, _fa = (s.liqFuel || {}).above_usd || 0, _tk = +((s.cg || {}).taker) || 1;
+    var _bias = (_fb > _fa * 1.5 && _tk <= 1) ? 'down' : (_fa > _fb * 1.5 && _tk >= 1) ? 'up' : '';
     var heat = '', heatX1 = null;
     (function () {
       var Hq = (D.liqhist || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]; if (!Hq || Hq.length < 2 || !d1) return;
       var t1ms = new Date(d1).getTime(), DAYms = 864e5, x0d = X0 + (P.length ? 0 : 0);
       var xOf = function (t) { var fi = (P.length - 1) - (t1ms - t) / DAYms; return X0 + fi / Math.max(1, P.length - 1) * (P[P.length - 1][0] - X0); };
+      // ТРЕТИЙ + ЧЕТВЁРТЫЙ ПУНКТ ВМЕСТЕ (05.09, по замечанию владельца): на прогон — три
+      // плотнейшие полосы НА КАЖДУЮ СТОРОНУ; яркость — ЛИНЕЙНО по доле топлива от максимума
+      // (корень сглаживал, и все выходили одной плотности); сторона, которую вероятнее снимут
+      // (_bias: топлива в ×1.5 больше и стакан давит туда же), — в полную яркость, другая —
+      // приглушена; мерки расходятся — обе равные. Так видно, как полоса зреет и когда её сняли.
+      var pxNowH = +s.px || 0;
+      Hq = Hq.map(function (r) {
+        var up = r[1].filter(function (z) { return z[0] > pxNowH; }).sort(function (a, b) { return (b[1] || 0) - (a[1] || 0); }).slice(0, 3);
+        var dn = r[1].filter(function (z) { return z[0] <= pxNowH; }).sort(function (a, b) { return (b[1] || 0) - (a[1] || 0); }).slice(0, 3);
+        return [r[0], up.concat(dn)]; });
       var mx = 0; Hq.forEach(function (r) { r[1].forEach(function (z) { if (z[1] > mx) mx = z[1]; }); }); if (!mx) return;
-      var cw = Math.max(2, (xOf(Hq[Hq.length - 1][0]) - xOf(Hq[0][0])) / Math.max(1, Hq.length - 1));
+      var cw = Math.max(4, (xOf(Hq[Hq.length - 1][0]) - xOf(Hq[0][0])) / Math.max(1, Hq.length - 1));
       heatX1 = xOf(Hq[Hq.length - 1][0]) + cw / 2;
       Hq.forEach(function (r) { var x = xOf(r[0]); if (!(x >= X0 - 2)) return;
-        r[1].forEach(function (z) { var y = sy(z[0]); if (!isFinite(y)) return; var o = .08 + .5 * Math.sqrt(z[1] / mx), col = z[0] < (+s.px || 0) ? '#ff8a70' : '#e6d3a3';
-          heat += '<rect x="' + (x - cw / 2).toFixed(1) + '" y="' + (y - 2.5).toFixed(1) + '" width="' + cw.toFixed(1) + '" height="5" fill="' + col + '" opacity="' + o.toFixed(2) + '"/>'; }); });
+        r[1].forEach(function (z) { var y = sy(z[0]); if (!isFinite(y)) return;
+          var side = z[0] < pxNowH ? 'down' : 'up', hot = !_bias || side === _bias;
+          var o = (0.12 + 0.75 * (z[1] / mx)) * (hot ? 1 : 0.35), col = side === 'down' ? '#ff8a70' : '#e6d3a3';
+          heat += '<rect x="' + (x - cw / 2).toFixed(1) + '" y="' + (y - 3).toFixed(1) + '" width="' + cw.toFixed(1) + '" height="6" rx="1" fill="' + col + '" opacity="' + o.toFixed(2) + '"/>'; }); });
       if (heat) heat = '<g class="heat">' + heat + '</g>';
     })();
     var dirInfo = dirPl;   // копия для вступительной сводки (dirPl обнуляется после отрисовки плашки)
@@ -1025,8 +1068,6 @@ COIN_JS = r"""
     // НАПРАВЛЕННОЕ СМЕЩЕНИЕ (05.09, по Leviathan): сторона, которую вероятнее снимут, — ярче,
     // другая — тусклее. Вероятная сторона: топливо там больше (liqFuel), а стакан давит туда же
     // (тейкер Coinglass < 1 → вниз, > 1 → вверх); при несогласии — обе одинаково.
-    var _pxNow = +s.px || 0, _fb = (s.liqFuel || {}).below_usd || 0, _fa = (s.liqFuel || {}).above_usd || 0, _tk = +((s.cg || {}).taker) || 1;
-    var _bias = (_fb > _fa * 1.5 && _tk <= 1) ? 'down' : (_fa > _fb * 1.5 && _tk >= 1) ? 'up' : '';
     (s.liqZones || []).slice(0, 3).forEach(function (z) {
       var mid = (z.lo + z.hi) / 2, side = mid < _pxNow ? 'down' : 'up', hot = !_bias || side === _bias;
       RL.push({ y: sy(mid), col: hot ? (side === 'down' ? '#ffd0c0' : '#e6d3a3') : '#6f7a75', txt: 'ЛИКВ ' + (money(z.fuel) || '') + (hot && _bias ? ' ← СНИМУТ' : ''), liq: true, hot: !!(hot && _bias), mid: mid, x1: (heatX1 !== null ? heatX1 : X0), dash: hot ? '6 4' : '2 6', w: hot ? (_bias ? 1.1 : .8) : .5, op: hot ? (_bias ? .8 : .55) : .3 });
@@ -1111,6 +1152,7 @@ COIN_JS = r"""
         '<linearGradient id="fcu2"><stop offset="0" stop-color="#7fe8b0" stop-opacity="0"/><stop offset=".6" stop-color="#bfe9d6"/><stop offset="1" stop-color="#fff"/></linearGradient>' +
         '<linearGradient id="fcu3"><stop offset="0" stop-color="#ff5a4a" stop-opacity="0"/><stop offset=".6" stop-color="#ff9d84"/><stop offset="1" stop-color="#fff"/></linearGradient></defs>';
       var last = M.length - 1;
+      var SHOW = shownMarks(M);
       M.forEach(function (m, k) {
         var tm = new Date(m.t).getTime(), x;
         if (t0 && t1 && t1 > t0) x = X0 + Math.max(0, Math.min(1, (tm - t0) / (t1 - t0))) * (X1 - X0);
@@ -1121,9 +1163,10 @@ COIN_JS = r"""
         // самая правая), в два ряда, к каждой — прямая выноска от её точки
         // ПОДПИСИ ТОЛЬКО У ПОСЛЕДНИХ ТРЁХ (05.09: после дозабора смен стало много, подписи
         // наезжали друг на друга); старые смены — точка на линии без текста, полный ряд — в журнале
-        var tier = last - k, name = String(m.tpl).split('(')[0].trim(), w = name.length * 7.2, ex = X1 + 10 - tier * 200, ty = Y1 + 24 + (tier % 2) * 22;
+        // подписи — короткие имена, ВСЕ смены, в два ряда через одну, шаг по ширине подписи (05.09)
+        var tier = last - k, name = tplShort(m.tpl), w = name.length * 7.2, ex = X1 + 10 - tier * 110, ty = Y1 + 24 + (tier % 2) * 22;
         if (ex - w < X0) { ex = X0 + w; }
-        var labeled = tier < 3;
+        var labeled = !!SHOW[k];
         slab += '<g class="an fc ' + cls + '" style="animation-delay:' + (2.2 + k * .2).toFixed(1) + 's">' +
           '<circle cx="' + f(x) + '" cy="' + f(y) + '" r="' + (k === last ? 12 : 8) + '" fill="' + col + '" opacity=".28" filter="url(#blur6)"/><circle cx="' + f(x) + '" cy="' + f(y) + '" r="2.6" fill="#fff6e4"/>' +
           (labeled ? '<line class="st" x1="' + f(x) + '" y1="' + f(y) + '" x2="' + f(ex - w / 2) + '" y2="' + f(ty + 8) + '" stroke="' + col + '" stroke-width="1" opacity=".55"/>' +
@@ -1236,10 +1279,26 @@ COIN_JS = r"""
       // ставятся сегодня — раньше всё «после последней дневки» ложилось в одну точку у
       // правого края и мимо линии. Теперь ось X — время: дневки в полночь своих дат,
       // последняя точка — текущая цена сейчас; метки — по своему времени и своей цене.
-      var ser14 = ser.slice(-14), n = ser14.length; if (n < 3) return;
-      var DAY = 864e5, t1 = d1 ? new Date(d1).getTime() : Date.now() - DAY, tNow = Date.now();
-      var pts = ser14.map(function (p, i) { return { t: t1 - (n - 1 - i) * DAY, p: p }; });
-      if (has(s.px) && tNow > t1) pts.push({ t: tNow, p: +s.px });
+      var SJ = (J && J.series) || [], pts, dates;   // J — запись журнала этой монеты (выше в этом же блоке)
+      // ОКНО ПО ПРАВИЛУ (05.09, владелец: «48 было для примера»): от четвёртой с конца смены до
+      // «сейчас», но не короче суток и не длиннее двух недель — влезает всё, что нужно видеть
+      var winFrom = Date.now() - 864e5;
+      if (M.length) { var mk = M.slice(-4)[0]; winFrom = Math.min(winFrom, new Date(mk.t).getTime() - 36e5); }
+      winFrom = Math.max(winFrom, Date.now() - 14 * 864e5);
+      var SW = SJ.filter(function (q) { return q[0] >= winFrom; });
+      if (SW.length >= 6) {
+        pts = SW.map(function (q) { return { t: q[0], p: +q[1] }; });
+        if (has(s.px)) pts.push({ t: Date.now(), p: +s.px });
+        var spanH = (Date.now() - winFrom) / 36e5;
+        var lab = function (h) { return h >= 48 ? Math.round(h / 24) + ' дн' : Math.round(h) + ' ч'; };
+        dates = [lab(spanH), lab(spanH / 2), 'сейчас'];
+      } else {
+        var ser14 = ser.slice(-14), n = ser14.length; if (n < 3) return;
+        var DAY = 864e5, t1 = d1 ? new Date(d1).getTime() : Date.now() - DAY, tNow = Date.now();
+        pts = ser14.map(function (p, i) { return { t: t1 - (n - 1 - i) * DAY, p: p }; });
+        if (has(s.px) && tNow > t1) pts.push({ t: tNow, p: +s.px });
+        dates = ['2 нед', '1 нед', 'сегодня'];
+      }
       var t0 = pts[0].t, tE = pts[pts.length - 1].t;
       var W = 320, H = 180, GY = H - 30;
       var lo = Math.min.apply(null, pts.map(function (q) { return q.p; })), hi = Math.max.apply(null, pts.map(function (q) { return q.p; })); if (hi === lo) hi = lo * 1.01;
@@ -1251,13 +1310,13 @@ COIN_JS = r"""
         '<path d="' + dpath + '" fill="none" stroke="' + GOLD + '" stroke-width="5" stroke-linejoin="round" opacity=".18"/>' +
         '<path class="ln" style="--L:' + Math.ceil(Ln + 2) + '" d="' + dpath + '" fill="none" stroke="' + GOLDL + '" stroke-width="1.4" stroke-linejoin="round"/>' +
         '<circle r="2.4" fill="#fff"><animateMotion dur="7s" begin="5.6s" repeatCount="indefinite" path="' + dpath + '"/></circle>';
-      var dates = ['2 нед', '1 нед', 'сегодня'];
       [t0, t0 + (tE - t0) / 2, tE].forEach(function (tt, k) { g += '<text class="ax" x="' + XT(tt).toFixed(1) + '" y="' + (GY + 12) + '" text-anchor="middle">' + dates[k] + '</text>'; });
+      var SHOWJ = shownMarks(M);
       M.forEach(function (m, k) {
-        var tm = new Date(m.t).getTime(); if (!(tm >= t0)) tm = t0; if (tm > tE) tm = tE;
+        var tm = new Date(m.t).getTime(); if (tm < t0) return; if (tm > tE) tm = tE;   // за окном — не рисуем
         var x = XT(tm), y = Y(+m.px), ty = 12 + (k % 2) * 12, col = m.miss ? '#ffa892' : GOLDL;
-        var name = String(m.tpl).split('(')[0].trim(), labeled = (M.length - 1 - k) < 2;   // подписи — у двух последних
-        if (!labeled) { g += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="2.2" fill="' + col + '" opacity=".8"/>'; return; }
+        var name = tplShort(m.tpl);
+        if (!SHOWJ[k]) { g += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="2.2" fill="' + col + '" opacity=".8"/>'; return; }   // промежуточная — точка
         g += '<line x1="' + x.toFixed(1) + '" y1="' + y.toFixed(1) + '" x2="' + x.toFixed(1) + '" y2="' + (ty + 4) + '" stroke="' + col + '" stroke-width=".8" stroke-dasharray="2 4" opacity=".7"/>' +
           '<circle class="ring" style="animation-delay:' + (k * .7) + 's" cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="6" fill="none" stroke="' + col + '" stroke-width="1" opacity=".8"/><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="2.2" fill="#fff"/>' +
           '<text class="fc' + (m.miss ? ' miss' : '') + '" x="' + (x - 4).toFixed(1) + '" y="' + ty + '" text-anchor="end">' + esc(name) + '</text>';
@@ -1283,7 +1342,8 @@ COIN_JS = r"""
     var cols = '', per = 14;
     for (i = 0; i < NAMES.length; i += per) cols += '<div class="col">' + NAMES.slice(i, i + per).map(function (c) {
       var z = BY[c], cc = CASE_C[z.st] || ['#7b83b8', 'без кейса'], gr = grpOf(z);
-      return '<a href="#' + esc(c) + '" class="' + (c === tick ? 'cur' : '') + '"><i style="background:' + cc[0] + ';box-shadow:0 0 6px ' + cc[0] + '" title="' + cc[1] + '"></i><span>' + esc(c) + '</span>' + marks(z) + (gr ? '<u style="color:' + GRP_C[gr][0] + ';border-color:' + GRP_C[gr][0] + '">' + GRP_C[gr][1] + '</u>' : '') + '</a>';
+      var nr = NEAR[String((z && z.coin) || (c + 'USDT')).toUpperCase()], isNear = !!(nr && nr.near);
+      return '<a href="#' + esc(c) + '" class="' + (c === tick ? 'cur' : '') + (isNear ? ' near' : '') + '"' + (isNear ? ' title="близкая к ходу: ' + esc((nr.why || []).join(' · ')) + '"' : '') + '><i style="background:' + cc[0] + ';box-shadow:0 0 6px ' + cc[0] + '" title="' + cc[1] + '"></i><span>' + esc(c) + '</span>' + marks(z) + (gr ? '<u style="color:' + GRP_C[gr][0] + ';border-color:' + GRP_C[gr][0] + '">' + GRP_C[gr][1] + '</u>' : '') + '</a>';
     }).join('') + '</div>';
     var legend = '<div class="cleg">' + Object.keys(CASE_C).map(function (k) { return '<b><i style="background:' + CASE_C[k][0] + '"></i>' + CASE_C[k][1] + '</b>'; }).join('') + '<s></s><b><em class="ld">★</em>лидер</b><b><em class="ht">●</em>горячая</b><b><em class="nw">✦</em>новая</b><b><em class="my">◆</em>твоя</b></div>';
     var coins = '<div class="coins"><div class="cbtn"><i></i>монеты <b>' + NAMES.length + '</b></div><div class="clist"><div class="ch">монеты журнала · по алфавиту · цвет — кейс, метка — группа книги</div><div class="cols">' + cols + '</div>' + legend + '</div></div>';

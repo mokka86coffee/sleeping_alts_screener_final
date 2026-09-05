@@ -129,8 +129,19 @@ def render_scheme(stars: list[dict], market: dict) -> str:
         _bp = json.loads((_P4(__file__).resolve().parent / "output" / "btc_pulse.json").read_text(encoding="utf-8"))
     except Exception:  # noqa: BLE001
         _bp = {}
+    # плечо по типу — счётчик доски (05.09, первый пункт): сколько монет с каким типом за сутки
+    try:
+        from pathlib import Path as _P5
+        _oit = json.loads((_P5(__file__).resolve().parent / "output" / "oi_types.json").read_text(encoding="utf-8"))
+        _board = _oit.get("board") or {}
+    except Exception:  # noqa: BLE001
+        _board = {}
+    try:
+        _near = json.loads((_P5(__file__).resolve().parent / "output" / "near_move.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        _near = {}
     blob = json.dumps({"stars": stars, "market": market, "whales": _wh,
-                       "sched": _sc, "sources": _src, "btcp": _bp},
+                       "sched": _sc, "sources": _src, "btcp": _bp, "oiboard": _board, "near": _near},
                       ensure_ascii=False, separators=(",", ":"))
     # Данные идут в <script type="application/json">: внутри такого блока
     # браузер не разбирает разметку, и последовательность вроде </script>
@@ -1177,7 +1188,13 @@ SCHEME_JS = r"""
         if (gp.indexOf(GROW[gg]) >= 0) { hit = true; break; }
       if (!hit) continue;
       var moving = stageOf(gr) === 'moving';
-      if (moving ? mov.length >= 2 : out.length >= 4) continue;
+      // БЛИЗКИЕ ВМЕСТО ВСЕХ (05.09, владелец): кандидатом «Пойдёт?» идёт только монета,
+      // прошедшая фильтр near_move (сбор, оборот в затишье, плечо, шорты, удержание);
+      // остальные растущие сюжеты в сводку не идут — они в журнале и Телеграме
+      var NEARSET = ((DATA.near || {}).coins) || {};
+      var nearRec = NEARSET[String((gs.coin || (gs.t + 'USDT')) || '').toUpperCase()];
+      if (!moving && !(nearRec && nearRec.near)) continue;
+      if (moving ? mov.length >= 2 : out.length >= 6) continue;
       /* КОРОТКО (31.08): сюжет режется по СМЫСЛУ, не по символам.
          Шаблон — в значение ветви; в тело идут две части: чем
          основан (первая часть до точки с запятой) и сторож
@@ -1206,9 +1223,9 @@ SCHEME_JS = r"""
                    s: body + '<br><i style="opacity:.62">вход дорогой ' +
                       '— ход уже состоялся</i>' });
       } else {
-        out.push({ k: 'Пойдёт? · ' + (gs.t || ''),
+        out.push({ k: 'Близкая · ' + (gs.t || ''),
                    v: vfull, c: '#7fe3d4',
-                   s: body + vetoMark });
+                   s: body + (nearRec && nearRec.why ? '<br><i style="opacity:.62">' + esc(nearRec.why.join(' · ')) + '</i>' : '') + vetoMark });
       }
     }
     /* Полка «в движении» идёт ПОСЛЕ кандидатов: она про то, что уже
@@ -1355,6 +1372,12 @@ SCHEME_JS = r"""
     // срез по часам (05.09): своя карта плеча, ликвидации по сторонам, премия, фонды — из btc_pulse.json
     { k:'Биткоин · часы', v: (DATA.btcp && DATA.btcp.map && DATA.btcp.map.px) ? Math.round(DATA.btcp.map.px).toLocaleString('ru-RU') : null, c:'#ffd98a',
       s: (DATA.btcp && DATA.btcp.read) ? esc(String(DATA.btcp.read).replace(/^BTC [\d,]+ · /, '')) : '' },
+    // счётчик доски по плечу (05.09): кто открывается на доске за сутки — по монетам
+    (function () { var b = DATA.oiboard || {}, NM = { long_open: 'лонги открывают', short_open: 'шорты открывают', short_close: 'шорты закрывают', long_close: 'лонги закрывают', flat: 'тихо' };
+      var ks = Object.keys(b).filter(function (k) { return k !== 'flat'; }).sort(function (a, c) { return (b[c] || 0) - (b[a] || 0); });
+      if (!ks.length) return { k:'Плечо по типу', v:null, c:'#bfffe0', s:'' };
+      return { k:'Плечо по типу', v: b[ks[0]] + ' ' + NM[ks[0]].split(' ')[0], c:'#bfffe0',
+        s: 'монет за сутки: ' + ks.map(function (k) { return NM[k] + ' ' + b[k]; }).join(' · ') + (b.flat ? ' · тихо ' + b.flat : '') }; })(),
     { k:'Спящие', v: dorm.length ? dorm.length + ' монет' : null, c:'#9aa3c8',
       s: dorm.slice(0, 12).map(function(s){ return s.t; }).join(' · ') },
     { k:'Заряжены', v: fuel.length ? fuel.length + ' монет' : null, c:'#7fe3d4',
@@ -1422,7 +1445,7 @@ SCHEME_JS = r"""
     'Лидер прогона':['дни',2], 'Держатся третьи сутки':['дни',2],
     'Разбирают':['дни',3], 'Чаще всех за сутки':['дни',3], 'Брать':['дни',3],
     'Фандинг':['дни',4], 'Ближайшее событие':['дни',4],
-    'Биткоин · часы':['часы',2],
+    'Биткоин · часы':['часы',2], 'Плечо по типу':['часы',2],
     'Топ объёма':['часы',3], 'Дельта перевернулась':['часы',3],
     'Деньги за сутки':['часы',3], 'Следом по объёму':['часы',3],
     'Продавцы давят':['часы',4], 'Кого выносит':['часы',4],
@@ -1436,7 +1459,7 @@ SCHEME_JS = r"""
     ? {'полгода':0, 'недели':1, 'дни':2, 'часы':3, 'счёт':4}
     : {'полгода':4, 'недели':3, 'дни':2, 'часы':1, 'счёт':5};
   cos.forEach(function(c, i){
-    var go = String(c.k).indexOf('\u041f\u043e\u0439\u0434') === 0;
+    var go = String(c.k).indexOf('\u041f\u043e\u0439\u0434') === 0 || String(c.k).indexOf('Близкая') === 0;   // «Близкая» — прогноз-пролог, как «Пойдёт?»
     /* Ветвь лидера идёт прологом рядом с «Пойдёт?» (01.09): она про
        главную монету экрана, а не про фон. Признаком go её не метим —
        иначе оденется в стиль кандидата и снова будет читаться как

@@ -194,7 +194,14 @@ def main() -> int:
                 with fc_path.open("a", encoding="utf-8") as f:
                     f.write("\n".join(lines) + "\n")
                 n_fc += len(lines)
-        print(f"  [{i}/{len(cs)}] {st} · лог +{n_liq} · журнал +{n_fc} · {time.time() - t0:.0f} с", flush=True)
+        # внутридневной архив на эту свечу — из только что записанных строк лога и репутации «на момент»
+        try:
+            import intraday_archive as ia
+            n_ia = ia.write_rows(ia.build_rows(ms, coins))
+        except Exception as e:  # noqa: BLE001
+            n_ia = 0
+            print(f"  {st}: внутридневной архив не записан: {type(e).__name__}: {e}")
+        print(f"  [{i}/{len(cs)}] {st} · лог +{n_liq} · журнал +{n_fc} · архив +{n_ia} · {time.time() - t0:.0f} с", flush=True)
     print(f"готово: лог ликвидности +{n_liq} строк, журнал прогнозов +{n_fc} строк; пульс/премия/киты — не восстанавливаются, отрезок остаётся в gaps.jsonl")
     return 0
 

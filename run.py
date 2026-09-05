@@ -979,6 +979,18 @@ def run_once(args: argparse.Namespace) -> int:
     # сбой — в реестр как КРИТИЧНО: без свежего среза сайт не обновляем. Поток идёт В ПОКАЗ (карточка зала, Г-15), в отбор не
     # входит. Старый sources_coinglass (Т-5) отключён этой врезкой:
     # два среза об одном — два шанса разойтись; файл остался соседом.
+    # ── БЛИЗКИЕ К ХОДУ (05.09): фильтр по дневкам — сбор, оборот в затишье, плечо, шорты,
+    # удержание; output/near_move.json → сводка («Близкие» вместо «Пойдёт?») и подсветка в списке монет ──
+    try:
+        _rn = subprocess.run([sys.executable, "near_move.py", "--write"], cwd=BASE_DIR,
+                             capture_output=True, text=True, timeout=180)
+        _tn = [ln for ln in (_rn.stdout or "").strip().splitlines() if ln.startswith("близких:")]
+        log(f"→ Близкие к ходу: {_tn[0][9:] if _tn else 'пусто'}")
+        if _rn.returncode:
+            _issue("Близкие", (_rn.stderr or "").strip()[-300:] or f"код {_rn.returncode}")
+    except Exception as e:
+        _issue("Близкие", f"{type(e).__name__}: {e}")
+
     # ── Coinglass: дождаться потока и разобрать результат ──
     if _cg_thread is not None:
         _cg_thread.join(timeout=1500)
@@ -1212,6 +1224,18 @@ def run_once(args: argparse.Namespace) -> int:
             log(f"→ Лог ликвидности: {_tail[-1] if _tail else 'пусто'}")
         if _p.returncode:
             _issue(_name, (_err or "").strip()[-300:] or f"код {_p.returncode}")
+
+    # ── ВНУТРИДНЕВНОЙ АРХИВ (05.09, владелец): одна строка на закрытую свечу по монете —
+    # cq_v2/intraday/<база>.jsonl; ничего не считает, только сохраняет собранное. ──
+    try:
+        _ri = subprocess.run([sys.executable, "intraday_archive.py", "--write"], cwd=BASE_DIR,
+                             capture_output=True, text=True, timeout=300)
+        _ti = (_ri.stdout or "").strip().splitlines()
+        log(f"→ Внутридневной архив: {_ti[-1] if _ti else 'пусто'}")
+        if _ri.returncode:
+            _issue("Внутридневной архив", (_ri.stderr or "").strip()[-300:] or f"код {_ri.returncode}")
+    except Exception as e:
+        _issue("Внутридневной архив", f"{type(e).__name__}: {e}")
 
     # ══ МЕДЛЕННЫЕ — ПОСЛЕ БЫСТРЫХ, В СВОЁМ ПОТОКЕ (05.09, владелец): квант, разлоки,
     # резервуар, фонды, балансы, толпа, приток, расписание — каждый по своему порогу
