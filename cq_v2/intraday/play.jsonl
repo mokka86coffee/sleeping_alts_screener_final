@@ -1,0 +1,1 @@
+{"candle": "2026-09-05T20:30:00Z", "sym": "PLAYUSDT", "px": null, "fut": {"b": 2377.0, "s": 1780.0, "d": 596.0, "tk": 1.335}, "spot": null, "oi": 11585042.0, "oi_chg_pct": 0.95, "funding": 0.020807, "taker24": 0.902, "delta24": -37866.0, "liq24": {"long": 208.727751, "short": 2122.22824}, "oi_type": null, "plot": null, "stage": null, "zones": null, "missing": ["spot"]}
