@@ -123,8 +123,14 @@ def render_scheme(stars: list[dict], market: dict) -> str:
         _src = _src_stamps(stars, market)
     except Exception:
         _src = {"run": market.get("ts")}
+    # срез биткоина по часам (05.09): строка btc_pulse — первым пузырём часов
+    try:
+        from pathlib import Path as _P4
+        _bp = json.loads((_P4(__file__).resolve().parent / "output" / "btc_pulse.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        _bp = {}
     blob = json.dumps({"stars": stars, "market": market, "whales": _wh,
-                       "sched": _sc, "sources": _src},
+                       "sched": _sc, "sources": _src, "btcp": _bp},
                       ensure_ascii=False, separators=(",", ":"))
     # Данные идут в <script type="application/json">: внутри такого блока
     # браузер не разбирает разметку, и последовательность вроде </script>
@@ -1346,6 +1352,9 @@ SCHEME_JS = r"""
       s: esc(casc.note || 'перевес ликвидаций') },
     { k:'Биткоин', v: M.btc7d != null ? pct(M.btc7d, 1) : null, c:'#e6edff',
       s:'за неделю' + (btcp.note ? ' · ' + esc(btcp.note) : '') },
+    // срез по часам (05.09): своя карта плеча, ликвидации по сторонам, премия, фонды — из btc_pulse.json
+    { k:'Биткоин · часы', v: (D.btcp && D.btcp.map && D.btcp.map.px) ? Math.round(D.btcp.map.px).toLocaleString('ru-RU') : null, c:'#ffd98a',
+      s: D.btcp && D.btcp.read ? esc(String(D.btcp.read).replace(/^BTC [\d,]+ · /, '')) : '' },
     { k:'Спящие', v: dorm.length ? dorm.length + ' монет' : null, c:'#9aa3c8',
       s: dorm.slice(0, 12).map(function(s){ return s.t; }).join(' · ') },
     { k:'Заряжены', v: fuel.length ? fuel.length + ' монет' : null, c:'#7fe3d4',
@@ -1413,6 +1422,7 @@ SCHEME_JS = r"""
     'Лидер прогона':['дни',2], 'Держатся третьи сутки':['дни',2],
     'Разбирают':['дни',3], 'Чаще всех за сутки':['дни',3], 'Брать':['дни',3],
     'Фандинг':['дни',4], 'Ближайшее событие':['дни',4],
+    'Биткоин · часы':['часы',2],
     'Топ объёма':['часы',3], 'Дельта перевернулась':['часы',3],
     'Деньги за сутки':['часы',3], 'Следом по объёму':['часы',3],
     'Продавцы давят':['часы',4], 'Кого выносит':['часы',4],

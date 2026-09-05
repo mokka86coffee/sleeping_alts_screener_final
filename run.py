@@ -1158,6 +1158,19 @@ def run_once(args: argparse.Namespace) -> int:
     except Exception as e:
         _issue("Лог ликвидности", f"{type(e).__name__}: {e}")
 
+    # ── Плечо по типу (05.09, Leviathan): лонги/шорты открывают/закрывают
+    # по часам за 14 дней → output/oi_types.json; экран монеты и счётчик доски. ──
+    try:
+        _r = subprocess.run([sys.executable, "oi_types.py", "--write"],
+                            cwd=BASE_DIR, capture_output=True, text=True, timeout=600)
+        _tail = (_r.stdout or "").strip().splitlines()
+        _bd = [ln for ln in _tail if ln.startswith("доска:")]
+        log(f"→ Плечо по типу: {_bd[0] if _bd else (_tail[-1] if _tail else 'пусто')}")
+        if _r.returncode:
+            _issue("Плечо по типу", (_r.stderr or "").strip()[-300:] or f"код {_r.returncode}")
+    except Exception as e:
+        _issue("Плечо по типу", f"{type(e).__name__}: {e}")
+
     # ── Срез биткоина (04.09): своя карта плеча по цене, перевес сторон,
     # ликвидации, премия Coinbase, приток ETF — output/btc_pulse.json,
     # строка в liq_log.jsonl и строка словами для Телеграма. ──

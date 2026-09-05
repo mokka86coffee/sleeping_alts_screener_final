@@ -256,6 +256,43 @@ def source_stamps(stars: list[dict], market: dict) -> dict:
             "flow": ((_read_json("flow_watch.json") or {}).get("_meta") or {}).get("at")}
 
 
+def _liq_history(days: int = 14) -> dict:
+    """Карта ликвидаций ВО ВРЕМЕНИ (05.09, по R2D2): каждый прогон liq_log
+    пишет полосы; складываем их по монете в ряд [[t_ms, [[цена, вес], …]], …]
+    за последние `days` дней — экран рисует тепловую карту за плитой:
+    видно, как полоса зреет и когда её сняли. Часовая карта (zones_hour)
+    главнее дневной; нет её — дневная."""
+    import time as _t
+    out: dict = {}
+    p = next((q for q in (Path("output") / "liq_log.jsonl", Path(__file__).resolve().parent / "output" / "liq_log.jsonl") if q.exists()), None)
+    if p is None:
+        return out
+    since = _t.time() - days * 86400
+    try:
+        for line in p.read_text(encoding="utf-8").splitlines():
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            sym = str(r.get("sym") or "").upper()
+            if not sym or sym == "BTC":
+                continue
+            try:
+                ts = datetime.strptime(r["at"] + " " + r["hm"], "%Y-%m-%d %H:%M").timestamp()
+            except (KeyError, ValueError):
+                continue
+            if ts < since:
+                continue
+            zs = r.get("zones_hour") or r.get("zones_day") or []
+            pts = [[round(float(z["price"]), 8), round(float(z.get("usd") or z.get("weight") or 0), 2)]
+                   for z in zs if z.get("price")]
+            if pts:
+                out.setdefault(sym, []).append([int(ts * 1000), pts])
+    except OSError:
+        pass
+    return out
+
+
 def render_coin(stars: list[dict], market: dict) -> str:
     """Тело документа единого экрана монеты. Данные вшиты в JSON."""
     sched = _read_json("schedule.json")
@@ -270,6 +307,8 @@ def render_coin(stars: list[dict], market: dict) -> str:
                        "sched": sched, "journal": _journal(),
                        "hist": _history(stars), "book": _book(),
                        "crowd": crowd, "flow": flow,
+                       "oitypes": ((_read_json("oi_types.json") or {}).get("coins") or {}),   # плечо по типу (05.09)
+                       "liqhist": _liq_history(),   # карта ликвидаций во времени (05.09)
                        "sources": source_stamps(stars, market)},
                       ensure_ascii=False, separators=(",", ":"))
     safe = blob.replace("</", "<\\/")
@@ -380,6 +419,19 @@ COIN_HTML = r"""
 @keyframes spark{0%,100%{transform:scale(.6);opacity:.3}50%{transform:scale(1.4);opacity:1}}
 
 /* плашка решения слева внизу (04.09) */
+/* ── ПЛЕЧО ПО ТИПУ (05.09, по Leviathan): лента часов под плитой, четыре цвета —
+   лонги открывают (золото), шорты открывают (коралл), шорты закрывают (мята, сквиз),
+   лонги закрывают (лёд, вынос); тихие часы — тёмные. Слева подпись словами за сутки. ── */
+.oit{position:absolute;left:430px;top:642px;width:262px;height:34px;opacity:0;animation:fadein 1s ease 2.6s forwards}
+.oit .cap{position:absolute;left:0;top:-14px;font-family:var(--f-cap);font-size:7px;letter-spacing:.34em;text-transform:uppercase;color:#9fd8bf}
+.oit .row{position:absolute;left:0;right:0;top:0;height:14px;display:flex;gap:1px}
+.oit .row i{flex:1 1 0;min-width:0;height:100%;background:#0d1a15;opacity:.9;border-radius:1px}
+.oit .row i.lo{background:#f5a93a}.oit .row i.so{background:#ff8a70}.oit .row i.sc{background:#7ff0b8}.oit .row i.lc{background:#6fb8ff}
+.oit .row i.lo,.oit .row i.so,.oit .row i.sc,.oit .row i.lc{box-shadow:0 0 6px currentColor}
+.oit .row i.lo{color:rgba(245,169,58,.7)}.oit .row i.so{color:rgba(255,138,112,.7)}.oit .row i.sc{color:rgba(127,240,184,.7)}.oit .row i.lc{color:rgba(111,184,255,.7)}
+.oit .read{position:absolute;left:0;top:18px;font-family:var(--f-cap);font-size:7px;letter-spacing:.18em;text-transform:uppercase;color:#dffff0}
+.oit .lg{position:absolute;left:0;top:30px;white-space:nowrap;font-family:var(--f-cap);font-size:6px;letter-spacing:.12em;text-transform:uppercase;color:#7fb8a0}
+.oit .lg b{display:inline-block;width:7px;height:7px;border-radius:1px;margin:0 3px 0 8px;vertical-align:middle}
 /* ── ТРИ МИНИ-ПЛИТЫ ВНИЗУ (04.09, финал): вердикт, журнал за две недели, расписание —
    уменьшенные копии большой плиты: тот же разворот в перспективе, белая линия земли,
    золотое свечение под ней, отражение. Без кубов и панелей. ── */
@@ -544,7 +596,7 @@ COIN_JS = r"""
   var STARS = (D.stars || []).filter(function (s) { return s && s.t; });
   var BY = {}; STARS.forEach(function (s) { BY[String(s.t).toUpperCase()] = s; });
   var NAMES = Object.keys(BY).sort();
-  var WH = D.whales || {}, SC = D.sched, JR = D.journal || {}, HIST = D.hist || {}, BOOK = D.book || {}, CROWD = D.crowd || {}, FLOW = D.flow || {};
+  var WH = D.whales || {}, SC = D.sched, JR = D.journal || {}, HIST = D.hist || {}, BOOK = D.book || {}, CROWD = D.crowd || {}, FLOW = D.flow || {}, OIT = D.oitypes || {};
 
   // ── помощники ──
   function esc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -675,6 +727,17 @@ COIN_JS = r"""
       fr.push(['давление', (pv ? pw + Math.abs(pv) + ' п.п.' : pw.trim()) + (has(s.pressShare) ? ' · доля ' + Math.round(+s.pressShare <= 1 ? +s.pressShare * 100 : +s.pressShare) + '% за 24 ч' : '')]); }
     if (has(s.v1d)) fr.push(['объём', '×' + (+s.v1d).toFixed(1) + ' — 24 ч к норме 30 дн' + (has(s.v1h) ? ' · час ×' + (+s.v1h).toFixed(1) : '') + (s.volBg ? ' · фон последних часов ' + s.volBg : '')]);
     if (has(cg.spotUsd)) fr.push(['спот', money(cg.spotUsd) + (has(cg.spotTaker) ? ' · тейкер ×' + (+cg.spotTaker).toFixed(2) : '') + (has(cg.fsRatio) ? ' · фьюч к споту ×' + (+cg.fsRatio).toFixed(1) : '')]);
+    // спот против перпа (05.09): накопленная дельта за сутки по обеим ногам и флаг расхождения
+    (function () {
+      var f = cg.cvdSpark || [], sp = cg.spotCvdSpark || []; if (f.length < 4 || sp.length < 4) return;
+      var fd = f[f.length - 1] - f[0], sd = sp[sp.length - 1] - sp[0];
+      var flag = '';
+      if (fd > 0 && sd <= 0) flag = 'перп рвёт, спот стоит — плечо без денег';
+      else if (sd > 0 && fd <= 0) flag = 'спот покупает, перп продаёт — набор под сквиз';
+      else if (sd > 0 && fd > 0) flag = 'покупают и спот, и перп — ход оплачен';
+      else if (sd < 0 && fd < 0) flag = 'продают обе ноги';
+      fr.push(['спот против перпа', 'спот ' + (sd > 0 ? '+' : '') + (money(sd) || '$0') + ' · перп ' + (fd > 0 ? '+' : '') + (money(fd) || '$0') + (flag ? ' — ' + flag : '')]);
+    })();
     if (has(s.bigCount) && +s.bigCount > 0) fr.push(['крупные', s.bigCount + ' сделок' + (s.bigBuys !== undefined ? ' · покупок ' + s.bigBuys + ', продаж ' + s.bigSells : '') + (s.bigMax ? ' · крупнейшая ' + money(s.bigMax) : '')]);
     if (s.klinger) fr.push(['клингер', (s.klinger.crossUp ? 'крест вверх у дна' : s.klinger.crossDn ? 'крест вниз' : s.klinger.above ? 'выше сигнала' : 'ниже сигнала')]);
     if (has(s.shakeX)) fr.push(['вынос', '×' + f(s.shakeX) + (s.shakeHours ? ' за ' + s.shakeHours + ' ч' : '') + (has(s.shakeMove) ? ' · ход ' + pct(s.shakeMove) : '')]);
@@ -869,9 +932,33 @@ COIN_JS = r"""
     // вертикали не ближе 12px друг к другу; линия уровня остаётся на
     // своей высоте, к подписи ведёт короткий отвод — так при сгущении
     // уровней у цены подписи не лезут одна на другую и на «сейчас».
+    // ТЕПЛОВАЯ КАРТА ЛИКВИДАЦИЙ ВО ВРЕМЕНИ (05.09, по R2D2): полосы каждого прогона liq_log
+    // ложатся за линию цены — по X время прогона, по Y цена, яркость — плотность.
+    // Ложится только на тот кусок плиты, который лог уже покрыл.
+    var heat = '';
+    (function () {
+      var Hq = (D.liqhist || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]; if (!Hq || Hq.length < 2 || !d1) return;
+      var t1ms = new Date(d1).getTime(), DAYms = 864e5, x0d = X0 + (P.length ? 0 : 0);
+      var xOf = function (t) { var fi = (P.length - 1) - (t1ms - t) / DAYms; return X0 + fi / Math.max(1, P.length - 1) * (P[P.length - 1][0] - X0); };
+      var mx = 0; Hq.forEach(function (r) { r[1].forEach(function (z) { if (z[1] > mx) mx = z[1]; }); }); if (!mx) return;
+      var cw = Math.max(2, (xOf(Hq[Hq.length - 1][0]) - xOf(Hq[0][0])) / Math.max(1, Hq.length - 1));
+      Hq.forEach(function (r) { var x = xOf(r[0]); if (!(x >= X0 - 2)) return;
+        r[1].forEach(function (z) { var y = sy(z[0]); if (!isFinite(y)) return; var o = .08 + .5 * Math.sqrt(z[1] / mx), col = z[0] < (+s.px || 0) ? '#ff8a70' : '#e6d3a3';
+          heat += '<rect x="' + (x - cw / 2).toFixed(1) + '" y="' + (y - 2.5).toFixed(1) + '" width="' + cw.toFixed(1) + '" height="5" fill="' + col + '" opacity="' + o.toFixed(2) + '"/>'; }); });
+      if (heat) heat = '<g class="heat">' + heat + '</g>';
+    })();
     var RL = [];
     LV.forEach(function (l) { RL.push({ y: sy(l[1]), col: l[2], txt: l[0] + ' ' + px4(l[1]), line: true, x1: X0 + 330, dash: '3 5', w: .6, op: .45 }); });
-    (s.liqZones || []).slice(0, 3).forEach(function (z) { RL.push({ y: sy((z.lo + z.hi) / 2), col: '#e6d3a3', txt: 'ЛИКВ ' + (money(z.fuel) || ''), liq: true, x1: X0, dash: '6 4', w: .8, op: .55 }); });
+    // НАПРАВЛЕННОЕ СМЕЩЕНИЕ (05.09, по Leviathan): сторона, которую вероятнее снимут, — ярче,
+    // другая — тусклее. Вероятная сторона: топливо там больше (liqFuel), а стакан давит туда же
+    // (тейкер Coinglass < 1 → вниз, > 1 → вверх); при несогласии — обе одинаково.
+    var _pxNow = +s.px || 0, _fb = (s.liqFuel || {}).below_usd || 0, _fa = (s.liqFuel || {}).above_usd || 0, _tk = +((s.cg || {}).taker) || 1;
+    var _bias = (_fb > _fa * 1.5 && _tk <= 1) ? 'down' : (_fa > _fb * 1.5 && _tk >= 1) ? 'up' : '';
+    (s.liqZones || []).slice(0, 3).forEach(function (z) {
+      var mid = (z.lo + z.hi) / 2, side = mid < _pxNow ? 'down' : 'up', hot = !_bias || side === _bias;
+      RL.push({ y: sy(mid), col: hot ? (side === 'down' ? '#ffd0c0' : '#e6d3a3') : '#6f7a75', txt: 'ЛИКВ ' + (money(z.fuel) || '') + (hot && _bias ? ' ◂' : ''), liq: true, x1: X0, dash: hot ? '6 4' : '2 6', w: hot ? (_bias ? 1.1 : .8) : .5, op: hot ? (_bias ? .8 : .55) : .3 });
+    });
+    if (heat) slab += heat;   // тепловая карта ликвидаций — поверх плиты, под уровнями
     RL.push({ y: ny0 = P[P.length - 1][1], col: '#fff', txt: '', now: true });   // место под «сейчас» тоже занимает строку
     RL.sort(function (a, b) { return a.y - b.y; });
     for (var ri = 1; ri < RL.length; ri++) { RL[ri].ly = Math.max(RL[ri].ly !== undefined ? RL[ri].ly : RL[ri].y, (RL[ri - 1].ly !== undefined ? RL[ri - 1].ly : RL[ri - 1].y) + 12); }
@@ -971,6 +1058,21 @@ COIN_JS = r"""
       [[46, 6.2, 0], [62, 7.1, .8], [78, 5.6, 1.6], [94, 6.8, .4], [110, 7.6, 1.2]].map(function (r) { return '<i class="ray" style="left:' + r[0] + 'px;--rd:' + r[1] + 's;--rw:' + (-r[2]) + 's"></i>'; }).join('') +
       '<div class="vtxt' + (String(dec.verdict || '').length > 7 ? ' long' : '') + '"><div class="vcap">решение</div><div class="vw">' + esc(dec.verdict) + '</div><div class="vwhy">' + esc(String(dec.why).split('—')[0].slice(0, 32)) + '</div></div>' +
       '<div class="gshadow"></div><div class="box grey">' + BOX6 + '<div class="f front"><div class="txt"><b>за</b><span>' + esc(dec.pro.join(' · ') || 'нет') + '</span><b class="con">против</b><span class="con">' + esc(dec.con.join(' · ') || 'нет') + '</span></div></div></div></div>';
+    // ── плечо по типу (05.09): лента часов за 14 дней + строка за сутки ──
+    (function () {
+      var o = OIT[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]; if (!o || !o.hours || !o.hours.length) return;
+      var cls = { long_open: 'lo', short_open: 'so', short_close: 'sc', long_close: 'lc', flat: '' };
+      var NM = { long_open: 'лонги открывают', short_open: 'шорты открывают', short_close: 'шорты закрывают', long_close: 'лонги закрывают' };
+      // четырёхчасовые блоки: тип — у которого больше суммарный прирост интереса среди нешумных часов
+      var B = [], hh = o.hours; for (var bi = 0; bi < hh.length; bi += 4) {
+        var chunk = hh.slice(bi, bi + 4), acc = {}, best = 'flat', bv = 0, doi = 0, dp = 0;
+        chunk.forEach(function (h) { doi += h[2]; dp += h[3]; if (h[1] === 'flat') return; acc[h[1]] = (acc[h[1]] || 0) + Math.abs(h[2]); if (acc[h[1]] > bv) { bv = acc[h[1]]; best = h[1]; } });
+        B.push([chunk[0][0], best, +doi.toFixed(2), +dp.toFixed(2)]); }
+      var row = B.map(function (h) { return '<i class="' + (cls[h[1]] || '') + '" title="' + new Date(h[0]).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' +4ч · ' + (NM[h[1]] || 'тихо') + ' · интерес ' + (h[2] > 0 ? '+' : '') + h[2] + '% · цена ' + (h[3] > 0 ? '+' : '') + h[3] + '%"></i>'; }).join('');
+      dzone += '<div class="oit"><div class="cap">плечо по типу · 14 дн по 4 ч</div><div class="row">' + row + '</div>' +
+        '<div class="read">' + esc(o.read || '') + '</div>' +
+        '<div class="lg"><b style="background:#f5a93a"></b>лонги открывают<b style="background:#ff8a70"></b>шорты открывают<b style="background:#7ff0b8"></b>шорты закрывают<b style="background:#6fb8ff"></b>лонги закрывают</div></div>';
+    })();
     // ── журнал за две недели — мини-плита: последние 14 дневок, метки смен ──
     (function () {
       var J = JR[String(s.t).toUpperCase()], M = (J && J.marks) || [];

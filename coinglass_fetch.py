@@ -603,6 +603,11 @@ def for_screens() -> dict[str, dict]:
             # стенд кормился полным series и промаха не видел.
             "cvdSpark": [round(b.get("cvd") or 0, 0)
                          for b in (fut.get("series") or [])[-WINDOW:]],
+            # спотовая дельта тем же рядом (05.09): «спот против перпа» —
+            # перп рвёт, спот стоит = плечо без денег; спот покупает, перп
+            # продаёт = набор под сквиз
+            "spotCvdSpark": [round(b.get("cvd") or 0, 0)
+                             for b in (spot.get("series") or [])[-WINDOW:]],
             "liqLong": liq.get("long24h"),
             "liqShort": liq.get("short24h"),
         }
