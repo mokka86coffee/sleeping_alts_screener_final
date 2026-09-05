@@ -534,7 +534,7 @@ COINGLASS_MAX_AGE_H = 3.0          # срез ежечасный; три час�
 # Суточная пересборка расписания «когда растёт» (05.09): часовые свечи с Binance,
 # затем сводка пробегов по режиму биткоина → output/schedule.json. Флаги — те, что
 # запускались руками; поправить здесь, если скрипт их сменит.
-SCHEDULE_REFRESH = [["backfill_binance.py"], ["alts_schedule.py", "--runs", "--regime"]]
+SCHEDULE_REFRESH = [["backfill_binance.py"], ["alts_schedule.py", "--sync", "--regime", "--json"]]
 ANALYZE_FAIL_SHARE = 0.20          # доля монет с ошибкой анализа, дальше — не верим выборке
 
 

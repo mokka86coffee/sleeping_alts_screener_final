@@ -437,16 +437,16 @@ COIN_HTML = r"""
 /* ── ПЛЕЧО ПО ТИПУ (05.09, по Leviathan): лента часов под плитой, четыре цвета —
    лонги открывают (золото), шорты открывают (коралл), шорты закрывают (мята, сквиз),
    лонги закрывают (лёд, вынос); тихие часы — тёмные. Слева подпись словами за сутки. ── */
-.oit{position:absolute;left:60px;top:748px;width:330px;height:64px;opacity:0;animation:fadein 1s ease 2.6s forwards}
-.oit .cap{position:absolute;left:0;top:-38px;font-family:var(--f-cap);font-size:7px;letter-spacing:.34em;text-transform:uppercase;color:#9fd8bf}
-.oit .row{position:absolute;left:0;right:0;top:0;height:14px;display:flex;gap:1px}
+.oit{position:absolute;left:60px;bottom:64px;width:330px;display:flex;flex-direction:column;gap:5px;opacity:0;animation:fadein 1s ease 2.6s forwards}
+.oit .cap{font-family:var(--f-cap);font-size:7px;letter-spacing:.34em;text-transform:uppercase;color:#9fd8bf}
+.oit .row{height:14px;display:flex;gap:1px}
 .oit .row i{flex:1 1 0;min-width:0;height:100%;background:#0d1a15;opacity:.9;border-radius:1px}
 .oit .row i.lo{background:#f5a93a}.oit .row i.so{background:#ff8a70}.oit .row i.sc{background:#7ff0b8}.oit .row i.lc{background:#6fb8ff}
 .oit .row i.lo,.oit .row i.so,.oit .row i.sc,.oit .row i.lc{box-shadow:0 0 6px currentColor}
 .oit .row i.lo{color:rgba(245,169,58,.7)}.oit .row i.so{color:rgba(255,138,112,.7)}.oit .row i.sc{color:rgba(127,240,184,.7)}.oit .row i.lc{color:rgba(111,184,255,.7)}
-.oit .read{position:absolute;left:0;top:18px;font-family:var(--f-cap);font-size:7px;letter-spacing:.18em;text-transform:uppercase;color:#dffff0}
-.oit .verd{position:absolute;left:0;top:-26px;width:330px;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;color:#ffe2a8;line-height:1.35}
-.oit .lg{position:absolute;left:0;top:30px;width:330px;display:flex;flex-wrap:wrap;gap:3px 12px;font-family:var(--f-cap);font-size:6px;letter-spacing:.12em;text-transform:uppercase;color:#7fb8a0}
+.oit .read{font-family:var(--f-cap);font-size:7px;letter-spacing:.18em;text-transform:uppercase;color:#dffff0;line-height:1.4}
+.oit .verd{font-family:var(--f-cap);font-size:7.5px;letter-spacing:.1em;text-transform:uppercase;color:#ffe2a8;line-height:1.35}
+.oit .lg{display:flex;flex-wrap:wrap;gap:3px 12px;font-family:var(--f-cap);font-size:6px;letter-spacing:.12em;text-transform:uppercase;color:#7fb8a0}
 .oit .lg span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .oit .lg b{display:inline-block;width:7px;height:7px;border-radius:1px;flex:0 0 7px}
 /* ── ТРИ МИНИ-ПЛИТЫ ВНИЗУ (04.09, финал): вердикт, журнал за две недели, расписание —
