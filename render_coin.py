@@ -1197,6 +1197,18 @@ COIN_JS = r"""
     for (var di = 0; di < 6; di++) { var rx = 120 + ((di * 137) % 1200), ry = 420 + ((di * 71) % 460), dd = 9 + (di % 5) * 2, dw = -(di * 1.3), dx = (di % 2 ? 1 : -1) * (12 + (di * 9) % 40);
       ANIM += '<div class="dust' + (di % 3 === 0 ? ' g' : '') + '" style="left:' + rx + 'px;top:' + ry + 'px;--d:' + dd + 's;--w:' + dw + 's;--x:' + dx + 'px"></div>'; }
     ANIM += '</div><div class="spark" style="left:' + (SL + (X0 - 26) - 3) + 'px;top:' + (ST + Y1 - 10) + 'px"></div><div class="spark b" style="left:' + (SL + (X0 - 26) - 3) + 'px;top:' + (ST + Y0 - 3) + 'px"></div>';
+    // РЕШЕНИЕ ПОДЧИНЯЕТСЯ ШАБЛОНУ «У ЦЕЛИ» (06.09, случай ENA): решение считается по дневке и не
+    // видит ночных баров; если шаблон говорит «ведут покупатели» — держать до полосы, «толпа
+    // набивается» — снять часть. Иначе экран спорит сам с собой: «у цели, ведут покупатели» и «ждать».
+    (function () {
+      var pl = String((s.rep || {}).plot || '').toLowerCase(); if (pl.indexOf('у цели') !== 0) return;
+      var det = pl.split(') — ')[1] || pl.split(' — ')[1] || '';
+      if (det.indexOf('ведут покупатели') === 0 || det.indexOf('ведёт покупатель') === 0) {
+        dec = Object.assign({}, dec, { verdict: 'держать', why: 'у цели, ведут покупатели — до плотнейшей полосы выше; стоп под полосой лонгов (по шаблону, не по дневке)' });
+      } else if (det.indexOf('толпа набивается') === 0) {
+        dec = Object.assign({}, dec, { verdict: 'снять часть', why: 'у цели, толпа набивается в лонг — следующий ход вниз, к полосе лонгов (по шаблону)' });
+      }
+    })();
     var INTRO = [];   // вступительная сводка (05.09): текстом поверх графика при входе, потом гаснет
     INTRO.push(['решение', String(dec.verdict || '') + (dec.why ? ' — ' + String(dec.why).split('—')[0] : '')]);
     if (s.rep && s.rep.plot) INTRO.push(['журнал', String(s.rep.plot).split(':')[0]]);

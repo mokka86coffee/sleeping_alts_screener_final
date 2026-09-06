@@ -87,9 +87,17 @@ def collect_items() -> list[dict]:
     for sym, r in rep.items():
         if not isinstance(r, dict) or sym.startswith("_"):
             continue
-        plot = str(r.get("plot") or "").split("(")[0].strip().lower()
+        full = str(r.get("plot") or "").lower()
+        plot = full.split("(")[0].strip()
         last = marks.get(sym, "")
-        if plot.startswith("у цели") or any(w in last for w in END_WORDS) or plot.startswith("разгон отпустил"):
+        # «у цели» — две ветки (06.09, случай ENA): толпа набивается → закрыть; ведут покупатели
+        # (на дне или на барах) → держать до полосы; «неясно» → закрыть (половину снять)
+        if plot.startswith("у цели"):
+            if "ведёт покупатель" in full or "ведут покупатели" in full:
+                add(sym, 1, plot)
+            else:
+                add(sym, 2, plot)
+        elif any(w in last for w in END_WORDS) or plot.startswith("разгон отпустил"):
             add(sym, 2, plot or last)
     # порядок: брать, держать, закрыть; внутри — как пришли (near_move уже отсортирован по обороту)
     items.sort(key=lambda it: it["g"])
