@@ -71,11 +71,11 @@ def collect_items() -> list[dict]:
     items: list[dict] = []
     seen: set = set()
 
-    def add(sym: str, g: int, why: str):
+    def add(sym: str, g: int, why: str, sub: str = ""):
         if sym in seen:
             return
         seen.add(sym)
-        items.append({"n": sym.replace("USDT", ""), "sym": sym, "g": g, "why": why})
+        items.append({"n": sym.replace("USDT", ""), "sym": sym, "g": g, "why": why, "sub": sub})
 
     for sym in nm.get("holding") or []:
         v = coins.get(sym) or {}
@@ -98,13 +98,18 @@ def collect_items() -> list[dict]:
         last = marks.get(sym, "")
         fut = (cgc.get(sym) or {}).get("fut") or {}
         d24 = (fut.get("buyUsd") or 0) - (fut.get("sellUsd") or 0)
+        # ТРЕТЬЯ ГРУППА — «У ЦЕЛИ» с подписью, что делать (06.09, владелец):
+        #   хеджировать — у цели, толпа набивается; ждать подтверждения — у цели, кто двигает неясно;
+        #   конец тренда — разгон отпустил, осечка, отбой
         if plot.startswith("у цели"):
             if "ведут покупатели" in plot_full or "ведёт покупатель" in plot_full:
                 add(sym, 1, "у цели — ведут покупатели")
+            elif "толпа" in plot_full:
+                add(sym, 2, "у цели — толпа набивается", "хеджировать")
             else:
-                add(sym, 2, "у цели — " + ("толпа набивается" if "толпа" in plot_full else "кто двигает — неясно"))
+                add(sym, 2, "у цели — кто двигает неясно", "ждать подтверждения")
         elif plot.startswith("разгон отпустил") or any(w in last for w in END_WORDS):
-            add(sym, 2, plot or last)
+            add(sym, 2, plot or last, "конец тренда")
         elif plot.startswith(("крупняк тащит", "разгон на спросе")):
             add(sym, 1, plot)
         elif plot.startswith("кит набирает тихо") and d24 > 0:
@@ -145,16 +150,17 @@ def render_intro(items: list[dict] | None = None) -> str:
     # «закрыть» рассыпается. Стоят рядом по низу, монеты — созвездием над ними.
     labels = [{"n": f"брать {counts[0]}", "sym": "", "g": 0, "why": "", "label": True},
               {"n": f"держать {counts[1]}", "sym": "", "g": 1, "why": "", "label": True},
-              {"n": f"закрыть {counts[2]}", "sym": "", "g": 2, "why": "", "label": True}]
+              {"n": f"у цели {counts[2]}", "sym": "", "g": 2, "why": "", "label": True}]
     allit = labels + items
     names = [it["n"] for it in allit]
     grp = [it["g"] for it in allit]
     syms = [it["sym"] for it in allit]
     whys = [it.get("why", "") for it in allit]
     lab = [1 if it.get("label") else 0 for it in allit]
+    subs = [it.get("sub", "") for it in allit]
     pos = [[0.24, 0.90], [0.50, 0.90], [0.76, 0.90]] + layout(len(items))
     n = max(1, len(allit))
-    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab},
+    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs},
                       ensure_ascii=False).replace("</", "<\\/")
     return TEMPLATE.replace("__N__", str(n)).replace("__DATA__", data)
 
@@ -296,6 +302,12 @@ function mask(){
     m.fillStyle='#0f0';m.filter=`blur(${size*.16}px)`;m.fillText(name,x,y);m.fillText(name,x,y);
     m.fillStyle='#00f';m.filter=`blur(${size*.035}px)`;m.fillText(name,x,y);m.fillText(name,x,y);
     m.fillStyle='#f00';m.filter='none';m.fillText(name,x,y);
+    // подпись «что делать» под именем (группа «у цели»): хеджировать / ждать подтверждения / конец тренда
+    const sub=(DATA.subs||[])[i];
+    if(sub){m.font=`300 ${size*.62}px "Inter",system-ui,sans-serif`;m.letterSpacing='0.22em';
+      m.fillStyle='#0f0';m.filter=`blur(${size*.1}px)`;m.fillText(sub,x,y+size*1.05);
+      m.fillStyle='#00f';m.filter=`blur(${size*.03}px)`;m.fillText(sub,x,y+size*1.05);
+      m.fillStyle='#f00';m.filter='none';m.fillText(sub,x,y+size*1.05);}
   }
   gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,mc);
   const img=m.getImageData(0,0,W,H).data,S=new Float32Array(N*NF*2).fill(-1),SP=new Float32Array(N*NF);
@@ -337,8 +349,13 @@ c.addEventListener('click',ev=>{const i=hit(ev);
     location.href=target;return}
   next()});
 addEventListener('keydown',ev=>{if(ev.key==='Escape'||ev.key===' '||ev.key==='Enter'||ev.key==='ArrowRight')next()});
-const ready=document.fonts?document.fonts.load(`400 40px "${FONT}"`).catch(()=>{}):Promise.resolve();
-ready.then(()=>{resize();requestAnimationFrame(loop)});
+// шрифты (06.09): ждём оба — Michroma для имён и Inter для подписей; сеть молчит — стартуем
+// через полторы секунды на системном, чтобы не было пустого экрана и «script error» при первом заходе
+const ready=document.fonts?Promise.race([
+  Promise.all([document.fonts.load(`400 40px "${FONT}"`),document.fonts.load(`300 40px "Inter"`)]).catch(()=>{}),
+  new Promise(r=>setTimeout(r,1500))]):Promise.resolve();
+let started=false;
+ready.then(()=>{if(started)return;started=true;try{resize();requestAnimationFrame(loop)}catch(e){console.error('интро:',e)}});
 </script>
 </body>
 </html>
