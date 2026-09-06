@@ -35,7 +35,12 @@ MAJORS = {"BTC", "ETH", "SOL", "NEAR", "ARB", "HYPE", "WLD", "SUI", "APT",
 STEP = 3600 * 1000
 
 
-def load(coin):
+WINDOW_DAYS = 21   # ОКНО ЦИКЛА (06.09, владелец): считать по ТЕКУЩЕМУ циклу, не по полугоду — рынок
+                   # сменил фазу в июне (приток денег, биткоин не падает), часы спада в подъёме врут;
+                   # старое протухает само: в окно входят только последние WINDOW_DAYS дней
+
+
+def load(coin, days: int | None = None):
     f = HOURLY / f"{coin.lower()}.json"
     if not f.exists():
         return {}
@@ -43,6 +48,10 @@ def load(coin):
         rows = json.loads(f.read_text(encoding="utf-8"))
     except ValueError:
         return {}
+    days = WINDOW_DAYS if days is None else days
+    if days and days > 0 and rows:
+        cut = max(int(r["t"]) for r in rows if r.get("t")) - days * 24 * STEP
+        rows = [r for r in rows if int(r.get("t") or 0) >= cut]
     return {r["t"]: r for r in rows if r.get("o") and r.get("c")}
 
 
@@ -406,6 +415,8 @@ def main() -> int:
                     help="монет для события падения (по умолчанию 10)")
     ap.add_argument("--tol", type=int, default=1,
                     help="допуск по часу, ± (по умолчанию 1)")
+    ap.add_argument("--days", type=int, default=None,
+                    help=f"окно в днях (по умолчанию {WINDOW_DAYS} — текущий цикл; 0 — вся история)")
     ap.add_argument("--json", nargs="?", const="output/schedule.json", default=None,
                     help="записать сводку для схемы (по умолчанию output/schedule.json)")
     a = ap.parse_args()
@@ -417,10 +428,10 @@ def main() -> int:
         c = f.stem.upper()
         if c in majors:
             continue
-        m = load(c)
-        if len(m) >= 24 * 30:                     # хотя бы месяц
+        m = load(c, a.days)
+        if len(m) >= 24 * 10:                     # хотя бы десять дней в окне (окно цикла — три недели)
             alts[c] = m
-    btc = load("BTC")
+    btc = load("BTC", a.days)
     if not alts:
         print("нет микрокапов в hourly/ — сначала backfill_binance.py")
         return 1

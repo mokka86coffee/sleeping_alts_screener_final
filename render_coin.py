@@ -516,7 +516,8 @@ COIN_HTML = r"""
 /* углы — те, что владелец подобрал на стенде (04.09): ось у нижней кромки */
 .mini.verdict{left:520px}
 .mini.journal{right:80px;--px:-20deg;--py:-18deg;--pz:0deg;bottom:114px;--sc:.91}   /* стенд 05.09 */   /* дальше от зрителя на 50 */
-.mini.sched{left:36px;--px:-15deg;--py:11deg;--pz:-2deg;bottom:350px;width:288px;--sc:.82}   /* 05.09 ночь: выше на 86, под ней плита плеча */   /* стенд 05.09 */      /* дальше на 100 */
+.mini.sched{left:36px;--px:-15deg;--py:11deg;--pz:-2deg;bottom:350px;width:288px;--sc:.82;filter:saturate(.6) brightness(.85)}
+.mini.noglow .ground,.mini.noglow .refl{opacity:.35}   /* 05.09 ночь: выше на 86, под ней плита плеча */   /* стенд 05.09 */      /* дальше на 100 */
 .mini .ground{position:absolute;left:0;right:0;bottom:30px;height:1px;background:#fff6dc;opacity:.55}
 .mini .gglow{position:absolute;left:-10%;right:-10%;bottom:6px;height:44px;border-radius:50%;background:radial-gradient(rgba(var(--g),.55),rgba(var(--g),0) 70%);filter:blur(12px);pointer-events:none}
 .mini .refl{position:absolute;left:0;right:0;top:calc(100% - 30px);height:60px;transform:scaleY(-1);transform-origin:50% 0;opacity:.28;-webkit-mask-image:linear-gradient(#000,transparent);mask-image:linear-gradient(#000,transparent);pointer-events:none}
@@ -975,12 +976,16 @@ COIN_JS = r"""
     for (var h = 0; h <= 24; h += 6) s += '<line x1="' + X(h).toFixed(1) + '" y1="' + (y + 6) + '" x2="' + X(h).toFixed(1) + '" y2="' + (y + 11) + '" stroke="#fff" opacity=".5"/><text class="ax" x="' + X(h).toFixed(1) + '" y="' + (y + 24) + '" text-anchor="middle">' + pad(h % 24) + '</text>';
     s += '<line x1="' + X(lh).toFixed(1) + '" y1="' + (y - 18) + '" x2="' + X(lh).toFixed(1) + '" y2="' + (y + 6) + '" stroke="#fff" stroke-width="1"/><circle class="nowp" cx="' + X(lh).toFixed(1) + '" cy="' + (y - 20) + '" r="3" fill="#fff"/>';
     var inH = Math.floor(cs.dh), inM = Math.round((cs.dh - inH) * 60), col = cs.kind === 'up' ? '#bfffe0' : '#ffb59f';
-    var cap = cs.live ? (cs.kind === 'up' ? 'РОСТ ИДЁТ · ЕЩЁ' : 'СЛИВ ИДЁТ · ЕЩЁ') : (cs.kind === 'up' ? 'ДО РОСТА' : 'ДО СЛИВА');
+    // ЧАСЫ — ПО ИСТОРИИ, НЕ ПРОГНОЗ (06.09, владелец: «пока всё росло, показывали слив»): это средние
+    // часы стартов и сливов доски за полгода по режиму биткоина; цикл меняется — подпись честная,
+    // а цифра — расстояние до ОБЫЧНОГО окна, не до события. Облако под плитой снято.
+    var cap = cs.live ? (cs.kind === 'up' ? 'ОБЫЧНОЕ ОКНО РОСТА · ЕЩЁ' : 'ОБЫЧНОЕ ОКНО СЛИВА · ЕЩЁ') : (cs.kind === 'up' ? 'ДО ОБЫЧНОГО ОКНА РОСТА' : 'ДО ОБЫЧНОГО ОКНА СЛИВА');
     s += '<text x="' + (W / 2) + '" y="52" text-anchor="middle" font-family="Jost,Inter" font-weight="200" font-size="32" letter-spacing=".06em" fill="' + col + '">' + inH + ':' + pad(inM) + '</text>';
     s += '<text x="' + (W / 2) + '" y="70" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" letter-spacing=".26em" fill="rgba(255,255,255,.7)">' + cap + '</text>';
     s += (cs.tUp ? '<text class="fc" x="' + x0 + '" y="' + (y + 40) + '" text-anchor="start" style="fill:#bfffe0;font-size:6.8px">рост ' + cs.tUp + '</text>' : '') +
          (cs.tDn ? '<text class="fc" x="' + x1 + '" y="' + (y + 40) + '" text-anchor="end" style="fill:#ffb59f;font-size:6.8px">слив ' + cs.tDn + '</text>' : '');
-    return '<div class="clockbox mini sched" style="--c:#bfffe0;--g:127,240,184"><div class="gglow"></div><svg viewBox="0 0 ' + W + ' ' + H + '">' + s + '</svg><div class="ground"></div></div>';
+    s += '<text x="' + (W / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="6" letter-spacing=".2em" fill="rgba(255,255,255,.35)">ПО ИСТОРИИ ЗА ПОЛГОДА · НЕ ПРОГНОЗ</text>';
+    return '<div class="clockbox mini sched noglow" style="--c:#9fb8ad;--g:127,160,140"><svg viewBox="0 0 ' + W + ' ' + H + '">' + s + '</svg><div class="ground"></div></div>';
   }
 
   // ── СБОРКА ЭКРАНА ОДНОЙ МОНЕТЫ ──

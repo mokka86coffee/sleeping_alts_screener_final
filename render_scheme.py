@@ -1198,10 +1198,10 @@ SCHEME_JS = r"""
       // БЛИЗКИЕ ВМЕСТО ВСЕХ (05.09, владелец): кандидатом «Пойдёт?» идёт только монета,
       // прошедшая фильтр near_move (сбор, оборот в затишье, плечо, шорты, удержание);
       // остальные растущие сюжеты в сводку не идут — они в журнале и Телеграме
-      var NEARSET = ((DATA.near || {}).coins) || {};
-      var nearRec = NEARSET[String((gs.coin || (gs.t + 'USDT')) || '').toUpperCase()];
-      if (!moving && !(nearRec && nearRec.near)) continue;
-      if (moving ? mov.length >= 2 : out.length >= 6) continue;
+      // (06.09) «Близкая» собирается ниже напрямую из списка holding фильтра — той же строкой,
+      // что и интро; здесь цикл оставляет только полку «уже идёт»
+      if (!moving) continue;
+      if (mov.length >= 2) continue;
       /* КОРОТКО (31.08): сюжет режется по СМЫСЛУ, не по символам.
          Шаблон — в значение ветви; в тело идут две части: чем
          основан (первая часть до точки с запятой) и сторож
@@ -1235,6 +1235,20 @@ SCHEME_JS = r"""
                    s: body + (nearRec && nearRec.why ? '<br><i style="opacity:.62">' + esc(nearRec.why.join(' · ')) + '</i>' : '') + vetoMark });
       }
     }
+    /* БЛИЗКИЕ — ИЗ ФИЛЬТРА НАПРЯМУЮ (06.09, владелец: «в брифе APR и ZORA, на звёздах ARB и ZORA»):
+       список holding из near_move, тот же, что читает интро; шаблон и стадия здесь не решают */
+    (function () {
+      var NM = (DATA.near || {}), hold = NM.holding || [], cs = NM.coins || {};
+      for (var hi2 = 0; hi2 < hold.length && hi2 < 6; hi2++) {
+        var sym = hold[hi2], rec = cs[sym] || {}, n = rec.nums || {}, tk = sym.replace('USDT', '');
+        var st = null; for (var si = 0; si < ST.length; si++) { if (String(ST[si].t || '').toUpperCase() === tk) { st = ST[si]; break; } }
+        var plot = st && st.rep && st.rep.plot ? String(st.rep.plot).split('(')[0].trim() : '';
+        var body = plot ? esc(plot) : 'держат после сбора — ход впереди';
+        out.push({ k: 'Близкая · ' + tk,
+                   v: '<span class="tkr">' + esc(tk) + '</span><s>·</s><b>' + (n.lull_x ? 'оборот ×' + (+n.lull_x).toFixed(1) : 'держат') + '</b>', c: '#7fe3d4',
+                   s: body + '<br><i style="opacity:.62">' + esc((rec.why || []).join(' · ')) + '</i>' });
+      }
+    })();
     /* ОТДАЮТ (06.09): сбор был, оборот и шорты есть, а плечо уходит — второй акт не сложился;
        по мысли владельца их отскоки — кандидаты на шорт. До трёх пузырей, честной подписью. */
     (function () {
