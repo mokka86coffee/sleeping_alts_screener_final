@@ -83,22 +83,32 @@ def collect_items() -> list[dict]:
     for sym in nm.get("going") or []:
         v = coins.get(sym) or {}
         add(sym, 1, " · ".join(v.get("why") or []))
-    # закрыть: у цели сбора (текущий шаблон) или осечка/отпустил (последняя смена)
+    # ДЕРЖАТЬ / ЗАКРЫТЬ ПО СМЫСЛУ ДВИЖЕНИЯ (06.09, случай ENA: «у цели — ведут покупатели» попала в
+    # «закрыть», а сменившись на «кит набирает тихо» — исчезла совсем):
+    #   держать — «идут» из фильтра + шаблоны «у цели … ведут покупатели», «крупняк тащит вверх»,
+    #             «разгон на спросе», «кит набирает тихо» при дельте дня в плюс;
+    #   закрыть — «у цели» с веткой «толпа набивается» / «неясно», «разгон отпустил», осечка/отбой.
+    cg = _read("coinglass_fetch.json") or {}
+    cgc = cg.get("coins") or {}
     for sym, r in rep.items():
         if not isinstance(r, dict) or sym.startswith("_"):
             continue
-        full = str(r.get("plot") or "").lower()
-        plot = full.split("(")[0].strip()
+        plot_full = str(r.get("plot") or "").lower()
+        plot = plot_full.split("(")[0].strip()
         last = marks.get(sym, "")
-        # «у цели» — две ветки (06.09, случай ENA): толпа набивается → закрыть; ведут покупатели
-        # (на дне или на барах) → держать до полосы; «неясно» → закрыть (половину снять)
+        fut = (cgc.get(sym) or {}).get("fut") or {}
+        d24 = (fut.get("buyUsd") or 0) - (fut.get("sellUsd") or 0)
         if plot.startswith("у цели"):
-            if "ведёт покупатель" in full or "ведут покупатели" in full:
-                add(sym, 1, plot)
+            if "ведут покупатели" in plot_full or "ведёт покупатель" in plot_full:
+                add(sym, 1, "у цели — ведут покупатели")
             else:
-                add(sym, 2, plot)
-        elif any(w in last for w in END_WORDS) or plot.startswith("разгон отпустил"):
+                add(sym, 2, "у цели — " + ("толпа набивается" if "толпа" in plot_full else "кто двигает — неясно"))
+        elif plot.startswith("разгон отпустил") or any(w in last for w in END_WORDS):
             add(sym, 2, plot or last)
+        elif plot.startswith(("крупняк тащит", "разгон на спросе")):
+            add(sym, 1, plot)
+        elif plot.startswith("кит набирает тихо") and d24 > 0:
+            add(sym, 1, plot + " · дельта дня в плюс")
     # порядок: брать, держать, закрыть; внутри — как пришли (near_move уже отсортирован по обороту)
     items.sort(key=lambda it: it["g"])
     return items[:MAX_NAMES]
