@@ -152,30 +152,48 @@ def collect_items() -> list[dict]:
     return items[:MAX_NAMES]
 
 
-def layout(n: int, seed: int = 7) -> list[list[float]]:
-    """Созвездие: точки в облаке с минимальным расстоянием; детерминировано по seed."""
+# ЗОНЫ (06.09, владелец: «размещать по зонам, с очертаниями»): доли ширины/высоты — x0,y0,x1,y1
+ZONES = {
+    0: (0.05, 0.12, 0.47, 0.50),   # брать — слева сверху
+    1: (0.53, 0.12, 0.95, 0.50),   # держать — справа сверху
+    3: (0.05, 0.55, 0.60, 0.84),   # готовы — слева снизу, широкая
+    2: (0.66, 0.55, 0.95, 0.84),   # у цели — справа снизу
+}
+ZONE_TINT = {0: "207,224,255", 1: "143,224,184", 3: "150,160,205", 2: "196,170,255"}
+
+
+def layout(n: int, seed: int = 7, zone: tuple | None = None) -> list[list[float]]:
+    """Созвездие внутри зоны: точки с минимальным расстоянием; детерминировано по seed."""
     if n <= 0:
         return []
     rnd = random.Random(seed + n)
     pts: list[list[float]] = []
     tries = 0
+    x0, y0, x1, y1 = zone or (0.10, 0.14, 0.90, 0.78)
     min_d = 0.16 if n <= 8 else 0.13
-    while len(pts) < n and tries < 5000:
+    while len(pts) < n and tries < 6000:
         tries += 1
-        x = 0.24 + rnd.random() * 0.52
-        y = 0.18 + rnd.random() * 0.58
+        x = x0 + 0.08 * (x1 - x0) + rnd.random() * 0.84 * (x1 - x0)
+        y = y0 + 0.10 * (y1 - y0) + rnd.random() * 0.68 * (y1 - y0)
         # ближе к центру облака — чуть охотнее
         if rnd.random() > 0.35 + 0.65 * math.exp(-((x - 0.5) ** 2 * 3 + (y - 0.5) ** 2 * 2)):
             continue
         # прямоугольное исключение (06.09: подпись «ждёт покупателя» под одним именем ложилась
         # над соседним — «ЖД» над FLOCK): либо разнос по вертикали ≥ 0.085 высоты (имя + подпись),
         # либо по горизонтали ≥ 0.20 ширины (длинное имя с подписью)
-        if all((abs(y - py) >= 0.085) or (abs(x - px) >= 0.20) for px, py in pts) and \
+        if all((abs(y - py) >= 0.075) or (abs(x - px) >= 0.17) for px, py in pts) and \
            all(math.hypot((x - px) * 1.4, y - py) >= min_d for px, py in pts):
             pts.append([round(x, 3), round(y, 3)])
-    while len(pts) < n:  # на крайний случай — сетка
-        i = len(pts)
-        pts.append([round(0.3 + 0.4 * ((i * 7) % 5) / 4, 3), round(0.22 + 0.6 * (i / n), 3)])
+    if len(pts) < n:
+        # не разместились случайно — сетка по зоне с лёгким дрожанием (колонки по ширине, ряды по высоте)
+        cols = max(1, min(n, int((x1 - x0) / 0.17)))
+        rows = math.ceil(n / cols)
+        pts = []
+        for i in range(n):
+            c_i, r_i = i % cols, i // cols
+            x = x0 + (x1 - x0) * (c_i + 0.5) / cols + (rnd.random() - 0.5) * 0.02
+            y = y0 + (y1 - y0) * (0.12 + 0.72 * (r_i + 0.5) / rows) + (rnd.random() - 0.5) * 0.015
+            pts.append([round(x, 3), round(y, 3)])
     return pts
 
 
@@ -185,27 +203,38 @@ def render_intro(items: list[dict] | None = None) -> str:
     # ПОДПИСИ ГРУПП ПРИЛЕТАЮТ ТОЖЕ (06.09, владелец): три слова — теми же «именами» из облака,
     # первыми по тактам, каждое в своей группе: «брать» набирает свет, «держать» зеленеет,
     # «закрыть» рассыпается. Стоят рядом по низу, монеты — созвездием над ними.
-    # четвёртая группа «готовы» (ждут покупателя) рисуется светом «держать», но подписью «готовы»
+    # ГОТОВЫ — СВОЯ ГРУППА (06.09, владелец: «непонятно, как отличать держать от готовы»):
+    # без зелени и искр, тусклее, короткие лучи, стоят НИЖНИМ рядом над подписями —
+    # «на скамейке»; держать — созвездие выше, с зелёной подсветкой
     ready = [it for it in items if it["g"] == 3]
     for it in ready:
-        it["g"] = 1
-        it["bright"] = 0.5
-    counts = [sum(1 for it in items if it["g"] == k and not (it.get("sub") == "ждёт покупателя")) for k in (0, 1, 2)]
-    counts.append(len(ready))
+        it["bright"] = 0.55
+    counts = [sum(1 for it in items if it["g"] == k) for k in (0, 1, 2, 3)]
     labels = [{"n": f"брать {counts[0]}", "sym": "", "g": 0, "why": "", "label": True},
-              {"n": f"держать {counts[1]} · готовы {counts[3]}", "sym": "", "g": 1, "why": "", "label": True},
+              {"n": f"держать {counts[1]}", "sym": "", "g": 1, "why": "", "label": True},
+              {"n": f"готовы {counts[3]}", "sym": "", "g": 3, "why": "", "label": True},
               {"n": f"у цели {counts[2]}", "sym": "", "g": 2, "why": "", "label": True}]
-    allit = labels + items
-    names = [it["n"] for it in allit]
-    grp = [it["g"] for it in allit]
-    syms = [it["sym"] for it in allit]
+    # раскладка (откат 06.09, владелец: «с зонами некрасиво»): одно облако-созвездие для всех
+    # групп, различие — цветом и поведением света; подписи групп — четыре внизу
+    # порядок появления (06.09, владелец): подпись группы → её звёзды → следующая → её звёзды
+    LABPOS = {0: [0.16, 0.90], 1: [0.39, 0.90], 3: [0.61, 0.90], 2: [0.84, 0.90]}
+    star_pos = layout(len(items))
+    allit: list[dict] = []
+    pos: list[list[float]] = []
+    k = 0
+    for g in (0, 1, 3, 2):
+        allit.append(next(it for it in labels if it["g"] == g)); pos.append(LABPOS[g])
+        for it in items:
+            if it["g"] == g:
+                allit.append(it); pos.append(star_pos[k]); k += 1
+    names = [it["n"] for it in allit]; grp = [it["g"] for it in allit]; syms = [it["sym"] for it in allit]
     whys = [it.get("why", "") for it in allit]
+    zones = []
     lab = [1 if it.get("label") else 0 for it in allit]
     subs = [it.get("sub", "") for it in allit]
     bright = [1.0 if it.get("label") else float(it.get("bright", 0.85)) for it in allit]
-    pos = [[0.24, 0.90], [0.50, 0.90], [0.76, 0.90]] + layout(len(items))
     n = max(1, len(allit))
-    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright},
+    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones},
                       ensure_ascii=False).replace("</", "<\\/")
     return TEMPLATE.replace("__N__", str(n)).replace("__DATA__", data)
 
@@ -239,11 +268,13 @@ const names=DATA.names.length?DATA.names:['—'],GRP=DATA.names.length?DATA.grp:
 const N=names.length,NF=4,FONT='Michroma';
 const POS=DATA.names.length?DATA.pos:[[.5,.5]];
 const LAB=DATA.label||[];
+// зоны и полосы сняты (06.09, владелец): группы различаются светом, не местом
+
 const c=document.getElementById('c');
 const gl=c.getContext('webgl',{antialias:false,alpha:false});
 const VS=`attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}`;
 const FS=`precision highp float;
-uniform vec2 R;uniform float T,A;uniform vec2 P[${N}];uniform float F[${N}];uniform float G[${N}];uniform float BR[${N}];uniform sampler2D M;uniform vec2 S[${N*NF}];uniform float SP[${N*NF}];
+uniform vec2 R;uniform float T,A;uniform vec2 P[${N}];uniform float F[${N}];uniform float G[${N}];uniform float BR[${N}];uniform float HW[${N}];uniform float HH;uniform sampler2D M;uniform vec2 S[${N*NF}];uniform float SP[${N*NF}];
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
   return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x),f.y);}
@@ -261,7 +292,8 @@ void main(){
   vec3 mk=texture2D(M,vec2(mu.x,1.-mu.y)).rgb;
   vec3 ms=texture2D(M,vec2(uv.x,1.-uv.y)).rgb;
   float core=ms.r,soft=ms.b,halo=mk.g;
-  float isClose=step(1.5,Gi),isBuy=1.-step(.5,Gi),isHold=(1.-isClose)*(1.-isBuy);
+  float isReady=step(2.5,Gi);
+  float isClose=step(1.5,Gi)*(1.-isReady),isBuy=1.-step(.5,Gi),isHold=(1.-isClose)*(1.-isBuy)*(1.-isReady);
   float er=smoothstep(.3,.75,fbm(px*.045+vec2(T*.12,-T*.05)))*(.45+.3*sin(T*.3))*isClose;
   core*=1.-er*.9;soft*=1.-er*.75;
   float drift=texture2D(M,vec2(uv.x-hash(px+3.)*.03,1.-(uv.y+hash(px+5.)*.016))).b*isClose;
@@ -275,7 +307,7 @@ void main(){
   col=bg+col*dens*1.15;
   col+=hot*pow(smoothstep(.55,.92,d)*max(cloud,wrap),3.)*.8;
   float vis=smoothstep(1.05-Fi*1.25,1.3-Fi*1.25,d+.1);
-  float lvl=.82*Bi;   // общий уровень света имён понижен, яркость — по надёжности
+  float lvl=.82*Bi*(1.-.45*isReady);   // общий уровень понижен; «готовы» — ещё бледнее, без зелени
   col+=vec3(.34,.38,.72)*(soft*.8+core*.15)*vis*lvl;
   col+=vec3(.36,.42,.8)*halo*vis*.4*Fi*lvl;
   float grain=hash(px*.9+floor(T*6.)*3.1);
@@ -284,29 +316,32 @@ void main(){
   col+=vec3(.34,.38,.72)*drift*step(.55,hash(px*1.7+floor(T*5.)))*.4*vis;
   col+=vec3(.5,.56,.9)*halo*vis*.25*isBuy*(.5+.5*sin(T*2.));
   col+=vec3(.30,.78,.58)*(halo*.32+soft*.22)*vis*isHold*Fi;
+  col+=vec3(.40,.58,1.)*(halo*.28+soft*.30)*vis*isReady*Fi;                     // готовы: ровный синий, не мигает
   for(int i=0;i<${N*NF};i++){
     float on=smoothstep(.6,1.,F[i/${NF}])*(.55+.45*BR[i/${NF}]);   // блики тусклее у менее надёжных
     if(on<=0.)continue;
     float ph=SP[i];float gi=G[i/${NF}];
-    vec3 fc=(gi>.5&&gi<1.5)?vec3(.72,1.,.86):vec3(.86,.96,1.);
-    vec2 cc=S[i]*R+vec2(sin(T*1.9+ph*9.),cos(T*1.5+ph*5.))*1.4;
+
+    vec3 fc=(gi>.5&&gi<1.5)?vec3(.72,1.,.86):(gi>2.5?vec3(.42,.62,1.):(gi<.5?vec3(.97,.98,1.):vec3(.86,.96,1.)));   // брать белые · держать зелёные · готовы синие
+    vec2 cc=S[i]*R+(gi>2.5?vec2(0.):vec2(sin(T*1.9+ph*9.),cos(T*1.5+ph*5.))*1.4);
     vec2 dp=px-cc;float dist=length(dp);
     if(dist>mix(70.,160.,BR[i/${NF}]))continue;
-    float ang=ph*6.28*.15+sin(T*.35+ph*4.)*.45;
+    float ang=ph*6.28*.15+(gi>2.5?0.:sin(T*.35+ph*4.)*.45);
     float cs=cos(ang),sn=sin(ang);vec2 dr=vec2(dp.x*cs-dp.y*sn,dp.x*sn+dp.y*cs);
     float pulse=.4+.6*pow(.5+.5*sin(T*1.3+ph*6.28),3.);
-    if(gi>1.5)pulse*=step(.3,hash(vec2(floor(T*7.)+ph*13.,ph)));
+    if(gi>2.5)pulse=.6;                                               // готовы: ровно, без дыхания
+    if(gi>1.5&&gi<2.5)pulse*=step(.3,hash(vec2(floor(T*7.)+ph*13.,ph)));   // мигание — только «у цели»
     if(gi<.5)pulse=.7+.3*pulse;
     float k=exp(-dist*dist/5.);
     // ДЛИНА ЛУЧЕЙ — ПО НАДЁЖНОСТИ (06.09, владелец: «чем больше длина, тем надёжнее»):
     // у надёжной луч в три раза длиннее, у слабой — короткий
-    float rb=BR[i/${NF}];float rk=mix(3.2,1.,rb);
+    float rb=BR[i/${NF}];float rk=mix(3.2,1.,rb);if(gi>2.5)rk=1.9;   // готовы: лучи короче обычных, но видны
     float st=exp(-abs(dr.y)*.9)*exp(-abs(dr.x)*.014*rk)*.7+exp(-abs(dr.x)*.9)*exp(-abs(dr.y)*.035*rk)*.4;
     vec2 dd=vec2(dr.x+dr.y,dr.x-dr.y)*.7071;
     st+=(exp(-abs(dd.x)*1.2)*exp(-abs(dd.y)*.08*rk)+exp(-abs(dd.y)*1.2)*exp(-abs(dd.x)*.08*rk))*.2;
     float glow=exp(-dist*.07)*.3;
     col+=fc*(k*1.8+st+glow)*pulse*on;
-    float below=step(dp.y,0.)*smoothstep(gi>1.5?-130.:-70.,-8.,dp.y);
+    float below=step(dp.y,0.)*smoothstep(gi>1.5?-130.:-70.,-8.,dp.y)*(1.-step(2.5,gi));
     float sig=2.+(-dp.y)*.05;
     float colm=exp(-dp.x*dp.x/(2.*sig*sig));
     float spd=gi<.5?-(45.+ph*30.):(gi>1.5?150.+ph*80.:60.+ph*50.);
@@ -347,7 +382,7 @@ function mask(){
   m.globalCompositeOperation='lighter';
   for(let i=0;i<N;i++){const x=W*POS[i][0]+size*.06,y=H*POS[i][1],name=names[i];
     // подписи групп — кириллицей, Michroma её не знает: Inter, чуть крупнее и с разрядкой
-    m.font=LAB[i]?`300 ${size*1.15}px "Inter",system-ui,sans-serif`:`400 ${size*.935}px "${FONT}",system-ui,sans-serif`;   // монеты на 6.5% мельче (06.09)
+    m.font=LAB[i]?`300 ${size*.92}px "Inter",system-ui,sans-serif`:`400 ${size*.935}px "${FONT}",system-ui,sans-serif`;   // заголовки зон −20%, монеты −6.5% (06.09)
     m.letterSpacing=LAB[i]?'0.32em':'0.12em';
     m.fillStyle='#0f0';m.filter=`blur(${size*.16}px)`;m.fillText(name,x,y);m.fillText(name,x,y);
     m.fillStyle='#00f';m.filter=`blur(${size*.035}px)`;m.fillText(name,x,y);m.fillText(name,x,y);
@@ -369,6 +404,10 @@ function mask(){
     }
   }
   gl.uniform2fv(uS,S);gl.uniform1fv(uSP,SP);
+  // полуширина каждого имени в долях ширины — для ореола «брать»
+  m.font=`400 ${size*.935}px "${FONT}",system-ui,sans-serif`;m.letterSpacing='0.12em';
+  const HW=new Float32Array(N);for(let i=0;i<N;i++){HW[i]=(m.measureText(names[i]).width/2)/W;}
+  gl.uniform1fv(U('HW'),HW);gl.uniform1f(U('HH'),(size*.55)/H);
 }
 const T_IN=2.8,GAP=Math.max(1.4,Math.min(3.0,24/N));   // при 12 именах — по 2 с, чтобы созвездие собралось за полминуты
 const ease=x=>x*x*(3-2*x);
