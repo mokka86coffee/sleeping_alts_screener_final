@@ -102,6 +102,26 @@ def _today_bars(sym_usdt: str) -> dict | None:
             "today": "покупают сегодня" if buying else ("продают сегодня" if selling else "стоит")}
 
 
+def _oi_from_intraday(sym_usdt: str, days: int = 3) -> tuple | None:
+    """Интерес из внутридневного архива: первый и последний за `days` дней (Coinglass)."""
+    from datetime import datetime, timezone, timedelta
+    if not sym_usdt:
+        return None
+    p = BASE_DIR / "cq_v2" / "intraday" / f"{sym_usdt.replace('USDT', '').lower()}.jsonl"
+    if not p.exists():
+        return None
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:00Z")
+    vals = []
+    for line in p.read_text(encoding="utf-8").splitlines()[-400:]:
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
+        if str(r.get("candle", "")) >= since and r.get("oi"):
+            vals.append(float(r["oi"]))
+    return (vals[0], vals[-1]) if len(vals) >= 2 else None
+
+
 def judge(d: dict, live: dict | None = None) -> dict | None:
     o = _rows(d, "ohlcv")
     if len(o) < 35:
@@ -136,6 +156,14 @@ def judge(d: dict, live: dict | None = None) -> dict | None:
     k_now, k_3 = last["datetime"][:10], o[-4]["datetime"][:10]
     oi_now = float((oi.get(k_now) or {}).get("open_interest") or 0)
     oi_3 = float((oi.get(k_3) or {}).get("open_interest") or 0)
+    if not oi_now or not oi_3:
+        # ПЛЕЧО ИЗ АРХИВА (06.09, случай RAYSOL: у кванта интерес пустой пять дней — фильтр
+        # снял признак, а Coinglass видел ×4 за сутки): берём интерес из cq_v2/intraday —
+        # первый за три дня и последний
+        _ia = _oi_from_intraday(d.get("_sym") or "", days=3)
+        if _ia:
+            oi_3, oi_now = _ia
+            nums["oi_src"] = "intraday"
     grow = (oi_now / oi_3) if oi_3 else 0.0
     nums["oi_grow"] = round(grow, 2)
     if grow >= OI_GROW:
@@ -202,6 +230,7 @@ def build(only: list[str] | None = None) -> dict:
             d = json.loads(p.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             continue
+        d["_sym"] = p.stem.upper() + "USDT"
         j = judge(d, _live_row(p.stem.upper() + "USDT", src))
         if j:
             out["coins"][p.stem.upper() + "USDT"] = attach_today(p.stem.upper() + "USDT", j)

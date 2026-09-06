@@ -31,6 +31,27 @@ METRICS = [("funding", "funding-rate"), ("oi", "open-interest"),
            ("liq", "liquidation"), ("ohlcv", "ohlcv"),
            ("trade", "trade")]
 PAUSE = 1.1          # 60/мин с запасом
+# ПСЕВДОНИМЫ ТИКЕРОВ (06.09, владелец: «на Binance — RAYSOL, на остальных — RAY»): квант
+# агрегирует по своему имени монеты, и у бинансовых пар с префиксом/суффиксом ряд пустой.
+# Binance-имя → имя у кванта. Не нашлось — пробуем снять «1000»/«1M» и суффикс SOL.
+ALIAS = {
+    "raysol": "ray", "1000pepe": "pepe", "1000shib": "shib", "1000bonk": "bonk", "1000floki": "floki",
+    "1000cat": "cat", "1000lunc": "lunc", "1000sats": "sats", "1000rats": "rats", "1000x": "x",
+    "1mbabydoge": "babydoge", "1000cheems": "cheems", "1000whydoge": "why", "1000mog": "mog",
+}
+
+
+def cq_symbol(base: str) -> str:
+    """Имя монеты у кванта по бинансовой базе."""
+    b = base.lower()
+    if b in ALIAS:
+        return ALIAS[b]
+    for pre in ("1000000", "1000", "1m"):
+        if b.startswith(pre) and len(b) > len(pre):
+            return b[len(pre):]
+    if b.endswith("sol") and len(b) > 5:
+        return b[:-3]
+    return b
 FULL_DAYS = 365      # полный бэкфилл новичку в режиме --update
 RETRIES = 3
 OUT = Path("cq_v2")
@@ -76,7 +97,7 @@ def fetch_series(base_sym: str, metric_path: str, window: str,
     cap = 365 if window == "day" else 1000   # потолок глубины тарифа
     while len(rows) < need:
         limit = min(cap, need - len(rows))
-        url = (f"{BASE}/{metric_path}?symbol={base_sym}_all"
+        url = (f"{BASE}/{metric_path}?symbol={cq_symbol(base_sym)}_all"
                f"&window={window}&limit={limit}")
         if to:
             url += f"&to={to}"
