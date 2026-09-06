@@ -199,7 +199,11 @@ def build_letter(stars: list, market: dict) -> tuple[str, str]:
                 add(f"  · {_sym.replace('USDT', '')} — {_short}")
             add("")
             return len(_lst)
-        _near_n = _block("БЛИЗКИЕ К ХОДУ", "holding", " — держат после сбора, ход впереди")
+        _hb0 = _nm.get("holding_buying") or []
+        _nm["_buy"] = _hb0
+        _nm["_ready"] = [x for x in (_nm.get("holding") or []) if x not in _hb0]
+        _near_n = _block("БРАТЬ", "_buy", " — держат после сбора И покупают сегодня")
+        _block("ГОТОВЫ", "_ready", " — держат после сбора, покупателя сегодня нет — не входить")
         _hb, _hs = _nm.get("holding_buying") or [], _nm.get("holding_selling") or []
         if _hb or _hs:
             add("  сегодня по барам: " + (("покупают — " + ", ".join(x.replace("USDT", "") for x in _hb)) if _hb else "")

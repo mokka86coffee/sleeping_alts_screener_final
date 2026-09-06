@@ -68,9 +68,18 @@ def get_klines(symbol: str, interval: str, limit: int = 500) -> list[list]:
             {"symbol": symbol, "interval": interval, "limit": limit},
             weight=_klines_weight(limit),
         )
-        return closed_only(data or [])
+        # ТОЛЬКО ВНУТРИДНЕВНЫЕ (06.09, найдено по пульсу ARB: цена стояла на вчерашнем
+        # закрытии весь день): у суточных и недельных свечей текущую формирующуюся оставляем —
+        # из неё анализ берёт «цену сейчас» и суточный оборот; режем закрытость только у
+        # интервалов до 12 часов, где незакрытая свеча портит отношения к норме
+        if interval in INTRADAY_INTERVALS:
+            return closed_only(data or [])
+        return data or []
 
     return KLINES_CACHE.get_or_call(key, _fetch)
+
+
+INTRADAY_INTERVALS = {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h"}
 
 
 def closed_only(klines: list[list]) -> list[list]:

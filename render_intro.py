@@ -95,8 +95,11 @@ def collect_items() -> list[dict]:
         v = coins.get(sym) or {}
         td = (v.get("today") or {}).get("today")
         # сегодня по барам (06.09): покупают — подпись «покупают сегодня», продают — «ждёт покупателя»
-        sub = "покупают сегодня" if td == "покупают сегодня" else ("ждёт покупателя" if td == "продают сегодня" else "")
-        add(sym, 0, " · ".join(v.get("why") or []) + (f" · сегодня: {td}" if td else ""), sub, reliability(v))
+        # БРАТЬ — ТОЛЬКО С ПОКУПАТЕЛЕМ (06.09, владелец: «ни одна из списка не пошла, все упали»):
+        # «держат после сбора» — состояние, не команда; без покупателя сегодня — «готова, ждёт»
+        buying = td == "покупают сегодня"
+        sub = "покупают сегодня" if buying else "ждёт покупателя"
+        add(sym, 0 if buying else 3, " · ".join(v.get("why") or []) + (f" · сегодня: {td}" if td else ""), sub, reliability(v))
     for sym in nm.get("going") or []:
         v = coins.get(sym) or {}
         td = (v.get("today") or {}).get("today")
@@ -182,8 +185,15 @@ def render_intro(items: list[dict] | None = None) -> str:
     # ПОДПИСИ ГРУПП ПРИЛЕТАЮТ ТОЖЕ (06.09, владелец): три слова — теми же «именами» из облака,
     # первыми по тактам, каждое в своей группе: «брать» набирает свет, «держать» зеленеет,
     # «закрыть» рассыпается. Стоят рядом по низу, монеты — созвездием над ними.
+    # четвёртая группа «готовы» (ждут покупателя) рисуется светом «держать», но подписью «готовы»
+    ready = [it for it in items if it["g"] == 3]
+    for it in ready:
+        it["g"] = 1
+        it["bright"] = 0.5
+    counts = [sum(1 for it in items if it["g"] == k and not (it.get("sub") == "ждёт покупателя")) for k in (0, 1, 2)]
+    counts.append(len(ready))
     labels = [{"n": f"брать {counts[0]}", "sym": "", "g": 0, "why": "", "label": True},
-              {"n": f"держать {counts[1]}", "sym": "", "g": 1, "why": "", "label": True},
+              {"n": f"держать {counts[1]} · готовы {counts[3]}", "sym": "", "g": 1, "why": "", "label": True},
               {"n": f"у цели {counts[2]}", "sym": "", "g": 2, "why": "", "label": True}]
     allit = labels + items
     names = [it["n"] for it in allit]
