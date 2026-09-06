@@ -161,10 +161,10 @@
   // расхождение между тем, что оболочка готова открыть, и тем, что
   // реально лежит на диске, иначе обнаруживается только пустым
   // экраном у пользователя.
-  var ALLOWED = ["dashboard", "brief", "podium", "coin"];
-  var START = "brief";
-  var SEQUENCE = {"brief": "coin", "podium": "dashboard"};
-  var NAMES = {"brief": "сводка", "podium": "зал", "coin": "монета", "dashboard": "дашборд"};
+  var ALLOWED = ["intro", "dashboard", "brief", "podium", "coin"];
+  var START = "intro";
+  var SEQUENCE = {"intro": "brief", "brief": "coin", "podium": "dashboard"};
+  var NAMES = {"intro": "свет", "brief": "сводка", "podium": "зал", "coin": "монета", "dashboard": "дашборд"};
   var MIN_SHOW_MS = 700;
   var FAILSAFE_MS = 12000;
 
@@ -312,6 +312,13 @@
     // Явный переход: экран сам называет, куда идти.
     if (msg.type === 'ob:switchScreen') {
       switchScreen(String(msg.screen || ''));
+      return;
+    }
+    // Открыть экран с якорем (06.09): интро → монета по клику на имя; сам экран монеты
+    // грузится в тот же iframe, якорь он читает из location.hash — оболочке
+    // достаточно сменить экран, iframe уже ушёл по ссылке
+    if (msg.type === 'ob:open') {
+      current = String(msg.screen || '');
       return;
     }
 

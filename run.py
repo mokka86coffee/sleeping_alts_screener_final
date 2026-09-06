@@ -471,6 +471,13 @@ def render_report(candidates: list[Candidate], snapshot: RunSnapshot) -> bool:
         log(f"Ошибка сборки отчёта: {type(e).__name__}: {e}")
         traceback.print_exc()
         return False
+    # ПЕРВЫЙ ЭКРАН «поведение света» (06.09): брать / держать / закрыть из near_move и журнала;
+    # сбой не роняет отчёт — интро просто не обновится
+    try:
+        from render_intro import render_intro as _ri
+        pages["intro.html"] = _ri()
+    except Exception as e:
+        _issue("Интро", f"{type(e).__name__}: {e}")
 
     # Сборка ВСЕХ документов идёт до первой записи. Иначе падение на
     # третьем экране оставило бы на диске два новых файла и один
