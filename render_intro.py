@@ -71,18 +71,37 @@ def collect_items() -> list[dict]:
     items: list[dict] = []
     seen: set = set()
 
-    def add(sym: str, g: int, why: str, sub: str = ""):
+    def add(sym: str, g: int, why: str, sub: str = "", rel: float = 0.0):
         if sym in seen:
             return
         seen.add(sym)
-        items.append({"n": sym.replace("USDT", ""), "sym": sym, "g": g, "why": why, "sub": sub})
+        items.append({"n": sym.replace("USDT", ""), "sym": sym, "g": g, "why": why, "sub": sub, "rel": rel})
+
+    def reliability(v: dict) -> float:
+        """Надёжность (06.09, владелец: «у кого надёжнее — та ярче»): сбор × рост плеча, в логарифме
+        по сбору — FLOCK ×144 при плече ×2.5 против «четвёрки» ×20 при ×1.8; сегодня продают — штраф."""
+        n = v.get("nums") or {}
+        hx = max(1.0, float(n.get("harvest_x") or 1.0))
+        og = max(0.5, float(n.get("oi_grow") or 1.0))
+        r = math.log10(hx) * og
+        td = (v.get("today") or {}).get("today")
+        if td == "продают сегодня":
+            r *= 0.6
+        elif td == "покупают сегодня":
+            r *= 1.15
+        return r
 
     for sym in nm.get("holding") or []:
         v = coins.get(sym) or {}
-        add(sym, 0, " · ".join(v.get("why") or []))
+        td = (v.get("today") or {}).get("today")
+        # сегодня по барам (06.09): покупают — подпись «покупают сегодня», продают — «ждёт покупателя»
+        sub = "покупают сегодня" if td == "покупают сегодня" else ("ждёт покупателя" if td == "продают сегодня" else "")
+        add(sym, 0, " · ".join(v.get("why") or []) + (f" · сегодня: {td}" if td else ""), sub, reliability(v))
     for sym in nm.get("going") or []:
         v = coins.get(sym) or {}
-        add(sym, 1, " · ".join(v.get("why") or []))
+        td = (v.get("today") or {}).get("today")
+        # в «держать» подпись — предупреждение о выходе: «продают сегодня»; покупают — молча
+        add(sym, 1, " · ".join(v.get("why") or []) + (f" · сегодня: {td}" if td else ""), "продают сегодня" if td == "продают сегодня" else "", reliability(v))
     # ДЕРЖАТЬ / ЗАКРЫТЬ ПО СМЫСЛУ ДВИЖЕНИЯ (06.09, случай ENA: «у цели — ведут покупатели» попала в
     # «закрыть», а сменившись на «кит набирает тихо» — исчезла совсем):
     #   держать — «идут» из фильтра + шаблоны «у цели … ведут покупатели», «крупняк тащит вверх»,
@@ -114,8 +133,19 @@ def collect_items() -> list[dict]:
             add(sym, 1, plot)
         elif plot.startswith("кит набирает тихо") and d24 > 0:
             add(sym, 1, plot + " · дельта дня в плюс")
-    # порядок: брать, держать, закрыть; внутри — как пришли (near_move уже отсортирован по обороту)
-    items.sort(key=lambda it: it["g"])
+    # порядок: брать, держать, у цели; внутри группы — по надёжности, самая надёжная первой
+    items.sort(key=lambda it: (it["g"], -it.get("rel", 0.0)))
+    # яркость внутри группы: лучшая — 1.0, остальные вниз до 0.45; «у цели» — ровно 0.7
+    for g in (0, 1):
+        grp = [it for it in items if it["g"] == g]
+        if not grp:
+            continue
+        hi_r, lo_r = max(it["rel"] for it in grp), min(it["rel"] for it in grp)
+        for it in grp:
+            it["bright"] = 1.0 if hi_r <= lo_r else 0.45 + 0.55 * (it["rel"] - lo_r) / (hi_r - lo_r)
+    for it in items:
+        if it["g"] == 2:
+            it["bright"] = 0.7
     return items[:MAX_NAMES]
 
 
@@ -134,7 +164,11 @@ def layout(n: int, seed: int = 7) -> list[list[float]]:
         # ближе к центру облака — чуть охотнее
         if rnd.random() > 0.35 + 0.65 * math.exp(-((x - 0.5) ** 2 * 3 + (y - 0.5) ** 2 * 2)):
             continue
-        if all(math.hypot((x - px) * 1.4, y - py) >= min_d for px, py in pts):
+        # прямоугольное исключение (06.09: подпись «ждёт покупателя» под одним именем ложилась
+        # над соседним — «ЖД» над FLOCK): либо разнос по вертикали ≥ 0.085 высоты (имя + подпись),
+        # либо по горизонтали ≥ 0.20 ширины (длинное имя с подписью)
+        if all((abs(y - py) >= 0.085) or (abs(x - px) >= 0.20) for px, py in pts) and \
+           all(math.hypot((x - px) * 1.4, y - py) >= min_d for px, py in pts):
             pts.append([round(x, 3), round(y, 3)])
     while len(pts) < n:  # на крайний случай — сетка
         i = len(pts)
@@ -158,9 +192,10 @@ def render_intro(items: list[dict] | None = None) -> str:
     whys = [it.get("why", "") for it in allit]
     lab = [1 if it.get("label") else 0 for it in allit]
     subs = [it.get("sub", "") for it in allit]
+    bright = [1.0 if it.get("label") else float(it.get("bright", 0.85)) for it in allit]
     pos = [[0.24, 0.90], [0.50, 0.90], [0.76, 0.90]] + layout(len(items))
     n = max(1, len(allit))
-    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs},
+    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright},
                       ensure_ascii=False).replace("</", "<\\/")
     return TEMPLATE.replace("__N__", str(n)).replace("__DATA__", data)
 
@@ -198,7 +233,7 @@ const c=document.getElementById('c');
 const gl=c.getContext('webgl',{antialias:false,alpha:false});
 const VS=`attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}`;
 const FS=`precision highp float;
-uniform vec2 R;uniform float T,A;uniform vec2 P[${N}];uniform float F[${N}];uniform float G[${N}];uniform sampler2D M;uniform vec2 S[${N*NF}];uniform float SP[${N*NF}];
+uniform vec2 R;uniform float T,A;uniform vec2 P[${N}];uniform float F[${N}];uniform float G[${N}];uniform float BR[${N}];uniform sampler2D M;uniform vec2 S[${N*NF}];uniform float SP[${N*NF}];
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
   return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x),f.y);}
@@ -209,8 +244,8 @@ void main(){
   vec2 q=vec2(fbm(p*2.4+vec2(0.,T*.13)),fbm(p*2.4+vec2(5.2,1.3)-vec2(T*.1,0.)));
   vec2 r=vec2(fbm(p*2.4+q*2.2+vec2(1.7,9.2)+T*.08),fbm(p*2.4+q*2.2+vec2(8.3,2.8)-vec2(0.,T*.07)));
   float d=fbm(p*2.4+r*2.6);
-  float Fi=0.,Fm=0.,Gi=1.,best=1e9;
-  for(int i=0;i<${N};i++){float dd=length((uv-P[i])*vec2(ar,1.));if(dd<best){best=dd;Fi=F[i];Gi=G[i];}Fm=max(Fm,F[i]);}
+  float Fi=0.,Fm=0.,Gi=1.,Bi=1.,best=1e9;
+  for(int i=0;i<${N};i++){float dd=length((uv-P[i])*vec2(ar,1.));if(dd<best){best=dd;Fi=F[i];Gi=G[i];Bi=BR[i];}Fm=max(Fm,F[i]);}
   float w=mix(.15,.01,Fi);
   vec2 mu=uv+(r-.5)*w;
   vec3 mk=texture2D(M,vec2(mu.x,1.-mu.y)).rgb;
@@ -230,8 +265,9 @@ void main(){
   col=bg+col*dens*1.15;
   col+=hot*pow(smoothstep(.55,.92,d)*max(cloud,wrap),3.)*.8;
   float vis=smoothstep(1.05-Fi*1.25,1.3-Fi*1.25,d+.1);
-  col+=vec3(.34,.38,.72)*(soft*.8+core*.15)*vis;
-  col+=vec3(.36,.42,.8)*halo*vis*.4*Fi;
+  float lvl=.82*Bi;   // общий уровень света имён понижен, яркость — по надёжности
+  col+=vec3(.34,.38,.72)*(soft*.8+core*.15)*vis*lvl;
+  col+=vec3(.36,.42,.8)*halo*vis*.4*Fi*lvl;
   float grain=hash(px*.9+floor(T*6.)*3.1);
   float crack=smoothstep(.62,.7,fbm(px*.06+vec2(T*.25,T*.1)+11.));
   col+=vec3(.55,.62,.95)*core*vis*(grain*.18+crack*.25);
@@ -239,22 +275,25 @@ void main(){
   col+=vec3(.5,.56,.9)*halo*vis*.25*isBuy*(.5+.5*sin(T*2.));
   col+=vec3(.30,.78,.58)*(halo*.32+soft*.22)*vis*isHold*Fi;
   for(int i=0;i<${N*NF};i++){
-    float on=smoothstep(.6,1.,F[i/${NF}]);
+    float on=smoothstep(.6,1.,F[i/${NF}])*(.55+.45*BR[i/${NF}]);   // блики тусклее у менее надёжных
     if(on<=0.)continue;
     float ph=SP[i];float gi=G[i/${NF}];
     vec3 fc=(gi>.5&&gi<1.5)?vec3(.72,1.,.86):vec3(.86,.96,1.);
     vec2 cc=S[i]*R+vec2(sin(T*1.9+ph*9.),cos(T*1.5+ph*5.))*1.4;
     vec2 dp=px-cc;float dist=length(dp);
-    if(dist>140.)continue;
+    if(dist>mix(70.,160.,BR[i/${NF}]))continue;
     float ang=ph*6.28*.15+sin(T*.35+ph*4.)*.45;
     float cs=cos(ang),sn=sin(ang);vec2 dr=vec2(dp.x*cs-dp.y*sn,dp.x*sn+dp.y*cs);
     float pulse=.4+.6*pow(.5+.5*sin(T*1.3+ph*6.28),3.);
     if(gi>1.5)pulse*=step(.3,hash(vec2(floor(T*7.)+ph*13.,ph)));
     if(gi<.5)pulse=.7+.3*pulse;
     float k=exp(-dist*dist/5.);
-    float st=exp(-abs(dr.y)*.9)*exp(-abs(dr.x)*.014)*.7+exp(-abs(dr.x)*.9)*exp(-abs(dr.y)*.035)*.4;
+    // ДЛИНА ЛУЧЕЙ — ПО НАДЁЖНОСТИ (06.09, владелец: «чем больше длина, тем надёжнее»):
+    // у надёжной луч в три раза длиннее, у слабой — короткий
+    float rb=BR[i/${NF}];float rk=mix(3.2,1.,rb);
+    float st=exp(-abs(dr.y)*.9)*exp(-abs(dr.x)*.014*rk)*.7+exp(-abs(dr.x)*.9)*exp(-abs(dr.y)*.035*rk)*.4;
     vec2 dd=vec2(dr.x+dr.y,dr.x-dr.y)*.7071;
-    st+=(exp(-abs(dd.x)*1.2)*exp(-abs(dd.y)*.08)+exp(-abs(dd.y)*1.2)*exp(-abs(dd.x)*.08))*.2;
+    st+=(exp(-abs(dd.x)*1.2)*exp(-abs(dd.y)*.08*rk)+exp(-abs(dd.y)*1.2)*exp(-abs(dd.x)*.08*rk))*.2;
     float glow=exp(-dist*.07)*.3;
     col+=fc*(k*1.8+st+glow)*pulse*on;
     float below=step(dp.y,0.)*smoothstep(gi>1.5?-130.:-70.,-8.,dp.y);
@@ -282,6 +321,7 @@ gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,-1,1,1,1]),gl.STATIC_
 const ap=gl.getAttribLocation(prog,'p');gl.enableVertexAttribArray(ap);gl.vertexAttribPointer(ap,2,gl.FLOAT,false,0,0);
 const U=n=>gl.getUniformLocation(prog,n);const uR=U('R'),uT=U('T'),uF=U('F'),uA=U('A'),uS=U('S'),uSP=U('SP');
 gl.uniform2fv(U('P'),new Float32Array(POS.flatMap(([x,y])=>[x,1-y])));gl.uniform1fv(U('G'),new Float32Array(GRP));
+gl.uniform1fv(U('BR'),new Float32Array(DATA.names.length?DATA.bright:[1]));
 const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);
 gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
 gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);

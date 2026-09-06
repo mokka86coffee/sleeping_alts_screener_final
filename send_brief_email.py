@@ -200,7 +200,16 @@ def build_letter(stars: list, market: dict) -> tuple[str, str]:
             add("")
             return len(_lst)
         _near_n = _block("БЛИЗКИЕ К ХОДУ", "holding", " — держат после сбора, ход впереди")
+        _hb, _hs = _nm.get("holding_buying") or [], _nm.get("holding_selling") or []
+        if _hb or _hs:
+            add("  сегодня по барам: " + (("покупают — " + ", ".join(x.replace("USDT", "") for x in _hb)) if _hb else "")
+                + (" · " if _hb and _hs else "") + (("продают — " + ", ".join(x.replace("USDT", "") for x in _hs)) if _hs else ""))
+            add("")
         _block("ИДУТ", "going", " — второй акт уже идёт, держать до «отпустил»")
+        _gs = _nm.get("going_selling") or []
+        if _gs:
+            add("  сегодня по барам продают: " + ", ".join(x.replace("USDT", "") for x in _gs) + " — первый бар с ценой за дельтой — выход")
+            add("")
         _block("ОТКАТИЛИСЬ", "pulled", " — отдали 10–35% после сбора, решит первый день продаж")
         _block("ОТДАЮТ", "giving", " — плечо уходит, отскоки — кандидаты на шорт")
         if not _near_n and not (_nm.get("going") or _nm.get("giving")):

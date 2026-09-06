@@ -64,6 +64,44 @@ def _rows(d: dict, key: str) -> list:
     return sorted([r for r in rows if isinstance(r, dict) and r.get("datetime")], key=lambda r: r["datetime"])
 
 
+def _today_bars(sym_usdt: str) -> dict | None:
+    """СЕГОДНЯ ПО БАРАМ (06.09, случай FLOCK против 4/ZEN/UNI/CHIP): из внутридневного архива —
+    дельта дня, ход интереса с первого бара, доминирующий тип часа. Это то, чего дневки не видят:
+    из одной группы «брать» утром покупают одну, продают три."""
+    from datetime import datetime, timezone
+    p = BASE_DIR / "cq_v2" / "intraday" / f"{sym_usdt.replace('USDT', '').lower()}.jsonl"
+    if not p.exists():
+        return None
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    rows = []
+    for line in p.read_text(encoding="utf-8").splitlines()[-80:]:
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
+        if str(r.get("candle", ""))[:10] == today:
+            rows.append(r)
+    if len(rows) < 4:
+        return None
+    d = sum(((r.get("fut") or {}).get("d") or 0) for r in rows)
+    b = sum(((r.get("fut") or {}).get("b") or 0) for r in rows)
+    sl = sum(((r.get("fut") or {}).get("s") or 0) for r in rows)
+    oi0 = next((r.get("oi") for r in rows if r.get("oi")), None)
+    oi1 = next((r.get("oi") for r in reversed(rows) if r.get("oi")), None)
+    types: dict = {}
+    for r in rows:
+        t = r.get("oi_type")
+        if t and t != "flat":
+            types[t] = types.get(t, 0) + 1
+    dom = max(types, key=types.get) if types else None
+    oi_chg = (oi1 / oi0 - 1) if oi0 and oi1 else None
+    buying = d > 0 and (oi_chg is None or oi_chg >= 0) and dom in (None, "long_open", "short_close")
+    selling = d < 0 and (oi_chg is not None and oi_chg < 0 or dom in ("long_close", "short_open"))
+    return {"bars": len(rows), "delta": round(d, 0), "taker": round(b / sl, 3) if sl else None,
+            "oi_chg_pct": round(oi_chg * 100, 1) if oi_chg is not None else None, "dominant": dom,
+            "today": "покупают сегодня" if buying else ("продают сегодня" if selling else "стоит")}
+
+
 def judge(d: dict, live: dict | None = None) -> dict | None:
     o = _rows(d, "ohlcv")
     if len(o) < 35:
@@ -141,6 +179,15 @@ def judge(d: dict, live: dict | None = None) -> dict | None:
             "close": float(last["close"]), "day": k_now, "live": bool(last.get("_live"))}
 
 
+def attach_today(sym_usdt: str, j: dict) -> dict:
+    tb = _today_bars(sym_usdt)
+    if tb:
+        j["today"] = tb
+        if j.get("group") in ("holding", "going", "pulled"):
+            j["sub"] = tb["today"]          # «покупают сегодня» / «продают сегодня» / «стоит» — во всех живых группах
+    return j
+
+
 def build(only: list[str] | None = None) -> dict:
     arch = BASE_DIR / "cq_v2"
     files = ([arch / f"{b.lower()}.json" for b in only] if only else
@@ -157,12 +204,15 @@ def build(only: list[str] | None = None) -> dict:
             continue
         j = judge(d, _live_row(p.stem.upper() + "USDT", src))
         if j:
-            out["coins"][p.stem.upper() + "USDT"] = j
+            out["coins"][p.stem.upper() + "USDT"] = attach_today(p.stem.upper() + "USDT", j)
     def _lst(g):
         return sorted([s for s, v in out["coins"].items() if v.get("group") == g],
                       key=lambda s: -(out["coins"][s]["nums"].get("lull_x") or 0))
     out["going"], out["holding"], out["pulled"], out["giving"] = _lst("going"), _lst("holding"), _lst("pulled"), _lst("giving")
     out["near"] = out["holding"]          # «близкие» = держат после сбора
+    for g in ("holding", "going", "pulled"):
+        out[g + "_buying"] = [s2 for s2 in out[g] if (out["coins"][s2].get("today") or {}).get("today") == "покупают сегодня"]
+        out[g + "_selling"] = [s2 for s2 in out[g] if (out["coins"][s2].get("today") or {}).get("today") == "продают сегодня"]
     return out
 
 
@@ -175,7 +225,10 @@ def main() -> int:
     NM = {"going": "ИДЁТ", "holding": "БЛИЗКАЯ (держат после сбора)", "pulled": "ОТКАТИЛАСЬ", "giving": "ОТДАЮТ"}
     for sym, v in sorted(res["coins"].items(), key=lambda kv: -kv[1]["score"]):
         if a.only or v.get("group"):
-            print(f"{sym}: {v['score']}/5 {NM.get(v.get('group'), '')}{' · с живым днём' if v.get('live') else ''} · " + " · ".join(v["why"]) + f" · {v['nums']}")
+            _td = v.get("today") or {}
+            print(f"{sym}: {v['score']}/5 {NM.get(v.get('group'), '')}{' · с живым днём' if v.get('live') else ''}"
+                  + (f" · СЕГОДНЯ: {_td['today']} (дельта {_td['delta'] / 1e6:+.1f}M, интерес {_td['oi_chg_pct']:+.0f}%, {_td['dominant']})" if _td else "")
+                  + " · " + " · ".join(v["why"]) + f" · {v['nums']}")
     for g in ("going", "holding", "pulled", "giving"):
         print(f"{NM[g].lower()}: {len(res[g])} — {', '.join(res[g])}")
     print(f"близких: {len(res['near'])} — {', '.join(res['near'])}")
