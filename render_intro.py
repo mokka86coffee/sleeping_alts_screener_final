@@ -251,7 +251,7 @@ void main(){
   float d=fbm(p*2.4+r*2.6);
   float Fi=0.,Fm=0.,Gi=1.,Bi=1.,best=1e9;
   for(int i=0;i<${N};i++){float dd=length((uv-P[i])*vec2(ar,1.));if(dd<best){best=dd;Fi=F[i];Gi=G[i];Bi=BR[i];}Fm=max(Fm,F[i]);}
-  float w=mix(.15,.01,Fi);
+  float w=mix(.06,.005,Fi);   // (07.09) уже: раньше цеплял буквы соседних имён
   vec2 mu=uv+(r-.5)*w;
   vec3 mk=texture2D(M,vec2(mu.x,1.-mu.y)).rgb;
   vec3 ms=texture2D(M,vec2(uv.x,1.-uv.y)).rgb;
@@ -260,8 +260,9 @@ void main(){
   float isClose=step(1.5,Gi)*(1.-isReady),isBuy=1.-step(.5,Gi),isHold=(1.-isClose)*(1.-isBuy)*(1.-isReady);
   float er=smoothstep(.3,.75,fbm(px*.045+vec2(T*.12,-T*.05)))*(.45+.3*sin(T*.3))*isClose;
   core*=1.-er*.9;soft*=1.-er*.75;
-  float drift=texture2D(M,vec2(uv.x-hash(px+3.)*.03,1.-(uv.y+hash(px+5.)*.016))).b*isClose;
-  float wrap=(halo*(.35+.65*smoothstep(.25,.85,d))+mk.r*.4)*Fi;
+  float near_=smoothstep(.16,.04,best);   // ореол и «сборка» — только вблизи ближайшего имени
+  float drift=texture2D(M,vec2(uv.x-hash(px+3.)*.012,1.-(uv.y+hash(px+5.)*.008))).b*isClose*near_;
+  float wrap=(halo*(.35+.65*smoothstep(.25,.85,d))+mk.r*.4)*Fi*near_;
   float blob=exp(-dot(p*vec2(1.1,.95),p*vec2(1.1,.95))*1.8);
   float cloud=smoothstep(.36,.85,d)*blob;
   float dens=clamp(cloud*(1.-Fm*.5)+wrap,0.,1.);
@@ -359,11 +360,20 @@ function mask(){
       m.fillStyle='#f00';m.filter='none';m.fillText(sub,x,y+size*1.05);}
   }
   gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,mc);
-  const img=m.getImageData(0,0,W,H).data,S=new Float32Array(N*NF*2).fill(-1),SP=new Float32Array(N*NF);
+  // ненайденный блик уводим далеко за экран (07.09): в шейдере WebGL1 нельзя отсекать
+  // по значению uniform-массива с динамическим индексом — падала компиляция и весь скрипт
+  const img=m.getImageData(0,0,W,H).data,S=new Float32Array(N*NF*2).fill(9.0),SP=new Float32Array(N*NF);
+  const nameW=new Array(N);
+  for(let i=0;i<N;i++){m.font=LAB[i]?`300 ${size*.92}px "Inter",system-ui,sans-serif`:`400 ${size*.935}px "${FONT}",system-ui,sans-serif`;
+    m.letterSpacing=LAB[i]?'0.32em':'0.12em';nameW[i]=m.measureText(names[i]).width;}
   for(let i=0;i<N;i++){const x=W*POS[i][0]+size*.06,y=H*POS[i][1],name=names[i];
     for(let n=0,tries=0;n<NF&&tries<4000;tries++){
-      const px=Math.floor(x+(Math.random()-.5)*name.length*size*1.2),py=Math.floor(y+(Math.random()-.5)*size);
+      // блик — только внутри СВОЕГО имени (07.09: брали из полосы шире имени и цепляли соседей —
+      // рядом рисовались лучи без названий); ширину берём измерением, не длиной строки
+      const half=nameW[i]/2;
+      const px=Math.floor(x+(Math.random()-.5)*half*1.7),py=Math.floor(y+(Math.random()-.5)*size*.8);
       if(px<0||py<0||px>=W||py>=H)continue;
+      if(Math.abs(px-x)>half+2||Math.abs(py-y)>size*.6)continue;
       if(img[(py*W+px)*4]>140){S[(i*NF+n)*2]=px/W;S[(i*NF+n)*2+1]=1-py/H;SP[i*NF+n]=Math.random();n++}
     }
   }
