@@ -27,7 +27,13 @@
   8. oi_total     — сумма интереса по доске: растёт — деньги приходят; стоит, а у одной растёт —
                      это перекладка из остальных, рост одной означает падение других
   9. funding_med  — медианный фандинг по доске: за плечо платят все или только одна монета
- 10. leaders      — десятка лидеров дня ПО ВСЕЙ БИРЖЕ, а не по нашей доске (07.09, владелец
+ 10. taker        — СВОДНЫЙ ТЕЙКЕР ПО ДОСКЕ (07.09, владелец спросил, где его брать): кто бьёт по
+                    стакану на рынке в целом. Складываем рыночные покупки и продажи по всем монетам
+                    и делим одно на другое: выше единицы — агрессивнее покупают, ниже — продают.
+                    Ленты 07.09 писали «поток лёг в шорт, 51.6% на продажу» — это то же число,
+                    только чужое; своё считается из наших же баров и потому пересчитываемо.
+                    Пишем за сутки (taker24 из среза) и за последний бар — разворот виден раньше.
+ 11. leaders      — десятка лидеров дня ПО ВСЕЙ БИРЖЕ, а не по нашей доске (07.09, владелец
                     прислал список: MEME +137%, BONER +123%, NUDES, IOST, SOLV, PIEVERSE — обороты
                     по пятьсот-семьсот тысяч). Деньги не ушли с рынка, они ушли МИМО нашей выборки,
                     в свежие листинги и мемы, где хватает пары сотен тысяч на плюс сто процентов.
@@ -196,6 +202,7 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
         files = [p for p in files if p.stem.lower() in keep]
 
     coins = []
+    tb = ts = tb_bar = ts_bar = 0.0        # покупки и продажи по всей доске: за день и за последний бар
     for p in files:
         rows = _today_rows(p, day)
         if not rows:
@@ -210,6 +217,14 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
         if len(px) >= 3:
             d1h = (px[-1] / px[-3] - 1) * 100
         c = cg.get(sym) or {}
+        for r in full:
+            f = r.get("fut") or {}
+            tb += float(f.get("b") or 0)
+            ts += float(f.get("s") or 0)
+        if full:
+            fl = full[-1].get("fut") or {}
+            tb_bar += float(fl.get("b") or 0)
+            ts_bar += float(fl.get("s") or 0)
         coins.append({
             "sym": sym, "px": px[-1],
             "day_pct": round((px[-1] / px[0] - 1) * 100, 2),
@@ -280,6 +295,13 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
         "breadth": {"up": green, "down": len(coins) - green,
                     "oi_up": sum(1 for c in coins if (c.get("oi_day_pct") or 0) > 0),
                     "n": len(coins)},
+        "taker": {
+            "day": round(tb / ts, 3) if ts else None,
+            "bar": round(tb_bar / ts_bar, 3) if ts_bar else None,
+            "sell_share_pct": round(ts / (tb + ts) * 100, 1) if (tb + ts) else None,
+            "buy_usd": round(tb, 0), "sell_usd": round(ts, 0),
+            "side": ("покупают" if ts and tb / ts > 1.02 else "продают" if ts and tb / ts < 0.98 else "вровень"),
+        },
         "money": {
             "oi_total": round(oi_now, 0) if oi_now else None,
             "oi_added": round(oi_add_total, 0),
@@ -319,6 +341,10 @@ def _print(r: dict) -> None:
     else:
         print("биткоин: нет в выборке")
     print(f"ширина: цена вверх {br['up']}/{br['n']} · интерес вверх {br['oi_up']}/{br['n']}")
+    tk = r.get("taker") or {}
+    if tk.get("day"):
+        print(f"тейкер по доске: за день {tk['day']} · последний бар {tk['bar']} · "
+              f"{tk['side']} · продаж {tk['sell_share_pct']}% потока")
     print(f"деньги: интерес по доске {(mo['oi_total'] or 0)/1e6:.0f}M, прирост {(mo['oi_added'] or 0)/1e6:+.1f}M · "
           f"лидер прироста {mo['leader_oi']} доля {(mo['leader_oi_share'] or 0)*100:.0f}% · "
           f"лидер дельты {mo['leader_delta']} доля {(mo['leader_delta_share'] or 0)*100:.0f}% · "

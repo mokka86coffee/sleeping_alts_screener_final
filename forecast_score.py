@@ -177,10 +177,12 @@ def _bg_at(bgs: list[dict], at: datetime) -> dict:
         return {}
     tm, ro, ld = best.get("time") or {}, best.get("risk_on") or {}, best.get("leaders") or {}
     btc = (best.get("btc") or {}).get("day_pct")
+    tk = best.get("taker") or {}
     return {"appetite": ro.get("appetite"), "regime": ro.get("regime"),
             "btc_day": btc, "dow": tm.get("dow"), "weekend": tm.get("weekend"),
             "sessions": ",".join(tm.get("sessions") or []),
-            "leaders_mine": ld.get("mine_n"), "leaders_fresh": ld.get("fresh_n")}
+            "leaders_mine": ld.get("mine_n"), "leaders_fresh": ld.get("fresh_n"),
+            "taker": tk.get("day"), "taker_side": tk.get("side")}
 
 
 def _agg(items: list[dict]) -> dict:
@@ -248,6 +250,8 @@ def build(days: int = 7, only: list[str] | None = None) -> dict:
         else ("растёт" if x["bg"]["btc_day"] > 0 else "падает"))
     cut("лидеры наши", lambda x: None if (x["bg"] or {}).get("leaders_mine") is None
         else ("да" if x["bg"]["leaders_mine"] else "нет"))
+    # тейкер по доске (07.09): бьют по стакану в покупку или в продажу — свой, пересчитываемый
+    cut("тейкер", lambda x: (x["bg"] or {}).get("taker_side"))
     cut("место", lambda x: None if x.get("place") is None else ("первые 3" if x["place"] <= 3 else "дальше"))
     cut("сторона", lambda x: "на рост" if x["side"] > 0 else "на конец")
     return {"at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "days": days,
