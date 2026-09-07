@@ -83,13 +83,20 @@ def _today_bars(sym_usdt: str) -> dict | None:
             rows.append(r)
     if len(rows) < 4:
         return None
-    d = sum(((r.get("fut") or {}).get("d") or 0) for r in rows)
-    b = sum(((r.get("fut") or {}).get("b") or 0) for r in rows)
-    sl = sum(((r.get("fut") or {}).get("s") or 0) for r in rows)
+    # ПУСТЫЕ БАРЫ ВОН (07.09): Coinglass иногда отдаёт интерес без сделок — в архиве fut: null и
+    # пометка missing: ["fut_bar"] (09:00 сегодня у всех монет разом). Такой бар в сумме дельты даёт
+    # ноль и занижает день, а в доминирующем типе голосует своим oi_type — считаем только полные.
+    skipped = [r for r in rows if not (r.get("fut") or {}).get("tk")]
+    full = [r for r in rows if (r.get("fut") or {}).get("tk")]
+    if len(full) < 4:
+        return None
+    d = sum(((r.get("fut") or {}).get("d") or 0) for r in full)
+    b = sum(((r.get("fut") or {}).get("b") or 0) for r in full)
+    sl = sum(((r.get("fut") or {}).get("s") or 0) for r in full)
     oi0 = next((r.get("oi") for r in rows if r.get("oi")), None)
     oi1 = next((r.get("oi") for r in reversed(rows) if r.get("oi")), None)
     types: dict = {}
-    for r in rows:
+    for r in full:
         t = r.get("oi_type")
         if t and t != "flat":
             types[t] = types.get(t, 0) + 1
@@ -124,14 +131,15 @@ def _today_bars(sym_usdt: str) -> dict | None:
     # БЕЛЫЙ ПУЗЫРЬ ОТМЕНЯЕТ «КОНЕЦ» (07.09, владелец: «у FLOCK продолжение, там белые пузыри»):
     # пузырь — факт (кто-то отдал деньги рыночной заявкой), уход интереса — надежда выходящих;
     # факт весит больше. Бар с покупкой выше 2σ по обороту дня → это коррекция, не конец.
-    vols = [((r.get("fut") or {}).get("b") or 0) + ((r.get("fut") or {}).get("s") or 0) for r in rows]
-    mu_v = sum(vols) / len(vols) if vols else 0.0
-    sd_v = (sum((x - mu_v) ** 2 for x in vols) / len(vols)) ** 0.5 if len(vols) > 3 else 0.0
-    bubble_buy = False
-    for r, vv in zip(rows, vols):
-        f = r.get("fut") or {}
-        if sd_v and vv >= mu_v + 2 * sd_v and (f.get("b") or 0) >= (f.get("s") or 0):
-            bubble_buy = True
+    # ПУЗЫРЬ — ПО ДЕЛЬТЕ, НЕ ПО ОБОРОТУ (07.09, случай FLOCK): по обороту «покупкой» считался бар
+    # 00:30 с оборотом 6.5M и дельтой +23K — это приняли чужую продажу, а не купили. Пузырь = кто-то
+    # реально отдал деньги рыночной заявкой: дельта выше 2σ по дельте дня.
+    dl = [((r.get("fut") or {}).get("d") or 0) for r in full]
+    mu_d = sum(dl) / len(dl) if dl else 0.0
+    sd_d = (sum((x - mu_d) ** 2 for x in dl) / len(dl)) ** 0.5 if len(dl) > 3 else 0.0
+    bub_buy_bars = [r["candle"][11:16] for r, x in zip(full, dl) if sd_d and x > mu_d + 2 * sd_d]
+    bub_sell_bars = [r["candle"][11:16] for r, x in zip(full, dl) if sd_d and x < mu_d - 2 * sd_d]
+    bubble_buy = bool(bub_buy_bars)
     kind = None
     if leaving:
         kind = "коррекция" if (bubble_buy or not hit) else "конец"
@@ -139,6 +147,7 @@ def _today_bars(sym_usdt: str) -> dict | None:
             "oi_chg_pct": round(oi_chg * 100, 1) if oi_chg is not None else None,
             "px_chg_pct": round(px_chg * 100, 1) if px_chg is not None else None, "dominant": dom,
             "leaving_kind": kind, "day_low": held, "hit_bar": hit, "bubble_buy": bubble_buy,
+            "bub_buy": bub_buy_bars, "bub_sell": bub_sell_bars, "skipped": len(skipped),
             "today": ("выходят · " + kind) if leaving else ("набирают сегодня" if buying else "стоит")}
 
 
@@ -349,7 +358,14 @@ def build(only: list[str] | None = None) -> dict:
         td = (v.get("today") or {}).get("today")
         _tk_q = (v.get("today") or {}).get("leaving_kind")
         b_score = 1.0 if td == "набирают сегодня" else 0.5 if td == "стоит" else 0.25 if _tk_q == "коррекция" else 0.0
-        score = round(0.35 * t_score + 0.35 * g_score + 0.30 * b_score, 3)
+        # ЧЕТВЁРТОЕ ЧИСЛО — ФАКТ СЕГОДНЯ (07.09, владелец: «второе место она держит прошлым — сбор
+        # вчера и накопленным плечом, а не сегодняшним днём»): пузырь покупки — единственный факт,
+        # остальное меряет надежду. Есть покупка рыночными — единица; только продажа — ноль;
+        # тихо, без пузырей — ноль четыре.
+        _tv = v.get("today") or {}
+        _bb, _bs = _tv.get("bub_buy") or [], _tv.get("bub_sell") or []
+        f_score = 1.0 if _bb else (0.0 if _bs else 0.4)
+        score = round(0.25 * t_score + 0.25 * g_score + 0.25 * b_score + 0.25 * f_score, 3)
         if (v.get("today") or {}).get("leaving_kind") == "конец":
             continue                # конец: интерес ушёл вместе с ценой на одном баре — вон из очереди
         _mode = n.get("mode")
@@ -358,7 +374,8 @@ def build(only: list[str] | None = None) -> dict:
         elif _mode == "лестница":
             score *= 1.15
         score = round(score, 3)
-        v["queue"] = {"days_since_harvest": days, "score": score, "today": td, "mode": _mode}
+        v["queue"] = {"days_since_harvest": days, "score": score, "today": td, "mode": _mode,
+                      "bubble": ("покупка " + _bb[-1]) if _bb else ("продажа " + _bs[-1]) if _bs else "тихо"}
         queue.append((score, s2))
     queue.sort(reverse=True)
     out["queue"] = [s2 for _, s2 in queue]

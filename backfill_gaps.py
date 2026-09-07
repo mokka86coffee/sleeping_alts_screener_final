@@ -194,10 +194,18 @@ def main() -> int:
                 with fc_path.open("a", encoding="utf-8") as f:
                     f.write("\n".join(lines) + "\n")
                 n_fc += len(lines)
-        # внутридневной архив на эту свечу — из только что записанных строк лога и репутации «на момент»
+        # внутридневной архив на эту свечу — из только что записанных строк лога и репутации «на момент».
+        # ЧЕСТНАЯ ПОМЕТКА (07.09): ноги баров берутся по времени свечи и потому верные, а интерес,
+        # фандинг, ликвидации за сутки и шаблон подставляются ИЗ ТЕКУЩЕГО среза — прошлого снимка нет.
+        # Помечаем строку partial, чтобы задним числом по ней не считали день; refill даёт заменить
+        # ранее записанную неполную строку на более полную.
         try:
             import intraday_archive as ia
-            n_ia = ia.write_rows(ia.build_rows(ms, coins))
+            _rows_ia = ia.build_rows(ms, coins)
+            for _r in _rows_ia:
+                _r["backfill"] = True
+                _r["partial"] = ["oi", "funding", "taker24", "delta24", "liq24", "plot", "zones"]
+            n_ia = ia.write_rows(_rows_ia, refill=True)
         except Exception as e:  # noqa: BLE001
             n_ia = 0
             print(f"  {st}: внутридневной архив не записан: {type(e).__name__}: {e}")

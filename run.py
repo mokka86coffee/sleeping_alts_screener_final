@@ -543,7 +543,7 @@ def render_report(candidates: list[Candidate], snapshot: RunSnapshot) -> bool:
 ISSUES: list[dict] = []
 COINGLASS_MAX_AGE_H = 3.0          # срез ежечасный; три часа — уже вчера
 LOOP_LEAD_S = 0                    # старт ровно на границе сетки: калитка свечи ждёт закрытие сама (05.09)
-AFTER_CANDLE_S = 300               # запас после закрытия свечи (07.09, владелец): пять минут — источники
+AFTER_CANDLE_S = 600               # запас после закрытия свечи (07.09, владелец): десять минут — источники
                                    # успевают завести бар, калитка тогда не ждёт и не переспрашивает
 # Суточная пересборка расписания «когда растёт» (05.09): часовые свечи с Binance,
 # затем сводка пробегов по режиму биткоина → output/schedule.json. Флаги — те, что
@@ -1033,10 +1033,16 @@ def run_once(args: argparse.Namespace) -> int:
                     for _f in v["missing"]:
                         _byf[_f] = _byf.get(_f, 0) + 1
             if _nm:
-                _names = {"spot": "спот", "fut": "перп", "oi": "интерес", "funding": "фандинг", "liq": "ликвидации"}
+                # ИМЕНА ПОМЕТОК (07.09): архив ставит свои — fut_bar/spot_bar/oi_type/px_daily;
+                # их тут не было, и пропуск бара уходил в ветку «не сбой, у монеты нет рынка».
+                # 07.09 в 09:00 бар перпа не пришёл у всех монет разом, а отчёт промолчал.
+                _names = {"spot": "спот", "fut": "перп", "oi": "интерес", "funding": "фандинг",
+                          "liq": "ликвидации", "fut_bar": "бар перпа", "spot_bar": "бар спота",
+                          "oi_type": "тип бара", "px_daily": "цена из дневки", "zones": "полосы карты"}
                 _det = ", ".join(f"{_names.get(k, k)} {n}" for k, n in sorted(_byf.items(), key=lambda kv: -kv[1]))
                 # нет спота — не сбой, у монеты нет спотового рынка; сбоем считаем перп/интерес/фандинг
-                _real = sum(n for k, n in _byf.items() if k in ("fut", "oi", "funding"))
+                # и пропуск бара перпа (без него день считается по неполной дельте)
+                _real = sum(n for k, n in _byf.items() if k in ("fut", "oi", "funding", "fut_bar"))
                 if _real:
                     _issue("Coinglass", f"неполные точки у {_nm} монет: {_det}")
                 else:

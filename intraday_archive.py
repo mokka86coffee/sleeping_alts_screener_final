@@ -91,6 +91,29 @@ def _top3(zones: list, above: bool, px: float) -> list:
     return [[round(float(z["price"]), 8), round(float(z.get("usd") or z.get("weight") or 0), 2)] for z in zs[:3]]
 
 
+def snapshot_candle(cg: dict) -> tuple[int | None, str | None]:
+    """Свеча, к которой ОТНОСИТСЯ срез Coinglass, и причина, если он не снят (07.09).
+
+    Раньше штамп брался из candle_gate.boundary() в момент записи, а данные — из среза,
+    который мог остаться от прошлой свечи (калитка не дождалась бара). Тогда ноги по времени
+    не совпадали (fut/spot пустые, missing: fut_bar), а интерес, фандинг, ликвидации, тип бара
+    и шаблон писались из прошлой свечи под именем текущей — так вышло 07.09 в 09:00 у всех
+    монет разом. Теперь имя строки берётся у самого среза."""
+    st = cg.get("stamp") or {}
+    c = st.get("candle")
+    ms = None
+    if isinstance(c, (int, float)):
+        ms = int(c if c > 1e12 else c * 1000)
+    elif isinstance(c, str) and c:
+        from datetime import datetime, timezone
+        try:
+            d = datetime.fromisoformat(c.replace("Z", "+00:00"))
+            ms = int((d if d.tzinfo else d.replace(tzinfo=timezone.utc)).timestamp() * 1000)
+        except ValueError:
+            ms = None
+    return ms, (str(st.get("why") or st.get("missing") or "") or None) if st.get("missing") else None
+
+
 def build_rows(candle_ms: int, only: list[str] | None = None) -> list[dict]:
     cg = _read(BASE_DIR / "output" / "coinglass_fetch.json") or {}
     coins = cg.get("coins") or {}
@@ -164,7 +187,9 @@ def build_rows(candle_ms: int, only: list[str] | None = None) -> list[dict]:
     return rows
 
 
-def write_rows(rows: list[dict]) -> int:
+def write_rows(rows: list[dict], refill: bool = False) -> int:
+    """refill (07.09): строка на эту свечу уже есть, но НЕПОЛНАЯ, а новая полнее — заменить.
+    Без этого пустой бар оставался в архиве навсегда: дозабор видел штамп и молча пропускал."""
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     n = 0
     for r in rows:
@@ -173,7 +198,27 @@ def write_rows(rows: list[dict]) -> int:
         if p.exists():
             tail = p.read_text(encoding="utf-8")[-4000:]
             if f'"candle": "{r["candle"]}"' in tail:
-                continue   # свеча уже записана
+                if not refill:
+                    continue   # свеча уже записана
+                lines = p.read_text(encoding="utf-8").splitlines()
+                idx = None
+                for i in range(len(lines) - 1, -1, -1):
+                    try:
+                        old = json.loads(lines[i])
+                    except ValueError:
+                        continue
+                    if old.get("candle") == r["candle"]:
+                        idx = i
+                        break
+                if idx is None:
+                    continue
+                old = json.loads(lines[idx])
+                if len(r.get("missing") or []) >= len(old.get("missing") or []):
+                    continue   # новая не полнее — не трогаем
+                lines[idx] = json.dumps(r, ensure_ascii=False)
+                p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+                n += 1
+                continue
         with p.open("a", encoding="utf-8") as f:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
         n += 1
@@ -184,7 +229,9 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", help="монеты через запятую")
     ap.add_argument("--write", action="store_true")
-    ap.add_argument("--candle", help="свеча ISO (для дозабора); по умолчанию — последняя закрытая")
+    ap.add_argument("--candle", help="свеча ISO (для дозабора); по умолчанию — из штампа среза")
+    ap.add_argument("--refill", action="store_true", help="заменить неполную строку на более полную")
+    ap.add_argument("--force", action="store_true", help="писать, даже если срез не снят")
     a = ap.parse_args()
     if a.candle:
         from datetime import datetime, timezone
@@ -192,15 +239,23 @@ def main() -> int:
         d = datetime.fromisoformat(t)
         candle_ms = int((d if d.tzinfo else d.replace(tzinfo=timezone.utc)).timestamp() * 1000)
     else:
-        import candle_gate
-        candle_ms = candle_gate.boundary()
+        cg = _read(BASE_DIR / "output" / "coinglass_fetch.json") or {}
+        candle_ms, why = snapshot_candle(cg)
+        if why and not a.force:
+            print(f"intraday: свеча не снята ({why}) — строка НЕ пишется, чтобы не подписать "
+                  f"прошлый срез именем текущей свечи; --force чтобы всё равно записать")
+            return 0
+        if candle_ms is None:
+            import candle_gate
+            candle_ms = candle_gate.boundary()
+            print("intraday: в срезе нет штампа свечи — беру границу калитки")
     rows = build_rows(candle_ms, [x.strip() for x in a.only.split(",")] if a.only else None)
     if not a.write:
         for r in rows[:3]:
             print(json.dumps(r, ensure_ascii=False))
         print(f"строк {len(rows)} (без записи; --write чтобы записать)")
         return 0
-    n = write_rows(rows)
+    n = write_rows(rows, refill=a.refill)
     print(f"intraday: записано {n} строк из {len(rows)} → {OUT_DIR}")
     return 0
 
