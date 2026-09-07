@@ -93,7 +93,7 @@ def collect_items() -> list[dict]:
         td = (v.get("today") or {}).get("today")
         if td == "продают сегодня":
             r *= 0.6
-        elif td == "покупают сегодня":
+        elif td == "набирают сегодня":
             r *= 1.15
         return r
 
@@ -105,11 +105,36 @@ def collect_items() -> list[dict]:
         n = v.get("nums") or {}; q = v.get("queue") or {}
         d = q.get("days_since_harvest")
         td = q.get("today") or ((v.get("today") or {}).get("today")) or ""
-        return ((n.get("mode") + " · ") if n.get("mode") else "") + (f"сбор {d} дн назад" if d is not None else "сбор —") + f" · плечо ×{float(n.get('oi_grow') or 1):.1f}" + (f" · {td}" if td else "")
+        return ((n.get("mode") + " · ") if n.get("mode") else "") + ((n.get("engine") + " · ") if n.get("engine") and n.get("engine") != "нет" else "") + (f"сбор {d} дн назад" if d is not None else "сбор —") + f" · плечо ×{float(n.get('oi_grow') or 1):.1f}" + (f" · {td}" if td else "")
     for i, sym in enumerate(queue):
         v = coins.get(sym) or {}
         sc = float((v.get("queue") or {}).get("score") or 0)
         add(sym, 0 if i < 3 else 1, " · ".join(v.get("why") or []), hist_line(v), sc)
+    # У ЦЕЛИ — С ДОЛЕЙ ХЕДЖА ЧИСЛОМ (07.09, владелец: «послушал бы сайт — захеджировал бы 70–80%,
+    # а так 20 и потерял»): толпа набивается — плотная полоса сверху и топливо снизу, отдают быстро,
+    # хедж 70–80%; кто двигает неясно — 50%; конец тренда / отпустил / осечка — выход 100%, не хедж;
+    # ведут покупатели — хеджа нет, это «в очереди». Стоп хеджа — над максимумом ПО ЗАКРЫТИЮ.
+    for sym, r in rep.items():
+        if not isinstance(r, dict) or sym.startswith("_"):
+            continue
+        plot_full = str(r.get("plot") or "").lower()
+        plot = plot_full.split("(")[0].strip()
+        last = marks.get(sym, "")
+        if plot.startswith("у цели"):
+            if "ведут покупатели" in plot_full or "ведёт покупатель" in plot_full:
+                continue
+            if "толпа" in plot_full:
+                add(sym, 2, "у цели — толпа набивается · хедж 70–80% позиции, стоп над максимумом по закрытию", "хедж 70–80%")
+            else:
+                add(sym, 2, "у цели — кто двигает неясно · хедж 50%, стоп над максимумом по закрытию", "хедж 50%")
+        elif plot.startswith("разгон отпустил") or any(w in last for w in END_WORDS):
+            add(sym, 2, (plot or last) + " · выход, не хедж", "выход 100%")
+
+    # КОНЕЦ ТРЕНДА (07.09): монеты, выпавшие из очереди — интерес ушёл вместе с ценой на одном
+    # баре, — не исчезают, а становятся «у цели · конец тренда»: вход закрыт, для позиции — выход
+    for sym, v in coins.items():
+        if (v.get("today") or {}).get("leaving_kind") == "конец":
+            add(sym, 2, " · ".join(v.get("why") or []) + " · интерес ушёл вместе с ценой — выход, не хедж", "выход 100%")
     # порядок: брать, держать, у цели; внутри группы — по надёжности, самая надёжная первой
     items.sort(key=lambda it: (it["g"], -it.get("rel", 0.0)))
     # яркость внутри группы: лучшая — 1.0, остальные вниз до 0.45; «у цели» — ровно 0.7

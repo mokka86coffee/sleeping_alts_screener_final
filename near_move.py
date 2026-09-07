@@ -95,11 +95,51 @@ def _today_bars(sym_usdt: str) -> dict | None:
             types[t] = types.get(t, 0) + 1
     dom = max(types, key=types.get) if types else None
     oi_chg = (oi1 / oi0 - 1) if oi0 and oi1 else None
-    buying = d > 0 and (oi_chg is None or oi_chg >= 0) and dom in (None, "long_open", "short_close")
-    selling = d < 0 and (oi_chg is not None and oi_chg < 0 or dom in ("long_close", "short_open"))
+    # НАБИРАЮТ / ВЫХОДЯТ (07.09, владелец: «что значит выходят, но при этом в первых?»):
+    # набирают — дельта в плюс ИЛИ интерес за день +10% и больше (принимающий берёт лимитками,
+    # дельта при этом отрицательная — так было у DOOD: −0.13M дельты при +54% интереса);
+    # выходят — интерес ушёл на 5% и больше вместе с падением цены (FLOCK −13% при −8%,
+    # RAYSOL −16% при −7%). Такие в очередь на вход не идут.
+    px0 = next((r.get("px") for r in rows if r.get("px")), None)
+    px1 = next((r.get("px") for r in reversed(rows) if r.get("px")), None)
+    px_chg = (px1 / px0 - 1) if px0 and px1 else None
+    buying = (d > 0 and (oi_chg is None or oi_chg >= -0.02)) or (oi_chg is not None and oi_chg >= 0.10 and (px_chg is None or px_chg >= -0.02))
+    leaving = (oi_chg is not None and oi_chg <= -0.05 and (px_chg is not None and px_chg < 0))
+    # КОРРЕКЦИЯ ИЛИ КОНЕЦ (07.09, владелец: «убрав их, можно пропустить добор»): «выходят» само по
+    # себе не решает. Конец — был БАР СОВПАДЕНИЯ: дельта в минус и интерес упал в тот же час, и цена
+    # ниже последнего удержанного минимума (ENA 07:30: −7.5M дельты и −18M интереса разом).
+    # Коррекция — интерес уходит, но минимум держится и совпадения не было (BLESS: −8% интереса при
+    # дельте −0.24M и двух барах покупок). Коррекция остаётся в очереди с пометкой, конец — в «у цели».
+    hit = False
+    prev_oi = None
+    for r in rows:
+        dd = (r.get("fut") or {}).get("d")
+        oo = r.get("oi")
+        if dd is not None and oo and prev_oi and dd < 0 and (oo / prev_oi - 1) <= -0.02:
+            hit = True
+        if oo:
+            prev_oi = oo
+    lows = [r.get("px") for r in rows if r.get("px")]
+    held = (min(lows) if lows else None)
+    # БЕЛЫЙ ПУЗЫРЬ ОТМЕНЯЕТ «КОНЕЦ» (07.09, владелец: «у FLOCK продолжение, там белые пузыри»):
+    # пузырь — факт (кто-то отдал деньги рыночной заявкой), уход интереса — надежда выходящих;
+    # факт весит больше. Бар с покупкой выше 2σ по обороту дня → это коррекция, не конец.
+    vols = [((r.get("fut") or {}).get("b") or 0) + ((r.get("fut") or {}).get("s") or 0) for r in rows]
+    mu_v = sum(vols) / len(vols) if vols else 0.0
+    sd_v = (sum((x - mu_v) ** 2 for x in vols) / len(vols)) ** 0.5 if len(vols) > 3 else 0.0
+    bubble_buy = False
+    for r, vv in zip(rows, vols):
+        f = r.get("fut") or {}
+        if sd_v and vv >= mu_v + 2 * sd_v and (f.get("b") or 0) >= (f.get("s") or 0):
+            bubble_buy = True
+    kind = None
+    if leaving:
+        kind = "коррекция" if (bubble_buy or not hit) else "конец"
     return {"bars": len(rows), "delta": round(d, 0), "taker": round(b / sl, 3) if sl else None,
-            "oi_chg_pct": round(oi_chg * 100, 1) if oi_chg is not None else None, "dominant": dom,
-            "today": "покупают сегодня" if buying else ("продают сегодня" if selling else "стоит")}
+            "oi_chg_pct": round(oi_chg * 100, 1) if oi_chg is not None else None,
+            "px_chg_pct": round(px_chg * 100, 1) if px_chg is not None else None, "dominant": dom,
+            "leaving_kind": kind, "day_low": held, "hit_bar": hit, "bubble_buy": bubble_buy,
+            "today": ("выходят · " + kind) if leaving else ("набирают сегодня" if buying else "стоит")}
 
 
 def _oi_from_intraday(sym_usdt: str, days: int = 3) -> tuple | None:
@@ -221,6 +261,15 @@ def judge(d: dict, live: dict | None = None) -> dict | None:
                 else:
                     mode = "неясно"
     score = len(why)          # счёт признаков — до пометки режима
+    # ТРИ ДВИГАТ�еЛЯ, НЕ ОДИН (07.09, случай SOPH: 4/5, не хватило только шортов — а их на ней
+    # никогда и не было; ход на спросе). Шорты — признак СКВИЗА; если их нет, но интерес растёт
+    # быстрее цены и сбор удержан, это СПРОС — засчитываем пятым признаком с пометкой двигателя.
+    engine = "сквиз" if sh >= max(SHORT_MIN_USD, SHORT_MIN_OI * oi_now) else None
+    if engine is None and grow >= 1.15 and hv and nums.get("from_harvest_high", -100) >= -10:
+        engine = "спрос"
+        score += 1
+        why.append(f"двигатель: спрос (шортов нет, плечо ×{grow:.2f} при цене у максимума сбора)")
+    nums["engine"] = engine or "нет"
     if mode:
         nums["mode"] = mode
         why.append("режим: " + mode + (" (интерес рос с ценой)" if mode == "лестница" else " (интерес рухнул — вынос шортов)" if mode == "парабола" else ""))
@@ -281,8 +330,8 @@ def build(only: list[str] | None = None) -> dict:
     out["going"], out["holding"], out["pulled"], out["giving"] = _lst("going"), _lst("holding"), _lst("pulled"), _lst("giving")
     out["near"] = out["holding"]          # «близкие» = держат после сбора
     for g in ("holding", "going", "pulled"):
-        out[g + "_buying"] = [s2 for s2 in out[g] if (out["coins"][s2].get("today") or {}).get("today") == "покупают сегодня"]
-        out[g + "_selling"] = [s2 for s2 in out[g] if (out["coins"][s2].get("today") or {}).get("today") == "продают сегодня"]
+        out[g + "_buying"] = [s2 for s2 in out[g] if (out["coins"][s2].get("today") or {}).get("today") == "набирают сегодня"]
+        out[g + "_selling"] = [s2 for s2 in out[g] if (out["coins"][s2].get("today") or {}).get("today") == "выходят сегодня"]
     # ОЧЕРЕДЬ (07.09, владелец: «кто пойдёт раньше — туда размер»): по трём ходам недели второй акт
     # приходил через 1–5 дней после сбора у тех, у кого интерес продолжал расти, а в день хода бары
     # покупали. Балл: близость срока к 2–3 дням + рост интереса + покупают сегодня.
@@ -298,8 +347,11 @@ def build(only: list[str] | None = None) -> dict:
         t_score = 1.0 if days in (2, 3) else 0.7 if days in (1, 4) else 0.4 if days == 5 else 0.2
         g_score = min(1.0, max(0.0, (float(n.get("oi_grow") or 1.0) - 1.0) / 1.5))
         td = (v.get("today") or {}).get("today")
-        b_score = 1.0 if td == "покупают сегодня" else 0.5 if td == "стоит" else 0.0
+        _tk_q = (v.get("today") or {}).get("leaving_kind")
+        b_score = 1.0 if td == "набирают сегодня" else 0.5 if td == "стоит" else 0.25 if _tk_q == "коррекция" else 0.0
         score = round(0.35 * t_score + 0.35 * g_score + 0.30 * b_score, 3)
+        if (v.get("today") or {}).get("leaving_kind") == "конец":
+            continue                # конец: интерес ушёл вместе с ценой на одном баре — вон из очереди
         _mode = n.get("mode")
         if _mode == "парабола":
             score *= 0.45          # парабола: первая тряска — выход, а не покупка (07.09)

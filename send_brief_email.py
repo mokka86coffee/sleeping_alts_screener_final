@@ -208,7 +208,7 @@ def build_letter(stars: list, market: dict) -> tuple[str, str]:
             add("ОЧЕРЕДЬ — кто раньше (размер: первая — основной, вторая и третья — по четверти):")
             for _i, _sym in enumerate(_q[:5], 1):
                 _v = _coins.get(_sym) or {}; _n = _v.get("nums") or {}; _qq = _v.get("queue") or {}
-                add(f"  {_i}. {_sym.replace('USDT', '')} — {_n.get('mode') or 'режим неясен'} · сбор {_qq.get('days_since_harvest', '?')} дн назад · "
+                add(f"  {_i}. {_sym.replace('USDT', '')} — {_n.get('mode') or 'режим неясен'} · двигатель {_n.get('engine', '—')} · сбор {_qq.get('days_since_harvest', '?')} дн назад · "
                     f"плечо ×{_n.get('oi_grow', 0):.2f} за 3 дн · {_qq.get('today') or 'баров нет'} · оборот ×{_n.get('lull_x', 0):.1f}")
             add("")
         _near_n = len(_q[:3])
@@ -236,6 +236,16 @@ def build_letter(stars: list, market: dict) -> tuple[str, str]:
         except Exception:
             pass
         _block("ОТКАТИЛИСЬ", "pulled", " — отдали 10–35% после сбора, решит первый день продаж")
+        _end = [k for k, vv in _coins.items() if ((vv.get("today") or {}).get("leaving_kind") == "конец")]
+        _corr = [k for k, vv in _coins.items() if ((vv.get("today") or {}).get("leaving_kind") == "коррекция")]
+        if _end:
+            add("КОНЕЦ ТРЕНДА (интерес ушёл вместе с ценой на одном баре) — вход закрыт, позиция на выход:")
+            add("  · " + ", ".join(x.replace("USDT", "") for x in _end))
+            add("")
+        if _corr:
+            add("КОРРЕКЦИЯ (интерес уходит, но совпадения дельты с падением не было) — место добора:")
+            add("  · " + ", ".join(x.replace("USDT", "") for x in _corr))
+            add("")
         _block("ОТДАЮТ", "giving", " — плечо уходит, отскоки — кандидаты на шорт")
         if not _near_n and not (_nm.get("going") or _nm.get("giving")):
             add("БЛИЗКИЕ К ХОДУ: пока никого")
