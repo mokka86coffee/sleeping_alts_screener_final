@@ -146,6 +146,27 @@ def _today_bars(sym_usdt: str) -> dict | None:
     # оставался в плюсе (вырос ночью), а падение шло ОТ ВЕРШИНЫ дня. Считаем два числа отдельно:
     #   drawdown_pct — сколько цена отдала от максимума дня (DOOD к вечеру −11% от вершины);
     #   oi_trend_pct — куда идёт интерес за последние 6 баров (три часа), в процентах.
+    # ЧЕМ ОПЛАЧЕН ХОД — ПЛЕЧОМ ИЛИ ДЕНЬГАМИ (07.09, по числам кванта за выходные): 03.09 биткоин
+    # +5.1% за сессию, открытый интерес +9.2%, а реализованная капитализация +0.04% — ход сделали
+    # деривативы, и через сутки плечо сняли (самое резкое снятие с 2023). У монеты то же самое
+    # считается своими числами: прирост интереса в долларах против дельты рыночных заявок за день.
+    #   дельта мала против прироста интереса → ход на ПЛЕЧЕ: позиции есть, денег нет;
+    #   дельта соизмерима с приростом → ход на ДЕНЬГАХ: за ход заплатили.
+    # Мерка — та же, что у кванта: НАСКОЛЬКО БЫСТРЕЕ растут позиции, чем цена. Сравнивать дельту с
+    # приростом интереса нельзя: дельта — чистый перекос заявок, интерес — весь номинал позиций,
+    # у альтов первое всегда в разы меньше второго и всё выходило бы «на плече».
+    #   плечо растёт вровень с ценой (до полутора раз) → ход НА ДЕНЬГАХ (ACU 07.09: +7.2% при +7.7%);
+    #   вчетверо и быстрее → ход НА ПЛЕЧЕ (DOOD ×5.8, CL ×20.7) — за него не заплатили, снимется так же;
+    #   между — поровну. Дельта идёт рядом как подтверждение, но решает соотношение.
+    oi_add_usd = (oi1 - oi0) if (oi0 and oi1) else None
+    paid = None
+    if oi_chg is not None and px_chg not in (None, 0) and abs(px_chg * 100) >= 0.5:
+        paid = (oi_chg * 100) / (px_chg * 100)
+    move_paid = None
+    if paid is not None and paid > 0 and px_chg and px_chg > 0:
+        # мерка применима ТОЛЬКО к росту: при падении то же соотношение значит выход позиций,
+        # а не «оплату» хода (FLOCK 07.09: −15% цены при −21% интереса — это не «на деньгах»)
+        move_paid = "на деньгах" if paid <= 1.5 else "на плече" if paid >= 4.0 else "поровну"
     day_hi_px = max(lows) if lows else None
     drawdown = ((px1 / day_hi_px - 1) * 100) if (day_hi_px and px1) else None
     _oi_tail = [r.get("oi") for r in rows[-7:] if r.get("oi")]
@@ -170,6 +191,12 @@ def _today_bars(sym_usdt: str) -> dict | None:
     # правило: пишем числа, вывод сделает журнал. Ничего не решаем этими полями.
     day_lo = min(lows) if lows else None
     day_hi = max(lows) if lows else None
+    # ОБОРОТ БАРА К НОРМЕ ДНЯ — для различения «выбор» и «моментум» (07.09, по июньскому дну
+    # биткоина): 11.06 агрессия покупателей вошла в верхний 1% за 2354 дня, а оборот был ОБЫЧНЫЙ —
+    # 0.975 от тридцатидневной нормы. Такой пузырь означает, что кто-то сознательно выбрал сторону
+    # на обычной глубине. Пузырь на всплеске оборота — это моментум, он слабее: толпа бежит следом.
+    vols_d = [(((r.get("fut") or {}).get("b") or 0) + ((r.get("fut") or {}).get("s") or 0)) for r in full]
+    vol_med = statistics.median([v for v in vols_d if v]) if any(vols_d) else 0.0
     bubbles = []
     for i, (r, x) in enumerate(zip(full, dl)):
         if not sd_d or abs(x - mu_d) < 2 * sd_d:
@@ -203,9 +230,13 @@ def _today_bars(sym_usdt: str) -> dict | None:
                 _role = "продолжение" if _dn else ("поглощён" if _up else "середина")
             else:
                 _role = "продолжение" if _up else ("поглощён" if _dn else "середина")
+        _vol = vols_d[i]
+        _vr = (_vol / vol_med) if (vol_med and _vol) else None
+        # «выбор» — оборот обычный (до полутора норм); «моментум» — всплеск оборота
+        _how = None if _vr is None else ("выбор" if _vr <= 1.5 else "моментум")
         bubbles.append({
             "at": r["candle"][11:16], "side": "buy" if x > 0 else "sell", "usd": round(x, 0),
-            "role": _role, "pos_pct": _pos,
+            "role": _role, "pos_pct": _pos, "vol_ratio": round(_vr, 2) if _vr else None, "how": _how,
             "to_up_pct": round((up[0] / p_ - 1) * 100, 2) if up else None,
             "to_dn_pct": round((dn[0] / p_ - 1) * 100, 2) if dn else None,
             "oi_bar_pct": round(((r.get("oi") or 0) / oi_prev - 1) * 100, 2) if oi_prev else None,
@@ -218,11 +249,15 @@ def _today_bars(sym_usdt: str) -> dict | None:
     # SOPH 34% → +6.6%, BLESS 8% → +3.1%. Остальные пузыри пишутся в журнал, но решений не меняют.
     at_target = _at_target(sym_usdt)
     low_buy = [b for b in bubbles if b["side"] == "buy" and b.get("role") == "продолжение"]
+    # пузырь-ВЫБОР (покупка внизу дня на обычном обороте) — самый сильный вид: так выглядело дно
+    # биткоина 11.06. Пузырь-моментум на всплеске оборота остаётся сигналом, но слабее.
+    low_buy_choice = [b for b in low_buy if b.get("how") == "выбор"]
     high_sell = [b for b in bubbles if b["side"] == "sell" and b.get("role") == "продолжение"]
     absorbed = [b for b in bubbles if b.get("role") == "поглощён"]
     # сигнал вверх — покупка внизу и не «у цели» (у цели рыночную покупку принимают в плиту);
     # сигнал вниз — продажа наверху; поглощённые балл не двигают, но пишутся в журнал
     bubble_signal = bool(low_buy) and not at_target
+    bubble_choice = bool(low_buy_choice) and not at_target
     bubble_down = bool(high_sell)
     kind = None
     if leaving:
@@ -231,10 +266,12 @@ def _today_bars(sym_usdt: str) -> dict | None:
             "oi_chg_pct": round(oi_chg * 100, 1) if oi_chg is not None else None,
             "px_chg_pct": round(px_chg * 100, 1) if px_chg is not None else None, "dominant": dom,
             "px": px1, "leaving_kind": kind, "day_low": held, "hit_bar": hit, "bubble_buy": bubble_buy,
+            "move_paid": move_paid, "paid_ratio": round(paid, 3) if paid is not None else None,
+            "oi_add_usd": round(oi_add_usd, 0) if oi_add_usd is not None else None,
             "drawdown_pct": round(drawdown, 2) if drawdown is not None else None,
             "oi_trend_pct": round(oi_trend, 2) if oi_trend is not None else None,
             "bub_buy": bub_buy_bars, "bub_sell": bub_sell_bars, "skipped": len(skipped),
-            "bubble_signal": bubble_signal, "bubble_down": bubble_down,
+            "bubble_signal": bubble_signal, "bubble_choice": bubble_choice, "bubble_down": bubble_down,
             "absorbed": len(absorbed), "at_target": at_target,
             "bubbles": bubbles,
             # ХОД БЕЗ ПУЗЫРЯ (07.09, случай ACU): у монеты может идти чистый ход вовсе без всплесков —
@@ -472,13 +509,23 @@ def build(only: list[str] | None = None) -> dict:
         _tr = _tv.get("oi_trend_pct")
         if _tr is not None:
             score *= 1.10 if _tr >= 2 else (0.75 if _tr <= -3 else 1.0)
+        # ХОД НА ПЛЕЧЕ ОСЛАБЛЯЕТ, ХОД НА ДЕНЬГАХ УСИЛИВАЕТ (07.09): это правило по САМОЙ монете,
+        # а не фон — считается её приростом интереса и её же дельтой. Ход, за который не заплатили
+        # рыночными заявками, снимается так же быстро, как набран.
+        _mp = _tv.get("move_paid")
+        if _mp == "на плече":
+            score *= 0.80
+        elif _mp == "на деньгах":
+            score *= 1.10
         # ПУЗЫРЬ — МНОЖИТЕЛЕМ, НЕ СЛАГАЕМЫМ (07.09): как слагаемое он вынес наверх стоящий STRK
         # (единственный пузырь дня — 128K в 04:00, при этом цена за день −0.3% и дельта в минус).
         # Факт покупки усиливает того, кто и так идёт, и не поднимает того, кто стоит.
         # МНОЖИТЕЛЬ ПО РОЛИ ПУЗЫРЯ (07.09): вверх усиливает, вниз ослабляет, поглощённый —
         # нейтрален. Раньше любая продажа наказывала монету, а у CL и ACU продажи внизу были
         # ПРИНЯТЫ и цена после них росла — за это наказывать нельзя.
-        score *= 1.15 if _tv.get("bubble_signal") else (0.85 if _tv.get("bubble_down") else 1.0)
+        _bb, _bs = _tv.get("bub_buy") or [], _tv.get("bub_sell") or []
+        score *= (1.25 if _tv.get("bubble_choice") else 1.15) if _tv.get("bubble_signal") \
+            else (0.85 if _tv.get("bubble_down") else 1.0)
         # КОРРЕКЦИЯ — ТОЖЕ МНОЖИТЕЛЕМ: интерес сегодня уходит вместе с ценой — монета временно не про
         # «кто раньше»; из очереди не выбрасываем (белый пузырь вернёт), но вперёд не пускаем.
         if _tk_q == "коррекция":
@@ -493,15 +540,25 @@ def build(only: list[str] | None = None) -> dict:
         score = round(score, 3)
         v["queue"] = {"days_since_harvest": days, "score": score, "today": td, "mode": _mode,
                       "px_chg_pct": _px_chg,
-                      "bubble": ("покупка внизу " + _bb[-1]) if _tv.get("bubble_signal")
+                      "bubble": (("покупка внизу, выбор " if _tv.get("bubble_choice") else "покупка внизу ") + _bb[-1])
+                                if _tv.get("bubble_signal")
                                 else ("продажа вверху " + _bs[-1]) if _tv.get("bubble_down")
                                 else (f"поглощён ×{_tv.get('absorbed')}") if _tv.get("absorbed")
                                 else "тихо",
-                      "at_target": _tv.get("at_target")}
+                      "at_target": _tv.get("at_target"), "move_paid": _tv.get("move_paid")}
         queue.append((score, s2))
     queue.sort(reverse=True)
     out["queue"] = [s2 for _, s2 in queue]
     return out
+
+
+# ФОН В РЕШЕНИЯХ НЕ УЧАСТВУЕТ (07.09, владелец: «мы пока не умеем читать фон — он не должен
+# влиять на то, что умеем»). Балл очереди считается ТОЛЬКО по монете: срок после сбора, рост плеча,
+# что по её барам, темп с поправкой на откат от вершины, направление её интереса, роль её пузыря,
+# режим. Ни risk on, ни ход биткоина, ни сессия, ни лидеры биржи, ни тейкер по доске в балл не
+# входят и входить не должны: пока не посчитано, при каком фоне прогнозы сбывались, любой
+# множитель оттуда — догадка, которая портит работающую часть. Фон пишется рядом (market_bg.py)
+# и разрезает ЖУРНАЛ задним числом, но не решения.
 
 
 def log_queue(res: dict) -> int:
@@ -530,6 +587,8 @@ def log_queue(res: dict) -> int:
             "days_since_harvest": q.get("days_since_harvest"), "oi_grow": n.get("oi_grow"),
             "today": q.get("today"), "bubble": q.get("bubble"), "move_pct": q.get("px_chg_pct"),
             # карточки пузырей и плечо к цене (07.09) — сырьём в журнал, выводы делает считалка
+            "move_paid": (v.get("today") or {}).get("move_paid"),
+            "paid_ratio": (v.get("today") or {}).get("paid_ratio"),
             "drawdown_pct": (v.get("today") or {}).get("drawdown_pct"),
             "oi_trend_pct": (v.get("today") or {}).get("oi_trend_pct"),
             "bubbles": (v.get("today") or {}).get("bubbles"),

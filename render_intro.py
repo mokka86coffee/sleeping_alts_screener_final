@@ -374,6 +374,15 @@ def render_intro(items: list[dict] | None = None) -> str:
     except Exception:  # noqa: BLE001
         orbits = {}
 
+    # ПРИПИСКА О ФОНЕ (07.09, владелец: «лучше показывать, чем не показывать, но она не должна
+    # никак влиять»): нейтральная строка фактов внизу экрана. В балл и в группы не входит.
+    bgnote = ""
+    try:
+        from market_bg import bg_note
+        bgnote = bg_note() or ""
+    except Exception:  # noqa: BLE001
+        bgnote = ""
+
     # ТОЧНОСТЬ (07.09): доля сбывшихся из считалки; файла нет — под планетой прочерк
     acc = {}
     try:
@@ -383,7 +392,7 @@ def render_intro(items: list[dict] | None = None) -> str:
             acc = {"ok_pct": _a.get("ok_pct"), "ok": _a.get("ok"), "n": _a.get("n"), "enough": _a.get("enough")}
     except (OSError, ValueError):
         acc = {}
-    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits},
+    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote},
                       ensure_ascii=False).replace("</", "<\\/")
     return TEMPLATE.replace("__N__", str(n)).replace("__DATA__", data)
 
@@ -402,6 +411,8 @@ TEMPLATE = r'''<!doctype html>
   .cap{position:fixed;left:0;right:0;bottom:26px;text-align:center;font-family:"Michroma",system-ui,sans-serif;font-size:9px;letter-spacing:.34em;text-transform:uppercase;color:rgba(200,210,255,.55);pointer-events:none}
   .cap b{font-weight:400;color:rgba(230,236,255,.9)}
   .cap .buy{color:#cfe0ff}.cap .hold{color:#8fe0b8}.cap .close{color:#8f97c8}
+  .bgnote{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;font-family:"Inter",system-ui,sans-serif;
+    font-weight:300;font-size:9.5px;letter-spacing:.16em;color:rgba(190,205,255,.34);pointer-events:none;white-space:nowrap}
   .hint{position:fixed;right:3vw;bottom:12px;font-family:"Inter",system-ui,sans-serif;font-weight:300;font-size:11px;letter-spacing:.12em;color:rgba(200,210,255,.35);pointer-events:none}
   .tip{position:fixed;padding:6px 10px;border-radius:6px;background:rgba(10,12,30,.86);color:#dfe6ff;font-family:"Inter",system-ui,sans-serif;font-weight:300;font-size:11px;letter-spacing:.04em;max-width:360px;pointer-events:none;opacity:0;transition:opacity .2s}
   /* ПЛАНЕТА-КНОПКА В ЖУРНАЛ (07.09, владелец: «сделай кнопку на первом экране со звёздами —
@@ -527,6 +538,7 @@ TEMPLATE = r'''<!doctype html>
   <div class="pcap">точность</div>
   <div class="pnum" id="pnum">—</div>
 </div>
+<div class="bgnote" id="bgnote"></div>
 <div class="hint">клик по имени — монета · планета — точность · мимо или клавиша — дальше</div>
 <div class="tip" id="tip"></div>
 <script id="introData" type="application/json">__DATA__</script>
@@ -887,6 +899,7 @@ function drawFx(t){
     }
   }
 }
+(function(){const el=document.getElementById('bgnote');if(el)el.textContent=DATA.bgnote||'';})();
 // ТОЧНОСТЬ ПОД ПЛАНЕТОЙ (07.09): доля сбывшихся из журнала; нет данных — прочерк
 (function(){const a=DATA.acc||{};const el=document.getElementById('pnum');
   if(!el)return;

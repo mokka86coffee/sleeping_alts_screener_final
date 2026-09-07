@@ -192,6 +192,18 @@ def _session(now: datetime) -> dict:
 
 
 # ── сбор ──────────────────────────────────────────────────────────────────────
+def _queue_groups() -> dict:
+    """Кто сейчас в первых и в очереди (07.09, владелец: «здесь нам важны только наши первые и в
+    очереди — закрытые и нейтральные монеты нас не интересуют: они ходят вместе с фоном»).
+    Берём из output/near_move.json: первые три строки очереди — «первые», остальные — «в очереди»."""
+    try:
+        nm = json.loads((BASE_DIR / "output" / "near_move.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    q = nm.get("queue") or []
+    return {sym: ("первые" if i < 3 else "в очереди") for i, sym in enumerate(q)}
+
+
 def build(only: list[str] | None = None, now: datetime | None = None, leaders: bool = True) -> dict:
     now = now or datetime.now(timezone.utc)
     day = now.strftime("%Y-%m-%d")
@@ -239,6 +251,15 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
         })
     if not coins:
         return {"at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "note": "нет баров за сегодня"}
+
+    # ── СЧЁТ ПО ГРУППАМ (07.09): по всей доске считаем только ширину (сколько растёт, сколько
+    # падает) и сильный рост; всё остальное — отдельно по нашим первым и очереди, потому что
+    # именно у них хороший фон даёт идеальный ход, а плохой — обратное.
+    grp = _queue_groups()
+    for c in coins:
+        c["queue"] = grp.get(c["sym"])
+    ours = [c for c in coins if c.get("queue")]
+    first3 = [c for c in coins if c.get("queue") == "первые"]
 
     day_pcts = [c["day_pct"] for c in coins]
     green = sum(1 for x in day_pcts if x > 0)
@@ -311,10 +332,83 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
             "leader_delta_share": round(lead_d[1] / tot_del, 3) if lead_d and tot_del else None,
             "funding_med": round(statistics.median(fundings), 5) if fundings else None,
         },
+        # наши: сколько растёт из скольких и медиана — отдельно по первым и по очереди
+        "ours": {
+            "n": len(ours), "up": sum(1 for c in ours if c["day_pct"] > 0),
+            "median_pct": round(statistics.median([c["day_pct"] for c in ours]), 2) if ours else None,
+            "first3": [{"sym": c["sym"], "day_pct": c["day_pct"], "oi_day_pct": c["oi_day_pct"]} for c in first3],
+            "first3_up": sum(1 for c in first3 if c["day_pct"] > 0),
+        },
         "big_mover": big_block,
         "leaders": lead,
         "coins": sorted(coins, key=lambda c: -c["day_pct"]),
     }
+
+
+def last_row() -> dict:
+    """Последняя строка фона — для интро и сводки (07.09: тейкер по доске нужен и там, и там)."""
+    try:
+        lines = OUT.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return {}
+    for line in reversed(lines):
+        if line.strip():
+            try:
+                return json.loads(line)
+            except ValueError:
+                continue
+    return {}
+
+
+def bg_note(row: dict | None = None) -> str:
+    """ПРИПИСКА О ФОНЕ рядом с решением (07.09, владелец: «лучше показывать по фону, чем не
+    показывать, но она не должна никак влиять»). Нейтральная строка фактов — без слов «мешает» или
+    «помогает»: чего это стоит, мы пока не знаем. В решения и в балл не входит.
+
+    Пример: «фон: растёт 8 из 14 · поток продают 0.96 · биткоин −1.1% · США скоро закроется».
+    """
+    r = row if row is not None else last_row()
+    if not r:
+        return ""
+    parts = []
+    br, tk, b, tm = r.get("breadth") or {}, r.get("taker") or {}, r.get("btc") or {}, r.get("time") or {}
+    ou = r.get("ours") or {}
+    if br.get("n"):
+        parts.append(f"растёт {br['up']} из {br['n']}")
+    if ou.get("n"):
+        parts.append(f"наши {ou['up']} из {ou['n']}")
+    if tk.get("day"):
+        parts.append(f"поток {tk.get('side')} {tk['day']:.2f}")
+    if b.get("day_pct") is not None:
+        parts.append(f"биткоин {b['day_pct']:+.1f}%")
+    live = [m for m in (tm.get("markets") or []) if m.get("open")]
+    if live:
+        parts.append(", ".join(f"{m['name']} {m['state']}" for m in live))
+    elif tm.get("markets"):
+        soon = [m for m in tm["markets"] if m.get("state") == "скоро откроется"]
+        parts.append(f"{soon[0]['name']} скоро откроется" if soon else "межсессионье")
+    bm = r.get("big_mover")
+    if bm and bm.get("syms"):
+        s0 = bm["syms"][0]
+        parts.append(f"{s0['sym'].replace('USDT', '')} {s0['day_pct']:+.0f}% тянет на себя")
+    return "фон: " + " · ".join(parts) if parts else ""
+
+
+def taker_line(row: dict | None = None) -> str:
+    """Готовая строка про поток для сводки и первого экрана: «поток по доске 0.94 — продают,
+    52% потока; последний бар 1.03 — разворот». Пусто, если фон ещё не собран."""
+    r = row if row is not None else last_row()
+    tk = (r or {}).get("taker") or {}
+    d, b = tk.get("day"), tk.get("bar")
+    if not d:
+        return ""
+    out = f"поток по доске {d:.2f} — {tk.get('side')}"
+    if tk.get("sell_share_pct") is not None:
+        out += f", продаж {tk['sell_share_pct']:.0f}% потока"
+    if b:
+        turn = (d > 1 and b < 0.98) or (d < 1 and b > 1.02)
+        out += f"; последний бар {b:.2f}" + (" — разворот" if turn else "")
+    return out
 
 
 def write(res: dict) -> Path:
@@ -341,6 +435,11 @@ def _print(r: dict) -> None:
     else:
         print("биткоин: нет в выборке")
     print(f"ширина: цена вверх {br['up']}/{br['n']} · интерес вверх {br['oi_up']}/{br['n']}")
+    ou = r.get("ours") or {}
+    if ou.get("n"):
+        print(f"наши: растёт {ou['up']} из {ou['n']} · медиана {ou['median_pct']:+.2f}% · "
+              f"первые три: {ou['first3_up']} из {len(ou['first3'])} в плюсе"
+              + (" · " + " · ".join(f"{x['sym'].replace('USDT','')} {x['day_pct']:+.1f}%" for x in ou["first3"]) if ou["first3"] else ""))
     tk = r.get("taker") or {}
     if tk.get("day"):
         print(f"тейкер по доске: за день {tk['day']} · последний бар {tk['bar']} · "

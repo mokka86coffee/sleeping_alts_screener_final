@@ -27,7 +27,9 @@
    (полчаса, час, два, четыре, шесть, двенадцать, сутки) и смотрим, где он максимален —
    это и есть настоящий срок жизни прогноза.
 
-4. РАЗРЕЗ ПО ФОНУ. Одни и те же правила в разных режимах дают противоположный результат,
+4. РАЗРЕЗ ПО ФОНУ — ТОЛЬКО НАБЛЮДЕНИЕ (07.09, владелец: «фон мы пока не умеем; то, что не умеем,
+   не должно влиять на то, что умеем»). Фон нигде не входит в решения и в балл — он лишь режет
+   уже случившееся, чтобы однажды найти закономерность. Одни и те же правила в разных режимах дают противоположный результат,
    поэтому итог режем по фону из market_bg.jsonl: risk on, ход биткоина, сессия и день недели,
    дни роста подряд, лидеры биржи не наши. Владелец: «нужен бэкграунд фон, который мешает
    прогнозам исполниться».
@@ -62,6 +64,16 @@ FALLBACK_TP, FALLBACK_SL = 2.5, 1.0       # запасные границы в �
 MIN_N = 50                                # ниже этого — не статистика
 
 MAX_LAG_MIN = 30          # первый бар дальше получаса от события — данных нет, событие не считаем
+# ДВЕ ТОЧКИ ВХОДА, КОТОРЫЕ НЕЛЬЗЯ СМЕШИВАТЬ (07.09, владелец: «ТВХ от дна и ТВХ после роста и
+# падения — это разные ТВХ»). У них разные цели, стопы и выживаемость; среднее по обеим не значит
+# ничего. Разделяем по двум числам, которые уже есть в барах:
+#   от дна   — цена в нижней части своего пути от исторического дна к пику И до этого не было хода
+#              вверх с последующим откатом;
+#   после отката — монета уже сделала ход (от минимума окна больше RUN_PCT) и вернулась вниз
+#              больше чем на PULL_PCT от своей вершины.
+LOW_ZONE = 45.0           # «внизу истории»: не выше 45% пути от дна к пику
+RUN_PCT = 12.0            # ход, после которого точка считается «после отката»
+PULL_PCT = 4.0            # откат от вершины окна
 
 # СТОРОНА ПРОГНОЗА (07.09, найдено на журнале): порядок проверки решает. Шаблон «кит поглощает
 # слив» — БЫЧИЙ, но слово «слив» в нём есть; из-за этого 46 бычьих событий считались как «на конец»
@@ -116,6 +128,21 @@ def _sigma(rows: list[dict]) -> float:
         return 0.05
     rets = [abs(px[i] / px[i - 1] - 1) for i in range(1, len(px)) if px[i - 1]]
     return max(0.01, statistics.median(rets) * (48 ** 0.5))
+
+
+def entry_kind(rows: list[dict], at: datetime, px0: float) -> str:
+    """Тип точки входа: «от дна» или «после отката»; «неясно» — когда данных не хватает."""
+    past = [r for r in rows if (_ts(r.get("candle")) or datetime.max.replace(tzinfo=timezone.utc)) < at]
+    pxs = [r["px"] for r in past[-96:] if r.get("px")]          # двое суток назад по получасам
+    if len(pxs) < 8 or not px0:
+        return "неясно"
+    lo, hi = min(pxs), max(pxs)
+    run = (hi / lo - 1) * 100 if lo else 0.0
+    pull = (px0 / hi - 1) * 100 if hi else 0.0
+    if run >= RUN_PCT and pull <= -PULL_PCT:
+        return "после отката"
+    pos = (px0 - lo) / (hi - lo) * 100 if hi > lo else 50.0
+    return "от дна" if pos <= LOW_ZONE else "после отката"
 
 
 def score_one(sym: str, at: datetime, tpl: str, rows: list[dict] | None = None) -> dict | None:
@@ -175,6 +202,7 @@ def score_one(sym: str, at: datetime, tpl: str, rows: list[dict] | None = None) 
                 hit, hit_h = "стоп", round(h, 2)
     last = next((r["px"] for r in reversed(fut) if r.get("px")), p0)
     return {"sym": sym, "at": at.strftime("%Y-%m-%dT%H:%M:%SZ"), "tpl": tpl, "side": side,
+            "entry": entry_kind(rows, at, p0),
             "px": p0, "tp": round(tp, 10), "sl": round(sl, 10),
             "tp_zone": tp_from_zone, "sl_zone": sl_from_zone,
             "hit": hit, "hit_h": hit_h, "ok": hit == "цель",
@@ -273,6 +301,9 @@ def build(days: int = 7, only: list[str] | None = None) -> dict:
         by_day.setdefault(x["at"][:10], []).append(x)
         by_hour.setdefault(x["at"][:13], []).append(x)
     cuts = {}
+    by_entry = {}
+    for x in items:
+        by_entry.setdefault(x.get("entry") or "неясно", []).append(x)
     def cut(name, fn):
         grp: dict[str, list] = {}
         for x in items:
@@ -280,6 +311,7 @@ def build(days: int = 7, only: list[str] | None = None) -> dict:
             if k is not None:
                 grp.setdefault(str(k), []).append(x)
         cuts[name] = {k: _agg(v) for k, v in sorted(grp.items())}
+    cut("точка входа", lambda x: x.get("entry"))
     cut("аппетит", lambda x: (x["bg"] or {}).get("appetite"))
     cut("день недели", lambda x: (x["bg"] or {}).get("dow"))
     cut("сессия", lambda x: (x["bg"] or {}).get("sessions"))
@@ -306,6 +338,14 @@ def build(days: int = 7, only: list[str] | None = None) -> dict:
         return ("покупка внизу" if b["side"] == "buy" else "продажа наверху") if b["role"] == "продолжение" \
             else ("покупка поглощена" if b["side"] == "buy" else "продажа поглощена")
     cut("роль пузыря", _bub_role)
+    cut("чем оплачен ход", lambda x: (qmeta.get((x.get("candle"), x["sym"])) or {}).get("move_paid"))
+    def _bub_how(x):
+        q = qmeta.get((x.get("candle"), x["sym"])) or {}
+        bs = [b for b in (q.get("bubbles") or []) if b.get("side") == "buy" and b.get("role") == "продолжение"]
+        if not bs:
+            return None
+        return "пузырь-выбор" if any(b.get("how") == "выбор" for b in bs) else "пузырь-моментум"
+    cut("как пришёл пузырь", _bub_how)
     def _dd(x):
         v = (qmeta.get((x.get("candle"), x["sym"])) or {}).get("drawdown_pct")
         if v is None:
@@ -330,6 +370,8 @@ def build(days: int = 7, only: list[str] | None = None) -> dict:
     return {"at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "days": days,
             "rows_total": len(fc_all), "events": len(fc),
             "all": _agg(items),
+            # ДВЕ ТОЧКИ СЧИТАЮТСЯ РАЗДЕЛЬНО (07.09): общий итог оставлен только для объёма выборки
+            "by_entry": {k: _agg(v) for k, v in by_entry.items()},
             "days_list": [{"d": k, **_agg(v)} for k, v in sorted(by_day.items(), reverse=True)],
             "hours_list": [{"h": k, **_agg(v)} for k, v in sorted(by_hour.items(), reverse=True)],
             "cuts": cuts, "items": items}
@@ -342,6 +384,10 @@ def _print(r: dict) -> None:
         return
     if r.get("rows_total"):
         print(f"строк в журнале {r['rows_total']} → событий (смен шаблона) {r['events']}")
+    for k, v in (r.get("by_entry") or {}).items():
+        if v.get("n"):
+            print(f"── {k}: событий {v['n']} · сбылось {v['ok_pct']}% · MFE {v['mfe_med']}% · MAE {v['mae_med']}%"
+                  + ("" if v.get("enough") else " · мало"))
     print(f"за {r['days']} дн · прогнозов {a['n']}" + ("" if a["enough"] else f" — меньше {MIN_N}, это ещё не статистика"))
     print(f"цель {a['hits']['цель']} · стоп {a['hits']['стоп']} · срок {a['hits']['срок']} → сбылось {a['ok_pct']}%")
     print(f"пошли в нашу сторону хоть немного: {a['went_pct']}% · MFE медиана {a['mfe_med']}% · "
