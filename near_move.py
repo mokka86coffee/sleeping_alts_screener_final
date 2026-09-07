@@ -358,14 +358,23 @@ def build(only: list[str] | None = None) -> dict:
         td = (v.get("today") or {}).get("today")
         _tk_q = (v.get("today") or {}).get("leaving_kind")
         b_score = 1.0 if td == "набирают сегодня" else 0.5 if td == "стоит" else 0.25 if _tk_q == "коррекция" else 0.0
-        # ЧЕТВЁРТОЕ ЧИСЛО — ФАКТ СЕГОДНЯ (07.09, владелец: «второе место она держит прошлым — сбор
-        # вчера и накопленным плечом, а не сегодняшним днём»): пузырь покупки — единственный факт,
-        # остальное меряет надежду. Есть покупка рыночными — единица; только продажа — ноль;
-        # тихо, без пузырей — ноль четыре.
+        # ЧЕТВЁРТОЕ ЧИСЛО — ТЕМП (07.09, владелец: «важно понять, какая быстрее пойдёт»): очередь
+        # мерила накопленное — срок и плечо, — и первыми вставали стоящие (STRK: плечо ×1.1, «стоит»)
+        # и те, из кого выходят (FLOCK, RAYSOL — «коррекция»), а DOOD с +16% за сутки был четвёртым.
+        # Ход цены за сегодня: кто уже идёт, тот и пойдёт раньше. Пятнадцать процентов — полный балл.
         _tv = v.get("today") or {}
+        _px_chg = _tv.get("px_chg_pct")
+        m_score = min(1.0, max(0.0, (float(_px_chg) / 15.0))) if _px_chg is not None else 0.0
+        score = round(0.25 * t_score + 0.25 * g_score + 0.20 * b_score + 0.30 * m_score, 3)
+        # ПУЗЫРЬ — МНОЖИТЕЛЕМ, НЕ СЛАГАЕМЫМ (07.09): как слагаемое он вынес наверх стоящий STRK
+        # (единственный пузырь дня — 128K в 04:00, при этом цена за день −0.3% и дельта в минус).
+        # Факт покупки усиливает того, кто и так идёт, и не поднимает того, кто стоит.
         _bb, _bs = _tv.get("bub_buy") or [], _tv.get("bub_sell") or []
-        f_score = 1.0 if _bb else (0.0 if _bs else 0.4)
-        score = round(0.25 * t_score + 0.25 * g_score + 0.25 * b_score + 0.25 * f_score, 3)
+        score *= 1.15 if _bb else (0.85 if _bs else 1.0)
+        # КОРРЕКЦИЯ — ТОЖЕ МНОЖИТЕЛЕМ: интерес сегодня уходит вместе с ценой — монета временно не про
+        # «кто раньше»; из очереди не выбрасываем (белый пузырь вернёт), но вперёд не пускаем.
+        if _tk_q == "коррекция":
+            score *= 0.6
         if (v.get("today") or {}).get("leaving_kind") == "конец":
             continue                # конец: интерес ушёл вместе с ценой на одном баре — вон из очереди
         _mode = n.get("mode")
@@ -375,6 +384,7 @@ def build(only: list[str] | None = None) -> dict:
             score *= 1.15
         score = round(score, 3)
         v["queue"] = {"days_since_harvest": days, "score": score, "today": td, "mode": _mode,
+                      "px_chg_pct": _px_chg,
                       "bubble": ("покупка " + _bb[-1]) if _bb else ("продажа " + _bs[-1]) if _bs else "тихо"}
         queue.append((score, s2))
     queue.sort(reverse=True)
@@ -406,7 +416,7 @@ def log_queue(res: dict) -> int:
             "at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "candle": candle.strftime("%Y-%m-%dT%H:%M:00Z"),
             "sym": sym, "place": i, "score": q.get("score"),
             "days_since_harvest": q.get("days_since_harvest"), "oi_grow": n.get("oi_grow"),
-            "today": q.get("today"), "bubble": q.get("bubble"),
+            "today": q.get("today"), "bubble": q.get("bubble"), "move_pct": q.get("px_chg_pct"),
             "mode": q.get("mode"), "engine": n.get("engine"), "group": v.get("group"),
             "px": t.get("px") or n.get("px_now"), "oi_chg_pct": t.get("oi_chg_pct"),
             "px_chg_pct": t.get("px_chg_pct"), "delta": t.get("delta"),
