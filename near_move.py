@@ -140,8 +140,27 @@ def judge(d: dict, live: dict | None = None) -> dict | None:
     days = o[-HARVEST_DAYS:]
     why: list[str] = []
     nums: dict = {}
-    # 1. сбор
+    # 1. сбор — оборот ≥ HARVEST_X норм ИЛИ ДНЕВНОЙ ПУЗЫРЬ (07.09, владелец: «у BLESS bubbles был
+    #    на дне»): день за 14 дней с рыночной покупкой выше среднего на 2σ за 90 дней при цене в 15%
+    #    от 90-дневного дна — крупная покупка у дна считается сбором, даже если оборот не в разы
+    tr = {r["datetime"][:10]: r for r in _rows(d, "trade")}
+    buys90 = [float((tr.get(r["datetime"][:10]) or {}).get("quote_buy_volume") or 0) for r in o[-90:]]
+    mu_b = statistics.mean(buys90) if buys90 else 0.0
+    sd_b = statistics.pstdev(buys90) if len(buys90) > 5 else 0.0
+    low90 = min(float(r.get("low") or r["close"]) for r in o[-30:])   # «дно» — полка последнего месяца, не полугодовое
+    bubble = None
+    for r in o[-14:]:
+        t = tr.get(r["datetime"][:10]) or {}
+        bq = float(t.get("quote_buy_volume") or 0); sq = float(t.get("quote_sell_volume") or 0)
+        if sd_b and bq >= mu_b + 2 * sd_b and bq > sq and float(r["close"]) <= low90 * 1.15:
+            bubble = (r, bq / max(1.0, mu_b))
+    if bubble:
+        nums["bubble_day"] = bubble[0]["datetime"][:10]
+        nums["bubble_x"] = round(bubble[1], 1)
     hv = [(r, float(r["quote_volume"]) / norm) for r in days if float(r["quote_volume"]) / norm >= HARVEST_X]
+    if not hv and bubble and bubble[0] in days:
+        hv = [(bubble[0], float(bubble[0]["quote_volume"]) / norm)]
+        why.append(f"пузырь у дна {bubble[0]['datetime'][5:10]}: покупка ×{bubble[1]:.1f} к среднему")
     if hv:
         hday, hx = max(hv, key=lambda t: t[1])
         why.append(f"сбор {hday['datetime'][5:10]} на ×{hx:.0f} норм")
