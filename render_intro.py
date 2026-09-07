@@ -91,51 +91,19 @@ def collect_items() -> list[dict]:
             r *= 1.15
         return r
 
-    for sym in nm.get("holding") or []:
+    # ОЧЕРЕДЬ В ЗВЁЗДАХ (07.09, владелец): группы — «первые» (три верхние строки очереди, белые,
+    # лучи по баллу), «в очереди» (остальные живые: держат/идут/откатились, зелёные, короче),
+    # «у цели» — как была. Под именем — история одной строкой: срок после сбора · плечо · сегодня
+    queue = nm.get("queue") or []
+    def hist_line(v: dict) -> str:
+        n = v.get("nums") or {}; q = v.get("queue") or {}
+        d = q.get("days_since_harvest")
+        td = q.get("today") or ((v.get("today") or {}).get("today")) or ""
+        return (f"сбор {d} дн назад" if d is not None else "сбор —") + f" · плечо ×{float(n.get('oi_grow') or 1):.1f}" + (f" · {td}" if td else "")
+    for i, sym in enumerate(queue):
         v = coins.get(sym) or {}
-        td = (v.get("today") or {}).get("today")
-        # сегодня по барам (06.09): покупают — подпись «покупают сегодня», продают — «ждёт покупателя»
-        # БРАТЬ — ТОЛЬКО С ПОКУПАТЕЛЕМ (06.09, владелец: «ни одна из списка не пошла, все упали»):
-        # «держат после сбора» — состояние, не команда; без покупателя сегодня — «готова, ждёт»
-        buying = td == "покупают сегодня"
-        sub = "покупают сегодня" if buying else "ждёт покупателя"
-        add(sym, 0 if buying else 3, " · ".join(v.get("why") or []) + (f" · сегодня: {td}" if td else ""), sub, reliability(v))
-    for sym in nm.get("going") or []:
-        v = coins.get(sym) or {}
-        td = (v.get("today") or {}).get("today")
-        # в «держать» подпись — предупреждение о выходе: «продают сегодня»; покупают — молча
-        add(sym, 1, " · ".join(v.get("why") or []) + (f" · сегодня: {td}" if td else ""), "продают сегодня" if td == "продают сегодня" else "", reliability(v))
-    # ДЕРЖАТЬ / ЗАКРЫТЬ ПО СМЫСЛУ ДВИЖЕНИЯ (06.09, случай ENA: «у цели — ведут покупатели» попала в
-    # «закрыть», а сменившись на «кит набирает тихо» — исчезла совсем):
-    #   держать — «идут» из фильтра + шаблоны «у цели … ведут покупатели», «крупняк тащит вверх»,
-    #             «разгон на спросе», «кит набирает тихо» при дельте дня в плюс;
-    #   закрыть — «у цели» с веткой «толпа набивается» / «неясно», «разгон отпустил», осечка/отбой.
-    cg = _read("coinglass_fetch.json") or {}
-    cgc = cg.get("coins") or {}
-    for sym, r in rep.items():
-        if not isinstance(r, dict) or sym.startswith("_"):
-            continue
-        plot_full = str(r.get("plot") or "").lower()
-        plot = plot_full.split("(")[0].strip()
-        last = marks.get(sym, "")
-        fut = (cgc.get(sym) or {}).get("fut") or {}
-        d24 = (fut.get("buyUsd") or 0) - (fut.get("sellUsd") or 0)
-        # ТРЕТЬЯ ГРУППА — «У ЦЕЛИ» с подписью, что делать (06.09, владелец):
-        #   хеджировать — у цели, толпа набивается; ждать подтверждения — у цели, кто двигает неясно;
-        #   конец тренда — разгон отпустил, осечка, отбой
-        if plot.startswith("у цели"):
-            if "ведут покупатели" in plot_full or "ведёт покупатель" in plot_full:
-                add(sym, 1, "у цели — ведут покупатели")
-            elif "толпа" in plot_full:
-                add(sym, 2, "у цели — толпа набивается", "хеджировать")
-            else:
-                add(sym, 2, "у цели — кто двигает неясно", "ждать подтверждения")
-        elif plot.startswith("разгон отпустил") or any(w in last for w in END_WORDS):
-            add(sym, 2, plot or last, "конец тренда")
-        elif plot.startswith(("крупняк тащит", "разгон на спросе")):
-            add(sym, 1, plot)
-        elif plot.startswith("кит набирает тихо") and d24 > 0:
-            add(sym, 1, plot + " · дельта дня в плюс")
+        sc = float((v.get("queue") or {}).get("score") or 0)
+        add(sym, 0 if i < 3 else 1, " · ".join(v.get("why") or []), hist_line(v), sc)
     # порядок: брать, держать, у цели; внутри группы — по надёжности, самая надёжная первой
     items.sort(key=lambda it: (it["g"], -it.get("rel", 0.0)))
     # яркость внутри группы: лучшая — 1.0, остальные вниз до 0.45; «у цели» — ровно 0.7
@@ -206,23 +174,19 @@ def render_intro(items: list[dict] | None = None) -> str:
     # ГОТОВЫ — СВОЯ ГРУППА (06.09, владелец: «непонятно, как отличать держать от готовы»):
     # без зелени и искр, тусклее, короткие лучи, стоят НИЖНИМ рядом над подписями —
     # «на скамейке»; держать — созвездие выше, с зелёной подсветкой
-    ready = [it for it in items if it["g"] == 3]
-    for it in ready:
-        it["bright"] = 0.55
-    counts = [sum(1 for it in items if it["g"] == k) for k in (0, 1, 2, 3)]
-    labels = [{"n": f"брать {counts[0]}", "sym": "", "g": 0, "why": "", "label": True},
-              {"n": f"держать {counts[1]}", "sym": "", "g": 1, "why": "", "label": True},
-              {"n": f"готовы {counts[3]}", "sym": "", "g": 3, "why": "", "label": True},
+    counts = [sum(1 for it in items if it["g"] == k) for k in (0, 1, 2)]
+    labels = [{"n": f"первые {counts[0]}", "sym": "", "g": 0, "why": "", "label": True},
+              {"n": f"в очереди {counts[1]}", "sym": "", "g": 1, "why": "", "label": True},
               {"n": f"у цели {counts[2]}", "sym": "", "g": 2, "why": "", "label": True}]
     # раскладка (откат 06.09, владелец: «с зонами некрасиво»): одно облако-созвездие для всех
     # групп, различие — цветом и поведением света; подписи групп — четыре внизу
     # порядок появления (06.09, владелец): подпись группы → её звёзды → следующая → её звёзды
-    LABPOS = {0: [0.16, 0.90], 1: [0.39, 0.90], 3: [0.61, 0.90], 2: [0.84, 0.90]}
+    LABPOS = {0: [0.22, 0.90], 1: [0.50, 0.90], 2: [0.78, 0.90]}
     star_pos = layout(len(items))
     allit: list[dict] = []
     pos: list[list[float]] = []
     k = 0
-    for g in (0, 1, 3, 2):
+    for g in (0, 1, 2):
         allit.append(next(it for it in labels if it["g"] == g)); pos.append(LABPOS[g])
         for it in items:
             if it["g"] == g:

@@ -202,18 +202,39 @@ def build_letter(stars: list, market: dict) -> tuple[str, str]:
         _hb0 = _nm.get("holding_buying") or []
         _nm["_buy"] = _hb0
         _nm["_ready"] = [x for x in (_nm.get("holding") or []) if x not in _hb0]
-        _near_n = _block("БРАТЬ", "_buy", " — держат после сбора И покупают сегодня")
-        _block("ГОТОВЫ", "_ready", " — держат после сбора, покупателя сегодня нет — не входить")
-        _hb, _hs = _nm.get("holding_buying") or [], _nm.get("holding_selling") or []
-        if _hb or _hs:
-            add("  сегодня по барам: " + (("покупают — " + ", ".join(x.replace("USDT", "") for x in _hb)) if _hb else "")
-                + (" · " if _hb and _hs else "") + (("продают — " + ", ".join(x.replace("USDT", "") for x in _hs)) if _hs else ""))
+        # ОЧЕРЕДЬ — кто раньше (07.09): первая строка — основной размер, вторая-третья — по четверти
+        _q = _nm.get("queue") or []
+        if _q:
+            add("ОЧЕРЕДЬ — кто раньше (размер: первая — основной, вторая и третья — по четверти):")
+            for _i, _sym in enumerate(_q[:5], 1):
+                _v = _coins.get(_sym) or {}; _n = _v.get("nums") or {}; _qq = _v.get("queue") or {}
+                add(f"  {_i}. {_sym.replace('USDT', '')} — сбор {_qq.get('days_since_harvest', '?')} дн назад · плечо ×{_n.get('oi_grow', 0):.2f} за 3 дн · "
+                    f"{_qq.get('today') or 'баров нет'} · оборот ×{_n.get('lull_x', 0):.1f}")
             add("")
-        _block("ИДУТ", "going", " — второй акт уже идёт, держать до «отпустил»")
-        _gs = _nm.get("going_selling") or []
-        if _gs:
-            add("  сегодня по барам продают: " + ", ".join(x.replace("USDT", "") for x in _gs) + " — первый бар с ценой за дельтой — выход")
-            add("")
+        _near_n = len(_q[:3])
+        # У ЦЕЛИ (07.09, владелец: «это по сути и было хеджирование») — из репутации, как в звёздах:
+        # хеджировать (толпа набивается) / ждать подтверждения (неясно) / конец тренда (отпустил, осечка)
+        try:
+            _rep = json.loads((BASE_DIR / "output" / "reputation.json").read_text(encoding="utf-8"))
+            _tg: dict = {"хеджировать": [], "ждать подтверждения": [], "конец тренда": []}
+            for _sym, _r in _rep.items():
+                if not isinstance(_r, dict) or _sym.startswith("_"):
+                    continue
+                _pf = str(_r.get("plot") or "").lower(); _p = _pf.split("(")[0].strip()
+                if _p.startswith("у цели"):
+                    if "ведут покупатели" in _pf or "ведёт покупатель" in _pf:
+                        continue
+                    _tg["хеджировать" if "толпа" in _pf else "ждать подтверждения"].append(_sym.replace("USDT", ""))
+                elif _p.startswith("разгон отпустил") or _p.startswith("осечка") or _p.startswith("отбой"):
+                    _tg["конец тренда"].append(_sym.replace("USDT", ""))
+            if any(_tg.values()):
+                add("У ЦЕЛИ:")
+                for _k, _lst in _tg.items():
+                    if _lst:
+                        add(f"  · {_k} — " + ", ".join(_lst[:10]))
+                add("")
+        except Exception:
+            pass
         _block("ОТКАТИЛИСЬ", "pulled", " — отдали 10–35% после сбора, решит первый день продаж")
         _block("ОТДАЮТ", "giving", " — плечо уходит, отскоки — кандидаты на шорт")
         if not _near_n and not (_nm.get("going") or _nm.get("giving")):

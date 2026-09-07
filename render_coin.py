@@ -344,7 +344,15 @@ def _pulse_series(days: int = 3) -> dict:
                     pts.append([int(t * 1000), float(r["price"])])
             if len(pts) >= 4:
                 pts.sort()
-                out[str(sym).upper()] = pts[-400:]
+                # стоячие точки (07.09): пока цена бралась с закрытой дневки, пульс писал одну
+                # цену много раз подряд — линия шла полкой и обрывом; повторы подряд убираем
+                dedup = []
+                for q in pts:
+                    if dedup and abs(q[1] - dedup[-1][1]) < 1e-12:
+                        continue
+                    dedup.append(q)
+                if len(dedup) >= 4:
+                    out[str(sym).upper()] = dedup[-400:]
         break
     return out
 
@@ -528,6 +536,16 @@ COIN_HTML = r"""
 .intro .irow b{font-family:var(--f-cap);font-weight:400;font-size:7.5px;letter-spacing:.3em;text-transform:uppercase;color:#f5a93a;padding-top:3px}
 .intro .irow span{font-size:12px;line-height:1.45;color:#e9fff4}
 .intro .ihint{margin-top:12px;font-family:var(--f-cap);font-size:6.5px;letter-spacing:.24em;text-transform:uppercase;color:#7fb8a0}
+/* ── история монеты (07.09): кнопка у «монеты», панель по центру при наведении ── */
+.hist{position:absolute;right:250px;top:74px;z-index:6}
+.hist .hbtn{font-family:var(--f-cap);font-size:8px;letter-spacing:.34em;text-transform:uppercase;color:#9fd8bf;border:1px solid rgba(191,255,224,.22);border-radius:14px;padding:6px 12px;cursor:default;opacity:.6;transition:opacity .3s,box-shadow .3s}
+.hist:hover .hbtn{opacity:1;box-shadow:0 0 18px rgba(127,240,184,.2);border-color:rgba(191,255,224,.5)}
+.hist .hpl{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.98);width:420px;max-height:70vh;overflow:auto;background:rgba(3,17,12,.94);border:1px solid rgba(191,255,224,.25);border-radius:10px;padding:14px 18px;box-shadow:0 20px 80px rgba(0,0,0,.7);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:40}
+.hist:hover .hpl{opacity:1;transform:translate(-50%,-50%) scale(1);pointer-events:auto}
+.hist .ht{font-family:var(--f-cap);font-size:9px;letter-spacing:.34em;text-transform:uppercase;color:#bfffe0;margin-bottom:10px}
+.hist .hh{font-family:var(--f-cap);font-size:7.5px;letter-spacing:.18em;text-transform:uppercase;color:#7fb8a0;margin:8px 0 6px}
+.hist .hr{display:grid;grid-template-columns:82px 70px 1fr;gap:10px;font-family:var(--f-cap);font-size:8px;letter-spacing:.1em;color:#dffff0;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.hist .hr b{font-weight:400;color:#ffe2a8;text-transform:uppercase}.hist .hr b.miss{color:#ff9d84}.hist .hr.ev b{color:#9dbbe0}
 /* ── близкие к ходу (05.09, владелец: «не иконками, само название пусть мигает») ── */
 .clist a.near span{color:#ffe2a8;text-shadow:0 0 8px rgba(255,217,138,.75),0 0 18px rgba(245,169,58,.35);animation:nearpulse 1.6s ease-in-out infinite}
 @keyframes nearpulse{0%,100%{opacity:1;text-shadow:0 0 8px rgba(255,217,138,.75),0 0 18px rgba(245,169,58,.35)}50%{opacity:.55;text-shadow:0 0 2px rgba(255,217,138,.3)}}
@@ -1113,7 +1131,8 @@ COIN_JS = r"""
     // (тейкер Coinglass < 1 → вниз, > 1 → вверх); при несогласии — обе одинаково.
     (s.liqZones || []).slice(0, 3).forEach(function (z) {
       var mid = (z.lo + z.hi) / 2, side = mid < _pxNow ? 'down' : 'up', hot = !_bias || side === _bias;
-      RL.push({ y: sy(mid), col: hot ? (side === 'down' ? '#ffd0c0' : '#e6d3a3') : '#6f7a75', txt: 'ЛИКВ ' + (money(z.fuel) || '') + (hot && _bias ? ' ← СНИМУТ' : ''), liq: true, hot: !!(hot && _bias), mid: mid, x1: (heatX1 !== null ? heatX1 : X0), dash: hot ? '6 4' : '2 6', w: hot ? (_bias ? 1.1 : .8) : .5, op: hot ? (_bias ? .8 : .55) : .3 });
+      // подпись — ЦЕНА полосы (07.09, владелец: «в размере нет смысла»); сумма — при наведении
+      RL.push({ y: sy(mid), col: hot ? (side === 'down' ? '#ffd0c0' : '#e6d3a3') : '#6f7a75', txt: 'ЛИКВ ' + px4(mid) + (hot && _bias ? ' ← СНИМУТ' : ''), tip: (side === 'down' ? 'лонги ' : 'шорты ') + (money(z.fuel) || '') + ' на ' + px4(mid), liq: true, hot: !!(hot && _bias), mid: mid, x1: (heatX1 !== null ? heatX1 : X0), dash: hot ? '6 4' : '2 6', w: hot ? (_bias ? 1.1 : .8) : .5, op: hot ? (_bias ? .8 : .55) : .3 });
     });
     // карта во времени с большой плиты снята (06.09): её горизонталь — 120 дней, сутки лога
     // сжимались в столбик у края («кирпичики»); теперь она на плите журнала справа, где окно — дни
@@ -1146,13 +1165,13 @@ COIN_JS = r"""
         // подпись полосы + мигающая стрелка «← снимут»; плашка направления раскрывается при наведении на стрелку
         var base = r.txt.replace(' ← СНИМУТ', '');
         g += '<g class="dirhot"><text x="' + (X1 + 52) + '" y="' + f(r.ly + 2.5) + '" class="mono" font-size="7" letter-spacing=".16em" fill="' + r.col + '" opacity=".95">' + esc(base) + '<tspan class="blink" fill="' + dirPl.col + '"> ← СНИМУТ</tspan></text>';
-        var pw = 168, ph = 26, pxl = X1 + 50, pyt = r.ly + 8;
+        var pw = 168, ph = 26, pxl = X1 + 50, pyt = r.ly - 34;   // плашка НАД подписью (07.09): под ней её закрывала соседняя строка
         g += '<g class="dirpl"><rect x="' + pxl + '" y="' + f(pyt) + '" width="' + pw + '" height="' + ph + '" rx="3" fill="rgba(3,17,12,.88)" stroke="' + dirPl.col + '" stroke-opacity=".5" stroke-width=".6"/>' +
              '<text x="' + (pxl + 6) + '" y="' + f(pyt + 10) + '" class="mono" font-size="6.5" letter-spacing=".18em" fill="' + dirPl.col + '">' + esc(dirPl.l1) + '</text>' +
              '<text x="' + (pxl + 6) + '" y="' + f(pyt + 20) + '" class="mono" font-size="6" letter-spacing=".14em" fill="#bfe9d6">' + esc(dirPl.l2) + '</text></g></g>';
         dirPl = null;
       } else {
-        g += '<text x="' + (X1 + 52) + '" y="' + f(r.ly + 2.5) + '" class="mono" font-size="7" letter-spacing=".16em" fill="' + r.col + '" opacity=".95">' + esc(r.txt) + '</text>';
+        g += '<text x="' + (X1 + 52) + '" y="' + f(r.ly + 2.5) + '" class="mono" font-size="7" letter-spacing=".16em" fill="' + r.col + '" opacity=".95">' + (r.tip ? '<title>' + esc(r.tip) + '</title>' : '') + esc(r.txt) + '</text>';
       }
       g += '</g>';
       slab += g;
@@ -1395,7 +1414,7 @@ COIN_JS = r"""
           var side = b.p < pxNowH ? 'down' : 'up', hot = !_bias || side === _bias;
           var x1 = XT(Math.max(b.t0, t0)), x2 = XT(b.t1 >= lastT ? tE : b.t1);
           var o = (0.15 + 0.7 * (b.w / mx)) * (hot ? 1 : 0.35), col = side === 'down' ? '#ff8a70' : '#e6d3a3';
-          heatJ += '<rect x="' + x1.toFixed(1) + '" y="' + (y - 1.6).toFixed(1) + '" width="' + Math.max(3, x2 - x1).toFixed(1) + '" height="3.2" rx="1" fill="' + col + '" opacity="' + o.toFixed(2) + '"/>';
+          heatJ += '<rect x="' + x1.toFixed(1) + '" y="' + (y - 1.6).toFixed(1) + '" width="' + Math.max(3, x2 - x1).toFixed(1) + '" height="3.2" rx="1" fill="' + col + '" opacity="' + o.toFixed(2) + '"><title>' + esc((side === 'down' ? 'лонги ' : 'шорты ') + px4(b.p) + ' · ' + (money(b.w) || '') + (b.t1 >= lastT ? ' · стоит' : ' · снята')) + '</title></rect>';
         });
       })();
       // ПУЗЫРИ РЫНОЧНЫХ ЗАЯВОК (06.09, по Leviathan Market Order Bubbles): полчасовые бары
@@ -1456,7 +1475,27 @@ COIN_JS = r"""
       return '<a href="#' + esc(c) + '" class="' + (c === tick ? 'cur' : '') + (isNear ? ' near' : '') + '"' + (isNear ? ' title="близкая к ходу: ' + esc((nr.why || []).join(' · ')) + '"' : '') + '><i style="background:' + cc[0] + ';box-shadow:0 0 6px ' + cc[0] + '" title="' + cc[1] + '"></i><span>' + esc(c) + '</span>' + marks(z) + (gr ? '<u style="color:' + GRP_C[gr][0] + ';border-color:' + GRP_C[gr][0] + '">' + GRP_C[gr][1] + '</u>' : '') + '</a>';
     }).join('') + '</div>';
     var legend = '<div class="cleg">' + Object.keys(CASE_C).map(function (k) { return '<b><i style="background:' + CASE_C[k][0] + '"></i>' + CASE_C[k][1] + '</b>'; }).join('') + '<s></s><b><em class="ld">★</em>лидер</b><b><em class="ht">●</em>горячая</b><b><em class="nw">✦</em>новая</b><b><em class="my">◆</em>твоя</b></div>';
-    var coins = '<div class="coins"><div class="cbtn"><i></i>монеты <b>' + NAMES.length + '</b></div><div class="clist"><div class="ch">монеты журнала · по алфавиту · цвет — кейс, метка — группа книги</div><div class="cols">' + cols + '</div>' + legend + '</div></div>';
+    // ИСТОРИЯ ПО МОНЕТЕ (07.09, владелец: «Телеграм не должен быть источником истории»):
+    // кнопка рядом с «монеты», при наведении — панель по центру: смены журнала по времени с ценой,
+    // сбор/плечо из очереди, события календаря
+    var histRows = '';
+    (function () {
+      var J = JR[String(s.t).toUpperCase()];   // запись журнала этой монеты
+      var Jm = (J && J.marks) || [];
+      Jm.slice(-14).reverse().forEach(function (m) {
+        histRows += '<div class="hr"><span>' + esc(String(m.t).slice(5, 16).replace('T', ' ')) + '</span><span>' + esc(px4(m.px)) + '</span><b class="' + (m.miss ? 'miss' : '') + '">' + esc(tplShort(m.tpl)) + '</b></div>';
+      });
+      var nr = NEAR[String((s.coin || (String(s.t).toUpperCase() + 'USDT'))).toUpperCase()] || {}, nn = nr.nums || {}, qq = nr.queue || {};
+      var head = '';
+      if (nn.harvest_day) head += '<div class="hh">сбор ' + esc(String(nn.harvest_day).slice(5)) + ' ×' + Math.round(nn.harvest_x || 0) + (qq.days_since_harvest != null ? ' · ' + qq.days_since_harvest + ' дн назад' : '') + ' · плечо ×' + (+nn.oi_grow || 1).toFixed(2) + (qq.today ? ' · ' + esc(qq.today) : '') + '</div>';
+      if (J && J.n) head += '<div class="hh">журнал: ' + J.n + ' записей · смен ' + J.switches + '</div>';
+      var ev = (s.calendar || {}).events || (s.events || []);
+      var evs = '';
+      (ev || []).slice(0, 4).forEach(function (e) { evs += '<div class="hr ev"><span>' + esc(String(e.date || e.at || '').slice(5, 10)) + '</span><b>' + esc(String(e.title || e.text || e.kind || '')) + '</b></div>'; });
+      histRows = head + (histRows || '<div class="hh">смен пока нет</div>') + (evs ? '<div class="hh">события</div>' + evs : '');
+    })();
+    var coins = '<div class="hist"><div class="hbtn" title="история монеты">история</div><div class="hpl"><div class="ht">' + esc(String(s.t).toUpperCase()) + ' · история</div>' + histRows + '</div></div>' +
+      '<div class="coins"><div class="cbtn"><i></i>монеты <b>' + NAMES.length + '</b></div><div class="clist"><div class="ch">монеты журнала · по алфавиту · цвет — кейс, метка — группа книги</div><div class="cols">' + cols + '</div>' + legend + '</div></div>';
     var cs = clockState(), clock = cs ? vessel(cs) : '';
     var aura = '<div class="aura up' + (cs && cs.kind === 'up' ? (cs.live ? ' on' : cs.soon ? ' soon' : '') : '') + '"></div><div class="aura dn' + (cs && cs.kind === 'dn' ? (cs.live ? ' on' : cs.soon ? ' soon' : '') : '') + '"></div>';
     stage.innerHTML = '<div class="beam"></div><div class="floor"></div><div class="sweep"></div>' + aura + '<div class="slab"><svg viewBox="0 0 ' + SW + ' ' + SH + '">' + slab + '</svg></div><svg class="leaders" viewBox="0 0 1440 900">' + leaders + '</svg>' +

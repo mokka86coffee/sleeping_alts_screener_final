@@ -1238,15 +1238,17 @@ SCHEME_JS = r"""
     /* БЛИЗКИЕ — ИЗ ФИЛЬТРА НАПРЯМУЮ (06.09, владелец: «в брифе APR и ZORA, на звёздах ARB и ZORA»):
        список holding из near_move, тот же, что читает интро; шаблон и стадия здесь не решают */
     (function () {
-      var NM = (DATA.near || {}), hold = NM.holding || [], cs = NM.coins || {};
-      for (var hi2 = 0; hi2 < hold.length && hi2 < 6; hi2++) {
-        var sym = hold[hi2], rec = cs[sym] || {}, n = rec.nums || {}, tk = sym.replace('USDT', '');
+      // ОЧЕРЕДЬ (07.09): три первые строки — те же, что «первые» в звёздах; строка истории под именем
+      var NM = (DATA.near || {}), hold = NM.queue || NM.holding || [], cs = NM.coins || {};
+      for (var hi2 = 0; hi2 < hold.length && hi2 < 3; hi2++) {
+        var sym = hold[hi2], rec = cs[sym] || {}, n = rec.nums || {}, tk = sym.replace('USDT', ''), qq = rec.queue || {};
         var st = null; for (var si = 0; si < ST.length; si++) { if (String(ST[si].t || '').toUpperCase() === tk) { st = ST[si]; break; } }
         var plot = st && st.rep && st.rep.plot ? String(st.rep.plot).split('(')[0].trim() : '';
         var body = plot ? esc(plot) : 'держат после сбора — ход впереди';
-        out.push({ k: 'Близкая · ' + tk,
-                   v: '<span class="tkr">' + esc(tk) + '</span><s>·</s><b>' + (n.lull_x ? 'оборот ×' + (+n.lull_x).toFixed(1) : 'держат') + '</b>', c: '#7fe3d4',
-                   s: body + '<br><i style="opacity:.62">' + esc((rec.why || []).join(' · ')) + '</i>' });
+        var hist = (qq.days_since_harvest != null ? 'сбор ' + qq.days_since_harvest + ' дн назад' : 'сбор —') + ' · плечо ×' + (+n.oi_grow || 1).toFixed(1) + (qq.today ? ' · ' + qq.today : '');
+        out.push({ k: 'Очередь ' + (hi2 + 1) + ' · ' + tk,
+                   v: '<span class="tkr">' + esc(tk) + '</span><s>·</s><b>' + (hi2 === 0 ? 'основной размер' : 'четверть') + '</b>', c: hi2 === 0 ? '#ffd98a' : '#7fe3d4',
+                   s: esc(hist) + (body ? '<br>' + body : '') + '<br><i style="opacity:.62">' + esc((rec.why || []).join(' · ')) + '</i>' });
       }
     })();
     /* ОТДАЮТ (06.09): сбор был, оборот и шорты есть, а плечо уходит — второй акт не сложился;
@@ -1510,7 +1512,7 @@ SCHEME_JS = r"""
     ? {'полгода':0, 'недели':1, 'дни':2, 'часы':3, 'счёт':4}
     : {'полгода':4, 'недели':3, 'дни':2, 'часы':1, 'счёт':5};
   cos.forEach(function(c, i){
-    var go = String(c.k).indexOf('\u041f\u043e\u0439\u0434') === 0 || String(c.k).indexOf('Близкая') === 0;   // «Близкая» — прогноз-пролог, как «Пойдёт?»
+    var go = String(c.k).indexOf('\u041f\u043e\u0439\u0434') === 0 || String(c.k).indexOf('Близкая') === 0 || String(c.k).indexOf('Очередь') === 0;   // очередь — прогноз-пролог
     /* Ветвь лидера идёт прологом рядом с «Пойдёт?» (01.09): она про
        главную монету экрана, а не про фон. Признаком go её не метим —
        иначе оденется в стиль кандидата и снова будет читаться как

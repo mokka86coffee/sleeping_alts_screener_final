@@ -242,6 +242,27 @@ def build(only: list[str] | None = None) -> dict:
     for g in ("holding", "going", "pulled"):
         out[g + "_buying"] = [s2 for s2 in out[g] if (out["coins"][s2].get("today") or {}).get("today") == "покупают сегодня"]
         out[g + "_selling"] = [s2 for s2 in out[g] if (out["coins"][s2].get("today") or {}).get("today") == "продают сегодня"]
+    # ОЧЕРЕДЬ (07.09, владелец: «кто пойдёт раньше — туда размер»): по трём ходам недели второй акт
+    # приходил через 1–5 дней после сбора у тех, у кого интерес продолжал расти, а в день хода бары
+    # покупали. Балл: близость срока к 2–3 дням + рост интереса + покупают сегодня.
+    from datetime import datetime, timezone
+    today = datetime.now(timezone.utc).date()
+    queue = []
+    for s2 in out["holding"] + out["going"] + out["pulled"]:
+        v = out["coins"][s2]; n = v.get("nums") or {}
+        try:
+            days = (today - datetime.strptime(n.get("harvest_day", ""), "%Y-%m-%d").date()).days
+        except ValueError:
+            days = None
+        t_score = 1.0 if days in (2, 3) else 0.7 if days in (1, 4) else 0.4 if days == 5 else 0.2
+        g_score = min(1.0, max(0.0, (float(n.get("oi_grow") or 1.0) - 1.0) / 1.5))
+        td = (v.get("today") or {}).get("today")
+        b_score = 1.0 if td == "покупают сегодня" else 0.5 if td == "стоит" else 0.0
+        score = round(0.35 * t_score + 0.35 * g_score + 0.30 * b_score, 3)
+        v["queue"] = {"days_since_harvest": days, "score": score, "today": td}
+        queue.append((score, s2))
+    queue.sort(reverse=True)
+    out["queue"] = [s2 for _, s2 in queue]
     return out
 
 
