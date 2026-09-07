@@ -849,7 +849,7 @@ function drawFx(t){
     const g=(DATA.grp||[])[i];
     if(PICK!==null&&g!==PICK)continue;
     const cx=FW*POS[i][0],cy=FH*POS[i][1];
-    const near=MX>=0&&Math.hypot(MX-cx,MY-cy)<SZ*6;
+    const near=MX>=0&&(Math.hypot(MX-cx,MY-cy)<SZ*7 || (Math.abs(MY-cy-SZ*1.05)<SZ*1.6 && Math.abs(MX-cx)<SZ*12));
     const room=Math.max(.45,Math.min(1,near_d[i]));   // теснота ужимает систему
     const K=SZ*room*(near?1.15:1);
     const a0=(near?.95:.5)*F;
@@ -881,14 +881,19 @@ function drawFx(t){
     const subAll=((DATA.subs||[])[i]||'').split(' · ').filter(Boolean);
     if(subAll.length){
       const dir=dirs[i];
-      const full=near||PICK!==null||g===0;
-      const state=subAll[subAll.length-1];                       // «набирают сегодня» / «стоит» / …
+      // ПОЛНОТА ПОДПИСИ (08.09, владелец: «зачем мне полная строка»): на экране у ВСЕХ коротко —
+      // одно слово состояния или доля выхода/хеджа. Полная строка только при наведении и в
+      // закреплённой группе. Экран чистый, разбор — по наведению.
+      const full=near||PICK!==null;
+      const why=((DATA.whys||[])[i]||'').split(' · ').filter(Boolean);
+      const parts=(near&&(g===2||g===4)&&why.length)?why.concat(subAll):subAll;   // у цели: при наведении — чем живёт
+      const state=parts[parts.length-1];                       // «набирают сегодня» / «стоит» / …
       const mode=subAll[0];                                      // «лестница» / «парабола»
       const mid=subAll.slice(1,-1);                              // сбор · плечо
       fc.textBaseline='middle';
       // ПОДПИСЬ — СТРОКА-ШЛЕЙФ (07.09, выбор владельца из трёх видов): одна строка вбок,
       // слова гаснут к хвосту, разделены точкой; вниз ничего не громоздится
-      const words=full?subAll:[state];
+      const words=full?parts:[state];
       fc.font=`300 ${SZ*.52}px "Inter",system-ui,sans-serif`;
       fc.textAlign=dir>0?'left':'right';
       let off=SZ*1.25;
