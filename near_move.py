@@ -141,6 +141,15 @@ def _today_bars(sym_usdt: str) -> dict | None:
             prev_oi = oo
     lows = [r.get("px") for r in rows if r.get("px")]
     held = (min(lows) if lows else None)
+    # ОТКАТ ОТ МАКСИМУМА И НАПРАВЛЕНИЕ ПОСЛЕДНИХ ЧАСОВ (07.09, владелец: «DOOD весь день провисел
+    # в первых, хотя падал почти с утра»). Дневная мерка «выходят» его не видела: интерес за СУТКИ
+    # оставался в плюсе (вырос ночью), а падение шло ОТ ВЕРШИНЫ дня. Считаем два числа отдельно:
+    #   drawdown_pct — сколько цена отдала от максимума дня (DOOD к вечеру −11% от вершины);
+    #   oi_trend_pct — куда идёт интерес за последние 6 баров (три часа), в процентах.
+    day_hi_px = max(lows) if lows else None
+    drawdown = ((px1 / day_hi_px - 1) * 100) if (day_hi_px and px1) else None
+    _oi_tail = [r.get("oi") for r in rows[-7:] if r.get("oi")]
+    oi_trend = ((_oi_tail[-1] / _oi_tail[0] - 1) * 100) if len(_oi_tail) >= 3 and _oi_tail[0] else None
     # БЕЛЫЙ ПУЗЫРЬ ОТМЕНЯЕТ «КОНЕЦ» (07.09, владелец: «у FLOCK продолжение, там белые пузыри»):
     # пузырь — факт (кто-то отдал деньги рыночной заявкой), уход интереса — надежда выходящих;
     # факт весит больше. Бар с покупкой выше 2σ по обороту дня → это коррекция, не конец.
@@ -222,6 +231,8 @@ def _today_bars(sym_usdt: str) -> dict | None:
             "oi_chg_pct": round(oi_chg * 100, 1) if oi_chg is not None else None,
             "px_chg_pct": round(px_chg * 100, 1) if px_chg is not None else None, "dominant": dom,
             "px": px1, "leaving_kind": kind, "day_low": held, "hit_bar": hit, "bubble_buy": bubble_buy,
+            "drawdown_pct": round(drawdown, 2) if drawdown is not None else None,
+            "oi_trend_pct": round(oi_trend, 2) if oi_trend is not None else None,
             "bub_buy": bub_buy_bars, "bub_sell": bub_sell_bars, "skipped": len(skipped),
             "bubble_signal": bubble_signal, "bubble_down": bubble_down,
             "absorbed": len(absorbed), "at_target": at_target,
@@ -448,7 +459,19 @@ def build(only: list[str] | None = None) -> dict:
         _tv = v.get("today") or {}
         _px_chg = _tv.get("px_chg_pct")
         m_score = min(1.0, max(0.0, (float(_px_chg) / 15.0))) if _px_chg is not None else 0.0
+        # ОТКАТ ОТ ВЕРШИНЫ ДНЯ — В БАЛЛ (07.09): темп по цене за день не отличает того, кто идёт,
+        # от того, кто уже сходил и отдаёт. DOOD 07.09: +7% за сутки и −11% от вершины — по дневному
+        # темпу он оставался первым весь день. Полный балл темпа только у того, кто держится у своего
+        # максимума; отдал десятую часть хода — темп обнуляется.
+        _dd = _tv.get("drawdown_pct")
+        if _dd is not None:
+            m_score *= max(0.0, 1.0 - abs(min(0.0, _dd)) / 10.0)
         score = round(0.25 * t_score + 0.25 * g_score + 0.20 * b_score + 0.30 * m_score, 3)
+        # НАПРАВЛЕНИЕ ИНТЕРЕСА ЗА ПОСЛЕДНИЕ ТРИ ЧАСА: растёт — усиливает, падает — ослабляет.
+        # Это ответ на «кто пойдёт СЕЙЧАС», а не «у кого вчера был сбор».
+        _tr = _tv.get("oi_trend_pct")
+        if _tr is not None:
+            score *= 1.10 if _tr >= 2 else (0.75 if _tr <= -3 else 1.0)
         # ПУЗЫРЬ — МНОЖИТЕЛЕМ, НЕ СЛАГАЕМЫМ (07.09): как слагаемое он вынес наверх стоящий STRK
         # (единственный пузырь дня — 128K в 04:00, при этом цена за день −0.3% и дельта в минус).
         # Факт покупки усиливает того, кто и так идёт, и не поднимает того, кто стоит.
@@ -507,6 +530,8 @@ def log_queue(res: dict) -> int:
             "days_since_harvest": q.get("days_since_harvest"), "oi_grow": n.get("oi_grow"),
             "today": q.get("today"), "bubble": q.get("bubble"), "move_pct": q.get("px_chg_pct"),
             # карточки пузырей и плечо к цене (07.09) — сырьём в журнал, выводы делает считалка
+            "drawdown_pct": (v.get("today") or {}).get("drawdown_pct"),
+            "oi_trend_pct": (v.get("today") or {}).get("oi_trend_pct"),
             "bubbles": (v.get("today") or {}).get("bubbles"),
             "oi_to_px": (v.get("today") or {}).get("oi_to_px"),
             "mode": q.get("mode"), "engine": n.get("engine"), "group": v.get("group"),

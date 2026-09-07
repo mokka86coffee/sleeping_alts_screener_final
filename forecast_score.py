@@ -61,9 +61,14 @@ LIMIT_H = 24                              # срок (третья границ�
 FALLBACK_TP, FALLBACK_SL = 2.5, 1.0       # запасные границы в дневных σ, если полос нет
 MIN_N = 50                                # ниже этого — не статистика
 
-# шаблоны, где прогноз НА РОСТ; остальные — на конец хода
-UP_WORDS = ("тащит", "разгон", "набирает", "кит", "покупател", "у цели", "спрос", "лестниц")
-DOWN_WORDS = ("отпустил", "осечка", "отбой", "конец", "выходят", "раздач", "слив")
+MAX_LAG_MIN = 30          # первый бар дальше получаса от события — данных нет, событие не считаем
+
+# СТОРОНА ПРОГНОЗА (07.09, найдено на журнале): порядок проверки решает. Шаблон «кит поглощает
+# слив» — БЫЧИЙ, но слово «слив» в нём есть; из-за этого 46 бычьих событий считались как «на конец»
+# и давали ноль сбывшихся. Сначала ищем явные концовки целыми фразами, потом рост.
+DOWN_WORDS = ("разгон отпустил", "отпустил", "осечка", "отбой", "конец тренда",
+              "выходят", "лонги выходят", "раздача", "вынос идёт")
+UP_WORDS = ("тащит", "разгон на", "набирает", "кит", "покупател", "у цели", "спрос", "лестниц", "поглощает")
 
 
 def _jsonl(p: Path) -> list[dict]:
@@ -121,6 +126,18 @@ def score_one(sym: str, at: datetime, tpl: str, rows: list[dict] | None = None) 
         return None
     fut = [r for r in rows if (_ts(r.get("candle")) or datetime.min.replace(tzinfo=timezone.utc)) >= at]
     if len(fut) < 2:
+        return None
+    # НЕТ БАРОВ РЯДОМ С СОБЫТИЕМ — НЕ СЧИТАЕМ (07.09): архив начинается 05.09 20:00, а события есть
+    # и с ночи; путь считался от первого доступного бара через 18 часов — отсюда «MFE 38%».
+    _first = _ts(fut[0].get("candle"))
+    if not _first or (_first - at).total_seconds() > MAX_LAG_MIN * 60:
+        return None
+    # ЗАМЕРЗШАЯ ЦЕНА (06.09, найдено на архиве): до правки core_binance цена в барах не обновлялась
+    # часами — 06.09 у монеты было 10 разных цен на 48 баров. По такому пути считать нельзя: ход
+    # выходит нулевым на всех отметках, а потом одним прыжком. Меньше трёх разных цен за горизонт —
+    # событие пропускаем.
+    _pxs = {r.get("px") for r in fut[:48] if r.get("px")}
+    if len(_pxs) < 3:
         return None
     p0 = next((r["px"] for r in fut if r.get("px")), None)
     if not p0:
@@ -208,8 +225,23 @@ def _agg(items: list[dict]) -> dict:
 
 def build(days: int = 7, only: list[str] | None = None) -> dict:
     since = datetime.now(timezone.utc) - timedelta(days=days)
-    fc = [r for r in _jsonl(OUTD / "forecasts.jsonl")
-          if (_ts(f"{r.get('at')}T{r.get('hm')}:00Z") or datetime.min.replace(tzinfo=timezone.utc)) >= since]
+    fc_all = [r for r in _jsonl(OUTD / "forecasts.jsonl")
+              if (_ts(f"{r.get('at')}T{r.get('hm')}:00Z") or datetime.min.replace(tzinfo=timezone.utc)) >= since]
+    # СЧИТАЕМ СОБЫТИЯ, А НЕ СТРОКИ (07.09): журнал пишет шаблон по каждой монете каждые полчаса, и
+    # одна и та же мысль попадала в счёт по два десятка раз за день — 9927 записей против 1455 смен
+    # (14.7%). Повторы смазывают всё: доля сбывшихся падает механически, кривая затухания
+    # выравнивается в ноль. Берём ПЕРВУЮ запись каждого нового шаблона по монете — момент, когда
+    # система впервые это сказала; повтор того же шаблона в счёт не идёт.
+    fc, _prev = [], {}
+    for r in sorted(fc_all, key=lambda r: (str(r.get("at") or ""), str(r.get("hm") or ""))):
+        sym, tpl = r.get("sym"), r.get("tpl")
+        if not sym:
+            continue
+        # ПЕРВАЯ ЗАПИСЬ ПО МОНЕТЕ — НЕ СОБЫТИЕ (07.09): это начало журнала, а не смена мысли.
+        # Без этого 05.09 дал 104 «события» из 132 — все монеты разом в день старта архива.
+        if sym in _prev and _prev[sym] != tpl:
+            fc.append(r)
+        _prev[sym] = tpl
     if only:
         keep = {s.replace("USDT", "").upper() for s in only}
         fc = [r for r in fc if str(r.get("sym", "")).replace("USDT", "").upper() in keep]
@@ -274,6 +306,18 @@ def build(days: int = 7, only: list[str] | None = None) -> dict:
         return ("покупка внизу" if b["side"] == "buy" else "продажа наверху") if b["role"] == "продолжение" \
             else ("покупка поглощена" if b["side"] == "buy" else "продажа поглощена")
     cut("роль пузыря", _bub_role)
+    def _dd(x):
+        v = (qmeta.get((x.get("candle"), x["sym"])) or {}).get("drawdown_pct")
+        if v is None:
+            return None
+        return "у вершины дня" if v >= -3 else "отдал 3–10%" if v >= -10 else "отдал больше 10%"
+    cut("откат от вершины", _dd)
+    def _tr(x):
+        v = (qmeta.get((x.get("candle"), x["sym"])) or {}).get("oi_trend_pct")
+        if v is None:
+            return None
+        return "интерес растёт" if v >= 2 else "интерес падает" if v <= -3 else "интерес стоит"
+    cut("интерес за 3 ч", _tr)
     def _lev(x):
         q = qmeta.get((x.get("candle"), x["sym"])) or {}
         v = q.get("oi_to_px")
@@ -284,6 +328,7 @@ def build(days: int = 7, only: list[str] | None = None) -> dict:
     cut("место", lambda x: None if x.get("place") is None else ("первые 3" if x["place"] <= 3 else "дальше"))
     cut("сторона", lambda x: "на рост" if x["side"] > 0 else "на конец")
     return {"at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "days": days,
+            "rows_total": len(fc_all), "events": len(fc),
             "all": _agg(items),
             "days_list": [{"d": k, **_agg(v)} for k, v in sorted(by_day.items(), reverse=True)],
             "hours_list": [{"h": k, **_agg(v)} for k, v in sorted(by_hour.items(), reverse=True)],
@@ -295,6 +340,8 @@ def _print(r: dict) -> None:
     if not a.get("n"):
         print("нет прогнозов за период (нужны output/forecasts.jsonl и cq_v2/intraday/)")
         return
+    if r.get("rows_total"):
+        print(f"строк в журнале {r['rows_total']} → событий (смен шаблона) {r['events']}")
     print(f"за {r['days']} дн · прогнозов {a['n']}" + ("" if a["enough"] else f" — меньше {MIN_N}, это ещё не статистика"))
     print(f"цель {a['hits']['цель']} · стоп {a['hits']['стоп']} · срок {a['hits']['срок']} → сбылось {a['ok_pct']}%")
     print(f"пошли в нашу сторону хоть немного: {a['went_pct']}% · MFE медиана {a['mfe_med']}% · "
