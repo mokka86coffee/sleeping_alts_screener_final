@@ -216,6 +216,10 @@ def build(days: int = 7, only: list[str] | None = None) -> dict:
     bgs = _jsonl(OUTD / "market_bg.jsonl")
     ql = _jsonl(OUTD / "queue_log.jsonl")
     place = {(r.get("candle"), r.get("sym")): r.get("place") for r in ql}
+    # карточки пузырей и плечо к цене из ленты очереди (07.09): гипотеза владельца — работает не
+    # цвет пузыря, а его МЕСТО в дневном диапазоне (сработавшие 07.09 ниже 40%, провалы выше 92%).
+    # Здесь только режем журнал по этим числам; решать будет накопленная выборка.
+    qmeta = {(r.get("candle"), r.get("sym")): r for r in ql}
     cache: dict[str, list[dict]] = {}
     items = []
     for r in fc:
@@ -229,6 +233,7 @@ def build(days: int = 7, only: list[str] | None = None) -> dict:
             continue
         s["bg"] = _bg_at(bgs, at)
         s["place"] = place.get((r.get("candle"), sym))
+        s["candle"] = r.get("candle")
         items.append(s)
     by_day: dict[str, list] = {}
     by_hour: dict[str, list] = {}
@@ -252,6 +257,21 @@ def build(days: int = 7, only: list[str] | None = None) -> dict:
         else ("да" if x["bg"]["leaders_mine"] else "нет"))
     # тейкер по доске (07.09): бьют по стакану в покупку или в продажу — свой, пересчитываемый
     cut("тейкер", lambda x: (x["bg"] or {}).get("taker_side"))
+    def _bub_pos(x):
+        q = qmeta.get((x.get("candle"), x["sym"])) or {}
+        bs = [b for b in (q.get("bubbles") or []) if b.get("side") == "buy" and b.get("pos_pct") is not None]
+        if not bs:
+            return "без пузыря"
+        pos = bs[-1]["pos_pct"]
+        return "пузырь внизу дня" if pos <= 40 else "пузырь вверху дня" if pos >= 70 else "пузырь в середине"
+    cut("место пузыря", _bub_pos)
+    def _lev(x):
+        q = qmeta.get((x.get("candle"), x["sym"])) or {}
+        v = q.get("oi_to_px")
+        if v is None:
+            return None
+        return "плечо вровень с ценой" if v <= 2 else "плечо быстрее цены ×2–5" if v <= 5 else "плечо быстрее цены >×5"
+    cut("плечо к цене", _lev)
     cut("место", lambda x: None if x.get("place") is None else ("первые 3" if x["place"] <= 3 else "дальше"))
     cut("сторона", lambda x: "на рост" if x["side"] > 0 else "на конец")
     return {"at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "days": days,

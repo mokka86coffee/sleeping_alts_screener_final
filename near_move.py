@@ -140,6 +140,38 @@ def _today_bars(sym_usdt: str) -> dict | None:
     bub_buy_bars = [r["candle"][11:16] for r, x in zip(full, dl) if sd_d and x > mu_d + 2 * sd_d]
     bub_sell_bars = [r["candle"][11:16] for r, x in zip(full, dl) if sd_d and x < mu_d - 2 * sd_d]
     bubble_buy = bool(bub_buy_bars)
+    # КАРТОЧКА ПУЗЫРЯ (07.09, владелец: «как различать, какие пузыри сработают, а какие нет; CL —
+    # главный контрпример»). На семи пузырях покупки 07.09 разделило ОДНО число — место в дневном
+    # диапазоне: сработавшие стояли ниже 40% (NAORIS 11% → +4.5%, FLOCK 9% → 0, SOPH 34% → +6.6%,
+    # STRK 39% → +0.8%), провалившиеся — выше 92% (DOOD 92% → −3.0%, FLOCK 92% → −2.9%, CL 100% →
+    # −0.7%). Расстояние до полосы сверху и тип бара НЕ разделили. Семь случаев — гипотеза, не
+    # правило: пишем числа, вывод сделает журнал. Ничего не решаем этими полями.
+    day_lo = min(lows) if lows else None
+    day_hi = max(lows) if lows else None
+    bubbles = []
+    for i, (r, x) in enumerate(zip(full, dl)):
+        if not sd_d or abs(x - mu_d) < 2 * sd_d:
+            continue
+        p_ = r.get("px")
+        if not p_:
+            continue
+        z = r.get("zones") or {}
+        up = sorted([q for q, _w in (z.get("up") or []) if q and q > p_])
+        dn = sorted([q for q, _w in (z.get("down") or []) if q and q < p_], reverse=True)
+        oi_prev = full[i - 1].get("oi") if i else r.get("oi")
+        after = {}
+        for k, step in (("m30", 1), ("h2", 4), ("h6", 12)):
+            nx = full[i + step].get("px") if i + step < len(full) else None
+            if nx:
+                after[k] = round((nx / p_ - 1) * 100, 2)
+        bubbles.append({
+            "at": r["candle"][11:16], "side": "buy" if x > 0 else "sell", "usd": round(x, 0),
+            "pos_pct": round((p_ - day_lo) / (day_hi - day_lo) * 100, 0) if (day_hi and day_lo and day_hi > day_lo) else None,
+            "to_up_pct": round((up[0] / p_ - 1) * 100, 2) if up else None,
+            "to_dn_pct": round((dn[0] / p_ - 1) * 100, 2) if dn else None,
+            "oi_bar_pct": round(((r.get("oi") or 0) / oi_prev - 1) * 100, 2) if oi_prev else None,
+            "oi_type": r.get("oi_type"), "after": after,
+        })
     kind = None
     if leaving:
         kind = "коррекция" if (bubble_buy or not hit) else "конец"
@@ -148,6 +180,12 @@ def _today_bars(sym_usdt: str) -> dict | None:
             "px_chg_pct": round(px_chg * 100, 1) if px_chg is not None else None, "dominant": dom,
             "px": px1, "leaving_kind": kind, "day_low": held, "hit_bar": hit, "bubble_buy": bubble_buy,
             "bub_buy": bub_buy_bars, "bub_sell": bub_sell_bars, "skipped": len(skipped),
+            "bubbles": bubbles,
+            # ХОД БЕЗ ПУЗЫРЯ (07.09, случай ACU): у монеты может идти чистый ход вовсе без всплесков —
+            # там различает не пузырь, а во сколько раз интерес растёт быстрее цены за день.
+            # ACU: плечо +7.2% при цене +7.7% — один к одному, толпы нет; DOOD: +72% при +17% — набивка.
+            "oi_to_px": (round((oi_chg * 100) / (px_chg * 100), 2)
+                         if (oi_chg is not None and px_chg not in (None, 0) and abs(px_chg * 100) >= 0.5) else None),
             "today": ("выходят · " + kind) if leaving else ("набирают сегодня" if buying else "стоит")}
 
 
@@ -417,6 +455,9 @@ def log_queue(res: dict) -> int:
             "sym": sym, "place": i, "score": q.get("score"),
             "days_since_harvest": q.get("days_since_harvest"), "oi_grow": n.get("oi_grow"),
             "today": q.get("today"), "bubble": q.get("bubble"), "move_pct": q.get("px_chg_pct"),
+            # карточки пузырей и плечо к цене (07.09) — сырьём в журнал, выводы делает считалка
+            "bubbles": (v.get("today") or {}).get("bubbles"),
+            "oi_to_px": (v.get("today") or {}).get("oi_to_px"),
             "mode": q.get("mode"), "engine": n.get("engine"), "group": v.get("group"),
             "px": t.get("px") or n.get("px_now"), "oi_chg_pct": t.get("oi_chg_pct"),
             "px_chg_pct": t.get("px_chg_pct"), "delta": t.get("delta"),
