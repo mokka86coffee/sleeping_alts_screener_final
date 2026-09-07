@@ -146,7 +146,7 @@ def _today_bars(sym_usdt: str) -> dict | None:
     return {"bars": len(rows), "delta": round(d, 0), "taker": round(b / sl, 3) if sl else None,
             "oi_chg_pct": round(oi_chg * 100, 1) if oi_chg is not None else None,
             "px_chg_pct": round(px_chg * 100, 1) if px_chg is not None else None, "dominant": dom,
-            "leaving_kind": kind, "day_low": held, "hit_bar": hit, "bubble_buy": bubble_buy,
+            "px": px1, "leaving_kind": kind, "day_low": held, "hit_bar": hit, "bubble_buy": bubble_buy,
             "bub_buy": bub_buy_bars, "bub_sell": bub_sell_bars, "skipped": len(skipped),
             "today": ("выходят · " + kind) if leaving else ("набирают сегодня" if buying else "стоит")}
 
@@ -382,6 +382,44 @@ def build(only: list[str] | None = None) -> dict:
     return out
 
 
+def log_queue(res: dict) -> int:
+    """ИСТОРИЯ ОЧЕРЕДИ (07.09, владелец: «историю стоит писать обязательно, причём каждый прогон»):
+    output/queue_log.jsonl — по строке на монету очереди за прогон. near_move.json переписывается
+    каждый прогон, и вчерашние места нигде не оставались: за 07.09 на втором месте побывали NAORIS,
+    STRK, SOPH и XAN, а проверить, держится место или скачет, было не по чему.
+
+    В строке: время и свеча, место и балл, три числа балла (срок, плечо, бары), пузырь дня,
+    режим и двигатель, цена и интерес на этот момент — чтобы вечером считать, какое число
+    различало заранее, а какое шум. Куда это выводить на экране — решаем отдельно."""
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    candle = now.replace(minute=(now.minute // 30) * 30, second=0, microsecond=0)
+    p = BASE_DIR / "output" / "queue_log.jsonl"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for i, sym in enumerate(res.get("queue") or [], 1):
+        v = (res.get("coins") or {}).get(sym) or {}
+        q = v.get("queue") or {}
+        n = v.get("nums") or {}
+        t = v.get("today") or {}
+        rows.append({
+            "at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "candle": candle.strftime("%Y-%m-%dT%H:%M:00Z"),
+            "sym": sym, "place": i, "score": q.get("score"),
+            "days_since_harvest": q.get("days_since_harvest"), "oi_grow": n.get("oi_grow"),
+            "today": q.get("today"), "bubble": q.get("bubble"),
+            "mode": q.get("mode"), "engine": n.get("engine"), "group": v.get("group"),
+            "px": t.get("px") or n.get("px_now"), "oi_chg_pct": t.get("oi_chg_pct"),
+            "px_chg_pct": t.get("px_chg_pct"), "delta": t.get("delta"),
+            "skipped_bars": t.get("skipped"),
+        })
+    if not rows:
+        return 0
+    with p.open("a", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    return len(rows)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only")
@@ -399,6 +437,8 @@ def main() -> int:
         print(f"{NM[g].lower()}: {len(res[g])} — {', '.join(res[g])}")
     print(f"близких: {len(res['near'])} — {', '.join(res['near'])}")
     if a.write:
+        _nq = log_queue(res)
+        print(f"история очереди: +{_nq} строк → output/queue_log.jsonl")
         p = BASE_DIR / "output" / "near_move.json"
         p.parent.mkdir(exist_ok=True)
         p.write_text(json.dumps(res, ensure_ascii=False), encoding="utf-8")
