@@ -457,6 +457,14 @@ COIN_HTML = r"""
 .hd .st{font-family:var(--f-cap);font-size:7px;letter-spacing:.34em;color:#7fb8a0;text-transform:uppercase}
 .hdr{position:absolute;right:100px;top:50px;text-align:right;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.22em;color:#7fb8a0;text-transform:uppercase}
 .hdr b{color:#dfe9e4;font-weight:400}
+/* ОСНОВА ТРЕНДА (08.09): начало движения — заголовком по центру, отвязано от линии;
+   при конце тренда блока нет вовсе, на линии остаётся только метка выхода */
+.tbase{position:absolute;left:50%;top:38px;transform:translateX(-50%);text-align:center;pointer-events:none;
+  font-family:var(--f-cap);opacity:0;animation:fadein .9s ease 1.6s forwards}
+.tbase b{display:block;font-weight:300;font-size:15px;letter-spacing:.3em;text-transform:uppercase;color:#ffe6b8;
+  text-shadow:0 0 20px rgba(240,200,138,.5)}
+.tbase s{display:block;text-decoration:none;margin-top:6px;font-size:7.5px;letter-spacing:.24em;
+  text-transform:uppercase;color:#7fb8a0}
 .pos{position:absolute;left:100px;top:96px;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.22em;text-transform:uppercase;color:#7fb8a0;opacity:0;animation:fadein .9s ease .3s forwards}
 .pos b{font-weight:400;color:#e8fff4}.pos.mine{color:#f5a93a}.pos.mine b{color:#ffd98a}
 .srcs{position:absolute;left:100px;top:118px;display:flex;flex-wrap:wrap;gap:4px 10px;max-width:560px;opacity:0;animation:fadein .9s ease .4s forwards}
@@ -748,14 +756,41 @@ COIN_JS = r"""
   // Каждый отскок может стать концом, поэтому последняя метка видна всегда, но заменяется следующей.
   var TPL_START = ['крупняк начал тащить', 'курок', 'кит поглощает', 'дёрг'];
   function isStart(t) { t = String(t || '').toLowerCase(); return TPL_START.some(function (w) { return t.indexOf(w) === 0; }); }
-  function shownMarks(M) {
+  // НА БОЛЬШОМ ГРАФИКЕ — ТОЛЬКО ТЕКУЩЕЕ (08.09): начало ушло в заголовок (trendBase), поэтому
+  // подпись остаётся одна — последняя. Нижняя плита истории по-прежнему показывает все смены
+  // (там свой вызов shownMarks с флагом all).
+  function shownMarks(M, all) {
     if (!M || !M.length) return {};
-    var last = M.length - 1, start = -1;
+    var last = M.length - 1, out = {};
+    out[last] = true;
+    if (!all) return out;
+    var start = -1;
     for (var i = last; i >= 0; i--) { if (isStart(M[i].tpl)) { start = i; break; } }
-    // подряд идущие «начала» — одно движение (кит поглощает → крупняк начал тащить):
-    // показываем САМОЕ ПЕРВОЕ из цепочки, следующие — его продолжение (владелец, 05.09)
     while (start > 0 && isStart(M[start - 1].tpl)) start--;
-    var out = {}; out[last] = true; if (start >= 0) out[start] = true; return out;
+    if (start >= 0) out[start] = true;
+    return out;
+  }
+  // КОНЕЦ ТРЕНДА (08.09, владелец: «если у нас выход, нет смысла показывать вход»):
+  // отпустил / осечка / отбой / конец — движение закончилось, вход больше не показываем.
+  var TPL_END = ['разгон отпустил', 'отпустил', 'осечка', 'отбой', 'конец тренда', 'выходят'];
+  function isEnd(t) { t = String(t || '').toLowerCase(); return TPL_END.some(function (w) { return t.indexOf(w) >= 0; }); }
+  // ОСНОВА ТРЕНДА (08.09): начало движения уходит С ГРАФИКА в заголовок по центру — на длинном
+  // отрезке всё выглядит как «текущее», и метки начала спорят с текущим состоянием. На линии
+  // остаётся ТОЛЬКО текущая метка; при конце — только метка выхода, основы нет вовсе.
+  function trendBase(M) {
+    if (!M || !M.length) return null;
+    var last = M.length - 1;
+    if (isEnd(M[last].tpl)) return null;              // тренд кончился — основы нет
+    var start = -1;
+    for (var i = last; i >= 0; i--) { if (isEnd(M[i].tpl)) break; if (isStart(M[i].tpl)) { start = i; } }
+    if (start < 0) return null;
+    while (start > 0 && isStart(M[start - 1].tpl) && !isEnd(M[start - 1].tpl)) start--;
+    var a = M[start], b = M[last];
+    var hrs = (new Date(b.t).getTime() - new Date(a.t).getTime()) / 36e5;
+    var age = hrs >= 48 ? (Math.round(hrs / 24) + ' дн') : (Math.round(hrs) + ' ч');
+    var chg = (+a.px && +b.px) ? ((+b.px / +a.px - 1) * 100) : null;
+    return { tpl: tplShort(a.tpl), at: a.t, age: age,
+             chg: chg === null ? null : (chg > 0 ? '+' : '') + chg.toFixed(1) + '%' };
   }
   function tplShort(t) { t = String(t || '').split('(')[0].trim(); for (var i = 0; i < TPL_SHORT.length; i++) { if (t.toLowerCase().indexOf(TPL_SHORT[i][0]) === 0) return TPL_SHORT[i][1]; } return t.split(' — ')[0].split(':')[0].slice(0, 24); }
   function money(v) { v = +v; if (!v) return null; var a = Math.abs(v), s = v < 0 ? '−' : '';
@@ -1216,7 +1251,9 @@ COIN_JS = r"""
         '<linearGradient id="fcu3"><stop offset="0" stop-color="#ff5a4a" stop-opacity="0"/><stop offset=".6" stop-color="#ff9d84"/><stop offset="1" stop-color="#fff"/></linearGradient></defs>';
       var last = M.length - 1;
       var SHOW = shownMarks(M);
+      var ENDED = isEnd(M[last].tpl);      // тренд кончился — вход не рисуем вовсе
       M.forEach(function (m, k) {
+        if (ENDED && k !== last) return;   // остаётся одна метка: выход
         var tm = new Date(m.t).getTime(), x;
         if (t0 && t1 && t1 > t0) x = X0 + Math.max(0, Math.min(1, (tm - t0) / (t1 - t0))) * (X1 - X0);
         else x = P[P.length - 1][0];
@@ -1390,6 +1427,23 @@ COIN_JS = r"""
       var t0 = pts[0].t, tE = pts[pts.length - 1].t;
       var W = 320, H = 180, GY = H - 30;
       var lo = Math.min.apply(null, pts.map(function (q) { return q.p; })), hi = Math.max.apply(null, pts.map(function (q) { return q.p; })); if (hi === lo) hi = lo * 1.01;
+      // КОРИДОР ПО БЛИЖАЙШИМ ПОЛОСАМ (07.09, владелец: «почему слева ликвидность показывается,
+      // а справа нет»): коридор строился только по цене, и у монеты с узким ходом все адреса
+      // оказывались снаружи — плита рисовала линию без единой полосы (случай CL: ход 0.5% за
+      // сутки, ближайшая полоса сверху 94.2 при цене 92.6). Теперь коридор растягивается до
+      // ближайшей полосы сверху и снизу, но не больше чем на MAXPAD от размаха цены: если адрес
+      // дальше — он прижимается к рамке отдельной пометкой «выше» / «ниже» с расстоянием, и
+      // видно главное — ходу некуда идти без большого рывка.
+      var _pxN = +s.px || pts[pts.length - 1].p, _far = { up: null, dn: null }, MAXPAD = 1.6;
+      (function () {
+        var Hq0 = (D.liqhist || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()] || [];
+        var last = Hq0.length ? Hq0[Hq0.length - 1][1] || [] : [];
+        var up = last.filter(function (z) { return z[0] > _pxN; }).sort(function (a, b) { return a[0] - b[0]; })[0];
+        var dn = last.filter(function (z) { return z[0] <= _pxN; }).sort(function (a, b) { return b[0] - a[0]; })[0];
+        var span = Math.max(1e-12, hi - lo), padU = hi + span * MAXPAD, padD = Math.max(1e-12, lo - span * MAXPAD);
+        if (up) { if (up[0] <= padU) hi = Math.max(hi, up[0] * 1.002); else _far.up = up[0]; }
+        if (dn) { if (dn[0] >= padD) lo = Math.min(lo, dn[0] * 0.998); else _far.dn = dn[0]; }
+      })();
       var XT = function (t) { return 12 + (t - t0) / Math.max(1, tE - t0) * (W - 24); }, Y = function (p) { return 34 + (1 - (p - lo) / (hi - lo)) * (H - 90); };
       var dpath = pts.map(function (q, i) { return (i ? 'L' : 'M') + XT(q.t).toFixed(1) + ',' + Y(q.p).toFixed(1); }).join(' ');
       var Ln = 0; for (var i = 1; i < pts.length; i++) Ln += Math.hypot(XT(pts[i].t) - XT(pts[i - 1].t), Y(pts[i].p) - Y(pts[i - 1].p));
@@ -1417,6 +1471,20 @@ COIN_JS = r"""
           heatJ += '<rect x="' + x1.toFixed(1) + '" y="' + (y - 1.6).toFixed(1) + '" width="' + Math.max(3, x2 - x1).toFixed(1) + '" height="3.2" rx="1" fill="' + col + '" opacity="' + o.toFixed(2) + '"><title>' + esc((side === 'down' ? 'лонги ' : 'шорты ') + px4(b.p) + ' · ' + (money(b.w) || '') + (b.t1 >= lastT ? ' · стоит' : ' · снята')) + '</title></rect>';
         });
       })();
+      // АДРЕС ЗА КРАЕМ (07.09): полоса не влезла в коридор — прижимаем к рамке пунктиром и пишем
+      // «выше» / «ниже» с расстоянием в процентах: видно, что до ближайшего адреса далеко.
+      (function () {
+        var mk = function (p, up) {
+          if (!p) return;
+          var y = up ? 32.5 : GY - 1.5, col = up ? '#e6d3a3' : '#ff8a70',
+              d = ((p / _pxN - 1) * 100), txt = (up ? 'выше ' : 'ниже ') + px4(p) + ' · ' + (d > 0 ? '+' : '') + d.toFixed(1) + '%';
+          heatJ += '<line x1="12" y1="' + y + '" x2="' + (W - 12) + '" y2="' + y + '" stroke="' + col +
+            '" stroke-width="1" stroke-dasharray="2 4" opacity=".5"/>' +
+            '<text x="' + (W - 14) + '" y="' + (up ? y + 9 : y - 4) + '" text-anchor="end" font-size="7.5" fill="' + col +
+            '" opacity=".75" letter-spacing=".08em">' + esc(txt) + '</text>';
+        };
+        mk(_far.up, true); mk(_far.dn, false);
+      })();
       // ПУЗЫРИ РЫНОЧНЫХ ЗАЯВОК (06.09, по Leviathan Market Order Bubbles): полчасовые бары
       // Coinglass за сутки с оборотом выше среднего на 2σ — кружок на линии цены в час бара,
       // радиус по обороту, цвет по стороне дельты (покупали — мята, продавали — кирпич).
@@ -1440,7 +1508,7 @@ COIN_JS = r"""
         '<path class="ln" style="--L:' + Math.ceil(Ln + 2) + '" d="' + dpath + '" fill="none" stroke="' + GOLDL + '" stroke-width="1.4" stroke-linejoin="round"/>' +
         '<circle r="2.4" fill="#fff"><animateMotion dur="7s" begin="5.6s" repeatCount="indefinite" path="' + dpath + '"/></circle>';
       [t0, t0 + (tE - t0) / 2, tE].forEach(function (tt, k) { g += '<text class="ax" x="' + XT(tt).toFixed(1) + '" y="' + (GY + 12) + '" text-anchor="middle">' + dates[k] + '</text>'; });
-      var SHOWJ = shownMarks(M);
+      var SHOWJ = shownMarks(M, true);   // история: начало и последняя, как было
       M.forEach(function (m, k) {
         var tm = new Date(m.t).getTime(); if (tm < t0) return; if (tm > tE) tm = tE;   // за окном — не рисуем
         var x = XT(tm), y = Y(+m.px), ty = 12 + (k % 2) * 12, col = m.miss ? '#ffa892' : GOLDL;
@@ -1462,6 +1530,15 @@ COIN_JS = r"""
     var tvSym = 'BINANCE:' + String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase().replace(/[^A-Z0-9]/g, '') + '.P';
     var srcs = srcLine();
     var hd = '<div class="hd"><a class="t" href="https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(tvSym) + '" target="_blank" rel="noopener" title="открыть в TradingView · Binance фьючерс">' + esc(s.t) + '</a>' + (chg !== null ? '<span class="ch' + (chg < 0 ? ' dn' : '') + '">' + pct(chg) + ' за сутки</span>' : '') + (s.pattern ? '<span class="st">' + esc(s.pattern) + '</span>' : '') + '</div>' + pos;
+    // ОСНОВА ТРЕНДА — по центру, из последней цепочки меток; тренд кончился — блока нет
+    var _tb = (function () {
+      var J = JR[String(s.t).toUpperCase()], M = (J && J.marks) || [];
+      var b = trendBase(M);
+      if (!b) return '';
+      var when = new Date(b.at), dd = ('0' + when.getDate()).slice(-2) + '.' + ('0' + (when.getMonth() + 1)).slice(-2);
+      return '<div class="tbase"><b>' + esc(b.tpl) + '</b><s>основа тренда · ' + dd + ' · ' + esc(b.age) +
+        (b.chg ? ' · ' + esc(b.chg) + ' от начала' : '') + '</s></div>';
+    })();
     var hdr = '<div class="hdr">' + (s.cap ? 'капитализация <b>' + esc(s.cap) + '</b>' : '') + (has(s.v1d) ? ' · объём к норме <b>×' + (+s.v1d).toFixed(1) + '</b>' : '') + (has(s.fund) ? ' · фандинг <b>' + (+s.fund).toFixed(3) + '%</b>' : '') + '</div>';
     // значки — как в зале: цвет кейса FLOW (GATE_CASE), группа книги (в работе · брать · выходить), лидер, горячая, новая, своя
     var CASE_C = { hidden: ['#d9b96e', 'скрытый спрос'], spring: ['#6b7ae0', 'пружина'], churn: ['#8b93c4', 'перемол'], fuel: ['#f0a878', 'топливо'], dormant: ['#5c6598', 'спячка'], taker: ['#c98ce0', 'смена агрессора'], leverage: ['#ec6f5e', 'плечо'] };
@@ -1499,7 +1576,7 @@ COIN_JS = r"""
     var cs = clockState(), clock = cs ? vessel(cs) : '';
     var aura = '<div class="aura up' + (cs && cs.kind === 'up' ? (cs.live ? ' on' : cs.soon ? ' soon' : '') : '') + '"></div><div class="aura dn' + (cs && cs.kind === 'dn' ? (cs.live ? ' on' : cs.soon ? ' soon' : '') : '') + '"></div>';
     stage.innerHTML = '<div class="beam"></div><div class="floor"></div><div class="sweep"></div>' + aura + '<div class="slab"><svg viewBox="0 0 ' + SW + ' ' + SH + '">' + slab + '</svg></div><svg class="leaders" viewBox="0 0 1440 900">' + leaders + '</svg>' +
-      hd + hdr + srcs + '<a class="back" href="brief.html">← схема</a>' + coins + notes + dzone + clock + introHtml + '<div class="replay" id="replay">заново</div><div class="legend">' + (ser.length > 2 ? 'цена · ' + days + ' дневок' + (d0 ? ' · архив' : ' · звезда') : 'ряда цены нет') + ' · наведи на пометку — полная группа</div>' +
+      hd + hdr + _tb + srcs + '<a class="back" href="brief.html">← схема</a>' + coins + notes + dzone + clock + introHtml + '<div class="replay" id="replay">заново</div><div class="legend">' + (ser.length > 2 ? 'цена · ' + days + ' дневок' + (d0 ? ' · архив' : ' · звезда') : 'ряда цены нет') + ' · наведи на пометку — полная группа</div>' +
       '<div class="atmo"><div class="vig"></div></div>';   // ОПТИМИЗАЦИЯ 04.09: зерно feTurbulence на весь экран снято — на планшете это половина кадра
     root.getElementById('replay').onclick = function () { build(tick); };
     (function () { var it = root.getElementById('intro'); if (!it) return;

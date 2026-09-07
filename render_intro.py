@@ -411,8 +411,15 @@ TEMPLATE = r'''<!doctype html>
   .cap{position:fixed;left:0;right:0;bottom:26px;text-align:center;font-family:"Michroma",system-ui,sans-serif;font-size:9px;letter-spacing:.34em;text-transform:uppercase;color:rgba(200,210,255,.55);pointer-events:none}
   .cap b{font-weight:400;color:rgba(230,236,255,.9)}
   .cap .buy{color:#cfe0ff}.cap .hold{color:#8fe0b8}.cap .close{color:#8f97c8}
-  .bgnote{position:fixed;left:50%;transform:translateX(-50%);bottom:12px;font-family:"Inter",system-ui,sans-serif;
-    font-weight:300;font-size:9.5px;letter-spacing:.16em;color:rgba(190,205,255,.34);pointer-events:none;white-space:nowrap}
+  /* ФОН — ПОД ПОТОКОМ (08.09, владелец: «он не читается и не виден вообще»): было 9.5px при
+     прозрачности .34 внизу по центру — на тёмном фоне не видно. Стало: блок под тем же прибором,
+     столбиком, числа выделены. Ничего не решает, только показывает. */
+  .bgnote{position:fixed;left:3.5vw;bottom:4vh;max-width:24vw;font-family:"Inter",system-ui,sans-serif;
+    font-weight:300;font-size:10.5px;line-height:1.95;letter-spacing:.12em;color:rgba(200,214,255,.62);
+    pointer-events:none}
+  .bgnote i{font-style:normal;display:block;font-size:7.5px;letter-spacing:.34em;text-transform:uppercase;
+    color:rgba(190,205,255,.34);margin-bottom:10px}
+  .bgnote b{font-weight:400;color:#dbe6ff}
   .hint{position:fixed;right:3vw;bottom:12px;font-family:"Inter",system-ui,sans-serif;font-weight:300;font-size:11px;letter-spacing:.12em;color:rgba(200,210,255,.35);pointer-events:none}
   .tip{position:fixed;padding:6px 10px;border-radius:6px;background:rgba(10,12,30,.86);color:#dfe6ff;font-family:"Inter",system-ui,sans-serif;font-weight:300;font-size:11px;letter-spacing:.04em;max-width:360px;pointer-events:none;opacity:0;transition:opacity .2s}
   /* ПЛАНЕТА-КНОПКА В ЖУРНАЛ (07.09, владелец: «сделай кнопку на первом экране со звёздами —
@@ -481,7 +488,7 @@ TEMPLATE = r'''<!doctype html>
      кто бьёт по стакану. Не полоса со столбиком: нить света, по ней в сторону потока плывут искры,
      на нити бусина, смещённая от середины на величину перевеса (двадцать процентов — к краю).
      Мятная — покупают, коралловая — продают. Число из output/market_bg.jsonl. */
-  .flow{position:fixed;left:3.5vw;bottom:17vh;width:clamp(140px,15vw,200px);pointer-events:none;
+  .flow{position:fixed;left:3.5vw;bottom:24vh;width:clamp(140px,15vw,200px);pointer-events:none;
     font-family:"Inter",system-ui,sans-serif;font-weight:300;z-index:3}
   .flow .t{font-size:6.1px;letter-spacing:.34em;text-transform:uppercase;color:rgba(190,205,255,.34);margin-bottom:48px}
   .flow .rail{position:relative;height:1px;background:linear-gradient(90deg,rgba(150,175,255,0),rgba(150,175,255,.35) 18%,rgba(150,175,255,.35) 82%,rgba(150,175,255,0))}
@@ -899,7 +906,11 @@ function drawFx(t){
     }
   }
 }
-(function(){const el=document.getElementById('bgnote');if(el)el.textContent=DATA.bgnote||'';})();
+(function(){const el=document.getElementById('bgnote');if(!el)return;
+  const raw=(DATA.bgnote||'').replace(/^фон:\s*/,'');
+  if(!raw){el.style.display='none';return}
+  el.innerHTML='<i>фон</i>'+raw.split(' · ')
+    .map(t=>t.replace(/([\d.,]+(?: из \d+)?%?)/g,'<b>$1</b>')).join('<br>');})();
 // ТОЧНОСТЬ ПОД ПЛАНЕТОЙ (07.09): доля сбывшихся из журнала; нет данных — прочерк
 (function(){const a=DATA.acc||{};const el=document.getElementById('pnum');
   if(!el)return;
