@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import math
 import random
+from datetime import datetime
 from pathlib import Path
 
 try:
@@ -307,7 +308,81 @@ def render_intro(items: list[dict] | None = None) -> str:
     subs = [it.get("sub", "") for it in allit]
     bright = [1.0 if it.get("label") else float(it.get("bright", 0.85)) for it in allit]
     n = max(1, len(allit))
-    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones},
+    # ПОТОК ПО ДОСКЕ (07.09): сводный тейкер из фона — своё число, а не из лент; фона нет — блок скрыт
+    taker = {}
+    try:
+        from market_bg import last_row
+        taker = (last_row() or {}).get("taker") or {}
+    except Exception:  # noqa: BLE001
+        taker = {}
+    # ОРБИТЫ (07.09): адреса карты, место в истории, разлок — по каждому имени очереди.
+    # Всё из того, что уже собирается: последний бар внутридневного архива (zones и цена),
+    # дневки cq_v2 (дно и пик за всю историю), events.json (ближайший разлок по монете).
+    orbits: dict = {}
+    try:
+        import time as _t
+        _today = _t.strftime("%Y-%m-%d", _t.gmtime())
+        _ev = []
+        try:
+            _ev = json.loads((BASE_DIR / "events.json").read_text(encoding="utf-8")) or []
+        except (OSError, ValueError):
+            _ev = []
+        for _it in allit:
+            _sym = _it.get("sym") or ""
+            if not _sym or _it.get("label"):
+                continue
+            _base = _sym.replace("USDT", "")
+            _o: dict = {}
+            # адреса: последний бар архива
+            try:
+                _lines = (BASE_DIR / "cq_v2" / "intraday" / f"{_base.lower()}.jsonl").read_text(encoding="utf-8").splitlines()
+                _last = json.loads(_lines[-1])
+                _px = _last.get("px")
+                _z = _last.get("zones") or {}
+                if _px:
+                    _up = sorted([q for q, _w in (_z.get("up") or []) if q and q > _px])
+                    _dn = sorted([q for q, _w in (_z.get("down") or []) if q and q < _px], reverse=True)
+                    if _up:
+                        _o["up"] = round((_up[0] / _px - 1) * 100, 2)
+                    if _dn:
+                        _o["dn"] = round((_dn[0] / _px - 1) * 100, 2)
+                    # история: дно и пик за всё, что есть в дневках
+                    _d = json.loads((BASE_DIR / "cq_v2" / f"{_base.lower()}.json").read_text(encoding="utf-8"))
+                    _oh = _d.get("ohlcv") or []
+                    _lo = min((float(r["low"]) for r in _oh if r.get("low")), default=None)
+                    _hi = max((float(r["high"]) for r in _oh if r.get("high")), default=None)
+                    if _lo and _hi and _lo > 0:
+                        _o["low"] = round((_px / _lo - 1) * 100, 0)
+                        _o["high"] = round((_px / _hi - 1) * 100, 0)
+            except (OSError, ValueError, IndexError, KeyError):
+                pass
+            # событие: ближайший разлок по этой монете из календаря
+            try:
+                _days = [
+                    (datetime.strptime(e["date"], "%Y-%m-%d") - datetime.strptime(_today, "%Y-%m-%d")).days
+                    for e in _ev
+                    if e.get("kind") == "unlock" and _base.upper() in str(e.get("title", "")).upper()
+                    and e.get("date", "") >= _today
+                ]
+                if _days:
+                    _o["unlock"] = min(_days)
+            except Exception:  # noqa: BLE001
+                pass
+            if _o:
+                orbits[_base] = _o
+    except Exception:  # noqa: BLE001
+        orbits = {}
+
+    # ТОЧНОСТЬ (07.09): доля сбывшихся из считалки; файла нет — под планетой прочерк
+    acc = {}
+    try:
+        _sc = json.loads((BASE_DIR / "output" / "forecast_score.json").read_text(encoding="utf-8"))
+        _a = _sc.get("all") or {}
+        if _a.get("n"):
+            acc = {"ok_pct": _a.get("ok_pct"), "ok": _a.get("ok"), "n": _a.get("n"), "enough": _a.get("enough")}
+    except (OSError, ValueError):
+        acc = {}
+    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits},
                       ensure_ascii=False).replace("</", "<\\/")
     return TEMPLATE.replace("__N__", str(n)).replace("__DATA__", data)
 
@@ -322,6 +397,7 @@ TEMPLATE = r'''<!doctype html>
 <style>
   html,body{margin:0;height:100%;overflow:hidden;background:#171a3a}
   canvas{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:default}
+  #fx{pointer-events:none;z-index:2}
   .cap{position:fixed;left:0;right:0;bottom:26px;text-align:center;font-family:"Michroma",system-ui,sans-serif;font-size:9px;letter-spacing:.34em;text-transform:uppercase;color:rgba(200,210,255,.55);pointer-events:none}
   .cap b{font-weight:400;color:rgba(230,236,255,.9)}
   .cap .buy{color:#cfe0ff}.cap .hold{color:#8fe0b8}.cap .close{color:#8f97c8}
@@ -380,11 +456,55 @@ TEMPLATE = r'''<!doctype html>
     font-family:"Inter",system-ui,sans-serif;font-weight:300;font-size:11px;letter-spacing:.3em;text-transform:uppercase;
     color:#b3c0f5;text-shadow:0 0 12px rgba(140,175,255,.8);opacity:.5;transition:opacity .3s,letter-spacing .4s}
   .planet:hover .pcap{opacity:1;letter-spacing:.42em}
+  /* ТОЧНОСТЬ ЧИСЛОМ (07.09, владелец: «добавим пока к точности 55% — это по сути весомо: мы знаем
+     что и когда, но не знаем фон; по мере изучения журнала будем увеличивать»). Берётся из
+     output/forecast_score.json; журнал пуст — показываем прочерк, а не выдуманное число. */
+  .pnum{position:absolute;left:50%;top:calc(100% + 34px);transform:translateX(-50%);white-space:nowrap;
+    font-family:"Inter",system-ui,sans-serif;font-weight:200;font-size:19px;letter-spacing:.02em;color:#dbe4ff;
+    text-shadow:0 0 14px rgba(150,185,255,.8),0 0 40px rgba(110,150,255,.45);opacity:.85}
+  .pnum s{text-decoration:none;font-size:.55em;color:rgba(190,205,255,.6)}
+  .planet:hover .pnum{opacity:1}
   @media (prefers-reduced-motion:reduce){.planet *{animation:none!important}}
+  /* ПОТОК ПО ДОСКЕ (07.09, владелец: «его вообще к звёздам ещё надо добавить»): сводный тейкер —
+     кто бьёт по стакану. Не полоса со столбиком: нить света, по ней в сторону потока плывут искры,
+     на нити бусина, смещённая от середины на величину перевеса (двадцать процентов — к краю).
+     Мятная — покупают, коралловая — продают. Число из output/market_bg.jsonl. */
+  .flow{position:fixed;left:6vw;bottom:9vh;width:clamp(150px,17vw,230px);pointer-events:none;
+    font-family:"Inter",system-ui,sans-serif;font-weight:300;z-index:3}
+  .flow .t{font-size:9.5px;letter-spacing:.32em;text-transform:uppercase;color:rgba(190,205,255,.5);margin-bottom:14px}
+  .flow .rail{position:relative;height:1px;background:linear-gradient(90deg,rgba(150,175,255,0),rgba(150,175,255,.35) 18%,rgba(150,175,255,.35) 82%,rgba(150,175,255,0))}
+  .flow .rail i{position:absolute;left:50%;top:-5px;width:1px;height:11px;background:rgba(160,185,255,.35)}
+  .flow .rail::after{content:"";position:absolute;inset:-3px 0;
+    background:repeating-linear-gradient(90deg,rgba(210,230,255,.85) 0 2px,transparent 2px 34px);
+    -webkit-mask:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent);
+    mask:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent);opacity:.5;animation:drift 3.4s linear infinite}
+  @keyframes drift{to{transform:translateX(34px)}}
+  .flow.sell .rail::after{animation-direction:reverse}
+  .flow .bead{position:absolute;top:-6px;width:13px;height:13px;border-radius:50%;transform:translateX(-50%);
+    background:radial-gradient(circle at 36% 32%,#fff,#bff0dd 55%,#5cc9a6);
+    box-shadow:0 0 10px rgba(127,227,200,.95),0 0 30px rgba(127,227,200,.55);
+    transition:left .8s cubic-bezier(.2,.8,.2,1);animation:bead 3.2s ease-in-out infinite}
+  .flow.sell .bead{background:radial-gradient(circle at 36% 32%,#fff,#ffd2c4 55%,#e8836a);
+    box-shadow:0 0 10px rgba(232,131,106,.95),0 0 30px rgba(232,131,106,.5)}
+  @keyframes bead{50%{transform:translateX(-50%) scale(.86)}}
+  .flow .v{margin-top:16px;font-size:12.5px;letter-spacing:.06em;color:#cfe0ff;text-shadow:0 0 14px rgba(140,175,255,.6)}
+  .flow .v b{font-weight:400}
+  .flow .v em{font-style:normal;color:rgba(190,205,255,.55);font-size:11px;letter-spacing:.18em;text-transform:uppercase}
+  .flow.sell .v b{color:#ffd8cc}.flow.buy .v b{color:#c9f5e6}
+  .flow .turn{margin-top:6px;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:#ffd8a8;
+    text-shadow:0 0 10px rgba(255,200,140,.7)}
+  @media (prefers-reduced-motion:reduce){.flow *{animation:none!important}}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
+<canvas id="fx"></canvas>
+<div class="flow" id="flow">
+  <div class="t">поток по доске</div>
+  <div class="rail"><i></i><span class="bead" id="bead"></span></div>
+  <div class="v"><b id="fval">—</b> <em id="fside"></em></div>
+  <div class="turn" id="fturn"></div>
+</div>
 <div class="planet" id="planet" title="точность прогнозов">
   <div class="halo"></div>
   <div class="ringbox"><svg viewBox="0 0 100 100"><path class="r2" d="M2,50 A48,15 0 0 0 98,50"/><path class="r1" d="M2,50 A48,15 0 0 0 98,50"/></svg></div>
@@ -395,6 +515,7 @@ TEMPLATE = r'''<!doctype html>
   <div class="orb a"><i></i></div><div class="orb b"><i></i></div>
   <div class="shoot"></div>
   <div class="pcap">точность</div>
+  <div class="pnum" id="pnum">—</div>
 </div>
 <div class="hint">клик по имени — монета · планета — точность · мимо или клавиша — дальше</div>
 <div class="tip" id="tip"></div>
@@ -412,7 +533,7 @@ const c=document.getElementById('c');
 const gl=c.getContext('webgl',{antialias:false,alpha:false});
 const VS=`attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}`;
 const FS=`precision highp float;
-uniform vec2 R;uniform float T,A;uniform vec2 P[${N}];uniform float F[${N}];uniform float G[${N}];uniform float BR[${N}];uniform float HW[${N}];uniform float HH;uniform sampler2D M;uniform vec2 S[${N*NF}];uniform float SP[${N*NF}];
+uniform vec2 R;uniform float T,A;uniform vec2 P[${N}];uniform float F[${N}];uniform float G[${N}];uniform float BR[${N}];uniform float HW[${N}];uniform float HS[${N}];uniform float HH;uniform float SUBDY;uniform sampler2D M;uniform vec2 S[${N*NF}];uniform float SP[${N*NF}];
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
   return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x),f.y);}
@@ -424,13 +545,24 @@ void main(){
   vec2 r=vec2(fbm(p*2.4+q*2.2+vec2(1.7,9.2)+T*.08),fbm(p*2.4+q*2.2+vec2(8.3,2.8)-vec2(0.,T*.07)));
   float d=fbm(p*2.4+r*2.6);
   float Fi=0.,Fm=0.,Gi=1.,Bi=1.,best=1e9;
-  for(int i=0;i<${N};i++){float dd=length((uv-P[i])*vec2(ar,1.));if(dd<best){best=dd;Fi=F[i];Gi=G[i];Bi=BR[i];}Fm=max(Fm,F[i]);}
+  for(int i=0;i<${N};i++){float dd=length((uv-P[i])*vec2(ar,1.));best=min(best,dd);Fm=max(Fm,F[i]);}
   // СВОЙ ПРЯМОУГОЛЬНИК (07.09, владелец: «рядом куча обрывков от других звёзд»): свет и «сборка»
   // живут только в рамке СВОЕГО имени — по его измеренной полуширине HW и полувысоте HH;
   // за рамкой всё гаснет, поэтому смещённая маска не приносит буквы соседей
-  float bx=0.,by=0.,hwi=0.;
-  for(int i=0;i<${N};i++){float dd=length((uv-P[i])*vec2(ar,1.));if(dd<=best+1e-6){bx=abs(uv.x-P[i].x);by=abs(uv.y-P[i].y);hwi=HW[i];}}
-  float inbox=smoothstep(hwi+.035,hwi+.004,bx)*smoothstep(HH*2.4,HH*1.1,by);
+  // ВЛАДЕЛЕЦ ПИКСЕЛЯ — ПО РАМКЕ, НЕ ПО БЛИЖАЙШЕМУ ЦЕНТРУ (07.09, владелец: «куча артефактов
+  // текстов от звёзд, которые ещё не нарисовались»). Маска одна на всех, а гасили её по Fi
+  // БЛИЖАЙШЕГО имени: длинная подпись под именем A попадала в зону имени B, и когда B уже
+  // собралось, обрывки строки A светились раньше времени. Теперь пиксель принадлежит тому, в чью
+  // рамку он попал: имя — по своей полуширине, подпись — по своей, ниже на SUBDY. Вне всех рамок
+  // свет маски равен нулю, поэтому обрывков нет вовсе.
+  float inbox=0., hwi=0.;
+  for(int i=0;i<${N};i++){
+    float bxi=abs(uv.x-P[i].x), byi=uv.y-P[i].y;
+    float inName=smoothstep(HW[i]+.030,HW[i]+.004,bxi)*smoothstep(HH*2.2,HH*1.05,abs(byi));
+    float inSub =smoothstep(HS[i]+.030,HS[i]+.004,bxi)*smoothstep(HH*1.9,HH*.85,abs(byi+SUBDY));
+    float own=max(inName,inSub);
+    if(own>inbox){inbox=own;hwi=HW[i];Fi=F[i];Gi=G[i];Bi=BR[i];}
+  }
   float w=mix(.045,.003,Fi)*inbox;   // (07.09) смещение маски только внутри своей рамки
   vec2 mu=uv+(r-.5)*w;
   vec3 mk=texture2D(M,vec2(mu.x,1.-mu.y)).rgb;
@@ -452,7 +584,8 @@ void main(){
   vec3 col=mix(deep,mid,dens);col=mix(col,hot,pow(dens,2.5));
   col=bg+col*dens*1.15;
   col+=hot*pow(smoothstep(.55,.92,d)*max(cloud,wrap),3.)*.8;
-  float vis=smoothstep(1.05-Fi*1.25,1.3-Fi*1.25,d+.1);
+  float appear=smoothstep(0.,.18,Fi);                 // имя ещё не пришло — маска не светится вовсе
+  float vis=smoothstep(1.05-Fi*1.25,1.3-Fi*1.25,d+.1)*inbox*appear;
   float lvl=.82*Bi*(1.-.45*isReady)*(1.-.55*isStale);   // общий уровень понижен; «готовы» — ещё бледнее, без зелени
   col+=vec3(.34,.38,.72)*(soft*.8+core*.15)*vis*lvl;
   col+=vec3(.36,.42,.8)*halo*vis*.4*Fi*lvl;
@@ -535,12 +668,8 @@ function mask(){
     m.fillStyle='#0f0';m.filter=`blur(${size*.16}px)`;m.fillText(name,x,y);m.fillText(name,x,y);
     m.fillStyle='#00f';m.filter=`blur(${size*.035}px)`;m.fillText(name,x,y);m.fillText(name,x,y);
     m.fillStyle='#f00';m.filter='none';m.fillText(name,x,y);
-    // подпись «что делать» под именем (группа «у цели»): хеджировать / ждать подтверждения / конец тренда
-    const sub=(DATA.subs||[])[i];
-    if(sub){m.font=`300 ${size*.62}px "Inter",system-ui,sans-serif`;m.letterSpacing='0.22em';
-      m.fillStyle='#0f0';m.filter=`blur(${size*.1}px)`;m.fillText(sub,x,y+size*1.05);
-      m.fillStyle='#00f';m.filter=`blur(${size*.03}px)`;m.fillText(sub,x,y+size*1.05);
-      m.fillStyle='#f00';m.filter='none';m.fillText(sub,x,y+size*1.05);}
+    // ПОДПИСЬ — ХВОСТОМ, ОТДЕЛЬНЫМ СЛОЕМ (07.09, выбор владельца): в маске её больше нет, иначе
+    // длинная строка снова цепляла бы соседей; рисуется на canvas #fx поверх шейдера
   }
   gl.bindTexture(gl.TEXTURE_2D,tex);gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,mc);
   // ненайденный блик уводим далеко за экран (07.09): в шейдере WebGL1 нельзя отсекать
@@ -563,8 +692,12 @@ function mask(){
   gl.uniform2fv(uS,S);gl.uniform1fv(uSP,SP);
   // полуширина каждого имени в долях ширины — для ореола «брать»
   m.font=`400 ${size*.935}px "${FONT}",system-ui,sans-serif`;m.letterSpacing='0.12em';
-  const HW=new Float32Array(N);for(let i=0;i<N;i++){HW[i]=(m.measureText(names[i]).width/2)/W;}
-  gl.uniform1fv(U('HW'),HW);gl.uniform1f(U('HH'),(size*.55)/H);
+  const HW=new Float32Array(N),HS=new Float32Array(N);
+  for(let i=0;i<N;i++){HW[i]=(m.measureText(names[i]).width/2)/W;}
+  // подпись ушла в слой хвостов — в маске её нет, рамка только по имени (07.09)
+  for(let i=0;i<N;i++){HS[i]=0;}
+  gl.uniform1fv(U('HW'),HW);gl.uniform1fv(U('HS'),HS);
+  gl.uniform1f(U('HH'),(size*.55)/H);gl.uniform1f(U('SUBDY'),(size*1.05)/H);
 }
 const T_IN=2.8,GAP=Math.max(1.4,Math.min(3.0,24/N));   // при 12 именах — по 2 с, чтобы созвездие собралось за полминуты
 const ease=x=>x*x*(3-2*x);
@@ -578,27 +711,143 @@ function loop(now){
   for(let i=0;i<N;i++){const t=now-start-.6-i*GAP;Fv[i]=t<=0?0:t>=T_IN?1:ease(t/T_IN)}
   gl.uniform1fv(uF,Fv);gl.uniform1f(uT,now);gl.uniform1f(uA,Math.min(1,(now-start)/1.5));
   gl.drawArrays(gl.TRIANGLE_STRIP,0,4);
+  drawFx(now-start);
   requestAnimationFrame(loop);
 }
 // ── взаимодействие (06.09): клик по имени — монета; мимо или клавиша — дальше по оболочке ──
-function hit(ev){const x=ev.clientX,y=ev.clientY;
-  for(let i=0;i<N;i++){if(LAB[i])continue;const cx=W*POS[i][0],cy=H*POS[i][1],hw=names[i].length*SIZE*.62+8,hh=SIZE*.9+6;
+function hit(ev, withLabels){const x=ev.clientX,y=ev.clientY;
+  for(let i=0;i<N;i++){if(LAB[i]&&!withLabels)continue;
+    const cx=W*POS[i][0],cy=H*POS[i][1],
+      hw=(LAB[i]?names[i].length*SIZE*.55+14:names[i].length*SIZE*.62+8),hh=SIZE*.9+6;
     if(Math.abs(x-cx)<=hw&&Math.abs(y-cy)<=hh)return i;}return -1;}
+
+// ФИЛЬТР ПО ГРУППЕ (07.09, владелец: «при наведении/нажатии на категорию показывать только звёзды
+// этой категории и не закрывать экран»). Гасим чужие имена уровнем яркости BR — сама сборка и
+// такты не трогаются, экран остаётся на месте. Наведение — временно, клик — закрепляет; повторный
+// клик по той же подписи или клик мимо снимает.
+let PICK=null, HOVER=null;
+const BR0=new Float32Array(DATA.names.length?DATA.bright:[1]);
+function applyGroup(){
+  const g=(PICK!==null)?PICK:HOVER;
+  const out=new Float32Array(BR0.length);
+  for(let i=0;i<BR0.length;i++){
+    const mine=(g===null)||((DATA.grp||[])[i]===g);
+    out[i]=mine?BR0[i]*((PICK!==null&&mine&&!LAB[i])?1.15:1):BR0[i]*0.12;
+  }
+  gl.uniform1fv(U('BR'),out);
+}
 const tip=document.getElementById('tip');
-c.addEventListener('mousemove',ev=>{const i=hit(ev);c.style.cursor=i>=0?'pointer':'default';
-  if(i>=0&&DATA.whys[i]){tip.textContent=names[i]+' — '+DATA.whys[i];tip.style.left=(ev.clientX+14)+'px';tip.style.top=(ev.clientY+12)+'px';tip.style.opacity=1}else tip.style.opacity=0});
+c.addEventListener('mousemove',ev=>{const j=hit(ev,true),i=hit(ev);
+  c.style.cursor=(j>=0)?'pointer':'default';
+  const hg=(j>=0&&LAB[j])?(DATA.grp||[])[j]:null;
+  if(hg!==HOVER){HOVER=hg;applyGroup();}
+  if(i>=0&&DATA.whys[i]){tip.textContent=names[i]+' — '+DATA.whys[i];tip.style.left=(ev.clientX+14)+'px';tip.style.top=(ev.clientY+12)+'px';tip.style.opacity=1}
+  else if(j>=0&&LAB[j]){tip.textContent=names[j]+' — только эта группа; клик закрепляет';tip.style.left=(ev.clientX+14)+'px';tip.style.top=(ev.clientY+12)+'px';tip.style.opacity=1}
+  else tip.style.opacity=0});
+c.addEventListener('mouseleave',()=>{HOVER=null;applyGroup();tip.style.opacity=0});
 function next(){try{window.parent.postMessage({type:'ob:done',screen:'intro'},'*')}catch(e){}
   if(window===window.parent)location.href='brief.html'}
-c.addEventListener('click',ev=>{const i=hit(ev);
+c.addEventListener('click',ev=>{const j=hit(ev,true);
+  // клик по подписи группы — фильтр, экран НЕ закрываем (07.09)
+  if(j>=0&&LAB[j]){const g=(DATA.grp||[])[j];PICK=(PICK===g)?null:g;applyGroup();return}
+  // клик мимо при закреплённой группе — сначала снимаем фильтр, а не уходим со экрана
+  if(PICK!==null&&hit(ev)<0){PICK=null;applyGroup();return}
+  const i=hit(ev);
   if(i>=0){const target='coin.html#'+encodeURIComponent(names[i]);
     if(window!==window.parent){try{window.parent.postMessage({type:'ob:open',screen:'coin',hash:names[i]},'*')}catch(e){}}
     location.href=target;return}
   next()});
+// ── СЛОЙ ХВОСТОВ И ОРБИТ (07.09) ──────────────────────────────────────────────────────────────
+// Подпись — шлейфом от звезды: ближние слова ярче, дальние тают, хвост качается с инерцией.
+// Орбиты вокруг имени: ближняя пара — адреса карты (золотая плита сверху, коралловая опора снизу,
+// радиус = расстояние в процентах, тесная орбита = адрес рядом), дальняя зелёная — место цены
+// между историческим дном и пиком (угол спутника), внешняя янтарная — разлок, подлетает к дате.
+// Слой рисуется на своём canvas поверх шейдера, шейдер не трогается.
+const fx=document.getElementById('fx'),fc=fx.getContext('2d');
+let FW=0,FH=0;
+function fxResize(){const d=Math.min(devicePixelRatio,2);FW=innerWidth;FH=innerHeight;
+  fx.width=FW*d;fx.height=FH*d;fc.setTransform(d,0,0,d,0,0);}
+addEventListener('resize',fxResize);fxResize();
+let MX=-1,MY=-1;
+c.addEventListener('mousemove',e=>{MX=e.clientX;MY=e.clientY});
+c.addEventListener('mouseleave',()=>{MX=-1;MY=-1});
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+function ell(cx,cy,rx,ry,col,op){fc.strokeStyle=col.replace('OP',op.toFixed(2));fc.lineWidth=1;
+  fc.beginPath();fc.ellipse(cx,cy,rx,ry,0,0,7);fc.stroke();}
+function bead(px,py,r,fill,glow,op){fc.fillStyle=fill;fc.shadowColor=glow;fc.shadowBlur=10*op;
+  fc.beginPath();fc.arc(px,py,r,0,7);fc.fill();fc.shadowBlur=0;}
+function drawFx(t){
+  if(!FW)return;
+  fc.clearRect(0,0,FW,FH);
+  const SZ=SIZE||14, ORB=DATA.orbits||{};
+  for(let i=0;i<N;i++){
+    if(LAB[i])continue;
+    const F=Fv[i]; if(F<=0.02)continue;
+    const g=(DATA.grp||[])[i];
+    if(PICK!==null&&g!==PICK)continue;                 // фильтр по группе гасит и слой
+    const cx=FW*POS[i][0],cy=FH*POS[i][1];
+    const near=MX>=0&&Math.hypot(MX-cx,MY-cy)<SZ*7;
+    const a0=(near?.95:.55)*F;
+    const o=ORB[names[i]]||{};
+    // адреса
+    if(o.up!=null){const ru=SZ*(1.6+clamp(o.up,0,25)*.34),au=t*.45+i;
+      ell(cx,cy,ru*1.35,ru*.55,'rgba(230,211,163,OP)',(near?.5:.26)*F);
+      bead(cx+Math.cos(au)*ru*1.35,cy+Math.sin(au)*ru*.55,o.up<2?2.9:2,'#fff2d2','rgba(230,211,163,.95)',a0);}
+    if(o.dn!=null){const rd=SZ*(1.6+clamp(-o.dn,0,25)*.34),ad=-t*.33+i*1.7;
+      ell(cx,cy,rd*1.35,rd*.55,'rgba(255,138,112,OP)',(near?.42:.2)*F);
+      bead(cx+Math.cos(ad)*rd*1.35,cy+Math.sin(ad)*rd*.55,-o.dn<3?2.9:2,'#ffdcd2','rgba(255,138,112,.95)',a0);}
+    // история: угол спутника — где цена между дном и пиком
+    if(o.low!=null&&o.high!=null){const rh=SZ*5.2,k=clamp(o.low/(o.low+Math.abs(o.high)),0,1),a=Math.PI-Math.PI*k;
+      ell(cx,cy,rh*1.25,rh*.5,'rgba(143,224,184,OP)',(near?.26:.10)*F);
+      bead(cx+Math.cos(a)*rh*1.25,cy+Math.sin(a)*rh*.5,2.4,'#dcfff0','rgba(143,224,184,.95)',a0);}
+    // событие: разлок
+    if(o.unlock!=null&&o.unlock<=30){const k=1-clamp(o.unlock/30,0,1),re=SZ*(7.2-3.6*k),a=t*.2+i*.9;
+      ell(cx,cy,re*1.2,re*.48,'rgba(255,215,160,OP)',((near?.22:.10)+.15*k)*F);
+      const px=cx+Math.cos(a)*re*1.2,py=cy+Math.sin(a)*re*.48,len=SZ*(1.6+2.6*k);
+      const gr=fc.createLinearGradient(px-Math.cos(a)*len,py-Math.sin(a)*len,px,py);
+      gr.addColorStop(0,'rgba(255,215,160,0)');gr.addColorStop(1,'rgba(255,230,190,'+((0.25+0.6*k)*F).toFixed(2)+')');
+      fc.strokeStyle=gr;fc.lineWidth=1.6;fc.lineCap='round';
+      fc.beginPath();fc.moveTo(px-Math.cos(a)*len,py-Math.sin(a)*len);fc.lineTo(px,py);fc.stroke();
+      bead(px,py,1.8+1.4*k,'#ffeecd','rgba(255,200,140,.95)',a0*(0.6+k));}
+    // хвост подписи
+    const sub=(DATA.subs||[])[i]||'';
+    if(sub){
+      const words=sub.split(' · '),dir=POS[i][0]>.55?-1:1,drop=Math.sin(t*.5+i)*SZ*.12;
+      fc.font=`300 ${SZ*.56}px "Inter",system-ui,sans-serif`;fc.textAlign=dir>0?'left':'right';fc.textBaseline='middle';
+      const ex=cx+dir*(SZ*1.5+words.length*SZ*.34),ey=cy+SZ*(1.0+words.length*.62);
+      fc.strokeStyle='rgba(150,180,255,'+(((near?.22:.09))*F).toFixed(2)+')';fc.lineWidth=1;
+      fc.beginPath();fc.moveTo(cx+dir*SZ*.7,cy+SZ*.7);fc.quadraticCurveTo(cx+dir*SZ*1.6,cy+SZ*2.1,ex,ey);fc.stroke();
+      words.forEach((w,j)=>{const k=1-j/(words.length+.6);
+        const px=cx+dir*(SZ*1.5+j*SZ*.34),py=cy+SZ*(1.0+j*.62)+drop*(j+1)*.5;
+        fc.fillStyle='rgba(178,192,245,'+(((near?.95:.6)*(0.35+0.65*k))*F).toFixed(2)+')';
+        if(j===0){fc.shadowColor='rgba(150,190,255,.7)';fc.shadowBlur=near?8:4}
+        fc.fillText(w,px,py);fc.shadowBlur=0;});
+    }
+  }
+}
+// ТОЧНОСТЬ ПОД ПЛАНЕТОЙ (07.09): доля сбывшихся из журнала; нет данных — прочерк
+(function(){const a=DATA.acc||{};const el=document.getElementById('pnum');
+  if(!el)return;
+  if(a.ok_pct==null){el.textContent='—';el.title='журнал ещё пуст';return}
+  el.innerHTML=a.ok_pct.toFixed(0)+'<s>%</s>';
+  el.title=(a.ok||0)+' из '+(a.n||0)+(a.enough?'':' · мало для статистики');})();
+// ПОТОК ПО ДОСКЕ (07.09): день — число и сторона, бар — ранний разворот
+(function(){const TK=DATA.taker||{};const f=document.getElementById('flow');
+  if(!TK.day){f.style.display='none';return}
+  const dev=Math.max(-1,Math.min(1,(TK.day-1)/0.2));
+  document.getElementById('bead').style.left=(50+dev*32)+'%';
+  f.classList.add(TK.day>1.02?'buy':TK.day<0.98?'sell':'flat');
+  document.getElementById('fval').textContent=TK.day.toFixed(2);
+  document.getElementById('fside').textContent=TK.side||'';
+  if(TK.bar&&((TK.day>1&&TK.bar<0.98)||(TK.day<1&&TK.bar>1.02)))
+    document.getElementById('fturn').textContent='бар '+TK.bar.toFixed(2)+' · разворот';})();
 // планета → журнал прогнозов (07.09): в оболочке шлём ob:open, отдельной страницей — переход по ссылке
 document.getElementById('planet').addEventListener('click',ev=>{ev.stopPropagation();
   if(window!==window.parent){try{window.parent.postMessage({type:'ob:open',screen:'accuracy'},'*')}catch(e){}}
   location.href='accuracy.html';});
-addEventListener('keydown',ev=>{if(ev.key==='Escape'||ev.key===' '||ev.key==='Enter'||ev.key==='ArrowRight')next()});
+addEventListener('keydown',ev=>{
+  if(PICK!==null&&(ev.key==='Escape')){PICK=null;applyGroup();return}
+  if(ev.key==='Escape'||ev.key===' '||ev.key==='Enter'||ev.key==='ArrowRight')next()});
 // шрифты (06.09): ждём оба — Michroma для имён и Inter для подписей; сеть молчит — стартуем
 // через полторы секунды на системном, чтобы не было пустого экрана и «script error» при первом заходе
 const ready=document.fonts?Promise.race([

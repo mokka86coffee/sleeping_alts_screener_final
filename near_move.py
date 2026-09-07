@@ -64,6 +64,19 @@ def _rows(d: dict, key: str) -> list:
     return sorted([r for r in rows if isinstance(r, dict) and r.get("datetime")], key=lambda r: r["datetime"])
 
 
+def _at_target(sym_usdt: str) -> bool:
+    """Монета «у цели» по репутации (07.09, владелец: «мы же определили, что ACU и CL у цели —
+    значит можем понять, что пузыри не сработают»). У цели покупка рыночными приходит В ПЛИТУ,
+    её принимают: CL 15:00 — пузырь на максимуме дня, через два часа −0.7%; ACU 04:30 — через
+    два часа −0.9%. Читаем готовый шаблон, ничего нового не считаем."""
+    try:
+        rep_ = json.loads((BASE_DIR / "output" / "reputation.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    r = (rep_.get(sym_usdt) or rep_.get(sym_usdt.replace("USDT", "")) or {})
+    return "у цели" in str(r.get("plot") or "").lower()
+
+
 def _today_bars(sym_usdt: str) -> dict | None:
     """СЕГОДНЯ ПО БАРАМ (06.09, случай FLOCK против 4/ZEN/UNI/CHIP): из внутридневного архива —
     дельта дня, ход интереса с первого бара, доминирующий тип часа. Это то, чего дневки не видят:
@@ -164,22 +177,54 @@ def _today_bars(sym_usdt: str) -> dict | None:
             nx = full[i + step].get("px") if i + step < len(full) else None
             if nx:
                 after[k] = round((nx / p_ - 1) * 100, 2)
+        _pos = round((p_ - day_lo) / (day_hi - day_lo) * 100, 0) if (day_hi and day_lo and day_hi > day_lo) else None
+        # РОЛЬ ПУЗЫРЯ (07.09, владелец: «у CL и ACU есть и второй момент — красный пузырь у дна,
+        # который тоже не сработал»). Правило не про цвет: работает тот, кто бьёт по рынку в ту же
+        # сторону, что и край дня, у которого он стоит.
+        #   покупка внизу  → продолжение вверх  (NAORIS 11% → +4.5%, BLESS 8% → +3.1%, SOPH 34% → +6.6%)
+        #   продажа наверху → продолжение вниз   (COTI 92% → −10.6%, 66% → −7.5%)
+        #   покупка наверху → ПОГЛОЩЕНА, отдали  (CL 100% → −0.7%, PROM 100% → −3.4%, «4» 100% → −15.5%)
+        #   продажа внизу   → ПОГЛОЩЕНА, приняли (CL 20% → +1.9%, ACU 36% → +4.4%, BLESS 19% → +3.7%,
+        #                                          ENA 15:30 на минимуме дня → +1.9%)
+        # Поглощённая продажа внизу — признак лимитного покупателя: снизу стоял и принял.
+        _role = None
+        if _pos is not None:
+            _up, _dn = _pos >= 70, _pos <= 40
+            if x > 0:
+                _role = "продолжение" if _dn else ("поглощён" if _up else "середина")
+            else:
+                _role = "продолжение" if _up else ("поглощён" if _dn else "середина")
         bubbles.append({
             "at": r["candle"][11:16], "side": "buy" if x > 0 else "sell", "usd": round(x, 0),
-            "pos_pct": round((p_ - day_lo) / (day_hi - day_lo) * 100, 0) if (day_hi and day_lo and day_hi > day_lo) else None,
+            "role": _role, "pos_pct": _pos,
             "to_up_pct": round((up[0] / p_ - 1) * 100, 2) if up else None,
             "to_dn_pct": round((dn[0] / p_ - 1) * 100, 2) if dn else None,
             "oi_bar_pct": round(((r.get("oi") or 0) / oi_prev - 1) * 100, 2) if oi_prev else None,
             "oi_type": r.get("oi_type"), "after": after,
         })
+    # ПУЗЫРЬ-СИГНАЛ — НЕ ЛЮБОЙ (07.09, случаи CL, ACU, DOOD, PROM): покупка рыночными считается
+    # сбором, только если стоит в НИЖНЕЙ трети дневного диапазона и монета не «у цели». У цели и
+    # на максимуме дня рыночная покупка — это тот, кому отдают: CL 100% дня → −0.7% за 2 ч,
+    # PROM 100% → −3.4%, DOOD 92% → −3.0%, FLOCK 92% → −2.9%; внизу наоборот: NAORIS 11% → +4.5%,
+    # SOPH 34% → +6.6%, BLESS 8% → +3.1%. Остальные пузыри пишутся в журнал, но решений не меняют.
+    at_target = _at_target(sym_usdt)
+    low_buy = [b for b in bubbles if b["side"] == "buy" and b.get("role") == "продолжение"]
+    high_sell = [b for b in bubbles if b["side"] == "sell" and b.get("role") == "продолжение"]
+    absorbed = [b for b in bubbles if b.get("role") == "поглощён"]
+    # сигнал вверх — покупка внизу и не «у цели» (у цели рыночную покупку принимают в плиту);
+    # сигнал вниз — продажа наверху; поглощённые балл не двигают, но пишутся в журнал
+    bubble_signal = bool(low_buy) and not at_target
+    bubble_down = bool(high_sell)
     kind = None
     if leaving:
-        kind = "коррекция" if (bubble_buy or not hit) else "конец"
+        kind = "коррекция" if (bubble_signal or not hit) else "конец"
     return {"bars": len(rows), "delta": round(d, 0), "taker": round(b / sl, 3) if sl else None,
             "oi_chg_pct": round(oi_chg * 100, 1) if oi_chg is not None else None,
             "px_chg_pct": round(px_chg * 100, 1) if px_chg is not None else None, "dominant": dom,
             "px": px1, "leaving_kind": kind, "day_low": held, "hit_bar": hit, "bubble_buy": bubble_buy,
             "bub_buy": bub_buy_bars, "bub_sell": bub_sell_bars, "skipped": len(skipped),
+            "bubble_signal": bubble_signal, "bubble_down": bubble_down,
+            "absorbed": len(absorbed), "at_target": at_target,
             "bubbles": bubbles,
             # ХОД БЕЗ ПУЗЫРЯ (07.09, случай ACU): у монеты может идти чистый ход вовсе без всплесков —
             # там различает не пузырь, а во сколько раз интерес растёт быстрее цены за день.
@@ -407,8 +452,10 @@ def build(only: list[str] | None = None) -> dict:
         # ПУЗЫРЬ — МНОЖИТЕЛЕМ, НЕ СЛАГАЕМЫМ (07.09): как слагаемое он вынес наверх стоящий STRK
         # (единственный пузырь дня — 128K в 04:00, при этом цена за день −0.3% и дельта в минус).
         # Факт покупки усиливает того, кто и так идёт, и не поднимает того, кто стоит.
-        _bb, _bs = _tv.get("bub_buy") or [], _tv.get("bub_sell") or []
-        score *= 1.15 if _bb else (0.85 if _bs else 1.0)
+        # МНОЖИТЕЛЬ ПО РОЛИ ПУЗЫРЯ (07.09): вверх усиливает, вниз ослабляет, поглощённый —
+        # нейтрален. Раньше любая продажа наказывала монету, а у CL и ACU продажи внизу были
+        # ПРИНЯТЫ и цена после них росла — за это наказывать нельзя.
+        score *= 1.15 if _tv.get("bubble_signal") else (0.85 if _tv.get("bubble_down") else 1.0)
         # КОРРЕКЦИЯ — ТОЖЕ МНОЖИТЕЛЕМ: интерес сегодня уходит вместе с ценой — монета временно не про
         # «кто раньше»; из очереди не выбрасываем (белый пузырь вернёт), но вперёд не пускаем.
         if _tk_q == "коррекция":
@@ -423,7 +470,11 @@ def build(only: list[str] | None = None) -> dict:
         score = round(score, 3)
         v["queue"] = {"days_since_harvest": days, "score": score, "today": td, "mode": _mode,
                       "px_chg_pct": _px_chg,
-                      "bubble": ("покупка " + _bb[-1]) if _bb else ("продажа " + _bs[-1]) if _bs else "тихо"}
+                      "bubble": ("покупка внизу " + _bb[-1]) if _tv.get("bubble_signal")
+                                else ("продажа вверху " + _bs[-1]) if _tv.get("bubble_down")
+                                else (f"поглощён ×{_tv.get('absorbed')}") if _tv.get("absorbed")
+                                else "тихо",
+                      "at_target": _tv.get("at_target")}
         queue.append((score, s2))
     queue.sort(reverse=True)
     out["queue"] = [s2 for _, s2 in queue]

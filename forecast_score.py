@@ -265,6 +265,15 @@ def build(days: int = 7, only: list[str] | None = None) -> dict:
         pos = bs[-1]["pos_pct"]
         return "пузырь внизу дня" if pos <= 40 else "пузырь вверху дня" if pos >= 70 else "пузырь в середине"
     cut("место пузыря", _bub_pos)
+    def _bub_role(x):
+        q = qmeta.get((x.get("candle"), x["sym"])) or {}
+        bs = [b for b in (q.get("bubbles") or []) if b.get("role") in ("продолжение", "поглощён")]
+        if not bs:
+            return None
+        b = bs[-1]
+        return ("покупка внизу" if b["side"] == "buy" else "продажа наверху") if b["role"] == "продолжение" \
+            else ("покупка поглощена" if b["side"] == "buy" else "продажа поглощена")
+    cut("роль пузыря", _bub_role)
     def _lev(x):
         q = qmeta.get((x.get("candle"), x["sym"])) or {}
         v = q.get("oi_to_px")
