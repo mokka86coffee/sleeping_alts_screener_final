@@ -201,7 +201,29 @@ def judge(d: dict, live: dict | None = None) -> dict | None:
         nums["from_harvest_high"] = round((float(last["close"]) / hi - 1) * 100, 1) if hi else None
         if held:
             why.append(f"сбор удержан ({nums['from_harvest_high']:+.0f}% от максимума)")
-    score = len(why)
+    # РЕЖИМ ХОДА (07.09, владелец: FLOCK против BULLA) — в день сбора интерес рос вместе с ценой
+    # («поднять и трясти», лестница: тряска — место покупки) или рухнул («поднять много и резко»,
+    # парабола на выносе шортов: первая тряска — выход). Считаем по дню сбора: OI дня к OI накануне.
+    mode = None
+    if hv:
+        hday = hv[0][0] if len(hv) == 1 else max(hv, key=lambda t: t[1])[0]
+        idx = next((i for i, r in enumerate(o) if r["datetime"][:10] == hday["datetime"][:10]), None)
+        if idx and idx > 0:
+            oi_h = float((oi.get(o[idx]["datetime"][:10]) or {}).get("open_interest") or 0)
+            oi_p = float((oi.get(o[idx - 1]["datetime"][:10]) or {}).get("open_interest") or 0)
+            if oi_h and oi_p:
+                r_oi = oi_h / oi_p
+                nums["oi_on_harvest"] = round(r_oi, 2)
+                if r_oi >= 1.15:
+                    mode = "лестница"          # интерес рос вместе с ценой — набирали
+                elif r_oi <= 0.75:
+                    mode = "парабола"          # интерес рухнул — вынос шортов, не набор
+                else:
+                    mode = "неясно"
+    score = len(why)          # счёт признаков — до пометки режима
+    if mode:
+        nums["mode"] = mode
+        why.append("режим: " + mode + (" (интерес рос с ценой)" if mode == "лестница" else " (интерес рухнул — вынос шортов)" if mode == "парабола" else ""))
     # ЧЕТЫРЕ ГРУППЫ (06.09, владелец): одна подпись «близкая» смешивала тех, кто уже идёт, с теми,
     # у кого ход впереди. Делим по положению цены и плечу:
     #   going    — идёт: сбор вчера-сегодня и цена на максимуме (второй акт уже идёт);
@@ -278,7 +300,13 @@ def build(only: list[str] | None = None) -> dict:
         td = (v.get("today") or {}).get("today")
         b_score = 1.0 if td == "покупают сегодня" else 0.5 if td == "стоит" else 0.0
         score = round(0.35 * t_score + 0.35 * g_score + 0.30 * b_score, 3)
-        v["queue"] = {"days_since_harvest": days, "score": score, "today": td}
+        _mode = n.get("mode")
+        if _mode == "парабола":
+            score *= 0.45          # парабола: первая тряска — выход, а не покупка (07.09)
+        elif _mode == "лестница":
+            score *= 1.15
+        score = round(score, 3)
+        v["queue"] = {"days_since_harvest": days, "score": score, "today": td, "mode": _mode}
         queue.append((score, s2))
     queue.sort(reverse=True)
     out["queue"] = [s2 for _, s2 in queue]

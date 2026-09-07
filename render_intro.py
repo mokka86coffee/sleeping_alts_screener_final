@@ -78,6 +78,12 @@ def collect_items() -> list[dict]:
         items.append({"n": sym.replace("USDT", ""), "sym": sym, "g": g, "why": why, "sub": sub, "rel": rel})
 
     def reliability(v: dict) -> float:
+        # БАЛЛ ОЧЕРЕДИ — ГЛАВНЫЙ (07.09, владелец: «DOOD пошёл, а светил меньше всех»): порядок
+        # появления и длина лучей идут из очереди (режим, срок после сбора, плечо, бары), а не из
+        # старой надёжности по обороту; она осталась запасной, если очереди нет
+        q = v.get("queue") or {}
+        if q.get("score") is not None:
+            return float(q["score"])
         """Надёжность (06.09, владелец: «у кого надёжнее — та ярче»): сбор × рост плеча, в логарифме
         по сбору — FLOCK ×144 при плече ×2.5 против «четвёрки» ×20 при ×1.8; сегодня продают — штраф."""
         n = v.get("nums") or {}
@@ -99,7 +105,7 @@ def collect_items() -> list[dict]:
         n = v.get("nums") or {}; q = v.get("queue") or {}
         d = q.get("days_since_harvest")
         td = q.get("today") or ((v.get("today") or {}).get("today")) or ""
-        return (f"сбор {d} дн назад" if d is not None else "сбор —") + f" · плечо ×{float(n.get('oi_grow') or 1):.1f}" + (f" · {td}" if td else "")
+        return ((n.get("mode") + " · ") if n.get("mode") else "") + (f"сбор {d} дн назад" if d is not None else "сбор —") + f" · плечо ×{float(n.get('oi_grow') or 1):.1f}" + (f" · {td}" if td else "")
     for i, sym in enumerate(queue):
         v = coins.get(sym) or {}
         sc = float((v.get("queue") or {}).get("score") or 0)
@@ -107,7 +113,7 @@ def collect_items() -> list[dict]:
     # порядок: брать, держать, у цели; внутри группы — по надёжности, самая надёжная первой
     items.sort(key=lambda it: (it["g"], -it.get("rel", 0.0)))
     # яркость внутри группы: лучшая — 1.0, остальные вниз до 0.45; «у цели» — ровно 0.7
-    for g in (0, 1):
+    for g in (0, 1, 2):
         grp = [it for it in items if it["g"] == g]
         if not grp:
             continue
@@ -251,7 +257,13 @@ void main(){
   float d=fbm(p*2.4+r*2.6);
   float Fi=0.,Fm=0.,Gi=1.,Bi=1.,best=1e9;
   for(int i=0;i<${N};i++){float dd=length((uv-P[i])*vec2(ar,1.));if(dd<best){best=dd;Fi=F[i];Gi=G[i];Bi=BR[i];}Fm=max(Fm,F[i]);}
-  float w=mix(.06,.005,Fi);   // (07.09) уже: раньше цеплял буквы соседних имён
+  // СВОЙ ПРЯМОУГОЛЬНИК (07.09, владелец: «рядом куча обрывков от других звёзд»): свет и «сборка»
+  // живут только в рамке СВОЕГО имени — по его измеренной полуширине HW и полувысоте HH;
+  // за рамкой всё гаснет, поэтому смещённая маска не приносит буквы соседей
+  float bx=0.,by=0.,hwi=0.;
+  for(int i=0;i<${N};i++){float dd=length((uv-P[i])*vec2(ar,1.));if(dd<=best+1e-6){bx=abs(uv.x-P[i].x);by=abs(uv.y-P[i].y);hwi=HW[i];}}
+  float inbox=smoothstep(hwi+.035,hwi+.004,bx)*smoothstep(HH*2.4,HH*1.1,by);
+  float w=mix(.045,.003,Fi)*inbox;   // (07.09) смещение маски только внутри своей рамки
   vec2 mu=uv+(r-.5)*w;
   vec3 mk=texture2D(M,vec2(mu.x,1.-mu.y)).rgb;
   vec3 ms=texture2D(M,vec2(uv.x,1.-uv.y)).rgb;
@@ -260,7 +272,7 @@ void main(){
   float isClose=step(1.5,Gi)*(1.-isReady),isBuy=1.-step(.5,Gi),isHold=(1.-isClose)*(1.-isBuy)*(1.-isReady);
   float er=smoothstep(.3,.75,fbm(px*.045+vec2(T*.12,-T*.05)))*(.45+.3*sin(T*.3))*isClose;
   core*=1.-er*.9;soft*=1.-er*.75;
-  float near_=smoothstep(.16,.04,best);   // ореол и «сборка» — только вблизи ближайшего имени
+  float near_=smoothstep(.16,.04,best)*inbox;
   float drift=texture2D(M,vec2(uv.x-hash(px+3.)*.012,1.-(uv.y+hash(px+5.)*.008))).b*isClose*near_;
   float wrap=(halo*(.35+.65*smoothstep(.25,.85,d))+mk.r*.4)*Fi*near_;
   float blob=exp(-dot(p*vec2(1.1,.95),p*vec2(1.1,.95))*1.8);

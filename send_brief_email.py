@@ -208,8 +208,8 @@ def build_letter(stars: list, market: dict) -> tuple[str, str]:
             add("ОЧЕРЕДЬ — кто раньше (размер: первая — основной, вторая и третья — по четверти):")
             for _i, _sym in enumerate(_q[:5], 1):
                 _v = _coins.get(_sym) or {}; _n = _v.get("nums") or {}; _qq = _v.get("queue") or {}
-                add(f"  {_i}. {_sym.replace('USDT', '')} — сбор {_qq.get('days_since_harvest', '?')} дн назад · плечо ×{_n.get('oi_grow', 0):.2f} за 3 дн · "
-                    f"{_qq.get('today') or 'баров нет'} · оборот ×{_n.get('lull_x', 0):.1f}")
+                add(f"  {_i}. {_sym.replace('USDT', '')} — {_n.get('mode') or 'режим неясен'} · сбор {_qq.get('days_since_harvest', '?')} дн назад · "
+                    f"плечо ×{_n.get('oi_grow', 0):.2f} за 3 дн · {_qq.get('today') or 'баров нет'} · оборот ×{_n.get('lull_x', 0):.1f}")
             add("")
         _near_n = len(_q[:3])
         # У ЦЕЛИ (07.09, владелец: «это по сути и было хеджирование») — из репутации, как в звёздах:
