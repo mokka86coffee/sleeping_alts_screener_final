@@ -13,13 +13,78 @@
   .cap .buy{color:#cfe0ff}.cap .hold{color:#8fe0b8}.cap .close{color:#8f97c8}
   .hint{position:fixed;right:24px;bottom:26px;font-family:"Inter",system-ui,sans-serif;font-weight:300;font-size:11px;letter-spacing:.12em;color:rgba(200,210,255,.35);pointer-events:none}
   .tip{position:fixed;padding:6px 10px;border-radius:6px;background:rgba(10,12,30,.86);color:#dfe6ff;font-family:"Inter",system-ui,sans-serif;font-weight:300;font-size:11px;letter-spacing:.04em;max-width:360px;pointer-events:none;opacity:0;transition:opacity .2s}
+  /* ПЛАНЕТА-КНОПКА В ЖУРНАЛ (07.09, владелец: «сделай кнопку на первом экране со звёздами —
+     планету какую-нибудь для перехода в этот журнал»): холодный шар в гамме экрана, кольцо
+     задней и передней дугой (объём, а не наклейка), два слоя облаков разной скорости,
+     атмосфера, две луны навстречу друг другу, раз в семь секунд падающая звезда.
+     При наведении разгорается и всё ускоряется. Клик — экран журнала прогнозов. */
+  .planet{position:fixed;right:6.5vw;bottom:8vh;width:clamp(84px,10vw,130px);aspect-ratio:1;cursor:pointer;
+    transition:transform .5s cubic-bezier(.2,.8,.2,1);will-change:transform;z-index:3}
+  .planet:hover{transform:scale(1.07)}
+  .planet .halo{position:absolute;inset:-34%;border-radius:50%;pointer-events:none;
+    background:radial-gradient(circle,rgba(120,160,255,.26),transparent 62%);animation:breathe 6s ease-in-out infinite}
+  @keyframes breathe{50%{transform:scale(1.13);opacity:.7}}
+  .planet:hover .halo{background:radial-gradient(circle,rgba(170,205,255,.42),transparent 66%)}
+  .ringbox{position:absolute;inset:-24% -30%;pointer-events:none}
+  .ringbox svg{width:100%;height:100%;overflow:visible;transform:rotate(-17deg)}
+  .ringbox .r1{fill:none;stroke:rgba(178,203,255,.55);stroke-width:1.1}
+  .ringbox .r2{fill:none;stroke:rgba(150,180,255,.28);stroke-width:3.4;filter:blur(2px)}
+  .ringbox .dust{fill:#dce8ff;opacity:.75}
+  .ringspin{transform-origin:50% 50%;animation:ringspin 42s linear infinite}
+  @keyframes ringspin{to{transform:rotate(360deg)}}
+  .planet:hover .ringspin{animation-duration:16s}
+  .ball{position:absolute;inset:0;border-radius:50%;overflow:hidden;
+    background:radial-gradient(120% 120% at 26% 22%, #dbe7ff 0%, #93a6e6 22%, #4b58a0 50%, #1a2149 78%, #080d24 100%);
+    box-shadow:0 0 30px rgba(120,150,255,.30), inset -16px -12px 34px rgba(0,0,0,.8), inset 9px 7px 26px rgba(200,220,255,.28)}
+  .ball .c1,.ball .c2{position:absolute;inset:-40% -70%;opacity:.42;
+    background:radial-gradient(28% 16% at 18% 34%, rgba(215,230,255,.85), transparent 70%),
+      radial-gradient(22% 12% at 52% 62%, rgba(190,210,255,.75), transparent 70%),
+      radial-gradient(30% 14% at 78% 40%, rgba(205,225,255,.7), transparent 72%);
+    filter:blur(2px);animation:spin 30s linear infinite}
+  .ball .c2{opacity:.24;filter:blur(5px);animation-duration:52s;animation-direction:reverse}
+  @keyframes spin{to{transform:translateX(34%)}}
+  .planet:hover .ball .c1{animation-duration:14s}
+  .ball .lit{position:absolute;inset:0;border-radius:50%;background:radial-gradient(38% 30% at 28% 22%, rgba(255,255,255,.5), transparent 62%)}
+  .ball .dark{position:absolute;inset:0;border-radius:50%;background:radial-gradient(132% 132% at 20% 18%, transparent 38%, rgba(3,6,20,.9) 78%)}
+  .atmo{position:absolute;inset:-5%;border-radius:50%;pointer-events:none;
+    box-shadow:inset 0 0 14px rgba(150,190,255,.55), 0 0 22px rgba(120,160,255,.35);animation:atmo 6s ease-in-out infinite}
+  @keyframes atmo{50%{box-shadow:inset 0 0 20px rgba(180,215,255,.75), 0 0 30px rgba(140,180,255,.5)}}
+  .orb{position:absolute;inset:-30%;pointer-events:none;animation:orbit 18s linear infinite}
+  .orb.b{inset:-46%;animation-duration:31s;animation-direction:reverse}
+  @keyframes orbit{to{transform:rotate(360deg)}}
+  .orb i{position:absolute;left:50%;top:0;width:6px;height:6px;margin-left:-3px;border-radius:50%;
+    background:#eaf1ff;box-shadow:0 0 8px #b9d0ff,0 0 20px rgba(150,190,255,.8)}
+  .orb.b i{width:4px;height:4px;margin-left:-2px;opacity:.75}
+  .planet:hover .orb{animation-duration:7s}
+  .planet:hover .orb.b{animation-duration:12s}
+  .shoot{position:absolute;left:-40%;top:12%;width:44%;height:1.5px;pointer-events:none;opacity:0;
+    background:linear-gradient(90deg,transparent,#eaf2ff);transform:rotate(28deg);
+    filter:drop-shadow(0 0 6px rgba(180,215,255,.9));animation:shoot 7s ease-in infinite}
+  @keyframes shoot{0%,72%{opacity:0;transform:rotate(28deg) translate(0,0)}76%{opacity:1}
+    88%{opacity:0;transform:rotate(28deg) translate(240%,58%)}100%{opacity:0;transform:rotate(28deg) translate(240%,58%)}}
+  .pcap{position:absolute;left:50%;top:calc(100% + 16px);transform:translateX(-50%);white-space:nowrap;
+    font-family:"Inter",system-ui,sans-serif;font-weight:300;font-size:11px;letter-spacing:.3em;text-transform:uppercase;
+    color:#b3c0f5;text-shadow:0 0 12px rgba(140,175,255,.8);opacity:.5;transition:opacity .3s,letter-spacing .4s}
+  .planet:hover .pcap{opacity:1;letter-spacing:.42em}
+  @media (prefers-reduced-motion:reduce){.planet *{animation:none!important}}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div class="hint">клик по имени — монета · мимо или клавиша — дальше</div>
+<div class="planet" id="planet" title="точность прогнозов">
+  <div class="halo"></div>
+  <div class="ringbox"><svg viewBox="0 0 100 100"><path class="r2" d="M2,50 A48,15 0 0 0 98,50"/><path class="r1" d="M2,50 A48,15 0 0 0 98,50"/></svg></div>
+  <div class="ball"><div class="c1"></div><div class="c2"></div><div class="lit"></div><div class="dark"></div></div>
+  <div class="atmo"></div>
+  <div class="ringbox"><svg viewBox="0 0 100 100"><path class="r2" d="M2,50 A48,15 0 0 1 98,50"/><path class="r1" d="M2,50 A48,15 0 0 1 98,50"/>
+    <g class="ringspin"><circle class="dust" cx="86" cy="53.4" r="1.1"/><circle class="dust" cx="18" cy="46.4" r=".8"/><circle class="dust" cx="60" cy="57" r=".7"/></g></svg></div>
+  <div class="orb a"><i></i></div><div class="orb b"><i></i></div>
+  <div class="shoot"></div>
+  <div class="pcap">точность</div>
+</div>
+<div class="hint">клик по имени — монета · планета — точность · мимо или клавиша — дальше</div>
 <div class="tip" id="tip"></div>
-<script id="introData" type="application/json">{"names": ["первые 3", "DOOD", "STRK", "NAORIS", "в очереди 7", "FLOCK", "RAYSOL", "BULLA", "SOPH", "METIS", "4", "FF", "у цели 2", "CHIP", "COTI"], "grp": [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2], "syms": ["", "DOODUSDT", "STRKUSDT", "NAORISUSDT", "", "FLOCKUSDT", "RAYSOLUSDT", "BULLAUSDT", "SOPHUSDT", "METISUSDT", "4USDT", "FFUSDT", "", "CHIPUSDT", "COTIUSDT"], "whys": ["", "сбор 09-06 на ×49 норм · оборот в затишье ×7.2 норм · плечо ×3.00 за три дня · шортов сгорело за три дня $106K · сбор удержан (+0% от максимума) · режим: лестница (интерес рос с ценой)", "сбор 09-05 на ×5 норм · оборот в затишье ×4.9 норм · плечо ×1.28 за три дня · сбор удержан (+0% от максимума) · двигатель: спрос (шортов нет, плечо ×1.28 при цене у максимума сбора) · режим: лестница (интерес рос с ценой)", "сбор 09-06 на ×23 норм · оборот в затишье ×13.0 норм · плечо ×1.77 за три дня · сбор удержан (+0% от максимума) · двигатель: спрос (шортов нет, плечо ×1.77 при цене у максимума сбора) · режим: лестница (интерес рос с ценой)", "", "сбор 09-06 на ×184 норм · оборот в затишье ×143.7 норм · плечо ×3.02 за три дня · шортов сгорело за три дня $1633K · сбор удержан (+0% от максимума) · режим: лестница (интерес рос с ценой)", "сбор 09-06 на ×338 норм · оборот в затишье ×6.0 норм · плечо ×2.47 за три дня · шортов сгорело за три дня $301K · сбор удержан (+0% от максимума) · режим: лестница (интерес рос с ценой)", "сбор 09-05 на ×135 норм · оборот в затишье ×61.0 норм · плечо ×1.65 за три дня · шортов сгорело за три дня $2795K · сбор удержан (-10% от максимума) · режим: парабола (интерес рухнул — вынос шортов)", "сбор 09-02 на ×24 норм · оборот в затишье ×8.5 норм · плечо ×1.28 за три дня · сбор удержан (+0% от максимума) · двигатель: спрос (шортов нет, плечо ×1.28 при цене у максимума сбора) · режим: лестница (интерес рос с ценой)", "сбор 09-06 на ×41 норм · оборот в затишье ×4.2 норм · плечо ×1.88 за три дня · сбор удержан (+0% от максимума) · двигатель: спрос (шортов нет, плечо ×1.88 при цене у максимума сбора) · режим: лестница (интерес рос с ценой)", "сбор 09-05 на ×55 норм · оборот в затишье ×20.1 норм · плечо ×1.39 за три дня · шортов сгорело за три дня $1165K · сбор удержан (-23% от максимума) · режим: лестница (интерес рос с ценой)", "сбор 09-02 на ×21 норм · оборот в затишье ×11.2 норм · плечо ×1.20 за три дня · сбор удержан (-0% от максимума) · двигатель: спрос (шортов нет, плечо ×1.20 при цене у максимума сбора) · режим: неясно", "", "у цели — кто двигает неясно · хедж 50%, стоп над максимумом по закрытию", "разгон отпустил · выход, не хедж"], "pos": [[0.22, 0.9], [0.619, 0.546], [0.358, 0.269], [0.236, 0.346], [0.5, 0.9], [0.547, 0.292], [0.3, 0.44], [0.805, 0.305], [0.638, 0.207], [0.547, 0.46], [0.34, 0.589], [0.806, 0.483], [0.78, 0.9], [0.791, 0.633], [0.181, 0.236]], "counts": [3, 7, 2], "label": [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0], "subs": ["", "лестница · сквиз · сбор 1 дн назад · плечо ×3.0 · набирают сегодня", "лестница · спрос · сбор 2 дн назад · плечо ×1.3 · стоит", "лестница · спрос · сбор 1 дн назад · плечо ×1.8 · стоит", "", "лестница · сквиз · сбор 1 дн назад · плечо ×3.0 · выходят · коррекция", "лестница · сквиз · сбор 1 дн назад · плечо ×2.5 · выходят · коррекция", "парабола · сквиз · сбор 2 дн назад · плечо ×1.6 · набирают сегодня", "лестница · спрос · сбор 5 дн назад · плечо ×1.3 · стоит", "лестница · спрос · сбор 1 дн назад · плечо ×1.9 · выходят · коррекция", "лестница · сквиз · сбор 2 дн назад · плечо ×1.4 · выходят · коррекция", "неясно · спрос · сбор 5 дн назад · плечо ×1.2 · стоит", "", "хедж 50%", "выход 100%"], "bright": [1.0, 1.0, 0.5147945205479452, 0.45, 1.0, 1.0, 0.9875706214689266, 0.8819209039548024, 0.844632768361582, 0.7451977401129943, 0.7296610169491525, 0.45, 1.0, 0.7, 0.7], "zones": []}</script>
+<script id="introData" type="application/json">{"names": ["первые 3", "DOOD", "STRK", "NAORIS", "в очереди 7", "FLOCK", "RAYSOL", "SOPH", "BULLA", "METIS", "4", "FF", "у цели 2", "ACU", "CL"], "grp": [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2], "syms": ["", "DOODUSDT", "STRKUSDT", "NAORISUSDT", "", "FLOCKUSDT", "RAYSOLUSDT", "SOPHUSDT", "BULLAUSDT", "METISUSDT", "4USDT", "FFUSDT", "", "ACUUSDT", "CLUSDT"], "whys": ["", "сбор 09-06 на ×49 норм · оборот в затишье ×7.2 норм · плечо ×3.00 за три дня · шортов сгорело за три дня $106K · сбор удержан (+0% от максимума) · режим: лестница (интерес рос с ценой)", "сбор 09-05 на ×5 норм · оборот в затишье ×4.9 норм · плечо ×1.28 за три дня · сбор удержан (+0% от максимума) · двигатель: спрос (шортов нет, плечо ×1.28 при цене у максимума сбора) · режим: лестница (интерес рос с ценой)", "сбор 09-06 на ×23 норм · оборот в затишье ×13.0 норм · плечо ×1.77 за три дня · сбор удержан (+0% от максимума) · двигатель: спрос (шортов нет, плечо ×1.77 при цене у максимума сбора) · режим: лестница (интерес рос с ценой)", "", "сбор 09-06 на ×184 норм · оборот в затишье ×143.7 норм · плечо ×3.02 за три дня · шортов сгорело за три дня $1633K · сбор удержан (+0% от максимума) · режим: лестница (интерес рос с ценой)", "сбор 09-06 на ×338 норм · оборот в затишье ×6.0 норм · плечо ×2.47 за три дня · шортов сгорело за три дня $301K · сбор удержан (+0% от максимума) · режим: лестница (интерес рос с ценой)", "сбор 09-02 на ×24 норм · оборот в затишье ×8.5 норм · плечо ×1.28 за три дня · сбор удержан (+0% от максимума) · двигатель: спрос (шортов нет, плечо ×1.28 при цене у максимума сбора) · режим: лестница (интерес рос с ценой)", "сбор 09-05 на ×135 норм · оборот в затишье ×61.0 норм · плечо ×1.65 за три дня · шортов сгорело за три дня $2795K · сбор удержан (-10% от максимума) · режим: парабола (интерес рухнул — вынос шортов)", "сбор 09-06 на ×41 норм · оборот в затишье ×4.2 норм · плечо ×1.88 за три дня · сбор удержан (+0% от максимума) · двигатель: спрос (шортов нет, плечо ×1.88 при цене у максимума сбора) · режим: лестница (интерес рос с ценой)", "сбор 09-05 на ×55 норм · оборот в затишье ×20.1 норм · плечо ×1.39 за три дня · шортов сгорело за три дня $1165K · сбор удержан (-23% от максимума) · режим: лестница (интерес рос с ценой)", "сбор 09-02 на ×21 норм · оборот в затишье ×11.2 норм · плечо ×1.20 за три дня · сбор удержан (-0% от максимума) · двигатель: спрос (шортов нет, плечо ×1.20 при цене у максимума сбора) · режим: неясно", "", "у цели — кто двигает неясно · хедж 50%, стоп над максимумом по закрытию · -2-й час, с 09-07 20:45", "у цели — кто двигает неясно · хедж 50%, стоп над максимумом по закрытию · 3-й час, с 09-07 15:45"], "pos": [[0.2, 0.9], [0.619, 0.504], [0.358, 0.248], [0.547, 0.27], [0.46, 0.9], [0.3, 0.407], [0.805, 0.282], [0.638, 0.192], [0.34, 0.544], [0.806, 0.446], [0.532, 0.421], [0.179, 0.227], [0.72, 0.9], [0.791, 0.585], [0.73, 0.36]], "counts": [3, 7, 2, 0], "label": [1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0], "subs": ["", "лестница · сквиз · сбор 1 дн назад · плечо ×3.0 · набирают сегодня", "лестница · спрос · сбор 2 дн назад · плечо ×1.3 · стоит", "лестница · спрос · сбор 1 дн назад · плечо ×1.8 · стоит", "", "лестница · сквиз · сбор 1 дн назад · плечо ×3.0 · выходят · коррекция", "лестница · сквиз · сбор 1 дн назад · плечо ×2.5 · выходят · коррекция", "лестница · спрос · сбор 5 дн назад · плечо ×1.3 · стоит", "парабола · сквиз · сбор 2 дн назад · плечо ×1.6 · набирают сегодня", "лестница · спрос · сбор 1 дн назад · плечо ×1.9 · выходят · коррекция", "лестница · сквиз · сбор 2 дн назад · плечо ×1.4 · выходят · коррекция", "неясно · спрос · сбор 5 дн назад · плечо ×1.2 · стоит", "", "хедж 50%", "хедж 50%"], "bright": [1.0, 1.0, 0.4618918918918919, 0.45, 1.0, 1.0, 0.9875706214689266, 0.844632768361582, 0.8259887005649718, 0.7451977401129943, 0.7296610169491525, 0.45, 1.0, 0.7, 0.7], "zones": []}</script>
 <script>
 const DATA=JSON.parse(document.getElementById('introData').textContent);
 // группы: 0 — брать, 1 — держать, 2 — закрыть (владелец, 06.09)
@@ -57,7 +122,8 @@ void main(){
   vec3 mk=texture2D(M,vec2(mu.x,1.-mu.y)).rgb;
   vec3 ms=texture2D(M,vec2(uv.x,1.-uv.y)).rgb;
   float core=ms.r,soft=ms.b,halo=mk.g;
-  float isReady=step(2.5,Gi);
+  float isStale=step(3.5,Gi);
+  float isReady=step(2.5,Gi)*(1.-isStale);
   float isClose=step(1.5,Gi)*(1.-isReady),isBuy=1.-step(.5,Gi),isHold=(1.-isClose)*(1.-isBuy)*(1.-isReady);
   float er=smoothstep(.3,.75,fbm(px*.045+vec2(T*.12,-T*.05)))*(.45+.3*sin(T*.3))*isClose;
   core*=1.-er*.9;soft*=1.-er*.75;
@@ -73,7 +139,7 @@ void main(){
   col=bg+col*dens*1.15;
   col+=hot*pow(smoothstep(.55,.92,d)*max(cloud,wrap),3.)*.8;
   float vis=smoothstep(1.05-Fi*1.25,1.3-Fi*1.25,d+.1);
-  float lvl=.82*Bi*(1.-.45*isReady);   // общий уровень понижен; «готовы» — ещё бледнее, без зелени
+  float lvl=.82*Bi*(1.-.45*isReady)*(1.-.55*isStale);   // общий уровень понижен; «готовы» — ещё бледнее, без зелени
   col+=vec3(.34,.38,.72)*(soft*.8+core*.15)*vis*lvl;
   col+=vec3(.36,.42,.8)*halo*vis*.4*Fi*lvl;
   float grain=hash(px*.9+floor(T*6.)*3.1);
@@ -97,6 +163,7 @@ void main(){
     float pulse=.4+.6*pow(.5+.5*sin(T*1.3+ph*6.28),3.);
     if(gi>2.5)pulse=.6;                                               // готовы: ровно, без дыхания
     if(gi>1.5&&gi<2.5)pulse*=step(.3,hash(vec2(floor(T*7.)+ph*13.,ph)));   // мигание — только «у цели»
+    if(gi>3.5)pulse=.4;                                                    // остывшие: ровно и тускло
     if(gi<.5)pulse=.7+.3*pulse;
     float k=exp(-dist*dist/5.);
     // ДЛИНА ЛУЧЕЙ — ПО НАДЁЖНОСТИ (06.09, владелец: «чем больше длина, тем надёжнее»):
@@ -148,7 +215,8 @@ function mask(){
   m.globalCompositeOperation='lighter';
   for(let i=0;i<N;i++){const x=W*POS[i][0]+size*.06,y=H*POS[i][1],name=names[i];
     // подписи групп — кириллицей, Michroma её не знает: Inter, чуть крупнее и с разрядкой
-    m.font=LAB[i]?`300 ${size*.92}px "Inter",system-ui,sans-serif`:`400 ${size*.935}px "${FONT}",system-ui,sans-serif`;   // заголовки зон −20%, монеты −6.5% (06.09)
+    const isStale=(DATA.grp||[])[i]===4;
+    m.font=LAB[i]?`300 ${size*(isStale?.78:.92)}px "Inter",system-ui,sans-serif`:`400 ${size*(isStale?.66:.935)}px "${FONT}",system-ui,sans-serif`;   // остывшие мельче (07.09)
     m.letterSpacing=LAB[i]?'0.32em':'0.12em';
     m.fillStyle='#0f0';m.filter=`blur(${size*.16}px)`;m.fillText(name,x,y);m.fillText(name,x,y);
     m.fillStyle='#00f';m.filter=`blur(${size*.035}px)`;m.fillText(name,x,y);m.fillText(name,x,y);
@@ -212,6 +280,10 @@ c.addEventListener('click',ev=>{const i=hit(ev);
     if(window!==window.parent){try{window.parent.postMessage({type:'ob:open',screen:'coin',hash:names[i]},'*')}catch(e){}}
     location.href=target;return}
   next()});
+// планета → журнал прогнозов (07.09): в оболочке шлём ob:open, отдельной страницей — переход по ссылке
+document.getElementById('planet').addEventListener('click',ev=>{ev.stopPropagation();
+  if(window!==window.parent){try{window.parent.postMessage({type:'ob:open',screen:'accuracy'},'*')}catch(e){}}
+  location.href='accuracy.html';});
 addEventListener('keydown',ev=>{if(ev.key==='Escape'||ev.key===' '||ev.key==='Enter'||ev.key==='ArrowRight')next()});
 // шрифты (06.09): ждём оба — Michroma для имён и Inter для подписей; сеть молчит — стартуем
 // через полторы секунды на системном, чтобы не было пустого экрана и «script error» при первом заходе

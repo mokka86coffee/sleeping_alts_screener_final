@@ -479,6 +479,15 @@ def render_report(candidates: list[Candidate], snapshot: RunSnapshot) -> bool:
     except Exception as e:
         _issue("Интро", f"{type(e).__name__}: {e}")
 
+    # ЭКРАН ТОЧНОСТИ (07.09): дни → часы → монеты, из output/forecast_score.json и market_bg.jsonl.
+    # Заходят с интро по планете. Это НЕ журнал 01.09 (render_journal.py, journal.html) — другой
+    # экран и другое имя файла. Сбой не роняет отчёт — экран просто не обновится.
+    try:
+        from render_accuracy import render_accuracy as _ra
+        pages["accuracy.html"] = _ra()
+    except Exception as e:
+        _issue("Экран точности", f"{type(e).__name__}: {e}")
+
     # Сборка ВСЕХ документов идёт до первой записи. Иначе падение на
     # третьем экране оставило бы на диске два новых файла и один
     # вчерашний — отчёт, склеенный из двух прогонов, где сводка
@@ -543,7 +552,7 @@ def render_report(candidates: list[Candidate], snapshot: RunSnapshot) -> bool:
 ISSUES: list[dict] = []
 COINGLASS_MAX_AGE_H = 3.0          # срез ежечасный; три часа — уже вчера
 LOOP_LEAD_S = 0                    # старт ровно на границе сетки: калитка свечи ждёт закрытие сама (05.09)
-AFTER_CANDLE_S = 600               # запас после закрытия свечи (07.09, владелец): десять минут — источники
+AFTER_CANDLE_S = 300               # запас после закрытия свечи (07.09, владелец): пять минут — источники
                                    # успевают завести бар, калитка тогда не ждёт и не переспрашивает
 # Суточная пересборка расписания «когда растёт» (05.09): часовые свечи с Binance,
 # затем сводка пробегов по режиму биткоина → output/schedule.json. Флаги — те, что
@@ -1252,6 +1261,37 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("Внутридневной архив", (_ri.stderr or "").strip()[-300:] or f"код {_ri.returncode}")
     except Exception as e:
         _issue("Внутридневной архив", f"{type(e).__name__}: {e}")
+
+    # ── ФОН РЫНКА (07.09, владелец: «нужно писать дополнительно в журнал всё, что может быть
+    # фоном… максимально собрать закономерности, тогда наш таймер по-настоящему заработает»):
+    # строка на прогон в output/market_bg.jsonl — risk on, биткоин, рынки и их состояние,
+    # ширина, деньги и доля лидера, дни роста подряд, сильный рост, лидеры всей биржи с
+    # возрастом листинга, движения по всей доске. Ничего не решает, только копит: считать
+    # закономерности будем по журналу, а не на глаз. Идёт ПОСЛЕ внутридневного архива —
+    # читает его же строки за сегодня. ──
+    try:
+        _rm = subprocess.run([sys.executable, "market_bg.py", "--write"], cwd=BASE_DIR,
+                             capture_output=True, text=True, timeout=300)
+        _tm = (_rm.stdout or "").strip().splitlines()
+        log("→ Фон рынка: " + next((l for l in _tm if l.startswith("risk on")), _tm[-1] if _tm else "пусто"))
+        if _rm.returncode:
+            _issue("Фон рынка", (_rm.stderr or "").strip()[-300:] or f"код {_rm.returncode}")
+    except Exception as e:
+        _issue("Фон рынка", f"{type(e).__name__}: {e}")
+
+    # ── ТОЧНОСТЬ ПРОГНОЗОВ (07.09): сводит три ленты — прогнозы, очередь, фон — и внутридневной
+    # архив: три границы (цель = ближайшая полоса сверху, стоп = снизу, срок), MFE и MAE, кривая
+    # затухания по отметкам от получаса до суток, разрезы по фону. Пишет output/forecast_score.json
+    # для экрана журнала. Идёт последней в быстрых: читает то, что записали фон и архив. ──
+    try:
+        _rf = subprocess.run([sys.executable, "forecast_score.py", "--days", "14", "--write"],
+                             cwd=BASE_DIR, capture_output=True, text=True, timeout=600)
+        _tf = (_rf.stdout or "").strip().splitlines()
+        log("→ Точность прогнозов: " + next((l for l in _tf if l.startswith("за ")), _tf[-1] if _tf else "пусто"))
+        if _rf.returncode:
+            _issue("Точность прогнозов", (_rf.stderr or "").strip()[-300:] or f"код {_rf.returncode}")
+    except Exception as e:
+        _issue("Точность прогнозов", f"{type(e).__name__}: {e}")
 
     # ══ МЕДЛЕННЫЕ — ПОСЛЕ БЫСТРЫХ, В СВОЁМ ПОТОКЕ (05.09, владелец): квант, разлоки,
     # резервуар, фонды, балансы, толпа, приток, расписание — каждый по своему порогу

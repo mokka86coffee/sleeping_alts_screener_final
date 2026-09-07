@@ -42,6 +42,58 @@ def _read(name: str):
     return None
 
 
+HOLD_HOURS = 10        # состояние держится, пока не сменилось на другой род или пока не вышло время
+STALE_HOURS = 4        # старше — «остывшие»: отдельная область внизу, мельче (07.09, владелец)
+
+
+def _state_since() -> dict:
+    """Когда шаблон монеты встал ВПЕРВЫЕ подряд (07.09, владелец: «не зашёл в Телеграм — как
+    растянуть на 10 часов»): по forecasts.jsonl — последняя непрерывная серия одного короткого
+    имени; отдаём {sym: (имя, часов держится, время постановки)}. Состояние гаснет, только когда
+    имя сменилось или прошло HOLD_HOURS."""
+    from datetime import datetime, timezone
+    out: dict = {}
+    for p in (BASE_DIR / "output" / "forecasts.jsonl", Path("output") / "forecasts.jsonl"):
+        if not p.exists():
+            continue
+        rows = []
+        for line in p.read_text(encoding="utf-8").splitlines():
+            try:
+                rows.append(json.loads(line))
+            except ValueError:
+                pass
+        rows.sort(key=lambda r: f"{r.get('at', '')} {r.get('hm', '')}")
+        by: dict = {}
+        last_goal: dict = {}     # последнее «у цели» по монете: имя и время постановки серии
+        for r in rows:
+            sym = str(r.get("sym") or "").upper()
+            if not sym:
+                continue
+            nm = str(r.get("tpl") or "").split("(")[0].strip().lower()
+            full = str(r.get("tpl") or "").strip().lower()
+            t = f"{r.get('at', '')} {r.get('hm', '00:00')}"
+            cur = by.get(sym)
+            if cur and cur[0] == nm:
+                by[sym] = (nm, cur[1])          # серия продолжается — время постановки прежнее
+            else:
+                by[sym] = (nm, t)
+            if nm.startswith("у цели"):
+                prev = last_goal.get(sym)
+                last_goal[sym] = (full, prev[1] if (prev and prev[0].split("(")[0] == full.split("(")[0]) else t)
+        now = datetime.now(timezone.utc)
+        for sym, (nm, t0) in by.items():
+            src = last_goal.get(sym) if (sym in last_goal and not nm.startswith("у цели")) else None
+            nm_out, t_out = (src[0], src[1]) if src else (nm, t0)
+            try:
+                d0 = datetime.strptime(t_out, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+                hrs = (now - d0).total_seconds() / 3600
+            except ValueError:
+                hrs = 0.0
+            out[sym] = (nm_out, round(hrs, 1), t_out[5:16])
+        break
+    return out
+
+
 def _last_marks() -> dict:
     """Последний шаблон по монете из forecasts.jsonl (короткое имя)."""
     out: dict = {}
@@ -68,6 +120,7 @@ def collect_items() -> list[dict]:
     coins = nm.get("coins") or {}
     rep = _read("reputation.json") or {}
     marks = _last_marks()
+    since = _state_since()
     items: list[dict] = []
     seen: set = set()
 
@@ -120,13 +173,22 @@ def collect_items() -> list[dict]:
         plot_full = str(r.get("plot") or "").lower()
         plot = plot_full.split("(")[0].strip()
         last = marks.get(sym, "")
+        st = since.get(sym)
+        # состояние держится: если сейчас шаблон другой, но «у цели» стояло недавно и не сменилось
+        # на «ведут покупатели» или конец — показываем его дальше, до HOLD_HOURS
+        if not plot.startswith("у цели") and st and st[0].startswith("у цели") and st[1] <= HOLD_HOURS:
+            plot_full = st[0]
+            plot = st[0]
+        age = f" · {st[1]:.0f}-й час, с {st[2]}" if (st and plot.startswith(st[0][:8])) else ""
         if plot.startswith("у цели"):
             if "ведут покупатели" in plot_full or "ведёт покупатель" in plot_full:
                 continue
             if "толпа" in plot_full:
-                add(sym, 2, "у цели — толпа набивается · хедж 70–80% позиции, стоп над максимумом по закрытию", "хедж 70–80%")
+                gg = 4 if (st and st[1] > STALE_HOURS) else 2
+                add(sym, gg, "у цели — толпа набивается · хедж 70–80% позиции, стоп над максимумом по закрытию" + age, "хедж 70–80%")
             else:
-                add(sym, 2, "у цели — кто двигает неясно · хедж 50%, стоп над максимумом по закрытию", "хедж 50%")
+                gg = 4 if (st and st[1] > STALE_HOURS) else 2
+                add(sym, gg, "у цели — кто двигает неясно · хедж 50%, стоп над максимумом по закрытию" + age, "хедж 50%")
         elif plot.startswith("разгон отпустил") or any(w in last for w in END_WORDS):
             add(sym, 2, (plot or last) + " · выход, не хедж", "выход 100%")
 
@@ -148,6 +210,8 @@ def collect_items() -> list[dict]:
     for it in items:
         if it["g"] == 2:
             it["bright"] = 0.7
+        elif it["g"] == 4:
+            it["bright"] = 0.4
     return items[:MAX_NAMES]
 
 
@@ -168,7 +232,7 @@ def layout(n: int, seed: int = 7, zone: tuple | None = None) -> list[list[float]
     rnd = random.Random(seed + n)
     pts: list[list[float]] = []
     tries = 0
-    x0, y0, x1, y1 = zone or (0.10, 0.14, 0.90, 0.78)
+    x0, y0, x1, y1 = zone or (0.10, 0.13, 0.90, 0.72)
     min_d = 0.16 if n <= 8 else 0.13
     while len(pts) < n and tries < 6000:
         tries += 1
@@ -205,23 +269,37 @@ def render_intro(items: list[dict] | None = None) -> str:
     # ГОТОВЫ — СВОЯ ГРУППА (06.09, владелец: «непонятно, как отличать держать от готовы»):
     # без зелени и искр, тусклее, короткие лучи, стоят НИЖНИМ рядом над подписями —
     # «на скамейке»; держать — созвездие выше, с зелёной подсветкой
-    counts = [sum(1 for it in items if it["g"] == k) for k in (0, 1, 2)]
+    counts = [sum(1 for it in items if it["g"] == k) for k in (0, 1, 2, 4)]
     labels = [{"n": f"первые {counts[0]}", "sym": "", "g": 0, "why": "", "label": True},
               {"n": f"в очереди {counts[1]}", "sym": "", "g": 1, "why": "", "label": True},
               {"n": f"у цели {counts[2]}", "sym": "", "g": 2, "why": "", "label": True}]
+    if counts[3]:
+        labels.append({"n": f"остывшие {counts[3]}", "sym": "", "g": 4, "why": "", "label": True})
     # раскладка (откат 06.09, владелец: «с зонами некрасиво»): одно облако-созвездие для всех
     # групп, различие — цветом и поведением света; подписи групп — четыре внизу
     # порядок появления (06.09, владелец): подпись группы → её звёзды → следующая → её звёзды
-    LABPOS = {0: [0.22, 0.90], 1: [0.50, 0.90], 2: [0.78, 0.90]}
+    LABPOS = {0: [0.20, 0.90], 1: [0.46, 0.90], 2: [0.72, 0.90], 4: [0.92, 0.90]}
     star_pos = layout(len(items))
     allit: list[dict] = []
     pos: list[list[float]] = []
     k = 0
-    for g in (0, 1, 2):
-        allit.append(next(it for it in labels if it["g"] == g)); pos.append(LABPOS[g])
+    stale = [it for it in items if it["g"] == 4]
+    star_pos = layout(len([it for it in items if it["g"] != 4]))
+    # остывшие — своим рядом у низа, мелко (07.09): «у цели» старше четырёх часов
+    n_s = len(stale)
+    stale_pos = [[round(0.14 + 0.72 * (i + 0.5) / max(1, n_s), 3), 0.83 + 0.02 * (i % 2)] for i in range(n_s)]
+    si = 0
+    for g in (0, 1, 2, 4):
+        lab_it = next((it for it in labels if it["g"] == g), None)
+        if lab_it is None:
+            continue
+        allit.append(lab_it); pos.append(LABPOS[g])
         for it in items:
             if it["g"] == g:
-                allit.append(it); pos.append(star_pos[k]); k += 1
+                if g == 4:
+                    allit.append(it); pos.append(stale_pos[si]); si += 1
+                else:
+                    allit.append(it); pos.append(star_pos[k]); k += 1
     names = [it["n"] for it in allit]; grp = [it["g"] for it in allit]; syms = [it["sym"] for it in allit]
     whys = [it.get("why", "") for it in allit]
     zones = []
@@ -249,11 +327,76 @@ TEMPLATE = r'''<!doctype html>
   .cap .buy{color:#cfe0ff}.cap .hold{color:#8fe0b8}.cap .close{color:#8f97c8}
   .hint{position:fixed;right:24px;bottom:26px;font-family:"Inter",system-ui,sans-serif;font-weight:300;font-size:11px;letter-spacing:.12em;color:rgba(200,210,255,.35);pointer-events:none}
   .tip{position:fixed;padding:6px 10px;border-radius:6px;background:rgba(10,12,30,.86);color:#dfe6ff;font-family:"Inter",system-ui,sans-serif;font-weight:300;font-size:11px;letter-spacing:.04em;max-width:360px;pointer-events:none;opacity:0;transition:opacity .2s}
+  /* ПЛАНЕТА-КНОПКА В ЖУРНАЛ (07.09, владелец: «сделай кнопку на первом экране со звёздами —
+     планету какую-нибудь для перехода в этот журнал»): холодный шар в гамме экрана, кольцо
+     задней и передней дугой (объём, а не наклейка), два слоя облаков разной скорости,
+     атмосфера, две луны навстречу друг другу, раз в семь секунд падающая звезда.
+     При наведении разгорается и всё ускоряется. Клик — экран журнала прогнозов. */
+  .planet{position:fixed;right:6.5vw;bottom:8vh;width:clamp(84px,10vw,130px);aspect-ratio:1;cursor:pointer;
+    transition:transform .5s cubic-bezier(.2,.8,.2,1);will-change:transform;z-index:3}
+  .planet:hover{transform:scale(1.07)}
+  .planet .halo{position:absolute;inset:-34%;border-radius:50%;pointer-events:none;
+    background:radial-gradient(circle,rgba(120,160,255,.26),transparent 62%);animation:breathe 6s ease-in-out infinite}
+  @keyframes breathe{50%{transform:scale(1.13);opacity:.7}}
+  .planet:hover .halo{background:radial-gradient(circle,rgba(170,205,255,.42),transparent 66%)}
+  .ringbox{position:absolute;inset:-24% -30%;pointer-events:none}
+  .ringbox svg{width:100%;height:100%;overflow:visible;transform:rotate(-17deg)}
+  .ringbox .r1{fill:none;stroke:rgba(178,203,255,.55);stroke-width:1.1}
+  .ringbox .r2{fill:none;stroke:rgba(150,180,255,.28);stroke-width:3.4;filter:blur(2px)}
+  .ringbox .dust{fill:#dce8ff;opacity:.75}
+  .ringspin{transform-origin:50% 50%;animation:ringspin 42s linear infinite}
+  @keyframes ringspin{to{transform:rotate(360deg)}}
+  .planet:hover .ringspin{animation-duration:16s}
+  .ball{position:absolute;inset:0;border-radius:50%;overflow:hidden;
+    background:radial-gradient(120% 120% at 26% 22%, #dbe7ff 0%, #93a6e6 22%, #4b58a0 50%, #1a2149 78%, #080d24 100%);
+    box-shadow:0 0 30px rgba(120,150,255,.30), inset -16px -12px 34px rgba(0,0,0,.8), inset 9px 7px 26px rgba(200,220,255,.28)}
+  .ball .c1,.ball .c2{position:absolute;inset:-40% -70%;opacity:.42;
+    background:radial-gradient(28% 16% at 18% 34%, rgba(215,230,255,.85), transparent 70%),
+      radial-gradient(22% 12% at 52% 62%, rgba(190,210,255,.75), transparent 70%),
+      radial-gradient(30% 14% at 78% 40%, rgba(205,225,255,.7), transparent 72%);
+    filter:blur(2px);animation:spin 30s linear infinite}
+  .ball .c2{opacity:.24;filter:blur(5px);animation-duration:52s;animation-direction:reverse}
+  @keyframes spin{to{transform:translateX(34%)}}
+  .planet:hover .ball .c1{animation-duration:14s}
+  .ball .lit{position:absolute;inset:0;border-radius:50%;background:radial-gradient(38% 30% at 28% 22%, rgba(255,255,255,.5), transparent 62%)}
+  .ball .dark{position:absolute;inset:0;border-radius:50%;background:radial-gradient(132% 132% at 20% 18%, transparent 38%, rgba(3,6,20,.9) 78%)}
+  .atmo{position:absolute;inset:-5%;border-radius:50%;pointer-events:none;
+    box-shadow:inset 0 0 14px rgba(150,190,255,.55), 0 0 22px rgba(120,160,255,.35);animation:atmo 6s ease-in-out infinite}
+  @keyframes atmo{50%{box-shadow:inset 0 0 20px rgba(180,215,255,.75), 0 0 30px rgba(140,180,255,.5)}}
+  .orb{position:absolute;inset:-30%;pointer-events:none;animation:orbit 18s linear infinite}
+  .orb.b{inset:-46%;animation-duration:31s;animation-direction:reverse}
+  @keyframes orbit{to{transform:rotate(360deg)}}
+  .orb i{position:absolute;left:50%;top:0;width:6px;height:6px;margin-left:-3px;border-radius:50%;
+    background:#eaf1ff;box-shadow:0 0 8px #b9d0ff,0 0 20px rgba(150,190,255,.8)}
+  .orb.b i{width:4px;height:4px;margin-left:-2px;opacity:.75}
+  .planet:hover .orb{animation-duration:7s}
+  .planet:hover .orb.b{animation-duration:12s}
+  .shoot{position:absolute;left:-40%;top:12%;width:44%;height:1.5px;pointer-events:none;opacity:0;
+    background:linear-gradient(90deg,transparent,#eaf2ff);transform:rotate(28deg);
+    filter:drop-shadow(0 0 6px rgba(180,215,255,.9));animation:shoot 7s ease-in infinite}
+  @keyframes shoot{0%,72%{opacity:0;transform:rotate(28deg) translate(0,0)}76%{opacity:1}
+    88%{opacity:0;transform:rotate(28deg) translate(240%,58%)}100%{opacity:0;transform:rotate(28deg) translate(240%,58%)}}
+  .pcap{position:absolute;left:50%;top:calc(100% + 16px);transform:translateX(-50%);white-space:nowrap;
+    font-family:"Inter",system-ui,sans-serif;font-weight:300;font-size:11px;letter-spacing:.3em;text-transform:uppercase;
+    color:#b3c0f5;text-shadow:0 0 12px rgba(140,175,255,.8);opacity:.5;transition:opacity .3s,letter-spacing .4s}
+  .planet:hover .pcap{opacity:1;letter-spacing:.42em}
+  @media (prefers-reduced-motion:reduce){.planet *{animation:none!important}}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div class="hint">клик по имени — монета · мимо или клавиша — дальше</div>
+<div class="planet" id="planet" title="точность прогнозов">
+  <div class="halo"></div>
+  <div class="ringbox"><svg viewBox="0 0 100 100"><path class="r2" d="M2,50 A48,15 0 0 0 98,50"/><path class="r1" d="M2,50 A48,15 0 0 0 98,50"/></svg></div>
+  <div class="ball"><div class="c1"></div><div class="c2"></div><div class="lit"></div><div class="dark"></div></div>
+  <div class="atmo"></div>
+  <div class="ringbox"><svg viewBox="0 0 100 100"><path class="r2" d="M2,50 A48,15 0 0 1 98,50"/><path class="r1" d="M2,50 A48,15 0 0 1 98,50"/>
+    <g class="ringspin"><circle class="dust" cx="86" cy="53.4" r="1.1"/><circle class="dust" cx="18" cy="46.4" r=".8"/><circle class="dust" cx="60" cy="57" r=".7"/></g></svg></div>
+  <div class="orb a"><i></i></div><div class="orb b"><i></i></div>
+  <div class="shoot"></div>
+  <div class="pcap">точность</div>
+</div>
+<div class="hint">клик по имени — монета · планета — точность · мимо или клавиша — дальше</div>
 <div class="tip" id="tip"></div>
 <script id="introData" type="application/json">__DATA__</script>
 <script>
@@ -293,7 +436,8 @@ void main(){
   vec3 mk=texture2D(M,vec2(mu.x,1.-mu.y)).rgb;
   vec3 ms=texture2D(M,vec2(uv.x,1.-uv.y)).rgb;
   float core=ms.r,soft=ms.b,halo=mk.g;
-  float isReady=step(2.5,Gi);
+  float isStale=step(3.5,Gi);
+  float isReady=step(2.5,Gi)*(1.-isStale);
   float isClose=step(1.5,Gi)*(1.-isReady),isBuy=1.-step(.5,Gi),isHold=(1.-isClose)*(1.-isBuy)*(1.-isReady);
   float er=smoothstep(.3,.75,fbm(px*.045+vec2(T*.12,-T*.05)))*(.45+.3*sin(T*.3))*isClose;
   core*=1.-er*.9;soft*=1.-er*.75;
@@ -309,7 +453,7 @@ void main(){
   col=bg+col*dens*1.15;
   col+=hot*pow(smoothstep(.55,.92,d)*max(cloud,wrap),3.)*.8;
   float vis=smoothstep(1.05-Fi*1.25,1.3-Fi*1.25,d+.1);
-  float lvl=.82*Bi*(1.-.45*isReady);   // общий уровень понижен; «готовы» — ещё бледнее, без зелени
+  float lvl=.82*Bi*(1.-.45*isReady)*(1.-.55*isStale);   // общий уровень понижен; «готовы» — ещё бледнее, без зелени
   col+=vec3(.34,.38,.72)*(soft*.8+core*.15)*vis*lvl;
   col+=vec3(.36,.42,.8)*halo*vis*.4*Fi*lvl;
   float grain=hash(px*.9+floor(T*6.)*3.1);
@@ -333,6 +477,7 @@ void main(){
     float pulse=.4+.6*pow(.5+.5*sin(T*1.3+ph*6.28),3.);
     if(gi>2.5)pulse=.6;                                               // готовы: ровно, без дыхания
     if(gi>1.5&&gi<2.5)pulse*=step(.3,hash(vec2(floor(T*7.)+ph*13.,ph)));   // мигание — только «у цели»
+    if(gi>3.5)pulse=.4;                                                    // остывшие: ровно и тускло
     if(gi<.5)pulse=.7+.3*pulse;
     float k=exp(-dist*dist/5.);
     // ДЛИНА ЛУЧЕЙ — ПО НАДЁЖНОСТИ (06.09, владелец: «чем больше длина, тем надёжнее»):
@@ -384,7 +529,8 @@ function mask(){
   m.globalCompositeOperation='lighter';
   for(let i=0;i<N;i++){const x=W*POS[i][0]+size*.06,y=H*POS[i][1],name=names[i];
     // подписи групп — кириллицей, Michroma её не знает: Inter, чуть крупнее и с разрядкой
-    m.font=LAB[i]?`300 ${size*.92}px "Inter",system-ui,sans-serif`:`400 ${size*.935}px "${FONT}",system-ui,sans-serif`;   // заголовки зон −20%, монеты −6.5% (06.09)
+    const isStale=(DATA.grp||[])[i]===4;
+    m.font=LAB[i]?`300 ${size*(isStale?.78:.92)}px "Inter",system-ui,sans-serif`:`400 ${size*(isStale?.66:.935)}px "${FONT}",system-ui,sans-serif`;   // остывшие мельче (07.09)
     m.letterSpacing=LAB[i]?'0.32em':'0.12em';
     m.fillStyle='#0f0';m.filter=`blur(${size*.16}px)`;m.fillText(name,x,y);m.fillText(name,x,y);
     m.fillStyle='#00f';m.filter=`blur(${size*.035}px)`;m.fillText(name,x,y);m.fillText(name,x,y);
@@ -448,6 +594,10 @@ c.addEventListener('click',ev=>{const i=hit(ev);
     if(window!==window.parent){try{window.parent.postMessage({type:'ob:open',screen:'coin',hash:names[i]},'*')}catch(e){}}
     location.href=target;return}
   next()});
+// планета → журнал прогнозов (07.09): в оболочке шлём ob:open, отдельной страницей — переход по ссылке
+document.getElementById('planet').addEventListener('click',ev=>{ev.stopPropagation();
+  if(window!==window.parent){try{window.parent.postMessage({type:'ob:open',screen:'accuracy'},'*')}catch(e){}}
+  location.href='accuracy.html';});
 addEventListener('keydown',ev=>{if(ev.key==='Escape'||ev.key===' '||ev.key==='Enter'||ev.key==='ArrowRight')next()});
 // шрифты (06.09): ждём оба — Michroma для имён и Inter для подписей; сеть молчит — стартуем
 // через полторы секунды на системном, чтобы не было пустого экрана и «script error» при первом заходе
