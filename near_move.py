@@ -167,6 +167,33 @@ def _today_bars(sym_usdt: str) -> dict | None:
         # мерка применима ТОЛЬКО к росту: при падении то же соотношение значит выход позиций,
         # а не «оплату» хода (FLOCK 07.09: −15% цены при −21% интереса — это не «на деньгах»)
         move_paid = "на деньгах" if paid <= 1.5 else "на плече" if paid >= 4.0 else "поровну"
+    # ── СОСТОЯНИЕ ПО БАРАМ, А НЕ ПО ШАБЛОНУ (08.09, владелец: «у нас внутридневные мерки, которые
+    # меняются каждые полчаса, это всё нужно использовать»). До сих пор «жив тренд или кончился»
+    # решал словесный шаблон репутации на ДНЕВКАХ: у DOOD он не менялся 70 записей подряд, и на
+    # карточке висело «тащит», когда по барам движение кончилось ещё накануне в 22:30 (дельта
+    # −713K при падении интереса на 1M+). Теперь состояние считается здесь, по получасовым барам:
+    #   кончилось  — был бар совпадения (дельта в минус и интерес −2% в один бар) ИЛИ три бара
+    #                подряд «лонги закрывают» при падающем интересе ИЛИ откат от вершины больше
+    #                половины хода дня при интересе вниз;
+    #   идёт       — интерес и цена за последние часы в одну сторону вверх;
+    #   стоит      — всё остальное.
+    # Момент конца запоминается (ended_at) — это точка выхода, её же ставит карточка меткой.
+    ended_at = None
+    prev_oi2 = None
+    closing = 0
+    for r in rows:
+        f = r.get("fut") or {}
+        dd_, oo = f.get("d"), r.get("oi")
+        typ = r.get("oi_type") or ""
+        if typ == "long_close" and dd_ is not None and dd_ < 0:
+            closing += 1
+        elif typ != "long_close":
+            closing = 0
+        hard = (dd_ is not None and oo and prev_oi2 and dd_ < 0 and (oo / prev_oi2 - 1) <= -0.02)
+        if (hard or closing >= 3) and ended_at is None:
+            ended_at = r.get("candle")
+        if oo:
+            prev_oi2 = oo
     day_hi_px = max(lows) if lows else None
     drawdown = ((px1 / day_hi_px - 1) * 100) if (day_hi_px and px1) else None
     _oi_tail = [r.get("oi") for r in rows[-7:] if r.get("oi")]
@@ -259,6 +286,11 @@ def _today_bars(sym_usdt: str) -> dict | None:
     bubble_signal = bool(low_buy) and not at_target
     bubble_choice = bool(low_buy_choice) and not at_target
     bubble_down = bool(high_sell)
+    # КОНЕЦ ПО БАРАМ СИЛЬНЕЕ СУТОЧНОЙ МЕРКИ (08.09): было событие и интерес после него не вернулся —
+    # значит «выходят», как бы ни выглядели сутки целиком (DOOD 08.09: за сутки интерес был в плюсе,
+    # а по барам восемь баров подряд лонги закрывают).
+    if ended_at and (oi_trend is not None and oi_trend <= 0):
+        leaving = True
     kind = None
     if leaving:
         kind = "коррекция" if (bubble_signal or not hit) else "конец"
@@ -266,6 +298,7 @@ def _today_bars(sym_usdt: str) -> dict | None:
             "oi_chg_pct": round(oi_chg * 100, 1) if oi_chg is not None else None,
             "px_chg_pct": round(px_chg * 100, 1) if px_chg is not None else None, "dominant": dom,
             "px": px1, "leaving_kind": kind, "day_low": held, "hit_bar": hit, "bubble_buy": bubble_buy,
+            "ended_at": ended_at, "closing_bars": closing,
             "move_paid": move_paid, "paid_ratio": round(paid, 3) if paid is not None else None,
             "oi_add_usd": round(oi_add_usd, 0) if oi_add_usd is not None else None,
             "drawdown_pct": round(drawdown, 2) if drawdown is not None else None,
@@ -546,9 +579,63 @@ def build(only: list[str] | None = None) -> dict:
                                 else (f"поглощён ×{_tv.get('absorbed')}") if _tv.get("absorbed")
                                 else "тихо",
                       "at_target": _tv.get("at_target"), "move_paid": _tv.get("move_paid")}
+        # ── 1. КОНЧИЛОСЬ — ВОН ИЗ ОЧЕРЕДИ (08.09, владелец: «отделять монеты, которые точно пойдут,
+        # от тех, что уже выпадают»): было событие конца по барам и интерес после него не растёт —
+        # монета не участвует в отборе вовсе, пока интерес не пойдёт вверх вместе с ценой.
+        # DOOD 08.09: событие в 05:30, восемь баров лонги закрывают, а он всё утро в первых.
+        _ended = _tv.get("ended_at")
+        _tr2 = _tv.get("oi_trend_pct")
+        if _ended and (_tr2 is None or _tr2 <= 0):
+            v["queue"]["out_reason"] = "кончилось " + str(_ended)[11:16]
+            score = 0.0
+            v["queue"]["score"] = 0.0
+
+        # ── 2. ГОТОВА ИЛИ ИДЁТ (08.09): в одном списке лежали SOPH с +78% за день и NOM с +2.7% —
+        # первому вход поздно, второму рано, а балл ставил первого выше. Делим по ходу дня:
+        # «готова» — ход ещё не начался (до 8% за день), «идёт» — уже едет.
+        v["queue"]["stage"] = "идёт" if (_px_chg is not None and _px_chg >= 8) else "готова"
         queue.append((score, s2))
     queue.sort(reverse=True)
-    out["queue"] = [s2 for _, s2 in queue]
+    ordered = [s2 for _, s2 in queue if (out["coins"][s2].get("queue") or {}).get("score", 0) > 0]
+
+    # ── 3. УСТОЙЧИВОСТЬ МЕСТА (08.09, владелец: «как исключить такие смены местами»): место скакало
+    # от прогона к прогону, потому что у порога разница в сотые доли балла. Теперь монета входит в
+    # первые, только продержавшись в верхних строках ДВА прогона подряд, и выходит из них тоже
+    # через два. Держим короткую память в output/queue_state.json — только последний состав.
+    TOP = 3
+    prev = {}
+    try:
+        prev = json.loads((BASE_DIR / "output" / "queue_state.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        prev = {}
+    was_top = set(prev.get("top") or [])
+    cand = ordered[:TOP]
+    stable = []
+    for s2 in ordered:
+        if len(stable) >= TOP:
+            break
+        if s2 in cand and (s2 in was_top or s2 in (prev.get("cand") or [])):
+            stable.append(s2)          # держится второй прогон подряд — в первые
+    for s2 in was_top:                 # тот, кто выпал впервые, остаётся ещё один прогон
+        if len(stable) >= TOP:
+            break
+        if s2 in ordered and s2 not in stable:
+            stable.append(s2)
+    for s2 in ordered:                 # добираем, если мест не хватило
+        if len(stable) >= TOP:
+            break
+        if s2 not in stable:
+            stable.append(s2)
+    rest = [s2 for s2 in ordered if s2 not in stable]
+    out["queue"] = stable + rest
+    out["first"] = stable
+    out["dropped"] = [s2 for s2 in (out["coins"] or {})
+                      if (out["coins"][s2].get("queue") or {}).get("out_reason")]
+    try:
+        (BASE_DIR / "output" / "queue_state.json").write_text(
+            json.dumps({"top": stable, "cand": cand}, ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        pass
     return out
 
 
@@ -586,6 +673,7 @@ def log_queue(res: dict) -> int:
             "sym": sym, "place": i, "score": q.get("score"),
             "days_since_harvest": q.get("days_since_harvest"), "oi_grow": n.get("oi_grow"),
             "today": q.get("today"), "bubble": q.get("bubble"), "move_pct": q.get("px_chg_pct"),
+            "stage": q.get("stage"), "out_reason": q.get("out_reason"),
             # карточки пузырей и плечо к цене (07.09) — сырьём в журнал, выводы делает считалка
             "move_paid": (v.get("today") or {}).get("move_paid"),
             "paid_ratio": (v.get("today") or {}).get("paid_ratio"),
