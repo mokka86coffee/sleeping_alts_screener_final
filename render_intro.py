@@ -502,18 +502,61 @@ TEMPLATE = r'''<!doctype html>
     text-transform:uppercase;color:#ffd8a8;text-shadow:0 0 14px rgba(255,200,140,.7)}
   .lead.ended b{color:#ffd8cc;text-shadow:0 0 26px rgba(255,150,120,.7)}
   .lead.ended s{color:#ffd8cc}
-  .bgnote{position:fixed;left:3.5vw;bottom:3vh;max-width:26vw;font-family:"Inter",system-ui,sans-serif;
-    font-weight:300;font-size:10.5px;line-height:1.95;letter-spacing:.12em;color:rgba(200,214,255,.62);
-    pointer-events:none}
-  .bgnote .bgr{display:grid;grid-template-columns:auto auto;column-gap:8px;align-items:baseline;margin-bottom:5px}
-  .bgnote .bgr s{text-decoration:none;font-size:8.5px;letter-spacing:.2em;text-transform:uppercase;
-    color:rgba(190,205,255,.4)}
-  .bgnote .bgr b{font-weight:400;font-size:11.5px;letter-spacing:.06em}
-  .bgnote .bgr u{grid-column:1/3;text-decoration:none;font-size:9.5px;color:rgba(190,205,255,.42);
-    letter-spacing:.08em;margin-top:1px}
-  .bgnote i{font-style:normal;display:block;font-size:7.5px;letter-spacing:.34em;text-transform:uppercase;
-    color:rgba(190,205,255,.34);margin-bottom:10px}
-  .bgnote b{font-weight:400;color:#dbe6ff}
+  .bgnote{position:fixed;left:3.5vw;bottom:34vh;width:clamp(146px,15vw,200px);z-index:3;
+    font-family:"Inter",system-ui,sans-serif;font-weight:300;pointer-events:none}
+  .bgnote i.hd{font-style:normal;display:block;font-size:6.1px;letter-spacing:.34em;text-transform:uppercase;
+    color:rgba(190,205,255,.34);margin-bottom:14px}
+  .bgnote .g{position:relative;margin-bottom:24px}
+  .bgnote .g .t{font-size:6.1px;letter-spacing:.3em;text-transform:uppercase;
+    color:rgba(190,205,255,.42);margin-bottom:20px}
+  /* 1. нить с бусиной — перевес сторон */
+  .bgnote .rail{position:relative;height:1px;
+    background:linear-gradient(90deg,rgba(150,175,255,0),rgba(150,175,255,.32) 18%,rgba(150,175,255,.32) 82%,rgba(150,175,255,0))}
+  .bgnote .rail i{position:absolute;left:50%;top:-4px;width:1px;height:9px;background:rgba(160,185,255,.3)}
+  .bgnote .rail:after{content:"";position:absolute;inset:-3px 0;
+    background:repeating-linear-gradient(90deg,rgba(210,230,255,.8) 0 2px,transparent 2px 34px);
+    -webkit-mask:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent);
+    mask:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent);opacity:.45;animation:drift 3.4s linear infinite}
+  .bgnote .g.dn .rail:after{animation-direction:reverse}
+  .bgnote .g.flat .rail:after{opacity:.2;animation-duration:7s}
+  .bgnote .bead{position:absolute;top:-4.5px;width:9.5px;height:9.5px;border-radius:50%;transform:translateX(-50%);
+    transition:left .8s cubic-bezier(.2,.8,.2,1);animation:bead 3.2s ease-in-out infinite}
+  .bgnote .g.up .bead{background:radial-gradient(circle at 36% 32%,#fff,#bff0dd 55%,#5cc9a6);
+    box-shadow:0 0 9px rgba(127,227,200,.95),0 0 26px rgba(127,227,200,.5)}
+  .bgnote .g.dn .bead{background:radial-gradient(circle at 36% 32%,#fff,#ffd2c4 55%,#e8836a);
+    box-shadow:0 0 9px rgba(232,131,106,.95),0 0 26px rgba(232,131,106,.5)}
+  .bgnote .g.flat .bead{background:radial-gradient(circle at 36% 32%,#fff,#d6e2f5 55%,#93a7bd);
+    box-shadow:0 0 8px rgba(160,185,220,.8)}
+  /* ЧИСЛА СВЕТЛЫЕ, СЛОВА СЕРЫЕ (08.09, владелец: «растёт, из, за сутки — тоже второстепенным
+     цветом»): значение читается сразу, служебные слова не мешают. */
+  .bgnote .val{position:absolute;top:-19px;transform:translateX(-50%);white-space:nowrap;font-size:10px;
+    font-weight:200;color:#e2ebff;text-shadow:0 0 15px rgba(150,190,255,.7);transition:left .8s cubic-bezier(.2,.8,.2,1)}
+  .bgnote .val w{font-style:normal;color:rgba(190,205,255,.42);text-shadow:none;font-size:8.5px}
+  .bgnote .ends{position:relative;height:0}
+  .bgnote .ends em{position:absolute;top:9px;font-style:normal;font-size:5.8px;letter-spacing:.24em;
+    text-transform:uppercase;color:rgba(190,205,255,.36)}
+  .bgnote .ends em.r{right:0}
+  /* 2. лидер — кольцо с заполнением по ходу от дна недели */
+  .bgnote .g.lead{display:grid;grid-template-columns:44px 1fr;column-gap:11px;align-items:center}
+  .bgnote .g.lead .t{grid-column:1/3;margin-bottom:12px}
+  .bgnote .ring{position:relative;width:44px;height:44px;border-radius:50%;
+    background:conic-gradient(from -90deg,#ffd08a calc(var(--p)*1%),rgba(255,255,255,.06) 0);
+    -webkit-mask:radial-gradient(circle,transparent 64%,#000 65%);mask:radial-gradient(circle,transparent 64%,#000 65%);
+    filter:drop-shadow(0 0 10px rgba(255,190,110,.6));animation:bead 3.6s ease-in-out infinite}
+  .bgnote .ring+.lx{min-width:0}
+  .bgnote .lx b{display:block;font-weight:200;font-size:13px;color:#ffe0b0;text-shadow:0 0 16px rgba(255,190,110,.7)}
+  .bgnote .lx u{display:block;text-decoration:none;font-size:6.8px;letter-spacing:.2em;text-transform:uppercase;
+    color:#ffd8a8;margin-top:3px}
+  .bgnote .lx u w{font-style:normal;color:rgba(200,212,255,.4)}
+  /* 3. торги — циферблат суток: дуги сессий и бегунок «сейчас» */
+  .bgnote .clock{position:relative;width:100%;height:26px}
+  .bgnote .clock .ln{position:absolute;left:0;right:0;top:12px;height:1px;background:rgba(150,175,255,.18)}
+  .bgnote .clock span{position:absolute;top:10px;height:3px;border-radius:3px;opacity:.5}
+  .bgnote .clock .now{position:absolute;top:5px;width:1px;height:15px;background:#dbe8ff;
+    box-shadow:0 0 9px rgba(200,225,255,.9);animation:bead 3s ease-in-out infinite}
+  .bgnote .clock em{position:absolute;top:17px;font-style:normal;font-size:5.6px;letter-spacing:.2em;
+    text-transform:uppercase;color:rgba(190,205,255,.4)}
+  @media (prefers-reduced-motion:reduce){.bgnote *{animation:none!important}}
   .hint{position:fixed;right:3vw;bottom:12px;font-family:"Inter",system-ui,sans-serif;font-weight:300;font-size:11px;letter-spacing:.12em;color:rgba(200,210,255,.35);pointer-events:none}
   .tip{position:fixed;padding:11px 14px;border-radius:12px;background:rgba(8,12,24,.95);
     backdrop-filter:blur(12px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.09),0 18px 40px rgba(0,0,0,.7);
@@ -723,10 +766,12 @@ void main(){
   col+=hot*pow(smoothstep(.55,.92,d)*max(cloud,wrap),3.)*.8;
   float appear=smoothstep(0.,.18,Fi);                 // имя ещё не пришло — маска не светится вовсе
   float vis=smoothstep(1.05-Fi*1.25,1.3-Fi*1.25,d+.1)*inbox*appear;
-  // ЯРКОСТЬ ГАСИТ ВСЁ ИМЯ ЦЕЛИКОМ (08.09, владелец: «ничего не поменялось за три раза»): BR входил
-  // только в lvl, то есть в два слагаемых из десяти — зерно, дрейф, ореолы групп рисовались мимо
-  // него, и чужие звёзды оставались видны. Теперь множитель применён к самой видимости.
-  vis *= clamp(Bi, 0., 1.);
+  // ЯРКОСТЬ ГАСИТ ВСЁ ИМЯ ЦЕЛИКОМ (08.09): BR входил только в lvl — два слагаемых из десяти, а
+  // зерно, дрейф и ореолы групп рисовались мимо него. Теперь множитель на самой видимости, и не
+  // линейный, а в квадрате: белый текст на тёмном при 10% всё ещё читался («скрывается всё, кроме
+  // названия»), в квадрате это уже один процент — имя пропадает вместе со всем остальным.
+  float bdim = clamp(Bi, 0., 1.);
+  vis *= bdim * bdim;
   float lvl=.82*Bi*(1.-.45*isReady)*(1.-.55*isStale);   // общий уровень понижен; «готовы» — ещё бледнее, без зелени
   col+=vec3(.34,.38,.72)*(soft*.8+core*.15)*vis*lvl;
   col+=vec3(.36,.42,.8)*halo*vis*.4*Fi*lvl;
@@ -1131,12 +1176,48 @@ function drawFx(t){
   // выделено цветом по смыслу, число рядом мелким.
   const rows=DATA.bgnote||[];
   if(!rows.length){el.style.display='none';return}
-  const COL={'давит':'#ff9078','падает':'#ff9078','продают':'#ff9078','тянет одна':'#ffc069',
-             'рост':'#4fe3b8','покупают':'#4fe3b8','нейтральный':'#9fb4cc','флэт':'#9fb4cc',
-             'вровень':'#9fb4cc','поровну':'#9fb4cc','без лидера':'#8ea3ba'};
-  el.innerHTML='<i>фон</i>'+rows.map(r=>
-    `<div class="bgr"><s>${r[0]}</s><b style="color:${COL[r[1]]||'#dbe6ff'}">${r[1]}</b>`+
-    (r[2]?`<u>${r[2]}</u>`:'')+`</div>`).join('');})();
+  const DIR={'давит':-1,'падает':-1,'продают':-1,'рост':1,'покупают':1,'нейтральный':0,'флэт':0,'вровень':0,'поровну':0};
+  const ENDS={'монеты':['давит','рост'],'медиана доски':['падает','рост'],'биткоин':['падает','рост'],'очередь':['давит','рост'],'поток рыночных заявок':['продают','покупают']};
+  // сессии в часах UTC — те же, что в фоне
+  const SES=[['Азия',0,9,'#6fb4ff'],['Европа',7,16,'#a98cff'],['США',13,21,'#ffb26f']];
+  const h=new Date().getUTCHours()+new Date().getUTCMinutes()/60;
+  // служебные слова — серым, числа остаются светлыми
+  function dim(txt){
+    return String(txt).replace(/(растёт|из|за сутки|за час|нет данных|срез не пришёл|от дна недели)/g,
+                               '<w>$1</w>');
+  }
+  function railGauge(r){
+    const dir=DIR[r[1]], cls=dir>0?'up':(dir<0?'dn':'flat');
+    let k=0.5; const num=parseFloat(String(r[3]||'').replace(',','.'));
+    if(!isNaN(num)) k = Math.abs(num)<=1 ? num : Math.min(1,Math.max(0,0.5+num/40));
+    const left=(12+Math.min(1,Math.max(0,k))*76).toFixed(0);
+    const e=ENDS[r[0]]||['',''];
+    return `<div class="g ${cls}"><div class="t">${r[0]}</div>
+      <div class="rail"><i></i><span class="val" style="left:${left}%">${dim(r[2]||r[1])}</span>
+        <span class="bead" style="left:${left}%"></span></div>
+      <div class="ends"><em class="l">${e[0]}</em><em class="r">${e[1]}</em></div></div>`;
+  }
+  function leadGauge(r){
+    const run=parseFloat(String(r[3]||'0'));
+    const p=Math.min(100,Math.max(4,isNaN(run)?0:run/3));   // 300% хода = полное кольцо
+    const name=(r[2]||'').split(' ')[0], val=(r[2]||'').split(' ')[1]||r[1];
+    return `<div class="g lead"><div class="t">${r[0]}</div>
+      <div class="ring" style="--p:${p.toFixed(0)}"></div>
+      <div class="lx"><b>${name}</b><u>${val} <w>от дна недели</w></u></div></div>`;
+  }
+  function clockGauge(r){
+    const arcs=SES.map(([n,a,b,c])=>
+      `<span style="left:${(a/24*100).toFixed(1)}%;width:${((b-a)/24*100).toFixed(1)}%;background:${c};box-shadow:0 0 8px ${c}"></span>`).join('');
+    const cur=SES.filter(([n,a,b])=>h>=a&&h<b).map(x=>x[0]).join(', ');
+    return `<div class="g"><div class="t">${r[0]}</div>
+      <div class="clock"><div class="ln"></div>${arcs}
+        <div class="now" style="left:${(h/24*100).toFixed(1)}%"></div>
+        <em style="left:0">00</em><em style="left:48%">12</em><em style="right:0">24</em></div>
+      <div class="ends"><em class="l" style="top:2px">${cur||r[1]}</em></div></div>`;
+  }
+  el.innerHTML='<i class="hd">фон</i>'+rows.map(r=>
+    r[0]==='лидер' ? leadGauge(r) : (r[0]==='торги' ? clockGauge(r) : railGauge(r))).join('');
+})();
 // ТОЧНОСТЬ ПОД ПЛАНЕТОЙ (07.09): доля сбывшихся из журнала; нет данных — прочерк
 (function(){const a=DATA.acc||{};const el=document.getElementById('pnum');
   if(!el)return;
