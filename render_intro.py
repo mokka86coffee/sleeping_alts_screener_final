@@ -444,12 +444,13 @@ def render_intro(items: list[dict] | None = None) -> str:
 
     # ПРИПИСКА О ФОНЕ (07.09, владелец: «лучше показывать, чем не показывать, но она не должна
     # никак влиять»): нейтральная строка фактов внизу экрана. В балл и в группы не входит.
-    bgnote = ""
+    # 08.09: фон приходит СПИСКОМ признаков — каждый со своим состоянием, а не одной строкой
+    bgnote: list = []
     try:
         from market_bg import bg_note
-        bgnote = bg_note() or ""
+        bgnote = bg_note() or []
     except Exception:  # noqa: BLE001
-        bgnote = ""
+        bgnote = []
 
     # ТОЧНОСТЬ (07.09): доля сбывшихся из считалки; файла нет — под планетой прочерк
     acc = {}
@@ -501,9 +502,15 @@ TEMPLATE = r'''<!doctype html>
     text-transform:uppercase;color:#ffd8a8;text-shadow:0 0 14px rgba(255,200,140,.7)}
   .lead.ended b{color:#ffd8cc;text-shadow:0 0 26px rgba(255,150,120,.7)}
   .lead.ended s{color:#ffd8cc}
-  .bgnote{position:fixed;left:3.5vw;bottom:4vh;max-width:24vw;font-family:"Inter",system-ui,sans-serif;
+  .bgnote{position:fixed;left:3.5vw;bottom:3vh;max-width:26vw;font-family:"Inter",system-ui,sans-serif;
     font-weight:300;font-size:10.5px;line-height:1.95;letter-spacing:.12em;color:rgba(200,214,255,.62);
     pointer-events:none}
+  .bgnote .bgr{display:grid;grid-template-columns:auto auto;column-gap:8px;align-items:baseline;margin-bottom:5px}
+  .bgnote .bgr s{text-decoration:none;font-size:8.5px;letter-spacing:.2em;text-transform:uppercase;
+    color:rgba(190,205,255,.4)}
+  .bgnote .bgr b{font-weight:400;font-size:11.5px;letter-spacing:.06em}
+  .bgnote .bgr u{grid-column:1/3;text-decoration:none;font-size:9.5px;color:rgba(190,205,255,.42);
+    letter-spacing:.08em;margin-top:1px}
   .bgnote i{font-style:normal;display:block;font-size:7.5px;letter-spacing:.34em;text-transform:uppercase;
     color:rgba(190,205,255,.34);margin-bottom:10px}
   .bgnote b{font-weight:400;color:#dbe6ff}
@@ -612,7 +619,7 @@ TEMPLATE = r'''<!doctype html>
 <canvas id="c"></canvas>
 <canvas id="fx"></canvas>
 <div class="flow" id="flow">
-  <div class="t">поток по доске</div>
+  <div class="t">поток рыночных заявок</div>
   <div class="rail"><i></i>
     <span class="val" id="fval">—</span>
     <span class="bead" id="bead"></span>
@@ -1073,10 +1080,17 @@ function drawFx(t){
   }
 })();
 (function(){const el=document.getElementById('bgnote');if(!el)return;
-  const raw=(DATA.bgnote||'').replace(/^фон:\s*/,'');
-  if(!raw){el.style.display='none';return}
-  el.innerHTML='<i>фон</i>'+raw.split(' · ')
-    .map(t=>t.replace(/([\d.,]+(?: из \d+)?%?)/g,'<b>$1</b>')).join('<br>');})();
+  // ФОН ПО ПРИЗНАКАМ (08.09, владелец: «нужно писать всё по отдельности — фон по монетам давит /
+  // нейтральный / рост, биткоин падает / флэт / рост, и так далее»): строка на признак, состояние
+  // выделено цветом по смыслу, число рядом мелким.
+  const rows=DATA.bgnote||[];
+  if(!rows.length){el.style.display='none';return}
+  const COL={'давит':'#ff9078','падает':'#ff9078','продают':'#ff9078','тянет одна':'#ffc069',
+             'рост':'#4fe3b8','покупают':'#4fe3b8','нейтральный':'#9fb4cc','флэт':'#9fb4cc',
+             'вровень':'#9fb4cc','поровну':'#9fb4cc','без лидера':'#8ea3ba'};
+  el.innerHTML='<i>фон</i>'+rows.map(r=>
+    `<div class="bgr"><s>${r[0]}</s><b style="color:${COL[r[1]]||'#dbe6ff'}">${r[1]}</b>`+
+    (r[2]?`<u>${r[2]}</u>`:'')+`</div>`).join('');})();
 // ТОЧНОСТЬ ПОД ПЛАНЕТОЙ (07.09): доля сбывшихся из журнала; нет данных — прочерк
 (function(){const a=DATA.acc||{};const el=document.getElementById('pnum');
   if(!el)return;

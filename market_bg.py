@@ -194,8 +194,21 @@ def _session(now: datetime) -> dict:
             out.append({"name": name, "state": "скоро откроется" if to <= SOON_H else "закрыта",
                         "in_h": round(to, 1), "open": False})
     live = [s["name"] for s in out if s["open"]]
+    # ПЕРЕХОД МЕЖДУ СЕССИЯМИ (08.09, владелец: «межсессионье нужно заменить на то, от какой сессии
+    # к какой переход»): когда открытых нет, пишем, какая закрылась последней и какая ближайшая
+    # откроется, вместо безликого «межсессионье».
+    gap = None
+    if not live:
+        nxt = min((s for s in out if not s["open"]), key=lambda s: s.get("in_h", 99))
+        prev_name, prev_ago = None, 99.0
+        for name, _a, b in SESSIONS:
+            ago = (h - b) if h >= b else (24 - b + h)
+            if ago < prev_ago:
+                prev_ago, prev_name = ago, name
+        gap = {"from": prev_name, "from_h": round(prev_ago, 1),
+               "to": nxt["name"], "to_h": nxt.get("in_h")}
     return {"dow": now.strftime("%a"), "dow_n": now.isoweekday(), "hour_utc": now.hour,
-            "weekend": now.isoweekday() >= 6,
+            "weekend": now.isoweekday() >= 6, "gap": gap,
             "sessions": live or ["межсессионье"], "markets": out}
 
 
@@ -386,52 +399,73 @@ def last_row() -> dict:
     return {}
 
 
-def bg_note(row: dict | None = None) -> str:
-    """ПРИПИСКА О ФОНЕ рядом с решением (07.09, владелец: «лучше показывать по фону, чем не
-    показывать, но она не должна никак влиять»). Нейтральная строка фактов — без слов «мешает» или
-    «помогает»: чего это стоит, мы пока не знаем. В решения и в балл не входит.
+def bg_note(row: dict | None = None) -> list:
+    """ФОН СТРОКАМИ, КАЖДЫЙ ПРИЗНАК ОТДЕЛЬНО (08.09, владелец: «сейчас в звёздах написано растёт
+    столько и столько-то наших — опять непонятно, каких наших; а нужно писать всё по отдельности:
+    фон по монетам — давит / нейтральный / рост, биткоин — падает / флэт / рост, и так далее»).
 
-    Пример: «фон: растёт 8 из 14 · поток продают 0.96 · биткоин −1.1% · США скоро закроется».
+    Возвращает список строк вида (что, состояние, число). Ничего не решает и в балл не входит —
+    только показывает. Каждый признак читается сам по себе, без оценочных слов вроде risk-on.
     """
     r = row if row is not None else last_row()
     if not r:
-        return ""
-    parts = []
-    br, tk, b, tm = r.get("breadth") or {}, r.get("taker") or {}, r.get("btc") or {}, r.get("time") or {}
-    ou = r.get("ours") or {}
+        return []
+    out: list = []
+    br = r.get("breadth") or {}
     if br.get("n"):
-        parts.append(f"растёт {br['up']} из {br['n']}")
-    if ou.get("n"):
-        parts.append(f"наши {ou['up']} из {ou['n']}")
-    if tk.get("day"):
-        parts.append(f"поток {tk.get('side')} {tk['day']:.2f}")
+        share = br["up"] / br["n"]
+        state = "давит" if share < 0.4 else ("рост" if share > 0.6 else "нейтральный")
+        out.append(["монеты", state, f"растёт {br['up']} из {br['n']}"])
+    b = r.get("btc") or {}
     if b.get("day_pct") is not None:
-        parts.append(f"биткоин {b['day_pct']:+.1f}%")
+        d = b["day_pct"]
+        state = "падает" if d < -0.5 else ("рост" if d > 0.5 else "флэт")
+        out.append(["биткоин", state, f"{d:+.1f}% за сутки"])
+    tk = r.get("taker") or {}
+    if tk.get("day"):
+        state = "продают" if tk["day"] < 0.98 else ("покупают" if tk["day"] > 1.02 else "вровень")
+        # «поток рыночных заявок» (08.09, владелец): это тейкер — покупки по рынку против продаж
+        # по рынку, в долларах; лимитные заявки сюда не входят
+        out.append(["поток рыночных заявок", state, f"{tk['day']:.2f}"])
+    q = r.get("ours") or {}
+    if q.get("n"):
+        # «наши» — это монеты очереди: первые и в очереди, а не лидеры биржи (08.09, вопрос владельца)
+        state = "давит" if q["up"] * 2 < q["n"] else ("рост" if q["up"] * 2 > q["n"] else "поровну")
+        out.append(["очередь", state, f"растёт {q['up']} из {q['n']}"])
+    ol = r.get("leader") or {}
+    if ol.get("sym"):
+        state = "тянет одна" if ol.get("pulls") else "без лидера"
+        out.append(["лидер", state,
+                    f"{ol['sym'].replace('USDT', '')} {ol['day_pct']:+.0f}%"
+                    + (f" · ×{ol['gap']} к медиане очереди" if ol.get("pulls") else "")])
+    tm = r.get("time") or {}
     live = [m for m in (tm.get("markets") or []) if m.get("open")]
     if live:
-        parts.append(", ".join(f"{m['name']} {m['state']}" for m in live))
+        out.append(["торги", live[0].get("state") or "идут",
+                    ", ".join(m["name"] for m in live)])
+    elif tm.get("gap"):
+        g = tm["gap"]
+        out.append(["торги", f"{g['from']} → {g['to']}",
+                    f"{g['from']} закрылась {g['from_h']} ч назад · {g['to']} через {g['to_h']} ч"])
     elif tm.get("markets"):
-        soon = [m for m in tm["markets"] if m.get("state") == "скоро откроется"]
-        parts.append(f"{soon[0]['name']} скоро откроется" if soon else "межсессионье")
-    ol = r.get("leader") or {}
-    if ol.get("pulls"):
-        parts.append(f"{ol['sym'].replace('USDT','')} {ol['day_pct']:+.0f}% тянет одна · ×{ol['gap']} к медиане наших")
-    bm = r.get("big_mover")
-    if bm and bm.get("syms") and not ol.get("pulls"):
-        s0 = bm["syms"][0]
-        parts.append(f"{s0['sym'].replace('USDT', '')} {s0['day_pct']:+.0f}% тянет на себя")
-    return "фон: " + " · ".join(parts) if parts else ""
+        out.append(["торги", "все закрыты", ""])
+    return out
+
+
+def bg_line(row: dict | None = None) -> str:
+    """То же одной строкой — для мест, где список не помещается."""
+    return " · ".join(f"{a} {b}" for a, b, _c in bg_note(row))
 
 
 def taker_line(row: dict | None = None) -> str:
-    """Готовая строка про поток для сводки и первого экрана: «поток по доске 0.94 — продают,
+    """Готовая строка про поток для сводки и первого экрана: «поток рыночных заявок 0.94 — продают,
     52% потока; последний бар 1.03 — разворот». Пусто, если фон ещё не собран."""
     r = row if row is not None else last_row()
     tk = (r or {}).get("taker") or {}
     d, b = tk.get("day"), tk.get("bar")
     if not d:
         return ""
-    out = f"поток по доске {d:.2f} — {tk.get('side')}"
+    out = f"поток рыночных заявок {d:.2f} — {tk.get('side')}"
     if tk.get("sell_share_pct") is not None:
         out += f", продаж {tk['sell_share_pct']:.0f}% потока"
     if b:
