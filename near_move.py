@@ -179,6 +179,7 @@ def _today_bars(sym_usdt: str) -> dict | None:
     #   стоит      — всё остальное.
     # Момент конца запоминается (ended_at) — это точка выхода, её же ставит карточка меткой.
     ended_at = None
+    ended_oi = None
     prev_oi2 = None
     closing = 0
     for r in rows:
@@ -192,6 +193,15 @@ def _today_bars(sym_usdt: str) -> dict | None:
         hard = (dd_ is not None and oo and prev_oi2 and dd_ < 0 and (oo / prev_oi2 - 1) <= -0.02)
         if (hard or closing >= 3) and ended_at is None:
             ended_at = r.get("candle")
+            ended_oi = prev_oi2
+        # ВОССТАНОВЛЕНИЕ ОТМЕНЯЕТ КОНЕЦ (08.09, случай SOPH): событие сработало в 05:30, а монета
+        # потом удвоилась — интерес после него вырос с 72M до 95M. Значит, это была тряска, а не
+        # конец. Конец засчитывается ТОЛЬКО если интерес после события не вернулся к уровню,
+        # который был до него. Вернулся — событие снимается, и монета снова в игре.
+        if ended_at and oo and ended_oi and oo >= ended_oi:
+            ended_at = None
+            ended_oi = None
+            closing = 0
         if oo:
             prev_oi2 = oo
     day_hi_px = max(lows) if lows else None

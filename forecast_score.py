@@ -223,11 +223,14 @@ def _bg_at(bgs: list[dict], at: datetime) -> dict:
     tm, ro, ld = best.get("time") or {}, best.get("risk_on") or {}, best.get("leaders") or {}
     btc = (best.get("btc") or {}).get("day_pct")
     tk = best.get("taker") or {}
+    ld = best.get("leader") or {}
     return {"appetite": ro.get("appetite"), "regime": ro.get("regime"),
             "btc_day": btc, "dow": tm.get("dow"), "weekend": tm.get("weekend"),
             "sessions": ",".join(tm.get("sessions") or []),
             "leaders_mine": ld.get("mine_n"), "leaders_fresh": ld.get("fresh_n"),
-            "taker": tk.get("day"), "taker_side": tk.get("side")}
+            "taker": tk.get("day"), "taker_side": tk.get("side"),
+            # наш лидер как признак фона (08.09): тянет одна или нет, и кто именно
+            "pulls": ld.get("pulls"), "lead_sym": ld.get("sym"), "lead_gap": ld.get("gap")}
 
 
 def _agg(items: list[dict]) -> dict:
@@ -321,6 +324,8 @@ def build(days: int = 7, only: list[str] | None = None) -> dict:
         else ("да" if x["bg"]["leaders_mine"] else "нет"))
     # тейкер по доске (07.09): бьют по стакану в покупку или в продажу — свой, пересчитываемый
     cut("тейкер", lambda x: (x["bg"] or {}).get("taker_side"))
+    cut("тянет одна", lambda x: None if (x["bg"] or {}).get("pulls") is None
+        else ("да · " + str((x["bg"] or {}).get("lead_sym", "")).replace("USDT", "") if x["bg"]["pulls"] else "нет"))
     def _bub_pos(x):
         q = qmeta.get((x.get("candle"), x["sym"])) or {}
         bs = [b for b in (q.get("bubbles") or []) if b.get("side") == "buy" and b.get("pos_pct") is not None]

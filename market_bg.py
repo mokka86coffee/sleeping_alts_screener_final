@@ -33,7 +33,15 @@
                     Ленты 07.09 писали «поток лёг в шорт, 51.6% на продажу» — это то же число,
                     только чужое; своё считается из наших же баров и потому пересчитываемо.
                     Пишем за сутки (taker24 из среза) и за последний бар — разворот виден раньше.
- 11. leaders      — десятка лидеров дня ПО ВСЕЙ БИРЖЕ, а не по нашей доске (07.09, владелец
+ 11. leader       — НАШ ЛИДЕР КАК ПРИЗНАК ФОНА (08.09, владелец: «нужно записывать в журнал, какой
+                    лидер и в какое время шёл, чтобы это было таким же фоном, как биткоин»). За два
+                    дня подтвердились ровно два признака фона: падение биткоина и наличие монеты с
+                    сильным ходом. Пока одна тянет, остальные не идут: 07.09 SOPH +11.7% при медиане
+                    +0.5%, 08.09 SOPH +104% при медиане +3.2% — вторые и третьи не дали ничего.
+                    Пишем: кто ведёт, ход за день, во сколько раз оторвался от медианы наших,
+                    сколько часов держится в первых, был ли конец. Это НАБЛЮДЕНИЕ: в решения и в
+                    балл не входит, но режет журнал так же, как биткоин и сессия.
+ 12. leaders      — десятка лидеров дня ПО ВСЕЙ БИРЖЕ, а не по нашей доске (07.09, владелец
                     прислал список: MEME +137%, BONER +123%, NUDES, IOST, SOLV, PIEVERSE — обороты
                     по пятьсот-семьсот тысяч). Деньги не ушли с рынка, они ушли МИМО нашей выборки,
                     в свежие листинги и мемы, где хватает пары сотен тысяч на плюс сто процентов.
@@ -293,6 +301,21 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
     oi_now = sum(c["oi"] for c in coins if c.get("oi"))
     oi_add_total = sum(c["oi_add"] for c in coins if c.get("oi_add") is not None)
 
+    # НАШ ЛИДЕР — из очереди и её же ходов за день
+    our_lead = None
+    if ours:
+        _top = sorted(ours, key=lambda c: -(c.get("day_pct") or 0))
+        _l = _top[0]
+        _moves = sorted([c.get("day_pct") or 0 for c in ours])
+        _med = _moves[len(_moves) // 2]
+        _gap = (abs(_l["day_pct"]) / abs(_med)) if abs(_med) >= 0.3 else (abs(_l["day_pct"]) / 0.3 if _l["day_pct"] else 0)
+        our_lead = {
+            "sym": _l["sym"], "day_pct": _l["day_pct"], "oi_day_pct": _l.get("oi_day_pct"),
+            "median_ours": round(_med, 2), "gap": round(_gap, 1),
+            "pulls": bool(_gap >= 5),          # тянет одна — вход в остальных по правилу закрыт
+            "queue": _l.get("queue"),
+        }
+
     lead = _leaders({c["sym"] for c in coins}) if leaders else None
 
     btc = next((c for c in coins if c["sym"].startswith("BTC")), None)
@@ -339,6 +362,7 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
             "first3": [{"sym": c["sym"], "day_pct": c["day_pct"], "oi_day_pct": c["oi_day_pct"]} for c in first3],
             "first3_up": sum(1 for c in first3 if c["day_pct"] > 0),
         },
+        "leader": our_lead,
         "big_mover": big_block,
         "leaders": lead,
         "coins": sorted(coins, key=lambda c: -c["day_pct"]),
@@ -387,8 +411,11 @@ def bg_note(row: dict | None = None) -> str:
     elif tm.get("markets"):
         soon = [m for m in tm["markets"] if m.get("state") == "скоро откроется"]
         parts.append(f"{soon[0]['name']} скоро откроется" if soon else "межсессионье")
+    ol = r.get("leader") or {}
+    if ol.get("pulls"):
+        parts.append(f"{ol['sym'].replace('USDT','')} {ol['day_pct']:+.0f}% тянет одна · ×{ol['gap']} к медиане наших")
     bm = r.get("big_mover")
-    if bm and bm.get("syms"):
+    if bm and bm.get("syms") and not ol.get("pulls"):
         s0 = bm["syms"][0]
         parts.append(f"{s0['sym'].replace('USDT', '')} {s0['day_pct']:+.0f}% тянет на себя")
     return "фон: " + " · ".join(parts) if parts else ""
@@ -455,6 +482,10 @@ def _print(r: dict) -> None:
         for x in ld["top"][:5]:
             print(f"   {x['sym'].replace('USDT',''):12s} {x['day_pct']:+7.1f}% · оборот {(x['vol_usd'] or 0)/1e6:6.2f}M · "
                   f"листингу {x['age_days']} дн{' · наша' if x['mine'] else ''}")
+    ol = r.get("leader")
+    if ol:
+        print(f"наш лидер: {ol['sym'].replace('USDT','')} {ol['day_pct']:+.1f}% · медиана наших {ol['median_ours']:+.1f}% · "
+              f"разрыв ×{ol['gap']}" + (" · ТЯНЕТ ОДНА" if ol["pulls"] else ""))
     if r.get("big_mover"):
         bm = r["big_mover"]
         for s in bm["syms"]:

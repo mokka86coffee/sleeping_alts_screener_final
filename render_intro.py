@@ -374,6 +374,74 @@ def render_intro(items: list[dict] | None = None) -> str:
     except Exception:  # noqa: BLE001
         orbits = {}
 
+    # ЛИДЕР И МЕЛЬКАЮЩИЕ (08.09): кто ведёт, насколько оторвался от медианы наших, сколько часов
+    # держится в первых, сколько прогонов подряд у него не растёт интерес, и кто мелькает —
+    # входил в первые и выходил за последние прогоны. Всё из ленты очереди и near_move.
+    leader: dict = {}
+    flicker: list = []
+    try:
+        _nm = json.loads((BASE_DIR / "output" / "near_move.json").read_text(encoding="utf-8"))
+        _first = (_nm.get("first") or _nm.get("queue") or [])[:1]
+        _coins = _nm.get("coins") or {}
+        _moves = [((_coins.get(s2) or {}).get("today") or {}).get("px_chg_pct")
+                  for s2 in (_nm.get("queue") or [])]
+        _moves = [m for m in _moves if m is not None]
+        if _first and _moves:
+            _sym = _first[0]
+            _t = (_coins.get(_sym) or {}).get("today") or {}
+            _mv = _t.get("px_chg_pct") or 0.0
+            _med = sorted(_moves)[len(_moves) // 2]
+            _gap = (abs(_mv) / abs(_med)) if abs(_med) >= 0.3 else (abs(_mv) / 0.3 if _mv else 0)
+            # часы в первых и слабые прогоны — по ленте очереди
+            _rows = []
+            try:
+                for line in (BASE_DIR / "output" / "queue_log.jsonl").read_text(encoding="utf-8").splitlines():
+                    try:
+                        _r = json.loads(line)
+                    except ValueError:
+                        continue
+                    if _r.get("sym") == _sym:
+                        _rows.append(_r)
+            except OSError:
+                _rows = []
+            _hours = 0
+            _runs = [r for r in _rows if r.get("place")]
+            for r in reversed(_runs):
+                if (r.get("place") or 99) <= 3:
+                    _hours += 1
+                else:
+                    break
+            _hours = round(_hours * 0.5)                     # прогон раз в полчаса
+            _weak = 0
+            for r in reversed(_runs):
+                _tr = r.get("oi_trend_pct")
+                if _tr is None or _tr > 0:
+                    break
+                _weak += 1
+            leader = {"sym": _sym.replace("USDT", ""), "state": _t.get("today"),
+                      "run_pct": round(_mv, 0),
+                      "line": f"{_mv:+.0f}% за сутки · интерес {_t.get('oi_chg_pct', 0):+.0f}%"
+                              + (f" · до плиты {_t.get('to_up_pct'):.1f}%" if _t.get("to_up_pct") else ""),
+                      "ended": (_t.get("ended_at") or "")[11:16] or None,
+                      "hours": _hours, "lead_gap": round(_gap, 1), "runs_weak": _weak}
+            # мелькающие: за последние 6 прогонов были и в первых, и вне их
+            _by: dict = {}
+            try:
+                for line in (BASE_DIR / "output" / "queue_log.jsonl").read_text(encoding="utf-8").splitlines():
+                    try:
+                        _r = json.loads(line)
+                    except ValueError:
+                        continue
+                    _by.setdefault(_r.get("sym"), []).append(_r.get("place"))
+            except OSError:
+                _by = {}
+            for s3, places in _by.items():
+                tail = [p for p in places[-6:] if p]
+                if len(tail) >= 4 and any(p <= 3 for p in tail) and any(p > 3 for p in tail):
+                    flicker.append(str(s3).replace("USDT", ""))
+    except Exception:  # noqa: BLE001
+        leader, flicker = {}, []
+
     # ПРИПИСКА О ФОНЕ (07.09, владелец: «лучше показывать, чем не показывать, но она не должна
     # никак влиять»): нейтральная строка фактов внизу экрана. В балл и в группы не входит.
     bgnote = ""
@@ -392,7 +460,7 @@ def render_intro(items: list[dict] | None = None) -> str:
             acc = {"ok_pct": _a.get("ok_pct"), "ok": _a.get("ok"), "n": _a.get("n"), "enough": _a.get("enough")}
     except (OSError, ValueError):
         acc = {}
-    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote},
+    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "flicker": flicker},
                       ensure_ascii=False).replace("</", "<\\/")
     return TEMPLATE.replace("__N__", str(n)).replace("__DATA__", data)
 
@@ -414,6 +482,21 @@ TEMPLATE = r'''<!doctype html>
   /* ФОН — ПОД ПОТОКОМ (08.09, владелец: «он не читается и не виден вообще»): было 9.5px при
      прозрачности .34 внизу по центру — на тёмном фоне не видно. Стало: блок под тем же прибором,
      столбиком, числа выделены. Ничего не решает, только показывает. */
+  /* ЛИДЕР (08.09): панель сверху появляется ТОЛЬКО когда одна монета тянет всё на себя —
+     разрыв с медианой наших впятеро и больше либо у неё уже конец. Иначе панели нет. */
+  .lead{position:fixed;left:50%;top:26px;transform:translateX(-50%);text-align:center;pointer-events:none;z-index:4;
+    font-family:"Inter",system-ui,sans-serif;font-weight:300}
+  .lead b{display:block;font-family:"Michroma",system-ui,sans-serif;font-weight:400;font-size:17px;
+    letter-spacing:.28em;color:#f2f7ff;text-shadow:0 0 26px rgba(190,220,255,.9),0 0 60px rgba(140,180,255,.5)}
+  .lead s{display:block;text-decoration:none;margin-top:7px;font-size:10.5px;letter-spacing:.14em;color:#cfe0ff}
+  .lead i{display:block;font-style:normal;margin-top:5px;font-size:8px;letter-spacing:.3em;text-transform:uppercase;
+    color:rgba(190,205,255,.45)}
+  .lead u.hot{color:#ff8a70;text-shadow:0 0 16px rgba(255,130,100,.8)}
+  .lead u.warn{color:#ffc069;text-shadow:0 0 16px rgba(255,180,90,.85)}
+  .lead u{display:block;text-decoration:none;margin-top:9px;font-size:9px;letter-spacing:.24em;
+    text-transform:uppercase;color:#ffd8a8;text-shadow:0 0 14px rgba(255,200,140,.7)}
+  .lead.ended b{color:#ffd8cc;text-shadow:0 0 26px rgba(255,150,120,.7)}
+  .lead.ended s{color:#ffd8cc}
   .bgnote{position:fixed;left:3.5vw;bottom:4vh;max-width:24vw;font-family:"Inter",system-ui,sans-serif;
     font-weight:300;font-size:10.5px;line-height:1.95;letter-spacing:.12em;color:rgba(200,214,255,.62);
     pointer-events:none}
@@ -545,6 +628,7 @@ TEMPLATE = r'''<!doctype html>
   <div class="pcap">точность</div>
   <div class="pnum" id="pnum">—</div>
 </div>
+<div class="lead" id="lead"></div>
 <div class="bgnote" id="bgnote"></div>
 <div class="hint">клик по имени — монета · планета — точность · мимо или клавиша — дальше</div>
 <div class="tip" id="tip"></div>
@@ -562,7 +646,7 @@ const c=document.getElementById('c');
 const gl=c.getContext('webgl',{antialias:false,alpha:false});
 const VS=`attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}`;
 const FS=`precision highp float;
-uniform vec2 R;uniform float T,A;uniform vec2 P[${N}];uniform float F[${N}];uniform float G[${N}];uniform float BR[${N}];uniform float HW[${N}];uniform float HS[${N}];uniform float HH;uniform float SUBDY;uniform sampler2D M;uniform vec2 S[${N*NF}];uniform float SP[${N*NF}];
+uniform vec2 R;uniform float T,A;uniform vec2 P[${N}];uniform float F[${N}];uniform float G[${N}];uniform float BR[${N}];uniform float HW[${N}];uniform float HS[${N}];uniform float HH;uniform float SUBDY;uniform float LEAD;uniform float LEADW;uniform float LEADRUN;uniform sampler2D M;uniform vec2 S[${N*NF}];uniform float SP[${N*NF}];
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float noise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
   return mix(mix(hash(i),hash(i+vec2(1.,0.)),f.x),mix(hash(i+vec2(0.,1.)),hash(i+vec2(1.,1.)),f.x),f.y);}
@@ -630,10 +714,21 @@ void main(){
     if(on<=0.)continue;
     float ph=SP[i];float gi=G[i/${NF}];
 
-    vec3 fc=(gi>.5&&gi<1.5)?vec3(.72,1.,.86):(gi>2.5?vec3(.42,.62,1.):(gi<.5?vec3(.97,.98,1.):vec3(.86,.96,1.)));   // брать белые · держать зелёные · готовы синие
+    vec3 fc=(gi>.5&&gi<1.5)?vec3(.72,1.,.86):(gi>2.5?vec3(.42,.62,1.):(gi<.5?vec3(.97,.98,1.):vec3(.86,.96,1.)));
+    // ЛИДЕР МОЖЕТ КОНЧАТЬСЯ (08.09, владелец: «надо показывать заранее, а не ждать три прогона» —
+    // SOPH за час отдал треть от вершины). Первое же подозрение красит лучи; насколько — по тому,
+    // сколько монета уже прошла за день:
+    //   ход больше 150% — приглушённый красный, ровный свет;
+    //   ход меньше 150% — тёплый янтарь и медленное дыхание вместо ровного света.
+    float isLead = step(abs(float(i/${NF}) - LEAD), .5) * step(0., LEAD);
+    float sus  = step(.5, LEADW) * isLead;
+    float big  = step(150., LEADRUN);
+    float warn = clamp(LEADW / 3., 0., 1.) * isLead;
+    vec3 wcol  = mix(vec3(1., .74, .52), vec3(1., .46, .34), big);
+    fc = mix(fc, wcol, sus * mix(.45, .75, big));   // брать белые · держать зелёные · готовы синие
     vec2 cc=S[i]*R+(gi>2.5?vec2(0.):vec2(sin(T*1.9+ph*9.),cos(T*1.5+ph*5.))*1.4);
     vec2 dp=px-cc;float dist=length(dp);
-    if(dist>mix(70.,160.,BR[i/${NF}]))continue;
+    if(dist>mix(110.,240.,BR[i/${NF}]))continue;   // дальше ищем: луч стал длиннее (08.09)
     float ang=ph*6.28*.15+(gi>2.5?0.:sin(T*.35+ph*4.)*.45);
     float cs=cos(ang),sn=sin(ang);vec2 dr=vec2(dp.x*cs-dp.y*sn,dp.x*sn+dp.y*cs);
     float pulse=.4+.6*pow(.5+.5*sin(T*1.3+ph*6.28),3.);
@@ -641,13 +736,28 @@ void main(){
     if(gi>1.5&&gi<2.5)pulse*=step(.3,hash(vec2(floor(T*7.)+ph*13.,ph)));   // мигание — только «у цели»
     if(gi>3.5)pulse=.4;                                                    // остывшие: ровно и тускло
     if(gi<.5)pulse=.7+.3*pulse;
+    // дыхание вместо мигания: период около шести секунд, свет плавно гаснет и разгорается
+    float breathe = .42 + .58 * (.5 + .5 * sin(T * (.95 + .35 * warn)));
+    pulse = mix(pulse, mix(breathe, .95, big), sus);
     float k=exp(-dist*dist/5.);
     // ДЛИНА ЛУЧЕЙ — ПО НАДЁЖНОСТИ (06.09, владелец: «чем больше длина, тем надёжнее»):
     // у надёжной луч в три раза длиннее, у слабой — короткий
-    float rb=BR[i/${NF}];float rk=mix(3.2,1.,rb);if(gi>2.5)rk=1.9;   // готовы: лучи короче обычных, но видны
-    float st=exp(-abs(dr.y)*.9)*exp(-abs(dr.x)*.014*rk)*.7+exp(-abs(dr.x)*.9)*exp(-abs(dr.y)*.035*rk)*.4;
+    // ЛУЧ (08.09, правки владельца): втрое тоньше прежнего, длиннее, и вдоль него яркость идёт
+    // колоколом — у ядра приглушена, вспышка на пятой части длины, дальше плавно в ноль. Длина —
+    // ОБРАТНА спаду rk: у надёжной луч длиннее. Яркость для длины зажата в 0..1, иначе у лидера
+    // (BR выше единицы) множитель уходил в минус и луч пропадал совсем.
+    float rb=clamp(BR[i/${NF}],0.,1.);float rk=mix(3.2,1.,rb);if(gi>2.5)rk=1.9;
+    float LX = 420./rk, LY = 170./rk;
+    float lx = abs(dr.x)/LX, ly = abs(dr.y)/LY;
+    float envX = smoothstep(0., .22, lx) * pow(max(0., 1. - lx), 2.2);
+    float envY = smoothstep(0., .22, ly) * pow(max(0., 1. - ly), 2.2);
+    float st = exp(-abs(dr.y)*2.7) * envX * 2.6 + exp(-abs(dr.x)*2.7) * envY * 1.5;
     vec2 dd=vec2(dr.x+dr.y,dr.x-dr.y)*.7071;
-    st+=(exp(-abs(dd.x)*1.2)*exp(-abs(dd.y)*.08*rk)+exp(-abs(dd.y)*1.2)*exp(-abs(dd.x)*.08*rk))*.2;
+    float LD = 260./rk;
+    float ldx = abs(dd.y)/LD, ldy = abs(dd.x)/LD;
+    float envDx = smoothstep(0., .22, ldx) * pow(max(0., 1. - ldx), 2.2);
+    float envDy = smoothstep(0., .22, ldy) * pow(max(0., 1. - ldy), 2.2);
+    st += (exp(-abs(dd.x)*3.6)*envDx + exp(-abs(dd.y)*3.6)*envDy) * .9;
     float glow=exp(-dist*.07)*.3;
     col+=fc*(k*1.8+st+glow)*pulse*on;
     float below=step(dp.y,0.)*smoothstep(gi>1.5?-130.:-70.,-8.,dp.y)*(1.-step(2.5,gi));
@@ -676,6 +786,10 @@ const ap=gl.getAttribLocation(prog,'p');gl.enableVertexAttribArray(ap);gl.vertex
 const U=n=>gl.getUniformLocation(prog,n);const uR=U('R'),uT=U('T'),uF=U('F'),uA=U('A'),uS=U('S'),uSP=U('SP');
 gl.uniform2fv(U('P'),new Float32Array(POS.flatMap(([x,y])=>[x,1-y])));gl.uniform1fv(U('G'),new Float32Array(GRP));
 gl.uniform1fv(U('BR'),new Float32Array(DATA.names.length?DATA.bright:[1]));
+{const L=DATA.leader||{};const li=DATA.names.indexOf(L.sym||'');
+ gl.uniform1f(U('LEAD'), (li>=0&&!L.ended)?li:-1);
+ gl.uniform1f(U('LEADW'), L.ended?3:(L.runs_weak||0));
+ gl.uniform1f(U('LEADRUN'), Math.abs(L.run_pct||0));}
 const tex=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,tex);
 gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
 gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
@@ -911,6 +1025,35 @@ function drawFx(t){
     }
   }
 }
+// ЛИДЕР И МЕЛЬКАЮЩИЕ (08.09) — только показ, порядок очереди не меняется
+(function(){
+  const L=DATA.leader||{}, el=document.getElementById('lead');
+  const PULL=(L.lead_gap||0)>=5 || L.ended || (L.runs_weak||0)>0;
+  if(el&&L.sym&&PULL){
+    el.className='lead'+(L.ended?' ended':'');
+    el.innerHTML='<i>сейчас ведёт</i><b>'+L.sym+'</b><s>'+(L.ended?('конец в '+L.ended):(L.state||''))+
+      ' · '+(L.line||'')+(L.hours?(' · '+L.hours+' ч в первых'):'')+'</s>'+
+      ((L.runs_weak||0)>0&&!L.ended
+        ? (Math.abs(L.run_pct||0)>=150
+            ? '<u class="hot">ход '+Math.round(L.run_pct)+'% за день · интерес падает · '+L.runs_weak+' прогон без роста</u>'
+            : '<u class="warn">ход '+Math.round(L.run_pct||0)+'% за день · '+L.runs_weak+' из 3 прогонов без роста интереса</u>')
+        : ((L.lead_gap||0)>=5 ? '<u>тянет одна · в '+L.lead_gap.toFixed(0)+' раз выше медианы наших · вход в остальных закрыт</u>' : ''));
+  } else if(el){ el.style.display='none'; }
+  // признак держится три прогона: один слабый ничего не значит (SOPH 08.09 после события удвоился)
+  const idx=DATA.names.indexOf(L.sym||'');
+  const FL=new Set(DATA.flicker||[]);
+  const stillLeading = !L.ended && (L.runs_weak||0) < 3;
+  if(idx>=0&&stillLeading){
+    const hard=(L.lead_gap||0)>=5;
+    const b=new Float32Array(DATA.bright);
+    for(let i=0;i<b.length;i++){
+      if(LAB[i])continue;
+      b[i]= (i===idx) ? (hard?1.9:1.45) : b[i]*(hard?0.30:0.55);
+      if(FL.has(DATA.names[i])) b[i]*=0.6;
+    }
+    BR0.set(b); applyGroup();
+  }
+})();
 (function(){const el=document.getElementById('bgnote');if(!el)return;
   const raw=(DATA.bgnote||'').replace(/^фон:\s*/,'');
   if(!raw){el.style.display='none';return}
