@@ -1031,7 +1031,7 @@ function drawFx(t){
 // ЛИДЕР И МЕЛЬКАЮЩИЕ (08.09) — только показ, порядок очереди не меняется
 (function(){
   const L=DATA.leader||{}, el=document.getElementById('lead');
-  const PULL=(L.lead_gap||0)>=5 || L.ended || (L.runs_weak||0)>0;
+  const PULL=(Math.abs(L.run_pct||0)>=50) && ((L.lead_gap||0)>=5 || L.ended || (L.runs_weak||0)>0);
   if(el&&L.sym&&PULL){
     el.className='lead'+(L.ended?' ended':'');
     el.innerHTML='<i>сейчас ведёт</i><b>'+L.sym+'</b><s>'+(L.ended?('конец в '+L.ended):(L.state||''))+
@@ -1048,7 +1048,11 @@ function drawFx(t){
   //   тянет одна — лидер 1.9, остальные треть своей яркости;
   //   идёт обычно — 1.45 и половина;
   //   конец пришёл — 1.25 и три четверти: лидер всё ещё виден, но поле не гасится.
-  const idx=DATA.names.indexOf(L.sym||'');
+  // ЛИДЕР — ТОЛЬКО ПРИ ХОДЕ ОТ 50% ЗА ДЕНЬ (08.09, владелец: «первая монета в очереди не должна
+  // гореть ярче всех, если она не дала за день больше 50%; частота попадания в первые ни на что не
+  // влияет — NAORIS висел почти 12 ч в первых и не пошёл»). Раньше лидером считался тот, у кого
+  // наибольший суточный ход, и NAORIS с +7% полдня держал панель и затмевал остальных.
+  const idx=(Math.abs(L.run_pct||0)>=50) ? DATA.names.indexOf(L.sym||'') : -1;
   const FL=new Set(DATA.flicker||[]);
   if(idx>=0){
     const hard=(L.lead_gap||0)>=5 && !L.ended;

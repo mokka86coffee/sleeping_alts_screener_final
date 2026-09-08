@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import statirender_intro-17.pystics
+import statistics
 import sys
 from pathlib import Path
 
@@ -651,7 +651,9 @@ def build(only: list[str] | None = None) -> dict:
         _mv = _moves[_top_i]
         _gap = (abs(_mv) / abs(_med)) if abs(_med) >= 0.3 else (abs(_mv) / 0.3 if _mv else 0.0)
         _t_lead = out["coins"][ordered[_top_i]].get("today") or {}
-        if _gap >= 5 and _mv > 0 and not _t_lead.get("ended_at"):
+        # ПОРОГ ХОДА (08.09): «тянет одна» — это когда монета реально ушла, а не когда она просто
+        # выше медианы. NAORIS с +7% за день полдня считался лидером и закрывал вход остальным.
+        if _gap >= 5 and _mv >= 50 and not _t_lead.get("ended_at"):
             lead_sym, lead_gap = ordered[_top_i], round(_gap, 1)
     if lead_sym:
         for s2 in ordered:

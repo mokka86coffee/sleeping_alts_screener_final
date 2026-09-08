@@ -312,7 +312,9 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
         our_lead = {
             "sym": _l["sym"], "day_pct": _l["day_pct"], "oi_day_pct": _l.get("oi_day_pct"),
             "median_ours": round(_med, 2), "gap": round(_gap, 1),
-            "pulls": bool(_gap >= 5),          # тянет одна — вход в остальных по правилу закрыт
+            # тянет одна — только при ходе от 50% за день (08.09): монета с +7% не «тянет»,
+            # она просто выше медианы; NAORIS полдня закрывал вход остальным без всякого хода
+            "pulls": bool(_gap >= 5 and (_l["day_pct"] or 0) >= 50),
             "queue": _l.get("queue"),
         }
 

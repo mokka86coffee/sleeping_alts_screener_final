@@ -1,0 +1,329 @@
+#!/usr/bin/env python3
+"""ЖУРНАЛ ЗАХОДОВ — считаем ТОЛЬКО первых и очередь (08.09).
+
+Владелец: «выборка работает точно, нужно собирать, в какое время она не срабатывает, чтобы понять
+почему, а мы сейчас пишем рандомные монеты и прогнозы, которые изменились» и «какой смысл мерить по
+всем монетам, где нет объёма — их водит маркетмейкер как захочет».
+
+Что было не так у forecast_score.py: событием считалась СМЕНА СЛОВЕСНОГО ШАБЛОНА по любой из ста
+монет доски. Из-за этого:
+  · SOPH 07.09 вёл весь день с одним шаблоном — одна запись, и та выпала из счёта;
+  · десятки монет со сменами «стоит»/«неясно» разбавляли выборку до бессмыслицы (26%);
+  · монеты без оборота, которые водит маркетмейкер, весили столько же, сколько наши первые.
+
+Здесь считается другое. Единица счёта — ЗАХОД: непрерывный отрезок, пока монета была в первых
+(места 1–3) или в очереди (места 4 и ниже). По каждому заходу:
+  · когда вошла и по какой цене, сколько прогонов продержалась, когда вышла;
+  · что было с ценой ПОСЛЕ входа: лучший ход, худшая просадка, ход на выходе из группы и через
+    сутки; дошла ли до ближайшей полосы сверху раньше, чем до полосы снизу;
+  · ФОН на момент входа: биткоин, ширина доски, поток, сессия, кто был лидером и с каким разрывом.
+
+Тогда вопрос «когда выборка не срабатывает» считается прямо: берём заходы, где хода не было, и
+смотрим, чем отличался их фон от тех, где ход был.
+
+Запуск:  python3 entries_score.py --days 7 [--write]
+Пишет:   output/entries_score.json
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import statistics
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+OUTD = BASE_DIR / "output"
+INTRA = BASE_DIR / "cq_v2" / "intraday"
+
+TOP_N = 3            # первые — места 1..3
+LIMIT_H = 24.0       # горизонт наблюдения за заходом
+MARKS = (0.5, 1, 2, 4, 6, 12, 24)
+
+
+def _jsonl(path: Path) -> list[dict]:
+    out: list[dict] = []
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                out.append(json.loads(line))
+            except ValueError:
+                continue
+    except OSError:
+        pass
+    return out
+
+
+def _ts(v) -> datetime | None:
+    if not v:
+        return None
+    try:
+        return datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _bars(sym: str) -> list[dict]:
+    p = INTRA / f"{sym.replace('USDT', '').lower()}.jsonl"
+    rows = _jsonl(p)
+    rows.sort(key=lambda r: str(r.get("candle") or ""))
+    return rows
+
+
+def _bg_at(bgs: list[dict], at: datetime) -> dict:
+    """Фон на момент входа — последняя строка не позже этого времени."""
+    best = None
+    for b in bgs:
+        t = _ts(b.get("at"))
+        if t and t <= at:
+            best = b
+        elif t and t > at:
+            break
+    if not best:
+        return {}
+    btc = best.get("btc") or {}
+    br = best.get("breadth") or {}
+    tk = best.get("taker") or {}
+    tm = best.get("time") or {}
+    ld = best.get("leader") or {}
+    ours = best.get("ours") or {}
+    live = [m.get("name") for m in (tm.get("markets") or []) if m.get("open")]
+    # ФАЗА ТОРГОВ (08.09, владелец: «осталось выяснить, что ещё влияет — время торгов, чей рынок,
+    # открытие, процесс, закрытие»). Состояние сессий уже пишется в фон, берём его как отдельный
+    # признак: открылась / идёт / скоро закроется / межсессионье.
+    phase = "межсессионье"
+    for m in (tm.get("markets") or []):
+        if m.get("open"):
+            st = str(m.get("state") or "")
+            phase = f"{m.get('name')}: {st}" if st else str(m.get("name"))
+            break
+    return {
+        "btc_day_pct": btc.get("day_pct"),
+        "risk_on": (best.get("risk_on") or {}).get("appetite"),
+        "breadth_up": br.get("up"), "breadth_n": br.get("n"),
+        "ours_up": ours.get("up"), "ours_n": ours.get("n"),
+        "taker": tk.get("day"), "taker_side": tk.get("side"),
+        "session": (", ".join(live) if live else "межсессионье"),
+        "phase": phase,
+        "weekday": tm.get("weekday"),
+        "pulls": ld.get("pulls"), "lead_sym": ld.get("sym"), "lead_gap": ld.get("gap"),
+    }
+
+
+def _path_after(sym: str, at: datetime, p0: float, zones: dict | None) -> dict:
+    """Что было с ценой после входа: путь, границы, отметки."""
+    rows = [r for r in _bars(sym) if (_ts(r.get("candle")) or datetime.min.replace(tzinfo=timezone.utc)) >= at]
+    if len(rows) < 2 or not p0:
+        return {}
+    up = sorted([q for q, _w in ((zones or {}).get("up") or []) if q and q > p0])
+    dn = sorted([q for q, _w in ((zones or {}).get("down") or []) if q and q < p0], reverse=True)
+    tp = up[0] if up else None
+    sl = dn[0] if dn else None
+    mfe = mae = 0.0
+    hit = "срок"
+    hit_h = None
+    curve: dict[str, float] = {}
+    nxt = list(MARKS)
+    for r in rows:
+        t = _ts(r.get("candle"))
+        px = r.get("px")
+        if not t or not px:
+            continue
+        h = (t - at).total_seconds() / 3600
+        if h > LIMIT_H:
+            break
+        mv = (px / p0 - 1) * 100
+        mfe, mae = max(mfe, mv), min(mae, mv)
+        while nxt and h >= nxt[0]:
+            curve[str(nxt.pop(0))] = round(mv, 3)
+        if hit == "срок":
+            if tp and px >= tp:
+                hit, hit_h = "цель", round(h, 2)
+            elif sl and px <= sl:
+                hit, hit_h = "стоп", round(h, 2)
+    last = next((r["px"] for r in reversed(rows) if r.get("px")), None)
+    return {
+        "mfe": round(mfe, 2), "mae": round(mae, 2),
+        "hit": hit, "hit_h": hit_h,
+        "now_pct": round((last / p0 - 1) * 100, 2) if last else None,
+        "curve": curve,
+        "to_up_pct": round((tp / p0 - 1) * 100, 2) if tp else None,
+        "to_dn_pct": round((sl / p0 - 1) * 100, 2) if sl else None,
+    }
+
+
+def build(days: int = 7) -> dict:
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    q = [r for r in _jsonl(OUTD / "queue_log.jsonl")
+         if r.get("at") and (_ts(r["at"]) or datetime.min.replace(tzinfo=timezone.utc)) >= since]
+    bgs = [b for b in _jsonl(OUTD / "market_bg.jsonl") if b.get("at")]
+    bgs.sort(key=lambda b: str(b.get("at")))
+
+    runs = sorted({r["at"] for r in q})
+    by_run: dict[str, dict] = {}
+    for r in q:
+        by_run.setdefault(r["at"], {})[r["sym"]] = r
+
+    # ── СБОРКА ЗАХОДОВ: непрерывный отрезок в одной группе (первые / очередь)
+    open_now: dict[tuple[str, str], dict] = {}
+    entries: list[dict] = []
+
+    def group_of(place) -> str | None:
+        if not place:
+            return None
+        return "первые" if place <= TOP_N else "очередь"
+
+    for t in runs:
+        at = _ts(t)
+        seen = by_run[t]
+        # закрываем те, кто выпал или сменил группу
+        for key in list(open_now):
+            sym, grp = key
+            row = seen.get(sym)
+            g_now = group_of((row or {}).get("place"))
+            if g_now != grp:
+                e = open_now.pop(key)
+                e["left_at"] = t
+                entries.append(e)
+        # открываем новые
+        for sym, row in seen.items():
+            g = group_of(row.get("place"))
+            if not g:
+                continue
+            key = (sym, g)
+            if key not in open_now:
+                open_now[key] = {
+                    "sym": sym, "group": g, "at": t, "place": row.get("place"),
+                    "px": row.get("px"), "score": row.get("score"),
+                    "stage": row.get("stage"), "mode": row.get("mode"),
+                    "engine": row.get("engine"), "bubble": row.get("bubble"),
+                    "oi_to_px": row.get("oi_to_px"), "move_paid": row.get("move_paid"),
+                    "runs": 0, "zones": None,
+                    "bg": _bg_at(bgs, at) if at else {},
+                }
+            open_now[key]["runs"] += 1
+            open_now[key]["place_best"] = min(open_now[key].get("place_best") or 99, row.get("place") or 99)
+    for key, e in open_now.items():
+        e["left_at"] = None            # ещё в группе
+        entries.append(e)
+
+    # ── ИСХОД ПО КАЖДОМУ ЗАХОДУ
+    for e in entries:
+        at = _ts(e["at"])
+        if not at or not e.get("px"):
+            continue
+        zones = None
+        for r in _bars(e["sym"]):
+            t = _ts(r.get("candle"))
+            if t and t <= at and (r.get("zones") or {}).get("up") is not None:
+                zones = r.get("zones")
+            elif t and t > at:
+                break
+        e.update(_path_after(e["sym"], at, e["px"], zones))
+        e["hours"] = round(e["runs"] * 0.5, 1)
+
+    def agg(items: list[dict]) -> dict:
+        got = [x for x in items if x.get("mfe") is not None]
+        if not got:
+            return {"n": 0}
+        went = [x for x in got if (x.get("mfe") or 0) >= 2]
+        return {
+            "n": len(got),
+            "пошли": len(went),
+            "доля": round(len(went) / len(got) * 100, 1),
+            "mfe_med": round(statistics.median([x["mfe"] for x in got]), 2),
+            "mae_med": round(statistics.median([x["mae"] for x in got]), 2),
+            "цель": sum(1 for x in got if x.get("hit") == "цель"),
+            "стоп": sum(1 for x in got if x.get("hit") == "стоп"),
+        }
+
+    cuts: dict[str, dict] = {}
+
+    def cut(name: str, fn) -> None:
+        grp: dict[str, list] = {}
+        for x in entries:
+            if x.get("mfe") is None:
+                continue
+            k = fn(x)
+            if k is None:
+                continue
+            grp.setdefault(str(k), []).append(x)
+        res = {k: agg(v) for k, v in sorted(grp.items())}
+        if res:
+            cuts[name] = res
+
+    cut("группа", lambda x: x.get("group"))
+    cut("стадия", lambda x: x.get("stage"))
+    cut("режим", lambda x: x.get("mode"))
+    cut("двигатель", lambda x: x.get("engine"))
+    cut("чем оплачен ход", lambda x: x.get("move_paid"))
+    # часы в группе пишем, но признаком пока не считаем: NAORIS 08.09 висел в первых почти 12 часов
+    # и не пошёл, а SOPH 07.09 пошёл из очереди. Проверяем разрезом, а не правилом.
+    cut("часов в группе", lambda x: "до 2 ч" if (x.get("hours") or 0) < 2 else ("2–6 ч" if x["hours"] < 6 else "больше 6 ч"))
+    # ── ФОН на момент входа
+    cut("тянет одна", lambda x: None if (x["bg"] or {}).get("pulls") is None
+        else ("да · " + str(x["bg"].get("lead_sym", "")).replace("USDT", "") if x["bg"]["pulls"] else "нет"))
+    cut("биткоин", lambda x: None if (x["bg"] or {}).get("btc_day_pct") is None
+        else ("вниз" if x["bg"]["btc_day_pct"] < -0.5 else ("вверх" if x["bg"]["btc_day_pct"] > 0.5 else "стоит")))
+    cut("ширина", lambda x: None if not (x["bg"] or {}).get("breadth_n")
+        else ("растёт больше половины" if x["bg"]["breadth_up"] * 2 >= x["bg"]["breadth_n"] else "растёт меньше половины"))
+    cut("поток", lambda x: (x["bg"] or {}).get("taker_side"))
+    cut("сессия", lambda x: (x["bg"] or {}).get("session"))
+    cut("фаза торгов", lambda x: (x["bg"] or {}).get("phase"))
+    cut("день недели", lambda x: (x["bg"] or {}).get("weekday"))
+    cut("аппетит", lambda x: (x["bg"] or {}).get("risk_on"))
+
+    entries.sort(key=lambda e: str(e.get("at")))
+    return {
+        "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "days": days, "runs": len(runs),
+        "все": agg(entries),
+        "первые": agg([e for e in entries if e["group"] == "первые"]),
+        "очередь": agg([e for e in entries if e["group"] == "очередь"]),
+        "cuts": cuts,
+        "entries": entries,
+    }
+
+
+def _print(r: dict) -> None:
+    print(f"заходов за {r['days']} дн · прогонов {r['runs']}")
+    for name in ("первые", "очередь"):
+        a = r[name]
+        if not a.get("n"):
+            continue
+        print(f"── {name}: {a['n']} заходов · пошли (лучший ход ≥2%) {a['пошли']} ({a['доля']}%) · "
+              f"MFE медиана {a['mfe_med']}% · MAE {a['mae_med']}% · цель {a['цель']} · стоп {a['стоп']}")
+    print("\nразрезы (что различало):")
+    for name, grp in r["cuts"].items():
+        line = " · ".join(f"{k}: {v['доля']}% из {v['n']} (MFE {v['mfe_med']}%)"
+                          for k, v in grp.items() if v.get("n"))
+        if line:
+            print(f"  {name}: {line}")
+    print("\nзаходы:")
+    for e in r["entries"]:
+        if e.get("mfe") is None:
+            continue
+        print(f"  {e['at'][5:16]} {e['sym'].replace('USDT',''):9s} {e['group']:8s} место {e.get('place_best')} · "
+              f"{e['hours']:>4} ч · вход {e['px']:.6g} · лучший {e['mfe']:+.1f}% · просадка {e['mae']:+.1f}% · "
+              f"сейчас {e.get('now_pct')}% · {e.get('hit')}"
+              + (f" · тянет {str(e['bg'].get('lead_sym','')).replace('USDT','')}" if (e.get("bg") or {}).get("pulls") else ""))
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--days", type=int, default=7)
+    ap.add_argument("--write", action="store_true")
+    a = ap.parse_args()
+    r = build(a.days)
+    _print(r)
+    if a.write:
+        OUTD.mkdir(parents=True, exist_ok=True)
+        (OUTD / "entries_score.json").write_text(json.dumps(r, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"\nзаписано {OUTD / 'entries_score.json'}")
+
+
+if __name__ == "__main__":
+    main()
