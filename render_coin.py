@@ -312,6 +312,46 @@ def _finite(x):
     return x
 
 
+def _bubble_oi() -> dict:
+    """ИНТЕРЕС И ТИП БАРА ДЛЯ ПУЗЫРЕЙ (08.09): срез Coinglass отдаёт в fullSeries только время,
+    покупки и продажи — по такому ряду нельзя понять, ОТКРЫВАЛИ на заявки позиции или об них
+    ЗАКРЫВАЛИСЬ, а именно это делит пузырь на ясный и спорный. Берём недостающее из внутридневного
+    архива по времени бара: sym → {t_ms: [oi, oi_type]}. Ничего не пересчитываем, только сводим.
+    """
+    out: dict = {}
+    d = next((q for q in (Path("cq_v2") / "intraday",
+                          Path(__file__).resolve().parent / "cq_v2" / "intraday") if q.exists()), None)
+    if d is None:
+        return out
+    from datetime import datetime, timezone
+    for p in d.glob("*.jsonl"):
+        sym = p.stem.upper() + "USDT"
+        rows: dict = {}
+        try:
+            lines = p.read_text(encoding="utf-8").splitlines()[-400:]
+        except OSError:
+            continue
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            c, oi = r.get("candle"), r.get("oi")
+            if not c or not oi:
+                continue
+            try:
+                t = int(datetime.fromisoformat(str(c).replace("Z", "+00:00")).timestamp() * 1000)
+            except ValueError:
+                continue
+            rows[t] = [oi, r.get("oi_type")]
+        if rows:
+            out[sym] = rows
+    return out
+
+
 def _pulse_series(days: int = 3) -> dict:
     """ЛИНИЯ МИНИ-ЖУРНАЛА — ИЗ ПУЛЬСА (06.09, владелец: «графики маленькие странные»): точки
     журнала у многих монет редкие, а у дозабранных цена дневная — линия шла ступенями. Пульс
@@ -413,6 +453,7 @@ def render_coin(stars: list[dict], market: dict) -> str:
                "oitypes": ((_read_json("oi_types.json") or {}).get("coins") or {}),   # плечо по типу (05.09)
                "liqhist": _liq_history(),   # карта ликвидаций во времени (05.09)
                "pulse": _pulse_series(3),   # линия мини-журнала — живая цена за 72 ч (08.09)
+               "bubOi": _bubble_oi(),       # интерес и тип бара для деления пузырей (08.09)
                "near": ((_read_json("near_move.json") or {}).get("coins") or {}),   # близкие к ходу (05.09)
                "sources": source_stamps(stars, market)}
     # ЧЁРНЫЙ ЭКРАН (05.09 вечер): NaN/Infinity из числовых рядов (веса полос, приросты) json.dumps
@@ -648,11 +689,13 @@ COIN_HTML = r"""
 .cbtn b{font-weight:400;color:#f5a93a}
 .coins:hover .cbtn{border-color:rgba(255,207,110,.7);color:#fff;box-shadow:0 0 24px rgba(245,169,58,.18)}
 .coins:after{content:"";position:absolute;left:-30px;right:-30px;top:100%;height:24px}
-/* СПИСОК МОНЕТ ВЛЕЗАЕТ В ЭКРАН (08.09, владелец: «расширь список вниз, сейчас вылезает за экран»):
-   высота ограничена окном, внутри прокрутка; колонки при нехватке места переносятся на новый ряд. */
-.clist{position:absolute;right:0;top:calc(100% + 10px);display:block;padding:14px 18px 12px;border-radius:12px;
-  background:rgba(3,18,14,.86);border:1px solid rgba(127,232,176,.3);backdrop-filter:blur(14px);box-shadow:0 30px 80px rgba(0,0,0,.55);
-  max-height:calc(100vh - 130px);overflow-y:auto;overscroll-behavior:contain;
+/* СПИСОК МОНЕТ — ВО ВСЮ ШИРИНУ ЭКРАНА (08.09, владелец: «оставить ширину на весь экран и увеличить
+   высоту списка; скролл только если список начнёт выходить за экран»): панель растягивается от края
+   до края, колонок помещается больше, высота растёт по содержимому. Прокрутка появляется сама и
+   только когда список действительно не влезает в окно. */
+.clist{position:fixed;left:16px;right:16px;top:88px;display:block;padding:16px 22px 14px;border-radius:14px;
+  background:rgba(3,18,14,.9);border:1px solid rgba(127,232,176,.3);backdrop-filter:blur(14px);box-shadow:0 30px 80px rgba(0,0,0,.6);
+  max-height:calc(100vh - 108px);overflow-y:auto;overscroll-behavior:contain;
   opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .25s,transform .25s;transition-delay:.35s}
 .clist::-webkit-scrollbar{width:6px}
 .clist::-webkit-scrollbar-thumb{background:rgba(127,232,176,.28);border-radius:3px}
@@ -660,8 +703,8 @@ COIN_HTML = r"""
 .clist:before{content:"";position:absolute;left:-20px;right:-20px;top:-18px;height:20px}
 .coins:hover .clist{opacity:1;transform:none;pointer-events:auto;transition-delay:0s}
 .clist .ch{position:sticky;left:18px;top:-9px;padding:0 6px;background:#03120e;font-family:var(--f-cap);font-size:7px;letter-spacing:.28em;text-transform:uppercase;color:#7fb8a0;white-space:nowrap}
-.clist .cols{display:flex;flex-wrap:wrap;gap:10px 14px;max-width:min(92vw,1180px)}
-.clist .col{display:flex;flex-direction:column;gap:1px;min-width:132px}
+/* колонки во всю ширину: сколько влезет, столько и будет — высота падает, прокрутка не нужна */
+.clist .cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px 16px;align-items:start}
 .clist a{display:flex;align-items:center;gap:7px;font-family:var(--f-num);font-weight:300;font-size:12px;letter-spacing:.1em;color:#dfe9e4;padding:3px 8px;border-radius:6px;cursor:pointer;transition:.15s;border-left:1px solid transparent;text-decoration:none;white-space:nowrap}
 .clist a i{width:6px;height:6px;border-radius:50%;flex:0 0 6px;opacity:.9}
 .clist a span{min-width:64px}
@@ -1553,21 +1596,37 @@ COIN_JS = r"""
           // оранжевым — понятно, что покупки есть, но цель у них может быть другая»). Смотрим, что
           // делал интерес НА ЭТОМ баре: вырос — на заявки открывали позиции, пузырь ясный; упал —
           // об заявки закрывались, цвет уходит в оранжевый. Ни один пузырь при этом не пропадает.
-          var oiPrev = null, oiNow = (b.oi != null ? +b.oi : null);
-          for (var k = i - 1; k >= 0 && oiPrev === null; k--) { if (ser[k] && ser[k].oi != null) oiPrev = +ser[k].oi; }
-          var fill = (oiPrev && oiNow) ? (oiNow / oiPrev - 1) * 100 : null;
-          var doubt = (fill !== null && fill <= -1.5) || b.type === 'long_close';
-          var own = buy ? '#5fe6a6' : '#ff7a63';        // свой цвет стороны
-          var col = own;                                 // ясный — целиком свой
-          var half = false, edge = null;
-          if (doubt) {
-            // СОМНИТЕЛЬНЫЙ — ПОЛОВИНА СВОЕГО ЦВЕТА, ПОЛОВИНА ОРАНЖЕВОГО (08.09, владелец:
-            // «оставляем половину того цвета, что должен быть, а половину делаем оранжевым, и
-            // обводку другого цвета»). Видно и сторону заявки, и что об неё закрывались.
-            half = true;
-            edge = '#f0a24a';
+          // интерес на баре: из среза, если он есть, иначе из архива по времени (08.09)
+          var OIM = (D.bubOi || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()] || {};
+          var oiAt = function (tt) { var v = OIM[tt] || OIM[String(tt)]; return v ? +v[0] : null; };
+          var typeAt = function (tt) { var v = OIM[tt] || OIM[String(tt)]; return v ? v[1] : null; };
+          var oiNow = (b.oi != null ? +b.oi : oiAt(b.t)), oiPrev = null;
+          for (var k = i - 1; k >= 0 && oiPrev === null; k--) {
+            if (ser[k] && ser[k].oi != null) oiPrev = +ser[k].oi;
+            else if (ser[k]) oiPrev = oiAt(ser[k].t);
           }
-          var note = doubt ? (buy ? ' · об покупки закрывались' : ' · об продажи закрывались') : '';
+          var fill = (oiPrev && oiNow) ? (oiNow / oiPrev - 1) * 100 : null;
+          var btype = b.type || typeAt(b.t);
+          // об заявку закрывались: интерес на баре упал или тип бара «лонги закрывают»
+          var doubt = (fill !== null && fill <= -1.5) || btype === 'long_close';
+          var own = buy ? '#5fe6a6' : '#ff7a63';        // заливка — сторона заявки
+          // ОБВОДКА — ОЖИДАЕМЫЙ СЛЕДУЮЩИЙ ХОД, ПО ИНТЕРЕСУ (08.09, владелец подтвердил): дно и
+          // вершина для этого не годятся — в момент бара их ещё нет, они известны только задним
+          // числом, и цвет контура у свежего пузыря переписывался бы при каждом новом краю.
+          // Считаем тем же, чем считается оранжевая половина — интересом на баре:
+          //   набрали (интерес вырос) → на заявку ОТКРЫЛИ позиции, ход в сторону заявки;
+          //   закрылись (интерес упал) → об заявку ЗАКРЫЛИСЬ, ход против неё:
+          //     зелёный пузырь, об который закрылись, — обводка красная;
+          //     красный пузырь, об который закрылись, — обводка зелёная.
+          //   интерес не изменился → ход по стороне заявки, обводка в цвет заливки.
+          var wayUp = doubt ? !buy : buy;
+          var edge = wayUp ? '#5fe6a6' : '#ff7a63';
+          // ОРАНЖЕВЫЙ — «ПУЗЫРЬ НЕ ОПРАВДЫВАЕТ НАЗНАЧЕНИЯ»: об заявки закрывались, а не входили.
+          // Тогда половина заливки оранжевая, а обводка остаётся цветом ожидаемого хода.
+          var half = doubt;
+          var col = own;
+          var note = (doubt ? (buy ? ' · об покупки закрывались' : ' · об продажи закрывались') : '')
+                     + ' · ход ожидается ' + (wayUp ? 'вверх' : 'вниз');
           // заметнее (06.09): плотнее ядро, яркая обводка, светлая точка в центре
           var cxb = XT(b.t).toFixed(1), cyb = Y(pt.p).toFixed(1);
           if (half) {
@@ -1580,7 +1639,7 @@ COIN_JS = r"""
             bubbles += '<circle cx="' + cxb + '" cy="' + cyb + '" r="' + (r * .45).toFixed(1) + '" fill="' + col + '" opacity=".75"/>';
           }
           bubbles += '' +
-                     '<circle cx="' + cxb + '" cy="' + cyb + '" r="' + r.toFixed(1) + '" fill="' + own + '" opacity="' + (half ? '.14' : '.22') + '" stroke="' + (edge || own) + '" stroke-opacity=".95" stroke-width="' + (half ? '1.6' : '1') + '" stroke-dasharray="' + (half ? '3 2' : 'none') + '"><title>' + esc(new Date(b.t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' · оборот ' + money(v) + ' · ' + (buy ? 'покупали' : 'продавали') + ' ' + money(Math.abs((+b.b || 0) - (+b.s || 0))) + (fill !== null ? ' · интерес на баре ' + (fill > 0 ? '+' : '') + fill.toFixed(1) + '%' : '') + note) + '</title></circle>'; });
+                     '<circle cx="' + cxb + '" cy="' + cyb + '" r="' + r.toFixed(1) + '" fill="' + own + '" opacity="' + (half ? '.14' : '.22') + '" stroke="' + edge + '" stroke-opacity=".95" stroke-width="' + (half ? '1.6' : '1.2') + '" stroke-dasharray="' + (half ? '3 2' : 'none') + '"><title>' + esc(new Date(b.t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' · оборот ' + money(v) + ' · ' + (buy ? 'покупали' : 'продавали') + ' ' + money(Math.abs((+b.b || 0) - (+b.s || 0))) + (fill !== null ? ' · интерес на баре ' + (fill > 0 ? '+' : '') + fill.toFixed(1) + '%' : '') + note) + '</title></circle>'; });
       })();
       var g = '<defs><linearGradient id="hf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + GOLD + '" stop-opacity=".22"/><stop offset="1" stop-color="' + GOLD + '" stop-opacity="0"/></linearGradient></defs>' + heatJ + bubbles +
         '<path d="' + dpath + ' L' + XT(tE).toFixed(1) + ',' + GY + ' L12,' + GY + ' Z" fill="url(#hf)" opacity=".6"/>' +
@@ -1625,12 +1684,13 @@ COIN_JS = r"""
     var GRP_C = { take: ['#6b7ae0', 'брать'], trade: ['#4fc98a', 'в работе'], exit: ['#ec6f5e', 'выходить'] };
     function grpOf(z) { var inBook = !!(z.book && (z.book.usd || z.book.px)); if (inBook) return (z.act && z.act.group) === 'exit' ? 'exit' : 'trade'; return (z.act && z.act.act) === 'брать' ? 'take' : null; }
     function marks(z) { var m = ''; if (z.lead) m += '<em class="ld" title="лидер прогона">★</em>'; if (z.hot) m += '<em class="ht" title="горячая: оборот выше порога">●</em>'; if (z.new) m += '<em class="nw" title="новая в журнале">✦</em>'; var b = BOOK[String(z.t).toUpperCase()]; if (b && b.manual && !b.closed) m += '<em class="my" title="твоя позиция">◆</em>'; return m; }
-    var cols = '', per = 14;
-    for (i = 0; i < NAMES.length; i += per) cols += '<div class="col">' + NAMES.slice(i, i + per).map(function (c) {
+    // СЕТКА ВМЕСТО КОЛОНОК (08.09): панель во всю ширину экрана, имена раскладываются по столбцам
+    // автоматически — сколько влезет по ширине. Высота падает, прокрутка нужна только если не влезло.
+    var cols = NAMES.map(function (c) {
       var z = BY[c], cc = CASE_C[z.st] || ['#7b83b8', 'без кейса'], gr = grpOf(z);
       var nr = NEAR[String((z && z.coin) || (c + 'USDT')).toUpperCase()], isNear = !!(nr && nr.near);
       return '<a href="#' + esc(c) + '" class="' + (c === tick ? 'cur' : '') + (isNear ? ' near' : '') + '"' + (isNear ? ' title="близкая к ходу: ' + esc((nr.why || []).join(' · ')) + '"' : '') + '><i style="background:' + cc[0] + ';box-shadow:0 0 6px ' + cc[0] + '" title="' + cc[1] + '"></i><span>' + esc(c) + '</span>' + marks(z) + (gr ? '<u style="color:' + GRP_C[gr][0] + ';border-color:' + GRP_C[gr][0] + '">' + GRP_C[gr][1] + '</u>' : '') + '</a>';
-    }).join('') + '</div>';
+    }).join('');
     var legend = '<div class="cleg">' + Object.keys(CASE_C).map(function (k) { return '<b><i style="background:' + CASE_C[k][0] + '"></i>' + CASE_C[k][1] + '</b>'; }).join('') + '<s></s><b><em class="ld">★</em>лидер</b><b><em class="ht">●</em>горячая</b><b><em class="nw">✦</em>новая</b><b><em class="my">◆</em>твоя</b></div>';
     // ИСТОРИЯ ПО МОНЕТЕ (07.09, владелец: «Телеграм не должен быть источником истории»):
     // кнопка рядом с «монеты», при наведении — панель по центру: смены журнала по времени с ценой,

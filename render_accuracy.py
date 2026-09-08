@@ -1,177 +1,36 @@
 #!/usr/bin/env python3
-"""ЭКРАН ТОЧНОСТИ (07.09) — accuracy.html: дни → часы → монеты.
+"""ЖУРНАЛ — accuracy.html (08.09): три части на одном экране.
 
-ВНИМАНИЕ: в проекте с 01.09 уже есть render_journal.py со своей страницей journal.html —
-это ДРУГОЙ экран, он не трогается. Этот модуль называется иначе и пишет accuracy.html.
+Владелец: «журнал должен разделиться на три части. Первая — наши первые и в очереди в течение дня.
+Вторая — фон: биткоин и монеты, которые растут, неважно, из нашей выборки они или нет. Третья —
+дополнительные измерения». И отдельно: «в плашках по дням показывать монеты, которые были в первых,
+их максимальную и минимальную цену за день, и на каких позициях они были в течение дня — примерно
+так 1→3→2→1; если выпала из очереди, то точное время, и это конец прогноза».
 
-Владелец: «нужно сделать список сначала по дням, где мы будем показывать, какое количество
-прогнозов сбылось, какое нет. Дальше при нажатии на день мы попадаем в список по часам…
-и при входе в конкретный час нужно показывать, какие монеты из первых, сколько ушли по цене».
-Плюс 07.09: «при заходе в часы показывать, какой рынок открыт, идёт, скоро закроется».
+Первая часть — из output/queue_log.jsonl (места по прогонам) и cq_v2/intraday (цены).
+Вторая — из output/market_bg.jsonl: биткоин, ширина, поток, десятка лидеров биржи с отсечкой свежих
+листингов и мелочи по обороту (08.09: «MEME и BONER — мемы, залистились на днях, не в счёт»).
+Третья — пузыри и уровни: спорные считаются ОТДЕЛЬНОЙ группой, а не промахом анализа; при наведении
+на плашку — список случаев для разбора.
 
-Данные — output/entries_score.json (08.09: ТОЛЬКО заходы в первые и в очередь, а не смены шаблонов
-по всей доске) и output/market_bg.jsonl (фон на момент: risk on, биткоин, состояние рынков)
-Ничего не считает
-сам: если считалка не отработала, экран покажет, что журнал пуст, и не соврёт числами.
-
-Сбылось = цена дошла до ближайшей полосы СВЕРХУ раньше, чем до полосы снизу и раньше срока
-(три границы, а не фиксированный процент: ход, измеренный на одну отметку, не видит пути).
-
-    python3 render_accuracy.py            # печать длины и краткой сводки
+    python3 render_accuracy.py            # печать сводки
     python3 render_accuracy.py --write    # → <REPORT_PATH>/accuracy.html
 """
 from __future__ import annotations
 
 import argparse
 import json
-import sys
-from datetime import datetime, timezone
+import statistics
 from pathlib import Path
 
 try:
-    from core_config import BASE_DIR, REPORT_PATH
-except ImportError:
+    from core_paths import BASE_DIR, REPORT_PATH   # type: ignore
+except Exception:  # noqa: BLE001
     BASE_DIR = Path(__file__).resolve().parent
-    REPORT_PATH = BASE_DIR / "output" / "index.html"
-sys.path.insert(0, str(BASE_DIR))
+    REPORT_PATH = BASE_DIR / "output" / "report.html"
 
 OUTD = BASE_DIR / "output"
-DOW = {0: "понедельник", 1: "вторник", 2: "среда", 3: "четверг", 4: "пятница", 5: "суббота", 6: "воскресенье"}
-
-
-def _read(p: Path):
-    try:
-        return json.loads(p.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return None
-
-
-def _jsonl(p: Path) -> list[dict]:
-    out = []
-    if not p.exists():
-        return out
-    for line in p.read_text(encoding="utf-8").splitlines():
-        try:
-            out.append(json.loads(line))
-        except ValueError:
-            pass
-    return out
-
-
-def _bg_rows() -> list[dict]:
-    return _jsonl(OUTD / "market_bg.jsonl")
-
-
-def _bg_for(bgs: list[dict], prefix: str) -> dict:
-    """Последняя строка фона, попавшая в этот день (YYYY-MM-DD) или час (…THH)."""
-    got = [b for b in bgs if str(b.get("at", "")).startswith(prefix)]
-    return got[-1] if got else {}
-
-
-def _bg_text(b: dict) -> str:
-    if not b:
-        return ""
-    ro, btc = b.get("risk_on") or {}, (b.get("btc") or {}).get("day_pct")
-    parts = []
-    if ro.get("appetite"):
-        parts.append(f"risk on <b>{ro['appetite']}/5</b>")
-    if btc is not None:
-        parts.append(f"биткоин <b>{btc:+.1f}%</b>")
-    ld = b.get("leaders") or {}
-    if ld.get("mine_n") is not None and ld.get("n"):
-        parts.append(f"лидеры наши <b>{ld['mine_n']} из {ld['n']}</b>")
-    return " · ".join(parts)
-
-
-def _markets(b: dict) -> list[list]:
-    """Пилюли рынков: имя, состояние, часы, класс подсветки."""
-    out = []
-    for m in ((b.get("time") or {}).get("markets") or []):
-        st = m.get("state") or ""
-        cls = "on" if m.get("open") and st == "идёт" else ("soon" if "скоро" in st else "")
-        left = m.get("left_h") if m.get("open") else m.get("in_h")
-        out.append([m.get("name"), st, left or 0, cls])
-    return out
-
-
-def build_data() -> dict:
-    """ПО ДНЯМ — МОНЕТЫ, ПОБЫВАВШИЕ В ПЕРВЫХ (08.09, владелец: «куча бесполезной информации,
-    которая имеет смысл только для расчётов; нужно в плашках по дням показывать монеты, которые
-    были в первых, их максимальную и минимальную цену за день, и на каких позициях они были в
-    течение дня — примерно так 1→3→2→1; если выпала из очереди вообще, то точное время, и это
-    будет конец прогноза»).
-
-    Ничего не считаем сами: путь по местам берём из ленты очереди, цены — из внутридневного архива.
-    Кривые, MFE, MAE, разрезы по фону остаются в entries_score.json для расчётов, на экран не идут.
-    """
-    q = [r for r in _jsonl(OUTD / "queue_log.jsonl") if r.get("at") and r.get("sym")]
-    q.sort(key=lambda r: (str(r.get("at")), r.get("place") or 99))
-    runs = sorted({r["at"] for r in q})
-    by_run: dict[str, dict] = {}
-    for r in q:
-        by_run.setdefault(r["at"], {})[r["sym"]] = r
-
-    # по дням: кто был в первых хоть раз
-    days_map: dict[str, dict] = {}
-    for t in runs:
-        day = t[:10]
-        d = days_map.setdefault(day, {})
-        for sym, row in by_run[t].items():
-            pl = row.get("place")
-            if not pl:
-                continue
-            e = d.setdefault(sym, {"path": [], "times": [], "first": t, "px_in": row.get("px"),
-                                   "top": False, "gone": None})
-            if not e["path"] or e["path"][-1] != pl:
-                e["path"].append(pl)
-                e["times"].append(t)
-            if pl <= 3:
-                e["top"] = True
-        # кто был в прошлом прогоне и пропал — конец прогноза
-        prev = runs[runs.index(t) - 1] if runs.index(t) else None
-        if prev and prev[:10] == day:
-            for sym in by_run[prev]:
-                if sym not in by_run[t] and sym in d and not d[sym]["gone"]:
-                    d[sym]["gone"] = t
-
-    days = []
-    for day in sorted(days_map, reverse=True):
-        coins = []
-        for sym, e in days_map[day].items():
-            if not e["top"]:
-                continue
-            bars = [r for r in _bars(sym) if str(r.get("candle", ""))[:10] == day and r.get("px")]
-            pxs = [r["px"] for r in bars]
-            lo = min(pxs) if pxs else None
-            hi = max(pxs) if pxs else None
-            now = pxs[-1] if pxs else None
-            coins.append({
-                "s": sym.replace("USDT", ""),
-                "path": " → ".join(str(p) for p in e["path"]),
-                "best": min(e["path"]),
-                "in_at": e["first"][11:16],
-                "px": e["px_in"],
-                "lo": lo, "hi": hi, "now": now,
-                "up": round((hi / e["px_in"] - 1) * 100, 1) if (hi and e["px_in"]) else None,
-                "dn": round((lo / e["px_in"] - 1) * 100, 1) if (lo and e["px_in"]) else None,
-                "end": round((now / e["px_in"] - 1) * 100, 1) if (now and e["px_in"]) else None,
-                "gone": e["gone"][11:16] if e["gone"] else None,
-            })
-        coins.sort(key=lambda c: (c["best"], c["in_at"]))
-        if coins:
-            try:
-                dow = DOW[datetime.strptime(day, "%Y-%m-%d").weekday()]
-            except ValueError:
-                dow = ""
-            days.append({"d": day, "dow": dow, "coins": coins})
-    return {"days": days, "at": datetime.now(timezone.utc).strftime("%d.%m %H:%M")}
-
-
-def _bars(sym: str) -> list[dict]:
-    p = BASE_DIR / "cq_v2" / "intraday" / f"{sym.replace('USDT', '').lower()}.jsonl"
-    rows = _jsonl(p)
-    rows.sort(key=lambda r: str(r.get("candle") or ""))
-    return rows
+INTRA = BASE_DIR / "cq_v2" / "intraday"
 
 
 def _jsonl(path: Path) -> list[dict]:
@@ -190,147 +49,357 @@ def _jsonl(path: Path) -> list[dict]:
     return out
 
 
+def _bars(sym: str) -> list[dict]:
+    rows = _jsonl(INTRA / f"{sym.replace('USDT', '').lower()}.jsonl")
+    rows.sort(key=lambda r: str(r.get("candle") or ""))
+    return rows
+
+
+def _part1() -> dict:
+    """Монеты, побывавшие в первых: путь по местам, вход и выход, цены дня."""
+    q = [r for r in _jsonl(OUTD / "queue_log.jsonl") if r.get("at") and r.get("sym")]
+    q.sort(key=lambda r: (str(r["at"]), r.get("place") or 99))
+    runs = sorted({r["at"] for r in q})
+    by_run: dict = {}
+    for r in q:
+        by_run.setdefault(r["at"], {})[r["sym"]] = r
+    days: dict = {}
+    for k, t in enumerate(runs):
+        d = days.setdefault(t[:10], {})
+        for sym, row in by_run[t].items():
+            pl = row.get("place")
+            if not pl:
+                continue
+            e = d.setdefault(sym, {"path": [], "first_top": None, "gone": None, "best": 99})
+            if not e["path"] or e["path"][-1][1] != pl:
+                e["path"].append([t[11:16], pl])
+            e["best"] = min(e["best"], pl)
+            if pl <= 3 and not e["first_top"]:
+                e["first_top"] = t[11:16]
+        if k:
+            for sym in by_run[runs[k - 1]]:
+                if sym not in by_run[t] and sym in d and not d[sym]["gone"]:
+                    d[sym]["gone"] = t[11:16]
+    out: dict = {}
+    for day, coins in days.items():
+        rows = []
+        for sym, e in coins.items():
+            if e["best"] > 3:
+                continue
+            b = [r for r in _bars(sym) if str(r.get("candle", ""))[:10] == day and r.get("px")]
+            if not b:
+                continue
+            px = [r["px"] for r in b]
+            t0 = e["first_top"] or e["path"][0][0]
+            i0 = next((i for i, r in enumerate(b) if r["candle"][11:16] >= t0), 0)
+            after = px[i0:] or px
+            p_in = after[0]
+            rows.append({"s": sym.replace("USDT", ""), "in": t0, "gone": e["gone"],
+                         "path": e["path"], "px": p_in,
+                         "up": round((max(after) / p_in - 1) * 100, 1),
+                         "dn": round((min(after) / p_in - 1) * 100, 1),
+                         "end": round((after[-1] / p_in - 1) * 100, 1)})
+        rows.sort(key=lambda r: -r["up"])
+        if rows:
+            out[day] = rows
+    return out
+
+
+def _part2() -> dict:
+    """Фон дня: биткоин, ширина, поток и монеты с ходом по всей бирже."""
+    out: dict = {}
+    for b in _jsonl(OUTD / "market_bg.jsonl"):
+        if not b.get("at"):
+            continue
+        top = [x for x in ((b.get("leaders") or {}).get("top") or [])
+               if (x.get("vol_usd") or 0) >= 5e6 and (x.get("age_days") or 0) >= 30]
+        out[b["at"][:10]] = {
+            "btc": b.get("btc") or {}, "breadth": b.get("breadth") or {},
+            "taker": b.get("taker") or {}, "risk": (b.get("risk_on") or {}).get("appetite"),
+            "top": [{"s": x["sym"].replace("USDT", ""), "p": x.get("day_pct"),
+                     "v": round((x.get("vol_usd") or 0) / 1e6), "mine": x.get("mine")} for x in top[:6]],
+        }
+    return out
+
+
+def _part3() -> dict:
+    """Пузыри и уровни: спорные — отдельной группой, плюс случаи для разбора."""
+    syms = {r["sym"] for r in _jsonl(OUTD / "queue_log.jsonl") if r.get("sym")}
+    res = {"ясный": {"ok": 0, "no": 0}, "сомнительный": {"ok": 0, "no": 0}, "обычный": {"ok": 0, "no": 0}}
+    lv = {"up": 0, "dn": 0, "none": 0}
+    cases, lev_cases = [], []
+    for sym in sorted(syms):
+        rows = _bars(sym)
+        if not rows:
+            continue
+        for day in sorted({r["candle"][:10] for r in rows if r.get("candle")}):
+            d = [r for r in rows if r["candle"][:10] == day and r.get("px")]
+            full = [r for r in d if (r.get("fut") or {}).get("tk")]
+            if len(full) < 10:
+                continue
+            px = [r["px"] for r in d]
+            lo, hi = min(px), max(px)
+            ds = [((r.get("fut") or {}).get("d") or 0) for r in full]
+            mu = sum(ds) / len(ds)
+            sd = (sum((x - mu) ** 2 for x in ds) / len(ds)) ** .5 or 1
+            prev = None
+            for i, (r, x) in enumerate(zip(full, ds)):
+                oi = r.get("oi") or 0
+                if abs(x - mu) >= 2 * sd:
+                    p = r["px"]
+                    pos = (p - lo) / (hi - lo) * 100 if hi > lo else 50
+                    nxt = [full[k].get("px") for k in range(i + 1, min(i + 5, len(full)))]
+                    if nxt and nxt[-1]:
+                        after = (nxt[-1] / p - 1) * 100
+                        oich = (oi / prev - 1) * 100 if (prev and oi) else None
+                        sure = ("сомнительный" if (oich is not None and oich <= -1.5)
+                                or r.get("oi_type") == "long_close"
+                                else "ясный" if (oich is not None and oich >= 1.5) else "обычный")
+                        buy_low, sell_hi = (x > 0 and pos <= 40), (x < 0 and pos >= 70)
+                        if buy_low or sell_hi:
+                            ok = (after > 0) if buy_low else (after < 0)
+                            res[sure]["ok" if ok else "no"] += 1
+                            cases.append({"s": sym.replace("USDT", ""), "d": day[5:], "t": r["candle"][11:16],
+                                          "sure": sure, "ok": ok, "after": round(after, 1),
+                                          "oi": round(oich, 1) if oich is not None else None})
+                if oi:
+                    prev = oi
+            for r in d:
+                z = r.get("zones") or {}
+                if not (z.get("up") or z.get("down")):
+                    continue
+                p = r["px"]
+                up = sorted([q for q, _w in (z.get("up") or []) if q > p])
+                dn = sorted([q for q, _w in (z.get("down") or []) if q < p], reverse=True)
+                fut = [x["px"] for x in d if x["candle"] > r["candle"]][:48]
+                if not fut or not (up or dn):
+                    break
+                hit = None
+                for v in fut:
+                    if up and v >= up[0]:
+                        hit = "up"
+                        break
+                    if dn and v <= dn[0]:
+                        hit = "dn"
+                        break
+                lv[hit or "none"] += 1
+                if not hit:
+                    lev_cases.append({"s": sym.replace("USDT", ""), "d": day[5:], "hit": "никуда",
+                                      "up": round((up[0] / p - 1) * 100, 1) if up else None,
+                                      "dn": round((dn[0] / p - 1) * 100, 1) if dn else None,
+                                      "end": round((fut[-1] / p - 1) * 100, 1)})
+                break
+    return {"res": res, "levels": lv, "cases": cases, "lev": lev_cases}
+
+
+def build_data() -> dict:
+    days = _part1()
+    p3 = _part3()
+    rows = [r for v in days.values() for r in v]
+    n = len(rows)
+    mx = sum(1 for r in rows if r["up"] >= 2)
+    en = sum(1 for r in rows if r["end"] >= 2)
+    cost = round(statistics.median([r["up"] - r["end"] for r in rows]), 1) if rows else 0
+    return {
+        "days": days, "bg": _part2(),
+        "an": {"bubbles": {"ok": sum(v["ok"] for v in p3["res"].values()),
+                           "no": sum(v["no"] for v in p3["res"].values())},
+               "levels": p3["levels"]},
+        "bub2": {"res": p3["res"], "cases": p3["cases"]},
+        "an_list": {"bub": p3["cases"], "lev": p3["lev"]},
+        "sum": {"n": n, "max_n": mx, "max_pct": round(mx / n * 100) if n else 0,
+                "end_n": en, "end_pct": round(en / n * 100) if n else 0, "cost": cost},
+    }
+
+
 CSS = """
-/* СТЕКЛО (08.09, референс владельца — набор стеклянных элементов на тёмном): матовое стекло с
-   размытием фона, светящаяся кромка по краю, диагональный блик по верхней грани, цветное зарево
-   позади карточки и его отражение под ней. Никаких плоских заливок и рамок в одну линию. */
-:root{--ink:#e6eefa;--mid:#93a7bd;--dim:#63768c;--up:#4fe3b8;--dn:#ff9078;--acc:#6fb4ff;--vio:#a98cff;
-  --glass:linear-gradient(150deg,rgba(255,255,255,.10) 0%,rgba(255,255,255,.035) 38%,rgba(255,255,255,.015) 60%,rgba(0,0,0,.16) 100%);
-  --edge:inset 0 0 0 1px rgba(255,255,255,.10);
-  --lift:0 26px 50px rgba(0,0,0,.60),0 6px 16px rgba(0,0,0,.42)}
+/* СВЕТЛЫЙ НЕОМОРФИЗМ (08.09, возврат к прежнему виду с новыми вводными): мягкие выпуклые плашки,
+   двойная тень — тёмная снизу-справа и белая сверху-слева, никаких рамок. */
+:root{--ink:#1d2a36;--mid:#5d7285;--dim:#98abbb;--up:#12a17c;--dn:#e0644c}
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%;color:var(--ink);font-family:Inter,system-ui,sans-serif;font-weight:300;
  -webkit-font-smoothing:antialiased;
- background:
-  radial-gradient(60% 46% at 8% -10%,rgba(60,140,255,.20) 0,transparent 60%),
-  radial-gradient(54% 44% at 94% 0%,rgba(150,90,255,.18) 0,transparent 62%),
-  radial-gradient(80% 55% at 50% 112%,rgba(40,110,180,.16) 0,transparent 70%),
-  linear-gradient(168deg,#161b24 0%,#12161f 55%,#0e1219 100%);background-attachment:fixed}
-.wrap{max-width:1060px;margin:0 auto;padding:26px 18px 60px}
-.head{display:flex;align-items:baseline;gap:14px;padding:2px 6px 20px}
-.head h1{margin:0;font-size:12px;font-weight:300;letter-spacing:.34em;text-transform:uppercase;color:#e2edfb;
- text-shadow:0 0 24px rgba(140,190,255,.4)}
-.head s{text-decoration:none;font-size:10px;color:var(--dim);letter-spacing:.12em}
-.head .back{margin-left:auto;font-size:10px;letter-spacing:.18em;color:#cfe0f5;text-decoration:none;
- padding:9px 17px;border-radius:999px;background:var(--glass);backdrop-filter:blur(14px);
- box-shadow:var(--edge),0 10px 22px rgba(0,0,0,.5)}
-
-/* вкладки — стеклянная гряда, активная светится изнутри голубым */
-.tabs{display:flex;gap:10px;margin-bottom:22px;overflow-x:auto;scrollbar-width:none;padding:4px}
-.tabs::-webkit-scrollbar{display:none}
-.tab{position:relative;flex:none;cursor:pointer;padding:11px 19px;border-radius:16px;font-size:11.5px;
- letter-spacing:.1em;color:var(--mid);background:var(--glass);backdrop-filter:blur(14px);
- box-shadow:var(--edge),0 12px 24px rgba(0,0,0,.5);transition:.25s;white-space:nowrap;overflow:hidden}
-.tab:before{content:'';position:absolute;inset:0 0 55% 0;
- background:linear-gradient(160deg,rgba(255,255,255,.16),transparent 70%);pointer-events:none}
-.tab b{font-weight:400;color:#e2edfb;margin-right:8px}
-.tab.on{color:#f2f8ff;background:linear-gradient(150deg,rgba(110,180,255,.34),rgba(120,90,220,.16));
- box-shadow:var(--edge),0 0 34px rgba(110,175,255,.42),0 14px 26px rgba(0,0,0,.5)}
-.tab.on b{color:#fff}
-
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:20px}
-/* карточка — матовое стекло: зарево позади, блик по верхней грани, светящаяся кромка */
-.coin{position:relative;border-radius:24px;padding:20px 22px 17px;
- background:var(--glass);backdrop-filter:blur(18px) saturate(115%);
- box-shadow:var(--edge),var(--lift);isolation:isolate}
-.coin:before{content:'';position:absolute;inset:-2px;border-radius:26px;z-index:-2;filter:blur(22px);opacity:.5;
- background:linear-gradient(140deg,var(--c,#6fb4ff),transparent 55%,var(--vio))}
-.coin:after{content:'';position:absolute;inset:1px 1px 62% 1px;border-radius:23px;pointer-events:none;
- background:linear-gradient(158deg,rgba(255,255,255,.18) 0%,rgba(255,255,255,.05) 45%,transparent 100%)}
-.coin.up{--c:#4fe3b8}.coin.down{--c:#ff9078}.coin.flat{--c:#7fa0c4}
-.c1{position:relative;display:flex;align-items:baseline;gap:11px;z-index:1}
-.c1 h3{margin:0;font-size:21px;font-weight:200;letter-spacing:.16em;color:#f4f9ff;
- text-shadow:0 0 26px rgba(160,205,255,.5)}
-.c1 s{text-decoration:none;font-size:10px;color:var(--dim);letter-spacing:.16em}
-.c1 em{margin-left:auto;font-style:normal;font-size:27px;font-weight:200;letter-spacing:-.01em;
- font-variant-numeric:tabular-nums;color:var(--c);text-shadow:0 0 28px var(--c)}
-.trail{position:relative;z-index:1;margin:15px 0 4px;font-size:12.5px;color:#9db1c7;
- font-variant-numeric:tabular-nums;white-space:nowrap;overflow-x:auto;scrollbar-width:none}
-.trail::-webkit-scrollbar{display:none}
-.trail i{font-style:normal;color:#3b4c62;margin:0 6px}
-.trail b{font-weight:400;color:#eef5ff;text-shadow:0 0 14px rgba(160,205,255,.45)}
-.trail u{text-decoration:none;color:var(--dn);text-shadow:0 0 14px rgba(255,144,120,.65)}
-/* полоса дня — стеклянная трубка со светом внутри */
-.bar{position:relative;z-index:1;height:8px;border-radius:999px;margin:17px 0 12px;
- background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(255,255,255,.04));
- box-shadow:inset 0 2px 6px rgba(0,0,0,.8),inset 0 -1px 0 rgba(255,255,255,.09)}
-.bar i{position:absolute;top:0;bottom:0;border-radius:999px;
- background:linear-gradient(90deg,rgba(140,175,215,.3),var(--c));box-shadow:0 0 18px var(--c);opacity:.8}
-.bar u{position:absolute;top:-5px;width:2px;height:18px;border-radius:2px;background:#bacfe6;opacity:.8}
-.bar em{position:absolute;top:-6px;width:11px;height:20px;border-radius:5px;background:var(--c);
- box-shadow:0 0 22px var(--c),0 0 48px var(--c),inset 0 1px 0 rgba(255,255,255,.5);transform:translateX(-5px)}
-.nums{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:16px;font-size:10.5px;color:var(--mid);
- font-variant-numeric:tabular-nums}
-.nums b{font-weight:400;color:#d6e5f7}
-.nums .u{color:var(--up)}.nums .d{color:var(--dn)}
-.empty{padding:60px 10px;text-align:center;color:var(--dim);font-size:11.5px;letter-spacing:.16em}
-@media(max-width:640px){.grid{grid-template-columns:1fr}.c1 em{font-size:23px}}
+ background:radial-gradient(50% 40% at 15% 0%,#e9f0fb 0,transparent 60%),
+  radial-gradient(45% 40% at 88% 6%,#efe9fb 0,transparent 62%),
+  linear-gradient(170deg,#f2f5fb 0%,#e7ecf6 55%,#dde4f1 100%);background-attachment:fixed}
+.wrap{max-width:1240px;margin:0 auto;padding:26px 20px 50px}
+.plate{border-radius:28px;padding:26px 26px 18px;background:linear-gradient(160deg,#fdfeff,#eef2f9 60%,#e7edf7);
+ box-shadow:12px 14px 30px rgba(120,140,175,.30),-10px -12px 26px rgba(255,255,255,.95)}
+.head{display:flex;align-items:baseline;gap:12px;padding:2px 4px 18px}
+.head h1{margin:0;font-size:21px;font-weight:500;letter-spacing:-.01em;color:#1d2a36}
+.head s{text-decoration:none;font-size:13px;color:var(--mid)}
+.days{display:flex;gap:10px;margin-left:auto}
+.day{cursor:pointer;font-size:12px;padding:10px 18px;border-radius:999px;color:#5d7285;
+ background:linear-gradient(160deg,#fff,#e9eef7);box-shadow:5px 6px 12px rgba(120,140,175,.25),-4px -5px 10px rgba(255,255,255,.95)}
+.day.on{color:#fff;background:linear-gradient(160deg,#38455c,#1e2735)}
+.cols{display:grid;grid-template-columns:1.55fr 1fr .95fr;gap:16px;align-items:start}
+.box{border-radius:20px;padding:16px 17px;background:linear-gradient(160deg,#fdfeff,#eef2f9);
+ box-shadow:6px 7px 16px rgba(120,140,175,.24),-5px -6px 13px rgba(255,255,255,.95)}
+.cap{font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);margin:0 0 13px}
+/* строка монеты — вдавленная дорожка с выпуклым содержимым */
+.r{display:grid;grid-template-columns:84px minmax(0,1fr) 76px;gap:11px;align-items:center;
+ margin-bottom:9px;padding:11px 13px;border-radius:16px;background:linear-gradient(160deg,#fff,#eef2f9);
+ box-shadow:4px 5px 11px rgba(120,140,175,.20),-3px -4px 9px rgba(255,255,255,.95)}
+.s{font-size:14px;font-weight:500;color:#1d2a36;line-height:1.25}
+.s u{text-decoration:none;display:block;font-size:10px;font-weight:300;color:var(--dim);margin-top:2px}
+.path{font-size:12px;color:#5d7285;font-variant-numeric:tabular-nums;white-space:nowrap;overflow-x:auto;
+ scrollbar-width:none;min-width:0}
+.path::-webkit-scrollbar{display:none}
+.path b{font-weight:500;color:#33475a}.path i{font-style:normal;color:#b9c6d4;margin:0 4px}
+.path u{text-decoration:none;color:var(--dn);font-weight:500}
+.v{text-align:right;font-variant-numeric:tabular-nums;font-size:15px;font-weight:500;line-height:1.2}
+.v s{text-decoration:none;display:block;font-size:10px;font-weight:400;color:var(--up)}
+.up{color:var(--up)}.dn{color:var(--dn)}.flat{color:var(--mid)}
+.hero{margin-bottom:14px;padding:14px 15px;border-radius:16px;background:linear-gradient(160deg,#fff,#eaeff8);
+ box-shadow:inset 3px 4px 9px rgba(120,140,175,.22),inset -3px -3px 8px rgba(255,255,255,.95)}
+.hero em{display:block;font-style:normal;font-size:13px;font-weight:500;color:#33475a}
+.hero b{display:block;font-size:30px;font-weight:200;letter-spacing:-.02em;color:var(--up);line-height:1.2}
+.hero s{text-decoration:none;font-size:11px;color:var(--dim)}
+.line{display:flex;justify-content:space-between;padding:10px 2px;font-size:12.5px;color:var(--mid);
+ border-bottom:1px solid rgba(120,140,175,.14)}
+.line b{color:#1d2a36;font-weight:500;font-variant-numeric:tabular-nums}
+.lead{display:grid;grid-template-columns:66px minmax(0,1fr) 52px;gap:10px;align-items:center;padding:8px 2px;font-size:11.5px}
+.ls{font-weight:500;color:#33475a}
+.g{display:block;height:8px;border-radius:999px;background:#e7ecf5;box-shadow:inset 2px 2px 5px rgba(120,140,175,.3),inset -1px -1px 3px #fff}
+.g i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#8fd8c4,#12a17c);box-shadow:0 0 10px rgba(18,161,124,.45)}
+.n{text-align:right;color:var(--mid);font-variant-numeric:tabular-nums;font-size:11px}
+.an{position:relative;margin-bottom:14px;padding:16px;border-radius:18px;background:linear-gradient(160deg,#fdfeff,#eef2f9);
+ box-shadow:6px 7px 16px rgba(120,140,175,.24),-5px -6px 13px rgba(255,255,255,.95);transition:.18s}
+.an:hover{box-shadow:8px 9px 20px rgba(120,140,175,.3),-6px -7px 16px rgba(255,255,255,1)}
+.an h4{margin:0 0 12px;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);font-weight:400}
+/* ЧИСЛО ВНУТРИ КОЛЬЦА, ПОДПИСЬ РЯДОМ — В ОДНУ СТРОКУ (08.09) */
+.row2{display:grid;grid-template-columns:86px 1fr;gap:14px;align-items:center}
+.rw{position:relative;width:86px;height:86px}
+.ring{position:absolute;inset:0;border-radius:50%;
+ background:conic-gradient(from -90deg,#12a17c calc(var(--p)*1%),#e2e8f2 0);
+ -webkit-mask:radial-gradient(circle,transparent 66%,#000 67%);mask:radial-gradient(circle,transparent 66%,#000 67%);
+ filter:drop-shadow(2px 3px 7px rgba(18,161,124,.35))}
+.ring span{display:none}
+.rv{position:absolute;inset:0;display:grid;place-items:center;font-size:25px;font-weight:200;color:#1d2a36;
+ line-height:1;font-variant-numeric:tabular-nums}
+.rv i{font-style:normal;font-size:11px;color:var(--dim);margin-left:1px;font-weight:300}
+.leg{font-size:11.5px;color:var(--mid);line-height:1.7}
+.leg b{color:#1d2a36;font-weight:500}
+.bars{margin-top:12px;display:grid;gap:8px}
+.bl{display:grid;grid-template-columns:62px 1fr 72px;gap:9px;align-items:center;font-size:10.5px;color:var(--mid)}
+.bl i{display:block;height:6px;border-radius:999px;background:linear-gradient(90deg,#f3c58a,#e39b3f);
+ box-shadow:0 0 8px rgba(227,155,63,.4)}
+.bl em{font-style:normal;text-align:right;font-variant-numeric:tabular-nums;color:#33475a}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:4px 0 10px}
+.two em{display:block;font-style:normal;font-size:27px;font-weight:200;color:#1d2a36;line-height:1.15}
+.two em i{font-style:normal;font-size:12px;color:var(--dim);margin-left:1px}
+.two s{display:block;text-decoration:none;font-size:10px;color:var(--mid);margin-top:3px;line-height:1.5}
+.pop{position:absolute;left:0;right:0;top:calc(100% + 8px);z-index:9;padding:14px;border-radius:18px;
+ background:linear-gradient(160deg,#fff,#eef2f9);box-shadow:10px 12px 28px rgba(120,140,175,.4),-6px -7px 16px rgba(255,255,255,1);
+ opacity:0;visibility:hidden;transform:translateY(-4px);transition:.16s}
+.an:hover .pop{opacity:1;visibility:visible;transform:none}
+.pop h5{margin:0 0 9px;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);font-weight:400}
+.pr{display:grid;grid-template-columns:58px 44px minmax(0,1fr) 52px;gap:8px;font-size:11px;padding:6px 0;
+ border-top:1px solid rgba(120,140,175,.16);color:var(--mid);font-variant-numeric:tabular-nums}
+.pr b{color:#1d2a36;font-weight:500}.pr .bad{color:var(--dn)}
+.sm{font-size:12px;color:var(--mid)}
+.foot{margin-top:14px;padding:14px 6px 2px;font-size:12px;color:var(--dim)}
+@media(max-width:980px){.cols{grid-template-columns:1fr}}
 """
 
-
-def _n(v) -> str:
-    """Цена как число, а не как пусто: архив может не иметь баров по монете за этот день."""
-    return f"{v:.6g}" if isinstance(v, (int, float)) else "—"
-
-
-def _pos(v, lo, hi) -> float:
-    """Где значение между минимумом и максимумом дня, в процентах ширины полосы."""
-    if not all(isinstance(x, (int, float)) for x in (v, lo, hi)) or hi <= lo:
-        return 50.0
-    return max(0.0, min(100.0, (v - lo) / (hi - lo) * 100))
+JS = """
+const D=__DATA__;
+let DAY=Object.keys(D.days).sort().reverse()[0];
+function part1(){
+  const rows=D.days[DAY]||[];
+  document.getElementById('c1').innerHTML=rows.map(r=>{
+    const steps=r.path.map(p=>`<b>${p[1]}</b>`);
+    if(r.gone)steps.push(`<u>${r.gone}</u>`);
+    const cl=r.end>1?'up':(r.end<-1?'dn':'flat');
+    return `<div class="r"><div class="s">${r.s}<u>в первых ${r.in}</u></div>
+      <div class="path">${steps.join('<i>→</i>')}</div>
+      <div class="v ${cl}">${r.end>0?'+':''}${r.end}%<s>+${r.up}%</s></div></div>`;
+  }).join('')||'<div class="sm">в этот день в первых никого не было</div>';
+}
+function part2(){
+  const b=D.bg[DAY];
+  if(!b){document.getElementById('c2').innerHTML='<div class="sm">фон за этот день не писался</div>';return}
+  const btc=b.btc||{},br=b.breadth||{},tk=b.taker||{},lead=(b.top||[])[0];
+  let h='';
+  if(lead)h+=`<div class="hero"><em>${lead.s}</em><b>+${(lead.p||0).toFixed(0)}%</b><s>${lead.v}M${lead.mine?' · наша':''}</s></div>`;
+  h+=`<div class="line"><span>биткоин за сутки</span><b>${btc.day_pct!=null?(btc.day_pct>0?'+':'')+btc.day_pct+'%':'—'}</b></div>`;
+  h+=`<div class="line"><span>биткоин за час</span><b>${btc.h1_pct!=null?(btc.h1_pct>0?'+':'')+btc.h1_pct+'%':'—'}</b></div>`;
+  h+=`<div class="line"><span>растёт монет</span><b>${br.up??'—'} из ${br.n??'—'}</b></div>`;
+  h+=`<div class="line"><span>поток</span><b>${tk.side??'—'} ${tk.day??''}</b></div>`;
+  const mx=Math.max(10,...(b.top||[]).map(x=>x.p||0));
+  h+=(b.top||[]).map(x=>`<div class="lead"><span class="ls">${x.s}</span>
+    <span class="g"><i style="width:${Math.max(6,(x.p||0)/mx*100).toFixed(0)}%"></i></span>
+    <span class="n">+${(x.p||0).toFixed(0)}%</span></div>`).join('');
+  document.getElementById('c2').innerHTML=h;
+}
+function popBub(){const bad=(D.bub2.cases||[]).filter(x=>!x.ok&&x.sure==='ясный');if(!bad.length)return '';
+  return `<div class="pop"><h5>не сработало · ${bad.length} для разбора</h5>`+bad.map(x=>
+  `<div class="pr"><b>${x.s}</b><span>${x.d} ${x.t}</span><span>интерес ${x.oi>0?'+':''}${x.oi}%</span>
+   <span class="bad">${x.after>0?'+':''}${x.after}%</span></div>`).join('')+`</div>`;}
+function popLev(){const bad=(D.an_list.lev||[]).filter(x=>x.hit==='никуда');if(!bad.length)return '';
+  return `<div class="pop"><h5>не дошла до полосы · ${bad.length}</h5>`+bad.map(x=>
+  `<div class="pr"><b>${x.s}</b><span>${x.d}</span><span>вверх ${x.up!=null?x.up+'%':'—'} · вниз ${x.dn!=null?x.dn+'%':'—'}</span>
+   <span class="bad">${x.end>0?'+':''}${x.end}%</span></div>`).join('')+`</div>`;}
+function part3(){
+  const a=D.an,bb=a.bubbles,lv=a.levels,bt=bb.ok+bb.no,okp=bt?bb.ok/bt*100:0,lt=lv.up+lv.dn+lv.none;
+  // СПОРНЫЕ СЧИТАЮТСЯ ОТДЕЛЬНО (08.09): пузырь, об который закрывались, — не промах анализа,
+  // а другой случай. В общую долю идут только ясные, спорные и обычные показаны рядом.
+  const R=D.bub2.res;
+  const nS=R['ясный'].ok+R['ясный'].no, nD=R['сомнительный'].ok+R['сомнительный'].no, nO=R['обычный'].ok+R['обычный'].no;
+  const sureP=nS?R['ясный'].ok/nS*100:0, dP=nD?R['сомнительный'].ok/nD*100:0, oP=nO?R['обычный'].ok/nO*100:0;
+  const wD=dP, wO=oP;
+  const lp=lt?((lv.up+lv.dn)/lt*100):0;
+  document.getElementById('c3').innerHTML=`
+   <div class="an"><h4>сбылось · по максимуму и по закрытию</h4>
+     <div class="two"><div><em>${D.sum.max_pct}<i>%</i></em><s>по максимуму<br>${D.sum.max_n} из ${D.sum.n}</s></div>
+       <div><em>${D.sum.end_pct}<i>%</i></em><s>по закрытию<br>${D.sum.end_n} из ${D.sum.n}</s></div></div>
+     <div class="leg">цена выхода ${D.sum.cost}% — столько теряется, если не выйти на вершине</div></div>
+   <div class="an"><h4>пузыри · пошло в нужную сторону</h4>${popBub()}
+     <div class="row2"><div class="rw"><div class="ring" style="--p:${sureP}"></div>
+       <div class="rv">${sureP.toFixed(0)}<i>%</i></div></div>
+       <div class="leg"><b>ясные</b> ${R['ясный'].ok} из ${R['ясный'].ok+R['ясный'].no}<br>
+         только они идут в счёт</div></div>
+     <div class="bars">
+       <div class="bl"><span>спорные</span><i style="width:${wD}%"></i><em>${dP.toFixed(0)}% из ${nD}</em></div>
+       <div class="bl"><span>обычные</span><i style="width:${wO}%"></i><em>${oP.toFixed(0)}% из ${nO}</em></div>
+     </div></div>
+   <div class="an"><h4>уровни ликвидации · дошла ли цена</h4>${popLev()}
+     <div class="row2"><div class="rw"><div class="ring" style="--p:${lp}"></div>
+       <div class="rv">${lp.toFixed(0)}<i>%</i></div></div>
+       <div class="leg">вверх ${lv.up} · вниз ${lv.dn}<br>никуда ${lv.none}</div></div></div>`;
+}
+function redraw(){part1();part2();part3();}
+const days=Object.keys(D.days).sort().reverse();
+document.getElementById('days').innerHTML=days.map((d,i)=>`<div class="day${i?'':' on'}" data-d="${d}">${d.slice(8,10)}.${d.slice(5,7)}</div>`).join('');
+document.querySelectorAll('.day').forEach(t=>t.onclick=()=>{document.querySelectorAll('.day').forEach(x=>x.classList.toggle('on',x===t));DAY=t.dataset.d;redraw();});
+redraw();
+"""
 
 
 def render_accuracy() -> str:
     data = build_data()
-    tabs, panes = [], []
-    for k, d in enumerate(data["days"]):
-        on = " on" if k == 0 else ""
-        tabs.append(f"<div class='tab{on}' data-i='{k}'><b>{d['d'][8:10]}.{d['d'][5:7]}</b>{d['dow']} · {len(d['coins'])}</div>")
-        cards = []
-        for c in d["coins"]:
-            end = c.get("end")
-            cls = "up" if (end or 0) > 1 else ("down" if (end or 0) < -1 else "flat")
-            etxt = ("+" if (end or 0) > 0 else "") + (f"{end}%" if end is not None else "—")
-            # лента мест: 2 → 2 → 5 → и время выхода последним звеном (08.09, владелец)
-            steps = [f"<b>{p}</b>" for p in c["path"].split(" → ")]
-            if c.get("gone"):
-                steps.append(f"<u>{c['gone']}</u>")
-            trail = "<i>→</i>".join(steps)
-            lo, hi, px, now = c.get("lo"), c.get("hi"), c.get("px"), c.get("now")
-            p_in, p_now = _pos(px, lo, hi), _pos(now, lo, hi)
-            left, width = min(p_in, p_now), abs(p_now - p_in)
-            up = f"<span class='u'>+{c['up']}%</span>" if c.get("up") is not None else "—"
-            dn = f"<span class='d'>{c['dn']}%</span>" if c.get("dn") is not None else "—"
-            cards.append(f"""    <div class="coin {cls}">
-      <div class="c1"><h3>{c['s']}</h3><s>{c['in_at']}</s><em>{etxt}</em></div>
-      <div class="trail">{trail}</div>
-      <div class="bar"><i style="left:{left:.1f}%;width:{width:.1f}%"></i>
-        <u style="left:{p_in:.1f}%"></u><em style="left:{p_now:.1f}%"></em></div>
-      <div class="nums"><span>вход <b>{_n(px)}</b></span><span>дно <b>{_n(lo)}</b></span>
-        <span>верх <b>{_n(hi)}</b></span><span>{up} {dn}</span></div>
-    </div>""")
-        panes.append(f"<div class='grid' data-i='{k}'{'' if k == 0 else ' hidden'}>{''.join(cards)}</div>")
-    body = ("<div class='tabs'>" + "".join(tabs) + "</div>" + "".join(panes)) if tabs \
-        else '<div class="empty">за это время в первых никого не было</div>'
+    js = JS.replace("__DATA__", json.dumps(data, ensure_ascii=False))
     return f"""<!doctype html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>журнал заходов</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400&display=swap" rel="stylesheet">
+<title>журнал</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500&display=swap" rel="stylesheet">
 <style>{CSS}</style>
 </head>
 <body>
-<div class="wrap">
-  <div class="head"><h1>Журнал заходов</h1><s>монеты, побывавшие в первых</s><a class="back" href="intro.html">← созвездие</a></div>
-{body}
-</div>
+<div class="wrap"><div class="plate">
+  <div class="head"><h1>Журнал</h1><s>наблюдение по дням</s><div class="days" id="days"></div></div>
+  <div class="cols">
+    <div class="box"><div class="cap">первые и очередь · смена мест и выпадение</div><div id="c1"></div></div>
+    <div class="box"><div class="cap">фон · ход монет и биткоин</div><div id="c2"></div></div>
+    <div class="box"><div class="cap">аналитика</div><div id="c3"></div></div>
+  </div>
+  <div class="foot">место в очереди по прогонам · время красным — монета выпала из очереди, это конец прогноза</div>
+</div></div>
 <script>
-document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{{
-  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));
-  document.querySelectorAll('.grid').forEach(g=>g.hidden=(g.dataset.i!==t.dataset.i));
-}});
+{js}
 </script>
 </body>
 </html>"""
@@ -342,8 +411,9 @@ def main() -> int:
     a = ap.parse_args()
     html = render_accuracy()
     d = build_data()
-    n = sum(len(x["coins"]) for x in d["days"])
-    print(f"журнал заходов: дней {len(d['days'])} · монет в первых {n} · html {len(html)} байт")
+    n = sum(len(x) for x in d["days"].values())
+    print(f"журнал: дней {len(d['days'])} · монет в первых {n} · "
+          f"пузырей {sum(v['ok'] + v['no'] for v in d['bub2']['res'].values())} · html {len(html)} байт")
     if a.write:
         p = REPORT_PATH.parent / "accuracy.html"
         p.parent.mkdir(parents=True, exist_ok=True)
