@@ -1597,9 +1597,20 @@ COIN_JS = r"""
           // делал интерес НА ЭТОМ баре: вырос — на заявки открывали позиции, пузырь ясный; упал —
           // об заявки закрывались, цвет уходит в оранжевый. Ни один пузырь при этом не пропадает.
           // интерес на баре: из среза, если он есть, иначе из архива по времени (08.09)
+          // ПОИСК ПО БЛИЖАЙШЕМУ ВРЕМЕНИ (08.09): метка бара в срезе Coinglass и в нашем архиве может
+          // отличаться на минуты (начало/конец свечи, округление). При поиске по точному совпадению
+          // интерес не находился никогда — и все пузыри оставались «ясными», оранжевых не было.
           var OIM = (D.bubOi || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()] || {};
-          var oiAt = function (tt) { var v = OIM[tt] || OIM[String(tt)]; return v ? +v[0] : null; };
-          var typeAt = function (tt) { var v = OIM[tt] || OIM[String(tt)]; return v ? v[1] : null; };
+          var OIK = null;
+          var oiNear = function (tt) {
+            if (!OIK) { OIK = Object.keys(OIM).map(Number).sort(function (a, b) { return a - b; }); }
+            if (!OIK.length) return null;
+            var best = null, bd = 1e18;
+            for (var q = 0; q < OIK.length; q++) { var dd = Math.abs(OIK[q] - tt); if (dd < bd) { bd = dd; best = OIK[q]; } }
+            return bd <= 18e5 ? OIM[best] : null;      // не дальше получаса
+          };
+          var oiAt = function (tt) { var v = oiNear(tt); return v ? +v[0] : null; };
+          var typeAt = function (tt) { var v = oiNear(tt); return v ? v[1] : null; };
           var oiNow = (b.oi != null ? +b.oi : oiAt(b.t)), oiPrev = null;
           for (var k = i - 1; k >= 0 && oiPrev === null; k--) {
             if (ser[k] && ser[k].oi != null) oiPrev = +ser[k].oi;

@@ -723,6 +723,10 @@ void main(){
   col+=hot*pow(smoothstep(.55,.92,d)*max(cloud,wrap),3.)*.8;
   float appear=smoothstep(0.,.18,Fi);                 // имя ещё не пришло — маска не светится вовсе
   float vis=smoothstep(1.05-Fi*1.25,1.3-Fi*1.25,d+.1)*inbox*appear;
+  // ЯРКОСТЬ ГАСИТ ВСЁ ИМЯ ЦЕЛИКОМ (08.09, владелец: «ничего не поменялось за три раза»): BR входил
+  // только в lvl, то есть в два слагаемых из десяти — зерно, дрейф, ореолы групп рисовались мимо
+  // него, и чужие звёзды оставались видны. Теперь множитель применён к самой видимости.
+  vis *= clamp(Bi, 0., 1.);
   float lvl=.82*Bi*(1.-.45*isReady)*(1.-.55*isStale);   // общий уровень понижен; «готовы» — ещё бледнее, без зелени
   col+=vec3(.34,.38,.72)*(soft*.8+core*.15)*vis*lvl;
   col+=vec3(.36,.42,.8)*halo*vis*.4*Fi*lvl;
@@ -902,7 +906,9 @@ function applyGroup(){
   const out=new Float32Array(BR0.length);
   for(let i=0;i<BR0.length;i++){
     const mine=(g===null)||((DATA.grp||[])[i]===g);
-    out[i]=mine?BR0[i]*((PICK!==null&&mine&&!LAB[i])?1.15:1):BR0[i]*0.12;
+    // ЧУЖИЕ — ПРОЗРАЧНОСТЬ 10% (08.09, владелец): не доля от своей яркости, а один уровень для всех
+    // чужих, иначе яркие оставались заметнее тусклых. Было 0.12 от собственной, стало ровно 0.1.
+    out[i]=mine?BR0[i]*((PICK!==null&&mine&&!LAB[i])?1.15:1):0.1;
   }
   gl.uniform1fv(U('BR'),out);
 }
@@ -1005,9 +1011,14 @@ function drawFx(t){
   }
   for(let i=0;i<N;i++){
     if(LAB[i])continue;
-    const F=Fv[i]; if(F<=0.02)continue;
     const g=(DATA.grp||[])[i];
     if(PICK!==null&&g!==PICK)continue;
+    // ЧУЖИЕ ГАСНУТ И НА КАНВЕ (08.09, владелец: «становятся тусклее, но процентов на пять»):
+    // орбиты, хвосты и подписи рисуются вторым слоем — он про наведение на группу не знал вовсе,
+    // поэтому имена оставались яркими, сколько ни уменьшай яркость в шейдере. Теперь при наведении
+    // на категорию чужие тут тоже уходят в 10% — как и их свечение.
+    const dimOther=(HOVER!==null&&g!==HOVER)?0.1:1;
+    const F=Fv[i]*dimOther; if(F<=0.02)continue;
     const cx=FW*POS[i][0],cy=FH*POS[i][1];
     const near=MX>=0&&(Math.hypot(MX-cx,MY-cy)<SZ*7 || (Math.abs(MY-cy-SZ*1.05)<SZ*1.6 && Math.abs(MX-cx)<SZ*12));
     const room=Math.max(.45,Math.min(1,near_d[i]));   // теснота ужимает систему
