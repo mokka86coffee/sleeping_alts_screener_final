@@ -22,7 +22,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import statistics
+import statirender_intro-17.pystics
 import sys
 from pathlib import Path
 

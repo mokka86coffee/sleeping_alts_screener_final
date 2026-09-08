@@ -751,13 +751,16 @@ void main(){
     float lx = abs(dr.x)/LX, ly = abs(dr.y)/LY;
     float envX = smoothstep(0., .22, lx) * pow(max(0., 1. - lx), 2.2);
     float envY = smoothstep(0., .22, ly) * pow(max(0., 1. - ly), 2.2);
-    float st = exp(-abs(dr.y)*2.7) * envX * 2.6 + exp(-abs(dr.x)*2.7) * envY * 1.5;
+    // СИЛА ЛУЧА (08.09, владелец: «у всех звёзд огромное свечение как у лидера, вернуть как было»):
+    // при переделке я поднял яркость всем, а не только лидеру. Возвращаю прежний уровень (было .7
+    // и .4 до правок), лидер выделяется своей яркостью BR, а не общей силой луча.
+    float st = exp(-abs(dr.y)*2.7) * envX * .95 + exp(-abs(dr.x)*2.7) * envY * .55;
     vec2 dd=vec2(dr.x+dr.y,dr.x-dr.y)*.7071;
     float LD = 260./rk;
     float ldx = abs(dd.y)/LD, ldy = abs(dd.x)/LD;
     float envDx = smoothstep(0., .22, ldx) * pow(max(0., 1. - ldx), 2.2);
     float envDy = smoothstep(0., .22, ldy) * pow(max(0., 1. - ldy), 2.2);
-    st += (exp(-abs(dd.x)*3.6)*envDx + exp(-abs(dd.y)*3.6)*envDy) * .9;
+    st += (exp(-abs(dd.x)*3.6)*envDx + exp(-abs(dd.y)*3.6)*envDy) * .28;
     float glow=exp(-dist*.07)*.3;
     col+=fc*(k*1.8+st+glow)*pulse*on;
     float below=step(dp.y,0.)*smoothstep(gi>1.5?-130.:-70.,-8.,dp.y)*(1.-step(2.5,gi));
@@ -1039,16 +1042,23 @@ function drawFx(t){
             : '<u class="warn">ход '+Math.round(L.run_pct||0)+'% за день · '+L.runs_weak+' из 3 прогонов без роста интереса</u>')
         : ((L.lead_gap||0)>=5 ? '<u>тянет одна · в '+L.lead_gap.toFixed(0)+' раз выше медианы наших · вход в остальных закрыт</u>' : ''));
   } else if(el){ el.style.display='none'; }
-  // признак держится три прогона: один слабый ничего не значит (SOPH 08.09 после события удвоился)
+  // ЛИДЕР ВСЕГДА ЗАМЕТНЕЕ ОСТАЛЬНЫХ (08.09, владелец: «NAORIS в лидерах, а светится всё, и
+  // некоторые ярче»): раньше подсветка включалась только пока лидер идёт, а при конце снималась
+  // целиком — и на экране оставались чужие звёзды ярче лидера. Теперь три уровня:
+  //   тянет одна — лидер 1.9, остальные треть своей яркости;
+  //   идёт обычно — 1.45 и половина;
+  //   конец пришёл — 1.25 и три четверти: лидер всё ещё виден, но поле не гасится.
   const idx=DATA.names.indexOf(L.sym||'');
   const FL=new Set(DATA.flicker||[]);
-  const stillLeading = !L.ended && (L.runs_weak||0) < 3;
-  if(idx>=0&&stillLeading){
-    const hard=(L.lead_gap||0)>=5;
+  if(idx>=0){
+    const hard=(L.lead_gap||0)>=5 && !L.ended;
+    const done=!!L.ended || (L.runs_weak||0)>=3;
+    const up = done?1.25:(hard?1.9:1.45);
+    const dn = done?0.75:(hard?0.30:0.55);
     const b=new Float32Array(DATA.bright);
     for(let i=0;i<b.length;i++){
       if(LAB[i])continue;
-      b[i]= (i===idx) ? (hard?1.9:1.45) : b[i]*(hard?0.30:0.55);
+      b[i]= (i===idx) ? up : b[i]*dn;
       if(FL.has(DATA.names[i])) b[i]*=0.6;
     }
     BR0.set(b); applyGroup();
