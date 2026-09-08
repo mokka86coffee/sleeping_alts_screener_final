@@ -636,9 +636,41 @@ def build(only: list[str] | None = None) -> dict:
             break
         if s2 not in stable:
             stable.append(s2)
+    # ── ТЯНЕТ ОДНА — РАЗМЕР, А НЕ БАЛЛ (08.09, владелец: «применим сразу к рейтингу, иначе выборка
+    # ложная»). Подтверждено дважды: 07.09 SOPH +11.7% при медиане наших +0.5%, 08.09 SOPH +104%
+    # при медиане +3.2% — вторые и третьи не дали ничего оба дня. Балл НЕ меняем: он мерит саму
+    # точку входа, и если подмешать в него фон, журнал перестанет её измерять. Меняем РАЗМЕР:
+    # пока лидер тянет и у него нет конца, остальные строки получают размер ноль и пометку почему.
+    # Признак снимается сам, когда у лидера приходит событие конца.
+    _moves = [((out["coins"][s2].get("today") or {}).get("px_chg_pct") or 0.0) for s2 in ordered]
+    lead_sym = None
+    lead_gap = 0.0
+    if ordered and _moves:
+        _top_i = max(range(len(ordered)), key=lambda i: _moves[i])
+        _med = sorted(_moves)[len(_moves) // 2]
+        _mv = _moves[_top_i]
+        _gap = (abs(_mv) / abs(_med)) if abs(_med) >= 0.3 else (abs(_mv) / 0.3 if _mv else 0.0)
+        _t_lead = out["coins"][ordered[_top_i]].get("today") or {}
+        if _gap >= 5 and _mv > 0 and not _t_lead.get("ended_at"):
+            lead_sym, lead_gap = ordered[_top_i], round(_gap, 1)
+    if lead_sym:
+        for s2 in ordered:
+            q = out["coins"][s2].get("queue") or {}
+            if s2 == lead_sym:
+                q["size"] = "основной"
+                q["lead"] = True
+            else:
+                q["size"] = "ноль"
+                q["hold_reason"] = f"тянет {lead_sym.replace('USDT','')} ×{lead_gap} к медиане наших"
+    else:
+        for i2, s2 in enumerate(ordered):
+            q = out["coins"][s2].get("queue") or {}
+            q["size"] = "основной" if i2 == 0 else ("четверть" if i2 < 3 else "—")
+
     rest = [s2 for s2 in ordered if s2 not in stable]
     out["queue"] = stable + rest
     out["first"] = stable
+    out["pulls"] = {"sym": lead_sym, "gap": lead_gap} if lead_sym else None
     out["dropped"] = [s2 for s2 in (out["coins"] or {})
                       if (out["coins"][s2].get("queue") or {}).get("out_reason")]
     try:
@@ -684,6 +716,7 @@ def log_queue(res: dict) -> int:
             "days_since_harvest": q.get("days_since_harvest"), "oi_grow": n.get("oi_grow"),
             "today": q.get("today"), "bubble": q.get("bubble"), "move_pct": q.get("px_chg_pct"),
             "stage": q.get("stage"), "out_reason": q.get("out_reason"),
+            "size": q.get("size"), "hold_reason": q.get("hold_reason"),
             # карточки пузырей и плечо к цене (07.09) — сырьём в журнал, выводы делает считалка
             "move_paid": (v.get("today") or {}).get("move_paid"),
             "paid_ratio": (v.get("today") or {}).get("paid_ratio"),
