@@ -648,13 +648,19 @@ COIN_HTML = r"""
 .cbtn b{font-weight:400;color:#f5a93a}
 .coins:hover .cbtn{border-color:rgba(255,207,110,.7);color:#fff;box-shadow:0 0 24px rgba(245,169,58,.18)}
 .coins:after{content:"";position:absolute;left:-30px;right:-30px;top:100%;height:24px}
+/* СПИСОК МОНЕТ ВЛЕЗАЕТ В ЭКРАН (08.09, владелец: «расширь список вниз, сейчас вылезает за экран»):
+   высота ограничена окном, внутри прокрутка; колонки при нехватке места переносятся на новый ряд. */
 .clist{position:absolute;right:0;top:calc(100% + 10px);display:block;padding:14px 18px 12px;border-radius:12px;
-  background:rgba(3,18,14,.82);border:1px solid rgba(127,232,176,.3);backdrop-filter:blur(14px);box-shadow:0 30px 80px rgba(0,0,0,.55);
+  background:rgba(3,18,14,.86);border:1px solid rgba(127,232,176,.3);backdrop-filter:blur(14px);box-shadow:0 30px 80px rgba(0,0,0,.55);
+  max-height:calc(100vh - 130px);overflow-y:auto;overscroll-behavior:contain;
   opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .25s,transform .25s;transition-delay:.35s}
+.clist::-webkit-scrollbar{width:6px}
+.clist::-webkit-scrollbar-thumb{background:rgba(127,232,176,.28);border-radius:3px}
+.clist::-webkit-scrollbar-track{background:transparent}
 .clist:before{content:"";position:absolute;left:-20px;right:-20px;top:-18px;height:20px}
 .coins:hover .clist{opacity:1;transform:none;pointer-events:auto;transition-delay:0s}
-.clist .ch{position:absolute;left:18px;top:-9px;padding:0 6px;background:#03120e;font-family:var(--f-cap);font-size:7px;letter-spacing:.28em;text-transform:uppercase;color:#7fb8a0;white-space:nowrap}
-.clist .cols{display:flex;gap:14px}
+.clist .ch{position:sticky;left:18px;top:-9px;padding:0 6px;background:#03120e;font-family:var(--f-cap);font-size:7px;letter-spacing:.28em;text-transform:uppercase;color:#7fb8a0;white-space:nowrap}
+.clist .cols{display:flex;flex-wrap:wrap;gap:10px 14px;max-width:min(92vw,1180px)}
 .clist .col{display:flex;flex-direction:column;gap:1px;min-width:132px}
 .clist a{display:flex;align-items:center;gap:7px;font-family:var(--f-num);font-weight:300;font-size:12px;letter-spacing:.1em;color:#dfe9e4;padding:3px 8px;border-radius:6px;cursor:pointer;transition:.15s;border-left:1px solid transparent;text-decoration:none;white-space:nowrap}
 .clist a i{width:6px;height:6px;border-radius:50%;flex:0 0 6px;opacity:.9}
@@ -1173,13 +1179,41 @@ COIN_JS = r"""
     var dirInfo = dirPl;   // копия для вступительной сводки (dirPl обнуляется после отрисовки плашки)
     var RL = [];
     LV.forEach(function (l) { RL.push({ y: sy(l[1]), col: l[2], txt: l[0] + ' ' + px4(l[1]), line: true, x1: X0 + 330, dash: '3 5', w: .6, op: .45 }); });
+    // ФЛАГ ПОДТВЕРЖДЁН ПУЗЫРЁМ (08.09, проверка на 319 случаях по 18 монетам): сам флаг
+    // «топливо ×1.5 + тейкер» даёт 32% верных — то есть чаще ошибается, и перевес топлива не
+    // помогает (×1.5–2 → 29%, ×2–4 → 46%, ×4+ → 22%). Но если в ту же сторону был ЯСНЫЙ пузырь —
+    // тот, на котором ОТКРЫВАЛИ позиции, — верных 9 из 9. Логика владельца: топливо есть всегда с
+    // обеих сторон, оно меряет ожидание; пузырь — факт, что кто-то уже отдал деньги и ведёт.
+    // Девять случаев — не статистика, поэтому флаг остаётся как был, а подтверждённый помечается
+    // отдельно и только он идёт в решение.
+    var _bubOK = (function () {
+      var ser = ((s.cg || {}).fullSeries) || [];
+      if (!ser.length || !_bias) return false;
+      var vols = ser.map(function (b) { return (+b.b || 0) + (+b.s || 0); });
+      var mu = vols.reduce(function (a, v) { return a + v; }, 0) / vols.length;
+      var sd = Math.sqrt(vols.reduce(function (a, v) { return a + (v - mu) * (v - mu); }, 0) / vols.length) || 0;
+      if (!sd) return false;
+      var last = null, prevOi = null;
+      ser.forEach(function (b, i) {
+        var v = vols[i], oi = (b.oi != null ? +b.oi : null);
+        if (v >= mu + 2 * sd) {
+          var buy = (+b.b || 0) >= (+b.s || 0);
+          var fill = (prevOi && oi) ? (oi / prevOi - 1) * 100 : null;
+          last = { buy: buy, clear: (fill !== null && fill >= 1.5 && b.type !== 'long_close') };
+        }
+        if (oi) prevOi = oi;
+      });
+      if (!last || !last.clear) return false;
+      return _bias === 'up' ? last.buy : !last.buy;
+    })();
+
     // НАПРАВЛЕННОЕ СМЕЩЕНИЕ (05.09, по Leviathan): сторона, которую вероятнее снимут, — ярче,
     // другая — тусклее. Вероятная сторона: топливо там больше (liqFuel), а стакан давит туда же
     // (тейкер Coinglass < 1 → вниз, > 1 → вверх); при несогласии — обе одинаково.
     (s.liqZones || []).slice(0, 3).forEach(function (z) {
       var mid = (z.lo + z.hi) / 2, side = mid < _pxNow ? 'down' : 'up', hot = !_bias || side === _bias;
       // подпись — ЦЕНА полосы (07.09, владелец: «в размере нет смысла»); сумма — при наведении
-      RL.push({ y: sy(mid), col: hot ? (side === 'down' ? '#ffd0c0' : '#e6d3a3') : '#6f7a75', txt: 'ЛИКВ ' + px4(mid) + (hot && _bias ? ' ← СНИМУТ' : ''), tip: (side === 'down' ? 'лонги ' : 'шорты ') + (money(z.fuel) || '') + ' на ' + px4(mid), liq: true, hot: !!(hot && _bias), mid: mid, x1: (heatX1 !== null ? heatX1 : X0), dash: hot ? '6 4' : '2 6', w: hot ? (_bias ? 1.1 : .8) : .5, op: hot ? (_bias ? .8 : .55) : .3 });
+      RL.push({ y: sy(mid), col: hot ? (side === 'down' ? '#ffd0c0' : '#e6d3a3') : '#6f7a75', txt: 'ЛИКВ ' + px4(mid) + (hot && _bias ? (_bubOK ? ' ← СНИМУТ · ПУЗЫРЬ' : ' ← снимут') : ''), tip: (side === 'down' ? 'лонги ' : 'шорты ') + (money(z.fuel) || '') + ' на ' + px4(mid), liq: true, hot: !!(hot && _bias), mid: mid, x1: (heatX1 !== null ? heatX1 : X0), dash: hot ? '6 4' : '2 6', w: hot ? (_bias ? 1.1 : .8) : .5, op: hot ? (_bias ? .8 : .55) : .3 });
     });
     // карта во времени с большой плиты снята (06.09): её горизонталь — 120 дней, сутки лога
     // сжимались в столбик у края («кирпичики»); теперь она на плите журнала справа, где окно — дни
@@ -1193,8 +1227,10 @@ COIN_JS = r"""
       var z = zs.reduce(function (a, b) { return (b.fuel || 0) > (a.fuel || 0) ? b : a; }), mid = (z.lo + z.hi) / 2;
       var ratio = _bias === 'down' ? _fb / Math.max(1, _fa) : _fa / Math.max(1, _fb);
       dirPl = { mid: mid, l1: (_bias === 'down' ? 'ВЕРОЯТНЕЕ ВНИЗ · К ' : 'ВЕРОЯТНЕЕ ВВЕРХ · К ') + px4(mid),
-                l2: 'ТОПЛИВО ×' + ratio.toFixed(1) + ' · СТАКАН ДАВИТ ' + (_bias === 'down' ? 'ВНИЗ' : 'ВВЕРХ'),
-                col: _bias === 'down' ? '#ffc4b3' : '#ffe2a8' };
+                l2: 'ТОПЛИВО ×' + ratio.toFixed(1) + ' · СТАКАН ДАВИТ ' + (_bias === 'down' ? 'ВНИЗ' : 'ВВЕРХ')
+                    + (_bubOK ? ' · ПУЗЫРЬ ПОДТВЕРЖДАЕТ' : ' · ПУЗЫРЬ НЕ ПОДТВЕРЖДАЕТ'),
+                ok: _bubOK,
+                col: _bubOK ? (_bias === 'down' ? '#ffc4b3' : '#ffe2a8') : '#8b9aa6' };
     })();
     RL.push({ y: ny0 = P[P.length - 1][1], col: '#fff', txt: '', now: true });   // место под «сейчас» тоже занимает строку
     RL.sort(function (a, b) { return a.y - b.y; });
@@ -1521,11 +1557,30 @@ COIN_JS = r"""
           for (var k = i - 1; k >= 0 && oiPrev === null; k--) { if (ser[k] && ser[k].oi != null) oiPrev = +ser[k].oi; }
           var fill = (oiPrev && oiNow) ? (oiNow / oiPrev - 1) * 100 : null;
           var doubt = (fill !== null && fill <= -1.5) || b.type === 'long_close';
-          var col = doubt ? '#f0a24a' : (buy ? '#5fe6a6' : '#ff7a63');
+          var own = buy ? '#5fe6a6' : '#ff7a63';        // свой цвет стороны
+          var col = own;                                 // ясный — целиком свой
+          var half = false, edge = null;
+          if (doubt) {
+            // СОМНИТЕЛЬНЫЙ — ПОЛОВИНА СВОЕГО ЦВЕТА, ПОЛОВИНА ОРАНЖЕВОГО (08.09, владелец:
+            // «оставляем половину того цвета, что должен быть, а половину делаем оранжевым, и
+            // обводку другого цвета»). Видно и сторону заявки, и что об неё закрывались.
+            half = true;
+            edge = '#f0a24a';
+          }
           var note = doubt ? (buy ? ' · об покупки закрывались' : ' · об продажи закрывались') : '';
           // заметнее (06.09): плотнее ядро, яркая обводка, светлая точка в центре
-          bubbles += '<circle cx="' + XT(b.t).toFixed(1) + '" cy="' + Y(pt.p).toFixed(1) + '" r="' + (r * .45).toFixed(1) + '" fill="' + col + '" opacity=".75"/>' +
-                     '<circle cx="' + XT(b.t).toFixed(1) + '" cy="' + Y(pt.p).toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + col + '" opacity=".22" stroke="' + col + '" stroke-opacity=".95" stroke-width="1"><title>' + esc(new Date(b.t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' · оборот ' + money(v) + ' · ' + (buy ? 'покупали' : 'продавали') + ' ' + money(Math.abs((+b.b || 0) - (+b.s || 0))) + (fill !== null ? ' · интерес на баре ' + (fill > 0 ? '+' : '') + fill.toFixed(1) + '%' : '') + note) + '</title></circle>'; });
+          var cxb = XT(b.t).toFixed(1), cyb = Y(pt.p).toFixed(1);
+          if (half) {
+            // ядро: левая половина — своя, правая — оранжевая
+            bubbles += '<path d="M' + cxb + ',' + (Y(pt.p) - r * .45).toFixed(1) + ' A' + (r * .45).toFixed(1) + ',' + (r * .45).toFixed(1) +
+                       ' 0 0 0 ' + cxb + ',' + (Y(pt.p) + r * .45).toFixed(1) + ' Z" fill="' + own + '" opacity=".8"/>' +
+                       '<path d="M' + cxb + ',' + (Y(pt.p) - r * .45).toFixed(1) + ' A' + (r * .45).toFixed(1) + ',' + (r * .45).toFixed(1) +
+                       ' 0 0 1 ' + cxb + ',' + (Y(pt.p) + r * .45).toFixed(1) + ' Z" fill="#f0a24a" opacity=".8"/>';
+          } else {
+            bubbles += '<circle cx="' + cxb + '" cy="' + cyb + '" r="' + (r * .45).toFixed(1) + '" fill="' + col + '" opacity=".75"/>';
+          }
+          bubbles += '' +
+                     '<circle cx="' + cxb + '" cy="' + cyb + '" r="' + r.toFixed(1) + '" fill="' + own + '" opacity="' + (half ? '.14' : '.22') + '" stroke="' + (edge || own) + '" stroke-opacity=".95" stroke-width="' + (half ? '1.6' : '1') + '" stroke-dasharray="' + (half ? '3 2' : 'none') + '"><title>' + esc(new Date(b.t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' · оборот ' + money(v) + ' · ' + (buy ? 'покупали' : 'продавали') + ' ' + money(Math.abs((+b.b || 0) - (+b.s || 0))) + (fill !== null ? ' · интерес на баре ' + (fill > 0 ? '+' : '') + fill.toFixed(1) + '%' : '') + note) + '</title></circle>'; });
       })();
       var g = '<defs><linearGradient id="hf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + GOLD + '" stop-opacity=".22"/><stop offset="1" stop-color="' + GOLD + '" stop-opacity="0"/></linearGradient></defs>' + heatJ + bubbles +
         '<path d="' + dpath + ' L' + XT(tE).toFixed(1) + ',' + GY + ' L12,' + GY + ' Z" fill="url(#hf)" opacity=".6"/>' +

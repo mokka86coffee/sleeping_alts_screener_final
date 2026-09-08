@@ -204,6 +204,7 @@ def build(days: int = 7) -> dict:
                     "after_harvest": row.get("after_harvest"),
                     "bubble_sure": row.get("bubble_sure"),
                     "bubble_vs_plot": row.get("bubble_vs_plot"),
+                    "liq_side": row.get("liq_side"), "liq_ok": row.get("liq_ok"),
                     "runs": 0, "zones": None,
                     "bg": _bg_at(bgs, at) if at else {},
                 }
@@ -291,6 +292,10 @@ def build(days: int = 7) -> dict:
     # ПУЗЫРИ ПРОТИВ ПРОГНОЗА (08.09): сходятся ли факт дня и словесный шаблон. Ждём, что «против»
     # даст заметно худшую долю — тогда признак пойдёт в правило, а не только в наблюдение.
     cut("пузыри и прогноз", lambda x: x.get("bubble_vs_plot"))
+    # ФЛАГ «СНИМУТ» (08.09): сам по себе 32% верных на 319 случаях; подтверждённый ясным пузырём —
+    # 9 из 9. Разрез покажет, держится ли это на своей выборке.
+    cut("флаг снимут", lambda x: None if not x.get("liq_side")
+        else ("подтверждён пузырём" if x.get("liq_ok") else "без подтверждения"))
     # часы в группе пишем, но признаком пока не считаем: NAORIS 08.09 висел в первых почти 12 часов
     # и не пошёл, а SOPH 07.09 пошёл из очереди. Проверяем разрезом, а не правилом.
     cut("часов в группе", lambda x: "до 2 ч" if (x.get("hours") or 0) < 2 else ("2–6 ч" if x["hours"] < 6 else "больше 6 ч"))

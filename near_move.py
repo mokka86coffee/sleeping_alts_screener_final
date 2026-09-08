@@ -370,6 +370,33 @@ def _today_bars(sym_usdt: str) -> dict | None:
     bubble_signal = bool(low_buy_sure) and not at_target
     bubble_choice = bool(low_buy_choice) and not at_target
 
+    # ── ФЛАГ «СНИМУТ» И ЕГО ПОДТВЕРЖДЕНИЕ (08.09, проверка на 319 случаях): сам флаг — топливо в
+    # полтора раза и тейкер в ту же сторону — даёт 32% верных, то есть чаще ошибается, и перевес
+    # топлива не помогает (×1.5–2 → 29%, ×2–4 → 46%, ×4+ → 22%). Но если в ту же сторону был ЯСНЫЙ
+    # пузырь, тот, на котором открывали позиции, — 9 верных из 9. Топливо есть всегда с обеих
+    # сторон, оно меряет ожидание; пузырь — факт, что кто-то уже отдал деньги и ведёт.
+    liq_side = None
+    liq_ratio = None
+    liq_ok = False
+    _lastz = (rows[-1].get("zones") or {}) if rows else {}
+    if px1 and _lastz:
+        _up = sorted([(q, w) for q, w in (_lastz.get("up") or []) if q and q > px1],
+                     key=lambda t: -(t[1] or 0))[:3]
+        _dn = sorted([(q, w) for q, w in (_lastz.get("down") or []) if q and q < px1],
+                     key=lambda t: -(t[1] or 0))[:3]
+        _fa = sum(w or 0 for _q, w in _up)
+        _fb = sum(w or 0 for _q, w in _dn)
+        _tk = ((rows[-1].get("fut") or {}).get("tk"))
+        if _fa and _fb and _tk:
+            if _fb >= 1.5 * _fa and _tk < 1:
+                liq_side, liq_ratio = "вниз", round(_fb / _fa, 1)
+            elif _fa >= 1.5 * _fb and _tk > 1:
+                liq_side, liq_ratio = "вверх", round(_fa / _fb, 1)
+        if liq_side:
+            _lb = next((b for b in reversed(bubbles) if b.get("sure") == "ясный"), None)
+            if _lb:
+                liq_ok = (_lb["side"] == "buy") if liq_side == "вверх" else (_lb["side"] == "sell")
+
     # ── ПУЗЫРИ ПРОТИВ ПРОГНОЗА (08.09, владелец: «свяжем логику пузырей с нашими прогнозами»).
     # Прогноз — словесный шаблон репутации, он живёт на дневках и меняется редко. Пузыри — факт
     # сегодняшнего дня. Сверяем их между собой и пишем согласие, ничего не отменяя:
@@ -416,6 +443,7 @@ def _today_bars(sym_usdt: str) -> dict | None:
             "bub_buy": bub_buy_bars, "bub_sell": bub_sell_bars, "skipped": len(skipped),
             "bubble_signal": bubble_signal, "bubble_choice": bubble_choice, "bubble_down": bubble_down,
             "bubble_vs_plot": bubble_vs_plot, "plot": _plt or None,
+            "liq_side": liq_side, "liq_ratio": liq_ratio, "liq_ok": liq_ok,
             "absorbed": len(absorbed), "at_target": at_target,
             "bubbles": bubbles,
             # ХОД БЕЗ ПУЗЫРЯ (07.09, случай ACU): у монеты может идти чистый ход вовсе без всплесков —
@@ -857,6 +885,8 @@ def log_queue(res: dict) -> int:
             "after_harvest": q.get("after_harvest"), "after_harvest_vol": q.get("after_harvest_vol"),
             "bubble_sure": ((v.get("today") or {}).get("bubbles") or [{}])[-1].get("sure"),
             "bubble_vs_plot": (v.get("today") or {}).get("bubble_vs_plot"),
+            "liq_side": (v.get("today") or {}).get("liq_side"),
+            "liq_ok": (v.get("today") or {}).get("liq_ok"),
             # карточки пузырей и плечо к цене (07.09) — сырьём в журнал, выводы делает считалка
             "move_paid": (v.get("today") or {}).get("move_paid"),
             "paid_ratio": (v.get("today") or {}).get("paid_ratio"),
