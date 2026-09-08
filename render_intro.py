@@ -454,10 +454,14 @@ def render_intro(items: list[dict] | None = None) -> str:
     # ТОЧНОСТЬ (07.09): доля сбывшихся из считалки; файла нет — под планетой прочерк
     acc = {}
     try:
-        _sc = json.loads((BASE_DIR / "output" / "forecast_score.json").read_text(encoding="utf-8"))
-        _a = _sc.get("all") or {}
+        _sc = json.loads((BASE_DIR / "output" / "entries_score.json").read_text(encoding="utf-8"))
+        # ТОЧНОСТЬ — ПО ЗАХОДАМ В ПЕРВЫЕ (08.09): доля заходов, где монета дала ход от 2%.
+        # Раньше бралась доля сбывшихся шаблонов по всей доске — число, которое ничего не говорило
+        # о наших первых (23% при том, что заходы в первые давали 89%).
+        _a = _sc.get("первые") or {}
         if _a.get("n"):
-            acc = {"ok_pct": _a.get("ok_pct"), "ok": _a.get("ok"), "n": _a.get("n"), "enough": _a.get("enough")}
+            acc = {"ok_pct": _a.get("доля"), "ok": _a.get("пошли"), "n": _a.get("n"),
+                   "enough": bool(_a.get("n", 0) >= 20)}
     except (OSError, ValueError):
         acc = {}
     data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "flicker": flicker},
@@ -560,7 +564,7 @@ TEMPLATE = r'''<!doctype html>
   .planet:hover .pcap{opacity:1;letter-spacing:.42em}
   /* ТОЧНОСТЬ ЧИСЛОМ (07.09, владелец: «добавим пока к точности 55% — это по сути весомо: мы знаем
      что и когда, но не знаем фон; по мере изучения журнала будем увеличивать»). Берётся из
-     output/forecast_score.json; журнал пуст — показываем прочерк, а не выдуманное число. */
+     output/entries_score.json (доля заходов в первые, давших ход); пусто — прочерк. */
   .pnum{position:absolute;left:50%;top:calc(100% + 34px);transform:translateX(-50%);white-space:nowrap;
     font-family:"Inter",system-ui,sans-serif;font-weight:200;font-size:19px;letter-spacing:.02em;color:#dbe4ff;
     text-shadow:0 0 14px rgba(150,185,255,.8),0 0 40px rgba(110,150,255,.45);opacity:.85}

@@ -479,7 +479,7 @@ def render_report(candidates: list[Candidate], snapshot: RunSnapshot) -> bool:
     except Exception as e:
         _issue("Интро", f"{type(e).__name__}: {e}")
 
-    # ЭКРАН ТОЧНОСТИ (07.09): дни → часы → монеты, из output/forecast_score.json и market_bg.jsonl.
+    # ЭКРАН ТОЧНОСТИ: дни → часы → монеты, из output/entries_score.json и market_bg.jsonl.
     # Заходят с интро по планете. Это НЕ журнал 01.09 (render_journal.py, journal.html) — другой
     # экран и другое имя файла. Сбой не роняет отчёт — экран просто не обновится.
     try:
@@ -1279,12 +1279,13 @@ def run_once(args: argparse.Namespace) -> int:
     except Exception as e:
         _issue("Фон рынка", f"{type(e).__name__}: {e}")
 
-    # ── ТОЧНОСТЬ ПРОГНОЗОВ (07.09): сводит три ленты — прогнозы, очередь, фон — и внутридневной
-    # архив: три границы (цель = ближайшая полоса сверху, стоп = снизу, срок), MFE и MAE, кривая
-    # затухания по отметкам от получаса до суток, разрезы по фону. Пишет output/forecast_score.json
-    # для экрана журнала. Идёт последней в быстрых: читает то, что записали фон и архив. ──
+    # ── ЖУРНАЛ ЗАХОДОВ (08.09, заменил forecast_score): считаем ТОЛЬКО первых и очередь — заход
+    # в группу, цена входа, сколько держалась, что было с ценой после, и фон на момент входа.
+    # Старая считалка мерила смены шаблонов по всей доске (включая монеты без оборота, которые
+    # водит маркетмейкер) и давала бессмысленные 23%: монета, которую система верно вела весь день
+    # одним шаблоном, давала одну запись и выпадала из счёта. Пишет output/entries_score.json. ──
     try:
-        _rf = subprocess.run([sys.executable, "forecast_score.py", "--days", "14", "--write"],
+        _rf = subprocess.run([sys.executable, "entries_score.py", "--days", "14", "--write"],
                              cwd=BASE_DIR, capture_output=True, text=True, timeout=600)
         _tf = (_rf.stdout or "").strip().splitlines()
         log("→ Точность прогнозов: " + next((l for l in _tf if l.startswith("за ")), _tf[-1] if _tf else "пусто"))

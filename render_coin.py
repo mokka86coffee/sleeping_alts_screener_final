@@ -774,13 +774,25 @@ COIN_JS = r"""
   // отпустил / осечка / отбой / конец — движение закончилось, вход больше не показываем.
   var TPL_END = ['разгон отпустил', 'отпустил', 'осечка', 'отбой', 'конец тренда', 'выходят'];
   function isEnd(t) { t = String(t || '').toLowerCase(); return TPL_END.some(function (w) { return t.indexOf(w) >= 0; }); }
+  // КОНЕЦ ПО БАРАМ (08.09, владелец: «у нас внутридневные мерки, которые меняются каждые полчаса»):
+  // словесный шаблон живёт на дневках и меняется раз в сутки — у DOOD «тащит» висело, когда по
+  // барам движение кончилось накануне в 22:30. Событие приходит из near_move (ended_at) и бьёт
+  // шаблон: тренд считается законченным, даже если репутация ещё не сменила мнение.
+  function endedByBars(sym) {
+    var key = String(sym || '').toUpperCase();
+    if (key && key.indexOf('USDT') < 0) key += 'USDT';
+    var n = NEAR[key] || {};
+    var t = n.today || {};
+    return t.ended_at ? { at: t.ended_at, why: (t.closing_bars >= 3 ? 'лонги выходят' : 'рука ушла') } : null;
+  }
   // ОСНОВА ТРЕНДА (08.09): начало движения уходит С ГРАФИКА в заголовок по центру — на длинном
   // отрезке всё выглядит как «текущее», и метки начала спорят с текущим состоянием. На линии
   // остаётся ТОЛЬКО текущая метка; при конце — только метка выхода, основы нет вовсе.
-  function trendBase(M) {
+  function trendBase(M, sym) {
     if (!M || !M.length) return null;
     var last = M.length - 1;
     if (isEnd(M[last].tpl)) return null;              // тренд кончился — основы нет
+    if (endedByBars(sym)) return null;                // и по барам тоже
     var start = -1;
     for (var i = last; i >= 0; i--) { if (isEnd(M[i].tpl)) break; if (isStart(M[i].tpl)) { start = i; } }
     if (start < 0) return null;
@@ -1251,7 +1263,8 @@ COIN_JS = r"""
         '<linearGradient id="fcu3"><stop offset="0" stop-color="#ff5a4a" stop-opacity="0"/><stop offset=".6" stop-color="#ff9d84"/><stop offset="1" stop-color="#fff"/></linearGradient></defs>';
       var last = M.length - 1;
       var SHOW = shownMarks(M);
-      var ENDED = isEnd(M[last].tpl);      // тренд кончился — вход не рисуем вовсе
+      var _eb = endedByBars(s.coin || s.t);
+      var ENDED = isEnd(M[last].tpl) || !!_eb;   // конец — по шаблону ИЛИ по барам
       M.forEach(function (m, k) {
         if (ENDED && k !== last) return;   // остаётся одна метка: выход
         var tm = new Date(m.t).getTime(), x;
@@ -1533,7 +1546,7 @@ COIN_JS = r"""
     // ОСНОВА ТРЕНДА — по центру, из последней цепочки меток; тренд кончился — блока нет
     var _tb = (function () {
       var J = JR[String(s.t).toUpperCase()], M = (J && J.marks) || [];
-      var b = trendBase(M);
+      var b = trendBase(M, s.coin || s.t);
       if (!b) return '';
       var when = new Date(b.at), dd = ('0' + when.getDate()).slice(-2) + '.' + ('0' + (when.getMonth() + 1)).slice(-2);
       return '<div class="tbase"><b>' + esc(b.tpl) + '</b><s>основа тренда · ' + dd + ' · ' + esc(b.age) +

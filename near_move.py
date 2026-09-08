@@ -178,20 +178,40 @@ def _today_bars(sym_usdt: str) -> dict | None:
     #   идёт       — интерес и цена за последние часы в одну сторону вверх;
     #   стоит      — всё остальное.
     # Момент конца запоминается (ended_at) — это точка выхода, её же ставит карточка меткой.
+    day_hi_run = None
     ended_at = None
     ended_oi = None
     prev_oi2 = None
     closing = 0
+    # МЕДЛЕННЫЙ ВЫХОД (08.09, случай NAORIS): прежняя мерка ловила только резкий — падение интереса
+    # на 2% в ОДНОМ баре вместе с отрицательной дельтой. У NAORIS такого бара не было ни разу:
+    # интерес сползал по мелочи (−27, −26, −19 тыс), но за три часа набежало −6.5% при цене на 4–9%
+    # ниже вершины дня и тейкере ниже единицы в восьми барах подряд. Монета кончилась в 10:30–11:00,
+    # а в первых висела до 17:00. Теперь конец засчитывается и так: скользящее окно шести баров —
+    # интерес вниз от 3%, цена ниже вершины дня, и большинство баров с тейкером ниже единицы.
+    win: list = []
     for r in rows:
         f = r.get("fut") or {}
         dd_, oo = f.get("d"), r.get("oi")
         typ = r.get("oi_type") or ""
+        if r.get("px"):
+            day_hi_run = max(day_hi_run or 0, r["px"])
         if typ == "long_close" and dd_ is not None and dd_ < 0:
             closing += 1
         elif typ != "long_close":
             closing = 0
         hard = (dd_ is not None and oo and prev_oi2 and dd_ < 0 and (oo / prev_oi2 - 1) <= -0.02)
-        if (hard or closing >= 3) and ended_at is None:
+        # окно шести баров: интерес, цена, тейкер
+        win.append((oo, r.get("px"), (f.get("tk") if isinstance(f, dict) else None)))
+        if len(win) > 6:
+            win.pop(0)
+        slow = False
+        if len(win) == 6 and win[0][0] and oo:
+            _oi_dn = (oo / win[0][0] - 1) * 100 <= -3.0
+            _below = bool(day_hi_run and r.get("px") and r["px"] < day_hi_run * 0.985)
+            _weak = sum(1 for _o, _p, _t in win if _t is not None and _t < 1.0) >= 4
+            slow = _oi_dn and _below and _weak
+        if (hard or closing >= 3 or slow) and ended_at is None:
             ended_at = r.get("candle")
             ended_oi = prev_oi2
         # ВОССТАНОВЛЕНИЕ ОТМЕНЯЕТ КОНЕЦ (08.09, случай SOPH): событие сработало в 05:30, а монета
@@ -424,6 +444,30 @@ def judge(d: dict, live: dict | None = None) -> dict | None:
         nums["from_harvest_high"] = round((float(last["close"]) / hi - 1) * 100, 1) if hi else None
         if held:
             why.append(f"сбор удержан ({nums['from_harvest_high']:+.0f}% от максимума)")
+        # ── ОТКАТ БЕЗ РАЗДАЧИ (08.09, случай USELESS против DOOD; владелец: «пока ожили USELESS,
+        # который не упал на дно, и VVV с большой капой»). После сбора монета либо откатывается на
+        # затухающем обороте — продавать некому, полка держится, — либо её раздают: оборот на
+        # откате выше, чем в день сбора. Числа за 04–08.09:
+        #   USELESS: сбор 04.09 при $1925M, откат −16% при $556M и −30% от вершины → ×0.29 → ожил;
+        #   DOOD:    сбор 06.09 при $84M, назавтра $298M при цене −3.6%          → ×3.55 → раздали.
+        # Считаем отношение МАКСИМАЛЬНОГО оборота дней после сбора к обороту дня сбора.
+        _hd = None
+        if hv:
+            _hd = (hv[0][0] if len(hv) == 1 else max(hv, key=lambda t: t[1])[0])
+        if _hd:
+            _hv_day = next((r for r in days if r.get("datetime", "")[:10] == _hd.get("datetime", "")[:10]), None)
+            _after = [r for r in days if r.get("datetime", "") > (_hd.get("datetime") or "")]
+            _hq = float((_hv_day or {}).get("quote_volume") or 0)
+            _aq = max((float(r.get("quote_volume") or 0) for r in _after), default=0.0)
+            if _hq > 0 and _after:
+                _ratio = _aq / _hq
+                nums["after_harvest_vol"] = round(_ratio, 2)
+                nums["after_harvest"] = ("раздали" if _ratio >= 2 else
+                                         "откат без раздачи" if _ratio <= 0.7 else "поровну")
+                if nums["after_harvest"] == "откат без раздачи":
+                    why.append(f"откат без раздачи (оборот после сбора ×{_ratio:.2f})")
+                elif nums["after_harvest"] == "раздали":
+                    why.append(f"раздали после сбора (оборот ×{_ratio:.2f})")
     # РЕЖИМ ХОДА (07.09, владелец: FLOCK против BULLA) — в день сбора интерес рос вместе с ценой
     # («поднять и трясти», лестница: тряска — место покупки) или рухнул («поднять много и резко»,
     # парабола на выносе шортов: первая тряска — выход). Считаем по дню сбора: OI дня к OI накануне.
@@ -588,7 +632,10 @@ def build(only: list[str] | None = None) -> dict:
                                 else ("продажа вверху " + _bs[-1]) if _tv.get("bubble_down")
                                 else (f"поглощён ×{_tv.get('absorbed')}") if _tv.get("absorbed")
                                 else "тихо",
-                      "at_target": _tv.get("at_target"), "move_paid": _tv.get("move_paid")}
+                      "at_target": _tv.get("at_target"), "move_paid": _tv.get("move_paid"),
+                      # откат без раздачи / раздали — признак наблюдения (08.09), в балл пока не идёт
+                      "after_harvest": v.get("nums", {}).get("after_harvest"),
+                      "after_harvest_vol": v.get("nums", {}).get("after_harvest_vol")}
         # ── 1. КОНЧИЛОСЬ — ВОН ИЗ ОЧЕРЕДИ (08.09, владелец: «отделять монеты, которые точно пойдут,
         # от тех, что уже выпадают»): было событие конца по барам и интерес после него не растёт —
         # монета не участвует в отборе вовсе, пока интерес не пойдёт вверх вместе с ценой.
@@ -719,6 +766,7 @@ def log_queue(res: dict) -> int:
             "today": q.get("today"), "bubble": q.get("bubble"), "move_pct": q.get("px_chg_pct"),
             "stage": q.get("stage"), "out_reason": q.get("out_reason"),
             "size": q.get("size"), "hold_reason": q.get("hold_reason"),
+            "after_harvest": q.get("after_harvest"), "after_harvest_vol": q.get("after_harvest_vol"),
             # карточки пузырей и плечо к цене (07.09) — сырьём в журнал, выводы делает считалка
             "move_paid": (v.get("today") or {}).get("move_paid"),
             "paid_ratio": (v.get("today") or {}).get("paid_ratio"),

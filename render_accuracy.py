@@ -9,8 +9,9 @@
 и при входе в конкретный час нужно показывать, какие монеты из первых, сколько ушли по цене».
 Плюс 07.09: «при заходе в часы показывать, какой рынок открыт, идёт, скоро закроется».
 
-Данные — output/forecast_score.json (три границы, MFE и MAE, кривая затухания, разрезы по фону)
-и output/market_bg.jsonl (фон на момент: risk on, биткоин, состояние рынков). Ничего не считает
+Данные — output/entries_score.json (08.09: ТОЛЬКО заходы в первые и в очередь, а не смены шаблонов
+по всей доске) и output/market_bg.jsonl (фон на момент: risk on, биткоин, состояние рынков)
+Ничего не считает
 сам: если считалка не отработала, экран покажет, что журнал пуст, и не соврёт числами.
 
 Сбылось = цена дошла до ближайшей полосы СВЕРХУ раньше, чем до полосы снизу и раньше срока
@@ -94,269 +95,242 @@ def _markets(b: dict) -> list[list]:
 
 
 def build_data() -> dict:
-    sc = _read(OUTD / "forecast_score.json") or {}
-    bgs = _bg_rows()
-    items = sc.get("items") or []
-    days, hours, coins = [], {}, {}
-    for d in sc.get("days_list") or []:
-        b = _bg_for(bgs, d["d"])
-        try:
-            dow = DOW[datetime.strptime(d["d"], "%Y-%m-%d").weekday()]
-        except ValueError:
-            dow = ""
-        days.append({"d": d["d"], "dow": dow, "n": d.get("n", 0), "ok": d.get("ok", 0),
-                     "mfe": d.get("mfe_med"), "mae": d.get("mae_med"), "bg": _bg_text(b)})
-    for h in sc.get("hours_list") or []:
-        day, hh = h["h"][:10], h["h"][11:13] + ":00"
-        b = _bg_for(bgs, h["h"])
-        hours.setdefault(day, []).append({"h": hh, "n": h.get("n", 0), "ok": h.get("ok", 0),
-                                          "bg": _bg_text(b), "mk": _markets(b)})
-    for x in items:
-        key = f"{x['at'][:10]} {x['at'][11:13]}:00"
-        why = (x.get("tpl") or "")
-        if x.get("hit"):
-            why += f" · {x['hit']}" + (f" через {x['hit_h']} ч" if x.get("hit_h") else "")
-        coins.setdefault(key, []).append({
-            "s": x["sym"].replace("USDT", ""), "p": x.get("place") or "—",
-            "px": f"{x['px']:.6g}", "later": x.get("end", 0.0), "ok": bool(x.get("ok")),
-            "mfe": x.get("mfe"), "mae": x.get("mae"), "why": why})
-    for k in coins:
-        coins[k].sort(key=lambda c: (c["p"] if isinstance(c["p"], int) else 99))
-    a = sc.get("all") or {}
-    curve = [[float(k), v["med"]] for k, v in (a.get("curve") or {}).items()]
-    cuts = []
-    for name, grp in (sc.get("cuts") or {}).items():
-        for k, v in grp.items():
-            if v.get("n"):
-                cuts.append([f"{k}", f"{v['ok_pct']}% из {v['n']}"])
-    summ = {"n": a.get("n", 0), "ok": a.get("ok", 0), "ok_pct": a.get("ok_pct", 0),
-            "went": a.get("went_pct", 0), "mfe": a.get("mfe_med"), "mae": a.get("mae_med"),
-            "ratio": a.get("mfe_mae"), "enough": bool(a.get("enough")),
-            "curve": curve, "best": float(a["best_h"]) if a.get("best_h") else None,
-            "cuts": cuts[:12]}
-    return {"days": days, "hours": hours, "coins": coins, "sum": summ,
-            "at": datetime.now(timezone.utc).strftime("%d.%m %H:%M UTC")}
+    """ПО ДНЯМ — МОНЕТЫ, ПОБЫВАВШИЕ В ПЕРВЫХ (08.09, владелец: «куча бесполезной информации,
+    которая имеет смысл только для расчётов; нужно в плашках по дням показывать монеты, которые
+    были в первых, их максимальную и минимальную цену за день, и на каких позициях они были в
+    течение дня — примерно так 1→3→2→1; если выпала из очереди вообще, то точное время, и это
+    будет конец прогноза»).
+
+    Ничего не считаем сами: путь по местам берём из ленты очереди, цены — из внутридневного архива.
+    Кривые, MFE, MAE, разрезы по фону остаются в entries_score.json для расчётов, на экран не идут.
+    """
+    q = [r for r in _jsonl(OUTD / "queue_log.jsonl") if r.get("at") and r.get("sym")]
+    q.sort(key=lambda r: (str(r.get("at")), r.get("place") or 99))
+    runs = sorted({r["at"] for r in q})
+    by_run: dict[str, dict] = {}
+    for r in q:
+        by_run.setdefault(r["at"], {})[r["sym"]] = r
+
+    # по дням: кто был в первых хоть раз
+    days_map: dict[str, dict] = {}
+    for t in runs:
+        day = t[:10]
+        d = days_map.setdefault(day, {})
+        for sym, row in by_run[t].items():
+            pl = row.get("place")
+            if not pl:
+                continue
+            e = d.setdefault(sym, {"path": [], "times": [], "first": t, "px_in": row.get("px"),
+                                   "top": False, "gone": None})
+            if not e["path"] or e["path"][-1] != pl:
+                e["path"].append(pl)
+                e["times"].append(t)
+            if pl <= 3:
+                e["top"] = True
+        # кто был в прошлом прогоне и пропал — конец прогноза
+        prev = runs[runs.index(t) - 1] if runs.index(t) else None
+        if prev and prev[:10] == day:
+            for sym in by_run[prev]:
+                if sym not in by_run[t] and sym in d and not d[sym]["gone"]:
+                    d[sym]["gone"] = t
+
+    days = []
+    for day in sorted(days_map, reverse=True):
+        coins = []
+        for sym, e in days_map[day].items():
+            if not e["top"]:
+                continue
+            bars = [r for r in _bars(sym) if str(r.get("candle", ""))[:10] == day and r.get("px")]
+            pxs = [r["px"] for r in bars]
+            lo = min(pxs) if pxs else None
+            hi = max(pxs) if pxs else None
+            now = pxs[-1] if pxs else None
+            coins.append({
+                "s": sym.replace("USDT", ""),
+                "path": " → ".join(str(p) for p in e["path"]),
+                "best": min(e["path"]),
+                "in_at": e["first"][11:16],
+                "px": e["px_in"],
+                "lo": lo, "hi": hi, "now": now,
+                "up": round((hi / e["px_in"] - 1) * 100, 1) if (hi and e["px_in"]) else None,
+                "dn": round((lo / e["px_in"] - 1) * 100, 1) if (lo and e["px_in"]) else None,
+                "end": round((now / e["px_in"] - 1) * 100, 1) if (now and e["px_in"]) else None,
+                "gone": e["gone"][11:16] if e["gone"] else None,
+            })
+        coins.sort(key=lambda c: (c["best"], c["in_at"]))
+        if coins:
+            try:
+                dow = DOW[datetime.strptime(day, "%Y-%m-%d").weekday()]
+            except ValueError:
+                dow = ""
+            days.append({"d": day, "dow": dow, "coins": coins})
+    return {"days": days, "at": datetime.now(timezone.utc).strftime("%d.%m %H:%M")}
+
+
+def _bars(sym: str) -> list[dict]:
+    p = BASE_DIR / "cq_v2" / "intraday" / f"{sym.replace('USDT', '').lower()}.jsonl"
+    rows = _jsonl(p)
+    rows.sort(key=lambda r: str(r.get("candle") or ""))
+    return rows
+
+
+def _jsonl(path: Path) -> list[dict]:
+    out: list[dict] = []
+    try:
+        for line in path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                out.append(json.loads(line))
+            except ValueError:
+                continue
+    except OSError:
+        pass
+    return out
 
 
 CSS = """
-:root{--ink:#1d2a36;--mid:#5d7285;--dim:#98abbb;--up:#12a17c;--dn:#e0644c}
+/* СТЕКЛО (08.09, референс владельца — набор стеклянных элементов на тёмном): матовое стекло с
+   размытием фона, светящаяся кромка по краю, диагональный блик по верхней грани, цветное зарево
+   позади карточки и его отражение под ней. Никаких плоских заливок и рамок в одну линию. */
+:root{--ink:#e6eefa;--mid:#93a7bd;--dim:#63768c;--up:#4fe3b8;--dn:#ff9078;--acc:#6fb4ff;--vio:#a98cff;
+  --glass:linear-gradient(150deg,rgba(255,255,255,.10) 0%,rgba(255,255,255,.035) 38%,rgba(255,255,255,.015) 60%,rgba(0,0,0,.16) 100%);
+  --edge:inset 0 0 0 1px rgba(255,255,255,.10);
+  --lift:0 26px 50px rgba(0,0,0,.60),0 6px 16px rgba(0,0,0,.42)}
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%;color:var(--ink);font-family:Inter,system-ui,sans-serif;font-weight:300;
- -webkit-font-smoothing:antialiased;overflow-x:hidden;
- background:radial-gradient(50% 40% at 15% 0%,#e9f0fb 0,transparent 60%),
-  radial-gradient(45% 40% at 88% 6%,#efe9fb 0,transparent 62%),
-  radial-gradient(60% 50% at 50% 110%,#dfe6f3 0,transparent 70%),
-  linear-gradient(170deg,#f2f5fb 0%,#e7ecf6 55%,#dde4f1 100%);background-attachment:fixed}
-.wrap{max-width:880px;margin:0 auto;padding:38px 20px 70px}
-.plate{position:relative;border-radius:30px;padding:22px 20px 18px;
- background:linear-gradient(160deg,#fdfeff,#eef2f9 60%,#e7edf7);
- box-shadow:20px 24px 54px rgba(120,140,175,.30),-14px -16px 40px rgba(255,255,255,.95),inset 0 1px 0 rgba(255,255,255,.9);
- animation:rise .5s cubic-bezier(.2,.8,.2,1) both}
-@keyframes rise{from{opacity:0;transform:translateY(14px) scale(.99)}}
-.head{display:flex;align-items:center;gap:12px;padding:4px 8px 16px}
-h1{margin:0;font-size:17px;font-weight:600;letter-spacing:-.02em}
-.crumbs{font-size:12px;color:var(--mid)}.crumbs a{color:#4676c8;text-decoration:none;cursor:pointer}
-.crumbs a:hover{text-decoration:underline}
-.back{margin-left:auto;font-size:11.5px;padding:9px 16px;border-radius:999px;cursor:pointer;color:#31465c;
- background:linear-gradient(160deg,#fff,#eaf0f8);box-shadow:5px 6px 12px rgba(120,140,175,.28),-4px -5px 10px rgba(255,255,255,.95);
- transition:transform .15s,box-shadow .15s}
-.back:active{transform:translateY(1px);box-shadow:inset 3px 4px 8px rgba(120,140,175,.3),inset -3px -3px 7px rgba(255,255,255,.9)}
-.back[hidden]{display:none}
-.tabs{display:flex;gap:10px;padding:0 8px 14px}
-.tab{position:relative;font-size:12px;padding:10px 18px;border-radius:999px;color:#5d7285;
- background:linear-gradient(160deg,#fff,#e9eef7);box-shadow:5px 6px 12px rgba(120,140,175,.25),-4px -5px 10px rgba(255,255,255,.95)}
-.tab.on{color:#fff;background:linear-gradient(160deg,#38455c,#1e2735)}
-.tab.on::after{content:"";position:absolute;left:22%;right:22%;bottom:-7px;height:8px;border-radius:999px;
- background:var(--c,#5aa6ff);filter:blur(7px);opacity:.85}
-.sum{display:grid;grid-template-columns:1fr 1fr 1fr 1.5fr;gap:12px;margin:0 0 14px}
-.box{padding:14px 16px;border-radius:18px;background:linear-gradient(160deg,#fdfeff,#eef2f9);
- box-shadow:7px 8px 16px rgba(120,140,175,.2),-6px -7px 14px rgba(255,255,255,.95);animation:pop .34s cubic-bezier(.2,.8,.2,1) both}
-.box u{display:block;text-decoration:none;font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
-.box em{font-style:normal;font-size:26px;font-weight:200;letter-spacing:-.02em;color:#1d2a36}
-.box em s{text-decoration:none;font-size:.5em;color:var(--dim)}
-.box p{margin:6px 0 0;font-size:11px;color:var(--mid)}
-.curve{position:relative;height:56px;margin-top:4px}
-.curve svg{width:100%;height:100%;overflow:visible}
-.curve .ln{fill:none;stroke:url(#cg);stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;
- filter:drop-shadow(0 2px 6px rgba(60,140,220,.45));stroke-dasharray:var(--l);stroke-dashoffset:var(--l);
- animation:draw 1.1s .15s cubic-bezier(.2,.8,.2,1) forwards}
-@keyframes draw{to{stroke-dashoffset:0}}
-.curve .pk{fill:#fff;stroke:#12a17c;stroke-width:2.5;filter:drop-shadow(0 0 8px rgba(18,161,124,.75));opacity:0;animation:show .4s 1.05s forwards}
-@keyframes show{to{opacity:1}}
-.curve .xl{font-size:8.5px;fill:#98abbb;letter-spacing:.08em}
-.cuts{display:flex;flex-wrap:wrap;gap:8px;margin:2px 0 14px}
-.cut{font-size:11px;padding:8px 12px;border-radius:14px;color:#41566c;background:linear-gradient(160deg,#fff,#eaeff8);
- box-shadow:4px 5px 10px rgba(120,140,175,.2),-3px -4px 8px rgba(255,255,255,.95)}
-.cut b{font-weight:500;color:#1d2a36}.cut i{font-style:normal;color:var(--dim)}
-.list{display:flex;flex-direction:column;gap:8px}
-.r{display:grid;align-items:center;gap:12px;padding:14px;border-radius:18px;cursor:pointer;
- background:linear-gradient(160deg,#fdfeff,#eef2f9);
- box-shadow:7px 8px 16px rgba(120,140,175,.22),-6px -7px 14px rgba(255,255,255,.95);
- transition:transform .18s cubic-bezier(.2,.8,.2,1),box-shadow .18s;animation:pop .34s cubic-bezier(.2,.8,.2,1) both}
-@keyframes pop{from{opacity:0;transform:translateY(10px)}}
-.r:hover{transform:translateY(-2px);box-shadow:10px 12px 22px rgba(120,140,175,.26),-7px -8px 16px rgba(255,255,255,1)}
-.r:active{transform:translateY(0);box-shadow:inset 4px 5px 10px rgba(120,140,175,.28),inset -4px -4px 9px rgba(255,255,255,.9)}
-.r.h{cursor:default;background:none;box-shadow:none;padding:2px 16px;font-size:10px;letter-spacing:.22em;
- text-transform:uppercase;color:var(--dim);animation:none}
-.r.h:hover{transform:none;box-shadow:none}
-.days .r,.days .r.h{grid-template-columns:130px 1fr 104px}
-.hours .r,.hours .r.h{grid-template-columns:92px 1fr 104px}
-.coins .r,.coins .r.h{grid-template-columns:112px 46px 1fr 96px 88px}
-.k{font-weight:500;color:#1d2a36}
-.k small{display:block;font-weight:300;font-size:11px;color:var(--dim);letter-spacing:.03em;margin-top:2px}
-.num{text-align:right;font-variant-numeric:tabular-nums}
-.up{color:var(--up)}.dn{color:var(--dn)}.mut{color:var(--dim)}
-.vial{position:relative;height:14px;border-radius:999px;overflow:hidden;background:#e7ecf5;
- box-shadow:inset 3px 4px 8px rgba(120,140,175,.4),inset -2px -2px 5px rgba(255,255,255,.9)}
-.vial i{position:absolute;left:0;top:0;bottom:0;width:0;border-radius:999px;
- background:linear-gradient(90deg,#31c8a0,#12a17c);box-shadow:0 0 14px rgba(18,161,124,.55);
- transition:width .9s cubic-bezier(.2,.8,.2,1)}
-.vial i.mid{background:linear-gradient(90deg,#f5c173,#e39b3f);box-shadow:0 0 14px rgba(227,155,63,.5)}
-.vial i.bad{background:linear-gradient(90deg,#f0937f,#e0644c);box-shadow:0 0 14px rgba(224,100,76,.45)}
-.bg{font-size:11px;color:var(--mid);margin-top:7px}.bg b{font-weight:500;color:#33475a}
-.mk{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
-.m{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;color:#5d7285;padding:5px 10px;border-radius:999px;
- background:linear-gradient(160deg,#fff,#eaeff8);box-shadow:3px 4px 8px rgba(120,140,175,.2),-3px -3px 7px rgba(255,255,255,.95)}
-.m u{text-decoration:none;color:#93a8b8}.m s{text-decoration:none;width:7px;height:7px;border-radius:50%;background:#c9d4e0}
-.m.on s{background:#12a17c;box-shadow:0 0 8px rgba(18,161,124,.8);animation:beat 2.2s ease-in-out infinite}
-.m.soon s{background:#e39b3f;box-shadow:0 0 8px rgba(227,155,63,.85);animation:beat 1.1s ease-in-out infinite}
-.m.on{color:#22323d}
-@keyframes beat{50%{transform:scale(.72);opacity:.55}}
-.ex{display:inline-flex;gap:8px;margin-left:10px;font-size:10.5px;vertical-align:middle}
-.ex s{text-decoration:none;padding:3px 8px;border-radius:999px;background:#eef3fa;
- box-shadow:inset 2px 2px 5px rgba(120,140,175,.28),inset -2px -2px 4px rgba(255,255,255,.9)}
-.ex s.p{color:#0f7a5e}.ex s.m{color:#c0442c}
-.place{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-size:12.5px;color:#41566c;
- background:linear-gradient(160deg,#fff,#e9eef7);box-shadow:4px 5px 10px rgba(120,140,175,.28),-3px -4px 8px rgba(255,255,255,.95)}
-.place.top{color:#0c7a5e;background:linear-gradient(160deg,#fff,#dcf3ec)}
-.tick{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:7px;vertical-align:middle}
-.tick.y{background:#12a17c;box-shadow:0 0 9px rgba(18,161,124,.8)}
-.tick.n{background:#e0644c;box-shadow:0 0 9px rgba(224,100,76,.7)}
-.note{margin:16px 10px 2px;font-size:11px;color:var(--dim)}
-.empty{padding:18px;font-size:12.5px;color:var(--mid)}
-@media (max-width:640px){
- .sum{grid-template-columns:1fr 1fr}
- .days .r,.days .r.h{grid-template-columns:96px 1fr 78px}
- .hours .r,.hours .r.h{grid-template-columns:66px 1fr 78px}
- .coins .r,.coins .r.h{grid-template-columns:86px 40px 1fr 70px}
- .hide{display:none}}
-@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+ -webkit-font-smoothing:antialiased;
+ background:
+  radial-gradient(60% 46% at 8% -10%,rgba(60,140,255,.20) 0,transparent 60%),
+  radial-gradient(54% 44% at 94% 0%,rgba(150,90,255,.18) 0,transparent 62%),
+  radial-gradient(80% 55% at 50% 112%,rgba(40,110,180,.16) 0,transparent 70%),
+  linear-gradient(168deg,#161b24 0%,#12161f 55%,#0e1219 100%);background-attachment:fixed}
+.wrap{max-width:1060px;margin:0 auto;padding:26px 18px 60px}
+.head{display:flex;align-items:baseline;gap:14px;padding:2px 6px 20px}
+.head h1{margin:0;font-size:12px;font-weight:300;letter-spacing:.34em;text-transform:uppercase;color:#e2edfb;
+ text-shadow:0 0 24px rgba(140,190,255,.4)}
+.head s{text-decoration:none;font-size:10px;color:var(--dim);letter-spacing:.12em}
+.head .back{margin-left:auto;font-size:10px;letter-spacing:.18em;color:#cfe0f5;text-decoration:none;
+ padding:9px 17px;border-radius:999px;background:var(--glass);backdrop-filter:blur(14px);
+ box-shadow:var(--edge),0 10px 22px rgba(0,0,0,.5)}
+
+/* вкладки — стеклянная гряда, активная светится изнутри голубым */
+.tabs{display:flex;gap:10px;margin-bottom:22px;overflow-x:auto;scrollbar-width:none;padding:4px}
+.tabs::-webkit-scrollbar{display:none}
+.tab{position:relative;flex:none;cursor:pointer;padding:11px 19px;border-radius:16px;font-size:11.5px;
+ letter-spacing:.1em;color:var(--mid);background:var(--glass);backdrop-filter:blur(14px);
+ box-shadow:var(--edge),0 12px 24px rgba(0,0,0,.5);transition:.25s;white-space:nowrap;overflow:hidden}
+.tab:before{content:'';position:absolute;inset:0 0 55% 0;
+ background:linear-gradient(160deg,rgba(255,255,255,.16),transparent 70%);pointer-events:none}
+.tab b{font-weight:400;color:#e2edfb;margin-right:8px}
+.tab.on{color:#f2f8ff;background:linear-gradient(150deg,rgba(110,180,255,.34),rgba(120,90,220,.16));
+ box-shadow:var(--edge),0 0 34px rgba(110,175,255,.42),0 14px 26px rgba(0,0,0,.5)}
+.tab.on b{color:#fff}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:20px}
+/* карточка — матовое стекло: зарево позади, блик по верхней грани, светящаяся кромка */
+.coin{position:relative;border-radius:24px;padding:20px 22px 17px;
+ background:var(--glass);backdrop-filter:blur(18px) saturate(115%);
+ box-shadow:var(--edge),var(--lift);isolation:isolate}
+.coin:before{content:'';position:absolute;inset:-2px;border-radius:26px;z-index:-2;filter:blur(22px);opacity:.5;
+ background:linear-gradient(140deg,var(--c,#6fb4ff),transparent 55%,var(--vio))}
+.coin:after{content:'';position:absolute;inset:1px 1px 62% 1px;border-radius:23px;pointer-events:none;
+ background:linear-gradient(158deg,rgba(255,255,255,.18) 0%,rgba(255,255,255,.05) 45%,transparent 100%)}
+.coin.up{--c:#4fe3b8}.coin.down{--c:#ff9078}.coin.flat{--c:#7fa0c4}
+.c1{position:relative;display:flex;align-items:baseline;gap:11px;z-index:1}
+.c1 h3{margin:0;font-size:21px;font-weight:200;letter-spacing:.16em;color:#f4f9ff;
+ text-shadow:0 0 26px rgba(160,205,255,.5)}
+.c1 s{text-decoration:none;font-size:10px;color:var(--dim);letter-spacing:.16em}
+.c1 em{margin-left:auto;font-style:normal;font-size:27px;font-weight:200;letter-spacing:-.01em;
+ font-variant-numeric:tabular-nums;color:var(--c);text-shadow:0 0 28px var(--c)}
+.trail{position:relative;z-index:1;margin:15px 0 4px;font-size:12.5px;color:#9db1c7;
+ font-variant-numeric:tabular-nums;white-space:nowrap;overflow-x:auto;scrollbar-width:none}
+.trail::-webkit-scrollbar{display:none}
+.trail i{font-style:normal;color:#3b4c62;margin:0 6px}
+.trail b{font-weight:400;color:#eef5ff;text-shadow:0 0 14px rgba(160,205,255,.45)}
+.trail u{text-decoration:none;color:var(--dn);text-shadow:0 0 14px rgba(255,144,120,.65)}
+/* полоса дня — стеклянная трубка со светом внутри */
+.bar{position:relative;z-index:1;height:8px;border-radius:999px;margin:17px 0 12px;
+ background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(255,255,255,.04));
+ box-shadow:inset 0 2px 6px rgba(0,0,0,.8),inset 0 -1px 0 rgba(255,255,255,.09)}
+.bar i{position:absolute;top:0;bottom:0;border-radius:999px;
+ background:linear-gradient(90deg,rgba(140,175,215,.3),var(--c));box-shadow:0 0 18px var(--c);opacity:.8}
+.bar u{position:absolute;top:-5px;width:2px;height:18px;border-radius:2px;background:#bacfe6;opacity:.8}
+.bar em{position:absolute;top:-6px;width:11px;height:20px;border-radius:5px;background:var(--c);
+ box-shadow:0 0 22px var(--c),0 0 48px var(--c),inset 0 1px 0 rgba(255,255,255,.5);transform:translateX(-5px)}
+.nums{position:relative;z-index:1;display:flex;flex-wrap:wrap;gap:16px;font-size:10.5px;color:var(--mid);
+ font-variant-numeric:tabular-nums}
+.nums b{font-weight:400;color:#d6e5f7}
+.nums .u{color:var(--up)}.nums .d{color:var(--dn)}
+.empty{padding:60px 10px;text-align:center;color:var(--dim);font-size:11.5px;letter-spacing:.16em}
+@media(max-width:640px){.grid{grid-template-columns:1fr}.c1 em{font-size:23px}}
 """
 
-JS = """
-const pct=(o,n)=>n?Math.round(o/n*100):0;
-const cls=p=>p>=60?'':p>=35?'mid':'bad';
-const vial=(o,n)=>`<div class="vial"><i class="${cls(pct(o,n))}" data-w="${pct(o,n)}"></i></div>`;
-const view=document.getElementById('view'),crumbs=document.getElementById('crumbs'),
-      back=document.getElementById('back'),note=document.getElementById('note'),tabs=document.getElementById('tabs'),
-      sumEl=document.getElementById('sum'),cutsEl=document.getElementById('cuts');
-const stagger=()=>[...view.querySelectorAll('.r')].forEach((el,i)=>el.style.animationDelay=(i*45)+'ms');
-const fill=()=>requestAnimationFrame(()=>setTimeout(()=>view.querySelectorAll('.vial i').forEach(i=>i.style.width=i.dataset.w+'%'),90));
-const markets=mk=>!mk||!mk.length?'':`<div class="mk">`+mk.map(([n,st,left,c])=>
-  `<div class="m ${c}"><s></s>${n}<u>${st}${left?` · ${left} ч`:''}</u></div>`).join('')+`</div>`;
-function setTabs(l){const t=[['дни','#5aa6ff'],['часы','#f0a94a'],['монеты','#f2607f']];
-  tabs.innerHTML=t.map(([n,c],i)=>`<div class="tab ${i===l?'on':''}" style="--c:${c}">${n}</div>`).join('');}
-function drawSum(){
-  const S=DATA.sum;
-  if(!S.n){sumEl.innerHTML='<div class="empty">журнал пуст: считалка ещё не отработала или нет прогнозов за период</div>';
-    cutsEl.innerHTML='';return;}
-  let curveHtml='';
-  if(S.curve&&S.curve.length>1){
-    const w=260,h=44,xs=S.curve.map(c=>c[0]),ys=S.curve.map(c=>c[1]);
-    const lx=Math.log(Math.min(...xs)),rx=Math.log(Math.max(...xs)),lo=Math.min(...ys),hi=Math.max(...ys);
-    const px=v=>((Math.log(v)-lx)/((rx-lx)||1))*w,py=v=>h-((v-lo)/((hi-lo)||1))*h;
-    const pts=S.curve.map(([x,y])=>[px(x),py(y)]);
-    const d=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
-    const bi=Math.max(0,S.curve.findIndex(c=>c[0]===S.best)),bp=pts[bi];
-    curveHtml=`<div class="curve"><svg viewBox="-6 -8 ${w+30} ${h+22}" preserveAspectRatio="none">
-      <defs><linearGradient id="cg" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#8fc6f5"/><stop offset="1" stop-color="#12a17c"/></linearGradient></defs>
-      <path class="ln" d="${d}" style="--l:${w*1.6}"/>
-      <circle class="pk" cx="${bp[0].toFixed(1)}" cy="${bp[1].toFixed(1)}" r="4.5"/>
-      ${S.curve.map(([x],i)=>`<text class="xl" x="${pts[i][0].toFixed(1)}" y="${h+14}" text-anchor="middle">${x}ч</text>`).join('')}
-    </svg></div>`;}
-  sumEl.innerHTML=`<div class="sum">
-    <div class="box"><u>сбылось</u><em>${S.ok_pct}<s>%</s></em><p>${S.ok} из ${S.n}${S.enough?'':' · мало для статистики'}</p></div>
-    <div class="box"><u>пошли в нашу сторону</u><em>${S.went}<s>%</s></em><p>хоть немного двинулись</p></div>
-    <div class="box"><u>MFE / MAE</u><em>${S.ratio??'—'}</em><p>лучший ход ${S.mfe??'—'}% · просадка ${S.mae??'—'}%</p></div>
-    <div class="box"><u>кривая затухания${S.best?` · пик ${S.best} ч`:''}</u>${curveHtml}</div></div>`;
-  cutsEl.innerHTML=(S.cuts||[]).map(([k,v])=>`<div class="cut"><b>${k}</b> <i>${v}</i></div>`).join('');
-}
-function days(){
-  setTabs(0);crumbs.textContent='по дням';back.hidden=true;view.className='list days';
-  drawSum();sumEl.style.display='';cutsEl.style.display='';
-  view.innerHTML=`<div class="r h"><div>день</div><div>сбылось</div><div class="num">из скольких</div></div>`+
-   (DATA.days.length?DATA.days.map(d=>`<div class="r" data-d="${d.d}">
-     <div class="k">${d.d.slice(8)}.${d.d.slice(5,7)}<small>${d.dow}</small></div>
-     <div>${vial(d.ok,d.n)}<div class="bg">${d.bg}${d.mfe!==null&&d.mfe!==undefined?`<span class="ex"><s class="p">MFE ${d.mfe>0?'+':''}${d.mfe}%</s><s class="m">MAE ${d.mae}%</s></span>`:''}</div></div>
-     <div class="num k">${pct(d.ok,d.n)}%<small>${d.ok} из ${d.n}</small></div></div>`).join('')
-    :`<div class="empty">дней в журнале нет</div>`);
-  note.textContent='сбылось — цена дошла до ближайшей полосы сверху раньше, чем до полосы снизу и раньше срока';
-  view.querySelectorAll('.r[data-d]').forEach(el=>el.onclick=()=>hours(el.dataset.d));
-  stagger();fill();
-}
-function hours(d){
-  setTabs(1);crumbs.innerHTML=`<a id="toDays">по дням</a> · ${d}`;back.hidden=false;view.className='list hours';
-  sumEl.style.display='none';cutsEl.style.display='none';
-  const rows=DATA.hours[d]||[];
-  view.innerHTML=`<div class="r h"><div>час</div><div>сбылось</div><div class="num">из скольких</div></div>`+
-   (rows.length?rows.map(h=>`<div class="r" data-h="${h.h}">
-     <div class="k">${h.h}</div>
-     <div>${vial(h.ok,h.n)}<div class="bg">${h.bg}</div>${markets(h.mk)}</div>
-     <div class="num k">${pct(h.ok,h.n)}%<small>${h.ok} из ${h.n}</small></div></div>`).join('')
-    :`<div class="empty">за этот день часов в журнале нет</div>`);
-  note.textContent='фон и рынки в строке — состояние на этот час';
-  document.getElementById('toDays').onclick=days;
-  view.querySelectorAll('.r[data-h]').forEach(el=>el.onclick=()=>coins(d,el.dataset.h));
-  back.onclick=days;stagger();fill();
-}
-function coins(d,h){
-  setTabs(2);crumbs.innerHTML=`<a id="toDays">по дням</a> · <a id="toHours">${d}</a> · ${h}`;
-  view.className='list coins';sumEl.style.display='none';cutsEl.style.display='none';
-  const rows=DATA.coins[`${d} ${h}`]||[];
-  view.innerHTML=`<div class="r h"><div>монета</div><div>место</div><div>прогноз</div><div class="num">цена</div><div class="num">ушла</div></div>`+
-   (rows.length?rows.map(c=>`<div class="r">
-     <div class="k"><span class="tick ${c.ok?'y':'n'}"></span>${c.s}<small>${c.ok?'сбылось':'не сбылось'}</small></div>
-     <div><span class="place ${c.p!=='—'&&c.p<=3?'top':''}">${c.p}</span></div>
-     <div class="bg" style="margin-top:0">${c.why}<span class="ex"><s class="p">MFE ${c.mfe>0?'+':''}${c.mfe}%</s><s class="m">MAE ${c.mae}%</s></span></div>
-     <div class="num k">${c.px}</div>
-     <div class="num k ${c.later>0?'up':'dn'}">${c.later>0?'+':''}${(c.later||0).toFixed(1)}%</div></div>`).join('')
-    :`<div class="empty">за этот час монет в журнале нет</div>`);
-  note.textContent='«ушла» — ход цены от точки прогноза · первые три места подсвечены';
-  document.getElementById('toDays').onclick=days;
-  document.getElementById('toHours').onclick=()=>hours(d);
-  back.onclick=()=>hours(d);stagger();
-}
-days();
-"""
+
+def _n(v) -> str:
+    """Цена как число, а не как пусто: архив может не иметь баров по монете за этот день."""
+    return f"{v:.6g}" if isinstance(v, (int, float)) else "—"
+
+
+def _pos(v, lo, hi) -> float:
+    """Где значение между минимумом и максимумом дня, в процентах ширины полосы."""
+    if not all(isinstance(x, (int, float)) for x in (v, lo, hi)) or hi <= lo:
+        return 50.0
+    return max(0.0, min(100.0, (v - lo) / (hi - lo) * 100))
 
 
 def render_accuracy() -> str:
     data = build_data()
+    tabs, panes = [], []
+    for k, d in enumerate(data["days"]):
+        on = " on" if k == 0 else ""
+        tabs.append(f"<div class='tab{on}' data-i='{k}'><b>{d['d'][8:10]}.{d['d'][5:7]}</b>{d['dow']} · {len(d['coins'])}</div>")
+        cards = []
+        for c in d["coins"]:
+            end = c.get("end")
+            cls = "up" if (end or 0) > 1 else ("down" if (end or 0) < -1 else "flat")
+            etxt = ("+" if (end or 0) > 0 else "") + (f"{end}%" if end is not None else "—")
+            # лента мест: 2 → 2 → 5 → и время выхода последним звеном (08.09, владелец)
+            steps = [f"<b>{p}</b>" for p in c["path"].split(" → ")]
+            if c.get("gone"):
+                steps.append(f"<u>{c['gone']}</u>")
+            trail = "<i>→</i>".join(steps)
+            lo, hi, px, now = c.get("lo"), c.get("hi"), c.get("px"), c.get("now")
+            p_in, p_now = _pos(px, lo, hi), _pos(now, lo, hi)
+            left, width = min(p_in, p_now), abs(p_now - p_in)
+            up = f"<span class='u'>+{c['up']}%</span>" if c.get("up") is not None else "—"
+            dn = f"<span class='d'>{c['dn']}%</span>" if c.get("dn") is not None else "—"
+            cards.append(f"""    <div class="coin {cls}">
+      <div class="c1"><h3>{c['s']}</h3><s>{c['in_at']}</s><em>{etxt}</em></div>
+      <div class="trail">{trail}</div>
+      <div class="bar"><i style="left:{left:.1f}%;width:{width:.1f}%"></i>
+        <u style="left:{p_in:.1f}%"></u><em style="left:{p_now:.1f}%"></em></div>
+      <div class="nums"><span>вход <b>{_n(px)}</b></span><span>дно <b>{_n(lo)}</b></span>
+        <span>верх <b>{_n(hi)}</b></span><span>{up} {dn}</span></div>
+    </div>""")
+        panes.append(f"<div class='grid' data-i='{k}'{'' if k == 0 else ' hidden'}>{''.join(cards)}</div>")
+    body = ("<div class='tabs'>" + "".join(tabs) + "</div>" + "".join(panes)) if tabs \
+        else '<div class="empty">за это время в первых никого не было</div>'
     return f"""<!doctype html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>журнал прогнозов</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600&display=swap" rel="stylesheet">
+<title>журнал заходов</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400&display=swap" rel="stylesheet">
 <style>{CSS}</style>
 </head>
 <body>
-<div class="wrap"><div class="plate">
-  <div class="head">
-    <h1>Журнал прогнозов</h1>
-    <div class="crumbs" id="crumbs"></div>
-    <div class="back" id="back" hidden>назад</div>
-  </div>
-  <div class="tabs" id="tabs"></div>
-  <div id="sum"></div>
-  <div id="cuts" class="cuts"></div>
-  <div id="view" class="list"></div>
-  <div class="note" id="note"></div>
-</div></div>
+<div class="wrap">
+  <div class="head"><h1>Журнал заходов</h1><s>монеты, побывавшие в первых</s><a class="back" href="intro.html">← созвездие</a></div>
+{body}
+</div>
 <script>
-const DATA={json.dumps(data, ensure_ascii=False)};
-{JS}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));
+  document.querySelectorAll('.grid').forEach(g=>g.hidden=(g.dataset.i!==t.dataset.i));
+}});
 </script>
 </body>
 </html>"""
@@ -368,9 +342,8 @@ def main() -> int:
     a = ap.parse_args()
     html = render_accuracy()
     d = build_data()
-    s = d["sum"]
-    print(f"экран точности: дней {len(d['days'])} · часов {sum(len(v) for v in d['hours'].values())} · "
-          f"прогнозов {s['n']} · сбылось {s['ok_pct']}% · html {len(html)} байт")
+    n = sum(len(x["coins"]) for x in d["days"])
+    print(f"журнал заходов: дней {len(d['days'])} · монет в первых {n} · html {len(html)} байт")
     if a.write:
         p = REPORT_PATH.parent / "accuracy.html"
         p.parent.mkdir(parents=True, exist_ok=True)

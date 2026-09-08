@@ -201,6 +201,7 @@ def build(days: int = 7) -> dict:
                     "stage": row.get("stage"), "mode": row.get("mode"),
                     "engine": row.get("engine"), "bubble": row.get("bubble"),
                     "oi_to_px": row.get("oi_to_px"), "move_paid": row.get("move_paid"),
+                    "after_harvest": row.get("after_harvest"),
                     "runs": 0, "zones": None,
                     "bg": _bg_at(bgs, at) if at else {},
                 }
@@ -226,18 +227,37 @@ def build(days: int = 7) -> dict:
         e["hours"] = round(e["runs"] * 0.5, 1)
 
     def agg(items: list[dict]) -> dict:
+        """ДВА РАЗНЫХ СЧЁТА (08.09, владелец: «нужно чётко разделять — либо за день монета выросла,
+        либо была точка максимума от точки входа»):
+          · сбылось по закрытию — цена НА КОНЕЦ ДНЯ выше входа хотя бы на 2%: это то, что реально
+            осталось бы в позиции, если держать до вечера;
+          · сбылось по максимуму — от входа была ТОЧКА, где цена давала 2% и больше, даже если
+            потом всё вернулось: это то, что можно было взять, выйдя вовремя.
+        NAORIS 08.09: по максимуму +13.5% (сбылось), по закрытию +3.1% (нет). Разница между двумя
+        числами и есть цена выхода — сколько теряется на том, что не вышли на вершине.
+        """
         got = [x for x in items if x.get("mfe") is not None]
         if not got:
             return {"n": 0}
-        went = [x for x in got if (x.get("mfe") or 0) >= 2]
+        by_max = [x for x in got if (x.get("mfe") or 0) >= 2]
+        by_end = [x for x in got if (x.get("now_pct") or 0) >= 2]
         return {
             "n": len(got),
-            "пошли": len(went),
-            "доля": round(len(went) / len(got) * 100, 1),
+            # по максимуму: была ли точка, где давало от 2%
+            "по_максимуму": len(by_max),
+            "доля_максимум": round(len(by_max) / len(got) * 100, 1),
+            # по закрытию: осталось ли от 2% к концу дня
+            "по_закрытию": len(by_end),
+            "доля_закрытие": round(len(by_end) / len(got) * 100, 1),
+            # цена выхода — сколько теряется, если не выйти на вершине
+            "цена_выхода": round(statistics.median([(x.get("mfe") or 0) - (x.get("now_pct") or 0) for x in got]), 2),
             "mfe_med": round(statistics.median([x["mfe"] for x in got]), 2),
+            "end_med": round(statistics.median([(x.get("now_pct") or 0) for x in got]), 2),
             "mae_med": round(statistics.median([x["mae"] for x in got]), 2),
             "цель": sum(1 for x in got if x.get("hit") == "цель"),
             "стоп": sum(1 for x in got if x.get("hit") == "стоп"),
+            # совместимость со старыми полями
+            "пошли": len(by_max), "доля": round(len(by_max) / len(got) * 100, 1),
         }
 
     cuts: dict[str, dict] = {}
@@ -260,6 +280,8 @@ def build(days: int = 7) -> dict:
     cut("режим", lambda x: x.get("mode"))
     cut("двигатель", lambda x: x.get("engine"))
     cut("чем оплачен ход", lambda x: x.get("move_paid"))
+    # откат без раздачи (08.09): USELESS ×0.54 ожил, DOOD ×3.55 раздали — проверяем разрезом
+    cut("после сбора", lambda x: x.get("after_harvest"))
     # часы в группе пишем, но признаком пока не считаем: NAORIS 08.09 висел в первых почти 12 часов
     # и не пошёл, а SOPH 07.09 пошёл из очереди. Проверяем разрезом, а не правилом.
     cut("часов в группе", lambda x: "до 2 ч" if (x.get("hours") or 0) < 2 else ("2–6 ч" if x["hours"] < 6 else "больше 6 ч"))
@@ -294,8 +316,11 @@ def _print(r: dict) -> None:
         a = r[name]
         if not a.get("n"):
             continue
-        print(f"── {name}: {a['n']} заходов · пошли (лучший ход ≥2%) {a['пошли']} ({a['доля']}%) · "
-              f"MFE медиана {a['mfe_med']}% · MAE {a['mae_med']}% · цель {a['цель']} · стоп {a['стоп']}")
+        print(f"── {name}: {a['n']} заходов")
+        print(f"     по максимуму (была точка ≥2% от входа): {a['по_максимуму']} · {a['доля_максимум']}% · медиана {a['mfe_med']}%")
+        print(f"     по закрытию (осталось ≥2% к концу дня): {a['по_закрытию']} · {a['доля_закрытие']}% · медиана {a['end_med']}%")
+        print(f"     цена выхода (сколько теряется, если не выйти на вершине): {a['цена_выхода']}%")
+        print(f"     просадка медиана {a['mae_med']}% · цель {a['цель']} · стоп {a['стоп']}")
     print("\nразрезы (что различало):")
     for name, grp in r["cuts"].items():
         line = " · ".join(f"{k}: {v['доля']}% из {v['n']} (MFE {v['mfe_med']}%)"
