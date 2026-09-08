@@ -77,6 +77,16 @@ def _at_target(sym_usdt: str) -> bool:
     return "у цели" in str(r.get("plot") or "").lower()
 
 
+def _plot(sym_usdt: str) -> str:
+    """Словесный прогноз монеты из репутации — тот же, что видно на карточке и в сводке."""
+    try:
+        rep_ = json.loads((BASE_DIR / "output" / "reputation.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return ""
+    r = (rep_.get(sym_usdt) or rep_.get(sym_usdt.replace("USDT", "")) or {})
+    return str(r.get("plot") or "")
+
+
 def _today_bars(sym_usdt: str) -> dict | None:
     """СЕГОДНЯ ПО БАРАМ (06.09, случай FLOCK против 4/ZEN/UNI/CHIP): из внутридневного архива —
     дельта дня, ход интереса с первого бара, доминирующий тип часа. Это то, чего дневки не видят:
@@ -287,6 +297,23 @@ def _today_bars(sym_usdt: str) -> dict | None:
                 _role = "продолжение" if _dn else ("поглощён" if _up else "середина")
             else:
                 _role = "продолжение" if _up else ("поглощён" if _dn else "середина")
+        # ЧТО ДЕЛАЛ ИНТЕРЕС НА САМОМ БАРЕ ПУЗЫРЯ (08.09, разбор NAORIS и SOPH): пузырь — это факт,
+        # что кто-то отдал деньги рыночной заявкой. Но результат зависит от того, ОТКРЫЛИСЬ ли на
+        # этом позиции или об эти заявки ЗАКРЫЛИСЬ:
+        #   NAORIS 12:30 — покупка 112 тыс, интерес на баре −2.9%, тип «лонги закрывают»: покупали
+        #     не входящие, а выходящие шорты; после этого цена −1.1%;
+        #   SOPH 04:30 — покупка 5.41M, интерес +12.5%, «лонги открывают»: настоящий набор, после
+        #     +11.3% и держалось весь день;
+        #   SOPH 15:00 — продажа 3.35M, интерес −10.9%: об эти продажи закрывали лонги, дальше −20.8%.
+        # Отсюда РОЛЬ по интересу: «набрали» (интерес вырос) · «закрылись» (интерес упал) · «ровно».
+        _oi_bar = None
+        if i > 0:
+            _prev_oi = next((full[k].get("oi") for k in range(i - 1, -1, -1) if full[k].get("oi")), None)
+            _now_oi = r.get("oi")
+            if _prev_oi and _now_oi:
+                _oi_bar = round((_now_oi / _prev_oi - 1) * 100, 2)
+        _fill = None if _oi_bar is None else ("набрали" if _oi_bar >= 1.5 else
+                                              "закрылись" if _oi_bar <= -1.5 else "ровно")
         _vol = vols_d[i]
         _vr = (_vol / vol_med) if (vol_med and _vol) else None
         # «выбор» — оборот обычный (до полутора норм); «моментум» — всплеск оборота
@@ -294,6 +321,19 @@ def _today_bars(sym_usdt: str) -> dict | None:
         bubbles.append({
             "at": r["candle"][11:16], "side": "buy" if x > 0 else "sell", "usd": round(x, 0),
             "role": _role, "pos_pct": _pos, "vol_ratio": round(_vr, 2) if _vr else None, "how": _how,
+            "oi_bar_chg": _oi_bar, "fill": _fill, "bar_type": r.get("oi_type"),
+            # ЧТО ЭТО БЫЛО, ОДНОЙ ФРАЗОЙ (08.09, владелец: «покупки были, но об них закрывались, и
+            # такие пузыри нужно отображать иначе — как вчера у CL, где пузырь продаж был на дне и
+            # его вынесли»): сторона + место в дне + что стало с интересом.
+            "say": (
+                "набрали внизу" if (x > 0 and _pos <= 40 and _fill == "набрали") else
+                "об покупки закрылись" if (x > 0 and _fill == "закрылись") else
+                "покупку приняли наверху" if (x > 0 and _pos >= 70) else
+                "вынесли продавца" if (x < 0 and _pos <= 40 and _fill == "закрылись") else
+                "продажу приняли внизу" if (x < 0 and _pos <= 40 and _fill == "набрали") else
+                "продали наверху" if (x < 0 and _pos >= 70) else
+                ("покупка" if x > 0 else "продажа") + " в середине дня"
+            ),
             "to_up_pct": round((up[0] / p_ - 1) * 100, 2) if up else None,
             "to_dn_pct": round((dn[0] / p_ - 1) * 100, 2) if dn else None,
             "oi_bar_pct": round(((r.get("oi") or 0) / oi_prev - 1) * 100, 2) if oi_prev else None,
@@ -309,12 +349,52 @@ def _today_bars(sym_usdt: str) -> dict | None:
     # пузырь-ВЫБОР (покупка внизу дня на обычном обороте) — самый сильный вид: так выглядело дно
     # биткоина 11.06. Пузырь-моментум на всплеске оборота остаётся сигналом, но слабее.
     low_buy_choice = [b for b in low_buy if b.get("how") == "выбор"]
+    # ПУЗЫРИ НЕ ОТСЕКАЕМ, А ПОМЕЧАЕМ СОМНИТЕЛЬНЫЕ (08.09, владелец: «правку не применял; утром был
+    # хороший кейс на SOPH, где по всей длине шли зелёные пузыри на росте, и это не сломать; пузыри
+    # всё так же должны рисоваться, но сомнительный делать наполовину оранжевым — понятно, что
+    # покупки есть, но цель у них может быть другая»).
+    # Уверенность пузыря:
+    #   ясный      — интерес на баре вырос: на эти заявки ОТКРЫВАЛИ позиции (SOPH 04:30, +12.5%);
+    #   сомнительный — интерес упал или тип «лонги закрывают»: об заявки ЗАКРЫВАЛИСЬ (NAORIS 12:30);
+    #   обычный    — интерес не изменился заметно.
+    # В балл идут только ясные, но рисуются все — сомнительные своим цветом.
+    for _b in bubbles:
+        _b["sure"] = ("сомнительный" if (_b.get("fill") == "закрылись" or _b.get("bar_type") == "long_close")
+                      else "ясный" if _b.get("fill") == "набрали" else "обычный")
+    low_buy_sure = [b for b in low_buy if b.get("sure") != "сомнительный"]
+    low_buy_choice = [b for b in low_buy_choice if b.get("sure") == "ясный"]
     high_sell = [b for b in bubbles if b["side"] == "sell" and b.get("role") == "продолжение"]
     absorbed = [b for b in bubbles if b.get("role") == "поглощён"]
     # сигнал вверх — покупка внизу и не «у цели» (у цели рыночную покупку принимают в плиту);
     # сигнал вниз — продажа наверху; поглощённые балл не двигают, но пишутся в журнал
-    bubble_signal = bool(low_buy) and not at_target
+    bubble_signal = bool(low_buy_sure) and not at_target
     bubble_choice = bool(low_buy_choice) and not at_target
+
+    # ── ПУЗЫРИ ПРОТИВ ПРОГНОЗА (08.09, владелец: «свяжем логику пузырей с нашими прогнозами»).
+    # Прогноз — словесный шаблон репутации, он живёт на дневках и меняется редко. Пузыри — факт
+    # сегодняшнего дня. Сверяем их между собой и пишем согласие, ничего не отменяя:
+    #   подтверждают  — прогноз на рост, и последний заметный пузырь покупки был с набором;
+    #   против        — прогноз на рост, а пузыри дня либо продажи наверху, либо покупки, об
+    #                   которые закрывались (NAORIS 12:30: шаблон «тащит», а на баре −2.9% интереса);
+    #   молчат        — заметных пузырей нет или они спорные и слабые.
+    _plt = _plot(sym_usdt).lower()
+    _up_words = ("тащит", "начал тащить", "кит", "поглощает", "спрос", "разгон", "набирает")
+    _dn_words = ("отпустил", "осечка", "отбой", "конец", "выходят", "раздач")
+    _fc_side = 1 if any(w in _plt for w in _up_words) else (-1 if any(w in _plt for w in _dn_words) else 0)
+    _last_buy = next((b for b in reversed(bubbles) if b["side"] == "buy"), None)
+    _last_sell = next((b for b in reversed(bubbles) if b["side"] == "sell"), None)
+    bubble_vs_plot = "молчат"
+    if _fc_side == 1:
+        if _last_buy and _last_buy.get("sure") == "ясный":
+            bubble_vs_plot = "подтверждают"
+        elif (_last_buy and _last_buy.get("sure") == "сомнительный") or \
+             (_last_sell and (_last_sell.get("pos_pct") or 0) >= 70):
+            bubble_vs_plot = "против"
+    elif _fc_side == -1:
+        if _last_sell and _last_sell.get("sure") == "ясный":
+            bubble_vs_plot = "подтверждают"
+        elif _last_buy and _last_buy.get("sure") == "ясный":
+            bubble_vs_plot = "против"
     bubble_down = bool(high_sell)
     # КОНЕЦ ПО БАРАМ СИЛЬНЕЕ СУТОЧНОЙ МЕРКИ (08.09): было событие и интерес после него не вернулся —
     # значит «выходят», как бы ни выглядели сутки целиком (DOOD 08.09: за сутки интерес был в плюсе,
@@ -335,6 +415,7 @@ def _today_bars(sym_usdt: str) -> dict | None:
             "oi_trend_pct": round(oi_trend, 2) if oi_trend is not None else None,
             "bub_buy": bub_buy_bars, "bub_sell": bub_sell_bars, "skipped": len(skipped),
             "bubble_signal": bubble_signal, "bubble_choice": bubble_choice, "bubble_down": bubble_down,
+            "bubble_vs_plot": bubble_vs_plot, "plot": _plt or None,
             "absorbed": len(absorbed), "at_target": at_target,
             "bubbles": bubbles,
             # ХОД БЕЗ ПУЗЫРЯ (07.09, случай ACU): у монеты может идти чистый ход вовсе без всплесков —
@@ -613,6 +694,13 @@ def build(only: list[str] | None = None) -> dict:
         _bb, _bs = _tv.get("bub_buy") or [], _tv.get("bub_sell") or []
         score *= (1.25 if _tv.get("bubble_choice") else 1.15) if _tv.get("bubble_signal") \
             else (0.85 if _tv.get("bubble_down") else 1.0)
+        # СОГЛАСИЕ ПУЗЫРЕЙ С ПРОГНОЗОМ (08.09): прогноз живёт на дневках, пузыри — факт дня.
+        # Расходятся — ставим меньше, сходятся — больше. Мягко: признак новый, ждём журнала.
+        _bvp = _tv.get("bubble_vs_plot")
+        if _bvp == "против":
+            score *= 0.85
+        elif _bvp == "подтверждают":
+            score *= 1.10
         # КОРРЕКЦИЯ — ТОЖЕ МНОЖИТЕЛЕМ: интерес сегодня уходит вместе с ценой — монета временно не про
         # «кто раньше»; из очереди не выбрасываем (белый пузырь вернёт), но вперёд не пускаем.
         if _tk_q == "коррекция":
@@ -767,6 +855,8 @@ def log_queue(res: dict) -> int:
             "stage": q.get("stage"), "out_reason": q.get("out_reason"),
             "size": q.get("size"), "hold_reason": q.get("hold_reason"),
             "after_harvest": q.get("after_harvest"), "after_harvest_vol": q.get("after_harvest_vol"),
+            "bubble_sure": ((v.get("today") or {}).get("bubbles") or [{}])[-1].get("sure"),
+            "bubble_vs_plot": (v.get("today") or {}).get("bubble_vs_plot"),
             # карточки пузырей и плечо к цене (07.09) — сырьём в журнал, выводы делает считалка
             "move_paid": (v.get("today") or {}).get("move_paid"),
             "paid_ratio": (v.get("today") or {}).get("paid_ratio"),

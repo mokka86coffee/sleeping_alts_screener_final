@@ -202,6 +202,8 @@ def build(days: int = 7) -> dict:
                     "engine": row.get("engine"), "bubble": row.get("bubble"),
                     "oi_to_px": row.get("oi_to_px"), "move_paid": row.get("move_paid"),
                     "after_harvest": row.get("after_harvest"),
+                    "bubble_sure": row.get("bubble_sure"),
+                    "bubble_vs_plot": row.get("bubble_vs_plot"),
                     "runs": 0, "zones": None,
                     "bg": _bg_at(bgs, at) if at else {},
                 }
@@ -282,6 +284,13 @@ def build(days: int = 7) -> dict:
     cut("чем оплачен ход", lambda x: x.get("move_paid"))
     # откат без раздачи (08.09): USELESS ×0.54 ожил, DOOD ×3.55 раздали — проверяем разрезом
     cut("после сбора", lambda x: x.get("after_harvest"))
+    # СПОРНЫЕ ПУЗЫРИ — ОТДЕЛЬНАЯ ГРУППА (08.09, владелец: «спорные должны учитываться как спорные,
+    # а не считать анализ неверным»): пузырь, об который закрывались, — не промах правила, а другой
+    # случай. Считаем три группы отдельно, в общий счёт идут ясные.
+    cut("пузырь", lambda x: x.get("bubble_sure"))
+    # ПУЗЫРИ ПРОТИВ ПРОГНОЗА (08.09): сходятся ли факт дня и словесный шаблон. Ждём, что «против»
+    # даст заметно худшую долю — тогда признак пойдёт в правило, а не только в наблюдение.
+    cut("пузыри и прогноз", lambda x: x.get("bubble_vs_plot"))
     # часы в группе пишем, но признаком пока не считаем: NAORIS 08.09 висел в первых почти 12 часов
     # и не пошёл, а SOPH 07.09 пошёл из очереди. Проверяем разрезом, а не правилом.
     cut("часов в группе", lambda x: "до 2 ч" if (x.get("hours") or 0) < 2 else ("2–6 ч" if x["hours"] < 6 else "больше 6 ч"))

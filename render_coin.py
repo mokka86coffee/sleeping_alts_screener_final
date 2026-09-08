@@ -412,7 +412,7 @@ def render_coin(stars: list[dict], market: dict) -> str:
                "crowd": crowd, "flow": flow,
                "oitypes": ((_read_json("oi_types.json") or {}).get("coins") or {}),   # плечо по типу (05.09)
                "liqhist": _liq_history(),   # карта ликвидаций во времени (05.09)
-               "pulse": _pulse_series(),    # линия мини-журнала — живая цена по прогонам (06.09)
+               "pulse": _pulse_series(3),   # линия мини-журнала — живая цена за 72 ч (08.09)
                "near": ((_read_json("near_move.json") or {}).get("coins") or {}),   # близкие к ходу (05.09)
                "sources": source_stamps(stars, market)}
     # ЧЁРНЫЙ ЭКРАН (05.09 вечер): NaN/Infinity из числовых рядов (веса полос, приросты) json.dumps
@@ -1418,9 +1418,10 @@ COIN_JS = r"""
       // последняя точка — текущая цена сейчас; метки — по своему времени и своей цене.
       var PS = (D.pulse || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()] || [];
       var SJ = PS.length >= 6 ? PS : ((J && J.series) || []), pts, dates;   // линия — из пульса; нет — из точек журнала
-      // ОКНО ПО ПРАВИЛУ (05.09, владелец: «48 было для примера»): от четвёртой с конца смены до
-      // «сейчас», но не короче суток и не длиннее двух недель — влезает всё, что нужно видеть
-      var winFrom = Date.now() - 864e5;
+      // ОКНО МИНИ-ЖУРНАЛА — 72 ЧАСА (08.09, владелец: «переделаем 48 часов в 72»): раньше нижняя
+      // граница была сутки, и при редких сменах окно выходило коротким. Теперь показываем трое
+      // суток по умолчанию: видно и вчерашний ход, и позавчерашний сбор, а не только сегодня.
+      var winFrom = Date.now() - 3 * 864e5;
       if (M.length) { var mk = M.slice(-4)[0]; winFrom = Math.min(winFrom, new Date(mk.t).getTime() - 36e5); }
       winFrom = Math.max(winFrom, Date.now() - 14 * 864e5);
       var SW = SJ.filter(function (q) { return q[0] >= winFrom; });
@@ -1510,10 +1511,21 @@ COIN_JS = r"""
         var mx = Math.max.apply(null, vols);
         ser.forEach(function (b, i) { var v = vols[i]; if (v < mu + 2 * sd || b.t < t0 || b.t > tE) return;
           var pt = null, best = 1e18; pts.forEach(function (q) { var dd = Math.abs(q.t - b.t); if (dd < best) { best = dd; pt = q; } }); if (!pt) return;
-          var r = 4 + 8 * Math.sqrt((v - mu) / Math.max(1, mx - mu)), col = (+b.b || 0) >= (+b.s || 0) ? '#5fe6a6' : '#ff7a63';
+          var r = 4 + 8 * Math.sqrt((v - mu) / Math.max(1, mx - mu));
+          var buy = (+b.b || 0) >= (+b.s || 0);
+          // СОМНИТЕЛЬНЫЙ ПУЗЫРЬ — ОРАНЖЕВЫЙ (08.09, владелец: «не отсекать, а делать наполовину
+          // оранжевым — понятно, что покупки есть, но цель у них может быть другая»). Смотрим, что
+          // делал интерес НА ЭТОМ баре: вырос — на заявки открывали позиции, пузырь ясный; упал —
+          // об заявки закрывались, цвет уходит в оранжевый. Ни один пузырь при этом не пропадает.
+          var oiPrev = null, oiNow = (b.oi != null ? +b.oi : null);
+          for (var k = i - 1; k >= 0 && oiPrev === null; k--) { if (ser[k] && ser[k].oi != null) oiPrev = +ser[k].oi; }
+          var fill = (oiPrev && oiNow) ? (oiNow / oiPrev - 1) * 100 : null;
+          var doubt = (fill !== null && fill <= -1.5) || b.type === 'long_close';
+          var col = doubt ? '#f0a24a' : (buy ? '#5fe6a6' : '#ff7a63');
+          var note = doubt ? (buy ? ' · об покупки закрывались' : ' · об продажи закрывались') : '';
           // заметнее (06.09): плотнее ядро, яркая обводка, светлая точка в центре
           bubbles += '<circle cx="' + XT(b.t).toFixed(1) + '" cy="' + Y(pt.p).toFixed(1) + '" r="' + (r * .45).toFixed(1) + '" fill="' + col + '" opacity=".75"/>' +
-                     '<circle cx="' + XT(b.t).toFixed(1) + '" cy="' + Y(pt.p).toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + col + '" opacity=".22" stroke="' + col + '" stroke-opacity=".95" stroke-width="1"><title>' + esc(new Date(b.t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' · оборот ' + money(v) + ' · ' + (((+b.b || 0) >= (+b.s || 0)) ? 'покупали' : 'продавали') + ' ' + money(Math.abs((+b.b || 0) - (+b.s || 0)))) + '</title></circle>'; });
+                     '<circle cx="' + XT(b.t).toFixed(1) + '" cy="' + Y(pt.p).toFixed(1) + '" r="' + r.toFixed(1) + '" fill="' + col + '" opacity=".22" stroke="' + col + '" stroke-opacity=".95" stroke-width="1"><title>' + esc(new Date(b.t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' · оборот ' + money(v) + ' · ' + (buy ? 'покупали' : 'продавали') + ' ' + money(Math.abs((+b.b || 0) - (+b.s || 0))) + (fill !== null ? ' · интерес на баре ' + (fill > 0 ? '+' : '') + fill.toFixed(1) + '%' : '') + note) + '</title></circle>'; });
       })();
       var g = '<defs><linearGradient id="hf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + GOLD + '" stop-opacity=".22"/><stop offset="1" stop-color="' + GOLD + '" stop-opacity="0"/></linearGradient></defs>' + heatJ + bubbles +
         '<path d="' + dpath + ' L' + XT(tE).toFixed(1) + ',' + GY + ' L12,' + GY + ' Z" fill="url(#hf)" opacity=".6"/>' +
