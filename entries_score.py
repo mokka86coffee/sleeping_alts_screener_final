@@ -106,6 +106,8 @@ def _bg_at(bgs: list[dict], at: datetime) -> dict:
         "breadth_up": br.get("up"), "breadth_n": br.get("n"),
         "ours_up": ours.get("up"), "ours_n": ours.get("n"),
         "taker": tk.get("day"), "taker_side": tk.get("side"),
+        # медиана доски — подтверждённый признак фона (08.09): «определяет полностью рынок»
+        "median_pct": ((best.get("risk_on") or {}).get("median_pct")),
         "session": (", ".join(live) if live else "межсессионье"),
         "phase": phase,
         "weekday": tm.get("weekday"),
@@ -304,6 +306,9 @@ def build(days: int = 7) -> dict:
         else ("да · " + str(x["bg"].get("lead_sym", "")).replace("USDT", "") if x["bg"]["pulls"] else "нет"))
     cut("биткоин", lambda x: None if (x["bg"] or {}).get("btc_day_pct") is None
         else ("вниз" if x["bg"]["btc_day_pct"] < -0.5 else ("вверх" if x["bg"]["btc_day_pct"] > 0.5 else "стоит")))
+    cut("медиана доски", lambda x: None if (x["bg"] or {}).get("median_pct") is None
+        else ("падает" if x["bg"]["median_pct"] < -0.3
+              else ("рост" if x["bg"]["median_pct"] > 0.3 else "ровно")))
     cut("ширина", lambda x: None if not (x["bg"] or {}).get("breadth_n")
         else ("растёт больше половины" if x["bg"]["breadth_up"] * 2 >= x["bg"]["breadth_n"] else "растёт меньше половины"))
     cut("поток", lambda x: (x["bg"] or {}).get("taker_side"))

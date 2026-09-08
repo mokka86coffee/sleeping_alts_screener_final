@@ -491,14 +491,14 @@ TEMPLATE = r'''<!doctype html>
      разрыв с медианой наших впятеро и больше либо у неё уже конец. Иначе панели нет. */
   .lead{position:fixed;left:50%;top:26px;transform:translateX(-50%);text-align:center;pointer-events:none;z-index:4;
     font-family:"Inter",system-ui,sans-serif;font-weight:300}
-  .lead b{display:block;font-family:"Michroma",system-ui,sans-serif;font-weight:400;font-size:17px;
+  .lead b{display:block;font-family:"Michroma",system-ui,sans-serif;font-weight:400;font-size:13.6px;
     letter-spacing:.28em;color:#f2f7ff;text-shadow:0 0 26px rgba(190,220,255,.9),0 0 60px rgba(140,180,255,.5)}
-  .lead s{display:block;text-decoration:none;margin-top:7px;font-size:10.5px;letter-spacing:.14em;color:#cfe0ff}
-  .lead i{display:block;font-style:normal;margin-top:5px;font-size:8px;letter-spacing:.3em;text-transform:uppercase;
+  .lead s{display:block;text-decoration:none;margin-top:6px;font-size:8.4px;letter-spacing:.14em;color:#cfe0ff}
+  .lead i{display:block;font-style:normal;margin-top:4px;font-size:6.4px;letter-spacing:.3em;text-transform:uppercase;
     color:rgba(190,205,255,.45)}
   .lead u.hot{color:#ff8a70;text-shadow:0 0 16px rgba(255,130,100,.8)}
   .lead u.warn{color:#ffc069;text-shadow:0 0 16px rgba(255,180,90,.85)}
-  .lead u{display:block;text-decoration:none;margin-top:9px;font-size:9px;letter-spacing:.24em;
+  .lead u{display:block;text-decoration:none;margin-top:7px;font-size:7.2px;letter-spacing:.24em;
     text-transform:uppercase;color:#ffd8a8;text-shadow:0 0 14px rgba(255,200,140,.7)}
   .lead.ended b{color:#ffd8cc;text-shadow:0 0 26px rgba(255,150,120,.7)}
   .lead.ended s{color:#ffd8cc}
@@ -515,7 +515,20 @@ TEMPLATE = r'''<!doctype html>
     color:rgba(190,205,255,.34);margin-bottom:10px}
   .bgnote b{font-weight:400;color:#dbe6ff}
   .hint{position:fixed;right:3vw;bottom:12px;font-family:"Inter",system-ui,sans-serif;font-weight:300;font-size:11px;letter-spacing:.12em;color:rgba(200,210,255,.35);pointer-events:none}
-  .tip{position:fixed;padding:6px 10px;border-radius:6px;background:rgba(10,12,30,.86);color:#dfe6ff;font-family:"Inter",system-ui,sans-serif;font-weight:300;font-size:11px;letter-spacing:.04em;max-width:360px;pointer-events:none;opacity:0;transition:opacity .2s}
+  .tip{position:fixed;padding:11px 14px;border-radius:12px;background:rgba(8,12,24,.95);
+    backdrop-filter:blur(12px);box-shadow:inset 0 0 0 1px rgba(255,255,255,.09),0 18px 40px rgba(0,0,0,.7);
+    color:#dfe6ff;font-family:"Inter",system-ui,sans-serif;font-weight:300;font-size:11px;
+    letter-spacing:.04em;max-width:340px;pointer-events:none;opacity:0;transition:opacity .18s;z-index:9}
+  .tip b{display:block;font-weight:400;font-size:13px;letter-spacing:.14em;color:#f0f5ff;
+    text-shadow:0 0 18px rgba(150,190,255,.6)}
+  .tip s{display:block;text-decoration:none;margin-top:5px;font-size:10px;letter-spacing:.08em;color:#bcd0ea}
+  .tip u{display:block;text-decoration:none;margin-top:8px;padding-top:8px;
+    border-top:1px solid rgba(255,255,255,.07)}
+  .tip p{display:grid;grid-template-columns:9px 1fr;column-gap:8px;align-items:baseline;margin:0 0 5px;
+    font-size:9.5px;line-height:1.6;letter-spacing:.03em;color:rgba(198,213,255,.72)}
+  .tip p:last-child{margin-bottom:0}
+  .tip p em{width:5px;height:5px;border-radius:50%;margin-top:5px;
+    box-shadow:0 0 8px currentColor;filter:drop-shadow(0 0 4px rgba(255,255,255,.25))}
   /* ПЛАНЕТА-КНОПКА В ЖУРНАЛ (07.09, владелец: «сделай кнопку на первом экране со звёздами —
      планету какую-нибудь для перехода в этот журнал»): холодный шар в гамме экрана, кольцо
      задней и передней дугой (объём, а не наклейка), два слоя облаков разной скорости,
@@ -898,8 +911,27 @@ c.addEventListener('mousemove',ev=>{const j=hit(ev,true),i=hit(ev);
   c.style.cursor=(j>=0)?'pointer':'default';
   const hg=(j>=0&&LAB[j])?(DATA.grp||[])[j]:null;
   if(hg!==HOVER){HOVER=hg;applyGroup();}
-  if(i>=0&&DATA.whys[i]){tip.textContent=names[i]+' — '+DATA.whys[i];tip.style.left=(ev.clientX+14)+'px';tip.style.top=(ev.clientY+12)+'px';tip.style.opacity=1}
-  else if(j>=0&&LAB[j]){tip.textContent=names[j]+' — только эта группа; клик закрепляет';tip.style.left=(ev.clientX+14)+'px';tip.style.top=(ev.clientY+12)+'px';tip.style.opacity=1}
+  if(i>=0){
+    const sub=(DATA.subs||[])[i]||'', why=(DATA.whys||[])[i]||'';
+    if(sub||why){
+      // ТОЧКА У КАЖДОЙ ПРИЧИНЫ (08.09, владелец: «чтобы не выглядело простынёй»): цвет по смыслу —
+      // мятный за монету, коралловый против, янтарный про плечо и сбор, холодный про режим.
+      const dotOf=t=>{
+        t=t.toLowerCase();
+        if(/выход|осечк|отпустил|ушёл|вынос|раздач|против|не удерж/.test(t))return '#ff9078';
+        if(/сбор|плечо|шорт|оборот/.test(t))return '#ffc069';
+        if(/режим|лестниц|парабол|двигатель/.test(t))return '#8fb4e8';
+        if(/удерж|спрос|покуп|набир|рос/.test(t))return '#4fe3b8';
+        return '#8ea3ba';
+      };
+      const list=why?why.split(' · ').filter(Boolean)
+        .map(w=>'<p><em style="background:'+dotOf(w)+'"></em>'+w+'</p>').join(''):'';
+      tip.innerHTML='<b>'+names[i]+'</b>'+(sub?'<s>'+sub+'</s>':'')+(list?'<u>'+list+'</u>':'');
+      tip.style.left=Math.min(ev.clientX+14,innerWidth-380)+'px';
+      tip.style.top=Math.min(ev.clientY+12,innerHeight-260)+'px';tip.style.opacity=1;
+    } else tip.style.opacity=0;
+  }
+  else if(j>=0&&LAB[j]){tip.innerHTML='<b>'+names[j]+'</b><s>только эта группа · клик закрепляет</s>';tip.style.left=(ev.clientX+14)+'px';tip.style.top=(ev.clientY+12)+'px';tip.style.opacity=1}
   else tip.style.opacity=0});
 c.addEventListener('mouseleave',()=>{HOVER=null;applyGroup();tip.style.opacity=0});
 function next(){try{window.parent.postMessage({type:'ob:done',screen:'intro'},'*')}catch(e){}
@@ -1021,7 +1053,10 @@ function drawFx(t){
       fc.textBaseline='middle';
       // ПОДПИСЬ — СТРОКА-ШЛЕЙФ (07.09, выбор владельца из трёх видов): одна строка вбок,
       // слова гаснут к хвосту, разделены точкой; вниз ничего не громоздится
-      const words=full?parts:[state];
+      // ПОЛНЫЙ РАЗБОР — ВО ВСПЛЫВАЮЩЕЕ, А НЕ ПОД ЗВЕЗДОЙ (08.09, владелец): под именем остаётся
+      // одно слово состояния, вся строка показывается в подсказке у курсора — она не громоздится
+      // на соседние звёзды и читается на любом фоне.
+      const words=[state];
       fc.font=`300 ${SZ*.52}px "Inter",system-ui,sans-serif`;
       fc.textAlign=dir>0?'left':'right';
       let off=SZ*1.25;

@@ -178,6 +178,51 @@ SESSIONS = (("Азия", 0.0, 8.0), ("Европа", 7.0, 16.0), ("США", 13.5
 SOON_H = 1.0     # «скоро закроется» / «скоро откроется» — за час
 
 
+def _chg_from_log(px_now, hours: float):
+    """Ход биткоина за N часов — по нашей же ленте фона (08.09): в срезе btc_pulse его нет,
+    там только изменение интереса. Берём ближайшую запись нужной давности с ценой BTC."""
+    if not px_now:
+        return None
+    from datetime import datetime, timedelta, timezone
+    try:
+        lines = (BASE_DIR / "output" / "market_bg.jsonl").read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    want = datetime.now(timezone.utc) - timedelta(hours=hours)
+    best, best_d = None, None
+    for line in reversed(lines[-400:]):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
+        p = ((r.get("btc") or {}).get("px"))
+        t = r.get("at")
+        if not p or not t:
+            continue
+        try:
+            ts = datetime.fromisoformat(str(t).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        d = abs((ts - want).total_seconds())
+        if best_d is None or d < best_d:
+            best, best_d = p, d
+    # ближе получаса к нужной отметке — иначе число будет врать
+    if best and best_d is not None and best_d <= 1800 + hours * 60:
+        return round((px_now / best - 1) * 100, 2)
+    return None
+
+
+def _first(*vals):
+    """Первое непустое значение — чтобы срез имел приоритет, а доска была запасным вариантом."""
+    for v in vals:
+        if v is not None:
+            return v
+    return None
+
+
 def _session(now: datetime) -> dict:
     """День недели, час UTC и что с рынками (07.09, владелец: «при заходе в часы показывать, какой
     рынок открыт, идёт, скоро закроется»). У каждой сессии — состояние и сколько часов осталось:
@@ -336,14 +381,44 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
 
     lead = _leaders({c["sym"] for c in coins}) if leaders else None
 
+    # БИТКОИН — ИЗ ГОТОВОГО СРЕЗА ШАГА «БИТКОИН» (08.09): в прогоне он собирается отдельным шагом
+    # (btc_pulse) и всё там есть — цена, плечо, ликвидации, премия. А фон брал его из своей доски,
+    # где BTC чаще всего просто нет, и писал прочерки: у владельца четыре прогона подряд в журнале
+    # «биткоин за сутки —». Теперь сначала читаем срез, и только если его нет — считаем сами.
     btc = next((c for c in coins if c["sym"].startswith("BTC")), None)
     b = cg.get("BTCUSDT") or {}
+    pulse = {}
+    for name in ("btc_pulse.json", "btc.json"):
+        for q in (BASE_DIR / "output" / name, BASE_DIR / name):
+            if q.exists():
+                try:
+                    pulse = json.loads(q.read_text(encoding="utf-8")) or {}
+                except (OSError, ValueError):
+                    pulse = {}
+                break
+        if pulse:
+            break
+    # РАЗБОР СРЕЗА: цена и карта лежат в map, ликвидации в liq, премия в premium, фонды в etf.
+    # ХОДА ЗА СУТКИ И ЗА ЧАС В СРЕЗЕ НЕТ ВОВСЕ (08.09) — там только изменение интереса. Считаем сами
+    # по нашей же ленте фона: цена биткоина пишется каждый прогон, берём запись сутки и час назад.
+    pm = (pulse.get("map") or {})
+    pl = (pulse.get("liq") or {})
+    ppr = (pulse.get("premium") or {})
+    px_now = _first(pm.get("px"), pulse.get("px"), (btc or {}).get("px"), b.get("price"))
+    day_pct = _first((btc or {}).get("day_pct"), _chg_from_log(px_now, 24))
+    h1_pct = _first((btc or {}).get("h1_pct"), _chg_from_log(px_now, 1))
     btc_block = {
-        "px": (btc or {}).get("px") or b.get("price"),
-        "day_pct": (btc or {}).get("day_pct"), "h1_pct": (btc or {}).get("h1_pct"),
-        "oi": (btc or {}).get("oi") or b.get("oiUsd"),
-        "oi_day_pct": (btc or {}).get("oi_day_pct") or b.get("oiChgPct"),
-        "taker24": ((b.get("fut") or {}).get("taker")),
+        "px": px_now,
+        "day_pct": day_pct, "h1_pct": h1_pct,
+        "oi": _first(pm.get("oi_usd"), (btc or {}).get("oi"), b.get("oiUsd")),
+        "oi_day_pct": _first(pm.get("oi_chg24_pct"), (btc or {}).get("oi_day_pct"), b.get("oiChgPct")),
+        "taker24": _first(pulse.get("taker24"), ((b.get("fut") or {}).get("taker"))),
+        "liq_long": pl.get("long_24h_usd"), "liq_short": pl.get("short_24h_usd"),
+        "premium": ppr.get("last"),
+        "up_pct": ((pm.get("above") or {}).get("nearest") or {}).get("pct"),
+        "dn_pct": ((pm.get("below") or {}).get("nearest") or {}).get("pct"),
+        "short_to_long": pm.get("short_to_long_3pct"),
+        "src": "срез" if pulse else "доска",
     }
 
     return {
@@ -419,11 +494,21 @@ def bg_note(row: dict | None = None) -> list:
         share = br["up"] / br["n"]
         state = "давит" if share < 0.4 else ("рост" if share > 0.6 else "нейтральный")
         out.append(["монеты", state, f"растёт {br['up']} из {br['n']}"])
+    # МЕДИАНА ПО ВСЕЙ ДОСКЕ (08.09, владелец: «общая медиана по всем монетам также определяет
+    # полностью рынок»). Ширина говорит, сколько растёт, медиана — насколько; это разные вещи:
+    # растёт половина, но медиана −1% значит, что растут по чуть-чуть, а падают сильно.
+    med = ((r.get("risk_on") or {}).get("median_pct"))
+    if med is not None:
+        state = "падает" if med < -0.3 else ("рост" if med > 0.3 else "ровно")
+        out.append(["медиана доски", state, f"{med:+.2f}% медиана хода"])
     b = r.get("btc") or {}
     if b.get("day_pct") is not None:
         d = b["day_pct"]
         state = "падает" if d < -0.5 else ("рост" if d > 0.5 else "флэт")
         out.append(["биткоин", state, f"{d:+.1f}% за сутки"])
+    else:
+        # пусто — говорим прямо, а не пропускаем строку: иначе обрыв источника не виден (08.09)
+        out.append(["биткоин", "нет данных", "срез не пришёл"])
     tk = r.get("taker") or {}
     if tk.get("day"):
         state = "продают" if tk["day"] < 0.98 else ("покупают" if tk["day"] > 1.02 else "вровень")
