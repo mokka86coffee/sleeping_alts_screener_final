@@ -500,6 +500,13 @@ def judge(d: dict, live: dict | None = None) -> dict | None:
     mu_b = statistics.mean(buys90) if buys90 else 0.0
     sd_b = statistics.pstdev(buys90) if len(buys90) > 5 else 0.0
     low90 = min(float(r.get("low") or r["close"]) for r in o[-30:])   # «дно» — полка последнего месяца, не полугодовое
+    # ХОД ОТ ПСИХОЛОГИЧЕСКОГО ДНА (08.09, владелец): минимум за последнюю НЕДЕЛЮ — «люди реагируют
+    # на то, сколько прошло вчера, позавчера, сегодня». Отсюда меряется, насколько монета уже ушла:
+    # за сутки мерить нельзя — ход длится два-три дня, и вчерашний подъём в сутки не попадает.
+    _low7 = min(float(r.get("low") or r["close"]) for r in o[-7:]) if len(o) >= 3 else None
+    if _low7:
+        nums["low7"] = round(_low7, 10)
+        nums["run_from_low7"] = round((float(o[-1]["close"]) / _low7 - 1) * 100, 1)
     bubble = None
     for r in o[-14:]:
         t = tr.get(r["datetime"][:10]) or {}
@@ -808,16 +815,22 @@ def build(only: list[str] | None = None) -> dict:
     _moves = [((out["coins"][s2].get("today") or {}).get("px_chg_pct") or 0.0) for s2 in ordered]
     lead_sym = None
     lead_gap = 0.0
+    lead_run7 = None
     if ordered and _moves:
         _top_i = max(range(len(ordered)), key=lambda i: _moves[i])
         _med = sorted(_moves)[len(_moves) // 2]
         _mv = _moves[_top_i]
         _gap = (abs(_mv) / abs(_med)) if abs(_med) >= 0.3 else (abs(_mv) / 0.3 if _mv else 0.0)
         _t_lead = out["coins"][ordered[_top_i]].get("today") or {}
-        # ПОРОГ ХОДА (08.09): «тянет одна» — это когда монета реально ушла, а не когда она просто
-        # выше медианы. NAORIS с +7% за день полдня считался лидером и закрывал вход остальным.
-        if _gap >= 5 and _mv >= 50 and not _t_lead.get("ended_at"):
+        # ПОРОГ — ХОД ОТ ПСИХОЛОГИЧЕСКОГО ДНА (08.09, владелец: «за сутки лидера считать некорректно,
+        # ликвидность уходит в монету, когда памп большой, и это не за день, а от дна»; окно 7 дней —
+        # «люди реагируют на то, сколько прошло вчера, позавчера, сегодня»). Дно за 60 дней остаётся
+        # для места в истории; лидер меряется от минимума последней недели — оттуда, откуда идёт
+        # текущее движение. Ход за сутки — запасной, если недельных дневок нет.
+        _run7 = ((out["coins"][ordered[_top_i]].get("nums") or {}).get("run_from_low7"))
+        if _gap >= 5 and (_run7 if _run7 is not None else _mv) >= 50 and not _t_lead.get("ended_at"):
             lead_sym, lead_gap = ordered[_top_i], round(_gap, 1)
+            lead_run7 = round(_run7) if _run7 is not None else None
     if lead_sym:
         for s2 in ordered:
             q = out["coins"][s2].get("queue") or {}
@@ -835,7 +848,7 @@ def build(only: list[str] | None = None) -> dict:
     rest = [s2 for s2 in ordered if s2 not in stable]
     out["queue"] = stable + rest
     out["first"] = stable
-    out["pulls"] = {"sym": lead_sym, "gap": lead_gap} if lead_sym else None
+    out["pulls"] = {"sym": lead_sym, "gap": lead_gap, "run7": lead_run7} if lead_sym else None
     out["dropped"] = [s2 for s2 in (out["coins"] or {})
                       if (out["coins"][s2].get("queue") or {}).get("out_reason")]
     try:
@@ -883,6 +896,7 @@ def log_queue(res: dict) -> int:
             "stage": q.get("stage"), "out_reason": q.get("out_reason"),
             "size": q.get("size"), "hold_reason": q.get("hold_reason"),
             "after_harvest": q.get("after_harvest"), "after_harvest_vol": q.get("after_harvest_vol"),
+            "run_from_low7": (v.get("nums") or {}).get("run_from_low7"),
             "bubble_sure": ((v.get("today") or {}).get("bubbles") or [{}])[-1].get("sure"),
             "bubble_vs_plot": (v.get("today") or {}).get("bubble_vs_plot"),
             "liq_side": (v.get("today") or {}).get("liq_side"),

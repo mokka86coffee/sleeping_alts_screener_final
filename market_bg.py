@@ -327,7 +327,10 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
             "median_ours": round(_med, 2), "gap": round(_gap, 1),
             # тянет одна — только при ходе от 50% за день (08.09): монета с +7% не «тянет»,
             # она просто выше медианы; NAORIS полдня закрывал вход остальным без всякого хода
-            "pulls": bool(_gap >= 5 and (_l["day_pct"] or 0) >= 50),
+            # порог — ход от дна за 7 дней, а не за сутки (08.09): ход длится 2–3 дня и в сутки
+            # не помещается; при отсутствии недельного числа берём суточное
+            "run7": _l.get("run7"),
+            "pulls": bool(_gap >= 5 and ((_l.get("run7") if _l.get("run7") is not None else (_l["day_pct"] or 0)) >= 50)),
             "queue": _l.get("queue"),
         }
 
@@ -435,8 +438,10 @@ def bg_note(row: dict | None = None) -> list:
     ol = r.get("leader") or {}
     if ol.get("sym"):
         state = "тянет одна" if ol.get("pulls") else "без лидера"
+        run = ol.get("run7")
         out.append(["лидер", state,
-                    f"{ol['sym'].replace('USDT', '')} {ol['day_pct']:+.0f}%"
+                    f"{ol['sym'].replace('USDT', '')} "
+                    + (f"+{run:.0f}% от дна недели" if run is not None else f"{ol['day_pct']:+.0f}% за сутки")
                     + (f" · ×{ol['gap']} к медиане очереди" if ol.get("pulls") else "")])
     tm = r.get("time") or {}
     live = [m for m in (tm.get("markets") or []) if m.get("open")]
