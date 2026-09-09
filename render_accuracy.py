@@ -126,10 +126,12 @@ def _part1() -> dict:
     days: dict = {}
     for k, t in enumerate(runs):
         d = days.setdefault(t[:10], {})
+        _prev_run = by_run[runs[k - 1]] if k else {}
         for sym, row in by_run[t].items():
             pl = row.get("place")
             if not pl:
                 continue
+            prev_row = _prev_run.get(sym)
             e = d.setdefault(sym, {"path": [], "first_top": None, "gone": None, "best": 99})
             # ВРЕМЯ, ДО КОТОРОГО МЕСТО ДЕРЖАЛОСЬ (09.09, владелец: «почему не пишется место на
             # каждом прогоне, если оно одинаковое? давай время хотя бы дописывать, до какого
@@ -144,13 +146,19 @@ def _part1() -> dict:
             # почему перешло; там, где 10 раз подряд было первое, вся история, что менялось»).
             # Пятое поле ступени — числа балла на каждом прогоне внутри неё: балл, ход, интерес,
             # состояние, стадия, пузырь. По ним видно, чем этот прогон отличался от прошлого.
-            _snap = {"t": t[11:16], "score": row.get("score"), "move": row.get("move_pct"),
+            # ПОДЪЁМ БЕЗ РОСТА СВОЕГО БАЛЛА НЕ В СЧЁТ (09.09, проверено на 23 подъёмах: с ростом
+            # балла — 58% случаев дали ≥3%, медиана +6.1%; без роста, то есть монету сдвинули
+            # соседи — 25% и +2.7%). Помечаем такие ступени и считаем отдельным разрезом.
+            _prev_score = (prev_row or {}).get("score") if prev_row else None
+            _snap = {"t": t[11:16], "score": row.get("score"), "prev_score": _prev_score,
+                     "move": row.get("move_pct"),
                      "oi": row.get("oi_chg_pct"), "oi3": row.get("oi_trend_pct"),
                      "state": row.get("today"), "stage": row.get("stage"),
                      "bubble": row.get("bubble"), "mode": row.get("mode"),
                      "engine": row.get("engine"), "size": row.get("size")}
             if not e["path"] or e["path"][-1][1] != pl:
-                e["path"].append([t[11:16], pl, t[11:16], 1, [_snap]])
+                _own = bool(_prev_score is not None and (row.get("score") or 0) > _prev_score + 1e-9)
+                e["path"].append([t[11:16], pl, t[11:16], 1, [_snap], _own])
             else:
                 e["path"][-1][2] = t[11:16]
                 e["path"][-1][3] = (e["path"][-1][3] if len(e["path"][-1]) > 3 else 1) + 1
@@ -383,6 +391,7 @@ html,body{margin:0;min-height:100%;color:var(--ink);font-family:Inter,system-ui,
 .path n{font-size:10px;color:#12a17c;margin-left:1px;font-variant-numeric:tabular-nums}
 .path .st{position:relative;cursor:default;padding:2px 1px;border-radius:5px;transition:.14s}
 .path .st:hover{background:rgba(18,161,124,.10)}
+.path .st.pale b,.path .st.pale n{color:#a8b6c6;font-weight:400}
 /* ПОЧЕМУ ПЕРЕШЛО НА ЭТО МЕСТО (09.09): вся история ступени — прогон за прогоном */
 #stpop{position:fixed;z-index:20;max-width:420px;padding:13px 15px;border-radius:16px;
  background:linear-gradient(160deg,#fff,#eef2f9);
@@ -519,8 +528,9 @@ function part1(){
   document.getElementById('c1').innerHTML=rows.map(r=>{
     // место · сколько прогонов держалось · с какого по какое время (09.09, владелец)
     // место · сколько прогонов держалось · с какого по какое время; при наведении — история
+    // ступень, где свой балл не рос (сдвинули соседи) — приглушена: такой подъём почти не работает
     const steps=r.path.map((p,pi)=>
-      `<span class="st" data-c="${r.s}" data-i="${pi}">`
+      `<span class="st${pi>0 && p[5]===false ? ' pale' : ''}" data-c="${r.s}" data-i="${pi}">`
       + `<b>${p[1]}</b>` + ((p[3]||1)>1 ? `<n>(${p[3]})</n>` : '')
       + `<w>${p[0]}${p[2] && p[2]!==p[0] ? '–'+p[2] : ''}</w>`
       + `</span>`);
@@ -648,6 +658,7 @@ document.getElementById('days').innerHTML=days.map((d,i)=>`<div class="day${i?''
       if(before.stage!==first.stage) parts.push(`стадия: ${before.stage} → ${first.stage}`);
       if(before.bubble!==first.bubble) parts.push(`пузырь: ${before.bubble} → ${first.bubble}`);
       why = parts.length ? parts.join(' · ') : 'числа не изменились — сдвинули соседи';
+      if(p[5]===false) why += ' · СВОЙ БАЛЛ НЕ РОС — такой подъём почти не работает (25% против 58%)';
     } else why='первое появление в очереди';
     pop.innerHTML=`<h6>место ${p[1]} · ${p[0]}${p[2]&&p[2]!==p[0]?'–'+p[2]:''} · ${p[3]||1} прогон${(p[3]||1)>1?'а':''}</h6>`
       + `<div class="sr2"><b>почему</b><em colspan="2" style="grid-column:2/4">${why}</em></div>`

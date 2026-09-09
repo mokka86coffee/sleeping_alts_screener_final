@@ -310,6 +310,11 @@ def build(days: int = 7) -> dict:
         else ("да · " + str(x["bg"].get("lead_sym", "")).replace("USDT", "") if x["bg"]["pulls"] else "нет"))
     cut("биткоин", lambda x: None if (x["bg"] or {}).get("btc_day_pct") is None
         else ("вниз" if x["bg"]["btc_day_pct"] < -0.5 else ("вверх" if x["bg"]["btc_day_pct"] > 0.5 else "стоит")))
+    # ПОДЪЁМ БЕЗ РОСТА СВОЕГО БАЛЛА (09.09): проверено на 23 подъёмах — с ростом балла 58%
+    # случаев дали ≥3% (медиана +6.1%), без роста 25% (+2.7%). Монету сдвинули соседи, а не её
+    # собственные числа.
+    cut("подъём", lambda x: None if x.get("own_up") is None
+        else ("свой балл вырос" if x["own_up"] else "сдвинули соседи"))
     cut("медиана доски", lambda x: None if (x["bg"] or {}).get("median_pct") is None
         else ("падает" if x["bg"]["median_pct"] < -0.3
               else ("рост" if x["bg"]["median_pct"] > 0.3 else "ровно")))
