@@ -25,6 +25,7 @@ from pathlib import Path
 from core_config import (
     ANOMALY_PATH, ANOMALY_RATIO_MIN, LEADERS_ARCHIVE_PATH,
     LEADERS_MAX_AGE_DAYS, LEADERS_PATH,
+    MIN_QUOTE_VOLUME_24H, PUMP_JUMP_PCT, PUMP_LEADERS_PATH, PUMP_MIN_AGE_DAYS,
 )
 # Пороги завершения цикла живут в конфиге семейства — там же, где их
 # читает сам детектор. Импорт наружу из слоя analytics осознанный:
@@ -615,6 +616,120 @@ def lead_stats(recs: dict, now: datetime) -> dict:
             "last": str(rec.get("last_seen") or ""),
         }
     return out
+
+
+# ── ЛИДЕР ПО ПАМПУ (09.09, правило владельца целиком) ─────────────────────
+# Монета берётся в лидеры фона, если дала PUMP_JUMP_PCT за сутки и прошла три
+# проверки по порядку: оборот от MIN_QUOTE_VOLUME_24H, есть в архиве кванта,
+# листинг раньше PUMP_MIN_AGE_DAYS. Порядок именно такой — оборот проверяется
+# первым, он бесплатный, и им отсекается почти всё; возраст запрашивается
+# только у тех, кто дошёл, чтобы не гонять сеть впустую.
+#
+# Основа фиксируется один раз и не переставляется: волны складываются, и
+# «+50%, откат, ещё +50%» читается как +100% от одной точки.
+#
+# ВЫБЫТИЕ. Общее правило журнала (22.08) — код не удаляет, только помечает.
+# Оно остаётся для НАШИХ монет. Запись с пометкой added_on_pump — чужая, взята
+# на время хода: при возврате под основу копия уходит в архив, а из журнала
+# запись удаляется. Наблюдать в ней после конца движения нечего.
+def _quant_has(symbol: str) -> bool:
+    """Есть ли монета в архиве кванта. Нет — микрокап или свежий мем."""
+    base = symbol[:-4] if symbol.endswith("USDT") else symbol
+    arch = LEADERS_PATH.parent.parent / "cq_v2"
+    return any((arch / f"{n}.json").exists() for n in (base.lower(), symbol.lower()))
+
+
+def _listing_age_days(symbol: str, now: datetime) -> int | None:
+    """Возраст листинга по первой дневной свече. Запрос через общий слой."""
+    from core_binance import get_klines
+    kl = get_klines(symbol, "1d", limit=1)
+    if not kl:
+        return None
+    try:
+        first_ms = int(kl[0][0])
+    except (TypeError, ValueError, IndexError):
+        return None
+    return int((now.timestamp() * 1000 - first_ms) / 86_400_000)
+
+
+def pump_leaders(tickers: list[dict] | None = None,
+                 mine: set[str] | None = None,
+                 now: datetime | None = None,
+                 path: Path = PUMP_LEADERS_PATH,
+                 archive_path: Path = LEADERS_ARCHIVE_PATH) -> list[dict]:
+    """Список лидеров по пампу с памятью основы между прогонами."""
+    from core_binance import get_futures_tickers
+
+    now = now or datetime.now(timezone.utc)
+    mine = mine or set()
+    rows = tickers if tickers is not None else get_futures_tickers()
+    if not isinstance(rows, list):
+        return []
+
+    store = read_store(path)
+    live: dict[str, dict] = {}
+
+    cur: dict[str, dict] = {}
+    for r in rows:
+        sym = str(r.get("symbol") or r.get("sym") or "")
+        if not sym.endswith("USDT"):
+            continue
+        try:
+            cur[sym] = {
+                "px": float(r.get("lastPrice") or r.get("px") or 0) or None,
+                "day_pct": float(r.get("priceChangePercent") or r.get("day_pct") or 0),
+                "vol_usd": float(r.get("quoteVolume") or r.get("vol_usd") or 0),
+            }
+        except (TypeError, ValueError):
+            continue
+
+    # уже в списке: держим, пока цена выше основы
+    for sym, rec in store.items():
+        if sym.startswith("_"):
+            continue
+        now_px = (cur.get(sym) or {}).get("px")
+        base = rec.get("base")
+        if now_px and base and now_px < base:
+            reason = f"under_base:{base:g}"
+            _archive(archive_path, sym, rec, reason=reason, now=now)
+            if rec.get("added_on_pump"):
+                continue                      # чужая — удаляем из журнала
+            rec.setdefault("retired_at", now.isoformat())
+            rec["retired_why"] = reason
+            live[sym] = rec                   # наша — остаётся с отметкой
+            continue
+        if now_px and base:
+            rec["px"] = now_px
+            rec["run_pct"] = round((now_px / base - 1) * 100, 1)
+            rec["day_pct"] = (cur.get(sym) or {}).get("day_pct")
+            rec["last_hit"] = now.isoformat()
+        live[sym] = rec
+
+    # новые: три проверки по порядку
+    for sym, d in cur.items():
+        if sym in live or d["day_pct"] < PUMP_JUMP_PCT:
+            continue
+        if d["vol_usd"] < MIN_QUOTE_VOLUME_24H:
+            continue
+        if not _quant_has(sym):
+            continue
+        age = _listing_age_days(sym, now)
+        if age is not None and age < PUMP_MIN_AGE_DAYS:
+            continue
+        base = d["px"] / (1 + d["day_pct"] / 100) if d["px"] else None
+        live[sym] = {
+            "symbol": sym, "base": round(base, 10) if base else None,
+            "px": d["px"], "day_pct": round(d["day_pct"], 2),
+            "run_pct": round(d["day_pct"], 1), "vol_usd": round(d["vol_usd"]),
+            "age_days": age, "mine": sym in mine,
+            "added_on_pump": sym not in mine,
+            "first_seen": now.isoformat(), "last_hit": now.isoformat(),
+        }
+
+    ensure_dirs()
+    write_atomic(path, json.dumps(live, ensure_ascii=False, indent=1))
+    return sorted((r for r in live.values() if not r.get("retired_at")),
+                  key=lambda x: -(x.get("run_pct") or 0))
 
 
 def journal_summary(path: Path = LEADERS_PATH) -> dict:

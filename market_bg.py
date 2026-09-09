@@ -173,6 +173,25 @@ def _leaders(mine: set[str]) -> dict | None:
             "age_med": round(statistics.median(ages)) if ages else None}
 
 
+# Лидер по пампу считается в analytics_leaders (правило владельца 09.09: +50% за сутки,
+# оборот от MIN_QUOTE_VOLUME_24H, есть в кванте, листинг раньше полугода; основа фиксируется
+# и не переставляется). Здесь только читаем готовый список — счёт и пороги живут там же, где
+# остальные лидеры, а константы в core_config.
+
+
+def _pump_list() -> list:
+    try:
+        from core_config import PUMP_LEADERS_PATH as _p
+    except ImportError:
+        _p = BASE_DIR / "output" / "pump_leaders.json"
+    try:
+        recs = json.loads(_p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    live = [r for r in recs.values() if isinstance(r, dict) and not r.get("retired_at")]
+    return sorted(live, key=lambda x: -(x.get("run_pct") or 0))
+
+
 # сессии в UTC: начало, конец
 SESSIONS = (("Азия", 0.0, 8.0), ("Европа", 7.0, 16.0), ("США", 13.5, 20.0))
 SOON_H = 1.0     # «скоро закроется» / «скоро откроется» — за час
@@ -380,6 +399,9 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
         }
 
     lead = _leaders({c["sym"] for c in coins}) if leaders else None
+    # лидеры по пампу — по правилу владельца (+50% за сутки, оборот от $2M, есть в кванте,
+    # листинг раньше полугода); основа фиксируется и не переставляется
+    pumps = _pump_list()
 
     # БИТКОИН — ИЗ ГОТОВОГО СРЕЗА ШАГА «БИТКОИН» (08.09): в прогоне он собирается отдельным шагом
     # (btc_pulse) и всё там есть — цена, плечо, ликвидации, премия. А фон брал его из своей доски,
@@ -468,7 +490,7 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
             "first3": [{"sym": c["sym"], "day_pct": c["day_pct"], "oi_day_pct": c["oi_day_pct"]} for c in first3],
             "first3_up": sum(1 for c in first3 if c["day_pct"] > 0),
         },
-        "leader": our_lead,
+        "leader": our_lead, "pumps": pumps,
         "big_mover": big_block,
         "leaders": lead,
         "coins": sorted(coins, key=lambda c: -c["day_pct"]),
@@ -578,14 +600,30 @@ def bg_note(row: dict | None = None) -> list:
         # «наши» — это монеты очереди: первые и в очереди, а не лидеры биржи (08.09, вопрос владельца)
         state = "давит" if q["up"] * 2 < q["n"] else ("рост" if q["up"] * 2 > q["n"] else "поровну")
         out.append(["очередь", state, f"растёт {q['up']} из {q['n']}"])
+    # ЛИДЕР ПОКАЗЫВАЕТСЯ, ТОЛЬКО ЕСЛИ ОН ЕСТЬ (09.09, владелец: «как PLAY попал в лидеры с ходом
+    # +3.7%?»). Порог отрабатывал верно — PLAY его не проходил, — но строка всё равно печатала
+    # верхнюю по ходу монету и приписывала рядом «без лидера». Читалось как «лидер PLAY».
+    # Теперь без монеты: просто «лидера нет», и никакой тикер не мелькает.
+    # ЛИДЕР ПО ПАМПУ ГЛАВНЕЕ (09.09): монета с +50% за сутки, прошедшая отсекатели, — это и есть
+    # «куда пошли деньги», независимо от того, наша она или нет
+    pm = (r.get("pumps") or [])
+    if pm:
+        p0 = pm[0]
+        out.append(["лидер", "тянет одна" if len(pm) == 1 else f"тянут {len(pm)}",
+                    f"{str(p0.get('symbol') or p0.get('sym') or '').replace('USDT', '')} "
+                    f"+{p0.get('run_pct') or 0:.0f}% от основы"
+                    + (" · наша" if p0.get("mine") else " · не из выборки")])
+        return out
     ol = r.get("leader") or {}
-    if ol.get("sym"):
-        state = "тянет одна" if ol.get("pulls") else "без лидера"
+    if ol.get("sym") and ol.get("pulls"):
+        state = "тянет одна"
         run = ol.get("run7")
         out.append(["лидер", state,
                     f"{ol['sym'].replace('USDT', '')} "
                     + (f"+{run:.0f}% от дна недели" if run is not None else f"{ol['day_pct']:+.0f}% за сутки")
-                    + (f" · ×{ol['gap']} к медиане очереди" if ol.get("pulls") else "")])
+                    + f" · ×{ol['gap']} к медиане очереди"])
+    else:
+        out.append(["лидер", "нет", "ни одна не оторвалась от очереди"])
     tm = r.get("time") or {}
     live = [m for m in (tm.get("markets") or []) if m.get("open")]
     if live:
