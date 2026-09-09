@@ -999,8 +999,16 @@ function mask(){
 const T_IN=2.8,GAP=Math.max(1.4,Math.min(3.0,24/N));   // при 12 именах — по 2 с, чтобы созвездие собралось за полминуты
 const ease=x=>x*x*(3-2*x);
 const Fv=new Float32Array(N);
+// МЕТКИ РИСУЮТСЯ ПОСЛЕ РАСЧЁТА РАЗМЕРОВ (09.09, владелец: «спутник появляется не всегда — если
+// повернуть планшет, то они появляются; и на компьютере, если уменьшить или увеличить экран»).
+// Причина: спутники и пузыри рисовались один раз при загрузке, когда W, H и позиции звёзд ещё не
+// посчитаны — координаты выходили нулевыми, и метки уезжали за экран. На resize всё
+// пересчитывалось, и они вставали на место. Теперь у слоёв общий список перерисовки: resize
+// вызывает его сам, и он же вызывается один раз после первого расчёта размеров.
+const REDRAW=[];
 function resize(){const d=Math.min(devicePixelRatio,1.5);W=innerWidth;H=innerHeight;
-  c.width=W*d;c.height=H*d;gl.viewport(0,0,c.width,c.height);gl.uniform2f(uR,c.width,c.height);mask()}
+  c.width=W*d;c.height=H*d;gl.viewport(0,0,c.width,c.height);gl.uniform2f(uR,c.width,c.height);mask();
+  REDRAW.forEach(f=>{try{f()}catch(e){}});}
 addEventListener('resize',resize);
 let start=null;
 function loop(now){
@@ -1059,8 +1067,8 @@ function applyGroup(){
       host.appendChild(el); host.appendChild(tip);
     });
   }
-  place();
-  addEventListener('resize', ()=>setTimeout(place,150));
+  REDRAW.push(place);
+  if(W) place();          // при загрузке размеры ещё не посчитаны — рисует resize()
 })();
 
 // ДВА ПОСЛЕДНИХ ПУЗЫРЯ ПОД ИМЕНЕМ (09.09): слева от состояния, слева направо по времени
@@ -1082,8 +1090,8 @@ function applyGroup(){
       });
     });
   }
-  place();
-  addEventListener('resize', ()=>setTimeout(place,150));
+  REDRAW.push(place);
+  if(W) place();          // при загрузке размеры ещё не посчитаны — рисует resize()
 })();
 const tip=document.getElementById('tip');
 c.addEventListener('mousemove',ev=>{const j=hit(ev,true),i=hit(ev);
