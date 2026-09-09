@@ -5,7 +5,7 @@
 Вторая — фон: биткоин и монеты, которые растут, неважно, из нашей выборки они или нет. Третья —
 дополнительные измерения». И отдельно: «в плашках по дням показывать монеты, которые были в первых,
 их максимальную и минимальную цену за день, и на каких позициях они были в течение дня — примерно
-так 1→3→2→1; если из очереди, то точное время, и это конец прогноза».
+так 1→3→2→1; если выпала из очереди, то точное время, и это конец прогноза».
 
 Первая часть — из output/queue_log.jsonl (места по прогонам) и cq_v2/intraday (цены).
 Вторая — из output/market_bg.jsonl: биткоин, ширина, поток, десятка лидеров биржи с отсечкой свежих
@@ -131,8 +131,31 @@ def _part1() -> dict:
             if not pl:
                 continue
             e = d.setdefault(sym, {"path": [], "first_top": None, "gone": None, "best": 99})
+            # ВРЕМЯ, ДО КОТОРОГО МЕСТО ДЕРЖАЛОСЬ (09.09, владелец: «почему не пишется место на
+            # каждом прогоне, если оно одинаковое? давай время хотя бы дописывать, до какого
+            # повторение»). Писать место каждый прогон — это десятки одинаковых цифр в строке.
+            # Вместо этого у ступени третье поле: время последнего прогона, где она держалась.
+            # Видно и путь, и сколько монета простояла на каждом месте.
+            # СКОЛЬКО ПРОГОНОВ МЕСТО ДЕРЖАЛОСЬ (09.09, владелец: «в журнале в скобках писать,
+            # сколько раз место повторялось рядом с номером позиции»). Четвёртое поле — счётчик
+            # прогонов. IOST шёл 6→8→4→1 и встал; FF за день сменил место двадцать один раз и
+            # никуда не пошёл — число повторов различает удержание и болтанку.
+            # ПОЧЕМУ ПЕРЕШЛО НА ЭТО МЕСТО (09.09, владелец: «всплывашка при наведении на место —
+            # почему перешло; там, где 10 раз подряд было первое, вся история, что менялось»).
+            # Пятое поле ступени — числа балла на каждом прогоне внутри неё: балл, ход, интерес,
+            # состояние, стадия, пузырь. По ним видно, чем этот прогон отличался от прошлого.
+            _snap = {"t": t[11:16], "score": row.get("score"), "move": row.get("move_pct"),
+                     "oi": row.get("oi_chg_pct"), "oi3": row.get("oi_trend_pct"),
+                     "state": row.get("today"), "stage": row.get("stage"),
+                     "bubble": row.get("bubble"), "mode": row.get("mode"),
+                     "engine": row.get("engine"), "size": row.get("size")}
             if not e["path"] or e["path"][-1][1] != pl:
-                e["path"].append([t[11:16], pl])
+                e["path"].append([t[11:16], pl, t[11:16], 1, [_snap]])
+            else:
+                e["path"][-1][2] = t[11:16]
+                e["path"][-1][3] = (e["path"][-1][3] if len(e["path"][-1]) > 3 else 1) + 1
+                if len(e["path"][-1]) > 4:
+                    e["path"][-1][4].append(_snap)
             e["best"] = min(e["best"], pl)
             if pl <= 3 and not e["first_top"]:
                 e["first_top"] = t[11:16]
@@ -356,6 +379,22 @@ html,body{margin:0;min-height:100%;color:var(--ink);font-family:Inter,system-ui,
  scrollbar-width:none;min-width:0}
 .path::-webkit-scrollbar{display:none}
 .path b{font-weight:500;color:#33475a}.path i{font-style:normal;color:#b9c6d4;margin:0 4px}
+.path w{font-size:8.5px;color:#a8b6c6;margin-left:2px;font-variant-numeric:tabular-nums}
+.path n{font-size:10px;color:#12a17c;margin-left:1px;font-variant-numeric:tabular-nums}
+.path .st{position:relative;cursor:default;padding:2px 1px;border-radius:5px;transition:.14s}
+.path .st:hover{background:rgba(18,161,124,.10)}
+/* ПОЧЕМУ ПЕРЕШЛО НА ЭТО МЕСТО (09.09): вся история ступени — прогон за прогоном */
+#stpop{position:fixed;z-index:20;max-width:420px;padding:13px 15px;border-radius:16px;
+ background:linear-gradient(160deg,#fff,#eef2f9);
+ box-shadow:12px 14px 30px rgba(120,140,175,.42),-6px -8px 18px rgba(255,255,255,1);
+ opacity:0;visibility:hidden;transition:.14s;pointer-events:none}
+#stpop.on{opacity:1;visibility:visible}
+#stpop h6{margin:0 0 8px;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);font-weight:400}
+#stpop .sr2{display:grid;grid-template-columns:42px 54px 1fr;gap:8px;font-size:11px;padding:5px 0;
+ border-top:1px solid rgba(120,140,175,.14);color:var(--mid);font-variant-numeric:tabular-nums}
+#stpop .sr2 b{color:#1d2a36;font-weight:500}
+#stpop .sr2 em{font-style:normal;color:#33475a}
+#stpop .up{color:var(--up)}#stpop .dn{color:var(--dn)}
 .path u{text-decoration:none;color:var(--dn);font-weight:500}
 .v{text-align:right;font-variant-numeric:tabular-nums;font-size:15px;font-weight:500;line-height:1.2}
 .v s{text-decoration:none;display:block;font-size:10px;font-weight:400;color:var(--up)}
@@ -478,7 +517,13 @@ function drawFilters(){
 function part1(){
   const rows=(D.days[DAY]||[]).filter(r=>pass(r.bg));
   document.getElementById('c1').innerHTML=rows.map(r=>{
-    const steps=r.path.map(p=>`<b>${p[1]}</b>`);
+    // место · сколько прогонов держалось · с какого по какое время (09.09, владелец)
+    // место · сколько прогонов держалось · с какого по какое время; при наведении — история
+    const steps=r.path.map((p,pi)=>
+      `<span class="st" data-c="${r.s}" data-i="${pi}">`
+      + `<b>${p[1]}</b>` + ((p[3]||1)>1 ? `<n>(${p[3]})</n>` : '')
+      + `<w>${p[0]}${p[2] && p[2]!==p[0] ? '–'+p[2] : ''}</w>`
+      + `</span>`);
     if(r.gone)steps.push(`<u>${r.gone}</u>`);
     const cl=r.end>1?'up':(r.end<-1?'dn':'flat');
     // КЛИК ПО ИМЕНИ — КАРТОЧКА МОНЕТЫ (09.09, владелец): тот же переход, что со звёзд,
@@ -578,6 +623,49 @@ function part3(){
 function redraw(){drawFilters();part1();part2();part3();}
 const days=Object.keys(D.days).sort().reverse();
 document.getElementById('days').innerHTML=days.map((d,i)=>`<div class="day${i?'':' on'}" data-d="${d}">${d.slice(8,10)}.${d.slice(5,7)}</div>`).join('');
+// ПОЧЕМУ ПЕРЕШЛО НА ЭТО МЕСТО (09.09): наведение на ступень — история прогон за прогоном.
+// Показываем, что было с баллом, ходом и интересом на каждом прогоне внутри ступени, и чем
+// первый прогон ступени отличался от последнего прогона предыдущей — это и есть причина перехода.
+(function(){
+  const pop=document.createElement('div'); pop.id='stpop'; document.body.appendChild(pop);
+  function fmt(v,suf){ return (v===null||v===undefined)?'—':((v>0?'+':'')+v+(suf||'')); }
+  document.addEventListener('mouseover', ev=>{
+    const el=ev.target.closest && ev.target.closest('.st'); if(!el)return;
+    const rows=(D.days[DAY]||[]).filter(r=>pass(r.bg));
+    const coin=rows.find(r=>r.s===el.dataset.c); if(!coin)return;
+    const i=+el.dataset.i, p=coin.path[i], prev=coin.path[i-1];
+    const hist=(p[4]||[]);
+    const before=prev && prev[4] && prev[4].length ? prev[4][prev[4].length-1] : null;
+    const first=hist[0]||{};
+    let why='';
+    if(before){
+      const parts=[];
+      if(before.score!=null && first.score!=null){
+        const d=(first.score-before.score);
+        parts.push(`балл ${before.score} → ${first.score} (${d>0?'+':''}${d.toFixed(3)})`);
+      }
+      if(before.state!==first.state) parts.push(`состояние: ${before.state} → ${first.state}`);
+      if(before.stage!==first.stage) parts.push(`стадия: ${before.stage} → ${first.stage}`);
+      if(before.bubble!==first.bubble) parts.push(`пузырь: ${before.bubble} → ${first.bubble}`);
+      why = parts.length ? parts.join(' · ') : 'числа не изменились — сдвинули соседи';
+    } else why='первое появление в очереди';
+    pop.innerHTML=`<h6>место ${p[1]} · ${p[0]}${p[2]&&p[2]!==p[0]?'–'+p[2]:''} · ${p[3]||1} прогон${(p[3]||1)>1?'а':''}</h6>`
+      + `<div class="sr2"><b>почему</b><em colspan="2" style="grid-column:2/4">${why}</em></div>`
+      + hist.map(h=>`<div class="sr2"><b>${h.t}</b>`
+          + `<em>${h.score!=null?h.score:'—'}</em>`
+          + `<span>ход <em class="${(h.move||0)>0?'up':'dn'}">${fmt(h.move,'%')}</em>`
+          + ` · интерес <em class="${(h.oi||0)>0?'up':'dn'}">${fmt(h.oi,'%')}</em>`
+          + ` · ${h.state||''}${h.bubble&&h.bubble!=='тихо'?' · пузырь '+h.bubble:''}</span></div>`).join('');
+    const r=el.getBoundingClientRect();
+    pop.style.left=Math.min(r.left, innerWidth-440)+'px';
+    pop.style.top=Math.min(r.bottom+8, innerHeight-260)+'px';
+    pop.classList.add('on');
+  });
+  document.addEventListener('mouseout', ev=>{
+    if(ev.target.closest && ev.target.closest('.st')) pop.classList.remove('on');
+  });
+})();
+
 // переход в карточку монеты по клику на имя
 document.addEventListener('click', ev=>{
   const a=ev.target.closest && ev.target.closest('a.go'); if(!a)return;
