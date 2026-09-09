@@ -620,7 +620,9 @@ COIN_HTML = r"""
 .mini{position:absolute;bottom:64px;width:320px;height:180px;transform:perspective(900px) rotateX(var(--px)) rotateY(var(--py)) rotateZ(var(--pz)) scale(var(--sc,1));transform-origin:50% 100%;opacity:0;animation:fadein 1.2s ease 3s forwards;--c:#ffd98a;--g:245,169,58}
 /* углы — те, что владелец подобрал на стенде (04.09): ось у нижней кромки */
 .mini.verdict{left:520px}
-.mini.journal{right:80px;--px:-20deg;--py:-18deg;--pz:0deg;bottom:114px;--sc:.91}   /* стенд 05.09 */   /* дальше от зрителя на 50 */
+/* ПЛИТА ЖУРНАЛА НА 60% (09.09, владелец): на ней живут пузыри — читать их приходилось
+   приближая. Было 0.91 → 1.37 → теперь 2.19. Углы и место не трогаем. */
+.mini.journal{right:80px;--px:-20deg;--py:-18deg;--pz:0deg;bottom:114px;--sc:2.19}   /* стенд 05.09 */
 .mini.sched{left:36px;--px:-15deg;--py:11deg;--pz:-2deg;bottom:350px;width:288px;--sc:.82;filter:saturate(.6) brightness(.85)}
 .mini.noglow .ground,.mini.noglow .refl{opacity:.35}   /* 05.09 ночь: выше на 86, под ней плита плеча */   /* стенд 05.09 */      /* дальше на 100 */
 .mini .ground{position:absolute;left:0;right:0;bottom:30px;height:1px;background:#fff6dc;opacity:.55}
@@ -1593,7 +1595,9 @@ COIN_JS = r"""
         var mx = Math.max.apply(null, vols);
         ser.forEach(function (b, i) { var v = vols[i]; if (v < mu + 2 * sd || b.t < t0 || b.t > tE) return;
           var pt = null, best = 1e18; pts.forEach(function (q) { var dd = Math.abs(q.t - b.t); if (dd < best) { best = dd; pt = q; } }); if (!pt) return;
-          var r = 4 + 8 * Math.sqrt((v - mu) / Math.max(1, mx - mu));
+          // ПУЗЫРИ КРУПНЕЕ НА 60% (09.09, владелец): плита журнала выросла, пузыри должны расти
+          // вместе с ней — иначе на большом графике они снова мелкие. Было 4 + 8·√доли.
+          var r = 6.4 + 12.8 * Math.sqrt((v - mu) / Math.max(1, mx - mu));
           var buy = (+b.b || 0) >= (+b.s || 0);
           // СОМНИТЕЛЬНЫЙ ПУЗЫРЬ — ОРАНЖЕВЫЙ (08.09, владелец: «не отсекать, а делать наполовину
           // оранжевым — понятно, что покупки есть, но цель у них может быть другая»). Смотрим, что
@@ -1649,7 +1653,10 @@ COIN_JS = r"""
             // ними тёмная грань в один пиксель, а оранжевый взят ярче и желтее — иначе рядом с
             // красным он читался как оттенок того же цвета.
             var ry = Y(pt.p), rr = r * .52;
-            var ORANGE = '#ffb020';
+            // ПОЛОВИНКА СИНЯЯ, НЕ ЖЁЛТАЯ (09.09, владелец: «жёлтый — цвет графика, они сливаются»):
+            // линия цены и вся отделка карточки золотые, и янтарная половина тонула в них.
+            // Холодный синий не встречается на графике вовсе, поэтому виден сразу.
+            var ORANGE = '#4aa8ff';
             bubbles += '<path d="M' + cxb + ',' + (ry - rr).toFixed(1) + ' A' + rr.toFixed(1) + ',' + rr.toFixed(1) +
                        ' 0 0 0 ' + cxb + ',' + (ry + rr).toFixed(1) + ' Z" fill="' + own + '"/>' +
                        '<path d="M' + cxb + ',' + (ry - rr).toFixed(1) + ' A' + rr.toFixed(1) + ',' + rr.toFixed(1) +

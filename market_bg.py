@@ -398,6 +398,34 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
             "queue": _l.get("queue"),
         }
 
+    # ── ДЕНЬГИ НА ДОСКЕ (09.09) ────────────────────────────────────────────────────────────────
+    # Владелец: медленные пузыри работают не всегда. Три-четыре месяца назад, когда деньги пришли
+    # на доску, они дали ×5–10 по десяткам монет; сейчас, на дне, они есть почти у всех и ничего
+    # не различают. Значит нужна мерка, КОГДА деньги на доске.
+    # Измеримый след того эпизода: открытый интерес по альтам впервые с декабря 2024 стал выше
+    # биткоиновского. У кванта на Advanced интереса по альтам нет — считаем своё: сумма интереса
+    # по нашей доске к интересу биткоина. Само число мало значит (110 монет из тысяч), важен СДВИГ.
+    _alt_oi = sum((c.get("oi") or 0) for c in coins if not c["sym"].startswith("BTC"))
+    _btc_oi = btc_block.get("oi") or 0
+    alt_share = {"alt_oi": round(_alt_oi), "btc_oi": round(_btc_oi),
+                 "ratio": round(_alt_oi / _btc_oi, 4) if _btc_oi else None, "chg_24h": None}
+    if alt_share["ratio"]:
+        try:
+            _want = (now - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M")
+            _old = None
+            for _l in OUT.read_text(encoding="utf-8").splitlines()[-400:]:
+                try:
+                    _r = json.loads(_l)
+                except ValueError:
+                    continue
+                _rr = ((_r.get("alt_share") or {}).get("ratio"))
+                if _rr and str(_r.get("at") or "")[:16] <= _want:
+                    _old = _rr
+            if _old:
+                alt_share["chg_24h"] = round((alt_share["ratio"] / _old - 1) * 100, 1)
+        except OSError:
+            pass
+
     lead = _leaders({c["sym"] for c in coins}) if leaders else None
     # лидеры по пампу — по правилу владельца (+50% за сутки, оборот от $2M, есть в кванте,
     # листинг раньше полугода); основа фиксируется и не переставляется
@@ -491,6 +519,7 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
             "first3_up": sum(1 for c in first3 if c["day_pct"] > 0),
         },
         "leader": our_lead, "pumps": pumps,
+        "alt_share": alt_share,
         "big_mover": big_block,
         "leaders": lead,
         "coins": sorted(coins, key=lambda c: -c["day_pct"]),
@@ -589,6 +618,16 @@ def bg_note(row: dict | None = None) -> list:
             fut = "вниз" if abs(dn_p) < abs(up_p) else "вверх"
     if fut_why:
         out.append(["биткоин дальше", fut or "—", " · ".join(fut_why)])
+    # ДЕНЬГИ НА ДОСКЕ (09.09): доля плеча альтов к биткоину и её сдвиг за сутки — мерка того,
+    # когда деньги приходят на доску. Медленные пузыри оживают именно в такие периоды.
+    al = r.get("alt_share") or {}
+    if al.get("ratio"):
+        ch = al.get("chg_24h")
+        state = ("идут в альты" if (ch is not None and ch >= 3) else
+                 "уходят в биткоин" if (ch is not None and ch <= -3) else "стоят")
+        out.append(["деньги на доске", state,
+                    f"плечо альтов ×{al['ratio']:.3f} к биткоину"
+                    + (f" · {ch:+.1f}% за сутки" if ch is not None else " · сутки не набрались")])
     tk = r.get("taker") or {}
     if tk.get("day"):
         state = "продают" if tk["day"] < 0.98 else ("покупают" if tk["day"] > 1.02 else "вровень")
@@ -661,6 +700,20 @@ def taker_line(row: dict | None = None) -> str:
 
 
 def write(res: dict) -> Path:
+    """Пишет срез фона в ленту. ВМЕСТЕ С СОСТОЯНИЯМИ ПАНЕЛИ (09.09, владелец: «убедись, что мы
+    пишем в журнал каждый прогон текущее состояние всех индикаторов на боковой панели»).
+
+    Сырые числа писались и раньше, а состояния считались на лету при показе — значит журнал их
+    не видел и не мог по ним фильтровать. Теперь одна и та же величина в трёх ролях: пишется в
+    ленту, служит кнопкой в журнале и показывается сводкой. Расчёт один — bg_note, поэтому
+    сводка и фильтр разойтись не могут. Сырое при этом остаётся нетронутым: состояния лежат
+    ОТДЕЛЬНЫМ полем, поверх, и в любой момент их можно пересчитать иначе."""
+    if "panel" not in res:
+        try:
+            res = dict(res)
+            res["panel"] = [[a, b, c] for a, b, c in bg_note(res)]
+        except Exception:  # noqa: BLE001
+            res["panel"] = []
     OUT.parent.mkdir(parents=True, exist_ok=True)
     with OUT.open("a", encoding="utf-8") as f:
         f.write(json.dumps(res, ensure_ascii=False) + "\n")
