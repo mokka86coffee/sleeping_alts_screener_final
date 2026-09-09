@@ -991,6 +991,14 @@ COIN_JS = r"""
     if (has(s.fund) && +s.fund > 0.01) con.push('толпа в лонге, фандинг ' + (+s.fund).toFixed(3) + '%');
     if (has(s.fund) && +s.fund < -0.01) pro.push('шорты платят');
     if (rep.delta_usd && +rep.delta_usd > 0) pro.push('дельта дневки в плюс'); else if (rep.delta_usd && +rep.delta_usd < 0) con.push('дельта дневки в минус');
+    // СИЛА ВЫДЫХАЕТСЯ (10.09, владелец увидел на графике, что Klinger разворачивается ДО вершины).
+    // Сам Klinger не посчитать — в архиве нет максимума и минимума бара; взяли его смысл через
+    // дельту. Проверено на 22 ходах ≥8%: сработало в 21, медианная фора 3 бара (1.5 ч), медианное
+    // падение после вершины −7.2%; SOPH 08.09 дал 6 баров форы и дальше −47.5%.
+    // В БАЛЛ НЕ ИДЁТ, только строка «против»: правило владельца — лучше выйти раньше, чем в ноль.
+    var _fa = (NEAR[String(s.coin || (String(s.t).toUpperCase() + 'USDT'))] || {}).force_turn_ago;
+    if (_fa === undefined || _fa === null) _fa = (s.today || {}).force_turn_ago;
+    if (_fa !== undefined && _fa !== null && _fa <= 8) con.push('сила развернулась ' + _fa + ' бар назад');
     var patD = patterns(HIST[String(s.t).toUpperCase()] || {}, CROWD[String(s.t).toUpperCase()]);
     if (patD.absorbShort) pro.push(patD.absorbShort);
     if (patD.shortShort) pro.push(patD.shortShort);

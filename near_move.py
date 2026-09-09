@@ -188,6 +188,42 @@ def _today_bars(sym_usdt: str) -> dict | None:
     #   идёт       — интерес и цена за последние часы в одну сторону вверх;
     #   стоит      — всё остальное.
     # Момент конца запоминается (ended_at) — это точка выхода, её же ставит карточка меткой.
+    # ── СИЛА ВЫДЫХАЕТСЯ (10.09) ──────────────────────────────────────────────────────────────
+    # Владелец увидел на графике, что Klinger разворачивается ДО вершины. Посчитать сам Klinger
+    # нельзя — в архиве нет максимума и минимума бара, только цена, и формула вырождается в ноль.
+    # Взяли его смысл своими средствами: направление даёт ДЕЛЬТА, а не размах бара. Быстрая
+    # средняя дельты против медленной; пересечение вниз = сила ушла раньше цены.
+    # Проверено на 22 ходах ≥8% за три дня: разворот случился до вершины в 21 случае (95%),
+    # медианная фора 3 бара (1.5 часа), медианное падение после вершины −7.2%.
+    # Крупные: SOPH 08.09 — 6 баров форы, дальше −47.5%; USELESS — 7 баров; DOOD — 3; PROM — 7.
+    # В БАЛЛ НЕ ИДЁТ: 22 случая за три дня — мало. Метка-наблюдение рядом с событием конца.
+    # Смысл по владельцу: не «выходи», а «начни выходить» — снять часть, остаток оставить.
+    def _force_turn(bars: list) -> tuple:
+        d = [((x.get("fut") or {}).get("d") or 0) for x in bars]
+        if len(d) < 20:          # с 10:00 UTC уже считается, раньше данных мало
+            return None, None
+
+        def _ema(xs, n):
+            k = 2 / (n + 1)
+            out, e = [], None
+            for x in xs:
+                e = x if e is None else x * k + e * (1 - k)
+                out.append(e)
+            return out
+
+        kv = [a2 - b2 for a2, b2 in zip(_ema(d, 12), _ema(d, 26))]
+        sg = _ema(kv, 9)
+        turn = None
+        for i in range(len(kv) - 1, 0, -1):
+            if kv[i] < sg[i] and kv[i - 1] >= sg[i - 1]:
+                turn = i
+                break
+        if turn is None:
+            return None, None
+        return bars[turn].get("candle"), (len(bars) - 1 - turn)
+
+    force_at, force_ago = _force_turn(full)
+
     day_hi_run = None
     ended_at = None
     ended_oi = None
@@ -432,6 +468,8 @@ def _today_bars(sym_usdt: str) -> dict | None:
     if leaving:
         kind = "коррекция" if (bubble_signal or not hit) else "конец"
     return {"bars": len(rows), "delta": round(d, 0), "taker": round(b / sl, 3) if sl else None,
+            # СИЛА ВЫДЫХАЕТСЯ (10.09): было записано ниже, после раннего возврата — не доезжало
+            "force_turn_at": (force_at or "")[11:16] or None, "force_turn_ago": force_ago,
             "oi_chg_pct": round(oi_chg * 100, 1) if oi_chg is not None else None,
             "px_chg_pct": round(px_chg * 100, 1) if px_chg is not None else None, "dominant": dom,
             "px": px1, "leaving_kind": kind, "day_low": held, "hit_bar": hit, "bubble_buy": bubble_buy,
@@ -946,6 +984,7 @@ def log_queue(res: dict) -> int:
             "after_harvest": q.get("after_harvest"), "after_harvest_vol": q.get("after_harvest_vol"),
             "run_from_low7": (v.get("nums") or {}).get("run_from_low7"),
             "accum": (v.get("nums") or {}).get("accum"),
+            "force_turn_ago": ((v.get("today") or {}).get("force_turn_ago")),
             "accum_past": (v.get("nums") or {}).get("accum_past"),
             "bubble_sure": ((v.get("today") or {}).get("bubbles") or [{}])[-1].get("sure"),
             "bubble_vs_plot": (v.get("today") or {}).get("bubble_vs_plot"),
