@@ -405,11 +405,24 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
     pl = (pulse.get("liq") or {})
     ppr = (pulse.get("premium") or {})
     px_now = _first(pm.get("px"), pulse.get("px"), (btc or {}).get("px"), b.get("price"))
-    day_pct = _first((btc or {}).get("day_pct"), _chg_from_log(px_now, 24))
+    # ход за сутки и за неделю — из того же рыночного среза, что кормит схему (09.09): там он уже
+    # посчитан (btc24 / btc7d), ждать сутки собственной ленты не нужно
+    mk = {}
+    for nm in ("market.json", "flow.json", "market_now.json"):
+        for q in (BASE_DIR / "output" / nm, BASE_DIR / nm):
+            if q.exists():
+                try:
+                    mk = json.loads(q.read_text(encoding="utf-8")) or {}
+                except (OSError, ValueError):
+                    mk = {}
+                break
+        if mk.get("btc24") is not None or mk.get("btc7d") is not None:
+            break
+    day_pct = _first(mk.get("btc24"), (btc or {}).get("day_pct"), _chg_from_log(px_now, 24))
     h1_pct = _first((btc or {}).get("h1_pct"), _chg_from_log(px_now, 1))
     btc_block = {
         "px": px_now,
-        "day_pct": day_pct, "h1_pct": h1_pct,
+        "day_pct": day_pct, "h1_pct": h1_pct, "week_pct": mk.get("btc7d"),
         "oi": _first(pm.get("oi_usd"), (btc or {}).get("oi"), b.get("oiUsd")),
         "oi_day_pct": _first(pm.get("oi_chg24_pct"), (btc or {}).get("oi_day_pct"), b.get("oiChgPct")),
         "taker24": _first(pulse.get("taker24"), ((b.get("fut") or {}).get("taker"))),
@@ -501,14 +514,59 @@ def bg_note(row: dict | None = None) -> list:
     if med is not None:
         state = "падает" if med < -0.3 else ("рост" if med > 0.3 else "ровно")
         out.append(["медиана доски", state, f"{med:+.2f}% медиана хода"])
+    # БИТКОИН — ДВЕ СТРОКИ: ЧТО СЕЙЧАС И ЧТО БУДЕТ (09.09, владелец: «мы тут должны иметь две вещи —
+    # что будет и что сейчас»). Раньше они были слиты в одно слово, и «давит» читалось как оба сразу.
+    # А это разные вещи: жечь могут лонгов, а вести всё равно вверх, если топливо наверху.
+    #   СЕЙЧАС — свершившееся: интерес за сутки, кого жгут, покупает ли Америка;
+    #   ДАЛЬШЕ — ожидание: где лежит топливо и до какой плиты ближе.
     b = r.get("btc") or {}
-    if b.get("day_pct") is not None:
-        d = b["day_pct"]
-        state = "падает" if d < -0.5 else ("рост" if d > 0.5 else "флэт")
-        out.append(["биткоин", state, f"{d:+.1f}% за сутки"])
-    else:
-        # пусто — говорим прямо, а не пропускаем строку: иначе обрыв источника не виден (08.09)
-        out.append(["биткоин", "нет данных", "срез не пришёл"])
+    now_votes, now_why = 0, []
+    oi_d = b.get("oi_day_pct")
+    if oi_d is not None:
+        if oi_d <= -1:
+            now_votes -= 1
+            now_why.append(f"плечо уходит {oi_d:+.1f}%")
+        elif oi_d >= 1:
+            now_votes += 1
+            now_why.append(f"плечо копится {oi_d:+.1f}%")
+    ll, ls = b.get("liq_long"), b.get("liq_short")
+    if ll and ls:
+        if ll > ls * 1.5:
+            now_votes -= 1
+            now_why.append(f"жгут лонгов ×{ll / ls:.1f}")
+        elif ls > ll * 1.5:
+            now_votes += 1
+            now_why.append(f"жгут шортов ×{ls / ll:.1f}")
+    pr = b.get("premium")
+    if pr is not None:
+        if pr < -0.005:
+            now_votes -= 1
+            now_why.append("Америка не покупает")
+        elif pr > 0.005:
+            now_votes += 1
+            now_why.append("Америка покупает")
+    if now_why:
+        out.append(["биткоин сейчас",
+                    "давит" if now_votes <= -2 else ("тянет" if now_votes >= 2 else "ровно"),
+                    " · ".join(now_why)])
+    # ДАЛЬШЕ: куда есть смысл вести — топливо по сторонам и что ближе
+    stl = b.get("short_to_long")
+    up_p, dn_p = b.get("up_pct"), b.get("dn_pct")
+    fut_why = []
+    fut = None
+    if stl is not None:
+        if stl < 0.8:
+            fut, _ = "вниз", fut_why.append(f"топлива снизу ×{1 / stl:.1f}")
+        elif stl > 1.25:
+            fut, _ = "вверх", fut_why.append(f"топлива сверху ×{stl:.1f}")
+        else:
+            fut, _ = "поровну", fut_why.append("топливо поровну")
+    if up_p is not None and dn_p is not None:
+        fut_why.append(f"плита {up_p:+.1f}% / {dn_p:+.1f}%")
+        if fut == "поровну":
+            fut = "вниз" if abs(dn_p) < abs(up_p) else "вверх"
+    if fut_why:
+        out.append(["биткоин дальше", fut or "—", " · ".join(fut_why)])
     tk = r.get("taker") or {}
     if tk.get("day"):
         state = "продают" if tk["day"] < 0.98 else ("покупают" if tk["day"] > 1.02 else "вровень")
