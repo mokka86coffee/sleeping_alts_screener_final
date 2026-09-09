@@ -233,7 +233,11 @@ def layout(n: int, seed: int = 7, zone: tuple | None = None) -> list[list[float]
     rnd = random.Random(seed + n)
     pts: list[list[float]] = []
     tries = 0
-    x0, y0, x1, y1 = zone or (0.10, 0.13, 0.90, 0.72)
+    # ЗВЁЗДЫ НЕ ЛЕЗУТ ПОД ПРИБОРЫ (09.09, владелец: «проверь, чтобы звёзды не попадали под
+    # приборы»): панель фона стоит слева, от 2% ширины на 19% в ширину, и занимает по высоте
+    # примерно от 20% до 70%. Раньше зона звёзд начиналась с 10% и имена ложились прямо на неё
+    # (STRK на «биткоин сейчас», FLOCK на «лидера»). Двигаем левый край за панель.
+    x0, y0, x1, y1 = zone or (0.26, 0.13, 0.90, 0.72)
     min_d = 0.16 if n <= 8 else 0.13
     while len(pts) < n and tries < 6000:
         tries += 1
@@ -289,7 +293,7 @@ def render_intro(items: list[dict] | None = None) -> str:
     star_pos = layout(len([it for it in items if it["g"] != 4]))
     # остывшие — своим рядом у низа, мелко (07.09): «у цели» старше четырёх часов
     n_s = len(stale)
-    stale_pos = [[round(0.14 + 0.72 * (i + 0.5) / max(1, n_s), 3), 0.83 + 0.02 * (i % 2)] for i in range(n_s)]
+    stale_pos = [[round(0.26 + 0.62 * (i + 0.5) / max(1, n_s), 3), 0.83 + 0.02 * (i % 2)] for i in range(n_s)]
     si = 0
     for g in (0, 1, 2, 4):
         lab_it = next((it for it in labels if it["g"] == g), None)
@@ -395,8 +399,38 @@ def render_intro(items: list[dict] | None = None) -> str:
         if _live:
             _l = _live[0]
             _sym = str(_l.get("symbol") or "")
+            # ЧЕМ ОПАСЕН ЛИДЕР (09.09, владелец: «добавь, что происходит опасного — фандинг,
+            # дельта, оборот, интерес угасает»). Панель говорила, кто ведёт, но не говорила цену
+            # вопроса. Берём числа последнего прогона по этой монете из ленты очереди и оставляем
+            # только то, что сработало: пустых строк не будет.
+            _risk: list = []
+            try:
+                _rows = [json.loads(_l) for _l in
+                         (BASE_DIR / "output" / "queue_log.jsonl").read_text(encoding="utf-8").splitlines()
+                         if _l.strip()]
+                _last = next((r for r in reversed(_rows) if r.get("sym") == _sym), None)
+            except (OSError, ValueError):
+                _last = None
+            if _last:
+                _f = _last.get("funding")
+                _oi, _px = _last.get("oi_chg_pct"), _last.get("px_chg_pct")
+                _dd = _last.get("drawdown_pct")
+                _tr = _last.get("oi_trend_pct")
+                _bt = _last.get("today") or ""
+                if _f is not None and abs(_f) >= 0.05:
+                    _risk.append(("шорты платят" if _f < 0 else "лонги платят")
+                                 + f" {_f:+.2f}% — так долго не держится")
+                if _oi and _px and _px > 0 and _oi / _px >= 2.5:
+                    _risk.append(f"плечо растёт быстрее цены ×{_oi / _px:.1f} — набивают лонги")
+                if _tr is not None and _tr <= -2:
+                    _risk.append(f"интерес угасает {_tr:+.1f}% за три часа")
+                if _dd is not None and _dd <= -8:
+                    _risk.append(f"от вершины дня {_dd:+.0f}%")
+                if "шорты закрывают" in str(_bt):
+                    _risk.append("вверх толкают закрывающиеся шорты — топливо конечно")
             leader = {
                 "sym": _sym.replace("USDT", ""),
+                "risk": _risk[:3],
                 "run_pct": _l.get("run_pct"),
                 "state": "тянет одна" if len(_live) == 1 else f"тянут {len(_live)}",
                 "line": f"+{_l.get('run_pct') or 0:.0f}% от основы"
@@ -506,17 +540,55 @@ TEMPLATE = r'''<!doctype html>
      столбиком, числа выделены. Ничего не решает, только показывает. */
   /* ЛИДЕР (08.09): панель сверху появляется ТОЛЬКО когда одна монета тянет всё на себя —
      разрыв с медианой наших впятеро и больше либо у неё уже конец. Иначе панели нет. */
-  .lead{position:fixed;left:50%;top:26px;transform:translateX(-50%);text-align:center;pointer-events:none;z-index:4;
-    font-family:"Inter",system-ui,sans-serif;font-weight:300}
-  .lead b{display:block;font-family:"Michroma",system-ui,sans-serif;font-weight:400;font-size:13.6px;
-    letter-spacing:.28em;color:#f2f7ff;text-shadow:0 0 26px rgba(190,220,255,.9),0 0 60px rgba(140,180,255,.5)}
-  .lead s{display:block;text-decoration:none;margin-top:6px;font-size:8.4px;letter-spacing:.14em;color:#cfe0ff}
-  .lead i{display:block;font-style:normal;margin-top:4px;font-size:6.4px;letter-spacing:.3em;text-transform:uppercase;
-    color:rgba(190,205,255,.45)}
+  /* ЗАГОЛОВОК ЛИДЕРА (09.09, владелец: «давай красивее, каких-то элементов дорисовать и чуть
+     анимации»): раньше — три строки текста без обрамления. Теперь: тонкие световые усы по бокам
+     подписи, мягкое зарево за именем, медленный проход блика по буквам и еле заметное дыхание
+     всего блока. Ничего не мигает: экран должен оставаться спокойным. */
+  .lead{position:fixed;left:50%;top:22px;transform:translateX(-50%);text-align:center;pointer-events:none;z-index:4;
+    font-family:"Inter",system-ui,sans-serif;font-weight:300;animation:leadbreath 7.5s ease-in-out infinite}
+  @keyframes leadbreath{50%{transform:translateX(-50%) translateY(1.5px)}}
+  /* зарево за именем */
+  .lead:before{content:"";position:absolute;left:50%;top:14px;width:280px;height:64px;
+    transform:translateX(-50%);pointer-events:none;border-radius:50%;
+    background:radial-gradient(closest-side,rgba(150,190,255,.20),rgba(150,190,255,0) 72%);
+    filter:blur(3px);animation:leadglow 6s ease-in-out infinite}
+  @keyframes leadglow{50%{opacity:.55}}
+  /* имя: проход блика по буквам, медленный */
+  .lead b{display:block;position:relative;font-family:"Michroma",system-ui,sans-serif;font-weight:400;
+    font-size:13.6px;letter-spacing:.28em;color:#f2f7ff;
+    text-shadow:0 0 26px rgba(190,220,255,.9),0 0 60px rgba(140,180,255,.5);
+    background:linear-gradient(100deg,#f2f7ff 38%,#ffffff 47%,#cfe4ff 56%,#f2f7ff 66%);
+    background-size:280% 100%;-webkit-background-clip:text;background-clip:text;
+    animation:leadshine 9s ease-in-out infinite}
+  @keyframes leadshine{0%,100%{background-position:120% 0}50%{background-position:-20% 0}}
+  /* РАЗДЕЛЕНИЕ СТРОК (09.09, владелец: «давай эти надписи визуально разделим»): строка с числами
+     отбита сверху волоском, а внутри неё разделители — ромбы, не точки. */
+  .lead s{display:block;text-decoration:none;margin-top:8px;padding-top:8px;font-size:8.4px;
+    letter-spacing:.14em;color:#cfe0ff;position:relative}
+  .lead s:before{content:"";position:absolute;left:50%;top:0;width:120px;height:1px;transform:translateX(-50%);
+    background:linear-gradient(90deg,transparent,rgba(160,200,255,.35),transparent)}
+  .lead s o{color:rgba(150,190,255,.45);font-size:5.5px;vertical-align:1.5px;margin:0 2px}
+  /* подпись «сейчас ведёт» со световыми усами по бокам */
+  .lead i{display:flex;align-items:center;justify-content:center;gap:9px;font-style:normal;margin-top:4px;
+    font-size:6.4px;letter-spacing:.3em;text-transform:uppercase;color:rgba(190,205,255,.55)}
+  .lead i:before,.lead i:after{content:"";width:52px;height:1px;
+    background:linear-gradient(90deg,transparent,rgba(160,200,255,.55))}
+  .lead i:after{background:linear-gradient(270deg,transparent,rgba(160,200,255,.55))}
   .lead u.hot{color:#ff8a70;text-shadow:0 0 16px rgba(255,130,100,.8)}
   .lead u.warn{color:#ffc069;text-shadow:0 0 16px rgba(255,180,90,.85)}
-  .lead u{display:block;text-decoration:none;margin-top:7px;font-size:7.2px;letter-spacing:.24em;
-    text-transform:uppercase;color:#ffd8a8;text-shadow:0 0 14px rgba(255,200,140,.7)}
+  /* предупреждение — в тонкой янтарной рамке-капсуле */
+  .lead u{display:inline-block;text-decoration:none;margin-top:10px;font-size:8px;font-weight:600;
+    letter-spacing:.26em;text-transform:uppercase;color:#ffe0b8;
+    text-shadow:0 0 16px rgba(255,200,140,.9);
+    padding:5px 14px;border-radius:999px;
+    box-shadow:inset 0 0 0 1px rgba(255,200,120,.45),0 0 22px rgba(255,180,90,.16)}
+  /* ЧЕМ ОПАСЕН (09.09): коралловые строки под предупреждением, каждая с числом */
+  .lead em{display:block;margin-top:9px;padding-top:9px;font-style:normal;position:relative}
+  .lead em:before{content:"";position:absolute;left:50%;top:0;width:90px;height:1px;transform:translateX(-50%);
+    background:linear-gradient(90deg,transparent,rgba(255,150,120,.30),transparent)}
+  .lead em i{display:inline-block;font-style:normal;margin:2px 5px;font-size:7px;letter-spacing:.16em;
+    text-transform:uppercase;color:#ffb0a0;padding:3px 9px;border-radius:999px;
+    box-shadow:inset 0 0 0 1px rgba(255,140,110,.25);text-shadow:0 0 12px rgba(255,120,90,.55)}
   .lead.ended b{color:#ffd8cc;text-shadow:0 0 26px rgba(255,150,120,.7)}
   .lead.ended s{color:#ffd8cc}
   /* ПЛЕЧО КОПИТСЯ — ЗОЛОТОЙ СПУТНИК (09.09, владелец: «кольцо сильно портит дизайн, сделай рядом
@@ -563,6 +635,8 @@ TEMPLATE = r'''<!doctype html>
   .sattip{position:fixed;pointer-events:none;z-index:3;font-size:6.6px;letter-spacing:.2em;
     text-transform:uppercase;color:rgba(255,216,150,.8);white-space:nowrap;transform:translate(-50%,-50%)}
   .sattip.past{color:rgba(225,238,255,.7)}
+  .sattip b{font-weight:500;color:#ffc247;text-shadow:0 0 8px rgba(255,180,60,.8),0 0 2px rgba(0,0,0,.9)}
+  .sattip{text-shadow:0 0 6px rgba(0,0,0,.9)}
   /* ПУЗЫРИ ПОД ИМЕНЕМ (09.09, вариант А): два последних, цвет по стороне заявки, у спорного
      правая половина янтарная — ровно как на графике карточки. Только у монет из лидеров. */
   .bub{position:fixed;pointer-events:none;z-index:3;border-radius:50%;transform:translate(-50%,-50%);
@@ -574,13 +648,28 @@ TEMPLATE = r'''<!doctype html>
   .bub.half{overflow:hidden}
   .bub.half:after{content:"";position:absolute;left:50%;top:0;right:0;bottom:0;
     background:linear-gradient(180deg,#ffd27a,#ffb020)}
-  .bgnote{position:fixed;left:3.5vw;bottom:34vh;width:clamp(146px,15vw,200px);z-index:3;
+  /* КОЛОНКА ШИРЕ И ОТ КРАЯ (09.09): строка «плечо уходит −1.1% · жгут лонгов ×4.3 · Америка не
+     покупает» не помещалась и обрезалась слева. */
+  .bgnote{position:fixed;left:2vw;bottom:34vh;width:clamp(190px,19vw,260px);z-index:3;
     font-family:"Inter",system-ui,sans-serif;font-weight:300;pointer-events:none}
   .bgnote i.hd{font-style:normal;display:block;font-size:6.1px;letter-spacing:.34em;text-transform:uppercase;
     color:rgba(190,205,255,.34);margin-bottom:14px}
   .bgnote .g{position:relative;margin-bottom:24px}
   .bgnote .g .t{font-size:6.1px;letter-spacing:.3em;text-transform:uppercase;
     color:rgba(190,205,255,.42);margin-bottom:20px}
+  /* ЗНАЧОК СЛЕВА ОТ ПОДПИСИ (09.09, владелец: «значка биткоина нет»): стоял справа и уезжал за
+     край узкой колонки. Теперь перед словом, в потоке строки. */
+  .bgnote .ico{width:30px;height:30px;color:rgba(255,206,120,.85);vertical-align:-10px;margin-right:7px;
+    filter:drop-shadow(0 0 8px rgba(255,190,90,.45))}
+  .bgnote .ico .btcrun{transform-origin:12px 12px;animation:btcrun 3.4s linear infinite;
+    filter:drop-shadow(0 0 4px rgba(255,230,170,.95))}
+  @keyframes btcrun{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+  /* строка без датчика: только состояние и число */
+  .bgnote .g.plain{margin-bottom:18px}
+  .bgnote .g.plain .t{margin-bottom:6px}
+  .bgnote .g.plain .pv{font-size:9.9px;font-weight:300;color:#dbe6ff;letter-spacing:.05em}
+  .bgnote .g.plain .pn{font-size:8.5px;color:rgba(190,205,255,.42);letter-spacing:.05em;margin-top:2px}
+  .bgnote .g.plain .pn w{color:rgba(190,205,255,.34)}
   /* 1. нить с бусиной — перевес сторон */
   .bgnote .rail{position:relative;height:1px;
     background:linear-gradient(90deg,rgba(150,175,255,0),rgba(150,175,255,.32) 18%,rgba(150,175,255,.32) 82%,rgba(150,175,255,0))}
@@ -601,7 +690,8 @@ TEMPLATE = r'''<!doctype html>
     box-shadow:0 0 8px rgba(160,185,220,.8)}
   /* ЧИСЛА СВЕТЛЫЕ, СЛОВА СЕРЫЕ (08.09, владелец: «растёт, из, за сутки — тоже второстепенным
      цветом»): значение читается сразу, служебные слова не мешают. */
-  .bgnote .val{position:absolute;top:-19px;transform:translateX(-50%);white-space:nowrap;font-size:10px;
+  /* белые числа в приборах −10% (09.09) */
+  .bgnote .val{position:absolute;top:-19px;transform:translateX(-50%);white-space:nowrap;font-size:9px;
     font-weight:200;color:#e2ebff;text-shadow:0 0 15px rgba(150,190,255,.7);transition:left .8s cubic-bezier(.2,.8,.2,1)}
   .bgnote .val w{font-style:normal;color:rgba(190,205,255,.42);text-shadow:none;font-size:8.5px}
   .bgnote .ends{position:relative;height:0}
@@ -616,9 +706,11 @@ TEMPLATE = r'''<!doctype html>
     -webkit-mask:radial-gradient(circle,transparent 64%,#000 65%);mask:radial-gradient(circle,transparent 64%,#000 65%);
     filter:drop-shadow(0 0 10px rgba(255,190,110,.6));animation:bead 3.6s ease-in-out infinite}
   .bgnote .ring+.lx{min-width:0}
-  .bgnote .lx b{display:block;font-weight:200;font-size:13px;color:#ffe0b0;text-shadow:0 0 16px rgba(255,190,110,.7)}
-  .bgnote .lx u{display:block;text-decoration:none;font-size:6.8px;letter-spacing:.2em;text-transform:uppercase;
-    color:#ffd8a8;margin-top:3px}
+  /* ПОДПИСЬ ЛИДЕРА В ОДНУ СТРОКУ (09.09, владелец: текст рвался на «ни» и «одна от дна недели») */
+  .bgnote .lx b{display:block;font-weight:200;font-size:11.7px;color:#ffe0b0;white-space:nowrap;
+    text-shadow:0 0 16px rgba(255,190,110,.7)}
+  .bgnote .lx u{display:block;text-decoration:none;font-size:6.8px;letter-spacing:.16em;text-transform:uppercase;
+    color:#ffd8a8;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .bgnote .lx u w{font-style:normal;color:rgba(200,212,255,.4)}
   /* 3. торги — циферблат суток: дуги сессий и бегунок «сейчас» */
   .bgnote .clock{position:relative;width:100%;height:26px}
@@ -1062,7 +1154,9 @@ function applyGroup(){
       el.style.animationDelay=(-(i%7)*0.6)+'s';
       const tip=document.createElement('div');
       tip.className='sattip'+(a.past?' past':'');
-      tip.textContent = a.past ? `копилось ${a.ago} дн назад` : `плечо +${a.oi3}%`;
+      // ЦИФРА ОРАНЖЕВАЯ И ВЫШЕ ЛУЧА (09.09, владелец: «число дней перекрывается белым лучом,
+      // лучше сделать цифру оранжевой»): белый луч спутника проходил ровно по подписи.
+      tip.innerHTML = a.past ? `копилось <b>${a.ago}</b> дн назад` : `плечо <b>+${a.oi3}%</b>`;
       tip.style.left=(x+dx)+'px'; tip.style.top=(y-dy-14)+'px';
       host.appendChild(el); host.appendChild(tip);
     });
@@ -1272,13 +1366,20 @@ function drawFx(t){
   const PULL=!!L.sym;
   if(el&&L.sym&&PULL){
     el.className='lead'+(L.ended?' ended':'');
-    el.innerHTML='<i>сейчас ведёт</i><b>'+L.sym+'</b><s>'+(L.ended?('конец в '+L.ended):(L.state||''))+
-      ' · '+(L.line||'')+(L.hours?(' · '+L.hours+' ч в первых'):'')+'</s>'+
+    // разделитель — ромб, чтобы числа не сливались в одну строку (09.09)
+    var SEP=' <o>\u25c6</o> ';
+    // ПОДПИСЬ С ИМЕНЕМ (09.09, владелец: «непонятно, что это информация по конкретной монете»):
+    // было просто «сейчас ведёт», и три строки чисел читались как общий фон.
+    el.innerHTML='<i>монета дня · '+L.sym+'</i><b>'+L.sym+'</b><s>'+(L.ended?('конец в '+L.ended):(L.state||''))+
+      SEP+String(L.line||'').split(' · ').join(SEP)+(L.hours?(SEP+L.hours+' ч в первых'):'')+'</s>'+
       ((L.runs_weak||0)>0&&!L.ended
         ? (Math.abs(L.run_pct||0)>=150
             ? '<u class="hot">ход '+Math.round(L.run_pct)+'% за день · интерес падает · '+L.runs_weak+' прогон без роста</u>'
             : '<u class="warn">ход '+Math.round(L.run_pct||0)+'% за день · '+L.runs_weak+' из 3 прогонов без роста интереса</u>')
-        : ((L.lead_gap||0)>=5 ? '<u>тянет одна · в '+L.lead_gap.toFixed(0)+' раз выше медианы наших · вход в остальных закрыт</u>' : ''));
+        // ДУБЛЬ УБРАН (09.09, владелец: «в верхней строке уже есть „тянут 2“, а внизу пишется
+        // „тянет одна“»): состояние живёт в строке над именем, здесь — только последствие.
+        : ((L.lead_gap||0)>=5 ? '<u>вход в остальных закрыт</u>' : ''))
+      + ((L.risk||[]).length ? '<em>'+L.risk.map(x=>'<i>'+x+'</i>').join('')+'</em>' : '');
   } else if(el){ el.style.display='none'; }
   // ЛИДЕР ВСЕГДА ЗАМЕТНЕЕ ОСТАЛЬНЫХ (08.09, владелец: «NAORIS в лидерах, а светится всё, и
   // некоторые ярче»): раньше подсветка включалась только пока лидер идёт, а при конце снималась
@@ -1314,7 +1415,7 @@ function drawFx(t){
   const rows=DATA.bgnote||[];
   if(!rows.length){el.style.display='none';return}
   const DIR={'давит':-1,'падает':-1,'продают':-1,'рост':1,'покупают':1,'нейтральный':0,'флэт':0,'вровень':0,'поровну':0};
-  const ENDS={'монеты':['давит','рост'],'медиана доски':['падает','рост'],'биткоин':['падает','рост'],'очередь':['давит','рост'],'поток рыночных заявок':['продают','покупают']};
+  const ENDS={'монеты':['давит','рост'],'медиана доски':['падает','рост'],'биткоин':['падает','рост'],'биткоин сейчас':['давит','тянет'],'очередь':['давит','рост'],'поток рыночных заявок':['продают','покупают']};
   // сессии в часах UTC — те же, что в фоне
   const SES=[['Азия',0,9,'#6fb4ff'],['Европа',7,16,'#a98cff'],['США',13,21,'#ffb26f']];
   const h=new Date().getUTCHours()+new Date().getUTCMinutes()/60;
@@ -1323,13 +1424,34 @@ function drawFx(t){
     return String(txt).replace(/(растёт|из|за сутки|за час|нет данных|срез не пришёл|от дна недели)/g,
                                '<w>$1</w>');
   }
-  function railGauge(r){
+  // ЗНАЧОК БИТКОИНА (09.09, владелец): у строк про биткоин вместо слова — символ, чтобы они
+  // читались как одна пара, а не как два разных признака.
+  // ЗНАЧОК БИТКОИНА (09.09, владелец: «верни как было, просто шрифт у буквы тоньше»):
+  // объёмная монета не пошла — вернули плоский контур, буква тонким штрихом вместо заливки.
+  const BTC='<svg class="ico" viewBox="0 0 24 24" fill="none">'
+    +'<circle cx="12" cy="12" r="9.2" stroke="currentColor" stroke-width="1.3"/>'
+    +'<path d="M9.9 7.8h3.6c1.4 0 2.2.7 2.2 1.8s-.8 1.7-1.9 1.8c1.3.1 2.1.8 2.1 2 0 1.3-1 2.1-2.6 2.1H9.9V7.8z"'
+    +' stroke="currentColor" stroke-width="1.15" stroke-linejoin="round"/>'
+    +'<path d="M9.9 11.4h3.9" stroke="currentColor" stroke-width="1.15" stroke-linecap="round"/>'
+    +'<path d="M11.2 6v1.8M13.5 6v1.8M11.2 15.5v1.8M13.5 15.5v1.8"'
+    +' stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>'
+    // БЕГУЩЕЕ ПЯТНО ПО КОЛЬЦУ (09.09, владелец): короткая яркая дуга обходит окружность —
+    // значок оживает, но ничего не мигает. Длина окружности при r=9.2 ≈ 57.8.
+    +'<circle class="btcrun" cx="12" cy="12" r="9.2" fill="none" stroke="#fff3d0" stroke-width="1.5"'
+    +' stroke-linecap="round" stroke-dasharray="7 50.8" opacity=".95"/></svg>';
+  // БЕЗ ДАТЧИКА (09.09, владелец: «у второй надписи не нужен датчик»): «биткоин дальше» — это не
+  // перевес двух сторон, а расстояние до плит. Нить с бусиной там врёт, поэтому просто строка.
+  function plainRow(r, ico){
+    return `<div class="g plain"><div class="t">${ico||''}${r[0]}</div>
+      <div class="pv">${r[1]}</div><div class="pn">${dim(r[2]||'')}</div></div>`;
+  }
+  function railGauge(r, ico){
     const dir=DIR[r[1]], cls=dir>0?'up':(dir<0?'dn':'flat');
     let k=0.5; const num=parseFloat(String(r[3]||'').replace(',','.'));
     if(!isNaN(num)) k = Math.abs(num)<=1 ? num : Math.min(1,Math.max(0,0.5+num/40));
     const left=(12+Math.min(1,Math.max(0,k))*76).toFixed(0);
     const e=ENDS[r[0]]||['',''];
-    return `<div class="g ${cls}"><div class="t">${r[0]}</div>
+    return `<div class="g ${cls}"><div class="t">${ico||''}${r[0]}</div>
       <div class="rail"><i></i><span class="val" style="left:${left}%">${dim(r[2]||r[1])}</span>
         <span class="bead" style="left:${left}%"></span></div>
       <div class="ends"><em class="l">${e[0]}</em><em class="r">${e[1]}</em></div></div>`;
@@ -1353,7 +1475,11 @@ function drawFx(t){
       <div class="ends"><em class="l" style="top:2px">${cur||r[1]}</em></div></div>`;
   }
   el.innerHTML='<i class="hd">фон</i>'+rows.map(r=>
-    r[0]==='лидер' ? leadGauge(r) : (r[0]==='торги' ? clockGauge(r) : railGauge(r))).join('');
+    r[0]==='лидер' ? leadGauge(r)
+    : r[0]==='торги' ? clockGauge(r)
+    : r[0]==='биткоин дальше' ? plainRow(r, BTC)
+    : r[0]==='биткоин сейчас' ? railGauge(r, BTC)
+    : railGauge(r)).join('');
 })();
 // ТОЧНОСТЬ ПОД ПЛАНЕТОЙ (07.09): доля сбывшихся из журнала; нет данных — прочерк
 (function(){const a=DATA.acc||{};const el=document.getElementById('pnum');

@@ -620,9 +620,10 @@ COIN_HTML = r"""
 .mini{position:absolute;bottom:64px;width:320px;height:180px;transform:perspective(900px) rotateX(var(--px)) rotateY(var(--py)) rotateZ(var(--pz)) scale(var(--sc,1));transform-origin:50% 100%;opacity:0;animation:fadein 1.2s ease 3s forwards;--c:#ffd98a;--g:245,169,58}
 /* углы — те, что владелец подобрал на стенде (04.09): ось у нижней кромки */
 .mini.verdict{left:520px}
-/* ПЛИТА ЖУРНАЛА НА 60% (09.09, владелец): на ней живут пузыри — читать их приходилось
-   приближая. Было 0.91 → 1.37 → теперь 2.19. Углы и место не трогаем. */
-.mini.journal{right:80px;--px:-20deg;--py:-18deg;--pz:0deg;bottom:114px;--sc:2.19}   /* стенд 05.09 */
+/* ПЛИТА ЖУРНАЛА (09.09, владелец, три захода): на ней живут пузыри — читать их приходилось
+   приближая, потом она полезла за край экрана. Масштаб 0.91 → 1.37 → 2.19 → 1.53.
+   Сцена и остальные плиты не тронуты. */
+.mini.journal{right:80px;--px:-20deg;--py:-18deg;--pz:0deg;bottom:114px;--sc:1.53}   /* стенд 05.09 */
 .mini.sched{left:36px;--px:-15deg;--py:11deg;--pz:-2deg;bottom:350px;width:288px;--sc:.82;filter:saturate(.6) brightness(.85)}
 .mini.noglow .ground,.mini.noglow .refl{opacity:.35}   /* 05.09 ночь: выше на 86, под ней плита плеча */   /* стенд 05.09 */      /* дальше на 100 */
 .mini .ground{position:absolute;left:0;right:0;bottom:30px;height:1px;background:#fff6dc;opacity:.55}
