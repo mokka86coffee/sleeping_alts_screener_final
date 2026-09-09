@@ -124,7 +124,18 @@ def _part2() -> dict:
 
 def _part3() -> dict:
     """Пузыри и уровни: спорные — отдельной группой, плюс случаи для разбора."""
+    # ПО ДНЯМ, А НЕ СРАЗУ ЗА ВСЮ ИСТОРИЮ (09.09, владелец: «пузыри и уровни — один и тот же процент
+    # за все дни»): раньше считалось по всему архиву и одно число показывалось на каждой вкладке.
+    # Теперь каждая дата считается отдельно, плюс общий итог под ключом «все».
     syms = {r["sym"] for r in _jsonl(OUTD / "queue_log.jsonl") if r.get("sym")}
+    by_day: dict = {}
+
+    def _slot(day: str):
+        return by_day.setdefault(day, {
+            "res": {"ясный": {"ok": 0, "no": 0}, "сомнительный": {"ok": 0, "no": 0},
+                    "обычный": {"ok": 0, "no": 0}},
+            "levels": {"up": 0, "dn": 0, "none": 0}, "cases": [], "lev": []})
+
     res = {"ясный": {"ok": 0, "no": 0}, "сомнительный": {"ok": 0, "no": 0}, "обычный": {"ok": 0, "no": 0}}
     lv = {"up": 0, "dn": 0, "none": 0}
     cases, lev_cases = [], []
@@ -159,9 +170,13 @@ def _part3() -> dict:
                         if buy_low or sell_hi:
                             ok = (after > 0) if buy_low else (after < 0)
                             res[sure]["ok" if ok else "no"] += 1
-                            cases.append({"s": sym.replace("USDT", ""), "d": day[5:], "t": r["candle"][11:16],
-                                          "sure": sure, "ok": ok, "after": round(after, 1),
-                                          "oi": round(oich, 1) if oich is not None else None})
+                            case = {"s": sym.replace("USDT", ""), "d": day[5:], "t": r["candle"][11:16],
+                                    "sure": sure, "ok": ok, "after": round(after, 1),
+                                    "oi": round(oich, 1) if oich is not None else None}
+                            cases.append(case)
+                            sl = _slot(day)
+                            sl["res"][sure]["ok" if ok else "no"] += 1
+                            sl["cases"].append(case)
                 if oi:
                     prev = oi
             for r in d:
@@ -183,13 +198,17 @@ def _part3() -> dict:
                         hit = "dn"
                         break
                 lv[hit or "none"] += 1
+                _slot(day)["levels"][hit or "none"] += 1
                 if not hit:
-                    lev_cases.append({"s": sym.replace("USDT", ""), "d": day[5:], "hit": "никуда",
-                                      "up": round((up[0] / p - 1) * 100, 1) if up else None,
-                                      "dn": round((dn[0] / p - 1) * 100, 1) if dn else None,
-                                      "end": round((fut[-1] / p - 1) * 100, 1)})
+                    lc = {"s": sym.replace("USDT", ""), "d": day[5:], "hit": "никуда",
+                          "up": round((up[0] / p - 1) * 100, 1) if up else None,
+                          "dn": round((dn[0] / p - 1) * 100, 1) if dn else None,
+                          "end": round((fut[-1] / p - 1) * 100, 1)}
+                    lev_cases.append(lc)
+                    _slot(day)["lev"].append(lc)
                 break
-    return {"res": res, "levels": lv, "cases": cases, "lev": lev_cases}
+    by_day["все"] = {"res": res, "levels": lv, "cases": cases, "lev": lev_cases}
+    return {"res": res, "levels": lv, "cases": cases, "lev": lev_cases, "by_day": by_day}
 
 
 def build_data() -> dict:
@@ -206,6 +225,7 @@ def build_data() -> dict:
                            "no": sum(v["no"] for v in p3["res"].values())},
                "levels": p3["levels"]},
         "bub2": {"res": p3["res"], "cases": p3["cases"]},
+        "an_by_day": p3.get("by_day") or {},
         "an_list": {"bub": p3["cases"], "lev": p3["lev"]},
         "sum": {"n": n, "max_n": mx, "max_pct": round(mx / n * 100) if n else 0,
                 "end_n": en, "end_pct": round(en / n * 100) if n else 0, "cost": cost},
@@ -332,19 +352,26 @@ function part2(){
     <span class="n">+${(x.p||0).toFixed(0)}%</span></div>`).join('');
   document.getElementById('c2').innerHTML=h;
 }
-function popBub(){const bad=(D.bub2.cases||[]).filter(x=>!x.ok&&x.sure==='ясный');if(!bad.length)return '';
+function popBub(){const day=(D.an_by_day||{})[DAY]||{};
+  const bad=((day.cases)||D.bub2.cases||[]).filter(x=>!x.ok&&x.sure==='ясный');if(!bad.length)return '';
   return `<div class="pop"><h5>не сработало · ${bad.length} для разбора</h5>`+bad.map(x=>
   `<div class="pr"><b>${x.s}</b><span>${x.d} ${x.t}</span><span>интерес ${x.oi>0?'+':''}${x.oi}%</span>
    <span class="bad">${x.after>0?'+':''}${x.after}%</span></div>`).join('')+`</div>`;}
-function popLev(){const bad=(D.an_list.lev||[]).filter(x=>x.hit==='никуда');if(!bad.length)return '';
+function popLev(){const day=(D.an_by_day||{})[DAY]||{};
+  const bad=((day.lev)||D.an_list.lev||[]).filter(x=>x.hit==='никуда');if(!bad.length)return '';
   return `<div class="pop"><h5>не дошла до полосы · ${bad.length}</h5>`+bad.map(x=>
   `<div class="pr"><b>${x.s}</b><span>${x.d}</span><span>вверх ${x.up!=null?x.up+'%':'—'} · вниз ${x.dn!=null?x.dn+'%':'—'}</span>
    <span class="bad">${x.end>0?'+':''}${x.end}%</span></div>`).join('')+`</div>`;}
 function part3(){
-  const a=D.an,bb=a.bubbles,lv=a.levels,bt=bb.ok+bb.no,okp=bt?bb.ok/bt*100:0,lt=lv.up+lv.dn+lv.none;
+  // ЧИСЛА ВЫБРАННОГО ДНЯ (09.09): раньше на всех вкладках стояло одно и то же — считалось по всей
+  // истории сразу. Теперь берём группу открытого дня, а если её нет — общий итог.
+  const day=(D.an_by_day||{})[DAY] || (D.an_by_day||{})['все'] || null;
+  const R = day ? day.res : D.bub2.res;
+  const lv = day ? day.levels : D.an.levels;
+  const bbOk = Object.values(R).reduce((s,v)=>s+v.ok,0), bbNo = Object.values(R).reduce((s,v)=>s+v.no,0);
+  const bb={ok:bbOk,no:bbNo}, bt=bbOk+bbNo, okp=bt?bbOk/bt*100:0, lt=lv.up+lv.dn+lv.none;
   // СПОРНЫЕ СЧИТАЮТСЯ ОТДЕЛЬНО (08.09): пузырь, об который закрывались, — не промах анализа,
   // а другой случай. В общую долю идут только ясные, спорные и обычные показаны рядом.
-  const R=D.bub2.res;
   const nS=R['ясный'].ok+R['ясный'].no, nD=R['сомнительный'].ok+R['сомнительный'].no, nO=R['обычный'].ok+R['обычный'].no;
   const sureP=nS?R['ясный'].ok/nS*100:0, dP=nD?R['сомнительный'].ok/nD*100:0, oP=nO?R['обычный'].ok/nO*100:0;
   const wD=dP, wO=oP;
