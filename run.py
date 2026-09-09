@@ -35,7 +35,7 @@ import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from analytics_leaders import update_leaders
+from analytics_leaders import pump_leaders, update_leaders
 from analytics_pulse import record as record_pulse
 from analytics_candidate import build_candidate
 from core_binance import get_futures_tickers
@@ -964,6 +964,23 @@ def run_once(args: argparse.Namespace) -> int:
     # со следующего прогона, на один run позже самого отчёта.
     flow_leaders_path, anomaly_path = update_leaders(candidates, snapshot)
     log("→ Журнал лидеров и аномальные объёмы: записаны")
+
+    # ЛИДЕР ПО ПАМПУ (09.09): монеты с ходом от PUMP_JUMP_PCT за сутки, прошедшие отсекатели —
+    # оборот от MIN_QUOTE_VOLUME_24H, есть в кванте, листинг раньше полугода. Пишет
+    # output/pump_leaders.json, откуда его читают фон и звёзды. Ищется по ВСЕЙ бирже, а не по
+    # нашей выборке: это признак фона — куда пошли деньги, — и монета может быть чужой.
+    try:
+        _pumps = pump_leaders(mine={c.symbol for c in candidates})
+        if _pumps:
+            _p0 = _pumps[0]
+            log(f"→ Лидер по пампу: {_p0['symbol'].replace('USDT', '')} "
+                f"+{_p0.get('run_pct') or 0:.0f}% от основы"
+                + (" · наша" if _p0.get("mine") else " · не из выборки")
+                + (f" · всего {len(_pumps)}" if len(_pumps) > 1 else ""))
+        else:
+            log("→ Лидер по пампу: нет — ни одна не прошла порог")
+    except Exception as e:  # noqa: BLE001
+        _issue("Лидер по пампу", f"{type(e).__name__}: {e}")
 
     # Пульс: показания всей выборки за последние двое суток. Рядом с
     # журналом и по той же причине — здесь у кандидатов уже посчитаны

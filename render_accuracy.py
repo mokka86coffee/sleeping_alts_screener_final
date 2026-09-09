@@ -55,6 +55,66 @@ def _bars(sym: str) -> list[dict]:
     return rows
 
 
+SESSIONS = (("Азия", 0.0, 8.0), ("Европа", 7.0, 16.0), ("США", 13.5, 20.0))
+
+
+def _session_of(hhmm: str) -> str:
+    """Чья сессия в этот час (09.09, владелец: «срез сделать четыре раза в день по разным рынкам»,
+    оставили Азию, Европу и США). Часы те же, что в market_bg. Пересечения Азия/Европа и
+    Европа/США относим к той, что открылась позже — она и ведёт торг."""
+    try:
+        h = int(hhmm[:2]) + int(hhmm[3:5]) / 60
+    except (ValueError, IndexError):
+        return "вне сессий"
+    cur = "вне сессий"
+    for name, a, b in SESSIONS:
+        if a <= h < b:
+            cur = name
+    return cur
+
+
+def _bg_rows() -> list[dict]:
+    """Лента фона целиком — сырая, как пишется каждый прогон."""
+    rows = [r for r in _jsonl(OUTD / "market_bg.jsonl") if r.get("at")]
+    rows.sort(key=lambda r: str(r.get("at")))
+    return rows
+
+
+_BG_CACHE: list = []
+
+
+def _bg_at(day: str, hhmm: str) -> dict:
+    """СОСТОЯНИЕ ФОНА НА МОМЕНТ (09.09, кнопки журнала): берём последнюю запись ленты не позже
+    этого времени и раскладываем на категории. Сырая лента при этом не трогается — категории
+    считаются здесь, поверх, и в любой момент их можно пересчитать иначе."""
+    global _BG_CACHE
+    if not _BG_CACHE:
+        _BG_CACHE = _bg_rows()
+    want = f"{day}T{hhmm}"
+    best = None
+    for r in _BG_CACHE:
+        if str(r.get("at"))[:16] <= want:
+            best = r
+        else:
+            break
+    if not best:
+        return {}
+    btc = (best.get("btc") or {}).get("day_pct")
+    br = best.get("breadth") or {}
+    share = (br.get("up") / br["n"]) if br.get("n") else None
+    med = (best.get("risk_on") or {}).get("median_pct")
+    tk = (best.get("taker") or {}).get("day")
+    ld = best.get("leader") or {}
+    pumps = best.get("pumps") or []
+    return {
+        "btc": None if btc is None else ("падает" if btc < -0.5 else ("растёт" if btc > 0.5 else "стоит")),
+        "board": None if share is None else ("узкая" if share < 0.4 else ("широкая" if share > 0.6 else "ровная")),
+        "median": None if med is None else ("минус" if med < -0.3 else ("плюс" if med > 0.3 else "около нуля")),
+        "taker": None if tk is None else ("продают" if tk < 0.98 else ("покупают" if tk > 1.02 else "вровень")),
+        "leader": "есть" if (pumps or ld.get("pulls")) else "нет",
+    }
+
+
 def _part1() -> dict:
     """Монеты, побывавшие в первых: путь по местам, вход и выход, цены дня."""
     q = [r for r in _jsonl(OUTD / "queue_log.jsonl") if r.get("at") and r.get("sym")]
@@ -95,6 +155,7 @@ def _part1() -> dict:
             after = px[i0:] or px
             p_in = after[0]
             rows.append({"s": sym.replace("USDT", ""), "in": t0, "gone": e["gone"],
+                         "ses": _session_of(t0), "bg": _bg_at(day, t0),
                          "path": e["path"], "px": p_in,
                          "up": round((max(after) / p_in - 1) * 100, 1),
                          "dn": round((min(after) / p_in - 1) * 100, 1),
@@ -171,6 +232,8 @@ def _part3() -> dict:
                             ok = (after > 0) if buy_low else (after < 0)
                             res[sure]["ok" if ok else "no"] += 1
                             case = {"s": sym.replace("USDT", ""), "d": day[5:], "t": r["candle"][11:16],
+                                    "ses": _session_of(r["candle"][11:16]),
+                                    "bg": _bg_at(day, r["candle"][11:16]),
                                     "sure": sure, "ok": ok, "after": round(after, 1),
                                     "oi": round(oich, 1) if oich is not None else None}
                             cases.append(case)
@@ -199,8 +262,13 @@ def _part3() -> dict:
                         break
                 lv[hit or "none"] += 1
                 _slot(day)["levels"][hit or "none"] += 1
+                _slot(day).setdefault("lev_all", []).append(
+                    {"hit": hit or "none", "ses": _session_of(r["candle"][11:16]),
+                     "bg": _bg_at(day, r["candle"][11:16])})
                 if not hit:
                     lc = {"s": sym.replace("USDT", ""), "d": day[5:], "hit": "никуда",
+                          "ses": _session_of(r["candle"][11:16]),
+                          "bg": _bg_at(day, r["candle"][11:16]),
                           "up": round((up[0] / p - 1) * 100, 1) if up else None,
                           "dn": round((dn[0] / p - 1) * 100, 1) if dn else None,
                           "end": round((fut[-1] / p - 1) * 100, 1)}
@@ -219,8 +287,28 @@ def build_data() -> dict:
     mx = sum(1 for r in rows if r["up"] >= 2)
     en = sum(1 for r in rows if r["end"] >= 2)
     cost = round(statistics.median([r["up"] - r["end"] for r in rows]), 1) if rows else 0
+    # СРЕЗ ПО РЫНКАМ (09.09): заходы и пузыри в разрезе Азии, Европы и США — в чью смену наши
+    # монеты ходят и в чью смену работают правила.
+    ses: dict = {}
+    for r in rows:
+        e = ses.setdefault(r.get("ses") or "вне сессий",
+                           {"n": 0, "max": 0, "end": 0, "up": [], "bub_ok": 0, "bub_no": 0})
+        e["n"] += 1
+        e["max"] += 1 if r["up"] >= 2 else 0
+        e["end"] += 1 if r["end"] >= 2 else 0
+        e["up"].append(r["up"])
+    for c in (p3.get("cases") or []):
+        e = ses.setdefault(c.get("ses") or "вне сессий",
+                           {"n": 0, "max": 0, "end": 0, "up": [], "bub_ok": 0, "bub_no": 0})
+        e["bub_ok" if c["ok"] else "bub_no"] += 1
+    for k, e in ses.items():
+        e["max_pct"] = round(e["max"] / e["n"] * 100) if e["n"] else 0
+        e["end_pct"] = round(e["end"] / e["n"] * 100) if e["n"] else 0
+        e["mfe_med"] = round(statistics.median(e["up"]), 1) if e["up"] else 0
+        e.pop("up", None)
+
     return {
-        "days": days, "bg": _part2(),
+        "days": days, "bg": _part2(), "ses": ses,
         "an": {"bubbles": {"ok": sum(v["ok"] for v in p3["res"].values()),
                            "no": sum(v["no"] for v in p3["res"].values())},
                "levels": p3["levels"]},
@@ -261,6 +349,8 @@ html,body{margin:0;min-height:100%;color:var(--ink);font-family:Inter,system-ui,
  margin-bottom:9px;padding:11px 13px;border-radius:16px;background:linear-gradient(160deg,#fff,#eef2f9);
  box-shadow:4px 5px 11px rgba(120,140,175,.20),-3px -4px 9px rgba(255,255,255,.95)}
 .s{font-size:14px;font-weight:500;color:#1d2a36;line-height:1.25}
+.s a.go{color:inherit;text-decoration:none;cursor:pointer;border-bottom:1px solid transparent;transition:.15s}
+.s a.go:hover{color:#12a17c;border-color:rgba(18,161,124,.45)}
 .s u{text-decoration:none;display:block;font-size:10px;font-weight:300;color:var(--dim);margin-top:2px}
 .path{font-size:12px;color:#5d7285;font-variant-numeric:tabular-nums;white-space:nowrap;overflow-x:auto;
  scrollbar-width:none;min-width:0}
@@ -298,7 +388,32 @@ html,body{margin:0;min-height:100%;color:var(--ink);font-family:Inter,system-ui,
 .rv{position:absolute;inset:0;display:grid;place-items:center;font-size:25px;font-weight:200;color:#1d2a36;
  line-height:1;font-variant-numeric:tabular-nums}
 .rv i{font-style:normal;font-size:11px;color:var(--dim);margin-left:1px;font-weight:300}
+/* КНОПКИ-ФИЛЬТРЫ (09.09, владелец: «кнопки не должны друг друга отрицать — можно выбрать
+   биткоин падает и есть лидер; отрицают только внутри категории»). Фильтр НИЧЕГО не отсекает
+   в данных: это срез той же истории. Состояния берутся из поля bg каждой записи — того самого,
+   что пишется в ленту фона каждый прогон и рисуется приборами слева от звёзд. */
+.filters{display:flex;flex-wrap:wrap;gap:8px 18px;padding:4px 6px 18px;align-items:center}
+.fg{display:flex;align-items:center;gap:7px}
+.fg > s{text-decoration:none;font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);margin-right:2px}
+.fb{cursor:pointer;font-size:11.5px;padding:7px 13px;border-radius:999px;color:#5d7285;
+ background:linear-gradient(160deg,#fff,#e9eef7);
+ box-shadow:4px 5px 10px rgba(120,140,175,.22),-3px -4px 8px rgba(255,255,255,.95);transition:.16s;white-space:nowrap}
+.fb:hover{color:#33475a}
+.fb.on{color:#fff;background:linear-gradient(160deg,#38455c,#1e2735);box-shadow:inset 2px 3px 7px rgba(0,0,0,.35)}
+.fb em{font-style:normal;opacity:.55;margin-left:5px;font-size:10px}
+.fclear{margin-left:auto;font-size:11px;color:var(--mid);cursor:pointer;text-decoration:underline}
+.fnote{width:100%;font-size:11px;color:var(--mid);padding-top:2px}
 .leg{font-size:11.5px;color:var(--mid);line-height:1.7}
+/* СРЕЗ ПО РЫНКАМ (09.09): строка на сессию — доля по максимуму полосой, числа рядом */
+.sr{display:grid;grid-template-columns:56px 1fr 44px;gap:9px;align-items:center;margin-bottom:9px}
+.sr .sn{font-size:11px;font-weight:500;color:#33475a}
+.sr .sb{display:block;height:8px;border-radius:999px;background:#e7ecf5;
+ box-shadow:inset 2px 2px 5px rgba(120,140,175,.3),inset -1px -1px 3px #fff}
+.sr .sb i{display:block;height:100%;border-radius:999px;
+ background:linear-gradient(90deg,#8fd8c4,#12a17c);box-shadow:0 0 10px rgba(18,161,124,.45)}
+.sr .sv{text-align:right;font-size:15px;font-weight:200;color:#1d2a36;font-variant-numeric:tabular-nums}
+.sr .sv i{font-style:normal;font-size:9px;color:var(--dim);margin-left:1px}
+.sr em{grid-column:1/4;font-style:normal;font-size:10px;color:var(--mid);margin-top:-3px}
 .leg b{color:#1d2a36;font-weight:500}
 .bars{margin-top:12px;display:grid;gap:8px}
 .bl{display:grid;grid-template-columns:62px 1fr 72px;gap:9px;align-items:center;font-size:10.5px;color:var(--mid)}
@@ -325,18 +440,66 @@ html,body{margin:0;min-height:100%;color:var(--ink);font-family:Inter,system-ui,
 JS = """
 const D=__DATA__;
 let DAY=Object.keys(D.days).sort().reverse()[0];
+// ── КНОПКИ-ФИЛЬТРЫ ─────────────────────────────────────────────────────────────
+// Внутри категории выбор один (повторный клик снимает), между категориями — «и».
+// Пересчитывается ВСЁ: заходы, сводка фона и аналитика — потому что состояние лежит
+// в самой записи, а не считается отдельно.
+const CATS=[['btc','биткоин',['падает','стоит','растёт']],
+            ['board','доска',['узкая','ровная','широкая']],
+            ['median','медиана',['минус','около нуля','плюс']],
+            ['taker','поток',['продают','вровень','покупают']],
+            ['leader','лидер',['есть','нет']]];
+let F={};
+function pass(bg){ if(!bg)return !Object.keys(F).length;
+  return Object.entries(F).every(([k,v])=>bg[k]===v); }
+function countFor(key,val){
+  const rows=(D.days[DAY]||[]);
+  const test=Object.assign({},F); test[key]=val;
+  return rows.filter(r=>Object.entries(test).every(([k,v])=>(r.bg||{})[k]===v)).length;
+}
+function drawFilters(){
+  const el=document.getElementById('filters');
+  el.innerHTML=CATS.map(([k,label,vals])=>
+    `<div class="fg"><s>${label}</s>`+vals.map(v=>{
+      const n=countFor(k,v);
+      return `<div class="fb${F[k]===v?' on':''}" data-k="${k}" data-v="${v}">${v}<em>${n}</em></div>`;
+    }).join('')+`</div>`).join('')
+    + (Object.keys(F).length?`<span class="fclear" id="fclear">сбросить</span>`:'')
+    + `<div class="fnote">${Object.keys(F).length
+        ? 'фильтр показывает срез тех же данных — ничего не отсекается'
+        : 'выбери состояние фона, чтобы посмотреть, как при нём работали правила'}</div>`;
+  el.querySelectorAll('.fb').forEach(b=>b.onclick=()=>{
+    const k=b.dataset.k, v=b.dataset.v;
+    if(F[k]===v) delete F[k]; else F[k]=v;
+    redraw();
+  });
+  const c=document.getElementById('fclear'); if(c)c.onclick=()=>{F={};redraw();};
+}
 function part1(){
-  const rows=D.days[DAY]||[];
+  const rows=(D.days[DAY]||[]).filter(r=>pass(r.bg));
   document.getElementById('c1').innerHTML=rows.map(r=>{
     const steps=r.path.map(p=>`<b>${p[1]}</b>`);
     if(r.gone)steps.push(`<u>${r.gone}</u>`);
     const cl=r.end>1?'up':(r.end<-1?'dn':'flat');
-    return `<div class="r"><div class="s">${r.s}<u>в первых ${r.in}</u></div>
+    // КЛИК ПО ИМЕНИ — КАРТОЧКА МОНЕТЫ (09.09, владелец): тот же переход, что со звёзд,
+    // coin.html#SYM; внутри оболочки — сообщением родителю, чтобы экран открылся в ней.
+    return `<div class="r"><div class="s"><a class="go" data-s="${r.s}" href="coin.html#${encodeURIComponent(r.s)}">${r.s}</a><u>в первых ${r.in}</u></div>
       <div class="path">${steps.join('<i>→</i>')}</div>
       <div class="v ${cl}">${r.end>0?'+':''}${r.end}%<s>+${r.up}%</s></div></div>`;
-  }).join('')||'<div class="sm">в этот день в первых никого не было</div>';
+  }).join('')||'<div class="sm">при выбранном фоне заходов не было</div>';
 }
 function part2(){
+  // СВОДКА ПО ВЫБОРКЕ (09.09): при фильтре центр показывает фон именно тех моментов, что попали
+  const rows=(D.days[DAY]||[]).filter(r=>pass(r.bg));
+  if(Object.keys(F).length){
+    const cnt=(k)=>{const m={};rows.forEach(r=>{const v=(r.bg||{})[k];if(v)m[v]=(m[v]||0)+1});
+      return Object.entries(m).sort((a,b)=>b[1]-a[1]);};
+    let h='<div class="hero"><em>выбранный фон</em><b>'+rows.length+'</b><s>заходов в срезе</s></div>';
+    CATS.forEach(([k,label])=>{
+      const v=cnt(k); if(!v.length)return;
+      h+=`<div class="line"><span>${label}</span><b>${v.map(x=>x[0]+' '+x[1]).join(' · ')}</b></div>`;});
+    document.getElementById('c2').innerHTML=h; return;
+  }
   const b=D.bg[DAY];
   if(!b){document.getElementById('c2').innerHTML='<div class="sm">фон за этот день не писался</div>';return}
   const btc=b.btc||{},br=b.breadth||{},tk=b.taker||{},lead=(b.top||[])[0];
@@ -366,8 +529,17 @@ function part3(){
   // ЧИСЛА ВЫБРАННОГО ДНЯ (09.09): раньше на всех вкладках стояло одно и то же — считалось по всей
   // истории сразу. Теперь берём группу открытого дня, а если её нет — общий итог.
   const day=(D.an_by_day||{})[DAY] || (D.an_by_day||{})['все'] || null;
-  const R = day ? day.res : D.bub2.res;
-  const lv = day ? day.levels : D.an.levels;
+  let R = day ? day.res : D.bub2.res;
+  let lv = day ? day.levels : D.an.levels;
+  if(Object.keys(F).length){
+    // пузыри и уровни пересчитываются под тот же фильтр — состояние лежит в самой записи
+    const cs=(D.bub2.cases||[]).filter(x=>pass(x.bg));
+    R={'ясный':{ok:0,no:0},'сомнительный':{ok:0,no:0},'обычный':{ok:0,no:0}};
+    cs.forEach(x=>{ if(R[x.sure]) R[x.sure][x.ok?'ok':'no']++; });
+    const lf=(((day||{}).lev_all)||[]).filter(x=>pass(x.bg));
+    lv={up:lf.filter(x=>x.hit==='up').length, dn:lf.filter(x=>x.hit==='dn').length,
+        none:lf.filter(x=>x.hit==='none').length};
+  }
   const bbOk = Object.values(R).reduce((s,v)=>s+v.ok,0), bbNo = Object.values(R).reduce((s,v)=>s+v.no,0);
   const bb={ok:bbOk,no:bbNo}, bt=bbOk+bbNo, okp=bt?bbOk/bt*100:0, lt=lv.up+lv.dn+lv.none;
   // СПОРНЫЕ СЧИТАЮТСЯ ОТДЕЛЬНО (08.09): пузырь, об который закрывались, — не промах анализа,
@@ -390,14 +562,30 @@ function part3(){
        <div class="bl"><span>спорные</span><i style="width:${wD}%"></i><em>${dP.toFixed(0)}% из ${nD}</em></div>
        <div class="bl"><span>обычные</span><i style="width:${wO}%"></i><em>${oP.toFixed(0)}% из ${nO}</em></div>
      </div></div>
+   <div class="an"><h4>по рынкам · в чью смену ходят</h4>
+     ${Object.entries(D.ses||{}).filter(([k])=>k!=='вне сессий')
+       .sort((a,b)=>b[1].n-a[1].n).map(([k,v])=>`
+       <div class="sr"><span class="sn">${k}</span>
+         <span class="sb"><i style="width:${v.max_pct}%"></i></span>
+         <span class="sv">${v.max_pct}<i>%</i></span>
+         <em>${v.n} заходов · по закрытию ${v.end_pct}% · лучший ${v.mfe_med}% · пузыри ${v.bub_ok} из ${v.bub_ok+v.bub_no}</em></div>`).join('')}
+   </div>
    <div class="an"><h4>уровни ликвидации · дошла ли цена</h4>${popLev()}
      <div class="row2"><div class="rw"><div class="ring" style="--p:${lp}"></div>
        <div class="rv">${lp.toFixed(0)}<i>%</i></div></div>
        <div class="leg">вверх ${lv.up} · вниз ${lv.dn}<br>никуда ${lv.none}</div></div></div>`;
 }
-function redraw(){part1();part2();part3();}
+function redraw(){drawFilters();part1();part2();part3();}
 const days=Object.keys(D.days).sort().reverse();
 document.getElementById('days').innerHTML=days.map((d,i)=>`<div class="day${i?'':' on'}" data-d="${d}">${d.slice(8,10)}.${d.slice(5,7)}</div>`).join('');
+// переход в карточку монеты по клику на имя
+document.addEventListener('click', ev=>{
+  const a=ev.target.closest && ev.target.closest('a.go'); if(!a)return;
+  ev.preventDefault();
+  const sym=a.dataset.s;
+  if(window!==window.parent){try{window.parent.postMessage({type:'ob:open',screen:'coin',hash:sym},'*')}catch(e){}}
+  location.href='coin.html#'+encodeURIComponent(sym);
+});
 document.querySelectorAll('.day').forEach(t=>t.onclick=()=>{document.querySelectorAll('.day').forEach(x=>x.classList.toggle('on',x===t));DAY=t.dataset.d;redraw();});
 redraw();
 """
@@ -418,6 +606,7 @@ def render_accuracy() -> str:
 <body>
 <div class="wrap"><div class="plate">
   <div class="head"><h1>Журнал</h1><s>наблюдение по дням</s><div class="days" id="days"></div></div>
+  <div class="filters" id="filters"></div>
   <div class="cols">
     <div class="box"><div class="cap">первые и очередь · смена мест и выпадение</div><div id="c1"></div></div>
     <div class="box"><div class="cap">фон · ход монет и биткоин</div><div id="c2"></div></div>
