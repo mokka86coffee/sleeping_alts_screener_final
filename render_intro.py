@@ -512,17 +512,32 @@ TEMPLATE = r'''<!doctype html>
     transform:translate(-50%,-50%);
     background:radial-gradient(circle at 34% 30%,#fffdf5,#ffe9a8 38%,#ffc247 72%,#f0a01e);
     box-shadow:0 0 22px rgba(255,206,110,1),0 0 55px rgba(255,180,60,.85),0 0 105px rgba(240,150,30,.45);
-    animation:satglow 2.6s ease-in-out infinite}
+    animation:satdrift 5.2s ease-in-out infinite, satglow 2.6s ease-in-out infinite}
   .sat.strong{width:21px;height:21px;
     box-shadow:0 0 32px rgba(255,222,140,1),0 0 80px rgba(255,190,70,1),0 0 145px rgba(240,150,30,.55)}
   @keyframes satglow{50%{box-shadow:0 0 30px rgba(255,216,130,1),0 0 74px rgba(255,190,70,1),0 0 130px rgba(240,150,30,.6)}}
+  /* лёгкий дрейф на месте вместо орбиты: несколько пикселей вверх-вниз и чуть вбок */
+  @keyframes satdrift{0%,100%{transform:translate(-50%,-50%)}
+                      50%{transform:translate(calc(-50% + 4px),calc(-50% - 5px))}}
   /* КОПИЛОСЬ РАНЬШЕ (09.09): ход уже начался, а происхождение важно — такая монета после отката
      уходит выше. Спутник тусклее и со шлейфом длиннее: уходящий, а не набирающий. */
-  .sat.past{width:12px;height:12px;opacity:.85;animation:none;
+  .sat.past{width:12px;height:12px;opacity:.85;animation:satdrift 7.5s ease-in-out infinite;
     background:radial-gradient(circle at 34% 30%,#fff,#f2f7ff 45%,#cfe0f8 75%,#a8c2e6);
     box-shadow:0 0 16px rgba(235,244,255,.9),0 0 40px rgba(190,215,255,.5)}
-  .sat i{position:absolute;left:50%;top:50%;width:44px;height:2px;transform-origin:0 50%;
-    background:linear-gradient(90deg,rgba(255,206,110,.85),transparent);transform:translate(0,-50%)}
+  /* ЛУЧИ У СПУТНИКА (09.09, владелец: «можешь им лучи тоже добавить?») — как у звёзд: четыре
+     тонких луча крест-накрест, длинные по горизонтали, короче по вертикали. Рисуются двумя
+     псевдоэлементами самого спутника, поэтому двигаются и пульсируют вместе с ним. */
+  .sat i{display:none}
+  .sat:before,.sat:after{content:"";position:absolute;left:50%;top:50%;pointer-events:none;
+    transform:translate(-50%,-50%)}
+  .sat:before{width:74px;height:1.5px;
+    background:linear-gradient(90deg,transparent,rgba(255,214,130,.9) 50%,transparent)}
+  .sat:after{width:1.5px;height:46px;
+    background:linear-gradient(180deg,transparent,rgba(255,214,130,.85) 50%,transparent)}
+  .sat.strong:before{width:104px;height:2px}
+  .sat.strong:after{width:2px;height:64px}
+  .sat.past:before{width:58px;background:linear-gradient(90deg,transparent,rgba(230,242,255,.75) 50%,transparent)}
+  .sat.past:after{height:36px;background:linear-gradient(180deg,transparent,rgba(230,242,255,.7) 50%,transparent)}
   .sat.past i{width:60px;background:linear-gradient(90deg,rgba(225,238,255,.55),transparent)}
   .sattip{position:fixed;pointer-events:none;z-index:3;font-size:6.6px;letter-spacing:.2em;
     text-transform:uppercase;color:rgba(255,216,150,.8);white-space:nowrap;transform:translate(-50%,-50%)}
@@ -982,48 +997,32 @@ function applyGroup(){
   }
   gl.uniform1fv(U('BR'),out);
 }
-// ПЛЕЧО КОПИТСЯ — ЗОЛОТОЙ СПУТНИК (09.09): обходит имя по вытянутой орбите, со следом
+// ПЛЕЧО КОПИТСЯ — СПУТНИК СПРАВА СВЕРХУ (09.09, владелец: «убери вращение по орбите, пусть
+// справа сверху просто немного двигаются»). Никакой анимации в кадре: точка стоит у имени и
+// чуть покачивается средствами CSS. Позиция пересчитывается только при сборке и на resize.
 (function(){
   const AC=DATA.accum||{}; if(!Object.keys(AC).length)return;
   const host=document.createElement('div'); document.body.appendChild(host);
-  let sats=[];
-  function build(){
-    host.innerHTML=''; sats=[];
+  function place(){
+    host.innerHTML='';
     (DATA.names||[]).forEach((nm,i)=>{
       if(LAB[i])return;
       const a=AC[nm]; if(!a)return;
+      const x=W*POS[i][0], y=H*POS[i][1];
+      const dx=nm.length*SIZE*0.34+16, dy=SIZE*0.62+8;   // справа сверху от имени
       const el=document.createElement('div');
       el.className='sat'+(a.past?' past':(a.strong?' strong':''));
-      el.innerHTML='<i></i>';
+      el.style.left=(x+dx)+'px'; el.style.top=(y-dy)+'px';
+      el.style.animationDelay=(-(i%7)*0.6)+'s';
       const tip=document.createElement('div');
       tip.className='sattip'+(a.past?' past':'');
       tip.textContent = a.past ? `копилось ${a.ago} дн назад` : `плечо +${a.oi3}%`;
+      tip.style.left=(x+dx)+'px'; tip.style.top=(y-dy-14)+'px';
       host.appendChild(el); host.appendChild(tip);
-      sats.push({el, tip, i, a,
-                 // ВЕРТИКАЛЬНАЯ ОРБИТА (09.09, владелец): спутник обходит имя сверху вниз, а не
-                 // вдоль строки — так он не тянется через всю подпись и не спорит с лучами.
-                 rx: a.past ? 26 : 22, ry: Math.max(34, SIZE*1.35),
-                 // скорость вдвое выше (09.09)
-                 sp: a.past ? 0.44 : (a.strong ? 1.10 : 0.72), ph: Math.random()*6.28});
     });
   }
-  function tick(now){
-    const t=now/1000;
-    sats.forEach(s=>{
-      const x=W*POS[s.i][0], y=H*POS[s.i][1];
-      const ang=t*s.sp + s.ph;
-      // по вертикали — синус в высоту, косинус в узкую ширину
-      const px=x + Math.sin(ang)*s.rx, py=y + Math.cos(ang)*s.ry;
-      s.el.style.left=px+'px'; s.el.style.top=py+'px';
-      // след смотрит назад по ходу движения
-      const deg=(Math.atan2(-Math.sin(ang)*s.ry, Math.cos(ang)*s.rx)*180/Math.PI)+180;
-      s.el.firstChild.style.transform=`translate(0,-50%) rotate(${deg}deg)`;
-      s.tip.style.left=x+'px'; s.tip.style.top=(y - s.ry - 12)+'px';
-    });
-    requestAnimationFrame(tick);
-  }
-  build(); requestAnimationFrame(tick);
-  addEventListener('resize', ()=>setTimeout(build,150));
+  place();
+  addEventListener('resize', ()=>setTimeout(place,150));
 })();
 const tip=document.getElementById('tip');
 c.addEventListener('mousemove',ev=>{const j=hit(ev,true),i=hit(ev);
@@ -1226,9 +1225,15 @@ function drawFx(t){
   const idx=DATA.names.indexOf(L.sym||'');
   const FL=new Set(DATA.flicker||[]);
   if(idx>=0){
+    // ПОПРАВКА НА ШИРИНУ ЭКРАНА (09.09, владелец: «лидер яркий на маленьких экранах, чем шире
+    // экран тем меньше яркости»). Кегль имени растёт с шириной (SIZE = W*0.012), а свечение
+    // задано в постоянных величинах — на широком мониторе тот же свет размазывается по большей
+    // площади, и звезда выглядит бледнее. Компенсируем множителем от ширины: на 1440 без
+    // изменений, дальше плавно до полутора раз. Остальных звёзд не касается.
+    const kw = Math.min(1.5, Math.max(1, (window.innerWidth||1440) / 1440));
     const hard=(L.lead_gap||0)>=5 && !L.ended;
     const done=!!L.ended || (L.runs_weak||0)>=3;
-    const up = done?1.25:(hard?1.9:1.45);
+    const up = (done?1.25:(hard?1.9:1.45)) * kw;
     const dn = done?0.75:(hard?0.30:0.55);
     const b=new Float32Array(DATA.bright);
     for(let i=0;i<b.length;i++){
@@ -1237,6 +1242,22 @@ function drawFx(t){
       if(FL.has(DATA.names[i])) b[i]*=0.6;
     }
     BR0.set(b); applyGroup();
+    // при смене размера окна множитель пересчитывается — иначе после разворота на другой
+    // монитор лидер снова окажется тусклым
+    if(!window.__leadFit){
+      window.__leadFit = true;
+      let t0=null;
+      addEventListener('resize', ()=>{ clearTimeout(t0); t0=setTimeout(()=>{
+        const k2 = Math.min(1.5, Math.max(1, (window.innerWidth||1440) / 1440));
+        const b2=new Float32Array(DATA.bright);
+        for(let i=0;i<b2.length;i++){
+          if(LAB[i])continue;
+          b2[i]= (i===idx) ? (done?1.25:(hard?1.9:1.45))*k2 : b2[i]*dn;
+          if(FL.has(DATA.names[i])) b2[i]*=0.6;
+        }
+        BR0.set(b2); applyGroup();
+      }, 200); });
+    }
   }
 })();
 (function(){const el=document.getElementById('bgnote');if(!el)return;
