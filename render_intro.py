@@ -374,73 +374,69 @@ def render_intro(items: list[dict] | None = None) -> str:
     except Exception:  # noqa: BLE001
         orbits = {}
 
-    # ЛИДЕР И МЕЛЬКАЮЩИЕ (08.09): кто ведёт, насколько оторвался от медианы наших, сколько часов
-    # держится в первых, сколько прогонов подряд у него не растёт интерес, и кто мелькает —
-    # входил в первые и выходил за последние прогоны. Всё из ленты очереди и near_move.
+    # ЛИДЕР — ОДИН ИСТОЧНИК НА ПРОЕКТ (09.09, владелец: «какой смысл делать половинчатую правку?»).
+    # Здесь был свой расчёт: верхний по СУТОЧНОМУ ходу из очереди, порог по нему же. После того как
+    # правило переехало в analytics_leaders (+50% за сутки, оборот, квант, листинг, основа), правило
+    # стало жить в двух местах — и экран показывал IOST лидером с +16.7% и подписью «+17% от дна
+    # недели», где на самом деле стоял суточный ход. Теперь интро НИЧЕГО не считает: читает готовый
+    # список pump_leaders.json. Мелькающие остаются здесь — это про ленту очереди, а не про лидера.
     leader: dict = {}
     flicker: list = []
     try:
-        _nm = json.loads((BASE_DIR / "output" / "near_move.json").read_text(encoding="utf-8"))
-        _first = (_nm.get("first") or _nm.get("queue") or [])[:1]
-        _coins = _nm.get("coins") or {}
-        _moves = [((_coins.get(s2) or {}).get("today") or {}).get("px_chg_pct")
-                  for s2 in (_nm.get("queue") or [])]
-        _moves = [m for m in _moves if m is not None]
-        if _first and _moves:
-            _sym = _first[0]
-            _t = (_coins.get(_sym) or {}).get("today") or {}
-            _mv = _t.get("px_chg_pct") or 0.0
-            _med = sorted(_moves)[len(_moves) // 2]
-            _gap = (abs(_mv) / abs(_med)) if abs(_med) >= 0.3 else (abs(_mv) / 0.3 if _mv else 0)
-            # часы в первых и слабые прогоны — по ленте очереди
-            _rows = []
+        from core_config import PUMP_LEADERS_PATH as _pl
+    except ImportError:
+        _pl = BASE_DIR / "output" / "pump_leaders.json"
+    try:
+        _recs = json.loads(_pl.read_text(encoding="utf-8"))
+        _live = [r for r in _recs.values()
+                 if isinstance(r, dict) and not r.get("retired_at")]
+        _live.sort(key=lambda r: -(r.get("run_pct") or 0))
+        if _live:
+            _l = _live[0]
+            _sym = str(_l.get("symbol") or "")
+            leader = {
+                "sym": _sym.replace("USDT", ""),
+                "run_pct": _l.get("run_pct"),
+                "state": "тянет одна" if len(_live) == 1 else f"тянут {len(_live)}",
+                "line": f"+{_l.get('run_pct') or 0:.0f}% от основы"
+                        + (f" · {_l['day_pct']:+.0f}% за сутки" if _l.get("day_pct") is not None else "")
+                        + (" · наша" if _l.get("mine") else " · не из выборки"),
+                "lead_gap": 99 if len(_live) == 1 else 5,   # панель показывается, пока лидер есть
+                "ended": None, "hours": None, "runs_weak": 0,
+            }
+    except (OSError, ValueError):
+        leader = {}
+    # ПЛЕЧО КОПИТСЯ, ЦЕНА СТОИТ (09.09): метка на звезде — интерес за три дня прибавил от 30%,
+    # цена в пределах 10%. Признак наблюдательный, в балл не идёт; на истории 21 монеты давал
+    # ход ≥10% за три дня почти в половине случаев, а при интересе от +50% — в трёх из четырёх.
+    accum: dict = {}
+    try:
+        _nmj = json.loads((BASE_DIR / "output" / "near_move.json").read_text(encoding="utf-8"))
+        for _s, _v in (_nmj.get("coins") or {}).items():
+            _n = _v.get("nums") or {}
+            _a = _n.get("accum")
+            if _a:
+                accum[_s.replace("USDT", "")] = dict(_a, past=False)
+            elif _n.get("accum_past"):
+                accum[_s.replace("USDT", "")] = dict(_n["accum_past"], past=True)
+    except (OSError, ValueError):
+        accum = {}
+
+    # мелькающие: за последние 6 прогонов были и в первых, и вне их
+    try:
+        _by: dict = {}
+        for line in (BASE_DIR / "output" / "queue_log.jsonl").read_text(encoding="utf-8").splitlines():
             try:
-                for line in (BASE_DIR / "output" / "queue_log.jsonl").read_text(encoding="utf-8").splitlines():
-                    try:
-                        _r = json.loads(line)
-                    except ValueError:
-                        continue
-                    if _r.get("sym") == _sym:
-                        _rows.append(_r)
-            except OSError:
-                _rows = []
-            _hours = 0
-            _runs = [r for r in _rows if r.get("place")]
-            for r in reversed(_runs):
-                if (r.get("place") or 99) <= 3:
-                    _hours += 1
-                else:
-                    break
-            _hours = round(_hours * 0.5)                     # прогон раз в полчаса
-            _weak = 0
-            for r in reversed(_runs):
-                _tr = r.get("oi_trend_pct")
-                if _tr is None or _tr > 0:
-                    break
-                _weak += 1
-            leader = {"sym": _sym.replace("USDT", ""), "state": _t.get("today"),
-                      "run_pct": round(_mv, 0),
-                      "line": f"{_mv:+.0f}% за сутки · интерес {_t.get('oi_chg_pct', 0):+.0f}%"
-                              + (f" · до плиты {_t.get('to_up_pct'):.1f}%" if _t.get("to_up_pct") else ""),
-                      "ended": (_t.get("ended_at") or "")[11:16] or None,
-                      "hours": _hours, "lead_gap": round(_gap, 1), "runs_weak": _weak}
-            # мелькающие: за последние 6 прогонов были и в первых, и вне их
-            _by: dict = {}
-            try:
-                for line in (BASE_DIR / "output" / "queue_log.jsonl").read_text(encoding="utf-8").splitlines():
-                    try:
-                        _r = json.loads(line)
-                    except ValueError:
-                        continue
-                    _by.setdefault(_r.get("sym"), []).append(_r.get("place"))
-            except OSError:
-                _by = {}
-            for s3, places in _by.items():
-                tail = [p for p in places[-6:] if p]
-                if len(tail) >= 4 and any(p <= 3 for p in tail) and any(p > 3 for p in tail):
-                    flicker.append(str(s3).replace("USDT", ""))
-    except Exception:  # noqa: BLE001
-        leader, flicker = {}, []
+                _r = json.loads(line)
+            except ValueError:
+                continue
+            _by.setdefault(_r.get("sym"), []).append(_r.get("place"))
+        for s3, places in _by.items():
+            tail = [p for p in places[-6:] if p]
+            if len(tail) >= 4 and any(p <= 3 for p in tail) and any(p > 3 for p in tail):
+                flicker.append(str(s3).replace("USDT", ""))
+    except OSError:
+        flicker = []
 
     # ПРИПИСКА О ФОНЕ (07.09, владелец: «лучше показывать, чем не показывать, но она не должна
     # никак влиять»): нейтральная строка фактов внизу экрана. В балл и в группы не входит.
@@ -465,7 +461,7 @@ def render_intro(items: list[dict] | None = None) -> str:
                    "enough": bool(_a.get("n", 0) >= 20)}
     except (OSError, ValueError):
         acc = {}
-    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "flicker": flicker},
+    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "flicker": flicker, "accum": accum},
                       ensure_ascii=False).replace("</", "<\\/")
     return TEMPLATE.replace("__N__", str(n)).replace("__DATA__", data)
 
@@ -502,6 +498,35 @@ TEMPLATE = r'''<!doctype html>
     text-transform:uppercase;color:#ffd8a8;text-shadow:0 0 14px rgba(255,200,140,.7)}
   .lead.ended b{color:#ffd8cc;text-shadow:0 0 26px rgba(255,150,120,.7)}
   .lead.ended s{color:#ffd8cc}
+  /* ПЛЕЧО КОПИТСЯ — ЗОЛОТОЙ СПУТНИК (09.09, владелец: «кольцо сильно портит дизайн, сделай рядом
+     яркий золотой спутник который двигается»). Кольцо обводило имя и спорило с лучами; спутник
+     живёт рядом со звездой и не трогает её. Обходит имя по вытянутой орбите, ярко светится,
+     оставляет короткий след. Сильный случай (интерес от +50% при цене ±5%) крупнее и быстрее. */
+  /* СПУТНИК В ЦВЕТ ЗВЕЗДЫ (09.09, владелец): золотой спорил с холодным светом имён. Берёт тот же
+     тон, что и подписи, — белое ядро с голубым ореолом; сильный случай крупнее и ярче. */
+  /* ЦВЕТ РАЗДЕЛЯЕТ ДВА СЛУЧАЯ (09.09, владелец: «у кого в истории — белым, у кого копится
+     сейчас — золотым с подсветкой; они сейчас не светятся вообще»).
+     Копится СЕЙЧАС — золотой и живой: тёплое ядро, три слоя свечения, мягкий пульс.
+     Копилось РАНЬШЕ — белый и спокойный: холодное ядро, свечения меньше. */
+  .sat{position:fixed;pointer-events:none;z-index:3;width:15px;height:15px;border-radius:50%;
+    transform:translate(-50%,-50%);
+    background:radial-gradient(circle at 34% 30%,#fffdf5,#ffe9a8 38%,#ffc247 72%,#f0a01e);
+    box-shadow:0 0 22px rgba(255,206,110,1),0 0 55px rgba(255,180,60,.85),0 0 105px rgba(240,150,30,.45);
+    animation:satglow 2.6s ease-in-out infinite}
+  .sat.strong{width:21px;height:21px;
+    box-shadow:0 0 32px rgba(255,222,140,1),0 0 80px rgba(255,190,70,1),0 0 145px rgba(240,150,30,.55)}
+  @keyframes satglow{50%{box-shadow:0 0 30px rgba(255,216,130,1),0 0 74px rgba(255,190,70,1),0 0 130px rgba(240,150,30,.6)}}
+  /* КОПИЛОСЬ РАНЬШЕ (09.09): ход уже начался, а происхождение важно — такая монета после отката
+     уходит выше. Спутник тусклее и со шлейфом длиннее: уходящий, а не набирающий. */
+  .sat.past{width:12px;height:12px;opacity:.85;animation:none;
+    background:radial-gradient(circle at 34% 30%,#fff,#f2f7ff 45%,#cfe0f8 75%,#a8c2e6);
+    box-shadow:0 0 16px rgba(235,244,255,.9),0 0 40px rgba(190,215,255,.5)}
+  .sat i{position:absolute;left:50%;top:50%;width:44px;height:2px;transform-origin:0 50%;
+    background:linear-gradient(90deg,rgba(255,206,110,.85),transparent);transform:translate(0,-50%)}
+  .sat.past i{width:60px;background:linear-gradient(90deg,rgba(225,238,255,.55),transparent)}
+  .sattip{position:fixed;pointer-events:none;z-index:3;font-size:6.6px;letter-spacing:.2em;
+    text-transform:uppercase;color:rgba(255,216,150,.8);white-space:nowrap;transform:translate(-50%,-50%)}
+  .sattip.past{color:rgba(225,238,255,.7)}
   .bgnote{position:fixed;left:3.5vw;bottom:34vh;width:clamp(146px,15vw,200px);z-index:3;
     font-family:"Inter",system-ui,sans-serif;font-weight:300;pointer-events:none}
   .bgnote i.hd{font-style:normal;display:block;font-size:6.1px;letter-spacing:.34em;text-transform:uppercase;
@@ -957,6 +982,49 @@ function applyGroup(){
   }
   gl.uniform1fv(U('BR'),out);
 }
+// ПЛЕЧО КОПИТСЯ — ЗОЛОТОЙ СПУТНИК (09.09): обходит имя по вытянутой орбите, со следом
+(function(){
+  const AC=DATA.accum||{}; if(!Object.keys(AC).length)return;
+  const host=document.createElement('div'); document.body.appendChild(host);
+  let sats=[];
+  function build(){
+    host.innerHTML=''; sats=[];
+    (DATA.names||[]).forEach((nm,i)=>{
+      if(LAB[i])return;
+      const a=AC[nm]; if(!a)return;
+      const el=document.createElement('div');
+      el.className='sat'+(a.past?' past':(a.strong?' strong':''));
+      el.innerHTML='<i></i>';
+      const tip=document.createElement('div');
+      tip.className='sattip'+(a.past?' past':'');
+      tip.textContent = a.past ? `копилось ${a.ago} дн назад` : `плечо +${a.oi3}%`;
+      host.appendChild(el); host.appendChild(tip);
+      sats.push({el, tip, i, a,
+                 // ВЕРТИКАЛЬНАЯ ОРБИТА (09.09, владелец): спутник обходит имя сверху вниз, а не
+                 // вдоль строки — так он не тянется через всю подпись и не спорит с лучами.
+                 rx: a.past ? 26 : 22, ry: Math.max(34, SIZE*1.35),
+                 // скорость вдвое выше (09.09)
+                 sp: a.past ? 0.44 : (a.strong ? 1.10 : 0.72), ph: Math.random()*6.28});
+    });
+  }
+  function tick(now){
+    const t=now/1000;
+    sats.forEach(s=>{
+      const x=W*POS[s.i][0], y=H*POS[s.i][1];
+      const ang=t*s.sp + s.ph;
+      // по вертикали — синус в высоту, косинус в узкую ширину
+      const px=x + Math.sin(ang)*s.rx, py=y + Math.cos(ang)*s.ry;
+      s.el.style.left=px+'px'; s.el.style.top=py+'px';
+      // след смотрит назад по ходу движения
+      const deg=(Math.atan2(-Math.sin(ang)*s.ry, Math.cos(ang)*s.rx)*180/Math.PI)+180;
+      s.el.firstChild.style.transform=`translate(0,-50%) rotate(${deg}deg)`;
+      s.tip.style.left=x+'px'; s.tip.style.top=(y - s.ry - 12)+'px';
+    });
+    requestAnimationFrame(tick);
+  }
+  build(); requestAnimationFrame(tick);
+  addEventListener('resize', ()=>setTimeout(build,150));
+})();
 const tip=document.getElementById('tip');
 c.addEventListener('mousemove',ev=>{const j=hit(ev,true),i=hit(ev);
   c.style.cursor=(j>=0)?'pointer':'default';
@@ -1133,7 +1201,7 @@ function drawFx(t){
 // ЛИДЕР И МЕЛЬКАЮЩИЕ (08.09) — только показ, порядок очереди не меняется
 (function(){
   const L=DATA.leader||{}, el=document.getElementById('lead');
-  const PULL=(Math.abs(L.run_pct||0)>=50) && ((L.lead_gap||0)>=5 || L.ended || (L.runs_weak||0)>0);
+  const PULL=!!L.sym;
   if(el&&L.sym&&PULL){
     el.className='lead'+(L.ended?' ended':'');
     el.innerHTML='<i>сейчас ведёт</i><b>'+L.sym+'</b><s>'+(L.ended?('конец в '+L.ended):(L.state||''))+
@@ -1154,7 +1222,8 @@ function drawFx(t){
   // гореть ярче всех, если она не дала за день больше 50%; частота попадания в первые ни на что не
   // влияет — NAORIS висел почти 12 ч в первых и не пошёл»). Раньше лидером считался тот, у кого
   // наибольший суточный ход, и NAORIS с +7% полдня держал панель и затмевал остальных.
-  const idx=(Math.abs(L.run_pct||0)>=50) ? DATA.names.indexOf(L.sym||'') : -1;
+  // порог уже проверен в analytics_leaders — здесь только показ (09.09)
+  const idx=DATA.names.indexOf(L.sym||'');
   const FL=new Set(DATA.flicker||[]);
   if(idx>=0){
     const hard=(L.lead_gap||0)>=5 && !L.ended;

@@ -503,6 +503,54 @@ def judge(d: dict, live: dict | None = None) -> dict | None:
     # ХОД ОТ ПСИХОЛОГИЧЕСКОГО ДНА (08.09, владелец): минимум за последнюю НЕДЕЛЮ — «люди реагируют
     # на то, сколько прошло вчера, позавчера, сегодня». Отсюда меряется, насколько монета уже ушла:
     # за сутки мерить нельзя — ход длится два-три дня, и вчерашний подъём в сутки не попадает.
+    # ── ПЛЕЧО КОПИТСЯ, ЦЕНА СТОИТ (09.09) ────────────────────────────────────────────────────
+    # Владелец: «мы поймали три монеты почти на самом деле — подумай, что можно сделать, чтобы
+    # ловить их раньше». По часам опережения нет: деньги и цена приходят вместе. А по ДНЯМ есть —
+    # интерес за три дня прибавляет заметно раньше, чем цена уходит.
+    # Проверено на 21 монете, 40 случаев: интерес за 3 дня от +30% при цене в пределах ±10% дал
+    # ход ≥10% за следующие три дня в 45% случаев, медиана +9.8%. При интересе от +50% и цене
+    # ±5% — три случая из четырёх, медиана +34% (SOPH 04.09 → +44.6%, PROM 11.08 → +88%,
+    # BLESS 13.06 → +40.9%). Промахи там, где цена уже ушла заранее (XAN 02.06: цена +8.9% → −8%).
+    # В балл НЕ идёт — только метка на звезде и в ленте, считаем на своей выборке.
+    def _accum_at(k: int) -> dict | None:
+        """Признак на день o[k]: интерес за три дня против цены за те же три дня."""
+        if k < 3:
+            return None
+        _o0 = (oi.get(o[k - 3]["datetime"][:10]) or {}).get("open_interest")
+        _o3 = (oi.get(o[k]["datetime"][:10]) or {}).get("open_interest")
+        if not (_o0 and _o3):
+            return None
+        _oi3 = (_o3 / _o0 - 1) * 100
+        _px3 = (float(o[k]["close"]) / float(o[k - 3]["close"]) - 1) * 100
+        if _oi3 >= 30 and abs(_px3) <= 10:
+            return {"oi3": round(_oi3), "px3": round(_px3, 1),
+                    "strong": bool(_oi3 >= 50 and abs(_px3) <= 5),
+                    "day": o[k]["datetime"][:10]}
+        return None
+
+    if len(o) >= 4:
+        _o0 = (oi.get(o[-4]["datetime"][:10]) or {}).get("open_interest")
+        _o3 = (oi.get(o[-1]["datetime"][:10]) or {}).get("open_interest")
+        if _o0 and _o3:
+            nums["oi_3d_pct"] = round((_o3 / _o0 - 1) * 100, 1)
+            nums["px_3d_pct"] = round((float(o[-1]["close"]) / float(o[-4]["close"]) - 1) * 100, 1)
+        _now = _accum_at(len(o) - 1)
+        if _now:
+            nums["accum"] = _now
+            why.append(f"плечо копится: интерес +{_now['oi3']}% за три дня при цене {_now['px3']:+.1f}%")
+        else:
+            # БЫЛО НА ЭТОЙ НЕДЕЛЕ (09.09, владелец: «монеты с таким накоплением растут выше обычных,
+            # давай у такого лидера тоже показывать спутник, но по истории»). Ход уже начался, и
+            # текущее условие «цена стоит» не выполняется — но происхождение важно: такая монета
+            # после отката уходит выше, и списывать её нельзя. Окно — неделя.
+            for _k in range(len(o) - 2, max(2, len(o) - 8), -1):
+                _was = _accum_at(_k)
+                if _was:
+                    _ago = len(o) - 1 - _k
+                    nums["accum_past"] = dict(_was, ago=_ago)
+                    why.append(f"плечо копилось {_ago} дн назад: интерес +{_was['oi3']}% при цене {_was['px3']:+.1f}%")
+                    break
+
     _low7 = min(float(r.get("low") or r["close"]) for r in o[-7:]) if len(o) >= 3 else None
     if _low7:
         nums["low7"] = round(_low7, 10)
@@ -897,6 +945,8 @@ def log_queue(res: dict) -> int:
             "size": q.get("size"), "hold_reason": q.get("hold_reason"),
             "after_harvest": q.get("after_harvest"), "after_harvest_vol": q.get("after_harvest_vol"),
             "run_from_low7": (v.get("nums") or {}).get("run_from_low7"),
+            "accum": (v.get("nums") or {}).get("accum"),
+            "accum_past": (v.get("nums") or {}).get("accum_past"),
             "bubble_sure": ((v.get("today") or {}).get("bubbles") or [{}])[-1].get("sure"),
             "bubble_vs_plot": (v.get("today") or {}).get("bubble_vs_plot"),
             "liq_side": (v.get("today") or {}).get("liq_side"),
