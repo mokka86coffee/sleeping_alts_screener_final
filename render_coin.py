@@ -703,8 +703,11 @@ COIN_HTML = r"""
 .clist:before{content:"";position:absolute;left:-20px;right:-20px;top:-18px;height:20px}
 .coins:hover .clist{opacity:1;transform:none;pointer-events:auto;transition-delay:0s}
 .clist .ch{position:sticky;left:18px;top:-9px;padding:0 6px;background:#03120e;font-family:var(--f-cap);font-size:7px;letter-spacing:.28em;text-transform:uppercase;color:#7fb8a0;white-space:nowrap}
-/* колонки во всю ширину: сколько влезет, столько и будет — высота падает, прокрутка не нужна */
-.clist .cols{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px 16px;align-items:start}
+/* СОРТИРОВКА СВЕРХУ ВНИЗ (09.09, владелец: «сейчас слева направо по всей ширине — неудобно»):
+   колонки заполняются вертикально, как в словаре: A внизу первой колонки, не в начале второй.
+   Делается колоночной раскладкой — браузер сам режет поток на столбцы по высоте. */
+.clist .cols{display:block;column-width:150px;column-gap:18px;column-fill:balance}
+.clist .cols > *{break-inside:avoid;-webkit-column-break-inside:avoid}
 .clist a{display:flex;align-items:center;gap:7px;font-family:var(--f-num);font-weight:300;font-size:12px;letter-spacing:.1em;color:#dfe9e4;padding:3px 8px;border-radius:6px;cursor:pointer;transition:.15s;border-left:1px solid transparent;text-decoration:none;white-space:nowrap}
 .clist a i{width:6px;height:6px;border-radius:50%;flex:0 0 6px;opacity:.9}
 .clist a span{min-width:64px}
@@ -1641,16 +1644,26 @@ COIN_JS = r"""
           // заметнее (06.09): плотнее ядро, яркая обводка, светлая точка в центре
           var cxb = XT(b.t).toFixed(1), cyb = Y(pt.p).toFixed(1);
           if (half) {
-            // ядро: левая половина — своя, правая — оранжевая
-            bubbles += '<path d="M' + cxb + ',' + (Y(pt.p) - r * .45).toFixed(1) + ' A' + (r * .45).toFixed(1) + ',' + (r * .45).toFixed(1) +
-                       ' 0 0 0 ' + cxb + ',' + (Y(pt.p) + r * .45).toFixed(1) + ' Z" fill="' + own + '" opacity=".8"/>' +
-                       '<path d="M' + cxb + ',' + (Y(pt.p) - r * .45).toFixed(1) + ' A' + (r * .45).toFixed(1) + ',' + (r * .45).toFixed(1) +
-                       ' 0 0 1 ' + cxb + ',' + (Y(pt.p) + r * .45).toFixed(1) + ' Z" fill="#f0a24a" opacity=".8"/>';
+            // ПОЛОВИНКИ ДОЛЖНЫ БЫТЬ ВИДНЫ (09.09, владелец: «оранжевый не сильно отличается от
+            // красного и он не половинчатый»): половины рисуются в ПОЛНУЮ непрозрачность, между
+            // ними тёмная грань в один пиксель, а оранжевый взят ярче и желтее — иначе рядом с
+            // красным он читался как оттенок того же цвета.
+            var ry = Y(pt.p), rr = r * .52;
+            var ORANGE = '#ffb020';
+            bubbles += '<path d="M' + cxb + ',' + (ry - rr).toFixed(1) + ' A' + rr.toFixed(1) + ',' + rr.toFixed(1) +
+                       ' 0 0 0 ' + cxb + ',' + (ry + rr).toFixed(1) + ' Z" fill="' + own + '"/>' +
+                       '<path d="M' + cxb + ',' + (ry - rr).toFixed(1) + ' A' + rr.toFixed(1) + ',' + rr.toFixed(1) +
+                       ' 0 0 1 ' + cxb + ',' + (ry + rr).toFixed(1) + ' Z" fill="' + ORANGE + '"/>' +
+                       '<line x1="' + cxb + '" y1="' + (ry - rr).toFixed(1) + '" x2="' + cxb + '" y2="' + (ry + rr).toFixed(1) +
+                       '" stroke="rgba(6,14,10,.85)" stroke-width="1.2"/>';
           } else {
             bubbles += '<circle cx="' + cxb + '" cy="' + cyb + '" r="' + (r * .45).toFixed(1) + '" fill="' + col + '" opacity=".75"/>';
           }
           bubbles += '' +
-                     '<circle cx="' + cxb + '" cy="' + cyb + '" r="' + r.toFixed(1) + '" fill="' + own + '" opacity="' + (half ? '.14' : '.22') + '" stroke="' + edge + '" stroke-opacity=".95" stroke-width="' + (half ? '1.6' : '1.2') + '" stroke-dasharray="' + (half ? '3 2' : 'none') + '"><title>' + esc(new Date(b.t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' · оборот ' + money(v) + ' · ' + (buy ? 'покупали' : 'продавали') + ' ' + money(Math.abs((+b.b || 0) - (+b.s || 0))) + (fill !== null ? ' · интерес на баре ' + (fill > 0 ? '+' : '') + fill.toFixed(1) + '%' : '') + note) + '</title></circle>'; });
+                     // ОРЕОЛ ЦЕЛЬНЫЙ (09.09, владелец: «зачем делить ореол?»): деление уже показано
+                     // в ядре, второй раз повторять его незачем — только грязнит. Свечение вокруг
+                     // одним цветом говорит про ожидаемый ход, ядро — про то, что было с заявкой.
+                     '<circle cx="' + cxb + '" cy="' + cyb + '" r="' + r.toFixed(1) + '" fill="' + edge + '" opacity="' + (half ? '.18' : '.22') + '" stroke="' + edge + '" stroke-opacity=".95" stroke-width="' + (half ? '1.6' : '1.2') + '"><title>' + esc(new Date(b.t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' · оборот ' + money(v) + ' · ' + (buy ? 'покупали' : 'продавали') + ' ' + money(Math.abs((+b.b || 0) - (+b.s || 0))) + (fill !== null ? ' · интерес на баре ' + (fill > 0 ? '+' : '') + fill.toFixed(1) + '%' : '') + note) + '</title></circle>'; });
       })();
       var g = '<defs><linearGradient id="hf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + GOLD + '" stop-opacity=".22"/><stop offset="1" stop-color="' + GOLD + '" stop-opacity="0"/></linearGradient></defs>' + heatJ + bubbles +
         '<path d="' + dpath + ' L' + XT(tE).toFixed(1) + ',' + GY + ' L12,' + GY + ' Z" fill="url(#hf)" opacity=".6"/>' +
