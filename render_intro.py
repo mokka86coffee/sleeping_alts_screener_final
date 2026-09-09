@@ -382,13 +382,14 @@ def render_intro(items: list[dict] | None = None) -> str:
     # список pump_leaders.json. Мелькающие остаются здесь — это про ленту очереди, а не про лидера.
     leader: dict = {}
     flicker: list = []
+    _live: list = []
     try:
         from core_config import PUMP_LEADERS_PATH as _pl
     except ImportError:
         _pl = BASE_DIR / "output" / "pump_leaders.json"
     try:
         _recs = json.loads(_pl.read_text(encoding="utf-8"))
-        _live = [r for r in _recs.values()
+        _live[:] = [r for r in _recs.values()
                  if isinstance(r, dict) and not r.get("retired_at")]
         _live.sort(key=lambda r: -(r.get("run_pct") or 0))
         if _live:
@@ -421,6 +422,26 @@ def render_intro(items: list[dict] | None = None) -> str:
                 accum[_s.replace("USDT", "")] = dict(_n["accum_past"], past=True)
     except (OSError, ValueError):
         accum = {}
+
+    # ── ДВА ПОСЛЕДНИХ ПУЗЫРЯ У ЛИДЕРОВ (09.09, владелец: «показывать пузырик ровно как мы их
+    # рисовали на графике — яркие и сомнительные, только у монет с ходом +40% за 24ч»).
+    # Берём монеты из pump_leaders.json (порог, оборот, квант и листинг уже проверены там) и по
+    # каждой — два последних пузыря дня из near_move: сторона и спорность, как на карточке.
+    bub: dict = {}
+    try:
+        _lead_syms = {str(r.get("symbol") or "") for r in _live} if _live else set()
+        if _lead_syms:
+            _nm2 = json.loads((BASE_DIR / "output" / "near_move.json").read_text(encoding="utf-8"))
+            for _s2, _v2 in (_nm2.get("coins") or {}).items():
+                if _s2 not in _lead_syms:
+                    continue
+                _bl = ((_v2.get("today") or {}).get("bubbles") or [])[-2:]
+                if _bl:
+                    bub[_s2.replace("USDT", "")] = [
+                        {"buy": b.get("side") == "buy", "doubt": b.get("sure") == "сомнительный"}
+                        for b in _bl]
+    except (OSError, ValueError, NameError):
+        bub = {}
 
     # мелькающие: за последние 6 прогонов были и в первых, и вне их
     try:
@@ -461,7 +482,7 @@ def render_intro(items: list[dict] | None = None) -> str:
                    "enough": bool(_a.get("n", 0) >= 20)}
     except (OSError, ValueError):
         acc = {}
-    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "flicker": flicker, "accum": accum},
+    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "flicker": flicker, "accum": accum, "bub": bub},
                       ensure_ascii=False).replace("</", "<\\/")
     return TEMPLATE.replace("__N__", str(n)).replace("__DATA__", data)
 
@@ -542,6 +563,17 @@ TEMPLATE = r'''<!doctype html>
   .sattip{position:fixed;pointer-events:none;z-index:3;font-size:6.6px;letter-spacing:.2em;
     text-transform:uppercase;color:rgba(255,216,150,.8);white-space:nowrap;transform:translate(-50%,-50%)}
   .sattip.past{color:rgba(225,238,255,.7)}
+  /* ПУЗЫРИ ПОД ИМЕНЕМ (09.09, вариант А): два последних, цвет по стороне заявки, у спорного
+     правая половина янтарная — ровно как на графике карточки. Только у монет из лидеров. */
+  .bub{position:fixed;pointer-events:none;z-index:3;border-radius:50%;transform:translate(-50%,-50%);
+    width:7px;height:7px}
+  .bub.buy{background:radial-gradient(circle at 35% 32%,#eafff6,#5fe6a6 60%,#2fbf82);
+    box-shadow:0 0 10px rgba(95,230,166,.9),0 0 26px rgba(60,200,140,.45)}
+  .bub.sell{background:radial-gradient(circle at 35% 32%,#fff0ec,#ff7a63 60%,#d8503a);
+    box-shadow:0 0 10px rgba(255,122,99,.9),0 0 26px rgba(210,80,60,.45)}
+  .bub.half{overflow:hidden}
+  .bub.half:after{content:"";position:absolute;left:50%;top:0;right:0;bottom:0;
+    background:linear-gradient(180deg,#ffd27a,#ffb020)}
   .bgnote{position:fixed;left:3.5vw;bottom:34vh;width:clamp(146px,15vw,200px);z-index:3;
     font-family:"Inter",system-ui,sans-serif;font-weight:300;pointer-events:none}
   .bgnote i.hd{font-style:normal;display:block;font-size:6.1px;letter-spacing:.34em;text-transform:uppercase;
@@ -924,8 +956,14 @@ function mask(){
     const isStale=(DATA.grp||[])[i]===4;
     m.font=LAB[i]?`300 ${size*(isStale?.78:.92)}px "Inter",system-ui,sans-serif`:`400 ${size*(isStale?.66:.935)}px "${FONT}",system-ui,sans-serif`;   // остывшие мельче (07.09)
     m.letterSpacing=LAB[i]?'0.32em':'0.12em';
-    m.fillStyle='#0f0';m.filter=`blur(${size*.16}px)`;m.fillText(name,x,y);m.fillText(name,x,y);
-    m.fillStyle='#00f';m.filter=`blur(${size*.035}px)`;m.fillText(name,x,y);m.fillText(name,x,y);
+    // РОВНЫЙ СВЕТ НА ЛЮБОЙ ШИРИНЕ (09.09, владелец показал сравнение: на узком экране ярче, на
+    // широком тусклее). Причина не в яркости: кегль имени упирается в потолок 21px, и радиус
+    // ореола, считанный от кегля, дальше не растёт — а экран растёт, и свет тонет в пустоте.
+    // Растягиваем только РАЗМЫТИЕ, буквы не трогаем: на 1440 множитель единица (узкий экран как
+    // был), к 2560 плавно до полутора — там ореол становится шире и звезда снова видна.
+    const kg=Math.min(1.5,Math.max(1,W/1440));
+    m.fillStyle='#0f0';m.filter=`blur(${size*.16*kg}px)`;m.fillText(name,x,y);m.fillText(name,x,y);
+    m.fillStyle='#00f';m.filter=`blur(${size*.035*kg}px)`;m.fillText(name,x,y);m.fillText(name,x,y);
     m.fillStyle='#f00';m.filter='none';m.fillText(name,x,y);
     // ПОДПИСЬ — ХВОСТОМ, ОТДЕЛЬНЫМ СЛОЕМ (07.09, выбор владельца): в маске её больше нет, иначе
     // длинная строка снова цепляла бы соседей; рисуется на canvas #fx поверх шейдера
@@ -1019,6 +1057,29 @@ function applyGroup(){
       tip.textContent = a.past ? `копилось ${a.ago} дн назад` : `плечо +${a.oi3}%`;
       tip.style.left=(x+dx)+'px'; tip.style.top=(y-dy-14)+'px';
       host.appendChild(el); host.appendChild(tip);
+    });
+  }
+  place();
+  addEventListener('resize', ()=>setTimeout(place,150));
+})();
+
+// ДВА ПОСЛЕДНИХ ПУЗЫРЯ ПОД ИМЕНЕМ (09.09): слева от состояния, слева направо по времени
+(function(){
+  const B=DATA.bub||{}; if(!Object.keys(B).length)return;
+  const host=document.createElement('div'); document.body.appendChild(host);
+  function place(){
+    host.innerHTML='';
+    (DATA.names||[]).forEach((nm,i)=>{
+      if(LAB[i])return;
+      const b=B[nm]; if(!b||!b.length)return;
+      const x=W*POS[i][0], y=H*POS[i][1];
+      b.forEach((p,k)=>{
+        const el=document.createElement('div');
+        el.className='bub '+(p.buy?'buy':'sell')+(p.doubt?' half':'');
+        el.style.left=(x - nm.length*SIZE*0.31 - 14 + k*11)+'px';
+        el.style.top=(y + SIZE*0.62)+'px';
+        host.appendChild(el);
+      });
     });
   }
   place();
@@ -1225,15 +1286,9 @@ function drawFx(t){
   const idx=DATA.names.indexOf(L.sym||'');
   const FL=new Set(DATA.flicker||[]);
   if(idx>=0){
-    // ПОПРАВКА НА ШИРИНУ ЭКРАНА (09.09, владелец: «лидер яркий на маленьких экранах, чем шире
-    // экран тем меньше яркости»). Кегль имени растёт с шириной (SIZE = W*0.012), а свечение
-    // задано в постоянных величинах — на широком мониторе тот же свет размазывается по большей
-    // площади, и звезда выглядит бледнее. Компенсируем множителем от ширины: на 1440 без
-    // изменений, дальше плавно до полутора раз. Остальных звёзд не касается.
-    const kw = Math.min(1.5, Math.max(1, (window.innerWidth||1440) / 1440));
     const hard=(L.lead_gap||0)>=5 && !L.ended;
     const done=!!L.ended || (L.runs_weak||0)>=3;
-    const up = (done?1.25:(hard?1.9:1.45)) * kw;
+    const up = done?1.25:(hard?1.9:1.45);
     const dn = done?0.75:(hard?0.30:0.55);
     const b=new Float32Array(DATA.bright);
     for(let i=0;i<b.length;i++){
@@ -1242,22 +1297,6 @@ function drawFx(t){
       if(FL.has(DATA.names[i])) b[i]*=0.6;
     }
     BR0.set(b); applyGroup();
-    // при смене размера окна множитель пересчитывается — иначе после разворота на другой
-    // монитор лидер снова окажется тусклым
-    if(!window.__leadFit){
-      window.__leadFit = true;
-      let t0=null;
-      addEventListener('resize', ()=>{ clearTimeout(t0); t0=setTimeout(()=>{
-        const k2 = Math.min(1.5, Math.max(1, (window.innerWidth||1440) / 1440));
-        const b2=new Float32Array(DATA.bright);
-        for(let i=0;i<b2.length;i++){
-          if(LAB[i])continue;
-          b2[i]= (i===idx) ? (done?1.25:(hard?1.9:1.45))*k2 : b2[i]*dn;
-          if(FL.has(DATA.names[i])) b2[i]*=0.6;
-        }
-        BR0.set(b2); applyGroup();
-      }, 200); });
-    }
   }
 })();
 (function(){const el=document.getElementById('bgnote');if(!el)return;
