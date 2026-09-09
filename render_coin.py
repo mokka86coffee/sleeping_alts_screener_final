@@ -455,6 +455,19 @@ def render_coin(stars: list[dict], market: dict) -> str:
                "pulse": _pulse_series(3),   # линия мини-журнала — живая цена за 72 ч (08.09)
                "bubOi": _bubble_oi(),       # интерес и тип бара для деления пузырей (08.09)
                "near": ((_read_json("near_move.json") or {}).get("coins") or {}),   # близкие к ходу (05.09)
+               # ПУЛЬС ТОЛЬКО У НЫНЕШНИХ ПЕРВЫХ (09.09, владелец: «в списке мигают монеты вообще
+               # не из текущих первых, а видимо за день»): в near_move лежат все, кто прошёл
+               # фильтр за прогон, и мигал весь список. Первые — это очередь, места 1–3.
+               "firsts": [str(x).upper() for x in
+                          ((_read_json("near_move.json") or {}).get("first") or [])][:3],
+               # ФОНДЫ У ИМЕНИ (09.09, владелец: «добавь рядом с названиями три буквы, если
+               # держатель DWF Labs или Binance Labs»): берём из unlocks.json, поле investors.
+               "funds": {str(k).replace("USDT", "").upper():
+                         ("DWF" if "DWF" in json.dumps(v, ensure_ascii=False) else
+                          "YZI" if ("YZi" in json.dumps(v, ensure_ascii=False)
+                                    or "Binance Labs" in json.dumps(v, ensure_ascii=False)) else None)
+                         for k, v in (_read_json("unlocks.json") or {}).items()
+                         if not str(k).startswith("_") and isinstance(v, dict) and v.get("investors")},
                "sources": source_stamps(stars, market)}
     # ЧЁРНЫЙ ЭКРАН (05.09 вечер): NaN/Infinity из числовых рядов (веса полос, приросты) json.dumps
     # пишет как NaN — это не JSON, JSON.parse в браузере падает, и вся страница пуста.
@@ -596,7 +609,16 @@ COIN_HTML = r"""
 .hist .hr{display:grid;grid-template-columns:82px 70px 1fr;gap:10px;font-family:var(--f-cap);font-size:8px;letter-spacing:.1em;color:#dffff0;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)}
 .hist .hr b{font-weight:400;color:#ffe2a8;text-transform:uppercase}.hist .hr b.miss{color:#ff9d84}.hist .hr.ev b{color:#9dbbe0}
 /* ── близкие к ходу (05.09, владелец: «не иконками, само название пусть мигает») ── */
-.clist a.near span{color:#ffe2a8;text-shadow:0 0 8px rgba(255,217,138,.75),0 0 18px rgba(245,169,58,.35);animation:nearpulse 1.6s ease-in-out infinite}
+/* близкая к ходу — просто тёплый цвет; ПУЛЬС только у нынешних первых (09.09) */
+.clist a.near span{color:#ffe2a8;text-shadow:0 0 8px rgba(255,217,138,.75),0 0 18px rgba(245,169,58,.35)}
+.clist a.first span{animation:nearpulse 1.6s ease-in-out infinite}
+/* ФОНД У ИМЕНИ (09.09): три буквы с ореолом — DWF янтарным, YZI холодным синим */
+.clist a f{font-style:normal;font-size:7px;letter-spacing:.1em;margin-left:5px;padding:1px 3px;
+  border-radius:3px;vertical-align:1px;font-weight:600}
+.clist a f.dwf{color:#ffd98a;background:rgba(245,169,58,.10);
+  box-shadow:inset 0 0 0 1px rgba(245,169,58,.35),0 0 8px rgba(245,169,58,.25)}
+.clist a f.yzi{color:#bfd8ff;background:rgba(120,170,255,.10);
+  box-shadow:inset 0 0 0 1px rgba(120,170,255,.38),0 0 8px rgba(120,170,255,.25)}
 @keyframes nearpulse{0%,100%{opacity:1;text-shadow:0 0 8px rgba(255,217,138,.75),0 0 18px rgba(245,169,58,.35)}50%{opacity:.55;text-shadow:0 0 2px rgba(255,217,138,.3)}}
 /* ── направление (05.09): стрелка «← снимут» мигает, плашка — при наведении на подпись ── */
 .dirhot .blink{animation:dirblink 1.4s ease-in-out infinite}
@@ -794,6 +816,7 @@ COIN_JS = r"""
   var BY = {}; STARS.forEach(function (s) { BY[String(s.t).toUpperCase()] = s; });
   var NAMES = Object.keys(BY).sort();
   var WH = D.whales || {}, SC = D.sched, JR = D.journal || {}, HIST = D.hist || {}, BOOK = D.book || {}, CROWD = D.crowd || {}, FLOW = D.flow || {}, OIT = D.oitypes || {}, NEAR = D.near || {};
+  var FIRSTS = (D.firsts || []), FUNDS = (D.funds || {});
 
   // ── помощники ──
   function esc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
@@ -1720,8 +1743,11 @@ COIN_JS = r"""
     // автоматически — сколько влезет по ширине. Высота падает, прокрутка нужна только если не влезло.
     var cols = NAMES.map(function (c) {
       var z = BY[c], cc = CASE_C[z.st] || ['#7b83b8', 'без кейса'], gr = grpOf(z);
-      var nr = NEAR[String((z && z.coin) || (c + 'USDT')).toUpperCase()], isNear = !!(nr && nr.near);
-      return '<a href="#' + esc(c) + '" class="' + (c === tick ? 'cur' : '') + (isNear ? ' near' : '') + '"' + (isNear ? ' title="близкая к ходу: ' + esc((nr.why || []).join(' · ')) + '"' : '') + '><i style="background:' + cc[0] + ';box-shadow:0 0 6px ' + cc[0] + '" title="' + cc[1] + '"></i><span>' + esc(c) + '</span>' + marks(z) + (gr ? '<u style="color:' + GRP_C[gr][0] + ';border-color:' + GRP_C[gr][0] + '">' + GRP_C[gr][1] + '</u>' : '') + '</a>';
+      var _sym = String((z && z.coin) || (c + 'USDT')).toUpperCase();
+      var nr = NEAR[_sym], isNear = !!(nr && nr.near);
+      var isFirst = FIRSTS.indexOf(_sym) >= 0;     // пульс — только нынешним первым
+      var fund = FUNDS[String(c).toUpperCase()] || null;
+      return '<a href="#' + esc(c) + '" class="' + (c === tick ? 'cur' : '') + (isNear ? ' near' : '') + (isFirst ? ' first' : '') + '"' + (isNear ? ' title="близкая к ходу: ' + esc((nr.why || []).join(' · ')) + '"' : '') + '><i style="background:' + cc[0] + ';box-shadow:0 0 6px ' + cc[0] + '" title="' + cc[1] + '"></i><span>' + esc(c) + '</span>' + (fund ? '<f class="' + fund.toLowerCase() + '">' + fund + '</f>' : '') + marks(z) + (gr ? '<u style="color:' + GRP_C[gr][0] + ';border-color:' + GRP_C[gr][0] + '">' + GRP_C[gr][1] + '</u>' : '') + '</a>';
     }).join('');
     var legend = '<div class="cleg">' + Object.keys(CASE_C).map(function (k) { return '<b><i style="background:' + CASE_C[k][0] + '"></i>' + CASE_C[k][1] + '</b>'; }).join('') + '<s></s><b><em class="ld">★</em>лидер</b><b><em class="ht">●</em>горячая</b><b><em class="nw">✦</em>новая</b><b><em class="my">◆</em>твоя</b></div>';
     // ИСТОРИЯ ПО МОНЕТЕ (07.09, владелец: «Телеграм не должен быть источником истории»):
