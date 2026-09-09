@@ -233,16 +233,21 @@ def layout(n: int, seed: int = 7, zone: tuple | None = None) -> list[list[float]
     rnd = random.Random(seed + n)
     pts: list[list[float]] = []
     tries = 0
-    # ЗВЁЗДЫ НЕ ЛЕЗУТ ПОД ПРИБОРЫ (09.09, владелец: «проверь, чтобы звёзды не попадали под
-    # приборы»): панель фона стоит слева, от 2% ширины на 19% в ширину, и занимает по высоте
-    # примерно от 20% до 70%. Раньше зона звёзд начиналась с 10% и имена ложились прямо на неё
-    # (STRK на «биткоин сейчас», FLOCK на «лидера»). Двигаем левый край за панель.
-    x0, y0, x1, y1 = zone or (0.26, 0.13, 0.90, 0.72)
+    # ЗВЁЗДЫ НЕ ЛЕЗУТ ПОД ПРИБОРЫ — ИСКЛЮЧЕНИЕМ, А НЕ СУЖЕНИЕМ (09.09, владелец: «теперь стоят
+    # сеткой ровно в ряд, это некрасиво»). Сначала я сдвинул левый край зоны с 0.10 на 0.26 —
+    # зона стала узкой, точки перестали помещаться, и раскладка свалилась в запасную сетку.
+    # Теперь зона снова широкая, а панель вырезана прямоугольником: облако свободное, но левый
+    # столбец под приборами пуст.
+    x0, y0, x1, y1 = zone or (0.10, 0.13, 0.90, 0.72)
+    PANEL = (0.0, 0.16, 0.245, 0.76)      # где стоят приборы фона
     min_d = 0.16 if n <= 8 else 0.13
-    while len(pts) < n and tries < 6000:
+    while len(pts) < n and tries < 20000:
         tries += 1
         x = x0 + 0.08 * (x1 - x0) + rnd.random() * 0.84 * (x1 - x0)
         y = y0 + 0.10 * (y1 - y0) + rnd.random() * 0.68 * (y1 - y0)
+        # вырез под панелью приборов
+        if PANEL[0] <= x <= PANEL[2] and PANEL[1] <= y <= PANEL[3]:
+            continue
         # ближе к центру облака — чуть охотнее
         if rnd.random() > 0.35 + 0.65 * math.exp(-((x - 0.5) ** 2 * 3 + (y - 0.5) ** 2 * 2)):
             continue
@@ -254,6 +259,7 @@ def layout(n: int, seed: int = 7, zone: tuple | None = None) -> list[list[float]
             pts.append([round(x, 3), round(y, 3)])
     if len(pts) < n:
         # не разместились случайно — сетка по зоне с лёгким дрожанием (колонки по ширине, ряды по высоте)
+        x0 = max(x0, 0.26)          # запасная сетка — правее панели
         cols = max(1, min(n, int((x1 - x0) / 0.17)))
         rows = math.ceil(n / cols)
         pts = []
@@ -293,7 +299,7 @@ def render_intro(items: list[dict] | None = None) -> str:
     star_pos = layout(len([it for it in items if it["g"] != 4]))
     # остывшие — своим рядом у низа, мелко (07.09): «у цели» старше четырёх часов
     n_s = len(stale)
-    stale_pos = [[round(0.26 + 0.62 * (i + 0.5) / max(1, n_s), 3), 0.83 + 0.02 * (i % 2)] for i in range(n_s)]
+    stale_pos = [[round(0.14 + 0.72 * (i + 0.5) / max(1, n_s), 3), 0.83 + 0.02 * (i % 2)] for i in range(n_s)]
     si = 0
     for g in (0, 1, 2, 4):
         lab_it = next((it for it in labels if it["g"] == g), None)
@@ -421,7 +427,11 @@ def render_intro(items: list[dict] | None = None) -> str:
                     _risk.append(("шорты платят" if _f < 0 else "лонги платят")
                                  + f" {_f:+.2f}% — так долго не держится")
                 if _oi and _px and _px > 0 and _oi / _px >= 2.5:
-                    _risk.append(f"плечо растёт быстрее цены ×{_oi / _px:.1f} — набивают лонги")
+                    # СТОРОНУ НЕ ДОМЫСЛИВАЕМ (09.09, владелец): число — это отношение процента
+                    # роста интереса к проценту роста цены, а не «плечо к цене». И набивать могут
+                    # шорты: у IOST фандинг минус, значит платят как раз они. Сторону показывает
+                    # отдельная строка про фандинг.
+                    _risk.append(f"интерес растёт быстрее цены в {_oi / _px:.1f} раза")
                 if _tr is not None and _tr <= -2:
                     _risk.append(f"интерес угасает {_tr:+.1f}% за три часа")
                 if _dd is not None and _dd <= -8:
@@ -577,6 +587,9 @@ TEMPLATE = r'''<!doctype html>
   .lead u.hot{color:#ff8a70;text-shadow:0 0 16px rgba(255,130,100,.8)}
   .lead u.warn{color:#ffc069;text-shadow:0 0 16px rgba(255,180,90,.85)}
   /* предупреждение — в тонкой янтарной рамке-капсуле */
+  /* состояние — своя капсула, холодная; «вход закрыт» остаётся янтарной */
+  .lead u.state{color:#dbe8ff;text-shadow:0 0 16px rgba(160,200,255,.8);
+    box-shadow:inset 0 0 0 1px rgba(160,200,255,.35),0 0 22px rgba(140,180,255,.12);margin-right:6px}
   .lead u{display:inline-block;text-decoration:none;margin-top:10px;font-size:8px;font-weight:600;
     letter-spacing:.26em;text-transform:uppercase;color:#ffe0b8;
     text-shadow:0 0 16px rgba(255,200,140,.9);
@@ -661,8 +674,9 @@ TEMPLATE = r'''<!doctype html>
      край узкой колонки. Теперь перед словом, в потоке строки. */
   .bgnote .ico{width:30px;height:30px;color:rgba(255,206,120,.85);vertical-align:-10px;margin-right:7px;
     filter:drop-shadow(0 0 8px rgba(255,190,90,.45))}
-  .bgnote .ico .btcrun{transform-origin:12px 12px;animation:btcrun 3.4s linear infinite;
-    filter:drop-shadow(0 0 4px rgba(255,230,170,.95))}
+  /* дуга идёт ПО САМОЙ обводке: та же окружность, тот же центр, вращается группа целиком */
+  .bgnote .ico .btcrun{transform-box:view-box;transform-origin:50% 50%;
+    animation:btcrun 3.4s linear infinite;filter:drop-shadow(0 0 4px rgba(255,230,170,.95))}
   @keyframes btcrun{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
   /* строка без датчика: только состояние и число */
   .bgnote .g.plain{margin-bottom:18px}
@@ -1368,10 +1382,19 @@ function drawFx(t){
     el.className='lead'+(L.ended?' ended':'');
     // разделитель — ромб, чтобы числа не сливались в одну строку (09.09)
     var SEP=' <o>\u25c6</o> ';
-    // ПОДПИСЬ С ИМЕНЕМ (09.09, владелец: «непонятно, что это информация по конкретной монете»):
-    // было просто «сейчас ведёт», и три строки чисел читались как общий фон.
-    el.innerHTML='<i>монета дня · '+L.sym+'</i><b>'+L.sym+'</b><s>'+(L.ended?('конец в '+L.ended):(L.state||''))+
-      SEP+String(L.line||'').split(' · ').join(SEP)+(L.hours?(SEP+L.hours+' ч в первых'):'')+'</s>'+
+    // ПОРЯДОК: СНАЧАЛА МОНЕТА, ПОТОМ СОСТОЯНИЕ (09.09, владелец: «давай просто местами поменяем,
+    // вверху про монету, а ниже — тянет одна и вход закрыт»). Раньше состояние стояло первым
+    // числом в строке и читалось как заголовок всего экрана, а не как признак этой монеты.
+    // РИСКИ — СРАЗУ ПОД МОНЕТОЙ (09.09, владелец: «поставь коралловые прямо под монету, чтобы было
+    // понятно, что это относится к монете»). Стояли последними, после «вход закрыт», и читались
+    // как общее предупреждение экрана. Теперь порядок: имя → её числа → чем она опасна →
+    // и только потом состояние и последствие для остальных.
+    el.innerHTML='<i>сейчас ведёт</i><b>'+L.sym+'</b><s>'
+      + String(L.line||'').split(' · ').join(SEP)
+      + (L.hours?(SEP+L.hours+' ч в первых'):'')
+      + (L.ended?(SEP+'конец в '+L.ended):'')+'</s>'
+      + ((L.risk||[]).length ? '<em>'+L.risk.map(x=>'<i>'+x+'</i>').join('')+'</em>' : '')
+      + (L.state? '<u class="state">'+L.state+'</u>' : '')+
       ((L.runs_weak||0)>0&&!L.ended
         ? (Math.abs(L.run_pct||0)>=150
             ? '<u class="hot">ход '+Math.round(L.run_pct)+'% за день · интерес падает · '+L.runs_weak+' прогон без роста</u>'
@@ -1379,7 +1402,7 @@ function drawFx(t){
         // ДУБЛЬ УБРАН (09.09, владелец: «в верхней строке уже есть „тянут 2“, а внизу пишется
         // „тянет одна“»): состояние живёт в строке над именем, здесь — только последствие.
         : ((L.lead_gap||0)>=5 ? '<u>вход в остальных закрыт</u>' : ''))
-      + ((L.risk||[]).length ? '<em>'+L.risk.map(x=>'<i>'+x+'</i>').join('')+'</em>' : '');
+;
   } else if(el){ el.style.display='none'; }
   // ЛИДЕР ВСЕГДА ЗАМЕТНЕЕ ОСТАЛЬНЫХ (08.09, владелец: «NAORIS в лидерах, а светится всё, и
   // некоторые ярче»): раньше подсветка включалась только пока лидер идёт, а при конце снималась
@@ -1437,8 +1460,8 @@ function drawFx(t){
     +' stroke="currentColor" stroke-width="1.1" stroke-linecap="round"/>'
     // БЕГУЩЕЕ ПЯТНО ПО КОЛЬЦУ (09.09, владелец): короткая яркая дуга обходит окружность —
     // значок оживает, но ничего не мигает. Длина окружности при r=9.2 ≈ 57.8.
-    +'<circle class="btcrun" cx="12" cy="12" r="9.2" fill="none" stroke="#fff3d0" stroke-width="1.5"'
-    +' stroke-linecap="round" stroke-dasharray="7 50.8" opacity=".95"/></svg>';
+    +'<g class="btcrun"><circle cx="12" cy="12" r="9.2" fill="none" stroke="#fff3d0" stroke-width="1.3"'
+    +' stroke-linecap="round" stroke-dasharray="6 51.8" opacity=".95"/></g></svg>';
   // БЕЗ ДАТЧИКА (09.09, владелец: «у второй надписи не нужен датчик»): «биткоин дальше» — это не
   // перевес двух сторон, а расстояние до плит. Нить с бусиной там врёт, поэтому просто строка.
   function plainRow(r, ico){

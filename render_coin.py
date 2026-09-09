@@ -621,9 +621,9 @@ COIN_HTML = r"""
 /* углы — те, что владелец подобрал на стенде (04.09): ось у нижней кромки */
 .mini.verdict{left:520px}
 /* ПЛИТА ЖУРНАЛА (09.09, владелец, три захода): на ней живут пузыри — читать их приходилось
-   приближая, потом она полезла за край экрана. Масштаб 0.91 → 1.37 → 2.19 → 1.53.
+   приближая, потом она полезла за край экрана. Масштаб 0.91 → 1.37 → 2.19 → 1.53 → 1.30.
    Сцена и остальные плиты не тронуты. */
-.mini.journal{right:80px;--px:-20deg;--py:-18deg;--pz:0deg;bottom:114px;--sc:1.53}   /* стенд 05.09 */
+.mini.journal{right:80px;--px:-20deg;--py:-18deg;--pz:0deg;bottom:114px;--sc:1.30}   /* стенд 05.09 */
 .mini.sched{left:36px;--px:-15deg;--py:11deg;--pz:-2deg;bottom:350px;width:288px;--sc:.82;filter:saturate(.6) brightness(.85)}
 .mini.noglow .ground,.mini.noglow .refl{opacity:.35}   /* 05.09 ночь: выше на 86, под ней плита плеча */   /* стенд 05.09 */      /* дальше на 100 */
 .mini .ground{position:absolute;left:0;right:0;bottom:30px;height:1px;background:#fff6dc;opacity:.55}
@@ -1597,8 +1597,8 @@ COIN_JS = r"""
         ser.forEach(function (b, i) { var v = vols[i]; if (v < mu + 2 * sd || b.t < t0 || b.t > tE) return;
           var pt = null, best = 1e18; pts.forEach(function (q) { var dd = Math.abs(q.t - b.t); if (dd < best) { best = dd; pt = q; } }); if (!pt) return;
           // ПУЗЫРИ КРУПНЕЕ НА 60% (09.09, владелец): плита журнала выросла, пузыри должны расти
-          // вместе с ней — иначе на большом графике они снова мелкие. Было 4 + 8·√доли.
-          var r = 6.4 + 12.8 * Math.sqrt((v - mu) / Math.max(1, mx - mu));
+          // вместе с ней. Было 4 + 8·√доли → 6.4 + 12.8 → теперь −15%: 5.44 + 10.88.
+          var r = 5.44 + 10.88 * Math.sqrt((v - mu) / Math.max(1, mx - mu));
           var buy = (+b.b || 0) >= (+b.s || 0);
           // СОМНИТЕЛЬНЫЙ ПУЗЫРЬ — ОРАНЖЕВЫЙ (08.09, владелец: «не отсекать, а делать наполовину
           // оранжевым — понятно, что покупки есть, но цель у них может быть другая»). Смотрим, что
