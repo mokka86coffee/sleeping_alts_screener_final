@@ -29,11 +29,16 @@
     {
       "addr": "0xea0027b6ea9b6d7d401b5266979cc3b3ca87a918",
       "auto": true,
-      "label": "авто: pnl мес $19.3M, 7 монет (ETH, HYPE, ZEC…)"
+      "label": "авто: pnl мес $19.0M, 7 монет (ETH, HYPE, ZEC…)"
+    },
+    {
+      "addr": "0xa2ce501d9c0c5e23d34272f84402cfb7835b3126",
+      "auto": true,
+      "label": "авто: pnl мес $14.9M, 5 монет (ETH, BTC, HYPE…)"
     }
   ],
   "_auto": {
-    "at": "2026-09-09T01:39:01+00:00",
-    "picked": 1
+    "at": "2026-09-10T02:17:29+00:00",
+    "picked": 2
   }
 }
