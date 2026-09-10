@@ -455,6 +455,12 @@ def render_coin(stars: list[dict], market: dict) -> str:
                "pulse": _pulse_series(3),   # линия мини-журнала — живая цена за 72 ч (08.09)
                "bubOi": _bubble_oi(),       # интерес и тип бара для деления пузырей (08.09)
                "near": ((_read_json("near_move.json") or {}).get("coins") or {}),   # близкие к ходу (05.09)
+               # лидер по пампу — для тени снаружи (10.09): если доску тянет одна монета,
+               # вердикт карточки не работает, и на его месте показываем пластину с её именем
+               "pumps": sorted(
+                   [v for v in (_read_json("pump_leaders.json") or {}).values()
+                    if isinstance(v, dict) and not v.get("retired_at")],
+                   key=lambda x: -(x.get("run_pct") or 0)),
                # ПУЛЬС ТОЛЬКО У НЫНЕШНИХ ПЕРВЫХ (09.09, владелец: «в списке мигают монеты вообще
                # не из текущих первых, а видимо за день»): в near_move лежат все, кто прошёл
                # фильтр за прогон, и мигал весь список. Первые — это очередь, места 1–3.
@@ -775,6 +781,91 @@ COIN_HTML = r"""
 .ring{transform-box:fill-box;transform-origin:center;animation:ring 2.2s ease-out 3;animation-fill-mode:forwards}@keyframes ring{0%{transform:scale(.6);opacity:.9}100%{transform:scale(3.2);opacity:0}}
 .replay{position:absolute;left:100px;bottom:22px;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.24em;text-transform:uppercase;color:#7fb8a0;cursor:pointer;border:1px solid rgba(127,232,176,.25);border-radius:14px;padding:5px 12px;z-index:5}
 .replay:hover{color:#dfffee;border-color:rgba(127,232,176,.5)}
+.eclipse{position:absolute;inset:0;pointer-events:none;z-index:60;opacity:0;
+  animation:eclipsein 1.4s ease .8s forwards}
+@keyframes eclipsein{to{opacity:1}}
+.eclipse .edge{position:absolute;inset:0;
+  background:radial-gradient(125% 95% at 50% 46%, transparent 36%, rgba(2,6,10,.44) 74%, rgba(1,3,6,.86) 100%),
+             linear-gradient(90deg, rgba(1,3,6,.62), transparent 19%, transparent 81%, rgba(1,3,6,.62));
+  animation:eclipsebreath 9s ease-in-out infinite}
+@keyframes eclipsebreath{50%{opacity:.86}}
+
+/* ПЛАШКА МЕНЬШЕ (10.09, владелец): ширина 560 → 400, поля и кегли поджаты пропорционально */
+.leadwrap{position:absolute;left:50%;bottom:84px;transform:translateX(-50%);z-index:61;
+  width:400px;pointer-events:none}
+/* ИМЯ ЛИДЕРА: подсвечено снизу и живёт (10.09, владелец). Не мигает — под ним дышит тёплый
+   ореол, буквы медленно наливаются светом, а тонкая световая полоса проходит по ним слева
+   направо, будто по нагретому металлу. */
+.leadwrap .nm{position:relative;display:inline-block;left:50%;transform:translateX(-50%);
+  margin-bottom:-11px;z-index:2;
+  font-family:var(--f-name),system-ui,sans-serif;font-weight:400;font-size:21px;letter-spacing:.22em;
+  color:#ffeec6;
+  text-shadow:0 0 18px rgba(255,190,90,.55), 0 6px 26px rgba(255,150,40,.45), 0 1px 0 rgba(120,70,10,.6);
+  opacity:0;animation:nmdrop 1s cubic-bezier(.2,.8,.2,1) 1.35s forwards,
+                      nmheat 6s ease-in-out 2.4s infinite}
+@keyframes nmdrop{from{opacity:0;transform:translateX(-50%) translateY(-14px)}
+                  to{opacity:1;transform:translateX(-50%) translateY(0)}}
+/* дыхание свечения — сами буквы, без смены цвета */
+@keyframes nmheat{50%{text-shadow:0 0 26px rgba(255,206,120,.85), 0 8px 34px rgba(255,150,40,.6),
+                                  0 1px 0 rgba(120,70,10,.6)}}
+/* ореол под именем — пульсирует медленнее букв */
+.leadwrap .nm:after{content:"";position:absolute;left:50%;bottom:-4px;width:200px;height:20px;
+  transform:translateX(-50%);border-radius:50%;z-index:-1;
+  background:radial-gradient(closest-side, rgba(255,190,90,.42), transparent 72%);filter:blur(8px);
+  animation:nmhalo 7.5s ease-in-out infinite}
+@keyframes nmhalo{50%{opacity:.55;width:168px}}
+/* световая полоса по буквам */
+.leadwrap .nm:before{content:attr(data-n);position:absolute;left:0;top:0;white-space:nowrap;
+  color:transparent;
+  background:linear-gradient(100deg, transparent 42%, rgba(255,255,245,.95) 50%, transparent 58%);
+  background-size:280% 100%;-webkit-background-clip:text;background-clip:text;
+  animation:nmsweep 9s ease-in-out 3s infinite;pointer-events:none}
+@keyframes nmsweep{0%{background-position:130% 0}45%,100%{background-position:-30% 0}}
+
+/* сама фигура: пластина со скошенными плечами и сужением книзу */
+.plate{position:relative;padding:20px 30px 17px;text-align:center;overflow:hidden;isolation:isolate;
+  --cut:19px;
+  clip-path:polygon(var(--cut) 0, calc(100% - var(--cut)) 0, 100% var(--cut),
+                    100% calc(100% - 24px), calc(100% - 56px) 100%,
+                    56px 100%, 0 calc(100% - 24px), 0 var(--cut));
+  /* фон пластины — холодный стальной (10.09, владелец: «попробуй другой цвет фона»):
+     тёплое золото имени и капсул читается на нём заметно лучше, чем на коричневом */
+  background:linear-gradient(157deg, rgba(16,22,34,.86), rgba(7,10,16,.88) 60%, rgba(13,18,28,.87));
+  box-shadow:0 26px 64px rgba(0,0,0,.8);
+  opacity:0;animation:boxin 1s cubic-bezier(.2,.8,.2,1) 1.1s forwards}
+@keyframes boxin{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+/* световые рёбра по контуру фигуры */
+.plate .rib{position:absolute;inset:0;pointer-events:none;
+  clip-path:inherit;
+  background:linear-gradient(157deg, rgba(255,200,110,.30), transparent 26%, transparent 74%, rgba(255,200,110,.22));
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  padding:1px;-webkit-mask-composite:xor;mask-composite:exclude}
+/* зарево внутри */
+.plate:before{content:"";position:absolute;left:-30%;top:-60%;width:60%;height:220%;
+  background:radial-gradient(closest-side, rgba(255,180,70,.17), transparent 70%);
+  filter:blur(14px);animation:leadglow 11s ease-in-out infinite;z-index:-1}
+@keyframes leadglow{0%,100%{transform:translateX(0)}50%{transform:translateX(160%)}}
+/* блик, проходящий по пластине по диагонали */
+.plate em.spark{position:absolute;bottom:-6px;width:2px;height:2px;border-radius:50%;
+  background:rgba(255,214,140,.9);box-shadow:0 0 8px rgba(255,190,90,.9);
+  animation:sparkup linear infinite}
+@keyframes sparkup{0%{opacity:0;transform:translateY(0)}15%{opacity:1}100%{opacity:0;transform:translateY(-92px)}}
+/* отражение под пластиной */
+.leadwrap .refl{height:19px;margin-top:-2px;
+  background:linear-gradient(180deg, rgba(255,190,100,.16), transparent 78%);
+  filter:blur(9px);
+  clip-path:polygon(56px 0, calc(100% - 56px) 0, calc(100% - 96px) 100%, 96px 100%);
+  opacity:0;animation:eclipsein 1.2s ease 1.5s forwards}
+
+.plate i{display:block;font-style:normal;font-size:7.5px;letter-spacing:.4em;text-transform:uppercase;
+  color:rgba(255,214,150,.92);text-shadow:0 0 14px rgba(255,180,90,.5);margin-bottom:11px}
+.plate .nums{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
+.plate .nums span{font-size:9px;letter-spacing:.05em;color:#ffd9a8;padding:4px 10px;
+  box-shadow:inset 0 0 0 1px rgba(255,200,120,.24);
+  clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%)}
+.plate s{display:block;text-decoration:none;margin-top:12px;padding-top:10px;font-size:8.8px;
+  letter-spacing:.05em;line-height:1.55;color:rgba(226,228,235,.5);
+  border-top:1px solid rgba(255,190,110,.14)}
 .legend{position:absolute;right:270px;bottom:22px;font-family:var(--f-cap);font-size:7px;letter-spacing:.22em;color:#5e8f7a}
 .atmo{position:absolute;inset:0;pointer-events:none}
 .atmo .vig{position:absolute;inset:0;background:radial-gradient(ellipse 70% 60% at 50% 45%, transparent 45%, rgba(0,0,0,.55) 100%)}
@@ -991,6 +1082,17 @@ COIN_JS = r"""
     if (has(s.fund) && +s.fund > 0.01) con.push('толпа в лонге, фандинг ' + (+s.fund).toFixed(3) + '%');
     if (has(s.fund) && +s.fund < -0.01) pro.push('шорты платят');
     if (rep.delta_usd && +rep.delta_usd > 0) pro.push('дельта дневки в плюс'); else if (rep.delta_usd && +rep.delta_usd < 0) con.push('дельта дневки в минус');
+    // ── ТЕНЬ СНАРУЖИ (10.09, владелец: «карточка — отражение реальности, всё что там есть, правда;
+    // ломают две вещи вне её — фон и лидер, и от них вся правда становится бесполезной»).
+    // Когда доску тянет одна монета, вердикт и доводы не работают: их прячем, а на их месте
+    // ставим пластину с именем лидера. Числа карточки не трогаем — они верны.
+    window.__LEADER_ECLIPSE = (function(){
+      var L = (D.pumps && D.pumps.length) ? D.pumps[0] : null;
+      if (!L) return null;
+      var me = String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase();
+      if (String(L.symbol || '').toUpperCase() === me) return null;   // на самой монете-лидере тени нет
+      return L;
+    })();
     // СИЛА ВЫДЫХАЕТСЯ (10.09, владелец увидел на графике, что Klinger разворачивается ДО вершины).
     // Сам Klinger не посчитать — в архиве нет максимума и минимума бара; взяли его смысл через
     // дельту. Проверено на 22 ходах ≥8%: сработало в 21, медианная фора 3 бара (1.5 ч), медианное
@@ -1790,6 +1892,34 @@ COIN_JS = r"""
       it.addEventListener('click', hide); document.addEventListener('keydown', hide); setTimeout(hide, 9000); })();
     fit();
   }
+
+  // тень снаружи + пластина лидера — ставится последней, после сборки сцены
+  (function(){
+    var L = window.__LEADER_ECLIPSE; if (!L) return;
+    var st = root.getElementById('stage'); if (!st) return;
+    var v = root.querySelector('.mini.verdict'); if (v) v.style.display = 'none';
+    var d = document.createElement('div'); d.className = 'eclipse';
+    d.innerHTML = '<div class="edge"></div>'; st.appendChild(d);
+    var sparks = '';
+    for (var k = 0; k < 7; k++) {
+      sparks += '<em class="spark" style="left:' + (10 + k * 12 + Math.random() * 6).toFixed(0) + '%;'
+        + 'animation-duration:' + (5 + Math.random() * 4).toFixed(1) + 's;'
+        + 'animation-delay:' + (Math.random() * 5).toFixed(1) + 's"></em>';
+    }
+    var nm = String(L.symbol || '').replace('USDT', '');
+    var nums = '';
+    if (L.run_pct != null) nums += '<span>+' + Math.round(L.run_pct) + '% от основы</span>';
+    if (L.day_pct != null) nums += '<span>' + (L.day_pct > 0 ? '+' : '') + Math.round(L.day_pct) + '% за сутки</span>';
+    nums += '<span>' + (L.mine ? 'наша' : 'не из выборки') + '</span>';
+    var w = document.createElement('div'); w.className = 'leadwrap';
+    w.innerHTML = '<span class="nm" data-n="' + nm + '">' + nm + '</span>'
+      + '<div class="plate"><div class="rib"></div>' + sparks
+      + '<i>сегодня ведёт не эта монета</i>'
+      + '<div class="nums">' + nums + '</div>'
+      + '<s>деньги на доске заняты одной монетой — вход в остальных закрыт</s>'
+      + '</div><div class="refl"></div>';
+    st.appendChild(w);
+  })();
   function fit() { var W = root.host.ownerDocument.documentElement.clientWidth || window.innerWidth, H = window.innerHeight; var k = Math.min(W / 1440, H / 900); stage.style.transform = 'translate(-50%,-100%) scale(' + k.toFixed(4) + ')'; }   // 04.09: якорь — низ окна, не центр
   function fromHash() { var h = (location.hash || '').replace('#', '').toUpperCase(); return BY[h] ? h : null; }
   function start() {
