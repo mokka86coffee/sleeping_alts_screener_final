@@ -683,14 +683,21 @@ def pump_leaders(tickers: list[dict] | None = None,
         except (TypeError, ValueError):
             continue
 
-    # уже в списке: держим, пока цена выше основы
+    # ЛИДЕР — ЭТО СОСТОЯНИЕ СЕЙЧАС (10.09, владелец: «лидер это монета с ходом 40% за 24 часа;
+    # как только условие пропадает, лидера уже нет. Из монет уходит ликвидность в лидера только
+    # на пампе, когда все верят в рост, а рост — это минимум 40% за день»).
+    # Было: монета держалась в списке, пока цена выше ОСНОВЫ. Из-за этого на экране висели
+    # VVV с −10% за сутки и IOST, рухнувший ночью: основа стояла ниже, и они формально проходили.
+    # Теперь право быть лидером даёт только текущий ход за 24 часа. Основа остаётся числом для
+    # показа — сколько прошло от точки старта, — но в отборе не участвует.
     for sym, rec in store.items():
         if sym.startswith("_"):
             continue
         now_px = (cur.get(sym) or {}).get("px")
         base = rec.get("base")
-        if now_px and base and now_px < base:
-            reason = f"under_base:{base:g}"
+        day_now = (cur.get(sym) or {}).get("day_pct")
+        if day_now is not None and day_now < PUMP_JUMP_PCT:
+            reason = f"ход упал до {day_now:+.0f}% — ниже порога {PUMP_JUMP_PCT:.0f}%"
             _archive(archive_path, sym, rec, reason=reason, now=now)
             if rec.get("added_on_pump"):
                 continue                      # чужая — удаляем из журнала
