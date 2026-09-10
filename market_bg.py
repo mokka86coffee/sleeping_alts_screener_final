@@ -64,7 +64,7 @@ import argparse
 import json
 import statistics
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 try:
@@ -405,11 +405,18 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
     # Измеримый след того эпизода: открытый интерес по альтам впервые с декабря 2024 стал выше
     # биткоиновского. У кванта на Advanced интереса по альтам нет — считаем своё: сумма интереса
     # по нашей доске к интересу биткоина. Само число мало значит (110 монет из тысяч), важен СДВИГ.
-    _alt_oi = sum((c.get("oi") or 0) for c in coins if not c["sym"].startswith("BTC"))
-    _btc_oi = btc_block.get("oi") or 0
-    alt_share = {"alt_oi": round(_alt_oi), "btc_oi": round(_btc_oi),
-                 "ratio": round(_alt_oi / _btc_oi, 4) if _btc_oi else None, "chg_24h": None}
-    if alt_share["ratio"]:
+    # ВЕСЬ БЛОК ПОД ЗАЩИТОЙ (10.09): фон перестал писаться с 09.09 19:45 — ровно тогда, когда сюда
+    # добавилась доля плеча альтов. Любая ошибка здесь роняла шаг целиком, и лента обрывалась.
+    # Теперь сбой в этом счёте не мешает записать всё остальное.
+    alt_share = {"alt_oi": None, "btc_oi": None, "ratio": None, "chg_24h": None}
+    try:
+        _alt_oi = sum((c.get("oi") or 0) for c in coins if not str(c.get("sym") or "").startswith("BTC"))
+        _btc_oi = btc_block.get("oi") or 0
+        alt_share = {"alt_oi": round(_alt_oi), "btc_oi": round(_btc_oi),
+                     "ratio": round(_alt_oi / _btc_oi, 4) if _btc_oi else None, "chg_24h": None}
+    except Exception:  # noqa: BLE001
+        pass
+    if alt_share.get("ratio"):
         try:
             _want = (now - timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M")
             _old = None

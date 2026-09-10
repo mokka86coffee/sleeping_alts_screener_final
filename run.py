@@ -1293,6 +1293,24 @@ def run_once(args: argparse.Namespace) -> int:
         log("→ Фон рынка: " + next((l for l in _tm if l.startswith("risk on")), _tm[-1] if _tm else "пусто"))
         if _rm.returncode:
             _issue("Фон рынка", (_rm.stderr or "").strip()[-300:] or f"код {_rm.returncode}")
+        # ТИХИЙ ОБРЫВ ТОЖЕ СБОЙ (10.09): 09.09 в 19:45 фон упал на NameError, вернул код 0 и просто
+        # ничего не записал — сутки никто не знал, а журнал говорил «фон за этот день не писался».
+        # Теперь проверяем ФАКТ записи: если в ленте нет строки за сегодня, это идёт в реестр.
+        else:
+            try:
+                _bgp = BASE_DIR / "output" / "market_bg.jsonl"
+                from datetime import timezone as _tzc
+                _today = datetime.now(_tzc.utc).strftime("%Y-%m-%d")
+                _last = ""
+                if _bgp.exists():
+                    for _l in _bgp.read_text(encoding="utf-8").splitlines()[-50:]:
+                        if _l.strip():
+                            _last = _l
+                if f'"at": "{_today}' not in _last:
+                    _issue("Фон рынка", "строка за сегодня не записана — "
+                           + (next((l for l in _tm if l), "сборка вернула пусто"))[:200])
+            except Exception as e:  # noqa: BLE001
+                _issue("Фон рынка", f"проверка записи: {type(e).__name__}: {e}")
     except Exception as e:
         _issue("Фон рынка", f"{type(e).__name__}: {e}")
 
