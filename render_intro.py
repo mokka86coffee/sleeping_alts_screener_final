@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import math
 import random
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -457,6 +458,32 @@ def render_intro(items: list[dict] | None = None) -> str:
             }
     except (OSError, ValueError):
         leader = {}
+    # ── ФОН ДАВИТ: ЗВЁЗД НЕТ (10.09, владелец: «звёзды все убираем, если фон не лидер; если
+    # лидер — только его оставляем»). Читать доску нечем: деньги либо заняты одной монетой, либо
+    # их нет вовсе. Показываем светило по центру и одну строку — что именно мешает.
+    # Верхняя панель лидера убрана: её текст переехал вниз, под светило, в том же виде.
+    blank: dict = {}
+    try:
+        _bg = {r[0]: (r[1], r[2]) for r in (bgnote or [])}
+        _br = _bg.get("монеты"); _md = _bg.get("медиана доски")
+        _share = None
+        if _br:
+            _m = re.search(r"растёт (\d+) из (\d+)", str(_br[1]))
+            if _m:
+                _share = int(_m.group(1)) / max(1, int(_m.group(2)))
+        _med = None
+        if _md:
+            _m2 = re.search(r"(-?\d+[.,]?\d*)%", str(_md[1]))
+            if _m2:
+                _med = float(_m2.group(1).replace(",", "."))
+        _lead_alive = bool(leader.get("sym"))
+        if not _lead_alive and _share is not None and _med is not None and _share < 0.5 and _med < -0.3:
+            blank = {"why": "доска давит",
+                     "note": (str(_br[1]) if _br else "") + " · " + (str(_md[1]) if _md else "")
+                             + " · лидера нет"}
+    except Exception:  # noqa: BLE001
+        blank = {}
+
     # ПЛЕЧО КОПИТСЯ, ЦЕНА СТОИТ (09.09): метка на звезде — интерес за три дня прибавил от 30%,
     # цена в пределах 10%. Признак наблюдательный, в балл не идёт; на истории 21 монеты давал
     # ход ≥10% за три дня почти в половине случаев, а при интересе от +50% — в трёх из четырёх.
@@ -532,7 +559,7 @@ def render_intro(items: list[dict] | None = None) -> str:
                    "enough": bool(_a.get("n", 0) >= 20)}
     except (OSError, ValueError):
         acc = {}
-    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "flicker": flicker, "accum": accum, "bub": bub},
+    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "flicker": flicker, "accum": accum, "bub": bub, "blank": blank},
                       ensure_ascii=False).replace("</", "<\\/")
     return TEMPLATE.replace("__N__", str(n)).replace("__DATA__", data)
 
@@ -669,6 +696,59 @@ TEMPLATE = r'''<!doctype html>
     background:linear-gradient(180deg,#ffd27a,#ffb020)}
   /* КОЛОНКА ШИРЕ И ОТ КРАЯ (09.09): строка «плечо уходит −1.1% · жгут лонгов ×4.3 · Америка не
      покупает» не помещалась и обрезалась слева. */
+.blank{position:fixed;inset:0;z-index:7;pointer-events:none;display:grid;place-items:center;
+  opacity:0;animation:blankin 1.8s ease .9s forwards}
+@keyframes blankin{to{opacity:1}}
+.sun{position:relative;width:360px;height:360px;display:grid;place-items:center}
+.sun .core{position:relative;width:74px;height:74px;border-radius:50%;
+  background:radial-gradient(circle at 36% 32%, #ffffff, #eaf3ff 34%, #a9c8ff 62%, #6b93ff);
+  box-shadow:0 0 26px rgba(200,225,255,1), 0 0 72px rgba(140,185,255,.85), 0 0 155px rgba(100,150,255,.5);
+  animation:sunbreath 5.5s ease-in-out infinite}
+@keyframes sunbreath{50%{filter:brightness(1.2)}}
+.sun .far{position:absolute;inset:-40%;border-radius:50%;
+  background:radial-gradient(closest-side, rgba(120,165,255,.16), transparent 72%);
+  filter:blur(24px);animation:sunbreath 9s ease-in-out infinite}
+/* ПРИТЯЖЕНИЕ (10.09, владелец: «пусть точки притягиваются к солнцу как у первых звёзд»).
+   У звёзд группы «брать» искры текут к имени — здесь так же: частицы летят к ядру со всех
+   сторон, вытянуты по ходу движения (короткий след), ускоряются к центру и гаснут у самой
+   поверхности. Углы, дальность и скорость у каждой свои — потока ровными пачками нет. */
+.sun .arm{position:absolute;left:50%;top:50%;width:0;height:0}
+.sun .arm i{position:absolute;left:0;top:0;width:7px;height:2px;margin:-1px 0 0 0;border-radius:2px;
+  transform-origin:0 50%;
+  background:linear-gradient(90deg, rgba(255,255,255,0), rgba(215,235,255,.95));
+  box-shadow:0 0 8px rgba(170,205,255,.85), 0 0 20px rgba(120,170,255,.45);
+  animation:pull cubic-bezier(.35,0,.7,1) infinite}
+@keyframes pull{
+  0%{opacity:0;transform:rotate(var(--a)) translateX(var(--r)) scaleX(.6)}
+  10%{opacity:.95}
+  70%{opacity:1;transform:rotate(var(--a)) translateX(72px) scaleX(1.6)}
+  100%{opacity:0;transform:rotate(var(--a)) translateX(34px) scaleX(.5)}}
+.sun .halo{position:absolute;inset:2%;border-radius:50%;
+  background:radial-gradient(closest-side, rgba(160,200,255,.18), transparent 70%);filter:blur(9px);
+  animation:sunbreath 7s ease-in-out infinite}
+
+/* ЛУЧИ ИЗ ЯДРА (10.09, владелец: «ровно четыре смотрится плоско»): девять под разными углами,
+   разной длины и яркости, каждый дышит в своём ритме. */
+.sun .rr{position:absolute;left:50%;top:50%;height:1.5px;transform-origin:0 50%;pointer-events:none;
+  background:linear-gradient(90deg, rgba(210,232,255,.9), rgba(160,200,255,.35) 45%, transparent);
+  animation:rrpulse ease-in-out infinite}
+@keyframes rrpulse{50%{opacity:.4;filter:blur(.4px)}}
+.blank .say{position:absolute;left:50%;top:calc(50% + 170px);transform:translateX(-50%);text-align:center;
+  font-family:"Inter",system-ui,sans-serif;white-space:nowrap}
+.blank .say i{display:block;font-style:normal;font-size:7.5px;letter-spacing:.46em;text-transform:uppercase;
+  color:rgba(190,205,255,.5);margin-bottom:13px}
+.blank .say b{display:block;font-weight:200;font-size:20px;letter-spacing:.15em;color:#eef4ff;
+  text-shadow:0 0 30px rgba(150,190,255,.65)}
+.blank .say s{display:block;text-decoration:none;margin-top:12px;font-size:10px;letter-spacing:.07em;
+  color:rgba(190,205,255,.5)}
+.blank .say s w{color:#dbe6ff}
+/* текст лидера — тот же вид, что под светилом, только внизу по центру (10.09) */
+.blank.leadsay{display:block;background:none;pointer-events:none}
+.blank.leadsay .say{top:auto;bottom:96px}
+.blank.leadsay .say b{color:#ffeec6;text-shadow:0 0 26px rgba(255,180,90,.5)}
+.blank.leadsay .say s w{color:#ffd9a8}
+.blank.leadsay .say u{display:block;text-decoration:none;margin-top:10px;font-size:8.5px;
+  letter-spacing:.14em;text-transform:uppercase;color:#ffb0a0}
   .bgnote{position:fixed;left:2vw;bottom:34vh;width:clamp(190px,19vw,260px);z-index:3;
     font-family:"Inter",system-ui,sans-serif;font-weight:300;pointer-events:none}
   .bgnote i.hd{font-style:normal;display:block;font-size:6.1px;letter-spacing:.34em;text-transform:uppercase;
@@ -1064,6 +1144,7 @@ function mask(){
   m.letterSpacing='0.12em';
   m.globalCompositeOperation='lighter';
   for(let i=0;i<N;i++){const x=W*POS[i][0]+size*.06,y=H*POS[i][1],name=names[i];
+    if(window.__BLANK && !LAB[i]) continue;   // фон давит: имя в маску не пишем (10.09)
     // подписи групп — кириллицей, Michroma её не знает: Inter, чуть крупнее и с разрядкой
     const isStale=(DATA.grp||[])[i]===4;
     m.font=LAB[i]?`300 ${size*(isStale?.78:.92)}px "Inter",system-ui,sans-serif`:`400 ${size*(isStale?.66:.935)}px "${FONT}",system-ui,sans-serif`;   // остывшие мельче (07.09)
@@ -1088,6 +1169,7 @@ function mask(){
   for(let i=0;i<N;i++){m.font=LAB[i]?`300 ${size*.92}px "Inter",system-ui,sans-serif`:`400 ${size*.935}px "${FONT}",system-ui,sans-serif`;
     m.letterSpacing=LAB[i]?'0.32em':'0.12em';nameW[i]=m.measureText(names[i]).width;}
   for(let i=0;i<N;i++){const x=W*POS[i][0]+size*.06,y=H*POS[i][1],name=names[i];
+    if(window.__BLANK && !LAB[i]) continue;   // фон давит: имя в маску не пишем (10.09)
     for(let n=0,tries=0;n<NF&&tries<4000;tries++){
       // блик — только внутри СВОЕГО имени (07.09: брали из полосы шире имени и цепляли соседей —
       // рядом рисовались лучи без названий); ширину берём измерением, не длиной строки
@@ -1164,7 +1246,7 @@ function applyGroup(){
   function place(){
     host.innerHTML='';
     (DATA.names||[]).forEach((nm,i)=>{
-      if(LAB[i])return;
+      if(LAB[i]||window.__BLANK)return;
       const a=AC[nm]; if(!a)return;
       const x=W*POS[i][0], y=H*POS[i][1];
       const dx=nm.length*SIZE*0.34+16, dy=SIZE*0.62+8;   // справа сверху от имени
@@ -1192,7 +1274,7 @@ function applyGroup(){
   function place(){
     host.innerHTML='';
     (DATA.names||[]).forEach((nm,i)=>{
-      if(LAB[i])return;
+      if(LAB[i]||window.__BLANK)return;
       const b=B[nm]; if(!b||!b.length)return;
       const x=W*POS[i][0], y=H*POS[i][1];
       b.forEach((p,k)=>{
@@ -1207,6 +1289,22 @@ function applyGroup(){
   REDRAW.push(place);
   if(W) place();          // при загрузке размеры ещё не посчитаны — рисует resize()
 })();
+
+// ── ФОН ДАВИТ: ЗВЁЗД НЕТ, ПО ЦЕНТРУ СВЕТИЛО (10.09) ──────────────────────────────────────────
+// Гасить яркостью мало: имена запекаются в маску, а орбиты и подписи рисует канва — все три
+// слоя знают про флаг. Верхняя панель лидера при этом не показывается: её текст внизу.
+window.__BLANK = !!(DATA.blank && DATA.blank.why);
+if (window.__BLANK) {
+  const d = document.createElement('div');
+  d.className = 'blank';
+  d.innerHTML = `<div class="sun"><div class="far"></div><div class="halo"></div><div class="arm"><i style="--a:224.2deg;--r:165px;animation-duration:6.3s;animation-delay:5.9s"></i><i style="--a:266.4deg;--r:187px;animation-duration:3.5s;animation-delay:1.6s"></i><i style="--a:339.6deg;--r:203px;animation-duration:3.6s;animation-delay:0.6s"></i><i style="--a:133.8deg;--r:151px;animation-duration:4.8s;animation-delay:0.5s"></i><i style="--a:89.8deg;--r:147px;animation-duration:4.9s;animation-delay:0.9s"></i><i style="--a:312.3deg;--r:169px;animation-duration:4.0s;animation-delay:3.2s"></i><i style="--a:50.0deg;--r:199px;animation-duration:5.0s;animation-delay:0.7s"></i><i style="--a:350.0deg;--r:120px;animation-duration:4.2s;animation-delay:0.9s"></i><i style="--a:353.7deg;--r:141px;animation-duration:4.4s;animation-delay:4.2s"></i><i style="--a:194.1deg;--r:200px;animation-duration:4.1s;animation-delay:3.9s"></i><i style="--a:248.6deg;--r:169px;animation-duration:4.5s;animation-delay:1.6s"></i><i style="--a:59.7deg;--r:138px;animation-duration:4.3s;animation-delay:1.4s"></i><i style="--a:294.3deg;--r:195px;animation-duration:3.4s;animation-delay:2.3s"></i><i style="--a:121.6deg;--r:159px;animation-duration:4.7s;animation-delay:1.4s"></i><i style="--a:250.7deg;--r:143px;animation-duration:5.1s;animation-delay:3.6s"></i><i style="--a:20.5deg;--r:122px;animation-duration:6.8s;animation-delay:2.4s"></i><i style="--a:145.5deg;--r:190px;animation-duration:6.2s;animation-delay:2.3s"></i><i style="--a:208.3deg;--r:121px;animation-duration:5.0s;animation-delay:3.5s"></i><i style="--a:224.5deg;--r:145px;animation-duration:3.8s;animation-delay:0.9s"></i><i style="--a:295.0deg;--r:179px;animation-duration:4.6s;animation-delay:1.6s"></i><i style="--a:188.9deg;--r:179px;animation-duration:3.8s;animation-delay:2.8s"></i><i style="--a:287.0deg;--r:157px;animation-duration:3.5s;animation-delay:3.3s"></i><i style="--a:32.8deg;--r:163px;animation-duration:5.2s;animation-delay:1.9s"></i><i style="--a:53.4deg;--r:155px;animation-duration:6.7s;animation-delay:3.7s"></i><i style="--a:112.5deg;--r:160px;animation-duration:4.5s;animation-delay:3.6s"></i><i style="--a:225.7deg;--r:159px;animation-duration:7.0s;animation-delay:1.1s"></i><i style="--a:17.5deg;--r:196px;animation-duration:5.3s;animation-delay:2.2s"></i><i style="--a:85.4deg;--r:196px;animation-duration:4.6s;animation-delay:1.2s"></i><i style="--a:234.3deg;--r:138px;animation-duration:3.6s;animation-delay:3.3s"></i><i style="--a:11.8deg;--r:183px;animation-duration:4.6s;animation-delay:1.0s"></i><i style="--a:353.3deg;--r:192px;animation-duration:6.8s;animation-delay:4.3s"></i><i style="--a:283.7deg;--r:133px;animation-duration:4.0s;animation-delay:1.5s"></i><i style="--a:21.2deg;--r:173px;animation-duration:4.5s;animation-delay:2.0s"></i><i style="--a:359.7deg;--r:141px;animation-duration:6.9s;animation-delay:3.1s"></i></div><div class="rr" style="width:178px;transform:rotate(7deg);animation-duration:5.4s;animation-delay:0s"></div><div class="rr" style="width:126px;transform:rotate(41deg);animation-duration:6.8s;animation-delay:0.9s"></div><div class="rr" style="width:205px;transform:rotate(88deg);animation-duration:4.9s;animation-delay:2.1s"></div><div class="rr" style="width:148px;transform:rotate(133deg);animation-duration:7.6s;animation-delay:1.3s"></div><div class="rr" style="width:190px;transform:rotate(176deg);animation-duration:5.9s;animation-delay:3.0s"></div><div class="rr" style="width:118px;transform:rotate(214deg);animation-duration:6.2s;animation-delay:0.4s"></div><div class="rr" style="width:168px;transform:rotate(258deg);animation-duration:8.1s;animation-delay:2.6s"></div><div class="rr" style="width:138px;transform:rotate(299deg);animation-duration:5.1s;animation-delay:1.7s"></div><div class="rr" style="width:196px;transform:rotate(338deg);animation-duration:7.0s;animation-delay:0.2s"></div><div class="core"></div></div><div class="say"><i>сегодня брать нечего</i><b>доска давит</b><s>растёт <w>42</w> из <w>110</w> · медиана <w>−1.10%</w> · лидера нет</s></div>`;
+  const say = d.querySelector('.say');
+  if (say) {
+    say.innerHTML = '<i>сегодня брать нечего</i><b>' + DATA.blank.why + '</b>'
+      + '<s>' + String(DATA.blank.note || '').replace(/(\d+[.,]?\d*%?)/g, '<w>$1</w>') + '</s>';
+  }
+  document.body.appendChild(d);
+}
 const tip=document.getElementById('tip');
 c.addEventListener('mousemove',ev=>{const j=hit(ev,true),i=hit(ev);
   c.style.cursor=(j>=0)?'pointer':'default';
@@ -1305,7 +1403,7 @@ function drawFx(t){
     return [px,py,(Math.sin(a)<0)?0.55:1];
   }
   for(let i=0;i<N;i++){
-    if(LAB[i])continue;
+    if(LAB[i]||window.__BLANK)continue;
     const g=(DATA.grp||[])[i];
     if(PICK!==null&&g!==PICK)continue;
     // ЧУЖИЕ ГАСНУТ И НА КАНВЕ (08.09, владелец: «становятся тусклее, но процентов на пять»):
