@@ -1075,8 +1075,11 @@ COIN_JS = r"""
     if (s.st) dr.push(['стадия', String(s.st) + (s.streak ? ' · подряд ' + s.streak : '')]);
     var pro = [], con = [];
     if (cg.taker && +cg.taker > 1) pro.push('покупки ×' + (+cg.taker).toFixed(2) + ' к продажам'); else if (cg.taker && +cg.taker < 0.9) con.push('продают ×' + (1 / +cg.taker).toFixed(2) + ' к покупкам');
-    if (s.vxDir === 'up') pro.push('вортекс вверх'); else if (s.vxDir === 'down') con.push('вортекс вниз');
-    if (s.klinger && s.klinger.crossUp) pro.push('клингер крест вверх');
+    // МАСШТАБ ВИДЕН В ПОДПИСИ (11.09, владелец): вортекс и Klinger в карточке считаются на
+    // ЧЕТЫРЁХЧАСОВЫХ свечах — это рамка большого движения, а не сигнал входа внутри дня.
+    // Быстрые (получасовые) появятся, когда накопятся бары с размахом: h/l пишутся с 11.09.
+    if (s.vxDir === 'up') pro.push('вортекс 4ч вверх'); else if (s.vxDir === 'down') con.push('вортекс 4ч вниз');
+    if (s.klinger && s.klinger.crossUp) pro.push('клингер 4ч крест вверх');
     if (s.oiState === 'held') con.push('плечо застряло'); else if (s.oiState === 'cleared') pro.push('плечо разгружено');
     if (u && u.days <= 3) con.push('разлок ' + u.days + ' дн');
     if (has(s.fund) && +s.fund > 0.01) con.push('толпа в лонге, фандинг ' + (+s.fund).toFixed(3) + '%');
@@ -1142,7 +1145,7 @@ COIN_JS = r"""
     if (s.oiState) lr.push(['цикл плеча', s.oiState === 'held' ? 'застряло' : s.oiState === 'cleared' ? 'разгружено' : s.oiState === 'repeat' ? 'повторный цикл' : String(s.oiState)]);
     if (s.liqFuel && (s.liqFuel.below || s.liqFuel.above)) lr.push(['в капитализации', (s.liqFuel.below ? 'снизу ' + (+s.liqFuel.below * 100).toFixed(1) + '%' : '') + (s.liqFuel.above ? ' · сверху ' + (+s.liqFuel.above * 100).toFixed(1) + '%' : '') + ' — оценка по модели, не наблюдение']);
     if (s.liq24h && (s.liq24h.long || s.liq24h.short)) lr.push(['ликвидации за сутки', 'лонгов ' + (money(s.liq24h.long) || '$0') + ' против шортов ' + (money(s.liq24h.short) || '$0')]);
-    if (s.vxDir) lr.push(['топливо', 'вортекс ' + (s.vxDir === 'up' ? 'вверх' : s.vxDir === 'down' ? 'вниз' : s.vxDir) + (has(s.vxSpread) ? ' · разрыв ' + f(s.vxSpread) : '') + (s.vxAgo ? ' · ' + s.vxAgo + ' ч назад' : '')]);
+    if (s.vxDir) lr.push(['топливо', 'вортекс 4ч ' + (s.vxDir === 'up' ? 'вверх' : s.vxDir === 'down' ? 'вниз' : s.vxDir) + (has(s.vxSpread) ? ' · разрыв ' + f(s.vxSpread) : '') + (s.vxAgo ? ' · ' + s.vxAgo + ' ч назад' : '')]);
     var cw = CROWD[String(s.t).toUpperCase()]; if (cw && cw.crowd) lr.push(['толпа', 'в лонге ' + cw.crowd.longPct + '%' + (has(cw.crowd.chg1d) ? ' (за сутки ' + pct(cw.crowd.chg1d) + ')' : '') + (cw.top ? ' · топы ' + cw.top.longPct + '%' : '')]);
     // ПАТТЕРНЫ ДНЕВОК (03.09): цикл плеча по архиву — накопление или «разгрузили и залили заново»
     var Hh = HIST[String(s.t).toUpperCase()] || {};

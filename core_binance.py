@@ -40,6 +40,13 @@ LIMIT_15M = 1000
 LIMIT_1W = 200
 LIMIT_HTF = 200   # для 2d, 3d, 5d, 2w
 
+# Получасовки для быстрого вихря (11.09). Полторы тысячи свечей — тридцать
+# один день: столько нужно, чтобы «перегрев» мерился по истории САМОЙ
+# монеты, а не по общему порогу. Вес запроса 10 — грузить только там, где
+# вихрь действительно читают (карточки журнала и книги), не на всю выборку.
+LIMIT_30M = 1500
+LIMIT_30M_LAST = 4
+
 
 def _klines_weight(limit: int) -> int:
     """Вес запроса свечей зависит от запрошенного количества."""
@@ -126,6 +133,18 @@ def klines_15m(symbol: str) -> list[list]:
 
 def klines_1w(symbol: str) -> list[list]:
     return get_klines(symbol, "1w", LIMIT_1W)
+
+
+def klines_30m(symbol: str) -> list[list]:
+    """Получасовки с размахом — история для быстрого вихря и Клингера."""
+    return get_klines(symbol, "30m", LIMIT_30M)
+
+
+def klines_30m_last(symbol: str) -> list[list]:
+    """Последние закрытые получасовки — размах бара для внутридневного архива.
+    В серии Coinglass максимума и минимума нет вовсе (проверено 11.09 на IOST: ключи
+    t, tk, b, s, cvd), поэтому размах живого бара берётся у биржи. Вес запроса один."""
+    return get_klines(symbol, "30m", LIMIT_30M_LAST)
 
 
 def klines_htf(symbol: str, interval: str) -> list[list]:

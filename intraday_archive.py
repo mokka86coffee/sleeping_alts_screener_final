@@ -6,6 +6,7 @@
 
 В строке (всё, чего нет, — null; список `missing` говорит, чего именно):
   candle, sym, px                         — свеча (UTC, начало), пара, закрытие бара
+  h, l, o                                 — размах и открытие бара (свеча Binance, 11.09; нет — missing: hl)
   fut: {b, s, d, tk}                      — перп за бар: покупки, продажи, дельта, тейкер бара
   spot: {b, s, d, tk}                     — спот за бар (у перповых монет null)
   oi, oi_chg_pct                          — интерес $ и его ход за сутки (срез)
@@ -154,19 +155,24 @@ def build_rows(candle_ms: int, only: list[str] | None = None) -> list[dict]:
         if pr:
             pr.sort(key=lambda q: q.get("t") or 0)
             px = float(pr[-1]["price"])
-        # МАКСИМУМ И МИНИМУМ БАРА (11.09, владелец: дивергенция вортекса и Klinger на получасовках).
-        # В срезе Coinglass бар приходит целиком (o/h/l/c), а мы брали только закрытие — поэтому
-        # ни вортекс, ни Klinger посчитать было нельзя: обе формулы стоят на размахе бара.
-        # Теперь пишем high/low; цена (px) остаётся как была, ничего не ломается.
+        # МАКСИМУМ, МИНИМУМ И ОТКРЫТИЕ БАРА — У BINANCE (11.09). Первая версия брала их из
+        # бара серии Coinglass по ключам h/l/o, но в той серии их нет: проверено 11.09 на IOST,
+        # ключи бара t, tk, b, s, cvd — покупки, продажи, тейкер, накопленная дельта. Три
+        # прогона размах писался null, и missing молчал. Теперь свеча с тем же временем
+        # открытия берётся у биржи через core_binance (вес запроса один); нет свечи — в
+        # missing пишется hl, чтобы пустой размах не был тихим. Цена (px) как была.
         bar = _bar_at((c.get("fut") or {}).get("series") or [], candle_ms)
         hi = lo = op = None
-        if bar:
-            try:
-                hi = float(bar["h"]) if bar.get("h") is not None else None
-                lo = float(bar["l"]) if bar.get("l") is not None else None
-                op = float(bar["o"]) if bar.get("o") is not None else None
-            except (TypeError, ValueError):
-                hi = lo = op = None
+        try:
+            from core_binance import K_HIGH, K_LOW, K_OPEN, K_OPEN_TIME, klines_30m_last
+            for k in klines_30m_last(sym):
+                if int(k[K_OPEN_TIME]) == candle_ms:
+                    hi, lo, op = float(k[K_HIGH]), float(k[K_LOW]), float(k[K_OPEN])
+                    break
+        except Exception:  # noqa: BLE001 — сеть не должна ронять архив, только помечать
+            hi = lo = op = None
+        if hi is None or lo is None:
+            missing.append("hl")
         if px is None:
             if bar and bar.get("c"):
                 px = float(bar["c"])
