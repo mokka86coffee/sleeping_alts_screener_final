@@ -309,10 +309,14 @@ def hedge_mark(vi_p: list, vi_m: list, closes: list[float], highs: list[float], 
     mode = (mode or "неясно").strip().lower()
     day_hi = max(highs[-VORTEX_DAY_BARS:]) if highs else None
     near_hi = (day_hi is not None and day_hi > 0 and closes[-1] >= day_hi * (1 - VORTEX_HEDGE_NEAR_HIGH_PCT / 100))
+    # ПРАВКА 11.09 (LSK): событие «сторона сменилась» на продавцов поднимает хедж ПРИ ЛЮБОЙ форме.
+    # Первая версия давала его только лестнице, а параболе и «неясно» — лишь продавцов под
+    # максимумом дня; когда цена уже ушла на восемь от вершины и продавцы взяли сторону, капсула
+    # молчала. Близость к вершине теперь — только ранняя капсула на параболе, не условие.
+    st = turn_state(vi_p, vi_m)
+    if st and st["side"] == "продавцы":
+        return {"kind": "сторона", "bars": st["ago"], "price": closes[-1]}
     if mode == "лестница":
-        st = turn_state(vi_p, vi_m)
-        if st and st["side"] == "продавцы":
-            return {"kind": "лестница", "bars": st["ago"], "price": closes[-1]}
         return None
     sm = line_streak(vi_m)
     if sm["dir"] == "поднимает" and sm["n"] >= VORTEX_HEDGE_MIN_BARS and near_hi:
@@ -646,7 +650,7 @@ def episode_table(symbol: str, since: str) -> list[str]:
             marks.append("ХЕДЖ-парабола")
         hl = hedge_mark(vp[:i + 1], vm[:i + 1], cl[:i + 1], hi[:i + 1], "лестница")
         if hl and hl["bars"] == VORTEX_TURN_MIN_BARS:
-            marks.append("ХЕДЖ-лестница")
+            marks.append("ХЕДЖ-сторона")
         out.append(f"{t.strftime('%d.%m %H:%M')}  {_session_utc(t.hour):<15} {board:<12} {med_s:<8} {btc:<16} "
                    f"{cl[i]:<11g} {vp[i]:<7.3f} {sp['dir'][:4]}. {sp['n']:<4} {vm[i]:<7.3f} {sm['dir'][:4]}. {sm['n']:<4} {' · '.join(marks)}")
     return out

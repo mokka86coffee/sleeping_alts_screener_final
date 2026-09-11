@@ -1109,7 +1109,7 @@ COIN_JS = r"""
     // окно восемь баров. Строк «за» по вихрю нет: метка входа живёт только в журнале.
     var _vx = (NEAR[String(s.coin || (String(s.t).toUpperCase() + 'USDT'))] || {}).vortex || null;
     var _vh = _vx && _vx.hedge;
-    if (_vh && _vh.bars !== null && _vh.bars <= 8) con.push(_vh.kind === 'лестница'
+    if (_vh && _vh.bars !== null && _vh.bars <= 8) con.push((_vh.kind === 'лестница' || _vh.kind === 'сторона')
       ? 'вихрь 30м: сторона сменилась на продавцов ' + _vh.bars + ' бар назад'
       : 'вихрь 30м: продавцы поднимают лои ' + _vh.bars + ' бар под максимумом дня');
     var patD = patterns(HIST[String(s.t).toUpperCase()] || {}, CROWD[String(s.t).toUpperCase()]);

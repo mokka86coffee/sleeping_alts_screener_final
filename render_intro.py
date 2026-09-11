@@ -454,7 +454,7 @@ def render_intro(items: list[dict] | None = None) -> str:
                 if _vh.get("kind") == "парабола" and (_vh.get("bars") or 0) <= 8:
                     _risk.insert(1 if (_fa is not None and _fa <= 8) else 0,
                                  f"вихрь: продавцы поднимают лои {_vh['bars']} бар под максимумом дня")
-                elif _vh.get("kind") == "лестница" and (_vh.get("bars") or 0) <= 8:
+                elif _vh.get("kind") in ("лестница", "сторона") and (_vh.get("bars") or 0) <= 8:
                     _risk.insert(1 if (_fa is not None and _fa <= 8) else 0,
                                  f"вихрь: сторона сменилась на продавцов {_vh['bars']} бар назад")
             leader = {
