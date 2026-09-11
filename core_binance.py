@@ -89,6 +89,26 @@ def get_klines(symbol: str, interval: str, limit: int = 500) -> list[list]:
 INTRADAY_INTERVALS = {"1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h"}
 
 
+def get_first_kline_ms(symbol: str) -> int | None:
+    """Время открытия ПЕРВОЙ дневной свечи — возраст листинга. Обязательно startTime=0:
+    без него биржа отдаёт последнюю свечу, и возраст любой монеты выходит ноль дней
+    (12.09: из-за этого памп-лидеры не проходили отсекатель возраста — LAB +81% не попал)."""
+    key = (symbol, "first_kl")
+
+    def _fetch():
+        data = get_json(
+            f"{BINANCE_FAPI}/fapi/v1/klines",
+            {"symbol": symbol, "interval": "1d", "limit": 1, "startTime": 0},
+            weight=_klines_weight(1),
+        )
+        try:
+            return int(data[0][0]) if data else None
+        except (TypeError, ValueError, IndexError):
+            return None
+
+    return KLINES_CACHE.get_or_call(key, _fetch)
+
+
 def closed_only(klines: list[list]) -> list[list]:
     """ТОЛЬКО ЗАКРЫТЫЕ СВЕЧИ (05.09). Binance всегда кладёт последней текущую,
     незакрытую свечу — с частичным объёмом и промежуточным закрытием; анализ,

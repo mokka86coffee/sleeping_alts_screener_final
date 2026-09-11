@@ -640,14 +640,12 @@ def _quant_has(symbol: str) -> bool:
 
 
 def _listing_age_days(symbol: str, now: datetime) -> int | None:
-    """Возраст листинга по первой дневной свече. Запрос через общий слой."""
-    from core_binance import get_klines
-    kl = get_klines(symbol, "1d", limit=1)
-    if not kl:
-        return None
-    try:
-        first_ms = int(kl[0][0])
-    except (TypeError, ValueError, IndexError):
+    """Возраст листинга по ПЕРВОЙ дневной свече (startTime=0 внутри get_first_kline_ms).
+    12.09: раньше шло через get_klines без startTime — биржа отдавала последнюю свечу,
+    возраст выходил ноль дней, и отсекатель PUMP_MIN_AGE_DAYS резал всех подряд."""
+    from core_binance import get_first_kline_ms
+    first_ms = get_first_kline_ms(symbol)
+    if not first_ms:
         return None
     return int((now.timestamp() * 1000 - first_ms) / 86_400_000)
 
