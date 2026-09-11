@@ -710,16 +710,25 @@ def pump_leaders(tickers: list[dict] | None = None,
             rec["last_hit"] = now.isoformat()
         live[sym] = rec
 
-    # новые: три проверки по порядку
+    # новые: три проверки по порядку. Счётчик срезанных — на консоль (12.09): три дня подряд
+    # список был пуст при LAB +81%, потому что возраст листинга считался нулём у всех, и это
+    # выглядело как честное «никто не прошёл». Теперь видно, на каких воротах срезано сколько.
+    cut = {"порог": 0, "оборот": 0, "квант": 0, "возраст": 0}
     for sym, d in cur.items():
-        if sym in live or d["day_pct"] < PUMP_JUMP_PCT:
+        if sym in live:
+            continue
+        if d["day_pct"] < PUMP_JUMP_PCT:
+            cut["порог"] += 1
             continue
         if d["vol_usd"] < MIN_QUOTE_VOLUME_24H:
+            cut["оборот"] += 1
             continue
         if not _quant_has(sym):
+            cut["квант"] += 1
             continue
         age = _listing_age_days(sym, now)
         if age is not None and age < PUMP_MIN_AGE_DAYS:
+            cut["возраст"] += 1
             continue
         base = d["px"] / (1 + d["day_pct"] / 100) if d["px"] else None
         live[sym] = {
@@ -733,6 +742,14 @@ def pump_leaders(tickers: list[dict] | None = None,
 
     ensure_dirs()
     write_atomic(path, json.dumps(live, ensure_ascii=False, indent=1))
+    passed = sum(1 for r in live.values() if not r.get("retired_at"))
+    reached = len(cur) - cut["порог"]      # прошли ход — сколько из них срезано дальше
+    if reached:
+        log(f"   памп: ход прошли {reached} · срезано оборотом {cut['оборот']}, квантом {cut['квант']}, "
+            f"возрастом {cut['возраст']} · в лидерах {passed}")
+        if cut["возраст"] and passed == 0 and cut["возраст"] >= max(3, reached // 2):
+            log("   памп: ВСЕ, кто дошёл до возраста, срезаны возрастом — проверь мерку "
+                "(get_first_kline_ms должен идти со startTime=0)")
     return sorted((r for r in live.values() if not r.get("retired_at")),
                   key=lambda x: -(x.get("run_pct") or 0))
 
