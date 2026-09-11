@@ -31,6 +31,11 @@ from core_config import (
     VORTEX_N,
     VORTEX_SLOPE_BARS,
     VORTEX_TURN_MIN_BARS,
+    VORTEX_ENTRY_GAP,
+    VORTEX_ENTRY_BARS,
+    VORTEX_HEDGE_MIN_BARS,
+    VORTEX_HEDGE_NEAR_HIGH_PCT,
+    VORTEX_DAY_BARS,
 )
 
 
@@ -272,6 +277,51 @@ def turn_events(vi_p: list, vi_m: list, closes: list[float], min_bars: int = VOR
 
 
 # ─────────────────────────────────────────────────────────────
+# Метки для очереди (11.09): вход — в журнал, хедж — на экран
+# ─────────────────────────────────────────────────────────────
+def entry_mark(vi_p: list, vi_m: list, closes: list[float], lookback: int = VORTEX_DAY_BARS) -> dict | None:
+    """Последнее событие «покупатели взяли сторону» в окне, у которого разрыв дошёл до
+    VORTEX_ENTRY_GAP за первые VORTEX_ENTRY_BARS баров. bar_ago — сколько баров назад
+    было событие; gap — лучший разрыв в тех барах. Нет такого — None."""
+    n = len(closes)
+    start = max(VORTEX_TURN_MIN_BARS + 1, n - lookback)
+    prev = None
+    best = None
+    for i in range(start, n):
+        st = turn_state(vi_p[:i + 1], vi_m[:i + 1])
+        cur = st["side"] if st else None
+        if cur == "покупатели" and cur != prev and st["ago"] == VORTEX_TURN_MIN_BARS:
+            gaps = [(vi_p[j] or 0) - (vi_m[j] or 0) for j in range(i, min(n, i + VORTEX_ENTRY_BARS + 1))
+                    if vi_p[j] is not None and vi_m[j] is not None]
+            g = max(gaps) if gaps else 0.0
+            if g >= VORTEX_ENTRY_GAP:
+                best = {"bar_ago": n - 1 - i, "price": closes[i], "gap": round(g, 3)}
+        prev = cur
+    return best
+
+
+def hedge_mark(vi_p: list, vi_m: list, closes: list[float], highs: list[float], mode: str | None) -> dict | None:
+    """Хедж по форме хода. Парабола (и «неясно»): продавцы поднимают лои от VORTEX_HEDGE_MIN_BARS
+    баров при цене в VORTEX_HEDGE_NEAR_HIGH_PCT процентах от максимума дня. Лестница: событие
+    «сторона сменилась» на продавцов. Возвращает kind, bars (или ago) и цену."""
+    if not closes or vi_p[-1] is None:
+        return None
+    mode = (mode or "неясно").strip().lower()
+    day_hi = max(highs[-VORTEX_DAY_BARS:]) if highs else None
+    near_hi = (day_hi is not None and day_hi > 0 and closes[-1] >= day_hi * (1 - VORTEX_HEDGE_NEAR_HIGH_PCT / 100))
+    if mode == "лестница":
+        st = turn_state(vi_p, vi_m)
+        if st and st["side"] == "продавцы":
+            return {"kind": "лестница", "bars": st["ago"], "price": closes[-1]}
+        return None
+    sm = line_streak(vi_m)
+    if sm["dir"] == "поднимает" and sm["n"] >= VORTEX_HEDGE_MIN_BARS and near_hi:
+        return {"kind": "парабола", "bars": sm["n"], "price": closes[-1],
+                "from_high_pct": round((closes[-1] / day_hi - 1) * 100, 2)}
+    return None
+
+
+# ─────────────────────────────────────────────────────────────
 # Полное чтение по свечам
 # ─────────────────────────────────────────────────────────────
 def read_klines(klines: list[list], n: int = VORTEX_N) -> dict:
@@ -299,6 +349,8 @@ def read_klines(klines: list[list], n: int = VORTEX_N) -> dict:
         "div_run_buy": divergence_run(vi_p, closes, line_up=True, price_up=False),
         "div_run_sell": divergence_run(vi_m, closes, line_up=True, price_up=True),
         "turn": turn_state(vi_p, vi_m),
+        "entry": entry_mark(vi_p, vi_m, closes),
+        "_series": {"p": vi_p, "m": vi_m, "c": closes, "h": highs},   # для hedge_for; в json не идёт
         # перегрев — доля истории ниже текущего значения
         "pct_plus": percentile_rank(vi_p, cur_p),
         "pct_minus": percentile_rank(vi_m, cur_m),
@@ -318,8 +370,17 @@ def read_klines(klines: list[list], n: int = VORTEX_N) -> dict:
     return out
 
 
-def compact(r: dict) -> dict | None:
-    """Короткая форма для near_move.json и queue_log — без хвостов и таблиц."""
+def hedge_for(r: dict, mode: str | None) -> dict | None:
+    """Хедж по чтению и форме хода из near_move (mode: лестница / парабола / неясно)."""
+    sr = (r or {}).get("_series")
+    if not sr:
+        return None
+    return hedge_mark(sr["p"], sr["m"], sr["c"], sr["h"], mode)
+
+
+def compact(r: dict, mode: str | None = None) -> dict | None:
+    """Короткая форма для near_move.json и queue_log — без хвостов и таблиц.
+    entry — метка входа (в журнал, не на экран); hedge — по форме хода."""
     if not r:
         return None
     t = r.get("turn") or {}
@@ -328,7 +389,8 @@ def compact(r: dict) -> dict | None:
             "streak_plus": r["streak_plus"], "streak_minus": r["streak_minus"],
             "div_run_buy": r["div_run_buy"], "div_run_sell": r["div_run_sell"],
             "heat": r["heat"], "pct_gap": r["pct_gap"],
-            "turn_side": t.get("side"), "turn_ago": t.get("ago")}
+            "turn_side": t.get("side"), "turn_ago": t.get("ago"),
+            "entry": r.get("entry"), "hedge": hedge_for(r, mode)}
 
 
 def read_symbol(symbol: str) -> dict:
@@ -576,6 +638,15 @@ def episode_table(symbol: str, since: str) -> list[str]:
         ts = turn_state(vp[:i + 1], vm[:i + 1])
         if ts and ts["ago"] == VORTEX_TURN_MIN_BARS:
             marks.append(f"вихрь: {ts['side']}")
+        em = entry_mark(vp[:i + 1], vm[:i + 1], cl[:i + 1], lookback=VORTEX_ENTRY_BARS + 1)
+        if em and em["bar_ago"] == VORTEX_ENTRY_BARS:      # разрыв дотянулся на третьем баре
+            marks.append(f"ВХОД разрыв {em['gap']:.2f}")
+        hp = hedge_mark(vp[:i + 1], vm[:i + 1], cl[:i + 1], hi[:i + 1], "парабола")
+        if hp and hp["bars"] == VORTEX_HEDGE_MIN_BARS:
+            marks.append("ХЕДЖ-парабола")
+        hl = hedge_mark(vp[:i + 1], vm[:i + 1], cl[:i + 1], hi[:i + 1], "лестница")
+        if hl and hl["bars"] == VORTEX_TURN_MIN_BARS:
+            marks.append("ХЕДЖ-лестница")
         out.append(f"{t.strftime('%d.%m %H:%M')}  {_session_utc(t.hour):<15} {board:<12} {med_s:<8} {btc:<16} "
                    f"{cl[i]:<11g} {vp[i]:<7.3f} {sp['dir'][:4]}. {sp['n']:<4} {vm[i]:<7.3f} {sm['dir'][:4]}. {sm['n']:<4} {' · '.join(marks)}")
     return out
@@ -651,7 +722,7 @@ def main() -> None:
             print(f"{t}  {lo[i]:<10g} {hi[i]:<10g} {cl[i]:<10g} "
                   f"{'—' if p_ is None else f'{p_:.4f}'}  {'—' if m_ is None else f'{m_:.4f}'}")
     if a.json:
-        slim = {k: v for k, v in r.items() if k != "tail"}
+        slim = {k: v for k, v in r.items() if k not in ("tail", "_series")}
         print(json.dumps(slim, ensure_ascii=False, indent=1))
     from sources_storage import write_atomic  # запись через общий атомарный писатель
     path = OUTPUT_DIR / VORTEX_HTML.name.format(sym=sym.replace("USDT", "").lower())

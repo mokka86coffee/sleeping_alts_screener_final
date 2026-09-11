@@ -27,9 +27,10 @@ import sys
 from pathlib import Path
 
 try:
-    from core_config import BASE_DIR
+    from core_config import BASE_DIR, VORTEX_SCORE_BOOST, VORTEX_SCORE_MAX_AGO
 except ImportError:
     BASE_DIR = Path(__file__).resolve().parent
+    VORTEX_SCORE_BOOST, VORTEX_SCORE_MAX_AGO = 1.25, 8
 sys.path.insert(0, str(BASE_DIR))
 
 HARVEST_X = 5.0      # сбор: оборот дня ≥ 5 норм
@@ -726,14 +727,15 @@ def judge(d: dict, live: dict | None = None) -> dict | None:
             "close": float(last["close"]), "day": k_now, "live": bool(last.get("_live"))}
 
 
-def _vortex(sym_usdt: str) -> dict | None:
-    """БЫСТРЫЙ ВИХРЬ (11.09) — второй инструмент быстрого слоя рядом с силой. Считается по
-    получасовкам биржи (в архиве размах бара появился только 11.09, истории для перегрева там нет),
-    через core_binance с общим лимитером; вес десять на монету, поэтому только для живых групп.
-    Сеть не должна ронять фильтр: любая ошибка — None и пусто в полях."""
+def _vortex(sym_usdt: str, mode: str | None) -> dict | None:
+    """БЫСТРЫЙ ВИХРЬ (11.09) — ещё один прибор быстрого слоя РЯДОМ с силой и пузырями, их не
+    трогает. Считается по получасовкам биржи через core_binance с общим лимитером; вес десять
+    на монету, поэтому только для живых групп. Две метки: entry — в журнал (событие «покупатели»
+    с разрывом от порога за три бара), hedge — по форме хода (парабола: продавцы поднимают лои
+    под максимумом дня; лестница: сторона сменилась). Сеть не должна ронять фильтр."""
     try:
         from analytics_vortex import compact, read_symbol
-        return compact(read_symbol(sym_usdt))
+        return compact(read_symbol(sym_usdt), mode)
     except Exception:  # noqa: BLE001
         return None
 
@@ -745,7 +747,8 @@ def attach_today(sym_usdt: str, j: dict) -> dict:
         if j.get("group") in ("holding", "going", "pulled"):
             j["sub"] = tb["today"]          # «покупают сегодня» / «продают сегодня» / «стоит» — во всех живых группах
     if j.get("group") in ("holding", "going", "pulled"):
-        j["vortex"] = _vortex(sym_usdt)     # в балл не идёт, как и сила: показ и журнал
+        # форма хода лежит в nums (judge ставит её раньше, queue собирается позже в build)
+        j["vortex"] = _vortex(sym_usdt, (j.get("nums") or {}).get("mode"))    # в балл не идёт
     return j
 
 
@@ -836,6 +839,14 @@ def build(only: list[str] | None = None) -> dict:
             score *= 0.85
         elif _bvp == "подтверждают":
             score *= 1.10
+        # ВИХРЬ — МЕТКА ВХОДА МНОЖИТЕЛЕМ (11.09, владелец: «добавляй это к скору для показа выше в
+        # очереди»). По пяти ходам недели покупатели брали сторону с разрывом от порога за часы до
+        # метки лидера (IOST — за тринадцать с половиной часов, плюс девяносто три до неё). Свежая
+        # метка — не старше VORTEX_SCORE_MAX_AGO баров — поднимает, как пузырь; старая не считается.
+        _ve = ((v.get("vortex") or {}).get("entry")) or {}
+        _ve_ago = _ve.get("bar_ago")
+        if _ve_ago is not None and _ve_ago <= VORTEX_SCORE_MAX_AGO:
+            score *= VORTEX_SCORE_BOOST
         # КОРРЕКЦИЯ — ТОЖЕ МНОЖИТЕЛЕМ: интерес сегодня уходит вместе с ценой — монета временно не про
         # «кто раньше»; из очереди не выбрасываем (белый пузырь вернёт), но вперёд не пускаем.
         if _tk_q == "коррекция":
@@ -850,6 +861,7 @@ def build(only: list[str] | None = None) -> dict:
         score = round(score, 3)
         v["queue"] = {"days_since_harvest": days, "score": score, "today": td, "mode": _mode,
                       "px_chg_pct": _px_chg,
+                      "vortex_entry_ago": _ve_ago if (_ve_ago is not None and _ve_ago <= VORTEX_SCORE_MAX_AGO) else None,
                       "bubble": (("покупка внизу, выбор " if _tv.get("bubble_choice") else "покупка внизу ") + _bb[-1])
                                 if _tv.get("bubble_signal")
                                 else ("продажа вверху " + _bs[-1]) if _tv.get("bubble_down")
@@ -1010,6 +1022,8 @@ def log_queue(res: dict) -> int:
             "vortex_heat": (v.get("vortex") or {}).get("heat"),
             "vortex_turn_side": (v.get("vortex") or {}).get("turn_side"),
             "vortex_turn_ago": (v.get("vortex") or {}).get("turn_ago"),
+            "vortex_entry": (v.get("vortex") or {}).get("entry"),
+            "vortex_hedge": (v.get("vortex") or {}).get("hedge"),
             "accum_past": (v.get("nums") or {}).get("accum_past"),
             "bubble_sure": ((v.get("today") or {}).get("bubbles") or [{}])[-1].get("sure"),
             "bubble_vs_plot": (v.get("today") or {}).get("bubble_vs_plot"),

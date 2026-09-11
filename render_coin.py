@@ -1104,13 +1104,14 @@ COIN_JS = r"""
     var _fa = (NEAR[String(s.coin || (String(s.t).toUpperCase() + 'USDT'))] || {}).force_turn_ago;
     if (_fa === undefined || _fa === null) _fa = (s.today || {}).force_turn_ago;
     if (_fa !== undefined && _fa !== null && _fa <= 8) con.push('сила развернулась ' + _fa + ' бар назад');
-    // БЫСТРЫЙ ВИХРЬ (11.09): тем же путём, что сила — из near_move.json, окно восемь баров, в балл не идёт.
-    // «Против»: сторона сменилась на продавцов (их линия поднимает лои, покупатели отдают).
-    // «За»: покупатели набирают при сползающей цене — дивергенция бар за баром, от трёх баров.
+    // БЫСТРЫЙ ВИХРЬ — ХЕДЖ (11.09): рядом с силой, из near_move.json, в балл не идёт. Одна строка
+    // «против» по форме хода (парабола: продавцы под максимумом дня; лестница: сторона сменилась),
+    // окно восемь баров. Строк «за» по вихрю нет: метка входа живёт только в журнале.
     var _vx = (NEAR[String(s.coin || (String(s.t).toUpperCase() + 'USDT'))] || {}).vortex || null;
-    if (_vx && _vx.turn_side === 'продавцы' && _vx.turn_ago !== null && _vx.turn_ago <= 8) con.push('вихрь 30м: продавцы поднимают лои ' + _vx.turn_ago + ' бар подряд');
-    if (_vx && _vx.turn_side === 'покупатели' && _vx.turn_ago !== null && _vx.turn_ago <= 8) pro.push('вихрь 30м: покупатели взяли сторону ' + _vx.turn_ago + ' бар назад');
-    if (_vx && _vx.div_run_buy >= 3) pro.push('вихрь 30м: покупатели набирают при сползающей цене ' + _vx.div_run_buy + ' бар');
+    var _vh = _vx && _vx.hedge;
+    if (_vh && _vh.bars !== null && _vh.bars <= 8) con.push(_vh.kind === 'лестница'
+      ? 'вихрь 30м: сторона сменилась на продавцов ' + _vh.bars + ' бар назад'
+      : 'вихрь 30м: продавцы поднимают лои ' + _vh.bars + ' бар под максимумом дня');
     var patD = patterns(HIST[String(s.t).toUpperCase()] || {}, CROWD[String(s.t).toUpperCase()]);
     if (patD.absorbShort) pro.push(patD.absorbShort);
     if (patD.shortShort) pro.push(patD.shortShort);

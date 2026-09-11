@@ -112,6 +112,8 @@ def _bg_at(bgs: list[dict], at: datetime) -> dict:
         "phase": phase,
         "weekday": tm.get("weekday"),
         "pulls": ld.get("pulls"), "lead_sym": ld.get("sym"), "lead_gap": ld.get("gap"),
+        # деньги лидера (11.09): снаружи / из соседей / лидер отдаёт / нет лидера
+        "leader_flow": ((best.get("money") or {}).get("leader_flow") or {}).get("state"),
         # СЫРОЙ СРЕЗ ЦЕЛИКОМ (09.09): журнал фильтрует по нему кнопками и ничего не теряет —
         # если завтра окажется важной премия, новость или что-то, о чём мы сейчас не думаем,
         # это уже лежит в данных и пересчитается на той же истории.
@@ -211,6 +213,8 @@ def build(days: int = 7) -> dict:
                     "bubble_sure": row.get("bubble_sure"),
                     "bubble_vs_plot": row.get("bubble_vs_plot"),
                     "liq_side": row.get("liq_side"), "liq_ok": row.get("liq_ok"),
+                    # вихрь на момент захода (11.09): была ли свежая метка входа
+                    "vortex_entry": row.get("vortex_entry"),
                     "runs": 0, "zones": None,
                     "bg": _bg_at(bgs, at) if at else {},
                 }
@@ -321,6 +325,11 @@ def build(days: int = 7) -> dict:
     cut("ширина", lambda x: None if not (x["bg"] or {}).get("breadth_n")
         else ("растёт больше половины" if x["bg"]["breadth_up"] * 2 >= x["bg"]["breadth_n"] else "растёт меньше половины"))
     cut("поток", lambda x: (x["bg"] or {}).get("taker_side"))
+    # ДЕНЬГИ ЛИДЕРА (11.09): гипотеза владельца — «снаружи после слива есть пол, из соседей пола
+    # нет». Проверяем разрезом, а не правилом; состояния «нет истории» в разрез не идут.
+    cut("деньги лидера", lambda x: (lambda v: None if v in (None, "нет истории") else v)((x["bg"] or {}).get("leader_flow")))
+    # МЕТКА ВХОДА ВИХРЯ на заходе (11.09): покупатели взяли сторону с разрывом от порога за три бара
+    cut("вихрь: метка входа", lambda x: "была" if x.get("vortex_entry") else "не было")
     cut("сессия", lambda x: (x["bg"] or {}).get("session"))
     cut("фаза торгов", lambda x: (x["bg"] or {}).get("phase"))
     cut("день недели", lambda x: (x["bg"] or {}).get("weekday"))

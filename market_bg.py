@@ -24,6 +24,8 @@
                      как бы хорошо ни выглядели (случаи BLESS против USELESS, ARB против ENA)
   7. breadth      — сколько монет РАСТЁТ и сколько НАБИРАЕТ интерес: пять из девяноста — узкий
                      рынок, деньги в одном месте; тридцать — размазано, ход будет вялым у всех
+  8а. leader_flow — деньги лидера (11.09): снаружи (доска растёт с ним) / из соседей (доска стоит
+      или падает, лидер растёт) / лидер отдаёт / нет лидера — по нашей же ленте за LEADER_FLOW_HOURS
   8. oi_total     — сумма интереса по доске: растёт — деньги приходят; стоит, а у одной растёт —
                      это перекладка из остальных, рост одной означает падение других
   9. funding_med  — медианный фандинг по доске: за плечо платят все или только одна монета
@@ -68,9 +70,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 try:
-    from core_config import BASE_DIR
+    from core_config import BASE_DIR, LEADER_FLOW_HOURS, LEADER_FLOW_BOARD_UP_PCT
 except ImportError:
     BASE_DIR = Path(__file__).resolve().parent
+    LEADER_FLOW_HOURS, LEADER_FLOW_BOARD_UP_PCT = 6.0, 0.5
 sys.path.insert(0, str(BASE_DIR))
 
 ARCH = BASE_DIR / "cq_v2"
@@ -192,8 +195,11 @@ def _pump_list() -> list:
     return sorted(live, key=lambda x: -(x.get("run_pct") or 0))
 
 
-# сессии в UTC: начало, конец
-SESSIONS = (("Азия", 0.0, 8.0), ("Европа", 7.0, 16.0), ("США", 13.5, 20.0))
+# сессии в UTC: начало, конец. ЧАСЫ ПОПРАВЛЕНЫ 11.09 (владелец: слив IOST пошёл ровно на
+# закрытии Нью-Йорка в 22:00 UTC, а США считались до 20:00 — журнал писал это как «сессии нет»):
+# Токио 0–9, Лондон 7–16, Нью-Йорк 13–22. Сидней 21–6 не добавлен — на часах интро три дуги,
+# четвёртая — вопрос к прототипу.
+SESSIONS = (("Азия", 0.0, 9.0), ("Европа", 7.0, 16.0), ("США", 13.0, 22.0))
 SOON_H = 1.0     # «скоро закроется» / «скоро откроется» — за час
 
 
@@ -240,6 +246,69 @@ def _first(*vals):
         if v is not None:
             return v
     return None
+
+
+def _row_hours_ago(hours: float) -> dict | None:
+    """Строка нашей же ленты нужной давности (ближайшая по времени, не дальше двух часов от неё)."""
+    from datetime import datetime, timedelta, timezone
+    try:
+        lines = OUT.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    want = datetime.now(timezone.utc) - timedelta(hours=hours)
+    best, best_d = None, None
+    for line in reversed(lines[-400:]):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
+        try:
+            ts = datetime.fromisoformat(str(r.get("at")).replace("Z", "+00:00"))
+        except (TypeError, ValueError):
+            continue
+        d = abs((ts - want).total_seconds())
+        if best_d is None or d < best_d:
+            best, best_d = r, d
+    if best is None or best_d > 2 * 3600:
+        return None
+    return best
+
+
+def _leader_flow(oi_now: float, coins: list, leader_sym: str | None, hours: float) -> dict:
+    """ДЕНЬГИ ЛИДЕРА (11.09): откуда он взял интерес за последние hours — доска целиком
+    выросла (снаружи) или стояла/падала (из соседей). Считается по нашей же ленте: интерес доски
+    и интерес лидера тогда против сейчас. Нет лидера — так и пишем."""
+    out = {"state": "нет лидера", "sym": None, "hours": hours, "board_chg": None,
+           "board_chg_pct": None, "leader_chg": None}
+    if not leader_sym:
+        return out
+    out["sym"] = leader_sym
+    prev = _row_hours_ago(hours)
+    if not prev or not oi_now:
+        out["state"] = "нет истории"
+        return out
+    tot0 = (prev.get("money") or {}).get("oi_total")
+    cs0 = {c.get("sym"): c for c in prev.get("coins") or []}
+    cs1 = {c.get("sym"): c for c in coins}
+    l0, l1 = (cs0.get(leader_sym) or {}).get("oi"), (cs1.get(leader_sym) or {}).get("oi")
+    if not tot0 or l0 is None or l1 is None:
+        out["state"] = "нет истории"
+        return out
+    board_chg = oi_now - tot0
+    board_pct = board_chg / tot0 * 100
+    lead_chg = l1 - l0
+    out.update({"board_chg": round(board_chg, 0), "board_chg_pct": round(board_pct, 2),
+                "leader_chg": round(lead_chg, 0)})
+    if lead_chg <= 0:
+        out["state"] = "лидер отдаёт"
+    elif board_pct >= LEADER_FLOW_BOARD_UP_PCT:
+        out["state"] = "снаружи"
+    else:
+        out["state"] = "из соседей"
+    return out
 
 
 def _session(now: datetime) -> dict:
@@ -437,6 +506,13 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
     # лидеры по пампу — по правилу владельца (+50% за сутки, оборот от $2M, есть в кванте,
     # листинг раньше полугода); основа фиксируется и не переставляется
     pumps = _pump_list()
+    # деньги лидера: лидер — первый памп, иначе наш тянущий
+    _lead_sym = None
+    if pumps:
+        _lead_sym = str(pumps[0].get("symbol") or pumps[0].get("sym") or "") or None
+    elif our_lead and our_lead.get("pulls"):
+        _lead_sym = our_lead.get("sym")
+    leader_flow = _leader_flow(oi_now, coins, _lead_sym, LEADER_FLOW_HOURS)
 
     # БИТКОИН — ИЗ ГОТОВОГО СРЕЗА ШАГА «БИТКОИН» (08.09): в прогоне он собирается отдельным шагом
     # (btc_pulse) и всё там есть — цена, плечо, ликвидации, премия. А фон брал его из своей доски,
@@ -517,6 +593,7 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
             "leader_delta": lead_d[0] if lead_d else None,
             "leader_delta_share": round(lead_d[1] / tot_del, 3) if lead_d and tot_del else None,
             "funding_med": round(statistics.median(fundings), 5) if fundings else None,
+            "leader_flow": leader_flow,
         },
         # наши: сколько растёт из скольких и медиана — отдельно по первым и по очереди
         "ours": {
@@ -684,6 +761,13 @@ def bg_note(row: dict | None = None) -> list:
                         + f" · ×{ol['gap']} к медиане очереди"])
         else:
             out.append(["лидер", "нет", "ни одна не оторвалась от очереди"])
+    # ДЕНЬГИ ЛИДЕРА (11.09): снаружи — доска растёт вместе с ним, соседи целы (SOPH 08.09);
+    # из соседей — доска стоит или падает, лидер растёт — вынимают у вчерашних (IOST 09.09)
+    lf = (r.get("money") or {}).get("leader_flow") or {}
+    if lf.get("state") in ("снаружи", "из соседей", "лидер отдаёт"):
+        out.append(["деньги лидера", lf["state"],
+                    f"{str(lf.get('sym') or '').replace('USDT', '')} {(lf.get('leader_chg') or 0) / 1e6:+.0f}M · "
+                    f"доска {(lf.get('board_chg') or 0) / 1e6:+.0f}M за {lf.get('hours'):.0f} ч"])
     tm = r.get("time") or {}
     live = [m for m in (tm.get("markets") or []) if m.get("open")]
     if live:

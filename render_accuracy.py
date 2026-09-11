@@ -106,7 +106,13 @@ def _bg_at(day: str, hhmm: str) -> dict:
     tk = (best.get("taker") or {}).get("day")
     ld = best.get("leader") or {}
     pumps = best.get("pumps") or []
+    # ДЕНЬГИ ЛИДЕРА (11.09): откуда лидер взял интерес — снаружи (доска росла с ним, SOPH 08.09)
+    # или из соседей (доска стояла/падала, IOST 09.09). Состояние лежит в самой строке ленты.
+    lf = str(((best.get("money") or {}).get("leader_flow") or {}).get("state") or "")
+    money = {"снаружи": "снаружи", "из соседей": "из соседей", "лидер отдаёт": "отдаёт",
+             "нет лидера": "нет лидера"}.get(lf)
     return {
+        "money": money,
         "btc": None if btc is None else ("падает" if btc < -0.5 else ("растёт" if btc > 0.5 else "стоит")),
         "board": None if share is None else ("узкая" if share < 0.4 else ("широкая" if share > 0.6 else "ровная")),
         "median": None if med is None else ("минус" if med < -0.3 else ("плюс" if med > 0.3 else "около нуля")),
@@ -496,7 +502,8 @@ const CATS=[['btc','биткоин',['падает','стоит','растёт']
             ['board','доска',['узкая','ровная','широкая']],
             ['median','медиана',['минус','около нуля','плюс']],
             ['taker','поток',['продают','вровень','покупают']],
-            ['leader','лидер',['есть','нет']]];
+            ['leader','лидер',['есть','нет']],
+            ['money','деньги лидера',['снаружи','из соседей','отдаёт','нет лидера']]];
 let F={};
 function pass(bg){ if(!bg)return !Object.keys(F).length;
   return Object.entries(F).every(([k,v])=>bg[k]===v); }
