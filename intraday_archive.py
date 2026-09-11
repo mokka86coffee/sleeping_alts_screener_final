@@ -154,8 +154,20 @@ def build_rows(candle_ms: int, only: list[str] | None = None) -> list[dict]:
         if pr:
             pr.sort(key=lambda q: q.get("t") or 0)
             px = float(pr[-1]["price"])
+        # МАКСИМУМ И МИНИМУМ БАРА (11.09, владелец: дивергенция вортекса и Klinger на получасовках).
+        # В срезе Coinglass бар приходит целиком (o/h/l/c), а мы брали только закрытие — поэтому
+        # ни вортекс, ни Klinger посчитать было нельзя: обе формулы стоят на размахе бара.
+        # Теперь пишем high/low; цена (px) остаётся как была, ничего не ломается.
+        bar = _bar_at((c.get("fut") or {}).get("series") or [], candle_ms)
+        hi = lo = op = None
+        if bar:
+            try:
+                hi = float(bar["h"]) if bar.get("h") is not None else None
+                lo = float(bar["l"]) if bar.get("l") is not None else None
+                op = float(bar["o"]) if bar.get("o") is not None else None
+            except (TypeError, ValueError):
+                hi = lo = op = None
         if px is None:
-            bar = _bar_at((c.get("fut") or {}).get("series") or [], candle_ms)
             if bar and bar.get("c"):
                 px = float(bar["c"])
         if px is None:
@@ -172,6 +184,7 @@ def build_rows(candle_ms: int, only: list[str] | None = None) -> list[dict]:
             missing.append("zones")
         rows.append({
             "candle": candle, "sym": sym, "px": px,
+            "h": hi, "l": lo, "o": op,          # размах бара — для вортекса и Klinger (11.09)
             "fut": fut, "spot": spot,
             "oi": c.get("oiUsd"), "oi_chg_pct": c.get("oiChgPct"),
             "funding": c.get("funding"),
