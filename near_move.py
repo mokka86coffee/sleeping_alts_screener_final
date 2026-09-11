@@ -27,10 +27,11 @@ import sys
 from pathlib import Path
 
 try:
-    from core_config import BASE_DIR, VORTEX_SCORE_BOOST, VORTEX_SCORE_MAX_AGO
+    from core_config import BASE_DIR, VORTEX_SCORE_BOOST, VORTEX_SCORE_MAX_AGO, PUMP_LEADERS_PATH
 except ImportError:
     BASE_DIR = Path(__file__).resolve().parent
     VORTEX_SCORE_BOOST, VORTEX_SCORE_MAX_AGO = 1.25, 8
+    PUMP_LEADERS_PATH = BASE_DIR / "output" / "pump_leaders.json"
 sys.path.insert(0, str(BASE_DIR))
 
 HARVEST_X = 5.0      # сбор: оборот дня ≥ 5 норм
@@ -924,25 +925,33 @@ def build(only: list[str] | None = None) -> dict:
     # точку входа, и если подмешать в него фон, журнал перестанет её измерять. Меняем РАЗМЕР:
     # пока лидер тянет и у него нет конца, остальные строки получают размер ноль и пометку почему.
     # Признак снимается сам, когда у лидера приходит событие конца.
+    # ЛИДЕР — ОДНА МЕРКА НА ПРОЕКТ (12.09, владелец: «лидер — монета, которая за двадцать четыре часа
+    # прошла сорок процентов, вне зависимости от того, есть она в нашей выборке или нет, — она тянет
+    # все деньги на себя»). Лидер уже считается в analytics_leaders по всей бирже с отсекателями
+    # владельца: PUMP_JUMP_PCT за сутки, оборот от MIN_QUOTE_VOLUME_24H, листинг старше
+    # PUMP_MIN_AGE_DAYS, есть в кванте; основа не переставляется, выбывает под основой. Здесь только
+    # читаем output/pump_leaders.json (run.py пишет его до near_move) и берём живого с наибольшим
+    # ходом. Прежняя мерка «отрыв от медианы ×5 и ход от недельного дна» снята — было две линейки.
     _moves = [((out["coins"][s2].get("today") or {}).get("px_chg_pct") or 0.0) for s2 in ordered]
     lead_sym = None
     lead_gap = 0.0
     lead_run7 = None
-    if ordered and _moves:
-        _top_i = max(range(len(ordered)), key=lambda i: _moves[i])
-        _med = sorted(_moves)[len(_moves) // 2]
-        _mv = _moves[_top_i]
-        _gap = (abs(_mv) / abs(_med)) if abs(_med) >= 0.3 else (abs(_mv) / 0.3 if _mv else 0.0)
-        _t_lead = out["coins"][ordered[_top_i]].get("today") or {}
-        # ПОРОГ — ХОД ОТ ПСИХОЛОГИЧЕСКОГО ДНА (08.09, владелец: «за сутки лидера считать некорректно,
-        # ликвидность уходит в монету, когда памп большой, и это не за день, а от дна»; окно 7 дней —
-        # «люди реагируют на то, сколько прошло вчера, позавчера, сегодня»). Дно за 60 дней остаётся
-        # для места в истории; лидер меряется от минимума последней недели — оттуда, откуда идёт
-        # текущее движение. Ход за сутки — запасной, если недельных дневок нет.
-        _run7 = ((out["coins"][ordered[_top_i]].get("nums") or {}).get("run_from_low7"))
-        if _gap >= 5 and (_run7 if _run7 is not None else _mv) >= 50 and not _t_lead.get("ended_at"):
-            lead_sym, lead_gap = ordered[_top_i], round(_gap, 1)
-            lead_run7 = round(_run7) if _run7 is not None else None
+    lead_mine = False
+    try:
+        _pl = json.loads(Path(PUMP_LEADERS_PATH).read_text(encoding="utf-8"))
+        _live = [r for r in (_pl.values() if isinstance(_pl, dict) else _pl)
+                 if isinstance(r, dict) and r.get("symbol") and not r.get("retired_at")]
+        _live.sort(key=lambda r: -(r.get("run_pct") or 0))
+        if _live:
+            _l = _live[0]
+            lead_sym = str(_l["symbol"])
+            lead_gap = round(float(_l.get("run_pct") or 0), 1)     # тут — ход от основы, %
+            lead_mine = lead_sym in out["coins"]
+            _t_lead = (out["coins"].get(lead_sym) or {}).get("today") or {}
+            if _t_lead.get("ended_at"):        # у нашего лидера пришёл конец — не тянет
+                lead_sym = None
+    except (OSError, ValueError):
+        pass
     if lead_sym:
         for s2 in ordered:
             q = out["coins"][s2].get("queue") or {}
@@ -951,7 +960,8 @@ def build(only: list[str] | None = None) -> dict:
                 q["lead"] = True
             else:
                 q["size"] = "ноль"
-                q["hold_reason"] = f"тянет {lead_sym.replace('USDT','')} ×{lead_gap} к медиане наших"
+                q["hold_reason"] = (f"тянет {lead_sym.replace('USDT','')} +{lead_gap:.0f}%"
+                                    + ("" if lead_mine else " (не наша)"))
     else:
         for i2, s2 in enumerate(ordered):
             q = out["coins"][s2].get("queue") or {}
@@ -959,13 +969,73 @@ def build(only: list[str] | None = None) -> dict:
 
     rest = [s2 for s2 in ordered if s2 not in stable]
     out["queue"] = stable + rest
-    out["first"] = stable
-    out["pulls"] = {"sym": lead_sym, "gap": lead_gap, "run7": lead_run7} if lead_sym else None
+    # ── ПЕРВЫЕ — ТОЛЬКО КТО ДЕРЖИТСЯ ТРЕТИЙ ПРОГОН ПОДРЯД (12.09, владелец: «в первых оставим ту
+    # монету, которая шла больше двух раз подряд; первые два раза она в очереди и так будет первой»).
+    # Проверено по журналу 07–11.09: пошедшие держали первые места 15–31 прогон подряд, дёргавшиеся —
+    # по 1–4, и заходы в них отдавали. Серия считается по queue_log: сколько прогонов подряд до этого
+    # монета стояла в первых трёх, плюс нынешний. Место в очереди и журнал НЕ меняются — только
+    # показ группы «первые»; число серии идёт в first_streak и на экран.
+    # ЛИДЕР НЕ ВЫЛЕТАЕТ (12.09, владелец: «монета, которая из выборки стала лидером, перестаёт в это
+    # правило попадать, чтобы не вылетела до конца хода»): кто уже в первых, остаётся в первых, пока
+    # стоит в очереди и у неё нет события конца — место по баллу на это не влияет. Уходит только
+    # с концом хода (ended_at / out_reason) или выпав из очереди совсем.
+    FIRST_STREAK_MIN = 3
+    _streak: dict = {}
+    # Лидер — не любой из первых, а тот, кто ПОШЁЛ по той же мерке проекта (pump_leaders: плюс
+    # PUMP_JUMP_PCT за сутки с отсекателями). Уточнение владельца 12.09: «лидер тот, кто пошёл +40%».
+    _prev_first = [s2 for s2 in (prev.get("first") or []) if s2 in out["coins"]]
+    _live_syms = set()
+    try:
+        _pl2 = json.loads(Path(PUMP_LEADERS_PATH).read_text(encoding="utf-8"))
+        _live_syms = {str(r.get("symbol")) for r in (_pl2.values() if isinstance(_pl2, dict) else _pl2)
+                      if isinstance(r, dict) and r.get("symbol") and not r.get("retired_at")}
+    except (OSError, ValueError):
+        pass
+    _held = []
+    for s2 in _prev_first:
+        _q = out["coins"][s2].get("queue") or {}
+        _t = out["coins"][s2].get("today") or {}
+        if (s2 in ordered and s2 in _live_syms and not _q.get("out_reason") and not _t.get("ended_at")):
+            _held.append(s2)
+    try:
+        _lines = (BASE_DIR / "output" / "queue_log.jsonl").read_text(encoding="utf-8").splitlines()[-3000:]
+        _byrun: dict = {}
+        _last_streak: dict = {}
+        for _ln in _lines:
+            try:
+                _r = json.loads(_ln)
+            except ValueError:
+                continue
+            if _r.get("at") and _r.get("sym"):
+                _byrun.setdefault(_r["at"], {})[_r["sym"]] = _r.get("place") or 99
+                if _r.get("first_streak"):
+                    _last_streak[_r["sym"]] = (_r["at"], _r["first_streak"])
+        _runs = sorted(_byrun)
+        for s2 in stable:
+            if s2 in _held and s2 in _last_streak and _runs and _last_streak[s2][0] == _runs[-1]:
+                _streak[s2] = int(_last_streak[s2][1]) + 1   # серия лидера идёт дальше, место не важно
+                continue
+            _n = 1   # нынешний прогон
+            for _a in reversed(_runs):
+                if _byrun[_a].get(s2, 99) <= TOP:
+                    _n += 1
+                else:
+                    break
+            _streak[s2] = _n
+    except OSError:
+        _streak = {s2: 1 for s2 in stable}
+    out["first"] = [s2 for s2 in stable if s2 in _held or _streak.get(s2, 1) >= FIRST_STREAK_MIN]
+    out["first_streak"] = {s2: _streak.get(s2, 1) for s2 in stable}
+    for s2 in stable:
+        (out["coins"][s2].get("queue") or {})["first_streak"] = _streak.get(s2, 1)
+    rest = [s2 for s2 in ordered if s2 not in stable]
+    out["queue"] = stable + rest
+    out["pulls"] = {"sym": lead_sym, "gap": lead_gap, "run7": lead_run7, "mine": lead_mine} if lead_sym else None
     out["dropped"] = [s2 for s2 in (out["coins"] or {})
                       if (out["coins"][s2].get("queue") or {}).get("out_reason")]
     try:
         (BASE_DIR / "output" / "queue_state.json").write_text(
-            json.dumps({"top": stable, "cand": cand}, ensure_ascii=False), encoding="utf-8")
+            json.dumps({"top": stable, "cand": cand, "first": out["first"]}, ensure_ascii=False), encoding="utf-8")
     except OSError:
         pass
     return out
@@ -1002,7 +1072,7 @@ def log_queue(res: dict) -> int:
         t = v.get("today") or {}
         rows.append({
             "at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "candle": candle.strftime("%Y-%m-%dT%H:%M:00Z"),
-            "sym": sym, "place": i, "score": q.get("score"),
+            "sym": sym, "place": i, "score": q.get("score"), "first_streak": q.get("first_streak"),
             "days_since_harvest": q.get("days_since_harvest"), "oi_grow": n.get("oi_grow"),
             "today": q.get("today"), "bubble": q.get("bubble"), "move_pct": q.get("px_chg_pct"),
             "stage": q.get("stage"), "out_reason": q.get("out_reason"),

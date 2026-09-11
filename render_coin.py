@@ -1711,8 +1711,8 @@ COIN_JS = r"""
       var L = _LAST, dy = L.dir === 'up' ? -3 : 3, ar = L.dir === 'up' ? 'M31,44 h18 l-9,-17 z' : 'M31,28 h18 l-9,17 z';   // вдвое меньше
       function hh(t) { var d = new Date(t); return pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }   // местное время (11.09)
       // текст под стрелкой — по её центру (владелец: «сейчас левым краем с её центром совпадает»)
-      // выше блока решения, стрелка слева от текста (владелец 11.09)
-      notes += '<div class="note lastArrow" style="left:640px;top:530px;width:300px;display:flex;align-items:center;gap:6px;text-align:left;pointer-events:auto;z-index:7" title="' + esc(L.tip) + '">' +
+      // ВВЕРХУ, между «памятью» и «потоком» (11.09 вечер): внизу выноска ложилась на линию цены у подножия плиты
+      notes += '<div class="note lastArrow" style="left:900px;top:28px;width:280px;display:flex;align-items:center;gap:6px;text-align:left;pointer-events:auto;z-index:7" title="' + esc(L.tip) + '">' +
         '<svg viewBox="0 0 80 72" width="60" height="54" style="display:block;overflow:visible;flex:none">' +
         '<circle cx="40" cy="36" r="10" fill="' + L.col + '" opacity=".22" style="filter:blur(6px)"><animate attributeName="r" values="8;15;8" dur="2.4s" repeatCount="indefinite"/><animate attributeName="opacity" values=".12;.38;.12" dur="2.4s" repeatCount="indefinite"/></circle>' +
         '<path d="' + ar + '" fill="' + L.col + '" stroke="#fff6dc" stroke-width=".8" stroke-opacity=".7" style="filter:drop-shadow(0 0 8px ' + L.col + ')"><animateTransform attributeName="transform" type="translate" values="0 0;0 ' + dy + ';0 0" dur="1.6s" repeatCount="indefinite"/></path></svg>' +

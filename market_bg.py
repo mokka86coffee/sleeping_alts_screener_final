@@ -463,7 +463,10 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
             # порог — ход от дна за 7 дней, а не за сутки (08.09): ход длится 2–3 дня и в сутки
             # не помещается; при отсутствии недельного числа берём суточное
             "run7": _l.get("run7"),
-            "pulls": bool(_gap >= 5 and ((_l.get("run7") if _l.get("run7") is not None else (_l["day_pct"] or 0)) >= 50)),
+            # ТЯНЕТ — ОДНА МЕРКА НА ПРОЕКТ (12.09, владелец): лидер — только по правилу pump_leaders
+            # (PUMP_JUMP_PCT за сутки, оборот, листинг, квант), наша она или нет. Прежняя мерка
+            # «разрыв ×5 и ход от дна недели ≥50» снята — было две линейки на одно слово.
+            "pulls": bool(_l["sym"] in {str(x.get("symbol") or x.get("sym") or "") for x in _pump_list()}),
             "queue": _l.get("queue"),
         }
 

@@ -162,10 +162,18 @@ def collect_items() -> list[dict]:
         d = q.get("days_since_harvest")
         td = q.get("today") or ((v.get("today") or {}).get("today")) or ""
         return ((n.get("mode") + " · ") if n.get("mode") else "") + ((n.get("engine") + " · ") if n.get("engine") and n.get("engine") != "нет" else "") + (f"сбор {d} дн назад" if d is not None else "сбор —") + f" · плечо ×{float(n.get('oi_grow') or 1):.1f}" + (f" · {td}" if td else "")
+    # ПЕРВЫЕ — ТОЛЬКО С ТРЕТЬЕГО ПРОГОНА ПОДРЯД (12.09, владелец): near_move отдаёт first уже с этим
+    # правилом; кто в верхних строках, но серия короче, — в «очереди», с подписью «первой N прогонов»
+    _first = set(nm.get("first") or queue[:3])
+    _streak = nm.get("first_streak") or {}
     for i, sym in enumerate(queue):
         v = coins.get(sym) or {}
         sc = float((v.get("queue") or {}).get("score") or 0)
-        add(sym, 0 if i < 3 else 1, " · ".join(v.get("why") or []), hist_line(v), sc)
+        _st = _streak.get(sym)
+        _sub = hist_line(v)
+        if i < 3 and _st:
+            _sub = (f"в первых {_st}-й прогон подряд" if sym in _first else f"в первых {_st}-й прогон, нужно 3") + (" · " + _sub if _sub else "")
+        add(sym, 0 if sym in _first else 1, " · ".join(v.get("why") or []), _sub, sc)
     # У ЦЕЛИ — С ДОЛЕЙ ХЕДЖА ЧИСЛОМ (07.09, владелец: «послушал бы сайт — захеджировал бы 70–80%,
     # а так 20 и потерял»): толпа набивается — плотная полоса сверху и топливо снизу, отдают быстро,
     # хедж 70–80%; кто двигает неясно — 50%; конец тренда / отпустил / осечка — выход 100%, не хедж;

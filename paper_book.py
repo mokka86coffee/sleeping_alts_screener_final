@@ -32,11 +32,13 @@ from pathlib import Path
 
 try:
     from core_config import (BASE_DIR, PAPER_ADD_AFTER_BE, PAPER_ADD_MAX_PCT, PAPER_BE_PCT, PAPER_DROP_RUNS,
-                             PAPER_FORCE_FRESH_BARS, PAPER_HITS, PAPER_MAX_DAYS, PAPER_WINDOW_H)
+                             PAPER_ENTRY_CONSECUTIVE_FIRST, PAPER_FORCE_FRESH_BARS, PAPER_HITS, PAPER_MAX_DAYS,
+                             PAPER_QUAR_BY_QUEUE, PAPER_QUAR_DAYS, PAPER_QUAR_DROPS, PAPER_QUAR_WINDOW_H, PAPER_WINDOW_H)
 except ImportError:
     BASE_DIR = Path(__file__).resolve().parent
     PAPER_HITS, PAPER_WINDOW_H, PAPER_MAX_DAYS, PAPER_BE_PCT, PAPER_ADD_MAX_PCT, PAPER_FORCE_FRESH_BARS = 3, 24.0, 3, 10.0, 50.0, 1
-    PAPER_DROP_RUNS, PAPER_ADD_AFTER_BE = 3, True
+    PAPER_DROP_RUNS, PAPER_ADD_AFTER_BE, PAPER_QUAR_DROPS, PAPER_QUAR_DAYS, PAPER_QUAR_BY_QUEUE = 3, True, 1, 2, True
+    PAPER_QUAR_WINDOW_H, PAPER_ENTRY_CONSECUTIVE_FIRST = 12.0, True
 
 OUT_DIR = BASE_DIR / "output"
 LOG = OUT_DIR / "queue_log.jsonl"
@@ -142,7 +144,7 @@ def _avg_entry(pos: dict) -> float:
     return pos["entry_px"]
 
 
-VARIANT: dict = {"hours": None, "no_reentry_after_end": False, "bg_filter": False}
+VARIANT: dict = {"hours": None, "no_reentry_after_end": False, "bg_filter": False, "consecutive_first": False, "quarantine": True, "quar_by_queue": True}
 _BG: list | None = None
 
 
@@ -187,6 +189,56 @@ def _apply_run(book: dict, at: str, run_rows: dict, hist: list[dict]) -> list[st
             continue
         if (r.get("place") or 99) <= 3:
             hits[r["sym"]] = hits.get(r["sym"], 0) + 1
+    # ── КАРАНТИН ДЁРГАЮЩИХСЯ (владелец, 11.09): не меньше PAPER_QUAR_DROPS выпадений из первых
+    #    трёх за окно — два дня без входа и отдельное наблюдение: что делала цена в карантине
+    quar = book.setdefault("quarantine", {})
+    drops: dict[str, int] = {}
+    prev_top: dict[str, bool] = {}
+    # что считать выпадением: из первых трёх (по умолчанию) или ИЗ ОЧЕРЕДИ ВОВСЕ (quar_by_queue) —
+    # проверено 11.09: SOPH перед ходом ×2 дважды сходила с 3-го на 4-е место, но из очереди не выпадала
+    # ни разу; USELESS, ARB, DOOD, PHA выпадали из очереди целиком — и потом отдали 8–35%
+    by_queue = bool(VARIANT.get("quar_by_queue", PAPER_QUAR_BY_QUEUE))
+    qsince = now - timedelta(hours=float(VARIANT.get("quar_window_h") or PAPER_QUAR_WINDOW_H))
+    qdrops = int(VARIANT.get("quar_drops") or PAPER_QUAR_DROPS)
+    runs_win = [a for a in sorted({r["at"] for r in hist}) if _t(a) >= qsince]
+    if by_queue:
+        present: dict[str, set] = {}
+        for r in hist:
+            if _t(r["at"]) >= qsince:
+                present.setdefault(r["sym"], set()).add(r["at"])
+        for sym, ats in present.items():
+            was = False
+            for a in runs_win:
+                here = a in ats
+                if was and not here:
+                    drops[sym] = drops.get(sym, 0) + 1
+                was = here
+    else:
+        for r in hist:
+            if _t(r["at"]) < qsince:
+                continue
+            top = (r.get("place") or 99) <= 3
+            if prev_top.get(r["sym"]) and not top:
+                drops[r["sym"]] = drops.get(r["sym"], 0) + 1
+            prev_top[r["sym"]] = top
+    for sym, nd in drops.items():
+        if nd >= qdrops and sym not in quar:
+            bar = _bar_at(sym, now); row = run_rows.get(sym)
+            px0 = bar["px"] if bar else (row["px"] if row else None)
+            if px0:
+                quar[sym] = {"sym": sym, "since": at, "until": (now + timedelta(days=PAPER_QUAR_DAYS)).isoformat(), "drops": nd,
+                             "px0": px0, "max_px": px0, "min_px": px0, "last_px": px0}
+                events.append(f"{sym.replace('USDT', '')}: КАРАНТИН {PAPER_QUAR_DAYS} дн — {nd} выпадения из первых за сутки, цена {px0:g}")
+    for sym, qv in list(quar.items()):
+        bar = _bar_at(sym, now); row = run_rows.get(sym)
+        px = bar["px"] if bar else (row["px"] if row else qv["last_px"])
+        qv["last_px"] = px; qv["max_px"] = max(qv["max_px"], px); qv["min_px"] = min(qv["min_px"], px)
+        if now >= _t(qv["until"]):
+            qv["res_pct"], qv["mfe_pct"], qv["mae_pct"] = _pct(qv["px0"], px), _pct(qv["px0"], qv["max_px"]), _pct(qv["px0"], qv["min_px"])
+            qv["ended"] = at
+            book.setdefault("quarantine_done", []).append(qv)
+            del quar[sym]
+            events.append(f"{sym.replace('USDT', '')}: карантин кончился · за {PAPER_QUAR_DAYS} дн {qv['res_pct']:+.1f}% · макс {qv['mfe_pct']:+.1f}% · мин {qv['mae_pct']:+.1f}%")
     # ── открытые: выходы, стоп, добор, закрытие
     for sym, pos in list(book["open"].items()):
         row = run_rows.get(sym)
@@ -234,6 +286,8 @@ def _apply_run(book: dict, at: str, run_rows: dict, hist: list[dict]) -> list[st
         first = [k for k in EXITS if sig[k] and pos["exits"][k] and pos["exits"][k]["at"] == at]
         if pos["stop"] is not None and px <= pos["stop"]:
             reason = "стоп"
+        elif VARIANT.get("init_stop") is not None and pos["stop"] is None and px <= pos["entry_px"] * (1 - abs(VARIANT["init_stop"]) / 100):
+            reason = "стартовый стоп"
         elif first:
             reason = "выход: " + first[0]
         elif now - _t(pos["entry_at"]) >= timedelta(days=PAPER_MAX_DAYS):
@@ -265,7 +319,35 @@ def _apply_run(book: dict, at: str, run_rows: dict, hist: list[dict]) -> list[st
     for sym, row in run_rows.items():
         if sym in book["open"] or (row.get("place") or 99) > 3:
             continue
-        if hits.get(sym, 0) < PAPER_HITS:
+        if VARIANT.get("quarantine", True) and sym in quar:
+            continue
+        # ── ОБХОД (12.09, владелец: «находить умеем, держать умеем, выходить умеем — обходить не умеем»)
+        if VARIANT.get("max_drawdown") is not None:
+            dd = row.get("drawdown_pct")
+            if dd is not None and dd < -abs(VARIANT["max_drawdown"]):
+                continue   # уже откатилась от вершины дня — ход был, входить поздно
+        if VARIANT.get("max_streak") is not None:
+            _rows = [r for r in hist if r["sym"] == sym]
+            _n = 0
+            for r in reversed(_rows):
+                if r.get("place") == 1:
+                    _n += 1
+                else:
+                    break
+            if _n > VARIANT["max_streak"]:
+                continue   # серия первых слишком длинная — вход в хвост хода
+        if VARIANT.get("consecutive_first", PAPER_ENTRY_CONSECUTIVE_FIRST):
+            # ПЕРВОЕ МЕСТО ТРИ ПРОГОНА ПОДРЯД (11.09, проверка по журналу: пошедшие держали первое место
+            # 15–31 прогон подряд, дёргавшиеся — по 1–4): вход на третьем подряд
+            last3 = [r for r in hist if r["sym"] == sym][-PAPER_HITS:]
+            if len(last3) < PAPER_HITS or any(r.get("place") != 1 for r in last3):
+                continue
+            # и чтобы прогоны были подряд по времени (не с дырами в часы)
+            runs_sorted = sorted({r["at"] for r in hist})
+            idx = [runs_sorted.index(r["at"]) for r in last3]
+            if idx[-1] - idx[0] != PAPER_HITS - 1:
+                continue
+        elif hits.get(sym, 0) < PAPER_HITS:
             continue
         # не открываем повторно ту, что закрыли в этом окне, пока попадания не набрались заново после закрытия
         last_closed = next((c for c in reversed(book["closed"]) if c["sym"] == sym), None)
@@ -277,6 +359,8 @@ def _apply_run(book: dict, at: str, run_rows: dict, hist: list[dict]) -> list[st
         session = "Токио" if hh < 7 else "Лондон" if hh < 13 else "Нью-Йорк" if hh < 22 else "Сидней"
         # ── варианты правил входа (проверяются на журнале, см. --variants)
         if VARIANT.get("hours") is not None and hh not in VARIANT["hours"]:
+            continue
+        if VARIANT.get("weekdays") is not None and now.weekday() not in VARIANT["weekdays"]:
             continue
         if VARIANT.get("no_reentry_after_end"):
             day0 = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -321,7 +405,7 @@ def update() -> str:
 def rebuild(save: bool = True) -> dict:
     """Пересобрать книгу с нуля по всему журналу (проверка правил на истории)."""
     rows = _read_log()
-    book = {"open": {}, "closed": [], "watch": [], "last_at": None}
+    book = {"open": {}, "closed": [], "watch": [], "quarantine": {}, "quarantine_done": [], "last_at": None}
     for a in sorted({r["at"] for r in rows}):
         run_rows = {r["sym"]: r for r in rows if r["at"] == a}
         hist = [r for r in rows if r["at"] <= a]
@@ -335,25 +419,29 @@ def variants() -> str:
     """Сравнение правил входа на одном журнале: часы, запрет после «конца», фильтр по фону."""
     global VARIANT
     hours_us = set(range(13, 22)); hours_asia = set(range(0, 9))
-    grid = [("как есть", {}),
-            ("без входа после «конца» в те же сутки", {"no_reentry_after_end": True}),
-            ("только Америка 13–22", {"hours": hours_us}),
-            ("только Азия 0–9", {"hours": hours_asia}),
-            ("Америка + без «конца»", {"hours": hours_us, "no_reentry_after_end": True}),
-            ("Азия + без «конца»", {"hours": hours_asia, "no_reentry_after_end": True}),
-            ("как есть + фон (медиана ≥ 0)", {"bg_filter": True}),
-            ("без «конца» + фон", {"no_reentry_after_end": True, "bg_filter": True}),
-            ("Америка + без «конца» + фон", {"hours": hours_us, "no_reentry_after_end": True, "bg_filter": True}),
-            ("Азия + без «конца» + фон", {"hours": hours_asia, "no_reentry_after_end": True, "bg_filter": True})]
+    us_open = set(range(12, 16)); mon_thu = {0, 1, 2, 3}
+    us_open = set(range(12, 16)); mon_thu = {0, 1, 2, 3}
+    grid = [("ПРИНЯТО: первое 3 подряд · карантин 1/12 из очереди", {}),
+            ("то же, без карантина", {"quarantine": False}),
+            ("вход 3 попадания за сутки · карантин 1/12", {"consecutive_first": False}),
+            ("принято + без «конца»", {"no_reentry_after_end": True}),
+            ("принято + фон (медиана ≥ 0)", {"bg_filter": True}),
+            ("ВЛАДЕЛЕЦ: у открытия Америки 12–15, пн–чт", {"hours": us_open, "weekdays": mon_thu}),
+            ("пн–чт, любое время", {"weekdays": mon_thu}),
+            ("ОБХОД: откат от вершины дня не хуже −10%", {"max_drawdown": 10}),
+            ("ОБХОД: серия первых не длиннее 12 прогонов", {"max_streak": 12}),
+            ("ОБХОД: стартовый стоп −7% до переноса", {"init_stop": 7}),
+            ("ОБХОД: откат ≤10 + серия ≤12", {"max_drawdown": 10, "max_streak": 12}),
+            ("ОБХОД: откат ≤10 + серия ≤12 + стоп −7", {"max_drawdown": 10, "max_streak": 12, "init_stop": 7})]
     out = [f"{'вариант':<38} {'поз.':>4} {'в плюс':>6} {'медиана':>8} {'сумма':>8} {'≥+20%':>5} {'≤-10%':>5}"]
     for name, v in grid:
-        VARIANT = {"hours": None, "no_reentry_after_end": False, "bg_filter": False, **v}
+        VARIANT = {"hours": None, "no_reentry_after_end": False, "bg_filter": False, "consecutive_first": PAPER_ENTRY_CONSECUTIVE_FIRST, "quarantine": True, "quar_by_queue": True, **v}
         b = rebuild(save=False)
         res = [c["res_pct"] for c in b["closed"]] + [_pct(_avg_entry(p), p["last_px"]) for p in b["open"].values()]
         if not res:
             out.append(f"{name:<38} {0:>4}"); continue
         out.append(f"{name:<38} {len(res):>4} {sum(1 for r in res if r > 0):>6} {st.median(res):>+7.1f}% {sum(res):>+7.1f}% {sum(1 for r in res if r >= 20):>5} {sum(1 for r in res if r <= -10):>5}")
-    VARIANT = {"hours": None, "no_reentry_after_end": False, "bg_filter": False}
+    VARIANT = {"hours": None, "no_reentry_after_end": False, "bg_filter": False, "consecutive_first": False, "quarantine": True, "quar_by_queue": True}
     return "\n".join(out)
 
 
@@ -366,6 +454,8 @@ def block(book: dict, events: list[str] | None = None) -> str:
                      + (f" · выходы: {', '.join(fired)}" if fired else " · выходов нет"))
     if not book["open"]:
         lines.append("  · открытых нет")
+    if book.get("quarantine"):
+        lines.append("  карантин: " + ", ".join(f"{k.replace('USDT', '')} до {v['until'][5:16]}" for k, v in book["quarantine"].items()))
     for e in events or []:
         lines.append("  → " + e)
     return "\n".join(lines)
@@ -388,6 +478,13 @@ def report(book: dict | None = None) -> str:
         by.setdefault(c.get("closed_reason"), []).append(c["res_pct"])
     for k, v in by.items():
         out.append(f"  закрытие «{k}»: {len(v)} · медиана {st.median(v):+.1f}%")
+    qd = book.get("quarantine_done") or []
+    if qd or book.get("quarantine"):
+        out.append(f"карантин: сейчас {len(book.get('quarantine') or {})} · отбыли {len(qd)}")
+        for q in qd:
+            out.append(f"  {q['sym'].replace('USDT', ''):<9} с {q['since'][5:16]} · выпадений {q['drops']} · за карантин {q['res_pct']:+.1f}% · макс {q['mfe_pct']:+.1f}% · мин {q['mae_pct']:+.1f}%")
+        for q in (book.get("quarantine") or {}).values():
+            out.append(f"  {q['sym'].replace('USDT', ''):<9} в карантине с {q['since'][5:16]} · пока {_pct(q['px0'], q['last_px']):+.1f}% · макс {_pct(q['px0'], q['max_px']):+.1f}%")
     for m in ("лестница", "парабола", "неясно"):
         v = [c["res_pct"] for c in cl if (c.get("mode") or "неясно") == m]
         if v:
