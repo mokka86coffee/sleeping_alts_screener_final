@@ -457,12 +457,138 @@ table{{border-collapse:collapse;width:100%}} td,th{{padding:6px 10px;text-align:
 </body></html>"""
 
 
+# ─────────────────────────────────────────────────────────────
+# Эпизод лидера с фоном (владелец, 11.09: «читать только последние три дня —
+# когда монета стала лидером и когда движение развернулось; история без фона ничего
+# не значит»). По бару: сессия, доска, биткоин из ленты фона, цена, обе линии и их
+# серии, сила из архива, метка лидера из той же ленты. Ничего не суммируется.
+# ─────────────────────────────────────────────────────────────
+def _session_utc(h: int) -> str:
+    """Сессии по правильным часам (владелец, 10.09): Нью-Йорк 13–22, Лондон 7–16,
+    Токио 0–9, Сидней 21–6 UTC. Несколько открытых — через плюс."""
+    out = []
+    if 0 <= h < 9:
+        out.append("Токио")
+    if 7 <= h < 16:
+        out.append("Лондон")
+    if 13 <= h < 22:
+        out.append("Нью-Йорк")
+    if h >= 21 or h < 6:
+        out.append("Сидней")
+    return "+".join(out) if out else "—"
+
+
+def _force_marks(symbol: str, since_ms: int) -> dict:
+    """Сила из внутридневного архива той же формулой, что в near_move: быстрая средняя дельты
+    против медленной, пересечение вниз — ↓, вверх — ↑. Ключ — время свечи в мс."""
+    from core_config import BASE_DIR
+    p = BASE_DIR / "cq_v2" / "intraday" / f"{symbol.replace('USDT', '').lower()}.jsonl"
+    if not p.exists():
+        return {}
+    rows = []
+    for line in p.read_text(encoding="utf-8").splitlines():
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
+        if (r.get("fut") or {}).get("tk"):
+            rows.append(r)
+    if len(rows) < 20:
+        return {}
+    d = [((r.get("fut") or {}).get("d") or 0) for r in rows]
+
+    def ema(xs, n):
+        k = 2 / (n + 1)
+        out, e = [], None
+        for x in xs:
+            e = x if e is None else x * k + e * (1 - k)
+            out.append(e)
+        return out
+    kv = [a - b for a, b in zip(ema(d, 12), ema(d, 26))]
+    sg = ema(kv, 9)
+    marks = {}
+    for i in range(1, len(kv)):
+        t = datetime.fromisoformat(rows[i]["candle"].replace("Z", "+00:00"))
+        ms = int(t.timestamp() * 1000)
+        if ms < since_ms:
+            continue
+        if kv[i] < sg[i] and kv[i - 1] >= sg[i - 1]:
+            marks[ms] = "сила ↓"
+        elif kv[i] > sg[i] and kv[i - 1] <= sg[i - 1]:
+            marks[ms] = "сила ↑"
+    return marks
+
+
+def episode_table(symbol: str, since: str) -> list[str]:
+    """Строки таблицы эпизода с момента since (ISO, UTC)."""
+    import bisect
+    from core_binance import K_CLOSE, K_HIGH, K_LOW, K_OPEN_TIME, klines_30m, series
+    from core_config import BASE_DIR
+    t0 = datetime.fromisoformat(since.replace("Z", "+00:00"))
+    if t0.tzinfo is None:
+        t0 = t0.replace(tzinfo=timezone.utc)
+    since_ms = int(t0.timestamp() * 1000)
+    kl = klines_30m(symbol)
+    hi, lo, cl = series(kl, K_HIGH), series(kl, K_LOW), series(kl, K_CLOSE)
+    vp, vm = vortex_lines(hi, lo, cl)
+    # лента фона
+    bg, bts = [], []
+    p = BASE_DIR / "output" / "market_bg.jsonl"
+    if p.exists():
+        for line in p.read_text(encoding="utf-8").splitlines():
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            bg.append(r)
+            bts.append(int(datetime.fromisoformat(r["at"].replace("Z", "+00:00")).timestamp() * 1000))
+    force = _force_marks(symbol, since_ms)
+    base = symbol.replace("USDT", "")
+    out = [f"{symbol} с {t0.strftime('%d.%m %H:%M')} UTC · линии по бирже, фон из market_bg, сила из архива",
+           "свеча UTC     сессия          доска        медиана  биткоин          цена        покуп.  серия      продав. серия      метки"]
+    for i in range(len(cl)):
+        ms = int(kl[i][K_OPEN_TIME])
+        if ms < since_ms or vp[i] is None:
+            continue
+        t = datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
+        # фон: ближайшая строка ленты не позже конца свечи
+        j = bisect.bisect_right(bts, ms + 30 * 60 * 1000) - 1
+        r = bg[j] if (j >= 0 and ms - bts[j] < 3 * 3600 * 1000) else {}
+        br = r.get("breadth") or {}
+        board = f"{br.get('up', '—')} из {br.get('n', '—')}" if br.get("n") else "—"
+        med = (r.get("risk_on") or {}).get("median_pct")
+        med_s = f"{med:+.2f}%" if med is not None else "—"
+        b = r.get("btc") or {}
+        btc = "—"
+        if b.get("liq_long") is not None and b.get("liq_short") is not None:
+            ll, ls = b["liq_long"], b["liq_short"]
+            btc = ("жгут лонгов" if ll > ls * 1.5 else "жгут шортов" if ls > ll * 1.5 else "ровно")
+            if b.get("premium") is not None:
+                btc += " · США −" if b["premium"] < 0 else " · США +"
+        elif b.get("h1_pct") is not None:
+            btc = f"час {b['h1_pct']:+.1f}%"
+        marks = []
+        if any(str(x.get("symbol") or x.get("sym") or "").replace("USDT", "") == base for x in (r.get("pumps") or [])):
+            marks.append("★ лидер")
+        if ms in force:
+            marks.append(force[ms])
+        sp, sm = line_streak(vp[:i + 1]), line_streak(vm[:i + 1])
+        ts = turn_state(vp[:i + 1], vm[:i + 1])
+        if ts and ts["ago"] == VORTEX_TURN_MIN_BARS:
+            marks.append(f"вихрь: {ts['side']}")
+        out.append(f"{t.strftime('%d.%m %H:%M')}  {_session_utc(t.hour):<15} {board:<12} {med_s:<8} {btc:<16} "
+                   f"{cl[i]:<11g} {vp[i]:<7.3f} {sp['dir'][:4]}. {sp['n']:<4} {vm[i]:<7.3f} {sm['dir'][:4]}. {sm['n']:<4} {' · '.join(marks)}")
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Быстрый вихрь по одной монете — чтение и картинка из кода")
     ap.add_argument("--only", required=True, help="символ, например IOSTUSDT")
     ap.add_argument("--json", action="store_true", help="напечатать чтение целиком")
     ap.add_argument("--div", action="store_true",
                     help="разбор поиска дивергенции: какие свинг-лои цены найдены и почему пара отвергнута")
+    ap.add_argument("--since", help="таблица эпизода с этого времени (ISO UTC, например 2026-09-09T00:00) — "
+                                    "по бару с сессией, доской, биткоином, линиями и силой")
     ap.add_argument("--events", action="store_true",
                     help="все бары месяца, где сторона сменилась, и ход цены после — проверка на дубль с силой")
     ap.add_argument("--tail", type=int, default=0,
@@ -472,6 +598,10 @@ def main() -> None:
     sym = a.only.upper()
     if not sym.endswith("USDT"):
         sym += "USDT"
+    if a.since:
+        for line in episode_table(sym, a.since):
+            print(line)
+        return
     r = read_symbol(sym)
     if not r:
         print(f"{sym}: свечей нет или мало")
