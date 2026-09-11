@@ -312,6 +312,124 @@ def _finite(x):
     return x
 
 
+def _fast_events(days: int | None = None) -> dict:
+    """БЫСТРЫЙ СЛОЙ КАРТОЧКИ (11.09, владелец): события за окно плиты по каждой монете архива —
+    sym → {bubbles, end, force, entry, hedge, start}. Пузыри, событие конца и сила — из
+    внутридневного архива теми же формулами, что в near_move; вход и хедж вихря — из журнала
+    очереди (одно событие на час, повторы прогонов схлопнуты); старт — первый прогон, где монета
+    вошла в первые три очереди. Значки на плите, текст при наведении. Ничего не решает."""
+    import statistics as _st
+    from datetime import datetime, timezone
+    try:
+        from core_config import (FAST_BUBBLE_OI_PCT, FAST_BUBBLE_SIGMA, FAST_END_OI_PCT, FAST_EVENTS_DAYS,
+                                 FAST_FORCE_EMA, FAST_SIGMA_DAYS)
+    except ImportError:
+        FAST_EVENTS_DAYS, FAST_SIGMA_DAYS, FAST_BUBBLE_SIGMA, FAST_BUBBLE_OI_PCT, FAST_END_OI_PCT, FAST_FORCE_EMA = 3, 7, 2.0, 1.5, -2.0, (12, 26, 9)
+    days = days or FAST_EVENTS_DAYS
+    out: dict = {}
+    d = next((q for q in (Path("cq_v2") / "intraday",
+                          Path(__file__).resolve().parent / "cq_v2" / "intraday") if q.exists()), None)
+    if d is None:
+        return out
+    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    since = now_ms - days * 86400000
+    since_sig = now_ms - FAST_SIGMA_DAYS * 86400000
+
+    def _ms(c: str) -> int:
+        return int(datetime.fromisoformat(str(c).replace("Z", "+00:00")).timestamp() * 1000)
+
+    def _ema(xs: list, n: int) -> list:
+        k = 2 / (n + 1)
+        res: list = []
+        e = None
+        for x in xs:
+            e = x if e is None else x * k + e * (1 - k)
+            res.append(e)
+        return res
+
+    for p in d.glob("*.jsonl"):
+        rows = []
+        try:
+            for line in p.read_text(encoding="utf-8").splitlines():
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                if r.get("px") and (r.get("fut") or {}).get("tk") is not None and r.get("candle"):
+                    t = _ms(r["candle"])
+                    if t >= since_sig:
+                        rows.append((t, r))
+        except OSError:
+            continue
+        if len(rows) < 30:
+            continue
+        rows.sort(key=lambda x: x[0])
+        dl = [((r.get("fut") or {}).get("d") or 0) for _, r in rows]
+        mu = _st.mean(dl)
+        sd = _st.pstdev(dl) or 1.0
+        f, sl, sg = FAST_FORCE_EMA
+        kv = [a - b for a, b in zip(_ema(dl, f), _ema(dl, sl))]
+        sig = _ema(kv, sg)
+        bub, end, force = [], [], []
+        prev = None
+        for i, (t, r) in enumerate(rows):
+            o = r.get("oi")
+            ch = (o / prev - 1) * 100 if (prev and o) else None
+            x = dl[i]
+            if t >= since:
+                if abs(x - mu) >= FAST_BUBBLE_SIGMA * sd:
+                    role = ("спорный" if ((ch is not None and ch <= -FAST_BUBBLE_OI_PCT) or r.get("oi_type") == "long_close")
+                            else "ясный" if (ch is not None and ch >= FAST_BUBBLE_OI_PCT) else "обычный")
+                    bub.append({"t": t, "px": r["px"], "side": "buy" if x > 0 else "sell", "sure": role})
+                if ch is not None and ch <= FAST_END_OI_PCT and x < 0:
+                    end.append({"t": t, "px": r["px"]})
+                if i > 0 and ((kv[i] < sig[i]) != (kv[i - 1] < sig[i - 1])):
+                    force.append({"t": t, "px": r["px"], "dir": "up" if kv[i] > sig[i] else "down"})
+            if o:
+                prev = o
+        sym = p.stem.upper() + "USDT"
+        out[sym] = {"bubbles": bub, "end": end, "force": force, "entry": [], "hedge": [], "start": []}
+
+    # вход и хедж вихря, старт — из журнала очереди
+    ql = next((q for q in (Path("output") / "queue_log.jsonl",
+                           Path(__file__).resolve().parent / "output" / "queue_log.jsonl") if q.exists()), None)
+    if ql is not None:
+        try:
+            lines = ql.read_text(encoding="utf-8").splitlines()[-6000:]
+        except OSError:
+            lines = []
+        seen_top: dict = {}
+        ent: dict = {}
+        hed: dict = {}
+        for line in lines:
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            sym = str(r.get("sym") or "").upper()
+            if sym not in out or not r.get("at"):
+                continue
+            tr = _ms(r["at"])
+            if tr < since:
+                continue
+            e = r.get("vortex_entry")
+            if e and e.get("bar_ago") is not None:
+                te = tr - int(e["bar_ago"]) * 1800000
+                ent.setdefault((sym, round(te / 3600000)), {"t": te, "px": e.get("price"), "gap": e.get("gap")})
+            h = r.get("vortex_hedge")
+            if h and h.get("kind"):
+                hed.setdefault((sym, round(tr / 3600000)), {"t": tr, "px": h.get("price") or r.get("px"), "kind": h.get("kind")})
+            top = (r.get("place") or 9) <= 3
+            if top and not seen_top.get(sym):
+                out[sym]["start"].append({"t": tr, "px": r.get("px"), "place": r.get("place")})
+            seen_top[sym] = top
+        for (sym, _), v in ent.items():
+            out[sym]["entry"].append(v)
+        for (sym, _), v in hed.items():
+            out[sym]["hedge"].append(v)
+    return out
+
+
 def _bubble_oi() -> dict:
     """ИНТЕРЕС И ТИП БАРА ДЛЯ ПУЗЫРЕЙ (08.09): срез Coinglass отдаёт в fullSeries только время,
     покупки и продажи — по такому ряду нельзя понять, ОТКРЫВАЛИ на заявки позиции или об них
@@ -454,6 +572,7 @@ def render_coin(stars: list[dict], market: dict) -> str:
                "liqhist": _liq_history(),   # карта ликвидаций во времени (05.09)
                "pulse": _pulse_series(3),   # линия мини-журнала — живая цена за 72 ч (08.09)
                "bubOi": _bubble_oi(),       # интерес и тип бара для деления пузырей (08.09)
+               "fast": _fast_events(),      # быстрый слой: пузыри, конец, сила, вход/хедж вихря, старт (11.09)
                "near": ((_read_json("near_move.json") or {}).get("coins") or {}),   # близкие к ходу (05.09)
                # лидер по пампу — для тени снаружи (10.09): если доску тянет одна монета,
                # вердикт карточки не работает, и на его месте показываем пластину с её именем
@@ -495,6 +614,11 @@ COIN_HTML = r"""
 <template id="coinTpl">
 <style>
 :host{all:initial}
+/* плашки-подсказки у стрелок быстрого слоя на плите журнала (11.09) */
+.mini.journal g.arw .hint{opacity:0;transition:opacity .12s;pointer-events:none}
+.mini.journal g.arw:hover .hint{opacity:1}
+.mini.journal g.arw{cursor:default}
+.mini.journal .refl g.arw .hint{display:none}
 *{box-sizing:border-box}
 .wrap{position:fixed;inset:0;overflow:hidden;background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;font-weight:300}
 .stage{position:absolute;left:50%;top:100%;width:1440px;height:900px;transform-origin:50% 100%;
@@ -1309,8 +1433,9 @@ COIN_JS = r"""
     var s = BY[tick]; if (!s) { stage.innerHTML = '<div class="empty">монета ' + esc(tick) + ' не в журнале</div>'; return; }
     var g = groups(s), rnd = seeded(tick.split('').reduce(function (a, c) { return a + c.charCodeAt(0); }, 7));
     var H = HIST[String(s.t).toUpperCase()], ser, d0 = null, d1 = null;
-    // окно плиты — 4 месяца (04.09: было полгода, метки прогноза за двое суток слипались у края)
-    var SHOW_DAYS = 120;
+    // ОКНО ПЛИТЫ — ТРИ ДНЯ (11.09, владелец: быстрый слой читается только крупно; было 120 дневок,
+    // потом 14 и 7 в прототипе). Дневки — запасной ряд, основной — часовой из oitypes.
+    var SHOW_DAYS = 3;
     if (H && H.c && H.c.length >= 14) {
       var N = H.c.length, cut = Math.max(0, N - SHOW_DAYS);
       ser = H.c.slice(cut); d0 = H.d0; d1 = H.d1;
@@ -1318,6 +1443,14 @@ COIN_JS = r"""
       if (s.px && ser[ser.length - 1] !== +s.px) ser.push(+s.px);
     }
     else ser = (s.series || []).map(Number).filter(function (v) { return v > 0; });
+    // ЧАСОВОЙ РЯД ПЛИТЫ (11.09): из oitypes за SHOW_DAYS дней; tx(t) — время в координату плиты,
+    // по нему ложатся все слои по времени (быстрый слой, тепловая карта ликвидаций)
+    var _sym = String(s.coin || (String(s.t).toUpperCase() + 'USDT'));
+    var _hrs = ((OIT[_sym] || {}).hours || []).filter(function (b) { return +b[4] > 0; });
+    var _tEnd = _hrs.length ? _hrs[_hrs.length - 1][0] + 36e5 : Date.now(), _tBeg = _tEnd - SHOW_DAYS * 864e5;
+    _hrs = _hrs.filter(function (b) { return b[0] >= _tBeg; });
+    if (_hrs.length > 48) { ser = _hrs.map(function (b) { return +b[4]; }); if (s.px) ser.push(+s.px); d0 = new Date(_tBeg).toISOString().slice(0, 10); d1 = new Date(_tEnd).toISOString().slice(0, 10); }
+    function tx(t) { return X0 + (X1 - X0) * (t - _tBeg) / (_tEnd - _tBeg); }
     if (ser.length < 2 && s.px) ser = [s.px, s.px];
     var lv = s.levels || {}, extra = [];
     if (lv.above && lv.above.price) extra.push(+lv.above.price); if (lv.below && lv.below.price) extra.push(+lv.below.price); if (s.stop) extra.push(+s.stop);
@@ -1361,7 +1494,7 @@ COIN_JS = r"""
     (function () {
       var Hq = (D.liqhist || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]; if (!Hq || Hq.length < 2 || !d1) return;
       var t1ms = new Date(d1).getTime(), DAYms = 864e5, x0d = X0 + (P.length ? 0 : 0);
-      var xOf = function (t) { var fi = (P.length - 1) - (t1ms - t) / DAYms; return X0 + fi / Math.max(1, P.length - 1) * (P[P.length - 1][0] - X0); };
+      var xOf = function (t) { if (_hrs.length > 48) return tx(t); var fi = (P.length - 1) - (t1ms - t) / DAYms; return X0 + fi / Math.max(1, P.length - 1) * (P[P.length - 1][0] - X0); };   // при часовом ряде — по времени (11.09)
       // ТРЕТИЙ + ЧЕТВЁРТЫЙ ПУНКТ ВМЕСТЕ (05.09, по замечанию владельца): на прогон — три
       // плотнейшие полосы НА КАЖДУЮ СТОРОНУ; яркость — ЛИНЕЙНО по доле топлива от максимума
       // (корень сглаживал, и все выходили одной плотности); сторона, которую вероятнее снимут
@@ -1467,6 +1600,34 @@ COIN_JS = r"""
     });
     var ny0;
     var nx = P[P.length - 1][0], ny = P[P.length - 1][1];
+    // ── БЫСТРЫЙ СЛОЙ (11.09, владелец): на большой плите — только точка старта (монета вошла в первые
+    //    три очереди) и последняя стрелка выноской под плитой; все стрелки — на плите журнала справа.
+    //    События берутся из D.fast[sym] — их пишет _fast_events() из архива и журнала очереди.
+    var _EV = [], _LAST = null;   // события быстрого слоя за окно — общий список для плиты и журнала
+    if (_hrs.length > 48) (function () {
+      var F = ((D.fast || {})[_sym]) || {}, GR = '#4fd1a8', RD = '#ff7a7a', OR = '#f0a04b', WH = '#eaf4ff';
+      function ok(t) { return t >= _tBeg && t <= _tEnd; }
+      function hhmm(t) { var d = new Date(t); return pad(d.getUTCDate()) + '.' + pad(d.getUTCMonth() + 1) + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
+      _hrs.filter(function (b) { return (+b[2] || 0) >= 1.5; }).forEach(function (b) { var oi = +b[2] || 0, px = +b[3] || 0;
+        if (px > 0.3) _EV.push({ t: b[0] + 18e5, px: +b[4], dir: 'up', kind: 'oi', col: GR, op: Math.min(.9, .25 + .2 * Math.min(oi / px, 3)), short: 'интерес растёт с ценой', tip: 'интерес растёт вместе с ценой · ' + hhmm(b[0]) + ' · интерес +' + oi.toFixed(1) + '% · цена +' + px.toFixed(1) + '%' });
+        else { var ratio = oi / Math.max(0.3, Math.abs(px)), k = Math.max(0, Math.min(1, (ratio - 1.5) / 1.5));
+          _EV.push({ t: b[0] + 18e5, px: +b[4], dir: 'down', kind: 'oi', col: k < .5 ? '#ffd98a' : RD, op: .15 + .8 * k, short: 'интерес растёт, цена нет · ×' + ratio.toFixed(1), tip: 'интерес растёт, цена нет · ' + hhmm(b[0]) + ' · интерес +' + oi.toFixed(1) + '% · цена ' + (px >= 0 ? '+' : '') + px.toFixed(1) + '% · отношение ×' + ratio.toFixed(1) }); } });
+      (F.entry || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: 'up', kind: 'vx', col: OR, op: .95, short: 'вихрь: покупатели взяли сторону', tip: 'вихрь 30м: покупатели взяли сторону · ' + hhmm(e.t) + ' · разрыв ' + (+e.gap).toFixed(2) }); });
+      (F.hedge || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: 'down', kind: 'vx', col: OR, op: .95, short: 'вихрь: продавцы взяли сторону', tip: 'вихрь 30м: продавцы взяли сторону · ' + hhmm(e.t) + ' · ' + (e.kind || '') }); });
+      (F.force || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: e.dir === 'down' ? 'down' : 'up', kind: 'force', col: e.dir === 'down' ? RD : GR, op: e.dir === 'down' ? .9 : .8, short: e.dir === 'down' ? 'сила развернулась вниз' : 'сила развернулась вверх', tip: (e.dir === 'down' ? 'сила развернулась вниз · ' : 'сила развернулась вверх · ') + hhmm(e.t) }); });
+      _EV = _EV.filter(function (e) { return ok(e.t); }).sort(function (a, b) { return a.t - b.t; });
+      var L = '<g class="fast">';
+      // ТОЧКА СТАРТА — ЗОЛОТАЯ, БЕЗ ОРЕОЛА И ПОДЛОЖКИ (11.09, владелец: «сделай её золотой просто и всё,
+      // она и так будет выделяться за счёт формы»): монета впервые за окно вошла в первые три очереди
+      (F.start || []).forEach(function (e) { if (!ok(e.t)) return; var x = tx(e.t), y = sy(+e.px || ser[0]);
+        L += '<circle cx="' + f(x) + '" cy="' + f(y) + '" r="4.2" fill="' + GOLD + '" stroke="#fff6dc" stroke-width=".7" stroke-opacity=".8"><title>' + esc('движение началось · ' + hhmm(e.t) + ' · место ' + e.place + ' в очереди') + '</title></circle>'; });
+
+      // одна последняя стрелка по центру над графиком + короткая подпись
+      var last = _EV[_EV.length - 1];
+      _LAST = last;   // рисуется отдельной выноской справа от плиты, в сцене
+
+      L += '</g>'; slab += L;
+    })();
     slab += '<g class="an now"><circle cx="' + f(nx) + '" cy="' + f(ny) + '" r="14" fill="#fff" opacity=".22" filter="url(#blur6)"/><circle cx="' + f(nx) + '" cy="' + f(ny) + '" r="3.2" fill="#fff"/><circle class="ring" cx="' + f(nx) + '" cy="' + f(ny) + '" r="6" fill="none" stroke="#fff" stroke-width="1"/></g>';
     slab += '<g class="an lv2"><text x="' + f(nx - 12) + '" y="' + f(ny - 12) + '" text-anchor="end" font-family="Jost,Inter" font-weight="300" font-size="10" fill="#fff">' + px4(s.px || ser[ser.length - 1]) + ' <tspan fill="#bfe9d6">сейчас</tspan></text>';
     // РИСКИ ЦЕН на левой оси (04.09): четыре деления между низом и верхом
@@ -1538,8 +1699,22 @@ COIN_JS = r"""
     // пометки и выноски
     var imin = 0; for (var i = 1; i < P.length; i++) if (P[i][1] > P[imin][1]) imin = i;
     var imax = 0; for (i = 1; i < P.length; i++) if (P[i][1] < P[imax][1]) imax = i;
-    var NOTES = [['lever', 110, 250, P[imax]], ['memory', 700, 28, P[Math.floor(P.length / 2)]], ['flow', 1190, 150, P[Math.max(0, P.length - 3)]], ['price', 700, 600, P[imin]], ['calendar', 1190, 470, P[P.length - 1]]];
+    var NOTES = [['lever', 110, 250, P[imax]], ['memory', 700, 28, P[Math.floor(P.length / 2)]], ['flow', 1190, 150, P[Math.max(0, P.length - 3)]], ['price', 1215, 325, P[imin]]   /* «где цена» — справа, между потоком и календарём (11.09); её место под плитой заняла стрелка */, ['calendar', 1190, 470, P[P.length - 1]]];
     var notes = '', leaders = '';
+    // ПОСЛЕДНЯЯ СТРЕЛКА БЫСТРОГО СЛОЯ (11.09) — выноска под плитой, на месте бывшей «где цена»;
+    // без подложки, ярко, дышит; текст и время по центру под ней
+    if (_LAST) (function () {
+      var L = _LAST, dy = L.dir === 'up' ? -3 : 3, ar = L.dir === 'up' ? 'M31,44 h18 l-9,-17 z' : 'M31,28 h18 l-9,17 z';   // вдвое меньше
+      function hh(t) { var d = new Date(t); return pad(d.getUTCDate()) + '.' + pad(d.getUTCMonth() + 1) + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
+      // текст под стрелкой — по её центру (владелец: «сейчас левым краем с её центром совпадает»)
+      // выше блока решения, стрелка слева от текста (владелец 11.09)
+      notes += '<div class="note lastArrow" style="left:640px;top:530px;width:300px;display:flex;align-items:center;gap:6px;text-align:left;pointer-events:auto;z-index:7" title="' + esc(L.tip) + '">' +
+        '<svg viewBox="0 0 80 72" width="60" height="54" style="display:block;overflow:visible;flex:none">' +
+        '<circle cx="40" cy="36" r="10" fill="' + L.col + '" opacity=".22" style="filter:blur(6px)"><animate attributeName="r" values="8;15;8" dur="2.4s" repeatCount="indefinite"/><animate attributeName="opacity" values=".12;.38;.12" dur="2.4s" repeatCount="indefinite"/></circle>' +
+        '<path d="' + ar + '" fill="' + L.col + '" stroke="#fff6dc" stroke-width=".8" stroke-opacity=".7" style="filter:drop-shadow(0 0 8px ' + L.col + ')"><animateTransform attributeName="transform" type="translate" values="0 0;0 ' + dy + ';0 0" dur="1.6s" repeatCount="indefinite"/></path></svg>' +
+        '<div><div style="font-family:var(--f-cap);font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:' + L.col + '">' + esc(L.short) + '</div>' +
+        '<div style="font-family:var(--f-cap);font-size:7px;letter-spacing:.18em;color:#bfe9d6;opacity:.8;margin-top:3px">' + esc(hh(L.t)) + '</div></div></div>';
+    })();
     NOTES.forEach(function (n, ni) { var G = g[n[0]], pr = project(n[3][0], n[3][1]), lx = n[1] + 8, ly = n[2] + 40, ll = Math.hypot(pr[0] - lx, pr[1] - ly);
       leaders += '<line class="ld" x1="' + lx + '" y1="' + ly + '" x2="' + f(pr[0]) + '" y2="' + f(pr[1]) + '" stroke="' + GOLD + '" stroke-width=".6" opacity=".5" style="--L:' + Math.ceil(ll + 2) + ';animation-delay:' + (2.9 + ni * .15).toFixed(2) + 's"/><circle class="an ldc" cx="' + f(pr[0]) + '" cy="' + f(pr[1]) + '" r="2.6" fill="none" stroke="' + GOLD + '" stroke-width=".8" style="animation-delay:' + (3.3 + ni * .15).toFixed(2) + 's"/>';
       notes += '<div class="note an" style="left:' + n[1] + 'px;top:' + n[2] + 'px;animation-delay:' + (3 + ni * .15).toFixed(2) + 's">' + cardHtml(G) + '<div class="row"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3">' + GLYPH[G.glyph] + '</svg><span class="cap">' + esc(G.cap) + '</span></div><div class="num' + (G.stale ? ' stale' : '') + '">' + esc(G.num) + (G.stale ? '<u title="Coinglass протух или нет данных"></u>' : '') + '</div><div class="unit">' + esc(G.unit || '') + '</div><div class="sub' + (G.hot ? ' hot' : '') + '">' + esc(G.sub || '') + '</div>' + (G.stale ? '<div class="sub stale">Coinglass ' + ageTxt(ageH(SRC.coinglass)) + ' — числа не свежие</div>' : '') + '</div>';
@@ -1850,7 +2025,25 @@ COIN_JS = r"""
           '<text class="fc' + (m.miss ? ' miss' : '') + '" x="' + (x - 4).toFixed(1) + '" y="' + ty + '" text-anchor="end">' + esc(name) + '</text>';
       });
       g += '<circle cx="' + XT(tE).toFixed(1) + '" cy="' + Y(pts[pts.length - 1].p).toFixed(1) + '" r="2.6" fill="#fff"/>';
-      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '">' + g + '</svg>';
+      // СТРЕЛКИ БЫСТРОГО СЛОЯ (11.09, владелец): на плите журнала, по три последние каждого вида,
+      // с плашкой при наведении вместо системной подсказки
+      (function () {
+        if (!_EV || !_EV.length) return;
+        var byKind = {}; _EV.forEach(function (e) { (byKind[e.kind] = byKind[e.kind] || []).push(e); });
+        Object.keys(byKind).forEach(function (k) { byKind[k].slice(-3).forEach(function (e) { if (e.t < t0 || e.t > tE) return;
+          var x = Math.min(XT(e.t), W - 20), y = Y(e.px) + (e.dir === 'up' ? 16 : -16) + (e.kind === 'force' ? (e.dir === 'up' ? 14 : -14) : 0) + (e.kind === 'vx' ? (e.dir === 'up' ? 28 : -28) : 0);
+          // ПЛАШКА ВМЕСТО СИСТЕМНОЙ ПОДСКАЗКИ (владелец: «не видно ничего и долго ждать появления»):
+          // появляется сразу при наведении, две строки, над стрелкой, не вылезает за плиту
+          var parts = String(e.tip).split(' · '), l1 = parts[0], l2 = parts.slice(1).join(' · ');
+          var bw = Math.max(l1.length, l2.length) * 4.3 + 14, bx = Math.max(4, Math.min(W - bw - 4, x - bw / 2)), by = y - 34;
+          g += '<g class="arw"><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="8" fill="rgba(3,12,9,.85)" stroke="rgba(233,255,244,.2)" stroke-width=".5"/>' +
+               '<path d="' + (e.dir === 'up' ? 'M' + (x - 5).toFixed(1) + ',' + (y + 4).toFixed(1) + ' h10 l-5,-9 z' : 'M' + (x - 5).toFixed(1) + ',' + (y - 4).toFixed(1) + ' h10 l-5,9 z') + '" fill="' + e.col + '" opacity="' + e.op.toFixed(2) + '"/>' +
+               '<g class="hint"><rect x="' + bx.toFixed(1) + '" y="' + by.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="22" rx="3" fill="rgba(3,17,12,.92)" stroke="' + e.col + '" stroke-opacity=".6" stroke-width=".6"/>' +
+               '<text x="' + (bx + 7).toFixed(1) + '" y="' + (by + 9).toFixed(1) + '" font-size="7" letter-spacing=".08em" fill="' + e.col + '">' + esc(l1) + '</text>' +
+               '<text x="' + (bx + 7).toFixed(1) + '" y="' + (by + 18).toFixed(1) + '" font-size="6.5" letter-spacing=".06em" fill="#bfe9d6">' + esc(l2) + '</text></g></g>'; }); });
+      })();
+      // стиль плашек внутри svg (11.09): страничный css до них не доставал — все плашки стояли открытыми
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '"><style>g.arw .hint{opacity:0;transition:opacity .12s;pointer-events:none}g.arw:hover .hint{opacity:1}</style>' + g + '</svg>';
       dzone += '<div class="mini journal"><div class="gglow"></div>' + svg + '<div class="ground"></div><div class="refl">' + svg + '</div></div>';
     })();
     // шапка, монеты, часы
