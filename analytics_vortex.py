@@ -30,6 +30,7 @@ from core_config import (
     VORTEX_HTML,
     VORTEX_N,
     VORTEX_SLOPE_BARS,
+    VORTEX_TURN_MIN_BARS,
 )
 
 
@@ -197,6 +198,80 @@ def divergence(vi_line: list, price_ext: list[float], window: int = VORTEX_DIV_W
 
 
 # ─────────────────────────────────────────────────────────────
+# Серии по каждой линии (владелец, 11.09: «каждая следующая получасовая свеча
+# поднимает лой продаж» — направление читается по линии, не по разрыву)
+# ─────────────────────────────────────────────────────────────
+def line_streak(line: list) -> dict:
+    """Сколько закрытых баров подряд линия идёт в одну сторону, считая от последнего.
+    Разрыв между линиями слеп к тому, КТО двигается; серия по каждой линии — нет."""
+    vals = [v for v in line if v is not None]
+    if len(vals) < 2:
+        return {"dir": "стоит", "n": 0}
+    d0 = vals[-1] - vals[-2]
+    if d0 == 0:
+        return {"dir": "стоит", "n": 0}
+    n = 1
+    for i in range(len(vals) - 2, 0, -1):
+        d = vals[i] - vals[i - 1]
+        if (d > 0) == (d0 > 0) and d != 0:
+            n += 1
+        else:
+            break
+    return {"dir": "поднимает" if d0 > 0 else "опускает", "n": n}
+
+
+def divergence_run(line: list, closes: list[float], line_up: bool = True, price_up: bool = False) -> int:
+    """Дивергенция бар за баром: сколько закрытых баров подряд линия идёт в одну сторону,
+    а цена — в другую. Покупатели: линия вверх при цене вниз (line_up, не price_up).
+    Продавцы: линия вверх при цене вверх — продавцы набирают, пока цена ещё растёт.
+    Это счётчик, на котором копится статистика дивергенций; свинговый поиск выше — её
+    «крупная» форма, как её рисуют на графике."""
+    vals = [(v, c) for v, c in zip(line, closes) if v is not None]
+    n = 0
+    for i in range(len(vals) - 1, 0, -1):
+        dl = vals[i][0] - vals[i - 1][0]
+        dp = vals[i][1] - vals[i - 1][1]
+        if dl == 0 or dp == 0:
+            break
+        if ((dl > 0) == line_up) and ((dp > 0) == price_up):
+            n += 1
+        else:
+            break
+    return n
+
+
+def turn_state(vi_p: list, vi_m: list, min_bars: int = VORTEX_TURN_MIN_BARS) -> dict | None:
+    """«Сторона сменилась»: одна линия поднимается, другая опускается, обе не короче min_bars.
+    side — кто взял: «продавцы» (их линия вверх, покупатели вниз) или «покупатели».
+    ago — сколько баров назад обе пошли вместе (короткая из двух серий)."""
+    sp, sm = line_streak(vi_p), line_streak(vi_m)
+    if sm["dir"] == "поднимает" and sp["dir"] == "опускает" and min(sm["n"], sp["n"]) >= min_bars:
+        return {"side": "продавцы", "ago": min(sm["n"], sp["n"])}
+    if sp["dir"] == "поднимает" and sm["dir"] == "опускает" and min(sm["n"], sp["n"]) >= min_bars:
+        return {"side": "покупатели", "ago": min(sm["n"], sp["n"])}
+    return None
+
+
+def turn_events(vi_p: list, vi_m: list, closes: list[float], min_bars: int = VORTEX_TURN_MIN_BARS,
+                horizons: tuple = VORTEX_HORIZONS) -> list[dict]:
+    """Все бары истории, где событие «сторона сменилась» ВПЕРВЫЕ стало истинным, и ход цены после.
+    Это проверка на дубль с силой: в какой бар сказал вихрь. Событие считается по линиям,
+    известным на тот бар, — без заглядывания вперёд."""
+    out = []
+    prev = None
+    for i in range(min_bars + 1, len(closes)):
+        st = turn_state(vi_p[:i + 1], vi_m[:i + 1], min_bars)
+        cur = st["side"] if st else None
+        if cur and cur != prev and st["ago"] == min_bars:      # первый бар, где серии дотянулись
+            ev = {"bar": i, "side": cur, "close": closes[i]}
+            for h in horizons:
+                ev[f"h{h}"] = round((closes[i + h] / closes[i] - 1) * 100, 2) if i + h < len(closes) else None
+            out.append(ev)
+        prev = cur
+    return out
+
+
+# ─────────────────────────────────────────────────────────────
 # Полное чтение по свечам
 # ─────────────────────────────────────────────────────────────
 def read_klines(klines: list[list], n: int = VORTEX_N) -> dict:
@@ -219,6 +294,11 @@ def read_klines(klines: list[list], n: int = VORTEX_N) -> dict:
         "vi_plus": round(cur_p, 4), "vi_minus": round(cur_m, 4), "gap": round(cur_g, 4),
         "side": "покупатели" if cur_g > 0 else ("продавцы" if cur_g < 0 else "поровну"),
         "gap_dir": direction, "gap_slope": slope,
+        # серии по линиям и дивергенция бар за баром
+        "streak_plus": line_streak(vi_p), "streak_minus": line_streak(vi_m),
+        "div_run_buy": divergence_run(vi_p, closes, line_up=True, price_up=False),
+        "div_run_sell": divergence_run(vi_m, closes, line_up=True, price_up=True),
+        "turn": turn_state(vi_p, vi_m),
         # перегрев — доля истории ниже текущего значения
         "pct_plus": percentile_rank(vi_p, cur_p),
         "pct_minus": percentile_rank(vi_m, cur_m),
@@ -238,6 +318,19 @@ def read_klines(klines: list[list], n: int = VORTEX_N) -> dict:
     return out
 
 
+def compact(r: dict) -> dict | None:
+    """Короткая форма для near_move.json и queue_log — без хвостов и таблиц."""
+    if not r:
+        return None
+    t = r.get("turn") or {}
+    return {"side": r["side"], "gap": r["gap"], "gap_dir": r["gap_dir"],
+            "plus": r["vi_plus"], "minus": r["vi_minus"],
+            "streak_plus": r["streak_plus"], "streak_minus": r["streak_minus"],
+            "div_run_buy": r["div_run_buy"], "div_run_sell": r["div_run_sell"],
+            "heat": r["heat"], "pct_gap": r["pct_gap"],
+            "turn_side": t.get("side"), "turn_ago": t.get("ago")}
+
+
 def read_symbol(symbol: str) -> dict:
     """Чтение по живым получасовкам биржи. Сеть — через core_binance."""
     from core_binance import klines_30m
@@ -252,8 +345,16 @@ def say(r: dict) -> str:
     """Одна строка для подписи карточки: разрыв, направление, перегрев, дивергенция."""
     if not r:
         return "вихрь: мало баров"
+    sp, sm = r["streak_plus"], r["streak_minus"]
     bits = [f"вихрь 30м {r['side']} · разрыв {r['gap']:+.2f} {r['gap_dir']}",
+            f"покупатели {sp['dir']} {sp['n']} бар. · продавцы {sm['dir']} {sm['n']} бар.",
             f"{r['heat']} ({r['pct_gap']:.0f}% истории ниже)"]
+    if r.get("turn"):
+        bits.append(f"сторона сменилась: {r['turn']['side']} {r['turn']['ago']} бар. назад")
+    if r.get("div_run_buy"):
+        bits.append(f"покупатели вверх при цене вниз {r['div_run_buy']} бар. подряд")
+    if r.get("div_run_sell"):
+        bits.append(f"продавцы вверх при цене вверх {r['div_run_sell']} бар. подряд")
     if r.get("div_buy"):
         d = r["div_buy"]
         bits.append(f"дивергенция покупателей: лой линии {d['line_a']:.2f}→{d['line_b']:.2f} "
@@ -338,8 +439,8 @@ table{{border-collapse:collapse;width:100%}} td,th{{padding:6px 10px;text-align:
 </style></head><body>
 <h1>{sym} · вихрь 30м</h1>
 <div class="sub">{at} · {r['bars']} баров истории · период {r['n']}</div>
-<div class="big"><div><div class="lbl">покупатели</div><b class="p">{r['vi_plus']:.3f}</b></div>
-<div><div class="lbl">продавцы</div><b class="m">{r['vi_minus']:.3f}</b></div>
+<div class="big"><div><div class="lbl">покупатели</div><b class="p">{r['vi_plus']:.3f}</b><div class="dim">{r['streak_plus']['dir']} {r['streak_plus']['n']} бар.</div></div>
+<div><div class="lbl">продавцы</div><b class="m">{r['vi_minus']:.3f}</b><div class="dim">{r['streak_minus']['dir']} {r['streak_minus']['n']} бар.</div></div>
 <div><div class="lbl">разрыв · {r['gap_dir']}</div><b class="g">{r['gap']:+.3f}</b></div>
 <div><div class="lbl">перегрев</div><b class="h">{r['heat']}</b><div class="dim">разрыв выше, чем в {r['pct_gap']:.0f}% истории · покупатели {r['pct_plus']:.0f}% · продавцы {r['pct_minus']:.0f}%</div></div></div>
 <svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg">
@@ -360,6 +461,10 @@ def main() -> None:
     ap = argparse.ArgumentParser(description="Быстрый вихрь по одной монете — чтение и картинка из кода")
     ap.add_argument("--only", required=True, help="символ, например IOSTUSDT")
     ap.add_argument("--json", action="store_true", help="напечатать чтение целиком")
+    ap.add_argument("--div", action="store_true",
+                    help="разбор поиска дивергенции: какие свинг-лои цены найдены и почему пара отвергнута")
+    ap.add_argument("--events", action="store_true",
+                    help="все бары месяца, где сторона сменилась, и ход цены после — проверка на дубль с силой")
     ap.add_argument("--tail", type=int, default=0,
                     help="напечатать последние N баров: время, low, close, VI+, VI− — для сверки с графиком "
                          "и для настройки дивергенции на живом ряде")
@@ -372,6 +477,38 @@ def main() -> None:
         print(f"{sym}: свечей нет или мало")
         return
     print(say(r))
+    if a.events:
+        from core_binance import K_CLOSE, K_HIGH, K_LOW, K_OPEN_TIME, klines_30m, series
+        kl = klines_30m(sym)
+        hi, lo, cl = series(kl, K_HIGH), series(kl, K_LOW), series(kl, K_CLOSE)
+        vp, vm = vortex_lines(hi, lo, cl)
+        evs = turn_events(vp, vm, cl)
+        print(f"событий «сторона сменилась» за {len(cl)} баров: {len(evs)}")
+        for e in evs:
+            t = datetime.fromtimestamp(int(kl[e['bar']][K_OPEN_TIME]) / 1000, tz=timezone.utc).strftime("%d.%m %H:%M")
+            hs = " · ".join(f"{h}б {e[f'h{h}']:+.1f}%" if e[f'h{h}'] is not None else f"{h}б —" for h in VORTEX_HORIZONS)
+            print(f"  {t} UTC  {e['side']:<10} цена {e['close']:g} · после: {hs}")
+        for side in ("продавцы", "покупатели"):
+            sub = [e for e in evs if e["side"] == side]
+            for h in VORTEX_HORIZONS:
+                v = [e[f"h{h}"] for e in sub if e[f"h{h}"] is not None]
+                if v:
+                    print(f"  итог {side}: через {h} бар. n={len(v)} · вверх {100 * sum(x > 0 for x in v) / len(v):.0f}% · медиана {st.median(v):+.2f}%")
+    if a.div:
+        from core_binance import K_CLOSE, K_HIGH, K_LOW, K_OPEN_TIME, klines_30m, series
+        kl = klines_30m(sym)
+        hi, lo, cl = series(kl, K_HIGH), series(kl, K_LOW), series(kl, K_CLOSE)
+        vp, _ = vortex_lines(hi, lo, cl)
+        n_ = len(cl)
+        start = max(0, n_ - VORTEX_DIV_WINDOW)
+        for lbl, ext in (("по МИНИМУМАМ баров", lo), ("по ЗАКРЫТИЯМ", cl)):
+            sw = _swing_lows(ext, start)
+            print(f"свинг-лои цены в окне {VORTEX_DIV_WINDOW} баров, {lbl}:")
+            for i in sw:
+                t = datetime.fromtimestamp(int(kl[i][K_OPEN_TIME]) / 1000, tz=timezone.utc).strftime("%d.%m %H:%M")
+                ln = _line_near(vp, i)
+                print(f"  бар {n_ - 1 - i:>2} назад · {t} · цена {ext[i]:g} · лой линии рядом {'—' if ln is None else f'{ln:.3f}'}")
+            print("  результат:", divergence(vp, ext, price_falls=True))
     if a.tail:
         from core_binance import K_CLOSE, K_HIGH, K_LOW, K_OPEN_TIME, klines_30m, series
         kl = klines_30m(sym)

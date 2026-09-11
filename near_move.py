@@ -726,12 +726,26 @@ def judge(d: dict, live: dict | None = None) -> dict | None:
             "close": float(last["close"]), "day": k_now, "live": bool(last.get("_live"))}
 
 
+def _vortex(sym_usdt: str) -> dict | None:
+    """БЫСТРЫЙ ВИХРЬ (11.09) — второй инструмент быстрого слоя рядом с силой. Считается по
+    получасовкам биржи (в архиве размах бара появился только 11.09, истории для перегрева там нет),
+    через core_binance с общим лимитером; вес десять на монету, поэтому только для живых групп.
+    Сеть не должна ронять фильтр: любая ошибка — None и пусто в полях."""
+    try:
+        from analytics_vortex import compact, read_symbol
+        return compact(read_symbol(sym_usdt))
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def attach_today(sym_usdt: str, j: dict) -> dict:
     tb = _today_bars(sym_usdt)
     if tb:
         j["today"] = tb
         if j.get("group") in ("holding", "going", "pulled"):
             j["sub"] = tb["today"]          # «покупают сегодня» / «продают сегодня» / «стоит» — во всех живых группах
+    if j.get("group") in ("holding", "going", "pulled"):
+        j["vortex"] = _vortex(sym_usdt)     # в балл не идёт, как и сила: показ и журнал
     return j
 
 
@@ -985,6 +999,17 @@ def log_queue(res: dict) -> int:
             "run_from_low7": (v.get("nums") or {}).get("run_from_low7"),
             "accum": (v.get("nums") or {}).get("accum"),
             "force_turn_ago": ((v.get("today") or {}).get("force_turn_ago")),
+            # быстрый вихрь (11.09) — сырьём в журнал: сторона, разрыв, серии линий, дивергенция
+            # бар за баром, перегрев и событие «сторона сменилась»
+            "vortex_side": (v.get("vortex") or {}).get("side"),
+            "vortex_gap": (v.get("vortex") or {}).get("gap"),
+            "vortex_streak_plus": (v.get("vortex") or {}).get("streak_plus"),
+            "vortex_streak_minus": (v.get("vortex") or {}).get("streak_minus"),
+            "vortex_div_buy": (v.get("vortex") or {}).get("div_run_buy"),
+            "vortex_div_sell": (v.get("vortex") or {}).get("div_run_sell"),
+            "vortex_heat": (v.get("vortex") or {}).get("heat"),
+            "vortex_turn_side": (v.get("vortex") or {}).get("turn_side"),
+            "vortex_turn_ago": (v.get("vortex") or {}).get("turn_ago"),
             "accum_past": (v.get("nums") or {}).get("accum_past"),
             "bubble_sure": ((v.get("today") or {}).get("bubbles") or [{}])[-1].get("sure"),
             "bubble_vs_plot": (v.get("today") or {}).get("bubble_vs_plot"),

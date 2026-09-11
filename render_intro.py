@@ -446,6 +446,13 @@ def render_intro(items: list[dict] | None = None) -> str:
                 _fa = _last.get("force_turn_ago")
                 if _fa is not None and _fa <= 8:
                     _risk.insert(0, f"сила развернулась {_fa} бар назад — ход выдыхается")
+                # ВИХРЬ: СТОРОНА СМЕНИЛАСЬ (11.09, владелец по IOST: «каждая следующая получасовая
+                # свеча поднимает лой продаж»). Второй инструмент быстрого слоя, окно то же — восемь
+                # баров. Ставится следом за силой; если силы нет — первым. В балл не идёт.
+                _va, _vs = _last.get("vortex_turn_ago"), _last.get("vortex_turn_side")
+                if _va is not None and _va <= 8 and _vs == "продавцы":
+                    _risk.insert(1 if (_fa is not None and _fa <= 8) else 0,
+                                 f"вихрь: продавцы поднимают лои {_va} бар подряд, покупатели отдают")
             leader = {
                 "sym": _sym.replace("USDT", ""),
                 "risk": _risk[:3],
