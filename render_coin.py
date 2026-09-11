@@ -1078,8 +1078,8 @@ COIN_JS = r"""
     // МАСШТАБ ВИДЕН В ПОДПИСИ (11.09, владелец): вортекс и Klinger в карточке считаются на
     // ЧЕТЫРЁХЧАСОВЫХ свечах — это рамка большого движения, а не сигнал входа внутри дня.
     // Быстрые (получасовые) появятся, когда накопятся бары с размахом: h/l пишутся с 11.09.
-    if (s.vxDir === 'up') pro.push('вортекс 4ч вверх'); else if (s.vxDir === 'down') con.push('вортекс 4ч вниз');
-    if (s.klinger && s.klinger.crossUp) pro.push('клингер 4ч крест вверх');
+    if (s.vxDir === 'up') pro.push('медленно · вортекс 4ч вверх'); else if (s.vxDir === 'down') con.push('медленно · вортекс 4ч вниз');
+    if (s.klinger && s.klinger.crossUp) pro.push('медленно · клингер 4ч крест вверх');
     if (s.oiState === 'held') con.push('плечо застряло'); else if (s.oiState === 'cleared') pro.push('плечо разгружено');
     if (u && u.days <= 3) con.push('разлок ' + u.days + ' дн');
     if (has(s.fund) && +s.fund > 0.01) con.push('толпа в лонге, фандинг ' + (+s.fund).toFixed(3) + '%');
@@ -1109,15 +1109,28 @@ COIN_JS = r"""
     // окно восемь баров. Строк «за» по вихрю нет: метка входа живёт только в журнале.
     var _vx = (NEAR[String(s.coin || (String(s.t).toUpperCase() + 'USDT'))] || {}).vortex || null;
     var _vh = _vx && _vx.hedge;
-    if (_vh && _vh.bars !== null && _vh.bars <= 8) con.push((_vh.kind === 'лестница' || _vh.kind === 'сторона')
-      ? 'вихрь 30м: сторона сменилась на продавцов ' + _vh.bars + ' бар назад'
-      : 'вихрь 30м: продавцы поднимают лои ' + _vh.bars + ' бар под максимумом дня');
+    if (_vh && _vh.bars !== null && (_vh.kind === 'пересечение' || _vh.bars <= 8)) con.push(_vh.kind === 'пересечение'
+      ? 'вихрь 30м: продавцы над покупателями ' + _vh.bars + ' бар подряд'
+      : (_vh.kind === 'лестница' || _vh.kind === 'сторона')
+        ? 'вихрь 30м: сторона сменилась на продавцов ' + _vh.bars + ' бар назад'
+        : 'вихрь 30м: продавцы поднимают лои ' + _vh.bars + ' бар под максимумом дня');
+    // БЫСТРЫЙ СЛОЙ НАД МЕДЛЕННЫМ (11.09, случай LSK: карточка сказала «ждать» по «вортекс 4ч вверх»,
+    // пока событие конца, сила и быстрый вихрь говорили вниз и лежали в данных). Быстрые доводы
+    // собираются отдельно, идут в «против» первыми с пометкой «быстро» и переводят вердикт в
+    // «хедж на часть». Медленные остаются в «за» с пометкой «медленно». В балл ничего не идёт.
+    var _nr = NEAR[String(s.coin || (String(s.t).toUpperCase() + 'USDT'))] || {};
+    var _fast = [];
+    var _tdy = String((_nr.today || {}).today || _nr.sub || '');
+    if (/конец/.test(_tdy)) _fast.push('быстро · событие конца: интерес ушёл вместе с ценой');
+    if (_fa !== undefined && _fa !== null && _fa <= 8) _fast.push('быстро · сила развернулась ' + _fa + ' бар назад');
+    if (_vh && _vh.bars !== null && (_vh.kind === 'пересечение' || _vh.bars <= 8)) _fast.push('быстро · ' + con[con.length - 1]);
+    con = _fast.concat(con.filter(function (x) { return _fast.indexOf('быстро · ' + x) < 0 && x.indexOf('сила развернулась') < 0; }));
     var patD = patterns(HIST[String(s.t).toUpperCase()] || {}, CROWD[String(s.t).toUpperCase()]);
     if (patD.absorbShort) pro.push(patD.absorbShort);
     if (patD.shortShort) pro.push(patD.shortShort);
     if (patD.leverShort) (patD.leverKind === 'reload' || patD.leverKind === 'build' ? pro : con).push(patD.leverShort);
     dr.push(['за', pro.length ? pro.join(' · ') : 'нет'], ['против', con.length ? con.join(' · ') : 'нет']);
-    g.decision = { src: [['квант', 'quant', 24], ['Coinglass', 'coinglass', 1], ['пульс', 'pulse', 1]], cap: 'решение', num: verdict, verdict: verdict.toUpperCase(), why: why, rows: dr, pro: pro, con: con,
+    g.decision = { fast: _fast, src: [['квант', 'quant', 24], ['Coinglass', 'coinglass', 1], ['пульс', 'pulse', 1]], cap: 'решение', num: verdict, verdict: verdict.toUpperCase(), why: why, rows: dr, pro: pro, con: con,
       exit: s.exitWhy || '', hurry: (s.exitDeadline ? 'срок ' + s.exitDeadline : (u && u.days <= 1 ? 'разлок ' + (u.days ? 'завтра' : 'сегодня') : '')) };
     // ПОТОК
     var fr = [];
@@ -1550,6 +1563,9 @@ COIN_JS = r"""
         dec = Object.assign({}, dec, { verdict: 'снять часть', why: 'у цели, толпа набивается в лонг — следующий ход вниз, к полосе лонгов (по шаблону)' });
       }
     })();
+    // БЫСТРЫЙ СЛОЙ ПЕРЕВОДИТ РЕШЕНИЕ (11.09): есть хоть один быстрый довод — вердикт «хедж на часть»,
+    // причина — первый из них. Стоит ПОСЛЕ правила «у цели», чтобы быть над ним.
+    if (dec.fast && dec.fast.length) dec = Object.assign({}, dec, { verdict: 'хедж на часть', why: 'быстрый слой против медленного — ' + dec.fast[0].replace('быстро · ', '') });
     var INTRO = [];   // вступительная сводка (05.09): текстом поверх графика при входе, потом гаснет
     INTRO.push(['решение', String(dec.verdict || '') + (dec.why ? ' — ' + String(dec.why).split('—')[0] : '')]);
     if (s.rep && s.rep.plot) INTRO.push(['журнал', String(s.rep.plot).split(':')[0]]);

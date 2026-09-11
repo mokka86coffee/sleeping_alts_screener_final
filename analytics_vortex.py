@@ -300,6 +300,20 @@ def entry_mark(vi_p: list, vi_m: list, closes: list[float], lookback: int = VORT
     return best
 
 
+def cross_ago(vi_p: list, vi_m: list) -> dict | None:
+    """Кто сверху и сколько закрытых баров назад линии пересеклись. side — чья линия выше сейчас."""
+    pairs = [(p, m) for p, m in zip(vi_p, vi_m) if p is not None and m is not None]
+    if len(pairs) < 2:
+        return None
+    above = pairs[-1][0] > pairs[-1][1]
+    ago = 0
+    for i in range(len(pairs) - 2, -1, -1):
+        if (pairs[i][0] > pairs[i][1]) != above:
+            break
+        ago += 1
+    return {"side": "покупатели" if above else "продавцы", "ago": ago}
+
+
 def hedge_mark(vi_p: list, vi_m: list, closes: list[float], highs: list[float], mode: str | None) -> dict | None:
     """Хедж по форме хода. Парабола (и «неясно»): продавцы поднимают лои от VORTEX_HEDGE_MIN_BARS
     баров при цене в VORTEX_HEDGE_NEAR_HIGH_PCT процентах от максимума дня. Лестница: событие
@@ -316,6 +330,12 @@ def hedge_mark(vi_p: list, vi_m: list, closes: list[float], highs: list[float], 
     st = turn_state(vi_p, vi_m)
     if st and st["side"] == "продавцы":
         return {"kind": "сторона", "bars": st["ago"], "price": closes[-1]}
+    # ПЕРЕСЕЧЕНИЕ (11.09, LSK 15:17: продавцы над покупателями на четверть балла часами, а серии
+    # сбивал один ровный бар — хедж молчал). Линия продавцов выше линии покупателей — это состояние,
+    # оно держится, пока не пересекутся обратно; bars — сколько баров назад пересеклись.
+    ca = cross_ago(vi_p, vi_m)
+    if ca is not None and ca["side"] == "продавцы":
+        return {"kind": "пересечение", "bars": ca["ago"], "price": closes[-1]}
     if mode == "лестница":
         return None
     sm = line_streak(vi_m)

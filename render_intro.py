@@ -457,6 +457,9 @@ def render_intro(items: list[dict] | None = None) -> str:
                 elif _vh.get("kind") in ("лестница", "сторона") and (_vh.get("bars") or 0) <= 8:
                     _risk.insert(1 if (_fa is not None and _fa <= 8) else 0,
                                  f"вихрь: сторона сменилась на продавцов {_vh['bars']} бар назад")
+                elif _vh.get("kind") == "пересечение":
+                    _risk.insert(1 if (_fa is not None and _fa <= 8) else 0,
+                                 f"вихрь: продавцы над покупателями {_vh['bars']} бар подряд")
             leader = {
                 "sym": _sym.replace("USDT", ""),
                 "risk": _risk[:3],
