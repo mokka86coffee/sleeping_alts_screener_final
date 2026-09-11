@@ -24,7 +24,7 @@ import math
 import random
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 try:
@@ -495,6 +495,31 @@ def render_intro(items: list[dict] | None = None) -> str:
     # лидер — только его оставляем»). Читать доску нечем: деньги либо заняты одной монетой, либо
     # их нет вовсе. Показываем светило по центру и одну строку — что именно мешает.
     # Верхняя панель лидера убрана: её текст переехал вниз, под светило, в том же виде.
+    # ПЕРВАЯ, КОТОРАЯ ДЕРЖИТСЯ (11.09, владелец): ОДНА звезда — нынешняя первая очереди, если она была
+    # первой не меньше трёх прогонов за сутки (сейчас плюс ещё два). На неё не действует ни одно
+    # гашение экрана: солнце, фон, фильтры. Считается всегда, идёт в данные.
+    keep_first: dict = {}
+    try:
+        _nm = json.loads((BASE_DIR / "output" / "near_move.json").read_text(encoding="utf-8"))
+        _first = str(((_nm.get("first") or [None])[0]) or "")
+        _since = datetime.now(timezone.utc) - timedelta(hours=24)
+        _n1 = 0
+        if _first:
+            for _line in (BASE_DIR / "output" / "queue_log.jsonl").read_text(encoding="utf-8").splitlines()[-4000:]:
+                try:
+                    _r = json.loads(_line)
+                except ValueError:
+                    continue
+                if _r.get("sym") == _first and _r.get("place") == 1 and datetime.fromisoformat(str(_r.get("at")).replace("Z", "+00:00")) >= _since:
+                    _n1 += 1
+        if _first and _n1 >= 3:
+            keep_first = {_first: _n1}
+    except Exception:  # noqa: BLE001
+        keep_first = {}
+    for _i, _sym in enumerate(syms):
+        if _sym in keep_first:
+            bright[_i] = 1.0
+
     blank: dict = {}
     try:
         _bg = {r[0]: (r[1], r[2]) for r in (bgnote or [])}
@@ -514,6 +539,13 @@ def render_intro(items: list[dict] | None = None) -> str:
             blank = {"why": "доска давит",
                      "note": (str(_br[1]) if _br else "") + " · " + (str(_md[1]) if _md else "")
                              + " · лидера нет"}
+            # ПЕРВАЯ, КОТОРАЯ ДЕРЖИТСЯ (11.09, владелец): под солнцем звёзд нет, но если нынешняя первая
+            # очереди была первой не меньше трёх прогонов за сутки — её звезда остаётся: узкая доска
+            # при живой первой — след того, что деньги собираются в неё (лидер первичен).
+            if keep_first:
+                _k, _v = next(iter(keep_first.items()))
+                blank["keep"] = [_k]
+                blank["note"] += f" · {_k.replace('USDT', '')} первой {_v} прогонов за сутки — держится"
     except Exception:  # noqa: BLE001
         blank = {}
 
@@ -582,7 +614,7 @@ def render_intro(items: list[dict] | None = None) -> str:
                    "enough": bool(_a.get("n", 0) >= 20)}
     except (OSError, ValueError):
         acc = {}
-    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "flicker": flicker, "accum": accum, "bub": bub, "blank": blank},
+    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "flicker": flicker, "accum": accum, "bub": bub, "blank": blank, "keep": list(keep_first)},
                       ensure_ascii=False).replace("</", "<\\/")
     return TEMPLATE.replace("__N__", str(n)).replace("__DATA__", data)
 
@@ -1167,7 +1199,7 @@ function mask(){
   m.letterSpacing='0.12em';
   m.globalCompositeOperation='lighter';
   for(let i=0;i<N;i++){const x=W*POS[i][0]+size*.06,y=H*POS[i][1],name=names[i];
-    if(window.__BLANK && !LAB[i]) continue;   // фон давит: имя в маску не пишем (10.09)
+    if(window.__BLANK && !LAB[i] && !window.__KEEP.has((DATA.syms||[])[i])) continue;   // фон давит: имя в маску не пишем (10.09)
     // подписи групп — кириллицей, Michroma её не знает: Inter, чуть крупнее и с разрядкой
     const isStale=(DATA.grp||[])[i]===4;
     m.font=LAB[i]?`300 ${size*(isStale?.78:.92)}px "Inter",system-ui,sans-serif`:`400 ${size*(isStale?.66:.935)}px "${FONT}",system-ui,sans-serif`;   // остывшие мельче (07.09)
@@ -1192,7 +1224,7 @@ function mask(){
   for(let i=0;i<N;i++){m.font=LAB[i]?`300 ${size*.92}px "Inter",system-ui,sans-serif`:`400 ${size*.935}px "${FONT}",system-ui,sans-serif`;
     m.letterSpacing=LAB[i]?'0.32em':'0.12em';nameW[i]=m.measureText(names[i]).width;}
   for(let i=0;i<N;i++){const x=W*POS[i][0]+size*.06,y=H*POS[i][1],name=names[i];
-    if(window.__BLANK && !LAB[i]) continue;   // фон давит: имя в маску не пишем (10.09)
+    if(window.__BLANK && !LAB[i] && !window.__KEEP.has((DATA.syms||[])[i])) continue;   // фон давит: имя в маску не пишем (10.09)
     for(let n=0,tries=0;n<NF&&tries<4000;tries++){
       // блик — только внутри СВОЕГО имени (07.09: брали из полосы шире имени и цепляли соседей —
       // рядом рисовались лучи без названий); ширину берём измерением, не длиной строки
@@ -1269,7 +1301,7 @@ function applyGroup(){
   function place(){
     host.innerHTML='';
     (DATA.names||[]).forEach((nm,i)=>{
-      if(LAB[i]||window.__BLANK)return;
+      if(LAB[i]||(window.__BLANK && !window.__KEEP.has((DATA.syms||[])[i])))return;
       const a=AC[nm]; if(!a)return;
       const x=W*POS[i][0], y=H*POS[i][1];
       const dx=nm.length*SIZE*0.34+16, dy=SIZE*0.62+8;   // справа сверху от имени
@@ -1297,7 +1329,7 @@ function applyGroup(){
   function place(){
     host.innerHTML='';
     (DATA.names||[]).forEach((nm,i)=>{
-      if(LAB[i]||window.__BLANK)return;
+      if(LAB[i]||(window.__BLANK && !window.__KEEP.has((DATA.syms||[])[i])))return;
       const b=B[nm]; if(!b||!b.length)return;
       const x=W*POS[i][0], y=H*POS[i][1];
       b.forEach((p,k)=>{
@@ -1317,6 +1349,7 @@ function applyGroup(){
 // Гасить яркостью мало: имена запекаются в маску, а орбиты и подписи рисует канва — все три
 // слоя знают про флаг. Верхняя панель лидера при этом не показывается: её текст внизу.
 window.__BLANK = !!(DATA.blank && DATA.blank.why);
+window.__KEEP = new Set(DATA.keep || []);   // первые, которые держались ≥3 прогонов за сутки: на них не действуют никакие гашения (11.09)
 if (window.__BLANK) {
   const d = document.createElement('div');
   d.className = 'blank';
@@ -1426,7 +1459,7 @@ function drawFx(t){
     return [px,py,(Math.sin(a)<0)?0.55:1];
   }
   for(let i=0;i<N;i++){
-    if(LAB[i]||window.__BLANK)continue;
+    if(LAB[i]||(window.__BLANK && !window.__KEEP.has((DATA.syms||[])[i])))continue;
     const g=(DATA.grp||[])[i];
     if(PICK!==null&&g!==PICK)continue;
     // ЧУЖИЕ ГАСНУТ И НА КАНВЕ (08.09, владелец: «становятся тусклее, но процентов на пять»):
