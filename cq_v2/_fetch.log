@@ -184,3 +184,5 @@
 2026-09-10 07:42:42 нет в архиве: 1 (sahara)
 2026-09-10 07:42:42 добор новичков: sahara
 2026-09-10 07:42:50 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json (прицельно, full_at не тронут)
+2026-09-11 01:12:57 данные по 2026-09-09, ждём 2026-09-10 (возраст 23.7 ч)
+2026-09-11 01:12:57 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
