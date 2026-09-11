@@ -1,0 +1,2162 @@
+"""Единый экран монеты · coin.html (03.09 ночь, концепт «восход»).
+
+Четыре экрана одной монеты — журнал прогнозов, три горизонта, зал-пейзаж
+с кольцами, перемол — сведены в один. Прототип принят владельцем целиком
+(proto_one_rise_fonts.html); здесь он переведён в живой документ: сцена
+строится в браузере из JSON по ВСЕМ монетам журнала, монета выбирается
+списком по алфавиту или хвостом адреса (coin.html#SOMI).
+
+Что на экране (порядок чтения монеты — правило владельца 03.09):
+  холст   стеклянная плита в перспективе на полу: линия цены по дневкам
+          звезды, сетка внутри, уровни (плита · стоп · опора), полосы
+          кластеров ликвидаций с суммой, «сейчас», отражение, лужи света
+  решение внутри плиты под кривой: вердикт, основание, когда снимется,
+          что торопит, строки ЗА и ПРОТИВ
+  пометки пять групп вокруг плиты: ГДЕ ЦЕНА · ПОТОК · ПЛЕЧО · ПАМЯТЬ ·
+          КАЛЕНДАРЬ-ФУНДАМЕНТ — цифра, единица, чтение одной строкой;
+          наведение раскрывает карточку по центру экрана: строки
+          «ярлык — значение», цифры золотом, слоты без данных подвалом
+  часы    сосуд «до роста» из схемы, справа внизу; сияние над графиком
+          по состоянию: зелёное при росте, красное при сливе, за час —
+          вполсилы и дышит
+  монеты  кнопка со списком журнала по алфавиту
+
+Данные вшиваются в документ, как у схемы: звёзды одного расчёта
+(render_page.build_stars), market, output/schedule.json (часы),
+output/whales.json (киты по монетам), output/forecasts.jsonl (журнал
+прогнозов: записей, смен, начало записи, последняя смена).
+Чего в сводке нет — на экране так и написано «нет в сводке»; чисел из
+воздуха модуль не выдумывает.
+
+Правило владельца по стилю: никаких чужих файлов стилей — всё в
+документе; никаких чёрных подложек — стекло в гамме; шрифты Jost для
+цифр, IBM Plex Mono для ярлыков (набор А прототипа).
+"""
+
+from __future__ import annotations
+
+import json
+from collections import OrderedDict
+from datetime import datetime, timezone
+from pathlib import Path
+
+
+def _read_json(name: str):
+    for p in (Path("output") / name,
+              Path(__file__).resolve().parent / "output" / name):
+        if p.exists():
+            try:
+                return json.loads(p.read_text(encoding="utf-8"))
+            except ValueError:
+                return None
+    return None
+
+
+# развязка ПРОТИВ прогноза — те же корни имён, что у render_journal
+MISS_WORDS = ("осечка", "ушёл", "отпустил", "раздача")
+
+
+def _journal() -> dict:
+    """output/forecasts.jsonl → {тикер: {n, switches, first, firstAt,
+    lastSwitch:{tpl, at, px, chg}}}. Тот же ряд, что у render_journal —
+    второго источника меток не заводим."""
+    out: dict = {}
+    for p in (Path("output") / "forecasts.jsonl",
+              Path(__file__).resolve().parent / "output" / "forecasts.jsonl"):
+        if not p.exists():
+            continue
+        by: dict = OrderedDict()
+        for ln in p.read_text(encoding="utf-8").splitlines():
+            ln = ln.strip()
+            if not ln:
+                continue
+            try:
+                r = json.loads(ln)
+            except ValueError:
+                continue
+            px = r.get("px")
+            if not isinstance(px, (int, float)) or not px:
+                continue
+            try:
+                t = datetime.strptime(f"{r.get('at', '')} {r.get('hm', '00:00')}",
+                                      "%Y-%m-%d %H:%M")
+            except ValueError:
+                continue
+            by.setdefault(str(r.get("sym", "")).upper().replace("USDT", ""), []).append(
+                {"t": t, "px": float(px), "tpl": str(r.get("tpl") or "")})
+        for sym, pts in by.items():
+            pts.sort(key=lambda x: x["t"])
+            # ДВА ПРОГОНА ПОДРЯД (05.09 ночь): с живым днём шаблон дёргается каждые полчаса
+            # («4»: тащит → у цели → тащит → начал → у цели за четыре часа). Смена
+            # засчитывается, когда новый шаблон повторился следующим прогоном; одиночный
+            # прогон с другим именем — не смена. Последняя точка, если она одна, — ждёт.
+            # имя, не текст: сравнивать короткое имя до скобки (числа в скобках меняются каждый прогон)
+            nm = [q["tpl"].split("(")[0].strip() for q in pts]
+            sw, prev, last, marks = 0, None, None, []
+            _gap = lambda a, b: (b["t"] - a["t"]).total_seconds() > 2 * 3600   # простой — не сшивать
+            for i, q in enumerate(pts):
+                if i and _gap(pts[i - 1], q):
+                    prev = None
+                held = (i + 1 < len(pts) and nm[i + 1] == nm[i] and not _gap(q, pts[i + 1]))
+                if prev is not None and nm[i] != prev and held:
+                    sw += 1
+                    last = {"tpl": q["tpl"].split("(")[0].strip()[:40],
+                            "at": q["t"].strftime("%d.%m %H:%M"), "px": q["px"],
+                            "chg": round((q["px"] / pts[i - 1]["px"] - 1) * 100, 1)}
+                    # МЕТКИ ПРОГНОЗА на плите (04.09): каждая смена — где и что
+                    # за событие, тем же рядом, что у журнала прогнозов.
+                    marks.append({"t": q["t"].strftime("%Y-%m-%dT%H:%M"), "px": q["px"],
+                                  "tpl": last["tpl"],
+                                  "miss": any(w in q["tpl"].lower() for w in MISS_WORDS)})
+                if prev is None or held:
+                    prev = nm[i]
+            if not marks and pts[0]["tpl"]:      # смен нет — показываем стартовое состояние
+                marks.append({"t": pts[0]["t"].strftime("%Y-%m-%dT%H:%M"), "px": pts[0]["px"],
+                              "tpl": pts[0]["tpl"].split("(")[0].strip()[:40],
+                              "miss": any(w in pts[0]["tpl"].lower() for w in MISS_WORDS)})
+            out[sym] = {"n": len(pts), "switches": sw, "first": pts[0]["px"],
+                        "firstAt": pts[0]["t"].strftime("%d.%m %H:%M"),
+                        "lastSwitch": last, "marks": marks,
+                        # ряд за 48 ч по точкам журнала (05.09): мини-журнал рисует его вместо дневок,
+                        # чтобы метки смен за день не слипались в одну точку у края
+                        "series": [[int(q["t"].timestamp() * 1000), q["px"]] for q in pts
+                                   if q.get("px") and q["px"] > 0 and (pts[-1]["t"] - q["t"]).total_seconds() <= 14 * 86400][-700:]}
+        break
+    return out
+
+
+def _root_json(name: str):
+    for p in (Path(name), Path(__file__).resolve().parent / name):
+        if p.exists():
+            try:
+                return json.loads(p.read_text(encoding="utf-8"))
+            except ValueError:
+                return None
+    return None
+
+
+def _history(stars: list[dict]) -> dict:
+    """Дневки за полгода из архива CryptoQuant cq_v2/<монета>.json — того
+    же, что кормит три горизонта (make_flow). Только закрытия и края дат:
+    полный архив на восемьдесят монет весил бы мегабайты. Нет файла —
+    холст рисуется по series звезды (две недели)."""
+    out: dict = {}
+    for st in stars:
+        t = str(st.get("t") or "").lower()
+        if not t:
+            continue
+        for p in (Path("cq_v2") / f"{t}.json",
+                  Path(__file__).resolve().parent / "cq_v2" / f"{t}.json"):
+            if not p.exists():
+                continue
+            try:
+                d = json.loads(p.read_text(encoding="utf-8"))
+                rows = sorted((r for r in d.get("ohlcv") or [] if r.get("close")),
+                              key=lambda r: r["datetime"])[-180:]
+                if len(rows) >= 14:
+                    rec = {"c": [round(float(r["close"]), 8) for r in rows],
+                           "d0": rows[0]["datetime"][:10],
+                           "d1": rows[-1]["datetime"][:10]}
+                    # ПАТТЕРНЫ ДНЕВОК (03.09, разбор UNI/BULLA): цикл плеча,
+                    # «продавцы давят — цена держится», шорты как топливо.
+                    # Ряды на две недели, читаются на экране, скор не трогают.
+                    oi = sorted((r for r in d.get("oi") or [] if r.get("open_interest")),
+                                key=lambda r: r["datetime"])[-14:]
+                    tr = sorted((r for r in d.get("trade") or [] if r.get("buy_sell_ratio")),
+                                key=lambda r: r["datetime"])[-14:]
+                    lq = sorted((r for r in d.get("liq") or []), key=lambda r: r["datetime"])[-3:]
+                    vol = [float(r.get("quote_volume") or 0) for r in rows]
+                    rec["oi"] = [round(float(r["open_interest"]) / 1e6, 2) for r in oi]
+                    rec["tk"] = [round(float(r["buy_sell_ratio"]), 3) for r in tr]
+                    rec["v"] = [round(v / 1e6, 3) for v in vol[-14:]]
+                    rec["vmed"] = round(sorted(vol[-60:-7])[len(vol[-60:-7]) // 2] / 1e6, 3) if len(vol) > 60 else None
+                    fu = sorted((r for r in d.get("funding") or [] if r.get("funding_rate") is not None),
+                                key=lambda r: r["datetime"])
+                    if fu:
+                        rec["fundNow"] = float(fu[-1]["funding_rate"])   # у кванта уже в процентах
+                    if lq:
+                        rec["liq"] = [[r["datetime"][5:10], round(float(r.get("long_liquidations_usd") or 0) / 1e6, 2),
+                                       round(float(r.get("short_liquidations_usd") or 0) / 1e6, 2)] for r in lq]
+                    out[t.upper()] = rec
+            except (ValueError, KeyError, TypeError):
+                pass
+            break
+    return out
+
+
+def _book() -> dict:
+    """leaders.json → позиции и вход журнала: вход, ход от входа, максимум,
+    с какого дня, своя ли (added_manually). Результат позиции мерится ОТ
+    ВХОДА — правило владельца."""
+    L = _root_json("leaders.json") or {}
+    out: dict = {}
+    for sym, r in L.items():
+        if not isinstance(r, dict):
+            continue
+        t = str(sym).upper().replace("USDT", "")
+        out[t] = {"entry": r.get("entry_price"), "chg": r.get("change_pct"),
+                  "maxChg": r.get("max_change_pct"), "minChg": r.get("min_change_pct"),
+                  "since": str(r.get("first_seen") or "")[:10],
+                  "manual": bool(r.get("added_manually")),
+                  "closed": bool(r.get("closed")), "closedPx": r.get("closed_price"),
+                  "upX": r.get("now_up_x") or r.get("up_x"), "maxUpX": r.get("max_up_x"),
+                  "trendDone": bool(r.get("trend_done")), "hits": r.get("hits")}
+    return out
+
+
+def _pulse_stamp():
+    """Последняя точка пульса: pulse.json — словарь тикер → список точек;
+    имя поля времени в точке не фиксировано, пробуем привычные; нет
+    поля — берём время файла."""
+    for p in (Path("pulse.json"), Path(__file__).resolve().parent / "pulse.json",
+              Path("output") / "pulse.json"):
+        if not p.exists():
+            continue
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except ValueError:
+            return None
+        best = None
+        rows = d.values() if isinstance(d, dict) else [d]
+        for v in rows:
+            if not isinstance(v, list) or not v or not isinstance(v[-1], dict):
+                continue
+            for k in ("at", "ts", "t", "time", "datetime"):
+                x = v[-1].get(k)
+                if isinstance(x, (int, float)):
+                    x = datetime.fromtimestamp(x / (1000 if x > 1e12 else 1), tz=timezone.utc).isoformat()
+                if isinstance(x, str) and (best is None or x > best):
+                    best = x
+                    break
+        return best or datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc).isoformat()
+    return None
+
+
+def _quant_stamp():
+    """Свежесть архива кванта: cq_v2/_summary.json (full_at — час полного
+    обхода), иначе самый свежий файл архива по mtime."""
+    for base in (Path("cq_v2"), Path(__file__).resolve().parent / "cq_v2"):
+        if not base.exists():
+            continue
+        sm = base / "_summary.json"
+        if sm.exists():
+            try:
+                d = json.loads(sm.read_text(encoding="utf-8"))
+                for k in ("full_at", "at", "updated"):
+                    if d.get(k):
+                        return str(d[k])
+            except ValueError:
+                pass
+        files = [f for f in base.glob("*.json") if not f.name.startswith("_")]
+        if files:
+            return datetime.fromtimestamp(max(f.stat().st_mtime for f in files), tz=timezone.utc).isoformat()
+    return None
+
+
+def source_stamps(stars: list[dict], market: dict) -> dict:
+    """ВОЗРАСТ ИСТОЧНИКОВ (03.09, правило владельца: «всё подсвечивать
+    всегда — лучше знать, что нет информации, чем неточная»). Штампы
+    каждого источника уходят на экран; экран сам считает возраст и
+    красит: квант — сутки, остальное — час; старше — красный."""
+    whales = _read_json("whales.json") or {}
+    sched = _read_json("schedule.json") or {}
+    out = {"run": market.get("ts"),
+           "coinglass": max((str((st.get("cg") or {}).get("at") or "") for st in stars), default="") or None,
+           "quant": _quant_stamp(),
+           "pulse": _pulse_stamp(),
+           "whales": whales.get("at"),
+           "crowd": (_read_json("coinglass_crowd.json") or {}).get("at"),
+           "unlocks": (_read_json("coinglass_unlocks.json") or {}).get("at"),
+           "sched": sched.get("at"),
+           "flow": ((_read_json("flow_watch.json") or {}).get("_meta") or {}).get("at")}
+    # ОДИН ОТСЧЁТ ДЛЯ ТОГО, ЧТО СОБИРАЕТСЯ В ПРОГОНЕ (05.09, «всё считается непонятно как»):
+    # Coinglass, пульс, киты и поток снимаются внутри прогона, а прогон длится ~10 мин —
+    # их собственные штампы ложились на 10–30 мин старше публикации и смотрелись
+    # «уже 30 мин» сразу после обновления. Если источник собран в этом прогоне (его
+    # штамп не старше начала прогона больше чем на час), его возраст — возраст ПРОГОНА.
+    # Суточные источники (квант, толпа, разлоки, расписание) считаются по своим штампам.
+    run_ts = _parse_ts(market.get("ts"))
+    if run_ts:
+        for k in ("coinglass", "pulse", "whales", "flow"):
+            own = _parse_ts(out.get(k))
+            if own and (run_ts - own).total_seconds() <= 3600 and own <= run_ts:
+                out[k] = market.get("ts")
+    return out
+
+
+def _parse_ts(x):
+    """ISO-строка или epoch → datetime UTC; иначе None."""
+    if x is None or x == "":
+        return None
+    try:
+        if isinstance(x, (int, float)):
+            return datetime.fromtimestamp(x / (1000 if x > 1e12 else 1), tz=timezone.utc)
+        t = str(x).strip().replace("Z", "+00:00")
+        if len(t) == 10:
+            t += "T00:00:00+00:00"
+        d = datetime.fromisoformat(t)
+        return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError, OSError):
+        return None
+
+
+def _finite(x):
+    """Рекурсивно: float NaN/±inf → None; остальное как есть."""
+    import math
+    if isinstance(x, float):
+        return x if math.isfinite(x) else None
+    if isinstance(x, dict):
+        return {k: _finite(v) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return [_finite(v) for v in x]
+    return x
+
+
+def _fast_events(days: int | None = None) -> dict:
+    """БЫСТРЫЙ СЛОЙ КАРТОЧКИ (11.09, владелец): события за окно плиты по каждой монете архива —
+    sym → {bubbles, end, force, entry, hedge, start}. Пузыри, событие конца и сила — из
+    внутридневного архива теми же формулами, что в near_move; вход и хедж вихря — из журнала
+    очереди (одно событие на час, повторы прогонов схлопнуты); старт — первый прогон, где монета
+    вошла в первые три очереди. Значки на плите, текст при наведении. Ничего не решает."""
+    import statistics as _st
+    from datetime import datetime, timezone
+    try:
+        from core_config import (FAST_BUBBLE_OI_PCT, FAST_BUBBLE_SIGMA, FAST_END_OI_PCT, FAST_EVENTS_DAYS,
+                                 FAST_FORCE_EMA, FAST_SIGMA_DAYS)
+    except ImportError:
+        FAST_EVENTS_DAYS, FAST_SIGMA_DAYS, FAST_BUBBLE_SIGMA, FAST_BUBBLE_OI_PCT, FAST_END_OI_PCT, FAST_FORCE_EMA = 3, 7, 2.0, 1.5, -2.0, (12, 26, 9)
+    days = days or FAST_EVENTS_DAYS
+    out: dict = {}
+    d = next((q for q in (Path("cq_v2") / "intraday",
+                          Path(__file__).resolve().parent / "cq_v2" / "intraday") if q.exists()), None)
+    if d is None:
+        return out
+    now_ms = int(datetime.now(timezone.utc).timestamp() * 1000)
+    since = now_ms - days * 86400000
+    since_sig = now_ms - FAST_SIGMA_DAYS * 86400000
+
+    def _ms(c: str) -> int:
+        return int(datetime.fromisoformat(str(c).replace("Z", "+00:00")).timestamp() * 1000)
+
+    def _ema(xs: list, n: int) -> list:
+        k = 2 / (n + 1)
+        res: list = []
+        e = None
+        for x in xs:
+            e = x if e is None else x * k + e * (1 - k)
+            res.append(e)
+        return res
+
+    for p in d.glob("*.jsonl"):
+        rows = []
+        try:
+            for line in p.read_text(encoding="utf-8").splitlines():
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                if r.get("px") and (r.get("fut") or {}).get("tk") is not None and r.get("candle"):
+                    t = _ms(r["candle"])
+                    if t >= since_sig:
+                        rows.append((t, r))
+        except OSError:
+            continue
+        if len(rows) < 30:
+            continue
+        rows.sort(key=lambda x: x[0])
+        dl = [((r.get("fut") or {}).get("d") or 0) for _, r in rows]
+        mu = _st.mean(dl)
+        sd = _st.pstdev(dl) or 1.0
+        f, sl, sg = FAST_FORCE_EMA
+        kv = [a - b for a, b in zip(_ema(dl, f), _ema(dl, sl))]
+        sig = _ema(kv, sg)
+        bub, end, force = [], [], []
+        prev = None
+        for i, (t, r) in enumerate(rows):
+            o = r.get("oi")
+            ch = (o / prev - 1) * 100 if (prev and o) else None
+            x = dl[i]
+            if t >= since:
+                if abs(x - mu) >= FAST_BUBBLE_SIGMA * sd:
+                    role = ("спорный" if ((ch is not None and ch <= -FAST_BUBBLE_OI_PCT) or r.get("oi_type") == "long_close")
+                            else "ясный" if (ch is not None and ch >= FAST_BUBBLE_OI_PCT) else "обычный")
+                    bub.append({"t": t, "px": r["px"], "side": "buy" if x > 0 else "sell", "sure": role})
+                if ch is not None and ch <= FAST_END_OI_PCT and x < 0:
+                    end.append({"t": t, "px": r["px"]})
+                if i > 0 and ((kv[i] < sig[i]) != (kv[i - 1] < sig[i - 1])):
+                    force.append({"t": t, "px": r["px"], "dir": "up" if kv[i] > sig[i] else "down"})
+            if o:
+                prev = o
+        sym = p.stem.upper() + "USDT"
+        out[sym] = {"bubbles": bub, "end": end, "force": force, "entry": [], "hedge": [], "start": []}
+
+    # вход и хедж вихря, старт — из журнала очереди
+    ql = next((q for q in (Path("output") / "queue_log.jsonl",
+                           Path(__file__).resolve().parent / "output" / "queue_log.jsonl") if q.exists()), None)
+    if ql is not None:
+        try:
+            lines = ql.read_text(encoding="utf-8").splitlines()[-6000:]
+        except OSError:
+            lines = []
+        seen_top: dict = {}
+        ent: dict = {}
+        hed: dict = {}
+        for line in lines:
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            sym = str(r.get("sym") or "").upper()
+            if sym not in out or not r.get("at"):
+                continue
+            tr = _ms(r["at"])
+            if tr < since:
+                continue
+            e = r.get("vortex_entry")
+            if e and e.get("bar_ago") is not None:
+                te = tr - int(e["bar_ago"]) * 1800000
+                ent.setdefault((sym, round(te / 3600000)), {"t": te, "px": e.get("price"), "gap": e.get("gap")})
+            h = r.get("vortex_hedge")
+            if h and h.get("kind"):
+                hed.setdefault((sym, round(tr / 3600000)), {"t": tr, "px": h.get("price") or r.get("px"), "kind": h.get("kind")})
+            top = (r.get("place") or 9) <= 3
+            if top and not seen_top.get(sym):
+                out[sym]["start"].append({"t": tr, "px": r.get("px"), "place": r.get("place")})
+            seen_top[sym] = top
+        for (sym, _), v in ent.items():
+            out[sym]["entry"].append(v)
+        for (sym, _), v in hed.items():
+            out[sym]["hedge"].append(v)
+    return out
+
+
+def _bubble_oi() -> dict:
+    """ИНТЕРЕС И ТИП БАРА ДЛЯ ПУЗЫРЕЙ (08.09): срез Coinglass отдаёт в fullSeries только время,
+    покупки и продажи — по такому ряду нельзя понять, ОТКРЫВАЛИ на заявки позиции или об них
+    ЗАКРЫВАЛИСЬ, а именно это делит пузырь на ясный и спорный. Берём недостающее из внутридневного
+    архива по времени бара: sym → {t_ms: [oi, oi_type]}. Ничего не пересчитываем, только сводим.
+    """
+    out: dict = {}
+    d = next((q for q in (Path("cq_v2") / "intraday",
+                          Path(__file__).resolve().parent / "cq_v2" / "intraday") if q.exists()), None)
+    if d is None:
+        return out
+    from datetime import datetime, timezone
+    for p in d.glob("*.jsonl"):
+        sym = p.stem.upper() + "USDT"
+        rows: dict = {}
+        try:
+            lines = p.read_text(encoding="utf-8").splitlines()[-400:]
+        except OSError:
+            continue
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            c, oi = r.get("candle"), r.get("oi")
+            if not c or not oi:
+                continue
+            try:
+                t = int(datetime.fromisoformat(str(c).replace("Z", "+00:00")).timestamp() * 1000)
+            except ValueError:
+                continue
+            rows[t] = [oi, r.get("oi_type")]
+        if rows:
+            out[sym] = rows
+    return out
+
+
+def _pulse_series(days: int = 3) -> dict:
+    """ЛИНИЯ МИНИ-ЖУРНАЛА — ИЗ ПУЛЬСА (06.09, владелец: «графики маленькие странные»): точки
+    журнала у многих монет редкие, а у дозабранных цена дневная — линия шла ступенями. Пульс
+    пишет живую цену каждый прогон: sym → [[t_ms, price], …] за последние `days` дней."""
+    import time as _t
+    out: dict = {}
+    for p in (Path("pulse.json"), Path(__file__).resolve().parent / "pulse.json"):
+        if not p.exists():
+            continue
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except ValueError:
+            break
+        since = _t.time() - days * 86400
+        for sym, rows in (d.items() if isinstance(d, dict) else []):
+            if not isinstance(rows, list):
+                continue
+            pts = []
+            for r in rows:
+                if not isinstance(r, dict) or not r.get("price"):
+                    continue
+                t = r.get("t") or r.get("ts") or 0
+                try:
+                    t = float(t)
+                except (TypeError, ValueError):
+                    continue
+                if t > 1e12:
+                    t /= 1000
+                if t >= since:
+                    pts.append([int(t * 1000), float(r["price"])])
+            if len(pts) >= 4:
+                pts.sort()
+                # стоячие точки (07.09): пока цена бралась с закрытой дневки, пульс писал одну
+                # цену много раз подряд — линия шла полкой и обрывом; повторы подряд убираем
+                dedup = []
+                for q in pts:
+                    if dedup and abs(q[1] - dedup[-1][1]) < 1e-12:
+                        continue
+                    dedup.append(q)
+                if len(dedup) >= 4:
+                    out[str(sym).upper()] = dedup[-400:]
+        break
+    return out
+
+
+def _liq_history(days: int = 14) -> dict:
+    """Карта ликвидаций ВО ВРЕМЕНИ (05.09, по R2D2): каждый прогон liq_log
+    пишет полосы; складываем их по монете в ряд [[t_ms, [[цена, вес], …]], …]
+    за последние `days` дней — экран рисует тепловую карту за плитой:
+    видно, как полоса зреет и когда её сняли. Часовая карта (zones_hour)
+    главнее дневной; нет её — дневная."""
+    import time as _t
+    out: dict = {}
+    p = next((q for q in (Path("output") / "liq_log.jsonl", Path(__file__).resolve().parent / "output" / "liq_log.jsonl") if q.exists()), None)
+    if p is None:
+        return out
+    since = _t.time() - days * 86400
+    try:
+        for line in p.read_text(encoding="utf-8").splitlines():
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            sym = str(r.get("sym") or "").upper()
+            if not sym or sym == "BTC":
+                continue
+            if not sym.endswith("USDT"):
+                sym += "USDT"          # лог пишет базу (BLESS), экран ищет пару (BLESSUSDT) — иначе карта во времени пуста
+            try:
+                ts = datetime.strptime(r["at"] + " " + r["hm"], "%Y-%m-%d %H:%M").timestamp()
+            except (KeyError, ValueError):
+                continue
+            if ts < since:
+                continue
+            zs = r.get("zones_hour") or r.get("zones_day") or []
+            pts = [[round(float(z["price"]), 8), round(float(z.get("usd") or z.get("weight") or 0), 2)]
+                   for z in zs if z.get("price")]
+            if pts:
+                out.setdefault(sym, []).append([int(ts * 1000), pts])
+    except OSError:
+        pass
+    return out
+
+
+def render_coin(stars: list[dict], market: dict) -> str:
+    """Тело документа единого экрана монеты. Данные вшиты в JSON."""
+    sched = _read_json("schedule.json")
+    whales = _read_json("whales.json") or {}
+    crowd = (_read_json("coinglass_crowd.json") or {}).get("coins") or {}
+    flow = {}
+    for r in (_read_json("flow_watch.json") or {}).get("coins") or []:
+        flow[str(r.get("sym") or "").upper().replace("USDT", "")] = {
+            "case": r.get("case"), "low": r.get("low"), "high": r.get("high")}
+    payload = {"stars": stars, "market": market,
+               "whales": whales.get("by_coin") or {},
+               "sched": sched, "journal": _journal(),
+               "hist": _history(stars), "book": _book(),
+               "crowd": crowd, "flow": flow,
+               "oitypes": ((_read_json("oi_types.json") or {}).get("coins") or {}),   # плечо по типу (05.09)
+               "liqhist": _liq_history(),   # карта ликвидаций во времени (05.09)
+               "pulse": _pulse_series(3),   # линия мини-журнала — живая цена за 72 ч (08.09)
+               "bubOi": _bubble_oi(),       # интерес и тип бара для деления пузырей (08.09)
+               "fast": _fast_events(),      # быстрый слой: пузыри, конец, сила, вход/хедж вихря, старт (11.09)
+               "near": ((_read_json("near_move.json") or {}).get("coins") or {}),   # близкие к ходу (05.09)
+               # лидер по пампу — для тени снаружи (10.09): если доску тянет одна монета,
+               # вердикт карточки не работает, и на его месте показываем пластину с её именем
+               "pumps": sorted(
+                   [v for v in (_read_json("pump_leaders.json") or {}).values()
+                    if isinstance(v, dict) and not v.get("retired_at")],
+                   key=lambda x: -(x.get("run_pct") or 0)),
+               # ПУЛЬС ТОЛЬКО У НЫНЕШНИХ ПЕРВЫХ (09.09, владелец: «в списке мигают монеты вообще
+               # не из текущих первых, а видимо за день»): в near_move лежат все, кто прошёл
+               # фильтр за прогон, и мигал весь список. Первые — это очередь, места 1–3.
+               "firsts": [str(x).upper() for x in
+                          ((_read_json("near_move.json") or {}).get("first") or [])][:3],
+               # ФОНДЫ У ИМЕНИ (09.09, владелец: «добавь рядом с названиями три буквы, если
+               # держатель DWF Labs или Binance Labs»): берём из unlocks.json, поле investors.
+               "funds": {str(k).replace("USDT", "").upper():
+                         ("DWF" if "DWF" in json.dumps(v, ensure_ascii=False) else
+                          "YZI" if ("YZi" in json.dumps(v, ensure_ascii=False)
+                                    or "Binance Labs" in json.dumps(v, ensure_ascii=False)) else None)
+                         for k, v in (_read_json("unlocks.json") or {}).items()
+                         if not str(k).startswith("_") and isinstance(v, dict) and v.get("investors")},
+               "sources": source_stamps(stars, market)}
+    # ЧЁРНЫЙ ЭКРАН (05.09 вечер): NaN/Infinity из числовых рядов (веса полос, приросты) json.dumps
+    # пишет как NaN — это не JSON, JSON.parse в браузере падает, и вся страница пуста.
+    # Чистим: любое нечисло → null; allow_nan=False — страховка, чтобы такое больше не прошло.
+    blob = json.dumps(_finite(payload), ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    safe = blob.replace("</", "<\\/")
+    return (COIN_HTML
+            + f'<script id="coinData" type="application/json">{safe}</script>'
+            + COIN_JS)
+
+
+# ═════════════════════════════════════════════════════════════════════
+# РАЗМЕТКА И СТИЛИ. Живут в <template>, переносятся в теневое дерево:
+# стили документа (render_css) внутрь не проходят и не затираются.
+# ═════════════════════════════════════════════════════════════════════
+COIN_HTML = r"""
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@200;300;400;500&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@300;400&display=swap" rel="stylesheet">
+<div id="coinHost"></div>
+<template id="coinTpl">
+<style>
+:host{all:initial}
+/* плашки-подсказки у стрелок быстрого слоя на плите журнала (11.09) */
+.mini.journal g.arw .hint{opacity:0;transition:opacity .12s;pointer-events:none}
+.mini.journal g.arw:hover .hint{opacity:1}
+.mini.journal g.arw{cursor:default}
+.mini.journal .refl g.arw .hint{display:none}
+*{box-sizing:border-box}
+.wrap{position:fixed;inset:0;overflow:hidden;background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;font-weight:300}
+.stage{position:absolute;left:50%;top:100%;width:1440px;height:900px;transform-origin:50% 100%;
+  --f-name:Jost,sans-serif;--f-num:Jost,sans-serif;--f-cap:Jost,sans-serif;--f-text:Inter,sans-serif;
+  background:radial-gradient(900px 640px at 86% -4%, #1f7a5c 0%, #0f3f31 30%, #062219 55%, #020907 85%),#020907}
+.beam{position:absolute;left:900px;top:-80px;width:520px;height:900px;background:linear-gradient(rgba(160,255,214,.22),rgba(160,255,214,0));filter:blur(24px);transform:skewX(-14deg);pointer-events:none;will-change:opacity;animation:beam 9s ease-in-out infinite}
+@keyframes beam{0%,100%{opacity:.85;transform:skewX(-14deg)}50%{opacity:1;transform:skewX(-11deg)}}
+.floor{position:absolute;left:0;right:0;top:475px;bottom:0;pointer-events:none;
+  background:linear-gradient(180deg, rgba(150,225,195,.16) 0, rgba(110,190,160,.13) 5%, rgba(60,140,110,.11) 14%, rgba(20,70,55,.10) 38%, rgba(2,9,7,0) 75%)}
+.floor:before{content:"";position:absolute;left:0;right:0;top:-1px;height:2px;background:linear-gradient(90deg,transparent,rgba(190,245,220,.16) 25%,rgba(190,245,220,.16) 75%,transparent);filter:blur(2px)}
+.floor:after{content:"";position:absolute;left:0;right:0;top:0;height:90px;background:linear-gradient(180deg,rgba(160,230,200,.10),transparent);filter:blur(14px)}
+.slab{position:absolute;left:330px;top:70px;width:860px;height:720px;transform:perspective(1500px) rotateY(16deg);transform-origin:50% 50%;will-change:transform}
+.slab svg{display:block;width:860px;height:720px;overflow:visible}
+.leaders{position:absolute;inset:0;width:1440px;height:900px;pointer-events:none}
+.mono,.cap{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
+.hd{position:absolute;left:100px;top:40px;display:flex;align-items:baseline;gap:18px}
+.hd .t{font-family:var(--f-name);font-size:26px;font-weight:200;letter-spacing:.22em;color:#fff;text-shadow:0 0 18px rgba(255,255,255,.25);text-decoration:none;cursor:pointer;transition:.25s}
+.hd .t:hover{color:#ffd98a;text-shadow:0 0 22px rgba(245,169,58,.55)}
+.hd .ch{font-size:9px;color:#8fe0b5;letter-spacing:.04em}.hd .ch.dn{color:#ff9f8a}
+.hd .st{font-family:var(--f-cap);font-size:7px;letter-spacing:.34em;color:#7fb8a0;text-transform:uppercase}
+.hdr{position:absolute;right:100px;top:50px;text-align:right;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.22em;color:#7fb8a0;text-transform:uppercase}
+.hdr b{color:#dfe9e4;font-weight:400}
+/* ОСНОВА ТРЕНДА (08.09): начало движения — заголовком по центру, отвязано от линии;
+   при конце тренда блока нет вовсе, на линии остаётся только метка выхода */
+.tbase{position:absolute;left:50%;top:38px;transform:translateX(-50%);text-align:center;pointer-events:none;
+  font-family:var(--f-cap);opacity:0;animation:fadein .9s ease 1.6s forwards}
+.tbase b{display:block;font-weight:300;font-size:15px;letter-spacing:.3em;text-transform:uppercase;color:#ffe6b8;
+  text-shadow:0 0 20px rgba(240,200,138,.5)}
+.tbase s{display:block;text-decoration:none;margin-top:6px;font-size:7.5px;letter-spacing:.24em;
+  text-transform:uppercase;color:#7fb8a0}
+.pos{position:absolute;left:100px;top:96px;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.22em;text-transform:uppercase;color:#7fb8a0;opacity:0;animation:fadein .9s ease .3s forwards}
+.pos b{font-weight:400;color:#e8fff4}.pos.mine{color:#f5a93a}.pos.mine b{color:#ffd98a}
+.srcs{position:absolute;left:100px;top:118px;display:flex;flex-wrap:wrap;gap:4px 10px;max-width:560px;opacity:0;animation:fadein .9s ease .4s forwards}
+.src{display:inline-flex;align-items:center;gap:5px;font-family:var(--f-cap);font-size:6.5px;letter-spacing:.2em;text-transform:uppercase;color:#9fd8bf;white-space:nowrap}
+.src i{width:5px;height:5px;border-radius:50%;background:#5fe6a8;box-shadow:0 0 6px rgba(95,230,168,.8)}
+.src.stale{color:#ff8a70}.src.stale i{background:#ff5a4a;box-shadow:0 0 8px rgba(255,90,74,.9);animation:staleBlink 1.3s ease-in-out infinite}
+.src.none{color:#6b7f76}.src.none i{background:transparent;border:1px solid #6b7f76;box-shadow:none}
+/* одна метка свежести (04.09) */
+.srcs.one{cursor:default;max-width:none}.srcs.one .src{font-size:7.5px;padding:5px 10px 5px 8px;border-radius:9px;border:1px solid rgba(127,232,176,.16);background:rgba(3,18,14,.35)}
+.srcs.one .src.stale{border-color:rgba(255,90,74,.5);animation:staleBlink 1.3s ease-in-out infinite}
+.srcs.one:hover .card{opacity:1;transform:translate(-50%,-50%)}
+.card .r.src-r i{border-radius:50%;transform:none;border:0;width:6px;height:6px;margin-top:6px;background:#5fe6a8;box-shadow:0 0 6px rgba(95,230,168,.8)}
+.card .r.src-r.stale i{background:#ff5a4a;box-shadow:0 0 8px rgba(255,90,74,.9)}.card .r.src-r.stale .v{color:#ff9d84}
+.card .r.src-r.none i{background:transparent;border:1px solid #6b7f76;box-shadow:none}.card .r.src-r.none .v{color:#8fa79c}
+.stalebar{position:absolute;left:0;top:0;width:100%;height:3px;background:linear-gradient(90deg,transparent,#ff5a4a,transparent);box-shadow:0 0 18px rgba(255,90,74,.8);animation:staleBlink 1.3s ease-in-out infinite;pointer-events:none}
+@keyframes staleBlink{0%,100%{opacity:1}50%{opacity:.3}}
+.card .card-src{position:static;margin:-4px 0 8px;opacity:1;animation:none;max-width:none}
+.note .num.stale{color:#ff9f8a}.note .num u{display:inline-block;width:6px;height:6px;border-radius:50%;background:#ff5a4a;margin-left:8px;vertical-align:middle;box-shadow:0 0 8px rgba(255,90,74,.9);animation:staleBlink 1.3s ease-in-out infinite}
+.note .sub.stale{color:#ff8a70;opacity:1}
+.back{position:absolute;left:100px;top:78px;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.28em;text-transform:uppercase;color:#7fb8a0;text-decoration:none;opacity:.8}
+.back:hover{color:#dfffee}
+/* пометки групп */
+.note{position:absolute;width:180px;color:#ffcf6e;cursor:default}
+.note .row{display:flex;align-items:center;gap:7px;color:#f5a93a;filter:drop-shadow(0 0 5px rgba(255,207,110,.55))}
+.note .cap{font-size:7.5px;letter-spacing:.32em;text-transform:uppercase;color:#a9dcc6;font-weight:500}
+.note .num{font-family:var(--f-num);font-weight:200;font-size:16px;color:#fff;margin:5px 0 1px;letter-spacing:.02em;text-shadow:0 0 14px rgba(255,207,110,.4)}
+.note .unit{font-size:9px;color:#9fd8bf;line-height:1.35}
+.note .sub{font-size:8.5px;color:#7fb8a0;line-height:1.35;margin-top:3px;opacity:.85}
+.note .sub.hot{color:#f5a93a;opacity:1}
+.note:hover .num{color:#ffcf6e}
+/* карточка — по центру экрана */
+.card{position:fixed;left:50%;top:50%;transform:translate(-50%,-46%);width:460px;max-height:82vh;overflow:auto;
+  background:rgba(3,18,14,.8);border:1px solid rgba(127,232,176,.3);color:#e8ecfb;backdrop-filter:blur(14px);border-radius:12px;padding:16px 20px 14px;
+  box-shadow:0 30px 80px rgba(0,0,0,.55);opacity:0;pointer-events:none;transition:.25s;z-index:9}
+.note:hover .card,.dzone:hover .card{opacity:1;transform:translate(-50%,-50%)}
+.card .head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(127,232,176,.25)}
+.card .head .cap{font-size:8px;letter-spacing:.3em;text-transform:uppercase;color:#9fd8bf}
+.card .hn{font-family:var(--f-num);font-size:15px;font-weight:300;letter-spacing:.04em;color:#f5a93a}
+.card .r{display:grid;grid-template-columns:10px 92px 1fr;gap:0 8px;align-items:start;padding:6px 0;border-top:1px solid rgba(255,255,255,.06)}
+.card .r:first-of-type{border-top:0}
+.card .r i{display:block;width:5px;height:5px;margin-top:5px;border:1px solid #f5a93a;transform:rotate(45deg);opacity:.7}
+.card .r .k{font-family:var(--f-cap);font-size:7px;letter-spacing:.2em;text-transform:uppercase;line-height:1.5;padding-top:2px;color:#9fd8bf;opacity:.85}
+.card .r .v{font-size:11px;line-height:1.5}
+.card .r .v b{font-weight:400;color:#ffd98a}
+.card .r.slots{margin-top:4px;padding-top:8px;border-top:1px dashed rgba(127,232,176,.25)}
+.card .r.slots i{border-style:dashed;opacity:.4}.card .r.slots .k,.card .r.slots .v{color:#7fb8a0;opacity:.7;font-size:9.5px}
+.dzone{position:absolute;cursor:default}
+/* ПЯТНА НА ПОЛУ (04.09): вернул как HTML-слои с CSS-размытием — это слой на видеокарте,
+   а не SVG-фильтр внутри повёрнутой плиты, и стоит в разы дешевле */
+.pool{position:absolute;border-radius:50%;pointer-events:none;will-change:transform;transform:translateZ(0)}
+.pool.g1{left:360px;top:515px;width:820px;height:120px;background:radial-gradient(#f5a93a,rgba(245,169,58,0) 70%);opacity:.42;filter:blur(30px)}
+.pool.g2{left:470px;top:560px;width:600px;height:150px;background:radial-gradient(#e0891f,rgba(224,137,31,0) 70%);opacity:.28;filter:blur(36px)}
+.pool.t{left:520px;top:590px;width:700px;height:160px;background:radial-gradient(#2ec98d,rgba(46,201,141,0) 70%);opacity:.22;filter:blur(40px)}
+/* ЛЁГКИЕ АНИМАЦИИ (04.09): только position:absolute + transform/opacity, без фильтров и без SVG —
+   пылинки всплывают, световая полоса раз в 16 с проходит по сцене, две искры у оси дышат */
+.dustbox{position:absolute;inset:0;pointer-events:none;animation:dustgate 24s linear infinite}
+/* волнами: ~6 с видны, ~1 с гаснут, ~7 с пусто, ~1 с возвращаются */
+@keyframes dustgate{0%,71%{opacity:1}75%,96%{opacity:0}100%{opacity:1}}
+.dust{position:absolute;width:5px;height:5px;border-radius:50%;background:radial-gradient(#fff,#bfffe0 40%,rgba(191,255,224,0) 72%);box-shadow:0 0 6px rgba(191,255,224,.6);opacity:0;pointer-events:none;will-change:transform,opacity;animation:dust var(--d,14s) linear var(--w,0s) infinite}
+.dust.g{background:radial-gradient(#fff,#ffd98a 40%,rgba(255,217,138,0) 72%);box-shadow:0 0 6px rgba(245,169,58,.6)}
+@keyframes dust{0%{transform:translate3d(0,0,0) scale(.5);opacity:0}10%{opacity:.95}55%{opacity:.7}100%{transform:translate3d(var(--x,20px),-340px,0) scale(1.2);opacity:0}}
+.sweep{position:absolute;left:670px;top:-40px;width:320px;height:760px;pointer-events:none;will-change:transform;transform-origin:50% 0;
+  background:linear-gradient(180deg,rgba(191,255,224,.22) 0%,rgba(191,255,224,.12) 40%,rgba(255,217,138,.08) 75%,rgba(255,217,138,0) 100%);
+  clip-path:polygon(47.4% 0,52.6% 0,100% 100%,0 100%);animation:sweep 9s ease-in-out infinite alternate}
+@keyframes sweep{0%{transform:rotate(-16deg)}100%{transform:rotate(16deg)}}
+.spark{position:absolute;width:9px;height:9px;border-radius:50%;background:#ffd98a;box-shadow:0 0 14px 5px rgba(245,169,58,.55);pointer-events:none;will-change:transform,opacity;animation:spark 3.6s ease-in-out infinite}
+.spark.b{background:#bfffe0;box-shadow:0 0 10px 3px rgba(127,240,184,.4);animation-delay:1.8s}
+@keyframes spark{0%,100%{transform:scale(.6);opacity:.3}50%{transform:scale(1.4);opacity:1}}
+
+/* плашка решения слева внизу (04.09) */
+/* ── вступительная сводка (05.09): текст поверх графика при входе, гаснет по клику/клавише/через 9 с ── */
+.intro{position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;background:rgba(3,17,12,.55);backdrop-filter:blur(3px);opacity:1;transition:opacity .5s;cursor:pointer}
+.intro.off{opacity:0;pointer-events:none}
+.intro .ibox{width:640px;padding:26px 30px;border:1px solid rgba(127,232,176,.25);border-radius:12px;background:rgba(3,17,12,.82);box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.intro .icap{font-family:var(--f-cap);font-size:8px;letter-spacing:.34em;text-transform:uppercase;color:#9fd8bf;margin-bottom:14px}
+.intro .irow{display:grid;grid-template-columns:110px 1fr;gap:6px 14px;margin:0 0 9px}
+.intro .irow b{font-family:var(--f-cap);font-weight:400;font-size:7.5px;letter-spacing:.3em;text-transform:uppercase;color:#f5a93a;padding-top:3px}
+.intro .irow span{font-size:12px;line-height:1.45;color:#e9fff4}
+.intro .ihint{margin-top:12px;font-family:var(--f-cap);font-size:6.5px;letter-spacing:.24em;text-transform:uppercase;color:#7fb8a0}
+/* ── история монеты (07.09): кнопка у «монеты», панель по центру при наведении ── */
+.hist{position:absolute;right:250px;top:74px;z-index:6}
+.hist .hbtn{font-family:var(--f-cap);font-size:8px;letter-spacing:.34em;text-transform:uppercase;color:#9fd8bf;border:1px solid rgba(191,255,224,.22);border-radius:14px;padding:6px 12px;cursor:default;opacity:.6;transition:opacity .3s,box-shadow .3s}
+.hist:hover .hbtn{opacity:1;box-shadow:0 0 18px rgba(127,240,184,.2);border-color:rgba(191,255,224,.5)}
+.hist .hpl{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%) scale(.98);width:420px;max-height:70vh;overflow:auto;background:rgba(3,17,12,.94);border:1px solid rgba(191,255,224,.25);border-radius:10px;padding:14px 18px;box-shadow:0 20px 80px rgba(0,0,0,.7);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:40}
+.hist:hover .hpl{opacity:1;transform:translate(-50%,-50%) scale(1);pointer-events:auto}
+.hist .ht{font-family:var(--f-cap);font-size:9px;letter-spacing:.34em;text-transform:uppercase;color:#bfffe0;margin-bottom:10px}
+.hist .hh{font-family:var(--f-cap);font-size:7.5px;letter-spacing:.18em;text-transform:uppercase;color:#7fb8a0;margin:8px 0 6px}
+.hist .hr{display:grid;grid-template-columns:82px 70px 1fr;gap:10px;font-family:var(--f-cap);font-size:8px;letter-spacing:.1em;color:#dffff0;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.hist .hr b{font-weight:400;color:#ffe2a8;text-transform:uppercase}.hist .hr b.miss{color:#ff9d84}.hist .hr.ev b{color:#9dbbe0}
+/* ── близкие к ходу (05.09, владелец: «не иконками, само название пусть мигает») ── */
+/* близкая к ходу — просто тёплый цвет; ПУЛЬС только у нынешних первых (09.09) */
+.clist a.near span{color:#ffe2a8;text-shadow:0 0 8px rgba(255,217,138,.75),0 0 18px rgba(245,169,58,.35)}
+.clist a.first span{animation:nearpulse 1.6s ease-in-out infinite}
+/* ФОНД У ИМЕНИ (09.09): три буквы с ореолом — DWF янтарным, YZI холодным синим */
+.clist a f{font-style:normal;font-size:7px;letter-spacing:.1em;margin-left:5px;padding:1px 3px;
+  border-radius:3px;vertical-align:1px;font-weight:600}
+.clist a f.dwf{color:#ffd98a;background:rgba(245,169,58,.10);
+  box-shadow:inset 0 0 0 1px rgba(245,169,58,.35),0 0 8px rgba(245,169,58,.25)}
+.clist a f.yzi{color:#bfd8ff;background:rgba(120,170,255,.10);
+  box-shadow:inset 0 0 0 1px rgba(120,170,255,.38),0 0 8px rgba(120,170,255,.25)}
+@keyframes nearpulse{0%,100%{opacity:1;text-shadow:0 0 8px rgba(255,217,138,.75),0 0 18px rgba(245,169,58,.35)}50%{opacity:.55;text-shadow:0 0 2px rgba(255,217,138,.3)}}
+/* ── направление (05.09): стрелка «← снимут» мигает, плашка — при наведении на подпись ── */
+.dirhot .blink{animation:dirblink 1.4s ease-in-out infinite}
+@keyframes dirblink{0%,100%{opacity:1}50%{opacity:.25}}
+.dirhot .dirpl{opacity:0;pointer-events:none;transition:opacity .25s}
+.dirhot:hover .dirpl{opacity:1}
+.dirhot text{pointer-events:auto;cursor:default}
+/* ── ПЛЕЧО ПО ТИПУ (05.09, по Leviathan): мини-плита как журнал — линия цены поверх цветных
+   блоков по 4 ч (шорты открывают красный / закрывают приглушённый; лонги зелёный / приглушённый).
+   Стоит внизу слева под расписанием; подпись и легенда — обычным текстом под плитой. ── */
+.mini.oit{left:60px;--px:-15deg;--py:11deg;--pz:-2deg;bottom:130px;width:320px;--sc:.82;--c:#bfffe0;--g:127,240,184}
+.mini.oit .oitcap{position:absolute;left:0;top:-30px;font-family:var(--f-cap);font-size:7px;letter-spacing:.34em;text-transform:uppercase;color:#9fd8bf;white-space:nowrap}
+.mini.oit .oitread{position:absolute;left:0;top:186px;width:340px;font-family:var(--f-cap);font-size:7px;letter-spacing:.16em;text-transform:uppercase;color:#dffff0;line-height:1.4}
+.mini.oit .oitlg{position:absolute;left:0;top:216px;width:340px;display:flex;flex-wrap:wrap;gap:3px 12px;font-family:var(--f-cap);font-size:6px;letter-spacing:.12em;text-transform:uppercase;color:#7fb8a0}
+.mini.oit .oitlg span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.mini.oit .oitlg b{display:inline-block;width:7px;height:7px;border-radius:1px;flex:0 0 7px}
+.mini.oit svg text.fc{fill:#ffe2a8;font-size:6.5px;letter-spacing:.1em}
+/* ── ТРИ МИНИ-ПЛИТЫ ВНИЗУ (04.09, финал): вердикт, журнал за две недели, расписание —
+   уменьшенные копии большой плиты: тот же разворот в перспективе, белая линия земли,
+   золотое свечение под ней, отражение. Без кубов и панелей. ── */
+.mini{position:absolute;bottom:64px;width:320px;height:180px;transform:perspective(900px) rotateX(var(--px)) rotateY(var(--py)) rotateZ(var(--pz)) scale(var(--sc,1));transform-origin:50% 100%;opacity:0;animation:fadein 1.2s ease 3s forwards;--c:#ffd98a;--g:245,169,58}
+/* углы — те, что владелец подобрал на стенде (04.09): ось у нижней кромки */
+.mini.verdict{left:520px}
+/* ПЛИТА ЖУРНАЛА (09.09, владелец, три захода): на ней живут пузыри — читать их приходилось
+   приближая, потом она полезла за край экрана. Масштаб 0.91 → 1.37 → 2.19 → 1.53 → 1.30.
+   Сцена и остальные плиты не тронуты. */
+.mini.journal{right:80px;--px:-20deg;--py:-18deg;--pz:0deg;bottom:114px;--sc:1.30}   /* стенд 05.09 */
+.mini.sched{left:36px;--px:-15deg;--py:11deg;--pz:-2deg;bottom:350px;width:288px;--sc:.82;filter:saturate(.6) brightness(.85)}
+.mini.noglow .ground,.mini.noglow .refl{opacity:.35}   /* 05.09 ночь: выше на 86, под ней плита плеча */   /* стенд 05.09 */      /* дальше на 100 */
+.mini .ground{position:absolute;left:0;right:0;bottom:30px;height:1px;background:#fff6dc;opacity:.55}
+.mini .gglow{position:absolute;left:-10%;right:-10%;bottom:6px;height:44px;border-radius:50%;background:radial-gradient(rgba(var(--g),.55),rgba(var(--g),0) 70%);filter:blur(12px);pointer-events:none}
+.mini .refl{position:absolute;left:0;right:0;top:calc(100% - 30px);height:60px;transform:scaleY(-1);transform-origin:50% 0;opacity:.28;-webkit-mask-image:linear-gradient(#000,transparent);mask-image:linear-gradient(#000,transparent);pointer-events:none}
+.mini svg{position:absolute;left:0;top:0;width:100%;height:100%;overflow:visible}
+.mini .ax{font-family:var(--f-cap);font-size:6.5px;letter-spacing:.14em;fill:rgba(255,255,255,.45)}
+.mini .fc{font-family:var(--f-num);font-weight:500;font-size:8px;letter-spacing:.14em;text-transform:uppercase;fill:#ffe2a8}.mini .fc.miss{fill:#ffa892}
+.mini .ln{stroke-dasharray:var(--L);stroke-dashoffset:var(--L);animation:draw 2.2s cubic-bezier(.5,0,.3,1) 3.4s forwards}
+.mini .ring{transform-box:fill-box;transform-origin:center;animation:ringp 3s ease-in-out infinite}@keyframes ringp{0%,100%{transform:scale(1);opacity:.5}50%{transform:scale(1.35);opacity:1}}
+.mini .nowp{transform-box:fill-box;transform-origin:center;animation:nowp 2.4s ease-in-out infinite}@keyframes nowp{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.6);opacity:1}}
+.mini .seg{animation:seg 3.2s ease-in-out infinite alternate}@keyframes seg{0%{opacity:.6}100%{opacity:1}}
+/* ВЕРДИКТ (05.09, по референсу): слева синий светящийся куб, над ним в свете висит решение,
+   справа тёмный матовый блок, на его грани — «за» и «против». Настоящие ящики из граней. */
+.mini.verdict{width:420px;height:230px;transform:none;--px:0deg;--py:0deg;--pz:0deg}
+.mini.verdict .ground,.mini.verdict .gglow{display:none}
+.vb .box{position:absolute;transform-style:preserve-3d;transform-origin:50% 100% 0;transform:perspective(900px) rotateX(var(--bx,-12deg)) rotateY(var(--by,14deg))}
+.vb .f{position:absolute;left:0;top:0}
+.vb .f.front{width:var(--W);height:var(--H);transform:translateZ(var(--D))}
+.vb .f.back{width:var(--W);height:var(--H);transform:rotateY(180deg)}
+.vb .f.left{width:var(--D);height:var(--H);transform:rotateY(-90deg);transform-origin:0 0}
+.vb .f.right{width:var(--D);height:var(--H);transform:translateX(var(--W)) rotateY(-90deg);transform-origin:0 0}
+.vb .f.top{width:var(--W);height:var(--D);transform:rotateX(90deg);transform-origin:0 0}
+.vb .f.bottom{width:var(--W);height:var(--D);transform:translateY(var(--H)) rotateX(90deg);transform-origin:0 0}
+/* синий куб */
+.vb .blue{--W:72px;--H:72px;--D:72px;--bx:-12deg;--by:18deg;left:34px;bottom:0;width:var(--W);height:var(--H)}
+.vb .blue .f{border:1px solid rgba(140,185,255,.8);box-shadow:inset 0 0 18px rgba(60,120,255,.7);background-image:linear-gradient(rgba(200,225,255,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(200,225,255,.35) 1px,transparent 1px),linear-gradient(135deg,rgba(40,95,235,.9),rgba(18,55,190,.85) 60%,rgba(8,26,120,.95));background-size:20% 20%,20% 20%,100% 100%}
+.vb .blue .f.top{box-shadow:inset 0 0 26px rgba(150,200,255,.95);background-image:linear-gradient(rgba(220,240,255,.45) 1px,transparent 1px),linear-gradient(90deg,rgba(220,240,255,.45) 1px,transparent 1px),linear-gradient(180deg,rgba(120,180,255,.95),rgba(40,95,235,.9));background-size:20% 20%,20% 20%,100% 100%}
+.vb .blue .f.left,.vb .blue .f.right{filter:brightness(.7)}
+/* светлый вариант куба (как в первом эскизе по референсу) */
+.vb.light .blue .f{border:1px solid rgba(190,220,255,.7);box-shadow:inset 0 0 18px rgba(150,200,255,.7);background-image:linear-gradient(rgba(255,255,255,.28) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.28) 1px,transparent 1px),linear-gradient(135deg,rgba(120,170,255,.55),rgba(40,90,220,.35) 60%,rgba(20,50,160,.5));background-size:33.3% 33.3%,33.3% 33.3%,100% 100%}
+.vb.light .blue .f.top{box-shadow:inset 0 0 26px rgba(220,240,255,.9);background-image:linear-gradient(rgba(255,255,255,.35) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.35) 1px,transparent 1px),linear-gradient(180deg,rgba(220,240,255,.7),rgba(120,170,255,.5));background-size:33.3% 33.3%,33.3% 33.3%,100% 100%}
+.vb.light .blue .f.left,.vb.light .blue .f.right{filter:none}
+.vb .bglow{position:absolute;left:20px;bottom:-14px;width:140px;height:40px;border-radius:50%;background:radial-gradient(#4f8cff,rgba(60,120,255,0) 70%);filter:blur(14px)}
+.vb .bglow2{position:absolute;left:-10px;bottom:30px;width:200px;height:200px;border-radius:50%;background:radial-gradient(rgba(80,140,255,.34),rgba(80,140,255,0) 65%);filter:blur(22px);pointer-events:none}
+.vb .ray{position:absolute;bottom:0;width:1px;height:200px;background:linear-gradient(0deg,rgba(190,220,255,.6),rgba(190,220,255,0));animation:vray var(--rd,6s) ease-in-out var(--rw,0s) infinite alternate;transform-origin:50% 100%}
+.vb .ray::after{content:"";position:absolute;left:-1.5px;top:0;width:3px;height:3px;border-radius:50%;background:#fff;box-shadow:0 0 6px #bfe0ff}
+@keyframes vray{0%{transform:scaleY(.5);opacity:.3}100%{transform:scaleY(1);opacity:.9}}
+.vb .vtxt{position:absolute;left:-60px;bottom:70px;width:250px;text-align:center}
+.vb .vtxt.long .vw{font-size:22px;letter-spacing:.14em}   /* длинные вердикты («хеджировать», «закрыть часть») — мельче, чтобы не лезть на блок */
+.vb .vtxt .vcap{font-family:var(--f-cap);font-size:7px;letter-spacing:.34em;text-transform:uppercase;color:#bfe0ff;opacity:.8}
+.vb .vtxt .vw{font-family:var(--f-num);font-weight:300;font-size:30px;letter-spacing:.24em;color:#eaf4ff;text-shadow:0 0 12px rgba(150,200,255,.9),0 0 34px rgba(120,170,255,.6);margin:4px 0 2px;line-height:1.1}
+.vb .vtxt .vwhy{font-family:var(--f-cap);font-size:7px;letter-spacing:.22em;text-transform:uppercase;color:#bfe0ff}
+/* серый блок */
+.vb .grey{--W:230px;--H:145px;--D:110px;--bx:-8deg;--by:-14deg;left:210px;bottom:0;width:var(--W);height:var(--H)}
+.vb .grey .f.front{transform-style:preserve-3d}.vb .grey .txt{transform:translateZ(1px)}   /* строго в плоскости грани — строки параллельны её верхней кромке */   /* текст лежит в плоскости грани */
+.vb .grey .f{background:#0d1110;border:1px solid rgba(255,255,255,.05)}
+.vb .grey .f.front{background:linear-gradient(180deg,#171c1b,#0a0d0c);box-shadow:inset 0 0 50px rgba(0,0,0,.75)}
+.vb .grey .f.top{background:linear-gradient(180deg,#1f2523,#121615)}
+.vb .grey .f.left{background:linear-gradient(90deg,#060807,#111514)}.vb .grey .f.right{background:linear-gradient(270deg,#060807,#111514)}
+.vb .grey .f.back,.vb .grey .f.bottom{background:#080b0a}
+.vb .grey .txt{position:absolute;inset:0;padding:18px 16px;display:grid;grid-template-columns:42px 1fr;gap:10px 8px;align-content:center}
+/* гравировка: одна фактура у всех строк — цвет чуть темнее грани, тонкая светлая кромка снизу и тень сверху */
+.vb .grey .txt b,.vb .grey .txt span{color:#5c6763;text-shadow:0 1px 0 rgba(255,255,255,.22),0 -1px 0 rgba(0,0,0,.95),0 0 6px rgba(0,0,0,.6)}
+.vb .grey .txt b{font-family:var(--f-cap);font-weight:500;font-size:7px;letter-spacing:.3em;text-transform:uppercase;padding-top:2px}
+.vb .grey .txt span{font-family:var(--f-cap);font-size:8.5px;line-height:1.55;letter-spacing:.02em}   /* моно, вариант 1 (05.09) */
+.vb .grey .txt .con{color:#6b5f59;text-shadow:0 1px 0 rgba(255,225,205,.2),0 -1px 0 rgba(0,0,0,.95),0 0 6px rgba(0,0,0,.6)}
+.vb .gshadow{position:absolute;left:190px;bottom:-10px;width:280px;height:24px;border-radius:50%;background:radial-gradient(rgba(0,0,0,.8),rgba(0,0,0,0) 70%)}
+.mini.verdict.v-buy{--c:#ffd98a;--g:245,169,58}.mini.verdict.v-hold{--c:#fbe9c4;--g:251,233,196}.mini.verdict.v-wait{--c:#a8f0dc;--g:79,209,168}.mini.verdict.v-exit{--c:#ffc4b3;--g:255,138,112}
+.decbox{left:56px;bottom:56px;width:330px;padding:0;background:none;border:0;box-shadow:none;z-index:4}
+/* монеты */
+.coins{position:absolute;right:100px;top:74px;z-index:6}
+.cbtn{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.28em;text-transform:uppercase;color:#bfe9d6;cursor:pointer;
+  border:1px solid rgba(255,207,110,.3);border-radius:16px;padding:6px 13px 6px 10px;background:rgba(3,18,14,.5);backdrop-filter:blur(8px);transition:.25s}
+.cbtn i{width:6px;height:6px;border:1px solid #f5a93a;transform:rotate(45deg);box-shadow:0 0 8px rgba(245,169,58,.7)}
+.cbtn b{font-weight:400;color:#f5a93a}
+.coins:hover .cbtn{border-color:rgba(255,207,110,.7);color:#fff;box-shadow:0 0 24px rgba(245,169,58,.18)}
+.coins:after{content:"";position:absolute;left:-30px;right:-30px;top:100%;height:24px}
+/* СПИСОК МОНЕТ — ВО ВСЮ ШИРИНУ ЭКРАНА (08.09, владелец: «оставить ширину на весь экран и увеличить
+   высоту списка; скролл только если список начнёт выходить за экран»): панель растягивается от края
+   до края, колонок помещается больше, высота растёт по содержимому. Прокрутка появляется сама и
+   только когда список действительно не влезает в окно. */
+.clist{position:fixed;left:16px;right:16px;top:88px;display:block;padding:16px 22px 14px;border-radius:14px;
+  background:rgba(3,18,14,.9);border:1px solid rgba(127,232,176,.3);backdrop-filter:blur(14px);box-shadow:0 30px 80px rgba(0,0,0,.6);
+  max-height:calc(100vh - 108px);overflow-y:auto;overscroll-behavior:contain;
+  opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .25s,transform .25s;transition-delay:.35s}
+.clist::-webkit-scrollbar{width:6px}
+.clist::-webkit-scrollbar-thumb{background:rgba(127,232,176,.28);border-radius:3px}
+.clist::-webkit-scrollbar-track{background:transparent}
+.clist:before{content:"";position:absolute;left:-20px;right:-20px;top:-18px;height:20px}
+.coins:hover .clist{opacity:1;transform:none;pointer-events:auto;transition-delay:0s}
+.clist .ch{position:sticky;left:18px;top:-9px;padding:0 6px;background:#03120e;font-family:var(--f-cap);font-size:7px;letter-spacing:.28em;text-transform:uppercase;color:#7fb8a0;white-space:nowrap}
+/* СОРТИРОВКА СВЕРХУ ВНИЗ (09.09, владелец: «сейчас слева направо по всей ширине — неудобно»):
+   колонки заполняются вертикально, как в словаре: A внизу первой колонки, не в начале второй.
+   Делается колоночной раскладкой — браузер сам режет поток на столбцы по высоте. */
+.clist .cols{display:block;column-width:150px;column-gap:18px;column-fill:balance}
+.clist .cols > *{break-inside:avoid;-webkit-column-break-inside:avoid}
+.clist a{display:flex;align-items:center;gap:7px;font-family:var(--f-num);font-weight:300;font-size:12px;letter-spacing:.1em;color:#dfe9e4;padding:3px 8px;border-radius:6px;cursor:pointer;transition:.15s;border-left:1px solid transparent;text-decoration:none;white-space:nowrap}
+.clist a i{width:6px;height:6px;border-radius:50%;flex:0 0 6px;opacity:.9}
+.clist a span{min-width:64px}
+.clist a em{font-style:normal;font-size:9px;line-height:1;opacity:.9}.clist em.ld{color:#f5a93a}.clist em.ht{color:#ff8a70}.clist em.nw{color:#7fe8b0}.clist em.my{color:#ffd98a}
+.clist a u{text-decoration:none;font-family:var(--f-cap);font-size:6.5px;letter-spacing:.16em;text-transform:uppercase;border:1px solid;border-radius:8px;padding:1px 5px;opacity:.85;margin-left:auto}
+.clist a:hover{color:#f5a93a;background:rgba(245,169,58,.08);border-left-color:#f5a93a}
+.clist a.cur{color:#f5a93a}.clist a.cur span:after{content:" ·"}
+.cleg{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:10px;padding-top:9px;border-top:1px dashed rgba(127,232,176,.2);font-family:var(--f-cap);font-size:6.5px;letter-spacing:.18em;text-transform:uppercase;color:#7fb8a0;white-space:nowrap}
+.cleg b{display:inline-flex;align-items:center;gap:5px;font-weight:400}.cleg b i{width:6px;height:6px;border-radius:50%}.cleg s{flex:0 0 100%;height:0}.cleg em{font-style:normal;font-size:9px}
+/* часы и сияние */
+.clockbox{position:absolute}
+.cvessel{position:relative;width:100px;height:140px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end}
+.cvessel svg{width:100px;height:100px;display:block;overflow:visible}
+.cvessel.dial{height:150px;justify-content:center}.cvessel.dial svg{width:150px;height:150px}
+.ctop{text-align:center;margin-bottom:2px;line-height:1;white-space:nowrap}
+.ctop b{display:block;font-family:var(--f-num);font-weight:200;font-size:18px;letter-spacing:.06em;text-shadow:0 0 14px rgba(255,255,255,.25)}
+.ctop span{display:block;margin-top:4px;font-family:var(--f-cap);font-size:6.5px;letter-spacing:.3em;text-transform:uppercase;color:#bfe9d6}
+.ctxt{margin-bottom:34px;display:flex;flex-direction:column;gap:6px;font-family:var(--f-cap);font-size:8px;letter-spacing:.16em;text-transform:uppercase}
+.ctxt .k{color:#7fb8a0;margin-right:8px}.ctxt b{font-weight:400;color:#e8fff4}
+.w1{animation:wave 9s linear infinite}.w2{animation:wave 14s linear infinite reverse}@keyframes wave{to{transform:translateX(-92px)}}
+.breath{animation:breath 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
+@keyframes breath{0%,100%{opacity:.25;transform:scale(.8)}50%{opacity:.9;transform:scale(1.25)}}
+.aura{position:absolute;left:250px;width:960px;top:-40px;height:340px;border-radius:50%;filter:blur(28px);opacity:0;transition:opacity 1.2s;pointer-events:none;transform-origin:50% 65%}
+.aura.up{background:radial-gradient(50% 60% at 50% 65%, rgba(90,255,160,.8), rgba(70,240,140,.3) 45%, transparent 75%)}
+.aura.dn{background:radial-gradient(50% 60% at 50% 65%, rgba(255,90,74,.7), rgba(255,90,74,.22) 45%, transparent 75%)}
+.aura:after{content:"";position:absolute;left:12%;right:12%;top:62%;height:26%;border-radius:50%;filter:blur(18px)}
+.aura.up:after{background:rgba(120,255,180,.5)}.aura.dn:after{background:rgba(255,110,90,.5)}
+.aura.on{opacity:1}.aura.soon{opacity:.42;transform:scale(.5);animation:auraPulse 3s ease-in-out infinite}
+@keyframes auraPulse{0%,100%{opacity:.3}50%{opacity:.55}}
+/* появление сцены */
+.an{opacity:0;animation:fadein 1s ease forwards}
+.ln{stroke-dasharray:var(--L);stroke-dashoffset:var(--L);animation:draw 1.9s cubic-bezier(.5,0,.3,1) .6s forwards}
+.ld{stroke-dasharray:var(--L);stroke-dashoffset:var(--L);animation:draw .5s ease-out forwards}
+.grd{animation-delay:.25s}.edge{animation-delay:2.3s}.fillg{animation-delay:1.9s;animation-duration:1.4s}.mesh{animation-delay:2.1s;animation-duration:1.4s}
+.nd{animation-duration:.5s}.refl{animation-delay:2.6s;animation-duration:1.2s}.lv,.lv2{animation-delay:2.7s}.now{animation-delay:2.5s}
+.ldc{animation-duration:.4s}.note.an{animation-duration:.7s}.dec{animation-delay:3.5s;animation-duration:1s}
+.hd,.hdr,.coins,.clockbox,.back{opacity:0;animation:fadein .9s ease .1s forwards}
+@keyframes fadein{to{opacity:1}}@keyframes draw{to{stroke-dashoffset:0}}
+.tw{opacity:.6}
+.ring{transform-box:fill-box;transform-origin:center;animation:ring 2.2s ease-out 3;animation-fill-mode:forwards}@keyframes ring{0%{transform:scale(.6);opacity:.9}100%{transform:scale(3.2);opacity:0}}
+.replay{position:absolute;left:100px;bottom:22px;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.24em;text-transform:uppercase;color:#7fb8a0;cursor:pointer;border:1px solid rgba(127,232,176,.25);border-radius:14px;padding:5px 12px;z-index:5}
+.replay:hover{color:#dfffee;border-color:rgba(127,232,176,.5)}
+.eclipse{position:absolute;inset:0;pointer-events:none;z-index:60;opacity:0;
+  animation:eclipsein 1.4s ease .8s forwards}
+@keyframes eclipsein{to{opacity:1}}
+.eclipse .edge{position:absolute;inset:0;
+  background:radial-gradient(125% 95% at 50% 46%, transparent 36%, rgba(2,6,10,.44) 74%, rgba(1,3,6,.86) 100%),
+             linear-gradient(90deg, rgba(1,3,6,.62), transparent 19%, transparent 81%, rgba(1,3,6,.62));
+  animation:eclipsebreath 9s ease-in-out infinite}
+@keyframes eclipsebreath{50%{opacity:.86}}
+
+/* ПЛАШКА МЕНЬШЕ (10.09, владелец): ширина 560 → 400, поля и кегли поджаты пропорционально */
+.leadwrap{position:absolute;left:50%;bottom:84px;transform:translateX(-50%);z-index:61;
+  width:400px;pointer-events:none}
+/* ИМЯ ЛИДЕРА: подсвечено снизу и живёт (10.09, владелец). Не мигает — под ним дышит тёплый
+   ореол, буквы медленно наливаются светом, а тонкая световая полоса проходит по ним слева
+   направо, будто по нагретому металлу. */
+.leadwrap .nm{position:relative;display:inline-block;left:50%;transform:translateX(-50%);
+  margin-bottom:-11px;z-index:2;
+  font-family:var(--f-name),system-ui,sans-serif;font-weight:400;font-size:21px;letter-spacing:.22em;
+  color:#ffeec6;
+  text-shadow:0 0 18px rgba(255,190,90,.55), 0 6px 26px rgba(255,150,40,.45), 0 1px 0 rgba(120,70,10,.6);
+  opacity:0;animation:nmdrop 1s cubic-bezier(.2,.8,.2,1) 1.35s forwards,
+                      nmheat 6s ease-in-out 2.4s infinite}
+@keyframes nmdrop{from{opacity:0;transform:translateX(-50%) translateY(-14px)}
+                  to{opacity:1;transform:translateX(-50%) translateY(0)}}
+/* дыхание свечения — сами буквы, без смены цвета */
+@keyframes nmheat{50%{text-shadow:0 0 26px rgba(255,206,120,.85), 0 8px 34px rgba(255,150,40,.6),
+                                  0 1px 0 rgba(120,70,10,.6)}}
+/* ореол под именем — пульсирует медленнее букв */
+.leadwrap .nm:after{content:"";position:absolute;left:50%;bottom:-4px;width:200px;height:20px;
+  transform:translateX(-50%);border-radius:50%;z-index:-1;
+  background:radial-gradient(closest-side, rgba(255,190,90,.42), transparent 72%);filter:blur(8px);
+  animation:nmhalo 7.5s ease-in-out infinite}
+@keyframes nmhalo{50%{opacity:.55;width:168px}}
+/* световая полоса по буквам */
+.leadwrap .nm:before{content:attr(data-n);position:absolute;left:0;top:0;white-space:nowrap;
+  color:transparent;
+  background:linear-gradient(100deg, transparent 42%, rgba(255,255,245,.95) 50%, transparent 58%);
+  background-size:280% 100%;-webkit-background-clip:text;background-clip:text;
+  animation:nmsweep 9s ease-in-out 3s infinite;pointer-events:none}
+@keyframes nmsweep{0%{background-position:130% 0}45%,100%{background-position:-30% 0}}
+
+/* сама фигура: пластина со скошенными плечами и сужением книзу */
+.plate{position:relative;padding:20px 30px 17px;text-align:center;overflow:hidden;isolation:isolate;
+  --cut:19px;
+  clip-path:polygon(var(--cut) 0, calc(100% - var(--cut)) 0, 100% var(--cut),
+                    100% calc(100% - 24px), calc(100% - 56px) 100%,
+                    56px 100%, 0 calc(100% - 24px), 0 var(--cut));
+  /* фон пластины — холодный стальной (10.09, владелец: «попробуй другой цвет фона»):
+     тёплое золото имени и капсул читается на нём заметно лучше, чем на коричневом */
+  background:linear-gradient(157deg, rgba(16,22,34,.86), rgba(7,10,16,.88) 60%, rgba(13,18,28,.87));
+  box-shadow:0 26px 64px rgba(0,0,0,.8);
+  opacity:0;animation:boxin 1s cubic-bezier(.2,.8,.2,1) 1.1s forwards}
+@keyframes boxin{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+/* световые рёбра по контуру фигуры */
+.plate .rib{position:absolute;inset:0;pointer-events:none;
+  clip-path:inherit;
+  background:linear-gradient(157deg, rgba(255,200,110,.30), transparent 26%, transparent 74%, rgba(255,200,110,.22));
+  -webkit-mask:linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  padding:1px;-webkit-mask-composite:xor;mask-composite:exclude}
+/* зарево внутри */
+.plate:before{content:"";position:absolute;left:-30%;top:-60%;width:60%;height:220%;
+  background:radial-gradient(closest-side, rgba(255,180,70,.17), transparent 70%);
+  filter:blur(14px);animation:leadglow 11s ease-in-out infinite;z-index:-1}
+@keyframes leadglow{0%,100%{transform:translateX(0)}50%{transform:translateX(160%)}}
+/* блик, проходящий по пластине по диагонали */
+.plate em.spark{position:absolute;bottom:-6px;width:2px;height:2px;border-radius:50%;
+  background:rgba(255,214,140,.9);box-shadow:0 0 8px rgba(255,190,90,.9);
+  animation:sparkup linear infinite}
+@keyframes sparkup{0%{opacity:0;transform:translateY(0)}15%{opacity:1}100%{opacity:0;transform:translateY(-92px)}}
+/* отражение под пластиной */
+.leadwrap .refl{height:19px;margin-top:-2px;
+  background:linear-gradient(180deg, rgba(255,190,100,.16), transparent 78%);
+  filter:blur(9px);
+  clip-path:polygon(56px 0, calc(100% - 56px) 0, calc(100% - 96px) 100%, 96px 100%);
+  opacity:0;animation:eclipsein 1.2s ease 1.5s forwards}
+
+.plate i{display:block;font-style:normal;font-size:7.5px;letter-spacing:.4em;text-transform:uppercase;
+  color:rgba(255,214,150,.92);text-shadow:0 0 14px rgba(255,180,90,.5);margin-bottom:11px}
+.plate .nums{display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
+.plate .nums span{font-size:9px;letter-spacing:.05em;color:#ffd9a8;padding:4px 10px;
+  box-shadow:inset 0 0 0 1px rgba(255,200,120,.24);
+  clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%)}
+.plate s{display:block;text-decoration:none;margin-top:12px;padding-top:10px;font-size:8.8px;
+  letter-spacing:.05em;line-height:1.55;color:rgba(226,228,235,.5);
+  border-top:1px solid rgba(255,190,110,.14)}
+.legend{position:absolute;right:270px;bottom:22px;font-family:var(--f-cap);font-size:7px;letter-spacing:.22em;color:#5e8f7a}
+.atmo{position:absolute;inset:0;pointer-events:none}
+.atmo .vig{position:absolute;inset:0;background:radial-gradient(ellipse 70% 60% at 50% 45%, transparent 45%, rgba(0,0,0,.55) 100%)}
+.atmo svg{position:absolute;inset:0;width:100%;height:100%;opacity:.07;mix-blend-mode:overlay}
+.empty{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);text-align:center;font-family:var(--f-cap);font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:#7fb8a0}
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}.an,.hd,.hdr,.coins,.clockbox,.back{opacity:1}.ln,.ld{stroke-dashoffset:0}}
+/* ── ПРОГНОЗ ЖУРНАЛА на плите (04.09): подпись на 20% крупнее обычной, свечение, подчёркивание светом ── */
+.fc text{font-family:Jost,Inter,sans-serif;font-weight:500;font-size:12px;letter-spacing:.2em;text-transform:uppercase}
+.fc.now text{fill:#ffe2a8;paint-order:stroke;stroke:rgba(3,17,12,.85);stroke-width:2.5px;stroke-linejoin:round}
+.fc.past text{fill:#bfe9d6;font-weight:400;paint-order:stroke;stroke:rgba(3,17,12,.8);stroke-width:2px;stroke-linejoin:round}
+.fc.miss text{fill:#ffa892;paint-order:stroke;stroke:rgba(3,17,12,.85);stroke-width:2.5px;stroke-linejoin:round}
+.fc .u{stroke-width:.8;stroke-linecap:round;opacity:.8}.fc.now .u{stroke:url(#fcu1)}.fc.past .u{stroke:url(#fcu2)}.fc.miss .u{stroke:url(#fcu3)}
+.fc .st{stroke-dasharray:2 5}
+@keyframes fcglint{0%,100%{opacity:1}50%{opacity:.78}}
+@keyframes fcflow{to{stroke-dashoffset:-70}}
+</style>
+<div class="wrap"><div class="stage" id="stage"></div></div>
+</template>
+"""
+
+
+# ═════════════════════════════════════════════════════════════════════
+# ЛОГИКА. Всё считается из данных на месте: сцена, пометки, карточки,
+# часы. Ничего не рисуется тем, чего в сводке нет.
+# ═════════════════════════════════════════════════════════════════════
+COIN_JS = r"""
+<script>
+(function () {
+  'use strict';
+  var raw = document.getElementById('coinData');
+  var D; try { D = JSON.parse(raw.textContent); } catch (e) { return; }
+  var host = document.getElementById('coinHost');
+  var tpl = document.getElementById('coinTpl');
+  var root = host.attachShadow({ mode: 'open' });
+  root.appendChild(tpl.content.cloneNode(true));
+  var stage = root.getElementById('stage');
+
+  var STARS = (D.stars || []).filter(function (s) { return s && s.t; });
+  var BY = {}; STARS.forEach(function (s) { BY[String(s.t).toUpperCase()] = s; });
+  var NAMES = Object.keys(BY).sort();
+  var WH = D.whales || {}, SC = D.sched, JR = D.journal || {}, HIST = D.hist || {}, BOOK = D.book || {}, CROWD = D.crowd || {}, FLOW = D.flow || {}, OIT = D.oitypes || {}, NEAR = D.near || {};
+  var FIRSTS = (D.firsts || []), FUNDS = (D.funds || {});
+
+  // ── помощники ──
+  function esc(t) { return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+  function f(x) { return (Math.round(x * 100) / 100).toString(); }
+  function pct(v, d) { if (v === undefined || v === null || isNaN(+v)) return null; var n = +v; return (n > 0 ? '+' : n < 0 ? '−' : '') + Math.abs(n).toFixed(d === undefined ? 1 : d) + '%'; }
+  function px4(v) { v = +v; if (!v) return '—'; return v >= 100 ? v.toFixed(1) : v >= 1 ? v.toFixed(3) : v >= 0.01 ? v.toFixed(4) : v.toFixed(6); }
+  // КОРОТКИЕ ИМЕНА ПРОГНОЗОВ (05.09, владелец: «названия можно сокращать, и не надо урезать»)
+  var TPL_SHORT = [['крупняк начал тащить вверх', 'начал тащить'], ['крупняк тащит вверх', 'тащит'], ['кит поглощает слив', 'кит поглощает'],
+    ['курок взведён на шорты', 'курок'], ['у цели сбора', 'у цели'], ['разгон на спросе', 'разгон'], ['разгон отпустил', 'отпустил'],
+    ['дёрг без подтверждения', 'дёрг'], ['осечка', 'осечка'], ['отбой', 'отбой']];
+  // ЧТО ПОКАЗЫВАТЬ НА ПЛИТАХ (05.09, владелец): журнал и Телеграм — все смены, они работают как
+  // сигналы; на карте важнее НАЧАЛО движения и его ПРОДОЛЖЕНИЕ или КОНЕЦ. Показываем две метки:
+  // начало текущего движения (последняя метка первого рода: начал тащить, курок, кит поглощает, дёрг)
+  // и самую последнюю метку; промежуточные («у цели», если пошли дальше) — точкой без подписи.
+  // Каждый отскок может стать концом, поэтому последняя метка видна всегда, но заменяется следующей.
+  var TPL_START = ['крупняк начал тащить', 'курок', 'кит поглощает', 'дёрг'];
+  function isStart(t) { t = String(t || '').toLowerCase(); return TPL_START.some(function (w) { return t.indexOf(w) === 0; }); }
+  // НА БОЛЬШОМ ГРАФИКЕ — ТОЛЬКО ТЕКУЩЕЕ (08.09): начало ушло в заголовок (trendBase), поэтому
+  // подпись остаётся одна — последняя. Нижняя плита истории по-прежнему показывает все смены
+  // (там свой вызов shownMarks с флагом all).
+  function shownMarks(M, all) {
+    if (!M || !M.length) return {};
+    var last = M.length - 1, out = {};
+    out[last] = true;
+    if (!all) return out;
+    var start = -1;
+    for (var i = last; i >= 0; i--) { if (isStart(M[i].tpl)) { start = i; break; } }
+    while (start > 0 && isStart(M[start - 1].tpl)) start--;
+    if (start >= 0) out[start] = true;
+    return out;
+  }
+  // КОНЕЦ ТРЕНДА (08.09, владелец: «если у нас выход, нет смысла показывать вход»):
+  // отпустил / осечка / отбой / конец — движение закончилось, вход больше не показываем.
+  var TPL_END = ['разгон отпустил', 'отпустил', 'осечка', 'отбой', 'конец тренда', 'выходят'];
+  function isEnd(t) { t = String(t || '').toLowerCase(); return TPL_END.some(function (w) { return t.indexOf(w) >= 0; }); }
+  // КОНЕЦ ПО БАРАМ (08.09, владелец: «у нас внутридневные мерки, которые меняются каждые полчаса»):
+  // словесный шаблон живёт на дневках и меняется раз в сутки — у DOOD «тащит» висело, когда по
+  // барам движение кончилось накануне в 22:30. Событие приходит из near_move (ended_at) и бьёт
+  // шаблон: тренд считается законченным, даже если репутация ещё не сменила мнение.
+  function endedByBars(sym) {
+    var key = String(sym || '').toUpperCase();
+    if (key && key.indexOf('USDT') < 0) key += 'USDT';
+    var n = NEAR[key] || {};
+    var t = n.today || {};
+    return t.ended_at ? { at: t.ended_at, why: (t.closing_bars >= 3 ? 'лонги выходят' : 'рука ушла') } : null;
+  }
+  // ОСНОВА ТРЕНДА (08.09): начало движения уходит С ГРАФИКА в заголовок по центру — на длинном
+  // отрезке всё выглядит как «текущее», и метки начала спорят с текущим состоянием. На линии
+  // остаётся ТОЛЬКО текущая метка; при конце — только метка выхода, основы нет вовсе.
+  function trendBase(M, sym) {
+    if (!M || !M.length) return null;
+    var last = M.length - 1;
+    if (isEnd(M[last].tpl)) return null;              // тренд кончился — основы нет
+    if (endedByBars(sym)) return null;                // и по барам тоже
+    var start = -1;
+    for (var i = last; i >= 0; i--) { if (isEnd(M[i].tpl)) break; if (isStart(M[i].tpl)) { start = i; } }
+    if (start < 0) return null;
+    while (start > 0 && isStart(M[start - 1].tpl) && !isEnd(M[start - 1].tpl)) start--;
+    var a = M[start], b = M[last];
+    var hrs = (new Date(b.t).getTime() - new Date(a.t).getTime()) / 36e5;
+    var age = hrs >= 48 ? (Math.round(hrs / 24) + ' дн') : (Math.round(hrs) + ' ч');
+    var chg = (+a.px && +b.px) ? ((+b.px / +a.px - 1) * 100) : null;
+    return { tpl: tplShort(a.tpl), at: a.t, age: age,
+             chg: chg === null ? null : (chg > 0 ? '+' : '') + chg.toFixed(1) + '%' };
+  }
+  function tplShort(t) { t = String(t || '').split('(')[0].trim(); for (var i = 0; i < TPL_SHORT.length; i++) { if (t.toLowerCase().indexOf(TPL_SHORT[i][0]) === 0) return TPL_SHORT[i][1]; } return t.split(' — ')[0].split(':')[0].slice(0, 24); }
+  function money(v) { v = +v; if (!v) return null; var a = Math.abs(v), s = v < 0 ? '−' : '';
+    return s + '$' + (a >= 1e9 ? (a / 1e9).toFixed(1) + 'B' : a >= 1e6 ? (a / 1e6).toFixed(1) + 'M' : a >= 1e3 ? (a / 1e3).toFixed(0) + 'K' : a.toFixed(0)); }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  var NUM = /(?<![\w])([+−\-]?\$?\d[\d.,]*[%KMB]?|×\d[\d.]*|\d+\/\d+|ATR)(?![\w])/g;
+  function hl(t) { return esc(t).replace(NUM, '<b>$1</b>'); }
+  function has(v) { return v !== undefined && v !== null && v !== '' && !(typeof v === 'number' && isNaN(v)); }
+
+  // ── ВОЗРАСТ ИСТОЧНИКОВ: считается на месте, от часов зрителя; квант — сутки, остальное — час ──
+  var SRC = D.sources || {};
+  var SRC_LIST = [['прогон', 'run', 1], ['Coinglass', 'coinglass', 1], ['квант', 'quant', 24], ['пульс', 'pulse', 1], ['киты', 'whales', 1], ['толпа', 'crowd', 24], ['разлоки', 'unlocks', 24], ['расписание', 'sched', 48], ['поток', 'flow', 1]];
+  // штамп из одной даты (расписание пишет «YYYY-MM-DD») читается как ПОЛНОЧЬ этой даты по UTC,
+  // а не как её конец: раньше «часы −736 мин» — штамп ложился в будущее (05.09)
+  function ageH(ts) { if (!ts) return null; var t = Date.parse(String(ts).length === 10 ? ts + 'T00:00:00Z' : ts); if (isNaN(t)) return null; var h = (Date.now() - t) / 36e5; return h < 0 ? 0 : h; }
+  function ageTxt(h) { return h === null ? 'нет данных' : h < 1 ? Math.round(h * 60) + ' мин' : h < 48 ? Math.round(h) + ' ч' : Math.round(h / 24) + ' дн'; }
+  function badge(label, ts, maxH) { var h = ageH(ts), cls = h === null ? 'none' : h > maxH ? 'stale' : 'fresh'; return '<span class="src ' + cls + '" title="' + esc(label) + ': ' + esc(ts || 'нет данных') + ' · порог ' + maxH + ' ч"><i></i>' + esc(label) + ' ' + ageTxt(h) + '</span>'; }
+  // ОДНА метка свежести (04.09): зелёная — все источники в сроке, красная —
+  // хоть один протух или пуст. При наведении — та же карточка, что у групп:
+  // построчно кто свеж, кто нет. Если красная — сверху экрана пульсирует
+  // красная кромка, и сама метка мигает.
+  function srcLine() {
+    var rows = SRC_LIST.map(function (q) { var h = ageH(SRC[q[1]]), st = h === null ? 'none' : h > q[2] ? 'stale' : 'fresh'; return { label: q[0], ts: SRC[q[1]], h: h, max: q[2], st: st }; });
+    var bad = rows.filter(function (r) { return r.st !== 'fresh'; }), ok = rows.length - bad.length, all = !bad.length;
+    var card = '<div class="card"><div class="head"><span class="cap">данные</span><span class="hn">' + (all ? 'всё обновлено' : bad.length + ' из ' + rows.length + ' не в сроке') + '</span></div>' +
+      rows.map(function (r) { return '<div class="r src-r ' + r.st + '"><i></i><span class="k">' + esc(r.label) + '</span><span class="v">' + (r.st === 'none' ? 'нет данных' : ageTxt(r.h) + ' назад · порог ' + r.max + ' ч') + (r.st === 'stale' ? ' <b>протух</b>' : r.st === 'none' ? ' <b>пусто</b>' : '') + '</span></div>'; }).join('') + '</div>';
+    return (all ? '' : '<div class="stalebar"></div>') + '<div class="srcs one"><span class="src ' + (all ? 'fresh' : 'stale') + '"><i></i>' + (all ? 'всё обновлено · ' + ok + ' из ' + rows.length : 'не обновлено · ' + bad.map(function (r) { return r.label; }).join(', ')) + '</span>' + card + '</div>';
+  }
+  function stale(ts, maxH) { var h = ageH(ts); return h === null || h > maxH; }
+
+  // ── ПАТТЕРНЫ ДНЕВОК (03.09, разбор UNI/BULLA) — чтения, не скор ──
+  //  цикл плеча: «разгрузили и залили заново» (BULLA: −46% и +74% за два дня перед выстрелом)
+  //              или «копится N дней подряд» (UNI: +80% за неделю лестницей);
+  //  продавцы давят, цена держится: тейкер ниже 0.97 в N днях из 7, а закрытие не ниже недельной давности;
+  //  шорты — топливо: толпа в лонге меньше 45% или фандинг в минусе; в день хода горят шорты.
+  function patterns(H, cw) {
+    var out = {};
+    var oi = H.oi || [], tk = H.tk || [], c = H.c || [], v = H.v || [];
+    if (oi.length >= 7) {
+      var last = oi[oi.length - 1], win = oi.slice(-8);
+      var mn = Math.min.apply(null, win), imn = win.indexOf(mn), mxBefore = Math.max.apply(null, win.slice(0, imn + 1));
+      var ups = 0; for (var i = 1; i < win.length; i++) if (win[i] > win[i - 1]) ups++;
+      if (mxBefore > 0 && mn / mxBefore <= .7 && last / mn >= 1.5) {
+        out.leverKind = 'reload'; out.leverShort = 'плечо залили заново';
+        out.lever = 'разгрузили на ' + Math.round((1 - mn / mxBefore) * 100) + '% и залили ×' + (last / mn).toFixed(1) + ' за ' + (win.length - 1 - imn) + ' дн — цикл разгрузка→залив, как у BULLA перед выстрелом';
+      } else if (win[0] > 0 && last / win[0] >= 1.5 && ups >= 5) {
+        out.leverKind = 'build'; out.leverShort = 'плечо копится ' + ups + ' дн из 7';
+        out.lever = 'плечо ×' + (last / win[0]).toFixed(1) + ' за неделю, рост в ' + ups + ' днях из 7 — накопление лестницей, как у UNI';
+      } else if (win[0] > 0 && last / win[0] <= .6) {
+        out.leverKind = 'flush'; out.leverShort = 'плечо слито';
+        out.lever = 'плечо −' + Math.round((1 - last / win[0]) * 100) + '% за неделю — разгружено, залива пока нет';
+      }
+    }
+    if (tk.length >= 7 && c.length >= 8) {
+      var sell = tk.slice(-7).filter(function (x) { return x < .97; }).length, chg7 = (c[c.length - 1] / c[c.length - 8] - 1) * 100;
+      if (sell >= 5 && chg7 >= -3) {
+        out.absorb = 'продают ' + sell + ' дн из 7 (тейкер ниже 0.97), а цена за неделю ' + (chg7 >= 0 ? '+' : '') + chg7.toFixed(1) + '% — кто-то принимает лимитками';
+        out.absorbShort = 'продают ' + sell + ' дн из 7, цена держится';
+      }
+    }
+    var sh = [];
+    if (cw && cw.crowd && +cw.crowd.longPct < 45) sh.push('толпа в лонге ' + cw.crowd.longPct + '% — большинство в шорте');
+    if (has(H.fundNow) && +H.fundNow < 0) sh.push('фандинг в минусе — платят шорты');
+    if (H.liq && H.liq.length) { var L = H.liq[H.liq.length - 1]; if (L[2] > L[1] * 1.5 && L[2] >= .05) sh.push('за ' + L[0] + ' вынесено шортов ' + money(L[2] * 1e6) + ' против лонгов ' + money(L[1] * 1e6)); }
+    if (sh.length) { out.short = sh.join(' · '); out.shortShort = sh[0].split(' — ')[0]; }
+    if (v.length >= 7 && H.vmed) {
+      var x = v.slice(-7).map(function (q) { return q / H.vmed; }), last3 = x.slice(-3), quiet = x.slice(0, 4).filter(function (q) { return q < .8; }).length;
+      if (x[x.length - 1] >= 4 && quiet >= 3) out.vol = 'из тишины: ' + quiet + ' дн ниже 0.8 нормы, потом ×' + x[x.length - 1].toFixed(1) + ' — выстрел с пустого места';
+      else if (last3[0] >= 2 && last3[1] >= last3[0] * .9 && last3[2] >= last3[1] * .9 && last3[2] >= 3) out.vol = 'ступенями: ×' + last3.map(function (q) { return q.toFixed(1); }).join(' → ×') + ' — оборот растёт третий день';
+    }
+    return out;
+  }
+
+  // ── ШЕСТЬ ГРУПП: цифра, единица, чтение и строки карточки — из полей звезды ──
+  function groups(s) {
+    var cg = s.cg || {}, rep = s.rep || {}, lv = s.levels || {}, u = s.unlock, act = s.act || {};
+    var g = {};
+    // ГДЕ ЦЕНА
+    var pr = [];
+    pr.push(['сейчас', px4(s.px) + (s.cap ? ' · капитализация ' + s.cap : '') + (has(s.floatPct) ? ' · флоат ' + Math.round(s.floatPct) + '%' : '')]);
+    pr.push(['масштаб', (has(s.lifeDrop) ? '−' + Math.round(s.lifeDrop) + '% от пика жизни' : 'от пика: нет в сводке') + (has(s.up) ? ' · +' + Math.round(s.up) + '% от дна' + (s.updays ? ' за ' + s.updays + ' дн' : '') : '')]);
+    if (lv.above && lv.above.price) pr.push(['плита', px4(lv.above.price) + (lv.above.dist !== undefined ? ' — ' + pct(lv.above.dist) : '') + (lv.above.touches ? ' · касаний ' + lv.above.touches : '')]);
+    if (lv.below && lv.below.price) pr.push(['опора', px4(lv.below.price) + (lv.below.dist !== undefined ? ' — ' + pct(lv.below.dist) : '') + (lv.below.touches ? ' · касаний ' + lv.below.touches : '')]);
+    if (lv.note) pr.push(['реакция на уровень', lv.note]);
+    if (s.stop) pr.push(['стоп', px4(s.stop) + (s.px && +s.stop >= +s.px ? ' — УЖЕ ПРОЙДЕН' : s.stopPct !== undefined ? ' · ' + pct(-Math.abs(s.stopPct)) + ' от цены' : '')]);
+    if (s.liqZones && s.liqZones.length) pr.push(['ликвидации над ценой', s.liqZones.slice(0, 3).map(function (z) { return money(z.fuel) + ' @ ' + px4((z.lo + z.hi) / 2); }).join(' · ')]);
+    var fw = FLOW[String(s.t).toUpperCase()]; if (fw && fw.low && fw.high) pr.push(['коридор потока', px4(fw.low) + ' – ' + px4(fw.high) + (fw.case ? ' · случай ' + fw.case : '')]);
+    if (has(s.rangePos)) pr.push(['в диапазоне', Math.round(s.rangePos * (s.rangePos <= 1 ? 100 : 1)) + '%']);
+    if (has(s.speedAtr)) pr.push(['скорость хода', f(s.speedAtr) + ' ATR']);
+    g.price = { src: [['архив', 'quant', 24], ['прогон', 'run', 1]], cap: 'где цена', num: has(s.lifeDrop) ? '−' + Math.round(s.lifeDrop) + '%' : (has(s.up) ? '+' + Math.round(s.up) + '%' : '—'),
+      unit: has(s.lifeDrop) ? 'от пика' : 'от дна', sub: has(s.up) ? '+' + Math.round(s.up) + '% от дна' + (s.upX ? ' · ×' + s.upX + ' ход' : '') : '', rows: pr, glyph: 'sq' };
+    // РЕШЕНИЕ
+    var verdict = String(act.act || s.stanceVerdict || s.verdict || 'ждать').toLowerCase();
+    var why = (act.whyFull && act.whyFull[0]) || act.why || s.verdict || '';
+    var dr = [['вердикт', verdict.toUpperCase() + (why ? ' · ' + why : '')]];
+    if (act.whyFull && act.whyFull.length > 1) act.whyFull.slice(1).forEach(function (w, i) { dr.push([i ? '' : 'основание', w]); });
+    if (s.exitWhy) dr.push(['снимется', s.exitWhy + (s.exitDeadline ? ' · до ' + s.exitDeadline : '')]);
+    var st = []; ['absorb', 'squeeze', 'effort', 'wyckoffTest'].forEach(function (k) { if (s[k] && s[k].note) st.push(s[k].note); });
+    var phz = s.phase && typeof s.phase === 'object' ? (s.phase.a || '') : (s.phase || '');   // фаза приходит объектом {a, k}
+    dr.push(['шаблон', (s.pattern || '—') + (phz ? ' · фаза ' + phz : '') + (st.length ? ' · состояние: ' + st.slice(0, 2).join(' · ') : '')]);
+    if (s.st) dr.push(['стадия', String(s.st) + (s.streak ? ' · подряд ' + s.streak : '')]);
+    var pro = [], con = [];
+    if (cg.taker && +cg.taker > 1) pro.push('покупки ×' + (+cg.taker).toFixed(2) + ' к продажам'); else if (cg.taker && +cg.taker < 0.9) con.push('продают ×' + (1 / +cg.taker).toFixed(2) + ' к покупкам');
+    // МАСШТАБ ВИДЕН В ПОДПИСИ (11.09, владелец): вортекс и Klinger в карточке считаются на
+    // ЧЕТЫРЁХЧАСОВЫХ свечах — это рамка большого движения, а не сигнал входа внутри дня.
+    // Быстрые (получасовые) появятся, когда накопятся бары с размахом: h/l пишутся с 11.09.
+    if (s.vxDir === 'up') pro.push('медленно · вортекс 4ч вверх'); else if (s.vxDir === 'down') con.push('медленно · вортекс 4ч вниз');
+    if (s.klinger && s.klinger.crossUp) pro.push('медленно · клингер 4ч крест вверх');
+    if (s.oiState === 'held') con.push('плечо застряло'); else if (s.oiState === 'cleared') pro.push('плечо разгружено');
+    if (u && u.days <= 3) con.push('разлок ' + u.days + ' дн');
+    if (has(s.fund) && +s.fund > 0.01) con.push('толпа в лонге, фандинг ' + (+s.fund).toFixed(3) + '%');
+    if (has(s.fund) && +s.fund < -0.01) pro.push('шорты платят');
+    if (rep.delta_usd && +rep.delta_usd > 0) pro.push('дельта дневки в плюс'); else if (rep.delta_usd && +rep.delta_usd < 0) con.push('дельта дневки в минус');
+    // ── ТЕНЬ СНАРУЖИ (10.09, владелец: «карточка — отражение реальности, всё что там есть, правда;
+    // ломают две вещи вне её — фон и лидер, и от них вся правда становится бесполезной»).
+    // Когда доску тянет одна монета, вердикт и доводы не работают: их прячем, а на их месте
+    // ставим пластину с именем лидера. Числа карточки не трогаем — они верны.
+    window.__LEADER_ECLIPSE = (function(){
+      var L = (D.pumps && D.pumps.length) ? D.pumps[0] : null;
+      if (!L) return null;
+      var me = String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase();
+      if (String(L.symbol || '').toUpperCase() === me) return null;   // на самой монете-лидере тени нет
+      return L;
+    })();
+    // СИЛА ВЫДЫХАЕТСЯ (10.09, владелец увидел на графике, что Klinger разворачивается ДО вершины).
+    // Сам Klinger не посчитать — в архиве нет максимума и минимума бара; взяли его смысл через
+    // дельту. Проверено на 22 ходах ≥8%: сработало в 21, медианная фора 3 бара (1.5 ч), медианное
+    // падение после вершины −7.2%; SOPH 08.09 дал 6 баров форы и дальше −47.5%.
+    // В БАЛЛ НЕ ИДЁТ, только строка «против»: правило владельца — лучше выйти раньше, чем в ноль.
+    var _fa = (NEAR[String(s.coin || (String(s.t).toUpperCase() + 'USDT'))] || {}).force_turn_ago;
+    if (_fa === undefined || _fa === null) _fa = (s.today || {}).force_turn_ago;
+    if (_fa !== undefined && _fa !== null && _fa <= 8) con.push('сила развернулась ' + _fa + ' бар назад');
+    // БЫСТРЫЙ ВИХРЬ — ХЕДЖ (11.09): рядом с силой, из near_move.json, в балл не идёт. Одна строка
+    // «против» по форме хода (парабола: продавцы под максимумом дня; лестница: сторона сменилась),
+    // окно восемь баров. Строк «за» по вихрю нет: метка входа живёт только в журнале.
+    var _vx = (NEAR[String(s.coin || (String(s.t).toUpperCase() + 'USDT'))] || {}).vortex || null;
+    var _vh = _vx && _vx.hedge;
+    if (_vh && _vh.bars !== null && (_vh.kind === 'пересечение' || _vh.bars <= 8)) con.push(_vh.kind === 'пересечение'
+      ? 'вихрь 30м: продавцы над покупателями ' + _vh.bars + ' бар подряд'
+      : (_vh.kind === 'лестница' || _vh.kind === 'сторона')
+        ? 'вихрь 30м: сторона сменилась на продавцов ' + _vh.bars + ' бар назад'
+        : 'вихрь 30м: продавцы поднимают лои ' + _vh.bars + ' бар под максимумом дня');
+    // БЫСТРЫЙ СЛОЙ НАД МЕДЛЕННЫМ (11.09, случай LSK: карточка сказала «ждать» по «вортекс 4ч вверх»,
+    // пока событие конца, сила и быстрый вихрь говорили вниз и лежали в данных). Быстрые доводы
+    // собираются отдельно, идут в «против» первыми с пометкой «быстро» и переводят вердикт в
+    // «хедж на часть». Медленные остаются в «за» с пометкой «медленно». В балл ничего не идёт.
+    var _nr = NEAR[String(s.coin || (String(s.t).toUpperCase() + 'USDT'))] || {};
+    var _fast = [];
+    var _tdy = String((_nr.today || {}).today || _nr.sub || '');
+    if (/конец/.test(_tdy)) _fast.push('быстро · событие конца: интерес ушёл вместе с ценой');
+    if (_fa !== undefined && _fa !== null && _fa <= 8) _fast.push('быстро · сила развернулась ' + _fa + ' бар назад');
+    if (_vh && _vh.bars !== null && (_vh.kind === 'пересечение' || _vh.bars <= 8)) _fast.push('быстро · ' + con[con.length - 1]);
+    con = _fast.concat(con.filter(function (x) { return _fast.indexOf('быстро · ' + x) < 0 && x.indexOf('сила развернулась') < 0; }));
+    var patD = patterns(HIST[String(s.t).toUpperCase()] || {}, CROWD[String(s.t).toUpperCase()]);
+    if (patD.absorbShort) pro.push(patD.absorbShort);
+    if (patD.shortShort) pro.push(patD.shortShort);
+    if (patD.leverShort) (patD.leverKind === 'reload' || patD.leverKind === 'build' ? pro : con).push(patD.leverShort);
+    dr.push(['за', pro.length ? pro.join(' · ') : 'нет'], ['против', con.length ? con.join(' · ') : 'нет']);
+    g.decision = { fast: _fast, src: [['квант', 'quant', 24], ['Coinglass', 'coinglass', 1], ['пульс', 'pulse', 1]], cap: 'решение', num: verdict, verdict: verdict.toUpperCase(), why: why, rows: dr, pro: pro, con: con,
+      exit: s.exitWhy || '', hurry: (s.exitDeadline ? 'срок ' + s.exitDeadline : (u && u.days <= 1 ? 'разлок ' + (u.days ? 'завтра' : 'сегодня') : '')) };
+    // ПОТОК
+    var fr = [];
+    if (has(cg.taker)) fr.push(['покупки к продажам', '×' + (+cg.taker).toFixed(2) + (has(cg.cvdChg) ? ' · дельта ' + money(cg.cvdChg) : '')]);
+    if (rep.phrase) fr.push(['в стакане · дневка', rep.phrase + (rep.delta_usd ? ' · дельта ' + money(rep.delta_usd) : '')]);
+    var pat0 = patterns(HIST[String(s.t).toUpperCase()] || {}, CROWD[String(s.t).toUpperCase()]);
+    if (pat0.absorb) fr.push(['продавцы давят', pat0.absorb]);
+    if (pat0.vol) fr.push(['оборот по дневкам', pat0.vol]);
+    if (has(s.press)) { var pv = +s.press, pw = pv > 0 ? 'перевес покупателей ' : pv < 0 ? 'перевес продавцов ' : 'перевеса нет ';
+      fr.push(['давление', (pv ? pw + Math.abs(pv) + ' п.п.' : pw.trim()) + (has(s.pressShare) ? ' · доля ' + Math.round(+s.pressShare <= 1 ? +s.pressShare * 100 : +s.pressShare) + '% за 24 ч' : '')]); }
+    if (has(s.v1d)) fr.push(['объём', '×' + (+s.v1d).toFixed(1) + ' — 24 ч к норме 30 дн' + (has(s.v1h) ? ' · час ×' + (+s.v1h).toFixed(1) : '') + (s.volBg ? ' · фон последних часов ' + s.volBg : '')]);
+    if (has(cg.spotUsd)) fr.push(['спот', money(cg.spotUsd) + (has(cg.spotTaker) ? ' · тейкер ×' + (+cg.spotTaker).toFixed(2) : '') + (has(cg.fsRatio) ? ' · фьюч к споту ×' + (+cg.fsRatio).toFixed(1) : '')]);
+    // спот против перпа (05.09): накопленная дельта за сутки по обеим ногам и флаг расхождения
+    (function () {
+      var f = cg.cvdSpark || [], sp = cg.spotCvdSpark || []; if (f.length < 4 || sp.length < 4) return;
+      var fd = f[f.length - 1] - f[0], sd = sp[sp.length - 1] - sp[0];
+      var flag = '';
+      if (fd > 0 && sd <= 0) flag = 'перп рвёт, спот стоит — плечо без денег';
+      else if (sd > 0 && fd <= 0) flag = 'спот покупает, перп продаёт — набор под сквиз';
+      else if (sd > 0 && fd > 0) flag = 'покупают и спот, и перп — ход оплачен';
+      else if (sd < 0 && fd < 0) flag = 'продают обе ноги';
+      fr.push(['спот против перпа', 'спот ' + (sd > 0 ? '+' : '') + (money(sd) || '$0') + ' · перп ' + (fd > 0 ? '+' : '') + (money(fd) || '$0') + (flag ? ' — ' + flag : '')]);
+    })();
+    if (has(s.bigCount) && +s.bigCount > 0) fr.push(['крупные', s.bigCount + ' сделок' + (s.bigBuys !== undefined ? ' · покупок ' + s.bigBuys + ', продаж ' + s.bigSells : '') + (s.bigMax ? ' · крупнейшая ' + money(s.bigMax) : '')]);
+    if (s.klinger) fr.push(['клингер', (s.klinger.crossUp ? 'крест вверх у дна' : s.klinger.crossDn ? 'крест вниз' : s.klinger.above ? 'выше сигнала' : 'ниже сигнала')]);
+    if (has(s.shakeX)) fr.push(['вынос', '×' + f(s.shakeX) + (s.shakeHours ? ' за ' + s.shakeHours + ' ч' : '') + (has(s.shakeMove) ? ' · ход ' + pct(s.shakeMove) : '')]);
+    var flowNum = has(cg.taker) ? '×' + (+cg.taker).toFixed(2) : (has(s.v1d) ? '×' + (+s.v1d).toFixed(1) : '—');
+    g.flow = { stale: stale(SRC.coinglass, 1), src: [['Coinglass', 'coinglass', 1], ['квант', 'quant', 24], ['поток', 'flow', 1]], cap: 'поток', num: flowNum, unit: has(cg.taker) ? 'покупки к продажам' : 'объём к норме', sub: rep.phrase ? String(rep.phrase).split(' — ')[0].slice(0, 60) : (has(s.v1d) ? 'объём ×' + (+s.v1d).toFixed(1) + ' к норме' : ''), rows: fr, glyph: 'dia' };
+    // ПЛЕЧО
+    var lr = [];
+    if (has(cg.oiChgPct)) lr.push(['OI за сутки', pct(cg.oiChgPct) + (has(s.fund) ? ' · фандинг ' + (+s.fund).toFixed(4) + '%' : '')]);
+    else if (has(s.fund)) lr.push(['фандинг', (+s.fund).toFixed(4) + '%']);
+    if (s.oiState) lr.push(['цикл плеча', s.oiState === 'held' ? 'застряло' : s.oiState === 'cleared' ? 'разгружено' : s.oiState === 'repeat' ? 'повторный цикл' : String(s.oiState)]);
+    if (s.liqFuel && (s.liqFuel.below || s.liqFuel.above)) lr.push(['в капитализации', (s.liqFuel.below ? 'снизу ' + (+s.liqFuel.below * 100).toFixed(1) + '%' : '') + (s.liqFuel.above ? ' · сверху ' + (+s.liqFuel.above * 100).toFixed(1) + '%' : '') + ' — оценка по модели, не наблюдение']);
+    if (s.liq24h && (s.liq24h.long || s.liq24h.short)) lr.push(['ликвидации за сутки', 'лонгов ' + (money(s.liq24h.long) || '$0') + ' против шортов ' + (money(s.liq24h.short) || '$0')]);
+    if (s.vxDir) lr.push(['топливо', 'вортекс 4ч ' + (s.vxDir === 'up' ? 'вверх' : s.vxDir === 'down' ? 'вниз' : s.vxDir) + (has(s.vxSpread) ? ' · разрыв ' + f(s.vxSpread) : '') + (s.vxAgo ? ' · ' + s.vxAgo + ' ч назад' : '')]);
+    var cw = CROWD[String(s.t).toUpperCase()]; if (cw && cw.crowd) lr.push(['толпа', 'в лонге ' + cw.crowd.longPct + '%' + (has(cw.crowd.chg1d) ? ' (за сутки ' + pct(cw.crowd.chg1d) + ')' : '') + (cw.top ? ' · топы ' + cw.top.longPct + '%' : '')]);
+    // ПАТТЕРНЫ ДНЕВОК (03.09): цикл плеча по архиву — накопление или «разгрузили и залили заново»
+    var Hh = HIST[String(s.t).toUpperCase()] || {};
+    var pat = patterns(Hh, cw);
+    if (pat.lever) lr.push(['цикл по дневкам', pat.lever]);
+    if (pat.short) lr.push(['шорты — топливо', pat.short]);
+    var w = WH[String(s.t).toUpperCase()] || WH[String(s.t)];
+    if (w) lr.push(['киты Hyperliquid', 'лонг ' + (money(w.long) || '$0') + ' против шорта ' + (money(w.short) || '$0') + (w.n ? ' · позиций ' + w.n : '')]);
+    var levNum = has(cg.oiChgPct) ? pct(cg.oiChgPct) : (has(s.fund) ? (+s.fund).toFixed(3) + '%' : '—');
+    g.lever = { stale: stale(SRC.coinglass, 1), src: [['Coinglass', 'coinglass', 1], ['толпа', 'crowd', 24], ['киты', 'whales', 1]], cap: 'плечо', num: levNum, unit: has(cg.oiChgPct) ? 'OI за сутки' : 'фандинг', sub: (s.oiState ? (s.oiState === 'held' ? 'застряло' : s.oiState === 'cleared' ? 'разгружено' : 'повторный цикл') : '') + (s.liqFuel && s.liqFuel.below ? ' · ' + (+s.liqFuel.below * 100).toFixed(1) + '% снизу' : '') + (s.liqFuel && s.liqFuel.above ? ' · ' + (+s.liqFuel.above * 100).toFixed(1) + '% сверху' : ''), rows: lr, glyph: 'chev' };
+    // ПАМЯТЬ
+    var mr = [];
+    if (rep.line) mr.push(['репутация монеты', rep.line]);
+    if (has(s.rallies)) mr.push(['отскоки', s.rallies + ' всего' + (has(s.heldRallies) ? ' · удержали ' + s.heldRallies : '')]);
+    if (has(s.days)) mr.push(['в журнале', s.days + ' дн' + (has(s.hitCount) ? ' · попаданий ' + s.hitCount : '') + (has(s.runsSeen) ? ' · пробегов ' + s.runsSeen : '')]);
+    var bk = BOOK[String(s.t).toUpperCase()];
+    if (bk && bk.entry) mr.push([bk.manual ? 'твоя позиция' : 'вход журнала', px4(bk.entry) + ' с ' + bk.since.slice(8, 10) + '.' + bk.since.slice(5, 7) + (has(bk.chg) ? ' · ' + pct(bk.chg) + ' от входа' : '') + (has(bk.maxChg) ? ' · максимум ' + pct(bk.maxChg) : '') + (bk.closed ? ' · ЗАКРЫТА' + (bk.closedPx ? ' по ' + px4(bk.closedPx) : '') : '')]);
+    var j = JR[String(s.t).toUpperCase()];
+    if (j) {
+      mr.push(['журнал прогнозов', 'записей ' + j.n + ' · смен ' + j.switches + ' · с ' + j.firstAt + ' по ' + px4(j.first)]);
+      if (j.lastSwitch) mr.push(['последняя смена', '«' + j.lastSwitch.tpl + '» ' + j.lastSwitch.at + ' · ' + px4(j.lastSwitch.px) + ' · ' + pct(j.lastSwitch.chg) + ' от прошлой']);
+    }
+    if (s.trendDone) mr.push(['ход', 'отработан']);
+    var memNum = has(s.heldRallies) && has(s.rallies) ? s.heldRallies + ' из ' + s.rallies : (j ? String(j.switches) : '—');
+    g.memory = { src: [['квант', 'quant', 24], ['пульс', 'pulse', 1]], cap: 'память', num: memNum, unit: has(s.heldRallies) && has(s.rallies) ? 'отскоков устояли' : (j ? 'смен прогноза' : ''), sub: j ? 'журнал: ' + j.n + ' записей · смен ' + j.switches : (has(s.days) ? 'в журнале ' + s.days + ' дн' : ''), rows: mr, glyph: 'plus' };
+    // КАЛЕНДАРЬ · ФУНДАМЕНТ
+    var cr = [], hot = false;
+    if (u) { hot = (u.pct >= 10) || (u.ins >= 60 && u.pct >= 2); cr.push(['разлок', u.days + ' дн · ' + u.pct + '% обращения' + (u.ins !== undefined ? ' · инсайдерам ' + u.ins + '%' : '')]); }
+    if (s.exitDeadline) cr.push(['срок', String(s.exitDeadline) + (s.exitWhy ? ' — ' + s.exitWhy : '')]);
+    if (s.news && (s.news.t || s.news.why)) cr.push(['повод', (s.news.t || '') + (s.news.why ? ' — ' + s.news.why : '')]);
+    if (s.investors && s.investors.length) cr.push(['инвесторы', s.investors.join(' · ')]);
+    var pf = []; if (s.organizer) pf.push('организатор ' + s.organizer); if (s.chain) pf.push(s.chain); if (has(s.listingDays)) pf.push('листинг ' + s.listingDays + ' дн назад');
+    if (pf.length) cr.push(['профиль', pf.join(' · ')]);
+    if (s.sector && s.sector !== '—') cr.push(['сектор', s.sector]);
+    if (has(s.fdvRatio)) cr.push(['FDV к капе', '×' + (+s.fdvRatio).toFixed(1)]);
+    var calNum = u ? u.days + ' дн' : (s.exitDeadline ? String(s.exitDeadline) : '—');
+    g.calendar = { src: [['разлоки', 'unlocks', 24], ['прогон', 'run', 1]], cap: 'календарь · фундамент', num: calNum, unit: u ? 'до разлока' : (s.exitDeadline ? 'срок' : ''), sub: u ? u.pct + '% обращения' + (u.ins !== undefined ? ' · инсайдерам ' + u.ins + '%' : '') : (s.news && s.news.t ? s.news.t : ''), rows: cr, glyph: 'arrow', hot: hot };
+    // слоты, которых у монеты нет — подвалом, чтобы было видно место
+    var slots = { price: ['вершина хода', 'крупнейшая плита', 'ход и скорость хода'], flow: ['полусутки', 'чем оплачено', 'дивер', 'откупы за сутки', 'доля спота', 'фон суток', 'в книге', 'на биржи/с бирж', 'спрос', 'формы суток'],
+      lever: ['киты Hyperliquid', 'плечо открыли', 'плечо под и над ценой'], memory: ['ожидание по эпизодам', 'заметность'], calendar: ['макро-даты', 'листинг/делистинг'] };
+    Object.keys(slots).forEach(function (k) { var have = g[k].rows.map(function (r) { return r[0]; }); var miss = slots[k].filter(function (n) { return have.indexOf(n) < 0; }); if (miss.length) g[k].rows.push(['без данных', miss.join(' · ')]); });
+    return g;
+  }
+
+  function cardHtml(g) {
+    var rows = g.rows.map(function (r) {
+      if (r[0] === 'без данных') return '<div class="r slots"><i></i><span class="k">без данных у монеты</span><span class="v">' + esc(r[1]) + '</span></div>';
+      return '<div class="r"><i></i><span class="k">' + esc(r[0]) + '</span><span class="v">' + hl(r[1]) + '</span></div>';
+    }).join('');
+    var sb = (g.src || []).map(function (q) { return badge(q[0], SRC[q[1]], q[2]); }).join('');
+    return '<div class="card"><div class="head"><span class="cap">' + esc(g.cap) + '</span><span class="hn">' + esc(g.num) + '</span></div>' + (sb ? '<div class="srcs card-src">' + sb + '</div>' : '') + rows + '</div>';
+  }
+
+  // ── ГЕОМЕТРИЯ ПЛИТЫ ──
+  var SW = 860, SH = 720, SL = 330, ST = 70, X0 = 70, X1 = 790, Y1 = 40, Y0 = 500, TH = 16 * Math.PI / 180, PERS = 1500;
+  function project(x, y) { var cx = SL + SW / 2, cy = ST + SH / 2, dx = SL + x - cx, dy = ST + y - cy; var x1 = dx * Math.cos(TH), z1 = -dx * Math.sin(TH), w = 1 - z1 / PERS; return [cx + x1 / w, cy + dy / w]; }
+  var GOLD = '#f5a93a', GOLDL = '#ffd98a', MINT = '#7ff0b8', TEAL = '#2ec98d';
+  function seeded(seed) { var s = seed; return function () { s = (s * 9301 + 49297) % 233280; return s / 233280; }; }
+
+  // золотая точка: основа r, прозрачный зазор 2px, обводка 0.8px (11.09, владелец)
+  function goldDot(x, y, r, title) { return '<circle cx="' + f(x) + '" cy="' + f(y) + '" r="' + r + '" fill="' + GOLDL + '"' + (title ? '><title>' + esc(title) + '</title></circle>' : '/>') +
+    '<circle cx="' + f(x) + '" cy="' + f(y) + '" r="' + (r + 2 + .4) + '" fill="none" stroke="' + GOLD + '" stroke-width=".8" opacity=".95"/>'; }
+  function scene(P, rnd) {
+    var t = '', i;
+    var area = 'M' + f(P[0][0]) + ',' + Y0 + ' ' + P.map(function (p) { return 'L' + f(p[0]) + ',' + f(p[1]); }).join(' ') + ' L' + f(P[P.length - 1][0]) + ',' + Y0 + ' Z';
+    t += '<g class="an fillg"><path d="' + area + '" fill="url(#slab)"/><path d="' + area + '" fill="url(#sheen)"/></g>';
+    t += '<g class="an mesh">';
+    for (i = 0; i < P.length; i += 2) t += '<line x1="' + f(P[i][0]) + '" y1="' + f(P[i][1]) + '" x2="' + f(P[i][0]) + '" y2="' + Y0 + '" stroke="' + MINT + '" stroke-width=".5" opacity=".28"/>';
+    var pts = [];
+    for (i = 0; i < 110; i++) { var k = Math.min(P.length - 2, Math.floor(rnd() * (P.length - 1))); var x = P[k][0] + rnd() * (P[k + 1][0] - P[k][0]);
+      var yt = P[k][1] + (P[k + 1][1] - P[k][1]) * (x - P[k][0]) / Math.max(1e-6, P[k + 1][0] - P[k][0]); pts.push([x, yt + rnd() * (Y0 - yt)]); }
+    pts.forEach(function (p) {
+      var near = pts.slice().sort(function (a, b) { return ((a[0] - p[0]) * (a[0] - p[0]) + (a[1] - p[1]) * (a[1] - p[1])) - ((b[0] - p[0]) * (b[0] - p[0]) + (b[1] - p[1]) * (b[1] - p[1])); }).slice(1, 3);
+      near.forEach(function (q) { t += '<line x1="' + f(p[0]) + '" y1="' + f(p[1]) + '" x2="' + f(q[0]) + '" y2="' + f(q[1]) + '" stroke="' + MINT + '" stroke-width=".5" opacity=".4"/>'; });
+      t += '<circle cx="' + f(p[0]) + '" cy="' + f(p[1]) + '" r="2.4" fill="' + MINT + '" opacity=".35" filter="url(#blur3)"/><circle cx="' + f(p[0]) + '" cy="' + f(p[1]) + '" r=".9" fill="#dfffee" opacity=".85" class="tw" style="animation-delay:' + (rnd() * 6).toFixed(1) + 's"/>';
+    });
+    t += '</g>';
+    var L = P[P.length - 1];
+    t += '<g class="an edge"><line x1="' + f(L[0]) + '" y1="' + f(L[1]) + '" x2="' + f(L[0]) + '" y2="' + Y0 + '" stroke="' + MINT + '" stroke-width="5" opacity=".25" filter="url(#blur3)"/><line x1="' + f(L[0]) + '" y1="' + f(L[1]) + '" x2="' + f(L[0]) + '" y2="' + Y0 + '" stroke="#e9fff4" stroke-width="1" opacity=".7"/></g>';
+    t += '<g class="an grd"><ellipse cx="' + ((X0 + X1) / 2) + '" cy="' + (Y0 + 9) + '" rx="' + ((X1 - X0) / 2 + 60) + '" ry="10" fill="url(#gpool)" opacity=".5"/>' +
+      '<line x1="' + (X0 - 40) + '" y1="' + Y0 + '" x2="' + (X1 + 40) + '" y2="' + Y0 + '" stroke="' + GOLDL + '" stroke-width="7" opacity=".5" filter="url(#blur3)"/>' +
+      '<line x1="' + (X0 - 30) + '" y1="' + Y0 + '" x2="' + (X1 + 30) + '" y2="' + Y0 + '" stroke="url(#ground)" stroke-width="4"/>' +
+      '<line x1="' + (X0 - 24) + '" y1="' + Y0 + '" x2="' + (X1 + 24) + '" y2="' + Y0 + '" stroke="#fff6dc" stroke-width="1.6" opacity=".95"/></g>';
+    var pl = P.map(function (p) { return f(p[0]) + ',' + f(p[1]); }).join(' '), LEN = 0;
+    for (i = 1; i < P.length; i++) LEN += Math.hypot(P[i][0] - P[i - 1][0], P[i][1] - P[i - 1][1]);
+    [[26, .14, '', '#e0891f'], [12, .22, ' filter="url(#blur6)"', GOLD], [5, .55, '', GOLD], [2.6, .95, '', GOLD], [1.4, 1, '', GOLDL]].forEach(function (q) {
+      t += '<polyline class="ln" points="' + pl + '" fill="none" stroke="' + q[3] + '" stroke-width="' + q[0] + '" stroke-linejoin="round" stroke-linecap="round" opacity="' + q[1] + '" style="--L:' + Math.ceil(LEN + 2) + '"' + q[2] + '/>';
+    });
+    var step = Math.max(1, Math.round(P.length / 12));
+    for (i = 0; i < P.length; i++) if (i % step === 0 || i === P.length - 1)
+      // ЗОЛОТЫЕ ТОЧКИ (11.09, владелец): основа, два пикселя прозрачного, тонкая обводка — вместо размытого ореола
+      t += '<g class="an nd" style="animation-delay:' + (.6 + 1.8 * i / (P.length - 1)).toFixed(2) + 's">' + goldDot(P[i][0], P[i][1], 2.4) + '</g>';
+    return t;
+  }
+
+  // ── ЧАСЫ: состояние по сводке «когда ходит мелочь» (та же логика, что в схеме) ──
+  function nyHourToLocal(h) { var d = new Date(); var g = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h + 4, 0)); return g.getHours(); }
+  function clockState() {
+    if (!SC || !SC.pump) return null;
+    var now = new Date(), lh = now.getHours() + now.getMinutes() / 60;
+    function len(s) { var l = ((s[1] + 1 - s[0]) % 24 + 24) % 24; return l || 24; }
+    var ups = (SC.pump || []).map(function (s) { return [nyHourToLocal(s[0]), len(s)]; }), dns = (SC.dump || []).map(function (s) { return [nyHourToLocal(s[0]), len(s)]; });
+    var wins = ups.map(function (w) { return { h: w[0], e: w[0] + w[1], k: 'up' }; }).concat(dns.map(function (w) { return { h: w[0], e: w[0] + w[1], k: 'dn' }; }));
+    var inside = null; wins.forEach(function (w) { var rel = (lh - w.h + 24) % 24; if (rel < w.e - w.h) inside = { k: w.k, left: w.e - w.h - rel }; });
+    var ev = wins.map(function (w) { return { h: w.h, k: w.k, dh: (w.h - lh + 24) % 24 }; }).sort(function (a, b) { return a.dh - b.dh; });
+    var live = false, nxt, dh;
+    if (inside) { var other = ev.filter(function (e) { return e.k !== inside.k; }); if (other.length && other[0].dh < inside.left) { nxt = other[0]; dh = other[0].dh; } else { live = true; nxt = { k: inside.k }; dh = inside.left; } }
+    else { nxt = ev[0]; dh = ev[0].dh; }
+    function nearest(ws) { var b = null; ws.forEach(function (w) { var d = (w[0] - lh + 24) % 24; if (b === null || d < b.d) b = { d: d, h: w[0] }; }); return b; }
+    var nu = nearest(ups), nd = nearest(dns);
+    return { kind: nxt.k, dh: dh, live: live, soon: !live && dh <= 1, tUp: nu ? pad(nu.h) + ':00' : null, tDn: nd ? pad(nd.h) + ':00' : null };
+  }
+  var WATER = { up0: { nc: '#9ff5d8', top: '#8ff0cc', body: '#2fb98a', deep: '#0f5c44', halo: '#5fe6a8' }, up1: { nc: '#b9f5d3', top: '#a8f0c8', body: '#4fc08a', deep: '#1f6e52', halo: '#6fd9a8' },
+    dn0: { nc: '#ffcaa8', top: '#ffc9a6', body: '#c9805e', deep: '#6a3a2a', halo: '#e0a078' }, dn1: { nc: '#ffc4b8', top: '#ffb3a7', body: '#ff5a4a', deep: '#7a2a30', halo: '#ff7a68' } };
+  function vessel(cs) {
+    // РАСПИСАНИЕ — мини-плита (04.09): лента суток с окнами роста и слива, метка «сейчас», отсчёт
+    var W = 320, H = 180, x0 = 20, x1 = 300, y = 118, now = new Date(), lh = now.getHours() + now.getMinutes() / 60;
+    function X(h) { return x0 + (h / 24) * (x1 - x0); }
+    function len(sg) { var l = ((sg[1] + 1 - sg[0]) % 24 + 24) % 24; return l || 24; }
+    var s = '<rect x="' + x0 + '" y="' + (y - 1.25) + '" width="' + (x1 - x0) + '" height="2.5" rx="1.25" fill="rgba(255,255,255,.10)" stroke="rgba(255,255,255,.45)" stroke-width=".6"/>';
+    function seg(sg, col, cls) { var a = nyHourToLocal(sg[0]), l = len(sg), out = '';
+      for (var k = 0; k < 2; k++) { var st = a + (k ? -24 : 0), xa = Math.max(x0, X(st)), xb = Math.min(x1, X(st + l)); if (xb > xa) out += '<rect class="' + cls + '" x="' + xa.toFixed(1) + '" y="' + (y - 1.25) + '" width="' + (xb - xa).toFixed(1) + '" height="2.5" rx="1.25" fill="' + col + '"/>'; }
+      return out; }
+    (SC.pump || []).forEach(function (sg) { s += seg(sg, '#bfffe0', 'seg'); });
+    (SC.dump || []).forEach(function (sg) { s += seg(sg, '#ffb59f', ''); });
+    for (var h = 0; h <= 24; h += 6) s += '<line x1="' + X(h).toFixed(1) + '" y1="' + (y + 6) + '" x2="' + X(h).toFixed(1) + '" y2="' + (y + 11) + '" stroke="#fff" opacity=".5"/><text class="ax" x="' + X(h).toFixed(1) + '" y="' + (y + 24) + '" text-anchor="middle">' + pad(h % 24) + '</text>';
+    s += '<line x1="' + X(lh).toFixed(1) + '" y1="' + (y - 18) + '" x2="' + X(lh).toFixed(1) + '" y2="' + (y + 6) + '" stroke="#fff" stroke-width="1"/><circle class="nowp" cx="' + X(lh).toFixed(1) + '" cy="' + (y - 20) + '" r="3" fill="#fff"/>';
+    var inH = Math.floor(cs.dh), inM = Math.round((cs.dh - inH) * 60), col = cs.kind === 'up' ? '#bfffe0' : '#ffb59f';
+    // ЧАСЫ — ПО ИСТОРИИ, НЕ ПРОГНОЗ (06.09, владелец: «пока всё росло, показывали слив»): это средние
+    // часы стартов и сливов доски за полгода по режиму биткоина; цикл меняется — подпись честная,
+    // а цифра — расстояние до ОБЫЧНОГО окна, не до события. Облако под плитой снято.
+    var cap = cs.live ? (cs.kind === 'up' ? 'ОБЫЧНОЕ ОКНО РОСТА · ЕЩЁ' : 'ОБЫЧНОЕ ОКНО СЛИВА · ЕЩЁ') : (cs.kind === 'up' ? 'ДО ОБЫЧНОГО ОКНА РОСТА' : 'ДО ОБЫЧНОГО ОКНА СЛИВА');
+    s += '<text x="' + (W / 2) + '" y="52" text-anchor="middle" font-family="Jost,Inter" font-weight="200" font-size="32" letter-spacing=".06em" fill="' + col + '">' + inH + ':' + pad(inM) + '</text>';
+    s += '<text x="' + (W / 2) + '" y="70" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" letter-spacing=".26em" fill="rgba(255,255,255,.7)">' + cap + '</text>';
+    s += (cs.tUp ? '<text class="fc" x="' + x0 + '" y="' + (y + 40) + '" text-anchor="start" style="fill:#bfffe0;font-size:6.8px">рост ' + cs.tUp + '</text>' : '') +
+         (cs.tDn ? '<text class="fc" x="' + x1 + '" y="' + (y + 40) + '" text-anchor="end" style="fill:#ffb59f;font-size:6.8px">слив ' + cs.tDn + '</text>' : '');
+    s += '<text x="' + (W / 2) + '" y="' + (H - 6) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="6" letter-spacing=".2em" fill="rgba(255,255,255,.35)">ПО ИСТОРИИ ЗА ПОЛГОДА · НЕ ПРОГНОЗ</text>';
+    return '<div class="clockbox mini sched noglow" style="--c:#9fb8ad;--g:127,160,140"><svg viewBox="0 0 ' + W + ' ' + H + '">' + s + '</svg><div class="ground"></div></div>';
+  }
+
+  // ── СБОРКА ЭКРАНА ОДНОЙ МОНЕТЫ ──
+  var GLYPH = { sq: '<rect x="2" y="2" width="12" height="12"/>', dia: '<path d="M8 1 L15 8 L8 15 L1 8 Z"/>', chev: '<path d="M3 4 L8 9 L13 4 M3 9 L8 14 L13 9"/>', plus: '<path d="M8 2 V14 M2 8 H14"/>', arrow: '<path d="M2 8 H13 M9 4 L13 8 L9 12"/>' };
+  function build(tick) {
+    var s = BY[tick]; if (!s) { stage.innerHTML = '<div class="empty">монета ' + esc(tick) + ' не в журнале</div>'; return; }
+    var g = groups(s), rnd = seeded(tick.split('').reduce(function (a, c) { return a + c.charCodeAt(0); }, 7));
+    var H = HIST[String(s.t).toUpperCase()], ser, d0 = null, d1 = null;
+    // ОКНО ПЛИТЫ — ДВЕ НЕДЕЛИ (11.09; было 120 дневок, в прототипе 14 → 7 → 3 → снова 14).
+    // Дневки — запасной ряд, основной — часовой из oitypes.
+    var SHOW_DAYS = 14;   // 11.09 вечер, владелец: «график основной верни снова к двухнедельному»
+    if (H && H.c && H.c.length >= 14) {
+      var N = H.c.length, cut = Math.max(0, N - SHOW_DAYS);
+      ser = H.c.slice(cut); d0 = H.d0; d1 = H.d1;
+      if (cut && d0 && d1) { var _a = new Date(d0).getTime(), _b = new Date(d1).getTime(); d0 = new Date(_a + (_b - _a) * cut / Math.max(1, N - 1)).toISOString().slice(0, 10); }
+      if (s.px && ser[ser.length - 1] !== +s.px) ser.push(+s.px);
+    }
+    else ser = (s.series || []).map(Number).filter(function (v) { return v > 0; });
+    // ЧАСОВОЙ РЯД ПЛИТЫ (11.09): из oitypes за SHOW_DAYS дней; tx(t) — время в координату плиты,
+    // по нему ложатся все слои по времени (быстрый слой, тепловая карта ликвидаций)
+    var _sym = String(s.coin || (String(s.t).toUpperCase() + 'USDT'));
+    var _hrs = ((OIT[_sym] || {}).hours || []).filter(function (b) { return +b[4] > 0; });
+    var _tEnd = _hrs.length ? _hrs[_hrs.length - 1][0] + 36e5 : Date.now(), _tBeg = _tEnd - SHOW_DAYS * 864e5;
+    _hrs = _hrs.filter(function (b) { return b[0] >= _tBeg; });
+    if (_hrs.length > 48) { ser = _hrs.map(function (b) { return +b[4]; }); if (s.px) ser.push(+s.px); d0 = new Date(_tBeg).toISOString().slice(0, 10); d1 = new Date(_tEnd).toISOString().slice(0, 10); }
+    function tx(t) { return X0 + (X1 - X0) * (t - _tBeg) / (_tEnd - _tBeg); }
+    if (ser.length < 2 && s.px) ser = [s.px, s.px];
+    var lv = s.levels || {}, extra = [];
+    if (lv.above && lv.above.price) extra.push(+lv.above.price); if (lv.below && lv.below.price) extra.push(+lv.below.price); if (s.stop) extra.push(+s.stop);
+    (s.liqZones || []).slice(0, 3).forEach(function (z) { extra.push((z.lo + z.hi) / 2); });
+    var lo = Math.min.apply(null, ser.concat(extra)) * .96, hi = Math.max.apply(null, ser.concat(extra)) * 1.04;
+    function sy(v) { return (Y0 - 16) - (v - lo) / (hi - lo) * ((Y0 - 16) - Y1); }
+    var P = ser.map(function (v, i) { return [X0 + i * (X1 - X0) / (ser.length - 1), sy(v)]; });
+    var days = ser.length, today = new Date();
+    function dlab(i) { var d = new Date(today.getTime() - (days - 1 - i) * 864e5); return pad(d.getDate()) + '.' + pad(d.getMonth() + 1); }
+    if (d0) { var _d0 = new Date(d0), _d1 = new Date(d1); dlab = function (i) { var d = new Date(_d0.getTime() + (_d1.getTime() - _d0.getTime()) * i / Math.max(1, days - 1)); return pad(d.getDate()) + '.' + pad(d.getMonth() + 1); }; }
+    // плита
+    var slab = '<defs><filter id="blur3" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="3"/></filter><filter id="blur6" x="-10%" y="-40%" width="120%" height="180%"><feGaussianBlur stdDeviation="6"/></filter><filter id="blur12" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur stdDeviation="12"/></filter><filter id="blur30" x="-40%" y="-80%" width="180%" height="260%"><feGaussianBlur stdDeviation="30"/></filter>' +
+      '<linearGradient id="slab" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1fc47c" stop-opacity=".20"/><stop offset=".5" stop-color="#118a5c" stop-opacity=".15"/><stop offset="1" stop-color="#065a3b" stop-opacity=".14"/></linearGradient>' +
+      '<linearGradient id="sheen" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9fffd0" stop-opacity="0"/><stop offset=".45" stop-color="#9fffd0" stop-opacity=".03"/><stop offset=".55" stop-color="#9fffd0" stop-opacity="0"/></linearGradient>' +
+      '<linearGradient id="ground" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="' + GOLD + '" stop-opacity="0"/><stop offset=".08" stop-color="#ffe08a"/><stop offset=".92" stop-color="#ffe08a"/><stop offset="1" stop-color="' + GOLD + '" stop-opacity="0"/></linearGradient>' +
+      '<linearGradient id="rf" gradientUnits="userSpaceOnUse" x1="0" y1="' + Y0 + '" x2="0" y2="' + (Y0 - 210) + '"><stop offset="0" stop-color="#fff" stop-opacity=".75"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient><mask id="rm"><rect width="100%" height="100%" fill="url(#rf)"/></mask>' +
+      '<linearGradient id="shadowG" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity=".75"/><stop offset="1" stop-color="#000" stop-opacity="0"/></linearGradient></defs>';
+    var sh = 'M' + (X0 - 10) + ',' + (Y0 + 2) + ' ' + P.map(function (p) { return 'L' + f(p[0] + 26) + ',' + f(Y0 + (Y0 - p[1]) * .55 + 2); }).join(' ') + ' L' + f(P[P.length - 1][0] + 26) + ',' + (Y0 + 2) + ' Z';
+    slab += '<path d="' + sh + '" fill="url(#shadowG)" opacity=".55"/>';
+    slab += '<defs><radialGradient id="gpool"><stop offset="0" stop-color="' + GOLD + '" stop-opacity=".55"/><stop offset=".6" stop-color="' + GOLD + '" stop-opacity=".18"/><stop offset="1" stop-color="' + GOLD + '" stop-opacity="0"/></radialGradient></defs>' +
+      '' +
+      '';
+    var sc = scene(P, rnd);
+    slab += '<g class="an refl"><g transform="translate(0,' + (2 * Y0) + ') scale(1,-1)" mask="url(#rm)" opacity=".45">' + sc + '</g></g>' + sc;   // ОПТИМИЗАЦИЯ 04.09: отражение без blur
+    // уровни справа от блока решения
+    var LV = [];
+    if (lv.above && lv.above.price) LV.push(['ПЛИТА', +lv.above.price, GOLD]);
+    if (s.stop) LV.push(['СТОП', +s.stop, '#9fd8bf']);
+    if (lv.below && lv.below.price) LV.push(['ОПОРА', +lv.below.price, MINT]);
+    // ПРАВАЯ КОЛОНКА ПОДПИСЕЙ (04.09, разгрузка): плита, стоп, опора и
+    // ликвидации сначала складываются в список, потом раздвигаются по
+    // вертикали не ближе 12px друг к другу; линия уровня остаётся на
+    // своей высоте, к подписи ведёт короткий отвод — так при сгущении
+    // уровней у цены подписи не лезут одна на другую и на «сейчас».
+    // ТЕПЛОВАЯ КАРТА ЛИКВИДАЦИЙ ВО ВРЕМЕНИ (05.09, по R2D2): полосы каждого прогона liq_log
+    // ложатся за линию цены — по X время прогона, по Y цена, яркость — плотность.
+    // Ложится только на тот кусок плиты, который лог уже покрыл.
+    var _pxNow = +s.px || 0, _fb = (s.liqFuel || {}).below_usd || 0, _fa = (s.liqFuel || {}).above_usd || 0, _tk = +((s.cg || {}).taker) || 1;
+    var _bias = (_fb > _fa * 1.5 && _tk <= 1) ? 'down' : (_fa > _fb * 1.5 && _tk >= 1) ? 'up' : '';
+    var heat = '', heatX1 = null;
+    (function () {
+      var Hq = (D.liqhist || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]; if (!Hq || Hq.length < 2 || !d1) return;
+      var t1ms = new Date(d1).getTime(), DAYms = 864e5, x0d = X0 + (P.length ? 0 : 0);
+      var xOf = function (t) { if (_hrs.length > 48) return tx(t); var fi = (P.length - 1) - (t1ms - t) / DAYms; return X0 + fi / Math.max(1, P.length - 1) * (P[P.length - 1][0] - X0); };   // при часовом ряде — по времени (11.09)
+      // ТРЕТИЙ + ЧЕТВЁРТЫЙ ПУНКТ ВМЕСТЕ (05.09, по замечанию владельца): на прогон — три
+      // плотнейшие полосы НА КАЖДУЮ СТОРОНУ; яркость — ЛИНЕЙНО по доле топлива от максимума
+      // (корень сглаживал, и все выходили одной плотности); сторона, которую вероятнее снимут
+      // (_bias: топлива в ×1.5 больше и стакан давит туда же), — в полную яркость, другая —
+      // приглушена; мерки расходятся — обе равные. Так видно, как полоса зреет и когда её сняли.
+      var pxNowH = +s.px || 0;
+      Hq = Hq.map(function (r) {
+        var up = r[1].filter(function (z) { return z[0] > pxNowH; }).sort(function (a, b) { return (b[1] || 0) - (a[1] || 0); }).slice(0, 3);
+        var dn = r[1].filter(function (z) { return z[0] <= pxNowH; }).sort(function (a, b) { return (b[1] || 0) - (a[1] || 0); }).slice(0, 3);
+        return [r[0], up.concat(dn)]; });
+      var mx = 0; Hq.forEach(function (r) { r[1].forEach(function (z) { if (z[1] > mx) mx = z[1]; }); }); if (!mx) return;
+      var cw = Math.max(4, (xOf(Hq[Hq.length - 1][0]) - xOf(Hq[0][0])) / Math.max(1, Hq.length - 1));
+      heatX1 = xOf(Hq[Hq.length - 1][0]) + cw / 2;
+      Hq.forEach(function (r) { var x = xOf(r[0]); if (!(x >= X0 - 2)) return;
+        r[1].forEach(function (z) { var y = sy(z[0]); if (!isFinite(y)) return;
+          var side = z[0] < pxNowH ? 'down' : 'up', hot = !_bias || side === _bias;
+          var o = (0.12 + 0.75 * (z[1] / mx)) * (hot ? 1 : 0.35), col = side === 'down' ? '#ff8a70' : '#e6d3a3';
+          heat += '<rect x="' + (x - cw / 2).toFixed(1) + '" y="' + (y - 3).toFixed(1) + '" width="' + cw.toFixed(1) + '" height="6" rx="1" fill="' + col + '" opacity="' + o.toFixed(2) + '"/>'; }); });
+      if (heat) heat = '<g class="heat">' + heat + '</g>';
+    })();
+    var dirInfo = dirPl;   // копия для вступительной сводки (dirPl обнуляется после отрисовки плашки)
+    var RL = [];
+    LV.forEach(function (l) { RL.push({ y: sy(l[1]), col: l[2], txt: l[0] + ' ' + px4(l[1]), line: true, x1: X0 + 330, dash: '3 5', w: .6, op: .45 }); });
+    // ФЛАГ ПОДТВЕРЖДЁН ПУЗЫРЁМ (08.09, проверка на 319 случаях по 18 монетам): сам флаг
+    // «топливо ×1.5 + тейкер» даёт 32% верных — то есть чаще ошибается, и перевес топлива не
+    // помогает (×1.5–2 → 29%, ×2–4 → 46%, ×4+ → 22%). Но если в ту же сторону был ЯСНЫЙ пузырь —
+    // тот, на котором ОТКРЫВАЛИ позиции, — верных 9 из 9. Логика владельца: топливо есть всегда с
+    // обеих сторон, оно меряет ожидание; пузырь — факт, что кто-то уже отдал деньги и ведёт.
+    // Девять случаев — не статистика, поэтому флаг остаётся как был, а подтверждённый помечается
+    // отдельно и только он идёт в решение.
+    var _bubOK = (function () {
+      var ser = ((s.cg || {}).fullSeries) || [];
+      if (!ser.length || !_bias) return false;
+      var vols = ser.map(function (b) { return (+b.b || 0) + (+b.s || 0); });
+      var mu = vols.reduce(function (a, v) { return a + v; }, 0) / vols.length;
+      var sd = Math.sqrt(vols.reduce(function (a, v) { return a + (v - mu) * (v - mu); }, 0) / vols.length) || 0;
+      if (!sd) return false;
+      var last = null, prevOi = null;
+      ser.forEach(function (b, i) {
+        var v = vols[i], oi = (b.oi != null ? +b.oi : null);
+        if (v >= mu + 2 * sd) {
+          var buy = (+b.b || 0) >= (+b.s || 0);
+          var fill = (prevOi && oi) ? (oi / prevOi - 1) * 100 : null;
+          last = { buy: buy, clear: (fill !== null && fill >= 1.5 && b.type !== 'long_close') };
+        }
+        if (oi) prevOi = oi;
+      });
+      if (!last || !last.clear) return false;
+      return _bias === 'up' ? last.buy : !last.buy;
+    })();
+
+    // НАПРАВЛЕННОЕ СМЕЩЕНИЕ (05.09, по Leviathan): сторона, которую вероятнее снимут, — ярче,
+    // другая — тусклее. Вероятная сторона: топливо там больше (liqFuel), а стакан давит туда же
+    // (тейкер Coinglass < 1 → вниз, > 1 → вверх); при несогласии — обе одинаково.
+    (s.liqZones || []).slice(0, 3).forEach(function (z) {
+      var mid = (z.lo + z.hi) / 2, side = mid < _pxNow ? 'down' : 'up', hot = !_bias || side === _bias;
+      // подпись — ЦЕНА полосы (07.09, владелец: «в размере нет смысла»); сумма — при наведении
+      RL.push({ y: sy(mid), col: hot ? (side === 'down' ? '#ffd0c0' : '#e6d3a3') : '#6f7a75', txt: 'ЛИКВ ' + px4(mid) + (hot && _bias ? (_bubOK ? ' ← СНИМУТ · ПУЗЫРЬ' : ' ← снимут') : ''), tip: (side === 'down' ? 'лонги ' : 'шорты ') + (money(z.fuel) || '') + ' на ' + px4(mid), liq: true, hot: !!(hot && _bias), mid: mid, x1: (heatX1 !== null ? heatX1 : X0), dash: hot ? '6 4' : '2 6', w: hot ? (_bias ? 1.1 : .8) : .5, op: hot ? (_bias ? .8 : .55) : .3 });
+    });
+    // карта во времени с большой плиты снята (06.09): её горизонталь — 120 дней, сутки лога
+    // сжимались в столбик у края («кирпичики»); теперь она на плите журнала справа, где окно — дни
+    // ПЛАШКА НАПРАВЛЕНИЯ (05.09): не у точки «сейчас» (там её закрывает график), а в правой
+    // колонке под подписью полосы, которую снимут: две строки на тёмной плашке.
+    var dirPl = null;
+    (function () {
+      if (!_bias) return;
+      var zs = (s.liqZones || []).filter(function (z) { var mid = (z.lo + z.hi) / 2; return _bias === 'down' ? mid < _pxNow : mid > _pxNow; });
+      if (!zs.length) return;
+      var z = zs.reduce(function (a, b) { return (b.fuel || 0) > (a.fuel || 0) ? b : a; }), mid = (z.lo + z.hi) / 2;
+      var ratio = _bias === 'down' ? _fb / Math.max(1, _fa) : _fa / Math.max(1, _fb);
+      dirPl = { mid: mid, l1: (_bias === 'down' ? 'ВЕРОЯТНЕЕ ВНИЗ · К ' : 'ВЕРОЯТНЕЕ ВВЕРХ · К ') + px4(mid),
+                l2: 'ТОПЛИВО ×' + ratio.toFixed(1) + ' · СТАКАН ДАВИТ ' + (_bias === 'down' ? 'ВНИЗ' : 'ВВЕРХ')
+                    + (_bubOK ? ' · ПУЗЫРЬ ПОДТВЕРЖДАЕТ' : ' · ПУЗЫРЬ НЕ ПОДТВЕРЖДАЕТ'),
+                ok: _bubOK,
+                col: _bubOK ? (_bias === 'down' ? '#ffc4b3' : '#ffe2a8') : '#8b9aa6' };
+    })();
+    RL.push({ y: ny0 = P[P.length - 1][1], col: '#fff', txt: '', now: true });   // место под «сейчас» тоже занимает строку
+    RL.sort(function (a, b) { return a.y - b.y; });
+    for (var ri = 1; ri < RL.length; ri++) { RL[ri].ly = Math.max(RL[ri].ly !== undefined ? RL[ri].ly : RL[ri].y, (RL[ri - 1].ly !== undefined ? RL[ri - 1].ly : RL[ri - 1].y) + 12); }
+    for (ri = RL.length - 2; ri >= 0; ri--) { var nxt = RL[ri + 1].ly, cur = RL[ri].ly !== undefined ? RL[ri].ly : RL[ri].y; if (cur > nxt - 12) RL[ri].ly = nxt - 12; }
+    RL.forEach(function (r) {
+      if (r.ly === undefined) r.ly = r.y;
+      if (r.now) return;
+      var g = '<g class="an lv"' + (r.liq ? ' opacity=".8"' : '') + '>';
+      if (r.liq) g += '<line x1="' + r.x1 + '" y1="' + f(r.y) + '" x2="' + (X1 + 30) + '" y2="' + f(r.y) + '" stroke="' + GOLD + '" stroke-width="6" opacity=".12" filter="url(#blur3)"/>';
+      g += '<line x1="' + r.x1 + '" y1="' + f(r.y) + '" x2="' + (X1 + 30) + '" y2="' + f(r.y) + '" stroke="' + (r.liq ? (r.op > .6 ? r.col : '#fff1cc') : r.col) + '" stroke-width="' + r.w + '" opacity="' + r.op + '" stroke-dasharray="' + r.dash + '"/>';
+      if (Math.abs(r.ly - r.y) > 1) g += '<polyline points="' + (X1 + 30) + ',' + f(r.y) + ' ' + (X1 + 42) + ',' + f(r.ly) + ' ' + (X1 + 48) + ',' + f(r.ly) + '" fill="none" stroke="' + r.col + '" stroke-width=".6" opacity=".5"/>';
+      var isDir = !!(dirPl && r.hot && Math.abs(r.mid - dirPl.mid) < 1e-12);
+      if (isDir) {
+        // подпись полосы + мигающая стрелка «← снимут»; плашка направления раскрывается при наведении на стрелку
+        var base = r.txt.replace(' ← СНИМУТ', '');
+        g += '<g class="dirhot"><text x="' + (X1 + 52) + '" y="' + f(r.ly + 2.5) + '" class="mono" font-size="7" letter-spacing=".16em" fill="' + r.col + '" opacity=".95">' + esc(base) + '<tspan class="blink" fill="' + dirPl.col + '"> ← СНИМУТ</tspan></text>';
+        var pw = 168, ph = 26, pxl = X1 + 50, pyt = r.ly - 34;   // плашка НАД подписью (07.09): под ней её закрывала соседняя строка
+        g += '<g class="dirpl"><rect x="' + pxl + '" y="' + f(pyt) + '" width="' + pw + '" height="' + ph + '" rx="3" fill="rgba(3,17,12,.88)" stroke="' + dirPl.col + '" stroke-opacity=".5" stroke-width=".6"/>' +
+             '<text x="' + (pxl + 6) + '" y="' + f(pyt + 10) + '" class="mono" font-size="6.5" letter-spacing=".18em" fill="' + dirPl.col + '">' + esc(dirPl.l1) + '</text>' +
+             '<text x="' + (pxl + 6) + '" y="' + f(pyt + 20) + '" class="mono" font-size="6" letter-spacing=".14em" fill="#bfe9d6">' + esc(dirPl.l2) + '</text></g></g>';
+        dirPl = null;
+      } else {
+        g += '<text x="' + (X1 + 52) + '" y="' + f(r.ly + 2.5) + '" class="mono" font-size="7" letter-spacing=".16em" fill="' + r.col + '" opacity=".95">' + (r.tip ? '<title>' + esc(r.tip) + '</title>' : '') + esc(r.txt) + '</text>';
+      }
+      g += '</g>';
+      slab += g;
+    });
+    var ny0;
+    var nx = P[P.length - 1][0], ny = P[P.length - 1][1];
+    // ── БЫСТРЫЙ СЛОЙ (11.09, владелец): на большой плите — только точка старта (монета вошла в первые
+    //    три очереди) и последняя стрелка выноской под плитой; все стрелки — на плите журнала справа.
+    //    События берутся из D.fast[sym] — их пишет _fast_events() из архива и журнала очереди.
+    var _EV = [], _LAST = null;   // события быстрого слоя за окно — общий список для плиты и журнала
+    if (_hrs.length > 48) (function () {
+      var F = ((D.fast || {})[_sym]) || {}, GR = '#4fd1a8', RD = '#ff7a7a', OR = '#f0a04b', WH = '#eaf4ff';
+      function ok(t) { return t >= _tBeg && t <= _tEnd; }
+      function hhmm(t) { var d = new Date(t); return pad(d.getUTCDate()) + '.' + pad(d.getUTCMonth() + 1) + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
+      _hrs.filter(function (b) { return (+b[2] || 0) >= 1.5; }).forEach(function (b) { var oi = +b[2] || 0, px = +b[3] || 0;
+        if (px > 0.3) _EV.push({ t: b[0] + 18e5, px: +b[4], dir: 'up', kind: 'oi', col: GR, op: Math.min(.9, .25 + .2 * Math.min(oi / px, 3)), short: 'интерес растёт с ценой', tip: 'интерес растёт вместе с ценой · ' + hhmm(b[0]) + ' · интерес +' + oi.toFixed(1) + '% · цена +' + px.toFixed(1) + '%' });
+        else { var ratio = oi / Math.max(0.3, Math.abs(px)), k = Math.max(0, Math.min(1, (ratio - 1.5) / 1.5));
+          _EV.push({ t: b[0] + 18e5, px: +b[4], dir: 'down', kind: 'oi', col: k < .5 ? '#ffd98a' : RD, op: .15 + .8 * k, short: 'интерес растёт, цена нет · ×' + ratio.toFixed(1), tip: 'интерес растёт, цена нет · ' + hhmm(b[0]) + ' · интерес +' + oi.toFixed(1) + '% · цена ' + (px >= 0 ? '+' : '') + px.toFixed(1) + '% · отношение ×' + ratio.toFixed(1) }); } });
+      (F.entry || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: 'up', kind: 'vx', col: OR, op: .95, short: 'вихрь: покупатели взяли сторону', tip: 'вихрь 30м: покупатели взяли сторону · ' + hhmm(e.t) + ' · разрыв ' + (+e.gap).toFixed(2) }); });
+      (F.hedge || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: 'down', kind: 'vx', col: OR, op: .95, short: 'вихрь: продавцы взяли сторону', tip: 'вихрь 30м: продавцы взяли сторону · ' + hhmm(e.t) + ' · ' + (e.kind || '') }); });
+      (F.force || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: e.dir === 'down' ? 'down' : 'up', kind: 'force', col: e.dir === 'down' ? RD : GR, op: e.dir === 'down' ? .9 : .8, short: e.dir === 'down' ? 'сила развернулась вниз' : 'сила развернулась вверх', tip: (e.dir === 'down' ? 'сила развернулась вниз · ' : 'сила развернулась вверх · ') + hhmm(e.t) }); });
+      _EV = _EV.filter(function (e) { return ok(e.t); }).sort(function (a, b) { return a.t - b.t; });
+      var L = '<g class="fast">';
+      // ТОЧКА СТАРТА — ЗОЛОТАЯ, БЕЗ ОРЕОЛА И ПОДЛОЖКИ (11.09, владелец: «сделай её золотой просто и всё,
+      // она и так будет выделяться за счёт формы»): монета впервые за окно вошла в первые три очереди
+      (F.start || []).forEach(function (e) { if (!ok(e.t)) return; var x = tx(e.t), y = sy(+e.px || ser[0]);
+        L += goldDot(x, y, 4.2, 'движение началось · ' + hhmm(e.t) + ' · место ' + e.place + ' в очереди'); });
+
+      // одна последняя стрелка по центру над графиком + короткая подпись
+      var last = _EV[_EV.length - 1];
+      _LAST = last;   // рисуется отдельной выноской справа от плиты, в сцене
+
+      L += '</g>'; slab += L;
+    })();
+    slab += '<g class="an now"><circle cx="' + f(nx) + '" cy="' + f(ny) + '" r="14" fill="#fff" opacity=".22" filter="url(#blur6)"/><circle cx="' + f(nx) + '" cy="' + f(ny) + '" r="3.2" fill="#fff"/><circle class="ring" cx="' + f(nx) + '" cy="' + f(ny) + '" r="6" fill="none" stroke="#fff" stroke-width="1"/></g>';
+    slab += '<g class="an lv2"><text x="' + f(nx - 12) + '" y="' + f(ny - 12) + '" text-anchor="end" font-family="Jost,Inter" font-weight="300" font-size="10" fill="#fff">' + px4(s.px || ser[ser.length - 1]) + ' <tspan fill="#bfe9d6">сейчас</tspan></text>';
+    // РИСКИ ЦЕН на левой оси (04.09): четыре деления между низом и верхом
+    // окна, чтобы у графика был масштаб, а не только даты
+    (function () {
+      var smin = Math.min.apply(null, ser), smax = Math.max.apply(null, ser), ax = X0 - 26;
+      for (var ti = 0; ti <= 3; ti++) { var pv = smin + (smax - smin) * ti / 3, yy = sy(pv);
+        slab += '<line x1="' + (ax - 4) + '" y1="' + f(yy) + '" x2="' + (ax + 4) + '" y2="' + f(yy) + '" stroke="' + GOLD + '" stroke-width=".8" opacity=".6"/><text x="' + (ax - 8) + '" y="' + f(yy + 2.5) + '" text-anchor="end" class="mono" font-size="7" letter-spacing=".12em" fill="#9fd8bf" opacity=".85">' + px4(pv) + '</text>'; }
+    })();
+    // ДНО ОКНА и ход от него (04.09, «нет роста от дна»): точка минимума,
+    // пунктир к «сейчас», подпись +N% от дна
+    (function () {
+      var imn = 0; for (var i = 1; i < ser.length; i++) if (ser[i] < ser[imn]) imn = i;
+      if (imn === ser.length - 1) return;
+      var bx = P[imn][0], by = P[imn][1], up = (ser[ser.length - 1] / ser[imn] - 1) * 100;
+      slab += '<g class="an lv2"><circle cx="' + f(bx) + '" cy="' + f(by) + '" r="3" fill="none" stroke="' + MINT + '" stroke-width="1"/>' +
+        '<text x="' + f(bx) + '" y="' + f(by + 14) + '" text-anchor="middle" class="mono" font-size="7" letter-spacing=".14em" fill="' + MINT + '" opacity=".9">ДНО ' + px4(ser[imn]) + '</text>' +
+        '<line x1="' + f(bx) + '" y1="' + f(by) + '" x2="' + f(nx) + '" y2="' + f(ny) + '" stroke="' + MINT + '" stroke-width=".7" opacity=".45" stroke-dasharray="2 5"/>' +
+        '<text x="' + f((bx + nx) / 2) + '" y="' + f((by + ny) / 2 - 6) + '" text-anchor="middle" class="mono" font-size="7.5" letter-spacing=".14em" fill="' + MINT + '">' + (up >= 0 ? '+' : '') + up.toFixed(0) + '% ОТ ДНА</text></g>';
+    })();
+    [[0, dlab(0)], [Math.floor(days / 2), dlab(Math.floor(days / 2))], [days - 1, 'сегодня']].forEach(function (d) { slab += '<text x="' + f(P[d[0]][0]) + '" y="' + (Y0 + 18) + '" text-anchor="middle" class="mono" font-size="7" letter-spacing=".16em" fill="#7fb8a0">' + d[1] + '</text>'; });
+    slab += '<line x1="' + (X0 - 26) + '" y1="' + Y0 + '" x2="' + (X0 - 26) + '" y2="' + (Y1 + 4) + '" stroke="' + GOLD + '" stroke-width=".8" opacity=".5"/><path d="M' + (X0 - 26) + ',' + Y1 + ' l-3.5,6 h7 z" fill="' + GOLD + '" opacity=".6"/></g>';
+    // ── ПРОГНОЗ ЖУРНАЛА: точка смены на линии, ножка, подпись с подчёркиванием ──
+    // Где и что за событие — те же смены, что на экране журнала. Даты нет:
+    // где на плите, там и когда. Подписи ярусами справа налево, наезда нет.
+    (function () {
+      var J = JR[String(s.t).toUpperCase()], M = J && J.marks;
+      if (!M || !M.length) return;
+      var t0 = d0 ? new Date(d0).getTime() : null, t1 = d1 ? new Date(d1).getTime() : null;
+      slab += '<defs>' +
+        '<filter id="fcglow" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur in="SourceGraphic" stdDeviation="2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
+        '<filter id="fcglow2" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur in="SourceGraphic" stdDeviation="1.6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
+        '<filter id="fcglow3" x="-20%" y="-60%" width="140%" height="220%"><feGaussianBlur in="SourceGraphic" stdDeviation="1.8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>' +
+        '<linearGradient id="fcu1"><stop offset="0" stop-color="#f5a93a" stop-opacity="0"/><stop offset=".6" stop-color="#ffd98a"/><stop offset="1" stop-color="#fff"/></linearGradient>' +
+        '<linearGradient id="fcu2"><stop offset="0" stop-color="#7fe8b0" stop-opacity="0"/><stop offset=".6" stop-color="#bfe9d6"/><stop offset="1" stop-color="#fff"/></linearGradient>' +
+        '<linearGradient id="fcu3"><stop offset="0" stop-color="#ff5a4a" stop-opacity="0"/><stop offset=".6" stop-color="#ff9d84"/><stop offset="1" stop-color="#fff"/></linearGradient></defs>';
+      var last = M.length - 1;
+      var SHOW = shownMarks(M);
+      var _eb = endedByBars(s.coin || s.t);
+      var ENDED = isEnd(M[last].tpl) || !!_eb;   // конец — по шаблону ИЛИ по барам
+      M.forEach(function (m, k) {
+        if (ENDED && k !== last) return;   // остаётся одна метка: выход
+        var tm = new Date(m.t).getTime(), x;
+        if (t0 && t1 && t1 > t0) x = X0 + Math.max(0, Math.min(1, (tm - t0) / (t1 - t0))) * (X1 - X0);
+        else x = P[P.length - 1][0];
+        var y = sy(+m.px), cls = k === last ? 'now' : 'past', col = k === last ? '#ffd98a' : '#bfe9d6';
+        if (m.miss) { cls = k === last ? 'now miss' : 'miss'; col = '#ff9d84'; }
+        // подписи — вереницей справа налево по верху плиты (последняя смена —
+        // самая правая), в два ряда, к каждой — прямая выноска от её точки
+        // ПОДПИСИ ТОЛЬКО У ПОСЛЕДНИХ ТРЁХ (05.09: после дозабора смен стало много, подписи
+        // наезжали друг на друга); старые смены — точка на линии без текста, полный ряд — в журнале
+        // подписи — короткие имена, ВСЕ смены, в два ряда через одну, шаг по ширине подписи (05.09)
+        var tier = last - k, name = tplShort(m.tpl), w = name.length * 7.2, ex = X1 + 10 - tier * 110, ty = Y1 + 24 + (tier % 2) * 22;
+        if (ex - w < X0) { ex = X0 + w; }
+        var labeled = !!SHOW[k];
+        slab += '<g class="an fc ' + cls + '" style="animation-delay:' + (2.2 + k * .2).toFixed(1) + 's">' +
+          '<circle cx="' + f(x) + '" cy="' + f(y) + '" r="' + (k === last ? 12 : 8) + '" fill="' + col + '" opacity=".28" filter="url(#blur6)"/><circle cx="' + f(x) + '" cy="' + f(y) + '" r="2.6" fill="#fff6e4"/>' +
+          (labeled ? '<line class="st" x1="' + f(x) + '" y1="' + f(y) + '" x2="' + f(ex - w / 2) + '" y2="' + f(ty + 8) + '" stroke="' + col + '" stroke-width="1" opacity=".55"/>' +
+          '<text x="' + f(ex) + '" y="' + f(ty) + '" text-anchor="end">' + esc(name) + '</text>' +
+          '<line class="u" x1="' + f(ex - w) + '" y1="' + f(ty + 6) + '" x2="' + f(ex) + '" y2="' + f(ty + 6) + '"/>' : '') + '</g>';
+      });
+    })();
+    // РЕШЕНИЕ — ВНЕ ПЛИТЫ (04.09): плашка ушла с графика влево-вниз, HTML-слоем
+    // на сцене; на плите остаётся только линия, уровни и прогноз. Карточка
+    // при наведении — та же (dzone).
+    var dec = g.decision;
+    // россыпь значков
+    [[200, 190, 'sq'], [420, 120, 'plus'], [560, 240, 'dia'], [700, 160, 'chev'], [330, 250, 'sq']].forEach(function (d) { var inn = { sq: '<rect x="0" y="0" width="10" height="10"/>', plus: '<path d="M5 0 V10 M0 5 H10"/>', chev: '<path d="M0 2 L5 7 L10 2"/>', dia: '<path d="M5 0 L10 5 L5 10 L0 5 Z"/>' }[d[2]]; slab += '<g fill="none" stroke="' + GOLD + '" stroke-width="1" opacity=".5" transform="translate(' + d[0] + ',' + d[1] + ') scale(1.4)">' + inn + '</g>'; });
+    // пометки и выноски
+    var imin = 0; for (var i = 1; i < P.length; i++) if (P[i][1] > P[imin][1]) imin = i;
+    var imax = 0; for (i = 1; i < P.length; i++) if (P[i][1] < P[imax][1]) imax = i;
+    var NOTES = [['lever', 110, 250, P[imax]], ['memory', 700, 28, P[Math.floor(P.length / 2)]], ['flow', 1190, 150, P[Math.max(0, P.length - 3)]], ['price', 1215, 325, P[imin]]   /* «где цена» — справа, между потоком и календарём (11.09); её место под плитой заняла стрелка */, ['calendar', 1190, 470, P[P.length - 1]]];
+    var notes = '', leaders = '';
+    // ПОСЛЕДНЯЯ СТРЕЛКА БЫСТРОГО СЛОЯ (11.09) — выноска под плитой, на месте бывшей «где цена»;
+    // без подложки, ярко, дышит; текст и время по центру под ней
+    if (_LAST) (function () {
+      var L = _LAST, dy = L.dir === 'up' ? -3 : 3, ar = L.dir === 'up' ? 'M31,44 h18 l-9,-17 z' : 'M31,28 h18 l-9,17 z';   // вдвое меньше
+      function hh(t) { var d = new Date(t); return pad(d.getUTCDate()) + '.' + pad(d.getUTCMonth() + 1) + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
+      // текст под стрелкой — по её центру (владелец: «сейчас левым краем с её центром совпадает»)
+      // выше блока решения, стрелка слева от текста (владелец 11.09)
+      notes += '<div class="note lastArrow" style="left:640px;top:530px;width:300px;display:flex;align-items:center;gap:6px;text-align:left;pointer-events:auto;z-index:7" title="' + esc(L.tip) + '">' +
+        '<svg viewBox="0 0 80 72" width="60" height="54" style="display:block;overflow:visible;flex:none">' +
+        '<circle cx="40" cy="36" r="10" fill="' + L.col + '" opacity=".22" style="filter:blur(6px)"><animate attributeName="r" values="8;15;8" dur="2.4s" repeatCount="indefinite"/><animate attributeName="opacity" values=".12;.38;.12" dur="2.4s" repeatCount="indefinite"/></circle>' +
+        '<path d="' + ar + '" fill="' + L.col + '" stroke="#fff6dc" stroke-width=".8" stroke-opacity=".7" style="filter:drop-shadow(0 0 8px ' + L.col + ')"><animateTransform attributeName="transform" type="translate" values="0 0;0 ' + dy + ';0 0" dur="1.6s" repeatCount="indefinite"/></path></svg>' +
+        '<div><div style="font-family:var(--f-cap);font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:' + L.col + '">' + esc(L.short) + '</div>' +
+        '<div style="font-family:var(--f-cap);font-size:7px;letter-spacing:.18em;color:#bfe9d6;opacity:.8;margin-top:3px">' + esc(hh(L.t)) + '</div></div></div>';
+    })();
+    NOTES.forEach(function (n, ni) { var G = g[n[0]], pr = project(n[3][0], n[3][1]), lx = n[1] + 8, ly = n[2] + 40, ll = Math.hypot(pr[0] - lx, pr[1] - ly);
+      leaders += '<line class="ld" x1="' + lx + '" y1="' + ly + '" x2="' + f(pr[0]) + '" y2="' + f(pr[1]) + '" stroke="' + GOLD + '" stroke-width=".6" opacity=".5" style="--L:' + Math.ceil(ll + 2) + ';animation-delay:' + (2.9 + ni * .15).toFixed(2) + 's"/><circle class="an ldc" cx="' + f(pr[0]) + '" cy="' + f(pr[1]) + '" r="2.6" fill="none" stroke="' + GOLD + '" stroke-width=".8" style="animation-delay:' + (3.3 + ni * .15).toFixed(2) + 's"/>';
+      notes += '<div class="note an" style="left:' + n[1] + 'px;top:' + n[2] + 'px;animation-delay:' + (3 + ni * .15).toFixed(2) + 's">' + cardHtml(G) + '<div class="row"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3">' + GLYPH[G.glyph] + '</svg><span class="cap">' + esc(G.cap) + '</span></div><div class="num' + (G.stale ? ' stale' : '') + '">' + esc(G.num) + (G.stale ? '<u title="Coinglass протух или нет данных"></u>' : '') + '</div><div class="unit">' + esc(G.unit || '') + '</div><div class="sub' + (G.hot ? ' hot' : '') + '">' + esc(G.sub || '') + '</div>' + (G.stale ? '<div class="sub stale">Coinglass ' + ageTxt(ageH(SRC.coinglass)) + ' — числа не свежие</div>' : '') + '</div>';
+    });
+    // фигуры: статуя (мрамор, драпировка, пьедестал) и стеклянный куб
+    // лёгкие анимации сцены: 12 пылинок, полоса света, две искры у оси
+    var ANIM = '<div class="pool g1"></div><div class="pool g2"></div><div class="pool t"></div>';
+    ANIM += '<div class="dustbox">';
+    for (var di = 0; di < 6; di++) { var rx = 120 + ((di * 137) % 1200), ry = 420 + ((di * 71) % 460), dd = 9 + (di % 5) * 2, dw = -(di * 1.3), dx = (di % 2 ? 1 : -1) * (12 + (di * 9) % 40);
+      ANIM += '<div class="dust' + (di % 3 === 0 ? ' g' : '') + '" style="left:' + rx + 'px;top:' + ry + 'px;--d:' + dd + 's;--w:' + dw + 's;--x:' + dx + 'px"></div>'; }
+    ANIM += '</div><div class="spark" style="left:' + (SL + (X0 - 26) - 3) + 'px;top:' + (ST + Y1 - 10) + 'px"></div><div class="spark b" style="left:' + (SL + (X0 - 26) - 3) + 'px;top:' + (ST + Y0 - 3) + 'px"></div>';
+    // РЕШЕНИЕ ПОДЧИНЯЕТСЯ ШАБЛОНУ «У ЦЕЛИ» (06.09, случай ENA): решение считается по дневке и не
+    // видит ночных баров; если шаблон говорит «ведут покупатели» — держать до полосы, «толпа
+    // набивается» — снять часть. Иначе экран спорит сам с собой: «у цели, ведут покупатели» и «ждать».
+    (function () {
+      var pl = String((s.rep || {}).plot || '').toLowerCase(); if (pl.indexOf('у цели') !== 0) return;
+      var det = pl.split(') — ')[1] || pl.split(' — ')[1] || '';
+      if (det.indexOf('ведут покупатели') === 0 || det.indexOf('ведёт покупатель') === 0) {
+        dec = Object.assign({}, dec, { verdict: 'держать', why: 'у цели, ведут покупатели — до плотнейшей полосы выше; стоп под полосой лонгов (по шаблону, не по дневке)' });
+      } else if (det.indexOf('толпа набивается') === 0) {
+        dec = Object.assign({}, dec, { verdict: 'снять часть', why: 'у цели, толпа набивается в лонг — следующий ход вниз, к полосе лонгов (по шаблону)' });
+      }
+    })();
+    // БЫСТРЫЙ СЛОЙ ПЕРЕВОДИТ РЕШЕНИЕ (11.09): есть хоть один быстрый довод — вердикт «хедж на часть»,
+    // причина — первый из них. Стоит ПОСЛЕ правила «у цели», чтобы быть над ним.
+    if (dec.fast && dec.fast.length) dec = Object.assign({}, dec, { verdict: 'хедж на часть', why: 'быстрый слой против медленного — ' + dec.fast[0].replace('быстро · ', '') });
+    var INTRO = [];   // вступительная сводка (05.09): текстом поверх графика при входе, потом гаснет
+    INTRO.push(['решение', String(dec.verdict || '') + (dec.why ? ' — ' + String(dec.why).split('—')[0] : '')]);
+    if (s.rep && s.rep.plot) INTRO.push(['журнал', String(s.rep.plot).split(':')[0]]);
+    if (dirInfo) INTRO.push(['направление', dirInfo.l1.toLowerCase() + ' · ' + dirInfo.l2.toLowerCase()]);
+    var vtxt = String(dec.verdict || '').toLowerCase(), vcls = /брать|купить/.test(vtxt) ? 'v-buy' : /держ/.test(vtxt) ? 'v-hold' : /закр|выход|выйти|прода/.test(vtxt) ? 'v-exit' : 'v-wait';
+    var BOX6 = '<div class="f back"></div><div class="f bottom"></div><div class="f left"></div><div class="f right"></div><div class="f top"></div>';
+    var dzone = ANIM + '<div class="mini verdict ' + vcls + ' dzone decbox vb ' + (window.VERDICT_STYLE || 'dark') + '">' + cardHtml(dec) +
+      '<div class="bglow2"></div><div class="bglow"></div>' +
+      [[46, 6.2, 0], [62, 7.1, .8], [78, 5.6, 1.6], [94, 6.8, .4], [110, 7.6, 1.2]].map(function (r) { return '<i class="ray" style="left:' + r[0] + 'px;--rd:' + r[1] + 's;--rw:' + (-r[2]) + 's"></i>'; }).join('') +
+      '<div class="vtxt' + (String(dec.verdict || '').length > 7 ? ' long' : '') + '"><div class="vcap">решение</div><div class="vw">' + esc(dec.verdict) + '</div><div class="vwhy">' + esc(String(dec.why).split('—')[0].slice(0, 32)) + '</div></div>' +
+      '<div class="gshadow"></div><div class="box grey">' + BOX6 + '<div class="f front"><div class="txt"><b>за</b><span>' + esc(dec.pro.join(' · ') || 'нет') + '</span><b class="con">против</b><span class="con">' + esc(dec.con.join(' · ') || 'нет') + '</span></div></div></div></div>';
+    // ── плечо по типу (05.09): МИНИ-ПЛИТА как журнал справа — линия цены за 14 дней поверх
+    //    цветных блоков по 4 ч: шорты открывают — красный, закрывают — приглушённый красный;
+    //    лонги открывают — зелёный, закрывают — приглушённый зелёный ──
+    (function () {
+      var o = OIT[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]; if (!o || !o.hours || o.hours.length < 8) return;
+      var NM = { long_open: 'лонги открывают', short_open: 'шорты открывают', short_close: 'шорты закрывают', long_close: 'лонги закрывают' };
+      var COL = { long_open: '#2fae78', long_close: '#2a6a50', short_open: '#d4574a', short_close: '#7a3a33' };
+      var hh = o.hours;
+      // цена по часам: из записи (close) или восстановленная от текущей по приростам
+      var closes = hh.map(function (h) { return h.length > 4 ? +h[4] : null; });
+      if (closes.some(function (v) { return v === null || !isFinite(v); })) { var pxn = +s.px || 1, acc = pxn; closes = []; for (var q = hh.length - 1; q >= 0; q--) { closes[q] = acc; acc = acc / (1 + (hh[q][3] || 0) / 100); } }
+      // четырёхчасовые блоки: тип — у которого больше суммарный прирост интереса среди нешумных часов
+      var B = []; for (var bi = 0; bi < hh.length; bi += 4) {
+        var chunk = hh.slice(bi, bi + 4), acc2 = {}, best = 'flat', bv = 0, doi = 0, dp = 0, qv = 0;
+        chunk.forEach(function (h) { doi += h[2]; dp += h[3]; qv += (h.length > 5 ? +h[5] || 0 : 0); if (h[1] === 'flat') return; acc2[h[1]] = (acc2[h[1]] || 0) + Math.abs(h[2]); if (acc2[h[1]] > bv) { bv = acc2[h[1]]; best = h[1]; } });
+        B.push([chunk[0][0], best, +doi.toFixed(2), +dp.toFixed(2), closes[Math.min(hh.length - 1, bi + chunk.length - 1)], qv]); }
+      function dom(arr) { var acc = {}, best = 'flat', bv = 0; arr.forEach(function (b) { if (b[1] === 'flat') return; acc[b[1]] = (acc[b[1]] || 0) + Math.abs(b[2]); if (acc[b[1]] > bv) { bv = acc[b[1]]; best = b[1]; } }); return best; }
+      var VERD = { long_open: 'толпа набивается в лонг — следующий ход у неё вниз', short_close: 'рост на выкупе шортов — без новых лонгов гаснет',
+                   short_open: 'шорты встают против хода — топливо сверху, курок взводится', long_close: 'лонги выходят — вынос идёт, покупать рано', flat: 'плечо не двигается — сон' };
+      var last24 = hh.slice(-24), sumT = {};
+      last24.forEach(function (h) { if (h[1] === 'flat') return; sumT[h[1]] = (sumT[h[1]] || 0) + h[2]; });
+      var VB = { long_open: 'лонги открыли', short_open: 'шорты открыли', short_close: 'шорты закрыли', long_close: 'лонги закрыли' };
+      var parts = ['long_open', 'short_open', 'short_close', 'long_close'].filter(function (k) { return sumT[k] && Math.abs(sumT[k]) >= 0.3; }).map(function (k) { return VB[k] + ' ' + (sumT[k] > 0 ? '+' : '') + sumT[k].toFixed(1) + '%'; });
+      var tot24 = last24.reduce(function (a, h) { return a + h[2]; }, 0);
+      var read24 = 'за сутки интерес ' + (tot24 > 0 ? '+' : '') + tot24.toFixed(1) + '%' + (parts.length ? ': ' + parts.join(' · ') : ' — плечо не двигалось');
+      var recent = dom(B.slice(-6)), before = dom(B.slice(-18, -6));
+      var verdict = VERD[recent] || '';
+      if (recent !== before && before !== 'flat' && recent !== 'flat') verdict = 'смена: после «' + NM[before] + '» пошло «' + NM[recent] + '» — ' + verdict;
+      if (o.quality) verdict = o.quality + ' · ' + verdict;   // качество хода за сутки (по Leviathan): на чём рос/падал
+      INTRO.push(['плечо', verdict + ' · ' + read24]);
+      // SVG плиты: те же размеры, что у журнала
+      var W = 320, H = 180, GY = H - 30, n = B.length, X = function (i) { return 12 + i / Math.max(1, n - 1) * (W - 24); };
+      var lo = Math.min.apply(null, B.map(function (b) { return b[4]; })), hi = Math.max.apply(null, B.map(function (b) { return b[4]; })); if (hi === lo) hi = lo * 1.01;
+      var Y = function (p) { return 34 + (1 - (p - lo) / (hi - lo)) * (H - 90); };
+      var bw = (W - 24) / Math.max(1, n - 1);
+      // столбики: высота — по силе прироста интереса в блоке (корень от доли максимума), от пола вверх;
+      // объём — вертикальный градиент светлее к верху, скруглённые углы, тонкий блик по верхней кромке
+      var hasQ = B.some(function (b) { return b[5] > 0; });
+      var mxd = Math.max.apply(null, B.map(function (b) { return hasQ ? (b[5] || 0) : (Math.abs(b[2]) || 0); })) || 1;
+      var g = '<defs>' + Object.keys(COL).map(function (k) { return '<linearGradient id="og_' + k + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + COL[k] + '" stop-opacity=".78"/><stop offset=".55" stop-color="' + COL[k] + '" stop-opacity=".46"/><stop offset="1" stop-color="' + COL[k] + '" stop-opacity=".12"/></linearGradient>'; }).join('') + '</defs>';
+      B.forEach(function (b, i) { var col = COL[b[1]]; if (!col) return;
+        var mag = hasQ ? (b[5] || 0) : Math.abs(b[2]);
+        var hgt = (GY - 34) * (0.12 + 0.88 * Math.sqrt(mag / mxd)), yt = GY - hgt, xl = X(i) - bw / 2 + .6, wd = Math.max(1.2, bw - 1.2);
+        g += '<g><rect x="' + xl.toFixed(1) + '" y="' + yt.toFixed(1) + '" width="' + wd.toFixed(1) + '" height="' + hgt.toFixed(1) + '" rx="1.4" fill="url(#og_' + b[1] + ')"/>' +
+          '<rect x="' + xl.toFixed(1) + '" y="' + yt.toFixed(1) + '" width="' + wd.toFixed(1) + '" height="1.2" rx=".6" fill="' + col + '" opacity=".6"/>' +
+          '<rect x="' + (xl + wd * .62).toFixed(1) + '" y="' + (yt + 1.5).toFixed(1) + '" width="' + (wd * .3).toFixed(1) + '" height="' + Math.max(0, hgt - 3).toFixed(1) + '" rx=".8" fill="#000" opacity=".16"/>' +
+          '<title>' + esc(new Date(b[0]).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' +4ч · ' + NM[b[1]] + ' · интерес ' + (b[2] > 0 ? '+' : '') + b[2] + '% · цена ' + (b[3] > 0 ? '+' : '') + b[3] + '%' + (b[5] ? ' · оборот ' + (money(b[5]) || '') : '')) + '</title></g>'; });
+      // СВЯЗКА С КАРТОЙ (06.09, по Leviathan): аномальный бар открытия рождает уровни стопов
+      // (×100/×50/×25 от цены бара); рисуем их тонкими линиями от бара до снятия (или до края):
+      // столбик «лонги открывают» → коралловая линия ниже, «шорты открывают» → золотая выше.
+      var anomHours = hh.map(function (h, i) { return [h, i]; }).filter(function (p) { return p[0].length > 6 && p[0][6] && p[0][6].anom; }).slice(-8);
+      anomHours.forEach(function (p) { var h = p[0], bi = Math.floor(p[1] / 4), col = h[1] === 'long_open' ? COL.short_open : COL.long_open;
+        (h[6].levels || []).forEach(function (lv) { var yl = Y(lv[1]); if (!isFinite(yl) || yl < 30 || yl > GY) return;
+          var xe = X(n - 1); if (lv[2]) { var fi = hh.findIndex(function (q) { return q[0] === lv[2]; }); if (fi >= 0) xe = X(Math.min(n - 1, Math.floor(fi / 4))); }
+          var x0 = X(Math.min(n - 1, bi));
+          g += '<line x1="' + x0.toFixed(1) + '" y1="' + yl.toFixed(1) + '" x2="' + xe.toFixed(1) + '" y2="' + yl.toFixed(1) + '" stroke="' + col + '" stroke-width="' + (lv[0] === 100 ? 1.2 : .8) + '" stroke-dasharray="' + (lv[2] ? '2 3' : '') + '" opacity="' + (lv[2] ? .35 : .75) + '"><title>' + esc((h[1] === 'long_open' ? 'лонги открыли ' : 'шорты открыли ') + new Date(h[0]).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit' }) + ' · стоп ×' + lv[0] + ' на ' + lv[1] + (lv[2] ? ' · снят' : '')) + '</title></line>';
+          if (lv[2]) g += '<circle cx="' + xe.toFixed(1) + '" cy="' + yl.toFixed(1) + '" r="1.8" fill="' + col + '" opacity=".8"/>';
+        }); });
+      var dpath = B.map(function (b, i) { return (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(b[4]).toFixed(1); }).join(' ');
+      var Ln = 0; for (var i = 1; i < n; i++) Ln += Math.hypot(X(i) - X(i - 1), Y(B[i][4]) - Y(B[i - 1][4]));
+      g += '<path d="' + dpath + '" fill="none" stroke="' + GOLD + '" stroke-width="5" stroke-linejoin="round" opacity=".18"/>' +
+        '<path class="ln" style="--L:' + Math.ceil(Ln + 2) + '" d="' + dpath + '" fill="none" stroke="' + GOLDL + '" stroke-width="1.4" stroke-linejoin="round"/>' +
+        '<circle cx="' + X(n - 1).toFixed(1) + '" cy="' + Y(B[n - 1][4]).toFixed(1) + '" r="2.6" fill="#fff"/>';
+      ['2 нед', '1 нед', 'сегодня'].forEach(function (t, k) { g += '<text class="ax" x="' + X(Math.round(k * (n - 1) / 2)).toFixed(1) + '" y="' + (GY + 12) + '" text-anchor="middle">' + t + '</text>'; });
+      (function () { var words = verdict.split(' '), lines = [''], LIM = 62;
+        words.forEach(function (w) { if ((lines[lines.length - 1] + ' ' + w).trim().length > LIM) lines.push(w); else lines[lines.length - 1] = (lines[lines.length - 1] + ' ' + w).trim(); });
+        lines.slice(0, 2).forEach(function (ln, k) { g += '<text class="fc" x="' + X(0).toFixed(1) + '" y="' + (11 + k * 9) + '" text-anchor="start">' + esc(ln) + '</text>'; }); })();
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '">' + g + '</svg>';
+      dzone += '<div class="mini oit"><div class="gglow"></div>' + svg + '<div class="ground"></div><div class="refl">' + svg + '</div>' +
+        '<div class="oitcap">плечо по типу · 14 дн по 4 ч' + (has(o.lev_ratio) ? ' · интерес к обороту ×' + (+o.lev_ratio).toFixed(2) : '') + (o.anomalies ? ' · аномальных баров ' + o.anomalies : '') + '</div>' +
+        '<div class="oitread">' + esc(read24) + '</div>' +
+        '<div class="oitlg"><span><b style="background:#2fae78"></b>лонги открывают</span><span><b style="background:#2a6a50"></b>закрывают</span><span><b style="background:#d4574a"></b>шорты открывают</span><span><b style="background:#7a3a33"></b>закрывают</span></div></div>';
+    })();
+    (function () { var cgx = s.cg || {}, f = cgx.cvdSpark || [], sp = cgx.spotCvdSpark || []; if (f.length < 4 || sp.length < 4) return;
+      var fd = f[f.length - 1] - f[0], sd = sp[sp.length - 1] - sp[0];
+      INTRO.push(['спот и перп', (fd > 0 && sd <= 0) ? 'перп рвёт, спот стоит — плечо без денег' : (sd > 0 && fd <= 0) ? 'спот покупает, перп продаёт — набор под сквиз' : (sd > 0 && fd > 0) ? 'покупают обе ноги — ход оплачен' : 'продают обе ноги']); })();
+    var introHtml = '';   // 05.09 ночь: вступительное окно снято — «пока ничего дельного не показывает»; сводка INTRO остаётся для будущего
+    // ── журнал за две недели — мини-плита: последние 14 дневок, метки смен ──
+    (function () {
+      var J = JR[String(s.t).toUpperCase()], M = (J && J.marks) || [];
+      // ДНЕВКИ + СЕГОДНЯ ПО ВРЕМЕНИ (05.09): последняя дневка закрыта вчера, а метки смен
+      // ставятся сегодня — раньше всё «после последней дневки» ложилось в одну точку у
+      // правого края и мимо линии. Теперь ось X — время: дневки в полночь своих дат,
+      // последняя точка — текущая цена сейчас; метки — по своему времени и своей цене.
+      var PS = (D.pulse || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()] || [];
+      var SJ = PS.length >= 6 ? PS : ((J && J.series) || []), pts, dates;   // линия — из пульса; нет — из точек журнала
+      // ОКНО МИНИ-ЖУРНАЛА — 72 ЧАСА (08.09, владелец: «переделаем 48 часов в 72»): раньше нижняя
+      // граница была сутки, и при редких сменах окно выходило коротким. Теперь показываем трое
+      // суток по умолчанию: видно и вчерашний ход, и позавчерашний сбор, а не только сегодня.
+      var winFrom = Date.now() - 3 * 864e5;
+      if (M.length) { var mk = M.slice(-4)[0]; winFrom = Math.min(winFrom, new Date(mk.t).getTime() - 36e5); }
+      winFrom = Math.max(winFrom, Date.now() - 14 * 864e5);
+      var SW = SJ.filter(function (q) { return q[0] >= winFrom; });
+      if (SW.length >= 6) {
+        pts = SW.map(function (q) { return { t: q[0], p: +q[1] }; });
+        if (has(s.px)) pts.push({ t: Date.now(), p: +s.px });
+        var spanH = (Date.now() - winFrom) / 36e5;
+        var lab = function (h) { return h >= 48 ? Math.round(h / 24) + ' дн' : Math.round(h) + ' ч'; };
+        dates = [lab(spanH), lab(spanH / 2), 'сейчас'];
+      } else {
+        var ser14 = ser.slice(-14), n = ser14.length; if (n < 3) return;
+        var DAY = 864e5, t1 = d1 ? new Date(d1).getTime() : Date.now() - DAY, tNow = Date.now();
+        pts = ser14.map(function (p, i) { return { t: t1 - (n - 1 - i) * DAY, p: p }; });
+        if (has(s.px) && tNow > t1) pts.push({ t: tNow, p: +s.px });
+        dates = ['2 нед', '1 нед', 'сегодня'];
+      }
+      var t0 = pts[0].t, tE = pts[pts.length - 1].t;
+      var W = 320, H = 180, GY = H - 30;
+      var lo = Math.min.apply(null, pts.map(function (q) { return q.p; })), hi = Math.max.apply(null, pts.map(function (q) { return q.p; })); if (hi === lo) hi = lo * 1.01;
+      // КОРИДОР ПО БЛИЖАЙШИМ ПОЛОСАМ (07.09, владелец: «почему слева ликвидность показывается,
+      // а справа нет»): коридор строился только по цене, и у монеты с узким ходом все адреса
+      // оказывались снаружи — плита рисовала линию без единой полосы (случай CL: ход 0.5% за
+      // сутки, ближайшая полоса сверху 94.2 при цене 92.6). Теперь коридор растягивается до
+      // ближайшей полосы сверху и снизу, но не больше чем на MAXPAD от размаха цены: если адрес
+      // дальше — он прижимается к рамке отдельной пометкой «выше» / «ниже» с расстоянием, и
+      // видно главное — ходу некуда идти без большого рывка.
+      var _pxN = +s.px || pts[pts.length - 1].p, _far = { up: null, dn: null }, MAXPAD = 1.6;
+      (function () {
+        var Hq0 = (D.liqhist || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()] || [];
+        var last = Hq0.length ? Hq0[Hq0.length - 1][1] || [] : [];
+        var up = last.filter(function (z) { return z[0] > _pxN; }).sort(function (a, b) { return a[0] - b[0]; })[0];
+        var dn = last.filter(function (z) { return z[0] <= _pxN; }).sort(function (a, b) { return b[0] - a[0]; })[0];
+        var span = Math.max(1e-12, hi - lo), padU = hi + span * MAXPAD, padD = Math.max(1e-12, lo - span * MAXPAD);
+        if (up) { if (up[0] <= padU) hi = Math.max(hi, up[0] * 1.002); else _far.up = up[0]; }
+        if (dn) { if (dn[0] >= padD) lo = Math.min(lo, dn[0] * 0.998); else _far.dn = dn[0]; }
+      })();
+      var XT = function (t) { return 12 + (t - t0) / Math.max(1, tE - t0) * (W - 24); }, Y = function (p) { return 34 + (1 - (p - lo) / (hi - lo)) * (H - 90); };
+      var dpath = pts.map(function (q, i) { return (i ? 'L' : 'M') + XT(q.t).toFixed(1) + ',' + Y(q.p).toFixed(1); }).join(' ');
+      var Ln = 0; for (var i = 1; i < pts.length; i++) Ln += Math.hypot(XT(pts[i].t) - XT(pts[i - 1].t), Y(pts[i].p) - Y(pts[i - 1].p));
+      // КАРТА ЛИКВИДАЦИЙ ВО ВРЕМЕНИ — ЗДЕСЬ (06.09, по R2D2): уровни группируются в ценовые
+      // корзины (0.4%), каждая корзина — горизонтальная полоса от первого прогона, где она
+      // появилась, до последнего, где стояла; яркость — по топливу, сторона «снимут» ярче.
+      var heatJ = '';
+      (function () {
+        var Hq = (D.liqhist || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()] || [];
+        Hq = Hq.filter(function (r) { return r[0] >= t0 - 36e5; }); if (Hq.length < 2) return;
+        var pxNowH = +s.px || 0, buckets = {};
+        Hq.forEach(function (r) {
+          var up = r[1].filter(function (z) { return z[0] > pxNowH; }).sort(function (a, b) { return (b[1] || 0) - (a[1] || 0); }).slice(0, 3);
+          var dn = r[1].filter(function (z) { return z[0] <= pxNowH; }).sort(function (a, b) { return (b[1] || 0) - (a[1] || 0); }).slice(0, 3);
+          up.concat(dn).forEach(function (z) { var key = Math.round(Math.log(z[0]) / 0.004); var b = buckets[key] || (buckets[key] = { p: z[0], t0: r[0], t1: r[0], w: 0 });
+            b.t0 = Math.min(b.t0, r[0]); b.t1 = Math.max(b.t1, r[0]); b.w = Math.max(b.w, z[1] || 0); }); });
+        var arr = Object.keys(buckets).map(function (k) { return buckets[k]; }), mx = 0;
+        arr.forEach(function (b) { if (b.w > mx) mx = b.w; }); if (!mx) return;
+        var lastT = Hq[Hq.length - 1][0];
+        arr.forEach(function (b) {
+          var y = Y(b.p); if (!isFinite(y) || y < 30 || y > GY) return;
+          var side = b.p < pxNowH ? 'down' : 'up', hot = !_bias || side === _bias;
+          var x1 = XT(Math.max(b.t0, t0)), x2 = XT(b.t1 >= lastT ? tE : b.t1);
+          var o = (0.15 + 0.7 * (b.w / mx)) * (hot ? 1 : 0.35), col = side === 'down' ? '#ff8a70' : '#e6d3a3';
+          heatJ += '<rect x="' + x1.toFixed(1) + '" y="' + (y - 1.6).toFixed(1) + '" width="' + Math.max(3, x2 - x1).toFixed(1) + '" height="3.2" rx="1" fill="' + col + '" opacity="' + o.toFixed(2) + '"><title>' + esc((side === 'down' ? 'лонги ' : 'шорты ') + px4(b.p) + ' · ' + (money(b.w) || '') + (b.t1 >= lastT ? ' · стоит' : ' · снята')) + '</title></rect>';
+        });
+      })();
+      // АДРЕС ЗА КРАЕМ (07.09): полоса не влезла в коридор — прижимаем к рамке пунктиром и пишем
+      // «выше» / «ниже» с расстоянием в процентах: видно, что до ближайшего адреса далеко.
+      (function () {
+        var mk = function (p, up) {
+          if (!p) return;
+          var y = up ? 32.5 : GY - 1.5, col = up ? '#e6d3a3' : '#ff8a70',
+              d = ((p / _pxN - 1) * 100), txt = (up ? 'выше ' : 'ниже ') + px4(p) + ' · ' + (d > 0 ? '+' : '') + d.toFixed(1) + '%';
+          heatJ += '<line x1="12" y1="' + y + '" x2="' + (W - 12) + '" y2="' + y + '" stroke="' + col +
+            '" stroke-width="1" stroke-dasharray="2 4" opacity=".5"/>' +
+            '<text x="' + (W - 14) + '" y="' + (up ? y + 9 : y - 4) + '" text-anchor="end" font-size="7.5" fill="' + col +
+            '" opacity=".75" letter-spacing=".08em">' + esc(txt) + '</text>';
+        };
+        mk(_far.up, true); mk(_far.dn, false);
+      })();
+      // ПУЗЫРИ РЫНОЧНЫХ ЗАЯВОК (06.09, по Leviathan Market Order Bubbles): полчасовые бары
+      // Coinglass за сутки с оборотом выше среднего на 2σ — кружок на линии цены в час бара,
+      // радиус по обороту, цвет по стороне дельты (покупали — мята, продавали — кирпич).
+      var bubbles = '';
+      (function () {
+        var ser = ((s.cg || {}).fullSeries) || [];   // полный ряд, если срез его отдаёт
+        if (!ser.length) return;
+        var vols = ser.map(function (b) { return (+b.b || 0) + (+b.s || 0); }), mu = vols.reduce(function (a, v) { return a + v; }, 0) / vols.length;
+        var sd = Math.sqrt(vols.reduce(function (a, v) { return a + (v - mu) * (v - mu); }, 0) / vols.length) || 0; if (!sd) return;
+        var mx = Math.max.apply(null, vols);
+        ser.forEach(function (b, i) { var v = vols[i]; if (v < mu + 2 * sd || b.t < t0 || b.t > tE) return;
+          var pt = null, best = 1e18; pts.forEach(function (q) { var dd = Math.abs(q.t - b.t); if (dd < best) { best = dd; pt = q; } }); if (!pt) return;
+          // ПУЗЫРИ КРУПНЕЕ НА 60% (09.09, владелец): плита журнала выросла, пузыри должны расти
+          // вместе с ней. Было 4 + 8·√доли → 6.4 + 12.8 → теперь −15%: 5.44 + 10.88.
+          var r = 5.44 + 10.88 * Math.sqrt((v - mu) / Math.max(1, mx - mu));
+          var buy = (+b.b || 0) >= (+b.s || 0);
+          // СОМНИТЕЛЬНЫЙ ПУЗЫРЬ — ОРАНЖЕВЫЙ (08.09, владелец: «не отсекать, а делать наполовину
+          // оранжевым — понятно, что покупки есть, но цель у них может быть другая»). Смотрим, что
+          // делал интерес НА ЭТОМ баре: вырос — на заявки открывали позиции, пузырь ясный; упал —
+          // об заявки закрывались, цвет уходит в оранжевый. Ни один пузырь при этом не пропадает.
+          // интерес на баре: из среза, если он есть, иначе из архива по времени (08.09)
+          // ПОИСК ПО БЛИЖАЙШЕМУ ВРЕМЕНИ (08.09): метка бара в срезе Coinglass и в нашем архиве может
+          // отличаться на минуты (начало/конец свечи, округление). При поиске по точному совпадению
+          // интерес не находился никогда — и все пузыри оставались «ясными», оранжевых не было.
+          var OIM = (D.bubOi || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()] || {};
+          var OIK = null;
+          var oiNear = function (tt) {
+            if (!OIK) { OIK = Object.keys(OIM).map(Number).sort(function (a, b) { return a - b; }); }
+            if (!OIK.length) return null;
+            var best = null, bd = 1e18;
+            for (var q = 0; q < OIK.length; q++) { var dd = Math.abs(OIK[q] - tt); if (dd < bd) { bd = dd; best = OIK[q]; } }
+            return bd <= 18e5 ? OIM[best] : null;      // не дальше получаса
+          };
+          var oiAt = function (tt) { var v = oiNear(tt); return v ? +v[0] : null; };
+          var typeAt = function (tt) { var v = oiNear(tt); return v ? v[1] : null; };
+          var oiNow = (b.oi != null ? +b.oi : oiAt(b.t)), oiPrev = null;
+          for (var k = i - 1; k >= 0 && oiPrev === null; k--) {
+            if (ser[k] && ser[k].oi != null) oiPrev = +ser[k].oi;
+            else if (ser[k]) oiPrev = oiAt(ser[k].t);
+          }
+          var fill = (oiPrev && oiNow) ? (oiNow / oiPrev - 1) * 100 : null;
+          var btype = b.type || typeAt(b.t);
+          // об заявку закрывались: интерес на баре упал или тип бара «лонги закрывают»
+          var doubt = (fill !== null && fill <= -1.5) || btype === 'long_close';
+          var own = buy ? '#5fe6a6' : '#ff7a63';        // заливка — сторона заявки
+          // ОБВОДКА — ОЖИДАЕМЫЙ СЛЕДУЮЩИЙ ХОД, ПО ИНТЕРЕСУ (08.09, владелец подтвердил): дно и
+          // вершина для этого не годятся — в момент бара их ещё нет, они известны только задним
+          // числом, и цвет контура у свежего пузыря переписывался бы при каждом новом краю.
+          // Считаем тем же, чем считается оранжевая половина — интересом на баре:
+          //   набрали (интерес вырос) → на заявку ОТКРЫЛИ позиции, ход в сторону заявки;
+          //   закрылись (интерес упал) → об заявку ЗАКРЫЛИСЬ, ход против неё:
+          //     зелёный пузырь, об который закрылись, — обводка красная;
+          //     красный пузырь, об который закрылись, — обводка зелёная.
+          //   интерес не изменился → ход по стороне заявки, обводка в цвет заливки.
+          var wayUp = doubt ? !buy : buy;
+          var edge = wayUp ? '#5fe6a6' : '#ff7a63';
+          // ОРАНЖЕВЫЙ — «ПУЗЫРЬ НЕ ОПРАВДЫВАЕТ НАЗНАЧЕНИЯ»: об заявки закрывались, а не входили.
+          // Тогда половина заливки оранжевая, а обводка остаётся цветом ожидаемого хода.
+          var half = doubt;
+          var col = own;
+          var note = (doubt ? (buy ? ' · об покупки закрывались' : ' · об продажи закрывались') : '')
+                     + ' · ход ожидается ' + (wayUp ? 'вверх' : 'вниз');
+          // заметнее (06.09): плотнее ядро, яркая обводка, светлая точка в центре
+          var cxb = XT(b.t).toFixed(1), cyb = Y(pt.p).toFixed(1);
+          if (half) {
+            // ПОЛОВИНКИ ДОЛЖНЫ БЫТЬ ВИДНЫ (09.09, владелец: «оранжевый не сильно отличается от
+            // красного и он не половинчатый»): половины рисуются в ПОЛНУЮ непрозрачность, между
+            // ними тёмная грань в один пиксель, а оранжевый взят ярче и желтее — иначе рядом с
+            // красным он читался как оттенок того же цвета.
+            var ry = Y(pt.p), rr = r * .52;
+            // ПОЛОВИНКА СИНЯЯ, НЕ ЖЁЛТАЯ (09.09, владелец: «жёлтый — цвет графика, они сливаются»):
+            // линия цены и вся отделка карточки золотые, и янтарная половина тонула в них.
+            // Холодный синий не встречается на графике вовсе, поэтому виден сразу.
+            var ORANGE = '#4aa8ff';
+            bubbles += '<path d="M' + cxb + ',' + (ry - rr).toFixed(1) + ' A' + rr.toFixed(1) + ',' + rr.toFixed(1) +
+                       ' 0 0 0 ' + cxb + ',' + (ry + rr).toFixed(1) + ' Z" fill="' + own + '"/>' +
+                       '<path d="M' + cxb + ',' + (ry - rr).toFixed(1) + ' A' + rr.toFixed(1) + ',' + rr.toFixed(1) +
+                       ' 0 0 1 ' + cxb + ',' + (ry + rr).toFixed(1) + ' Z" fill="' + ORANGE + '"/>' +
+                       '<line x1="' + cxb + '" y1="' + (ry - rr).toFixed(1) + '" x2="' + cxb + '" y2="' + (ry + rr).toFixed(1) +
+                       '" stroke="rgba(6,14,10,.85)" stroke-width="1.2"/>';
+          } else {
+            bubbles += '<circle cx="' + cxb + '" cy="' + cyb + '" r="' + (r * .45).toFixed(1) + '" fill="' + col + '" opacity=".75"/>';
+          }
+          bubbles += '' +
+                     // ОРЕОЛ ЦЕЛЬНЫЙ (09.09, владелец: «зачем делить ореол?»): деление уже показано
+                     // в ядре, второй раз повторять его незачем — только грязнит. Свечение вокруг
+                     // одним цветом говорит про ожидаемый ход, ядро — про то, что было с заявкой.
+                     '<circle cx="' + cxb + '" cy="' + cyb + '" r="' + r.toFixed(1) + '" fill="' + edge + '" opacity="' + (half ? '.18' : '.22') + '" stroke="' + edge + '" stroke-opacity=".95" stroke-width="' + (half ? '1.6' : '1.2') + '"><title>' + esc(new Date(b.t).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' · оборот ' + money(v) + ' · ' + (buy ? 'покупали' : 'продавали') + ' ' + money(Math.abs((+b.b || 0) - (+b.s || 0))) + (fill !== null ? ' · интерес на баре ' + (fill > 0 ? '+' : '') + fill.toFixed(1) + '%' : '') + note) + '</title></circle>'; });
+      })();
+      var g = '<defs><linearGradient id="hf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + GOLD + '" stop-opacity=".22"/><stop offset="1" stop-color="' + GOLD + '" stop-opacity="0"/></linearGradient></defs>' + heatJ + bubbles +
+        '<path d="' + dpath + ' L' + XT(tE).toFixed(1) + ',' + GY + ' L12,' + GY + ' Z" fill="url(#hf)" opacity=".6"/>' +
+        '<path d="' + dpath + '" fill="none" stroke="' + GOLD + '" stroke-width="5" stroke-linejoin="round" opacity=".18"/>' +
+        '<path class="ln" style="--L:' + Math.ceil(Ln + 2) + '" d="' + dpath + '" fill="none" stroke="' + GOLDL + '" stroke-width="1.4" stroke-linejoin="round"/>' +
+        '<circle r="2.4" fill="#fff"><animateMotion dur="7s" begin="5.6s" repeatCount="indefinite" path="' + dpath + '"/></circle>';
+      [t0, t0 + (tE - t0) / 2, tE].forEach(function (tt, k) { g += '<text class="ax" x="' + XT(tt).toFixed(1) + '" y="' + (GY + 12) + '" text-anchor="middle">' + dates[k] + '</text>'; });
+      var SHOWJ = shownMarks(M, true);   // история: начало и последняя, как было
+      M.forEach(function (m, k) {
+        var tm = new Date(m.t).getTime(); if (tm < t0) return; if (tm > tE) tm = tE;   // за окном — не рисуем
+        var x = XT(tm), y = Y(+m.px), ty = 12 + (k % 2) * 12, col = m.miss ? '#ffa892' : GOLDL;
+        var name = tplShort(m.tpl);
+        if (!SHOWJ[k]) { g += '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="2.2" fill="' + col + '" opacity=".8"/>'; return; }   // промежуточная — точка
+        g += '<line x1="' + x.toFixed(1) + '" y1="' + y.toFixed(1) + '" x2="' + x.toFixed(1) + '" y2="' + (ty + 4) + '" stroke="' + col + '" stroke-width=".8" stroke-dasharray="2 4" opacity=".7"/>' +
+          '<circle class="ring" style="animation-delay:' + (k * .7) + 's" cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="6" fill="none" stroke="' + col + '" stroke-width="1" opacity=".8"/><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="2.2" fill="#fff"/>' +
+          '<text class="fc' + (m.miss ? ' miss' : '') + '" x="' + (x - 4).toFixed(1) + '" y="' + ty + '" text-anchor="end">' + esc(name) + '</text>';
+      });
+      g += '<circle cx="' + XT(tE).toFixed(1) + '" cy="' + Y(pts[pts.length - 1].p).toFixed(1) + '" r="2.6" fill="#fff"/>';
+      // СТРЕЛКИ БЫСТРОГО СЛОЯ (11.09, владелец): на плите журнала, по три последние каждого вида,
+      // с плашкой при наведении вместо системной подсказки
+      (function () {
+        if (!_EV || !_EV.length) return;
+        // ТРИ ПОСЛЕДНИЕ ВСЕГО (11.09 вечер, владелец: «стрелок по-прежнему миллион»), не по три на вид
+        var byKind = { all: _EV.filter(function (e) { return e.t >= t0 && e.t <= tE; }) };
+        Object.keys(byKind).forEach(function (k) { byKind[k].slice(-3).forEach(function (e) { if (e.t < t0 || e.t > tE) return;
+          var x = Math.min(XT(e.t), W - 20), y = Y(e.px) + (e.dir === 'up' ? 16 : -16) + (e.kind === 'force' ? (e.dir === 'up' ? 14 : -14) : 0) + (e.kind === 'vx' ? (e.dir === 'up' ? 28 : -28) : 0);
+          // ПЛАШКА ВМЕСТО СИСТЕМНОЙ ПОДСКАЗКИ (владелец: «не видно ничего и долго ждать появления»):
+          // появляется сразу при наведении, две строки, над стрелкой, не вылезает за плиту
+          var parts = String(e.tip).split(' · '), l1 = parts[0], l2 = parts.slice(1).join(' · ');
+          var bw = Math.max(l1.length, l2.length) * 4.3 + 14, bx = Math.max(4, Math.min(W - bw - 4, x - bw / 2)), by = y - 34;
+          g += '<g class="arw"><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="8" fill="rgba(3,12,9,.85)" stroke="rgba(233,255,244,.2)" stroke-width=".5"/>' +
+               '<path d="' + (e.dir === 'up' ? 'M' + (x - 5).toFixed(1) + ',' + (y + 4).toFixed(1) + ' h10 l-5,-9 z' : 'M' + (x - 5).toFixed(1) + ',' + (y - 4).toFixed(1) + ' h10 l-5,9 z') + '" fill="' + e.col + '" opacity="' + e.op.toFixed(2) + '"/>' +
+               '<g class="hint"><rect x="' + bx.toFixed(1) + '" y="' + by.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="22" rx="3" fill="rgba(3,17,12,.92)" stroke="' + e.col + '" stroke-opacity=".6" stroke-width=".6"/>' +
+               '<text x="' + (bx + 7).toFixed(1) + '" y="' + (by + 9).toFixed(1) + '" font-size="7" letter-spacing=".08em" fill="' + e.col + '">' + esc(l1) + '</text>' +
+               '<text x="' + (bx + 7).toFixed(1) + '" y="' + (by + 18).toFixed(1) + '" font-size="6.5" letter-spacing=".06em" fill="#bfe9d6">' + esc(l2) + '</text></g></g>'; }); });
+      })();
+      // стиль плашек внутри svg (11.09): страничный css до них не доставал — все плашки стояли открытыми
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '"><style>g.arw .hint{opacity:0;transition:opacity .12s;pointer-events:none}g.arw:hover .hint{opacity:1}</style>' + g + '</svg>';
+      dzone += '<div class="mini journal"><div class="gglow"></div>' + svg + '<div class="ground"></div><div class="refl">' + svg + '</div></div>';
+    })();
+    // шапка, монеты, часы
+    var chg = has(s.p1d) ? (+s.p1d) : null;
+    var bk2 = BOOK[String(s.t).toUpperCase()], pos = '';
+    if (bk2 && bk2.entry) pos = '<div class="pos' + (bk2.manual ? ' mine' : '') + '">' + (bk2.manual ? 'твоя позиция' : 'вход журнала') + ' <b>' + px4(bk2.entry) + '</b>' + (has(bk2.chg) ? ' · <b>' + pct(bk2.chg) + '</b> от входа' : '') + (bk2.upX && +bk2.upX >= 1.5 ? ' · ×' + (+bk2.upX).toFixed(1) : '') + (bk2.closed ? ' · закрыта' : '') + '</div>';
+    // имя монеты — ссылка на TradingView, бессрочный фьючерс Binance (суффикс .P), в новой вкладке
+    var tvSym = 'BINANCE:' + String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase().replace(/[^A-Z0-9]/g, '') + '.P';
+    var srcs = srcLine();
+    var hd = '<div class="hd"><a class="t" href="https://www.tradingview.com/chart/?symbol=' + encodeURIComponent(tvSym) + '" target="_blank" rel="noopener" title="открыть в TradingView · Binance фьючерс">' + esc(s.t) + '</a>' + (chg !== null ? '<span class="ch' + (chg < 0 ? ' dn' : '') + '">' + pct(chg) + ' за сутки</span>' : '') + (s.pattern ? '<span class="st">' + esc(s.pattern) + '</span>' : '') + '</div>' + pos;
+    // ОСНОВА ТРЕНДА — по центру, из последней цепочки меток; тренд кончился — блока нет
+    var _tb = (function () {
+      var J = JR[String(s.t).toUpperCase()], M = (J && J.marks) || [];
+      var b = trendBase(M, s.coin || s.t);
+      if (!b) return '';
+      var when = new Date(b.at), dd = ('0' + when.getDate()).slice(-2) + '.' + ('0' + (when.getMonth() + 1)).slice(-2);
+      return '<div class="tbase"><b>' + esc(b.tpl) + '</b><s>основа тренда · ' + dd + ' · ' + esc(b.age) +
+        (b.chg ? ' · ' + esc(b.chg) + ' от начала' : '') + '</s></div>';
+    })();
+    var hdr = '<div class="hdr">' + (s.cap ? 'капитализация <b>' + esc(s.cap) + '</b>' : '') + (has(s.v1d) ? ' · объём к норме <b>×' + (+s.v1d).toFixed(1) + '</b>' : '') + (has(s.fund) ? ' · фандинг <b>' + (+s.fund).toFixed(3) + '%</b>' : '') + '</div>';
+    // значки — как в зале: цвет кейса FLOW (GATE_CASE), группа книги (в работе · брать · выходить), лидер, горячая, новая, своя
+    var CASE_C = { hidden: ['#d9b96e', 'скрытый спрос'], spring: ['#6b7ae0', 'пружина'], churn: ['#8b93c4', 'перемол'], fuel: ['#f0a878', 'топливо'], dormant: ['#5c6598', 'спячка'], taker: ['#c98ce0', 'смена агрессора'], leverage: ['#ec6f5e', 'плечо'] };
+    var GRP_C = { take: ['#6b7ae0', 'брать'], trade: ['#4fc98a', 'в работе'], exit: ['#ec6f5e', 'выходить'] };
+    function grpOf(z) { var inBook = !!(z.book && (z.book.usd || z.book.px)); if (inBook) return (z.act && z.act.group) === 'exit' ? 'exit' : 'trade'; return (z.act && z.act.act) === 'брать' ? 'take' : null; }
+    function marks(z) { var m = ''; if (z.lead) m += '<em class="ld" title="лидер прогона">★</em>'; if (z.hot) m += '<em class="ht" title="горячая: оборот выше порога">●</em>'; if (z.new) m += '<em class="nw" title="новая в журнале">✦</em>'; var b = BOOK[String(z.t).toUpperCase()]; if (b && b.manual && !b.closed) m += '<em class="my" title="твоя позиция">◆</em>'; return m; }
+    // СЕТКА ВМЕСТО КОЛОНОК (08.09): панель во всю ширину экрана, имена раскладываются по столбцам
+    // автоматически — сколько влезет по ширине. Высота падает, прокрутка нужна только если не влезло.
+    var cols = NAMES.map(function (c) {
+      var z = BY[c], cc = CASE_C[z.st] || ['#7b83b8', 'без кейса'], gr = grpOf(z);
+      var _sym = String((z && z.coin) || (c + 'USDT')).toUpperCase();
+      var nr = NEAR[_sym], isNear = !!(nr && nr.near);
+      var isFirst = FIRSTS.indexOf(_sym) >= 0;     // пульс — только нынешним первым
+      var fund = FUNDS[String(c).toUpperCase()] || null;
+      return '<a href="#' + esc(c) + '" class="' + (c === tick ? 'cur' : '') + (isNear ? ' near' : '') + (isFirst ? ' first' : '') + '"' + (isNear ? ' title="близкая к ходу: ' + esc((nr.why || []).join(' · ')) + '"' : '') + '><i style="background:' + cc[0] + ';box-shadow:0 0 6px ' + cc[0] + '" title="' + cc[1] + '"></i><span>' + esc(c) + '</span>' + (fund ? '<f class="' + fund.toLowerCase() + '">' + fund + '</f>' : '') + marks(z) + (gr ? '<u style="color:' + GRP_C[gr][0] + ';border-color:' + GRP_C[gr][0] + '">' + GRP_C[gr][1] + '</u>' : '') + '</a>';
+    }).join('');
+    var legend = '<div class="cleg">' + Object.keys(CASE_C).map(function (k) { return '<b><i style="background:' + CASE_C[k][0] + '"></i>' + CASE_C[k][1] + '</b>'; }).join('') + '<s></s><b><em class="ld">★</em>лидер</b><b><em class="ht">●</em>горячая</b><b><em class="nw">✦</em>новая</b><b><em class="my">◆</em>твоя</b></div>';
+    // ИСТОРИЯ ПО МОНЕТЕ (07.09, владелец: «Телеграм не должен быть источником истории»):
+    // кнопка рядом с «монеты», при наведении — панель по центру: смены журнала по времени с ценой,
+    // сбор/плечо из очереди, события календаря
+    var histRows = '';
+    (function () {
+      var J = JR[String(s.t).toUpperCase()];   // запись журнала этой монеты
+      var Jm = (J && J.marks) || [];
+      Jm.slice(-14).reverse().forEach(function (m) {
+        histRows += '<div class="hr"><span>' + esc(String(m.t).slice(5, 16).replace('T', ' ')) + '</span><span>' + esc(px4(m.px)) + '</span><b class="' + (m.miss ? 'miss' : '') + '">' + esc(tplShort(m.tpl)) + '</b></div>';
+      });
+      var nr = NEAR[String((s.coin || (String(s.t).toUpperCase() + 'USDT'))).toUpperCase()] || {}, nn = nr.nums || {}, qq = nr.queue || {};
+      var head = '';
+      if (nn.harvest_day) head += '<div class="hh">сбор ' + esc(String(nn.harvest_day).slice(5)) + ' ×' + Math.round(nn.harvest_x || 0) + (qq.days_since_harvest != null ? ' · ' + qq.days_since_harvest + ' дн назад' : '') + ' · плечо ×' + (+nn.oi_grow || 1).toFixed(2) + (qq.today ? ' · ' + esc(qq.today) : '') + '</div>';
+      if (J && J.n) head += '<div class="hh">журнал: ' + J.n + ' записей · смен ' + J.switches + '</div>';
+      var ev = (s.calendar || {}).events || (s.events || []);
+      var evs = '';
+      (ev || []).slice(0, 4).forEach(function (e) { evs += '<div class="hr ev"><span>' + esc(String(e.date || e.at || '').slice(5, 10)) + '</span><b>' + esc(String(e.title || e.text || e.kind || '')) + '</b></div>'; });
+      histRows = head + (histRows || '<div class="hh">смен пока нет</div>') + (evs ? '<div class="hh">события</div>' + evs : '');
+    })();
+    var coins = '<div class="hist"><div class="hbtn" title="история монеты">история</div><div class="hpl"><div class="ht">' + esc(String(s.t).toUpperCase()) + ' · история</div>' + histRows + '</div></div>' +
+      '<div class="coins"><div class="cbtn"><i></i>монеты <b>' + NAMES.length + '</b></div><div class="clist"><div class="ch">монеты журнала · по алфавиту · цвет — кейс, метка — группа книги</div><div class="cols">' + cols + '</div>' + legend + '</div></div>';
+    var cs = clockState(), clock = cs ? vessel(cs) : '';
+    var aura = '<div class="aura up' + (cs && cs.kind === 'up' ? (cs.live ? ' on' : cs.soon ? ' soon' : '') : '') + '"></div><div class="aura dn' + (cs && cs.kind === 'dn' ? (cs.live ? ' on' : cs.soon ? ' soon' : '') : '') + '"></div>';
+    stage.innerHTML = '<div class="beam"></div><div class="floor"></div><div class="sweep"></div>' + aura + '<div class="slab"><svg viewBox="0 0 ' + SW + ' ' + SH + '">' + slab + '</svg></div><svg class="leaders" viewBox="0 0 1440 900">' + leaders + '</svg>' +
+      hd + hdr + _tb + srcs + '<a class="back" href="brief.html">← схема</a>' + coins + notes + dzone + clock + introHtml + '<div class="replay" id="replay">заново</div><div class="legend">' + (ser.length > 2 ? 'цена · ' + days + ' дневок' + (d0 ? ' · архив' : ' · звезда') : 'ряда цены нет') + ' · наведи на пометку — полная группа</div>' +
+      '<div class="atmo"><div class="vig"></div></div>';   // ОПТИМИЗАЦИЯ 04.09: зерно feTurbulence на весь экран снято — на планшете это половина кадра
+    root.getElementById('replay').onclick = function () { build(tick); };
+    (function () { var it = root.getElementById('intro'); if (!it) return;
+      var hide = function () { it.classList.add('off'); setTimeout(function () { if (it.parentNode) it.parentNode.removeChild(it); }, 500); document.removeEventListener('keydown', hide); };
+      it.addEventListener('click', hide); document.addEventListener('keydown', hide); setTimeout(hide, 9000); })();
+    fit();
+  }
+
+  // тень снаружи + пластина лидера — ставится последней, после сборки сцены
+  (function(){
+    var L = window.__LEADER_ECLIPSE; if (!L) return;
+    var st = root.getElementById('stage'); if (!st) return;
+    var v = root.querySelector('.mini.verdict'); if (v) v.style.display = 'none';
+    var d = document.createElement('div'); d.className = 'eclipse';
+    d.innerHTML = '<div class="edge"></div>'; st.appendChild(d);
+    var sparks = '';
+    for (var k = 0; k < 7; k++) {
+      sparks += '<em class="spark" style="left:' + (10 + k * 12 + Math.random() * 6).toFixed(0) + '%;'
+        + 'animation-duration:' + (5 + Math.random() * 4).toFixed(1) + 's;'
+        + 'animation-delay:' + (Math.random() * 5).toFixed(1) + 's"></em>';
+    }
+    var nm = String(L.symbol || '').replace('USDT', '');
+    var nums = '';
+    if (L.run_pct != null) nums += '<span>+' + Math.round(L.run_pct) + '% от основы</span>';
+    if (L.day_pct != null) nums += '<span>' + (L.day_pct > 0 ? '+' : '') + Math.round(L.day_pct) + '% за сутки</span>';
+    nums += '<span>' + (L.mine ? 'наша' : 'не из выборки') + '</span>';
+    var w = document.createElement('div'); w.className = 'leadwrap';
+    w.innerHTML = '<span class="nm" data-n="' + nm + '">' + nm + '</span>'
+      + '<div class="plate"><div class="rib"></div>' + sparks
+      + '<i>сегодня ведёт не эта монета</i>'
+      + '<div class="nums">' + nums + '</div>'
+      + '<s>деньги на доске заняты одной монетой — вход в остальных закрыт</s>'
+      + '</div><div class="refl"></div>';
+    st.appendChild(w);
+  })();
+  function fit() { var W = root.host.ownerDocument.documentElement.clientWidth || window.innerWidth, H = window.innerHeight; var k = Math.min(W / 1440, H / 900); stage.style.transform = 'translate(-50%,-100%) scale(' + k.toFixed(4) + ')'; }   // 04.09: якорь — низ окна, не центр
+  function fromHash() { var h = (location.hash || '').replace('#', '').toUpperCase(); return BY[h] ? h : null; }
+  function start() {
+    var lead = STARS.filter(function (s) { return s.lead; })[0];
+    build(fromHash() || (lead && String(lead.t).toUpperCase()) || NAMES[0]);
+  }
+  window.addEventListener('hashchange', function () { var h = fromHash(); if (h) build(h); });
+  window.addEventListener('resize', fit);
+  // часы живут: пересчёт раз в минуту — состояние сосуда и сияние
+  setInterval(function () { var cs = clockState(); if (!cs) return; var box = root.querySelector('.clockbox'); if (box) box.outerHTML = vessel(cs);
+    var up = root.querySelector('.aura.up'), dn = root.querySelector('.aura.dn'); if (up && dn) { up.className = 'aura up' + (cs.kind === 'up' ? (cs.live ? ' on' : cs.soon ? ' soon' : '') : ''); dn.className = 'aura dn' + (cs.kind === 'dn' ? (cs.live ? ' on' : cs.soon ? ' soon' : '') : ''); } }, 60000);
+  if (STARS.length) start(); else stage.innerHTML = '<div class="empty">звёзд в сводке нет</div>';
+})();
+</script>
+"""

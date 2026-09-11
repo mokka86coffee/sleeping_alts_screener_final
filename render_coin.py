@@ -1350,6 +1350,9 @@ COIN_JS = r"""
   var GOLD = '#f5a93a', GOLDL = '#ffd98a', MINT = '#7ff0b8', TEAL = '#2ec98d';
   function seeded(seed) { var s = seed; return function () { s = (s * 9301 + 49297) % 233280; return s / 233280; }; }
 
+  // золотая точка: основа r, прозрачный зазор 2px, обводка 0.8px (11.09, владелец)
+  function goldDot(x, y, r, title) { return '<circle cx="' + f(x) + '" cy="' + f(y) + '" r="' + r + '" fill="' + GOLDL + '"' + (title ? '><title>' + esc(title) + '</title></circle>' : '/>') +
+    '<circle cx="' + f(x) + '" cy="' + f(y) + '" r="' + (r + 2 + .4) + '" fill="none" stroke="' + GOLD + '" stroke-width=".8" opacity=".95"/>'; }
   function scene(P, rnd) {
     var t = '', i;
     var area = 'M' + f(P[0][0]) + ',' + Y0 + ' ' + P.map(function (p) { return 'L' + f(p[0]) + ',' + f(p[1]); }).join(' ') + ' L' + f(P[P.length - 1][0]) + ',' + Y0 + ' Z';
@@ -1378,7 +1381,8 @@ COIN_JS = r"""
     });
     var step = Math.max(1, Math.round(P.length / 12));
     for (i = 0; i < P.length; i++) if (i % step === 0 || i === P.length - 1)
-      t += '<g class="an nd" style="animation-delay:' + (.6 + 1.8 * i / (P.length - 1)).toFixed(2) + 's"><circle cx="' + f(P[i][0]) + '" cy="' + f(P[i][1]) + '" r="7" fill="' + GOLD + '" opacity=".4" filter="url(#blur3)"/><circle cx="' + f(P[i][0]) + '" cy="' + f(P[i][1]) + '" r="2.4" fill="' + GOLDL + '"/></g>';
+      // ЗОЛОТЫЕ ТОЧКИ (11.09, владелец): основа, два пикселя прозрачного, тонкая обводка — вместо размытого ореола
+      t += '<g class="an nd" style="animation-delay:' + (.6 + 1.8 * i / (P.length - 1)).toFixed(2) + 's">' + goldDot(P[i][0], P[i][1], 2.4) + '</g>';
     return t;
   }
 
@@ -1433,9 +1437,9 @@ COIN_JS = r"""
     var s = BY[tick]; if (!s) { stage.innerHTML = '<div class="empty">монета ' + esc(tick) + ' не в журнале</div>'; return; }
     var g = groups(s), rnd = seeded(tick.split('').reduce(function (a, c) { return a + c.charCodeAt(0); }, 7));
     var H = HIST[String(s.t).toUpperCase()], ser, d0 = null, d1 = null;
-    // ОКНО ПЛИТЫ — ТРИ ДНЯ (11.09, владелец: быстрый слой читается только крупно; было 120 дневок,
-    // потом 14 и 7 в прототипе). Дневки — запасной ряд, основной — часовой из oitypes.
-    var SHOW_DAYS = 3;
+    // ОКНО ПЛИТЫ — ДВЕ НЕДЕЛИ (11.09; было 120 дневок, в прототипе 14 → 7 → 3 → снова 14).
+    // Дневки — запасной ряд, основной — часовой из oitypes.
+    var SHOW_DAYS = 14;   // 11.09 вечер, владелец: «график основной верни снова к двухнедельному»
     if (H && H.c && H.c.length >= 14) {
       var N = H.c.length, cut = Math.max(0, N - SHOW_DAYS);
       ser = H.c.slice(cut); d0 = H.d0; d1 = H.d1;
@@ -1607,7 +1611,7 @@ COIN_JS = r"""
     if (_hrs.length > 48) (function () {
       var F = ((D.fast || {})[_sym]) || {}, GR = '#4fd1a8', RD = '#ff7a7a', OR = '#f0a04b', WH = '#eaf4ff';
       function ok(t) { return t >= _tBeg && t <= _tEnd; }
-      function hhmm(t) { var d = new Date(t); return pad(d.getUTCDate()) + '.' + pad(d.getUTCMonth() + 1) + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
+      function hhmm(t) { var d = new Date(t); return pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }   // местное время, как у соседних подписей карточки (11.09, владелец)
       _hrs.filter(function (b) { return (+b[2] || 0) >= 1.5; }).forEach(function (b) { var oi = +b[2] || 0, px = +b[3] || 0;
         if (px > 0.3) _EV.push({ t: b[0] + 18e5, px: +b[4], dir: 'up', kind: 'oi', col: GR, op: Math.min(.9, .25 + .2 * Math.min(oi / px, 3)), short: 'интерес растёт с ценой', tip: 'интерес растёт вместе с ценой · ' + hhmm(b[0]) + ' · интерес +' + oi.toFixed(1) + '% · цена +' + px.toFixed(1) + '%' });
         else { var ratio = oi / Math.max(0.3, Math.abs(px)), k = Math.max(0, Math.min(1, (ratio - 1.5) / 1.5));
@@ -1620,7 +1624,7 @@ COIN_JS = r"""
       // ТОЧКА СТАРТА — ЗОЛОТАЯ, БЕЗ ОРЕОЛА И ПОДЛОЖКИ (11.09, владелец: «сделай её золотой просто и всё,
       // она и так будет выделяться за счёт формы»): монета впервые за окно вошла в первые три очереди
       (F.start || []).forEach(function (e) { if (!ok(e.t)) return; var x = tx(e.t), y = sy(+e.px || ser[0]);
-        L += '<circle cx="' + f(x) + '" cy="' + f(y) + '" r="4.2" fill="' + GOLD + '" stroke="#fff6dc" stroke-width=".7" stroke-opacity=".8"><title>' + esc('движение началось · ' + hhmm(e.t) + ' · место ' + e.place + ' в очереди') + '</title></circle>'; });
+        L += goldDot(x, y, 4.2, 'движение началось · ' + hhmm(e.t) + ' · место ' + e.place + ' в очереди'); });
 
       // одна последняя стрелка по центру над графиком + короткая подпись
       var last = _EV[_EV.length - 1];
@@ -1705,7 +1709,7 @@ COIN_JS = r"""
     // без подложки, ярко, дышит; текст и время по центру под ней
     if (_LAST) (function () {
       var L = _LAST, dy = L.dir === 'up' ? -3 : 3, ar = L.dir === 'up' ? 'M31,44 h18 l-9,-17 z' : 'M31,28 h18 l-9,17 z';   // вдвое меньше
-      function hh(t) { var d = new Date(t); return pad(d.getUTCDate()) + '.' + pad(d.getUTCMonth() + 1) + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
+      function hh(t) { var d = new Date(t); return pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }   // местное время (11.09)
       // текст под стрелкой — по её центру (владелец: «сейчас левым краем с её центром совпадает»)
       // выше блока решения, стрелка слева от текста (владелец 11.09)
       notes += '<div class="note lastArrow" style="left:640px;top:530px;width:300px;display:flex;align-items:center;gap:6px;text-align:left;pointer-events:auto;z-index:7" title="' + esc(L.tip) + '">' +
@@ -2029,7 +2033,8 @@ COIN_JS = r"""
       // с плашкой при наведении вместо системной подсказки
       (function () {
         if (!_EV || !_EV.length) return;
-        var byKind = {}; _EV.forEach(function (e) { (byKind[e.kind] = byKind[e.kind] || []).push(e); });
+        // ТРИ ПОСЛЕДНИЕ ВСЕГО (11.09 вечер, владелец: «стрелок по-прежнему миллион»), не по три на вид
+        var byKind = { all: _EV.filter(function (e) { return e.t >= t0 && e.t <= tE; }) };
         Object.keys(byKind).forEach(function (k) { byKind[k].slice(-3).forEach(function (e) { if (e.t < t0 || e.t > tE) return;
           var x = Math.min(XT(e.t), W - 20), y = Y(e.px) + (e.dir === 'up' ? 16 : -16) + (e.kind === 'force' ? (e.dir === 'up' ? 14 : -14) : 0) + (e.kind === 'vx' ? (e.dir === 'up' ? 28 : -28) : 0);
           // ПЛАШКА ВМЕСТО СИСТЕМНОЙ ПОДСКАЗКИ (владелец: «не видно ничего и долго ждать появления»):
