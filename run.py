@@ -1026,6 +1026,19 @@ def run_once(args: argparse.Namespace) -> int:
     except Exception as e:
         _issue("Близкие", f"{type(e).__name__}: {e}")
 
+    # ── БУМАЖНАЯ КНИГА ПО ПЕРВЫМ (11.09, владелец): каждая монета, что была в первых трёх не меньше
+    # трёх прогонов за сутки, — бумажная позиция; четыре выхода на ней считаются независимо
+    # (конец, хедж вихря, сила, выпадение), стоп в точку входа после +10%, добор ×2. Читает только
+    # queue_log и архив, пишет output/paper_book.json; сбой прогон не роняет. Сводка:
+    # `python3 paper_book.py --report`, сравнение правил входа на журнале: `--variants`.
+    try:
+        import paper_book
+        _pb = paper_book.update()
+        _pb_first = (_pb.splitlines() or [""])[0]
+        log(f"→ Бумажная книга: {_pb_first[:120]}" + (" · события: " + "; ".join(l.strip("→ ") for l in _pb.splitlines() if l.startswith("  →"))[:300] if "  →" in _pb else ""))
+    except Exception as e:
+        _issue("Бумажная книга", f"{type(e).__name__}: {e}")
+
     # ── Coinglass: дождаться потока и разобрать результат ──
     if _cg_thread is not None:
         _cg_thread.join(timeout=1500)
