@@ -1175,6 +1175,11 @@ COIN_JS = r"""
     var g = {};
     // ГДЕ ЦЕНА
     var pr = [];
+    // КАПА И ОБОРОТ К НЕЙ — ПАРОЙ (12.09): высокий оборот к капе на дне это набор, на падающей
+    // капе — раздача (SIREN: $158M оборота при капе $193M и падении; MYX: $120M при $214M, −87%).
+    if (has(s.volToCap)) pr.push(['оборот к капе', '×' + (+s.volToCap).toFixed(2)
+      + (has(s.capChgPct) ? ' · капа за сутки ' + (s.capChgPct > 0 ? '+' : '') + (+s.capChgPct).toFixed(1) + '%' : '')
+      + (has(s.capChgPct) ? (s.capChgPct >= 0 ? ' — набор' : ' — раздача') : '')]);
     pr.push(['сейчас', px4(s.px) + (s.cap ? ' · капитализация ' + s.cap : '') + (has(s.floatPct) ? ' · флоат ' + Math.round(s.floatPct) + '%' : '')]);
     pr.push(['масштаб', (has(s.lifeDrop) ? '−' + Math.round(s.lifeDrop) + '% от пика жизни' : 'от пика: нет в сводке') + (has(s.up) ? ' · +' + Math.round(s.up) + '% от дна' + (s.updays ? ' за ' + s.updays + ' дн' : '') : '')]);
     if (lv.above && lv.above.price) pr.push(['плита', px4(lv.above.price) + (lv.above.dist !== undefined ? ' — ' + pct(lv.above.dist) : '') + (lv.above.touches ? ' · касаний ' + lv.above.touches : '')]);

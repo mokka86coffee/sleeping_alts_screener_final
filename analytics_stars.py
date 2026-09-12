@@ -918,6 +918,22 @@ def build_stars(candidates: list[Candidate],
         # считается, если известны капитализация и выручка; иначе
         # отдаётся сама отметка без числа. В решение НЕ входит: это
         # причина держать глазами, а не триггер.
+        # КАПИТАЛИЗАЦИЯ И ОБОРОТ К НЕЙ — ПАРОЙ (12.09, владелец: «не путай капитализацию на росте
+        # и капитализацию со дна»). Одно число не различает набор и раздачу: у SIREN в финале
+        # оборот $158M при капе $193M и капа падала; у MYX $120M при $214M и −87% за месяц. На дне
+        # тот же высокий оборот к капе означает набор (LAB 12.09: 660% нормы на минимуме, капа
+        # росла). Пишем три числа без выводов: капа, оборот к капе, ход капы за сутки (капа ходит
+        # ценой — supply за сутки постоянна, поэтому это ход цены за 24 ч).
+        _cap = (getattr(c, "raw", None) or {}).get("mcap_usd")
+        _volq = getattr(c, "quote_volume_24h", None) or (getattr(c, "raw", None) or {}).get("quote_volume_24h")
+        if _cap:
+            s["capUsd"] = float(_cap)
+            if _volq:
+                s["volToCap"] = round(float(_volq) / float(_cap), 3)
+            _ch = (getattr(c, "raw", None) or {}).get("ch_24h")
+            if _ch is not None:
+                s["capChgPct"] = round(float(_ch), 2)
+
         dem = demand_for(s["t"] + "USDT",
                          mcap_usd=(getattr(c, "raw", None) or {}).get("mcap_usd"),
                          revenue_30d_usd=(getattr(c, "raw", None) or {}).get("revenue_30d"))

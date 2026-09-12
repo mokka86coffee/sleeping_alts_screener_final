@@ -48,6 +48,36 @@ SHORT_MIN_OI = 0.005  # или ≥ 0.5% интереса
 GIVEBACK = 0.35      # удержание: закрытие ≥ 65% от максимума сбора
 
 
+_MCAP_CACHE: dict = {}
+
+
+def _mcap(sym_usdt: str) -> float | None:
+    """Капитализация монеты. Берётся из среза кандидатов (latest.json), где она уже собрана
+    метриками как mcap_usd — своего запроса не делаем, цифра общая с карточкой."""
+    if not _MCAP_CACHE:
+        # Капа собирается метриками внутри прогона и кладётся в звёзды (analytics_stars: capUsd).
+        # В latest.json её нет — raw там вычищен, проверено 12.09 на 204 кандидатах: ноль с капой.
+        for _name in ("output/stars.json", "stars.json", "output/near_move.json"):
+            try:
+                _d = json.loads((BASE_DIR / _name).read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            _list = _d if isinstance(_d, list) else (_d.get("stars") or _d.get("coins") or [])
+            _it = _list.values() if isinstance(_list, dict) else _list
+            for _c in _it:
+                if not isinstance(_c, dict):
+                    continue
+                _s = str(_c.get("t") or _c.get("sym") or "")
+                _cap = _c.get("capUsd") or _c.get("cap_usd")
+                if _s and _cap:
+                    _MCAP_CACHE[_s if _s.endswith("USDT") else _s + "USDT"] = float(_cap)
+            if _MCAP_CACHE:
+                break
+        _MCAP_CACHE.setdefault("_loaded", 0.0)
+    v = _MCAP_CACHE.get(sym_usdt)
+    return v if v else None
+
+
 def _load_live() -> dict:
     """Живой день — из ОБЩЕГО модуля live_day (06.09): один код на репутацию, фильтр и всё,
     что смотрит «сейчас»; здесь только вызов."""
@@ -757,6 +787,21 @@ def attach_today(sym_usdt: str, j: dict) -> dict:
         j["vortex"] = _vortex(sym_usdt, (j.get("nums") or {}).get("mode"))    # в балл не идёт
         # ДИВЕРГЕНЦИИ ВОРТЕКСА — В ЖУРНАЛ И НА ЭКРАН (12.09): считались с 11.09, но лежали внутри
         # vortex и до карточки не доходили. Кладём рядом, чтобы звёзды и queue_log их видели.
+        # КАПИТАЛИЗАЦИЯ И ОБОРОТ К НЕЙ (12.09, владелец: «не путай капитализацию на росте и
+        # капитализацию со дна»). Одно число ничего не значит: у SIREN в финале оборот $158M при
+        # капе $193M и капа падала; у MYX $120M при $214M и минус 87% за месяц — раздача. На дне
+        # тот же высокий оборот к капе — набор (LAB 12.09: 660% нормы на минимуме, капа росла).
+        # Различает ПАРА: оборот к капе + куда идёт сама капа. Пишем три числа без выводов.
+        _cap = _mcap(sym_usdt)
+        if _cap:
+            _t2 = j.get("today") or {}
+            _vol = _t2.get("vol_usd") or _t2.get("quote_volume")
+            j.setdefault("today", {})["cap_usd"] = round(_cap)
+            if _vol:
+                j["today"]["vol_to_cap"] = round(float(_vol) / _cap, 3)
+            _pch = _t2.get("px_chg_pct")
+            if _pch is not None:
+                j["today"]["cap_chg_pct"] = round(float(_pch), 2)   # капа ходит ценой: supply за сутки постоянна
         _vx = j.get("vortex") or {}
         for _k in ("div_sell", "div_buy"):
             if isinstance(_vx.get(_k), dict):
@@ -1151,6 +1196,7 @@ def log_queue(res: dict) -> int:
         rows.append({
             "at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "candle": candle.strftime("%Y-%m-%dT%H:%M:00Z"),
             "sym": sym, "place": i, "score": q.get("score"), "first_streak": q.get("first_streak"), "oi_inflow": q.get("oi_inflow"),
+            "cap_usd": t.get("cap_usd"), "vol_to_cap": t.get("vol_to_cap"), "cap_chg_pct": t.get("cap_chg_pct"),
             "days_since_harvest": q.get("days_since_harvest"), "oi_grow": n.get("oi_grow"),
             "today": q.get("today"), "bubble": q.get("bubble"), "move_pct": q.get("px_chg_pct"),
             "stage": q.get("stage"), "out_reason": q.get("out_reason"),
