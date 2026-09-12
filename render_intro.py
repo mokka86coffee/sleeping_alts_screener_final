@@ -118,6 +118,25 @@ def _last_marks() -> dict:
     return out
 
 
+def _pump_lead() -> dict | None:
+    """Живой лидер по пампу с наибольшим ходом — из pump_leaders.json, ничего не считая."""
+    try:
+        from core_config import PUMP_LEADERS_PATH as _pl
+    except ImportError:
+        _pl = BASE_DIR / "output" / "pump_leaders.json"
+    try:
+        _recs = json.loads(Path(_pl).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    _live = [r for r in (_recs.values() if isinstance(_recs, dict) else _recs)
+             if isinstance(r, dict) and r.get("symbol") and not r.get("retired_at")]
+    if not _live:
+        return None
+    _live.sort(key=lambda r: -(r.get("run_pct") or 0))
+    _l = _live[0]
+    return {"sym": str(_l["symbol"]), "run_pct": float(_l.get("run_pct") or 0), "mine": bool(_l.get("mine"))}
+
+
 def collect_items() -> list[dict]:
     nm = _read("near_move.json") or {}
     coins = nm.get("coins") or {}
@@ -208,6 +227,24 @@ def collect_items() -> list[dict]:
     for sym, v in coins.items():
         if (v.get("today") or {}).get("leaving_kind") == "конец":
             add(sym, 2, " · ".join(v.get("why") or []) + " · интерес ушёл вместе с ценой — выход, не хедж", "выход 100%")
+    # ЛИДЕР — ОДНА ЗВЕЗДА (12.09, владелец: «должен показываться один лидер, а его даже нет, и есть
+    # все звёзды»). Лидер из pump_leaders (та же мерка, что везде) становится звездой всегда, даже
+    # если очередь его не держит — LAB +65% в очередь не попадал и звезды не имел. Пока он тянет,
+    # очередь гаснет: «если тянет одна, остальное будет во флэте или падать». «У цели» остаются —
+    # это выходы и хеджи по позициям, им приписывается та же причина.
+    _lead = _pump_lead()
+    if _lead and (_lead["sym"] in coins or _lead.get("mine")):
+        _ls = _lead["sym"]
+        _why = f"ведёт · +{_lead['run_pct']:.0f}% от основы · тянет одна — вход в остальных закрыт"
+        _hit = next((it for it in items if it["sym"] == _ls), None)
+        if _hit:
+            _hit.update({"g": 0, "why": _why, "sub": "лидер · " + str(_hit.get("sub") or ""), "rel": 1e9})
+        else:
+            add(_ls, 0, _why, "лидер", 1e9)
+        for it in items:
+            if it["sym"] != _ls and it["g"] in (2, 4):
+                it["why"] = (it.get("why") or "") + " · тянет одна — остальное во флэте или падает, хедж"
+        items[:] = [it for it in items if it["sym"] == _ls or it["g"] in (2, 4)]
     # порядок: брать, держать, у цели; внутри группы — по надёжности, самая надёжная первой
     items.sort(key=lambda it: (it["g"], -it.get("rel", 0.0)))
     # яркость внутри группы: лучшая — 1.0, остальные вниз до 0.45; «у цели» — ровно 0.7
