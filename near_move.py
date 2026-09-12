@@ -28,12 +28,14 @@ from pathlib import Path
 
 try:
     from core_config import (BASE_DIR, VORTEX_SCORE_BOOST, VORTEX_SCORE_MAX_AGO, PUMP_LEADERS_PATH,
-                             OI_INFLOW_PCT, OI_INFLOW_WIDE, OI_INFLOW_BOOST, OI_INFLOW_BOOST_MAX)
+                             OI_INFLOW_PCT, OI_INFLOW_WIDE, OI_INFLOW_BOOST, OI_INFLOW_BOOST_MAX,
+                             OI_INFLOW_DEMAND_BOOST, OI_DRY_PCT, OI_DRY_PENALTY)
 except ImportError:
     BASE_DIR = Path(__file__).resolve().parent
     VORTEX_SCORE_BOOST, VORTEX_SCORE_MAX_AGO = 1.25, 8
     OI_INFLOW_PCT, OI_INFLOW_WIDE = 20.0, 3
     OI_INFLOW_BOOST, OI_INFLOW_BOOST_MAX = 1.8, 3.0
+    OI_INFLOW_DEMAND_BOOST, OI_DRY_PCT, OI_DRY_PENALTY = 1.3, 5.0, 0.7
     PUMP_LEADERS_PATH = BASE_DIR / "output" / "pump_leaders.json"
 sys.path.insert(0, str(BASE_DIR))
 
@@ -860,7 +862,20 @@ def build(only: list[str] | None = None) -> dict:
         _oi_in = _tv.get("oi_chg_pct")
         if _oi_in is not None and float(_oi_in) >= OI_INFLOW_PCT:
             _mult = OI_INFLOW_BOOST ** min(2.0, float(_oi_in) / OI_INFLOW_PCT)
+            # ДВИЖОК РЕШАЕТ, ЧЕГО СТОИТ ПРИТОК (12.09, SOPH и ARB на журнале 07–12.09): приток при
+            # движке «спрос» — 3 случая из 3 дали ≥+8%, медиана максимума +70% (SOPH +138%, LSK +70%);
+            # при «сквизе» — 5 из 7 и медиана +22%, а два промаха (DOOD +3%, DOGS +4%) оба сквизные.
+            # Спрос усиливаем сверх притока, сквиз оставляем как есть.
+            if str(_tv.get("engine") or (v.get("nums") or {}).get("engine") or "") == "спрос":
+                _mult *= OI_INFLOW_DEMAND_BOOST
             score *= min(OI_INFLOW_BOOST_MAX, _mult)
+        # СКВИЗ БЕЗ ДЕНЕГ — ВНИЗ (12.09, ARB): движок «сквиз» при притоке меньше OI_DRY_PCT по модулю
+        # стоял в первых трёх 12 раз за пять дней, и только один случай дал ≥+8% (медиана максимума
+        # +3.8%). Балл поднимал монеты, в которых денег нет вовсе: ARB сидела в первых при нулевом
+        # притоке все пять дней и отдала −13%. Не выбрасываем — опускаем.
+        elif (str(_tv.get("engine") or (v.get("nums") or {}).get("engine") or "") == "сквиз"
+              and _oi_in is not None and abs(float(_oi_in)) < OI_DRY_PCT):
+            score *= OI_DRY_PENALTY
         # КОРРЕКЦИЯ — ТОЖЕ МНОЖИТЕЛЕМ: интерес сегодня уходит вместе с ценой — монета временно не про
         # «кто раньше»; из очереди не выбрасываем (белый пузырь вернёт), но вперёд не пускаем.
         if _tk_q == "коррекция":

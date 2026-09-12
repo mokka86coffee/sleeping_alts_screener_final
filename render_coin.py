@@ -2162,13 +2162,18 @@ COIN_JS = r"""
           // появляется сразу при наведении, две строки, над стрелкой, не вылезает за плиту
           var parts = String(e.tip).split(' · '), l1 = parts[0], l2 = parts.slice(1).join(' · ');
           var bw = Math.max(l1.length, l2.length) * 4.3 + 14, bx = Math.max(4, Math.min(W - bw - 4, x - bw / 2)), by = y - 34;
+          // СОБЫТИЕ-ПУЗЫРЬ — СТРЕЛКОЙ, НЕ ПУЗЫРЁМ (12.09, владелец): настоящие пузыри на этой плите —
+          // слой Market Order Bubbles по Leviathan (06.09), круги по величине заявок со своей
+          // обводкой. Событие быстрого слоя — отбор 2σ из тех же данных, оно голосует за
+          // направление в одном ряду с интересом, силой, вортексом и концом, поэтому у него
+          // стрелка и буква «п»: две разные вещи не должны выглядеть одинаково.
           g += '<g class="arw"><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="8" fill="rgba(3,12,9,.85)" stroke="rgba(233,255,244,.2)" stroke-width=".5"/>' +
                '<path d="' + (e.dir === 'up' ? 'M' + (x - 5).toFixed(1) + ',' + (y + 4).toFixed(1) + ' h10 l-5,-9 z' : 'M' + (x - 5).toFixed(1) + ',' + (y - 4).toFixed(1) + ' h10 l-5,9 z') + '" fill="' + e.col + '" opacity="' + e.op.toFixed(2) + '"/>' +
                '<g class="hint"><rect x="' + bx.toFixed(1) + '" y="' + by.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="22" rx="3" fill="rgba(3,17,12,.92)" stroke="' + e.col + '" stroke-opacity=".6" stroke-width=".6"/>' +
                '<text x="' + (bx + 7).toFixed(1) + '" y="' + (by + 9).toFixed(1) + '" font-size="7" letter-spacing=".08em" fill="' + e.col + '">' + esc(l1) + '</text>' +
                '<text x="' + (bx + 7).toFixed(1) + '" y="' + (by + 18).toFixed(1) + '" font-size="6.5" letter-spacing=".06em" fill="#bfe9d6">' + esc(l2) + '</text></g>' +
-               '<text x="' + x.toFixed(1) + '" y="' + (y + (e.dir === 'up' ? 3.4 : 3.4)).toFixed(1) + '" text-anchor="middle" font-size="7" font-weight="600" fill="#04140e">' + esc(KLET[e.kind] || '?') + '</text>' +
-               '<text x="' + x.toFixed(1) + '" y="' + (y + (e.dir === 'up' ? 17 : -11)).toFixed(1) + '" text-anchor="middle" font-size="5" letter-spacing=".1em" fill="' + e.col + '" opacity=".7">' + esc(hhmm(e.t).slice(-5) + ' · ' + (KTF[e.kind] || '30м')) + '</text></g>'; }); });
+               '<text x="' + x.toFixed(1) + '" y="' + (y + 2.6).toFixed(1) + '" text-anchor="middle" font-size="6.5" font-weight="600" fill="#04140e">' + esc(KLET[e.kind] || '?') + '</text>' +
+               '<text x="' + x.toFixed(1) + '" y="' + (y + (e.dir === 'up' ? 17 : -11)).toFixed(1) + '" text-anchor="middle" font-size="5" letter-spacing=".1em" fill="' + e.col + '" opacity=".7">' + esc((function (t) { var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); })(e.t) + ' · ' + (KTF[e.kind] || '30м')) + '</text></g>'; }); });
       })();
       // стиль плашек внутри svg (11.09): страничный css до них не доставал — все плашки стояли открытыми
       var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '"><style>g.arw .hint{opacity:0;transition:opacity .12s;pointer-events:none}g.arw:hover .hint{opacity:1}</style>' + g + '</svg>';
