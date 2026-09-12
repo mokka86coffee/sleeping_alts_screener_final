@@ -48,6 +48,40 @@ SHORT_MIN_OI = 0.005  # или ≥ 0.5% интереса
 GIVEBACK = 0.35      # удержание: закрытие ≥ 65% от максимума сбора
 
 
+def _money_state(v: dict, oi_chg: float) -> str:
+    """ЧЕТЫРЕ СОСТОЯНИЯ ПО ТРОЙКЕ «ПЛЕЧО · ОБОРОТ · КАПА» С ОГЛЯДКОЙ НА МЕСТО ЦЕНЫ
+    (12.09, владелец). Одно и то же «плечо растёт» значит разное в зависимости от того,
+    где цена относительно дна:
+
+      у дна, цена долго падала, плечо растёт, оборот и капа НЕ растут
+          → тихий откуп: накопление, самая ранняя фаза;
+      цена уже +150…300% от дна, плечо растёт, оборот и капа НЕ растут
+          → раздача: новых денег нет, набивают внутри прежнего объёма;
+      плечо и оборот растут, капа НЕ растёт
+          → толпа нагнана, об неё раздают: оборот есть, а цену он не двигает;
+      плечо, оборот и капа растут вместе
+          → продолжение роста; потолок по весу — около миллиарда капитализации,
+            выше держать монету этого класса нечем (SIREN: $1.68B держались сутки).
+    """
+    _t = v.get("today") or {}
+    _n = v.get("nums") or {}
+    vol_x = _t.get("vol_x") or _t.get("vol_norm_x") or _n.get("lull_x")
+    cap_up = _t.get("cap_chg_pct")
+    run = _n.get("run_from_low7")
+    vol_up = vol_x is not None and float(vol_x) >= 1.0
+    cap_growing = cap_up is not None and float(cap_up) > 0
+    high = run is not None and float(run) >= 150.0
+    if oi_chg <= 0:
+        return ""
+    if vol_up and cap_growing:
+        return "плечо, оборот и капа растут — продолжение роста"
+    if vol_up and not cap_growing:
+        return "плечо и оборот растут, капа стоит — раздают об толпу"
+    if high:
+        return "цена высоко от дна, плечо растёт без оборота — раздача"
+    return "плечо растёт у дна без оборота — тихий откуп, накопление"
+
+
 _MCAP_CACHE: dict = {}
 
 
@@ -910,8 +944,17 @@ def build(only: list[str] | None = None) -> dict:
         # +22%. Балл этого не видел вовсе: SOPH стояла ШЕСТОЙ и дала +138%, BULLA девятой и +26%.
         # Кратно порогу: ×20 порога — OI_INFLOW_BOOST, ×2 порога и выше — он же в квадрате, потолок
         # OI_INFLOW_BOOST_MAX. Убывание не наказываем здесь — это делает oi_trend_pct выше.
+        # ТРОЙКА, А НЕ ОДНО ПЛЕЧО (12.09, владелец: «рост плеча — это не дальнейший рост; надо
+        # учитывать и рост оборотов, и капитализации»). Приток интереса одинаково описывает две
+        # разные вещи: приход новых денег и набивку лонгов внутри прежнего объёма. Различают
+        # оборот и капа: все три вверх — деньги приходят (LSK 12.09: интерес +655%, оборот 494
+        # норм, капа $30M→$75M); плечо вверх при падающем обороте — набивка, она кончается
+        # выносом набившихся. Множитель даётся только когда оборот не падает.
         _oi_in = _tv.get("oi_chg_pct")
-        if _oi_in is not None and float(_oi_in) >= OI_INFLOW_PCT:
+        _vol_x = _tv.get("vol_x") or _tv.get("vol_norm_x") or (v.get("nums") or {}).get("lull_x")
+        _cap_up = _tv.get("cap_chg_pct")
+        _money_in = (_vol_x is None or float(_vol_x) >= 1.0) and (_cap_up is None or float(_cap_up) > 0)
+        if _oi_in is not None and float(_oi_in) >= OI_INFLOW_PCT and _money_in:
             _mult = OI_INFLOW_BOOST ** min(2.0, float(_oi_in) / OI_INFLOW_PCT)
             # ДВИЖОК РЕШАЕТ, ЧЕГО СТОИТ ПРИТОК (12.09, SOPH и ARB на журнале 07–12.09): приток при
             # движке «спрос» — 3 случая из 3 дали ≥+8%, медиана максимума +70% (SOPH +138%, LSK +70%);
@@ -1147,7 +1190,9 @@ def build(only: list[str] | None = None) -> dict:
         _oi = _t.get("oi_chg_pct")
         if _oi is not None and float(_oi) >= OI_INFLOW_PCT:
             _inflow.append((s2, round(float(_oi), 1)))
-            (out["coins"][s2].get("queue") or {})["oi_inflow"] = round(float(_oi), 1)
+            _q2 = out["coins"][s2].get("queue") or {}
+            _q2["oi_inflow"] = round(float(_oi), 1)
+            _q2["money"] = _money_state(out["coins"][s2], float(_oi))
     _inflow.sort(key=lambda x: -x[1])
     out["inflow"] = {"n": len(_inflow), "syms": [x[0] for x in _inflow[:6]],
                      "top": _inflow[0][1] if _inflow else None,
@@ -1197,6 +1242,7 @@ def log_queue(res: dict) -> int:
             "at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "candle": candle.strftime("%Y-%m-%dT%H:%M:00Z"),
             "sym": sym, "place": i, "score": q.get("score"), "first_streak": q.get("first_streak"), "oi_inflow": q.get("oi_inflow"),
             "cap_usd": t.get("cap_usd"), "vol_to_cap": t.get("vol_to_cap"), "cap_chg_pct": t.get("cap_chg_pct"),
+            "money": q.get("money"),
             "days_since_harvest": q.get("days_since_harvest"), "oi_grow": n.get("oi_grow"),
             "today": q.get("today"), "bubble": q.get("bubble"), "move_pct": q.get("px_chg_pct"),
             "stage": q.get("stage"), "out_reason": q.get("out_reason"),
