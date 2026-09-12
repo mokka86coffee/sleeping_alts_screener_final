@@ -232,6 +232,17 @@ def _star_intraday(raw: dict) -> dict:
         # появления состояния held/repeat/cleared.
         if vx.get("spread") is not None:
             out["vxSpread"] = float(vx["spread"])
+        # ВРЕМЯ ПУЛЬСА — В МИНУТАХ ПО ПРОГОНАМ (12.09, владелец: «считать время из пульса по
+        # времени прогонов, а не из воздуха»). vxAgo — это точки пульса, а не часы и не 4ч-бары:
+        # рядом кладём минуты, чтобы показ не домножал их на выдуманный таймфрейм.
+        for _k, _n in (("span_min", "vxSpanMin"), ("step_min", "vxStepMin")):
+            if vx.get(_k) is not None:
+                out[_n] = int(vx[_k])
+        _mr = vx.get("minus_rise") or {}
+        if _mr.get("n"):
+            out["vxMinusRise"] = int(_mr["n"])
+            if _mr.get("ago_min") is not None:
+                out["vxMinusRiseMin"] = int(_mr["ago_min"])
 
     if intra.get("range_pos") is not None:
         out["rangePos"] = float(intra["range_pos"])
@@ -971,6 +982,13 @@ def build_stars(candidates: list[Candidate],
         kv = craw.get("klinger_4h")
         if kv:
             s["klinger"] = kv
+        # ВИХРЬ ЧЕТЫРЁХЧАСОВОЙ — ОТДЕЛЬНО ОТ ПУЛЬСОВОГО (12.09). vxDir/vxAgo выше приходят из
+        # пульса (точки прогонов), а подписывались на карточке как «4ч» — подпись врала. Настоящий
+        # четырёхчасовой считают метрики по свечам; кладём его рядом под своим именем, старое поле
+        # не трогаем: его читают другие экраны. minus_rise — серия роста линии продавцов в 4ч-барах.
+        v4 = craw.get("vortex_4h")
+        if v4:
+            s["vx4"] = v4
         # Уровни: ближайший потолок и опора в ATR. Считаны метриками.
         lv = craw.get("levels")
         if lv:

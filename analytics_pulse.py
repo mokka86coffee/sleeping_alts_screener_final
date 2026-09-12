@@ -432,7 +432,15 @@ DELTA_KEYS = (
 
 
 def vortex_state(symbol: str, back: int = 48) -> dict:
-    """Состояние вихря по часам: тренд, сжатие после пика, схождение.
+    """Состояние вихря ПО ТОЧКАМ ПУЛЬСА: тренд, сжатие после пика, схождение.
+
+    ВРЕМЯ СЧИТАЕТСЯ ПО ПРОГОНАМ, А НЕ ИЗ ВОЗДУХА (12.09, владелец). Точка пульса
+    пишется каждым прогоном, прогон идёт по закрытию получасовки, и у каждой точки
+    есть собственный штамп t. Поэтому «сколько назад» здесь — это МИНУТЫ из самих
+    точек (span_min, rise_min), а не число баров, помноженное на выдуманный
+    таймфрейм. Именно так родился «вортекс 4ч» на карточке, который на деле
+    считался по точкам пульса: подпись и данные разошлись. Четырёхчасовой вихрь
+    живёт отдельно — vortex_4h в метриках, по свечам.
 
     ПРОВЕРЕНО НА АРХИВЕ 02.09 (7 монет, 14 событий): сжатие разрыва
     линий на треть после настоящего пика (≥0.35) давало через 3 дня
@@ -454,7 +462,29 @@ def vortex_state(symbol: str, back: int = 48) -> dict:
     cur = sp[-1]
     hi, lo = max(sp), min(sp)
     out = {"spread": round(cur, 3), "peak": round(hi if abs(hi) >= abs(lo) else lo, 3),
-           "state": "trend"}
+           "state": "trend", "points": len(win)}
+    # окно в минутах — по штампам точек, чтобы читатель не домножал на таймфрейм
+    try:
+        out["span_min"] = round((float(win[-1]["t"]) - float(win[0]["t"])) / 60)
+        out["step_min"] = round(out["span_min"] / max(1, len(win) - 1))
+    except (KeyError, TypeError, ValueError):
+        pass
+    # ЛИНИЯ ПРОДАВЦОВ РАСТЁТ — первый тревожный знак (12.09): серия по точкам пульса,
+    # длина в точках и в минутах от начала серии. Пересечение приходит позже.
+    vim = [_num(r.get("vi_m")) for r in win]
+    rise = 0
+    for i in range(len(vim) - 1, 0, -1):
+        a, b = vim[i], vim[i - 1]
+        if a is None or b is None or not a > b:
+            break
+        rise += 1
+    out["minus_rise"] = {"n": rise}
+    if rise:
+        try:
+            out["minus_rise"]["ago_min"] = round(
+                (float(win[-1]["t"]) - float(win[len(win) - 1 - rise]["t"])) / 60)
+        except (KeyError, TypeError, ValueError):
+            pass
     if abs(cur) <= 0.05:
         out["state"] = "converged"           # направления нет
     elif hi >= 0.35 and cur > 0 and cur <= hi * 2 / 3:

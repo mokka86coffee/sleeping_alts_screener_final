@@ -227,11 +227,30 @@ def vortex_phase(
     else:
         phase, label = 1, "DECLINE"
 
+    # ЛИНИЯ ПРОДАВЦОВ РАСТЁТ — ПЕРВЫЙ ТРЕВОЖНЫЙ ЗНАК (12.09, владелец: «вихрь может плавно
+    # подниматься со стороны продавцов, каждый следующий бар продавцов выше предыдущего»).
+    # Пересечение приходит поздно: на IOST оно опоздало на восемь часов от креста Клингера.
+    # Считаем ряд VI− по барам и длину серии роста на хвосте: сколько баров подряд линия
+    # продавцов выше предыдущей и на каком баре серия началась (индекс с конца, 0 — последний).
+    vim_series: list[float] = []
+    for i in range(period, len(trs) + 1):
+        s_tr = sum(trs[i - period:i])
+        vim_series.append(sum(vm_minus[i - period:i]) / s_tr if s_tr > 0 else 0.0)
+    rise = 0
+    for i in range(len(vim_series) - 1, 0, -1):
+        if vim_series[i] > vim_series[i - 1]:
+            rise += 1
+        else:
+            break
+
     return {
         "vi_plus": round(vi_plus, 4),
         "vi_minus": round(vi_minus, 4),
         "phase": phase,
         "label": label,
+        # серия роста линии продавцов: n — сколько баров подряд, ago — сколько баров назад
+        # началась (n-1 для нынешней серии); n == 0 — линия продавцов не растёт
+        "minus_rise": {"n": rise, "ago": max(0, rise - 1)},
     }
 
 

@@ -122,10 +122,26 @@ def klinger_state(klines: list[list]) -> dict | None:
     kvo, sig = ks["kvo"], ks["sig"]
     above = kvo[-1] > sig[-1]
     was_above = kvo[-2] > sig[-2]
+    # КРЕСТ ВНИЗ С ЧАСОМ, А НЕ ТОЛЬКО НА ПОСЛЕДНЕМ БАРЕ (12.09, случай IOST: Клингер упал
+    # в 20:00, за два часа до интереса и за восемь до вихря; владелец вышел бы за час до
+    # закрытия Нью-Йорка). crossDn на последнем баре ловит момент и тут же теряет его —
+    # ищем последний крест в каждую сторону и отдаём, сколько баров назад он был.
+    dn_ago = up_ago = None
+    for i in range(len(kvo) - 1, 0, -1):
+        now_a, prev_a = kvo[i] > sig[i], kvo[i - 1] > sig[i - 1]
+        if dn_ago is None and (not now_a) and prev_a:
+            dn_ago = len(kvo) - 1 - i
+        if up_ago is None and now_a and (not prev_a):
+            up_ago = len(kvo) - 1 - i
+        if dn_ago is not None and up_ago is not None:
+            break
     return {
         "kvo": round(kvo[-1], 1),
         "sig": round(sig[-1], 1),
         "above": above,
         "crossUp": above and not was_above,
         "crossDn": (not above) and was_above,
+        # сколько баров назад был последний крест в каждую сторону; None — за рядом не было
+        "dnAgo": dn_ago,
+        "upAgo": up_ago,
     }
