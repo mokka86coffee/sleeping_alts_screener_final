@@ -496,6 +496,23 @@ def vortex_state(symbol: str, back: int = 48) -> dict:
         return n
 
     p_rise, m_fall = _st(vip, True), _st(vim, False)
+    # СКРЫТАЯ ДИВЕРГЕНЦИЯ (12.09, владелец: «по вортексу лой продаж следующий выше предыдущего на
+    # текущем росте… это скрытая медвежья дивергенция»). Серия из двух соседних точек её не видит:
+    # между откатами она обнуляется, а минимумы линии продавцов ползут вверх. Формула одна на
+    # проект — analytics_vortex.divergence, якорь по цене; здесь ряд по точкам пульса (vi_p/vi_m
+    # сняты с 4ч-вортекса метрик каждым прогоном), цена — из тех же точек.
+    _px = [_num(r.get("price")) for r in win]
+    if all(x is not None for x in _px) and len(_px) >= 8:
+        try:
+            from analytics_vortex import divergence as _div
+            _ds = _div(vim, _px, window=len(_px), price_falls=False)   # продавцы поджимают при росте
+            _db = _div(vip, _px, window=len(_px), price_falls=True)    # покупатели поджимают при падении
+            if _ds:
+                out["div_sell"] = _ds
+            if _db:
+                out["div_buy"] = _db
+        except Exception:   # noqa: BLE001 — дивергенция не обязана быть
+            pass
     out["minus_rise"] = {"n": rise}
     out["plus_fall"] = {"n": fall}
     out["plus_rise"] = {"n": p_rise}

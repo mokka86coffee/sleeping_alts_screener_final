@@ -755,6 +755,12 @@ def attach_today(sym_usdt: str, j: dict) -> dict:
     if j.get("group") in ("holding", "going", "pulled"):
         # форма хода лежит в nums (judge ставит её раньше, queue собирается позже в build)
         j["vortex"] = _vortex(sym_usdt, (j.get("nums") or {}).get("mode"))    # в балл не идёт
+        # ДИВЕРГЕНЦИИ ВОРТЕКСА — В ЖУРНАЛ И НА ЭКРАН (12.09): считались с 11.09, но лежали внутри
+        # vortex и до карточки не доходили. Кладём рядом, чтобы звёзды и queue_log их видели.
+        _vx = j.get("vortex") or {}
+        for _k in ("div_sell", "div_buy"):
+            if isinstance(_vx.get(_k), dict):
+                j.setdefault("today", {})[_k] = _vx[_k]
     return j
 
 

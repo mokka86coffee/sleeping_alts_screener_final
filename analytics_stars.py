@@ -252,6 +252,12 @@ def _star_intraday(raw: dict) -> dict:
             out["vxTurning"] = True
         if vx.get("turn"):
             out["vxTurn"] = str(vx["turn"])
+        # дивергенции вортекса (12.09): продавцы поджимают при растущей цене — vxDivSell;
+        # покупатели поджимают при падающей — vxDivBuy. Числа как есть, вывод делает показ.
+        for _k, _n in (("div_sell", "vxDivSell"), ("div_buy", "vxDivBuy")):
+            _d = vx.get(_k)
+            if isinstance(_d, dict) and _d.get("line_a") is not None:
+                out[_n] = {"a": _d["line_a"], "b": _d["line_b"], "ago": _d.get("bars_ago")}
         for _k, _n in (("plus_rise", "vxPlusRise"), ("minus_fall", "vxMinusFall")):
             if (vx.get(_k) or {}).get("n"):
                 out[_n] = int(vx[_k]["n"])

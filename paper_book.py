@@ -33,12 +33,14 @@ from pathlib import Path
 try:
     from core_config import (BASE_DIR, PAPER_ADD_AFTER_BE, PAPER_ADD_MAX_PCT, PAPER_BE_PCT, PAPER_DROP_RUNS,
                              PAPER_ENTRY_CONSECUTIVE_FIRST, PAPER_FORCE_FRESH_BARS, PAPER_HITS, PAPER_MAX_DAYS,
-                             PAPER_QUAR_BY_QUEUE, PAPER_QUAR_DAYS, PAPER_QUAR_DROPS, PAPER_QUAR_WINDOW_H, PAPER_WINDOW_H)
+                             PAPER_QUAR_BY_QUEUE, PAPER_QUAR_DAYS, PAPER_QUAR_DROPS, PAPER_QUAR_WINDOW_H, PAPER_WINDOW_H,
+                             PAPER_HEDGE_PART, PAPER_HEDGE_FULL, PAPER_HEDGE_BACK_PCT, PAPER_HEDGE_OI_DROP)
 except ImportError:
     BASE_DIR = Path(__file__).resolve().parent
     PAPER_HITS, PAPER_WINDOW_H, PAPER_MAX_DAYS, PAPER_BE_PCT, PAPER_ADD_MAX_PCT, PAPER_FORCE_FRESH_BARS = 3, 24.0, 3, 10.0, 50.0, 1
     PAPER_DROP_RUNS, PAPER_ADD_AFTER_BE, PAPER_QUAR_DROPS, PAPER_QUAR_DAYS, PAPER_QUAR_BY_QUEUE = 3, True, 1, 2, True
     PAPER_QUAR_WINDOW_H, PAPER_ENTRY_CONSECUTIVE_FIRST = 12.0, True
+    PAPER_HEDGE_PART, PAPER_HEDGE_FULL, PAPER_HEDGE_BACK_PCT, PAPER_HEDGE_OI_DROP = 100.0, 100.0, 1.5, 10.0
 
 OUT_DIR = BASE_DIR / "output"
 LOG = OUT_DIR / "queue_log.jsonl"
@@ -282,19 +284,60 @@ def _apply_run(book: dict, at: str, run_rows: dict, hist: list[dict]) -> list[st
             events.append(f"{sym.replace('USDT', '')}: добор ×2 по {px:g} (от входа {_pct(pos['entry_px'], px):+.1f}%)")
         # ЗАКРЫТИЕ — НА ПЕРВОМ ЖЕ ВЫХОДЕ (владелец: «продаём, как только по какому-то сигналу
         # завершается»), либо стоп, либо срок. Остальные выходы дописываются виртуально — см. watch.
-        reason = None
+        # ── ХЕДЖ ВМЕСТО ВЫХОДА (12.09, владелец: «идея с результатом выход сто процентов должна быть
+        # заменена на хеджирование сто или девяносто процентов; если обнаружим дальнейший рост после
+        # отскока, хедж можно закрыть, а выйдя из позиции придётся добирать выше»). Обе ноги на
+        # перпетуалах, ставка фандинга одна — при равных объёмах платежи гасятся, остаётся комиссия
+        # ~0.2% на цикл. Главное не арифметика: ТВХ не меняется, и продолжение хода не требует
+        # входить выше своего входа на 50–100% — закрыть шорт психологически стоит ничего.
+        # Событие вниз ОТКРЫВАЕТ хедж на долю позиции, а не закрывает её.
         first = [k for k in EXITS if sig[k] and pos["exits"][k] and pos["exits"][k]["at"] == at]
-        if pos["stop"] is not None and px <= pos["stop"]:
+        if first and not pos.get("hedge"):
+            _share = PAPER_HEDGE_FULL if first[0] in ("конец",) else PAPER_HEDGE_PART
+            pos["hedge"] = {"at": at, "px": px, "share": _share, "why": first[0],
+                            "oi": (bar or {}).get("oi")}
+            events.append(f"{sym.replace('USDT', '')}: ХЕДЖ {_share:.0f}% по {px:g} ({first[0]}) · "
+                          f"позиция цела, ТВХ {pos['entry_px']:g}")
+        # ЗАКРЫТИЕ ХЕДЖА — отдельное событие: цена взяла максимум, на котором хедж ставился, и
+        # интерес не упал. Тогда шорт крыть с убытком в пару процентов и идти дальше позицией.
+        elif pos.get("hedge") and not pos["hedge"].get("closed_at"):
+            _h = pos["hedge"]
+            _oi_ok = True
+            if bar and bar.get("oi") and _h.get("oi") :
+                _oi_ok = bar["oi"] >= _h["oi"] * (1 - PAPER_HEDGE_OI_DROP / 100)
+            if px >= _h["px"] * (1 + PAPER_HEDGE_BACK_PCT / 100) and _oi_ok:
+                _h["closed_at"], _h["closed_px"] = at, px
+                _h["cost_pct"] = -_pct(_h["px"], px) * (_h["share"] / 100.0)
+                events.append(f"{sym.replace('USDT', '')}: хедж снят по {px:g} · стоил "
+                              f"{_h['cost_pct']:+.1f}% · ход продолжается")
+        # СТОП НЕ РАБОТАЕТ, ПОКА СТОИТ ХЕДЖ (12.09): риск уже снят шорт-ногой, а стоп выбивает
+        # позицию по цене входа — на журнале SOPH так теряла +60% хода при живом хедже.
+        _hedged_now = bool(pos.get("hedge") and not pos["hedge"].get("closed_at"))
+        reason = None
+        if pos["stop"] is not None and px <= pos["stop"] and not _hedged_now:
             reason = "стоп"
-        elif VARIANT.get("init_stop") is not None and pos["stop"] is None and px <= pos["entry_px"] * (1 - abs(VARIANT["init_stop"]) / 100):
+        elif (VARIANT.get("init_stop") is not None and pos["stop"] is None and not _hedged_now
+              and px <= pos["entry_px"] * (1 - abs(VARIANT["init_stop"]) / 100)):
             reason = "стартовый стоп"
-        elif first:
-            reason = "выход: " + first[0]
         elif now - _t(pos["entry_at"]) >= timedelta(days=PAPER_MAX_DAYS):
             reason = "срок"
+        elif VARIANT.get("exit_on_event") and first:
+            reason = "выход: " + first[0]        # старое поведение — только как вариант для сравнения
         if reason:
             pos["closed_at"], pos["closed_px"], pos["closed_reason"] = at, px, reason
             pos["res_pct"] = _pct(_avg_entry(pos), px)
+            # РЕЗУЛЬТАТ С ХЕДЖЕМ. Хедж — шорт на долю s от позиции по цене hedge_px.
+            # Хедж ещё стоит: доля s зафиксирована по цене хеджа, остаток идёт по цене закрытия.
+            # Хедж снят: шорт дал −(рост от hedge_px до closed_px) × s, позиция целиком по закрытию.
+            _h = pos.get("hedge")
+            if _h:
+                _s = _h["share"] / 100.0
+                _pos_res = _pct(_avg_entry(pos), px)
+                if _h.get("closed_at"):
+                    pos["res_hedged_pct"] = round(_pos_res - _pct(_h["px"], _h["closed_px"]) * _s, 2)
+                else:
+                    pos["res_hedged_pct"] = round(_pct(_avg_entry(pos), _h["px"]) * _s + _pos_res * (1 - _s), 2)
+                pos["hedge_cost_pct"] = _h.get("cost_pct")
             pos["mfe_pct"], pos["mae_pct"] = _pct(pos["entry_px"], pos["max_px"]), _pct(pos["entry_px"], pos["min_px"])
             book["closed"].append(pos)
             del book["open"][sym]
@@ -429,25 +472,32 @@ def variants() -> str:
     global VARIANT
     hours_us = set(range(13, 22)); hours_asia = set(range(0, 9))
     us_open = set(range(12, 16)); mon_thu = {0, 1, 2, 3}
-    us_open = set(range(12, 16)); mon_thu = {0, 1, 2, 3}
-    us_open = set(range(12, 16)); mon_thu = {0, 1, 2, 3}
-    grid = [("ПРИНЯТО: первое 3 подряд · карантин 1/12 из очереди", {}),
-            ("то же, без карантина", {"quarantine": False}),
-            ("вход 3 попадания за сутки · карантин 1/12", {"consecutive_first": False}),
-            ("принято + без «конца»", {"no_reentry_after_end": True}),
-            ("ПРИТОК ПЛЕЧА ≥20%, любое место", {"inflow_pct": 20.0}),
-            ("приток ≥20%, место ≤9", {"inflow_pct": 20.0, "inflow_max_place": 9}),
-            ("приток ≥20%, место ≤3", {"inflow_pct": 20.0, "inflow_max_place": 3}),
-            ("приток ≥30%, любое место", {"inflow_pct": 30.0}),
-            ("приток ≥20% + без карантина", {"inflow_pct": 20.0, "quarantine": False}),
-            ("приток ≥20% + стартовый стоп −7%", {"inflow_pct": 20.0, "init_stop": 7}),
-            ("приток ≥20% + откат от вершины ≤10%", {"inflow_pct": 20.0, "max_drawdown": 10}),
-            ("ВЛАДЕЛЕЦ: у открытия Америки 12–15, пн–чт", {"hours": us_open, "weekdays": mon_thu})]
+    grid = [("ПРИНЯТО: хедж вместо выхода · первое 3 подряд", {}),
+            ("хедж · вход по притоку ≥20%", {"inflow_pct": 20.0}),
+            ("хедж · приток ≥20% + откат ≤10%", {"inflow_pct": 20.0, "max_drawdown": 10}),
+            ("СТАРОЕ: выход по событию · первое 3 подряд", {"exit_on_event": True}),
+            ("старое: выход по событию · приток ≥20%", {"exit_on_event": True, "inflow_pct": 20.0}),
+            ("хедж · без карантина", {"quarantine": False}),
+            ("хедж · приток ≥30%", {"inflow_pct": 30.0}),
+            ("хедж · стартовый стоп −7%", {"init_stop": 7}),
+            ("хедж · пн–чт", {"weekdays": mon_thu})]
     out = [f"{'вариант':<38} {'поз.':>4} {'в плюс':>6} {'медиана':>8} {'сумма':>8} {'≥+20%':>5} {'≤-10%':>5}"]
     for name, v in grid:
         VARIANT = {"hours": None, "no_reentry_after_end": False, "bg_filter": False, "consecutive_first": PAPER_ENTRY_CONSECUTIVE_FIRST, "quarantine": True, "quar_by_queue": True, **v}
         b = rebuild(save=False)
-        res = [c["res_pct"] for c in b["closed"]] + [_pct(_avg_entry(p), p["last_px"]) for p in b["open"].values()]
+        # РЕЗУЛЬТАТ С ХЕДЖЕМ, если он был (12.09): позиция не закрывается на событии, риск снимает
+        # шорт-нога, поэтому сравнивать правила надо по res_hedged_pct, а не по цене закрытия.
+        res = [(c.get("res_hedged_pct") if c.get("res_hedged_pct") is not None else c["res_pct"])
+               for c in b["closed"]]
+        for _p in b["open"].values():
+            _r = _pct(_avg_entry(_p), _p["last_px"])
+            _h = _p.get("hedge")
+            if _h and not _h.get("closed_at"):
+                _sh = _h["share"] / 100.0
+                _r = _pct(_avg_entry(_p), _h["px"]) * _sh + _r * (1 - _sh)
+            elif _h:
+                _r -= _pct(_h["px"], _h["closed_px"]) * (_h["share"] / 100.0)
+            res.append(_r)
         if not res:
             out.append(f"{name:<38} {0:>4}"); continue
         out.append(f"{name:<38} {len(res):>4} {sum(1 for r in res if r > 0):>6} {st.median(res):>+7.1f}% {sum(res):>+7.1f}% {sum(1 for r in res if r >= 20):>5} {sum(1 for r in res if r <= -10):>5}")

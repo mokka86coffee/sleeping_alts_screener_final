@@ -412,6 +412,12 @@ def compact(r: dict, mode: str | None = None) -> dict | None:
             "plus": r["vi_plus"], "minus": r["vi_minus"],
             "streak_plus": r["streak_plus"], "streak_minus": r["streak_minus"],
             "div_run_buy": r["div_run_buy"], "div_run_sell": r["div_run_sell"],
+            # СКРЫТАЯ ДИВЕРГЕНЦИЯ — НА ЭКРАН (12.09, владелец: «по вортексу лой продаж следующий выше
+            # предыдущего на текущем росте… это скрытая медвежья дивергенция, мы должны были это
+            # внедрить»). Считалась с 11.09, но дальше near_move.json не шла: карточка писала
+            # «поворота нет», пока продавцы поджимали покупателя на каждом откате. Серия из двух
+            # соседних баров этого не видит — между откатами она обнуляется.
+            "div_buy": r.get("div_buy"), "div_sell": r.get("div_sell"),
             "heat": r["heat"], "pct_gap": r["pct_gap"],
             "turn_side": t.get("side"), "turn_ago": t.get("ago"),
             "entry": r.get("entry"), "hedge": hedge_for(r, mode)}

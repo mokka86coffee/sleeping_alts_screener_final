@@ -1205,6 +1205,8 @@ COIN_JS = r"""
     if (s.vx4 && s.vx4.turn) { var _n4 = +((s.vx4.minus_rise || {}).n) || 0, _f4 = +((s.vx4.plus_fall || {}).n) || 0;
       if (s.vx4.turn === 'down') con.push('вортекс 4ч · поворот вниз' + (_n4 >= 2 ? ': продавцы растут ' + _n4 : '') + (_f4 >= 2 ? ': покупатели падают ' + _f4 : ''));
       else pro.push('вортекс 4ч · поворот вверх'); }
+    if (s.vxDivSell) con.push('вортекс · скрытая дивергенция: продавцы поджимают, лой ' + f(s.vxDivSell.a) + ' → ' + f(s.vxDivSell.b));
+    if (s.vxDivBuy) pro.push('вортекс · скрытая дивергенция: покупатели поджимают, лой ' + f(s.vxDivBuy.a) + ' → ' + f(s.vxDivBuy.b));
     if (s.vxTurn === 'down') con.push('вортекс пульса · поворот вниз' + (s.vxPlusFall >= 2 ? ': покупатели падают ' + s.vxPlusFall : '') + (s.vxMinusRise >= 2 ? ': продавцы растут ' + s.vxMinusRise : ''));
     else if (s.vxTurn === 'up') pro.push('вортекс пульса · поворот вверх');
     if (s.klinger && s.klinger.crossUp) pro.push('медленно · клингер 4ч крест вверх');
@@ -1742,6 +1744,13 @@ COIN_JS = r"""
           + (s.vxPlusFall >= 2 ? ((s.vxMinusRise >= 2 ? ' · ' : '') + 'покупатели падают ' + s.vxPlusFall) : '')
           + (_tu === 'up' && s.vxPlusRise >= 2 ? ('покупатели растут ' + s.vxPlusRise) : '')
           + (_tu === 'up' && s.vxMinusFall >= 2 ? ((s.vxPlusRise >= 2 ? ' · ' : '') + 'продавцы падают ' + s.vxMinusFall) : '');
+        // СКРЫТАЯ ДИВЕРГЕНЦИЯ ГЛАВНЕЕ СЕРИИ (12.09, владелец: «по вортексу лой продаж следующий выше
+        // предыдущего на текущем росте — это скрытая медвежья дивергенция»). Серия из двух соседних
+        // точек между откатами обнуляется и поворот пропускает; дивергенция сравнивает минимумы
+        // линии на соседних свингах цены — то, что видно глазами на графике.
+        var _dS = s.vxDivSell, _dB = s.vxDivBuy;
+        if (_dS) { _tu = 'down'; _turnTxt = 'продавцы поджимают: лой ' + f(_dS.a) + ' → ' + f(_dS.b); }
+        else if (_dB && !_tu) { _tu = 'up'; _turnTxt = 'покупатели поджимают: лой ' + f(_dB.a) + ' → ' + f(_dB.b); }
         rows.push({ name: 'вортекс · пульс', slow: true, dir: _tu || 'up', col: _tu === 'down' ? '#ff7a7a' : _tu === 'up' ? '#4fd1a8' : '#8fa8a0',
           when: _tu ? _turnTxt : 'поворота нет',
           tip: 'вортекс по точкам пульса (прогоны по получасовкам) · ' + (_tu ? ('ПОВОРОТ ' + (_tu === 'down' ? 'ВНИЗ' : 'ВВЕРХ') + ': ' + _turnTxt) : 'серии нет — поворота нет')
@@ -1802,7 +1811,8 @@ COIN_JS = r"""
       var _kl30dn = !!(s.klinger30 && (s.klinger30.crossDn || (!s.klinger30.above && !s.klinger30.crossUp)
                         || (s.klinger30.above && (+s.klinger30.gapX || 1) <= 0.25 && s.klinger30.narrowing)));
       // поворот вихря — с ОБЕИХ сторон: продавцы растут или покупатели падают, на 4ч и в пульсе
-      var slowDn = ((s.vx4 && s.vx4.turn) === 'down') || (s.vxTurn === 'down') || _kl4dn || _kl30dn;
+      // дивергенция продавцов — довод вниз наравне с крестом Клингера (12.09)
+      var slowDn = ((s.vx4 && s.vx4.turn) === 'down') || (s.vxTurn === 'down') || !!s.vxDivSell || _kl4dn || _kl30dn;
       var arE = topE;
       if (dnE && (!topE || topE.dir === 'down' || dnE.t >= topE.t || (topE.kind === 'oi' && slowDn))) arE = dnE;
       var hardDn = !!(arE && (arE.dir === 'down' || (arE.kind === 'oi' && (arE.ratio || 0) >= 2)));
