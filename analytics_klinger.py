@@ -36,6 +36,10 @@ IDX_QUOTE_VOL = 7
 
 EMA_FAST, EMA_SLOW, EMA_SIG = 34, 55, 13
 
+# Окно, против которого меряется схождение линий: 48 баров — сутки на получасовках
+# и восемь суток на четырёхчасовых. Одно окно на оба масштаба: мерим долю, не абсолют.
+CONV_WINDOW = 48
+
 
 def _num(v) -> float | None:
     try:
@@ -135,6 +139,17 @@ def klinger_state(klines: list[list]) -> dict | None:
             up_ago = len(kvo) - 1 - i
         if dn_ago is not None and up_ago is not None:
             break
+    # СХОЖДЕНИЕ ДО КРЕСТА (12.09, владелец: «клингер получасовой уже показывает выход»). На LSK
+    # KVO 1.82M при сигнале 1.01M — линии сошлись вплотную, синяя развернулась от пика, а креста
+    # ещё нет: по флагу crossDn карточка молчит целый бар-два. Меряем разрыв против его же
+    # максимума за окно CONV_WINDOW баров: gap_x — доля от максимума (1.0 — разошлись на максимум,
+    # 0 — сошлись), narrowing — разрыв сужается два бара подряд. Порогов в модуле нет: числа
+    # отдаём, решает показ.
+    gap = [abs(a - b) for a, b in zip(kvo, sig)]
+    win = gap[-CONV_WINDOW:] if len(gap) >= 2 else gap
+    peak = max(win) if win else 0.0
+    gap_x = round(gap[-1] / peak, 3) if peak > 0 else None
+    narrowing = len(gap) >= 3 and gap[-1] < gap[-2] < gap[-3]
     return {
         "kvo": round(kvo[-1], 1),
         "sig": round(sig[-1], 1),
@@ -144,4 +159,7 @@ def klinger_state(klines: list[list]) -> dict | None:
         # сколько баров назад был последний крест в каждую сторону; None — за рядом не было
         "dnAgo": dn_ago,
         "upAgo": up_ago,
+        # схождение линий: доля разрыва от максимума за окно и сужается ли он подряд
+        "gapX": gap_x,
+        "narrowing": narrowing,
     }

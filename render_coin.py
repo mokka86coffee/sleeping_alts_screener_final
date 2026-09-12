@@ -1207,6 +1207,10 @@ COIN_JS = r"""
       else if (+s.vx4.vi_plus > +s.vx4.vi_minus) pro.push('медленно · вихрь 4ч вверх'); }
     if (s.vxDir === 'up') pro.push('медленно · вихрь пульса вверх'); else if (s.vxDir === 'down') con.push('медленно · вихрь пульса вниз');
     if (s.klinger && s.klinger.crossUp) pro.push('медленно · клингер 4ч крест вверх');
+    if (s.klinger30) { if (s.klinger30.crossDn) con.push('быстро · клингер 30м крест вниз');
+      else if (s.klinger30.crossUp) pro.push('быстро · клингер 30м крест вверх');
+      else if (!s.klinger30.above) con.push('быстро · клингер 30м ниже сигнала');
+      else if ((+s.klinger30.gapX || 1) <= 0.25 && s.klinger30.narrowing) con.push('быстро · клингер 30м сходится — крест близко'); }
     if (s.oiState === 'held') con.push('плечо застряло'); else if (s.oiState === 'cleared') pro.push('плечо разгружено');
     if (u && u.days <= 3) con.push('разлок ' + u.days + ' дн');
     if (has(s.fund) && +s.fund > 0.01) con.push('толпа в лонге, фандинг ' + (+s.fund).toFixed(3) + '%');
@@ -1738,6 +1742,21 @@ COIN_JS = r"""
           when: _rn ? ('продавцы растут ' + _rn + ' бар · ' + (_rn * 4) + ' ч') : 'продавцы не растут',
           tip: 'вихрь 4ч по свечам · покупатели ' + f(s.vx4.vi_plus) + ' · продавцы ' + f(s.vx4.vi_minus) + (_rn ? (' · линия продавцов растёт ' + _rn + ' бар подряд (' + (_rn * 4) + ' ч)') : '') });
       }
+      // КЛИНГЕР ПОЛУЧАСОВОЙ (12.09) — тот же масштаб, что у прогона: dnAgo/upAgo в получасовках,
+      // ×0.5 = часы. Идёт СРЕДИ БЫСТРЫХ, а не медленных: он и есть быстрый.
+      if (s.klinger30) { var K3 = s.klinger30, k3d = K3.crossUp ? 'up' : K3.crossDn ? 'down' : K3.above ? 'up' : 'down';
+        var _a3 = k3d === 'up' ? K3.upAgo : K3.dnAgo;
+        // СХОЖДЕНИЕ ДО КРЕСТА (12.09): разрыв линий ≤ четверти от суточного максимума и сужается
+        // два бара подряд. На истории LSK такое предупреждение сбывалось крестом вниз в 14 случаях
+        // из 22 с форой около полутора баров — это час до самого креста.
+        var _conv3 = K3.above && (+K3.gapX || 1) <= 0.25 && K3.narrowing;
+        if (_conv3) k3d = 'down';
+        var _w3 = K3.crossUp ? 'крест вверх сейчас' : K3.crossDn ? 'крест вниз сейчас'
+          : _conv3 ? 'сходится — крест близко'
+          : (_a3 === 0 || _a3 ? ('крест ' + (k3d === 'up' ? 'вверх' : 'вниз') + ' ' + (_a3 * 0.5).toFixed(1) + ' ч назад') : (K3.above ? 'выше сигнала' : 'ниже сигнала'));
+        rows.push({ name: 'клингер 30м', slow: true, dir: k3d, col: k3d === 'up' ? '#4fd1a8' : '#ff7a7a', when: _w3,
+          tip: 'клингер по получасовкам · ' + _w3 + ' · KVO ' + f(K3.kvo) + ' при сигнале ' + f(K3.sig)
+               + (has(K3.gapX) ? ' · разрыв ' + (K3.gapX * 100).toFixed(0) + '% от суточного максимума' : '') }); }
       // КЛИНГЕР 4ч — крест с ЧАСАМИ, а не «баров назад»: dnAgo/upAgo в 4ч-барах, ×4 = часы.
       if (s.klinger) { var K = s.klinger, kd = K.crossUp ? 'up' : K.crossDn ? 'down' : K.above ? 'up' : 'down';
         var _kAgo = kd === 'up' ? K.upAgo : K.dnAgo, _kWhen = K.crossUp ? 'крест вверх сейчас' : K.crossDn ? 'крест вниз сейчас'
@@ -1757,7 +1776,11 @@ COIN_JS = r"""
                     .map(function (r) { return r.e; }).sort(function (a, b) { return b.t - a.t; })[0] || null;
       // МЕДЛЕННЫЕ ВНИЗ: серия роста продавцов на 4ч (≥2 бара) или Клингер ниже сигнала.
       // Пульсовой вихрь сюда НЕ входит — у него своё окно и своя подпись, он справочный.
-      var _mr4 = (s.vx4 && s.vx4.minus_rise) || {}, slowDn = ((+_mr4.n || 0) >= 2) || !!(s.klinger && (s.klinger.crossDn || (!s.klinger.above && !s.klinger.crossUp)));
+      var _mr4 = (s.vx4 && s.vx4.minus_rise) || {};
+      var _kl4dn = !!(s.klinger && (s.klinger.crossDn || (!s.klinger.above && !s.klinger.crossUp)));
+      var _kl30dn = !!(s.klinger30 && (s.klinger30.crossDn || (!s.klinger30.above && !s.klinger30.crossUp)
+                        || (s.klinger30.above && (+s.klinger30.gapX || 1) <= 0.25 && s.klinger30.narrowing)));
+      var slowDn = ((+_mr4.n || 0) >= 2) || _kl4dn || _kl30dn;
       var arE = topE;
       if (dnE && (!topE || topE.dir === 'down' || dnE.t >= topE.t || (topE.kind === 'oi' && slowDn))) arE = dnE;
       var hardDn = !!(arE && (arE.dir === 'down' || (arE.kind === 'oi' && (arE.ratio || 0) >= 2)));

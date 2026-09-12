@@ -18,7 +18,7 @@ from analytics_liqmap import fuel_to_cap, liq_zones, liq_zones_oi
 from core_binance import (
     K_CLOSE, K_HIGH, K_LOW, K_QUOTE_VOLUME, K_VOLUME, K_CLOSE_TIME, K_OPEN_TIME,
     get_funding_rate, get_oi_history, get_open_interest, get_spot_ticker,
-    klines_1d, klines_1h, klines_15m, klines_4h, klines_1w, series,
+    klines_1d, klines_1h, klines_15m, klines_30m, klines_4h, klines_1w, series,
 )
 from core_config import (
     MIN_HISTORY_DAYS, VOL_MEDIAN_WINDOW, MIN_BAR_FILL, ANOMALY_WINDOW,
@@ -379,6 +379,14 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
     # EMA, analytics_klinger честен про это сам.
     kv_4h = klinger_state(kl_4h) if kl_4h else None
 
+    # КЛИНГЕР ПОЛУЧАСОВОЙ (12.09, владелец: «а где клингер за полчаса?»). Прогон идёт по закрытию
+    # получасовки, и быстрый слой карточки живёт на этом масштабе — у Клингера же был только 4h,
+    # то есть самый ранний из медленных сигналов приходил с задержкой до четырёх часов. Ряд тот же
+    # klines_30m, что уже тянет быстрый вихрь: сеть не растёт, запрос берётся из кэша прогона.
+    # Формула одна на оба масштаба (analytics_klinger), меньше 68 баров → None, честно.
+    kl_30m = klines_30m(symbol)
+    kv_30m = klinger_state(kl_30m) if kl_30m else None
+
     # ── Интрадей: что происходит прямо сейчас ──
     # Отдельная шкала и отдельный горизонт — сутки-двое против недель
     # у остального в этом словаре. Считается по тем же часовым
@@ -529,6 +537,7 @@ def collect_metrics(symbol: str, quote_volume_24h: float = 0.0) -> dict:
         "bb_rank": bb_rank,
         "vortex_4h": vp_4h,
         "klinger_4h": kv_4h,
+        "klinger_30m": kv_30m,
         "funding": funding,
         "oi": oi,
         "oi_usd": oi_usd,
