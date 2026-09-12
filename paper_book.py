@@ -336,7 +336,16 @@ def _apply_run(book: dict, at: str, run_rows: dict, hist: list[dict]) -> list[st
                     break
             if _n > VARIANT["max_streak"]:
                 continue   # серия первых слишком длинная — вход в хвост хода
-        if VARIANT.get("consecutive_first", PAPER_ENTRY_CONSECUTIVE_FIRST):
+        # ВХОД ПО ПРИТОКУ ПЛЕЧА (12.09, владелец: «проблема отбора в деньгах, не в монетах»).
+        # Вместо серии первых мест — первый бар, где интерес за сутки вырос на inflow_pct и больше,
+        # независимо от места в очереди: на журнале 07–12.09 сработавшие стояли с 1-го по 9-е место.
+        if VARIANT.get("inflow_pct") is not None:
+            _oi = row.get("oi_chg_pct")
+            if _oi is None or float(_oi) < VARIANT["inflow_pct"]:
+                continue
+            if VARIANT.get("inflow_max_place") and (row.get("place") or 99) > VARIANT["inflow_max_place"]:
+                continue
+        elif VARIANT.get("consecutive_first", PAPER_ENTRY_CONSECUTIVE_FIRST):
             # ПЕРВОЕ МЕСТО ТРИ ПРОГОНА ПОДРЯД (11.09, проверка по журналу: пошедшие держали первое место
             # 15–31 прогон подряд, дёргавшиеся — по 1–4): вход на третьем подряд
             last3 = [r for r in hist if r["sym"] == sym][-PAPER_HITS:]
@@ -421,18 +430,19 @@ def variants() -> str:
     hours_us = set(range(13, 22)); hours_asia = set(range(0, 9))
     us_open = set(range(12, 16)); mon_thu = {0, 1, 2, 3}
     us_open = set(range(12, 16)); mon_thu = {0, 1, 2, 3}
+    us_open = set(range(12, 16)); mon_thu = {0, 1, 2, 3}
     grid = [("ПРИНЯТО: первое 3 подряд · карантин 1/12 из очереди", {}),
             ("то же, без карантина", {"quarantine": False}),
             ("вход 3 попадания за сутки · карантин 1/12", {"consecutive_first": False}),
             ("принято + без «конца»", {"no_reentry_after_end": True}),
-            ("принято + фон (медиана ≥ 0)", {"bg_filter": True}),
-            ("ВЛАДЕЛЕЦ: у открытия Америки 12–15, пн–чт", {"hours": us_open, "weekdays": mon_thu}),
-            ("пн–чт, любое время", {"weekdays": mon_thu}),
-            ("ОБХОД: откат от вершины дня не хуже −10%", {"max_drawdown": 10}),
-            ("ОБХОД: серия первых не длиннее 12 прогонов", {"max_streak": 12}),
-            ("ОБХОД: стартовый стоп −7% до переноса", {"init_stop": 7}),
-            ("ОБХОД: откат ≤10 + серия ≤12", {"max_drawdown": 10, "max_streak": 12}),
-            ("ОБХОД: откат ≤10 + серия ≤12 + стоп −7", {"max_drawdown": 10, "max_streak": 12, "init_stop": 7})]
+            ("ПРИТОК ПЛЕЧА ≥20%, любое место", {"inflow_pct": 20.0}),
+            ("приток ≥20%, место ≤9", {"inflow_pct": 20.0, "inflow_max_place": 9}),
+            ("приток ≥20%, место ≤3", {"inflow_pct": 20.0, "inflow_max_place": 3}),
+            ("приток ≥30%, любое место", {"inflow_pct": 30.0}),
+            ("приток ≥20% + без карантина", {"inflow_pct": 20.0, "quarantine": False}),
+            ("приток ≥20% + стартовый стоп −7%", {"inflow_pct": 20.0, "init_stop": 7}),
+            ("приток ≥20% + откат от вершины ≤10%", {"inflow_pct": 20.0, "max_drawdown": 10}),
+            ("ВЛАДЕЛЕЦ: у открытия Америки 12–15, пн–чт", {"hours": us_open, "weekdays": mon_thu})]
     out = [f"{'вариант':<38} {'поз.':>4} {'в плюс':>6} {'медиана':>8} {'сумма':>8} {'≥+20%':>5} {'≤-10%':>5}"]
     for name, v in grid:
         VARIANT = {"hours": None, "no_reentry_after_end": False, "bg_filter": False, "consecutive_first": PAPER_ENTRY_CONSECUTIVE_FIRST, "quarantine": True, "quar_by_queue": True, **v}

@@ -27,10 +27,13 @@ import sys
 from pathlib import Path
 
 try:
-    from core_config import BASE_DIR, VORTEX_SCORE_BOOST, VORTEX_SCORE_MAX_AGO, PUMP_LEADERS_PATH
+    from core_config import (BASE_DIR, VORTEX_SCORE_BOOST, VORTEX_SCORE_MAX_AGO, PUMP_LEADERS_PATH,
+                             OI_INFLOW_PCT, OI_INFLOW_WIDE, OI_INFLOW_BOOST, OI_INFLOW_BOOST_MAX)
 except ImportError:
     BASE_DIR = Path(__file__).resolve().parent
     VORTEX_SCORE_BOOST, VORTEX_SCORE_MAX_AGO = 1.25, 8
+    OI_INFLOW_PCT, OI_INFLOW_WIDE = 20.0, 3
+    OI_INFLOW_BOOST, OI_INFLOW_BOOST_MAX = 1.8, 3.0
     PUMP_LEADERS_PATH = BASE_DIR / "output" / "pump_leaders.json"
 sys.path.insert(0, str(BASE_DIR))
 
@@ -848,6 +851,16 @@ def build(only: list[str] | None = None) -> dict:
         _ve_ago = _ve.get("bar_ago")
         if _ve_ago is not None and _ve_ago <= VORTEX_SCORE_MAX_AGO:
             score *= VORTEX_SCORE_BOOST
+        # ПРИТОК ПЛЕЧА — МНОЖИТЕЛЕМ, И САМЫМ КРУПНЫМ (12.09, владелец: «нужно не отметку в очереди
+        # давать, а скор кратно поднимать»). Проверено на журнале 07–12.09: признак «интерес за
+        # сутки вырос на OI_INFLOW_PCT и больше» сработал 11 раз, 9 дали ≥+8%, медиана максимума
+        # +22%. Балл этого не видел вовсе: SOPH стояла ШЕСТОЙ и дала +138%, BULLA девятой и +26%.
+        # Кратно порогу: ×20 порога — OI_INFLOW_BOOST, ×2 порога и выше — он же в квадрате, потолок
+        # OI_INFLOW_BOOST_MAX. Убывание не наказываем здесь — это делает oi_trend_pct выше.
+        _oi_in = _tv.get("oi_chg_pct")
+        if _oi_in is not None and float(_oi_in) >= OI_INFLOW_PCT:
+            _mult = OI_INFLOW_BOOST ** min(2.0, float(_oi_in) / OI_INFLOW_PCT)
+            score *= min(OI_INFLOW_BOOST_MAX, _mult)
         # КОРРЕКЦИЯ — ТОЖЕ МНОЖИТЕЛЕМ: интерес сегодня уходит вместе с ценой — монета временно не про
         # «кто раньше»; из очереди не выбрасываем (белый пузырь вернёт), но вперёд не пускаем.
         if _tk_q == "коррекция":
@@ -1024,12 +1037,56 @@ def build(only: list[str] | None = None) -> dict:
             _streak[s2] = _n
     except OSError:
         _streak = {s2: 1 for s2 in stable}
-    out["first"] = [s2 for s2 in stable if s2 in _held or _streak.get(s2, 1) >= FIRST_STREAK_MIN]
+    # ДВЕ ЗВЕЗДЫ В ПЕРВЫХ (12.09, владелец): первая — по удержанию (третий прогон подряд в первых
+    # трёх), вторая — по ПРИТОКУ ПЛЕЧА, даже если монета стоит в очереди низко. Это две разные
+    # мерки: удержание отвечает «кого ведут давно», приток — «куда идут деньги сейчас». По журналу
+    # 07–12.09 приток отделял ходы, которых очередь не показывала: SOPH шестой +138%, BULLA девятой
+    # +26%. Причина попадания пишется рядом (first_why), чтобы на экране было видно, за что звезда.
+    _by_streak = [s2 for s2 in stable if s2 in _held or _streak.get(s2, 1) >= FIRST_STREAK_MIN]
+    _by_inflow = []
+    for s2 in ordered:
+        _t2 = out["coins"][s2].get("today") or {}
+        _oi2 = _t2.get("oi_chg_pct")
+        if _oi2 is None or float(_oi2) < OI_INFLOW_PCT:
+            continue
+        if _t2.get("leaving_kind") == "конец":      # конец хода — не первая ни по какой мерке
+            continue
+        _by_inflow.append((s2, float(_oi2)))
+    _by_inflow.sort(key=lambda x: -x[1])
+    _first_inflow = [x[0] for x in _by_inflow[:1]]   # одна вторая звезда: самый сильный приток
+    out["first"] = _by_streak + [s2 for s2 in _first_inflow if s2 not in _by_streak]
+    out["first_why"] = {}
+    for s2 in out["first"]:
+        _w = []
+        if s2 in _by_streak:
+            _w.append(f"держится {_streak.get(s2, 1)}-й прогон")
+        if s2 in _first_inflow:
+            _w.append(f"приток плеча +{dict(_by_inflow)[s2]:.0f}%")
+        out["first_why"][s2] = " · ".join(_w)
     out["first_streak"] = {s2: _streak.get(s2, 1) for s2 in stable}
     for s2 in stable:
         (out["coins"][s2].get("queue") or {})["first_streak"] = _streak.get(s2, 1)
+    # монета-приток может стоять вне первых трёх по баллу — поднимаем её в очереди к первым,
+    # чтобы порядок очереди и группа «первые» не спорили
+    for s2 in out["first"]:
+        if s2 not in stable:
+            stable.insert(0, s2)
     rest = [s2 for s2 in ordered if s2 not in stable]
     out["queue"] = stable + rest
+    # ПРИТОК ПЛЕЧА ПО ДОСКЕ (12.09): мерка «куда идут деньги» — сколько монет прошли OI_INFLOW_PCT.
+    # Ставится на монету (queue.oi_inflow) независимо от места в очереди и в фон одним числом.
+    _inflow = []
+    for s2 in ordered:
+        _t = out["coins"][s2].get("today") or {}
+        _oi = _t.get("oi_chg_pct")
+        if _oi is not None and float(_oi) >= OI_INFLOW_PCT:
+            _inflow.append((s2, round(float(_oi), 1)))
+            (out["coins"][s2].get("queue") or {})["oi_inflow"] = round(float(_oi), 1)
+    _inflow.sort(key=lambda x: -x[1])
+    out["inflow"] = {"n": len(_inflow), "syms": [x[0] for x in _inflow[:6]],
+                     "top": _inflow[0][1] if _inflow else None,
+                     "state": ("нет денег" if not _inflow else "деньги в одной" if len(_inflow) == 1
+                               else "широкий приток" if len(_inflow) >= OI_INFLOW_WIDE else "деньги в двух")}
     out["pulls"] = {"sym": lead_sym, "gap": lead_gap, "run7": lead_run7, "mine": lead_mine} if lead_sym else None
     out["dropped"] = [s2 for s2 in (out["coins"] or {})
                       if (out["coins"][s2].get("queue") or {}).get("out_reason")]
@@ -1072,7 +1129,7 @@ def log_queue(res: dict) -> int:
         t = v.get("today") or {}
         rows.append({
             "at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "candle": candle.strftime("%Y-%m-%dT%H:%M:00Z"),
-            "sym": sym, "place": i, "score": q.get("score"), "first_streak": q.get("first_streak"),
+            "sym": sym, "place": i, "score": q.get("score"), "first_streak": q.get("first_streak"), "oi_inflow": q.get("oi_inflow"),
             "days_since_harvest": q.get("days_since_harvest"), "oi_grow": n.get("oi_grow"),
             "today": q.get("today"), "bubble": q.get("bubble"), "move_pct": q.get("px_chg_pct"),
             "stage": q.get("stage"), "out_reason": q.get("out_reason"),
