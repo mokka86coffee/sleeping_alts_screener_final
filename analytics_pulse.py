@@ -472,19 +472,45 @@ def vortex_state(symbol: str, back: int = 48) -> dict:
     # ЛИНИЯ ПРОДАВЦОВ РАСТЁТ — первый тревожный знак (12.09): серия по точкам пульса,
     # длина в точках и в минутах от начала серии. Пересечение приходит позже.
     vim = [_num(r.get("vi_m")) for r in win]
+    vip = [_num(r.get("vi_p")) for r in win]
     rise = 0
     for i in range(len(vim) - 1, 0, -1):
         a, b = vim[i], vim[i - 1]
         if a is None or b is None or not a > b:
             break
         rise += 1
+    # падение линии покупателей — та же тревога с другой стороны (12.09, см. analytics_indicators)
+    fall = 0
+    for i in range(len(vip) - 1, 0, -1):
+        a, b = vip[i], vip[i - 1]
+        if a is None or b is None or not a < b:
+            break
+        fall += 1
+    def _st(seq, up):
+        n = 0
+        for i in range(len(seq) - 1, 0, -1):
+            a, b = seq[i], seq[i - 1]
+            if a is None or b is None or not ((a > b) if up else (a < b)):
+                break
+            n += 1
+        return n
+
+    p_rise, m_fall = _st(vip, True), _st(vim, False)
     out["minus_rise"] = {"n": rise}
-    if rise:
-        try:
-            out["minus_rise"]["ago_min"] = round(
-                (float(win[-1]["t"]) - float(win[len(win) - 1 - rise]["t"])) / 60)
-        except (KeyError, TypeError, ValueError):
-            pass
+    out["plus_fall"] = {"n": fall}
+    out["plus_rise"] = {"n": p_rise}
+    out["minus_fall"] = {"n": m_fall}
+    # читаем по повороту, не по уровню (12.09, владелец)
+    out["turn"] = ("down" if (rise >= 2 or fall >= 2)
+                   else "up" if (p_rise >= 2 or m_fall >= 2) else None)
+    out["turning"] = bool(rise >= 2 or fall >= 2)
+    for _key, _n in (("minus_rise", rise), ("plus_fall", fall)):
+        if _n:
+            try:
+                out[_key]["ago_min"] = round(
+                    (float(win[-1]["t"]) - float(win[len(win) - 1 - _n]["t"])) / 60)
+            except (KeyError, TypeError, ValueError):
+                pass
     if abs(cur) <= 0.05:
         out["state"] = "converged"           # направления нет
     elif hi >= 0.35 and cur > 0 and cur <= hi * 2 / 3:

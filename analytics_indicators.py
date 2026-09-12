@@ -233,15 +233,33 @@ def vortex_phase(
     # Считаем ряд VI− по барам и длину серии роста на хвосте: сколько баров подряд линия
     # продавцов выше предыдущей и на каком баре серия началась (индекс с конца, 0 — последний).
     vim_series: list[float] = []
+    vip_series: list[float] = []
     for i in range(period, len(trs) + 1):
         s_tr = sum(trs[i - period:i])
         vim_series.append(sum(vm_minus[i - period:i]) / s_tr if s_tr > 0 else 0.0)
+        vip_series.append(sum(vm_plus[i - period:i]) / s_tr if s_tr > 0 else 0.0)
     rise = 0
     for i in range(len(vim_series) - 1, 0, -1):
         if vim_series[i] > vim_series[i - 1]:
             rise += 1
         else:
             break
+    # ПАДЕНИЕ ЛИНИИ ПОКУПАТЕЛЕЙ — ВТОРАЯ ПОЛОВИНА ТОЙ ЖЕ ТРЕВОГИ (12.09, владелец: «почему вихрь
+    # плюс, когда он минус и 30м, и 4ч»). На LSK продавцы ещё не росли, а покупатели уже валились
+    # от пика — по уровню VI+ > VI− строка писала «вверх», хотя поворот шёл вниз. Уровень и поворот
+    # отдаём отдельно: plus_fall — сколько баров подряд линия покупателей ниже предыдущей.
+    def _streak(seq: list[float], up: bool) -> int:
+        n = 0
+        for i in range(len(seq) - 1, 0, -1):
+            if (seq[i] > seq[i - 1]) if up else (seq[i] < seq[i - 1]):
+                n += 1
+            else:
+                break
+        return n
+
+    fall = _streak(vip_series, up=False)          # покупатели падают
+    p_rise = _streak(vip_series, up=True)         # покупатели растут
+    m_fall = _streak(vim_series, up=False)        # продавцы падают
 
     return {
         "vi_plus": round(vi_plus, 4),
@@ -251,6 +269,15 @@ def vortex_phase(
         # серия роста линии продавцов: n — сколько баров подряд, ago — сколько баров назад
         # началась (n-1 для нынешней серии); n == 0 — линия продавцов не растёт
         "minus_rise": {"n": rise, "ago": max(0, rise - 1)},
+        # УРОВЕНЬ НЕ РЕШАЕТ (12.09, владелец: «зачем нам уровень выше-ниже, важно пересечение или
+        # поворот»). Кто выше — vi_plus/vi_minus остаются полем знания, но чтение идёт по повороту:
+        # turn == "down" — продавцы растут или покупатели падают ≥2 баров; "up" — обратное.
+        "plus_fall": {"n": fall, "ago": max(0, fall - 1)},
+        "plus_rise": {"n": p_rise},
+        "minus_fall": {"n": m_fall},
+        "turn": ("down" if (rise >= 2 or fall >= 2)
+                 else "up" if (p_rise >= 2 or m_fall >= 2) else None),
+        "turning": bool(rise >= 2 or fall >= 2),
     }
 
 

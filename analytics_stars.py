@@ -243,6 +243,18 @@ def _star_intraday(raw: dict) -> dict:
             out["vxMinusRise"] = int(_mr["n"])
             if _mr.get("ago_min") is not None:
                 out["vxMinusRiseMin"] = int(_mr["ago_min"])
+        _pf = vx.get("plus_fall") or {}
+        if _pf.get("n"):
+            out["vxPlusFall"] = int(_pf["n"])
+            if _pf.get("ago_min") is not None:
+                out["vxPlusFallMin"] = int(_pf["ago_min"])
+        if vx.get("turning"):
+            out["vxTurning"] = True
+        if vx.get("turn"):
+            out["vxTurn"] = str(vx["turn"])
+        for _k, _n in (("plus_rise", "vxPlusRise"), ("minus_fall", "vxMinusFall")):
+            if (vx.get(_k) or {}).get("n"):
+                out[_n] = int(vx[_k]["n"])
 
     if intra.get("range_pos") is not None:
         out["rangePos"] = float(intra["range_pos"])

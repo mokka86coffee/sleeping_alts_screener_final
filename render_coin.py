@@ -1202,10 +1202,11 @@ COIN_JS = r"""
     // МАСШТАБ ВИДЕН В ПОДПИСИ (11.09, владелец): вортекс и Klinger в карточке считаются на
     // ЧЕТЫРЁХЧАСОВЫХ свечах — это рамка большого движения, а не сигнал входа внутри дня.
     // Быстрые (получасовые) появятся, когда накопятся бары с размахом: h/l пишутся с 11.09.
-    if (s.vx4) { var _n4 = +((s.vx4.minus_rise || {}).n) || 0;
-      if (_n4 >= 2) con.push('медленно · вихрь 4ч: продавцы растут ' + _n4 + ' бар (' + (_n4 * 4) + ' ч)');
-      else if (+s.vx4.vi_plus > +s.vx4.vi_minus) pro.push('медленно · вихрь 4ч вверх'); }
-    if (s.vxDir === 'up') pro.push('медленно · вихрь пульса вверх'); else if (s.vxDir === 'down') con.push('медленно · вихрь пульса вниз');
+    if (s.vx4 && s.vx4.turn) { var _n4 = +((s.vx4.minus_rise || {}).n) || 0, _f4 = +((s.vx4.plus_fall || {}).n) || 0;
+      if (s.vx4.turn === 'down') con.push('вортекс 4ч · поворот вниз' + (_n4 >= 2 ? ': продавцы растут ' + _n4 : '') + (_f4 >= 2 ? ': покупатели падают ' + _f4 : ''));
+      else pro.push('вортекс 4ч · поворот вверх'); }
+    if (s.vxTurn === 'down') con.push('вортекс пульса · поворот вниз' + (s.vxPlusFall >= 2 ? ': покупатели падают ' + s.vxPlusFall : '') + (s.vxMinusRise >= 2 ? ': продавцы растут ' + s.vxMinusRise : ''));
+    else if (s.vxTurn === 'up') pro.push('вортекс пульса · поворот вверх');
     if (s.klinger && s.klinger.crossUp) pro.push('медленно · клингер 4ч крест вверх');
     if (s.klinger30) { if (s.klinger30.crossDn) con.push('быстро · клингер 30м крест вниз');
       else if (s.klinger30.crossUp) pro.push('быстро · клингер 30м крест вверх');
@@ -1241,10 +1242,10 @@ COIN_JS = r"""
     var _vx = (NEAR[String(s.coin || (String(s.t).toUpperCase() + 'USDT'))] || {}).vortex || null;
     var _vh = _vx && _vx.hedge;
     if (_vh && _vh.bars !== null && (_vh.kind === 'пересечение' || _vh.bars <= 8)) con.push(_vh.kind === 'пересечение'
-      ? 'вихрь 30м: продавцы над покупателями ' + _vh.bars + ' бар подряд'
+      ? 'вортекс 30м: продавцы над покупателями ' + _vh.bars + ' бар подряд'
       : (_vh.kind === 'лестница' || _vh.kind === 'сторона')
-        ? 'вихрь 30м: сторона сменилась на продавцов ' + _vh.bars + ' бар назад'
-        : 'вихрь 30м: продавцы поднимают лои ' + _vh.bars + ' бар под максимумом дня');
+        ? 'вортекс 30м: сторона сменилась на продавцов ' + _vh.bars + ' бар назад'
+        : 'вортекс 30м: продавцы поднимают лои ' + _vh.bars + ' бар под максимумом дня');
     // БЫСТРЫЙ СЛОЙ НАД МЕДЛЕННЫМ (11.09, случай LSK: карточка сказала «ждать» по «вортекс 4ч вверх»,
     // пока событие конца, сила и быстрый вихрь говорили вниз и лежали в данных). Быстрые доводы
     // собираются отдельно, идут в «против» первыми с пометкой «быстро» и переводят вердикт в
@@ -1297,7 +1298,7 @@ COIN_JS = r"""
     if (s.oiState) lr.push(['цикл плеча', s.oiState === 'held' ? 'застряло' : s.oiState === 'cleared' ? 'разгружено' : s.oiState === 'repeat' ? 'повторный цикл' : String(s.oiState)]);
     if (s.liqFuel && (s.liqFuel.below || s.liqFuel.above)) lr.push(['в капитализации', (s.liqFuel.below ? 'снизу ' + (+s.liqFuel.below * 100).toFixed(1) + '%' : '') + (s.liqFuel.above ? ' · сверху ' + (+s.liqFuel.above * 100).toFixed(1) + '%' : '') + ' — оценка по модели, не наблюдение']);
     if (s.liq24h && (s.liq24h.long || s.liq24h.short)) lr.push(['ликвидации за сутки', 'лонгов ' + (money(s.liq24h.long) || '$0') + ' против шортов ' + (money(s.liq24h.short) || '$0')]);
-    if (s.vxDir) lr.push(['топливо', 'вихрь пульса ' + (s.vxDir === 'up' ? 'вверх' : s.vxDir === 'down' ? 'вниз' : s.vxDir) + (has(s.vxSpread) ? ' · разрыв ' + f(s.vxSpread) : '') + (s.vxAgo ? ' · ' + s.vxAgo + ' ч назад' : '')]);
+    if (s.vxTurn) lr.push(['топливо', 'вортекс пульса · поворот ' + (s.vxTurn === 'down' ? 'вниз' : 'вверх') + ' · уровень ' + (s.vxDir === 'up' ? 'вверх' : s.vxDir === 'down' ? 'вниз' : s.vxDir) + (has(s.vxSpread) ? ' · разрыв ' + f(s.vxSpread) : '') + (s.vxAgo ? ' · ' + s.vxAgo + ' ч назад' : '')]);
     var cw = CROWD[String(s.t).toUpperCase()]; if (cw && cw.crowd) lr.push(['толпа', 'в лонге ' + cw.crowd.longPct + '%' + (has(cw.crowd.chg1d) ? ' (за сутки ' + pct(cw.crowd.chg1d) + ')' : '') + (cw.top ? ' · топы ' + cw.top.longPct + '%' : '')]);
     // ПАТТЕРНЫ ДНЕВОК (03.09): цикл плеча по архиву — накопление или «разгрузили и залили заново»
     var Hh = HIST[String(s.t).toUpperCase()] || {};
@@ -1623,8 +1624,8 @@ COIN_JS = r"""
         if (px > 0.3) _EV.push({ t: b[0] + 18e5, px: +b[4], dir: 'up', kind: 'oi', col: GR, op: Math.min(.9, .25 + .2 * Math.min(oi / px, 3)), short: 'интерес растёт с ценой', tip: 'интерес растёт вместе с ценой · ' + hhmm(b[0]) + ' · интерес +' + oi.toFixed(1) + '% · цена +' + px.toFixed(1) + '%' });
         else { var ratio = oi / Math.max(0.3, Math.abs(px)), k = Math.max(0, Math.min(1, (ratio - 1.5) / 1.5));
           _EV.push({ t: b[0] + 18e5, px: +b[4], dir: 'down', kind: 'oi', ratio: ratio, col: k < .5 ? '#ffd98a' : RD, op: .15 + .8 * k, short: 'интерес растёт, цена нет · ×' + ratio.toFixed(1), tip: 'интерес растёт, цена нет · ' + hhmm(b[0]) + ' · интерес +' + oi.toFixed(1) + '% · цена ' + (px >= 0 ? '+' : '') + px.toFixed(1) + '% · отношение ×' + ratio.toFixed(1) }); } });
-      (F.entry || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: 'up', kind: 'vx', col: OR, op: .95, short: 'вихрь: покупатели взяли сторону', tip: 'вихрь 30м: покупатели взяли сторону · ' + hhmm(e.t) + ' · разрыв ' + (+e.gap).toFixed(2) }); });
-      (F.hedge || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: 'down', kind: 'vx', col: OR, op: .95, short: 'вихрь: продавцы взяли сторону', tip: 'вихрь 30м: продавцы взяли сторону · ' + hhmm(e.t) + ' · ' + (e.kind || '') }); });
+      (F.entry || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: 'up', kind: 'vx', col: OR, op: .95, short: 'вортекс: покупатели взяли сторону', tip: 'вортекс 30м: покупатели взяли сторону · ' + hhmm(e.t) + ' · разрыв ' + (+e.gap).toFixed(2) }); });
+      (F.hedge || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: 'down', kind: 'vx', col: OR, op: .95, short: 'вортекс: продавцы взяли сторону', tip: 'вортекс 30м: продавцы взяли сторону · ' + hhmm(e.t) + ' · ' + (e.kind || '') }); });
       (F.force || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: e.dir === 'down' ? 'down' : 'up', kind: 'force', col: e.dir === 'down' ? RD : GR, op: e.dir === 'down' ? .9 : .8, short: e.dir === 'down' ? 'сила развернулась вниз' : 'сила развернулась вверх', tip: (e.dir === 'down' ? 'сила развернулась вниз · ' : 'сила развернулась вверх · ') + hhmm(e.t) }); });
       (F.end || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: 'down', kind: 'end', col: RD, op: .95, short: 'событие конца: интерес ушёл с ценой', tip: 'событие конца · ' + hhmm(e.t) + ' · интерес ушёл вместе с ценой на одном баре' }); });
       (F.bubbles || []).forEach(function (e) { if (e.sure === 'обычный') return; var up = e.side === 'buy'; _EV.push({ t: e.t, px: +e.px, dir: up ? 'up' : 'down', kind: 'bub', col: up ? WH : '#ffb3a0', op: e.sure === 'ясный' ? .95 : .55, short: 'пузырь ' + (up ? 'покупки' : 'продажи') + ' · ' + e.sure, tip: 'пузырь дельты ' + (up ? 'покупка' : 'продажа') + ' · ' + hhmm(e.t) + ' · ' + e.sure + (e.sure === 'ясный' ? ' — интерес вырос на баре' : ' — интерес ушёл или лонги закрывали') }); });
@@ -1718,12 +1719,12 @@ COIN_JS = r"""
     var notes = '', leaders = '';
     // ПОСЛЕДНЯЯ СТРЕЛКА БЫСТРОГО СЛОЯ (11.09) — выноска под плитой, на месте бывшей «где цена»;
     // без подложки, ярко, дышит; текст и время по центру под ней
-    // СТОЛБИК ПО ИНДИКАТОРАМ (12.09): быстрые — интерес, сила по дельте, вихрь 30м, пузырь, конец —
+    // СТОЛБИК ПО ИНДИКАТОРАМ (12.09): быстрые — интерес, сила по дельте, вортекс 30м, пузырь, конец —
     // последнее событие каждого за окно; медленные — вортекс 4ч и Клингер — состоянием. Свежее сверху и
     // ярче, молчащий индикатор — тусклая строка с прочерком, чтобы было видно, что он молчит.
     if (_LAST) (function () {
       function hh(t) { var d = new Date(t); return pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }   // местное время (11.09)
-      var KIND = [['oi', 'интерес'], ['force', 'сила · дельта'], ['vx', 'вихрь 30м'], ['bub', 'пузырь'], ['end', 'конец']];
+      var KIND = [['oi', 'интерес'], ['force', 'сила · дельта'], ['vx', 'вортекс 30м'], ['bub', 'пузырь'], ['end', 'конец']];
       var rows = KIND.map(function (k) { var e = _LAST[k[0]]; return { name: k[1], e: e, t: e ? e.t : 0 }; });
       // медленные — состоянием, не событием
       // ПОДПИСИ ЧЕСТНЫЕ (12.09, владелец: «лучше достоверная информация, чем ложная»).
@@ -1731,16 +1732,36 @@ COIN_JS = r"""
       // Время — из минут пульса (vxSpanMin/vxStepMin), а не домножением баров на таймфрейм.
       if (s.vxDir === 'up' || s.vxDir === 'down') {
         var _vxWhen = has(s.vxStepMin) && has(s.vxAgo) && s.vxAgo > 0 ? ((s.vxAgo * s.vxStepMin / 60).toFixed(1) + ' ч назад') : 'сейчас';
-        rows.push({ name: 'вихрь · пульс', slow: true, dir: s.vxDir, col: s.vxDir === 'up' ? '#4fd1a8' : '#ff7a7a', when: _vxWhen,
-          tip: 'вихрь по точкам пульса (прогоны по получасовкам) ' + (s.vxDir === 'up' ? 'вверх' : 'вниз') + (has(s.vxSpread) ? ' · разрыв ' + f(s.vxSpread) : '') + (has(s.vxSpanMin) ? ' · окно ' + (s.vxSpanMin / 60).toFixed(0) + ' ч' : '') });
+        // УРОВЕНЬ И ПОВОРОТ — РАЗНОЕ (12.09, владелец: «почему вихрь плюс, когда он минус»). Уровень:
+        // кто выше. Поворот: продавцы растут или покупатели падают ≥2 точек. Поворот главнее уровня.
+        // ЧИТАЕМ ТОЛЬКО ПОВОРОТ (12.09, владелец: «зачем нам уровень выше-ниже, важно пересечение
+        // или поворот»): вниз — продавцы растут или покупатели падают; вверх — обратное; нет серии —
+        // строка молчит. Уровень vi_plus/vi_minus в подсказке как справка, на цвет не влияет.
+        var _tu = s.vxTurn || null;
+        var _turnTxt = (s.vxMinusRise >= 2 ? ('продавцы растут ' + s.vxMinusRise) : '')
+          + (s.vxPlusFall >= 2 ? ((s.vxMinusRise >= 2 ? ' · ' : '') + 'покупатели падают ' + s.vxPlusFall) : '')
+          + (_tu === 'up' && s.vxPlusRise >= 2 ? ('покупатели растут ' + s.vxPlusRise) : '')
+          + (_tu === 'up' && s.vxMinusFall >= 2 ? ((s.vxPlusRise >= 2 ? ' · ' : '') + 'продавцы падают ' + s.vxMinusFall) : '');
+        rows.push({ name: 'вортекс · пульс', slow: true, dir: _tu || 'up', col: _tu === 'down' ? '#ff7a7a' : _tu === 'up' ? '#4fd1a8' : '#8fa8a0',
+          when: _tu ? _turnTxt : 'поворота нет',
+          tip: 'вортекс по точкам пульса (прогоны по получасовкам) · ' + (_tu ? ('ПОВОРОТ ' + (_tu === 'down' ? 'ВНИЗ' : 'ВВЕРХ') + ': ' + _turnTxt) : 'серии нет — поворота нет')
+               + (has(s.vxPlusFallMin) ? ' · ' + (s.vxPlusFallMin / 60).toFixed(1) + ' ч' : '')
+               + ' · справка: ' + (s.vxDir === 'up' ? 'покупатели выше' : 'продавцы выше') + (has(s.vxSpanMin) ? ', окно ' + (s.vxSpanMin / 60).toFixed(0) + ' ч' : '') });
       }
       // ВИХРЬ ЧЕТЫРЁХЧАСОВОЙ — настоящий, по свечам (vortex_4h метрик). Тревога — не пересечение,
       // а подъём линии продавцов: каждый следующий бар выше предыдущего (12.09, владелец).
       if (s.vx4) {
-        var _mr = (s.vx4.minus_rise || {}), _rn = +_mr.n || 0, _v4dn = _rn >= 2 || (+s.vx4.vi_minus > +s.vx4.vi_plus);
-        rows.push({ name: 'вихрь 4ч', slow: true, dir: _v4dn ? 'down' : 'up', col: _v4dn ? '#ff7a7a' : '#4fd1a8',
-          when: _rn ? ('продавцы растут ' + _rn + ' бар · ' + (_rn * 4) + ' ч') : 'продавцы не растут',
-          tip: 'вихрь 4ч по свечам · покупатели ' + f(s.vx4.vi_plus) + ' · продавцы ' + f(s.vx4.vi_minus) + (_rn ? (' · линия продавцов растёт ' + _rn + ' бар подряд (' + (_rn * 4) + ' ч)') : '') });
+        var _rn = +((s.vx4.minus_rise || {}).n) || 0, _fn = +((s.vx4.plus_fall || {}).n) || 0;
+        var _pr = +((s.vx4.plus_rise || {}).n) || 0, _mf = +((s.vx4.minus_fall || {}).n) || 0;
+        var _t4d = s.vx4.turn || null, _bars = Math.max(_rn, _fn, _pr, _mf);
+        var _t4 = _t4d === 'down'
+          ? ((_rn >= 2 ? 'продавцы растут ' + _rn + ' бар' : '') + (_fn >= 2 ? ((_rn >= 2 ? ' · ' : '') + 'покупатели падают ' + _fn + ' бар') : ''))
+          : _t4d === 'up'
+          ? ((_pr >= 2 ? 'покупатели растут ' + _pr + ' бар' : '') + (_mf >= 2 ? ((_pr >= 2 ? ' · ' : '') + 'продавцы падают ' + _mf + ' бар') : '')) : '';
+        rows.push({ name: 'вортекс 4ч', slow: true, dir: _t4d || 'up', col: _t4d === 'down' ? '#ff7a7a' : _t4d === 'up' ? '#4fd1a8' : '#8fa8a0',
+          when: _t4d ? (_t4 + ' · ' + (_bars * 4) + ' ч') : 'поворота нет',
+          tip: 'вортекс 4ч по свечам · ' + (_t4d ? ('ПОВОРОТ ' + (_t4d === 'down' ? 'ВНИЗ' : 'ВВЕРХ') + ': ' + _t4) : 'серии нет — поворота нет')
+               + ' · справка: покупатели ' + f(s.vx4.vi_plus) + ', продавцы ' + f(s.vx4.vi_minus) });
       }
       // КЛИНГЕР ПОЛУЧАСОВОЙ (12.09) — тот же масштаб, что у прогона: dnAgo/upAgo в получасовках,
       // ×0.5 = часы. Идёт СРЕДИ БЫСТРЫХ, а не медленных: он и есть быстрый.
@@ -1776,11 +1797,12 @@ COIN_JS = r"""
                     .map(function (r) { return r.e; }).sort(function (a, b) { return b.t - a.t; })[0] || null;
       // МЕДЛЕННЫЕ ВНИЗ: серия роста продавцов на 4ч (≥2 бара) или Клингер ниже сигнала.
       // Пульсовой вихрь сюда НЕ входит — у него своё окно и своя подпись, он справочный.
-      var _mr4 = (s.vx4 && s.vx4.minus_rise) || {};
+      var _mr4 = (s.vx4 && s.vx4.minus_rise) || {}, _pf4 = (s.vx4 && s.vx4.plus_fall) || {};
       var _kl4dn = !!(s.klinger && (s.klinger.crossDn || (!s.klinger.above && !s.klinger.crossUp)));
       var _kl30dn = !!(s.klinger30 && (s.klinger30.crossDn || (!s.klinger30.above && !s.klinger30.crossUp)
                         || (s.klinger30.above && (+s.klinger30.gapX || 1) <= 0.25 && s.klinger30.narrowing)));
-      var slowDn = ((+_mr4.n || 0) >= 2) || _kl4dn || _kl30dn;
+      // поворот вихря — с ОБЕИХ сторон: продавцы растут или покупатели падают, на 4ч и в пульсе
+      var slowDn = ((s.vx4 && s.vx4.turn) === 'down') || (s.vxTurn === 'down') || _kl4dn || _kl30dn;
       var arE = topE;
       if (dnE && (!topE || topE.dir === 'down' || dnE.t >= topE.t || (topE.kind === 'oi' && slowDn))) arE = dnE;
       var hardDn = !!(arE && (arE.dir === 'down' || (arE.kind === 'oi' && (arE.ratio || 0) >= 2)));
@@ -2125,10 +2147,14 @@ COIN_JS = r"""
       (function () {
         if (!_EV || !_EV.length) return;
         // ПОСЛЕДНЯЯ НА ИНДИКАТОР (12.09, владелец: «делить по индикаторам»): по одной стрелке на вид —
-        // интерес, сила, вихрь, пузырь, конец — та же таблица _LAST, что у выноски наверху
+        // интерес, сила, вортекс, пузырь, конец — та же таблица _LAST, что у выноски наверху
         // ПОДПИСЬ У КАЖДОЙ СТРЕЛКИ (12.09, владелец: «три стрелки — две про интерес и одна про силу»):
         // без имени рядом две стрелки одного вида читаются как «дважды подтвердилось».
-        var KNAME = { oi: 'интерес', force: 'сила', vx: 'вихрь', bub: 'пузырь', end: 'конец' };
+        // БУКВА В СТРЕЛКЕ, ВРЕМЯ ПОД НЕЙ (12.09, владелец): к — клингер, в — вихрь/вортекс,
+        // д — дельта (сила), п — пузырь, и — интерес, к — конец пишем как «х» (крест хода),
+        // чтобы не спорить с клингером. Масштаб рядом со временем: 30м или 4ч.
+        var KLET = { oi: 'и', force: 'д', vx: 'в', bub: 'п', end: 'х', kl: 'к' };
+        var KTF = { oi: '30м', force: '30м', vx: '30м', bub: '30м', end: '30м', kl: '30м' };
         var byKind = {}; _EV.forEach(function (e) { if (e.t >= t0 && e.t <= tE) byKind[e.kind] = [e]; });
         Object.keys(byKind).forEach(function (k) { byKind[k].slice(-3).forEach(function (e) { if (e.t < t0 || e.t > tE) return;
           var x = Math.min(XT(e.t), W - 20), y = Y(e.px) + (e.dir === 'up' ? 16 : -16) + (e.kind === 'force' ? (e.dir === 'up' ? 14 : -14) : 0) + (e.kind === 'vx' ? (e.dir === 'up' ? 28 : -28) : 0);
@@ -2141,7 +2167,8 @@ COIN_JS = r"""
                '<g class="hint"><rect x="' + bx.toFixed(1) + '" y="' + by.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="22" rx="3" fill="rgba(3,17,12,.92)" stroke="' + e.col + '" stroke-opacity=".6" stroke-width=".6"/>' +
                '<text x="' + (bx + 7).toFixed(1) + '" y="' + (by + 9).toFixed(1) + '" font-size="7" letter-spacing=".08em" fill="' + e.col + '">' + esc(l1) + '</text>' +
                '<text x="' + (bx + 7).toFixed(1) + '" y="' + (by + 18).toFixed(1) + '" font-size="6.5" letter-spacing=".06em" fill="#bfe9d6">' + esc(l2) + '</text></g>' +
-               '<text x="' + x.toFixed(1) + '" y="' + (y + (e.dir === 'up' ? 18 : -12)).toFixed(1) + '" text-anchor="middle" font-size="5.5" letter-spacing=".14em" fill="' + e.col + '" opacity=".75">' + esc((KNAME[e.kind] || e.kind).toUpperCase()) + '</text></g>'; }); });
+               '<text x="' + x.toFixed(1) + '" y="' + (y + (e.dir === 'up' ? 3.4 : 3.4)).toFixed(1) + '" text-anchor="middle" font-size="7" font-weight="600" fill="#04140e">' + esc(KLET[e.kind] || '?') + '</text>' +
+               '<text x="' + x.toFixed(1) + '" y="' + (y + (e.dir === 'up' ? 17 : -11)).toFixed(1) + '" text-anchor="middle" font-size="5" letter-spacing=".1em" fill="' + e.col + '" opacity=".7">' + esc(hhmm(e.t).slice(-5) + ' · ' + (KTF[e.kind] || '30м')) + '</text></g>'; }); });
       })();
       // стиль плашек внутри svg (11.09): страничный css до них не доставал — все плашки стояли открытыми
       var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '"><style>g.arw .hint{opacity:0;transition:opacity .12s;pointer-events:none}g.arw:hover .hint{opacity:1}</style>' + g + '</svg>';

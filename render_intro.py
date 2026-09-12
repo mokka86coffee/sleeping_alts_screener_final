@@ -498,13 +498,13 @@ def render_intro(items: list[dict] | None = None) -> str:
                 _vh = _last.get("vortex_hedge") or {}
                 if _vh.get("kind") == "парабола" and (_vh.get("bars") or 0) <= 8:
                     _risk.insert(1 if (_fa is not None and _fa <= 8) else 0,
-                                 f"вихрь: продавцы поднимают лои {_vh['bars']} бар под максимумом дня")
+                                 f"вортекс: продавцы поднимают лои {_vh['bars']} бар под максимумом дня")
                 elif _vh.get("kind") in ("лестница", "сторона") and (_vh.get("bars") or 0) <= 8:
                     _risk.insert(1 if (_fa is not None and _fa <= 8) else 0,
-                                 f"вихрь: сторона сменилась на продавцов {_vh['bars']} бар назад")
+                                 f"вортекс: сторона сменилась на продавцов {_vh['bars']} бар назад")
                 elif _vh.get("kind") == "пересечение":
                     _risk.insert(1 if (_fa is not None and _fa <= 8) else 0,
-                                 f"вихрь: продавцы над покупателями {_vh['bars']} бар подряд")
+                                 f"вортекс: продавцы над покупателями {_vh['bars']} бар подряд")
             leader = {
                 "sym": _sym.replace("USDT", ""),
                 "risk": _risk[:3],
