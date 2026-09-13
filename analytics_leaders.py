@@ -26,7 +26,7 @@ from core_config import (
     ANOMALY_PATH, ANOMALY_RATIO_MIN, LEADERS_ARCHIVE_PATH,
     LEADERS_MAX_AGE_DAYS, LEADERS_PATH,
     MIN_QUOTE_VOLUME_24H, PUMP_DONE_DROP, PUMP_DONE_H, PUMP_JUMP_PCT, PUMP_LEADERS_PATH,
-    PUMP_MIN_AGE_DAYS, PUMP_RETIRE_DROP, PUMP_RETIRE_UPX,
+    PUMP_MIN_AGE_DAYS, PUMP_RETIRE_DROP, PUMP_RETIRE_OI_RUNS, PUMP_RETIRE_UPX,
 )
 # Пороги завершения цикла живут в конфиге семейства — там же, где их
 # читает сам детектор. Импорт наружу из слоя analytics осознанный:
@@ -722,12 +722,35 @@ def pump_leaders(tickers: list[dict] | None = None,
             # Но сам по себе откат 40% ещё ничего не значит — на ходе меньше ×3 это обычная тряска
             # или снятие лонгов, и монету рано снимать. Считаем пару: сколько прошла от основы и
             # сколько отдала от своей вершины.
+            # ЛИДЕР ЖИВ, ПОКА В НЁМ ДЕНЬГИ (13.09, владелец: «сейчас висит в звёздах CVC, который
+            # падает уже 2 часа, а LSK мы убрали»). Пороги по цене судили не о том: LSK набрала ×17
+            # и отдала 45% — сняли, хотя плечо держалось и она вернулась на полку; CVC ×3 не набрал,
+            # поэтому падение два часа его не снимало. Теперь решает ПЛЕЧО: ушло вместе с ценой —
+            # лидера нет, независимо от иксов; держится — остаётся, даже если цена отдала половину.
             _top = float(rec.get("max_price") or 0)
             _upx = (_top / float(base)) if base else 0
             _drop = ((now_px / _top - 1) * 100) if _top else 0
-            if _upx >= PUMP_RETIRE_UPX and _drop <= -PUMP_RETIRE_DROP:
-                reason = (f"ход сделан ×{_upx:.1f} от основы и отдан: {_drop:+.0f}% от вершины "
-                          f"{_top:g} — ниже порога {PUMP_RETIRE_DROP:.0f}%")
+            # ПЛЕЧО СЕЙЧАС, А НЕ ОТ ПИКА (13.09, владелец: «оно упало, блин, лонгов-то сколько сняли,
+            # не бывает безоткатного роста»). Падение плеча на откате — это закрытие лонгов, обычная
+            # часть хода: у LSK после ×17 плечо ушло на 47% от пика и тут же вернулось +9% за бар.
+            # Снимаем, только если плечо падает PUMP_RETIRE_OI_RUNS прогонов ПОДРЯД и цена при этом
+            # не растёт: тогда деньги действительно уходят, а не перекладываются.
+            _oi_now = float((cur.get(sym) or {}).get("oi") or 0)
+            _oi_prev = float(rec.get("oi") or 0)
+            if _oi_now:
+                rec["oi"] = _oi_now
+                rec["max_oi"] = max(float(rec.get("max_oi") or 0), _oi_now)
+            _px_prev = float(rec.get("px_prev") or 0)
+            rec["px_prev"] = now_px
+            _fall = int(rec.get("oi_fall_runs") or 0)
+            if _oi_now and _oi_prev:
+                _oi_down = _oi_now < _oi_prev
+                _px_down = bool(_px_prev and now_px <= _px_prev)
+                _fall = _fall + 1 if (_oi_down and _px_down) else 0
+                rec["oi_fall_runs"] = _fall
+            if _fall >= PUMP_RETIRE_OI_RUNS and _drop <= -PUMP_RETIRE_DROP:
+                reason = (f"деньги уходят: плечо падает {_fall} прогонов подряд при цене "
+                          f"{_drop:+.0f}% от вершины {_top:g}")
                 _archive(archive_path, sym, rec, reason=reason, now=now)
                 if rec.get("added_on_pump"):
                     continue

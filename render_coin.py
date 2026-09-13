@@ -619,14 +619,14 @@ COIN_HTML = r"""
 .mini.journal g.arw:hover .hint{opacity:1}
 .mini.journal g.arw{cursor:default}
 /* рейка индикаторов над вердиктом (13.09): строка, не столбик */
-.railbox{position:absolute;left:50%;bottom:calc(100% + 16px);transform:translateX(-50%);z-index:6}
+.railbox{position:absolute;left:50%;bottom:calc(100% + 18px);transform:translateX(-50%);z-index:7;pointer-events:auto}
 .rail{position:relative;left:auto;bottom:auto;transform:none;transform:translateX(-50%);display:flex;gap:22px;
   align-items:flex-end;pointer-events:auto;z-index:6;white-space:nowrap}
 .rail i{display:flex;flex-direction:column;align-items:center;gap:3px;font-style:normal;cursor:default;
   transition:opacity .2s,transform .2s}
 .rail i:hover{transform:translateY(-2px)}
-.rail u{font-family:var(--f-cap);font-size:6px;letter-spacing:.2em;text-transform:uppercase;text-decoration:none}
-.rail b{font-family:var(--f-cap);font-size:6px;letter-spacing:.12em;font-weight:400}
+.rail u{font-family:var(--f-cap);font-size:7.5px;letter-spacing:.2em;text-transform:uppercase;text-decoration:none}
+.rail b{font-family:var(--f-cap);font-size:7.5px;letter-spacing:.12em;font-weight:400}
     .leadwrap .plate s.hedge{display:block;margin-top:4px;font-size:7px;letter-spacing:.1em;color:#ffd98a;opacity:.85;text-decoration:none}
 .mini.journal .refl g.arw .hint{display:none}
 *{box-sizing:border-box}
@@ -2279,7 +2279,7 @@ COIN_JS = r"""
             var tm = e ? (function (t) { var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); })(e.t) : '\u2014';
             h += '<i title="' + esc(e ? e.tip : (k[1] + ' \u2014 за окно событий нет')) + '" style="opacity:' + (e ? 1 : .38) + '">'
               + '<u style="color:' + col + '">' + esc(k[1]) + '</u>'
-              + '<svg viewBox="0 0 26 26" width="26" height="26"><circle cx="13" cy="13" r="11" fill="rgba(3,14,10,.92)" stroke="' + col + '" stroke-width=".9"/>'
+              + '<svg viewBox="0 0 26 26" width="34" height="34"><circle cx="13" cy="13" r="11" fill="rgba(3,14,10,.92)" stroke="' + col + '" stroke-width=".9"/>'
               + (e ? '<path d="' + (up ? 'M8,16 h10 l-5,-9 z' : 'M8,10 h10 l-5,9 z') + '" fill="' + col + '"/>' : '')
               + '<text x="13" y="16" text-anchor="middle" font-size="9" font-weight="600" fill="' + (e ? '#04140e' : col) + '">' + esc(k[2]) + '</text></svg>'
               + '<b style="color:' + (e ? '#bfe9d6' : '#4a6b5e') + '">' + esc(tm) + '</b></i>';
