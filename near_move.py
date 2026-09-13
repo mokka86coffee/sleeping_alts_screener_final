@@ -143,28 +143,21 @@ _MCAP_CACHE: dict = {}
 def _mcap(sym_usdt: str) -> float | None:
     """Капитализация монеты. Берётся из среза кандидатов (latest.json), где она уже собрана
     метриками как mcap_usd — своего запроса не делаем, цифра общая с карточкой."""
-    if not _MCAP_CACHE:
-        # Капа собирается метриками внутри прогона и кладётся в звёзды (analytics_stars: capUsd).
-        # В latest.json её нет — raw там вычищен, проверено 12.09 на 204 кандидатах: ноль с капой.
-        for _name in ("output/stars.json", "stars.json", "output/near_move.json"):
-            try:
-                _d = json.loads((BASE_DIR / _name).read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                continue
-            _list = _d if isinstance(_d, list) else (_d.get("stars") or _d.get("coins") or [])
-            _it = _list.values() if isinstance(_list, dict) else _list
-            for _c in _it:
-                if not isinstance(_c, dict):
-                    continue
-                _s = str(_c.get("t") or _c.get("sym") or "")
-                _cap = _c.get("capUsd") or _c.get("cap_usd")
-                if _s and _cap:
-                    _MCAP_CACHE[_s if _s.endswith("USDT") else _s + "USDT"] = float(_cap)
-            if _MCAP_CACHE:
-                break
-        _MCAP_CACHE.setdefault("_loaded", 0.0)
-    v = _MCAP_CACHE.get(sym_usdt)
-    return v if v else None
+    # ОДИН ИСТОЧНИК КАПЫ НА ПРОЕКТ (13.09): её собирает external_data.get_fundamentals и кладёт
+    # в дисковый кэш CoinGecko; оттуда же её берут analytics_candidate (raw.mcap_usd),
+    # analytics_metrics (cap) и analytics_stars (capUsd). Читать файл звёзд бесполезно — на диск
+    # они не пишутся, и поле оставалось пустым. Своего сетевого запроса здесь нет: при пустом
+    # кэше get_fundamentals вернёт ноль, и поле просто не появится.
+    if sym_usdt in _MCAP_CACHE:
+        return _MCAP_CACHE[sym_usdt] or None
+    _cap = 0.0
+    try:
+        from external_data import get_fundamentals
+        _cap = float(getattr(get_fundamentals(sym_usdt), "mcap_usd", 0) or 0)
+    except Exception:   # noqa: BLE001 — капа не обязана быть
+        _cap = 0.0
+    _MCAP_CACHE[sym_usdt] = _cap
+    return _cap or None
 
 
 def _load_live() -> dict:
@@ -1263,11 +1256,18 @@ def build(only: list[str] | None = None) -> dict:
     for s2 in ordered:
         _t = out["coins"][s2].get("today") or {}
         _oi = _t.get("oi_chg_pct")
-        if _oi is not None and float(_oi) >= OI_INFLOW_PCT:
+        if _oi is None:
+            continue
+        _q2 = out["coins"][s2].get("queue") or {}
+        # СОСТОЯНИЕ ДЕНЕГ — ВСЕМ, А НЕ ТОЛЬКО ПРОШЕДШИМ ПОРОГ (13.09): «плечо растёт у дна без
+        # оборота» это самая ранняя фаза, и она как раз у тех, кто до 20% ещё не дошёл. На доске
+        # 13.09 у первых приток был 3–17% — ни одной строки money в журнале не появилось.
+        _st = _money_state(out["coins"][s2], float(_oi))
+        if _st:
+            _q2["money"] = _st
+        if float(_oi) >= OI_INFLOW_PCT:
             _inflow.append((s2, round(float(_oi), 1)))
-            _q2 = out["coins"][s2].get("queue") or {}
             _q2["oi_inflow"] = round(float(_oi), 1)
-            _q2["money"] = _money_state(out["coins"][s2], float(_oi))
     _inflow.sort(key=lambda x: -x[1])
     out["inflow"] = {"n": len(_inflow), "syms": [x[0] for x in _inflow[:6]],
                      "top": _inflow[0][1] if _inflow else None,

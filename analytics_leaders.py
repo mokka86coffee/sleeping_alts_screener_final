@@ -678,6 +678,10 @@ def pump_leaders(tickers: list[dict] | None = None,
                 "px": float(r.get("lastPrice") or r.get("px") or 0) or None,
                 "day_pct": float(r.get("priceChangePercent") or r.get("day_pct") or 0),
                 "vol_usd": float(r.get("quoteVolume") or r.get("vol_usd") or 0),
+                # МАКСИМУМ ЗА СУТКИ С БИРЖИ (13.09): без него вершиной считалась текущая цена —
+                # у записей, заведённых до появления max_price, откат всегда выходил нулевым,
+                # и LSK висела лидером, уже отдав две трети хода.
+                "day_high": float(r.get("highPrice") or r.get("day_high") or 0) or None,
             }
         except (TypeError, ValueError):
             continue
@@ -705,11 +709,13 @@ def pump_leaders(tickers: list[dict] | None = None,
             live[sym] = rec                   # наша — остаётся с отметкой
             continue
         if now_px and base:
+            _prev_px0 = float(rec.get("px") or 0)
             rec["px"] = now_px
             rec["run_pct"] = round((now_px / base - 1) * 100, 1)
             rec["day_pct"] = (cur.get(sym) or {}).get("day_pct")
             rec["last_hit"] = now.isoformat()
-            rec["max_price"] = max(float(rec.get("max_price") or 0), float(now_px))
+            _day_hi = float((cur.get(sym) or {}).get("day_high") or 0)
+            rec["max_price"] = max(float(rec.get("max_price") or 0), float(now_px), _prev_px0, _day_hi)
             # ХОД СДЕЛАН И ОТДАН — ВЫБЫВАНИЕ (13.09, владелец: «если цена после ×3 от дна упала на
             # 40% — это выбывание; если меньше, то нет, возможно снятие лонгов»). Порог от ОСНОВЫ
             # тут не работает: LSK висела лидером с +666% от основы, уже отдав 42% от вершины дня.
