@@ -644,7 +644,7 @@ COIN_HTML = r"""
 .hdr b{color:#dfe9e4;font-weight:400}
 /* ОСНОВА ТРЕНДА (08.09): начало движения — заголовком по центру, отвязано от линии;
    при конце тренда блока нет вовсе, на линии остаётся только метка выхода */
-.tbase{position:absolute;left:50%;top:150px;transform:translateX(-50%);text-align:center;pointer-events:none;
+.tbase{position:absolute;left:46px;top:150px;transform:none;text-align:left;pointer-events:none;
   font-family:var(--f-cap);opacity:0;animation:fadein .9s ease 1.6s forwards}
 .tbase b{display:block;font-weight:300;font-size:15px;letter-spacing:.3em;text-transform:uppercase;color:#ffe6b8;
   text-shadow:0 0 20px rgba(240,200,138,.5)}
@@ -1457,7 +1457,7 @@ COIN_JS = r"""
     // часы стартов и сливов доски за полгода по режиму биткоина; цикл меняется — подпись честная,
     // а цифра — расстояние до ОБЫЧНОГО окна, не до события. Облако под плитой снято.
     var cap = cs.live ? (cs.kind === 'up' ? 'ОБЫЧНОЕ ОКНО РОСТА · ЕЩЁ' : 'ОБЫЧНОЕ ОКНО СЛИВА · ЕЩЁ') : (cs.kind === 'up' ? 'ДО ОБЫЧНОГО ОКНА РОСТА' : 'ДО ОБЫЧНОГО ОКНА СЛИВА');
-    // ДО СЛЕДУЮЩЕЙ СЕССИИ (12.09, владелец: «к таймеру добавить — до сессии Азия 30 минут, не просто
+    // ДО СЛЕДУЮЩЕЙ СЕССИИ (12.09, владелец: «к таймеру добавить — до сессии Токио 30 минут, не просто
     // слив через столько»). Смена рук происходит на стыке: важно не только окно роста или слива, но
     // и сколько осталось до открытия следующего рынка. Границы в UTC, подпись — в местных часах.
     (function () {
@@ -2259,11 +2259,11 @@ COIN_JS = r"""
         var KNAM = { oi: 'интерес', force: 'сила', vx: 'вортекс', bub: 'пузырь', end: 'конец', kl: 'клингер', sess: 'стык' };
         var ORD = ['oi','force','bub','kl','sess','vx','end'];
         var byKind = {}; _EV.forEach(function (e) { if (e.t >= t0 && e.t <= tE) byKind[e.kind] = e; });
-        var RX = W - 34;
+        var RX = W - 74;   // внутрь плиты: у самого края её уносит перспективой (12.09)
         ORD.forEach(function (k, i) {
-          var e = byKind[k], sy = 16 + i * 15, col = e ? e.col : '#4a6b5e';
+          var e = byKind[k], sy = 20 + i * 17, col = e ? e.col : '#4a6b5e';
           if (e) {
-            var bx = Math.min(XT(e.t), W - 60), by = Y(e.px);
+            var bx = Math.min(XT(e.t), RX - 24), by = Y(e.px);
             g += '<path d="M' + bx.toFixed(1) + ',' + by.toFixed(1) + ' C' + ((bx + RX) / 2).toFixed(1) + ',' + by.toFixed(1)
               + ' ' + ((bx + RX) / 2).toFixed(1) + ',' + sy + ' ' + (RX - 9) + ',' + sy + '" fill="none" stroke="' + col + '" stroke-width=".5" opacity=".3"/>'
               + '<circle cx="' + bx.toFixed(1) + '" cy="' + by.toFixed(1) + '" r="1.8" fill="' + col + '" opacity=".9"/>';
@@ -2271,11 +2271,11 @@ COIN_JS = r"""
           g += '<g class="arw"><circle cx="' + RX + '" cy="' + sy + '" r="6.5" fill="rgba(3,12,9,.9)" stroke="' + col + '" stroke-width=".7" opacity="' + (e ? 1 : .35) + '"/>';
           if (e) g += '<path d="' + (e.dir === 'up' ? 'M' + (RX - 3.4) + ',' + (sy + 2.6) + ' h6.8 l-3.4,-6 z' : 'M' + (RX - 3.4) + ',' + (sy - 2.6) + ' h6.8 l-3.4,6 z') + '" fill="' + col + '"/>';
           g += '<text x="' + RX + '" y="' + (sy + 2) + '" text-anchor="middle" font-size="5.5" font-weight="600" fill="' + (e ? '#04140e' : col) + '">' + esc(KLET[k]) + '</text>';
-          g += '<text x="' + (RX - 11) + '" y="' + (sy - 1) + '" text-anchor="end" font-size="5.5" letter-spacing=".16em" fill="' + col + '" opacity="' + (e ? .95 : .4) + '">' + esc(KNAM[k]) + '</text>';
-          g += '<text x="' + (RX - 11) + '" y="' + (sy + 6) + '" text-anchor="end" font-size="5" letter-spacing=".1em" fill="#bfe9d6" opacity=".7">'
+          g += '<text x="' + RX + '" y="' + (sy - 9) + '" text-anchor="middle" font-size="4.8" letter-spacing=".1em" fill="' + col + '" opacity="' + (e ? .95 : .4) + '">' + esc(KNAM[k]) + '</text>';
+          g += '<text x="' + RX + '" y="' + (sy + 13) + '" text-anchor="middle" font-size="4.6" letter-spacing=".08em" fill="#bfe9d6" opacity=".75">'
             + (e ? esc((function (t) { var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); })(e.t)) : '—') + '</text>';
           if (e) { var parts = String(e.tip).split(' · '), l1 = parts[0], l2 = parts.slice(1).join(' · ');
-            var bw = Math.max(l1.length, l2.length) * 4.3 + 14, bx2 = Math.max(4, RX - bw - 14), by2 = sy - 11;
+            var bw = Math.max(l1.length, l2.length) * 4.3 + 14, bx2 = Math.max(4, RX - bw - 20), by2 = sy - 11;
             g += '<g class="hint"><rect x="' + bx2.toFixed(1) + '" y="' + by2.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="22" rx="3" fill="rgba(3,17,12,.95)" stroke="' + col + '" stroke-opacity=".6" stroke-width=".6"/>'
               + '<text x="' + (bx2 + 7).toFixed(1) + '" y="' + (by2 + 9).toFixed(1) + '" font-size="7" fill="' + col + '">' + esc(l1) + '</text>'
               + '<text x="' + (bx2 + 7).toFixed(1) + '" y="' + (by2 + 18).toFixed(1) + '" font-size="6.5" fill="#bfe9d6">' + esc(l2) + '</text></g>'; }

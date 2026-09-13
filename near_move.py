@@ -48,7 +48,7 @@ SHORT_MIN_OI = 0.005  # или ≥ 0.5% интереса
 GIVEBACK = 0.35      # удержание: закрытие ≥ 65% от максимума сбора
 
 
-SESS_OPEN = {21: "Сидней", 0: "Азия", 7: "Европа", 13: "США"}
+SESS_OPEN = {21: "Сидней", 0: "Токио", 7: "Лондон", 13: "Нью-Йорк"}
 
 
 def _session_pickup_rows(rows: list) -> dict | None:
@@ -76,7 +76,7 @@ def _session_pickup_rows(rows: list) -> dict | None:
     norm: dict = {}
     for b in rows:
         _h = _t(b).hour
-        for _lo, _hi, _nm in ((21, 30, "Сидней"), (0, 9, "Азия"), (7, 16, "Европа"), (13, 22, "США")):
+        for _lo, _hi, _nm in ((21, 30, "Сидней"), (0, 9, "Токио"), (7, 16, "Лондон"), (13, 22, "Нью-Йорк")):
             _in = (_h >= _lo or _h < _hi - 24) if _hi > 24 else (_lo <= _h < _hi)
             if _in:
                 norm.setdefault(_nm, []).append(_vol(b))
