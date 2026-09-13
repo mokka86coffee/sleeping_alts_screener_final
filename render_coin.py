@@ -644,7 +644,7 @@ COIN_HTML = r"""
 .hdr b{color:#dfe9e4;font-weight:400}
 /* ОСНОВА ТРЕНДА (08.09): начало движения — заголовком по центру, отвязано от линии;
    при конце тренда блока нет вовсе, на линии остаётся только метка выхода */
-.tbase{position:absolute;left:50%;top:38px;transform:translateX(-50%);text-align:center;pointer-events:none;
+.tbase{position:absolute;left:50%;top:150px;transform:translateX(-50%);text-align:center;pointer-events:none;
   font-family:var(--f-cap);opacity:0;animation:fadein .9s ease 1.6s forwards}
 .tbase b{display:block;font-weight:300;font-size:15px;letter-spacing:.3em;text-transform:uppercase;color:#ffe6b8;
   text-shadow:0 0 20px rgba(240,200,138,.5)}
@@ -1671,7 +1671,9 @@ COIN_JS = r"""
       L += '</g>'; slab += L;
     })();
     slab += '<g class="an now"><circle cx="' + f(nx) + '" cy="' + f(ny) + '" r="14" fill="#fff" opacity=".22" filter="url(#blur6)"/><circle cx="' + f(nx) + '" cy="' + f(ny) + '" r="3.2" fill="#fff"/><circle class="ring" cx="' + f(nx) + '" cy="' + f(ny) + '" r="6" fill="none" stroke="#fff" stroke-width="1"/></g>';
-    slab += '<g class="an lv2"><text x="' + f(nx - 12) + '" y="' + f(ny - 12) + '" text-anchor="end" font-family="Jost,Inter" font-weight="300" font-size="10" fill="#fff">' + px4(s.px || ser[ser.length - 1]) + ' <tspan fill="#bfe9d6">сейчас</tspan></text>';
+    // ВЁРСТКА: подпись цены уводим ниже точки (12.09, владелец: «вёрстку поправь») — метка шаблона
+    // («курок») стоит над точкой, и они налезали друг на друга.
+    slab += '<g class="an lv2"><text x="' + f(nx - 12) + '" y="' + f(ny + 16) + '" text-anchor="end" font-family="Jost,Inter" font-weight="300" font-size="10" fill="#fff">' + px4(s.px || ser[ser.length - 1]) + ' <tspan fill="#bfe9d6">сейчас</tspan></text>';
     // РИСКИ ЦЕН на левой оси (04.09): четыре деления между низом и верхом
     // окна, чтобы у графика был масштаб, а не только даты
     (function () {
