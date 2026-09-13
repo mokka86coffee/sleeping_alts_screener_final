@@ -48,6 +48,61 @@ SHORT_MIN_OI = 0.005  # или ≥ 0.5% интереса
 GIVEBACK = 0.35      # удержание: закрытие ≥ 65% от максимума сбора
 
 
+SESS_OPEN = {21: "Сидней", 0: "Азия", 7: "Европа", 13: "США"}
+
+
+def _session_pickup_rows(rows: list) -> dict | None:
+    """ПОДХВАТИЛА ЛИ НОВАЯ СЕССИЯ (12.09, владелец: «слив — это смена рук; важно понять, появились
+    новые руки на новой сессии или нет»). На стыке крупный отдаёт и смотрит, кто примет: у каждого
+    рынка свои деньги и свой крупный. Подхват — три условия вместе, и третье главное: НОВЫЕ РУКИ
+    ПРИХОДЯТ С ПЛЕЧОМ. Проверено на LSK 13.09, первый час Токио: оборот выше нормы этой же сессии,
+    дельта +4.45M, интерес 84.7M→90.4M — подхватили, и ход пошёл с 0.28 к 0.65.
+    Один оборот без плеча значит лишь перекладку внутри прежних позиций.
+    rows — строки внутридневного архива (candle, px, oi, fut.d, fut.b/s)."""
+    if not rows or len(rows) < 6:
+        return None
+    from datetime import datetime, timezone
+
+    def _t(r):
+        return datetime.strptime(r["candle"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+
+    def _vol(r):
+        f = r.get("fut") or {}
+        return float(f.get("b") or 0) + float(f.get("s") or 0)
+
+    def _dl(r):
+        return float((r.get("fut") or {}).get("d") or 0)
+
+    norm: dict = {}
+    for b in rows:
+        _h = _t(b).hour
+        for _lo, _hi, _nm in ((21, 30, "Сидней"), (0, 9, "Азия"), (7, 16, "Европа"), (13, 22, "США")):
+            _in = (_h >= _lo or _h < _hi - 24) if _hi > 24 else (_lo <= _h < _hi)
+            if _in:
+                norm.setdefault(_nm, []).append(_vol(b))
+    def _norm(nm: str) -> float:
+        a = sorted(norm.get(nm) or [])
+        return a[len(a) // 2] if a else 0.0
+    for i in range(len(rows) - 3, 0, -1):
+        _tt = _t(rows[i])
+        nm = SESS_OPEN.get(_tt.hour)
+        if not nm or _tt.minute:
+            continue
+        probe = _dl(rows[i])
+        nxt = rows[i:i + 2]
+        vol = sum(_vol(x) for x in nxt)
+        dd = sum(_dl(x) for x in nxt)
+        nrm = _norm(nm) * len(nxt)
+        oi_a, oi_b = float(rows[i].get("oi") or 0), float(rows[min(i + 2, len(rows) - 1)].get("oi") or 0)
+        ok = bool(nrm > 0 and vol >= nrm and ((probe > 0) == (dd > 0)) and oi_b > oi_a)
+        return {"at": _tt.strftime("%Y-%m-%dT%H:%M:00Z"), "session": nm, "pickup": ok,
+                "vol_x": round(vol / nrm, 2) if nrm else None,
+                "oi_chg_pct": round((oi_b / oi_a - 1) * 100, 1) if oi_a else None,
+                "why": (f"{nm} подхватил: новые руки пришли с плечом" if ok
+                        else f"{nm} не подхватил — новых рук нет")}
+    return None
+
+
 def _money_state(v: dict, oi_chg: float) -> str:
     """ЧЕТЫРЕ СОСТОЯНИЯ ПО ТРОЙКЕ «ПЛЕЧО · ОБОРОТ · КАПА» С ОГЛЯДКОЙ НА МЕСТО ЦЕНЫ
     (12.09, владелец). Одно и то же «плечо растёт» значит разное в зависимости от того,
@@ -156,6 +211,23 @@ def _plot(sym_usdt: str) -> str:
         return ""
     r = (rep_.get(sym_usdt) or rep_.get(sym_usdt.replace("USDT", "")) or {})
     return str(r.get("plot") or "")
+
+
+def _intraday_rows(sym_usdt: str, back: int = 120) -> list:
+    """Последние строки внутридневного архива монеты — для подхвата сессии."""
+    p = BASE_DIR / "cq_v2" / "intraday" / f"{sym_usdt.replace('USDT', '').lower()}.jsonl"
+    out = []
+    try:
+        for line in p.read_text(encoding="utf-8").splitlines()[-back:]:
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            if r.get("candle") and r.get("px"):
+                out.append(r)
+    except OSError:
+        return []
+    return out
 
 
 def _today_bars(sym_usdt: str) -> dict | None:
@@ -826,20 +898,23 @@ def attach_today(sym_usdt: str, j: dict) -> dict:
         # капе $193M и капа падала; у MYX $120M при $214M и минус 87% за месяц — раздача. На дне
         # тот же высокий оборот к капе — набор (LAB 12.09: 660% нормы на минимуме, капа росла).
         # Различает ПАРА: оборот к капе + куда идёт сама капа. Пишем три числа без выводов.
+        _t2 = j.get("today")
         _cap = _mcap(sym_usdt)
-        if _cap:
-            _t2 = j.get("today") or {}
+        if _cap and isinstance(_t2, dict):
             _vol = _t2.get("vol_usd") or _t2.get("quote_volume")
-            j.setdefault("today", {})["cap_usd"] = round(_cap)
+            _t2["cap_usd"] = round(_cap)
             if _vol:
-                j["today"]["vol_to_cap"] = round(float(_vol) / _cap, 3)
+                _t2["vol_to_cap"] = round(float(_vol) / _cap, 3)
             _pch = _t2.get("px_chg_pct")
             if _pch is not None:
-                j["today"]["cap_chg_pct"] = round(float(_pch), 2)   # капа ходит ценой: supply за сутки постоянна
+                _t2["cap_chg_pct"] = round(float(_pch), 2)   # капа ходит ценой: supply за сутки постоянна
+        _pick = _session_pickup_rows(_intraday_rows(sym_usdt))
+        if _pick and isinstance(j.get("today"), dict):
+            j["today"]["sess_pickup"] = _pick
         _vx = j.get("vortex") or {}
         for _k in ("div_sell", "div_buy"):
-            if isinstance(_vx.get(_k), dict):
-                j.setdefault("today", {})[_k] = _vx[_k]
+            if isinstance(_vx.get(_k), dict) and isinstance(j.get("today"), dict):
+                j["today"][_k] = _vx[_k]
     return j
 
 
@@ -1242,7 +1317,7 @@ def log_queue(res: dict) -> int:
             "at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "candle": candle.strftime("%Y-%m-%dT%H:%M:00Z"),
             "sym": sym, "place": i, "score": q.get("score"), "first_streak": q.get("first_streak"), "oi_inflow": q.get("oi_inflow"),
             "cap_usd": t.get("cap_usd"), "vol_to_cap": t.get("vol_to_cap"), "cap_chg_pct": t.get("cap_chg_pct"),
-            "money": q.get("money"),
+            "money": q.get("money"), "sess_pickup": (t.get("sess_pickup") or {}).get("why"),
             "days_since_harvest": q.get("days_since_harvest"), "oi_grow": n.get("oi_grow"),
             "today": q.get("today"), "bubble": q.get("bubble"), "move_pct": q.get("px_chg_pct"),
             "stage": q.get("stage"), "out_reason": q.get("out_reason"),
@@ -1300,7 +1375,8 @@ def main() -> int:
         if a.only or v.get("group"):
             _td = v.get("today") or {}
             print(f"{sym}: {v['score']}/5 {NM.get(v.get('group'), '')}{' · с живым днём' if v.get('live') else ''}"
-                  + (f" · СЕГОДНЯ: {_td['today']} (дельта {_td['delta'] / 1e6:+.1f}M, интерес {_td['oi_chg_pct']:+.0f}%, {_td['dominant']})" if _td else "")
+                  + (f" · СЕГОДНЯ: {_td.get('today')} (дельта {(_td.get('delta') or 0) / 1e6:+.1f}M, "
+                     f"интерес {(_td.get('oi_chg_pct') or 0):+.0f}%, {_td.get('dominant')})" if _td.get("today") else "")
                   + " · " + " · ".join(v["why"]) + f" · {v['nums']}")
     for g in ("going", "holding", "pulled", "giving"):
         print(f"{NM[g].lower()}: {len(res[g])} — {', '.join(res[g])}")

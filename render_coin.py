@@ -1457,6 +1457,19 @@ COIN_JS = r"""
     // часы стартов и сливов доски за полгода по режиму биткоина; цикл меняется — подпись честная,
     // а цифра — расстояние до ОБЫЧНОГО окна, не до события. Облако под плитой снято.
     var cap = cs.live ? (cs.kind === 'up' ? 'ОБЫЧНОЕ ОКНО РОСТА · ЕЩЁ' : 'ОБЫЧНОЕ ОКНО СЛИВА · ЕЩЁ') : (cs.kind === 'up' ? 'ДО ОБЫЧНОГО ОКНА РОСТА' : 'ДО ОБЫЧНОГО ОКНА СЛИВА');
+    // ДО СЛЕДУЮЩЕЙ СЕССИИ (12.09, владелец: «к таймеру добавить — до сессии Азия 30 минут, не просто
+    // слив через столько»). Смена рук происходит на стыке: важно не только окно роста или слива, но
+    // и сколько осталось до открытия следующего рынка. Границы в UTC, подпись — в местных часах.
+    (function () {
+      var now = new Date(), hU = now.getUTCHours() + now.getUTCMinutes() / 60;
+      var OP = [[21, 'СИДНЕЙ'], [0, 'АЗИЯ'], [7, 'ЛОНДОН'], [13, 'НЬЮ-ЙОРК']];
+      var best = null;
+      OP.forEach(function (o) { var d = o[0] - hU; if (d <= 0) d += 24; if (!best || d < best[0]) best = [d, o[1]]; });
+      if (!best) return;
+      var hh = Math.floor(best[0]), mm = Math.round((best[0] - hh) * 60);
+      s += '<text x="' + (W / 2) + '" y="88" text-anchor="middle" font-family="var(--f-cap)" font-size="7" letter-spacing=".22em" fill="#8fc7ad">'
+        + 'ДО СЕССИИ ' + best[1] + ' · ' + (hh ? hh + ' Ч ' : '') + pad(mm) + ' МИН</text>';
+    })();
     s += '<text x="' + (W / 2) + '" y="52" text-anchor="middle" font-family="Jost,Inter" font-weight="200" font-size="32" letter-spacing=".06em" fill="' + col + '">' + inH + ':' + pad(inM) + '</text>';
     s += '<text x="' + (W / 2) + '" y="70" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" letter-spacing=".26em" fill="rgba(255,255,255,.7)">' + cap + '</text>';
     s += (cs.tUp ? '<text class="fc" x="' + x0 + '" y="' + (y + 40) + '" text-anchor="start" style="fill:#bfffe0;font-size:6.8px">рост ' + cs.tUp + '</text>' : '') +
@@ -1645,7 +1658,19 @@ COIN_JS = r"""
     if (_hrs.length > 48) (function () {
       var F = ((D.fast || {})[_sym]) || {}, GR = '#4fd1a8', RD = '#ff7a7a', OR = '#f0a04b', WH = '#eaf4ff';
       function ok(t) { return t >= _tBeg && t <= _tEnd; }
-      function hhmm(t) { var d = new Date(t); return pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }   // местное время, как у соседних подписей карточки (11.09, владелец)
+      // ВРЕМЯ ВЕЗДЕ МЕСТНОЕ (12.09, владелец: «много летаю по разным странам, важно не уткнуться
+      // в некорректное время»): границы сессий считаются в UTC — они привязаны к биржам, — а на
+      // экран всё выводится через getHours/getMinutes, то есть в часах того, кто смотрит.
+      function hhmm(t) { var d = new Date(t); return pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+      // ЧЕТЫРЕ СЕССИИ И ИХ СТЫКИ, UTC: Сидней 21–6, Токио 0–9, Лондон 7–16, Нью-Йорк 13–22.
+      function sessOf(t) { var h = new Date(t).getUTCHours(), w = [];
+        if (h >= 21 || h < 6) w.push('Сидней');
+        if (h >= 0 && h < 9) w.push('Токио');
+        if (h >= 7 && h < 16) w.push('Лондон');
+        if (h >= 13 && h < 22) w.push('Нью-Йорк');
+        return w; }
+      function opensAt(t) { var h = new Date(t).getUTCHours();
+        return h === 21 ? 'Сидней' : h === 0 ? 'Токио' : h === 7 ? 'Лондон' : h === 13 ? 'Нью-Йорк' : ''; }
       _hrs.filter(function (b) { return (+b[2] || 0) >= 1.5; }).forEach(function (b) { var oi = +b[2] || 0, px = +b[3] || 0;
         if (px > 0.3) _EV.push({ t: b[0] + 18e5, px: +b[4], dir: 'up', kind: 'oi', col: GR, op: Math.min(.9, .25 + .2 * Math.min(oi / px, 3)), short: 'интерес растёт с ценой', tip: 'интерес растёт вместе с ценой · ' + hhmm(b[0]) + ' · интерес +' + oi.toFixed(1) + '% · цена +' + px.toFixed(1) + '%' });
         else { var ratio = oi / Math.max(0.3, Math.abs(px)), k = Math.max(0, Math.min(1, (ratio - 1.5) / 1.5));
@@ -1655,6 +1680,41 @@ COIN_JS = r"""
       (F.force || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: e.dir === 'down' ? 'down' : 'up', kind: 'force', col: e.dir === 'down' ? RD : GR, op: e.dir === 'down' ? .9 : .8, short: e.dir === 'down' ? 'сила развернулась вниз' : 'сила развернулась вверх', tip: (e.dir === 'down' ? 'сила развернулась вниз · ' : 'сила развернулась вверх · ') + hhmm(e.t) }); });
       (F.end || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: 'down', kind: 'end', col: RD, op: .95, short: 'событие конца: интерес ушёл с ценой', tip: 'событие конца · ' + hhmm(e.t) + ' · интерес ушёл вместе с ценой на одном баре' }); });
       (F.bubbles || []).forEach(function (e) { if (e.sure === 'обычный') return; var up = e.side === 'buy'; _EV.push({ t: e.t, px: +e.px, dir: up ? 'up' : 'down', kind: 'bub', col: up ? WH : '#ffb3a0', op: e.sure === 'ясный' ? .95 : .55, short: 'пузырь ' + (up ? 'покупки' : 'продажи') + ' · ' + e.sure, tip: 'пузырь дельты ' + (up ? 'покупка' : 'продажа') + ' · ' + hhmm(e.t) + ' · ' + e.sure + (e.sure === 'ясный' ? ' — интерес вырос на баре' : ' — интерес ушёл или лонги закрывали') }); });
+      // ПРОБА В СТЫКЕ И ОТВЕТ СЕССИИ (12.09, владелец: «крупному нужно понять, будут ли новые
+      // покупки в этой сессии — это разные материки, страны и люди»). Проверено глазами на четырёх
+      // монетах: SOPH, IOST, DOOD, LSK — вершина трижды из четырёх стоит ровно в переходе, и весь
+      // подъём идёт при продажах в рынок. Логика: крупный пузырь в час открытия новой сессии — это
+      // вопрос рынку; ответ читаем по первому часу этой сессии — оборот против нормы ЭТОЙ ЖЕ
+      // сессии за прошлые сутки и знак дельты. Ответили — ход поддержан, нет — цену отпускают.
+      (function () {
+        var byS = {};                                  // норма оборота по каждой сессии отдельно
+        _hrs.forEach(function (b) { sessOf(b[0]).forEach(function (nm) { (byS[nm] = byS[nm] || []).push(+b[5] || 0); }); });
+        function normOf(nm) { var a = (byS[nm] || []).slice().sort(function (x, y) { return x - y; });
+          return a.length ? a[Math.floor(a.length / 2)] : 0; }
+        _hrs.forEach(function (b, i) {
+          var opens = opensAt(b[0]); if (!opens) return;
+          var d = +b[6] || 0;                          // дельта бара
+          if (!d) return;
+          // ПОДХВАТИЛА ЛИ НОВАЯ СЕССИЯ (12.09, владелец: «слив — это смена рук; важно понять,
+          // появились новые руки на новой сессии или нет»). Три условия вместе, и третье главное:
+          // новые руки приходят С ПЛЕЧОМ. LSK 13.09, первый час Токио: оборот выше нормы, дельта
+          // +4.45M, интерес 84.7M→90.4M (+6.7% за бар) — подхватили. Один оборот без плеча значит
+          // лишь, что кто-то переложился внутри прежних позиций.
+          var nxt = _hrs.slice(i, i + 2), vol = 0, dd = 0;
+          nxt.forEach(function (x) { vol += (+x[5] || 0); dd += (+x[6] || 0); });
+          var nrm = normOf(opens) * nxt.length || 0;
+          var oiA = +((_hrs[i] || [])[2]) || 0, oiB = +((_hrs[Math.min(i + 2, _hrs.length - 1)] || [])[2]) || 0;
+          var oiUp = oiB > oiA;                       // интерес за первый час новой сессии вырос
+          var answered = nrm > 0 && vol >= nrm && ((d > 0) === (dd > 0)) && oiUp;
+          _EV.push({ t: b[0], px: +b[4], dir: answered ? (d > 0 ? 'up' : 'down') : (d > 0 ? 'down' : 'up'),
+            kind: 'sess', col: answered ? (d > 0 ? GR : RD) : OR, op: .9,
+            short: opens + (answered ? ' подхватил' : ' не подхватил'),
+            tip: 'стык сессий · открывается ' + opens + ' · проба ' + (d > 0 ? 'покупкой' : 'продажей')
+                 + ' · первый час: оборот ' + (nrm ? (vol / nrm).toFixed(1) : '—') + '× к норме сессии, дельта '
+                 + (dd > 0 ? 'в плюс' : 'в минус') + ', плечо ' + (oiUp ? 'растёт' : 'не растёт')
+                 + ' — ' + (answered ? 'ПОДХВАТИЛИ: новые руки пришли с плечом' : 'не подхватили — новых рук нет, цену отпускают') });
+        });
+      })();
       _EV = _EV.filter(function (e) { return ok(e.t); }).sort(function (a, b) { return a.t - b.t; });
       var L = '<g class="fast">';
       // ТОЧКА СТАРТА — ЗОЛОТАЯ, БЕЗ ОРЕОЛА И ПОДЛОЖКИ (11.09, владелец: «сделай её золотой просто и всё,
@@ -1752,7 +1812,7 @@ COIN_JS = r"""
     // ярче, молчащий индикатор — тусклая строка с прочерком, чтобы было видно, что он молчит.
     if (_LAST) (function () {
       function hh(t) { var d = new Date(t); return pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }   // местное время (11.09)
-      var KIND = [['oi', 'интерес'], ['force', 'сила · дельта'], ['vx', 'вортекс 30м'], ['bub', 'пузырь'], ['end', 'конец']];
+      var KIND = [['oi', 'интерес'], ['force', 'сила · дельта'], ['vx', 'вортекс 30м'], ['bub', 'пузырь'], ['end', 'конец'], ['sess', 'стык сессий']];
       var rows = KIND.map(function (k) { var e = _LAST[k[0]]; return { name: k[1], e: e, t: e ? e.t : 0 }; });
       // медленные — состоянием, не событием
       // ПОДПИСИ ЧЕСТНЫЕ (12.09, владелец: «лучше достоверная информация, чем ложная»).
@@ -2189,27 +2249,38 @@ COIN_JS = r"""
         // БУКВА В СТРЕЛКЕ, ВРЕМЯ ПОД НЕЙ (12.09, владелец): к — клингер, в — вихрь/вортекс,
         // д — дельта (сила), п — пузырь, и — интерес, к — конец пишем как «х» (крест хода),
         // чтобы не спорить с клингером. Масштаб рядом со временем: 30м или 4ч.
-        var KLET = { oi: 'и', force: 'д', vx: 'в', bub: 'п', end: 'х', kl: 'к' };
-        var KTF = { oi: '30м', force: '30м', vx: '30м', bub: '30м', end: '30м', kl: '30м' };
-        var byKind = {}; _EV.forEach(function (e) { if (e.t >= t0 && e.t <= tE) byKind[e.kind] = [e]; });
-        Object.keys(byKind).forEach(function (k) { byKind[k].slice(-3).forEach(function (e) { if (e.t < t0 || e.t > tE) return;
-          var x = Math.min(XT(e.t), W - 20), y = Y(e.px) + (e.dir === 'up' ? 16 : -16) + (e.kind === 'force' ? (e.dir === 'up' ? 14 : -14) : 0) + (e.kind === 'vx' ? (e.dir === 'up' ? 28 : -28) : 0);
-          // ПЛАШКА ВМЕСТО СИСТЕМНОЙ ПОДСКАЗКИ (владелец: «не видно ничего и долго ждать появления»):
-          // появляется сразу при наведении, две строки, над стрелкой, не вылезает за плиту
-          var parts = String(e.tip).split(' · '), l1 = parts[0], l2 = parts.slice(1).join(' · ');
-          var bw = Math.max(l1.length, l2.length) * 4.3 + 14, bx = Math.max(4, Math.min(W - bw - 4, x - bw / 2)), by = y - 34;
-          // СОБЫТИЕ-ПУЗЫРЬ — СТРЕЛКОЙ, НЕ ПУЗЫРЁМ (12.09, владелец): настоящие пузыри на этой плите —
-          // слой Market Order Bubbles по Leviathan (06.09), круги по величине заявок со своей
-          // обводкой. Событие быстрого слоя — отбор 2σ из тех же данных, оно голосует за
-          // направление в одном ряду с интересом, силой, вортексом и концом, поэтому у него
-          // стрелка и буква «п»: две разные вещи не должны выглядеть одинаково.
-          g += '<g class="arw"><circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="8" fill="rgba(3,12,9,.85)" stroke="rgba(233,255,244,.2)" stroke-width=".5"/>' +
-               '<path d="' + (e.dir === 'up' ? 'M' + (x - 5).toFixed(1) + ',' + (y + 4).toFixed(1) + ' h10 l-5,-9 z' : 'M' + (x - 5).toFixed(1) + ',' + (y - 4).toFixed(1) + ' h10 l-5,9 z') + '" fill="' + e.col + '" opacity="' + e.op.toFixed(2) + '"/>' +
-               '<g class="hint"><rect x="' + bx.toFixed(1) + '" y="' + by.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="22" rx="3" fill="rgba(3,17,12,.92)" stroke="' + e.col + '" stroke-opacity=".6" stroke-width=".6"/>' +
-               '<text x="' + (bx + 7).toFixed(1) + '" y="' + (by + 9).toFixed(1) + '" font-size="7" letter-spacing=".08em" fill="' + e.col + '">' + esc(l1) + '</text>' +
-               '<text x="' + (bx + 7).toFixed(1) + '" y="' + (by + 18).toFixed(1) + '" font-size="6.5" letter-spacing=".06em" fill="#bfe9d6">' + esc(l2) + '</text></g>' +
-               '<text x="' + x.toFixed(1) + '" y="' + (y + 2.6).toFixed(1) + '" text-anchor="middle" font-size="6.5" font-weight="600" fill="#04140e">' + esc(KLET[e.kind] || '?') + '</text>' +
-               '<text x="' + x.toFixed(1) + '" y="' + (y + (e.dir === 'up' ? 17 : -11)).toFixed(1) + '" text-anchor="middle" font-size="5" letter-spacing=".1em" fill="' + e.col + '" opacity=".7">' + esc((function (t) { var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); })(e.t) + ' · ' + (KTF[e.kind] || '30м')) + '</text></g>'; }); });
+        var KLET = { oi: 'и', force: 'д', vx: 'в', bub: 'п', end: 'х', kl: 'к', sess: 'с' };
+        var KTF = { oi: '30м', force: '30м', vx: '30м', bub: '30м', end: '30м', kl: '30м', sess: 'стык' };
+        // РЕЙКА ИНДИКАТОРОВ (12.09, владелец: «непонятно, где и какие стрелки»): значки уходят с линии
+        // цены на постоянные слоты у правого края плиты, от каждого тонкий луч к своему бару. Порядок
+        // слотов неизменный — наезжать нечему, глаз запоминает места, а не ищет значки по графику.
+        // Молчащий индикатор остаётся тусклым кольцом с прочерком: видно, что он молчит, а не пропал.
+        var KLET = { oi: 'и', force: 'д', vx: 'в', bub: 'п', end: 'х', kl: 'к', sess: 'с' };
+        var KNAM = { oi: 'интерес', force: 'сила', vx: 'вортекс', bub: 'пузырь', end: 'конец', kl: 'клингер', sess: 'стык' };
+        var ORD = ['oi','force','bub','kl','sess','vx','end'];
+        var byKind = {}; _EV.forEach(function (e) { if (e.t >= t0 && e.t <= tE) byKind[e.kind] = e; });
+        var RX = W - 34;
+        ORD.forEach(function (k, i) {
+          var e = byKind[k], sy = 16 + i * 15, col = e ? e.col : '#4a6b5e';
+          if (e) {
+            var bx = Math.min(XT(e.t), W - 60), by = Y(e.px);
+            g += '<path d="M' + bx.toFixed(1) + ',' + by.toFixed(1) + ' C' + ((bx + RX) / 2).toFixed(1) + ',' + by.toFixed(1)
+              + ' ' + ((bx + RX) / 2).toFixed(1) + ',' + sy + ' ' + (RX - 9) + ',' + sy + '" fill="none" stroke="' + col + '" stroke-width=".5" opacity=".3"/>'
+              + '<circle cx="' + bx.toFixed(1) + '" cy="' + by.toFixed(1) + '" r="1.8" fill="' + col + '" opacity=".9"/>';
+          }
+          g += '<g class="arw"><circle cx="' + RX + '" cy="' + sy + '" r="6.5" fill="rgba(3,12,9,.9)" stroke="' + col + '" stroke-width=".7" opacity="' + (e ? 1 : .35) + '"/>';
+          if (e) g += '<path d="' + (e.dir === 'up' ? 'M' + (RX - 3.4) + ',' + (sy + 2.6) + ' h6.8 l-3.4,-6 z' : 'M' + (RX - 3.4) + ',' + (sy - 2.6) + ' h6.8 l-3.4,6 z') + '" fill="' + col + '"/>';
+          g += '<text x="' + RX + '" y="' + (sy + 2) + '" text-anchor="middle" font-size="5.5" font-weight="600" fill="' + (e ? '#04140e' : col) + '">' + esc(KLET[k]) + '</text>';
+          g += '<text x="' + (RX - 11) + '" y="' + (sy - 1) + '" text-anchor="end" font-size="5.5" letter-spacing=".16em" fill="' + col + '" opacity="' + (e ? .95 : .4) + '">' + esc(KNAM[k]) + '</text>';
+          g += '<text x="' + (RX - 11) + '" y="' + (sy + 6) + '" text-anchor="end" font-size="5" letter-spacing=".1em" fill="#bfe9d6" opacity=".7">'
+            + (e ? esc((function (t) { var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); })(e.t)) : '—') + '</text>';
+          if (e) { var parts = String(e.tip).split(' · '), l1 = parts[0], l2 = parts.slice(1).join(' · ');
+            var bw = Math.max(l1.length, l2.length) * 4.3 + 14, bx2 = Math.max(4, RX - bw - 14), by2 = sy - 11;
+            g += '<g class="hint"><rect x="' + bx2.toFixed(1) + '" y="' + by2.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="22" rx="3" fill="rgba(3,17,12,.95)" stroke="' + col + '" stroke-opacity=".6" stroke-width=".6"/>'
+              + '<text x="' + (bx2 + 7).toFixed(1) + '" y="' + (by2 + 9).toFixed(1) + '" font-size="7" fill="' + col + '">' + esc(l1) + '</text>'
+              + '<text x="' + (bx2 + 7).toFixed(1) + '" y="' + (by2 + 18).toFixed(1) + '" font-size="6.5" fill="#bfe9d6">' + esc(l2) + '</text></g>'; }
+          g += '</g>';
+        });
       })();
       // стиль плашек внутри svg (11.09): страничный css до них не доставал — все плашки стояли открытыми
       var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '"><style>g.arw .hint{opacity:0;transition:opacity .12s;pointer-events:none}g.arw:hover .hint{opacity:1}</style>' + g + '</svg>';

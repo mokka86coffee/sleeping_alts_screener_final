@@ -252,6 +252,13 @@
   .bgnote .clock span{position:absolute;top:10px;height:3px;border-radius:3px;opacity:.5}
   .bgnote .clock .now{position:absolute;top:5px;width:1px;height:15px;background:#dbe8ff;
     box-shadow:0 0 9px rgba(200,225,255,.9);animation:bead 3s ease-in-out infinite}
+  /* переход близко: прибор теплеет, у границы — метка (12.09) */
+  .bgnote .g.soon{background:linear-gradient(180deg,rgba(255,200,120,.08),rgba(255,200,120,0));border-radius:6px}
+  .bgnote .g.soon .t{color:#ffd8a8}
+  .bgnote .g .t b.sw{font-weight:400;font-size:5.4px;letter-spacing:.22em;color:#ffb86b;margin-left:6px;
+    padding:1px 5px;border:1px solid rgba(255,184,107,.45);border-radius:8px;animation:bead 2.4s ease-in-out infinite}
+  .bgnote .clock .edge{position:absolute;top:4px;width:1px;height:17px;background:#ffb86b;
+    box-shadow:0 0 10px rgba(255,184,107,.9);opacity:.9}
   .bgnote .clock em{position:absolute;top:17px;font-style:normal;font-size:5.6px;letter-spacing:.2em;
     text-transform:uppercase;color:rgba(190,205,255,.4)}
   @media (prefers-reduced-motion:reduce){.bgnote *{animation:none!important}}
@@ -397,7 +404,7 @@
 <div class="bgnote" id="bgnote"></div>
 <div class="hint">клик по имени — монета · планета — точность · мимо или клавиша — дальше</div>
 <div class="tip" id="tip"></div>
-<script id="introData" type="application/json">{"names": ["первые 1", "LSK", "в очереди 0", "у цели 0"], "grp": [0, 0, 1, 2], "syms": ["", "LSKUSDT", "", ""], "whys": ["", "ведёт · +293% от основы · тянет одна — вход в остальных закрыт, открытые хеджировать", "", ""], "pos": [[0.3, 0.945], [0.316, 0.575], [0.52, 0.945], [0.74, 0.945]], "counts": [1, 0, 0, 0], "label": [1, 0, 1, 1], "subs": ["", "лидер · приток плеча +539% · лестница · сквиз · сбор 1 дн назад · плечо ×3.0 · набирают сегодня", "", ""], "bright": [1.0, 1.0, 1.0, 1.0], "zones": [], "taker": {"day": 1.003, "bar": 0.95, "sell_share_pct": 49.9, "buy_usd": 137489456.0, "sell_usd": 137102744.0, "side": "вровень"}, "acc": {"ok_pct": 71.0, "ok": 88, "n": 124, "enough": true}, "orbits": {"LSK": {"up": 9.09, "dn": -58.86, "low": 397.0, "high": 137.0}}, "bgnote": [["монеты", "рост", "растёт 79 из 115"], ["медиана доски", "рост", "+0.32% медиана хода"], ["биткоин сейчас", "давит", "жгут лонгов ×2.0 · Америка не покупает"], ["биткоин дальше", "вниз", "сверху топлива нет · плита +4.2% / -2.1%"], ["поток рыночных заявок", "вровень", "1.00"], ["лидер", "тянут 2", "LSK +293% от основы · наша"], ["деньги лидера", "из соседей", "LSK +27M · доска -27M за 6 ч"], ["торги", "идёт", "Сидней, Азия"]], "leader": {"sym": "LSK", "risk": ["сила развернулась 1 бар назад — ход выдыхается", "интерес растёт быстрее цены в 8.1 раза", "от вершины дня -9%"], "run_pct": 293.2, "state": "тянут 2", "line": "+293% от основы · +220% за сутки · наша", "lead_gap": 5, "ended": null, "hours": null, "runs_weak": 0}, "flicker": ["STRK", "RAYSOL", "DOOD", "ZK", "XAN", "SOLV", "NOM", "JUP", "USELESS", "AKE", "INJ", "LUNA2", "DOGS", "PLAY", "VET", "IOST", "HIVE", "SAHARA", "VTHO", "ANIME", "SAGA", "ETHFI", "MET", "KAVA"], "accum": {"ANIME": {"oi3": 43, "px3": 1.0, "strong": false, "day": "2026-09-10", "ago": 1, "past": true}, "BOME": {"oi3": 31, "px3": -5.7, "strong": false, "day": "2026-09-11", "past": false}, "BULLA": {"oi3": 1271, "px3": -6.3, "strong": false, "day": "2026-09-08", "ago": 3, "past": true}, "CATI": {"oi3": 32, "px3": 2.2, "strong": false, "day": "2026-09-06", "ago": 5, "past": true}, "GUA": {"oi3": 61, "px3": -8.1, "strong": false, "day": "2026-09-08", "ago": 3, "past": true}, "HIVE": {"oi3": 35, "px3": 5.9, "strong": false, "day": "2026-09-05", "ago": 6, "past": true}, "IOST": {"oi3": 61, "px3": 4.8, "strong": true, "day": "2026-09-11", "past": false}, "LUNA2": {"oi3": 31, "px3": 2.0, "strong": false, "day": "2026-09-08", "ago": 3, "past": true}, "MET": {"oi3": 33, "px3": 7.6, "strong": false, "day": "2026-09-07", "ago": 4, "past": true}, "PHA": {"oi3": 35, "px3": 6.8, "strong": false, "day": "2026-09-07", "ago": 4, "past": true}, "REZ": {"oi3": 38, "px3": 5.5, "strong": false, "day": "2026-09-07", "ago": 4, "past": true}, "SANTOS": {"oi3": 38, "px3": -0.3, "strong": false, "day": "2026-09-07", "ago": 4, "past": true}, "SOPH": {"oi3": 162, "px3": 0.1, "strong": true, "day": "2026-09-09", "ago": 2, "past": true}}, "bub": {"LSK": [{"buy": true, "doubt": false}]}, "blank": {}, "keep": ["REZUSDT"]}</script>
+<script id="introData" type="application/json">{"names": ["первые 1", "LSK", "в очереди 0", "у цели 0"], "grp": [0, 0, 1, 2], "syms": ["", "LSKUSDT", "", ""], "whys": ["", "ведёт · +333% от основы · тянет одна — вход в остальных закрыт, открытые хеджировать", "", ""], "pos": [[0.3, 0.945], [0.316, 0.575], [0.52, 0.945], [0.74, 0.945]], "counts": [1, 0, 0, 0], "label": [1, 0, 1, 1], "subs": ["", "лидер · держится 2-й прогон · лестница · сквиз · сбор 1 дн назад · плечо ×15.4", "", ""], "bright": [1.0, 1.0, 1.0, 1.0], "zones": [], "taker": {"day": 0.998, "bar": 0.99, "sell_share_pct": 50.1, "buy_usd": 221350880.0, "sell_usd": 221833461.0, "side": "вровень"}, "acc": {"ok_pct": 71.8, "ok": 89, "n": 124, "enough": true}, "orbits": {"LSK": {"dn": -41.7, "low": 579.0, "high": 26.0}}, "bgnote": [["монеты", "нейтральный", "растёт 68 из 115"], ["медиана доски", "ровно", "+0.20% медиана хода"], ["биткоин сейчас", "давит", "жгут лонгов ×2.0 · Америка не покупает"], ["биткоин дальше", "вниз", "сверху топлива нет · плита +4.1% / -2.1%"], ["поток рыночных заявок", "вровень", "1.00"], ["лидер", "тянет одна", "LSK +333% от основы · наша"], ["деньги лидера", "из соседей", "LSK +34M · доска +16M за 6 ч"], ["торги", "идёт", "Сидней, Азия"]], "leader": {"sym": "LSK", "risk": [], "run_pct": 332.8, "state": "тянет одна", "line": "+333% от основы · +180% за сутки · наша", "lead_gap": 99, "ended": null, "hours": null, "runs_weak": 0}, "sess": {"next": "Европа", "in_h": 4.55, "just_open": ""}, "flicker": ["STRK", "RAYSOL", "DOOD", "ZK", "XAN", "SOLV", "NOM", "PHA", "JUP", "REZ", "USELESS", "AKE", "INJ", "LUNA2", "DOGS", "PLAY", "VET", "IOST", "HIVE", "SAHARA", "VTHO", "ANIME", "SAGA", "MET", "KAVA"], "accum": {"ANIME": {"oi3": 43, "px3": 1.0, "strong": false, "day": "2026-09-10", "ago": 2, "past": true}, "BOME": {"oi3": 31, "px3": -5.7, "strong": false, "day": "2026-09-11", "ago": 1, "past": true}, "BULLA": {"oi3": 1271, "px3": -6.3, "strong": false, "day": "2026-09-08", "ago": 4, "past": true}, "CATI": {"oi3": 32, "px3": 2.2, "strong": false, "day": "2026-09-06", "ago": 6, "past": true}, "GUA": {"oi3": 61, "px3": -8.1, "strong": false, "day": "2026-09-08", "ago": 4, "past": true}, "IOST": {"oi3": 61, "px3": 4.8, "strong": true, "day": "2026-09-11", "ago": 1, "past": true}, "LUNA2": {"oi3": 31, "px3": 2.0, "strong": false, "day": "2026-09-08", "ago": 4, "past": true}, "MET": {"oi3": 33, "px3": 7.6, "strong": false, "day": "2026-09-07", "ago": 4, "past": true}, "PHA": {"oi3": 35, "px3": 6.8, "strong": false, "day": "2026-09-07", "ago": 5, "past": true}, "REZ": {"oi3": 38, "px3": 5.5, "strong": false, "day": "2026-09-07", "ago": 5, "past": true}, "SANTOS": {"oi3": 38, "px3": -0.3, "strong": false, "day": "2026-09-07", "ago": 5, "past": true}, "SOPH": {"oi3": 162, "px3": 0.1, "strong": true, "day": "2026-09-09", "ago": 3, "past": true}}, "bub": {}, "blank": {}, "keep": []}</script>
 <script>
 const DATA=JSON.parse(document.getElementById('introData').textContent);
 // группы: 0 — брать, 1 — держать, 2 — закрыть (владелец, 06.09)
@@ -917,6 +924,14 @@ function drawFx(t){
 (function(){
   const L=DATA.leader||{}, el=document.getElementById('lead');
   const PULL=!!L.sym;
+  // КАПСУЛЫ СЕССИЙ — ВСЕГДА (12.09): переход и открытие относятся к фону, а не к монете,
+  // поэтому показываются и когда лидера нет. Подхват — только при лидере, он про него.
+  const SESSCAPS=(function(){ var S=DATA.sess||{}, out='';
+      if(S.next && S.in_h!=null){ var m=Math.round(S.in_h*60);
+        if(m<=60) out += '<u class="warn">скоро переход · '+S.next+' через '+(m>=60?'1 ч':m+' мин')+'</u>'; }
+      if(S.just_open) out += '<u class="state">открытие · '+S.just_open+'</u>';
+      if(S.pickup && L.sym) out += '<u class="'+(S.pickup.ok?'state':'hot')+'">'+S.pickup.text+'</u>';
+      return out; })();
   if(el&&L.sym&&PULL){
     el.className='lead'+(L.ended?' ended':'');
     // разделитель — ромб, чтобы числа не сливались в одну строку (09.09)
@@ -933,6 +948,10 @@ function drawFx(t){
       + (L.hours?(SEP+L.hours+' ч в первых'):'')
       + (L.ended?(SEP+'конец в '+L.ended):'')+'</s>'
       + ((L.risk||[]).length ? '<em>'+L.risk.map(x=>'<i>'+x+'</i>').join('')+'</em>' : '')
+      // СЕССИИ НА ПЕРВОМ ЭКРАНЕ (12.09, владелец: «за час показывать — аккуратно, скоро переход между
+      // сессиями, потом сам переход, открытие Азии, и откупила ли новая сессия лидера»). Смена рук
+      // происходит на стыке: пока он не пройден, ход не подтверждён, а после — видно, взяли или нет.
+      + SESSCAPS
       + (L.state? '<u class="state">'+L.state+'</u>' : '')+
       ((L.runs_weak||0)>0&&!L.ended
         ? (Math.abs(L.run_pct||0)>=150
@@ -942,7 +961,10 @@ function drawFx(t){
         // „тянет одна“»): состояние живёт в строке над именем, здесь — только последствие.
         : ((L.lead_gap||0)>=5 ? '<u>вход в остальных закрыт</u>' : ''))
 ;
-  } else if(el){ el.style.display='none'; }
+  } else if(el){
+    if(SESSCAPS){ el.className='lead'; el.innerHTML='<i>фон</i>'+SESSCAPS; }
+    else el.style.display='none';
+  }
   // ЛИДЕР ВСЕГДА ЗАМЕТНЕЕ ОСТАЛЬНЫХ (08.09, владелец: «NAORIS в лидерах, а светится всё, и
   // некоторые ярче»): раньше подсветка включалась только пока лидер идёт, а при конце снималась
   // целиком — и на экране оставались чужие звёзды ярче лидера. Теперь три уровня:
@@ -979,7 +1001,10 @@ function drawFx(t){
   const DIR={'давит':-1,'падает':-1,'продают':-1,'рост':1,'покупают':1,'нейтральный':0,'флэт':0,'вровень':0,'поровну':0};
   const ENDS={'монеты':['давит','рост'],'медиана доски':['падает','рост'],'биткоин':['падает','рост'],'биткоин сейчас':['давит','тянет'],'очередь':['давит','рост'],'поток рыночных заявок':['продают','покупают']};
   // сессии в часах UTC — те же, что в фоне
-  const SES=[['Азия',0,9,'#6fb4ff'],['Европа',7,16,'#a98cff'],['США',13,22,'#ffb26f']];   // США до 22 UTC — закрытие Нью-Йорка (11.09)
+  // ЧЕТЫРЕ СЕССИИ (12.09, владелец: «у нас 3 сессии, по факту их 4»). Сидней 21–6 UTC идёт через
+  // полночь, поэтому рисуется двумя дугами — хвост суток и начало следующих.
+  const SES=[['Сидней',21,24,'#ffd98a'],['Сидней',0,6,'#ffd98a'],['Азия',0,9,'#6fb4ff'],['Европа',7,16,'#a98cff'],['США',13,22,'#ffb26f']];
+  const OPENS=[[21,'Сидней'],[0,'Азия'],[7,'Европа'],[13,'США']];
   const h=new Date().getUTCHours()+new Date().getUTCMinutes()/60;
   // служебные слова — серым, числа остаются светлыми
   function dim(txt){
@@ -1019,6 +1044,12 @@ function drawFx(t){
       <div class="ends"><em class="l">${e[0]}</em><em class="r">${e[1]}</em></div></div>`;
   }
   function leadGauge(r){
+    // ПУСТОЙ ЛИДЕР — ЧЕСТНО (12.09, владелец: прибор рисовал «ни» и «одна от дна недели»)
+    if(!r[2] || !String(r[2]).trim()){
+      return `<div class="g lead"><div class="t">${r[0]}</div>
+        <div class="ring" style="--p:0;opacity:.25"></div>
+        <div class="lx"><b style="color:rgba(200,212,255,.45)">лидера нет</b><u><w>доска без ведущего</w></u></div></div>`;
+    }
     const run=parseFloat(String(r[3]||'0'));
     const p=Math.min(100,Math.max(4,isNaN(run)?0:run/3));   // 300% хода = полное кольцо
     const name=(r[2]||'').split(' ')[0], val=(r[2]||'').split(' ')[1]||r[1];
@@ -1029,12 +1060,23 @@ function drawFx(t){
   function clockGauge(r){
     const arcs=SES.map(([n,a,b,c])=>
       `<span style="left:${(a/24*100).toFixed(1)}%;width:${((b-a)/24*100).toFixed(1)}%;background:${c};box-shadow:0 0 8px ${c}"></span>`).join('');
-    const cur=SES.filter(([n,a,b])=>h>=a&&h<b).map(x=>x[0]).join(', ');
-    return `<div class="g"><div class="t">${r[0]}</div>
+    const cur=[...new Set(SES.filter(([n,a,b])=>h>=a&&h<b).map(x=>x[0]))].join(', ');
+    // ПЕРЕХОД БЛИЗКО (12.09, владелец: «за час до окончания сессии подсвечивать прибор и писать,
+    // на какую переход»). Смена рук идёт на стыке — прибор должен предупредить заранее.
+    // ОДИН ИСТОЧНИК ВРЕМЕНИ (12.09): если фон уже посчитал переход — берём его, иначе считаем сами.
+    // Иначе прибор и капсулы под лидером показывают разное: капсулы из DATA.sess, прибор из new Date().
+    const S=DATA.sess||{};
+    let nx='', left=24;
+    if(S.next && S.in_h!=null){ nx=S.next; left=+S.in_h; }
+    else OPENS.forEach(([oh,nm])=>{ let d=oh-h; if(d<=0) d+=24; if(d<left){left=d; nx=nm;} });
+    const soon=left<=1, mins=Math.round(left*60);
+    const sub=soon ? `${cur||r[1]} · через ${mins} мин → ${nx}` : (cur||r[1]);
+    return `<div class="g${soon?' soon':''}"><div class="t">${r[0]}${soon?' <b class="sw">переход</b>':''}</div>
       <div class="clock"><div class="ln"></div>${arcs}
+        ${soon?`<div class="edge" style="left:${(((h+left)%24)/24*100).toFixed(1)}%"></div>`:''}
         <div class="now" style="left:${(h/24*100).toFixed(1)}%"></div>
         <em style="left:0">00</em><em style="left:48%">12</em><em style="right:0">24</em></div>
-      <div class="ends"><em class="l" style="top:2px">${cur||r[1]}</em></div></div>`;
+      <div class="ends"><em class="l" style="top:2px">${sub}</em></div></div>`;
   }
   el.innerHTML='<i class="hd">фон</i>'+rows.map(r=>
     r[0]==='лидер' ? leadGauge(r)

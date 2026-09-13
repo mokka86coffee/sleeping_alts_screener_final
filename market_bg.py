@@ -340,6 +340,20 @@ def _session(now: datetime) -> dict:
             out.append({"name": name, "state": "скоро откроется" if to <= SOON_H else "закрыта",
                         "in_h": round(to, 1), "open": False})
     live = [s["name"] for s in out if s["open"]]
+    # СТЫК И СМЕНА РУК (12.09, владелец: «слив — это, по сути, смена рук; важно понять, появились
+    # новые руки на новой сессии или нет»). Здесь только факт: какая сессия только что открылась и
+    # сколько минут до следующего открытия. Приняли или нет — считает тот, кто видит бары лидера.
+    _OPENS = ((21.0, "Сидней"), (0.0, "Азия"), (7.0, "Европа"), (13.0, "США"))
+    _just, _next, _left = "", "", 24.0
+    for _h, _nm in _OPENS:
+        _d = _h - h
+        if -1.0 <= _d <= 0:
+            _just = _nm
+        if _d <= 0:
+            _d += 24
+        if _d < _left:
+            _left, _next = _d, _nm
+    out_edge = {"just_open": _just, "next": _next, "in_h": round(_left, 2)}
     # ПЕРЕХОД МЕЖДУ СЕССИЯМИ (08.09, владелец: «межсессионье нужно заменить на то, от какой сессии
     # к какой переход»): когда открытых нет, пишем, какая закрылась последней и какая ближайшая
     # откроется, вместо безликого «межсессионье».
@@ -355,7 +369,7 @@ def _session(now: datetime) -> dict:
                "to": nxt["name"], "to_h": nxt.get("in_h")}
     return {"dow": now.strftime("%a"), "dow_n": now.isoweekday(), "hour_utc": now.hour,
             "weekend": now.isoweekday() >= 6, "gap": gap,
-            "sessions": live or ["межсессионье"], "markets": out}
+            "sessions": live or ["межсессионье"], "markets": out, "edge": out_edge}
 
 
 # ── сбор ──────────────────────────────────────────────────────────────────────
