@@ -205,3 +205,5 @@
 2026-09-12 20:59:00 нет в архиве: 1 (griffain)
 2026-09-12 20:59:00 добор новичков: griffain
 2026-09-12 20:59:13 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json (прицельно, full_at не тронут)
+2026-09-13 01:15:19 данные по 2026-09-11, ждём 2026-09-12 (возраст 23.6 ч)
+2026-09-13 01:15:19 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
