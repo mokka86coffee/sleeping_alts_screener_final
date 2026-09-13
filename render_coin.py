@@ -618,6 +618,7 @@ COIN_HTML = r"""
 .mini.journal g.arw .hint{opacity:0;transition:opacity .12s;pointer-events:none}
 .mini.journal g.arw:hover .hint{opacity:1}
 .mini.journal g.arw{cursor:default}
+    .leadwrap .plate s.hedge{display:block;margin-top:4px;font-size:7px;letter-spacing:.1em;color:#ffd98a;opacity:.85;text-decoration:none}
 .mini.journal .refl g.arw .hint{display:none}
 *{box-sizing:border-box}
 .wrap{position:fixed;inset:0;overflow:hidden;background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;font-weight:300}
@@ -2302,7 +2303,9 @@ COIN_JS = r"""
       + '<div class="plate"><div class="rib"></div>' + sparks
       + '<i>сегодня ведёт не эта монета</i>'
       + '<div class="nums">' + nums + '</div>'
-      + '<s>деньги на доске заняты одной монетой — вход в остальных закрыт</s>'
+      + '<s>деньги на доске заняты одной монетой — вход закрыт, открытые ХЕДЖИРОВАТЬ</s>'
+      + '<s class="hedge">это не цель и не конец хода: деньги временно ушли в лидера и могут вернуться — '
+      + 'позицию не закрывать, риск снимать шортом</s>'
       + '</div><div class="refl"></div>';
     st.appendChild(w);
   })();
