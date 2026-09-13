@@ -26,7 +26,7 @@ from core_config import (
     ANOMALY_PATH, ANOMALY_RATIO_MIN, LEADERS_ARCHIVE_PATH,
     LEADERS_MAX_AGE_DAYS, LEADERS_PATH,
     MIN_QUOTE_VOLUME_24H, PUMP_DONE_DROP, PUMP_DONE_H, PUMP_JUMP_PCT, PUMP_LEADERS_PATH,
-    PUMP_MIN_AGE_DAYS,
+    PUMP_MIN_AGE_DAYS, PUMP_RETIRE_DROP, PUMP_RETIRE_UPX,
 )
 # Пороги завершения цикла живут в конфиге семейства — там же, где их
 # читает сам детектор. Импорт наружу из слоя analytics осознанный:
@@ -710,6 +710,25 @@ def pump_leaders(tickers: list[dict] | None = None,
             rec["day_pct"] = (cur.get(sym) or {}).get("day_pct")
             rec["last_hit"] = now.isoformat()
             rec["max_price"] = max(float(rec.get("max_price") or 0), float(now_px))
+            # ХОД СДЕЛАН И ОТДАН — ВЫБЫВАНИЕ (13.09, владелец: «если цена после ×3 от дна упала на
+            # 40% — это выбывание; если меньше, то нет, возможно снятие лонгов»). Порог от ОСНОВЫ
+            # тут не работает: LSK висела лидером с +666% от основы, уже отдав 42% от вершины дня.
+            # Но сам по себе откат 40% ещё ничего не значит — на ходе меньше ×3 это обычная тряска
+            # или снятие лонгов, и монету рано снимать. Считаем пару: сколько прошла от основы и
+            # сколько отдала от своей вершины.
+            _top = float(rec.get("max_price") or 0)
+            _upx = (_top / float(base)) if base else 0
+            _drop = ((now_px / _top - 1) * 100) if _top else 0
+            if _upx >= PUMP_RETIRE_UPX and _drop <= -PUMP_RETIRE_DROP:
+                reason = (f"ход сделан ×{_upx:.1f} от основы и отдан: {_drop:+.0f}% от вершины "
+                          f"{_top:g} — ниже порога {PUMP_RETIRE_DROP:.0f}%")
+                _archive(archive_path, sym, rec, reason=reason, now=now)
+                if rec.get("added_on_pump"):
+                    continue
+                rec.setdefault("retired_at", now.isoformat())
+                rec["retired_why"] = reason
+                live[sym] = rec
+                continue
         live[sym] = rec
 
     # новые: три проверки по порядку. Счётчик срезанных — на консоль (12.09): три дня подряд
