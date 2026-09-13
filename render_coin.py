@@ -618,6 +618,15 @@ COIN_HTML = r"""
 .mini.journal g.arw .hint{opacity:0;transition:opacity .12s;pointer-events:none}
 .mini.journal g.arw:hover .hint{opacity:1}
 .mini.journal g.arw{cursor:default}
+/* рейка индикаторов над вердиктом (13.09): строка, не столбик */
+.railbox{position:absolute;left:50%;bottom:calc(100% + 16px);transform:translateX(-50%);z-index:6}
+.rail{position:relative;left:auto;bottom:auto;transform:none;transform:translateX(-50%);display:flex;gap:22px;
+  align-items:flex-end;pointer-events:auto;z-index:6;white-space:nowrap}
+.rail i{display:flex;flex-direction:column;align-items:center;gap:3px;font-style:normal;cursor:default;
+  transition:opacity .2s,transform .2s}
+.rail i:hover{transform:translateY(-2px)}
+.rail u{font-family:var(--f-cap);font-size:6px;letter-spacing:.2em;text-transform:uppercase;text-decoration:none}
+.rail b{font-family:var(--f-cap);font-size:6px;letter-spacing:.12em;font-weight:400}
     .leadwrap .plate s.hedge{display:block;margin-top:4px;font-size:7px;letter-spacing:.1em;color:#ffd98a;opacity:.85;text-decoration:none}
 .mini.journal .refl g.arw .hint{display:none}
 *{box-sizing:border-box}
@@ -1960,7 +1969,12 @@ COIN_JS = r"""
     if (dirInfo) INTRO.push(['направление', dirInfo.l1.toLowerCase() + ' · ' + dirInfo.l2.toLowerCase()]);
     var vtxt = String(dec.verdict || '').toLowerCase(), vcls = /брать|купить/.test(vtxt) ? 'v-buy' : /держ/.test(vtxt) ? 'v-hold' : /закр|выход|выйти|прода/.test(vtxt) ? 'v-exit' : 'v-wait';
     var BOX6 = '<div class="f back"></div><div class="f bottom"></div><div class="f left"></div><div class="f right"></div><div class="f top"></div>';
-    var dzone = ANIM + '<div class="mini verdict ' + vcls + ' dzone decbox vb ' + (window.VERDICT_STYLE || 'dark') + '">' + cardHtml(dec) +
+    // РЕЙКА ИНДИКАТОРОВ СТРОКОЙ НАД ВЕРДИКТОМ (13.09, владелец: «пусть стоит выше вердикта в линию,
+    // не в столбик»). Семь слотов в постоянном порядке: имя, кольцо с буквой и стрелкой, время.
+    // Пустой слот — тусклое кольцо с прочерком. На плите значков больше нет: там они смешивались
+    // с линией цены и полосами ликвидаций.
+    // строка рейки приходит из блока событий (см. window.__RAILHTML); вставляется в конце сборки
+    var dzone = ANIM + '<div class="railbox"></div><div class="mini verdict ' + vcls + ' dzone decbox vb ' + (window.VERDICT_STYLE || 'dark') + '">' + cardHtml(dec) +
       '<div class="bglow2"></div><div class="bglow"></div>' +
       [[46, 6.2, 0], [62, 7.1, .8], [78, 5.6, 1.6], [94, 6.8, .4], [110, 7.6, 1.2]].map(function (r) { return '<i class="ray" style="left:' + r[0] + 'px;--rd:' + r[1] + 's;--rw:' + (-r[2]) + 's"></i>'; }).join('') +
       '<div class="vtxt' + (String(dec.verdict || '').length > 7 ? ' long' : '') + '"><div class="vcap">решение</div><div class="vw">' + esc(dec.verdict) + '</div><div class="vwhy">' + esc(String(dec.why).split('—')[0].slice(0, 32)) + '</div></div>' +
@@ -2251,36 +2265,27 @@ COIN_JS = r"""
         // чтобы не спорить с клингером. Масштаб рядом со временем: 30м или 4ч.
         var KLET = { oi: 'и', force: 'д', vx: 'в', bub: 'п', end: 'х', kl: 'к', sess: 'с' };
         var KTF = { oi: '30м', force: '30м', vx: '30м', bub: '30м', end: '30м', kl: '30м', sess: 'стык' };
-        // РЕЙКА ИНДИКАТОРОВ (12.09, владелец: «непонятно, где и какие стрелки»): значки уходят с линии
-        // цены на постоянные слоты у правого края плиты, от каждого тонкий луч к своему бару. Порядок
-        // слотов неизменный — наезжать нечему, глаз запоминает места, а не ищет значки по графику.
-        // Молчащий индикатор остаётся тусклым кольцом с прочерком: видно, что он молчит, а не пропал.
-        var KLET = { oi: 'и', force: 'д', vx: 'в', bub: 'п', end: 'х', kl: 'к', sess: 'с' };
-        var KNAM = { oi: 'интерес', force: 'сила', vx: 'вортекс', bub: 'пузырь', end: 'конец', kl: 'клингер', sess: 'стык' };
-        var ORD = ['oi','force','bub','kl','sess','vx','end'];
+        // Значки на плите больше не рисуются (13.09, владелец: «она смешивается с графиком,
+        // пусть стоит выше вердикта в линию, не в столбик») — рейка вынесена в сцену, см. RAILHTML.
         var byKind = {}; _EV.forEach(function (e) { if (e.t >= t0 && e.t <= tE) byKind[e.kind] = e; });
-        var RX = W - 74;   // внутрь плиты: у самого края её уносит перспективой (12.09)
-        ORD.forEach(function (k, i) {
-          var e = byKind[k], sy = 20 + i * 17, col = e ? e.col : '#4a6b5e';
-          if (e) {
-            var bx = Math.min(XT(e.t), RX - 24), by = Y(e.px);
-            g += '<path d="M' + bx.toFixed(1) + ',' + by.toFixed(1) + ' C' + ((bx + RX) / 2).toFixed(1) + ',' + by.toFixed(1)
-              + ' ' + ((bx + RX) / 2).toFixed(1) + ',' + sy + ' ' + (RX - 9) + ',' + sy + '" fill="none" stroke="' + col + '" stroke-width=".5" opacity=".3"/>'
-              + '<circle cx="' + bx.toFixed(1) + '" cy="' + by.toFixed(1) + '" r="1.8" fill="' + col + '" opacity=".9"/>';
-          }
-          g += '<g class="arw"><circle cx="' + RX + '" cy="' + sy + '" r="6.5" fill="rgba(3,12,9,.9)" stroke="' + col + '" stroke-width=".7" opacity="' + (e ? 1 : .35) + '"/>';
-          if (e) g += '<path d="' + (e.dir === 'up' ? 'M' + (RX - 3.4) + ',' + (sy + 2.6) + ' h6.8 l-3.4,-6 z' : 'M' + (RX - 3.4) + ',' + (sy - 2.6) + ' h6.8 l-3.4,6 z') + '" fill="' + col + '"/>';
-          g += '<text x="' + RX + '" y="' + (sy + 2) + '" text-anchor="middle" font-size="5.5" font-weight="600" fill="' + (e ? '#04140e' : col) + '">' + esc(KLET[k]) + '</text>';
-          g += '<text x="' + RX + '" y="' + (sy - 9) + '" text-anchor="middle" font-size="4.8" letter-spacing=".1em" fill="' + col + '" opacity="' + (e ? .95 : .4) + '">' + esc(KNAM[k]) + '</text>';
-          g += '<text x="' + RX + '" y="' + (sy + 13) + '" text-anchor="middle" font-size="4.6" letter-spacing=".08em" fill="#bfe9d6" opacity=".75">'
-            + (e ? esc((function (t) { var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); })(e.t)) : '—') + '</text>';
-          if (e) { var parts = String(e.tip).split(' · '), l1 = parts[0], l2 = parts.slice(1).join(' · ');
-            var bw = Math.max(l1.length, l2.length) * 4.3 + 14, bx2 = Math.max(4, RX - bw - 20), by2 = sy - 11;
-            g += '<g class="hint"><rect x="' + bx2.toFixed(1) + '" y="' + by2.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="22" rx="3" fill="rgba(3,17,12,.95)" stroke="' + col + '" stroke-opacity=".6" stroke-width=".6"/>'
-              + '<text x="' + (bx2 + 7).toFixed(1) + '" y="' + (by2 + 9).toFixed(1) + '" font-size="7" fill="' + col + '">' + esc(l1) + '</text>'
-              + '<text x="' + (bx2 + 7).toFixed(1) + '" y="' + (by2 + 18).toFixed(1) + '" font-size="6.5" fill="#bfe9d6">' + esc(l2) + '</text></g>'; }
-          g += '</g>';
-        });
+        // РЕЙКА СОБИРАЕТСЯ ЗДЕСЬ (13.09): события считаются на этом шаге, а строка над вердиктом
+        // строилась раньше и всегда получала пустой объект — слоты были пустыми при живых данных.
+        window.__RAILHTML = (function () {
+          var ORD = [['oi', 'интерес', 'и'], ['force', 'сила', 'д'], ['bub', 'пузырь', 'п'],
+            ['kl', 'клингер', 'к'], ['sess', 'стык', 'с'], ['vx', 'вортекс', 'в'], ['end', 'конец', 'х']];
+          var h = '<div class="rail">';
+          ORD.forEach(function (k) {
+            var e = byKind[k[0]], col = e ? e.col : '#4a6b5e', up = e && e.dir === 'up';
+            var tm = e ? (function (t) { var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); })(e.t) : '\u2014';
+            h += '<i title="' + esc(e ? e.tip : (k[1] + ' \u2014 за окно событий нет')) + '" style="opacity:' + (e ? 1 : .38) + '">'
+              + '<u style="color:' + col + '">' + esc(k[1]) + '</u>'
+              + '<svg viewBox="0 0 26 26" width="26" height="26"><circle cx="13" cy="13" r="11" fill="rgba(3,14,10,.92)" stroke="' + col + '" stroke-width=".9"/>'
+              + (e ? '<path d="' + (up ? 'M8,16 h10 l-5,-9 z' : 'M8,10 h10 l-5,9 z') + '" fill="' + col + '"/>' : '')
+              + '<text x="13" y="16" text-anchor="middle" font-size="9" font-weight="600" fill="' + (e ? '#04140e' : col) + '">' + esc(k[2]) + '</text></svg>'
+              + '<b style="color:' + (e ? '#bfe9d6' : '#4a6b5e') + '">' + esc(tm) + '</b></i>';
+          });
+          return h + '</div>';
+        })();
       })();
       // стиль плашек внутри svg (11.09): страничный css до них не доставал — все плашки стояли открытыми
       var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '"><style>g.arw .hint{opacity:0;transition:opacity .12s;pointer-events:none}g.arw:hover .hint{opacity:1}</style>' + g + '</svg>';
@@ -2350,6 +2355,10 @@ COIN_JS = r"""
     (function () { var it = root.getElementById('intro'); if (!it) return;
       var hide = function () { it.classList.add('off'); setTimeout(function () { if (it.parentNode) it.parentNode.removeChild(it); }, 500); document.removeEventListener('keydown', hide); };
       it.addEventListener('click', hide); document.addEventListener('keydown', hide); setTimeout(hide, 9000); })();
+    // РЕЙКА ВСТАВЛЯЕТСЯ ПОСЛЕ СБОРКИ (13.09): строка сцены собирается раньше, чем считаются
+    // события на плите, поэтому html рейки кладётся в держатель уже готовым — иначе слоты пустые.
+    (function () { var box = root.querySelector('.railbox');
+      if (box && window.__RAILHTML) box.innerHTML = window.__RAILHTML; })();
     fit();
   }
 
