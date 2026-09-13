@@ -25,7 +25,8 @@ from pathlib import Path
 from core_config import (
     ANOMALY_PATH, ANOMALY_RATIO_MIN, LEADERS_ARCHIVE_PATH,
     LEADERS_MAX_AGE_DAYS, LEADERS_PATH,
-    MIN_QUOTE_VOLUME_24H, PUMP_JUMP_PCT, PUMP_LEADERS_PATH, PUMP_MIN_AGE_DAYS,
+    MIN_QUOTE_VOLUME_24H, PUMP_DONE_DROP, PUMP_DONE_H, PUMP_JUMP_PCT, PUMP_LEADERS_PATH,
+    PUMP_MIN_AGE_DAYS,
 )
 # Пороги завершения цикла живут в конфиге семейства — там же, где их
 # читает сам детектор. Импорт наружу из слоя analytics осознанный:
@@ -708,17 +709,38 @@ def pump_leaders(tickers: list[dict] | None = None,
             rec["run_pct"] = round((now_px / base - 1) * 100, 1)
             rec["day_pct"] = (cur.get(sym) or {}).get("day_pct")
             rec["last_hit"] = now.isoformat()
+            rec["max_price"] = max(float(rec.get("max_price") or 0), float(now_px))
         live[sym] = rec
 
     # новые: три проверки по порядку. Счётчик срезанных — на консоль (12.09): три дня подряд
     # список был пуст при LAB +81%, потому что возраст листинга считался нулём у всех, и это
     # выглядело как честное «никто не прошёл». Теперь видно, на каких воротах срезано сколько.
-    cut = {"порог": 0, "оборот": 0, "квант": 0, "возраст": 0}
+    cut = {"порог": 0, "оборот": 0, "квант": 0, "возраст": 0, "отработан": 0}
+    # ХОД УЖЕ СОСТОЯЛСЯ — НЕ ЛИДЕР (13.09, владелец: «почему она попала в лидеры после такого
+    # сквиза?»). LSK прошла ×23 от дна, отдала 66% от вершины — и на отскоке снова прошла порог
+    # по суточному ходу, потому что правило смотрит только рост и не знает, откуда он. Запись
+    # пересоздавалась, основа переезжала к новому дну, и «от основы» раздувалось: было +280%,
+    # через полчаса +1323%. Условие: если монета за последние PUMP_DONE_H часов была на вершине
+    # и отдала от неё больше PUMP_DONE_DROP — это отскок внутри отработанного движения, не новый
+    # ход. Основу при повторном входе берём прежнюю из архива, чтобы история не переписывалась.
+    _arch = read_store(archive_path) or {}
     for sym, d in cur.items():
         if sym in live:
             continue
         if d["day_pct"] < PUMP_JUMP_PCT:
             cut["порог"] += 1
+            continue
+        _old = _arch.get(sym) or {}
+        _top = _old.get("max_price") or _old.get("px")
+        _seen = _old.get("retired_at") or _old.get("last_hit")
+        _fresh = False
+        if _seen:
+            try:
+                _fresh = (now - datetime.fromisoformat(str(_seen))).total_seconds() <= PUMP_DONE_H * 3600
+            except (TypeError, ValueError):
+                _fresh = False
+        if _fresh and _top and d["px"] and (d["px"] / float(_top) - 1) * 100 <= -PUMP_DONE_DROP:
+            cut["отработан"] += 1
             continue
         if d["vol_usd"] < MIN_QUOTE_VOLUME_24H:
             cut["оборот"] += 1
@@ -730,14 +752,21 @@ def pump_leaders(tickers: list[dict] | None = None,
         if age is not None and age < PUMP_MIN_AGE_DAYS:
             cut["возраст"] += 1
             continue
-        base = d["px"] / (1 + d["day_pct"] / 100) if d["px"] else None
+        # прежняя основа из архива, если монета возвращается в те же сутки (13.09)
+        base = None
+        if _fresh and _old.get("base"):
+            base = float(_old["base"])
+        if not base:
+            base = d["px"] / (1 + d["day_pct"] / 100) if d["px"] else None
         live[sym] = {
             "symbol": sym, "base": round(base, 10) if base else None,
             "px": d["px"], "day_pct": round(d["day_pct"], 2),
             "run_pct": round(d["day_pct"], 1), "vol_usd": round(d["vol_usd"]),
             "age_days": age, "mine": sym in mine,
             "added_on_pump": sym not in mine,
-            "first_seen": now.isoformat(), "last_hit": now.isoformat(),
+            "first_seen": (_old.get("first_seen") if _fresh else now.isoformat()) or now.isoformat(),
+            "last_hit": now.isoformat(),
+            "max_price": max(float(_old.get("max_price") or 0), float(d["px"] or 0)) or None,
         }
 
     ensure_dirs()
@@ -746,7 +775,7 @@ def pump_leaders(tickers: list[dict] | None = None,
     reached = len(cur) - cut["порог"]      # прошли ход — сколько из них срезано дальше
     if reached:
         log(f"   памп: ход прошли {reached} · срезано оборотом {cut['оборот']}, квантом {cut['квант']}, "
-            f"возрастом {cut['возраст']} · в лидерах {passed}")
+            f"возрастом {cut['возраст']}, отработанным ходом {cut['отработан']} · в лидерах {passed}")
         if cut["возраст"] and passed == 0 and cut["возраст"] >= max(3, reached // 2):
             log("   памп: ВСЕ, кто дошёл до возраста, срезаны возрастом — проверь мерку "
                 "(get_first_kline_ms должен идти со startTime=0)")

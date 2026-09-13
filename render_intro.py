@@ -960,6 +960,9 @@ TEMPLATE = r'''<!doctype html>
   /* переход близко: прибор теплеет, у границы — метка (12.09) */
   .bgnote .g.soon{background:linear-gradient(180deg,rgba(255,200,120,.08),rgba(255,200,120,0));border-radius:6px}
   .bgnote .g.soon .t{color:#ffd8a8}
+  .bgnote .ends em.l b.tleft{font-weight:400;color:#ffd98a;letter-spacing:.14em;
+    text-shadow:0 0 10px rgba(255,217,138,.45)}
+  .bgnote .g.soon .ends em.l b.tleft{color:#ffb86b;text-shadow:0 0 12px rgba(255,184,107,.75)}
   .bgnote .g .t b.sw{font-weight:400;font-size:5.4px;letter-spacing:.22em;color:#ffb86b;margin-left:6px;
     padding:1px 5px;border:1px solid rgba(255,184,107,.45);border-radius:8px;animation:bead 2.4s ease-in-out infinite}
   .bgnote .clock .edge{position:absolute;top:4px;width:1px;height:17px;background:#ffb86b;
@@ -1710,6 +1713,10 @@ function drawFx(t){
   // полночь, поэтому рисуется двумя дугами — хвост суток и начало следующих.
   const SES=[['Сидней',21,24,'#ffd98a'],['Сидней',0,6,'#ffd98a'],['Токио',0,9,'#6fb4ff'],['Лондон',7,16,'#a98cff'],['Нью-Йорк',13,22,'#ffb26f']];
   const OPENS=[[21,'Сидней'],[0,'Токио'],[7,'Лондон'],[13,'Нью-Йорк']];
+  // ДО СЛЕДУЮЩЕЙ СЕССИИ — ОТДЕЛЬНОЙ СТРОКОЙ (13.09, владелец: «до сессии Токио 1 ч 30 м»).
+  // Часы и минуты, а не доли часа: смена рук идёт на стыке, и важно, сколько до него осталось.
+  function leftTxt(h){ const hh=Math.floor(h), mm=Math.round((h-hh)*60);
+    return (hh? hh+' ч ':'') + (mm? mm+' м' : (hh? '' : '0 м')); }
   const h=new Date().getUTCHours()+new Date().getUTCMinutes()/60;
   // служебные слова — серым, числа остаются светлыми
   function dim(txt){
@@ -1770,12 +1777,17 @@ function drawFx(t){
     // на какую переход»). Смена рук идёт на стыке — прибор должен предупредить заранее.
     // ОДИН ИСТОЧНИК ВРЕМЕНИ (12.09): если фон уже посчитал переход — берём его, иначе считаем сами.
     // Иначе прибор и капсулы под лидером показывают разное: капсулы из DATA.sess, прибор из new Date().
+    // СЛЕДУЮЩАЯ — ТА, ЧТО ЕЩЁ НЕ ОТКРЫТА (13.09, владелец: «Сидней, Токио — до сессии Токио 1 ч 30 м?»).
+    // Брать ближайшее открытие по часам нельзя: сессия может идти прямо сейчас, и подпись обещала
+    // открыть уже открытое. Пропускаем те, что в списке идущих.
     const S=DATA.sess||{};
+    const open=new Set((cur||'').split(', ').filter(Boolean));
     let nx='', left=24;
-    if(S.next && S.in_h!=null){ nx=S.next; left=+S.in_h; }
-    else OPENS.forEach(([oh,nm])=>{ let d=oh-h; if(d<=0) d+=24; if(d<left){left=d; nx=nm;} });
-    const soon=left<=1, mins=Math.round(left*60);
-    const sub=soon ? `${cur||r[1]} · через ${mins} мин → ${nx}` : (cur||r[1]);
+    OPENS.forEach(([oh,nm])=>{ if(open.has(nm)) return; let d=oh-h; if(d<=0) d+=24; if(d<left){left=d; nx=nm;} });
+    if(!nx && S.next && S.in_h!=null){ nx=S.next; left=+S.in_h; }
+    const soon=left<=1;
+    // время до сессии — ярче остального (13.09, владелец): это единственное число в подписи
+    const sub=`${cur||r[1]} · до сессии ${nx} <b class="tleft">${leftTxt(left)}</b>`;
     return `<div class="g${soon?' soon':''}"><div class="t">${r[0]}${soon?' <b class="sw">переход</b>':''}</div>
       <div class="clock"><div class="ln"></div>${arcs}
         ${soon?`<div class="edge" style="left:${(((h+left)%24)/24*100).toFixed(1)}%"></div>`:''}
