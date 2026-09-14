@@ -322,10 +322,10 @@ def _fast_events(days: int | None = None) -> dict:
     from datetime import datetime, timezone
     try:
         from core_config import (FAST_BUBBLE_OI_PCT, FAST_BUBBLE_SIGMA, FAST_END_OI_PCT, FAST_EVENTS_DAYS,
-                                 FAST_FORCE_EMA, FAST_SIGMA_DAYS, KLINGER_30M_EMA, VORTEX_N)
+                                 FAST_FORCE_EMA, FAST_SIGMA_DAYS, KLINGER_30M_EMA, VORTEX_N, FAST_KLINES_LIMIT)
     except ImportError:
         FAST_EVENTS_DAYS, FAST_SIGMA_DAYS, FAST_BUBBLE_SIGMA, FAST_BUBBLE_OI_PCT, FAST_END_OI_PCT, FAST_FORCE_EMA = 3, 7, 2.0, 1.5, -2.0, (12, 26, 9)
-        KLINGER_30M_EMA, VORTEX_N = (34, 55, 13), 14
+        KLINGER_30M_EMA, VORTEX_N, FAST_KLINES_LIMIT = (34, 55, 13), 14, 260
     days = days or FAST_EVENTS_DAYS
     out: dict = {}
     d = next((q for q in (Path("cq_v2") / "intraday",
@@ -439,18 +439,21 @@ def _fast_events(days: int | None = None) -> dict:
         out[sym] = {"bubbles": bub, "end": end, "force": force, "entry": [], "hedge": [], "start": [],
                     "vx30": vx30, "kl30": kl30, "fund30": fund30}
 
-    # РЯДЫ ПО КЛАЙНАМ BINANCE (14.09 вечер): архив дырявый, а свечи биржи — нет; тот же core_binance с общим
-    # лимитером, что у архива и вортекса прогона, вес 1 на монету. Ряд по клайнам перекрывает архивный,
-    # если покрывает больше баров; сеть не должна ронять карточку — любая ошибка = остаёмся на архиве.
+    # РЯДЫ ПО КЛАЙНАМ BINANCE (14.09 ночь): архив дырявый, а свечи биржи — нет. core_binance.get_klines(sym,
+    # "30m", limit=FAST_KLINES_LIMIT) через общий лимитер: limit до 500 — вес 2 на монету (klines_30m отдаёт
+    # 1499 свечей и стоит впятеро дороже, столько не нужно: три дня окна плюс разогрев клингера). Последняя
+    # свеча биржи может быть открытой — отбрасывается. Ряд по клайнам перекрывает архивный, если длиннее;
+    # сеть упала — остаёмся на архиве, карточка не падает.
     try:
         import core_binance as _cb
-        from core_binance import K_HIGH, K_LOW, K_OPEN_TIME, klines_30m_last
+        from core_binance import K_HIGH, K_LOW, K_OPEN_TIME, get_klines
         _K_CLOSE, _K_QVOL = getattr(_cb, "K_CLOSE", 4), getattr(_cb, "K_QUOTE_VOLUME", 7)
+        _closed_before = (now_ms // 1800000) * 1800000     # открытие ещё не закрытой свечи
         for _sym in list(out.keys()):
             try:
-                _ks = klines_30m_last(_sym)
+                _ks = get_klines(_sym, "30m", limit=FAST_KLINES_LIMIT)
                 _bars = sorted((int(k[K_OPEN_TIME]), float(k[K_HIGH]), float(k[K_LOW]), float(k[_K_CLOSE]), float(k[_K_QVOL]))
-                               for k in (_ks or []))
+                               for k in (_ks or []) if int(k[K_OPEN_TIME]) < _closed_before)
             except Exception:  # noqa: BLE001
                 continue
             if len(_bars) <= VORTEX_N:
@@ -846,15 +849,18 @@ COIN_HTML = r"""
 /* ПЛИТА БЫСТРЫХ (14.09 вечер, владелец: «аналог графика справа внизу, стрелками — кто давит, прозрачность —
    сила, развороты и усиление — главное; клингер и вортекс — самые ранние индикаторы разворота»).
    На месте и в перспективе прежней плиты плеча; сама плита «плечо по типу» снята полностью. */
-.mini.fast{left:60px;--px:-15deg;--py:11deg;--pz:-2deg;bottom:130px;width:320px;--sc:.82;--c:#bfffe0;--g:127,240,184}
+.mini.fast{left:60px;--px:-15deg;--py:11deg;--pz:-2deg;bottom:130px;width:320px;--sc:.90;--c:#bfffe0;--g:127,240,184}   /* --sc .82 → .90: весь блок крупнее на десять процентов (владелец, 14.09 ночь) */
 .mini.fast .refl{display:none}   /* отражение (мини-копия всей плиты) ложилось между лентами серым призраком */
 .mini.fast .fcap{position:absolute;left:0;top:-30px;font-family:var(--f-cap);font-size:7px;letter-spacing:.34em;text-transform:uppercase;color:#9fd8bf;white-space:nowrap}
-.mini.fast .fread{position:absolute;left:0;top:186px;width:340px;font-family:var(--f-cap);font-size:7px;letter-spacing:.16em;text-transform:uppercase;color:#7fa898;line-height:1.5}
-.mini.fast .fread u{text-decoration:none;color:#bfe9d6}
-.mini.fast .fread b{font-weight:500;color:#ffe2a8}
+/* ЛЕВАЯ ПОД ПРАВУЮ (владелец, 14.09 ночь, «сравни левую и правую части»): строки под плитой — размером с
+   текст коробки «за/против» и с тем же воздухом; имена — холодный белый с голубым светом, как в рейке;
+   значения — золотом, как везде на карточке; «подставлено» — мельче и тусклее, это служебная пометка. */
+.mini.fast .fread{position:absolute;left:0;top:190px;width:400px;font-family:var(--f-cap);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:#b9c9d8;line-height:1.75}
+.mini.fast .fread u{text-decoration:none;color:#eaf4ff;text-shadow:0 0 8px rgba(150,200,255,.8),0 0 18px rgba(120,170,255,.45)}
+.mini.fast .fread b{font-weight:500;color:#ffe2a8;text-shadow:0 0 6px rgba(255,226,168,.5)}
 .mini.fast .fgap{position:absolute;left:0;top:-19px;font-family:var(--f-cap);font-size:6.5px;letter-spacing:.24em;text-transform:uppercase;color:#ffb3a0;white-space:nowrap}
-.mini.fast .fdemo{position:absolute;left:0;top:222px;font-family:var(--f-cap);font-size:6px;letter-spacing:.2em;text-transform:uppercase;color:#c9a34a;opacity:.85}
-.mini.fast svg text.rl{font-family:var(--f-cap);font-size:7px;letter-spacing:.3em;text-transform:uppercase;fill:#dffff0;paint-order:stroke;stroke:rgba(3,14,10,.7);stroke-width:2px}
+.mini.fast .fdemo{position:absolute;left:0;top:246px;font-family:var(--f-cap);font-size:5.8px;letter-spacing:.2em;text-transform:uppercase;color:#a88a4a;opacity:.8}
+.mini.fast svg text.rl{font-family:var(--f-cap);font-size:7.5px;letter-spacing:.3em;text-transform:uppercase;fill:#eaf4ff;paint-order:stroke;stroke:rgba(2,10,8,.9);stroke-width:2.5px;filter:drop-shadow(0 0 4px rgba(150,200,255,.8))}
 .mini.fast svg text.tm{font-family:var(--f-cap);font-size:6px;letter-spacing:.1em;fill:#bfe9d6}
 .mini.fast svg text.bk{font-family:var(--f-cap);font-size:9px;font-weight:500;letter-spacing:.1em;filter:drop-shadow(0 0 3px var(--c)) drop-shadow(0 0 7px var(--c));animation:bkglow 2.4s ease-in-out infinite}
 @keyframes bkglow{0%,100%{opacity:.75}50%{opacity:1}}
@@ -2153,7 +2159,7 @@ COIN_JS = r"""
       var win = hrs.filter(function (b) { return b[0] >= tBeg; });
       var W = 320, H = 180, GY = H - 30, X = function (t) { return 12 + (t - tBeg) / Math.max(1, tEnd - tBeg) * (W - 24); };
       var lo = Math.min.apply(null, win.map(function (b) { return +b[4]; })), hi = Math.max.apply(null, win.map(function (b) { return +b[4]; }));
-      var Y = function (p) { return 30 + (1 - (p - lo) / Math.max(1e-12, hi - lo)) * 62; };
+      var Y = function (p) { return 26 + (1 - (p - lo) / Math.max(1e-12, hi - lo)) * 60; };
       var g = '', GR = '#4fd1a8', RD = '#ff7a7a';
       // ДЫРЫ В АРХИВЕ ПОКАЗЫВАЮТСЯ, НЕ ЗАМАЗЫВАЮТСЯ (14.09 вечер, ARK: 28 баров из 54, двенадцать часов на самом
       // пике отсутствовали, а линия шла через них прямой). Шаг — медиана расстояний между барами; пропуск больше
@@ -2171,24 +2177,25 @@ COIN_JS = r"""
         else { dp += ' L' + x + ',' + y; Ln += Math.hypot(X(b[0]) - X(win[i - 1][0]), Y(+b[4]) - Y(+win[i - 1][4])); } });
       g += '<path d="' + dp + '" fill="none" stroke="' + GOLD + '" stroke-width="5" stroke-linejoin="round" opacity=".18"/>'
         + (dpg ? '<path d="' + dpg + '" fill="none" stroke="' + GOLDL + '" stroke-width="1" stroke-dasharray="2 3" opacity=".45"/>' : '')
-        + '<path class="ln" style="--L:' + Math.ceil(Ln + 2) + '" d="' + dp + '" fill="none" stroke="' + GOLDL + '" stroke-width="1.4" stroke-linejoin="round"/>'
+        + '<path class="ln" style="--L:' + Math.ceil(Ln + 2) + '" d="' + dp + '" fill="none" stroke="' + GOLDL + '" stroke-width="1.8" stroke-linejoin="round"/>'
         + '<circle cx="' + X(tEnd).toFixed(1) + '" cy="' + Y(+win[win.length - 1][4]).toFixed(1) + '" r="2.6" fill="#fff"/>';
       function hhmm(t) { var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
       var STATE = {}, BREAKS = [];
       function hatch(y) { var o = ''; GAPS.forEach(function (gp) { var x0 = X(gp[0]), x1 = X(gp[1]);
-        o += '<rect x="' + x0.toFixed(1) + '" y="' + (y - 2) + '" width="' + (x1 - x0).toFixed(1) + '" height="4" fill="url(#fhatch)"><title>' + esc('нет данных · ' + hhmm(gp[0]) + ' → ' + hhmm(gp[1])) + '</title></rect>'; }); return o; }
+        o += '<rect x="' + x0.toFixed(1) + '" y="' + (y - 3) + '" width="' + (x1 - x0).toFixed(1) + '" height="6" fill="url(#fhatch)"><title>' + esc('нет данных · ' + hhmm(gp[0]) + ' → ' + hhmm(gp[1])) + '</title></rect>'; }); return o; }
       // ТРЕТЬЯ ЛЕНТА — ПЛЕЧО И ФАНДИНГ (14.09 вечер, по ARK: у дна перед вторым пиком интерес +8% за два бара и
       // фандинг −1.5% шли вместе со сломом вортекса вверх). Зелёный — интерес растёт, красный — уходит,
       // прозрачность — размер; засечка над лентой — фандинг ниже FUND_MARK (шорты платят). Фандинг по барам —
       // D.fast[sym].fund30 = [[t, %]]; нет ряда — засечек нет, лента только по интересу.
       function rowOI(y) {
         var chg = win.map(function (b) { return +b[2] || 0; }), mx = Math.max.apply(null, chg.map(Math.abs).concat([1e-9]));
-        var bw = (W - 24) / Math.max(1, (tEnd - tBeg) / STEP), out = '<text class="rl" x="12" y="' + (y - 7) + '">плечо</text>';
+        var bw = (W - 24) / Math.max(1, (tEnd - tBeg) / STEP), out = '<text class="rl" x="12" y="' + (y - 9) + '">плечо</text>';
+        out += '<rect x="12" y="' + (y - 3) + '" width="' + (W - 24) + '" height="6" rx="1" fill="rgba(233,255,244,.05)"/>';
         win.forEach(function (b, i) { var c = chg[i]; if (!c) return; var st = Math.abs(c) / mx;
-          out += '<rect x="' + (X(b[0]) - bw / 2).toFixed(1) + '" y="' + (y - 2) + '" width="' + (bw + .3).toFixed(1) + '" height="4" fill="' + (c > 0 ? GR : RD) + '" opacity="' + (.12 + .78 * st).toFixed(2) + '"><title>' + esc('интерес · ' + hhmm(b[0]) + ' · ' + (c > 0 ? '+' : '') + c.toFixed(1) + '% за бар') + '</title></rect>'; });
+          out += '<rect x="' + (X(b[0]) - bw / 2).toFixed(1) + '" y="' + (y - 3) + '" width="' + (bw + .3).toFixed(1) + '" height="6" fill="' + (c > 0 ? GR : RD) + '" opacity="' + (.2 + .8 * st).toFixed(2) + '"><title>' + esc('интерес · ' + hhmm(b[0]) + ' · ' + (c > 0 ? '+' : '') + c.toFixed(1) + '% за бар') + '</title></rect>'; });
         var FUND_MARK = -0.5, FD = F.fund30 || [], fm = 0;
         FD.forEach(function (r) { if (r[0] < tBeg || r[0] > tEnd || +r[1] > FUND_MARK) return; fm++;
-          out += '<path d="M' + (X(r[0]) - 2).toFixed(1) + ',' + (y - 4) + ' h4 l-2,-3 z" fill="#ffd98a" opacity="' + Math.min(1, .5 + Math.abs(+r[1]) / 2).toFixed(2) + '"><title>' + esc('фандинг ' + (+r[1]).toFixed(2) + '% · ' + hhmm(r[0]) + ' · шорты платят') + '</title></path>'; });
+          out += '<path d="M' + (X(r[0]) - 2).toFixed(1) + ',' + (y - 5) + ' h4 l-2,-3 z" fill="#ffd98a" opacity="' + Math.min(1, .5 + Math.abs(+r[1]) / 2).toFixed(2) + '"><title>' + esc('фандинг ' + (+r[1]).toFixed(2) + '% · ' + hhmm(r[0]) + ' · шорты платят') + '</title></path>'; });
         var last = chg[chg.length - 1];
         STATE['плечо'] = 'интерес <b>' + (last > 0 ? '+' : '') + last.toFixed(1) + '%</b> за бар' + (FD.length ? ' · фандинг <b>' + (+FD[FD.length - 1][1]).toFixed(2) + '%</b>' : (has(s.fund) ? ' · фандинг <b>' + (+s.fund).toFixed(3) + '%</b> сейчас' : ''));
         return out + hatch(y);
@@ -2217,9 +2224,10 @@ COIN_JS = r"""
         var turnIdx = []; brk.forEach(function (v, i) { if (v) turnIdx.push(i); });
         var lastT = turnIdx[turnIdx.length - 1];
         var bw = (W - 24) / Math.max(1, (tEnd - tBeg) / STEP);   // ширина бара по шагу архива, не по соседям
-        // лента давления
+        // лента давления: дорожка под ней и высота 6 (владелец, 14.09 ночь: «всё сливается в линиях»)
+        out += '<rect x="12" y="' + (y - 3) + '" width="' + (W - 24) + '" height="6" rx="1" fill="rgba(233,255,244,.05)"/>';
         rows.forEach(function (r, i) { var gp = gaps[i]; if (!gp) return; var st = Math.abs(gp) / mx;
-          out += '<rect x="' + (X(r[0]) - bw / 2).toFixed(1) + '" y="' + (y - 2) + '" width="' + (bw + .3).toFixed(1) + '" height="4" fill="' + (gp > 0 ? GR : RD) + '" opacity="' + (.12 + .78 * st).toFixed(2) + '"><title>' + esc(name + ' · ' + hhmm(r[0]) + ' · ' + (gp > 0 ? 'давят покупатели' : 'давят продавцы') + ' · сила ' + Math.round(st * 100) + '%') + '</title></rect>'; });
+          out += '<rect x="' + (X(r[0]) - bw / 2).toFixed(1) + '" y="' + (y - 3) + '" width="' + (bw + .3).toFixed(1) + '" height="6" fill="' + (gp > 0 ? GR : RD) + '" opacity="' + (.2 + .8 * st).toFixed(2) + '"><title>' + esc(name + ' · ' + hhmm(r[0]) + ' · ' + (gp > 0 ? 'давят покупатели' : 'давят продавцы') + ' · сила ' + Math.round(st * 100) + '%') + '</title></rect>'; });
         out += hatch(y);
         // СТРЕЛКА СЛОМА — НА ЛИНИИ ЦЕНЫ (14.09 вечер, владелец): только последний слом каждого индикатора,
         // на самом графике, с подписью индикатора. Здесь лишь собираем; рисуется после лент, поверх цены.
@@ -2232,7 +2240,7 @@ COIN_JS = r"""
       }
       g = '<defs><filter id="fglow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2.2"/></filter>'
         + '<pattern id="fhatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="rgba(233,255,244,.28)" stroke-width="1"/></pattern></defs>' + g
-        + row(VX, 113, 'вортекс') + row(KL, 130, 'клингер') + rowOI(147);
+        + row(VX, 108, 'вортекс') + row(KL, 127, 'клингер') + rowOI(146);
       // стрелки слома на линии цены: вверх — под точкой цены, вниз — над ней; подпись «индикатор · время».
       // Два слома на одном баре (вортекс и клингер часто ломаются вместе) — второй отодвигается дальше от
       // цены, подписи по разные стороны; у правого края подпись уходит влево (владелец, 14.09 вечер: «стрелки

@@ -1291,6 +1291,42 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("Внутридневной архив", (_ri.stderr or "").strip()[-300:] or f"код {_ri.returncode}")
     except Exception as e:
         _issue("Внутридневной архив", f"{type(e).__name__}: {e}")
+    # ── ДОЛИВ И ПРОВЕРКА АРХИВА (14.09 ночь, владелец: «автоматические проверки и заполнение того, что не
+    # было получено»). Строка свежей свечи пишется, пока свеча на бирже ещё открыта, — размаха в ней нет
+    # (missing: hl), и 14.09 у всех 126 монет он так и не появился; без среза Coinglass строка стоит без
+    # ног бара. Долив берёт последние ARCHIVE_FILL_BACK_BARS строк по монетам журнала и доливает ТОЛЬКО
+    # поля самого бара (h/l/o/объём с биржи, ноги из серии Coinglass); поля среза не трогает. Проверка
+    # считает покрытие за сутки: дыры, строки без размаха и без среза — в лог и в реестр сбоев, чтобы
+    # дыра в архиве не была тихой (ARK 14.09: двенадцать часов на пике никто не заметил). ──
+    try:
+        _rf = subprocess.run([sys.executable, "intraday_archive.py", "--fill"], cwd=BASE_DIR,
+                             capture_output=True, text=True, timeout=600)
+        _tf = (_rf.stdout or "").strip().splitlines()
+        log(f"→ Долив архива: {_tf[-1][:300] if _tf else 'пусто'}")
+        if _rf.returncode:
+            _issue("Долив архива", (_rf.stderr or "").strip()[-300:] or f"код {_rf.returncode}")
+    except Exception as e:  # noqa: BLE001
+        _issue("Долив архива", f"{type(e).__name__}: {e}")
+    try:
+        _rh = subprocess.run([sys.executable, "intraday_archive.py", "--health"], cwd=BASE_DIR,
+                             capture_output=True, text=True, timeout=300)
+        _th = (_rh.stdout or "").strip().splitlines()
+        _hl = _th[-1] if _th else ""
+        log(f"→ Проверка архива: {_hl[:300] or 'пусто'}")
+        if _rh.returncode:
+            _issue("Проверка архива", (_rh.stderr or "").strip()[-300:] or f"код {_rh.returncode}")
+        else:
+            try:
+                _hj = json.loads(_hl.split("intraday --health: ", 1)[1]) if "intraday --health: " in _hl else {}
+            except (ValueError, IndexError):
+                _hj = {}
+            if _hj.get("bad"):
+                _issue("Архив неполный", f"покрытие ниже нормы у {len(_hj['bad'])} монет журнала "
+                                         f"(худшая {_hj.get('worst')} — {_hj.get('worst_cover_pct')}%), "
+                                         f"дыр на {_hj.get('missing_bars')} баров, без размаха {_hj.get('no_hl')}, "
+                                         f"без среза {_hj.get('no_coinglass')} — см. output/archive_health.json")
+    except Exception as e:  # noqa: BLE001
+        _issue("Проверка архива", f"{type(e).__name__}: {e}")
 
     # ── ФОН РЫНКА (07.09, владелец: «нужно писать дополнительно в журнал всё, что может быть
     # фоном… максимально собрать закономерности, тогда наш таймер по-настоящему заработает»):

@@ -37,6 +37,10 @@ except ImportError:
 sys.path.insert(0, str(BASE_DIR))
 
 OUT_DIR = BASE_DIR / "cq_v2" / "intraday"
+try:
+    from core_config import ARCHIVE_FILL_BACK_BARS, ARCHIVE_HEALTH_HOURS, ARCHIVE_MIN_COVER_PCT
+except ImportError:
+    ARCHIVE_FILL_BACK_BARS, ARCHIVE_HEALTH_HOURS, ARCHIVE_MIN_COVER_PCT = 6, 24, 90
 
 
 def _read(path: Path):
@@ -282,6 +286,153 @@ def write_rows(rows: list[dict], refill: bool = False) -> int:
     return n
 
 
+def _journal_syms() -> list[str]:
+    """Монеты, по которым архив обязан быть полным: журнал лидеров, лидеры по пампу, очередь."""
+    out: set = set()
+    for name in ("leaders.json", "pump_leaders.json"):
+        for k in (_read(BASE_DIR / "output" / name) or {}).keys():
+            if not str(k).startswith("_"):
+                out.add(str(k).upper())
+    for k in ((_read(BASE_DIR / "output" / "near_move.json") or {}).get("coins") or {}).keys():
+        out.add(str(k).upper())
+    return sorted(out)
+
+
+def _candle_ms(c: str) -> int:
+    from datetime import datetime, timezone
+    d = datetime.fromisoformat(str(c).replace("Z", "+00:00"))
+    return int((d if d.tzinfo else d.replace(tzinfo=timezone.utc)).timestamp() * 1000)
+
+
+def _load_rows(p: Path) -> list[str]:
+    try:
+        return p.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+
+
+def fill_missing(syms: list[str] | None = None, back: int = ARCHIVE_FILL_BACK_BARS, write: bool = True) -> dict:
+    """ДОЛИВ ТОГО, ЧЕГО НЕ БЫЛО (14.09 ночь, владелец: «автоматические проверки и заполнение того, что не было
+    получено»). Свежая строка пишется, когда её свеча на бирже ещё открыта, — размаха нет (`missing: hl`),
+    и без долива он не появлялся никогда; строки без среза Coinglass стоят без ног бара. Здесь по каждой
+    монете берутся последние `back` строк и ДОЛИВАЮТСЯ ТОЛЬКО ПОЛЯ, которые относятся к тому же бару:
+    h/l/o/kv — из закрытой свечи биржи, fut/spot — из бара серии Coinglass с тем же временем. Поля среза
+    (интерес, фандинг, ликвидации за сутки) НЕ трогаются: они снимались в другой момент, подписывать их
+    старым баром нельзя (правило 07.09). Возвращает {sym: {"hl": n, "legs": n}} по тому, что долито."""
+    cg = _read(BASE_DIR / "output" / "coinglass_fetch.json") or {}
+    coins = cg.get("coins") or {}
+    try:
+        import core_binance as _cb
+        from core_binance import K_HIGH, K_LOW, K_OPEN, K_OPEN_TIME, klines_30m_last
+        _K_CLOSE, _K_VOL, _K_QVOL = getattr(_cb, "K_CLOSE", 4), getattr(_cb, "K_VOLUME", 5), getattr(_cb, "K_QUOTE_VOLUME", 7)
+    except Exception:  # noqa: BLE001
+        klines_30m_last = None  # type: ignore[assignment]
+    report: dict = {}
+    for sym in (syms or _journal_syms()):
+        sym = sym.upper()
+        if not sym.endswith("USDT"):
+            sym += "USDT"
+        p = OUT_DIR / f"{sym.replace('USDT', '').lower()}.jsonl"
+        lines = _load_rows(p)
+        if not lines:
+            continue
+        need = []
+        for i in range(len(lines) - 1, max(-1, len(lines) - 1 - back), -1):
+            try:
+                r = json.loads(lines[i])
+            except ValueError:
+                continue
+            miss = r.get("missing") or []
+            if "hl" in miss or r.get("fut") is None:
+                need.append((i, r))
+        if not need:
+            continue
+        ks = {}
+        if klines_30m_last is not None and any("hl" in (r.get("missing") or []) for _, r in need):
+            try:
+                for k in klines_30m_last(sym):
+                    ks[int(k[K_OPEN_TIME])] = k
+            except Exception:  # noqa: BLE001
+                ks = {}
+        c = coins.get(sym) or coins.get(sym.replace("USDT", "")) or {}
+        series = (c.get("fut") or {}).get("series") or []
+        sseries = (c.get("spot") or {}).get("series") or []
+        n_hl = n_legs = 0
+        for i, r in need:
+            ms = _candle_ms(r["candle"])
+            miss = list(r.get("missing") or [])
+            k = ks.get(ms)
+            if k is not None and "hl" in miss:
+                r["h"], r["l"], r["o"] = float(k[K_HIGH]), float(k[K_LOW]), float(k[K_OPEN])
+                if len(k) > _K_QVOL:
+                    r["kv"] = {"v": round(float(k[_K_VOL]), 0), "qv": round(float(k[_K_QVOL]), 0)}
+                if r.get("px") is None and len(k) > _K_CLOSE:
+                    r["px"] = float(k[_K_CLOSE])
+                miss = [m for m in miss if m != "hl"]
+                n_hl += 1
+            if r.get("fut") is None:
+                legs = _legs(_bar_at(series, ms))
+                if legs is not None:
+                    r["fut"] = legs
+                    r["spot"] = _legs(_bar_at(sseries, ms))
+                    miss = [m for m in miss if m != "fut_bar"]
+                    n_legs += 1
+            r["missing"] = miss
+            lines[i] = json.dumps(r, ensure_ascii=False)
+        if (n_hl or n_legs) and write:
+            p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        if n_hl or n_legs:
+            report[sym] = {"hl": n_hl, "legs": n_legs}
+    return report
+
+
+def health(syms: list[str] | None = None, hours: int = ARCHIVE_HEALTH_HOURS) -> dict:
+    """ПРОВЕРКА АРХИВА (14.09 ночь): по монетам журнала — сколько закрытых свечей за `hours` есть, сколько
+    должно быть, где дыры, сколько строк без размаха и без среза. Ничего не чинит — считает и отдаёт;
+    прогон печатает это в лог и в реестр сбоев, если покрытие ниже ARCHIVE_MIN_COVER_PCT."""
+    import time as _time
+    now = int(_time.time() * 1000)
+    last_closed = (now // 1800000) * 1800000 - 1800000
+    since = last_closed - hours * 3600000
+    expected = hours * 2
+    out: dict = {"hours": hours, "expected": expected, "coins": {}, "bad": [], "worst": None}
+    for sym in (syms or _journal_syms()):
+        sym = sym.upper()
+        if not sym.endswith("USDT"):
+            sym += "USDT"
+        p = OUT_DIR / f"{sym.replace('USDT', '').lower()}.jsonl"
+        ts, no_hl, no_cg = [], 0, 0
+        for line in _load_rows(p):
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            try:
+                ms = _candle_ms(r["candle"])
+            except (KeyError, ValueError):
+                continue
+            if since < ms <= last_closed:
+                ts.append(ms)
+                miss = r.get("missing") or []
+                no_hl += "hl" in miss
+                no_cg += any(str(m).startswith("coinglass") for m in miss)
+        ts = sorted(set(ts))
+        holes = []
+        for a, b in zip(ts, ts[1:]):
+            if b - a > 1800000:
+                holes.append([a, b, int((b - a) // 1800000) - 1])
+        cover = round(100 * len(ts) / expected, 1) if expected else 0
+        row = {"have": len(ts), "cover_pct": cover, "holes": len(holes), "missing_bars": sum(h[2] for h in holes),
+               "no_hl": no_hl, "no_coinglass": no_cg,
+               "last": __import__("time").strftime("%Y-%m-%dT%H:%M:00Z", __import__("time").gmtime(ts[-1] / 1000)) if ts else None}
+        out["coins"][sym] = row
+        if cover < ARCHIVE_MIN_COVER_PCT:
+            out["bad"].append(sym)
+        if out["worst"] is None or cover < out["coins"][out["worst"]]["cover_pct"]:
+            out["worst"] = sym
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", help="монеты через запятую")
@@ -289,7 +440,27 @@ def main() -> int:
     ap.add_argument("--candle", help="свеча ISO (для дозабора); по умолчанию — из штампа среза")
     ap.add_argument("--refill", action="store_true", help="заменить неполную строку на более полную")
     ap.add_argument("--force", action="store_true", help="писать, даже если срез не снят")
+    ap.add_argument("--fill", action="store_true", help="долить размах и ноги бара в последние строки (только свои поля бара)")
+    ap.add_argument("--health", action="store_true", help="проверка покрытия за сутки по монетам журнала, json одной строкой")
     a = ap.parse_args()
+    if a.fill or a.health:
+        syms = [x.strip() for x in a.only.split(",")] if a.only else None
+        if a.fill:
+            rep_ = fill_missing(syms, write=True)
+            print("intraday --fill: " + (", ".join(f"{k} hl+{v['hl']} legs+{v['legs']}" for k, v in rep_.items()) or "долить нечего"))
+        if a.health:
+            h = health(syms)
+            print("intraday --health: " + json.dumps(
+                {"expected": h["expected"], "coins": len(h["coins"]), "bad": h["bad"],
+                 "worst": h["worst"], "worst_cover_pct": (h["coins"].get(h["worst"]) or {}).get("cover_pct"),
+                 "no_hl": sum(v["no_hl"] for v in h["coins"].values()),
+                 "no_coinglass": sum(v["no_coinglass"] for v in h["coins"].values()),
+                 "missing_bars": sum(v["missing_bars"] for v in h["coins"].values())}, ensure_ascii=False))
+            try:
+                (BASE_DIR / "output" / "archive_health.json").write_text(json.dumps(h, ensure_ascii=False), encoding="utf-8")
+            except OSError:
+                pass
+        return 0
     cg_ok, why = True, None
     if a.candle:
         from datetime import datetime, timezone
