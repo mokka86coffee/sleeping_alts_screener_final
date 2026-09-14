@@ -619,8 +619,9 @@ COIN_HTML = r"""
 .mini.journal g.arw:hover .hint{opacity:1}
 .mini.journal g.arw{cursor:default}
 /* рейка индикаторов над вердиктом (13.09): строка, не столбик */
-.railbox{position:absolute;left:50%;bottom:calc(100% + 18px);transform:translateX(-50%);z-index:7;pointer-events:auto}
-.rail{position:relative;left:auto;bottom:auto;transform:none;transform:translateX(-50%);display:flex;gap:22px;
+.railbox{position:relative;left:auto;bottom:auto;transform:none;z-index:7;pointer-events:auto;
+  display:flex;justify-content:center;margin:0 0 14px}
+.rail{position:relative;left:auto;bottom:auto;transform:none;display:flex;gap:22px;
   align-items:flex-end;pointer-events:auto;z-index:6;white-space:nowrap}
 .rail i{display:flex;flex-direction:column;align-items:center;gap:3px;font-style:normal;cursor:default;
   transition:opacity .2s,transform .2s}
