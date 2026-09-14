@@ -49,6 +49,8 @@ GIVEBACK = 0.35      # удержание: закрытие ≥ 65% от мак�
 
 
 SESS_OPEN = {21: "Сидней", 0: "Токио", 7: "Лондон", 13: "Нью-Йорк"}
+# Сколько часов подхват остаётся новостью: после этого срока он уже не о текущем моменте (13.09).
+SESS_PICKUP_MAX_H = 3.0
 
 
 def _session_pickup_rows(rows: list) -> dict | None:
@@ -94,8 +96,16 @@ def _session_pickup_rows(rows: list) -> dict | None:
         dd = sum(_dl(x) for x in nxt)
         nrm = _norm(nm) * len(nxt)
         oi_a, oi_b = float(rows[i].get("oi") or 0), float(rows[min(i + 2, len(rows) - 1)].get("oi") or 0)
+        # ПОДХВАТ ПРОТУХАЕТ (13.09, владелец: «уже прошло 3 сессии, а до сих пор висит, что Нью-Йорк
+        # не подхватил»). Функция шла от конца назад и отдавала ПЕРВЫЙ найденный стык, не глядя,
+        # когда он был; если свежих открытий в ряду нет, старый висел на экране сутками.
+        from datetime import datetime as _dt
+        _age_h = (_dt.now(timezone.utc) - _tt).total_seconds() / 3600
+        if _age_h > SESS_PICKUP_MAX_H:
+            return None
         ok = bool(nrm > 0 and vol >= nrm and ((probe > 0) == (dd > 0)) and oi_b > oi_a)
         return {"at": _tt.strftime("%Y-%m-%dT%H:%M:00Z"), "session": nm, "pickup": ok,
+                "age_h": round(_age_h, 1),
                 "vol_x": round(vol / nrm, 2) if nrm else None,
                 "oi_chg_pct": round((oi_b / oi_a - 1) * 100, 1) if oi_a else None,
                 "why": (f"{nm} подхватил: новые руки пришли с плечом" if ok
