@@ -852,7 +852,7 @@ COIN_HTML = r"""
    На месте и в перспективе прежней плиты плеча; сама плита «плечо по типу» снята полностью. */
 .mini.fast{left:60px;--px:-15deg;--py:11deg;--pz:-2deg;bottom:130px;width:320px;--sc:.90;--c:#bfffe0;--g:127,240,184}   /* --sc .82 → .90: весь блок крупнее на десять процентов (владелец, 14.09 ночь) */
 .mini.fast .refl{display:none}   /* отражение (мини-копия всей плиты) ложилось между лентами серым призраком */
-.mini.fast .gglow{opacity:.35}     /* зелёное свечение подиума красило все ленты в зелёный на всю ширину (владелец, 14.09 ночь) */
+.mini.fast .gglow{opacity:.18}     /* свечение подиума под лентами — почти нет (владелец, 15.09: «подсветку полос убери») */
 .mini.fast .ln.oi{animation-delay:4.2s}   /* интерес прорисовывается вслед за ценой (15.09) */
 .mini.fast .ftip{position:absolute;left:12px;top:158px;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.18em;text-transform:uppercase;color:#ffe9b0;white-space:nowrap;opacity:0;transition:opacity .12s;pointer-events:none;text-shadow:0 0 6px rgba(255,217,138,.6)}
 .mini.fast svg .hit{cursor:default}
@@ -866,7 +866,7 @@ COIN_HTML = r"""
 .mini.fast .fread b{font-weight:500;color:#ffe2a8;text-shadow:0 0 6px rgba(255,226,168,.5)}
 .mini.fast .fgap{position:absolute;left:0;top:-19px;font-family:var(--f-cap);font-size:6.5px;letter-spacing:.24em;text-transform:uppercase;color:#ffb3a0;white-space:nowrap}
 .mini.fast .fdemo{position:absolute;left:0;top:246px;font-family:var(--f-cap);font-size:5.8px;letter-spacing:.2em;text-transform:uppercase;color:#a88a4a;opacity:.8}
-.mini.fast svg text.rl{font-family:var(--f-cap);font-size:8px;letter-spacing:.26em;text-transform:uppercase;fill:#ffffff;paint-order:stroke;stroke:rgba(2,10,8,.9);stroke-width:2px;filter:drop-shadow(0 0 5px rgba(150,200,255,1)) drop-shadow(0 0 10px rgba(120,170,255,.6))}
+.mini.fast svg text.rl{font-family:var(--f-cap);font-size:8px;letter-spacing:.26em;text-transform:uppercase;fill:#dfe9ff}   /* без подсветки (владелец, 15.09) */
 .mini.fast svg text.tm{font-family:var(--f-cap);font-size:6px;letter-spacing:.1em;fill:#bfe9d6}
 .mini.fast svg text.bk{font-family:var(--f-cap);font-size:9px;font-weight:500;letter-spacing:.1em;filter:drop-shadow(0 0 3px var(--c)) drop-shadow(0 0 7px var(--c));animation:bkglow 2.4s ease-in-out infinite}
 @keyframes bkglow{0%,100%{opacity:.75}50%{opacity:1}}
@@ -935,8 +935,8 @@ COIN_HTML = r"""
 .vb .grey .txt{position:absolute;inset:0;padding:18px 16px;display:grid;grid-template-columns:42px 1fr;gap:10px 8px;align-content:center}
 /* гравировка: одна фактура у всех строк — цвет чуть темнее грани, тонкая светлая кромка снизу и тень сверху */
 .vb .grey .txt b,.vb .grey .txt span{color:#5c6763;text-shadow:0 1px 0 rgba(255,255,255,.22),0 -1px 0 rgba(0,0,0,.95),0 0 6px rgba(0,0,0,.6)}
-.vb .grey .txt b{font-family:var(--f-cap);font-weight:500;font-size:7px;letter-spacing:.3em;text-transform:uppercase;padding-top:2px}
-.vb .grey .txt span{font-family:var(--f-cap);font-size:8.5px;line-height:1.55;letter-spacing:.02em}   /* моно, вариант 1 (05.09) */
+.vb .grey .txt b{font-family:var(--f-cap);font-weight:500;font-size:8px;letter-spacing:.3em;text-transform:uppercase;padding-top:2px}
+.vb .grey .txt span{font-family:var(--f-cap);font-size:9.6px;line-height:1.5;letter-spacing:.02em}   /* крупнее (владелец, 15.09); 10.5 выталкивало «за» за верх камня */   /* моно, вариант 1 (05.09) */
 .vb .grey .txt .con{color:#6b5f59;text-shadow:0 1px 0 rgba(255,225,205,.2),0 -1px 0 rgba(0,0,0,.95),0 0 6px rgba(0,0,0,.6)}
 .vb .gshadow{position:absolute;left:190px;bottom:-10px;width:280px;height:24px;border-radius:50%;background:radial-gradient(rgba(0,0,0,.8),rgba(0,0,0,0) 70%)}
 .mini.verdict.v-buy{--c:#ffd98a;--g:245,169,58}.mini.verdict.v-hold{--c:#fbe9c4;--g:251,233,196}.mini.verdict.v-wait{--c:#a8f0dc;--g:79,209,168}.mini.verdict.v-exit{--c:#ffc4b3;--g:255,138,112}
@@ -2214,7 +2214,7 @@ COIN_JS = r"""
         var Ln2 = 0; for (var q2 = 1; q2 < OI.length; q2++) Ln2 += Math.hypot(X(OI[q2][0]) - X(OI[q2 - 1][0]), Y2(OI[q2][1]) - Y2(OI[q2 - 1][1]));
         var o = '<path d="' + d + '" fill="none" stroke="#5aa8ff" stroke-width="3.5" opacity=".12"/>'
           + '<path class="ln oi" style="--L:' + Math.ceil(Ln2 + 2) + '" d="' + d + '" fill="none" stroke="#7fc0ff" stroke-width="1.1" opacity=".85" data-tip="' + esc('открытый интерес' + (idx ? ' · по приростам часовой ленты' : '') + ' · своя шкала') + '"/>'
-          + '<text class="rl" x="' + (W - 30) + '" y="' + (Y2(OI[OI.length - 1][1]) + 11).toFixed(1) + '" text-anchor="end" style="fill:#7fc0ff;filter:none">интерес</text>';   // под концом линии, чтобы не лезть на стрелки слома
+          + '<text class="rl" x="' + (W - 30) + '" y="' + (Y2(OI[OI.length - 1][1]) + 11).toFixed(1) + '" text-anchor="end" style="fill:#7fc0ff">интерес</text>';   // под концом линии, чтобы не лезть на стрелки слома
         // ФАНДИНГ БУКВОЙ F (15.09, владелец): красная F — аномально отрицательный, ниже FUND_NEG (шорты платят,
         // топливо); зелёная F — положительный, выше FUND_POS (платят лонги — выносить некого, правило 12.09).
         // Стоит под линией интереса на своём баре; подряд идущие бары одного знака — одна F на первом, чтобы
@@ -2241,8 +2241,8 @@ COIN_JS = r"""
       function row(rows, y, name) {
         var gaps = rows.map(function (r) { return (+r[1] || 0) - (+r[2] || 0); });
         var mx = Math.max.apply(null, gaps.map(Math.abs).concat([1e-9]));
-        var RW = W - 62;   // лента короче, справа от неё имя (владелец, 15.09)
-        var out = '<text class="rl" x="' + (RW + 8) + '" y="' + (y + 2.6) + '">' + name + '</text>';
+        var RW = W - 12;   // лента на всю ширину; имя — ЗА полосой, справа, конец полосы не закрывает (владелец, 15.09)
+        var out = '<text class="rl" x="' + (W - 4) + '" y="' + (y + 2.6) + '">' + name + '</text>';
         // РАЗВОРОТ — ПЕРВЫЙ БАР СЛОМА РАЗРЫВА ПОСЛЕ ЭКСТРЕМУМА (14.09 вечер, по журналу очереди ARK: разрыв
         // вортекса покупатели−продавцы 0.66 → 0.55 на САМОМ баре вершины 07:30, следующий бар подтвердил 0.43;
         // по отдельным линиям слом читался только на третьем баре). Одно правило для обоих: разрыв (a − b) —
@@ -2262,7 +2262,7 @@ COIN_JS = r"""
         var XR = function (t) { return 12 + (t - tBeg) / Math.max(1, tEnd - tBeg) * (RW - 24); };   // шкала ленты — короче шкалы цены
         var GRB = '#5ee6b8', RDB = '#ff8f8f';                                                        // ленты ярче линий
         // лента давления: дорожка под ней и высота 6 (владелец, 14.09 ночь: «всё сливается в линиях»)
-        out += '<rect x="12" y="' + (y - 3) + '" width="' + (RW - 12) + '" height="6" rx="1" fill="rgba(233,255,244,.08)"/>';
+
         rows.forEach(function (r, i) { var gp = gaps[i]; if (!gp) return; var st = Math.abs(gp) / mx;
           out += '<rect x="' + (XR(r[0]) - bwR / 2).toFixed(1) + '" y="' + (y - 3) + '" width="' + (bwR + .3).toFixed(1) + '" height="6" fill="' + (gp > 0 ? GRB : RDB) + '" opacity="' + (.12 + .88 * Math.pow(st, 1.3)).toFixed(2) + '" data-tip="' + esc(name + ' · ' + hhmm(r[0]) + ' · ' + (gp > 0 ? 'давят покупатели' : 'давят продавцы') + ' · сила ' + Math.round(st * 100) + '%') + '"/>'; });
         out += hatch(y, XR);
