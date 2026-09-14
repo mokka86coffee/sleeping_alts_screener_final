@@ -1133,6 +1133,10 @@ COIN_HTML = r"""
   background:#eaf4ff;box-shadow:0 0 3px rgba(191,224,255,.8),0 0 7px rgba(120,170,255,.55)}
 .railbox .orb.g1{width:1.3px;height:1.3px;margin:-.65px 0 0 -.65px;opacity:.35;box-shadow:0 0 3px rgba(150,200,255,.5)}
 .railbox .orb.g2{width:1px;height:1px;margin:-.5px 0 0 -.5px;opacity:.16;box-shadow:0 0 2px rgba(150,200,255,.4)}
+.mini.fast .orb{position:absolute;left:0;top:0;width:1.8px;height:1.8px;margin:-.9px 0 0 -.9px;border-radius:50%;pointer-events:none;z-index:9;opacity:1;
+  background:#fff6dc;box-shadow:0 0 4px #ffe9b0,0 0 10px rgba(255,217,138,.95),0 0 20px rgba(245,169,58,.7),0 0 34px rgba(245,169,58,.35)}   /* ярче (15.09) */
+.mini.fast .orb.g1{width:1.3px;height:1.3px;margin:-.65px 0 0 -.65px;opacity:.5;box-shadow:0 0 4px rgba(255,217,138,.8),0 0 10px rgba(245,169,58,.4)}
+.mini.fast .orb.g2{width:1px;height:1px;margin:-.5px 0 0 -.5px;opacity:.25;box-shadow:0 0 3px rgba(255,217,138,.6)}
 /* РЕЙКА БЕЗ ПЛАШЕК (14.09 вечер, владелец: «синеватыми по аналогии с «держать», анимацию подобную,
    чем сильнее сигнал — тем ярче; без плашек, просто буквы подсвечивать; в один ряд»).
    Слот — стрелка и имя в одну строку, под именем «масштаб · время». Буквы живого — в свете «держать»:
@@ -2258,11 +2262,7 @@ COIN_JS = r"""
       }
       g = '<defs><filter id="fglow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2.2"/></filter>'
         + '<pattern id="fhatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="rgba(233,255,244,.28)" stroke-width="1"/></pattern></defs>' + g
-        + oiLine() + row(VX, 118, 'вортекс') + row(KL, 140, 'клингер')
-        // БЛИК ПО ЛЕНТАМ (15.09, владелец: «слева внизу тоже добавь анимации»): узкая светлая полоса раз в
-        // одиннадцать секунд идёт по обеим лентам слева направо — как ход времени по ленте; SMIL, без JS.
-        + '<defs><linearGradient id="fsweep" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#eaf4ff" stop-opacity="0"/><stop offset=".5" stop-color="#eaf4ff" stop-opacity=".35"/><stop offset="1" stop-color="#eaf4ff" stop-opacity="0"/></linearGradient></defs>'
-        + '<g><rect x="-30" y="115" width="30" height="31" fill="url(#fsweep)" style="mix-blend-mode:screen"><animateTransform attributeName="transform" type="translate" from="0 0" to="' + (W + 30) + ' 0" dur="11s" begin="4s" repeatCount="indefinite"/></rect></g>';
+        + oiLine() + row(VX, 118, 'вортекс') + row(KL, 140, 'клингер');
       // стрелки слома на линии цены: вверх — под точкой цены, вниз — над ней; подпись «индикатор · время».
       // Два слома на одном баре (вортекс и клингер часто ломаются вместе) — второй отодвигается дальше от
       // цены, подписи по разные стороны; у правого края подпись уходит влево (владелец, 14.09 вечер: «стрелки
@@ -2670,6 +2670,36 @@ COIN_JS = r"""
         return true;
       };
       setTimeout(function () { if (!orbStart()) setTimeout(orbStart, 400); }, 200);
+      // ОГОНЬКИ У ПЛИТЫ БЫСТРЫХ (15.09, владелец: «такие же точки, как для центрального блока, только жёлтые,
+      // 6–8 штук»): та же механика — дрейф по наложенным волнам в поле плиты и чуть шире, семь точек, золото.
+      if (window.__FASTORBIT) cancelAnimationFrame(window.__FASTORBIT);
+      var fastOrb = function () {
+        var pl = root.querySelector('.mini.fast'); if (!pl) return false;
+        // ДВЕ ТОЧКИ, КАК СВЕТЛЯЧКИ (15.09, владелец: «оставь две, и пусть периодически пропадают в полёте, а не как
+        // мухи»): дрейф вдвое медленнее, и у каждой свой цикл свечения — большую часть времени темна, вспыхивает
+        // на несколько секунд и гаснет, не останавливаясь. Последнее число — период вспышки в секундах.
+        var seed = [[20.6, 11.4, 7.4, 4.6, 0.2, 1.9, 3.1, 4.4, 9.5], [30, 15.4, 9.4, 6, 2.6, 0.7, 5.0, 1.3, 13]];
+        var els = seed.map(function () { var g2 = document.createElement('i'); g2.className = 'orb y g2'; var g1 = document.createElement('i'); g1.className = 'orb y g1'; var hd = document.createElement('i'); hd.className = 'orb y';
+          pl.appendChild(g2); pl.appendChild(g1); pl.appendChild(hd); return [hd, g1, g2]; });
+        function pt(o, t) {
+          var cx = pl.offsetWidth / 2, cy = pl.offsetHeight / 2 - 10, rx = pl.offsetWidth / 2 + 24, ry = pl.offsetHeight / 2 + 10;
+          return [cx + rx * (0.62 * Math.sin(t / o[0] * 6.283 + o[4]) + 0.38 * Math.sin(t / o[1] * 6.283 + o[5])),
+                  cy + ry * (0.6 * Math.sin(t / o[2] * 6.283 + o[6]) + 0.4 * Math.sin(t / o[3] * 6.283 + o[7]))];
+        }
+        var t0 = performance.now();
+        (function step(now) {
+          if (!pl.isConnected) return;
+          var t = (now - t0) / 1000;
+          seed.forEach(function (o, k) {
+            var glow = Math.pow(Math.max(0, Math.sin(t / o[8] * 6.283 + o[4])), 2.2);   // темна ~половину цикла, плавно вспыхивает
+            [0, 0.25, 0.5].forEach(function (lag, j) { var q = pt(o, t - lag);
+              els[k][j].style.transform = 'translate(' + q[0].toFixed(1) + 'px,' + q[1].toFixed(1) + 'px)';
+              els[k][j].style.opacity = (glow * [1, .5, .25][j]).toFixed(2); }); });
+          window.__FASTORBIT = requestAnimationFrame(step);
+        })(t0);
+        return true;
+      };
+      setTimeout(function () { if (!fastOrb()) setTimeout(fastOrb, 400); }, 200);
     })();
     fit();
   }
