@@ -619,8 +619,8 @@ COIN_HTML = r"""
 .mini.journal g.arw:hover .hint{opacity:1}
 .mini.journal g.arw{cursor:default}
 /* рейка индикаторов над вердиктом (13.09): строка, не столбик */
-.railbox{position:relative;left:auto;bottom:auto;transform:none;z-index:7;pointer-events:auto;
-  display:flex;justify-content:center;margin:0 0 14px}
+.railbox{position:absolute;left:50%;bottom:calc(100% + 12px);transform:translateX(-50%);z-index:8;
+  pointer-events:auto;display:flex;justify-content:center}
 .rail{position:relative;left:auto;bottom:auto;transform:none;display:flex;gap:22px;
   align-items:flex-end;pointer-events:auto;z-index:6;white-space:nowrap}
 .rail i{display:flex;flex-direction:column;align-items:center;gap:3px;font-style:normal;cursor:default;
@@ -1975,7 +1975,7 @@ COIN_JS = r"""
     // Пустой слот — тусклое кольцо с прочерком. На плите значков больше нет: там они смешивались
     // с линией цены и полосами ликвидаций.
     // строка рейки приходит из блока событий (см. window.__RAILHTML); вставляется в конце сборки
-    var dzone = ANIM + '<div class="railbox"></div><div class="mini verdict ' + vcls + ' dzone decbox vb ' + (window.VERDICT_STYLE || 'dark') + '">' + cardHtml(dec) +
+    var dzone = ANIM + '<div class="mini verdict ' + vcls + ' dzone decbox vb ' + (window.VERDICT_STYLE || 'dark') + '">' + '<div class="railbox"></div>' + cardHtml(dec) +
       '<div class="bglow2"></div><div class="bglow"></div>' +
       [[46, 6.2, 0], [62, 7.1, .8], [78, 5.6, 1.6], [94, 6.8, .4], [110, 7.6, 1.2]].map(function (r) { return '<i class="ray" style="left:' + r[0] + 'px;--rd:' + r[1] + 's;--rw:' + (-r[2]) + 's"></i>'; }).join('') +
       '<div class="vtxt' + (String(dec.verdict || '').length > 7 ? ' long' : '') + '"><div class="vcap">решение</div><div class="vw">' + esc(dec.verdict) + '</div><div class="vwhy">' + esc(String(dec.why).split('—')[0].slice(0, 32)) + '</div></div>' +
@@ -2282,7 +2282,7 @@ COIN_JS = r"""
               + '<u style="color:' + col + '">' + esc(k[1]) + '</u>'
               + '<svg viewBox="0 0 26 26" width="34" height="34"><circle cx="13" cy="13" r="11" fill="rgba(3,14,10,.92)" stroke="' + col + '" stroke-width=".9"/>'
               + (e ? '<path d="' + (up ? 'M8,16 h10 l-5,-9 z' : 'M8,10 h10 l-5,9 z') + '" fill="' + col + '"/>' : '')
-              + '<text x="13" y="16" text-anchor="middle" font-size="9" font-weight="600" fill="' + (e ? '#04140e' : col) + '">' + esc(k[2]) + '</text></svg>'
+              + '</svg>'
               + '<b style="color:' + (e ? '#bfe9d6' : '#4a6b5e') + '">' + esc(tm) + '</b></i>';
           });
           return h + '</div>';
@@ -2358,8 +2358,17 @@ COIN_JS = r"""
       it.addEventListener('click', hide); document.addEventListener('keydown', hide); setTimeout(hide, 9000); })();
     // РЕЙКА ВСТАВЛЯЕТСЯ ПОСЛЕ СБОРКИ (13.09): строка сцены собирается раньше, чем считаются
     // события на плите, поэтому html рейки кладётся в держатель уже готовым — иначе слоты пустые.
-    (function () { var box = root.querySelector('.railbox');
-      if (box && window.__RAILHTML) box.innerHTML = window.__RAILHTML; })();
+    // РЕЙКА ВСТАВЛЯЕТСЯ ПОСЛЕ СБОРКИ И С ПОВТОРОМ (14.09): держатель теперь внутри блока вердикта
+    // и создаётся позже строки сцены — разовый поиск находил пустоту. Пробуем сразу, затем на
+    // следующем кадре и через 120 мс: к этому моменту вердикт точно в DOM.
+    (function () {
+      var put = function () {
+        var box = root.querySelector('.railbox');
+        if (box && window.__RAILHTML && !box.innerHTML) { box.innerHTML = window.__RAILHTML; return true; }
+        return !!(box && box.innerHTML);
+      };
+      if (!put()) { requestAnimationFrame(function () { if (!put()) setTimeout(put, 120); }); }
+    })();
     fit();
   }
 
