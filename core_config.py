@@ -267,7 +267,7 @@ FAST_KLINES_LIMIT = 260
 # что не было получено»). Свежая свеча на бирже закрыта не раньше следующего прогона — размах доливается
 # в последние ARCHIVE_FILL_BACK_BARS строк; покрытие за ARCHIVE_HEALTH_HOURS ниже ARCHIVE_MIN_COVER_PCT —
 # сбой в реестре прогона (не критичный: публикацию не блокирует, но в логе и в алерте виден).
-ARCHIVE_FILL_BACK_BARS = 6
+ARCHIVE_FILL_BACK_BARS = 48   # сутки: строка без размаха может стоять глубже шести, если прогон бежал мимо неё (14.09 ночь)
 ARCHIVE_HEALTH_HOURS = 24
 ARCHIVE_MIN_COVER_PCT = 90
 

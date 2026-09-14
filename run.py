@@ -1321,10 +1321,11 @@ def run_once(args: argparse.Namespace) -> int:
             except (ValueError, IndexError):
                 _hj = {}
             if _hj.get("bad"):
-                _issue("Архив неполный", f"покрытие ниже нормы у {len(_hj['bad'])} монет журнала "
-                                         f"(худшая {_hj.get('worst')} — {_hj.get('worst_cover_pct')}%), "
+                _issue("Архив неполный", f"покрытие ниже нормы у {_hj['bad']} из {_hj.get('coins')} монет журнала "
+                                         f"(медиана {_hj.get('median_cover_pct')}%, худшие {_hj.get('worst')}), "
                                          f"дыр на {_hj.get('missing_bars')} баров, без размаха {_hj.get('no_hl')}, "
-                                         f"без среза {_hj.get('no_coinglass')} — см. output/archive_health.json")
+                                         f"без среза {_hj.get('no_coinglass')}, без архива вовсе {_hj.get('absent')} "
+                                         f"— см. output/archive_health.json")
     except Exception as e:  # noqa: BLE001
         _issue("Проверка архива", f"{type(e).__name__}: {e}")
 

@@ -323,11 +323,16 @@ def fill_missing(syms: list[str] | None = None, back: int = ARCHIVE_FILL_BACK_BA
     coins = cg.get("coins") or {}
     try:
         import core_binance as _cb
-        from core_binance import K_HIGH, K_LOW, K_OPEN, K_OPEN_TIME, klines_30m_last
+        from core_binance import K_HIGH, K_LOW, K_OPEN, K_OPEN_TIME, get_klines
         _K_CLOSE, _K_VOL, _K_QVOL = getattr(_cb, "K_CLOSE", 4), getattr(_cb, "K_VOLUME", 5), getattr(_cb, "K_QUOTE_VOLUME", 7)
     except Exception:  # noqa: BLE001
-        klines_30m_last = None  # type: ignore[assignment]
+        get_klines = None  # type: ignore[assignment]
+    # ГЛУБИНА СВЕЧЕЙ (14.09 ночь): klines_30m_last отдаёт три закрытые свечи — если прогон стоял и строка без
+    # размаха старше полутора часов, долить было нечем («долить нечего» при 123 строках без hl). get_klines с
+    # limit до 100 — вес 1, берём back баров плюс запас.
+    _limit = min(100, max(24, back + 8))     # до 100 свечей — вес 1
     report: dict = {}
+    left: dict = {}                            # чего не удалось долить: sym → сколько строк без свечи
     for sym in (syms or _journal_syms()):
         sym = sym.upper()
         if not sym.endswith("USDT"):
@@ -348,9 +353,9 @@ def fill_missing(syms: list[str] | None = None, back: int = ARCHIVE_FILL_BACK_BA
         if not need:
             continue
         ks = {}
-        if klines_30m_last is not None and any("hl" in (r.get("missing") or []) for _, r in need):
+        if get_klines is not None and any("hl" in (r.get("missing") or []) for _, r in need):
             try:
-                for k in klines_30m_last(sym):
+                for k in get_klines(sym, "30m", limit=_limit):
                     ks[int(k[K_OPEN_TIME])] = k
             except Exception:  # noqa: BLE001
                 ks = {}
@@ -383,6 +388,10 @@ def fill_missing(syms: list[str] | None = None, back: int = ARCHIVE_FILL_BACK_BA
             p.write_text("\n".join(lines) + "\n", encoding="utf-8")
         if n_hl or n_legs:
             report[sym] = {"hl": n_hl, "legs": n_legs}
+        _still = sum(1 for _, r in need if "hl" in (r.get("missing") or []) and ks.get(_candle_ms(r["candle"])) is None)
+        if _still:
+            left[sym] = _still
+    report["_left"] = left
     return report
 
 
@@ -395,12 +404,15 @@ def health(syms: list[str] | None = None, hours: int = ARCHIVE_HEALTH_HOURS) -> 
     last_closed = (now // 1800000) * 1800000 - 1800000
     since = last_closed - hours * 3600000
     expected = hours * 2
-    out: dict = {"hours": hours, "expected": expected, "coins": {}, "bad": [], "worst": None}
+    out: dict = {"hours": hours, "expected": expected, "coins": {}, "bad": [], "absent": [], "worst": None}
     for sym in (syms or _journal_syms()):
         sym = sym.upper()
         if not sym.endswith("USDT"):
             sym += "USDT"
         p = OUT_DIR / f"{sym.replace('USDT', '').lower()}.jsonl"
+        if not p.exists():
+            out["absent"].append(sym)      # архива по монете нет вовсе — не дыра, а отсутствие (журнал шире среза Coinglass)
+            continue
         ts, no_hl, no_cg = [], 0, 0
         for line in _load_rows(p):
             try:
@@ -447,12 +459,19 @@ def main() -> int:
         syms = [x.strip() for x in a.only.split(",")] if a.only else None
         if a.fill:
             rep_ = fill_missing(syms, write=True)
-            print("intraday --fill: " + (", ".join(f"{k} hl+{v['hl']} legs+{v['legs']}" for k, v in rep_.items()) or "долить нечего"))
+            _left = rep_.pop("_left", {}) or {}
+            _done = ", ".join(f"{k} hl+{v['hl']} legs+{v['legs']}" for k, v in list(rep_.items())[:12])
+            print("intraday --fill: " + (f"долито по {len(rep_)} монетам" + (f" ({_done}{', …' if len(rep_) > 12 else ''})" if _done else "") if rep_ else "долить нечего")
+                  + (f" · НЕ ДОЛИЛОСЬ: {sum(_left.values())} строк у {len(_left)} монет — биржа не отдала свечу"
+                     f" (например {list(_left)[:3]})" if _left else ""))
         if a.health:
             h = health(syms)
+            _covs = sorted(h["coins"].items(), key=lambda kv: kv[1]["cover_pct"])
             print("intraday --health: " + json.dumps(
-                {"expected": h["expected"], "coins": len(h["coins"]), "bad": h["bad"],
-                 "worst": h["worst"], "worst_cover_pct": (h["coins"].get(h["worst"]) or {}).get("cover_pct"),
+                {"expected": h["expected"], "coins": len(h["coins"]), "absent": len(h["absent"]),
+                 "bad": len(h["bad"]), "bad_pct": round(100 * len(h["bad"]) / max(1, len(h["coins"]))),
+                 "median_cover_pct": (_covs[len(_covs) // 2][1]["cover_pct"] if _covs else None),
+                 "worst": [[k, v["cover_pct"]] for k, v in _covs[:3]],
                  "no_hl": sum(v["no_hl"] for v in h["coins"].values()),
                  "no_coinglass": sum(v["no_coinglass"] for v in h["coins"].values()),
                  "missing_bars": sum(v["missing_bars"] for v in h["coins"].values())}, ensure_ascii=False))
