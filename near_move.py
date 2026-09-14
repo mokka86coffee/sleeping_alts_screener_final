@@ -29,13 +29,14 @@ from pathlib import Path
 try:
     from core_config import (BASE_DIR, VORTEX_SCORE_BOOST, VORTEX_SCORE_MAX_AGO, PUMP_LEADERS_PATH,
                              OI_INFLOW_PCT, OI_INFLOW_WIDE, OI_INFLOW_BOOST, OI_INFLOW_BOOST_MAX,
-                             OI_INFLOW_DEMAND_BOOST, OI_DRY_PCT, OI_DRY_PENALTY)
+                             OI_INFLOW_DEMAND_BOOST, OI_DRY_PCT, OI_DRY_PENALTY, FAST_AGAINST_BLOCKS_INFLOW)
 except ImportError:
     BASE_DIR = Path(__file__).resolve().parent
     VORTEX_SCORE_BOOST, VORTEX_SCORE_MAX_AGO = 1.25, 8
     OI_INFLOW_PCT, OI_INFLOW_WIDE = 20.0, 3
     OI_INFLOW_BOOST, OI_INFLOW_BOOST_MAX = 1.8, 3.0
     OI_INFLOW_DEMAND_BOOST, OI_DRY_PCT, OI_DRY_PENALTY = 1.3, 5.0, 0.7
+    FAST_AGAINST_BLOCKS_INFLOW = True
     PUMP_LEADERS_PATH = BASE_DIR / "output" / "pump_leaders.json"
 sys.path.insert(0, str(BASE_DIR))
 
@@ -1035,7 +1036,17 @@ def build(only: list[str] | None = None) -> dict:
         _vol_x = _tv.get("vol_x") or _tv.get("vol_norm_x") or (v.get("nums") or {}).get("lull_x")
         _cap_up = _tv.get("cap_chg_pct")
         _money_in = (_vol_x is None or float(_vol_x) >= 1.0) and (_cap_up is None or float(_cap_up) > 0)
-        if _oi_in is not None and float(_oi_in) >= OI_INFLOW_PCT and _money_in:
+        # БЫСТРЫЕ ПРОТИВ — ПРИТОК НЕ ПОДНИМАЕТ (14.09 вечер, ARK): в 14:40 множитель притока (+65…70%)
+        # поставил ARK первой при цене −19% от вершины дня, когда вортекс уже стоял «продавцы» с хеджем
+        # «пересечение» девять баров, а Нью-Йорк «не подхватил — новых рук нет». Плечо копилось в монете,
+        # из которой быстрый слой уже вёл вон. Правило: активный хедж вортекса И стык без подхвата —
+        # множитель притока не применяется, в очереди пишется fast_against, в first_why — «быстрые против».
+        _vh = ((v.get("vortex") or {}).get("hedge")) or {}
+        _sp = _tv.get("sess_pickup") or {}
+        _fast_against = (f"хедж вортекса «{_vh.get('kind')}» · {_sp.get('why')}"
+                         if (_vh.get("kind") and _sp.get("pickup") is False) else None)
+        if _oi_in is not None and float(_oi_in) >= OI_INFLOW_PCT and _money_in \
+                and not (FAST_AGAINST_BLOCKS_INFLOW and _fast_against):
             _mult = OI_INFLOW_BOOST ** min(2.0, float(_oi_in) / OI_INFLOW_PCT)
             # ДВИЖОК РЕШАЕТ, ЧЕГО СТОИТ ПРИТОК (12.09, SOPH и ARB на журнале 07–12.09): приток при
             # движке «спрос» — 3 случая из 3 дали ≥+8%, медиана максимума +70% (SOPH +138%, LSK +70%);
@@ -1064,7 +1075,7 @@ def build(only: list[str] | None = None) -> dict:
             score *= 1.15
         score = round(score, 3)
         v["queue"] = {"days_since_harvest": days, "score": score, "today": td, "mode": _mode,
-                      "px_chg_pct": _px_chg,
+                      "px_chg_pct": _px_chg, "fast_against": _fast_against,
                       "vortex_entry_ago": _ve_ago if (_ve_ago is not None and _ve_ago <= VORTEX_SCORE_MAX_AGO) else None,
                       "bubble": (("покупка внизу, выбор " if _tv.get("bubble_choice") else "покупка внизу ") + _bb[-1])
                                 if _tv.get("bubble_signal")
@@ -1241,6 +1252,8 @@ def build(only: list[str] | None = None) -> dict:
             continue
         if _t2.get("leaving_kind") == "конец":      # конец хода — не первая ни по какой мерке
             continue
+        if FAST_AGAINST_BLOCKS_INFLOW and (out["coins"][s2].get("queue") or {}).get("fast_against"):
+            continue                                   # быстрые против — приток не даёт звезду (14.09 вечер)
         _by_inflow.append((s2, float(_oi2)))
     _by_inflow.sort(key=lambda x: -x[1])
     _first_inflow = [x[0] for x in _by_inflow[:1]]   # одна вторая звезда: самый сильный приток
@@ -1252,6 +1265,8 @@ def build(only: list[str] | None = None) -> dict:
             _w.append(f"держится {_streak.get(s2, 1)}-й прогон")
         if s2 in _first_inflow:
             _w.append(f"приток плеча +{dict(_by_inflow)[s2]:.0f}%")
+        if (out["coins"][s2].get("queue") or {}).get("fast_against"):
+            _w.append("быстрые против: " + str((out["coins"][s2].get("queue") or {}).get("fast_against")))
         out["first_why"][s2] = " · ".join(_w)
     out["first_streak"] = {s2: _streak.get(s2, 1) for s2 in stable}
     for s2 in stable:
@@ -1331,6 +1346,7 @@ def log_queue(res: dict) -> int:
             "sym": sym, "place": i, "score": q.get("score"), "first_streak": q.get("first_streak"), "oi_inflow": q.get("oi_inflow"),
             "cap_usd": t.get("cap_usd"), "vol_to_cap": t.get("vol_to_cap"), "cap_chg_pct": t.get("cap_chg_pct"),
             "money": q.get("money"), "sess_pickup": (t.get("sess_pickup") or {}).get("why"),
+            "fast_against": q.get("fast_against"),
             "days_since_harvest": q.get("days_since_harvest"), "oi_grow": n.get("oi_grow"),
             "today": q.get("today"), "bubble": q.get("bubble"), "move_pct": q.get("px_chg_pct"),
             "stage": q.get("stage"), "out_reason": q.get("out_reason"),

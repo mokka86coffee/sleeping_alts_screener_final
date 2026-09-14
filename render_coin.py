@@ -348,6 +348,37 @@ def _fast_events(days: int | None = None) -> dict:
             res.append(e)
         return res
 
+    def _series_from_bars(bars: list, since_ms: int) -> tuple:
+        """vx30 и kl30 из баров (t, h, l, c, vol). Вортекс: VM+ = |h − l_prev|, VM− = |l − h_prev| к сумме
+        истинных размахов за VORTEX_N; окно с дырой больше двух баров пропускается. Клингер как у
+        TradingView: объём со знаком по hlc3, EMA KLINGER_30M_EMA; первые 55 баров — разогрев."""
+        vx, kl = [], []
+        n_ = VORTEX_N
+        for i in range(n_, len(bars)):
+            if any(bars[k][0] - bars[k - 1][0] > 3 * 1800000 for k in range(i - n_ + 1, i + 1)):
+                continue
+            vp = vm = tr = 0.0
+            for k in range(i - n_ + 1, i + 1):
+                _, h_, l_, _, _ = bars[k]
+                _, ph, pl, pc, _ = bars[k - 1]
+                vp += abs(h_ - pl)
+                vm += abs(l_ - ph)
+                tr += max(h_ - l_, abs(h_ - pc), abs(l_ - pc))
+            if tr > 0 and bars[i][0] >= since_ms:
+                vx.append([bars[i][0], round(vp / tr, 4), round(vm / tr, 4)])
+        f34, f55, f13 = KLINGER_30M_EMA
+        sv, prev_hlc = [], None
+        for t, h_, l_, c_, vol in bars:
+            hlc = (h_ + l_ + c_) / 3
+            sv.append(vol if (prev_hlc is None or hlc >= prev_hlc) else -vol)
+            prev_hlc = hlc
+        kvo = [x - y for x, y in zip(_ema(sv, f34), _ema(sv, f55))]
+        ksig = _ema(kvo, f13)
+        for i, b in enumerate(bars):
+            if i >= f55 and b[0] >= since_ms:
+                kl.append([b[0], round(kvo[i], 1), round(ksig[i], 1)])
+        return vx, kl
+
     for p in d.glob("*.jsonl"):
         rows = []
         try:
@@ -392,41 +423,59 @@ def _fast_events(days: int | None = None) -> dict:
         # VM− = |l − h_prev|, к сумме истинных размахов за VORTEX_N); kl30 — клингер как на TradingView:
         # объём со знаком по hlc3, EMA KLINGER_30M_EMA; fund30 — фандинг по барам. Бары без h/l (до 11.09)
         # в ряды не идут. Дыры архива ряд не сшивает — плита показывает их штриховкой.
-        vx30, kl30, fund30 = [], [], []
-        hl = [(t, r) for t, r in rows if r.get("h") and r.get("l") and t >= since - VORTEX_N * 1800000]
-        n_ = VORTEX_N
-        for i in range(n_, len(hl)):
-            if any(hl[k][0] - hl[k - 1][0] > 3 * 1800000 for k in range(i - n_ + 1, i + 1)):   # в окне дыра больше двух баров — не считаем
-                continue
-            vp = vm = tr = 0.0
-            for k in range(1, n_ + 1):
-                t_, r_ = hl[i - n_ + k]
-                _, q_ = hl[i - n_ + k - 1]
-                h_, l_, c0 = float(r_["h"]), float(r_["l"]), float(q_["px"])
-                vp += abs(h_ - float(q_["l"]))
-                vm += abs(l_ - float(q_["h"]))
-                tr += max(h_ - l_, abs(h_ - c0), abs(l_ - c0))
-            if tr > 0 and hl[i][0] >= since:
-                vx30.append([hl[i][0], round(vp / tr, 4), round(vm / tr, 4)])
-        f34, f55, f13 = KLINGER_30M_EMA
-        sv, prev_hlc = [], None
+        # бары архива → общий формат (t, h, l, c, vol): объём — ноги перпа, без среза — объём свечи Binance (kv)
+        bars = []
         for t, r in rows:
-            h_, l_, c_ = float(r.get("h") or r["px"]), float(r.get("l") or r["px"]), float(r["px"])
-            hlc = (h_ + l_ + c_) / 3
-            vol = float((r.get("fut") or {}).get("b") or 0) + float((r.get("fut") or {}).get("s") or 0)
-            sv.append(vol if (prev_hlc is None or hlc >= prev_hlc) else -vol)
-            prev_hlc = hlc
-        kvo = [x - y for x, y in zip(_ema(sv, f34), _ema(sv, f55))]
-        ksig = _ema(kvo, f13)
-        for i, (t, r) in enumerate(rows):
-            if i >= f55 and t >= since:
-                kl30.append([t, round(kvo[i], 1), round(ksig[i], 1)])
-            if t >= since and r.get("funding") is not None:
-                fund30.append([t, round(float(r["funding"]), 4)])
+            if not (r.get("h") and r.get("l")):
+                continue
+            _fu = r.get("fut") or {}
+            vol = float(_fu.get("b") or 0) + float(_fu.get("s") or 0)
+            if not vol:
+                vol = float((r.get("kv") or {}).get("qv") or 0)
+            bars.append((t, float(r["h"]), float(r["l"]), float(r["px"]), vol))
+        vx30, kl30 = _series_from_bars(bars, since)
+        fund30 = [[t, round(float(r["funding"]), 4)] for t, r in rows if t >= since and r.get("funding") is not None]
         sym = p.stem.upper() + "USDT"
         out[sym] = {"bubbles": bub, "end": end, "force": force, "entry": [], "hedge": [], "start": [],
                     "vx30": vx30, "kl30": kl30, "fund30": fund30}
 
+    # РЯДЫ ПО КЛАЙНАМ BINANCE (14.09 вечер): архив дырявый, а свечи биржи — нет; тот же core_binance с общим
+    # лимитером, что у архива и вортекса прогона, вес 1 на монету. Ряд по клайнам перекрывает архивный,
+    # если покрывает больше баров; сеть не должна ронять карточку — любая ошибка = остаёмся на архиве.
+    try:
+        import core_binance as _cb
+        from core_binance import K_HIGH, K_LOW, K_OPEN_TIME, klines_30m_last
+        _K_CLOSE, _K_QVOL = getattr(_cb, "K_CLOSE", 4), getattr(_cb, "K_QUOTE_VOLUME", 7)
+        for _sym in list(out.keys()):
+            try:
+                _ks = klines_30m_last(_sym)
+                _bars = sorted((int(k[K_OPEN_TIME]), float(k[K_HIGH]), float(k[K_LOW]), float(k[_K_CLOSE]), float(k[_K_QVOL]))
+                               for k in (_ks or []))
+            except Exception:  # noqa: BLE001
+                continue
+            if len(_bars) <= VORTEX_N:
+                continue
+            _vx, _kl = _series_from_bars(_bars, since)
+            if len(_vx) > len(out[_sym].get("vx30") or []):
+                out[_sym]["vx30"] = _vx
+            if len(_kl) > len(out[_sym].get("kl30") or []):
+                out[_sym]["kl30"] = _kl
+    except Exception:  # noqa: BLE001 — нет core_binance или сети: ряды из архива
+        pass
+    # РЯДЫ ИЗ ФАЙЛА (14.09 вечер): архив cq_v2/intraday узкий и дырявый (ARK: 28 баров из 54,
+    # двенадцать часов на самом пике пусты), а вортекс прогона считается по клайнам Binance и дыр не
+    # имеет. Если модуль вортекса кладёт output/fast_series.json — {sym: {vx30, kl30, fund30}} в том же
+    # формате, — эти ряды главнее архивных: перекрывают их поштучно. Файла нет — работает архив.
+    _fs = _read_json("fast_series.json") or {}
+    for _sym, _ser in _fs.items():
+        if not isinstance(_ser, dict):
+            continue
+        _sym = str(_sym).upper()
+        _dst = out.setdefault(_sym, {"bubbles": [], "end": [], "force": [], "entry": [], "hedge": [], "start": [],
+                                     "vx30": [], "kl30": [], "fund30": []})
+        for _k in ("vx30", "kl30", "fund30"):
+            if _ser.get(_k):
+                _dst[_k] = [r for r in _ser[_k] if isinstance(r, list) and len(r) >= 2 and r[0] >= since]
     # вход и хедж вихря, старт — из журнала очереди
     ql = next((q for q in (Path("output") / "queue_log.jsonl",
                            Path(__file__).resolve().parent / "output" / "queue_log.jsonl") if q.exists()), None)
@@ -2152,18 +2201,18 @@ COIN_JS = r"""
         var gaps = rows.map(function (r) { return (+r[1] || 0) - (+r[2] || 0); });
         var mx = Math.max.apply(null, gaps.map(Math.abs).concat([1e-9]));
         var out = '<text class="rl" x="12" y="' + (y - 9) + '">' + name + '</text>';
-        // РАЗВОРОТ — ПЕРВЫЙ БАР СЛОМА ПОСЛЕ ЭКСТРЕМУМА (проверено на ARK по получасовкам: клингер развернулся
-        // на первом баре после верха, вортекс — на третьем, кресты обоих — уже посреди слива). Клингер — KVO
-        // ниже предыдущего бара, когда предыдущий был максимумом за EXT баров (вверх — зеркально от минимума);
-        // вортекс — продавцы выше предыдущего бара после своего минимума при НЕрастущих покупателях.
-        var EXT = 6, A = rows.map(function (r) { return +r[1] || 0; }), B = rows.map(function (r) { return +r[2] || 0; });
+        // РАЗВОРОТ — ПЕРВЫЙ БАР СЛОМА РАЗРЫВА ПОСЛЕ ЭКСТРЕМУМА (14.09 вечер, по журналу очереди ARK: разрыв
+        // вортекса покупатели−продавцы 0.66 → 0.55 на САМОМ баре вершины 07:30, следующий бар подтвердил 0.43;
+        // по отдельным линиям слом читался только на третьем баре). Одно правило для обоих: разрыв (a − b) —
+        // у вортекса покупатели минус продавцы, у клингера KVO минус сигнал — развернулся от своего максимума
+        // за EXT баров (вниз) или от минимума (вверх). Кресты и три бара подтверждения не ждём.
+        var EXT = 6;
         function isMax(arr, i) { for (var k = Math.max(0, i - EXT); k < i; k++) if (arr[k] > arr[i]) return false; return true; }
         function isMin(arr, i) { for (var k = Math.max(0, i - EXT); k < i; k++) if (arr[k] < arr[i]) return false; return true; }
         var brk = rows.map(function (r, i) {
           if (i < EXT + 1) return 0;
-          if (name === 'клингер') { if (A[i] < A[i - 1] && isMax(A, i - 1)) return -1; if (A[i] > A[i - 1] && isMin(A, i - 1)) return 1; return 0; }
-          if (B[i] > B[i - 1] && isMin(B, i - 1) && A[i] <= A[i - 1]) return -1;
-          if (A[i] > A[i - 1] && isMin(A, i - 1) && B[i] <= B[i - 1]) return 1;
+          if (gaps[i] < gaps[i - 1] && isMax(gaps, i - 1)) return -1;
+          if (gaps[i] > gaps[i - 1] && isMin(gaps, i - 1)) return 1;
           return 0; });
         var turnIdx = []; brk.forEach(function (v, i) { if (v) turnIdx.push(i); });
         var lastT = turnIdx[turnIdx.length - 1];

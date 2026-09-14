@@ -115,9 +115,24 @@ def snapshot_candle(cg: dict) -> tuple[int | None, str | None]:
     return ms, (str(st.get("why") or st.get("missing") or "") or None) if st.get("missing") else None
 
 
-def build_rows(candle_ms: int, only: list[str] | None = None) -> list[dict]:
-    cg = _read(BASE_DIR / "output" / "coinglass_fetch.json") or {}
+def build_rows(candle_ms: int, only: list[str] | None = None, cg_ok: bool = True, cg_why: str | None = None) -> list[dict]:
+    """cg_ok=False (14.09 вечер): срез Coinglass не снят — раньше строка НЕ ПИСАЛАСЬ ВООБЩЕ, и в архиве
+    ARK за 14.09 пропали двенадцать часов ровно на пике (28 баров из 54). Правило 07.09 «не подписывать
+    прошлый срез именем текущей свечи» остаётся: поля Coinglass (ноги, интерес, фандинг, ликвидации) в
+    такой строке null и в missing стоит «coinglass: <почему>». А свеча Binance — размах, открытие,
+    закрытие, объём — своя, свежая, и пишется: вортексу и клингеру нужна именно она."""
+    cg = (_read(BASE_DIR / "output" / "coinglass_fetch.json") or {}) if cg_ok else {}
     coins = cg.get("coins") or {}
+    # список монет без среза — из журнала лидеров и очереди, чтобы дыра не расползлась на всех
+    if not cg_ok and not only:
+        syms_set: set = set()
+        for name in ("leaders.json", "pump_leaders.json"):
+            for k in (_read(BASE_DIR / "output" / name) or {}).keys():
+                if not str(k).startswith("_"):
+                    syms_set.add(str(k).upper())
+        for k in ((_read(BASE_DIR / "output" / "near_move.json") or {}).get("coins") or {}).keys():
+            syms_set.add(str(k).upper())
+        coins = {k: {} for k in syms_set}
     rep = _read(BASE_DIR / "output" / "reputation.json") or {}
     pulse = _read(BASE_DIR / "pulse.json") or {}
     oit = (_read(BASE_DIR / "output" / "oi_types.json") or {}).get("coins") or {}
@@ -133,7 +148,9 @@ def build_rows(candle_ms: int, only: list[str] | None = None) -> list[dict]:
         missing: list[str] = list(c.get("missing") or [])
         fut = _legs(_bar_at((c.get("fut") or {}).get("series") or [], candle_ms))
         spot = _legs(_bar_at((c.get("spot") or {}).get("series") or [], candle_ms))
-        if fut is None and "fut" not in missing:
+        if not cg_ok:
+            missing.append("coinglass: " + (cg_why or "срез не снят"))
+        elif fut is None and "fut" not in missing:
             missing.append("fut_bar")
         # тип часа по плечу — час, в который попадает свеча
         oi_type = None
@@ -163,11 +180,29 @@ def build_rows(candle_ms: int, only: list[str] | None = None) -> list[dict]:
         # missing пишется hl, чтобы пустой размах не был тихим. Цена (px) как была.
         bar = _bar_at((c.get("fut") or {}).get("series") or [], candle_ms)
         hi = lo = op = None
+        kv = None          # объём свечи Binance (14.09 вечер): клингеру без среза Coinglass нужен хоть какой-то объём
+        k_close = None
         try:
+            import core_binance as _cb
             from core_binance import K_HIGH, K_LOW, K_OPEN, K_OPEN_TIME, klines_30m_last
+            _K_CLOSE = getattr(_cb, "K_CLOSE", 4)
+            _K_VOL = getattr(_cb, "K_VOLUME", 5)
+            _K_QVOL = getattr(_cb, "K_QUOTE_VOLUME", 7)
             for k in klines_30m_last(sym):
                 if int(k[K_OPEN_TIME]) == candle_ms:
                     hi, lo, op = float(k[K_HIGH]), float(k[K_LOW]), float(k[K_OPEN])
+                    # закрытие и объём — ОТДЕЛЬНО и по длине свечи: первая версия брала их в той же
+                    # строке, и если свеча core_binance короче стандартной, IndexError ронял и h/l
+                    # (14.09 17:00: у всех 126 монет h/l null, missing: hl — при живом срезе)
+                    try:
+                        if len(k) > _K_CLOSE:
+                            k_close = float(k[_K_CLOSE])
+                        if len(k) > _K_QVOL:
+                            kv = {"v": round(float(k[_K_VOL]), 0), "qv": round(float(k[_K_QVOL]), 0)}
+                        elif len(k) > _K_VOL:
+                            kv = {"v": round(float(k[_K_VOL]), 0), "qv": None}
+                    except (TypeError, ValueError, IndexError):
+                        k_close, kv = None, None
                     break
         except Exception:  # noqa: BLE001 — сеть не должна ронять архив, только помечать
             hi = lo = op = None
@@ -176,6 +211,8 @@ def build_rows(candle_ms: int, only: list[str] | None = None) -> list[dict]:
         if px is None:
             if bar and bar.get("c"):
                 px = float(bar["c"])
+        if px is None and k_close is not None:
+            px = k_close                     # закрытие свечи биржи — раньше дневки (14.09 вечер)
         if px is None:
             for cand in (lq.get("px"), r.get("px"), r.get("close")):
                 if cand:
@@ -191,6 +228,7 @@ def build_rows(candle_ms: int, only: list[str] | None = None) -> list[dict]:
         rows.append({
             "candle": candle, "sym": sym, "px": px,
             "h": hi, "l": lo, "o": op,          # размах бара — для вортекса и Klinger (11.09)
+            "kv": kv,                            # объём свечи Binance: базовый и в долларах (14.09 вечер)
             "fut": fut, "spot": spot,
             "oi": c.get("oiUsd"), "oi_chg_pct": c.get("oiChgPct"),
             "funding": c.get("funding"),
@@ -252,6 +290,7 @@ def main() -> int:
     ap.add_argument("--refill", action="store_true", help="заменить неполную строку на более полную")
     ap.add_argument("--force", action="store_true", help="писать, даже если срез не снят")
     a = ap.parse_args()
+    cg_ok, why = True, None
     if a.candle:
         from datetime import datetime, timezone
         t = a.candle.replace("Z", "+00:00")
@@ -261,20 +300,26 @@ def main() -> int:
         cg = _read(BASE_DIR / "output" / "coinglass_fetch.json") or {}
         candle_ms, why = snapshot_candle(cg)
         if why and not a.force:
-            print(f"intraday: свеча не снята ({why}) — строка НЕ пишется, чтобы не подписать "
-                  f"прошлый срез именем текущей свечи; --force чтобы всё равно записать")
-            return 0
-        if candle_ms is None:
+            # СРЕЗ НЕ СНЯТ — ПИШЕМ ТОЛЬКО СВЕЧУ (14.09 вечер): раньше здесь был return, и архив молчал
+            # часами (ARK 14.09: 00:30 → 13:00 пусто). Поля Coinglass — null с пометкой, свеча Binance — своя.
+            cg_ok = False
+            import candle_gate
+            candle_ms = candle_gate.boundary()
+            print(f"intraday: срез Coinglass не снят ({why}) — пишу свечу Binance без полей среза, "
+                  f"missing: coinglass; --force чтобы записать срез как есть")
+        elif candle_ms is None:
             import candle_gate
             candle_ms = candle_gate.boundary()
             print("intraday: в срезе нет штампа свечи — беру границу калитки")
-    rows = build_rows(candle_ms, [x.strip() for x in a.only.split(",")] if a.only else None)
+    rows = build_rows(candle_ms, [x.strip() for x in a.only.split(",")] if a.only else None,
+                      cg_ok=cg_ok, cg_why=why if not cg_ok else None)
     if not a.write:
         for r in rows[:3]:
             print(json.dumps(r, ensure_ascii=False))
         print(f"строк {len(rows)} (без записи; --write чтобы записать)")
         return 0
-    n = write_rows(rows, refill=a.refill)
+    # строка без среза Coinglass неполная; когда дозабор принесёт полную — она заменит её (refill)
+    n = write_rows(rows, refill=a.refill or not cg_ok)
     print(f"intraday: записано {n} строк из {len(rows)} → {OUT_DIR}")
     return 0
 
