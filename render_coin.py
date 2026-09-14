@@ -322,9 +322,10 @@ def _fast_events(days: int | None = None) -> dict:
     from datetime import datetime, timezone
     try:
         from core_config import (FAST_BUBBLE_OI_PCT, FAST_BUBBLE_SIGMA, FAST_END_OI_PCT, FAST_EVENTS_DAYS,
-                                 FAST_FORCE_EMA, FAST_SIGMA_DAYS)
+                                 FAST_FORCE_EMA, FAST_SIGMA_DAYS, KLINGER_30M_EMA, VORTEX_N)
     except ImportError:
         FAST_EVENTS_DAYS, FAST_SIGMA_DAYS, FAST_BUBBLE_SIGMA, FAST_BUBBLE_OI_PCT, FAST_END_OI_PCT, FAST_FORCE_EMA = 3, 7, 2.0, 1.5, -2.0, (12, 26, 9)
+        KLINGER_30M_EMA, VORTEX_N = (34, 55, 13), 14
     days = days or FAST_EVENTS_DAYS
     out: dict = {}
     d = next((q for q in (Path("cq_v2") / "intraday",
@@ -387,8 +388,44 @@ def _fast_events(days: int | None = None) -> dict:
                     force.append({"t": t, "px": r["px"], "dir": "up" if kv[i] > sig[i] else "down"})
             if o:
                 prev = o
+        # РЯДЫ ДЛЯ ПЛИТЫ БЫСТРЫХ (14.09 вечер): vx30 — настоящий вортекс по размаху бара (VM+ = |h − l_prev|,
+        # VM− = |l − h_prev|, к сумме истинных размахов за VORTEX_N); kl30 — клингер как на TradingView:
+        # объём со знаком по hlc3, EMA KLINGER_30M_EMA; fund30 — фандинг по барам. Бары без h/l (до 11.09)
+        # в ряды не идут. Дыры архива ряд не сшивает — плита показывает их штриховкой.
+        vx30, kl30, fund30 = [], [], []
+        hl = [(t, r) for t, r in rows if r.get("h") and r.get("l") and t >= since - VORTEX_N * 1800000]
+        n_ = VORTEX_N
+        for i in range(n_, len(hl)):
+            if any(hl[k][0] - hl[k - 1][0] > 3 * 1800000 for k in range(i - n_ + 1, i + 1)):   # в окне дыра больше двух баров — не считаем
+                continue
+            vp = vm = tr = 0.0
+            for k in range(1, n_ + 1):
+                t_, r_ = hl[i - n_ + k]
+                _, q_ = hl[i - n_ + k - 1]
+                h_, l_, c0 = float(r_["h"]), float(r_["l"]), float(q_["px"])
+                vp += abs(h_ - float(q_["l"]))
+                vm += abs(l_ - float(q_["h"]))
+                tr += max(h_ - l_, abs(h_ - c0), abs(l_ - c0))
+            if tr > 0 and hl[i][0] >= since:
+                vx30.append([hl[i][0], round(vp / tr, 4), round(vm / tr, 4)])
+        f34, f55, f13 = KLINGER_30M_EMA
+        sv, prev_hlc = [], None
+        for t, r in rows:
+            h_, l_, c_ = float(r.get("h") or r["px"]), float(r.get("l") or r["px"]), float(r["px"])
+            hlc = (h_ + l_ + c_) / 3
+            vol = float((r.get("fut") or {}).get("b") or 0) + float((r.get("fut") or {}).get("s") or 0)
+            sv.append(vol if (prev_hlc is None or hlc >= prev_hlc) else -vol)
+            prev_hlc = hlc
+        kvo = [x - y for x, y in zip(_ema(sv, f34), _ema(sv, f55))]
+        ksig = _ema(kvo, f13)
+        for i, (t, r) in enumerate(rows):
+            if i >= f55 and t >= since:
+                kl30.append([t, round(kvo[i], 1), round(ksig[i], 1)])
+            if t >= since and r.get("funding") is not None:
+                fund30.append([t, round(float(r["funding"]), 4)])
         sym = p.stem.upper() + "USDT"
-        out[sym] = {"bubbles": bub, "end": end, "force": force, "entry": [], "hedge": [], "start": []}
+        out[sym] = {"bubbles": bub, "end": end, "force": force, "entry": [], "hedge": [], "start": [],
+                    "vx30": vx30, "kl30": kl30, "fund30": fund30}
 
     # вход и хедж вихря, старт — из журнала очереди
     ql = next((q for q in (Path("output") / "queue_log.jsonl",
@@ -618,16 +655,6 @@ COIN_HTML = r"""
 .mini.journal g.arw .hint{opacity:0;transition:opacity .12s;pointer-events:none}
 .mini.journal g.arw:hover .hint{opacity:1}
 .mini.journal g.arw{cursor:default}
-/* рейка индикаторов над вердиктом (13.09): строка, не столбик */
-.railbox{position:absolute;left:50%;bottom:calc(100% + 12px);transform:translateX(-50%);z-index:8;
-  pointer-events:auto;display:flex;justify-content:center}
-.rail{position:relative;left:auto;bottom:auto;transform:none;display:flex;gap:22px;
-  align-items:flex-end;pointer-events:auto;z-index:6;white-space:nowrap}
-.rail i{display:flex;flex-direction:column;align-items:center;gap:3px;font-style:normal;cursor:default;
-  transition:opacity .2s,transform .2s}
-.rail i:hover{transform:translateY(-2px)}
-.rail u{font-family:var(--f-cap);font-size:7.5px;letter-spacing:.2em;text-transform:uppercase;text-decoration:none}
-.rail b{font-family:var(--f-cap);font-size:7.5px;letter-spacing:.12em;font-weight:400}
     .leadwrap .plate s.hedge{display:block;margin-top:4px;font-size:7px;letter-spacing:.1em;color:#ffd98a;opacity:.85;text-decoration:none}
 .mini.journal .refl g.arw .hint{display:none}
 *{box-sizing:border-box}
@@ -767,16 +794,22 @@ COIN_HTML = r"""
 .dirhot .dirpl{opacity:0;pointer-events:none;transition:opacity .25s}
 .dirhot:hover .dirpl{opacity:1}
 .dirhot text{pointer-events:auto;cursor:default}
-/* ── ПЛЕЧО ПО ТИПУ (05.09, по Leviathan): мини-плита как журнал — линия цены поверх цветных
-   блоков по 4 ч (шорты открывают красный / закрывают приглушённый; лонги зелёный / приглушённый).
-   Стоит внизу слева под расписанием; подпись и легенда — обычным текстом под плитой. ── */
-.mini.oit{left:60px;--px:-15deg;--py:11deg;--pz:-2deg;bottom:130px;width:320px;--sc:.82;--c:#bfffe0;--g:127,240,184}
-.mini.oit .oitcap{position:absolute;left:0;top:-30px;font-family:var(--f-cap);font-size:7px;letter-spacing:.34em;text-transform:uppercase;color:#9fd8bf;white-space:nowrap}
-.mini.oit .oitread{position:absolute;left:0;top:186px;width:340px;font-family:var(--f-cap);font-size:7px;letter-spacing:.16em;text-transform:uppercase;color:#dffff0;line-height:1.4}
-.mini.oit .oitlg{position:absolute;left:0;top:216px;width:340px;display:flex;flex-wrap:wrap;gap:3px 12px;font-family:var(--f-cap);font-size:6px;letter-spacing:.12em;text-transform:uppercase;color:#7fb8a0}
-.mini.oit .oitlg span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
-.mini.oit .oitlg b{display:inline-block;width:7px;height:7px;border-radius:1px;flex:0 0 7px}
-.mini.oit svg text.fc{fill:#ffe2a8;font-size:6.5px;letter-spacing:.1em}
+/* ПЛИТА БЫСТРЫХ (14.09 вечер, владелец: «аналог графика справа внизу, стрелками — кто давит, прозрачность —
+   сила, развороты и усиление — главное; клингер и вортекс — самые ранние индикаторы разворота»).
+   На месте и в перспективе прежней плиты плеча; сама плита «плечо по типу» снята полностью. */
+.mini.fast{left:60px;--px:-15deg;--py:11deg;--pz:-2deg;bottom:130px;width:320px;--sc:.82;--c:#bfffe0;--g:127,240,184}
+.mini.fast .refl{display:none}   /* отражение (мини-копия всей плиты) ложилось между лентами серым призраком */
+.mini.fast .fcap{position:absolute;left:0;top:-30px;font-family:var(--f-cap);font-size:7px;letter-spacing:.34em;text-transform:uppercase;color:#9fd8bf;white-space:nowrap}
+.mini.fast .fread{position:absolute;left:0;top:186px;width:340px;font-family:var(--f-cap);font-size:7px;letter-spacing:.16em;text-transform:uppercase;color:#7fa898;line-height:1.5}
+.mini.fast .fread u{text-decoration:none;color:#bfe9d6}
+.mini.fast .fread b{font-weight:500;color:#ffe2a8}
+.mini.fast .fgap{position:absolute;left:0;top:-19px;font-family:var(--f-cap);font-size:6.5px;letter-spacing:.24em;text-transform:uppercase;color:#ffb3a0;white-space:nowrap}
+.mini.fast .fdemo{position:absolute;left:0;top:222px;font-family:var(--f-cap);font-size:6px;letter-spacing:.2em;text-transform:uppercase;color:#c9a34a;opacity:.85}
+.mini.fast svg text.rl{font-family:var(--f-cap);font-size:7px;letter-spacing:.3em;text-transform:uppercase;fill:#dffff0;paint-order:stroke;stroke:rgba(3,14,10,.7);stroke-width:2px}
+.mini.fast svg text.tm{font-family:var(--f-cap);font-size:6px;letter-spacing:.1em;fill:#bfe9d6}
+.mini.fast svg text.bk{font-family:var(--f-cap);font-size:9px;font-weight:500;letter-spacing:.1em;filter:drop-shadow(0 0 3px var(--c)) drop-shadow(0 0 7px var(--c));animation:bkglow 2.4s ease-in-out infinite}
+@keyframes bkglow{0%,100%{opacity:.75}50%{opacity:1}}
+.mini.fast svg g.turn{transform-box:fill-box;transform-origin:center;animation:ringp 3s ease-in-out infinite}
 /* ── ТРИ МИНИ-ПЛИТЫ ВНИЗУ (04.09, финал): вердикт, журнал за две недели, расписание —
    уменьшенные копии большой плиты: тот же разворот в перспективе, белая линия земли,
    золотое свечение под ней, отражение. Без кубов и панелей. ── */
@@ -1016,6 +1049,60 @@ COIN_HTML = r"""
 .fc .st{stroke-dasharray:2 5}
 @keyframes fcglint{0%,100%{opacity:1}50%{opacity:.78}}
 @keyframes fcflow{to{stroke-dashoffset:-70}}
+/* РЕЙКА НАД ВЕРДИКТОМ — вид 14.09 вечер (прототип coin_proto.html принят владельцем): без плашек, буквы в свете
+   «держать», один ряд, ореол и затемнение под рядом, искра по полосе. Быстрые вортекс/клингер здесь не стоят. */
+/* рейка индикаторов над вердиктом (13.09): строка, не столбик */
+.railbox{position:absolute;left:calc(50% + 64px);bottom:calc(100% + 66px);transform:translateX(-50%);z-index:8;pointer-events:auto;display:flex;justify-content:center}
+/* сдвиг вправо на 64 (владелец, 14.09 вечер: «наезжают на график слева») и ПОДСВЕТКА как у «держать»:
+   голубой ореол под всем рядом (тот же свет, что .bglow2 под вердиктом) — ряд читается поверх плиты */
+.railbox::before{content:"";position:absolute;left:-40px;right:-40px;top:-26px;bottom:-22px;border-radius:50%;pointer-events:none;z-index:-1;
+  background:radial-gradient(ellipse at center,rgba(80,140,255,.30),rgba(80,140,255,.10) 55%,rgba(80,140,255,0) 75%);filter:blur(14px);
+  animation:railhalo 5s ease-in-out infinite}
+/* ЗАТЕМНЕНИЕ под рядом (владелец, 14.09 вечер: «сливаются с отражением графика»): тёмное пятно под голубым
+   ореолом, мягкие края — гасит отражение плиты, буквы читаются на своём фоне */
+.rail::before{content:"";position:absolute;left:-46px;right:-46px;top:-22px;bottom:-20px;border-radius:50%;pointer-events:none;z-index:-2;
+  background:radial-gradient(ellipse at center,rgba(2,10,8,.92),rgba(2,10,8,.75) 55%,rgba(2,10,8,0) 78%);filter:blur(8px)}
+@keyframes railhalo{0%,100%{opacity:.75}50%{opacity:1}}
+/* БЕГУЩИЙ СВЕТ (владелец, 14.09 вечер: «пусти по ним светящуюся штуку взад-вперёд»): тонкая линия под
+   рядом и по ней ходит искра с голубым хвостом — как точка на луче под вердиктом */
+.railbox::after{content:"";position:absolute;left:-10px;right:-10px;bottom:-9px;height:1px;pointer-events:none;
+  background:linear-gradient(90deg,rgba(190,220,255,0),rgba(190,220,255,.35) 20%,rgba(190,220,255,.35) 80%,rgba(190,220,255,0))}
+.rail .spark{position:absolute;left:-10px;bottom:-11px;width:5px;height:5px;border-radius:50%;pointer-events:none;
+  background:#fff;box-shadow:0 0 6px #bfe0ff,0 0 14px rgba(120,170,255,.9),0 0 26px rgba(80,140,255,.6);
+  animation:railspark 22s ease-in-out infinite}
+.rail .spark::before{content:"";position:absolute;top:1.5px;left:-38px;width:38px;height:2px;border-radius:1px;
+  background:linear-gradient(90deg,rgba(190,220,255,0),rgba(190,220,255,.7));animation:railtail 22s ease-in-out infinite}
+@keyframes railspark{0%,100%{left:-10px}50%{left:calc(100% + 5px)}}
+@keyframes railtail{0%,100%{transform:scaleX(1);transform-origin:right}49.9%{transform:scaleX(1);transform-origin:right}50%{transform:scaleX(-1) translateX(-38px);transform-origin:right}99.9%{transform:scaleX(-1) translateX(-38px);transform-origin:right}}
+/* РЕЙКА БЕЗ ПЛАШЕК (14.09 вечер, владелец: «синеватыми по аналогии с «держать», анимацию подобную,
+   чем сильнее сигнал — тем ярче; без плашек, просто буквы подсвечивать; в один ряд»).
+   Слот — стрелка и имя в одну строку, под именем «масштаб · время». Буквы живого — в свете «держать»:
+   тот же холодный белый #eaf4ff и голубое сияние; сила сигнала (--st 0..1) задаёт и яркость, и радиус
+   свечения, и размах дыхания. Молчащий — серые буквы без света, прочерк вместо стрелки. Один ряд. */
+.rail{position:relative;left:auto;bottom:auto;transform:none;display:flex;flex-direction:row;gap:11px;align-items:flex-end;white-space:nowrap}
+.rail i{display:flex;flex-direction:column;align-items:center;gap:3px;font-style:normal;cursor:default;opacity:0;
+  animation:railin .55s cubic-bezier(.2,.7,.3,1) forwards;transition:transform .2s}
+.rail i:hover{transform:translateY(-2px)}
+.rail i.spark{display:block;opacity:1;animation:railspark 22s ease-in-out infinite;padding:0;gap:0;transition:none}
+.rail i.spark:hover{transform:none}
+.rail i.off{animation:railin-off .55s ease forwards}
+.rail i .nm{display:flex;align-items:center;gap:4px}
+.rail u{font-family:var(--f-cap);font-size:7.5px;letter-spacing:.2em;text-transform:uppercase;text-decoration:none;color:#7f9fb8;text-shadow:0 0 6px rgba(120,170,255,.25)}
+.rail i.on u{color:#eaf4ff;
+  text-shadow:0 0 calc(3px + 9px * var(--st)) rgba(150,200,255,calc(.35 + .6 * var(--st))),0 0 calc(10px + 22px * var(--st)) rgba(120,170,255,calc(.15 + .5 * var(--st)));
+  animation:railbreath calc(4.2s - 1.6s * var(--st)) ease-in-out 1.2s infinite}
+.rail em{font-family:var(--f-cap);font-size:6.5px;letter-spacing:.14em;font-style:normal;color:#5f7f98}
+.rail i.on em{color:#8fb8d8}
+.rail i.on em b{color:#bfe0ff;font-weight:400}
+.rail i svg{position:static;width:11px;height:11px;flex:0 0 11px;overflow:visible}
+.rail i.on svg path{filter:drop-shadow(0 0 calc(2px + 3px * var(--st)) rgba(150,200,255,.7))}
+.rail i.on.up svg path{animation:railbr-up 2.4s ease-in-out infinite}
+.rail i.on.dn svg path{animation:railbr-dn 2.4s ease-in-out infinite}
+@keyframes railin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes railin-off{from{opacity:0;transform:translateY(6px)}to{opacity:.7;transform:none}}
+@keyframes railbreath{0%,100%{opacity:calc(.7 + .3 * var(--st))}50%{opacity:1}}
+@keyframes railbr-up{0%,100%{transform:translateY(0)}50%{transform:translateY(-1.6px)}}
+@keyframes railbr-dn{0%,100%{transform:translateY(0)}50%{transform:translateY(1.6px)}}
 </style>
 <div class="wrap"><div class="stage" id="stage"></div></div>
 </template>
@@ -1685,11 +1772,21 @@ COIN_JS = r"""
         if (px > 0.3) _EV.push({ t: b[0] + 18e5, px: +b[4], dir: 'up', kind: 'oi', col: GR, op: Math.min(.9, .25 + .2 * Math.min(oi / px, 3)), short: 'интерес растёт с ценой', tip: 'интерес растёт вместе с ценой · ' + hhmm(b[0]) + ' · интерес +' + oi.toFixed(1) + '% · цена +' + px.toFixed(1) + '%' });
         else { var ratio = oi / Math.max(0.3, Math.abs(px)), k = Math.max(0, Math.min(1, (ratio - 1.5) / 1.5));
           _EV.push({ t: b[0] + 18e5, px: +b[4], dir: 'down', kind: 'oi', ratio: ratio, col: k < .5 ? '#ffd98a' : RD, op: .15 + .8 * k, short: 'интерес растёт, цена нет · ×' + ratio.toFixed(1), tip: 'интерес растёт, цена нет · ' + hhmm(b[0]) + ' · интерес +' + oi.toFixed(1) + '% · цена ' + (px >= 0 ? '+' : '') + px.toFixed(1) + '% · отношение ×' + ratio.toFixed(1) }); } });
-      (F.entry || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: 'up', kind: 'vx', col: OR, op: .95, short: 'вортекс: покупатели взяли сторону', tip: 'вортекс 30м: покупатели взяли сторону · ' + hhmm(e.t) + ' · разрыв ' + (+e.gap).toFixed(2) }); });
+      (F.entry || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: 'up', kind: 'vx', gap: +e.gap, col: OR, op: .95, short: 'вортекс: покупатели взяли сторону', tip: 'вортекс 30м: покупатели взяли сторону · ' + hhmm(e.t) + ' · разрыв ' + (+e.gap).toFixed(2) }); });
       (F.hedge || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: 'down', kind: 'vx', col: OR, op: .95, short: 'вортекс: продавцы взяли сторону', tip: 'вортекс 30м: продавцы взяли сторону · ' + hhmm(e.t) + ' · ' + (e.kind || '') }); });
       (F.force || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: e.dir === 'down' ? 'down' : 'up', kind: 'force', col: e.dir === 'down' ? RD : GR, op: e.dir === 'down' ? .9 : .8, short: e.dir === 'down' ? 'сила развернулась вниз' : 'сила развернулась вверх', tip: (e.dir === 'down' ? 'сила развернулась вниз · ' : 'сила развернулась вверх · ') + hhmm(e.t) }); });
       (F.end || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: 'down', kind: 'end', col: RD, op: .95, short: 'событие конца: интерес ушёл с ценой', tip: 'событие конца · ' + hhmm(e.t) + ' · интерес ушёл вместе с ценой на одном баре' }); });
       (F.bubbles || []).forEach(function (e) { if (e.sure === 'обычный') return; var up = e.side === 'buy'; _EV.push({ t: e.t, px: +e.px, dir: up ? 'up' : 'down', kind: 'bub', col: up ? WH : '#ffb3a0', op: e.sure === 'ясный' ? .95 : .55, short: 'пузырь ' + (up ? 'покупки' : 'продажи') + ' · ' + e.sure, tip: 'пузырь дельты ' + (up ? 'покупка' : 'продажа') + ' · ' + hhmm(e.t) + ' · ' + e.sure + (e.sure === 'ясный' ? ' — интерес вырос на баре' : ' — интерес ушёл или лонги закрывали') }); });
+      // КЛИНГЕР ПОЛУЧАСОВОЙ КАК СОБЫТИЕ (14.09 вечер): слот «клингер» в рейке до этого был пуст всегда —
+      // в список событий его никто не клал. Время креста — из upAgo/dnAgo в получасовках от конца окна.
+      (function () { var K = s.klinger30; if (!K) return;
+        var dn = K.crossDn || (K.above && (+K.gapX || 1) <= 0.25 && K.narrowing), upc = K.crossUp;
+        var ago = dn ? K.dnAgo : K.upAgo; if (!(K.crossUp || K.crossDn) && !dn) return;
+        var t = _tEnd - ((+ago || 0) * 18e5), b = null; for (var q = 0; q < _hrs.length; q++) { if (_hrs[q][0] <= t) b = _hrs[q]; else break; }
+        var str = (K.crossUp || K.crossDn) ? 1 : .5;
+        _EV.push({ t: t, px: b ? +b[4] : +s.px, dir: dn ? 'down' : 'up', kind: 'kl', col: dn ? RD : GR, op: str, str: str,
+          short: K.crossDn ? 'клингер: крест вниз' : K.crossUp ? 'клингер: крест вверх' : 'клингер сходится — крест близко',
+          tip: 'клингер 30м · ' + (K.crossDn ? 'крест вниз' : K.crossUp ? 'крест вверх' : 'сходится, крест близко') + ' · ' + hhmm(t) + ' · KVO ' + f(K.kvo) + ' при сигнале ' + f(K.sig) }); })();
       // ПРОБА В СТЫКЕ И ОТВЕТ СЕССИИ (12.09, владелец: «крупному нужно понять, будут ли новые
       // покупки в этой сессии — это разные материки, страны и люди»). Проверено глазами на четырёх
       // монетах: SOPH, IOST, DOOD, LSK — вершина трижды из четырёх стоит ровно в переходе, и весь
@@ -1717,7 +1814,7 @@ COIN_JS = r"""
           var oiUp = oiB > oiA;                       // интерес за первый час новой сессии вырос
           var answered = nrm > 0 && vol >= nrm && ((d > 0) === (dd > 0)) && oiUp;
           _EV.push({ t: b[0], px: +b[4], dir: answered ? (d > 0 ? 'up' : 'down') : (d > 0 ? 'down' : 'up'),
-            kind: 'sess', col: answered ? (d > 0 ? GR : RD) : OR, op: .9,
+            kind: 'sess', col: answered ? (d > 0 ? GR : RD) : OR, op: .9, answered: answered, volx: nrm ? vol / nrm : 1,
             short: opens + (answered ? ' подхватил' : ' не подхватил'),
             tip: 'стык сессий · открывается ' + opens + ' · проба ' + (d > 0 ? 'покупкой' : 'продажей')
                  + ' · первый час: оборот ' + (nrm ? (vol / nrm).toFixed(1) : '—') + '× к норме сессии, дельта '
@@ -1975,83 +2072,149 @@ COIN_JS = r"""
     // Пустой слот — тусклое кольцо с прочерком. На плите значков больше нет: там они смешивались
     // с линией цены и полосами ликвидаций.
     // строка рейки приходит из блока событий (см. window.__RAILHTML); вставляется в конце сборки
-    var dzone = ANIM + '<div class="mini verdict ' + vcls + ' dzone decbox vb ' + (window.VERDICT_STYLE || 'dark') + '">' + '<div class="railbox"></div>' + cardHtml(dec) +
+    var dzone = ANIM + '<div class="mini verdict ' + vcls + ' dzone decbox vb ' + (window.VERDICT_STYLE || 'dark') + '">' + cardHtml(dec) +
       '<div class="bglow2"></div><div class="bglow"></div>' +
       [[46, 6.2, 0], [62, 7.1, .8], [78, 5.6, 1.6], [94, 6.8, .4], [110, 7.6, 1.2]].map(function (r) { return '<i class="ray" style="left:' + r[0] + 'px;--rd:' + r[1] + 's;--rw:' + (-r[2]) + 's"></i>'; }).join('') +
-      '<div class="vtxt' + (String(dec.verdict || '').length > 7 ? ' long' : '') + '"><div class="vcap">решение</div><div class="vw">' + esc(dec.verdict) + '</div><div class="vwhy">' + esc(String(dec.why).split('—')[0].slice(0, 32)) + '</div></div>' +
+      '<div class="vtxt' + (String(dec.verdict || '').length > 7 ? ' long' : '') + '"><div class="railbox"></div><div class="vcap">решение</div><div class="vw">' + esc(dec.verdict) + '</div><div class="vwhy">' + esc(String(dec.why).split('—')[0].slice(0, 32)) + '</div></div>' +
       '<div class="gshadow"></div><div class="box grey">' + BOX6 + '<div class="f front"><div class="txt"><b>за</b><span>' + esc(dec.pro.join(' · ') || 'нет') + '</span><b class="con">против</b><span class="con">' + esc(dec.con.join(' · ') || 'нет') + '</span></div></div></div></div>';
-    // ── плечо по типу (05.09): МИНИ-ПЛИТА как журнал справа — линия цены за 14 дней поверх
-    //    цветных блоков по 4 ч: шорты открывают — красный, закрывают — приглушённый красный;
-    //    лонги открывают — зелёный, закрывают — приглушённый зелёный ──
+    // ── БЫСТРЫЕ ВОРТЕКС И КЛИНГЕР (14.09 вечер, владелец): плита как у журнала справа внизу — цена
+    //    на стекле, под ней две строки СТРЕЛОК по времени: вверх — давят покупатели, вниз — продавцы;
+    //    прозрачность — сила давления; РАЗВОРОТ (стрелка сменила сторону) — крупнее, с кольцом и временем;
+    //    «усиливается» (разрыв растёт три бара подряд) — свечение. Клингер и вортекс — самые ранние
+    //    индикаторы разворота, поэтому развороты на этой плите главное, ровные бары прорежены.
+    //    Ряды: D.fast[sym].vx30 = [[t, vi_plus, vi_minus]], D.fast[sym].kl30 = [[t, kvo, sig]] — пишет
+    //    прогон. Нет рядов — ЗАМЕНИТЕЛЬ по закрытиям и обороту часовой ленты с пометкой «подставлено».
     (function () {
-      var o = OIT[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]; if (!o || !o.hours || o.hours.length < 8) return;
-      var NM = { long_open: 'лонги открывают', short_open: 'шорты открывают', short_close: 'шорты закрывают', long_close: 'лонги закрывают' };
-      var COL = { long_open: '#2fae78', long_close: '#2a6a50', short_open: '#d4574a', short_close: '#7a3a33' };
-      var hh = o.hours;
-      // цена по часам: из записи (close) или восстановленная от текущей по приростам
-      var closes = hh.map(function (h) { return h.length > 4 ? +h[4] : null; });
-      if (closes.some(function (v) { return v === null || !isFinite(v); })) { var pxn = +s.px || 1, acc = pxn; closes = []; for (var q = hh.length - 1; q >= 0; q--) { closes[q] = acc; acc = acc / (1 + (hh[q][3] || 0) / 100); } }
-      // четырёхчасовые блоки: тип — у которого больше суммарный прирост интереса среди нешумных часов
-      var B = []; for (var bi = 0; bi < hh.length; bi += 4) {
-        var chunk = hh.slice(bi, bi + 4), acc2 = {}, best = 'flat', bv = 0, doi = 0, dp = 0, qv = 0;
-        chunk.forEach(function (h) { doi += h[2]; dp += h[3]; qv += (h.length > 5 ? +h[5] || 0 : 0); if (h[1] === 'flat') return; acc2[h[1]] = (acc2[h[1]] || 0) + Math.abs(h[2]); if (acc2[h[1]] > bv) { bv = acc2[h[1]]; best = h[1]; } });
-        B.push([chunk[0][0], best, +doi.toFixed(2), +dp.toFixed(2), closes[Math.min(hh.length - 1, bi + chunk.length - 1)], qv]); }
-      function dom(arr) { var acc = {}, best = 'flat', bv = 0; arr.forEach(function (b) { if (b[1] === 'flat') return; acc[b[1]] = (acc[b[1]] || 0) + Math.abs(b[2]); if (acc[b[1]] > bv) { bv = acc[b[1]]; best = b[1]; } }); return best; }
-      var VERD = { long_open: 'толпа набивается в лонг — следующий ход у неё вниз', short_close: 'рост на выкупе шортов — без новых лонгов гаснет',
-                   short_open: 'шорты встают против хода — топливо сверху, курок взводится', long_close: 'лонги выходят — вынос идёт, покупать рано', flat: 'плечо не двигается — сон' };
-      var last24 = hh.slice(-24), sumT = {};
-      last24.forEach(function (h) { if (h[1] === 'flat') return; sumT[h[1]] = (sumT[h[1]] || 0) + h[2]; });
-      var VB = { long_open: 'лонги открыли', short_open: 'шорты открыли', short_close: 'шорты закрыли', long_close: 'лонги закрыли' };
-      var parts = ['long_open', 'short_open', 'short_close', 'long_close'].filter(function (k) { return sumT[k] && Math.abs(sumT[k]) >= 0.3; }).map(function (k) { return VB[k] + ' ' + (sumT[k] > 0 ? '+' : '') + sumT[k].toFixed(1) + '%'; });
-      var tot24 = last24.reduce(function (a, h) { return a + h[2]; }, 0);
-      var read24 = 'за сутки интерес ' + (tot24 > 0 ? '+' : '') + tot24.toFixed(1) + '%' + (parts.length ? ': ' + parts.join(' · ') : ' — плечо не двигалось');
-      var recent = dom(B.slice(-6)), before = dom(B.slice(-18, -6));
-      var verdict = VERD[recent] || '';
-      if (recent !== before && before !== 'flat' && recent !== 'flat') verdict = 'смена: после «' + NM[before] + '» пошло «' + NM[recent] + '» — ' + verdict;
-      if (o.quality) verdict = o.quality + ' · ' + verdict;   // качество хода за сутки (по Leviathan): на чём рос/падал
-      INTRO.push(['плечо', verdict + ' · ' + read24]);
-      // SVG плиты: те же размеры, что у журнала
-      var W = 320, H = 180, GY = H - 30, n = B.length, X = function (i) { return 12 + i / Math.max(1, n - 1) * (W - 24); };
-      var lo = Math.min.apply(null, B.map(function (b) { return b[4]; })), hi = Math.max.apply(null, B.map(function (b) { return b[4]; })); if (hi === lo) hi = lo * 1.01;
-      var Y = function (p) { return 34 + (1 - (p - lo) / (hi - lo)) * (H - 90); };
-      var bw = (W - 24) / Math.max(1, n - 1);
-      // столбики: высота — по силе прироста интереса в блоке (корень от доли максимума), от пола вверх;
-      // объём — вертикальный градиент светлее к верху, скруглённые углы, тонкий блик по верхней кромке
-      var hasQ = B.some(function (b) { return b[5] > 0; });
-      var mxd = Math.max.apply(null, B.map(function (b) { return hasQ ? (b[5] || 0) : (Math.abs(b[2]) || 0); })) || 1;
-      var g = '<defs>' + Object.keys(COL).map(function (k) { return '<linearGradient id="og_' + k + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="' + COL[k] + '" stop-opacity=".78"/><stop offset=".55" stop-color="' + COL[k] + '" stop-opacity=".46"/><stop offset="1" stop-color="' + COL[k] + '" stop-opacity=".12"/></linearGradient>'; }).join('') + '</defs>';
-      B.forEach(function (b, i) { var col = COL[b[1]]; if (!col) return;
-        var mag = hasQ ? (b[5] || 0) : Math.abs(b[2]);
-        var hgt = (GY - 34) * (0.12 + 0.88 * Math.sqrt(mag / mxd)), yt = GY - hgt, xl = X(i) - bw / 2 + .6, wd = Math.max(1.2, bw - 1.2);
-        g += '<g><rect x="' + xl.toFixed(1) + '" y="' + yt.toFixed(1) + '" width="' + wd.toFixed(1) + '" height="' + hgt.toFixed(1) + '" rx="1.4" fill="url(#og_' + b[1] + ')"/>' +
-          '<rect x="' + xl.toFixed(1) + '" y="' + yt.toFixed(1) + '" width="' + wd.toFixed(1) + '" height="1.2" rx=".6" fill="' + col + '" opacity=".6"/>' +
-          '<rect x="' + (xl + wd * .62).toFixed(1) + '" y="' + (yt + 1.5).toFixed(1) + '" width="' + (wd * .3).toFixed(1) + '" height="' + Math.max(0, hgt - 3).toFixed(1) + '" rx=".8" fill="#000" opacity=".16"/>' +
-          '<title>' + esc(new Date(b[0]).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' +4ч · ' + NM[b[1]] + ' · интерес ' + (b[2] > 0 ? '+' : '') + b[2] + '% · цена ' + (b[3] > 0 ? '+' : '') + b[3] + '%' + (b[5] ? ' · оборот ' + (money(b[5]) || '') : '')) + '</title></g>'; });
-      // СВЯЗКА С КАРТОЙ (06.09, по Leviathan): аномальный бар открытия рождает уровни стопов
-      // (×100/×50/×25 от цены бара); рисуем их тонкими линиями от бара до снятия (или до края):
-      // столбик «лонги открывают» → коралловая линия ниже, «шорты открывают» → золотая выше.
-      var anomHours = hh.map(function (h, i) { return [h, i]; }).filter(function (p) { return p[0].length > 6 && p[0][6] && p[0][6].anom; }).slice(-8);
-      anomHours.forEach(function (p) { var h = p[0], bi = Math.floor(p[1] / 4), col = h[1] === 'long_open' ? COL.short_open : COL.long_open;
-        (h[6].levels || []).forEach(function (lv) { var yl = Y(lv[1]); if (!isFinite(yl) || yl < 30 || yl > GY) return;
-          var xe = X(n - 1); if (lv[2]) { var fi = hh.findIndex(function (q) { return q[0] === lv[2]; }); if (fi >= 0) xe = X(Math.min(n - 1, Math.floor(fi / 4))); }
-          var x0 = X(Math.min(n - 1, bi));
-          g += '<line x1="' + x0.toFixed(1) + '" y1="' + yl.toFixed(1) + '" x2="' + xe.toFixed(1) + '" y2="' + yl.toFixed(1) + '" stroke="' + col + '" stroke-width="' + (lv[0] === 100 ? 1.2 : .8) + '" stroke-dasharray="' + (lv[2] ? '2 3' : '') + '" opacity="' + (lv[2] ? .35 : .75) + '"><title>' + esc((h[1] === 'long_open' ? 'лонги открыли ' : 'шорты открыли ') + new Date(h[0]).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit' }) + ' · стоп ×' + lv[0] + ' на ' + lv[1] + (lv[2] ? ' · снят' : '')) + '</title></line>';
-          if (lv[2]) g += '<circle cx="' + xe.toFixed(1) + '" cy="' + yl.toFixed(1) + '" r="1.8" fill="' + col + '" opacity=".8"/>';
-        }); });
-      var dpath = B.map(function (b, i) { return (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(b[4]).toFixed(1); }).join(' ');
-      var Ln = 0; for (var i = 1; i < n; i++) Ln += Math.hypot(X(i) - X(i - 1), Y(B[i][4]) - Y(B[i - 1][4]));
-      g += '<path d="' + dpath + '" fill="none" stroke="' + GOLD + '" stroke-width="5" stroke-linejoin="round" opacity=".18"/>' +
-        '<path class="ln" style="--L:' + Math.ceil(Ln + 2) + '" d="' + dpath + '" fill="none" stroke="' + GOLDL + '" stroke-width="1.4" stroke-linejoin="round"/>' +
-        '<circle cx="' + X(n - 1).toFixed(1) + '" cy="' + Y(B[n - 1][4]).toFixed(1) + '" r="2.6" fill="#fff"/>';
-      ['2 нед', '1 нед', 'сегодня'].forEach(function (t, k) { g += '<text class="ax" x="' + X(Math.round(k * (n - 1) / 2)).toFixed(1) + '" y="' + (GY + 12) + '" text-anchor="middle">' + t + '</text>'; });
-      (function () { var words = verdict.split(' '), lines = [''], LIM = 62;
-        words.forEach(function (w) { if ((lines[lines.length - 1] + ' ' + w).trim().length > LIM) lines.push(w); else lines[lines.length - 1] = (lines[lines.length - 1] + ' ' + w).trim(); });
-        lines.slice(0, 2).forEach(function (ln, k) { g += '<text class="fc" x="' + X(0).toFixed(1) + '" y="' + (11 + k * 9) + '" text-anchor="start">' + esc(ln) + '</text>'; }); })();
+      var _S = String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase();
+      var hrs = ((OIT[_S] || {}).hours || []).filter(function (b) { return +b[4] > 0; });
+      if (hrs.length < 24) return;
+      var tEnd = hrs[hrs.length - 1][0], tBeg = tEnd - 3 * 864e5;
+      var F = (D.fast || {})[_S] || {}, demo = [];
+      var VX = F.vx30, KL = F.kl30;
+      if (!VX || VX.length < 8) { demo.push('вортекс по закрытиям'); VX = []; var N = 14;
+        for (var i = 1; i < hrs.length; i++) { var up = 0, dn = 0, tr = 0;
+          for (var j = Math.max(1, i - N + 1); j <= i; j++) { var dd = +hrs[j][4] - +hrs[j - 1][4]; up += Math.max(0, dd); dn += Math.max(0, -dd); tr += Math.abs(dd); }
+          VX.push([hrs[i][0], tr ? up / tr * 1.4 + 0.3 : 1, tr ? dn / tr * 1.4 + 0.3 : 1]); } }
+      if (!KL || KL.length < 8) { demo.push('клингер по закрытиям и обороту'); KL = [];
+        var e12 = null, e26 = null, e9 = null;
+        for (var i2 = 1; i2 < hrs.length; i2++) { var vf = (+hrs[i2][5] || 0) * ((+hrs[i2][4] >= +hrs[i2 - 1][4]) ? 1 : -1);
+          e12 = e12 === null ? vf : e12 + (vf - e12) * 2 / 13; e26 = e26 === null ? vf : e26 + (vf - e26) * 2 / 27;
+          var kvo = e12 - e26; e9 = e9 === null ? kvo : e9 + (kvo - e9) * 2 / 10; KL.push([hrs[i2][0], kvo, e9]); } }
+      VX = VX.filter(function (r) { return r[0] >= tBeg && r[0] <= tEnd; }); KL = KL.filter(function (r) { return r[0] >= tBeg && r[0] <= tEnd; });
+      var win = hrs.filter(function (b) { return b[0] >= tBeg; });
+      var W = 320, H = 180, GY = H - 30, X = function (t) { return 12 + (t - tBeg) / Math.max(1, tEnd - tBeg) * (W - 24); };
+      var lo = Math.min.apply(null, win.map(function (b) { return +b[4]; })), hi = Math.max.apply(null, win.map(function (b) { return +b[4]; }));
+      var Y = function (p) { return 30 + (1 - (p - lo) / Math.max(1e-12, hi - lo)) * 62; };
+      var g = '', GR = '#4fd1a8', RD = '#ff7a7a';
+      // ДЫРЫ В АРХИВЕ ПОКАЗЫВАЮТСЯ, НЕ ЗАМАЗЫВАЮТСЯ (14.09 вечер, ARK: 28 баров из 54, двенадцать часов на самом
+      // пике отсутствовали, а линия шла через них прямой). Шаг — медиана расстояний между барами; пропуск больше
+      // полутора шагов — дыра: на цене пунктир, на лентах штриховка, в шапке «архив N из M баров».
+      var steps = []; for (var q0 = 1; q0 < win.length; q0++) steps.push(win[q0][0] - win[q0 - 1][0]);
+      steps.sort(function (a, b) { return a - b; }); var STEP = steps.length ? steps[Math.floor(steps.length / 2)] : 36e5;
+      var GAPS = [], missing = 0;
+      for (var q1 = 1; q1 < win.length; q1++) { var dt = win[q1][0] - win[q1 - 1][0]; if (dt > STEP * 1.5) { GAPS.push([win[q1 - 1][0], win[q1][0]]); missing += Math.round(dt / STEP) - 1; } }
+      var expected = win.length + missing;
+      var dp = '', dpg = '', Ln = 0;
+      win.forEach(function (b, i) { var x = X(b[0]).toFixed(1), y = Y(+b[4]).toFixed(1);
+        if (!i) { dp += 'M' + x + ',' + y; return; }
+        var hole = (b[0] - win[i - 1][0]) > STEP * 1.5;
+        if (hole) { dpg += 'M' + X(win[i - 1][0]).toFixed(1) + ',' + Y(+win[i - 1][4]).toFixed(1) + ' L' + x + ',' + y + ' '; dp += ' M' + x + ',' + y; }
+        else { dp += ' L' + x + ',' + y; Ln += Math.hypot(X(b[0]) - X(win[i - 1][0]), Y(+b[4]) - Y(+win[i - 1][4])); } });
+      g += '<path d="' + dp + '" fill="none" stroke="' + GOLD + '" stroke-width="5" stroke-linejoin="round" opacity=".18"/>'
+        + (dpg ? '<path d="' + dpg + '" fill="none" stroke="' + GOLDL + '" stroke-width="1" stroke-dasharray="2 3" opacity=".45"/>' : '')
+        + '<path class="ln" style="--L:' + Math.ceil(Ln + 2) + '" d="' + dp + '" fill="none" stroke="' + GOLDL + '" stroke-width="1.4" stroke-linejoin="round"/>'
+        + '<circle cx="' + X(tEnd).toFixed(1) + '" cy="' + Y(+win[win.length - 1][4]).toFixed(1) + '" r="2.6" fill="#fff"/>';
+      function hhmm(t) { var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+      var STATE = {}, BREAKS = [];
+      function hatch(y) { var o = ''; GAPS.forEach(function (gp) { var x0 = X(gp[0]), x1 = X(gp[1]);
+        o += '<rect x="' + x0.toFixed(1) + '" y="' + (y - 2) + '" width="' + (x1 - x0).toFixed(1) + '" height="4" fill="url(#fhatch)"><title>' + esc('нет данных · ' + hhmm(gp[0]) + ' → ' + hhmm(gp[1])) + '</title></rect>'; }); return o; }
+      // ТРЕТЬЯ ЛЕНТА — ПЛЕЧО И ФАНДИНГ (14.09 вечер, по ARK: у дна перед вторым пиком интерес +8% за два бара и
+      // фандинг −1.5% шли вместе со сломом вортекса вверх). Зелёный — интерес растёт, красный — уходит,
+      // прозрачность — размер; засечка над лентой — фандинг ниже FUND_MARK (шорты платят). Фандинг по барам —
+      // D.fast[sym].fund30 = [[t, %]]; нет ряда — засечек нет, лента только по интересу.
+      function rowOI(y) {
+        var chg = win.map(function (b) { return +b[2] || 0; }), mx = Math.max.apply(null, chg.map(Math.abs).concat([1e-9]));
+        var bw = (W - 24) / Math.max(1, (tEnd - tBeg) / STEP), out = '<text class="rl" x="12" y="' + (y - 7) + '">плечо</text>';
+        win.forEach(function (b, i) { var c = chg[i]; if (!c) return; var st = Math.abs(c) / mx;
+          out += '<rect x="' + (X(b[0]) - bw / 2).toFixed(1) + '" y="' + (y - 2) + '" width="' + (bw + .3).toFixed(1) + '" height="4" fill="' + (c > 0 ? GR : RD) + '" opacity="' + (.12 + .78 * st).toFixed(2) + '"><title>' + esc('интерес · ' + hhmm(b[0]) + ' · ' + (c > 0 ? '+' : '') + c.toFixed(1) + '% за бар') + '</title></rect>'; });
+        var FUND_MARK = -0.5, FD = F.fund30 || [], fm = 0;
+        FD.forEach(function (r) { if (r[0] < tBeg || r[0] > tEnd || +r[1] > FUND_MARK) return; fm++;
+          out += '<path d="M' + (X(r[0]) - 2).toFixed(1) + ',' + (y - 4) + ' h4 l-2,-3 z" fill="#ffd98a" opacity="' + Math.min(1, .5 + Math.abs(+r[1]) / 2).toFixed(2) + '"><title>' + esc('фандинг ' + (+r[1]).toFixed(2) + '% · ' + hhmm(r[0]) + ' · шорты платят') + '</title></path>'; });
+        var last = chg[chg.length - 1];
+        STATE['плечо'] = 'интерес <b>' + (last > 0 ? '+' : '') + last.toFixed(1) + '%</b> за бар' + (FD.length ? ' · фандинг <b>' + (+FD[FD.length - 1][1]).toFixed(2) + '%</b>' : (has(s.fund) ? ' · фандинг <b>' + (+s.fund).toFixed(3) + '%</b> сейчас' : ''));
+        return out + hatch(y);
+      }
+      // СТРОКА ДАВЛЕНИЯ (14.09 вечер, владелец: «слишком много стрелок, всё сливается»): кто давит — не
+      // стрелками на каждом баре, а сплошной ЛЕНТОЙ: зелёный — покупатели, красный — продавцы, прозрачность —
+      // сила. Стрелки остаются ТОЛЬКО на барах слома после экстремума; последний слом — крупно, с кольцом и
+      // временем, прежние — мелкими стрелками. rows = [[t, a, b]], a — покупатели/KVO, b — продавцы/сигнал.
+      function row(rows, y, name) {
+        var gaps = rows.map(function (r) { return (+r[1] || 0) - (+r[2] || 0); });
+        var mx = Math.max.apply(null, gaps.map(Math.abs).concat([1e-9]));
+        var out = '<text class="rl" x="12" y="' + (y - 9) + '">' + name + '</text>';
+        // РАЗВОРОТ — ПЕРВЫЙ БАР СЛОМА ПОСЛЕ ЭКСТРЕМУМА (проверено на ARK по получасовкам: клингер развернулся
+        // на первом баре после верха, вортекс — на третьем, кресты обоих — уже посреди слива). Клингер — KVO
+        // ниже предыдущего бара, когда предыдущий был максимумом за EXT баров (вверх — зеркально от минимума);
+        // вортекс — продавцы выше предыдущего бара после своего минимума при НЕрастущих покупателях.
+        var EXT = 6, A = rows.map(function (r) { return +r[1] || 0; }), B = rows.map(function (r) { return +r[2] || 0; });
+        function isMax(arr, i) { for (var k = Math.max(0, i - EXT); k < i; k++) if (arr[k] > arr[i]) return false; return true; }
+        function isMin(arr, i) { for (var k = Math.max(0, i - EXT); k < i; k++) if (arr[k] < arr[i]) return false; return true; }
+        var brk = rows.map(function (r, i) {
+          if (i < EXT + 1) return 0;
+          if (name === 'клингер') { if (A[i] < A[i - 1] && isMax(A, i - 1)) return -1; if (A[i] > A[i - 1] && isMin(A, i - 1)) return 1; return 0; }
+          if (B[i] > B[i - 1] && isMin(B, i - 1) && A[i] <= A[i - 1]) return -1;
+          if (A[i] > A[i - 1] && isMin(A, i - 1) && B[i] <= B[i - 1]) return 1;
+          return 0; });
+        var turnIdx = []; brk.forEach(function (v, i) { if (v) turnIdx.push(i); });
+        var lastT = turnIdx[turnIdx.length - 1];
+        var bw = (W - 24) / Math.max(1, (tEnd - tBeg) / STEP);   // ширина бара по шагу архива, не по соседям
+        // лента давления
+        rows.forEach(function (r, i) { var gp = gaps[i]; if (!gp) return; var st = Math.abs(gp) / mx;
+          out += '<rect x="' + (X(r[0]) - bw / 2).toFixed(1) + '" y="' + (y - 2) + '" width="' + (bw + .3).toFixed(1) + '" height="4" fill="' + (gp > 0 ? GR : RD) + '" opacity="' + (.12 + .78 * st).toFixed(2) + '"><title>' + esc(name + ' · ' + hhmm(r[0]) + ' · ' + (gp > 0 ? 'давят покупатели' : 'давят продавцы') + ' · сила ' + Math.round(st * 100) + '%') + '</title></rect>'; });
+        out += hatch(y);
+        // СТРЕЛКА СЛОМА — НА ЛИНИИ ЦЕНЫ (14.09 вечер, владелец): только последний слом каждого индикатора,
+        // на самом графике, с подписью индикатора. Здесь лишь собираем; рисуется после лент, поверх цены.
+        if (lastT != null) BREAKS.push({ t: rows[lastT][0], side: brk[lastT], name: name });
+        var lg = gaps[gaps.length - 1];
+        // строка под плитой: подписи тусклые, ЗНАЧЕНИЯ ярко (владелец, 14.09 вечер)
+        STATE[name] = (lg > 0 ? 'давят <b>покупатели</b>' : lg < 0 ? 'давят <b>продавцы</b>' : '<b>ровно</b>') + ' · сила <b>' + Math.round(Math.abs(lg) / mx * 100) + '%</b>'
+          + (lastT != null ? ' · слом <b>' + (brk[lastT] > 0 ? 'вверх' : 'вниз') + ' ' + hhmm(rows[lastT][0]) + '</b>' : ' · сломов за окно <b>нет</b>');
+        return out;
+      }
+      g = '<defs><filter id="fglow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2.2"/></filter>'
+        + '<pattern id="fhatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="rgba(233,255,244,.28)" stroke-width="1"/></pattern></defs>' + g
+        + row(VX, 113, 'вортекс') + row(KL, 130, 'клингер') + rowOI(147);
+      // стрелки слома на линии цены: вверх — под точкой цены, вниз — над ней; подпись «индикатор · время».
+      // Два слома на одном баре (вортекс и клингер часто ломаются вместе) — второй отодвигается дальше от
+      // цены, подписи по разные стороны; у правого края подпись уходит влево (владелец, 14.09 вечер: «стрелки
+      // с вёрсткой что-то» — стрелки лежали одна на другой).
+      BREAKS.sort(function (a, b) { return a.t - b.t; });
+      // ВСЕГДА НАД ГРАФИКОМ, ПОДПИСЬ — ОДНА БУКВА (владелец, 14.09 вечер: «стрелки над графиком, В и К достаточно,
+      // подсвети буквы»): стрелка над точкой цены своего бара, направление — треугольником; два слома на одном
+      // баре — второй выше первого; буква В/К светится цветом слома, полное имя и время — в подсказке.
+      var placed = [];
+      BREAKS.forEach(function (bk) {
+        var bar = null; for (var q = 0; q < win.length; q++) { if (win[q][0] <= bk.t) bar = win[q]; else break; }
+        if (!bar) return;
+        var x = X(bk.t), yp = Y(+bar[4]), up = bk.side > 0, col = up ? GR : RD, sz = 5;
+        var lvl = placed.filter(function (o) { return Math.abs(o.x - x) < 14; }).length;
+        var ya = Math.max(14, yp - 13 - lvl * 19);
+        placed.push({ x: x });
+        var tri = up ? 'M' + (x - sz).toFixed(1) + ',' + (ya + sz * .8).toFixed(1) + ' h' + (2 * sz) + ' l-' + sz + ',-' + (sz * 1.6) + ' z'
+                     : 'M' + (x - sz).toFixed(1) + ',' + (ya - sz * .8).toFixed(1) + ' h' + (2 * sz) + ' l-' + sz + ',' + (sz * 1.6) + ' z';
+        var left = x > W - 30, tx = left ? x - 12 : x + 12, anchor = left ? 'end' : 'start';
+        var letter = bk.name === 'клингер' ? 'К' : 'В';
+        g += '<g class="turn"><circle cx="' + x.toFixed(1) + '" cy="' + ya + '" r="8" fill="none" stroke="' + col + '" stroke-width=".7" opacity=".7"/></g>'
+          + '<path d="' + tri + '" fill="' + col + '"><title>' + esc(bk.name + ' · слом ' + (up ? 'вверх' : 'вниз') + ' · ' + hhmm(bk.t)) + '</title></path>'
+          + '<text class="bk" x="' + tx.toFixed(1) + '" y="' + (ya + 3.2) + '" text-anchor="' + anchor + '" fill="' + col + '" style="--c:' + col + '">' + letter + '<title>' + esc(bk.name + ' · слом ' + (up ? 'вверх' : 'вниз') + ' · ' + hhmm(bk.t)) + '</title></text>';
+      });
+      ['3 дн', '36 ч', 'сейчас'].forEach(function (t, k) { g += '<text class="ax" x="' + X(tBeg + k * (tEnd - tBeg) / 2).toFixed(1) + '" y="' + (GY + 12) + '" text-anchor="' + (k === 0 ? 'start' : k === 2 ? 'end' : 'middle') + '">' + t + '</text>'; });
       var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '">' + g + '</svg>';
-      dzone += '<div class="mini oit"><div class="gglow"></div>' + svg + '<div class="ground"></div><div class="refl">' + svg + '</div>' +
-        '<div class="oitcap">плечо по типу · 14 дн по 4 ч' + (has(o.lev_ratio) ? ' · интерес к обороту ×' + (+o.lev_ratio).toFixed(2) : '') + (o.anomalies ? ' · аномальных баров ' + o.anomalies : '') + '</div>' +
-        '<div class="oitread">' + esc(read24) + '</div>' +
-        '<div class="oitlg"><span><b style="background:#2fae78"></b>лонги открывают</span><span><b style="background:#2a6a50"></b>закрывают</span><span><b style="background:#d4574a"></b>шорты открывают</span><span><b style="background:#7a3a33"></b>закрывают</span></div></div>';
+      dzone += '<div class="mini fast"><div class="gglow"></div>' + svg + '<div class="ground"></div><div class="refl">' + svg + '</div>'
+        + '<div class="fcap">быстрые · вортекс 30м · клингер 30м · плечо · 3 дн</div>'
+        + (missing ? '<div class="fgap">архив ' + win.length + ' из ' + expected + ' баров · дыры заштрихованы</div>' : '')
+        + '<div class="fread"><u>вортекс</u> ' + (STATE['вортекс'] || '') + '<br><u>клингер</u> ' + (STATE['клингер'] || '') + '<br><u>плечо</u> ' + (STATE['плечо'] || '') + '</div>'
+        + (demo.length ? '<div class="fdemo">подставлено: ' + esc(demo.join(' · ')) + '</div>' : '') + '</div>';
     })();
     (function () { var cgx = s.cg || {}, f = cgx.cvdSpark || [], sp = cgx.spotCvdSpark || []; if (f.length < 4 || sp.length < 4) return;
       var fd = f[f.length - 1] - f[0], sd = sp[sp.length - 1] - sp[0];
@@ -2261,29 +2424,62 @@ COIN_JS = r"""
         // интерес, сила, вортекс, пузырь, конец — та же таблица _LAST, что у выноски наверху
         // ПОДПИСЬ У КАЖДОЙ СТРЕЛКИ (12.09, владелец: «три стрелки — две про интерес и одна про силу»):
         // без имени рядом две стрелки одного вида читаются как «дважды подтвердилось».
-        // БУКВА В СТРЕЛКЕ, ВРЕМЯ ПОД НЕЙ (12.09, владелец): к — клингер, в — вихрь/вортекс,
-        // д — дельта (сила), п — пузырь, и — интерес, к — конец пишем как «х» (крест хода),
-        // чтобы не спорить с клингером. Масштаб рядом со временем: 30м или 4ч.
-        var KLET = { oi: 'и', force: 'д', vx: 'в', bub: 'п', end: 'х', kl: 'к', sess: 'с' };
-        var KTF = { oi: '30м', force: '30м', vx: '30м', bub: '30м', end: '30м', kl: '30м', sess: 'стык' };
-        // Значки на плите больше не рисуются (13.09, владелец: «она смешивается с графиком,
-        // пусть стоит выше вердикта в линию, не в столбик») — рейка вынесена в сцену, см. RAILHTML.
+        // РЕЙКА (14.09 вечер, владелец): букв в стрелках нет, названия над кольцами остаются,
+        // ПРОЗРАЧНОСТЬ стрелки — сила движения. Одна стрелка на слот (раньше клалась дважды: сплошная
+        // и поверх неё с прозрачностью — нижняя перекрывала всё, сила не читалась).
         var byKind = {}; _EV.forEach(function (e) { if (e.t >= t0 && e.t <= tE) byKind[e.kind] = e; });
-        // РЕЙКА СОБИРАЕТСЯ ЗДЕСЬ (13.09): события считаются на этом шаге, а строка над вердиктом
-        // строилась раньше и всегда получала пустой объект — слоты были пустыми при живых данных.
+        // бар часовой ленты, в который попало событие — из него берём числа для силы
+        function barAt(t) { var b = null; for (var q = 0; q < _hrs.length; q++) { if (_hrs[q][0] <= t) b = _hrs[q]; else break; } return b; }
+        function clamp(v) { return Math.max(0, Math.min(1, v)); }
+        // СИЛА 0..1 — у каждого вида своя мерка, общей линейки нет:
+        //   интерес вверх — прирост интереса на баре: +1.5% едва видна, +7.5% полная;
+        //   интерес вниз  — отношение интереса к цене: ×1.5 едва видна, ×3 полная (правило 11.09);
+        //   сила          — ход цены на баре к медиане |хода| по окну: 1× едва, 3× полная;
+        //   пузырь        — ясный полная, спорный вполсилы;
+        //   клингер       — крест полная, схождение вполсилы, иначе по разрыву линий;
+        //   стык          — подхватил: оборот к норме сессии 1× вполсилы → 3× полная; не подхватил — едва;
+        //   вортекс       — разрыв линий: 0.45 (порог входа) едва → 0.9 полная; выход без разрыва — 0.8;
+        //   конец         — уход интереса на баре: −2% едва, −6% полная.
+        var _absMed = (function () { var a = _hrs.map(function (b) { return Math.abs(+b[3] || 0); }).filter(function (v) { return v > 0; }).sort(function (x, y) { return x - y; }); return a.length ? a[Math.floor(a.length / 2)] : 1; })();
+        function railStr(e) {
+          var b = barAt(e.t) || [], oi = +b[2] || 0, px = +b[3] || 0;
+          switch (e.kind) {
+            case 'oi':    return e.dir === 'up' ? clamp((oi - 1.5) / 6) : clamp(((e.ratio || 0) - 1.5) / 1.5);
+            case 'force': return clamp((Math.abs(px) / Math.max(1e-9, _absMed) - 1) / 2);
+            case 'bub':   return e.sure === 'ясный' ? 1 : .5;
+            case 'kl':    return has(e.str) ? e.str : .6;
+            case 'sess':  return e.answered ? clamp(.5 + ((e.volx || 1) - 1) / 4) : .25;
+            case 'vx':    return has(e.gap) ? clamp((e.gap - 0.45) / 0.45) : .8;
+            case 'end':   return clamp((-oi - 2) / 4);
+          }
+          return .6;
+        }
+        // МЕДЛЕННЫЕ КАК СОБЫТИЯ ДЛЯ РЕЙКИ (14.09 вечер, владелец: «добавь надписи 30м 4ч»): клингер 4ч и
+        // вортекс 4ч — состоянием: стрелка по повороту/кресту, время — креста, если оно известно.
+        (function () {
+          var K = s.klinger; if (K && (K.crossUp || K.crossDn || K.above !== undefined)) {
+            var kd = K.crossUp ? 'up' : K.crossDn ? 'down' : K.above ? 'up' : 'down', ago = kd === 'up' ? K.upAgo : K.dnAgo;
+            byKind.kl4 = { t: has(ago) ? tE - ago * 4 * 36e5 : tE, dir: kd, col: kd === 'up' ? '#4fd1a8' : '#ff7a7a', str: (K.crossUp || K.crossDn) ? 1 : .45, noTime: !has(ago),
+              tip: 'клингер 4ч · ' + (K.crossUp ? 'крест вверх' : K.crossDn ? 'крест вниз' : K.above ? 'выше сигнала' : 'ниже сигнала') + ' · KVO ' + f(K.kvo) + ' при сигнале ' + f(K.sig) }; }
+          var V = s.vx4; if (V && V.turn) {
+            var n = Math.max(+((V.minus_rise || {}).n) || 0, +((V.plus_fall || {}).n) || 0, +((V.plus_rise || {}).n) || 0, +((V.minus_fall || {}).n) || 0);
+            byKind.vx4 = { t: tE, dir: V.turn, col: V.turn === 'down' ? '#ff7a7a' : '#4fd1a8', str: clamp(n / 4), noTime: true,
+              tip: 'вортекс 4ч · поворот ' + (V.turn === 'down' ? 'вниз' : 'вверх') + ' · ' + n + ' бар · покупатели ' + f(V.vi_plus) + ', продавцы ' + f(V.vi_minus) }; }
+        })();
         window.__RAILHTML = (function () {
-          var ORD = [['oi', 'интерес', 'и'], ['force', 'сила', 'д'], ['bub', 'пузырь', 'п'],
-            ['kl', 'клингер', 'к'], ['sess', 'стык', 'с'], ['vx', 'вортекс', 'в'], ['end', 'конец', 'х']];
-          var h = '<div class="rail">';
-          ORD.forEach(function (k) {
-            var e = byKind[k[0]], col = e ? e.col : '#4a6b5e', up = e && e.dir === 'up';
-            var tm = e ? (function (t) { var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); })(e.t) : '\u2014';
-            h += '<i title="' + esc(e ? e.tip : (k[1] + ' \u2014 за окно событий нет')) + '" style="opacity:' + (e ? 1 : .38) + '">'
-              + '<u style="color:' + col + '">' + esc(k[1]) + '</u>'
-              + '<svg viewBox="0 0 26 26" width="34" height="34"><circle cx="13" cy="13" r="11" fill="rgba(3,14,10,.92)" stroke="' + col + '" stroke-width=".9"/>'
-              + (e ? '<path d="' + (up ? 'M8,16 h10 l-5,-9 z' : 'M8,10 h10 l-5,9 z') + '" fill="' + col + '"/>' : '')
-              + '</svg>'
-              + '<b style="color:' + (e ? '#bfe9d6' : '#4a6b5e') + '">' + esc(tm) + '</b></i>';
+          // один ряд: события и медленные индикаторы. Быстрые вортекс и клингер (30м) здесь больше не стоят —
+          // они живут на плите слева внизу лентами и стрелками слома на линии цены (владелец, 14.09 вечер).
+          var ORD = [['oi', 'интерес', '30м'], ['force', 'сила', '30м'], ['bub', 'пузырь', '30м'], ['sess', 'стык', 'сессии'], ['end', 'конец', '30м'],
+                     ['kl4', 'клингер', '4ч'], ['vx4', 'вортекс', '4ч']];
+          var h = '<div class="rail"><i class="spark"></i>';
+          ORD.forEach(function (k, n) {
+            var e = byKind[k[0]], col = e ? e.col : '#6f8fa8', up = e && e.dir === 'up';
+            var st = e ? (has(e.str) ? e.str : railStr(e)) : 0, op = (.35 + .65 * st).toFixed(2);
+            var tm = e ? (e.noTime ? '' : (function (t) { var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); })(e.t)) : '';
+            h += '<i class="' + (e ? 'on ' + (up ? 'up' : 'dn') : 'off') + '" style="--st:' + st.toFixed(2) + ';animation-delay:' + (n * 70) + 'ms" title="' + esc(e ? (e.tip + ' · сила ' + Math.round(st * 100) + '%') : (k[1] + ' ' + k[2] + ' \u2014 за окно событий нет')) + '">'
+              + '<span class="nm"><svg viewBox="0 0 26 26">' + (e ? '<path d="' + (up ? 'M4,20 h18 l-9,-15 z' : 'M4,6 h18 l-9,15 z') + '" fill="' + col + '" opacity="' + op + '"/>' : '<path d="M7,13 h12" stroke="' + col + '" stroke-width="2" opacity=".6"/>') + '</svg>'
+              + '<u>' + esc(k[1]) + '</u></span>'
+              + '<em>' + esc(k[2]) + (tm ? ' · <b>' + tm + '</b>' : (e ? '' : ' · \u2014')) + '</em></i>';
           });
           return h + '</div>';
         })();
