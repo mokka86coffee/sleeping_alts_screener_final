@@ -853,6 +853,7 @@ COIN_HTML = r"""
 .mini.fast{left:60px;--px:-15deg;--py:11deg;--pz:-2deg;bottom:130px;width:320px;--sc:.90;--c:#bfffe0;--g:127,240,184}   /* --sc .82 → .90: весь блок крупнее на десять процентов (владелец, 14.09 ночь) */
 .mini.fast .refl{display:none}   /* отражение (мини-копия всей плиты) ложилось между лентами серым призраком */
 .mini.fast .gglow{opacity:.35}     /* зелёное свечение подиума красило все ленты в зелёный на всю ширину (владелец, 14.09 ночь) */
+.mini.fast .ln.oi{animation-delay:4.2s}   /* интерес прорисовывается вслед за ценой (15.09) */
 .mini.fast .fcap{position:absolute;left:0;top:-30px;font-family:var(--f-cap);font-size:7px;letter-spacing:.34em;text-transform:uppercase;color:#9fd8bf;white-space:nowrap}
 /* ЛЕВАЯ ПОД ПРАВУЮ (владелец, 14.09 ночь, «сравни левую и правую части»): строки под плитой — размером с
    текст коробки «за/против» и с тем же воздухом; имена — холодный белый с голубым светом, как в рейке;
@@ -1124,13 +1125,14 @@ COIN_HTML = r"""
    рядом и по ней ходит искра с голубым хвостом — как точка на луче под вердиктом */
 .railbox::after{content:"";position:absolute;left:-10px;right:-10px;bottom:-9px;height:1px;pointer-events:none;
   background:linear-gradient(90deg,rgba(190,220,255,0),rgba(190,220,255,.35) 20%,rgba(190,220,255,.35) 80%,rgba(190,220,255,0))}
-.rail .spark{position:absolute;left:-10px;bottom:-11px;width:5px;height:5px;border-radius:50%;pointer-events:none;
-  background:#fff;box-shadow:0 0 6px #bfe0ff,0 0 14px rgba(120,170,255,.9),0 0 26px rgba(80,140,255,.6);
-  animation:railspark 22s ease-in-out infinite}
-.rail .spark::before{content:"";position:absolute;top:1.5px;left:-38px;width:38px;height:2px;border-radius:1px;
-  background:linear-gradient(90deg,rgba(190,220,255,0),rgba(190,220,255,.7));animation:railtail 22s ease-in-out infinite}
-@keyframes railspark{0%,100%{left:-10px}50%{left:calc(100% + 5px)}}
-@keyframes railtail{0%,100%{transform:scaleX(1);transform-origin:right}49.9%{transform:scaleX(1);transform-origin:right}50%{transform:scaleX(-1) translateX(-38px);transform-origin:right}99.9%{transform:scaleX(-1) translateX(-38px);transform-origin:right}}
+/* ТРИ ОГОНЬКА ВОКРУГ БЛОКА (владелец, 15.09: «из трёх точек, которые пересекаются, или пусть летают вокруг
+   всего блока»): три светящиеся точки идут по контуру ряда с разной скоростью, одна — навстречу двум другим,
+   поэтому они постоянно встречаются и расходятся; за каждой хвост из двух гаснущих точек. Ход — в JS
+   (положение считается по периметру держателя), стили здесь. */
+.railbox .orb{position:absolute;left:0;top:0;width:1.8px;height:1.8px;margin:-.9px 0 0 -.9px;border-radius:50%;pointer-events:none;z-index:9;opacity:.7;
+  background:#eaf4ff;box-shadow:0 0 3px rgba(191,224,255,.8),0 0 7px rgba(120,170,255,.55)}
+.railbox .orb.g1{width:1.3px;height:1.3px;margin:-.65px 0 0 -.65px;opacity:.35;box-shadow:0 0 3px rgba(150,200,255,.5)}
+.railbox .orb.g2{width:1px;height:1px;margin:-.5px 0 0 -.5px;opacity:.16;box-shadow:0 0 2px rgba(150,200,255,.4)}
 /* РЕЙКА БЕЗ ПЛАШЕК (14.09 вечер, владелец: «синеватыми по аналогии с «держать», анимацию подобную,
    чем сильнее сигнал — тем ярче; без плашек, просто буквы подсвечивать; в один ряд»).
    Слот — стрелка и имя в одну строку, под именем «масштаб · время». Буквы живого — в свете «держать»:
@@ -1140,8 +1142,6 @@ COIN_HTML = r"""
 .rail i{display:flex;flex-direction:column;align-items:center;gap:3px;font-style:normal;cursor:default;opacity:0;
   animation:railin .55s cubic-bezier(.2,.7,.3,1) forwards;transition:transform .2s}
 .rail i:hover{transform:translateY(-2px)}
-.rail i.spark{display:block;opacity:1;animation:railspark 22s ease-in-out infinite;padding:0;gap:0;transition:none}
-.rail i.spark:hover{transform:none}
 .rail i.off{animation:railin-off .55s ease forwards}
 .rail i .nm{display:flex;align-items:center;gap:4px}
 .rail u{font-family:var(--f-cap);font-size:7.5px;letter-spacing:.2em;text-transform:uppercase;text-decoration:none;color:#7f9fb8;text-shadow:0 0 6px rgba(120,170,255,.25)}
@@ -2180,7 +2180,7 @@ COIN_JS = r"""
       g += '<path d="' + dp + '" fill="none" stroke="' + GOLD + '" stroke-width="5" stroke-linejoin="round" opacity=".18"/>'
         + (dpg ? '<path d="' + dpg + '" fill="none" stroke="' + GOLDL + '" stroke-width="1" stroke-dasharray="2 3" opacity=".45"/>' : '')
         + '<path class="ln" style="--L:' + Math.ceil(Ln + 2) + '" d="' + dp + '" fill="none" stroke="' + GOLDL + '" stroke-width="1.8" stroke-linejoin="round"/>'
-        + '<circle cx="' + X(tEnd).toFixed(1) + '" cy="' + Y(+win[win.length - 1][4]).toFixed(1) + '" r="2.6" fill="#fff"/>';
+        + '<circle class="nowp" cx="' + X(tEnd).toFixed(1) + '" cy="' + Y(+win[win.length - 1][4]).toFixed(1) + '" r="2.6" fill="#fff"/>';
       function hhmm(t) { var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
       var STATE = {}, BREAKS = [];
       function hatch(y) { var o = ''; GAPS.forEach(function (gp) { var x0 = X(gp[0]), x1 = X(gp[1]);
@@ -2204,8 +2204,9 @@ COIN_JS = r"""
         var lo2 = Math.min.apply(null, OI.map(function (r) { return r[1]; })), hi2 = Math.max.apply(null, OI.map(function (r) { return r[1]; }));
         var Y2 = function (v) { return 26 + (1 - (v - lo2) / Math.max(1e-12, hi2 - lo2)) * 60; };
         var d = OI.map(function (r, i) { return (i ? 'L' : 'M') + X(r[0]).toFixed(1) + ',' + Y2(r[1]).toFixed(1); }).join(' ');
+        var Ln2 = 0; for (var q2 = 1; q2 < OI.length; q2++) Ln2 += Math.hypot(X(OI[q2][0]) - X(OI[q2 - 1][0]), Y2(OI[q2][1]) - Y2(OI[q2 - 1][1]));
         var o = '<path d="' + d + '" fill="none" stroke="#5aa8ff" stroke-width="3.5" opacity=".12"/>'
-          + '<path d="' + d + '" fill="none" stroke="#7fc0ff" stroke-width="1.1" opacity=".85"><title>' + esc('открытый интерес' + (idx ? ' · по приростам часовой ленты' : '') + ' · своя шкала') + '</title></path>'
+          + '<path class="ln oi" style="--L:' + Math.ceil(Ln2 + 2) + '" d="' + d + '" fill="none" stroke="#7fc0ff" stroke-width="1.1" opacity=".85"><title>' + esc('открытый интерес' + (idx ? ' · по приростам часовой ленты' : '') + ' · своя шкала') + '</title></path>'
           + '<text class="rl" x="' + (W - 30) + '" y="' + (Y2(OI[OI.length - 1][1]) + 11).toFixed(1) + '" text-anchor="end" style="fill:#7fc0ff;filter:none">интерес</text>';   // под концом линии, чтобы не лезть на стрелки слома
         var FUND_MARK = -0.5, FD = F.fund30 || [];
         FD.forEach(function (r) { if (r[0] < tBeg || r[0] > tEnd || +r[1] > FUND_MARK) return;
@@ -2257,7 +2258,11 @@ COIN_JS = r"""
       }
       g = '<defs><filter id="fglow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2.2"/></filter>'
         + '<pattern id="fhatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="rgba(233,255,244,.28)" stroke-width="1"/></pattern></defs>' + g
-        + oiLine() + row(VX, 118, 'вортекс') + row(KL, 140, 'клингер');
+        + oiLine() + row(VX, 118, 'вортекс') + row(KL, 140, 'клингер')
+        // БЛИК ПО ЛЕНТАМ (15.09, владелец: «слева внизу тоже добавь анимации»): узкая светлая полоса раз в
+        // одиннадцать секунд идёт по обеим лентам слева направо — как ход времени по ленте; SMIL, без JS.
+        + '<defs><linearGradient id="fsweep" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#eaf4ff" stop-opacity="0"/><stop offset=".5" stop-color="#eaf4ff" stop-opacity=".35"/><stop offset="1" stop-color="#eaf4ff" stop-opacity="0"/></linearGradient></defs>'
+        + '<g><rect x="-30" y="115" width="30" height="31" fill="url(#fsweep)" style="mix-blend-mode:screen"><animateTransform attributeName="transform" type="translate" from="0 0" to="' + (W + 30) + ' 0" dur="11s" begin="4s" repeatCount="indefinite"/></rect></g>';
       // стрелки слома на линии цены: вверх — под точкой цены, вниз — над ней; подпись «индикатор · время».
       // Два слома на одном баре (вортекс и клингер часто ломаются вместе) — второй отодвигается дальше от
       // цены, подписи по разные стороны; у правого края подпись уходит влево (владелец, 14.09 вечер: «стрелки
@@ -2545,7 +2550,7 @@ COIN_JS = r"""
           // они живут на плите слева внизу лентами и стрелками слома на линии цены (владелец, 14.09 вечер).
           var ORD = [['oi', 'интерес', '30м'], ['force', 'сила', '30м'], ['bub', 'пузырь', '30м'], ['sess', 'стык', 'сессии'], ['end', 'конец', '30м'],
                      ['kl4', 'клингер', '4ч'], ['vx4', 'вортекс', '4ч']];
-          var h = '<div class="rail"><i class="spark"></i>';
+          var h = '<div class="rail">';
           ORD.forEach(function (k, n) {
             var e = byKind[k[0]], col = e ? e.col : '#6f8fa8', up = e && e.dir === 'up';
             var st = e ? (has(e.str) ? e.str : railStr(e)) : 0, op = (.35 + .65 * st).toFixed(2);
@@ -2638,6 +2643,33 @@ COIN_JS = r"""
         return !!(box && box.innerHTML);
       };
       if (!put()) { requestAnimationFrame(function () { if (!put()) setTimeout(put, 120); }); }
+      // ОГОНЬКИ ВОКРУГ РЯДА (15.09, владелец: «вокруг — и сквозь, и просто рядом; по контуру — только отвлекает»):
+      // три тусклые точки медленно дрейфуют по плавным кривым в поле ряда и чуть шире — проходят сквозь буквы,
+      // отходят, возвращаются, без орбиты и без ритма. Периоды 25–45 с, каждая из двух наложенных волн.
+      if (window.__RAILORBIT) cancelAnimationFrame(window.__RAILORBIT);
+      var orbStart = function () {
+        var box = root.querySelector('.railbox'), rail = box && box.querySelector('.rail'); if (!rail) return false;
+        var ORBS = [{ a: [10.3, 5.7, 3.7, 2.3], b: [0.2, 1.9, 3.1, 4.4] }, { a: [15, 7.7, 4.7, 3], b: [2.6, 0.7, 5.0, 1.3] }, { a: [12.7, 9.7, 4, 2], b: [4.1, 3.3, 0.9, 2.2] }], els = [];   // втрое быстрее (владелец, 15.09)
+        ORBS.forEach(function () { var g2 = document.createElement('i'); g2.className = 'orb g2'; var g1 = document.createElement('i'); g1.className = 'orb g1'; var hd = document.createElement('i'); hd.className = 'orb';
+          box.appendChild(g2); box.appendChild(g1); box.appendChild(hd); els.push([hd, g1, g2]); });
+        function pt(o, t) {
+          var cx = rail.offsetLeft + rail.offsetWidth / 2, cy = rail.offsetTop + rail.offsetHeight / 2;
+          var rx = rail.offsetWidth / 2 + 30, ry = rail.offsetHeight / 2 + 22;
+          var x = cx + rx * (0.62 * Math.sin(t / o.a[0] * 6.283 + o.b[0]) + 0.38 * Math.sin(t / o.a[1] * 6.283 + o.b[1]));
+          var y = cy + ry * (0.6 * Math.sin(t / o.a[2] * 6.283 + o.b[2]) + 0.4 * Math.sin(t / o.a[3] * 6.283 + o.b[3]));
+          return [x, y];
+        }
+        var t0 = performance.now();
+        (function step(now) {
+          if (!box.isConnected) return;
+          var t = (now - t0) / 1000;
+          ORBS.forEach(function (o, k) { [0, 0.12, 0.24].forEach(function (lag, j) { var q = pt(o, t - lag);
+            els[k][j].style.transform = 'translate(' + q[0].toFixed(1) + 'px,' + q[1].toFixed(1) + 'px)'; }); });
+          window.__RAILORBIT = requestAnimationFrame(step);
+        })(t0);
+        return true;
+      };
+      setTimeout(function () { if (!orbStart()) setTimeout(orbStart, 400); }, 200);
     })();
     fit();
   }
