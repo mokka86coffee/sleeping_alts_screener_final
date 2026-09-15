@@ -860,20 +860,44 @@ COIN_HTML = r"""
 .mini.fast svg .hit{cursor:default}
 .mini.fast svg text.ss{font-family:var(--f-cap);font-size:5.5px;letter-spacing:.2em;text-transform:uppercase;opacity:.9}
 .mini.fast svg .jn{filter:drop-shadow(0 0 3px rgba(255,255,255,.5))}
-/* ПЛАШКА МОМЕНТА (15.09): стекло на главном графике, кромка слева цветом сессии, большая тонкая цифра, строки */
-.moment{position:absolute;left:50%;top:148px;transform:translate(-50%,-6px);z-index:12;min-width:250px;padding:10px 16px 11px 18px;border-radius:6px;
-  background:linear-gradient(180deg,rgba(6,18,14,.78),rgba(3,10,8,.86));border:1px solid rgba(233,255,244,.12);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-  box-shadow:0 10px 40px rgba(0,0,0,.45),0 0 24px rgba(var(--mg,120,170,255),.12);opacity:0;pointer-events:none;transition:opacity .6s,transform .6s}
+/* ПЛАШКА МОМЕНТА (15.09, «убери плашку саму, оставь тексты, сзади световую полосу — туда-сюда, плавно и не быстро»):
+   ни фона, ни рамки. Тексты те же: отсчёт, «до сессии», два факта. Позади них медленно летает неяркая полоса света
+   цвета сессии — 14 секунд туда, 14 обратно, замедляясь у краёв. Кромка слева осталась тонкой светящейся чертой. */
+.moment{position:absolute;left:50%;top:146px;transform:translate(-50%,-6px);z-index:12;display:flex;align-items:center;gap:16px;height:54px;padding:0 16px 0 14px;
+  opacity:0;pointer-events:none;transition:opacity .6s,transform .6s}
 .moment.on{opacity:1;transform:translate(-50%,0)}
-.moment .edge{position:absolute;left:0;top:8px;bottom:8px;width:2px;border-radius:2px;background:var(--mc,#7fc0ff);box-shadow:0 0 8px var(--mc,#7fc0ff),0 0 18px var(--mc,#7fc0ff);animation:railhalo 3s ease-in-out infinite}
-.moment .mh{display:flex;align-items:baseline;gap:12px;margin-bottom:5px}
-.moment .mn{font-family:Jost,Inter;font-weight:200;font-size:26px;letter-spacing:.06em;color:#eaf4ff;text-shadow:0 0 12px rgba(150,200,255,.7),0 0 30px rgba(120,170,255,.4);line-height:1}
-.moment .mt{font-family:var(--f-cap);font-size:8px;letter-spacing:.3em;text-transform:uppercase;color:var(--mc,#7fc0ff)}
-.moment .ml{font-family:var(--f-cap);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:#b9c9d8;line-height:1.7;white-space:nowrap}
+.moment .mbeam{position:absolute;top:-10px;bottom:-10px;left:0;width:120px;pointer-events:none;z-index:-1;
+  background:linear-gradient(90deg,rgba(255,255,255,0),color-mix(in srgb,var(--mc,#7fc0ff) 55%,transparent) 50%,rgba(255,255,255,0));filter:blur(12px);opacity:.34;
+  animation:mbeam 28s ease-in-out infinite}
+@keyframes mbeam{0%{left:-60px}50%{left:calc(100% - 60px)}100%{left:-60px}}
+.moment .acc{position:absolute;left:0;top:8px;bottom:8px;width:2px;border-radius:2px;background:var(--mc,#7fc0ff);box-shadow:0 0 8px var(--mc,#7fc0ff),0 0 18px var(--mc,#7fc0ff);animation:railhalo 3s ease-in-out infinite}
+.moment .k1{display:flex;flex-direction:column;justify-content:center;gap:2px;padding-left:6px;min-width:88px}
+.moment .k1 .cd{font-family:Jost,Inter;font-weight:400;font-size:24px;letter-spacing:.04em;line-height:1;color:#eaf4ff;text-shadow:0 0 10px color-mix(in srgb,var(--mc,#7fc0ff) 70%,#fff 30%),0 0 24px color-mix(in srgb,var(--mc,#7fc0ff) 50%,transparent)}
+.moment .k1 .cd.nm{font-size:12px;letter-spacing:.24em;text-transform:uppercase;font-weight:400}
+.moment .k1 .cd small{font-size:11px;letter-spacing:.06em;opacity:.7;margin-left:2px}
+.moment .k1 .u{font-family:var(--f-cap);font-size:6.5px;letter-spacing:.3em;text-transform:uppercase;color:var(--mc,#7fc0ff)}
+.moment.urgent .k1 .cd{animation:murgent 1s ease-in-out infinite}
+.moment.urgent .acc{animation-duration:1s}
+@keyframes murgent{0%,100%{text-shadow:0 0 10px color-mix(in srgb,var(--mc,#7fc0ff) 70%,#fff 30%),0 0 24px color-mix(in srgb,var(--mc,#7fc0ff) 50%,transparent)}50%{text-shadow:0 0 16px #fff,0 0 40px var(--mc,#7fc0ff)}}
+.moment .k2{display:flex;flex-direction:column;justify-content:center;gap:3px;padding-left:16px;border-left:1px solid rgba(233,255,244,.10)}
+.moment .ml{font-family:var(--f-cap);font-size:7.2px;letter-spacing:.13em;text-transform:uppercase;color:#b9c9d8;line-height:1.5;white-space:nowrap;display:flex;align-items:center;gap:7px;opacity:0;animation:mrow .5s ease forwards;text-shadow:0 0 6px rgba(0,0,0,.8)}
 .moment .ml b{font-weight:500;color:#ffe2a8}
-.moment .ml.ok{color:#bfe9d6}.moment .ml.ok::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:#4fd1a8;box-shadow:0 0 6px #4fd1a8;margin:0 7px 1px 0}
-.moment .ml.no{color:#e6b8b8}.moment .ml.no::before{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;border:1px solid #ff7a7a;box-shadow:0 0 6px rgba(255,122,122,.6);margin:0 7px 1px 0;box-sizing:border-box}
-.moment .ml.wait{color:#8fb8d8;font-style:normal}
+.moment .ml::before{content:"";flex:0 0 auto;width:5px;height:5px;border-radius:50%}
+.moment .ml.ok{color:#cfe6dc}.moment .ml.ok::before{background:#4fd1a8;box-shadow:0 0 6px #4fd1a8}
+.moment .ml.no{color:#e6c8c8}.moment .ml.no::before{background:none;border:1px solid #ff7a7a;box-shadow:0 0 6px rgba(255,122,122,.6);box-sizing:border-box}
+.moment .ml.wait{color:#8fb8d8}.moment .ml.wait::before{background:#3a4a54}
+.moment .b{width:16px;height:16px;border-radius:50%;flex:0 0 16px;display:flex;align-items:center;justify-content:center;font-family:var(--f-cap);font-weight:700;font-size:9px;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.1);animation:mbadge 2.2s ease-in-out infinite}
+.moment .b.neg{color:#ff8a6a;text-shadow:0 0 6px #ff8a6a}.moment .b.pos{color:#5ee6b8;text-shadow:0 0 6px #5ee6b8}
+@keyframes mbadge{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+@keyframes mrow{from{opacity:0;transform:translateX(6px)}to{opacity:1;transform:none}}
+/* СТРОКА СЕССИЙ ПОД ГРАФИКОМ (15.09) */
+.sessline{position:absolute;left:50%;top:598px;transform:translateX(-50%);z-index:6;display:flex;align-items:baseline;gap:8px;white-space:nowrap;pointer-events:none;
+  font-family:var(--f-cap);font-size:8px;letter-spacing:.3em;text-transform:uppercase;color:#7fa898}
+.sessline span{font-size:9px;letter-spacing:.34em;text-shadow:0 0 8px currentColor}
+.sessline i{font-style:normal;color:#5f7f78;letter-spacing:.2em}
+.sessline b{font-family:Jost,Inter;font-weight:300;font-size:12px;letter-spacing:.08em;color:#eaf4ff;text-shadow:0 0 8px rgba(150,200,255,.6)}
+.sessline u{text-decoration:none;font-size:7px;letter-spacing:.34em;animation:railhalo 2s ease-in-out infinite}
+.sessline em{display:inline-block;width:1px;height:8px;background:rgba(233,255,244,.18);margin:0 4px;align-self:center}
 .mini.fast .fdemo{top:262px}
 .mini.fast .fnext{position:absolute;right:0;top:-19px;font-family:var(--f-cap);font-size:7px;letter-spacing:.28em;text-transform:uppercase;white-space:nowrap}
 .mini.fast .fnext b{font-weight:400}
@@ -2509,7 +2533,7 @@ COIN_JS = r"""
           var pt = null, best = 1e18; pts.forEach(function (q) { var dd = Math.abs(q.t - b.t); if (dd < best) { best = dd; pt = q; } }); if (!pt) return;
           // ПУЗЫРИ КРУПНЕЕ НА 60% (09.09, владелец): плита журнала выросла, пузыри должны расти
           // вместе с ней. Было 4 + 8·√доли → 6.4 + 12.8 → теперь −15%: 5.44 + 10.88.
-          var r = 5.44 + 10.88 * Math.sqrt((v - mu) / Math.max(1, mx - mu));
+          var r = 4.35 + 8.7 * Math.sqrt((v - mu) / Math.max(1, mx - mu));   // на 20% меньше (владелец, 15.09): было 5.44 + 10.88
           var buy = (+b.b || 0) >= (+b.s || 0);
           // СОМНИТЕЛЬНЫЙ ПУЗЫРЬ — ОРАНЖЕВЫЙ (08.09, владелец: «не отсекать, а делать наполовину
           // оранжевым — понятно, что покупки есть, но цель у них может быть другая»). Смотрим, что
@@ -2754,24 +2778,51 @@ COIN_JS = r"""
         if (!pre && !post) { el.classList.remove('on'); return; }
         var se = pre ? next[1] : last[1], col = se[2], lines = [];
         var hh = Math.floor(toM / 60), mm = toM % 60;
-        var head = pre ? '<div class="mh"><span class="mn">' + hh + ':' + pad(mm) + '</span><span class="mt">до ' + esc(se[1]) + '</span></div>'
-                       : '<div class="mh"><span class="mn">' + esc(se[1]) + '</span><span class="mt">открылся ' + sinceM + ' мин назад</span></div>';
+        var secs = Math.max(0, Math.floor((next[0] - now) / 1000) % 60);
+        var head = pre ? '<div class="k1"><div class="cd">' + hh + ':' + pad(mm) + (toM <= 10 ? '<small>:' + pad(secs) + '</small>' : '') + '</div><div class="u">до ' + esc(se[1]) + ' · стык</div>'
+                       : '<div class="k1"><div class="cd nm">' + esc(se[1]) + '</div><div class="u">открылся ' + sinceM + ' мин назад</div>';
         // подхват последнего открытия
         var j = null; FS.joins.forEach(function (q) { if (q.t === last[0]) j = q; });
-        if (post) lines.push(j ? '<div class="ml ' + (j.ok ? 'ok' : 'no') + '">' + (j.ok ? 'подхватил' : 'не подхватил') + ' · ' + j.short + '</div>'
+        if (post) lines.push(j ? '<div class="ml ' + (j.ok ? 'ok' : 'no') + '">' + (j.ok ? 'подхватил' : 'не подхватил') + ' · ' + j.short.replace('оборот ', '') + '</div>'
                               : '<div class="ml wait">проба идёт · ждём два закрытых бара</div>');
         else { var pj = FS.joins.length ? FS.joins[FS.joins.length - 1] : null;
-          if (pj) lines.push('<div class="ml ' + (pj.ok ? 'ok' : 'no') + '">' + esc(pj.se[1]) + ' ' + (pj.ok ? 'подхватил' : 'не подхватил') + ' · ' + pj.short + '</div>'); }
+          if (pj) lines.push('<div class="ml ' + (pj.ok ? 'ok' : 'no') + '">' + esc(pj.se[1]) + ' ' + (pj.ok ? 'подхватил' : 'не подхватил') + ' · ' + pj.short.replace('оборот ', '') + '</div>'); }
         // моё важное: фандинг, если платят; свежий слом
         var fd = FS.fund.length ? FS.fund[FS.fund.length - 1][1] : null;
         if (fd !== null && (fd <= -0.5 || fd >= 0.1)) lines.push('<div class="ml ' + (fd < 0 ? 'ok' : 'no') + '">фандинг <b>' + (+fd).toFixed(2) + '%</b> · ' + (fd < 0 ? 'шорты платят' : 'платят лонги') + '</div>');
         FS.breaks.slice().sort(function (a, b) { return b.t - a.t; }).slice(0, 2).forEach(function (bk) {
           if (FS.tEnd - bk.t <= 3 * FS.stepMs) lines.push('<div class="ml ' + (bk.side > 0 ? 'ok' : 'no') + '">' + esc(bk.name) + ' · слом <b>' + (bk.side > 0 ? 'вверх' : 'вниз') + '</b> ' + (function (t) { var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); })(bk.t) + '</div>'); });
         el.style.setProperty('--mc', col);
-        el.innerHTML = '<i class="edge"></i>' + head + lines.slice(0, 3).join('');
-        el.classList.add('on');
+        var fdBadge = (fd !== null && (fd <= -0.5 || fd >= 0.1)) ? '<div class="b ' + (fd < 0 ? 'neg' : 'pos') + '">F</div>' : '';
+        // пересобирать разметку только когда меняется СОСТАВ (иначе анимации появления стартовали бы каждую секунду);
+        // цифру обновлять на месте
+        var cdText = pre ? hh + ':' + pad(mm) + (toM <= 10 ? '<small>:' + pad(secs) + '</small>' : '') : esc(se[1]);
+        var key = [pre, se[1], lines.join('|'), fdBadge, toM <= 10].join('#');
+        if (el.__key !== key) {
+          el.__key = key;
+          el.innerHTML = '<i class="mbeam"></i><i class="acc"></i>' + head + '</div><div class="k2">' + lines.slice(0, 2).map(function (l, i) { return l.replace('class="ml', 'style="animation-delay:' + (0.25 + i * 0.18) + 's" class="ml'); }).join('') + '</div>' + fdBadge;
+        } else { var cdEl = el.querySelector('.cd'); if (cdEl) cdEl.innerHTML = cdText; var uEl = el.querySelector('.u'); if (uEl && !pre) uEl.textContent = 'открылся ' + sinceM + ' мин назад'; }
+        el.classList.toggle('urgent', pre && toM <= 10);
+        if (!el.classList.contains('on')) { el.classList.add('on'); }
       }
-      tick(); var iv = setInterval(function () { if (!el.isConnected) { clearInterval(iv); return; } tick(); }, 60000);
+      tick(); var iv = setInterval(function () { if (!el.isConnected) { clearInterval(iv); return; } tick(); }, 1000);
+      // СТРОКА СЕССИЙ ПОД ГРАФИКОМ (15.09, владелец): какая сессия идёт, сколько до следующей, какая следующая.
+      // Всегда на экране, цветом сессий, обновляется раз в минуту вместе с плашкой.
+      var sl = document.createElement('div'); sl.className = 'sessline'; stage.appendChild(sl);
+      function tickLine() {
+        if (!sl.isConnected) return;
+        var now = Date.now(), ord = [], d0 = Math.floor(now / dayMs) * dayMs;
+        FS.sess.forEach(function (se) { [-1, 0, 1].forEach(function (k) { ord.push([d0 + k * dayMs + se[0] * 36e5, se]); }); });
+        ord.sort(function (a, b) { return a[0] - b[0]; });
+        var cur = null, nxt = null, aft = null;
+        for (var i = 0; i < ord.length; i++) { if (ord[i][0] <= now) cur = ord[i]; else if (!nxt) nxt = ord[i]; else if (!aft) aft = ord[i]; }
+        if (!cur || !nxt) return;
+        var m = Math.round((nxt[0] - now) / 6e4), hh = Math.floor(m / 60), mm = m % 60;
+        sl.innerHTML = '<span style="color:' + cur[1][2] + '">' + esc(cur[1][1]) + '</span><i>идёт ' + Math.floor((now - cur[0]) / 36e5) + ' ч ' + pad(Math.round((now - cur[0]) / 6e4) % 60) + ' мин</i>'
+          + '<em></em><i>до</i><span style="color:' + nxt[1][2] + '">' + esc(nxt[1][1]) + '</span><b>' + hh + ':' + pad(mm) + '</b>' + (m <= 60 ? '<u style="color:' + nxt[1][2] + '">стык</u>' : '')
+          + (aft ? '<em></em><i>потом</i><span style="color:' + aft[1][2] + ';opacity:.7">' + esc(aft[1][1]) + '</span>' : '');
+      }
+      tickLine(); var iv2 = setInterval(function () { if (!sl.isConnected) { clearInterval(iv2); return; } tickLine(); }, 60000);
     })();
     (function () { var it = root.getElementById('intro'); if (!it) return;
       var hide = function () { it.classList.add('off'); setTimeout(function () { if (it.parentNode) it.parentNode.removeChild(it); }, 500); document.removeEventListener('keydown', hide); };
