@@ -35,3 +35,4 @@ config/
 prev/reports/
 cache_fundamental
 output/
+pulse_archive/

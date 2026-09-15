@@ -39,7 +39,7 @@ except ImportError:
     def log(msg: str) -> None:
         print(msg)
 
-CONFIG_PATH = BASE_DIR / "output" / "telegram_config.json"
+CONFIG_PATH = BASE_DIR / "config" / "telegram_config.json"
 
 CONFIG_TEMPLATE = {
     "bot_token": "",
