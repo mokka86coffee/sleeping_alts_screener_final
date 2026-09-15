@@ -661,6 +661,7 @@ def render_coin(stars: list[dict], market: dict) -> str:
                "hist": _history(stars), "book": _book(),
                "crowd": crowd, "flow": flow,
                "oitypes": ((_read_json("oi_types.json") or {}).get("coins") or {}),   # плечо по типу (05.09)
+               "depth": ((_read_json("depth.json") or {}).get("coins") or {}),        # стены стакана (15.09)
                "liqhist": _liq_history(),   # карта ликвидаций во времени (05.09)
                "pulse": _pulse_series(3),   # линия мини-журнала — живая цена за 72 ч (08.09)
                "bubOi": _bubble_oi(),       # интерес и тип бара для деления пузырей (08.09)
@@ -1248,7 +1249,7 @@ COIN_JS = r"""
   var STARS = (D.stars || []).filter(function (s) { return s && s.t; });
   var BY = {}; STARS.forEach(function (s) { BY[String(s.t).toUpperCase()] = s; });
   var NAMES = Object.keys(BY).sort();
-  var WH = D.whales || {}, SC = D.sched, JR = D.journal || {}, HIST = D.hist || {}, BOOK = D.book || {}, CROWD = D.crowd || {}, FLOW = D.flow || {}, OIT = D.oitypes || {}, NEAR = D.near || {};
+  var WH = D.whales || {}, SC = D.sched, JR = D.journal || {}, HIST = D.hist || {}, BOOK = D.book || {}, CROWD = D.crowd || {}, FLOW = D.flow || {}, OIT = D.oitypes || {}, NEAR = D.near || {}, DEPTH = D.depth || {};
   var FIRSTS = (D.firsts || []), FUNDS = (D.funds || {});
 
   // ── помощники ──
@@ -1423,6 +1424,16 @@ COIN_JS = r"""
     if (lv.note) pr.push(['реакция на уровень', lv.note]);
     if (s.stop) pr.push(['стоп', px4(s.stop) + (s.px && +s.stop >= +s.px ? ' — УЖЕ ПРОЙДЕН' : s.stopPct !== undefined ? ' · ' + pct(-Math.abs(s.stopPct)) + ' от цены' : '')]);
     if (s.liqZones && s.liqZones.length) pr.push(['ликвидации над ценой', s.liqZones.slice(0, 3).map(function (z) { return money(z.fuel) + ' @ ' + px4((z.lo + z.hi) / 2); }).join(' · ')]);
+    // СТАКАН: ПОТОЛОК И ПОЛ (15.09, владелец: «±10% мало, когда может улететь в 10–20 раз») — дальние и средние
+    // стены из depth_fetch (перп и спот), покрытие; ближние тут не пишем — их видно по ликвидациям и на плите
+    (function () { var dp = (D.depth || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]; if (!dp) return;
+      var far = (dp.walls || []).filter(function (w) { return w.zone && w.zone !== 'ближняя'; });
+      var fa = far.filter(function (w) { return w.side === 'ask'; }).slice(0, 3), fb = far.filter(function (w) { return w.side === 'bid'; }).slice(0, 2);
+      var f = function (w) { return px4(w.px) + ' (' + (w.dist_pct > 0 ? '+' : '') + Math.round(w.dist_pct) + '%, $' + Math.round(w.usd / 1e3) + 'K' + (w.kind === 'spot' ? ', спот' : '') + (w.runs > 1 ? ', ' + w.runs + ' пр.' : '') + ')'; };
+      pr.push(['стакан виден', 'до ' + (dp.cover_up_pct > 0 ? '+' : '') + Math.round(dp.cover_up_pct) + '% / ' + Math.round(dp.cover_dn_pct) + '%' + (dp.spot ? ' · спот до +' + Math.round(dp.spot.cover_up_pct) + '%' : '')]);
+      if (fa.length) pr.push(['потолок стакана', fa.map(f).join(' · ')]);
+      if (fb.length) pr.push(['пол стакана', fb.map(f).join(' · ')]);
+    })();
     var fw = FLOW[String(s.t).toUpperCase()]; if (fw && fw.low && fw.high) pr.push(['коридор потока', px4(fw.low) + ' – ' + px4(fw.high) + (fw.case ? ' · случай ' + fw.case : '')]);
     if (has(s.rangePos)) pr.push(['в диапазоне', Math.round(s.rangePos * (s.rangePos <= 1 ? 100 : 1)) + '%']);
     if (has(s.speedAtr)) pr.push(['скорость хода', f(s.speedAtr) + ' ATR']);
@@ -1822,6 +1833,20 @@ COIN_JS = r"""
       // подпись — ЦЕНА полосы (07.09, владелец: «в размере нет смысла»); сумма — при наведении
       RL.push({ y: sy(mid), col: hot ? (side === 'down' ? '#ffd0c0' : '#e6d3a3') : '#6f7a75', txt: 'ЛИКВ ' + px4(mid) + (hot && _bias ? (_bubOK ? ' ← СНИМУТ · ПУЗЫРЬ' : ' ← снимут') : ''), tip: (side === 'down' ? 'лонги ' : 'шорты ') + (money(z.fuel) || '') + ' на ' + px4(mid), liq: true, hot: !!(hot && _bias), mid: mid, x1: (heatX1 !== null ? heatX1 : X0), dash: hot ? '6 4' : '2 6', w: hot ? (_bias ? 1.1 : .8) : .5, op: hot ? (_bias ? .8 : .55) : .3 });
     });
+    // СТЕНЫ СТАКАНА (15.09, владелец: «толстые заявки — где примерно висят»): по снимку depth_fetch — до трёх
+    // асков над ценой и до трёх бидов под, короткой чертой у правого края с подписью «СТЕНА цена · $K · N пр.»
+    // (N — сколько прогонов стоит). Ушедшие за прошлый прогон — тусклой подписью «сняли» / «съели».
+    (function () {
+      var dp = DEPTH[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]; if (!dp) return;
+      var asks = (dp.walls || []).filter(function (w) { return w.side === 'ask'; }).slice(0, 3), bids = (dp.walls || []).filter(function (w) { return w.side === 'bid'; }).slice(0, 3);
+      asks.concat(bids).forEach(function (w) { if (!(w.px >= lo && w.px <= hi)) return;
+        var big = Math.min(1.6, .6 + Math.log10(Math.max(1, w.usd / 1e4)) * .5);
+        RL.push({ y: sy(w.px), col: w.side === 'ask' ? '#ff9f8f' : '#7fe6b8', txt: 'СТЕНА ' + px4(w.px) + ' · $' + Math.round(w.usd / 1e3) + 'K · ' + w.runs + ' пр.',
+          tip: (w.side === 'ask' ? 'заявка на продажу ' : 'заявка на покупку ') + '$' + Math.round(w.usd / 1e3) + 'K на ' + px4(w.px) + ' (' + (w.dist_pct > 0 ? '+' : '') + w.dist_pct + '%), стоит ' + w.runs + ' прогонов',
+          mid: w.px, x1: X1 - 46, dash: '', w: big, op: Math.min(.95, .45 + w.runs * .12), liq: false }); });
+      (dp.gone || []).slice(0, 2).forEach(function (g) { if (!(g.px >= lo && g.px <= hi)) return;
+        RL.push({ y: sy(g.px), col: '#6f7a75', txt: (g.side === 'ask' ? 'аск ' : 'бид ') + px4(g.px) + ' — ' + g.fate.toUpperCase(), tip: 'стена $' + Math.round(g.usd / 1e3) + 'K стояла ' + g.runs + ' пр. и исчезла: ' + g.fate, mid: g.px, x1: X1 - 24, dash: '1 3', w: .5, op: .5, liq: false }); });
+    })();
     // карта во времени с большой плиты снята (06.09): её горизонталь — 120 дней, сутки лога
     // сжимались в столбик у края («кирпичики»); теперь она на плите журнала справа, где окно — дни
     // ПЛАШКА НАПРАВЛЕНИЯ (05.09): не у точки «сейчас» (там её закрывает график), а в правой

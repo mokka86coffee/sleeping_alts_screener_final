@@ -271,6 +271,28 @@ ARCHIVE_FILL_BACK_BARS = 48   # сутки: строка без размаха �
 ARCHIVE_HEALTH_HOURS = 24
 ARCHIVE_MIN_COVER_PCT = 90
 
+# СТАКАН ПО ПЕРВЫМ (15.09, владелец: «по первым каждый прогон смотреть, где висят толстые заявки»): depth Binance
+# Futures, вес 50 за монету. Снимок до ±DEPTH_RANGE_PCT от цены шагами DEPTH_STEP_PCT; стена — уровень больше
+# DEPTH_WALL_X медианного уровня и не меньше DEPTH_MIN_WALL_USD; монеты — первые, DEPTH_TOP_N очереди, книга.
+DEPTH_LIMIT = 1000
+DEPTH_RANGE_PCT = 10.0
+DEPTH_STEP_PCT = 0.5
+DEPTH_TOP_N = 3
+DEPTH_WALL_X = 8.0
+DEPTH_MIN_WALL_USD = 20000.0
+# зоны стен (владелец 15.09: «±10% мало, когда может улететь в 10–20 раз; плотняк рядом видим по ликвидациям»):
+# ближняя — до DEPTH_NEAR_PCT, средняя — до DEPTH_MID_PCT, дальше — дальняя (потолок/пол). Спот-стакан тоже (DEPTH_SPOT).
+DEPTH_NEAR_PCT = 5.0
+DEPTH_MID_PCT = 30.0
+DEPTH_SPOT = True
+# БУМАЖНЫЙ БОТ НА БЫСТРЫХ (15.09, paper_fast.py): вход — слом вортекса вверх от экстремума ≥ PAPER_FAST_BRK_MIN_VX
+# при росте интереса за PAPER_FAST_OI_BARS баров и фандинге ≤ PAPER_FAST_FUND_ENTRY (шорты платят); монеты — звёзды
+# и первые PAPER_FAST_TOP_N очереди. Выход — слом вниз (событие), ценового стопа нет.
+PAPER_FAST_BRK_MIN_VX = 0.25
+PAPER_FAST_FUND_ENTRY = -0.3
+PAPER_FAST_OI_BARS = 4
+PAPER_FAST_TOP_N = 5
+
 # ─────────────────────────────────────────────────────────────
 # Бумажная книга по первым очереди (11.09, владелец) — paper_book.py
 # ─────────────────────────────────────────────────────────────

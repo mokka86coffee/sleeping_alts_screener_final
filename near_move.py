@@ -1336,14 +1336,76 @@ def log_queue(res: dict) -> int:
     p = BASE_DIR / "output" / "queue_log.jsonl"
     p.parent.mkdir(parents=True, exist_ok=True)
     rows = []
-    for i, sym in enumerate(res.get("queue") or [], 1):
+    # ── ЖУРНАЛ ПОЛНЕЕ (15.09, по разбору недели: цена была у 11 монет за прогон, 979 записей без цены, фон
+    #    считался задним числом и только где хватило монет, выжившие смещали счёт) ──
+    # 1. ЦЕНА КАЖДОЙ ЗАПИСИ: today/nums → пульс → бар серии Coinglass → свеча биржи. Откуда взята — в px_src.
+    def _read_json(pth: Path):
+        try:
+            return json.loads(pth.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+    _pulse = _read_json(BASE_DIR / "pulse.json") or {}
+    _cg = (_read_json(BASE_DIR / "output" / "coinglass_fetch.json") or {}).get("coins") or {}
+    def _px_fallback(sym: str):
+        pts = [q for q in (_pulse.get(sym) or []) if q.get("price")]
+        if pts:
+            return float(sorted(pts, key=lambda q: q.get("t") or 0)[-1]["price"]), "пульс"
+        ser = ((_cg.get(sym) or {}).get("fut") or {}).get("series") or []
+        for b in reversed(ser):
+            if b.get("c"):
+                return float(b["c"]), "coinglass"
+        try:
+            from core_binance import get_klines
+            ks = get_klines(sym, "30m", limit=2) or []
+            if ks:
+                return float(ks[-1][4]), "биржа"
+        except Exception:  # noqa: BLE001
+            pass
+        return None, None
+    # 2. ФОН НА ПРОГОН: биткоин за 12 и 24 часа (часовые свечи биржи) и доска — медиана суточного хода всех монет
+    #    сводки и доля растущих. Одна служебная строка sym="_BG" на прогон, и те же числа в каждой строке монеты.
+    _btc12 = _btc24 = _btcpx = None
+    try:
+        from core_binance import get_klines as _gk
+        _kb = _gk("BTCUSDT", "1h", limit=26) or []
+        if len(_kb) >= 25:
+            _c = [float(k[4]) for k in _kb]
+            _btcpx, _btc12, _btc24 = _c[-1], round((_c[-1] / _c[-13] - 1) * 100, 2), round((_c[-1] / _c[-25] - 1) * 100, 2)
+    except Exception:  # noqa: BLE001
+        pass
+    _chg = [float((vv.get("today") or {}).get("px_chg_pct")) for vv in (res.get("coins") or {}).values() if (vv.get("today") or {}).get("px_chg_pct") is not None]
+    _chg.sort()
+    _board_med = round(_chg[len(_chg) // 2], 2) if _chg else None
+    _board_up = round(100 * sum(1 for x in _chg if x > 0) / len(_chg)) if _chg else None
+    rows.append({"at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "candle": candle.strftime("%Y-%m-%dT%H:%M:00Z"), "sym": "_BG",
+                 "btc_px": _btcpx, "btc_12h": _btc12, "btc_24h": _btc24, "board_med_24h": _board_med, "board_up_pct": _board_up,
+                 "board_n": len(_chg), "queue_n": len(res.get("queue") or []), "first": list(res.get("first") or [])})
+    # 3. ВСЯ СВОДКА, НЕ ТОЛЬКО ОЧЕРЕДЬ: место — у монет очереди, у остальных place = None и in_queue = False, чтобы
+    #    форвард считался и по тем, кто из очереди вылетел.
+    _queue = list(res.get("queue") or [])
+    _all = _queue + [s2 for s2 in (res.get("coins") or {}).keys() if s2 not in _queue]
+    for sym in _all:
+        i = (_queue.index(sym) + 1) if sym in _queue else None
         v = (res.get("coins") or {}).get(sym) or {}
         q = v.get("queue") or {}
         n = v.get("nums") or {}
         t = v.get("today") or {}
+        _px = t.get("px") or n.get("px_now")
+        _px_src = "прогон" if _px else None
+        if not _px:
+            _px, _px_src = _px_fallback(sym)
+        # 4. НАБЛЮДЕНИЯ ДЛЯ СЧИТАЛКИ (правила НЕ меняем — данных мало, владелец 15.09: «главное журналить»):
+        _rf = n.get("run_from_low7")
+        _obs = {"streak6": (q.get("first_streak") or 0) >= 6,
+                "ladder_20_50": q.get("mode") == "лестница" and _rf is not None and 20 <= float(_rf) < 50,
+                "overheat": str(q.get("money") or "").startswith("плечо, оборот и капа растут") and _rf is not None and float(_rf) >= 50,
+                "parabola": q.get("mode") == "парабола",
+                "place2_fresh": i == 2 and (q.get("first_streak") or 1) <= 2}
         rows.append({
             "at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "candle": candle.strftime("%Y-%m-%dT%H:%M:00Z"),
-            "sym": sym, "place": i, "score": q.get("score"), "first_streak": q.get("first_streak"), "oi_inflow": q.get("oi_inflow"),
+            "sym": sym, "place": i, "in_queue": sym in _queue, "px_src": _px_src,
+            "btc_24h": _btc24, "board_med_24h": _board_med, "obs": _obs,
+            "score": q.get("score"), "first_streak": q.get("first_streak"), "oi_inflow": q.get("oi_inflow"),
             "cap_usd": t.get("cap_usd"), "vol_to_cap": t.get("vol_to_cap"), "cap_chg_pct": t.get("cap_chg_pct"),
             "money": q.get("money"), "sess_pickup": (t.get("sess_pickup") or {}).get("why"),
             "fast_against": q.get("fast_against"),
@@ -1381,7 +1443,7 @@ def log_queue(res: dict) -> int:
             "bubbles": (v.get("today") or {}).get("bubbles"),
             "oi_to_px": (v.get("today") or {}).get("oi_to_px"),
             "mode": q.get("mode"), "engine": n.get("engine"), "group": v.get("group"),
-            "px": t.get("px") or n.get("px_now"), "oi_chg_pct": t.get("oi_chg_pct"),
+            "px": _px, "oi_chg_pct": t.get("oi_chg_pct"),
             "px_chg_pct": t.get("px_chg_pct"), "delta": t.get("delta"),
             "skipped_bars": t.get("skipped"),
         })

@@ -644,6 +644,63 @@ def alert_telegram(text: str) -> bool:
         return False
 
 
+def _fast_alerts() -> None:
+    """Стык и стены по звёздам и книге — одной строкой каждое, без повторов между прогонами."""
+    nm = _read_json_any("near_move.json") or {}
+    dp = _read_json_any("depth.json") or {}
+    book = _read_json_any("book.json") or {}
+    watch = [str(s).upper() for s in (nm.get("first") or [])]
+    watch += [str(s).upper() + ("" if str(s).upper().endswith("USDT") else "USDT") for s in (book.keys() if isinstance(book, dict) else []) if not str(s).startswith("_")]
+    sent_p = BASE_DIR / "output" / "alerts_sent.json"
+    try:
+        sent = json.loads(sent_p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        sent = {}
+    lines, keys = [], []
+    for sym in dict.fromkeys(watch):
+        c = (nm.get("coins") or {}).get(sym) or {}
+        sp = ((c.get("today") or {}).get("sess_pickup")) or {}
+        if sp.get("session") and sp.get("at"):
+            k = f"sess|{sym}|{sp['at']}"
+            if k not in sent:
+                lines.append(f"{sym[:-4]} · {sp['session']} {'подхватил' if sp.get('pickup') else 'не подхватил'} · {sp.get('why', '')[:120]}")
+                keys.append(k)
+        d = (dp.get("coins") or {}).get(sym) or {}
+        for g in (d.get("gone") or [])[:2]:
+            k = f"wall|{sym}|{g.get('side')}|{g.get('px')}|{g.get('at')}"
+            if k not in sent:
+                lines.append(f"{sym[:-4]} · стена {'аск' if g.get('side') == 'ask' else 'бид'} {g.get('px'):.6g} ${g.get('usd', 0) / 1e3:.0f}K — {g.get('fate')} после {g.get('runs')} пр.")
+                keys.append(k)
+        for w in (d.get("walls") or [])[:1]:
+            if w.get("runs", 0) == 3:   # стена простояла три прогона — полтора часа — сказать один раз
+                k = f"wallstand|{sym}|{w.get('side')}|{w.get('px')}"
+                if k not in sent:
+                    lines.append(f"{sym[:-4]} · стоит стена {'аск' if w.get('side') == 'ask' else 'бид'} {w.get('px'):.6g} ({w.get('dist_pct'):+.1f}%, ${w.get('usd', 0) / 1e3:.0f}K) уже 3 прогона")
+                    keys.append(k)
+    if not lines:
+        return
+    ok = alert_telegram("⏱ МОМЕНТ\n" + "\n".join(lines[:8]))
+    if ok:
+        for k in keys:
+            sent[k] = int(time.time())
+        cutoff = int(time.time()) - 3 * 86400
+        sent = {k: v for k, v in sent.items() if v >= cutoff}
+        try:
+            sent_p.write_text(json.dumps(sent, ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            pass
+
+
+def _read_json_any(name: str):
+    for p in (BASE_DIR / "output" / name, BASE_DIR / name):
+        if p.exists():
+            try:
+                return json.loads(p.read_text(encoding="utf-8"))
+            except ValueError:
+                return None
+    return None
+
+
 def alert_text(blocked: bool) -> str:
     crit = [i for i in ISSUES if i["critical"]]
     lines = ["⚠ СКРИНЕР: сайт НЕ обновлён" if blocked else "⚠ СКРИНЕР: сбои прогона",
@@ -1291,6 +1348,36 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("Внутридневной архив", (_ri.stderr or "").strip()[-300:] or f"код {_ri.returncode}")
     except Exception as e:
         _issue("Внутридневной архив", f"{type(e).__name__}: {e}")
+    # ── СТАКАН ПО ПЕРВЫМ (15.09): снимок толстых заявок по звёздам, первым очереди и книге; архив и состояние
+    #    для карточки; судьба стен — съели / сняли. Сбой стакана прогон не роняет. ──
+    try:
+        _rd = subprocess.run([sys.executable, "depth_fetch.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=300)
+        _td = (_rd.stdout or "").strip().splitlines()
+        for _l in _td[:8]:
+            log(f"→ {_l[:300]}")
+        if _rd.returncode:
+            _issue("Стакан", (_rd.stderr or "").strip()[-300:] or f"код {_rd.returncode}")
+    except Exception as e:  # noqa: BLE001
+        _issue("Стакан", f"{type(e).__name__}: {e}")
+    # ── БУМАЖНЫЙ БОТ НА БЫСТРЫХ (15.09): вход по трём условиям у дна, выход по слому после вершины; журнал
+    #    в output/paper_fast.jsonl. Сбой бота прогон не роняет. ──
+    try:
+        _rp = subprocess.run([sys.executable, "paper_fast.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=600)
+        _tp = (_rp.stdout or "").strip().splitlines()
+        for _l in _tp:
+            if "entry" in _l or "exit" in _l or _l.startswith("paper_fast: открыто"):
+                log(f"→ {_l[:300]}")
+        if _rp.returncode:
+            _issue("Бумажный бот", (_rp.stderr or "").strip()[-300:] or f"код {_rp.returncode}")
+    except Exception as e:  # noqa: BLE001
+        _issue("Бумажный бот", f"{type(e).__name__}: {e}")
+    # ── ТРЕВОГИ МОМЕНТА В ТЕЛЕГРАМ (15.09, владелец: «всё, что можно автоматизировать, — автоматизировать»):
+    #    по звёздам и книге — свежий стык (подхватил / не подхватил) и судьба стен (съели / сняли).
+    #    Каждое событие уходит один раз: память отправленных в output/alerts_sent.json. ──
+    try:
+        _fast_alerts()
+    except Exception as e:  # noqa: BLE001
+        _issue("Тревоги момента", f"{type(e).__name__}: {e}")
     # ── ДОЛИВ И ПРОВЕРКА АРХИВА (14.09 ночь, владелец: «автоматические проверки и заполнение того, что не
     # было получено»). Строка свежей свечи пишется, пока свеча на бирже ещё открыта, — размаха в ней нет
     # (missing: hl), и 14.09 у всех 126 монет он так и не появился; без среза Coinglass строка стоит без
