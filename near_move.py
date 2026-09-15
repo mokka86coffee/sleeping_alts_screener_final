@@ -1347,7 +1347,8 @@ def log_queue(res: dict) -> int:
     _pulse = _read_json(BASE_DIR / "pulse.json") or {}
     _cg = (_read_json(BASE_DIR / "output" / "coinglass_fetch.json") or {}).get("coins") or {}
     def _px_fallback(sym: str):
-        pts = [q for q in (_pulse.get(sym) or []) if q.get("price")]
+        _pp = _pulse.get(sym) if isinstance(_pulse, dict) else None
+        pts = [q for q in (_pp if isinstance(_pp, list) else []) if isinstance(q, dict) and q.get("price")]
         if pts:
             return float(sorted(pts, key=lambda q: q.get("t") or 0)[-1]["price"]), "пульс"
         ser = ((_cg.get(sym) or {}).get("fut") or {}).get("series") or []

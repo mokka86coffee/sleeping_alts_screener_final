@@ -666,12 +666,17 @@ def _fast_alerts() -> None:
                 lines.append(f"{sym[:-4]} · {sp['session']} {'подхватил' if sp.get('pickup') else 'не подхватил'} · {sp.get('why', '')[:120]}")
                 keys.append(k)
         d = (dp.get("coins") or {}).get(sym) or {}
+        # ШУМ НЕ ШЛЁМ (15.09, первая живая тревога: семь строк, две по делу): стена, появившаяся и снятая за один
+        # прогон, — работа маркетмейкера; дальние потолки на ×7 — застрявшие продавцы, о них достаточно карточки.
+        # Тревога: снята/съедена стена, стоявшая ≥2 прогонов; стоит 3 прогона — только ближняя и средняя (≤30%).
         for g in (d.get("gone") or [])[:2]:
+            if (g.get("runs") or 0) < 2 or abs(g.get("dist_pct") or 0) > 30:
+                continue
             k = f"wall|{sym}|{g.get('side')}|{g.get('px')}|{g.get('at')}"
             if k not in sent:
                 lines.append(f"{sym[:-4]} · стена {'аск' if g.get('side') == 'ask' else 'бид'} {g.get('px'):.6g} ${g.get('usd', 0) / 1e3:.0f}K — {g.get('fate')} после {g.get('runs')} пр.")
                 keys.append(k)
-        for w in (d.get("walls") or [])[:1]:
+        for w in [x for x in (d.get("walls") or []) if abs(x.get("dist_pct") or 0) <= 30][:1]:
             if w.get("runs", 0) == 3:   # стена простояла три прогона — полтора часа — сказать один раз
                 k = f"wallstand|{sym}|{w.get('side')}|{w.get('px')}"
                 if k not in sent:

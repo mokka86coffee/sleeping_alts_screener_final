@@ -41,6 +41,10 @@ try:
     from core_config import DEPTH_NEAR_PCT, DEPTH_MID_PCT, DEPTH_SPOT
 except ImportError:
     DEPTH_NEAR_PCT, DEPTH_MID_PCT, DEPTH_SPOT = 5.0, 30.0, True
+try:
+    from core_config import DEPTH_RISING_PCT, DEPTH_MAX_COINS
+except ImportError:
+    DEPTH_RISING_PCT, DEPTH_MAX_COINS = 10.0, 20
 
 OUT_DIR = BASE_DIR / "cq_v2" / "depth"
 STATE = BASE_DIR / "output" / "depth.json"
@@ -104,6 +108,17 @@ def coins_to_watch() -> list[str]:
         s = s if isinstance(s, str) else (s or {}).get("sym")
         if s:
             out.append(str(s).upper())
+    # РАСТУЩИЕ (владелец 15.09: «для растущих монет»): лидеры по пампу и монеты сводки с ходом за сутки от
+    # DEPTH_RISING_PCT — у них потолок и пол важнее всего
+    for s in ((_read(BASE_DIR / "output" / "pump_leaders.json") or {}).keys()):
+        if not str(s).startswith("_"):
+            out.append(str(s).upper())
+    for s, v in (nm.get("coins") or {}).items():
+        try:
+            if float(((v or {}).get("today") or {}).get("px_chg_pct") or 0) >= DEPTH_RISING_PCT:
+                out.append(str(s).upper())
+        except (TypeError, ValueError):
+            pass
     book = _read(BASE_DIR / "output" / "book.json") or _read(BASE_DIR / "book.json") or {}
     for s in (book.keys() if isinstance(book, dict) else []):
         if not str(s).startswith("_"):
@@ -114,7 +129,7 @@ def coins_to_watch() -> list[str]:
         if s not in seen:
             seen.add(s)
             res.append(s)
-    return res
+    return res[:DEPTH_MAX_COINS]   # вес 50 на монету: двадцать — тысяча за прогон, четверть минутного лимита
 
 
 def _bucket(dist_pct: float) -> str:
@@ -152,8 +167,19 @@ def snapshot(sym: str, raw: dict, ts_ms: int, kind: str = "perp") -> dict | None
                 d = round((p / mid - 1) * 100, 2)
                 walls.append({"side": side, "px": p, "usd": round(usd, 0), "dist_pct": d, "zone": zone(d), "kind": kind})
     walls.sort(key=lambda w: -w["usd"])
-    cover_up = round((asks[-1][0] / mid - 1) * 100, 1)
-    cover_dn = round((bids[-1][0] / mid - 1) * 100, 1)
+    # ПОКРЫТИЕ — ГДЕ ЛЕЖАТ 95% ДЕНЕГ СТОРОНЫ (15.09, PLAY: «виден до −100%» — последний бид был пылинкой у нуля)
+    def _cover(arr):
+        tot = sum(p * q for p, q in arr)
+        if not tot:
+            return 0.0
+        acc = 0.0
+        for p, q in arr:
+            acc += p * q
+            if acc >= tot * 0.95:
+                return round((p / mid - 1) * 100, 1)
+        return round((arr[-1][0] / mid - 1) * 100, 1)
+    cover_up = _cover(asks)
+    cover_dn = _cover(bids)
     near_b = sum(p * q for p, q in bids if p >= mid * (1 - DEPTH_NEAR_PCT / 100))
     near_a = sum(p * q for p, q in asks if p <= mid * (1 + DEPTH_NEAR_PCT / 100))
     return {

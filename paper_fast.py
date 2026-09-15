@@ -109,8 +109,10 @@ def main() -> int:
     # цена бара — из пульса (последняя точка), как в архиве; нет — из near_move
     px_of = {}
     pulse = _read(BASE_DIR / "pulse.json") or {}
-    for k, pts in pulse.items():
-        pts = [q for q in (pts or []) if q.get("price")]
+    for k, pts in (pulse.items() if isinstance(pulse, dict) else []):
+        if not isinstance(pts, list):          # в pulse.json есть и служебные ключи со строками — не монеты
+            continue
+        pts = [q for q in pts if isinstance(q, dict) and q.get("price")]
         if pts:
             px_of[str(k).upper()] = float(sorted(pts, key=lambda q: q.get("t") or 0)[-1]["price"])
     nm = _read(BASE_DIR / "output" / "near_move.json") or {}

@@ -10,7 +10,7 @@
   холст   стеклянная плита в перспективе на полу: линия цены по дневкам
           звезды, сетка внутри, уровни (плита · стоп · опора), полосы
           кластеров ликвидаций с суммой, «сейчас», отражение, лужи света
-  решение внутри плиты под кривой: вердикт, основание, когда снимется,
+  решение внутри плиты под кри  вой: вердикт, основание, когда снимется,
           что торопит, строки ЗА и ПРОТИВ
   пометки пять групп вокруг плиты: ГДЕ ЦЕНА · ПОТОК · ПЛЕЧО · ПАМЯТЬ ·
           КАЛЕНДАРЬ-ФУНДАМЕНТ — цифра, единица, чтение одной строкой;
@@ -655,6 +655,28 @@ def render_coin(stars: list[dict], market: dict) -> str:
     for r in (_read_json("flow_watch.json") or {}).get("coins") or []:
         flow[str(r.get("sym") or "").upper().replace("USDT", "")] = {
             "case": r.get("case"), "low": r.get("low"), "high": r.get("high")}
+    # ЖУРНАЛ ВЕРДИКТОВ (15.09, владелец: «в журнал писать сводку по монете: вердикт — ход цены»). Вердикт живёт
+    # только здесь, в данных карточки (act.act из сборки страниц), в queue_log его нет — пишем свою строку на монету
+    # за прогон: output/verdict_log.jsonl — время, монета, вердикт, группа, причина, цена. Считалка потом
+    # сопоставит вердикт с ходом цены через 12/24 часа (check_journal.py, раздел «вердикт → ход»).
+    try:
+        import time as _time
+        _now = _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime())
+        _vl = Path("output") / "verdict_log.jsonl"
+        _vl.parent.mkdir(parents=True, exist_ok=True)
+        _snap = {}
+        with _vl.open("a", encoding="utf-8") as _f:
+            for _st in stars:
+                _act = _st.get("act") or {}
+                _v = str(_act.get("act") or _st.get("stanceVerdict") or _st.get("verdict") or "ждать").lower()
+                _row = {"at": _now, "sym": str(_st.get("coin") or (str(_st.get("t") or "").upper() + "USDT")).upper(),
+                        "verdict": _v, "group": _act.get("group"), "why": (_act.get("why") or "")[:160],
+                        "px": _st.get("px"), "up_from_low": _st.get("up"), "life_drop": _st.get("lifeDrop"), "lead": bool(_st.get("lead"))}
+                _f.write(json.dumps(_row, ensure_ascii=False) + "\n")
+                _snap[_row["sym"]] = _row
+        (Path("output") / "verdicts.json").write_text(json.dumps({"at": _now, "coins": _snap}, ensure_ascii=False), encoding="utf-8")
+    except Exception:  # noqa: BLE001 — журнал не должен ронять карточку
+        pass
     payload = {"stars": stars, "market": market,
                "whales": whales.get("by_coin") or {},
                "sched": sched, "journal": _journal(),
@@ -1511,6 +1533,18 @@ COIN_JS = r"""
     if (_fa !== undefined && _fa !== null && _fa <= 8) _fast.push('быстро · сила развернулась ' + _fa + ' бар назад');
     if (_vh && _vh.bars !== null && (_vh.kind === 'пересечение' || _vh.bars <= 8)) _fast.push('быстро · ' + con[con.length - 1]);
     con = _fast.concat(con.filter(function (x) { return _fast.indexOf('быстро · ' + x) < 0 && x.indexOf('сила развернулась') < 0; }));
+    // СТАКАН В РЕШЕНИИ (15.09, владелец: «внедрять сразу в карточку, для растущих монет»): у растущей монеты
+    // потолок — толстый аск не дальше DEPTH_CEIL_PCT над ценой — строка «против»; толстый бид под ценой ближе
+    // того же — «за». Снятая стена перед ходом — «против» отдельно (её убрали, чтобы дать пройти? или продали?).
+    (function () { var dp = DEPTH[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]; if (!dp) return;
+      var CEIL = 15, ws = dp.walls || [];
+      var ca = ws.filter(function (w) { return w.side === 'ask' && w.dist_pct > 0 && w.dist_pct <= CEIL; }).sort(function (a, b) { return a.dist_pct - b.dist_pct; })[0];
+      var cb = ws.filter(function (w) { return w.side === 'bid' && w.dist_pct < 0 && -w.dist_pct <= CEIL; }).sort(function (a, b) { return b.dist_pct - a.dist_pct; })[0];
+      var W = function (w) { return px4(w.px) + ' (' + (w.dist_pct > 0 ? '+' : '') + w.dist_pct.toFixed(1) + '%, $' + Math.round(w.usd / 1e3) + 'K' + (w.kind === 'spot' ? ', спот' : '') + (w.runs > 1 ? ', стоит ' + w.runs + ' пр.' : '') + ')'; };
+      if (ca) con.push('стакан: потолок ' + W(ca));
+      if (cb) pro.push('стакан: пол ' + W(cb));
+      (dp.gone || []).slice(0, 1).forEach(function (g) { if (g.fate === 'сняли') con.push('стакан: ' + (g.side === 'ask' ? 'аск ' : 'бид ') + px4(g.px) + ' $' + Math.round(g.usd / 1e3) + 'K сняли после ' + g.runs + ' пр.'); });
+    })();
     var patD = patterns(HIST[String(s.t).toUpperCase()] || {}, CROWD[String(s.t).toUpperCase()]);
     if (patD.absorbShort) pro.push(patD.absorbShort);
     if (patD.shortShort) pro.push(patD.shortShort);
@@ -1695,8 +1729,7 @@ COIN_JS = r"""
       OP.forEach(function (o) { var d = o[0] - hU; if (d <= 0) d += 24; if (!best || d < best[0]) best = [d, o[1]]; });
       if (!best) return;
       var hh = Math.floor(best[0]), mm = Math.round((best[0] - hh) * 60);
-      s += '<text x="' + (W / 2) + '" y="88" text-anchor="middle" font-family="var(--f-cap)" font-size="7" letter-spacing=".22em" fill="#8fc7ad">'
-        + 'ДО СЕССИИ ' + best[1] + ' · ' + (hh ? hh + ' Ч ' : '') + pad(mm) + ' МИН</text>';
+      // строка «до сессии» здесь снята (владелец 15.09: показывалось в трёх местах) — живёт под графиком
     })();
     s += '<text x="' + (W / 2) + '" y="52" text-anchor="middle" font-family="Jost,Inter" font-weight="200" font-size="32" letter-spacing=".06em" fill="' + col + '">' + inH + ':' + pad(inM) + '</text>';
     s += '<text x="' + (W / 2) + '" y="70" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" letter-spacing=".26em" fill="rgba(255,255,255,.7)">' + cap + '</text>';
@@ -2295,7 +2328,7 @@ COIN_JS = r"""
         var Ln2 = 0; for (var q2 = 1; q2 < OI.length; q2++) Ln2 += Math.hypot(X(OI[q2][0]) - X(OI[q2 - 1][0]), Y2(OI[q2][1]) - Y2(OI[q2 - 1][1]));
         var o = '<path d="' + d + '" fill="none" stroke="#5aa8ff" stroke-width="3.5" opacity=".12"/>'
           + '<path class="ln oi" style="--L:' + Math.ceil(Ln2 + 2) + '" d="' + d + '" fill="none" stroke="#7fc0ff" stroke-width="1.1" opacity=".85" data-tip="' + esc('открытый интерес' + (idx ? ' · по приростам часовой ленты' : '') + ' · своя шкала') + '"/>'
-          + '<text class="rl" x="' + (W - 30) + '" y="' + (Y2(OI[OI.length - 1][1]) + 11).toFixed(1) + '" text-anchor="end" style="fill:#7fc0ff">интерес</text>';   // под концом линии, чтобы не лезть на стрелки слома
+;   // подпись «интерес» снята (владелец 15.09) — линия синяя, узнаётся без слова
         // ФАНДИНГ БУКВОЙ F (15.09, владелец): красная F — аномально отрицательный, ниже FUND_NEG (шорты платят,
         // топливо); зелёная F — положительный, выше FUND_POS (платят лонги — выносить некого, правило 12.09).
         // Стоит под линией интереса на своём баре; подряд идущие бары одного знака — одна F на первом, чтобы
@@ -2370,8 +2403,9 @@ COIN_JS = r"""
       for (var dd = d0 - dayMs; dd <= tEnd + dayMs; dd += dayMs) SESS.forEach(function (se) {
         var t = dd + se[0] * 36e5, a = t - 36e5, b = t + 18e5; if (b < tBeg || a > tEnd) return;
         var xa = X(Math.max(a, tBeg)), xb = X(Math.min(b, tEnd)), xt = X(t), fresh = t > tEnd - dayMs;
-        sessG += '<rect x="' + xa.toFixed(1) + '" y="12" width="' + Math.max(0, xb - xa).toFixed(1) + '" height="' + (GY - 12) + '" fill="rgba(234,244,255,' + (fresh ? '.045' : '.022') + ')" data-tip="' + esc('стык ' + se[1] + ' · час до открытия и полчаса после') + '"/>';
-        if (t >= tBeg && t <= tEnd) sessG += '<line x1="' + xt.toFixed(1) + '" y1="12" x2="' + xt.toFixed(1) + '" y2="' + GY + '" stroke="' + se[2] + '" stroke-width=".6" opacity="' + (fresh ? '.5' : '.22') + '" stroke-dasharray="' + (fresh ? '' : '1 3') + '"/>'
+        // полосы и линии — только в зоне лент (владелец 15.09: «полосы вверху убери, внизу оставляем»)
+        sessG += '<rect x="' + xa.toFixed(1) + '" y="100" width="' + Math.max(0, xb - xa).toFixed(1) + '" height="' + (GY - 100) + '" fill="rgba(234,244,255,' + (fresh ? '.045' : '.022') + ')" data-tip="' + esc('стык ' + se[1] + ' · час до открытия и полчаса после') + '"/>';
+        if (t >= tBeg && t <= tEnd) sessG += '<line x1="' + xt.toFixed(1) + '" y1="100" x2="' + xt.toFixed(1) + '" y2="' + GY + '" stroke="' + se[2] + '" stroke-width=".6" opacity="' + (fresh ? '.5' : '.22') + '" stroke-dasharray="' + (fresh ? '' : '1 3') + '"/>'
           + (fresh ? '<text class="ss" x="' + (xt + 1.5).toFixed(1) + '" y="107" fill="' + se[2] + '" data-tip="' + esc('открытие ' + se[1]) + '">' + se[3] + '</text>' : '');   // две буквы над лентами: полные имена в сутках не помещаются
       });
       // до следующей сессии — в местных часах
@@ -2445,7 +2479,7 @@ COIN_JS = r"""
         .map(function (r) { return '<i class="fray" style="left:' + r[0] + 'px;--ra:' + r[1] + 'deg;--rd:' + r[2] + 's;--rw:' + (-r[3]) + 's"></i>'; }).join('');
       window.__FASTSTATE = { joins: JOINS, breaks: BREAKS, fund: (F.fund30 || []), sess: SESS, stepMs: STEPn, tEnd: tEnd, brkStr: STATE };
       dzone += '<div class="mini fast"><div class="gglow"></div>' + svg + '<div class="ground"></div><div class="fglow"></div>' + frays + '<div class="refl">' + svg + '</div>'
-        + '<div class="fcap">быстрые · вортекс 30м · клингер 30м · интерес · 3 дн</div>' + (NEXTSESS ? '<div class="fnext">' + NEXTSESS + '</div>' : '') + '<div class="ftip"></div>'
+        + '<div class="fcap">быстрые · вортекс 30м · клингер 30м · интерес · 3 дн</div><div class="ftip"></div>'
         + (missing ? '<div class="fgap">архив ' + win.length + ' из ' + expected + ' баров · дыры заштрихованы</div>' : '')
         + '<div class="fread"><u>вортекс</u> ' + (STATE['вортекс'] || '') + '<br><u>клингер</u> ' + (STATE['клингер'] || '') + '<br><u>интерес</u> ' + (STATE['плечо'] || '') + (STATE['стык'] ? '<br><u>стык</u> ' + STATE['стык'] : '') + '</div>'
         + (demo.length ? '<div class="fdemo">подставлено: ' + esc(demo.join(' · ')) + '</div>' : '') + '</div>';
@@ -2780,9 +2814,9 @@ COIN_JS = r"""
     var cs = clockState(), clock = cs ? vessel(cs) : '';
     var aura = '<div class="aura up' + (cs && cs.kind === 'up' ? (cs.live ? ' on' : cs.soon ? ' soon' : '') : '') + '"></div><div class="aura dn' + (cs && cs.kind === 'dn' ? (cs.live ? ' on' : cs.soon ? ' soon' : '') : '') + '"></div>';
     stage.innerHTML = '<div class="beam"></div><div class="floor"></div><div class="sweep"></div>' + aura + '<div class="slab"><svg viewBox="0 0 ' + SW + ' ' + SH + '">' + slab + '</svg></div><svg class="leaders" viewBox="0 0 1440 900">' + leaders + '</svg>' +
-      hd + hdr + _tb + srcs + '<a class="back" href="brief.html">← схема</a>' + coins + notes + dzone + clock + introHtml + '<div class="replay" id="replay">заново</div><div class="legend">' + (ser.length > 2 ? 'цена · ' + days + ' дневок' + (d0 ? ' · архив' : ' · звезда') : 'ряда цены нет') + ' · наведи на пометку — полная группа</div>' +
+      hd + hdr + _tb + srcs + '<a class="back" href="brief.html">← схема</a>' + coins + notes + dzone + clock + introHtml + '<div class="legend">' + (ser.length > 2 ? 'цена · ' + days + ' дневок' + (d0 ? ' · архив' : ' · звезда') : 'ряда цены нет') + ' · наведи на пометку — полная группа</div>' +
       '<div class="atmo"><div class="vig"></div></div>';   // ОПТИМИЗАЦИЯ 04.09: зерно feTurbulence на весь экран снято — на планшете это половина кадра
-    root.getElementById('replay').onclick = function () { build(tick); };
+    // кнопка «заново» снята (владелец 15.09); пересборка — по хэшу монеты
     // ПЛАШКА МОМЕНТА НА ГЛАВНОМ ГРАФИКЕ (15.09, владелец: «на основной график плашку — показывать в важные моменты:
     // до следующей сессии меньше часа и название, межсессионье — есть подхват или нет, и своё важное»). Живёт
     // только в важный момент: меньше часа до открытия или первые полтора часа после. Строки: заголовок момента,

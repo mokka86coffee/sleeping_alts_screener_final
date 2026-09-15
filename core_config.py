@@ -285,6 +285,10 @@ DEPTH_MIN_WALL_USD = 20000.0
 DEPTH_NEAR_PCT = 5.0
 DEPTH_MID_PCT = 30.0
 DEPTH_SPOT = True
+# растущие монеты в стакан (владелец 15.09): лидеры по пампу и ход за сутки ≥ DEPTH_RISING_PCT; всего не больше
+# DEPTH_MAX_COINS монет за прогон (вес 50 каждая)
+DEPTH_RISING_PCT = 10.0
+DEPTH_MAX_COINS = 20
 # БУМАЖНЫЙ БОТ НА БЫСТРЫХ (15.09, paper_fast.py): вход — слом вортекса вверх от экстремума ≥ PAPER_FAST_BRK_MIN_VX
 # при росте интереса за PAPER_FAST_OI_BARS баров и фандинге ≤ PAPER_FAST_FUND_ENTRY (шорты платят); монеты — звёзды
 # и первые PAPER_FAST_TOP_N очереди. Выход — слом вниз (событие), ценового стопа нет.

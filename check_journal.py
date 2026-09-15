@@ -127,6 +127,54 @@ def main() -> int:
             print(f"  ── {name}")
             for k, v in sorted(items, key=lambda kv: -len(kv[1])):
                 print(f"     {str(k):<36} n={len(v):>4}  к доске {st.median(v):+6.1f}%  ≥+{HIT_PCT:.0f}%: {100 * sum(1 for x in v if x >= HIT_PCT) / len(v):4.0f}%")
+    # ── ВЕРДИКТ → ХОД (15.09): output/verdict_log.jsonl — вердикт карточки на монету за прогон; форвард по цене
+    #    из тех же строк через a.hours; к доске — минус медиана всех монет того же прогона.
+    vp = BASE_DIR / "output" / "verdict_log.jsonl"
+    if not vp.exists():
+        vp = BASE_DIR / "verdict_log.jsonl"
+    if vp.exists():
+        vrecs = []
+        for line in vp.read_text(encoding="utf-8").splitlines():
+            try:
+                vrecs.append(json.loads(line))
+            except ValueError:
+                continue
+        vrecs = [r for r in vrecs if r.get("px") and T(r["at"]) >= since]
+        vby = defaultdict(list)
+        for r in vrecs:
+            vby[r["sym"]].append((T(r["at"]), float(r["px"])))
+        for k in vby:
+            vby[k].sort()
+        def vpx_after(sym, t, h):
+            arr = vby.get(sym, [])
+            tt = t + h * 3600
+            i = bisect.bisect_left(arr, (tt, 0.0))
+            return arr[i][1] if i < len(arr) and arr[i][0] - tt < 3 * 3600 else None
+        vrows = []
+        for r in vrecs:
+            pa = vpx_after(r["sym"], T(r["at"]), a.hours)
+            if pa:
+                vrows.append(dict(r, fwd=(pa / float(r["px"]) - 1) * 100))
+        vb = defaultdict(list)
+        for r in vrows:
+            vb[r["at"]].append(r["fwd"])
+        vmed = {k: st.median(v) for k, v in vb.items() if len(v) >= 6}
+        vrows = [dict(r, rel=r["fwd"] - vmed[r["at"]]) for r in vrows if r["at"] in vmed]
+        if vrows:
+            print(f"\n════ ВЕРДИКТ → ХОД за {a.hours}ч к доске · n={len(vrows)}")
+            g = defaultdict(list)
+            for r in vrows:
+                g[r.get("verdict")].append(r["rel"])
+            for k, v in sorted(g.items(), key=lambda kv: -len(kv[1])):
+                if len(v) >= a.min:
+                    print(f"     {str(k):<24} n={len(v):>4}  к доске {st.median(v):+6.1f}%  ≥+{HIT_PCT:.0f}%: {100 * sum(1 for x in v if x >= HIT_PCT) / len(v):4.0f}%  ≤−{HIT_PCT:.0f}%: {100 * sum(1 for x in v if x <= -HIT_PCT) / len(v):4.0f}%")
+            g2 = defaultdict(list)
+            for r in vrows:
+                g2[(r.get("verdict"), r.get("group"))].append(r["rel"])
+            print("  ── вердикт · группа")
+            for k, v in sorted(g2.items(), key=lambda kv: -len(kv[1])):
+                if len(v) >= a.min:
+                    print(f"     {str(k[0]) + ' · ' + str(k[1]):<32} n={len(v):>4}  к доске {st.median(v):+6.1f}%  ≥+{HIT_PCT:.0f}%: {100 * sum(1 for x in v if x >= HIT_PCT) / len(v):4.0f}%")
     return 0
 
 
