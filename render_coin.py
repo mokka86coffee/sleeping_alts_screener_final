@@ -10,7 +10,7 @@
   холст   стеклянная плита в перспективе на полу: линия цены по дневкам
           звезды, сетка внутри, уровни (плита · стоп · опора), полосы
           кластеров ликвидаций с суммой, «сейчас», отражение, лужи света
-  решение внутри плиты под кри  вой: вердикт, основание, когда снимется,
+  решение внутри плиты под кривой: вердикт, основание, когда снимется,
           что торопит, строки ЗА и ПРОТИВ
   пометки пять групп вокруг плиты: ГДЕ ЦЕНА · ПОТОК · ПЛЕЧО · ПАМЯТЬ ·
           КАЛЕНДАРЬ-ФУНДАМЕНТ — цифра, единица, чтение одной строкой;
@@ -889,13 +889,18 @@ COIN_HTML = r"""
 .moment{position:absolute;left:50%;top:146px;transform:translate(-50%,-6px);z-index:12;display:flex;align-items:center;gap:16px;height:54px;padding:0 16px 0 14px;
   opacity:0;pointer-events:none;transition:opacity .6s,transform .6s}
 .moment.on{opacity:1;transform:translate(-50%,0)}
+/* ЗАТЕМНЕНИЕ ПОД ТЕКСТАМИ (16.09, владелец: «не видно текст» — на светлой зелёной плите буквы тонули): не плашка,
+   а мягкое тёмное пятно с размытыми краями, как под рейкой; плюс тёмная обводка у самих букв */
+.moment::before{content:"";position:absolute;inset:-14px -26px;border-radius:50%;pointer-events:none;z-index:-2;
+  background:radial-gradient(ellipse at center,rgba(2,10,8,.88),rgba(2,10,8,.62) 55%,rgba(2,10,8,0) 82%);filter:blur(10px)}
+.moment .k1 .u,.moment .ml{text-shadow:0 0 5px rgba(2,10,8,.95),0 0 12px rgba(2,10,8,.8)}
 .moment .mbeam{position:absolute;top:-10px;bottom:-10px;left:0;width:120px;pointer-events:none;z-index:-1;
   background:linear-gradient(90deg,rgba(255,255,255,0),color-mix(in srgb,var(--mc,#7fc0ff) 55%,transparent) 50%,rgba(255,255,255,0));filter:blur(12px);opacity:.34;
   animation:mbeam 28s ease-in-out infinite}
 @keyframes mbeam{0%{left:-60px}50%{left:calc(100% - 60px)}100%{left:-60px}}
 .moment .acc{position:absolute;left:0;top:8px;bottom:8px;width:2px;border-radius:2px;background:var(--mc,#7fc0ff);box-shadow:0 0 8px var(--mc,#7fc0ff),0 0 18px var(--mc,#7fc0ff);animation:railhalo 3s ease-in-out infinite}
 .moment .k1{display:flex;flex-direction:column;justify-content:center;gap:2px;padding-left:6px;min-width:88px}
-.moment .k1 .cd{font-family:Jost,Inter;font-weight:400;font-size:24px;letter-spacing:.04em;line-height:1;color:#eaf4ff;text-shadow:0 0 10px color-mix(in srgb,var(--mc,#7fc0ff) 70%,#fff 30%),0 0 24px color-mix(in srgb,var(--mc,#7fc0ff) 50%,transparent)}
+.moment .k1 .cd{font-family:Jost,Inter;font-weight:400;font-size:24px;letter-spacing:.04em;line-height:1;color:#eaf4ff;text-shadow:0 0 4px rgba(2,10,8,.9),0 0 10px color-mix(in srgb,var(--mc,#7fc0ff) 70%,#fff 30%),0 0 24px color-mix(in srgb,var(--mc,#7fc0ff) 50%,transparent)}
 .moment .k1 .cd.nm{font-size:12px;letter-spacing:.24em;text-transform:uppercase;font-weight:400}
 .moment .k1 .cd small{font-size:11px;letter-spacing:.06em;opacity:.7;margin-left:2px}
 .moment .k1 .u{font-family:var(--f-cap);font-size:6.5px;letter-spacing:.3em;text-transform:uppercase;color:var(--mc,#7fc0ff)}
