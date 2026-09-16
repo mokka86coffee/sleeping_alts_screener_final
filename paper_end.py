@@ -36,6 +36,10 @@ try:
     from core_config import PAPER_END_BOARD_N, PAPER_END_MAX_PER_RUN
 except ImportError:
     PAPER_END_BOARD_N, PAPER_END_MAX_PER_RUN = 5, 5
+try:
+    from core_config import PAPER_END_FUND_MAX, PAPER_END_OI_CRASH, PAPER_END_MIN_RUN
+except ImportError:
+    PAPER_END_FUND_MAX, PAPER_END_OI_CRASH, PAPER_END_MIN_RUN = 0.0, -0.10, 5.0
 
 ARCH = BASE_DIR / "cq_v2" / "intraday"
 STATE = BASE_DIR / "output" / "paper_end.json"
@@ -82,8 +86,19 @@ def signal(rows: list[dict]) -> dict | None:
     oi_chg = OI[i] / OI[i - 1] - 1 if OI[i - 1] else 0
     if not (oi_chg <= PAPER_END_OI_DROP and d < 0 and C[i] < C[i - 1]):
         return None
+    # ФАНДИНГ И ОБВАЛ ПЛЕЧА (16.09, lab_scan --archive на 135 монетах): при плюсовом фандинге рост идёт
+    # на покупках — шортить конец там нельзя, край уходит втрое; а обвал интереса глубже
+    # PAPER_END_OI_CRASH за один бар — это уже не конец хода, а случившийся вынос, там шортить поздно.
+    fund = rows[i].get("funding")
+    if fund is not None and fund > PAPER_END_FUND_MAX:
+        return None
+    if oi_chg <= PAPER_END_OI_CRASH:
+        return None
     run = (C[i - 1] / min(C[i - 48:i]) - 1) * 100
+    if run < PAPER_END_MIN_RUN:
+        return None                       # хода не было — это отток, а не конец хода (16.09: CVC, VTHO с ростом 0%)
     return {"t": rows[i]["t"], "px": C[i], "run_pct": round(run, 1), "oi_bar_pct": round(oi_chg * 100, 2), "delta": d,
+            "funding": fund, "stop": PAPER_END_STOP, "hold": PAPER_END_HOLD,
             "size": bucket(PAPER_END_SIZE, run), "target": bucket(PAPER_END_TARGET, run), "rule": "конец: интерес −2% за бар, дельта <0, цена вниз"}
 
 
@@ -98,6 +113,28 @@ def check_exit(pos: dict, rows: list[dict]):
             return res - PAPER_END_FEE, f"цель на баре {k}"
         if k >= PAPER_END_HOLD:
             return res - PAPER_END_FEE, f"срок {PAPER_END_HOLD} баров"
+    return None
+
+
+BOOK_NAME = "paper_end"
+
+
+def _opposite_open(sym: str, side: int) -> str | None:
+    """ВСТРЕЧНЫЕ ПОЗИЦИИ (16.09: AKE — crowd взял лонг, end в ту же цену шорт ×2; сумма ноль, комиссия
+    дважды). Смотрим состояния соседних книг: если там уже открыта противоположная сторона по этой
+    монете — вход не делаем и пишем, из-за кого."""
+    for _nm in ("paper_end", "paper_crowd", "paper_fast"):
+        if _nm == BOOK_NAME:
+            continue
+        _d = _read(BASE_DIR / "output" / f"{_nm}.json") or {}
+        _p = (_d.get("open") or {}).get(sym)
+        if not _p:
+            continue
+        _s = _p.get("side")
+        if _s is None:
+            _s = -1 if (_nm == "paper_end" or str(_p.get("state")) == "short") else 1
+        if int(_s) != int(side):
+            return _nm
     return None
 
 
@@ -126,6 +163,11 @@ def main() -> int:
                 print(f"paper_end: {sym} · выход · {why} · {res * 100:+.2f}% × размер {pos['size']} = {res * pos['size'] * 100:+.2f}%")
                 pos = None
         sig = signal(rows)
+        if sig and not pos:
+            _opp = _opposite_open(sym, -1)
+            if _opp:
+                print(f"paper_end: {sym} · пропуск — встречная позиция в {_opp}")
+                sig = None
         if sig and not pos and sig["t"] > (state.get("last_sig", {}).get(sym) or 0):
             cands.append((sym, sig))
     # СОБЫТИЕ ДОСКИ (16.09: первый живой прогон открыл 20 шортов разом — это одна ставка ×20, «конец» в час слива

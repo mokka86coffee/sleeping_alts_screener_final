@@ -143,7 +143,13 @@ def main() -> int:
             if len(v) >= a.min:
                 print(f"     {k:<14} n={len(v):>5}  к доске {st.median(v):+6.1f}%  ≥+{HIT_PCT:.0f}%: {100 * sum(1 for x in v if x >= HIT_PCT) / len(v):4.0f}%  ≤−{HIT_PCT:.0f}%: {100 * sum(1 for x in v if x <= -HIT_PCT) / len(v):4.0f}%")
     # ── БУМАЖНЫЕ БОТЫ: что накопилось
-    for name, pth in (("бот на быстрых", BASE_DIR / "output" / "paper_fast.jsonl"), ("бот против толпы", BASE_DIR / "output" / "paper_crowd.jsonl"), ("бот по концу", BASE_DIR / "output" / "paper_end.jsonl")):
+    # ЗАДНИМ ЧИСЛОМ ОТДЕЛЬНО (16.09): *_backfill.jsonl — реконструкция правил по архиву, не работа бота.
+    # Смешивать нельзя: живой журнал свидетельствует, backfill только сравнивает правила между собой.
+    for name, pth in (("бот на быстрых", BASE_DIR / "output" / "paper_fast.jsonl"),
+                      ("бот против толпы", BASE_DIR / "output" / "paper_crowd.jsonl"),
+                      ("бот по концу", BASE_DIR / "output" / "paper_end.jsonl"),
+                      ("толпа · задним числом", BASE_DIR / "output" / "paper_crowd_backfill.jsonl"),
+                      ("конец · задним числом", BASE_DIR / "output" / "paper_end_backfill.jsonl")):
         if not pth.exists():
             continue
         ex = []

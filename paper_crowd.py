@@ -7,6 +7,14 @@
   • шорт по перекупленности z(20) > +2 при интересе ровно/↓ и фандинге ≥ 0 → z < 0: 50–57% / +0.1–0.2%;
   • лонг «прокол дна 8 баров −1.5%» при интересе ровно → цель +1.5%: 65% / +0.56% (n=99);
   • «за толпой» (3×лонги закрывают → лонг) на 30 днях −0.16% везде — убран;
+  • ФАНДИНГ РЕШАЕТ ВТРОЕ (16.09, lab_scan --archive --days 14: 135 монет, 87 345 баров, интерес и фандинг
+    по барам — то, чего в одной цене нет). «Рост сильный · фандинг −» — край −3.93% к контролю, обе
+    половины одного знака, через 6 ч шорт +3.99%, через 12 ч +7.42%, ≥+2% в 55%. Те же по смыслу:
+    «монета 6ч сильно ↑ · фандинг −» −2.74% (n=468), «12ч сильно ↑ · фандинг −» −2.74% (n=651).
+    Смысл: монета летит, а платят ШОРТЫ — рост идёт не на покупках, а на выносе, и после выноса отдаётся.
+    Поэтому шорт-правила берутся ТОЛЬКО при фандинге ≤ SPIKE_FUND_MAX; при плюсовом фандинге растёт
+    на покупках — не трогаем. Рядом: «сильно ↑ · оборот бара ×1.5+» −3.16%, «сильно ↑ · тип бара
+    short_close» −3.04% — рост на закрытии шортов, а не на новых деньгах;
   • СПАЙК ГАСЯТ (16.09, lab_scan на 30 днях, 134 монеты, 190 тыс. баров, самая устойчивая строка): монета +8% за
     два часа → следующие шесть часов отдаёт: край −2.0…−2.9% к контролю во ВСЕХ сочетаниях (будни n=1268, половины
     −1.99/−2.00; при биткоине ↑ и ↓, при доске ↑, в Токио, в пн/чт/пт), ≥2% в 50–55%; при сутках ≤ −8% (спайк
@@ -45,6 +53,10 @@ try:
     from core_config import PAPER_SPIKE_PCT, PAPER_SPIKE_TARGET, PAPER_SPIKE_STOP, PAPER_SPIKE_HOLD
 except ImportError:
     PAPER_SPIKE_PCT, PAPER_SPIKE_TARGET, PAPER_SPIKE_STOP, PAPER_SPIKE_HOLD = 0.08, 0.025, 0.03, 12
+try:
+    from core_config import SPIKE_FUND_MAX, SPIKE_FUND_NEG, PAPER_SPIKE_HOLD_LONG
+except ImportError:
+    SPIKE_FUND_MAX, SPIKE_FUND_NEG, PAPER_SPIKE_HOLD_LONG = 0.0, -0.01, 24
 
 ARCH = BASE_DIR / "cq_v2" / "intraday"
 STATE = BASE_DIR / "output" / "paper_crowd.json"
@@ -94,14 +106,18 @@ def signal(rows: list[dict]) -> dict | None:
     ot = [r.get("oi_type") for r in rows[i - 2:i + 1]]
     z = zs(C, i)
     base = {"t": rows[i]["t"], "px": C[i], "bg12": bg, "px12": round(px12 * 100, 2), "fund": fund, "z": round(z, 2)}
-    # СПАЙК: +8% за два часа (4 бара) — первым, он сильнее остальных. Размер по фону (второй прогон полугодия, 78
-    # монет): при доске вверх или растущих >65% гасят злее (−2.0…−2.3) → ×1.5; в первый час после открытия слабее
-    # (вторая половина −0.41) → ×0.5; при сутках ≤ −8% (спайк внутри падения, 30 дней: −3.19) → ×2.
+    # СПАЙК: +8% за два часа (4 бара) — первым, он сильнее остальных. ФАНДИНГ — ВОРОТА (16.09): при
+    # плюсовом фандинге рост идёт на покупках, шорт туда не ставим вовсе; при отрицательном — рост на
+    # выносе, там край втрое выше, и держим дольше (через 12 ч +7.4% против +4.0% через 6 ч).
     if i >= 48 and C[i] / C[i - 4] - 1 >= PAPER_SPIKE_PCT:
+        if fund is None or fund > SPIKE_FUND_MAX:
+            return None                          # платят лонги — рост на покупках, не шортим
         r24 = C[i] / C[i - 48] - 1
         size = 1.0
         if r24 <= -0.08:
             size = 2.0
+        if fund <= SPIKE_FUND_NEG:
+            size = max(size, 2.0)                # платят шорты — вынос, край −3.93% вместо −1.4
         d = datetime.fromtimestamp(rows[i]["t"] / 1000, timezone.utc)
         since = min(((d.hour - o) % 24) + d.minute / 60 for o in (21, 0, 7, 13))
         if since < 1:
@@ -109,8 +125,21 @@ def signal(rows: list[dict]) -> dict | None:
         bg6 = rows[i].get("board6")            # медиана доски за 6 ч, если прогон её положил в строку
         if bg6 is not None and bg6 > 1:
             size = max(size, 1.5)
-        return dict(base, side=-1, rule="спайк: +8% за 2 ч → гасят", target=PAPER_SPIKE_TARGET, stop=PAPER_SPIKE_STOP, hold=PAPER_SPIKE_HOLD,
+        _hold = PAPER_SPIKE_HOLD_LONG if fund <= SPIKE_FUND_NEG else PAPER_SPIKE_HOLD
+        _tgt = PAPER_SPIKE_TARGET * (2.0 if fund <= SPIKE_FUND_NEG else 1.0)
+        return dict(base, side=-1, rule=("спайк на выносе: +8% за 2 ч при фандинге −" if fund <= SPIKE_FUND_NEG
+                                         else "спайк: +8% за 2 ч → гасят"),
+                    target=_tgt, stop=PAPER_SPIKE_STOP, hold=_hold,
                     size=size, r2=round((C[i] / C[i - 4] - 1) * 100, 1), r24=round(r24 * 100, 1), since_open_h=round(since, 1))
+    # РОСТ НА ВЫНОСЕ (16.09, lab_scan: «монета 6ч сильно ↑ · фандинг −» край −2.74%, n=468, 54% дают ≥2%;
+    # при типе бара short_close −3.04%). Не спайк — более медленный ход, но та же машина: платят шорты.
+    if i >= 48 and fund is not None and fund <= SPIKE_FUND_NEG:
+        r6 = C[i] / C[i - 12] - 1
+        if r6 >= 0.12:
+            _st = rows[i].get("oi_type")
+            return dict(base, side=-1, rule="рост на выносе: 6 ч +12% при фандинге −" + (" · шорты крылись" if _st == "short_close" else ""),
+                        target=0.04, stop=PAPER_SPIKE_STOP, hold=24,
+                        size=2.0 if _st == "short_close" else 1.5, r6=round(r6 * 100, 1))
     # ПРОВАЛ: −8% за два часа. Первый прогон полугодия (116 монет) — откупают (+1.7); второй (78 монет) — в Токио
     # продолжается вниз (−1.6). Не держится → только наблюдение, размер 0.5, в отбор не идёт.
     if i >= 48 and C[i] / C[i - 4] - 1 <= -PAPER_SPIKE_PCT:
@@ -159,6 +188,28 @@ def check_exit(pos: dict, rows: list[dict]) -> tuple[float, str] | None:
     return None
 
 
+BOOK_NAME = "paper_crowd"
+
+
+def _opposite_open(sym: str, side: int) -> str | None:
+    """ВСТРЕЧНЫЕ ПОЗИЦИИ (16.09: AKE — crowd взял лонг, end в ту же цену шорт ×2; сумма ноль, комиссия
+    дважды). Смотрим состояния соседних книг: если там уже открыта противоположная сторона по этой
+    монете — вход не делаем и пишем, из-за кого."""
+    for _nm in ("paper_end", "paper_crowd", "paper_fast"):
+        if _nm == BOOK_NAME:
+            continue
+        _d = _read(BASE_DIR / "output" / f"{_nm}.json") or {}
+        _p = (_d.get("open") or {}).get(sym)
+        if not _p:
+            continue
+        _s = _p.get("side")
+        if _s is None:
+            _s = -1 if (_nm == "paper_end" or str(_p.get("state")) == "short") else 1
+        if int(_s) != int(side):
+            return _nm
+    return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only")
@@ -185,6 +236,11 @@ def main() -> int:
                 print(f"paper_crowd: {sym} · выход · {why} · {res * 100:+.2f}% · {pos['rule']}")
                 pos = None
         sig = signal(rows)
+        if sig and not pos:
+            _opp = _opposite_open(sym, int(sig.get("side") or -1))
+            if _opp:
+                print(f"paper_crowd: {sym} · пропуск — встречная позиция в {_opp}")
+                sig = None
         if sig and not pos and sig["t"] > (state.get("last_sig", {}).get(sym) or 0):
             state["open"][sym] = dict(sig, opened_at=now)
             state.setdefault("last_sig", {})[sym] = sig["t"]
