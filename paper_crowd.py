@@ -57,6 +57,47 @@ try:
     from core_config import SPIKE_FUND_MAX, SPIKE_FUND_NEG, PAPER_SPIKE_HOLD_LONG
 except ImportError:
     SPIKE_FUND_MAX, SPIKE_FUND_NEG, PAPER_SPIKE_HOLD_LONG = 0.0, -0.01, 24
+try:
+    from core_config import PAPER_CROWD_BOARD_N, PAPER_CROWD_MAX_PER_RUN
+except ImportError:
+    PAPER_CROWD_BOARD_N, PAPER_CROWD_MAX_PER_RUN = 5, 5
+
+# СОБЫТИЕ ДОСКИ (16.09, владелец: «делай»). Первый прогон после нового старта открыл 11 шортов «перекуплен»
+# на одной свече 19:00 UTC — рынок подрос одним баром, и z перешёл за +2 у всей доски разом: это одна ставка
+# на откат, разложенная на одиннадцать монет, а не одиннадцать сделок. Как у paper_end: если кандидатов за
+# прогон ≥ PAPER_CROWD_BOARD_N — берём PAPER_CROWD_MAX_PER_RUN лучших, остальным пишем last_sig (второй раз
+# на той же свече не откроются), в журнал — строку события со взятыми и пропущенными (факты не отсекаются:
+# исход пропущенных потом считается по архиву так же, как у взятых).
+# Порядок: сначала сила правила, внутри правила — величина сигнала.
+RULE_ORDER = ("спайк", "рост на выносе", "против толпы", "перекуплен", "прокол дна", "провал", "первый час Лондона")
+
+
+def _rule_key(sig: dict) -> tuple:
+    rule = str(sig.get("rule") or "")
+    pri = next((i for i, r in enumerate(RULE_ORDER) if rule.startswith(r)), len(RULE_ORDER))
+    z = float(sig.get("z") or 0)
+    if rule.startswith("спайк"):
+        mag = float(sig.get("r2") or 0)                 # ход за два часа
+    elif rule.startswith("рост на выносе"):
+        mag = float(sig.get("r6") or 0)                 # ход за шесть часов
+    elif rule.startswith(("против толпы", "перекуплен")):
+        mag = z                                         # насколько цена выше средней
+    elif rule.startswith("прокол дна"):
+        mag = -z                                        # насколько ниже средней
+    elif rule.startswith("провал"):
+        mag = -float(sig.get("r2") or 0)                # глубина провала за два часа
+    elif rule.startswith("первый час Лондона"):
+        mag = float(sig.get("px12") or 0)               # рост за 12 часов до открытия
+    else:
+        mag = 0.0
+    return pri, -mag
+
+
+def _brief(sym: str, sig: dict) -> dict:
+    """кандидат для строки события доски: чтобы исход пропущенных можно было посчитать по архиву"""
+    return {"sym": sym, "rule": str(sig.get("rule") or "").split(":")[0], "side": sig.get("side"),
+            "t": sig.get("t"), "px": sig.get("px"), "z": sig.get("z"), "fund": sig.get("fund"),
+            "r2": sig.get("r2"), "r6": sig.get("r6"), "px12": sig.get("px12")}
 
 ARCH = BASE_DIR / "cq_v2" / "intraday"
 STATE = BASE_DIR / "output" / "paper_crowd.json"
@@ -222,6 +263,7 @@ def main() -> int:
     state = _read(STATE) or {"open": {}}
     now = int(time.time())
     opened, closed = [], []
+    cands = []
     for sym in syms:
         rows = rows_of(sym)
         if len(rows) < 25:
@@ -242,10 +284,28 @@ def main() -> int:
                 print(f"paper_crowd: {sym} · пропуск — встречная позиция в {_opp}")
                 sig = None
         if sig and not pos and sig["t"] > (state.get("last_sig", {}).get(sym) or 0):
-            state["open"][sym] = dict(sig, opened_at=now)
+            cands.append((sym, sig))
+    cands.sort(key=lambda x: _rule_key(x[1]))
+    if len(cands) >= PAPER_CROWD_BOARD_N:
+        skipped = cands[PAPER_CROWD_MAX_PER_RUN:]
+        cands = cands[:PAPER_CROWD_MAX_PER_RUN]
+        for sym, sig in skipped:
             state.setdefault("last_sig", {})[sym] = sig["t"]
-            opened.append(dict(sig, sym=sym, kind="entry", at=now))
-            print(f"paper_crowd: {sym} · вход {'шорт' if sig['side'] < 0 else 'лонг'} {sig['px']:.6g} · {sig['rule']} · фон 12ч {sig['bg12']} · фандинг {sig['fund']}")
+        opened.append({"kind": "board", "at": now, "n": len(cands) + len(skipped),
+                       "taken": [_brief(s_, g_) for s_, g_ in cands],
+                       "skipped": [_brief(s_, g_) for s_, g_ in skipped]})
+        _rules = {}
+        for _, g_ in cands + skipped:
+            _k = str(g_.get("rule") or "").split(":")[0]
+            _rules[_k] = _rules.get(_k, 0) + 1
+        print(f"paper_crowd: событие доски — кандидатов {len(cands) + len(skipped)} ("
+              + ", ".join(f"{k} {v}" for k, v in _rules.items()) + f"), беру {len(cands)}: "
+              + ", ".join(s_[:-4] for s_, _ in cands) + " · пропускаю: " + ", ".join(s_[:-4] for s_, _ in skipped))
+    for sym, sig in cands:
+        state["open"][sym] = dict(sig, opened_at=now)
+        state.setdefault("last_sig", {})[sym] = sig["t"]
+        opened.append(dict(sig, sym=sym, kind="entry", at=now))
+        print(f"paper_crowd: {sym} · вход {'шорт' if sig['side'] < 0 else 'лонг'} {sig['px']:.6g} · {sig['rule']} · фон 12ч {sig['bg12']} · фандинг {sig['fund']}")
     if a.write:
         STATE.parent.mkdir(parents=True, exist_ok=True)
         with LOG.open("a", encoding="utf-8") as f:
@@ -254,7 +314,7 @@ def main() -> int:
         tmp = STATE.with_suffix(".tmp")
         tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
         tmp.replace(STATE)
-    print(f"paper_crowd: открыто {len(opened)}, закрыто {len(closed)}, в позиции {len(state['open'])}" + ("" if a.write else " (без записи)"))
+    print(f"paper_crowd: открыто {sum(1 for r in opened if r.get('kind') == 'entry')}, закрыто {len(closed)}, в позиции {len(state['open'])}" + ("" if a.write else " (без записи)"))
     return 0
 
 

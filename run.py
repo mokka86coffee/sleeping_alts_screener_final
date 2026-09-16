@@ -48,6 +48,27 @@ def _next_run_ts(nr: dict):
     return None
 
 
+def _last_archived_candle():
+    """начало последней свечи в архиве получасовок (секунды UTC) — по самому свежему файлу cq_v2/intraday"""
+    try:
+        files = sorted((BASE_DIR / "cq_v2" / "intraday").glob("*.jsonl"), key=lambda p: p.stat().st_mtime)
+        if not files:
+            return None
+        with files[-1].open("rb") as f:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - 65536))
+            tail = f.read().decode("utf-8", errors="replace").splitlines()
+        for ln in reversed(tail):
+            ln = ln.strip()
+            if not ln:
+                continue
+            c = json.loads(ln).get("candle")
+            return int(datetime.strptime(c, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp())
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
 def _utc(ts=None, fmt: str = "%H:%M:%S") -> str:
     """время для лога — UTC с пометкой"""
     return datetime.fromtimestamp(time.time() if ts is None else ts, timezone.utc).strftime(fmt) + " UTC"
@@ -1819,9 +1840,21 @@ def main() -> int:
             # старт — первая граница получаса ПОСЛЕ «сейчас» плюс запас; если прогон затянулся и
             # эта граница уже прошла, берём следующую. Раньше считали от снятой свечи, и после
             # долгого прогона старт уезжал на круг.
-            _start = (int(_now // _gate2.INTERVAL_S) + 1) * _gate2.INTERVAL_S + AFTER_CANDLE_S
-            if _start - _now < 20:
-                _start += _gate2.INTERVAL_S
+            # СВЕЧА НЕ ПРОПУСКАЕТСЯ (16.09, первый прогон после перехода на UTC кончился в 20:04 и ждал 20:35):
+            #  1) слот текущего получаса (граница + запас) ещё впереди — стартуем в нём, а не через полчаса;
+            #  2) слот прошёл, а свеча, закрытая к «сейчас», в архив получасовок не легла (прогон снял
+            #     предыдущую) — стартуем сразу и снимаем её: по архиву боты считают стоп, цель и срок, дыра
+            #     в нём — пропущенный бар выхода. Только если отстали ровно на одну свечу: при большем отставании
+            #     архив сломан, и гонять прогоны подряд нельзя — остаётся обычное расписание.
+            _I = _gate2.INTERVAL_S
+            _start = int(_now // _I) * _I + AFTER_CANDLE_S
+            if _start <= _now:
+                _start += _I
+            _last_closed = int(_now // _I) * _I - _I
+            _arch = _last_archived_candle()
+            if _arch is not None and _arch == _last_closed - _I and _now >= _last_closed + _I + AFTER_CANDLE_S:
+                log(f"→ Свеча {_utc(_last_closed, '%H:%M')} ещё не снята — следующий прогон сразу")
+                _start = _now + 5
             if _start <= _now:
                 _start = _now + 5
             (BASE_DIR / "output").mkdir(exist_ok=True)

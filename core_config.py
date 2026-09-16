@@ -511,3 +511,7 @@ SECTOR_MAP = {
     "INFRA": ["oracle", "storage", "infrastructure", "interoperability",
               "bridge", "privacy"],
 }
+
+# СОБЫТИЕ ДОСКИ У «ТОЛПЫ» (16.09): кандидатов за прогон от PAPER_CROWD_BOARD_N — берём PAPER_CROWD_MAX_PER_RUN лучших
+PAPER_CROWD_BOARD_N = 5
+PAPER_CROWD_MAX_PER_RUN = 5
