@@ -32,7 +32,22 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import signal
 import subprocess
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+
+
+def _next_run_ts(v) -> float:
+    """ВСЁ ПО UTC (16.09, владелец: «все прогоны и всё вообще по UTC, местное только на экране в html»).
+    next_run_at пишется с Z; старая запись без Z была временем машины — читаем её как раньше, один раз."""
+    s = str(v)
+    if s.endswith("Z"):
+        return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
+    return datetime.strptime(s, "%Y-%m-%dT%H:%M:%S").timestamp()
+
+
+def _utc(ts=None, fmt: str = "%H:%M:%S") -> str:
+    """время для лога — UTC с пометкой"""
+    return datetime.fromtimestamp(time.time() if ts is None else ts, timezone.utc).strftime(fmt) + " UTC"
+
 from pathlib import Path
 
 from analytics_leaders import pump_leaders, update_leaders
@@ -923,7 +938,7 @@ def run_once(args: argparse.Namespace) -> int:
         _nrp = BASE_DIR / "output" / "next_run.json"
         if _nrp.exists():
             _nr = json.loads(_nrp.read_text(encoding="utf-8"))
-            _due = datetime.strptime(_nr["next_run_at"], "%Y-%m-%dT%H:%M:%S").timestamp()
+            _due = _next_run_ts(_nr["next_run_at"])
             _late = time.time() - _due
             if _late > 1800 + 300:
                 _missed = int(_late // 1800)
@@ -1755,9 +1770,9 @@ def main() -> int:
     log("→ Режим цикла: по закрытию получасовых свечей · Ctrl+C для остановки")
     try:
         _nr = json.loads((BASE_DIR / "output" / "next_run.json").read_text(encoding="utf-8"))
-        _at = datetime.strptime(_nr["next_run_at"], "%Y-%m-%dT%H:%M:%S").timestamp()
+        _at = _next_run_ts(_nr["next_run_at"])
         if _at > time.time() + 5:
-            log(f"→ По записи прошлого прогона следующий старт в {datetime.fromtimestamp(_at):%H:%M:%S} — жду")
+            log(f"→ По записи прошлого прогона следующий старт в {_utc(_at)} — жду")
             time.sleep(_at - time.time())
     except Exception:
         pass
@@ -1766,7 +1781,7 @@ def main() -> int:
     while True:
         runs += 1
         log(f"\n{'═' * 60}\n→ Прогон #{runs} · "
-            f"{datetime.now():%d.%m.%Y %H:%M:%S}\n{'═' * 60}")
+            f"{_utc(fmt='%d.%m.%Y %H:%M:%S')}\n{'═' * 60}")
 
         try:
             run_once(args)
@@ -1807,14 +1822,13 @@ def main() -> int:
                 _start = _now + 5
             (BASE_DIR / "output").mkdir(exist_ok=True)
             (BASE_DIR / "output" / "next_run.json").write_text(json.dumps({
-                "next_run_at": datetime.fromtimestamp(_start).strftime("%Y-%m-%dT%H:%M:%S"),
+                "next_run_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(_start)),
                 "next_candle": time.strftime("%Y-%m-%dT%H:%M:00Z", time.gmtime(_done / 1000 + _gate2.INTERVAL_S)),
                 "last_candle": time.strftime("%Y-%m-%dT%H:%M:00Z", time.gmtime(_done / 1000))}, ensure_ascii=False))
         except Exception:
             _start = (int(_now // 1800) + 1) * 1800 + 5     # без калитки — ближайшая граница получаса
         wait = _start - _now
-        nxt = datetime.fromtimestamp(_start)
-        log(f"\n→ Следующий прогон в {nxt:%H:%M:%S} — закрытие следующей свечи")
+        log(f"\n→ Следующий прогон в {_utc(_start)} — закрытие следующей свечи")
 
         # СОН ДРОБИТСЯ КОРОТКИМИ КРУГАМИ (01.09). Час между полными
         # прогонами — слишком долго для выноса лонгов: у BLESS плечо
@@ -1837,7 +1851,7 @@ def main() -> int:
                     hot_args = copy.copy(args)
                     hot_args.hot = True
                     log(f"\n{'─' * 60}\n→ Короткий круг · "
-                        f"{datetime.now():%H:%M:%S}\n{'─' * 60}")
+                        f"{_utc()}\n{'─' * 60}")
                     try:
                         run_once(hot_args)
                     except Exception as e:

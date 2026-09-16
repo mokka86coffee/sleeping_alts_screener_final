@@ -152,9 +152,9 @@ def main() -> int:
     byday = {}
     for tr in got.values():
         for t in tr:
-            d = datetime.fromtimestamp(t["at"], timezone.utc).astimezone().strftime("%Y-%m-%d")
+            d = datetime.fromtimestamp(t["at"], timezone.utc).strftime("%Y-%m-%d")     # день — по UTC, как у экрана книги
             byday.setdefault(d, []).append(t)
-    print("\nдеьги по дням (депозит 10 000 $ на день, доля по весу правила):" .replace("деьги", "деньги"))
+    print("\nденьги по дням UTC (депозит 10 000 $ на день, доля по весу правила):")
     tot = 0.0
     for d in sorted(byday):
         rs = byday[d]
