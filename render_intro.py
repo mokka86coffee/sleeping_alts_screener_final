@@ -137,6 +137,21 @@ def _many_lead() -> dict | None:
     return None
 
 
+def _book_count() -> int:
+    """Сколько позиций у бота сейчас — для подписи-перехода «книга N» (16.09). Считаем открытые во всех
+    бумажных книгах: paper_end, paper_crowd, paper_fast (у последнего позиция может быть в хедже)."""
+    n = 0
+    for _nm in ("paper_end.json", "paper_crowd.json", "paper_fast.json"):
+        for _p in (BASE_DIR / "output" / _nm, BASE_DIR / _nm):
+            try:
+                _d = json.loads(_p.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            n += len((_d or {}).get("open") or {})
+            break
+    return n
+
+
 def _pump_lead() -> dict | None:
     """Живой лидер по пампу с наибольшим ходом — из pump_leaders.json, ничего не считая."""
     try:
@@ -373,11 +388,19 @@ def render_intro(items: list[dict] | None = None) -> str:
               {"n": f"у цели {counts[2]}", "sym": "", "g": 2, "why": "", "label": True}]
     if counts[3]:
         labels.append({"n": f"остывшие {counts[3]}", "sym": "", "g": 4, "why": "", "label": True})
+    # «книга» правее всех; если ряд «остывшие» занят — сдвигается ещё правее
+    LABPOS[9] = [0.955, 0.945] if counts[3] else [0.86, 0.945]
+    _bk = _book_count()
+    if _bk:
+        labels.append({"n": f"книга {_bk}", "sym": "", "g": 9, "why": "", "label": True, "go": "book.html"})
     # раскладка (откат 06.09, владелец: «с зонами некрасиво»): одно облако-созвездие для всех
     # групп, различие — цветом и поведением света; подписи групп — четыре внизу
     # порядок появления (06.09, владелец): подпись группы → её звёзды → следующая → её звёзды
     # ниже и шире (07.09): раньше подписи стояли на одной высоте с потоком и наезжали друг на друга
-    LABPOS = {0: [0.30, 0.945], 1: [0.52, 0.945], 2: [0.74, 0.945], 4: [0.92, 0.945]}
+    # ПЕРЕХОД В КНИГУ (16.09, владелец: «в звёздах это элемент для перехода на экран, а не информация
+    # по монетам»): подпись «книга N» в том же нижнем ряду, кликом открывает book.html. Не фильтр
+    # группы, как остальные подписи, — поэтому у неё свой признак go и позиция правее «у цели».
+    LABPOS = {0: [0.26, 0.945], 1: [0.46, 0.945], 2: [0.66, 0.945], 4: [0.86, 0.945], 9: [0.86, 0.945]}
     star_pos = layout(len(items))
     allit: list[dict] = []
     pos: list[list[float]] = []
@@ -388,7 +411,7 @@ def render_intro(items: list[dict] | None = None) -> str:
     n_s = len(stale)
     stale_pos = [[round(0.14 + 0.72 * (i + 0.5) / max(1, n_s), 3), 0.83 + 0.02 * (i % 2)] for i in range(n_s)]
     si = 0
-    for g in (0, 1, 2, 4):
+    for g in (0, 1, 2, 4, 9):
         lab_it = next((it for it in labels if it["g"] == g), None)
         if lab_it is None:
             continue
@@ -400,6 +423,7 @@ def render_intro(items: list[dict] | None = None) -> str:
                 else:
                     allit.append(it); pos.append(star_pos[k]); k += 1
     names = [it["n"] for it in allit]; grp = [it["g"] for it in allit]; syms = [it["sym"] for it in allit]
+    goes = [str(it.get("go") or "") for it in allit]        # подпись-переход: куда вести кликом
     whys = [it.get("why", "") for it in allit]
     zones = []
     lab = [1 if it.get("label") else 0 for it in allit]
@@ -730,7 +754,7 @@ def render_intro(items: list[dict] | None = None) -> str:
                                   "text": str(_lp.get("why") or "")}
     except Exception:   # noqa: BLE001 — сессии не обязаны считаться
         sess_box = {}
-    data = json.dumps({"names": names, "grp": grp, "syms": syms, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "sess": sess_box, "flicker": flicker, "accum": accum, "bub": bub, "blank": blank, "keep": list(keep_first)},
+    data = json.dumps({"names": names, "grp": grp, "syms": syms, "goes": goes, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "sess": sess_box, "flicker": flicker, "accum": accum, "bub": bub, "blank": blank, "keep": list(keep_first)},
                       ensure_ascii=False).replace("</", "<\\/")
     return TEMPLATE.replace("__N__", str(n)).replace("__DATA__", data)
 
@@ -1519,7 +1543,10 @@ function next(){try{window.parent.postMessage({type:'ob:done',screen:'intro'},'*
   if(window===window.parent)location.href='brief.html'}
 c.addEventListener('click',ev=>{const j=hit(ev,true);
   // клик по подписи группы — фильтр, экран НЕ закрываем (07.09)
-  if(j>=0&&LAB[j]){const g=(DATA.grp||[])[j];PICK=(PICK===g)?null:g;applyGroup();return}
+  if(j>=0&&LAB[j]){const go=(DATA.goes||[])[j];
+    if(go){ if(window!==window.parent){try{window.parent.postMessage({type:'ob:open',screen:'book'},'*')}catch(e){}}
+            location.href=go; return }
+    const g=(DATA.grp||[])[j];PICK=(PICK===g)?null:g;applyGroup();return}
   // клик мимо при закреплённой группе — сначала снимаем фильтр, а не уходим со экрана
   if(PICK!==null&&hit(ev)<0){PICK=null;applyGroup();return}
   const i=hit(ev);
