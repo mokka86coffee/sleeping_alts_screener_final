@@ -86,6 +86,33 @@ def archive(sym: str) -> dict:
     return out
 
 
+def regime(C, i, bars, flat_days_bars=None):
+    """РЕЖИМ ПО БАРУ, без заглядывания вперёд (16.09, владелец: «видишь ли ты — был флэт, слив, долгий или недолгий
+    рост»): за последние `bars` баров эффективность хода = |конец−начало| / сумма |шагов|. Высокая — направленный
+    ход (рост/слив), низкая — флэт, сколько бы ни дёргалось. Плюс длительность: сколько баров подряд держится."""
+    if i < bars:
+        return None
+    w = C[i - bars:i + 1]
+    net = w[-1] / w[0] - 1
+    path = sum(abs(w[k] / w[k - 1] - 1) for k in range(1, len(w))) or 1e-9
+    eff = abs(net) / path
+    if eff < 0.25:
+        return "флэт"
+    return ("рост" if net > 0 else "слив") + (" сильный" if abs(net) >= 0.25 else "")
+
+
+def regime_len(C, i, bars, cur):
+    """сколько баров подряд держится тот же режим — «долгий» или «недолгий»"""
+    n = 0
+    j = i
+    while j > bars and n < 240:
+        if regime(C, j, bars) != cur:
+            break
+        n += 1
+        j -= 1
+    return n
+
+
 def band(x, lo, hi, big=None):
     if x is None:
         return None
@@ -174,8 +201,23 @@ def main() -> int:
             sd = (sum((x - m) ** 2 for x in w) / 20) ** .5 or 1e-9
             z = (c - m) / sd
             f["z20"] = "<−2" if z < -2 else "<−1" if z < -1 else ">+2" if z > 2 else ">+1" if z > 1 else "0"
+            # режим монеты: окно трёх суток и его длительность
+            rb = 72 if BPH == 1 else 144        # трое суток в барах
+            reg = regime([x[3] for x in k], i, rb)
+            if reg:
+                ln = regime_len([x[3] for x in k], i, rb, reg)
+                f["режим монеты"] = reg
+                f["режим длит."] = ("долгий" if ln >= rb // 2 else "недолгий") + " " + reg
             rn = st.median(rng[i - 24 * BPH:i]) or 1e-12
             f["размах бара"] = "×3+" if rng[i] / rn >= 3 else "×1.5+" if rng[i] / rn >= 1.5 else "обычный"
+            # режим доски: та же мера по медианному ходу доски за трое суток
+            if t in board and (t - 72 * 3600000) in board:
+                seq = [board[t - h * 3600000][0] for h in range(72, -1, -6) if (t - h * 3600000) in board]
+                if len(seq) >= 8:
+                    net = seq[-1] - seq[0]
+                    path = sum(abs(seq[q] - seq[q - 1]) for q in range(1, len(seq))) or 1e-9
+                    e_ = abs(net) / path
+                    f["режим доски"] = "флэт" if e_ < 0.25 else ("рост" if net > 0 else "слив")
             if t in board and (t - 4 * 3600000) in board:
                 m6, up = board[t]
                 m0, up0 = board[t - 4 * 3600000]
