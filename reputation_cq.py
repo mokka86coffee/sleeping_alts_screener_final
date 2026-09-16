@@ -20,7 +20,7 @@
 import argparse
 import json
 import statistics
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # ── пороги (первичные, помечены к калибровке) ──
@@ -933,7 +933,7 @@ def build(archive: Path) -> dict:
     try:
         _out = archive.parent / "output" / "live_day.json"
         _out.parent.mkdir(exist_ok=True)
-        _out.write_text(json.dumps({"at": datetime.now().strftime("%Y-%m-%d %H:%M"), "coins": _LIVE_DUMP},
+        _out.write_text(json.dumps({"at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M"), "tz": "UTC", "coins": _LIVE_DUMP},
                                    ensure_ascii=False, indent=1), encoding="utf-8")
     except OSError:
         pass

@@ -40,6 +40,8 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime
+
+from core_time import utc_today
 from pathlib import Path
 
 from core_config import BASE_DIR
@@ -94,7 +96,7 @@ def calendar_state(path: Path = EVENTS_PATH,
 
     Наружу: items — список ближайших с днями до, warn/known/note.
     """
-    today = today or date.today()
+    today = today or utc_today()          # «сегодня» — по UTC (16.09)
     events = load_events(path)
     if not events:
         return {"known": False, "warn": False, "items": [],

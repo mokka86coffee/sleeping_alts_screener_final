@@ -207,7 +207,7 @@ def main() -> None:
         except (IndexError, ValueError):
             tail = 0
 
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%SZ")
     path = f"flow_dump_{symbol}_{stamp}.json"
 
     print(f"{symbol}: снимаю срез, сеть {'включена' if allow_network else 'выключена'}")
@@ -219,7 +219,6 @@ def main() -> None:
             "launched_at": datetime.now(timezone.utc).isoformat(
                 timespec="seconds"
             ),
-            "launched_at_local": datetime.now().isoformat(timespec="seconds"),
             "allow_network": allow_network,
             "tail": tail or None,
             "note": (

@@ -144,7 +144,7 @@ def main() -> int:
         print("\nСухой прогон. Повторить с --apply.")
         return 0
 
-    stamp = dt.datetime.now().strftime("%Y%m%d-%H%M%S")
+    stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%d-%H%M%SZ")
     shutil.copy2(path, path.with_suffix(f".json.bak-{stamp}"))
     path.write_text(json.dumps(out, ensure_ascii=False, indent=2),
                     encoding="utf-8")

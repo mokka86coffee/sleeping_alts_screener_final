@@ -25,10 +25,19 @@ import statistics as st
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
-NY = ZoneInfo("America/New_York")
+# ВСЁ ПО UTC (16.09, владелец: «переводи всё, что можно, в UTC»). Раньше часы и дни недели считались по
+# Нью-Йорку, и окна переезжали на час при смене летнего и зимнего времени, а столбцы «Лон» и «Мск»
+# были зашиты сдвигами +5 и +7. Теперь ячейка — час и день недели UTC; сессии проекта в тех же часах
+# (Сидней 21, Токио 0, Лондон 7, Нью-Йорк 13 UTC). Экран переводит часы в местные сам.
+BIN_TZ = timezone.utc
+TZ_LABEL = "UTC"
 DOW = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
+# СТОЛЫ В ЧАСАХ UTC — прежние нью-йоркские окна, переведённые по летнему времени Нью-Йорка (UTC−4)
+DESKS_UTC = (("Азия ночь 00-04 UTC", range(0, 4)), ("Азия утро 04-08 UTC", range(4, 8)),
+             ("Лондон 07-12 UTC", range(7, 12)), ("NY утро 12-16 UTC", range(12, 16)),
+             ("NY день 16-20 UTC", range(16, 20)), ("NY закрытие 19-22 UTC", range(19, 22)),
+             ("вечер 21-24 UTC", range(21, 24)))
 HOURLY = Path("hourly")
 MAJORS = {"BTC", "ETH", "SOL", "NEAR", "ARB", "HYPE", "WLD", "SUI", "APT",
           "BNB", "XRP", "ADA", "DOGE", "TRX", "AVAX", "LINK", "TON", "DOT"}
@@ -98,16 +107,11 @@ def heat(cells, base, title, min_n=8):
         print("  мало данных"); return
     print("  СЛИВАЮТ РАЗОМ:")
     for mean, d, h, n in ranked[:6]:
-        print(f"    {DOW[d]} {h:02d}:00 NY · {(h+5)%24:02d} Лон · {(h+7)%24:02d} Мск"
-              f"   ширина {mean:.0f}%  недель {n}")
+        print(f"    {DOW[d]} {h:02d}:00 {TZ_LABEL}   ширина {mean:.0f}%  недель {n}")
     print("  РАСТУТ РАЗОМ:")
     for mean, d, h, n in ranked[-6:][::-1]:
-        print(f"    {DOW[d]} {h:02d}:00 NY · {(h+5)%24:02d} Лон · {(h+7)%24:02d} Мск"
-              f"   ширина {mean:.0f}%  недель {n}")
-    desks = (("Азия ночь 20-00", range(20, 24)), ("Азия утро 00-04", range(0, 4)),
-             ("Лондон 03-08", range(3, 8)), ("NY утро 08-12", range(8, 12)),
-             ("NY день 12-16", range(12, 16)), ("NY закрытие 15-17", range(15, 18)),
-             ("вечер 17-20", range(17, 20)))
+        print(f"    {DOW[d]} {h:02d}:00 {TZ_LABEL}   ширина {mean:.0f}%  недель {n}")
+    desks = DESKS_UTC
     print("  ПО СТОЛАМ · будни / выходные:")
     for name, hrs in desks:
         wd = [x for (d, h), v in cells.items() if h in hrs and d < 5 for x in v]
@@ -159,17 +163,17 @@ def runs_table(alts, btc, reg, min_pct, w, by_regime,
                 st_ = "up" if ch >= state_pct else "down" if ch <= -state_pct else "flat"
                 if st_ != state:
                     continue
-            ny = datetime.fromtimestamp(t0 / 1000, tz=timezone.utc).astimezone(NY)
+            ut = datetime.fromtimestamp(t0 / 1000, tz=timezone.utc).astimezone(BIN_TZ)
             rg = reg.get(t0, "?") if by_regime else "all"
             dur = (ts_c[i1] - t0) / STEP
             if k0 == "lo":
                 pct = (highs[i1] / lows[i0] - 1) * 100
                 if pct >= min_pct:
-                    ups.append((ny.weekday(), ny.hour, pct, dur, rg))
+                    ups.append((ut.weekday(), ut.hour, pct, dur, rg))
             else:
                 pct = (1 - lows[i1] / highs[i0]) * 100
                 if pct >= min_pct:
-                    downs.append((ny.weekday(), ny.hour, pct, dur, rg))
+                    downs.append((ut.weekday(), ut.hour, pct, dur, rg))
 
     def block(title, U, D):
         if not U or not D:
@@ -196,7 +200,7 @@ def runs_table(alts, btc, reg, min_pct, w, by_regime,
                 print(line)
             top = sorted(grid.items(), key=lambda x: -x[1])[:6]
             print("   чаще всего: " + " · ".join(
-                f"{NAMES[dw]} {h:02d} NY ({(h+5)%24:02d} Лон, {(h+7)%24:02d} Мск) {c/n*100:.1f}%"
+                f"{NAMES[dw]} {h:02d} {TZ_LABEL} {c/n*100:.1f}%"
                 for (dw, h), c in top))
         # по часу суток без дня — плотнее
         for kind, R in (("↑ по часу суток", U), ("↓ по часу суток", D)):
@@ -291,9 +295,9 @@ def sync_table(alts, btc, reg, min_pct, w, by_regime, need_up, need_dn, tol):
                 continue
             grid = defaultdict(int); hh = defaultdict(int); dd_ = defaultdict(int)
             for t, n, _ in E:
-                ny = datetime.fromtimestamp(t / 1000, tz=timezone.utc).astimezone(NY)
-                grid[(ny.weekday(), ny.hour)] += 1
-                hh[ny.hour] += 1; dd_[ny.weekday()] += 1
+                ut = datetime.fromtimestamp(t / 1000, tz=timezone.utc).astimezone(BIN_TZ)
+                grid[(ut.weekday(), ut.hour)] += 1
+                hh[ut.hour] += 1; dd_[ut.weekday()] += 1
             print(f"  {kind} · число событий в ячейке")
             print("     " + "".join(f"{h:>4}" for h in range(24)) + "   всего")
             for dw in range(7):
@@ -305,7 +309,7 @@ def sync_table(alts, btc, reg, min_pct, w, by_regime, need_up, need_dn, tol):
             print("   по часу суток: " + " ".join(f"{h:02d}:{hh[h]:2d}" for h in range(24)))
             top = sorted(grid.items(), key=lambda x: -x[1])[:6]
             print("   чаще всего: " + " · ".join(
-                f"{NAMES[dw]} {h:02d} NY ({(h+5)%24:02d} Лон, {(h+7)%24:02d} Мск) ×{c}"
+                f"{NAMES[dw]} {h:02d} {TZ_LABEL} ×{c}"
                 for (dw, h), c in top))
 
     if by_regime:
@@ -326,8 +330,8 @@ def schedule_json(ev_up, ev_dn, reg, ncoins, path):
     def hours_days(E):
         hh = Counter(); dd_ = Counter()
         for t, _, _ in E:
-            ny = datetime.fromtimestamp(t / 1000, tz=timezone.utc).astimezone(NY)
-            hh[ny.hour] += 1; dd_[ny.weekday()] += 1
+            ut = datetime.fromtimestamp(t / 1000, tz=timezone.utc).astimezone(BIN_TZ)
+            hh[ut.hour] += 1; dd_[ut.weekday()] += 1
         return hh, dd_
     flat_up = [e for e in ev_up if reg.get(e[0], "flat") == "flat"]
     flat_dn = [e for e in ev_dn if reg.get(e[0], "flat") == "flat"]
@@ -367,7 +371,7 @@ def schedule_json(ev_up, ev_dn, reg, ncoins, path):
     hdu, _ = hours_days(dn_up)
     bounce_h = max(hdu, key=hdu.get) if hdu else None
     days_rank = [d for d, _ in du.most_common()]
-    out = {"at": datetime.now().strftime("%Y-%m-%d"), "coins": ncoins,
+    out = {"at": datetime.now(timezone.utc).strftime("%Y-%m-%d"), "tz": TZ_LABEL, "coins": ncoins,
            "pump": pump, "pump_main": (max(hu, key=hu.get) if hu else None),
            "pump_main_n": (max(hu.values()) if hu else 0),
            "dead": dead, "dump": dump,
@@ -439,7 +443,7 @@ def main() -> int:
         reg = btc_regime(btc, a.hours, a.thr) if (a.regime and btc) else {}
         print(f"СИНХРОННЫЕ СТАРТЫ · монет {len(alts)} · пробег от {a.min_pct:.0f}% · "
               f"рост ≥{a.sync_up} монет, падение ≥{a.sync_down} монет, ±{a.tol} ч · "
-              f"время Нью-Йорка")
+              f"время {TZ_LABEL}")
         ev_up, ev_dn = sync_table(alts, btc, reg, a.min_pct, a.extw,
                                   bool(a.regime and btc), a.sync_up, a.sync_down, a.tol)
         if a.json:
@@ -453,7 +457,7 @@ def main() -> int:
                   "down": f"только падающие (−{a.state_pct:.0f}% за {a.state_days} дн)",
                   "flat": "только стоящие"}[a.state]
         print(f"ПРОБЕГИ · монет {len(alts)} · порог {a.min_pct:.0f}% · "
-              f"экстремум ±{a.extw} ч · {st_txt} · время Нью-Йорка")
+              f"экстремум ±{a.extw} ч · {st_txt} · время {TZ_LABEL}")
         runs_table(alts, btc, reg, a.min_pct, a.extw, bool(a.regime and btc),
                    a.state, a.state_days, a.state_pct)
         return 0
@@ -482,15 +486,15 @@ def main() -> int:
         return 1
     cells = defaultdict(list)                      # (dow, h) → [ширина по неделям]
     for t, (b, _) in breadth.items():
-        ny = datetime.fromtimestamp(t / 1000, tz=timezone.utc).astimezone(NY)
-        cells[(ny.weekday(), ny.hour)].append(b)
+        ut = datetime.fromtimestamp(t / 1000, tz=timezone.utc).astimezone(BIN_TZ)
+        cells[(ut.weekday(), ut.hour)].append(b)
     base = st.mean(x for v in cells.values() for x in v)
     span = (max(breadth) - min(breadth)) / 86400000
     print(f"монет {len(alts)} · часов с шириной {len(breadth)} · охват {span:.0f} дней")
     nweeks = max(len(v) for v in cells.values())
 
     print(f"СВОДКА МИКРОКАПОВ · монет {len(alts)} · недель {nweeks} · "
-          f"время Нью-Йорка · окно {WIN} ч")
+          f"время {TZ_LABEL} · окно {WIN} ч")
     print(f"в ячейке — средняя ШИРИНА: доля монет, выросших за {WIN} ч от "
           f"начала этого часа. база {base:.0f}%")
     print("▲ ширина выше базы на 10 и больше (растут разом) · "
@@ -511,12 +515,10 @@ def main() -> int:
                      if len(v) >= 8), key=lambda x: x[0])
     print("\n  СЛИВАЮТ РАЗОМ (самая узкая ширина):")
     for mean, d, h, n in ranked[:8]:
-        print(f"    {DOW[d]} {h:02d}:00 NY · {(h+5)%24:02d} Лон · {(h+7)%24:02d} Мск"
-              f"   ширина {mean:.0f}%  n={n}")
+        print(f"    {DOW[d]} {h:02d}:00 {TZ_LABEL}   ширина {mean:.0f}%  n={n}")
     print("  РАСТУТ РАЗОМ (самая широкая):")
     for mean, d, h, n in ranked[-8:][::-1]:
-        print(f"    {DOW[d]} {h:02d}:00 NY · {(h+5)%24:02d} Лон · {(h+7)%24:02d} Мск"
-              f"   ширина {mean:.0f}%  n={n}")
+        print(f"    {DOW[d]} {h:02d}:00 {TZ_LABEL}   ширина {mean:.0f}%  n={n}")
 
     if a.regime and btc:
         reg = btc_regime(btc, a.hours, a.thr)
@@ -530,8 +532,8 @@ def main() -> int:
             for t, (b, _) in breadth.items():
                 if reg.get(t) != key:
                     continue
-                ny = datetime.fromtimestamp(t / 1000, tz=timezone.utc).astimezone(NY)
-                rc[(ny.weekday(), ny.hour)].append(b)
+                ut = datetime.fromtimestamp(t / 1000, tz=timezone.utc).astimezone(BIN_TZ)
+                rc[(ut.weekday(), ut.hour)].append(b)
             allv = [x for v in rc.values() for x in v]
             if not allv:
                 continue
@@ -541,10 +543,7 @@ def main() -> int:
         return 0
 
     # ── по столам ──
-    desks = (("Азия ночь 20-00", range(20, 24)), ("Азия утро 00-04", range(0, 4)),
-             ("Лондон 03-08", range(3, 8)), ("NY утро 08-12", range(8, 12)),
-             ("NY день 12-16", range(12, 16)), ("NY закрытие 15-17", range(15, 18)),
-             ("вечер 17-20", range(17, 20)))
+    desks = DESKS_UTC
     print("\n  ПО СТОЛАМ · средняя ширина, будни / выходные:")
     for name, hrs in desks:
         wd = [x for (d, h), v in cells.items() if h in hrs and d < 5 for x in v]
@@ -559,8 +558,8 @@ def main() -> int:
         by_day_btc = defaultdict(list); by_day_alt = defaultdict(list)
         days = defaultdict(list)
         for t, (b, _) in breadth.items():
-            ny = datetime.fromtimestamp(t / 1000, tz=timezone.utc).astimezone(NY)
-            days[ny.date()].append((ny.hour, t, b))
+            ut = datetime.fromtimestamp(t / 1000, tz=timezone.utc).astimezone(BIN_TZ)
+            days[ut.date()].append((ut.hour, t, b))
         for date, hrs in days.items():
             hrs.sort()
             if len(hrs) < 20:
@@ -578,9 +577,9 @@ def main() -> int:
                 print(f"   {DOW[d]:5}{up:>17.0f}%{st.median(vb):>+12.2f}%{st.mean(va):>14.0f}%")
 
     # 2. слив к закрытию NY
-    print("\n2. «К закрытию Нью-Йорка слив почти всегда» · ширина в 15-17 NY:")
+    print("\n2. «К закрытию Нью-Йорка слив почти всегда» · ширина в 19-21 UTC (15-17 NY летом):")
     for d in range(7):
-        v = [x for h in (15, 16, 17) for x in cells.get((d, h), [])]
+        v = [x for h in (19, 20, 21) for x in cells.get((d, h), [])]
         if v:
             wk = defaultdict(list)
             print(f"   {DOW[d]}  ширина {st.mean(v):3.0f}%  "
@@ -589,10 +588,10 @@ def main() -> int:
 
     # 3. пятница к закрытию рост, перед субботой слив
     print("\n3. «Пятница к закрытию рост, перед субботой слив»")
-    for name, d, hrs in (("пт 13-16 NY", 4, (13, 14, 15, 16)),
-                         ("пт 17-20 NY", 4, (17, 18, 19, 20)),
-                         ("пт 21-23 NY", 4, (21, 22, 23)),
-                         ("сб 00-04 NY", 5, (0, 1, 2, 3, 4))):
+    for name, d, hrs in (("пт 17-20 UTC", 4, (17, 18, 19, 20)),
+                         ("пт 21-24 UTC", 4, (21, 22, 23)),
+                         ("сб 00-03 UTC", 5, (0, 1, 2, 3)),
+                         ("сб 04-08 UTC", 5, (4, 5, 6, 7, 8))):
         v = [x for h in hrs for x in cells.get((d, h), [])]
         if v:
             print(f"   {name:12} ширина {st.mean(v):3.0f}%  "

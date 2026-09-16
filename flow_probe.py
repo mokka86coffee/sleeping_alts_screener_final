@@ -22,7 +22,7 @@ import sys
 import time
 import traceback
 from collections import Counter
-from datetime import datetime
+from datetime import datetime, timezone
 
 from core_binance import drop_symbol_cache, get_futures_tickers
 from core_config import EXCLUDE_TOKENS, MAX_SYMBOLS, MIN_QUOTE_VOLUME_24H
@@ -111,7 +111,7 @@ NON_CRYPTO = {
     "PAXGUSDT", "XAUTUSDT", "USDCUSDT",
 }
 
-STAMP = datetime.now().strftime("%Y%m%d_%H%M")
+STAMP = datetime.now(timezone.utc).strftime("%Y%m%d_%H%MZ")
 CSV_PATH = f"flow_probe_{STAMP}.csv"
 JSON_PATH = f"flow_probe_{STAMP}.json"
 

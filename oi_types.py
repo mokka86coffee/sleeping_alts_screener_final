@@ -23,7 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 try:
@@ -135,7 +135,7 @@ def coin_types(sym_usdt: str) -> dict | None:
 
 def build(only: list[str] | None = None) -> dict:
     coins = only or sorted(p.stem.upper() for p in (BASE_DIR / "cq_v2").glob("*.json") if not p.name.startswith("_"))
-    out: dict = {"at": datetime.now().strftime("%Y-%m-%d %H:%M"), "coins": {}, "missing": []}
+    out: dict = {"at": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M"), "tz": "UTC", "coins": {}, "missing": []}
     for i, b in enumerate(coins, 1):
         sym = b.upper() + ("" if b.upper().endswith("USDT") else "USDT")
         try:

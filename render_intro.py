@@ -27,6 +27,8 @@ import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from core_time import row_dt
+
 try:
     from core_config import BASE_DIR
 except ImportError:
@@ -65,7 +67,7 @@ def _state_since() -> dict:
                 rows.append(json.loads(line))
             except ValueError:
                 pass
-        rows.sort(key=lambda r: f"{r.get('at', '')} {r.get('hm', '')}")
+        rows.sort(key=lambda r: row_dt(r) or datetime.min.replace(tzinfo=timezone.utc))
         by: dict = {}
         last_goal: dict = {}     # последнее «у цели» по монете: имя и время постановки серии
         for r in rows:
@@ -74,7 +76,10 @@ def _state_since() -> dict:
                 continue
             nm = str(r.get("tpl") or "").split("(")[0].strip().lower()
             full = str(r.get("tpl") or "").strip().lower()
-            t = f"{r.get('at', '')} {r.get('hm', '00:00')}"
+            _d = row_dt(r)                  # UTC; строка без пометки tz — время неизвестно, пропуск (16.09)
+            if _d is None:
+                continue
+            t = _d.strftime("%Y-%m-%d %H:%M")
             cur = by.get(sym)
             if cur and cur[0] == nm:
                 by[sym] = (nm, cur[1])          # серия продолжается — время постановки прежнее
@@ -90,9 +95,10 @@ def _state_since() -> dict:
             try:
                 d0 = datetime.strptime(t_out, "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
                 hrs = (now - d0).total_seconds() / 3600
+                mark = f"⟦t:{int(d0.timestamp())}⟧"     # местное время подставит страница
             except ValueError:
-                hrs = 0.0
-            out[sym] = (nm_out, round(hrs, 1), t_out[5:16])
+                hrs, mark = 0.0, t_out[5:16]
+            out[sym] = (nm_out, round(hrs, 1), mark)
         break
     return out
 
@@ -109,7 +115,8 @@ def _last_marks() -> dict:
                 rows.append(json.loads(line))
             except ValueError:
                 pass
-        rows.sort(key=lambda r: f"{r.get('at', '')} {r.get('hm', '')}")
+        _t0 = datetime.min.replace(tzinfo=timezone.utc)
+        rows.sort(key=lambda r: row_dt(r) or _t0)
         for r in rows:
             s = str(r.get("sym") or "").upper()
             if s:
@@ -1236,6 +1243,10 @@ TEMPLATE = r'''<!doctype html>
 <script id="introData" type="application/json">__DATA__</script>
 <script>
 const DATA=JSON.parse(document.getElementById('introData').textContent);
+// МЕСТНОЕ ТОЛЬКО НА ЭКРАНЕ (16.09): метки ⟦t:секунды⟧ в строках — в часы смотрящего
+(function(){const p=n=>(n<10?'0':'')+n, loc=t=>{const d=new Date(t*1000);return p(d.getDate())+'.'+p(d.getMonth()+1)+' '+p(d.getHours())+':'+p(d.getMinutes());};
+  const fx=s=>typeof s==='string'?s.replace(/⟦t:(\d+)⟧/g,(m,t)=>loc(+t)):s;
+  DATA.whys=(DATA.whys||[]).map(fx); DATA.subs=(DATA.subs||[]).map(fx);})();
 // группы: 0 — брать, 1 — держать, 2 — закрыть (владелец, 06.09)
 const names=DATA.names.length?DATA.names:['—'],GRP=DATA.names.length?DATA.grp:[1];
 const N=names.length,NF=4,FONT='Michroma';

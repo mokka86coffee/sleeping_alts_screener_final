@@ -40,6 +40,8 @@ import time
 import urllib.error
 import urllib.request
 from datetime import date, datetime
+
+from core_time import utc_today
 from pathlib import Path
 
 try:                                  # в проекте путь берётся из конфига
@@ -141,7 +143,7 @@ def auto_update(min_gap_days: int = 7) -> str:
     их гасит try прогона, как у почты.
     """
     rows = load_rows(RESERVOIR_PATH)
-    today = date.today()
+    today = utc_today()                   # «сегодня» — по UTC (16.09)
     if rows:
         last = rows[-1]
         try:
@@ -209,7 +211,7 @@ def main() -> int:
               f"это не рынок, а сломанный ответ. Не записываю.")
         return 1
 
-    today = date.today().isoformat()
+    today = utc_today().isoformat()
     row = {"date": today, "stables_pct": round(share, 1),
            "btc_dom_pct": m["btc_dom_pct"],
            "src": "coinmarketcap", "method": "global"}
@@ -248,7 +250,7 @@ def main() -> int:
             return 1
 
         try:
-            gap = (date.today() - datetime.strptime(
+            gap = (utc_today() - datetime.strptime(
                 str(last.get("date")), "%Y-%m-%d").date()).days
         except ValueError:
             gap = 999

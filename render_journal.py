@@ -26,6 +26,8 @@ import argparse
 import json
 from collections import OrderedDict
 from datetime import datetime
+
+from core_time import row_dt
 from pathlib import Path
 
 AP = argparse.ArgumentParser()
@@ -53,10 +55,8 @@ def load(path: Path) -> dict:
         px = r.get("px")
         if not isinstance(px, (int, float)) or not px:
             continue
-        try:
-            t = datetime.strptime(f"{r.get('at', '')} {r.get('hm', '00:00')}",
-                                  "%Y-%m-%d %H:%M")
-        except ValueError:
+        t = row_dt(r)                       # UTC; строка без пометки tz — время неизвестно, пропуск (16.09)
+        if t is None:
             continue
         by.setdefault(str(r.get("sym", "")).upper(), []).append(
             {"t": t, "px": float(px), "tpl": str(r.get("tpl") or ""),

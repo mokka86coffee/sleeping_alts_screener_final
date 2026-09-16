@@ -31,6 +31,8 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime
+
+from core_time import utc_today
 from pathlib import Path
 
 from core_config import BASE_DIR
@@ -83,7 +85,7 @@ def reservoir_state(path: Path = RESERVOIR_PATH, today: date | None = None) -> d
     age_days = None
     try:
         d = datetime.strptime(str(last.get("date", "")), "%Y-%m-%d").date()
-        age_days = ((today or date.today()) - d).days
+        age_days = ((today or utc_today()) - d).days
     except ValueError:
         pass
 

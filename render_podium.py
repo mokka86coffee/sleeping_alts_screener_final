@@ -3666,11 +3666,11 @@ PODIUM_JS = """
     var me = String((s && s.t) || '').replace(/USDT$/, '').toUpperCase();
     return list.filter(function (w) {
       /* Блок JS — НЕ сырая строка Python, поэтому обратные слэши
-         для регулярки удваиваем: одинарный \s питон читает как свою
+         для регулярки удваиваем: одинарный слэш перед s питон читает как свою
          escape-последовательность и ругается. */
       /* Регулярка БЕЗ обратных слэшей: блок JS — не сырая строка
          Python, и любой одиночный слэш он читает как свой escape.
-         Пробел вместо \s, дефис последним в классе — экранировать
+         Пробел вместо слэша с s, дефис последним в классе — экранировать
          нечего. */
       var m = String(w).match(/^([A-Z0-9]{2,12}) *[—·:-]/);
       return !m || m[1] === me;
@@ -4471,9 +4471,9 @@ PODIUM_JS = """
       (nowFrac * 100).toFixed(2) + '%"><s></s><b>сегодня</b></div>';
     for (i = 3; i <= PICKET_DAYS; i += 3) {
       var dt = new Date(base.getTime());
-      dt.setDate(dt.getDate() + i);
+      dt.setUTCDate(dt.getUTCDate() + i);      // дни шкалы — даты UTC, как у событий (16.09)
       ax += '<div class="obg-tick" style="left:' + xOf(i).toFixed(2) + '%">' +
-        '<s></s><b>' + dt.getDate() + ' ' + MON[dt.getMonth()] + '</b></div>';
+        '<s></s><b>' + dt.getUTCDate() + ' ' + MON[dt.getUTCMonth()] + '</b></div>';
     }
     return { pins: pins, axis: ax };
   }

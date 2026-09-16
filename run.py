@@ -35,13 +35,17 @@ import subprocess
 from datetime import datetime, timedelta, timezone
 
 
-def _next_run_ts(v) -> float:
-    """ВСЁ ПО UTC (16.09, владелец: «все прогоны и всё вообще по UTC, местное только на экране в html»).
-    next_run_at пишется с Z; старая запись без Z была временем машины — читаем её как раньше, один раз."""
-    s = str(v)
+def _next_run_ts(nr: dict):
+    """ВСЁ ПО UTC (16.09, владелец: «никакой привязки ко времени машины»). Время следующего старта — из
+    next_run_at с Z; старая запись была по часам машины и не читается вовсе: вместо неё берётся
+    next_candle (она всегда писалась в UTC) — закрытие этой свечи и есть старт. Нет ни того, ни другого — None."""
+    s = str(nr.get("next_run_at") or "")
     if s.endswith("Z"):
         return datetime.strptime(s, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
-    return datetime.strptime(s, "%Y-%m-%dT%H:%M:%S").timestamp()
+    c = str(nr.get("next_candle") or "")
+    if c.endswith("Z"):
+        return datetime.strptime(c, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp() + 1800 + 5
+    return None
 
 
 def _utc(ts=None, fmt: str = "%H:%M:%S") -> str:
@@ -938,8 +942,8 @@ def run_once(args: argparse.Namespace) -> int:
         _nrp = BASE_DIR / "output" / "next_run.json"
         if _nrp.exists():
             _nr = json.loads(_nrp.read_text(encoding="utf-8"))
-            _due = _next_run_ts(_nr["next_run_at"])
-            _late = time.time() - _due
+            _due = _next_run_ts(_nr)
+            _late = (time.time() - _due) if _due else 0
             if _late > 1800 + 300:
                 _missed = int(_late // 1800)
                 _gap = {"from": _nr.get("next_candle"), "to": time.strftime("%Y-%m-%dT%H:%M:00Z", time.gmtime((time.time() // 1800) * 1800)),
@@ -1770,8 +1774,8 @@ def main() -> int:
     log("→ Режим цикла: по закрытию получасовых свечей · Ctrl+C для остановки")
     try:
         _nr = json.loads((BASE_DIR / "output" / "next_run.json").read_text(encoding="utf-8"))
-        _at = _next_run_ts(_nr["next_run_at"])
-        if _at > time.time() + 5:
+        _at = _next_run_ts(_nr)
+        if _at and _at > time.time() + 5:
             log(f"→ По записи прошлого прогона следующий старт в {_utc(_at)} — жду")
             time.sleep(_at - time.time())
     except Exception:

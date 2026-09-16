@@ -272,7 +272,7 @@ AS_OF_MS: int | None = None      # ДОЗАБОР (05.09): строка «на �
 def build(sym: str, base: Path, cap: float | None, crowd: dict) -> dict:
     missing: list[str] = []
     now = datetime.now(timezone.utc) if not AS_OF_MS else datetime.fromtimestamp(AS_OF_MS / 1000, timezone.utc)
-    row: dict = {"at": now.strftime("%Y-%m-%d"), "hm": now.strftime("%H:%M"), "sym": sym}
+    row: dict = {"at": now.strftime("%Y-%m-%d"), "hm": now.strftime("%H:%M"), "tz": "UTC", "sym": sym}
     try:   # штамп свечи и флаг пустоты (05.09): candle — закрытая получасовка; missing — чего нет
         import candle_gate as _cg
         row["candle"] = _cg.stamp(AS_OF_MS if AS_OF_MS else _cg.boundary())["candle"]

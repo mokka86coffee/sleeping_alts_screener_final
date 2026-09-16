@@ -48,6 +48,8 @@ import json
 import statistics
 import sys
 from datetime import datetime, timedelta, timezone
+
+from core_time import row_dt
 from pathlib import Path
 
 try:
@@ -256,15 +258,16 @@ def _agg(items: list[dict]) -> dict:
 
 def build(days: int = 7, only: list[str] | None = None) -> dict:
     since = datetime.now(timezone.utc) - timedelta(days=days)
-    fc_all = [r for r in _jsonl(OUTD / "forecasts.jsonl")
-              if (_ts(f"{r.get('at')}T{r.get('hm')}:00Z") or datetime.min.replace(tzinfo=timezone.utc)) >= since]
+    # время строки — UTC; строка без пометки tz (время ещё не вычислено utc_migrate) в счёт не идёт (16.09)
+    _t0 = datetime.min.replace(tzinfo=timezone.utc)
+    fc_all = [r for r in _jsonl(OUTD / "forecasts.jsonl") if (row_dt(r) or _t0) >= since]
     # СЧИТАЕМ СОБЫТИЯ, А НЕ СТРОКИ (07.09): журнал пишет шаблон по каждой монете каждые полчаса, и
     # одна и та же мысль попадала в счёт по два десятка раз за день — 9927 записей против 1455 смен
     # (14.7%). Повторы смазывают всё: доля сбывшихся падает механически, кривая затухания
     # выравнивается в ноль. Берём ПЕРВУЮ запись каждого нового шаблона по монете — момент, когда
     # система впервые это сказала; повтор того же шаблона в счёт не идёт.
     fc, _prev = [], {}
-    for r in sorted(fc_all, key=lambda r: (str(r.get("at") or ""), str(r.get("hm") or ""))):
+    for r in sorted(fc_all, key=lambda r: row_dt(r) or _t0):
         sym, tpl = r.get("sym"), r.get("tpl")
         if not sym:
             continue
@@ -287,7 +290,7 @@ def build(days: int = 7, only: list[str] | None = None) -> dict:
     items = []
     for r in fc:
         sym = str(r.get("sym") or "")
-        at = _ts(f"{r.get('at')}T{r.get('hm')}:00Z")
+        at = row_dt(r)
         if not sym or not at:
             continue
         cache.setdefault(sym, _bars(sym))

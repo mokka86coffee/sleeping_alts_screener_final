@@ -187,12 +187,14 @@ def main() -> int:
                 if not r.get("plot") or (sym + "USDT", f"{at}T{hm}") in have_fc:
                     continue
                 q = rc.AS_OF_PX.get(sym + "USDT") or {}
-                lines.append(json.dumps({"at": at, "hm": hm, "sym": sym + "USDT", "tpl": r["plot"],
+                lines.append(json.dumps({"at": at, "hm": hm, "tz": "UTC", "sym": sym + "USDT", "tpl": r["plot"],
                                          "stage": r.get("stage") or "", "px": q.get("close"),
                                          "candle": st, "backfill": True}, ensure_ascii=False))
             if lines:
-                with fc_path.open("a", encoding="utf-8") as f:
-                    f.write("\n".join(lines) + "\n")
+                from core_lock import locked          # журнал прогнозов переписывается прогоном — пишем под общим замком
+                with locked(fc_path):
+                    with fc_path.open("a", encoding="utf-8") as f:
+                        f.write("\n".join(lines) + "\n")
                 n_fc += len(lines)
         # внутридневной архив на эту свечу — из только что записанных строк лога и репутации «на момент».
         # ЧЕСТНАЯ ПОМЕТКА (07.09): ноги баров берутся по времени свечи и потому верные, а интерес,

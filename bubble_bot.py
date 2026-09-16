@@ -693,7 +693,7 @@ def report() -> str:
 
 
 def _log(msg: str) -> None:
-    print(f"[{datetime.now():%H:%M:%S}] {msg}")
+    print(f"[{datetime.now(timezone.utc):%H:%M:%S} UTC] {msg}")
 
 
 if __name__ == "__main__":

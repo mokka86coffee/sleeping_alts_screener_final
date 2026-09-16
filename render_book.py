@@ -153,7 +153,7 @@ def _collect() -> tuple[list[dict], list[dict]]:
                     "book": book, "sym": str(r.get("sym") or "").upper(), "res": r.get("result_pct"),
                     "sized": r.get("result_sized_pct"), "why": r.get("why_exit") or r.get("why") or "",
                     "rule": r.get("rule") or "", "size": float(r.get("size") or 1.0), "at": at,
-                    "day": datetime.fromtimestamp(at, timezone.utc).astimezone().strftime("%Y-%m-%d") if at else "",
+                    "day": datetime.fromtimestamp(at, timezone.utc).strftime("%Y-%m-%d") if at else "",   # день бота — UTC (16.09)
                 })
     opened.sort(key=lambda x: -(abs(x["res"]) if x["res"] is not None else 0))
     closed.sort(key=lambda x: -(x["at"] or 0))
@@ -233,7 +233,7 @@ def render_book() -> str:
     cur = st.mean([p["res"] for p in opened if p["res"] is not None]) if opened else 0.0
     days = sorted({c["day"] for c in closed if c.get("day")}, reverse=True)[:BOOK_DAYS]
     per_day = {d: _money_day([c for c in closed if c.get("day") == d]) for d in days}
-    today = days[0] if days else datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d")
+    today = days[0] if days else datetime.now(timezone.utc).strftime("%Y-%m-%d")
     cur_day = per_day.get(today) or {"rows": [], "total": 0.0, "hit": 0, "n": 0, "best": 0.0, "worst": 0.0}
     nearest = None
     for p in opened:
@@ -311,7 +311,8 @@ def render_book() -> str:
         nearest_html = (f'{_esc(nearest[1]["sym"].replace("USDT", ""))} · цель '
                         f'{float(nearest[1]["target"]) * 100:.1f}%')
         nearest_sub = f'осталось {max(0.0, nearest[0]):.2f}%'
-    stamp = datetime.now(timezone.utc).astimezone().strftime("%H:%M")
+    stamp = datetime.now(timezone.utc).strftime("%H:%M UTC")
+    stamp_ts = int(datetime.now(timezone.utc).timestamp())
     day_sign = "p" if cur_day["total"] >= 0 else "m"
     return f'''<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><title>книга · бот</title>
@@ -411,9 +412,11 @@ body{{min-height:100vh;background:radial-gradient(1200px 520px at 50% -8%,rgba(2
   <div class="sec" style="margin-top:22px">закрытые по дням · депозит {_m0(BOOK_DEPOSIT)} на день, делится между сделками дня по весу правила</div>
   <div class="tabs">{"".join(tabs) if tabs else ""}</div>
 {chr(10).join(blocks) if blocks else '<div class="empty">закрытых сделок нет</div>'}
-  <div class="foot">{_esc(note)}{" · " if note else ""}обновлено {stamp}</div>
+  <div class="foot">{_esc(note)}{" · " if note else ""}обновлено <span data-ts="{stamp_ts}">{stamp}</span></div>
 </div>
 <script>
+document.querySelectorAll('[data-ts]').forEach(function(e){{var d=new Date(+e.getAttribute('data-ts')*1000);
+  if(!isNaN(d))e.textContent=('0'+d.getHours()).slice(-2)+':'+('0'+d.getMinutes()).slice(-2);}});
 document.querySelectorAll('.tab').forEach(function(b){{
   b.addEventListener('click',function(){{
     document.querySelectorAll('.tab').forEach(function(x){{x.classList.remove('on')}});

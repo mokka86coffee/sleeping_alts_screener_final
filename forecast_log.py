@@ -28,8 +28,11 @@ from __future__ import annotations
 
 import argparse
 import json
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
+
+from core_lock import locked
+from core_time import utc_hm, utc_today, utc_today_iso
 
 LOG = Path("output") / "forecasts.jsonl"
 ARCHIVE = Path("cq_v2")
@@ -37,7 +40,7 @@ HORIZONS = (1, 3)          # через сколько дней меряем и�
 
 
 def _today() -> str:
-    return date.today().isoformat()
+    return utc_today_iso()          # дата — по UTC (16.09), не по часам машины
 
 
 def _read(path: Path) -> list[dict]:
@@ -157,50 +160,60 @@ def record(rep: dict, against: bool | None = None,
     # Живая карта главнее дневной: в ней сюжет после пересчёта.
     # Файла нет — работаем по дневной, как раньше.
     rep = {**(rep or {}), **live_map()}
-    rows = _read(log_path)
-    today = _today()
-    now_hm = datetime.now().strftime("%H:%M")
-    px_map = _prices()
-    # ПИШЕМ КАЖДЫЙ ПРОГОН (правка владельца 01.09). Прежде запись была
-    # одна на монету в сутки, потом одна на смену шаблона — и в обоих
-    # случаях терялся РЯД: от какой цены был дан прогноз и как он
-    # держался час за часом. Теперь строка пишется всегда, а «дорожка»
-    # показывает только смены — полный ряд есть, читать его целиком не
-    # приходится.
-    # Отсекается только повтор в ТУ ЖЕ минуту: два вызова подряд не
-    # должны давать двух строк.
-    have = {(r.get("at"), r.get("hm"), r.get("sym")) for r in rows}
     if against is None:
         against = gate_against()
-    added = 0
-    for sym, e in (rep or {}).items():
-        if sym == "_meta" or not isinstance(e, dict):
-            continue
-        plot = str(e.get("plot") or "")
-        sym = str(sym).upper()
-        tpl = plot.split(":")[0].strip()[:60]
-        if not plot or (today, now_hm, sym) in have:
-            continue
-        rows.append({
-            "at": today, "hm": now_hm, "sym": sym, "tpl": tpl,
-            "stage": e.get("stage") or "",
-            "px": px_map.get(sym),
-            "veto": bool(against),
-        })
-        have.add((today, now_hm, sym))
-        added += 1
-    if added:
-        _write(log_path, rows)
-    return added
+    px_map = _prices()
+    # ЗАМОК (16.09): дозабор дописывает в этот же файл из потока медленных — читаем и пишем под замком;
+    # новые строки ДОПИСЫВАЮТСЯ, целиком файл переписывается только при проставлении исходов.
+    # ВРЕМЯ — ТОЛЬКО UTC с пометкой tz; журнал начат заново 16.09, старых строк по часам машины нет.
+    with locked(log_path):
+        rows = _read(log_path)
+        today = _today()
+        now_hm = utc_hm()
+        # ПИШЕМ КАЖДЫЙ ПРОГОН (правка владельца 01.09). Прежде запись была
+        # одна на монету в сутки, потом одна на смену шаблона — и в обоих
+        # случаях терялся РЯД: от какой цены был дан прогноз и как он
+        # держался час за часом. Теперь строка пишется всегда, а «дорожка»
+        # показывает только смены — полный ряд есть, читать его целиком не
+        # приходится.
+        # Отсекается только повтор в ТУ ЖЕ минуту: два вызова подряд не
+        # должны давать двух строк.
+        have = {(r.get("at"), r.get("hm"), r.get("sym")) for r in rows}
+        new_rows = []
+        for sym, e in (rep or {}).items():
+            if sym == "_meta" or not isinstance(e, dict):
+                continue
+            plot = str(e.get("plot") or "")
+            sym = str(sym).upper()
+            tpl = plot.split(":")[0].strip()[:60]
+            if not plot or (today, now_hm, sym) in have:
+                continue
+            new_rows.append({
+                "at": today, "hm": now_hm, "tz": "UTC", "sym": sym, "tpl": tpl,
+                "stage": e.get("stage") or "",
+                "px": px_map.get(sym),
+                "veto": bool(against),
+            })
+            have.add((today, now_hm, sym))
+        if new_rows:
+            log_path.parent.mkdir(exist_ok=True)
+            with log_path.open("a", encoding="utf-8") as f:
+                f.write("".join(json.dumps(r, ensure_ascii=False) + "\n" for r in new_rows))
+    return len(new_rows)
 
 
 def score(log_path: Path = LOG, archive: Path = ARCHIVE) -> int:
     """Проставить исходы там, где срок уже прошёл. Идемпотентна."""
+    with locked(log_path):
+        return _score_locked(log_path, archive)
+
+
+def _score_locked(log_path: Path, archive: Path) -> int:
     rows = _read(log_path)
     if not rows:
         return 0
     cache: dict[str, dict] = {}
-    today = date.today()
+    today = utc_today()
     filled = 0
     for r in rows:
         try:

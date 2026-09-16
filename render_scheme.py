@@ -746,14 +746,26 @@ SCHEME_JS = r"""
         var hh=+f.find(x=>x.type==='hour').value%24,dd=+f.find(x=>x.type==='day').value;var diff=(h-hh)+(d-dd)*24;if(!diff)break;g+=diff*3600000;}
       return new Date(g).getHours();}
     function pad(n){return (n<10?'0':'')+n;}
+    /* СДВИГ ПОЯСА СЕЙЧАС (16.09): Москва и Токио к Нью-Йорку были зашиты +7 и +13 — это верно только летом
+       Нью-Йорка; с ноября +8 и +14. Считаем по базе поясов браузера. */
+    function tzOffH(zone){var d=new Date();
+      var p=new Intl.DateTimeFormat('en-US',{timeZone:zone,hour12:false,year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).formatToParts(d);
+      var g=function(t){return +p.find(function(x){return x.type===t;}).value;};
+      return Math.round((Date.UTC(g('year'),g('month')-1,g('day'),g('hour')%24,g('minute'))-d.getTime())/36e5);}
+    var dMSK=tzOffH('Europe/Moscow')-tzOffH(NYZ), dTYO=tzOffH('Asia/Tokyo')-tzOffH(NYZ);
+    /* РАСПИСАНИЕ В UTC (16.09): alts_schedule пишет часы и дни UTC с tz:'UTC'; старый файл — часы Нью-Йорка.
+       Для таблицы — сдвиги от базы файла до Нью-Йорка, Москвы и Токио. */
+    var SUTC=(S.tz==='UTC');
+    var oNY=SUTC?tzOffH(NYZ):0, oMSK=SUTC?tzOffH('Europe/Moscow'):dMSK, oTYO=SUTC?tzOffH('Asia/Tokyo'):dTYO;
+    function schedHourToLocal(h){ if(!SUTC) return nyHourToLocal(h); var d=new Date(); return new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate(),h,0)).getHours(); }
     
     function len(s){var l=((s[1]+1-s[0])%24+24)%24;return l||24;}
 
     function build(){
       var now=new Date(), lh=now.getHours()+now.getMinutes()/60;
-      var ups=S.pump.map(function(s){return [nyHourToLocal(s[0]),nyHourToLocal(s[1])];});
-      var dns=S.dump.map(function(s){return [nyHourToLocal(s[0]),nyHourToLocal(s[1])];});
-      var dead=S.dead.map(function(s){return [nyHourToLocal(s[0]),nyHourToLocal(s[1])];});
+      var ups=S.pump.map(function(s){return [schedHourToLocal(s[0]),schedHourToLocal(s[1])];});
+      var dns=S.dump.map(function(s){return [schedHourToLocal(s[0]),schedHourToLocal(s[1])];});
+      var dead=S.dead.map(function(s){return [schedHourToLocal(s[0]),schedHourToLocal(s[1])];});
       /* ВНУТРИ ОКНА (владелец, 03.09): раньше центр считал до начала того
          же окна завтра — «до роста 22 ч» посреди роста. Теперь: если
          «сейчас» внутри окна — показываем, что оно идёт и сколько
@@ -849,19 +861,20 @@ SCHEME_JS = r"""
          (nu&&nd?'<tspan fill="'+DIMT+'">  ·  </tspan>':'')+
          (nd?'<tspan fill="'+DIMT+'">СЛИВ </tspan><tspan fill="'+INK+'">'+hh(nd.h)+'</tspan>':'')+'</text>';
       /* сильный день — в правом верхнем углу */
-      var dow=(now.getDay()+6)%7, tom=(dow+1)%7;
+      /* день недели — нью-йоркский, как у расписания (alts_schedule считает по NY), а не день смотрящего */
+      var dow=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].indexOf(new Intl.DateTimeFormat('en-US',{timeZone:SUTC?'UTC':NYZ,weekday:'short'}).format(now)), tom=(dow+1)%7;
       var st=S.days_best.indexOf(dow)>=0, stt=S.days_best.indexOf(tom)>=0;
       if (st||stt) s+='<text x="'+(W-6)+'" y="12" text-anchor="end" font-family="ui-monospace,Menlo,monospace" font-size="6" letter-spacing=".26em" fill="'+LAV+'" opacity=".9">'+(st?'СИЛЬНЫЙ ДЕНЬ':'ЗАВТРА СИЛЬНЫЙ ДЕНЬ')+'</text>';
       s+='</svg>';
     
       function tz(h,o){return pad((h+o+24)%24);}function sp(g,o){return g[0]===g[1]?tz(g[0],o):tz(g[0],o)+'–'+tz(g[1],o);}
-      function row(c,n,segs,note){return segs.map(function(g,i){return '<tr class="'+c+'"><td>'+(i?'':n)+'</td><td>'+sp(g,0)+'</td><td>'+sp(g,7)+'</td><td>'+sp(g,13)+(i===0&&note?'<i>'+note+'</i>':'')+'</td></tr>';}).join('');}
+      function row(c,n,segs,note){return segs.map(function(g,i){return '<tr class="'+c+'"><td>'+(i?'':n)+'</td><td>'+sp(g,oNY)+'</td><td>'+sp(g,oMSK)+'</td><td>'+sp(g,oTYO)+(i===0&&note?'<i>'+note+'</i>':'')+'</td></tr>';}).join('');}
       var Rg=S.regime;
       var full='<div class="full"><div class="sub">'+S.coins+' монет · полгода · биткоин стоит<br>≥6 монет вверх, ≥10 вниз в один час</div>'+
        '<table><tr><th></th><th>Нью-Йорк</th><th>Москва</th><th>Токио</th></tr>'+
-       row('up','пампы',S.pump,tz(S.pump_main,0)+' · '+S.pump_main_n+' соб.')+row('dead','мёртво',S.dead,'')+row('dn','слив',S.dump,'×'+S.dump_main_ratio+' к любому')+
+       row('up','пампы',S.pump,tz(S.pump_main,oNY)+' NY · '+S.pump_main_n+' соб.')+row('dead','мёртво',S.dead,'')+row('dn','слив',S.dump,'×'+S.dump_main_ratio+' к любому')+
        '</table><div class="foot">лучшие дни: <b>'+S.days_best.map(function(d){return DN[d];}).join(' · ')+'</b><br>'+
-       'биткоин стоит <s>'+Rg.flat[0]+'/'+Rg.flat[1]+'</s> · растёт <u>'+Rg.up[0]+'/'+Rg.up[1]+'</u> · падает <s>'+Rg.down[0]+'/'+Rg.down[1]+'</s><br>отскоки на падении — с '+tz(S.bounce_hour,0)+' NY</div></div>';
+       'биткоин стоит <s>'+Rg.flat[0]+'/'+Rg.flat[1]+'</s> · растёт <u>'+Rg.up[0]+'/'+Rg.up[1]+'</u> · падает <s>'+Rg.down[0]+'/'+Rg.down[1]+'</s><br>отскоки на падении — с '+(S.bounce_hour==null?'—':tz(S.bounce_hour,oNY))+' NY</div></div>';
       var host = pick('#fib'); if (host) host.innerHTML = s + full;
     }
 

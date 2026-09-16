@@ -26,6 +26,8 @@ from __future__ import annotations
 
 import json
 from datetime import date, datetime
+
+from core_time import utc_today
 from pathlib import Path
 
 # ── Дела и их сроки ──
@@ -120,7 +122,7 @@ def _load(base: Path) -> dict:
 def mark_done(key: str, base: Path, today: date | None = None) -> None:
     """Отметить дело сделанным. Зовётся руками после работы."""
     st = _load(base)
-    st[key] = str(today or date.today())
+    st[key] = str(today or utc_today())
     try:
         with open(_state_path(base), "w", encoding="utf-8") as f:
             json.dump(st, f, ensure_ascii=False, indent=1)
@@ -136,7 +138,7 @@ def due(base: Path, today: date | None = None) -> list[dict]:
     надо обо всём. Молчать в этом случае было бы худшим вариантом —
     именно так reservoir.json и пролежал с одной записью.
     """
-    today = today or date.today()
+    today = today or utc_today()          # «сегодня» — по UTC (16.09)
     st = _load(base)
     out = []
     for t in TASKS:

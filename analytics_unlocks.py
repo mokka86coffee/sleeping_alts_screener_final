@@ -50,6 +50,8 @@ import datetime as _dt
 
 import json
 from datetime import date, datetime, timezone
+
+from core_time import utc_today
 from pathlib import Path
 from core_http import log
 
@@ -118,7 +120,7 @@ def unlock_shifts(persist: bool = False) -> dict:
     seen = dict(seen_doc.get("seen") or {})
     hist = {k: list(v) for k, v in (seen_doc.get("history") or {}).items()}
 
-    today = _dt.date.today()
+    today = utc_today()                   # «сегодня» — по UTC (16.09)
     cur: dict[str, str] = {}
     for sym, rec in data.items():
         best: str | None = None
@@ -182,7 +184,7 @@ def for_symbol(symbol: str, quote_volume_24h: float = 0.0,
     if rec.get("listed_at"):
         try:
             listed = _dt.date.fromisoformat(str(rec["listed_at"])[:10])
-            out["listed_days"] = ((_dt.date.today()) - listed).days
+            out["listed_days"] = (utc_today() - listed).days
         except (ValueError, TypeError):
             pass
     if rec.get("inferred"):

@@ -155,7 +155,7 @@ def _cache_read(name: str, ttl_hours: float) -> Any | None:
     path = CACHE_DIR / name
     if not path.exists():
         return None
-    age = datetime.now() - datetime.fromtimestamp(path.stat().st_mtime)
+    age = timedelta(seconds=time.time() - path.stat().st_mtime)     # возраст файла без часов машины
     if age > timedelta(hours=ttl_hours):
         return None
     try:

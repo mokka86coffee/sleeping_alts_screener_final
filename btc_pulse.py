@@ -294,7 +294,7 @@ def read_line(p: dict) -> str:
 def build() -> dict:
     missing: list[str] = []
     now = datetime.now(timezone.utc)
-    p = {"at": now.strftime("%Y-%m-%d"), "hm": now.strftime("%H:%M"), "sym": "BTC"}
+    p = {"at": now.strftime("%Y-%m-%d"), "hm": now.strftime("%H:%M"), "tz": "UTC", "sym": "BTC"}
     try:   # штамп свечи (05.09): какую закрытую получасовку описывает срез
         import candle_gate as _cg
         p["stamp"] = _cg.stamp(_cg.boundary())

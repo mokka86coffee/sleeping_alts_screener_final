@@ -27,7 +27,7 @@ import re
 import shutil
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 # Расширения, для которых имя в заголовке считается целевым файлом.
@@ -360,7 +360,7 @@ def main() -> int:
         print("Повторить с --apply.")
         return 0
 
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%SZ")
     written = 0
     for res in results:
         if not res.changed:

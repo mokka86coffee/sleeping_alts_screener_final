@@ -56,6 +56,11 @@ def _read_json(name: str):
 MISS_WORDS = ("осечка", "ушёл", "отпустил", "раздача")
 
 
+from core_time import row_dt as _row_dt, row_ts as _row_ts
+
+ISO_Z = "%Y-%m-%dT%H:%M:00Z"      # метки для страницы — UTC с Z; в местное их переводит скрипт страницы
+
+
 def _journal() -> dict:
     """output/forecasts.jsonl → {тикер: {n, switches, first, firstAt,
     lastSwitch:{tpl, at, px, chg}}}. Тот же ряд, что у render_journal —
@@ -77,10 +82,8 @@ def _journal() -> dict:
             px = r.get("px")
             if not isinstance(px, (int, float)) or not px:
                 continue
-            try:
-                t = datetime.strptime(f"{r.get('at', '')} {r.get('hm', '00:00')}",
-                                      "%Y-%m-%d %H:%M")
-            except ValueError:
+            t = _row_dt(r)
+            if t is None:
                 continue
             by.setdefault(str(r.get("sym", "")).upper().replace("USDT", ""), []).append(
                 {"t": t, "px": float(px), "tpl": str(r.get("tpl") or "")})
@@ -101,21 +104,21 @@ def _journal() -> dict:
                 if prev is not None and nm[i] != prev and held:
                     sw += 1
                     last = {"tpl": q["tpl"].split("(")[0].strip()[:40],
-                            "at": q["t"].strftime("%d.%m %H:%M"), "px": q["px"],
+                            "at": q["t"].strftime(ISO_Z), "px": q["px"],
                             "chg": round((q["px"] / pts[i - 1]["px"] - 1) * 100, 1)}
                     # МЕТКИ ПРОГНОЗА на плите (04.09): каждая смена — где и что
                     # за событие, тем же рядом, что у журнала прогнозов.
-                    marks.append({"t": q["t"].strftime("%Y-%m-%dT%H:%M"), "px": q["px"],
+                    marks.append({"t": q["t"].strftime(ISO_Z), "px": q["px"],
                                   "tpl": last["tpl"],
                                   "miss": any(w in q["tpl"].lower() for w in MISS_WORDS)})
                 if prev is None or held:
                     prev = nm[i]
             if not marks and pts[0]["tpl"]:      # смен нет — показываем стартовое состояние
-                marks.append({"t": pts[0]["t"].strftime("%Y-%m-%dT%H:%M"), "px": pts[0]["px"],
+                marks.append({"t": pts[0]["t"].strftime(ISO_Z), "px": pts[0]["px"],
                               "tpl": pts[0]["tpl"].split("(")[0].strip()[:40],
                               "miss": any(w in pts[0]["tpl"].lower() for w in MISS_WORDS)})
             out[sym] = {"n": len(pts), "switches": sw, "first": pts[0]["px"],
-                        "firstAt": pts[0]["t"].strftime("%d.%m %H:%M"),
+                        "firstAt": pts[0]["t"].strftime(ISO_Z),
                         "lastSwitch": last, "marks": marks,
                         # ряд за 48 ч по точкам журнала (05.09): мини-журнал рисует его вместо дневок,
                         # чтобы метки смен за день не слипались в одну точку у края
@@ -648,9 +651,8 @@ def _liq_history(days: int = 14) -> dict:
                 continue
             if not sym.endswith("USDT"):
                 sym += "USDT"          # лог пишет базу (BLESS), экран ищет пару (BLESSUSDT) — иначе карта во времени пуста
-            try:
-                ts = datetime.strptime(r["at"] + " " + r["hm"], "%Y-%m-%d %H:%M").timestamp()
-            except (KeyError, ValueError):
+            ts = _row_ts(r, default_utc=True)
+            if ts is None:
                 continue
             if ts < since:
                 continue
@@ -1366,6 +1368,9 @@ COIN_JS = r"""
   function money(v) { v = +v; if (!v) return null; var a = Math.abs(v), s = v < 0 ? '−' : '';
     return s + '$' + (a >= 1e9 ? (a / 1e9).toFixed(1) + 'B' : a >= 1e6 ? (a / 1e6).toFixed(1) + 'M' : a >= 1e3 ? (a / 1e3).toFixed(0) + 'K' : a.toFixed(0)); }
   function pad(n) { return (n < 10 ? '0' : '') + n; }
+  // МЕСТНОЕ ТОЛЬКО НА ЭКРАНЕ (16.09): метки приходят в UTC с Z, в часы смотрящего переводятся здесь
+  function locDM(x) { var d = new Date(x); return isNaN(d) ? String(x || '') : pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  function locMD(x) { var d = new Date(x); return isNaN(d) ? String(x || '') : pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
   var NUM = /(?<![\w])([+−\-]?\$?\d[\d.,]*[%KMB]?|×\d[\d.]*|\d+\/\d+|ATR)(?![\w])/g;
   function hl(t) { return esc(t).replace(NUM, '<b>$1</b>'); }
   function has(v) { return v !== undefined && v !== null && v !== '' && !(typeof v === 'number' && isNaN(v)); }
@@ -1630,8 +1635,8 @@ COIN_JS = r"""
     if (bk && bk.entry) mr.push([bk.manual ? 'твоя позиция' : 'вход журнала', px4(bk.entry) + ' с ' + bk.since.slice(8, 10) + '.' + bk.since.slice(5, 7) + (has(bk.chg) ? ' · ' + pct(bk.chg) + ' от входа' : '') + (has(bk.maxChg) ? ' · максимум ' + pct(bk.maxChg) : '') + (bk.closed ? ' · ЗАКРЫТА' + (bk.closedPx ? ' по ' + px4(bk.closedPx) : '') : '')]);
     var j = JR[String(s.t).toUpperCase()];
     if (j) {
-      mr.push(['журнал прогнозов', 'записей ' + j.n + ' · смен ' + j.switches + ' · с ' + j.firstAt + ' по ' + px4(j.first)]);
-      if (j.lastSwitch) mr.push(['последняя смена', '«' + j.lastSwitch.tpl + '» ' + j.lastSwitch.at + ' · ' + px4(j.lastSwitch.px) + ' · ' + pct(j.lastSwitch.chg) + ' от прошлой']);
+      mr.push(['журнал прогнозов', 'записей ' + j.n + ' · смен ' + j.switches + ' · с ' + locDM(j.firstAt) + ' по ' + px4(j.first)]);
+      if (j.lastSwitch) mr.push(['последняя смена', '«' + j.lastSwitch.tpl + '» ' + locDM(j.lastSwitch.at) + ' · ' + px4(j.lastSwitch.px) + ' · ' + pct(j.lastSwitch.chg) + ' от прошлой']);
     }
     if (s.trendDone) mr.push(['ход', 'отработан']);
     var memNum = has(s.heldRallies) && has(s.rallies) ? s.heldRallies + ' из ' + s.rallies : (j ? String(j.switches) : '—');
@@ -1707,12 +1712,29 @@ COIN_JS = r"""
   }
 
   // ── ЧАСЫ: состояние по сводке «когда ходит мелочь» (та же логика, что в схеме) ──
-  function nyHourToLocal(h) { var d = new Date(); var g = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h + 4, 0)); return g.getHours(); }
+  function nyHourToLocal(h) {
+    // час Нью-Йорка → местный, со сменой летнего и зимнего времени (было «+4» круглый год — с ноября врало на час)
+    var now = new Date(), NYZ = 'America/New_York';
+    var p = new Intl.DateTimeFormat('en-US', { timeZone: NYZ, year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(now);
+    var y = +p.find(function (x) { return x.type === 'year'; }).value, mo = +p.find(function (x) { return x.type === 'month'; }).value, dd = +p.find(function (x) { return x.type === 'day'; }).value;
+    var g = Date.UTC(y, mo - 1, dd, h, 0, 0);
+    for (var k = 0; k < 3; k++) {
+      var f = new Intl.DateTimeFormat('en-US', { timeZone: NYZ, hour: '2-digit', hour12: false, day: '2-digit' }).formatToParts(new Date(g));
+      var hh = +f.find(function (x) { return x.type === 'hour'; }).value % 24, d2 = +f.find(function (x) { return x.type === 'day'; }).value;
+      var diff = (h - hh) + (dd - d2) * 24; if (!diff) break; g += diff * 3600000;
+    }
+    return new Date(g).getHours();
+  }
+  // часы расписания → местные: новое расписание в часах UTC (tz: 'UTC'), старое — в часах Нью-Йорка
+  function schedHourToLocal(h) {
+    if (SC && SC.tz === 'UTC') { var d = new Date(); return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h, 0)).getHours(); }
+    return nyHourToLocal(h);
+  }
   function clockState() {
     if (!SC || !SC.pump) return null;
     var now = new Date(), lh = now.getHours() + now.getMinutes() / 60;
     function len(s) { var l = ((s[1] + 1 - s[0]) % 24 + 24) % 24; return l || 24; }
-    var ups = (SC.pump || []).map(function (s) { return [nyHourToLocal(s[0]), len(s)]; }), dns = (SC.dump || []).map(function (s) { return [nyHourToLocal(s[0]), len(s)]; });
+    var ups = (SC.pump || []).map(function (s) { return [schedHourToLocal(s[0]), len(s)]; }), dns = (SC.dump || []).map(function (s) { return [schedHourToLocal(s[0]), len(s)]; });
     var wins = ups.map(function (w) { return { h: w[0], e: w[0] + w[1], k: 'up' }; }).concat(dns.map(function (w) { return { h: w[0], e: w[0] + w[1], k: 'dn' }; }));
     var inside = null; wins.forEach(function (w) { var rel = (lh - w.h + 24) % 24; if (rel < w.e - w.h) inside = { k: w.k, left: w.e - w.h - rel }; });
     var ev = wins.map(function (w) { return { h: w.h, k: w.k, dh: (w.h - lh + 24) % 24 }; }).sort(function (a, b) { return a.dh - b.dh; });
@@ -1731,7 +1753,7 @@ COIN_JS = r"""
     function X(h) { return x0 + (h / 24) * (x1 - x0); }
     function len(sg) { var l = ((sg[1] + 1 - sg[0]) % 24 + 24) % 24; return l || 24; }
     var s = '<rect x="' + x0 + '" y="' + (y - 1.25) + '" width="' + (x1 - x0) + '" height="2.5" rx="1.25" fill="rgba(255,255,255,.10)" stroke="rgba(255,255,255,.45)" stroke-width=".6"/>';
-    function seg(sg, col, cls) { var a = nyHourToLocal(sg[0]), l = len(sg), out = '';
+    function seg(sg, col, cls) { var a = schedHourToLocal(sg[0]), l = len(sg), out = '';
       for (var k = 0; k < 2; k++) { var st = a + (k ? -24 : 0), xa = Math.max(x0, X(st)), xb = Math.min(x1, X(st + l)); if (xb > xa) out += '<rect class="' + cls + '" x="' + xa.toFixed(1) + '" y="' + (y - 1.25) + '" width="' + (xb - xa).toFixed(1) + '" height="2.5" rx="1.25" fill="' + col + '"/>'; }
       return out; }
     (SC.pump || []).forEach(function (sg) { s += seg(sg, '#bfffe0', 'seg'); });
@@ -2825,7 +2847,7 @@ COIN_JS = r"""
       var J = JR[String(s.t).toUpperCase()];   // запись журнала этой монеты
       var Jm = (J && J.marks) || [];
       Jm.slice(-14).reverse().forEach(function (m) {
-        histRows += '<div class="hr"><span>' + esc(String(m.t).slice(5, 16).replace('T', ' ')) + '</span><span>' + esc(px4(m.px)) + '</span><b class="' + (m.miss ? 'miss' : '') + '">' + esc(tplShort(m.tpl)) + '</b></div>';
+        histRows += '<div class="hr"><span>' + esc(locMD(m.t)) + '</span><span>' + esc(px4(m.px)) + '</span><b class="' + (m.miss ? 'miss' : '') + '">' + esc(tplShort(m.tpl)) + '</b></div>';
       });
       var nr = NEAR[String((s.coin || (String(s.t).toUpperCase() + 'USDT'))).toUpperCase()] || {}, nn = nr.nums || {}, qq = nr.queue || {};
       var head = '';
