@@ -1869,7 +1869,7 @@ COIN_JS = r"""
     (s.liqZones || []).slice(0, 3).forEach(function (z) {
       var mid = (z.lo + z.hi) / 2, side = mid < _pxNow ? 'down' : 'up', hot = !_bias || side === _bias;
       // подпись — ЦЕНА полосы (07.09, владелец: «в размере нет смысла»); сумма — при наведении
-      RL.push({ y: sy(mid), col: hot ? (side === 'down' ? '#ffd0c0' : '#e6d3a3') : '#6f7a75', txt: 'ЛИКВ ' + px4(mid) + (hot && _bias ? (_bubOK ? ' ← СНИМУТ · ПУЗЫРЬ' : ' ← снимут') : ''), tip: (side === 'down' ? 'лонги ' : 'шорты ') + (money(z.fuel) || '') + ' на ' + px4(mid), liq: true, hot: !!(hot && _bias), mid: mid, x1: (heatX1 !== null ? heatX1 : X0), dash: hot ? '6 4' : '2 6', w: hot ? (_bias ? 1.1 : .8) : .5, op: hot ? (_bias ? .8 : .55) : .3 });
+      RL.push({ y: sy(mid), col: hot ? (side === 'down' ? '#ffd0c0' : '#e6d3a3') : '#6f7a75', txt: px4(mid) + (hot && _bias ? (_bubOK ? ' ← СНИМУТ · ПУЗЫРЬ' : ' ← снимут') : ''), /* без слова «ликв» (владелец 16.09) */ tip: (side === 'down' ? 'лонги ' : 'шорты ') + (money(z.fuel) || '') + ' на ' + px4(mid), liq: true, hot: !!(hot && _bias), mid: mid, x1: (heatX1 !== null ? heatX1 : X0), dash: hot ? '6 4' : '2 6', w: hot ? (_bias ? 1.1 : .8) : .5, op: hot ? (_bias ? .8 : .55) : .3 });
     });
     // СТЕНЫ СТАКАНА (15.09, владелец: «толстые заявки — где примерно висят»): по снимку depth_fetch — до трёх
     // асков над ценой и до трёх бидов под, короткой чертой у правого края с подписью «СТЕНА цена · $K · N пр.»
@@ -1879,11 +1879,11 @@ COIN_JS = r"""
       var asks = (dp.walls || []).filter(function (w) { return w.side === 'ask'; }).slice(0, 3), bids = (dp.walls || []).filter(function (w) { return w.side === 'bid'; }).slice(0, 3);
       asks.concat(bids).forEach(function (w) { if (!(w.px >= lo && w.px <= hi)) return;
         var big = Math.min(1.6, .6 + Math.log10(Math.max(1, w.usd / 1e4)) * .5);
-        RL.push({ y: sy(w.px), col: w.side === 'ask' ? '#ff9f8f' : '#7fe6b8', txt: 'СТЕНА ' + px4(w.px) + ' · $' + Math.round(w.usd / 1e3) + 'K · ' + w.runs + ' пр.',
+        RL.push({ y: sy(w.px), col: w.side === 'ask' ? '#ff9f8f' : '#7fe6b8', txt: '$' + Math.round(w.usd / 1e3) + 'K' + (w.runs > 1 ? ' · ' + w.runs + ' пр.' : ''),
           tip: (w.side === 'ask' ? 'заявка на продажу ' : 'заявка на покупку ') + '$' + Math.round(w.usd / 1e3) + 'K на ' + px4(w.px) + ' (' + (w.dist_pct > 0 ? '+' : '') + w.dist_pct + '%), стоит ' + w.runs + ' прогонов',
           mid: w.px, x1: X1 - 46, dash: '', w: big, op: Math.min(.95, .45 + w.runs * .12), liq: false }); });
       (dp.gone || []).slice(0, 2).forEach(function (g) { if (!(g.px >= lo && g.px <= hi)) return;
-        RL.push({ y: sy(g.px), col: '#6f7a75', txt: (g.side === 'ask' ? 'аск ' : 'бид ') + px4(g.px) + ' — ' + g.fate.toUpperCase(), tip: 'стена $' + Math.round(g.usd / 1e3) + 'K стояла ' + g.runs + ' пр. и исчезла: ' + g.fate, mid: g.px, x1: X1 - 24, dash: '1 3', w: .5, op: .5, liq: false }); });
+        RL.push({ y: sy(g.px), col: '#6f7a75', txt: '$' + Math.round(g.usd / 1e3) + 'K ' + g.fate, tip: 'стена $' + Math.round(g.usd / 1e3) + 'K стояла ' + g.runs + ' пр. и исчезла: ' + g.fate, mid: g.px, x1: X1 - 24, dash: '1 3', w: .5, op: .5, liq: false }); });
     })();
     // карта во времени с большой плиты снята (06.09): её горизонталь — 120 дней, сутки лога
     // сжимались в столбик у края («кирпичики»); теперь она на плите журнала справа, где окно — дни
