@@ -1418,6 +1418,34 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("Бот по концу", (_re.stderr or "").strip()[-300:] or f"код {_re.returncode}")
     except Exception as e:  # noqa: BLE001
         _issue("Бот по концу", f"{type(e).__name__}: {e}")
+    # ── СЛЕД ПОСЛЕ ВЫХОДА (16.09): к закрытым сделкам дописывается, куда цена дошла за 1/6/12/24 ч и
+    #    что было внутри сделки — по этому видно, резала ли цель ход и выбивало ли стоп хвостом. ──
+    try:
+        _rf = subprocess.run([sys.executable, "paper_followup.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=600)
+        for _l in (_rf.stdout or "").strip().splitlines():
+            log(f"→ {_l[:300]}")
+        if _rf.returncode:
+            _issue("След сделок", (_rf.stderr or "").strip()[-300:] or f"код {_rf.returncode}")
+    except Exception as e:  # noqa: BLE001
+        _issue("След сделок", f"{type(e).__name__}: {e}")
+
+    # ── АРХИВ ВНУТРИДНЕВНЫХ РЯДОВ (16.09): раз в сутки закрытые дни intraday и depth в gz. Интерес,
+    #    фандинг, тейкер и стакан задним числом не восстановить ниоткуда — только наш архив. ──
+    try:
+        _ap = BASE_DIR / "output" / "archive_state.json"
+        _last = (json.loads(_ap.read_text(encoding="utf-8")).get("at") if _ap.exists() else "") or ""
+        _today = time.strftime("%Y-%m-%d", time.gmtime())
+        if not _last.startswith(_today):
+            _ra = subprocess.run([sys.executable, "archive_intraday.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=900)
+            _ta = (_ra.stdout or "").strip().splitlines()
+            log(f"→ Архив: {_ta[-1][:200] if _ta else 'пусто'}")
+            if _ra.returncode:
+                _issue("Архив рядов", (_ra.stderr or "").strip()[-300:] or f"код {_ra.returncode}")
+            else:
+                _ap.write_text(json.dumps({"at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}), encoding="utf-8")
+    except Exception as e:  # noqa: BLE001
+        _issue("Архив рядов", f"{type(e).__name__}: {e}")
+
     # ── ТРЕВОГИ МОМЕНТА В ТЕЛЕГРАМ (15.09, владелец: «всё, что можно автоматизировать, — автоматизировать»):
     #    по звёздам и книге — свежий стык (подхватил / не подхватил) и судьба стен (съели / сняли).
     #    Каждое событие уходит один раз: память отправленных в output/alerts_sent.json. ──

@@ -131,6 +131,7 @@ def main() -> int:
     ap.add_argument("--top", type=int, default=SCAN_TOP)
     ap.add_argument("--write", action="store_true", help="записать верхние окна в output/windows.json для карточки и ботов")
     ap.add_argument("--hourly", action="store_true", help="часовые свечи из hourly/*.json (полгода) вместо получасовок биржи")
+    ap.add_argument("--archive", action="store_true", help="всё из cq_v2/intraday: цена, размах, интерес, фандинг, тип бара — без запросов к бирже")
     a = ap.parse_args()
     BPH = 1 if a.hourly else 2        # баров в часе
     if a.hourly:
@@ -241,7 +242,8 @@ def main() -> int:
                     f["оборот бара"] = "×3+" if vol / vn >= 3 else "×1.5+" if vol / vn >= 1.5 else "обычный"
             fw = {hh: (k[i + int(hh * BPH)][3] / c - 1) * 100 for hh in (2, 6, 12)}
             rows.append((f, fw, t < t_mid))
-    print(f"монет {len(data)} · баров-наблюдений {len(rows)} · признаков {len(set(kk for f, _, _ in rows for kk in f))}\n")
+    print(f"монет {len(data)} · баров-наблюдений {len(rows)} · признаков {len(set(kk for f, _, _ in rows for kk in f))}\n"
+          + (" · источник: cq_v2/intraday, без запросов к бирже" if a.archive else ""))
 
     # ── контроль по часу
     ctrl = defaultdict(list)
