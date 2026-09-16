@@ -118,6 +118,25 @@ def _last_marks() -> dict:
     return out
 
 
+def _many_lead() -> dict | None:
+    """МНОГО ЛИДЕРОВ — ОГРАНИЧЕНИЯ СНЯТЫ (16.09, владелец: на доске SYN +126%, BR +121%, LSK +48%, а экран
+    писал «тянет одна · вход в остальных закрыт» и ноль в очереди). Состояние считает near_move
+    (MANY_LEADERS_* в core_config: ход за сутки, оборот, квант и листинг — те же отсекатели, что у
+    памп-лидеров), здесь только читаем и проверяем срок: снято до начала следующей сессии минус час."""
+    from datetime import datetime, timezone
+    for _p in (BASE_DIR / "output" / "near_move.json", BASE_DIR / "near_move.json"):
+        try:
+            _ml = (json.loads(_p.read_text(encoding="utf-8")) or {}).get("many_lead")
+        except (OSError, ValueError):
+            continue
+        if not _ml or not _ml.get("until"):
+            return None
+        if datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") < str(_ml["until"]):
+            return _ml
+        return None
+    return None
+
+
 def _pump_lead() -> dict | None:
     """Живой лидер по пампу с наибольшим ходом — из pump_leaders.json, ничего не считая."""
     try:
@@ -238,6 +257,7 @@ def collect_items() -> list[dict]:
     # если очередь его не держит — LAB +65% в очередь не попадал и звезды не имел. Пока он тянет,
     # очередь гаснет: «если тянет одна, остальное будет во флэте или падать». Гаснут ВСЕ, включая
     # «у цели» (правка 12.09, см. ниже): при лидере это не цель, а отток денег в него.
+    _many = _many_lead()
     _lead = _pump_lead()
     if _lead and (_lead["sym"] in coins or _lead.get("mine")):
         _ls = _lead["sym"]
@@ -254,7 +274,17 @@ def collect_items() -> list[dict]:
         # 63.6M→49.9M, RIVER 29.6M→24.8M — из них вынули ~19M, а LSK набрала +44M; как только LSK
         # откатила, RIVER тут же отскочил. «У цели» в этот момент означает не цель, а отток —
         # закрывать по нему позицию нельзя, правильное действие одно: хеджировать.
-        items[:] = [it for it in items if it["sym"] == _ls]
+        # СНЯТИЕ ПРИ МНОГИХ ЛИДЕРАХ (16.09): когда за сутки две и больше монет дали от 40% при обороте
+        # от 10M — это не «тянет одна», а заход денег; очередь не гасим, у лидера остаётся только его
+        # подпись. Держится до начала следующей сессии минус час (срок считает near_move).
+        if _many:
+            _txt = str(_many.get("why") or "")
+            if _hit:
+                _hit["why"] = f"ведёт · +{_lead['run_pct']:.0f}% от основы · {_txt}"
+            else:
+                items[-1]["why"] = f"ведёт · +{_lead['run_pct']:.0f}% от основы · {_txt}"
+        else:
+            items[:] = [it for it in items if it["sym"] == _ls]
     # порядок: брать, держать, у цели; внутри группы — по надёжности, самая надёжная первой
     items.sort(key=lambda it: (it["g"], -it.get("rel", 0.0)))
     # яркость внутри группы: лучшая — 1.0, остальные вниз до 0.45; «у цели» — ровно 0.7
@@ -590,7 +620,9 @@ def render_intro(items: list[dict] | None = None) -> str:
         if _m2:
             _med = float(_m2.group(1).replace(",", "."))
         _lead_alive = bool(leader.get("sym"))
-        if not _lead_alive and _share is not None and _med is not None and _share < 0.5 and _med < -0.3:
+        # «доска давит» тоже снимается при многих лидерах (16.09): медиана минусовая ровно потому,
+        # что деньги собрались в нескольких монетах, — гасить звёзды в этот момент нельзя.
+        if (not _many_lead()) and not _lead_alive and _share is not None and _med is not None and _share < 0.5 and _med < -0.3:
             blank = {"why": "доска давит",
                      "note": (str(_br[1]) if _br else "") + " · " + (str(_md[1]) if _md else "")
                              + " · лидера нет"}

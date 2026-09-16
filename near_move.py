@@ -1302,11 +1302,20 @@ def build(only: list[str] | None = None) -> dict:
                      "state": ("нет денег" if not _inflow else "деньги в одной" if len(_inflow) == 1
                                else "широкий приток" if len(_inflow) >= OI_INFLOW_WIDE else "деньги в двух")}
     out["pulls"] = {"sym": lead_sym, "gap": lead_gap, "run7": lead_run7, "mine": lead_mine} if lead_sym else None
+    # ── МНОГО ЛИДЕРОВ: ОГРАНИЧЕНИЯ СНЯТЫ (16.09, владелец) ────────────────────────────────────────
+    # Когда за сутки MANY_LEADERS_N и больше монет дали MANY_LEADERS_PCT при обороте от
+    # MANY_LEADERS_MIN_VOL — это не «тянет одна», а заход денег, и звёзды не гасятся ни лидером, ни
+    # падающей медианой. Монеты берём из pump_leaders: там уже применены те же отсекатели (квант,
+    # листинг от PUMP_MIN_AGE_DAYS, ход за сутки) — вторую линейку на тот же счёт не заводим.
+    # Снято до начала следующей сессии минус MANY_LEADERS_LIFT_BEFORE_H; время держится в
+    # queue_state.json, чтобы окно не моргало, когда монета откатилась ниже порога.
+    out["many_lead"] = _many_lead(prev)
     out["dropped"] = [s2 for s2 in (out["coins"] or {})
                       if (out["coins"][s2].get("queue") or {}).get("out_reason")]
     try:
         (BASE_DIR / "output" / "queue_state.json").write_text(
-            json.dumps({"top": stable, "cand": cand, "first": out["first"]}, ensure_ascii=False), encoding="utf-8")
+            json.dumps({"top": stable, "cand": cand, "first": out["first"],
+                        "many_lead": out.get("many_lead")}, ensure_ascii=False), encoding="utf-8")
     except OSError:
         pass
     return out
@@ -1319,6 +1328,49 @@ def build(only: list[str] | None = None) -> dict:
 # входят и входить не должны: пока не посчитано, при каком фоне прогнозы сбывались, любой
 # множитель оттуда — догадка, которая портит работающую часть. Фон пишется рядом (market_bg.py)
 # и разрезает ЖУРНАЛ задним числом, но не решения.
+
+
+def _many_lead(prev: dict) -> dict | None:
+    """Две и больше монет с ходом от порога за сутки → ограничения на звёзды сняты до начала следующей
+    сессии минус час. Возвращает {syms, n, until, why} или None. Окно продлевается, но не сокращается."""
+    from datetime import datetime, timedelta, timezone
+    try:
+        from core_config import (MANY_LEADERS_LIFT_BEFORE_H, MANY_LEADERS_MIN_VOL, MANY_LEADERS_N,
+                                 MANY_LEADERS_PCT, PUMP_LEADERS_PATH as _plp)
+    except ImportError:
+        return None
+    try:
+        recs = json.loads(Path(_plp).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    hits = [r for r in recs.values()
+            if isinstance(r, dict) and not r.get("retired_at")
+            and float(r.get("day_pct") or 0) >= MANY_LEADERS_PCT
+            and float(r.get("vol_usd") or 0) >= MANY_LEADERS_MIN_VOL]
+    now = datetime.now(timezone.utc)
+    # начало следующей сессии (UTC): Сидней 21, Токио 0, Лондон 7, Нью-Йорк 13
+    nxt = None
+    for d_ in (0, 1):
+        for h_ in (0, 7, 13, 21):
+            t_ = (now + timedelta(days=d_)).replace(hour=h_, minute=0, second=0, microsecond=0)
+            if t_ > now and (nxt is None or t_ < nxt):
+                nxt = t_
+    until = (nxt - timedelta(hours=MANY_LEADERS_LIFT_BEFORE_H)) if nxt else None
+    was = (prev or {}).get("many_lead") or {}
+    was_until = was.get("until")
+    if len(hits) >= MANY_LEADERS_N and until:
+        if was_until and str(was_until) > until.strftime("%Y-%m-%dT%H:%M:%SZ"):
+            until_s = str(was_until)                      # уже снято дальше — не сокращаем
+        else:
+            until_s = until.strftime("%Y-%m-%dT%H:%M:%SZ")
+        syms = sorted((r["symbol"] for r in hits), key=lambda x: -float(next(q.get("day_pct") or 0 for q in hits if q["symbol"] == x)))
+        return {"syms": syms, "n": len(hits), "until": until_s,
+                "why": f"{len(hits)} монет от {MANY_LEADERS_PCT:.0f}% за сутки — ограничения сняты",
+                "moves": {r["symbol"]: round(float(r.get("day_pct") or 0), 1) for r in hits}}
+    # порог сейчас не выполнен: окно живёт, пока не вышло время
+    if was_until and now.strftime("%Y-%m-%dT%H:%M:%SZ") < str(was_until):
+        return dict(was, why=str(was.get("why") or "") + " · держится до срока")
+    return None
 
 
 def log_queue(res: dict) -> int:
