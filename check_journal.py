@@ -143,7 +143,7 @@ def main() -> int:
             if len(v) >= a.min:
                 print(f"     {k:<14} n={len(v):>5}  к доске {st.median(v):+6.1f}%  ≥+{HIT_PCT:.0f}%: {100 * sum(1 for x in v if x >= HIT_PCT) / len(v):4.0f}%  ≤−{HIT_PCT:.0f}%: {100 * sum(1 for x in v if x <= -HIT_PCT) / len(v):4.0f}%")
     # ── БУМАЖНЫЕ БОТЫ: что накопилось
-    for name, pth in (("бот на быстрых", BASE_DIR / "output" / "paper_fast.jsonl"), ("бот против толпы", BASE_DIR / "output" / "paper_crowd.jsonl")):
+    for name, pth in (("бот на быстрых", BASE_DIR / "output" / "paper_fast.jsonl"), ("бот против толпы", BASE_DIR / "output" / "paper_crowd.jsonl"), ("бот по концу", BASE_DIR / "output" / "paper_end.jsonl")):
         if not pth.exists():
             continue
         ex = []

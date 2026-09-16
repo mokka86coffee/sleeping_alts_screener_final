@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""БУМАЖНЫЙ БОТ «ПРОТИВ ТОЛПЫ ПО ФОНУ» (16.09). Второй бот рядом с paper_fast: короткие сделки, до 3 часов.
-Что дала неделя 11–16.09 на 16 монетах (lab_intraday по архивам):
-  • шорт «против толпы» — три бара подряд «лонги открывают» при фандинге около нуля → цель −1.5%:
-    63% попаданий, +0.42% на сделку; при ровных 12 часах монеты — 78%;
-  • шорт по перекупленности — z(20) > +2 при цене монеты вверх за 12 ч → выход z < 0: 53%, +0.68%;
-  • лонг «за толпой» — три бара «лонги закрывают» при цене монеты вниз за 12 ч → цель +1.5%: 67%, +0.59%.
-Лонги по перекупленности/RSI в минус — их здесь нет. Это ОДНА неделя одного фона; бот и нужен, чтобы через
-две-четыре недели фон сменился и правила показали себя на другом. Правила — в журнал, не в деньги.
-
-Данные: cq_v2/intraday/<монета>.jsonl (px, h, l, oi_type, funding) по всем монетам с ≥25 барами.
-Стоп PAPER_CROWD_STOP по размаху бара, удержание ≤ PAPER_CROWD_HOLD баров, комиссия PAPER_CROWD_FEE, размер 1.0.
-Состояние output/paper_crowd.json, журнал output/paper_crowd.jsonl (входы и выходы с причиной, фоном и результатом).
-Запуск из прогона после архива; руками `python3 paper_crowd.py --only ARK` (без записи), `--write`.
+"""БУМАЖНЫЙ БОТ «ПРОТИВ ТОЛПЫ ПО ФОНУ» (16.09; правила пересмотрены после 30 дней лаборатории — 134 монеты,
+197 тыс. получасовок). Короткие сделки, до 3 часов. Что держится на 30 днях, а не на одной неделе:
+  • шорты убивает растущий интерес и отрицательный фандинг (35–36% попаданий) — в вынос не шортим;
+  • шорт «против толпы» — три бара «лонги открывают» при ФАНДИНГЕ ≥ 0 и интересе не ↑ → цель −1.5%:
+    при фандинге «+» 62% / +0.81% (n=52), при 0 — 50% / +0.04%;
+  • шорт по перекупленности z(20) > +2 при интересе ровно/↓ и фандинге ≥ 0 → z < 0: 50–57% / +0.1–0.2%;
+  • лонг «прокол дна 8 баров −1.5%» при интересе ровно → цель +1.5%: 65% / +0.56% (n=99);
+  • «за толпой» (3×лонги закрывают → лонг) на 30 днях −0.16% везде — убран;
+  • первый час Лондона (16.09, по 16 архивам: час после открытия 07:00 UTC — 64% вниз, медиана −0.42%, n=108;
+    час ДО открытий сессий не падает — 36% вниз, шортить «за час до» не по данным) → шорт на баре открытия,
+    крыть через LONDON_HOLD баров, стоп LONDON_STOP.
+Данные: cq_v2/intraday/<монета>.jsonl (px, h, l, oi_type, oi_chg_pct, funding) по всем монетам с ≥25 барами.
+Стоп PAPER_CROWD_STOP по размаху, удержание ≤ PAPER_CROWD_HOLD баров, комиссия PAPER_CROWD_FEE, размер 1.0.
+Состояние output/paper_crowd.json, журнал output/paper_crowd.jsonl. Запуск из прогона; руками --only / --write.
 """
 from __future__ import annotations
 
@@ -80,12 +81,20 @@ def signal(rows: list[dict]) -> dict | None:
     ot = [r.get("oi_type") for r in rows[i - 2:i + 1]]
     z = zs(C, i)
     base = {"t": rows[i]["t"], "px": C[i], "bg12": bg, "px12": round(px12 * 100, 2), "fund": fund, "z": round(z, 2)}
-    if ot == ["long_open"] * 3 and fund0 and bg != "↑":
-        return dict(base, side=-1, rule="против толпы: 3×лонги открывают", target=PAPER_CROWD_TARGET)
-    if z > 2 and bg == "↑":
-        return dict(base, side=-1, rule="перекуплен: z>+2 при ходе вверх 12ч", target=None)
-    if ot == ["long_close"] * 3 and bg == "↓":
-        return dict(base, side=1, rule="за толпой: 3×лонги закрывают при ходе вниз 12ч", target=PAPER_CROWD_TARGET)
+    oi24 = rows[i].get("oi_chg_pct")
+    oi_flat_or_down = oi24 is not None and oi24 <= 5
+    fund_nonneg = fund is not None and fund >= 0
+    base.update(oi24=oi24)
+    if ot == ["long_open"] * 3 and fund_nonneg and oi_flat_or_down:
+        return dict(base, side=-1, rule="против толпы: 3×лонги открывают, фандинг ≥0, интерес не ↑", target=PAPER_CROWD_TARGET)
+    if z > 2 and fund_nonneg and oi_flat_or_down:
+        return dict(base, side=-1, rule="перекуплен: z>+2 при интересе не ↑ и фандинге ≥0", target=None)
+    L = [r["l"] for r in rows]
+    if oi24 is not None and -5 <= oi24 <= 5 and C[i] < min(L[i - 8:i]) * 0.985:
+        return dict(base, side=1, rule="прокол дна 8 баров при ровном интересе", target=PAPER_CROWD_TARGET)
+    d = datetime.fromtimestamp(rows[i]["t"] / 1000, timezone.utc)
+    if d.hour == 7 and d.minute == 0:
+        return dict(base, side=-1, rule="первый час Лондона", target=None, hold=2, stop=0.015)
     return None
 
 
@@ -95,11 +104,13 @@ def check_exit(pos: dict, rows: list[dict]) -> tuple[float, str] | None:
     if not after:
         return None
     e, side = pos["px"], pos["side"]
+    stop = pos.get("stop") or PAPER_CROWD_STOP
+    hold = pos.get("hold") or PAPER_CROWD_HOLD
     C = [r["px"] for r in rows]
     for k, r in enumerate(after, 1):
-        stopped = (r["l"] / e - 1) <= -PAPER_CROWD_STOP if side > 0 else (r["h"] / e - 1) >= PAPER_CROWD_STOP
+        stopped = (r["l"] / e - 1) <= -stop if side > 0 else (r["h"] / e - 1) >= stop
         if stopped:
-            return -PAPER_CROWD_STOP - PAPER_CROWD_FEE, f"стоп на баре {k}"
+            return -stop - PAPER_CROWD_FEE, f"стоп на баре {k}"
         res = side * (r["px"] / e - 1)
         if pos.get("target") is not None and res >= pos["target"]:
             return res - PAPER_CROWD_FEE, f"цель на баре {k}"
@@ -107,8 +118,8 @@ def check_exit(pos: dict, rows: list[dict]) -> tuple[float, str] | None:
             idx = rows.index(r)
             if idx >= 20 and side < 0 and zs(C, idx) < 0:
                 return res - PAPER_CROWD_FEE, f"z<0 на баре {k}"
-        if k >= PAPER_CROWD_HOLD:
-            return res - PAPER_CROWD_FEE, f"срок {PAPER_CROWD_HOLD} баров"
+        if k >= hold:
+            return res - PAPER_CROWD_FEE, f"срок {hold} баров"
     return None
 
 

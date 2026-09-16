@@ -1387,6 +1387,16 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("Бот против толпы", (_rc.stderr or "").strip()[-300:] or f"код {_rc.returncode}")
     except Exception as e:  # noqa: BLE001
         _issue("Бот против толпы", f"{type(e).__name__}: {e}")
+    # ── БУМАЖНЫЙ БОТ «ШОРТ ПО КОНЦУ» (16.09): размер по росту до сигнала; журнал output/paper_end.jsonl ──
+    try:
+        _re = subprocess.run([sys.executable, "paper_end.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=300)
+        for _l in (_re.stdout or "").strip().splitlines():
+            if "шорт" in _l or "выход" in _l or _l.startswith("paper_end: открыто"):
+                log(f"→ {_l[:300]}")
+        if _re.returncode:
+            _issue("Бот по концу", (_re.stderr or "").strip()[-300:] or f"код {_re.returncode}")
+    except Exception as e:  # noqa: BLE001
+        _issue("Бот по концу", f"{type(e).__name__}: {e}")
     # ── ТРЕВОГИ МОМЕНТА В ТЕЛЕГРАМ (15.09, владелец: «всё, что можно автоматизировать, — автоматизировать»):
     #    по звёздам и книге — свежий стык (подхватил / не подхватил) и судьба стен (съели / сняли).
     #    Каждое событие уходит один раз: память отправленных в output/alerts_sent.json. ──

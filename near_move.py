@@ -1347,7 +1347,8 @@ def log_queue(res: dict) -> int:
     _pulse = _read_json(BASE_DIR / "pulse.json") or {}
     _cg = (_read_json(BASE_DIR / "output" / "coinglass_fetch.json") or {}).get("coins") or {}
     def _px_fallback(sym: str):
-        pts = [q for q in (_pulse.get(sym) or []) if q.get("price")]
+        _pp = _pulse.get(sym) if isinstance(_pulse, dict) else None
+        pts = [q for q in (_pp if isinstance(_pp, list) else []) if isinstance(q, dict) and q.get("price")]
         if pts:
             return float(sorted(pts, key=lambda q: q.get("t") or 0)[-1]["price"]), "пульс"
         ser = ((_cg.get(sym) or {}).get("fut") or {}).get("series") or []
@@ -1404,6 +1405,7 @@ def log_queue(res: dict) -> int:
         rows.append({
             "at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "candle": candle.strftime("%Y-%m-%dT%H:%M:00Z"),
             "sym": sym, "place": i, "in_queue": sym in _queue, "px_src": _px_src,
+            "leaving_kind": t.get("leaving_kind"), "leaving_at": t.get("leaving_at"),   # «конец» и «отдают» в журнал (16.09)
             "btc_24h": _btc24, "board_med_24h": _board_med, "obs": _obs,
             "score": q.get("score"), "first_streak": q.get("first_streak"), "oi_inflow": q.get("oi_inflow"),
             "cap_usd": t.get("cap_usd"), "vol_to_cap": t.get("vol_to_cap"), "cap_chg_pct": t.get("cap_chg_pct"),
