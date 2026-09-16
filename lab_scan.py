@@ -54,7 +54,15 @@ def coins() -> list[str]:
     return sorted(set(s if s.endswith("USDT") else s + "USDT" for s in out))
 
 
-def klines(sym: str, limit: int):
+def klines(sym: str, limit: int, hourly: bool = False):
+    if hourly:
+        p = BASE_DIR / "hourly" / f"{sym.replace('USDT', '').lower()}.json"
+        try:
+            arr = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        out = sorted((int(b["t"]), float(b["h"]), float(b["l"]), float(b["c"])) for b in arr if isinstance(b, dict) and b.get("t") and b.get("c"))
+        return out[-limit:] if limit else out
     import core_binance as cb
     from core_binance import K_HIGH, K_LOW, K_OPEN_TIME, get_klines
     KC = getattr(cb, "K_CLOSE", 4)
@@ -94,13 +102,21 @@ def main() -> int:
     ap.add_argument("--only")
     ap.add_argument("--min", type=int, default=SCAN_MIN_N)
     ap.add_argument("--top", type=int, default=SCAN_TOP)
+    ap.add_argument("--write", action="store_true", help="записать верхние окна в output/windows.json для карточки и ботов")
+    ap.add_argument("--hourly", action="store_true", help="часовые свечи из hourly/*.json (полгода) вместо получасовок биржи")
     a = ap.parse_args()
-    syms = [x.strip().upper() + ("" if x.strip().upper().endswith("USDT") else "USDT") for x in a.only.split(",")] if a.only else coins()
-    bars = min(LAB_BARS, a.days * 48 + 60)
+    BPH = 1 if a.hourly else 2        # баров в часе
+    if a.hourly:
+        syms = [x.strip().upper() + ("" if x.strip().upper().endswith("USDT") else "USDT") for x in a.only.split(",")] if a.only else \
+               sorted(p.stem.upper() + "USDT" for p in (BASE_DIR / "hourly").glob("*.json") if p.stem.lower() != "btc")
+        bars = a.days * 24 + 60
+    else:
+        syms = [x.strip().upper() + ("" if x.strip().upper().endswith("USDT") else "USDT") for x in a.only.split(",")] if a.only else coins()
+        bars = min(LAB_BARS, a.days * 48 + 60)
     data, arch = {}, {}
     for s in syms:
         try:
-            k = klines(s, bars)
+            k = klines(s, bars, a.hourly)
         except Exception as ex:  # noqa: BLE001
             print(f"{s}: клайны не получены — {type(ex).__name__}")
             continue
@@ -108,7 +124,7 @@ def main() -> int:
             data[s] = k
             arch[s] = archive(s)
     try:
-        btc = klines("BTCUSDT", bars)
+        btc = klines("BTCUSDT", bars, a.hourly)
         btc_c = {t: c for t, _, _, c in btc}
     except Exception:  # noqa: BLE001
         btc_c = {}
@@ -123,7 +139,7 @@ def main() -> int:
         if t not in ix:
             return None
         i = ix[t]
-        j = i - int(h * 2)
+        j = i - int(h * BPH)
         return (k[i][3] / k[j][3] - 1) * 100 if j >= 0 else None
 
     times = sorted(set(t for k in data.values() for t, *_ in k))
@@ -140,7 +156,7 @@ def main() -> int:
     for s, k in data.items():
         ar = arch[s]
         rng = [h - l for _, h, l, _ in k]
-        for i in range(60, len(k) - 24):
+        for i in range(60, len(k) - 12 * BPH):
             t, h, l, c = k[i]
             d = datetime.fromtimestamp(t / 1000, timezone.utc)
             f = {}
@@ -158,7 +174,7 @@ def main() -> int:
             sd = (sum((x - m) ** 2 for x in w) / 20) ** .5 or 1e-9
             z = (c - m) / sd
             f["z20"] = "<−2" if z < -2 else "<−1" if z < -1 else ">+2" if z > 2 else ">+1" if z > 1 else "0"
-            rn = st.median(rng[i - 48:i]) or 1e-12
+            rn = st.median(rng[i - 24 * BPH:i]) or 1e-12
             f["размах бара"] = "×3+" if rng[i] / rn >= 3 else "×1.5+" if rng[i] / rn >= 1.5 else "обычный"
             if t in board and (t - 4 * 3600000) in board:
                 m6, up = board[t]
@@ -181,7 +197,7 @@ def main() -> int:
                 if vols and vol:
                     vn = st.median(vols) or 1e-9
                     f["оборот бара"] = "×3+" if vol / vn >= 3 else "×1.5+" if vol / vn >= 1.5 else "обычный"
-            fw = {hh: (k[i + int(hh * 2)][3] / c - 1) * 100 for hh in (2, 6, 12)}
+            fw = {hh: (k[i + int(hh * BPH)][3] / c - 1) * 100 for hh in (2, 6, 12)}
             rows.append((f, fw, t < t_mid))
     print(f"монет {len(data)} · баров-наблюдений {len(rows)} · признаков {len(set(kk for f, _, _ in rows for kk in f))}\n")
 
@@ -232,6 +248,18 @@ def main() -> int:
     show("ЛОНГ — условия с положительным краем", longs, 1)
     print()
     show("ШОРТ — условия с отрицательным краем (ход показан со стороны шорта)", shorts, -1)
+    if a.write:
+        import time as _t
+        out = {"at": _t.strftime("%Y-%m-%dT%H:%M:%SZ", _t.gmtime()), "days": a.days, "coins": len(data), "bars": len(rows), "min_n": a.min,
+               "windows": [{"side": "лонг" if e > 0 else "шорт", "cond": dict(cond), "n": n, "edge6": round(e, 2), "half1": round(e1, 2), "half2": round(e2, 2),
+                            "move2": round(m2, 2), "move6": round(m6, 2), "move12": round(m12, 2), "hit": round(up2 if e > 0 else dn2)}
+                           for e, cond, n, m2, m6, m12, up2, dn2, e1, e2 in longs + shorts]}
+        pth = BASE_DIR / "output" / "windows.json"
+        pth.parent.mkdir(parents=True, exist_ok=True)
+        tmp = pth.with_suffix(".tmp")
+        tmp.write_text(json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
+        tmp.replace(pth)
+        print(f"\nокна записаны: {pth} · {len(out['windows'])} строк")
     return 0
 
 

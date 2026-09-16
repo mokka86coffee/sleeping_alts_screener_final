@@ -43,8 +43,7 @@ from core_config import (
     EXCLUDE_TOKENS, MAX_SYMBOLS, MAX_WORKERS,
     MIN_QUOTE_VOLUME_24H, RVOL_WARM, STABLECOINS,
     LOOP_INTERVAL_SEC, REPORT_PATH, BASE_DIR, GIT_ADD_ALL_CHANGED,
-    GIT_TIMEOUT_SEC, COMMIT_MSG,
-)
+    GIT_TIMEOUT_SEC, COMMIT_MSG, LAB_SCAN_HOUR)
 from analytics_leaders import tracked_symbols
 from analytics_manual import report as manual_report, mark_done as manual_done
 from core_http import log
@@ -1353,6 +1352,20 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("Внутридневной архив", (_ri.stderr or "").strip()[-300:] or f"код {_ri.returncode}")
     except Exception as e:
         _issue("Внутридневной архив", f"{type(e).__name__}: {e}")
+    # ── ПЕРЕБОР ОКОН РАЗ В СУТКИ (16.09): lab_scan на 30 днях пишет output/windows.json — окна для карточки и
+    #    ботов; тяжёлый (134 × get_klines), поэтому один раз в день, в первый прогон после LAB_SCAN_HOUR UTC. ──
+    try:
+        _wp = BASE_DIR / "output" / "windows.json"
+        _wat = (json.loads(_wp.read_text(encoding="utf-8")).get("at") if _wp.exists() else "") or ""
+        _today = time.strftime("%Y-%m-%d", time.gmtime())
+        if time.gmtime().tm_hour >= LAB_SCAN_HOUR and not _wat.startswith(_today):
+            _rs = subprocess.run([sys.executable, "lab_scan.py", "--days", "30", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=1500)
+            _ts = (_rs.stdout or "").strip().splitlines()
+            log(f"→ Перебор окон: {_ts[-1][:200] if _ts else 'пусто'}")
+            if _rs.returncode:
+                _issue("Перебор окон", (_rs.stderr or "").strip()[-300:] or f"код {_rs.returncode}")
+    except Exception as e:  # noqa: BLE001
+        _issue("Перебор окон", f"{type(e).__name__}: {e}")
     # ── СТАКАН ПО ПЕРВЫМ (15.09): снимок толстых заявок по звёздам, первым очереди и книге; архив и состояние
     #    для карточки; судьба стен — съели / сняли. Сбой стакана прогон не роняет. ──
     try:

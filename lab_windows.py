@@ -49,7 +49,19 @@ def coins() -> list[str]:
     return sorted(set(s if s.endswith("USDT") else s + "USDT" for s in out))
 
 
-def klines(sym: str, limit: int):
+def klines(sym: str, limit: int, hourly: bool = False):
+    """30м — через биржу; --hourly — из hourly/<монета>.json проекта (часовые свечи с марта, полгода)."""
+    if hourly:
+        p = BASE_DIR / "hourly" / f"{sym.replace('USDT', '').lower()}.json"
+        try:
+            arr = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        out = {int(b["t"]): float(b["c"]) for b in arr if isinstance(b, dict) and b.get("t") and b.get("c")}
+        if limit and len(out) > limit:
+            keys = sorted(out)[-limit:]
+            out = {k: out[k] for k in keys}
+        return out
     import core_binance as cb
     from core_binance import K_OPEN_TIME, get_klines
     KC = getattr(cb, "K_CLOSE", 4)
@@ -66,13 +78,19 @@ def main() -> int:
     ap.add_argument("--days", type=int, default=30)
     ap.add_argument("--tz", type=int, default=8, help="смещение местного времени для подписей")
     ap.add_argument("--only")
+    ap.add_argument("--hourly", action="store_true", help="часовые свечи из hourly/*.json (полгода) вместо получасовок биржи")
     a = ap.parse_args()
-    syms = [x.strip().upper() + ("" if x.strip().upper().endswith("USDT") else "USDT") for x in a.only.split(",")] if a.only else coins()
-    bars = min(LAB_BARS, a.days * 48 + 60)
+    if a.hourly:
+        syms = [x.strip().upper() + ("" if x.strip().upper().endswith("USDT") else "USDT") for x in a.only.split(",")] if a.only else \
+               sorted(p.stem.upper() + "USDT" for p in (BASE_DIR / "hourly").glob("*.json") if p.stem.lower() != "btc")
+        bars = a.days * 24 + 60
+    else:
+        syms = [x.strip().upper() + ("" if x.strip().upper().endswith("USDT") else "USDT") for x in a.only.split(",")] if a.only else coins()
+        bars = min(LAB_BARS, a.days * 48 + 60)
     data = {}
     for s in syms:
         try:
-            k = klines(s, bars)
+            k = klines(s, bars, a.hourly)
         except Exception as ex:  # noqa: BLE001
             print(f"{s}: клайны не получены — {type(ex).__name__}")
             continue
@@ -83,7 +101,7 @@ def main() -> int:
         return 0
     times = sorted(set(t for k in data.values() for t in k))
     tset = set(times)
-    STEP = 1800000
+    STEP = 3600000 if a.hourly else 1800000
 
     def fwd(s, t, h):
         k = data[s]

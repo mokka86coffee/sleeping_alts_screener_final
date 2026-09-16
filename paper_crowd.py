@@ -7,6 +7,15 @@
   • шорт по перекупленности z(20) > +2 при интересе ровно/↓ и фандинге ≥ 0 → z < 0: 50–57% / +0.1–0.2%;
   • лонг «прокол дна 8 баров −1.5%» при интересе ровно → цель +1.5%: 65% / +0.56% (n=99);
   • «за толпой» (3×лонги закрывают → лонг) на 30 днях −0.16% везде — убран;
+  • СПАЙК ГАСЯТ (16.09, lab_scan на 30 днях, 134 монеты, 190 тыс. баров, самая устойчивая строка): монета +8% за
+    два часа → следующие шесть часов отдаёт: край −2.0…−2.9% к контролю во ВСЕХ сочетаниях (будни n=1268, половины
+    −1.99/−2.00; при биткоине ↑ и ↓, при доске ↑, в Токио, в пн/чт/пт), ≥2% в 50–55%; при сутках ≤ −8% (спайк
+    внутри падения) край −3.19%, 55%, через 12 ч +6.4%. Шорт на баре спайка, цель PAPER_SPIKE_TARGET, стоп
+    PAPER_SPIKE_STOP, срок PAPER_SPIKE_HOLD; размер ×2, если сутки ≤ −8%;
+  • ПРОВАЛ ОТКУПАЮТ (16.09, lab_scan на полугоде часовиков, 116 монет, 495 тыс. баров): зеркало спайка — монета
+    −8% за два часа → следующие шесть часов возврат +1.5…+2.0% (при «6ч сильно ↓» +1.83%, n=2558; при z<−2 +1.63%;
+    в Токио +1.71%). Лонг на баре провала, цель PAPER_SPIKE_TARGET, стоп PAPER_SPIKE_STOP, срок PAPER_SPIKE_HOLD,
+    размер ×2, если и за шесть часов ≤ −12%;
   • первый час Лондона (16.09, по 16 архивам: час после открытия 07:00 UTC — 64% вниз, медиана −0.42%, n=108;
     час ДО открытий сессий не падает — 36% вниз, шортить «за час до» не по данным) → шорт на баре открытия,
     крыть через LONDON_HOLD баров, стоп LONDON_STOP.
@@ -32,6 +41,10 @@ try:
     from core_config import PAPER_CROWD_STOP, PAPER_CROWD_HOLD, PAPER_CROWD_FEE, PAPER_CROWD_TARGET
 except ImportError:
     PAPER_CROWD_STOP, PAPER_CROWD_HOLD, PAPER_CROWD_FEE, PAPER_CROWD_TARGET = 0.02, 6, 0.001, 0.015
+try:
+    from core_config import PAPER_SPIKE_PCT, PAPER_SPIKE_TARGET, PAPER_SPIKE_STOP, PAPER_SPIKE_HOLD
+except ImportError:
+    PAPER_SPIKE_PCT, PAPER_SPIKE_TARGET, PAPER_SPIKE_STOP, PAPER_SPIKE_HOLD = 0.08, 0.025, 0.03, 12
 
 ARCH = BASE_DIR / "cq_v2" / "intraday"
 STATE = BASE_DIR / "output" / "paper_crowd.json"
@@ -81,6 +94,29 @@ def signal(rows: list[dict]) -> dict | None:
     ot = [r.get("oi_type") for r in rows[i - 2:i + 1]]
     z = zs(C, i)
     base = {"t": rows[i]["t"], "px": C[i], "bg12": bg, "px12": round(px12 * 100, 2), "fund": fund, "z": round(z, 2)}
+    # СПАЙК: +8% за два часа (4 бара) — первым, он сильнее остальных. Размер по фону (второй прогон полугодия, 78
+    # монет): при доске вверх или растущих >65% гасят злее (−2.0…−2.3) → ×1.5; в первый час после открытия слабее
+    # (вторая половина −0.41) → ×0.5; при сутках ≤ −8% (спайк внутри падения, 30 дней: −3.19) → ×2.
+    if i >= 48 and C[i] / C[i - 4] - 1 >= PAPER_SPIKE_PCT:
+        r24 = C[i] / C[i - 48] - 1
+        size = 1.0
+        if r24 <= -0.08:
+            size = 2.0
+        d = datetime.fromtimestamp(rows[i]["t"] / 1000, timezone.utc)
+        since = min(((d.hour - o) % 24) + d.minute / 60 for o in (21, 0, 7, 13))
+        if since < 1:
+            size = 0.5
+        bg6 = rows[i].get("board6")            # медиана доски за 6 ч, если прогон её положил в строку
+        if bg6 is not None and bg6 > 1:
+            size = max(size, 1.5)
+        return dict(base, side=-1, rule="спайк: +8% за 2 ч → гасят", target=PAPER_SPIKE_TARGET, stop=PAPER_SPIKE_STOP, hold=PAPER_SPIKE_HOLD,
+                    size=size, r2=round((C[i] / C[i - 4] - 1) * 100, 1), r24=round(r24 * 100, 1), since_open_h=round(since, 1))
+    # ПРОВАЛ: −8% за два часа. Первый прогон полугодия (116 монет) — откупают (+1.7); второй (78 монет) — в Токио
+    # продолжается вниз (−1.6). Не держится → только наблюдение, размер 0.5, в отбор не идёт.
+    if i >= 48 and C[i] / C[i - 4] - 1 <= -PAPER_SPIKE_PCT:
+        r6 = C[i] / C[i - 12] - 1
+        return dict(base, side=1, rule="провал: −8% за 2 ч (наблюдение)", target=PAPER_SPIKE_TARGET, stop=PAPER_SPIKE_STOP, hold=PAPER_SPIKE_HOLD,
+                    size=0.5, r2=round((C[i] / C[i - 4] - 1) * 100, 1), r6=round(r6 * 100, 1))
     oi24 = rows[i].get("oi_chg_pct")
     oi_flat_or_down = oi24 is not None and oi24 <= 5
     fund_nonneg = fund is not None and fund >= 0
@@ -144,7 +180,7 @@ def main() -> int:
             ex = check_exit(pos, rows)
             if ex:
                 res, why = ex
-                closed.append(dict(pos, sym=sym, kind="exit", result_pct=round(res * 100, 2), why_exit=why, at=now))
+                closed.append(dict(pos, sym=sym, kind="exit", result_pct=round(res * 100, 2), result_sized_pct=round(res * pos.get("size", 1.0) * 100, 2), why_exit=why, at=now))
                 del state["open"][sym]
                 print(f"paper_crowd: {sym} · выход · {why} · {res * 100:+.2f}% · {pos['rule']}")
                 pos = None

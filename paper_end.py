@@ -32,6 +32,10 @@ except ImportError:
     PAPER_END_STOP, PAPER_END_HOLD, PAPER_END_FEE, PAPER_END_OI_DROP = 0.03, 24, 0.001, -0.02
     PAPER_END_SIZE = [(5, 0.5), (15, 1.0), (40, 2.0), (10 ** 9, 3.0)]
     PAPER_END_TARGET = [(5, 0.02), (15, 0.035), (40, 0.06), (10 ** 9, 0.10)]
+try:
+    from core_config import PAPER_END_BOARD_N, PAPER_END_MAX_PER_RUN
+except ImportError:
+    PAPER_END_BOARD_N, PAPER_END_MAX_PER_RUN = 5, 5
 
 ARCH = BASE_DIR / "cq_v2" / "intraday"
 STATE = BASE_DIR / "output" / "paper_end.json"
@@ -107,6 +111,7 @@ def main() -> int:
     state = _read(STATE) or {"open": {}, "last_sig": {}}
     now = int(time.time())
     opened, closed = [], []
+    cands = []
     for sym in syms:
         rows = rows_of(sym)
         if len(rows) < 50:
@@ -122,10 +127,23 @@ def main() -> int:
                 pos = None
         sig = signal(rows)
         if sig and not pos and sig["t"] > (state.get("last_sig", {}).get(sym) or 0):
-            state["open"][sym] = dict(sig, opened_at=now)
+            cands.append((sym, sig))
+    # СОБЫТИЕ ДОСКИ (16.09: первый живой прогон открыл 20 шортов разом — это одна ставка ×20, «конец» в час слива
+    # случается у всех). Если кандидатов ≥ PAPER_END_BOARD_N — берём PAPER_END_MAX_PER_RUN с наибольшим ростом до
+    # сигнала (там край выше), остальным пишем last_sig, чтобы не открыть на следующем прогоне; событие — в журнал.
+    if len(cands) >= PAPER_END_BOARD_N:
+        cands.sort(key=lambda x: -x[1]["run_pct"])
+        skipped = cands[PAPER_END_MAX_PER_RUN:]
+        cands = cands[:PAPER_END_MAX_PER_RUN]
+        for sym, sig in skipped:
             state.setdefault("last_sig", {})[sym] = sig["t"]
-            opened.append(dict(sig, sym=sym, kind="entry", at=now))
-            print(f"paper_end: {sym} · шорт {sig['px']:.6g} · рост до сигнала {sig['run_pct']:+.1f}% → размер {sig['size']}, цель {sig['target'] * 100:.1f}% · интерес {sig['oi_bar_pct']:+.2f}% за бар")
+        opened.append({"kind": "board", "at": now, "n": len(cands) + len(skipped), "taken": [s for s, _ in cands], "skipped": [s for s, _ in skipped]})
+        print(f"paper_end: событие доски — «конец» у {len(cands) + len(skipped)} монет, беру {len(cands)}: {', '.join(s[:-4] for s, _ in cands)}")
+    for sym, sig in cands:
+        state["open"][sym] = dict(sig, opened_at=now)
+        state.setdefault("last_sig", {})[sym] = sig["t"]
+        opened.append(dict(sig, sym=sym, kind="entry", at=now))
+        print(f"paper_end: {sym} · шорт {sig['px']:.6g} · рост до сигнала {sig['run_pct']:+.1f}% → размер {sig['size']}, цель {sig['target'] * 100:.1f}% · интерес {sig['oi_bar_pct']:+.2f}% за бар")
     if a.write:
         STATE.parent.mkdir(parents=True, exist_ok=True)
         with LOG.open("a", encoding="utf-8") as f:
