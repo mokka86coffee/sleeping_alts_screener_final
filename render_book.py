@@ -30,6 +30,10 @@ try:
     from core_config import BOOK_CLOSED_H
 except ImportError:
     BOOK_CLOSED_H = 24.0
+try:
+    from core_config import BOOK_DEPOSIT, BOOK_DAYS
+except ImportError:
+    BOOK_DEPOSIT, BOOK_DAYS = 10_000.0, 10
 
 BOOKS = (("конец", "paper_end"), ("толпа", "paper_crowd"), ("быстрые", "paper_fast"))
 
@@ -59,6 +63,15 @@ def _lines(name: str) -> list[dict]:
 
 def _esc(x) -> str:
     return (str(x).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;"))
+
+
+def _m(v) -> str:
+    """деньги с пробелом в разрядах: глобальная замена запятых по всему документу ломала JS (16.09)"""
+    return f"{float(v):+,.0f} $".replace(",", " ")
+
+
+def _m0(v) -> str:
+    return f"{float(v):,.0f} $".replace(",", " ")
 
 
 def _px(v) -> str:
@@ -108,7 +121,7 @@ def _collect() -> tuple[list[dict], list[dict]]:
     """открытые позиции всех книг и закрытые за последние BOOK_CLOSED_H часов"""
     live_px = _live_px()
     opened, closed = [], []
-    cut = _now() - BOOK_CLOSED_H * 3600
+    cut = _now() - BOOK_DAYS * 86400
     for book, stem in BOOKS:
         st_ = _read(f"{stem}.json") or {}
         for sym, p in (st_.get("open") or {}).items():
@@ -135,10 +148,12 @@ def _collect() -> tuple[list[dict], list[dict]]:
             })
         for r in _lines(f"{stem}.jsonl"):
             if str(r.get("kind") or "").startswith("exit") and (r.get("at") or 0) >= cut:
+                at = r.get("at") or 0
                 closed.append({
                     "book": book, "sym": str(r.get("sym") or "").upper(), "res": r.get("result_pct"),
                     "sized": r.get("result_sized_pct"), "why": r.get("why_exit") or r.get("why") or "",
-                    "rule": r.get("rule") or "", "size": r.get("size") or 1.0, "at": r.get("at") or 0,
+                    "rule": r.get("rule") or "", "size": float(r.get("size") or 1.0), "at": at,
+                    "day": datetime.fromtimestamp(at, timezone.utc).astimezone().strftime("%Y-%m-%d") if at else "",
                 })
     opened.sort(key=lambda x: -(abs(x["res"]) if x["res"] is not None else 0))
     closed.sort(key=lambda x: -(x["at"] or 0))
@@ -190,26 +205,48 @@ def _hold_why(p: dict) -> str:
     return bits[0] + ("<br><span>" + " · ".join(x) + "</span>" if x else "")
 
 
+def _money_day(rows: list[dict]) -> dict:
+    """ДЕПОЗИТ НА ДЕНЬ (16.09, владелец: «поставь депозит 10000 на день, пусть распределяется на сделки,
+    за 24 часа итог в деньгах, каждые 24 часа депозит снова 10000»). Депозит дня делится между сделками
+    этого дня пропорционально весу правила: доля = депозит × вес / сумма весов дня. Деньги сделки —
+    доля × результат. Так итог дня не зависит от числа сделок: шестьдесят сделок по проценту и три по
+    двадцати дают сопоставимые числа, а сложение процентов, как было, — нет."""
+    w = sum(float(r.get("size") or 1) for r in rows) or 1.0
+    out = []
+    for r in rows:
+        share = BOOK_DEPOSIT * float(r.get("size") or 1) / w
+        money = share * float(r.get("res") or 0) / 100
+        out.append(dict(r, share=share, money=money))
+    tot = sum(x["money"] for x in out)
+    hit = (100 * sum(1 for x in out if x["money"] > 0) / len(out)) if out else 0
+    return {"rows": out, "total": tot, "hit": hit, "n": len(out),
+            "best": max((x["money"] for x in out), default=0.0),
+            "worst": min((x["money"] for x in out), default=0.0)}
+
+
 def render_book() -> str:
     opened, closed = _collect()
     n = len(opened)
     plus = sum(1 for p in opened if (p["res"] or 0) > 0)
     shorts = sum(1 for p in opened if p["side"] < 0)
-    cur = sum((p["res"] or 0) * float(p["size"] or 1) for p in opened)
-    day = [float(c["sized"] if c.get("sized") is not None else (c.get("res") or 0)) for c in closed]
-    hit = (100 * sum(1 for x in day if x > 0) / len(day)) if day else 0
-    # ближайший выход: у кого меньше всего осталось до цели
+    # ход открытых — СРЕДНЯЯ на позицию, не сумма (16.09: сумма процентов по одновременным сделкам врёт)
+    cur = st.mean([p["res"] for p in opened if p["res"] is not None]) if opened else 0.0
+    days = sorted({c["day"] for c in closed if c.get("day")}, reverse=True)[:BOOK_DAYS]
+    per_day = {d: _money_day([c for c in closed if c.get("day") == d]) for d in days}
+    today = days[0] if days else datetime.now(timezone.utc).astimezone().strftime("%Y-%m-%d")
+    cur_day = per_day.get(today) or {"rows": [], "total": 0.0, "hit": 0, "n": 0, "best": 0.0, "worst": 0.0}
     nearest = None
     for p in opened:
         if p.get("target") and p["res"] is not None:
             left = float(p["target"]) * 100 - p["res"]
             if nearest is None or left < nearest[0]:
                 nearest = (left, p)
-    by_event = [float(c.get("res") or 0) for c in closed if not str(c.get("why") or "").startswith("срок")]
-    by_time = [float(c.get("res") or 0) for c in closed if str(c.get("why") or "").startswith("срок")]
+    allrows = [x for d in days for x in per_day[d]["rows"]]
+    by_event = [x["money"] for x in allrows if not str(x.get("why") or "").startswith("срок")]
+    by_time = [x["money"] for x in allrows if str(x.get("why") or "").startswith("срок")]
     note = ""
     if len(by_event) >= 3 and len(by_time) >= 3:
-        note = (f"выходы по событию дали {st.mean(by_event):+.2f}% в среднем, по сроку {st.mean(by_time):+.2f}% · "
+        note = (f"выходы по событию дают {_m(st.mean(by_event))} на сделку, по сроку {_m(st.mean(by_time))} · "
                 f"сделок {len(by_event)} против {len(by_time)}")
 
     rows = []
@@ -224,7 +261,6 @@ def render_book() -> str:
         if d24 is not None:
             d24_html = (f'<div class="d24">за 24 часа <b class="{"p" if float(d24) > 0 else "m"}">'
                         f'{float(d24):+.1f}%</b></div>')
-        # полоса: вход посередине, ход в свою сторону
         w = min(42.0, abs(res or 0) * 8)
         left = 50 - w if (res or 0) < 0 else 50
         rows.append(f'''  <div class="pos {side_cls}">
@@ -245,22 +281,38 @@ def render_book() -> str:
       <div class="legend"><span>вход</span><span>цель</span></div>
     </div>
   </div>''')
-    done = []
-    for c in closed[:24]:
-        v = float(c.get("sized") if c.get("sized") is not None else (c.get("res") or 0))
-        done.append(f'''  <div class="row"><span class="n">{_esc(c["sym"].replace("USDT", ""))}</span>'''
-                    f'''<span>{_esc(c["book"])} · ×{float(c.get("size") or 1):g}</span>'''
-                    f'''<span>{_esc(c["why"])}{" · " + _esc(c["rule"]) if c.get("rule") else ""}</span>'''
-                    f'''<span class="r {"p" if v > 0 else "m"}">{v:+.2f}%</span></div>''')
 
-    nearest_html = "—"
+    # дни: кнопки и списки сделок каждого дня (деньги от депозита дня)
+    tabs, blocks = [], []
+    for i, d in enumerate(days):
+        m = per_day[d]
+        lbl = datetime.strptime(d, "%Y-%m-%d").strftime("%d.%m")
+        cls = "on" if i == 0 else ""
+        sign = "p" if m["total"] >= 0 else "m"
+        tabs.append(f'''<button class="tab {cls}" data-day="{d}"><b>{lbl}</b>'''
+                    f'''<s class="{sign}">{_m(m["total"])}</s><u>{m["n"]} сделок</u></button>''')
+        lines = []
+        for c in sorted(m["rows"], key=lambda x: -abs(x["money"])):
+            mv = c["money"]
+            lines.append(f'''    <div class="row"><span class="n">{_esc(c["sym"].replace("USDT", ""))}</span>'''
+                         f'''<span>{_esc(c["book"])} · ×{float(c.get("size") or 1):g}</span>'''
+                         f'''<span>{_esc(c["why"])}{" · " + _esc(c["rule"]) if c.get("rule") else ""}</span>'''
+                         f'''<span class="r2">{float(c.get("res") or 0):+.2f}%</span>'''
+                         f'''<span class="r {"p" if mv > 0 else "m"}">{_m(mv)}</span></div>'''.replace(",", " "))
+        blocks.append(f'''<div class="day" data-day="{d}" style="display:{"block" if i == 0 else "none"}">
+    <div class="daytot">депозит дня <b>{_m0(BOOK_DEPOSIT)}</b> · распределён на {m["n"]} сделок по весу правила ·
+      итог <b class="{sign}">{_m(m["total"])}</b> · попаданий {m["hit"]:.0f}% ·
+      лучшая {_m(m["best"])} · худшая {_m(m["worst"])}</div>
+{chr(10).join(lines) if lines else '<div class="empty">в этот день выходов не было</div>'}
+  </div>''')
+
+    nearest_html, nearest_sub = "—", "целей по времени нет"
     if nearest:
         nearest_html = (f'{_esc(nearest[1]["sym"].replace("USDT", ""))} · цель '
                         f'{float(nearest[1]["target"]) * 100:.1f}%')
         nearest_sub = f'осталось {max(0.0, nearest[0]):.2f}%'
-    else:
-        nearest_sub = "целей по времени нет"
     stamp = datetime.now(timezone.utc).astimezone().strftime("%H:%M")
+    day_sign = "p" if cur_day["total"] >= 0 else "m"
     return f'''<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><title>книга · бот</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -277,7 +329,7 @@ body{{min-height:100vh;background:radial-gradient(1200px 520px at 50% -8%,rgba(2
 .head h1{{margin:0;font-weight:200;font-size:26px;letter-spacing:.44em;text-transform:uppercase}}
 .head .back{{font-size:8px;letter-spacing:.3em;text-transform:uppercase;color:var(--cap);text-decoration:none}}
 .head .back:hover{{color:var(--ice)}}
-.tot{{position:relative;display:flex;align-items:flex-end;gap:22px;padding:14px 20px;margin:10px 0 22px;border-radius:10px;overflow:hidden;
+.tot{{position:relative;display:flex;align-items:flex-end;gap:22px;padding:14px 20px;margin:10px 0 18px;border-radius:10px;overflow:hidden;
   background:linear-gradient(180deg,rgba(10,26,22,.5),rgba(4,10,9,.5));border:1px solid rgba(233,255,244,.07)}}
 .tot::after{{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;background:linear-gradient(90deg,transparent,rgba(245,169,58,.5),transparent)}}
 .tot .cell i{{display:block;font-style:normal;font-size:7px;letter-spacing:.24em;white-space:nowrap;text-transform:uppercase;color:var(--cap);margin-bottom:5px}}
@@ -286,6 +338,7 @@ body{{min-height:100vh;background:radial-gradient(1200px 520px at 50% -8%,rgba(2
 .tot .sep{{width:1px;align-self:stretch;background:rgba(233,255,244,.08)}}
 .tot .next{{margin-left:auto;text-align:right}}
 .tot .next b{{font-size:15px;letter-spacing:.08em;color:var(--gold);white-space:nowrap}}
+.p{{color:var(--up)}}.m{{color:var(--dn)}}
 .sec{{font-size:7.5px;letter-spacing:.3em;text-transform:uppercase;color:var(--cap);margin:0 0 9px 2px}}
 .pos{{position:relative;display:grid;grid-template-columns:150px 118px 1fr 258px;gap:18px;align-items:center;
   padding:9px 16px;margin-bottom:5px;border-radius:7px;
@@ -299,10 +352,8 @@ body{{min-height:100vh;background:radial-gradient(1200px 520px at 50% -8%,rgba(2
 .who .tvh{{font-family:var(--f-mono);font-size:7.4px;white-space:nowrap;letter-spacing:.02em;color:var(--dim);margin-top:3px;line-height:1.5}}
 .who .d24{{margin-top:4px;font-size:7px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);white-space:nowrap}}
 .who .d24 b{{font-family:Jost;font-weight:400;font-size:9px;letter-spacing:.04em}}
-.who .d24 b.p{{color:var(--up)}}.who .d24 b.m{{color:var(--dn)}}
 .big{{font-weight:200;font-size:24px;white-space:nowrap;letter-spacing:.02em;line-height:1;text-align:right}}
-.big.p{{color:var(--up);text-shadow:0 0 14px rgba(79,209,168,.3)}}
-.big.m{{color:var(--dn);text-shadow:0 0 14px rgba(255,122,122,.28)}}
+.big.p{{text-shadow:0 0 14px rgba(79,209,168,.3)}}.big.m{{text-shadow:0 0 14px rgba(255,122,122,.28)}}
 .mv .track{{position:relative;height:3px;width:100%;border-radius:3px;background:rgba(233,255,244,.09)}}
 .mv .fill{{position:absolute;top:0;bottom:0;border-radius:3px}}
 .mv .fill.p{{background:linear-gradient(90deg,rgba(79,209,168,.25),var(--up))}}
@@ -321,35 +372,58 @@ body{{min-height:100vh;background:radial-gradient(1200px 520px at 50% -8%,rgba(2
 .ex .bar i{{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:linear-gradient(90deg,rgba(245,169,58,.3),var(--gold));margin:0}}
 .ex .bar em{{position:absolute;top:-4px;width:1px;height:10px;background:var(--dn);opacity:.8}}
 .ex .legend{{display:flex;justify-content:space-between;margin-top:5px;font-size:6px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim)}}
-.done{{margin-top:26px}}
-.row{{display:grid;grid-template-columns:110px 84px 1fr 100px;gap:14px;align-items:baseline;
+/* ── дни: кнопки ── */
+.tabs{{display:flex;gap:6px;flex-wrap:wrap;margin:22px 0 12px}}
+.tab{{background:linear-gradient(180deg,rgba(10,24,20,.5),rgba(4,10,9,.5));border:1px solid rgba(233,255,244,.07);
+  border-radius:7px;padding:7px 13px;cursor:pointer;color:var(--ice);font-family:var(--f-cap);text-align:left;transition:border-color .25s,background .25s}}
+.tab b{{display:block;font-weight:300;font-size:11px;letter-spacing:.12em}}
+.tab s{{display:block;text-decoration:none;font-size:11px;font-weight:300;letter-spacing:.04em;margin-top:3px}}
+.tab u{{display:block;text-decoration:none;font-size:6.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);margin-top:3px}}
+.tab:hover{{border-color:rgba(233,255,244,.18)}}
+.tab.on{{border-color:rgba(245,169,58,.5);background:linear-gradient(180deg,rgba(28,24,12,.6),rgba(10,8,4,.6))}}
+.daytot{{padding:8px 16px 12px;font-size:7.6px;letter-spacing:.14em;text-transform:uppercase;color:#9fb8ae}}
+.daytot b{{font-family:Jost;font-weight:300;font-size:13px;letter-spacing:.04em;color:var(--ice)}}
+.daytot b.p{{color:var(--up)}}.daytot b.m{{color:var(--dn)}}
+.row{{display:grid;grid-template-columns:104px 84px 1fr 80px 104px;gap:14px;align-items:baseline;
   padding:6px 16px;border-bottom:1px solid rgba(233,255,244,.05);font-size:8.5px;letter-spacing:.13em;text-transform:uppercase;color:#9fb8ae}}
 .row .n{{font-size:11px;letter-spacing:.2em;color:var(--ice)}}
+.row .r2{{font-family:Jost;font-size:10px;text-align:right;color:var(--dim)}}
 .row .r{{font-family:Jost;font-weight:300;font-size:15px;letter-spacing:.03em;text-align:right}}
-.row .r.p{{color:var(--up)}}.row .r.m{{color:var(--dn)}}
 .row span{{color:var(--dim)}}
 .foot{{margin-top:22px;font-size:7.5px;letter-spacing:.22em;text-transform:uppercase;color:#4d635d}}
-.empty{{padding:40px 0;text-align:center;font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:var(--dim)}}
+.empty{{padding:34px 0;text-align:center;font-size:9px;letter-spacing:.3em;text-transform:uppercase;color:var(--dim)}}
 </style></head><body>
 <div class="wrap">
   <div class="head"><h1>книга</h1><a class="back" href="intro.html">← звёзды</a></div>
   <div class="tot">
     <div class="cell"><i>в позиции</i><b>{n}</b><s>шортов {shorts} · лонгов {n - shorts}</s></div>
     <div class="sep"></div>
-    <div class="cell"><i>ход книги сейчас</i><b style="color:var(--{"up" if cur >= 0 else "dn"})">{cur:+.1f}%</b><s>в плюсе {plus} из {n}</s></div>
+    <div class="cell"><i>ход открытых</i><b class="{"p" if cur >= 0 else "m"}">{cur:+.2f}%</b><s>в среднем на позицию · в плюсе {plus} из {n}</s></div>
     <div class="sep"></div>
-    <div class="cell"><i>за сутки закрыто</i><b>{len(closed)}</b><s>попаданий {hit:.0f}%</s></div>
+    <div class="cell"><i>сегодня сделок</i><b>{cur_day["n"]}</b><s>попаданий {cur_day["hit"]:.0f}%</s></div>
     <div class="sep"></div>
-    <div class="cell"><i>за 24 часа</i><b style="color:var(--{"up" if sum(day) >= 0 else "dn"})">{sum(day):+.1f}%</b>
-      <s>лучшая {max(day) if day else 0:+.1f}% · худшая {min(day) if day else 0:+.1f}%</s></div>
+    <div class="cell"><i>итог дня на депозит {_m0(BOOK_DEPOSIT)}</i><b class="{day_sign}">{_m(cur_day["total"])}</b>
+      <s>лучшая {_m(cur_day["best"])} · худшая {_m(cur_day["worst"])}</s></div>
     <div class="cell next"><i>ближайший выход</i><b>{nearest_html}</b><s>{nearest_sub}</s></div>
   </div>
   <div class="sec">в позиции · условие выхода с числом</div>
 {chr(10).join(rows) if rows else '<div class="empty">позиций нет</div>'}
-  <div class="sec done">закрыто за сутки</div>
-{chr(10).join(done) if done else '<div class="empty">за сутки выходов не было</div>'}
+  <div class="sec" style="margin-top:22px">закрытые по дням · депозит {_m0(BOOK_DEPOSIT)} на день, делится между сделками дня по весу правила</div>
+  <div class="tabs">{"".join(tabs) if tabs else ""}</div>
+{chr(10).join(blocks) if blocks else '<div class="empty">закрытых сделок нет</div>'}
   <div class="foot">{_esc(note)}{" · " if note else ""}обновлено {stamp}</div>
-</div></body></html>'''
+</div>
+<script>
+document.querySelectorAll('.tab').forEach(function(b){{
+  b.addEventListener('click',function(){{
+    document.querySelectorAll('.tab').forEach(function(x){{x.classList.remove('on')}});
+    b.classList.add('on');
+    var d=b.getAttribute('data-day');
+    document.querySelectorAll('.day').forEach(function(x){{x.style.display=(x.getAttribute('data-day')===d)?'block':'none'}});
+  }});
+}});
+</script>
+</body></html>'''
 
 
 if __name__ == "__main__":
