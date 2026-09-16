@@ -478,6 +478,14 @@ def render_report(candidates: list[Candidate], snapshot: RunSnapshot) -> bool:
     except Exception as e:
         _issue("Интро", f"{type(e).__name__}: {e}")
 
+    # ЭКРАН КНИГИ БОТА (16.09): позиции трёх бумажных книг приборами, условие выхода с числом.
+    # Заходят с интро по спутнику в левом нижнем углу. Сбой не роняет отчёт.
+    try:
+        from render_book import render_book as _rb
+        pages["book.html"] = _rb()
+    except Exception as e:
+        _issue("Экран книги", f"{type(e).__name__}: {e}")
+
     # ЭКРАН ТОЧНОСТИ: дни → часы → монеты, из output/entries_score.json и market_bg.jsonl.
     # Заходят с интро по планете. Это НЕ журнал 01.09 (render_journal.py, journal.html) — другой
     # экран и другое имя файла. Сбой не роняет отчёт — экран просто не обновится.

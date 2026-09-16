@@ -388,11 +388,8 @@ def render_intro(items: list[dict] | None = None) -> str:
               {"n": f"у цели {counts[2]}", "sym": "", "g": 2, "why": "", "label": True}]
     if counts[3]:
         labels.append({"n": f"остывшие {counts[3]}", "sym": "", "g": 4, "why": "", "label": True})
-    # «книга» правее всех; если ряд «остывшие» занят — сдвигается ещё правее
-    LABPOS[9] = [0.955, 0.945] if counts[3] else [0.86, 0.945]
-    _bk = _book_count()
-    if _bk:
-        labels.append({"n": f"книга {_bk}", "sym": "", "g": 9, "why": "", "label": True, "go": "book.html"})
+    # переход в книгу — не подписью в ряду, а спутником в левом нижнем углу (16.09, владелец):
+    # подпись убрана, чтобы не было двух переходов в одно место
     # раскладка (откат 06.09, владелец: «с зонами некрасиво»): одно облако-созвездие для всех
     # групп, различие — цветом и поведением света; подписи групп — четыре внизу
     # порядок появления (06.09, владелец): подпись группы → её звёзды → следующая → её звёзды
@@ -400,7 +397,7 @@ def render_intro(items: list[dict] | None = None) -> str:
     # ПЕРЕХОД В КНИГУ (16.09, владелец: «в звёздах это элемент для перехода на экран, а не информация
     # по монетам»): подпись «книга N» в том же нижнем ряду, кликом открывает book.html. Не фильтр
     # группы, как остальные подписи, — поэтому у неё свой признак go и позиция правее «у цели».
-    LABPOS = {0: [0.26, 0.945], 1: [0.46, 0.945], 2: [0.66, 0.945], 4: [0.86, 0.945], 9: [0.86, 0.945]}
+    LABPOS = {0: [0.30, 0.945], 1: [0.52, 0.945], 2: [0.74, 0.945], 4: [0.92, 0.945]}
     star_pos = layout(len(items))
     allit: list[dict] = []
     pos: list[list[float]] = []
@@ -411,7 +408,7 @@ def render_intro(items: list[dict] | None = None) -> str:
     n_s = len(stale)
     stale_pos = [[round(0.14 + 0.72 * (i + 0.5) / max(1, n_s), 3), 0.83 + 0.02 * (i % 2)] for i in range(n_s)]
     si = 0
-    for g in (0, 1, 2, 4, 9):
+    for g in (0, 1, 2, 4):
         lab_it = next((it for it in labels if it["g"] == g), None)
         if lab_it is None:
             continue
@@ -754,7 +751,7 @@ def render_intro(items: list[dict] | None = None) -> str:
                                   "text": str(_lp.get("why") or "")}
     except Exception:   # noqa: BLE001 — сессии не обязаны считаться
         sess_box = {}
-    data = json.dumps({"names": names, "grp": grp, "syms": syms, "goes": goes, "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "sess": sess_box, "flicker": flicker, "accum": accum, "bub": bub, "blank": blank, "keep": list(keep_first)},
+    data = json.dumps({"names": names, "grp": grp, "syms": syms, "goes": goes, "many": _many_lead(), "book": _book_count(), "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "sess": sess_box, "flicker": flicker, "accum": accum, "bub": bub, "blank": blank, "keep": list(keep_first)},
                       ensure_ascii=False).replace("</", "<\\/")
     return TEMPLATE.replace("__N__", str(n)).replace("__DATA__", data)
 
@@ -814,6 +811,8 @@ TEMPLATE = r'''<!doctype html>
   .lead i:after{background:linear-gradient(270deg,transparent,rgba(160,200,255,.55))}
   .lead u.hot{color:#ff8a70;text-shadow:0 0 16px rgba(255,130,100,.8)}
   .lead u.warn{color:#ffc069;text-shadow:0 0 16px rgba(255,180,90,.85)}
+  /* ограничения сняты: многие лидеры (16.09) — зелёным, это открытый вход, не предупреждение */
+  .lead u.lift{color:#7fe6b8;text-shadow:0 0 16px rgba(127,230,184,.7);border-color:rgba(127,230,184,.45)}
   /* предупреждение — в тонкой янтарной рамке-капсуле */
   /* состояние — своя капсула, холодная; «вход закрыт» остаётся янтарной */
   .lead u.state{color:#dbe8ff;text-shadow:0 0 16px rgba(160,200,255,.8);
@@ -1138,6 +1137,32 @@ TEMPLATE = r'''<!doctype html>
     box-shadow:0 0 8px rgba(255,200,140,.9);opacity:0;transition:left .8s cubic-bezier(.2,.8,.2,1),opacity .4s}
   .flow .mark u{position:absolute;left:50%;top:19px;transform:translateX(-50%);text-decoration:none;white-space:nowrap;
     font-size:5.8px;letter-spacing:.22em;text-transform:uppercase;color:#ffd8a8}
+
+  /* ── СПУТНИК КНИГИ (16.09, владелец: «космический недвижимый элемент… добавь сияния»):
+     переход на экран бота. Неподвижен — движется только свет: корона дышит, лучи мерцают
+     вразнобой, искры дрейфуют по кольцу, по шару скользит блик. ── */
+  .moon{position:fixed;left:7%;bottom:15%;width:230px;height:230px;cursor:pointer;z-index:6}
+  .moon svg{position:absolute;inset:0;overflow:visible}
+  .moon .glowpad{position:absolute;left:50%;top:48%;width:320px;height:320px;transform:translate(-50%,-50%);pointer-events:none;
+    background:radial-gradient(circle,rgba(150,190,255,.13),rgba(120,160,255,.05) 45%,transparent 70%);filter:blur(14px)}
+  .moon .cap{position:absolute;left:50%;transform:translateX(-50%);bottom:-6px;white-space:nowrap;
+    font-family:var(--f-cap,Jost);font-size:9.5px;letter-spacing:.44em;text-transform:uppercase;color:#a9bde8;
+    text-shadow:0 0 14px rgba(150,190,255,.45);transition:color .4s}
+  .moon .sub{position:absolute;left:50%;transform:translateX(-50%);bottom:-24px;white-space:nowrap;
+    font-family:var(--f-cap,Jost);font-size:6.5px;letter-spacing:.36em;text-transform:uppercase;color:#6d7ea6;transition:color .4s}
+  .moon:hover .cap{color:#eaf2ff}.moon:hover .sub{color:#ffd9a8}.moon:hover .mcorona{opacity:.95}
+  .mcorona{transform-origin:130px 126px;animation:mbreathe 9s ease-in-out infinite;transition:opacity .6s}
+  @keyframes mbreathe{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:.9;transform:scale(1.045)}}
+  @keyframes mterm{0%,100%{opacity:.55}50%{opacity:.95}}
+  @keyframes mray{0%,100%{opacity:.18}50%{opacity:.62}}
+  @keyframes mwink{0%,100%{opacity:.2}50%{opacity:.9}}
+  @keyframes mdrift{to{transform:rotate(360deg)}}
+  @keyframes msheen{0%{opacity:0}18%{opacity:.5}36%{opacity:0}100%{opacity:0}}
+  #mlim{animation:mterm 7s ease-in-out infinite}
+  #mrays line{animation:mray 6s ease-in-out infinite}
+  #msheen{animation:msheen 11s ease-in-out infinite}
+  #msp1{transform-origin:130px 130px;animation:mdrift 140s linear infinite}
+  #msp2{transform-origin:130px 130px;animation:mdrift 200s linear infinite reverse}
 </style>
 </head>
 <body>
@@ -1151,6 +1176,46 @@ TEMPLATE = r'''<!doctype html>
     <span class="mark" id="fmark"><u>разворот</u></span>
   </div>
   <div class="ends"><em class="l">продают</em><em class="r">покупают</em></div>
+</div>
+<div class="moon" id="moon" title="книга бота" style="display:none">
+  <div class="glowpad"></div>
+  <svg viewBox="0 0 260 260">
+    <defs>
+      <radialGradient id="mbody" cx="34%" cy="30%" r="78%">
+        <stop offset="0" stop-color="#5c6f9e"/><stop offset="42%" stop-color="#2b3559"/><stop offset="100%" stop-color="#0d1226"/>
+      </radialGradient>
+      <radialGradient id="mglow" cx="50%" cy="50%" r="50%">
+        <stop offset="55%" stop-color="rgba(150,190,255,0)"/><stop offset="100%" stop-color="rgba(150,190,255,.20)"/>
+      </radialGradient>
+      <radialGradient id="mcor" cx="50%" cy="50%" r="50%">
+        <stop offset="0" stop-color="rgba(170,205,255,.30)"/><stop offset="38%" stop-color="rgba(150,190,255,.14)"/>
+        <stop offset="72%" stop-color="rgba(120,160,255,.05)"/><stop offset="100%" stop-color="rgba(120,160,255,0)"/>
+      </radialGradient>
+      <radialGradient id="mwarm" cx="30%" cy="26%" r="46%">
+        <stop offset="0" stop-color="rgba(255,236,200,.22)"/><stop offset="100%" stop-color="rgba(255,220,170,0)"/>
+      </radialGradient>
+      <linearGradient id="mring" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="rgba(190,215,255,0)"/><stop offset="30%" stop-color="rgba(190,215,255,.55)"/>
+        <stop offset="70%" stop-color="rgba(190,215,255,.25)"/><stop offset="100%" stop-color="rgba(190,215,255,0)"/>
+      </linearGradient>
+      <filter id="msoft" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="5"/></filter>
+    </defs>
+    <g id="mrays" filter="url(#msoft)"></g>
+    <circle class="mcorona" cx="130" cy="126" r="132" fill="url(#mcor)"/>
+    <circle cx="130" cy="126" r="96" fill="url(#mglow)" opacity=".3"/>
+    <ellipse cx="130" cy="130" rx="112" ry="30" fill="none" stroke="url(#mring)" stroke-width="1.1" transform="rotate(-17 130 130)"/>
+    <ellipse cx="130" cy="130" rx="92" ry="24" fill="none" stroke="rgba(190,215,255,.13)" stroke-width=".8" transform="rotate(-17 130 130)"/>
+    <circle cx="130" cy="126" r="62" fill="url(#mbody)"/>
+    <path id="mlim" d="M 130 64 A 62 62 0 0 0 130 188 A 44 62 0 0 1 130 64 Z" fill="rgba(200,224,255,.16)"/>
+    <circle cx="106" cy="104" r="9" fill="rgba(10,16,34,.42)"/>
+    <circle cx="146" cy="146" r="6" fill="rgba(10,16,34,.36)"/>
+    <circle cx="118" cy="152" r="4" fill="rgba(10,16,34,.30)"/>
+    <circle cx="130" cy="126" r="62" fill="url(#mwarm)"/>
+    <path id="msheen" d="M 92 78 A 62 62 0 0 0 92 174 A 30 62 0 0 1 92 78 Z" fill="rgba(215,235,255,.22)"/>
+    <g id="msp1"></g><g id="msp2"></g>
+  </svg>
+  <div class="cap">книга</div>
+  <div class="sub" id="msub">перейти</div>
 </div>
 <div class="planet" id="planet" title="точность прогнозов">
   <div class="halo"></div>
@@ -1176,6 +1241,32 @@ const names=DATA.names.length?DATA.names:['—'],GRP=DATA.names.length?DATA.grp:
 const N=names.length,NF=4,FONT='Michroma';
 const POS=DATA.names.length?DATA.pos:[[.5,.5]];
 const LAB=DATA.label||[];
+// ── СПУТНИК КНИГИ (16.09): лучи и искры строятся кодом, элемент виден только когда есть позиции
+(function(){
+  const box=document.getElementById('moon'); if(!box) return;
+  const n=DATA.book||0; if(!n){box.remove();return}
+  box.style.display='block';
+  const sub=document.getElementById('msub'); if(sub) sub.textContent=n+' в позиции · перейти';
+  let s='';
+  for(let i=0;i<10;i++){
+    const a=(i/10)*Math.PI*2+0.3, r0=96, r1=r0+26+Math.random()*58;
+    const x1=130+Math.cos(a)*r0, y1=126+Math.sin(a)*r0, x2=130+Math.cos(a)*r1, y2=126+Math.sin(a)*r1;
+    s+='<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+
+       '" stroke="rgba(190,218,255,.85)" stroke-width="'+(0.9+Math.random()*1.1).toFixed(2)+
+       '" stroke-linecap="round" style="animation-duration:'+(5+Math.random()*5).toFixed(1)+
+       's;animation-delay:-'+(Math.random()*6).toFixed(1)+'s"/>';
+  }
+  document.getElementById('mrays').innerHTML=s;
+  const spark=(id,rx,ry,cnt,col)=>{const g=document.getElementById(id);let t='';
+    for(let i=0;i<cnt;i++){const a=Math.random()*Math.PI*2,x=130+Math.cos(a)*rx,y=130+Math.sin(a)*ry;
+      t+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+(0.7+Math.random()).toFixed(1)+'" fill="'+col+
+         '" style="animation:mwink '+(3+Math.random()*5).toFixed(1)+'s ease-in-out infinite;animation-delay:-'+(Math.random()*6).toFixed(1)+'s"/>';}
+    g.setAttribute('transform','rotate(-17 130 130)');g.innerHTML=t;};
+  spark('msp1',112,30,14,'#cfe4ff'); spark('msp2',92,24,9,'rgba(200,225,255,.7)');
+  box.addEventListener('click',ev=>{ev.stopPropagation();
+    if(window!==window.parent){try{window.parent.postMessage({type:'ob:open',screen:'book'},'*')}catch(e){}}
+    location.href='book.html';});
+})();
 // зоны и полосы сняты (06.09, владелец): группы различаются светом, не местом
 
 const c=document.getElementById('c');
@@ -1726,7 +1817,10 @@ function drawFx(t){
             : '<u class="warn">ход '+Math.round(L.run_pct||0)+'% за день · '+L.runs_weak+' из 3 прогонов без роста интереса</u>')
         // ДУБЛЬ УБРАН (09.09, владелец: «в верхней строке уже есть „тянут 2“, а внизу пишется
         // „тянет одна“»): состояние живёт в строке над именем, здесь — только последствие.
-        : ((L.lead_gap||0)>=5 ? '<u>вход в остальных закрыт</u>' : ''))
+        // СНЯТИЕ ПРИ МНОГИХ ЛИДЕРАХ (16.09): плашка живёт в JS и своей проверкой по разрыву, поэтому
+        // питоновское снятие её не касалось — гасим здесь же и пишем, почему вход открыт.
+        : ((DATA.many) ? '<u class="lift">'+((DATA.many.why)||'ограничения сняты')+'</u>'
+            : ((L.lead_gap||0)>=5 ? '<u>вход в остальных закрыт</u>' : '')))
 ;
   } else if(el){
     if(SESSCAPS){ el.className='lead'; el.innerHTML='<i>фон</i>'+SESSCAPS; }

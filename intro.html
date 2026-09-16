@@ -53,6 +53,8 @@
   .lead i:after{background:linear-gradient(270deg,transparent,rgba(160,200,255,.55))}
   .lead u.hot{color:#ff8a70;text-shadow:0 0 16px rgba(255,130,100,.8)}
   .lead u.warn{color:#ffc069;text-shadow:0 0 16px rgba(255,180,90,.85)}
+  /* ограничения сняты: многие лидеры (16.09) — зелёным, это открытый вход, не предупреждение */
+  .lead u.lift{color:#7fe6b8;text-shadow:0 0 16px rgba(127,230,184,.7);border-color:rgba(127,230,184,.45)}
   /* предупреждение — в тонкой янтарной рамке-капсуле */
   /* состояние — своя капсула, холодная; «вход закрыт» остаётся янтарной */
   .lead u.state{color:#dbe8ff;text-shadow:0 0 16px rgba(160,200,255,.8);
@@ -377,6 +379,32 @@
     box-shadow:0 0 8px rgba(255,200,140,.9);opacity:0;transition:left .8s cubic-bezier(.2,.8,.2,1),opacity .4s}
   .flow .mark u{position:absolute;left:50%;top:19px;transform:translateX(-50%);text-decoration:none;white-space:nowrap;
     font-size:5.8px;letter-spacing:.22em;text-transform:uppercase;color:#ffd8a8}
+
+  /* ── СПУТНИК КНИГИ (16.09, владелец: «космический недвижимый элемент… добавь сияния»):
+     переход на экран бота. Неподвижен — движется только свет: корона дышит, лучи мерцают
+     вразнобой, искры дрейфуют по кольцу, по шару скользит блик. ── */
+  .moon{position:fixed;left:7%;bottom:15%;width:230px;height:230px;cursor:pointer;z-index:6}
+  .moon svg{position:absolute;inset:0;overflow:visible}
+  .moon .glowpad{position:absolute;left:50%;top:48%;width:320px;height:320px;transform:translate(-50%,-50%);pointer-events:none;
+    background:radial-gradient(circle,rgba(150,190,255,.13),rgba(120,160,255,.05) 45%,transparent 70%);filter:blur(14px)}
+  .moon .cap{position:absolute;left:50%;transform:translateX(-50%);bottom:-6px;white-space:nowrap;
+    font-family:var(--f-cap,Jost);font-size:9.5px;letter-spacing:.44em;text-transform:uppercase;color:#a9bde8;
+    text-shadow:0 0 14px rgba(150,190,255,.45);transition:color .4s}
+  .moon .sub{position:absolute;left:50%;transform:translateX(-50%);bottom:-24px;white-space:nowrap;
+    font-family:var(--f-cap,Jost);font-size:6.5px;letter-spacing:.36em;text-transform:uppercase;color:#6d7ea6;transition:color .4s}
+  .moon:hover .cap{color:#eaf2ff}.moon:hover .sub{color:#ffd9a8}.moon:hover .mcorona{opacity:.95}
+  .mcorona{transform-origin:130px 126px;animation:mbreathe 9s ease-in-out infinite;transition:opacity .6s}
+  @keyframes mbreathe{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:.9;transform:scale(1.045)}}
+  @keyframes mterm{0%,100%{opacity:.55}50%{opacity:.95}}
+  @keyframes mray{0%,100%{opacity:.18}50%{opacity:.62}}
+  @keyframes mwink{0%,100%{opacity:.2}50%{opacity:.9}}
+  @keyframes mdrift{to{transform:rotate(360deg)}}
+  @keyframes msheen{0%{opacity:0}18%{opacity:.5}36%{opacity:0}100%{opacity:0}}
+  #mlim{animation:mterm 7s ease-in-out infinite}
+  #mrays line{animation:mray 6s ease-in-out infinite}
+  #msheen{animation:msheen 11s ease-in-out infinite}
+  #msp1{transform-origin:130px 130px;animation:mdrift 140s linear infinite}
+  #msp2{transform-origin:130px 130px;animation:mdrift 200s linear infinite reverse}
 </style>
 </head>
 <body>
@@ -390,6 +418,46 @@
     <span class="mark" id="fmark"><u>разворот</u></span>
   </div>
   <div class="ends"><em class="l">продают</em><em class="r">покупают</em></div>
+</div>
+<div class="moon" id="moon" title="книга бота" style="display:none">
+  <div class="glowpad"></div>
+  <svg viewBox="0 0 260 260">
+    <defs>
+      <radialGradient id="mbody" cx="34%" cy="30%" r="78%">
+        <stop offset="0" stop-color="#5c6f9e"/><stop offset="42%" stop-color="#2b3559"/><stop offset="100%" stop-color="#0d1226"/>
+      </radialGradient>
+      <radialGradient id="mglow" cx="50%" cy="50%" r="50%">
+        <stop offset="55%" stop-color="rgba(150,190,255,0)"/><stop offset="100%" stop-color="rgba(150,190,255,.20)"/>
+      </radialGradient>
+      <radialGradient id="mcor" cx="50%" cy="50%" r="50%">
+        <stop offset="0" stop-color="rgba(170,205,255,.30)"/><stop offset="38%" stop-color="rgba(150,190,255,.14)"/>
+        <stop offset="72%" stop-color="rgba(120,160,255,.05)"/><stop offset="100%" stop-color="rgba(120,160,255,0)"/>
+      </radialGradient>
+      <radialGradient id="mwarm" cx="30%" cy="26%" r="46%">
+        <stop offset="0" stop-color="rgba(255,236,200,.22)"/><stop offset="100%" stop-color="rgba(255,220,170,0)"/>
+      </radialGradient>
+      <linearGradient id="mring" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="rgba(190,215,255,0)"/><stop offset="30%" stop-color="rgba(190,215,255,.55)"/>
+        <stop offset="70%" stop-color="rgba(190,215,255,.25)"/><stop offset="100%" stop-color="rgba(190,215,255,0)"/>
+      </linearGradient>
+      <filter id="msoft" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="5"/></filter>
+    </defs>
+    <g id="mrays" filter="url(#msoft)"></g>
+    <circle class="mcorona" cx="130" cy="126" r="132" fill="url(#mcor)"/>
+    <circle cx="130" cy="126" r="96" fill="url(#mglow)" opacity=".3"/>
+    <ellipse cx="130" cy="130" rx="112" ry="30" fill="none" stroke="url(#mring)" stroke-width="1.1" transform="rotate(-17 130 130)"/>
+    <ellipse cx="130" cy="130" rx="92" ry="24" fill="none" stroke="rgba(190,215,255,.13)" stroke-width=".8" transform="rotate(-17 130 130)"/>
+    <circle cx="130" cy="126" r="62" fill="url(#mbody)"/>
+    <path id="mlim" d="M 130 64 A 62 62 0 0 0 130 188 A 44 62 0 0 1 130 64 Z" fill="rgba(200,224,255,.16)"/>
+    <circle cx="106" cy="104" r="9" fill="rgba(10,16,34,.42)"/>
+    <circle cx="146" cy="146" r="6" fill="rgba(10,16,34,.36)"/>
+    <circle cx="118" cy="152" r="4" fill="rgba(10,16,34,.30)"/>
+    <circle cx="130" cy="126" r="62" fill="url(#mwarm)"/>
+    <path id="msheen" d="M 92 78 A 62 62 0 0 0 92 174 A 30 62 0 0 1 92 78 Z" fill="rgba(215,235,255,.22)"/>
+    <g id="msp1"></g><g id="msp2"></g>
+  </svg>
+  <div class="cap">книга</div>
+  <div class="sub" id="msub">перейти</div>
 </div>
 <div class="planet" id="planet" title="точность прогнозов">
   <div class="halo"></div>
@@ -407,7 +475,7 @@
 <div class="bgnote" id="bgnote"></div>
 <div class="hint">клик по имени — монета · планета — точность · мимо или клавиша — дальше</div>
 <div class="tip" id="tip"></div>
-<script id="introData" type="application/json">{"names": ["первые 1", "BR", "в очереди 0", "у цели 0"], "grp": [0, 0, 1, 2], "syms": ["", "BRUSDT", "", ""], "whys": ["", "ведёт · +134% от основы · тянет одна — вход в остальных закрыт, открытые хеджировать", "", ""], "pos": [[0.3, 0.945], [0.316, 0.575], [0.52, 0.945], [0.74, 0.945]], "counts": [1, 0, 0, 0], "label": [1, 0, 1, 1], "subs": ["", "лидер · лестница · сквиз · сбор 2 дн назад · плечо ×1.6", "", ""], "bright": [1.0, 1.0, 1.0, 1.0], "zones": [], "taker": {"day": 0.973, "bar": 0.902, "sell_share_pct": 50.7, "buy_usd": 7545375384.0, "sell_usd": 7757751150.0, "side": "продают"}, "acc": {"ok_pct": 65.9, "ok": 141, "n": 214, "enough": true}, "orbits": {"BR": {"up": 2.04, "dn": -0.41, "low": 1023.0, "high": 2.0}}, "bgnote": [["монеты к медиане", "падает", "-1.97% медиана хода · растёт 35 из 133"], ["биткоин сейчас", "давит", "жгут лонгов ×3.0 · Америка не покупает"], ["биткоин дальше", "вниз", "топлива снизу ×2.9 · плита +2.3% / -2.2%"], ["поток рыночных заявок", "продают", "0.97"], ["лидер", "тянут 2", "BR +134% от основы · наша"], ["торги", "скоро закроется", "Лондон, Нью-Йорк"]], "leader": {"sym": "BR", "risk": [], "run_pct": 133.7, "state": "тянут 2", "line": "+134% от основы · +134% за сутки · наша", "lead_gap": 5, "ended": null, "hours": null, "runs_weak": 0}, "sess": {"next": "Сидней", "in_h": 5.65, "just_open": ""}, "flicker": ["SOPH", "SOLV", "USELESS", "WAXP"], "accum": {"ANIME": {"oi3": 43, "px3": 1.0, "strong": false, "day": "2026-09-10", "ago": 5, "past": true}, "AXL": {"oi3": 50, "px3": -2.0, "strong": false, "day": "2026-09-15", "past": false}, "BERA": {"oi3": 32, "px3": 3.9, "strong": false, "day": "2026-09-14", "ago": 1, "past": true}, "BOME": {"oi3": 61, "px3": -0.5, "strong": true, "day": "2026-09-15", "past": false}, "BR": {"oi3": 60, "px3": 2.1, "strong": true, "day": "2026-09-15", "past": false}, "CATI": {"oi3": 33, "px3": 5.1, "strong": false, "day": "2026-09-14", "ago": 1, "past": true}, "CVC": {"oi3": 34, "px3": 5.7, "strong": false, "day": "2026-09-12", "ago": 3, "past": true}, "HIVE": {"oi3": 67, "px3": 6.1, "strong": false, "day": "2026-09-15", "past": false}, "INX": {"oi3": 79, "px3": 0.7, "strong": true, "day": "2026-09-15", "past": false}, "IOST": {"oi3": 61, "px3": 4.8, "strong": true, "day": "2026-09-11", "ago": 4, "past": true}, "NOT": {"oi3": 30, "px3": 6.7, "strong": false, "day": "2026-09-14", "ago": 1, "past": true}, "POWR": {"oi3": 90, "px3": 9.7, "strong": false, "day": "2026-09-15", "past": false}, "SENT": {"oi3": 67, "px3": 6.0, "strong": false, "day": "2026-09-15", "past": false}, "SOLV": {"oi3": 32, "px3": 7.4, "strong": false, "day": "2026-09-14", "ago": 1, "past": true}, "SOPH": {"oi3": 162, "px3": 0.1, "strong": true, "day": "2026-09-09", "ago": 6, "past": true}, "TREE": {"oi3": 32, "px3": 9.0, "strong": false, "day": "2026-09-14", "ago": 1, "past": true}, "WAL": {"oi3": 35, "px3": 9.0, "strong": false, "day": "2026-09-14", "ago": 1, "past": true}, "WAXP": {"oi3": 41, "px3": 7.0, "strong": false, "day": "2026-09-15", "past": false}, "ZIL": {"oi3": 41, "px3": 2.3, "strong": false, "day": "2026-09-15", "past": false}}, "bub": {"SYN": [{"buy": false, "doubt": true}]}, "blank": {}, "keep": []}</script>
+<script id="introData" type="application/json">{"names": ["первые 4", "SYN", "IOST", "SOPH", "AIN", "в очереди 8", "CRWD", "SOLV", "BR", "POWR", "SENT", "ALCH", "MINA", "KAVA", "у цели 0"], "grp": [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2], "syms": ["", "SYNUSDT", "IOSTUSDT", "SOPHUSDT", "AINUSDT", "", "CRWDUSDT", "SOLVUSDT", "BRUSDT", "POWRUSDT", "SENTUSDT", "ALCHUSDT", "MINAUSDT", "KAVAUSDT", ""], "goes": ["", "", "", "", "", "", "", "", "", "", "", "", "", "", ""], "many": {"syms": ["SYNUSDT", "BRUSDT"], "n": 2, "until": "2026-09-16T20:00:00Z", "why": "2 монет от 40% за сутки — ограничения сняты", "moves": {"SYNUSDT": 139.0, "BRUSDT": 129.0}}, "book": 19, "whys": ["", "ведёт · +139% от основы · 2 монет от 40% за сутки — ограничения сняты", "плечо копилось 4 дн назад: интерес +61% при цене +4.8% · сбор 09-11 на ×144 норм · оборот в затишье ×23.0 норм · сбор удержан (-20% от максимума) · откат без раздачи (оборот после сбора ×0.36) · режим: неясно", "плечо копилось 6 дн назад: интерес +162% при цене +0.1% · сбор 09-12 на ×27 норм · оборот в затишье ×11.8 норм · сбор удержан (-23% от максимума) · откат без раздачи (оборот после сбора ×0.51) · режим: неясно", "сбор 09-15 на ×272 норм · оборот в затишье ×96.3 норм · плечо ×3.99 за три дня · шортов сгорело за три дня $1161K · сбор удержан (+0% от максимума) · режим: лестница (интерес рос с ценой)", "", "сбор 09-14 на ×9 норм · оборот в затишье ×6.3 норм · плечо ×1.48 за три дня · сбор удержан (+0% от максимума) · двигатель: спрос (шортов нет, плечо ×1.48 при цене у максимума сбора)", "плечо копилось 1 дн назад: интерес +32% при цене +7.4% · сбор 09-14 на ×7 норм · оборот в затишье ×6.9 норм · сбор удержан (-12% от максимума) · откат без раздачи (оборот после сбора ×0.49) · режим: неясно", "плечо копится: интерес +60% за три дня при цене +2.1% · сбор 09-14 на ×73 норм · оборот в затишье ×36.9 норм · плечо ×1.60 за три дня · шортов сгорело за три дня $1682K · откат без раздачи (оборот после сбора ×0.50) · режим: лестница (интерес рос с ценой)", "плечо копится: интерес +90% за три дня при цене +9.7% · сбор 09-13 на ×97 норм · оборот в затишье ×21.2 норм · плечо ×1.90 за три дня · шортов сгорело за три дня $479K · сбор удержан (+0% от максимума) · откат без раздачи (оборот после сбора ×0.22) · режим: лестница (интерес рос с ценой)", "плечо копится: интерес +67% за три дня при цене +6.0% · сбор 09-14 на ×18 норм · оборот в затишье ×6.0 норм · плечо ×1.67 за три дня · шортов сгорело за три дня $200K · сбор удержан (-6% от максимума) · откат без раздачи (оборот после сбора ×0.34) · режим: лестница (интерес рос с ценой)", "сбор 09-13 на ×28 норм · оборот в затишье ×25.6 норм · плечо ×1.26 за три дня · шортов сгорело за три дня $151K · сбор удержан (-21% от максимума) · режим: неясно", "сбор 09-12 на ×8 норм · оборот в затишье ×4.4 норм · шортов сгорело за три дня $334K · сбор удержан (-24% от максимума) · откат без раздачи (оборот после сбора ×0.61) · режим: неясно", "сбор 09-13 на ×25 норм · оборот в затишье ×10.2 норм · шортов сгорело за три дня $369K · сбор удержан (-9% от максимума) · откат без раздачи (оборот после сбора ×0.41) · режим: неясно", ""], "pos": [[0.3, 0.945], [0.619, 0.504], [0.358, 0.248], [0.373, 0.417], [0.704, 0.355], [0.52, 0.945], [0.585, 0.231], [0.5, 0.337], [0.808, 0.274], [0.348, 0.581], [0.825, 0.503], [0.542, 0.589], [0.252, 0.325], [0.723, 0.587], [0.74, 0.945]], "counts": [4, 8, 0, 0], "label": [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1], "subs": ["", "лидер · выход 100%", "держится 7-й прогон · неясно · сбор 5 дн назад · плечо ×0.6 · набирают сегодня", "держится 4-й прогон · неясно · сбор 4 дн назад · плечо ×0.7 · стоит", "приток плеча +41% · лестница · сквиз · сбор 1 дн назад · плечо ×4.0 · стоит", "", "спрос · сбор 2 дн назад · плечо ×1.5 · набирают сегодня", "неясно · сбор 2 дн назад · плечо ×1.1 · стоит", "лестница · сквиз · сбор 2 дн назад · плечо ×1.6", "лестница · сквиз · сбор 3 дн назад · плечо ×1.9 · стоит", "лестница · сквиз · сбор 2 дн назад · плечо ×1.7 · стоит", "неясно · сквиз · сбор 3 дн назад · плечо ×1.3", "неясно · сквиз · сбор 4 дн назад · плечо ×0.8 · стоит", "неясно · сквиз · сбор 3 дн назад · плечо ×0.8 · стоит", ""], "bright": [1.0, 1.0, 0.45000000043780003, 0.4500000000583, 0.45, 1.0, 1.0, 0.8796137339055794, 0.7521459227467812, 0.7427038626609443, 0.7332618025751074, 0.6234978540772532, 0.6175965665236052, 0.6105150214592274, 1.0], "zones": [], "taker": {"day": 0.98, "bar": 1.106, "sell_share_pct": 50.5, "buy_usd": 8379320149.0, "sell_usd": 8548782981.0, "side": "вровень"}, "acc": {"ok_pct": 66.0, "ok": 142, "n": 215, "enough": true}, "orbits": {"SYN": {"dn": -47.98, "low": 916.0, "high": -74.0}, "IOST": {"up": 156.27, "dn": -16.07, "low": 67.0, "high": -62.0}, "SOPH": {"up": 112.22, "low": 22.0, "high": -71.0}, "AIN": {"up": 650.05, "dn": -6.58, "low": -27.0, "high": -88.0}, "CRWD": {"up": 0.98, "dn": -5.37, "low": 40.0, "high": -73.0}, "SOLV": {"up": 1.62, "dn": -11.64, "low": 131.0, "high": -48.0}, "BR": {"up": 1.99, "dn": -0.85, "low": 1087.0, "high": 8.0}, "POWR": {"up": 3.0, "dn": -10.4, "low": 83.0, "high": -31.0}, "SENT": {"up": 2.66, "dn": -10.35, "low": 35.0, "high": -37.0}, "ALCH": {"up": 35.64, "dn": -6.1, "low": 67.0, "high": -69.0}, "MINA": {"up": 7.6, "dn": -7.07, "low": 172.0, "high": -31.0}, "KAVA": {"up": 5.17, "dn": -9.09, "low": 67.0, "high": -21.0}}, "bgnote": [["монеты к медиане", "падает", "-2.06% медиана хода · растёт 35 из 133"], ["биткоин сейчас", "давит", "плечо уходит -1.8% · жгут лонгов ×3.3 · Америка не покупает"], ["биткоин дальше", "вниз", "топлива снизу ×2.9 · плита +2.2% / -2.3%"], ["поток рыночных заявок", "вровень", "0.98"], ["лидер", "тянут 2", "SYN +139% от основы · наша"], ["деньги лидера", "из соседей", "SYN +4M · доска -258M за 6 ч"], ["торги", "идёт", "Нью-Йорк"]], "leader": {"sym": "SYN", "risk": ["интерес растёт быстрее цены в 11.8 раза", "интерес угасает -5.6% за три часа", "от вершины дня -13%"], "run_pct": 139.0, "state": "тянут 2", "line": "+139% от основы · +139% за сутки · наша", "lead_gap": 5, "ended": null, "hours": null, "runs_weak": 0}, "sess": {"next": "Сидней", "in_h": 4.52, "just_open": ""}, "flicker": ["SOPH", "SOLV"], "accum": {"ANIME": {"oi3": 43, "px3": 1.0, "strong": false, "day": "2026-09-10", "ago": 5, "past": true}, "AXL": {"oi3": 50, "px3": -2.0, "strong": false, "day": "2026-09-15", "past": false}, "BERA": {"oi3": 32, "px3": 3.9, "strong": false, "day": "2026-09-14", "ago": 1, "past": true}, "BOME": {"oi3": 61, "px3": -0.5, "strong": true, "day": "2026-09-15", "past": false}, "BR": {"oi3": 60, "px3": 2.1, "strong": true, "day": "2026-09-15", "past": false}, "CATI": {"oi3": 33, "px3": 5.1, "strong": false, "day": "2026-09-14", "ago": 1, "past": true}, "CVC": {"oi3": 34, "px3": 5.7, "strong": false, "day": "2026-09-12", "ago": 3, "past": true}, "HIVE": {"oi3": 67, "px3": 6.1, "strong": false, "day": "2026-09-15", "past": false}, "INX": {"oi3": 79, "px3": 0.7, "strong": true, "day": "2026-09-15", "past": false}, "IOST": {"oi3": 61, "px3": 4.8, "strong": true, "day": "2026-09-11", "ago": 4, "past": true}, "NOT": {"oi3": 30, "px3": 6.7, "strong": false, "day": "2026-09-14", "ago": 1, "past": true}, "POWR": {"oi3": 90, "px3": 9.7, "strong": false, "day": "2026-09-15", "past": false}, "SENT": {"oi3": 67, "px3": 6.0, "strong": false, "day": "2026-09-15", "past": false}, "SOLV": {"oi3": 32, "px3": 7.4, "strong": false, "day": "2026-09-14", "ago": 1, "past": true}, "SOPH": {"oi3": 162, "px3": 0.1, "strong": true, "day": "2026-09-09", "ago": 6, "past": true}, "TREE": {"oi3": 32, "px3": 9.0, "strong": false, "day": "2026-09-14", "ago": 1, "past": true}, "WAL": {"oi3": 35, "px3": 9.0, "strong": false, "day": "2026-09-14", "ago": 1, "past": true}, "WAXP": {"oi3": 41, "px3": 7.0, "strong": false, "day": "2026-09-15", "past": false}, "ZIL": {"oi3": 41, "px3": 2.3, "strong": false, "day": "2026-09-15", "past": false}}, "bub": {"SYN": [{"buy": false, "doubt": true}]}, "blank": {}, "keep": []}</script>
 <script>
 const DATA=JSON.parse(document.getElementById('introData').textContent);
 // группы: 0 — брать, 1 — держать, 2 — закрыть (владелец, 06.09)
@@ -415,6 +483,32 @@ const names=DATA.names.length?DATA.names:['—'],GRP=DATA.names.length?DATA.grp:
 const N=names.length,NF=4,FONT='Michroma';
 const POS=DATA.names.length?DATA.pos:[[.5,.5]];
 const LAB=DATA.label||[];
+// ── СПУТНИК КНИГИ (16.09): лучи и искры строятся кодом, элемент виден только когда есть позиции
+(function(){
+  const box=document.getElementById('moon'); if(!box) return;
+  const n=DATA.book||0; if(!n){box.remove();return}
+  box.style.display='block';
+  const sub=document.getElementById('msub'); if(sub) sub.textContent=n+' в позиции · перейти';
+  let s='';
+  for(let i=0;i<10;i++){
+    const a=(i/10)*Math.PI*2+0.3, r0=96, r1=r0+26+Math.random()*58;
+    const x1=130+Math.cos(a)*r0, y1=126+Math.sin(a)*r0, x2=130+Math.cos(a)*r1, y2=126+Math.sin(a)*r1;
+    s+='<line x1="'+x1.toFixed(1)+'" y1="'+y1.toFixed(1)+'" x2="'+x2.toFixed(1)+'" y2="'+y2.toFixed(1)+
+       '" stroke="rgba(190,218,255,.85)" stroke-width="'+(0.9+Math.random()*1.1).toFixed(2)+
+       '" stroke-linecap="round" style="animation-duration:'+(5+Math.random()*5).toFixed(1)+
+       's;animation-delay:-'+(Math.random()*6).toFixed(1)+'s"/>';
+  }
+  document.getElementById('mrays').innerHTML=s;
+  const spark=(id,rx,ry,cnt,col)=>{const g=document.getElementById(id);let t='';
+    for(let i=0;i<cnt;i++){const a=Math.random()*Math.PI*2,x=130+Math.cos(a)*rx,y=130+Math.sin(a)*ry;
+      t+='<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+(0.7+Math.random()).toFixed(1)+'" fill="'+col+
+         '" style="animation:mwink '+(3+Math.random()*5).toFixed(1)+'s ease-in-out infinite;animation-delay:-'+(Math.random()*6).toFixed(1)+'s"/>';}
+    g.setAttribute('transform','rotate(-17 130 130)');g.innerHTML=t;};
+  spark('msp1',112,30,14,'#cfe4ff'); spark('msp2',92,24,9,'rgba(200,225,255,.7)');
+  box.addEventListener('click',ev=>{ev.stopPropagation();
+    if(window!==window.parent){try{window.parent.postMessage({type:'ob:open',screen:'book'},'*')}catch(e){}}
+    location.href='book.html';});
+})();
 // зоны и полосы сняты (06.09, владелец): группы различаются светом, не местом
 
 const c=document.getElementById('c');
@@ -782,7 +876,10 @@ function next(){try{window.parent.postMessage({type:'ob:done',screen:'intro'},'*
   if(window===window.parent)location.href='brief.html'}
 c.addEventListener('click',ev=>{const j=hit(ev,true);
   // клик по подписи группы — фильтр, экран НЕ закрываем (07.09)
-  if(j>=0&&LAB[j]){const g=(DATA.grp||[])[j];PICK=(PICK===g)?null:g;applyGroup();return}
+  if(j>=0&&LAB[j]){const go=(DATA.goes||[])[j];
+    if(go){ if(window!==window.parent){try{window.parent.postMessage({type:'ob:open',screen:'book'},'*')}catch(e){}}
+            location.href=go; return }
+    const g=(DATA.grp||[])[j];PICK=(PICK===g)?null:g;applyGroup();return}
   // клик мимо при закреплённой группе — сначала снимаем фильтр, а не уходим со экрана
   if(PICK!==null&&hit(ev)<0){PICK=null;applyGroup();return}
   const i=hit(ev);
@@ -962,7 +1059,10 @@ function drawFx(t){
             : '<u class="warn">ход '+Math.round(L.run_pct||0)+'% за день · '+L.runs_weak+' из 3 прогонов без роста интереса</u>')
         // ДУБЛЬ УБРАН (09.09, владелец: «в верхней строке уже есть „тянут 2“, а внизу пишется
         // „тянет одна“»): состояние живёт в строке над именем, здесь — только последствие.
-        : ((L.lead_gap||0)>=5 ? '<u>вход в остальных закрыт</u>' : ''))
+        // СНЯТИЕ ПРИ МНОГИХ ЛИДЕРАХ (16.09): плашка живёт в JS и своей проверкой по разрыву, поэтому
+        // питоновское снятие её не касалось — гасим здесь же и пишем, почему вход открыт.
+        : ((DATA.many) ? '<u class="lift">'+((DATA.many.why)||'ограничения сняты')+'</u>'
+            : ((L.lead_gap||0)>=5 ? '<u>вход в остальных закрыт</u>' : '')))
 ;
   } else if(el){
     if(SESSCAPS){ el.className='lead'; el.innerHTML='<i>фон</i>'+SESSCAPS; }
