@@ -2467,17 +2467,27 @@ COIN_JS = r"""
       // двух первых баров выше нормы ЭТОЙ сессии, дельта в плюс, интерес вырос — новые руки пришли с плечом. Один
       // оборот без плеча — перекладка. Ряд D.fast[sym].vol30 = [[t, оборот, дельта]] пишет прогон; нет ряда —
       // считается по часовой ленте (оборот бара, дельты нет — тогда два условия из трёх, помечено «без дельты»).
-      var VOL = (F.vol30 || []).filter(function (r) { return r[0] >= tBeg && r[0] <= tEnd; }), volFromHours = false;
-      if (VOL.length < 8) { volFromHours = true; VOL = win.map(function (b) { return [b[0], +b[5] || 0, null]; }); }
-      var OIS = (F.oi30 || []).filter(function (r) { return r[0] >= tBeg && r[0] <= tEnd; });
+      // КОНЕЦ ДАННЫХ ДЛЯ СТЫКОВ (16.09, владелец: «в звёздах уже Токио и подхватил Сидней, а в карточке до сих пор
+      // Нью-Йорк подхватил»). Окно плиты кончается на последнем часовом баре ленты, а лента обновляется реже архива
+      // получасовок: открытие Сиднея в неё не попадало, и последним стыком оставался Нью-Йорк. Стыки считаются до
+      // конца архива (tJ); кружок на плите рисуется, только если открытие внутри окна.
+      var tJ = tEnd;
+      [F.vol30, F.oi30].forEach(function (a) { if (a && a.length) tJ = Math.max(tJ, +a[a.length - 1][0]); });
+      var VOL = (F.vol30 || []).filter(function (r) { return r[0] >= tBeg && r[0] <= tJ; }), volFromHours = false;
+      if (VOL.length < 8) { volFromHours = true; VOL = win.map(function (b) { return [b[0], +b[5] || 0, null]; }); tJ = tEnd; }
+      var OIS = (F.oi30 || []).filter(function (r) { return r[0] >= tBeg && r[0] <= tJ; });
       function atOrBefore(arr, t) { var q = null; for (var i = 0; i < arr.length; i++) { if (arr[i][0] <= t) q = arr[i]; else break; } return q; }
       function sessOf(h) { return h >= 21 || h < 6 ? 'Сидней' : h < 7 ? 'Токио' : h < 13 ? (h < 9 ? 'Токио' : 'Лондон') : h < 16 ? 'Лондон' : 'Нью-Йорк'; }
       var normS = {}; VOL.forEach(function (r) { var nm = sessOf(new Date(r[0]).getUTCHours()); (normS[nm] = normS[nm] || []).push(r[1]); });
       Object.keys(normS).forEach(function (k) { var a = normS[k].slice().sort(function (x, y) { return x - y; }); normS[k] = a.length ? a[Math.floor(a.length / 2)] : 0; });
       var JOINS = [], STEPn = VOL.length > 1 ? (VOL[1][0] - VOL[0][0]) : 18e5;
-      for (var dj = d0 - dayMs; dj <= tEnd; dj += dayMs) SESS.forEach(function (se) {
-        var t = dj + se[0] * 36e5; if (t < tBeg + 36e5 || t + 2 * STEPn > tEnd) return;
-        var b1 = atOrBefore(VOL, t), b2 = atOrBefore(VOL, t + STEPn); if (!b1 || !b2 || b1[0] < t - STEPn) return;
+      for (var dj = d0 - dayMs; dj <= tJ; dj += dayMs) SESS.forEach(function (se) {
+        var t = dj + se[0] * 36e5; if (t < tBeg + 36e5 || t > tJ) return;
+        // открытие было, а двух закрытых баров после него в архиве ещё нет — «подхват не прочитан», а не пропуск:
+        // иначе последним стыком остаётся прошлая сессия
+        if (t + STEPn > tJ) { JOINS.push({ t: t, ok: null, se: se, why: se[1] + ' ' + hhmm(t) + ' · подхват ещё не прочитан — ждём два закрытых бара', short: 'ждём два закрытых бара' }); return; }
+        var b1 = atOrBefore(VOL, t), b2 = atOrBefore(VOL, t + STEPn);
+        if (!b1 || !b2 || b1[0] < t) { JOINS.push({ t: t, ok: null, se: se, why: se[1] + ' ' + hhmm(t) + ' · бара открытия нет в архиве — подхват не прочитан', short: 'бара открытия нет в архиве' }); return; }
         var vol = b1[1] + b2[1], nrm = (normS[se[1]] || 0) * 2, volx = nrm ? vol / nrm : null;
         var dl = (b1[2] === null || b2[2] === null) ? null : b1[2] + b2[2];
         var oa = atOrBefore(OIS, t - STEPn), ob = atOrBefore(OIS, t + STEPn), oiCh = (oa && ob && oa[1]) ? (ob[1] / oa[1] - 1) * 100 : null;
@@ -2489,12 +2499,24 @@ COIN_JS = r"""
           + (dl !== null ? ' · дельта ' + (dl > 0 ? '+' : '') + f(dl / 1e3) + 'K' : ' · без дельты') + (oiCh !== null ? ' · интерес ' + (oiCh > 0 ? '+' : '') + oiCh.toFixed(1) + '%' : '') + (pxCh !== null ? ' · цена ' + (pxCh > 0 ? '+' : '') + pxCh.toFixed(1) + '%' : '');
         JOINS.push({ t: t, ok: ok, se: se, why: why, short: (volx !== null ? 'оборот <b>×' + volx.toFixed(1) + '</b>' : '') + (dl !== null ? ' · дельта <b>' + (dl > 0 ? '+' : '') + f(dl / 1e3) + 'K</b>' : '') + (oiCh !== null ? ' · интерес <b>' + (oiCh > 0 ? '+' : '') + oiCh.toFixed(0) + '%</b>' : '') + (pxCh !== null ? ' · цена <b>' + (pxCh > 0 ? '+' : '') + pxCh.toFixed(1) + '%</b>' : '') });
       });
+      // ОДИН ОТВЕТ НА ОДИН СТЫК: near_move пишет подхват последнего открытия (его же показывают «звёзды»); если он
+      // про то же открытие — берём его, чтобы карточка и звёзды не расходились
+      (function () {
+        var NP = (((NEAR[_S] || {}).today) || {}).sess_pickup; if (!NP || !NP.at) return;
+        var tn = Date.parse(NP.at); if (isNaN(tn)) return;
+        var se = null; SESS.forEach(function (q) { if (q[1] === NP.session) se = q; }); if (!se) return;
+        var sh = (NP.vol_x != null ? 'оборот <b>×' + (+NP.vol_x).toFixed(1) + '</b>' : '') + (NP.oi_chg_pct != null ? ' · интерес <b>' + (NP.oi_chg_pct > 0 ? '+' : '') + (+NP.oi_chg_pct).toFixed(0) + '%</b>' : '');
+        var j = null; JOINS.forEach(function (q) { if (q.t === tn) j = q; });
+        if (!j) { j = { t: tn, se: se }; JOINS.push(j); }
+        j.ok = !!NP.pickup; j.why = se[1] + ' ' + hhmm(tn) + ' · ' + NP.why + (sh ? ' · ' + sh.replace(/<\/?b>/g, '') : ''); if (sh) j.short = sh;
+      })();
+      JOINS.sort(function (a, b) { return a.t - b.t; });
       var joinG = '';
-      JOINS.forEach(function (j) { var x = X(j.t).toFixed(1), y = GY - 6;
+      JOINS.forEach(function (j) { if (j.t > tEnd || j.ok === null) return; var x = X(j.t).toFixed(1), y = GY - 6;
         joinG += j.ok ? '<circle cx="' + x + '" cy="' + y + '" r="2.6" fill="' + GR + '" class="jn" data-tip="' + esc(j.why) + '"/>'
                       : '<circle cx="' + x + '" cy="' + y + '" r="2.4" fill="none" stroke="' + RD + '" stroke-width="1" class="jn" data-tip="' + esc(j.why) + '"/>'; });
       if (JOINS.length) { var lj = JOINS[JOINS.length - 1];
-        STATE['стык'] = '<b style="color:' + lj.se[2] + '">' + esc(lj.se[1]) + ' ' + hhmm(lj.t) + '</b> ' + (lj.ok ? '<b>подхватил</b>' : '<b>не подхватил</b>') + ' · ' + lj.short; }
+        STATE['стык'] = '<b style="color:' + lj.se[2] + '">' + esc(lj.se[1]) + ' ' + hhmm(lj.t) + '</b> ' + (lj.ok === null ? 'подхват <b>не прочитан</b>' : lj.ok ? '<b>подхватил</b>' : '<b>не подхватил</b>') + ' · ' + lj.short; }
       g = '<defs><filter id="fglow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="2.2"/></filter>'
         + '<pattern id="fhatch" width="4" height="4" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="4" stroke="rgba(233,255,244,.28)" stroke-width="1"/></pattern></defs>' + sessG + g + joinG
         + oiLine() + row(VX, 118, 'вортекс') + row(KL, 140, 'клингер');
@@ -2891,10 +2913,12 @@ COIN_JS = r"""
                        : '<div class="k1"><div class="cd nm">' + esc(se[1]) + '</div><div class="u">открылся ' + sinceM + ' мин назад</div>';
         // подхват последнего открытия
         var j = null; FS.joins.forEach(function (q) { if (q.t === last[0]) j = q; });
-        if (post) lines.push(j ? '<div class="ml ' + (j.ok ? 'ok' : 'no') + '">' + (j.ok ? 'подхватил' : 'не подхватил') + ' · ' + j.short.replace('оборот ', '') + '</div>'
+        // перед стыком — подхват той сессии, что идёт сейчас (последнее открытие), а не последний посчитанный стык:
+        // 16.09 перед Токио висел «Нью-Йорк подхватил», хотя уже шёл Сидней
+        if (post) lines.push(j && j.ok !== null ? '<div class="ml ' + (j.ok ? 'ok' : 'no') + '">' + (j.ok ? 'подхватил' : 'не подхватил') + ' · ' + j.short.replace('оборот ', '') + '</div>'
                               : '<div class="ml wait">проба идёт · ждём два закрытых бара</div>');
-        else { var pj = FS.joins.length ? FS.joins[FS.joins.length - 1] : null;
-          if (pj) lines.push('<div class="ml ' + (pj.ok ? 'ok' : 'no') + '">' + esc(pj.se[1]) + ' ' + (pj.ok ? 'подхватил' : 'не подхватил') + ' · ' + pj.short.replace('оборот ', '') + '</div>'); }
+        else lines.push(j && j.ok !== null ? '<div class="ml ' + (j.ok ? 'ok' : 'no') + '">' + esc(last[1][1]) + ' ' + (j.ok ? 'подхватил' : 'не подхватил') + ' · ' + j.short.replace('оборот ', '') + '</div>'
+                                           : '<div class="ml wait">' + esc(last[1][1]) + ' · подхват не прочитан</div>');
         // моё важное: фандинг, если платят; свежий слом
         var fd = FS.fund.length ? FS.fund[FS.fund.length - 1][1] : null;
         if (fd !== null && (fd <= -0.5 || fd >= 0.1)) lines.push('<div class="ml ' + (fd < 0 ? 'ok' : 'no') + '">фандинг <b>' + (+fd).toFixed(2) + '%</b> · ' + (fd < 0 ? 'шорты платят' : 'платят лонги') + '</div>');
