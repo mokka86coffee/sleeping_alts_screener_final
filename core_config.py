@@ -296,6 +296,13 @@ PAPER_FAST_BRK_MIN_VX = 0.25
 PAPER_FAST_FUND_ENTRY = -0.3
 PAPER_FAST_OI_BARS = 4
 PAPER_FAST_TOP_N = 5
+# БУМАЖНЫЙ БОТ «ПРОТИВ ТОЛПЫ ПО ФОНУ» (16.09, paper_crowd.py): короткие сделки до PAPER_CROWD_HOLD баров, стоп по
+# размаху PAPER_CROWD_STOP, цель PAPER_CROWD_TARGET, комиссия PAPER_CROWD_FEE за оборот. Правила из lab_intraday по
+# неделе 11–16.09 — журналить, не торговать, пока не сменится фон.
+PAPER_CROWD_STOP = 0.02
+PAPER_CROWD_HOLD = 6
+PAPER_CROWD_FEE = 0.001
+PAPER_CROWD_TARGET = 0.015
 
 # ─────────────────────────────────────────────────────────────
 # Бумажная книга по первым очереди (11.09, владелец) — paper_book.py

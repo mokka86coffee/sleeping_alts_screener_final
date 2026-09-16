@@ -1376,6 +1376,17 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("Бумажный бот", (_rp.stderr or "").strip()[-300:] or f"код {_rp.returncode}")
     except Exception as e:  # noqa: BLE001
         _issue("Бумажный бот", f"{type(e).__name__}: {e}")
+    # ── БУМАЖНЫЙ БОТ «ПРОТИВ ТОЛПЫ ПО ФОНУ» (16.09): короткие сделки по архиву получасовок; журнал
+    #    output/paper_crowd.jsonl. Сбой прогон не роняет. ──
+    try:
+        _rc = subprocess.run([sys.executable, "paper_crowd.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=300)
+        for _l in (_rc.stdout or "").strip().splitlines():
+            if "вход" in _l or "выход" in _l or _l.startswith("paper_crowd: открыто"):
+                log(f"→ {_l[:300]}")
+        if _rc.returncode:
+            _issue("Бот против толпы", (_rc.stderr or "").strip()[-300:] or f"код {_rc.returncode}")
+    except Exception as e:  # noqa: BLE001
+        _issue("Бот против толпы", f"{type(e).__name__}: {e}")
     # ── ТРЕВОГИ МОМЕНТА В ТЕЛЕГРАМ (15.09, владелец: «всё, что можно автоматизировать, — автоматизировать»):
     #    по звёздам и книге — свежий стык (подхватил / не подхватил) и судьба стен (съели / сняли).
     #    Каждое событие уходит один раз: память отправленных в output/alerts_sent.json. ──
