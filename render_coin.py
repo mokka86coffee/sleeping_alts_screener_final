@@ -452,7 +452,25 @@ def _fast_events(days: int | None = None) -> dict:
         from core_binance import K_HIGH, K_LOW, K_OPEN_TIME, get_klines
         _K_CLOSE, _K_QVOL = getattr(_cb, "K_CLOSE", 4), getattr(_cb, "K_QUOTE_VOLUME", 7)
         _closed_before = (now_ms // 1800000) * 1800000     # открытие ещё не закрытой свечи
-        for _sym in list(out.keys()):
+        # МОНЕТЫ ДЛЯ КЛАЙНОВ — НЕ ТОЛЬКО ТЕ, ЧТО ПРОШЛИ АРХИВ (16.09, SYN: в архиве одна строка, kl30 = 0, на плите
+        # стоял заменитель и разворот клингера не увидел). Берём и журнал лидеров, лидеров по пампу, очередь,
+        # звёзды, книгу — новая монета журнала получает ряды по бирже с первого прогона.
+        _want = set(out.keys())
+        for _name in ("leaders.json", "pump_leaders.json"):
+            for _k in (_read_json(_name) or {}).keys():
+                if not str(_k).startswith("_"):
+                    _want.add(str(_k).upper())
+        _nm = _read_json("near_move.json") or {}
+        for _k in list(_nm.get("first") or []) + [q if isinstance(q, str) else (q or {}).get("sym") for q in (_nm.get("queue") or [])]:
+            if _k:
+                _want.add(str(_k).upper())
+        for _k in ((_read_json("book.json") or {}).keys()):
+            if not str(_k).startswith("_"):
+                _want.add(str(_k).upper() + ("" if str(_k).upper().endswith("USDT") else "USDT"))
+        for _sym in sorted(_want):
+            if _sym not in out:
+                out[_sym] = {"bubbles": [], "end": [], "force": [], "entry": [], "hedge": [], "start": [],
+                             "vx30": [], "kl30": [], "fund30": [], "oi30": [], "vol30": []}
             try:
                 _ks = get_klines(_sym, "30m", limit=FAST_KLINES_LIMIT)
                 _bars = sorted((int(k[K_OPEN_TIME]), float(k[K_HIGH]), float(k[K_LOW]), float(k[_K_CLOSE]), float(k[_K_QVOL]))
@@ -927,6 +945,7 @@ COIN_HTML = r"""
 .sessline u{text-decoration:none;font-size:7px;letter-spacing:.34em;animation:railhalo 2s ease-in-out infinite}
 .sessline em{display:inline-block;width:1px;height:8px;background:rgba(233,255,244,.18);margin:0 4px;align-self:center}
 .mini.fast .fdemo{top:262px}
+.mini.fast .fcap b{font-weight:400;color:#dfe9ff}   /* время последнего закрытого бара — видно, свежая ли плита (16.09) */
 .mini.fast .fnext{position:absolute;right:0;top:-19px;font-family:var(--f-cap);font-size:7px;letter-spacing:.28em;text-transform:uppercase;white-space:nowrap}
 .mini.fast .fnext b{font-weight:400}
 /* ЛУЧИ ПОД ПЛИТОЙ БЫСТРЫХ (15.09, владелец: «лучи тоже, как у «держать», что-то красивое, светлое»): от земли
@@ -2484,7 +2503,7 @@ COIN_JS = r"""
         .map(function (r) { return '<i class="fray" style="left:' + r[0] + 'px;--ra:' + r[1] + 'deg;--rd:' + r[2] + 's;--rw:' + (-r[3]) + 's"></i>'; }).join('');
       window.__FASTSTATE = { joins: JOINS, breaks: BREAKS, fund: (F.fund30 || []), sess: SESS, stepMs: STEPn, tEnd: tEnd, brkStr: STATE };
       dzone += '<div class="mini fast"><div class="gglow"></div>' + svg + '<div class="ground"></div><div class="fglow"></div>' + frays + '<div class="refl">' + svg + '</div>'
-        + '<div class="fcap">быстрые · вортекс 30м · клингер 30м · интерес · 3 дн</div><div class="ftip"></div>'
+        + '<div class="fcap">быстрые · вортекс 30м · клингер 30м · интерес · 3 дн · <b>бар ' + hhmm(tEnd) + '</b></div><div class="ftip"></div>'
         + (missing ? '<div class="fgap">архив ' + win.length + ' из ' + expected + ' баров · дыры заштрихованы</div>' : '')
         + '<div class="fread"><u>вортекс</u> ' + (STATE['вортекс'] || '') + '<br><u>клингер</u> ' + (STATE['клингер'] || '') + '<br><u>интерес</u> ' + (STATE['плечо'] || '') + (STATE['стык'] ? '<br><u>стык</u> ' + STATE['стык'] : '') + '</div>'
         + (demo.length ? '<div class="fdemo">подставлено: ' + esc(demo.join(' · ')) + '</div>' : '') + '</div>';
