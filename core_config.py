@@ -515,3 +515,22 @@ SECTOR_MAP = {
 # СОБЫТИЕ ДОСКИ У «ТОЛПЫ» (16.09): кандидатов за прогон от PAPER_CROWD_BOARD_N — берём PAPER_CROWD_MAX_PER_RUN лучших
 PAPER_CROWD_BOARD_N = 5
 PAPER_CROWD_MAX_PER_RUN = 5
+
+# ЖУРНАЛ НАБЛЮДЕНИЙ ПО ЛИДЕРАМ (16.09, junction_log.py и lab_junctions.py): только наблюдения, боты не читают
+JUNCTION_LEAD_MIN = 20.0          # лидер — ход за сутки не меньше, %
+JUNCTION_LEAD_TOP = 5             # и место в первых N доски по этому ходу
+JUNCTION_TAIL_H = 12.0            # окно лидера после последнего такого бара, ч (туда попадает разворот)
+JUNCTION_NEAR_MIN = 120           # «у стыка» — сигнал не дальше N минут до или после открытия сессии
+JUNCTION_ANSWER_BARS = 4          # ответ сессии — по первым N получасовкам после открытия
+JUNCTION_VX_BARS = 3              # вортекс «давят» — линия растёт N баров подряд
+JUNCTION_KL_GAP = 36              # клингер — пики одного хода не дальше N баров
+JUNCTION_PAIR = 4                 # «оба» — вортекс и клингер не дальше N баров
+JUNCTION_HIT_PCT = 2.0            # попадание — ход в сторону сигнала за 12 ч, %
+JUNCTION_RECENT_BARS = 4          # журнал берёт сигналы последних N баров (прогон мог опоздать)
+JUNCTION_KLINES = 320             # получасовок биржи на монету
+# МЕРЫ РЕЖИМА (16.09, analytics_regime.py): окна в получасовках
+REGIME_HURST_BARS = 96
+REGIME_FLOW_BARS = 48
+REGIME_CURVE_BARS = 24
+REGIME_PE_BARS = 48
+REGIME_BRANCH_BARS = 96

@@ -59,6 +59,12 @@ try:
 except ImportError:
     KLINGER_30M_EMA, VORTEX_N = (34, 55, 13), 14
 try:
+    from core_config import (JUNCTION_LEAD_MIN, JUNCTION_LEAD_TOP, JUNCTION_TAIL_H, JUNCTION_NEAR_MIN,
+                             JUNCTION_ANSWER_BARS, JUNCTION_VX_BARS, JUNCTION_KL_GAP, JUNCTION_PAIR, JUNCTION_HIT_PCT)
+except ImportError:
+    JUNCTION_LEAD_MIN, JUNCTION_LEAD_TOP, JUNCTION_TAIL_H, JUNCTION_NEAR_MIN = 20.0, 5, 12.0, 120
+    JUNCTION_ANSWER_BARS, JUNCTION_VX_BARS, JUNCTION_KL_GAP, JUNCTION_PAIR, JUNCTION_HIT_PCT = 4, 3, 36, 4, 2.0
+try:
     from near_move import SESS_OPEN
 except Exception:  # noqa: BLE001
     SESS_OPEN = {21: "Сидней", 0: "Токио", 7: "Лондон", 13: "Нью-Йорк"}
@@ -97,20 +103,68 @@ def bars_of(sym: str, limit: int) -> list[tuple]:
     return out
 
 
-def oi_of(sym: str) -> dict:
-    """интерес по барам из архива получасовок: t сек → oi"""
-    p = BASE_DIR / "cq_v2" / "intraday" / f"{sym.replace('USDT', '').lower()}.jsonl"
-    out = {}
-    if not p.exists():
-        return out
-    for ln in p.read_text(encoding="utf-8").splitlines():
+def archive_index(syms: set[str] | None, since: int) -> dict:
+    """база монеты → {t сек: строка архива} за окно: живые файлы cq_v2/intraday и дневные cq_v2/archive/intraday/*.gz.
+    syms — базы (ARB) или None — все монеты."""
+    import gzip
+    out: dict = defaultdict(dict)
+
+    def put(base: str, r: dict):
         try:
-            r = json.loads(ln)
             t = int(datetime.strptime(r["candle"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC).timestamp())
         except (ValueError, KeyError, TypeError):
+            return
+        if t >= since:
+            out[base][t] = r
+
+    live = BASE_DIR / "cq_v2" / "intraday"
+    for p in sorted(live.glob("*.jsonl")) if live.exists() else []:
+        base = p.stem.upper()
+        if syms is not None and base not in syms:
             continue
-        if r.get("oi"):
-            out[t] = float(r["oi"])
+        for ln in p.read_text(encoding="utf-8").splitlines():
+            try:
+                put(base, json.loads(ln))
+            except ValueError:
+                continue
+    arch = BASE_DIR / "cq_v2" / "archive" / "intraday"
+    day0 = datetime.fromtimestamp(since, UTC).strftime("%Y-%m-%d")
+    for p in sorted(arch.glob("*/*.jsonl.gz")) if arch.exists() else []:
+        if p.name[:10] < day0:
+            continue
+        try:
+            with gzip.open(p, "rt", encoding="utf-8") as f:
+                for ln in f:
+                    try:
+                        r = json.loads(ln)
+                    except ValueError:
+                        continue
+                    base = str(r.get("sym") or "").upper().replace("USDT", "")
+                    if not base or (syms is not None and base not in syms):
+                        continue
+                    try:
+                        t = int(datetime.strptime(r["candle"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC).timestamp())
+                    except (ValueError, KeyError, TypeError):
+                        continue
+                    if t >= since and t not in out[base]:      # живой файл главнее дневного
+                        out[base][t] = r
+        except OSError:
+            continue
+    return out
+
+
+def oi_of(rows: dict) -> dict:
+    """t → интерес из строк архива монеты"""
+    return {t: float(r["oi"]) for t, r in rows.items() if r and r.get("oi")}
+
+
+def delta_of(rows: dict) -> dict:
+    """t → дельта тейкеров перпа за бар, $"""
+    out = {}
+    for t, r in rows.items():
+        d = ((r or {}).get("fut") or {}).get("d")
+        if d is not None:
+            out[t] = float(d)
     return out
 
 
@@ -269,77 +323,115 @@ def leader_windows(closes: dict, lead_min: float, lead_top: int, tail_h: float, 
     return win
 
 
-def analyse(data: dict, board_med: dict, win: dict, a) -> list[dict]:
-    """все сигналы: лидер или нет, стык, ответ сессии, плечо, исход"""
+def junction(t: int, near_min: int) -> tuple[str, int | None]:
+    """где сигнал относительно открытий сессий: категория и открытие, к которому он относится"""
+    tc = t + BAR
+    nxt, prv = opens_around(tc)
+    if nxt - tc <= near_min * 60:
+        return "перед стыком", nxt
+    if tc - prv <= near_min * 60:
+        return "начало сессии", prv
+    return "середина", None
+
+
+def answer(side: int, cat: str, t: int, t_open: int | None, px: float, c: dict, hi: dict, lo: dict, oi: dict,
+           bars: int) -> tuple[str | None, str | None]:
+    """ответ сессии и интерес в ответных барах; None — данных не хватает"""
+    ans = oi_ans = None
+    if cat == "перед стыком" and t_open:
+        ab = [c.get(t_open + k * BAR) for k in range(bars)]
+        ab = [x for x in ab if x]
+        if len(ab) >= max(1, bars - 1):
+            back = max(ab) >= px if side < 0 else min(ab) <= px
+            ans = ("откупили" if back else "не откупили") if side < 0 else ("продали" if back else "не продали")
+        o0, o1 = oi.get(t_open - BAR), oi.get(t_open + (bars - 1) * BAR)
+        if o0 and o1:
+            oi_ans = "ушёл" if pct(o0, o1) <= -1.0 else "на месте"
+    elif cat == "начало сессии" and t_open:
+        pre = [t_open - k * BAR for k in range(1, 5)]
+        inn = list(range(t_open, t + 1, BAR))
+        if side < 0:
+            ref = max([hi[x] for x in pre if x in hi] or [0])
+            got = max([hi[x] for x in inn if x in hi] or [0])
+            ans = ("сессия ответила" if got > ref else "сессия не ответила") if ref else None
+        else:
+            ref = min([lo[x] for x in pre if x in lo] or [0])
+            got = min([lo[x] for x in inn if x in lo] or [10 ** 18])
+            ans = ("сессия продавила" if got < ref else "сессия не продавила") if ref else None
+        o0, o1 = oi.get(t_open - BAR), oi.get(t)
+        if o0 and o1:
+            oi_ans = "ушёл" if pct(o0, o1) <= -1.0 else "на месте"
+    return ans, oi_ans
+
+
+def outcome(side: int, t: int, px: float, c: dict, board_med: dict, btc: dict) -> dict:
+    """ход через 6 и 12 ч: в сторону сигнала (side ±1) или сырой (side 0), к доске, и биткоин за то же окно"""
+    res = {}
+    sgn = side if side else 1
+    for hrs in (6, 12):
+        t1 = t + hrs * 2 * BAR
+        p1 = c.get(t1)
+        if not p1:
+            continue
+        mv = pct(px, p1) * sgn
+        b0, b1 = board_med.get(t), board_med.get(t1)
+        rel = None if (b0 is None or b1 is None) else mv - (b1 - b0) * sgn
+        bt = pct(btc[t], btc[t1]) if (btc.get(t) and btc.get(t1)) else None
+        res[hrs] = (round(mv, 2), None if rel is None else round(rel, 2), None if bt is None else round(bt, 2))
+    return res
+
+
+def background(t: int, btc: dict, board_med: dict) -> dict:
+    """фон на баре сигнала: биткоин и доска за 6 ч до него, день недели и текущая сессия (UTC)"""
+    b6 = pct(btc[t - 12 * BAR], btc[t]) if (btc.get(t) and btc.get(t - 12 * BAR)) else None
+    d6 = (board_med[t] - board_med[t - 12 * BAR]) if (t in board_med and (t - 12 * BAR) in board_med) else None
+    _, prv = opens_around(t + BAR)
+    return {"btc6": None if b6 is None else round(b6, 2), "board6": None if d6 is None else round(d6, 2),
+            "btc_bg": None if b6 is None else ("↑" if b6 > 1 else "↓" if b6 < -1 else "ровно"),
+            "wd": datetime.fromtimestamp(t, UTC).strftime("%a"), "sess_now": sess_name(prv)}
+
+
+def signals_of(bars: list, a) -> list[tuple]:
+    """все сигналы по линиям на барах монеты: (t, вид, сторона, подробности)"""
+    ve = vortex_events(vortex_lines(bars), a.vx_bars)
+    ke = klinger_events(klinger_lines(bars), a.kl_gap)
+    sig = [(t, "вортекс", side, {"сила": round(st_, 3), "перегрев": round(h_)}) for t, side, st_, h_ in ve]
+    sig += [(t, "клингер", side, {"пик был": round(p1), "пик стал": round(p2)}) for t, side, p1, p2 in ke]
+    for tv, sv_, _, _ in ve:
+        for tk, sk, _, _ in ke:
+            if sv_ == sk and abs(tv - tk) <= a.pair * BAR:
+                sig.append((max(tv, tk), "оба", sv_, {}))
+    seen, out = set(), []
+    for x in sorted(sig, key=lambda y: (y[0], y[1])):
+        if (x[0], x[1], x[2]) not in seen:
+            seen.add((x[0], x[1], x[2]))
+            out.append(x)
+    return out
+
+
+def analyse(data: dict, board_med: dict, win: dict, a, btc: dict) -> list[dict]:
+    """все сигналы: лидер или нет, стык, ответ сессии, плечо, фон, исход"""
     out = []
     for s, d in data.items():
         bars, oi = d["bars"], d["oi"]
         c = {t: x for t, _, _, x, _ in bars}
         hi = {t: h for t, h, _, _, _ in bars}
         lo = {t: l for t, _, l, _, _ in bars}
-        ve = vortex_events(vortex_lines(bars), a.vx_bars)
-        ke = klinger_events(klinger_lines(bars), a.kl_gap)
-        sig = [(t, "вортекс", side, {"сила": round(st_, 3), "перегрев": round(h_)}) for t, side, st_, h_ in ve]
-        sig += [(t, "клингер", side, {"пик был": round(p1), "пик стал": round(p2)}) for t, side, p1, p2 in ke]
-        # «оба»: вортекс и клингер в одну сторону рядом — событие на более позднем баре
-        for tv, sv_, _, _ in ve:
-            for tk, sk, _, _ in ke:
-                if sv_ == sk and abs(tv - tk) <= a.pair * BAR:
-                    sig.append((max(tv, tk), "оба", sv_, {}))
-        seen = set()
-        for t, kind, side, extra in sig:
-            if t < d["since"] or (t, kind, side) in seen:
+        for t, kind, side, extra in signals_of(bars, a):
+            if t < d["since"]:
                 continue
-            seen.add((t, kind, side))
             px = c.get(t)
             if not px:
                 continue
-            tc = t + BAR                                   # сигнал известен на закрытии бара
-            nxt, prv = opens_around(tc)
-            if nxt - tc <= a.near * 60:
-                cat, t_open = "перед стыком", nxt
-            elif tc - prv <= a.near * 60:
-                cat, t_open = "начало сессии", prv
-            else:
-                cat, t_open = "середина", None
-            ans = oi_ans = None
-            if cat == "перед стыком":
-                ab = [c.get(t_open + k * BAR) for k in range(a.answer)]
-                ab = [x for x in ab if x]
-                if len(ab) >= max(1, a.answer - 1):
-                    back = max(ab) >= px if side < 0 else min(ab) <= px
-                    ans = ("откупили" if back else "не откупили") if side < 0 else ("продали" if back else "не продали")
-                o0, o1 = oi.get(t_open - BAR), oi.get(t_open + (a.answer - 1) * BAR)
-                if o0 and o1:
-                    oi_ans = "ушёл" if pct(o0, o1) <= -1.0 else "на месте"
-            elif cat == "начало сессии":
-                pre = [t_open - k * BAR for k in range(1, 5)]
-                inn = list(range(t_open, t + 1, BAR))
-                if side < 0:
-                    ref = max([hi[x] for x in pre if x in hi] or [0])
-                    got = max([hi[x] for x in inn if x in hi] or [0])
-                    ans = ("сессия ответила" if got > ref else "сессия не ответила") if ref else None
-                else:
-                    ref = min([lo[x] for x in pre if x in lo] or [0])
-                    got = min([lo[x] for x in inn if x in lo] or [10 ** 18])
-                    ans = ("сессия продавила" if got < ref else "сессия не продавила") if ref else None
-                o0, o1 = oi.get(t_open - BAR), oi.get(t)
-                if o0 and o1:
-                    oi_ans = "ушёл" if pct(o0, o1) <= -1.0 else "на месте"
+            cat, t_open = junction(t, a.near)
+            ans, oi_ans = answer(side, cat, t, t_open, px, c, hi, lo, oi, a.answer)
             lev, lev_off = leverage(oi, t)
             top = max([c[t - k * BAR] for k in range(12) if c.get(t - k * BAR)] or [px])
-            res = {}
-            for hrs in (6, 12):
-                p1 = c.get(t + hrs * 2 * BAR)
-                if p1:
-                    mv = pct(px, p1) * (1 if side > 0 else -1)
-                    b0, b1 = board_med.get(t), board_med.get(t + hrs * 2 * BAR)
-                    rel = None if (b0 is None or b1 is None) else mv - (b1 - b0) * (1 if side > 0 else -1)
-                    res[hrs] = (round(mv, 2), None if rel is None else round(rel, 2))
             out.append({"sym": s, "t": t, "kind": kind, "side": side, "px": px, "extra": extra,
                         "leader": t in win.get(s, set()), "cat": cat,
                         "sess": sess_name(t_open) if t_open else "", "ans": ans, "oi_ans": oi_ans,
-                        "lev": lev, "lev_off": lev_off, "from_top": round(pct(top, px), 2), "res": res})
+                        "lev": lev, "lev_off": lev_off, "from_top": round(pct(top, px), 2),
+                        "bg": background(t, btc, board_med), "res": outcome(side, t, px, c, board_med, btc)})
     return out
 
 
@@ -386,21 +478,124 @@ def _dir(r):
     return "вниз" if r["side"] < 0 else "вверх"
 
 
+def heat_bin(h) -> str:
+    if h is None:
+        return "—"
+    return "до 50" if h < 50 else "50–85" if h < 85 else "85 и выше"
+
+
+def _jl(path: Path) -> list[dict]:
+    out = []
+    if not path.exists():
+        return out
+    for ln in path.read_text(encoding="utf-8").splitlines():
+        try:
+            out.append(json.loads(ln))
+        except ValueError:
+            continue
+    return out
+
+
+def journal_report(a) -> int:
+    """РАЗБОР ЖУРНАЛА НАБЛЮДЕНИЙ: сигналы и режим лидеров, созревшие (исход через 12 ч проставлен)"""
+    rows = _jl(BASE_DIR / "output" / "junction_log.jsonl")
+    outs = {r["id"]: r for r in rows if r.get("kind") == "outcome"}
+    sig, reg = [], []
+    for r in rows:
+        o = outs.get(r.get("id"))
+        if not o:
+            continue
+        res = {int(k): tuple(v) for k, v in (o.get("res") or {}).items()}
+        x = dict(r, res=res, ans=o.get("ans"), oi_ans=o.get("oi_ans"))
+        if r.get("kind") == "signal":
+            sig.append(x)
+        elif r.get("kind") == "regime":
+            reg.append(x)
+    waiting = sum(1 for r in rows if r.get("kind") in ("signal", "regime") and r.get("id") not in outs)
+    print(f"журнал: сигналов с исходом {len(sig)} · замеров режима с исходом {len(reg)} · ждут исхода {waiting}")
+    if not sig and not reg:
+        print("созревших строк нет — исход проставляется через 12 ч после бара")
+        return 0
+    print("исход сигналов — ход в сторону сигнала; режима — сырой ход цены; «к доске» — минус медиана доски; время UTC")
+    for r in sig:
+        r.setdefault("extra", {})
+        r["bg"] = r.get("bg") or {}
+    K0 = lambda r: (r["sig"], _dir(r), "биткоин " + (r["bg"].get("btc_bg") or "—"))
+    table(sig, "СИГНАЛЫ · ФОН ПЕРВЫМ: биткоин за 6 ч до сигнала", a.hit, K0, f"{'сигнал':<9}{'куда':<6}{'фон':<15}")
+    K1 = lambda r: (r["sig"], _dir(r), r["cat"], r["ans"] or "—")
+    table(sig, "СИГНАЛЫ · стык × ответ сессии", a.hit, K1, f"{'сигнал':<9}{'куда':<6}{'где':<15}{'ответ сессии':<21}")
+    K2 = lambda r: (r["sig"], _dir(r), r["cat"], r["ans"] or "—", r["oi_ans"] or "—")
+    table([r for r in sig if r["cat"] != "середина"], "СИГНАЛЫ · у стыка: ответ × интерес в ответе", a.hit, K2,
+          f"{'сигнал':<9}{'куда':<6}{'где':<15}{'ответ сессии':<21}{'интерес':<10}")
+    K3 = lambda r: (r["sig"], _dir(r), r.get("lev") or "нет архива")
+    table(sig, "СИГНАЛЫ · плечо на баре сигнала", a.hit, K3, f"{'сигнал':<9}{'куда':<6}{'плечо':<15}")
+    K5 = lambda r: (r["sig"], _dir(r), heat_bin((r.get("extra") or {}).get("перегрев")))
+    table([r for r in sig if r["sig"] == "вортекс"], "СИГНАЛЫ · перегрев вортекса", a.hit, K5, f"{'сигнал':<9}{'куда':<6}{'перегрев':<15}")
+    # меры режима — по одной, против сырого хода цены
+    for r in sig + reg:
+        r.setdefault("side", 0)
+    if reg:
+        print("\n════ РЕЖИМ ЛИДЕРОВ · каждая мера отдельно (исход — сырой ход цены; «≥» — доля ходов вверх на +2% и больше)")
+        bins = (
+            ("Хёрст к перемешанному", lambda m: _b((m.get("hurst") or {}).get("rel"), ((-0.08, "ход отменяется"), (0.08, "случайность")), "ход продолжается")),
+            ("поглощение", lambda m: None if not m.get("flow") else ("да" if m["flow"].get("absorb", 0) >= 0.25 else "нет")),
+            ("палка", lambda m: None if not m.get("flow") else ("да" if m["flow"].get("paint", 0) >= 0.25 else "нет")),
+            ("загиб роста", lambda m: None if not m.get("curve") else ("парабола" if (m["curve"].get("c") or 0) > 0.5 and (m["curve"].get("r2") or 0) > 0.8
+                                                                       else "загиб вниз" if (m["curve"].get("c") or 0) < -0.5 else "прямая")),
+            ("энтропия", lambda m: _b(m.get("pe"), ((0.85, "порядок"),), "хаос")),
+            ("выносы тянут друг друга", lambda m: None if not m.get("branch") else
+             ("выносов нет" if "ratio" not in m["branch"] else "да" if m["branch"]["ratio"] >= 1.5 else "нет")),
+            ("кто ведёт", lambda m: (m.get("lead") or {}).get("who")),
+        )
+        for name, fn in bins:
+            g = defaultdict(list)
+            for r in reg:
+                k = fn(r.get("m") or {})
+                if k is not None:
+                    g[k].append(r)
+            if not g:
+                continue
+            print(f"   ── {name}")
+            for k in sorted(g):
+                v = g[k]
+                m6 = [x["res"][6][0] for x in v if 6 in x["res"]]
+                m12 = [x["res"][12][0] for x in v if 12 in x["res"]]
+                up = (100 * sum(1 for x in m12 if x >= a.hit) / len(m12)) if m12 else None
+                dn = (100 * sum(1 for x in m12 if x <= -a.hit) / len(m12)) if m12 else None
+                f = lambda x: "—" if x is None else f"{x:+.2f}"
+                print(f"      {str(k):<18}{len(v):>5}  6ч {f(med(m6)):>7}  12ч {f(med(m12)):>7}"
+                      f"  вверх≥{a.hit:g}% {('—' if up is None else format(up, '.0f') + '%'):>5}"
+                      f"  вниз≥{a.hit:g}% {('—' if dn is None else format(dn, '.0f') + '%'):>5}")
+    return 0
+
+
+def _b(v, edges, last: str):
+    if v is None:
+        return None
+    for lim, name in edges:
+        if v < lim:
+            return name
+    return last
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="сигналы быстрых по линиям и стыки сессий у лидеров")
     ap.add_argument("--only", help="одна монета: её сигналы и стыки без доски")
     ap.add_argument("--days", type=int, default=4, help="окно сигналов, дней (по умолчанию 4)")
-    ap.add_argument("--lead-min", type=float, default=20.0, help="ход за сутки для лидера, %% (20)")
-    ap.add_argument("--lead-top", type=int, default=5, help="мест доски для лидера (5)")
-    ap.add_argument("--tail", type=float, default=12.0, help="часов окна после последнего бара лидера (12)")
-    ap.add_argument("--near", type=int, default=120, help="минут до/после открытия — «у стыка» (120)")
-    ap.add_argument("--answer", type=int, default=4, help="ответных баров после открытия (4 = 2 ч)")
-    ap.add_argument("--hit", type=float, default=2.0, help="попадание — ход в сторону сигнала за 12 ч, %% (2)")
+    ap.add_argument("--lead-min", type=float, default=JUNCTION_LEAD_MIN, help="ход за сутки для лидера, %%")
+    ap.add_argument("--lead-top", type=int, default=JUNCTION_LEAD_TOP, help="мест доски для лидера")
+    ap.add_argument("--tail", type=float, default=JUNCTION_TAIL_H, help="часов окна после последнего бара лидера")
+    ap.add_argument("--near", type=int, default=JUNCTION_NEAR_MIN, help="минут до/после открытия — «у стыка»")
+    ap.add_argument("--answer", type=int, default=JUNCTION_ANSWER_BARS, help="ответных баров после открытия")
+    ap.add_argument("--hit", type=float, default=JUNCTION_HIT_PCT, help="попадание — ход в сторону сигнала за 12 ч, %%")
     ap.add_argument("--list", type=int, default=40, help="сколько последних сигналов лидеров вывести строками")
-    ap.add_argument("--vx-bars", type=int, default=3, help="баров подряд растёт линия вортекса (3)")
-    ap.add_argument("--kl-gap", type=int, default=36, help="баров между пиками клингера одного хода (36 = 18 ч)")
-    ap.add_argument("--pair", type=int, default=4, help="баров между вортексом и клингером для «оба» (4)")
+    ap.add_argument("--vx-bars", type=int, default=JUNCTION_VX_BARS, help="баров подряд растёт линия вортекса")
+    ap.add_argument("--kl-gap", type=int, default=JUNCTION_KL_GAP, help="баров между пиками клингера одного хода")
+    ap.add_argument("--pair", type=int, default=JUNCTION_PAIR, help="баров между вортексом и клингером для «оба»")
+    ap.add_argument("--journal", action="store_true", help="разобрать накопленный журнал output/junction_log.jsonl")
     a = ap.parse_args()
+    if a.journal:
+        return journal_report(a)
     syms = ([x.strip().upper() + ("" if x.strip().upper().endswith("USDT") else "USDT") for x in a.only.split(",")]
             if a.only else coins())
     if not syms:
@@ -408,6 +603,12 @@ def main() -> int:
         return 1
     need = (a.days + 2) * 48 + 60                     # окно + сутки на ход лидера + разогрев клингера
     since = int(datetime.now(UTC).timestamp()) - a.days * 86400
+    arch = archive_index({x.replace("USDT", "") for x in syms}, since - 86400)
+    try:
+        btc = {t: c for t, _, _, c, _ in bars_of("BTCUSDT", min(1500, need))}
+    except Exception as e:  # noqa: BLE001
+        print(f"  биткоин: свечи не получены — {type(e).__name__}: {e}")
+        btc = {}
     data, closes = {}, {}
     for i, s in enumerate(syms, 1):
         try:
@@ -417,7 +618,7 @@ def main() -> int:
             continue
         if len(b) < 80:
             continue
-        data[s] = {"bars": b, "oi": oi_of(s), "since": since}
+        data[s] = {"bars": b, "oi": oi_of(arch.get(s.replace("USDT", ""), {})), "since": since}
         closes[s] = {t: c for t, _, _, c, _ in b}
         if i % 25 == 0:
             print(f"  свечи: {i}/{len(syms)}")
@@ -426,13 +627,19 @@ def main() -> int:
         return 1
     board = board_median(closes)
     win = leader_windows(closes, a.lead_min, a.lead_top, a.tail, solo=bool(a.only))
-    rows = analyse(data, board, win, a)
+    rows = analyse(data, board, win, a, btc)
     lead = [r for r in rows if r["leader"]]
     rest = [r for r in rows if not r["leader"]]
     n_lead = sum(1 for s in win if win[s] and any(t >= since for t in win[s]))
     print(f"монет {len(data)} · дней {a.days} · лидеров в окне {n_lead} (ход за сутки ≥ {a.lead_min:g}%"
           + ("" if a.only else f", первые {a.lead_top} доски") + f") · сигналов у лидеров {len(lead)}, у остальных {len(rest)}")
     print("исход — ход от закрытия бара сигнала в сторону сигнала; «к доске» — минус медиана доски за то же окно; время UTC")
+    K0 = lambda r: (r["kind"], _dir(r), "биткоин " + (r["bg"]["btc_bg"] or "—"))
+    table(lead, "ЛИДЕРЫ · ФОН ПЕРВЫМ: биткоин за 6 ч до сигнала (↑ больше +1%, ↓ меньше −1%)", a.hit, K0,
+          f"{'сигнал':<9}{'куда':<6}{'фон':<15}")
+    K5 = lambda r: (r["kind"], _dir(r), heat_bin(r["extra"].get("перегрев")))
+    table([r for r in lead if r["kind"] == "вортекс"], "ЛИДЕРЫ · перегрев вортекса (место линии среди своих значений за двое суток)",
+          a.hit, K5, f"{'сигнал':<9}{'куда':<6}{'перегрев':<15}")
     K1 = lambda r: (r["kind"], _dir(r), r["cat"], r["ans"] or "—")
     H1 = f"{'сигнал':<9}{'куда':<6}{'где':<15}{'ответ сессии':<21}"
     table(lead, "ЛИДЕРЫ · сигнал × стык × ответ сессии", a.hit, K1, H1)

@@ -1468,6 +1468,17 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("След сделок", (_rf.stderr or "").strip()[-300:] or f"код {_rf.returncode}")
     except Exception as e:  # noqa: BLE001
         _issue("След сделок", f"{type(e).__name__}: {e}")
+    # ── ЖУРНАЛ НАБЛЮДЕНИЙ ПО ЛИДЕРАМ (16.09, владелец: «внедряй всё сразу в журнал, пока как наблюдения, на ботов
+    #    не распространяется»): сигналы быстрых по линиям у стыков сессий, меры режима (analytics_regime) и исходы
+    #    через 12 ч — в output/junction_log.jsonl. Ни один бот его не читает. Сбой прогон не роняет. ──
+    try:
+        _rj = subprocess.run([sys.executable, "junction_log.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=600)
+        for _l in (_rj.stdout or "").strip().splitlines():
+            log(f"→ {_l[:300]}")
+        if _rj.returncode:
+            _issue("Журнал стыков", (_rj.stderr or "").strip()[-300:] or f"код {_rj.returncode}")
+    except Exception as e:  # noqa: BLE001
+        _issue("Журнал стыков", f"{type(e).__name__}: {e}")
 
     # ── АРХИВ ВНУТРИДНЕВНЫХ РЯДОВ (16.09): раз в сутки закрытые дни intraday и depth в gz. Интерес,
     #    фандинг, тейкер и стакан задним числом не восстановить ниоткуда — только наш архив. ──
