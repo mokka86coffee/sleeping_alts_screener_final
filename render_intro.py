@@ -148,7 +148,7 @@ def _book_count() -> int:
     """Сколько позиций у бота сейчас — для подписи-перехода «книга N» (16.09). Считаем открытые во всех
     бумажных книгах: paper_end, paper_crowd, paper_fast (у последнего позиция может быть в хедже)."""
     n = 0
-    for _nm in ("paper_end.json", "paper_crowd.json", "paper_fast.json", "paper_bottom.json"):
+    for _nm in ("paper_end.json", "paper_crowd.json", "paper_fast.json", "paper_bottom.json", "paper_sight.json"):
         for _p in (BASE_DIR / "output" / _nm, BASE_DIR / _nm):
             try:
                 _d = json.loads(_p.read_text(encoding="utf-8"))
@@ -157,6 +157,25 @@ def _book_count() -> int:
             n += len((_d or {}).get("open") or {})
             break
     return n
+
+
+try:
+    from core_config import LEADER_STARS_MEDIAN_MIN, LEADER_STARS_MIN_UP
+except ImportError:
+    LEADER_STARS_MEDIAN_MIN, LEADER_STARS_MIN_UP = 0.0, 60
+
+
+def _board_now() -> dict | None:
+    """Доска сейчас из последней строки фона (market_bg): медиана хода за сутки и сколько монет растёт.
+    Нет строки — None: тогда при лидере звёзды гаснут, как раньше."""
+    try:
+        from market_bg import last_row
+        _ro = (last_row() or {}).get("risk_on") or {}
+    except Exception:  # noqa: BLE001
+        return None
+    if _ro.get("median_pct") is None:
+        return None
+    return {"median": float(_ro["median_pct"]), "up": int(_ro.get("green") or 0), "n": int(_ro.get("n") or 0)}
 
 
 def _pump_lead() -> dict | None:
@@ -322,7 +341,42 @@ def collect_items() -> list[dict]:
             else:
                 items[-1]["why"] = f"ведёт · +{_lead['run_pct']:.0f}% от основы · {_txt}"
         else:
-            items[:] = [it for it in items if it["sym"] == _ls]
+            # ЗВЁЗДЫ ПРИ ЛИДЕРЕ, ЕСЛИ ДОСКА ЗЕЛЁНАЯ (17.09, владелец: «показывать звёзды в случае лидера, если
+            # медиана доски положительная или идёт больше 60 монет; надпись „не входить“ оставляем»). Когда лидер
+            # тянет один при красной доске — деньги уходят в него, звёзды гаснут (12.09). Когда доска при лидере
+            # растёт — деньги идут не только в него: звёзды видны, но подпись лидера про закрытый вход остаётся.
+            _bg = _board_now()
+            if _bg and ((_bg["median"] or 0) > LEADER_STARS_MEDIAN_MIN or (_bg["up"] or 0) >= LEADER_STARS_MIN_UP):
+                for it in items:
+                    if it["sym"] != _ls:
+                        it["sub"] = "при лидере · " + str(it.get("sub") or "")
+                _note = (f"доска растёт: медиана {_bg['median']:+.2f}% · растёт {_bg['up']} из {_bg['n']}")
+                if _hit:
+                    _hit["why"] += f" · звёзды видны — {_note}"
+                else:
+                    items[-1]["why"] += f" · звёзды видны — {_note}"
+            else:
+                items[:] = [it for it in items if it["sym"] == _ls]
+    # ТОЛЬКО ПРОФИЛЬ ЛИДЕРА (17.09, владелец: «показывай только такие звёзды, убираем очередь и прочую фигню,
+    # снимаем ограничения про одного лидера, медиану и вообще всё»). Всё, что собрано выше — очередь, «у цели»,
+    # конец, лидер, дно, — заменяется звёздами analytics_profile: лидеры дня с отметками профиля от
+    # PROFILE_MIN_MARKS. Группа 0 — все семь или шесть, группа 1 — пять; яркость — по числу отметок.
+    try:
+        import analytics_profile as _ap
+        _stars = _ap.stars()
+        items[:] = []
+        seen.clear()
+        for _x in _stars:
+            _lit = [k for k, v in _x["marks"].items() if v]
+            _off = [k for k, v in _x["marks"].items() if not v]
+            _why = (f"профиль лидера {_x['n']} из 7 · +{_x['move24']:.0f}% за сутки · горит: " + ", ".join(_lit)
+                    + (" · нет: " + ", ".join(_off) if _off else ""))
+            _n = _x["num"]
+            _sub = (f"{_x['n']} из 7 на старте {_x['start'][11:16]} UTC · со дна {_n.get('дней от мин')} дн · "
+                    f"фандинг {_n.get('фандинг')} · место было {_n.get('место за час до старта') or '—'}, сейчас {_x.get('place_now') or '—'}")
+            add(_x["sym"], 0 if _x["n"] >= 6 else 1, _why, _sub, float(_x["n"]))
+    except Exception as _e:  # noqa: BLE001
+        print(f"профиль лидера не собрался: {type(_e).__name__}: {_e}", file=sys.stderr)
     # порядок: брать, держать, у цели; внутри группы — по надёжности, самая надёжная первой
     items.sort(key=lambda it: (it["g"], -it.get("rel", 0.0)))
     # яркость внутри группы: лучшая — 1.0, остальные вниз до 0.45; «у цели» — ровно 0.7
