@@ -222,6 +222,10 @@ def _collect() -> tuple[list[dict], list[dict]]:
     return opened, closed
 
 
+# КЭШ АРХИВА ЖИВЁТ ОДИН ВЫЗОВ (17.09, найдено по ava.jsonl владельца: прогон импортирует render_book один раз и
+# зовёт render_book() каждые полчаса, а этот словарь заполнялся при первом обращении к монете и дальше не
+# обновлялся — у AVA цена «сейчас» была с бара 00:30 при входе в 06:30, +31.56% из воздуха; у каждой открытой
+# позиции цена застывала на баре первого её появления). Чистится в начале book_data().
 _ARCH: dict = {}
 
 
@@ -245,7 +249,12 @@ def _arch_rows(sym: str) -> list[dict]:
             out.append({"t": t, "px": float(r["px"]), "h": r.get("h"), "l": r.get("l"), "oi": r.get("oi"),
                         "fund": r.get("funding"), "ot": r.get("oi_type"),
                         "vol": float(_fu.get("b") or 0) + float(_fu.get("s") or 0), "d": _fu.get("d")})
-    out.sort(key=lambda x: x["t"])
+    # ПО ПОРЯДКУ СВЕЧЕЙ, БЕЗ БУДУЩЕГО (17.09, AVA: у открытой позиции +31.56% через две минуты после входа —
+    # цена «сейчас» была не с последней закрытой свечи). Повтор свечи — последняя запись; свечи позже текущего
+    # времени не берутся
+    now_ms = _now() * 1000
+    by = {r["t"]: r for r in out if r["t"] <= now_ms}
+    out = [by[t] for t in sorted(by)]
     _ARCH[key] = out
     return out
 
@@ -385,10 +394,18 @@ def _analyse(o: dict) -> dict:
     e = float(o["entry"]) if o.get("entry") else None
     px, px_src = (last["px"], "архив") if last else (o.get("px"), "сводка")
     px = float(px) if px else None
+    # ЦЕНА НЕ СТАРШЕ ВХОДА (17.09): если последняя свеча архива старше сигнального бара позиции или архива нет
+    # вовсе — сводка даёт суточную цену, и результат выходит фантомным (AVA: +31.56% при входе две минуты назад).
+    # Тогда цены нет, результат не считается, на экране «цена отстала»
+    if t_sig and (not last or last["t"] < t_sig):
+        px, px_src = None, "нет: архив старше входа" if last else "нет: архива нет"
+    if not last and t_sig:
+        after = []
     bars = len(after) if rows and t_sig else o["bars"]
     sgn = "шорт" if side < 0 else "лонг"
     a = {"sym": o["sym"].replace("USDT", ""), "book": o["book"], "side": side, "size": o["size"], "rule": o["rk"],
          "rl": o["rule"], "entry": e, "px": px, "px_src": px_src, "d24": o.get("d24"), "bars": bars,
+         "stale": px is None,
          "opened": int(p.get("opened_at") or 0), "sig_t": t_sig // 1000, "walls": o.get("walls") or "",
          "state": p.get("state"), "legs": legs}
     # результат — формулой своего бота
@@ -792,6 +809,7 @@ def _exits(rows: list[dict]) -> dict:
 
 
 def book_data() -> dict:
+    _ARCH.clear()                       # архив читается заново при каждой сборке страницы
     """всё, что рисует экран, одним словарём — его же удобно сверять руками"""
     opened, closed = _collect()
     back = []
@@ -804,10 +822,8 @@ def book_data() -> dict:
     # последней получасовке архива формулой своего бота. Теперь и строки берут этот же результат.
     work = [_analyse(o) for o in opened]
     for o, a in zip(opened, work):
-        if a.get("res") is not None:
-            o["res"] = a["res"]
-        if a.get("px"):
-            o["px"] = a["px"]
+        o["res"] = a.get("res")            # None, если цены с закрытой свечи после входа ещё нет
+        o["px"] = a.get("px")
     live = _source(opened, closed)
     bk = _source([], back)
     if bk["days"]:
@@ -1070,14 +1086,13 @@ function drawDay(){
     const cl=d.rows.filter(r=>!r.open).sort((a,b)=>a.at-b.at), m=Math.min(cl.length,48);
     const step=m?360/m:0, g=Math.min(2,step*.15);
     for(let i=0;i<m;i++) o+=`<path d="${ARC(204,i*step+g,(i+1)*step-g)}" class="cseg${cl[Math.floor(i*cl.length/m)].money<0?' m':''} a-fi" ${del(.6+i*.02)}/>`;
-    o+=T(573,347,'xs dim',`закрыто ${d.n}`,'end');
+    o+=T(573,347,'xs dim',d.n?`закрыто ${d.n} · <tspan class="lt">попаданий ${d.hit}%</tspan>`:`закрыто ${d.n}`,'end');
     // попадания — дуга от верха
     if(d.n){
       const h=Math.max(0,Math.min(99.9,d.hit))*3.6, p=PT(192,h);
       if(h>0){o+=`<path d="${ARC(192,0,h)}" class="hitg" filter="url(#g1)"/><path d="${ARC(192,0,h)}" pathLength="1" class="hitl a-dr" ${del(1)}/>`;}
       o+=`<path d="${ARC(192,h,359.9)}" class="hitr"/><circle cx="${f2(p[0])}" cy="${f2(p[1])}" r="3" class="hitdot"/>`;
-      const la=h<25?25:h>335?335:h+(h>180?-6:6), lp=PT(262,la);   // у самого верха подпись легла бы на заголовок дня
-      o+=T(lp[0],lp[1],'xs lt',`попаданий ${d.hit}%`,la>180?'end':'start');
+      // подпись попаданий стоит рядом с «закрыто» (17.09: у кольца она ложилась на «10 000 $» справа)
     }
   }
   // диск и итог бота
@@ -1133,7 +1148,7 @@ function drawCols(anim){
       +`<rect x="${selx}" y="${y-13}" width="2" height="30" class="sel"/>`
       +T(x0,y,'tk',`${esc(r.sym)}<tspan class="${dot}" dx="7" font-size="8">●</tspan>`)
       +T(x1,y,'mono sm '+sg(r.money),usd(r.money),'end')
-      +T(x0,y+15,'xs2 dim',`<tspan class="dim2">${r.side<0?'▼':'▲'}</tspan> <tspan class="mono ${r.res==null?'dim2':(r.res<0?'ros':'mid')}">${pct(r.res)}</tspan> ${esc(fit(r.rule,18))}`)
+      +T(x0,y+15,'xs2 dim',`<tspan class="dim2">${r.side<0?'▼':'▲'}</tspan> <tspan class="mono ${r.res==null?'dim2':(r.res<0?'ros':'mid')}">${r.open&&r.res==null?'цена отстала':pct(r.res)}</tspan> ${esc(fit(r.rule,18))}`)
       +`<rect x="${hx0}" y="${y-16}" width="252" height="${RS}" class="hit" data-act="coin" data-sym="${esc(r.sym)}"><title>${esc(r.book+' · '+r.rl+'\n'+r.why)}</title></rect></g>`;
   };
   let o='<g class="fc">'+T(114,250,'ttl','ЗАКРЫТЫ')+T(114,269,'sm amb',cl.length>NV?seen(OFFL,cl.length):'итог зафиксирован')+T(300,262,'cnt',cl.length,'end');
@@ -1185,9 +1200,10 @@ function drawCoin(){
   o+=Ln(350,862,560,862,'ax');
   for(let k=-3;k<=3;k++){const v=R*k/3,x=455+k*35;o+=Ln(x,859,x,865,'tk3')+T(x,880,'mono xs2 '+(k?'dim2':'dim'),k?num(Math.round(v*10)/10,Number.isInteger(Math.round(v*10)/10)?0:1):'вход','middle');}
   o+=Ln(455,848,455,868,'entry');
-  if(st!=null) o+=Ln(X(-st),846,X(-st),868,'stp')+T(X(-st),838,'xs ros','стоп '+num(-st,1)+'%','middle');
-  if(tg!=null){o+=Ln(X(tg),840,X(tg),868,'tgt')+Ln(X(tg),840,X(tg),868,'tgt','filter="url(#g1)"')+T(X(tg),834,'xs amb','цель '+num(tg,1)+'%','middle');
-    o+=`<path d="M${f2(X(res))} 900H${f2(X(tg))}" class="gap"/>`+T((X(res)+X(tg))/2,916,'xs lt','до цели '+num(Math.max(0,tg-res),2).replace('+','')+'%','middle');}
+  if(st!=null) o+=Ln(X(-st),846,X(-st),868,'stp')+T(X(-st)-3,838,'xs ros','стоп '+num(-st,1)+'%','end');   // влево от черты
+  if(tg!=null){o+=Ln(X(tg),840,X(tg),868,'tgt')+Ln(X(tg),840,X(tg),868,'tgt','filter="url(#g1)"')+T(X(tg)+3,834,'xs amb','цель '+num(tg,1)+'%','start');   // вправо от черты
+    if(res>=tg) o+=T(455,916,'xs amb','цель пройдена — закроется на ближайшем прогоне','middle');
+    else o+=`<path d="M${f2(X(res))} 900H${f2(X(tg))}" class="gap"/>`+T((X(res)+X(tg))/2,916,'xs lt','до цели '+num(tg-res,2).replace('+','')+'%','middle');}
   else if(r.open&&w&&w.goal) o+=T(455,916,'xs amb',esc(fit(w.goal.k+' '+w.goal.v,40)),'middle');
   o+=Ln(455,862,X(res),862,res<0?'legr':'legw')+`<path d="M${f2(X(res))} 856l5 6l-5 6l-5 -6z" class="now"/>`+T(X(res),852,'mono xs lt',pct(r.res),'middle');
   // правила выбранного дня

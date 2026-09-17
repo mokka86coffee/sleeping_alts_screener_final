@@ -112,19 +112,25 @@ def _read(p: Path):
 
 
 def rows_of(sym: str) -> list[dict]:
+    """получасовки архива ПО ПОРЯДКУ СВЕЧЕЙ (17.09): раньше брались по порядку строк файла — дозабор пропусков
+    дописывает старые свечи в конец, и «последний бар» мог оказаться старым; повтор свечи — последняя запись"""
     p = ARCH / f"{sym.replace('USDT', '').lower()}.jsonl"
-    out = []
+    by: dict = {}
     if not p.exists():
-        return out
+        return []
     for line in p.read_text(encoding="utf-8").splitlines():
         try:
             r = json.loads(line)
         except ValueError:
             continue
-        if r.get("px") and r.get("h") and r.get("l"):
-            r["t"] = int(datetime.strptime(r["candle"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp() * 1000)
-            out.append(r)
-    return out
+        if r.get("px") and r.get("h") and r.get("l") and r.get("candle"):
+            try:
+                r["t"] = int(datetime.strptime(r["candle"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp() * 1000)
+            except ValueError:
+                continue
+            by[r["t"]] = r
+    now_ms = int(time.time() * 1000)
+    return [by[t] for t in sorted(by) if t <= now_ms]       # свечи из будущего — не бары
 
 
 def zs(C, i, N=20):
@@ -231,6 +237,13 @@ def check_exit(pos: dict, rows: list[dict]) -> tuple[float, str] | None:
 
 BOOK_NAME = "paper_crowd"
 
+# ЗАЩИТА ШОРТОВ (17.09, случай AVA: 18 сделок, 9 стопов подряд, −61.8% с весом): лидера и лестницу не шортим,
+# после стопа — пауза; пропуски пишутся в журнал строкой skip. Логика — в paper_guard.py, пороги в core_config.
+try:
+    import paper_guard as _pg
+except ImportError:
+    _pg = None
+
 
 def _opposite_open(sym: str, side: int) -> str | None:
     """ВСТРЕЧНЫЕ ПОЗИЦИИ (16.09: AKE — crowd взял лонг, end в ту же цену шорт ×2; сумма ноль, комиссия
@@ -274,10 +287,20 @@ def main() -> int:
             if ex:
                 res, why = ex
                 closed.append(dict(pos, sym=sym, kind="exit", result_pct=round(res * 100, 2), result_sized_pct=round(res * pos.get("size", 1.0) * 100, 2), why_exit=why, at=now))
+                if _pg and why.startswith("стоп"):
+                    _pg.note_stop(state, sym, int(pos.get("side") or -1), rows[-1]["t"])
                 del state["open"][sym]
                 print(f"paper_crowd: {sym} · выход · {why} · {res * 100:+.2f}% · {pos['rule']}")
                 pos = None
         sig = signal(rows)
+        if sig and not pos and _pg and sig["t"] > (state.get("last_sig", {}).get(sym) or 0):
+            _why = (_pg.short_blocked(sym, rows) if int(sig.get("side") or -1) < 0 else None) \
+                or _pg.cooldown(state, sym, int(sig.get("side") or -1), sig["t"])
+            if _why:
+                print(f"paper_crowd: {sym} · пропуск — {_why} · {str(sig.get('rule') or '').split(':')[0]}")
+                opened.append(_pg.skip_row(sym, sig, _why, now, BOOK_NAME))
+                state.setdefault("last_sig", {})[sym] = sig["t"]
+                sig = None
         if sig and not pos:
             _opp = _opposite_open(sym, int(sig.get("side") or -1))
             if _opp:

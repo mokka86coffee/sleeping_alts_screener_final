@@ -54,19 +54,25 @@ def _read(p: Path):
 
 
 def rows_of(sym: str) -> list[dict]:
+    """получасовки архива ПО ПОРЯДКУ СВЕЧЕЙ (17.09): по строкам файла последний бар мог быть дозабранной старой
+    свечой; повтор свечи — последняя запись; свечи из будущего не берутся"""
     p = ARCH / f"{sym.replace('USDT', '').lower()}.jsonl"
-    out = []
+    by: dict = {}
     if not p.exists():
-        return out
+        return []
     for line in p.read_text(encoding="utf-8").splitlines():
         try:
             r = json.loads(line)
         except ValueError:
             continue
-        if r.get("px") and r.get("oi"):
-            r["t"] = int(datetime.strptime(r["candle"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp() * 1000)
-            out.append(r)
-    return out
+        if r.get("px") and r.get("oi") and r.get("candle"):
+            try:
+                r["t"] = int(datetime.strptime(r["candle"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp() * 1000)
+            except ValueError:
+                continue
+            by[r["t"]] = r
+    now_ms = int(time.time() * 1000)
+    return [by[t] for t in sorted(by) if t <= now_ms]
 
 
 def bucket(table, run_pct: float):
@@ -118,6 +124,13 @@ def check_exit(pos: dict, rows: list[dict]):
 
 BOOK_NAME = "paper_end"
 
+# ЗАЩИТА ШОРТОВ (17.09, AVA ×2 за день при фандинге −1%: «конец» на лестнице — тряска после ступени, два стопа):
+# лидера и лестницу не шортим, после стопа пауза; пропуски — в журнал строкой skip. Логика в paper_guard.py.
+try:
+    import paper_guard as _pg
+except ImportError:
+    _pg = None
+
 
 def _opposite_open(sym: str, side: int) -> str | None:
     """ВСТРЕЧНЫЕ ПОЗИЦИИ (16.09: AKE — crowd взял лонг, end в ту же цену шорт ×2; сумма ноль, комиссия
@@ -159,10 +172,19 @@ def main() -> int:
             if ex:
                 res, why = ex
                 closed.append(dict(pos, sym=sym, kind="exit", result_pct=round(res * 100, 2), result_sized_pct=round(res * pos["size"] * 100, 2), why_exit=why, at=now))
+                if _pg and why.startswith("стоп"):
+                    _pg.note_stop(state, sym, -1, rows[-1]["t"])
                 del state["open"][sym]
                 print(f"paper_end: {sym} · выход · {why} · {res * 100:+.2f}% × размер {pos['size']} = {res * pos['size'] * 100:+.2f}%")
                 pos = None
         sig = signal(rows)
+        if sig and not pos and _pg and sig["t"] > (state.get("last_sig", {}).get(sym) or 0):
+            _why = _pg.short_blocked(sym, rows) or _pg.cooldown(state, sym, -1, sig["t"])
+            if _why:
+                print(f"paper_end: {sym} · пропуск — {_why}")
+                opened.append(_pg.skip_row(sym, sig, _why, now, BOOK_NAME))
+                state.setdefault("last_sig", {})[sym] = sig["t"]
+                sig = None
         if sig and not pos:
             _opp = _opposite_open(sym, -1)
             if _opp:

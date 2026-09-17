@@ -132,8 +132,14 @@ def follow(write: bool, only: str | None = None) -> int:
                 row["best_after"] = round(max(moves), 2)
                 row["worst_after"] = round(min(moves), 2)
             # что было внутри сделки — по входу, если он есть в журнале
-            ent = next((x for x in rows if x.get("kind") == "entry" and str(x.get("sym") or "").upper() == sym
-                        and (x.get("at") or 0) <= (r.get("at") or 0)), None)
+            # ВХОД — ИЗ СТРОКИ ВЫХОДА (17.09, AVA: след брал ПЕРВЫЙ вход по монете за всё время — при 18 сделках
+            # у всех «вход 0.1566», mae до −100%). Боты копируют позицию в строку выхода: px и t входа там есть.
+            ent = None
+            if r.get("px") and r.get("t"):
+                ent = {"px": r["px"], "at": int(r["t"]) // 1000}
+            else:
+                ent = next((x for x in reversed(rows) if x.get("kind") == "entry" and str(x.get("sym") or "").upper() == sym
+                            and (x.get("at") or 0) <= (r.get("at") or 0)), None)
             if ent and ent.get("px"):
                 e = float(ent["px"])
                 inside = _klines(sym, int((ent.get("at") or 0) * 1000), FOLLOW_MAX_H)
