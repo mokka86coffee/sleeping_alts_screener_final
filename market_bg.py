@@ -74,6 +74,10 @@ try:
 except ImportError:
     BASE_DIR = Path(__file__).resolve().parent
     LEADER_FLOW_HOURS, LEADER_FLOW_BOARD_UP_PCT = 6.0, 0.5
+try:
+    from core_config import BG_WINDOW_H
+except ImportError:
+    BG_WINDOW_H = 24.0
 sys.path.insert(0, str(BASE_DIR))
 
 ARCH = BASE_DIR / "cq_v2"
@@ -94,20 +98,29 @@ def _read(p: Path):
         return None
 
 
-def _today_rows(p: Path, day: str) -> list[dict]:
-    """Бары монеты за сегодня из внутридневного архива (пустые — вон)."""
-    rows = []
+def _window_rows(p: Path, since: str) -> list[dict]:
+    """Бары монеты за последние BG_WINDOW_H часов из внутридневного архива.
+
+    СКОЛЬЗЯЩИЕ СУТКИ ВМЕСТО КАЛЕНДАРНЫХ (17.09, владелец: «поток рыночных заявок и медиана в интро
+    перестали работать»). Раньше брались бары, чья свеча начинается с сегодняшней даты UTC. После
+    перехода на UTC новый день начинается в 00:00 UTC, и первый прогон суток видел один бар: ход
+    каждой монеты за «день» выходил ровно 0, медиана доски 0.00, растущих 0 из 133, а тейкер за день
+    равнялся тейкеру одного бара (17.09 00:48 — 1.30 «покупают» при продающем рынке). Теперь окно
+    скользящее и ночью не обнуляется. Бары сортируются по свече, повтор свечи — последний записанный
+    (дозабор пропусков дописывает старые свечи в конец файла)."""
+    by = {}
     try:
         for line in p.read_text(encoding="utf-8").splitlines():
             try:
                 r = json.loads(line)
             except ValueError:
                 continue
-            if (r.get("candle") or "").startswith(day):
-                rows.append(r)
+            c = r.get("candle") or ""
+            if c >= since:
+                by[c] = r
     except OSError:
         return []
-    return rows
+    return [by[c] for c in sorted(by)]
 
 
 def _streak(sym: str) -> int:
@@ -387,7 +400,7 @@ def _queue_groups() -> dict:
 
 def build(only: list[str] | None = None, now: datetime | None = None, leaders: bool = True) -> dict:
     now = now or datetime.now(timezone.utc)
-    day = now.strftime("%Y-%m-%d")
+    since = (now - timedelta(hours=BG_WINDOW_H)).strftime("%Y-%m-%dT%H:%M:%SZ")
     cg = (_read(BASE_DIR / "output" / "coinglass_fetch.json") or {}).get("coins") or {}
     files = sorted(INTRA.glob("*.jsonl"))
     if only:
@@ -397,7 +410,7 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
     coins = []
     tb = ts = tb_bar = ts_bar = 0.0        # покупки и продажи по всей доске: за день и за последний бар
     for p in files:
-        rows = _today_rows(p, day)
+        rows = _window_rows(p, since)
         if not rows:
             continue
         sym = (rows[-1].get("sym") or p.stem.upper() + "USDT")
@@ -431,7 +444,7 @@ def build(only: list[str] | None = None, now: datetime | None = None, leaders: b
             "bars": len(rows), "skipped": len(rows) - len(full),
         })
     if not coins:
-        return {"at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "note": "нет баров за сегодня"}
+        return {"at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "note": f"нет баров за {BG_WINDOW_H:g} ч"}
 
     # ── СЧЁТ ПО ГРУППАМ (07.09): по всей доске считаем только ширину (сколько растёт, сколько
     # падает) и сильный рост; всё остальное — отдельно по нашим первым и очереди, потому что
