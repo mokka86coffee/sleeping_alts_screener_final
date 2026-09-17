@@ -148,7 +148,7 @@ def _book_count() -> int:
     """Сколько позиций у бота сейчас — для подписи-перехода «книга N» (16.09). Считаем открытые во всех
     бумажных книгах: paper_end, paper_crowd, paper_fast (у последнего позиция может быть в хедже)."""
     n = 0
-    for _nm in ("paper_end.json", "paper_crowd.json", "paper_fast.json"):
+    for _nm in ("paper_end.json", "paper_crowd.json", "paper_fast.json", "paper_bottom.json"):
         for _p in (BASE_DIR / "output" / _nm, BASE_DIR / _nm):
             try:
                 _d = json.loads(_p.read_text(encoding="utf-8"))
@@ -269,6 +269,22 @@ def collect_items() -> list[dict]:
         elif plot.startswith("разгон отпустил") or any(w in last for w in END_WORDS):
             add(sym, 2, (plot or last) + " · выход, не хедж", "выход 100%")
 
+    # ПУЗЫРЬ У ДНА (17.09, владелец: ENA — «пузырь в карте сильный и много за, но ни в звёздах, нигде нет
+    # ничего»). Бот paper_bottom пишет живые сигналы прогона и свои открытые позиции; сигнал — звезда «брать»
+    # с подписью «пузырь у дна», позиция без свежего сигнала — «держать». Только монеты сводки: остальные
+    # части экрана берут данные из near_move. Лидер «тянет одна» ниже всё равно гасит остальные звёзды.
+    try:
+        _pbm = json.loads((BASE_DIR / "output" / "paper_bottom.json").read_text(encoding="utf-8")) or {}
+    except (OSError, ValueError):
+        _pbm = {}
+    for _sg in (_pbm.get("signals") or []):
+        _s = str(_sg.get("sym") or "")
+        if _s in coins:
+            add(_s, 0, f"пузырь у дна · {_sg.get('why') or ''} · от дна {float(_sg.get('dist_now_pct') or 0):+.1f}%",
+                "пузырь у дна", 5.0)
+    for _s, _pp in (_pbm.get("open") or {}).items():
+        if _s in coins:
+            add(_s, 1, f"держать · лонг от дна {float(_pp.get('px') or 0):.6g} · выход — рука ушла", "дно · в работе", 3.0)
     # КОНЕЦ ТРЕНДА (07.09): монеты, выпавшие из очереди — интерес ушёл вместе с ценой на одном
     # баре, — не исчезают, а становятся «у цели · конец тренда»: вход закрыт, для позиции — выход
     for sym, v in coins.items():

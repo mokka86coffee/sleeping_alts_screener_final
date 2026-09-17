@@ -57,7 +57,8 @@ except ImportError:
     SPIKE_FUND_NEG, PAPER_FAST_OI_BARS = -0.01, 4
 BAR_S = 1800                                  # получасовка — единица срока у ботов
 
-BOOKS = (("конец", "paper_end"), ("толпа", "paper_crowd"), ("быстрые", "paper_fast"))
+BOOKS = (("конец", "paper_end"), ("толпа", "paper_crowd"), ("быстрые", "paper_fast"),
+         ("дно", "paper_bottom"))       # 17.09: лонг на белом пузыре 4ч у дна, выход «рука ушла» (paper_bottom.py)
 # ЗАДНИМ ЧИСЛОМ (16.09, paper_backfill.py): реконструкция правил по архиву cq_v2/intraday. С живыми не
 # смешивается — живой журнал свидетельствует о работе бота, backfill только сравнивает правила (в нём нет
 # события доски, запрета встречных позиций и задержек). На экране — отдельный источник, кнопкой.
@@ -142,6 +143,8 @@ def _short_rule(book: str, rule: str) -> str:
     у быстрых правило одно — вортекс, текст события живёт в причине"""
     if book == "быстрые":
         return "вортекс"
+    if book == "дно":
+        return "пузырь у дна"
     s = str(rule or "").split(":")[0].strip()
     return s or book
 
@@ -468,6 +471,8 @@ def _analyse(o: dict) -> dict:
         a.update(why=why, wait=wait + oi_note, close=close)
         a["nearest"] = "событие"
         return a
+    if stem == "paper_bottom":
+        return _analyse_bottom(a, p, o, rows, e, px, res, bars, t_sig, side, oi_note)
     tgt = p.get("target")
     stop = p.get("stop") or (PAPER_CROWD_STOP if stem == "paper_crowd" else None)
     hold = p.get("hold") or (PAPER_CROWD_HOLD if stem == "paper_crowd" else None)
@@ -638,6 +643,62 @@ def _now_facts(a: dict, side: int) -> list[dict]:
     return out
 
 
+def _analyse_bottom(a, p, o, rows, e, px, res, bars, t_sig, side, oi_note) -> dict:
+    """РАЗБОР ПОЗИЦИИ «ДНО» (17.09): почему взята — пузырь 4ч у дна и доводы за; чего ждём — ухода руки;
+    когда закроется — событие, закрытие под дном (не у класса DWF) и срок"""
+    dist = p.get("dist_bubble_pct")
+    why = (f"Лонг у дна: ясный белый пузырь на четырёх часах"
+           + (f" в {float(dist):.1f}% от дна {_px(p.get('bottom'))}" if dist is not None else "")
+           + " — на баре пузыря интерес вырос, позиции открывали, а не закрывали. За: "
+           + "; ".join(f"{k} {v}" for k, v in (p.get("za") or []))
+           + f". Карточка по заходам к дну: {p.get('card_rule') or '—'}. Правило пока наблюдение.")
+    F = []
+    for k, v in (p.get("za") or []):
+        F.append({"k": k, "v": v, "t": "key" if k.startswith("пузырь 4ч") else "good"})
+    if p.get("bottom"):
+        F.append({"k": "дно", "v": _px(p["bottom"]), "t": "neu"})
+    if p.get("card_rule"):
+        F.append({"k": "заходы к дну", "v": p["card_rule"].replace("второй заход к дну ", ""), "t": "neu"})
+    a["facts"] = F
+    a["goal"] = {"k": "ждём", "v": "рука уйдёт", "s": "выход по событию, не по цене"}
+    wait = (f"Держим лонг от {_px(e)}, пока рука здесь. Сейчас {_f(res)}%. Выход — ясный пузырь продажи на "
+            f"четырёх часах, событие конца (не вынос по доске) или интерес вниз несколько баров подряд при "
+            f"стоячей цене." + (" Цены-стопа нет: у класса DWF снятие дна — это сбор."
+                               if p.get("dwf") else f" Страховка — закрытие ниже {_px(p.get('stop_px'))}."))
+    close = [{"k": "событие", "v": "рука ушла", "sh": "пузырь продажи · конец · плечо вниз",
+              "s": "ясный пузырь продажи 4ч · конец не по доске · интерес вниз подряд", "f": 0.0}]
+    frac = {}
+    sp = p.get("stop_px")
+    if sp and px:
+        mv = (float(sp) / px - 1) * 100
+        span = (1 - float(sp) / e) * 100 if e else None
+        close.append({"k": "стоп", "v": _px(sp), "sh": ("под дном" if mv >= 0 else f"цене вниз {abs(mv):.2f}%"),
+                      "s": "закрытие получасовки ниже дна", "f": max(0.0, min(1.0, -(res or 0) / span)) if span else 0.0})
+        frac["стоп"] = max(0.0, -(res or 0)) / span if span else 0.0
+        a["stop_pct"], a["stop_px"] = round(span, 2) if span else None, float(sp)
+    else:
+        close.append({"k": "стоп", "v": "нет", "sh": "класс DWF", "s": "снятие дна у класса DWF — сбор"})
+    hold = int(p.get("hold") or 0)
+    if hold:
+        left = max(0, hold - bars)
+        due = t_sig // 1000 + (hold + 1) * BAR_S if t_sig else None
+        close.append({"k": "срок", "v": f"{min(bars, hold)} из {hold} баров", "sh": (f"~{{T:{due}}}" if due else f"осталось {left}"),
+                      "s": (f"осталось {left} · закроется около {{T:{due}}}" if due else f"осталось {left}"),
+                      "f": min(1.0, bars / hold), "due": due})
+        frac["срок"] = bars / hold
+        a["hold"], a["left"], a["due"] = hold, left, due
+    if frac and max(frac.values()) >= 0.05:
+        a["nearest"] = max(frac, key=frac.get)
+        a["nearest_f"] = round(max(frac.values()), 2)
+    else:
+        a["nearest"], a["nearest_f"], a["fresh"] = "", round(max(frac.values()), 2) if frac else 0, True
+    a["now"] = _now_facts(a, side)
+    a["fast"] = _fast_now(rows)
+    a.update(why=why, wait=wait + oi_note, close=close, dwf=bool(p.get("dwf")))
+    a["done"], a["done_list"] = False, []
+    return a
+
+
 def _exit_text(p: dict) -> str:
     """условие выхода открытой позиции словами с числом"""
     res = p["res"] or 0.0
@@ -646,6 +707,10 @@ def _exit_text(p: dict) -> str:
     bits = []
     if tgt:
         bits.append(f"цель {float(tgt) * 100:.1f}%, до неё {max(0.0, float(tgt) * 100 - res):.2f}%")
+    elif p["book"] == "дно":
+        bits.append("выход: рука ушла — пузырь продажи 4ч, конец не по доске, интерес вниз "
+                    + ("· цены-стопа нет (класс DWF)" if p.get("dwf") else
+                       (f"· закрытие под дном {float(p['stop_px']):.6g}" if p.get("stop_px") else "")))
     elif p["book"] == "быстрые":
         bits.append({"hedged": "в хедже: флип по слому вортекса", "short": "в шорте после флипа"}.get(
             str(p.get("state")), "выход по слому клингера → хедж"))

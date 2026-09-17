@@ -1134,6 +1134,19 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("Близкие", (_rn.stderr or "").strip()[-300:] or f"код {_rn.returncode}")
     except Exception as e:
         _issue("Близкие", f"{type(e).__name__}: {e}")
+    # ── КОНЕЦ ПО ДОСКЕ И «РУКА ВЕРНУЛАСЬ» (17.09, случай ENA): 15.09 «конец тренда» стоял у 61 монеты из ~133 —
+    #    вынос плеча по всему рынку, а не уход руки; флаг закрывал вход и не снимался, когда рука вернулась.
+    #    Правка near_move.json сразу после записи: «вынос доски» вместо конца, «рука вернулась» — флаг снят.
+    #    Исходное значение — в leaving_kind_raw. Сбой прогон не роняет. ──
+    try:
+        _rb = subprocess.run([sys.executable, "analytics_bottom.py", "--fix-near-move", "--write"], cwd=BASE_DIR,
+                             capture_output=True, text=True, timeout=180)
+        for _l in (_rb.stdout or "").strip().splitlines():
+            log(f"→ {_l[:300]}")
+        if _rb.returncode:
+            _issue("Конец по доске", (_rb.stderr or "").strip()[-300:] or f"код {_rb.returncode}")
+    except Exception as e:  # noqa: BLE001
+        _issue("Конец по доске", f"{type(e).__name__}: {e}")
 
     # ── БУМАЖНАЯ КНИГА ПО ПЕРВЫМ (11.09, владелец): каждая монета, что была в первых трёх не меньше
     # трёх прогонов за сутки, — бумажная позиция; четыре выхода на ней считаются независимо
@@ -1458,6 +1471,17 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("Бот по концу", (_re.stderr or "").strip()[-300:] or f"код {_re.returncode}")
     except Exception as e:  # noqa: BLE001
         _issue("Бот по концу", f"{type(e).__name__}: {e}")
+    # ── БУМАЖНЫЙ БОТ «ДНО» (17.09, случай ENA): лонг на ясном белом пузыре 4ч у дна, выход «рука ушла»;
+    #    журнал output/paper_bottom.jsonl, сигналы прогона — звёздам. Наблюдение, в отбор не входит. ──
+    try:
+        _rb2 = subprocess.run([sys.executable, "paper_bottom.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=300)
+        for _l in (_rb2.stdout or "").strip().splitlines():
+            if "вход" in _l or "выход" in _l or _l.startswith("paper_bottom: сигналов"):
+                log(f"→ {_l[:300]}")
+        if _rb2.returncode:
+            _issue("Бот дно", (_rb2.stderr or "").strip()[-300:] or f"код {_rb2.returncode}")
+    except Exception as e:  # noqa: BLE001
+        _issue("Бот дно", f"{type(e).__name__}: {e}")
     # ── СЛЕД ПОСЛЕ ВЫХОДА (16.09): к закрытым сделкам дописывается, куда цена дошла за 1/6/12/24 ч и
     #    что было внутри сделки — по этому видно, резала ли цель ход и выбивало ли стоп хвостом. ──
     try:

@@ -246,6 +246,31 @@ def build_letter(stars: list, market: dict) -> tuple[str, str]:
             add("КОРРЕКЦИЯ (интерес уходит, но совпадения дельты с падением не было) — место добора:")
             add("  · " + ", ".join(x.replace("USDT", "") for x in _corr))
             add("")
+        # ВЫНОС ПО ДОСКЕ И РУКА ВЕРНУЛАСЬ (17.09, analytics_bottom): конец у большой доли доски на одном часе —
+        # фон, вход не закрыт; флаг снят, если после конца был ясный белый пузырь и интерес выше
+        _brd = [k for k, vv in _coins.items() if ((vv.get("today") or {}).get("leaving_kind") == "вынос доски")]
+        _back = [k for k, vv in _coins.items() if ((vv.get("today") or {}).get("end_fix") or {}).get("kind") == "рука вернулась"]
+        if _brd:
+            _sh = ((_coins[_brd[0]].get("today") or {}).get("end_fix") or {}).get("share")
+            add(f"ВЫНОС ПО ДОСКЕ (конец на одном часе у {round(float(_sh or 0) * 100)}% доски — это фон, вход не закрыт): "
+                + f"{len(_brd)} монет")
+            add("")
+        if _back:
+            add("РУКА ВЕРНУЛАСЬ (после конца — ясный белый пузырь и интерес выше) — флаг конца снят:")
+            add("  · " + ", ".join(x.replace("USDT", "") for x in _back))
+            add("")
+        # ПУЗЫРЬ У ДНА (17.09, paper_bottom — наблюдение): живые сигналы прогона
+        try:
+            _pbm = json.loads((BASE_DIR / "output" / "paper_bottom.json").read_text(encoding="utf-8")) or {}
+            _sgs = _pbm.get("signals") or []
+            if _sgs:
+                add("ПУЗЫРЬ У ДНА (ясный белый пузырь 4ч у дна, доводы за, против пусто) — наблюдение:")
+                for _sg in _sgs[:8]:
+                    add(f"  · {str(_sg.get('sym', '')).replace('USDT', '')} — от дна {float(_sg.get('dist_now_pct') or 0):+.1f}% · "
+                        f"{str(_sg.get('why') or '').replace('пузырь у дна · ', '')[:160]} · {_sg.get('card_rule') or ''}")
+                add("")
+        except (OSError, ValueError):
+            pass
         _block("ОТДАЮТ", "giving", " — плечо уходит, отскоки — кандидаты на шорт")
         if not _near_n and not (_nm.get("going") or _nm.get("giving")):
             add("БЛИЗКИЕ К ХОДУ: пока никого")

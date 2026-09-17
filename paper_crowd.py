@@ -236,7 +236,7 @@ def _opposite_open(sym: str, side: int) -> str | None:
     """ВСТРЕЧНЫЕ ПОЗИЦИИ (16.09: AKE — crowd взял лонг, end в ту же цену шорт ×2; сумма ноль, комиссия
     дважды). Смотрим состояния соседних книг: если там уже открыта противоположная сторона по этой
     монете — вход не делаем и пишем, из-за кого."""
-    for _nm in ("paper_end", "paper_crowd", "paper_fast"):
+    for _nm in ("paper_end", "paper_crowd", "paper_fast", "paper_bottom"):     # «дно» — с 17.09
         if _nm == BOOK_NAME:
             continue
         _d = _read(BASE_DIR / "output" / f"{_nm}.json") or {}
