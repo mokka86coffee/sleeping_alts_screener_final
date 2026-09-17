@@ -52,6 +52,53 @@ def daily(base: str) -> dict | None:
     return None
 
 
+def queue_index() -> dict:
+    """ОЧЕРЕДЬ (17.09, владелец показал карточку AVA: 23 → 15 → 2 → 1 за сорок минут и 27 прогонов на первом):
+    sym → [(t прогона, место)] из живого output/queue_log.jsonl и старых журналов _old_runs_*/queue_log.jsonl
+    и QUEUE_LOG_EXTRA из core_config (пути к старым журналам, если лежат отдельно)."""
+    paths = [BASE_DIR / "output" / "queue_log.jsonl"] + sorted(BASE_DIR.glob("_old_runs_*/queue_log.jsonl")) \
+        + sorted(BASE_DIR.glob("_old_runs_*/output/queue_log.jsonl"))
+    try:
+        from core_config import QUEUE_LOG_EXTRA
+        paths += [Path(x) for x in QUEUE_LOG_EXTRA]
+    except ImportError:
+        pass
+    out: dict = {}
+    for p in paths:
+        try:
+            lines = p.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in lines:
+            try:
+                r = json.loads(line)
+                t = int(datetime.strptime(r["at"][:19], "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc).timestamp())
+            except (ValueError, KeyError, TypeError):
+                continue
+            if r.get("sym"):
+                out.setdefault(str(r["sym"]).upper().replace("USDT", ""), []).append((t, r.get("place")))
+    return {k: sorted(v) for k, v in out.items()}
+
+
+def queue_features(q: list[tuple], t0: int) -> dict:
+    """место за час до старта; минут от первого появления в очереди до первой тройки (в окне 6 ч до старта — 2 ч
+    после); прогонов на первом месте в первые 2 ч после старта; None — очередь этого времени не покрывает"""
+    f = {"место за час до старта": None, "минут до топ-3": None, "прогонов на 1-м за 2 ч": None}
+    if not q:
+        return f
+    win = [(t, p) for t, p in q if t0 - 6 * 3600 <= t <= t0 + 2 * 3600]
+    if not win:
+        return f
+    before = [(t, p) for t, p in q if t0 - 5400 <= t <= t0 - 1800 and p is not None]
+    f["место за час до старта"] = before[-1][1] if before else 40           # не в очереди — условно 40-е
+    first_in = next((t for t, p in win if p is not None), None)
+    top3 = next((t for t, p in win if p is not None and p <= 3), None)
+    if first_in is not None and top3 is not None:
+        f["минут до топ-3"] = (top3 - first_in) / 60
+    f["прогонов на 1-м за 2 ч"] = sum(1 for t, p in win if t0 <= t <= t0 + 2 * 3600 and p == 1)
+    return f
+
+
 def load(days: int) -> dict:
     since = int(datetime.now(timezone.utc).timestamp()) - days * 86400
     idx = lj.archive_index(None, since)
@@ -186,6 +233,7 @@ def main() -> int:
     ap.add_argument("--out-h", type=int, default=48)
     a = ap.parse_args()
     data = load(a.days)
+    Q = queue_index()
     eps = episodes(data, a.lead)
     table = []
     for e in eps:
@@ -194,13 +242,15 @@ def main() -> int:
         if not o:
             continue
         f = features(rows, e["i"], e["sym"], leaders_at(data, e["t"], a.lead))
+        f.update(queue_features(Q.get(e["sym"], []), e["t"]))
         table.append({"sym": e["sym"], "t": e["t"], "went": o["макс %"] >= a.went * 100, **o, **f})
     table.sort(key=lambda x: -x["макс %"])
     hm = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime("%d.%m %H:%M")
     print(f"монет {len(data)} · лидеров-эпизодов {len(table)} · старт при ходе 24ч ≥ {a.lead * 100:.0f}% · «пошла» при максимуме ≥ {a.went * 100:.0f}% за {a.out_h} ч")
     cols = ["макс %", "мин %", "закрытие %", "ход 24ч %", "от мин 30д %", "до макс 30д %", "дней от мин 30д", "интерес 24ч %", "интерес к цене 24ч",
             "интерес от мин 30д %", "фандинг", "фандинг мин 24ч", "тейкер 24ч", "дельта 24ч к обороту %", "оборот 24ч к норме 7д", "доля спота %",
-            "ликв шортов к лонгам", "сигнальная растёт, баров", "KVO над сигнальной", "лидеров в тот час", "месячный пузырь σ", "от мин 180д %", "до макс 180д %"]
+            "ликв шортов к лонгам", "сигнальная растёт, баров", "KVO над сигнальной", "лидеров в тот час", "месячный пузырь σ", "от мин 180д %", "до макс 180д %",
+            "место за час до старта", "минут до топ-3", "прогонов на 1-м за 2 ч"]
     print("\nЭПИЗОДЫ")
     print(f"{'монета':9s} {'старт':12s} {'пошла':5s} " + " ".join(f"{c[:12]:>12s}" for c in cols) + "  сессия день")
     for x in table:
