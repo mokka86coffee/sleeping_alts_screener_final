@@ -1413,6 +1413,17 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("Внутридневной архив", (_ri.stderr or "").strip()[-300:] or f"код {_ri.returncode}")
     except Exception as e:
         _issue("Внутридневной архив", f"{type(e).__name__}: {e}")
+    # ── ДОЗАБОР АРХИВА НОВЫМ МОНЕТАМ (17.09, случай ONE: попала в список 17.09 14:30, и всё, что смотрит в историю,
+    #    её не видело). После записи архива — по каждому файлу короче BACKFILL_MIN_BARS тянем историю с биржи. ──
+    try:
+        _rb3 = subprocess.run([sys.executable, "backfill_intraday.py"], cwd=BASE_DIR, capture_output=True, text=True, timeout=600)
+        _tb = [ln for ln in (_rb3.stdout or "").strip().splitlines() if ln.startswith("дозабор:") and "монет" in ln]
+        if _tb and not _tb[-1].endswith("строк 0"):
+            log(f"→ {_tb[-1][:200]}")
+        if _rb3.returncode:
+            _issue("Дозабор архива", (_rb3.stderr or "").strip()[-300:] or f"код {_rb3.returncode}")
+    except Exception as e:  # noqa: BLE001
+        _issue("Дозабор архива", f"{type(e).__name__}: {e}")
     # ── ПЕРЕБОР ОКОН РАЗ В СУТКИ (16.09): lab_scan на 30 днях пишет output/windows.json — окна для карточки и
     #    ботов; тяжёлый (134 × get_klines), поэтому один раз в день, в первый прогон после LAB_SCAN_HOUR UTC. ──
     try:
@@ -1482,6 +1493,18 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("Бот дно", (_rb2.stderr or "").strip()[-300:] or f"код {_rb2.returncode}")
     except Exception as e:  # noqa: BLE001
         _issue("Бот дно", f"{type(e).__name__}: {e}")
+    # ── БУМАЖНЫЙ БОТ «КАРТИНА» (17.09, владелец: «очень быстрая, изначально тупая — все признаки, что знаем,
+    #    сделки каждые полчаса по всем монетам»): сторона по согласию голосов, цель 3%, вместо стопа хедж до разворота.
+    #    Журнал output/paper_sight.jsonl. Сбой прогон не роняет. ──
+    try:
+        _rs2 = subprocess.run([sys.executable, "paper_sight.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=600)
+        for _l in (_rs2.stdout or "").strip().splitlines():
+            if "вход" in _l or "выход" in _l or "хедж" in _l or _l.startswith("paper_sight: открыто"):
+                log(f"→ {_l[:300]}")
+        if _rs2.returncode:
+            _issue("Бот картина", (_rs2.stderr or "").strip()[-300:] or f"код {_rs2.returncode}")
+    except Exception as e:  # noqa: BLE001
+        _issue("Бот картина", f"{type(e).__name__}: {e}")
     # ── СЛЕД ПОСЛЕ ВЫХОДА (16.09): к закрытым сделкам дописывается, куда цена дошла за 1/6/12/24 ч и
     #    что было внутри сделки — по этому видно, резала ли цель ход и выбивало ли стоп хвостом. ──
     try:

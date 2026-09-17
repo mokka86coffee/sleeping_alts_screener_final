@@ -29,6 +29,10 @@ try:
 except ImportError:
     PROFILE_LEAD_PCT, PROFILE_MIN_MARKS, PROFILE_BOTTOM_DAYS = 20.0, 5, 1.0
     PROFILE_FUND_MIN, PROFILE_LIQ_RATIO, PROFILE_MAX_LEADERS, PROFILE_ROOM_PCT = 0.1, 2.0, 2, 5.0
+try:
+    from core_config import PROFILE_MAX_DAYS, PROFILE_RETIRE_DD, PROFILE_RETIRE_OI_RUNS
+except ImportError:
+    PROFILE_MAX_DAYS, PROFILE_RETIRE_DD, PROFILE_RETIRE_OI_RUNS = 3.0, 40.0, 4
 
 BAR = 1800
 MARKS = ("очередь", "держит", "со дна", "шорты платят", "выносят шортов", "одна", "сверху есть куда")
@@ -74,10 +78,31 @@ def _m24(rows: list[dict], i: int) -> float | None:
     return (float(rows[i]["px"]) / float(rows[j]["px"]) - 1) * 100
 
 
+def retired(rows: list[dict], i0: int) -> tuple[str | None, dict]:
+    """ВЫБЫВАНИЕ ЛИДЕРА — ПО ПЛЕЧУ, НЕ ПО ЦЕНЕ (правило 13.09, здесь то же): интерес падает PROFILE_RETIRE_OI_RUNS
+    прогонов подряд при нерастущей цене И откат от вершины с момента старта больше PROFILE_RETIRE_DD.
+    Возвращает причину (или None — лидер жив) и числа: откат от вершины, баров интереса вниз"""
+    seg = rows[i0:]
+    peak = max(float(x["h"]) for x in seg)
+    c = float(rows[-1]["px"])
+    dd = (1 - c / peak) * 100
+    run = 0
+    for k in range(len(rows) - 1, i0, -1):
+        a, b = rows[k], rows[k - 1]
+        if a.get("oi") and b.get("oi") and float(a["oi"]) < float(b["oi"]) and float(a["px"]) <= float(b["px"]):
+            run += 1
+        else:
+            break
+    num = {"откат от вершины %": round(dd, 1), "интерес вниз баров": run}
+    if run >= PROFILE_RETIRE_OI_RUNS and dd >= PROFILE_RETIRE_DD:
+        return f"рука ушла: интерес вниз {run} бара подряд, от вершины −{dd:.0f}%", num
+    return None, num
+
+
 def start_index(rows: list[dict], now: float) -> int | None:
-    """старт лидера: первый бар за последние двое суток, где ход за сутки перевалил PROFILE_LEAD_PCT снизу;
-    если все двое суток был выше — самый ранний бар окна"""
-    lo = next((k for k, r in enumerate(rows) if now - r["t"] <= 48 * 3600), None)
+    """старт лидера: первый бар за последние PROFILE_MAX_DAYS суток, где ход за сутки перевалил PROFILE_LEAD_PCT
+    снизу; если всё окно был выше — самый ранний бар окна"""
+    lo = next((k for k, r in enumerate(rows) if now - r["t"] <= PROFILE_MAX_DAYS * 86400), None)
     if lo is None:
         return None
     prev = _m24(rows, lo - 1) if lo >= 1 else None
@@ -146,8 +171,9 @@ def profile_all() -> list[dict]:
     out = []
     for base, rows in coins.items():
         i0 = start_index(rows, now)
-        if i0 is None or now - rows[i0]["t"] > 24 * 3600:
+        if i0 is None or now - rows[i0]["t"] > PROFILE_MAX_DAYS * 86400:
             continue
+        why_out, live = retired(rows, i0)
         t0 = rows[i0]["t"]
         n_lead_start = 0
         for b2, r2 in coins.items():
@@ -161,18 +187,22 @@ def profile_all() -> list[dict]:
         now_place = next((p for t, p in reversed(q.get(sym, [])) if now - t <= 2400), None)
         out.append({"sym": sym, "n": res["n"], "marks": res["marks"], "num": res["num"],
                     "start": datetime.fromtimestamp(t0, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                    "move24": round(lead_now.get(base) or 0, 1), "place_now": now_place})
+                    "move24": round(lead_now.get(base) or 0, 1), "place_now": now_place,
+                    "retired": why_out, "live": live})
     out.sort(key=lambda x: (-x["n"], -x["move24"]))
     return out
 
 
 def stars() -> list[dict]:
     """звёзды первого экрана: лидеры дня с отметками от PROFILE_MIN_MARKS"""
-    return [x for x in profile_all() if x["n"] >= PROFILE_MIN_MARKS]
+    return [x for x in profile_all() if x["n"] >= PROFILE_MIN_MARKS and not x.get("retired")]
 
 
 if __name__ == "__main__":
     for x in profile_all():
         lit = " · ".join(k for k, v in x["marks"].items() if v)
         off = " · ".join(k for k, v in x["marks"].items() if not v)
-        print(f"{x['sym'][:-4]:9s} {x['n']} из 7 · старт {x['start'][5:16]} · сейчас {x['move24']:+.0f}% за сутки, место {x['place_now'] or '—'} · горит: {lit or '—'} · нет: {off or '—'} · {x['num']}")
+        print(f"{x['sym'][:-4]:9s} {x['n']} из 7 · старт {x['start'][5:16]} · сейчас {x['move24']:+.0f}% за сутки, место {x['place_now'] or '—'}, "
+              f"от вершины −{x['live']['откат от вершины %']}%, интерес вниз {x['live']['интерес вниз баров']} б."
+              + (f" · ВЫБЫЛА: {x['retired']}" if x.get('retired') else "")
+              + f" · горит: {lit or '—'} · нет: {off or '—'} · {x['num']}")
