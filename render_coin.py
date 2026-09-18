@@ -315,7 +315,7 @@ def _finite(x):
     return x
 
 
-def _fast_events(days: int | None = None) -> dict:
+def _fast_events(days: int | None = None, only: list | None = None) -> dict:
     """БЫСТРЫЙ СЛОЙ КАРТОЧКИ (11.09, владелец): события за окно плиты по каждой монете архива —
     sym → {bubbles, end, force, entry, hedge, start}. Пузыри, событие конца и сила — из
     внутридневного архива теми же формулами, что в near_move; вход и хедж вихря — из журнала
@@ -330,6 +330,9 @@ def _fast_events(days: int | None = None) -> dict:
         FAST_EVENTS_DAYS, FAST_SIGMA_DAYS, FAST_BUBBLE_SIGMA, FAST_BUBBLE_OI_PCT, FAST_END_OI_PCT, FAST_FORCE_EMA = 3, 7, 2.0, 1.5, -2.0, (12, 26, 9)
         KLINGER_30M_EMA, VORTEX_N, FAST_KLINES_LIMIT = (34, 55, 13), 14, 260
     days = days or FAST_EVENTS_DAYS
+    # ТОЛЬКО НУЖНЫЕ МОНЕТЫ (18.09): сводке наблюдения (watch_brief) нужны быстрые по двум-трём монетам,
+    # а не по всей доске. Без параметра поведение прежнее: вся папка архива.
+    _only = {str(x).upper().replace("USDT", "") for x in (only or [])} or None
     out: dict = {}
     d = next((q for q in (Path("cq_v2") / "intraday",
                           Path(__file__).resolve().parent / "cq_v2" / "intraday") if q.exists()), None)
@@ -383,6 +386,8 @@ def _fast_events(days: int | None = None) -> dict:
         return vx, kl
 
     for p in d.glob("*.jsonl"):
+        if _only is not None and p.stem.upper() not in _only:
+            continue
         rows = []
         try:
             for line in p.read_text(encoding="utf-8").splitlines():
@@ -459,6 +464,8 @@ def _fast_events(days: int | None = None) -> dict:
         # стоял заменитель и разворот клингера не увидел). Берём и журнал лидеров, лидеров по пампу, очередь,
         # звёзды, книгу — новая монета журнала получает ряды по бирже с первого прогона.
         _want = set(out.keys())
+        if _only is not None:
+            _want = {q + "USDT" for q in _only}
         for _name in ("leaders.json", "pump_leaders.json"):
             for _k in (_read_json(_name) or {}).keys():
                 if not str(_k).startswith("_"):
@@ -698,7 +705,7 @@ def render_coin(stars: list[dict], market: dict) -> str:
     except Exception:  # noqa: BLE001 — журнал не должен ронять карточку
         pass
     # ЖИЗНЬ ПЛАШКИ МОМЕНТА (18.09, владелец: «увеличь время жизни плашки на час» — второе окно):
-    # до открытия следующей сессии — как было, час; после открытия — было полтора часа, стало два с половиной.
+    # до открытия следующей сессии — час, после открытия — было полтора часа, стало два с половиной.
     try:
         from core_config import COIN_MOMENT_PRE_MIN, COIN_MOMENT_POST_MIN
     except ImportError:
@@ -2435,7 +2442,7 @@ COIN_JS = r"""
         // ПОРОГ ЭКСТРЕМУМА (15.09, по LAB в штиле: сутки в коридоре 6% давали по десять «сломов» в день — экстремумы
         // крошечные). Слом считается только от экстремума, который что-то значит: у вортекса |разрыв| ≥ BRK_MIN_VX
         // (0.25), у клингера — |разрыв| ≥ BRK_MIN_KL от размаха разрыва за окно (0.25). Мелкие волны — не сломы.
-        var EXT = 6, BRK_MIN_VX = 0.25, BRK_MIN_KL = 0.25;   // 0.25 по LAB: 12 сломов за три дня → 6, и каждый — на настоящем отскоке
+        var EXT = 6, BRK_MIN_VX = 0.25, BRK_MIN_KL = 0.25, MOVE_VX_BARS = 3;   // MOVE_VX_BARS — сколько баров подряд должна расти линия вортекса (18.09)   // 0.25 по LAB: 12 сломов за три дня → 6, и каждый — на настоящем отскоке
         var big = name === 'клингер' ? BRK_MIN_KL * mx : BRK_MIN_VX;
         function isMax(arr, i) { for (var k = Math.max(0, i - EXT); k < i; k++) if (arr[k] > arr[i]) return false; return true; }
         function isMin(arr, i) { for (var k = Math.max(0, i - EXT); k < i; k++) if (arr[k] < arr[i]) return false; return true; }
@@ -2456,7 +2463,31 @@ COIN_JS = r"""
         out += hatch(y, XR);
         // СТРЕЛКА СЛОМА — НА ЛИНИИ ЦЕНЫ (14.09 вечер, владелец): только последний слом каждого индикатора,
         // на самом графике, с подписью индикатора. Здесь лишь собираем; рисуется после лент, поверх цены.
-        if (lastT != null) BREAKS.push({ t: rows[lastT][0], side: brk[lastT], name: name });
+        // СТРЕЛКА — ДВИЖЕНИЕ, НЕ СЛОМ (18.09, владелец: «для вортекса важен стабильный прирост линии, а не последний
+        // перекос; для клингера — момент, когда начался спад, по последним двум барам; внизу написано верно, а стрелка
+        // противоречит, и её замечаешь первой»). Вортекс: линия покупателей (r[1]) растёт MOVE_VX_BARS баров подряд → +1,
+        // продавцов (r[2]) растёт → −1, иначе 0. Клингер: осциллятор (r[1]) два бара вверх → +1, два вниз → −1.
+        // Последний слом остаётся во всплывашке и в подписи STATE.
+        var mv = 0, n = rows.length;
+        if (name === 'клингер') {
+          if (n >= 3) { var k0 = +rows[n - 3][1], k1 = +rows[n - 2][1], k2 = +rows[n - 1][1];
+            mv = (k2 > k1 && k1 > k0) ? 1 : (k2 < k1 && k1 < k0) ? -1 : 0; }
+        } else {
+          var upB = true, upS = true;
+          for (var q = n - MOVE_VX_BARS; q < n; q++) { if (q < 1) { upB = upS = false; break; }
+            if (!(+rows[q][1] > +rows[q - 1][1])) upB = false; if (!(+rows[q][2] > +rows[q - 1][2])) upS = false; }
+          mv = (upB && !upS) ? 1 : (upS && !upB) ? -1 : 0;
+        }
+        if (mv) BREAKS.push({ t: rows[n - 1][0], side: mv, name: name, move: true, lastBrk: (lastT != null ? { t: rows[lastT][0], side: brk[lastT] } : null) });
+        // КРЕСТ С СИГНАЛЬНОЙ (18.09, владелец): последнее пересечение осциллятора клингера с сигнальной — восклицательный
+        // знак на баре пересечения: зелёный — вверх (в сторону роста), красный — вниз. Отдельно от стрелки движения.
+        if (name === 'клингер') {
+          for (var c = n - 1; c >= 1; c--) {
+            var a1 = +rows[c][1] - +rows[c][2], a0 = +rows[c - 1][1] - +rows[c - 1][2];
+            if (a1 > 0 && a0 <= 0) { BREAKS.push({ t: rows[c][0], side: 1, name: name, cross: true }); break; }
+            if (a1 < 0 && a0 >= 0) { BREAKS.push({ t: rows[c][0], side: -1, name: name, cross: true }); break; }
+          }
+        }
         var lg = gaps[gaps.length - 1];
         // строка под плитой: подписи тусклые, ЗНАЧЕНИЯ ярко (владелец, 14.09 вечер)
         STATE[name] = (lg > 0 ? 'давят <b>покупатели</b>' : lg < 0 ? 'давят <b>продавцы</b>' : '<b>ровно</b>') + ' · сила <b>' + Math.round(Math.abs(lg) / mx * 100) + '%</b>'
@@ -2550,6 +2581,14 @@ COIN_JS = r"""
       // подсвети буквы»): стрелка над точкой цены своего бара, направление — треугольником; два слома на одном
       // баре — второй выше первого; буква В/К светится цветом слома, полное имя и время — в подсказке.
       var placed = [];
+      function bkTip(bk) {
+        var up = bk.side > 0;
+        if (!bk.move) return bk.name + ' · слом ' + (up ? 'вверх' : 'вниз') + ' · ' + hhmm(bk.t);
+        if (bk.cross) return bk.name + ' · крест с сигнальной ' + (up ? 'вверх' : 'вниз') + ' · ' + hhmm(bk.t);
+        var what = bk.name === 'клингер' ? (up ? 'два бара вверх — рост' : 'два бара вниз — спад начался')
+                                          : (up ? 'линия покупателей растёт ' + MOVE_VX_BARS + ' бара подряд' : 'линия продавцов растёт ' + MOVE_VX_BARS + ' бара подряд');
+        return bk.name + ' · ' + what + (bk.lastBrk ? ' · последний слом ' + (bk.lastBrk.side > 0 ? 'вверх' : 'вниз') + ' ' + hhmm(bk.lastBrk.t) : '');
+      }
       BREAKS.forEach(function (bk) {
         var bar = null; for (var q = 0; q < win.length; q++) { if (win[q][0] <= bk.t) bar = win[q]; else break; }
         if (!bar) return;
@@ -2560,10 +2599,10 @@ COIN_JS = r"""
         var tri = up ? 'M' + (x - sz).toFixed(1) + ',' + (ya + sz * .8).toFixed(1) + ' h' + (2 * sz) + ' l-' + sz + ',-' + (sz * 1.6) + ' z'
                      : 'M' + (x - sz).toFixed(1) + ',' + (ya - sz * .8).toFixed(1) + ' h' + (2 * sz) + ' l-' + sz + ',' + (sz * 1.6) + ' z';
         var left = x > W - 30, tx = left ? x - 12 : x + 12, anchor = left ? 'end' : 'start';
-        var letter = bk.name === 'клингер' ? 'К' : 'В';
+        var letter = bk.cross ? '!' : (bk.name === 'клингер' ? 'К' : 'В');
         g += '<g class="turn"><circle cx="' + x.toFixed(1) + '" cy="' + ya + '" r="8" fill="none" stroke="' + col + '" stroke-width=".7" opacity=".7"/></g>'
-          + '<path d="' + tri + '" fill="' + col + '" data-tip="' + esc(bk.name + ' · слом ' + (up ? 'вверх' : 'вниз') + ' · ' + hhmm(bk.t)) + '"/>'
-          + '<text class="bk" x="' + tx.toFixed(1) + '" y="' + (ya + 3.2) + '" text-anchor="' + anchor + '" fill="' + col + '" style="--c:' + col + '" data-tip="' + esc(bk.name + ' · слом ' + (up ? 'вверх' : 'вниз') + ' · ' + hhmm(bk.t)) + '">' + letter + '</text>';
+          + (bk.cross ? '' : '<path d="' + tri + '" fill="' + col + '" data-tip="' + esc(bkTip(bk)) + '"/>')
+          + '<text class="bk" x="' + tx.toFixed(1) + '" y="' + (ya + 3.2) + '" text-anchor="' + anchor + '" fill="' + col + '" style="--c:' + col + '" data-tip="' + esc(bkTip(bk)) + '">' + letter + '</text>';
       });
       ['3 дн', '36 ч', 'сейчас'].forEach(function (t, k) { g += '<text class="ax" x="' + X(tBeg + k * (tEnd - tBeg) / 2).toFixed(1) + '" y="' + (GY + 12) + '" text-anchor="' + (k === 0 ? 'start' : k === 2 ? 'end' : 'middle') + '">' + t + '</text>'; });
       var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '">' + g + '</svg>';
