@@ -131,23 +131,28 @@ def marks_for(rows: list[dict], i0: int, q: list[tuple], n_lead_start: int) -> d
     hi30 = max(float(x["h"]) for x in rows[w0:i0 + 1])
     num["до макс 30д %"] = round((hi30 / c - 1) * 100, 1)
     m["сверху есть куда"] = num["до макс 30д %"] >= PROFILE_ROOM_PCT
+    # НЕИЗВЕСТНОЕ НЕ СЧИТАЕТСЯ ПРОТИВ (17.09, ONE: старт в дозабранном архиве — фандинга, ликвидаций и очереди там
+    # нет; отметка None — «посчитать нельзя», и порог берётся долей от известных)
     fund = r.get("funding")
     fs = [x.get("funding") for x in rows[max(0, i0 - 48):i0 + 1] if x.get("funding") is not None]
     num["фандинг"] = fund
-    m["шорты платят"] = fund is not None and fund < 0 and bool(fs) and min(fs) <= -PROFILE_FUND_MIN
+    m["шорты платят"] = None if fund is None else (fund < 0 and bool(fs) and min(fs) <= -PROFILE_FUND_MIN)
     lq = r.get("liq24") or {}
     ratio = (float(lq["short"]) / float(lq["long"])) if (lq.get("long") and lq.get("short") is not None and float(lq["long"])) else None
     num["ликв шортов к лонгам"] = round(ratio, 1) if ratio is not None else None
-    m["выносят шортов"] = ratio is not None and ratio >= PROFILE_LIQ_RATIO
+    m["выносят шортов"] = None if ratio is None else (ratio >= PROFILE_LIQ_RATIO)
     num["лидеров на доске"] = n_lead_start
     m["одна"] = n_lead_start <= PROFILE_MAX_LEADERS
+    covered = any(t0 - 5400 <= t <= t0 + 2 * 3600 for t, p in q)          # журнал очереди вообще покрывает старт
     before = [(t, p) for t, p in q if t0 - 5400 <= t <= t0 - 1800 and p is not None]
     num["место за час до старта"] = before[-1][1] if before else None
-    m["очередь"] = bool(before) and before[-1][1] <= 3
+    m["очередь"] = None if not covered else (bool(before) and before[-1][1] <= 3)
     after = [p for t, p in q if t0 <= t <= t0 + 2 * 3600]
     num["первых мест за 2 ч"] = sum(1 for p in after if p == 1)
-    m["держит"] = num["первых мест за 2 ч"] >= 2
-    return {"marks": m, "num": num, "n": sum(1 for v in m.values() if v)}
+    m["держит"] = None if not covered else (num["первых мест за 2 ч"] >= 2)
+    lit = sum(1 for v in m.values() if v)
+    known = sum(1 for v in m.values() if v is not None)
+    return {"marks": m, "num": num, "n": lit, "known": known}
 
 
 def profile_all() -> list[dict]:
@@ -185,7 +190,7 @@ def profile_all() -> list[dict]:
         sym = base + "USDT"
         res = marks_for(rows, i0, q.get(sym, []), max(1, n_lead_start))
         now_place = next((p for t, p in reversed(q.get(sym, [])) if now - t <= 2400), None)
-        out.append({"sym": sym, "n": res["n"], "marks": res["marks"], "num": res["num"],
+        out.append({"sym": sym, "n": res["n"], "known": res["known"], "marks": res["marks"], "num": res["num"],
                     "start": datetime.fromtimestamp(t0, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                     "move24": round(lead_now.get(base) or 0, 1), "place_now": now_place,
                     "retired": why_out, "live": live})
@@ -195,14 +200,19 @@ def profile_all() -> list[dict]:
 
 def stars() -> list[dict]:
     """звёзды первого экрана: лидеры дня с отметками от PROFILE_MIN_MARKS"""
-    return [x for x in profile_all() if x["n"] >= PROFILE_MIN_MARKS and not x.get("retired")]
+    def ok(x):
+        k = x.get("known", 7)
+        return x["n"] >= PROFILE_MIN_MARKS or (k < 7 and x["n"] >= 3 and x["n"] / k >= PROFILE_MIN_MARKS / 7)
+    return [x for x in profile_all() if ok(x) and not x.get("retired")]
 
 
 if __name__ == "__main__":
     for x in profile_all():
         lit = " · ".join(k for k, v in x["marks"].items() if v)
-        off = " · ".join(k for k, v in x["marks"].items() if not v)
-        print(f"{x['sym'][:-4]:9s} {x['n']} из 7 · старт {x['start'][5:16]} · сейчас {x['move24']:+.0f}% за сутки, место {x['place_now'] or '—'}, "
-              f"от вершины −{x['live']['откат от вершины %']}%, интерес вниз {x['live']['интерес вниз баров']} б."
+        off = " · ".join(k for k, v in x["marks"].items() if v is False)
+        unk = " · ".join(k for k, v in x["marks"].items() if v is None)
+        print(f"{x['sym'][:-4]:9s} {x['n']} из {x['known']} известных" + (f" (нет данных: {unk})" if unk else "")
+              + f" · старт {x['start'][5:16]} · сейчас {x['move24']:+.0f}% за сутки, место {x['place_now'] or '—'}, "
+              + f"от вершины −{x['live']['откат от вершины %']}%, интерес вниз {x['live']['интерес вниз баров']} б."
               + (f" · ВЫБЫЛА: {x['retired']}" if x.get('retired') else "")
               + f" · горит: {lit or '—'} · нет: {off or '—'} · {x['num']}")

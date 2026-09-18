@@ -368,13 +368,15 @@ def collect_items() -> list[dict]:
         seen.clear()
         for _x in _stars:
             _lit = [k for k, v in _x["marks"].items() if v]
-            _off = [k for k, v in _x["marks"].items() if not v]
-            _why = (f"профиль лидера {_x['n']} из 7 · +{_x['move24']:.0f}% за сутки · горит: " + ", ".join(_lit)
-                    + (" · нет: " + ", ".join(_off) if _off else ""))
+            _off = [k for k, v in _x["marks"].items() if v is False]
+            _unk = [k for k, v in _x["marks"].items() if v is None]
+            _kn = _x.get("known", 7)
+            _why = (f"профиль лидера {_x['n']} из {_kn}" + (" известных" if _kn < 7 else "") + f" · +{_x['move24']:.0f}% за сутки · горит: " + ", ".join(_lit)
+                    + (" · нет: " + ", ".join(_off) if _off else "") + (" · нет данных: " + ", ".join(_unk) if _unk else ""))
             _n = _x["num"]
-            _sub = (f"{_x['n']} из 7 на старте {_x['start'][11:16]} UTC · со дна {_n.get('дней от мин')} дн · "
+            _sub = (f"{_x['n']} из {_kn} на старте {_x['start'][11:16]} UTC · со дна {_n.get('дней от мин')} дн · "
                     f"фандинг {_n.get('фандинг')} · место было {_n.get('место за час до старта') or '—'}, сейчас {_x.get('place_now') or '—'}")
-            add(_x["sym"], 0 if _x["n"] >= 6 else 1, _why, _sub, float(_x["n"]))
+            add(_x["sym"], 0 if (_x["n"] >= 6 or _x["n"] == _kn) else 1, _why, _sub, float(_x["n"]))
     except Exception as _e:  # noqa: BLE001
         print(f"профиль лидера не собрался: {type(_e).__name__}: {_e}", file=sys.stderr)
     # порядок: брать, держать, у цели; внутри группы — по надёжности, самая надёжная первой
@@ -460,8 +462,10 @@ def render_intro(items: list[dict] | None = None) -> str:
     # без зелени и искр, тусклее, короткие лучи, стоят НИЖНИМ рядом над подписями —
     # «на скамейке»; держать — созвездие выше, с зелёной подсветкой
     counts = [sum(1 for it in items if it["g"] == k) for k in (0, 1, 2, 4)]
-    labels = [{"n": f"первые {counts[0]}", "sym": "", "g": 0, "why": "", "label": True},
-              {"n": f"в очереди {counts[1]}", "sym": "", "g": 1, "why": "", "label": True},
+    # ПОДПИСИ ГРУПП — ПО ПРОФИЛЮ (18.09): звёзды с 17.09 только по профилю лидера, «первые» и «в очереди» больше
+    # не про очередь: группа 0 — профиль полный (шесть-семь отметок или все известные), группа 1 — на границе (пять)
+    labels = [{"n": f"профиль полный {counts[0]}", "sym": "", "g": 0, "why": "", "label": True},
+              {"n": f"на границе {counts[1]}", "sym": "", "g": 1, "why": "", "label": True},
               {"n": f"у цели {counts[2]}", "sym": "", "g": 2, "why": "", "label": True}]
     if counts[3]:
         labels.append({"n": f"остывшие {counts[3]}", "sym": "", "g": 4, "why": "", "label": True})
@@ -647,7 +651,7 @@ def render_intro(items: list[dict] | None = None) -> str:
                 "sym": _sym.replace("USDT", ""),
                 "risk": _risk[:3],
                 "run_pct": _l.get("run_pct"),
-                "state": "тянет одна" if len(_live) == 1 else f"тянут {len(_live)}",
+                "state": "лидер" if len(_live) == 1 else f"лидеров {len(_live)}",   # 18.09: «тянет одна» и запрет входа сняты
                 "line": f"+{_l.get('run_pct') or 0:.0f}% от основы"
                         + (f" · {_l['day_pct']:+.0f}% за сутки" if _l.get("day_pct") is not None else "")
                         + (" · наша" if _l.get("mine") else " · не из выборки"),
@@ -1901,7 +1905,7 @@ function drawFx(t){
         // СНЯТИЕ ПРИ МНОГИХ ЛИДЕРАХ (16.09): плашка живёт в JS и своей проверкой по разрыву, поэтому
         // питоновское снятие её не касалось — гасим здесь же и пишем, почему вход открыт.
         : ((DATA.many) ? '<u class="lift">'+((DATA.many.why)||'ограничения сняты')+'</u>'
-            : ((L.lead_gap||0)>=5 ? '<u>вход в остальных закрыт</u>' : '')))
+            : ''))   // 18.09: «вход в остальных закрыт» снят — звёзды только по профилю, ограничений по лидеру нет
 ;
   } else if(el){
     if(SESSCAPS){ el.className='lead'; el.innerHTML='<i>фон</i>'+SESSCAPS; }
