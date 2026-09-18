@@ -25,5 +25,14 @@
   "method": "global",
   "altseason": 40,
   "stable_turnover": 0.321
+ },
+ {
+  "date": "2026-09-18",
+  "stables_pct": 10.8,
+  "btc_dom_pct": 58.55,
+  "src": "coinmarketcap",
+  "method": "global",
+  "altseason": 42,
+  "stable_turnover": 0.266
  }
 ]
