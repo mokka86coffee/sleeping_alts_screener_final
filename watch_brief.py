@@ -27,7 +27,7 @@ BASE_DIR = Path(__file__).resolve().parent
 try:
     from core_config import (WATCH_FILE, WATCH_JUMP_BAR_PCT, WATCH_JUMP_HOUR_PCT, WATCH_VOL_X,
                              WATCH_FUND_PCT, WATCH_UNLOCK_DAYS, WATCH_HEDGE_PRE_MIN, WATCH_HEDGE_POST_MIN,
-                             WATCH_SESSIONS)
+                             WATCH_SESSIONS, WATCH_PICK_BARS, WATCH_PICK_CONFIRM)
 except ImportError:                                   # пороги живут в core_config; здесь — запасные значения
     WATCH_FILE = "watch.json"
     WATCH_JUMP_BAR_PCT = 3.0        # рывок цены за получасовку, % — событие
@@ -37,6 +37,8 @@ except ImportError:                                   # пороги живут 
     WATCH_UNLOCK_DAYS = 3           # разлок ближе этого числа дней — событие
     WATCH_HEDGE_PRE_MIN = 60        # за сколько минут до открытия сессии просить хеджировать
     WATCH_HEDGE_POST_MIN = 30       # сколько минут после открытия просить следить за хеджами
+    WATCH_PICK_BARS = 3             # сколько закрытых баров читаем подхват (владелец 18.09: полтора часа)
+    WATCH_PICK_CONFIRM = 4          # и ещё один бар — подтверждение
     WATCH_SESSIONS = [(21, "Сидней"), (0, "Токио"), (7, "Лондон"), (13, "Нью-Йорк")]
 
 STATE_NAME = "watch_state.json"     # что уже отправлено — чтобы не повторять одно и то же событие
@@ -114,8 +116,10 @@ def _usd(v) -> str:
 
 
 def _loc(ts_ms) -> str:
-    """время — в часах смотрящего (правило 12.09), из миллисекунд UTC"""
-    return datetime.fromtimestamp(ts_ms / 1000).strftime("%H:%M")
+    """время — в часах смотрящего (правило 12.09); если бар не сегодняшний, ставится дата,
+    иначе вчерашнее событие читается как будущее (18.09: «конец 20:30» в 17:45)"""
+    d = datetime.fromtimestamp(ts_ms / 1000)
+    return d.strftime("%H:%M") if d.date() == datetime.now().date() else d.strftime("%d.%m %H:%M")
 
 
 def _ms(c) -> int | None:
@@ -151,16 +155,91 @@ def session_head(now: datetime | None = None) -> tuple[str, str]:
             f"{to_m // 60}:{to_m % 60:02d}", "")
 
 
-def pickup_line(near_sym: dict) -> tuple[str, str]:
-    """Подхват последнего открытия — из near_move (его же показывают звёзды и карточка)."""
-    np_ = ((near_sym or {}).get("today") or {}).get("sess_pickup") or {}
-    if not np_ or not np_.get("at"):
-        return "подхват не прочитан", ""
-    t = _ms(np_.get("at"))
-    s = f"{np_.get('session') or '—'} {(_loc(t) if t else '')}"
-    if np_.get("pickup"):
-        return (f"{s} подхватил — новые руки с плечом, хедж можно снимать", f"pickup:{np_.get('at')}:1")
-    return (f"{s} НЕ подхватил — цену отпускают до следующей сессии, хедж держать", f"pickup:{np_.get('at')}:0")
+def _bar_qv(r) -> float:
+    v = float((r.get("kv") or {}).get("qv") or 0)
+    if not v:
+        f = r.get("fut") or {}
+        v = float(f.get("b") or 0) + float(f.get("s") or 0)
+    return v
+
+
+def _bar_delta(r):
+    f = r.get("fut") or {}
+    if f.get("b") is None or f.get("s") is None:
+        return None
+    return float(f["b"]) - float(f["s"])
+
+
+def pickup_line(rows: list) -> tuple[str, str]:
+    """ПОДХВАТ СЕССИИ (18.09): в near_move его нет, поэтому считаем сами по правилу карточки —
+    оборот к норме этой сессии, прирост интереса и дельта. Владелец: читать по WATCH_PICK_BARS барам
+    (полтора часа), ещё один бар — подтверждение, «возможно хедж нужно будет снять»."""
+    if not rows:
+        return "подхват не прочитан — архива нет", ""
+    step = 30 * 60 * 1000
+    now = rows[-1]["_t"]
+    # последнее открытие сессии, которое уже в архиве
+    opens = []
+    for r in rows[-96:]:
+        d = datetime.fromtimestamp(r["_t"] / 1000, timezone.utc)
+        for h, nm in WATCH_SESSIONS:
+            if d.hour == h and d.minute == 0:
+                opens.append((r["_t"], nm))
+    if not opens:
+        return "стыка в архиве нет", ""
+    t0, name = opens[-1]
+    idx = {r["_t"]: i for i, r in enumerate(rows)}
+    i0 = idx.get(t0)
+    if i0 is None:
+        return f"{name} — бара открытия нет в архиве", ""
+    have = len(rows) - 1 - i0                       # сколько закрытых баров после открытия
+    loc = _loc(t0)
+    if have < WATCH_PICK_BARS:
+        return (f"{name} {loc} · подхват ещё не прочитан — {WATCH_PICK_BARS - have} бар(а) до чтения",
+                f"wait:{t0}")
+    # норма бара этой сессии — по своим же барам за неделю
+    hours = [h for h, nm in WATCH_SESSIONS if nm == name]
+    h0 = hours[0] if hours else 0
+    norm_bars = []
+    for r in rows[-336:]:
+        d = datetime.fromtimestamp(r["_t"] / 1000, timezone.utc)
+        if (d.hour - h0) % 24 < 9:                  # бары внутри этой сессии
+            v = _bar_qv(r)
+            if v > 0:
+                norm_bars.append(v)
+    norm_bars.sort()
+    nrm = norm_bars[len(norm_bars) // 2] if norm_bars else 0
+    seg = rows[i0:i0 + WATCH_PICK_BARS]
+    vol = sum(_bar_qv(r) for r in seg)
+    volx = (vol / (nrm * WATCH_PICK_BARS)) if nrm else None
+    dl = [_bar_delta(r) for r in seg]
+    dl = None if any(x is None for x in dl) else sum(dl)
+    oi_a = next((float(r["oi"]) for r in reversed(rows[max(0, i0 - 2):i0]) if r.get("oi")), None)
+    oi_b = next((float(r["oi"]) for r in reversed(rows[i0:i0 + WATCH_PICK_BARS]) if r.get("oi")), None)
+    oich = ((oi_b / oi_a - 1) * 100) if (oi_a and oi_b) else None
+    px_a, px_b = float(seg[0].get("px") or 0), float(seg[-1].get("px") or 0)
+    pxch = ((px_b / px_a - 1) * 100) if (px_a and px_b) else None
+    ok = bool(volx is not None and volx >= 1 and oich is not None and oich > 0 and (dl is None or dl > 0))
+    nums = (f"оборот ×{volx:.1f} к норме" if volx is not None else "оборот —") \
+        + (f" · интерес {_pc(oich)}" if oich is not None else "") \
+        + (f" · дельта {_usd(dl)}" if dl is not None else "") \
+        + (f" · цена {_pc(pxch)}" if pxch is not None else "")
+    # подтверждение на следующем баре
+    conf = ""
+    if have >= WATCH_PICK_CONFIRM:
+        c = rows[i0 + WATCH_PICK_BARS]
+        cv = _bar_qv(c)
+        c_oi = next((float(r["oi"]) for r in (c,) if r.get("oi")), None)
+        grow = (c_oi is not None and oi_b is not None and c_oi > oi_b)
+        strong = (nrm and cv >= nrm)
+        conf = (" · подтверждено" if (ok and grow and strong) else
+                " · не подтвердилось — хедж держать" if ok else
+                " · подтверждено, цену отпускают" if (not grow and not strong) else "")
+    if ok:
+        return (f"{name} {loc} подхватил — новые руки с плечом, хедж можно снимать · {nums}{conf}",
+                f"pick:{t0}:1{conf[:14]}")
+    return (f"{name} {loc} НЕ подхватил — цену отпускают до следующей сессии, хедж держать · {nums}{conf}",
+            f"pick:{t0}:0{conf[:14]}")
 
 
 # ─────────────────────────── разбор одной монеты ───────────────────────────
@@ -360,7 +439,7 @@ def coin_block(w: dict, near: dict, depth: dict, unlocks: dict, state: dict) -> 
     nr = (near or {}).get(base.upper() + "USDT") or {}
     nums, qq = nr.get("nums") or {}, nr.get("queue") or {}
     today = nr.get("today") or {}
-    pick, pick_key = pickup_line(nr)
+    pick, pick_key = pickup_line(rows)
     st["pickup"] = pick_key
     if pick_key and state.get("pickup") != pick_key:
         ev.append("стык прочитан: " + pick.split(" — ")[0])
