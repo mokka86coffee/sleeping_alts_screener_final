@@ -390,16 +390,19 @@ def collect_items() -> list[dict]:
         items[:] = []
         seen.clear()
         for _x in _stars:
-            _lit = [k for k, v in _x["marks"].items() if v]
-            _off = [k for k, v in _x["marks"].items() if v is False]
-            _unk = [k for k, v in _x["marks"].items() if v is None]
-            _kn = _x.get("known", 7)
-            _why = (f"профиль лидера {_x['n']} из {_kn}" + (" известных" if _kn < 7 else "") + f" · +{_x['move24']:.0f}% за сутки · горит: " + ", ".join(_lit)
-                    + (" · нет: " + ", ".join(_off) if _off else "") + (" · нет данных: " + ", ".join(_unk) if _unk else ""))
-            _n = _x["num"]
-            _sub = (f"{_x['n']} из {_kn} на старте {_x['start'][11:16]} UTC · со дна {_n.get('дней от мин')} дн · "
-                    f"фандинг {_n.get('фандинг')} · место было {_n.get('место за час до старта') or '—'}, сейчас {_x.get('place_now') or '—'}")
-            add(_x["sym"], 0, _why, _sub, float(_x["n"]))
+            _sym = _x["sym"]
+            _v = coins.get(_sym) or {}
+            # ПОДПИСЬ И ВСПЛЫВАШКА — КАК У ОЧЕРЕДИ (18.09, владелец: «нужны отметки, которые были, вроде „Лондон
+            # поддержал“, пузыри на звезде, кометы, всплывашка — всё оставляем»): причины из сводки, hist_line, first_why;
+            # ход от основания — одной короткой фразой в конце причин. Пузыри, кометы, орбиты вешаются ниже по sym.
+            _why = " · ".join(_v.get("why") or [])
+            _run = f"звезда: +{_x['run']:.0f}% от основания, от вершины −{_x['dd']:.0f}%"
+            _why = (_why + " · " if _why else "") + _run
+            _sub = hist_line(_v)
+            _why_first = (_nm.get("first_why") or {}).get(_sym)
+            if _why_first:
+                _sub = _why_first + (" · " + _sub if _sub else "")
+            add(_sym, 0, _why, _sub, float(_x["run"]) + (100.0 if _x.get("led") else 0.0))
     except Exception as _e:  # noqa: BLE001
         print(f"профиль лидера не собрался: {type(_e).__name__}: {_e}", file=sys.stderr)
     # порядок: брать, держать, у цели; внутри группы — по надёжности, самая надёжная первой
@@ -487,7 +490,7 @@ def render_intro(items: list[dict] | None = None) -> str:
     counts = [sum(1 for it in items if it["g"] == k) for k in (0, 1, 2, 4)]
     # ПОДПИСИ ГРУПП — ПО ПРОФИЛЮ (18.09): звёзды с 17.09 только по профилю лидера, «первые» и «в очереди» больше
     # не про очередь: группа 0 — профиль полный (шесть-семь отметок или все известные), группа 1 — на границе (пять)
-    labels = [{"n": f"очередь вела {counts[0]}", "sym": "", "g": 0, "why": "", "label": True}]
+    labels = [{"n": f"звёзды {counts[0]}", "sym": "", "g": 0, "why": "", "label": True}]
     if counts[3]:
         labels.append({"n": f"остывшие {counts[3]}", "sym": "", "g": 4, "why": "", "label": True})
     # переход в книгу — не подписью в ряду, а спутником в левом нижнем углу (16.09, владелец):

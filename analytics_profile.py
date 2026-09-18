@@ -37,6 +37,10 @@ except ImportError:
     # первое место в два часа после — 0.84). Остальные отметки считаются и пишутся как наблюдение.
     PROFILE_STAR_MARKS = ("очередь", "держит")
 try:
+    from core_config import PROFILE_RUN_MIN
+except ImportError:
+    PROFILE_RUN_MIN = 60.0           # ход от основания окна до вершины, с которого монета — звезда
+try:
     from core_config import PROFILE_LOW_WINDOW_D
 except ImportError:
     PROFILE_LOW_WINDOW_D = 7        # окно дна и максимума: лаборатория мерила на архиве с 11.09 — шесть дней, не тридцать
@@ -251,15 +255,55 @@ def profile_all() -> list[dict]:
 
 
 def stars() -> list[dict]:
-    """ЗВЁЗДЫ — ТОЛЬКО ПО ПРИЗНАКАМ (18.09, владелец: «монеты с теми признаками должны быть на экране, а остальных не
-    должно; лидер — просто тот, кто первый в очереди; условные лидеры не должны пропадать»): монета со стартом за трое
-    суток, которую очередь вела (PROFILE_STAR_MARKS), и которая не отдала PROFILE_RETIRE_DD от вершины. Видна с момента
-    старта — не когда обогнала лидера — и не гаснет ни на стыке сессий, ни при обгоне."""
+    """ЗВЁЗДЫ (18.09, правило владельца, словами): «монета, которая за последние трое суток прошла от своего
+    основания не меньше 60% и не отдала 60% от вершины; если была в первых трёх в очереди когда-то или прошла все
+    признаки — держим на экране, пока не нарушит правило».
+    Основание — минимум цены в окне PROFILE_MAX_DAYS, вершина — максимум после него; ход ≥ PROFILE_RUN_MIN.
+    Условие входа — хоть раз в первой тройке очереди за окно (живой queue_log) ИЛИ обе отметки очереди профиля.
+    Гаснет только при откате ≥ PROFILE_RETIRE_DD от вершины. Смена сессии, обгон, интерес, выход из очереди — нет."""
+    try:
+        import lab_junctions as lj
+    except ImportError:
+        return []
+    now = datetime.now(timezone.utc).timestamp()
+    since = int(now) - 31 * 86400
+    idx = lj.archive_index(None, since)
+    q = _queue_recent(hours=PROFILE_MAX_DAYS * 24 + 6)
+    prof = {x["sym"]: x for x in profile_all()}
     out = []
-    for x in profile_all():
-        x["led"] = all(x["marks"].get(k) is True for k in PROFILE_STAR_MARKS)
-        if x["led"] and not x.get("retired"):
-            out.append(x)
+    for base, by in idx.items():
+        rows = [dict(by[t], t=t) for t in sorted(by) if by[t].get("px") and by[t].get("h") and by[t].get("l")]
+        if len(rows) < 20 or now - rows[-1]["t"] > 4 * 3600:
+            continue
+        win = [r for r in rows if now - r["t"] <= PROFILE_MAX_DAYS * 86400]
+        if len(win) < 10:
+            continue
+        k_lo = min(range(len(win)), key=lambda k: float(win[k]["l"]))
+        base_px = float(win[k_lo]["l"])
+        after = win[k_lo:]
+        k_hi = max(range(len(after)), key=lambda k: float(after[k]["h"]))
+        peak = float(after[k_hi]["h"])
+        run = (peak / base_px - 1) * 100 if base_px else 0.0
+        if run < PROFILE_RUN_MIN:
+            continue
+        c = float(rows[-1]["px"])
+        dd = (1 - c / peak) * 100
+        sym = base + "USDT"
+        top3_ever = any(p is not None and p <= 3 for t, p in q.get(sym, []))
+        px_ = prof.get(sym)
+        led = bool(px_ and all(px_["marks"].get(k) is True for k in PROFILE_STAR_MARKS))
+        if not (top3_ever or led):
+            continue
+        x = dict(px_ or {"sym": sym, "n": 0, "known": 0, "marks": {}, "num": {}, "start": "", "move24": None})
+        x.update({"run": round(run, 1), "dd": round(dd, 1), "base": base_px, "peak": peak,
+                  "base_at": datetime.fromtimestamp(win[k_lo]["t"], timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                  "peak_at": datetime.fromtimestamp(after[k_hi]["t"], timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                  "top3_ever": top3_ever, "led": led,
+                  "retired": (f"отдала {dd:.0f}% от вершины" if dd >= PROFILE_RETIRE_DD else None)})
+        if x["retired"]:
+            continue
+        out.append(x)
+    out.sort(key=lambda x: -x["run"])
     return out
 
 
