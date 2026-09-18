@@ -4,5 +4,7 @@
   {"sym": "ENA"},
   {"sym": "ONE"},
   {"sym": "PLAY"},
-  {"sym": "ARK"}
+  {"sym": "ARK"},
+  {"sym": "AKE"},
+  {"sym": "STRK", "entry": 0.04005}
 ]}
