@@ -274,3 +274,5 @@
 2026-09-17 22:18:52 нет в архиве: 1 (drift)
 2026-09-17 22:18:52 добор новичков: drift
 2026-09-17 22:19:07 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json (прицельно, full_at не тронут)
+2026-09-18 01:33:56 данные по 2026-09-16, ждём 2026-09-17 (возраст 23.6 ч)
+2026-09-18 01:33:56 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
