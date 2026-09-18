@@ -170,76 +170,87 @@ def _bar_delta(r):
     return float(f["b"]) - float(f["s"])
 
 
-def pickup_line(rows: list) -> tuple[str, str]:
-    """ПОДХВАТ СЕССИИ (18.09): в near_move его нет, поэтому считаем сами по правилу карточки —
-    оборот к норме этой сессии, прирост интереса и дельта. Владелец: читать по WATCH_PICK_BARS барам
-    (полтора часа), ещё один бар — подтверждение, «возможно хедж нужно будет снять»."""
-    if not rows:
-        return "подхват не прочитан — архива нет", ""
-    step = 30 * 60 * 1000
-    now = rows[-1]["_t"]
-    # последнее открытие сессии, которое уже в архиве
+def pickup_line(rows: list, fe: dict | None = None) -> tuple[str, str]:
+    """ПОДХВАТ СЕССИИ — ОДНО ПРАВИЛО С КАРТОЧКОЙ (18.09, владелец: «в карточке Нью-Йорк не подхватил, а ты сказал
+    подхватил»): те же ряды прогона (vol30 — оборот и дельта бара, oi30 — интерес), та же норма — медиана бара
+    этой сессии за окно плиты (три дня), WATCH_PICK_BARS закрытых баров после открытия, ещё один — подтверждение.
+    Ряда прогона нет — считается по архиву получасовок, и об этом пишется."""
+    fe = fe or {}
+    vol = [(int(r[0]), float(r[1] or 0), (None if r[2] is None else float(r[2]))) for r in (fe.get("vol30") or [])]
+    ois = [(int(r[0]), float(r[1] or 0)) for r in (fe.get("oi30") or []) if r[1]]
+    src = "ряд прогона"
+    if len(vol) < 8:
+        if not rows:
+            return "подхват не прочитан — данных нет", ""
+        src = "архив получасовок"
+        vol = [(r["_t"], _bar_qv(r), _bar_delta(r)) for r in rows]
+        ois = [(r["_t"], float(r["oi"])) for r in rows if r.get("oi")]
+    vol.sort(); ois.sort()
+    step = (vol[1][0] - vol[0][0]) if len(vol) > 1 else 30 * 60 * 1000
+    tJ = vol[-1][0]
+    tBeg = tJ - 3 * 86400 * 1000                                   # окно плиты — три дня, как в карточке
+    win = [v for v in vol if v[0] >= tBeg]
+
+    def sess_of(h):
+        return "Сидней" if (h >= 21 or h < 6) else "Токио" if h < 9 else "Лондон" if h < 13 else "Нью-Йорк" if h < 21 else "Сидней"
+    norm = {}
+    for t, q, _ in win:
+        norm.setdefault(sess_of(datetime.fromtimestamp(t / 1000, timezone.utc).hour), []).append(q)
+    norm = {k: sorted(v)[len(v) // 2] for k, v in norm.items() if v}
+
+    def at_or_before(arr, t):
+        q = None
+        for x in arr:
+            if x[0] <= t:
+                q = x
+            else:
+                break
+        return q
+    # последнее открытие сессии, попавшее в ряд
     opens = []
-    for r in rows[-96:]:
-        d = datetime.fromtimestamp(r["_t"] / 1000, timezone.utc)
+    d0 = datetime.fromtimestamp(tBeg / 1000, timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    for k in range(0, 5):
         for h, nm in WATCH_SESSIONS:
-            if d.hour == h and d.minute == 0:
-                opens.append((r["_t"], nm))
+            t = int((d0 + timedelta(days=k, hours=h)).timestamp() * 1000)
+            if tBeg + 3600 * 1000 <= t <= tJ:
+                opens.append((t, nm))
     if not opens:
-        return "стыка в архиве нет", ""
+        return "стыка в окне нет", ""
     t0, name = opens[-1]
-    idx = {r["_t"]: i for i, r in enumerate(rows)}
-    i0 = idx.get(t0)
-    if i0 is None:
-        return f"{name} — бара открытия нет в архиве", ""
-    have = len(rows) - 1 - i0                       # сколько закрытых баров после открытия
     loc = _loc(t0)
-    if have < WATCH_PICK_BARS:
-        return (f"{name} {loc} · подхват ещё не прочитан — {WATCH_PICK_BARS - have} бар(а) до чтения",
-                f"wait:{t0}")
-    # норма бара этой сессии — по своим же барам за неделю
-    hours = [h for h, nm in WATCH_SESSIONS if nm == name]
-    h0 = hours[0] if hours else 0
-    norm_bars = []
-    for r in rows[-336:]:
-        d = datetime.fromtimestamp(r["_t"] / 1000, timezone.utc)
-        if (d.hour - h0) % 24 < 9:                  # бары внутри этой сессии
-            v = _bar_qv(r)
-            if v > 0:
-                norm_bars.append(v)
-    norm_bars.sort()
-    nrm = norm_bars[len(norm_bars) // 2] if norm_bars else 0
-    seg = rows[i0:i0 + WATCH_PICK_BARS]
-    vol = sum(_bar_qv(r) for r in seg)
-    volx = (vol / (nrm * WATCH_PICK_BARS)) if nrm else None
-    dl = [_bar_delta(r) for r in seg]
-    dl = None if any(x is None for x in dl) else sum(dl)
-    oi_a = next((float(r["oi"]) for r in reversed(rows[max(0, i0 - 2):i0]) if r.get("oi")), None)
-    oi_b = next((float(r["oi"]) for r in reversed(rows[i0:i0 + WATCH_PICK_BARS]) if r.get("oi")), None)
-    oich = ((oi_b / oi_a - 1) * 100) if (oi_a and oi_b) else None
-    px_a, px_b = float(seg[0].get("px") or 0), float(seg[-1].get("px") or 0)
-    pxch = ((px_b / px_a - 1) * 100) if (px_a and px_b) else None
+    t_last = t0 + (WATCH_PICK_BARS - 1) * step
+    if t_last > tJ:
+        left = -(-(t_last - tJ) // step)
+        return (f"{name} {loc} · подхват ещё не прочитан — ждём {WATCH_PICK_BARS} закрытых бара, осталось {left}", f"wait:{t0}")
+    bars = []
+    for k in range(WATCH_PICK_BARS):
+        bk = at_or_before(vol, t0 + k * step)
+        if not bk or bk[0] < t0 + k * step - step // 2:
+            return f"{name} {loc} · бара открытия нет в ряду — подхват не прочитан", ""
+        bars.append(bk)
+    nrm = (norm.get(name) or 0) * WATCH_PICK_BARS
+    volx = (sum(b[1] for b in bars) / nrm) if nrm else None
+    dl = None if any(b[2] is None for b in bars) else sum(b[2] for b in bars)
+    oa, ob = at_or_before(ois, t0 - step), at_or_before(ois, t_last)
+    oich = ((ob[1] / oa[1] - 1) * 100) if (oa and ob and oa[1]) else None
+    pxs = [(r["_t"], float(r["px"])) for r in rows if r.get("px")] if rows else []
+    pa, pb = at_or_before(pxs, t0 - step), at_or_before(pxs, t_last)
+    pxch = ((pb[1] / pa[1] - 1) * 100) if (pa and pb and pa[1]) else None
     ok = bool(volx is not None and volx >= 1 and oich is not None and oich > 0 and (dl is None or dl > 0))
-    nums = (f"оборот ×{volx:.1f} к норме" if volx is not None else "оборот —") \
-        + (f" · интерес {_pc(oich)}" if oich is not None else "") \
-        + (f" · дельта {_usd(dl)}" if dl is not None else "") \
-        + (f" · цена {_pc(pxch)}" if pxch is not None else "")
-    # подтверждение на следующем баре
     conf = ""
-    if have >= WATCH_PICK_CONFIRM:
-        c = rows[i0 + WATCH_PICK_BARS]
-        cv = _bar_qv(c)
-        c_oi = next((float(r["oi"]) for r in (c,) if r.get("oi")), None)
-        grow = (c_oi is not None and oi_b is not None and c_oi > oi_b)
-        strong = (nrm and cv >= nrm)
-        conf = (" · подтверждено" if (ok and grow and strong) else
-                " · не подтвердилось — хедж держать" if ok else
-                " · подтверждено, цену отпускают" if (not grow and not strong) else "")
-    if ok:
-        return (f"{name} {loc} подхватил — новые руки с плечом, хедж можно снимать · {nums}{conf}",
-                f"pick:{t0}:1{conf[:14]}")
-    return (f"{name} {loc} НЕ подхватил — цену отпускают до следующей сессии, хедж держать · {nums}{conf}",
-            f"pick:{t0}:0{conf[:14]}")
+    if t0 + (WATCH_PICK_CONFIRM - 1) * step <= tJ:
+        bc, oc = at_or_before(vol, t0 + (WATCH_PICK_CONFIRM - 1) * step), at_or_before(ois, t0 + (WATCH_PICK_CONFIRM - 1) * step)
+        grow = bool(oc and ob and oc[1] > ob[1])
+        strong = bool(bc and norm.get(name) and bc[1] >= norm[name])
+        conf = (" · подтверждено" if (ok and grow and strong) else " · не подтвердилось" if ok
+                else " · подтверждено, цену отпускают" if (not grow and not strong) else "")
+    nums = (f"оборот ×{volx:.1f} к норме" if volx is not None else "оборот —") \
+        + (f" · дельта {_usd(dl)}" if dl is not None else " · без дельты") \
+        + (f" · интерес {_pc(oich)}" if oich is not None else "") \
+        + (f" · цена {_pc(pxch)}" if pxch is not None else "") \
+        + ("" if src == "ряд прогона" else " · по архиву, ряда прогона нет")
+    verdict = "подхватил — новые руки с плечом, хедж можно снимать" if ok else "НЕ подхватил — цену отпускают до следующей сессии, хедж держать"
+    return (f"{name} {loc} {verdict} по {WATCH_PICK_BARS} барам{conf} · {nums}", f"pick:{t0}:{int(ok)}{conf[:14]}")
 
 
 # ─────────────────────────── разбор одной монеты ───────────────────────────
@@ -439,7 +450,7 @@ def coin_block(w: dict, near: dict, depth: dict, unlocks: dict, state: dict) -> 
     nr = (near or {}).get(base.upper() + "USDT") or {}
     nums, qq = nr.get("nums") or {}, nr.get("queue") or {}
     today = nr.get("today") or {}
-    pick, pick_key = pickup_line(rows)
+    pick, pick_key = pickup_line(rows, fe)
     st["pickup"] = pick_key
     if pick_key and state.get("pickup") != pick_key:
         ev.append("стык прочитан: " + pick.split(" — ")[0])
