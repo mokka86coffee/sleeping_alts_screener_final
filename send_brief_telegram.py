@@ -159,7 +159,20 @@ def main(dry: bool = False, file_path: str | None = None) -> int:
                 btc = "БИТКОИН · " + _p["read"] + "\n\n"
         except (OSError, ValueError):
             pass
-        text = f"{subject}\n\n{btc}{text}"
+        # СТЫК СЕССИЙ И СВОИ МОНЕТЫ (18.09, владелец): предупреждение про хедж — в САМОМ начале
+        # сообщения («за час до открытия хеджировать, через полчаса после — следить за хеджами»),
+        # сводка по watch.json — хвостом. Ни то, ни другое на страницы не идёт: только телеграм.
+        warn, block = "", ""
+        try:
+            from watch_brief import session_head, watch_block
+            _h, _key = session_head()
+            warn = ("⚠ " if _key else "") + _h + "\n\n"
+            block = watch_block(with_head=False)
+        except Exception as e:                                      # noqa: BLE001 — сводка не роняет отправку
+            log(f"  телеграм: сводка по своим монетам не собралась ({type(e).__name__}: {e})")
+        text = f"{subject}\n\n{warn}{btc}{text}"
+        if block:
+            text = f"{text}\n{block}"
 
     if dry:
         print(f"── {subject} ──\n{text}")

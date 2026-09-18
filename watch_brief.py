@@ -415,7 +415,7 @@ def coin_block(w: dict, near: dict, depth: dict, unlocks: dict, state: dict) -> 
 
 # ─────────────────────────── сборка блока ───────────────────────────
 
-def watch_block(only: list | None = None) -> str:
+def watch_block(only: list | None = None, with_head: bool = True) -> str:
     """Готовый текст блока для хвоста сообщения прогона. Нет watch.json — пустая строка."""
     coins = watch_list()
     if only:
@@ -429,7 +429,9 @@ def watch_block(only: list | None = None) -> str:
     unlocks = _read_json("unlocks.json") or {}
     state = _read_json(STATE_NAME) or {}
     head, head_key = session_head()
-    out = ["", "ЗА КЕМ СЛЕЖУ (" + ", ".join(c["sym"] for c in coins) + ")", "  " + head]
+    out = ["", "ЗА КЕМ СЛЕЖУ (" + ", ".join(c["sym"] for c in coins) + ")"]
+    if with_head:                                       # в телеграме шапка стоит первой строкой сообщения
+        out.append("  " + head)
     new_state = {"head": head_key}
     for w in coins:
         try:

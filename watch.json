@@ -1,5 +1,8 @@
 {"coins": [
-  {"sym": "ONE", "note": "второй акт", "entry": 0.0009},
+  {"sym": "RIVER"},
   {"sym": "LAB"},
-  "PLAY"
+  {"sym": "ENA"},
+  {"sym": "ONE"},
+  {"sym": "PLAY"},
+  {"sym": "ARK"}
 ]}
