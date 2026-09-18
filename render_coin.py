@@ -1048,6 +1048,9 @@ COIN_HTML = r"""
 .decbox{left:56px;bottom:56px;width:330px;padding:0;background:none;border:0;box-shadow:none;z-index:4}
 /* монеты */
 .coins{position:absolute;right:100px;top:74px;z-index:6}
+/* СПИСОК ПОВЕРХ ПЛАШЕК (17.09, владелец: «плашка поверх меню»): раскрытый список — фиксированный слой внутри .coins, и его порядок
+   задаётся порядком .coins; пока список раскрыт, .coins поднимается выше стыка (12), стрелки (7), затмения и лидера (61) */
+.coins:hover{z-index:70}
 .cbtn{display:inline-flex;align-items:center;gap:8px;font-family:var(--f-cap);font-size:7.5px;letter-spacing:.28em;text-transform:uppercase;color:#bfe9d6;cursor:pointer;
   border:1px solid rgba(255,207,110,.3);border-radius:16px;padding:6px 13px 6px 10px;background:rgba(3,18,14,.5);backdrop-filter:blur(8px);transition:.25s}
 .cbtn i{width:6px;height:6px;border:1px solid #f5a93a;transform:rotate(45deg);box-shadow:0 0 8px rgba(245,169,58,.7)}
@@ -1913,21 +1916,32 @@ COIN_JS = r"""
       RL.push({ y: sy(mid), col: hot ? (side === 'down' ? '#ffd0c0' : '#e6d3a3') : '#6f7a75', txt: px4(mid) + (hot && _bias ? (_bubOK ? ' ← СНИМУТ · ПУЗЫРЬ' : ' ← снимут') : ''), /* без слова «ликв» (владелец 16.09) */ tip: (side === 'down' ? 'лонги ' : 'шорты ') + (money(z.fuel) || '') + ' на ' + px4(mid), liq: true, hot: !!(hot && _bias), mid: mid, x1: (heatX1 !== null ? heatX1 : X0), dash: hot ? '6 4' : '2 6', w: hot ? (_bias ? 1.1 : .8) : .5, op: hot ? (_bias ? .8 : .55) : .3 });
     });
     // СТЕНЫ СТАКАНА (15.09, владелец: «толстые заявки — где примерно висят»): по снимку depth_fetch — до трёх
-    // асков над ценой и до трёх бидов под, короткой чертой у правого края с подписью «СТЕНА цена · $K · N пр.»
-    // (N — сколько прогонов стоит). Ушедшие за прошлый прогон — тусклой подписью «сняли» / «съели».
+    // асков над ценой и до трёх бидов под, короткой чертой у правого края. Толщина черты — вес стены против самой
+    // крупной у этой монеты (16.09: «сумм не надо, просто полоса толще или тоньше»), сумма — только в подсказке.
+    // ПОДПИСЬ — ЦЕНА И СКОЛЬКО БАРОВ СТОИТ (17.09, владелец: «все ордера из стакана без цен и кол-ва баров
+    // удержания, но есть „сняли“ без самой плиты»). Прогон идёт по закрытию каждой получасовки, поэтому прогоны
+    // стены и есть её бары. Снятая за прошлый прогон стена рисуется той же чертой на своей цене, только
+    // пунктиром и тускло, с подписью «цена · сняли после N баров» — раньше от неё оставалось одно слово.
     (function () {
       var dp = DEPTH[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]; if (!dp) return;
       var asks = (dp.walls || []).filter(function (w) { return w.side === 'ask'; }).slice(0, 3), bids = (dp.walls || []).filter(function (w) { return w.side === 'bid'; }).slice(0, 3);
-      // толщина черты — вес стены против самой крупной у этой монеты (16.09, владелец: «сумм не надо, просто полоса
-      // толще или тоньше в сравнении с остальными»); подписи нет, размер читается глазом, число — в подсказке
-      var wmax = Math.max.apply(null, (dp.walls || []).map(function (w) { return w.usd; }).concat([1]));
+      var gone = (dp.gone || []).slice(0, 2);
+      var wmax = Math.max.apply(null, (dp.walls || []).concat(gone).map(function (w) { return +w.usd || 0; }).concat([1]));
+      function nb(n) { n = Math.max(0, Math.round(+n || 0)); var m = n % 10, h = n % 100;
+        return n + ' ' + (m === 1 && h !== 11 ? 'бар' : (m >= 2 && m <= 4 && (h < 12 || h > 14)) ? 'бара' : 'баров'); }
+      function nbG(n) { n = Math.max(0, Math.round(+n || 0));          // «после одного бара / после трёх баров»
+        return n + ' ' + (n % 10 === 1 && n % 100 !== 11 ? 'бара' : 'баров'); }
       asks.concat(bids).forEach(function (w) { if (!(w.px >= lo && w.px <= hi)) return;
         var big = 0.8 + 3.2 * Math.pow(w.usd / wmax, 0.7);
-        RL.push({ y: sy(w.px), col: w.side === 'ask' ? '#ff9f8f' : '#7fe6b8', txt: '',
-          tip: (w.side === 'ask' ? 'заявка на продажу ' : 'заявка на покупку ') + '$' + Math.round(w.usd / 1e3) + 'K на ' + px4(w.px) + ' (' + (w.dist_pct > 0 ? '+' : '') + w.dist_pct + '%), стоит ' + w.runs + ' прогонов',
+        RL.push({ y: sy(w.px), col: w.side === 'ask' ? '#ff9f8f' : '#7fe6b8', txt: px4(w.px) + ' · ' + nb(w.runs),
+          tip: (w.side === 'ask' ? 'заявка на продажу ' : 'заявка на покупку ') + '$' + Math.round(w.usd / 1e3) + 'K на ' + px4(w.px) + ' (' + (w.dist_pct > 0 ? '+' : '') + w.dist_pct + '%), стоит ' + nb(w.runs),
           mid: w.px, x1: X1 - 34, dash: '', w: big, op: Math.min(.95, .5 + w.runs * .08), liq: false }); });
-      (dp.gone || []).slice(0, 2).forEach(function (g) { if (!(g.px >= lo && g.px <= hi)) return;
-        RL.push({ y: sy(g.px), col: '#6f7a75', txt: g.fate, tip: 'стена $' + Math.round(g.usd / 1e3) + 'K стояла ' + g.runs + ' пр. и исчезла: ' + g.fate, mid: g.px, x1: X1 - 24, dash: '1 3', w: .5, op: .45, liq: false }); });
+      gone.forEach(function (g) { if (!(g.px >= lo && g.px <= hi)) return;
+        var big = 0.8 + 3.2 * Math.pow((+g.usd || 0) / wmax, 0.7);
+        var col = g.side === 'ask' ? '#b98a82' : g.side === 'bid' ? '#86b8a2' : '#8b9690';
+        RL.push({ y: sy(g.px), col: col, txt: px4(g.px) + ' · ' + (g.fate || 'сняли') + ' после ' + nbG(g.runs),
+          tip: (g.side === 'ask' ? 'заявка на продажу ' : g.side === 'bid' ? 'заявка на покупку ' : 'стена ') + '$' + Math.round((+g.usd || 0) / 1e3) + 'K на ' + px4(g.px) + ' стояла ' + nb(g.runs) + ' и исчезла: ' + (g.fate || 'сняли'),
+          mid: g.px, x1: X1 - 34, dash: '3 3', w: big, op: .5, liq: false }); });
     })();
     // карта во времени с большой плиты снята (06.09): её горизонталь — 120 дней, сутки лога
     // сжимались в столбик у края («кирпичики»); теперь она на плите журнала справа, где окно — дни

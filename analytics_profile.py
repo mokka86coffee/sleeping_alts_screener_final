@@ -30,9 +30,22 @@ except ImportError:
     PROFILE_LEAD_PCT, PROFILE_MIN_MARKS, PROFILE_BOTTOM_DAYS = 20.0, 5, 1.0
     PROFILE_FUND_MIN, PROFILE_LIQ_RATIO, PROFILE_MAX_LEADERS, PROFILE_ROOM_PCT = 0.1, 2.0, 2, 5.0
 try:
+    from core_config import PROFILE_STAR_MARKS
+except ImportError:
+    # ЗВЕЗДА — ТОЛЬКО ПО ОЧЕРЕДИ (18.09, перемер на 248 стартах за 30 дней: дно, фандинг, ликвидации, число лидеров,
+    # место до максимума — доля пар 0.41…0.59, ничего; держится только очередь: место ≤3 за час до старта — 0.27,
+    # первое место в два часа после — 0.84). Остальные отметки считаются и пишутся как наблюдение.
+    PROFILE_STAR_MARKS = ("очередь", "держит")
+try:
+    from core_config import PROFILE_LOW_WINDOW_D
+except ImportError:
+    PROFILE_LOW_WINDOW_D = 7        # окно дна и максимума: лаборатория мерила на архиве с 11.09 — шесть дней, не тридцать
+try:
     from core_config import PROFILE_MAX_DAYS, PROFILE_RETIRE_DD, PROFILE_RETIRE_OI_RUNS
 except ImportError:
-    PROFILE_MAX_DAYS, PROFILE_RETIRE_DD, PROFILE_RETIRE_OI_RUNS = 3.0, 40.0, 4
+    # 18.09, владелец: выбывание — только откат от вершины больше 60%; «интерес четыре прогона» — это два часа стыка
+    # сессий (час до открытия и час подхвата), по нему лидер вылетал ровно на переходе. Смена сессии и обгон — не выход.
+    PROFILE_MAX_DAYS, PROFILE_RETIRE_DD, PROFILE_RETIRE_OI_RUNS = 3.0, 60.0, 0
 
 BAR = 1800
 MARKS = ("очередь", "держит", "со дна", "шорты платят", "выносят шортов", "одна", "сверху есть куда")
@@ -94,8 +107,8 @@ def retired(rows: list[dict], i0: int) -> tuple[str | None, dict]:
         else:
             break
     num = {"откат от вершины %": round(dd, 1), "интерес вниз баров": run}
-    if run >= PROFILE_RETIRE_OI_RUNS and dd >= PROFILE_RETIRE_DD:
-        return f"рука ушла: интерес вниз {run} бара подряд, от вершины −{dd:.0f}%", num
+    if dd >= PROFILE_RETIRE_DD:
+        return f"отдала {dd:.0f}% от вершины", num
     return None, num
 
 
@@ -123,7 +136,9 @@ def marks_for(rows: list[dict], i0: int, q: list[tuple], n_lead_start: int) -> d
     c = float(r["px"])
     m: dict = {}
     num: dict = {}
-    w0 = max(0, i0 - 1440)
+    # ОКНО 7 ДНЕЙ, НЕ 30 (18.09: после дозабора у AVA «30-дневное» дно уехало на 6 дней назад, а таблица лидеров
+    # считалась на архиве с 11.09 — её «30 дней» были шестью днями; мерка должна быть той же)
+    w0 = next((k for k in range(i0, -1, -1) if t0 - rows[k]["t"] >= PROFILE_LOW_WINDOW_D * 86400), 0)
     lo_k = max(range(w0, i0 + 1), key=lambda k: -float(rows[k]["l"]))
     days = (t0 - rows[lo_k]["t"]) / 86400
     num["дней от мин"] = round(days, 1)
@@ -155,8 +170,45 @@ def marks_for(rows: list[dict], i0: int, q: list[tuple], n_lead_start: int) -> d
     return {"marks": m, "num": num, "n": lit, "known": known}
 
 
+try:
+    from core_config import PROFILE_TAIL_H
+except ImportError:
+    PROFILE_TAIL_H = 12.0            # выбывший лидер держится на экране ещё столько часов, тусклее, с причиной
+
+
+def _live_leaders() -> dict:
+    """ЛИДЕРЫ — ИЗ ЖУРНАЛА ЛИДЕРОВ (18.09, владелец: «вчера пошли AVA, ONE, SYN, никаких PLAY, BULLA, IOST не было»):
+    записи pump_leaders.json — та же мерка, что «тянут N» на экране; выбывание — там же, по плечу.
+    Возвращает база → None (живой) или момент выбывания (UTC, секунды), если выбыл не раньше PROFILE_TAIL_H назад"""
+    try:
+        from core_config import PUMP_LEADERS_PATH as _pl
+    except ImportError:
+        _pl = BASE_DIR / "output" / "pump_leaders.json"
+    try:
+        recs = json.loads(Path(_pl).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    now = datetime.now(timezone.utc).timestamp()
+    out: dict = {}
+    for r in (recs.values() if isinstance(recs, dict) else recs):
+        if not (isinstance(r, dict) and r.get("symbol")):
+            continue
+        base = str(r["symbol"]).upper().replace("USDT", "")
+        ra = r.get("retired_at")
+        if not ra:
+            out[base] = None
+            continue
+        try:
+            t = datetime.fromisoformat(str(ra).replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            continue
+        if now - t <= PROFILE_TAIL_H * 3600:
+            out[base] = t
+    return out
+
+
 def profile_all() -> list[dict]:
-    """лидеры дня с отметками на их старте, по убыванию числа отметок"""
+    """живые лидеры с отметками на их старте, по убыванию числа отметок"""
     try:
         import lab_junctions as lj
     except ImportError:
@@ -175,10 +227,10 @@ def profile_all() -> list[dict]:
     lead_now = {b: _m24(r, len(r) - 1) for b, r in coins.items()}
     out = []
     for base, rows in coins.items():
-        i0 = start_index(rows, now)
-        if i0 is None or now - rows[i0]["t"] > PROFILE_MAX_DAYS * 86400:
+        i0 = start_index(rows, now)                             # старт за последние PROFILE_MAX_DAYS суток — любая монета
+        if i0 is None:
             continue
-        why_out, live = retired(rows, i0)
+        why_out, lv = retired(rows, i0)
         t0 = rows[i0]["t"]
         n_lead_start = 0
         for b2, r2 in coins.items():
@@ -193,17 +245,22 @@ def profile_all() -> list[dict]:
         out.append({"sym": sym, "n": res["n"], "known": res["known"], "marks": res["marks"], "num": res["num"],
                     "start": datetime.fromtimestamp(t0, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                     "move24": round(lead_now.get(base) or 0, 1), "place_now": now_place,
-                    "retired": why_out, "live": live})
+                    "retired": why_out, "live": lv})
     out.sort(key=lambda x: (-x["n"], -x["move24"]))
     return out
 
 
 def stars() -> list[dict]:
-    """звёзды первого экрана: лидеры дня с отметками от PROFILE_MIN_MARKS"""
-    def ok(x):
-        k = x.get("known", 7)
-        return x["n"] >= PROFILE_MIN_MARKS or (k < 7 and x["n"] >= 3 and x["n"] / k >= PROFILE_MIN_MARKS / 7)
-    return [x for x in profile_all() if ok(x) and not x.get("retired")]
+    """ЗВЁЗДЫ — ТОЛЬКО ПО ПРИЗНАКАМ (18.09, владелец: «монеты с теми признаками должны быть на экране, а остальных не
+    должно; лидер — просто тот, кто первый в очереди; условные лидеры не должны пропадать»): монета со стартом за трое
+    суток, которую очередь вела (PROFILE_STAR_MARKS), и которая не отдала PROFILE_RETIRE_DD от вершины. Видна с момента
+    старта — не когда обогнала лидера — и не гаснет ни на стыке сессий, ни при обгоне."""
+    out = []
+    for x in profile_all():
+        x["led"] = all(x["marks"].get(k) is True for k in PROFILE_STAR_MARKS)
+        if x["led"] and not x.get("retired"):
+            out.append(x)
+    return out
 
 
 if __name__ == "__main__":

@@ -193,8 +193,28 @@ def _pump_lead() -> dict | None:
     if not _live:
         return None
     _live.sort(key=lambda r: -(r.get("run_pct") or 0))
+    _live = _queue_first_first(_live)
     _l = _live[0]
     return {"sym": str(_l["symbol"]), "run_pct": float(_l.get("run_pct") or 0), "mine": bool(_l.get("mine"))}
+
+
+def _queue_first_first(live: list) -> list:
+    """ЛИДЕР — ПЕРВЫЙ В ОЧЕРЕДИ (18.09, владелец: «лидер просто тот, кто сейчас первый в очереди, и прогнозы про
+    него»): запись первого в очереди ставится первой; если у него нет записи в журнале лидеров — собирается из сводки"""
+    try:
+        _nm = json.loads((BASE_DIR / "output" / "near_move.json").read_text(encoding="utf-8")) or {}
+        _first = str(((_nm.get("first") or [None])[0]) or "").upper()
+    except (OSError, ValueError):
+        return live
+    if not _first:
+        return live
+    hit = [r for r in live if str(r.get("symbol") or "").upper() == _first]
+    rest = [r for r in live if str(r.get("symbol") or "").upper() != _first]
+    if hit:
+        return hit + rest
+    _c = ((_nm.get("coins") or {}).get(_first) or {})
+    _mv = ((_c.get("today") or {}).get("px_chg_pct")) if isinstance(_c, dict) else None
+    return [{"symbol": _first, "run_pct": float(_mv or 0), "day_pct": _mv, "mine": bool(_c.get("mine")) if isinstance(_c, dict) else False}] + live
 
 
 def collect_items() -> list[dict]:
@@ -376,7 +396,7 @@ def collect_items() -> list[dict]:
             _n = _x["num"]
             _sub = (f"{_x['n']} из {_kn} на старте {_x['start'][11:16]} UTC · со дна {_n.get('дней от мин')} дн · "
                     f"фандинг {_n.get('фандинг')} · место было {_n.get('место за час до старта') or '—'}, сейчас {_x.get('place_now') or '—'}")
-            add(_x["sym"], 0 if (_x["n"] >= 6 or _x["n"] == _kn) else 1, _why, _sub, float(_x["n"]))
+            add(_x["sym"], 0, _why, _sub, float(_x["n"]))
     except Exception as _e:  # noqa: BLE001
         print(f"профиль лидера не собрался: {type(_e).__name__}: {_e}", file=sys.stderr)
     # порядок: брать, держать, у цели; внутри группы — по надёжности, самая надёжная первой
@@ -464,9 +484,7 @@ def render_intro(items: list[dict] | None = None) -> str:
     counts = [sum(1 for it in items if it["g"] == k) for k in (0, 1, 2, 4)]
     # ПОДПИСИ ГРУПП — ПО ПРОФИЛЮ (18.09): звёзды с 17.09 только по профилю лидера, «первые» и «в очереди» больше
     # не про очередь: группа 0 — профиль полный (шесть-семь отметок или все известные), группа 1 — на границе (пять)
-    labels = [{"n": f"профиль полный {counts[0]}", "sym": "", "g": 0, "why": "", "label": True},
-              {"n": f"на границе {counts[1]}", "sym": "", "g": 1, "why": "", "label": True},
-              {"n": f"у цели {counts[2]}", "sym": "", "g": 2, "why": "", "label": True}]
+    labels = [{"n": f"очередь вела {counts[0]}", "sym": "", "g": 0, "why": "", "label": True}]
     if counts[3]:
         labels.append({"n": f"остывшие {counts[3]}", "sym": "", "g": 4, "why": "", "label": True})
     # переход в книгу — не подписью в ряду, а спутником в левом нижнем углу (16.09, владелец):
@@ -591,6 +609,7 @@ def render_intro(items: list[dict] | None = None) -> str:
         _live[:] = [r for r in _recs.values()
                  if isinstance(r, dict) and not r.get("retired_at")]
         _live.sort(key=lambda r: -(r.get("run_pct") or 0))
+        _live[:] = _queue_first_first(_live)                     # 18.09: плашка — про первого в очереди
         if _live:
             _l = _live[0]
             _sym = str(_l.get("symbol") or "")
@@ -651,7 +670,7 @@ def render_intro(items: list[dict] | None = None) -> str:
                 "sym": _sym.replace("USDT", ""),
                 "risk": _risk[:3],
                 "run_pct": _l.get("run_pct"),
-                "state": "лидер" if len(_live) == 1 else f"лидеров {len(_live)}",   # 18.09: «тянет одна» и запрет входа сняты
+                "state": "тянет одна" if len(_live) == 1 else f"тянут {len(_live)}",
                 "line": f"+{_l.get('run_pct') or 0:.0f}% от основы"
                         + (f" · {_l['day_pct']:+.0f}% за сутки" if _l.get("day_pct") is not None else "")
                         + (" · наша" if _l.get("mine") else " · не из выборки"),
@@ -1905,7 +1924,7 @@ function drawFx(t){
         // СНЯТИЕ ПРИ МНОГИХ ЛИДЕРАХ (16.09): плашка живёт в JS и своей проверкой по разрыву, поэтому
         // питоновское снятие её не касалось — гасим здесь же и пишем, почему вход открыт.
         : ((DATA.many) ? '<u class="lift">'+((DATA.many.why)||'ограничения сняты')+'</u>'
-            : ''))   // 18.09: «вход в остальных закрыт» снят — звёзды только по профилю, ограничений по лидеру нет
+            : ((L.lead_gap||0)>=5 ? '<u>вход в остальных закрыт</u>' : '')))
 ;
   } else if(el){
     if(SESSCAPS){ el.className='lead'; el.innerHTML='<i>фон</i>'+SESSCAPS; }
