@@ -697,7 +697,14 @@ def render_coin(stars: list[dict], market: dict) -> str:
         (Path("output") / "verdicts.json").write_text(json.dumps({"at": _now, "coins": _snap}, ensure_ascii=False), encoding="utf-8")
     except Exception:  # noqa: BLE001 — журнал не должен ронять карточку
         pass
+    # ЖИЗНЬ ПЛАШКИ МОМЕНТА (18.09, владелец: «увеличь время жизни плашки на час» — второе окно):
+    # до открытия следующей сессии — как было, час; после открытия — было полтора часа, стало два с половиной.
+    try:
+        from core_config import COIN_MOMENT_PRE_MIN, COIN_MOMENT_POST_MIN
+    except ImportError:
+        COIN_MOMENT_PRE_MIN, COIN_MOMENT_POST_MIN = 60, 150
     payload = {"stars": stars, "market": market,
+               "cfg": {"mPre": COIN_MOMENT_PRE_MIN, "mPost": COIN_MOMENT_POST_MIN},
                "whales": whales.get("by_coin") or {},
                "sched": sched, "journal": _journal(),
                "hist": _history(stars), "book": _book(),
@@ -2904,11 +2911,12 @@ COIN_JS = r"""
     // кнопка «заново» снята (владелец 15.09); пересборка — по хэшу монеты
     // ПЛАШКА МОМЕНТА НА ГЛАВНОМ ГРАФИКЕ (15.09, владелец: «на основной график плашку — показывать в важные моменты:
     // до следующей сессии меньше часа и название, межсессионье — есть подхват или нет, и своё важное»). Живёт
-    // только в важный момент: меньше часа до открытия или первые полтора часа после. Строки: заголовок момента,
+    // только в важный момент: COIN_MOMENT_PRE_MIN минут до открытия или COIN_MOMENT_POST_MIN после. Строки: заголовок момента,
     // подхват по правилу 12.09 (или «проба идёт»), и до двух моих: фандинг, если платят (шорты ниже −0.5, лонги
     // выше +0.1), и свежий слом вортекса/клингера за последние три бара. Обновляется раз в минуту.
     (function () {
       var FS = window.__FASTSTATE; if (!FS) return;
+      var MPRE = +(((D.cfg || {}).mPre)) || 60, MPOST = +(((D.cfg || {}).mPost)) || 150;
       var el = document.createElement('div'); el.className = 'moment'; stage.appendChild(el);
       var dayMs = 864e5;
       function tick() {
@@ -2918,7 +2926,7 @@ COIN_JS = r"""
           var n = t <= now ? t + dayMs : t, l = t <= now ? t : t - dayMs;
           if (!next || n < next[0]) next = [n, se]; if (!last || l > last[0]) last = [l, se]; });
         var toM = Math.round((next[0] - now) / 6e4), sinceM = Math.round((now - last[0]) / 6e4);
-        var pre = toM <= 60, post = sinceM <= 90;
+        var pre = toM <= MPRE, post = sinceM <= MPOST;
         if (!pre && !post) { el.classList.remove('on'); return; }
         var se = pre ? next[1] : last[1], col = se[2], lines = [];
         var hh = Math.floor(toM / 60), mm = toM % 60;
