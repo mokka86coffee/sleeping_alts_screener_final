@@ -722,7 +722,28 @@ def render_coin(stars: list[dict], market: dict) -> str:
         from core_config import WATCH_PICK_BARS, WATCH_PICK_CONFIRM
     except ImportError:
         WATCH_PICK_BARS, WATCH_PICK_CONFIRM = 3, 4
-    payload = {"stars": stars, "market": market,
+    # СТЫКИ ЗА СУТКИ ДЛЯ КАРТОЧКИ (19.09): лестница / раздача / пауза по каждому открытию — по правилу lab_pick_top,
+    # в карточку решения строкой «наблюдение»; три раздачи за сутки — «хедж на часть». Ряды — архив получасовок.
+    pickday: dict = {}
+    try:
+        from lab_pick_top import events as _pick_events, load as _pick_load
+        for _s in stars:
+            _sym = str(_s.get("coin") or (str(_s.get("t", "")).upper() + "USDT")).upper()
+            try:
+                _ev = _pick_events(_pick_load(_sym.replace("USDT", "")))[-4:]
+            except Exception:  # noqa: BLE001
+                continue
+            if _ev:
+                from lab_pick_top import expect as _pick_expect
+                _last = _ev[-1]
+                _hedge = (f"раздача {_last['streak']}-я за сутки — хедж на часть" if (_last["kind"] == "раздача" and _last["streak"] >= 2)
+                          else "пауза на ходу — хедж на сутки, снять на лестнице" if (_last["kind"] == "пауза" and float(_last.get("run") or 0) >= 60) else "")
+                pickday[_sym] = {"line": " · ".join(f"{e['sess']} {e['kind']}" + (f" ×{e['dnorm']:.1f} нормы" if e["kind"] == "раздача" else "") + (f" ({e['streak']}-я)" if e["kind"] == "раздача" and e["streak"] > 1 else "") for e in _ev),
+                                 "hedge": _hedge, "expect": _pick_expect(_last["kind"], float(_last.get("run") or 0)),
+                                 "by": {str(int(e["t"].timestamp() * 1000)): {"kind": e["kind"], "dnorm": round(float(e.get("dnorm") or 0), 1), "streak": int(e.get("streak") or 0)} for e in _ev}}
+    except Exception:  # noqa: BLE001
+        pickday = {}
+    payload = {"stars": stars, "market": market, "pickday": pickday,
                "cfg": {"mPre": COIN_MOMENT_PRE_MIN, "mPost": COIN_MOMENT_POST_MIN,
                        "vxWin": COIN_VX_WIN_BARS, "klUp": COIN_KL_UP_BARS,
                        "pickBars": WATCH_PICK_BARS, "pickConfirm": WATCH_PICK_CONFIRM},
@@ -974,6 +995,9 @@ COIN_HTML = r"""
 .sessline b{font-family:Jost,Inter;font-weight:300;font-size:12px;letter-spacing:.08em;color:#eaf4ff;text-shadow:0 0 8px rgba(150,200,255,.6)}
 .sessline u{text-decoration:none;font-size:7px;letter-spacing:.34em;animation:railhalo 2s ease-in-out infinite}
 .sessline em{display:inline-block;width:1px;height:8px;background:rgba(233,255,244,.18);margin:0 4px;align-self:center}
+.sessline{flex-wrap:wrap;justify-content:center}
+.sessline .pickrow{flex-basis:100%;display:flex;justify-content:center;align-items:center;gap:6px;margin-top:5px;opacity:.85}
+.sessline .pk{font-size:8px;letter-spacing:.22em;text-transform:uppercase;text-shadow:0 0 6px currentColor}
 .mini.fast .fdemo{top:262px}
 .mini.fast .fcap b{font-weight:400;color:#dfe9ff}   /* время последнего закрытого бара — видно, свежая ли плита (16.09) */
 .mini.fast .fnext{position:absolute;right:0;top:-19px;font-family:var(--f-cap);font-size:7px;letter-spacing:.28em;text-transform:uppercase;white-space:nowrap}
@@ -1613,6 +1637,8 @@ COIN_JS = r"""
     //   потолок стоит 3+, пола нет: −3.0% за 6 ч; пол съели при стоящем потолке: −2.1%.
     //   Снятые стены (сняли, не съели) — шум: после них ноль к доске.
     var OBS = [];
+    (function () { var _pd = (D.pickday || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()];
+      if (_pd && _pd.line) OBS.push('стыки за сутки: ' + _pd.line + (_pd.hedge ? ' — ' + _pd.hedge : '') + (_pd.expect ? ' · ' + _pd.expect : '')); })();
     (function () { var dp = DEPTH[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]; if (!dp) return;
       var ws = (dp.walls || []).filter(function (w) { return Math.abs(+w.dist_pct || 0) <= 30; });
       var bidH = ws.filter(function (w) { return w.side === 'bid' && (+w.runs || 0) >= 3; }), askH = ws.filter(function (w) { return w.side === 'ask' && (+w.runs || 0) >= 3; });
@@ -2656,7 +2682,12 @@ COIN_JS = r"""
           var grow = !!(oc && ob && oc[1] > ob[1]), strong = !!(bc && normS[se[1]] && bc[1] >= normS[se[1]]);
           conf = ok ? ((grow && strong) ? ' · подтверждено' : ' · не подтвердилось') : ((!grow && !strong) ? ' · подтверждено, цену отпускают' : '');
         }
-        var why = se[1] + ' ' + hhmm(t) + ' · ' + (ok ? 'подхватил по ' + used + ' бар' + (used === 1 ? 'у' : 'ам') : 'не подхватил по ' + used + ' барам') + conf + nums;
+        // ЧЕТЫРЕ СЛОВА У СТЫКА (19.09): лестница / раздача ×N нормы / пауза / не подхватил — метка из lab_pick_top по времени
+        // открытия; пока сессия не закрылась и метки нет — старое «подхватил / не подхватил по N барам»
+        var _pk = ((((D.pickday || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()] || {}).by) || {})[String(t)];
+        var verdict = _pk ? (_pk.kind + (_pk.kind === 'раздача' ? ' ×' + _pk.dnorm + ' нормы' + (_pk.streak > 1 ? ' (' + _pk.streak + '-я за сутки)' : '') : '') + ' · по ' + used + ' бар' + (used === 1 ? 'у' : 'ам'))
+                          : (ok ? 'подхватил по ' + used + ' бар' + (used === 1 ? 'у' : 'ам') : 'не подхватил по ' + used + ' барам');
+        var why = se[1] + ' ' + hhmm(t) + ' · ' + verdict + conf + nums;
         JOINS.push({ t: t, ok: ok, se: se, why: why, short: 'по ' + used + ' бар' + (used === 1 ? 'у' : 'ам') + (conf ? ' · <b>' + conf.replace(' · ', '') + '</b>' : '') + (volx !== null ? ' · оборот <b>×' + volx.toFixed(1) + '</b>' : '') + (dl !== null ? ' · дельта <b>' + (dl > 0 ? '+' : '') + f(dl / 1e3) + 'K</b>' : '') + (oiCh !== null ? ' · интерес <b>' + (oiCh > 0 ? '+' : '') + oiCh.toFixed(0) + '%</b>' : '') + (pxCh !== null ? ' · цена <b>' + (pxCh > 0 ? '+' : '') + pxCh.toFixed(1) + '%</b>' : '') });
       });
       // ОДИН ОТВЕТ НА ОДИН СТЫК: near_move пишет подхват последнего открытия (его же показывают «звёзды»); если он
@@ -3127,7 +3158,23 @@ COIN_JS = r"""
         var m = Math.round((nxt[0] - now) / 6e4), hh = Math.floor(m / 60), mm = m % 60;
         sl.innerHTML = '<span style="color:' + cur[1][2] + '">' + esc(cur[1][1]) + '</span><i>идёт ' + Math.floor((now - cur[0]) / 36e5) + ' ч ' + pad(Math.round((now - cur[0]) / 6e4) % 60) + ' мин</i>'
           + '<em></em><i>до</i><span style="color:' + nxt[1][2] + '">' + esc(nxt[1][1]) + '</span><b>' + hh + ':' + pad(mm) + '</b>' + (m <= 60 ? '<u style="color:' + nxt[1][2] + '">стык</u>' : '')
-          + (aft ? '<em></em><i>потом</i><span style="color:' + aft[1][2] + ';opacity:.7">' + esc(aft[1][1]) + '</span>' : '');
+          + (aft ? '<em></em><i>потом</i><span style="color:' + aft[1][2] + ';opacity:.7">' + esc(aft[1][1]) + '</span>' : '')
+          + pickHtml();
+      }
+      // СТЫКИ ЗА СУТКИ — ТУТ ЖЕ (19.09, владелец: «плашку пишем туда же, где сессия по центру»): под строкой
+      // сессий — четыре последних открытия с меткой: лестница (подхват с максимумом), раздача (подхват с плюсовой
+      // дельтой без максимума, со счётом за сутки), пауза (без максимума, дельта минус), не подхватил.
+      // Третья раздача за сутки — «хедж на часть». Метка — та же, что в лаборатории lab_pick_top.
+      function pickHtml() {
+        var _pd = (D.pickday || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()];
+        if (!_pd || !_pd.line) return '';
+        var col = { 'лестница': '#7fe0b0', 'раздача': '#ff8fa3', 'пауза': '#9fb0d8', 'не подхватил': '#5f7f78' };
+        var parts = String(_pd.line).split(' · ').map(function (p) {
+          var kind = Object.keys(col).find(function (k) { return p.indexOf(k) >= 0; }) || 'не подхватил';
+          return '<span class="pk" style="color:' + col[kind] + '">' + esc(p) + '</span>';
+        });
+        return '<div class="pickrow">' + parts.join('<em></em>') + (_pd.hedge ? '<em></em><u style="color:#ff8fa3">' + esc(_pd.hedge) + '</u>' : '') + '</div>'
+          + (_pd.expect ? '<div class="pickrow" style="opacity:.6"><span class="pk" style="color:#c9d6ff;letter-spacing:.12em;text-transform:none">' + esc(_pd.expect) + '</span></div>' : '');
       }
       tickLine(); var iv2 = setInterval(function () { if (!sl.isConnected) { clearInterval(iv2); return; } tickLine(); }, 60000);
     })();

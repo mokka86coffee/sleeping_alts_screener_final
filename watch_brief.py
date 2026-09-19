@@ -520,6 +520,28 @@ def coin_block(w: dict, near: dict, depth: dict, unlocks: dict, state: dict) -> 
     for t in tail:
         lines.append("    " + t)
     lines.append("    стык: " + pick)
+    # ЛЕСТНИЦА / РАЗДАЧА ПО СТЫКАМ (19.09, LSK и ONE): подхват с новым максимумом — лестница; подхват с плюсовой
+    # дельтой без максимума — раздача; без максимума с минусовой дельтой — пауза. По доске (16 тыс. стыков): раздача
+    # ×3+ за сутки — −2% к доске за сутки, каждый десятый случай уходит на −10% и больше; ×2 не отличается от ×1.
+    try:
+        from lab_pick_top import events as _pick_events, expect as _pick_expect
+        _ev = _pick_events([dict(r, t=datetime.fromtimestamp(r["_t"] / 1000, timezone.utc)) for r in rows])[-4:]
+        if _ev:
+            def _w(e):
+                return f"{e['sess']} {e['kind']}" + (f" ×{e['dnorm']:.1f} нормы" if e["kind"] == "раздача" else "") + (f" ({e['streak']}-я за сутки)" if e["kind"] == "раздача" and e["streak"] > 1 else "")
+            lines.append("    стыки за сутки: " + " · ".join(_w(e) for e in _ev))
+            _last = _ev[-1]
+            _exp = _pick_expect(_last["kind"], float(_last.get("run") or 0))
+            if _exp:
+                lines.append("    ожидание: " + _exp)
+            # хедж по числам лаборатории (19.09): вторая значимая раздача за сутки — по доске −3% и каждый шестой в обвал;
+            # пауза на ходу (от +60% за трое суток) — −2…−3.5%, половина глубже −10 → хедж на сутки, снять на лестнице
+            if _last["kind"] == "раздача" and _last["streak"] >= 2:
+                ev.append(f"раздача {_last['streak']}-я за сутки — хедж на часть")
+            elif _last["kind"] == "пауза" and float(_last.get("run") or 0) >= 60:
+                ev.append("пауза на ходу — хедж на сутки, снять на лестнице")
+    except Exception:  # noqa: BLE001 — метка не роняет сводку
+        pass
     lines.append("    СОБЫТИЕ: " + " · ".join(ev))
     return lines, ev, st
 

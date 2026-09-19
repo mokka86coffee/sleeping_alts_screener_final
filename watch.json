@@ -1,10 +1,33 @@
-{"coins": [
-  {"sym": "RIVER"},
-  {"sym": "LAB"},
-  {"sym": "ENA"},
-  {"sym": "ONE"},
-  {"sym": "PLAY"},
-  {"sym": "ARK"},
-  {"sym": "AKE"},
-  {"sym": "STRK", "entry": 0.04005}
-]}
+{
+ "coins": [
+  {
+   "sym": "RIVER"
+  },
+  {
+   "sym": "LAB"
+  },
+  {
+   "sym": "ENA"
+  },
+  {
+   "sym": "ONE"
+  },
+  {
+   "sym": "PLAY"
+  },
+  {
+   "sym": "ARK"
+  },
+  {
+   "sym": "AKE"
+  },
+  {
+   "sym": "STRK",
+   "entry": 0.04005
+  },
+  {
+   "sym": "STG",
+   "entry": 0.1622
+  }
+ ]
+}

@@ -5,7 +5,9 @@
 кто откупает стык. Два таких за сутки — хедж (LSK: Сидней 13.09 и Токио 14.09 — за 8–13 часов до слива). Стык без
 максимума с МИНУСОВОЙ дельтой — не раздача, а пауза: покупателей нет, раздавать некому, рука ждёт (ONE 18.09 —
 три паузы подряд, потом второй акт +36%; по старому правилу «два подряд» ONE хеджировалась бы утром 18.09 и
-пропустила бы второй акт).
+пропустила бы второй акт). Дельта должна быть ЗНАЧИМОЙ — не меньше PICK_DELTA_NORM_X обычных баров монеты (норма —
+медиана бара за неделю до стыка): у AKE 17.09 два стыка с +6K и +27K считались раздачей, и по грубому правилу она
+хеджировалась бы перед +30%; к норме бара это ×0.09 и ×0.01, у LSK — ×4.4 и ×4.0, у ONE — ×5.6.
 
 Считает по всему архиву получасовок: каждое открытие сессии — подхватила ли сессия (три бара: оборот от нормы,
 цена вверх, плечо ИЛИ дельта) и поставила ли новый максимум до следующего открытия. Дальше по каждому событию —
@@ -24,6 +26,10 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
+try:
+    from core_config import PICK_DELTA_NORM_X
+except ImportError:
+    PICK_DELTA_NORM_X = 1.0   # раздача — если дельта стыка не меньше стольких обычных баров монеты (AKE 19.09: +6K и +27K — шум)
 ARCH = next((p for p in (BASE_DIR / "cq_v2" / "intraday", Path("cq_v2") / "intraday") if p.exists()), None)
 SESS = [(21, "Сидней"), (0, "Токио"), (7, "Лондон"), (13, "Нью-Йорк")]
 H = [6, 12, 24]
@@ -84,23 +90,45 @@ def events(rows):
         recent = [e for e in out if (t - e["t"]).total_seconds() <= 24 * 3600 and e["kind"] == "раздача"]
         if newhi and ok:
             kind = "лестница"
-        elif ok and delta > 0:
+        elif ok and delta >= PICK_DELTA_NORM_X * norm:
             kind = "раздача"
+        elif ok and delta > 0:
+            kind = "пауза"                                        # подхват есть, но дельта пустая — шум, не раздача
         elif not newhi and delta <= 0:
             kind = "пауза"
         else:
             kind = "не подхватил"
         n_day = len(recent) + (1 if kind == "раздача" else 0)
-        label = {"лестница": "лестница: подхват с максимумом", "пауза": "пауза: без максимума, дельта минус",
+        label = {"лестница": "лестница: подхват с максимумом", "пауза": "пауза: без максимума, дельта не тянет",
                  "не подхватил": "не подхватил"}.get(kind) or ("раздача ×1 за сутки" if n_day == 1 else "раздача ×2 за сутки → хедж" if n_day == 2 else "раздача ×3+ за сутки")
-        out.append(dict(t=t, i=i + 2, sess=nm, kind=kind, label=label, streak=n_day if kind == "раздача" else 0, pxch=pxch, delta=delta, oich=oich, volx=volx))
+        base3 = min(float(x["px"]) for x in rows[max(0, i - 144):i + 1])     # основание за трое суток — чтобы делить по ходу
+        run = (float(rows[i]["px"]) / base3 - 1) * 100 if base3 else 0
+        out.append(dict(t=t, i=i + 2, sess=nm, kind=kind, label=label, streak=n_day if kind == "раздача" else 0, pxch=pxch, delta=delta, oich=oich, volx=volx, run=run, dnorm=(delta / norm if norm else 0)))
     return out
+
+
+EXPECT = {   # по лаборатории 19.09: ход к доске за 3/6/12 ч · худшая точка · доля глубже −10% за сутки
+    ("лестница", False): "лестница · по доске +0.4…+0.6% к доске, худшая −2.5%",
+    ("лестница", True): "лестница на ходу · +0.8…+3.3% к доске, но тряска: худшая −12%, половина глубже −10 — хедж по ней отдаёт ход",
+    ("раздача", False): "раздача · −0.6…−1.0% к доске; вторая за сутки — −3% и каждый шестой в обвал → хедж",
+    ("раздача", True): "раздача на ходу · случаев мало (11), читать как по доске",
+    ("пауза", False): "пауза · по доске ноль",
+    ("пауза", True): "пауза на ходу · −2…−3.5% к доске, 40–54% глубже −10: рука ушла ждать → хедж на сутки, снять на лестнице",
+    ("не подхватил", False): "не подхватил · по доске +0.3%",
+    ("не подхватил", True): "не подхватил на ходу · +1.8…+2% к доске, худшая −8%",
+}
+
+
+def expect(kind: str, run: float, run_min: float = 60.0) -> str:
+    return EXPECT.get((kind, run >= run_min), "")
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--only")
     ap.add_argument("--min-n", type=int, default=20)
+    ap.add_argument("--leaders", action="store_true", help="только стыки на ходу: цена от основания за трое суток ≥ RUN_MIN")
+    ap.add_argument("--run-min", type=float, default=60.0)
     a = ap.parse_args()
     if ARCH is None:
         print("нет cq_v2/intraday"); return
@@ -113,6 +141,8 @@ def main():
         except OSError:
             continue
         ev = events(rows)
+        if a.leaders:
+            ev = [e for e in ev if e["run"] >= a.run_min]          # разрез по лидерам (11.09: индикаторы считать на ходах, не на всей истории)
         if not ev:
             continue
         for e in ev:
@@ -126,7 +156,7 @@ def main():
         for s, ev in allev.items():
             print(f"── {s}")
             for e in ev[-16:]:
-                print(f"  {e['t']:%d.%m %H:%M} {e['sess']:9s} ход {e['pxch']:+6.1f}% · дельта {e['delta'] / 1e3:+7.0f}K · плечо {e['oich']:+6.1f}% · оборот ×{e['volx']:4.1f}  → {e['label']}"
+                print(f"  {e['t']:%d.%m %H:%M} {e['sess']:9s} ход {e['pxch']:+6.1f}% · дельта {e['delta'] / 1e3:+7.0f}K (×{e['dnorm']:.1f} нормы) · плечо {e['oich']:+6.1f}% · оборот ×{e['volx']:4.1f}  → {e['label']}"
                       + (f" · через 12 б {e['fwd12']:+.1f}%" if e.get('fwd12') is not None else ""))
         if len(allev) == 1:
             return
@@ -142,10 +172,10 @@ def main():
     for s, ev in allev.items():
         for e in ev:
             groups.setdefault(e["label"], []).append(e)
-    print(f"\nмонет {len(allev)} · открытий сессий {sum(len(v) for v in allev.values())}\n")
+    print(f"\nмонет {len(allev)} · открытий сессий {sum(len(v) for v in allev.values())}" + (f" · только на ходу от +{a.run_min:.0f}% за трое суток" if a.leaders else "") + "\n")
     head = f"  {'случай':36s}{'N':>6s}" + "".join(f"{'ход ' + str(n) + 'б':>9s}{'vs доски':>9s}{'худшая':>8s}{'≤−10%':>7s}" for n in H)
     print(head)
-    for label in ("лестница: подхват с максимумом", "раздача ×1 за сутки", "раздача ×2 за сутки → хедж", "раздача ×3+ за сутки", "пауза: без максимума, дельта минус", "не подхватил"):
+    for label in ("лестница: подхват с максимумом", "раздача ×1 за сутки", "раздача ×2 за сутки → хедж", "раздача ×3+ за сутки", "пауза: без максимума, дельта не тянет", "не подхватил"):
         g = groups.get(label) or []
         if len(g) < a.min_n:
             print(f"  {label:36s}{len(g):6d}   мало случаев"); continue

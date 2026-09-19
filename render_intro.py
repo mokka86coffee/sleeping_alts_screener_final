@@ -497,7 +497,7 @@ def collect_items() -> list[dict]:
             _line = (f"подхват стыка {_pk['sess']}: оборот ×{_pk['volx']:.0f} к норме · плечо {_pk['oi']:+.1f}%"
                      + (f" · дельта {_pk['delta'] / 1e3:+.0f}K" if _pk.get("delta") is not None else "") + f" · цена {_pk['px']:+.1f}% по {_pk['bars']} бар."
                      )
-            add(_sym, 0, (_why + " · " if _why else "") + _line, "подхват стыка · " + hist_line(_v), 0.0)
+            add(_sym, 0, (_why + " · " if _why else "") + _line + " · ступени ещё нет — не вход", "подхват стыка · ступени ещё нет — не вход · " + hist_line(_v), 0.0)
     # ТРИ КАТЕГОРИИ (19.09, владелец: «нужно разделить на 3 категории — которые скоро пойдут, которые могут пойти,
     # которые пошли, но не отдали 60% от пика»). Группа 2 — ПОШЛИ: ход от основания ≥ PROFILE_RUN_MIN (нынешнее
     # правило звёзд, откат <60% от вершины). Группа 0 — СКОРО: ещё не прошли, но оба ключа сразу — первая тройка
@@ -547,6 +547,10 @@ def collect_items() -> list[dict]:
         else:
             items.remove(it); continue
         _tag = _qtag(it["sym"], _q if k_q else None) + " · " + ("стык подхвачен" if k_s else "стык не подхвачен") + (" · копится" if k_c else "")
+        # НЕ «БРАТЬ» (19.09, STG: спутник «плечо +49%» на стыке прочитался как вход, взято на вершине дневного диапазона,
+        # через час плечо вышло): у «скоро» и «могут» подпись говорит, чего НЕТ — ход от основания меньше порога, ступени нет
+        if not went:
+            _tag = f"ход от основания +{float(it.get('run') or 0):.0f}% · ступени ещё нет — не вход · " + _tag
         it["sub"] = _tag + (" · " + str(it.get("sub") or "") if it.get("sub") else "")
     # первая тройка очереди без звезды — «могут пойти», если есть хотя бы один ключ
     for _sym, _q in _qpos.items():
@@ -555,8 +559,8 @@ def collect_items() -> list[dict]:
         k_q, k_s, k_c, _q2, _pk = _keys(_sym)
         _v = coins.get(_sym) or {}
         _why = " · ".join(_v.get("why") or []) or "в первой тройке очереди"
-        add(_sym, 0 if k_s else 1, _why + " · " + _qtag(_sym, _q) + (" · стык подхвачен" if k_s else " · стык не подхвачен"),
-            (_qtag(_sym, _q) + " · " + ("стык подхвачен" if k_s else "стык не подхвачен") + " · " + hist_line(_v)).strip(" ·"), 0.0)
+        add(_sym, 0 if k_s else 1, _why + " · " + _qtag(_sym, _q) + (" · стык подхвачен" if k_s else " · стык не подхвачен") + " · ступени ещё нет — не вход",
+            ("ступени ещё нет — не вход · " + _qtag(_sym, _q) + " · " + ("стык подхвачен" if k_s else "стык не подхвачен") + " · " + hist_line(_v)).strip(" ·"), 0.0)
     for it in items:
         _pk = _pick.get(it["sym"]) or {}
         _q = _qpos.get(it["sym"])
@@ -2130,12 +2134,23 @@ function drawFx(t){
   const PULL=!!L.sym;
   // КАПСУЛЫ СЕССИЙ — ВСЕГДА (12.09): переход и открытие относятся к фону, а не к монете,
   // поэтому показываются и когда лидера нет. Подхват — только при лидере, он про него.
-  const SESSCAPS=(function(){ var S=DATA.sess||{}, out='';
-      if(S.next && S.in_h!=null){ var m=Math.round(S.in_h*60);
-        if(m<=60) out += '<u class="warn">скоро переход · '+S.next+' через '+(m>=60?'1 ч':m+' мин')+'</u>'; }
-      if(S.just_open) out += '<u class="state">открытие · '+S.just_open+'</u>';
+  // ПЕРЕХОД СЧИТАЕТСЯ НА КЛИЕНТЕ (19.09, владелец: «прогон раз в полчаса, эта надпись уже через минуту врёт»):
+  // минуты до открытия и «открытие» берутся из часов браузера по таблице сессий (UTC: Сидней 21, Токио 0,
+  // Лондон 7, Нью-Йорк 13), капсула пересчитывается каждые 30 секунд. Подхват — из прогона, он про монету.
+  const SESS_OPEN=[[21,'Сидней'],[0,'Токио'],[7,'Лондон'],[13,'Нью-Йорк']];
+  function sessCaps(){ var S=DATA.sess||{}, out='', now=Date.now(), d0=Math.floor(now/864e5)*864e5, ord=[];
+      SESS_OPEN.forEach(function(se){ [-1,0,1].forEach(function(k){ ord.push([d0+k*864e5+se[0]*36e5, se[1]]); }); });
+      ord.sort(function(a,b){return a[0]-b[0];});
+      var last=null, next=null;
+      for(var i=0;i<ord.length;i++){ if(ord[i][0]<=now) last=ord[i]; else if(!next) next=ord[i]; }
+      if(next){ var m=Math.round((next[0]-now)/6e4);
+        if(m<=60) out += '<u class="warn">скоро переход · '+next[1]+' через '+(m>=60?'1 ч':m<=0?'минуту':m+' мин')+'</u>'; }
+      if(last && now-last[0]<=30*6e4) out += '<u class="state">открытие · '+last[1]+'</u>';
       if(S.pickup && L.sym) out += '<u class="'+(S.pickup.ok?'state':'hot')+'">'+S.pickup.text+'</u>';
-      return out; })();
+      return '<span id="sesscaps">'+out+'</span>'; }
+  const SESSCAPS=sessCaps();
+  setInterval(function(){ var sc=document.getElementById('sesscaps'); if(!sc) return;
+    var fresh=sessCaps().replace(/^<span id="sesscaps">|<\/span>$/g,''); if(sc.innerHTML!==fresh) sc.innerHTML=fresh; }, 30000);
   if(el&&L.sym&&PULL){
     el.className='lead'+(L.ended?' ended':'');
     // разделитель — ромб, чтобы числа не сливались в одну строку (09.09)
