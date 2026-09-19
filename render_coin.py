@@ -1671,7 +1671,8 @@ COIN_JS = r"""
     // ПОСЛЕДНИЕ ПУЗЫРИ ПРОДАЖИ И ИХ СУДЬБА (19.09): по ним решается хедж — выкупили красный, значит была тряска
     (function () { var _f = ((D.fast || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]) || {};
       var _sell = (_f.bubbles || []).filter(function (b) { return b.side === 'sell' && b.sure !== 'обычный' && b.after; }).slice(-3);
-      if (_sell.length) OBS.push('пузыри продажи: ' + _sell.map(function (b) { return hhmm(b.t) + ' ' + b.after; }).join(' · ')
+      var _hm = function (t) { var d = new Date(t), p2 = function (n) { return (n < 10 ? '0' : '') + n; }; return p2(d.getHours()) + ':' + p2(d.getMinutes()); };   // 19.09: своя, hhmm объявлена ниже по файлу
+      if (_sell.length) OBS.push('пузыри продажи: ' + _sell.map(function (b) { return _hm(b.t) + ' ' + b.after; }).join(' · ')
         + (_sell.every(function (b) { return /выкуплен за/.test(b.after); }) ? ' — все выкуплены, это тряска' : /не выкуплен/.test(_sell[_sell.length - 1].after) ? ' — последний не выкуплен, хедж держать' : ''));
     })();
     (function () { var dp = DEPTH[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]; if (!dp) return;
