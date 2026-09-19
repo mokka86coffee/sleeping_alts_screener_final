@@ -420,7 +420,7 @@ def _fast_events(days: int | None = None, only: list | None = None) -> dict:
                 if abs(x - mu) >= FAST_BUBBLE_SIGMA * sd:
                     role = ("спорный" if ((ch is not None and ch <= -FAST_BUBBLE_OI_PCT) or r.get("oi_type") == "long_close")
                             else "ясный" if (ch is not None and ch >= FAST_BUBBLE_OI_PCT) else "обычный")
-                    bub.append({"t": t, "px": r["px"], "side": "buy" if x > 0 else "sell", "sure": role})
+                    bub.append({"t": t, "px": r["px"], "side": "buy" if x > 0 else "sell", "sure": role, "i": i})
                 if ch is not None and ch <= FAST_END_OI_PCT and x < 0:
                     end.append({"t": t, "px": r["px"]})
                 if i > 0 and ((kv[i] < sig[i]) != (kv[i - 1] < sig[i - 1])):
@@ -446,6 +446,28 @@ def _fast_events(days: int | None = None, only: list | None = None) -> dict:
         oi30 = [[t, round(float(r["oi"]), 0)] for t, r in rows if t >= since and r.get("oi")]   # интерес $ по барам — линия на плите (14.09 ночь)
         vol30 = [[t, round(float((r.get("fut") or {}).get("b") or 0) + float((r.get("fut") or {}).get("s") or 0), 0), round(float((r.get("fut") or {}).get("d") or 0), 0)]
                  for t, r in rows if t >= since and r.get("fut")]   # оборот и дельта бара — подхват сессии (15.09)
+        # СУДЬБА ПУЗЫРЯ (19.09, владелец: «пузыри читать по тому, что цена сделала после»; хедж он открыл по красным
+        # Leviathan): у продажи — выкупили ли её, то есть вернулась ли цена выше бара пузыря, и за сколько баров;
+        # у покупки — удержали ли, не ушла ли цена ниже. Считается по закрытиям следующих FAST_BUBBLE_AFTER баров.
+        try:
+            from core_config import FAST_BUBBLE_AFTER
+        except ImportError:
+            FAST_BUBBLE_AFTER = 8
+        for _b in bub:
+            _i = _b.pop("i", None)
+            if _i is None:
+                continue
+            _px = float(_b["px"])
+            _nxt = [float(rr["px"]) for _, rr in rows[_i + 1:_i + 1 + FAST_BUBBLE_AFTER] if rr.get("px")]
+            if not _nxt:
+                _b["after"] = "ещё идёт"
+                continue
+            if _b["side"] == "sell":
+                _k = next((k for k, v in enumerate(_nxt, 1) if v > _px), None)
+                _b["after"] = (f"выкуплен за {_k} бар" + ("" if _k == 1 else "а" if _k < 5 else "ов")) if _k else f"не выкуплен · {min(_nxt) / _px * 100 - 100:+.1f}%"
+            else:
+                _k = next((k for k, v in enumerate(_nxt, 1) if v < _px), None)
+                _b["after"] = (f"продавили за {_k} бар" + ("" if _k == 1 else "а" if _k < 5 else "ов")) if _k else f"удержан · {max(_nxt) / _px * 100 - 100:+.1f}%"
         sym = p.stem.upper() + "USDT"
         out[sym] = {"bubbles": bub, "end": end, "force": force, "entry": [], "hedge": [], "start": [],
                     "vx30": vx30, "kl30": kl30, "fund30": fund30, "oi30": oi30, "vol30": vol30}
@@ -1646,6 +1668,12 @@ COIN_JS = r"""
     var OBS = [];
     (function () { var _pd = (D.pickday || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()];
       if (_pd && _pd.line) OBS.push('стыки за сутки: ' + _pd.line + (_pd.action ? ' — ' + _pd.action : '')); })();
+    // ПОСЛЕДНИЕ ПУЗЫРИ ПРОДАЖИ И ИХ СУДЬБА (19.09): по ним решается хедж — выкупили красный, значит была тряска
+    (function () { var _f = ((D.fast || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]) || {};
+      var _sell = (_f.bubbles || []).filter(function (b) { return b.side === 'sell' && b.sure !== 'обычный' && b.after; }).slice(-3);
+      if (_sell.length) OBS.push('пузыри продажи: ' + _sell.map(function (b) { return hhmm(b.t) + ' ' + b.after; }).join(' · ')
+        + (_sell.every(function (b) { return /выкуплен за/.test(b.after); }) ? ' — все выкуплены, это тряска' : /не выкуплен/.test(_sell[_sell.length - 1].after) ? ' — последний не выкуплен, хедж держать' : ''));
+    })();
     (function () { var dp = DEPTH[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]; if (!dp) return;
       var ws = (dp.walls || []).filter(function (w) { return Math.abs(+w.dist_pct || 0) <= 30; });
       var bidH = ws.filter(function (w) { return w.side === 'bid' && (+w.runs || 0) >= 3; }), askH = ws.filter(function (w) { return w.side === 'ask' && (+w.runs || 0) >= 3; });
@@ -2131,7 +2159,7 @@ COIN_JS = r"""
       (F.hedge || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: 'down', kind: 'vx', col: OR, op: .95, short: 'вортекс: продавцы взяли сторону', tip: 'вортекс 30м: продавцы взяли сторону · ' + hhmm(e.t) + ' · ' + (e.kind || '') }); });
       (F.force || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: e.dir === 'down' ? 'down' : 'up', kind: 'force', col: e.dir === 'down' ? RD : GR, op: e.dir === 'down' ? .9 : .8, short: e.dir === 'down' ? 'сила развернулась вниз' : 'сила развернулась вверх', tip: (e.dir === 'down' ? 'сила развернулась вниз · ' : 'сила развернулась вверх · ') + hhmm(e.t) }); });
       (F.end || []).forEach(function (e) { _EV.push({ t: e.t, px: +e.px, dir: 'down', kind: 'end', col: RD, op: .95, short: 'событие конца: интерес ушёл с ценой', tip: 'событие конца · ' + hhmm(e.t) + ' · интерес ушёл вместе с ценой на одном баре' }); });
-      (F.bubbles || []).forEach(function (e) { if (e.sure === 'обычный') return; var up = e.side === 'buy'; _EV.push({ t: e.t, px: +e.px, dir: up ? 'up' : 'down', kind: 'bub', col: up ? WH : '#ffb3a0', op: e.sure === 'ясный' ? .95 : .55, short: 'пузырь ' + (up ? 'покупки' : 'продажи') + ' · ' + e.sure, tip: 'пузырь дельты ' + (up ? 'покупка' : 'продажа') + ' · ' + hhmm(e.t) + ' · ' + e.sure + (e.sure === 'ясный' ? ' — интерес вырос на баре' : ' — интерес ушёл или лонги закрывали') }); });
+      (F.bubbles || []).forEach(function (e) { if (e.sure === 'обычный') return; var up = e.side === 'buy'; _EV.push({ t: e.t, px: +e.px, dir: up ? 'up' : 'down', kind: 'bub', col: up ? WH : '#ffb3a0', op: e.sure === 'ясный' ? .95 : .55, short: 'пузырь ' + (up ? 'покупки' : 'продажи') + ' · ' + e.sure + (e.after ? ' · ' + e.after : ''), tip: 'пузырь дельты ' + (up ? 'покупка' : 'продажа') + ' · ' + hhmm(e.t) + ' · ' + e.sure + (e.sure === 'ясный' ? ' — интерес вырос на баре' : ' — интерес ушёл или лонги закрывали') + (e.after ? ' · ПОСЛЕ: ' + e.after : ''), after: e.after }); });
       // КЛИНГЕР ПОЛУЧАСОВОЙ КАК СОБЫТИЕ (14.09 вечер): слот «клингер» в рейке до этого был пуст всегда —
       // в список событий его никто не клал. Время креста — из upAgo/dnAgo в получасовках от конца окна.
       (function () { var K = s.klinger30; if (!K) return;
