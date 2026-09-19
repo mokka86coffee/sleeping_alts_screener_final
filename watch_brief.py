@@ -528,7 +528,10 @@ def coin_block(w: dict, near: dict, depth: dict, unlocks: dict, state: dict) -> 
         _ev = _pick_events([dict(r, t=datetime.fromtimestamp(r["_t"] / 1000, timezone.utc)) for r in rows])[-4:]
         if _ev:
             def _w(e):
-                return f"{e['sess']} {_pw(e['kind'])}" + (f" ×{e['dnorm']:.1f} нормы" if e["kind"] == "раздача" else "") + (f" ({e['streak']}-я за сутки)" if e["kind"] == "раздача" and e["streak"] > 1 else "")
+                return (f"{e['sess']} {_pw(e['kind'])}" + (f" ×{e['dnorm']:.1f} нормы" if e["kind"] == "раздача" else "")
+                        + (f" ({e['streak']}-я за сутки)" if e["kind"] == "раздача" and e["streak"] > 1 else "")
+                        + (f" на {e['late']}-м баре" if e.get("late") else "")
+                        + (f" · {e['bars']} бар., до закрытия {e['left']}" if e.get("open") else ""))
             lines.append("    стыки за сутки: " + " · ".join(_w(e) for e in _ev))
             _last = _ev[-1]
             _act = _pa(_last["kind"], float(_last.get("run") or 0), int(_last.get("streak") or 0))

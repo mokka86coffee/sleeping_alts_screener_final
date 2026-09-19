@@ -760,7 +760,9 @@ def render_coin(stars: list[dict], market: dict) -> str:
                 _last = _ev[-1]
                 _run = float(_last.get("run") or 0)
                 pickday[_sym] = {"items": [{"sess": e["sess"], "word": _pw(e["kind"]), "kind": e["kind"], "explain": _PX.get(e["kind"], ""),
-                                            "dnorm": round(float(e.get("dnorm") or 0), 1), "streak": int(e.get("streak") or 0)} for e in _ev],
+                                            "dnorm": round(float(e.get("dnorm") or 0), 1), "streak": int(e.get("streak") or 0),
+                                            "bars": int(e.get("bars") or 0), "left": int(e.get("left") or 0),
+                                            "late": (int(e["late"]) if e.get("late") else None), "open": bool(e.get("open"))} for e in _ev],
                                  "action": _pa(_last["kind"], _run, int(_last.get("streak") or 0)), "numbers": _pn(_last["kind"], _run),
                                  "line": " · ".join(f"{e['sess']} {_pw(e['kind'])}" + (f" ×{e['dnorm']:.1f} нормы" if e["kind"] == "раздача" else "") + (f" ({e['streak']}-я за сутки)" if e["kind"] == "раздача" and e["streak"] > 1 else "") for e in _ev),
                                  "by": {str(int(e["t"].timestamp() * 1000)): {"kind": e["kind"], "word": _pw(e["kind"]), "dnorm": round(float(e.get("dnorm") or 0), 1), "streak": int(e.get("streak") or 0)} for e in _ev}}
@@ -2716,7 +2718,7 @@ COIN_JS = r"""
         if (tc <= tJ) {
           var bc = atOrBefore(VOL, tc), oc = atOrBefore(OIS, tc);
           var grow = !!(oc && ob && oc[1] > ob[1]), strong = !!(bc && normS[se[1]] && bc[1] >= normS[se[1]]);
-          conf = ok ? ((grow && strong) ? ' · подтверждено' : ' · не подтвердилось') : ((!grow && !strong) ? ' · подтверждено, цену отпускают' : '');
+          conf = ok ? ((grow && strong) ? ' · подтверждено' : ' · не подтвердилось') : '';   // 19.09: приговора в середине сессии нет
         }
         // ЧЕТЫРЕ СЛОВА У СТЫКА (19.09): лестница / раздача ×N нормы / пауза / не подхватил — метка из lab_pick_top по времени
         // открытия; пока сессия не закрылась и метки нет — старое «подхватил / не подхватил по N барам»
@@ -3211,9 +3213,10 @@ COIN_JS = r"""
       function pickHtml() {
         var _pd = (D.pickday || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()];
         if (!_pd || !(_pd.items || []).length) return '';
-        var col = { 'лестница': '#7fe0b0', 'раздача': '#ff8fa3', 'пауза': '#9fb0d8', 'не подхватил': '#5f7f78' };
+        var col = { 'лестница': '#7fe0b0', 'раздача': '#ff8fa3', 'пауза': '#9fb0d8', 'не подхватил': '#5f7f78', 'идёт': '#c8b47a' };
         var parts = _pd.items.map(function (e) {
-          var txt = e.sess + ' ' + e.word + (e.kind === 'раздача' ? ' ×' + e.dnorm + ' нормы' + (e.streak > 1 ? ' (' + e.streak + '-я за сутки)' : '') : '');
+          var txt = e.sess + ' ' + e.word + (e.kind === 'раздача' ? ' ×' + e.dnorm + ' нормы' + (e.streak > 1 ? ' (' + e.streak + '-я за сутки)' : '') : '')
+            + (e.late ? ' на ' + e.late + '-м баре' : '') + (e.open ? ' · ' + e.bars + ' бар' + (e.bars === 1 ? '' : e.bars < 5 ? 'а' : 'ов') + ', до закрытия ' + e.left : '');
           return '<span class="pk" style="color:' + (col[e.kind] || col['не подхватил']) + '" title="' + esc(e.explain || '') + '">' + esc(txt) + '</span>';
         });
         return '<div class="pickrow">' + parts.join('<em></em>') + '</div>'

@@ -1350,7 +1350,7 @@ def run_once(args: argparse.Namespace) -> int:
     # subprocess импортирован на уровне модуля (06.09: локальный импорт ниже делал имя локальным
     # для всей функции, и вызов near_move выше падал с UnboundLocalError)
     _jobs = {
-        "Лог ликвидности": (["liq_log.py", "--write"], 900),
+        "Лог ликвидности": (["liq_log.py", "--write"], 120),
         "Плечо по типу": (["oi_types.py", "--write"], 600),
         "Биткоин": (["btc_pulse.py", "--write"], 300),
     }
