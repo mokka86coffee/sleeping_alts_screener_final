@@ -2021,6 +2021,36 @@ COIN_JS = r"""
     //    три очереди) и последняя стрелка выноской под плитой; все стрелки — на плите журнала справа.
     //    События берутся из D.fast[sym] — их пишет _fast_events() из архива и журнала очереди.
     var _EV = [], _LAST = null;   // события быстрого слоя за окно — общий список для плиты и журнала
+    // ДВИЖЕНИЕ БЫСТРЫХ — ОДНА ФУНКЦИЯ НА РЕЙКУ И ПЛИТУ (19.09, владелец: «совместить новую реализацию по быстрым
+    // вортекс и клингеру с верхней правой плашкой»). rows = [[t, a, b]]: у вортекса a — покупатели, b — продавцы;
+    // у клингера a — KVO, b — сигнальная. Вортекс: куда и как быстро едет перевес за VX_WIN баров, сила — к обычному
+    // шагу разрыва этой монеты. Клингер: только разворот ВНИЗ после KL_UP_BARS баров роста. Возвращает
+    // {mv: +1/−1/0, st: 0..1, spd, t: время последнего бара, up: последний бар клингера вверх}.
+    function moveState(rows, name) {
+      var VX_WIN = (D.cfg && D.cfg.vxWin) || 4, KL_UP_BARS = (D.cfg && D.cfg.klUp) || 3;
+      var out = { mv: 0, st: 0, spd: null, t: null, up: null, n: rows ? rows.length : 0 };
+      if (!rows || !rows.length) return out;
+      var n = rows.length; out.t = +rows[n - 1][0];
+      if (name === 'клингер') {
+        out.up = n > 1 ? (+rows[n - 1][1] > +rows[n - 2][1]) : null;
+        if (n >= KL_UP_BARS + 2) {
+          var down = +rows[n - 1][1] < +rows[n - 2][1], up = true;
+          for (var qk = n - 2; qk > n - 2 - KL_UP_BARS; qk--) { if (!(+rows[qk][1] > +rows[qk - 1][1])) { up = false; break; } }
+          if (down && up) { out.mv = -1; out.st = 1; }
+        }
+        return out;
+      }
+      if (n <= VX_WIN) return out;
+      var gaps = rows.map(function (r) { return (+r[1] || 0) - (+r[2] || 0); }), step = [];
+      for (var qs = 1; qs < n; qs++) step.push(Math.abs(gaps[qs] - gaps[qs - 1]));
+      step.sort(function (a, b) { return a - b; });
+      var med = step.length ? step[Math.floor(step.length / 2)] : 0;
+      out.spd = (gaps[n - 1] - gaps[n - 1 - VX_WIN]) / VX_WIN;
+      out.mv = out.spd > 0 ? 1 : out.spd < 0 ? -1 : 0;
+      out.st = med > 0 ? Math.max(0, Math.min(1, Math.abs(out.spd) / (2.5 * med))) : 0;
+      if (out.st < 0.08) out.mv = 0;
+      return out;
+    }
     if (_hrs.length > 48) (function () {
       var F = ((D.fast || {})[_sym]) || {}, GR = '#4fd1a8', RD = '#ff7a7a', OR = '#f0a04b', WH = '#eaf4ff';
       function ok(t) { return t >= _tBeg && t <= _tEnd; }
@@ -2188,8 +2218,30 @@ COIN_JS = r"""
     // ярче, молчащий индикатор — тусклая строка с прочерком, чтобы было видно, что он молчит.
     if (_LAST) (function () {
       function hh(t) { var d = new Date(t); return pad(d.getDate()) + '.' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }   // местное время (11.09)
-      var KIND = [['oi', 'интерес'], ['force', 'сила · дельта'], ['vx', 'вортекс 30м'], ['bub', 'пузырь'], ['end', 'конец'], ['sess', 'стык сессий']];
+      var KIND = [['oi', 'интерес'], ['force', 'сила · дельта'], ['bub', 'пузырь'], ['end', 'конец'], ['sess', 'стык сессий']];
       var rows = KIND.map(function (k) { var e = _LAST[k[0]]; return { name: k[1], e: e, t: e ? e.t : 0 }; });
+      // ВОРТЕКС 30М И КЛИНГЕР 30М — ДВИЖЕНИЕМ (19.09): те же числа, что на плите быстрых и у буквы на цене
+      var FF = ((D.fast || {})[_sym]) || {};
+      (function () {
+        var v = moveState(FF.vx30 || [], 'вортекс');
+        if (v.n) {
+          var vd = v.mv > 0 ? 'up' : v.mv < 0 ? 'down' : null, pcs = Math.round(v.st * 100);
+          var vw = v.mv > 0 ? 'продавцы слабеют · перевес тает ' + pcs + '%' : v.mv < 0 ? 'продавцы давят сильнее · перевес растёт ' + pcs + '%' : 'перевес стоит';
+          var vcol = vd === 'up' ? '#4fd1a8' : vd === 'down' ? '#ff7a7a' : '#8fa8a0';
+          var vtip = 'вортекс 30м · ' + vw + (v.spd != null ? ' · скорость ' + Math.abs(v.spd).toFixed(3) + ' за бар' : '') + ' · окно ' + ((D.cfg && D.cfg.vxWin) || 4) + ' бара';
+          rows.push({ name: 'вортекс 30м', slow: true, when: vw, dir: vd || 'flat', col: vcol, tip: vtip, t: v.mv ? v.t : 0,
+            e: v.mv ? { t: v.t, dir: vd, col: vcol, tip: vtip, kind: 'vx' } : null });
+        }
+        var k = moveState(FF.kl30 || [], 'клингер');
+        if (k.n) {
+          var kw = k.mv < 0 ? 'рос и развернулся вниз' : k.up === true ? 'растёт' : k.up === false ? 'падает' : '—';
+          var K3 = s.klinger30 || {};
+          var kcol = k.mv < 0 ? '#ff7a7a' : k.up ? '#4fd1a8' : '#8fa8a0', kdir = k.mv < 0 ? 'down' : k.up ? 'up' : 'flat';
+          var ktip = 'клингер 30м · ' + kw + (has(K3.kvo) ? ' · KVO ' + f(K3.kvo) + ' при сигнале ' + f(K3.sig) : '');
+          rows.push({ name: 'клингер 30м', slow: true, when: kw, dir: kdir, col: kcol, tip: ktip, t: k.mv ? k.t : 0,
+            e: k.mv ? { t: k.t, dir: 'down', col: kcol, tip: ktip, kind: 'kl' } : null });
+        }
+      })();
       // медленные — состоянием, не событием
       // ПОДПИСИ ЧЕСТНЫЕ (12.09, владелец: «лучше достоверная информация, чем ложная»).
       // s.vxDir приходит из ПУЛЬСА — точки прогонов по получасовкам, а подписывался как «4ч».
@@ -2234,21 +2286,7 @@ COIN_JS = r"""
           tip: 'вортекс 4ч по свечам · ' + (_t4d ? ('ПОВОРОТ ' + (_t4d === 'down' ? 'ВНИЗ' : 'ВВЕРХ') + ': ' + _t4) : 'серии нет — поворота нет')
                + ' · справка: покупатели ' + f(s.vx4.vi_plus) + ', продавцы ' + f(s.vx4.vi_minus) });
       }
-      // КЛИНГЕР ПОЛУЧАСОВОЙ (12.09) — тот же масштаб, что у прогона: dnAgo/upAgo в получасовках,
-      // ×0.5 = часы. Идёт СРЕДИ БЫСТРЫХ, а не медленных: он и есть быстрый.
-      if (s.klinger30) { var K3 = s.klinger30, k3d = K3.crossUp ? 'up' : K3.crossDn ? 'down' : K3.above ? 'up' : 'down';
-        var _a3 = k3d === 'up' ? K3.upAgo : K3.dnAgo;
-        // СХОЖДЕНИЕ ДО КРЕСТА (12.09): разрыв линий ≤ четверти от суточного максимума и сужается
-        // два бара подряд. На истории LSK такое предупреждение сбывалось крестом вниз в 14 случаях
-        // из 22 с форой около полутора баров — это час до самого креста.
-        var _conv3 = K3.above && (+K3.gapX || 1) <= 0.25 && K3.narrowing;
-        if (_conv3) k3d = 'down';
-        var _w3 = K3.crossUp ? 'крест вверх сейчас' : K3.crossDn ? 'крест вниз сейчас'
-          : _conv3 ? 'сходится — крест близко'
-          : (_a3 === 0 || _a3 ? ('крест ' + (k3d === 'up' ? 'вверх' : 'вниз') + ' ' + (_a3 * 0.5).toFixed(1) + ' ч назад') : (K3.above ? 'выше сигнала' : 'ниже сигнала'));
-        rows.push({ name: 'клингер 30м', slow: true, dir: k3d, col: k3d === 'up' ? '#4fd1a8' : '#ff7a7a', when: _w3,
-          tip: 'клингер по получасовкам · ' + _w3 + ' · KVO ' + f(K3.kvo) + ' при сигнале ' + f(K3.sig)
-               + (has(K3.gapX) ? ' · разрыв ' + (K3.gapX * 100).toFixed(0) + '% от суточного максимума' : '') }); }
+      // КЛИНГЕР 30М по крестам (12.09) — заменён движением выше (19.09)
       // КЛИНГЕР 4ч — крест с ЧАСАМИ, а не «баров назад»: dnAgo/upAgo в 4ч-барах, ×4 = часы.
       if (s.klinger) { var K = s.klinger, kd = K.crossUp ? 'up' : K.crossDn ? 'down' : K.above ? 'up' : 'down';
         var _kAgo = kd === 'up' ? K.upAgo : K.dnAgo, _kWhen = K.crossUp ? 'крест вверх сейчас' : K.crossDn ? 'крест вниз сейчас'
@@ -2299,7 +2337,7 @@ COIN_JS = r"""
           (top ? '<circle cx="16" cy="16" r="9" fill="' + col + '" opacity=".22" style="filter:blur(5px)"><animate attributeName="r" values="7;13;7" dur="2.4s" repeatCount="indefinite"/></circle>' : '') +
           (ar ? '<path d="' + ar + '" fill="' + col + '" stroke="#fff6dc" stroke-width=".6" stroke-opacity=".6"' + (top ? ' style="filter:drop-shadow(0 0 6px ' + col + ')"' : '') + '/>' : '<circle cx="16" cy="16" r="1.6" fill="#8fa8a0"/>') + '</svg>' +
           '<div style="font-family:var(--f-cap);font-size:' + (top ? 8 : 7) + 'px;letter-spacing:.2em;text-transform:uppercase;color:' + col + ';white-space:nowrap">' + esc(r.name) + '</div>' +
-          '<div style="font-family:var(--f-cap);font-size:6.5px;letter-spacing:.12em;color:#bfe9d6;opacity:.85;white-space:nowrap">' + esc(e ? hh(e.t) : (r.slow ? r.when : '—')) + '</div></div>';   // только время; текст события — в подсказке
+          '<div style="font-family:var(--f-cap);font-size:6.5px;letter-spacing:.12em;color:#bfe9d6;opacity:.85;white-space:nowrap">' + esc(r.when ? r.when : e ? hh(e.t) : '—') + '</div></div>';   // состояние — словами (19.09), событие — временем; текст события — в подсказке
       });
       h += '</div></div>';
       notes += h;
@@ -2484,23 +2522,7 @@ COIN_JS = r"""
         // шагом разрыва этой же монеты, поэтому слипшиеся линии сами дают тусклую стрелку или не дают вовсе.
         // Клингер — только ВНИЗ («вверх там и так всё очевидно»): рос KL_UP_BARS баров подряд и на текущем
         // развернулся; размер падения не важен, важен сам разворот («по факту просто в обратную сторону развернулся»).
-        var mv = 0, mst = 0, mspd = null, n = rows.length;
-        if (name === 'клингер') {
-          if (n >= KL_UP_BARS + 2) {
-            var down = +rows[n - 1][1] < +rows[n - 2][1], up = true;
-            for (var qk = n - 2; qk > n - 2 - KL_UP_BARS; qk--) { if (!(+rows[qk][1] > +rows[qk - 1][1])) { up = false; break; } }
-            if (down && up) { mv = -1; mst = 1; }
-          }
-        } else if (n > VX_WIN) {
-          var step = [];
-          for (var qs = 1; qs < n; qs++) step.push(Math.abs(gaps[qs] - gaps[qs - 1]));
-          step.sort(function (a, b) { return a - b; });
-          var med = step.length ? step[Math.floor(step.length / 2)] : 0;
-          mspd = (gaps[n - 1] - gaps[n - 1 - VX_WIN]) / VX_WIN;   // >0 — перевес едет к покупателям, <0 — к продавцам
-          mv = mspd > 0 ? 1 : mspd < 0 ? -1 : 0;
-          mst = med > 0 ? Math.max(0, Math.min(1, Math.abs(mspd) / (2.5 * med))) : 0;
-          if (mst < 0.08) mv = 0;                                 // перевес стоит — стрелки нет
-        }
+        var _ms = moveState(rows, name), mv = _ms.mv, mst = _ms.st, mspd = _ms.spd, n = rows.length;
         if (mv) BREAKS.push({ t: rows[n - 1][0], side: mv, name: name, move: true, st: mst, spd: mspd, lastBrk: (lastT != null ? { t: rows[lastT][0], side: brk[lastT] } : null) });
         // КРЕСТ С СИГНАЛЬНОЙ (18.09, владелец): последнее пересечение осциллятора клингера с сигнальной — восклицательный
         // знак на баре пересечения: зелёный — вверх (в сторону роста), красный — вниз. Отдельно от стрелки движения.
@@ -2513,9 +2535,18 @@ COIN_JS = r"""
         }
         var lg = gaps[gaps.length - 1];
         // строка под плитой: подписи тусклые, ЗНАЧЕНИЯ ярко (владелец, 14.09 вечер)
-        STATE[name] = (lg > 0 ? 'давят <b>покупатели</b>' : lg < 0 ? 'давят <b>продавцы</b>' : '<b>ровно</b>') + ' · сила <b>' + Math.round(Math.abs(lg) / mx * 100) + '%</b>'
-          + (name !== 'клингер' && mv ? ' · перевес <b>' + (mv > 0 ? 'тает' : 'растёт') + '</b> ' + Math.round(mst * 100) + '%' : '')
-          + (lastT != null ? ' · слом <b>' + (brk[lastT] > 0 ? 'вверх' : 'вниз') + ' ' + hhmm(rows[lastT][0]) + '</b>' : ' · сломов за окно <b>нет</b>');
+        // ОДИН ЯЗЫК С БУКВОЙ НА ЦЕНЕ (19.09, владелец: «эти части нужно скорректировать»): строка говорит то же,
+        // что стрелка — движение перевеса у вортекса, разворот у клингера. «Слом» линий остаётся во всплывашке.
+        if (name === 'клингер') {
+          var _kup = n > 1 ? (+rows[n - 1][1] > +rows[n - 2][1]) : null;
+          STATE[name] = (mv < 0 ? 'рос <b>' + KL_UP_BARS + ' бара</b> · развернулся <b>вниз ' + hhmm(rows[n - 1][0]) + '</b>'
+                        : _kup === true ? '<b>идёт вверх</b>' : _kup === false ? '<b>идёт вниз</b>' : '<b>ровно</b>')
+            + (lg > 0 ? ' · над сигналом' : lg < 0 ? ' · под сигналом' : '');
+        } else {
+          STATE[name] = (mv > 0 ? 'продавцы <b>слабеют</b>' : mv < 0 ? 'продавцы <b>давят сильнее</b>' : 'перевес <b>стоит</b>')
+            + (mv ? ' · скорость <b>' + Math.round(mst * 100) + '%</b>' : '')
+            + ' · ' + (lg > 0 ? 'сверху <b>покупатели</b>' : lg < 0 ? 'сверху <b>продавцы</b>' : '<b>ровно</b>') + ' <b>' + Math.round(Math.abs(lg) / mx * 100) + '%</b>';
+        }
         return out;
       }
       // СЕССИИ И СТЫКИ НА ПЛИТЕ (15.09, владелец: «добавим переходы между сессиями, важные моменты — за час до
@@ -2580,8 +2611,12 @@ COIN_JS = r"""
           ob = atOrBefore(OIS, tLast); oiCh = (oa && ob && oa[1]) ? (ob[1] / oa[1] - 1) * 100 : null;
           if (oiCh === null) { var hb = win.filter(function (b) { return b[0] >= t && b[0] <= tLast; }); if (hb.length) oiCh = hb.reduce(function (a, b) { return a + (+b[2] || 0); }, 0); }
           var pb = atOrBefore(win.map(function (b) { return [b[0], +b[4]]; }), tLast); pxCh = (pa && pb) ? (pb[1] / pa[1] - 1) * 100 : null;
+          // ПЛЕЧО ИЛИ ДЕЛЬТА (19.09, случай ONE): ход на выжигании шортов плечо не растит — шорты закрываются
+          // и снимают, лонги открывают и добавляют, сумма стоит. Требовать рост плеча = не видеть сквиз.
+          // Подхват: оборот от нормы, цена вверх, и хотя бы одно — плечо выросло ИЛИ дельта в плюс.
           var c1 = volx !== null && volx >= 1, c2 = dl === null ? null : dl > 0, c3 = oiCh !== null && oiCh > 0;
-          ok = c1 && c3 && (c2 !== false);
+          var c4 = pxCh !== null && pxCh > 0;
+          ok = c1 && c4 && (c3 || c2 === true);
           if (ok) break;                                                       // ответ есть — дальше не ждём
         }
         var nums = ' · оборот ' + (volx !== null ? '×' + volx.toFixed(1) + ' к норме' : '—')
@@ -3034,8 +3069,11 @@ COIN_JS = r"""
         // моё важное: фандинг, если платят; свежий слом
         var fd = FS.fund.length ? FS.fund[FS.fund.length - 1][1] : null;
         if (fd !== null && (fd <= -0.5 || fd >= 0.1)) lines.push('<div class="ml ' + (fd < 0 ? 'ok' : 'no') + '">фандинг <b>' + (+fd).toFixed(2) + '%</b> · ' + (fd < 0 ? 'шорты платят' : 'платят лонги') + '</div>');
-        FS.breaks.slice().sort(function (a, b) { return b.t - a.t; }).slice(0, 2).forEach(function (bk) {
-          if (FS.tEnd - bk.t <= 3 * FS.stepMs) lines.push('<div class="ml ' + (bk.side > 0 ? 'ok' : 'no') + '">' + esc(bk.name) + ' · слом <b>' + (bk.side > 0 ? 'вверх' : 'вниз') + '</b> ' + (function (t) { var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); })(bk.t) + '</div>'); });
+        // движение быстрых (19.09): вортекс — куда едет перевес, клингер — только разворот вниз
+        FS.breaks.filter(function (bk) { return bk.move && !bk.cross; }).forEach(function (bk) {
+          var _hm = (function (t) { var d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); })(bk.t);
+          if (bk.name === 'клингер') { if (bk.side < 0) lines.push('<div class="ml no">клингер · <b>развернулся вниз</b> ' + _hm + '</div>'); return; }
+          lines.push('<div class="ml ' + (bk.side > 0 ? 'ok' : 'no') + '">вортекс · продавцы <b>' + (bk.side > 0 ? 'слабеют' : 'давят сильнее') + '</b> · ' + Math.round((bk.st || 0) * 100) + '%</div>'); });
         el.style.setProperty('--mc', col);
         var fdBadge = (fd !== null && (fd <= -0.5 || fd >= 0.1)) ? '<div class="b ' + (fd < 0 ? 'neg' : 'pos') + '">F</div>' : '';
         // пересобирать разметку только когда меняется СОСТАВ (иначе анимации появления стартовали бы каждую секунду);

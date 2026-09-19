@@ -374,8 +374,20 @@ def _today_bars(sym_usdt: str) -> dict | None:
     day_hi_run = None
     ended_at = None
     ended_oi = None
+    ended_hi = None
     prev_oi2 = None
     closing = 0
+    # ЦЕНА СНИМАЕТ «КОНЕЦ» (19.09, случай ONE): событие встало 18.09 23:00 на баре −8% с интересом −50%,
+    # дальше монета удвоилась, а «конец» висел полдня — интерес не вернулся, потому что ход шёл на выжигании
+    # шортов (шорты закрываются и снимают плечо, лонги открывают и добавляют, сумма стоит). Плечо тут молчит,
+    # а цена говорит: новый максимум выше вершины, стоявшей на баре конца, при обороте не ниже нормы бара —
+    # рука не ушла. Норма — медиана оборота бара за окно; бар с половиной нормы уже не пустой (в день выноса
+    # медиана сама огромная, и честный бар нового максимума иначе не проходил — ONE 19.09 00:30).
+    def _qv(_r):
+        _k = _r.get("kv") or {}
+        return float(_k.get("qv") or 0)
+    _qvs = sorted(v for v in (_qv(_r) for _r in rows) if v > 0)
+    qv_norm = _qvs[len(_qvs) // 2] if _qvs else 0
     # МЕДЛЕННЫЙ ВЫХОД (08.09, случай NAORIS): прежняя мерка ловила только резкий — падение интереса
     # на 2% в ОДНОМ баре вместе с отрицательной дельтой. У NAORIS такого бара не было ни разу:
     # интерес сползал по мелочи (−27, −26, −19 тыс), но за три часа набежало −6.5% при цене на 4–9%
@@ -407,6 +419,7 @@ def _today_bars(sym_usdt: str) -> dict | None:
         if (hard or closing >= 3 or slow) and ended_at is None:
             ended_at = r.get("candle")
             ended_oi = prev_oi2
+            ended_hi = day_hi_run
         # ВОССТАНОВЛЕНИЕ ОТМЕНЯЕТ КОНЕЦ (08.09, случай SOPH): событие сработало в 05:30, а монета
         # потом удвоилась — интерес после него вырос с 72M до 95M. Значит, это была тряска, а не
         # конец. Конец засчитывается ТОЛЬКО если интерес после события не вернулся к уровню,
@@ -414,6 +427,13 @@ def _today_bars(sym_usdt: str) -> dict | None:
         if ended_at and oo and ended_oi and oo >= ended_oi:
             ended_at = None
             ended_oi = None
+            ended_hi = None
+            closing = 0
+        # новый максимум выше вершины на баре конца при обороте от нормы — цена сняла «конец» (19.09, ONE)
+        if ended_at and ended_hi and r.get("px") and r["px"] > ended_hi and (not qv_norm or _qv(r) >= 0.5 * qv_norm):
+            ended_at = None
+            ended_oi = None
+            ended_hi = None
             closing = 0
         if oo:
             prev_oi2 = oo

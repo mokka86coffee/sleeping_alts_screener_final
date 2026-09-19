@@ -249,7 +249,9 @@ def pickup_line(rows: list, fe: dict | None = None) -> tuple[str, str]:
         oich = ((ob[1] / oa[1] - 1) * 100) if (oa and ob and oa[1]) else None
         pb = at_or_before(pxs, t_last)
         pxch = ((pb[1] / pa[1] - 1) * 100) if (pa and pb and pa[1]) else None
-        ok = bool(volx is not None and volx >= 1 and oich is not None and oich > 0 and (dl is None or dl > 0))
+        # плечо ИЛИ дельта (19.09, ONE): сквиз плечо не растит — требовать его рост значит не видеть подхват
+        ok = bool(volx is not None and volx >= 1 and pxch is not None and pxch > 0
+                  and ((oich is not None and oich > 0) or (dl is not None and dl > 0)))
         if ok:
             break                                            # ответ есть — дальше не ждём
     conf = ""
