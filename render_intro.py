@@ -483,6 +483,10 @@ def collect_items() -> list[dict]:
         STAR_SESS_VOL_X, STAR_SESS_OI_PCT = 5.0, 3.0
     _pick = _sess_pickup_all()
     _qpos = {sym: i + 1 for i, sym in enumerate(nm.get("queue") or [])}
+    try:
+        from core_config import STAR_DIM
+    except ImportError:
+        STAR_DIM = 0.22           # яркость звезды без места в очереди и без подхвата стыка
     for _sym, _pk in _pick.items():
         if _sym in seen or _sym not in coins:
             continue
@@ -507,9 +511,16 @@ def collect_items() -> list[dict]:
         grp = [it for it in items if it["g"] == g]
         if not grp:
             continue
+        # ЯРКОСТЬ ПО ДВУМ КЛЮЧАМ (19.09, владелец: «как было 9, так и осталось» — прежний пол 45% делал всех
+        # почти одинаковыми). Звезда без места в очереди и без подхвата стыка — тусклая (пол STAR_DIM); первое место
+        # в очереди или живой стык — в полную силу; между ними — по rel.
         hi_r, lo_r = max(it["rel"] for it in grp), min(it["rel"] for it in grp)
         for it in grp:
-            it["bright"] = 1.0 if hi_r <= lo_r else 0.45 + 0.55 * (it["rel"] - lo_r) / (hi_r - lo_r)
+            _key = (it["rel"] >= 100.0) or ((_pick.get(it["sym"]) or {}).get("volx", 0) >= STAR_SESS_VOL_X)
+            if not _key:
+                it["bright"] = STAR_DIM
+            else:
+                it["bright"] = 1.0 if hi_r <= lo_r else STAR_DIM + (1.0 - STAR_DIM) * (it["rel"] - lo_r) / (hi_r - lo_r)
     for it in items:
         if it["g"] == 2:
             it["bright"] = 0.7
@@ -2206,7 +2217,7 @@ function drawFx(t){
   }
   function leadGauge(r){
     // ПУСТОЙ ЛИДЕР — ЧЕСТНО (12.09, владелец: прибор рисовал «ни» и «одна от дна недели»)
-    if(!r[2] || !String(r[2]).trim()){
+    if(!r[2] || !String(r[2]).trim() || /^ни\b/i.test(String(r[2]).trim())){   // 19.09: «ни одна…» — лидера нет, а не имя «НИ»
       return `<div class="g lead"><div class="t">${r[0]}</div>
         <div class="ring" style="--p:0;opacity:.25"></div>
         <div class="lx"><b style="color:rgba(200,212,255,.45)">лидера нет</b><u><w>доска без ведущего</w></u></div></div>`;
