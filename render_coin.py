@@ -1065,10 +1065,11 @@ COIN_HTML = r"""
 .vb .grey .f.top{background:linear-gradient(180deg,#1f2523,#121615)}
 .vb .grey .f.left{background:linear-gradient(90deg,#060807,#111514)}.vb .grey .f.right{background:linear-gradient(270deg,#060807,#111514)}
 .vb .grey .f.back,.vb .grey .f.bottom{background:#080b0a}
-.vb .grey .txt{position:absolute;inset:0;padding:18px 16px;display:grid;grid-template-columns:42px 1fr;gap:10px 8px;align-content:center}
+.vb .grey .txt{position:absolute;inset:0;padding:18px 16px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:18px}
+.vb .grey .txt b i{font-style:normal;font-weight:300;font-size:10px;letter-spacing:.1em;margin-left:8px;opacity:.7}
 /* гравировка: одна фактура у всех строк — цвет чуть темнее грани, тонкая светлая кромка снизу и тень сверху */
 .vb .grey .txt b,.vb .grey .txt span{color:#5c6763;text-shadow:0 1px 0 rgba(255,255,255,.22),0 -1px 0 rgba(0,0,0,.95),0 0 6px rgba(0,0,0,.6)}
-.vb .grey .txt b{font-family:var(--f-cap);font-weight:500;font-size:8px;letter-spacing:.3em;text-transform:uppercase;padding-top:2px}
+.vb .grey .txt b{font-family:var(--f-cap);font-weight:500;font-size:15px;letter-spacing:.42em;text-transform:uppercase;padding-top:0;cursor:default}
 .vb .grey .txt span{font-family:var(--f-cap);font-size:9.6px;line-height:1.5;letter-spacing:.02em}   /* крупнее (владелец, 15.09); 10.5 выталкивало «за» за верх камня */   /* моно, вариант 1 (05.09) */
 .vb .grey .txt .con{color:#6b5f59;text-shadow:0 1px 0 rgba(255,225,205,.2),0 -1px 0 rgba(0,0,0,.95),0 0 6px rgba(0,0,0,.6)}
 .vb .gshadow{position:absolute;left:190px;bottom:-10px;width:280px;height:24px;border-radius:50%;background:radial-gradient(rgba(0,0,0,.8),rgba(0,0,0,0) 70%)}
@@ -1605,11 +1606,33 @@ COIN_JS = r"""
       if (cb) pro.push('стакан: пол ' + W(cb));
       (dp.gone || []).slice(0, 1).forEach(function (g) { if (g.fate === 'сняли') con.push('стакан: ' + (g.side === 'ask' ? 'аск ' : 'бид ') + px4(g.px) + ' $' + Math.round(g.usd / 1e3) + 'K сняли после ' + g.runs + ' пр.'); });
     })();
+    // НАБЛЮДЕНИЯ ПО СТАКАНУ (19.09, лаборатория по архиву стакана: 44 монеты, 3 дня, 10 тысяч стен, ход против
+    // медианы доски). Не довод, а наблюдение — в правила не идёт, пересчитать через неделю. Что дало край:
+    //   коридор — пол и потолок стоят 3+ прогонов одновременно: +3.4% к доске за 6 ч, ход ≥3% в 51% против 29%;
+    //   потолок съели после 4+ прогонов: +2.6% к доске за 3 ч; пол в средней зоне съели: +3.9% за 6 ч (28 случаев);
+    //   потолок стоит 3+, пола нет: −3.0% за 6 ч; пол съели при стоящем потолке: −2.1%.
+    //   Снятые стены (сняли, не съели) — шум: после них ноль к доске.
+    var OBS = [];
+    (function () { var dp = DEPTH[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]; if (!dp) return;
+      var ws = (dp.walls || []).filter(function (w) { return Math.abs(+w.dist_pct || 0) <= 30; });
+      var bidH = ws.filter(function (w) { return w.side === 'bid' && (+w.runs || 0) >= 3; }), askH = ws.filter(function (w) { return w.side === 'ask' && (+w.runs || 0) >= 3; });
+      var mnr = function (a) { return Math.min.apply(null, a.map(function (w) { return +w.runs || 0; })); };
+      if (bidH.length && askH.length) OBS.push('стакан: коридор ' + Math.min(mnr(bidH), mnr(askH)) + ' пр. — пол и потолок держат');
+      else if (askH.length && !bidH.length) OBS.push('стакан: потолок стоит ' + mnr(askH) + ' пр., пола нет');
+      else if (bidH.length && !askH.length) OBS.push('стакан: пол стоит ' + mnr(bidH) + ' пр., потолка нет');
+      var now = Date.now();
+      (dp.gone || []).forEach(function (g) {
+        if (g.fate !== 'съели' || Math.abs(+g.dist_pct || 0) > 30 || (g.at && now - g.at > 6 * 36e5)) return;
+        if (g.side === 'ask' && (+g.runs || 0) >= 4) OBS.push('стакан: потолок ' + px4(g.px) + ' съели после ' + g.runs + ' пр.');
+        if (g.side === 'bid' && g.zone === 'средняя') OBS.push('стакан: пол ' + px4(g.px) + ' (' + (+g.dist_pct).toFixed(1) + '%) съели — снятие дна');
+      });
+    })();
     var patD = patterns(HIST[String(s.t).toUpperCase()] || {}, CROWD[String(s.t).toUpperCase()]);
     if (patD.absorbShort) pro.push(patD.absorbShort);
     if (patD.shortShort) pro.push(patD.shortShort);
     if (patD.leverShort) (patD.leverKind === 'reload' || patD.leverKind === 'build' ? pro : con).push(patD.leverShort);
     dr.push(['за', pro.length ? pro.join(' · ') : 'нет'], ['против', con.length ? con.join(' · ') : 'нет']);
+    if (OBS.length) dr.push(['наблюдение', OBS.join(' · ') + ' — по архиву стакана за 3 дня, в правила не идёт']);
     g.decision = { fast: _fast, src: [['квант', 'quant', 24], ['Coinglass', 'coinglass', 1], ['пульс', 'pulse', 1]], cap: 'решение', num: verdict, verdict: verdict.toUpperCase(), why: why, rows: dr, pro: pro, con: con,
       exit: s.exitWhy || '', hurry: (s.exitDeadline ? 'срок ' + s.exitDeadline : (u && u.days <= 1 ? 'разлок ' + (u.days ? 'завтра' : 'сегодня') : '')) };
     // ПОТОК
@@ -2383,7 +2406,9 @@ COIN_JS = r"""
       '<div class="bglow2"></div><div class="bglow"></div>' +
       [[46, 6.2, 0], [62, 7.1, .8], [78, 5.6, 1.6], [94, 6.8, .4], [110, 7.6, 1.2]].map(function (r) { return '<i class="ray" style="left:' + r[0] + 'px;--rd:' + r[1] + 's;--rw:' + (-r[2]) + 's"></i>'; }).join('') +
       '<div class="vtxt' + (String(dec.verdict || '').length > 7 ? ' long' : '') + '"><div class="railbox"></div><div class="vcap">решение</div><div class="vw">' + esc(dec.verdict) + '</div><div class="vwhy">' + esc(String(dec.why).split('—')[0].slice(0, 32)) + '</div></div>' +
-      '<div class="gshadow"></div><div class="box grey">' + BOX6 + '<div class="f front"><div class="txt"><b>за</b><span>' + esc(dec.pro.join(' · ') || 'нет') + '</span><b class="con">против</b><span class="con">' + esc(dec.con.join(' · ') || 'нет') + '</span></div></div></div></div>';
+      // КАМЕНЬ — ТОЛЬКО «ЗА» И «ПРОТИВ» (19.09, владелец): текст доводов ушёл во всплывашку решения, она
+      // открывается при наведении на всю зону решения по центру экрана; на грани — два слова и счёт доводов
+      '<div class="gshadow"></div><div class="box grey">' + BOX6 + '<div class="f front"><div class="txt"><b>за<i>' + (dec.pro.length || 0) + '</i></b><b class="con">против<i>' + (dec.con.length || 0) + '</i></b></div></div></div></div>';
     // ── БЫСТРЫЕ ВОРТЕКС И КЛИНГЕР (14.09 вечер, владелец): плита как у журнала справа внизу — цена
     //    на стекле, под ней две строки СТРЕЛОК по времени: вверх — давят покупатели, вниз — продавцы;
     //    прозрачность — сила давления; РАЗВОРОТ (стрелка сменила сторону) — крупнее, с кольцом и временем;

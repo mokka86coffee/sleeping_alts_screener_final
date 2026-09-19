@@ -144,6 +144,72 @@ def _many_lead() -> dict | None:
     return None
 
 
+def _sess_pickup_all() -> dict:
+    """ВТОРОЙ ПРИЗНАК ЗВЁЗД (19.09, владелец: «яркость и появление тоже регулируй по второму признаку»):
+    первый час-полтора после открытия сессии — оборот к норме ЭТОЙ сессии и приход плеча. Разбор ночи
+    18–19.09: у ONE ×25 и у SYN ×61 оборота в первый час Сиднея, у остальных семи звёзд — до ×5; пошли
+    ONE и SYN. Считается по архиву получасовок для всех монет: {SYMUSDT: {volx, oi, delta, px, bars, sess}}.
+    Пороги — STAR_SESS_* в core_config."""
+    from datetime import datetime, timezone
+    import statistics as _st
+    d = BASE_DIR / "cq_v2" / "intraday"
+    if not d.exists():
+        return {}
+    OPENS = ((21, "Сидней"), (0, "Токио"), (7, "Лондон"), (13, "Нью-Йорк"))
+    out: dict = {}
+    for p in d.glob("*.jsonl"):
+        try:
+            lines = p.read_text(encoding="utf-8", errors="replace").splitlines()[-400:]
+        except OSError:
+            continue
+        rows = []
+        for ln in lines:
+            try:
+                r = json.loads(ln)
+            except ValueError:
+                continue
+            if r.get("px") and r.get("candle"):
+                try:
+                    r["_t"] = int(datetime.fromisoformat(str(r["candle"]).replace("Z", "+00:00")).timestamp() * 1000)
+                except ValueError:
+                    continue
+                rows.append(r)
+        if len(rows) < 30:
+            continue
+        rows.sort(key=lambda r: r["_t"])
+        qv = lambda r: float((r.get("kv") or {}).get("qv") or 0)
+        # последнее открытие, у которого закрыт хотя бы бар открытия
+        opens = []
+        for r in rows[-96:]:
+            h = datetime.fromtimestamp(r["_t"] / 1000, timezone.utc)
+            for oh, nm in OPENS:
+                if h.hour == oh and h.minute == 0:
+                    opens.append((r["_t"], nm))
+        if not opens:
+            continue
+        t0, name = opens[-1]
+        idx = {r["_t"]: i for i, r in enumerate(rows)}
+        i0 = idx.get(t0)
+        if i0 is None:
+            continue
+        h0 = next(oh for oh, nm in OPENS if nm == name)
+        norm_bars = [qv(r) for r in rows[-336:] if qv(r) > 0
+                     and (datetime.fromtimestamp(r["_t"] / 1000, timezone.utc).hour - h0) % 24 < 9]
+        nrm = _st.median(norm_bars) if norm_bars else 0
+        seg = rows[i0:i0 + 3]
+        vol = sum(qv(r) for r in seg)
+        volx = (vol / (nrm * len(seg))) if (nrm and seg) else None
+        oi_a = next((float(r["oi"]) for r in reversed(rows[max(0, i0 - 2):i0]) if r.get("oi")), None)
+        oi_b = next((float(r["oi"]) for r in reversed(seg) if r.get("oi")), None)
+        oich = ((oi_b / oi_a - 1) * 100) if (oi_a and oi_b) else None
+        dl = [(r.get("fut") or {}).get("d") for r in seg]
+        dl = None if any(x is None for x in dl) else sum(float(x) for x in dl)
+        px0 = float(rows[i0 - 1]["px"]) if i0 else float(seg[0]["px"])
+        pxch = (float(seg[-1]["px"]) / px0 - 1) * 100 if px0 else None
+        out[p.stem.upper() + "USDT"] = {"volx": volx, "oi": oich, "delta": dl, "px": pxch, "bars": len(seg), "sess": name}
+    return out
+
+
 def _book_count() -> int:
     """Сколько позиций у бота сейчас — для подписи-перехода «книга N» (16.09). Считаем открытые во всех
     бумажных книгах: paper_end, paper_crowd, paper_fast (у последнего позиция может быть в хедже)."""
@@ -405,6 +471,35 @@ def collect_items() -> list[dict]:
             add(_sym, 0, _why, _sub, float(_x["run"]) + (100.0 if _x.get("led") else 0.0))
     except Exception as _e:  # noqa: BLE001
         print(f"профиль лидера не собрался: {type(_e).__name__}: {_e}", file=sys.stderr)
+    # ВТОРОЙ ПРИЗНАК — СТЫК СЕССИИ (19.09, владелец): яркость и появление регулируются дополнительно по
+    # первому часу сессии — оборот к норме этой сессии и приход плеча. Появление: монета не звезда по ходу,
+    # но на стыке оборот от STAR_SESS_VOL_X норм и плечо от STAR_SESS_OI_PCT при цене вверх — загорается с
+    # подписью «подхват стыка». Яркость: место в очереди первым ключом (ONE 18.09 стояла первой в очереди с
+    # 14:10, а звездой была второй-третьей — экран показывал, кто уже прошёл, а не кто пойдёт), стык вторым,
+    # ход от основания третьим. Правило, КТО горит по ходу, не тронуто.
+    try:
+        from core_config import STAR_SESS_VOL_X, STAR_SESS_OI_PCT
+    except ImportError:
+        STAR_SESS_VOL_X, STAR_SESS_OI_PCT = 5.0, 3.0
+    _pick = _sess_pickup_all()
+    _qpos = {sym: i + 1 for i, sym in enumerate(nm.get("queue") or [])}
+    for _sym, _pk in _pick.items():
+        if _sym in seen or _sym not in coins:
+            continue
+        if (_pk.get("volx") or 0) >= STAR_SESS_VOL_X and (_pk.get("oi") or 0) >= STAR_SESS_OI_PCT and (_pk.get("px") or 0) > 0:
+            _v = coins.get(_sym) or {}
+            _why = " · ".join(_v.get("why") or [])
+            _line = (f"подхват стыка {_pk['sess']}: оборот ×{_pk['volx']:.0f} к норме · плечо {_pk['oi']:+.1f}%"
+                     + (f" · дельта {_pk['delta'] / 1e3:+.0f}K" if _pk.get("delta") is not None else "") + f" · цена {_pk['px']:+.1f}% по {_pk['bars']} бар."
+                     )
+            add(_sym, 0, (_why + " · " if _why else "") + _line, "подхват стыка · " + hist_line(_v), 0.0)
+    for it in items:
+        _pk = _pick.get(it["sym"]) or {}
+        _q = _qpos.get(it["sym"])
+        _sess = (max(0.0, min(50.0, float(_pk.get("volx") or 0))) + max(0.0, float(_pk.get("oi") or 0))) if _pk else 0.0
+        it["rel"] = (400.0 if _q == 1 else 300.0 if _q == 2 else 200.0 if _q == 3 else 100.0 if _q else 0.0) + _sess + float(it.get("rel") or 0.0) / 10.0
+        if _pk and _pk.get("volx") is not None:
+            it["sub"] = (it.get("sub") or "") + f" · стык: оборот ×{_pk['volx']:.0f}" + (f" · плечо {_pk['oi']:+.0f}%" if _pk.get("oi") is not None else "")
     # порядок: брать, держать, у цели; внутри группы — по надёжности, самая надёжная первой
     items.sort(key=lambda it: (it["g"], -it.get("rel", 0.0)))
     # яркость внутри группы: лучшая — 1.0, остальные вниз до 0.45; «у цели» — ровно 0.7

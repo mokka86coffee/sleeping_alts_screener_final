@@ -1351,8 +1351,11 @@ def build(only: list[str] | None = None) -> dict:
 
 
 def _many_lead(prev: dict) -> dict | None:
-    """Две и больше монет с ходом от порога за сутки → ограничения на звёзды сняты до начала следующей
-    сессии минус час. Возвращает {syms, n, until, why} или None. Окно продлевается, но не сокращается."""
+    """ЛИДЕР НЕ ОДИН (19.09, владелец: «правило лидера снимается при хотя бы одной монете, кроме лидера,
+    которая также имеет +40% за 24 часа»): сильнейший из живых в pump_leaders — лидер — в счёт не идёт;
+    ограничения «тянет одна · вход в остальных закрыт» сняты, если СВЕРХ него есть MANY_LEADERS_N монет
+    с ходом за сутки от MANY_LEADERS_PCT (ставить 1 и 40). Снято до начала следующей сессии минус час.
+    Возвращает {syms, n, until, why} или None. Окно продлевается, но не сокращается."""
     from datetime import datetime, timedelta, timezone
     try:
         from core_config import (MANY_LEADERS_LIFT_BEFORE_H, MANY_LEADERS_MIN_VOL, MANY_LEADERS_N,
@@ -1363,10 +1366,12 @@ def _many_lead(prev: dict) -> dict | None:
         recs = json.loads(Path(_plp).read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
-    hits = [r for r in recs.values()
-            if isinstance(r, dict) and not r.get("retired_at")
-            and float(r.get("day_pct") or 0) >= MANY_LEADERS_PCT
-            and float(r.get("vol_usd") or 0) >= MANY_LEADERS_MIN_VOL]
+    alive = [r for r in recs.values() if isinstance(r, dict) and not r.get("retired_at")
+             and float(r.get("vol_usd") or 0) >= MANY_LEADERS_MIN_VOL]
+    # лидер — сильнейший из живых по ходу за сутки (та же мерка, что у плашки «сейчас ведёт»); его не считаем
+    lead = max(alive, key=lambda r: float(r.get("day_pct") or 0), default=None)
+    hits = [r for r in alive
+            if r is not lead and float(r.get("day_pct") or 0) >= MANY_LEADERS_PCT]
     now = datetime.now(timezone.utc)
     # начало следующей сессии (UTC): Сидней 21, Токио 0, Лондон 7, Нью-Йорк 13
     nxt = None
@@ -1385,7 +1390,8 @@ def _many_lead(prev: dict) -> dict | None:
             until_s = until.strftime("%Y-%m-%dT%H:%M:%SZ")
         syms = sorted((r["symbol"] for r in hits), key=lambda x: -float(next(q.get("day_pct") or 0 for q in hits if q["symbol"] == x)))
         return {"syms": syms, "n": len(hits), "until": until_s,
-                "why": f"{len(hits)} монет от {MANY_LEADERS_PCT:.0f}% за сутки — ограничения сняты",
+                "leader": (lead or {}).get("symbol"),
+                "why": f"кроме лидера {(lead or {}).get('symbol', '—').replace('USDT', '')} ещё {len(hits)} от {MANY_LEADERS_PCT:.0f}% за сутки — вход не закрыт",
                 "moves": {r["symbol"]: round(float(r.get("day_pct") or 0), 1) for r in hits}}
     # порог сейчас не выполнен: окно живёт, пока не вышло время
     if was_until and now.strftime("%Y-%m-%dT%H:%M:%SZ") < str(was_until):

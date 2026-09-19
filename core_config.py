@@ -189,7 +189,7 @@ PUMP_LEADERS_PATH = OUTPUT_DIR / "pump_leaders.json"
 # листинг от PUMP_MIN_AGE_DAYS), с оборотом от MANY_LEADERS_MIN_VOL — он выше общего MIN_QUOTE_VOLUME_24H.
 # Снято ДО НАЧАЛА СЛЕДУЮЩЕЙ СЕССИИ МИНУС MANY_LEADERS_LIFT_BEFORE_H: держится, даже если монеты
 # успели откатиться, — иначе окно моргало бы каждые полчаса.
-MANY_LEADERS_N = 2
+MANY_LEADERS_N = 1        # монет СВЕРХ лидера (19.09): лидер в счёт не идёт
 MANY_LEADERS_PCT = 40.0
 MANY_LEADERS_MIN_VOL = 10_000_000
 MANY_LEADERS_LIFT_BEFORE_H = 1.0
@@ -591,3 +591,6 @@ WATCH_PICK_CONFIRM = 4    # бар подтверждения
 SIDE_LIQ_RATIO = 1.5                                   # перевес сожжённых во столько раз задаёт сторону
 SIDE_STOPS_PER_DAY = 2                                 # стопов по монете за день до закрытия
 SIDE_RULES_OFF = ("рост на выносе", "спайк на выносе")
+
+STAR_SESS_VOL_X = 5.0    # оборот за стык к норме сессии — с этого монета может загореться
+STAR_SESS_OI_PCT = 3.0   # приход плеча за стык, процентов
