@@ -264,6 +264,14 @@ def step(pos: dict, rows: list[dict], v: dict | None, now: int) -> list[dict]:
     return ev
 
 
+# СТОРОНА ОТ ФОНА (19.09): 458 из 461 закрытых «картины» — лонги, и 80% плюса пришлось на 18.09, когда биткоин шёл
+# с 75 на 80; сторона совпала с фоном. Чтобы на развороте биткоина книга не лонговала против него — paper_side.
+try:
+    import paper_side as _ps
+except ImportError:
+    _ps = None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only")
@@ -296,6 +304,23 @@ def main() -> int:
                     print(f"paper_sight: {sym} · хедж по {e['px']:.6g} · {e['why']}")
                 else:
                     print(f"paper_sight: {sym} · хедж снят по {e['px']:.6g} · {e['hedge_res_pct']:+.2f}% · {e['why'][:60]}")
+            # FOLLOW ПО ОТКРЫТЫМ (19.09): без него в журнале одни выигрыши, а проигрыши сидят в открытых — 118 открытых,
+            # 29 под хеджем на −85% замороженных, 89 неизвестно. Каждый прогон — результат от цены сейчас с хеджами,
+            # лучшая и худшая точка, под хеджем или нет; экран книги и лаборатории считают открытые из этих строк.
+            if not pos.get("closed"):
+                _px_now = float(rows[-1]["px"])
+                _r = total_res(pos, _px_now)
+                _a, _b = leg_res(pos, float(rows[-1].get("h") or _px_now)), leg_res(pos, float(rows[-1].get("l") or _px_now))
+                _hi = max(float(pos.get("mfe") or 0.0), _a, _b)      # у шорта лучшая точка — на минимуме бара
+                _lo = min(float(pos.get("mae") or 0.0), _a, _b)
+                pos["mfe"], pos["mae"] = round(_hi, 5), round(_lo, 5)
+                _open_h = [h for h in (pos.get("hedges") or []) if not h.get("closed")]
+                events.append(dict(kind="follow", book=BOOK_LABEL, sym=sym, side=pos["side"], t=pos["t"], px_in=pos["px"],
+                                   px=_px_now, size=pos.get("size", 1.0), rule=pos.get("rule"), at=now, open=True,
+                                   result_pct=round(_r * 100, 2), result_sized_pct=round(_r * pos.get("size", 1.0) * 100, 2),
+                                   leg_pct=round(leg_res(pos, _px_now) * 100, 2), mfe=round(_hi * 100, 2), mae=round(_lo * 100, 2),
+                                   hedged=bool(_open_h), hedges=len(pos.get("hedges") or []), bars=int(pos.get("bars") or 0),
+                                   opened_at=pos.get("opened_at")))
             if pos.get("closed"):
                 del state["open"][sym]
                 pos = None
@@ -303,6 +328,14 @@ def main() -> int:
             continue
         s = side_of(v)
         t = rows[-1]["t"]
+        if s and _ps and t > int(state["last_sig"].get(sym) or 0):
+            _ok, _sw = _ps.allowed(int(s), sym, f"картина: {'лонг' if s > 0 else 'шорт'}", BOOK_NAME)
+            if not _ok:
+                state["last_sig"][sym] = t
+                events.append({"kind": "skip", "book": BOOK_LABEL, "sym": sym, "side": s, "t": t, "px": float(rows[-1]["px"]),
+                               "at": now, "why_skip": _sw, "score": sum(v.values()), "votes": v})
+                print(f"paper_sight: {sym} · пропуск — {_sw}")
+                s = 0
         if s and t > int(state["last_sig"].get(sym) or 0):
             cands.append((sym, s, v, t, float(rows[-1]["px"])))
     cands.sort(key=lambda x: -abs(sum(x[2].values())))

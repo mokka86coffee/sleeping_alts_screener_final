@@ -130,6 +130,12 @@ try:
     import paper_guard as _pg
 except ImportError:
     _pg = None
+# СТОРОНА ОТ ФОНА (19.09): шорт не открывается, пока по биткоину жгут шортов; выключенные правила; потолок стопов
+# по монете в день. Модуль paper_side, пороги SIDE_* в core_config. Нет модуля — книга работает как раньше.
+try:
+    import paper_side as _ps
+except ImportError:
+    _ps = None
 
 
 def _opposite_open(sym: str, side: int) -> str | None:
@@ -189,6 +195,13 @@ def main() -> int:
             _opp = _opposite_open(sym, -1)
             if _opp:
                 print(f"paper_end: {sym} · пропуск — встречная позиция в {_opp}")
+                sig = None
+        if sig and not pos and _ps and sig["t"] > (state.get("last_sig", {}).get(sym) or 0):
+            _ok, _sw = _ps.allowed(-1, sym, str(sig.get("rule") or ""), BOOK_NAME)
+            if not _ok:
+                print(f"paper_end: {sym} · пропуск — {_sw}")
+                opened.append(_pg.skip_row(sym, sig, _sw, now, BOOK_NAME) if _pg else dict(sig, sym=sym, kind="skip", why_skip=_sw, at=now, book=BOOK_NAME))
+                state.setdefault("last_sig", {})[sym] = sig["t"]
                 sig = None
         if sig and not pos and sig["t"] > (state.get("last_sig", {}).get(sym) or 0):
             cands.append((sym, sig))
