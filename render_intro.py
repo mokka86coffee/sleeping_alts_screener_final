@@ -469,6 +469,7 @@ def collect_items() -> list[dict]:
             if _why_first:
                 _sub = _why_first + (" · " + _sub if _sub else "")
             add(_sym, 0, _why, _sub, float(_x["run"]) + (100.0 if _x.get("led") else 0.0))
+            items[-1]["run"], items[-1]["dd"] = float(_x.get("run") or 0), float(_x.get("dd") or 0)
     except Exception as _e:  # noqa: BLE001
         print(f"профиль лидера не собрался: {type(_e).__name__}: {_e}", file=sys.stderr)
     # ВТОРОЙ ПРИЗНАК — СТЫК СЕССИИ (19.09, владелец): яркость и появление регулируются дополнительно по
@@ -497,6 +498,65 @@ def collect_items() -> list[dict]:
                      + (f" · дельта {_pk['delta'] / 1e3:+.0f}K" if _pk.get("delta") is not None else "") + f" · цена {_pk['px']:+.1f}% по {_pk['bars']} бар."
                      )
             add(_sym, 0, (_why + " · " if _why else "") + _line, "подхват стыка · " + hist_line(_v), 0.0)
+    # ТРИ КАТЕГОРИИ (19.09, владелец: «нужно разделить на 3 категории — которые скоро пойдут, которые могут пойти,
+    # которые пошли, но не отдали 60% от пика»). Группа 2 — ПОШЛИ: ход от основания ≥ PROFILE_RUN_MIN (нынешнее
+    # правило звёзд, откат <60% от вершины). Группа 0 — СКОРО: ещё не прошли, но оба ключа сразу — первая тройка
+    # очереди И подхват стыка. Группа 1 — МОГУТ: один ключ из двух, либо копится по классу владельца — сбор за три дня
+    # и плечо не ушло. Кто не попал никуда — с экрана уходит («экран показывает, кто уже прошёл, а не кто пойдёт»).
+    try:
+        from analytics_profile import PROFILE_RUN_MIN as _RUN_MIN
+    except ImportError:
+        _RUN_MIN = 60.0
+    try:
+        from core_config import STAR_QUEUE_TOP
+    except ImportError:
+        STAR_QUEUE_TOP = 3          # место в очереди, которое считается ключом (лаборатория лидеров: только тройка)
+    _streak = nm.get("first_streak") or {}      # сколько прогонов подряд монета держится в первых (near_move)
+    def _qtag(sym, _q):
+        """подпись места: первой — со счётом прогонов подряд (19.09, владелец: «AKE вчера был почти весь день и ONE тоже»)"""
+        if not _q:
+            return "очереди нет"
+        _n = int(_streak.get(sym) or 0)
+        if _q == 1:
+            return "ПЕРВАЯ" + (f" · в первых {_n} пр. подряд" if _n else "")
+        return f"очередь {_q}-я" + (f" · в первых {_n} пр." if _n else "")
+    def _keys(sym):
+        _pk = _pick.get(sym) or {}
+        _q = _qpos.get(sym)
+        k_q = bool(_q and _q <= STAR_QUEUE_TOP)
+        k_s = bool((_pk.get("volx") or 0) >= STAR_SESS_VOL_X and (_pk.get("oi") or 0) >= STAR_SESS_OI_PCT and (_pk.get("px") or 0) > 0)
+        _nums = (coins.get(sym) or {}).get("nums") or {}
+        _hd = str(_nums.get("harvest_day") or "")
+        k_c = False
+        if _hd:
+            try:
+                k_c = (datetime.now(timezone.utc).date() - datetime.strptime(_hd, "%Y-%m-%d").date()).days <= 3 \
+                      and float(_nums.get("oi_grow") or 0) >= 1.0
+            except ValueError:
+                k_c = False
+        return k_q, k_s, k_c, _q, _pk
+    for it in list(items):
+        k_q, k_s, k_c, _q, _pk = _keys(it["sym"])
+        went = float(it.get("run") or 0) >= _RUN_MIN
+        if went:
+            it["g"] = 2
+        elif k_q and k_s:
+            it["g"] = 0
+        elif k_q or k_s or k_c:
+            it["g"] = 1
+        else:
+            items.remove(it); continue
+        _tag = _qtag(it["sym"], _q if k_q else None) + " · " + ("стык подхвачен" if k_s else "стык не подхвачен") + (" · копится" if k_c else "")
+        it["sub"] = _tag + (" · " + str(it.get("sub") or "") if it.get("sub") else "")
+    # первая тройка очереди без звезды — «могут пойти», если есть хотя бы один ключ
+    for _sym, _q in _qpos.items():
+        if _q > STAR_QUEUE_TOP or _sym in {it["sym"] for it in items} or _sym not in coins:
+            continue
+        k_q, k_s, k_c, _q2, _pk = _keys(_sym)
+        _v = coins.get(_sym) or {}
+        _why = " · ".join(_v.get("why") or []) or "в первой тройке очереди"
+        add(_sym, 0 if k_s else 1, _why + " · " + _qtag(_sym, _q) + (" · стык подхвачен" if k_s else " · стык не подхвачен"),
+            (_qtag(_sym, _q) + " · " + ("стык подхвачен" if k_s else "стык не подхвачен") + " · " + hist_line(_v)).strip(" ·"), 0.0)
     for it in items:
         _pk = _pick.get(it["sym"]) or {}
         _q = _qpos.get(it["sym"])
@@ -596,7 +656,9 @@ def render_intro(items: list[dict] | None = None) -> str:
     counts = [sum(1 for it in items if it["g"] == k) for k in (0, 1, 2, 4)]
     # ПОДПИСИ ГРУПП — ПО ПРОФИЛЮ (18.09): звёзды с 17.09 только по профилю лидера, «первые» и «в очереди» больше
     # не про очередь: группа 0 — профиль полный (шесть-семь отметок или все известные), группа 1 — на границе (пять)
-    labels = [{"n": f"звёзды {counts[0]}", "sym": "", "g": 0, "why": "", "label": True}]
+    labels = [{"n": f"скоро {counts[0]}", "sym": "", "g": 0, "why": "оба ключа: первая тройка очереди и подхват стыка — ещё не прошли 60%", "label": True},
+              {"n": f"могут {counts[1]}", "sym": "", "g": 1, "why": "один ключ: очередь без стыка, стык без очереди или копится после сбора", "label": True},
+              {"n": f"пошли {counts[2]}", "sym": "", "g": 2, "why": "прошли от основания 60% и больше, от вершины отдали меньше 60% — вход только по лестнице", "label": True}]
     if counts[3]:
         labels.append({"n": f"остывшие {counts[3]}", "sym": "", "g": 4, "why": "", "label": True})
     # переход в книгу — не подписью в ряду, а спутником в левом нижнем углу (16.09, владелец):
@@ -614,7 +676,37 @@ def render_intro(items: list[dict] | None = None) -> str:
     pos: list[list[float]] = []
     k = 0
     stale = [it for it in items if it["g"] == 4]
-    star_pos = layout(len([it for it in items if it["g"] != 4]))
+    # КОЛЬЦА (19.09): группа задаёт расстояние от центра облака — «скоро» в центре, «могут» среднее кольцо,
+    # «пошли» край; угол случайный, чтобы не было ряда; вырез под приборами и минимальное расстояние — как были
+    def _rings(counts_g: dict, seed: int = 11) -> dict:
+        rnd = random.Random(seed + sum(counts_g.values()))
+        CX0, CY0, AX = 0.56, 0.44, 1.55           # центр облака и сжатие по вертикали
+        BAND = {0: (0.02, 0.11), 1: (0.15, 0.24), 2: (0.27, 0.36)}
+        PANEL = (0.0, 0.16, 0.245, 0.76)
+        out: dict = {g: [] for g in counts_g}
+        placed: list = []
+        for g in (0, 1, 2):
+            r0, r1 = BAND.get(g, (0.27, 0.36))
+            for _k in range(counts_g.get(g, 0)):
+                ok = False
+                for _try in range(4000):
+                    rr = r0 + rnd.random() * (r1 - r0)
+                    a = rnd.random() * 2 * math.pi
+                    x, y = CX0 + rr * AX * math.cos(a) * 0.62, CY0 + rr * math.sin(a)
+                    if not (0.08 <= x <= 0.92 and 0.10 <= y <= 0.78):
+                        continue
+                    if PANEL[0] <= x <= PANEL[2] and PANEL[1] <= y <= PANEL[3]:
+                        continue
+                    if all((abs(y - py) >= 0.075) or (abs(x - px) >= 0.17) for px, py in placed) and \
+                       all(math.hypot((x - px) * 1.4, y - py) >= 0.12 for px, py in placed):
+                        ok = True; break
+                if not ok:                                   # не поместилась — чуть дальше от центра, но в своём секторе
+                    x, y = CX0 + (r1 + 0.05 * (_k + 1)) * AX * 0.62 * math.cos(a), CY0 + (r1 + 0.05 * (_k + 1)) * math.sin(a)
+                    x, y = min(0.92, max(0.26, x)), min(0.78, max(0.10, y))
+                placed.append((x, y)); out[g].append([round(x, 3), round(y, 3)])
+        return out
+    _ring_pos = _rings({g: sum(1 for it in items if it["g"] == g) for g in (0, 1, 2)})
+    star_pos = _ring_pos[0] + _ring_pos[1] + _ring_pos[2]
     # остывшие — своим рядом у низа, мелко (07.09): «у цели» старше четырёх часов
     n_s = len(stale)
     stale_pos = [[round(0.14 + 0.72 * (i + 0.5) / max(1, n_s), 3), 0.83 + 0.02 * (i % 2)] for i in range(n_s)]
