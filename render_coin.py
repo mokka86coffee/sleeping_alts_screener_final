@@ -2562,27 +2562,42 @@ COIN_JS = r"""
         var t = dj + se[0] * 36e5; if (t < tBeg + 36e5 || t > tJ) return;
         // открытие было, а двух закрытых баров после него в архиве ещё нет — «подхват не прочитан», а не пропуск:
         // иначе последним стыком остаётся прошлая сессия
-        var tLast = t + (PICK_N - 1) * STEPn;                                  // последний из PICK_N баров чтения
-        if (tLast > tJ) { var left = Math.ceil((tLast - tJ) / STEPn); JOINS.push({ t: t, ok: null, se: se, why: se[1] + ' ' + hhmm(t) + ' · подхват ещё не прочитан — ждём ' + PICK_N + ' закрытых бара, осталось ' + left, short: 'ждём ' + PICK_N + ' закрытых бара · осталось ' + left }); return; }
-        var bars = []; for (var k = 0; k < PICK_N; k++) { var bk = atOrBefore(VOL, t + k * STEPn); if (!bk || bk[0] < t + k * STEPn - STEPn / 2) { bars = null; break; } bars.push(bk); }
-        if (!bars) { JOINS.push({ t: t, ok: null, se: se, why: se[1] + ' ' + hhmm(t) + ' · бара открытия нет в архиве — подхват не прочитан', short: 'бара открытия нет в архиве' }); return; }
-        var vol = bars.reduce(function (a, b) { return a + b[1]; }, 0), nrm = (normS[se[1]] || 0) * PICK_N, volx = nrm ? vol / nrm : null;
-        var dl = bars.some(function (b) { return b[2] === null; }) ? null : bars.reduce(function (a, b) { return a + b[2]; }, 0);
-        var oa = atOrBefore(OIS, t - STEPn), ob = atOrBefore(OIS, tLast), oiCh = (oa && ob && oa[1]) ? (ob[1] / oa[1] - 1) * 100 : null;
-        if (oiCh === null) { var hb = win.filter(function (b) { return b[0] >= t && b[0] <= tLast; }); if (hb.length) oiCh = hb.reduce(function (a, b) { return a + (+b[2] || 0); }, 0); }   // нет ряда интереса — по приростам часовой ленты
-        var pa = atOrBefore(win.map(function (b) { return [b[0], +b[4]]; }), t - STEPn), pb = atOrBefore(win.map(function (b) { return [b[0], +b[4]]; }), tLast), pxCh = (pa && pb) ? (pb[1] / pa[1] - 1) * 100 : null;
-        var c1 = volx !== null && volx >= 1, c2 = dl === null ? null : dl > 0, c3 = oiCh !== null && oiCh > 0;
-        var ok = c1 && c3 && (c2 !== false);
-        // подтверждение на следующем баре: плечо растёт дальше и оборот не сдулся
-        var conf = '';
-        if (t + (PICK_C - 1) * STEPn <= tJ) {
-          var bc = atOrBefore(VOL, t + (PICK_C - 1) * STEPn), oc = atOrBefore(OIS, t + (PICK_C - 1) * STEPn);
+        // РАННЕЕ ЧТЕНИЕ (19.09, владелец: «если есть подтверждение на первых барах, ждать уже не надо»):
+        // считаем после КАЖДОГО закрытого бара; все три условия сошлись — подхватил уже по этому бару, дальше только
+        // уточняется; не сошлись — «проба идёт», ждём следующий; окончательное «не подхватил» — только по PICK_N.
+        var have = Math.min(PICK_N, Math.floor((tJ - t) / STEPn) + 1);
+        if (have < 1) { JOINS.push({ t: t, ok: null, se: se, why: se[1] + ' ' + hhmm(t) + ' · подхват ещё не прочитан — бар открытия не закрыт', short: 'бар открытия не закрыт' }); return; }
+        var b0 = atOrBefore(VOL, t);
+        if (!b0 || b0[0] < t - STEPn / 2) { JOINS.push({ t: t, ok: null, se: se, why: se[1] + ' ' + hhmm(t) + ' · бара открытия нет в архиве — подхват не прочитан', short: 'бара открытия нет в архиве' }); return; }
+        var oa = atOrBefore(OIS, t - STEPn), pa = atOrBefore(win.map(function (b) { return [b[0], +b[4]]; }), t - STEPn);
+        var ok = false, used = 0, volx = null, dl = null, oiCh = null, pxCh = null, ob = null, tLast = t;
+        for (var k = 1; k <= have; k++) {
+          var bars = []; for (var q = 0; q < k; q++) { var bq = atOrBefore(VOL, t + q * STEPn); if (!bq || bq[0] < t + q * STEPn - STEPn / 2) { bars = null; break; } bars.push(bq); }
+          if (!bars) break;
+          tLast = t + (k - 1) * STEPn; used = k;
+          var vol = bars.reduce(function (a, b) { return a + b[1]; }, 0), nrm = (normS[se[1]] || 0) * k; volx = nrm ? vol / nrm : null;
+          dl = bars.some(function (b) { return b[2] === null; }) ? null : bars.reduce(function (a, b) { return a + b[2]; }, 0);
+          ob = atOrBefore(OIS, tLast); oiCh = (oa && ob && oa[1]) ? (ob[1] / oa[1] - 1) * 100 : null;
+          if (oiCh === null) { var hb = win.filter(function (b) { return b[0] >= t && b[0] <= tLast; }); if (hb.length) oiCh = hb.reduce(function (a, b) { return a + (+b[2] || 0); }, 0); }
+          var pb = atOrBefore(win.map(function (b) { return [b[0], +b[4]]; }), tLast); pxCh = (pa && pb) ? (pb[1] / pa[1] - 1) * 100 : null;
+          var c1 = volx !== null && volx >= 1, c2 = dl === null ? null : dl > 0, c3 = oiCh !== null && oiCh > 0;
+          ok = c1 && c3 && (c2 !== false);
+          if (ok) break;                                                       // ответ есть — дальше не ждём
+        }
+        var nums = ' · оборот ' + (volx !== null ? '×' + volx.toFixed(1) + ' к норме' : '—')
+          + (dl !== null ? ' · дельта ' + (dl > 0 ? '+' : '') + f(dl / 1e3) + 'K' : ' · без дельты') + (oiCh !== null ? ' · интерес ' + (oiCh > 0 ? '+' : '') + oiCh.toFixed(1) + '%' : '') + (pxCh !== null ? ' · цена ' + (pxCh > 0 ? '+' : '') + pxCh.toFixed(1) + '%' : '');
+        if (!ok && have < PICK_N) {                                             // ответа пока нет, окно не вышло
+          JOINS.push({ t: t, ok: null, se: se, why: se[1] + ' ' + hhmm(t) + ' · проба идёт — по ' + used + ' бар' + (used === 1 ? 'у' : 'ам') + ' пока не подхватил, ждём ещё ' + (PICK_N - used) + nums,
+                       short: 'проба идёт · по ' + used + ' бар' + (used === 1 ? 'у' : 'ам') + ' пока нет' + nums.replace(/ · цена[^·]*$/, '') }); return; }
+        // подтверждение на следующем баре после решения: плечо растёт дальше и оборот не сдулся
+        var conf = '', tc = tLast + STEPn;
+        if (tc <= tJ) {
+          var bc = atOrBefore(VOL, tc), oc = atOrBefore(OIS, tc);
           var grow = !!(oc && ob && oc[1] > ob[1]), strong = !!(bc && normS[se[1]] && bc[1] >= normS[se[1]]);
           conf = ok ? ((grow && strong) ? ' · подтверждено' : ' · не подтвердилось') : ((!grow && !strong) ? ' · подтверждено, цену отпускают' : '');
         }
-        var why = se[1] + ' ' + hhmm(t) + ' · ' + (ok ? 'подхватил' : 'не подхватил') + ' по ' + PICK_N + ' барам' + conf + ' · оборот ' + (volx !== null ? '×' + volx.toFixed(1) + ' к норме' : '—')
-          + (dl !== null ? ' · дельта ' + (dl > 0 ? '+' : '') + f(dl / 1e3) + 'K' : ' · без дельты') + (oiCh !== null ? ' · интерес ' + (oiCh > 0 ? '+' : '') + oiCh.toFixed(1) + '%' : '') + (pxCh !== null ? ' · цена ' + (pxCh > 0 ? '+' : '') + pxCh.toFixed(1) + '%' : '');
-        JOINS.push({ t: t, ok: ok, se: se, why: why, short: (conf ? '<b>' + conf.replace(' · ', '') + '</b> · ' : '') + (volx !== null ? 'оборот <b>×' + volx.toFixed(1) + '</b>' : '') + (dl !== null ? ' · дельта <b>' + (dl > 0 ? '+' : '') + f(dl / 1e3) + 'K</b>' : '') + (oiCh !== null ? ' · интерес <b>' + (oiCh > 0 ? '+' : '') + oiCh.toFixed(0) + '%</b>' : '') + (pxCh !== null ? ' · цена <b>' + (pxCh > 0 ? '+' : '') + pxCh.toFixed(1) + '%</b>' : '') });
+        var why = se[1] + ' ' + hhmm(t) + ' · ' + (ok ? 'подхватил по ' + used + ' бар' + (used === 1 ? 'у' : 'ам') : 'не подхватил по ' + used + ' барам') + conf + nums;
+        JOINS.push({ t: t, ok: ok, se: se, why: why, short: 'по ' + used + ' бар' + (used === 1 ? 'у' : 'ам') + (conf ? ' · <b>' + conf.replace(' · ', '') + '</b>' : '') + (volx !== null ? ' · оборот <b>×' + volx.toFixed(1) + '</b>' : '') + (dl !== null ? ' · дельта <b>' + (dl > 0 ? '+' : '') + f(dl / 1e3) + 'K</b>' : '') + (oiCh !== null ? ' · интерес <b>' + (oiCh > 0 ? '+' : '') + oiCh.toFixed(0) + '%</b>' : '') + (pxCh !== null ? ' · цена <b>' + (pxCh > 0 ? '+' : '') + pxCh.toFixed(1) + '%</b>' : '') });
       });
       // ОДИН ОТВЕТ НА ОДИН СТЫК: near_move пишет подхват последнего открытия (его же показывают «звёзды»); если он
       // про то же открытие — берём его, чтобы карточка и звёзды не расходились

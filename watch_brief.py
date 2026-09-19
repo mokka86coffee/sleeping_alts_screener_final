@@ -218,28 +218,44 @@ def pickup_line(rows: list, fe: dict | None = None) -> tuple[str, str]:
         return "стыка в окне нет", ""
     t0, name = opens[-1]
     loc = _loc(t0)
-    t_last = t0 + (WATCH_PICK_BARS - 1) * step
-    if t_last > tJ:
-        left = -(-(t_last - tJ) // step)
-        return (f"{name} {loc} · подхват ещё не прочитан — ждём {WATCH_PICK_BARS} закрытых бара, осталось {left}", f"wait:{t0}")
-    bars = []
-    for k in range(WATCH_PICK_BARS):
-        bk = at_or_before(vol, t0 + k * step)
-        if not bk or bk[0] < t0 + k * step - step // 2:
-            return f"{name} {loc} · бара открытия нет в ряду — подхват не прочитан", ""
-        bars.append(bk)
-    nrm = (norm.get(name) or 0) * WATCH_PICK_BARS
-    volx = (sum(b[1] for b in bars) / nrm) if nrm else None
-    dl = None if any(b[2] is None for b in bars) else sum(b[2] for b in bars)
-    oa, ob = at_or_before(ois, t0 - step), at_or_before(ois, t_last)
-    oich = ((ob[1] / oa[1] - 1) * 100) if (oa and ob and oa[1]) else None
+    # РАННЕЕ ЧТЕНИЕ (19.09, владелец: «если есть подтверждение на первых барах, ждать уже не надо»): считаем
+    # после каждого закрытого бара; сошлось — подхватил уже по этому бару; нет — «проба идёт»; окончательное
+    # «не подхватил» — только по WATCH_PICK_BARS барам; подтверждение — следующим баром после решения.
+    have = min(WATCH_PICK_BARS, (tJ - t0) // step + 1)
+    if have < 1:
+        return f"{name} {loc} · подхват ещё не прочитан — бар открытия не закрыт", f"wait:{t0}"
+    b0 = at_or_before(vol, t0)
+    if not b0 or b0[0] < t0 - step // 2:
+        return f"{name} {loc} · бара открытия нет в ряду — подхват не прочитан", ""
+    oa = at_or_before(ois, t0 - step)
     pxs = [(r["_t"], float(r["px"])) for r in rows if r.get("px")] if rows else []
-    pa, pb = at_or_before(pxs, t0 - step), at_or_before(pxs, t_last)
-    pxch = ((pb[1] / pa[1] - 1) * 100) if (pa and pb and pa[1]) else None
-    ok = bool(volx is not None and volx >= 1 and oich is not None and oich > 0 and (dl is None or dl > 0))
+    pa = at_or_before(pxs, t0 - step)
+    ok, used, volx, dl, oich, pxch, ob, t_last = False, 0, None, None, None, None, None, t0
+    for k in range(1, have + 1):
+        bars = []
+        for q in range(k):
+            bq = at_or_before(vol, t0 + q * step)
+            if not bq or bq[0] < t0 + q * step - step // 2:
+                bars = None
+                break
+            bars.append(bq)
+        if bars is None:
+            break
+        t_last, used = t0 + (k - 1) * step, k
+        nrm = (norm.get(name) or 0) * k
+        volx = (sum(b[1] for b in bars) / nrm) if nrm else None
+        dl = None if any(b[2] is None for b in bars) else sum(b[2] for b in bars)
+        ob = at_or_before(ois, t_last)
+        oich = ((ob[1] / oa[1] - 1) * 100) if (oa and ob and oa[1]) else None
+        pb = at_or_before(pxs, t_last)
+        pxch = ((pb[1] / pa[1] - 1) * 100) if (pa and pb and pa[1]) else None
+        ok = bool(volx is not None and volx >= 1 and oich is not None and oich > 0 and (dl is None or dl > 0))
+        if ok:
+            break                                            # ответ есть — дальше не ждём
     conf = ""
-    if t0 + (WATCH_PICK_CONFIRM - 1) * step <= tJ:
-        bc, oc = at_or_before(vol, t0 + (WATCH_PICK_CONFIRM - 1) * step), at_or_before(ois, t0 + (WATCH_PICK_CONFIRM - 1) * step)
+    tc = t_last + step
+    if tc <= tJ and (ok or have >= WATCH_PICK_BARS):
+        bc, oc = at_or_before(vol, tc), at_or_before(ois, tc)
         grow = bool(oc and ob and oc[1] > ob[1])
         strong = bool(bc and norm.get(name) and bc[1] >= norm[name])
         conf = (" · подтверждено" if (ok and grow and strong) else " · не подтвердилось" if ok
@@ -249,8 +265,11 @@ def pickup_line(rows: list, fe: dict | None = None) -> tuple[str, str]:
         + (f" · интерес {_pc(oich)}" if oich is not None else "") \
         + (f" · цена {_pc(pxch)}" if pxch is not None else "") \
         + ("" if src == "ряд прогона" else " · по архиву, ряда прогона нет")
+    bw = f"по {used} бар{'у' if used == 1 else 'ам'}"
+    if not ok and have < WATCH_PICK_BARS:
+        return (f"{name} {loc} · проба идёт — {bw} пока не подхватил, ждём ещё {WATCH_PICK_BARS - used} · {nums}", f"wait:{t0}:{used}")
     verdict = "подхватил — новые руки с плечом, хедж можно снимать" if ok else "НЕ подхватил — цену отпускают до следующей сессии, хедж держать"
-    return (f"{name} {loc} {verdict} по {WATCH_PICK_BARS} барам{conf} · {nums}", f"pick:{t0}:{int(ok)}{conf[:14]}")
+    return (f"{name} {loc} {verdict} {bw}{conf} · {nums}", f"pick:{t0}:{int(ok)}{conf[:14]}")
 
 
 # ─────────────────────────── разбор одной монеты ───────────────────────────

@@ -857,7 +857,11 @@ def render_intro(items: list[dict] | None = None) -> str:
                                   "text": str(_lp.get("why") or "")}
     except Exception:   # noqa: BLE001 — сессии не обязаны считаться
         sess_box = {}
-    data = json.dumps({"names": names, "grp": grp, "syms": syms, "goes": goes, "many": _many_lead(), "book": _book_count(), "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "sess": sess_box, "flicker": flicker, "accum": accum, "bub": bub, "blank": blank, "keep": list(keep_first)},
+    # ВСПЛЫВАШКА БИТКОИНА (18.09, владелец: «оставляем только монету и стрелку, остальное при наведении»):
+    # весь срез из output/btc_pulse.json уходит в данные страницы; на экране — монета, цена, стрелка.
+    _bp = _read("btc_pulse.json") or {}
+    btc_pulse = {k: _bp.get(k) for k in ("map", "liq", "premium", "etf", "stamp", "read") if _bp.get(k) is not None}
+    data = json.dumps({"btc": btc_pulse, "names": names, "grp": grp, "syms": syms, "goes": goes, "many": _many_lead(), "book": _book_count(), "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "sess": sess_box, "flicker": flicker, "accum": accum, "bub": bub, "blank": blank, "keep": list(keep_first)},
                       ensure_ascii=False).replace("</", "<\\/")
     return TEMPLATE.replace("__N__", str(n)).replace("__DATA__", data)
 
@@ -1064,6 +1068,40 @@ TEMPLATE = r'''<!doctype html>
   .bgnote .ico .btcrun{transform-box:view-box;transform-origin:50% 50%;
     animation:btcrun 3.4s linear infinite;filter:drop-shadow(0 0 4px rgba(255,230,170,.95))}
   @keyframes btcrun{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+  /* ОДИН ПРИБОР БИТКОИНА (18.09): монета, цена, стрелка; всплывашка — в языке всплывашки звезды */
+  .bgnote .g.btcg{margin-bottom:22px;pointer-events:auto;cursor:default}
+  .bgnote .bt_face{display:flex;align-items:center;gap:10px}
+  .bgnote .bt_face .ico{width:38px;height:38px;margin:0;vertical-align:0}
+  .bgnote .bt_pxv{font-size:21px;font-weight:200;letter-spacing:.02em;color:#eef3ff;text-shadow:0 0 18px rgba(150,190,255,.25)}
+  .bgnote .bt_pxv s{text-decoration:none;font-size:10px;color:rgba(190,205,255,.42);margin-left:3px}
+  .bgnote .bt_arw{width:20px;height:28px;opacity:var(--p);filter:drop-shadow(0 0 6px currentColor)}
+  .bgnote .bt_arw.up{color:#7fe0b0}.bgnote .bt_arw.dn{color:#ff8fa3}.bgnote .bt_arw.flat{color:#9fb0d8}
+  /* плита стоит справа от прибора, по центру его высоты, и не вылезает за экран: высота ограничена, внутри прокрутка */
+  .bgnote .bt_tipwrap{position:absolute;left:calc(100% + 18px);top:50%;z-index:9;opacity:0;transform:translate(6px,-50%);
+    pointer-events:none;transition:opacity .22s ease,transform .22s ease}
+  .bgnote .btcg:hover .bt_tipwrap,.bgnote .btcg:focus-within .bt_tipwrap{opacity:1;transform:translate(0,-50%);pointer-events:auto}
+  .bgnote .bt_tip{width:340px;max-height:min(86vh,720px);overflow:auto;padding:14px 15px 12px;border-radius:4px;
+    background:linear-gradient(180deg,rgba(11,16,34,.97),rgba(7,10,24,.97));
+    border:1px solid rgba(150,175,255,.18);box-shadow:0 20px 60px rgba(0,0,0,.65),0 0 0 1px rgba(255,255,255,.02) inset}
+  .bgnote .bt_tip::-webkit-scrollbar{width:4px}.bgnote .bt_tip::-webkit-scrollbar-thumb{background:rgba(150,175,255,.2)}
+  .bgnote .bt_th{font-size:6.1px;letter-spacing:.3em;text-transform:uppercase;color:rgba(190,205,255,.42)}
+  .bgnote .bt_th em{font-style:normal;color:rgba(190,205,255,.28)}
+  .bgnote .bt_big{font-size:30px;font-weight:200;letter-spacing:.02em;margin:6px 0 10px;color:#eef3ff}
+  .bgnote .bt_big s{text-decoration:none;font-size:13px;color:rgba(190,205,255,.42);margin-left:4px}
+  .bgnote .bt_sec{font-size:6.1px;letter-spacing:.28em;text-transform:uppercase;color:rgba(190,205,255,.3);margin:12px 0 6px}
+  .bgnote .bt_kv{display:flex;justify-content:space-between;gap:10px;font-size:8.6px;padding:3px 0;border-bottom:1px solid rgba(150,175,255,.06)}
+  .bgnote .bt_kv span{color:rgba(190,205,255,.42)}.bgnote .bt_kv b{font-weight:300;color:#dbe6ff;text-align:right}
+  .bgnote .bt_kv b.sh{color:#ffb26f}.bgnote .bt_kv b.lo{color:#6fb4ff}.bgnote .bt_kv b.gr{color:#7fe0b0}.bgnote .bt_kv b.ro{color:#ff8fa3}
+  .bgnote .bt_zones{margin:10px 0 2px}
+  .bgnote .bt_z{display:flex;align-items:center;gap:6px;font-size:8px;padding:2px 0}
+  .bgnote .bt_zp{width:52px;color:#dbe6ff}.bgnote .bt_zu{width:42px;text-align:right;color:rgba(190,205,255,.42)}.bgnote .bt_zd{width:42px;text-align:right;color:rgba(190,205,255,.28)}
+  .bgnote .bt_zb{flex:1;height:3px;background:rgba(150,175,255,.08);border-radius:2px;overflow:hidden}
+  .bgnote .bt_zb i{display:block;height:100%}
+  .bgnote .bt_z.sh .bt_zb i{background:linear-gradient(90deg,rgba(255,178,111,.35),#ffb26f);box-shadow:0 0 8px rgba(255,178,111,.5)}
+  .bgnote .bt_z.lo .bt_zb i{background:linear-gradient(90deg,rgba(111,180,255,.35),#6fb4ff);box-shadow:0 0 8px rgba(111,180,255,.45)}
+  .bgnote .bt_zc{display:flex;justify-content:space-between;font-size:8px;margin:4px 0;padding:3px 0;border-top:1px dashed rgba(255,255,255,.18);border-bottom:1px dashed rgba(255,255,255,.18)}
+  .bgnote .bt_zc b{font-weight:400;color:#fff}.bgnote .bt_zc span{color:#fff}
+  .bgnote .bt_foot{font-size:7.4px;color:rgba(190,205,255,.28);margin-top:10px}
   /* строка без датчика: только состояние и число */
   .bgnote .g.plain{margin-bottom:18px}
   .bgnote .g.plain .t{margin-bottom:6px}
@@ -2006,6 +2044,56 @@ function drawFx(t){
     +' stroke-linecap="round" stroke-dasharray="6 51.8" opacity=".95"/></g></svg>';
   // БЕЗ ДАТЧИКА (09.09, владелец: «у второй надписи не нужен датчик»): «биткоин дальше» — это не
   // перевес двух сторон, а расстояние до плит. Нить с бусиной там врёт, поэтому просто строка.
+  // ОДИН ПРИБОР БИТКОИНА (18.09, владелец): монета, под ней цена (это «сейчас»), рядом стрелка (это «дальше»),
+  // всё остальное — во всплывашке при наведении. Стрелка — топливо по сторонам в трёх процентах: шорты сверху
+  // к лонгам снизу больше единицы — вверх, меньше — вниз; яркость по величине перевеса. Нет среза — старые строки.
+  function btcGauge(rNow, rNext){
+    const B=DATA.btc||{}, M=B.map||{}, L=B.liq||{}, P=B.premium||{}, E=B.etf||{}, ST=B.stamp||{};
+    if(!M.px) return (rNow?railGauge(rNow, BTC):'')+(rNext?plainRow(rNext, BTC):'');
+    const usd=v=>{if(v==null)return '—';const a=Math.abs(v),s=v<0?'−':'';return s+(a>=1e9?'$'+(a/1e9).toFixed(2)+'B':a>=1e6?'$'+(a/1e6).toFixed(0)+'M':a>=1e3?'$'+(a/1e3).toFixed(0)+'K':'$'+a.toFixed(0));};
+    const pc=(v,n)=>v==null?'—':((v>0?'+':v<0?'−':'')+Math.abs(v).toFixed(n==null?2:n)+'%');
+    const px=v=>v==null?'—':Math.round(v).toLocaleString('ru-RU').replace(/\u00a0/g,'\u202f');
+    const ratio=+M.short_to_long_3pct||1, side=ratio>1.08?'up':ratio<0.92?'dn':'flat', pw=Math.min(1,Math.abs(ratio-1)/1.2);
+    const arrow='<svg class="bt_arw '+side+'" viewBox="0 0 24 34" fill="none" style="--p:'+(0.35+0.65*pw).toFixed(2)+'">'
+      +'<path d="M12 3 L12 31" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>'
+      +'<path d="'+(side==='up'?'M5 11 L12 3 L19 11':side==='dn'?'M5 23 L12 31 L19 23':'M5 17 L19 17')+'" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    const A=M.above||{}, Bw=M.below||{}, an=A.nearest||{}, ad=A.densest||{}, bn=Bw.nearest||{}, bd=Bw.densest||{};
+    const kv=(k,v,c)=>'<div class="bt_kv"><span>'+k+'</span><b class="'+(c||'')+'">'+v+'</b></div>';
+    const zones=(M.zones||[]).slice().sort((a,b)=>b.price-a.price), mx=Math.max(1,...zones.map(z=>+z.usd||0));
+    let rows='', cur=false;
+    zones.forEach(z=>{ if(!cur&&z.price<M.px){rows+='<div class="bt_zc"><b>цена сейчас</b><span>'+px(M.px)+'</span></div>';cur=true;}
+      const c=z.side==='шорты'?'sh':'lo';
+      rows+='<div class="bt_z '+c+'"><span class="bt_zp">'+px(z.price)+'</span><span class="bt_zb"><i style="width:'+((+z.usd||0)/mx*100).toFixed(0)+'%"></i></span><span class="bt_zu">'+usd(z.usd)+'</span><span class="bt_zd">'+pc(z.pct,1)+'</span></div>';});
+    if(!cur) rows+='<div class="bt_zc"><b>цена сейчас</b><span>'+px(M.px)+'</span></div>';
+    const hm=(iso)=>{ if(!iso)return ''; const d=new Date(iso); return isNaN(d)?'':(d.getHours()<10?'0':'')+d.getHours()+':'+(d.getMinutes()<10?'0':'')+d.getMinutes(); };
+    const tip='<div class="bt_tip">'
+      +'<div class="bt_th">биткоин · срез прогона <em>'+hm(ST.candle)+'</em></div>'
+      +'<div class="bt_big">'+px(M.px)+'<s>$</s></div>'
+      +(rNow?'<div class="bt_sec">сейчас</div>'+kv(rNow[0],String(rNow[2]||rNow[1]||'').replace(/<[^>]+>/g,'')):'')
+      +(rNext?kv(rNext[0],String(rNext[1]||'')+' · '+String(rNext[2]||'').replace(/<[^>]+>/g,'')):'')
+      +'<div class="bt_sec">карта плит · ближняя и плотнейшая</div>'
+      +kv('сверху ближняя',px(an.price)+' · '+pc(an.pct)+' · '+usd(an.usd),'sh')
+      +kv('сверху плотнейшая',px(ad.price)+' · '+pc(ad.pct)+' · '+usd(ad.usd),'sh')
+      +kv('снизу ближняя',px(bn.price)+' · '+pc(bn.pct)+' · '+usd(bn.usd),'lo')
+      +kv('снизу плотнейшая',px(bd.price)+' · '+pc(bd.pct)+' · '+usd(bd.usd),'lo')
+      +'<div class="bt_zones">'+rows+'</div>'
+      +'<div class="bt_sec">топливо по сторонам</div>'
+      +kv('в трёх процентах','шорты '+usd(A.usd_3pct)+' против лонгов '+usd(Bw.usd_3pct)+' · ×'+(M.short_to_long_3pct==null?'—':M.short_to_long_3pct),'sh')
+      +kv('в десяти процентах','шорты '+usd(A.usd_10pct)+' против лонгов '+usd(Bw.usd_10pct)+' · ×'+(M.short_to_long_10pct==null?'—':M.short_to_long_10pct),'lo')
+      +kv('цена процента вверх',usd(an.usd_per_pct)+' на процент')
+      +kv('цена процента вниз',usd(bn.usd_per_pct)+' на процент')
+      +'<div class="bt_sec">плечо и ликвидации</div>'
+      +kv('интерес',usd(M.oi_usd)+' · '+pc(M.oi_chg24_pct,1)+' за сутки','gr')
+      +(M.oi_btc?kv('интерес в монетах',Math.round(M.oi_btc).toLocaleString('ru-RU')+' BTC'):'')
+      +kv('сожгли за сутки','шортов '+usd(L.short_24h_usd)+' против лонгов '+usd(L.long_24h_usd),'gr')
+      +'<div class="bt_sec">спрос снаружи</div>'
+      +kv('премия Coinbase',pc(P.last,3)+' · за сутки '+pc(P.min_24h,3)+'…'+pc(P.max_24h,3),(P.last||0)<0?'ro':'gr')
+      +(P.hours_positive!=null?kv('часов в плюсе',P.hours_positive+' из 24'):'')
+      +kv('ETF за день',usd(E.last_usd))
+      +kv('ETF за пять дней',usd(E.sum5_usd)+(E.days_positive!=null?' · в плюс '+E.days_positive+' из 5':''),(E.sum5_usd||0)<0?'ro':'gr')
+      +'<div class="bt_foot">срез собран '+hm(ST.written_at)+' · свеча '+hm(ST.candle)+'</div></div>';
+    return '<div class="g btcg hot" tabindex="0"><div class="bt_face">'+BTC+'<div class="bt_pxw"><div class="bt_pxv">'+px(M.px)+'<s>$</s></div></div>'+arrow+'</div><div class="bt_tipwrap">'+tip+'</div></div>';
+  }
   function plainRow(r, ico){
     return `<div class="g plain"><div class="t">${ico||''}${r[0]}</div>
       <div class="pv">${r[1]}</div><div class="pn">${dim(r[2]||'')}</div></div>`;
@@ -2061,12 +2149,13 @@ function drawFx(t){
         <em style="left:0">00</em><em style="left:48%">12</em><em style="right:0">24</em></div>
       <div class="ends"><em class="l" style="top:2px">${sub}</em></div></div>`;
   }
+  const rNow=rows.find(r=>r[0]==='биткоин сейчас'), rNext=rows.find(r=>r[0]==='биткоин дальше');
   el.innerHTML='<i class="hd">фон</i>'+rows.map(r=>
     r[0]==='лидер' ? leadGauge(r)
     : r[0]==='торги' ? clockGauge(r)
-    : r[0]==='биткоин дальше' ? plainRow(r, BTC)
+    : r[0]==='биткоин дальше' ? ''                   // 18.09: ушла в один прибор биткоина
     : r[0]==='деньги лидера' ? plainRow(r)          // откуда взял: снаружи / из соседей — не перевес сторон, строка (11.09)
-    : r[0]==='биткоин сейчас' ? railGauge(r, BTC)
+    : r[0]==='биткоин сейчас' ? btcGauge(r, rNext)
     : railGauge(r)).join('');
 })();
 // ТОЧНОСТЬ ПОД ПЛАНЕТОЙ (07.09): доля сбывшихся из журнала; нет данных — прочерк
