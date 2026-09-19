@@ -734,13 +734,14 @@ def render_coin(stars: list[dict], market: dict) -> str:
             except Exception:  # noqa: BLE001
                 continue
             if _ev:
-                from lab_pick_top import expect as _pick_expect
+                from lab_pick_top import word as _pw, action as _pa, numbers as _pn, EXPLAIN as _PX
                 _last = _ev[-1]
-                _hedge = (f"раздача {_last['streak']}-я за сутки — хедж на часть" if (_last["kind"] == "раздача" and _last["streak"] >= 2)
-                          else "пауза на ходу — хедж на сутки, снять на лестнице" if (_last["kind"] == "пауза" and float(_last.get("run") or 0) >= 60) else "")
-                pickday[_sym] = {"line": " · ".join(f"{e['sess']} {e['kind']}" + (f" ×{e['dnorm']:.1f} нормы" if e["kind"] == "раздача" else "") + (f" ({e['streak']}-я)" if e["kind"] == "раздача" and e["streak"] > 1 else "") for e in _ev),
-                                 "hedge": _hedge, "expect": _pick_expect(_last["kind"], float(_last.get("run") or 0)),
-                                 "by": {str(int(e["t"].timestamp() * 1000)): {"kind": e["kind"], "dnorm": round(float(e.get("dnorm") or 0), 1), "streak": int(e.get("streak") or 0)} for e in _ev}}
+                _run = float(_last.get("run") or 0)
+                pickday[_sym] = {"items": [{"sess": e["sess"], "word": _pw(e["kind"]), "kind": e["kind"], "explain": _PX.get(e["kind"], ""),
+                                            "dnorm": round(float(e.get("dnorm") or 0), 1), "streak": int(e.get("streak") or 0)} for e in _ev],
+                                 "action": _pa(_last["kind"], _run, int(_last.get("streak") or 0)), "numbers": _pn(_last["kind"], _run),
+                                 "line": " · ".join(f"{e['sess']} {_pw(e['kind'])}" + (f" ×{e['dnorm']:.1f} нормы" if e["kind"] == "раздача" else "") + (f" ({e['streak']}-я за сутки)" if e["kind"] == "раздача" and e["streak"] > 1 else "") for e in _ev),
+                                 "by": {str(int(e["t"].timestamp() * 1000)): {"kind": e["kind"], "word": _pw(e["kind"]), "dnorm": round(float(e.get("dnorm") or 0), 1), "streak": int(e.get("streak") or 0)} for e in _ev}}
     except Exception:  # noqa: BLE001
         pickday = {}
     payload = {"stars": stars, "market": market, "pickday": pickday,
@@ -995,9 +996,7 @@ COIN_HTML = r"""
 .sessline b{font-family:Jost,Inter;font-weight:300;font-size:12px;letter-spacing:.08em;color:#eaf4ff;text-shadow:0 0 8px rgba(150,200,255,.6)}
 .sessline u{text-decoration:none;font-size:7px;letter-spacing:.34em;animation:railhalo 2s ease-in-out infinite}
 .sessline em{display:inline-block;width:1px;height:8px;background:rgba(233,255,244,.18);margin:0 4px;align-self:center}
-.sessline{flex-wrap:wrap;justify-content:center}
-.sessline .pickrow{flex-basis:100%;display:flex;justify-content:center;align-items:center;gap:6px;margin-top:5px;opacity:.85}
-.sessline .pk{font-size:8px;letter-spacing:.22em;text-transform:uppercase;text-shadow:0 0 6px currentColor}
+
 .mini.fast .fdemo{top:262px}
 .mini.fast .fcap b{font-weight:400;color:#dfe9ff}   /* время последнего закрытого бара — видно, свежая ли плита (16.09) */
 .mini.fast .fnext{position:absolute;right:0;top:-19px;font-family:var(--f-cap);font-size:7px;letter-spacing:.28em;text-transform:uppercase;white-space:nowrap}
@@ -1076,13 +1075,13 @@ COIN_HTML = r"""
 .vb .ray{position:absolute;bottom:0;width:1px;height:200px;background:linear-gradient(0deg,rgba(190,220,255,.6),rgba(190,220,255,0));animation:vray var(--rd,6s) ease-in-out var(--rw,0s) infinite alternate;transform-origin:50% 100%}
 .vb .ray::after{content:"";position:absolute;left:-1.5px;top:0;width:3px;height:3px;border-radius:50%;background:#fff;box-shadow:0 0 6px #bfe0ff}
 @keyframes vray{0%{transform:scaleY(.5);opacity:.3}100%{transform:scaleY(1);opacity:.9}}
-.vb .vtxt{position:absolute;left:-60px;bottom:70px;width:250px;text-align:center}
+.vb .vtxt{position:absolute;left:-60px;bottom:40px;width:250px;text-align:center}   /* 19.09: решение ниже */
 .vb .vtxt.long .vw{font-size:22px;letter-spacing:.14em}   /* длинные вердикты («хеджировать», «закрыть часть») — мельче, чтобы не лезть на блок */
 .vb .vtxt .vcap{font-family:var(--f-cap);font-size:7px;letter-spacing:.34em;text-transform:uppercase;color:#bfe0ff;opacity:.8}
 .vb .vtxt .vw{font-family:var(--f-num);font-weight:300;font-size:30px;letter-spacing:.24em;color:#eaf4ff;text-shadow:0 0 12px rgba(150,200,255,.9),0 0 34px rgba(120,170,255,.6);margin:4px 0 2px;line-height:1.1}
 .vb .vtxt .vwhy{font-family:var(--f-cap);font-size:7px;letter-spacing:.22em;text-transform:uppercase;color:#bfe0ff}
 /* серый блок */
-.vb .grey{--W:230px;--H:145px;--D:110px;--bx:-8deg;--by:-14deg;left:210px;bottom:0;width:var(--W);height:var(--H)}
+.vb .grey{--W:230px;--H:108px;--D:90px;--bx:-8deg;--by:-14deg;left:210px;bottom:0;width:var(--W);height:var(--H)}   /* 19.09: камень ниже ростом */
 .vb .grey .f.front{transform-style:preserve-3d}.vb .grey .txt{transform:translateZ(1px)}   /* строго в плоскости грани — строки параллельны её верхней кромке */   /* текст лежит в плоскости грани */
 .vb .grey .f{background:#0d1110;border:1px solid rgba(255,255,255,.05)}
 .vb .grey .f.front{background:linear-gradient(180deg,#171c1b,#0a0d0c);box-shadow:inset 0 0 50px rgba(0,0,0,.75)}
@@ -1098,7 +1097,7 @@ COIN_HTML = r"""
 .vb .grey .txt .con{color:#6b5f59;text-shadow:0 1px 0 rgba(255,225,205,.2),0 -1px 0 rgba(0,0,0,.95),0 0 6px rgba(0,0,0,.6)}
 .vb .gshadow{position:absolute;left:190px;bottom:-10px;width:280px;height:24px;border-radius:50%;background:radial-gradient(rgba(0,0,0,.8),rgba(0,0,0,0) 70%)}
 .mini.verdict.v-buy{--c:#ffd98a;--g:245,169,58}.mini.verdict.v-hold{--c:#fbe9c4;--g:251,233,196}.mini.verdict.v-wait{--c:#a8f0dc;--g:79,209,168}.mini.verdict.v-exit{--c:#ffc4b3;--g:255,138,112}
-.decbox{left:56px;bottom:56px;width:330px;padding:0;background:none;border:0;box-shadow:none;z-index:4}
+.decbox{left:56px;bottom:10px;width:330px;padding:0;background:none;border:0;box-shadow:none;z-index:4}   /* 19.09: к самому краю */
 /* монеты */
 .coins{position:absolute;right:100px;top:74px;z-index:6}
 /* СПИСОК ПОВЕРХ ПЛАШЕК (17.09, владелец: «плашка поверх меню»): раскрытый список — фиксированный слой внутри .coins, и его порядок
@@ -1274,7 +1273,15 @@ COIN_HTML = r"""
 /* РЕЙКА НАД ВЕРДИКТОМ — вид 14.09 вечер (прототип coin_proto.html принят владельцем): без плашек, буквы в свете
    «держать», один ряд, ореол и затемнение под рядом, искра по полосе. Быстрые вортекс/клингер здесь не стоят. */
 /* рейка индикаторов над вердиктом (13.09): строка, не столбик */
-.railbox{position:absolute;left:calc(50% + 64px);bottom:calc(100% + 66px);transform:translateX(-50%);z-index:8;pointer-events:auto;display:flex;justify-content:center}
+.railbox{position:absolute;left:calc(50% + 64px);top:640px;transform:translateX(-50%);z-index:8;pointer-events:auto;display:flex;justify-content:center}   /* 19.09: свой ряд под сессиями */
+.pickbox{position:absolute;left:50%;top:700px;transform:translateX(-50%);z-index:6;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:4px;
+  font-family:var(--f-cap);font-size:8px;letter-spacing:.3em;text-transform:uppercase;color:#7fa898;white-space:nowrap}
+.pickbox em{display:inline-block;width:1px;height:8px;background:rgba(233,255,244,.18);margin:0 4px;align-self:center}
+.pickbox .pickrow{display:flex;justify-content:center;align-items:center;gap:6px;opacity:.85}
+.pickbox .pk{font-size:8px;letter-spacing:.22em;text-transform:uppercase;text-shadow:0 0 6px currentColor}
+.pickbox{pointer-events:auto}
+.pickbox .pk[title]{cursor:help}
+.pickbox .pk.act{color:#eaf1ff;letter-spacing:.14em;text-transform:none;font-size:9px;text-shadow:none;opacity:.85}
 /* сдвиг вправо на 64 (владелец, 14.09 вечер: «наезжают на график слева») и ПОДСВЕТКА как у «держать»:
    голубой ореол под всем рядом (тот же свет, что .bglow2 под вердиктом) — ряд читается поверх плиты */
 .railbox::before{content:"";position:absolute;left:-40px;right:-40px;top:-26px;bottom:-22px;border-radius:50%;pointer-events:none;z-index:-1;
@@ -1638,7 +1645,7 @@ COIN_JS = r"""
     //   Снятые стены (сняли, не съели) — шум: после них ноль к доске.
     var OBS = [];
     (function () { var _pd = (D.pickday || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()];
-      if (_pd && _pd.line) OBS.push('стыки за сутки: ' + _pd.line + (_pd.hedge ? ' — ' + _pd.hedge : '') + (_pd.expect ? ' · ' + _pd.expect : '')); })();
+      if (_pd && _pd.line) OBS.push('стыки за сутки: ' + _pd.line + (_pd.action ? ' — ' + _pd.action : '')); })();
     (function () { var dp = DEPTH[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()]; if (!dp) return;
       var ws = (dp.walls || []).filter(function (w) { return Math.abs(+w.dist_pct || 0) <= 30; });
       var bidH = ws.filter(function (w) { return w.side === 'bid' && (+w.runs || 0) >= 3; }), askH = ws.filter(function (w) { return w.side === 'ask' && (+w.runs || 0) >= 3; });
@@ -2431,7 +2438,7 @@ COIN_JS = r"""
     var dzone = ANIM + '<div class="mini verdict ' + vcls + ' dzone decbox vb ' + (window.VERDICT_STYLE || 'dark') + '">' + cardHtml(dec) +
       '<div class="bglow2"></div><div class="bglow"></div>' +
       [[46, 6.2, 0], [62, 7.1, .8], [78, 5.6, 1.6], [94, 6.8, .4], [110, 7.6, 1.2]].map(function (r) { return '<i class="ray" style="left:' + r[0] + 'px;--rd:' + r[1] + 's;--rw:' + (-r[2]) + 's"></i>'; }).join('') +
-      '<div class="vtxt' + (String(dec.verdict || '').length > 7 ? ' long' : '') + '"><div class="railbox"></div><div class="vcap">решение</div><div class="vw">' + esc(dec.verdict) + '</div><div class="vwhy">' + esc(String(dec.why).split('—')[0].slice(0, 32)) + '</div></div>' +
+      '<div class="vtxt' + (String(dec.verdict || '').length > 7 ? ' long' : '') + '"><div class="vcap">решение</div><div class="vw">' + esc(dec.verdict) + '</div><div class="vwhy">' + esc(String(dec.why).split('—')[0].slice(0, 32)) + '</div></div>' +
       // КАМЕНЬ — ТОЛЬКО «ЗА» И «ПРОТИВ» (19.09, владелец): текст доводов ушёл во всплывашку решения, она
       // открывается при наведении на всю зону решения по центру экрана; на грани — два слова и счёт доводов
       '<div class="gshadow"></div><div class="box grey">' + BOX6 + '<div class="f front"><div class="txt"><b>за<i>' + (dec.pro.length || 0) + '</i></b><b class="con">против<i>' + (dec.con.length || 0) + '</i></b></div></div></div></div>';
@@ -2685,7 +2692,7 @@ COIN_JS = r"""
         // ЧЕТЫРЕ СЛОВА У СТЫКА (19.09): лестница / раздача ×N нормы / пауза / не подхватил — метка из lab_pick_top по времени
         // открытия; пока сессия не закрылась и метки нет — старое «подхватил / не подхватил по N барам»
         var _pk = ((((D.pickday || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()] || {}).by) || {})[String(t)];
-        var verdict = _pk ? (_pk.kind + (_pk.kind === 'раздача' ? ' ×' + _pk.dnorm + ' нормы' + (_pk.streak > 1 ? ' (' + _pk.streak + '-я за сутки)' : '') : '') + ' · по ' + used + ' бар' + (used === 1 ? 'у' : 'ам'))
+        var verdict = _pk ? ((_pk.word || _pk.kind) + (_pk.kind === 'раздача' ? ' ×' + _pk.dnorm + ' нормы' + (_pk.streak > 1 ? ' (' + _pk.streak + '-я за сутки)' : '') : '') + ' · по ' + used + ' бар' + (used === 1 ? 'у' : 'ам'))
                           : (ok ? 'подхватил по ' + used + ' бар' + (used === 1 ? 'у' : 'ам') : 'не подхватил по ' + used + ' барам');
         var why = se[1] + ' ' + hhmm(t) + ' · ' + verdict + conf + nums;
         JOINS.push({ t: t, ok: ok, se: se, why: why, short: 'по ' + used + ' бар' + (used === 1 ? 'у' : 'ам') + (conf ? ' · <b>' + conf.replace(' · ', '') + '</b>' : '') + (volx !== null ? ' · оборот <b>×' + volx.toFixed(1) + '</b>' : '') + (dl !== null ? ' · дельта <b>' + (dl > 0 ? '+' : '') + f(dl / 1e3) + 'K</b>' : '') + (oiCh !== null ? ' · интерес <b>' + (oiCh > 0 ? '+' : '') + oiCh.toFixed(0) + '%</b>' : '') + (pxCh !== null ? ' · цена <b>' + (pxCh > 0 ? '+' : '') + pxCh.toFixed(1) + '%</b>' : '') });
@@ -3146,7 +3153,12 @@ COIN_JS = r"""
       tick(); var iv = setInterval(function () { if (!el.isConnected) { clearInterval(iv); return; } tick(); }, 1000);
       // СТРОКА СЕССИЙ ПОД ГРАФИКОМ (15.09, владелец): какая сессия идёт, сколько до следующей, какая следующая.
       // Всегда на экране, цветом сессий, обновляется раз в минуту вместе с плашкой.
+      // ПОРЯДОК СНИЗУ ЭКРАНА (19.09, владелец: «плашка с индикаторами наехала на сессии»): строка сессий →
+      // рейка индикаторов → стыки за сутки → внизу, у самого края, решение и камень. Рейка и стыки — свои ряды на
+      // сцене, а не части блока решения, чтобы не ездили с его высотой.
       var sl = document.createElement('div'); sl.className = 'sessline'; stage.appendChild(sl);
+      var rb = document.createElement('div'); rb.className = 'railbox'; stage.appendChild(rb);
+      var pb = document.createElement('div'); pb.className = 'pickbox'; stage.appendChild(pb);
       function tickLine() {
         if (!sl.isConnected) return;
         var now = Date.now(), ord = [], d0 = Math.floor(now / dayMs) * dayMs;
@@ -3158,23 +3170,25 @@ COIN_JS = r"""
         var m = Math.round((nxt[0] - now) / 6e4), hh = Math.floor(m / 60), mm = m % 60;
         sl.innerHTML = '<span style="color:' + cur[1][2] + '">' + esc(cur[1][1]) + '</span><i>идёт ' + Math.floor((now - cur[0]) / 36e5) + ' ч ' + pad(Math.round((now - cur[0]) / 6e4) % 60) + ' мин</i>'
           + '<em></em><i>до</i><span style="color:' + nxt[1][2] + '">' + esc(nxt[1][1]) + '</span><b>' + hh + ':' + pad(mm) + '</b>' + (m <= 60 ? '<u style="color:' + nxt[1][2] + '">стык</u>' : '')
-          + (aft ? '<em></em><i>потом</i><span style="color:' + aft[1][2] + ';opacity:.7">' + esc(aft[1][1]) + '</span>' : '')
-          + pickHtml();
+          + (aft ? '<em></em><i>потом</i><span style="color:' + aft[1][2] + ';opacity:.7">' + esc(aft[1][1]) + '</span>' : '');
+        var _ph = pickHtml(); if (pb.innerHTML !== _ph) pb.innerHTML = _ph;
       }
       // СТЫКИ ЗА СУТКИ — ТУТ ЖЕ (19.09, владелец: «плашку пишем туда же, где сессия по центру»): под строкой
       // сессий — четыре последних открытия с меткой: лестница (подхват с максимумом), раздача (подхват с плюсовой
       // дельтой без максимума, со счётом за сутки), пауза (без максимума, дельта минус), не подхватил.
       // Третья раздача за сутки — «хедж на часть». Метка — та же, что в лаборатории lab_pick_top.
+      // СЛОВА У СТЫКОВ (19.09, владелец): подхватили · раздача ×N нормы · ожидание · не подхватили; объяснение слова —
+      // при наведении; вторая строка — что делать по последнему стыку, числа лаборатории — при наведении на неё
       function pickHtml() {
         var _pd = (D.pickday || {})[String(s.coin || (String(s.t).toUpperCase() + 'USDT')).toUpperCase()];
-        if (!_pd || !_pd.line) return '';
+        if (!_pd || !(_pd.items || []).length) return '';
         var col = { 'лестница': '#7fe0b0', 'раздача': '#ff8fa3', 'пауза': '#9fb0d8', 'не подхватил': '#5f7f78' };
-        var parts = String(_pd.line).split(' · ').map(function (p) {
-          var kind = Object.keys(col).find(function (k) { return p.indexOf(k) >= 0; }) || 'не подхватил';
-          return '<span class="pk" style="color:' + col[kind] + '">' + esc(p) + '</span>';
+        var parts = _pd.items.map(function (e) {
+          var txt = e.sess + ' ' + e.word + (e.kind === 'раздача' ? ' ×' + e.dnorm + ' нормы' + (e.streak > 1 ? ' (' + e.streak + '-я за сутки)' : '') : '');
+          return '<span class="pk" style="color:' + (col[e.kind] || col['не подхватил']) + '" title="' + esc(e.explain || '') + '">' + esc(txt) + '</span>';
         });
-        return '<div class="pickrow">' + parts.join('<em></em>') + (_pd.hedge ? '<em></em><u style="color:#ff8fa3">' + esc(_pd.hedge) + '</u>' : '') + '</div>'
-          + (_pd.expect ? '<div class="pickrow" style="opacity:.6"><span class="pk" style="color:#c9d6ff;letter-spacing:.12em;text-transform:none">' + esc(_pd.expect) + '</span></div>' : '');
+        return '<div class="pickrow">' + parts.join('<em></em>') + '</div>'
+          + (_pd.action ? '<div class="pickrow" title="' + esc(_pd.numbers || '') + '"><span class="pk act">' + esc(_pd.action) + '</span></div>' : '');
       }
       tickLine(); var iv2 = setInterval(function () { if (!sl.isConnected) { clearInterval(iv2); return; } tickLine(); }, 60000);
     })();
@@ -3189,6 +3203,7 @@ COIN_JS = r"""
     (function () {
       var put = function () {
         var box = root.querySelector('.railbox');
+        if (!box && typeof stage !== 'undefined' && stage) { box = document.createElement('div'); box.className = 'railbox'; stage.appendChild(box); }   // 19.09: держатель на сцене
         if (box && window.__RAILHTML && !box.innerHTML) { box.innerHTML = window.__RAILHTML; return true; }
         return !!(box && box.innerHTML);
       };

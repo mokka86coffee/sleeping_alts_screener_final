@@ -29,6 +29,7 @@ import json
 import sys
 import time
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 
 try:
@@ -142,37 +143,17 @@ def main(dry: bool = False, file_path: str | None = None) -> int:
             return 1
         subject = Path(file_path).name
     else:
-        from send_brief_email import build_letter, load_report_data
+        # КОРОТКОЕ СООБЩЕНИЕ ПРОГОНА (19.09, владелец: «убираем вообще всё, оставляем биткоин и информацию по звёздам —
+        # только скоро и могут — и по своим монетам только цену и стыки»). Очередь, «у цели», «откатились», «конец
+        # тренда» и прочие списки в телеграм больше не идут — они на страницах. Оповещения об ошибках — отдельно, как были.
+        subject, text = _short_brief()
+        # строка стыка первой (правило владельца 18.09: за час до открытия — «хеджировать всё», первые полчаса — «следить»)
         try:
-            stars, market = load_report_data()
-        except Exception as e:
-            log(f"  телеграм: brief.html не разобран "
-                f"({type(e).__name__}: {e})")
-            return 1
-        subject, text = build_letter(stars, market)
-        # срез биткоина первой строкой (04.09): по правилу владельца разбор
-        # дня начинается с биткоина по часам, альты — производные
-        btc = ""
-        try:
-            _p = json.loads((BASE_DIR / "output" / "btc_pulse.json").read_text(encoding="utf-8"))
-            if _p.get("read"):
-                btc = "БИТКОИН · " + _p["read"] + "\n\n"
-        except (OSError, ValueError):
-            pass
-        # СТЫК СЕССИЙ И СВОИ МОНЕТЫ (18.09, владелец): предупреждение про хедж — в САМОМ начале
-        # сообщения («за час до открытия хеджировать, через полчаса после — следить за хеджами»),
-        # сводка по watch.json — хвостом. Ни то, ни другое на страницы не идёт: только телеграм.
-        warn, block = "", ""
-        try:
-            from watch_brief import session_head, watch_block
+            from watch_brief import session_head
             _h, _key = session_head()
-            warn = ("⚠ " if _key else "") + _h + "\n\n"
-            block = watch_block(with_head=False)
-        except Exception as e:                                      # noqa: BLE001 — сводка не роняет отправку
-            log(f"  телеграм: сводка по своим монетам не собралась ({type(e).__name__}: {e})")
-        text = f"{subject}\n\n{warn}{btc}{text}"
-        if block:
-            text = f"{text}\n{block}"
+            text = ("⚠ " if _key else "") + _h + "\n\n" + text
+        except Exception:  # noqa: BLE001
+            pass
 
     if dry:
         print(f"── {subject} ──\n{text}")
@@ -187,6 +168,77 @@ def main(dry: bool = False, file_path: str | None = None) -> int:
     ok = send_telegram(text, cfg)
     log(f"  телеграм: {'ушло' if ok else 'НЕ ушло'} · кусков {n} · {len(text)} симв.")
     return 0 if ok else 1
+
+
+def _pick_lines(sym_usdt: str) -> list[str]:
+    """стыки за сутки словами и «что делать» — те же, что на карточке (lab_pick_top)"""
+    try:
+        from lab_pick_top import events, load, word, action
+        ev = events(load(sym_usdt.replace("USDT", "")))[-4:]
+    except Exception:  # noqa: BLE001
+        return []
+    if not ev:
+        return []
+    row = " · ".join(f"{e['sess']} {word(e['kind'])}" + (f" ×{e['dnorm']:.1f} нормы" if e["kind"] == "раздача" else "")
+                     + (f" ({e['streak']}-я за сутки)" if e["kind"] == "раздача" and e["streak"] > 1 else "") for e in ev)
+    last = ev[-1]
+    act = action(last["kind"], float(last.get("run") or 0), int(last.get("streak") or 0))
+    return ["  стыки: " + row] + (["  что делать: " + act] if act else [])
+
+
+def _short_brief() -> tuple[str, str]:
+    """заголовок и текст: биткоин · звёзды «скоро» и «могут» · свои монеты — цена и стыки"""
+    now = datetime.now()
+    subject = f"Скринер · {now:%d.%m %H:%M}"
+    lines: list[str] = []
+    # биткоин — как был, первой строкой
+    try:
+        _p = json.loads((BASE_DIR / "output" / "btc_pulse.json").read_text(encoding="utf-8"))
+        if _p.get("read"):
+            lines += ["БИТКОИН · " + _p["read"], ""]
+    except (OSError, ValueError):
+        pass
+    # звёзды: только «скоро» (0) и «могут» (1), подпись группами — как во всплывашке
+    try:
+        _st = json.loads((BASE_DIR / "output" / "stars.json").read_text(encoding="utf-8")).get("stars") or []
+    except (OSError, ValueError):
+        _st = []
+    for g, title in ((0, "СКОРО"), (1, "МОГУТ")):
+        grp = [x for x in _st if x.get("g") == g]
+        if not grp:
+            continue
+        lines.append(f"{title} — {len(grp)}")
+        for x in grp:
+            parts = [p.strip() for p in str(x.get("sub") or "").split(" ‖ ") if p.strip()]
+            lines.append(f"· {x.get('name')} — " + (parts[0] if parts else ""))
+            for p in parts[1:]:
+                if not p.endswith(": —"):
+                    lines.append("  " + p)
+            lines += _pick_lines(str(x.get("sym") or ""))
+        lines.append("")
+    # свои монеты: цена, ход от входа, стыки — без простыни
+    try:
+        _w = json.loads((BASE_DIR / "watch.json").read_text(encoding="utf-8")).get("coins") or []
+    except (OSError, ValueError):
+        _w = []
+    if _w:
+        lines.append("СЛЕЖУ")
+        for c in _w:
+            sym = (c if isinstance(c, str) else c.get("sym") or "").upper().replace("USDT", "")
+            entry = None if isinstance(c, str) else c.get("entry")
+            px = None
+            try:
+                from lab_pick_top import load as _load
+                rows = _load(sym)
+                px = float(rows[-1]["px"]) if rows else None
+            except Exception:  # noqa: BLE001
+                px = None
+            head = f"· {sym} " + (f"{px:.6g}" if px else "— цены нет")
+            if px and entry:
+                head += f" · от входа {(px / float(entry) - 1) * 100:+.1f}%"
+            lines.append(head)
+            lines += _pick_lines(sym + "USDT")
+    return subject, "\n".join(lines).rstrip()
 
 
 def send_after_run() -> None:

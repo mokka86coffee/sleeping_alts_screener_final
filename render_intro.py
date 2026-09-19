@@ -538,7 +538,10 @@ def collect_items() -> list[dict]:
     for it in list(items):
         k_q, k_s, k_c, _q, _pk = _keys(it["sym"])
         went = float(it.get("run") or 0) >= _RUN_MIN
-        if went:
+        if went and k_q and k_s:
+            it["g"] = 0                                  # ВТОРОЙ АКТ (19.09): ход был, и деньги идут снова — в центр
+            it["why"] = "второй акт: ход был, и деньги идут снова — в первой тройке очереди и стык подхвачен · " + str(it.get("why") or "")
+        elif went:
             it["g"] = 2
         elif k_q and k_s:
             it["g"] = 0
@@ -546,12 +549,26 @@ def collect_items() -> list[dict]:
             it["g"] = 1
         else:
             items.remove(it); continue
-        _tag = _qtag(it["sym"], _q if k_q else None) + " · " + ("стык подхвачен" if k_s else "стык не подхвачен") + (" · копится" if k_c else "")
-        # НЕ «БРАТЬ» (19.09, STG: спутник «плечо +49%» на стыке прочитался как вход, взято на вершине дневного диапазона,
-        # через час плечо вышло): у «скоро» и «могут» подпись говорит, чего НЕТ — ход от основания меньше порога, ступени нет
+        # ПОДПИСЬ ГРУППАМИ (19.09, владелец: «надо в звезде как-то разделять эту простыню, всё сливается»): статус ‖
+        # очередь ‖ стык ‖ сбор ‖ режим — всплывашка рисует каждую группу своей строкой с подписью слева.
+        _run = float(it.get("run") or 0)
         if not went:
-            _tag = f"ход от основания +{float(it.get('run') or 0):.0f}% · ступени ещё нет — не вход · " + _tag
-        it["sub"] = _tag + (" · " + str(it.get("sub") or "") if it.get("sub") else "")
+            _st = f"ход от основания +{_run:.0f}% · ступени ещё нет — не вход"     # НЕ «БРАТЬ» (STG 19.09)
+        elif it["g"] == 0:
+            _st = f"ВТОРОЙ АКТ · ход +{_run:.0f}% · снова в первой тройке очереди и стык подхвачен"
+        else:
+            _st = f"пошла · ход +{_run:.0f}% · от вершины {float(it.get('dd') or 0):+.0f}%"
+        _sx = ("подхвачен" if k_s else "не подхвачен") + (f" · оборот ×{_pk.get('volx', 0):.0f}" if _pk.get("volx") is not None else "") + (f" · плечо {_pk.get('oi', 0):+.0f}%" if _pk.get("oi") is not None else "")
+        _old = [x for x in str(it.get("sub") or "").split(" · ") if x and not x.startswith("стык")]
+        _mode = [x for x in _old if x in ("лестница", "парабола", "сквиз") or x.startswith("режим")]
+        _rest = [x[5:] if x.startswith("сбор ") else x for x in _old
+                 if x not in _mode and not x.startswith("держится") and x not in ("подхват стыка", "ступени ещё нет — не вход")]
+        _qt = _qtag(it["sym"], _q if k_q else None)
+        _qt = _qt[8:] if _qt.startswith("очередь ") else _qt
+        it["sub"] = " ‖ ".join([_st, "очередь: " + _qt,
+                                "стык: " + _sx,
+                                "сбор: " + (" · ".join(_rest) + (" · копится" if k_c else "") if (_rest or k_c) else "—"),
+                                "режим: " + (" · ".join(_mode) if _mode else "—")])
     # первая тройка очереди без звезды — «могут пойти», если есть хотя бы один ключ
     for _sym, _q in _qpos.items():
         if _q > STAR_QUEUE_TOP or _sym in {it["sym"] for it in items} or _sym not in coins:
@@ -566,7 +583,7 @@ def collect_items() -> list[dict]:
         _q = _qpos.get(it["sym"])
         _sess = (max(0.0, min(50.0, float(_pk.get("volx") or 0))) + max(0.0, float(_pk.get("oi") or 0))) if _pk else 0.0
         it["rel"] = (400.0 if _q == 1 else 300.0 if _q == 2 else 200.0 if _q == 3 else 100.0 if _q else 0.0) + _sess + float(it.get("rel") or 0.0) / 10.0
-        if _pk and _pk.get("volx") is not None:
+        if _pk and _pk.get("volx") is not None and "‖" not in str(it.get("sub") or ""):
             it["sub"] = (it.get("sub") or "") + f" · стык: оборот ×{_pk['volx']:.0f}" + (f" · плечо {_pk['oi']:+.0f}%" if _pk.get("oi") is not None else "")
     # порядок: брать, держать, у цели; внутри группы — по надёжности, самая надёжная первой
     items.sort(key=lambda it: (it["g"], -it.get("rel", 0.0)))
@@ -587,7 +604,7 @@ def collect_items() -> list[dict]:
                 it["bright"] = 1.0 if hi_r <= lo_r else STAR_DIM + (1.0 - STAR_DIM) * (it["rel"] - lo_r) / (hi_r - lo_r)
     for it in items:
         if it["g"] == 2:
-            it["bright"] = 0.7
+            it["bright"] = min(0.85, float(it.get("bright") or STAR_DIM))   # «пошли» светят по ключам, но не ярче «скоро»
         elif it["g"] == 4:
             it["bright"] = 0.4
     return items[:MAX_NAMES]
@@ -660,8 +677,8 @@ def render_intro(items: list[dict] | None = None) -> str:
     counts = [sum(1 for it in items if it["g"] == k) for k in (0, 1, 2, 4)]
     # ПОДПИСИ ГРУПП — ПО ПРОФИЛЮ (18.09): звёзды с 17.09 только по профилю лидера, «первые» и «в очереди» больше
     # не про очередь: группа 0 — профиль полный (шесть-семь отметок или все известные), группа 1 — на границе (пять)
-    labels = [{"n": f"скоро {counts[0]}", "sym": "", "g": 0, "why": "оба ключа: первая тройка очереди и подхват стыка — ещё не прошли 60%", "label": True},
-              {"n": f"могут {counts[1]}", "sym": "", "g": 1, "why": "один ключ: очередь без стыка, стык без очереди или копится после сбора", "label": True},
+    labels = [{"n": f"скоро {counts[0]}", "sym": "", "g": 0, "why": "в первой тройке очереди И стык подхвачен (оборот на открытии сессии от пяти норм с приходом плеча) — ещё не прошли 60%", "label": True},
+              {"n": f"могут {counts[1]}", "sym": "", "g": 1, "why": "одно из двух: в тройке очереди без стыка, стык без очереди — или копится после сбора", "label": True},
               {"n": f"пошли {counts[2]}", "sym": "", "g": 2, "why": "прошли от основания 60% и больше, от вершины отдали меньше 60% — вход только по лестнице", "label": True}]
     if counts[3]:
         labels.append({"n": f"остывшие {counts[3]}", "sym": "", "g": 4, "why": "", "label": True})
@@ -1379,6 +1396,10 @@ TEMPLATE = r'''<!doctype html>
   .tip b{display:block;font-weight:400;font-size:13px;letter-spacing:.14em;color:#f0f5ff;
     text-shadow:0 0 18px rgba(150,190,255,.6)}
   .tip s{display:block;text-decoration:none;margin-top:5px;font-size:10px;letter-spacing:.08em;color:#bcd0ea}
+  .tip .sg{margin-top:7px;display:grid;row-gap:4px}
+  .tip .sgr{display:grid;grid-template-columns:52px 1fr;column-gap:10px;align-items:baseline;font-size:10px;letter-spacing:.06em;color:#bcd0ea;line-height:1.45}
+  .tip .sgr i{font-style:normal;font-size:7.5px;letter-spacing:.28em;text-transform:uppercase;color:rgba(190,205,255,.42)}
+  .tip .sgr.st{grid-template-columns:1fr;font-size:11px;color:#eaf1ff;margin-bottom:3px}
   .tip u{display:block;text-decoration:none;margin-top:8px;padding-top:8px;
     border-top:1px solid rgba(255,255,255,.07)}
   .tip p{display:grid;grid-template-columns:9px 1fr;column-gap:8px;align-items:baseline;margin:0 0 5px;
@@ -1661,10 +1682,10 @@ void main(){
   float isStale=step(3.5,Gi);
   float isReady=step(2.5,Gi)*(1.-isStale);
   float isClose=step(1.5,Gi)*(1.-isReady),isBuy=1.-step(.5,Gi),isHold=(1.-isClose)*(1.-isBuy)*(1.-isReady);
-  float er=smoothstep(.3,.75,fbm(px*.045+vec2(T*.12,-T*.05)))*(.45+.3*sin(T*.3))*isClose;
+  float er=0.;   // 19.09: третья группа теперь «пошли», не «закрыть» — эрозии букв нет
   core*=1.-er*.9;soft*=1.-er*.75;
   float near_=smoothstep(.16,.04,best)*inbox;
-  float drift=texture2D(M,vec2(uv.x-hash(px+3.)*.012,1.-(uv.y+hash(px+5.)*.008))).b*isClose*near_;
+  float drift=0.;   // 19.09: и сдува нет
   float wrap=(halo*(.35+.65*smoothstep(.25,.85,d))+mk.r*.4)*Fi*near_;
   float blob=exp(-dot(p*vec2(1.1,.95),p*vec2(1.1,.95))*1.8);
   float cloud=smoothstep(.36,.85,d)*blob;
@@ -1972,7 +1993,14 @@ c.addEventListener('mousemove',ev=>{const j=hit(ev,true),i=hit(ev);
       };
       const list=why?why.split(' · ').filter(Boolean)
         .map(w=>'<p><em style="background:'+dotOf(w)+'"></em>'+w+'</p>').join(''):'';
-      tip.innerHTML='<b>'+names[i]+'</b>'+(sub?'<s>'+sub+'</s>':'')+(list?'<u>'+list+'</u>':'');
+      // ГРУППЫ ПОДПИСИ (19.09): «статус ‖ очередь: … ‖ стык: … ‖ сбор: … ‖ режим: …» — каждая своей строкой,
+      // подпись группы слева капителью; старая подпись без ‖ рисуется как раньше
+      var subHtml='';
+      if(sub&&sub.indexOf('‖')>=0){
+        subHtml='<div class="sg">'+sub.split(' ‖ ').map(function(g,k){var m=g.match(/^([^:]{2,12}):\s*(.*)$/);
+          return m?'<div class="sgr"><i>'+m[1]+'</i><span>'+m[2]+'</span></div>':'<div class="sgr st"><span>'+g+'</span></div>';}).join('')+'</div>';
+      } else if(sub){ subHtml='<s>'+sub+'</s>'; }
+      tip.innerHTML='<b>'+names[i]+'</b>'+subHtml+(list?'<u>'+list+'</u>':'');
       tip.style.left=Math.min(ev.clientX+14,innerWidth-380)+'px';
       tip.style.top=Math.min(ev.clientY+12,innerHeight-260)+'px';tip.style.opacity=1;
     } else tip.style.opacity=0;
@@ -2092,7 +2120,14 @@ function drawFx(t){
     // A — строка-шлейф: одна строка вбок, слова гаснут к хвосту; ничего не громоздится
     // B — два уровня: крупное слово «что сейчас» и одна мелкая строка под ним
     // C — капсулы: короткие пилюли в ряд, как метки на приборе
-    const subAll=((DATA.subs||[])[i]||'').split(' · ').filter(Boolean);
+    // подпись группами (19.09): на экране — короткое из стыка («плечо +25%»), статус — первой; группы не печатаются
+    const _raw=((DATA.subs||[])[i]||'');
+    let subAll;
+    if(_raw.indexOf('‖')>=0){
+      const G=_raw.split(' ‖ '), st=G[0]||'', sx=(G.find(x=>x.indexOf('стык:')===0)||'').replace(/^стык:\s*/,'');
+      const sxp=sx.split(' · ').filter(Boolean), last=sxp.find(x=>/^плечо/.test(x))||sxp[sxp.length-1]||'';
+      subAll=st.split(' · ').filter(Boolean).concat(last?[last]:[]);
+    } else subAll=_raw.split(' · ').filter(Boolean);
     if(subAll.length){
       const dir=dirs[i];
       // ПОЛНОТА ПОДПИСИ (08.09, владелец: «зачем мне полная строка»): на экране у ВСЕХ коротко —

@@ -107,6 +107,27 @@ MAX_COINS = 250                     # не потолок, а страховка
 #   срез выглядел здоровым, а следил за третью списка. Теперь потолок
 #   с запасом, а усечение печатается причиной (см. _journal_coins).
 PAUSE_SEC = 0.8                     # восемьдесят в минуту — с запасом
+# ОКНО В МИНУТУ И ПАУЗА НА 429 (19.09, владелец: «в Coinglass запросы макс 80 в минуту», сайт три часа не
+# обновлялся). Пауза 0.8 с даёт 75 в минуту — впритык, и любой второй потребитель ключа (пульс биткоина, ETF)
+# выбивает квоту; а на 429 сборщик раньше не ждал, а шёл дальше и добивал квоту следующими запросами.
+# Теперь: не больше CG_RPM стартов в скользящую минуту, на 429 — сон CG_429_SLEEP секунд и один повтор.
+try:
+    from core_config import CG_RPM, CG_HEADROOM
+except ImportError:
+    CG_RPM = 70                     # запасное окно, пока заголовков ещё нет
+    CG_HEADROOM = 3                 # столько запросов до потолка из заголовка не доходим
+_WINDOW: list = []                  # времена стартов за последнюю минуту
+# КВОТА ИСЧЕРПАНА — НЕ ЖДАТЬ НА КАЖДОЙ ТОЧКЕ (19.09 вечер, владелец: «прогон после правок ни разу не закончился»):
+# сон на 429 — ОДИН раз за прогон; если после него снова 429 — до конца прогона все точки пропускаются мгновенно
+# с пометкой «квота», прогон дособирает остальное и заканчивается в обычное время. Сброс — в начале прогона.
+_QUOTA = {"slept": False, "blocked": False}
+
+
+def quota_reset() -> None:
+    """звать в начале сбора: новая попытка в новом прогоне"""
+    _QUOTA["slept"] = False
+    _QUOTA["blocked"] = False
+    _WINDOW.clear()
 TIMEOUT = 20
 
 LIQ_WINDOWS = ("24h", "12h", "4h", "1h")
@@ -119,7 +140,7 @@ LIQ_WINDOWS = ("24h", "12h", "4h", "1h")
 # четырёх, то есть на половине. Но это прикидка по секундомеру, а
 # решать про частоту надо по числу от самого источника. Заголовков
 # может и не быть — тогда строка честно скажет, что их нет.
-RATE = {"last": None, "seen": 0}
+RATE = {"last": None, "seen": 0, "max": None, "use": None, "use_at": 0.0}
 
 
 _PACE = {"last": 0.0}
@@ -134,11 +155,53 @@ def _pace() -> None:
     wait = _PACE["last"] + PAUSE_SEC - now
     if wait > 0:
         time.sleep(wait)
+    # ТЕМП ПО ЗАГОЛОВКАМ ИСТОЧНИКА (19.09, документация Coinglass: API-KEY-MAX-LIMIT — потолок в минуту,
+    # API-KEY-USE-LIMIT — потрачено в текущем окне): подошли к потолку — ждём до следующей минуты и идём дальше.
+    # Заголовков ещё нет (первый запрос) — работает скользящее окно CG_RPM как запас.
+    now = time.time()
+    if RATE.get("max") and RATE.get("use") is not None and now - RATE["use_at"] < 60.0:
+        if RATE["use"] >= RATE["max"] - CG_HEADROOM:
+            _wait = 60.0 - (now % 60.0) + 0.5           # до границы минуты
+            RATE["last"] = f"{RATE['use']}/{RATE['max']} в минуту — жду {_wait:.0f} с"
+            time.sleep(_wait)
+            RATE["use"] = 0
+            _WINDOW.clear()
+    now = time.time()
+    _WINDOW[:] = [t for t in _WINDOW if now - t < 60.0]
+    if len(_WINDOW) >= CG_RPM:
+        time.sleep(max(0.0, 60.0 - (now - _WINDOW[0]) + 0.2))
+        now = time.time()
+        _WINDOW[:] = [t for t in _WINDOW if now - t < 60.0]
+    _WINDOW.append(time.time())
     _PACE["last"] = time.time()
 
 
 def get(path: str, params: dict, key: str) -> tuple[int, dict | str]:
-    """Как в пробнике: (HTTP-код, разобранное тело либо текст)."""
+    """Как в пробнике: (HTTP-код, разобранное тело либо текст). На 429 — сон и один повтор (19.09)."""
+    if _QUOTA["blocked"]:
+        return 429, {"code": "429", "msg": "лимит Coinglass в этом прогоне — точка пропущена без запроса"}
+    code, data = _get_once(path, params, key)
+    inner = data.get("code") if isinstance(data, dict) else None
+    if code == 429 or str(inner) == "429":
+        if _QUOTA["slept"]:                                   # уже ждали границу минуты — значит ключ жжёт кто-то ещё
+            _QUOTA["blocked"] = True
+            RATE["last"] = "429 повторно после границы минуты — остальные точки прогона пропущены"
+            return code, data
+        _QUOTA["slept"] = True
+        _wait = 60.0 - (time.time() % 60.0) + 0.5
+        RATE["last"] = f"429 · жду границу минуты {_wait:.0f} с"
+        time.sleep(_wait)
+        RATE["use"] = 0
+        _WINDOW.clear()
+        code, data = _get_once(path, params, key)
+        inner = data.get("code") if isinstance(data, dict) else None
+        if code == 429 or str(inner) == "429":
+            _QUOTA["blocked"] = True
+            RATE["last"] = "429 сразу после границы минуты — остальные точки прогона пропущены"
+    return code, data
+
+
+def _get_once(path: str, params: dict, key: str) -> tuple[int, dict | str]:
     _pace()
     url = BASE + path + ("?" + urllib.parse.urlencode(params) if params else "")
     req = urllib.request.Request(url, headers={
@@ -148,9 +211,19 @@ def get(path: str, params: dict, key: str) -> tuple[int, dict | str]:
     try:
         with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
             for _h, _v in r.headers.items():
-                if any(w in _h.lower() for w in
-                       ("ratelimit", "rate-limit", "x-remain", "quota",
-                        "credit", "retry-after")):
+                _hl = _h.lower()
+                if _hl == "api-key-max-limit":          # потолок в минуту — по документации Coinglass
+                    try:
+                        RATE["max"] = int(_v)
+                    except ValueError:
+                        pass
+                elif _hl == "api-key-use-limit":        # потрачено в текущем окне
+                    try:
+                        RATE["use"] = int(_v)
+                        RATE["use_at"] = time.time()
+                    except ValueError:
+                        pass
+                if any(w in _hl for w in ("ratelimit", "rate-limit", "x-remain", "quota", "credit", "retry-after", "api-key-")):
                     RATE["last"] = f"{_h}={_v}"
                     RATE["seen"] += 1
             return r.status, json.loads(r.read().decode())
