@@ -89,7 +89,7 @@ def allowed(side: int, sym: str, rule: str, book: str) -> tuple[bool, str]:
     rule = str(rule or "")
     for off in SIDE_RULES_OFF:
         if rule.startswith(off):
-            return False, f"правило выключено: {off} (0 попаданий на выносе 16–18.09)"
+            return False, f"правило выключено: {off} (по журналам 16–19.09 в минусе)"
     n = stops_today(sym, book)
     if n >= SIDE_STOPS_PER_DAY:
         return False, f"потолок: {n} стоп(а) по {sym} сегодня — монета закрыта до завтра"

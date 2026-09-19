@@ -272,6 +272,14 @@ except ImportError:
     _ps = None
 
 
+# РАЗМЕР СДЕЛКИ ×BOOK_SIZE_X (19.09, владелец: «с 10000 зарабатывать 100$ в день идиотизм»): доля депозита на
+# сделку умножается на этот множитель; проценты сделки не меняются, меняется её вес в долларах на экране книги.
+try:
+    from core_config import BOOK_SIZE_X
+except ImportError:
+    BOOK_SIZE_X = 1.0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only")
@@ -348,6 +356,7 @@ def main() -> int:
         pos = {"rule": f"картина: {'лонг' if s > 0 else 'шорт'} {abs(sum(v.values()))} голосов", "side": s, "t": t,
                "px": px, "size": 1.0, "target": SIGHT_TARGET, "stop": None, "hold": SIGHT_HOLD_BARS,
                "votes": v, "bg": bg, "hedges": [], "bars": 0, "last_t": t, "opened_at": now, "state": "long" if s > 0 else "short"}
+        pos["size"] = float(pos.get("size", 1.0)) * BOOK_SIZE_X          # 19.09: вес сделки ×BOOK_SIZE_X
         state["open"][sym] = pos
         state["last_sig"][sym] = t
         events.append(dict(kind="entry", book=BOOK_LABEL, sym=sym, side=s, t=t, px=px, size=1.0, rule=pos["rule"],

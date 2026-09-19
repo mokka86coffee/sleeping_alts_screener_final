@@ -270,6 +270,14 @@ def _opposite_open(sym: str, side: int) -> str | None:
     return None
 
 
+# РАЗМЕР СДЕЛКИ ×BOOK_SIZE_X (19.09, владелец: «с 10000 зарабатывать 100$ в день идиотизм»): доля депозита на
+# сделку умножается на этот множитель; проценты сделки не меняются, меняется её вес в долларах на экране книги.
+try:
+    from core_config import BOOK_SIZE_X
+except ImportError:
+    BOOK_SIZE_X = 1.0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only")
@@ -338,6 +346,7 @@ def main() -> int:
               + ", ".join(f"{k} {v}" for k, v in _rules.items()) + f"), беру {len(cands)}: "
               + ", ".join(s_[:-4] for s_, _ in cands) + " · пропускаю: " + ", ".join(s_[:-4] for s_, _ in skipped))
     for sym, sig in cands:
+        sig["size"] = float(sig.get("size", 1.0)) * BOOK_SIZE_X          # 19.09: вес сделки ×BOOK_SIZE_X
         state["open"][sym] = dict(sig, opened_at=now)
         state.setdefault("last_sig", {})[sym] = sig["t"]
         opened.append(dict(sig, sym=sym, kind="entry", at=now))

@@ -112,7 +112,8 @@ def check_exit(pos: dict, rows: list[dict]):
     after = [r for r in rows if r["t"] > pos["t"]]
     e = pos["px"]
     for k, r in enumerate(after, 1):
-        if r.get("h") and (r["h"] / e - 1) >= PAPER_END_STOP:
+        # 19.09: PAPER_END_STOP = None — книга без стопа (выход по цели и сроку). Опыт против «толпы», где стоп остался
+        if PAPER_END_STOP is not None and r.get("h") and (r["h"] / e - 1) >= PAPER_END_STOP:
             return -PAPER_END_STOP - PAPER_END_FEE, f"стоп на баре {k}"
         res = e / r["px"] - 1
         if res >= pos["target"]:
@@ -155,6 +156,14 @@ def _opposite_open(sym: str, side: int) -> str | None:
         if int(_s) != int(side):
             return _nm
     return None
+
+
+# РАЗМЕР СДЕЛКИ ×BOOK_SIZE_X (19.09, владелец: «с 10000 зарабатывать 100$ в день идиотизм»): доля депозита на
+# сделку умножается на этот множитель; проценты сделки не меняются, меняется её вес в долларах на экране книги.
+try:
+    from core_config import BOOK_SIZE_X
+except ImportError:
+    BOOK_SIZE_X = 1.0
 
 
 def main() -> int:
@@ -217,6 +226,7 @@ def main() -> int:
         opened.append({"kind": "board", "at": now, "n": len(cands) + len(skipped), "taken": [s for s, _ in cands], "skipped": [s for s, _ in skipped]})
         print(f"paper_end: событие доски — «конец» у {len(cands) + len(skipped)} монет, беру {len(cands)}: {', '.join(s[:-4] for s, _ in cands)}")
     for sym, sig in cands:
+        sig["size"] = float(sig.get("size", 1.0)) * BOOK_SIZE_X          # 19.09: вес сделки ×BOOK_SIZE_X
         state["open"][sym] = dict(sig, opened_at=now)
         state.setdefault("last_sig", {})[sym] = sig["t"]
         opened.append(dict(sig, sym=sym, kind="entry", at=now))
