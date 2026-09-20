@@ -721,13 +721,16 @@ def _fast_alerts() -> None:
                 continue
             k = f"wall|{sym}|{g.get('side')}|{g.get('px')}|{g.get('at')}"
             if k not in sent:
-                lines.append(f"{sym[:-4]} · стена {'аск' if g.get('side') == 'ask' else 'бид'} {g.get('px'):.6g} ${g.get('usd', 0) / 1e3:.0f}K — {g.get('fate')} после {g.get('runs')} пр.")
+                _ask = g.get("side") == "ask"
+                _what = (f"съели — прошли {'вверх' if _ask else 'вниз'}" if g.get("fate") == "съели"
+                         else f"убрали — цена не доходила, {'путь вверх свободен' if _ask else 'опора ушла'}")
+                lines.append(f"{sym[:-4]} · {'потолок' if _ask else 'пол'} {g.get('px'):.6g} ({g.get('dist_pct'):+.1f}%, ${g.get('usd', 0) / 1e3:.0f}K) {_what} после {g.get('runs')} пр.")
                 keys.append(k)
         for w in [x for x in (d.get("walls") or []) if abs(x.get("dist_pct") or 0) <= 30][:1]:
             if w.get("runs", 0) == 3:   # стена простояла три прогона — полтора часа — сказать один раз
                 k = f"wallstand|{sym}|{w.get('side')}|{w.get('px')}"
                 if k not in sent:
-                    lines.append(f"{sym[:-4]} · стоит стена {'аск' if w.get('side') == 'ask' else 'бид'} {w.get('px'):.6g} ({w.get('dist_pct'):+.1f}%, ${w.get('usd', 0) / 1e3:.0f}K) уже 3 прогона")
+                    lines.append(f"{sym[:-4]} · держат {'потолок' if w.get('side') == 'ask' else 'пол'} {w.get('px'):.6g} ({w.get('dist_pct'):+.1f}%, ${w.get('usd', 0) / 1e3:.0f}K) уже 3 прогона")
                     keys.append(k)
     if not lines:
         return

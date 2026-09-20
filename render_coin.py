@@ -1659,7 +1659,13 @@ COIN_JS = r"""
       var W = function (w) { return px4(w.px) + ' (' + (w.dist_pct > 0 ? '+' : '') + w.dist_pct.toFixed(1) + '%, $' + Math.round(w.usd / 1e3) + 'K' + (w.kind === 'spot' ? ', спот' : '') + (w.runs > 1 ? ', стоит ' + w.runs + ' пр.' : '') + ')'; };
       if (ca) con.push('стакан: потолок ' + W(ca));
       if (cb) pro.push('стакан: пол ' + W(cb));
-      (dp.gone || []).slice(0, 1).forEach(function (g) { if (g.fate === 'сняли') con.push('стакан: ' + (g.side === 'ask' ? 'аск ' : 'бид ') + px4(g.px) + ' $' + Math.round(g.usd / 1e3) + 'K сняли после ' + g.runs + ' пр.'); });
+      (dp.gone || []).slice(0, 1).forEach(function (g) {
+        var pol = g.side === 'ask' ? 'потолок ' : g.side === 'bid' ? 'пол ' : 'стена ';
+        var what = g.fate === 'съели'
+          ? 'съели — прошли ' + (g.side === 'ask' ? 'вверх' : 'вниз')
+          : 'убрали — цена не доходила, ' + (g.side === 'ask' ? 'путь вверх свободен' : 'опора ушла');
+        con.push('стакан: ' + pol + px4(g.px) + ' $' + Math.round(g.usd / 1e3) + 'K ' + what + ' после ' + g.runs + ' пр.');
+      });
     })();
     // НАБЛЮДЕНИЯ ПО СТАКАНУ (19.09, лаборатория по архиву стакана: 44 монеты, 3 дня, 10 тысяч стен, ход против
     // медианы доски). Не довод, а наблюдение — в правила не идёт, пересчитать через неделю. Что дало край:
@@ -2054,7 +2060,7 @@ COIN_JS = r"""
       gone.forEach(function (g) { if (!(g.px >= lo && g.px <= hi)) return;
         var big = 0.8 + 3.2 * Math.pow((+g.usd || 0) / wmax, 0.7);
         var col = g.side === 'ask' ? '#b98a82' : g.side === 'bid' ? '#86b8a2' : '#8b9690';
-        RL.push({ y: sy(g.px), col: col, txt: px4(g.px) + ' · ' + (g.fate || 'сняли') + ' после ' + nbG(g.runs),
+        RL.push({ y: sy(g.px), col: col, txt: px4(g.px) + ' · ' + (g.fate === 'съели' ? 'съели ' + (g.side === 'ask' ? 'вверх' : 'вниз') : 'убрали') + ' после ' + nbG(g.runs),
           tip: (g.side === 'ask' ? 'заявка на продажу ' : g.side === 'bid' ? 'заявка на покупку ' : 'стена ') + '$' + Math.round((+g.usd || 0) / 1e3) + 'K на ' + px4(g.px) + ' стояла ' + nb(g.runs) + ' и исчезла: ' + (g.fate || 'сняли'),
           mid: g.px, x1: X1 - 34, dash: '3 3', w: big, op: .5, liq: false }); });
     })();
