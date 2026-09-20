@@ -1297,11 +1297,11 @@ COIN_HTML = r"""
 /* РЕЙКА НАД ВЕРДИКТОМ — вид 14.09 вечер (прототип coin_proto.html принят владельцем): без плашек, буквы в свете
    «держать», один ряд, ореол и затемнение под рядом, искра по полосе. Быстрые вортекс/клингер здесь не стоят. */
 /* рейка индикаторов над вердиктом (13.09): строка, не столбик */
-.railbox{position:absolute;left:calc(50% + 64px);top:640px;transform:translateX(-50%);z-index:8;pointer-events:auto;display:flex;justify-content:center}   /* 19.09: свой ряд под сессиями */
-.pickbox{position:absolute;left:50%;top:700px;transform:translateX(-50%);z-index:6;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:4px;
+.railbox{position:absolute;left:calc(50% + 64px);top:706px;transform:translateX(-50%);z-index:8;pointer-events:auto;display:flex;justify-content:center}   /* 20.09: рейка ниже стыков */
+.pickbox{position:absolute;left:50%;top:640px;transform:translateX(-50%);z-index:6;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:4px;max-width:min(58vw,720px);text-align:center;
   font-family:var(--f-cap);font-size:8px;letter-spacing:.3em;text-transform:uppercase;color:#7fa898;white-space:nowrap}
 .pickbox em{display:inline-block;width:1px;height:8px;background:rgba(233,255,244,.18);margin:0 4px;align-self:center}
-.pickbox .pickrow{display:flex;justify-content:center;align-items:center;gap:6px;opacity:.85}
+.pickbox .pickrow{display:flex;justify-content:center;align-items:center;gap:6px;opacity:.85;flex-wrap:wrap;row-gap:3px}
 .pickbox .pk{font-size:8px;letter-spacing:.22em;text-transform:uppercase;text-shadow:0 0 6px currentColor}
 .pickbox{pointer-events:auto}
 .pickbox .pk[title]{cursor:help}
@@ -3199,9 +3199,10 @@ COIN_JS = r"""
         for (var i = 0; i < ord.length; i++) { if (ord[i][0] <= now) cur = ord[i]; else if (!nxt) nxt = ord[i]; else if (!aft) aft = ord[i]; }
         if (!cur || !nxt) return;
         var m = Math.round((nxt[0] - now) / 6e4), hh = Math.floor(m / 60), mm = m % 60;
-        sl.innerHTML = '<span style="color:' + cur[1][2] + '">' + esc(cur[1][1]) + '</span><i>идёт ' + Math.floor((now - cur[0]) / 36e5) + ' ч ' + pad(Math.round((now - cur[0]) / 6e4) % 60) + ' мин</i>'
-          + '<em></em><i>до</i><span style="color:' + nxt[1][2] + '">' + esc(nxt[1][1]) + '</span><b>' + hh + ':' + pad(mm) + '</b>' + (m <= 60 ? '<u style="color:' + nxt[1][2] + '">стык</u>' : '')
-          + (aft ? '<em></em><i>потом</i><span style="color:' + aft[1][2] + ';opacity:.7">' + esc(aft[1][1]) + '</span>' : '');
+        // КОРОТКО (20.09, владелец: «просто пиши какая сейчас и сколько до следующей»): без «идёт столько-то» и «потом»
+        sl.innerHTML = '<span style="color:' + cur[1][2] + '">' + esc(cur[1][1]) + '</span>'
+          + '<em></em><i>до</i><span style="color:' + nxt[1][2] + '">' + esc(nxt[1][1]) + '</span><b>' + hh + ':' + pad(mm) + '</b>'
+          + (m <= 60 ? '<u style="color:' + nxt[1][2] + '">стык</u>' : '');
         var _ph = pickHtml(); if (pb.innerHTML !== _ph) pb.innerHTML = _ph;
       }
       // СТЫКИ ЗА СУТКИ — ТУТ ЖЕ (19.09, владелец: «плашку пишем туда же, где сессия по центру»): под строкой
