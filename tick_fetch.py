@@ -22,8 +22,10 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -53,6 +55,8 @@ from core_http import get_json
 
 TICK_DIR = BASE_DIR / "cq_v2" / "tick"
 STATE = BASE_DIR / "output" / "tick_state.json"
+SIGHT_STATE = BASE_DIR / "output" / "paper_sight.json"
+TICK_WORKERS = 8
 STEP = {"1m": 60, "3m": 180, "5m": 300}[TICK_INTERVAL]
 # индексы свечи Binance: 0 время открытия, 1 открытие, 2 максимум, 3 минимум, 4 закрытие, 5 объём, 7 оборот $,
 # 8 сделок, 10 покупки по рынку $. Если core_binance объявляет свои константы — берутся они.
@@ -82,8 +86,24 @@ def leaders() -> list[str]:
     for s in TICK_EXTRA or []:
         s = str(s).upper()
         out.add(s if s.endswith("USDT") else s + "USDT")
+    # 23.09: открытые позиции «картины» — её цели и повтор идут по трёхминуткам (paper_sight --tick)
+    for s in ((_read(SIGHT_STATE) or {}).get("open") or {}):
+        out.add(str(s).upper())
     out.add("BTCUSDT")
     return sorted(out)
+
+
+def sight_tick() -> None:
+    """цели и повтор «картины» по только что записанным трёхминуткам; сбой книги сборщик не роняет"""
+    try:
+        r = subprocess.run([sys.executable, "paper_sight.py", "--tick", "--write"], cwd=BASE_DIR,
+                           capture_output=True, text=True, timeout=150)
+        for line in (r.stdout or "").splitlines():
+            log(line)
+        if r.returncode:
+            log(f"tick: paper_sight --tick код {r.returncode}: {(r.stderr or '').strip()[-300:]}")
+    except Exception as e:  # noqa: BLE001
+        log(f"tick: paper_sight --tick сбой {type(e).__name__}: {e}")
 
 
 def _row(sym: str, k: list, oi, fund) -> dict:
@@ -102,12 +122,19 @@ def _last_candle(rows: list[dict]) -> str:
     return max((r.get("candle") or "" for r in rows), default="")
 
 
-def _existing(base: str) -> set:
+def _existing(base: str, tail_bytes: int | None = 60_000) -> set:
+    """свечи, что уже в файле. По умолчанию — хвост (23.09: полный разбор 114 файлов по мегабайту занимал две минуты
+    из трёх); целиком — при дозаборе дыры, где новые свечи могут лечь далеко от конца."""
     p = TICK_DIR / f"{base}.jsonl"
     if not p.exists():
         return set()
     out = set()
-    for line in p.read_text(encoding="utf-8").splitlines():
+    with p.open("rb") as f:
+        if tail_bytes:
+            f.seek(0, 2)
+            f.seek(max(0, f.tell() - tail_bytes))
+        text = f.read().decode("utf-8", "ignore")
+    for line in text.splitlines():
         try:
             out.add(json.loads(line).get("candle"))
         except ValueError:
@@ -157,7 +184,7 @@ def fetch(sym: str, limit: int, write: bool, since_ms: int | None = None) -> int
     """закрытые свечи монеты, которых ещё нет в файле; интерес и фандинг — только к последней.
     Если в файле дыра больше limit свечей — дозабор от последней записанной (или от since_ms)."""
     base = sym.replace("USDT", "").lower()
-    have = _existing(base)
+    have = _existing(base, None if (since_ms or limit > 50) else 60_000)    # дозабор — по всему файлу, иначе дубли
     last = max((c for c in have if c), default="")
     start_ms = since_ms
     if start_ms is None and last:
@@ -191,13 +218,21 @@ def cycle(syms: list[str], write: bool, backfill: bool, since_ms: int | None = N
     # кэша те же три свечи, и в файлы не легло ни одной новой («новых свечей 0» шесть дней подряд)
     cb.KLINES_CACHE.clear()
     total, bad = 0, []
-    for sym in syms:
-        try:
-            base = sym.replace("USDT", "").lower()
-            limit = TICK_BACKFILL if (backfill or not (TICK_DIR / f"{base}.jsonl").exists()) else 3
-            total += fetch(sym, limit, write, since_ms)
-        except Exception as e:  # noqa: BLE001
-            bad.append(f"{sym}: {type(e).__name__}: {e}")
+
+    def one(sym: str) -> int:
+        base = sym.replace("USDT", "").lower()
+        limit = TICK_BACKFILL if (backfill or not (TICK_DIR / f"{base}.jsonl").exists()) else 3
+        return fetch(sym, limit, write, since_ms)
+
+    # 23.09: 114 монет по очереди — 140 с из 180 (три запроса на монету). Потоками; лимит биржи держит общий
+    # токен-бакет core_http, у каждой монеты свой файл — записи не пересекаются.
+    with ThreadPoolExecutor(max_workers=TICK_WORKERS) as ex:
+        futs = {ex.submit(one, s): s for s in syms}
+        for f in as_completed(futs):
+            try:
+                total += f.result()
+            except Exception as e:  # noqa: BLE001
+                bad.append(f"{futs[f]}: {type(e).__name__}: {e}")
     log(f"tick: монет {len(syms)} · новых свечей {total} · {time.time() - t0:.1f} с"
         + (f" · сбоев {len(bad)}: {'; '.join(bad)[:200]}" if bad else "") + ("" if write else " (без записи)"))
     if write:
@@ -236,6 +271,8 @@ def main() -> int:
         try:
             syms = leaders() if not a.only else syms
             cycle(syms, write, False)
+            if write and not a.only:
+                sight_tick()
         except Exception as e:  # noqa: BLE001
             log(f"tick: сбой цикла {type(e).__name__}: {e}")
             time.sleep(10)

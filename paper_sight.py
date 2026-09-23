@@ -16,7 +16,10 @@
 самых единодушных; по монете одна позиция.
 
 Выход и хедж — правила владельца:
-  • ход в плюс ≥ SIGHT_TARGET по закрытию — закрыть;
+  • ход в плюс ≥ цели сделки — лимитка (23.09: цель SIGHT_TICK_TARGET, проверка на каждой трёхминутке через
+    `--tick` из tick_fetch; по размаху получасовки — только если трёхминуток по монете нет); при SIGHT_REPEAT после
+    цели лимитка на цену входа: цена вернулась — снова в позиции, до конца срока; результат = сумма кругов;
+  • цена входа — по тикеру биржи в момент входа (px_bar — закрытие сигнального бара, для сверки);
   • убыток НЕ закрываем: при ходе против ≤ −SIGHT_HEDGE_PCT открывается хедж — противоположная нога того же
     размера, ход замораживается; хедж снимается, когда картина снова смотрит в сторону позиции (сумма голосов
     ≥ SIGHT_MIN_SCORE в её сторону) — это и есть «другой признак, который служит разворотом»; дальше позиция
@@ -58,10 +61,21 @@ try:
     from core_config import FAST_BUBBLE_SIGMA, FAST_BUBBLE_OI_PCT
 except ImportError:
     FAST_BUBBLE_SIGMA, FAST_BUBBLE_OI_PCT = 2.0, 1.5
+# ВЫХОД ПО ТРЁХМИНУТКАМ И ПОВТОР (23.09, владелец: «бот закрывает сделки раз в полчаса — закрывать на +5–10% и брать
+# снова, когда цена вернётся»). Цель новых сделок — SIGHT_TICK_TARGET, проверяется на каждой трёхминутке (tick_fetch
+# зовёт `paper_sight.py --tick`); после цели, если SIGHT_REPEAT, лимитка на ту же цену входа до конца срока сделки.
+# Числа — из lab_replay 23.09 (1595 входов «картины», 17–23.09), см. core_config.
+try:
+    from core_config import SIGHT_TICK_TARGET, SIGHT_REPEAT, SIGHT_TICK_FRESH_S
+except ImportError:
+    SIGHT_TICK_TARGET, SIGHT_REPEAT, SIGHT_TICK_FRESH_S = 0.05, True, 600
 
 import lab_junctions as lj
+from core_lock import locked
 
 ARCH = BASE_DIR / "cq_v2" / "intraday"
+TICK_DIR = BASE_DIR / "cq_v2" / "tick"
+TICK_STEP = 180
 STATE = BASE_DIR / "output" / "paper_sight.json"
 LOG = BASE_DIR / "output" / "paper_sight.jsonl"
 BOOK_NAME = "paper_sight"
@@ -193,11 +207,77 @@ def leg_res(leg: dict, px: float) -> float:
 
 
 def total_res(pos: dict, px: float) -> float:
-    """ход позиции: основная нога + закрытые хеджи + открытый хедж"""
-    r = leg_res(pos, px)
+    """ход позиции: взятые круги (banked) + основная нога + закрытые хеджи + открытый хедж; вне позиции — только круги"""
+    r = float(pos.get("banked") or 0.0)
+    if pos.get("flat"):
+        return r
+    r += leg_res(pos, px)
     for h in pos.get("hedges") or []:
         r += h["res"] if h.get("closed") else leg_res(h, px)
     return r
+
+
+def ticks_of(sym: str, after_s: int, tail_bytes: int = 200_000) -> list[tuple]:
+    """закрытые трёхминутки монеты после after_s: (t, o, h, l, c) по порядку. Читается хвост файла — нужны свежие."""
+    p = TICK_DIR / f"{sym.replace('USDT', '').lower()}.jsonl"
+    if not p.exists():
+        return []
+    with p.open("rb") as f:
+        f.seek(0, 2)
+        f.seek(max(0, f.tell() - tail_bytes))
+        lines = f.read().decode("utf-8", "ignore").splitlines()[1:]
+    now = time.time()
+    by: dict = {}
+    for line in lines:
+        try:
+            r = json.loads(line)
+            t = int(datetime.strptime(r["candle"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp())
+        except (ValueError, KeyError, TypeError):
+            continue
+        if t > after_s and t + TICK_STEP <= now:
+            by[t] = (t, float(r["o"]), float(r["h"]), float(r["l"]), float(r["c"]))
+    return [by[t] for t in sorted(by)]
+
+
+def _take(pos: dict, px_out: float, why: str) -> list[dict]:
+    """цель взята: круг в копилку; без повтора — это выход, с повтором — позиция ждёт цену входа"""
+    tg = float(pos.get("target") or SIGHT_TICK_TARGET)
+    closed_h = sum(float(h_["res"]) for h_ in pos.get("hedges") or [] if h_.get("closed"))
+    leg = tg + closed_h - SIGHT_FEE
+    pos["banked"] = round(float(pos.get("banked") or 0.0) + leg, 6)
+    pos.setdefault("hedges_done", []).extend(pos.get("hedges") or [])
+    pos["hedges"] = []
+    if not SIGHT_REPEAT:
+        pos["closed"] = {"why": why, "res": pos["banked"], "px": px_out}
+        return [dict(kind="exit", why_exit=why, result_pct=round(pos["banked"] * 100, 2), px_out=px_out)]
+    pos["flat"] = True
+    pos["takes"] = int(pos.get("takes") or 0) + 1
+    return [dict(kind="take", px_out=px_out, why=why + " · ждём возврата к цене входа", result_pct=round(leg * 100, 2),
+                 banked_pct=round(pos["banked"] * 100, 2), takes=pos["takes"])]
+
+
+def walk(pos: dict, bars: list[tuple]) -> list[dict]:
+    """позиция по трёхминуткам: цель лимиткой и повторный вход по цене первого входа. Хедж и срок — на получасовке
+    (step). Под открытым хеджем цель не ставится, как и раньше. Бар повторного входа цель не проверяет — как в lab_replay."""
+    side, e = int(pos["side"]), float(pos["px"])
+    tg = float(pos.get("target") or SIGHT_TICK_TARGET)
+    ev: list[dict] = []
+    for t, o, h, l, c in bars:
+        if t <= int(pos.get("tick_t") or 0) or pos.get("closed"):
+            continue
+        pos["tick_t"] = t
+        hhmm = datetime.fromtimestamp(t, timezone.utc).strftime("%H:%M")
+        if pos.get("flat"):
+            if (l <= e) if side > 0 else (h >= e):
+                pos["flat"] = False
+                ev.append(dict(kind="reenter", px=e, why=f"цена вернулась к входу на трёхминутке {hhmm} UTC — круг {int(pos.get('takes') or 0) + 1}"))
+            continue
+        if any(not h_.get("closed") for h_ in pos.get("hedges") or []):
+            continue
+        tgt = e * (1 + side * tg)
+        if (h >= tgt) if side > 0 else (l <= tgt):
+            ev += _take(pos, tgt, f"цель {tg * 100:.0f}% лимиткой на трёхминутке {hhmm} UTC")
+    return ev
 
 
 def step(pos: dict, rows: list[dict], v: dict | None, now: int) -> list[dict]:
@@ -220,11 +300,20 @@ def step(pos: dict, rows: list[dict], v: dict | None, now: int) -> list[dict]:
     side = int(pos["side"])
     e = float(pos["px"])
     ev: list[dict] = []
+    if pos.get("flat"):                       # цель взята, ждём возврата к входу (walk) — здесь только срок
+        if pos["bars"] >= SIGHT_HOLD_BARS:
+            res = total_res(pos, px)
+            pos["closed"] = {"why": f"срок {SIGHT_HOLD_BARS} баров · кругов {int(pos.get('takes') or 0)}", "res": res, "px": px}
+            ev.append(dict(kind="exit", why_exit=pos["closed"]["why"], result_pct=round(res * 100, 2), px_out=px, votes=v))
+        return ev
     open_h = next((h_ for h_ in pos.get("hedges") or [] if not h_.get("closed")), None)
     score = sum(v.values()) if v else 0
-    tgt_px = e * (1 + side * SIGHT_TARGET)
+    tg = float(pos.get("target") or SIGHT_TARGET)
+    # цель по трёхминуткам ведёт walk; по размаху получасовки — только если трёхминуток по монете нет или они отстали
+    tick_ok = int(pos.get("tick_t") or 0) >= t // 1000 + 1800 - SIGHT_TICK_FRESH_S
+    tgt_px = e * (1 + side * tg)
     hdg_px = e * (1 - side * SIGHT_HEDGE_PCT)
-    hit_tgt = (h >= tgt_px) if side > 0 else (l <= tgt_px)
+    hit_tgt = not tick_ok and ((h >= tgt_px) if side > 0 else (l <= tgt_px))
     # ХЕДЖ ПО ЗАКРЫТИЮ ИЛИ ПО ТРИГГЕРУ (17.09): на выносных монетах триггер −1.5% цепляется хвостом почти каждого бара
     # и хедж встаёт на дне тряски (AVA: хедж по хвосту, снят на закрытии +10% — нога −13%, сделка −11% при взятой
     # цели). По закрытию хедж встаёт только если бар закрылся под порогом. Что лучше — считает лаборатория.
@@ -244,9 +333,7 @@ def step(pos: dict, rows: list[dict], v: dict | None, now: int) -> list[dict]:
                                 else f"закрытие {leg_res(pos, px) * 100:.2f}% против — хедж") + ", ждём разворота"))
             open_h = hh
         elif hit_tgt:
-            res = SIGHT_TARGET + closed_h - SIGHT_FEE
-            pos["closed"] = {"why": f"цель {SIGHT_TARGET * 100:.0f}% лимиткой на баре {pos['bars']}", "res": res, "px": tgt_px}
-            return [dict(kind="exit", why_exit=pos["closed"]["why"], result_pct=round(res * 100, 2), px_out=tgt_px, votes=v)]
+            return [dict(x, votes=v) for x in _take(pos, tgt_px, f"цель {tg * 100:.0f}% лимиткой на баре {pos['bars']}")]
     else:
         if (score >= SIGHT_MIN_SCORE and side > 0) or (score <= -SIGHT_MIN_SCORE and side < 0):
             open_h["closed"], open_h["t_close"], open_h["px_close"] = True, t, px
@@ -259,7 +346,8 @@ def step(pos: dict, rows: list[dict], v: dict | None, now: int) -> list[dict]:
             if not h_.get("closed"):
                 h_["closed"], h_["t_close"], h_["px_close"], h_["res"] = True, t, px, leg_res(h_, px) - SIGHT_FEE
         res = total_res(pos, px) - SIGHT_FEE
-        pos["closed"] = {"why": f"срок {SIGHT_HOLD_BARS} баров", "res": res, "px": px}
+        pos["closed"] = {"why": f"срок {SIGHT_HOLD_BARS} баров" + (f" · кругов {pos['takes']}" if pos.get("takes") else ""),
+                         "res": res, "px": px}
         ev.append(dict(kind="exit", why_exit=pos["closed"]["why"], result_pct=round(res * 100, 2), px_out=px, votes=v))
     return ev
 
@@ -280,19 +368,93 @@ except ImportError:
     BOOK_SIZE_X = 1.0
 
 
+def _emit(events: list, sym: str, pos: dict, e: dict, now: int) -> bool:
+    """событие позиции — в журнал и на консоль; True, если это выход"""
+    events.append(dict(e, book=BOOK_LABEL, sym=sym, side=pos["side"], t=pos["t"], px_in=pos["px"],
+                       size=pos.get("size", 1.0), rule=pos.get("rule"), at=now,
+                       hedges=len(pos.get("hedges") or []) + len(pos.get("hedges_done") or []),
+                       **({"result_sized_pct": round(pos["closed"]["res"] * pos.get("size", 1.0) * 100, 2)}
+                          if e["kind"] == "exit" else {})))
+    k = e["kind"]
+    if k == "exit":
+        print(f"paper_sight: {sym} · выход · {e['why_exit']} · {e['result_pct']:+.2f}% · хеджей {len(pos.get('hedges') or [])}")
+    elif k == "take":
+        print(f"paper_sight: {sym} · цель · {e['why']} · круг {e['result_pct']:+.2f}% · в копилке {e['banked_pct']:+.2f}%")
+    elif k == "reenter":
+        print(f"paper_sight: {sym} · снова в позиции по {e['px']:.6g} · {e['why']}")
+    elif k == "hedge":
+        print(f"paper_sight: {sym} · хедж по {e['px']:.6g} · {e['why']}")
+    else:
+        print(f"paper_sight: {sym} · хедж снят по {e['px']:.6g} · {e['hedge_res_pct']:+.2f}% · {e['why'][:60]}")
+    return k == "exit"
+
+
+def _write(state: dict, events: list) -> None:
+    STATE.parent.mkdir(parents=True, exist_ok=True)
+    with LOG.open("a", encoding="utf-8") as f:
+        for e in events:
+            f.write(json.dumps(e, ensure_ascii=False) + "\n")
+    tmp = STATE.with_suffix(".tmp")
+    tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(STATE)
+
+
+def tick_pass(state: dict, now: int) -> tuple[list, int]:
+    """по всем открытым: трёхминутки после tick_t. Позиция без tick_t (открыта до 23.09) начинает с текущей свечи —
+    прошлое задним числом не переигрывается."""
+    events, n_closed = [], 0
+    for sym, pos in list(state["open"].items()):
+        if not pos.get("tick_t"):
+            pos["tick_t"] = int(now) // TICK_STEP * TICK_STEP - TICK_STEP
+            continue
+        for e in walk(pos, ticks_of(sym, int(pos["tick_t"]))):
+            n_closed += _emit(events, sym, pos, e, now)
+        if pos.get("closed"):
+            del state["open"][sym]
+    return events, n_closed
+
+
+def _px_now(syms: list[str]) -> dict:
+    """цена сейчас по тикерам биржи — цена входа. 23.09, lab_replay: вход по закрытию сигнального бара, записанный
+    через ~полчаса, в 62% случаев уже был в пользу позиции (медиана +0.39%) — книга брала ход, которого не могла взять."""
+    try:
+        from core_binance import get_futures_tickers
+        tk = get_futures_tickers() or []
+        m = {str(x.get("symbol")): float(x.get("lastPrice") or 0) for x in tk if isinstance(x, dict)}
+        return {s: m[s] for s in syms if m.get(s)}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only")
     ap.add_argument("--write", action="store_true")
+    ap.add_argument("--tick", action="store_true", help="только цели и повтор по трёхминуткам (зовёт tick_fetch)")
     a = ap.parse_args()
-    syms = ([x.strip().upper() + ("" if x.strip().upper().endswith("USDT") else "USDT") for x in a.only.split(",")] if a.only
-            else sorted(p.stem.upper() + "USDT" for p in ARCH.glob("*.jsonl")))
+    with locked(STATE):
+        return _main(a)
+
+
+def _main(a) -> int:
     state = _read(STATE) or {"open": {}, "last_sig": {}}
     state.setdefault("open", {}); state.setdefault("last_sig", {})
     now = int(time.time())
+    if a.tick:
+        events, n_closed = tick_pass(state, now)
+        if a.write:
+            _write(state, events)
+        n_t = sum(1 for e in events if e["kind"] == "take")
+        n_r = sum(1 for e in events if e["kind"] == "reenter")
+        if events or not a.write:
+            print(f"paper_sight --tick: целей {n_t}, повторных входов {n_r}, закрыто {n_closed}, в позиции {len(state['open'])}"
+                  + ("" if a.write else " (без записи)"))
+        return 0
+    syms = ([x.strip().upper() + ("" if x.strip().upper().endswith("USDT") else "USDT") for x in a.only.split(",")] if a.only
+            else sorted(p.stem.upper() + "USDT" for p in ARCH.glob("*.jsonl")))
     bg = background()
-    events, cands = [], []
-    n_closed = 0
+    events, n_closed = tick_pass(state, now)           # сначала трёхминутки, что успели лечь после прошлого --tick
+    cands = []
     for sym in syms:
         rows = rows_of(sym)
         if len(rows) < SIGHT_MIN_BARS:
@@ -301,34 +463,25 @@ def main() -> int:
         pos = state["open"].get(sym)
         if pos:
             for e in step(pos, rows, v, now):
-                events.append(dict(e, book=BOOK_LABEL, sym=sym, side=pos["side"], t=pos["t"], px_in=pos["px"],
-                                   size=pos.get("size", 1.0), rule=pos.get("rule"), at=now,
-                                   hedges=len(pos.get("hedges") or []),
-                                   **({"result_sized_pct": round(pos["closed"]["res"] * pos.get("size", 1.0) * 100, 2)} if e["kind"] == "exit" else {})))
-                if e["kind"] == "exit":
-                    n_closed += 1
-                    print(f"paper_sight: {sym} · выход · {e['why_exit']} · {e['result_pct']:+.2f}% · хеджей {len(pos.get('hedges') or [])}")
-                elif e["kind"] == "hedge":
-                    print(f"paper_sight: {sym} · хедж по {e['px']:.6g} · {e['why']}")
-                else:
-                    print(f"paper_sight: {sym} · хедж снят по {e['px']:.6g} · {e['hedge_res_pct']:+.2f}% · {e['why'][:60]}")
+                n_closed += _emit(events, sym, pos, e, now)
             # FOLLOW ПО ОТКРЫТЫМ (19.09): без него в журнале одни выигрыши, а проигрыши сидят в открытых — 118 открытых,
             # 29 под хеджем на −85% замороженных, 89 неизвестно. Каждый прогон — результат от цены сейчас с хеджами,
             # лучшая и худшая точка, под хеджем или нет; экран книги и лаборатории считают открытые из этих строк.
             if not pos.get("closed"):
-                _px_now = float(rows[-1]["px"])
-                _r = total_res(pos, _px_now)
-                _a, _b = leg_res(pos, float(rows[-1].get("h") or _px_now)), leg_res(pos, float(rows[-1].get("l") or _px_now))
+                _px_now_ = float(rows[-1]["px"])
+                _r = total_res(pos, _px_now_)
+                _a, _b = leg_res(pos, float(rows[-1].get("h") or _px_now_)), leg_res(pos, float(rows[-1].get("l") or _px_now_))
                 _hi = max(float(pos.get("mfe") or 0.0), _a, _b)      # у шорта лучшая точка — на минимуме бара
                 _lo = min(float(pos.get("mae") or 0.0), _a, _b)
                 pos["mfe"], pos["mae"] = round(_hi, 5), round(_lo, 5)
                 _open_h = [h for h in (pos.get("hedges") or []) if not h.get("closed")]
                 events.append(dict(kind="follow", book=BOOK_LABEL, sym=sym, side=pos["side"], t=pos["t"], px_in=pos["px"],
-                                   px=_px_now, size=pos.get("size", 1.0), rule=pos.get("rule"), at=now, open=True,
+                                   px=_px_now_, size=pos.get("size", 1.0), rule=pos.get("rule"), at=now, open=True,
                                    result_pct=round(_r * 100, 2), result_sized_pct=round(_r * pos.get("size", 1.0) * 100, 2),
-                                   leg_pct=round(leg_res(pos, _px_now) * 100, 2), mfe=round(_hi * 100, 2), mae=round(_lo * 100, 2),
+                                   leg_pct=round(leg_res(pos, _px_now_) * 100, 2), mfe=round(_hi * 100, 2), mae=round(_lo * 100, 2),
                                    hedged=bool(_open_h), hedges=len(pos.get("hedges") or []), bars=int(pos.get("bars") or 0),
-                                   opened_at=pos.get("opened_at")))
+                                   opened_at=pos.get("opened_at"), flat=bool(pos.get("flat")), takes=int(pos.get("takes") or 0),
+                                   banked_pct=round(float(pos.get("banked") or 0) * 100, 2)))
             if pos.get("closed"):
                 del state["open"][sym]
                 pos = None
@@ -352,29 +505,26 @@ def main() -> int:
         state["last_sig"][sym] = t
         events.append({"kind": "skip", "book": BOOK_LABEL, "sym": sym, "side": s, "t": t, "px": px, "at": now,
                        "why_skip": f"за прогон уже {SIGHT_MAX_PER_RUN}", "score": sum(v.values()), "votes": v})
-    for sym, s, v, t, px in taken:
+    live = _px_now([x[0] for x in taken]) if taken else {}
+    for sym, s, v, t, px_bar in taken:
+        px = live.get(sym) or px_bar
         pos = {"rule": f"картина: {'лонг' if s > 0 else 'шорт'} {abs(sum(v.values()))} голосов", "side": s, "t": t,
-               "px": px, "size": 1.0, "target": SIGHT_TARGET, "stop": None, "hold": SIGHT_HOLD_BARS,
-               "votes": v, "bg": bg, "hedges": [], "bars": 0, "last_t": t, "opened_at": now, "state": "long" if s > 0 else "short"}
+               "px": px, "px_bar": px_bar, "size": 1.0, "target": SIGHT_TICK_TARGET, "stop": None, "hold": SIGHT_HOLD_BARS,
+               "votes": v, "bg": bg, "hedges": [], "bars": 0, "last_t": t, "opened_at": now,
+               "tick_t": now // TICK_STEP * TICK_STEP - TICK_STEP, "state": "long" if s > 0 else "short"}
         pos["size"] = float(pos.get("size", 1.0)) * BOOK_SIZE_X          # 19.09: вес сделки ×BOOK_SIZE_X
         state["open"][sym] = pos
         state["last_sig"][sym] = t
-        events.append(dict(kind="entry", book=BOOK_LABEL, sym=sym, side=s, t=t, px=px, size=1.0, rule=pos["rule"],
-                           score=sum(v.values()), votes=v, bg=bg, at=now))
-        print(f"paper_sight: {sym} · вход {'лонг' if s > 0 else 'шорт'} {px:.6g} · {sum(v.values()):+d} · {_txt(v)}")
+        events.append(dict(kind="entry", book=BOOK_LABEL, sym=sym, side=s, t=t, px=px, px_bar=px_bar, size=1.0,
+                           rule=pos["rule"], target=SIGHT_TICK_TARGET, score=sum(v.values()), votes=v, bg=bg, at=now))
+        print(f"paper_sight: {sym} · вход {'лонг' if s > 0 else 'шорт'} {px:.6g} (бар {px_bar:.6g}) · {sum(v.values()):+d} · {_txt(v)}")
     if a.only:
         for sym in syms:
             rows = rows_of(sym)
             v = votes(rows, bg) if len(rows) >= SIGHT_MIN_BARS else None
             print(f"paper_sight: {sym} · картина: {(_txt(v) + f' · сумма {sum(v.values()):+d}') if v else 'баров мало'}")
     if a.write:
-        STATE.parent.mkdir(parents=True, exist_ok=True)
-        with LOG.open("a", encoding="utf-8") as f:
-            for e in events:
-                f.write(json.dumps(e, ensure_ascii=False) + "\n")
-        tmp = STATE.with_suffix(".tmp")
-        tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8")
-        tmp.replace(STATE)
+        _write(state, events)
     n_h = sum(1 for e in events if e["kind"] == "hedge")
     print(f"paper_sight: открыто {len(taken)}, пропущено {len(skipped)}, хеджей {n_h}, закрыто {n_closed}, "
           f"в позиции {len(state['open'])}" + ("" if a.write else " (без записи)"))
