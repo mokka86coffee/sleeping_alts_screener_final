@@ -48,6 +48,8 @@ except ImportError:
 
 import core_binance as cb
 from core_binance import get_klines
+from core_config import BINANCE_FAPI
+from core_http import get_json
 
 TICK_DIR = BASE_DIR / "cq_v2" / "tick"
 STATE = BASE_DIR / "output" / "tick_state.json"
@@ -134,15 +136,39 @@ def _fund_now(sym: str):
         return None
 
 
-def fetch(sym: str, limit: int, write: bool) -> int:
-    """закрытые свечи монеты, которых ещё нет в файле; интерес и фандинг — только к последней"""
+def _klines_since(sym: str, start_ms: int) -> list:
+    """Свечи от start_ms до сейчас, страницами по 1500 (23.09: дыра 17→23.09 не закрывалась — цикл брал
+    три последние свечи, а дозабор шёл только для нового файла). Мимо кэша прогона: здесь он не нужен."""
+    out: list = []
+    while True:
+        page = get_json(f"{BINANCE_FAPI}/fapi/v1/klines",
+                        {"symbol": sym, "interval": TICK_INTERVAL, "startTime": start_ms, "limit": 1500},
+                        weight=10) or []
+        if not page:
+            break
+        out.extend(page)
+        if len(page) < 1500:
+            break
+        start_ms = int(page[-1][K_T]) + STEP * 1000
+    return out
+
+
+def fetch(sym: str, limit: int, write: bool, since_ms: int | None = None) -> int:
+    """закрытые свечи монеты, которых ещё нет в файле; интерес и фандинг — только к последней.
+    Если в файле дыра больше limit свечей — дозабор от последней записанной (или от since_ms)."""
     base = sym.replace("USDT", "").lower()
-    ks = get_klines(sym, TICK_INTERVAL, limit=limit) or []
+    have = _existing(base)
+    last = max((c for c in have if c), default="")
+    start_ms = since_ms
+    if start_ms is None and last:
+        last_ms = int(datetime.strptime(last, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp() * 1000)
+        if time.time() * 1000 - last_ms > limit * STEP * 1000:
+            start_ms = last_ms + STEP * 1000
+    ks = _klines_since(sym, start_ms) if start_ms else (get_klines(sym, TICK_INTERVAL, limit=limit) or [])
     now = time.time()
     ks = [k for k in ks if int(k[K_T]) // 1000 + STEP <= now]                    # открытая свеча не берётся
     if not ks:
         return 0
-    have = _existing(base)
     oi, fund = _oi_now(sym), _fund_now(sym)
     new = []
     for i, k in enumerate(ks):
@@ -159,14 +185,17 @@ def fetch(sym: str, limit: int, write: bool) -> int:
     return len(new)
 
 
-def cycle(syms: list[str], write: bool, backfill: bool) -> None:
+def cycle(syms: list[str], write: bool, backfill: bool, since_ms: int | None = None) -> None:
     t0 = time.time()
+    # 23.09: кэш core_binance живёт «на прогон», а этот процесс — бесконечный: с 17.09 каждый цикл получал из
+    # кэша те же три свечи, и в файлы не легло ни одной новой («новых свечей 0» шесть дней подряд)
+    cb.KLINES_CACHE.clear()
     total, bad = 0, []
     for sym in syms:
         try:
             base = sym.replace("USDT", "").lower()
             limit = TICK_BACKFILL if (backfill or not (TICK_DIR / f"{base}.jsonl").exists()) else 3
-            total += fetch(sym, limit, write)
+            total += fetch(sym, limit, write, since_ms)
         except Exception as e:  # noqa: BLE001
             bad.append(f"{sym}: {type(e).__name__}: {e}")
     log(f"tick: монет {len(syms)} · новых свечей {total} · {time.time() - t0:.1f} с"
@@ -185,14 +214,17 @@ def main() -> int:
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--no-write", action="store_true")
     ap.add_argument("--backfill", action="store_true", help="дозабрать TICK_BACKFILL свечей даже если файл есть")
+    ap.add_argument("--since", help="дозабрать от даты UTC (2026-09-16), свечи уже в файле не дублируются")
     a = ap.parse_args()
     write = not a.no_write
+    since_ms = (int(datetime.fromisoformat(a.since).replace(tzinfo=timezone.utc).timestamp() * 1000)
+                if a.since else None)
     if a.only:
         syms = [x.strip().upper() + ("" if x.strip().upper().endswith("USDT") else "USDT") for x in a.only.split(",")]
     else:
         syms = leaders()
     if a.once:
-        cycle(syms, write, a.backfill)
+        cycle(syms, write, a.backfill, since_ms)
         return 0
     log(f"tick: старт · интервал {TICK_INTERVAL} · лидеров {len(syms)} · история {TICK_BACKFILL} свечей")
     cycle(syms, write, True)
