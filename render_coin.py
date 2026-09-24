@@ -873,6 +873,7 @@ COIN_HTML = r"""
 .card .r.src-r i{border-radius:50%;transform:none;border:0;width:6px;height:6px;margin-top:6px;background:#5fe6a8;box-shadow:0 0 6px rgba(95,230,168,.8)}
 .card .r.src-r.stale i{background:#ff5a4a;box-shadow:0 0 8px rgba(255,90,74,.9)}.card .r.src-r.stale .v{color:#ff9d84}
 .card .r.src-r.none i{background:transparent;border:1px solid #6b7f76;box-shadow:none}.card .r.src-r.none .v{color:#8fa79c}
+.card .r.src-r.off i{background:#5d6470;box-shadow:none}.card .r.src-r.off .k,.card .r.src-r.off .v{color:#7a818c}
 .stalebar{position:absolute;left:0;top:0;width:100%;height:3px;background:linear-gradient(90deg,transparent,#ff5a4a,transparent);box-shadow:0 0 18px rgba(255,90,74,.8);animation:staleBlink 1.3s ease-in-out infinite;pointer-events:none}
 @keyframes staleBlink{0%,100%{opacity:1}50%{opacity:.3}}
 .card .card-src{position:static;margin:-4px 0 8px;opacity:1;animation:none;max-width:none}
@@ -1464,7 +1465,10 @@ COIN_JS = r"""
 
   // ── ВОЗРАСТ ИСТОЧНИКОВ: считается на месте, от часов зрителя; квант — сутки, остальное — час ──
   var SRC = D.sources || {};
-  var SRC_LIST = [['прогон', 'run', 1], ['Coinglass', 'coinglass', 1], ['квант', 'quant', 24], ['пульс', 'pulse', 1], ['киты', 'whales', 1], ['толпа', 'crowd', 24], ['разлоки', 'unlocks', 24], ['расписание', 'sched', 48], ['поток', 'flow', 1]];
+  // БЕЗ COINGLASS (24.09, владелец: «всё, что брали из Coinglass и заменили, пусть считается; что не перенесли —
+  // серым, не влияя на „обновлено“»): срез по монетам и толпа теперь с Binance — считаются как раньше;
+  // разлоки замены не имеют — четвёртый элемент 'off': серая строка, в счёт «N из M» и в «не обновлено» не входит
+  var SRC_LIST = [['прогон', 'run', 1], ['Binance', 'coinglass', 1], ['квант', 'quant', 24], ['пульс', 'pulse', 1], ['киты', 'whales', 1], ['толпа', 'crowd', 24], ['разлоки', 'unlocks', 24, 'off'], ['расписание', 'sched', 48], ['поток', 'flow', 1]];
   // штамп из одной даты (расписание пишет «YYYY-MM-DD») читается как ПОЛНОЧЬ этой даты по UTC,
   // а не как её конец: раньше «часы −736 мин» — штамп ложился в будущее (05.09)
   function ageH(ts) { if (!ts) return null; var t = Date.parse(String(ts).length === 10 ? ts + 'T00:00:00Z' : ts); if (isNaN(t)) return null; var h = (Date.now() - t) / 36e5; return h < 0 ? 0 : h; }
@@ -1475,11 +1479,12 @@ COIN_JS = r"""
   // построчно кто свеж, кто нет. Если красная — сверху экрана пульсирует
   // красная кромка, и сама метка мигает.
   function srcLine() {
-    var rows = SRC_LIST.map(function (q) { var h = ageH(SRC[q[1]]), st = h === null ? 'none' : h > q[2] ? 'stale' : 'fresh'; return { label: q[0], ts: SRC[q[1]], h: h, max: q[2], st: st }; });
-    var bad = rows.filter(function (r) { return r.st !== 'fresh'; }), ok = rows.length - bad.length, all = !bad.length;
-    var card = '<div class="card"><div class="head"><span class="cap">данные</span><span class="hn">' + (all ? 'всё обновлено' : bad.length + ' из ' + rows.length + ' не в сроке') + '</span></div>' +
-      rows.map(function (r) { return '<div class="r src-r ' + r.st + '"><i></i><span class="k">' + esc(r.label) + '</span><span class="v">' + (r.st === 'none' ? 'нет данных' : ageTxt(r.h) + ' назад · порог ' + r.max + ' ч') + (r.st === 'stale' ? ' <b>протух</b>' : r.st === 'none' ? ' <b>пусто</b>' : '') + '</span></div>'; }).join('') + '</div>';
-    return (all ? '' : '<div class="stalebar"></div>') + '<div class="srcs one"><span class="src ' + (all ? 'fresh' : 'stale') + '"><i></i>' + (all ? 'всё обновлено · ' + ok + ' из ' + rows.length : 'не обновлено · ' + bad.map(function (r) { return r.label; }).join(', ')) + '</span>' + card + '</div>';
+    var rows = SRC_LIST.map(function (q) { var h = ageH(SRC[q[1]]), st = q[3] === 'off' ? 'off' : h === null ? 'none' : h > q[2] ? 'stale' : 'fresh'; return { label: q[0], ts: SRC[q[1]], h: h, max: q[2], st: st }; });
+    var live = rows.filter(function (r) { return r.st !== 'off'; });
+    var bad = live.filter(function (r) { return r.st !== 'fresh'; }), ok = live.length - bad.length, all = !bad.length;
+    var card = '<div class="card"><div class="head"><span class="cap">данные</span><span class="hn">' + (all ? 'всё обновлено' : bad.length + ' из ' + live.length + ' не в сроке') + '</span></div>' +
+      rows.map(function (r) { return '<div class="r src-r ' + r.st + '"><i></i><span class="k">' + esc(r.label) + '</span><span class="v">' + (r.st === 'off' ? 'без Coinglass не обновляется' + (r.h !== null ? ' · последний ' + ageTxt(r.h) + ' назад' : '') : r.st === 'none' ? 'нет данных' : ageTxt(r.h) + ' назад · порог ' + r.max + ' ч') + (r.st === 'stale' ? ' <b>протух</b>' : r.st === 'none' ? ' <b>пусто</b>' : '') + '</span></div>'; }).join('') + '</div>';
+    return (all ? '' : '<div class="stalebar"></div>') + '<div class="srcs one"><span class="src ' + (all ? 'fresh' : 'stale') + '"><i></i>' + (all ? 'всё обновлено · ' + ok + ' из ' + live.length : 'не обновлено · ' + bad.map(function (r) { return r.label; }).join(', ')) + '</span>' + card + '</div>';
   }
   function stale(ts, maxH) { var h = ageH(ts); return h === null || h > maxH; }
 
@@ -1749,7 +1754,7 @@ COIN_JS = r"""
     var w = WH[String(s.t).toUpperCase()] || WH[String(s.t)];
     if (w) lr.push(['киты Hyperliquid', 'лонг ' + (money(w.long) || '$0') + ' против шорта ' + (money(w.short) || '$0') + (w.n ? ' · позиций ' + w.n : '')]);
     var levNum = has(cg.oiChgPct) ? pct(cg.oiChgPct) : (has(s.fund) ? (+s.fund).toFixed(3) + '%' : '—');
-    g.lever = { stale: stale(SRC.coinglass, 1), src: [['Coinglass', 'coinglass', 1], ['толпа', 'crowd', 24], ['киты', 'whales', 1]], cap: 'плечо', num: levNum, unit: has(cg.oiChgPct) ? 'OI за сутки' : 'фандинг', sub: (s.oiState ? (s.oiState === 'held' ? 'застряло' : s.oiState === 'cleared' ? 'разгружено' : 'повторный цикл') : '') + (s.liqFuel && s.liqFuel.below ? ' · ' + (+s.liqFuel.below * 100).toFixed(1) + '% снизу' : '') + (s.liqFuel && s.liqFuel.above ? ' · ' + (+s.liqFuel.above * 100).toFixed(1) + '% сверху' : ''), rows: lr, glyph: 'chev' };
+    g.lever = { stale: stale(SRC.coinglass, 1), src: [['Binance', 'coinglass', 1], ['толпа', 'crowd', 24], ['киты', 'whales', 1]], cap: 'плечо', num: levNum, unit: has(cg.oiChgPct) ? 'OI за сутки' : 'фандинг', sub: (s.oiState ? (s.oiState === 'held' ? 'застряло' : s.oiState === 'cleared' ? 'разгружено' : 'повторный цикл') : '') + (s.liqFuel && s.liqFuel.below ? ' · ' + (+s.liqFuel.below * 100).toFixed(1) + '% снизу' : '') + (s.liqFuel && s.liqFuel.above ? ' · ' + (+s.liqFuel.above * 100).toFixed(1) + '% сверху' : ''), rows: lr, glyph: 'chev' };
     // ПАМЯТЬ
     var mr = [];
     if (rep.line) mr.push(['репутация монеты', rep.line]);
@@ -2437,7 +2442,7 @@ COIN_JS = r"""
     })();
     NOTES.forEach(function (n, ni) { var G = g[n[0]], pr = project(n[3][0], n[3][1]), lx = n[1] + 8, ly = n[2] + 40, ll = Math.hypot(pr[0] - lx, pr[1] - ly);
       leaders += '<line class="ld" x1="' + lx + '" y1="' + ly + '" x2="' + f(pr[0]) + '" y2="' + f(pr[1]) + '" stroke="' + GOLD + '" stroke-width=".6" opacity=".5" style="--L:' + Math.ceil(ll + 2) + ';animation-delay:' + (2.9 + ni * .15).toFixed(2) + 's"/><circle class="an ldc" cx="' + f(pr[0]) + '" cy="' + f(pr[1]) + '" r="2.6" fill="none" stroke="' + GOLD + '" stroke-width=".8" style="animation-delay:' + (3.3 + ni * .15).toFixed(2) + 's"/>';
-      notes += '<div class="note an" style="left:' + n[1] + 'px;top:' + n[2] + 'px;animation-delay:' + (3 + ni * .15).toFixed(2) + 's">' + cardHtml(G) + '<div class="row"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3">' + GLYPH[G.glyph] + '</svg><span class="cap">' + esc(G.cap) + '</span></div><div class="num' + (G.stale ? ' stale' : '') + '">' + esc(G.num) + (G.stale ? '<u title="Coinglass протух или нет данных"></u>' : '') + '</div><div class="unit">' + esc(G.unit || '') + '</div><div class="sub' + (G.hot ? ' hot' : '') + '">' + esc(G.sub || '') + '</div>' + (G.stale ? '<div class="sub stale">Coinglass ' + ageTxt(ageH(SRC.coinglass)) + ' — числа не свежие</div>' : '') + '</div>';
+      notes += '<div class="note an" style="left:' + n[1] + 'px;top:' + n[2] + 'px;animation-delay:' + (3 + ni * .15).toFixed(2) + 's">' + cardHtml(G) + '<div class="row"><svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.3">' + GLYPH[G.glyph] + '</svg><span class="cap">' + esc(G.cap) + '</span></div><div class="num' + (G.stale ? ' stale' : '') + '">' + esc(G.num) + (G.stale ? '<u title="срез Binance протух или нет данных"></u>' : '') + '</div><div class="unit">' + esc(G.unit || '') + '</div><div class="sub' + (G.hot ? ' hot' : '') + '">' + esc(G.sub || '') + '</div>' + (G.stale ? '<div class="sub stale">срез Binance ' + ageTxt(ageH(SRC.coinglass)) + ' — числа не свежие</div>' : '') + '</div>';
     });
     // фигуры: статуя (мрамор, драпировка, пьедестал) и стеклянный куб
     // лёгкие анимации сцены: 12 пылинок, полоса света, две искры у оси

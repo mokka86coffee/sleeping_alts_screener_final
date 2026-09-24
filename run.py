@@ -1005,6 +1005,7 @@ def run_once(args: argparse.Namespace) -> int:
         from core_config import COINGLASS_ENABLED
     except ImportError:
         COINGLASS_ENABLED = False
+    _CG_NAME = "Coinglass" if COINGLASS_ENABLED else "Binance"   # 24.09: подпись источника в логе и реестре
     _cg_box: dict = {}
     def _cg_job():
         try:
@@ -1176,27 +1177,27 @@ def run_once(args: argparse.Namespace) -> int:
     if _cg_thread is not None:
         _cg_thread.join(timeout=1500)
         if _cg_thread.is_alive():
-            _issue("Coinglass", "сбор не завершился за 25 мин — иду с прошлым срезом", critical=True)
+            _issue(_CG_NAME, "сбор не завершился за 25 мин — иду с прошлым срезом", critical=True)
     try:
         if _cg_box.get("old"):
-            _issue("Coinglass", "старый coinglass_fetch.py без калитки свечи — обновить файл")
+            _issue(_CG_NAME, "старый coinglass_fetch.py без калитки свечи — обновить файл")
         if _cg_box.get("exc"):
             raise _cg_box["exc"]
         _cg = _cg_box.get("res") or {}
         if not _cg and _cg_thread is not None and not _cg_thread.is_alive():
-            _issue("Coinglass", "поток вернул пусто", critical=True)
+            _issue(_CG_NAME, "поток вернул пусто", critical=True)
         elif _cg.get("error"):
-            _issue("Coinglass", _cg["error"], critical=True)
+            _issue(_CG_NAME, _cg["error"], critical=True)
         elif _cg:
             _errs = dict(_cg.get("errors") or {})
             _cap = _errs.pop("журнал", None)
             _st = _cg.get("stamp") or {}
-            log(f"→ Coinglass: монет {len(_cg.get('coins') or {})}, запросов {_cg.get('requests', 0)}, "
+            log(f"→ {_CG_NAME}: монет {len(_cg.get('coins') or {})}, запросов {_cg.get('requests', 0)}, "
                 f"ошибок {len(_errs)}" + (f" · свеча {str(_st.get('candle', ''))[11:16]} UTC" if _st.get('candle') else "")
                 + (f" · ждали бар {_st.get('gate_waited_s', 0):.0f} с" if _st.get('gate_waited_s') else "")
                 + (" · СВЕЧА НЕ СНЯТА, данные прошлой" if _st.get("missing") else ""))
             if _st.get("missing"):
-                _issue("Coinglass", f"свеча не снята: {_st.get('why', '')}", critical=True)
+                _issue(_CG_NAME, f"свеча не снята: {_st.get('why', '')}", critical=True)
             _byf: dict = {}
             _nm = 0
             for v in (_cg.get("coins") or {}).values():
@@ -1216,25 +1217,25 @@ def run_once(args: argparse.Namespace) -> int:
                 # и пропуск бара перпа (без него день считается по неполной дельте)
                 _real = sum(n for k, n in _byf.items() if k in ("fut", "oi", "funding", "fut_bar"))
                 if _real:
-                    _issue("Coinglass", f"неполные точки у {_nm} монет: {_det}")
+                    _issue(_CG_NAME, f"неполные точки у {_nm} монет: {_det}")
                 else:
-                    log(f"→ Coinglass: неполные точки у {_nm} монет ({_det}) — не сбой, у монеты нет этого рынка")
+                    log(f"→ {_CG_NAME}: неполные точки у {_nm} монет ({_det}) — не сбой, у монеты нет этого рынка")
             if _cap:
-                _issue("Coinglass", f"потолок: {_cap} — поднять MAX_COINS")
+                _issue(_CG_NAME, f"потолок: {_cap} — поднять MAX_COINS")
             if _errs:
                 _k = next(iter(_errs))
-                _issue("Coinglass", f"ошибок по точкам {len(_errs)}, первая: {_k} — {_errs[_k]}",
+                _issue(_CG_NAME, f"ошибок по точкам {len(_errs)}, первая: {_k} — {_errs[_k]}",
                        critical=len(_errs) > 3)
     except Exception as e:
-        _issue("Coinglass", f"{type(e).__name__}: {e}", critical=True)
+        _issue(_CG_NAME, f"{type(e).__name__}: {e}", critical=True)
     # Свежесть среза — по его штампу, не по факту вызова: если сборщик
     # ответил «нет ключа», файл остался вчерашним, а экраны читают файл.
     _age = _coinglass_age_h()                                    # срез пишет и Binance — свежесть проверяется как раньше
     if _age is None:
-        _issue("Coinglass", "срез output/coinglass_fetch.json не читается",
+        _issue(_CG_NAME, "срез output/coinglass_fetch.json не читается",
                critical=True)
     elif _age > COINGLASS_MAX_AGE_H:
-        _issue("Coinglass", f"срез протух: {_age:.1f} ч (порог "
+        _issue(_CG_NAME, f"срез протух: {_age:.1f} ч (порог "
                f"{COINGLASS_MAX_AGE_H:.0f} ч) — экраны показали бы "
                f"вчерашние дельты под сегодняшним штампом", critical=True)
 

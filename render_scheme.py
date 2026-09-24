@@ -342,6 +342,7 @@ SCHEME_HTML = """
 .src i{width:6px;height:6px;border-radius:50%;background:#7fe3b0;box-shadow:0 0 7px rgba(127,227,176,.9)}
 .src.stale{color:#ff8a70}.src.stale i{background:#ff5a4a;box-shadow:0 0 8px rgba(255,90,74,.9);animation:staleBlink 1.3s ease-in-out infinite}
 .src.none{color:#6b7590}.src.none i{background:transparent;border:1px solid #6b7590;box-shadow:none}
+.src.off{color:#6f7688}.src.off i{background:#5d6470;box-shadow:none}
 @media (max-width:900px){.srcs{top:4px;max-width:96%;flex-wrap:wrap}}
 .stamp.stale{color:#ff6a5a;text-shadow:0 0 10px rgba(255,106,90,.6);animation:staleBlink 1.3s ease-in-out infinite}
 .stamp.stale b{font-weight:400;color:#ffd0c8;margin-left:10px}
@@ -1068,12 +1069,15 @@ SCHEME_JS = r"""
       b.textContent = (h < 48 ? Math.floor(h) + ' ч назад' : Math.floor(h / 24) + ' дн назад');
     } else { el.classList.remove('stale'); var ob = el.querySelector('b'); if (ob) ob.remove(); }
   }
-  var SRC = DATA.sources || {}, SRC_LIST = [['Coinglass', 'coinglass', 1], ['квант', 'quant', 24], ['пульс', 'pulse', 1], ['киты', 'whales', 1], ['толпа', 'crowd', 24], ['разлоки', 'unlocks', 24], ['часы', 'sched', 48]];
+  // БЕЗ COINGLASS (24.09, владелец): срез по монетам и толпа теперь с Binance — считаются как раньше; разлоки
+  // замены не имеют — 'off': серые, без мигания, «без Coinglass»
+  var SRC = DATA.sources || {}, SRC_LIST = [['Binance', 'coinglass', 1], ['квант', 'quant', 24], ['пульс', 'pulse', 1], ['киты', 'whales', 1], ['толпа', 'crowd', 24], ['разлоки', 'unlocks', 24, 'off'], ['часы', 'sched', 48]];
   function ageH(ts){ if (!ts) return null; var t = Date.parse(String(ts).length === 10 ? ts + 'T00:00:00Z' : ts); if (isNaN(t)) return null; var h = (Date.now() - t) / 36e5; return h < 0 ? 0 : h; }
   function ageTxt(h){ return h === null ? 'нет данных' : h < 1 ? Math.round(h * 60) + ' мин' : h < 48 ? Math.round(h) + ' ч' : Math.round(h / 24) + ' дн'; }
   function srcRow(){
     var el = q('#srcs'); if (!el) return;
-    el.innerHTML = SRC_LIST.map(function(x){ var h = ageH(SRC[x[1]]), cls = h === null ? 'none' : h > x[2] ? 'stale' : 'fresh';
+    el.innerHTML = SRC_LIST.map(function(x){ var h = ageH(SRC[x[1]]), cls = x[3] === 'off' ? 'off' : h === null ? 'none' : h > x[2] ? 'stale' : 'fresh';
+      if (cls === 'off') return '<span class="src off" title="' + x[0] + ': без Coinglass не обновляется' + (h !== null ? ' · последний ' + ageTxt(h) + ' назад' : '') + '"><i></i>' + x[0] + ' · без Coinglass</span>';
       return '<span class="src ' + cls + '" title="' + x[0] + ': ' + (SRC[x[1]] || 'нет данных') + ' · порог ' + x[2] + ' ч"><i></i>' + x[0] + ' ' + ageTxt(h) + '</span>'; }).join('');
   }
   staleCheck(); srcRow(); setInterval(function(){ staleCheck(); srcRow(); }, 60000);
