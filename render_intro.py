@@ -607,6 +607,21 @@ def collect_items() -> list[dict]:
             it["bright"] = min(0.85, float(it.get("bright") or STAR_DIM))   # «пошли» светят по ключам, но не ярче «скоро»
         elif it["g"] == 4:
             it["bright"] = 0.4
+    # ЗВЁЗДЫ — В ФАЙЛ ДЛЯ ТЕЛЕГРАМА (19.09, владелец: «в телеграм оставляем биткоин и информацию по звёздам, скоро и
+    # могут»): тот же список, что на экране, — группа, подпись группами, доводы. Сбой записи экран не роняет.
+    try:
+        import json as _json
+        _out = [{"sym": it["sym"], "name": it.get("n") or it["sym"].replace("USDT", ""), "g": it["g"], "sub": it.get("sub") or "",
+                 "why": it.get("why") or "", "run": it.get("run"), "dd": it.get("dd")} for it in items[:MAX_NAMES] if it.get("sym")]
+        _txt = _json.dumps({"at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "stars": _out}, ensure_ascii=False)
+        try:
+            from sources_storage import write_atomic as _wa
+            _wa(BASE_DIR / "output" / "stars.json", _txt)
+        except ImportError:
+            (BASE_DIR / "output").mkdir(parents=True, exist_ok=True)
+            (BASE_DIR / "output" / "stars.json").write_text(_txt, encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
     return items[:MAX_NAMES]
 
 
@@ -1080,6 +1095,10 @@ def render_intro(items: list[dict] | None = None) -> str:
     # весь срез из output/btc_pulse.json уходит в данные страницы; на экране — монета, цена, стрелка.
     _bp = _read("btc_pulse.json") or {}
     btc_pulse = {k: _bp.get(k) for k in ("map", "liq", "premium", "etf", "stamp", "read") if _bp.get(k) is not None}
+    if blank:
+        _keep = set(blank.get("keep") or []) | {s2 for s2, g2 in zip(syms, grp) if g2 == 0 and s2}
+        blank["keep"] = sorted(_keep)
+        keep_first = {k: keep_first.get(k, 0) for k in _keep}
     data = json.dumps({"btc": btc_pulse, "names": names, "grp": grp, "syms": syms, "goes": goes, "many": _many_lead(), "book": _book_count(), "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "sess": sess_box, "flicker": flicker, "accum": accum, "bub": bub, "blank": blank, "keep": list(keep_first)},
                       ensure_ascii=False).replace("</", "<\\/")
     return TEMPLATE.replace("__N__", str(n)).replace("__DATA__", data)
@@ -1961,7 +1980,7 @@ function applyGroup(){
 // Гасить яркостью мало: имена запекаются в маску, а орбиты и подписи рисует канва — все три
 // слоя знают про флаг. Верхняя панель лидера при этом не показывается: её текст внизу.
 window.__BLANK = !!(DATA.blank && DATA.blank.why);
-window.__KEEP = new Set(DATA.keep || []);   // первые, которые держались ≥3 прогонов за сутки: на них не действуют никакие гашения (11.09)
+window.__KEEP = new Set((DATA.keep || []).concat(((DATA.syms || []).filter(function (s, i) { return (DATA.grp || [])[i] === 0 && s; }))));   // 24.09: «скоро» видно при любой доске   // первые, которые держались ≥3 прогонов за сутки: на них не действуют никакие гашения (11.09)
 if (window.__BLANK) {
   const d = document.createElement('div');
   d.className = 'blank';
