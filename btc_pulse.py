@@ -140,14 +140,25 @@ def _first(row: dict, *keys):
 
 def coinglass_block(missing: list[str]) -> dict:
     out = {"liq": None, "premium": None, "etf": None}
-    get, key = _cg()
-    if get is None:
-        missing.append(f"coinglass: {key}")
-        return out
+    # БЕЗ COINGLASS (24.09): при COINGLASS_ENABLED=False в Coinglass не ходим вовсе — ликвидации по сторонам
+    # пропускаются (замены нет), премия Coinbase и ETF из уже скачанного файла считаются как раньше.
+    try:
+        from core_config import COINGLASS_ENABLED
+    except ImportError:
+        COINGLASS_ENABLED = False
+    if COINGLASS_ENABLED:
+        get, key = _cg()
+        if get is None:
+            missing.append(f"coinglass: {key}")
+            return out
+    else:
+        get, key = None, ""
     # ликвидации за 24 ч по сторонам
     # 05.09: /futures/liquidation/aggregated-history на тарифе отдаёт пусто — берём
     # общий список по монетам (coin-list, тот же путь, что у сборщика) и из него BTC
     try:
+        if get is None:
+            raise LookupError("без Coinglass ликвидаций по сторонам нет")
         from coinglass_fetch import parse_liq_list
         code, data = get("/futures/liquidation/coin-list", {"range": "24h"}, key)
         allq = parse_liq_list(data) if code == 200 else {}
@@ -157,6 +168,8 @@ def coinglass_block(missing: list[str]) -> dict:
                           "short_24h_usd": round(float(b.get("short24h") or 0), 0), "hours": 24}
         else:
             missing.append(f"liq: код {code}: BTC в списке нет" if code == 200 else f"liq: код {code}: {str(data)[:120]}")
+    except LookupError:
+        pass                                     # ожидаемо без Coinglass — не пишем в «нет данных»
     except Exception as e:  # noqa: BLE001
         missing.append(f"liq: {type(e).__name__}: {e}")
     # премия Coinbase — СВОЯ (05.09): индекс Coinglass на тарифе 404. Берём цену Coinbase
@@ -214,7 +227,7 @@ def coinglass_block(missing: list[str]) -> dict:
                 etf = {"last_usd": vals[-1][0], "last_at": vals[-1][1], "sum5_usd": round(sum(v[0] for v in vals[-5:]), 0),
                        "days_positive": sum(1 for v in vals[-5:] if v[0] > 0), "source": pth.name}
                 break
-    if etf is None:
+    if etf is None and get is not None:
         try:
             code, data = get("/etf/bitcoin/flow-history", {}, key)
             rows = _rows(data) if code == 200 else []

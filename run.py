@@ -997,9 +997,10 @@ def run_once(args: argparse.Namespace) -> int:
     except Exception as e:
         _issue("Свеча", f"калитка Binance: {type(e).__name__}: {e} — иду без ожидания")
 
-    # COINGLASS ВЫКЛЮЧАЕТСЯ (24.09, владелец: «нет денег больше на coinglass»): COINGLASS_ENABLED=False в core_config —
-    # поток не запускается, срез не ждётся, «протух» не считается сбоем и публикацию не отменяет. Экраны живут на
-    # последнем срезе и на Binance. Нет строки в core_config — считается выключенным.
+    # БЕЗ COINGLASS (24.09, владелец: «нет денег больше на coinglass… переделай всё без coinglass, coinglass-файлы
+    # не трогай, просто убери использование»): при COINGLASS_ENABLED=False срез собирает binance_fetch.collect —
+    # та же сигнатура, тот же файл output/coinglass_fetch.json в прежнем виде (плюс binance_fetch.json). Дельта,
+    # интерес и фандинг — с Binance; ликвидаций по сторонам нет. Нет строки в core_config — Coinglass выключен.
     try:
         from core_config import COINGLASS_ENABLED
     except ImportError:
@@ -1007,7 +1008,10 @@ def run_once(args: argparse.Namespace) -> int:
     _cg_box: dict = {}
     def _cg_job():
         try:
-            from coinglass_fetch import collect as collect_coinglass
+            if COINGLASS_ENABLED:
+                from coinglass_fetch import collect as collect_coinglass
+            else:
+                from binance_fetch import collect as collect_coinglass
             try:
                 _cg_box["res"] = collect_coinglass(write=True, verbose=False, candle_ms=_candle)   # та же свеча, что у Binance
             except TypeError as e:
@@ -1019,12 +1023,11 @@ def run_once(args: argparse.Namespace) -> int:
         except Exception as e:  # noqa: BLE001
             _cg_box["exc"] = e
     _cg_thread = None
-    if not HOT and COINGLASS_ENABLED:
+    if not HOT:
         _cg_thread = _thr.Thread(target=_cg_job, name="coinglass", daemon=True)
         _cg_thread.start()
-        log("→ Coinglass: сбор запущен в своём потоке")
-    elif not COINGLASS_ENABLED:
-        log("→ Coinglass: выключен (COINGLASS_ENABLED=False) — прогон идёт без него")
+        log("→ Coinglass: сбор запущен в своём потоке" if COINGLASS_ENABLED
+            else "→ Срез по монетам с Binance (вместо Coinglass): сбор запущен в своём потоке")
 
     # ── Анализ ──
     log(f"→ Обрабатываю в {args.workers} потоках")
@@ -1226,7 +1229,7 @@ def run_once(args: argparse.Namespace) -> int:
         _issue("Coinglass", f"{type(e).__name__}: {e}", critical=True)
     # Свежесть среза — по его штампу, не по факту вызова: если сборщик
     # ответил «нет ключа», файл остался вчерашним, а экраны читают файл.
-    _age = _coinglass_age_h() if COINGLASS_ENABLED else 0.0     # выключен — свежесть среза не проверяется
+    _age = _coinglass_age_h()                                    # срез пишет и Binance — свежесть проверяется как раньше
     if _age is None:
         _issue("Coinglass", "срез output/coinglass_fetch.json не читается",
                critical=True)
@@ -1358,7 +1361,7 @@ def run_once(args: argparse.Namespace) -> int:
     # subprocess импортирован на уровне модуля (06.09: локальный импорт ниже делал имя локальным
     # для всей функции, и вызов near_move выше падал с UnboundLocalError)
     _jobs = {
-        "Лог ликвидности": (["liq_log.py", "--write"], 120),
+        "Лог ликвидности": (["liq_log.py", "--write"], 900),
         "Плечо по типу": (["oi_types.py", "--write"], 600),
         "Биткоин": (["btc_pulse.py", "--write"], 300),
     }
@@ -1712,8 +1715,11 @@ def run_once(args: argparse.Namespace) -> int:
             # fill_unlocks и fundamental_revenue сюда не заводятся: им нужен
             # человек, автомата у платных источников нет.
             try:
-                from unlocks_coinglass import auto_update as _unlocks_auto
-                log(f"→ Разлоки Coinglass: {_unlocks_auto()}")
+                if not COINGLASS_ENABLED:
+                    log("→ Разлоки Coinglass: пропуск — без Coinglass замены нет")
+                else:
+                    from unlocks_coinglass import auto_update as _unlocks_auto
+                    log(f"→ Разлоки Coinglass: {_unlocks_auto()}")
             except Exception as e:
                 _issue("Разлоки Coinglass", f"{type(e).__name__}: {e}")
             try:
@@ -1722,23 +1728,35 @@ def run_once(args: argparse.Namespace) -> int:
             except Exception as e:
                 _issue("Резервуар", f"{type(e).__name__}: {e}")
             try:
-                from etf_coinglass import auto_update as _etf_auto
-                log(f"→ Фонды ETF: {_etf_auto()}")
+                if not COINGLASS_ENABLED:
+                    log("→ Фонды ETF: пропуск — без Coinglass замены нет")
+                else:
+                    from etf_coinglass import auto_update as _etf_auto
+                    log(f"→ Фонды ETF: {_etf_auto()}")
             except Exception as e:
                 _issue("Фонды ETF", f"{type(e).__name__}: {e}")
             try:
-                from balances_coinglass import auto_update as _bal_auto
-                log(f"→ Балансы бирж: {_bal_auto()}")
+                if not COINGLASS_ENABLED:
+                    log("→ Балансы бирж: пропуск — без Coinglass замены нет")
+                else:
+                    from balances_coinglass import auto_update as _bal_auto
+                    log(f"→ Балансы бирж: {_bal_auto()}")
             except Exception as e:
                 _issue("Балансы бирж", f"{type(e).__name__}: {e}")
             try:
-                from crowd_coinglass import auto_update as _crowd_auto
+                if COINGLASS_ENABLED:
+                    from crowd_coinglass import auto_update as _crowd_auto
+                else:
+                    from binance_crowd import auto_update as _crowd_auto
                 log(f"→ Толпа: {_crowd_auto()}")
             except Exception as e:
                 _issue("Толпа", f"{type(e).__name__}: {e}")
             try:
-                from netflow_coinglass import auto_update as _flow_auto
-                log(f"→ Приток к капе: {_flow_auto()}")
+                if not COINGLASS_ENABLED:
+                    log("→ Приток к капе: пропуск — без Coinglass замены нет")
+                else:
+                    from netflow_coinglass import auto_update as _flow_auto
+                    log(f"→ Приток к капе: {_flow_auto()}")
             except Exception as e:
                 _issue("Приток к капе", f"{type(e).__name__}: {e}")
 
