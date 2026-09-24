@@ -286,6 +286,11 @@ def _queue_first_first(live: list) -> list:
     return [{"symbol": _first, "run_pct": float(_mv or 0), "day_pct": _mv, "mine": bool(_c.get("mine")) if isinstance(_c, dict) else False}] + live
 
 
+_QH: dict = {}   # история очереди за сутки для рисования: sym → 48 получасов (1 — была первой)
+_QS: dict = {}   # sym → прогонов подряд первой до «сейчас»
+_QT: dict = {}   # sym → метки «первая N подряд» / «первая N раз за сутки»
+
+
 def collect_items() -> list[dict]:
     nm = _read("near_move.json") or {}
     coins = nm.get("coins") or {}
@@ -578,6 +583,74 @@ def collect_items() -> list[dict]:
         _why = " · ".join(_v.get("why") or []) or "в первой тройке очереди"
         add(_sym, 0 if k_s else 1, _why + " · " + _qtag(_sym, _q) + (" · стык подхвачен" if k_s else " · стык не подхвачен") + " · ступени ещё нет — не вход",
             ("ступени ещё нет — не вход · " + _qtag(_sym, _q) + " · " + ("стык подхвачен" if k_s else "стык не подхвачен") + " · " + hist_line(_v)).strip(" ·"), 0.0)
+    # ИСТОРИЯ ОЧЕРЕДИ ЗА СУТКИ (24.09, владелец): два ДОБАВОЧНЫХ повода попасть в «скоро» — сверх «тройка очереди
+    # И стык», ничего не отменяют: (1) первая в очереди STAR_FIRST_STREAK прогонов подряд и больше — показ на третьем
+    # подряд, то есть два прогона она уже была первой; (2) первая больше STAR_FIRST_DAY раз за сутки, не обязательно
+    # подряд. Могут совпасть — тогда обе метки. Вокруг звезды рисуются сутки по кругу (48 получасов): янтарная риска —
+    # была первой, мятная нить до засечки «сейчас» — серия подряд. Считается по output/queue_log.jsonl.
+    try:
+        from core_config import STAR_FIRST_STREAK, STAR_FIRST_DAY
+    except ImportError:
+        STAR_FIRST_STREAK, STAR_FIRST_DAY = 3, 10
+    _QH.clear(); _QS.clear(); _QT.clear()
+    try:
+        _now = datetime.now(timezone.utc)
+        _since = _now - timedelta(hours=24)
+        _slots: dict = {}                                          # номер получаса → кто был первым
+        for _line in (BASE_DIR / "output" / "queue_log.jsonl").read_text(encoding="utf-8").splitlines()[-9000:]:
+            try:
+                _r = json.loads(_line)
+            except ValueError:
+                continue
+            if _r.get("place") != 1 or not _r.get("sym") or not _r.get("at"):
+                continue
+            _t = datetime.fromisoformat(str(_r["at"]).replace("Z", "+00:00"))
+            if _t < _since:
+                continue
+            _k = min(47, int((_t - _since).total_seconds() // 1800))
+            _slots.setdefault(_k, set()).add(str(_r["sym"]).upper())
+        _last = max(_slots) if _slots else None
+        for _k, _ss in _slots.items():
+            for _s in _ss:
+                _QH.setdefault(_s, [0] * 48)[_k] = 1
+        for _s, _h in _QH.items():
+            _n = 0
+            if _last is not None:
+                for _k in range(_last, -1, -1):
+                    if _h[_k]:
+                        _n += 1
+                    else:
+                        break
+            if _qpos.get(_s) == 1:                                 # у нынешней первой — счёт near_move, он точнее
+                _n = max(_n, int(_streak.get(_s) or 0))
+            _QS[_s] = _n
+    except (OSError, ValueError):
+        pass
+    for _s, _h in list(_QH.items()):
+        _n24, _nst = sum(_h), int(_QS.get(_s) or 0)
+        _tags = ([f"первая {_nst} подряд"] if _nst >= STAR_FIRST_STREAK else []) + \
+                ([f"первая {_n24} раз за сутки"] if _n24 > STAR_FIRST_DAY else [])
+        if not _tags:
+            continue
+        _QT[_s] = _tags
+        _it = next((x for x in items if x["sym"] == _s), None)
+        if _it is None:
+            if _s not in coins:
+                continue
+            _v = coins.get(_s) or {}
+            add(_s, 0, " · ".join(_tags + list(_v.get("why") or [])), "", 0.0)
+            _it = items[-1]
+            _it["sub"] = " ‖ ".join([" · ".join(_tags), "очередь: " + _qtag(_s, _qpos.get(_s)).replace("очередь ", ""),
+                                     "стык: —", "сбор: " + (hist_line(_v) or "—"), "режим: —"])
+        else:
+            _it["g"] = 0
+            _sub = str(_it.get("sub") or "")
+            if "‖" in _sub:
+                _G = _sub.split(" ‖ ")
+                _G[0] = " · ".join(_tags) + " · " + _G[0]
+                _it["sub"] = " ‖ ".join(_G)
+            else:
+                _it["sub"] = " · ".join(_tags) + (" · " + _sub if _sub else "")
     for it in items:
         _pk = _pick.get(it["sym"]) or {}
         _q = _qpos.get(it["sym"])
@@ -984,9 +1057,12 @@ def render_intro(items: list[dict] | None = None) -> str:
         # «доска давит» тоже снимается при многих лидерах (16.09): медиана минусовая ровно потому,
         # что деньги собрались в нескольких монетах, — гасить звёзды в этот момент нельзя.
         if (not _many_lead()) and not _lead_alive and _share is not None and _med is not None and _share < 0.5 and _med < -0.3:
-            blank = {"why": "доска давит",
-                     "note": (str(_br[1]) if _br else "") + " · " + (str(_md[1]) if _md else "")
-                             + " · лидера нет"}
+            _parts = []                                        # 24.09: одна и та же строка приходила дважды
+            for _x in ((str(_br[1]) if _br else ""), (str(_md[1]) if _md else ""), "лидера нет"):
+                for _y in _x.split(" · "):
+                    if _y and _y not in _parts:
+                        _parts.append(_y)
+            blank = {"why": "доска давит", "note": " · ".join(_parts)}
             # ПЕРВАЯ, КОТОРАЯ ДЕРЖИТСЯ (11.09, владелец): под солнцем звёзд нет, но если нынешняя первая
             # очереди была первой не меньше трёх прогонов за сутки — её звезда остаётся: узкая доска
             # при живой первой — след того, что деньги собираются в неё (лидер первичен).
@@ -1099,7 +1175,10 @@ def render_intro(items: list[dict] | None = None) -> str:
         _keep = set(blank.get("keep") or []) | {s2 for s2, g2 in zip(syms, grp) if g2 == 0 and s2}
         blank["keep"] = sorted(_keep)
         keep_first = {k: keep_first.get(k, 0) for k in _keep}
-    data = json.dumps({"btc": btc_pulse, "names": names, "grp": grp, "syms": syms, "goes": goes, "many": _many_lead(), "book": _book_count(), "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "sess": sess_box, "flicker": flicker, "accum": accum, "bub": bub, "blank": blank, "keep": list(keep_first)},
+    _qh_out = {sy: _QH[sy] for sy in syms if sy in _QH and sum(_QH[sy])}
+    _qs_out = {sy: int(_QS.get(sy) or 0) for sy in _qh_out}
+    _qt_out = {sy: _QT[sy] for sy in _qh_out if sy in _QT}
+    data = json.dumps({"qh": _qh_out, "qs": _qs_out, "qt": _qt_out, "btc": btc_pulse, "names": names, "grp": grp, "syms": syms, "goes": goes, "many": _many_lead(), "book": _book_count(), "whys": whys, "pos": pos, "counts": counts, "label": lab, "subs": subs, "bright": bright, "zones": zones, "taker": taker, "acc": acc, "orbits": orbits, "bgnote": bgnote, "leader": leader, "sess": sess_box, "flicker": flicker, "accum": accum, "bub": bub, "blank": blank, "keep": list(keep_first)},
                       ensure_ascii=False).replace("</", "<\\/")
     return TEMPLATE.replace("__N__", str(n)).replace("__DATA__", data)
 
@@ -1241,6 +1320,8 @@ TEMPLATE = r'''<!doctype html>
 .blank{position:fixed;inset:0;z-index:7;pointer-events:none;display:grid;place-items:center;
   opacity:0;animation:blankin 1.8s ease .9s forwards}
 @keyframes blankin{to{opacity:1}}
+.blank.aside{place-items:start end;padding:8vh 9vw 0 0}
+.blank.aside .sun{transform:scale(.62);transform-origin:100% 0}
 .sun{position:relative;width:360px;height:360px;display:grid;place-items:center}
 .sun .core{position:relative;width:74px;height:74px;border-radius:50%;
   background:radial-gradient(circle at 36% 32%, #ffffff, #eaf3ff 34%, #a9c8ff 62%, #6b93ff);
@@ -1983,7 +2064,7 @@ window.__BLANK = !!(DATA.blank && DATA.blank.why);
 window.__KEEP = new Set((DATA.keep || []).concat(((DATA.syms || []).filter(function (s, i) { return (DATA.grp || [])[i] === 0 && s; }))));   // 24.09: «скоро» видно при любой доске   // первые, которые держались ≥3 прогонов за сутки: на них не действуют никакие гашения (11.09)
 if (window.__BLANK) {
   const d = document.createElement('div');
-  d.className = 'blank';
+  d.className = 'blank' + ((window.__KEEP && window.__KEEP.size) ? ' aside' : '');
   d.innerHTML = `<div class="sun"><div class="far"></div><div class="halo"></div><div class="arm"><i style="--a:224.2deg;--r:165px;animation-duration:6.3s;animation-delay:5.9s"></i><i style="--a:266.4deg;--r:187px;animation-duration:3.5s;animation-delay:1.6s"></i><i style="--a:339.6deg;--r:203px;animation-duration:3.6s;animation-delay:0.6s"></i><i style="--a:133.8deg;--r:151px;animation-duration:4.8s;animation-delay:0.5s"></i><i style="--a:89.8deg;--r:147px;animation-duration:4.9s;animation-delay:0.9s"></i><i style="--a:312.3deg;--r:169px;animation-duration:4.0s;animation-delay:3.2s"></i><i style="--a:50.0deg;--r:199px;animation-duration:5.0s;animation-delay:0.7s"></i><i style="--a:350.0deg;--r:120px;animation-duration:4.2s;animation-delay:0.9s"></i><i style="--a:353.7deg;--r:141px;animation-duration:4.4s;animation-delay:4.2s"></i><i style="--a:194.1deg;--r:200px;animation-duration:4.1s;animation-delay:3.9s"></i><i style="--a:248.6deg;--r:169px;animation-duration:4.5s;animation-delay:1.6s"></i><i style="--a:59.7deg;--r:138px;animation-duration:4.3s;animation-delay:1.4s"></i><i style="--a:294.3deg;--r:195px;animation-duration:3.4s;animation-delay:2.3s"></i><i style="--a:121.6deg;--r:159px;animation-duration:4.7s;animation-delay:1.4s"></i><i style="--a:250.7deg;--r:143px;animation-duration:5.1s;animation-delay:3.6s"></i><i style="--a:20.5deg;--r:122px;animation-duration:6.8s;animation-delay:2.4s"></i><i style="--a:145.5deg;--r:190px;animation-duration:6.2s;animation-delay:2.3s"></i><i style="--a:208.3deg;--r:121px;animation-duration:5.0s;animation-delay:3.5s"></i><i style="--a:224.5deg;--r:145px;animation-duration:3.8s;animation-delay:0.9s"></i><i style="--a:295.0deg;--r:179px;animation-duration:4.6s;animation-delay:1.6s"></i><i style="--a:188.9deg;--r:179px;animation-duration:3.8s;animation-delay:2.8s"></i><i style="--a:287.0deg;--r:157px;animation-duration:3.5s;animation-delay:3.3s"></i><i style="--a:32.8deg;--r:163px;animation-duration:5.2s;animation-delay:1.9s"></i><i style="--a:53.4deg;--r:155px;animation-duration:6.7s;animation-delay:3.7s"></i><i style="--a:112.5deg;--r:160px;animation-duration:4.5s;animation-delay:3.6s"></i><i style="--a:225.7deg;--r:159px;animation-duration:7.0s;animation-delay:1.1s"></i><i style="--a:17.5deg;--r:196px;animation-duration:5.3s;animation-delay:2.2s"></i><i style="--a:85.4deg;--r:196px;animation-duration:4.6s;animation-delay:1.2s"></i><i style="--a:234.3deg;--r:138px;animation-duration:3.6s;animation-delay:3.3s"></i><i style="--a:11.8deg;--r:183px;animation-duration:4.6s;animation-delay:1.0s"></i><i style="--a:353.3deg;--r:192px;animation-duration:6.8s;animation-delay:4.3s"></i><i style="--a:283.7deg;--r:133px;animation-duration:4.0s;animation-delay:1.5s"></i><i style="--a:21.2deg;--r:173px;animation-duration:4.5s;animation-delay:2.0s"></i><i style="--a:359.7deg;--r:141px;animation-duration:6.9s;animation-delay:3.1s"></i></div><div class="rr" style="width:178px;transform:rotate(7deg);animation-duration:5.4s;animation-delay:0s"></div><div class="rr" style="width:126px;transform:rotate(41deg);animation-duration:6.8s;animation-delay:0.9s"></div><div class="rr" style="width:205px;transform:rotate(88deg);animation-duration:4.9s;animation-delay:2.1s"></div><div class="rr" style="width:148px;transform:rotate(133deg);animation-duration:7.6s;animation-delay:1.3s"></div><div class="rr" style="width:190px;transform:rotate(176deg);animation-duration:5.9s;animation-delay:3.0s"></div><div class="rr" style="width:118px;transform:rotate(214deg);animation-duration:6.2s;animation-delay:0.4s"></div><div class="rr" style="width:168px;transform:rotate(258deg);animation-duration:8.1s;animation-delay:2.6s"></div><div class="rr" style="width:138px;transform:rotate(299deg);animation-duration:5.1s;animation-delay:1.7s"></div><div class="rr" style="width:196px;transform:rotate(338deg);animation-duration:7.0s;animation-delay:0.2s"></div><div class="core"></div></div><div class="say"><i>сегодня брать нечего</i><b>доска давит</b><s>растёт <w>42</w> из <w>110</w> · медиана <w>−1.10%</w> · лидера нет</s></div>`;
   const say = d.querySelector('.say');
   if (say) {
@@ -2134,6 +2215,48 @@ function drawFx(t){
       bead(px,py,(1.8+1.6*k)*dp,'#ffeecd','rgba(255,200,140,.95)',a0*dp);
       if(near){fc.font=`300 ${SZ*.5}px "Inter",system-ui,sans-serif`;fc.textAlign='left';fc.textBaseline='middle';
       fc.fillStyle='rgba(255,225,180,.9)';fc.fillText('разлок '+o.unlock+' дн',px+SZ*.5,py);}
+    }
+    // ── СУТКИ ПО КРУГУ (24.09, прототип владельца marks.html): история очереди на ОДНОЙ орбите — самой внешней,
+    // снаружи всех остальных, поэтому ни на одну не налезает. 48 рисок = 48 получасов; засечка сверху — «сейчас»,
+    // по часовой назад — прошлое. Янтарная риска — была первой в очереди; мятные риски с нитью до засечки — серия
+    // подряд. Сверху мелко — метки «первая N подряд» и «первая N раз за сутки».
+    const QH=(DATA.qh||{})[(DATA.syms||[])[i]];
+    if(QH){
+      let rmax=0;
+      if(o.up!=null)rmax=Math.max(rmax,rr(o.up)*1.25);
+      if(o.dn!=null)rmax=Math.max(rmax,rr(-o.dn)*1.25);
+      if(o.low!=null&&o.high!=null)rmax=Math.max(rmax,K*3.4*1.2);
+      if(o.unlock!=null&&o.unlock<=7)rmax=Math.max(rmax,K*(4.6-1.8*(1-o.unlock/7))*1.2);
+      const RX=Math.max(K*4.4,rmax*1.14), RY=RX*.385, NS=QH.length, ST=(DATA.qs||{})[(DATA.syms||[])[i]]||0;
+      const P=(u,r)=>{const ang=-Math.PI/2-u*2*Math.PI;                       // u=0 — сейчас, растёт в прошлое
+        const ex=Math.cos(ang)*RX*r, ey=Math.sin(ang)*RY*r;
+        return [cx+ex*Math.cos(tilt)-ey*Math.sin(tilt), cy+ex*Math.sin(tilt)+ey*Math.cos(tilt), Math.sin(ang)<0?.55:1];};
+      fc.lineCap='round';
+      for(let k=0;k<NS;k++){
+        const u=(NS-1-k+.5)/NS, [x1,y1,dp]=P(u,.93), [x2,y2]=P(u,1.09);
+        const on=QH[k], inS=on&&ST>=3&&k>=NS-ST;
+        fc.strokeStyle=!on?'rgba(170,190,255,'+(.2*F*dp).toFixed(3)+')':(inS?'rgba(143,240,196,'+(.95*F*dp).toFixed(3)+')':'rgba(255,201,138,'+(.9*F*dp).toFixed(3)+')');
+        fc.lineWidth=!on?1:(inS?2.2:1.7);
+        if(on){fc.shadowColor=inS?'rgba(143,240,196,.9)':'rgba(255,201,138,.9)';fc.shadowBlur=6*F;}
+        fc.beginPath();fc.moveTo(x1,y1);fc.lineTo(x2,y2);fc.stroke();fc.shadowBlur=0;
+      }
+      if(ST>=3){                                                              // нить серии до «сейчас»
+        const u1=Math.min(1,ST/NS);
+        fc.shadowColor='rgba(143,240,196,.9)';fc.shadowBlur=10*F;fc.lineWidth=1.2;
+        fc.strokeStyle='rgba(201,255,230,'+(.85*F).toFixed(3)+')';fc.beginPath();
+        for(let k=0;k<=48;k++){const [x,y]=P(u1*k/48,1.17);k?fc.lineTo(x,y):fc.moveTo(x,y);}
+        fc.stroke();fc.shadowBlur=0;
+      }
+      const pls=.6+.4*Math.sin(t*2.6), [nx1,ny1]=P(0,.84), [nx2,ny2]=P(0,1.26);  // засечка «сейчас»
+      fc.strokeStyle='rgba(234,244,255,'+(pls*F).toFixed(3)+')';fc.lineWidth=1.3;fc.beginPath();fc.moveTo(nx1,ny1);fc.lineTo(nx2,ny2);fc.stroke();
+      bead(nx2,ny2,2.2,'#eaf4ff','rgba(234,244,255,.9)',pls*F);
+      const TG=(DATA.qt||{})[(DATA.syms||[])[i]]||[];
+      if(TG.length){fc.font=`400 ${SZ*.38}px "Inter",system-ui,sans-serif`;fc.textAlign='center';fc.textBaseline='middle';
+        try{fc.letterSpacing='0.28em';}catch(e){}
+        const top=Math.min(cy-SZ*1.6, P(0,1.26)[1]-SZ*.6);
+        TG.forEach((tg,k)=>{fc.fillStyle=(/подряд/.test(tg)?'rgba(143,240,196,':'rgba(255,201,138,')+(.9*F).toFixed(2)+')';
+          fc.fillText(tg.toUpperCase(),cx,top-k*SZ*.62);});
+        try{fc.letterSpacing='0px';}catch(e){}}
     }
     // ── ПОДПИСЬ: три вида, переключаются кнопками (07.09, владелец: «тексты выглядят некрасиво»)
     // A — строка-шлейф: одна строка вбок, слова гаснут к хвосту; ничего не громоздится

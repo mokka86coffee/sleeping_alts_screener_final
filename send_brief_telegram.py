@@ -146,14 +146,13 @@ def main(dry: bool = False, file_path: str | None = None) -> int:
         # КОРОТКОЕ СООБЩЕНИЕ ПРОГОНА (19.09, владелец: «убираем вообще всё, оставляем биткоин и информацию по звёздам —
         # только скоро и могут — и по своим монетам только цену и стыки»). Очередь, «у цели», «откатились», «конец
         # тренда» и прочие списки в телеграм больше не идут — они на страницах. Оповещения об ошибках — отдельно, как были.
-        subject, text = _short_brief()
-        # строка стыка первой (правило владельца 18.09: за час до открытия — «хеджировать всё», первые полчаса — «следить»)
-        try:
-            from watch_brief import session_head
-            _h, _key = session_head()
-            text = ("⚠ " if _key else "") + _h + "\n\n" + text
-        except Exception:  # noqa: BLE001
-            pass
+        # 24.09, владелец: «убери все сообщения из телеграм — только снятие плит и звёзды, которые появляются
+        # в „скоро“». Сводка прогона больше не шлётся: только новые «скоро», и только в тот прогон, когда появились.
+        # Снятие плит идёт отдельной тревогой из run.py, ошибки — тоже там, они не трогаются.
+        subject, text = _new_soon()
+        if not text:
+            log("  телеграм: новых звёзд в «скоро» нет — сообщения нет")
+            return 0
 
     if dry:
         print(f"── {subject} ──\n{text}")
@@ -239,6 +238,37 @@ def _short_brief() -> tuple[str, str]:
             lines.append(head)
             lines += _pick_lines(sym + "USDT")
     return subject, "\n".join(lines).rstrip()
+
+
+def _new_soon() -> tuple[str, str]:
+    """звёзды, которые впервые появились в «скоро» с прошлого прогона; память — output/tg_soon.json"""
+    now = datetime.now()
+    try:
+        _st = json.loads((BASE_DIR / "output" / "stars.json").read_text(encoding="utf-8")).get("stars") or []
+    except (OSError, ValueError):
+        return "", ""
+    cur = {str(x.get("sym")): x for x in _st if x.get("g") == 0 and x.get("sym")}
+    mem = BASE_DIR / "output" / "tg_soon.json"
+    try:
+        prev = set(json.loads(mem.read_text(encoding="utf-8")).get("soon") or [])
+    except (OSError, ValueError):
+        prev = set()
+    try:
+        mem.write_text(json.dumps({"at": now.isoformat(timespec="seconds"), "soon": sorted(cur)}, ensure_ascii=False),
+                       encoding="utf-8")
+    except OSError:
+        pass
+    new = [cur[k] for k in cur if k not in prev]
+    if not new:
+        return "", ""
+    lines = ["★ СКОРО"]
+    for x in new:
+        parts = [p.strip() for p in str(x.get("sub") or "").split(" ‖ ") if p.strip()]
+        lines.append(f"{x.get('name')} — " + (parts[0] if parts else ""))
+        for p in parts[1:]:
+            if not p.endswith(": —"):
+                lines.append("  " + p)
+    return f"Скоро · {now:%d.%m %H:%M}", "\n".join(lines)
 
 
 def send_after_run() -> None:

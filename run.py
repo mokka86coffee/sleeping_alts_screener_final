@@ -707,11 +707,7 @@ def _fast_alerts() -> None:
     for sym in dict.fromkeys(watch):
         c = (nm.get("coins") or {}).get(sym) or {}
         sp = ((c.get("today") or {}).get("sess_pickup")) or {}
-        if sp.get("session") and sp.get("at"):
-            k = f"sess|{sym}|{sp['at']}"
-            if k not in sent:
-                lines.append(f"{sym[:-4]} · {sp['session']} {'подхватил' if sp.get('pickup') else 'не подхватил'} · {sp.get('why', '')[:120]}")
-                keys.append(k)
+        # 24.09, владелец: в телеграм только снятие плит — стык и «держат уже три прогона» больше не шлются
         d = (dp.get("coins") or {}).get(sym) or {}
         # ШУМ НЕ ШЛЁМ (15.09, первая живая тревога: семь строк, две по делу): стена, появившаяся и снятая за один
         # прогон, — работа маркетмейкера; дальние потолки на ×7 — застрявшие продавцы, о них достаточно карточки.
@@ -726,8 +722,8 @@ def _fast_alerts() -> None:
                          else f"убрали — цена не доходила, {'путь вверх свободен' if _ask else 'опора ушла'}")
                 lines.append(f"{sym[:-4]} · {'потолок' if _ask else 'пол'} {g.get('px'):.6g} ({g.get('dist_pct'):+.1f}%, ${g.get('usd', 0) / 1e3:.0f}K) {_what} после {g.get('runs')} пр.")
                 keys.append(k)
-        for w in [x for x in (d.get("walls") or []) if abs(x.get("dist_pct") or 0) <= 30][:1]:
-            if w.get("runs", 0) == 3:   # стена простояла три прогона — полтора часа — сказать один раз
+        for w in []:   # 24.09: «держат» в телеграм не шлётся
+            if w.get("runs", 0) == 3:
                 k = f"wallstand|{sym}|{w.get('side')}|{w.get('px')}"
                 if k not in sent:
                     lines.append(f"{sym[:-4]} · держат {'потолок' if w.get('side') == 'ask' else 'пол'} {w.get('px'):.6g} ({w.get('dist_pct'):+.1f}%, ${w.get('usd', 0) / 1e3:.0f}K) уже 3 прогона")
@@ -1001,6 +997,13 @@ def run_once(args: argparse.Namespace) -> int:
     except Exception as e:
         _issue("Свеча", f"калитка Binance: {type(e).__name__}: {e} — иду без ожидания")
 
+    # COINGLASS ВЫКЛЮЧАЕТСЯ (24.09, владелец: «нет денег больше на coinglass»): COINGLASS_ENABLED=False в core_config —
+    # поток не запускается, срез не ждётся, «протух» не считается сбоем и публикацию не отменяет. Экраны живут на
+    # последнем срезе и на Binance. Нет строки в core_config — считается выключенным.
+    try:
+        from core_config import COINGLASS_ENABLED
+    except ImportError:
+        COINGLASS_ENABLED = False
     _cg_box: dict = {}
     def _cg_job():
         try:
@@ -1016,10 +1019,12 @@ def run_once(args: argparse.Namespace) -> int:
         except Exception as e:  # noqa: BLE001
             _cg_box["exc"] = e
     _cg_thread = None
-    if not HOT:
+    if not HOT and COINGLASS_ENABLED:
         _cg_thread = _thr.Thread(target=_cg_job, name="coinglass", daemon=True)
         _cg_thread.start()
         log("→ Coinglass: сбор запущен в своём потоке")
+    elif not COINGLASS_ENABLED:
+        log("→ Coinglass: выключен (COINGLASS_ENABLED=False) — прогон идёт без него")
 
     # ── Анализ ──
     log(f"→ Обрабатываю в {args.workers} потоках")
@@ -1221,7 +1226,7 @@ def run_once(args: argparse.Namespace) -> int:
         _issue("Coinglass", f"{type(e).__name__}: {e}", critical=True)
     # Свежесть среза — по его штампу, не по факту вызова: если сборщик
     # ответил «нет ключа», файл остался вчерашним, а экраны читают файл.
-    _age = _coinglass_age_h()
+    _age = _coinglass_age_h() if COINGLASS_ENABLED else 0.0     # выключен — свежесть среза не проверяется
     if _age is None:
         _issue("Coinglass", "срез output/coinglass_fetch.json не читается",
                critical=True)
