@@ -57,8 +57,17 @@ except ImportError:
     SPIKE_FUND_NEG, PAPER_FAST_OI_BARS = -0.01, 4
 BAR_S = 1800                                  # получасовка — единица срока у ботов
 
+try:
+    from core_config import FIRST3_SIZE, FIRST3_TARGET, FIRST3_STREAK
+except ImportError:
+    FIRST3_SIZE, FIRST3_TARGET, FIRST3_STREAK = 500.0, 0.40, 3
+
 BOOKS = (("конец", "paper_end"), ("толпа", "paper_crowd"), ("быстрые", "paper_fast"),
-         ("дно", "paper_bottom"))       # 17.09: лонг на белом пузыре 4ч у дна, выход «рука ушла» (paper_bottom.py)
+         ("дно", "paper_bottom"),       # 17.09: лонг на белом пузыре 4ч у дна, выход «рука ушла» (paper_bottom.py)
+         ("3 в первых подряд", "paper_first3"))
+# СВОЯ СУММА НА СДЕЛКУ (24.09, владелец: «делай по 500$ на сделку, у нового бота другие правила»): такие книги
+# в делёжку депозита дня не входят, деньги сделки — сумма × результат.
+FIXED = {"paper_first3": FIRST3_SIZE}
 # ЗАДНИМ ЧИСЛОМ (16.09, paper_backfill.py): реконструкция правил по архиву cq_v2/intraday. С живыми не
 # смешивается — живой журнал свидетельствует о работе бота, backfill только сравнивает правила (в нём нет
 # события доски, запрета встречных позиций и задержек). На экране — отдельный источник, кнопкой.
@@ -145,6 +154,8 @@ def _short_rule(book: str, rule: str) -> str:
         return "вортекс"
     if book == "дно":
         return "пузырь у дна"
+    if book == "3 в первых подряд":
+        return book
     s = str(rule or "").split(":")[0].strip()
     return s or book
 
@@ -176,6 +187,7 @@ def _closed_rows(stem: str, book: str, cut: float) -> list[dict]:
             "res": float(r["result_pct"]), "why": r.get("why_exit") or "", "rule": rule,
             "rk": _short_rule(bk, rule), "size": float(r.get("size") or 1.0), "at": at,
             "ent": r.get("entry_at") or r.get("opened_at") or 0, "day": _utc_day(at),
+            "fixed": FIXED.get(stem), "usd": r.get("usd"),
         })
     return out
 
@@ -189,6 +201,12 @@ def _collect() -> tuple[list[dict], list[dict]]:
         st_ = _read(f"{stem}.json") or {}
         for sym, p in (st_.get("open") or {}).items():
             sym = str(sym).upper()
+            if stem == "paper_first3":
+                # у этой книги время входа в «at», сигнальный бар — последняя закрытая получасовка на входе
+                at0 = int(p.get("at") or 0)
+                p = dict(p, opened_at=at0, t=(at0 // 1800 * 1800 - 1800) * 1000, target=FIRST3_TARGET,
+                         rule=f"первая {FIRST3_STREAK} получасовки подряд"
+                              + (" · стоп в точке входа" if p.get("armed") else ""))
             px_now, d24 = live_px.get(sym, (None, None))
             legs = p.get("legs") or {}
             # сторона: у paper_end бот только шортит, у paper_crowd она в записи, у paper_fast — в
@@ -214,7 +232,7 @@ def _collect() -> tuple[list[dict], list[dict]]:
                 "target": p.get("target"), "stop": p.get("stop"), "hold": p.get("hold"),
                 "bars": _bars_since(p.get("t")), "walls": _walls(sym), "z": p.get("z"),
                 "state": p.get("state"), "at": p.get("opened_at") or _now(), "ent": p.get("opened_at") or 0,
-                "stem": stem, "raw": p, "legs": legs,
+                "stem": stem, "raw": p, "legs": legs, "fixed": FIXED.get(stem),
             })
         closed += _closed_rows(stem, book, cut)
     opened.sort(key=lambda x: -(abs(x["res"]) if x["res"] is not None else 0))
@@ -747,11 +765,15 @@ def _money_day(rows: list[dict]) -> dict:
     за 24 часа итог в деньгах, каждые 24 часа депозит снова 10000»). Депозит дня делится между сделками
     этого дня пропорционально весу правила: доля = депозит × вес / сумма весов дня. Деньги сделки —
     доля × результат. Так итог дня не зависит от числа сделок."""
-    w = sum(float(r.get("size") or 1) for r in rows) or 1.0
+    w = sum(float(r.get("size") or 1) for r in rows if not r.get("fixed"))
     out = []
     for r in rows:
-        share = BOOK_DEPOSIT * float(r.get("size") or 1) / w
-        money = share * float(r.get("res") or 0) / 100
+        if r.get("fixed"):
+            share = float(r["fixed"])
+            money = float(r["usd"]) if r.get("usd") is not None else share * float(r.get("res") or 0) / 100
+        else:
+            share = BOOK_DEPOSIT * float(r.get("size") or 1) / (w or 1.0)
+            money = share * float(r.get("res") or 0) / 100
         out.append(dict(r, share=share, money=money))
     tot = sum(x["money"] for x in out)
     hit = (100 * sum(1 for x in out if x["money"] > 0) / len(out)) if out else 0
@@ -774,10 +796,13 @@ def _source(opened: list[dict], closed: list[dict]) -> dict:
         days = [today] + days
     per_day = {d: _money_day([c for c in closed if c.get("day") == d]) for d in days}
     # открытые — в сегодняшний день, деньги от цены сейчас той же долей депозита; в итог дня не входят
-    w_open = sum(p["size"] for p in opened)
+    w_open = sum(p["size"] for p in opened if not p.get("fixed"))
     for p in opened:
         p["cond"] = _exit_text(p)
-        share = BOOK_DEPOSIT * p["size"] / ((per_day[today]["w"] if per_day[today]["n"] else 0) + w_open or 1.0)
+        if p.get("fixed"):
+            share = float(p["fixed"])
+        else:
+            share = BOOK_DEPOSIT * p["size"] / (per_day[today]["w"] + w_open or 1.0)
         p["money"] = share * (p["res"] or 0) / 100
     out_days = []
     for d in days:

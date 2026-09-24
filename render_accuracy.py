@@ -536,6 +536,13 @@ function drawFilters(){
   });
   const c=document.getElementById('fclear'); if(c)c.onclick=()=>{F={};redraw();};
 }
+// МЕСТНОЕ ВРЕМЯ (24.09, владелец: «этот журнал переведи на местное»): сборка пишет «чч:мм» по UTC, здесь —
+// в часы смотрящего. Вкладки дней остаются сутками UTC.
+const TZM=-new Date().getTimezoneOffset();
+function LT(hm){ if(!hm||hm.length!==5||hm[2]!==':')return hm||''; let m=(+hm.slice(0,2)*60+ +hm.slice(3)+TZM)%1440; if(m<0)m+=1440;
+  return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'); }
+function LDT(md,hm){ if(!md||!hm)return (md||'')+' '+LT(hm); const d=new Date(Date.UTC(2000,+md.slice(0,2)-1,+md.slice(3,5),+hm.slice(0,2),+hm.slice(3,5)));
+  return String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+' '+LT(hm); }
 function part1(){
   const rows=(D.days[DAY]||[]).filter(r=>pass(r.bg));
   document.getElementById('c1').innerHTML=rows.map(r=>{
@@ -543,15 +550,15 @@ function part1(){
     // место · сколько прогонов держалось · с какого по какое время; при наведении — история
     // ступень, где свой балл не рос (сдвинули соседи) — приглушена: такой подъём почти не работает
     const steps=r.path.map((p,pi)=>
-      p[1]===null ? `<u>${p[0]}</u>`   // выпадение — на своём месте по времени (11.09)
+      p[1]===null ? `<u>${LT(p[0])}</u>`   // выпадение — на своём месте по времени (11.09)
       : `<span class="st${pi>0 && p[5]===false ? ' pale' : ''}" data-c="${r.s}" data-i="${pi}">`
       + `<b>${p[1]}</b>` + ((p[3]||1)>1 ? `<n>(${p[3]})</n>` : '')
-      + `<w>${p[0]}${p[2] && p[2]!==p[0] ? '–'+p[2] : ''}</w>`
+      + `<w>${LT(p[0])}${p[2] && p[2]!==p[0] ? '–'+LT(p[2]) : ''}</w>`
       + `</span>`);
     const cl=r.end>1?'up':(r.end<-1?'dn':'flat');
     // КЛИК ПО ИМЕНИ — КАРТОЧКА МОНЕТЫ (09.09, владелец): тот же переход, что со звёзд,
     // coin.html#SYM; внутри оболочки — сообщением родителю, чтобы экран открылся в ней.
-    return `<div class="r"><div class="s"><a class="go" data-s="${r.s}" href="coin.html#${encodeURIComponent(r.s)}">${r.s}</a><u>в первых ${r.in}</u></div>
+    return `<div class="r"><div class="s"><a class="go" data-s="${r.s}" href="coin.html#${encodeURIComponent(r.s)}">${r.s}</a><u>в первых ${LT(r.in)}</u></div>
       <div class="path">${steps.join('<i>→</i>')}</div>
       <div class="v ${cl}">${r.end>0?'+':''}${r.end}%<s>+${r.up}%</s></div></div>`;
   }).join('')||'<div class="sm">при выбранном фоне заходов не было</div>';
@@ -586,7 +593,7 @@ function part2(){
 function popBub(){const day=(D.an_by_day||{})[DAY]||{};
   const bad=((day.cases)||D.bub2.cases||[]).filter(x=>!x.ok&&x.sure==='ясный');if(!bad.length)return '';
   return `<div class="pop"><h5>не сработало · ${bad.length} для разбора</h5>`+bad.map(x=>
-  `<div class="pr"><b>${x.s}</b><span>${x.d} ${x.t}</span><span>интерес ${x.oi>0?'+':''}${x.oi}%</span>
+  `<div class="pr"><b>${x.s}</b><span>${LDT(x.d,x.t)}</span><span>интерес ${x.oi>0?'+':''}${x.oi}%</span>
    <span class="bad">${x.after>0?'+':''}${x.after}%</span></div>`).join('')+`</div>`;}
 function popLev(){const day=(D.an_by_day||{})[DAY]||{};
   const bad=((day.lev)||D.an_list.lev||[]).filter(x=>x.hit==='никуда');if(!bad.length)return '';
@@ -673,9 +680,9 @@ document.getElementById('days').innerHTML=days.map((d,i)=>`<div class="day${i?''
       why = parts.length ? parts.join(' · ') : 'числа не изменились — сдвинули соседи';
       if(p[5]===false) why += ' · СВОЙ БАЛЛ НЕ РОС — такой подъём почти не работает (25% против 58%)';
     } else why='первое появление в очереди';
-    pop.innerHTML=`<h6>место ${p[1]} · ${p[0]}${p[2]&&p[2]!==p[0]?'–'+p[2]:''} · ${p[3]||1} прогон${(p[3]||1)>1?'а':''}</h6>`
+    pop.innerHTML=`<h6>место ${p[1]} · ${LT(p[0])}${p[2]&&p[2]!==p[0]?'–'+LT(p[2]):''} · ${p[3]||1} прогон${(p[3]||1)>1?'а':''}</h6>`
       + `<div class="sr2"><b>почему</b><em colspan="2" style="grid-column:2/4">${why}</em></div>`
-      + hist.map(h=>`<div class="sr2"><b>${h.t}</b>`
+      + hist.map(h=>`<div class="sr2"><b>${LT(h.t)}</b>`
           + `<em>${h.score!=null?h.score:'—'}</em>`
           + `<span>ход <em class="${(h.move||0)>0?'up':'dn'}">${fmt(h.move,'%')}</em>`
           + ` · интерес <em class="${(h.oi||0)>0?'up':'dn'}">${fmt(h.oi,'%')}</em>`

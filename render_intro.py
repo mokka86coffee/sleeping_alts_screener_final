@@ -214,7 +214,8 @@ def _book_count() -> int:
     """Сколько позиций у бота сейчас — для подписи-перехода «книга N» (16.09). Считаем открытые во всех
     бумажных книгах: paper_end, paper_crowd, paper_fast (у последнего позиция может быть в хедже)."""
     n = 0
-    for _nm in ("paper_end.json", "paper_crowd.json", "paper_fast.json", "paper_bottom.json", "paper_sight.json"):
+    for _nm in ("paper_end.json", "paper_crowd.json", "paper_fast.json", "paper_bottom.json", "paper_sight.json",
+                "paper_first3.json"):
         for _p in (BASE_DIR / "output" / _nm, BASE_DIR / _nm):
             try:
                 _d = json.loads(_p.read_text(encoding="utf-8"))
