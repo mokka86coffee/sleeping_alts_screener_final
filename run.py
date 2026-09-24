@@ -1517,6 +1517,17 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("Бот картина", (_rs2.stderr or "").strip()[-300:] or f"код {_rs2.returncode}")
     except Exception as e:  # noqa: BLE001
         _issue("Бот картина", f"{type(e).__name__}: {e}")
+    # ── БУМАЖНАЯ КНИГА «3 В ПЕРВЫХ ПОДРЯД» (24.09, владелец): монета первая в очереди три получасовки подряд — лонг
+    #    500 $, выход +40%, после +20% стоп в точку входа, повтор не раньше 48 ч. Цель и стоп — по трёхминуткам
+    #    Binance от последней проверки. Журнал output/paper_first3.jsonl. Идёт после near_move: очередь уже записана. ──
+    try:
+        _rf3 = subprocess.run([sys.executable, "paper_first3.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=300)
+        for _l in (_rf3.stdout or "").strip().splitlines():
+            log(f"→ {_l[:300]}")
+        if _rf3.returncode:
+            _issue("Бот 3 в первых", (_rf3.stderr or "").strip()[-300:] or f"код {_rf3.returncode}")
+    except Exception as e:  # noqa: BLE001
+        _issue("Бот 3 в первых", f"{type(e).__name__}: {e}")
     # ── СЛЕД ПОСЛЕ ВЫХОДА (16.09): к закрытым сделкам дописывается, куда цена дошла за 1/6/12/24 ч и
     #    что было внутри сделки — по этому видно, резала ли цель ход и выбивало ли стоп хвостом. ──
     try:

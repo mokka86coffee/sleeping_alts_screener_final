@@ -54,21 +54,29 @@ def _hm(t: float) -> str:
     return datetime.fromtimestamp(t, timezone.utc).strftime("%d.%m %H:%M")
 
 
-def leaders() -> dict[int, dict[str, int]]:
+# Журнал очереди до 16.09 отложен при переводе на UTC; его метки на час впереди — сверено по ценам записей с
+# архивом получасовок (24.09: 75 из 85 проверок совпали при сдвиге −1 ч). Нужен только --replay.
+OLD_QUEUE = BASE_DIR / "_old_runs_20260916_1936UTC" / "output" / "queue_log.jsonl"
+OLD_SHIFT = -3600
+
+
+def leaders(with_old: bool = False) -> dict[int, dict[str, int]]:
     """{время свечи: {монета: когда прогон впервые записал её первой}}; дубли двойного прогона схлопываются"""
     out: dict[int, dict[str, int]] = defaultdict(dict)
-    if not QUEUE.exists():
-        return out
-    for line in QUEUE.read_text(encoding="utf-8").splitlines():
-        try:
-            r = json.loads(line)
-        except ValueError:
+    files = ([(OLD_QUEUE, OLD_SHIFT)] if with_old else []) + [(QUEUE, 0)]
+    for path, shift in files:
+        if not path.exists():
             continue
-        s = str(r.get("sym") or "")
-        if r.get("place") != 1 or not s or s.startswith("_") or not r.get("candle") or not r.get("at"):
-            continue
-        c, at = _ts(r["candle"]), _ts(r["at"])
-        out[c][s] = min(at, out[c].get(s, at))
+        for line in path.read_text(encoding="utf-8").splitlines():
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            s = str(r.get("sym") or "")
+            if r.get("place") != 1 or not s or s.startswith("_") or not r.get("candle") or not r.get("at"):
+                continue
+            c, at = _ts(r["candle"]) + shift, _ts(r["at"]) + shift
+            out[c][s] = min(at, out[c].get(s, at))
     return out
 
 
@@ -87,8 +95,20 @@ def signals(ld: dict[int, dict[str, int]]) -> list[tuple[int, str, int]]:
     return res
 
 
+_PRE: dict[str, list[tuple]] = {}      # --replay: трёхминутки монеты скачаны один раз на весь отрезок
+
+
 def klines3(sym: str, start_ms: int, end_ms: int) -> list[tuple]:
     """закрытые трёхминутки Binance [(открытие мс, o, h, l, c)] с start_ms по end_ms"""
+    if sym in _PRE:
+        from bisect import bisect_left
+        bars = _PRE[sym]
+        i = bisect_left(bars, (start_ms,))
+        out = []
+        while i < len(bars) and bars[i][0] + BAR3 <= end_ms:
+            out.append(bars[i])
+            i += 1
+        return out
     from core_config import BINANCE_FAPI
     from core_http import get_json
     out, st = [], start_ms
@@ -183,7 +203,7 @@ def summary(state: dict, closed: list[dict]) -> str:
 
 
 def replay() -> int:
-    ld = leaders()
+    ld = leaders(with_old=True)
     sigs = signals(ld)
     if not sigs:
         print("в журнале очереди нет серий")
@@ -193,6 +213,12 @@ def replay() -> int:
     first = min(a for a, _, _ in sigs)
     now = time.time()
     t = first
+    since: dict[str, float] = {}
+    for a, s, _ in sigs:
+        since[s] = min(a, since.get(s, a))
+    print(f"сигналов {len(sigs)} по {len(since)} монетам с {_hm(first)} · качаю трёхминутки…", flush=True)
+    for s, a in since.items():
+        _PRE[s] = klines3(s, int(a * 1000) // BAR3 * BAR3, int(now * 1000))
 
     def px_of(sym, at):                                        # вход — открытие первой трёхминутки после записи
         k = klines3(sym, int(at * 1000), int(at * 1000) + 10 * BAR3)
