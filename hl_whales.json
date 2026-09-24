@@ -27,38 +27,28 @@
   ],
   "auto": [
     {
-      "addr": "0xbf732ea04197942783e34730ed6e0f6099575d58",
+      "addr": "0x77375a8c9d13bf79afb2a87f1b0ac1dfd5f5bf66",
       "auto": true,
-      "label": "авто: pnl мес $12.7M, 4 монет (ETH, PENGU, XPL…)"
+      "label": "авто: pnl мес $12.2M, 8 монет (NEAR, SOL, ADA…)"
     },
     {
       "addr": "0xea0027b6ea9b6d7d401b5266979cc3b3ca87a918",
       "auto": true,
-      "label": "авто: pnl мес $12.7M, 7 монет (ETH, HYPE, ZEC…)"
-    },
-    {
-      "addr": "0x77375a8c9d13bf79afb2a87f1b0ac1dfd5f5bf66",
-      "auto": true,
-      "label": "авто: pnl мес $11.5M, 8 монет (NEAR, SOL, ADA…)"
-    },
-    {
-      "addr": "0xeadc152ac1014ace57c6b353f89adf5faffe9d55",
-      "auto": true,
-      "label": "авто: pnl мес $10.0M, 38 монет (PUMP, XRP, LTC…)"
+      "label": "авто: pnl мес $11.1M, 7 монет (ETH, HYPE, ZEC…)"
     },
     {
       "addr": "0x9321d8117e73b0c79035f0e87debcfd8dbb1d75a",
       "auto": true,
-      "label": "авто: pnl мес $9.8M, 4 монет (LIT, HYPE, BTC…)"
+      "label": "авто: pnl мес $11.0M, 4 монет (LIT, HYPE, PONS…)"
     },
     {
-      "addr": "0xa2ce501d9c0c5e23d34272f84402cfb7835b3126",
+      "addr": "0x469e9a7f624b04c24f0e64edf8d8a277e6bf58a5",
       "auto": true,
-      "label": "авто: pnl мес $8.4M, 4 монет (ETH, BTC, HYPE…)"
+      "label": "авто: pnl мес $8.8M, 7 монет (BTC, HYPE, ETH…)"
     }
   ],
   "_auto": {
-    "at": "2026-09-23T08:12:41+00:00",
-    "picked": 6
+    "at": "2026-09-24T08:42:50+00:00",
+    "picked": 4
   }
 }
