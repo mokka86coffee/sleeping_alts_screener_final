@@ -5,7 +5,7 @@ metadata:
   node_type: memory
   type: feedback
   originSessionId: a5ef0660-961c-44f9-ae97-a14c306bbad6
-  modified: 2026-09-25T13:35:44.902Z
+  modified: 2026-09-25T23:47:42.122Z
 ---
 
 The owner is the only developer of the screener and trades micro-cap perps on BingX. They are in UTC+3 and fly a lot; all times on screens are shown in local time. They speak Russian.
@@ -18,6 +18,15 @@ The owner is the only developer of the screener and trades micro-cap perps on Bi
 6. Pass thresholds through core_config, network calls through core_binance/core_http, and writes through write_atomic. Don't touch coinglass_* files; replacements go in binance_* files.
 7. Prose meant for voice-over: numbers as words, no arrows or math symbols.
 8. For visuals, first build an HTML prototype in the screen's own style (nebula, light, stars with rays), not schematic circles.
+11. **Terminal commands only after the owner's explicit consent, ALWAYS (26.09).** Say what I want to run and why, wait for "да", then run. Reading and editing files with Read/Edit/Write is fine without asking. The rule came after I launched TradingView and installed a package on my own.
+    **Weekly allowances** — the owner can approve a class of commands for one week; when it expires, ask again. Granted 26.09, valid until **2026-10-03**:
+    1. read-only checks inside the project: scripts with `--only` and without `--write`/`--replay`, `py_compile`, `lab_*.py`, one-off `.venv/bin/python` analysis over the archive;
+    2. reading state: `ls`, `grep`, `git status/log/diff`, `pgrep`, `tail` of logs;
+    3. read-only network: Binance, OKX, Bybit market data, and a 1–2 minute liquidation-stream check;
+    4. copying memory files into `claude/memory/`;
+    5. launching TradingView with the debug port when it is closed and I need it: `open -a TradingView --args --remote-debugging-port=9222` (never quit it if it is already running — ask the owner to Cmd+Q).
+    **`pkill` (and `kill`) I never run myself — no exceptions, no weekly allowance.** The owner stops and restarts processes.
+    Always ask, every time: restarting the loop, installing packages, manual `git push`, launching apps, deleting files, anything writing to `output/` or the archive.
 9. They want patterns and variations that narrow down trades, not "it's 50/50". Always test against background: board median, BTC, sessions and junctions (21/0/7/13 UTC), weekday vs weekend. A bare "random entry does the same" is not an answer. Follow it with the next filter to try.
 10. **Never pool all coins into one test (25.09, the core lesson of the month).** Each coin has its own market maker and its own scenario, and the crowd can take over a coin. Pooled averages over ~150 coins always come out 50/50 — "comparing watermelons grown in Africa, Argentina and Australia". Instead:
     - compare a coin to its OWN previous moves: how they started, what fuelled them, how they ended;

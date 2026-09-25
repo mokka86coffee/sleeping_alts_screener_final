@@ -366,7 +366,10 @@ DEPTH_TICK_MIN_SNAPS = 10
 # Сводка output/liq_sides.json пишется раз в LIQ_FLUSH_SEC, сырой архив cq_v2/liq/<день>.jsonl хранится LIQ_KEEP_DAYS суток.
 # 26.09: с этой машины поток не идёт (соединение есть, кадров нет — даже btcusdt@aggTrade); включать после проверки
 # `python3 liq_stream.py` — за минуту должен появиться cq_v2/liq/<день>.jsonl.
-LIQ_STREAM_ENABLED = False
+# ИСТОЧНИК — OKX (26.09): фьючерсный поток Binance с машины владельца молчит (рукопожатие есть, кадров нет; спот Binance и OKX
+# отдают сразу — проверено и в его терминале). Канал liquidation-orders OKX — весь рынок одной подпиской; "binance" — запасной.
+LIQ_SOURCES = ("okx", "bybit")   # Bybit добавлен 26.09: на OKX лишь 70 наших монет, с Bybit — 137 из 155
+LIQ_STREAM_ENABLED = True
 LIQ_FLUSH_SEC = 60
 LIQ_KEEP_DAYS = 30
 # БУМАЖНЫЙ БОТ НА БЫСТРЫХ (15.09, paper_fast.py): вход — слом вортекса вверх от экстремума ≥ PAPER_FAST_BRK_MIN_VX
