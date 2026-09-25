@@ -8,4 +8,31 @@
 
 Сила: ты должен несколько раз сбиться и начать заново.
 [ждём 5 с]
-готово? [д/н] 
+готово? [д/н] Traceback (most recent call last):
+  File "/Users/evgenijminko/Work/random/python/budilnik2.py", line 173, in show_window
+    import tkinter as tk
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/tkinter/__init__.py", line 38, in <module>
+    import _tkinter # If this fails your Python may not be configured for Tk
+    ^^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named '_tkinter'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/evgenijminko/Work/random/python/budilnik2.py", line 440, in <module>
+    main()
+    ~~~~^^
+  File "/Users/evgenijminko/Work/random/python/budilnik2.py", line 436, in main
+    run_loop()
+    ~~~~~~~~^^
+  File "/Users/evgenijminko/Work/random/python/budilnik2.py", line 378, in run_loop
+    fire(kind, a)
+    ~~~~^^^^^^^^^
+  File "/Users/evgenijminko/Work/random/python/budilnik2.py", line 309, in fire
+    res = show_window(kind, alarm)
+  File "/Users/evgenijminko/Work/random/python/budilnik2.py", line 175, in show_window
+    return show_console(kind, alarm)
+  File "/Users/evgenijminko/Work/random/python/budilnik2.py", line 290, in show_console
+    ans = input("готово? [д/н] ").strip().lower()
+          ~~~~~^^^^^^^^^^^^^^^^^^
+OSError: [Errno 5] Input/output error
