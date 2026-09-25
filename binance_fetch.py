@@ -46,6 +46,24 @@ except ImportError:
     BINANCE_FETCH_MAX_COINS = 400
 
 
+_LIQ_CACHE: dict = {}
+
+
+def _liq_sides() -> dict | None:
+    """output/liq_sides.json от liq_stream.py, если сводка свежее 2 часов; читается один раз за прогон"""
+    if "v" not in _LIQ_CACHE:
+        _LIQ_CACHE["v"] = None
+        try:
+            from datetime import datetime, timezone
+            d = json.loads((BASE_DIR / "output" / "liq_sides.json").read_text(encoding="utf-8"))
+            at = datetime.fromisoformat(str(d.get("at")).replace("Z", "+00:00")).timestamp()
+            if datetime.now(timezone.utc).timestamp() - at <= 7200 and d.get("coins"):
+                _LIQ_CACHE["v"] = d
+        except (OSError, ValueError, TypeError, AttributeError):
+            pass
+    return _LIQ_CACHE["v"]
+
+
 def _base_coin(sym: str) -> str:
     s = sym.upper()
     for tail in ("USDT", "USDC", "BUSD", "USD"):
@@ -123,7 +141,11 @@ def snap_coin(coin: str, errors: dict) -> tuple[dict, int]:
         out["funding"] = round(fr * 100, 6) if fr is not None else None     # доля → проценты, как у Coinglass
     except Exception as e:  # noqa: BLE001
         out["funding"] = None; errors[f"{coin} funding"] = f"{type(e).__name__}: {e}"
-    out["liq"] = None
+    # ЛИКВИДАЦИИ ПО СТОРОНАМ — ИЗ ЖИВОГО ПОТОКА (26.09, liq_stream.py → output/liq_sides.json): сводка не старше 2 ч,
+    # иначе как раньше — нет источника
+    _ls = _liq_sides()
+    _lc = (_ls.get("coins") or {}).get(pair) if _ls else None
+    out["liq"] = {"long24h": _lc["long24h"], "short24h": _lc["short24h"], "long1h": _lc.get("long1h"), "short1h": _lc.get("short1h")} if _lc else None
     miss = [k for k in ("fut", "spot") if not out.get(k)]
     if out.get("oiUsd") is None:
         miss.append("oi")
@@ -139,7 +161,7 @@ def collect(symbols: list[str] | None = None, *, key: str | None = None, write: 
     """Та же сигнатура, что у coinglass_fetch.collect: прогон зовёт её вместо него. key не нужен."""
     coins = [_base_coin(s) for s in symbols] if symbols else None
     state: dict = {"at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "source": "binance",
-                   "window": f"{WINDOW}x{INTERVAL}", "coins": {}, "errors": {}, "requests": 0, "liq_source": None}
+                   "window": f"{WINDOW}x{INTERVAL}", "coins": {}, "errors": {}, "requests": 0, "liq_source": ("binance_stream" if _liq_sides() else None)}
     if coins is None:
         coins, note = _journal_coins()
         if note:

@@ -191,11 +191,17 @@ def _part1() -> dict:
         FIRST_HOLD_PLACE = 2
     for coins in days.values():
         for e in coins.values():
+            try:
+                from core_config import FIRST_HOLD_RUNS
+            except ImportError:
+                FIRST_HOLD_RUNS = 2
             merged = []
-            for st_ in e["path"]:
+            for _j, st_ in enumerate(e["path"]):
                 last = merged[-1] if merged else None
+                _ret = (st_[1] is not None and st_[1] != 1 and (st_[3] if len(st_) > 3 else 1) <= FIRST_HOLD_RUNS
+                        and _j + 1 < len(e["path"]) and e["path"][_j + 1][1] == 1)     # ушла и вернулась первой за ≤FIRST_HOLD_RUNS
                 if (last is not None and last[1] == 1 and last[3] >= 3 and st_[1] is not None
-                        and (st_[1] <= FIRST_HOLD_PLACE)):
+                        and (st_[1] <= FIRST_HOLD_PLACE or _ret)):
                     last[2] = st_[2]
                     last[3] = last[3] + (st_[3] if len(st_) > 3 else 1)
                     if len(last) > 4 and len(st_) > 4:

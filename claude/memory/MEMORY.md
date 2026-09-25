@@ -1,0 +1,5 @@
+- [Working style](working-style.md) — plan in words → "да" → one file; one option; no made-up thresholds; search patterns with background, not "50/50"
+- [Screener project state](screener-project.md) — parallel chats edit the repo; handoff in ~/Downloads; no Coinglass; 23.09 tick/картина changes missing from FILES.md
+- [claude.ai chats](claude-ai-chats.md) — «Sleeping Alts Screener» 1 и 2 на claude.ai: история 16–24.09, лаборатория плит (#280)
+- [Leaders study](leaders-study.md) — разбор 100 лидеров на TV 1h; состояние в claude/research/ (в проекте) (README → следующая монета)
+- [Market model](market-model.md) — модель рынка владельца (25.09): 3 стадии, фон (лидер, сессии, медиана), ММ, горизонты — линза для любого анализа

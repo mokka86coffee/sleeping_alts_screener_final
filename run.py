@@ -1879,6 +1879,34 @@ def run_once(args: argparse.Namespace) -> int:
 # проверка плит раз в три минуты»). Поток рядом с получасовым циклом, отдельного процесса нет: каждые три минуты
 # depth_tick.py — стакан по этим монетам, «съели / убрали» в телеграм. Шаг — подпроцессом, чтобы его сеть и кэши
 # не мешали прогону; сбой шага поток не роняет. Демон — Ctrl+C останавливает вместе с прогоном.
+# ЖИВОЙ ПОТОК ЛИКВИДАЦИЙ (26.09, владелец: «подключай поток ликвидаций Binance»): liq_stream.py — дочерний процесс, живёт всю
+# работу цикла, вывод в output/liq_stream.log; упал — перезапускается в начале следующего прогона; при выходе гасится (atexit).
+_LIQ_PROC: dict = {}
+
+
+def _start_liq_stream() -> None:
+    try:
+        from core_config import LIQ_STREAM_ENABLED
+    except ImportError:
+        LIQ_STREAM_ENABLED = True
+    if not LIQ_STREAM_ENABLED:
+        return
+    pr = _LIQ_PROC.get("p")
+    if pr is not None and pr.poll() is None:
+        return
+    try:
+        (BASE_DIR / "output").mkdir(exist_ok=True)
+        fh = open(BASE_DIR / "output" / "liq_stream.log", "a", encoding="utf-8")
+        _LIQ_PROC["p"] = subprocess.Popen([sys.executable, "liq_stream.py"], cwd=BASE_DIR, stdout=fh, stderr=subprocess.STDOUT)
+        if "atexit" not in _LIQ_PROC:
+            import atexit
+            atexit.register(lambda: (_LIQ_PROC.get("p") and _LIQ_PROC["p"].poll() is None and _LIQ_PROC["p"].terminate()))
+            _LIQ_PROC["atexit"] = True
+        log("→ Поток ликвидаций Binance: " + ("перезапущен" if pr is not None else "запущен") + " (output/liq_stream.log)")
+    except Exception as e:  # noqa: BLE001
+        _issue("Поток ликвидаций", f"{type(e).__name__}: {e}")
+
+
 def _start_depth_tick() -> None:
     import threading
 
@@ -1918,6 +1946,7 @@ def main() -> int:
         log(f"→ --interval {args.interval} больше не используется: цикл идёт по закрытию свечей")
     log("→ Режим цикла: по закрытию получасовых свечей · Ctrl+C для остановки")
     _start_depth_tick()
+    _start_liq_stream()
     try:
         _nr = json.loads((BASE_DIR / "output" / "next_run.json").read_text(encoding="utf-8"))
         _at = _next_run_ts(_nr)
@@ -1930,6 +1959,7 @@ def main() -> int:
     runs = 0
     while True:
         runs += 1
+        _start_liq_stream()          # упавший поток ликвидаций — поднять
         log(f"\n{'═' * 60}\n→ Прогон #{runs} · "
             f"{_utc(fmt='%d.%m.%Y %H:%M:%S')}\n{'═' * 60}")
 

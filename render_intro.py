@@ -649,10 +649,16 @@ def collect_items() -> list[dict]:
                 return _n
             # первая подряд: после трёх первых подряд прогоны на местах до FIRST_HOLD_PLACE тоже первые (26.09, владелец);
             # серия рвётся на месте ниже или при выпадении. Засчитанные так прогоны отмечаются рисками «была первой».
+            try:
+                from core_config import FIRST_HOLD_RUNS
+            except ImportError:
+                FIRST_HOLD_RUNS = 2
+            _seq = [(_a, _runs[_a].get(_s)) for _a in reversed(_order)]
             _n, _held = 0, False
-            for _a in reversed(_order):
-                _pl = _runs[_a].get(_s)
-                if _pl == 1 or (_held and _pl is not None and _pl <= FIRST_HOLD_PLACE):
+            for _i, (_a, _pl) in enumerate(_seq):
+                _back = (_held and _pl is not None and _pl <= FIRST_HOLD_PLACE) or (
+                    _held and any(_p2 == 1 for _, _p2 in _seq[_i + 1:_i + 1 + FIRST_HOLD_RUNS]))   # вернётся первой за ≤FIRST_HOLD_RUNS
+                if _pl == 1 or _back:
                     _n += 1
                     if _pl != 1 and _s in _QH:
                         _kk = min(47, int((datetime.fromisoformat(_a.replace("Z", "+00:00")) - _since).total_seconds() // 1800))
