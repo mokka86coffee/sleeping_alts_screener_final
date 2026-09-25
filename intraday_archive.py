@@ -28,6 +28,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 
 try:
@@ -311,6 +312,70 @@ def _load_rows(p: Path) -> list[str]:
         return []
 
 
+# ЦЕНА БАРА — ЗАКРЫТИЕ СВЕЧИ (25.09, найдено на XAI: бар 17:30 в архиве 0.01069, на бирже закрылся 0.011898).
+# Строка пишется через ~10 минут после открытия свечи, и px в ней — цена в момент прогона; долив потом ставил
+# h/l/o с биржи, а px оставался. За трое суток у половины баров px отличался от закрытия больше 0.3%, у 391 —
+# больше 3%; на нём считаются клингер, вортекс, голоса книг и лаборатории. Теперь у закрытой свечи px — её
+# закрытие на Binance, прежняя цена прогона хранится в px_live (есть поле — строка уже исправлена).
+def _close_due(r: dict) -> bool:
+    return "px_live" not in r and bool(r.get("candle")) and _candle_ms(r["candle"]) + 1800000 <= time.time() * 1000
+
+
+def _close_fix(r: dict, k: list, k_close: int) -> bool:
+    if "px_live" in r or len(k) <= k_close:
+        return False
+    r["px_live"] = r.get("px")
+    r["px"] = float(k[k_close])
+    return True
+
+
+def fix_closes(syms: list[str] | None = None) -> dict:
+    """разово по всей истории архива: px закрытых баров — закрытие свечи Binance (см. _close_due)"""
+    from concurrent.futures import ThreadPoolExecutor
+    from core_config import BINANCE_FAPI
+    from core_http import get_json
+    files = ([OUT_DIR / f"{x.upper().replace('USDT', '').lower()}.jsonl" for x in syms] if syms
+             else sorted(OUT_DIR.glob("*.jsonl")))
+    now_ms = int(time.time() * 1000)
+
+    def closes(p: Path) -> tuple[Path, dict]:
+        ms = [_candle_ms(json.loads(x)["candle"]) for x in _load_rows(p) if '"candle"' in x and '"px_live"' not in x]
+        if not ms:
+            return p, {}
+        sym, st, out = p.stem.upper() + "USDT", min(ms), {}
+        while st < now_ms:
+            page = get_json(f"{BINANCE_FAPI}/fapi/v1/klines",
+                            {"symbol": sym, "interval": "30m", "startTime": st, "limit": 1500}, weight=10) or []
+            for k in page:
+                if int(k[0]) + 1800000 <= now_ms:
+                    out[int(k[0])] = k
+            if len(page) < 1500:
+                break
+            st = int(page[-1][0]) + 1800000
+        return p, out
+
+    report: dict = {}
+    with ThreadPoolExecutor(4) as ex:
+        got = list(ex.map(closes, [f for f in files if f.exists()]))
+    for p, ks in got:                     # запись — пачкой после сети, файл перечитывается прямо перед записью
+        if not ks:
+            continue
+        lines, n = _load_rows(p), 0
+        for i, line in enumerate(lines):
+            try:
+                r = json.loads(line)
+            except ValueError:
+                continue
+            k = ks.get(_candle_ms(r["candle"])) if r.get("candle") else None
+            if k is not None and _close_fix(r, k, 4):
+                lines[i] = json.dumps(r, ensure_ascii=False)
+                n += 1
+        if n:
+            p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            report[p.stem.upper()] = n
+    return report
+
+
 def fill_missing(syms: list[str] | None = None, back: int = ARCHIVE_FILL_BACK_BARS, write: bool = True) -> dict:
     """ДОЛИВ ТОГО, ЧЕГО НЕ БЫЛО (14.09 ночь, владелец: «автоматические проверки и заполнение того, что не было
     получено»). Свежая строка пишется, когда её свеча на бирже ещё открыта, — размаха нет (`missing: hl`),
@@ -348,12 +413,12 @@ def fill_missing(syms: list[str] | None = None, back: int = ARCHIVE_FILL_BACK_BA
             except ValueError:
                 continue
             miss = r.get("missing") or []
-            if "hl" in miss or r.get("fut") is None:
+            if "hl" in miss or r.get("fut") is None or _close_due(r):
                 need.append((i, r))
         if not need:
             continue
         ks = {}
-        if get_klines is not None and any("hl" in (r.get("missing") or []) for _, r in need):
+        if get_klines is not None and any("hl" in (r.get("missing") or []) or _close_due(r) for _, r in need):
             try:
                 for k in get_klines(sym, "30m", limit=_limit):
                     ks[int(k[K_OPEN_TIME])] = k
@@ -362,7 +427,7 @@ def fill_missing(syms: list[str] | None = None, back: int = ARCHIVE_FILL_BACK_BA
         c = coins.get(sym) or coins.get(sym.replace("USDT", "")) or {}
         series = (c.get("fut") or {}).get("series") or []
         sseries = (c.get("spot") or {}).get("series") or []
-        n_hl = n_legs = 0
+        n_hl = n_legs = n_px = 0
         for i, r in need:
             ms = _candle_ms(r["candle"])
             miss = list(r.get("missing") or [])
@@ -375,6 +440,8 @@ def fill_missing(syms: list[str] | None = None, back: int = ARCHIVE_FILL_BACK_BA
                     r["px"] = float(k[_K_CLOSE])
                 miss = [m for m in miss if m != "hl"]
                 n_hl += 1
+            if k is not None and _close_fix(r, k, _K_CLOSE):
+                n_px += 1
             if r.get("fut") is None:
                 legs = _legs(_bar_at(series, ms))
                 if legs is not None:
@@ -384,10 +451,10 @@ def fill_missing(syms: list[str] | None = None, back: int = ARCHIVE_FILL_BACK_BA
                     n_legs += 1
             r["missing"] = miss
             lines[i] = json.dumps(r, ensure_ascii=False)
-        if (n_hl or n_legs) and write:
+        if (n_hl or n_legs or n_px) and write:
             p.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        if n_hl or n_legs:
-            report[sym] = {"hl": n_hl, "legs": n_legs}
+        if n_hl or n_legs or n_px:
+            report[sym] = {"hl": n_hl, "legs": n_legs, "px": n_px}
         _still = sum(1 for _, r in need if "hl" in (r.get("missing") or []) and ks.get(_candle_ms(r["candle"])) is None)
         if _still:
             left[sym] = _still
@@ -453,14 +520,19 @@ def main() -> int:
     ap.add_argument("--refill", action="store_true", help="заменить неполную строку на более полную")
     ap.add_argument("--force", action="store_true", help="писать, даже если срез не снят")
     ap.add_argument("--fill", action="store_true", help="долить размах и ноги бара в последние строки (только свои поля бара)")
+    ap.add_argument("--closes", action="store_true", help="разово: px всех закрытых баров истории — закрытие свечи Binance")
     ap.add_argument("--health", action="store_true", help="проверка покрытия за сутки по монетам журнала, json одной строкой")
     a = ap.parse_args()
+    if a.closes:
+        rep_ = fix_closes([x.strip() for x in a.only.split(",")] if a.only else None)
+        print(f"intraday --closes: исправлено {sum(rep_.values())} баров у {len(rep_)} монет")
+        return 0
     if a.fill or a.health:
         syms = [x.strip() for x in a.only.split(",")] if a.only else None
         if a.fill:
             rep_ = fill_missing(syms, write=True)
             _left = rep_.pop("_left", {}) or {}
-            _done = ", ".join(f"{k} hl+{v['hl']} legs+{v['legs']}" for k, v in list(rep_.items())[:12])
+            _done = ", ".join(f"{k} hl+{v['hl']} legs+{v['legs']} px+{v['px']}" for k, v in list(rep_.items())[:12])
             print("intraday --fill: " + (f"долито по {len(rep_)} монетам" + (f" ({_done}{', …' if len(rep_) > 12 else ''})" if _done else "") if rep_ else "долить нечего")
                   + (f" · НЕ ДОЛИЛОСЬ: {sum(_left.values())} строк у {len(_left)} монет — биржа не отдала свечу"
                      f" (например {list(_left)[:3]})" if _left else ""))
