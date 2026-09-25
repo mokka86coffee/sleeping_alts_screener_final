@@ -1875,6 +1875,31 @@ def run_once(args: argparse.Namespace) -> int:
     return 0
 
 # ─────────────────────────────────────────────────────────────
+# ПЛИТЫ РАЗ В ТРИ МИНУТЫ (25.09, владелец: «сделки новой стратегии и монеты, что я заношу в файл руками, — по ним
+# проверка плит раз в три минуты»). Поток рядом с получасовым циклом, отдельного процесса нет: каждые три минуты
+# depth_tick.py — стакан по этим монетам, «съели / убрали» в телеграм. Шаг — подпроцессом, чтобы его сеть и кэши
+# не мешали прогону; сбой шага поток не роняет. Демон — Ctrl+C останавливает вместе с прогоном.
+def _start_depth_tick() -> None:
+    import threading
+
+    def _loop() -> None:
+        while True:
+            time.sleep(180 - time.time() % 180 + 5)
+            try:
+                r = subprocess.run([sys.executable, "depth_tick.py", "--write"], cwd=BASE_DIR,
+                                   capture_output=True, text=True, timeout=150)
+                for _l in (r.stdout or "").splitlines():
+                    if "съели" in _l or "убрали" in _l or "не ушёл" in _l:
+                        log(f"→ {_l[:300]}")
+                if r.returncode:
+                    log(f"→ Плиты раз в 3 мин: код {r.returncode}: {(r.stderr or '').strip()[-300:]}")
+            except Exception as e:  # noqa: BLE001
+                log(f"→ Плиты раз в 3 мин: {type(e).__name__}: {e}")
+
+    threading.Thread(target=_loop, name="depth_tick", daemon=True).start()
+    log("→ Плиты раз в 3 минуты: сделки «3 в первых подряд» и watch.json")
+
+
 # MAIN
 # ─────────────────────────────────────────────────────────────
 def main() -> int:
@@ -1892,6 +1917,7 @@ def main() -> int:
     if getattr(args, "interval", None) and args.interval != interval:
         log(f"→ --interval {args.interval} больше не используется: цикл идёт по закрытию свечей")
     log("→ Режим цикла: по закрытию получасовых свечей · Ctrl+C для остановки")
+    _start_depth_tick()
     try:
         _nr = json.loads((BASE_DIR / "output" / "next_run.json").read_text(encoding="utf-8"))
         _at = _next_run_ts(_nr)

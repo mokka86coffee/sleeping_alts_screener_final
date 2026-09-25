@@ -559,7 +559,7 @@ def collect_items() -> list[dict]:
         # очередь ‖ стык ‖ сбор ‖ режим — всплывашка рисует каждую группу своей строкой с подписью слева.
         _run = float(it.get("run") or 0)
         if not went:
-            _st = f"ход от основания +{_run:.0f}% · ступени ещё нет — не вход"     # НЕ «БРАТЬ» (STG 19.09)
+            _st = f"ход от основания +{_run:.0f}% · ступени ещё нет — не вход"     # НЕ «БРАТЬ» (19.09)
         elif it["g"] == 0:
             _st = f"ВТОРОЙ АКТ · ход +{_run:.0f}% · снова в первой тройке очереди и стык подхвачен"
         else:
@@ -593,43 +593,69 @@ def collect_items() -> list[dict]:
         from core_config import STAR_FIRST_STREAK, STAR_FIRST_DAY
     except ImportError:
         STAR_FIRST_STREAK, STAR_FIRST_DAY = 3, 10
+    try:
+        from core_config import STAR_TOP_STREAK, STAR_TOP_N
+    except ImportError:
+        STAR_TOP_STREAK, STAR_TOP_N = 3, 3
+    _top_h: dict = {}                                              # sym → 48 получасов (1 — была в топе)
+    _top_s: dict = {}                                              # sym → прогонов подряд в топе до «сейчас»
     _QH.clear(); _QS.clear(); _QT.clear()
     try:
         _now = datetime.now(timezone.utc)
         _since = _now - timedelta(hours=24)
-        _slots: dict = {}                                          # номер получаса → кто был первым
+        _slots: dict = {}                                          # номер получаса → кто был первым (для рисунка)
+        _runs: dict = {}                                           # прогон → {монета: место}
         for _line in (BASE_DIR / "output" / "queue_log.jsonl").read_text(encoding="utf-8").splitlines()[-9000:]:
             try:
                 _r = json.loads(_line)
             except ValueError:
                 continue
-            if _r.get("place") != 1 or not _r.get("sym") or not _r.get("at"):
+            if not _r.get("sym") or not _r.get("at"):
                 continue
             _t = datetime.fromisoformat(str(_r["at"]).replace("Z", "+00:00"))
             if _t < _since:
                 continue
-            _k = min(47, int((_t - _since).total_seconds() // 1800))
-            _slots.setdefault(_k, set()).add(str(_r["sym"]).upper())
-        _last = max(_slots) if _slots else None
+            _run = _runs.setdefault(str(_r["at"]), {})
+            _pl = _r.get("place")
+            if not isinstance(_pl, int) or _pl > STAR_TOP_N:
+                continue
+            _run[str(_r["sym"]).upper()] = _pl
+            if _pl == 1:
+                _k = min(47, int((_t - _since).total_seconds() // 1800))
+                _slots.setdefault(_k, set()).add(str(_r["sym"]).upper())
         for _k, _ss in _slots.items():
             for _s in _ss:
                 _QH.setdefault(_s, [0] * 48)[_k] = 1
-        for _s, _h in _QH.items():
+        # СЕРИЯ — ПО ПРОГОНАМ, НЕ ПО ПОЛУЧАСОВЫМ ЯЧЕЙКАМ (25.09): прогоны идут неровно (01:10, 01:55, 02:11) — одна
+        # ячейка пустеет, две сливаются, и серия рвалась: у NIL шесть прогонов подряд в топе, а метки не было.
+        # 25.09, владелец: первая подряд — только ПЕРВОЕ место, как у бота «3 в первых подряд». Раньше у нынешней
+        # первой бралось большее с first_streak из near_move (первые ТРИ места и серия лидера дальше): у PLAY выходило
+        # «первая 13 подряд» при четырёх прогонах на первом месте.
+        _order = sorted(_runs, reverse=True)
+
+        def _run_streak(_s: str, _top: bool) -> int:
             _n = 0
-            if _last is not None:
-                for _k in range(_last, -1, -1):
-                    if _h[_k]:
-                        _n += 1
-                    else:
-                        break
-            if _qpos.get(_s) == 1:                                 # у нынешней первой — счёт near_move, он точнее
-                _n = max(_n, int(_streak.get(_s) or 0))
-            _QS[_s] = _n
+            for _a in _order:
+                _pl = _runs[_a].get(_s)
+                if _pl is not None and (_top or _pl == 1):
+                    _n += 1
+                else:
+                    break
+            return _n
+        for _s in {x for _run in _runs.values() for x in _run}:
+            if _s in _QH:
+                _QS[_s] = _run_streak(_s, False)
+            _top_s[_s] = _run_streak(_s, True)
     except (OSError, ValueError):
         pass
-    for _s, _h in list(_QH.items()):
-        _n24, _nst = sum(_h), int(_QS.get(_s) or 0)
-        _tags = ([f"первая {_nst} подряд"] if _nst >= STAR_FIRST_STREAK else []) + \
+    # В ТОПЕ ПОДРЯД (25.09, владелец: «PLAY пошла гораздо раньше, чем попала три раза в первые, — была три раза во
+    # втором или больше»): третий повод — монета в первых STAR_TOP_N местах очереди STAR_TOP_STREAK получасовок подряд
+    # и больше, метка «в топе N подряд». Первая подряд важнее и заменяет её. Рисунок вокруг звезды прежний.
+    for _s in list(dict.fromkeys(list(_QH) + list(_top_s))):
+        _h = _QH.get(_s) or [0] * 48
+        _n24, _nst, _ntop = sum(_h), int(_QS.get(_s) or 0), int(_top_s.get(_s) or 0)
+        _tags = ([f"первая {_nst} подряд"] if _nst >= STAR_FIRST_STREAK else
+                 [f"в топе {_ntop} подряд"] if _ntop >= STAR_TOP_STREAK else []) + \
                 ([f"первая {_n24} раз за сутки"] if _n24 > STAR_FIRST_DAY else [])
         if not _tags:
             continue

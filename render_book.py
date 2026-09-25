@@ -58,9 +58,9 @@ except ImportError:
 BAR_S = 1800                                  # получасовка — единица срока у ботов
 
 try:
-    from core_config import FIRST3_SIZE, FIRST3_TARGET, FIRST3_STREAK
+    from core_config import FIRST3_SIZE, FIRST3_TARGET, FIRST3_STREAK, FIRST3_BE, FIRST3_PAUSE_H
 except ImportError:
-    FIRST3_SIZE, FIRST3_TARGET, FIRST3_STREAK = 500.0, 0.40, 3
+    FIRST3_SIZE, FIRST3_TARGET, FIRST3_STREAK, FIRST3_BE, FIRST3_PAUSE_H = 500.0, 0.40, 3, 0.20, 48
 
 BOOKS = (("конец", "paper_end"), ("толпа", "paper_crowd"), ("быстрые", "paper_fast"),
          ("дно", "paper_bottom"),       # 17.09: лонг на белом пузыре 4ч у дна, выход «рука ушла» (paper_bottom.py)
@@ -542,6 +542,9 @@ def _analyse(o: dict) -> dict:
                f"({_f(p.get('oi24'), 1)}% за сутки) — прокол без плеча, его обычно выкупают.")
     elif rk.startswith("первый час Лондона"):
         why = (f"Шорт на первый час Лондона: после открытия в 07:00 UTC цена чаще идёт вниз. Фон 12 ч {p.get('bg12') or '—'}.")
+    elif stem == "paper_first3":
+        why = (f"Лонг на {FIRST3_SIZE:.0f} $: монета первая в очереди {FIRST3_STREAK} получасовки подряд. Цель "
+               f"+{FIRST3_TARGET * 100:.0f}%, после +{FIRST3_BE * 100:.0f}% стоп в точку входа, до этого стопа и срока нет.")
     else:
         why = o["rule"]
     if p.get("bg12") and "Фон" not in why:
@@ -581,6 +584,17 @@ def _analyse(o: dict) -> dict:
         fact("интерес за сутки", f"{_f(p.get('oi24'), 1)}%" if p.get("oi24") is not None else None)
     elif rk.startswith("первый час Лондона"):
         fact("окно", "07:00 UTC, 1 час", "key")
+    elif stem == "paper_first3":
+        # 25.09, владелец обвёл пустую панель «почему взята» у сделок нового бота
+        fact("первая в очереди подряд", f"{FIRST3_STREAK} получасовки", "key")
+        if p.get("streak_from"):
+            fact("серия с", f"{{T:{int(p['streak_from'])}}}")
+        fact("сумма", f"{FIRST3_SIZE:.0f} $")
+        fact("цена входа", _px(e) if e else None)
+        fact(f"цель +{FIRST3_TARGET * 100:.0f}%", _px(e * (1 + FIRST3_TARGET)) if e else None, "key")
+        fact("стоп в точку входа", "встал" if p.get("armed") else
+             (f"после {_px(e * (1 + FIRST3_BE))}" if e else None), "good" if p.get("armed") else "neu")
+        fact("повтор по монете", f"через {FIRST3_PAUSE_H} ч")
     if p.get("bg12"):
         fact("фон 12 ч", p["bg12"])
     a["facts"] = F
@@ -1275,7 +1289,7 @@ function drawPos(w,rows){
   o+=`</g>`;
   // 2: почему взята
   o+=T(344,764,'cap','ПОЧЕМУ ВЗЯТА');
-  (w.facts||[]).slice(0,7).forEach((x,j)=>{const y=792+j*22;o+=T(344,y,'xs dim',esc(fit(x.k,26)))+T(566,y,'mono xs '+cc(x.t),esc(fit(x.v,14)),'end')+Ln(344,y+7,566,y+7,'sepl');});
+  (w.facts||[]).slice(0,7).forEach((x,j)=>{const y=792+j*22;o+=T(344,y,'xs dim',esc(fit(x.k,26)))+T(566,y,'mono xs '+cc(x.t),esc(fit(String(x.v).replace(/\{T:(\d+)\}/g,(m,t)=>tm(+t)),14)),'end')+Ln(344,y+7,566,y+7,'sepl');});
   o+=T(344,952,'xs3 dim2',esc(fit(w.rl,44)));
   // 3: что сейчас
   o+=T(1034,764,'cap','ЧТО СЕЙЧАС')+T(1256,764,'xs dim',w.d24!=null?'за 24 ч '+num(w.d24,1)+'%':'','end');

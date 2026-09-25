@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""ПЛИТЫ СТАКАНА ПО «СКОРО» РАЗ В ТРИ МИНУТЫ (25.09, владелец: «добавить в трёхминутного бота, чтобы он отправлял в
-телеграм сообщения о съеденных или убранных плитах для звёзд в „скоро“, как сейчас делает тридцатиминутный»).
+"""ПЛИТЫ СТАКАНА РАЗ В ТРИ МИНУТЫ (25.09, владелец: «нужны две вещи — сделки из новой стратегии и те монеты, что я
+заношу в файл руками; по ним проверка плит раз в три минуты»).
 
-Зовёт tick_fetch.py после каждой трёхминутки. Монеты — звёзды «скоро» из output/stars.json (g == 0, тот же источник,
-что у «★ СКОРО»). По каждой: снимок стакана фьючерса и спота и судьба стен — функциями depth_fetch (те же пороги
+Зовёт run.py --loop своим потоком раз в три минуты. Монеты — открытые сделки «3 в первых подряд»
+(output/paper_first3.json) и монеты watch.json. По каждой: снимок стакана фьючерса и спота и судьба стен — функциями depth_fetch (те же пороги
 стены, то же «съели / сняли»). Снимки держатся в своей памяти output/depth_tick.json — получасовой стакан, его
 архив и карточка не трогаются.
 
@@ -12,7 +12,7 @@
 Ключи отправленного — в общем output/alerts_sent.json с меткой tick: прогон по той же стене второй раз не шлёт.
 
     python3 depth_tick.py              # что ушло бы сейчас, без записи и без телеграма
-    python3 depth_tick.py --write      # снимок, память, телеграм (так зовёт tick_fetch)
+    python3 depth_tick.py --write      # снимок, память, телеграм (так зовёт run.py)
 """
 from __future__ import annotations
 
@@ -34,7 +34,8 @@ except ImportError:
 
 import depth_fetch as df
 
-STARS = BASE_DIR / "output" / "stars.json"
+FIRST3 = BASE_DIR / "output" / "paper_first3.json"
+WATCH = BASE_DIR / "watch.json"
 MEM = BASE_DIR / "output" / "depth_tick.json"
 SENT = BASE_DIR / "output" / "alerts_sent.json"
 SNAP_MIN = 3
@@ -49,9 +50,14 @@ def _read(p: Path, default):
         return default
 
 
-def soon() -> list[str]:
-    st = (_read(STARS, {}) or {}).get("stars") or []
-    return [str(x["sym"]) for x in st if x.get("g") == 0 and x.get("sym")]
+def coins() -> list[str]:
+    """сделки нового бота, потом монеты владельца; повторы схлопываются"""
+    out = list(((_read(FIRST3, {}) or {}).get("open") or {}).keys())
+    for c in (_read(WATCH, {}) or {}).get("coins") or []:
+        s = str((c or {}).get("sym") or "").upper()
+        if s:
+            out.append(s if s.endswith("USDT") else s + "USDT")
+    return list(dict.fromkeys(s.upper() for s in out))
 
 
 def take(sym: str, ts: int) -> dict | None:
@@ -71,7 +77,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--write", action="store_true")
     a = ap.parse_args()
-    syms = soon()
+    syms = coins()
     mem = _read(MEM, {}) or {}
     sent = _read(SENT, {}) or {}
     ts = int(time.time() // 60 * 60 * 1000)
@@ -82,7 +88,7 @@ def main() -> int:
             print(f"depth_tick: {sym} — стакан не получен")
             continue
         hist = mem.get(sym) or []
-        # дыра в памяти (монета выпадала из «скоро», сборщик стоял) — судьбу по старому снимку не судим
+        # дыра в памяти (монета выпадала из списка, прогон стоял) — судьбу по старому снимку не судим
         if hist and ts - int(hist[-1]["t"]) > 2 * SNAP_MIN * 60_000:
             hist = []
         ft = df.fate(sym, snap, hist)
@@ -102,7 +108,7 @@ def main() -> int:
     mem = {s: h for s, h in mem.items() if h and ts - int(h[-1]["t"]) <= KEEP * SNAP_MIN * 60_000}
     for ln in lines:
         print(f"depth_tick: {ln}")
-    print(f"depth_tick: «скоро» {len(syms)} · тревог {len(lines)}")
+    print(f"depth_tick: монет {len(syms)} · тревог {len(lines)}")
     if not a.write:
         return 0
     from sources_storage import write_atomic

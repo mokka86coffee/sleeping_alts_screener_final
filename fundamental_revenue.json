@@ -700,16 +700,6 @@
   "desc_src": "модель, не сверено",
   "in_book": true
  },
- "STGUSDT": {
-  "ticker": "STG",
-  "revenue30d": 149741.07,
-  "revenue7d": 38396.36,
-  "volume24h": 2357996.21,
-  "rev_to_vol30d": 0.00211678,
-  "status": "measured",
-  "protocols": "Stargate V2, Stargate V1",
-  "ambiguous": true
- },
  "STORJUSDT": {
   "ticker": "STORJ",
   "revenue30d": null,
