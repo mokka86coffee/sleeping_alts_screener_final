@@ -716,7 +716,10 @@ def _fast_alerts() -> None:
             if (g.get("runs") or 0) < 2 or abs(g.get("dist_pct") or 0) > 30:
                 continue
             k = f"wall|{sym}|{g.get('side')}|{g.get('px')}|{g.get('at')}"
-            if k not in sent:
+            # 25.09: по «скоро» стены раньше ловит трёхминутный depth_tick — его ключ с «|tick»; второй раз не шлём
+            _pre = f"wall|{sym}|{g.get('side')}|{g.get('px')}|"
+            _tick = any(x.startswith(_pre) and x.endswith("|tick") and v >= time.time() - 3 * 3600 for x, v in sent.items())
+            if k not in sent and not _tick:
                 _ask = g.get("side") == "ask"
                 _what = (f"съели — прошли {'вверх' if _ask else 'вниз'}" if g.get("fate") == "съели"
                          else f"убрали — цена не доходила, {'путь вверх свободен' if _ask else 'опора ушла'}")

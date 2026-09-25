@@ -243,6 +243,19 @@ def cycle(syms: list[str], write: bool, backfill: bool, since_ms: int | None = N
         tmp.replace(STATE)
 
 
+def depth_tick() -> None:
+    """плиты стакана по звёздам «скоро» и тревога в телеграм (depth_tick.py); сбой сборщик не роняет"""
+    try:
+        r = subprocess.run([sys.executable, "depth_tick.py", "--write"], cwd=BASE_DIR,
+                           capture_output=True, text=True, timeout=120)
+        for line in (r.stdout or "").splitlines():
+            log(line)
+        if r.returncode:
+            log(f"tick: depth_tick код {r.returncode}: {(r.stderr or '').strip()[-300:]}")
+    except Exception as e:  # noqa: BLE001
+        log(f"tick: depth_tick сбой {type(e).__name__}: {e}")
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only")
@@ -273,6 +286,7 @@ def main() -> int:
             cycle(syms, write, False)
             if write and not a.only:
                 sight_tick()
+                depth_tick()
         except Exception as e:  # noqa: BLE001
             log(f"tick: сбой цикла {type(e).__name__}: {e}")
             time.sleep(10)
