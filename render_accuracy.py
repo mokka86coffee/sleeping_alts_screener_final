@@ -183,6 +183,26 @@ def _part1() -> dict:
                     if d[sym]["path"] and d[sym]["path"][-1][1] is not None:
                         d[sym]["path"].append([t[11:16], None, t[11:16], 1, [], None])
                     d[sym]["gone"] = t[11:16]
+    # СЕРИЯ ПЕРВОЙ ДЕРЖИТСЯ НА ВТОРОМ МЕСТЕ (26.09, владелец): после ступени «1» из трёх прогонов и больше ступени на местах до
+    # FIRST_HOLD_PLACE пишутся как продолжение первой — одна ступень «1(N)»; рвёт место ниже или выпадение. Сырые места в журнале очереди.
+    try:
+        from core_config import FIRST_HOLD_PLACE
+    except ImportError:
+        FIRST_HOLD_PLACE = 2
+    for coins in days.values():
+        for e in coins.values():
+            merged = []
+            for st_ in e["path"]:
+                last = merged[-1] if merged else None
+                if (last is not None and last[1] == 1 and last[3] >= 3 and st_[1] is not None
+                        and (st_[1] <= FIRST_HOLD_PLACE)):
+                    last[2] = st_[2]
+                    last[3] = last[3] + (st_[3] if len(st_) > 3 else 1)
+                    if len(last) > 4 and len(st_) > 4:
+                        last[4] = list(last[4]) + list(st_[4])
+                    continue
+                merged.append(list(st_))
+            e["path"] = merged
     out: dict = {}
     for day, coins in days.items():
         rows = []

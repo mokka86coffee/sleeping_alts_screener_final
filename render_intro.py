@@ -633,14 +633,34 @@ def collect_items() -> list[dict]:
         # «первая 13 подряд» при четырёх прогонах на первом месте.
         _order = sorted(_runs, reverse=True)
 
+        try:
+            from core_config import FIRST_HOLD_PLACE
+        except ImportError:
+            FIRST_HOLD_PLACE = 2
+
         def _run_streak(_s: str, _top: bool) -> int:
-            _n = 0
-            for _a in _order:
+            if _top:
+                _n = 0
+                for _a in _order:
+                    if _runs[_a].get(_s) is not None:
+                        _n += 1
+                    else:
+                        break
+                return _n
+            # первая подряд: после трёх первых подряд прогоны на местах до FIRST_HOLD_PLACE тоже первые (26.09, владелец);
+            # серия рвётся на месте ниже или при выпадении. Засчитанные так прогоны отмечаются рисками «была первой».
+            _n, _held = 0, False
+            for _a in reversed(_order):
                 _pl = _runs[_a].get(_s)
-                if _pl is not None and (_top or _pl == 1):
+                if _pl == 1 or (_held and _pl is not None and _pl <= FIRST_HOLD_PLACE):
                     _n += 1
+                    if _pl != 1 and _s in _QH:
+                        _kk = min(47, int((datetime.fromisoformat(_a.replace("Z", "+00:00")) - _since).total_seconds() // 1800))
+                        _QH[_s][_kk] = 1
+                    if _n >= 3:
+                        _held = True
                 else:
-                    break
+                    _n, _held = 0, False
             return _n
         for _s in {x for _run in _runs.values() for x in _run}:
             if _s in _QH:

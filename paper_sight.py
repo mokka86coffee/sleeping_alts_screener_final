@@ -69,6 +69,10 @@ try:
     from core_config import SIGHT_TICK_TARGET, SIGHT_REPEAT, SIGHT_TICK_FRESH_S
 except ImportError:
     SIGHT_TICK_TARGET, SIGHT_REPEAT, SIGHT_TICK_FRESH_S = 0.05, True, 600
+try:
+    from core_config import SIGHT_BOARD_GATE
+except ImportError:
+    SIGHT_BOARD_GATE = None
 
 import lab_junctions as lj
 from core_lock import locked
@@ -496,6 +500,16 @@ def _main(a) -> int:
                 events.append({"kind": "skip", "book": BOOK_LABEL, "sym": sym, "side": s, "t": t, "px": float(rows[-1]["px"]),
                                "at": now, "why_skip": _sw, "score": sum(v.values()), "votes": v})
                 print(f"paper_sight: {sym} · пропуск — {_sw}")
+                s = 0
+        # СТОРОНА ПО ФОНУ ДОСКИ (26.09): против доски не входим — лонг только при медиане доски за сутки выше SIGHT_BOARD_GATE,
+        # шорт — только при медиане не выше; сторону по-прежнему решают голоса
+        if s and SIGHT_BOARD_GATE is not None and bg.get("median") is not None and t > int(state["last_sig"].get(sym) or 0):
+            _med = float(bg["median"])
+            if (s > 0 and _med <= SIGHT_BOARD_GATE) or (s < 0 and _med > SIGHT_BOARD_GATE):
+                state["last_sig"][sym] = t
+                _why = f"доска {_med:+.2f}% за сутки — {'лонг только выше' if s > 0 else 'шорт только не выше'} {SIGHT_BOARD_GATE:+.1f}%"
+                events.append({"kind": "skip", "book": BOOK_LABEL, "sym": sym, "side": s, "t": t, "px": float(rows[-1]["px"]),
+                               "at": now, "why_skip": _why, "score": sum(v.values()), "votes": v})
                 s = 0
         if s and t > int(state["last_sig"].get(sym) or 0):
             cands.append((sym, s, v, t, float(rows[-1]["px"])))
