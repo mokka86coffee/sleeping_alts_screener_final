@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Карточка · строка с вероятностью (прототип 26.09)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#08080b;--card:#0e0e12;--panel:#16161c;--line:#22222a;--t1:#f2f2f5;--t2:#e8eaee;--t3:#c8ccd4;--m1:#9aa0a8;--m2:#6a6e77;--m4:#4a4a56;
+--am:#F5A623;--am-l:#FFD98A;--gd:#E0C060;--gr:#4FCF8A;--gr-l:#A8F0C8;--vi:#A47AE0;--bl:#3E9BE0;--bl-l:#BFE4FF;--up:#7fbf8f;--dn:#e39a9a;
+--glass:linear-gradient(140deg,rgba(143,180,200,.07),rgba(74,96,112,.03) 40%,rgba(127,168,192,.05) 75%,rgba(58,74,88,.02));
+--rim:linear-gradient(135deg,rgba(200,220,232,.38),rgba(122,140,154,.1) 35%,rgba(200,220,232,.22) 65%,rgba(90,106,120,.08));
+--mono:'SF Mono',SFMono-Regular,Consolas,'Liberation Mono',monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--t2);font-family:Inter,'Helvetica Neue',-apple-system,Arial,sans-serif;font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased;
+background-image:radial-gradient(ellipse 60% 40% at 20% 0%,rgba(62,155,224,.08),transparent 60%),radial-gradient(ellipse 50% 40% at 85% 100%,rgba(164,122,224,.07),transparent 60%)}
+.wrap{max-width:980px;margin:0 auto;padding:28px 16px 60px}
+h1{font-weight:300;font-size:18px;letter-spacing:.04em;color:var(--t1);margin:0 0 6px}
+.sub{color:var(--m1);font-size:12px;margin-bottom:22px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:18px}
+.card{position:relative;border-radius:14px;padding:18px 18px 16px;background:var(--card);background-image:var(--glass);box-shadow:0 0 0 1px rgba(200,220,232,.08) inset,0 10px 40px rgba(0,0,0,.45)}
+.card::before{content:"";position:absolute;inset:0;border-radius:14px;padding:1px;background:var(--rim);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+.head{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}
+.sym{font-size:20px;font-weight:500;letter-spacing:.06em;color:var(--t1)}
+.px{font-family:var(--mono);color:var(--t3)}
+.chg{font-family:var(--mono);font-size:12px}.chg.up{color:var(--up)}.chg.dn{color:var(--dn)}
+.star{color:var(--gd);font-size:12px;letter-spacing:.2em;margin-left:auto;text-shadow:0 0 8px rgba(224,192,96,.6)}
+.old{border:1px dashed var(--m4);border-radius:10px;padding:10px 12px;margin:8px 0 12px;opacity:.8}
+.old .lbl{font-size:9px;letter-spacing:.16em;color:var(--m2);text-transform:uppercase}
+.plate{display:inline-block;margin-top:4px;padding:5px 12px;border-radius:999px;background:var(--panel);color:var(--am-l);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
+.plate.hold{color:var(--gd)}.plate.exit{color:var(--dn)}
+.why{color:var(--m1);font-size:11px;margin-top:4px}
+.prob{border-radius:10px;padding:12px 12px 10px;background:linear-gradient(140deg,rgba(62,155,224,.07),rgba(164,122,224,.05));box-shadow:0 0 0 1px rgba(191,228,255,.12) inset}
+.prob .lbl{font-size:9px;letter-spacing:.16em;color:var(--bl-l);text-transform:uppercase;opacity:.85}
+.hz{font-size:12px;color:var(--t3);margin-top:3px}
+.bar{position:relative;height:10px;border-radius:5px;margin:8px 0 4px;background:#1c1c22;overflow:hidden}
+.bar i{position:absolute;top:0;bottom:0}
+.bar .u{left:0;background:linear-gradient(90deg,var(--gr),var(--gr-l));box-shadow:0 0 10px rgba(79,207,138,.5)}
+.bar .d{right:0;background:linear-gradient(270deg,var(--dn),#f0b8b8);box-shadow:0 0 10px rgba(227,154,154,.45)}
+.nums{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px}
+.nums .u{color:var(--gr-l)}.nums .d{color:var(--dn)}.nums .n{color:var(--m2)}
+.bg{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:11.5px;color:var(--t3)}
+.bg b{font-weight:500;color:var(--am-l)}
+.bg .r{display:inline-block;font-family:var(--mono);font-size:10px;color:var(--vi);background:rgba(164,122,224,.1);padding:0 5px;border-radius:4px;margin-left:4px}
+.bg .k{color:var(--m1)}
+.foot{margin-top:10px;font-size:10.5px;color:var(--m2)}
+.note{margin-top:26px;padding:14px 16px;border-radius:12px;background:var(--panel);color:var(--m1);font-size:12px}
+.note h3{margin:0 0 6px;font-weight:400;font-size:12px;color:var(--t3);letter-spacing:.06em}
+.note li{margin:3px 0}
+</style></head><body><div class="wrap">
+<h1>Строка с вероятностью вместо вердикта</h1>
+<div class="sub">Прототип к хвосту 1 (CONTEXT.md). Числа настоящие: R16 (state_probs.md, 16–25.09), R27 (leader_break.md). Пунктиром — как сейчас, стеклом — как предлагается.</div>
+<div class="grid">
+
+<div class="card">
+  <div class="head"><span class="sym">ARK</span><span class="px">0.2523</span><span class="chg up">+60% за 48 ч</span><span class="star">★ ★ ★</span></div>
+  <div class="old"><div class="lbl">сейчас на карточке</div><span class="plate hold">держать</span><div class="why">первая 11 подряд · набирают сегодня · спрос</div></div>
+  <div class="prob">
+    <div class="lbl">до конца следующей сессии · Лондон 10:00–16:00</div>
+    <div class="hz">место 1 · лидер тянет · доска ±1%</div>
+    <div class="bar"><i class="u" style="width:38%"></i><i class="d" style="width:15%"></i></div>
+    <div class="nums"><span class="u">+5% первым · 38%</span><span class="n">ни то ни другое · 47%</span><span class="d">−5% первым · 15%</span></div>
+    <div class="bg"><b>Фон:</b> лидер PHA сломался 02:00, доска до слома ехала (+2.2%) <span class="r">R27</span><br>
+      <span class="k">после таких сломов доска перестаёт расти 4/4, монета №2 стоит ±4% в первые сутки 3/4, +10% за 48 ч — 2/4; спайк в первые 6 ч — чаще раздача</span><br>
+      <span class="k">своя монета, не прицеп: топы добирают лонг, фандинг 0.005%, интерес 20→38M</span> <span class="r">R25 R18</span></div>
+    <div class="foot">n = 813 (состояние) · 4 (фон) · записи прогонов пересекаются, n завышен</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="head"><span class="sym">PHA</span><span class="px">0.0807</span><span class="chg dn">−20% от вершины 0.1012</span><span class="star">★ ★</span></div>
+  <div class="old"><div class="lbl">сейчас на карточке</div><span class="plate exit">выходить</span><div class="why">конец · парабола · интерес падает</div></div>
+  <div class="prob">
+    <div class="lbl">до конца следующей сессии · Лондон 10:00–16:00</div>
+    <div class="hz">парабола · выходят · коррекция</div>
+    <div class="bar"><i class="u" style="width:30%"></i><i class="d" style="width:44%"></i></div>
+    <div class="nums"><span class="u">+5% первым · 30%</span><span class="n">ни то ни другое · 27%</span><span class="d">−5% первым · 44%</span></div>
+    <div class="bg"><b>Фон:</b> вершина 01:00 на выносе шортов 1.09M$, рекорд объёма ×114 через час после, старая полка 0.095–0.116 <span class="r">R21 R29 R22</span><br>
+      <span class="k">вертикаль на рекордном объёме при ходе ≥+200%: через 6 ч ниже 14/19; вершина в старой полке — 5 из 5 остановились</span><br>
+      <span class="k">после первого хода 21.09 фандинг вернулся к нулю — второй ход был; сейчас 0.005%, интерес 15M</span> <span class="r">R18</span></div>
+    <div class="foot">n = 280 (парабола) · 19 (фон)</div>
+  </div>
+</div>
+
+</div>
+<div class="note"><h3>Как читать и что меняется</h3>
+<ul>
+<li>Три числа — доли исходов по нашей истории для того же состояния очереди: «+5% первым», «−5% первым», «ни то ни другое» (R16). Горизонт — конец следующей сессии, не «краткосрок».</li>
+<li>Строка «Фон» — правила из реестра, которые сейчас действуют на монету, со своим счётом (4/4, 3/4, 14/19). Это ответ на «почему», без слов «брать/держать».</li>
+<li>Старая плашка остаётся как ярлык группы зала, но не как обещание: вероятность рядом читается первой.</li>
+<li>Мерка «+5% / −5%» — из state_probs.py, не выведенная; n показываем всегда, чтобы 4/4 не читалось как 100%.</li>
+</ul></div>
+</div></body></html>

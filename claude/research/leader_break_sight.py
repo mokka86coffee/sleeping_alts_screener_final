@@ -64,3 +64,13 @@ inwin = lambda x: any(t0 + 6 * 3600 <= x[0] < t0 + 24 * 3600 for n, t0 in breaks
 split("часы 6–24 после сломов (AKE19/PTB/MUBARAK)", inwin)
 split("остальные лонги при доске24 >+1%", lambda x: x[0] not in used and (b := board(x[0])) is not None and b > 1)
 split("сутки после встрясок (ONE18/ONE19/SYN17)", lambda x: any(t0 <= x[0] < t0 + 24 * 3600 for t0 in shakes.values()))
+
+# --- сессии: часы 6–24 после сломов на ехавшей доске — по сессии входа (Сидней 21–07, Токио 00–07 → здесь: Сидней 21–00, Токио 00–07, Лондон 07–13, НЙ 13–21 UTC)
+def sess(t):
+    h = datetime.fromtimestamp(t, timezone.utc).hour
+    return "Сидней" if h >= 21 else "Токио" if h < 7 else "Лондон" if h < 13 else "НЙ"
+print("\nПо сессии входа (UTC: Токио 00–07, Лондон 07–13, НЙ 13–21, Сидней 21–00):")
+for name, sel in (("часы 6–24 после сломов", inwin), ("остальные лонги при доске24 >+1%", lambda x: x[0] not in used and (b := board(x[0])) is not None and b > 1)):
+    for sn in ("Токио", "Лондон", "НЙ", "Сидней"):
+        v = [x[1] for x in rows if sel(x) and sess(x[0]) == sn]
+        print(f"  {name:<36} {sn:<7} {f(v)}")
