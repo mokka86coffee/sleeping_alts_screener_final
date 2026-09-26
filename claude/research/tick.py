@@ -28,6 +28,25 @@ ev.sort(key=lambda x: x[0])
 tk = g("https://fapi.binance.com/fapi/v1/ticker/24hr")
 movers = [(x["symbol"], float(x["priceChangePercent"]), float(x["quoteVolume"])) for x in tk if x["symbol"].endswith("USDT") and float(x["priceChangePercent"]) >= 40 and float(x["quoteVolume"]) >= 2e6]
 movers.sort(key=lambda x: -x[1])
+# ── 2б. ПРОБУЖДЕНИЯ ВНЕ ВЫБОРКИ (26.09, владелец прислал Q +71% за 12 ч, MARSCOIN +22% за 6 ч, US +32% за 3 ч — все вне выборки:
+# Q и US спали с оборотом 0.1–0.8M$/ч и в выборку ≥5M$/сутки попадают только когда уже ушли; MARSCOIN — листинг 25 дн < 180).
+# Сравниваем тикер с прошлым тиком: прирост оборота за интервал против нормы (оборот/48 на получасовку) и ход цены за интервал.
+wake = []
+prev_tk = state.get("tk") or {}
+now_tk = {x["symbol"]: (float(x["quoteVolume"]), float(x["lastPrice"])) for x in tk if x["symbol"].endswith("USDT")}
+dt_h = max(0.25, (now - float(state.get("last") or now)) / 3600) if prev_tk else None
+if dt_h:
+    for s_, (qv, px) in now_tk.items():
+        q0, p0 = prev_tk.get(s_, (None, None))
+        if not q0 or not p0:
+            continue
+        base = q0 / 24 * dt_h                      # норма оборота за интервал по прошлым суткам
+        d = qv - q0                                # прирост оборота за интервал (окно 24 ч сдвинулось, для тихой монеты ≈ оборот интервала)
+        chg = (px / p0 - 1) * 100
+        if base > 0 and d >= 5 * base and d >= 300_000 and chg >= 3:
+            wake.append((s_, chg, d, q0, qv))
+wake.sort(key=lambda x: -x[1])
+state["tk"] = {k: v for k, v in now_tk.items()}
 # ── 3. кого видели: место в очереди за 48 ч до сейчас, звёзды, входы книг ──
 seen_q = {}
 since = (datetime.now(timezone.utc) - timedelta(hours=48)).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -77,6 +96,10 @@ for s, pct, qv in movers:
     else: seen.append(line)
 print("БЕГУНЫ ≥ +40% за сутки:", len(movers))
 for l in seen: print("  видели:", l)
+print(f"ПРОБУЖДЕНИЯ за интервал (оборот ×5 к норме и цена ≥ +3%): {len(wake)}")
+for s_, chg, d, q0, qv in wake[:12]:
+    ours = (ROOT / "cq_v2" / "intraday" / f"{s_[:-4].lower()}.jsonl").exists()
+    print(f"  {s_[:-4]:10} {chg:+5.1f}% за интервал · оборот +{d / 1e6:.1f}M$ (сутки было {q0 / 1e6:.1f}M$) · {'наша' if ours else 'вне выборки'}")
 print("НЕ УВИДЕЛИ:" if missed else "НЕ УВИДЕЛИ: нет")
 for s, l in missed:
     flag = "" if state["reported"].get(s, 0) < now - 24 * 3600 else " (уже разбирали)"
