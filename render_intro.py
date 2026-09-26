@@ -704,6 +704,39 @@ def collect_items() -> list[dict]:
                 _it["sub"] = " ‖ ".join(_G)
             else:
                 _it["sub"] = " · ".join(_tags) + (" · " + _sub if _sub else "")
+    # ИНТЕРЕС РВАНУЛ (26.09, владелец «делай»; R34, claude/research/intraday_catch.py + oi_base_rate.py): четвёртый повод в «скоро», независимый
+    # от очереди и пяти признаков near_move — интерес за 3 ч вырос на STAR_OI_JUMP_3H и больше (такое бывает в 12% монето-суток, а у 42 лидеров
+    # из 43 было за сутки до первого +40%). Подпись несёт вероятности по своей истории: спит — +10% за 48 ч у 52%, +40% у 15%; уже в ходу
+    # (≥+40% за 48 ч) — 73% / 44%. Это повод смотреть, не вход: 61% сигналов не дают и +10% у спящих.
+    try:
+        from core_config import STAR_OI_JUMP_3H
+    except ImportError:
+        STAR_OI_JUMP_3H = 15.0
+    for _s, _v in coins.items():
+        _t = (_v or {}).get("today") or {}
+        _j = _t.get("oi_jump_3h_pct")
+        if _j is None or float(_j) < STAR_OI_JUMP_3H:
+            continue
+        _run48 = float(((_v or {}).get("nums") or {}).get("run_from_low7") or 0)
+        _inmove = _run48 >= 40
+        _tag = f"интерес {float(_j):+.0f}% за 3 ч"
+        _prob = ("в ходу: +10% за 48 ч у 73%, +40% у 44%" if _inmove else "спит: +10% за 48 ч у 52%, +40% у 15%") + " (R34)"
+        _QT.setdefault(_s, []).append(_tag)
+        _it = next((x for x in items if x["sym"] == _s), None)
+        if _it is None:
+            add(_s, 0, " · ".join([_tag, _prob] + list(_v.get("why") or [])), "", 0.0)
+            _it = items[-1]
+            _it["sub"] = " ‖ ".join([_tag + " · " + _prob, "очередь: " + _qtag(_s, _qpos.get(_s)).replace("очередь ", ""),
+                                     "стык: —", "сбор: " + (hist_line(_v) or "—"), "режим: —"])
+        else:
+            _it["g"] = 0
+            _sub = str(_it.get("sub") or "")
+            if "‖" in _sub:
+                _G = _sub.split(" ‖ ")
+                _G[0] = _tag + " · " + _prob + " · " + _G[0]
+                _it["sub"] = " ‖ ".join(_G)
+            else:
+                _it["sub"] = _tag + " · " + _prob + (" · " + _sub if _sub else "")
     for it in items:
         _pk = _pick.get(it["sym"]) or {}
         _q = _qpos.get(it["sym"])
@@ -818,7 +851,7 @@ def render_intro(items: list[dict] | None = None) -> str:
     counts = [sum(1 for it in items if it["g"] == k) for k in (0, 1, 2, 4)]
     # ПОДПИСИ ГРУПП — ПО ПРОФИЛЮ (18.09): звёзды с 17.09 только по профилю лидера, «первые» и «в очереди» больше
     # не про очередь: группа 0 — профиль полный (шесть-семь отметок или все известные), группа 1 — на границе (пять)
-    labels = [{"n": f"скоро {counts[0]}", "sym": "", "g": 0, "why": "в первой тройке очереди И стык подхвачен (оборот на открытии сессии от пяти норм с приходом плеча) — ещё не прошли 60%", "label": True},
+    labels = [{"n": f"скоро {counts[0]}", "sym": "", "g": 0, "why": "в первой тройке очереди И стык подхвачен (оборот на открытии сессии от пяти норм с приходом плеча) — ещё не прошли 60%; или интерес рванул на +15% за 3 ч (R34)", "label": True},
               {"n": f"могут {counts[1]}", "sym": "", "g": 1, "why": "одно из двух: в тройке очереди без стыка, стык без очереди — или копится после сбора", "label": True},
               {"n": f"пошли {counts[2]}", "sym": "", "g": 2, "why": "прошли от основания 60% и больше, от вершины отдали меньше 60% — вход только по лестнице", "label": True}]
     if counts[3]:

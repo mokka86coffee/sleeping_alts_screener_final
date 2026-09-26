@@ -243,14 +243,22 @@ def _today_bars(sym_usdt: str) -> dict | None:
     if not p.exists():
         return None
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    rows = []
+    rows, all_rows = [], []
     for line in p.read_text(encoding="utf-8").splitlines()[-80:]:
         try:
             r = json.loads(line)
         except ValueError:
             continue
+        all_rows.append(r)
         if str(r.get("candle", ""))[:10] == today:
             rows.append(r)
+    # ХОД ЗА 24 Ч (26.09): 48 получасовок назад (или самая ранняя из последних 49) — для честной медианы доски в журнале;
+    # прежнее px_chg_pct — ход С НАЧАЛА ДНЯ UTC, на свече 00:00 пустой
+    _pxs = [r.get("px") for r in all_rows[-49:] if r.get("px")]
+    px_chg_24h = (_pxs[-1] / _pxs[0] - 1) if len(_pxs) >= 25 else None
+    # ИНТЕРЕС ЗА 3 Ч (26.09, R34): интерес последнего бара к интересу 6 баров назад — повод в «скоро» (STAR_OI_JUMP_3H)
+    _ois = [r.get("oi") for r in all_rows[-7:] if r.get("oi")]
+    oi_jump_3h = (_ois[-1] / _ois[0] - 1) if len(_ois) >= 5 and _ois[0] else None
     if len(rows) < 4:
         return None
     # ПУСТЫЕ БАРЫ ВОН (07.09): Coinglass иногда отдаёт интерес без сделок — в архиве fut: null и
@@ -642,6 +650,8 @@ def _today_bars(sym_usdt: str) -> dict | None:
             "force_turn_at": (force_at or "")[11:16] or None, "force_turn_ago": force_ago,
             "oi_chg_pct": round(oi_chg * 100, 1) if oi_chg is not None else None,
             "px_chg_pct": round(px_chg * 100, 1) if px_chg is not None else None, "dominant": dom,
+            "px_chg_24h_pct": round(px_chg_24h * 100, 1) if px_chg_24h is not None else None,
+            "oi_jump_3h_pct": round(oi_jump_3h * 100, 1) if oi_jump_3h is not None else None,
             "px": px1, "leaving_kind": kind, "day_low": held, "hit_bar": hit, "bubble_buy": bubble_buy,
             "ended_at": ended_at, "closing_bars": closing,
             "move_paid": move_paid, "paid_ratio": round(paid, 3) if paid is not None else None,
@@ -1452,13 +1462,16 @@ def log_queue(res: dict) -> int:
             _btcpx, _btc12, _btc24 = _c[-1], round((_c[-1] / _c[-13] - 1) * 100, 2), round((_c[-1] / _c[-25] - 1) * 100, 2)
     except Exception:  # noqa: BLE001
         pass
-    _chg = [float((vv.get("today") or {}).get("px_chg_pct")) for vv in (res.get("coins") or {}).values() if (vv.get("today") or {}).get("px_chg_pct") is not None]
-    _chg.sort()
+    # ДОСКА ЗА 24 Ч — ЧЕСТНАЯ (26.09): медиана хода за 48 получасовок (px_chg_24h_pct); прежняя «с 00:00 UTC» — board_med_day
+    _chg = [float((vv.get("today") or {}).get("px_chg_24h_pct")) for vv in (res.get("coins") or {}).values() if (vv.get("today") or {}).get("px_chg_24h_pct") is not None]
+    _chg_day = [float((vv.get("today") or {}).get("px_chg_pct")) for vv in (res.get("coins") or {}).values() if (vv.get("today") or {}).get("px_chg_pct") is not None]
+    _chg.sort(); _chg_day.sort()
     _board_med = round(_chg[len(_chg) // 2], 2) if _chg else None
     _board_up = round(100 * sum(1 for x in _chg if x > 0) / len(_chg)) if _chg else None
+    _board_day = round(_chg_day[len(_chg_day) // 2], 2) if _chg_day else None
     rows.append({"at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "candle": candle.strftime("%Y-%m-%dT%H:%M:00Z"), "sym": "_BG",
                  "btc_px": _btcpx, "btc_12h": _btc12, "btc_24h": _btc24, "board_med_24h": _board_med, "board_up_pct": _board_up,
-                 "board_n": len(_chg), "queue_n": len(res.get("queue") or []), "first": list(res.get("first") or [])})
+                 "board_med_day": _board_day, "board_n": len(_chg), "queue_n": len(res.get("queue") or []), "first": list(res.get("first") or [])})
     # 3. ВСЯ СВОДКА, НЕ ТОЛЬКО ОЧЕРЕДЬ: место — у монет очереди, у остальных place = None и in_queue = False, чтобы
     #    форвард считался и по тем, кто из очереди вылетел.
     _queue = list(res.get("queue") or [])
@@ -1484,7 +1497,7 @@ def log_queue(res: dict) -> int:
             "at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "candle": candle.strftime("%Y-%m-%dT%H:%M:00Z"),
             "sym": sym, "place": i, "in_queue": sym in _queue, "px_src": _px_src,
             "leaving_kind": t.get("leaving_kind"), "leaving_at": t.get("leaving_at"),   # «конец» и «отдают» в журнал (16.09)
-            "btc_24h": _btc24, "board_med_24h": _board_med, "obs": _obs,
+            "btc_24h": _btc24, "board_med_24h": _board_med, "board_med_day": _board_day, "obs": _obs,
             "score": q.get("score"), "first_streak": q.get("first_streak"), "oi_inflow": q.get("oi_inflow"),
             "cap_usd": t.get("cap_usd"), "vol_to_cap": t.get("vol_to_cap"), "cap_chg_pct": t.get("cap_chg_pct"),
             "money": q.get("money"), "sess_pickup": (t.get("sess_pickup") or {}).get("why"),

@@ -70,9 +70,9 @@ try:
 except ImportError:
     SIGHT_TICK_TARGET, SIGHT_REPEAT, SIGHT_TICK_FRESH_S = 0.05, True, 600
 try:
-    from core_config import SIGHT_BOARD_GATE
+    from core_config import SIGHT_BOARD_GATE, SIGHT_BOARD6_GATE
 except ImportError:
-    SIGHT_BOARD_GATE = None
+    SIGHT_BOARD_GATE, SIGHT_BOARD6_GATE = None, None
 
 import lab_junctions as lj
 from core_lock import locked
@@ -457,6 +457,13 @@ def _main(a) -> int:
     syms = ([x.strip().upper() + ("" if x.strip().upper().endswith("USDT") else "USDT") for x in a.only.split(",")] if a.only
             else sorted(p.stem.upper() + "USDT" for p in ARCH.glob("*.jsonl")))
     bg = background()
+    # МЕДИАНА ДОСКИ ЗА 6 Ч (26.09, R27): по архиву получасовок тех же монет — 12 баров назад; суточная — из market_bg
+    _ch6 = []
+    for _s in syms:
+        _r = rows_of(_s)
+        if len(_r) >= 13 and _r[-1].get("px") and _r[-13].get("px"):
+            _ch6.append((float(_r[-1]["px"]) / float(_r[-13]["px"]) - 1) * 100)
+    bg["median6"] = (sorted(_ch6)[len(_ch6) // 2] if _ch6 else None)
     events, n_closed = tick_pass(state, now)           # сначала трёхминутки, что успели лечь после прошлого --tick
     cands = []
     for sym in syms:
@@ -508,6 +515,14 @@ def _main(a) -> int:
             if (s > 0 and _med <= SIGHT_BOARD_GATE) or (s < 0 and _med > SIGHT_BOARD_GATE):
                 state["last_sig"][sym] = t
                 _why = f"доска {_med:+.2f}% за сутки — {'лонг только выше' if s > 0 else 'шорт только не выше'} {SIGHT_BOARD_GATE:+.1f}%"
+                events.append({"kind": "skip", "book": BOOK_LABEL, "sym": sym, "side": s, "t": t, "px": float(rows[-1]["px"]),
+                               "at": now, "why_skip": _why, "score": sum(v.values()), "votes": v})
+                s = 0
+        # ВТОРЫЕ ВОРОТА — ДОСКА ЗА 6 Ч (26.09, R27): суточная медиана после слома лидера отстаёт; лонг только при медиане за 6 ч > SIGHT_BOARD6_GATE
+        if s > 0 and SIGHT_BOARD6_GATE is not None and bg.get("median6") is not None and t > int(state["last_sig"].get(sym) or 0):
+            if float(bg["median6"]) <= SIGHT_BOARD6_GATE:
+                state["last_sig"][sym] = t
+                _why = f"доска {float(bg['median6']):+.2f}% за 6 ч — лонг только выше {SIGHT_BOARD6_GATE:+.1f}% (R27)"
                 events.append({"kind": "skip", "book": BOOK_LABEL, "sym": sym, "side": s, "t": t, "px": float(rows[-1]["px"]),
                                "at": now, "why_skip": _why, "score": sum(v.values()), "votes": v})
                 s = 0
