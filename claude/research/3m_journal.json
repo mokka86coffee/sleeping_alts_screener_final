@@ -58,15 +58,170 @@
         "why": "интерес +6.3% за час с ценой, фандинг +0.005%, покупатели 61%"
       },
       "result": {
+        "success": true,
+        "reason": "срок 30 мин, закрыто по рынку +0.71% (лучшее +0.9%, худшее -1.3%)",
+        "pnl_pct": 0.71,
+        "pnl_usd": 3.5,
+        "max_pct": 0.91,
+        "min_pct": -1.28,
+        "bars": 10,
+        "price_now": 0.0299,
+        "closed_at": "21:45:00"
+      }
+    }
+  },
+  "21:36:31": {
+    "CTRUSDT": {
+      "link": "https://www.coinglass.com/tv/Binance_CTRUSDT",
+      "reason": {
+        "price": "+3.60%",
+        "volume_3m": "x315.7",
+        "volume_usd": 97469,
+        "taker_buy": "61%",
+        "oi_1h": "+0.9%",
+        "oi_6h": "-0.4%",
+        "funding": "+0.0092%",
+        "run_8h": "+4.2%",
+        "spike_age_min": 0,
+        "since_spike": "+0.00%",
+        "spike_time": "21:33",
+        "crowd_long_short": 3.1017,
+        "top_traders_long_short": 1.211
+      },
+      "action": {
+        "position": "watch",
+        "entry_price": null,
+        "goal": null,
+        "stop": null,
+        "size_usd": 0,
+        "hold_min": null,
+        "why": "интерес за час +0.9% < +3% — всплеск без денег (R39: 11% дают +20%)"
+      },
+      "result": {
+        "success": null,
+        "reason": "позиции нет",
+        "pnl_pct": null,
+        "pnl_usd": null
+      }
+    }
+  },
+  "21:39:46": {
+    "ACUUSDT": {
+      "link": "https://www.coinglass.com/tv/Binance_ACUUSDT",
+      "reason": {
+        "price": "+2.49%",
+        "volume_3m": "x89.9",
+        "volume_usd": 114429,
+        "taker_buy": "52%",
+        "oi_1h": "-0.4%",
+        "oi_6h": "-2.5%",
+        "funding": "+0.0234%",
+        "run_8h": "+2.9%",
+        "spike_age_min": 0,
+        "since_spike": "+0.00%",
+        "spike_time": "21:36",
+        "crowd_long_short": 2.4795,
+        "top_traders_long_short": 1.2827
+      },
+      "action": {
+        "position": "watch",
+        "entry_price": null,
+        "goal": null,
+        "stop": null,
+        "size_usd": 0,
+        "hold_min": null,
+        "why": "интерес за час -0.4% < +3% — всплеск без денег (R39: 11% дают +20%) · фандинг +0.023% — толпа уже в лонге"
+      },
+      "result": {
+        "success": null,
+        "reason": "позиции нет",
+        "pnl_pct": null,
+        "pnl_usd": null
+      }
+    }
+  },
+  "21:45:31": {
+    "NOTUSDT": {
+      "link": "https://www.coinglass.com/tv/Binance_NOTUSDT",
+      "reason": {
+        "price": "+1.08%",
+        "volume_3m": "x20.5",
+        "volume_usd": 103223,
+        "taker_buy": "71%",
+        "oi_1h": "+6.2%",
+        "oi_6h": "+8.9%",
+        "funding": "+0.0050%",
+        "run_8h": "+2.6%",
+        "spike_age_min": 0,
+        "since_spike": "+0.00%",
+        "spike_time": "21:42",
+        "crowd_long_short": 2.252,
+        "top_traders_long_short": 2.0821
+      },
+      "action": {
+        "position": "long",
+        "entry_price": 0.0005208,
+        "goal": "+3%",
+        "stop": "-5%",
+        "size_usd": 500.0,
+        "hold_min": 30,
+        "why": "интерес +6.2% за час с ценой, фандинг +0.005%, покупатели 71%, толпа 2.252 / топы 2.0821"
+      },
+      "result": {
         "success": null,
         "reason": "открыта",
-        "pnl_pct": -0.51,
-        "pnl_usd": -2.5,
-        "max_pct": 0.13,
-        "min_pct": -0.74,
+        "pnl_pct": -0.36,
+        "pnl_usd": -1.8,
+        "max_pct": 0.54,
+        "min_pct": -0.42,
         "bars": 1,
-        "price_now": 0.02954
-      }
+        "price_now": 0.0005189
+      },
+      "checks": [
+        {
+          "at": "21:49",
+          "price": 0.0005196,
+          "vs_entry": "-0.23%",
+          "oi_30m": "+3.9%",
+          "crowd": 2.25,
+          "taker_5m": "2.07/0.85/1.89",
+          "tv": {
+            "vol_agg": {
+              "EX 9": "222.84 K",
+              "EX 8": "222.84 K",
+              "EX 7": "222.26 K",
+              "EX 6": "221.16 K"
+            },
+            "funding": {
+              "Funding Rate": "0.0051%"
+            },
+            "vortex": {
+              "VI +": "1.1556",
+              "VI -": "0.8120"
+            },
+            "cvd_div": {
+              "CVD Divergence Area": "−1.7246407",
+              "Bullish Divergence Spike": "0.0000000",
+              "Bearish Divergence Spike": "0.0000000"
+            },
+            "oi": {
+              "Open Interest": "4.66 B"
+            },
+            "adx": {
+              "DI+": "38.5824424",
+              "DI-": "5.4090584",
+              "ADX": "58.3609555"
+            },
+            "tops": {
+              "Top traders long/short ratio positions": "2.09"
+            },
+            "liq": {
+              "Short Liquidations": "−727.80"
+            }
+          },
+          "verdict": "держать: интерес растёт, покупатели по рынку вернулись (1.89), цена у входа; толпа 2.25 в лонге — риск, при интересе вниз выходить"
+        }
+      ]
     }
   }
 }

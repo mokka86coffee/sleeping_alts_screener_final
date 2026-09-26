@@ -12,7 +12,7 @@ BASE = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(BASE))
 from core_http import get_json                                     # noqa: E402
 
-X, P, MINQ, LOOK = 10.0, 1.5, 50_000, 20      # LOOK — сколько последних трёхминуток смотрим (20 = час)
+X, P, MINQ, LOOK = 10.0, 1.0, 50_000, 20      # LOOK — сколько последних трёхминуток смотрим (20 = час)
 
 
 def scan(sym):

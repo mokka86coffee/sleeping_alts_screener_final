@@ -23,6 +23,7 @@ import spike3m                                                     # noqa: E402
 
 J = Path(__file__).with_name("3m_journal.json")
 S = Path(__file__).with_name("3m_state.json")
+C = Path(__file__).with_name("3m_close.json")     # {ключ позиции: причина} — закрыть по признакам до стопа (проверка Coinglass раз в 10 мин)
 L = timezone(timedelta(hours=3))
 SIZE, GOAL, STOP, HOLD_MIN = 500.0, 0.03, 0.05, 30      # 26.09 владелец: стоп −5%, тейк 3–5% (первая цель +3%)
 OI_LONG, FUND_LONG_MAX, TB_LONG, RUN_LONG_MAX = 3.0, 0.02, 50.0, 25.0
@@ -40,15 +41,33 @@ def load(p, d):
         return d
 
 
+CROWD_LONG_MAX, TOP_LONG_MAX, CROWD_SHORT = 1e9, 1e9, 1e9     # 26.09 21:27 владелец: ошибки пока не править, только писать — толпа/топы пишутся в reason, на решение не влияют (первые 30 мин)
+
+
+def crowd(r):
+    s = r["sym"]
+    g = get_json("https://fapi.binance.com/futures/data/globalLongShortAccountRatio", {"symbol": s, "period": "15m", "limit": 1}, quiet_400=True) or []
+    t = get_json("https://fapi.binance.com/futures/data/topLongShortPositionRatio", {"symbol": s, "period": "15m", "limit": 1}, quiet_400=True) or []
+    r["crowd"] = float(g[0]["longShortRatio"]) if g else None
+    r["tops"] = float(t[0]["longShortRatio"]) if t else None
+    return r
+
+
 def decide(r):
     oi1, fund, tb, h8 = r.get("oi1h"), r.get("fund", 0.0), r.get("tb", 0.0), r.get("h8")
+    cr, tp = r.get("crowd"), r.get("tops")
     why = []
-    if h8 is not None and h8 >= RUN_SHORT and ((oi1 is not None and oi1 <= 0) or fund >= FUND_SHORT or tb < TB_SHORT):
-        why.append(f"ход за 8ч +{h8:.0f}% и " + ("интерес уходит" if oi1 is not None and oi1 <= 0 else "толпа в лонге" if fund >= FUND_SHORT else "продавцы на всплеске"))
+    crowd_long = (cr is not None and cr >= CROWD_SHORT) or (tp is not None and tp >= CROWD_SHORT)
+    if h8 is not None and h8 >= RUN_SHORT and ((oi1 is not None and oi1 <= 0) or fund >= FUND_SHORT or tb < TB_SHORT or crowd_long):
+        why.append(f"ход за 8ч +{h8:.0f}% и " + ("интерес уходит" if oi1 is not None and oi1 <= 0 else "толпа в лонге по фандингу" if fund >= FUND_SHORT
+                   else "продавцы на всплеске" if tb < TB_SHORT else f"толпа {cr} / топы {tp} в лонге"))
         return "short", " · ".join(why)
-    if oi1 is not None and oi1 >= OI_LONG and fund <= FUND_LONG_MAX and tb >= TB_LONG and (h8 is None or h8 < RUN_LONG_MAX):
-        why.append(f"интерес +{oi1:.1f}% за час с ценой, фандинг {fund:+.3f}%, покупатели {tb:.0f}%")
+    crowd_ok = (cr is None or cr < CROWD_LONG_MAX) and (tp is None or tp < TOP_LONG_MAX)
+    if oi1 is not None and oi1 >= OI_LONG and fund <= FUND_LONG_MAX and tb >= TB_LONG and (h8 is None or h8 < RUN_LONG_MAX) and crowd_ok:
+        why.append(f"интерес +{oi1:.1f}% за час с ценой, фандинг {fund:+.3f}%, покупатели {tb:.0f}%, толпа {cr} / топы {tp}")
         return "long", " · ".join(why)
+    if not crowd_ok:
+        why.append(f"толпа {cr} / топы {tp} уже в лонге (порог {CROWD_LONG_MAX}/{TOP_LONG_MAX}) — догоняют (R30)")
     if oi1 is None or oi1 < OI_LONG:
         why.append(f"интерес за час {('—' if oi1 is None else f'{oi1:+.1f}%')} < +{OI_LONG:.0f}% — всплеск без денег (R39: 11% дают +20%)")
     if fund > FUND_LONG_MAX:
@@ -67,6 +86,7 @@ def px_path(sym, t_from_ms):
 
 def update_open(state, journal):
     now_ms = int(time.time() * 1000)
+    closes = load(C, {})
     for key, pos in list(state["open"].items()):
         sym, e, side = pos["sym"], float(pos["entry"]), pos["side"]
         k = [b for b in px_path(sym, pos["t_entry_ms"]) if b[0] + 180_000 <= now_ms]      # только закрытые
@@ -84,6 +104,8 @@ def update_open(state, journal):
             res = (True, f"цель +{GOAL * 100:.0f}% за {len(k)} трёхминуток", GOAL * 100)
         elif len(k) >= HOLD_MIN // 3:
             res = (pnl > 0, f"срок {HOLD_MIN} мин, закрыто по рынку {pnl:+.2f}% (лучшее {best:+.1f}%, худшее {worst:+.1f}%)", pnl)
+        elif key in closes:
+            res = (pnl > 0, f"выход по признакам: {closes[key]} — {pnl:+.2f}% (лучшее {best:+.1f}%, худшее {worst:+.1f}%)", pnl)
         rec = journal[pos["scan"]][sym]
         rec["result"].update(pnl_pct=round(pnl, 2), pnl_usd=round(SIZE * pnl / 100, 1), max_pct=round(best, 2), min_pct=round(worst, 2), bars=len(k),
                              price_now=c)
@@ -108,6 +130,7 @@ def one_pass(state, journal):
         sym = r["sym"]
         if sym in state["open_syms"] or any(sym in journal[k] for k in list(journal)[-10:]):
             continue
+        crowd(r)
         side, why = decide(r)
         px_now = float((get_json("https://fapi.binance.com/fapi/v1/ticker/price", {"symbol": sym}, quiet_400=True) or {}).get("price") or 0)
         rec = {
@@ -116,7 +139,8 @@ def one_pass(state, journal):
                        "oi_1h": None if r.get("oi1h") is None else f"{r['oi1h']:+.1f}%", "oi_6h": None if r.get("oi6h") is None else f"{r['oi6h']:+.1f}%",
                        "funding": f"{r['fund']:+.4f}%", "run_8h": None if r.get("h8") is None else f"{r['h8']:+.1f}%",
                        "spike_age_min": r["ago"], "since_spike": f"{r['since']:+.2f}%",
-                       "spike_time": datetime.fromtimestamp(r["t"] / 1000, L).strftime("%H:%M")},
+                       "spike_time": datetime.fromtimestamp(r["t"] / 1000, L).strftime("%H:%M"),
+                       "crowd_long_short": r.get("crowd"), "top_traders_long_short": r.get("tops")},
             "action": {"position": side, "entry_price": px_now if side != "watch" else None, "goal": f"{'+' if side == 'long' else '-'}{GOAL * 100:.0f}%" if side != "watch" else None,
                        "stop": f"{'-' if side == 'long' else '+'}{STOP * 100:.0f}%" if side != "watch" else None,
                        "size_usd": SIZE if side != "watch" else 0, "hold_min": HOLD_MIN if side != "watch" else None, "why": why},
@@ -133,7 +157,7 @@ def one_pass(state, journal):
 
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("--minutes", type=int, default=0); ap.add_argument("--once", action="store_true")
+    ap = argparse.ArgumentParser(); ap.add_argument("--minutes", type=int, default=0); ap.add_argument("--once", action="store_true"); ap.add_argument("--until-trades", type=int, default=0)
     a = ap.parse_args()
     journal = load(J, {}); state = load(S, {"open": {}, "open_syms": []})
     t_end = time.time() + a.minutes * 60
@@ -145,7 +169,10 @@ def main():
         opened = [f"{s} {v['action']['position']} {v['action']['entry_price']}" for s, v in entry.items() if v["action"]["position"] != "watch"]
         watched = [s for s, v in entry.items() if v["action"]["position"] == "watch"]
         print(f"{ts} · всплесков свежих {len(hits)} · позиции: {', '.join(opened) or '—'} · смотрим: {', '.join(x[:-4] for x in watched) or '—'} · открыто всего {len(state['open'])}", flush=True)
-        if a.once or time.time() >= t_end:
+        n_trades = sum(1 for c in journal.values() for v in c.values() if v["action"]["position"] != "watch")
+        if a.until_trades and n_trades > a.until_trades and not state["open"]:
+            print(f"сделок {n_trades} > {a.until_trades}, открытых нет — стоп"); break
+        if a.once or (a.minutes and time.time() >= t_end):
             break
         time.sleep(max(1, 180 - (time.time() % 180)))
 
