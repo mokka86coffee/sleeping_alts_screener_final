@@ -319,5 +319,40 @@
         "pnl_usd": null
       }
     }
+  },
+  "23:21:32": {
+    "SPELLUSDT": {
+      "link": "https://www.coinglass.com/tv/Binance_SPELLUSDT",
+      "reason": {
+        "price": "+1.82%",
+        "volume_3m": "x10.0",
+        "volume_usd": 232271,
+        "taker_buy": "57%",
+        "oi_1h": "+2.8%",
+        "oi_6h": "-11.9%",
+        "funding": "-0.1029%",
+        "run_8h": "-0.7%",
+        "spike_age_min": 0,
+        "since_spike": "+0.00%",
+        "spike_time": "23:15",
+        "crowd_long_short": 2.7369,
+        "top_traders_long_short": 1.3744
+      },
+      "action": {
+        "position": "watch",
+        "entry_price": null,
+        "goal": null,
+        "stop": null,
+        "size_usd": 0,
+        "hold_min": null,
+        "why": "интерес за час +2.8% < +3% — всплеск без денег (R39: 11% дают +20%)"
+      },
+      "result": {
+        "success": null,
+        "reason": "позиции нет",
+        "pnl_pct": null,
+        "pnl_usd": null
+      }
+    }
   }
 }
