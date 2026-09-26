@@ -24,9 +24,9 @@ except ImportError:
     SECOND_RUN, SECOND_PULLBACK, SECOND_FUND_ZERO, SECOND_OI_DEFLATE, SECOND_OI_TURN = 40.0, 0.15, 0.02, 0.20, 0.05
     SECOND_SIZE, SECOND_STOP, SECOND_HOLD, SECOND_PAUSE_H = 500.0, 0.12, 192, 96
 try:
-    from core_config import SECOND_LOOKBACK, SECOND_STOP_OFF, SECOND_TARGET_FIXED
+    from core_config import SECOND_LOOKBACK, SECOND_STOP_OFF, SECOND_TARGET_FIXED, SECOND_PULLBACK_MAX
 except ImportError:
-    SECOND_LOOKBACK, SECOND_STOP_OFF, SECOND_TARGET_FIXED = 960, True, 0.20
+    SECOND_LOOKBACK, SECOND_STOP_OFF, SECOND_TARGET_FIXED, SECOND_PULLBACK_MAX = 960, True, 0.20, 0.50
 from paper_book_base import run_book
 
 BOOK = "второй ход"
@@ -60,7 +60,7 @@ def signal(rows: list[dict], nums: dict) -> dict | None:
     run = (H[jm] / lo_before - 1) * 100 if lo_before else 0
     if run < SECOND_RUN:
         return None
-    if C[i] > H[jm] * (1 - SECOND_PULLBACK):
+    if C[i] > H[jm] * (1 - SECOND_PULLBACK) or C[i] < H[jm] * (1 - SECOND_PULLBACK_MAX):   # 26.09: глубже — сползание (0/3)
         return None
     lo_after = min(L[jm:i + 1])
     if C[i] < lo_after * 1.03:
