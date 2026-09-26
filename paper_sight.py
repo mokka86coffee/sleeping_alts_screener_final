@@ -73,6 +73,10 @@ try:
     from core_config import SIGHT_BOARD_GATE, SIGHT_BOARD6_GATE
 except ImportError:
     SIGHT_BOARD_GATE, SIGHT_BOARD6_GATE = None, None
+try:
+    from core_config import SIGHT_HEDGE_ENABLED, SIGHT_LEADER_BREAK_H, LEADER_MOVE_48H, LEADER_BREAK_PCT
+except ImportError:
+    SIGHT_HEDGE_ENABLED, SIGHT_LEADER_BREAK_H, LEADER_MOVE_48H, LEADER_BREAK_PCT = True, None, 0.70, 0.15
 
 import lab_junctions as lj
 from core_lock import locked
@@ -123,6 +127,40 @@ def _bars(rows: list[dict]) -> list[tuple]:
         v = float(f.get("b") or 0) + float(f.get("s") or 0) or float((r.get("kv") or {}).get("qv") or 0)
         out.append((r["t"] // 1000, float(r["h"]), float(r["l"]), float(r["px"]), v))
     return out
+
+
+def leader_break_recent(syms: list, gate: float):
+    """R27 (26.09): последний настоящий слом лидера на ехавшей доске среди последних 48 получасовок архива.
+    Мерки — из claude/research/leader_break.py (разметка, не правило): лидер — монета с самым большим ходом за 48 ч, если ход ≥ LEADER_MOVE_48H;
+    слом — закрытие на LEADER_BREAK_PCT ниже максимума последних 24 ч; ехавшая доска — медиана хода остальных монет за 24 ч на баре слома > gate.
+    Возвращает (монета, t слома мс, доска %) или None."""
+    B = 1800000
+    px: dict = {}
+    for s_ in syms:
+        r_ = rows_of(s_)
+        if len(r_) >= 97:
+            px[s_] = {int(x["t"]): (float(x["px"]), float(x.get("h") or x["px"])) for x in r_ if x.get("t")}
+    if not px:
+        return None
+    ts = sorted(set().union(*[set(m) for m in px.values()]))
+    best = None
+    for t in ts[-48:]:
+        lead = None
+        for s_, m in px.items():
+            a, b = m.get(t), m.get(t - 96 * B)
+            if a and b and b[0] and a[0] / b[0] - 1 >= LEADER_MOVE_48H and (lead is None or a[0] / b[0] > lead[0]):
+                lead = (a[0] / b[0], s_)
+        if not lead:
+            continue
+        s_ = lead[1]; m = px[s_]
+        hi = max((m[x][1] for x in range(t - 48 * B, t + 1, B) if x in m), default=0.0)
+        if not hi or m[t][0] > hi * (1 - LEADER_BREAK_PCT):
+            continue
+        ch = [mm[t][0] / mm[t - 48 * B][0] - 1 for k_, mm in px.items() if k_ != s_ and t in mm and t - 48 * B in mm and mm[t - 48 * B][0]]
+        board = sorted(ch)[len(ch) // 2] * 100 if ch else None
+        if board is not None and board > gate:
+            best = (s_, t, board)
+    return best
 
 
 def background() -> dict:
@@ -328,7 +366,7 @@ def step(pos: dict, rows: list[dict], v: dict | None, now: int) -> list[dict]:
         hdg_px = px
     closed_h = sum(float(h_["res"]) for h_ in pos.get("hedges") or [] if h_.get("closed"))
     if not open_h:
-        if hit_hdg and pos["bars"] < SIGHT_HOLD_BARS:
+        if SIGHT_HEDGE_ENABLED and hit_hdg and pos["bars"] < SIGHT_HOLD_BARS:   # 26.09: хедж выключен (R24 — сквизы не разворот)
             # триггер хеджа сработал внутри бара — ставим ногу по цене триггера; цель в этом баре уже не считается
             hh = {"side": -side, "px": hdg_px, "t": t, "closed": False}
             pos.setdefault("hedges", []).append(hh)
@@ -464,6 +502,10 @@ def _main(a) -> int:
         if len(_r) >= 13 and _r[-1].get("px") and _r[-13].get("px"):
             _ch6.append((float(_r[-1]["px"]) / float(_r[-13]["px"]) - 1) * 100)
     bg["median6"] = (sorted(_ch6)[len(_ch6) // 2] if _ch6 else None)
+    # СЛОМ ЛИДЕРА (26.09, R27): последний настоящий слом лидера на ехавшей доске за последние сутки — лонгов нет SIGHT_LEADER_BREAK_H часов
+    _lb = leader_break_recent(syms, float(SIGHT_BOARD_GATE if SIGHT_BOARD_GATE is not None else 1.0)) if SIGHT_LEADER_BREAK_H else None
+    if _lb:
+        print(f"paper_sight: слом лидера {_lb[0]} в {datetime.fromtimestamp(_lb[1] / 1000, timezone.utc).strftime('%d.%m %H:%M')} UTC при доске {_lb[2]:+.1f}% — лонгов нет {SIGHT_LEADER_BREAK_H} ч (R27)")
     events, n_closed = tick_pass(state, now)           # сначала трёхминутки, что успели лечь после прошлого --tick
     cands = []
     for sym in syms:
@@ -526,6 +568,13 @@ def _main(a) -> int:
                 events.append({"kind": "skip", "book": BOOK_LABEL, "sym": sym, "side": s, "t": t, "px": float(rows[-1]["px"]),
                                "at": now, "why_skip": _why, "score": sum(v.values()), "votes": v})
                 s = 0
+        # ТРЕТЬИ ВОРОТА — СЛОМ ЛИДЕРА (26.09, R27): в сутки после настоящего слома лидера на ехавшей доске лонги «картины» 43% против 86%
+        if s > 0 and _lb and (now * 1000 - int(_lb[1])) <= SIGHT_LEADER_BREAK_H * 3600000 and t > int(state["last_sig"].get(sym) or 0):
+            state["last_sig"][sym] = t
+            _why = f"лидер {_lb[0][:-4]} сломан {datetime.fromtimestamp(_lb[1] / 1000, timezone.utc).strftime('%d.%m %H:%M')} UTC на ехавшей доске — лонгов нет {SIGHT_LEADER_BREAK_H} ч (R27)"
+            events.append({"kind": "skip", "book": BOOK_LABEL, "sym": sym, "side": s, "t": t, "px": float(rows[-1]["px"]),
+                           "at": now, "why_skip": _why, "score": sum(v.values()), "votes": v})
+            s = 0
         if s and t > int(state["last_sig"].get(sym) or 0):
             cands.append((sym, s, v, t, float(rows[-1]["px"])))
     cands.sort(key=lambda x: -abs(sum(x[2].values())))

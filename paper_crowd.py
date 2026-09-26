@@ -69,6 +69,40 @@ except ImportError:
 # на той же свече не откроются), в журнал — строку события со взятыми и пропущенными (факты не отсекаются:
 # исход пропущенных потом считается по архиву так же, как у взятых).
 # Порядок: сначала сила правила, внутри правила — величина сигнала.
+# ОТБОР ПРАВИЛ (26.09, владелец «правь пока только бота», bots.py: лонг 46% (149), шорт 39% (455), «перекуплен» при доске < −1% — 73%):
+try:
+    from core_config import PAPER_CROWD_LONG, PAPER_CROWD_SHORT_RULES, PAPER_CROWD_SHORT_BOARD_MAX
+except ImportError:
+    PAPER_CROWD_LONG, PAPER_CROWD_SHORT_RULES, PAPER_CROWD_SHORT_BOARD_MAX = True, (), None
+_BOARD24: dict = {}
+
+
+def board24() -> float | None:
+    """медиана доски за сутки из market_bg (как в paper_sight.background), считается раз за прогон"""
+    if "v" not in _BOARD24:
+        try:
+            from market_bg import last_row
+            _BOARD24["v"] = ((last_row() or {}).get("risk_on") or {}).get("median_pct")
+        except Exception:  # noqa: BLE001
+            _BOARD24["v"] = None
+    return _BOARD24["v"]
+
+
+def rule_gate(sig: dict) -> str | None:
+    """почему сигнал не берём: лонги выключены; шорт не из списка; доска не ниже порога"""
+    side = int(sig.get("side") or -1)
+    rule = str(sig.get("rule") or "").split(":")[0]
+    if side > 0 and not PAPER_CROWD_LONG:
+        return "лонги «толпы» выключены (46% в плюс, 26.09)"
+    if side < 0 and PAPER_CROWD_SHORT_RULES and not any(rule.startswith(r) for r in PAPER_CROWD_SHORT_RULES):
+        return f"шорт «{rule}» выключен — остаётся только «перекуплен» при доске < {PAPER_CROWD_SHORT_BOARD_MAX} (26.09)"
+    if side < 0 and PAPER_CROWD_SHORT_BOARD_MAX is not None:
+        b = board24()
+        if b is None or float(b) >= PAPER_CROWD_SHORT_BOARD_MAX:
+            return f"доска за сутки {b if b is None else f'{float(b):+.2f}%'} — шорт «перекуплен» только ниже {PAPER_CROWD_SHORT_BOARD_MAX:+.1f}% (73% там, 39% иначе)"
+    return None
+
+
 RULE_ORDER = ("спайк", "рост на выносе", "против толпы", "перекуплен", "прокол дна", "провал", "первый час Лондона")
 
 
@@ -307,6 +341,13 @@ def main() -> int:
                 print(f"paper_crowd: {sym} · выход · {why} · {res * 100:+.2f}% · {pos['rule']}")
                 pos = None
         sig = signal(rows)
+        if sig and not pos and sig["t"] > (state.get("last_sig", {}).get(sym) or 0):
+            _rg = rule_gate(sig)
+            if _rg:
+                print(f"paper_crowd: {sym} · пропуск — {_rg} · {str(sig.get('rule') or '').split(':')[0]}")
+                opened.append(_pg.skip_row(sym, sig, _rg, now, BOOK_NAME) if _pg else dict(sig, sym=sym, kind="skip", why_skip=_rg, at=now, book=BOOK_NAME))
+                state.setdefault("last_sig", {})[sym] = sig["t"]
+                sig = None
         if sig and not pos and _pg and sig["t"] > (state.get("last_sig", {}).get(sym) or 0):
             _why = (_pg.short_blocked(sym, rows) if int(sig.get("side") or -1) < 0 else None) \
                 or _pg.cooldown(state, sym, int(sig.get("side") or -1), sig["t"])

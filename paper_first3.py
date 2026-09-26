@@ -36,6 +36,10 @@ try:
     from core_config import FIRST3_STREAK, FIRST3_SIZE, FIRST3_TARGET, FIRST3_BE, FIRST3_PAUSE_H
 except ImportError:
     FIRST3_STREAK, FIRST3_SIZE, FIRST3_TARGET, FIRST3_BE, FIRST3_PAUSE_H = 3, 500.0, 0.40, 0.20, 48
+try:
+    from core_config import FIRST3_END_RUN, FIRST3_END_VERTICAL
+except ImportError:
+    FIRST3_END_RUN, FIRST3_END_VERTICAL = 200.0, 0.15
 
 BOOK = "3 в первых подряд"
 QUEUE = BASE_DIR / "output" / "queue_log.jsonl"
@@ -164,6 +168,45 @@ def advance(pos: dict, now_ms: int) -> list[dict]:
     return ev
 
 
+def end_exit(sym: str) -> str | None:
+    """ВЫХОД ПО КОНЦУ ХОДА (26.09, владелец «правь пока только бота»; R29/R21 из claude/research/rules.md):
+    • R29 — при ходе ≥ FIRST3_END_RUN% от минимума 7 дн (near_move run_from_low7) объём последней получасовки — максимум за сутки
+      (рекордный объём в далеко зашедшем ходе: через 6 ч ниже 14/19);
+    • R21 — последняя получасовка ≥ +FIRST3_END_VERTICAL (вертикаль) и вынос шортов за час — максимум за сутки по потоку output/liq_sides.json
+      (пик выноса шортов = вершина: LSK 13.09, PHA 26.09, ARK 26.09). Данные: cq_v2/intraday/<монета>.jsonl."""
+    try:
+        nm = json.loads((BASE_DIR / "output" / "near_move.json").read_text(encoding="utf-8"))
+        run = float(((((nm.get("coins") or {}).get(sym) or {}).get("nums") or {}).get("run_from_low7")) or 0)
+    except Exception:  # noqa: BLE001
+        run = 0.0
+    rows = []
+    p = BASE_DIR / "cq_v2" / "intraday" / f"{sym.replace('USDT', '').lower()}.jsonl"
+    if p.exists():
+        for line in p.read_text(encoding="utf-8").splitlines()[-49:]:
+            try:
+                rows.append(json.loads(line))
+            except ValueError:
+                continue
+    if len(rows) < 10:
+        return None
+    qv = [float(((r.get("kv") or {}).get("qv")) or 0) for r in rows]
+    if run >= FIRST3_END_RUN and qv[-1] > 0 and qv[-1] >= max(qv[:-1]):
+        return f"рекордный объём получасовки за сутки при ходе +{run:.0f}% от минимума 7 дн (R29)"
+    c = [float(r.get("px") or 0) for r in rows]
+    if len(c) >= 2 and c[-2] and c[-1] / c[-2] - 1 >= FIRST3_END_VERTICAL:
+        try:
+            ls = json.loads((BASE_DIR / "output" / "liq_sides.json").read_text(encoding="utf-8"))
+            v = (ls.get("coins") or {}).get(sym) or {}
+            bars = v.get("bars") or []
+            if v.get("short1h") and len(bars) >= 2:
+                m1h = max(float(bars[i][2]) + float(bars[i + 1][2]) for i in range(len(bars) - 1))
+                if float(v["short1h"]) >= m1h * 0.999:
+                    return f"вынос шортов за час {float(v['short1h']) / 1e3:.0f}K$ — максимум за сутки на вертикали +{(c[-1] / c[-2] - 1) * 100:.0f}% (R21)"
+        except Exception:  # noqa: BLE001
+            pass
+    return None
+
+
 def step(state: dict, sigs: list[tuple], now: float, px_of, window: float = 2 * HALF) -> list[dict]:
     """один шаг книги к моменту now: выходы по открытым, потом входы по сигналам последних window секунд —
     сигнал живёт только в свой прогон (запас на один пропущенный), иначе вход встал бы позже по старой цене"""
@@ -172,6 +215,13 @@ def step(state: dict, sigs: list[tuple], now: float, px_of, window: float = 2 * 
     for sym, pos in list(state["open"].items()):
         for e in advance(pos, now_ms):
             events.append(dict(book=BOOK, sym=sym, px_in=pos["px"], opened_at=pos["at"], **e))
+        if not pos.get("closed") and not _PRE:                      # 26.09: выход по концу хода (R29/R21), не в --replay
+            _we = end_exit(sym)
+            if _we:
+                _px = float(pos.get("last_px") or pos["px"]); _res = _px / float(pos["px"]) - 1
+                pos["closed"] = dict(at=now, px=_px, res=_res, why=_we)
+                events.append(dict(book=BOOK, sym=sym, px_in=pos["px"], opened_at=pos["at"], kind="exit", why_exit=_we, px_out=_px,
+                                   result_pct=round(_res * 100, 2), usd=round(FIRST3_SIZE * (_res - FEE), 2), at=now))
         if pos.get("closed"):
             state["last_exit"][sym] = pos["closed"]["at"]
             del state["open"][sym]

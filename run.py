@@ -1467,7 +1467,14 @@ def run_once(args: argparse.Namespace) -> int:
     # ── БУМАЖНЫЙ БОТ НА БЫСТРЫХ (15.09): вход по трём условиям у дна, выход по слому после вершины; журнал
     #    в output/paper_fast.jsonl. Сбой бота прогон не роняет. ──
     try:
-        _rp = subprocess.run([sys.executable, "paper_fast.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=600)
+        try:
+            from core_config import PAPER_FAST_ENABLED as _pfe
+        except ImportError:
+            _pfe = True
+        if not _pfe:
+            log("→ Бумажный бот «быстрые»: на паузе (PAPER_FAST_ENABLED = False, 26.09)")
+        _rp = (subprocess.run([sys.executable, "paper_fast.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=600)
+               if _pfe else subprocess.CompletedProcess([], 0, "", ""))
         _tp = (_rp.stdout or "").strip().splitlines()
         for _l in _tp:
             if "entry" in _l or "exit" in _l or _l.startswith("paper_fast: открыто"):
@@ -1500,7 +1507,14 @@ def run_once(args: argparse.Namespace) -> int:
     # ── БУМАЖНЫЙ БОТ «ДНО» (17.09, случай ENA): лонг на ясном белом пузыре 4ч у дна, выход «рука ушла»;
     #    журнал output/paper_bottom.jsonl, сигналы прогона — звёздам. Наблюдение, в отбор не входит. ──
     try:
-        _rb2 = subprocess.run([sys.executable, "paper_bottom.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=300)
+        try:
+            from core_config import PAPER_BOTTOM_ENABLED as _pbe
+        except ImportError:
+            _pbe = True
+        if not _pbe:
+            log("→ Бумажный бот «дно»: на паузе (PAPER_BOTTOM_ENABLED = False, 26.09)")
+        _rb2 = (subprocess.run([sys.executable, "paper_bottom.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=300)
+                if _pbe else subprocess.CompletedProcess([], 0, "", ""))
         for _l in (_rb2.stdout or "").strip().splitlines():
             if "вход" in _l or "выход" in _l or _l.startswith("paper_bottom: сигналов"):
                 log(f"→ {_l[:300]}")
