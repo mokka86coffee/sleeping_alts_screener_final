@@ -1,0 +1,72 @@
+{
+  "21:12:44": {
+    "KAIAUSDT": {
+      "link": "https://www.coinglass.com/tv/Binance_KAIAUSDT",
+      "reason": {
+        "price": "+1.95%",
+        "volume_3m": "x177.2",
+        "volume_usd": 178942,
+        "taker_buy": "62%",
+        "oi_1h": "-1.2%",
+        "oi_6h": "+0.4%",
+        "funding": "+0.0050%",
+        "run_8h": "+3.2%",
+        "spike_age_min": 0,
+        "since_spike": "+0.00%",
+        "spike_time": "21:09"
+      },
+      "action": {
+        "position": "watch",
+        "entry_price": null,
+        "goal": null,
+        "stop": null,
+        "size_usd": 0,
+        "hold_min": null,
+        "why": "интерес за час -1.2% < +3% — всплеск без денег (R39: 11% дают +20%)"
+      },
+      "result": {
+        "success": null,
+        "reason": "позиции нет",
+        "pnl_pct": null,
+        "pnl_usd": null
+      }
+    }
+  },
+  "21:15:31": {
+    "CETUSUSDT": {
+      "link": "https://www.coinglass.com/tv/Binance_CETUSUSDT",
+      "reason": {
+        "price": "+2.14%",
+        "volume_3m": "x61.7",
+        "volume_usd": 128644,
+        "taker_buy": "61%",
+        "oi_1h": "+6.3%",
+        "oi_6h": "+6.6%",
+        "funding": "+0.0050%",
+        "run_8h": "+0.1%",
+        "spike_age_min": 0,
+        "since_spike": "+0.00%",
+        "spike_time": "21:12"
+      },
+      "action": {
+        "position": "long",
+        "entry_price": 0.02969,
+        "goal": "+3%",
+        "stop": "-5%",
+        "size_usd": 500.0,
+        "hold_min": 30,
+        "why": "интерес +6.3% за час с ценой, фандинг +0.005%, покупатели 61%"
+      },
+      "result": {
+        "success": null,
+        "reason": "открыта",
+        "pnl_pct": -0.51,
+        "pnl_usd": -2.5,
+        "max_pct": 0.13,
+        "min_pct": -0.74,
+        "bars": 1,
+        "price_now": 0.02954
+      }
+    }
+  }
+}
