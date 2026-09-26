@@ -27,6 +27,12 @@ The owner is the only developer of the screener and trades micro-cap perps on Bi
     5. launching TradingView with the debug port when it is closed and I need it: `open -a TradingView --args --remote-debugging-port=9222` (never quit it if it is already running — ask the owner to Cmd+Q).
     **`pkill` (and `kill`) I never run myself — no exceptions, no weekly allowance.** The owner stops and restarts processes.
     Always ask, every time: restarting the loop, installing packages, manual `git push`, launching apps, deleting files, anything writing to `output/` or the archive.
+
+    **Update 26.09 (night), owner: «к папке с проектом у тебя полный доступ к файлам, от меня разрешений для их запуска не требуется».**
+    Running the project's own scripts (including ones that write into the project: archive refresh, research outputs, `output/`) needs no «да».
+    Also: «дальше все сверки/проверки делай сам, пока лимит сессии не закончится, периодически присылай, что вывел и что поменялось».
+    Still ask every time for: restarting `run.py --loop`, installing packages, manual `git push`, launching apps, deleting files.
+    `pkill`/`kill` — still never.
 9. They want patterns and variations that narrow down trades, not "it's 50/50". Always test against background: board median, BTC, sessions and junctions (21/0/7/13 UTC), weekday vs weekend. A bare "random entry does the same" is not an answer. Follow it with the next filter to try.
 10. **Never pool all coins into one test (25.09, the core lesson of the month).** Each coin has its own market maker and its own scenario, and the crowd can take over a coin. Pooled averages over ~150 coins always come out 50/50 — "comparing watermelons grown in Africa, Argentina and Australia". Instead:
     - compare a coin to its OWN previous moves: how they started, what fuelled them, how they ended;

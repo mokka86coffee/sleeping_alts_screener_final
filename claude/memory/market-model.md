@@ -23,6 +23,7 @@ The owner's picture of the market, stated 25.09. Everything is built on it, from
 - **The board median** often depends on the day of the week.
 - **BTC is ignored for now.** It is either flat or gives sharp squeezes that the coins give back. Treat it as an exception.
 - The key question: from which rising coin will money leave, when, and why.
+- **Money in the market only moves around (26.09, follows from layer 1).** All the money is pumped into the leader out of the other coins, so the board stands still. When the leader falls, people lose that money and have nothing to move into other coins, so the board keeps standing or falls. In a bull market this would not happen, because there would be plenty of money. While we are in the transition stage, assume money is transferred, not added. To verify with leader_break.py.
 
 **Layer 3 — market makers.** Each market maker runs its own coins, from 1 to about 30. A general rule for all coins at any time of day cannot exist, otherwise market makers would never make money. Finding the same pattern on several coins is already a win.
 
