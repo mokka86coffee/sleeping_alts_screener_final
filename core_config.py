@@ -256,11 +256,17 @@ INTEREST_TAKER = 1.2
 INTEREST_SLEEP = 20.0
 INTEREST_SIZE, INTEREST_TARGET, INTEREST_STOP, INTEREST_HOLD, INTEREST_PAUSE_H = 500.0, 0.10, 0.10, 96, 48
 # КНИГА «ВТОРОЙ ХОД» (26.09, R3/R18/R19: ARK 24.09, PHA 25.09 — 2/2): после первого хода (run_from_low7 ≥ SECOND_RUN) монета на пиле ниже максимума 7 дн
+SECOND_LOOKBACK = 960           # 26.09: первая нога — максимум за 20 дн (ARK база 9 дн, RAYSOL 10, BLESS 2); book_replay.py second2
 # на SECOND_PULLBACK+, фандинг за сутки вернулся к нулю (|медиана| ≤ SECOND_FUND_ZERO), интерес сдулся (минимум за 48 ч ниже максимума за 96 ч на SECOND_OI_DEFLATE)
 # и развернулся вверх (+SECOND_OI_TURN за 12 баров), спот покупает (сумма дельты спота за 6 баров > 0) → лонг SECOND_SIZE $, цель — максимум 7 дн, стоп −SECOND_STOP.
 SECOND_RUN, SECOND_PULLBACK, SECOND_FUND_ZERO = 40.0, 0.15, 0.02
 SECOND_OI_DEFLATE, SECOND_OI_TURN = 0.20, 0.05
 SECOND_SIZE, SECOND_STOP, SECOND_HOLD, SECOND_PAUSE_H = 500.0, 0.12, 192, 96
+# 26.09 сетка book_replay (21 сигнал, 4 слота): стоп −12% → +3.5K$, −20% → +2.8K$, без стопа и срок 4 дн → +5.7…5.9K$;
+# срок 8 дн при 4 слотах → минус (слоты заняты висящими). Цель +20%: 7 попаданий из 21 при тех же деньгах, что и +40% (5).
+SECOND_STOP_OFF = True          # стопа до цели нет (как R37 у «3 в первых»: любой стоп режет итог)
+SECOND_TARGET_FIXED = 0.20      # цель +20% вместо «первая вершина» (+4.5K$): больше попаданий при тех же деньгах
+
 PAPER_INTEREST_ENABLED = True   # книги «интерес» и «второй ход» запускаются из run.py после «3 в первых»
 PAPER_SECOND_ENABLED = True
 

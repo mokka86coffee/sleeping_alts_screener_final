@@ -42,6 +42,21 @@ def rows_of(sym: str) -> list[dict]:
                 continue
             by[r["t"]] = r
     now_ms = int(time.time() * 1000)
+    # 26.09: история 30 дн с Binance (claude/research/hist30.py → cq_v2/hist30) — в архиве спот только с 23.09, фандинг с ~23.09,
+    # интерес с ~18.09; книге «второй ход» нужна база до 20 дн. Поля hist30 подставляются туда, где у архива пусто.
+    h = BASE_DIR / "cq_v2" / "hist30" / f"{sym.replace('USDT', '').lower()}.json"
+    if h.exists():
+        try:
+            for r in json.loads(h.read_text(encoding="utf-8")):
+                t = int(r["t"])
+                if t in by:
+                    for k in ("oi", "funding", "spot", "h", "l"):
+                        if by[t].get(k) is None and r.get(k) is not None:
+                            by[t][k] = r[k]
+                else:
+                    by[t] = dict(r, candle=datetime.fromtimestamp(t / 1000, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), sym=sym)
+        except (OSError, ValueError):
+            pass
     return [by[t] for t in sorted(by) if t <= now_ms]
 
 
@@ -77,7 +92,7 @@ def run_book(book: str, state_path: Path, log_path: Path, signal, size: float, p
                 h, l, c = float(r.get("h") or r["px"]), float(r.get("l") or r["px"]), float(r["px"])
                 pos["max_px"] = max(float(pos.get("max_px") or e), h); pos["last_px"] = c
                 res, why = None, None
-                if l <= e * (1 - float(pos["stop"])):
+                if pos.get("stop") is not None and l <= e * (1 - float(pos["stop"])):        # 26.09: стоп может быть выключен (None)
                     res, why = -float(pos["stop"]) - FEE, f"стоп −{float(pos['stop']) * 100:.0f}% на баре {pos['bars']}"
                 elif h >= e * (1 + float(pos["target"])):
                     res, why = float(pos["target"]) - FEE, f"цель +{float(pos['target']) * 100:.0f}% на баре {pos['bars']}"
@@ -102,11 +117,12 @@ def run_book(book: str, state_path: Path, log_path: Path, signal, size: float, p
         if not sig or sig["t"] <= int(state["last_sig"].get(sym) or 0):
             continue
         state["last_sig"][sym] = sig["t"]
-        pos = dict(sym=sym, px=float(sig["px"]), t=sig["t"], at=now, size=size, target=float(sig["target"]), stop=float(sig["stop"]), hold=int(sig["hold"]),
+        pos = dict(sym=sym, px=float(sig["px"]), t=sig["t"], at=now, size=size, target=float(sig["target"]),
+                   stop=(None if sig.get("stop") is None else float(sig["stop"])), hold=int(sig["hold"]),
                    rule=sig["rule"], max_px=float(sig["px"]), last_px=float(sig["px"]), bars=0, last_t=sig["t"])
         state["open"][sym] = pos
         events.append(dict(book=book, sym=sym, kind="entry", px=pos["px"], at=now, usd_in=size, rule=sig["rule"], target=pos["target"], stop=pos["stop"], **{k: v for k, v in sig.items() if k not in ("t", "px", "target", "stop", "hold", "rule")}))
-        print(f"{book}: {sym} · вход лонг {pos['px']:.6g} · {sig['rule']} · цель +{pos['target'] * 100:.0f}% · стоп −{pos['stop'] * 100:.0f}%")
+        print(f"{book}: {sym} · вход лонг {pos['px']:.6g} · {sig['rule']} · цель +{pos['target'] * 100:.0f}% · " + ("без стопа" if pos['stop'] is None else f"стоп −{pos['stop'] * 100:.0f}%"))
     if write:
         state_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("a", encoding="utf-8") as f:
