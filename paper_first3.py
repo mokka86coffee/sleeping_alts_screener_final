@@ -8,6 +8,8 @@
     FIRST3_SIZE $ по живой цене Binance в момент прогона;
   • выход — цена коснулась +FIRST3_TARGET (лимитка, по максимуму трёхминутки);
   • коснулась +FIRST3_BE — со следующей трёхминутки стоп в точку входа (выход в ноль); до этого стопа нет, срока нет;
+  • не больше FIRST3_MAX_OPEN сделок сразу (размер = депозит / слоты), срок FIRST3_HOLD_H ч — по нему выход по цене
+    (26.09, claude/research/first3_money.py: без срока капитал сидит в минусовых, стоп до +20% режет итог);
   • одна позиция на монету; после выхода по ней — не раньше FIRST3_PAUSE_H часов и только на новой серии.
 Цель и стоп проверяются по трёхминуткам Binance, дозабранным от последней проверки: книге не нужен живой сборщик,
 и монета, выпавшая из выборки прогона, не зависает. Комиссия FEE за круг вычитается из итога.
@@ -40,6 +42,10 @@ try:
     from core_config import FIRST3_END_RUN, FIRST3_END_VERTICAL
 except ImportError:
     FIRST3_END_RUN, FIRST3_END_VERTICAL = 200.0, 0.15
+try:
+    from core_config import FIRST3_MAX_OPEN, FIRST3_HOLD_H
+except ImportError:
+    FIRST3_MAX_OPEN, FIRST3_HOLD_H = 4, 48
 
 BOOK = "3 в первых подряд"
 QUEUE = BASE_DIR / "output" / "queue_log.jsonl"
@@ -165,6 +171,12 @@ def advance(pos: dict, now_ms: int) -> list[dict]:
             pos["armed"] = True
             ev.append(dict(kind="armed", px=h, at=(t + BAR3) / 1000,
                            why=f"коснулась +{FIRST3_BE * 100:.0f}% — стоп в точку входа"))
+        if FIRST3_HOLD_H and (t + BAR3) / 1000 - float(pos["at"]) >= FIRST3_HOLD_H * 3600:     # 26.09: срок сделки
+            pos["closed"] = dict(at=(t + BAR3) / 1000, px=c, res=c / e - 1, why=f"срок {FIRST3_HOLD_H} ч")
+            cl = pos["closed"]
+            ev.append(dict(kind="exit", why_exit=cl["why"], px_out=cl["px"], result_pct=round(cl["res"] * 100, 2),
+                           usd=round(FIRST3_SIZE * (cl["res"] - FEE), 2), at=cl["at"]))
+            break
     return ev
 
 
@@ -229,6 +241,10 @@ def step(state: dict, sigs: list[tuple], now: float, px_of, window: float = 2 * 
         if at > now or at <= now - window or sym in state["open"] or state["used"].get(sym) == st:
             continue
         if now - float(state["last_exit"].get(sym) or 0) < FIRST3_PAUSE_H * 3600:
+            continue
+        if FIRST3_MAX_OPEN and len(state["open"]) >= FIRST3_MAX_OPEN:          # 26.09: слоты — депозит / K
+            state["used"][sym] = st
+            events.append(dict(kind="skip", book=BOOK, sym=sym, at=at, why=f"слотов нет: открыто {len(state['open'])} из {FIRST3_MAX_OPEN}"))
             continue
         px = px_of(sym, at)
         if not px:

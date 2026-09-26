@@ -2,7 +2,7 @@
 """БУМАЖНАЯ КНИГА «ИНТЕРЕС» (26.09, владелец «правь пока только бота»; R34 — claude/research/start_signs.py, oi_base_rate.py, intraday_catch.py).
 Признак начала, который видит 42 лидера из 43 за сутки до первого +40%, а бывает лишь в 12% любых суток: интерес +INTEREST_OI_3H% за 3 ч при покупках
 по рынку (средний тейкер трёх получасовок ≥ INTEREST_TAKER) у СПЯЩЕЙ монеты (ход от минимума 7 дн < INTEREST_SLEEP%), цена за три бара не упала.
-Ожидание по истории: +10% за 48 ч у 52%, +40% у 15%, провал −10% раньше +10% у 20% (база 26 / 4 / 11). Это повод, не вход — потому книга бумажная
+Ожидание по истории (oi_base_rate.py, спящие, 140 сигналов): +10% за 48 ч у 50%, +40% у 11% (база 26 / 4); провал −10% раньше +10% ~20%. Это повод, не вход — потому книга бумажная
 и малым размером: лонг INTEREST_SIZE $, цель +INTEREST_TARGET, стоп −INTEREST_STOP, срок INTEREST_HOLD получасовок; максимум за сделку пишется в журнал
 (mfe), чтобы считать долю +40%. Одна позиция на монету, после выхода пауза INTEREST_PAUSE_H ч.
     python3 paper_interest.py --only RARE        # без записи
@@ -46,7 +46,7 @@ def signal(rows: list[dict], nums: dict) -> dict | None:
     if oi3 >= INTEREST_OI_3H and tkm >= INTEREST_TAKER and run < INTEREST_SLEEP and C[i] >= C[i - 3]:
         return {"t": rows[i]["t"], "px": C[i], "target": INTEREST_TARGET, "stop": INTEREST_STOP, "hold": INTEREST_HOLD,
                 "oi_3h_pct": round(oi3, 1), "taker3": round(tkm, 2), "run_from_low7": round(run, 1),
-                "rule": f"интерес +{oi3:.0f}% за 3 ч, тейкер {tkm:.2f}, монета спит (+{run:.0f}% от мин 7 дн) — R34: +10% у 52%, +40% у 15%"}
+                "rule": f"интерес +{oi3:.0f}% за 3 ч, тейкер {tkm:.2f}, монета спит (+{run:.0f}% от мин 7 дн) — R34: +10% у 50%, +40% у 11%"}
     return None
 
 

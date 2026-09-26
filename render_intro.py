@@ -759,9 +759,11 @@ def collect_items() -> list[dict]:
         if _j is None or float(_j) < STAR_OI_JUMP_3H:
             continue
         _run48 = float(((_v or {}).get("nums") or {}).get("run_from_low7") or 0)
-        _inmove = _run48 >= 40
         _tag = f"интерес {float(_j):+.0f}% за 3 ч"
-        _prob = ("в ходу: +10% за 48 ч у 73%, +40% у 44%" if _inmove else "спит: +10% за 48 ч у 52%, +40% у 15%") + " (R34)"
+        # ВЕРОЯТНОСТИ ПО ПОЛОЖЕНИЮ (26.09, oi_base_rate.py с разбивкой, 538 сигналов только по интересу за 30 дней): спит (<+20% от мин 7 дн, 140) — +10% за 48 ч
+        # у 50%, +40% у 11%; поднялась (+20…+40%, 188) — 43% / 9%; в ходу (≥+40%, 208) — 60% / 24%. База по всем барам: 26% / 4%.
+        _prob = (("в ходу: +10% за 48 ч у 60%, +40% у 24%" if _run48 >= 40 else "поднялась: +10% у 43%, +40% у 9%" if _run48 >= 20
+                  else "спит: +10% за 48 ч у 50%, +40% у 11%") + " (R34)")
         _QT.setdefault(_s, []).append(_tag)
         _it = next((x for x in items if x["sym"] == _s), None)
         if _it is None:

@@ -188,6 +188,8 @@ def _closed_rows(stem: str, book: str, cut: float) -> list[dict]:
             "rk": _short_rule(bk, rule), "size": float(r.get("size") or 1.0), "at": at,
             "ent": r.get("entry_at") or r.get("opened_at") or 0, "day": _utc_day(at),
             "fixed": FIXED.get(stem), "usd": r.get("usd"),
+            "entry": r.get("px_in") or r.get("entry_px") or r.get("px"),      # 26.09: цена входа в списке
+            "exit": r.get("px_out") or r.get("px_exit"),                        # …и выхода (у толпы/конца её нет в записи — по ходу)
         })
     return out
 
@@ -799,7 +801,10 @@ def _row(x: dict, is_open: bool) -> dict:
             "rule": x["rk"], "rl": x["rule"], "why": x["why"] if not is_open else x["cond"],
             "res": None if x["res"] is None else round(float(x["res"]), 2),
             "size": round(float(x["size"]), 2), "money": round(float(x["money"]), 2),
-            "at": int(x["at"] or 0), "ent": int(x.get("ent") or 0), "open": is_open}
+            "at": int(x["at"] or 0), "ent": int(x.get("ent") or 0), "open": is_open,
+            "entry": x.get("entry"), "share": round(float(x.get("share") or 0)),
+            "exit": x.get("exit") or (None if is_open or not x.get("entry") or x.get("res") is None
+                                      else float(x["entry"]) * (1 + int(x["side"]) * float(x["res"]) / 100))}
 
 
 def _source(opened: list[dict], closed: list[dict]) -> dict:
@@ -817,6 +822,7 @@ def _source(opened: list[dict], closed: list[dict]) -> dict:
             share = float(p["fixed"])
         else:
             share = BOOK_DEPOSIT * p["size"] / (per_day[today]["w"] + w_open or 1.0)
+        p["share"] = share
         p["money"] = share * (p["res"] or 0) / 100
     out_days = []
     for d in days:
@@ -864,6 +870,13 @@ def book_data() -> dict:
         o["res"] = a.get("res")            # None, если цены с закрытой свечи после входа ещё нет
         o["px"] = a.get("px")
     live = _source(opened, closed)
+    # 26.09, владелец: «у сделок в списке нет самой позиции — лонг/шорт», «цены входа тоже нет нигде»,
+    # «какой размер позиции, ни в списке ни в описании» — сторона, доля депозита и вход первым фактом разбора
+    for o, a in zip(opened, work):
+        a["share"] = round(float(o.get("share") or 0))
+        _sd = "шорт" if int(a.get("side") or 1) < 0 else "лонг"
+        a["facts"] = [{"k": f"позиция · {a['share']:,.0f} $".replace(",", " "),
+                       "v": f"{_sd} · {_px(a.get('entry'))}", "t": "key"}] + list(a.get("facts") or [])
     bk = _source([], back)
     if bk["days"]:
         bk["note"] = ("реконструкция по архиву: без события доски, запрета встречных и задержек — "
@@ -1024,6 +1037,9 @@ const T=(x,y,c,t,a,ex)=>`<text x="${f2(x)}" y="${f2(y)}" class="${c}" text-ancho
 const Ln=(x1,y1,x2,y2,c,ex)=>`<line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" class="${c}"${ex?' '+ex:''}/>`;
 const tm=t=>new Date(t*1000).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 const ddmm=d=>d.slice(8,10)+'.'+d.slice(5,7);
+const pxs=v=>v==null||!(+v)?'—':(+v>=100?(+v).toFixed(2):(+v).toPrecision(4)).replace(/\.?0+$/,'');   // цена входа
+const sd=r=>r.side<0?'шорт':'лонг';
+const usd0=v=>Math.abs(Math.round(v||0)).toLocaleString('ru-RU')+' $';
 const WD=['воскресенье','понедельник','вторник','среда','четверг','пятница','суббота'];
 const WDS=['вс','пн','вт','ср','чт','пт','сб'];
 const CX=800,CY=478;
@@ -1187,7 +1203,8 @@ function drawCols(anim){
       +`<rect x="${selx}" y="${y-13}" width="2" height="30" class="sel"/>`
       +T(x0,y,'tk',`${esc(r.sym)}<tspan class="${dot}" dx="7" font-size="8">●</tspan>`)
       +T(x1,y,'mono sm '+sg(r.money),usd(r.money),'end')
-      +T(x0,y+15,'xs2 dim',`<tspan class="dim2">${r.side<0?'▼':'▲'}</tspan> <tspan class="mono ${r.res==null?'dim2':(r.res<0?'ros':'mid')}">${r.open&&r.res==null?'цена отстала':pct(r.res)}</tspan> ${esc(fit(r.rule,18))}`)
+      +T(x0,y+13,'xs2 dim',`<tspan class="dim2">${r.side<0?'▼':'▲'}</tspan> <tspan class="lt">${sd(r)}</tspan> <tspan class="mono">${usd0(r.share)}</tspan> · <tspan class="mono">${pxs(r.entry)}</tspan>${r.open?'':' → <tspan class="mono">'+pxs(r.exit)+'</tspan>'}`)
+      +T(x0,y+25,'xs2 dim',`<tspan class="mono ${r.res==null?'dim2':(r.res<0?'ros':'mid')}">${r.open&&r.res==null?'цена отстала':pct(r.res)}</tspan> ${esc(fit(r.rule,20))}`)
       +`<rect x="${hx0}" y="${y-16}" width="252" height="${RS}" class="hit" data-act="coin" data-sym="${esc(r.sym)}"><title>${esc(r.book+' · '+r.rl+'\n'+r.why)}</title></rect></g>`;
   };
   let o='<g class="fc">'+T(114,250,'ttl','ЗАКРЫТЫ')+T(114,269,'sm amb',cl.length>NV?seen(OFFL,cl.length):'итог зафиксирован')+T(300,262,'cnt',cl.length,'end');
@@ -1221,8 +1238,8 @@ function drawCoin(){
   o+=T(292,764,'sm lt',esc(SYM),'end');
   const shown=rows.slice(0,3);
   shown.forEach((r,j)=>{const y=798+j*40;
-    o+=`<circle cx="88" cy="${y-4}" r="2.6" class="${r.open?'odc':'cdot'}"/>`+T(98,y,'sm lt',esc(fit(r.rule,20)))
-      +T(98,y+18,'mono xs dim',ddmm(r.dd))+T(214,y+18,'mono xs dim',pct(r.res),'end')+T(292,y+18,'mono sm '+sg(r.money),usd(r.money),'end');
+    o+=`<circle cx="88" cy="${y-4}" r="2.6" class="${r.open?'odc':'cdot'}"/>`+T(98,y,'sm lt',`<tspan class="dim2">${r.side<0?'▼':'▲'}</tspan> ${sd(r)} · ${esc(fit(r.rule,14))}`)+T(292,y,'mono sm '+sg(r.money),usd(r.money),'end')
+      +T(98,y+18,'mono xs dim',`${ddmm(r.dd)} · ${usd0(r.share)} · ${pxs(r.entry)}${r.open?'':'→'+pxs(r.exit)}`)+T(292,y+18,'mono xs dim',pct(r.res),'end');
   });
   const open=rows.some(r=>r.open);
   let fy=884;
@@ -1273,7 +1290,7 @@ function drawPos(w,rows){
   const short=w.side<0, f=w.fast||{};
   const cc=t=>t==='key'?'amb':t==='bad'?'ros':t==='good'?'lt':'mid';
   let o=`<g class="a-fi" ${del(0)}>`+T(1530,74,'hdr',esc(w.sym),'end')
-    +T(1530,96,'sm dim',`разбор позиции · ${short?'шорт':'лонг'} · ${esc(w.book)} · вход ${w.opened?tm(w.opened):'—'}`,'end')+`</g>`;
+    +T(1530,96,'sm dim',`разбор позиции · ${short?'шорт':'лонг'} ${usd0(w.share)} · вход ${pxs(w.entry)}${w.opened?' в '+tm(w.opened):''} · ${esc(w.book)}`,'end')+`</g>`;
   const tip=`<title>${esc('Почему взята. '+String(w.why||'').replace(/\{T:(\d+)\}/g,(m,t)=>tm(+t))+'\n\nЧего ждём. '+String(w.wait||'').replace(/\{T:(\d+)\}/g,(m,t)=>tm(+t)))}</title>`;
   // 1: чего ждём и когда закроется
   let gk=w.goal?w.goal.k:'ждём', gv=w.goal?w.goal.v:'—', gs=w.goal?(w.goal.s||''):'';
