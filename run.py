@@ -1545,6 +1545,22 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("Бот 3 в первых", (_rf3.stderr or "").strip()[-300:] or f"код {_rf3.returncode}")
     except Exception as e:  # noqa: BLE001
         _issue("Бот 3 в первых", f"{type(e).__name__}: {e}")
+    # ── КНИГИ «ИНТЕРЕС» (R34) И «ВТОРОЙ ХОД» (R18/R19) (26.09, владелец «правь пока только бота»): бумажно, копят счёт;
+    #    журналы output/paper_interest.jsonl и output/paper_second.jsonl. Идут после near_move (нужен run_from_low7). Сбой прогон не роняет. ──
+    for _bk, _flag, _title in (("paper_interest.py", "PAPER_INTEREST_ENABLED", "Бот интерес"), ("paper_second.py", "PAPER_SECOND_ENABLED", "Бот второй ход")):
+        try:
+            import core_config as _cc
+            if not getattr(_cc, _flag, True):
+                log(f"→ {_title}: на паузе ({_flag} = False)")
+                continue
+            _rb = subprocess.run([sys.executable, _bk, "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=300)
+            for _l in (_rb.stdout or "").strip().splitlines():
+                if "вход" in _l or "выход" in _l or "открыто" in _l:
+                    log(f"→ {_l[:300]}")
+            if _rb.returncode:
+                _issue(_title, (_rb.stderr or "").strip()[-300:] or f"код {_rb.returncode}")
+        except Exception as e:  # noqa: BLE001
+            _issue(_title, f"{type(e).__name__}: {e}")
     # ── СЛЕД ПОСЛЕ ВЫХОДА (16.09): к закрытым сделкам дописывается, куда цена дошла за 1/6/12/24 ч и
     #    что было внутри сделки — по этому видно, резала ли цель ход и выбивало ли стоп хвостом. ──
     try:

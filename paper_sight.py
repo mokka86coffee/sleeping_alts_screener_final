@@ -136,7 +136,7 @@ def leader_break_recent(syms: list, gate: float):
     Возвращает (монета, t слома мс, доска %) или None."""
     B = 1800000
     px: dict = {}
-    for s_ in syms:
+    for s_ in sorted(p_.stem.upper() + "USDT" for p_ in ARCH.glob("*.jsonl")):   # всегда по всем монетам архива, не по --only
         r_ = rows_of(s_)
         if len(r_) >= 97:
             px[s_] = {int(x["t"]): (float(x["px"]), float(x.get("h") or x["px"])) for x in r_ if x.get("t")}
@@ -144,6 +144,7 @@ def leader_break_recent(syms: list, gate: float):
         return None
     ts = sorted(set().union(*[set(m) for m in px.values()]))
     best = None
+    seen: dict = {}                       # монета → первый бар слома: считаем от НАЧАЛА слома, а не от последнего бара под максимумом
     for t in ts[-48:]:
         lead = None
         for s_, m in px.items():
@@ -156,8 +157,11 @@ def leader_break_recent(syms: list, gate: float):
         hi = max((m[x][1] for x in range(t - 48 * B, t + 1, B) if x in m), default=0.0)
         if not hi or m[t][0] > hi * (1 - LEADER_BREAK_PCT):
             continue
+        if s_ in seen:
+            continue
         ch = [mm[t][0] / mm[t - 48 * B][0] - 1 for k_, mm in px.items() if k_ != s_ and t in mm and t - 48 * B in mm and mm[t - 48 * B][0]]
         board = sorted(ch)[len(ch) // 2] * 100 if ch else None
+        seen[s_] = t
         if board is not None and board > gate:
             best = (s_, t, board)
     return best

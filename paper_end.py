@@ -44,6 +44,11 @@ except ImportError:
 ARCH = BASE_DIR / "cq_v2" / "intraday"
 STATE = BASE_DIR / "output" / "paper_end.json"
 LOG = BASE_DIR / "output" / "paper_end.jsonl"
+# РАЗВОД НА ДВЕ ВЕТКИ (26.09, владелец «правь пока только бота»; claude/research/plan_screen_bot.md, R27/R4/R18/R24):
+try:
+    from core_config import PAPER_END_SPLIT, END_LEADER_DEPTH, END_LEADER_FUND_MAX, END_SLIDE_FUND, END_SLIDE_DRAWDOWN, END_SLIDE_BOUNCE
+except ImportError:
+    PAPER_END_SPLIT, END_LEADER_DEPTH, END_LEADER_FUND_MAX, END_SLIDE_FUND, END_SLIDE_DRAWDOWN, END_SLIDE_BOUNCE = False, 0.25, 0.02, -0.05, 0.20, 0.05
 
 
 def _read(p: Path):
@@ -106,6 +111,52 @@ def signal(rows: list[dict]) -> dict | None:
     return {"t": rows[i]["t"], "px": C[i], "run_pct": round(run, 1), "oi_bar_pct": round(oi_chg * 100, 2), "delta": d,
             "funding": fund, "stop": PAPER_END_STOP, "hold": PAPER_END_HOLD,
             "size": bucket(PAPER_END_SIZE, run), "target": bucket(PAPER_END_TARGET, run), "rule": "конец: интерес −2% за бар, дельта <0, цена вниз"}
+
+
+def _med(v):
+    v = sorted(x for x in v if x is not None)
+    return v[len(v) // 2] if v else None
+
+
+def signal_split(rows: list[dict], sym: str, lb) -> dict | None:
+    """ДВЕ ВЕТКИ «КОНЦА» (26.09) вместо бара «интерес −2%» (22% в плюс, 27 сделок):
+    «конец-лидер» — монета = лидер, сломанный на ехавшей доске за последние сутки (lb из paper_sight.leader_break_recent, R27), шорт не в момент слома
+      (R24: отскоки +5…+23%), а когда после отскока сделан БОЛЕЕ НИЗКИЙ максимум без объёма при уходящем интересе: закрытие ниже прошлого, максимум
+      последних 4 баров ниже максимума суток, объём бара ≤ медианы 48 баров, интерес ниже, чем 6 баров назад, фандинг ≤ END_LEADER_FUND_MAX.
+      Цель — R4: END_LEADER_DEPTH от максимума суток; лидер через 48 ч ниже 14/17.
+    «сползание» — после первого хода: медиана фандинга за сутки ≤ END_SLIDE_FUND, цена ниже максимума 72 ч на END_SLIDE_DRAWDOWN+, отскок от минимума 6 баров
+      ≥ END_SLIDE_BOUNCE и бар закрылся ниже прошлого (отскок кончается). Цель — минимум 72 ч (R24: 17/17 в новый минимум на ONE; R18: второго хода 0/2)."""
+    if len(rows) < 50:
+        return None
+    i = len(rows) - 1
+    C = [float(r["px"]) for r in rows]; H = [float(r.get("h") or r["px"]) for r in rows]; L = [float(r.get("l") or r["px"]) for r in rows]
+    OI = [float(r.get("oi") or 0) for r in rows]
+    QV = [float(((r.get("kv") or {}).get("qv")) or 0) for r in rows]
+    F = [r.get("funding") for r in rows]
+    fund = F[i]
+    base = {"t": rows[i]["t"], "px": C[i], "funding": fund, "stop": PAPER_END_STOP, "hold": PAPER_END_HOLD, "oi_bar_pct": round((OI[i] / OI[i - 1] - 1) * 100, 2) if OI[i - 1] else None, "delta": (rows[i].get("fut") or {}).get("d")}
+    # ── конец-лидер ──
+    if lb and lb[0] == sym and rows[i]["t"] - int(lb[1]) <= 48 * 3600000 and C[i] < C[i - 1]:
+        hi24 = max(H[i - 48:i + 1]); hi4 = max(H[i - 3:i + 1])
+        vol_ok = QV[i] > 0 and QV[i] <= _med(QV[i - 48:i])
+        oi_ok = OI[i] and OI[i - 6] and OI[i] < OI[i - 6]
+        f_ok = fund is None or fund <= END_LEADER_FUND_MAX
+        if hi4 < hi24 and vol_ok and oi_ok and f_ok and C[i] > C[i - 6]:        # отскок был (выше, чем 3 ч назад) и кончается
+            tgt_px = hi24 * (1 - END_LEADER_DEPTH)
+            tgt = max(0.03, C[i] / tgt_px - 1) if tgt_px < C[i] else 0.03
+            run = (C[i] / min(C[i - 48:i]) - 1) * 100
+            return dict(base, run_pct=round(run, 1), target=round(tgt, 4), size=2.0,
+                        rule=f"конец-лидер: слом {lb[0][:-4]} на ехавшей доске, более низкий максимум без объёма, интерес уходит (R27/R4)")
+    # ── сползание ──
+    fm = _med(F[i - 48:i + 1])
+    hi72 = max(H[i - 144:i + 1]) if i >= 144 else max(H[: i + 1])
+    lo72 = min(L[i - 144:i + 1]) if i >= 144 else min(L[: i + 1])
+    lo6 = min(L[i - 6:i + 1])
+    if fm is not None and fm <= END_SLIDE_FUND and C[i] <= hi72 * (1 - END_SLIDE_DRAWDOWN) and lo6 and C[i - 1] / lo6 - 1 >= END_SLIDE_BOUNCE and C[i] < C[i - 1]:
+        tgt = max(0.03, C[i] / lo72 - 1) if lo72 < C[i] else 0.03
+        return dict(base, run_pct=round((C[i - 1] / lo6 - 1) * 100, 1), target=round(tgt, 4), size=1.0, hold=24,
+                    rule=f"сползание: фандинг {fm:+.2f}% за сутки, −{(1 - C[i] / hi72) * 100:.0f}% от максимума 72 ч, отскок кончился (R18/R24)")
+    return None
 
 
 def check_exit(pos: dict, rows: list[dict]):
@@ -177,6 +228,16 @@ def main() -> int:
     now = int(time.time())
     opened, closed = [], []
     cands = []
+    _lb = None
+    if PAPER_END_SPLIT:
+        try:
+            from paper_sight import leader_break_recent as _lbr
+            from core_config import SIGHT_BOARD_GATE as _sbg
+            _lb = _lbr([], float(_sbg if _sbg is not None else 1.0))
+            if _lb:
+                print(f"paper_end: слом лидера {_lb[0]} в {datetime.fromtimestamp(_lb[1] / 1000, timezone.utc).strftime('%d.%m %H:%M')} UTC при доске {_lb[2]:+.1f}% — ветка «конец-лидер» открыта")
+        except Exception as e:  # noqa: BLE001
+            print(f"paper_end: слом лидера не посчитан: {type(e).__name__}: {e}")
     for sym in syms:
         rows = rows_of(sym)
         if len(rows) < 50:
@@ -192,9 +253,10 @@ def main() -> int:
                 del state["open"][sym]
                 print(f"paper_end: {sym} · выход · {why} · {res * 100:+.2f}% × размер {pos['size']} = {res * pos['size'] * 100:+.2f}%")
                 pos = None
-        sig = signal(rows)
+        sig = signal_split(rows, sym, _lb) if PAPER_END_SPLIT else signal(rows)
         if sig and not pos and _pg and sig["t"] > (state.get("last_sig", {}).get(sym) or 0):
-            _why = _pg.short_blocked(sym, rows) or _pg.cooldown(state, sym, -1, sig["t"])
+            _why = (_pg.cooldown(state, sym, -1, sig["t"]) if (PAPER_END_SPLIT and str(sig.get("rule", "")).startswith("конец-лидер"))
+                    else (_pg.short_blocked(sym, rows) or _pg.cooldown(state, sym, -1, sig["t"])))   # лидера в ветке «конец-лидер» шортим по правилу
             if _why:
                 print(f"paper_end: {sym} · пропуск — {_why}")
                 opened.append(_pg.skip_row(sym, sig, _why, now, BOOK_NAME))
