@@ -354,5 +354,75 @@
         "pnl_usd": null
       }
     }
+  },
+  "23:27:29": {
+    "QUSDT": {
+      "link": "https://www.coinglass.com/tv/Binance_QUSDT",
+      "reason": {
+        "price": "+19.15%",
+        "volume_3m": "x19.9",
+        "volume_usd": 7285803,
+        "taker_buy": "53%",
+        "oi_1h": "-0.1%",
+        "oi_6h": "-46.9%",
+        "funding": "+0.0050%",
+        "run_8h": "-35.9%",
+        "spike_age_min": 0,
+        "since_spike": "+0.00%",
+        "spike_time": "23:24",
+        "crowd_long_short": 1.8736,
+        "top_traders_long_short": 1.4154
+      },
+      "action": {
+        "position": "watch",
+        "entry_price": null,
+        "goal": null,
+        "stop": null,
+        "size_usd": 0,
+        "hold_min": null,
+        "why": "интерес за час -0.1% < +3% — всплеск без денег (R39: 11% дают +20%)"
+      },
+      "result": {
+        "success": null,
+        "reason": "позиции нет",
+        "pnl_pct": null,
+        "pnl_usd": null
+      }
+    }
+  },
+  "23:39:29": {
+    "HOTUSDT": {
+      "link": "https://www.coinglass.com/tv/Binance_HOTUSDT",
+      "reason": {
+        "price": "+1.60%",
+        "volume_3m": "x98.7",
+        "volume_usd": 158132,
+        "taker_buy": "59%",
+        "oi_1h": "+0.8%",
+        "oi_6h": "+0.7%",
+        "funding": "+0.0100%",
+        "run_8h": "+4.2%",
+        "spike_age_min": 0,
+        "since_spike": "+0.00%",
+        "spike_time": "23:33",
+        "crowd_long_short": 1.9869,
+        "top_traders_long_short": 1.6522
+      },
+      "action": {
+        "position": "watch",
+        "entry_price": null,
+        "goal": null,
+        "stop": null,
+        "size_usd": 0,
+        "hold_min": null,
+        "why": "интерес за час +0.8% < +3% — всплеск без денег (R39: 11% дают +20%)"
+      },
+      "result": {
+        "success": null,
+        "reason": "позиции нет",
+        "pnl_pct": null,
+        "pnl_usd": null
+      }
+    }
   }
 }

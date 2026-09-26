@@ -148,7 +148,8 @@ def main():
         trades += simulate(f.stem.upper() + "USDT", rows)
     (BASE / "claude/research/rules_trades.json").write_text(json.dumps(trades, ensure_ascii=False), encoding="utf-8")
     md = [f"# Правила по времени — трёхминутки {len([f for f in files if not f.name.startswith('_')])} лидеров за 14 дн (`rules_by_time.py`, {dt.datetime.now(L):%d.%m %H:%M})\n",
-          "Время UTC+3. «Работает» = средний результат сделок в плюс. Сделок мало в ячейке — не вывод, а наблюдение.\n"]
+          "Время UTC+3. «Работает» = средний результат входов в этот час недели в плюс. Владелец 26.09: неправильных правил нет — правило описывает часть причин; "
+          "час, где оно не сработало, значит, действовал фактор, которого в правиле нет (сессия, день, тема дня, праздник). Окна «не работает» — где искать этот фактор.\n"]
     def cell(tr):
         if not tr: return "—"
         avg = st.mean(x["res"] for x in tr); w = sum(1 for x in tr if x["res"] > 0)
@@ -171,7 +172,7 @@ def main():
         for x in tr: cells[(x["wd"], x["hour"])].append(x["res"])
         good = [k for k, v in cells.items() if st.mean(v) > 0]
         share = len(good) / 168 * 100
-        verdict[r] = "стратегия (≥20% недели)" if share >= 20 else "есть своё время (≥5%)" if share >= 5 else "мало данных" if len(cells) < 9 else "не работает в эти 14 дн"
+        verdict[r] = "стратегия (≥20% недели)" if share >= 20 else "есть своё время (≥5%)" if share >= 5 else "мало данных" if len(cells) < 9 else "своего времени в эти 14 дн не нашло"
         md.append(f"| {r} | {len(cells)} | {len(good)} | {share:.0f}% | {verdict[r]} |")
     for r in RULES:
         tr = by_rule.get(r, [])
