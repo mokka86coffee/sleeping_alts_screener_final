@@ -168,60 +168,121 @@
         "why": "интерес +6.2% за час с ценой, фандинг +0.005%, покупатели 71%, толпа 2.252 / топы 2.0821"
       },
       "result": {
-        "success": null,
-        "reason": "открыта",
-        "pnl_pct": -0.36,
-        "pnl_usd": -1.8,
+        "success": false,
+        "reason": "срок 30 мин, закрыто по рынку -1.09% (лучшее +0.5%, худшее -1.1%)",
+        "pnl_pct": -1.09,
+        "pnl_usd": -5.5,
         "max_pct": 0.54,
-        "min_pct": -0.42,
-        "bars": 1,
-        "price_now": 0.0005189
+        "min_pct": -1.09,
+        "bars": 10,
+        "price_now": 0.0005151,
+        "closed_at": "22:15:00"
+      }
+    }
+  },
+  "21:51:31": {
+    "PHAUSDT": {
+      "link": "https://www.coinglass.com/tv/Binance_PHAUSDT",
+      "reason": {
+        "price": "+6.25%",
+        "volume_3m": "x14.3",
+        "volume_usd": 2012192,
+        "taker_buy": "61%",
+        "oi_1h": "-2.8%",
+        "oi_6h": "-11.2%",
+        "funding": "+0.0050%",
+        "run_8h": "+2.6%",
+        "spike_age_min": 0,
+        "since_spike": "+0.00%",
+        "spike_time": "21:48",
+        "crowd_long_short": 0.7553,
+        "top_traders_long_short": 1.2076
       },
-      "checks": [
-        {
-          "at": "21:49",
-          "price": 0.0005196,
-          "vs_entry": "-0.23%",
-          "oi_30m": "+3.9%",
-          "crowd": 2.25,
-          "taker_5m": "2.07/0.85/1.89",
-          "tv": {
-            "vol_agg": {
-              "EX 9": "222.84 K",
-              "EX 8": "222.84 K",
-              "EX 7": "222.26 K",
-              "EX 6": "221.16 K"
-            },
-            "funding": {
-              "Funding Rate": "0.0051%"
-            },
-            "vortex": {
-              "VI +": "1.1556",
-              "VI -": "0.8120"
-            },
-            "cvd_div": {
-              "CVD Divergence Area": "−1.7246407",
-              "Bullish Divergence Spike": "0.0000000",
-              "Bearish Divergence Spike": "0.0000000"
-            },
-            "oi": {
-              "Open Interest": "4.66 B"
-            },
-            "adx": {
-              "DI+": "38.5824424",
-              "DI-": "5.4090584",
-              "ADX": "58.3609555"
-            },
-            "tops": {
-              "Top traders long/short ratio positions": "2.09"
-            },
-            "liq": {
-              "Short Liquidations": "−727.80"
-            }
-          },
-          "verdict": "держать: интерес растёт, покупатели по рынку вернулись (1.89), цена у входа; толпа 2.25 в лонге — риск, при интересе вниз выходить"
-        }
-      ]
+      "action": {
+        "position": "watch",
+        "entry_price": null,
+        "goal": null,
+        "stop": null,
+        "size_usd": 0,
+        "hold_min": null,
+        "why": "интерес за час -2.8% < +3% — всплеск без денег (R39: 11% дают +20%)"
+      },
+      "result": {
+        "success": null,
+        "reason": "позиции нет",
+        "pnl_pct": null,
+        "pnl_usd": null
+      }
+    }
+  },
+  "22:03:31": {
+    "TRIAUSDT": {
+      "link": "https://www.coinglass.com/tv/Binance_TRIAUSDT",
+      "reason": {
+        "price": "+1.77%",
+        "volume_3m": "x20.3",
+        "volume_usd": 71744,
+        "taker_buy": "48%",
+        "oi_1h": "+1.1%",
+        "oi_6h": "+3.4%",
+        "funding": "+0.0050%",
+        "run_8h": "+4.8%",
+        "spike_age_min": 0,
+        "since_spike": "+0.00%",
+        "spike_time": "22:00",
+        "crowd_long_short": 2.7836,
+        "top_traders_long_short": 1.4357
+      },
+      "action": {
+        "position": "watch",
+        "entry_price": null,
+        "goal": null,
+        "stop": null,
+        "size_usd": 0,
+        "hold_min": null,
+        "why": "интерес за час +1.1% < +3% — всплеск без денег (R39: 11% дают +20%) · покупатели 48% — всплеск на продавцах"
+      },
+      "result": {
+        "success": null,
+        "reason": "позиции нет",
+        "pnl_pct": null,
+        "pnl_usd": null
+      }
+    }
+  },
+  "22:18:30": {
+    "FOLKSUSDT": {
+      "link": "https://www.coinglass.com/tv/Binance_FOLKSUSDT",
+      "reason": {
+        "price": "+1.15%",
+        "volume_3m": "x49.8",
+        "volume_usd": 93274,
+        "taker_buy": "37%",
+        "oi_1h": "-0.1%",
+        "oi_6h": "-0.8%",
+        "funding": "+0.0050%",
+        "run_8h": "-0.2%",
+        "spike_age_min": 0,
+        "since_spike": "+0.00%",
+        "spike_time": "22:15",
+        "crowd_long_short": 2.125,
+        "top_traders_long_short": 1.1761
+      },
+      "action": {
+        "position": "watch",
+        "entry_price": null,
+        "goal": null,
+        "stop": null,
+        "size_usd": 0,
+        "hold_min": null,
+        "why": "интерес за час -0.1% < +3% — всплеск без денег (R39: 11% дают +20%) · покупатели 37% — всплеск на продавцах"
+      },
+      "result": {
+        "success": null,
+        "reason": "позиции нет",
+        "pnl_pct": null,
+        "pnl_usd": null
+      }
     }
   }
 }
