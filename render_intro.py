@@ -232,6 +232,47 @@ except ImportError:
     LEADER_STARS_MEDIAN_MIN, LEADER_STARS_MIN_UP = 0.0, 60
 
 
+def _board_state_notes() -> list:
+    """СТРОКИ СОСТОЯНИЯ ДОСКИ НА ПАНЕЛИ ФОНА (26.09, владелец «вноси правки в интро»; R27/R28 из claude/research/rules.md):
+    «слом лидера» — последний настоящий слом лидера на ехавшей доске за SIGHT_LEADER_BREAK_H часов (paper_sight.leader_break_recent, те же мерки, что у бота):
+    после него доска перестаёт расти 4/4, следующий лидер через ~17 ч, лонги «картины» закрыты; «доска 6 ч» — медиана хода всех монет за 6 ч рядом с суточной
+    (суточная после слома отстаёт) и флаг «день доски» по R28: медиана за 6 ч на 06:00 UTC > +0.5% → день закрылся с доской > +1% в 7 из 7."""
+    out: list = []
+    try:
+        from paper_sight import leader_break_recent, rows_of as _ro, ARCH as _arch
+        try:
+            from core_config import SIGHT_BOARD_GATE as _gate, SIGHT_LEADER_BREAK_H as _lbh
+        except ImportError:
+            _gate, _lbh = 1.0, 24
+        syms = sorted(p_.stem.upper() + "USDT" for p_ in _arch.glob("*.jsonl"))
+        ch6, ch24, day = [], [], []
+        now = datetime.now(timezone.utc)
+        t0 = int(now.replace(hour=0, minute=0, second=0, microsecond=0).timestamp() * 1000)
+        t6 = t0 + 6 * 3600000
+        for s_ in syms:
+            r_ = _ro(s_)
+            if len(r_) >= 49 and r_[-1].get("px") and r_[-13].get("px") and r_[-49].get("px"):
+                ch6.append((float(r_[-1]["px"]) / float(r_[-13]["px"]) - 1) * 100)
+                ch24.append((float(r_[-1]["px"]) / float(r_[-49]["px"]) - 1) * 100)
+            by = {int(x["t"]): float(x["px"]) for x in r_ if x.get("t") and x.get("px")}
+            if t0 in by and t6 in by and by[t0]:
+                day.append((by[t6] / by[t0] - 1) * 100)
+        med = lambda v: (sorted(v)[len(v) // 2] if v else None)   # noqa: E731
+        m6, m24, md = med(ch6), med(ch24), med(day)
+        lb = leader_break_recent(syms, float(_gate if _gate is not None else 1.0))
+        if lb and (now.timestamp() * 1000 - lb[1]) <= float(_lbh or 24) * 3600000:
+            t_br = datetime.fromtimestamp(lb[1] / 1000, timezone.utc)
+            left = float(_lbh or 24) - (now.timestamp() - t_br.timestamp()) / 3600
+            out.append(("слом лидера", "давит", f"{lb[0][:-4]} {t_br.strftime('%H:%M')} UTC при доске {lb[2]:+.1f}% · доска стоит или садится ~сутки (4 из 4) · следующий лидер ~17 ч · лонгов «картины» нет ещё {max(0.0, left):.0f} ч (R27)"))
+        if m6 is not None and m24 is not None:
+            st_ = "рост" if m6 > 0.5 else "давит" if m6 < -0.5 else "нейтральный"
+            flag = ("день доски: да" if md is not None and md > 0.5 else "день доски: нет" if md is not None else "день доски: ждём 06:00 UTC")
+            out.append(("доска 6 ч", st_, f"{m6:+.1f}% за 6 ч · {m24:+.1f}% за сутки · {flag}" + (f" (06:00 UTC {md:+.1f}%, R28: 7 из 7)" if md is not None else "")))
+    except Exception as e:  # noqa: BLE001
+        print(f"строки доски не собрались: {type(e).__name__}: {e}", file=sys.stderr)
+    return out
+
+
 def _board_now() -> dict | None:
     """Доска сейчас из последней строки фона (market_bg): медиана хода за сутки и сколько монет растёт.
     Нет строки — None: тогда при лидере звёзды гаснут, как раньше."""
@@ -737,6 +778,24 @@ def collect_items() -> list[dict]:
                 _it["sub"] = " ‖ ".join(_G)
             else:
                 _it["sub"] = _tag + " · " + _prob + (" · " + _sub if _sub else "")
+    # «КОНЕЦ?» У ПОШЕДШИХ (26.09, владелец «вноси правки в интро»; R29/R21 — те же проверки, что выход книги «3 в первых», paper_first3.end_exit):
+    # рекордный объём получасовки при ходе ≥+200% (14/19 вниз за 6 ч) или пик выноса шортов за час на вертикали ≥+15% (пик выноса = вершина).
+    try:
+        from paper_first3 import end_exit as _end_exit
+    except Exception:  # noqa: BLE001
+        _end_exit = None
+    if _end_exit:
+        for it in items:
+            if it.get("g") != 2 or not it.get("sym"):
+                continue
+            try:
+                _we = _end_exit(it["sym"])
+            except Exception:  # noqa: BLE001
+                _we = None
+            if _we:
+                it["end"] = _we
+                it["sub"] = "КОНЕЦ? " + _we + " ‖ " + str(it.get("sub") or "")
+                it["why"] = "КОНЕЦ? " + _we + " · " + str(it.get("why") or "")
     for it in items:
         _pk = _pick.get(it["sym"]) or {}
         _q = _qpos.get(it["sym"])
@@ -1084,7 +1143,7 @@ def render_intro(items: list[dict] | None = None) -> str:
     bgnote: list = []
     try:
         from market_bg import bg_note
-        bgnote = bg_note() or []
+        bgnote = list(bg_note() or []) + _board_state_notes()     # 26.09: + «слом лидера» (R27) и «доска 6 ч» с флагом дня доски (R28)
     except Exception as _e:  # noqa: BLE001
         # ОШИБКА НЕ ПРОГЛАТЫВАЕТСЯ МОЛЧА (10.09): 10.09 фон падал на делении на ноль, панель
         # приборов исчезала с экрана целиком, и снаружи это выглядело как «пропали приборы».
@@ -2631,6 +2690,7 @@ function drawFx(t){
     : r[0]==='торги' ? clockGauge(r)
     : r[0]==='биткоин дальше' ? ''                   // 18.09: ушла в один прибор биткоина
     : r[0]==='деньги лидера' ? plainRow(r)          // откуда взял: снаружи / из соседей — не перевес сторон, строка (11.09)
+    : (r[0]==='слом лидера' || r[0]==='доска 6 ч') ? plainRow(r)   // 26.09: состояние доски — R27 слом лидера, R28 день доски, медиана за 6 ч
     : r[0]==='биткоин сейчас' ? btcGauge(r, rNext)
     : railGauge(r)).join('');
 })();

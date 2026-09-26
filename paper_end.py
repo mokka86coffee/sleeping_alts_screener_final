@@ -120,7 +120,7 @@ def _med(v):
 
 def signal_split(rows: list[dict], sym: str, lb) -> dict | None:
     """ДВЕ ВЕТКИ «КОНЦА» (26.09) вместо бара «интерес −2%» (22% в плюс, 27 сделок):
-    «конец-лидер» — монета = лидер, сломанный на ехавшей доске за последние сутки (lb из paper_sight.leader_break_recent, R27), шорт не в момент слома
+    «слом лидера» (бывш. «конец-лидер») — монета = лидер, сломанный на ехавшей доске за последние сутки (lb из paper_sight.leader_break_recent, R27), шорт не в момент слома
       (R24: отскоки +5…+23%), а когда после отскока сделан БОЛЕЕ НИЗКИЙ максимум без объёма при уходящем интересе: закрытие ниже прошлого, максимум
       последних 4 баров ниже максимума суток, объём бара ≤ медианы 48 баров, интерес ниже, чем 6 баров назад, фандинг ≤ END_LEADER_FUND_MAX.
       Цель — R4: END_LEADER_DEPTH от максимума суток; лидер через 48 ч ниже 14/17.
@@ -146,7 +146,7 @@ def signal_split(rows: list[dict], sym: str, lb) -> dict | None:
             tgt = max(0.03, C[i] / tgt_px - 1) if tgt_px < C[i] else 0.03
             run = (C[i] / min(C[i - 48:i]) - 1) * 100
             return dict(base, run_pct=round(run, 1), target=round(tgt, 4), size=2.0,
-                        rule=f"конец-лидер: слом {lb[0][:-4]} на ехавшей доске, более низкий максимум без объёма, интерес уходит (R27/R4)")
+                        rule=f"слом лидера: {lb[0][:-4]} на ехавшей доске, более низкий максимум без объёма, интерес уходит (R27/R4)")
     # ── сползание ──
     fm = _med(F[i - 48:i + 1])
     hi72 = max(H[i - 144:i + 1]) if i >= 144 else max(H[: i + 1])
@@ -255,7 +255,7 @@ def main() -> int:
                 pos = None
         sig = signal_split(rows, sym, _lb) if PAPER_END_SPLIT else signal(rows)
         if sig and not pos and _pg and sig["t"] > (state.get("last_sig", {}).get(sym) or 0):
-            _why = (_pg.cooldown(state, sym, -1, sig["t"]) if (PAPER_END_SPLIT and str(sig.get("rule", "")).startswith("конец-лидер"))
+            _why = (_pg.cooldown(state, sym, -1, sig["t"]) if (PAPER_END_SPLIT and str(sig.get("rule", "")).startswith("слом лидера"))
                     else (_pg.short_blocked(sym, rows) or _pg.cooldown(state, sym, -1, sig["t"])))   # лидера в ветке «конец-лидер» шортим по правилу
             if _why:
                 print(f"paper_end: {sym} · пропуск — {_why}")

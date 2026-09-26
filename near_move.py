@@ -923,6 +923,24 @@ def attach_today(sym_usdt: str, j: dict) -> dict:
     tb = _today_bars(sym_usdt)
     if tb:
         j["today"] = tb
+        # ПЯТЫЙ ПРИЗНАК ДЛЯ ЧЕТВЁРОК — ИНТЕРЕС РВАНУЛ (26.09, владелец «делай правки»; R34: claude/research/four_signs.py, intraday_catch.py,
+        # oi_base_rate.py). Четвёрка без группы (RARE 26.09: сбор ×26, плечо ×2, удержан, спрос — не хватало «оборота в затишье» и шортов) получает
+        # пятый признак, если интерес за 3 ч вырос на STAR_OI_JUMP_3H и больше: такой рост бывает в 12% монето-суток, а у 42 лидеров из 43 был за сутки
+        # до первого +40%; накануне первого +40% четвёрками были 8 лидеров из 71. Группа — по тому же правилу, что в judge (по положению цены к сбору).
+        try:
+            from core_config import STAR_OI_JUMP_3H as _oj
+        except ImportError:
+            _oj = 15.0
+        _j3 = tb.get("oi_jump_3h_pct")
+        if j.get("score") == 4 and not j.get("group") and _j3 is not None and float(_j3) >= _oj:
+            from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+            j["score"] = 5
+            j.setdefault("why", []).append(f"интерес рванул: +{float(_j3):.0f}% за 3 ч (R34 — пятый признак для четвёрок)")
+            _n = j.get("nums") or {}
+            _fh = _n.get("from_harvest_high")
+            _recent = str(_n.get("harvest_day") or "") >= (_dt.now(_tz.utc) - _td(days=1)).strftime("%Y-%m-%d")
+            j["group"] = "going" if (_fh is not None and _fh >= -3 and _recent) else ("holding" if (_fh is not None and _fh >= -10) else "pulled")
+            j["near"] = j["group"] == "holding"
         if j.get("group") in ("holding", "going", "pulled"):
             j["sub"] = tb["today"]          # «покупают сегодня» / «продают сегодня» / «стоит» — во всех живых группах
     if j.get("group") in ("holding", "going", "pulled"):

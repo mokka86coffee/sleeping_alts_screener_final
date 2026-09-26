@@ -15,7 +15,7 @@ def hist(sym):
         out.update({int(x["timestamp"]): float(x["sumOpenInterestValue"]) for x in d}); end = int(d[0]["timestamp"]) - 1
         if len(d) < 500: break
     return out
-days_total = days_A = days_B = 0; sigA = 0; sigA_40 = 0; sigA_10 = 0
+days_total = days_A = days_B = 0; sigA = 0; sigA_40 = 0; sigA_10 = 0; SPLIT = {}
 t0 = time.time()
 for n, p in enumerate(sorted(P.glob("*.json"))):
     if p.stem == "BTCUSDT": continue
@@ -34,9 +34,18 @@ for n, p in enumerate(sorted(P.glob("*.json"))):
         if g3.get(t, 0) < 15 or t - last < 12 * H or t not in by: continue
         last = t; sigA += 1
         fut = [by[x] for x in range(t + B, t + 48 * H + 1, B) if x in by]
+        # РАЗБИВКА ПО ПОЛОЖЕНИЮ (26.09, для подписи звезды): ход от минимума 7 дней (336 баров) на баре сигнала
+        past = [by[x] for x in range(t - 336 * B, t + 1, B) if x in by]
+        run = (by[t] / min(past) - 1) * 100 if past else None
+        grp = None if run is None else ("спит" if run < 20 else "поднялась" if run < 40 else "в ходу")
         if fut:
             mx = max(fut) / by[t] - 1; sigA_40 += mx >= 0.40; sigA_10 += mx >= 0.10
+            if grp:
+                SPLIT.setdefault(grp, [0, 0, 0]); SPLIT[grp][0] += 1; SPLIT[grp][1] += mx >= 0.10; SPLIT[grp][2] += mx >= 0.40
     if n % 30 == 0: print(f"  {n} монет, {time.time() - t0:.0f} с", flush=True)
     time.sleep(0.05)
 print(f"\nсуток всего {days_total}: с ростом интереса ≥+15% за 3 ч — {days_A} ({days_A / days_total * 100:.0f}%), ≥+8% — {days_B} ({days_B / days_total * 100:.0f}%)")
 print(f"сигналов ≥+15% за 3 ч (не чаще раза в 12 ч на монету): {sigA}; за 48 ч после — ≥+10% у {sigA_10 / max(sigA, 1) * 100:.0f}%, ≥+40% у {sigA_40 / max(sigA, 1) * 100:.0f}%")
+for grp, (n, a, b) in SPLIT.items():
+    print(f"  {grp}: n={n} · +10% у {a / n * 100:.0f}% · +40% у {b / n * 100:.0f}%")
+
