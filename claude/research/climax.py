@@ -20,44 +20,72 @@ def kl(sym, t0, t1):
         if len(d) < 1500: break
     return [(k[0], float(k[2]), float(k[3]), float(k[4]), float(k[7]), float(k[10])) for k in out]  # t, hi, lo, close, quote vol, taker buy quote
 rows = list(csv.DictReader(open(Path(__file__).with_name("anatomy.csv"), encoding="utf-8")))
-print(f"{'монета':<9}{'ход1':>6} {'вершина':<12}| макс.объём: сдвиг ч · ×медиана · доля покуп | после бара макс.объёма: 6ч · 12ч · 24ч · макс↑24ч | вершина после макс.объёма?")
-res = []
+JUMP = 40.0   # ход за 48 ч, при котором монета «в ходу» (PUMP_JUMP_PCT проекта)
+print("ПРОСПЕКТИВНО: сигнал = бар, чей объём в долларах — максимум за последние 48 ч, при закрытии ≥ +40% к закрытию 48 ч назад (монета «в ходу»).")
+print("Окно поиска: вершина − 72 ч … вершина + 24 ч. Первый сигнал в окне и все сигналы отдельно.\n")
+print(f"{'монета':<9}{'ход1':>6} {'вершина':<12}| сигналов | ПЕРВЫЙ: сдвиг к вершине ч · ×медиана48 · покуп% | после: 6ч · 12ч · 24ч · макс↑ до вершины")
+res, allsig = [], []
 for r in rows:
     try:
-        t0, tp = loc(r["start"]), loc(r["peak1"])
+        tp = loc(r["peak1"])
     except Exception:
         continue
     try:
-        k = kl(r["sym"], t0, tp + 48 * H)
+        k = kl(r["sym"], tp - 5 * 24 * H, tp + 48 * H)
     except Exception as e:
         print(r["sym"], "нет данных:", e); continue
-    if len(k) < 4: continue
-    win = [x for x in k if t0 <= x[0] <= tp + 24 * H]
-    if not win: continue
-    mx = max(win, key=lambda x: x[4]); med = st.median(x[4] for x in win) or 1
-    shift = (mx[0] - tp) / H
-    buy = mx[5] / mx[4] * 100 if mx[4] else None
-    after = {dt: next(((x[3] / mx[3] - 1) * 100 for x in k if x[0] == mx[0] + dt * H), None) for dt in (6, 12, 24)}
-    hi24 = [x[1] for x in k if mx[0] < x[0] <= mx[0] + 24 * H]
-    up24 = (max(hi24) / mx[3] - 1) * 100 if hi24 else None
-    # настоящая вершина хода (максимум закрытия в окне) относительно бара макс. объёма
-    top = max(win, key=lambda x: x[3]); top_after = (top[0] - mx[0]) / H
+    by = {x[0]: i for i, x in enumerate(k)}
+    sigs = []
+    for i, x in enumerate(k):
+        if not (tp - 72 * H <= x[0] <= tp + 24 * H): continue
+        j = by.get(x[0] - 48 * H)
+        if j is None: continue
+        if x[3] / k[j][3] - 1 < JUMP / 100: continue
+        prev = k[j:i]
+        if x[4] < max(p[4] for p in prev): continue
+        med = st.median(p[4] for p in prev) or 1
+        after = {dt: ((k[i + 2 * dt][3] / x[3] - 1) * 100 if i + 2 * dt < len(k) else None) for dt in (6, 12, 24)}
+        # максимум закрытия дальше в окне (до вершины + 24 ч) — сколько ещё дал ход
+        fut = [p[3] for p in k[i + 1:] if p[0] <= tp + 24 * H]
+        more = (max(fut) / x[3] - 1) * 100 if fut else 0.0
+        sofar = (x[3] / float(r["start_px"]) - 1) * 100 if r.get("start_px") else None
+        bar = (x[3] / k[i - 1][3] - 1) * 100 if i > 0 else 0.0   # сама свеча рекорда: вертикаль или нет
+        sigs.append(dict(t=x[0], shift=(x[0] - tp) / H, ratio=x[4] / med, buy=x[5] / x[4] * 100 if x[4] else 50, after=after, more=more, sofar=sofar, bar=bar))
+    if not sigs: 
+        print(f"{r['sym']:<9}{r['move1_pct']:>5}% {r['peak1']:<12}| 0"); continue
+    s0 = sigs[0]
     f = lambda v: "  —  " if v is None else f"{v:+5.1f}"
-    print(f"{r['sym']:<9}{r['move1_pct']:>5}% {r['peak1']:<12}| {shift:+6.1f} · ×{mx[4] / med:4.1f} · {buy:3.0f}% | {f(after[6])} · {f(after[12])} · {f(after[24])} · {f(up24)} | вершина через {top_after:+.1f} ч")
-    res.append(dict(sym=r["sym"], shift=shift, ratio=mx[4] / med, buy=buy, after=after, up24=up24, top_after=top_after, move=float(r["move1_pct"])))
+    print(f"{r['sym']:<9}{r['move1_pct']:>5}% {r['peak1']:<12}| {len(sigs):3d}      | {s0['shift']:+6.1f} · ×{s0['ratio']:5.1f} · {s0['buy']:3.0f}% | {f(s0['after'][6])} · {f(s0['after'][12])} · {f(s0['after'][24])} · {f(s0['more'])}")
+    res.append(dict(sym=r["sym"], first=s0, n=len(sigs))); allsig += sigs
     time.sleep(0.15)
 n = len(res)
-print(f"\nСВОДКА по {n} ходам (окно: старт → вершина + 24 ч):")
-near = [x for x in res if abs(x["shift"]) <= 2]
-before = [x for x in res if x["shift"] < -2]; later = [x for x in res if x["shift"] > 2]
-print(f"  бар макс.объёма в ±2 ч от вершины — {len(near)}/{n}; раньше вершины (>2 ч) — {len(before)}; позже (уже на спаде) — {len(later)}")
-for name, g in (("±2 ч от вершины", near), ("раньше вершины", before), ("позже вершины", later)):
-    if not g: continue
-    a24 = [x["after"][24] for x in g if x["after"][24] is not None]
-    dn = sum(1 for v in a24 if v < 0)
-    up = [x["up24"] for x in g if x["up24"] is not None]
-    print(f"  {name}: n={len(g)} · через 24 ч после бара ниже — {dn}/{len(a24)} (медиана {st.median(a24) if a24 else 0:+.1f}%) · "
-          f"дотянула выше на ≥+10% за 24 ч — {sum(1 for v in up if v >= 10)}/{len(up)} · ×медиана {st.median(x['ratio'] for x in g):.1f} · доля покупателей {st.median(x['buy'] for x in g):.0f}%")
-# сдвиг «раньше»: на сколько часов раньше вершины стоит макс. объём — распределение
-sh = sorted(x["shift"] for x in before)
-if sh: print(f"  когда раньше: медиана {st.median(sh):+.1f} ч, диапазон {sh[0]:+.1f}…{sh[-1]:+.1f} ч")
+print(f"\nСВОДКА: ходов с сигналом {n}, всего сигналов {len(allsig)}")
+def grp(name, g):
+    if not g: return
+    a24 = [x["after"][24] for x in g if x["after"][24] is not None]; a6 = [x["after"][6] for x in g if x["after"][6] is not None]
+    more = [x["more"] for x in g]
+    print(f"  {name}: n={len(g)} · через 6 ч ниже {sum(1 for v in a6 if v < 0)}/{len(a6)} (медиана {st.median(a6) if a6 else 0:+.1f}%) · через 24 ч ниже {sum(1 for v in a24 if v < 0)}/{len(a24)} (медиана {st.median(a24) if a24 else 0:+.1f}%)"
+          f" · ход дал ещё ≥+10% до вершины — {sum(1 for v in more if v >= 10)}/{len(more)} · ≥+30% — {sum(1 for v in more if v >= 30)}/{len(more)} · медиана ещё {st.median(more):+.1f}%")
+firsts = [x["first"] for x in res]
+grp("ПЕРВЫЙ сигнал хода", firsts)
+grp("  первый сигнал в ±2 ч от вершины", [x for x in firsts if abs(x["shift"]) <= 2])
+grp("  первый сигнал раньше вершины (>2 ч)", [x for x in firsts if x["shift"] < -2])
+grp("ВСЕ сигналы", allsig)
+grp("  все сигналы: объём ≥ ×20 к медиане 48 ч", [x for x in allsig if x["ratio"] >= 20])
+grp("  все сигналы: объём < ×20", [x for x in allsig if x["ratio"] < 20])
+grp("  все сигналы: покупатели-агрессоры ≥ 55%", [x for x in allsig if x["buy"] >= 55])
+grp("  все сигналы: покупатели ≤ 45%", [x for x in allsig if x["buy"] <= 45])
+print("  РАЗРЕЗ ПО ПРОЙДЕННОМУ ХОДУ (закрытие бара сигнала к старту хода из anatomy):")
+grp("  все сигналы: ход до бара < +100%", [x for x in allsig if x["sofar"] is not None and x["sofar"] < 100])
+grp("  все сигналы: ход до бара +100…+200%", [x for x in allsig if x["sofar"] is not None and 100 <= x["sofar"] < 200])
+grp("  все сигналы: ход до бара ≥ +200%", [x for x in allsig if x["sofar"] is not None and x["sofar"] >= 200])
+lasts = [x for x in allsig if x["shift"] > -6 and x["shift"] <= 2]
+grp("  сигналы за 6 ч до вершины (±2 ч) — что было бы видно: ", lasts)
+print("  РАЗРЕЗ ПО САМОЙ СВЕЧЕ РЕКОРДА (кадр DYDX: вертикаль на рекордном обороте в далеко зашедшем тренде):")
+grp("  все сигналы: свеча рекорда — вертикаль (≥ +15% за получасовку)", [x for x in allsig if x["bar"] >= 15])
+grp("  все сигналы: свеча рекорда обычная (< +15%)", [x for x in allsig if x["bar"] < 15])
+grp("  вертикаль и ход до неё ≥ +100% (далеко зашедший тренд)", [x for x in allsig if x["bar"] >= 15 and x["sofar"] is not None and x["sofar"] >= 100])
+grp("  вертикаль и ход до неё < +100%", [x for x in allsig if x["bar"] >= 15 and x["sofar"] is not None and x["sofar"] < 100])
+grp("  обычная свеча и ход до неё ≥ +100%", [x for x in allsig if x["bar"] < 15 and x["sofar"] is not None and x["sofar"] >= 100])
+near = sum(1 for x in firsts if abs(x["shift"]) <= 2)
+print(f"  первый сигнал попадает в ±2 ч от вершины: {near}/{n}; медиана сдвига первого сигнала {st.median(x['shift'] for x in firsts):+.1f} ч")
