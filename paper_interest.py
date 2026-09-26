@@ -44,7 +44,16 @@ def signal(rows: list[dict], nums: dict) -> dict | None:
     run = float(nums.get("run_from_low7") or 0)
     C = [float(r["px"]) for r in rows]
     if oi3 >= INTEREST_OI_3H and tkm >= INTEREST_TAKER and run < INTEREST_SLEEP and C[i] >= C[i - 3]:
-        return {"t": rows[i]["t"], "px": C[i], "target": INTEREST_TARGET, "stop": INTEREST_STOP, "hold": INTEREST_HOLD,
+        # 27.09 фон: не дальше INTEREST_FON_RUN24_MAX от минимума суток (trade_context.md: провалы при +34%, победы при +24%)
+        try:
+            from book_fon import fon as _fon, coin_fon as _cfon
+            from core_config import INTEREST_FON_RUN24_MAX as _rmax
+            _f, _cf = _fon(), _cfon(rows)
+        except Exception:  # noqa: BLE001
+            _f, _cf, _rmax = {}, {}, 25.0
+        if _cf.get("run24") is not None and _cf["run24"] > _rmax:
+            return None
+        return {"t": rows[i]["t"], "px": C[i], "target": INTEREST_TARGET, "stop": INTEREST_STOP, "hold": INTEREST_HOLD, "fon": _f, "coin_fon": _cf,
                 "oi_3h_pct": round(oi3, 1), "taker3": round(tkm, 2), "run_from_low7": round(run, 1),
                 "rule": f"интерес +{oi3:.0f}% за 3 ч, тейкер {tkm:.2f}, монета спит (+{run:.0f}% от мин 7 дн) — R34: +10% у 50%, +40% у 11%"}
     return None

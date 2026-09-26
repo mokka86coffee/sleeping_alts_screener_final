@@ -142,11 +142,37 @@ def signal_split(rows: list[dict], sym: str, lb) -> dict | None:
         oi_ok = OI[i] and OI[i - 6] and OI[i] < OI[i - 6]
         f_ok = fund is None or fund <= END_LEADER_FUND_MAX
         if hi4 < hi24 and vol_ok and oi_ok and f_ok and C[i] > C[i - 6]:        # отскок был (выше, чем 3 ч назад) и кончается
+            # 27.09 фон: доска за сутки ≤ END_FON_BOARD24_MAX и объём часа ≥ END_FON_VOL1H_MIN (trade_context.md: провалы при горячей доске)
+            try:
+                from book_fon import fon as _fon, coin_fon as _cfon
+                _f = _fon(); _cf = _cfon(rows)
+                from core_config import END_FON_BOARD24_MAX as _bmax, END_FON_VOL1H_MIN as _vmin
+            except Exception:  # noqa: BLE001
+                _f, _cf, _bmax, _vmin = {}, {}, 2.0, 1.5
+            if _f.get("board24") is not None and _f["board24"] > _bmax:
+                return None
+            if _cf.get("vol1h_vs_day") is not None and _cf["vol1h_vs_day"] < _vmin:
+                return None
             tgt_px = hi24 * (1 - END_LEADER_DEPTH)
             tgt = max(0.03, C[i] / tgt_px - 1) if tgt_px < C[i] else 0.03
             run = (C[i] / min(C[i - 48:i]) - 1) * 100
-            return dict(base, run_pct=round(run, 1), target=round(tgt, 4), size=2.0,
+            return dict(base, run_pct=round(run, 1), target=round(tgt, 4), size=2.0, fon=_f, coin_fon=_cf,
                         rule=f"слом лидера: {lb[0][:-4]} на ехавшей доске, более низкий максимум без объёма, интерес уходит (R27/R4)")
+    # ── фандинг+ (R36, 27.09): рекордный плюсовой фандинг при ходе — шорт; цель −6%, стоп +8%, 48 ч ──
+    try:
+        from core_config import END_FUND_HI as _fh, END_FUND_HI_RUN as _fhr
+    except ImportError:
+        _fh, _fhr = 0.05, 15.0
+    if fund is not None and F[i - 1] is not None and fund != F[i - 1] and fund >= _fh:
+        run24 = (C[i] / min(L[i - 48:i + 1]) - 1) * 100 if min(L[i - 48:i + 1]) else 0
+        if run24 >= _fhr:
+            try:
+                from book_fon import fon as _fon, coin_fon as _cfon
+                _f, _cf = _fon(), _cfon(rows)
+            except Exception:  # noqa: BLE001
+                _f, _cf = {}, {}
+            return dict(base, run_pct=round(run24, 1), target=0.06, stop_up=0.08, size=1.0, hold=96, fon=_f, coin_fon=_cf,
+                        rule=f"фандинг+: {fund:+.3f}% при ходе 24 ч +{run24:.0f}% — толпа в лонге на вершине (R36)")
     # ── сползание ──
     fm = _med(F[i - 48:i + 1])
     hi72 = max(H[i - 144:i + 1]) if i >= 144 else max(H[: i + 1])
@@ -166,11 +192,13 @@ def check_exit(pos: dict, rows: list[dict]):
         # 19.09: PAPER_END_STOP = None — книга без стопа (выход по цели и сроку). Опыт против «толпы», где стоп остался
         if PAPER_END_STOP is not None and r.get("h") and (r["h"] / e - 1) >= PAPER_END_STOP:
             return -PAPER_END_STOP - PAPER_END_FEE, f"стоп на баре {k}"
+        if pos.get("stop_up") and r.get("h") and (r["h"] / e - 1) >= float(pos["stop_up"]):      # 27.09: свой стоп у ветки фандинг+
+            return -float(pos["stop_up"]) - PAPER_END_FEE, f"стоп +{float(pos['stop_up']) * 100:.0f}% на баре {k}"
         res = e / r["px"] - 1
         if res >= pos["target"]:
             return res - PAPER_END_FEE, f"цель на баре {k}"
-        if k >= PAPER_END_HOLD:
-            return res - PAPER_END_FEE, f"срок {PAPER_END_HOLD} баров"
+        if k >= int(pos.get("hold") or PAPER_END_HOLD):
+            return res - PAPER_END_FEE, f"срок {int(pos.get('hold') or PAPER_END_HOLD)} баров"
     return None
 
 

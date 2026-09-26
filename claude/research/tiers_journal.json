@@ -1,0 +1,56 @@
+{
+ "2026-09-27 01:01:02": {
+  "R14 фандинг−|RAREUSDT": {
+   "link": "https://www.coinglass.com/tv/Binance_RAREUSDT",
+   "rule": "R14 фандинг−",
+   "reason": {
+    "px": 0.022,
+    "run24": 50.239,
+    "run7": 80.213,
+    "from_hi24": -11.521,
+    "oi1h": -5.903,
+    "oi3h": -8.328,
+    "oi24": 175.285,
+    "fund": -0.431,
+    "fund_med24": -0.573,
+    "crowd": 0.837,
+    "tops": 1.054,
+    "buy1h": 53.577,
+    "vol1h_vs_day": 0.311
+   },
+   "background": {
+    "board6": -1.97,
+    "board24": 0.26,
+    "up24": 55.94,
+    "leader": "RARE",
+    "leader_run48": 69.67,
+    "h_since_break": null,
+    "broken": null,
+    "wd": "вс",
+    "hour": 1,
+    "sessions": [
+     "Сидней"
+    ]
+   },
+   "action": {
+    "position": "long",
+    "entry_price": 0.02204,
+    "goal": "+10%",
+    "stop": "-6%",
+    "hold_h": 24.0,
+    "size_usd": 500.0,
+    "why": "фандинг -0.43%; фон: интерес 24ч +175% (>0), от макс 24ч -12% (≥-12)"
+   },
+   "result": {
+    "success": null,
+    "reason": "открыта",
+    "pnl_pct": -1.13,
+    "pnl_usd": -5.7,
+    "bars": 4,
+    "price_now": 0.02179,
+    "max_pct": 0.95,
+    "min_pct": -1.63
+   }
+  }
+ }
+}

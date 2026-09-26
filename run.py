@@ -1547,7 +1547,8 @@ def run_once(args: argparse.Namespace) -> int:
         _issue("Бот 3 в первых", f"{type(e).__name__}: {e}")
     # ── КНИГИ «ИНТЕРЕС» (R34) И «ВТОРОЙ ХОД» (R18/R19) (26.09, владелец «правь пока только бота»): бумажно, копят счёт;
     #    журналы output/paper_interest.jsonl и output/paper_second.jsonl. Идут после near_move (нужен run_from_low7). Сбой прогон не роняет. ──
-    for _bk, _flag, _title in (("paper_interest.py", "PAPER_INTEREST_ENABLED", "Бот интерес"), ("paper_second.py", "PAPER_SECOND_ENABLED", "Бот второй ход")):
+    for _bk, _flag, _title in (("paper_interest.py", "PAPER_INTEREST_ENABLED", "Бот интерес"), ("paper_second.py", "PAPER_SECOND_ENABLED", "Бот второй ход"),
+                               ("paper_funding.py", "PAPER_FUNDING_ENABLED", "Бот фандинг−"), ("paper_div.py", "PAPER_DIV_ENABLED", "Бот дивергенция")):
         try:
             import core_config as _cc
             if not getattr(_cc, _flag, True):
@@ -1561,6 +1562,17 @@ def run_once(args: argparse.Namespace) -> int:
                 _issue(_title, (_rb.stderr or "").strip()[-300:] or f"код {_rb.returncode}")
         except Exception as e:  # noqa: BLE001
             _issue(_title, f"{type(e).__name__}: {e}")
+    # ── ТРЁХМИНУТНАЯ СТУПЕНЬ (27.09, владелец): fast_tier.py --loop живёт отдельным процессом, прогон только следит, что он жив ──
+    try:
+        import core_config as _cc
+        if getattr(_cc, "PAPER_FAST3_ENABLED", True):
+            _chk = subprocess.run(["pgrep", "-f", "fast_tier.py --loop"], capture_output=True, text=True)
+            if not (_chk.stdout or "").strip():
+                _lg = open(BASE_DIR / "output" / "fast_tier.log", "a")
+                subprocess.Popen([sys.executable, "fast_tier.py", "--loop"], cwd=BASE_DIR, stdout=_lg, stderr=subprocess.STDOUT, start_new_session=True)
+                log("→ Трёхминутная ступень: запущена (fast_tier.py --loop, лог output/fast_tier.log)")
+    except Exception as e:  # noqa: BLE001
+        _issue("Трёхминутная ступень", f"{type(e).__name__}: {e}")
     # ── СЛЕД ПОСЛЕ ВЫХОДА (16.09): к закрытым сделкам дописывается, куда цена дошла за 1/6/12/24 ч и
     #    что было внутри сделки — по этому видно, резала ли цель ход и выбивало ли стоп хвостом. ──
     try:

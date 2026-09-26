@@ -724,16 +724,7 @@ def collect_items() -> list[dict]:
         _tags = ([f"первая {_nst} подряд"] if _nst >= STAR_FIRST_STREAK else
                  [f"в топе {_ntop} подряд"] if _ntop >= STAR_TOP_STREAK else []) + \
                 ([f"первая {_n24} раз за сутки"] if _n24 > STAR_FIRST_DAY else [])
-        # ВХОД БОТА (26.09, владелец «доправляй бота и интро», «нужно заработать уже»): на «первая ≥3 подряд» книга
-        # «3 в первых» входит лонг на FIRST3_SIZE $ — цель +40%, после +20% стоп в ноль, срок FIRST3_HOLD_H ч
-        # (claude/research/first3_money.py: 4 слота по 5000 $ → +15.5K $ за 19 дн против +3.3K $ на 500 $)
-        if _nst >= STAR_FIRST_STREAK:
-            try:
-                from core_config import FIRST3_SIZE as _F3S, FIRST3_HOLD_H as _F3H, FIRST3_TARGET as _F3T, FIRST3_BE as _F3B
-            except ImportError:
-                _F3S, _F3H, _F3T, _F3B = 5000.0, 48, 0.40, 0.20
-            _tags.append(f"вход бота: лонг {_F3S:,.0f} $ · цель +{_F3T * 100:.0f}% · после +{_F3B * 100:.0f}% стоп в ноль · "
-                         f"срок {_F3H} ч".replace(",", " "))
+        # 27.09, владелец: «эта надпись не нужна в звёздах, только сделка в самом боте» — строка «вход бота» убрана
         if not _tags:
             continue
         _QT[_s] = _tags

@@ -39,6 +39,10 @@ WATCH = BASE_DIR / "watch.json"
 MEM = BASE_DIR / "output" / "depth_tick.json"
 SENT = BASE_DIR / "output" / "alerts_sent.json"
 SNAP_MIN = 3
+try:
+    from core_config import DEPTH_TICK_REMOVED_MIN_MIN as _REMOVED_MIN
+except ImportError:
+    _REMOVED_MIN = 180
 KEEP = 40                      # снимков на монету — два часа, дольше судьбе смотреть незачем
 FAR_PCT = 30                   # дальше — застрявшие продавцы, как в run.py _fast_alerts
 
@@ -94,6 +98,8 @@ def main() -> int:
         ft = df.fate(sym, snap, hist)
         for g in ft["gone"]:
             if g["runs"] < DEPTH_TICK_MIN_SNAPS or abs(g.get("dist_pct") or 0) > FAR_PCT:
+                continue
+            if g["fate"] != "съели" and g["runs"] * SNAP_MIN < _REMOVED_MIN:      # 27.09 владелец: снятия плит младше 3 ч не слать
                 continue
             k = f"wall|{sym}|{g['side']}|{g['px']}|{g['at']}|tick"
             if k in sent:
