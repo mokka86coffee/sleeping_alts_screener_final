@@ -72,6 +72,16 @@ def short_list() -> tuple[list[str], list[str], dict]:
     return spike, climax, info
 
 
+def _oi_live(sym: str):
+    """интерес за час и за последний закрытый 5-мин бар, % — по живым 5-минуткам Binance, как в «пробуждении» (28.09: «всплеск/вынос» брала
+    интерес за час из получасового архива, он отстаёт — на NOM и CVX книги встали в разные стороны: шорт +4.9% против лонга −5.1%)"""
+    oi = get_json("https://fapi.binance.com/futures/data/openInterestHist", {"symbol": sym, "period": "5m", "limit": 13}, quiet_400=True) or []
+    ov = [float(x["sumOpenInterestValue"]) for x in oi if int(x["timestamp"]) <= time.time() * 1000]
+    h1 = (ov[-1] / ov[0] - 1) * 100 if len(ov) >= 13 and ov[0] else None
+    b5 = (ov[-1] / ov[-2] - 1) * 100 if len(ov) >= 2 and ov[-2] else None
+    return h1, b5
+
+
 def _oi_bar(sym: str):
     """изменение интереса за последний ЗАКРЫТЫЙ 5-минутный бар, % — только то, что известно в момент входа"""
     oi = get_json("https://fapi.binance.com/futures/data/openInterestHist", {"symbol": sym, "period": "5m", "limit": 3}, quiet_400=True) or []
@@ -240,7 +250,10 @@ def step(state: dict, write: bool) -> list[str]:
         for sd, why, tp, sl, hold in outs:
             if sym in state["open"] or now - state["last_exit"].get(sym, 0) < 2 * 3600:
                 continue
-            sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, info.get(sym, {}).get("oi1h"), _oi_bar(sym) if sd == 1 else None)
+            o1h, o5 = _oi_live(sym) if sd == 1 else (None, None)
+            if o1h is None:
+                o1h = info.get(sym, {}).get("oi1h")                    # живых данных нет — как раньше, по архиву
+            sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, o1h, o5)
             if sym in _own_mm():                                          # 27.09: монеты со своим ММ — бот в них не входит (own_mm.py)
                 msgs.append(f"{sym[:-4]} пропущен: свой ММ (список own_mm)"); continue
             if True:                                                      # R40–R42 для обеих сторон (28.09: шорт QNT вошёл в первый час Сиднея)
@@ -252,7 +265,7 @@ def step(state: dict, write: bool) -> list[str]:
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why, last_px=px, bars=0)
             state["open"][sym] = pos
             ev.append(dict(book=BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=why, target=tp, stop=sl, hold_min=hold,
-                           oi1h=info.get(sym, {}).get("oi1h"), run24=info.get(sym, {}).get("run24"), fon=bg))
+                           oi1h=o1h if sd != 0 else None, oi5=o5, run24=info.get(sym, {}).get("run24"), fon=bg))
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} вход {px:.6g} · {why}")
             if write:
                 cg(sym, *cg_caption(BOOK, sym, pos))
