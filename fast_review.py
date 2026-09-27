@@ -192,10 +192,12 @@ def summary() -> str:
         st_ = [r for r in g if r["why"].startswith("стоп")]; tg = [r for r in g if r["why"].startswith("цель")]; tm = [r for r in g if r["why"].startswith("срок")]
         tight = [r for r in st_ if r.get("target_after_min") is not None]
         early = [r for r in tg if (r.get("post_best") or 0) > 5.0]
+        med = lambda v: f"{st.median(v):+.1f}%" if v else "—"   # noqa: E731
         out.append(f"{book}: стопов {len(st_)}, из них цена потом дошла до цели {len(tight)}"
                    + (f" (стоп нужен был медиана {st.median([r['stop_needed'] for r in tight]):+.1f}%)" if tight else "")
-                   + f"; целей {len(tg)}, после них ещё выше цели {len(early)}"
-                   + f"; по сроку {len(tm)}, внутри было ≥ 80% цели {sum(1 for r in tm if r['mfe'] >= 4.0)}")
+                   + f"; целей {len(tg)}, после них ещё выше цели {len(early)} (лучшее после выхода, медиана {med([r['post_best'] for r in tg if r.get('post_best') is not None])} от входа)"
+                   + f"; по сроку {len(tm)}: итог медиана {med([r['res'] for r in tm])}, держать ещё 1 ч {med([r['hold_1h'] for r in tm if r.get('hold_1h') is not None])},"
+                   f" 2 ч {med([r['hold_2h'] for r in tm if r.get('hold_2h') is not None])}; внутри было ≥ 80% цели {sum(1 for r in tm if r['mfe'] >= 4.0)}")
     return "\n".join(out)
 
 

@@ -326,6 +326,30 @@ def wake_step(state: dict, write: bool) -> list[str]:
     return msgs
 
 
+def page_step() -> None:
+    """ЖИВАЯ СТРАНИЦА (27.09 владелец: «отдельный сайт для быстрого бота, обновление по сокету, сервер на моём компе»): после прохода —
+    сборка output/fast_state.json (fast_state.py, отдельным процессом, ~40 с) и сервер fast_server.py, если не отвечает на порту."""
+    try:
+        from core_config import FAST_PAGE_ENABLED as _on, FAST_SERVER_PORT as _port
+    except ImportError:
+        _on, _port = True, 8765
+    if not _on:
+        return
+    import socket
+    import subprocess
+    try:
+        subprocess.Popen([sys.executable, "fast_state.py"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "fast_state.log", "a"),
+                         stderr=subprocess.STDOUT, start_new_session=True)
+        s = socket.socket(); s.settimeout(1)
+        alive = s.connect_ex(("127.0.0.1", _port)) == 0; s.close()
+        if not alive:
+            subprocess.Popen([sys.executable, "fast_server.py"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "fast_server.log", "a"),
+                             stderr=subprocess.STDOUT, start_new_session=True)
+            print(f"{datetime.now(L):%H:%M:%S} страница: сервер запущен, http://localhost:{_port}/", flush=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"{datetime.now(L):%H:%M:%S} страница: {type(e).__name__}: {e}", flush=True)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(); ap.add_argument("--loop", action="store_true"); a = ap.parse_args()
     try:
@@ -351,6 +375,13 @@ def main() -> int:
             print(f"{datetime.now(L):%H:%M:%S} {WAKE_BOOK}: сбой {type(e).__name__}: {e}", flush=True)
         if not a.loop:
             return 0
+        page_step()
+        try:                                    # 27.09 владелец: разбор выхода быстрых сделок через 2 ч — отдельным процессом (fast_review.py)
+            import subprocess
+            subprocess.Popen([sys.executable, "fast_review.py", "--write"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "fast_review.log", "a"),
+                             stderr=subprocess.STDOUT, start_new_session=True)
+        except Exception as e:  # noqa: BLE001
+            print(f"{datetime.now(L):%H:%M:%S} разбор выходов: {type(e).__name__}: {e}", flush=True)
         time.sleep(max(1, 180 - (time.time() % 180)))
 
 

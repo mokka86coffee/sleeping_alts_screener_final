@@ -243,6 +243,14 @@ def main() -> int:
     ap.add_argument("--write", action="store_true")
     a = ap.parse_args()
     t0 = time.time()
+    if a.write:                          # 27.09: подписка по /start — проверять каждые 3 мин, а не только когда бот что-то шлёт
+        try:
+            from send_brief_telegram import load_config, poll_subscribers
+            _cfg = load_config()
+            if _cfg:
+                poll_subscribers(_cfg)
+        except Exception:  # noqa: BLE001
+            pass
     alert = coins()                      # телеграм — только по ним, как было
     tr = trades()
     ts = int(time.time() // 60 * 60 * 1000)
