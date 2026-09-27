@@ -31,11 +31,12 @@ sys.path.insert(0, str(BASE_DIR))
 PROFILE = BASE_DIR / "output" / "cg_profile"
 SHOTS = BASE_DIR / "output" / "cg_shots"
 URL = "https://www.coinglass.com/tv/Binance_{sym}"
-VIEW = {"width": 1600, "height": 1900}   # 9 панелей индикаторов под графиком
+VIEW = {"width": 1600, "height": 1600}   # 7 панелей индикаторов под графиком
 WAIT_S = 16            # графику и панелям индикаторов нужно время дорисоваться
 
 
-ADD = ("Aggregated Liquidations", "Basis", "Bid & Ask Ratio")   # в профиле не сохраняются (владелец 27.09) — добавляем на каждом снимке
+ADD = ("Aggregated Liquidations", "Basis")
+DROP = ("Bid & Ask Delta", "Bid & Ask Ratio")      # 27.09 22:00 владелец: «убери со скринов bid and ask ratio и delta»   # в профиле не сохраняются (владелец 27.09) — добавляем на каждом снимке
 
 
 def _indicators(pg) -> None:
@@ -52,6 +53,18 @@ def _indicators(pg) -> None:
             print(f"cg_shot: индикатор «{n}» не добавлен: {type(e).__name__}")
     pg.keyboard.press("Escape")
     pg.wait_for_timeout(800)
+
+
+def _drop(pg) -> None:
+    """снять индикаторы DROP (дельта заявок стоит у Coinglass по умолчанию) — через API графика во фрейме"""
+    fr = next((f for f in pg.frames if f != pg.main_frame), None)
+    if not fr:
+        return
+    try:
+        fr.evaluate("""(D) => { const a = window.tradingViewApi; const c = typeof a.activeChart === 'function' ? a.activeChart() : a.chart();
+          for (const s of c.getAllStudies()) if (D.some(d => String(s.name).indexOf(d) >= 0)) c.removeEntity(s.id); }""", list(DROP))
+    except Exception as e:  # noqa: BLE001
+        print(f"cg_shot: индикаторы не сняты: {type(e).__name__}")
 
 
 def _interval(pg, iv: str) -> None:
@@ -161,6 +174,7 @@ def shot(sym: str, lines: dict | None = None, price: bool = False) -> list[Path]
                 pg.goto(URL.format(sym=sym), wait_until="domcontentloaded", timeout=60_000)
                 pg.wait_for_timeout(8000)
                 _indicators(pg)
+                _drop(pg)
                 _interval(pg, "3m")
                 pg.wait_for_timeout(2000)
                 _draw(pg, lines or {})
