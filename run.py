@@ -900,6 +900,10 @@ def resolve_explicit_symbols(raw: str) -> list[tuple[str, float]]:
 # ─────────────────────────────────────────────────────────────
 # PREV MAIN
 # ─────────────────────────────────────────────────────────────
+
+class _SkipFirst3(Exception):
+    """27.09: тихий выход из блока «3 в первых», когда книга выключена флагом"""
+
 def run_once(args: argparse.Namespace) -> int:
     """Один полный прогон. Возвращает код возврата."""
     started = time.monotonic()
@@ -1538,11 +1542,19 @@ def run_once(args: argparse.Namespace) -> int:
     #    500 $, выход +40%, после +20% стоп в точку входа, повтор не раньше 48 ч. Цель и стоп — по трёхминуткам
     #    Binance от последней проверки. Журнал output/paper_first3.jsonl. Идёт после near_move: очередь уже записана. ──
     try:
+        # 27.09 07:00 владелец: «убери мою стратегию из бота, ты её неправильно понял — я говорил без стопов»; книга выключена
+        # (PAPER_FIRST3_ENABLED = False), журнал и состояние остаются как есть
+        import core_config as _cc3
+        if not getattr(_cc3, "PAPER_FIRST3_ENABLED", True):
+            log("→ Бот 3 в первых: выключен (PAPER_FIRST3_ENABLED = False, 27.09)")
+            raise _SkipFirst3()
         _rf3 = subprocess.run([sys.executable, "paper_first3.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=300)
         for _l in (_rf3.stdout or "").strip().splitlines():
             log(f"→ {_l[:300]}")
         if _rf3.returncode:
             _issue("Бот 3 в первых", (_rf3.stderr or "").strip()[-300:] or f"код {_rf3.returncode}")
+    except _SkipFirst3:
+        pass
     except Exception as e:  # noqa: BLE001
         _issue("Бот 3 в первых", f"{type(e).__name__}: {e}")
     # ── КНИГИ «ИНТЕРЕС» (R34) И «ВТОРОЙ ХОД» (R18/R19) (26.09, владелец «правь пока только бота»): бумажно, копят счёт;

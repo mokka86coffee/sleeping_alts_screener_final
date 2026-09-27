@@ -133,6 +133,95 @@ def step(state: dict, write: bool) -> list[str]:
     return msgs
 
 
+# ── КНИГА «ПРОБУЖДЕНИЕ» (27.09 07:30, владелец: QNT/Q/SOON/US/IN/2Z прошли мимо — выборка экрана обновляется раз в полчаса, старт
+#    приходится на первые полчаса; «листинг от 100 дней, 5 млн оставляй»). Каждые 3 мин один запрос тикера по всему Binance: прирост
+#    оборота за интервал ≥ WAKE_X × нормы (оборот суток / 480) и цена ≥ +WAKE_PCT % → только по таким качаем трёхминутки и интерес.
+#    Вход по правилам всплеска/выноса этой же книги; журнал отдельный output/paper_wake.jsonl.
+WAKE_BOOK = "пробуждение"; WAKE_STATE = BASE_DIR / "output" / "paper_wake.json"; WAKE_LOG = BASE_DIR / "output" / "paper_wake.jsonl"
+_TK = {"t": 0, "v": {}}; _AGE = {"t": 0, "v": {}}
+
+
+def listing_age_days() -> dict:
+    if time.time() - _AGE["t"] > 6 * 3600:
+        info = get_json("https://fapi.binance.com/fapi/v1/exchangeInfo") or {}
+        now = time.time() * 1000
+        _AGE["v"] = {s["symbol"]: (now - int(s.get("onboardDate") or 0)) / 86400_000 for s in info.get("symbols", []) if s["symbol"].endswith("USDT") and s.get("status") == "TRADING"}
+        _AGE["t"] = time.time()
+    return _AGE["v"]
+
+
+def wake_candidates() -> list[dict]:
+    try:
+        from core_config import WAKE_X, WAKE_PCT, WAKE_MIN_QV, WAKE_MIN_AGE_DAYS
+    except ImportError:
+        WAKE_X, WAKE_PCT, WAKE_MIN_QV, WAKE_MIN_AGE_DAYS = 5.0, 1.0, 5_000_000, 100
+    tk = get_json("https://fapi.binance.com/fapi/v1/ticker/24hr") or []
+    now = {x["symbol"]: (float(x["quoteVolume"]), float(x["lastPrice"]), float(x["lowPrice"])) for x in tk if x["symbol"].endswith("USDT")}
+    prev, t_prev = _TK["v"], _TK["t"]; _TK["v"], _TK["t"] = now, time.time()
+    if not prev or time.time() - t_prev > 600:
+        return []
+    age = listing_age_days(); out = []
+    dt_slots = max(1.0, (time.time() - t_prev) / 180)
+    for s_, (qv, px, lo) in now.items():
+        q0, p0, _ = prev.get(s_, (None, None, None))
+        if not q0 or not p0 or qv < WAKE_MIN_QV or age.get(s_, 0) < WAKE_MIN_AGE_DAYS: continue
+        d = qv - q0; norm = q0 / 480 * dt_slots; chg = (px / p0 - 1) * 100
+        if norm > 0 and d >= WAKE_X * norm and chg >= WAKE_PCT:
+            out.append(dict(sym=s_, chg=chg, x=d / norm, qv=qv, run24=(px / lo - 1) * 100 if lo else None))
+    return out
+
+
+def wake_step(state: dict, write: bool) -> list[str]:
+    now = time.time(); now_ms = int(now * 1000); ev = []; msgs = []
+    for sym, pos in list(state["open"].items()):                        # выходы — как у основной книги
+        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "3m", "startTime": int(pos["t_ms"]) + 180_000, "limit": 1000}, quiet_400=True, weight=5) or []
+        k = [x for x in k if int(x[0]) + 180_000 <= now_ms]
+        if not k: continue
+        e, sd = float(pos["px"]), int(pos["side"]); hi = max(float(x[2]) for x in k); lo = min(float(x[3]) for x in k); c = float(k[-1][4]); res = why = None
+        if sd == 1:
+            if lo <= e * (1 - pos["stop"]): res, why = -pos["stop"], "стоп"
+            elif hi >= e * (1 + pos["target"]): res, why = pos["target"], "цель"
+        else:
+            if hi >= e * (1 + pos["stop"]): res, why = -pos["stop"], "стоп"
+            elif lo <= e * (1 - pos["target"]): res, why = pos["target"], "цель"
+        if res is None and len(k) * 3 >= pos["hold_min"]: res, why = (c / e - 1) * sd, f"срок {pos['hold_min']} мин"
+        pos["last_px"] = c; pos["bars"] = len(k)
+        if res is not None:
+            res -= FEE
+            ev.append(dict(book=WAKE_BOOK, sym=sym, kind="exit_long" if sd == 1 else "exit_short", side=sd, px_in=e, px_out=round(e * (1 + res * sd), 8), opened_at=pos["at"], at=now,
+                           result_pct=round(res * 100, 2), usd=round(FAST3_SIZE * (res), 2), why_exit=why, rule=pos["rule"], size=1.0))
+            msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} выход {why} {res * 100:+.2f}%"); state["last_exit"][sym] = now; del state["open"][sym]
+        else:
+            ev.append(dict(book=WAKE_BOOK, sym=sym, kind="follow", side=sd, px_in=e, px=c, result_pct=round((c / e - 1) * sd * 100, 2), at=now))
+    cands = wake_candidates()
+    for cd in cands:
+        sym = cd["sym"]
+        if sym in state["open"] or now - state["last_exit"].get(sym, 0) < 2 * 3600: continue
+        oi = get_json("https://fapi.binance.com/futures/data/openInterestHist", {"symbol": sym, "period": "5m", "limit": 13}, quiet_400=True) or []
+        ov = [float(x["sumOpenInterestValue"]) for x in oi]; oi1h = (ov[-1] / ov[0] - 1) * 100 if len(ov) >= 13 and ov[0] else None
+        oibar = (ov[-1] / ov[-2] - 1) if len(ov) >= 2 and ov[-2] else None
+        cr = crowd_of(sym)
+        r = scan(sym, True, (cd["run24"] or 0) >= FAST3_CLIMAX_RUN)
+        if not r: continue
+        _, px, t_bar, outs = r
+        for sd, why, tp, sl, hold in outs:
+            if sd == 1 and not ((oi1h is not None and oi1h >= FAST3_SHORT_OI1H) or (cr is not None and cr <= 0.7)):
+                continue                                                  # всплеск без интереса и без шортов в топливе — не вход (R39)
+            if sd == -1 and not (oibar is not None and oibar <= FAST3_CLIMAX_OI):
+                continue
+            pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", last_px=px, bars=0)
+            state["open"][sym] = pos
+            ev.append(dict(book=WAKE_BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=pos["rule"], target=tp, stop=sl, hold_min=hold,
+                           oi1h=oi1h, crowd=cr, wake_x=round(cd["x"], 1), wake_chg=round(cd["chg"], 2), qv24=round(cd["qv"]), fon=fon()))
+            msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} вход {px:.6g} · {pos['rule']}")
+    if write:
+        with WAKE_LOG.open("a", encoding="utf-8") as f:
+            for r_ in ev: f.write(json.dumps(r_, ensure_ascii=False) + "\n")
+        tmp = WAKE_STATE.with_suffix(".tmp"); tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8"); tmp.replace(WAKE_STATE)
+    msgs.append(f"пробуждений {len(cands)}" + (": " + ", ".join(c['sym'][:-4] for c in cands[:8]) if cands else "") + f" · открыто {len(state['open'])}")
+    return msgs
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(); ap.add_argument("--loop", action="store_true"); a = ap.parse_args()
     try:
@@ -140,12 +229,22 @@ def main() -> int:
     except (OSError, ValueError):
         state = {"open": {}, "last_exit": {}}
     state.setdefault("open", {}); state.setdefault("last_exit", {})
+    try:
+        wstate = json.loads(WAKE_STATE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        wstate = {"open": {}, "last_exit": {}}
+    wstate.setdefault("open", {}); wstate.setdefault("last_exit", {})
     while True:
         try:
             for m in step(state, a.loop):
                 print(f"{datetime.now(L):%H:%M:%S} {BOOK}: {m}", flush=True)
         except Exception as e:  # noqa: BLE001
             print(f"{datetime.now(L):%H:%M:%S} {BOOK}: сбой {type(e).__name__}: {e}", flush=True)
+        try:
+            for m in wake_step(wstate, a.loop):
+                print(f"{datetime.now(L):%H:%M:%S} {WAKE_BOOK}: {m}", flush=True)
+        except Exception as e:  # noqa: BLE001
+            print(f"{datetime.now(L):%H:%M:%S} {WAKE_BOOK}: сбой {type(e).__name__}: {e}", flush=True)
         if not a.loop:
             return 0
         time.sleep(max(1, 180 - (time.time() % 180)))
