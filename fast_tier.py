@@ -222,6 +222,8 @@ def step(state: dict, write: bool) -> list[str]:
             if sym in state["open"] or now - state["last_exit"].get(sym, 0) < 2 * 3600:
                 continue
             sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, info.get(sym, {}).get("oi1h"))
+            if sym in _own_mm():                                          # 27.09: монеты со своим ММ — бот в них не входит (own_mm.py)
+                msgs.append(f"{sym[:-4]} пропущен: свой ММ (список own_mm)"); continue
             if sd == 1:                                                   # R40–R42: лонг-всплеск только внутри своей сессии
                 ok, sw, h2 = ses_gate(now, t_bar)
                 if not ok:
@@ -324,6 +326,8 @@ def wake_step(state: dict, write: bool) -> list[str]:
                 continue                                                  # всплеск без интереса и без шортов в топливе — не вход (R39)
             if sd == -1 and not _flip and not (oibar is not None and oibar <= FAST3_CLIMAX_OI):
                 continue
+            if sym in _own_mm():                                          # 27.09: свой ММ — не входим
+                msgs.append(f"{sym[:-4]} пропущен: свой ММ (список own_mm)"); continue
             if sd == 1:                                                   # R40–R42
                 ok, sw, h2 = ses_gate(now, t_bar)
                 if not ok:
@@ -343,6 +347,31 @@ def wake_step(state: dict, write: bool) -> list[str]:
         tmp = WAKE_STATE.with_suffix(".tmp"); tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8"); tmp.replace(WAKE_STATE)
     msgs.append(f"пробуждений {len(cands)}" + (": " + ", ".join(c['sym'][:-4] for c in cands[:8]) if cands else "") + f" · открыто {len(state['open'])}")
     return msgs
+
+
+_OWN = {"t": 0, "v": set()}
+
+
+def _own_mm() -> set:
+    """монеты со своим ММ (output/own_mm.json, block=True); читаем раз в 5 мин; файлу больше OWN_MM_MAX_AGE_H — пересчёт отдельным процессом"""
+    if time.time() - _OWN["t"] > 300:
+        _OWN["t"] = time.time()
+        p = BASE_DIR / "output" / "own_mm.json"
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+            _OWN["v"] = {s for s, v in (d.get("coins") or {}).items() if v.get("block")}
+            age_h = (time.time() - float(d.get("at") or 0)) / 3600
+        except (OSError, ValueError):
+            age_h = 1e9
+        try:
+            from core_config import OWN_MM_MAX_AGE_H as _mx
+        except ImportError:
+            _mx = 24
+        if age_h > _mx:
+            import subprocess
+            subprocess.Popen([sys.executable, "own_mm.py"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "own_mm.log", "a"),
+                             stderr=subprocess.STDOUT, start_new_session=True)
+    return _OWN["v"]
 
 
 def page_step() -> None:

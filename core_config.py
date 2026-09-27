@@ -775,3 +775,8 @@ FAST3_SKIP_DAYS = ["вт"]       # R42: день входа (UTC+3); вторн�
 FAST3_CG_SHOTS = True          # 27.09 владелец: на входе и выходе быстрых сделок — скрин Coinglass (Binance, 3m) в телеграм (cg_shot.py, профиль output/cg_profile)
 FAST_PAGE_ENABLED = True       # 27.09 владелец: живая страница быстрого бота — fast_state.py каждые 3 мин + сервер fast_server.py (сокет, только домашняя сеть)
 FAST_SERVER_PORT = 8765
+# 27.09 владелец: монеты со своим ММ — «в отдельный список, чтобы бот в них не попадал и чтобы они не ломали правила» (own_mm.py → output/own_mm.json).
+# Порог — из счёта claude/research/own_life.md (владелец «да»): ≥ 2 прокола одной свечой глубже 20% за 30 дн — 18 монет; быстрые книги у них −12.7% на 11 сделках.
+OWN_MM_FLUSH_N = 2
+OWN_MM_FLUSH_PCT = 20.0
+OWN_MM_MAX_AGE_H = 24          # пересчёт списка раз в сутки (fast_tier)

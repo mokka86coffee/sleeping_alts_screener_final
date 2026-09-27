@@ -336,7 +336,7 @@ function spawn(g, t) {
     if (d >= 1.1) break;
   }
   g.labels.push({
-    ...pickColors(g), name, key: it.key, item: it.item, price: it.price, r: best.r, a: best.sa - t * omega(g, best.r), born: t,
+    ...pickColors(g), name, side: it.side, key: it.key, item: it.item, price: it.price, r: best.r, a: best.sa - t * omega(g, best.r), born: t,
     life: Infinity, h: best.h,
   });
 }
@@ -499,6 +499,11 @@ function drawLabel(g, l, t) {
     let gx = 0;
     const nameFont = `300 9.2px ${THIN_FONT}`, priceFont = `400 10px ${FONT}`, smallFont = `400 8px ${FONT}`;
     tctx.font = nameFont;
+    if (l.side) {   // 27.09 владелец: «стрелки возле монет — лонг/шорт»; цвета карточки (плюс/минус)
+      const ar = l.side > 0 ? '▲' : '▼';
+      l.glyphs.push({ c: ar, x: gx, font: nameFont, col: l.side > 0 ? '110,240,180' : '255,110,130', a: 1 });
+      gx += tctx.measureText(ar).width + 4;
+    }
     for (const c of l.name) { l.glyphs.push({ c, x: gx, font: nameFont, col: l.c1, name: true, a: 1 }); gx += tctx.measureText(c).width + 1.3; }
     gx += 7;
     if (g.mode === 'target') {
@@ -635,6 +640,135 @@ function drawLabel(g, l, t) {
   return true;
 }
 
+// ── БЛИЖАЙШЕЕ СОБЫТИЕ ДНЯ (UTC+3): выходы по сессии (R41), открытие входа после часа ожидания (R40), «поздно» (входы закрыты), вторник (R42)
+const DAY_EV = [[0, 'exit', 'ВЫХОД · НЬЮ-ЙОРК'], [1, 'open', 'ВХОД ОТКРЫТ · СИДНЕЙ'], [2, 'closed', 'ВХОДЫ ЗАКРЫТЫ · ПОЗДНО'],
+  [3, 'wait', 'ТОКИО · ЖДЁМ ЧАС'], [4, 'open', 'ВХОД ОТКРЫТ · ТОКИО'], [10, 'exit', 'ВЫХОД · СИДНЕЙ И ТОКИО'], [11, 'open', 'ВХОД ОТКРЫТ · ЛОНДОН'],
+  [16, 'exit', 'ВЫХОД · ЛОНДОН'], [17, 'open', 'ВХОД ОТКРЫТ · НЬЮ-ЙОРК'], [22, 'closed', 'ВХОДЫ ЗАКРЫТЫ · ПОЗДНО']];
+function nextEvent() {
+  const msk = new Date(Date.now() + 3 * 3600e3), nowH = msk.getUTCHours() + msk.getUTCMinutes() / 60 + msk.getUTCSeconds() / 3600;
+  const tue = msk.getUTCDay() === 2;
+  const due = DAY_EV.find(e => e[1] === 'exit' && nowH >= e[0] && nowH < e[0] + .25);           // 15 мин после выхода — «пора»
+  if (due) return { h: due[0], kind: 'due', lab: due[2], left: 0, prev: due[0], frac: 1 };
+  const evs = DAY_EV.filter(e => !(tue && e[1] === 'open'));
+  let nx = evs.find(e => e[0] > nowH), next = nx ? nx[0] : evs[0][0] + 24; nx = nx || evs[0];
+  const pv = [...evs].reverse().find(e => e[0] <= nowH), prev = pv ? pv[0] : evs[evs.length - 1][0] - 24;
+  return { h: next, kind: nx[1], lab: nx[2], left: next - nowH, prev, frac: (nowH - prev) / (next - prev) };
+}
+function glowText(str, x, y, font, rgb, alpha, blur, align = 'center', spacing = '0px') {
+  tctx.save();
+  tctx.font = font; tctx.textAlign = align; tctx.letterSpacing = spacing;
+  tctx.shadowColor = `rgba(${rgb},${alpha})`; tctx.shadowBlur = blur;
+  const w = tctx.measureText(str).width, x0 = align === 'center' ? x - w / 2 : align === 'right' ? x - w : x;
+  const g = tctx.createLinearGradient(x0, y - 20, x0 + w, y);
+  g.addColorStop(0, `rgba(255,255,255,${alpha})`); g.addColorStop(.45, `rgba(${rgb},${alpha})`); g.addColorStop(1, `rgba(${mix(rgb, '255,255,255', .5)},${alpha})`);
+  tctx.fillStyle = g; tctx.fillText(str, x, y);
+  tctx.restore();
+}
+// круг «событие» — по референсу владельца (28.09: «по дизайну ты только цвет поменял — сравни с референсом»): массивный вихрь-тор из точек
+// вокруг тёмной дыры, плотное горящее кольцо, огромный отсчёт вразрядку поперёк (вихрь его перекрывает), малый отсчёт над кольцом,
+// подписи в два тона сбоку, точечные матрицы, колонки цифр, дальние окружности, туман. Мигает только огненное кольцо; текст ровный.
+const VORTEX = (() => {                 // тор: u — вдоль кольца, v — вокруг трубки; плотность выше на «рукаве»
+  const pts = [];
+  while (pts.length < 2600) {
+    const u = Math.random() * TAU, v = Math.random() * TAU;
+    const arm = .5 + .5 * Math.cos(u - 1.2);
+    if (Math.random() > .25 + .75 * arm) continue;
+    pts.push([u, v, .3 + Math.random() * .7]);
+  }
+  return pts;
+})();
+const FIRE2 = Array.from({ length: 520 }, () => [Math.random() * TAU, (Math.random() - .5), Math.random() * TAU, .5 + Math.random()]);
+const CODECOL = Array.from({ length: 5 }, () => Array.from({ length: 14 }, () => String(Math.random() * 1e4 | 0).padStart(4, '0')));
+function twoTone(dim, bright, x, y, size, rgb, align = 'center') {
+  tctx.save(); tctx.font = `500 ${size}px Futura, "Avenir Next", sans-serif`; tctx.letterSpacing = '1.5px'; tctx.textAlign = 'left';
+  const w1 = tctx.measureText(dim + ' ').width, w2 = tctx.measureText(bright).width;
+  const x0 = align === 'center' ? x - (w1 + w2) / 2 : align === 'right' ? x - w1 - w2 : x;
+  tctx.fillStyle = 'rgba(110,190,200,.55)'; tctx.fillText(dim + ' ', x0, y);
+  tctx.shadowColor = `rgba(${rgb},.9)`; tctx.shadowBlur = 8; tctx.fillStyle = `rgba(${mix(rgb, '255,255,255', .35)},1)`; tctx.fillText(bright, x0 + w1, y);
+  tctx.restore();
+}
+function drawEventScope(cx, cy, r, t) {
+  r = r * 1.25;
+  const e = nextEvent();
+  const warn = e.kind === 'exit' && e.left <= 1, due = e.kind === 'due';
+  const TEAL = '60,205,205', fireC = due ? '255,70,90' : warn ? '255,165,50' : '255,125,35';
+  const pulse = due ? .55 + .45 * Math.sin(t * 6) : warn ? .6 + .4 * Math.sin(t * 3.5) : 1;
+  const heat = due ? 1.5 : warn ? 1.3 : 1;
+  const hh = Math.floor(e.left), mm = Math.floor((e.left - hh) * 60), ss = Math.floor(((e.left - hh) * 60 - mm) * 60);
+  const cnt = due ? 'NOW' : hh ? `${hh}:${String(mm).padStart(2, '0')}` : `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+  // туман и дальние окружности
+  const fog = ctx.createRadialGradient(cx, cy, r * .2, cx, cy, r * 2.2);
+  fog.addColorStop(0, 'rgba(20,90,95,.20)'); fog.addColorStop(.5, 'rgba(15,70,80,.10)'); fog.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = fog; ctx.beginPath(); ctx.arc(cx, cy, r * 2.2, 0, TAU); ctx.fill();
+  ctx.strokeStyle = `rgba(${TEAL},.10)`; ctx.lineWidth = 1;
+  for (const k of [1.55, 1.95]) { ctx.beginPath(); ctx.arc(cx + (k - 1.5) * 8, cy - (k - 1.5) * 6, r * k, 0, TAU); ctx.stroke(); }
+  // вихрь: сначала задняя половина
+  const tilt = .42, spin = t * .22;   // почти анфас — круглый объёмный тор, как в референсе
+  const P = VORTEX.map(([u, v, b]) => {
+    const uu = u + spin + .35 * Math.sin(v + t * .4), R0 = r * .9, rr = r * .36 * (1 + .22 * Math.cos(uu * 2));
+    const x = (R0 + rr * Math.cos(v)) * Math.cos(uu), y = (R0 + rr * Math.cos(v)) * Math.sin(uu), z = rr * Math.sin(v);
+    const y2 = y * Math.cos(tilt) - z * Math.sin(tilt), z2 = y * Math.sin(tilt) + z * Math.cos(tilt);
+    return [cx + x, cy + y2, z2, b];
+  });
+  ctx.globalCompositeOperation = 'lighter';
+  const dot = ([x, y, z, b]) => { const k = clamp(.5 + z / (r * .9)); ctx.fillStyle = `rgba(${TEAL},${(.07 + .5 * k) * b})`; ctx.fillRect(x, y, 1.3 + k, 1.3 + k); };
+  for (const q of P) if (q[2] < 0) dot(q);
+  ctx.globalCompositeOperation = 'source-over';
+  // тёмная дыра
+  const hole = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * .6);
+  hole.addColorStop(0, 'rgba(2,8,12,.96)'); hole.addColorStop(.8, 'rgba(3,12,18,.9)'); hole.addColorStop(1, 'rgba(3,12,18,0)');
+  ctx.fillStyle = hole; ctx.beginPath(); ctx.arc(cx, cy, r * .6, 0, TAU); ctx.fill();
+  // огромный отсчёт вразрядку поперёк — под передней половиной вихря
+  ctx.save(); ctx.font = `100 ${Math.round(r * .42)}px ${THIN_FONT}`; ctx.textAlign = 'center'; ctx.letterSpacing = `${Math.round(r * .2)}px`;
+  ctx.fillStyle = 'rgba(150,215,220,.58)'; ctx.fillText(`-${cnt}-`, cx + r * .1, cy + r * .14); ctx.restore();
+  // точечные матрицы
+  ctx.fillStyle = `rgba(${TEAL},.55)`;
+  for (const [dx, dy] of [[.42, -.34], [.42, -.18], [-.15, -.02], [.46, .02], [.52, .44], [-.62, .3]]) {
+    for (let i = 0; i < 3; i++) ctx.fillRect(cx + dx * r + i * 4, cy + dy * r, 1.6, 1.6);
+  }
+  // короткие толстые дуги и скобка
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.shadowColor = `rgba(${TEAL},.9)`; ctx.shadowBlur = 8; ctx.strokeStyle = `rgba(${TEAL},.8)`; ctx.lineCap = 'butt';
+  ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(cx, cy, r * .52, 1.9, 2.5); ctx.stroke();
+  ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, r * .52, .2, 1.6); ctx.stroke();
+  ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, r * .56, Math.PI - .3, Math.PI + .3); ctx.stroke();
+  ctx.lineWidth = 1.4; ctx.strokeStyle = `rgba(${TEAL},.55)`;       // путь к событию
+  ctx.beginPath(); ctx.arc(cx, cy, r * .47, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(e.frac)); ctx.stroke();
+  ctx.shadowBlur = 0; ctx.lineWidth = 1;
+  // огненное кольцо — плотное, горящее; за час до выхода разгорается (мигает только оно)
+  const rc = r * .3;
+  const hg = ctx.createRadialGradient(cx, cy, rc * .7, cx, cy, rc * 1.8);
+  hg.addColorStop(0, 'rgba(0,0,0,0)'); hg.addColorStop(.4, `rgba(${fireC},${.35 * heat * pulse})`); hg.addColorStop(1, `rgba(${fireC},0)`);
+  ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(cx, cy, rc * 1.8, 0, TAU); ctx.fill();
+  for (const [a0, dr, ph, sz] of FIRE2) {
+    const a = a0 + t * .3, fl = .5 + .5 * Math.sin(t * 8 * sz + ph), rr = rc * (1 + dr * .22 * (.5 + fl));
+    ctx.fillStyle = `rgba(${mix(fireC, '255,235,190', fl * .55)},${(.35 + .6 * fl) * pulse})`;
+    ctx.fillRect(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, 1.6 * sz, 1.6 * sz);
+  }
+  ctx.shadowColor = `rgba(${fireC},1)`; ctx.shadowBlur = 16 * heat * pulse; ctx.strokeStyle = `rgba(${mix(fireC, '255,220,160', .35)},${.9 * pulse})`; ctx.lineWidth = 2.2 * heat;
+  ctx.beginPath(); ctx.arc(cx, cy, rc, 0, TAU); ctx.stroke(); ctx.shadowBlur = 0; ctx.lineWidth = 1;
+  // вихрь: передняя половина — поверх надписи
+  for (const q of P) if (q[2] >= 0) dot(q);
+  // оранжевые парные точки
+  for (const [dx, dy] of [[-1.2, .2], [1.25, .2], [-1.05, .5], [1.05, -.2]]) {
+    ctx.fillStyle = `rgba(255,140,60,${.55 + .3 * Math.sin(t * 2 + dx)})`; ctx.fillRect(cx + dx * r, cy + dy * r, 2, 2); ctx.fillRect(cx + dx * r + 6, cy + dy * r, 2, 2);
+  }
+  ctx.globalCompositeOperation = 'source-over';
+  // колонки цифр справа (медленно меняются)
+  ctx.font = `5px ${FONT}`; ctx.fillStyle = `rgba(${TEAL},.2)`; ctx.textAlign = 'left';
+  if (Math.random() < .03) CODECOL[Math.random() * 3 | 0][Math.random() * 14 | 0] = String(Math.random() * 1e4 | 0).padStart(4, '0');
+  CODECOL.slice(0, 3).forEach((col, i) => col.forEach((v, j) => text(v, cx + r * 1.62 + i * 17, cy - r * .8 + j * 7)));
+  // малый отсчёт над кольцом (время события) и подписи в два тона — ровные
+  tctx.save(); tctx.font = `200 ${Math.round(r * .16)}px ${THIN_FONT}`; tctx.textAlign = 'center'; tctx.letterSpacing = '6px';
+  tctx.shadowColor = `rgba(${TEAL},.8)`; tctx.shadowBlur = 8; tctx.fillStyle = 'rgba(200,245,245,.9)';
+  tctx.fillText(`- ${String(Math.floor(e.h % 24)).padStart(2, '0')}:00 )`, cx + r * .05, cy - r * .4); tctx.restore();
+  twoTone('NEXT', 'EVENT', cx + r * .1, cy - r * 1.42, 7, TEAL);
+  twoTone(due ? 'ПОРА' : 'ДО', due ? 'ВЫХОДИТЬ' : e.kind === 'exit' ? 'ВЫХОДА' : e.kind === 'open' ? 'ВХОДА' : 'СОБЫТИЯ', cx - r * 1.3, cy - r * .95, 7, due || warn ? fireC : TEAL, 'left');
+  twoTone(e.lab.split(' · ')[1] || '', e.lab.split(' · ')[0], cx + r * .55, cy + r * .5, 7, due || warn ? fireC : TEAL, 'left');
+  if (warn || due) twoTone(due ? 'ИЗ ВСЕХ СДЕЛОК' : 'ЛУЧШЕ', due ? 'R41' : 'ЗАКРЫТЬ ПОЗИЦИИ', cx, cy + r * 1.42, 7, fireC);
+  ctx.font = `9px ${FONT}`; ctx.textAlign = 'left';
+}
+
 function drawHUD(t) {
   ctx.lineWidth = 1;
   ctx.font = `9px ${FONT}`;
@@ -646,28 +780,13 @@ function drawHUD(t) {
 
   if (W < 700) return;
 
-  // left timeline
-  const x = 52, y0 = 110, y1 = H - 90;
-  ctx.fillStyle = 'rgba(150,185,225,.6)';
-  text('SIGNAL TIMELINE', 40, 60);
-  ctx.strokeStyle = 'rgba(120,170,230,.3)';
-  ctx.beginPath(); ctx.moveTo(x + .5, y0); ctx.lineTo(x + .5, y1); ctx.stroke();
-  ctx.strokeStyle = 'rgba(120,170,230,.18)';
-  for (let y = y0; y <= y1; y += 6) { ctx.beginPath(); ctx.moveTo(x - 2, y + .5); ctx.lineTo(x + 3, y + .5); ctx.stroke(); }
-  const marks = ['NOW', '1H', '4H', '1D', '1W'];
-  marks.forEach((m, i) => {
-    const y = y0 + (y1 - y0) * (i / (marks.length - 1));
-    ctx.strokeStyle = 'rgba(160,200,245,.5)';
-    ctx.beginPath(); ctx.moveTo(x - 6, y + .5); ctx.lineTo(x + 7, y + .5); ctx.stroke();
-    ctx.fillStyle = 'rgba(160,195,235,.6)'; text(m, x + 14, y + 3);
-  });
-  const sy = y0 + (y1 - y0) * (.5 + .5 * Math.sin(t * .15)) * .25;
-  ctx.fillStyle = 'rgba(210,235,255,.9)'; ctx.fillRect(x - 5, sy - 1, 11, 2);
+  // левая шкала убрана (27.09 владелец: «эту шкалу пока вообще уберём») — сессии и выходы в круге «событие»
 
   // corner scopes
   if (W >= 1000) {
-    [[W * .14 + 40, 'SIGNAL ELEVATION'], [W - W * .14 - 40, 'INBOUND FLOW']].forEach(([cx, lab], i) => {
-      const cy = 175, r = 72;
+    drawEventScope(W * .14 + 40, 175, 72, t);   // 27.09 владелец: «давай в кольцо перенесём и показываем только 1 событие ближайшее»
+    [[W - W * .14 - 40, 'INBOUND FLOW']].forEach(([cx, lab], j) => {
+      const i = 1, cy = 175, r = 72;
       ctx.fillStyle = 'rgba(150,185,225,.6)'; ctx.textAlign = 'center';
       text(lab, cx, 60);
       ctx.strokeStyle = 'rgba(120,170,230,.28)';
@@ -1237,13 +1356,14 @@ function frame() {
 // ── ПРИЁМ ДАННЫХ: кольцо A — 15 ближайших к входу кандидатов (цена — уровень входа), кольцо B — открытые позиции (цена — цель).
 function applyState(S) {
   window.STATE = S;
+  try { announce(S); } catch (e) {}
   const t = performance.now() / 1000 / TIME_SLOW;
   syncRibbon(S, t);
   layout();
   const nowS = Date.now() / 1000;
   const sets = [
-    (S.open || []).map(p => ({ key: 'in|' + p.book + '|' + p.sym + '|' + Math.round(p.t_in), name: p.sym.replace(/USDT$/, '') + (p.side < 0 ? '▼' : ''), price: p.entry, item: p })),
-    (S.closed || []).filter(c => nowS - c.t_out < EXIT_KEEP).map(c => ({ key: 'out|' + c.book + '|' + c.sym + '|' + Math.round(c.t_out), name: c.sym.replace(/USDT$/, '') + (c.side < 0 ? '▼' : ''), price: c.exit, item: c })),
+    (S.open || []).filter(p => nowS - p.t_in < ENTRY_KEEP).map(p => ({ key: 'in|' + p.book + '|' + p.sym + '|' + Math.round(p.t_in), name: p.sym.replace(/USDT$/, ''), side: p.side, price: p.entry, item: p })),
+    (S.closed || []).filter(c => nowS - c.t_out < EXIT_KEEP).map(c => ({ key: 'out|' + c.book + '|' + c.sym + '|' + Math.round(c.t_out), name: c.sym.replace(/USDT$/, ''), side: c.side, price: c.exit, item: c })),
   ];
   rings.forEach((g, i) => {
     const want = new Map(sets[i].map(x => [x.key, x]));
@@ -1264,11 +1384,58 @@ function applyState(S) {
   if (selected) renderCard(selected.closed ? RIB_G : (rings.find(g => g.labels.includes(selected)) || rings[0]), selected);
 }
 window.applyState = applyState;
+// ── ЗВУК И ЗАГОЛОВОК (27.09 владелец: «звук, когда монета появляется на вход или закрытие, чтобы с соседней вкладки переключиться»).
+//    Браузер даёт играть звук только после первого клика по странице — клик включает звук и спрашивает про системные уведомления.
+let AC = null, knownKeys = null;
+addEventListener('click', () => {
+  if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {} }
+  if (AC && AC.state === 'suspended') AC.resume();
+  if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission();
+}, { capture: true });
+function tone(freqs, dur = .18, gap = .05, type = 'sine', vol = .12) {
+  if (!AC) return;
+  let t0 = AC.currentTime;
+  for (const f of freqs) {
+    const o = AC.createOscillator(), g = AC.createGain();
+    o.type = type; o.frequency.value = f; g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + .02);
+    g.gain.exponentialRampToValueAtTime(.0001, t0 + dur); o.connect(g); g.connect(AC.destination); o.start(t0); o.stop(t0 + dur + .02);
+    t0 += dur + gap;
+  }
+}
+let titleT = null;
+function flashTitle(msg) {
+  const base = 'Быстрый бот · Crypto Orbit'; let on = true, n = 0;
+  clearInterval(titleT);
+  titleT = setInterval(() => { document.title = on ? msg : base; on = !on; if (++n > 12) { clearInterval(titleT); document.title = base; } }, 800);
+}
+function announce(S) {
+  const nowS = Date.now() / 1000;
+  const ins = (S.open || []).filter(p => nowS - p.t_in < ENTRY_KEEP), outs = (S.closed || []).filter(c => nowS - c.t_out < EXIT_KEEP);
+  const cur = new Map([...ins.map(p => ['in|' + p.book + '|' + p.sym + '|' + Math.round(p.t_in), ['in', p]]),
+                       ...outs.map(c => ['out|' + c.book + '|' + c.sym + '|' + Math.round(c.t_out), ['out', c]])]);
+  if (knownKeys === null) { knownKeys = new Set(cur.keys()); return; }        // первая загрузка — без звука
+  const fresh = [...cur.entries()].filter(([k]) => !knownKeys.has(k)).map(([, v]) => v);
+  for (const k of cur.keys()) knownKeys.add(k);
+  if (!fresh.length) return;
+  const ev = fresh[0], nm = ev[1].sym.replace(/USDT$/, ''), side = ev[1].side < 0 ? '▼' : '▲';
+  let msg;
+  if (ev[0] === 'in') { tone([660, 990]); msg = `${side} ВХОД · ${nm}`; }
+  else { const up = ev[1].res >= 0; if (up) tone([523, 659, 784], .22, .02, 'triangle'); else tone([220, 165], .3, .04, 'sine', .14);
+         msg = `${up ? '✓' : '✕'} ВЫХОД · ${nm} ${up ? '+' : ''}${ev[1].res.toFixed(1)}%`; }
+  if (fresh.length > 1) msg += ` · и ещё ${fresh.length - 1}`;
+  flashTitle(msg);
+  if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
+    try { const nt = new Notification('Быстрый бот', { body: msg, tag: 'fastbot' }); nt.onclick = () => { window.focus(); nt.close(); }; } catch (e) {}
+  }
+}
 const EXIT_KEEP = 15 * 60;   // закрытая сделка держится на кольце «выход» 15 минут
+const ENTRY_KEEP = 6 * 60;   // вход — 6 минут, два прохода бота (владелец 27.09: «скрывать входы через 6 минут, а то новые не видно»)
 // между обновлениями данных: у закрытых истекли 15 минут — гаснут сразу, не ждут следующей рассылки
 setInterval(() => {
   const t = performance.now() / 1000 / TIME_SLOW, nowS = Date.now() / 1000;
   for (const l of rings[1].labels) if (!l.dying && l.item && nowS - l.item.t_out >= EXIT_KEEP) { l.dying = true; l.life = (t - l.born) + 1.1 * ANIM_SLOW; }
+  for (const l of rings[0].labels) if (!l.dying && l.item && nowS - l.item.t_in >= ENTRY_KEEP) { l.dying = true; l.life = (t - l.born) + 1.1 * ANIM_SLOW; }
+  rings[0].queue = rings[0].queue.filter(q => nowS - q.item.t_in < ENTRY_KEEP);
   rings[1].queue = rings[1].queue.filter(q => nowS - q.item.t_out < EXIT_KEEP);
 }, 5000);
 let ws = null, lastStateT = 0;

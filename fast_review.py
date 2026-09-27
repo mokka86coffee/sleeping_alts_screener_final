@@ -191,10 +191,15 @@ def text(r: dict) -> str:
 
 
 def summary() -> str:
-    R = _rows(JOURNAL)
-    if not R:
+    R_all = _rows(JOURNAL)
+    if not R_all:
         return "разборов нет"
-    out = [f"разборов {len(R)}"]
+    try:                                                              # 27.09: монеты своего ММ в счёт правил не идут
+        om = set(json.loads((BASE_DIR / "output" / "own_mm.json").read_text()).get("coins", {}).keys())
+    except (OSError, ValueError):
+        om = set()
+    R = [r for r in R_all if r["sym"] not in om]
+    out = [f"разборов {len(R)} (монеты своего ММ вне счёта: {len(R_all) - len(R)})"]
     for book in sorted({r["book"] for r in R}):
         g = [r for r in R if r["book"] == book]
         st_ = [r for r in g if r["why"].startswith("стоп")]; tg = [r for r in g if r["why"].startswith("цель")]; tm = [r for r in g if r["why"].startswith("срок")]

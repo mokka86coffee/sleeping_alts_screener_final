@@ -61,7 +61,7 @@ def live() -> list[dict]:
                 continue
             if str(r.get("kind", "")).startswith("exit") and (r.get("opened_at") or 0) >= GATE_FROM and r.get("result_pct") is not None:
                 t = float(r["opened_at"])
-                out.append(dict(book=book, side=int(r.get("side") or 1), t=t, res=float(r["result_pct"]),
+                out.append(dict(book=book, sym=r.get("sym"), side=int(r.get("side") or 1), t=t, res=float(r["result_pct"]),
                                 wd=WD[datetime.fromtimestamp(t, L).weekday()], ses=ses(t)))
     return out
 
@@ -110,9 +110,21 @@ def simulate(s: dict):
     return (float(k[-1][4]) / e - 1) * 100 - FEE * 100
 
 
+def own_mm() -> set:
+    try:
+        return set(json.loads((ROOT / "output" / "own_mm.json").read_text()).get("coins", {}).keys())
+    except (OSError, ValueError):
+        return set()
+
+
 def main() -> int:
     print(f"БЫСТРЫЕ ПО ДНЯМ ({datetime.now(L):%d.%m %H:%M}; с включения ворот сессий 27.09 17:26; клетка: сделок · в плюс · $ при 500)")
-    lv = live()
+    om = own_mm()
+    lv_all = live()
+    lv = [r for r in lv_all if r.get("sym") not in om]            # 27.09: монеты своего ММ в счёт правил не идут
+    ex_ = [r for r in lv_all if r.get("sym") in om]
+    if ex_:
+        print(f"(монеты своего ММ вне счёта: {cell([r['res'] for r in ex_])})")
     by = defaultdict(list)
     for r in lv:
         by[(r["book"], r["wd"], r["ses"])].append(r["res"])
