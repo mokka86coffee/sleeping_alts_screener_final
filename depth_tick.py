@@ -11,8 +11,16 @@
 не дальше 30% от цены. Строка «⏱ МОМЕНТ» в том же виде, вместо «после N пр.» — «стояла N мин».
 Ключи отправленного — в общем output/alerts_sent.json с меткой tick: прогон по той же стене второй раз не шлёт.
 
+СТАКАН ПО ВСЕМ ОТКРЫТЫМ СДЕЛКАМ (27.09, владелец: «половина позиций в плюс, половина в минус при одних и тех же условиях —
+нужна доп. проверка по стакану; какой размер плит относительно объёма или капитализации влияет»). Монеты — ещё и открытые
+сделки всех книг output/paper_*.json. Телеграм как был: только «3 в первых» и watch.json. По всем монетам каждое событие
+(поставили / съели / убрали, не дальше 30% от цены) — строкой в output/depth_events.jsonl: сделки монеты (книга, сторона,
+вход), размер плиты в $ и её доля к обороту фьючерса за сутки, к обороту последнего часа, к интересу и к капитализации
+(обращение Binance × цена, кэш на час output/depth_mcap.json). Это данные для счёта; книги журнал пока не читают.
+Сбор в 4 потока (последовательно 80 монет ≈ 160 с, а прогон даёт шагу 150 с), через DEADLINE_S что не успело — пропуск.
+
     python3 depth_tick.py              # что ушло бы сейчас, без записи и без телеграма
-    python3 depth_tick.py --write      # снимок, память, телеграм (так зовёт run.py)
+    python3 depth_tick.py --write      # снимок, память, телеграм, журнал событий (так зовёт run.py)
 """
 from __future__ import annotations
 
@@ -45,6 +53,11 @@ except ImportError:
     _REMOVED_MIN = 180
 KEEP = 40                      # снимков на монету — два часа, дольше судьбе смотреть незачем
 FAR_PCT = 30                   # дальше — застрявшие продавцы, как в run.py _fast_alerts
+EVENTS = BASE_DIR / "output" / "depth_events.jsonl"
+MCAP = BASE_DIR / "output" / "depth_mcap.json"
+WORKERS = 4
+DEADLINE_S = 110               # прогон рвёт шаг на 150 с
+SIDE_DEFAULT = {"end": -1}     # книги без поля side: «конец» — только шорты; first3, second, book — только лонги
 
 
 def _read(p: Path, default):
@@ -62,6 +75,78 @@ def coins() -> list[str]:
         if s:
             out.append(s if s.endswith("USDT") else s + "USDT")
     return list(dict.fromkeys(s.upper() for s in out))
+
+
+def trades() -> dict[str, list[dict]]:
+    """открытые сделки всех книг: монета → [{книга, сторона, вход, когда}]"""
+    out: dict[str, list[dict]] = {}
+    for p in sorted((BASE_DIR / "output").glob("paper_*.json")):
+        d = _read(p, {})
+        o = d.get("open") if isinstance(d, dict) else None
+        if not isinstance(o, dict):
+            continue
+        book = p.stem[len("paper_"):]
+        for s, v in o.items():
+            v = v if isinstance(v, dict) else {}
+            out.setdefault(str(s).upper(), []).append({
+                "book": book, "side": v.get("side") or SIDE_DEFAULT.get(book, 1),
+                "px": v.get("px") or v.get("entry_px"),
+                "at": v.get("opened_at") or v.get("at") or v.get("entry_at"),
+            })
+    return out
+
+
+def _mult(base: str, cs: dict) -> tuple[str, float]:
+    """1000BONK на фьючерсе = BONK на споте, цена за тысячу"""
+    if base in cs:
+        return base, 1.0
+    for pre, m in (("1000000", 1e6), ("1000", 1e3), ("1M", 1e6)):
+        if base.startswith(pre) and base[len(pre):] in cs:
+            return base[len(pre):], m
+    return base, 1.0
+
+
+def market(write: bool) -> dict:
+    """оборот фьючерсов за сутки и цена (один запрос на весь рынок) + обращение монет (раз в час)"""
+    out = {"qv": {}, "px": {}, "cs": {}}
+    try:
+        import core_binance as cb
+        for t in cb.get_futures_tickers():
+            out["qv"][t["symbol"]] = float(t.get("quoteVolume") or 0)
+            out["px"][t["symbol"]] = float(t.get("lastPrice") or 0)
+    except Exception as e:  # noqa: BLE001
+        print(f"depth_tick: тикеры не получены: {type(e).__name__}")
+    mc = _read(MCAP, {}) or {}
+    if time.time() - float(mc.get("t") or 0) > 3600:
+        import urllib.request as u
+        try:
+            with u.urlopen("https://www.binance.com/bapi/asset/v2/public/asset-service/product/get-products?includeEtf=true",
+                           timeout=15) as r:
+                rows = json.loads(r.read().decode("utf-8")).get("data") or []
+            cs = {str(x.get("b")): float(x["cs"]) for x in rows if x.get("cs")}
+            if cs:
+                mc = {"t": int(time.time()), "cs": cs}
+                if write:
+                    from sources_storage import write_atomic
+                    write_atomic(MCAP, json.dumps(mc, ensure_ascii=False))
+        except Exception as e:  # noqa: BLE001
+            print(f"depth_tick: обращение монет не получено: {type(e).__name__}")
+    out["cs"] = mc.get("cs") or {}
+    return out
+
+
+def extra(sym: str) -> dict:
+    """для монет с событием: оборот последнего закрытого часа и интерес в $"""
+    res = {}
+    try:
+        import core_binance as cb
+        kl = cb.get_klines(sym, "1h", 3)
+        if kl:
+            res["vol1h"] = float(kl[-1][7])
+        res["oi"] = cb.get_open_interest(sym)
+    except Exception:  # noqa: BLE001
+        pass
+    return res
 
 
 def take(sym: str, ts: int) -> dict | None:
