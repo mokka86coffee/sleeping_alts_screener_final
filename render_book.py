@@ -177,10 +177,23 @@ def _side_closed(stem: str, r: dict) -> int:
     return -1 if stem == "paper_end" else 1
 
 
+def _stop_px(entry, side, stop):
+    """стоп в книгах — доля от входа (0.05 = −5% для лонга); цена стопа для экрана, None — стопа нет"""
+    try:
+        if entry and stop is not None and 0 < float(stop) < 1:
+            return float(entry) * (1 - int(side) * float(stop))
+    except (TypeError, ValueError):
+        pass
+    return None
+
+
 def _closed_rows(stem: str, book: str, cut: float) -> list[dict]:
     """закрытые сделки журнала: kind exit / exit_long / exit_short, не раньше cut"""
     out = []
-    for r in _lines(f"{stem}.jsonl"):
+    L = _lines(f"{stem}.jsonl")
+    # 27.09 владелец «а стоп»: стоп закрытой сделки — из записи входа той же сделки (у быстрых книг вход и выход связаны временем входа)
+    ent_ix = {(str(r.get("sym") or "").upper(), int(r.get("at") or 0)): r for r in L if r.get("kind") == "entry"}
+    for r in L:
         if not str(r.get("kind") or "").startswith("exit"):
             continue
         at = r.get("at") or 0
@@ -197,6 +210,12 @@ def _closed_rows(stem: str, book: str, cut: float) -> list[dict]:
             "entry": r.get("px_in") or r.get("entry_px") or r.get("px"),      # 26.09: цена входа в списке
             "exit": r.get("px_out") or r.get("px_exit"),                        # …и выхода (у толпы/конца её нет в записи — по ходу)
         })
+        e = out[-1]
+        if not e["ent"] and r.get("t"):                                         # 27.09: время входа — у «картины» только сигнальный бар
+            e["ent"] = int(r["t"]) // 1000 + 1800
+        er = ent_ix.get((e["sym"], int(r.get("opened_at") or 0))) or {}
+        stp = r.get("stop") if r.get("stop") is not None else er.get("stop")
+        e["stop_px"] = _stop_px(e["entry"], e["side"], stp)
     return out
 
 
@@ -239,7 +258,8 @@ def _collect() -> tuple[list[dict], list[dict]]:
                 "size": float(p.get("size") or 1.0), "rule": rule, "rk": _short_rule(book, rule),
                 "target": p.get("target"), "stop": p.get("stop"), "hold": p.get("hold"),
                 "bars": _bars_since(p.get("t")), "walls": _walls(sym), "z": p.get("z"),
-                "state": p.get("state"), "at": p.get("opened_at") or _now(), "ent": p.get("opened_at") or 0,
+                "state": p.get("state"), "at": p.get("opened_at") or p.get("at") or _now(),
+                "ent": p.get("opened_at") or p.get("at") or 0, "stop_px": _stop_px(entry, side, p.get("stop")),
                 "stem": stem, "raw": p, "legs": legs, "fixed": FIXED.get(stem),
             })
         closed += _closed_rows(stem, book, cut)
@@ -808,7 +828,7 @@ def _row(x: dict, is_open: bool) -> dict:
             "res": None if x["res"] is None else round(float(x["res"]), 2),
             "size": round(float(x["size"]), 2), "money": round(float(x["money"]), 2),
             "at": int(x["at"] or 0), "ent": int(x.get("ent") or 0), "open": is_open,
-            "entry": x.get("entry"), "share": round(float(x.get("share") or 0)),
+            "entry": x.get("entry"), "share": round(float(x.get("share") or 0)), "stop": x.get("stop_px"),
             "exit": x.get("exit") or (None if is_open or not x.get("entry") or x.get("res") is None
                                       else float(x["entry"]) * (1 + int(x["side"]) * float(x["res"]) / 100))}
 
@@ -1043,6 +1063,11 @@ const T=(x,y,c,t,a,ex)=>`<text x="${f2(x)}" y="${f2(y)}" class="${c}" text-ancho
 const Ln=(x1,y1,x2,y2,c,ex)=>`<line x1="${f2(x1)}" y1="${f2(y1)}" x2="${f2(x2)}" y2="${f2(y2)}" class="${c}"${ex?' '+ex:''}/>`;
 const tm=t=>new Date(t*1000).toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
 const ddmm=d=>d.slice(8,10)+'.'+d.slice(5,7);
+// 27.09 владелец: время входа у открытых, вход и выход у закрытых — в часах смотрящего; дата — только если не сегодняшний день строки
+const hm=t=>new Date(t*1000).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+const dm=t=>new Date(t*1000).toLocaleDateString('ru-RU',{day:'2-digit',month:'2-digit'});
+const when=r=>{ if(r.open) return r.ent?('с '+(dm(r.ent)===dm(Date.now()/1000)?'':dm(r.ent)+' ')+hm(r.ent)):'';
+  return (r.ent?(dm(r.ent)===dm(r.at)?hm(r.ent):dm(r.ent)):'?')+'→'+hm(r.at); };
 const pxs=v=>v==null||!(+v)?'—':(+v>=100?(+v).toFixed(2):(+v).toPrecision(4)).replace(/\.?0+$/,'');   // цена входа
 const sd=r=>r.side<0?'шорт':'лонг';
 const usd0=v=>Math.abs(Math.round(v||0)).toLocaleString('ru-RU')+' $';
@@ -1210,7 +1235,9 @@ function drawCols(anim){
       +T(x0,y,'tk',`${esc(r.sym)}<tspan class="${dot}" dx="7" font-size="8">●</tspan>`)
       +T(x1,y,'mono sm '+sg(r.money),usd(r.money),'end')
       +T(x0,y+13,'xs2 dim',`<tspan class="dim2">${r.side<0?'▼':'▲'}</tspan> <tspan class="lt">${sd(r)}</tspan> <tspan class="mono">${usd0(r.share)}</tspan> · <tspan class="mono">${pxs(r.entry)}</tspan>${r.open?'':' → <tspan class="mono">'+pxs(r.exit)+'</tspan>'}`)
-      +T(x0,y+25,'xs2 dim',`<tspan class="mono ${r.res==null?'dim2':(r.res<0?'ros':'mid')}">${r.open&&r.res==null?'цена отстала':pct(r.res)}</tspan> ${esc(fit(r.rule,20))}`)
+      +(r.open?T(x1,y+13,'xs2 mono '+(r.stop?'ros':'dim2'),r.stop?'стоп '+pxs(r.stop):'без стопа','end'):'')
+      +T(x0,y+25,'xs2 dim',`<tspan class="mono ${r.res==null?'dim2':(r.res<0?'ros':'mid')}">${r.open&&r.res==null?'цена отстала':pct(r.res)}</tspan> ${esc(fit(r.rule,16))}`)
+      +T(x1,y+25,'xs2 mono dim',when(r),'end')
       +`<rect x="${hx0}" y="${y-16}" width="252" height="${RS}" class="hit" data-act="coin" data-sym="${esc(r.sym)}"><title>${esc(r.book+' · '+r.rl+'\n'+r.why)}</title></rect></g>`;
   };
   let o='<g class="fc">'+T(114,250,'ttl','ЗАКРЫТЫ')+T(114,269,'sm amb',cl.length>NV?seen(OFFL,cl.length):'итог зафиксирован')+T(300,262,'cnt',cl.length,'end');
@@ -1243,14 +1270,16 @@ function drawCoin(){
   // сделки монеты
   o+=T(292,764,'sm lt',esc(SYM),'end');
   const shown=rows.slice(0,3);
-  shown.forEach((r,j)=>{const y=798+j*40;
+  // 27.09 владелец «у закрытых вёрстку поправь»: цены наезжали на процент — три строки, шаг 48 (рамка панели до 956)
+  shown.forEach((r,j)=>{const y=798+j*48;
     o+=`<circle cx="88" cy="${y-4}" r="2.6" class="${r.open?'odc':'cdot'}"/>`+T(98,y,'sm lt',`<tspan class="dim2">${r.side<0?'▼':'▲'}</tspan> ${sd(r)} · ${esc(fit(r.rule,14))}`)+T(292,y,'mono sm '+sg(r.money),usd(r.money),'end')
-      +T(98,y+18,'mono xs dim',`${ddmm(r.dd)} · ${usd0(r.share)} · ${pxs(r.entry)}${r.open?'':'→'+pxs(r.exit)}`)+T(292,y+18,'mono xs dim',pct(r.res),'end');
+      +T(98,y+16,'mono xs dim',`${r.open?when(r):(r.ent?dm(r.ent)+' '+hm(r.ent):ddmm(r.dd))+(r.open?'':' → '+hm(r.at))}`)+T(292,y+16,'mono xs '+(r.res==null?'dim':(r.res<0?'ros':'mid')),pct(r.res),'end')
+      +T(98,y+31,'mono xs dim',`${pxs(r.entry)}${r.open?'':' → '+pxs(r.exit)}`)+T(292,y+31,'mono xs '+(r.stop?'ros':'dim2'),r.stop?'стоп '+pxs(r.stop):'без стопа','end');
   });
   const open=rows.some(r=>r.open);
   let fy=884;
   if(shown.length===1) o+=`<rect x="84" y="830" width="${open?64:58}" height="18" rx="2" class="pill ${open?'pw':'pc'}"/>`+T(92,843,'xs '+(open?'amb':'dim'),open?'в работе':'закрыта');
-  else fy=Math.max(884,798+shown.length*40+14);
+  else fy=Math.max(884,798+shown.length*48+6);
   o+=T(84,fy,'xs dim',`сделок ${rows.length}`+(rows.length>3?' · видно 3':''))+T(292,fy,'xs dim',`правил ${rules.length}`,'end');
   // путь к цели — последняя сделка
   const r=rows[0];

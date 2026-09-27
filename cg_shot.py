@@ -2,12 +2,13 @@
 """СКРИН COINGLASS В ТЕЛЕГРАМ НА ВХОДЕ И ВЫХОДЕ БЫСТРЫХ СДЕЛОК (27.09, владелец: «для быстрых сделок на открытии и на закрытии присылай
 такой скрин с коингласс в телеграм и с этими же индикаторами — только не Bybit, а Binance»: coinglass.com/tv/Binance_<монета>).
 
-Индикаторы (объём SMA 9, ликвидации, CVD фьючерсов и спота, фандинг, интерес, дельта заявок, базис, соотношение заявок) Coinglass хранит
-в браузере/аккаунте — поэтому свой профиль Chromium output/cg_profile. Один раз:
+Шесть индикаторов Coinglass показывает сам (объём SMA 9, CVD фьючерсов и спота, фандинг, интерес, дельта заявок); ликвидации, базис и
+соотношение заявок в профиле не сохранились (владелец 27.09) — _indicators() добавляет их на каждом снимке. Профиль output/cg_profile:
     .venv/bin/python cg_shot.py --setup            # окно с графиком: войти в Coinglass / добавить индикаторы, 3 мин, закрыть окно
 Дальше без окна:
     .venv/bin/python cg_shot.py PENGUUSDT --caption "текст"     # снимок и фото в телеграм
     .venv/bin/python cg_shot.py PENGUUSDT --no-send             # только снимок → output/cg_shots/
+    ... --entry 0.0101 --target 0.0106 --stop 0.0096 [--exit 0.0104] --t-in <сек> [--t-out <сек>]   # линии сделки на графике
 fast_tier зовёт его отдельным процессом (не ждёт). Один снимок за раз — замок output/cg_shots/.lock.
 """
 from __future__ import annotations
@@ -30,8 +31,27 @@ sys.path.insert(0, str(BASE_DIR))
 PROFILE = BASE_DIR / "output" / "cg_profile"
 SHOTS = BASE_DIR / "output" / "cg_shots"
 URL = "https://www.coinglass.com/tv/Binance_{sym}"
-VIEW = {"width": 1600, "height": 1500}
-WAIT_S = 12            # графику и панелям индикаторов нужно время дорисоваться
+VIEW = {"width": 1600, "height": 1900}   # 9 панелей индикаторов под графиком
+WAIT_S = 16            # графику и панелям индикаторов нужно время дорисоваться
+
+
+ADD = ("Aggregated Liquidations", "Basis", "Bid & Ask Ratio")   # в профиле не сохраняются (владелец 27.09) — добавляем на каждом снимке
+
+
+def _indicators(pg) -> None:
+    """к шести индикаторам Coinglass по умолчанию — ликвидации, базис, соотношение заявок (меню «CoinGlass - Indicators»)"""
+    for n in ADD:
+        try:
+            m = pg.get_by_text(n, exact=True)
+            if not m.count() or not m.first.is_visible():
+                pg.get_by_text("CoinGlass - Indicators", exact=True).first.click()
+                pg.wait_for_timeout(1500)
+            pg.get_by_text(n, exact=True).first.click()
+            pg.wait_for_timeout(1200)
+        except Exception as e:  # noqa: BLE001
+            print(f"cg_shot: индикатор «{n}» не добавлен: {type(e).__name__}")
+    pg.keyboard.press("Escape")
+    pg.wait_for_timeout(800)
 
 
 def _interval(pg, iv: str) -> None:
@@ -46,7 +66,58 @@ def _interval(pg, iv: str) -> None:
         print(f"cg_shot: таймфрейм {iv} не выставлен: {type(e).__name__}")
 
 
-def shot(sym: str) -> Path | None:
+def _draw(pg, lines: dict) -> None:
+    """линии сделки на графике (API графика TradingView внутри Coinglass, tradingViewApi во фрейме): вход, цель, стоп, выход — горизонтали
+    с подписью; время входа/выхода — вертикали. 27.09 владелец: «нет целей»."""
+    if not lines:
+        return
+    fr = next((f for f in pg.frames if f != pg.main_frame), None)
+    if not fr:
+        print("cg_shot: фрейм графика не найден — без линий")
+        return
+    js = """(L) => { const a = window.tradingViewApi; if (!a) return 'нет api';
+      const c = typeof a.activeChart === 'function' ? a.activeChart() : a.chart(); const now = Math.floor(Date.now() / 1000);
+      const h = (price, color, txt) => c.createShape({time: now, price: price}, {shape: 'horizontal_line', lock: true, disableSelection: true,
+          text: txt, overrides: {linecolor: color, linewidth: 2, showLabel: true, textcolor: color, horzLabelsAlign: 'left', fontsize: 14}});
+      const v = (t, color) => c.createShape({time: t}, {shape: 'vertical_line', lock: true, disableSelection: true,
+          overrides: {linecolor: color, linewidth: 1, linestyle: 2}});
+      for (const x of L.h) h(x[0], x[1], x[2]);
+      try {                                              // шкала цены — чтобы все линии были в кадре
+        const ps = c.getPanes()[0].getMainSourcePriceScale(); const r = ps.getVisiblePriceRange();
+        const P = L.h.map(x => x[0]); const lo = Math.min(r.from, ...P), hi = Math.max(r.to, ...P), pad = (hi - lo) * 0.10;
+        if (lo < r.from || hi > r.to) ps.setVisiblePriceRange({from: lo - pad, to: hi + pad});
+      } catch (e) { }
+      for (const x of L.v) v(x[0], x[1]);
+      return 'ok'; }"""
+    try:
+        r = fr.evaluate(js, lines)
+        if r != "ok":
+            print(f"cg_shot: линии не нарисованы: {r}")
+    except Exception as e:  # noqa: BLE001
+        print(f"cg_shot: линии не нарисованы: {type(e).__name__}")
+
+
+def _lines(a) -> dict:
+    """из аргументов — горизонтали (цена, цвет, подпись) и вертикали (время, цвет)"""
+    def fmt(v):
+        return f"{v:.6g}"
+    h, v = [], []
+    if a.entry:
+        h.append([a.entry, "#f5a623", f"вход {fmt(a.entry)}"])
+    if a.target:
+        h.append([a.target, "#26a69a", f"цель {fmt(a.target)}"])
+    if a.stop:
+        h.append([a.stop, "#ef5350", f"стоп {fmt(a.stop)}"])
+    if a.exit:
+        h.append([a.exit, "#e0e0e0", f"выход {fmt(a.exit)}"])
+    if a.t_in:
+        v.append([int(a.t_in), "#f5a623"])
+    if a.t_out:
+        v.append([int(a.t_out), "#e0e0e0"])
+    return {"h": h, "v": v} if (h or v) else {}
+
+
+def shot(sym: str, lines: dict | None = None) -> Path | None:
     from playwright.sync_api import sync_playwright
     SHOTS.mkdir(parents=True, exist_ok=True)
     out = SHOTS / f"{sym}_{time.strftime('%Y%m%d_%H%M%S')}.png"
@@ -58,7 +129,10 @@ def shot(sym: str) -> Path | None:
                 pg = ctx.pages[0] if ctx.pages else ctx.new_page()
                 pg.goto(URL.format(sym=sym), wait_until="domcontentloaded", timeout=60_000)
                 pg.wait_for_timeout(8000)
+                _indicators(pg)
                 _interval(pg, "3m")
+                pg.wait_for_timeout(2000)
+                _draw(pg, lines or {})
                 pg.wait_for_timeout(WAIT_S * 1000 - 8000 if WAIT_S > 8 else 3000)
                 box = (pg.query_selector("iframe") or pg).bounding_box() if pg.query_selector("iframe") else None
                 clip = {"x": 0, "y": 0, "width": box["x"] + box["width"], "height": VIEW["height"]} if box else None
@@ -71,13 +145,19 @@ def shot(sym: str) -> Path | None:
 
 
 def send_photo(path: Path, caption: str) -> bool:
-    from send_brief_telegram import load_config
+    """в основной чат и в чаты только для чтения (chat_ids_read); True — ушло в основной"""
+    from send_brief_telegram import load_config, chat_ids
     cfg = load_config()
     if not cfg:
         return False
+    oks = [_photo_to(path, caption, cfg, c) for c in chat_ids(cfg)]
+    return oks[0]
+
+
+def _photo_to(path: Path, caption: str, cfg: dict, chat) -> bool:
     b = uuid.uuid4().hex
     parts = []
-    for k, v in (("chat_id", str(cfg["chat_id"])), ("caption", caption[:1000])):
+    for k, v in (("chat_id", str(chat)), ("caption", caption[:1000])):
         parts.append(f'--{b}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode("utf-8"))
     parts.append(f'--{b}\r\nContent-Disposition: form-data; name="photo"; filename="{path.name}"\r\nContent-Type: image/png\r\n\r\n'.encode())
     body = b"".join(parts) + path.read_bytes() + f"\r\n--{b}--\r\n".encode()
@@ -114,6 +194,10 @@ def main() -> int:
     ap.add_argument("--caption", default="")
     ap.add_argument("--no-send", action="store_true")
     ap.add_argument("--setup", action="store_true")
+    for k in ("entry", "target", "stop", "exit"):
+        ap.add_argument(f"--{k}", type=float, default=None)          # цены линий сделки
+    ap.add_argument("--t-in", type=float, default=None)                # время входа, сек (вертикаль)
+    ap.add_argument("--t-out", type=float, default=None)               # время выхода, сек
     a = ap.parse_args()
     if a.setup:
         return setup()
@@ -121,7 +205,7 @@ def main() -> int:
         ap.error("нужна монета, например PENGUUSDT")
     sym = a.sym.upper() if a.sym.upper().endswith("USDT") else a.sym.upper() + "USDT"
     try:
-        path = shot(sym)
+        path = shot(sym, _lines(a))
     except Exception as e:  # noqa: BLE001
         print(f"cg_shot: снимок {sym} не вышел: {type(e).__name__}: {e}")
         return 1

@@ -104,14 +104,88 @@ def split_chunks(text: str, limit: int = CHUNK_LIMIT) -> list[str]:
     return chunks
 
 
+SUBS = BASE_DIR / "config" / "telegram_subscribers.json"
+
+
+def poll_subscribers(cfg: dict) -> dict:
+    """ПОДПИСКА ПО /start (27.09 владелец: «на любой телефон — просто старт нажал и читаешь, если рабочий аккаунт поменяют — ничего не
+    мудрить»). Опрос getUpdates не чаще раза в 60 с, под замком (шлют несколько процессов): /start — чат в подписчики и ответ,
+    /stop — вон. Файл config/telegram_subscribers.json: {"offset", "t", "chats": {id: {"name", "at"}}}."""
+    import fcntl
+    try:
+        subs = json.loads(SUBS.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        subs = {"offset": 0, "t": 0, "chats": {}}
+    if time.time() - float(subs.get("t") or 0) < 60:
+        return subs
+    try:
+        with open(SUBS.with_suffix(".lock"), "w") as lk:
+            fcntl.flock(lk, fcntl.LOCK_EX)
+            try:
+                subs = json.loads(SUBS.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                subs = {"offset": 0, "t": 0, "chats": {}}
+            if time.time() - float(subs.get("t") or 0) < 60:
+                return subs
+            base = f"https://api.telegram.org/bot{cfg['bot_token']}"
+            url = f"{base}/getUpdates?timeout=0&offset={int(subs.get('offset') or 0)}"
+            with urllib.request.urlopen(url, timeout=15) as r:
+                ups = json.loads(r.read().decode("utf-8")).get("result") or []
+            for u in ups:
+                subs["offset"] = int(u["update_id"]) + 1
+                m = u.get("message") or {}
+                cid, txt = (m.get("chat") or {}).get("id"), str(m.get("text") or "").strip().lower()
+                if not cid:
+                    continue
+                name = " ".join(x for x in ((m.get("from") or {}).get("first_name"), (m.get("from") or {}).get("username")) if x)
+                reply = None
+                if txt.startswith("/start"):
+                    subs.setdefault("chats", {})[str(cid)] = {"name": name, "at": int(time.time())}
+                    reply = "Подписка есть: сюда будут приходить все сообщения бота. /stop — отписаться."
+                    log(f"  телеграм: подписчик {name} ({cid})")
+                elif txt.startswith("/stop"):
+                    subs.setdefault("chats", {}).pop(str(cid), None)
+                    reply = "Отписано. /start — подписаться снова."
+                if reply:
+                    try:
+                        urllib.request.urlopen(urllib.request.Request(f"{base}/sendMessage", data=json.dumps(
+                            {"chat_id": cid, "text": reply}).encode(), headers={"Content-Type": "application/json"}), timeout=15).close()
+                    except Exception:  # noqa: BLE001
+                        pass
+            subs["t"] = int(time.time())
+            tmp = SUBS.with_suffix(".tmp")
+            tmp.write_text(json.dumps(subs, ensure_ascii=False), encoding="utf-8")
+            tmp.replace(SUBS)
+    except Exception as e:  # noqa: BLE001
+        log(f"  телеграм: подписчики не обновлены ({type(e).__name__}: {e})")
+    return subs
+
+
+def chat_ids(cfg: dict) -> list:
+    """основной чат + chat_ids_read из конфига + все, кто нажал /start в боте"""
+    subs = poll_subscribers(cfg)
+    out = [cfg["chat_id"]]
+    for c in list(cfg.get("chat_ids_read") or []) + list((subs.get("chats") or {}).keys()):
+        if c and str(c) != str(cfg["chat_id"]) and str(c) not in map(str, out):
+            out.append(c)
+    return out
+
+
 def send_telegram(text: str, cfg: dict) -> bool:
-    """Шлёт текст (кусками при необходимости). True — всё ушло."""
+    """Шлёт текст (кусками при необходимости) в основной чат и в чаты для чтения. True — в основной всё ушло."""
+    ok = _send_to(text, cfg, cfg["chat_id"])
+    for c in chat_ids(cfg)[1:]:
+        _send_to(text, cfg, c)
+    return ok
+
+
+def _send_to(text: str, cfg: dict, chat) -> bool:
     url = (f"https://api.telegram.org/bot{cfg['bot_token']}"
            f"/sendMessage")
     ok = True
     for i, chunk in enumerate(split_chunks(text)):
         payload = json.dumps({
-            "chat_id": cfg["chat_id"],
+            "chat_id": chat,
             "text": chunk,
             "disable_web_page_preview": True,
         }).encode("utf-8")

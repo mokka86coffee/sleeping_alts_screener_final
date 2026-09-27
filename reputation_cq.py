@@ -276,6 +276,25 @@ def _bars_confirm(sym_usdt: str | None) -> dict | None:
             "confirmed": all(d > 0 for d in deltas) and oi_grow >= 1.01}
 
 
+def _top_dist(oh: list):
+    """расстояние (%) от цены до плотнейшей полосы стопов над ценой — та же карта, что у «у цели сбора»; None — полос нет"""
+    try:
+        from analytics_liqmap import liq_zones
+    except Exception:  # noqa: BLE001
+        return None
+    if len(oh) < 20:
+        return None
+    h = [r.get("high") or r["close"] for r in oh]; l = [r.get("low") or r["close"] for r in oh]
+    c = [r["close"] for r in oh]; v = [r.get("quote_volume") or 0.0 for r in oh]
+    med = _median(v[-60:]) or 0.0
+    vv = [min(x, 3 * med) for x in v] if med else v
+    price = c[-1]
+    zones = [z for z in liq_zones(h, l, c, vv, price) if z["price"] > price] if price else []
+    if not zones:
+        return None
+    return (max(zones, key=lambda z: z["weight"])["price"] / price - 1) * 100
+
+
 def _at_target(oh: list, oi: list, fu: list, tr: list, px: list, sym: str | None = None) -> str:
     try:
         from analytics_liqmap import liq_zones
@@ -544,9 +563,12 @@ def plot_line(tr: list, oh: list, fu: list, oi: list, lq: list | None = None,
     if len(px) > E and px[-(E + 1)]:
         px_e = px[-1] / px[-(E + 1)] - 1
         e_neg = sum(1 for x in dl[-E:] if x < 0)
+        # 27.09 владелец по DYM («как может быть сразу начал тащить и у цели?»): «начал тащить» и «у цели сбора» мигали на одной цене —
+        # 156 смен у 57 монет за 16–27.09 (forecasts.jsonl). Цена в APPROACH_TOL от плотнейшей полосы сверху — это конец хода, не начало.
+        _td = _top_dist(oh)
         if (LADDER_EARLY_MIN <= px_e <= LADDER_LATE_MIN
                 and sum(dl[-E:]) < 0 and e_neg >= LADDER_NEG_DAYS
-                and fu_last < 0.05):
+                and fu_last < 0.05 and not (_td is not None and _td <= APPROACH_TOL)):
             return ("крупняк начал тащить вверх (шаблон PROM/STX): "
                     f"за {E} дня цена +{px_e*100:.0f}% при продажах "
                     f"{e_neg} дней из {E} — лимитный покупатель ведёт, "

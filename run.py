@@ -683,6 +683,18 @@ def alert_telegram(text: str) -> bool:
         with _u.urlopen(f"https://api.telegram.org/bot{token}/sendMessage",
                         data=data, timeout=10) as r:
             ok = r.status == 200
+        # 27.09 владелец: рабочий аккаунт тоже видит все сообщения — чаты только для чтения (chat_ids_read)
+        try:        # подписчики по /start (опрос getUpdates делает send_brief_telegram, прогон только читает файл)
+            _subs = list((_j.loads((BASE_DIR / "config" / "telegram_subscribers.json").read_text(encoding="utf-8")).get("chats") or {}).keys())
+        except Exception:  # noqa: BLE001
+            _subs = []
+        for _c in list(cfg.get("chat_ids_read") or []) + _subs:
+            if _c and _c != chat:
+                try:
+                    _u.urlopen(f"https://api.telegram.org/bot{token}/sendMessage",
+                               data=_up.urlencode({"chat_id": _c, "text": text}).encode(), timeout=10).close()
+                except Exception:  # noqa: BLE001
+                    pass
         log("→ Тревога отправлена в Телеграм" if ok
             else "→ Тревога в Телеграм: ответ не 200")
         return ok

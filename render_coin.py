@@ -1441,9 +1441,18 @@ COIN_JS = r"""
     var last = M.length - 1;
     if (isEnd(M[last].tpl)) return null;              // тренд кончился — основы нет
     if (endedByBars(sym)) return null;                // и по барам тоже
-    var start = -1;
-    for (var i = last; i >= 0; i--) { if (isEnd(M[i].tpl)) break; if (isStart(M[i].tpl)) { start = i; } }
+    var start = -1, seg = 0;
+    for (var i = last; i >= 0; i--) { if (isEnd(M[i].tpl)) { seg = i + 1; break; } if (isStart(M[i].tpl)) { start = i; } }
     if (start < 0) return null;
+    // 27.09 владелец по DYM: «начал тащить», поставленный после «у цели» того же хода, — не начало (шаблоны мигали на одной цене).
+    // Основа — старт до первого «у цели» в отрезке; такого нет — заголовка «начал» нет вовсе.
+    var tgt = -1;
+    for (var k = seg; k <= last; k++) { if (String(M[k].tpl || '').toLowerCase().indexOf('у цели') === 0) { tgt = k; break; } }
+    if (tgt >= 0 && start > tgt) {
+      start = -1;
+      for (var j = seg; j < tgt; j++) { if (isStart(M[j].tpl)) { start = j; break; } }
+      if (start < 0) return null;
+    }
     while (start > 0 && isStart(M[start - 1].tpl) && !isEnd(M[start - 1].tpl)) start--;
     var a = M[start], b = M[last];
     var hrs = (new Date(b.t).getTime() - new Date(a.t).getTime()) / 36e5;
