@@ -6,6 +6,8 @@
 Каждые 3 минуты по списку — последняя закрытая трёхминутка Binance:
   всплеск (R39): объём ≥ FAST3_SPIKE_X × медианы 30 баров и ≥ FAST3_SPIKE_MINQ $, бар ≥ +FAST3_SPIKE_PCT → лонг; +5 / −5 / 2 ч;
   вынос (R21): бар ≥ +FAST3_CLIMAX_BAR и интерес на баре ≤ FAST3_CLIMAX_OI → шорт; −8 / +6 / 12 ч.
+СЕССИИ (27.09 17:30, R40–R42, пороги FAST3_SES_* / FAST3_SKIP_DAYS): лонг-всплеск (не перевёрнутый) не берётся в первый час сессии,
+в поздние минуты Сиднея и Нью-Йорка и в запрещённые дни; срок — до часа выхода сессии (Токио/Лондон/НЙ — открытие следующей, Сидней — 10:00).
 Выходы своих позиций каждые 3 минуты. Журнал output/paper_fast3.jsonl (entry / exit_long / exit_short / follow), состояние output/paper_fast3.json.
     python3 fast_tier.py --loop      # запускает прогон один раз (PAPER_FAST3_ENABLED), живёт сам
     python3 fast_tier.py             # один проход без записи
@@ -80,6 +82,31 @@ def flip_spike(sd: int, why: str, tp: float, sl: float, hold: int, oi1h):
     return sd, why, tp, sl, hold, False
 
 
+SES_WIN = (("Сидней", 0, 3), ("Токио", 3, 10), ("Лондон", 10, 16), ("Нью-Йорк", 16, 24))
+WDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
+
+
+def ses_gate(now: float, t_bar: int):
+    """R40–R42 для лонга-всплеска: (можно ли входить, причина/сессия, срок в минутах от закрытия бара входа до часа выхода сессии)"""
+    try:
+        from core_config import FAST3_SES_WAIT_MIN as _w, FAST3_SES_LATE_SKIP_MIN as _late, FAST3_SES_EXIT_H as _ex, FAST3_SKIP_DAYS as _days
+    except ImportError:
+        return True, "", None
+    d = datetime.fromtimestamp(now, L)
+    name, a, b = next(x for x in SES_WIN if x[1] <= d.hour < x[2])
+    o = d.replace(hour=a, minute=0, second=0, microsecond=0)
+    mins = (d - o).total_seconds() / 60
+    if WDAYS[d.weekday()] in _days:
+        return False, f"день {WDAYS[d.weekday()]} (R42)", None
+    if mins < _w:
+        return False, f"первый час сессии {name} (R40)", None
+    if (b - a) * 60 - mins <= _late.get(name, 0):
+        return False, f"поздно в сессии {name}", None
+    end = d.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(hours=_ex.get(name, b))
+    hold = int((end.timestamp() * 1000 - (t_bar + 180_000)) // 60_000)
+    return (hold >= 3), f"{name}, выход {end:%H:%M} (R41)", hold
+
+
 def scan(sym: str, want_spike: bool, want_climax: bool):
     k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "3m", "limit": 33}, quiet_400=True) or []
     if len(k) < 33:
@@ -133,6 +160,12 @@ def step(state: dict, write: bool) -> list[str]:
             if sym in state["open"] or now - state["last_exit"].get(sym, 0) < 2 * 3600:
                 continue
             sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, info.get(sym, {}).get("oi1h"))
+            if sd == 1:                                                   # R40–R42: лонг-всплеск только внутри своей сессии
+                ok, sw, h2 = ses_gate(now, t_bar)
+                if not ok:
+                    msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); continue
+                if h2:
+                    hold, why = h2, why + f" · сессия {sw}"
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why, last_px=px, bars=0)
             state["open"][sym] = pos
             ev.append(dict(book=BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=why, target=tp, stop=sl, hold_min=hold,
@@ -224,6 +257,12 @@ def wake_step(state: dict, write: bool) -> list[str]:
                 continue                                                  # всплеск без интереса и без шортов в топливе — не вход (R39)
             if sd == -1 and not _flip and not (oibar is not None and oibar <= FAST3_CLIMAX_OI):
                 continue
+            if sd == 1:                                                   # R40–R42
+                ok, sw, h2 = ses_gate(now, t_bar)
+                if not ok:
+                    msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); continue
+                if h2:
+                    hold, why = h2, why + f" · сессия {sw}"
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", last_px=px, bars=0)
             state["open"][sym] = pos
             ev.append(dict(book=WAKE_BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=pos["rule"], target=tp, stop=sl, hold_min=hold,
