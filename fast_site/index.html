@@ -187,10 +187,6 @@
 </div>
 <div class="hud">
   <div class="top"><small id="status">подключение…</small><h1>Crypto Orbit</h1></div>
-  <div class="btns">
-    <span class="on">ORB|01</span><span class="on">ORB|02</span><span>ORB|03</span><span>ORB|04</span>
-    <span>ORB|05</span><span>ORB|06</span><span>ORB|07</span><span class="exit">EXIT</span>
-  </div>
 </div>
 <div class="veil" id="veil"></div>
 <div class="ghost g2" id="ghost2"></div>
@@ -229,6 +225,7 @@ function text(str, x, y) {
   tctx.fillText(str, x, y);
 }
 let W = 0, H = 0;
+const RIB_H = 118;   // высота ленты дня под кольцами
 
 const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); };
 const clamp = (x, a = 0, b = 1) => x < a ? a : x > b ? b : x;
@@ -266,12 +263,12 @@ function makeRing(cfg) {
 
 const rings = [
   makeRing({
-    title: 'ORBIT A · ВХОД', mode: 'entry',
+    title: 'ORBIT A · ВХОД', mode: 'entry',   // 27.09 владелец: «только вход и выход; вход держится до выхода, закрытие — 15 минут»
     palette: ['140,200,255', '185,160,255', '255,205,120', '120,235,255', '255,150,190', '170,255,200'], rgb: '70,150,255', hot: '160,210,255', w: .037, k: .27, light: .35,
     names: [], queue: [],
   }),
   makeRing({
-    title: 'ORBIT B · В РАБОТЕ · ЦЕЛЬ', mode: 'target',
+    title: 'ORBIT B · ВЫХОД', mode: 'target',
     palette: ['90,240,210', '200,255,120', '255,130,200', '255,175,100', '130,180,255', '120,230,255'], rgb: '40,195,235', hot: '150,240,255', w: .03, k: .27, light: 2.6,
     names: [], queue: [],
   }),
@@ -311,7 +308,7 @@ function layout() {
   for (const c of [cv, tcv]) { c.width = W * dpr; c.height = H * dpr; }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   tctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const top = 96, bot = H - 74, hh = (bot - top) / 2;
+  const top = 96, bot = H - 30 - (W >= 900 ? RIB_H : 0), hh = (bot - top) / 2;   // снизу — лента дня (27.09), кнопок нет
   rings.forEach((g, i) => {
     g.cx = W / 2;
     g.cy = top + hh * i + hh * .6;
@@ -724,12 +721,17 @@ function findHover() {
       if (Math.hypot(mouse.x - h.ax, mouse.y - h.ay) < 12) return l;
     }
   }
-  return null;
+  let best = null;   // дуга ленты: курсор внутри её пролёта и между вершиной и основанием; узкая — приоритетнее
+  for (const a of RIB.arcs) {
+    const h = a.hit; if (!h) continue;
+    if (mouse.x >= h.x - 3 && mouse.x <= h.x + h.w + 3 && mouse.y >= h.y - 6 && mouse.y <= h.y + h.h + 4 && (!best || h.w < best.hit.w)) best = a;
+  }
+  return best;
 }
 
 function openCard(l) {
   selected = l;
-  renderCard(rings.find(g => g.labels.includes(l)), l);
+  renderCard(l.closed ? RIB_G : rings.find(g => g.labels.includes(l)), l);
   fitCard();
   for (const el of [card, ghost1, ghost2, veil]) el.classList.add('on');
 }
@@ -798,8 +800,14 @@ const hmT = s => new Date(s * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit
 function realDetail(g, l) {
   const it = l.item || {}, S = window.STATE || {}, M = S.meta || {};
   const ch = (S.charts || {})[it.sym] || null;
-  const d = { ring: g.mode, funding: ch && ch.funding != null ? ch.funding : 0 };
-  if (g.mode === 'entry') {
+  const kind = it.t_out ? 'closed' : (it.target != null && it.entry != null ? 'open' : 'entry');
+  const d = { ring: kind, funding: ch && ch.funding != null ? ch.funding : 0 };
+  if (kind === 'closed') {
+    const rv = it.review || null;
+    d.entry = it.entry; d.exitPx = it.exit; d.res = it.res; d.usd = it.usd; d.rv = rv; d.item = it;
+    d.now = ch && ch.bars && ch.bars.length ? ch.bars[ch.bars.length - 1][4] : it.exit;
+    d.status = rv ? rv.verdict : `${it.book} · ${it.why} · разбор придёт через 2 ч после выхода`;
+  } else if (kind === 'entry') {
     d.entry = it.level; d.now = it.px; d.left = it.dist != null ? it.dist : (it.level / it.px - 1) * 100;
     d.volPct = Math.round((it.vol_x || 0) * 100); d.bar = it.bar || 0; d.oi = it.oi1h || 0;
     d.status = M.open_gate ? (it.flip ? 'кандидат · интерес ≥ +6% за час → всплеск будет перевёрнут в шорт' : 'кандидат на всплеск · вход открыт')
@@ -837,11 +845,31 @@ function renderCard(g, l) {
   const d = realDetail(g, l);
   for (const el of [card, ghost1, ghost2, veil]) el.style.setProperty('--ac', l.c1);
   document.getElementById('cOrbit').textContent = g.title;
-  document.getElementById('cMode').textContent = d.ring === 'entry' ? 'entry.' : 'target.';
+  document.getElementById('cMode').textContent = d.ring === 'closed' ? 'exit.' : d.ring === 'open' ? 'entry.' : 'candidate.';
   document.getElementById('cTitle').textContent = l.name;
   document.getElementById('cNow').textContent = fmtPrice(d.now);
   document.getElementById('cSub').textContent = d.status;
   const t = [];
+  if (d.ring === 'closed') {
+    const it = d.item, rv = d.rv;
+    t.push(tile('вход', fmtPrice(d.entry), '', `${it.side < 0 ? 'шорт' : 'лонг'} · ${hmT(it.t_in)}`));
+    t.push(tile('выход', fmtPrice(d.exitPx), sgn(d.res), `${it.why} · ${hmT(it.t_out)}`));
+    t.push(tile('итог', pctStr(d.res), sgn(d.res), `${d.usd >= 0 ? '+' : '−'}${Math.abs(Math.round(d.usd))} $ при 500 $`));
+    if (rv) {
+      t.push(tile('в сделке', `${pctStr(rv.mfe)} / ${pctStr(rv.mae)}`, '', `лучшее ${rv.mfe_min} мин · худшее ${rv.mae_min} мин`));
+      t.push(tile('после выхода', rv.post_best != null ? pctStr(rv.post_best) : '—', rv.post_best != null ? sgn(rv.post_best) : '', rv.post_h ? `лучшее за ${rv.post_h} ч · сейчас ${pctStr(rv.post_close)}` : ''));
+      t.push(tile('интерес 1ч', rv.oi1h_in != null ? pctStr(rv.oi1h_in) : '—', rv.oi1h_in != null ? sgn(rv.oi1h_in) : '', rv.oi1h_out != null ? `на выходе ${pctStr(rv.oi1h_out)}` : 'на входе'));
+    } else {
+      t.push(tile('разбор', 'через 2 ч', '', 'после выхода'));
+      t.push(tile('книга', it.book, '', ''));
+      t.push(tile('фандинг', d.funding.toFixed(4) + '%', sgn(d.funding)));
+    }
+    document.getElementById('cHero').innerHTML = t.slice(0, 3).join('');
+    document.getElementById('cMinor').innerHTML = t.slice(3).join('');
+    document.getElementById('cFoot').innerHTML = `${(it.rule || '').replace(/</g, '&lt;')}<br>цена · объём · CVD фьючерсов · CVD спота · интерес · ликвидации · <b>3m · 6 ч</b>`;
+    drawCardChart(d, l);
+    return;
+  }
   if (d.ring === 'entry') {
     t.push(tile('вход', fmtPrice(d.entry), '', 'при объёме бара ×5 медианы'));
     t.push(tile('до входа', pctStr(d.left), sgn(d.left), 'от текущей цены'));
@@ -916,7 +944,7 @@ function drawCardChart(d, l) {
     c.fillText(name.toUpperCase(), 3, y0 + 14); c.shadowBlur = 0; c.letterSpacing = '0px';
 
     if (name === 'цена') {
-      const levels = [d.entry].concat(d.target ? [d.target] : [], d.stop ? [d.stop] : []);
+      const levels = [d.entry].concat(d.target ? [d.target] : [], d.stop ? [d.stop] : [], d.exitPx ? [d.exitPx] : []);
       const lo = Math.min(...d.candles.map(q => q[2]), ...levels), hi = Math.max(...d.candles.map(q => q[1]), ...levels), sp = hi - lo || 1;
       const Y = v => y0 + h - 8 - (v - lo) / sp * (h - 30);
       // levels
@@ -929,6 +957,7 @@ function drawCardChart(d, l) {
       lvl(d.entry, l.c1, d.ring === 'entry' ? 'ВХОД' : 'ВХ');
       if (d.target) lvl(d.target, '134,240,192', 'ЦЕЛЬ');
       if (d.stop) lvl(d.stop, '240,98,116', 'СТОП');
+      if (d.exitPx) lvl(d.exitPx, '235,240,250', 'ВЫХ');
       // candles with a soft glow
       d.candles.forEach(([o, hh, ll, cl], i) => {
         const up = cl >= o, col = up ? '111,224,168' : '240,98,116';
@@ -1092,6 +1121,95 @@ function drawHolo(l) {
   hctx.globalCompositeOperation = 'source-over';
 }
 
+// ── ЛЕНТА ДНЯ (27.09, владелец: «да, добавь ленту снизу»): закрытые сделки дугами вход → выход, высота — итог, цвет — знак;
+//    шкала сессий UTC+3 с затемнённым первым часом, линия «сейчас». Новая дуга прорисовывается за ANIM_SLOW. Клик — карточка.
+const RIB_G = { title: 'ЗАКРЫТО СЕГОДНЯ', mode: 'closed', labels: [] };
+const RIB = { arcs: [], seen: new Map() };
+function syncRibbon(S, t) {
+  const first = RIB.seen.size === 0;   // первая загрузка: все дуги дня сразу из кэша, анимируются только закрытые после открытия страницы
+  RIB.arcs = (S.closed || []).map(c => {
+    const key = c.book + '|' + c.sym + '|' + Math.round(c.t_out);
+    if (!RIB.seen.has(key)) RIB.seen.set(key, first ? t - 99 : t);
+    const up = c.res >= 0;
+    return { key, closed: true, item: c, name: c.sym.replace(/USDT$/, ''), born: RIB.seen.get(key),
+             c1: up ? '110,240,180' : '255,110,130', c2: up ? '150,240,255' : '255,175,100', cp: '240,248,255' };
+  });
+}
+function ribGeom() {
+  const S = window.STATE, yb = H - 44, x0 = 130, x1 = W - 90;
+  const d0 = new Date(S.meta.t * 1000); d0.setHours(0, 0, 0, 0); const t0 = d0.getTime() / 1000;
+  return { S, yb, x0, x1, t0, X: s => x0 + (x1 - x0) * clamp((s - t0) / 86400), maxH: RIB_H - 48 };
+}
+function arcPath(c2, a, G, p) {
+  const c = a.item, xa = G.X(c.t_in || c.t_out), xb = Math.max(xa + 2, G.X(c.t_out));
+  const hh = Math.max(6, Math.min(G.maxH, Math.abs(c.res) / 5 * G.maxH * .8));
+  a.hit = { x: xa, y: G.yb - hh * .75, w: xb - xa, h: hh * .75, ax: (xa + xb) / 2, ay: G.yb };
+  const N = 24;
+  c2.beginPath(); c2.moveTo(xa, G.yb);
+  for (let i = 1; i <= N * p; i++) { const u = i / N; c2.lineTo(xa + (xb - xa) * u, G.yb - hh * Math.sin(Math.PI * u) * .75); }
+  return { xa, xb, hh };
+}
+// кэш ленты (27.09 «сайт тормозит»): 66 дуг со свечением на каждом кадре роняли частоту вчетверо — рисуем их один раз в слой
+const RIBC = document.createElement('canvas'), rctx = RIBC.getContext('2d');
+let ribKey = '';
+function ribStatic(G, t) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), top = G.yb - RIB_H, bh = RIB_H + 20;
+  RIBC.width = W * dpr; RIBC.height = bh * dpr;
+  rctx.setTransform(dpr, 0, 0, dpr, 0, -top * dpr);
+  rctx.clearRect(0, top, W, bh);
+  [[0, 3], [3, 10], [10, 16], [16, 24]].forEach(([a, b], i) => {
+    const xa = G.X(G.t0 + a * 3600), xb = G.X(G.t0 + b * 3600), xw = G.X(G.t0 + (a + 1) * 3600);
+    rctx.fillStyle = `rgba(70,150,255,${i % 2 ? .05 : .08})`; rctx.fillRect(xa, G.yb, xb - xa, 10);
+    rctx.fillStyle = 'rgba(255,205,120,.10)'; rctx.fillRect(xa, G.yb, xw - xa, 10);
+  });
+  rctx.strokeStyle = 'rgba(120,170,230,.3)'; rctx.lineWidth = 1;
+  for (let h = 0; h <= 24; h += 3) { const x = G.X(G.t0 + h * 3600); rctx.beginPath(); rctx.moveTo(x + .5, G.yb + 10); rctx.lineTo(x + .5, G.yb + 14); rctx.stroke(); }
+  rctx.globalCompositeOperation = 'lighter';
+  for (const a of RIB.arcs) {
+    if (t - a.born < ANIM_SLOW) continue;              // ещё прорисовывается — рисуется на кадре
+    rctx.shadowColor = `rgba(${a.c1},.9)`; rctx.shadowBlur = 6;
+    rctx.strokeStyle = `rgba(${a.c1},.55)`; rctx.lineWidth = 1.1;
+    arcPath(rctx, a, G, 1); rctx.stroke();
+  }
+  rctx.shadowBlur = 0; rctx.globalCompositeOperation = 'source-over';
+}
+function drawRibbon(t) {
+  if (W < 900 || !window.STATE) return;
+  const G = ribGeom(), { S, yb, x0, x1 } = G;
+  const settled = RIB.arcs.filter(a => t - a.born >= ANIM_SLOW).length;
+  const key = [W, H, S.meta.t, RIB.arcs.length, settled, new Date().getHours()].join('|');
+  if (key !== ribKey) { ribStatic(G, t); ribKey = key; }
+  ctx.drawImage(RIBC, 0, yb - RIB_H, W, RIB_H + 20);
+  // подписи (резкий слой)
+  const sc = S.score || {}, n = (S.closed || []).length;
+  ctx.font = `9px ${FONT}`; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(150,185,225,.4)';
+  text(`${n} сделок · ` + Object.entries(sc).map(([b, v]) => `${b} ${v.usd >= 0 ? '+' : '−'}${Math.abs(Math.round(v.usd))} $`).join(' · '), x1, yb - RIB_H + 34);
+  ctx.fillStyle = 'rgba(150,185,225,.6)';
+  text('CLOSED TODAY · ЗАКРЫТО СЕГОДНЯ', x1, yb - RIB_H + 20); ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(150,185,225,.5)';
+  [[0, 3, 'SYDNEY'], [3, 10, 'TOKYO'], [10, 16, 'LONDON'], [16, 24, 'NEW YORK']].forEach(([a, b, nm]) => text(nm, (G.X(G.t0 + a * 3600) + G.X(G.t0 + b * 3600)) / 2, yb + 24));
+  ctx.textAlign = 'left';
+  // на кадре: прорисовка новых дуг и дуга под курсором
+  ctx.globalCompositeOperation = 'lighter';
+  for (const a of RIB.arcs) {
+    const p = ease(clamp((t - a.born) / ANIM_SLOW)), on = a === hovered || a === selected;
+    if (p >= 1 && !on) continue;
+    ctx.shadowColor = `rgba(${a.c1},.9)`; ctx.shadowBlur = on ? 14 : 6;
+    ctx.strokeStyle = `rgba(${a.c1},${on ? .95 : .55})`; ctx.lineWidth = on ? 2 : 1.1;
+    const g2 = arcPath(ctx, a, G, p); ctx.stroke();
+    if (p < 1 && p > 0) {
+      const px = g2.xa + (g2.xb - g2.xa) * p, py = yb - g2.hh * Math.sin(Math.PI * p) * .75;
+      const gr = ctx.createRadialGradient(px, py, 0, px, py, 10);
+      gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(.35, `rgba(${a.c1},.6)`); gr.addColorStop(1, `rgba(${a.c1},0)`);
+      ctx.fillStyle = gr; ctx.fillRect(px - 10, py - 10, 20, 20);
+    }
+    if (on) { ctx.shadowBlur = 0; ctx.fillStyle = `rgb(${a.c1})`; ctx.textAlign = 'center'; ctx.font = `9px ${FONT}`; text(`${a.name} ${a.item.res >= 0 ? '+' : ''}${a.item.res.toFixed(1)}%`, (g2.xa + g2.xb) / 2, yb - g2.hh * .75 - 8); ctx.textAlign = 'left'; }
+  }
+  ctx.shadowBlur = 0; ctx.globalCompositeOperation = 'source-over'; ctx.lineWidth = 1;
+  const nx = G.X(Date.now() / 1000);
+  ctx.strokeStyle = 'rgba(225,235,150,.55)'; ctx.beginPath(); ctx.moveTo(nx + .5, yb - G.maxH - 6); ctx.lineTo(nx + .5, yb + 12); ctx.stroke();
+  ctx.fillStyle = 'rgba(225,235,150,.8)'; ctx.textAlign = 'center'; text(hmT(Date.now() / 1000), nx, yb + 36); ctx.textAlign = 'left';
+}
+
 let lastT = 0;
 function frame() {
   const t = performance.now() / 1000 / TIME_SLOW;
@@ -1110,6 +1228,7 @@ function frame() {
     drawRing(g, t);
     g.labels = g.labels.filter(l => drawLabel(g, l, t));
   }
+  drawRibbon(t);
   hovered = findHover();
   document.body.style.cursor = hovered ? 'pointer' : '';
   if (selected) { drawLink(selected); drawHolo(selected); }
@@ -1119,9 +1238,12 @@ function frame() {
 function applyState(S) {
   window.STATE = S;
   const t = performance.now() / 1000 / TIME_SLOW;
+  syncRibbon(S, t);
+  layout();
+  const nowS = Date.now() / 1000;
   const sets = [
-    (S.entry || []).slice(0, MAX_LABELS).map(e => ({ key: 'in|' + e.sym, name: e.sym.replace(/USDT$/, ''), price: e.level, item: e })),
-    (S.open || []).map(p => ({ key: 'w|' + p.book + '|' + p.sym + '|' + Math.round(p.t_in), name: p.sym.replace(/USDT$/, '') + (p.side < 0 ? '▼' : ''), price: p.target, item: p })),
+    (S.open || []).map(p => ({ key: 'in|' + p.book + '|' + p.sym + '|' + Math.round(p.t_in), name: p.sym.replace(/USDT$/, '') + (p.side < 0 ? '▼' : ''), price: p.entry, item: p })),
+    (S.closed || []).filter(c => nowS - c.t_out < EXIT_KEEP).map(c => ({ key: 'out|' + c.book + '|' + c.sym + '|' + Math.round(c.t_out), name: c.sym.replace(/USDT$/, '') + (c.side < 0 ? '▼' : ''), price: c.exit, item: c })),
   ];
   rings.forEach((g, i) => {
     const want = new Map(sets[i].map(x => [x.key, x]));
@@ -1134,14 +1256,21 @@ function applyState(S) {
     const shown = new Set(g.labels.filter(l => !l.dying).map(l => l.key));
     g.queue = g.queue.filter(q => want.has(q.key));
     const queued = new Set(g.queue.map(q => q.key));
-    for (const x of sets[i]) if (!shown.has(x.key) && !queued.has(x.key)) g.queue.push(x);
+    for (const x of sets[i]) if (!shown.has(x.key) && !queued.has(x.key)) { g.queue.push(x); queued.add(x.key); }
   });
   const M = S.meta || {};
   const st = document.getElementById('status');
   if (st) st.textContent = `${M.ses || ''} · ${M.open_gate ? 'вход открыт · выход ' + hmT(M.exit_at) : 'вход закрыт: ' + (M.gate_why || '')} · данные ${hmT(M.t)}`;
-  if (selected) renderCard(rings.find(g => g.labels.includes(selected)) || rings[0], selected);
+  if (selected) renderCard(selected.closed ? RIB_G : (rings.find(g => g.labels.includes(selected)) || rings[0]), selected);
 }
 window.applyState = applyState;
+const EXIT_KEEP = 15 * 60;   // закрытая сделка держится на кольце «выход» 15 минут
+// между обновлениями данных: у закрытых истекли 15 минут — гаснут сразу, не ждут следующей рассылки
+setInterval(() => {
+  const t = performance.now() / 1000 / TIME_SLOW, nowS = Date.now() / 1000;
+  for (const l of rings[1].labels) if (!l.dying && l.item && nowS - l.item.t_out >= EXIT_KEEP) { l.dying = true; l.life = (t - l.born) + 1.1 * ANIM_SLOW; }
+  rings[1].queue = rings[1].queue.filter(q => nowS - q.item.t_out < EXIT_KEEP);
+}, 5000);
 let ws = null, lastStateT = 0;
 function connect() {
   if (location.protocol === 'file:') return;

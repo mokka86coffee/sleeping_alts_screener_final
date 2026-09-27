@@ -198,8 +198,8 @@ def build() -> dict:
     now = time.time()
     op, cl = positions(now)
     ent = candidates()
-    # графики: открытые, 15 ближайших к входу (кольцо «вход» на странице — до 15 монет), закрытые сегодня
-    syms = list(dict.fromkeys([p["sym"] for p in op] + [e["sym"] for e in ent[:15]] + [c["sym"] for c in cl]))[:40]
+    # графики: открытые (кольцо «вход») и закрытые сегодня (кольцо «выход» и лента); кандидаты на странице не показываются
+    syms = list(dict.fromkeys([p["sym"] for p in op] + [c["sym"] for c in cl]))[:40]
     return dict(meta=meta(now), entry=ent, open=op, closed=cl, charts=charts(syms), score=score(cl))
 
 
