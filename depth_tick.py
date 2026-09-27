@@ -54,6 +54,12 @@ except ImportError:
 KEEP = 40                      # снимков на монету — два часа, дольше судьбе смотреть незачем
 FAR_PCT = 30                   # дальше — застрявшие продавцы, как в run.py _fast_alerts
 EVENTS = BASE_DIR / "output" / "depth_events.jsonl"
+BAN = BASE_DIR / "output" / "binance_ban.json"   # 27.09 18:37 бан фьючерсного API (418): до этого времени фьючерсы не трогаем
+try:
+    from core_config import DEPTH_LIMIT, BINANCE_FAPI, BINANCE_SPOT, WEIGHT_SOFT_LIMIT
+except ImportError:
+    DEPTH_LIMIT, BINANCE_FAPI, BINANCE_SPOT, WEIGHT_SOFT_LIMIT = 1000, "https://fapi.binance.com", "https://api.binance.com", 1900
+_STOP = {"fut": False, "spot": False, "used": 0.0}
 MCAP = BASE_DIR / "output" / "depth_mcap.json"
 WORKERS = 4
 DEADLINE_S = 110               # прогон рвёт шаг на 150 с
@@ -149,14 +155,56 @@ def extra(sym: str) -> dict:
     return res
 
 
+def banned(kind: str) -> float:
+    until = float((_read(BAN, {}) or {}).get(kind) or 0)
+    return until if until > time.time() else 0.0
+
+
+def _ban(kind: str, sec: float) -> None:
+    from sources_storage import write_atomic
+    b = _read(BAN, {}) or {}
+    b[kind] = max(float(b.get(kind) or 0), time.time() + sec)
+    write_atomic(BAN, json.dumps(b))
+
+
+def _get(kind: str, sym: str) -> dict | None:
+    """стакан напрямую (не через core_http: его пауза при 418 ждёт Retry-After и держала бы шаг дольше 150 с). Вес всех процессов
+    видим по X-MBX-USED-WEIGHT-1M: дошли до WEIGHT_SOFT_LIMIT — фьючерсы в этом шаге больше не берём; 418/429 — стоп и запись бана."""
+    import urllib.request as u
+    import urllib.error as ue
+    if _STOP[kind] or banned(kind):
+        return None
+    url = (f"{BINANCE_FAPI}/fapi/v1/depth" if kind == "fut" else f"{BINANCE_SPOT}/api/v3/depth") + f"?symbol={sym}&limit={DEPTH_LIMIT}"
+    try:
+        with u.urlopen(url, timeout=10) as r:
+            used = r.headers.get("X-MBX-USED-WEIGHT-1M")
+            if used and kind == "fut":
+                _STOP["used"] = max(_STOP["used"], float(used))
+                if float(used) >= WEIGHT_SOFT_LIMIT:
+                    _STOP["fut"] = True
+            return json.loads(r.read().decode("utf-8"))
+    except ue.HTTPError as e:
+        if e.code in (418, 429):
+            _STOP[kind] = True
+            try:
+                sec = float(e.headers.get("Retry-After") or 60)
+            except (TypeError, ValueError):
+                sec = 60.0
+            _ban(kind, sec)
+            print(f"depth_tick: {kind} HTTP {e.code}, пауза {sec:.0f} с")
+        return None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def take(sym: str, ts: int) -> dict | None:
-    raw = df.get_depth(sym)
+    raw = _get("fut", sym)
     snap = df.snapshot(sym, raw, ts) if raw else None
     if not snap:
         return None
     near = {"perp": {"bid": snap["near_bid_usd"], "ask": snap["near_ask_usd"]}}
     if DEPTH_SPOT:
-        sraw = df.get_spot_depth(sym)
+        sraw = _get("spot", sym)
         ss = df.snapshot(sym, sraw, ts, kind="spot") if sraw else None
         if ss:
             snap["walls"] = sorted(snap["walls"] + ss["walls"], key=lambda w: -w["usd"])[:24]
@@ -197,10 +245,17 @@ def main() -> int:
     t0 = time.time()
     alert = coins()                      # телеграм — только по ним, как было
     tr = trades()
-    syms = alert + [s for s in tr if s not in alert]
+    ts = int(time.time() // 60 * 60 * 1000)
+    if banned("fut"):
+        print(f"depth_tick: фьючерсы Binance под баном до {time.strftime('%H:%M', time.localtime(banned('fut')))} — шаг пропущен")
+        return 0
+    # 27.09 после бана: монеты сделок — по половине за шаг (каждая раз в 6 мин), монеты тревог — каждые 3 мин
+    half = (ts // (SNAP_MIN * 60_000)) % 2
+    rest = sorted(s for s in tr if s not in alert)
+    syms = alert + [s for i, s in enumerate(rest) if i % 2 == half]
+    step_of = {s: SNAP_MIN for s in alert}
     mem = _read(MEM, {}) or {}
     sent = _read(SENT, {}) or {}
-    ts = int(time.time() // 60 * 60 * 1000)
     mk = market(a.write)
     from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutTimeout
     snaps: dict[str, dict | None] = {}
@@ -225,7 +280,7 @@ def main() -> int:
             continue
         hist = mem.get(sym) or []
         # дыра в памяти (монета выпадала из списка, прогон стоял) — судьбу по старому снимку не судим
-        if hist and ts - int(hist[-1]["t"]) > 2 * SNAP_MIN * 60_000:
+        if hist and ts - int(hist[-1]["t"]) > 2 * step_of.get(sym, 2 * SNAP_MIN) * 60_000:
             hist = []
         ft = df.fate(sym, snap, hist)
         if hist:
@@ -258,6 +313,7 @@ def main() -> int:
         base, m = _mult(s[:-4], mk["cs"])
         px = mk["px"].get(s) or r["mid"]
         r["trades"] = tr.get(s) or []
+        r["step_min"] = step_of.get(s, 2 * SNAP_MIN)
         r["qv24"] = mk["qv"].get(s)
         r["vol1h"] = e.get("vol1h")
         r["oi_usd"] = round(e["oi"] * r["mid"], 0) if e.get("oi") else None
@@ -265,7 +321,7 @@ def main() -> int:
     for ln in lines:
         print(f"depth_tick: {ln}")
     print(f"depth_tick: монет {len(syms)} (тревоги {len(alert)}, сделки {len(tr)}) · тревог {len(lines)} · "
-          f"сторон с переменами {len(rows)} · {time.time() - t0:.0f} с")
+          f"сторон с переменами {len(rows)} · вес фьючерсов {_STOP['used']:.0f}" + (" · СТОП по весу/бану" if _STOP["fut"] else "") + f" · {time.time() - t0:.0f} с")
     if not a.write:
         return 0
     from sources_storage import write_atomic
