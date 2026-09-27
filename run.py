@@ -1548,7 +1548,8 @@ def run_once(args: argparse.Namespace) -> int:
     # ── КНИГИ «ИНТЕРЕС» (R34) И «ВТОРОЙ ХОД» (R18/R19) (26.09, владелец «правь пока только бота»): бумажно, копят счёт;
     #    журналы output/paper_interest.jsonl и output/paper_second.jsonl. Идут после near_move (нужен run_from_low7). Сбой прогон не роняет. ──
     for _bk, _flag, _title in (("paper_interest.py", "PAPER_INTEREST_ENABLED", "Бот интерес"), ("paper_second.py", "PAPER_SECOND_ENABLED", "Бот второй ход"),
-                               ("paper_funding.py", "PAPER_FUNDING_ENABLED", "Бот фандинг−"), ("paper_div.py", "PAPER_DIV_ENABLED", "Бот дивергенция")):
+                               ("paper_funding.py", "PAPER_FUNDING_ENABLED", "Бот фандинг−"), ("paper_div.py", "PAPER_DIV_ENABLED", "Бот дивергенция"),
+                               ("paper_liqstart.py", "PAPER_LIQSTART_ENABLED", "Бот вынос лонгов у дна")):
         try:
             import core_config as _cc
             if not getattr(_cc, _flag, True):

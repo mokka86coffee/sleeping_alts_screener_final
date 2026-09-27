@@ -28,20 +28,41 @@ from paper_book_base import rows_of, ARCH
 from book_fon import fon, coin_fon
 
 BOOK = "всплеск/вынос"; FEE = 0.001
+_CROWD = {"t": 0, "v": {}}      # 27.09 п.1: толпа по счетам (Binance globalLongShortAccountRatio), обновляется раз в 30 мин
 STATE = BASE_DIR / "output" / "paper_fast3.json"; LOG = BASE_DIR / "output" / "paper_fast3.jsonl"
 L = timezone(timedelta(hours=3))
 
 
+def crowd_of(sym: str):
+    """толпа по счетам, кэш 30 мин (27.09 п.1: ZEC — толпа 0.49 в шорте и интерес +9% за 6 ч, а за час +1.3% — список её не видел)"""
+    if time.time() - _CROWD["t"] > 1800:
+        _CROWD["v"] = {}; _CROWD["t"] = time.time()
+    if sym not in _CROWD["v"]:
+        g = get_json("https://fapi.binance.com/futures/data/globalLongShortAccountRatio", {"symbol": sym, "period": "15m", "limit": 1}, quiet_400=True) or [{}]
+        try: _CROWD["v"][sym] = float(g[0].get("longShortRatio") or 0) or None
+        except (TypeError, ValueError): _CROWD["v"][sym] = None
+    return _CROWD["v"][sym]
+
+
 def short_list() -> tuple[list[str], list[str], dict]:
+    try:
+        from core_config import FAST3_SHORT_CROWD_MAX as _cmax, FAST3_SHORT_OI6H as _oi6
+    except ImportError:
+        _cmax, _oi6 = 0.7, 5.0
     spike, climax, info = [], [], {}
     for p in ARCH.glob("*.jsonl"):
         sym = p.stem.upper() + "USDT"; r = rows_of(sym)
         if len(r) < 49:
             continue
-        oi1, oi0 = r[-1].get("oi"), r[-3].get("oi")
+        oi1, oi0, oi6b = r[-1].get("oi"), r[-3].get("oi"), r[-13].get("oi")
         oi1h = (float(oi1) / float(oi0) - 1) * 100 if oi1 and oi0 else None
-        cf = coin_fon(r); info[sym] = dict(oi1h=oi1h, run24=cf.get("run24"), crowd=None)
-        if oi1h is not None and oi1h >= FAST3_SHORT_OI1H: spike.append(sym)
+        oi6h = (float(oi1) / float(oi6b) - 1) * 100 if oi1 and oi6b else None
+        cf = coin_fon(r); info[sym] = dict(oi1h=oi1h, oi6h=oi6h, run24=cf.get("run24"), crowd=None)
+        take = oi1h is not None and oi1h >= FAST3_SHORT_OI1H
+        if not take and oi6h is not None and oi6h >= _oi6:               # п.1: деньги за 6 ч и толпа в шорте
+            cr = crowd_of(sym); info[sym]["crowd"] = cr
+            take = cr is not None and cr <= _cmax
+        if take: spike.append(sym)
         if cf.get("run24") is not None and cf["run24"] >= FAST3_SHORT_RUN24: climax.append(sym)
     return spike, climax, info
 

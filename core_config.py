@@ -745,3 +745,13 @@ PAPER_DIV_ENABLED = True
 PAPER_FAST3_ENABLED = True      # трёхминутная ступень (fast_tier.py --loop) — запускается прогоном один раз, живёт сама
 
 DEPTH_TICK_REMOVED_MIN_MIN = 180   # 27.09 владелец: в «⏱ МОМЕНТ» снятия плит («убрали — цена не доходила») только если стояла ≥ 3 ч; «съели» — как было
+
+# ── 27.09 04:40 правки из разбора 143 лидеров (владелец «все да кроме 5-го»)
+FAST3_SHORT_CROWD_MAX = 0.7    # п.1: в короткий список всплеска и монеты с толпой ≤ 0.7 (шорты) при интересе за 6 ч ≥ FAST3_SHORT_OI6H (ZEC 27.09)
+FAST3_SHORT_OI6H = 5.0
+END_FUND_LOW_PEAK = -0.5       # п.3: ветка «пик минуса фандинга» в «конце»: фандинг ≤ −0.5% у максимума 48 ч, интерес +10%/6 ч и откат → шорт (B3, ZETA)
+END_FUND_LOW_OI_JUMP = 10.0
+LIQSTART_MIN_USD = 5000.0      # п.4: книга «вынос лонгов у дна» — вынос лонгов за час ≥ 5K$ и максимум за сутки (поток OKX+Bybit)
+LIQSTART_NEAR_LOW = 3.0        # …цена не выше минимума 48 ч на 3 %; интерес за 6 ч ≥ 0
+LIQSTART_SIZE, LIQSTART_TARGET, LIQSTART_STOP, LIQSTART_HOLD, LIQSTART_PAUSE_H = 250.0, 0.10, 0.06, 48, 8
+PAPER_LIQSTART_ENABLED = True

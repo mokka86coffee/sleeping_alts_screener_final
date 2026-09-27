@@ -60,7 +60,7 @@ def signals(rows):
         cr = CR[i]
         # R34
         oi3 = OI[i - 3 * B]
-        if oi3 and oi / oi3 - 1 >= 0.15 and c >= C[i - 3 * B] and (cr is None or cr < 1.5):
+        if oi3 and oi / oi3 - 1 >= 0.15 and c >= C[i - 3 * B] and (cr is None or cr < 1.5 or (F[i] is not None and F[i] < 0)):   # 27.09 п.2: толпа не отсекает при фандинге < 0 (ESP)
             out[i].append(("R34 интерес", None))
         # R39
         if med30[i] and QV[i] >= 5 * med30[i] and QV[i] >= 50_000 and C[i - 1] and c / C[i - 1] - 1 >= 0.01 and OI[i - B] and oi >= OI[i - B] * 1.01:

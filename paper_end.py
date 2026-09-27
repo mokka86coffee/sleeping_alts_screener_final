@@ -173,6 +173,22 @@ def signal_split(rows: list[dict], sym: str, lb) -> dict | None:
                 _f, _cf = {}, {}
             return dict(base, run_pct=round(run24, 1), target=0.06, stop_up=0.08, size=1.0, hold=96, fon=_f, coin_fon=_cf,
                         rule=f"фандинг+: {fund:+.3f}% при ходе 24 ч +{run24:.0f}% — толпа в лонге на вершине (R36)")
+    # ── пик минуса фандинга (27.09 п.3, B3 и ZETA: шорты платят рекордно у максимума, интерес скакнул и откатился → конец) ──
+    try:
+        from core_config import END_FUND_LOW_PEAK as _flp, END_FUND_LOW_OI_JUMP as _foj
+    except ImportError:
+        _flp, _foj = -0.5, 10.0
+    if fund is not None and fund <= _flp and OI[i] and i >= 24:
+        hi48 = max(H[i - 96:i + 1]) if i >= 96 else max(H[:i + 1])
+        oi_max12 = max(OI[i - 12:i + 1]); oi_before = OI[i - 24] if OI[i - 24] else None
+        if C[i] >= hi48 * 0.95 and oi_before and oi_max12 / oi_before - 1 >= _foj / 100 and OI[i] < oi_max12:
+            try:
+                from book_fon import fon as _fon, coin_fon as _cfon
+                _f, _cf = _fon(), _cfon(rows)
+            except Exception:  # noqa: BLE001
+                _f, _cf = {}, {}
+            return dict(base, run_pct=round((C[i] / min(L[i - 48:i + 1]) - 1) * 100, 1), target=0.10, stop_up=0.08, size=0.5, hold=96, fon=_f, coin_fon=_cf,
+                        rule=f"пик минуса фандинга: {fund:+.2f}% у максимума, интерес +{(oi_max12 / oi_before - 1) * 100:.0f}% за 6 ч и откат — конец на шортах (B3/ZETA, наблюдение)")
     # ── сползание ──
     fm = _med(F[i - 48:i + 1])
     hi72 = max(H[i - 144:i + 1]) if i >= 144 else max(H[: i + 1])
