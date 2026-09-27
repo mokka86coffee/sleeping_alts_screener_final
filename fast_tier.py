@@ -82,6 +82,23 @@ def flip_spike(sd: int, why: str, tp: float, sl: float, hold: int, oi1h):
     return sd, why, tp, sl, hold, False
 
 
+def cg(sym: str, caption: str) -> None:
+    """скрин Coinglass (Binance, 3m) в телеграм — отдельным процессом, цикл не ждёт (27.09 владелец; FAST3_CG_SHOTS)"""
+    try:
+        from core_config import FAST3_CG_SHOTS as _on
+    except ImportError:
+        _on = True
+    if not _on:
+        return
+    import subprocess
+    try:
+        lg = open(BASE_DIR / "output" / "cg_shot.log", "a")
+        subprocess.Popen([sys.executable, "cg_shot.py", sym, "--caption", caption], cwd=BASE_DIR, stdout=lg, stderr=subprocess.STDOUT,
+                         start_new_session=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"скрин Coinglass {sym}: {type(e).__name__}: {e}", flush=True)
+
+
 SES_WIN = (("Сидней", 0, 3), ("Токио", 3, 10), ("Лондон", 10, 16), ("Нью-Йорк", 16, 24))
 WDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
 
@@ -146,6 +163,9 @@ def step(state: dict, write: bool) -> list[str]:
             ev.append(dict(book=BOOK, sym=sym, kind="exit_long" if sd == 1 else "exit_short", side=sd, px_in=e, px_out=round(e * (1 + res * sd), 8), opened_at=pos["at"],
                            at=now, result_pct=round(res * 100, 2), usd=round(FAST3_SIZE * res, 2), why_exit=why, rule=pos["rule"], size=1.0))
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} выход {why} {res * 100:+.2f}%")
+            if write:
+                cg(sym, f"{BOOK} · {sym[:-4]} {'лонг' if sd == 1 else 'шорт'} ВЫХОД {why} {res * 100:+.2f}% · {e:.6g} → {e * (1 + res * sd):.6g}"
+                        f" · вход {datetime.fromtimestamp(pos['at'], L):%H:%M} → {datetime.now(L):%H:%M}\n{pos['rule']}")
             state["last_exit"][sym] = now; del state["open"][sym]
         else:
             ev.append(dict(book=BOOK, sym=sym, kind="follow", side=sd, px_in=e, px=c, result_pct=round((c / e - 1) * sd * 100, 2), at=now))
@@ -171,6 +191,8 @@ def step(state: dict, write: bool) -> list[str]:
             ev.append(dict(book=BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=why, target=tp, stop=sl, hold_min=hold,
                            oi1h=info.get(sym, {}).get("oi1h"), run24=info.get(sym, {}).get("run24"), fon=bg))
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} вход {px:.6g} · {why}")
+            if write:
+                cg(sym, f"{BOOK} · {sym[:-4]} {'лонг' if sd == 1 else 'шорт'} ВХОД {px:.6g} · {datetime.now(L):%H:%M}\n{why}")
     if write:
         with LOG.open("a", encoding="utf-8") as f:
             for r in ev:
@@ -237,7 +259,11 @@ def wake_step(state: dict, write: bool) -> list[str]:
             res -= FEE
             ev.append(dict(book=WAKE_BOOK, sym=sym, kind="exit_long" if sd == 1 else "exit_short", side=sd, px_in=e, px_out=round(e * (1 + res * sd), 8), opened_at=pos["at"], at=now,
                            result_pct=round(res * 100, 2), usd=round(FAST3_SIZE * (res), 2), why_exit=why, rule=pos["rule"], size=1.0))
-            msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} выход {why} {res * 100:+.2f}%"); state["last_exit"][sym] = now; del state["open"][sym]
+            msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} выход {why} {res * 100:+.2f}%")
+            if write:
+                cg(sym, f"{WAKE_BOOK} · {sym[:-4]} {'лонг' if sd == 1 else 'шорт'} ВЫХОД {why} {res * 100:+.2f}% · {e:.6g} → {e * (1 + res * sd):.6g}"
+                        f" · вход {datetime.fromtimestamp(pos['at'], L):%H:%M} → {datetime.now(L):%H:%M}\n{pos['rule']}")
+            state["last_exit"][sym] = now; del state["open"][sym]
         else:
             ev.append(dict(book=WAKE_BOOK, sym=sym, kind="follow", side=sd, px_in=e, px=c, result_pct=round((c / e - 1) * sd * 100, 2), at=now))
     cands = wake_candidates()
@@ -268,6 +294,8 @@ def wake_step(state: dict, write: bool) -> list[str]:
             ev.append(dict(book=WAKE_BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=pos["rule"], target=tp, stop=sl, hold_min=hold,
                            oi1h=oi1h, crowd=cr, wake_x=round(cd["x"], 1), wake_chg=round(cd["chg"], 2), qv24=round(cd["qv"]), fon=fon()))
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} вход {px:.6g} · {pos['rule']}")
+            if write:
+                cg(sym, f"{WAKE_BOOK} · {sym[:-4]} {'лонг' if sd == 1 else 'шорт'} ВХОД {px:.6g} · {datetime.now(L):%H:%M}\n{pos['rule']}")
     if write:
         with WAKE_LOG.open("a", encoding="utf-8") as f:
             for r_ in ev: f.write(json.dumps(r_, ensure_ascii=False) + "\n")
