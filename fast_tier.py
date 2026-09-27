@@ -67,6 +67,19 @@ def short_list() -> tuple[list[str], list[str], dict]:
     return spike, climax, info
 
 
+def flip_spike(sd: int, why: str, tp: float, sl: float, hold: int, oi1h):
+    """ПЕРЕВЁРНУТЫЙ ВСПЛЕСК (27.09 владелец: «брать позицию в обратную сторону просто»): всплеск вверх, перед которым интерес за час вырос
+    на FAST3_FLIP_OI1H % и больше — толпа уже внутри, всплеск это её выход. Счёт 27.09: 10 таких лонгов −14.8 % (3 в плюс), шорт на тех же
+    барах +13.8 % (7 в плюс); остальные 35 лонгов +35 %. Шорт: цель −5 %, стоп +5 %, срок 2 ч."""
+    try:
+        from core_config import FAST3_FLIP_OI1H as _thr
+    except ImportError:
+        _thr = 6.0
+    if sd == 1 and oi1h is not None and oi1h >= _thr:
+        return -1, f"перевёрнутый всплеск: интерес +{oi1h:.1f}% за час — толпа уже внутри · " + why, tp, sl, hold, True
+    return sd, why, tp, sl, hold, False
+
+
 def scan(sym: str, want_spike: bool, want_climax: bool):
     k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "3m", "limit": 33}, quiet_400=True) or []
     if len(k) < 33:
@@ -119,6 +132,7 @@ def step(state: dict, write: bool) -> list[str]:
         for sd, why, tp, sl, hold in outs:
             if sym in state["open"] or now - state["last_exit"].get(sym, 0) < 2 * 3600:
                 continue
+            sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, info.get(sym, {}).get("oi1h"))
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why, last_px=px, bars=0)
             state["open"][sym] = pos
             ev.append(dict(book=BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=why, target=tp, stop=sl, hold_min=hold,
@@ -205,9 +219,10 @@ def wake_step(state: dict, write: bool) -> list[str]:
         if not r: continue
         _, px, t_bar, outs = r
         for sd, why, tp, sl, hold in outs:
+            sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, oi1h)
             if sd == 1 and not ((oi1h is not None and oi1h >= FAST3_SHORT_OI1H) or (cr is not None and cr <= 0.7)):
                 continue                                                  # всплеск без интереса и без шортов в топливе — не вход (R39)
-            if sd == -1 and not (oibar is not None and oibar <= FAST3_CLIMAX_OI):
+            if sd == -1 and not _flip and not (oibar is not None and oibar <= FAST3_CLIMAX_OI):
                 continue
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", last_px=px, bars=0)
             state["open"][sym] = pos
