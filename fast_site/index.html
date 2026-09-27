@@ -413,40 +413,17 @@ function drawRing(g, t) {
   ctx.lineWidth = 1; ctx.strokeStyle = `rgba(${g.hot},.5)`; ellipse(g, .065); ctx.stroke();
   ctx.fillStyle = 'rgba(230,245,255,.9)'; ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);
 
-  // tilted axis with ticks
-  const len = R * k * 2.2, dx = len * .12;
-  ctx.strokeStyle = 'rgba(225,235,150,.35)';
-  ctx.beginPath(); ctx.moveTo(cx - dx, cy - len); ctx.lineTo(cx + dx, cy + len); ctx.stroke();
-  ctx.strokeStyle = 'rgba(225,235,150,.25)';
-  for (let q = -1; q <= 1; q += .06) {
-    const x = cx + dx * q, y = cy + len * q, w = Math.abs(q) < .3 ? 5 : 3;
-    ctx.beginPath(); ctx.moveTo(x - w, y); ctx.lineTo(x + w, y); ctx.stroke();
-  }
-
-  // markers
-  ctx.font = `9px ${FONT}`;
-  for (const m of g.markers) {
-    const [x, y] = proj(g, ang(g, m.a, m.r, t), m.r);
-    if (m.t === 'sq') {
-      ctx.strokeStyle = 'rgba(170,210,255,.45)'; ctx.strokeRect(x - 4, y - 4, 8, 8);
-      ctx.fillStyle = 'rgba(200,230,255,.7)'; ctx.fillRect(x - 1, y - 1, 2, 2);
-    } else {
-      ctx.fillStyle = 'rgba(170,210,255,.45)'; text(m.t, x, y);
-    }
-  }
-  ctx.strokeStyle = 'rgba(210,235,120,.35)';
-  for (const l of g.loops) {
-    const [x, y] = proj(g, ang(g, l.a, l.r, t), l.r);
-    ctx.beginPath(); ctx.ellipse(x, y, l.s * R, l.s * R * k * 1.6, 0, 0, TAU); ctx.stroke();
-  }
+  // наклонная ось с засечками, буквы A/B и квадратики убраны (28.09 владелец: «непонятные лучи и буквы какие-то»)
 
   // ring caption
-  const lx = Math.max(16, cx - R * 1.3);
-  ctx.textAlign = 'left';
-  ctx.font = `10px ${FONT}`; ctx.fillStyle = 'rgba(190,215,245,.75)';
-  text(g.title, lx, cy + R * k * 1.3 + 22);
-  ctx.fillStyle = 'rgba(150,185,225,.5)';
-  text(`ACTIVE ${String(g.labels.length).padStart(2, '0')} / ${MAX_LABELS}`, lx, cy + R * k * 1.3 + 36);
+  // над кольцом, по центру (28.09 владелец: «надписи давай вверх перенесём, а то непонятно»)
+  const ty = cy - R * k * 1.32 - 16;
+  tctx.save(); tctx.textAlign = 'center'; tctx.letterSpacing = '4px';
+  tctx.font = `500 11px Futura, "Avenir Next", sans-serif`; tctx.shadowColor = `rgba(${g.hot},.8)`; tctx.shadowBlur = 8; tctx.fillStyle = `rgba(${g.hot},.95)`;
+  tctx.fillText(g.title.replace(/^ORBIT [AB] · /, ''), cx, ty);
+  tctx.shadowBlur = 0; tctx.letterSpacing = '2px'; tctx.font = `9px ${FONT}`; tctx.fillStyle = 'rgba(150,185,225,.55)';
+  tctx.fillText(`${g.labels.filter(l => !l.dying).length} ${g.mode === 'entry' ? 'в работе · 6 мин после входа' : 'закрыто · 15 мин после выхода'}`, cx, ty + 14);
+  tctx.restore();
 }
 
 const backOut = p => 1 + 2.70158 * Math.pow(p - 1, 3) + 1.70158 * Math.pow(p - 1, 2);
@@ -501,7 +478,7 @@ function drawLabel(g, l, t) {
     tctx.font = nameFont;
     if (l.side) {   // 27.09 владелец: «стрелки возле монет — лонг/шорт»; цвета карточки (плюс/минус)
       const ar = l.side > 0 ? '▲' : '▼';
-      l.glyphs.push({ c: ar, x: gx, font: nameFont, col: l.side > 0 ? '110,240,180' : '255,110,130', a: 1 });
+      l.glyphs.push({ c: ar, x: gx, font: nameFont, col: l.c1, a: 1 });   // цвет всплеска монеты (владелец: «слишком разноцветное»)
       gx += tctx.measureText(ar).width + 4;
     }
     for (const c of l.name) { l.glyphs.push({ c, x: gx, font: nameFont, col: l.c1, name: true, a: 1 }); gx += tctx.measureText(c).width + 1.3; }
@@ -641,9 +618,10 @@ function drawLabel(g, l, t) {
 }
 
 // ── БЛИЖАЙШЕЕ СОБЫТИЕ ДНЯ (UTC+3): выходы по сессии (R41), открытие входа после часа ожидания (R40), «поздно» (входы закрыты), вторник (R42)
-const DAY_EV = [[0, 'exit', 'ВЫХОД · НЬЮ-ЙОРК'], [1, 'open', 'ВХОД ОТКРЫТ · СИДНЕЙ'], [2, 'closed', 'ВХОДЫ ЗАКРЫТЫ · ПОЗДНО'],
-  [3, 'wait', 'ТОКИО · ЖДЁМ ЧАС'], [4, 'open', 'ВХОД ОТКРЫТ · ТОКИО'], [10, 'exit', 'ВЫХОД · СИДНЕЙ И ТОКИО'], [11, 'open', 'ВХОД ОТКРЫТ · ЛОНДОН'],
-  [16, 'exit', 'ВЫХОД · ЛОНДОН'], [17, 'open', 'ВХОД ОТКРЫТ · НЬЮ-ЙОРК'], [22, 'closed', 'ВХОДЫ ЗАКРЫТЫ · ПОЗДНО']];
+// подпись — «сессия · что будет» (владелец 28.09: «лучше писать нью-йорк закрытие — разум всегда вперёд смотрит»)
+const DAY_EV = [[0, 'exit', 'НЬЮ-ЙОРК · ЗАКРЫТИЕ'], [1, 'open', 'СИДНЕЙ · ВХОД ОТКРЫТ'], [2, 'closed', 'СИДНЕЙ · ВХОДЫ ЗАКРЫТЫ'],
+  [3, 'wait', 'ТОКИО · ОТКРЫТИЕ, ЖДЁМ ЧАС'], [4, 'open', 'ТОКИО · ВХОД ОТКРЫТ'], [10, 'exit', 'ТОКИО · ЗАКРЫТИЕ'], [11, 'open', 'ЛОНДОН · ВХОД ОТКРЫТ'],
+  [16, 'exit', 'ЛОНДОН · ЗАКРЫТИЕ'], [17, 'open', 'НЬЮ-ЙОРК · ВХОД ОТКРЫТ'], [22, 'closed', 'НЬЮ-ЙОРК · ВХОДЫ ЗАКРЫТЫ']];
 function nextEvent() {
   const msk = new Date(Date.now() + 3 * 3600e3), nowH = msk.getUTCHours() + msk.getUTCMinutes() / 60 + msk.getUTCSeconds() / 3600;
   const tue = msk.getUTCDay() === 2;
@@ -667,13 +645,13 @@ function glowText(str, x, y, font, rgb, alpha, blur, align = 'center', spacing =
 // круг «событие» — по референсу владельца (28.09: «по дизайну ты только цвет поменял — сравни с референсом»): массивный вихрь-тор из точек
 // вокруг тёмной дыры, плотное горящее кольцо, огромный отсчёт вразрядку поперёк (вихрь его перекрывает), малый отсчёт над кольцом,
 // подписи в два тона сбоку, точечные матрицы, колонки цифр, дальние окружности, туман. Мигает только огненное кольцо; текст ровный.
-const VORTEX = (() => {                 // тор: u — вдоль кольца, v — вокруг трубки; плотность выше на «рукаве»
-  const pts = [];
-  while (pts.length < 2600) {
-    const u = Math.random() * TAU, v = Math.random() * TAU;
+const VORTEX = (() => {                 // сетка на поверхности трубы-тора: ровные ряды точек; рисуется один раз (статичный слой)
+  const pts = [], U = 220, V = 30;
+  for (let i = 0; i < U; i++) for (let j = 0; j < V; j++) {
+    const u = TAU * i / U, v = TAU * j / V;
     const arm = .5 + .5 * Math.cos(u - 1.2);
-    if (Math.random() > .25 + .75 * arm) continue;
-    pts.push([u, v, .3 + Math.random() * .7]);
+    if (Math.random() > .3 + .7 * arm) continue;
+    pts.push([u, v, .55 + .45 * arm]);
   }
   return pts;
 })();
@@ -687,85 +665,94 @@ function twoTone(dim, bright, x, y, size, rgb, align = 'center') {
   tctx.shadowColor = `rgba(${rgb},.9)`; tctx.shadowBlur = 8; tctx.fillStyle = `rgba(${mix(rgb, '255,255,255', .35)},1)`; tctx.fillText(bright, x0 + w1, y);
   tctx.restore();
 }
-function drawEventScope(cx, cy, r, t) {
-  r = r * 1.25;
-  const e = nextEvent();
-  const warn = e.kind === 'exit' && e.left <= 1, due = e.kind === 'due';
-  const TEAL = '60,205,205', fireC = due ? '255,70,90' : warn ? '255,165,50' : '255,125,35';
-  const pulse = due ? .55 + .45 * Math.sin(t * 6) : warn ? .6 + .4 * Math.sin(t * 3.5) : 1;
-  const heat = due ? 1.5 : warn ? 1.3 : 1;
-  const hh = Math.floor(e.left), mm = Math.floor((e.left - hh) * 60), ss = Math.floor(((e.left - hh) * 60 - mm) * 60);
-  const cnt = due ? 'NOW' : hh ? `${hh}:${String(mm).padStart(2, '0')}` : `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-  // туман и дальние окружности
-  const fog = ctx.createRadialGradient(cx, cy, r * .2, cx, cy, r * 2.2);
-  fog.addColorStop(0, 'rgba(20,90,95,.20)'); fog.addColorStop(.5, 'rgba(15,70,80,.10)'); fog.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = fog; ctx.beginPath(); ctx.arc(cx, cy, r * 2.2, 0, TAU); ctx.fill();
-  ctx.strokeStyle = `rgba(${TEAL},.10)`; ctx.lineWidth = 1;
-  for (const k of [1.55, 1.95]) { ctx.beginPath(); ctx.arc(cx + (k - 1.5) * 8, cy - (k - 1.5) * 6, r * k, 0, TAU); ctx.stroke(); }
-  // вихрь: сначала задняя половина
-  const tilt = .42, spin = t * .22;   // почти анфас — круглый объёмный тор, как в референсе
+// статичный слой круга (28.09 владелец: «не нужно его крутить, пусть статичный — а то тормозит»): туман, окружности, вихрь, чёрный диск
+// с сеткой, контурное слово, дуги — рисуются один раз в SCOPEC; на кадре — копия + огненное кольцо, путь к событию и текст
+const SCOPEC = document.createElement('canvas'), sctx = SCOPEC.getContext('2d');
+let scopeKey = '';
+function scopeStatic(cx, cy, r, word) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), S = Math.ceil(r * 4.2), ox = cx - S / 2, oy = cy - S / 2;
+  SCOPEC.width = S * dpr; SCOPEC.height = S * dpr;
+  const c = sctx; c.setTransform(dpr, 0, 0, dpr, -ox * dpr, -oy * dpr); c.clearRect(ox, oy, S, S);
+  const TEAL = '60,205,205';
+  const fog = c.createRadialGradient(cx, cy, r * .2, cx, cy, r * 1.9);
+  fog.addColorStop(0, 'rgba(25,100,105,.22)'); fog.addColorStop(.55, 'rgba(15,75,85,.12)'); fog.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = fog; c.beginPath(); c.arc(cx, cy, r * 1.9, 0, TAU); c.fill();
+  c.strokeStyle = `rgba(${TEAL},.10)`; c.lineWidth = 1;
+  c.beginPath(); c.arc(cx + 6, cy - 4, r * 1.32, 0, TAU); c.stroke(); c.beginPath(); c.arc(cx - 10, cy + 6, r * 1.62, 0, TAU); c.stroke();
+  const tilt = .38, R0 = r * .78, RR = r * .29;
   const P = VORTEX.map(([u, v, b]) => {
-    const uu = u + spin + .35 * Math.sin(v + t * .4), R0 = r * .9, rr = r * .36 * (1 + .22 * Math.cos(uu * 2));
-    const x = (R0 + rr * Math.cos(v)) * Math.cos(uu), y = (R0 + rr * Math.cos(v)) * Math.sin(uu), z = rr * Math.sin(v);
+    const vv = v + u * 3;                                              // сильная закрутка трубки — воронка
+    const rr = RR * (1 + .3 * Math.cos(u - 1.2));
+    const x = (R0 + rr * Math.cos(vv)) * Math.cos(u), y = (R0 + rr * Math.cos(vv)) * Math.sin(u), z = rr * Math.sin(vv);
     const y2 = y * Math.cos(tilt) - z * Math.sin(tilt), z2 = y * Math.sin(tilt) + z * Math.cos(tilt);
     return [cx + x, cy + y2, z2, b];
   });
-  ctx.globalCompositeOperation = 'lighter';
-  const dot = ([x, y, z, b]) => { const k = clamp(.5 + z / (r * .9)); ctx.fillStyle = `rgba(${TEAL},${(.07 + .5 * k) * b})`; ctx.fillRect(x, y, 1.3 + k, 1.3 + k); };
-  for (const q of P) if (q[2] < 0) dot(q);
-  ctx.globalCompositeOperation = 'source-over';
-  // тёмная дыра
-  const hole = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * .6);
-  hole.addColorStop(0, 'rgba(2,8,12,.96)'); hole.addColorStop(.8, 'rgba(3,12,18,.9)'); hole.addColorStop(1, 'rgba(3,12,18,0)');
-  ctx.fillStyle = hole; ctx.beginPath(); ctx.arc(cx, cy, r * .6, 0, TAU); ctx.fill();
-  // огромный отсчёт вразрядку поперёк — под передней половиной вихря
-  ctx.save(); ctx.font = `100 ${Math.round(r * .42)}px ${THIN_FONT}`; ctx.textAlign = 'center'; ctx.letterSpacing = `${Math.round(r * .2)}px`;
-  ctx.fillStyle = 'rgba(150,215,220,.58)'; ctx.fillText(`-${cnt}-`, cx + r * .1, cy + r * .14); ctx.restore();
-  // точечные матрицы
-  ctx.fillStyle = `rgba(${TEAL},.55)`;
-  for (const [dx, dy] of [[.42, -.34], [.42, -.18], [-.15, -.02], [.46, .02], [.52, .44], [-.62, .3]]) {
-    for (let i = 0; i < 3; i++) ctx.fillRect(cx + dx * r + i * 4, cy + dy * r, 1.6, 1.6);
-  }
-  // короткие толстые дуги и скобка
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.shadowColor = `rgba(${TEAL},.9)`; ctx.shadowBlur = 8; ctx.strokeStyle = `rgba(${TEAL},.8)`; ctx.lineCap = 'butt';
-  ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(cx, cy, r * .52, 1.9, 2.5); ctx.stroke();
-  ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(cx, cy, r * .52, .2, 1.6); ctx.stroke();
-  ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, r * .56, Math.PI - .3, Math.PI + .3); ctx.stroke();
-  ctx.lineWidth = 1.4; ctx.strokeStyle = `rgba(${TEAL},.55)`;       // путь к событию
-  ctx.beginPath(); ctx.arc(cx, cy, r * .47, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(e.frac)); ctx.stroke();
-  ctx.shadowBlur = 0; ctx.lineWidth = 1;
-  // огненное кольцо — плотное, горящее; за час до выхода разгорается (мигает только оно)
-  const rc = r * .3;
-  const hg = ctx.createRadialGradient(cx, cy, rc * .7, cx, cy, rc * 1.8);
-  hg.addColorStop(0, 'rgba(0,0,0,0)'); hg.addColorStop(.4, `rgba(${fireC},${.35 * heat * pulse})`); hg.addColorStop(1, `rgba(${fireC},0)`);
-  ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(cx, cy, rc * 1.8, 0, TAU); ctx.fill();
-  for (const [a0, dr, ph, sz] of FIRE2) {
-    const a = a0 + t * .3, fl = .5 + .5 * Math.sin(t * 8 * sz + ph), rr = rc * (1 + dr * .22 * (.5 + fl));
-    ctx.fillStyle = `rgba(${mix(fireC, '255,235,190', fl * .55)},${(.35 + .6 * fl) * pulse})`;
-    ctx.fillRect(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, 1.6 * sz, 1.6 * sz);
-  }
-  ctx.shadowColor = `rgba(${fireC},1)`; ctx.shadowBlur = 16 * heat * pulse; ctx.strokeStyle = `rgba(${mix(fireC, '255,220,160', .35)},${.9 * pulse})`; ctx.lineWidth = 2.2 * heat;
-  ctx.beginPath(); ctx.arc(cx, cy, rc, 0, TAU); ctx.stroke(); ctx.shadowBlur = 0; ctx.lineWidth = 1;
-  // вихрь: передняя половина — поверх надписи
+  const dot = ([x, y, z, b]) => { const k = clamp(.5 + z / (RR * 1.4)); c.fillStyle = `rgba(${TEAL},${(.05 + .62 * k * k) * b})`; c.fillRect(x, y, 1 + .7 * k, 1 + .7 * k); };
+  c.globalCompositeOperation = 'lighter'; for (const q of P) if (q[2] < 0) dot(q); c.globalCompositeOperation = 'source-over';
+  const Rh = R0 - RR * .95;
+  c.fillStyle = 'rgba(2,7,10,.97)'; c.beginPath(); c.arc(cx, cy, Rh, 0, TAU); c.fill();
+  c.strokeStyle = `rgba(${TEAL},.22)`; c.beginPath(); c.arc(cx, cy, Rh, 0, TAU); c.stroke();
+  c.fillStyle = `rgba(${TEAL},.13)`;
+  for (let gx = -Rh; gx <= Rh; gx += 6) for (let gy = -Rh; gy <= Rh; gy += 6) if (gx * gx + gy * gy < Rh * Rh * .92) c.fillRect(cx + gx, cy + gy, 1, 1);
+  c.save(); c.font = `100 ${Math.round(r * .46)}px ${THIN_FONT}`; c.textAlign = 'center'; c.letterSpacing = `${Math.round(r * .42)}px`;
+  c.strokeStyle = 'rgba(140,215,220,.45)'; c.lineWidth = 1; c.strokeText(`- ${word} -`, cx + r * .2, cy + r * .16); c.restore();
+  c.globalCompositeOperation = 'lighter';
+  c.shadowColor = `rgba(${TEAL},.9)`; c.shadowBlur = 8; c.strokeStyle = `rgba(${TEAL},.85)`; c.lineCap = 'butt';
+  c.lineWidth = 5; c.beginPath(); c.arc(cx, cy, Rh * .78, 1.95, 2.55); c.stroke();
+  c.lineWidth = 1.6; c.beginPath(); c.arc(cx, cy, Rh * .78, .25, 1.7); c.stroke();
+  c.lineWidth = 3; c.beginPath(); c.arc(cx, cy, Rh * .86, Math.PI - .28, Math.PI + .28); c.stroke();
+  c.shadowBlur = 0; c.lineWidth = 1;
   for (const q of P) if (q[2] >= 0) dot(q);
-  // оранжевые парные точки
-  for (const [dx, dy] of [[-1.2, .2], [1.25, .2], [-1.05, .5], [1.05, -.2]]) {
-    ctx.fillStyle = `rgba(255,140,60,${.55 + .3 * Math.sin(t * 2 + dx)})`; ctx.fillRect(cx + dx * r, cy + dy * r, 2, 2); ctx.fillRect(cx + dx * r + 6, cy + dy * r, 2, 2);
+  c.fillStyle = `rgba(${TEAL},.6)`;
+  for (const [dx, dy] of [[.3, -.36], [.3, -.22], [.34, .02], [.36, .3], [-.1, .02]]) for (let i = 0; i < 3; i++) c.fillRect(cx + dx * r + i * 4, cy + dy * r, 1.5, 1.5);
+  c.fillStyle = 'rgba(255,140,60,.75)';
+  for (const [dx, dy] of [[-1.2, .2], [1.18, .2], [-1.02, .5], [1.0, -.25]]) { c.fillRect(cx + dx * r, cy + dy * r, 2, 2); c.fillRect(cx + dx * r + 6, cy + dy * r, 2, 2); }
+  c.globalCompositeOperation = 'source-over';
+  return { ox, oy, S, Rh };
+}
+let scopeGeo = null;
+function drawEventScope(cx, cy, r, t) {
+  r = r * 1.45; cy += 18;
+  const e = nextEvent();
+  const warn = e.kind === 'exit' && e.left <= 1, due = e.kind === 'due';
+  // краснеет постепенно (владелец: «пусть круг всё больше краснеет, начиная за час до выхода»): за час — оранжевый, к выходу — красный
+  const red = due ? 1 : warn ? clamp(1 - e.left) : 0;
+  const TEAL = '60,205,205', fireC = mix('255,125,35', '255,55,75', red);
+  const pulse = red > 0 ? 1 - red * (.45 - .45 * Math.sin(t * (3 + 4 * red))) : 1;
+  const heat = 1 + .5 * red;
+  const word = due || e.kind === 'exit' ? 'CLOSE' : e.kind === 'open' ? 'ENTRY' : e.kind === 'closed' ? 'LATE' : 'WAIT';
+  const key = [W, H, Math.round(cx), Math.round(cy), Math.round(r), word].join('|');
+  if (key !== scopeKey) { scopeGeo = scopeStatic(cx, cy, r, word); scopeKey = key; }
+  ctx.drawImage(SCOPEC, scopeGeo.ox, scopeGeo.oy, scopeGeo.S, scopeGeo.S);
+  const Rh = scopeGeo.Rh;
+  const hh = Math.floor(e.left), mm = Math.floor((e.left - hh) * 60), ss = Math.floor(((e.left - hh) * 60 - mm) * 60);
+  const cnt = due ? 'NOW' : hh ? `${hh}:${String(mm).padStart(2, '0')}` : `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.lineWidth = 1.2; ctx.strokeStyle = `rgba(${TEAL},.55)`;          // путь к событию
+  ctx.beginPath(); ctx.arc(cx, cy, Rh * .7, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(e.frac)); ctx.stroke();
+  // огненное кольцо — единственное, что живёт на кадре; за час до выхода разгорается (мигает только оно)
+  const rc = Rh * .5;
+  const hg = ctx.createRadialGradient(cx, cy, rc * .75, cx, cy, rc * 1.7);
+  hg.addColorStop(0, 'rgba(0,0,0,0)'); hg.addColorStop(.35, `rgba(${fireC},${.4 * heat * pulse})`); hg.addColorStop(1, `rgba(${fireC},0)`);
+  ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(cx, cy, rc * 1.7, 0, TAU); ctx.fill();
+  ctx.shadowColor = `rgba(${fireC},1)`; ctx.shadowBlur = 18 * heat * pulse; ctx.strokeStyle = `rgba(${fireC},${.75 * pulse})`; ctx.lineWidth = 5 * heat;
+  ctx.beginPath(); ctx.arc(cx, cy, rc, 0, TAU); ctx.stroke(); ctx.shadowBlur = 0; ctx.lineWidth = 1;
+  for (let i = 0; i < FIRE2.length; i += 2) {
+    const [a0, dr, ph, sz] = FIRE2[i];
+    const a = a0 + t * .3, fl = .5 + .5 * Math.sin(t * 8 * sz + ph), rr = rc * (1 + dr * .2 * (.5 + fl));
+    const hot = fl > .75 ? '255,240,200' : fl < .25 ? mix(fireC, '60,20,0', .5) : fireC;
+    ctx.fillStyle = `rgba(${hot},${(.35 + .6 * fl) * pulse})`;
+    ctx.fillRect(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr, 1.8 * sz, 1.8 * sz);
   }
   ctx.globalCompositeOperation = 'source-over';
-  // колонки цифр справа (медленно меняются)
   ctx.font = `5px ${FONT}`; ctx.fillStyle = `rgba(${TEAL},.2)`; ctx.textAlign = 'left';
-  if (Math.random() < .03) CODECOL[Math.random() * 3 | 0][Math.random() * 14 | 0] = String(Math.random() * 1e4 | 0).padStart(4, '0');
-  CODECOL.slice(0, 3).forEach((col, i) => col.forEach((v, j) => text(v, cx + r * 1.62 + i * 17, cy - r * .8 + j * 7)));
-  // малый отсчёт над кольцом (время события) и подписи в два тона — ровные
-  tctx.save(); tctx.font = `200 ${Math.round(r * .16)}px ${THIN_FONT}`; tctx.textAlign = 'center'; tctx.letterSpacing = '6px';
-  tctx.shadowColor = `rgba(${TEAL},.8)`; tctx.shadowBlur = 8; tctx.fillStyle = 'rgba(200,245,245,.9)';
-  tctx.fillText(`- ${String(Math.floor(e.h % 24)).padStart(2, '0')}:00 )`, cx + r * .05, cy - r * .4); tctx.restore();
-  twoTone('NEXT', 'EVENT', cx + r * .1, cy - r * 1.42, 7, TEAL);
-  twoTone(due ? 'ПОРА' : 'ДО', due ? 'ВЫХОДИТЬ' : e.kind === 'exit' ? 'ВЫХОДА' : e.kind === 'open' ? 'ВХОДА' : 'СОБЫТИЯ', cx - r * 1.3, cy - r * .95, 7, due || warn ? fireC : TEAL, 'left');
-  twoTone(e.lab.split(' · ')[1] || '', e.lab.split(' · ')[0], cx + r * .55, cy + r * .5, 7, due || warn ? fireC : TEAL, 'left');
-  if (warn || due) twoTone(due ? 'ИЗ ВСЕХ СДЕЛОК' : 'ЛУЧШЕ', due ? 'R41' : 'ЗАКРЫТЬ ПОЗИЦИИ', cx, cy + r * 1.42, 7, fireC);
+  CODECOL.slice(0, 3).forEach((col, i) => col.forEach((v, j) => text(v, cx + r * 1.3 + i * 17, cy - r * .7 + j * 7)));
+  // отсчёт — на самом вихре (передняя нижняя часть воронки), полупрозрачный (владелец: «now и время на самом вихре и более прозрачным»)
+  tctx.save(); tctx.font = `200 ${Math.round(r * .2)}px ${THIN_FONT}`; tctx.textAlign = 'center'; tctx.letterSpacing = `${Math.round(r * .07)}px`;
+  tctx.fillStyle = 'rgba(210,245,245,.55)'; tctx.fillText(cnt, cx, cy + r * .72); tctx.restore();
+  twoTone('NEXT', 'EVENT', cx + r * .1, cy - r * 1.12, 6.5, TEAL);
+  twoTone(due ? 'СЕЙЧАС' : 'ДО', due ? 'ЗАКРЫТИЕ' : e.kind === 'exit' ? 'ЗАКРЫТИЯ' : e.kind === 'open' ? 'ВХОДА' : 'СОБЫТИЯ', cx - r * 1.12, cy - r * .62, 6.5, due || warn ? fireC : TEAL, 'left');
+  twoTone(`${String(Math.floor(e.h % 24)).padStart(2, '0')}:00 · ${e.lab.split(' · ')[0]} ·`, e.lab.split(' · ')[1] || '', cx + r * .36, cy + r * .5, 6.5, due || warn ? fireC : TEAL, 'left');
   ctx.font = `9px ${FONT}`; ctx.textAlign = 'left';
 }
 
@@ -1450,6 +1437,23 @@ async function poll() {
   try { const r = await fetch('/state.json', { cache: 'no-store' }); if (r.ok) { const S = await r.json(); if (S.meta.t !== lastStateT) { lastStateT = S.meta.t; applyState(S); } } } catch (e) {}
 }
 setInterval(poll, 60000); connect(); poll();
+// САМООБНОВЛЕНИЕ КОДА (28.09 владелец: «учитывай, что сайт не перезагружается»): раз в минуту сверяем файл страницы на сервере;
+// изменился — плавное затемнение и перезагрузка (данные и время и так живые, это только для правок самой страницы)
+let siteSig = null;
+async function checkSite() {
+  if (location.protocol === 'file:') return;
+  try {
+    const txt = await (await fetch('/', { cache: 'no-store' })).text();
+    let h = 0; for (let i = 0; i < txt.length; i++) h = (h * 31 + txt.charCodeAt(i)) | 0;
+    const sig = txt.length + ':' + h;
+    if (siteSig === null) siteSig = sig;
+    else if (sig !== siteSig) {
+      document.body.style.transition = 'opacity .5s'; document.body.style.opacity = '0';
+      setTimeout(() => location.reload(), 550);
+    }
+  } catch (e) {}
+}
+setInterval(checkSite, 60000); checkSite();
 requestAnimationFrame(frame);
 </script>
 </body>
