@@ -163,22 +163,30 @@ def verdict(r: dict, tr: dict) -> str:
 
 
 def text(r: dict) -> str:
-    sd = "лонг" if r["side"] == 1 else "шорт"
+    """сообщение разбора: заголовок и строки с отступами и значками (27.09 владелец: «простыня не читаемая»)"""
+    sd = "ЛОНГ" if r["side"] == 1 else "ШОРТ"
     tin = datetime.fromtimestamp(r["t_in"], L); tout = datetime.fromtimestamp(r["t_out"], L)
-    ln = [f"РАЗБОР · {r['book']} · {r['sym'][:-4]} {sd} · {r['why']} {r['res']:+.2f}% · {tin:%H:%M}→{tout:%H:%M}",
-          f"в сделке: лучшее {r['mfe']:+.1f}% через {r['mfe_min']} мин, худшее {r['mae']:+.1f}% через {r['mae_min']} мин"
-          + (f"; после минимума дошла до {r['after_mae_best']:+.1f}%" if r.get("after_mae_best") is not None else "")]
+    ln = [f"🧾 РАЗБОР · {sd} · {r['sym'][:-4]} · {r['why']} {r['res']:+.2f}%", f"📘 {r['book']} · {tin:%H:%M} → {tout:%H:%M}", "",
+          f"📈 в сделке:   лучшее {r['mfe']:+.1f}% ({r['mfe_min']} мин) · худшее {r['mae']:+.1f}% ({r['mae_min']} мин)"]
+    if r.get("after_mae_best") is not None:
+        ln.append(f"↩️ после минимума: дошла до {r['after_mae_best']:+.1f}%")
     if r.get("post_best") is not None:
-        ln.append(f"после выхода за {r['post_h']} ч: лучшее {r['post_best']:+.1f}%, худшее {r['post_worst']:+.1f}%, сейчас {r['post_close']:+.1f}% от входа")
+        ln.append(f"🔭 после выхода за {r['post_h']} ч: лучшее {r['post_best']:+.1f}% · худшее {r['post_worst']:+.1f}% · сейчас {r['post_close']:+.1f}%")
+    if r.get("hold_1h") is not None:
+        ln.append(f"⏳ держать дальше: ещё 1 ч {r['hold_1h']:+.1f}%" + (f" · 2 ч {r['hold_2h']:+.1f}%" if r.get("hold_2h") is not None else ""))
+    ln.append("")
     f = [f"интерес 1ч на входе {r['oi1h_in']:+.1f}%" if r.get("oi1h_in") is not None else None,
-         f"на выходе {r['oi1h_out']:+.1f}%" if r.get("oi1h_out") is not None else None,
-         f"покупатели {r['buy_in']}% в сделке / {r['buy_after']}% после" if r.get("buy_in") is not None else None,
-         f"доска6 {r['board6_in']:+.1f}%" if r.get("board6_in") is not None else None]
-    ln.append("фон: " + " · ".join(x for x in f if x))
+         f"на выходе {r['oi1h_out']:+.1f}%" if r.get("oi1h_out") is not None else None]
+    if any(f):
+        ln.append("🌡 " + " · ".join(x for x in f if x))
+    if r.get("buy_in") is not None:
+        ln.append(f"🛒 покупатели: {r['buy_in']}% в сделке · {r['buy_after']}% после")
+    if r.get("board6_in") is not None:
+        ln.append(f"🌊 доска 6 ч на входе: {r['board6_in']:+.1f}%")
     c = r.get("cmp") or {}
     if c.get("win_n") or c.get("loss_n"):
-        ln.append(f"сегодня в книге интерес 1ч на входе: у плюсовых {c.get('win_oi1h')}% (n{c.get('win_n')}), у минусовых {c.get('loss_oi1h')}% (n{c.get('loss_n')})")
-    ln.append("→ " + r["verdict"])
+        ln.append(f"📊 сегодня в книге, интерес 1ч на входе: плюсовые {c.get('win_oi1h')}% (n{c.get('win_n')}) · минусовые {c.get('loss_oi1h')}% (n{c.get('loss_n')})")
+    ln += ["", "💡 " + r["verdict"]]
     return "\n".join(ln)
 
 

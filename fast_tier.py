@@ -82,24 +82,47 @@ def flip_spike(sd: int, why: str, tp: float, sl: float, hold: int, oi1h):
     return sd, why, tp, sl, hold, False
 
 
-def cg_lines(pos: dict, px_out: float | None = None, why_out: str = "", res: float | None = None) -> tuple[str, list[str]]:
-    """подпись и аргументы линий для скрина: вход / выход (цель или факт) / стоп — отдельными строками (владелец 27.09)"""
+RULE_ICON = (("перевёрнутый", "🔄"), ("всплеск", "⚡️"), ("вынос", "💥"), ("сессия", "🕐"), ("пробуждение", "🔎"))
+
+
+def _rule_lines(rule: str) -> list[str]:
+    out = []
+    for part in [x.strip() for x in str(rule or "").split(" · ") if x.strip()]:
+        ic = next((i for k, i in RULE_ICON if part.lower().startswith(k)), "•")
+        out.append(f"{ic} {part}")
+    return out
+
+
+def cg_caption(book: str, sym: str, pos: dict, px_out: float | None = None, why_out: str = "", res: float | None = None) -> tuple[str, list[str]]:
+    """подпись скрина и аргументы линий (27.09 владелец: «заголовок ВХОД / ВЫХОД и дальше текст с отступами, смайлами — простыня
+    не читаемая»; вход, цель, стоп — отдельными строками)"""
     e, sd = float(pos["px"]), int(pos["side"])
     tgt = e * (1 + sd * float(pos["target"])) if pos.get("target") else None
     stp = e * (1 - sd * float(pos["stop"])) if pos.get("stop") else None
     end = datetime.fromtimestamp((int(pos["t_ms"]) + 180_000) / 1000 + int(pos.get("hold_min") or 0) * 60, L)
-    txt = [f"вход: {e:.6g} · {datetime.fromtimestamp(pos['at'], L):%H:%M}"]
+    side = "ЛОНГ" if sd == 1 else "ШОРТ"
+    t_in = datetime.fromtimestamp(pos["at"], L)
     if px_out is None:
-        txt.append(f"выход: цель {tgt:.6g} ({sd * float(pos['target']) * 100:+.1f}%) или срок {end:%H:%M}" if tgt else f"выход: срок {end:%H:%M}")
+        head = [f"{'🟢' if sd == 1 else '🔻'} ВХОД · {side} · {sym[:-4]}", f"📘 {book}", ""]
+        body = [f"💵 вход:   {e:.6g}  ·  {t_in:%H:%M}"]
+        if tgt: body.append(f"🎯 цель:   {tgt:.6g}  ({sd * float(pos['target']) * 100:+.1f}%)")
+        if stp: body.append(f"🛑 стоп:   {stp:.6g}  ({-sd * float(pos['stop']) * 100:+.1f}%)")
+        body.append(f"⏳ срок:   до {end:%H:%M}")
     else:
-        txt.append(f"выход: {px_out:.6g} · {datetime.now(L):%H:%M} · {why_out} {res * 100:+.2f}%")
-    if stp:
-        txt.append(f"стоп: {stp:.6g} ({-sd * float(pos['stop']) * 100:+.1f}%)")
+        mins = int((time.time() - float(pos["at"])) / 60)
+        ok = (res or 0) > 0
+        head = [f"{'✅' if ok else '❌'} ВЫХОД · {side} · {sym[:-4]} · {res * 100:+.2f}% ({FAST3_SIZE * res:+.0f} $)", f"📘 {book} · {why_out}", ""]
+        body = [f"💵 вход:   {e:.6g}  ·  {t_in:%H:%M}", f"🏁 выход:  {px_out:.6g}  ·  {datetime.now(L):%H:%M}"]
+        if tgt: body.append(f"🎯 цель:   {tgt:.6g}")
+        if stp: body.append(f"🛑 стоп:   {stp:.6g}")
+        body.append(f"⏱ в сделке: {mins} мин")
+    txt = "\n".join(head + body + [""] + _rule_lines(pos.get("rule") or ""))
     args = ["--entry", f"{e}", "--t-in", f"{pos['at']}"]
     if tgt: args += ["--target", f"{tgt}"]
     if stp: args += ["--stop", f"{stp}"]
     if px_out is not None: args += ["--exit", f"{px_out}", "--t-out", f"{time.time()}"]
-    return "\n".join(txt), args
+    else: args += ["--price"]                       # на входе второй снимок: только цена и линии
+    return txt, args
 
 
 def cg(sym: str, caption: str, extra: list[str] | None = None) -> None:
@@ -184,8 +207,7 @@ def step(state: dict, write: bool) -> list[str]:
                            at=now, result_pct=round(res * 100, 2), usd=round(FAST3_SIZE * res, 2), why_exit=why, rule=pos["rule"], size=1.0))
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} выход {why} {res * 100:+.2f}%")
             if write:
-                _t, _a = cg_lines(pos, e * (1 + res * sd), why, res)
-                cg(sym, f"{BOOK} · {sym[:-4]} {'лонг' if sd == 1 else 'шорт'} ВЫХОД {why} {res * 100:+.2f}%\n{_t}\n{pos['rule']}", _a)
+                cg(sym, *cg_caption(BOOK, sym, pos, e * (1 + res * sd), why, res))
             state["last_exit"][sym] = now; del state["open"][sym]
         else:
             ev.append(dict(book=BOOK, sym=sym, kind="follow", side=sd, px_in=e, px=c, result_pct=round((c / e - 1) * sd * 100, 2), at=now))
@@ -212,8 +234,7 @@ def step(state: dict, write: bool) -> list[str]:
                            oi1h=info.get(sym, {}).get("oi1h"), run24=info.get(sym, {}).get("run24"), fon=bg))
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} вход {px:.6g} · {why}")
             if write:
-                _t, _a = cg_lines(pos)
-                cg(sym, f"{BOOK} · {sym[:-4]} {'лонг' if sd == 1 else 'шорт'} ВХОД\n{_t}\n{why}", _a)
+                cg(sym, *cg_caption(BOOK, sym, pos))
     if write:
         with LOG.open("a", encoding="utf-8") as f:
             for r in ev:
@@ -282,8 +303,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
                            result_pct=round(res * 100, 2), usd=round(FAST3_SIZE * (res), 2), why_exit=why, rule=pos["rule"], size=1.0))
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} выход {why} {res * 100:+.2f}%")
             if write:
-                _t, _a = cg_lines(pos, e * (1 + res * sd), why, res)
-                cg(sym, f"{WAKE_BOOK} · {sym[:-4]} {'лонг' if sd == 1 else 'шорт'} ВЫХОД {why} {res * 100:+.2f}%\n{_t}\n{pos['rule']}", _a)
+                cg(sym, *cg_caption(WAKE_BOOK, sym, pos, e * (1 + res * sd), why, res))
             state["last_exit"][sym] = now; del state["open"][sym]
         else:
             ev.append(dict(book=WAKE_BOOK, sym=sym, kind="follow", side=sd, px_in=e, px=c, result_pct=round((c / e - 1) * sd * 100, 2), at=now))
@@ -316,8 +336,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
                            oi1h=oi1h, crowd=cr, wake_x=round(cd["x"], 1), wake_chg=round(cd["chg"], 2), qv24=round(cd["qv"]), fon=fon()))
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} вход {px:.6g} · {pos['rule']}")
             if write:
-                _t, _a = cg_lines(pos)
-                cg(sym, f"{WAKE_BOOK} · {sym[:-4]} {'лонг' if sd == 1 else 'шорт'} ВХОД\n{_t}\n{pos['rule']}", _a)
+                cg(sym, *cg_caption(WAKE_BOOK, sym, pos))
     if write:
         with WAKE_LOG.open("a", encoding="utf-8") as f:
             for r_ in ev: f.write(json.dumps(r_, ensure_ascii=False) + "\n")
@@ -350,8 +369,20 @@ def page_step() -> None:
         print(f"{datetime.now(L):%H:%M:%S} страница: {type(e).__name__}: {e}", flush=True)
 
 
+_LOCK = None
+
+
 def main() -> int:
+    global _LOCK
     ap = argparse.ArgumentParser(); ap.add_argument("--loop", action="store_true"); a = ap.parse_args()
+    if a.loop:                                  # 27.09: один fast_tier на машину — второй запуск не стартует (дубли входов, скринов, разборов)
+        import fcntl
+        _LOCK = open(BASE_DIR / "output" / "fast_tier.lock", "w")
+        try:
+            fcntl.flock(_LOCK, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            print(f"{datetime.now(L):%H:%M:%S} fast_tier уже работает — второй не запускаю", flush=True)
+            return 0
     try:
         state = json.loads(STATE.read_text(encoding="utf-8"))
     except (OSError, ValueError):

@@ -117,7 +117,38 @@ def _lines(a) -> dict:
     return {"h": h, "v": v} if (h or v) else {}
 
 
-def shot(sym: str, lines: dict | None = None) -> Path | None:
+PRICE_VIEW = {"width": 1600, "height": 1000}
+
+
+def _price_only(pg, lines: dict) -> None:
+    """второй скрин на входе (27.09 владелец: «только график и линии цель, вход, стоп»): снять все индикаторы — цена на всю высоту,
+    шкала заново под линии сделки"""
+    fr = next((f for f in pg.frames if f != pg.main_frame), None)
+    if not fr:
+        return
+    js_rm = """() => { const a = window.tradingViewApi; const c = typeof a.activeChart === 'function' ? a.activeChart() : a.chart();
+      const s = c.getAllStudies(); if (s.length) c.removeEntity(s[0].id); return c.getAllStudies().length; }"""
+    for _ in range(15):
+        try:
+            if not fr.evaluate(js_rm):
+                break
+        except Exception:  # noqa: BLE001
+            break
+        pg.wait_for_timeout(400)
+    pg.set_viewport_size(PRICE_VIEW)
+    pg.wait_for_timeout(1500)
+    if lines and lines.get("h"):
+        try:
+            fr.evaluate("""(P) => { const a = window.tradingViewApi; const c = typeof a.activeChart === 'function' ? a.activeChart() : a.chart();
+              const ps = c.getPanes()[0].getMainSourcePriceScale(); const r = ps.getVisiblePriceRange();
+              const lo = Math.min(r.from, ...P), hi = Math.max(r.to, ...P), pad = (hi - lo) * 0.10; ps.setVisiblePriceRange({from: lo - pad, to: hi + pad}); }""",
+                        [x[0] for x in lines["h"]])
+        except Exception:  # noqa: BLE001
+            pass
+    pg.wait_for_timeout(1500)
+
+
+def shot(sym: str, lines: dict | None = None, price: bool = False) -> list[Path]:
     from playwright.sync_api import sync_playwright
     SHOTS.mkdir(parents=True, exist_ok=True)
     out = SHOTS / f"{sym}_{time.strftime('%Y%m%d_%H%M%S')}.png"
@@ -139,19 +170,46 @@ def shot(sym: str, lines: dict | None = None) -> Path | None:
                 pg.mouse.move(VIEW["width"] - 5, VIEW["height"] - 5)   # убрать перекрестие с графика
                 pg.wait_for_timeout(500)
                 pg.screenshot(path=str(out), clip=clip)          # без правой панели рынков
+                outs = [out]
+                if price:
+                    out2 = out.with_name(out.stem + "_price.png")
+                    _price_only(pg, lines or {})
+                    pg.mouse.move(PRICE_VIEW["width"] - 5, PRICE_VIEW["height"] - 5)
+                    pg.screenshot(path=str(out2), clip={"x": 0, "y": 0, "width": clip["width"], "height": PRICE_VIEW["height"]} if clip else None)
+                    outs.append(out2)
             finally:
                 ctx.close()
-    return out if out.exists() else None
+    return [x for x in outs if x.exists()]
 
 
-def send_photo(path: Path, caption: str) -> bool:
-    """в основной чат и в чаты только для чтения (chat_ids_read); True — ушло в основной"""
+def send_photo(path, caption: str) -> bool:
+    """в основной чат и всем подписчикам; два снимка — одним альбомом (подпись у первого). True — ушло в основной"""
     from send_brief_telegram import load_config, chat_ids
     cfg = load_config()
     if not cfg:
         return False
-    oks = [_photo_to(path, caption, cfg, c) for c in chat_ids(cfg)]
+    paths = path if isinstance(path, list) else [path]
+    oks = [(_photo_to(paths[0], caption, cfg, c) if len(paths) == 1 else _album_to(paths, caption, cfg, c)) for c in chat_ids(cfg)]
     return oks[0]
+
+
+def _album_to(paths: list, caption: str, cfg: dict, chat) -> bool:
+    b = uuid.uuid4().hex
+    media = [{"type": "photo", "media": f"attach://p{i}", **({"caption": caption[:1000]} if i == 0 else {})} for i in range(len(paths))]
+    body = b""
+    for k, v in (("chat_id", str(chat)), ("media", json.dumps(media, ensure_ascii=False))):
+        body += f'--{b}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode("utf-8")
+    for i, pth in enumerate(paths):
+        body += f'--{b}\r\nContent-Disposition: form-data; name="p{i}"; filename="{pth.name}"\r\nContent-Type: image/png\r\n\r\n'.encode() + pth.read_bytes() + b"\r\n"
+    body += f"--{b}--\r\n".encode()
+    req = urllib.request.Request(f"https://api.telegram.org/bot{cfg['bot_token']}/sendMediaGroup", data=body,
+                                 headers={"Content-Type": f"multipart/form-data; boundary={b}"})
+    try:
+        with urllib.request.urlopen(req, timeout=90) as r:
+            return bool(json.loads(r.read().decode("utf-8")).get("ok"))
+    except Exception as e:  # noqa: BLE001
+        print(f"cg_shot: телеграм не принял альбом: {type(e).__name__}: {e}")
+        return False
 
 
 def _photo_to(path: Path, caption: str, cfg: dict, chat) -> bool:
@@ -198,6 +256,7 @@ def main() -> int:
         ap.add_argument(f"--{k}", type=float, default=None)          # цены линий сделки
     ap.add_argument("--t-in", type=float, default=None)                # время входа, сек (вертикаль)
     ap.add_argument("--t-out", type=float, default=None)               # время выхода, сек
+    ap.add_argument("--price", action="store_true")                     # второй снимок: только цена и линии (на входе)
     a = ap.parse_args()
     if a.setup:
         return setup()
@@ -205,14 +264,14 @@ def main() -> int:
         ap.error("нужна монета, например PENGUUSDT")
     sym = a.sym.upper() if a.sym.upper().endswith("USDT") else a.sym.upper() + "USDT"
     try:
-        path = shot(sym, _lines(a))
+        path = shot(sym, _lines(a), a.price)
     except Exception as e:  # noqa: BLE001
         print(f"cg_shot: снимок {sym} не вышел: {type(e).__name__}: {e}")
         return 1
     if not path:
         print(f"cg_shot: снимок {sym} не вышел")
         return 1
-    print(f"cg_shot: {path}")
+    print(f"cg_shot: {', '.join(str(x) for x in path)}")
     if not a.no_send and not send_photo(path, a.caption or sym):
         return 1
     for old in sorted(SHOTS.glob("*.png"))[:-200]:          # храним последние 200
