@@ -197,8 +197,10 @@ def score(cl: list[dict]) -> dict:
 def build() -> dict:
     now = time.time()
     op, cl = positions(now)
-    syms = list(dict.fromkeys([p["sym"] for p in op] + [c["sym"] for c in cl]))[:24]
-    return dict(meta=meta(now), entry=candidates(), open=op, closed=cl, charts=charts(syms), score=score(cl))
+    ent = candidates()
+    # графики: открытые, 15 ближайших к входу (кольцо «вход» на странице — до 15 монет), закрытые сегодня
+    syms = list(dict.fromkeys([p["sym"] for p in op] + [e["sym"] for e in ent[:15]] + [c["sym"] for c in cl]))[:40]
+    return dict(meta=meta(now), entry=ent, open=op, closed=cl, charts=charts(syms), score=score(cl))
 
 
 def write() -> Path:

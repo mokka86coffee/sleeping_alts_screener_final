@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Быстрый бот</title>
+<!-- БЫСТРЫЙ БОТ — ЖИВАЯ СТРАНИЦА (27.09, владелец: «два круга — вход и в работе; из круга всплеском волны/энергии монета и рядом
+     цена-цель, если в работе, и цена для входа, если вход; при наведении весь разбор как в телеграме и график, похожий на коингласс;
+     обновление по сокету без перезагрузки; сервер на моём компе, только из дома; отдельный сайт»).
+     Данные — output/fast_state.json (fast_state.py, fast_tier раз в 3 мин), рассылает fast_server.py по ws://<хост>/ws. -->
+<style>
+:root{--void:#05070a;--frost:#e8edf4;--dust:#7f8a98;--dim2:#4c5563;--amber:#ffa53a;--amberhi:#ffd08a;--rose:#f0506a;--ice:#7fd4ff}
+html,body{margin:0;height:100%;background:var(--void);overflow:hidden;font-family:Jost,Futura,"Segoe UI",system-ui,sans-serif;color:var(--frost)}
+#sky{position:fixed;inset:0;width:100%;height:100%}
+.vp{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+.stage{position:relative;width:min(100vw,160vh);height:min(62.5vw,100vh)}
+svg#scene{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+svg text{font-family:Jost,Futura,"Segoe UI",system-ui,sans-serif;fill:var(--frost)}
+.mono{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace!important;font-weight:300}
+.wm{font-size:15px;font-weight:500;letter-spacing:.55em}
+.cap{font-size:9.5px;font-weight:500;letter-spacing:.26em;fill:var(--dust)!important}
+.ttl{font-size:13px;font-weight:500;letter-spacing:.42em}
+.big{font-size:44px;font-weight:200}
+.sm{font-size:11px}.xs{font-size:10px}.tk{font-size:12px;letter-spacing:.14em;font-weight:500}
+.dim{fill:var(--dust)!important}.dim2{fill:var(--dim2)!important}.amb{fill:var(--amber)!important}.ros{fill:var(--rose)!important}.ice{fill:var(--ice)!important}
+.ring{fill:none;stroke:rgba(210,222,236,.16)}.ring2{fill:none;stroke:rgba(210,222,236,.07)}
+.core{fill:url(#coreg)}
+.dash{fill:none;stroke:rgba(210,222,236,.22);stroke-dasharray:2 6;transform-box:fill-box;transform-origin:center;animation:sp 40s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.burst{mix-blend-mode:screen;cursor:pointer}
+.burst .fl{stroke-linecap:round;fill:none}
+.burst .flw{animation:fl 2.4s ease-in-out infinite}
+@keyframes fl{0%,100%{opacity:.85}50%{opacity:.45}}
+.burst .run{fill:none;stroke-dasharray:6 18;animation:rn 1.6s linear infinite}
+@keyframes rn{to{stroke-dashoffset:-24}}
+.burst:hover .fl{stroke-width:3.2}
+.lbl{pointer-events:none}
+.tl{stroke:rgba(210,222,236,.18)}.tls{fill:rgba(210,222,236,.05)}.tlw{fill:rgba(255,165,58,.07)}
+.now{stroke:var(--amber);stroke-width:1.4;filter:drop-shadow(0 0 4px #ffa53a)}
+.arc{fill:none;stroke-width:1.6;cursor:pointer}.arc:hover{stroke-width:3}
+#card{position:absolute;right:1.2%;top:12%;width:27%;min-width:330px;max-height:80%;overflow:auto;background:rgba(8,11,16,.92);border:1px solid rgba(210,222,236,.18);
+  padding:14px 16px;font-size:12px;line-height:1.5;display:none;box-shadow:0 0 40px rgba(0,0,0,.6);backdrop-filter:blur(4px)}
+#card h3{margin:0 0 4px;font-weight:500;letter-spacing:.2em;font-size:14px}
+#card .row{color:var(--dust)}#card b{color:var(--frost);font-weight:400}
+#card .v{color:var(--amber)}#card .r{color:var(--rose)}
+#card pre{white-space:pre-wrap;font-family:inherit;margin:8px 0 0;color:#cdd5df}
+#card canvas{width:100%;height:330px;margin-top:8px;display:block}
+#live{position:absolute;right:1.2%;top:2.2%;font-size:11px;color:var(--dust);letter-spacing:.08em;display:flex;align-items:center;gap:8px}
+#live i{width:10px;height:10px;border-radius:50%;border:1.5px solid var(--dim2);border-top-color:var(--amber);display:inline-block}
+#live.load i{animation:sp .8s linear infinite}
+#live.ok i{border-color:var(--amber);box-shadow:0 0 6px #ffa53a}
+#live.off i{border-color:var(--rose)}
+</style>
+</head>
+<body>
+<canvas id="sky"></canvas>
+<div class="vp"><div class="stage">
+<svg id="scene" viewBox="0 0 1600 1000" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="coreg"><stop offset="0" stop-color="#1b2433" stop-opacity=".9"/><stop offset=".7" stop-color="#0b1018" stop-opacity=".6"/><stop offset="1" stop-color="#05070a" stop-opacity="0"/></radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="glow2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="9"/></filter>
+  </defs>
+  <g id="hdr"></g>
+  <g id="cIn"></g>
+  <g id="cWork"></g>
+  <g id="tline"></g>
+</svg>
+<div id="live" class="load"><i></i><span>подключение…</span></div>
+<div id="card"></div>
+</div></div>
+<script>
+/* ── небо: звёзды и туманность, один раз ── */
+(function(){const c=document.getElementById('sky'),x=c.getContext('2d');function draw(){c.width=innerWidth;c.height=innerHeight;
+  const g=x.createRadialGradient(c.width*.62,c.height*.35,0,c.width*.62,c.height*.35,c.width*.7);g.addColorStop(0,'rgba(40,58,86,.35)');g.addColorStop(.5,'rgba(18,26,40,.2)');g.addColorStop(1,'rgba(5,7,10,0)');
+  x.fillStyle='#05070a';x.fillRect(0,0,c.width,c.height);x.fillStyle=g;x.fillRect(0,0,c.width,c.height);
+  const g2=x.createRadialGradient(c.width*.25,c.height*.7,0,c.width*.25,c.height*.7,c.width*.4);g2.addColorStop(0,'rgba(60,40,20,.18)');g2.addColorStop(1,'rgba(5,7,10,0)');x.fillStyle=g2;x.fillRect(0,0,c.width,c.height);
+  let s=7;const r=()=>(s=(s*16807)%2147483647)/2147483647;for(let i=0;i<420;i++){const a=r()*.7+.1;x.fillStyle=`rgba(220,230,245,${a*r()})`;x.fillRect(r()*c.width,r()*c.height,r()<.93?1:1.8,r()<.93?1:1.8);} }
+  draw();addEventListener('resize',draw);})();
+
+const $=id=>document.getElementById(id);
+const esc=t=>String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const T=(x,y,c,t,a)=>`<text x="${x}" y="${y}" class="${c}"${a?` text-anchor="${a}"`:''}>${t}</text>`;
+const px=v=>v==null||!(+v)?'—':(+v>=100?(+v).toFixed(2):(+v).toPrecision(4)).replace(/\.?0+$/,'');
+const pct=(v,d=1)=>v==null?'—':(v>0?'+':v<0?'−':'')+Math.abs(v).toFixed(d)+'%';
+const usd=v=>(v>0?'+':v<0?'−':'')+Math.abs(Math.round(v))+' $';
+const hm=t=>new Date(t*1000).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
+const sym=s=>String(s).replace(/USDT$/,'');
+let S=null, HOLD=null;
+
+/* ── шапка: сессия, ворота, счёт дня ── */
+function drawHdr(){const m=S.meta,now=Date.now()/1000;const left=Math.max(0,m.exit_at-now);
+  const hh=Math.floor(left/3600),mm=Math.floor(left%3600/60);
+  let o=T(64,62,'wm','БЫСТРЫЙ БОТ')+T(64,84,'sm dim','всплеск/вынос · пробуждение · сессии R40–R42');
+  o+=T(800,58,'ttl',esc(m.ses.toUpperCase()),'middle')+T(800,82,'sm '+(m.open_gate?'amb':'dim'),m.open_gate?`вход открыт · выход в ${hm(m.exit_at)} · осталось ${hh}:${String(mm).padStart(2,'0')}`:`вход закрыт: ${esc(m.gate_why)}${m.gate_until?' · до '+hm(m.gate_until):''}`,'middle');
+  let y=62;for(const [b,v] of Object.entries(S.score)){o+=T(1536,y+34,'sm dim',`${esc(b)} · ${v.n} закр · ${v.win} в плюс · `,'end').replace('</text>',`<tspan class="${v.usd<0?'ros':'amb'}">${usd(v.usd)}</tspan></text>`);y+=18;}
+  $('hdr').innerHTML=o;}
+
+/* ── всплеск: волна энергии из обода круга ── */
+function flame(cx,cy,r,ang,len,col,wob){const a=ang*Math.PI/180,ca=Math.cos(a),sa=Math.sin(a),nx=-sa,ny=ca;
+  const x0=cx+ca*r,y0=cy+sa*r,x1=cx+ca*(r+len),y1=cy+sa*(r+len),n=7;let d=`M${x0.toFixed(1)} ${y0.toFixed(1)}`;
+  for(let i=1;i<=n;i++){const t=i/n,w=Math.sin(t*Math.PI*2.2+wob)*(6*(1-t)+1.5);d+=` L${(x0+(x1-x0)*t+nx*w).toFixed(1)} ${(y0+(y1-y0)*t+ny*w).toFixed(1)}`;}
+  const base=4+len/28;const p=`M${(x0+nx*base).toFixed(1)} ${(y0+ny*base).toFixed(1)} Q${(x0+ca*len*.45+nx*base*.6).toFixed(1)} ${(y0+sa*len*.45+ny*base*.6).toFixed(1)} ${x1.toFixed(1)} ${y1.toFixed(1)} Q${(x0+ca*len*.45-nx*base*.6).toFixed(1)} ${(y0+sa*len*.45-ny*base*.6).toFixed(1)} ${(x0-nx*base).toFixed(1)} ${(y0-ny*base).toFixed(1)}Z`;
+  return {d,p,x1,y1,ca,sa};}
+function circle(cx,cy,r,title,sub,big,bigc){return `<circle cx="${cx}" cy="${cy}" r="${r*1.9}" class="core"/><circle cx="${cx}" cy="${cy}" r="${r}" class="ring"/><circle cx="${cx}" cy="${cy}" r="${r+14}" class="dash"/><circle cx="${cx}" cy="${cy}" r="${r-22}" class="ring2"/>`
+  +`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${bigc}" stroke-opacity=".35" stroke-width="6" filter="url(#glow2)"/>`
+  +T(cx,cy-18,'ttl',title,'middle')+T(cx,cy+26,'big '+(bigc===getCss('--rose')?'ros':''),big,'middle')+T(cx,cy+48,'xs dim',sub,'middle');}
+function getCss(v){return getComputedStyle(document.documentElement).getPropertyValue(v).trim();}
+function ring(items,cx,cy,r,kind){let o='';const n=items.length;if(!n)return o;
+  items.forEach((it,i)=>{const ang=-90+360*i/n;const f=flame(cx,cy,r,ang,it.len+(n>10&&i%2?70:0),it.col,i*1.7);
+    const lx=f.x1+f.ca*10,ly=f.y1+f.sa*10+4,anc=Math.abs(f.ca)<.25?'middle':(f.ca>0?'start':'end');
+    o+=`<g class="burst" data-k="${kind}" data-i="${i}"><path d="${f.p}" fill="${it.col}" opacity=".16" filter="url(#glow2)" class="flw"/>`
+      +`<path d="${f.d}" class="fl" stroke="${it.col}" stroke-width="2" opacity=".9" filter="url(#glow)"/><path d="${f.d}" class="run" stroke="#fff" stroke-opacity=".55" stroke-width="1"/>`
+      +`<circle cx="${f.x1.toFixed(1)}" cy="${f.y1.toFixed(1)}" r="2.6" fill="${it.col}" filter="url(#glow)"/>`
+      +`<circle cx="${f.x1.toFixed(1)}" cy="${f.y1.toFixed(1)}" r="16" fill="#000" fill-opacity="0"/></g>`
+      +`<g class="lbl"><text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" class="tk" text-anchor="${anc}" fill="${it.col}">${esc(it.name)}</text>`
+      +`<text x="${lx.toFixed(1)}" y="${(ly+13).toFixed(1)}" class="xs mono dim" text-anchor="${anc}">${it.sub}</text></g>`;});
+  return o;}
+
+function drawIn(){const m=S.meta,A=getCss('--amber'),R=getCss('--rose'),G='#6b7482';
+  const it=S.entry.slice(0,24).map(e=>{const s=Math.max(0,Math.min(1,.5*Math.max(0,e.bar)/1+.5*Math.min(1,e.vol_x||0)));
+    return {name:sym(e.sym),len:36+150*s,col:!m.open_gate?G:(e.flip?R:A),sub:`вход ${px(e.level)}${e.flip?' · шорт':''}`,e};});
+  const on=S.entry.filter(e=>(e.bar||0)>0).length;
+  $('cIn').innerHTML=circle(440,430,100,'ВХОД',m.open_gate?`кандидатов ${S.entry.length} · растут ${on}`:esc(m.gate_why),S.entry.length,m.open_gate?A:G)+ring(it,440,430,100,'in');}
+
+function drawWork(){const A=getCss('--amber'),R=getCss('--rose'),I=getCss('--ice');
+  const it=S.open.map(p=>{const r=p.px?(p.px/p.entry-1)*100*p.side:0,prog=r/(p.tp*100);
+    return {name:sym(p.sym)+(p.side<0?' ▼':''),len:40+150*Math.min(1,Math.abs(prog)),col:r>=0?A:R,sub:`цель ${px(p.target)} · ${pct(r)}`,p,r};});
+  const tot=it.reduce((a,b)=>a+b.r*5,0);
+  $('cWork').innerHTML=circle(1130,430,100,'В РАБОТЕ',`открыто ${S.open.length} · сейчас ${usd(tot)}`,S.open.length,tot<0?R:A)+ring(it,1130,430,100,'work');
+  window._IN=S.entry.slice(0,24);window._WORK=S.open;}
+
+/* ── лента дня: сессии, первый час, закрытые сделки дугами вход → выход ── */
+function drawLine(){const x0=110,x1=1490,y=905,d0=new Date(S.meta.t*1000);d0.setHours(0,0,0,0);const t0=d0.getTime()/1000,X=t=>x0+(x1-x0)*Math.max(0,Math.min(1,(t-t0)/86400));
+  let o='';[[0,3,'Сидней'],[3,10,'Токио'],[10,16,'Лондон'],[16,24,'Нью-Йорк']].forEach(([a,b,n],i)=>{o+=`<rect x="${X(t0+a*3600)}" y="${y-2}" width="${X(t0+b*3600)-X(t0+a*3600)}" height="22" class="${i%2?'tls':'tl'}" fill="rgba(210,222,236,${i%2?.03:.06})"/>`
+    +`<rect x="${X(t0+a*3600)}" y="${y-2}" width="${X(t0+(a+1)*3600)-X(t0+a*3600)}" height="22" class="tlw"/>`+T((X(t0+a*3600)+X(t0+b*3600))/2,y+34,'cap',n.toUpperCase(),'middle');});
+  for(let h=0;h<=24;h+=3)o+=`<line x1="${X(t0+h*3600)}" y1="${y+20}" x2="${X(t0+h*3600)}" y2="${y+25}" class="tl"/>`+(h<24?T(X(t0+h*3600)+2,y+17,'xs dim2',String(h).padStart(2,'0')):'');
+  o+=T(x0,y-150,'cap','ЗАКРЫТО СЕГОДНЯ')+T(x0+150,y-150,'xs dim',`${S.closed.length} сделок · высота дуги — итог · наведи — разбор`);
+  S.closed.forEach((c,i)=>{const a=X(c.t_in||c.t_out),b=X(c.t_out),h=Math.max(8,Math.min(120,Math.abs(c.res)*22)),col=c.res>=0?getCss('--amber'):getCss('--rose');
+    o+=`<path d="M${a} ${y} C${a} ${y-h} ${b} ${y-h} ${b} ${y}" class="arc" stroke="${col}" stroke-opacity=".75" filter="url(#glow)" data-k="closed" data-i="${i}"/>`;});
+  const nx=X(Date.now()/1000);o+=`<line x1="${nx}" y1="${y-140}" x2="${nx}" y2="${y+22}" class="now"/>`+T(nx,y-144,'xs amb',hm(Date.now()/1000),'middle');
+  $('tline').innerHTML=o;}
+
+/* ── карточка при наведении: разбор + мини-график ── */
+function card(kind,i){const c=$('card');let h='',sy=null,lines={};
+  if(kind==='in'){const e=_IN[i];sy=e.sym;h=`<h3>${esc(sym(e.sym))}</h3><div class="row">кандидат на всплеск · ${S.meta.open_gate?'вход открыт':'вход закрыт: '+esc(S.meta.gate_why)}</div>`
+    +`<pre>цена сейчас: ${px(e.px)}\nвход: ${px(e.level)} (ещё ${pct(e.dist,2)}) при объёме бара ×5 медианы\nобъём бара сейчас: ${Math.round((e.vol_x||0)*100)}% от порога · бар ${pct(e.bar,2)}\nинтерес за час: ${pct(e.oi1h)}${e.flip?'\nинтерес ≥ +6% за час → всплеск будет перевёрнут в шорт':''}\nвыход: цель +5% / стоп −5% / до ${hm(S.meta.exit_at)}</pre>`;}
+  else if(kind==='work'){const p=_WORK[i];sy=p.sym;const r=p.px?(p.px/p.entry-1)*100*p.side:0;lines={entry:p.entry,target:p.target,stop:p.stop,t_in:p.t_in};
+    h=`<h3>${esc(sym(p.sym))} · ${p.side>0?'лонг':'шорт'}</h3><div class="row">${esc(p.book)} · в работе с ${hm(p.t_in)}</div>`
+    +`<pre>вход: ${px(p.entry)} · ${hm(p.t_in)}\nвыход: цель ${px(p.target)} (${pct(p.tp*100*p.side)}) или срок ${hm(p.exit_at)}\nстоп: ${px(p.stop)} (${pct(-p.sl*100*p.side)})\nсейчас: ${px(p.px)} · <span class="${r<0?'r':'v'}">${pct(r,2)} · ${usd(r*5)}</span>\nфон на входе: интерес 1ч ${pct(p.oi1h_in)} · доска6 ${pct(p.board6_in)}\n${esc(p.rule)}</pre>`;}
+  else{const x=S.closed[i];sy=x.sym;lines={entry:x.entry,exit:x.exit,t_in:x.t_in,t_out:x.t_out};const rv=x.review;
+    h=`<h3>${esc(sym(x.sym))} · ${x.side>0?'лонг':'шорт'}</h3><div class="row">${esc(x.book)} · ${esc(x.why)} · <span class="${x.res<0?'r':'v'}">${pct(x.res,2)} · ${usd(x.usd)}</span></div>`
+    +`<pre>вход: ${px(x.entry)} · ${hm(x.t_in)}\nвыход: ${px(x.exit)} · ${hm(x.t_out)} · ${esc(x.why)}\n${esc(x.rule)}</pre>`
+    +(rv?`<pre>РАЗБОР\nв сделке: лучшее ${pct(rv.mfe)} через ${rv.mfe_min} мин, худшее ${pct(rv.mae)} через ${rv.mae_min} мин${rv.after_mae_best!=null?'; после минимума дошла до '+pct(rv.after_mae_best):''}`
+      +(rv.post_best!=null?`\nпосле выхода за ${rv.post_h} ч: лучшее ${pct(rv.post_best)}, худшее ${pct(rv.post_worst)}, сейчас ${pct(rv.post_close)} от входа`:'')
+      +`\nфон: интерес 1ч на входе ${pct(rv.oi1h_in)} · на выходе ${pct(rv.oi1h_out)} · покупатели ${rv.buy_in??'—'}% в сделке / ${rv.buy_after??'—'}% после`
+      +`\n→ ${esc(rv.verdict)}</pre>`:`<pre class="row">разбор придёт через 2 ч после выхода</pre>`);}
+  const ch=S.charts[sy];h+=ch?`<canvas id="mini"></canvas><div class="row">фандинг сейчас ${ch.funding!=null?ch.funding.toFixed(4)+'%':'—'} · цена, объём, CVD фьючерсов, CVD спота, интерес, ликвидации (лонги ↓ / шорты ↑) · 3m, 6 ч</div>`:'<div class="row">графика нет — монета не в работе и не закрыта сегодня</div>';
+  c.innerHTML=h;c.style.display='block';if(ch)mini($('mini'),ch,lines);}
+
+function mini(cv,ch,L){const dpr=devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;const x=cv.getContext('2d');x.scale(dpr,dpr);
+  const B=ch.bars,n=B.length;if(!n)return;const pan=[['цена',.38],['объём',.1],['CVD фьюч',.13],['CVD спот',.13],['интерес',.13],['ликвидации',.13]];let y=0;
+  const X=i=>6+(W-56)*i/(n-1),tX=t=>{const i=B.findIndex(b=>b[0]>=t*1000);return i<0?null:X(i);};
+  x.font='9px Menlo,monospace';
+  pan.forEach(([name,f],pi)=>{const h=H*f,top=y+3,bot=y+h-3;x.strokeStyle='rgba(210,222,236,.08)';x.beginPath();x.moveTo(0,y+h);x.lineTo(W,y+h);x.stroke();
+    x.fillStyle='#4c5563';x.fillText(name,4,y+11);
+    let v=[];if(pi===0){const lo=Math.min(...B.map(b=>b[3]),...[L.entry,L.target,L.stop,L.exit].filter(Boolean)),hi=Math.max(...B.map(b=>b[2]),...[L.entry,L.target,L.stop,L.exit].filter(Boolean));
+      const Y=p=>bot-(bot-top)*(p-lo)/((hi-lo)||1);B.forEach((b,i)=>{x.strokeStyle=b[4]>=b[1]?'#5fd3a0':'#f0506a';x.beginPath();x.moveTo(X(i),Y(b[2]));x.lineTo(X(i),Y(b[3]));x.stroke();x.fillStyle=x.strokeStyle;const a=Y(b[1]),c=Y(b[4]);x.fillRect(X(i)-1.2,Math.min(a,c),2.4,Math.max(1,Math.abs(a-c)));});
+      [['entry','#ffa53a','вход'],['target','#5fd3a0','цель'],['stop','#f0506a','стоп'],['exit','#e8edf4','выход']].forEach(([k,c,t])=>{if(!L[k])return;x.strokeStyle=c;x.setLineDash(k==='exit'?[3,3]:[]);x.beginPath();x.moveTo(0,Y(L[k]));x.lineTo(W,Y(L[k]));x.stroke();x.setLineDash([]);x.fillStyle=c;x.textAlign='right';x.fillText(t+' '+px(L[k]),W-2,Y(L[k])-3);x.textAlign='left';});
+      [['t_in','#ffa53a'],['t_out','#e8edf4']].forEach(([k,c])=>{const vx=L[k]?tX(L[k]):null;if(vx==null)return;x.strokeStyle=c;x.setLineDash([2,3]);x.beginPath();x.moveTo(vx,0);x.lineTo(vx,H);x.stroke();x.setLineDash([]);});}
+    else{if(pi===1)v=B.map(b=>b[5]);if(pi===2)v=B.map(b=>b[6]);if(pi===3)v=(ch.spot||[]).map(s=>s??null);if(pi===4){v=B.map(b=>{let o=null;for(const q of ch.oi){if(q[0]<=b[0])o=q[1];}return o;});}
+      if(pi===5){const lq=ch.liq||[];const m=Math.max(1,...lq.map(q=>Math.max(q[0],q[1])));const mid=(top+bot)/2;lq.forEach((q,i)=>{if(q[1]){x.fillStyle='#5fd3a0';x.fillRect(X(i)-1.2,mid-(mid-top)*q[1]/m,2.4,(mid-top)*q[1]/m);}if(q[0]){x.fillStyle='#f0506a';x.fillRect(X(i)-1.2,mid,2.4,(bot-mid)*q[0]/m);}});}
+      else if(v.length){const vv=v.filter(q=>q!=null);if(!vv.length)return;const lo=Math.min(...vv),hi=Math.max(...vv),Y=p=>bot-(bot-top)*(p-lo)/((hi-lo)||1);
+        if(pi===1){v.forEach((q,i)=>{x.fillStyle='rgba(210,222,236,.45)';x.fillRect(X(i)-1.2,Y(q),2.4,bot-Y(q));});}
+        else{x.strokeStyle=pi===2?'#ffa53a':pi===3?'#7fd4ff':'#e8edf4';x.beginPath();let st=false;v.forEach((q,i)=>{if(q==null)return;st?x.lineTo(X(i),Y(q)):x.moveTo(X(i),Y(q));st=true;});x.stroke();}}}
+    y+=h;});}
+
+document.addEventListener('mouseover',e=>{const g=e.target.closest('[data-k]');if(g){HOLD=[g.dataset.k,+g.dataset.i];card(...HOLD);}});
+document.addEventListener('click',e=>{if(!e.target.closest('[data-k]')&&!e.target.closest('#card')){HOLD=null;$('card').style.display='none';}});
+
+function apply(st){S=st;drawHdr();drawIn();drawWork();drawLine();if(HOLD&&$('card').style.display==='block')card(...HOLD);
+  const l=$('live');l.className='ok';l.querySelector('span').textContent='данные '+hm(st.meta.t);}
+window.applyState=apply;
+
+/* ── живое обновление: сокет с сервера на компе, переподключение само; пока сокета нет — раз в минуту читаем файл ── */
+let ws=null,lastT=0;
+function connect(){if(location.protocol==='file:')return;const l=$('live');
+  try{ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');}catch(e){return setTimeout(connect,5000);}
+  ws.onopen=()=>{l.className='load';l.querySelector('span').textContent='на связи';};
+  ws.onmessage=m=>{l.className='load';try{const st=JSON.parse(m.data);lastT=st.meta.t;apply(st);}catch(e){}};
+  ws.onclose=()=>{l.className='off';l.querySelector('span').textContent='нет связи — переподключаюсь';setTimeout(connect,4000);};}
+async function poll(){if(location.protocol==='file:')return;if(ws&&ws.readyState===1)return;try{const r=await fetch('/state.json',{cache:'no-store'});if(r.ok){const st=await r.json();if(st.meta.t!==lastT){lastT=st.meta.t;apply(st);}}}catch(e){}}
+setInterval(()=>{if(S){drawHdr();drawLine();const a=Math.round(Date.now()/1000-S.meta.t);$('live').querySelector('span').textContent=`данные ${hm(S.meta.t)} · ${a<60?a+' с':Math.round(a/60)+' мин'} назад`;}},10000);
+setInterval(poll,60000);connect();poll();
+</script>
+</body>
+</html>
