@@ -30,6 +30,9 @@ from paper_book_base import rows_of, ARCH
 from book_fon import fon, coin_fon
 
 BOOK = "всплеск/вынос"; FEE = 0.001
+# 28.09: прогон поднимает fast_tier системным Python без пакетов проекта (playwright, websockets) — скрины падали «No module named playwright»;
+# дочерние процессы (скрины, разборы, данные страницы, сервер, список ММ) запускаем Python'ом проекта, если он есть
+PY = str(BASE_DIR / ".venv" / "bin" / "python") if (BASE_DIR / ".venv" / "bin" / "python").exists() else sys.executable
 _CROWD = {"t": 0, "v": {}}      # 27.09 п.1: толпа по счетам (Binance globalLongShortAccountRatio), обновляется раз в 30 мин
 STATE = BASE_DIR / "output" / "paper_fast3.json"; LOG = BASE_DIR / "output" / "paper_fast3.jsonl"
 L = timezone(timedelta(hours=3))
@@ -69,16 +72,32 @@ def short_list() -> tuple[list[str], list[str], dict]:
     return spike, climax, info
 
 
-def flip_spike(sd: int, why: str, tp: float, sl: float, hold: int, oi1h):
+def _oi_bar(sym: str):
+    """изменение интереса за последний ЗАКРЫТЫЙ 5-минутный бар, % — только то, что известно в момент входа"""
+    oi = get_json("https://fapi.binance.com/futures/data/openInterestHist", {"symbol": sym, "period": "5m", "limit": 3}, quiet_400=True) or []
+    ov = [float(x["sumOpenInterest"]) for x in oi if int(x["timestamp"]) <= time.time() * 1000]
+    return (ov[-1] / ov[-2] - 1) * 100 if len(ov) >= 2 and ov[-2] else None
+
+
+def flip_spike(sd: int, why: str, tp: float, sl: float, hold: int, oi1h, oi_bar=None):
     """ПЕРЕВЁРНУТЫЙ ВСПЛЕСК (27.09 владелец: «брать позицию в обратную сторону просто»): всплеск вверх, перед которым интерес за час вырос
     на FAST3_FLIP_OI1H % и больше — толпа уже внутри, всплеск это её выход. Счёт 27.09: 10 таких лонгов −14.8 % (3 в плюс), шорт на тех же
     барах +13.8 % (7 в плюс); остальные 35 лонгов +35 %. Шорт: цель −5 %, стоп +5 %, срок 2 ч."""
+    # 28.09 (владелец: «брать обратную сторону»; счёт claude/research/spike_flip.md, 66 лонгов-всплесков 27.09 без заглядывания в будущее):
+    # интерес за час ≥ FAST3_FLIP_OI1H (3%) ИЛИ последний закрытый 5-мин бар интереса ≤ FAST3_FLIP_OIBAR_MAX (0) — 44 сделки: лонг −41.8%,
+    # шорт +35.1%; остальные 22: лонг +7.4%, шорт −16.0%
     try:
         from core_config import FAST3_FLIP_OI1H as _thr
     except ImportError:
-        _thr = 6.0
+        _thr = 3.0
+    try:
+        from core_config import FAST3_FLIP_OIBAR_MAX as _bar
+    except ImportError:
+        _bar = 0.0
     if sd == 1 and oi1h is not None and oi1h >= _thr:
         return -1, f"перевёрнутый всплеск: интерес +{oi1h:.1f}% за час — толпа уже внутри · " + why, tp, sl, hold, True
+    if sd == 1 and oi_bar is not None and oi_bar <= _bar:
+        return -1, f"перевёрнутый всплеск: интерес за 5 мин {oi_bar:+.2f}% — рост без новых позиций · " + why, tp, sl, hold, True
     return sd, why, tp, sl, hold, False
 
 
@@ -136,7 +155,7 @@ def cg(sym: str, caption: str, extra: list[str] | None = None) -> None:
     import subprocess
     try:
         lg = open(BASE_DIR / "output" / "cg_shot.log", "a")
-        subprocess.Popen([sys.executable, "cg_shot.py", sym, "--caption", caption] + (extra or []), cwd=BASE_DIR, stdout=lg, stderr=subprocess.STDOUT,
+        subprocess.Popen([PY, "cg_shot.py", sym, "--caption", caption] + (extra or []), cwd=BASE_DIR, stdout=lg, stderr=subprocess.STDOUT,
                          start_new_session=True)
     except Exception as e:  # noqa: BLE001
         print(f"скрин Coinglass {sym}: {type(e).__name__}: {e}", flush=True)
@@ -221,10 +240,10 @@ def step(state: dict, write: bool) -> list[str]:
         for sd, why, tp, sl, hold in outs:
             if sym in state["open"] or now - state["last_exit"].get(sym, 0) < 2 * 3600:
                 continue
-            sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, info.get(sym, {}).get("oi1h"))
+            sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, info.get(sym, {}).get("oi1h"), _oi_bar(sym) if sd == 1 else None)
             if sym in _own_mm():                                          # 27.09: монеты со своим ММ — бот в них не входит (own_mm.py)
                 msgs.append(f"{sym[:-4]} пропущен: свой ММ (список own_mm)"); continue
-            if sd == 1:                                                   # R40–R42: лонг-всплеск только внутри своей сессии
+            if True:                                                      # R40–R42 для обеих сторон (28.09: шорт QNT вошёл в первый час Сиднея)
                 ok, sw, h2 = ses_gate(now, t_bar)
                 if not ok:
                     msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); continue
@@ -321,14 +340,14 @@ def wake_step(state: dict, write: bool) -> list[str]:
         if not r: continue
         _, px, t_bar, outs = r
         for sd, why, tp, sl, hold in outs:
-            sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, oi1h)
+            sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, oi1h, oibar * 100 if oibar is not None else None)
             if sd == 1 and not ((oi1h is not None and oi1h >= FAST3_SHORT_OI1H) or (cr is not None and cr <= 0.7)):
                 continue                                                  # всплеск без интереса и без шортов в топливе — не вход (R39)
             if sd == -1 and not _flip and not (oibar is not None and oibar <= FAST3_CLIMAX_OI):
                 continue
             if sym in _own_mm():                                          # 27.09: свой ММ — не входим
                 msgs.append(f"{sym[:-4]} пропущен: свой ММ (список own_mm)"); continue
-            if sd == 1:                                                   # R40–R42
+            if True:                                                      # R40–R42 для обеих сторон (28.09)
                 ok, sw, h2 = ses_gate(now, t_bar)
                 if not ok:
                     msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); continue
@@ -369,7 +388,7 @@ def _own_mm() -> set:
             _mx = 24
         if age_h > _mx:
             import subprocess
-            subprocess.Popen([sys.executable, "own_mm.py"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "own_mm.log", "a"),
+            subprocess.Popen([PY, "own_mm.py"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "own_mm.log", "a"),
                              stderr=subprocess.STDOUT, start_new_session=True)
     return _OWN["v"]
 
@@ -386,12 +405,12 @@ def page_step() -> None:
     import socket
     import subprocess
     try:
-        subprocess.Popen([sys.executable, "fast_state.py"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "fast_state.log", "a"),
+        subprocess.Popen([PY, "fast_state.py"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "fast_state.log", "a"),
                          stderr=subprocess.STDOUT, start_new_session=True)
         s = socket.socket(); s.settimeout(1)
         alive = s.connect_ex(("127.0.0.1", _port)) == 0; s.close()
         if not alive:
-            subprocess.Popen([sys.executable, "fast_server.py"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "fast_server.log", "a"),
+            subprocess.Popen([PY, "fast_server.py"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "fast_server.log", "a"),
                              stderr=subprocess.STDOUT, start_new_session=True)
             print(f"{datetime.now(L):%H:%M:%S} страница: сервер запущен, http://localhost:{_port}/", flush=True)
     except Exception as e:  # noqa: BLE001
@@ -438,7 +457,7 @@ def main() -> int:
         page_step()
         try:                                    # 27.09 владелец: разбор выхода быстрых сделок через 2 ч — отдельным процессом (fast_review.py)
             import subprocess
-            subprocess.Popen([sys.executable, "fast_review.py", "--write"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "fast_review.log", "a"),
+            subprocess.Popen([PY, "fast_review.py", "--write"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "fast_review.log", "a"),
                              stderr=subprocess.STDOUT, start_new_session=True)
         except Exception as e:  # noqa: BLE001
             print(f"{datetime.now(L):%H:%M:%S} разбор выходов: {type(e).__name__}: {e}", flush=True)

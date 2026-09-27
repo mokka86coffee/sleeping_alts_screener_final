@@ -134,7 +134,10 @@ def main() -> int:
         if osd == -1 and wall and wall["dist"] < 5:
             sl = min(.05, (wall["dist"] + .3) / 100)
         opp = sim(k, tr["px"], osd, tr["t_out"], .05, sl) if k else None
-        out.append(dict(tr, oi_bar=oi_bar, oi_after=oi_after, sq=round(sq), sq_ratio=sq_ratio, wall=wall, wall_share=wall_share, opp=opp))
+        sk = get_json("https://api.binance.com/api/v3/klines", {"symbol": s, "interval": "3m", "endTime": int(t_in * 1000), "limit": 10}, quiet_400=True, weight=2) or []
+        sk = [x for x in sk if int(x[0]) + B3 <= t_in * 1000]
+        spot_buy = round(sum(float(x[10]) for x in sk) / max(1.0, sum(float(x[7]) for x in sk)) * 100, 1) if sk else None
+        out.append(dict(tr, spot_buy=spot_buy, oi_bar=oi_bar, oi_after=oi_after, sq=round(sq), sq_ratio=sq_ratio, wall=wall, wall_share=wall_share, opp=opp))
     L_md = [f"# Переворот всплеска — обе стороны ({datetime.now(L):%d.%m %H:%M})", "",
             f"Сделки быстрых книг с 27.09 07:15: {len(out)}. «как было» — запись книги; «обратная» — те же вход и время выхода, цель 5%, стоп 5% "
             "(у шорта из лонга — над плитой, если она ближе). Ликвидации — поток OKX+Bybit (Binance нет); плиты — журнал с 27.09 16:27.", "",
@@ -158,6 +161,9 @@ def main() -> int:
     A = lambda x: (x["oi1h"] is not None and x["oi1h"] >= 3) or (x["oi_bar"] is not None and x["oi_bar"] <= 0)   # noqa: E731
     line("лонг · интерес за час ≥ +3% ИЛИ последний 5-мин бар интереса ≤ 0", [x for x in longs if A(x)])
     line("лонг · остальные", [x for x in longs if not A(x)])
+    line("связка · спот покупал 30 мин до входа (> 50%)", [x for x in longs if A(x) and x["spot_buy"] is not None and x["spot_buy"] > 50])
+    line("связка · спот продавал 30 мин до входа (≤ 50%)", [x for x in longs if A(x) and x["spot_buy"] is not None and x["spot_buy"] <= 50])
+    line("связка · спота нет", [x for x in longs if A(x) and x["spot_buy"] is None])
     for lab, lo, hi in (("до ворот сессий (до 17:26)", 0, datetime(2026, 9, 27, 17, 26, tzinfo=L).timestamp()), ("после ворот сессий", datetime(2026, 9, 27, 17, 26, tzinfo=L).timestamp(), 9e12)):
         line(f"{lab} · связка", [x for x in longs if A(x) and lo <= x["t_in"] < hi])
         line(f"{lab} · остальные", [x for x in longs if not A(x) and lo <= x["t_in"] < hi])
