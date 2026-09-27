@@ -154,25 +154,72 @@ def take(sym: str, ts: int) -> dict | None:
     snap = df.snapshot(sym, raw, ts) if raw else None
     if not snap:
         return None
+    near = {"perp": {"bid": snap["near_bid_usd"], "ask": snap["near_ask_usd"]}}
     if DEPTH_SPOT:
         sraw = df.get_spot_depth(sym)
         ss = df.snapshot(sym, sraw, ts, kind="spot") if sraw else None
         if ss:
             snap["walls"] = sorted(snap["walls"] + ss["walls"], key=lambda w: -w["usd"])[:24]
-    return {"t": snap["t"], "mid": snap["mid"], "walls": snap["walls"]}
+            near["spot"] = {"bid": ss["near_bid_usd"], "ask": ss["near_ask_usd"]}
+    return {"t": snap["t"], "mid": snap["mid"], "walls": snap["walls"], "near": near}
+
+
+def _w(w: dict) -> dict:
+    return {"px": w["px"], "usd": w["usd"], "dist": w.get("dist_pct"), "runs": w.get("runs")}
+
+
+def side_rows(sym: str, snap: dict, prev: dict, ft: dict) -> list[dict]:
+    """по каждой стороне (фьючерс/спот × пол/потолок), где плиты поменялись: все плиты до и после, ушедшие (съели/сняли),
+    новые, масса стороны в 5% от цены до и после. Классы («одна из стопки», «переставили», «вся опора») строит счёт."""
+    # в снимке только 24 крупнейшие плиты на монету: плита меньше последней могла не уйти, а выпасть из списка — счёт её отсекает по cut_usd
+    cut = min((w["usd"] for w in snap["walls"]), default=0) if len(snap["walls"]) >= 24 else 0
+    rows = []
+    for kind in ("perp", "spot"):
+        for side in ("bid", "ask"):
+            ok = lambda w: w["side"] == side and w.get("kind", "perp") == kind and abs(w.get("dist_pct") or 0) <= FAR_PCT  # noqa: E731
+            gone = [dict(_w(g), fate="съели" if g["fate"] == "съели" else "убрали") for g in ft["gone"] if ok(g)]
+            new = [_w(w) for w in ft["walls"] if ok(w) and w["runs"] == 1]
+            if not gone and not new:
+                continue
+            nb, na = (prev.get("near") or {}).get(kind) or {}, (snap.get("near") or {}).get(kind) or {}
+            rows.append({
+                "t": snap["t"], "sym": sym, "kind": kind, "side": side, "mid": snap["mid"], "mid_prev": prev["mid"],
+                "before": [_w(w) for w in prev.get("walls") or [] if ok(w)], "after": [_w(w) for w in ft["walls"] if ok(w)],
+                "gone": gone, "new": new, "near_before": nb.get(side), "near_after": na.get(side), "cut_usd": cut,
+            })
+    return rows
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--write", action="store_true")
     a = ap.parse_args()
-    syms = coins()
+    t0 = time.time()
+    alert = coins()                      # телеграм — только по ним, как было
+    tr = trades()
+    syms = alert + [s for s in tr if s not in alert]
     mem = _read(MEM, {}) or {}
     sent = _read(SENT, {}) or {}
     ts = int(time.time() // 60 * 60 * 1000)
-    lines, keys = [], []
+    mk = market(a.write)
+    from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FutTimeout
+    snaps: dict[str, dict | None] = {}
+    ex = ThreadPoolExecutor(WORKERS)
+    fut = {ex.submit(take, s, ts): s for s in syms}
+    try:
+        for f in as_completed(fut, timeout=max(10, DEADLINE_S - (time.time() - t0))):
+            try:
+                snaps[fut[f]] = f.result()
+            except Exception:  # noqa: BLE001
+                snaps[fut[f]] = None
+    except FutTimeout:
+        print(f"depth_tick: не успели {len(syms) - len(snaps)} монет за {DEADLINE_S} с")
+    ex.shutdown(wait=False, cancel_futures=True)
+    lines, keys, rows = [], [], []
     for sym in syms:
-        snap = take(sym, ts)
+        if sym not in snaps:
+            continue
+        snap = snaps[sym]
         if not snap:
             print(f"depth_tick: {sym} — стакан не получен")
             continue
@@ -181,7 +228,9 @@ def main() -> int:
         if hist and ts - int(hist[-1]["t"]) > 2 * SNAP_MIN * 60_000:
             hist = []
         ft = df.fate(sym, snap, hist)
-        for g in ft["gone"]:
+        if hist:
+            rows += side_rows(sym, snap, hist[-1], ft)
+        for g in (ft["gone"] if sym in alert else []):
             if g["runs"] < DEPTH_TICK_MIN_SNAPS or abs(g.get("dist_pct") or 0) > FAR_PCT:
                 continue
             if g["fate"] != "съели" and g["runs"] * SNAP_MIN < _REMOVED_MIN:      # 27.09 владелец: снятия плит младше 3 ч не слать
@@ -197,13 +246,34 @@ def main() -> int:
             keys.append(k)
         mem[sym] = (hist + [snap])[-KEEP:]
     mem = {s: h for s, h in mem.items() if h and ts - int(h[-1]["t"]) <= KEEP * SNAP_MIN * 60_000}
+    # фон к событиям: оборот часа и интерес — только по монетам с событием
+    ev_syms = sorted({r["sym"] for r in rows})
+    ext: dict[str, dict] = {}
+    if ev_syms and time.time() - t0 < DEADLINE_S:
+        with ThreadPoolExecutor(WORKERS) as ex2:
+            for s, e in zip(ev_syms, ex2.map(extra, ev_syms)):
+                ext[s] = e
+    for r in rows:
+        s, e = r["sym"], ext.get(r["sym"]) or {}
+        base, m = _mult(s[:-4], mk["cs"])
+        px = mk["px"].get(s) or r["mid"]
+        r["trades"] = tr.get(s) or []
+        r["qv24"] = mk["qv"].get(s)
+        r["vol1h"] = e.get("vol1h")
+        r["oi_usd"] = round(e["oi"] * r["mid"], 0) if e.get("oi") else None
+        r["mcap"] = round(mk["cs"][base] * px / m, 0) if base in mk["cs"] else None
     for ln in lines:
         print(f"depth_tick: {ln}")
-    print(f"depth_tick: монет {len(syms)} · тревог {len(lines)}")
+    print(f"depth_tick: монет {len(syms)} (тревоги {len(alert)}, сделки {len(tr)}) · тревог {len(lines)} · "
+          f"сторон с переменами {len(rows)} · {time.time() - t0:.0f} с")
     if not a.write:
         return 0
     from sources_storage import write_atomic
     write_atomic(MEM, json.dumps(mem, ensure_ascii=False))
+    if rows:
+        with EVENTS.open("a", encoding="utf-8") as f:
+            for r in rows:
+                f.write(json.dumps(r, ensure_ascii=False) + "\n")
     if lines:
         from send_brief_telegram import load_config, send_telegram
         cfg = load_config()
