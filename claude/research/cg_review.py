@@ -83,6 +83,10 @@ def export(fr) -> dict:
 
 def main() -> int:
     shots = "--no-shots" not in sys.argv
+    part = next((a.split("=")[1] for a in sys.argv if a.startswith("--part=")), None)   # «i/n» — своя часть монет, свой профиль
+    global PROF
+    if part:
+        PROF = ROOT / "output" / f"cg_profile_review_{part.replace('/', '_')}"
     XD.mkdir(exist_ok=True); RD.mkdir(exist_ok=True)
     T = trades()
     only = [x.upper() + ("" if x.upper().endswith("USDT") else "USDT") for x in sys.argv[1:] if not x.startswith("-")]
@@ -97,6 +101,9 @@ def main() -> int:
         need_s = shots and any(not (RD / f"{tid(x)}_{tf}.png").exists() for tf in SHOT)
         if need_x or need_s:
             todo.setdefault(x["sym"], []).append(x)
+    if part:
+        i, n = map(int, part.split("/"))
+        todo = {k: v for j, (k, v) in enumerate(sorted(todo.items())) if j % n == i}
     print(f"сделок {len(T)}, монет к съёмке {len(todo)}", flush=True)
     if not todo:
         return 0
@@ -120,11 +127,16 @@ def main() -> int:
                         print(f"{sym}: не добавлен {n}", flush=True)
                 t_last = max(x["t_out"] for x in xs)
                 for tf, days in TF.items():
+                    fx = XD / f"{sym}_{tf}.json"
+                    fresh = fx.exists() and fx.stat().st_mtime >= t_last + 3600
+                    if fresh and (not shots or tf not in SHOT):
+                        continue                                      # цифры свежие, снимков на этом тф нет
                     fr.evaluate(f"(R) => new Promise(ok => {{ {CHART} c.setResolution(R, () => ok(1)); setTimeout(() => ok(0), 10000); }})", tf)
                     pg.wait_for_timeout(4000)
                     fr.evaluate(f"(R) => {{ {CHART} c.setVisibleRange({{from: R[0], to: R[1]}}); }}", [int(time.time() - days * 86400), int(time.time())])
-                    pg.wait_for_timeout(5000)
-                    json.dump(export(fr), open(XD / f"{sym}_{tf}.json", "w"))
+                    if not fresh:
+                        pg.wait_for_timeout(5000)
+                        json.dump(export(fr), open(fx, "w"))
                     if not shots or tf not in SHOT:
                         continue
                     b, a = SHOT[tf]
