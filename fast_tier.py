@@ -176,9 +176,9 @@ def _long_flush(sym: str, now: float):
 #    Д: на всплеске только что вынесли шорты (SAGA) — лонг не берём; продавец разворачивает — берём шорт (если нет Г/базиса).
 _D90: dict = {}; _BAS: dict = {}
 try:
-    from core_config import FAST3_LONG_TP
+    from core_config import FAST3_LONG_TP, FAST3_LONG_SL, FAST3_LONG_HOLD_MIN
 except ImportError:
-    FAST3_LONG_TP = 1.0
+    FAST3_LONG_TP, FAST3_LONG_SL, FAST3_LONG_HOLD_MIN = 0.05, 0.10, 120
 
 
 def _run90(sym: str):
@@ -291,6 +291,8 @@ def to_pending(state: dict, sym: str, why: str, t_bar: int, now: float, start_lo
 def fuel_exit(sym: str, pos: dict, now: float, c: float):
     """выход по картине (28.09 MUBARAK): лонг — когда вынесли шорты (топливо сожжено), шорт — когда вынесли лонги; только в плюсе"""
     sd, e = int(pos["side"]), float(pos["px"])
+    if sd == 1:                                                       # 29.09: лонг — цель +5% / стоп / 2 ч, без выхода по выносу (счёт)
+        return None
     if (c - e) * sd <= 0:
         return None
     fl = _flush(sym, now, "short" if sd == 1 else "long", since_ms=int(pos["t_ms"]))
@@ -497,13 +499,12 @@ def step(state: dict, write: bool) -> list[str]:
                 if sym not in state.setdefault("pending", {}):
                     msgs.append(to_pending(state, sym, why, t_bar, now, start_low))
                 continue
-            tp = FAST3_LONG_TP                                            # 28.09: лонг без фиксированной цели — выход по картине
+            # 29.09 владелец «делай, стоп передвинь на 10%»: лонг +5% / −10% / 2 ч, без держания через стык (счёт long_rules_check.py)
+            tp, sl, hold = FAST3_LONG_TP, FAST3_LONG_SL, FAST3_LONG_HOLD_MIN
             if True:                                                      # R40–R42 для обеих сторон (28.09: шорт QNT вошёл в первый час Сиднея)
                 ok, sw, h2 = ses_gate(now, t_bar, sd)
                 if not ok:
                     msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); continue
-                if h2:
-                    hold, why = h2, why + f" · сессия {sw}"
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why, last_px=px, bars=0)
             state["open"][sym] = pos
             ev.append(dict(book=BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=why, target=tp, stop=sl, hold_min=hold,
@@ -622,13 +623,11 @@ def wake_step(state: dict, write: bool) -> list[str]:
                 if sym not in state.setdefault("pending", {}):
                     msgs.append(to_pending(state, sym, why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", t_bar, now, start_low))
                 continue
-            tp = FAST3_LONG_TP                                            # 28.09: лонг без фиксированной цели — выход по картине
+            tp, sl, hold = FAST3_LONG_TP, FAST3_LONG_SL, FAST3_LONG_HOLD_MIN   # 29.09: лонг +5% / −10% / 2 ч
             if True:                                                      # R40–R42 для обеих сторон (28.09)
                 ok, sw, h2 = ses_gate(now, t_bar, sd)
                 if not ok:
                     msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); continue
-                if h2:
-                    hold, why = h2, why + f" · сессия {sw}"
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", last_px=px, bars=0)
             state["open"][sym] = pos
             ev.append(dict(book=WAKE_BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=pos["rule"], target=tp, stop=sl, hold_min=hold,
