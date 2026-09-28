@@ -3,3 +3,109 @@ TRUSTUSDT: сделок 1 — готово
 QUSDT: сделок 3 — готово
 TAIKOUSDT: сделок 1 — готово
 HEIUSDT: сделок 1 — готово
+4USDT: сделок 2 — готово
+POWERUSDT: сделок 1 — готово
+NEARUSDT: сделок 1 — готово
+NILUSDT: сделок 2 — готово
+OPNUSDT: сделок 2 — готово
+ARKUSDT: сделок 1 — готово
+BULLAUSDT: сделок 3 — готово
+ARUSDT: сделок 3 — готово
+ZROUSDT: сделок 2 — готово
+XVGUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+SUIUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+VETUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+DOTUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+PIEVERSEUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+USELESSUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_USELESSUSDT
+Call lo
+BIGTIMEUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_BIGTIMEUSDT
+Call lo
+BASEDUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+SUPERUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_SUPERUSDT
+Call log:
+ORCAUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+HUMAUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_HUMAUSDT
+Call log:
+
+WLDUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_WLDUSDT
+Call log:
+ 
+CVXUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_CVXUSDT
+Call log:
+ 
+XAIUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_XAIUSDT
+Call log:
+ 
+RAYSOLUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_RAYSOLUSDT
+Call log
+BTRUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+SPKUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_SPKUSDT
+Call log:
+ 
+BRETTUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_BRETTUSDT
+Call log:
+GRASSUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_GRASSUSDT
+Call log:
+BTWUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+PHAROSUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_PHAROSUSDT
+Call log
+INXUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+MMTUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_MMTUSDT
+Call log:
+ 
+EPICUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_EPICUSDT
+Call log:
+
+METISUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_METISUSDT
+Call log:
+PENGUUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_PENGUUSDT
+Call log:
+JASMYUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+1000BONKUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_1000BONKUSDT
+Call l
+DEEPUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_DEEPUSDT
+Call log:
+
+ONDOUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+TNSRUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_TNSRUSDT
+Call log:
+
+MAGICUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_MAGICUSDT
+Call log:
+APEUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_APEUSDT
+Call log:
+ 
+PTBUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+AZTECUSDT: не снят — Error: Page.goto: net::ERR_CONNECTION_TIMED_OUT at https://www.coinglass.com/tv/Binance_AZTECUSDT
+Call log:
+APRUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+AKEUSDT: сделок 1 — готово

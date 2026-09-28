@@ -420,13 +420,21 @@ function drawRing(g, t) {
   tctx.font = `500 11px Futura, "Avenir Next", sans-serif`; tctx.shadowColor = `rgba(${g.hot},.8)`; tctx.shadowBlur = 8; tctx.fillStyle = `rgba(${g.hot},.95)`;
   tctx.fillText(g.title.replace(/^ORBIT [AB] · /, ''), cx, ty);
   tctx.shadowBlur = 0; tctx.letterSpacing = '2px'; tctx.font = `9px ${FONT}`; tctx.fillStyle = 'rgba(150,185,225,.55)';
-  tctx.fillText(`${g.labels.filter(l => !l.dying).length} ${g.mode === 'entry' ? 'в работе · 6 мин после входа' : 'закрыто · 15 мин после выхода'}`, cx, ty + 14);
+  tctx.fillText(`${g.labels.filter(l => !l.dying).length} ${g.mode === 'entry' ? 'в работе · старше 15 мин — бледнее' : 'закрыто · 15 мин после выхода'}`, cx, ty + 14);
   tctx.restore();
 }
 
 const backOut = p => 1 + 2.70158 * Math.pow(p - 1, 3) + 1.70158 * Math.pow(p - 1, 2);
 
 function drawLabel(g, l, t) {
+  const old = g.mode === 'entry' && l.item && Date.now() / 1000 - l.item.t_in >= ENTRY_FRESH && l !== selected && l !== hovered;
+  if (!old) return drawLabel0(g, l, t);
+  const a0 = ctx.globalAlpha, b0 = tctx.globalAlpha;
+  ctx.globalAlpha = a0 * ENTRY_OLD_A; tctx.globalAlpha = b0 * ENTRY_OLD_A;
+  try { return drawLabel0(g, l, t); } finally { ctx.globalAlpha = a0; tctx.globalAlpha = b0; }
+}
+
+function drawLabel0(g, l, t) {
   const age = t - l.born;
   if (age > l.life) return false;
   const ea = age / ANIM_SLOW, rem = (l.life - age) / ANIM_SLOW;   // appear / disappear clocks
@@ -1805,7 +1813,8 @@ function announce(S) {
   }
 }
 const EXIT_KEEP = 15 * 60;   // закрытая сделка держится на кольце «выход» 15 минут
-const ENTRY_KEEP = 6 * 60;   // вход — 6 минут, два прохода бота (владелец 27.09: «скрывать входы через 6 минут, а то новые не видно»)
+const ENTRY_KEEP = Infinity;   // 28.09 владелец: «чтобы открытые висели пока открыты» — снимается, когда позиция закрылась (нет в S.open)
+const ENTRY_FRESH = 15 * 60, ENTRY_OLD_A = .35;   // «через 15 минут после появления делай их более прозрачными — где новая, где поздняя»
 // между обновлениями данных: у закрытых истекли 15 минут — гаснут сразу, не ждут следующей рассылки
 setInterval(() => {
   const t = performance.now() / 1000 / TIME_SLOW, nowS = Date.now() / 1000;
