@@ -114,21 +114,20 @@ def _liq_hourly() -> dict:
             continue
         per, seen = {}, set()
         for ln in p.open(encoding="utf-8", errors="ignore"):
-            if '"long"' not in ln:
-                continue
             try:
                 r = json.loads(ln)
             except ValueError:
                 continue
-            if r.get("side") != "long":
+            sd_ = r.get("side")
+            if sd_ not in ("long", "short"):
                 continue
-            k = (r.get("t"), r.get("sym"), r.get("usd"), r.get("src"))
+            k = (r.get("t"), r.get("sym"), sd_, r.get("usd"), r.get("src"))
             if k in seen:
                 continue
             seen.add(k)
             h = int(r["t"]) // 3_600_000 * 3_600_000
-            per.setdefault(r["sym"], {}).setdefault(h, 0.0)
-            per[r["sym"]][h] += float(r.get("usd") or 0)
+            d_ = per.setdefault((r["sym"], sd_), {})
+            d_[h] = d_.get(h, 0.0) + float(r.get("usd") or 0)
         _LIQ["files"][p.name] = (mt, per); changed = True
     if changed:
         agg = {}
@@ -141,10 +140,10 @@ def _liq_hourly() -> dict:
     return _LIQ["hourly"]
 
 
-def _long_flush(sym: str, now: float):
-    """вынос лонгов в текущей или прошлой сессии — крупнейший в истории монеты? → строка-причина или None"""
+def _flush(sym: str, now: float, side: str = "long", since_ms: int | None = None):
+    """вынос стороны side (long / short) с начала прошлой сессии (или с since_ms) — крупнейший часовой в истории монеты? → причина или None"""
     try:
-        hs = _liq_hourly().get(sym) or {}
+        hs = _liq_hourly().get((sym, side)) or {}
     except Exception:  # noqa: BLE001
         return None
     if not hs:
@@ -153,6 +152,8 @@ def _long_flush(sym: str, now: float):
     i = next(j for j, x in enumerate(SES_WIN) if x[1] <= d.hour < x[2])
     pn, pa, _ = SES_WIN[i - 1]
     w0 = d.replace(hour=pa, minute=0, second=0, microsecond=0) - (timedelta(days=1) if i == 0 else timedelta(0))
+    if since_ms:
+        w0 = datetime.fromtimestamp(since_ms // 3_600_000 * 3_600 , L)
     w0ms = int(w0.timestamp() * 1000)
     past = [v for h, v in hs.items() if h < w0ms]
     if not past or (w0ms - min(hs)) < 3 * 86_400_000:
@@ -160,8 +161,68 @@ def _long_flush(sym: str, now: float):
     win = max((v for h, v in hs.items() if h >= w0ms), default=0.0)
     top = max(past)
     if win > 0 and win >= top:
-        return f"вынос лонгов {win / 1e3:.0f}K$ за час с {w0:%H:%M} — крупнейший в истории монеты (было {top / 1e3:.0f}K$)"
+        return f"вынос {'лонгов' if side == 'long' else 'шортов'} {win / 1e3:.0f}K$ за час с {w0:%H:%M} — крупнейший в истории монеты (было {top / 1e3:.0f}K$)"
     return None
+
+
+def _long_flush(sym: str, now: float):
+    return _flush(sym, now, "long")
+
+
+# ── 28.09 владелец «вноси все правки» (разбор убыточных сделок на Coinglass) — картина вокруг всплеска. Всё не проверено на истории.
+#    Г: монета уже кратно выросла от минимума 90 дн (US +656% за 180 дн) — её продавец тянет вверх, шорт от пампа не берём.
+#    Базис: медиана базиса Binance за сутки < 0 — копятся шорты (MUBARAK), продавец тянет вверх, шорт не берём.
+#    Е: «всплеск» — отскок после обвала (SKYAI: −12% за 15 мин до входа) — шорт не берём.
+#    Д: на всплеске только что вынесли шорты (SAGA) — лонг не берём; продавец разворачивает — берём шорт (если нет Г/базиса).
+_D90: dict = {}; _BAS: dict = {}
+
+
+def _run90(sym: str):
+    t, v = _D90.get(sym, (0, None))
+    if time.time() - t > 3600:
+        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1d", "limit": 90}, quiet_400=True) or []
+        v = float(k[-1][4]) / min(float(x[3]) for x in k) if len(k) >= 30 and min(float(x[3]) for x in k) > 0 else None
+        _D90[sym] = (time.time(), v)
+    return v
+
+
+def _basis24(sym: str):
+    t, v = _BAS.get(sym, (0, None))
+    if time.time() - t > 1800:
+        b = get_json("https://fapi.binance.com/futures/data/basis", {"pair": sym, "contractType": "PERPETUAL", "period": "1h", "limit": 24}, quiet_400=True) or []
+        rs = [float(x["basisRate"]) for x in b if x.get("basisRate") not in (None, "")]
+        v = st.median(rs) if len(rs) >= 12 else None
+        _BAS[sym] = (time.time(), v)
+    return v
+
+
+def picture(sym: str, sd: int, why: str, now: float, t_bar: int):
+    """→ (сторона: 1 / -1 / 0 — не входить, причина, минимум 20 баров до всплеска — начало пампа)"""
+    try:
+        from core_config import FAST3_RUN90_X as run_x
+    except ImportError:
+        run_x = 2.0
+    k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "3m", "endTime": t_bar + 179_999, "limit": 22}, quiet_400=True) or []
+    pre = [x for x in k if int(x[0]) < t_bar][-20:]
+    sp = next((x for x in k if int(x[0]) == t_bar), None)
+    start_low = min(float(x[3]) for x in pre) if pre else None
+    up_ok = lambda: (lambda r, b: (f"монета ×{r:.1f} от минимума 90 дн — её продавец тянет вверх" if r and r >= run_x else  # noqa: E731
+                                   f"базис за сутки {b * 100:+.3f}% — копятся шорты" if b is not None and b < 0 else None))(_run90(sym), _basis24(sym))
+    if sd == 1:
+        fl = _flush(sym, now, "short")
+        if fl:
+            no = up_ok()
+            if no:
+                return 0, f"лонг не взят: {fl}; шорт тоже нет — {no} · " + why, start_low
+            return -1, f"лонг перевёрнут в шорт: {fl} — продавец собрал шорты и разворачивает · " + why, start_low
+        return 1, why, start_low
+    if sd == -1:
+        no = up_ok()
+        if no:
+            return 1, f"шорт не взят: {no} · " + why, start_low
+        if pre and sp and max(float(x[2]) for x in pre) / float(sp[1]) - 1 >= FAST3_SPIKE_SL:
+            return 0, f"шорт не взят: всплеск — отскок после обвала (−{(max(float(x[2]) for x in pre) / float(sp[1]) - 1) * 100:.1f}% за час до него) · " + why, start_low
+    return sd, why, start_low
 
 
 def flip_spike(sd: int, why: str, tp: float, sl: float, hold: int, oi1h, oi_bar=None, crowd=None, flush=None):
@@ -280,13 +341,13 @@ def ses_gate(now: float, t_bar: int, side: int = 1):
         return False, f"поздно в сессии {name}", None
     end = d.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(hours=_ex.get(name, b))
     lab = "R41"
-    if side < 0:   # 28.09 владелец (KAS): «шорты вообще не должны выходить перед стыком сессий — там как раз почти всегда спад»
+    if side:   # 28.09 (KAS): «шорты не должны выходить перед стыком сессий»; (MUBARAK) «выход не по часам, а по картине» — и лонги через стык
         nd = end                                                  # стык: сессия, которая на нём начинается, и её час выхода
         nn = next(x for x in SES_WIN if x[1] <= nd.hour < x[2])
         end = nd.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(hours=_ex.get(nn[0], nn[2]))
         if end <= nd:
             end += timedelta(days=1)
-        lab = "R41, шорт через стык сессий"
+        lab = "R41, через стык сессий"
     hold = int((end.timestamp() * 1000 - (t_bar + 180_000)) // 60_000)
     return (hold >= 3), f"{name}, выход {end:%d.%m %H:%M} ({lab})", hold
 
