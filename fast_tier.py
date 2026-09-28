@@ -175,6 +175,10 @@ def _long_flush(sym: str, now: float):
 #    Е: «всплеск» — отскок после обвала (SKYAI: −12% за 15 мин до входа) — шорт не берём.
 #    Д: на всплеске только что вынесли шорты (SAGA) — лонг не берём; продавец разворачивает — берём шорт (если нет Г/базиса).
 _D90: dict = {}; _BAS: dict = {}
+try:
+    from core_config import FAST3_LONG_TP
+except ImportError:
+    FAST3_LONG_TP = 1.0
 
 
 def _run90(sym: str):
@@ -225,6 +229,74 @@ def picture(sym: str, sd: int, why: str, now: float, t_bar: int):
     return sd, why, start_low
 
 
+def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write: bool) -> None:
+    """ждущие шорты (Б, 28.09): после всплеска ждём вершину — первый закрытый бар, который не обновил максимум и закрылся вниз.
+    Вход по его закрытию; стоп — вершина + FAST3_TOP_PAD; цель — начало пампа. Цель ближе стопа — не входим. Ждём до конца сессии всплеска;
+    цена ушла ниже начала пампа без нас — ожидание снимаем."""
+    try:
+        from core_config import FAST3_TOP_PAD as pad
+    except ImportError:
+        pad = 0.001
+    now_ms = int(now * 1000)
+    for sym, p in list(state.setdefault("pending", {}).items()):
+        if sym in state["open"] or now > p["expire"]:
+            del state["pending"][sym]; continue
+        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "3m", "startTime": int(p["t_ms"]), "limit": 200}, quiet_400=True) or []
+        k = [x for x in k if int(x[0]) + 180_000 <= now_ms]
+        if len(k) < 2:
+            continue
+        top = max(float(x[2]) for x in k); last = k[-1]
+        o, h, lo, c = float(last[1]), float(last[2]), float(last[3]), float(last[4])
+        if p.get("start_low") and lo <= p["start_low"]:
+            msgs.append(f"{sym[:-4]} ожидание шорта снято: цена дошла до начала пампа без входа"); del state["pending"][sym]; continue
+        if not (h < top and c < o):
+            continue
+        # 28.09 владелец (AZTEC, MUBARAK; скрины 27.09): вершину отмечает вынос шортов — продавец добил шорты и разворачивает.
+        # С начала всплеска вынесли шортов не меньше, чем самый крупный часовой вынос шортов монеты за сутки до всплеска (поток OKX+Bybit).
+        hs = (_liq_hourly().get((sym, "short")) or {})
+        t0h = int(p["t_ms"]) // 3_600_000 * 3_600_000
+        before = [v for h_, v in hs.items() if t0h - 86_400_000 <= h_ < t0h]
+        since = sum(v for h_, v in hs.items() if h_ >= t0h)
+        if hs and before and since < max(before):
+            continue                                                     # шорты ещё не вынесли — ждём
+        sq = (f"вынос шортов {since / 1e3:.1f}K$ с начала всплеска (максимум за сутки до него {max(before) / 1e3:.1f}K$)" if hs and before
+              else "ликвидаций по монете в потоке нет — вход только по свече")
+        stop = top * (1 + pad) / c - 1
+        tgt = (1 - p["start_low"] / c) if p.get("start_low") else FAST3_SPIKE_TP
+        del state["pending"][sym]
+        if tgt < stop:
+            msgs.append(f"{sym[:-4]} шорт не взят: цель {tgt * 100:.1f}% ближе стопа {stop * 100:.1f}%"); continue
+        t_bar = int(last[0]); ok, sw, hold = ses_gate(now, t_bar, -1)
+        if not ok:
+            msgs.append(f"{sym[:-4]} шорт после вершины пропущен: {sw}"); continue
+        why = p["why"] + f" · вход после вершины {top:.6g} ({sq}): стоп за ней, цель — начало пампа {p.get('start_low') or 0:.6g} · сессия {sw}"
+        pos = dict(sym=sym, side=-1, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), hold_min=hold, rule=why, last_px=c, bars=0)
+        state["open"][sym] = pos
+        ev.append(dict(book=book, sym=sym, kind="entry", side=-1, px=c, at=now, usd_in=FAST3_SIZE, rule=why, target=pos["target"], stop=pos["stop"],
+                       hold_min=hold, fon=fon()))
+        msgs.append(f"{sym[:-4]} шорт вход {c:.6g} · стоп {top * (1 + pad):.6g} · цель {p.get('start_low') or 0:.6g}")
+        if write:
+            cg(sym, *cg_caption(book, sym, pos))
+
+
+def to_pending(state: dict, sym: str, why: str, t_bar: int, now: float, start_low) -> str:
+    """шорт не сразу — в ожидание вершины до конца текущей сессии"""
+    d = datetime.fromtimestamp(now, L)
+    _, a, b = next(x for x in SES_WIN if x[1] <= d.hour < x[2])
+    end = d.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(hours=b)
+    state.setdefault("pending", {})[sym] = dict(why=why, t_ms=t_bar, at=now, expire=end.timestamp(), start_low=start_low)
+    return f"{sym[:-4]} шорт — ждём вершину пампа (до {end:%H:%M})"
+
+
+def fuel_exit(sym: str, pos: dict, now: float, c: float):
+    """выход по картине (28.09 MUBARAK): лонг — когда вынесли шорты (топливо сожжено), шорт — когда вынесли лонги; только в плюсе"""
+    sd, e = int(pos["side"]), float(pos["px"])
+    if (c - e) * sd <= 0:
+        return None
+    fl = _flush(sym, now, "short" if sd == 1 else "long", since_ms=int(pos["t_ms"]))
+    return f"топливо сожжено: {fl}" if fl else None
+
+
 def flip_spike(sd: int, why: str, tp: float, sl: float, hold: int, oi1h, oi_bar=None, crowd=None, flush=None):
     """ПЕРЕВЁРНУТЫЙ ВСПЛЕСК (27.09 владелец: «брать позицию в обратную сторону просто»): всплеск вверх, перед которым интерес за час вырос
     на FAST3_FLIP_OI1H % и больше — толпа уже внутри, всплеск это её выход. Счёт 27.09: 10 таких лонгов −14.8 % (3 в плюс), шорт на тех же
@@ -237,14 +309,12 @@ def flip_spike(sd: int, why: str, tp: float, sl: float, hold: int, oi1h, oi_bar=
     except ImportError:
         _thr = 3.0
     try:
-        from core_config import FAST3_FLIP_OIBAR_MAX as _bar
-    except ImportError:
-        _bar = 0.0
-    try:
         from core_config import FAST3_FLIP_CROWD_MIN as _cmin
     except ImportError:
         _cmin = 1.0
-    flip = sd == 1 and ((oi1h is not None and oi1h >= _thr) or (oi_bar is not None and oi_bar <= _bar))
+    # 28.09 владелец «все да»: переворот по 5-мин бару интереса ≤ 0 убран (моё правило из ENA/NOM; 9 сделок, 1 в плюс, −74 $; HBAR 06:39 —
+    # шорт на старте хода: спот начал покупать, шорты копились неделями, выноса не было) — такой всплеск остаётся лонгом
+    flip = sd == 1 and oi1h is not None and oi1h >= _thr
     if flip and flush:                                               # 28.09: лонги только что вынесли — продавец тянет вверх, шорт не берём
         return sd, f"переворот не взят: {flush} · " + why, tp, sl, hold, False
     # 28.09 (QNT 00:27: шорт при толпе 0.60 — интерес набирали шорты, стоп −5.1%, дальше +65% против; счёт spike_flip.md: из 44 переворотов
@@ -254,8 +324,6 @@ def flip_spike(sd: int, why: str, tp: float, sl: float, hold: int, oi1h, oi_bar=
         return 0, f"переворот не взят: толпа {crowd:.2f} < {_cmin:g} — рост интереса это шорты · " + why, tp, sl, hold, False
     if sd == 1 and oi1h is not None and oi1h >= _thr:
         return -1, f"перевёрнутый всплеск: интерес +{oi1h:.1f}% за час — толпа уже внутри · " + why, tp, sl, hold, True
-    if sd == 1 and oi_bar is not None and oi_bar <= _bar:
-        return -1, f"перевёрнутый всплеск: интерес за 5 мин {oi_bar:+.2f}% — рост без новых позиций · " + why, tp, sl, hold, True
     return sd, why, tp, sl, hold, False
 
 
@@ -384,6 +452,9 @@ def step(state: dict, write: bool) -> list[str]:
         else:
             if hi >= e * (1 + pos["stop"]): res, why = -pos["stop"], "стоп"
             elif lo <= e * (1 - pos["target"]): res, why = pos["target"], "цель"
+        if res is None:
+            fx = fuel_exit(sym, pos, now, c)
+            if fx: res, why = (c / e - 1) * sd, fx
         if res is None and len(k) * 3 >= pos["hold_min"]: res, why = (c / e - 1) * sd, f"срок {pos['hold_min']} мин"
         pos["last_px"] = c; pos["bars"] = len(k)
         if res is not None:
@@ -396,7 +467,8 @@ def step(state: dict, write: bool) -> list[str]:
             state["last_exit"][sym] = now; del state["open"][sym]
         else:
             ev.append(dict(book=BOOK, sym=sym, kind="follow", side=sd, px_in=e, px=c, result_pct=round((c / e - 1) * sd * 100, 2), at=now))
-    # входы
+    # входы: сначала ждущие шорты (Б)
+    pending_step(state, BOOK, now, ev, msgs, write)
     spike, climax, info = short_list()
     todo = sorted(set(spike) | set(climax))
     with ThreadPoolExecutor(6) as ex:
@@ -415,6 +487,17 @@ def step(state: dict, write: bool) -> list[str]:
                 msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
             if sym in _own_mm():                                          # 27.09: монеты со своим ММ — бот в них не входит (own_mm.py)
                 msgs.append(f"{sym[:-4]} пропущен: свой ММ (список own_mm)"); continue
+            sd, why, start_low = picture(sym, sd, why, now, t_bar)       # 28.09: картина вокруг всплеска (Г, базис, Д, Е)
+            if sd == 0:
+                msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
+            if sd == -1:                                                  # Б: шорт — после вершины пампа
+                ok, sw, _ = ses_gate(now, t_bar, sd)
+                if not ok:
+                    msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); continue
+                if sym not in state.setdefault("pending", {}):
+                    msgs.append(to_pending(state, sym, why, t_bar, now, start_low))
+                continue
+            tp = FAST3_LONG_TP                                            # 28.09: лонг без фиксированной цели — выход по картине
             if True:                                                      # R40–R42 для обеих сторон (28.09: шорт QNT вошёл в первый час Сиднея)
                 ok, sw, h2 = ses_gate(now, t_bar, sd)
                 if not ok:
@@ -488,6 +571,9 @@ def wake_step(state: dict, write: bool) -> list[str]:
         else:
             if hi >= e * (1 + pos["stop"]): res, why = -pos["stop"], "стоп"
             elif lo <= e * (1 - pos["target"]): res, why = pos["target"], "цель"
+        if res is None:
+            fx = fuel_exit(sym, pos, now, c)
+            if fx: res, why = (c / e - 1) * sd, fx
         if res is None and len(k) * 3 >= pos["hold_min"]: res, why = (c / e - 1) * sd, f"срок {pos['hold_min']} мин"
         pos["last_px"] = c; pos["bars"] = len(k)
         if res is not None:
@@ -500,6 +586,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
             state["last_exit"][sym] = now; del state["open"][sym]
         else:
             ev.append(dict(book=WAKE_BOOK, sym=sym, kind="follow", side=sd, px_in=e, px=c, result_pct=round((c / e - 1) * sd * 100, 2), at=now))
+    pending_step(state, WAKE_BOOK, now, ev, msgs, write)                 # ждущие шорты (Б)
     cands = wake_candidates()
     for cd in cands:
         sym = cd["sym"]
@@ -516,12 +603,26 @@ def wake_step(state: dict, write: bool) -> list[str]:
                                                       _crowd_live(sym) if sd == 1 else None, _long_flush(sym, now) if sd == 1 else None)
             if sd == 0:
                 msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
+            sd0 = sd
+            sd, why, start_low = picture(sym, sd, why, now, t_bar)       # 28.09: картина вокруг всплеска (Г, базис, Д, Е)
+            if sd == 0:
+                msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
+            if sd != sd0:
+                _flip = sd == -1
             if sd == 1 and not ((oi1h is not None and oi1h >= FAST3_SHORT_OI1H) or (cr is not None and cr <= 0.7)):
                 continue                                                  # всплеск без интереса и без шортов в топливе — не вход (R39)
             if sd == -1 and not _flip and not (oibar is not None and oibar <= FAST3_CLIMAX_OI):
                 continue
             if sym in _own_mm():                                          # 27.09: свой ММ — не входим
                 msgs.append(f"{sym[:-4]} пропущен: свой ММ (список own_mm)"); continue
+            if sd == -1:                                                  # Б: шорт — после вершины пампа
+                ok, sw, _ = ses_gate(now, t_bar, sd)
+                if not ok:
+                    msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); continue
+                if sym not in state.setdefault("pending", {}):
+                    msgs.append(to_pending(state, sym, why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", t_bar, now, start_low))
+                continue
+            tp = FAST3_LONG_TP                                            # 28.09: лонг без фиксированной цели — выход по картине
             if True:                                                      # R40–R42 для обеих сторон (28.09)
                 ok, sw, h2 = ses_gate(now, t_bar, sd)
                 if not ok:
