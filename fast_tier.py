@@ -98,7 +98,73 @@ def _crowd_live(sym: str):
         return None
 
 
-def flip_spike(sd: int, why: str, tp: float, sl: float, hold: int, oi1h, oi_bar=None, crowd=None):
+# 28.09 владелец (XLM): «здесь вынесли лонги, и не могло быть шорта» — после крупного выноса лонгов продавец тянет вверх (его первая стратегия),
+# переворот всплеска в шорт тогда не берём, остаётся лонг. «Крупный» — по своей истории монеты: часовой вынос лонгов в текущей или прошлой
+# сессии не меньше самого большого часового выноса этой монеты за всю доступную историю потока (до 90 дн; поток OKX+Bybit с 25.09,
+# Binance в нём нет). Истории меньше 3 дн — правило молчит.
+_LIQ = {"files": {}, "hourly": {}}
+
+
+def _liq_hourly() -> dict:
+    """монета → {час (мс): $ ликвидированных лонгов}; файлы потока перечитываются только при изменении"""
+    changed = False
+    for p in sorted((BASE_DIR / "cq_v2" / "liq").glob("*.jsonl"))[-90:]:
+        mt = p.stat().st_mtime
+        if _LIQ["files"].get(p.name, (None,))[0] == mt:
+            continue
+        per, seen = {}, set()
+        for ln in p.open(encoding="utf-8", errors="ignore"):
+            if '"long"' not in ln:
+                continue
+            try:
+                r = json.loads(ln)
+            except ValueError:
+                continue
+            if r.get("side") != "long":
+                continue
+            k = (r.get("t"), r.get("sym"), r.get("usd"), r.get("src"))
+            if k in seen:
+                continue
+            seen.add(k)
+            h = int(r["t"]) // 3_600_000 * 3_600_000
+            per.setdefault(r["sym"], {}).setdefault(h, 0.0)
+            per[r["sym"]][h] += float(r.get("usd") or 0)
+        _LIQ["files"][p.name] = (mt, per); changed = True
+    if changed:
+        agg = {}
+        for _, per in _LIQ["files"].values():
+            for sym, hs in per.items():
+                d = agg.setdefault(sym, {})
+                for h, v in hs.items():
+                    d[h] = d.get(h, 0.0) + v
+        _LIQ["hourly"] = agg
+    return _LIQ["hourly"]
+
+
+def _long_flush(sym: str, now: float):
+    """вынос лонгов в текущей или прошлой сессии — крупнейший в истории монеты? → строка-причина или None"""
+    try:
+        hs = _liq_hourly().get(sym) or {}
+    except Exception:  # noqa: BLE001
+        return None
+    if not hs:
+        return None
+    d = datetime.fromtimestamp(now, L)
+    i = next(j for j, x in enumerate(SES_WIN) if x[1] <= d.hour < x[2])
+    pn, pa, _ = SES_WIN[i - 1]
+    w0 = d.replace(hour=pa, minute=0, second=0, microsecond=0) - (timedelta(days=1) if i == 0 else timedelta(0))
+    w0ms = int(w0.timestamp() * 1000)
+    past = [v for h, v in hs.items() if h < w0ms]
+    if not past or (w0ms - min(hs)) < 3 * 86_400_000:
+        return None
+    win = max((v for h, v in hs.items() if h >= w0ms), default=0.0)
+    top = max(past)
+    if win > 0 and win >= top:
+        return f"вынос лонгов {win / 1e3:.0f}K$ за час с {w0:%H:%M} — крупнейший в истории монеты (было {top / 1e3:.0f}K$)"
+    return None
+
+
+def flip_spike(sd: int, why: str, tp: float, sl: float, hold: int, oi1h, oi_bar=None, crowd=None, flush=None):
     """ПЕРЕВЁРНУТЫЙ ВСПЛЕСК (27.09 владелец: «брать позицию в обратную сторону просто»): всплеск вверх, перед которым интерес за час вырос
     на FAST3_FLIP_OI1H % и больше — толпа уже внутри, всплеск это её выход. Счёт 27.09: 10 таких лонгов −14.8 % (3 в плюс), шорт на тех же
     барах +13.8 % (7 в плюс); остальные 35 лонгов +35 %. Шорт: цель −5 %, стоп +5 %, срок 2 ч."""
@@ -118,6 +184,8 @@ def flip_spike(sd: int, why: str, tp: float, sl: float, hold: int, oi1h, oi_bar=
     except ImportError:
         _cmin = 1.0
     flip = sd == 1 and ((oi1h is not None and oi1h >= _thr) or (oi_bar is not None and oi_bar <= _bar))
+    if flip and flush:                                               # 28.09: лонги только что вынесли — продавец тянет вверх, шорт не берём
+        return sd, f"переворот не взят: {flush} · " + why, tp, sl, hold, False
     # 28.09 (QNT 00:27: шорт при толпе 0.60 — интерес набирали шорты, стоп −5.1%, дальше +65% против; счёт spike_flip.md: из 44 переворотов
     # при толпе ≥ 1 — 37, лонг −38.8% / шорт +33.5%; при толпе < 1 — 7, лонг −3.0% / шорт +1.7% — ни одна сторона): переворот только при
     # толпе ≥ FAST3_FLIP_CROWD_MIN, иначе не входим вовсе (sd = 0)
@@ -194,7 +262,7 @@ SES_WIN = (("Сидней", 0, 3), ("Токио", 3, 10), ("Лондон", 10, 1
 WDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
 
 
-def ses_gate(now: float, t_bar: int):
+def ses_gate(now: float, t_bar: int, side: int = 1):
     """R40–R42 для лонга-всплеска: (можно ли входить, причина/сессия, срок в минутах от закрытия бара входа до часа выхода сессии)"""
     try:
         from core_config import FAST3_SES_WAIT_MIN as _w, FAST3_SES_LATE_SKIP_MIN as _late, FAST3_SES_EXIT_H as _ex, FAST3_SKIP_DAYS as _days
@@ -211,8 +279,16 @@ def ses_gate(now: float, t_bar: int):
     if (b - a) * 60 - mins <= _late.get(name, 0):
         return False, f"поздно в сессии {name}", None
     end = d.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(hours=_ex.get(name, b))
+    lab = "R41"
+    if side < 0:   # 28.09 владелец (KAS): «шорты вообще не должны выходить перед стыком сессий — там как раз почти всегда спад»
+        nd = end                                                  # стык: сессия, которая на нём начинается, и её час выхода
+        nn = next(x for x in SES_WIN if x[1] <= nd.hour < x[2])
+        end = nd.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(hours=_ex.get(nn[0], nn[2]))
+        if end <= nd:
+            end += timedelta(days=1)
+        lab = "R41, шорт через стык сессий"
     hold = int((end.timestamp() * 1000 - (t_bar + 180_000)) // 60_000)
-    return (hold >= 3), f"{name}, выход {end:%H:%M} (R41)", hold
+    return (hold >= 3), f"{name}, выход {end:%d.%m %H:%M} ({lab})", hold
 
 
 def scan(sym: str, want_spike: bool, want_climax: bool):
@@ -272,13 +348,14 @@ def step(state: dict, write: bool) -> list[str]:
             o1h, o5 = _oi_live(sym) if sd == 1 else (None, None)
             if o1h is None:
                 o1h = info.get(sym, {}).get("oi1h")                    # живых данных нет — как раньше, по архиву
-            sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, o1h, o5, _crowd_live(sym) if sd == 1 else None)
+            sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, o1h, o5, _crowd_live(sym) if sd == 1 else None,
+                                                      _long_flush(sym, now) if sd == 1 else None)
             if sd == 0:
                 msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
             if sym in _own_mm():                                          # 27.09: монеты со своим ММ — бот в них не входит (own_mm.py)
                 msgs.append(f"{sym[:-4]} пропущен: свой ММ (список own_mm)"); continue
             if True:                                                      # R40–R42 для обеих сторон (28.09: шорт QNT вошёл в первый час Сиднея)
-                ok, sw, h2 = ses_gate(now, t_bar)
+                ok, sw, h2 = ses_gate(now, t_bar, sd)
                 if not ok:
                     msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); continue
                 if h2:
@@ -375,7 +452,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
         _, px, t_bar, outs = r
         for sd, why, tp, sl, hold in outs:
             sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, oi1h, oibar * 100 if oibar is not None else None,
-                                                      _crowd_live(sym) if sd == 1 else None)
+                                                      _crowd_live(sym) if sd == 1 else None, _long_flush(sym, now) if sd == 1 else None)
             if sd == 0:
                 msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
             if sd == 1 and not ((oi1h is not None and oi1h >= FAST3_SHORT_OI1H) or (cr is not None and cr <= 0.7)):
@@ -385,7 +462,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
             if sym in _own_mm():                                          # 27.09: свой ММ — не входим
                 msgs.append(f"{sym[:-4]} пропущен: свой ММ (список own_mm)"); continue
             if True:                                                      # R40–R42 для обеих сторон (28.09)
-                ok, sw, h2 = ses_gate(now, t_bar)
+                ok, sw, h2 = ses_gate(now, t_bar, sd)
                 if not ok:
                     msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); continue
                 if h2:

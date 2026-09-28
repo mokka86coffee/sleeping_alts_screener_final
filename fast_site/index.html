@@ -65,6 +65,13 @@
   #card .side { font-family: var(--ff-disp); font-weight: 500; font-size: 17px; letter-spacing: .22em; white-space: nowrap; pointer-events: none;
     text-shadow: 0 0 3px rgba(0,4,12,.95), 0 0 14px currentColor; }
   #card .side.long { color: #7af2c0; }
+  /* 28.09 владелец: «сделай иконки TradingView и Coinglass — обе на Binance» */
+  #card .links { display: flex; gap: 10px; align-self: center; pointer-events: auto; }
+  #card .links a { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; cursor: pointer;
+    background: rgba(var(--ac),.12); border: 1px solid rgba(var(--ac),.4); box-shadow: 0 0 14px rgba(var(--ac),.25); transition: transform .2s, box-shadow .2s; }
+  #card .links a:hover { transform: scale(1.08); box-shadow: 0 0 22px rgba(var(--ac),.6); }
+  #card .links svg { width: 18px; height: 18px; fill: #fff; stroke: #fff; filter: drop-shadow(0 0 3px rgba(0,4,12,.9)); }
+  #card .links svg path { stroke: none; }
   #card .side.short { color: #ff8a9c; }
   #card .side small { display: block; margin-top: 2px; font-size: 6.5px; letter-spacing: .3em; color: rgba(255,255,255,.75); text-shadow: 0 0 3px rgba(0,4,12,.95); }
   #card .mode { margin: 2.9px 0 0 4.3px; font-family: var(--ff-disp); font-style: italic; font-size: 9.29px; letter-spacing: .34em; color: rgb(var(--ac)); text-shadow: 0 0 12px rgba(var(--ac),.8); }
@@ -159,7 +166,13 @@
   <canvas id="scene"></canvas>
   <div class="left">
     <div class="orbit" id="cOrbit"></div>
-    <div class="tline"><div class="ticker" id="cTitle"></div><span class="side" id="cSide"></span></div>
+    <div class="tline"><div class="ticker" id="cTitle"></div><span class="side" id="cSide"></span>
+      <span class="links">
+        <a id="cTV" target="_blank" rel="noopener" title="TradingView · Binance">
+          <svg viewBox="0 0 36 28"><path d="M14 22H7V11H2V4h12v18zM28 22h-8L27.1 4H35l-7 18z"/><circle cx="20" cy="8" r="4"/></svg></a>
+        <a id="cCG" target="_blank" rel="noopener" title="Coinglass · Binance">
+          <svg viewBox="0 0 28 28"><circle cx="14" cy="14" r="11" fill="none" stroke-width="3"/><path d="M14 8a6 6 0 1 0 6 6h-6z"/></svg></a>
+      </span></div>
     <div class="mode" id="cMode"></div>
     <div class="pill"><i></i><span id="cSub"></span></div>
   </div>
@@ -894,9 +907,38 @@ function demoDetail(g, l) {
 const hmT = s => new Date(s * 1000).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 // 28.09 владелец: «время входа точное — дата, часы, минуты»
 const dmhT = s => { const d = new Date(s * 1000); return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' }) + ' ' + hmT(s); };
+// 28.09 владелец: «сделка 9 минут — не видно ни входа на графике, ни выхода, обе линии выше: график обновился, а не тот, что был на входе».
+// У закрытой сделки график — окно вокруг самой сделки (3 ч до входа … 3 ч после выхода, не дальше «сейчас»), берётся с Binance при открытии
+// карточки и кэшируется; ликвидации — из нашего потока, где окно с ним совпадает. Вход и выход — вертикали на графике цены.
+const TRADE_CH = new Map();
+function tradeChart(it, l) {
+  const key = it.sym + '|' + Math.round(it.t_in);
+  if (TRADE_CH.has(key)) return TRADE_CH.get(key);
+  TRADE_CH.set(key, null);                           // запрос ушёл
+  const nowMs = Date.now(), t0 = Math.round((it.t_in - 3 * 3600) * 1000), t1 = Math.min(nowMs, Math.round(((it.t_out || nowMs / 1000) + 3 * 3600) * 1000));
+  const q = u => fetch(u).then(r => r.ok ? r.json() : []).catch(() => []);
+  Promise.all([
+    q(`https://fapi.binance.com/fapi/v1/klines?symbol=${it.sym}&interval=3m&startTime=${t0}&endTime=${t1}&limit=1000`),
+    q(`https://api.binance.com/api/v3/klines?symbol=${it.sym}&interval=3m&startTime=${t0}&endTime=${t1}&limit=1000`),
+    q(`https://fapi.binance.com/futures/data/openInterestHist?symbol=${it.sym}&period=5m&startTime=${t0}&endTime=${t1}&limit=500`),
+  ]).then(([k, sk, oi]) => {
+    if (!Array.isArray(k) || !k.length) return;
+    let cvd = 0, scvd = 0; const spot = {};
+    const bars = k.map(x => { const qv = +x[7], tb = +x[10]; cvd += 2 * tb - qv; return [+x[0], +x[1], +x[2], +x[3], +x[4], Math.round(qv), Math.round(cvd)]; });
+    if (Array.isArray(sk)) for (const x of sk) { const qv = +x[7], tb = +x[10]; scvd += 2 * tb - qv; spot[+x[0]] = Math.round(scvd); }
+    const live = ((window.STATE || {}).charts || {})[it.sym], lq = {};
+    if (live && live.liq) live.bars.forEach((b, i) => { lq[b[0]] = live.liq[i]; });
+    TRADE_CH.set(key, { bars, spot: sk && sk.length ? bars.map(b => spot[b[0]] != null ? spot[b[0]] : null) : null,
+      oi: Array.isArray(oi) ? oi.map(x => [+x.timestamp, Math.round(+x.sumOpenInterestValue)]) : [],
+      liq: bars.map(b => lq[b[0]] || [0, 0]), funding: live ? live.funding : null });
+    if (selected === l) renderCard(l.closed ? RIB_G : (rings.find(g2 => g2.labels.includes(l)) || rings[0]), l);
+  });
+  return null;
+}
+
 function realDetail(g, l) {
   const it = l.item || {}, S = window.STATE || {}, M = S.meta || {};
-  const ch = (S.charts || {})[it.sym] || null;
+  const ch = (it.t_out ? tradeChart(it, l) : null) || (S.charts || {})[it.sym] || null;   // закрытая — окно вокруг сделки
   const kind = it.t_out ? 'closed' : (it.target != null && it.entry != null ? 'open' : 'entry');
   const d = { ring: kind, funding: ch && ch.funding != null ? ch.funding : 0 };
   if (kind === 'closed') {
@@ -921,6 +963,7 @@ function realDetail(g, l) {
   if (ch && ch.bars && ch.bars.length) {
     const B = ch.bars;
     d.candles = B.map(b => [b[1], b[2], b[3], b[4]]); d.vol = B.map(b => b[5]); d.cvdF = B.map(b => b[6]);
+    d.times = B.map(b => b[0]); d.tIn = it.t_in; d.tOut = it.t_out;
     let last = 0; d.cvdS = (ch.spot || B.map(() => 0)).map(v => (v == null ? last : (last = v)));
     let k = 0, o = ch.oi && ch.oi.length ? ch.oi[0][1] : 0;
     d.oiS = B.map(b => { while (ch.oi && k < ch.oi.length && ch.oi[k][0] <= b[0]) o = ch.oi[k++][1]; return o; });
@@ -943,6 +986,9 @@ function renderCard(g, l) {
   document.getElementById('cOrbit').textContent = g.title;
   document.getElementById('cMode').textContent = d.ring === 'closed' ? 'exit.' : d.ring === 'open' ? 'entry.' : 'candidate.';
   document.getElementById('cTitle').textContent = l.name;
+  { const sym = (l.item || {}).sym || (l.name + 'USDT');
+    document.getElementById('cTV').href = `https://www.tradingview.com/chart/?symbol=BINANCE:${sym}.P`;
+    document.getElementById('cCG').href = `https://www.coinglass.com/tv/Binance_${sym}`; }
   {   // сторона сделки: лонг / шорт (у перевёрнутого всплеска — пометка)
     const it = l.item || {}, sd = it.side, el = document.getElementById('cSide');
     const flip = /перев/.test(it.rule || '');
@@ -967,7 +1013,7 @@ function renderCard(g, l) {
       t.push(tile('фандинг', d.funding.toFixed(4) + '%', sgn(d.funding)));
     }
     renderPlates(t.slice(0, 6), l);
-    document.getElementById('cFoot').innerHTML = `${(it.rule || '').replace(/</g, '&lt;')}<br>цена · объём · CVD фьючерсов · CVD спота · интерес · ликвидации · <b>3m · 6 ч</b>`;
+    document.getElementById('cFoot').innerHTML = `${(it.rule || '').replace(/</g, '&lt;')}<br>цена · объём · CVD фьючерсов · CVD спота · интерес · ликвидации · <b>3m · 3 ч до входа — 3 ч после выхода</b>`;
     drawCardChart(d, l);
     return;
   }
@@ -1059,6 +1105,14 @@ function drawCardChart(d, l) {
       if (d.target) lvl(d.target, '134,240,192', 'ЦЕЛЬ');
       if (d.stop) lvl(d.stop, '240,98,116', 'СТОП');
       if (d.exitPx) lvl(d.exitPx, '235,240,250', 'ВЫХ');
+      // вертикали входа и выхода — по времени сделки, если оно в окне графика
+      const vt = (t, rgb, lab, al) => {
+        if (!t || !d.times || !d.times.length || t * 1000 < d.times[0] || t * 1000 > d.times[n - 1] + 180000) return;
+        let i = 0; while (i < n - 1 && d.times[i + 1] <= t * 1000) i++;
+        c.setLineDash([2, 3]); c.strokeStyle = `rgba(${rgb},.75)`; c.beginPath(); c.moveTo(X(i), y0 + 16); c.lineTo(X(i), y0 + h - 4); c.stroke(); c.setLineDash([]);
+        c.font = `7px ${FONT}`; c.fillStyle = `rgb(${rgb})`; c.textAlign = al; c.fillText(lab, X(i) + (al === 'right' ? -2 : 2), y0 + 13); c.textAlign = 'left';
+      };
+      vt(d.tIn, l.c1, 'ВХ', 'right'); vt(d.tOut, '235,240,250', 'ВЫХ', 'left');   // подписи в разные стороны — короткая сделка не слипается
       // candles with a soft glow
       d.candles.forEach(([o, hh, ll, cl], i) => {
         const up = cl >= o, col = up ? '111,224,168' : '240,98,116';
@@ -1490,6 +1544,8 @@ document.getElementById('cTitle').addEventListener('click', e => {
   if (sym) window.open(`https://www.coinglass.com/tv/Binance_${sym}`, '_blank', 'noopener');
 });
 document.getElementById('cTitle').title = 'открыть на Coinglass (Binance)';
+// значки TradingView и Coinglass — график Binance (фьючерс) этой монеты в новой вкладке; ссылки ставит renderCard
+for (const id of ['cTV', 'cCG']) document.getElementById(id).addEventListener('click', e => e.stopPropagation());
 
 // клик по кристаллу → следующая монета того же кольца (или ленты), со вспышкой осколков
 SCN.addEventListener('click', e => {

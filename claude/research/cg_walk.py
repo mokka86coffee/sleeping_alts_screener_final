@@ -34,8 +34,8 @@ TFS = [("1D", "1D", 365), ("4h", "240", 60), ("1h", "60", 14), ("15m", "15", 3),
 def main() -> int:
     sym, kind = sys.argv[1].upper(), (sys.argv[2] if len(sys.argv) > 2 else "known")
     tfs = [t for t in TFS if len(sys.argv) <= 3 or t[0] in sys.argv[3].split(",")]
-    if kind == "mine":   # у сделки — 4h за 3 месяца (контекст) и 3m за 12 ч (сама сделка)
-        tfs = [("4h", "240", 90), ("3m", "3", 0.5)]   # 28.09 владелец: «контекст бери за 3 месяца, а не за неделю»
+    if kind == "mine":   # 28.09 владелец: «контекст бери за 3 месяца, а не за неделю» — 1D за год, 4h за 3 месяца, 3m за 12 ч (сама сделка)
+        tfs = [t for t in [("1D", "1D", 365), ("4h", "240", 90), ("3m", "3", 0.5)] if len(sys.argv) <= 3 or t[0] in sys.argv[3].split(",")]
     OUT.mkdir(exist_ok=True)
     shutil.rmtree(PROF, ignore_errors=True); shutil.copytree(SRC, PROF, ignore=shutil.ignore_patterns("Singleton*", "*.lock"))
     with sync_playwright() as p:
