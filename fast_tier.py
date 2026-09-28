@@ -89,7 +89,16 @@ def _oi_bar(sym: str):
     return (ov[-1] / ov[-2] - 1) * 100 if len(ov) >= 2 and ov[-2] else None
 
 
-def flip_spike(sd: int, why: str, tp: float, sl: float, hold: int, oi1h, oi_bar=None):
+def _crowd_live(sym: str):
+    """толпа по счетам на последнем 5-мин баре — без кэша (решение о перевороте принимается по ней в момент входа)"""
+    g = get_json("https://fapi.binance.com/futures/data/globalLongShortAccountRatio", {"symbol": sym, "period": "5m", "limit": 1}, quiet_400=True) or [{}]
+    try:
+        return float(g[0].get("longShortRatio") or 0) or None
+    except (TypeError, ValueError, IndexError, AttributeError):
+        return None
+
+
+def flip_spike(sd: int, why: str, tp: float, sl: float, hold: int, oi1h, oi_bar=None, crowd=None):
     """ПЕРЕВЁРНУТЫЙ ВСПЛЕСК (27.09 владелец: «брать позицию в обратную сторону просто»): всплеск вверх, перед которым интерес за час вырос
     на FAST3_FLIP_OI1H % и больше — толпа уже внутри, всплеск это её выход. Счёт 27.09: 10 таких лонгов −14.8 % (3 в плюс), шорт на тех же
     барах +13.8 % (7 в плюс); остальные 35 лонгов +35 %. Шорт: цель −5 %, стоп +5 %, срок 2 ч."""
@@ -104,6 +113,16 @@ def flip_spike(sd: int, why: str, tp: float, sl: float, hold: int, oi1h, oi_bar=
         from core_config import FAST3_FLIP_OIBAR_MAX as _bar
     except ImportError:
         _bar = 0.0
+    try:
+        from core_config import FAST3_FLIP_CROWD_MIN as _cmin
+    except ImportError:
+        _cmin = 1.0
+    flip = sd == 1 and ((oi1h is not None and oi1h >= _thr) or (oi_bar is not None and oi_bar <= _bar))
+    # 28.09 (QNT 00:27: шорт при толпе 0.60 — интерес набирали шорты, стоп −5.1%, дальше +65% против; счёт spike_flip.md: из 44 переворотов
+    # при толпе ≥ 1 — 37, лонг −38.8% / шорт +33.5%; при толпе < 1 — 7, лонг −3.0% / шорт +1.7% — ни одна сторона): переворот только при
+    # толпе ≥ FAST3_FLIP_CROWD_MIN, иначе не входим вовсе (sd = 0)
+    if flip and crowd is not None and crowd < _cmin:
+        return 0, f"переворот не взят: толпа {crowd:.2f} < {_cmin:g} — рост интереса это шорты · " + why, tp, sl, hold, False
     if sd == 1 and oi1h is not None and oi1h >= _thr:
         return -1, f"перевёрнутый всплеск: интерес +{oi1h:.1f}% за час — толпа уже внутри · " + why, tp, sl, hold, True
     if sd == 1 and oi_bar is not None and oi_bar <= _bar:
@@ -253,7 +272,9 @@ def step(state: dict, write: bool) -> list[str]:
             o1h, o5 = _oi_live(sym) if sd == 1 else (None, None)
             if o1h is None:
                 o1h = info.get(sym, {}).get("oi1h")                    # живых данных нет — как раньше, по архиву
-            sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, o1h, o5)
+            sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, o1h, o5, _crowd_live(sym) if sd == 1 else None)
+            if sd == 0:
+                msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
             if sym in _own_mm():                                          # 27.09: монеты со своим ММ — бот в них не входит (own_mm.py)
                 msgs.append(f"{sym[:-4]} пропущен: свой ММ (список own_mm)"); continue
             if True:                                                      # R40–R42 для обеих сторон (28.09: шорт QNT вошёл в первый час Сиднея)
@@ -353,7 +374,10 @@ def wake_step(state: dict, write: bool) -> list[str]:
         if not r: continue
         _, px, t_bar, outs = r
         for sd, why, tp, sl, hold in outs:
-            sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, oi1h, oibar * 100 if oibar is not None else None)
+            sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, oi1h, oibar * 100 if oibar is not None else None,
+                                                      _crowd_live(sym) if sd == 1 else None)
+            if sd == 0:
+                msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
             if sd == 1 and not ((oi1h is not None and oi1h >= FAST3_SHORT_OI1H) or (cr is not None and cr <= 0.7)):
                 continue                                                  # всплеск без интереса и без шортов в топливе — не вход (R39)
             if sd == -1 and not _flip and not (oibar is not None and oibar <= FAST3_CLIMAX_OI):

@@ -167,14 +167,14 @@ def _ban(kind: str, sec: float) -> None:
     write_atomic(BAN, json.dumps(b))
 
 
-def _get(kind: str, sym: str) -> dict | None:
+def _get(kind: str, sym: str, url: str | None = None):
     """стакан напрямую (не через core_http: его пауза при 418 ждёт Retry-After и держала бы шаг дольше 150 с). Вес всех процессов
     видим по X-MBX-USED-WEIGHT-1M: дошли до WEIGHT_SOFT_LIMIT — фьючерсы в этом шаге больше не берём; 418/429 — стоп и запись бана."""
     import urllib.request as u
     import urllib.error as ue
     if _STOP[kind] or banned(kind):
         return None
-    url = (f"{BINANCE_FAPI}/fapi/v1/depth" if kind == "fut" else f"{BINANCE_SPOT}/api/v3/depth") + f"?symbol={sym}&limit={DEPTH_LIMIT}"
+    url = url or (f"{BINANCE_FAPI}/fapi/v1/depth" if kind == "fut" else f"{BINANCE_SPOT}/api/v3/depth") + f"?symbol={sym}&limit={DEPTH_LIMIT}"
     try:
         with u.urlopen(url, timeout=10) as r:
             used = r.headers.get("X-MBX-USED-WEIGHT-1M")
@@ -210,6 +210,27 @@ def take(sym: str, ts: int) -> dict | None:
             snap["walls"] = sorted(snap["walls"] + ss["walls"], key=lambda w: -w["usd"])[:24]
             near["spot"] = {"bid": ss["near_bid_usd"], "ask": ss["near_ask_usd"]}
     return {"t": snap["t"], "mid": snap["mid"], "walls": snap["walls"], "near": near}
+
+
+def _range(sym: str, t_from: int, t_to: int) -> dict:
+    """28.09 (SEI 0.086: цена прошла плиту между снимками и вернулась — снимок записал «убрали»): хай и лоу трёхминутных свечей между
+    двумя снимками, фьючерс и спот — плиту, которую цена прошла свечой, считаем съеденной, даже если к снимку цена вернулась"""
+    out = {}
+    for kind, base in (("perp", f"{BINANCE_FAPI}/fapi/v1/klines"), ("spot", f"{BINANCE_SPOT}/api/v3/klines")):
+        k = _get("fut" if kind == "perp" else "spot", sym, f"{base}?symbol={sym}&interval=3m&startTime={t_from // 180_000 * 180_000}&endTime={t_to + 59_999}&limit=10")
+        if isinstance(k, list) and k:
+            out[kind] = (max(float(x[2]) for x in k), min(float(x[3]) for x in k))
+    return out
+
+
+def _recross(ft: dict, rng: dict) -> None:
+    """«сняли» → «съели», если свеча между снимками дошла до цены плиты"""
+    for g in ft["gone"]:
+        r = rng.get(g.get("kind", "perp"))
+        if g["fate"] == "съели" or not r:
+            continue
+        if (g["side"] == "ask" and r[0] >= g["px"]) or (g["side"] == "bid" and r[1] <= g["px"]):
+            g["fate"], g["by_wick"] = "съели", True
 
 
 def _w(w: dict) -> dict:
@@ -279,6 +300,25 @@ def main() -> int:
         print(f"depth_tick: не успели {len(syms) - len(snaps)} монет за {DEADLINE_S} с")
     ex.shutdown(wait=False, cancel_futures=True)
     lines, keys, rows = [], [], []
+    fts, hists = {}, {}
+    for sym in syms:
+        if not snaps.get(sym):
+            continue
+        hist = mem.get(sym) or []
+        # дыра в памяти (монета выпадала из списка, прогон стоял) — судьбу по старому снимку не судим
+        if hist and ts - int(hist[-1]["t"]) > 2 * step_of.get(sym, 2 * SNAP_MIN) * 60_000:
+            hist = []
+        hists[sym], fts[sym] = hist, df.fate(sym, snaps[sym], hist)
+    # «сняли» при цене, не дошедшей на снимке, — проверить свечами между снимками (по монете один запрос на фьючерс и спот)
+    # плиты одного снимка — шум, их не проверяем; монеты тревог первыми; прогон рвёт шаг на 150 с — после 125 с не начинаем
+    need = [s for s, ft in fts.items() if any(g["fate"] != "съели" and g.get("runs", 1) >= 2 and abs(g.get("dist_pct") or 0) <= FAR_PCT for g in ft["gone"])]
+    need.sort(key=lambda s: s not in alert)
+    t_rng = time.time()
+    if need and time.time() - t0 < DEADLINE_S + 15:
+        with ThreadPoolExecutor(WORKERS) as ex3:
+            for s, rng in zip(need, ex3.map(lambda s: _range(s, int(hists[s][-1]["t"]), ts), need)):
+                _recross(fts[s], rng)
+    rng_s = time.time() - t_rng
     for sym in syms:
         if sym not in snaps:
             continue
@@ -286,11 +326,7 @@ def main() -> int:
         if not snap:
             print(f"depth_tick: {sym} — стакан не получен")
             continue
-        hist = mem.get(sym) or []
-        # дыра в памяти (монета выпадала из списка, прогон стоял) — судьбу по старому снимку не судим
-        if hist and ts - int(hist[-1]["t"]) > 2 * step_of.get(sym, 2 * SNAP_MIN) * 60_000:
-            hist = []
-        ft = df.fate(sym, snap, hist)
+        hist, ft = hists[sym], fts[sym]
         if hist:
             rows += side_rows(sym, snap, hist[-1], ft)
         for g in (ft["gone"] if sym in alert else []):
@@ -302,7 +338,7 @@ def main() -> int:
             if k in sent:
                 continue
             ask = g["side"] == "ask"
-            what = (f"съели — прошли {'вверх' if ask else 'вниз'}" if g["fate"] == "съели"
+            what = (f"съели — прошли {'вверх' if ask else 'вниз'}" + (" свечой, цена вернулась" if g.get("by_wick") else "") if g["fate"] == "съели"
                     else f"убрали — цена не доходила, {'путь вверх свободен' if ask else 'опора ушла'}")
             lines.append(f"{sym[:-4]} · {'потолок' if ask else 'пол'} {g['px']:.6g} ({g['dist_pct']:+.1f}%, "
                          f"${g.get('usd', 0) / 1e3:.0f}K) {what}, стояла {g['runs'] * SNAP_MIN} мин")
@@ -329,7 +365,7 @@ def main() -> int:
     for ln in lines:
         print(f"depth_tick: {ln}")
     print(f"depth_tick: монет {len(syms)} (тревоги {len(alert)}, сделки {len(tr)}) · тревог {len(lines)} · "
-          f"сторон с переменами {len(rows)} · вес фьючерсов {_STOP['used']:.0f}" + (" · СТОП по весу/бану" if _STOP["fut"] else "") + f" · {time.time() - t0:.0f} с")
+          f"сторон с переменами {len(rows)} · свечами проверено {len(need)} ({rng_s:.0f} с), съели свечой {sum(1 for ft in fts.values() for g in ft['gone'] if g.get('by_wick'))} · вес фьючерсов {_STOP['used']:.0f}" + (" · СТОП по весу/бану" if _STOP["fut"] else "") + f" · {time.time() - t0:.0f} с")
     if not a.write:
         return 0
     from sources_storage import write_atomic
