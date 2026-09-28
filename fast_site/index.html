@@ -22,7 +22,7 @@
   .btns span.on { border-color: rgba(190,215,245,.7); color: #e8f2ff; }
   .btns span.exit { margin-left: 18px; border-color: rgba(190,215,245,.5); color: #cfe2f7; }
   @media (max-width: 760px) { .btns span:not(.on):not(.exit) { display: none; } .top h1 { font-size: 16px; } }
-  /* coin summary card: centred glass panel (light rays, stacked glass layers, glossy edges) */
+  /* coin summary card — 28.09 дизайн владельца «shatter» (crypto_card_shatter_fixed): стили ниже, под #card */
   .veil {
     position: fixed; inset: 0; pointer-events: none; opacity: 0; transition: opacity .7s ease;
     background:
@@ -30,136 +30,6 @@
       radial-gradient(ellipse at 50% 50%, rgba(2,6,13,.78) 0%, rgba(2,6,13,.45) 60%, rgba(2,6,13,.25) 100%);
   }
   .veil.on { opacity: 1; }
-  .card, .ghost {
-    --ac: 160,210,255;
-    position: fixed; left: 50%; top: 50%; box-sizing: border-box; border-radius: 26px;
-  }
-  .card {
-    width: 580px; padding: 26px 24px 18px; overflow: hidden; isolation: isolate;
-    background:
-      linear-gradient(180deg, rgba(255,255,255,.07) 0%, rgba(255,255,255,0) 28%),
-      linear-gradient(165deg, rgba(20,34,62,.72) 0%, rgba(8,14,30,.82) 55%, rgba(5,9,20,.9) 100%);
-    backdrop-filter: blur(26px) saturate(160%); -webkit-backdrop-filter: blur(26px) saturate(160%);
-    box-shadow: 0 0 80px rgba(var(--ac),.16), 0 40px 90px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.22), inset 0 0 0 1px rgba(255,255,255,.06);
-    font-family: -apple-system, "Helvetica Neue", Arial, sans-serif; color: #eef3fb;
-    pointer-events: none; opacity: 0; filter: blur(8px);
-    transform: translate(-50%,-50%) scale(calc(var(--sc,1) * .94)) translateY(16px);
-    transition: opacity .6s ease, filter .6s ease, transform .8s cubic-bezier(.2,.8,.2,1);
-  }
-  .card.on { pointer-events: auto; opacity: 1; filter: blur(0); transform: translate(-50%,-50%) scale(var(--sc,1)); }
-  /* glossy gradient rim */
-  .card::before {
-    content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none; z-index: 3;
-    background: linear-gradient(135deg, rgba(255,255,255,.75), rgba(var(--ac),.45) 22%, rgba(255,255,255,.04) 50%, rgba(var(--ac),.35) 85%, rgba(255,255,255,.35));
-    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
-  }
-  /* glass layers stacked behind the card */
-  .ghost {
-    pointer-events: none; opacity: 0;
-    background: linear-gradient(160deg, rgba(var(--ac),.10), rgba(255,255,255,.02));
-    border: 1px solid rgba(255,255,255,.12); box-shadow: inset 0 1px 0 rgba(255,255,255,.18), 0 20px 50px rgba(0,0,0,.35);
-    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
-    transition: opacity .7s ease, transform 1s cubic-bezier(.2,.8,.2,1);
-    transform: translate(-50%,-50%) scale(calc(var(--sc,1) * .94));
-  }
-  .ghost.g1.on { opacity: .75; transform: translate(-50%,-50%) scale(var(--sc,1)) translate(-18px, 14px) rotate(-3.2deg); }
-  .ghost.g2.on { opacity: .45; transform: translate(-50%,-50%) scale(var(--sc,1)) translate(22px, 24px) rotate(2.6deg); }
-  /* volumetric light rays from the top */
-  .rays {
-    position: absolute; left: -20%; right: -20%; top: -60px; height: 420px; z-index: -1; pointer-events: none;
-    background:
-      repeating-linear-gradient(100deg, rgba(255,255,255,.07) 0 3px, transparent 3px 34px),
-      repeating-linear-gradient(76deg, rgba(var(--ac),.10) 0 6px, transparent 6px 52px),
-      radial-gradient(ellipse 45% 70% at 50% 0%, rgba(var(--ac),.55), rgba(var(--ac),.12) 45%, transparent 75%);
-    -webkit-mask-image: radial-gradient(ellipse 50% 80% at 50% 0%, #000 20%, transparent 75%);
-    mask-image: radial-gradient(ellipse 50% 80% at 50% 0%, #000 20%, transparent 75%);
-    filter: blur(1.5px); mix-blend-mode: screen; animation: rays 14s ease-in-out infinite alternate;
-  }
-  @keyframes rays { from { background-position: 0 0, 0 0, 0 0; opacity: .85; } to { background-position: 60px 0, -80px 0, 0 0; opacity: 1; } }
-  /* drifting bokeh */
-  .bk { position: absolute; border-radius: 50%; z-index: -1; pointer-events: none; filter: blur(1px);
-    background: radial-gradient(circle, rgba(255,255,255,.55), rgba(var(--ac),.25) 40%, transparent 70%); animation: drift 16s ease-in-out infinite alternate; }
-  @keyframes drift { to { transform: translate(24px, -30px); opacity: .4; } }
-  .card .x {
-    position: absolute; right: 18px; top: 18px; width: 34px; height: 34px; border-radius: 50%; z-index: 4; cursor: pointer;
-    display: grid; place-items: center; color: #fff; font-size: 12.8px; line-height: 1;
-    background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.35), rgba(var(--ac),.18) 55%, rgba(255,255,255,.04));
-    border: 1px solid rgba(255,255,255,.3); box-shadow: 0 0 18px rgba(var(--ac),.45), inset 0 1px 0 rgba(255,255,255,.4);
-    transition: transform .3s ease, box-shadow .3s ease;
-  }
-  .card .x:hover { transform: scale(1.08); box-shadow: 0 0 28px rgba(var(--ac),.7), inset 0 1px 0 rgba(255,255,255,.5); }
-  .card .c-orbit { font-size: 8px; letter-spacing: .3em; color: rgba(255,255,255,.55); text-transform: uppercase; }
-  .card .c-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-top: 8px; padding-right: 44px; }
-  .card .c-title { position: relative; line-height: .9; }
-  .card .c-title b {
-    display: block; font-family: "Helvetica Neue", Arial, sans-serif; font-weight: 800; font-size: 51.2px; letter-spacing: -.02em; color: #fff;
-    text-shadow: 0 0 24px rgba(var(--ac),.9), 0 0 60px rgba(var(--ac),.55), 0 2px 0 rgba(255,255,255,.25);
-  }
-  .card .c-title span {
-    display: block; margin-top: -10px; margin-left: 4px; font-family: "Helvetica Neue", Arial, sans-serif; font-weight: 700; font-size: 20.8px;
-    letter-spacing: -.01em; color: rgb(var(--ac)); text-shadow: 0 0 16px rgba(var(--ac),.8);
-  }
-  /* hologram capsule with a rotating crystal */
-  .card .holo { position: relative; width: 150px; margin: -18px 0 -6px; text-align: center; }
-  .card .holo canvas { width: 150px; height: 150px; }
-  .card .holo .c-now { margin-top: 4px; padding: 6px 12px; text-align: center; }
-  /* scanning light sweeping down the panel */
-  .sweep {
-    position: absolute; left: 0; right: 0; height: 90px; top: -90px; z-index: 2; pointer-events: none; mix-blend-mode: screen;
-    background: linear-gradient(180deg, transparent, rgba(var(--ac),.07) 60%, rgba(255,255,255,.22) 96%, transparent);
-    animation: sweep 8s cubic-bezier(.45,0,.55,1) infinite;
-  }
-  @keyframes sweep { 0% { top: -90px; } 60%, 100% { top: 105%; } }
-  .card .c-now {
-    text-align: right; padding: 10px 16px; border-radius: 16px;
-    background: linear-gradient(160deg, rgba(255,255,255,.12), rgba(255,255,255,.02));
-    border: 1px solid rgba(255,255,255,.16); box-shadow: inset 0 1px 0 rgba(255,255,255,.25);
-  }
-  .card .c-now small { display: block; font-size: 7.2px; letter-spacing: .2em; color: rgba(255,255,255,.5); text-transform: uppercase; }
-  .card .c-now span { font-weight: 300; font-size: 17.6px; color: #fff; text-shadow: 0 0 16px rgba(var(--ac),.7); }
-  .card .c-sub {
-    margin-top: 14px; display: inline-flex; align-items: center; gap: 9px; font-size: 8.8px; letter-spacing: .04em; color: rgba(240,246,255,.9);
-    padding: 7px 14px; border-radius: 999px; background: rgba(var(--ac),.12); border: 1px solid rgba(var(--ac),.35);
-    box-shadow: 0 0 20px rgba(var(--ac),.2), inset 0 1px 0 rgba(255,255,255,.15);
-  }
-  .card .c-sub i { width: 7px; height: 7px; border-radius: 50%; background: rgb(var(--ac)); box-shadow: 0 0 10px rgb(var(--ac)); animation: blink 2.4s ease-in-out infinite; }
-  @keyframes blink { 50% { opacity: .3; } }
-  /* metrics: bare text, emphasis by glowing light strips */
-  .card .hero, .card .minor { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); column-gap: 22px; margin-top: 18px; padding-top: 14px; }
-  .card .minor { margin-top: 4px; }
-  .card .hero::before {   /* light streak across the block */
-    content: ""; position: absolute; left: -24px; right: -24px; top: 0; height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(var(--ac),.6) 20%, #fff 50%, rgba(var(--ac),.6) 80%, transparent);
-    box-shadow: 0 0 12px rgba(var(--ac),.9), 0 0 30px rgba(var(--ac),.5);
-  }
-  .card .tile { --st: var(--ac); position: relative; padding: 4px 0 14px; }
-  .card .tile.up { --st: 110,240,180; }
-  .card .tile.dn { --st: 255,110,130; }
-  .card .tile::before {   /* faint track */
-    content: ""; position: absolute; left: 0; right: 0; bottom: 5px; height: 1px; background: rgba(255,255,255,.08);
-  }
-  .card .tile::after {    /* bright strip; its length can carry a value (bar volume) */
-    content: ""; position: absolute; left: 0; bottom: 4px; height: 3px; width: var(--w, 45%); border-radius: 2px;
-    background: linear-gradient(90deg, #fff, rgb(var(--st)) 25%, rgba(var(--st),.0));
-    box-shadow: 0 0 10px rgba(var(--st),.9), 0 0 22px rgba(var(--st),.45);
-  }
-  .card .tile small { display: block; font-family: "DIN Alternate", "Helvetica Neue", sans-serif; font-size: 6.8px; letter-spacing: .26em; text-transform: uppercase; color: rgba(var(--ac),.85); }
-  .card .tile b {
-    display: block; margin-top: 2px; font-family: "Helvetica Neue", Arial, sans-serif; font-weight: 200; font-size: 20.8px; letter-spacing: .01em; color: #fff;
-    text-shadow: 0 0 16px rgba(var(--ac),.6);
-  }
-  .card .minor .tile b { font-size: 16px; }
-  .card .tile b.up { color: #9af7cf; text-shadow: 0 0 16px rgba(110,240,180,.6); }
-  .card .tile b.dn { color: #ffa3ae; text-shadow: 0 0 16px rgba(255,110,130,.55); }
-  .card .tile em { display: block; margin-top: 1px; font-style: normal; font-size: 7.6px; color: rgba(210,225,245,.5); }
-  .card .chart {
-    margin-top: 14px; padding: 12px; border-radius: 20px;
-    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.18));
-    border: 1px solid rgba(255,255,255,.1); box-shadow: inset 0 1px 0 rgba(255,255,255,.14);
-  }
-  .card canvas { display: block; width: 100%; }
-  .card .c-foot { margin-top: 10px; font-size: 8px; letter-spacing: .03em; line-height: 1.5; color: rgba(210,222,240,.5); text-align: center; }
-  .card .c-foot b { color: rgba(240,246,255,.85); font-weight: 600; }
   /* futuristic type: geometric Futura for words (wide tracking, caps), ultralight tabular digits for numbers */
   :root { --ff-disp: "Futura", "Avenir Next", "Century Gothic", sans-serif; --ff-num: "Helvetica Neue", "Avenir Next", Arial, sans-serif; }
   .top h1 { font-family: var(--ff-disp); font-weight: 500; letter-spacing: .55em; }
@@ -167,18 +37,105 @@
   .btns { gap: 10px; }
   .btns span { font-family: var(--ff-disp); font-size: 10px; letter-spacing: .18em; padding: 8px 12px; white-space: nowrap; }
   @media (max-width: 980px) { .btns span:not(.on):not(.exit) { display: none; } }
-  .card .c-orbit { font-family: var(--ff-disp); font-size: 7.6px; letter-spacing: .45em; }
-  .card .c-title b {
-    font-family: var(--ff-disp); font-weight: 500; font-size: 44.8px; letter-spacing: .12em; text-transform: uppercase;
+
+  /* ── КАРТОЧКА «SHATTER» (28.09 владелец): кристалл рассыпается в луч, стеклянный блок графика, показатели на осколках ── */
+  #card {
+    --ac: 120,200,255;
+    position: fixed; left: 50%; top: 50%; width: 1200px; height: 660px; overflow: hidden; color: #eef4ff; font-family: var(--ff-num);
+    transform: translate(-50%,-50%) scale(calc(var(--sc, 1) * .96)); opacity: 0; pointer-events: none;
+    transition: opacity .6s ease, transform .8s cubic-bezier(.2,.8,.2,1);
+    /* no frame: edges fade into the page */
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 9%, #000 96%, transparent), linear-gradient(180deg, transparent, #000 9%, #000 90%, transparent);
+    -webkit-mask-composite: source-in;
+    mask-image: linear-gradient(90deg, transparent, #000 9%, #000 96%, transparent), linear-gradient(180deg, transparent, #000 9%, #000 90%, transparent);
+    mask-composite: intersect;
   }
-  .card .c-title span {
-    font-family: var(--ff-disp); font-weight: 500; font-style: italic; font-size: 13.6px; letter-spacing: .32em; margin-top: 2px; margin-left: 6px;
+  #card.on { opacity: 1; pointer-events: auto; transform: translate(-50%,-50%) scale(var(--sc, 1)); }
+  #card #scene { position: absolute; inset: 0; width: 1200px; height: 660px; cursor: pointer; }
+  #card .left { position: absolute; left: 118px; top: 40px; pointer-events: none; }
+  #card .orbit { font-family: var(--ff-disp); font-size: 6.44px; letter-spacing: .45em; color: rgba(var(--ac),.85); }
+  #card .ticker {
+    margin-top: 7.2px; font-family: var(--ff-disp); font-weight: 500; font-size: 37.18px; letter-spacing: .14em; line-height: 1; color: #fff;
+    text-shadow: 0 0 20px rgba(var(--ac),.95), 0 0 60px rgba(var(--ac),.6);
   }
-  .card .c-now small, .card .tile small { font-family: var(--ff-disp); font-weight: 500; letter-spacing: .34em; }
-  .card .c-now span, .card .tile b { font-family: var(--ff-num); font-weight: 100; font-variant-numeric: tabular-nums; letter-spacing: .03em; }
-  .card .c-sub { font-family: var(--ff-disp); font-size: 7.6px; letter-spacing: .2em; text-transform: uppercase; }
-  .card .tile em { font-family: var(--ff-disp); font-size: 7.2px; letter-spacing: .06em; }
-  .card .c-foot { font-family: var(--ff-disp); font-size: 6.8px; letter-spacing: .22em; text-transform: uppercase; }
+  #card .mode { margin: 2.9px 0 0 4.3px; font-family: var(--ff-disp); font-style: italic; font-size: 9.29px; letter-spacing: .34em; color: rgb(var(--ac)); text-shadow: 0 0 12px rgba(var(--ac),.8); }
+  #card .pill {
+    margin-top: 11.4px; display: inline-flex; align-items: center; gap: 6.5px; padding: 4.4px 11px; border-radius: 999px; max-width: 420px;
+    font-family: var(--ff-disp); font-size: 6.08px; letter-spacing: .2em; text-transform: uppercase; color: rgba(240,246,255,.92);
+    background: rgba(var(--ac),.1); border: 1px solid rgba(var(--ac),.35); box-shadow: 0 0 20px rgba(var(--ac),.2);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  }
+  #card .pill i { flex: none; width: 5px; height: 5px; border-radius: 50%; background: rgb(var(--ac)); box-shadow: 0 0 10px rgb(var(--ac)); animation: blink 2.4s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+  #card .now { position: absolute; left: 118px; bottom: 40px; pointer-events: none; }
+  #card .now small { display: block; font-family: var(--ff-disp); font-size: 5.72px; letter-spacing: .4em; color: rgba(var(--ac),.8); }
+  #card .now span { display: block; margin-top: 2.9px; font-family: var(--ff-num); font-weight: 100; font-size: 28.6px; letter-spacing: .03em; font-variant-numeric: tabular-nums; text-shadow: 0 0 18px rgba(var(--ac),.8); }
+  #card .hint { position: absolute; left: 118px; bottom: 18px; font-family: var(--ff-disp); font-size: 5.37px; letter-spacing: .3em; color: rgba(255,255,255,.3); text-transform: uppercase; pointer-events: none; }
+  #card .panel { position: absolute; inset: 0; pointer-events: none; perspective: 1100px; perspective-origin: 900px 380px; }
+  #card .glass {
+    position: absolute; left: 662px; top: 172px; width: 500px; box-sizing: border-box; padding: 10px 10px 8px; border-radius: 18px;
+    background: linear-gradient(180deg, rgba(8,20,48,.45), rgba(3,9,24,.66));
+    backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%);
+    border: 1px solid rgba(255,255,255,.1); box-shadow: inset 0 1px 0 rgba(255,255,255,.2), 0 0 40px rgba(var(--ac),.1), 0 30px 60px rgba(0,0,0,.4);
+  }
+  #card .shine {
+    position: absolute; left: -30px; right: -30px; top: -15px; height: 30px;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  }
+  #card .shine::before {
+    content: ""; position: absolute; left: 0; right: 0; top: 14px; height: 2px; border-radius: 2px;
+    background: linear-gradient(90deg, rgba(var(--ac),.95) 0%, rgba(190,140,255,.95) 16%, #fff 30%, rgba(90,240,255,1) 44%,
+      rgba(120,255,210,.95) 58%, rgba(var(--ac),.95) 72%, rgba(190,140,255,.9) 86%, rgba(var(--ac),.95) 100%);
+    background-size: 220% 100%; animation: iris 9s ease-in-out infinite alternate;
+    box-shadow: 0 0 6px rgba(255,255,255,.6), 0 0 14px rgba(var(--ac),.95), 0 0 30px rgba(var(--ac),.55);
+  }
+  #card .shine::after {
+    content: ""; position: absolute; top: 11px; height: 8px; width: 110px; left: -110px; border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(255,255,255,1), rgba(255,255,255,0) 70%); filter: blur(1px);
+    animation: glint 6s cubic-bezier(.45,0,.55,1) infinite;
+  }
+  @keyframes iris { from { background-position: 0% 0; } to { background-position: 100% 0; } }
+  @keyframes glint { 0% { left: -110px; } 55%, 100% { left: 100%; } }
+  #card #cChart { display: block; width: 480px; }
+  #card .foot { margin-top: 6px; font-family: var(--ff-disp); font-size: 7px; letter-spacing: .22em; line-height: 1.6; text-transform: uppercase; color: rgba(210,222,240,.45); text-align: center; }
+  #card .foot b { color: rgba(240,246,255,.85); font-weight: 500; }
+  #card .plate { position: absolute; width: var(--w); height: var(--h); }
+  #card .plate .fly { width: 100%; height: 100%; animation: flyout 1.8s cubic-bezier(.16,.84,.24,1) var(--d) both; }
+  @keyframes flyout {
+    from { opacity: 0; transform: translate3d(var(--fx), var(--fy), 0) scale(.15) rotate(-50deg); filter: blur(6px); }
+    60% { opacity: 1; filter: blur(0); }
+    to { opacity: 1; transform: none; filter: blur(0); }
+  }
+  #card .plate .drift { width: 100%; height: 100%; animation: sdrift var(--fl) ease-in-out calc(var(--d) + 1.8s) infinite alternate; }
+  @keyframes sdrift { from { transform: translate(0, 0) rotate(var(--r0)); } to { transform: translate(var(--dx), -7px) rotate(var(--r1)); } }
+  #card .plate .body { --st: var(--ac); position: relative; width: 100%; height: 100%; display: grid; place-content: center; text-align: center; }
+  #card .plate .body.up { --st: 110,240,180; }
+  #card .plate .body.dn { --st: 255,110,130; }
+  @keyframes jitter {
+    0%   { transform: translate(0, 0) rotate(0); }
+    17%  { transform: translate(.6px, -.4px) rotate(.3deg); }
+    33%  { transform: translate(-.5px, .5px) rotate(-.25deg); }
+    50%  { transform: translate(.4px, .6px) rotate(.2deg); }
+    67%  { transform: translate(-.6px, -.3px) rotate(-.3deg); }
+    83%  { transform: translate(.3px, -.6px) rotate(.15deg); }
+    100% { transform: translate(0, 0) rotate(0); }
+  }
+  #card .plate svg.cluster { position: absolute; left: -40px; top: -40px; overflow: visible; filter: drop-shadow(0 0 4px rgba(var(--st),.55)); }
+  #card .plate svg.cluster .sh { transform-box: fill-box; transform-origin: center; animation: jitter 8s ease-in-out infinite; }
+  #card .plate .ct { position: relative; max-width: 170px; isolation: isolate; }
+  #card .plate .ct::before {
+    content: ""; position: absolute; inset: -12px -18px; z-index: -1; border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(3,8,22,.62), rgba(3,8,22,0) 70%);
+  }
+  #card .plate small { display: block; font-family: var(--ff-disp); font-size: 6.5px; letter-spacing: .3em; text-transform: uppercase; color: rgba(var(--ac),.95); }
+  #card .plate b { display: block; margin-top: 3px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-weight: 300; font-size: 11px; letter-spacing: .02em; font-variant-numeric: tabular-nums; color: #fff; text-shadow: 0 0 8px rgba(var(--ac),.8); }
+  #card .plate b.up { color: #9af7cf; text-shadow: 0 0 12px rgba(110,240,180,.6); }
+  #card .plate b.dn { color: #ffa3ae; text-shadow: 0 0 12px rgba(255,110,130,.55); }
+  #card .plate b .tx { font-family: var(--ff-disp); font-weight: 400; font-size: 10px; letter-spacing: .08em; }
+  #card .now span svg { display: block; overflow: visible; color: #fff; filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 7px rgba(var(--ac),.9)); }
+  #card .plate b svg { display: block; margin: 2px auto 1px; overflow: visible; filter: drop-shadow(0 0 1.2px currentColor) drop-shadow(0 0 4px rgba(var(--ac),.85)); }
+  #card .plate em { display: block; margin-top: 2px; font-style: normal; font-family: var(--ff-disp); font-size: 6.5px; line-height: 1.3; letter-spacing: .04em; color: rgba(215,228,245,.62); }
 </style>
 </head>
 <body>
@@ -189,27 +146,24 @@
   <div class="top"><small id="status">подключение…</small><h1>Crypto Orbit</h1></div>
 </div>
 <div class="veil" id="veil"></div>
-<div class="ghost g2" id="ghost2"></div>
-<div class="ghost g1" id="ghost1"></div>
 <div class="card" id="card">
-  <div class="rays"></div>
-  <div class="bk" style="left:8%;top:22%;width:10px;height:10px"></div>
-  <div class="bk" style="left:84%;top:14%;width:6px;height:6px;animation-delay:-5s"></div>
-  <div class="bk" style="left:70%;top:46%;width:14px;height:14px;animation-delay:-9s;opacity:.5"></div>
-  <div class="bk" style="left:18%;top:64%;width:7px;height:7px;animation-delay:-3s"></div>
-  <div class="bk" style="left:52%;top:82%;width:9px;height:9px;animation-delay:-11s;opacity:.6"></div>
-  <div class="sweep"></div>
-  <div class="x" id="cClose">✕</div>
-  <div class="c-orbit" id="cOrbit"></div>
-  <div class="c-head">
-    <div class="c-title"><b id="cTitle"></b><span id="cMode"></span></div>
-    <div class="holo"><canvas id="cHolo"></canvas><div class="c-now"><small>цена сейчас</small><span id="cNow"></span></div></div>
+  <canvas id="scene"></canvas>
+  <div class="left">
+    <div class="orbit" id="cOrbit"></div>
+    <div class="ticker" id="cTitle"></div>
+    <div class="mode" id="cMode"></div>
+    <div class="pill"><i></i><span id="cSub"></span></div>
   </div>
-  <div class="c-sub"><i></i><span id="cSub"></span></div>
-  <div class="hero" id="cHero"></div>
-  <div class="minor" id="cMinor"></div>
-  <div class="chart"><canvas id="cChart"></canvas></div>
-  <div class="c-foot" id="cFoot"></div>
+  <div class="now"><small>ЦЕНА СЕЙЧАС</small><span id="cNow"></span></div>
+  <div class="hint">клик по кристаллу — следующая монета · клик мимо карточки или esc — закрыть</div>
+  <div class="panel">
+    <div class="glass">
+      <div class="shine"></div>
+      <canvas id="cChart"></canvas>
+      <div class="foot" id="cFoot"></div>
+    </div>
+    <div id="cPlates"></div>
+  </div>
 </div>
 <script>
 const TAU = Math.PI * 2;
@@ -861,13 +815,13 @@ function openCard(l) {
   selected = l; bgFrozen = false;
   renderCard(l.closed ? RIB_G : rings.find(g => g.labels.includes(l)), l);
   fitCard();
-  for (const el of [card, ghost1, ghost2, veil]) el.classList.add('on');
+  for (const el of [card, veil]) el.classList.add('on');
+  if (!shards.length) prespawn();
 }
 function closeCard() {
   selected = null; bgFrozen = false;
-  for (const el of [card, ghost1, ghost2, veil]) el.classList.remove('on');
+  for (const el of [card, veil]) el.classList.remove('on');
 }
-document.getElementById('cClose').addEventListener('click', e => { e.stopPropagation(); closeCard(); });
 addEventListener('click', e => {
   mouse = { x: e.clientX, y: e.clientY };
   if (overCard()) return;
@@ -964,18 +918,17 @@ function realDetail(g, l) {
   return d;
 }
 
-const tile = (label, value, cls = '', note = '', meter = null) =>
-  `<div class="tile ${cls}"${meter !== null ? ` style="--w:${Math.max(4, meter)}%"` : ''}><small>${label}</small><b class="${cls}">${value}</b>` +
-  (note ? `<em>${note}</em>` : '') + `</div>`;
+const tile = (label, value, cls = '', note = '') => ({ label, value: String(value), cls, note });   // показатель на осколке (28.09 «shatter»)
 const sgn = v => v >= 0 ? 'up' : 'dn';
 
 function renderCard(g, l) {
   const d = realDetail(g, l);
-  for (const el of [card, ghost1, ghost2, veil]) el.style.setProperty('--ac', l.c1);
+  for (const el of [card, veil]) el.style.setProperty('--ac', l.c1);
+  if (SCN_AC !== l.c1) { SCN_AC = l.c1; buildTraces(); }
   document.getElementById('cOrbit').textContent = g.title;
   document.getElementById('cMode').textContent = d.ring === 'closed' ? 'exit.' : d.ring === 'open' ? 'entry.' : 'candidate.';
   document.getElementById('cTitle').textContent = l.name;
-  document.getElementById('cNow').textContent = fmtPrice(d.now);
+  document.getElementById('cNow').innerHTML = cryo(fmtPrice(d.now), 24);
   document.getElementById('cSub').textContent = d.status;
   const t = [];
   if (d.ring === 'closed') {
@@ -992,8 +945,7 @@ function renderCard(g, l) {
       t.push(tile('книга', it.book, '', ''));
       t.push(tile('фандинг', d.funding.toFixed(4) + '%', sgn(d.funding)));
     }
-    document.getElementById('cHero').innerHTML = t.slice(0, 3).join('');
-    document.getElementById('cMinor').innerHTML = t.slice(3).join('');
+    renderPlates(t.slice(0, 6), l);
     document.getElementById('cFoot').innerHTML = `${(it.rule || '').replace(/</g, '&lt;')}<br>цена · объём · CVD фьючерсов · CVD спота · интерес · ликвидации · <b>3m · 6 ч</b>`;
     drawCardChart(d, l);
     return;
@@ -1011,17 +963,16 @@ function renderCard(g, l) {
   t.push(tile(d.ring === 'entry' ? 'интерес за час' : 'интерес 1ч на входе', pctStr(d.oi), sgn(d.oi)));
   t.push(tile('выход', '+5% / −5%', '', d.exitNote));
   t.push(tile('фандинг', d.funding.toFixed(4) + '%', sgn(d.funding)));
-  document.getElementById('cHero').innerHTML = t.slice(0, 3).join('');
-  document.getElementById('cMinor').innerHTML = t.slice(3).join('');
+  renderPlates(t.slice(0, 6), l);
   document.getElementById('cFoot').innerHTML =
     `цена · объём · CVD фьючерсов · CVD спота · интерес · ликвидации (лонги ↓ / шорты ↑) · <b>3m · 6 ч</b>`;
   drawCardChart(d, l);
 }
 
 function drawCardChart(d, l) {
-  const secs = [['цена', 158], ['объём', 38], ['CVD фьюч', 48], ['CVD спот', 48], ['интерес', 48], ['ликвидации', 42]];
-  const Wc = 508, Hc = secs.reduce((s, q) => s + q[1], 0), padR = 78;
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const secs = [['цена', 160], ['объём', 34], ['CVD фьюч', 46], ['CVD спот', 46], ['интерес', 46], ['ликвидации', 38]];
+  const Wc = 480, Hc = secs.reduce((s, q) => s + q[1], 0), padR = 92;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2) * 1.5;
   cChart.width = Wc * dpr; cChart.height = Hc * dpr; cChart.style.height = Hc + 'px';
   const c = cChart.getContext('2d');
   c.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -1126,11 +1077,9 @@ function drawCardChart(d, l) {
 }
 
 // card is always centred; only scale it down on small screens
-const ghost1 = document.getElementById('ghost1'), ghost2 = document.getElementById('ghost2'), veil = document.getElementById('veil');
+const veil = document.getElementById('veil');
 function fitCard() {
-  const sc = Math.min(1, (innerHeight - 130) / card.offsetHeight, (innerWidth - 40) / card.offsetWidth);
-  for (const el of [card, ghost1, ghost2]) el.style.setProperty('--sc', sc.toFixed(3));
-  for (const el of [ghost1, ghost2]) { el.style.width = card.offsetWidth + 'px'; el.style.height = card.offsetHeight + 'px'; }
+  card.style.setProperty('--sc', Math.min(1, (innerWidth - 32) / CW, (innerHeight - 32) / CH).toFixed(3));
 }
 
 // energy stream from the opened plate to the card edge
@@ -1158,96 +1107,370 @@ function drawLink(l) {
   tctx.restore();
 }
 
-// icosahedron for the hologram crystal
+// ── КАРТОЧКА «SHATTER» (28.09 владелец: «примени этот дизайн для карточки», ~/Downloads/crypto_card_shatter_fixed_2026-09-28.html).
+//    Кристалл рассыпается осколками в луч, справа стеклянный блок графика, показатели — на осколках, вылетающих из блока.
+//    Сцена рисуется только пока карточка открыта (из frame: фон под вуалью заморожен, bgFrozen).
+const CW = 1200, CH = 660, SX = 300, SY = 330, SR = 116;   // размер карточки; центр и радиус кристалла
+const SCN = document.getElementById('scene'), sx = SCN.getContext('2d');
+let SCN_AC = '120,200,255', SCN_DPR = 1;
+function sceneSize() {
+  SCN_DPR = Math.min(window.devicePixelRatio || 1, 2);
+  if (SCN.width !== CW * SCN_DPR) { SCN.width = CW * SCN_DPR; SCN.height = CH * SCN_DPR; }
+}
+sceneSize();
+addEventListener('resize', sceneSize);
+
+// ---------- CRYO-like line digits ----------
+// glyphs on an 8×16 grid, drawn as polylines; small gaps at the joints give the broken-stroke look
+function ellPts(cx, cy, rx, ry, a0, a1, n = 26) {
+  const pts = [];
+  for (let i = 0; i <= n; i++) { const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180; pts.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]); }
+  return pts;
+}
+const ln = (x1, y1, x2, y2) => [[x1, y1], [x2, y2]];
+const GLYPHS = {
+  '0': [8, [ellPts(4, 8, 3.2, 7, -55, 235)]],
+  '1': [7, [ln(5, 1, 5, 15), ln(2.2, 4.2, 3.9, 2.4)]],
+  '2': [8, [ellPts(4, 4.6, 3.2, 3.6, -180, 22), ln(6.6, 7.2, 1.2, 14.6), ln(2.6, 15, 7.2, 15)]],
+  '3': [8, [ellPts(4, 4.4, 3, 3.1, -160, 48), ellPts(4, 11.2, 3.3, 3.8, -48, 165)]],
+  '4': [8, [ln(5.6, 1, .8, 10.6), ln(2.2, 10.6, 7.2, 10.6), ln(5.6, 5.4, 5.6, 15)]],
+  '5': [8, [ln(7, 1, 1.6, 1), ln(1.6, 2.6, 1.6, 6.4), ellPts(4, 10.8, 3.2, 4.2, -150, 150)]],
+  '6': [8, [ellPts(4, 10.8, 3.2, 4.2, -40, 245), ln(6, 1.2, 1.6, 8)]],
+  '7': [8, [ln(.8, 1, 7.2, 1), ln(6.8, 2.6, 2.6, 15)]],
+  '8': [8, [ellPts(4, 4.2, 2.8, 3, -60, 240), ellPts(4, 11.6, 3.2, 3.4, 120, 420)]],
+  '9': [8, [ellPts(4, 5.2, 3.2, 4.2, 135, 400), ln(6.4, 10, 2.4, 15)]],
+  '.': [3, [ellPts(1.5, 14.5, .5, .5, 0, 360, 8)]],
+  ':': [3, [ellPts(1.5, 5, .5, .5, 0, 360, 8), ellPts(1.5, 12, .5, .5, 0, 360, 8)]],
+  '%': [8.4, [ellPts(2, 3.2, 1.5, 1.9, 0, 360, 16), ellPts(6.4, 12.8, 1.5, 1.9, 0, 360, 16), ln(7, 1.4, 1.4, 14.6)]],
+  '+': [8, [ln(4, 4.6, 4, 11.4), ln(.8, 8, 2.9, 8), ln(5.1, 8, 7.2, 8)]],
+  '−': [8, [ln(1, 8, 7, 8)]],
+  '-': [8, [ln(1, 8, 7, 8)]],
+  '/': [8, [ln(6.4, 1, 1.6, 15)]],
+  ' ': [4, []],
+};
+const CRYO_WIDE = 1.18;   // stretch horizontally for the wide geometric look
+function cryo(str, h = 12, sw = null) {
+  let x = 0; const parts = [];
+  for (const ch of str) {
+    const g = GLYPHS[ch];
+    if (!g) continue;
+    for (const pl of g[1]) parts.push(`<polyline points="${pl.map(([px, py]) => (px * CRYO_WIDE + x).toFixed(2) + ',' + py.toFixed(2)).join(' ')}"/>`);
+    x += g[0] * CRYO_WIDE + 1.8;
+  }
+  const w = Math.max(1, x - 1.8);
+  return `<svg viewBox="-.8 0 ${(w + 1.6).toFixed(2)} 16" style="height:${h}px;width:${((w + 1.6) / 16 * h).toFixed(1)}px" fill="none" stroke="currentColor" stroke-width="${sw ?? (h > 16 ? .7 : 1.05)}" stroke-linecap="round" stroke-linejoin="round">${parts.join('')}</svg>`;
+}
+// цифры — линиями; значение со словами («через 2 ч», «всплеск/вынос») — обычным текстом, чтобы буквы не пропали
+const CRYO_OK = /^[0-9.:%+\-−\/ ]+$/;
+const valHTML = v => CRYO_OK.test(v) ? cryo(v, 15.4, 1.65) : `<span class="tx">${v.replace(/</g, '&lt;')}</span>`;
+
+// ---------- metric shards around the chart block ----------
+const PLATES = [[520, 128], [690, 52], [864, 22], [1010, 84], [506, 370], [548, 500]];
+const SW = 150, SH = 92, PAD = 40;
+const BLOCK_C = [912, 392];   // shards fly out of the chart block's centre
+
+// cloud of small triangular shards around the text box (denser and larger towards the centre)
+function clusterSVG(id) {
+  const W = SW + PAD * 2, H = SH + PAD * 2, cx = W / 2, cy = H / 2, n = 18 + (Math.random() * 7 | 0);
+  const edge = mix(SCN_AC, '255,255,255', .6);
+  let out = '';
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * TAU, r = Math.sqrt(Math.random());
+    const x = cx + Math.cos(a) * r * SW * .62, y = cy + Math.sin(a) * r * SH * .62;
+    const sz = 5 + Math.random() * 14 * (1.2 - r * .6), rot = Math.random() * TAU;
+    const pts = [0, 1, 2].map(k => {
+      const b = rot + k * TAU / 3 + (Math.random() - .5) * 1.1, rr = sz * (.6 + Math.random() * .6);
+      return `${(x + Math.cos(b) * rr).toFixed(1)},${(y + Math.sin(b) * rr * .85).toFixed(1)}`;
+    }).join(' ');
+    const bright = Math.random() < .2;
+    out += `<polygon class="sh" points="${pts}" fill="url(#${id})" fill-opacity="${(.35 + Math.random() * .65).toFixed(2)}"` +
+      ` stroke="${bright ? '#fff' : `rgba(${edge},.75)`}" stroke-width="${bright ? 1 : .7}" stroke-linejoin="round"` +
+      ` style="animation-duration:${((.35 + Math.random() * .4) * 16).toFixed(2)}s;animation-delay:-${(Math.random() * 16).toFixed(2)}s"/>`;
+  }
+  return `<svg class="cluster" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff" stop-opacity=".5"/><stop offset=".5" stop-color="rgb(${SCN_AC})" stop-opacity=".14"/><stop offset="1" stop-color="rgb(${SCN_AC})" stop-opacity=".04"/>
+    </linearGradient></defs>${out}</svg>`;
+}
+const ctHTML = m => `<small>${m.label}</small><b class="${m.cls}">${valHTML(m.value)}</b>${m.note ? `<em>${m.note}</em>` : ''}`;
+// новые данные каждые 3 мин: у той же монеты цифры меняются на месте, осколки заново не вылетают
+let platesKey = '';
+function renderPlates(list, l) {
+  const box = document.getElementById('cPlates'), key = l.key + '|' + list.length;
+  if (key === platesKey && box.children.length === list.length) {
+    list.forEach((m, i) => {
+      const body = box.children[i].querySelector('.body');
+      body.className = 'body ' + m.cls;
+      body.querySelector('.ct').innerHTML = ctHTML(m);
+    });
+    return;
+  }
+  platesKey = key;
+  const stamp = Date.now();
+  box.innerHTML = list.map((m, i) => {
+    const [x, y] = PLATES[i];
+    const vars = `left:${x}px;top:${y}px;--w:${SW}px;--h:${SH}px;--d:${(.15 + i * .14).toFixed(2)}s;` +
+      `--fx:${BLOCK_C[0] - x - SW / 2}px;--fy:${BLOCK_C[1] - y - SH / 2}px;` +
+      `--fl:${(6 + i * .9).toFixed(1)}s;--dx:${(i % 2 ? 4 : -4)}px;` +
+      `--r0:${((Math.random() - .5) * 6).toFixed(1)}deg;--r1:${((Math.random() - .5) * 6).toFixed(1)}deg`;
+    return `<div class="plate" style="${vars}"><div class="fly"><div class="drift"><div class="body ${m.cls}">` +
+      clusterSVG(`sg${stamp}_${i}`) + `<div class="ct">${ctHTML(m)}</div></div></div></div></div>`;
+  }).join('');
+}
+
+// ---------- scene: shattering crystal, circuit traces, light stream ----------
+// low-poly crystal: subdivided icosahedron with jittered vertices
 const PHI = (1 + Math.sqrt(5)) / 2;
-const ICO_V = [[-1, PHI, 0], [1, PHI, 0], [-1, -PHI, 0], [1, -PHI, 0], [0, -1, PHI], [0, 1, PHI], [0, -1, -PHI], [0, 1, -PHI],
+let SV = [[-1, PHI, 0], [1, PHI, 0], [-1, -PHI, 0], [1, -PHI, 0], [0, -1, PHI], [0, 1, PHI], [0, -1, -PHI], [0, 1, -PHI],
   [PHI, 0, -1], [PHI, 0, 1], [-PHI, 0, -1], [-PHI, 0, 1]].map(v => { const m = Math.hypot(...v); return v.map(q => q / m); });
-const ICO_E = [], ICO_F = [];
-for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++) {
-  const d = Math.hypot(...ICO_V[i].map((q, k) => q - ICO_V[j][k]));
-  if (d < 1.1) ICO_E.push([i, j]);
+let SE = [], SF = [];
+for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++) if (Math.hypot(...SV[i].map((q, k) => q - SV[j][k])) < 1.1) SE.push([i, j]);
+const sadj = (a, b) => SE.some(([i, j]) => (i === a && j === b) || (i === b && j === a));
+for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++) for (let k = j + 1; k < 12; k++) if (sadj(i, j) && sadj(j, k) && sadj(i, k)) SF.push([i, j, k]);
+{
+  const cache = {};
+  const mid = (a, b) => {
+    const key = a < b ? a + '_' + b : b + '_' + a;
+    if (cache[key] !== undefined) return cache[key];
+    const m = SV[a].map((q, i) => (q + SV[b][i]) / 2), n = Math.hypot(...m);
+    SV.push(m.map(q => q / n)); return (cache[key] = SV.length - 1);
+  };
+  const F2 = [];
+  for (const [a, b, c] of SF) { const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a); F2.push([a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]); }
+  SF = F2;
+  SV = SV.map(v => { const s = 1 + (Math.random() - .5) * .14; return v.map(q => q * s); });
 }
-const adj = (a, b) => ICO_E.some(([i, j]) => (i === a && j === b) || (i === b && j === a));
-for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++) for (let k = j + 1; k < 12; k++)
-  if (adj(i, j) && adj(j, k) && adj(i, k)) ICO_F.push([i, j, k]);
+const FACE_SEED = SF.map(() => Math.random());
 
-const holo = document.getElementById('cHolo'), hctx = holo.getContext('2d');
-function drawHolo(l) {
-  const S = 150, dpr = Math.min(window.devicePixelRatio || 1, 2);
-  if (holo.width !== S * dpr || holo.height !== S * dpr) { holo.width = S * dpr; holo.height = S * dpr; }
-  hctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  hctx.clearRect(0, 0, S, S);
-  const now = performance.now() / 1000, ac = l.c1;
-  const cx = S / 2, top = 20, base = 128, R = 50, ry = 11;
-  hctx.globalCompositeOperation = 'lighter';
-
-  // vertical light beam
-  const beam = hctx.createLinearGradient(cx - 18, 0, cx + 18, 0);
-  beam.addColorStop(0, `rgba(${ac},0)`); beam.addColorStop(.5, `rgba(${ac},.28)`); beam.addColorStop(1, `rgba(${ac},0)`);
-  hctx.fillStyle = beam; hctx.fillRect(cx - 18, 0, 36, base);
-  hctx.fillStyle = 'rgba(255,255,255,.55)'; hctx.fillRect(cx - .5, 0, 1, base);
-
-  // glass cylinder
-  const glass = hctx.createLinearGradient(cx - R, 0, cx + R, 0);
-  glass.addColorStop(0, `rgba(${ac},.16)`); glass.addColorStop(.2, `rgba(${ac},.03)`);
-  glass.addColorStop(.8, `rgba(${ac},.03)`); glass.addColorStop(1, `rgba(${ac},.16)`);
-  hctx.fillStyle = glass; hctx.fillRect(cx - R, top, 2 * R, base - top);
-  hctx.strokeStyle = `rgba(${ac},.45)`; hctx.lineWidth = 1;
-  hctx.beginPath(); hctx.moveTo(cx - R, top); hctx.lineTo(cx - R, base); hctx.moveTo(cx + R, top); hctx.lineTo(cx + R, base); hctx.stroke();
-  hctx.strokeStyle = `rgba(255,255,255,.18)`;
-  hctx.beginPath(); hctx.moveTo(cx - R + 7, top + 6); hctx.lineTo(cx - R + 7, base - 6); hctx.stroke();
-  hctx.strokeStyle = `rgba(${ac},.6)`;
-  hctx.beginPath(); hctx.ellipse(cx, top, R, ry, 0, 0, TAU); hctx.stroke();
-  hctx.beginPath(); hctx.ellipse(cx, top, R * .72, ry * .72, 0, 0, TAU); hctx.stroke();
-
-  // holo base rings
-  for (let i = 0; i < 3; i++) {
-    const rr = R * (.55 + i * .25), pulse = .35 + .35 * Math.sin(now * 1.6 - i);
-    hctx.strokeStyle = `rgba(${ac},${pulse})`; hctx.setLineDash(i === 1 ? [4, 5] : []); hctx.lineDashOffset = -now * 12;
-    hctx.beginPath(); hctx.ellipse(cx, base, rr, rr * ry / R, 0, 0, TAU); hctx.stroke();
-  }
-  hctx.setLineDash([]);
-  const pad = hctx.createRadialGradient(cx, base, 0, cx, base, R);
-  pad.addColorStop(0, `rgba(${ac},.5)`); pad.addColorStop(1, `rgba(${ac},0)`);
-  hctx.save(); hctx.translate(cx, base); hctx.scale(1, ry / R); hctx.fillStyle = pad;
-  hctx.beginPath(); hctx.arc(0, 0, R, 0, TAU); hctx.fill(); hctx.restore();
-
-  // rising particles
-  for (let i = 0; i < 14; i++) {
-    const u = (now * .18 + i * .137) % 1;
-    const x = cx + Math.sin(i * 2.4 + now * .5) * R * .8 * (1 - u * .4), y = base - u * (base - top);
-    hctx.fillStyle = `rgba(255,255,255,${(1 - u) * .8})`;
-    hctx.fillRect(x, y, 1.4, 1.4);
-  }
-
-  // rotating crystal
-  const ccy = 74 + Math.sin(now * 1.1) * 3, CR = 38;
-  const ay = now * .55, ax = .42 + Math.sin(now * .3) * .12;
-  const P = ICO_V.map(([x, y, z]) => {
-    const x1 = x * Math.cos(ay) + z * Math.sin(ay), z1 = -x * Math.sin(ay) + z * Math.cos(ay);
-    const y2 = y * Math.cos(ax) - z1 * Math.sin(ax), z2 = y * Math.sin(ax) + z1 * Math.cos(ax);
-    const f = 3.2 / (3.2 - z2);
-    return [cx + x1 * CR * f, ccy + y2 * CR * f, z2];
+// shards
+const shards = [];
+function spawnShard(burst) {
+  const big = Math.random() < .12;
+  const size = big ? 14 + Math.random() * 16 : 3 + Math.random() * 9;
+  const ang = burst ? Math.random() * TAU : (Math.random() - .5) * 1.2;
+  const sp = burst ? 120 + Math.random() * 260 : (big ? 30 + Math.random() * 60 : 50 + Math.random() * 200);
+  const r0 = burst ? SR * .5 : SR * (.55 + Math.random() * .35);
+  const a0 = burst ? ang : (Math.random() - .5) * 1.6;
+  shards.push({
+    x: SX + Math.cos(a0) * r0, y: SY + Math.sin(a0) * r0 * .9,
+    vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp * (burst ? 1 : .35),
+    rot: Math.random() * TAU, vr: (Math.random() - .5) * (big ? .8 : 3), size, life: 0,
+    pts: [0, 1, 2].map(i => { const a = i * TAU / 3 + (Math.random() - .5) * 1.2; return [Math.cos(a) * (.6 + Math.random() * .5), Math.sin(a) * (.6 + Math.random() * .5)]; }),
+    depth: .5 + Math.random() * .5,
   });
-  const core = hctx.createRadialGradient(cx, ccy, 0, cx, ccy, CR * 1.3);
-  core.addColorStop(0, `rgba(255,255,255,.45)`); core.addColorStop(.35, `rgba(${ac},.25)`); core.addColorStop(1, `rgba(${ac},0)`);
-  hctx.fillStyle = core; hctx.fillRect(cx - CR * 1.4, ccy - CR * 1.4, CR * 2.8, CR * 2.8);
-  ICO_F.map(f => [f, (P[f[0]][2] + P[f[1]][2] + P[f[2]][2]) / 3]).sort((a, b) => a[1] - b[1]).forEach(([f, z]) => {
-    hctx.fillStyle = `rgba(${ac},${.03 + .07 * (z + 1) / 2})`;
-    hctx.beginPath(); hctx.moveTo(P[f[0]][0], P[f[0]][1]); hctx.lineTo(P[f[1]][0], P[f[1]][1]); hctx.lineTo(P[f[2]][0], P[f[2]][1]); hctx.closePath(); hctx.fill();
-  });
-  hctx.shadowColor = `rgb(${ac})`; hctx.shadowBlur = 8;
-  for (const [i, j] of ICO_E) {
-    const z = (P[i][2] + P[j][2]) / 2, k = (z + 1) / 2;
-    hctx.strokeStyle = k > .5 ? `rgba(${mix(ac, '255,255,255', .6)},${.35 + .6 * k})` : `rgba(${ac},${.15 + .4 * k})`;
-    hctx.lineWidth = .6 + .8 * k;
-    hctx.beginPath(); hctx.moveTo(P[i][0], P[i][1]); hctx.lineTo(P[j][0], P[j][1]); hctx.stroke();
-  }
-  hctx.fillStyle = '#fff';
-  for (const [x, y, z] of P) if (z > -.2) { hctx.beginPath(); hctx.arc(x, y, .8 + z, 0, TAU); hctx.fill(); }
-  hctx.shadowBlur = 0;
-  hctx.globalCompositeOperation = 'source-over';
 }
+function prespawn() {
+  for (let i = 0; i < 90; i++) { spawnShard(false); const s = shards[shards.length - 1]; const adv = Math.random() * 3; s.x += s.vx * adv; s.life = adv; }
+}
+
+// circuit traces converging on the crystal (static layer + travelling pulses)
+let traceLayer = null, traces = [];
+function buildTraces() {
+  traces = [];
+  for (let i = 0; i < 38; i++) {
+    const side = Math.random();
+    const a = Math.PI + (Math.random() - .5) * 2.1;            // arrive on the left half of the crystal
+    const tx = SX + Math.cos(a) * SR * 1.02, ty = SY + Math.sin(a) * SR * .95;
+    const sy = side < .7 ? Math.random() * CH : (Math.random() < .5 ? -10 : CH + 10);
+    const sx0 = side < .7 ? -10 : Math.random() * 220;
+    const pts = [[sx0, sy]];
+    let x = sx0 < 0 ? 20 + Math.random() * 120 : sx0, y = sy;
+    pts.push([x, sy < 0 || sy > CH ? (sy < 0 ? 40 + Math.random() * 80 : CH - 40 - Math.random() * 80) : sy]);
+    y = pts[1][1];
+    const dy = ty - y, run = Math.abs(dy);
+    x = Math.min(tx - 20, x + 20 + Math.random() * 60);
+    pts.push([x, y]);
+    const x2 = Math.min(tx - 8, x + run);
+    pts.push([x2, x2 - x >= run ? ty : y + Math.sign(dy) * (x2 - x)]);
+    pts.push([tx, ty]);
+    const segs = []; let L = 0;
+    for (let k = 1; k < pts.length; k++) { const l = Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]); segs.push(l); L += l; }
+    traces.push({ pts, segs, L, speed: 60 + Math.random() * 90, off: Math.random(), hue: Math.random() < .15 ? '190,140,255' : SCN_AC });
+  }
+  traceLayer = document.createElement('canvas');
+  traceLayer.width = CW * SCN_DPR; traceLayer.height = CH * SCN_DPR;
+  const t = traceLayer.getContext('2d');
+  t.setTransform(SCN_DPR, 0, 0, SCN_DPR, 0, 0);
+  // blurred tech lights in the background
+  t.filter = 'blur(10px)';
+  for (let i = 0; i < 26; i++) {
+    t.fillStyle = `rgba(${SCN_AC},${.03 + Math.random() * .08})`;
+    const w = 20 + Math.random() * 90, h = 4 + Math.random() * 40;
+    t.fillRect(Math.random() * CW, Math.random() * CH, w, h);
+  }
+  t.filter = 'none';
+  t.lineCap = 'round'; t.lineJoin = 'round';
+  for (const tr of traces) {
+    t.shadowColor = `rgba(${tr.hue},.9)`; t.shadowBlur = 6;
+    t.strokeStyle = `rgba(${tr.hue},.38)`; t.lineWidth = 1;
+    t.beginPath(); tr.pts.forEach(([x, y], k) => k ? t.lineTo(x, y) : t.moveTo(x, y)); t.stroke();
+    t.shadowBlur = 0; t.fillStyle = `rgba(${mix(tr.hue, '255,255,255', .5)},.7)`;
+    for (const [x, y] of tr.pts.slice(1, -1)) if (Math.random() < .5) { t.beginPath(); t.arc(x, y, .55, 0, TAU); t.fill(); }
+  }
+}
+buildTraces();
+function pointOn(tr, dist) {
+  let d = dist;
+  for (let k = 0; k < tr.segs.length; k++) {
+    if (d <= tr.segs[k]) { const u = d / tr.segs[k], a = tr.pts[k], b = tr.pts[k + 1]; return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]; }
+    d -= tr.segs[k];
+  }
+  return tr.pts[tr.pts.length - 1];
+}
+
+// light rays: soft fan from the crystal core, a few sharp streaks, and slanted shafts from above
+const RAYS = Array.from({ length: 18 }, () => ({ a: Math.random() * TAU, w: .02 + Math.random() * .07, len: 380 + Math.random() * 560, sp: (Math.random() - .5) * .05, ph: Math.random() * TAU, f: .25 + Math.random() * .5 }));
+const STREAKS = Array.from({ length: 7 }, () => ({ a: Math.random() * TAU, len: 260 + Math.random() * 520, sp: (Math.random() - .5) * .03, ph: Math.random() * TAU, f: .3 + Math.random() * .6 }));
+const SHAFTS = Array.from({ length: 6 }, (_, i) => ({ x: 120 + i * 190 + Math.random() * 80, w: 30 + Math.random() * 70, sk: 120 + Math.random() * 120, ph: Math.random() * TAU, f: .12 + Math.random() * .15 }));
+function drawRays(now) {
+  const AC = SCN_AC;
+  const rg = sx.createRadialGradient(SX, SY, SR * .3, SX, SY, 940);
+  rg.addColorStop(0, `rgba(${mix(AC, '255,255,255', .5)},.24)`); rg.addColorStop(.35, `rgba(${AC},.08)`); rg.addColorStop(1, `rgba(${AC},0)`);
+  sx.fillStyle = rg;
+  for (const r of RAYS) {
+    const a = r.a + now * r.sp;
+    sx.globalAlpha = Math.max(0, .4 + .6 * Math.sin(now * r.f + r.ph));
+    sx.beginPath(); sx.moveTo(SX, SY); sx.arc(SX, SY, r.len, a - r.w / 2, a + r.w / 2); sx.closePath(); sx.fill();
+  }
+  for (const r of STREAKS) {
+    const a = r.a + now * r.sp, ex = SX + Math.cos(a) * r.len, ey = SY + Math.sin(a) * r.len;
+    const g = sx.createLinearGradient(SX, SY, ex, ey);
+    g.addColorStop(0, 'rgba(255,255,255,.7)'); g.addColorStop(.3, `rgba(${AC},.35)`); g.addColorStop(1, `rgba(${AC},0)`);
+    sx.globalAlpha = Math.max(0, .3 + .7 * Math.sin(now * r.f + r.ph));
+    sx.strokeStyle = g; sx.lineWidth = 1;
+    sx.beginPath(); sx.moveTo(SX, SY); sx.lineTo(ex, ey); sx.stroke();
+  }
+  for (const r of SHAFTS) {
+    const x = r.x + Math.sin(now * r.f + r.ph) * 30;
+    const g = sx.createLinearGradient(0, 0, 0, CH * .8);
+    g.addColorStop(0, `rgba(${mix(AC, '255,255,255', .6)},.10)`); g.addColorStop(1, `rgba(${AC},0)`);
+    sx.globalAlpha = .55 + .45 * Math.sin(now * r.f * 2 + r.ph);
+    sx.fillStyle = g;
+    sx.beginPath(); sx.moveTo(x, 0); sx.lineTo(x + r.w, 0); sx.lineTo(x + r.w * 2.2 + r.sk, CH * .8); sx.lineTo(x + r.sk, CH * .8); sx.closePath(); sx.fill();
+  }
+  sx.globalAlpha = 1;
+}
+
+// particles riding the light stream
+const beamParts = Array.from({ length: 140 }, () => ({ x: SX + Math.random() * (CW - SX), y: SY + gauss() * 14, v: 40 + Math.random() * 180, s: Math.random() < .1 ? 2 : 1 }));
+
+let scLast = performance.now() / 1000, emit = 0;
+function drawScene() {
+  const AC = SCN_AC;
+  const now = performance.now() / 1000, dt = Math.min(.05, now - scLast); scLast = now;
+  sx.setTransform(SCN_DPR, 0, 0, SCN_DPR, 0, 0);
+  // background
+  const bg = sx.createLinearGradient(0, 0, CW, CH);
+  bg.addColorStop(0, '#051a3f'); bg.addColorStop(.45, '#03102b'); bg.addColorStop(1, '#020819');
+  sx.fillStyle = bg; sx.fillRect(0, 0, CW, CH);
+  const halo = sx.createRadialGradient(SX, SY, 0, SX, SY, 520);
+  halo.addColorStop(0, `rgba(${AC},.28)`); halo.addColorStop(.4, `rgba(${AC},.07)`); halo.addColorStop(1, `rgba(${AC},0)`);
+  sx.fillStyle = halo; sx.fillRect(0, 0, CW, CH);
+  sx.drawImage(traceLayer, 0, 0, CW, CH);
+
+  sx.globalCompositeOperation = 'lighter';
+  drawRays(now);
+  // pulses along traces
+  for (const tr of traces) {
+    const dist = ((now * tr.speed + tr.off * tr.L) % tr.L);
+    const [x, y] = pointOn(tr, dist);
+    const g = sx.createRadialGradient(x, y, 0, x, y, 2.4);
+    g.addColorStop(0, 'rgba(255,255,255,.95)'); g.addColorStop(.4, `rgba(${tr.hue},.6)`); g.addColorStop(1, `rgba(${tr.hue},0)`);
+    sx.fillStyle = g; sx.fillRect(x - 2.4, y - 2.4, 4.8, 4.8);
+  }
+
+  // sweeping arcs
+  sx.lineWidth = 1;
+  [[520, 150, -.08, .16], [760, 210, .05, .1], [980, 120, -.03, .08]].forEach(([rx, ry, rot, al], i) => {
+    sx.strokeStyle = `rgba(${AC},${al})`;
+    sx.beginPath(); sx.ellipse(SX + rx * .55, SY, rx, ry, rot + Math.sin(now * .1 + i) * .02, -1.2, .9); sx.stroke();
+  });
+
+  // the light stream
+  for (const [w, a] of [[26, .05], [10, .12], [4, .35], [1.4, .95]]) {
+    const g = sx.createLinearGradient(SX, 0, CW, 0);
+    g.addColorStop(0, `rgba(${mix(AC, '255,255,255', .6)},${a})`); g.addColorStop(.55, `rgba(${AC},${a * .6})`); g.addColorStop(1, `rgba(${AC},0)`);
+    sx.fillStyle = g; sx.fillRect(SX, SY - w / 2, CW - SX, w);
+  }
+  sx.strokeStyle = `rgba(${AC},.35)`;
+  for (let k = -4; k <= 4; k++) {
+    if (!k) continue;
+    sx.setLineDash([12 + Math.abs(k) * 6, 18 + Math.abs(k) * 9]); sx.lineDashOffset = -now * (60 + Math.abs(k) * 25);
+    sx.beginPath(); sx.moveTo(SX + 40, SY + k * 7 + Math.sin(k) * 2); sx.lineTo(CW, SY + k * 7 * (1 + Math.abs(k) * .12)); sx.stroke();
+  }
+  sx.setLineDash([]);
+  for (const p of beamParts) {
+    p.x += p.v * dt; if (p.x > CW) { p.x = SX + 60; p.y = SY + gauss() * 14; }
+    const u = (p.x - SX) / (CW - SX);
+    sx.fillStyle = `rgba(255,255,255,${.9 - u * .6})`;
+    sx.fillRect(p.x, p.y + (p.y - SY) * u * 1.4, p.s * 2.5, p.s);
+  }
+
+  // shards
+  emit += dt * 34;
+  while (emit > 1) { spawnShard(false); emit--; }
+  for (let i = shards.length - 1; i >= 0; i--) {
+    const s = shards[i];
+    s.life += dt; s.x += s.vx * dt; s.y += s.vy * dt; s.rot += s.vr * dt;
+    s.vy += (SY - s.y) * .15 * dt;   // stream pulls shards towards the beam
+    if (s.x > CW + 40 || s.x < -40 || s.y < -40 || s.y > CH + 40 || s.life > 14) { shards.splice(i, 1); continue; }
+    const fade = clamp(s.life * 2) * clamp(1 - (s.x - SX - 400) / 700 * .6);
+    const cs = Math.cos(s.rot), sn = Math.sin(s.rot), P = s.pts.map(([px, py]) => [s.x + (px * cs - py * sn) * s.size, s.y + (px * sn + py * cs) * s.size * (.6 + .4 * Math.abs(Math.sin(s.rot * .7)))]);
+    const g = sx.createLinearGradient(P[0][0], P[0][1], P[1][0], P[1][1]);
+    g.addColorStop(0, `rgba(255,255,255,${.5 * fade * s.depth})`); g.addColorStop(1, `rgba(${AC},${.12 * fade})`);
+    sx.fillStyle = g;
+    sx.beginPath(); sx.moveTo(...P[0]); sx.lineTo(...P[1]); sx.lineTo(...P[2]); sx.closePath(); sx.fill();
+    sx.strokeStyle = `rgba(${mix(AC, '255,255,255', .6)},${.6 * fade})`; sx.lineWidth = .7; sx.stroke();
+  }
+
+  // crystal
+  const ay = now * .22, ax = .35;
+  const rot = v => {
+    const x1 = v[0] * Math.cos(ay) + v[2] * Math.sin(ay), z1 = -v[0] * Math.sin(ay) + v[2] * Math.cos(ay);
+    return [x1, v[1] * Math.cos(ax) - z1 * Math.sin(ax), v[1] * Math.sin(ax) + z1 * Math.cos(ax)];
+  };
+  const RV = SV.map(rot);
+  const Lg = [.55, -.45, .7], Ln = Math.hypot(...Lg);
+  const faces = SF.map((f, i) => {
+    const c = [0, 1, 2].map(k => (RV[f[0]][k] + RV[f[1]][k] + RV[f[2]][k]) / 3);
+    return { f, c, seed: FACE_SEED[i] };
+  }).sort((a, b) => a.c[2] - b.c[2]);
+  const core = sx.createRadialGradient(SX, SY, 0, SX, SY, SR * 1.1);
+  core.addColorStop(0, 'rgba(255,255,255,.95)'); core.addColorStop(.18, `rgba(${mix(AC, '255,255,255', .5)},.6)`); core.addColorStop(1, `rgba(${AC},0)`);
+  sx.fillStyle = core; sx.beginPath(); sx.arc(SX, SY, SR * 1.1, 0, TAU); sx.fill();
+  for (const { f, c, seed } of faces) {
+    if (c[0] > .5 && seed < .75) continue;                        // the side facing the stream has shattered away
+    const crack = c[0] > .2 ? (c[0] - .2) * SR * .5 * (0.6 + seed) : 0;
+    const n = Math.hypot(...c), ox = c[0] / n * crack, oy = c[1] / n * crack;
+    const P = f.map(k => [SX + RV[k][0] * SR + ox, SY + RV[k][1] * SR + oy]);
+    const lam = Math.max(0, (c[0] * Lg[0] + c[1] * Lg[1] + c[2] * Lg[2]) / n / Ln);
+    const front = c[2] > 0;
+    sx.fillStyle = `rgba(${mix(AC, '255,255,255', lam * .7)},${(front ? .08 : .03) + lam * (front ? .32 : .08)})`;
+    sx.beginPath(); sx.moveTo(...P[0]); sx.lineTo(...P[1]); sx.lineTo(...P[2]); sx.closePath(); sx.fill();
+    sx.strokeStyle = `rgba(255,255,255,${(front ? .12 : .04) + lam * (front ? .5 : .1)})`; sx.lineWidth = .8; sx.stroke();
+  }
+  // anamorphic flare at the core
+  sx.save(); sx.translate(SX + 10, SY); sx.scale(7, .22);
+  const fl = sx.createRadialGradient(0, 0, 0, 0, 0, 60);
+  fl.addColorStop(0, 'rgba(255,255,255,.9)'); fl.addColorStop(.3, `rgba(${AC},.35)`); fl.addColorStop(1, `rgba(${AC},0)`);
+  sx.fillStyle = fl; sx.beginPath(); sx.arc(0, 0, 60, 0, TAU); sx.fill(); sx.restore();
+  const star = sx.createRadialGradient(SX + 6, SY, 0, SX + 6, SY, 26);
+  star.addColorStop(0, 'rgba(255,255,255,1)'); star.addColorStop(.35, 'rgba(255,255,255,.4)'); star.addColorStop(1, 'rgba(255,255,255,0)');
+  sx.fillStyle = star; sx.fillRect(SX - 20, SY - 26, 52, 52);
+  sx.globalCompositeOperation = 'source-over';
+}
+
+// клик по кристаллу → следующая монета того же кольца (или ленты), со вспышкой осколков
+SCN.addEventListener('click', e => {
+  if (!selected) return;
+  const r = SCN.getBoundingClientRect(), k = r.width / CW;
+  const x = (e.clientX - r.left) / k, y = (e.clientY - r.top) / k;
+  if (Math.hypot(x - SX, y - SY) > SR * 1.5) return;
+  e.stopPropagation();
+  const list = selected.closed ? RIB.arcs : ((rings.find(g => g.labels.includes(selected)) || { labels: [] }).labels.filter(q => !q.dying));
+  if (list.length > 1) openCard(list[(list.indexOf(selected) + 1) % list.length]);
+  for (let i = 0; i < 70; i++) spawnShard(true);
+});
 
 // ── ЛЕНТА ДНЯ (27.09, владелец: «да, добавь ленту снизу»): закрытые сделки дугами вход → выход, высота — итог, цвет — знак;
 //    шкала сессий UTC+3 с затемнённым первым часом, линия «сейчас». Новая дуга прорисовывается за ANIM_SLOW. Клик — карточка.
@@ -1348,7 +1571,7 @@ function frame() {
   if (hovered) hovered.born += t - lastT;
   if (selected && selected !== hovered) selected.born += t - lastT;
   lastT = t;
-  if (selected && bgFrozen) { drawHolo(selected); requestAnimationFrame(frame); return; }
+  if (selected && bgFrozen) { drawScene(); requestAnimationFrame(frame); return; }
   ctx.clearRect(0, 0, W, H);
   tctx.clearRect(0, 0, W, H);
   drawHUD(t);
@@ -1363,7 +1586,7 @@ function frame() {
   drawRibbon(t);
   hovered = findHover();
   document.body.style.cursor = hovered ? 'pointer' : '';
-  if (selected) { drawLink(selected); drawHolo(selected); bgFrozen = true; }
+  if (selected) { drawLink(selected); drawScene(); bgFrozen = true; }
   requestAnimationFrame(frame);
 }
 // ── ПРИЁМ ДАННЫХ: кольцо A — 15 ближайших к входу кандидатов (цена — уровень входа), кольцо B — открытые позиции (цена — цель).
