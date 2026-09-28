@@ -109,3 +109,14 @@ APRUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
 Call log:
   - navigating to "https://www.coinglass.com/tv/Binan
 AKEUSDT: сделок 1 — готово
+EVAAUSDT: сделок 1 — готово
+PUMPUSDT: сделок 2 — готово
+ZKUSDT: сделок 1 — готово
+ENAUSDT: сделок 1 — готово
+GRTUSDT: сделок 1 — готово
+QNTUSDT: сделок 1 — готово
+JUPUSDT: сделок 2 — готово
+CRVUSDT: сделок 1 — готово
+NOMUSDT: сделок 2 — готово
+GPSUSDT: сделок 1 — готово
+AIOTUSDT: сделок 2 — готово
