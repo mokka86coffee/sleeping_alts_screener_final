@@ -85,7 +85,11 @@ def main() -> int:
     shots = "--no-shots" not in sys.argv
     XD.mkdir(exist_ok=True); RD.mkdir(exist_ok=True)
     T = trades()
-    json.dump(T, open(RD / "trades.json", "w"), ensure_ascii=False, indent=0)
+    only = [x.upper() + ("" if x.upper().endswith("USDT") else "USDT") for x in sys.argv[1:] if not x.startswith("-")]
+    if only:                                                          # переснять только эти монеты
+        T = [x for x in T if x["sym"] in only]
+    if not only:
+        json.dump(T, open(RD / "trades.json", "w"), ensure_ascii=False, indent=0)
     todo = {}
     for x in T:
         need_x = any(not (XD / f"{x['sym']}_{tf}.json").exists() or (XD / f"{x['sym']}_{tf}.json").stat().st_mtime < x["t_out"] + 3600
@@ -131,15 +135,18 @@ def main() -> int:
                         fr.evaluate(f"(R) => {{ {CHART} c.setVisibleRange({{from: R[0], to: R[1]}}); }}",
                                     [int(x["t_in"] - b * 86400), int(min(time.time(), x["t_out"] + a * 86400))])
                         pg.wait_for_timeout(3500)
-                        fr.evaluate(f"""(X) => {{ {CHART} c.removeAllShapes();
-                          const v = (t, col) => c.createShape({{time: t}}, {{shape: 'vertical_line', lock: true, disableSelection: true, overrides: {{linecolor: col, linewidth: 2, linestyle: 2}}}});
-                          const h = (pr, col, txt) => c.createShape({{time: X.t_in, price: pr}}, {{shape: 'horizontal_line', lock: true, disableSelection: true, text: txt,
-                              overrides: {{linecolor: col, linewidth: 1, showLabel: true, textcolor: col, horzLabelsAlign: 'left', fontsize: 13}}}});
+                        fr.evaluate(f"""async (X) => {{ {CHART}
+                          for (const id of (window.__ids || [])) {{ try {{ c.removeEntity(id); }} catch (e) {{}} }}
+                          c.removeAllShapes(); window.__ids = [];
+                          const v = (t, col) => window.__ids.push(c.createShape({{time: t}}, {{shape: 'vertical_line', lock: true, disableSelection: true, overrides: {{linecolor: col, linewidth: 2, linestyle: 2}}}}));
+                          const h = (pr, col, txt) => window.__ids.push(c.createShape({{time: X.t_in, price: pr}}, {{shape: 'horizontal_line', lock: true, disableSelection: true, text: txt,
+                              overrides: {{linecolor: col, linewidth: 1, showLabel: true, textcolor: col, horzLabelsAlign: 'left', fontsize: 13}}}}));
                           v(Math.floor(X.t_in), '#f5a623'); v(Math.floor(X.t_out), '#ffffff');
-                          h(X.px_in, '#f5a623', (X.side < 0 ? 'ШОРТ ' : 'ЛОНГ ') + X.px_in); if (X.px_out) h(X.px_out, '#ffffff', 'ВЫХ ' + X.px_out + ' ' + X.res + '%'); }}""", x)
+                          h(X.px_in, '#f5a623', (X.side < 0 ? 'ШОРТ ' : 'ЛОНГ ') + X.px_in); if (X.px_out) h(X.px_out, '#ffffff', 'ВЫХ ' + X.px_out + ' ' + X.res + '%');
+                          window.__ids = await Promise.all(window.__ids); }}""", x)
                         pg.wait_for_timeout(2000); pg.mouse.move(1695, 1495)
                         pg.screenshot(path=str(out))
-                    fr.evaluate(f"() => {{ {CHART} c.removeAllShapes(); }}")
+                    fr.evaluate(f"() => {{ {CHART} for (const id of (window.__ids || [])) {{ try {{ c.removeEntity(id); }} catch (e) {{}} }} c.removeAllShapes(); window.__ids = []; }}")
                 print(f"{sym}: сделок {len(xs)} — готово", flush=True)
             except Exception as e:  # noqa: BLE001
                 print(f"{sym}: не снят — {type(e).__name__}: {str(e)[:100]}", flush=True)
