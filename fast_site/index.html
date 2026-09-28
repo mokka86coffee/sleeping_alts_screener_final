@@ -315,7 +315,7 @@ function layout() {
     g.R = Math.max(40, Math.min(W * .36, hh * .4 / (1.3 * g.k)));
   });
 }
-addEventListener('resize', () => { layout(); if (typeof fitCard === 'function') fitCard(); });
+addEventListener('resize', () => { if (typeof bgFrozen !== 'undefined') bgFrozen = false; layout(); if (typeof fitCard === 'function') fitCard(); });
 layout();
 
 // ── ЖИВЫЕ ДАННЫЕ (27.09): монеты колец — из output/fast_state.json по сокету; монета живёт, пока она в данных,
@@ -836,13 +836,13 @@ function findHover() {
 }
 
 function openCard(l) {
-  selected = l;
+  selected = l; bgFrozen = false;
   renderCard(l.closed ? RIB_G : rings.find(g => g.labels.includes(l)), l);
   fitCard();
   for (const el of [card, ghost1, ghost2, veil]) el.classList.add('on');
 }
 function closeCard() {
-  selected = null;
+  selected = null; bgFrozen = false;
   for (const el of [card, ghost1, ghost2, veil]) el.classList.remove('on');
 }
 document.getElementById('cClose').addEventListener('click', e => { e.stopPropagation(); closeCard(); });
@@ -1317,12 +1317,16 @@ function drawRibbon(t) {
 }
 
 let lastT = 0;
+// 28.09 владелец: «карточка сильно тормозит» — под открытой карточкой фон за вуалью не перерисовываем (стекло карточки размывает его
+// заново на каждом кадре); один кадр рисуется при открытии, смене монеты и resize, дальше крутится только кристалл.
+let bgFrozen = false;
 function frame() {
   const t = performance.now() / 1000 / TIME_SLOW;
   // hovered and opened coins pause their life so they don't fade away
   if (hovered) hovered.born += t - lastT;
   if (selected && selected !== hovered) selected.born += t - lastT;
   lastT = t;
+  if (selected && bgFrozen) { drawHolo(selected); requestAnimationFrame(frame); return; }
   ctx.clearRect(0, 0, W, H);
   tctx.clearRect(0, 0, W, H);
   drawHUD(t);
@@ -1337,7 +1341,7 @@ function frame() {
   drawRibbon(t);
   hovered = findHover();
   document.body.style.cursor = hovered ? 'pointer' : '';
-  if (selected) { drawLink(selected); drawHolo(selected); }
+  if (selected) { drawLink(selected); drawHolo(selected); bgFrozen = true; }
   requestAnimationFrame(frame);
 }
 // ── ПРИЁМ ДАННЫХ: кольцо A — 15 ближайших к входу кандидатов (цена — уровень входа), кольцо B — открытые позиции (цена — цель).
@@ -1346,7 +1350,7 @@ function applyState(S) {
   try { announce(S); } catch (e) {}
   const t = performance.now() / 1000 / TIME_SLOW;
   syncRibbon(S, t);
-  layout();
+  layout(); bgFrozen = false;   // layout перезадаёт холсты — один кадр фона заново
   const nowS = Date.now() / 1000;
   const sets = [
     (S.open || []).filter(p => nowS - p.t_in < ENTRY_KEEP).map(p => ({ key: 'in|' + p.book + '|' + p.sym + '|' + Math.round(p.t_in), name: p.sym.replace(/USDT$/, ''), side: p.side, price: p.entry, item: p })),

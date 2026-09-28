@@ -137,7 +137,12 @@ def main() -> int:
         sk = get_json("https://api.binance.com/api/v3/klines", {"symbol": s, "interval": "3m", "endTime": int(t_in * 1000), "limit": 10}, quiet_400=True, weight=2) or []
         sk = [x for x in sk if int(x[0]) + B3 <= t_in * 1000]
         spot_buy = round(sum(float(x[10]) for x in sk) / max(1.0, sum(float(x[7]) for x in sk)) * 100, 1) if sk else None
-        out.append(dict(tr, spot_buy=spot_buy, oi_bar=oi_bar, oi_after=oi_after, sq=round(sq), sq_ratio=sq_ratio, wall=wall, wall_share=wall_share, opp=opp))
+        # толпа по счетам на входе (28.09, QNT: интерес рос на шортах толпы — переворот в шорт встал на сторону выносимых)
+        cr = get_json("https://fapi.binance.com/futures/data/globalLongShortAccountRatio", {"symbol": s, "period": "5m", "endTime": int(t_in * 1000), "limit": 2},
+                      quiet_400=True) or []
+        cr = [float(x["longShortRatio"]) for x in cr if int(x["timestamp"]) <= t_in * 1000]
+        crowd = cr[-1] if cr else None
+        out.append(dict(tr, crowd=crowd, spot_buy=spot_buy, oi_bar=oi_bar, oi_after=oi_after, sq=round(sq), sq_ratio=sq_ratio, wall=wall, wall_share=wall_share, opp=opp))
     L_md = [f"# Переворот всплеска — обе стороны ({datetime.now(L):%d.%m %H:%M})", "",
             f"Сделки быстрых книг с 27.09 07:15: {len(out)}. «как было» — запись книги; «обратная» — те же вход и время выхода, цель 5%, стоп 5% "
             "(у шорта из лонга — над плитой, если она ближе). Ликвидации — поток OKX+Bybit (Binance нет); плиты — журнал с 27.09 16:27.", "",
@@ -161,6 +166,13 @@ def main() -> int:
     A = lambda x: (x["oi1h"] is not None and x["oi1h"] >= 3) or (x["oi_bar"] is not None and x["oi_bar"] <= 0)   # noqa: E731
     line("лонг · интерес за час ≥ +3% ИЛИ последний 5-мин бар интереса ≤ 0", [x for x in longs if A(x)])
     line("лонг · остальные", [x for x in longs if not A(x)])
+    line("связка · толпа ≥ 1 (лонгов больше)", [x for x in longs if A(x) and x["crowd"] is not None and x["crowd"] >= 1])
+    line("связка · толпа < 1 (шортов больше)", [x for x in longs if A(x) and x["crowd"] is not None and x["crowd"] < 1])
+    line("остальные · толпа ≥ 1", [x for x in longs if not A(x) and x["crowd"] is not None and x["crowd"] >= 1])
+    line("остальные · толпа < 1", [x for x in longs if not A(x) and x["crowd"] is not None and x["crowd"] < 1])
+    sh = [x for x in out if x["side"] == -1]
+    line("перевёрнутые (шорт) · толпа ≥ 1", [x for x in sh if x["crowd"] is not None and x["crowd"] >= 1])
+    line("перевёрнутые (шорт) · толпа < 1", [x for x in sh if x["crowd"] is not None and x["crowd"] < 1])
     line("связка · спот покупал 30 мин до входа (> 50%)", [x for x in longs if A(x) and x["spot_buy"] is not None and x["spot_buy"] > 50])
     line("связка · спот продавал 30 мин до входа (≤ 50%)", [x for x in longs if A(x) and x["spot_buy"] is not None and x["spot_buy"] <= 50])
     line("связка · спота нет", [x for x in longs if A(x) and x["spot_buy"] is None])
@@ -177,15 +189,15 @@ def main() -> int:
         line(f"лонг · плиты сверху в 5% нет (журнал)", [x for x in longs if x["wall"] is None and x["t_in"] >= datetime(2026, 9, 27, 16, 27, tzinfo=L).timestamp()])
         line(f"лонг · плита ≥ {q3:.3f}% оборота (верхняя четверть)", [x for x in longs if x["wall_share"] is not None and x["wall_share"] >= q3])
     line("лонг · интерес ≤ 0 и шорты горели", [x for x in longs if x["oi_bar"] is not None and x["oi_bar"] <= 0 and x["sq"] > 0])
-    L_md += ["", "## Сделки", "", "| вход | монета | книга | сторона | итог | обратная | интерес на баре | шорты сгорели $ (к макс. суток) | плита сверху |",
-             "|---|---|---|---|---|---|---|---|---|"]
+    L_md += ["", "## Сделки", "", "| вход | монета | книга | сторона | итог | обратная | толпа | интерес на баре | шорты сгорели $ (к макс. суток) | плита сверху |",
+             "|---|---|---|---|---|---|---|---|---|---|"]
     for x in sorted(out, key=lambda x: x["t_in"]):
         w = f"{x['wall']['px']:.5g} +{x['wall']['dist']:.1f}% ${x['wall']['usd'] / 1e3:.0f}K ({x['wall_share']}%)" if x["wall"] else "—"
         L_md.append(f"| {datetime.fromtimestamp(x['t_in'], L):%d.%m %H:%M} | {x['sym'][:-4]} | {x['book']} | {'лонг' if x['side'] == 1 else 'шорт'} | {x['res']:+.1f}% | "
-                    f"{(format(x['opp'], '+.1f') + '%') if x['opp'] is not None else '—'} | {x['oi_bar'] if x['oi_bar'] is not None else '—'} | "
+                    f"{(format(x['opp'], '+.1f') + '%') if x['opp'] is not None else '—'} | {x['crowd'] if x['crowd'] is not None else '—'} | {x['oi_bar'] if x['oi_bar'] is not None else '—'} | "
                     f"{x['sq']} ({x['sq_ratio']}) | {w} |")
     OUT.write_text("\n".join(L_md) + "\n", encoding="utf-8")
-    print("\n".join(L_md[:18]))
+    print("\n".join(L_md[:26]))
     return 0
 
 
