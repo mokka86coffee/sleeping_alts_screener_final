@@ -109,10 +109,13 @@ def reviews() -> dict:
     return {r["key"]: r for r in _rows(BASE_DIR / "output" / "fast_reviews.jsonl")}
 
 
-def positions(now: float) -> tuple[list, list]:
+HIST_DAYS = 6   # 28.09 владелец: «стрелки по бокам с переключением на предыдущий день» — лента показывает сделки прошлых дней (6 дн)
+
+
+def positions(now: float) -> tuple[list, list, list]:
     day0 = datetime.fromtimestamp(now, L).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
     RV = reviews()
-    op, cl = [], []
+    op, cl, hist = [], [], []
     for book, stem in BOOKS:
         stt = _read(BASE_DIR / "output" / f"{stem}.json", {})
         R = _rows(BASE_DIR / "output" / f"{stem}.jsonl")
@@ -125,14 +128,15 @@ def positions(now: float) -> tuple[list, list]:
                            exit_at=(int(p["t_ms"]) + B3) / 1000 + int(p.get("hold_min") or 0) * 60, px=p.get("last_px"), rule=p.get("rule") or "",
                            oi1h_in=er.get("oi1h"), board6_in=(er.get("fon") or {}).get("board6")))
         for r in R:
-            if not str(r.get("kind", "")).startswith("exit") or float(r.get("at") or 0) < day0:
+            if not str(r.get("kind", "")).startswith("exit") or float(r.get("at") or 0) < day0 - HIST_DAYS * 86400:
                 continue
             key = f"{book}|{r['sym']}|{int(float(r['at']))}"
-            cl.append(dict(book=book, sym=r["sym"], side=int(r.get("side") or 1), entry=float(r["px_in"]), exit=float(r.get("px_out") or 0),
+            (cl if float(r["at"]) >= day0 else hist).append(dict(book=book, sym=r["sym"], side=int(r.get("side") or 1), entry=float(r["px_in"]), exit=float(r.get("px_out") or 0),
                            t_in=float(r.get("opened_at") or 0), t_out=float(r["at"]), why=r.get("why_exit") or "", res=float(r["result_pct"]),
                            usd=round(float(r["result_pct"]) * 5, 2), rule=r.get("rule") or "", review=RV.get(key)))
     cl.sort(key=lambda x: -x["t_out"])
-    return op, cl
+    hist.sort(key=lambda x: -x["t_out"])
+    return op, cl, hist
 
 
 def _liq(syms: set, t0: float) -> dict:
@@ -196,11 +200,11 @@ def score(cl: list[dict]) -> dict:
 
 def build() -> dict:
     now = time.time()
-    op, cl = positions(now)
+    op, cl, hist = positions(now)
     ent = candidates()
     # графики: открытые (кольцо «вход») и закрытые сегодня (кольцо «выход» и лента); кандидаты на странице не показываются
     syms = list(dict.fromkeys([p["sym"] for p in op] + [c["sym"] for c in cl]))[:40]
-    return dict(meta=meta(now), entry=ent, open=op, closed=cl, charts=charts(syms), score=score(cl))
+    return dict(meta=meta(now), entry=ent, open=op, closed=cl, closed_hist=hist, charts=charts(syms), score=score(cl))
 
 
 def write() -> Path:

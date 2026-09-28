@@ -288,7 +288,13 @@ def main() -> int:
     print(f"cg_shot: {', '.join(str(x) for x in path)}")
     if not a.no_send and not send_photo(path, a.caption or sym):
         return 1
-    for old in sorted(SHOTS.glob("*.png"))[:-200]:          # храним последние 200
+    # 28.09 владелец «поднимай»: храним CG_SHOTS_KEEP последних; удаляем самые старые по времени файла (было — по алфавиту имени,
+    # стирались свежие снимки монет на 0–A, а старые на P–Z оставались)
+    try:
+        from core_config import CG_SHOTS_KEEP as keep
+    except ImportError:
+        keep = 2000
+    for old in sorted(SHOTS.glob("*.png"), key=lambda f: f.stat().st_mtime)[:-keep]:
         old.unlink(missing_ok=True)
     return 0
 

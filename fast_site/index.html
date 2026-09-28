@@ -58,6 +58,8 @@
     margin-top: 7.2px; font-family: var(--ff-disp); font-weight: 500; font-size: 37.18px; letter-spacing: .14em; line-height: 1; color: #fff;
     text-shadow: 0 0 20px rgba(var(--ac),.95), 0 0 60px rgba(var(--ac),.6);
   }
+  #card .ticker { pointer-events: auto; cursor: pointer; display: inline-block; }   /* 28.09: клик по названию — Coinglass (Binance) */
+  #card .ticker:hover { text-shadow: 0 0 24px rgba(var(--ac),1), 0 0 70px rgba(var(--ac),.8); }
   #card .mode { margin: 2.9px 0 0 4.3px; font-family: var(--ff-disp); font-style: italic; font-size: 9.29px; letter-spacing: .34em; color: rgb(var(--ac)); text-shadow: 0 0 12px rgba(var(--ac),.8); }
   #card .pill {
     margin-top: 11.4px; display: inline-flex; align-items: center; gap: 6.5px; padding: 4.4px 11px; border-radius: 999px; max-width: 420px;
@@ -98,8 +100,8 @@
   @keyframes iris { from { background-position: 0% 0; } to { background-position: 100% 0; } }
   @keyframes glint { 0% { left: -110px; } 55%, 100% { left: 100%; } }
   #card #cChart { display: block; width: 480px; }
-  #card .foot { margin-top: 6px; font-family: var(--ff-disp); font-size: 7px; letter-spacing: .22em; line-height: 1.6; text-transform: uppercase; color: rgba(210,222,240,.45); text-align: center; }
-  #card .foot b { color: rgba(240,246,255,.85); font-weight: 500; }
+  #card .foot { margin-top: 6px; font-family: var(--ff-disp); font-size: 7px; letter-spacing: .22em; line-height: 1.6; text-transform: uppercase; color: rgba(255,255,255,.85); text-align: center; text-shadow: 0 0 3px rgba(0,4,12,.95), 0 1px 2px rgba(0,4,12,.9); }
+  #card .foot b { color: #fff; font-weight: 500; }
   #card .plate { position: absolute; width: var(--w); height: var(--h); }
   #card .plate .fly { width: 100%; height: 100%; animation: flyout 1.8s cubic-bezier(.16,.84,.24,1) var(--d) both; }
   @keyframes flyout {
@@ -126,16 +128,16 @@
   #card .plate .ct { position: relative; max-width: 170px; isolation: isolate; }
   #card .plate .ct::before {
     content: ""; position: absolute; inset: -12px -18px; z-index: -1; border-radius: 50%;
-    background: radial-gradient(ellipse, rgba(3,8,22,.62), rgba(3,8,22,0) 70%);
+    background: radial-gradient(ellipse, rgba(2,6,16,.8), rgba(2,6,16,.35) 55%, rgba(2,6,16,0) 75%);   /* 28.09 «небольшое затемнение ко всем текстам на стёклах» */
   }
-  #card .plate small { display: block; font-family: var(--ff-disp); font-size: 6.5px; letter-spacing: .3em; text-transform: uppercase; color: rgba(var(--ac),.95); }
+  #card .plate small { display: block; font-family: var(--ff-disp); font-size: 6.5px; letter-spacing: .3em; text-transform: uppercase; color: #fff; text-shadow: 0 0 3px rgba(0,4,12,.95), 0 1px 2px rgba(0,4,12,.9), 0 0 6px rgba(var(--ac),.6); }   /* 28.09 «мелкие надписи на стёклах — белым», с затемнением */
   #card .plate b { display: block; margin-top: 3px; font-family: ui-monospace, "SF Mono", Menlo, monospace; font-weight: 300; font-size: 11px; letter-spacing: .02em; font-variant-numeric: tabular-nums; color: #fff; text-shadow: 0 0 8px rgba(var(--ac),.8); }
   #card .plate b.up { color: #9af7cf; text-shadow: 0 0 12px rgba(110,240,180,.6); }
   #card .plate b.dn { color: #ffa3ae; text-shadow: 0 0 12px rgba(255,110,130,.55); }
-  #card .plate b .tx { font-family: var(--ff-disp); font-weight: 400; font-size: 10px; letter-spacing: .08em; }
+  #card .plate b .tx { font-family: var(--ff-disp); font-weight: 400; font-size: 10px; letter-spacing: .08em; text-shadow: 0 0 3px rgba(0,4,12,.95), 0 1px 2px rgba(0,4,12,.9); }
   #card .now span svg { display: block; overflow: visible; color: #fff; filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 7px rgba(var(--ac),.9)); }
-  #card .plate b svg { display: block; margin: 2px auto 1px; overflow: visible; filter: drop-shadow(0 0 1.2px currentColor) drop-shadow(0 0 4px rgba(var(--ac),.85)); }
-  #card .plate em { display: block; margin-top: 2px; font-style: normal; font-family: var(--ff-disp); font-size: 6.5px; line-height: 1.3; letter-spacing: .04em; color: rgba(215,228,245,.62); }
+  #card .plate b svg { display: block; margin: 2px auto 1px; overflow: visible; filter: drop-shadow(0 0 2px rgba(0,4,12,.95)) drop-shadow(0 0 1.2px currentColor) drop-shadow(0 0 4px rgba(var(--ac),.85)); }
+  #card .plate em { display: block; margin-top: 2px; font-style: normal; font-family: var(--ff-disp); font-size: 6.5px; line-height: 1.3; letter-spacing: .04em; color: rgba(255,255,255,.9); text-shadow: 0 0 3px rgba(0,4,12,.95), 0 1px 2px rgba(0,4,12,.9); }
 </style>
 </head>
 <body>
@@ -825,6 +827,8 @@ function closeCard() {
 addEventListener('click', e => {
   mouse = { x: e.clientX, y: e.clientY };
   if (overCard()) return;
+  const ar = !selected && ribArrowAt(e.clientX, e.clientY);   // стрелки ленты: день назад / вперёд
+  if (ar) { ribShift(ar.d); return; }
   const l = findHover();
   if (l && l !== selected) openCard(l); else closeCard();
 });
@@ -1019,7 +1023,8 @@ function drawCardChart(d, l) {
       c.strokeStyle = sep; c.beginPath(); c.moveTo(0, y0 + .5); c.lineTo(Wc, y0 + .5); c.stroke();
     }
     c.font = '500 7px Futura, "Avenir Next", sans-serif'; c.textAlign = 'left'; c.letterSpacing = '2.5px';
-    c.shadowColor = `rgba(${l.c1},.8)`; c.shadowBlur = 8; c.fillStyle = `rgba(${mix(l.c1, '255,255,255', .5)},.9)`;
+    c.shadowColor = 'rgba(0,4,12,.95)'; c.shadowBlur = 4; c.fillStyle = '#fff'; c.fillText(name.toUpperCase(), 3, y0 + 14);
+    c.shadowColor = `rgba(${l.c1},.8)`; c.shadowBlur = 8;
     c.fillText(name.toUpperCase(), 3, y0 + 14); c.shadowBlur = 0; c.letterSpacing = '0px';
 
     if (name === 'цена') {
@@ -1460,6 +1465,14 @@ function drawScene() {
   sx.globalCompositeOperation = 'source-over';
 }
 
+// 28.09 владелец: «в карточке при клике на название монеты сделай переход на Coinglass Binance» — график Binance в новой вкладке
+document.getElementById('cTitle').addEventListener('click', e => {
+  e.stopPropagation();
+  const sym = selected && selected.item && selected.item.sym;
+  if (sym) window.open(`https://www.coinglass.com/tv/Binance_${sym}`, '_blank', 'noopener');
+});
+document.getElementById('cTitle').title = 'открыть на Coinglass (Binance)';
+
 // клик по кристаллу → следующая монета того же кольца (или ленты), со вспышкой осколков
 SCN.addEventListener('click', e => {
   if (!selected) return;
@@ -1472,94 +1485,146 @@ SCN.addEventListener('click', e => {
   for (let i = 0; i < 70; i++) spawnShard(true);
 });
 
-// ── ЛЕНТА ДНЯ (27.09, владелец: «да, добавь ленту снизу»): закрытые сделки дугами вход → выход, высота — итог, цвет — знак;
-//    шкала сессий UTC+3 с затемнённым первым часом, линия «сейчас». Новая дуга прорисовывается за ANIM_SLOW. Клик — карточка.
-const RIB_G = { title: 'ЗАКРЫТО СЕГОДНЯ', mode: 'closed', labels: [] };
-const RIB = { arcs: [], seen: new Map() };
+// ── ЛЕНТА ДНЯ (28.09 владелец): «переделай просто в список монет, в которые входили в сделки»; «шкала ровно 24 часа по локальному времени и
+//    стрелки по бокам с переключением на предыдущий день»; «шкала разбивается на равные части по часам»; «в каждом часе столбик из списка
+//    монет со сделками — только открытие». 24 равные ячейки 00–24 местного времени; в ячейке столбиком снизу вверх — монеты, открытые в этот час
+//    (цвет — итог: зелёный плюс, красный минус, белый — ещё открыта). Стрелки ‹ › — день назад / вперёд (до 6 дней, fast_state closed_hist).
+//    Наведение — итог; клик — карточка. Новое название проявляется за ANIM_SLOW.
+const RIB_G = { title: 'СДЕЛКИ ДНЯ', mode: 'closed', labels: [] };
+const RIB = { arcs: [], seen: new Map(), day: 0, arrows: [] };
+const RIB_ROW = 11, RIB_FONT = `8.5px ${FONT}`, RIB_DAYS = 6;
+function ribDay0(S, off) {
+  const d = new Date((S && S.meta && S.meta.t ? S.meta.t : Date.now() / 1000) * 1000);
+  d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + off);
+  return d.getTime() / 1000;
+}
 function syncRibbon(S, t) {
-  const first = RIB.seen.size === 0;   // первая загрузка: все дуги дня сразу из кэша, анимируются только закрытые после открытия страницы
-  RIB.arcs = (S.closed || []).map(c => {
-    const key = c.book + '|' + c.sym + '|' + Math.round(c.t_out);
-    if (!RIB.seen.has(key)) RIB.seen.set(key, first ? t - 99 : t);
-    const up = c.res >= 0;
-    return { key, closed: true, item: c, name: c.sym.replace(/USDT$/, ''), born: RIB.seen.get(key),
-             c1: up ? '110,240,180' : '255,110,130', c2: up ? '150,240,255' : '255,175,100', cp: '240,248,255' };
-  });
+  const first = RIB.seen.size === 0;   // первая загрузка: весь день сразу, проявляются только новые
+  const t0 = ribDay0(S, RIB.day), t1 = ribDay0(S, RIB.day + 1);
+  const seen = new Set(), items = [];
+  for (const c of (S.closed || []).concat(S.closed_hist || [])) {
+    const k = c.book + '|' + c.sym + '|' + Math.round(c.t_out);
+    if (seen.has(k) || !(c.t_in >= t0 && c.t_in < t1)) continue;
+    seen.add(k); items.push({ c, open: false, k });
+  }
+  for (const c of S.open || []) if (c.t_in >= t0 && c.t_in < t1) items.push({ c, open: true, k: 'open|' + c.book + '|' + c.sym + '|' + Math.round(c.t_in) });
+  RIB.arcs = items.map(({ c, open, k }) => {
+    if (!RIB.seen.has(k)) RIB.seen.set(k, first ? t - 99 : t);
+    const up = (c.res || 0) >= 0;
+    return { key: k, closed: true, open, item: c, name: c.sym.replace(/USDT$/, ''), born: RIB.seen.get(k),
+             c1: open ? '225,235,250' : up ? '110,240,180' : '255,110,130', c2: up ? '150,240,255' : '255,175,100', cp: '240,248,255' };
+  }).sort((a, b) => a.item.t_in - b.item.t_in);
+}
+function ribShift(d) {
+  const nd = clamp(RIB.day + d, -RIB_DAYS, 0);
+  if (nd === RIB.day || !window.STATE) return;
+  RIB.day = nd; ribKey = '';
+  syncRibbon(window.STATE, performance.now() / 1000 / TIME_SLOW);
 }
 function ribGeom() {
-  const S = window.STATE, yb = H - 44, x0 = 130, x1 = W - 90;
-  const d0 = new Date(S.meta.t * 1000); d0.setHours(0, 0, 0, 0); const t0 = d0.getTime() / 1000;
-  return { S, yb, x0, x1, t0, X: s => x0 + (x1 - x0) * clamp((s - t0) / 86400), maxH: RIB_H - 48 };
+  const S = window.STATE, yb = H - 44, x0 = 130, x1 = W - 90, t0 = ribDay0(S, RIB.day);
+  return { S, yb, x0, x1, t0, cw: (x1 - x0) / 24, X: s => x0 + (x1 - x0) * clamp((s - t0) / 86400), maxH: RIB_H - 48 };
 }
-function arcPath(c2, a, G, p) {
-  const c = a.item, xa = G.X(c.t_in || c.t_out), xb = Math.max(xa + 2, G.X(c.t_out));
-  const hh = Math.max(6, Math.min(G.maxH, Math.abs(c.res) / 5 * G.maxH * .8));
-  a.hit = { x: xa, y: G.yb - hh * .75, w: xb - xa, h: hh * .75, ax: (xa + xb) / 2, ay: G.yb };
-  const N = 24;
-  c2.beginPath(); c2.moveTo(xa, G.yb);
-  for (let i = 1; i <= N * p; i++) { const u = i / N; c2.lineTo(xa + (xb - xa) * u, G.yb - hh * Math.sin(Math.PI * u) * .75); }
-  return { xa, xb, hh };
+// раскладка: часовая ячейка → столбик снизу вверх по времени входа; не влезло — «+N» наверху столбика
+function ribLayout(G) {
+  const maxRows = Math.max(1, Math.floor((G.maxH + 16) / RIB_ROW));
+  const cols = Array.from({ length: 24 }, () => []);
+  for (const a of RIB.arcs) cols[clamp(Math.floor((a.item.t_in - G.t0) / 3600), 0, 23)].push(a);
+  RIB.more = [];
+  cols.forEach((list, h) => {
+    const x = G.x0 + h * G.cw + 3;
+    list.forEach((a, r) => {
+      if (r >= maxRows - (list.length > maxRows ? 1 : 0)) { a.hit = null; return; }
+      const y = G.yb - 4 - r * RIB_ROW;
+      a.hit = { x: x - 1, y: y - 9, w: G.cw - 4, h: RIB_ROW, ax: G.x0 + (h + .5) * G.cw, ay: G.yb, tx: x, ty: y };
+    });
+    if (list.length > maxRows) RIB.more.push({ x, y: G.yb - 4 - (maxRows - 1) * RIB_ROW, n: list.length - maxRows + 1 });
+  });
 }
-// кэш ленты (27.09 «сайт тормозит»): 66 дуг со свечением на каждом кадре роняли частоту вчетверо — рисуем их один раз в слой
+function ribLabel(c2, a, alpha, on, G) {
+  const h = a.hit;
+  c2.globalAlpha = alpha; c2.font = RIB_FONT; c2.textAlign = 'left';
+  let s = a.name;
+  while (s.length > 2 && c2.measureText(s).width > G.cw - 6) s = s.slice(0, -1);
+  if (s !== a.name) s = s.slice(0, -1) + '…';
+  c2.shadowColor = `rgba(${a.c1},.9)`; c2.shadowBlur = on ? 10 : 3;
+  c2.fillStyle = on ? '#fff' : `rgba(${a.c1},.92)`;
+  c2.fillText(s, h.tx, h.ty);
+  c2.shadowBlur = 0; c2.globalAlpha = 1;
+}
+// кэш ленты (27.09 «сайт тормозит»): сетка часов и названия рисуются один раз в слой
 const RIBC = document.createElement('canvas'), rctx = RIBC.getContext('2d');
 let ribKey = '';
 function ribStatic(G, t) {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2), top = G.yb - RIB_H, bh = RIB_H + 20;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), top = G.yb - RIB_H, bh = RIB_H + 34;
   RIBC.width = W * dpr; RIBC.height = bh * dpr;
   rctx.setTransform(dpr, 0, 0, dpr, 0, -top * dpr);
   rctx.clearRect(0, top, W, bh);
+  // полосы сессий под шкалой, первый час сессии — тёплым
   [[0, 3], [3, 10], [10, 16], [16, 24]].forEach(([a, b], i) => {
-    const xa = G.X(G.t0 + a * 3600), xb = G.X(G.t0 + b * 3600), xw = G.X(G.t0 + (a + 1) * 3600);
-    rctx.fillStyle = `rgba(70,150,255,${i % 2 ? .05 : .08})`; rctx.fillRect(xa, G.yb, xb - xa, 10);
-    rctx.fillStyle = 'rgba(255,205,120,.10)'; rctx.fillRect(xa, G.yb, xw - xa, 10);
+    const xa = G.x0 + a * G.cw, xb = G.x0 + b * G.cw;
+    rctx.fillStyle = `rgba(70,150,255,${i % 2 ? .05 : .08})`; rctx.fillRect(xa, G.yb, xb - xa, 6);
+    rctx.fillStyle = 'rgba(255,205,120,.10)'; rctx.fillRect(xa, G.yb, G.cw, 6);
   });
-  rctx.strokeStyle = 'rgba(120,170,230,.3)'; rctx.lineWidth = 1;
-  for (let h = 0; h <= 24; h += 3) { const x = G.X(G.t0 + h * 3600); rctx.beginPath(); rctx.moveTo(x + .5, G.yb + 10); rctx.lineTo(x + .5, G.yb + 14); rctx.stroke(); }
-  rctx.globalCompositeOperation = 'lighter';
-  for (const a of RIB.arcs) {
-    if (t - a.born < ANIM_SLOW) continue;              // ещё прорисовывается — рисуется на кадре
-    rctx.shadowColor = `rgba(${a.c1},.9)`; rctx.shadowBlur = 6;
-    rctx.strokeStyle = `rgba(${a.c1},.55)`; rctx.lineWidth = 1.1;
-    arcPath(rctx, a, G, 1); rctx.stroke();
+  // 24 равные часовые ячейки: разделители и номера часов
+  rctx.lineWidth = 1; rctx.font = `8px ${FONT}`; rctx.textAlign = 'center';
+  for (let h = 0; h <= 24; h++) {
+    const x = Math.round(G.x0 + h * G.cw) + .5, big = h % 3 === 0;
+    rctx.strokeStyle = `rgba(120,170,230,${big ? .22 : .09})`;
+    rctx.beginPath(); rctx.moveTo(x, G.yb - G.maxH - 12); rctx.lineTo(x, G.yb + (big ? 10 : 7)); rctx.stroke();
+    if (h < 24) { rctx.fillStyle = 'rgba(150,185,225,.45)'; rctx.fillText(String(h).padStart(2, '0'), G.x0 + (h + .5) * G.cw, G.yb + 16); }
   }
-  rctx.shadowBlur = 0; rctx.globalCompositeOperation = 'source-over';
+  rctx.textAlign = 'left';
+  ribLayout(G);
+  for (const a of RIB.arcs) if (a.hit && t - a.born >= ANIM_SLOW) ribLabel(rctx, a, 1, false, G);   // проявляющиеся — на кадре
+  rctx.font = RIB_FONT; rctx.fillStyle = 'rgba(150,185,225,.55)';
+  for (const m of RIB.more) rctx.fillText(`+${m.n}`, m.x, m.y);
 }
 function drawRibbon(t) {
   if (W < 900 || !window.STATE) return;
   const G = ribGeom(), { S, yb, x0, x1 } = G;
   const settled = RIB.arcs.filter(a => t - a.born >= ANIM_SLOW).length;
-  const key = [W, H, S.meta.t, RIB.arcs.length, settled, new Date().getHours()].join('|');
+  const key = [W, H, RIB.day, G.t0, RIB.arcs.map(a => a.key + (a.item.res || 0)).join(','), settled].join('|');
   if (key !== ribKey) { ribStatic(G, t); ribKey = key; }
-  ctx.drawImage(RIBC, 0, yb - RIB_H, W, RIB_H + 20);
-  // подписи (резкий слой)
-  const sc = S.score || {}, n = (S.closed || []).length;
-  ctx.font = `9px ${FONT}`; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(150,185,225,.4)';
-  text(`${n} сделок · ` + Object.entries(sc).map(([b, v]) => `${b} ${v.usd >= 0 ? '+' : '−'}${Math.abs(Math.round(v.usd))} $`).join(' · '), x1, yb - RIB_H + 34);
-  ctx.fillStyle = 'rgba(150,185,225,.6)';
-  text('CLOSED TODAY · ЗАКРЫТО СЕГОДНЯ', x1, yb - RIB_H + 20); ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(150,185,225,.5)';
-  [[0, 3, 'SYDNEY'], [3, 10, 'TOKYO'], [10, 16, 'LONDON'], [16, 24, 'NEW YORK']].forEach(([a, b, nm]) => text(nm, (G.X(G.t0 + a * 3600) + G.X(G.t0 + b * 3600)) / 2, yb + 24));
+  ctx.drawImage(RIBC, 0, yb - RIB_H, W, RIB_H + 34);
+  // заголовок: день и итог дня по книгам (резкий слой)
+  const DW = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'], d = new Date(G.t0 * 1000);
+  const cl = RIB.arcs.filter(a => !a.open), by = {};
+  for (const a of cl) { const b = by[a.item.book] || (by[a.item.book] = 0); by[a.item.book] = b + (a.item.usd != null ? a.item.usd : a.item.res * 5); }
+  ctx.font = `9px ${FONT}`; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(150,185,225,.6)';
+  text(`СДЕЛКИ · ${RIB.day === 0 ? 'СЕГОДНЯ' : DW[d.getDay()].toUpperCase() + ' ' + d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`, x1, yb - RIB_H + 20);
+  ctx.fillStyle = 'rgba(150,185,225,.4)';
+  text(`${RIB.arcs.length} входов · ` + Object.entries(by).map(([b, v]) => `${b} ${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v))} $`).join(' · '), x1, yb - RIB_H + 34);
+  ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(150,185,225,.5)';
+  [[0, 3, 'SYDNEY'], [3, 10, 'TOKYO'], [10, 16, 'LONDON'], [16, 24, 'NEW YORK']].forEach(([a, b, nm]) => text(nm, x0 + (a + b) / 2 * G.cw, yb + 30));
+  // стрелки дней
+  RIB.arrows = [];
+  const ay = yb - G.maxH / 2, arrow = (x, dir, on) => {
+    ctx.font = `22px ${THIN_FONT}`; ctx.fillStyle = on ? 'rgba(190,220,255,.8)' : 'rgba(150,185,225,.15)';
+    text(dir < 0 ? '‹' : '›', x, ay + 7);
+    if (on) RIB.arrows.push({ x: x - 16, y: ay - 18, w: 32, h: 36, d: dir });
+  };
+  arrow(x0 - 34, -1, RIB.day > -RIB_DAYS); arrow(x1 + 34, 1, RIB.day < 0);
   ctx.textAlign = 'left';
-  // на кадре: прорисовка новых дуг и дуга под курсором
-  ctx.globalCompositeOperation = 'lighter';
+  // на кадре: проявление новых названий и название под курсором с итогом
   for (const a of RIB.arcs) {
+    if (!a.hit) continue;
     const p = ease(clamp((t - a.born) / ANIM_SLOW)), on = a === hovered || a === selected;
     if (p >= 1 && !on) continue;
-    ctx.shadowColor = `rgba(${a.c1},.9)`; ctx.shadowBlur = on ? 14 : 6;
-    ctx.strokeStyle = `rgba(${a.c1},${on ? .95 : .55})`; ctx.lineWidth = on ? 2 : 1.1;
-    const g2 = arcPath(ctx, a, G, p); ctx.stroke();
-    if (p < 1 && p > 0) {
-      const px = g2.xa + (g2.xb - g2.xa) * p, py = yb - g2.hh * Math.sin(Math.PI * p) * .75;
-      const gr = ctx.createRadialGradient(px, py, 0, px, py, 10);
-      gr.addColorStop(0, 'rgba(255,255,255,.9)'); gr.addColorStop(.35, `rgba(${a.c1},.6)`); gr.addColorStop(1, `rgba(${a.c1},0)`);
-      ctx.fillStyle = gr; ctx.fillRect(px - 10, py - 10, 20, 20);
+    ribLabel(ctx, a, p, on, G);
+    if (on) {
+      const r = a.item.res, lab = a.open ? `${a.item.side < 0 ? 'шорт' : 'лонг'} · открыта ${hmT(a.item.t_in)}`
+        : `${a.name} ${r >= 0 ? '+' : ''}${r.toFixed(1)}% · ${hmT(a.item.t_in)}→${hmT(a.item.t_out)}`;
+      ctx.font = `9px ${FONT}`; ctx.fillStyle = `rgb(${a.c1})`; text(lab, a.hit.tx, yb - G.maxH - 16);
     }
-    if (on) { ctx.shadowBlur = 0; ctx.fillStyle = `rgb(${a.c1})`; ctx.textAlign = 'center'; ctx.font = `9px ${FONT}`; text(`${a.name} ${a.item.res >= 0 ? '+' : ''}${a.item.res.toFixed(1)}%`, (g2.xa + g2.xb) / 2, yb - g2.hh * .75 - 8); ctx.textAlign = 'left'; }
   }
-  ctx.shadowBlur = 0; ctx.globalCompositeOperation = 'source-over'; ctx.lineWidth = 1;
-  const nx = G.X(Date.now() / 1000);
-  ctx.strokeStyle = 'rgba(225,235,150,.55)'; ctx.beginPath(); ctx.moveTo(nx + .5, yb - G.maxH - 6); ctx.lineTo(nx + .5, yb + 12); ctx.stroke();
-  ctx.fillStyle = 'rgba(225,235,150,.8)'; ctx.textAlign = 'center'; text(hmT(Date.now() / 1000), nx, yb + 36); ctx.textAlign = 'left';
+  if (RIB.day === 0) {   // линия «сейчас» — только на сегодняшней шкале
+    const nx = G.X(Date.now() / 1000);
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(225,235,150,.55)'; ctx.beginPath(); ctx.moveTo(nx + .5, yb - G.maxH - 6); ctx.lineTo(nx + .5, yb + 10); ctx.stroke();
+    ctx.fillStyle = 'rgba(225,235,150,.8)'; ctx.textAlign = 'center'; ctx.font = `9px ${FONT}`; text(hmT(Date.now() / 1000), nx, yb - G.maxH - 8); ctx.textAlign = 'left';
+  }
 }
+const ribArrowAt = (x, y) => RIB.arrows.find(r => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
 
 let lastT = 0;
 // 28.09 владелец: «карточка сильно тормозит» — под открытой карточкой фон за вуалью не перерисовываем (стекло карточки размывает его
@@ -1585,7 +1650,7 @@ function frame() {
   }
   drawRibbon(t);
   hovered = findHover();
-  document.body.style.cursor = hovered ? 'pointer' : '';
+  document.body.style.cursor = hovered || (mouse && ribArrowAt(mouse.x, mouse.y)) ? 'pointer' : '';
   if (selected) { drawLink(selected); drawScene(); bgFrozen = true; }
   requestAnimationFrame(frame);
 }
