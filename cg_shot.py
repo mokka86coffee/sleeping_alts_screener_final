@@ -196,6 +196,47 @@ def shot(sym: str, lines: dict | None = None, price: bool = False) -> list[Path]
     return [x for x in outs if x.exists()]
 
 
+QUEUE = BASE_DIR / "output" / "tg_queue.jsonl"   # 28.09: что не ушло в телеграм — досылаем при следующей отправке
+
+
+def _queue_add(item: dict) -> None:
+    with open(QUEUE, "a", encoding="utf-8") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        f.write(json.dumps(item, ensure_ascii=False) + "\n")
+
+
+def flush_queue(cfg: dict) -> None:
+    """28.09 (владелец: «в тг последняя сделка в 10 утра» — телеграм с этого компа не отвечал с ~11:40 до ~21:00, сделки терялись):
+    досылаем очередь по порядку; первая неудача — связи нет, остальное ждёт следующего раза; старше суток — выбрасываем"""
+    from send_brief_telegram import _send_to
+    if not QUEUE.exists():
+        return
+    with open(QUEUE, "r+", encoding="utf-8") as f:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return                                                    # другой cg_shot уже досылает
+        items = [json.loads(ln) for ln in f if ln.strip()]
+        keep, down = [], False
+        for it in items:
+            if time.time() - it["at"] > 86400:
+                continue
+            if down:
+                keep.append(it); continue
+            cap = f"⏳ не ушло в {time.strftime('%H:%M', time.localtime(it['at']))}\n" + it["caption"]
+            if it["kind"] == "text":
+                ok = _send_to(cap, cfg, it["chat"])
+            else:
+                paths = [Path(x) for x in it["paths"] if Path(x).exists()]
+                if not paths:
+                    continue
+                ok = _photo_to(paths[0], cap, cfg, it["chat"]) if len(paths) == 1 else _album_to(paths, cap, cfg, it["chat"])
+            if not ok:
+                keep.append(it); down = True
+        f.seek(0); f.truncate()
+        f.writelines(json.dumps(x, ensure_ascii=False) + "\n" for x in keep)
+
+
 def send_photo(path, caption: str) -> bool:
     """в основной чат и всем подписчикам; два снимка — одним альбомом (подпись у первого). True — ушло в основной"""
     from send_brief_telegram import load_config, chat_ids
@@ -203,8 +244,25 @@ def send_photo(path, caption: str) -> bool:
     if not cfg:
         return False
     paths = path if isinstance(path, list) else [path]
-    oks = [(_photo_to(paths[0], caption, cfg, c) if len(paths) == 1 else _album_to(paths, caption, cfg, c)) for c in chat_ids(cfg)]
+    oks = []
+    for c in chat_ids(cfg):
+        ok = _photo_to(paths[0], caption, cfg, c) if len(paths) == 1 else _album_to(paths, caption, cfg, c)
+        if not ok:
+            _queue_add(dict(kind="photo", chat=c, caption=caption, paths=[str(x) for x in paths], at=time.time()))
+        oks.append(ok)
     return oks[0]
+
+
+def send_text(caption: str) -> None:
+    """текст сделки — сразу, до снимка (снимок ~20 с и тяжёлый; при медленном телеграме текст доходит, фото — нет)"""
+    from send_brief_telegram import load_config, chat_ids, _send_to
+    cfg = load_config()
+    if not cfg:
+        return
+    flush_queue(cfg)
+    for c in chat_ids(cfg):
+        if not _send_to(caption, cfg, c):
+            _queue_add(dict(kind="text", chat=c, caption=caption, at=time.time()))
 
 
 def _album_to(paths: list, caption: str, cfg: dict, chat) -> bool:
@@ -277,6 +335,8 @@ def main() -> int:
     if not a.sym:
         ap.error("нужна монета, например PENGUUSDT")
     sym = a.sym.upper() if a.sym.upper().endswith("USDT") else a.sym.upper() + "USDT"
+    if not a.no_send and a.caption:
+        send_text(a.caption)
     try:
         path = shot(sym, _lines(a), a.price)
     except Exception as e:  # noqa: BLE001
@@ -286,7 +346,7 @@ def main() -> int:
         print(f"cg_shot: снимок {sym} не вышел")
         return 1
     print(f"cg_shot: {', '.join(str(x) for x in path)}")
-    if not a.no_send and not send_photo(path, a.caption or sym):
+    if not a.no_send and not send_photo(path, f"{sym[:-4]} · Coinglass" if a.caption else sym):
         return 1
     # 28.09 владелец «поднимай»: храним CG_SHOTS_KEEP последних; удаляем самые старые по времени файла (было — по алфавиту имени,
     # стирались свежие снимки монет на 0–A, а старые на P–Z оставались)

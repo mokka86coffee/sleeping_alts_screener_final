@@ -120,3 +120,40 @@ CRVUSDT: сделок 1 — готово
 NOMUSDT: сделок 2 — готово
 GPSUSDT: сделок 1 — готово
 AIOTUSDT: сделок 2 — готово
+HBARUSDT: сделок 2 — готово
+AVNTUSDT: сделок 1 — готово
+2ZUSDT: сделок 1 — готово
+MUBARAKUSDT: сделок 2 — готово
+CCUSDT: сделок 1 — готово
+IOTAUSDT: сделок 1 — готово
+LYNUSDT: сделок 1 — готово
+NMRUSDT: сделок 1 — готово
+LTCUSDT: сделок 1 — готово
+OPGUSDT: сделок 1 — готово
+KASUSDT: сделок 1 — готово
+SKYAIUSDT: не снят — Error: Frame.evaluate: Error: time scale points range is null
+    at r (https://s3.coinglass.com/charting_l
+SAGAUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+MONUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+SOXLUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+TAKEUSDT: не снят — TimeoutError: Page.goto: Timeout 30000ms exceeded.
+Call log:
+  - navigating to "https://www.coinglass.com/tv/Binan
+сделок 116, монет к съёмке 48
+XVGUSDT: не снят — StopIteration: 
+SUIUSDT: не снят — StopIteration: 
+VETUSDT: не снят — StopIteration: 
+DOTUSDT: не снят — StopIteration: 
+PIEVERSEUSDT: не снят — StopIteration: 
+USELESSUSDT: не снят — StopIteration: 
+BIGTIMEUSDT: не снят — StopIteration: 
+BASEDUSDT: не снят — StopIteration: 
+SUPERUSDT: не снят — StopIteration: 
+ORCAUSDT: не снят — StopIteration: 
+HUMAUSDT: сделок 1 — готово
