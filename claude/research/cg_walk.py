@@ -20,6 +20,8 @@ SRC, PROF = ROOT / "output" / "cg_profile", ROOT / "output" / "cg_profile_walk"
 OUT = Path(__file__).with_name("cg")
 SETS = {
     # известные: объём (остаётся у Coinglass), сводный интерес, сводные ликвидации, CVD фьючерсов и спота по всем биржам, фандинг по интересу, толпа
+    # «мои индикаторы» (владелец): набор профиля Coinglass (объём, CVD фьючерсов и спота, фандинг, интерес) + ликвидации и базис, без Bid & Ask
+    "mine": ["Aggregated Liquidations", "Basis"],
     "known": ["Aggregated Open Interest (Candles)", "Aggregated Liquidations", "Aggregated Futures Cumulative Volume Delta (CVD)",
               "Aggregated Spot Cumulative Volume Delta (CVD)", "Funding Rates(Open Interest Weighted)", "Long/Short Ratio (Accounts)"],
     # следующий слой: реальные позиции, крупные трейдеры, интерес к капитализации, давление по рынку, спот/фьючерсы
@@ -31,6 +33,9 @@ TFS = [("1D", "1D", 365), ("4h", "240", 60), ("1h", "60", 14), ("15m", "15", 3),
 
 def main() -> int:
     sym, kind = sys.argv[1].upper(), (sys.argv[2] if len(sys.argv) > 2 else "known")
+    tfs = [t for t in TFS if len(sys.argv) <= 3 or t[0] in sys.argv[3].split(",")]
+    if kind == "mine":   # у сделки — 4h за 3 месяца (контекст) и 3m за 12 ч (сама сделка)
+        tfs = [("4h", "240", 90), ("3m", "3", 0.5)]   # 28.09 владелец: «контекст бери за 3 месяца, а не за неделю»
     OUT.mkdir(exist_ok=True)
     shutil.rmtree(PROF, ignore_errors=True); shutil.copytree(SRC, PROF, ignore=shutil.ignore_patterns("Singleton*", "*.lock"))
     with sync_playwright() as p:
@@ -39,7 +44,8 @@ def main() -> int:
         pg.goto(f"https://www.coinglass.com/tv/Binance_{sym}"); pg.wait_for_timeout(16000)
         fr = next(f for f in pg.frames if f != pg.main_frame)
         chart = "const a = window.tradingViewApi; const c = typeof a.activeChart === 'function' ? a.activeChart() : a.chart();"
-        fr.evaluate(f"() => {{ {chart} for (const s of c.getAllStudies()) if (!/^Volume/.test(s.name)) c.removeEntity(s.id); }}")
+        keep = "/Bid & Ask/.test(s.name)" if kind == "mine" else "!/^Volume/.test(s.name)"   # «мои»: снять только заявки; иначе всё, кроме объёма
+        fr.evaluate(f"() => {{ {chart} for (const s of c.getAllStudies()) if ({keep}) c.removeEntity(s.id); }}")
         pg.wait_for_timeout(1500)
         for n in SETS[kind]:
             try:
@@ -50,7 +56,7 @@ def main() -> int:
                 print(f"{sym}: индикатор «{n}» не добавлен: {type(e).__name__}")
         names = fr.evaluate(f"() => {{ {chart} return c.getAllStudies().map(s => s.name); }}")
         print(sym, kind, "индикаторы:", names)
-        for tf, res, days in TFS:
+        for tf, res, days in tfs:
             try:                                   # таймфрейм — через API графика (меню Coinglass в безголовом окне не открывается)
                 got = fr.evaluate(f"(R) => new Promise(ok => {{ {chart} c.setResolution(R, () => ok(c.resolution())); setTimeout(() => ok('?'), 12000); }})", res)
                 pg.wait_for_timeout(6000)
