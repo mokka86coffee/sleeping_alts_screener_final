@@ -346,6 +346,27 @@ function ellipse(g, r, rot = 0, sy = 1) {
   ctx.ellipse(g.cx, g.cy, r * g.R, r * g.R * g.k * sy, rot, 0, TAU);
 }
 
+// тусклый слой — яркость частицы в тени, яркий — прибавка на свету; сектора: полуширина (рад) и доля яркого слоя, в сумме к центру света ≈ 1
+const LIT_WEDGES = [[.5, .35], [1.0, .3], [1.6, .2], [2.2, .15]];
+function ringCache(g) {
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), key = g.R + '|' + dpr;
+  if (g.pc && g.pc.key === key) return g.pc;
+  const S = Math.ceil(2 * 1.3 * g.R) + 4;
+  const mk = Lb => {
+    const c = document.createElement('canvas'); c.width = c.height = S * dpr;
+    const x = c.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, S / 2 * dpr, S / 2 * dpr);
+    for (const p of g.parts) {
+      const i = (p.b * Lb * 34) | 0;
+      if (i < 1) continue;
+      x.fillStyle = g.styles[i > 20 ? 20 : i];
+      x.fillRect(Math.cos(p.a) * p.r * g.R, Math.sin(p.a) * p.r * g.R, p.s * 1.15, p.s * 1.15 / Math.sqrt(g.k));
+    }
+    return c;
+  };
+  g.pc = { key, S, dim: mk(.32), bright: mk(1.3) };
+  return g.pc;
+}
+
 function drawRing(g, t) {
   const { cx, cy, R, k } = g;
 
@@ -382,18 +403,19 @@ function drawRing(g, t) {
     ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(x, y); ctx.stroke();
   }
 
-  // particles
+  // particles — 28.09 владелец: «зачем пересчитывать частицы, сделай просто rotate»: диск частиц рисуется один раз (тусклый и яркий слой),
+  // на кадре слой поворачивается целиком; подсветка стоит на месте — яркий слой виден только в секторах вокруг g.light
   ctx.globalCompositeOperation = 'lighter';
-  const st = g.styles;
-  for (const p of g.parts) {
-    const a = ang(g, p.a, p.r, t), c = Math.cos(a), s = Math.sin(a);
-    const lit = .5 + .5 * Math.cos(a - g.light);
-    const L = (.22 + .78 * lit * lit) * (.75 + .25 * s);
-    const i = (p.b * L * 34) | 0;
-    if (i < 1) continue;
-    ctx.fillStyle = st[i > 20 ? 20 : i];
-    ctx.fillRect(cx + c * p.r * R, cy + s * p.r * R * k, p.s, p.s);
+  const pc = ringCache(g), th = t * omega(g, .69), S2 = pc.S / 2;
+  ctx.save(); ctx.translate(cx, cy); ctx.scale(1, k);
+  ctx.save(); ctx.rotate(th); ctx.drawImage(pc.dim, -S2, -S2, pc.S, pc.S); ctx.restore();
+  for (const [span, al] of LIT_WEDGES) {
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, S2, g.light - span, g.light + span); ctx.closePath(); ctx.clip();
+    ctx.globalAlpha = al; ctx.rotate(th); ctx.drawImage(pc.bright, -S2, -S2, pc.S, pc.S);
+    ctx.restore();
   }
+  ctx.restore();
 
   // outer bright rim
   // rim: faint all round, bright only on the lit arc (stacked arcs fade towards the ends)
