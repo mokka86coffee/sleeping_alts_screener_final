@@ -171,10 +171,10 @@ def _long_flush(sym: str, now: float):
 
 # ── 28.09 владелец «вноси все правки» (разбор убыточных сделок на Coinglass) — картина вокруг всплеска. Всё не проверено на истории.
 #    Г: монета уже кратно выросла от минимума 90 дн (US +656% за 180 дн) — её продавец тянет вверх, шорт от пампа не берём.
-#    Базис: медиана базиса Binance за сутки < 0 — копятся шорты (MUBARAK), продавец тянет вверх, шорт не берём.
+#    Базис — снят 29.09 (владелец «базис нахер»): CELO 13:48 — базис −0.16% запретил шорт, а памп и был выносом этих шортов, дальше −10%.
 #    Е: «всплеск» — отскок после обвала (SKYAI: −12% за 15 мин до входа) — шорт не берём.
-#    Д: на всплеске только что вынесли шорты (SAGA) — лонг не берём; продавец разворачивает — берём шорт (если нет Г/базиса).
-_D90: dict = {}; _BAS: dict = {}
+#    Д: на всплеске только что вынесли шорты (SAGA) — лонг не берём; продавец разворачивает — берём шорт (если нет Г).
+_D90: dict = {}
 try:
     from core_config import FAST3_LONG_TP, FAST3_LONG_SL, FAST3_LONG_HOLD_MIN
 except ImportError:
@@ -187,16 +187,6 @@ def _run90(sym: str):
         k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1d", "limit": 90}, quiet_400=True) or []
         v = float(k[-1][4]) / min(float(x[3]) for x in k) if len(k) >= 30 and min(float(x[3]) for x in k) > 0 else None
         _D90[sym] = (time.time(), v)
-    return v
-
-
-def _basis24(sym: str):
-    t, v = _BAS.get(sym, (0, None))
-    if time.time() - t > 1800:
-        b = get_json("https://fapi.binance.com/futures/data/basis", {"pair": sym, "contractType": "PERPETUAL", "period": "1h", "limit": 24}, quiet_400=True) or []
-        rs = [float(x["basisRate"]) for x in b if x.get("basisRate") not in (None, "")]
-        v = st.median(rs) if len(rs) >= 12 else None
-        _BAS[sym] = (time.time(), v)
     return v
 
 
@@ -256,8 +246,7 @@ def picture(sym: str, sd: int, why: str, now: float, t_bar: int):
     pre = [x for x in k if int(x[0]) < t_bar][-20:]
     sp = next((x for x in k if int(x[0]) == t_bar), None)
     start_low = min(float(x[3]) for x in pre) if pre else None
-    up_ok = lambda: (lambda r, b: (f"монета ×{r:.1f} от минимума 90 дн — её продавец тянет вверх" if r and r >= run_x else  # noqa: E731
-                                   f"базис за сутки {b * 100:+.3f}% — копятся шорты" if b is not None and b < 0 else None))(_run90(sym), _basis24(sym))
+    up_ok = lambda: (lambda r: f"монета ×{r:.1f} от минимума 90 дн — её продавец тянет вверх" if r and r >= run_x else None)(_run90(sym))  # noqa: E731
     if sd == 1:
         fl = _flush(sym, now, "short")
         if fl:
@@ -535,7 +524,7 @@ def step(state: dict, write: bool) -> list[str]:
                 msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
             if sym in _own_mm():                                          # 27.09: монеты со своим ММ — бот в них не входит (own_mm.py)
                 msgs.append(f"{sym[:-4]} пропущен: свой ММ (список own_mm)"); continue
-            sd, why, start_low = picture(sym, sd, why, now, t_bar)       # 28.09: картина вокруг всплеска (Г, базис, Д, Е)
+            sd, why, start_low = picture(sym, sd, why, now, t_bar)       # 28.09: картина вокруг всплеска (Г, Д, Е)
             if sd == 0:
                 msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
             ab = gate_ab(sym, sd, px)                                     # 29.09: правки А и Б
@@ -654,7 +643,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
             if sd == 0:
                 msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
             sd0 = sd
-            sd, why, start_low = picture(sym, sd, why, now, t_bar)       # 28.09: картина вокруг всплеска (Г, базис, Д, Е)
+            sd, why, start_low = picture(sym, sd, why, now, t_bar)       # 28.09: картина вокруг всплеска (Г, Д, Е)
             if sd == 0:
                 msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
             ab = gate_ab(sym, sd, px)                                     # 29.09: правки А и Б
