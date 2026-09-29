@@ -152,6 +152,33 @@
   #card .now span svg { display: block; overflow: visible; color: #fff; filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 7px rgba(var(--ac),.9)); }
   #card .plate b svg { display: block; margin: 2px auto 1px; overflow: visible; filter: drop-shadow(0 0 2px rgba(0,4,12,.95)) drop-shadow(0 0 1.2px currentColor) drop-shadow(0 0 4px rgba(var(--ac),.85)); }
   #card .plate em { display: block; margin-top: 2px; font-style: normal; font-family: var(--ff-disp); font-size: 7.8px; line-height: 1.3; letter-spacing: .04em; color: rgba(255,255,255,.9); text-shadow: 0 0 3px rgba(0,4,12,.95), 0 1px 2px rgba(0,4,12,.9); }
+  /* ---------- click panel (left zone): crystal + price line + glowing markers, bare text ---------- */
+  .pz { --ac: 160,210,255; position: fixed; z-index: 3; pointer-events: none; opacity: 0; transition: opacity .9s ease; }
+  .pz.on { opacity: 1; }
+  #pzc { position: absolute; pointer-events: none; }
+  .pz-head { position: absolute; left: 2px; top: 0; right: 0; }
+  .pz-orbit { font-family: Futura, "Avenir Next", sans-serif; font-size: 8px; letter-spacing: .45em; color: rgba(var(--ac),.85); text-transform: uppercase; }
+  .pz-tick { margin-top: 6px; display: flex; align-items: baseline; gap: 12px; }
+  .pz-tick b { font-family: Futura, "Avenir Next", sans-serif; font-weight: 500; font-size: 30px; letter-spacing: .14em; line-height: 1; color: #fff;
+    text-shadow: 0 0 18px rgba(var(--ac),.95), 0 0 50px rgba(var(--ac),.55); }
+  .pz-tick span { font-family: Futura, "Avenir Next", sans-serif; font-size: 11px; letter-spacing: .32em; }
+  .pz .up { color: #8ff5c8; text-shadow: 0 0 12px rgba(110,240,180,.7); }
+  .pz .dn { color: #ff8d9a; text-shadow: 0 0 12px rgba(255,110,130,.7); }
+  .pz-sub { margin-top: 8px; font-family: Futura, "Avenir Next", sans-serif; font-size: 7.5px; line-height: 1.6; letter-spacing: .2em; text-transform: uppercase; color: rgba(215,228,245,.65); }
+  .pz-sub b { color: #fff; font-weight: 500; }
+  .pz-links { display: flex; gap: 8px; align-self: center; margin-left: 6px; pointer-events: auto; }
+  .pz-links a { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; cursor: pointer;
+    background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.28), rgba(var(--ac),.14) 60%, rgba(255,255,255,.03));
+    border: 1px solid rgba(255,255,255,.25); box-shadow: 0 0 14px rgba(var(--ac),.4), inset 0 1px 0 rgba(255,255,255,.35); transition: transform .3s, box-shadow .3s; }
+  .pz-links a:hover { transform: scale(1.12); box-shadow: 0 0 22px rgba(var(--ac),.75), inset 0 1px 0 rgba(255,255,255,.5); }
+  .pz-links svg { width: 13px; height: 13px; fill: #fff; stroke: #fff; filter: drop-shadow(0 0 3px rgba(var(--ac),.9)); }
+  .pz-links svg path { stroke: none; }
+  .mk { position: absolute; color: rgb(var(--c)); opacity: 0; animation: mkin .9s ease var(--dl) forwards; transform: translate(14px, -46%); white-space: nowrap; }
+  .mk.a { transform: translate(-50%, calc(-100% - 12px)); text-align: center; }
+  .mk.a svg { margin-left: auto; margin-right: auto; }
+  @keyframes mkin { from { opacity: 0; filter: blur(4px); } to { opacity: 1; filter: blur(0); } }
+  .mk small { display: block; font-family: Futura, "Avenir Next", sans-serif; font-size: 7px; letter-spacing: .36em; color: rgb(var(--c)); text-shadow: 0 0 8px rgb(var(--c)); }
+  .mk svg { display: block; margin-top: 4px; overflow: visible; color: #fff; filter: drop-shadow(0 0 1.2px currentColor) drop-shadow(0 0 5px rgb(var(--c))); }
 </style>
 </head>
 <body>
@@ -160,6 +187,16 @@
 </div>
 <div class="hud">
   <div class="top"><small id="status">подключение…</small><h1>Crypto Orbit</h1></div>
+</div>
+<div class="pz" id="pz">
+  <canvas id="pzc"></canvas>
+  <div class="pz-head"><div class="pz-orbit" id="pzOrbit"></div>
+    <div class="pz-tick"><b id="pzName"></b><span id="pzDir"></span>
+      <span class="pz-links">
+        <a id="pzTV" target="_blank" rel="noopener" title="TradingView · Binance"><svg viewBox="0 0 36 28"><path d="M14 22H7V11H2V4h12v18zM28 22h-8L27.1 4H35l-7 18z"/><circle cx="20" cy="8" r="4"/></svg></a>
+        <a id="pzCG" target="_blank" rel="noopener" title="Coinglass · Binance"><svg viewBox="0 0 28 28"><circle cx="14" cy="14" r="11" fill="none" stroke-width="3"/><path d="M14 8a6 6 0 1 0 6 6h-6z"/></svg></a>
+      </span></div><div class="pz-sub" id="pzSub"></div></div>
+  <div id="pzMarks"></div>
 </div>
 <div class="veil" id="veil"></div>
 <div class="card" id="card">
@@ -291,7 +328,7 @@ function layout() {
     g.R = Math.max(40, Math.min(W * .36, hh * .4 / (1.3 * g.k)));
   });
 }
-addEventListener('resize', () => { if (typeof bgFrozen !== 'undefined') bgFrozen = false; layout(); if (typeof fitCard === 'function') fitCard(); });
+addEventListener('resize', () => { if (typeof bgFrozen !== 'undefined') bgFrozen = false; layout(); if (typeof layoutPanel === 'function') layoutPanel(); });
 layout();
 
 // ── ЖИВЫЕ ДАННЫЕ (27.09): монеты колец — из output/fast_state.json по сокету; монета живёт, пока она в данных,
@@ -815,11 +852,7 @@ addEventListener('mouseleave', () => { mouse = null; });
 
 let selected = null;   // coin whose card is open (opened by click)
 const inRect = (h, pad) => mouse.x >= h.x - pad && mouse.x <= h.x + h.w + pad && mouse.y >= h.y - pad && mouse.y <= h.y + h.h + pad;
-const overCard = () => {
-  if (!selected || !mouse) return false;
-  const r = card.getBoundingClientRect();
-  return mouse.x > r.left && mouse.x < r.right && mouse.y > r.top && mouse.y < r.bottom;
-};
+const overCard = () => false;   // боковая панель кликов не ловит: клик мимо монеты закрывает её
 
 // coin under the cursor: its plate, its wavy leader or its point on the ring
 function findHover() {
@@ -843,17 +876,8 @@ function findHover() {
   return best;
 }
 
-function openCard(l) {
-  selected = l; bgFrozen = false;
-  renderCard(l.closed ? RIB_G : rings.find(g => g.labels.includes(l)), l);
-  fitCard();
-  for (const el of [card, veil]) el.classList.add('on');
-  if (!shards.length) prespawn();
-}
-function closeCard() {
-  selected = null; bgFrozen = false;
-  for (const el of [card, veil]) el.classList.remove('on');
-}
+function openCard(l) { selected = l; bgFrozen = false; openPanel(l); }
+function closeCard() { selected = null; bgFrozen = false; closePanel(); }
 addEventListener('click', e => {
   mouse = { x: e.clientX, y: e.clientY };
   if (overCard()) return;
@@ -939,7 +963,7 @@ function tradeChart(it, l) {
     TRADE_CH.set(key, { bars, spot: sk && sk.length ? bars.map(b => spot[b[0]] != null ? spot[b[0]] : null) : null,
       oi: Array.isArray(oi) ? oi.map(x => [+x.timestamp, Math.round(+x.sumOpenInterestValue)]) : [],
       liq: bars.map(b => lq[b[0]] || [0, 0]), funding: live ? live.funding : null });
-    if (selected === l) renderCard(l.closed ? RIB_G : (rings.find(g2 => g2.labels.includes(l)) || rings[0]), l);
+    if (selected === l) refreshPanel(l);
   });
   return null;
 }
@@ -1172,10 +1196,8 @@ function fitCard() {
 // energy stream from the opened plate to the card edge
 function drawLink(l) {
   const h = l.hit; if (!h) return;
-  const r = card.getBoundingClientRect();
   const px = h.x + h.w / 2, py = h.y + h.h / 2;
-  if (px > r.left && px < r.right && py > r.top && py < r.bottom) return;
-  const qx = clamp(px, r.left, r.right), qy = clamp(py, r.top, r.bottom);
+  const qx = PZ.x + PZL.sx + PZL.sr * .9, qy = PZ.y + PZL.sy;
   const now = performance.now() / 1000;
   tctx.save();
   tctx.shadowColor = `rgb(${l.c1})`; tctx.shadowBlur = 10;
@@ -1712,6 +1734,244 @@ function drawRibbon(t) {
 }
 const ribArrowAt = (x, y) => RIB.arrows.find(r => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
 
+// ---------- боковая панель по клику: кристалл + линия цены из него + светящиеся ВХ / СТОП / ЦЕЛЬ ----------
+const pz = document.getElementById('pz'), pzc = document.getElementById('pzc'), pctx = pzc.getContext('2d');
+const PM = 80;   // запас холста вокруг зоны: лучи и осколки гаснут за её краями
+let PZ = { x: 0, y: 0, w: 300, h: 460 }, PZL = {}, pzOn = false, pzUntil = 0, pzData = null, pzAC = '160,210,255', pzOpenT = 0;
+const pzShards = [];
+
+// кристалл: разбитый икосаэдр с дрожащими вершинами
+const zPHI = (1 + Math.sqrt(5)) / 2;
+let zV = [[-1, zPHI, 0], [1, zPHI, 0], [-1, -zPHI, 0], [1, -zPHI, 0], [0, -1, zPHI], [0, 1, zPHI], [0, -1, -zPHI], [0, 1, -zPHI],
+  [zPHI, 0, -1], [zPHI, 0, 1], [-zPHI, 0, -1], [-zPHI, 0, 1]].map(v => { const m = Math.hypot(...v); return v.map(q => q / m); });
+let zF = [];
+{
+  const E = [];
+  for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++) if (Math.hypot(...zV[i].map((q, k) => q - zV[j][k])) < 1.1) E.push(i + '_' + j);
+  const adj = (a, b) => E.includes(Math.min(a, b) + '_' + Math.max(a, b));
+  for (let i = 0; i < 12; i++) for (let j = i + 1; j < 12; j++) for (let k = j + 1; k < 12; k++) if (adj(i, j) && adj(j, k) && adj(i, k)) zF.push([i, j, k]);
+  const cache = {};
+  const mid = (a, b) => {
+    const key = a < b ? a + '_' + b : b + '_' + a;
+    if (cache[key] !== undefined) return cache[key];
+    const m = zV[a].map((q, i) => (q + zV[b][i]) / 2), n = Math.hypot(...m);
+    zV.push(m.map(q => q / n)); return (cache[key] = zV.length - 1);
+  };
+  const F2 = [];
+  for (const [a, b, c] of zF) { const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a); F2.push([a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]); }
+  zF = F2;
+  zV = zV.map(v => { const k = 1 + (Math.random() - .5) * .14; return v.map(q => q * k); });
+}
+const zSeed = zF.map(() => Math.random());
+const zRays = Array.from({ length: 14 }, () => ({ a: Math.random() * TAU, w: .03 + Math.random() * .08, len: 150 + Math.random() * 260, sp: (Math.random() - .5) * .05, ph: Math.random() * TAU, f: .25 + Math.random() * .5 }));
+
+// данные сделки из живого state: линия закрытий 3м, вход / выход по времени, уровни
+function panelData(l) {
+  const g = l.closed ? RIB_G : (rings.find(g2 => g2.labels.includes(l)) || rings[0]);
+  const d = realDetail(g, l), it = l.item || {};
+  const closes = d.candles.map(c => c[3]), n = closes.length;
+  const idxAt = t => { if (!d.times || t == null) return null; let bi = 0, bd = 1e18; d.times.forEach((x, i) => { const dd = Math.abs(x - t * 1000); if (dd < bd) { bd = dd; bi = i; } }); return bi; };
+  const P = { g, d, it, closes, n, ei: idxAt(d.tIn), xi: idxAt(d.tOut), kind: d.ring };
+  P.dir = it.side || (it.flip ? -1 : 0);
+  P.marks = [];   // {label, price, rgb, idx|null}
+  const AC = l.c1;
+  if (d.ring === 'open') { P.marks.push({ label: 'ВХ', price: d.entry, rgb: AC, idx: P.ei }, { label: 'ЦЕЛЬ', price: d.target, rgb: '120,240,180', idx: null }, { label: 'СТОП', price: d.stop, rgb: '255,120,135', idx: null }); }
+  else if (d.ring === 'closed') { P.marks.push({ label: 'ВХ', price: d.entry, rgb: AC, idx: P.ei }, { label: 'ВЫХ', price: d.exitPx, rgb: (d.res || 0) >= 0 ? '120,240,180' : '255,120,135', idx: P.xi }); }
+  else { P.marks.push({ label: 'ВХ', price: d.entry, rgb: AC, idx: null }); }
+  P.marks.push({ label: 'СЕЙЧАС', price: d.now, rgb: '255,255,255', idx: null, now: true });
+  return P;
+}
+
+function layoutPanel() {
+  const ringLeft = Math.min(...rings.map(g => g.cx - g.R * 1.12));
+  const w = Math.round(clamp(ringLeft - 70, 280, 440)), top = Math.round(Math.max(H * .38, 330)), h = Math.max(320, H - (W >= 900 ? RIB_H : 0) - 50 - top);
+  PZ = { x: 30, y: top, w, h };
+  Object.assign(pz.style, { left: PZ.x + 'px', top: PZ.y + 'px', width: w + 'px', height: h + 'px' });
+  PZL = { sx: Math.min(w * .15, 56), sy: h * .6, sr: Math.min(w * .13, 44), xEnd: w - 62 };
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  pzc.width = (w + PM * 2) * dpr; pzc.height = (h + PM * 2) * dpr;
+  pzc.style.cssText = `left:${-PM}px;top:${-PM}px;width:${w + PM * 2}px;height:${h + PM * 2}px`;
+  if (pzData) buildLine();
+}
+
+// путь линии в координатах зоны + DOM-подписи (светящиеся цифры CRYO, без плашек)
+function buildLine() {
+  const D = pzData, { sx, sy, sr, xEnd } = PZL, n = D.n;
+  const vals = D.closes.concat(D.marks.map(m => m.price)), p0 = D.closes[0];
+  const dev = Math.max(...vals.map(v => Math.abs(v - p0))) || 1, k = (PZ.h * .3) / dev, x0 = sx + sr * .95;
+  const Y = v => sy - (v - p0) * k * (D.dir < 0 ? 1 : 1);
+  D.pts = D.closes.map((v, i) => [x0 + (xEnd - x0) * i / Math.max(1, n - 1), Y(v)]);
+  D.lenTot = 0; D.segLen = [0];
+  for (let i = 1; i < n; i++) { D.lenTot += Math.hypot(D.pts[i][0] - D.pts[i - 1][0], D.pts[i][1] - D.pts[i - 1][1]); D.segLen.push(D.lenTot); }
+  // markers: on the line (entry / exit) or in a column to the right; the column is de-collided vertically
+  const col = [], onLine = [];
+  for (const m of D.marks) {
+    if (m.idx != null) onLine.push({ m, x: D.pts[m.idx][0], y: D.pts[m.idx][1] });
+    else col.push({ m, x: xEnd + 4, y: Y(m.price) });
+  }
+  col.sort((a, b) => a.y - b.y);
+  for (let i = 1; i < col.length; i++) if (col[i].y - col[i - 1].y < 26) col[i].ly = col[i - 1].y + 26;
+  D.dots = onLine.concat(col).map(o => Object.assign(o, { ly: o.ly != null ? o.ly : o.y }));
+  D.dots.forEach(o => {   // reveal time ≈ when the growing line gets there
+    const pr = o.m.idx != null ? o.m.idx / Math.max(1, n - 1) : 1;
+    o.at = 2.8 * (1 - Math.pow(1 - Math.min(1, pr), 1 / 3)) + .2;
+  });
+  document.getElementById('pzMarks').innerHTML = D.dots.map(o => {
+    const above = o.m.idx != null;
+    return `<div class="mk${above ? ' a' : ''}" style="left:${o.x}px;top:${o.ly}px;--c:${o.m.rgb};--dl:${o.at.toFixed(2)}s"><small>${o.m.label}</small>${cryo(fmtPrice(o.m.price), 14, 1.6)}</div>`;
+  }).join('');
+}
+function lineY(x) {
+  const P = pzData.pts; if (x <= P[0][0]) return P[0][1];
+  const i = Math.min(P.length - 2, Math.floor((x - P[0][0]) / ((P[P.length - 1][0] - P[0][0]) / (P.length - 1) || 1)));
+  const u = clamp((x - P[i][0]) / ((P[i + 1][0] - P[i][0]) || 1));
+  return P[i][1] + (P[i + 1][1] - P[i][1]) * u;
+}
+
+function pzShard(burst) {
+  const { sx, sy, sr } = PZL, big = Math.random() < .12;
+  const size = (big ? 8 + Math.random() * 9 : 2 + Math.random() * 6) * sr / 40;
+  const ang = burst ? Math.random() * TAU : (Math.random() - .5) * 1.1;
+  const sp = burst ? 60 + Math.random() * 160 : (big ? 20 + Math.random() * 40 : 30 + Math.random() * 110);
+  const a0 = burst ? ang : (Math.random() - .5) * 1.6, r0 = sr * (burst ? .5 : .55 + Math.random() * .35);
+  pzShards.push({
+    x: sx + Math.cos(a0) * r0, y: sy + Math.sin(a0) * r0 * .9, vx: Math.cos(ang) * sp, vy: Math.sin(ang) * sp * (burst ? 1 : .35),
+    rot: Math.random() * TAU, vr: (Math.random() - .5) * (big ? .7 : 2.4), size, life: 0, off: (Math.random() - .5) * 26,
+    pts: [0, 1, 2].map(i => { const a = i * TAU / 3 + (Math.random() - .5) * 1.2; return [Math.cos(a) * (.6 + Math.random() * .5), Math.sin(a) * (.6 + Math.random() * .5)]; }),
+  });
+}
+
+function fillPanelText(l) {
+  const D = pzData, d = D.d, short = D.dir < 0;
+  document.getElementById('pzOrbit').textContent = D.g.title || '';
+  document.getElementById('pzName').textContent = l.name;
+  const dirEl = document.getElementById('pzDir');
+  dirEl.textContent = D.dir ? (short ? '▼ ШОРТ' : '▲ ЛОНГ') : ''; dirEl.className = short ? 'dn' : 'up';
+  document.getElementById('pzSub').textContent = d.status || '';
+}
+for (const id of ['pzTV', 'pzCG']) document.getElementById(id).addEventListener('click', e => e.stopPropagation());   // ссылка не закрывает панель
+function openPanel(l) {
+  pzData = panelData(l); pzAC = l.c1;
+  pz.style.setProperty('--ac', pzAC);
+  fillPanelText(l);
+  { const sym = (l.item || {}).sym || (l.name + 'USDT');
+    document.getElementById('pzTV').href = `https://www.tradingview.com/chart/?symbol=BINANCE:${sym}.P`;
+    document.getElementById('pzCG').href = `https://www.coinglass.com/tv/Binance_${sym}`; }
+  buildLine();
+  pzShards.length = 0;
+  for (let i = 0; i < 50; i++) pzShard(true);
+  pzOpenT = performance.now() / 1000; pzOn = true; pz.classList.add('on');
+}
+// данные закрытой сделки пришли с Binance позже — перерисовать линию, не перезапуская анимацию
+function refreshPanel(l) { if (!pzOn || selected !== l) return; pzData = panelData(l); fillPanelText(l); buildLine(); }
+function closePanel() { pz.classList.remove('on'); pzUntil = performance.now() + 1000; pzOn = false; }
+
+let pzLast = performance.now() / 1000, pzEmit = 0;
+function drawPanel() {
+  const nowMs = performance.now();
+  if (!pzData || (!pzOn && nowMs > pzUntil)) return;
+  const now = nowMs / 1000, dt = Math.min(.05, now - pzLast); pzLast = now;
+  const dpr = Math.min(devicePixelRatio || 1, 2), AC = pzAC, { sx, sy, sr, xEnd } = PZL, D = pzData, P = D.pts, n = P.length;
+  const c = pctx;
+  c.setTransform(dpr, 0, 0, dpr, dpr * PM, dpr * PM);
+  c.clearRect(-PM, -PM, PZ.w + PM * 2, PZ.h + PM * 2);
+  c.globalCompositeOperation = 'lighter';
+
+  const halo = c.createRadialGradient(sx, sy, 0, sx, sy, sr * 5);
+  halo.addColorStop(0, `rgba(${AC},.25)`); halo.addColorStop(1, `rgba(${AC},0)`);
+  c.fillStyle = halo; c.fillRect(sx - sr * 5, sy - sr * 5, sr * 10, sr * 10);
+  const rg = c.createRadialGradient(sx, sy, sr * .3, sx, sy, 420);
+  rg.addColorStop(0, `rgba(${mix(AC, '255,255,255', .5)},.22)`); rg.addColorStop(.4, `rgba(${AC},.06)`); rg.addColorStop(1, `rgba(${AC},0)`);
+  c.fillStyle = rg;
+  for (const r of zRays) {
+    const a = r.a + now * r.sp;
+    c.globalAlpha = Math.max(0, .4 + .6 * Math.sin(now * r.f + r.ph));
+    c.beginPath(); c.moveTo(sx, sy); c.arc(sx, sy, r.len, a - r.w / 2, a + r.w / 2); c.closePath(); c.fill();
+  }
+  c.globalAlpha = 1;
+
+  // линия цены вырастает из кристалла
+  const rev = ease(clamp((now - pzOpenT) / 2.8));
+  const pos = rev * (n - 1), lastI = Math.min(n - 2, Math.max(0, Math.floor(pos))), fr = pos - lastI;
+  const tip = n > 1 ? [P[lastI][0] + (P[lastI + 1][0] - P[lastI][0]) * fr, P[lastI][1] + (P[lastI + 1][1] - P[lastI][1]) * fr] : P[0];
+  const path = () => { c.beginPath(); c.moveTo(sx, sy); for (let i = 0; i <= lastI; i++) c.lineTo(P[i][0], P[i][1]); c.lineTo(tip[0], tip[1]); };
+  c.lineJoin = 'round'; c.lineCap = 'round';
+  for (const [w, a, wh] of [[10, .05, 0], [5, .12, 0], [2.4, .35, 0], [1.2, .95, 1]]) {
+    const g = c.createLinearGradient(sx, 0, xEnd, 0);
+    g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(.25, `rgba(${wh ? mix(AC, '255,255,255', .5) : AC},${a})`); g.addColorStop(1, `rgba(${AC},${a * .9})`);
+    c.strokeStyle = g; c.lineWidth = w; path(); c.stroke();
+  }
+  if (rev >= 1 && D.lenTot) {   // импульс света вдоль линии
+    const target = ((now * .22) % 1) * D.lenTot;
+    let i = 1; while (i < n - 1 && D.segLen[i] < target) i++;
+    const f = (target - D.segLen[i - 1]) / ((D.segLen[i] - D.segLen[i - 1]) || 1);
+    const qx = P[i - 1][0] + (P[i][0] - P[i - 1][0]) * f, qy = P[i - 1][1] + (P[i][1] - P[i - 1][1]) * f;
+    const pg = c.createRadialGradient(qx, qy, 0, qx, qy, 12);
+    pg.addColorStop(0, 'rgba(255,255,255,.9)'); pg.addColorStop(.4, `rgba(${AC},.4)`); pg.addColorStop(1, `rgba(${AC},0)`);
+    c.fillStyle = pg; c.fillRect(qx - 12, qy - 12, 24, 24);
+  }
+
+  // осколки плывут вдоль линии
+  if (pzOn) { pzEmit += dt * 22; while (pzEmit > 1) { pzShard(false); pzEmit--; } }
+  const x1 = PZ.w + PM;
+  for (let i = pzShards.length - 1; i >= 0; i--) {
+    const s = pzShards[i];
+    s.life += dt; s.x += s.vx * dt; s.y += s.vy * dt; s.rot += s.vr * dt;
+    s.vy += (lineY(s.x) + s.off - s.y) * .5 * dt;
+    if (s.x > x1 || s.x < -PM || s.y < -PM || s.y > PZ.h + PM || s.life > 12) { pzShards.splice(i, 1); continue; }
+    const fade = clamp(s.life * 2) * clamp(1 - (s.x - sx) / (x1 - sx));
+    const cs = Math.cos(s.rot), sn = Math.sin(s.rot);
+    const Q = s.pts.map(([px, py]) => [s.x + (px * cs - py * sn) * s.size, s.y + (px * sn + py * cs) * s.size * (.6 + .4 * Math.abs(Math.sin(s.rot * .7)))]);
+    const g = c.createLinearGradient(Q[0][0], Q[0][1], Q[1][0], Q[1][1]);
+    g.addColorStop(0, `rgba(255,255,255,${.45 * fade})`); g.addColorStop(1, `rgba(${AC},${.1 * fade})`);
+    c.fillStyle = g; c.beginPath(); c.moveTo(...Q[0]); c.lineTo(...Q[1]); c.lineTo(...Q[2]); c.closePath(); c.fill();
+    c.strokeStyle = `rgba(${mix(AC, '255,255,255', .6)},${.6 * fade})`; c.lineWidth = .7; c.stroke();
+  }
+
+  // кристалл (сторона к линии разбита)
+  const ay = now * .22, ax = .35;
+  const RV = zV.map(v => {
+    const x = v[0] * Math.cos(ay) + v[2] * Math.sin(ay), z = -v[0] * Math.sin(ay) + v[2] * Math.cos(ay);
+    return [x, v[1] * Math.cos(ax) - z * Math.sin(ax), v[1] * Math.sin(ax) + z * Math.cos(ax)];
+  });
+  const core = c.createRadialGradient(sx, sy, 0, sx, sy, sr * 1.1);
+  core.addColorStop(0, 'rgba(255,255,255,.95)'); core.addColorStop(.2, `rgba(${mix(AC, '255,255,255', .5)},.6)`); core.addColorStop(1, `rgba(${AC},0)`);
+  c.fillStyle = core; c.beginPath(); c.arc(sx, sy, sr * 1.1, 0, TAU); c.fill();
+  const L = [.55, -.45, .7], Ln = Math.hypot(...L);
+  zF.map((f, i) => ({ f, cc: [0, 1, 2].map(k => (RV[f[0]][k] + RV[f[1]][k] + RV[f[2]][k]) / 3), seed: zSeed[i] }))
+    .sort((a, b) => a.cc[2] - b.cc[2]).forEach(({ f, cc, seed }) => {
+      if (cc[0] > .5 && seed < .75) return;
+      const crack = cc[0] > .2 ? (cc[0] - .2) * sr * .5 * (.6 + seed) : 0;
+      const nn = Math.hypot(...cc), ox = cc[0] / nn * crack, oy = cc[1] / nn * crack;
+      const Q = f.map(k => [sx + RV[k][0] * sr + ox, sy + RV[k][1] * sr + oy]);
+      const lam = Math.max(0, (cc[0] * L[0] + cc[1] * L[1] + cc[2] * L[2]) / nn / Ln), front = cc[2] > 0;
+      c.fillStyle = `rgba(${mix(AC, '255,255,255', lam * .7)},${(front ? .08 : .03) + lam * (front ? .32 : .08)})`;
+      c.beginPath(); c.moveTo(...Q[0]); c.lineTo(...Q[1]); c.lineTo(...Q[2]); c.closePath(); c.fill();
+      c.strokeStyle = `rgba(255,255,255,${(front ? .12 : .04) + lam * (front ? .5 : .1)})`; c.lineWidth = .7; c.stroke();
+    });
+  c.save(); c.translate(sx + 4, sy); c.scale(5, .22);
+  const fl = c.createRadialGradient(0, 0, 0, 0, 0, sr * .5);
+  fl.addColorStop(0, 'rgba(255,255,255,.9)'); fl.addColorStop(.3, `rgba(${AC},.35)`); fl.addColorStop(1, `rgba(${AC},0)`);
+  c.fillStyle = fl; c.beginPath(); c.arc(0, 0, sr * .5, 0, TAU); c.fill(); c.restore();
+
+  // острие рисующейся линии
+  if (rev < 1) {
+    const tg = c.createRadialGradient(tip[0], tip[1], 0, tip[0], tip[1], 14);
+    tg.addColorStop(0, 'rgba(255,255,255,1)'); tg.addColorStop(.3, `rgba(${AC},.6)`); tg.addColorStop(1, `rgba(${AC},0)`);
+    c.fillStyle = tg; c.fillRect(tip[0] - 14, tip[1] - 14, 28, 28);
+  }
+  // светящиеся точки маркеров: появляются, когда линия доходит
+  for (const o of D.dots) {
+    const a = clamp((now - pzOpenT - o.at) / .8); if (a <= 0) continue;
+    const pu = o.m.now ? .5 + .5 * Math.sin(now * 2.4) : .7, R = 9 + 4 * pu;
+    const g = c.createRadialGradient(o.x, o.y, 0, o.x, o.y, R);
+    g.addColorStop(0, `rgba(255,255,255,${.95 * a})`); g.addColorStop(.25, `rgba(${o.m.rgb},${.75 * a})`); g.addColorStop(1, `rgba(${o.m.rgb},0)`);
+    c.fillStyle = g; c.fillRect(o.x - R, o.y - R, R * 2, R * 2);
+  }
+  c.globalCompositeOperation = 'source-over';
+}
+layoutPanel();
+
 let lastT = 0;
 // 28.09 владелец: «карточка сильно тормозит» — под открытой карточкой фон за вуалью не перерисовываем (стекло карточки размывает его
 // заново на каждом кадре); один кадр рисуется при открытии, смене монеты и resize, дальше крутится только кристалл.
@@ -1737,7 +1997,8 @@ function frame() {
   drawRibbon(t);
   hovered = findHover();
   document.body.style.cursor = hovered || (mouse && ribArrowAt(mouse.x, mouse.y)) ? 'pointer' : '';
-  if (selected) { drawLink(selected); drawScene(); bgFrozen = true; }
+  if (selected) drawLink(selected);
+  drawPanel();
   requestAnimationFrame(frame);
 }
 // ── ПРИЁМ ДАННЫХ: кольцо A — 15 ближайших к входу кандидатов (цена — уровень входа), кольцо B — открытые позиции (цена — цель).

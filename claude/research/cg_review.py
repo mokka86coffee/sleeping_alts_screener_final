@@ -154,7 +154,7 @@ def main() -> int:
                           const h = (pr, col, txt) => window.__ids.push(c.createShape({{time: X.t_in, price: pr}}, {{shape: 'horizontal_line', lock: true, disableSelection: true, text: txt,
                               overrides: {{linecolor: col, linewidth: 1, showLabel: true, textcolor: col, horzLabelsAlign: 'left', fontsize: 13}}}}));
                           v(Math.floor(X.t_in), '#f5a623'); v(Math.floor(X.t_out), '#ffffff');
-                          h(X.px_in, '#f5a623', (X.side < 0 ? 'ШОРТ ' : 'ЛОНГ ') + X.px_in); if (X.px_out) h(X.px_out, '#ffffff', 'ВЫХ ' + X.px_out + ' ' + X.res + '%');
+                          h(X.px_in, '#f5a623', (X.label || (X.side < 0 ? 'ШОРТ ' : 'ЛОНГ ')) + ' ' + X.px_in); if (X.px_out) h(X.px_out, '#ffffff', 'ВЫХ ' + X.px_out + ' ' + X.res + '%');
                           window.__ids = await Promise.all(window.__ids); }}""", x)
                         pg.wait_for_timeout(2000); pg.mouse.move(1695, 1495)
                         pg.screenshot(path=str(out))
