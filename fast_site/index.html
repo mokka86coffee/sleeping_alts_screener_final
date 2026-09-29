@@ -1036,7 +1036,10 @@ function renderCard(g, l) {
   if (d.ring === 'entry') t.push(tile('объём бара', d.volPct + '%', '', `от порога · бар ${pctStr(d.bar)}`, Math.min(100, d.volPct)));
   else t.push(tile('итог', pctStr(d.pnl), sgn(d.pnl), `${Math.round(d.pnl * 5)} $ при 500 $`));
   t.push(tile(d.ring === 'entry' ? 'интерес за час' : 'интерес 1ч на входе', pctStr(d.oi), sgn(d.oi)));
-  t.push(tile('выход', '+5% / −5%', '', d.exitNote));
+  // 29.09 владелец (LYN): подпись была зашита «+5% / −5%», а стоп лонга −10% — у открытой берём цель и стоп самой сделки,
+  // у кандидата — правило лонга-всплеска (FAST3_LONG_TP / FAST3_LONG_SL)
+  const xPct = p => Math.abs(p / d.entry - 1) * 100;
+  t.push(tile('выход', d.ring === 'open' && d.target && d.stop && d.entry ? `+${xPct(d.target).toFixed(0)}% / −${xPct(d.stop).toFixed(0)}%` : '+5% / −10%', '', d.exitNote));
   t.push(tile('фандинг', d.funding.toFixed(4) + '%', sgn(d.funding)));
   renderPlates(t.slice(0, 6), l);
   document.getElementById('cFoot').innerHTML =
