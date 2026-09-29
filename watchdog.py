@@ -23,6 +23,7 @@ NEED = {
     "liq_stream.py": (["liq_stream.py"], "liq_stream.log", None),
     "fast_tier.py": (["fast_tier.py", "--loop"], "fast_tier.log", "--loop"),
     "fast_server.py": (["fast_server.py"], "fast_server.log", None),
+    "spike_collector.py": (["spike_collector.py", "--loop"], "spike_collector.log", "--loop"),   # 29.09 сборщик всплесков (только журнал)
 }
 
 

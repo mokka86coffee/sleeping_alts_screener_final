@@ -231,10 +231,9 @@ def gate_ab(sym: str, sd: int, px: float):
     if not hi:
         return None
     top = px >= hi * (1 - pct / 100)
-    if sd == 1 and top:
-        cv = _spot_cvd7(sym)
-        if cv is not None and cv < 0:
-            return f"А: лонг у вершины 90 дн ({(px / hi - 1) * 100:+.1f}% от максимума), спот за 7 дн продаёт ({cv / 1e6:+.1f}M$) — раздача"
+    if sd == 1 and top:                                               # 29.09 владелец «да вноси»: А расширена — лонг у вершины 90 дн не берём, спот не смотрим
+        cv = _spot_cvd7(sym)                                          # (сделки 27–28.09: лонги у вершины 34 шт., 32% в плюс, −318 $ при 1000 $; сигналы канала 29.09: у вершины 3 из 21 вверх первыми, 7 из 21 вниз)
+        return f"А: лонг у вершины 90 дн ({(px / hi - 1) * 100:+.1f}% от максимума)" + (f", спот за 7 дн {cv / 1e6:+.0f}M$" if cv is not None else "") + " — раздача"
     if sd == -1 and not top:
         return f"Б: шорт не у вершины 90 дн ({(px / hi - 1) * 100:+.1f}% от максимума) — середина/низ диапазона"
     return None
@@ -251,14 +250,9 @@ def picture(sym: str, sd: int, why: str, now: float, t_bar: int):
     sp = next((x for x in k if int(x[0]) == t_bar), None)
     start_low = min(float(x[3]) for x in pre) if pre else None
     up_ok = lambda: (lambda r: f"монета ×{r:.1f} от минимума 90 дн — её продавец тянет вверх" if r and r >= run_x else None)(_run90(sym))  # noqa: E731
-    if sd == 1:
-        fl = _flush(sym, now, "short")
-        if fl:
-            no = up_ok()
-            if no:
-                return 0, f"лонг не взят: {fl}; шорт тоже нет — {no} · " + why, start_low
-            return -1, f"лонг перевёрнут в шорт: {fl} — продавец собрал шорты и разворачивает · " + why, start_low
-        return 1, why, start_low
+    if sd == 1:                                                       # 29.09 владелец «да вноси»: Д убрана — лонг после выноса шортов берём (цель +5%);
+        fl = _flush(sym, now, "short")                                # бот 27–28.09: 8 таких лонгов, 5 в плюс, +116 $; сигналы канала: 5 из 8 вверх первыми (не проверено)
+        return 1, (f"вынос шортов на всплеске: {fl} · " + why if fl else why), start_low
     if sd == -1:
         no = up_ok()
         if no:
