@@ -33,7 +33,7 @@ G = (("все", lambda r: True),
      ("толпа по счетам < 1 (шорты)", lambda r: r.get("crowd") is not None and r["crowd"] < 1), ("толпа ≥ 1.5 (лонги)", lambda r: (r.get("crowd") or 0) >= 1.5),
      ("на часе вынос шортов ≥ макс. часа монеты", lambda r: bool(r.get("liq_short_top")) and r["liq_short_now"] >= r["liq_short_top"]),
      ("на часе вынос лонгов ≥ макс. часа монеты", lambda r: bool(r.get("liq_long_top")) and r["liq_long_now"] >= r["liq_long_top"]),
-     ("бар ≥ +3%", lambda r: r["bar"] >= 3), ("бар < +3%", lambda r: r["bar"] < 3), ("объём ≥ ×30", lambda r: r["x"] >= 30),
+     ("бар ≥ +3%", lambda r: r["bar"] >= 3), ("бар < +3%", lambda r: r["bar"] < 3), ("объём ×10 и больше", lambda r: r["x"] >= 10), ("объём ×5–10", lambda r: r["x"] < 10), ("объём ≥ ×30", lambda r: r["x"] >= 30),
      ("сессия Сидней", lambda r: r.get("ses") == "Сидней"), ("сессия Токио", lambda r: r.get("ses") == "Токио"), ("сессия Лондон", lambda r: r.get("ses") == "Лондон"), ("сессия Нью-Йорк", lambda r: r.get("ses") == "Нью-Йорк"))
 md = [f"# Журнал всплесков — исход через {H} ч ({datetime.now(L):%d.%m %H:%M})", "", f"Всплесков с исходом: {len(rows)} из {len(sp)}. Первый сбор — 29.09. Расчёт по группам, не проверено.", "", "| группа | итог |", "|---|---|"]
 for nm, fn in G: md.append(f"| {nm} | {stat([r for r in rows if fn(r)])} |")
