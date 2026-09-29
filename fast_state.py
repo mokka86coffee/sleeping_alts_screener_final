@@ -133,7 +133,8 @@ def positions(now: float) -> tuple[list, list, list]:
             key = f"{book}|{r['sym']}|{int(float(r['at']))}"
             (cl if float(r["at"]) >= day0 else hist).append(dict(book=book, sym=r["sym"], side=int(r.get("side") or 1), entry=float(r["px_in"]), exit=float(r.get("px_out") or 0),
                            t_in=float(r.get("opened_at") or 0), t_out=float(r["at"]), why=r.get("why_exit") or "", res=float(r["result_pct"]),
-                           usd=round(float(r["result_pct"]) * 5, 2), rule=r.get("rule") or "", review=RV.get(key)))
+                           usd=round(float(r["usd"]) if r.get("usd") is not None else float(r["result_pct"]) * 5, 2),   # 29.09: сумма сделки берётся из записи (было 500 $ → 1000 $)
+                            rule=r.get("rule") or "", review=RV.get(key)))
     cl.sort(key=lambda x: -x["t_out"])
     hist.sort(key=lambda x: -x["t_out"])
     return op, cl, hist

@@ -1034,7 +1034,7 @@ function renderCard(g, l) {
     const it = d.item, rv = d.rv;
     t.push(tile('вход', fmtPrice(d.entry), '', `${it.side < 0 ? 'шорт' : 'лонг'} · ${dmhT(it.t_in)}`));
     t.push(tile('выход', fmtPrice(d.exitPx), sgn(d.res), `${it.why} · ${dmhT(it.t_out)}`));
-    t.push(tile('итог', pctStr(d.res), sgn(d.res), `${d.usd >= 0 ? '+' : '−'}${Math.abs(Math.round(d.usd))} $ при 500 $`));
+    t.push(tile('итог', pctStr(d.res), sgn(d.res), `${d.usd >= 0 ? '+' : '−'}${Math.abs(Math.round(d.usd))} $ при ${Math.abs(d.res) > 0.05 ? Math.round(Math.abs(d.usd / d.res) * 100 / 100) * 100 / 100 : 500} $`));
     if (rv) {
       t.push(tile('в сделке', `${pctStr(rv.mfe)} / ${pctStr(rv.mae)}`, '', `лучшее ${rv.mfe_min} мин · худшее ${rv.mae_min} мин`));
       t.push(tile('после выхода', rv.post_best != null ? pctStr(rv.post_best) : '—', rv.post_best != null ? sgn(rv.post_best) : '', rv.post_h ? `лучшее за ${rv.post_h} ч · сейчас ${pctStr(rv.post_close)}` : ''));
@@ -1058,7 +1058,7 @@ function renderCard(g, l) {
     t.push(tile('цель', fmtPrice(d.target), 'up', `ещё ${pctStr(d.left)}`));
   }
   if (d.ring === 'entry') t.push(tile('объём бара', d.volPct + '%', '', `от порога · бар ${pctStr(d.bar)}`, Math.min(100, d.volPct)));
-  else t.push(tile('итог', pctStr(d.pnl), sgn(d.pnl), `${Math.round(d.pnl * 5)} $ при 500 $`));
+  else t.push(tile('итог', pctStr(d.pnl), sgn(d.pnl), `${Math.round(d.pnl * ((d.usd != null && d.res) ? d.usd / d.res : 5))} $ при ${(d.usd != null && d.res) ? Math.round(Math.abs(d.usd / d.res) * 100) : 500} $`));
   t.push(tile(d.ring === 'entry' ? 'интерес за час' : 'интерес 1ч на входе', pctStr(d.oi), sgn(d.oi)));
   // 29.09 владелец (LYN): подпись была зашита «+5% / −5%», а стоп лонга −10% — у открытой берём цель и стоп самой сделки,
   // у кандидата — правило лонга-всплеска (FAST3_LONG_TP / FAST3_LONG_SL)

@@ -179,6 +179,10 @@ try:
     from core_config import FAST3_LONG_TP, FAST3_LONG_SL, FAST3_LONG_HOLD_MIN
 except ImportError:
     FAST3_LONG_TP, FAST3_LONG_SL, FAST3_LONG_HOLD_MIN = 0.05, 0.10, 120
+try:
+    from core_config import FAST3_SHORT_TP, FAST3_SHORT_SL, FAST3_SHORT_HOLD_MIN
+except ImportError:
+    FAST3_SHORT_TP, FAST3_SHORT_SL, FAST3_SHORT_HOLD_MIN = 1.0, 0.10, 240
 
 
 def _run90(sym: str):
@@ -296,20 +300,19 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
             continue                                                     # шорты ещё не вынесли — ждём
         sq = (f"вынос шортов {since / 1e3:.1f}K$ с начала всплеска (максимум за сутки до него {max(before) / 1e3:.1f}K$)" if hs and before
               else "ликвидаций по монете в потоке нет — вход только по свече")
-        stop = top * (1 + pad) / c - 1
-        tgt = (1 - p["start_low"] / c) if p.get("start_low") else FAST3_SPIKE_TP
+        # 29.09 владелец «да»: шорт — стоп +FAST3_SHORT_SL, без цели, срок FAST3_SHORT_HOLD_MIN, выход по выносу лонгов (fuel_exit); стоп за вершиной убран (unified_exit.py)
+        stop, tgt = FAST3_SHORT_SL, FAST3_SHORT_TP
         del state["pending"][sym]
-        if tgt < stop:
-            msgs.append(f"{sym[:-4]} шорт не взят: цель {tgt * 100:.1f}% ближе стопа {stop * 100:.1f}%"); continue
-        t_bar = int(last[0]); ok, sw, hold = ses_gate(now, t_bar, -1)
+        t_bar = int(last[0]); ok, sw, _h = ses_gate(now, t_bar, -1)
+        hold = FAST3_SHORT_HOLD_MIN
         if not ok:
             msgs.append(f"{sym[:-4]} шорт после вершины пропущен: {sw}"); continue
-        why = p["why"] + f" · вход после вершины {top:.6g} ({sq}): стоп за ней, цель — начало пампа {p.get('start_low') or 0:.6g} · сессия {sw}"
+        why = p["why"] + f" · вход после вершины {top:.6g} ({sq}): стоп +{stop * 100:.0f}%, выход по выносу лонгов, срок {hold} мин · сессия {sw}"
         pos = dict(sym=sym, side=-1, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), hold_min=hold, rule=why, last_px=c, bars=0)
         state["open"][sym] = pos
         ev.append(dict(book=book, sym=sym, kind="entry", side=-1, px=c, at=now, usd_in=FAST3_SIZE, rule=why, target=pos["target"], stop=pos["stop"],
                        hold_min=hold, fon=fon()))
-        msgs.append(f"{sym[:-4]} шорт вход {c:.6g} · стоп {top * (1 + pad):.6g} · цель {p.get('start_low') or 0:.6g}")
+        msgs.append(f"{sym[:-4]} шорт вход {c:.6g} · стоп +{stop * 100:.0f}% · выход по выносу лонгов / {hold} мин")
         if write:
             cg(sym, *cg_caption(book, sym, pos))
 
