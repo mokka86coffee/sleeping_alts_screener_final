@@ -1995,6 +1995,31 @@ def _start_depth_tick() -> None:
     log("→ Плиты раз в 3 минуты: сделки «3 в первых подряд» и watch.json")
 
 
+# СТОРОЖ ПРОЦЕССОВ (29.09, владелец: «добавь в прогон, чтобы он проверял такие вещи и убивал лишние процессы, а нужные запускал, если их нет»):
+# раз в минуту нить смотрит liq_stream.py / fast_tier.py --loop / fast_server.py — нет копии: запускает, копий больше одной: гасит лишние (watchdog.py)
+def _start_watchdog() -> None:
+    import threading
+    try:
+        from core_config import WATCHDOG_ENABLED, WATCHDOG_EVERY_S
+    except ImportError:
+        WATCHDOG_ENABLED, WATCHDOG_EVERY_S = True, 60
+    if not WATCHDOG_ENABLED:
+        return
+
+    def _loop() -> None:
+        import watchdog
+        while True:
+            time.sleep(WATCHDOG_EVERY_S)
+            try:
+                lp = _LIQ_PROC.get("p")
+                watchdog.check(act=True, keep_child_of=os.getpid() if lp is not None and lp.poll() is None else None, log=log)
+            except Exception as e:  # noqa: BLE001
+                log(f"→ Сторож: {type(e).__name__}: {e}")
+
+    threading.Thread(target=_loop, name="watchdog", daemon=True).start()
+    log(f"→ Сторож процессов: раз в {WATCHDOG_EVERY_S} с (liq_stream, fast_tier, fast_server: нет — запуск, лишние — гашу)")
+
+
 # MAIN
 # ─────────────────────────────────────────────────────────────
 def main() -> int:
@@ -2014,6 +2039,7 @@ def main() -> int:
     log("→ Режим цикла: по закрытию получасовых свечей · Ctrl+C для остановки")
     _start_depth_tick()
     _start_liq_stream()
+    _start_watchdog()
     try:
         _nr = json.loads((BASE_DIR / "output" / "next_run.json").read_text(encoding="utf-8"))
         _at = _next_run_ts(_nr)

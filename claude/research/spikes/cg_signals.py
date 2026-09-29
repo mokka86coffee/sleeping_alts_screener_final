@@ -26,5 +26,6 @@ for s in S:
 json.dump(B, open(HERE / f"sig_{a}_{b}.json", "w"), ensure_ascii=False, indent=0)
 R.trades = lambda: B
 R.RD = HERE / "shots"
+R.PROF = R.ROOT / "output" / f"cg_profile_sig_{a}"
 sys.argv = [sys.argv[0]]
 raise SystemExit(R.main())

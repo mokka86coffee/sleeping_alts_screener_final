@@ -1,7 +1,494 @@
-[{"sym":"0G","time":"00:06","chg":1.56,"volx":11.87},{"sym":"MET","time":"00:09","chg":1.22,"volx":20.57},{"sym":"NMR","time":"00:48","chg":8.01,"volx":15.89},
-{"sym":"4STOCK","time":"01:30","chg":2.72,"volx":15.36},{"sym":"NMR","time":"01:36","chg":2.67,"volx":13.06},{"sym":"ELSA","time":"03:00","chg":1.48,"volx":16.4},
-{"sym":"FLOCK","time":"03:03","chg":2.07,"volx":13.31},{"sym":"ARKM","time":"03:03","chg":4.09,"volx":240.05},{"sym":"BLAST","time":"03:06","chg":1.94,"volx":32.67},
-{"sym":"B3","time":"03:09","chg":2.03,"volx":20.3},{"sym":"DATA","time":"03:12","chg":3.01,"volx":95.12},{"sym":"0G","time":"03:18","chg":1.25,"volx":36.81},
-{"sym":"SYRUP","time":"03:36","chg":1.73,"volx":12.65},{"sym":"INIT","time":"04:12","chg":1.11,"volx":11.43},{"sym":"B3","time":"04:15","chg":1.8,"volx":10.77},
-{"sym":"CELO","time":"04:24","chg":1.29,"volx":17.43},{"sym":"BLAST","time":"04:36","chg":1.15,"volx":33.56},{"sym":"BTR","time":"04:51","chg":2.22,"volx":24.5},
-{"sym":"ME","time":"04:54","chg":1.35,"volx":53.15},{"sym":"INX","time":"04:57","chg":1.28,"volx":26.12}]
+[
+{
+"sym": "0G",
+"time": "00:06",
+"chg": 1.56,
+"volx": 11.87
+},
+{
+"sym": "MET",
+"time": "00:09",
+"chg": 1.22,
+"volx": 20.57
+},
+{
+"sym": "NMR",
+"time": "00:48",
+"chg": 8.01,
+"volx": 15.89
+},
+{
+"sym": "4STOCK",
+"time": "01:30",
+"chg": 2.72,
+"volx": 15.36
+},
+{
+"sym": "NMR",
+"time": "01:36",
+"chg": 2.67,
+"volx": 13.06
+},
+{
+"sym": "ELSA",
+"time": "03:00",
+"chg": 1.48,
+"volx": 16.4
+},
+{
+"sym": "FLOCK",
+"time": "03:03",
+"chg": 2.07,
+"volx": 13.31
+},
+{
+"sym": "ARKM",
+"time": "03:03",
+"chg": 4.09,
+"volx": 240.05
+},
+{
+"sym": "BLAST",
+"time": "03:06",
+"chg": 1.94,
+"volx": 32.67
+},
+{
+"sym": "B3",
+"time": "03:09",
+"chg": 2.03,
+"volx": 20.3
+},
+{
+"sym": "DATA",
+"time": "03:12",
+"chg": 3.01,
+"volx": 95.12
+},
+{
+"sym": "0G",
+"time": "03:18",
+"chg": 1.25,
+"volx": 36.81
+},
+{
+"sym": "SYRUP",
+"time": "03:36",
+"chg": 1.73,
+"volx": 12.65
+},
+{
+"sym": "INIT",
+"time": "04:12",
+"chg": 1.11,
+"volx": 11.43
+},
+{
+"sym": "B3",
+"time": "04:15",
+"chg": 1.8,
+"volx": 10.77
+},
+{
+"sym": "CELO",
+"time": "04:24",
+"chg": 1.29,
+"volx": 17.43
+},
+{
+"sym": "BLAST",
+"time": "04:36",
+"chg": 1.15,
+"volx": 33.56
+},
+{
+"sym": "BTR",
+"time": "04:51",
+"chg": 2.22,
+"volx": 24.5
+},
+{
+"sym": "ME",
+"time": "04:54",
+"chg": 1.35,
+"volx": 53.15
+},
+{
+"sym": "INX",
+"time": "04:57",
+"chg": 1.28,
+"volx": 26.12
+},
+{
+"sym": "SIREN",
+"time": "05:51",
+"chg": 1.95,
+"volx": 40.71
+},
+{
+"sym": "CELO",
+"time": "06:21",
+"chg": 1.15,
+"volx": 17.67
+},
+{
+"sym": "1000MOG",
+"time": "06:36",
+"chg": 1.66,
+"volx": 29.86
+},
+{
+"sym": "US",
+"time": "06:39",
+"chg": 10.78,
+"volx": 14.97
+},
+{
+"sym": "ICP",
+"time": "06:57",
+"chg": 1.06,
+"volx": 17.38
+},
+{
+"sym": "CELO",
+"time": "07:06",
+"chg": 1.46,
+"volx": 10.75
+},
+{
+"sym": "LONGXIA",
+"time": "07:27",
+"chg": 3.58,
+"volx": 10.48
+},
+{
+"sym": "TWT",
+"time": "07:54",
+"chg": 1.05,
+"volx": 19.07
+},
+{
+"sym": "RARE",
+"time": "07:57",
+"chg": 2.75,
+"volx": 13.5
+},
+{
+"sym": "B3",
+"time": "08:15",
+"chg": 1.09,
+"volx": 17.65
+},
+{
+"sym": "US",
+"time": "08:18",
+"chg": 7.31,
+"volx": 15.74
+},
+{
+"sym": "LAB",
+"time": "08:42",
+"chg": 3.14,
+"volx": 16.25
+},
+{
+"sym": "GRASS",
+"time": "09:09",
+"chg": 3.34,
+"volx": 17.94
+},
+{
+"sym": "AGI",
+"time": "09:27",
+"chg": 1.15,
+"volx": 17.3
+},
+{
+"sym": "ALICE",
+"time": "09:42",
+"chg": 1.09,
+"volx": 23.41
+},
+{
+"sym": "JASMY",
+"time": "09:42",
+"chg": 1.22,
+"volx": 13.23
+},
+{
+"sym": "ETHFI",
+"time": "09:45",
+"chg": 1.25,
+"volx": 14.57
+},
+{
+"sym": "CHIP",
+"time": "09:54",
+"chg": 1.0,
+"volx": 10.06
+},
+{
+"sym": "ARX",
+"time": "09:54",
+"chg": 1.7,
+"volx": 10.36
+},
+{
+"sym": "AAVE",
+"time": "09:57",
+"chg": 1.03,
+"volx": 11.11
+},
+{
+"sym": "PEAQ",
+"time": "10:00",
+"chg": 1.02,
+"volx": 12.43
+},
+{
+"sym": "AVAX",
+"time": "10:06",
+"chg": 1.2,
+"volx": 12.49
+},
+{
+"sym": "TMX",
+"time": "10:09",
+"chg": 2.5,
+"volx": 14.36
+},
+{
+"sym": "MARSCOIN",
+"time": "10:09",
+"chg": 2.17,
+"volx": 10.12
+},
+{
+"sym": "AGI",
+"time": "10:12",
+"chg": 2.43,
+"volx": 10.65
+},
+{
+"sym": "INIT",
+"time": "10:30",
+"chg": 2.55,
+"volx": 13.51
+},
+{
+"sym": "ALICE",
+"time": "10:39",
+"chg": 1.15,
+"volx": 21.07
+},
+{
+"sym": "AAVE",
+"time": "10:48",
+"chg": 1.1,
+"volx": 30.58
+},
+{
+"sym": "MORPHO",
+"time": "10:48",
+"chg": 1.11,
+"volx": 13.06
+},
+{
+"sym": "XDC",
+"time": "10:57",
+"chg": 1.07,
+"volx": 11.84
+},
+{
+"sym": "CELO",
+"time": "11:12",
+"chg": 1.04,
+"volx": 12.57
+},
+{
+"sym": "INIT",
+"time": "11:21",
+"chg": 1.23,
+"volx": 11.48
+},
+{
+"sym": "UNI",
+"time": "11:24",
+"chg": 1.41,
+"volx": 23.38
+},
+{
+"sym": "SOON",
+"time": "11:36",
+"chg": 1.26,
+"volx": 11.42
+},
+{
+"sym": "APEX",
+"time": "11:45",
+"chg": 1.47,
+"volx": 12.32
+},
+{
+"sym": "CVX",
+"time": "12:21",
+"chg": 2.12,
+"volx": 16.32
+},
+{
+"sym": "BIO",
+"time": "12:30",
+"chg": 1.17,
+"volx": 11.62
+},
+{
+"sym": "SOON",
+"time": "12:33",
+"chg": 2.86,
+"volx": 11.54
+},
+{
+"sym": "INIT",
+"time": "12:33",
+"chg": 2.26,
+"volx": 18.41
+},
+{
+"sym": "SNX",
+"time": "12:39",
+"chg": 1.8,
+"volx": 10.93
+},
+{
+"sym": "KITE",
+"time": "12:42",
+"chg": 2.03,
+"volx": 72.04
+},
+{
+"sym": "US",
+"time": "12:57",
+"chg": 12.17,
+"volx": 35.96
+},
+{
+"sym": "BTW",
+"time": "13:00",
+"chg": 4.67,
+"volx": 13.44
+},
+{
+"sym": "CELO",
+"time": "13:27",
+"chg": 2.88,
+"volx": 14.82
+},
+{
+"sym": "JASMY",
+"time": "13:36",
+"chg": 1.17,
+"volx": 23.02
+},
+{
+"sym": "ZBCN",
+"time": "14:03",
+"chg": 1.21,
+"volx": 11.74
+},
+{
+"sym": "NIGHT",
+"time": "14:18",
+"chg": 1.44,
+"volx": 18.24
+},
+{
+"sym": "CELO",
+"time": "14:24",
+"chg": 2.05,
+"volx": 17.53
+},
+{
+"sym": "AAVE",
+"time": "14:33",
+"chg": 1.98,
+"volx": 11.87
+},
+{
+"sym": "XPL",
+"time": "14:33",
+"chg": 1.11,
+"volx": 12.61
+},
+{
+"sym": "NEAR",
+"time": "14:36",
+"chg": 1.04,
+"volx": 15.49
+},
+{
+"sym": "JASMY",
+"time": "14:48",
+"chg": 1.37,
+"volx": 23.75
+},
+{
+"sym": "1000BONK",
+"time": "14:48",
+"chg": 1.43,
+"volx": 14.62
+},
+{
+"sym": "THETA",
+"time": "14:51",
+"chg": 1.13,
+"volx": 96.39
+},
+{
+"sym": "SPK",
+"time": "14:57",
+"chg": 2.14,
+"volx": 60.36
+},
+{
+"sym": "PENGU",
+"time": "15:03",
+"chg": 1.28,
+"volx": 22.17
+},
+{
+"sym": "KII",
+"time": "15:09",
+"chg": 1.55,
+"volx": 72.84
+},
+{
+"sym": "USELESS",
+"time": "15:12",
+"chg": 1.08,
+"volx": 14.65
+},
+{
+"sym": "IMX",
+"time": "15:21",
+"chg": 1.03,
+"volx": 44.13
+},
+{
+"sym": "POL",
+"time": "15:27",
+"chg": 1.43,
+"volx": 56.86
+},
+{
+"sym": "1000BONK",
+"time": "15:33",
+"chg": 1.45,
+"volx": 50.79
+},
+{
+"sym": "XRP",
+"time": "15:36",
+"chg": 1.85,
+"volx": 31.96
+}
+]
