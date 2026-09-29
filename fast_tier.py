@@ -200,6 +200,52 @@ def _basis24(sym: str):
     return v
 
 
+_H90: dict = {}; _SP7: dict = {}
+
+
+def _hi90(sym: str):
+    """максимум 90 дн (фьючерс Binance, дневки; кэш 1 ч)"""
+    t, v = _H90.get(sym, (0, None))
+    if time.time() - t > 3600:
+        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1d", "limit": 90}, quiet_400=True) or []
+        v = max(float(x[2]) for x in k) if len(k) >= 30 else None
+        _H90[sym] = (time.time(), v)
+    return v
+
+
+def _spot_cvd7(sym: str):
+    """CVD спота Binance за 7 дн, $: сумма (покупки тейкера − продажи тейкера) по 4h-свечам; нет спота — None (кэш 1 ч).
+    Coinglass берёт спот всех бирж — здесь только Binance (приближение)."""
+    t, v = _SP7.get(sym, (0, None))
+    if time.time() - t > 3600:
+        k = get_json("https://api.binance.com/api/v3/klines", {"symbol": sym, "interval": "4h", "limit": 42}, quiet_400=True) or []
+        v = sum(2 * float(x[10]) - float(x[7]) for x in k) if len(k) >= 30 else None
+        _SP7[sym] = (time.time(), v)
+    return v
+
+
+def gate_ab(sym: str, sd: int, px: float):
+    """29.09 владелец «вноси» — правки А и Б по разбору 125 сделок на Coinglass (НЕ ПРОВЕРЕНО, счёт на тех же днях 27–28.09):
+    А: лонг у вершины 90 дн (≤ FAST3_TOP90_PCT% ниже максимума) при споте, продающем 7 дн — не брать (13 сделок, 2 в плюс, −126 $; 27.09 −94, 28.09 −33);
+    Б: шорт только у вершины 90 дн; в середине/внизу диапазона — не брать (26 сделок, 10 в плюс, −101 $; 27.09 −81, 28.09 −19).
+    → причина «не входить» или None"""
+    try:
+        from core_config import FAST3_TOP90_PCT as pct
+    except ImportError:
+        pct = 10.0
+    hi = _hi90(sym)
+    if not hi:
+        return None
+    top = px >= hi * (1 - pct / 100)
+    if sd == 1 and top:
+        cv = _spot_cvd7(sym)
+        if cv is not None and cv < 0:
+            return f"А: лонг у вершины 90 дн ({(px / hi - 1) * 100:+.1f}% от максимума), спот за 7 дн продаёт ({cv / 1e6:+.1f}M$) — раздача"
+    if sd == -1 and not top:
+        return f"Б: шорт не у вершины 90 дн ({(px / hi - 1) * 100:+.1f}% от максимума) — середина/низ диапазона"
+    return None
+
+
 def picture(sym: str, sd: int, why: str, now: float, t_bar: int):
     """→ (сторона: 1 / -1 / 0 — не входить, причина, минимум 20 баров до всплеска — начало пампа)"""
     try:
@@ -492,6 +538,9 @@ def step(state: dict, write: bool) -> list[str]:
             sd, why, start_low = picture(sym, sd, why, now, t_bar)       # 28.09: картина вокруг всплеска (Г, базис, Д, Е)
             if sd == 0:
                 msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
+            ab = gate_ab(sym, sd, px)                                     # 29.09: правки А и Б
+            if ab:
+                msgs.append(f"{sym[:-4]} не взят: {ab}"); continue
             if sd == -1:                                                  # Б: шорт — после вершины пампа
                 ok, sw, _ = ses_gate(now, t_bar, sd)
                 if not ok:
@@ -608,6 +657,9 @@ def wake_step(state: dict, write: bool) -> list[str]:
             sd, why, start_low = picture(sym, sd, why, now, t_bar)       # 28.09: картина вокруг всплеска (Г, базис, Д, Е)
             if sd == 0:
                 msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
+            ab = gate_ab(sym, sd, px)                                     # 29.09: правки А и Б
+            if ab:
+                msgs.append(f"{sym[:-4]} не взят: {ab}"); continue
             if sd != sd0:
                 _flip = sd == -1
             if sd == 1 and not ((oi1h is not None and oi1h >= FAST3_SHORT_OI1H) or (cr is not None and cr <= 0.7)):
