@@ -49,6 +49,19 @@ def crowd_of(sym: str):
     return _CROWD["v"][sym]
 
 
+_PERPS: dict = {"t": 0, "v": []}
+
+
+def _all_perps() -> list[str]:
+    """все торгуемые USDT-перпы Binance, кэш 1 ч"""
+    if time.time() - _PERPS["t"] > 3600 or not _PERPS["v"]:
+        ex = get_json("https://fapi.binance.com/fapi/v1/exchangeInfo") or {}
+        v = [x["symbol"] for x in ex.get("symbols", []) if x.get("quoteAsset") == "USDT" and x.get("contractType") == "PERPETUAL" and x.get("status") == "TRADING"]
+        if v:
+            _PERPS.update(t=time.time(), v=v)
+    return _PERPS["v"]
+
+
 def short_list() -> tuple[list[str], list[str], dict]:
     try:
         from core_config import FAST3_SHORT_CROWD_MAX as _cmax, FAST3_SHORT_OI6H as _oi6
@@ -69,6 +82,13 @@ def short_list() -> tuple[list[str], list[str], dict]:
             take = cr is not None and cr <= _cmax
         if take: spike.append(sym)
         if cf.get("run24") is not None and cf["run24"] >= FAST3_SHORT_RUN24: climax.append(sym)
+    # 30.09 владелец «да» («у бота 5 сделок, он смотрит 19–27 монет из 527»): на всплеск проверяем ВСЕ USDT-перпы Binance (как сборщик), ворота без изменений
+    try:
+        from core_config import FAST3_ALL_COINS as _all
+    except ImportError:
+        _all = True
+    if _all:
+        spike = sorted(set(spike) | set(_all_perps()))
     return spike, climax, info
 
 
@@ -505,7 +525,7 @@ def step(state: dict, write: bool) -> list[str]:
     pending_step(state, BOOK, now, ev, msgs, write)
     spike, climax, info = short_list()
     todo = sorted(set(spike) | set(climax))
-    with ThreadPoolExecutor(6) as ex:
+    with ThreadPoolExecutor(12) as ex:
         res_all = [r for r in ex.map(lambda s: scan(s, s in spike, s in climax), todo) if r]
     bg = fon()
     for sym, px, t_bar, outs in res_all:
