@@ -374,8 +374,8 @@ def flip_spike(sd: int, why: str, tp: float, sl: float, hold: int, oi1h, oi_bar=
     # 28.09 (QNT 00:27: шорт при толпе 0.60 — интерес набирали шорты, стоп −5.1%, дальше +65% против; счёт spike_flip.md: из 44 переворотов
     # при толпе ≥ 1 — 37, лонг −38.8% / шорт +33.5%; при толпе < 1 — 7, лонг −3.0% / шорт +1.7% — ни одна сторона): переворот только при
     # толпе ≥ FAST3_FLIP_CROWD_MIN, иначе не входим вовсе (sd = 0)
-    if flip and crowd is not None and crowd < _cmin:
-        return 0, f"переворот не взят: толпа {crowd:.2f} < {_cmin:g} — рост интереса это шорты · " + why, tp, sl, hold, False
+    if flip and crowd is not None and crowd < _cmin:                 # 30.09 владелец: фильтр не закрывает вход — остаётся исходная сторона (лонг)
+        return sd, f"переворот отменён: толпа {crowd:.2f} < {_cmin:g} — рост интереса это шорты, остаёмся в лонге · " + why, tp, sl, hold, False
     if sd == 1 and oi1h is not None and oi1h >= _thr:
         return -1, f"перевёрнутый всплеск: интерес +{oi1h:.1f}% за час — толпа уже внутри · " + why, tp, sl, hold, True
     return sd, why, tp, sl, hold, False
@@ -544,9 +544,10 @@ def step(state: dict, write: bool) -> list[str]:
             sd, why, start_low = picture(sym, sd, why, now, t_bar)       # 28.09: картина вокруг всплеска (Г, Д, Е)
             if sd == 0:
                 msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
-            ab = gate_ab(sym, sd, px)                                     # 29.09: правки А и Б
+            ab = gate_ab(sym, sd, px)                                     # 29.09: А и Б; 30.09 владелец: «фильтрация должна работать в обратную сторону, а не закрывать входы»
             if ab:
-                msgs.append(f"{sym[:-4]} не взят: {ab}"); continue
+                sd = -sd; why = f"{ab} → сторона перевёрнута · " + why
+                msgs.append(f"{sym[:-4]} {ab.split(':')[0]}: сторона перевёрнута → {'шорт' if sd == -1 else 'лонг'}")
             if sd == -1:                                                  # Б: шорт — после вершины пампа
                 ok, sw, _ = ses_gate(now, t_bar, sd)
                 if not ok:
@@ -663,9 +664,10 @@ def wake_step(state: dict, write: bool) -> list[str]:
             sd, why, start_low = picture(sym, sd, why, now, t_bar)       # 28.09: картина вокруг всплеска (Г, Д, Е)
             if sd == 0:
                 msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
-            ab = gate_ab(sym, sd, px)                                     # 29.09: правки А и Б
+            ab = gate_ab(sym, sd, px)                                     # 29.09: А и Б; 30.09 владелец: «фильтрация должна работать в обратную сторону, а не закрывать входы»
             if ab:
-                msgs.append(f"{sym[:-4]} не взят: {ab}"); continue
+                sd = -sd; why = f"{ab} → сторона перевёрнута · " + why
+                msgs.append(f"{sym[:-4]} {ab.split(':')[0]}: сторона перевёрнута → {'шорт' if sd == -1 else 'лонг'}")
             if sd != sd0:
                 _flip = sd == -1
             if sd == 1 and not ((oi1h is not None and oi1h >= FAST3_SHORT_OI1H) or (cr is not None and cr <= 0.7)):
