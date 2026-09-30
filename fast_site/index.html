@@ -1166,9 +1166,14 @@ function drawCardChart(d, l) {
       for (const ty of tagYs) if (Math.abs(tyNow - ty) < 17) tyNow = ty + (ly >= ty ? 17 : -17);
       tag(tyNow, fmtPrice(d.now), l.c1, true);
     } else if (name === 'объём') {
-      const mx = Math.max(...d.vol), med = [...d.vol].sort((a, b) => a - b)[n >> 1];
+      const mx = Math.max(...d.vol) || 1;
+      // 30.09: шкала объёма = шкала бота — порог «всплеска» на каждом баре: ×5 медианы предыдущих 30 баров и не меньше 50K$ (FAST3_SPIKE_X / FAST3_SPIKE_MINQ); раньше подсвечивалось «больше 4 медиан всего окна»
+      const thr = d.vol.map((v, i) => { const w = d.vol.slice(Math.max(0, i - 30), i).sort((a, b) => a - b); return Math.max(5 * (w.length ? w[w.length >> 1] : 0), 50000); });
+      c.save(); c.strokeStyle = 'rgba(255,255,255,.28)'; c.lineWidth = 1; c.setLineDash([3, 3]); c.beginPath();
+      thr.forEach((t, i) => { const yy = y0 + h - 2 - Math.min(1, t / mx) * (h - 18); i ? c.lineTo(X(i), yy) : c.moveTo(X(i), yy); });
+      c.stroke(); c.restore();
       d.vol.forEach((v, i) => {
-        const hv = v / mx * (h - 18), big = v > med * 4;
+        const hv = v / mx * (h - 18), big = v >= thr[i];
         if (big) glow(`rgba(${l.c1},.9)`, 8);
         c.fillStyle = big ? `rgb(${l.c1})` : 'rgba(160,178,205,.45)';
         c.fillRect(X(i) - bw * .3, y0 + h - 2 - hv, bw * .6, hv);
