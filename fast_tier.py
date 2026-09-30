@@ -218,6 +218,10 @@ try:
 except ImportError:
     FAST3_LONG_TP, FAST3_LONG_SL, FAST3_LONG_HOLD_MIN = 0.05, 0.10, 120
 try:
+    from core_config import FAST3_B_SKIP
+except ImportError:
+    FAST3_B_SKIP = True
+try:
     from core_config import FAST3_SHORT_TP, FAST3_SHORT_SL, FAST3_SHORT_HOLD_MIN
     try:
         from core_config import FAST3_SHORT_HOLD_BY_SESSION
@@ -277,6 +281,10 @@ def gate_ab(sym: str, sd: int, px: float):
     if sd == 1 and top:                                               # 29.09 владелец «да вноси»: А расширена — лонг у вершины 90 дн не берём, спот не смотрим
         cv = _spot_cvd7(sym)                                          # (сделки 27–28.09: лонги у вершины 34 шт., 32% в плюс, −318 $ при 1000 $; сигналы канала 29.09: у вершины 3 из 21 вверх первыми, 7 из 21 вниз)
         return f"А: лонг у вершины 90 дн ({(px / hi - 1) * 100:+.1f}% от максимума)" + (f", спот за 7 дн {cv / 1e6:+.0f}M$" if cv is not None else "") + " — раздача"
+    if sd == 1 and not top:                                           # 30.09 владелец «да»: А расширена — лонг при падающем споте CVD за 7 дн (Binance) тоже переворачивается в шорт
+        cv = _spot_cvd7(sym)                                          # (claude/research/trade_facts, 176 сделок 27–30.09, НЕ ПРОВЕРЕНО: 48 таких лонгов −302 $ против +90 $ как шорты, 66% в плюсе)
+        if cv is not None and cv < 0:
+            return f"А2: лонг при падающем споте за 7 дн ({cv / 1e6:+.1f}M$) — продавцы на споте"
     if sd == -1 and not top:
         return f"Б: шорт не у вершины 90 дн ({(px / hi - 1) * 100:+.1f}% от максимума) — середина/низ диапазона"
     return None
@@ -570,6 +578,8 @@ def step(state: dict, write: bool) -> list[str]:
             if sd == 0:
                 msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
             ab = gate_ab(sym, sd, px)                                     # 29.09: А и Б; 30.09 владелец: «фильтрация должна работать в обратную сторону, а не закрывать входы»
+            if ab and ab.startswith("Б") and FAST3_B_SKIP:                # 30.09 владелец «верни не входить»: Б (шорт не у вершины 90 дн) — не входить, а не лонг (вживую 12 сделок −189 $, 1 в плюс)
+                msgs.append(f"{sym[:-4]} не взят: {ab}"); continue
             if ab:
                 sd = -sd; why = f"{ab} → сторона перевёрнута · " + why
                 msgs.append(f"{sym[:-4]} {ab.split(':')[0]}: сторона перевёрнута → {'шорт' if sd == -1 else 'лонг'}")
@@ -691,6 +701,8 @@ def wake_step(state: dict, write: bool) -> list[str]:
             if sd == 0:
                 msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
             ab = gate_ab(sym, sd, px)                                     # 29.09: А и Б; 30.09 владелец: «фильтрация должна работать в обратную сторону, а не закрывать входы»
+            if ab and ab.startswith("Б") and FAST3_B_SKIP:                # 30.09 владелец «верни не входить»: Б (шорт не у вершины 90 дн) — не входить, а не лонг (вживую 12 сделок −189 $, 1 в плюс)
+                msgs.append(f"{sym[:-4]} не взят: {ab}"); continue
             if ab:
                 sd = -sd; why = f"{ab} → сторона перевёрнута · " + why
                 msgs.append(f"{sym[:-4]} {ab.split(':')[0]}: сторона перевёрнута → {'шорт' if sd == -1 else 'лонг'}")
