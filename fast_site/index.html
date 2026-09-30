@@ -58,8 +58,7 @@
     margin-top: 7.2px; font-family: var(--ff-disp); font-weight: 500; font-size: 37.18px; letter-spacing: .14em; line-height: 1; color: #fff;
     text-shadow: 0 0 20px rgba(var(--ac),.95), 0 0 60px rgba(var(--ac),.6);
   }
-  #card .ticker { pointer-events: auto; cursor: pointer; display: inline-block; }   /* 28.09: клик по названию — Coinglass (Binance) */
-  #card .ticker:hover { text-shadow: 0 0 24px rgba(var(--ac),1), 0 0 70px rgba(var(--ac),.8); }
+  #card .ticker { display: inline-block; }   /* 30.09: клик по названию убран — Coinglass только по значку в карточке */
   /* 28.09 владелец «а где сама позиция лонг-шорт??» — сторона крупно рядом с названием */
   #card .tline { display: flex; align-items: baseline; gap: 16px; }
   #card .side { font-family: var(--ff-disp); font-weight: 500; font-size: 17px; letter-spacing: .22em; white-space: nowrap; pointer-events: none;
@@ -238,7 +237,7 @@ function text(str, x, y) {
   tctx.fillText(str, x, y);
 }
 let W = 0, H = 0;
-const RIB_H = 118;   // высота ленты дня под кольцами
+const RIB_H = 176;   // высота ленты дня под кольцами (30.09: 118 → 176, в часовом столбике помещается ~13 монет вместо 6 — «US нет»: пряталась за «+3»)
 
 const gauss = () => { let u = 0, v = 0; while (!u) u = Math.random(); while (!v) v = Math.random(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(TAU * v); };
 const clamp = (x, a = 0, b = 1) => x < a ? a : x > b ? b : x;
@@ -977,7 +976,8 @@ function realDetail(g, l) {
     const rv = it.review || null;
     d.entry = it.entry; d.exitPx = it.exit; d.res = it.res; d.usd = it.usd; d.rv = rv; d.item = it;
     d.now = ch && ch.bars && ch.bars.length ? ch.bars[ch.bars.length - 1][4] : it.exit;
-    d.status = rv ? rv.verdict : `${it.book} · ${it.why} · разбор придёт через 2 ч после выхода`;
+    const resTxt = it.res != null ? `итог ${pctStr(it.res)}${it.usd != null ? ` (${it.usd >= 0 ? '+' : '−'}${Math.abs(Math.round(it.usd))} $)` : ''}` : '';   // 30.09 владелец «нет итога сделки»: итог виден сразу, а не только после разбора через 2 ч
+    d.status = rv ? `${resTxt} · ${rv.verdict}` : `${it.book} · ${it.why} · ${resTxt} · разбор придёт через 2 ч после выхода`;
   } else if (kind === 'entry') {
     d.entry = it.level; d.now = it.px; d.left = it.dist != null ? it.dist : (it.level / it.px - 1) * 100;
     d.volPct = Math.round((it.vol_x || 0) * 100); d.bar = it.bar || 0; d.oi = it.oi1h || 0;
@@ -1571,13 +1571,7 @@ function drawScene() {
   sx.globalCompositeOperation = 'source-over';
 }
 
-// 28.09 владелец: «в карточке при клике на название монеты сделай переход на Coinglass Binance» — график Binance в новой вкладке
-document.getElementById('cTitle').addEventListener('click', e => {
-  e.stopPropagation();
-  const sym = selected && selected.item && selected.item.sym;
-  if (sym) window.open(`https://www.coinglass.com/tv/Binance_${sym}`, '_blank', 'noopener');
-});
-document.getElementById('cTitle').title = 'открыть на Coinglass (Binance)';
+// 30.09 владелец: «убери открытия Coinglass при клике на монету — только на иконки в карточке»: клик по названию монеты больше ничего не открывает (значки TV и CG ниже — как были)
 // значки TradingView и Coinglass — график Binance (фьючерс) этой монеты в новой вкладке; ссылки ставит renderCard
 for (const id of ['cTV', 'cCG']) document.getElementById(id).addEventListener('click', e => e.stopPropagation());
 
@@ -1700,10 +1694,10 @@ function drawRibbon(t) {
   const DW = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'], d = new Date(G.t0 * 1000);
   const cl = RIB.arcs.filter(a => !a.open), by = {};
   for (const a of cl) { const b = by[a.item.book] || (by[a.item.book] = 0); by[a.item.book] = b + (a.item.usd != null ? a.item.usd : a.item.res * 5); }
-  ctx.font = `9px ${FONT}`; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(150,185,225,.6)';
+  ctx.font = `11.7px ${FONT}`; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(150,185,225,.6)';   // 30.09 владелец: шрифт заголовка ленты +30% (было 9px)
   text(`СДЕЛКИ · ${RIB.day === 0 ? 'СЕГОДНЯ' : DW[d.getDay()].toUpperCase() + ' ' + d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`, x1, yb - RIB_H + 20);
-  ctx.fillStyle = 'rgba(150,185,225,.4)';
-  text(`${RIB.arcs.length} входов · ` + Object.entries(by).map(([b, v]) => `${b} ${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v))} $`).join(' · '), x1, yb - RIB_H + 34);
+  ctx.fillStyle = 'rgba(225,240,255,.95)';   // 30.09 владелец «суммы ярче» (было .4)
+  text(`${RIB.arcs.length} входов · ` + Object.entries(by).map(([b, v]) => `${b} ${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v))} $`).join(' · '), x1, yb - RIB_H + 39);
   ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(150,185,225,.5)';
   [[0, 3, 'SYDNEY'], [3, 10, 'TOKYO'], [10, 16, 'LONDON'], [16, 24, 'NEW YORK']].forEach(([a, b, nm]) => text(nm, x0 + (a + b) / 2 * G.cw, yb + 30));
   // стрелки дней

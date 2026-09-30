@@ -71,7 +71,7 @@ def _all_perps() -> list[str]:
     return _PERPS["v"]
 
 
-def short_list() -> tuple[list[str], list[str], dict]:
+def short_list(all_coins: bool = True) -> tuple[list[str], list[str], dict]:
     try:
         from core_config import FAST3_SHORT_CROWD_MAX as _cmax, FAST3_SHORT_OI6H as _oi6
     except ImportError:
@@ -96,7 +96,7 @@ def short_list() -> tuple[list[str], list[str], dict]:
         from core_config import FAST3_ALL_COINS as _all
     except ImportError:
         _all = True
-    if _all:
+    if _all and all_coins:
         spike = sorted(set(spike) | set(_all_perps()))
     return spike, climax, info
 

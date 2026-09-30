@@ -85,7 +85,7 @@ def _k3(sym: str, limit: int) -> list[list]:
 def candidates() -> list[dict]:
     try:
         import fast_tier
-        spike, _climax, info = fast_tier.short_list()
+        spike, _climax, info = fast_tier.short_list(all_coins=False)   # 30.09: для страницы — короткий список (все 528 монет тормозили сборку до 84 с)
     except Exception:  # noqa: BLE001
         return []
 
