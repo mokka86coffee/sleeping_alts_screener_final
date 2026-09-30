@@ -50,9 +50,9 @@ def trades() -> list[dict]:
                             t_out=float(r.get("at") or r["opened_at"]), px_in=float(r.get("px_in") or 0),
                             px_out=float(r.get("px_out") or 0), res=float(r["result_pct"]),
                             why=r.get("why_exit") or "", rule=r.get("rule") or ""))
-    seen, uniq = set(), []                                            # обе книги пишут одну сделку дважды — берём одну
+    seen, uniq = set(), []                                            # 30.09 владелец: книги «пробуждение» и «всплеск/вынос» — РАЗНЫЕ правила, сделки каждой отдельно (схлопываем только повтор внутри одной книги)
     for x in sorted(out, key=lambda x: x["t_in"]):
-        k = (x["sym"], x["side"], int(x["t_in"] // 60))
+        k = (x["book"], x["sym"], x["side"], int(x["t_in"] // 60))
         if k not in seen:
             seen.add(k); uniq.append(x)
     return uniq

@@ -57,7 +57,13 @@ def check(act: bool = True, keep_child_of: int | None = None, log=print) -> list
     """→ список сказанного/сделанного; act=False — ничего не трогать"""
     said = []
     me = os.getpid()
+    try:
+        from core_config import SPIKE_COLLECTOR_ENABLED as _sc
+    except ImportError:
+        _sc = True
     for script, (cmd, logname, arg) in NEED.items():
+        if script == "spike_collector.py" and not _sc:                                     # 30.09 владелец: сборщик всплесков отключён — не запускать и не гасить
+            continue
         pr = [x for x in procs(script, arg) if x[0] != me]
         if not pr:
             said.append(f"{script}: нет — " + ("запуск" if act else "запустил бы"))

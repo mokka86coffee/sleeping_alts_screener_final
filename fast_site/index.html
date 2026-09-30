@@ -1659,7 +1659,7 @@ function ribLabel(c2, a, alpha, on, G) {
 const RIBC = document.createElement('canvas'), rctx = RIBC.getContext('2d');
 let ribKey = '';
 function ribStatic(G, t) {
-  const dpr = Math.min(window.devicePixelRatio || 1, 2), top = G.yb - RIB_H, bh = RIB_H + 34;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2), top = G.yb - RIB_H, bh = RIB_H + 52;
   RIBC.width = W * dpr; RIBC.height = bh * dpr;
   rctx.setTransform(dpr, 0, 0, dpr, 0, -top * dpr);
   rctx.clearRect(0, top, W, bh);
@@ -1669,6 +1669,20 @@ function ribStatic(G, t) {
     rctx.fillStyle = `rgba(70,150,255,${i % 2 ? .05 : .08})`; rctx.fillRect(xa, G.yb, xb - xa, 6);
     rctx.fillStyle = 'rgba(255,205,120,.10)'; rctx.fillRect(xa, G.yb, G.cw, 6);
   });
+  // 30.09 владелец «по шкале непонятно, где какая сессия начинается и заканчивается»: границы сессий — яркие вертикали на всю высоту ленты (00, 03, 10, 16), тонкие фоновые полосы сессий на всю высоту, названия и часы начала/конца
+  [[0, 3, 'SYDNEY'], [3, 10, 'TOKYO'], [10, 16, 'LONDON'], [16, 24, 'NEW YORK']].forEach(([a, b2], i) => {
+    const xa = G.x0 + a * G.cw, xb = G.x0 + b2 * G.cw;
+    rctx.fillStyle = i % 2 ? 'rgba(90,170,255,.035)' : 'rgba(90,170,255,.075)'; rctx.fillRect(xa, G.yb - G.maxH - 12, xb - xa, G.maxH + 12);
+    rctx.fillStyle = 'rgba(255,205,120,.07)'; rctx.fillRect(xa, G.yb - G.maxH - 12, G.cw, G.maxH + 12);          // первый час сессии — тёплым на всю высоту
+  });
+  for (const h of [0, 3, 10, 16, 24]) {
+    const x = Math.round(G.x0 + h * G.cw) + .5;
+    rctx.strokeStyle = 'rgba(255,210,130,.75)'; rctx.lineWidth = 1.5;
+    rctx.beginPath(); rctx.moveTo(x, G.yb - G.maxH - 12); rctx.lineTo(x, G.yb + 20); rctx.stroke();
+  }
+  rctx.font = `9.5px ${FONT}`; rctx.textAlign = 'left'; rctx.fillStyle = 'rgba(255,210,130,.95)';
+  [[0, 'начало 00:00'], [3, '03:00'], [10, '10:00'], [16, '16:00']].forEach(([h, lb]) => rctx.fillText(lb, G.x0 + h * G.cw + 3, G.yb + 28));
+  rctx.textAlign = 'right'; rctx.fillText('24:00', G.x0 + 24 * G.cw - 3, G.yb + 28);
   // 24 равные часовые ячейки: разделители и номера часов
   rctx.lineWidth = 1; rctx.font = `8px ${FONT}`; rctx.textAlign = 'center';
   for (let h = 0; h <= 24; h++) {
@@ -1689,7 +1703,7 @@ function drawRibbon(t) {
   const settled = RIB.arcs.filter(a => t - a.born >= ANIM_SLOW).length;
   const key = [W, H, RIB.day, G.t0, RIB.arcs.map(a => a.key + (a.item.res || 0)).join(','), settled].join('|');
   if (key !== ribKey) { ribStatic(G, t); ribKey = key; }
-  ctx.drawImage(RIBC, 0, yb - RIB_H, W, RIB_H + 34);
+  ctx.drawImage(RIBC, 0, yb - RIB_H, W, RIB_H + 52);
   // заголовок: день и итог дня по книгам (резкий слой)
   const DW = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'], d = new Date(G.t0 * 1000);
   const cl = RIB.arcs.filter(a => !a.open), by = {};
@@ -1698,8 +1712,8 @@ function drawRibbon(t) {
   text(`СДЕЛКИ · ${RIB.day === 0 ? 'СЕГОДНЯ' : DW[d.getDay()].toUpperCase() + ' ' + d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`, x1, yb - RIB_H + 20);
   ctx.fillStyle = 'rgba(225,240,255,.95)';   // 30.09 владелец «суммы ярче» (было .4)
   text(`${RIB.arcs.length} входов · ` + Object.entries(by).map(([b, v]) => `${b} ${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v))} $`).join(' · '), x1, yb - RIB_H + 39);
-  ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(150,185,225,.5)';
-  [[0, 3, 'SYDNEY'], [3, 10, 'TOKYO'], [10, 16, 'LONDON'], [16, 24, 'NEW YORK']].forEach(([a, b, nm]) => text(nm, x0 + (a + b) / 2 * G.cw, yb + 30));
+  ctx.textAlign = 'center'; ctx.font = `11px ${FONT}`; ctx.fillStyle = 'rgba(200,225,255,.85)';   // 30.09: названия сессий ярче и крупнее
+  [[0, 3, 'SYDNEY'], [3, 10, 'TOKYO'], [10, 16, 'LONDON'], [16, 24, 'NEW YORK']].forEach(([a, b, nm]) => text(nm, x0 + (a + b) / 2 * G.cw, yb + 44));
   // стрелки дней
   RIB.arrows = [];
   const ay = yb - G.maxH / 2, arrow = (x, dir, on) => {

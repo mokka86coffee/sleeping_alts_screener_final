@@ -219,8 +219,13 @@ except ImportError:
     FAST3_LONG_TP, FAST3_LONG_SL, FAST3_LONG_HOLD_MIN = 0.05, 0.10, 120
 try:
     from core_config import FAST3_SHORT_TP, FAST3_SHORT_SL, FAST3_SHORT_HOLD_MIN
+    try:
+        from core_config import FAST3_SHORT_HOLD_BY_SESSION
+    except ImportError:
+        FAST3_SHORT_HOLD_BY_SESSION = True
 except ImportError:
     FAST3_SHORT_TP, FAST3_SHORT_SL, FAST3_SHORT_HOLD_MIN = 1.0, 0.10, 240
+    FAST3_SHORT_HOLD_BY_SESSION = True
 
 
 def _run90(sym: str):
@@ -336,7 +341,9 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
         stop, tgt = FAST3_SHORT_SL, FAST3_SHORT_TP
         del state["pending"][sym]
         t_bar = int(last[0]); ok, sw, _h = ses_gate(now, t_bar, -1)
-        hold = FAST3_SHORT_HOLD_MIN
+        # 30.09 владелец «вноси» (after_exit.py: шорты у вершины 90 дн — после выхода по сроку цена шла ещё +6.2% вперёд, у 65% ≥ 3% за 2 ч; по сроку +21.5%, держать ещё 2 ч +114.6% на 23 сделках, НЕ ПРОВЕРЕНО):
+        # срок по часам убран — держим до выноса лонгов (fuel_exit) или стопа; время — только стык сессий (час выхода следующей сессии из ses_gate, R41); FAST3_SHORT_HOLD_MIN — запас, если ses_gate не дал срок
+        hold = _h if (_h and FAST3_SHORT_HOLD_BY_SESSION) else FAST3_SHORT_HOLD_MIN
         if not ok:
             msgs.append(f"{sym[:-4]} шорт после вершины пропущен: {sw}"); continue
         why = p["why"] + f" · вход после вершины {top:.6g} ({sq}): стоп +{stop * 100:.0f}%, выход по выносу лонгов, срок {hold} мин · сессия {sw}"
