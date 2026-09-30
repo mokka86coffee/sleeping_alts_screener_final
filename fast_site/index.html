@@ -910,7 +910,7 @@ function demoDetail(g, l) {
   d.volPct = 8 + R() * 80 | 0; d.bar = (R() - .4) * .6; d.oi = (R() - .3) * 4; d.funding = (R() - .4) * .02;
   d.status = g.mode === 'entry'
     ? ['кандидат на всплеск · ждём объём', 'кандидат на всплеск · вход открыт', 'кандидат на всплеск · вход закрыт: поздно в сессии'][R() * 3 | 0]
-    : 'в позиции · до цели ещё ' + pctStr(d.left);
+    : 'в позиции · ' + (d.left != null ? 'до цели ещё ' + pctStr(d.left) : 'цели нет: выход по выносу / стопу / сроку');
 
   // 120 bars of 3m = 6h, with a couple of impulse moves late in the window
   const n = 120, jumps = new Set([70 + R() * 20 | 0, 95 + R() * 15 | 0]);
@@ -971,7 +971,7 @@ function tradeChart(it, l) {
 function realDetail(g, l) {
   const it = l.item || {}, S = window.STATE || {}, M = S.meta || {};
   const ch = (it.t_out ? tradeChart(it, l) : null) || (S.charts || {})[it.sym] || null;   // закрытая — окно вокруг сделки
-  const kind = it.t_out ? 'closed' : (it.target != null && it.entry != null ? 'open' : 'entry');
+  const kind = it.t_out ? 'closed' : (it.entry != null && it.stop != null ? 'open' : 'entry');   // 30.09: у шорта цели нет (target = null)
   const d = { ring: kind, funding: ch && ch.funding != null ? ch.funding : 0 };
   if (kind === 'closed') {
     const rv = it.review || null;
@@ -986,10 +986,10 @@ function realDetail(g, l) {
     d.exitNote = 'цель / стоп · до ' + (M.exit_at ? hmT(M.exit_at) : '—');
   } else {
     d.entry = it.entry; d.target = it.target; d.stop = it.stop; d.now = it.px || it.entry;
-    d.left = (it.target / d.now - 1) * 100 * (it.side || 1);
+    d.left = it.target != null ? (it.target / d.now - 1) * 100 * (it.side || 1) : null;
     d.pnl = (d.now / it.entry - 1) * 100 * (it.side || 1);
     d.oi = it.oi1h_in || 0; d.side = it.side;
-    d.status = `${it.book} · ${it.side < 0 ? 'шорт' : 'лонг'} с ${dmhT(it.t_in)} · до цели ещё ${pctStr(d.left)}`;
+    d.status = `${it.book} · ${it.side < 0 ? 'шорт' : 'лонг'} с ${dmhT(it.t_in)} · ` + (d.left != null ? `до цели ещё ${pctStr(d.left)}` : 'цели нет: выход по выносу лонгов, стопу или сроку');
     d.exitNote = `стоп ${fmtPrice(it.stop)} · срок ${hmT(it.exit_at)}`;
   }
   if (ch && ch.bars && ch.bars.length) {
@@ -1055,7 +1055,8 @@ function renderCard(g, l) {
   } else {
     const pnl = (d.now / d.entry - 1) * 100;
     t.push(tile('вход был', fmtPrice(d.entry), '', `${(l.item || {}).side < 0 ? 'шорт' : 'лонг'} · ${dmhT((l.item || {}).t_in)} · сейчас ${pctStr(pnl)}`));
-    t.push(tile('цель', fmtPrice(d.target), 'up', `ещё ${pctStr(d.left)}`));
+    if (d.target != null) t.push(tile('цель', fmtPrice(d.target), 'up', `ещё ${pctStr(d.left)}`));
+    else t.push(tile('цель', 'нет', '', 'выход по выносу лонгов · стоп · срок'));
   }
   if (d.ring === 'entry') t.push(tile('объём бара', d.volPct + '%', '', `от порога · бар ${pctStr(d.bar)}`, Math.min(100, d.volPct)));
   else t.push(tile('итог', pctStr(d.pnl), sgn(d.pnl), `${Math.round(d.pnl * ((d.usd != null && d.res) ? d.usd / d.res : 5))} $ при ${(d.usd != null && d.res) ? Math.round(Math.abs(d.usd / d.res) * 100) : 500} $`));
@@ -1063,7 +1064,7 @@ function renderCard(g, l) {
   // 29.09 владелец (LYN): подпись была зашита «+5% / −5%», а стоп лонга −10% — у открытой берём цель и стоп самой сделки,
   // у кандидата — правило лонга-всплеска (FAST3_LONG_TP / FAST3_LONG_SL)
   const xPct = p => Math.abs(p / d.entry - 1) * 100;
-  t.push(tile('выход', d.ring === 'open' && d.target && d.stop && d.entry ? `+${xPct(d.target).toFixed(0)}% / −${xPct(d.stop).toFixed(0)}%` : '+5% / −10%', '', d.exitNote));
+  t.push(tile('выход', d.ring === 'open' && d.target && d.stop && d.entry ? `+${xPct(d.target).toFixed(0)}% / −${xPct(d.stop).toFixed(0)}%` : (d.ring === 'open' && d.stop && d.entry ? `вынос / −${xPct(d.stop).toFixed(0)}%` : '+5% / −10%'), '', d.exitNote));
   t.push(tile('фандинг', d.funding.toFixed(4) + '%', sgn(d.funding)));
   renderPlates(t.slice(0, 6), l);
   document.getElementById('cFoot').innerHTML =
@@ -1775,7 +1776,7 @@ function panelData(l) {
   P.dir = it.side || (it.flip ? -1 : 0);
   P.marks = [];   // {label, price, rgb, idx|null}
   const AC = l.c1;
-  if (d.ring === 'open') { P.marks.push({ label: 'ВХ', price: d.entry, rgb: AC, idx: P.ei }, { label: 'ЦЕЛЬ', price: d.target, rgb: '120,240,180', idx: null }, { label: 'СТОП', price: d.stop, rgb: '255,120,135', idx: null }); }
+  if (d.ring === 'open') { P.marks.push({ label: 'ВХ', price: d.entry, rgb: AC, idx: P.ei }, ...(d.target != null ? [{ label: 'ЦЕЛЬ', price: d.target, rgb: '120,240,180', idx: null }] : []), { label: 'СТОП', price: d.stop, rgb: '255,120,135', idx: null }); }
   else if (d.ring === 'closed') { P.marks.push({ label: 'ВХ', price: d.entry, rgb: AC, idx: P.ei }, { label: 'ВЫХ', price: d.exitPx, rgb: (d.res || 0) >= 0 ? '120,240,180' : '255,120,135', idx: P.xi }); }
   else { P.marks.push({ label: 'ВХ', price: d.entry, rgb: AC, idx: null }); }
   P.marks.push({ label: 'СЕЙЧАС', price: d.now, rgb: '255,255,255', idx: null, now: true });

@@ -123,7 +123,7 @@ def positions(now: float) -> tuple[list, list, list]:
         for sym, p in (stt.get("open") or {}).items():
             e, sd = float(p["px"]), int(p["side"])
             er = ent.get((sym, round(float(p["at"]), 3))) or {}
-            op.append(dict(book=book, sym=sym, side=sd, entry=e, target=e * (1 + sd * float(p["target"])), stop=e * (1 - sd * float(p["stop"])),
+            op.append(dict(book=book, sym=sym, side=sd, entry=e, target=(None if float(p["target"]) >= 0.9 else e * (1 + sd * float(p["target"]))), stop=e * (1 - sd * float(p["stop"])),
                            tp=float(p["target"]), sl=float(p["stop"]), t_in=float(p["at"]),
                            exit_at=(int(p["t_ms"]) + B3) / 1000 + int(p.get("hold_min") or 0) * 60, px=p.get("last_px"), rule=p.get("rule") or "",
                            oi1h_in=er.get("oi1h"), board6_in=(er.get("fon") or {}).get("board6")))
