@@ -70,6 +70,24 @@ def _bub(sym: str):
         return None
 
 
+_SPK: dict = {}; _BTC: dict = {"t": 0, "v": None}
+
+
+def _pack() -> int:
+    """30.09 владелец «менять правила без фона — по кругу»: только запись — сколько монет дали всплеск (R39) за последние 6 мин (пачка = ход доски, а не монеты)"""
+    lim = (time.time() - 360) * 1000
+    return sum(1 for t in list(_SPK.values()) if t >= lim)
+
+
+def _btc():
+    """только запись: BTC за 1 ч и 24 ч, % (фьючерс Binance, кэш 3 мин)"""
+    if time.time() - _BTC["t"] > 180:
+        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": "BTCUSDT", "interval": "1h", "limit": 25}, quiet_400=True) or []
+        _BTC["v"] = dict(h1=round((float(k[-1][4]) / float(k[-2][4]) - 1) * 100, 2), h24=round((float(k[-1][4]) / float(k[0][4]) - 1) * 100, 2)) if len(k) >= 25 else None
+        _BTC["t"] = time.time()
+    return _BTC["v"]
+
+
 def _all_perps() -> list[str]:
     """все торгуемые USDT-перпы Binance, кэш 1 ч"""
     if time.time() - _PERPS["t"] > 3600 or not _PERPS["v"]:
@@ -287,6 +305,52 @@ def gate_ab(sym: str, sd: int, px: float):
             return f"А2: лонг при падающем споте за 7 дн ({cv / 1e6:+.1f}M$) — продавцы на споте"
     if sd == -1 and not top:
         return f"Б: шорт не у вершины 90 дн ({(px / hi - 1) * 100:+.1f}% от максимума) — середина/низ диапазона"
+    return None
+
+
+_OI7: dict = {}; _H30: dict = {}
+
+
+def _oi7(sym: str):
+    """рост интереса Binance (в монетах) за ~7 дн, % (4h-точки openInterestHist; кэш 1 ч); нет данных — None"""
+    t, v = _OI7.get(sym, (0, None))
+    if time.time() - t > 3600:
+        k = get_json("https://fapi.binance.com/futures/data/openInterestHist", {"symbol": sym, "period": "4h", "limit": 43}, quiet_400=True) or []
+        try:
+            a, b = float(k[0]["sumOpenInterest"]), float(k[-1]["sumOpenInterest"])
+            v = (b / a - 1) * 100 if len(k) >= 36 and a > 0 else None
+        except (IndexError, KeyError, ValueError):
+            v = None
+        _OI7[sym] = (time.time(), v)
+    return v
+
+
+def _hi30h(sym: str):
+    """максимум последних 30 ч по часовым свечам фьючерса Binance (включая текущий час; кэш 5 мин)"""
+    t, v = _H30.get(sym, (0, None))
+    if time.time() - t > 300:
+        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1h", "limit": 31}, quiet_400=True) or []
+        v = max(float(x[2]) for x in k) if len(k) >= 24 else None
+        _H30[sym] = (time.time(), v)
+    return v
+
+
+def gate_new(sym: str, sd: int, px: float):
+    """30.09 владелец «делай» (разбор 25 закрытых сделок; НЕ ПРОВЕРЕНО вне выборки) — по итоговой стороне после А/А2:
+    шорт при росте интереса за 7 дн ≥ FAST3_SHORT_OI7_MAX % — не брать; лонг ближе FAST3_LONG_NEAR_HI30_PCT % к максимуму 30 ч — не брать.
+    → причина «не входить» или None (нет данных — не запрещаем)"""
+    try:
+        from core_config import FAST3_SHORT_OI7_MAX as oi_max, FAST3_LONG_NEAR_HI30_PCT as near
+    except ImportError:
+        oi_max, near = 50.0, 3.0
+    if sd == -1 and oi_max:
+        o = _oi7(sym)
+        if o is not None and o >= oi_max:
+            return f"В: шорт при росте интереса за 7 дн {o:+.0f}% — ход тянет покупатель"
+    if sd == 1 and near:
+        h = _hi30h(sym)
+        if h and px >= h * (1 - near / 100):
+            return f"Ж: лонг у максимума 30 ч ({(px / h - 1) * 100:+.1f}%) — покупка на вершине хода"
     return None
 
 
@@ -520,6 +584,8 @@ def scan(sym: str, want_spike: bool, want_climax: bool):
         ov = [float(x["sumOpenInterestValue"]) for x in oi]
         if len(ov) >= 2 and ov[-1] / ov[-2] - 1 <= FAST3_CLIMAX_OI:
             out.append((-1, f"вынос: бар {bar * 100:+.1f}% и интерес на баре {(ov[-1] / ov[-2] - 1) * 100:+.1f}% — шорты сгорели (R21)", FAST3_CLIMAX_TP, FAST3_CLIMAX_SL, FAST3_CLIMAX_HOLD_MIN))
+    if any(o[0] == 1 for o in out):
+        _SPK[sym] = int(k[-1][0]) + 180_000                              # 30.09: только запись — метка всплеска для размера пачки
     return sym, c[-1], int(k[-1][0]), out
 
 
@@ -583,6 +649,9 @@ def step(state: dict, write: bool) -> list[str]:
             if ab:
                 sd = -sd; why = f"{ab} → сторона перевёрнута · " + why
                 msgs.append(f"{sym[:-4]} {ab.split(':')[0]}: сторона перевёрнута → {'шорт' if sd == -1 else 'лонг'}")
+            gn = gate_new(sym, sd, px)                                    # 30.09 владелец «делай»: В (шорт при интересе +50% за 7 дн) и Ж (лонг у максимума 30 ч) — не входить
+            if gn:
+                msgs.append(f"{sym[:-4]} не взят: {gn}"); continue
             if sd == -1:                                                  # Б: шорт — после вершины пампа
                 ok, sw, _ = ses_gate(now, t_bar, sd)
                 if not ok:
@@ -599,7 +668,7 @@ def step(state: dict, write: bool) -> list[str]:
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why, last_px=px, bars=0)
             state["open"][sym] = pos
             ev.append(dict(book=BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=why, target=tp, stop=sl, hold_min=hold,
-                           oi1h=o1h if sd != 0 else None, oi5=o5, run24=info.get(sym, {}).get("run24"), fon=bg, bub=_bub(sym)))
+                           oi1h=o1h if sd != 0 else None, oi5=o5, run24=info.get(sym, {}).get("run24"), fon=bg, bub=_bub(sym), pack=_pack(), btc=_btc()))
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} вход {px:.6g} · {why}")
             if write:
                 cg(sym, *cg_caption(BOOK, sym, pos))
@@ -706,6 +775,9 @@ def wake_step(state: dict, write: bool) -> list[str]:
             if ab:
                 sd = -sd; why = f"{ab} → сторона перевёрнута · " + why
                 msgs.append(f"{sym[:-4]} {ab.split(':')[0]}: сторона перевёрнута → {'шорт' if sd == -1 else 'лонг'}")
+            gn = gate_new(sym, sd, px)                                    # 30.09 владелец «делай»: В (шорт при интересе +50% за 7 дн) и Ж (лонг у максимума 30 ч) — не входить
+            if gn:
+                msgs.append(f"{sym[:-4]} не взят: {gn}"); continue
             if sd != sd0:
                 _flip = sd == -1
             if sd == 1 and not ((oi1h is not None and oi1h >= FAST3_SHORT_OI1H) or (cr is not None and cr <= 0.7)):
@@ -729,7 +801,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", last_px=px, bars=0)
             state["open"][sym] = pos
             ev.append(dict(book=WAKE_BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=pos["rule"], target=tp, stop=sl, hold_min=hold,
-                           oi1h=oi1h, crowd=cr, wake_x=round(cd["x"], 1), wake_chg=round(cd["chg"], 2), qv24=round(cd["qv"]), fon=fon(), bub=_bub(sym)))
+                           oi1h=oi1h, crowd=cr, wake_x=round(cd["x"], 1), wake_chg=round(cd["chg"], 2), qv24=round(cd["qv"]), fon=fon(), bub=_bub(sym), pack=_pack(), btc=_btc()))
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} вход {px:.6g} · {pos['rule']}")
             if write:
                 cg(sym, *cg_caption(WAKE_BOOK, sym, pos))
