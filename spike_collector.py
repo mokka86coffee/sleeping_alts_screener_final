@@ -63,7 +63,8 @@ def scan(sym: str):
     bar = c[-1] / c[-2] - 1
     x = qv[-1] / med
     if bar >= SPIKE_LOG_PCT and x >= SPIKE_LOG_X:
-        return dict(sym=sym, t_ms=int(k[-1][0]), px=c[-1], px_open=o, bar=round(bar * 100, 3), x=round(x, 2), qv=round(qv[-1]))
+        import bubbles                                                  # 30.09: пузыри как фон (bubbles.py) — дельта бара в σ, доля покупок, пузыри за 20 баров до
+        return dict(sym=sym, t_ms=int(k[-1][0]), px=c[-1], px_open=o, bar=round(bar * 100, 3), x=round(x, 2), qv=round(qv[-1]), **{("bub_" + a if not a.startswith("bub") else a): b for a, b in (bubbles.feats(k) or {}).items()})
     return None
 
 
@@ -89,6 +90,9 @@ def background(r: dict) -> dict:
         ov = [float(x["sumOpenInterestValue"]) for x in oi]
         out["oi1h"] = round((ov[-1] / ov[0] - 1) * 100, 2) if len(ov) >= 12 else None
         out["oi5"] = round((ov[-1] / ov[-2] - 1) * 100, 2) if len(ov) >= 2 else None
+        ch = [(b / a_ - 1) * 100 for a_, b in zip(ov, ov[1:]) if a_ > 0]                  # 30.09: «вынос по интересу» — крайние изменения на 5-мин баре за час
+        if len(ch) >= 6:
+            out["oi5_min_1h"], out["oi5_max_1h"] = round(min(ch), 2), round(max(ch), 2)
     except Exception:  # noqa: BLE001
         pass
     try:

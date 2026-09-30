@@ -52,6 +52,15 @@ def crowd_of(sym: str):
 _PERPS: dict = {"t": 0, "v": []}
 
 
+def _bub(sym: str):
+    """30.09 владелец «заведи и проверь»: пузыри (дельта бара 3 мин дальше σ от нормы монеты) — только запись в журнал входа, в решения не входит (bubbles.py)"""
+    try:
+        import bubbles
+        return bubbles.live(sym)
+    except Exception:  # noqa: BLE001
+        return None
+
+
 def _all_perps() -> list[str]:
     """все торгуемые USDT-перпы Binance, кэш 1 ч"""
     if time.time() - _PERPS["t"] > 3600 or not _PERPS["v"]:
@@ -325,7 +334,7 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
         pos = dict(sym=sym, side=-1, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), hold_min=hold, rule=why, last_px=c, bars=0)
         state["open"][sym] = pos
         ev.append(dict(book=book, sym=sym, kind="entry", side=-1, px=c, at=now, usd_in=FAST3_SIZE, rule=why, target=pos["target"], stop=pos["stop"],
-                       hold_min=hold, fon=fon()))
+                       hold_min=hold, fon=fon(), bub=_bub(sym)))
         msgs.append(f"{sym[:-4]} шорт вход {c:.6g} · стоп +{stop * 100:.0f}% · выход по выносу лонгов / {hold} мин")
         if write:
             cg(sym, *cg_caption(book, sym, pos))
@@ -564,7 +573,7 @@ def step(state: dict, write: bool) -> list[str]:
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why, last_px=px, bars=0)
             state["open"][sym] = pos
             ev.append(dict(book=BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=why, target=tp, stop=sl, hold_min=hold,
-                           oi1h=o1h if sd != 0 else None, oi5=o5, run24=info.get(sym, {}).get("run24"), fon=bg))
+                           oi1h=o1h if sd != 0 else None, oi5=o5, run24=info.get(sym, {}).get("run24"), fon=bg, bub=_bub(sym)))
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} вход {px:.6g} · {why}")
             if write:
                 cg(sym, *cg_caption(BOOK, sym, pos))
@@ -691,7 +700,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", last_px=px, bars=0)
             state["open"][sym] = pos
             ev.append(dict(book=WAKE_BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=pos["rule"], target=tp, stop=sl, hold_min=hold,
-                           oi1h=oi1h, crowd=cr, wake_x=round(cd["x"], 1), wake_chg=round(cd["chg"], 2), qv24=round(cd["qv"]), fon=fon()))
+                           oi1h=oi1h, crowd=cr, wake_x=round(cd["x"], 1), wake_chg=round(cd["chg"], 2), qv24=round(cd["qv"]), fon=fon(), bub=_bub(sym)))
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} вход {px:.6g} · {pos['rule']}")
             if write:
                 cg(sym, *cg_caption(WAKE_BOOK, sym, pos))
