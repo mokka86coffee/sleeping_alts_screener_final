@@ -36,3 +36,8 @@ prev/reports/
 cache_fundamental
 output/
 pulse_archive/
+
+# ключи BingX (30.09)
+bingx_config.json
+bingx_keys.json
+bingx_stop

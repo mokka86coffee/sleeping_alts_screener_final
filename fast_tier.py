@@ -52,6 +52,15 @@ def crowd_of(sym: str):
 _PERPS: dict = {"t": 0, "v": []}
 
 
+def _bingx(ev: list) -> list[str]:
+    """30.09 владелец «настрой торговлю на BingX»: события входа/выхода → ордера (bingx_trader.py; выключено, пока в bingx_config.json enabled: false); сбой бота не роняет"""
+    try:
+        import bingx_trader
+        return bingx_trader.on_events(ev)
+    except Exception as e:  # noqa: BLE001
+        return [f"BingX: {type(e).__name__}: {e}"]
+
+
 def _bub(sym: str):
     """30.09 владелец «заведи и проверь»: пузыри (дельта бара 3 мин дальше σ от нормы монеты) — только запись в журнал входа, в решения не входит (bubbles.py)"""
     try:
@@ -582,6 +591,7 @@ def step(state: dict, write: bool) -> list[str]:
             for r in ev:
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
         tmp = STATE.with_suffix(".tmp"); tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8"); tmp.replace(STATE)
+        msgs += _bingx(ev)
     msgs.append(f"список: всплеск {len(spike)}, вынос {len(climax)} · открыто {len(state['open'])}")
     return msgs
 
@@ -708,6 +718,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
         with WAKE_LOG.open("a", encoding="utf-8") as f:
             for r_ in ev: f.write(json.dumps(r_, ensure_ascii=False) + "\n")
         tmp = WAKE_STATE.with_suffix(".tmp"); tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8"); tmp.replace(WAKE_STATE)
+        msgs += _bingx(ev)
     msgs.append(f"пробуждений {len(cands)}" + (": " + ", ".join(c['sym'][:-4] for c in cands[:8]) if cands else "") + f" · открыто {len(state['open'])}")
     return msgs
 

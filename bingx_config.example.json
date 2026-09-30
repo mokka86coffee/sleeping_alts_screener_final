@@ -1,0 +1,11 @@
+{
+  "enabled": false,
+  "mode": "demo",
+  "api_key": "",
+  "api_secret": "",
+  "size_usd": 2,
+  "leverage": 3,
+  "max_open": 5,
+  "daily_loss_limit_usd": null,
+  "stop_pct": 0.10
+}
