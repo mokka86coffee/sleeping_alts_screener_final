@@ -6,7 +6,7 @@
 индикаторами (+ ликвидации и базис, без заявок) и:
   1) выгружает цифры графика (exportData) на 15m, 30m, 1h, 6h, 1D → claude/research/cgx/<монета>_<тф>.json
      колонки: t, o, h, l, c, vol, cvd_f, cvd_s, fund, oi, liq_long (+, вынесены лонги), liq_short (+, вынесены шорты), basis;
-  2) по каждой сделке — снимки 30m / 1h / 6h / 1D с линиями входа и выхода → claude/research/cgr/<монета>_<время входа>_<тф>.png
+  2) по каждой сделке — снимки 15m / 1h / 6h / 1D с линиями входа и выхода → claude/research/cgr/<монета>_<время входа>_<тф>.png
      (окна: 30m — 2 сут до входа … 1 сут после выхода; 1h — 5 сут … 2 сут; 6h — 30 сут … 5 сут; 1D — 90 сут … 10 сут).
 Уже снятое не переснимает (файлы есть). Список сделок и готовых — claude/research/cgr/trades.json.
 
@@ -32,7 +32,7 @@ L = timezone(timedelta(hours=3))
 T0 = datetime(2026, 9, 27, 7, 15, tzinfo=L).timestamp()
 CHART = "const a = window.tradingViewApi; const c = typeof a.activeChart === 'function' ? a.activeChart() : a.chart();"
 TF = {"15": 10, "30": 12, "60": 30, "360": 120, "1D": 365}                  # тф → сколько суток истории грузить для цифр
-SHOT = {"30": (2, 1), "60": (5, 2), "360": (30, 5), "1D": (90, 10)}          # тф → (сут до входа, сут после выхода) на снимке
+SHOT = {"15": (1, 0.5), "60": (5, 2), "360": (30, 5), "1D": (90, 10)}   # 01.10 владелец: снимки 15m / 1h / 6h / 1D (было 30m вместо 15m); индикаторы — как в ТГ-снимке cg_shot: объём, CVD фьюч, CVD спот, фандинг, интерес, ликвидации, базис          # тф → (сут до входа, сут после выхода) на снимке
 COLS = (("vol", "Volume", "Volume"), ("cvd_f", "<CoinGlass> Cumulative Volume Delta", "Candles (Close)"),
         ("cvd_s", "<CoinGlass> Aggregated Spot Cumulative", "Candles (Close)"), ("fund", "<CoinGlass> Funding", None),
         ("oi", "<CoinGlass> Open Interest", "Candles (Close)"), ("liq_long", "<CoinGlass> Aggregated Liquidations", "Long"),
