@@ -1385,6 +1385,19 @@ def run_once(args: argparse.Namespace) -> int:
         "Плечо по типу": (["oi_types.py", "--write"], 600),
         "Биткоин": (["btc_pulse.py", "--write"], 300),
     }
+    try:                                                              # 01.10 владелец «liq_log.jsonl это нахер»: шаг «Лог ликвидности» выключен (LIQ_LOG_ENABLED = False в core_config), файл не трогаем
+        import core_config as _cc_ll
+        if not getattr(_cc_ll, "LIQ_LOG_ENABLED", True):
+            _jobs.pop("Лог ликвидности", None)
+    except Exception:  # noqa: BLE001
+        pass
+    try:                                                              # 01.10 владелец: раз в сутки убрать из liq_log.jsonl записи старше 14 дней (до веера, пока никто не дописывает)
+        _tr = subprocess.run([sys.executable, "liq_log.py", "--trim"], cwd=BASE_DIR, capture_output=True, text=True, timeout=180)
+        _tl = (_tr.stdout or "").strip().splitlines()
+        if _tl and "уже чистили" not in _tl[-1]:
+            log(f"→ Чистка liq_log: {_tl[-1][:160]}")
+    except Exception as e:  # noqa: BLE001
+        _issue("Чистка liq_log", f"{type(e).__name__}: {e}")
     _procs = {}
     for _name, (_cmd, _to) in _jobs.items():
         try:

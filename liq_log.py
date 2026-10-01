@@ -439,14 +439,68 @@ def build(sym: str, base: Path, cap: float | None, crowd: dict) -> dict:
     return row
 
 
+def daily_trim(days: float = 14.0, base: Path | None = None, force: bool = False) -> str:
+    """01.10 владелец «удали все записи старше 14 дней и поставь, чтобы прогон раз в сутки очищал предыдущие дни»:
+    убирает из output/liq_log.jsonl строки со свечой старше `days` дней (UTC). Раз в сутки (метка output/liq_log_trim.json);
+    удалённые строки пишутся сжатыми в output/liq_log_trimmed/<дата>.jsonl.gz (можно стереть руками). Строки, дописанные
+    другим процессом во время чистки (btc_pulse), переносятся в конец нового файла. → строка итога."""
+    import gzip
+    import os
+    from datetime import datetime, timedelta, timezone
+    base = Path(base) if base else Path(__file__).resolve().parent
+    path = base / "output" / "liq_log.jsonl"; mark = base / "output" / "liq_log_trim.json"
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if not force:
+        try:
+            if json.loads(mark.read_text(encoding="utf-8")).get("day") == today:
+                return "уже чистили сегодня"
+        except (OSError, ValueError):
+            pass
+    if not path.exists():
+        return "файла нет"
+    cut = datetime.now(timezone.utc) - timedelta(days=days)
+    size0 = path.stat().st_size; kept = dropped = 0
+    arch_dir = base / "output" / "liq_log_trimmed"; arch_dir.mkdir(exist_ok=True)
+    tmp = path.with_suffix(".jsonl.tmp")
+    with path.open("rb") as src, tmp.open("wb") as dst, gzip.open(arch_dir / f"{today}.jsonl.gz", "ab") as arc:
+        pos = 0
+        while pos < size0:
+            raw = src.readline()
+            if not raw:
+                break
+            pos += len(raw)
+            old = False
+            try:
+                r = json.loads(raw)
+                ts = r.get("candle") or (f"{r.get('at')}T{r.get('hm', '00:00')}:00Z" if r.get("at") else None)
+                if ts:
+                    old = datetime.fromisoformat(str(ts).replace("Z", "+00:00")) < cut
+            except (ValueError, TypeError):
+                old = False                                             # нечитаемое время — оставляем
+            if old:
+                arc.write(raw); dropped += 1
+            else:
+                dst.write(raw); kept += 1
+        src.seek(size0)
+        tail = src.read()                                               # дописанное за время чистки
+        dst.write(tail)
+    os.replace(tmp, path)
+    mark.write_text(json.dumps({"day": today, "kept": kept, "dropped": dropped, "days": days}), encoding="utf-8")
+    return f"оставлено {kept} строк, убрано {dropped} (старше {days:g} дн); файл {size0 / 1e6:.0f} → {path.stat().st_size / 1e6:.0f} МБ"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--only", nargs="*", help="монеты (BLESS ONG …)")
     ap.add_argument("--write", action="store_true", help="дописать в output/liq_log.jsonl")
     ap.add_argument("--cap", type=float, help="капитализация руками (одна монета)")
     ap.add_argument("--base", default=".", help="корень проекта")
+    ap.add_argument("--trim", action="store_true", help="убрать записи старше 14 дней (раз в сутки, 01.10)")
+    ap.add_argument("--force", action="store_true", help="чистить, даже если сегодня уже чистили")
     a = ap.parse_args()
     base = Path(a.base)
+    if a.trim:
+        print(daily_trim(14.0, base, a.force)); return 0
     crowd = {}
     cp = base / "output" / "coinglass_crowd.json"
     if cp.exists():
