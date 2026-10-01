@@ -29,7 +29,7 @@ STOP_FLAG = BASE_DIR / "bingx_stop"
 JOURNAL = BASE_DIR / "output" / "bingx_orders.jsonl"
 STATE = BASE_DIR / "output" / "bingx_state.json"
 HOST = {"live": "https://open-api.bingx.com", "demo": "https://open-api-vst.bingx.com"}
-DEFAULTS = dict(enabled=False, mode="demo", api_key="", api_secret="", size_usd=None, leverage=3, max_open=None, daily_loss_limit_usd=None, stop_pct=0.10)
+DEFAULTS = dict(enabled=False, mode="demo", api_key="", api_secret="", size_usd=None, leverage=3, max_open=None, daily_loss_limit_usd=None, stop_pct=0.10, exchange_stop=False)
 _CT: dict = {"t": 0, "v": {}}
 ALIAS = {"RAYSOLUSDT": "RAY-USDT", "METUSDT": "METEORA-USDT"}          # вручную: Binance → BingX; остальное сопоставляется по displayName
 
@@ -131,7 +131,7 @@ def ready(c: dict) -> str | None:
 
 
 def open_position(sym: str, side: int, px: float, why: str = "", c: dict | None = None, size_usd: float | None = None) -> dict:
-    """вход: рыночный ордер + STOP_MARKET на бирже. side: 1 лонг / −1 шорт. → {ok, ...}"""
+    """вход: ЛИМИТНЫЙ ордер по цене бота + STOP_MARKET на бирже (01.10 владелец); плечо и тип маржи не трогаем. side: 1 лонг / −1 шорт. → {ok, ...}"""
     c = c or cfg(); why0 = ready(c)
     if why0:
         return {"ok": False, "why": why0}
@@ -160,22 +160,24 @@ def open_position(sym: str, side: int, px: float, why: str = "", c: dict | None 
     if not q:
         return {"ok": False, "why": "количество не посчиталось"}
     bx = ct["symbol"]; hedge = hedge_mode(c); ps = ("LONG" if side == 1 else "SHORT") if hedge else "BOTH"
-    request("POST", "/openApi/swap/v2/trade/marginType", {"symbol": bx, "marginType": "ISOLATED"}, c)                      # уже стоит — биржа ответит ошибкой, не страшно
-    request("POST", "/openApi/swap/v2/trade/leverage", {"symbol": bx, "side": ps if hedge else "BOTH", "leverage": int(c["leverage"])}, c)
-    if hedge:
-        r = request("POST", "/openApi/swap/v2/trade/order", {"symbol": bx, "side": "BUY" if side == 1 else "SELL", "positionSide": ps, "type": "MARKET", "quantity": q}, c)
-    else:
-        r = request("POST", "/openApi/swap/v2/trade/order", {"symbol": bx, "side": "BUY" if side == 1 else "SELL", "positionSide": "BOTH", "type": "MARKET", "quantity": q}, c)
+    # 01.10 владелец: «плечи не регулируешь, ничего кроме позиций, стопов и сигналов открытия/закрытия; покупка лимитным ордером по цене бота, стоп-лосс, продавать можно по рынку»
+    # 01.10 владелец: «не меняешь ни плечи, ни маржу — ничего кроме открытия/закрытия позиций, стопов, рыночных закрытий»: плечо и тип маржи берутся с аккаунта как есть
+    pp = int(ct.get("pricePrecision", 6)); lim = round(float(px), pp)
+    body = {"symbol": bx, "side": "BUY" if side == 1 else "SELL", "positionSide": ps, "type": "LIMIT", "price": lim, "quantity": q, "timeInForce": "GTC"}
+    r = request("POST", "/openApi/swap/v2/trade/order", body, c)
     if r.get("code") != 0:
-        return {"ok": False, "why": f"ордер не принят: {r.get('code')} {r.get('msg')}"}
+        return {"ok": False, "why": f"лимитный ордер не принят: {r.get('code')} {r.get('msg')}"}
     o = (r.get("data") or {}).get("order") or r.get("data") or {}
-    fill = float(o.get("avgPrice") or 0) or px
-    stop = fill * (1 - side * float(c["stop_pct"])); pp = int(ct.get("pricePrecision", 6)); stop = round(stop, pp)
-    sr = request("POST", "/openApi/swap/v2/trade/order", {"symbol": bx, "side": "SELL" if side == 1 else "BUY", "positionSide": ps, "type": "STOP_MARKET",
-                                                          "quantity": q, "stopPrice": stop, "workingType": "MARK_PRICE"}, c)
-    s["open"][sym] = dict(bx=bx, side=side, qty=q, entry=fill, stop=stop, t=time.time(), ps=ps, hedge=hedge, mode=c["mode"], why=why[:120], stop_ok=(sr.get("code") == 0))
+    stop = round(lim * (1 - side * float(c["stop_pct"])), pp)
+    if c.get("exchange_stop"):                                         # 01.10 владелец «не надо пока никаких отдельных правил на бирже»: стоп на бирже выключен (exchange_stop: false) — все выходы, включая стопы, даёт бот своим сигналом закрытия
+        sr = request("POST", "/openApi/swap/v2/trade/order", {"symbol": bx, "side": "SELL" if side == 1 else "BUY", "positionSide": ps, "type": "STOP_MARKET",
+                                                              "quantity": q, "stopPrice": stop, "workingType": "MARK_PRICE"}, c)
+    else:
+        sr = {"code": 0, "msg": "стоп на бирже выключен"}
+    s["open"][sym] = dict(bx=bx, side=side, qty=q, entry=lim, stop=stop, t=time.time(), ps=ps, hedge=hedge, mode=c["mode"], why=why[:120], stop_ok=(sr.get("code") == 0),
+                          order_id=str(o.get("orderId") or ""), limit=True)
     save(s)
-    return {"ok": True, "qty": q, "entry": fill, "stop": stop, "stop_ok": sr.get("code") == 0, "stop_msg": sr.get("msg") if sr.get("code") != 0 else ""}
+    return {"ok": True, "qty": q, "entry": lim, "stop": stop, "order_id": str(o.get("orderId") or ""), "stop_ok": sr.get("code") == 0, "stop_msg": sr.get("msg") if sr.get("code") != 0 else ""}
 
 
 def close_position(sym: str, exit_px: float | None = None, why: str = "", c: dict | None = None) -> dict:
@@ -184,11 +186,19 @@ def close_position(sym: str, exit_px: float | None = None, why: str = "", c: dic
         return {"ok": False, "why": "позиции нет в состоянии"}
     if ready(c) and ready(c) != "торговля выключена (enabled: false)":
         return {"ok": False, "why": ready(c)}
-    body = {"symbol": p["bx"], "side": "SELL" if p["side"] == 1 else "BUY", "positionSide": p["ps"], "type": "MARKET", "quantity": p["qty"]}
+    request("DELETE", "/openApi/swap/v2/trade/allOpenOrders", {"symbol": p["bx"]}, c)                                   # снять лимит (если не исполнился) и стоп
+    pr = request("GET", "/openApi/swap/v2/user/positions", {"symbol": p["bx"]}, c)
+    amt = 0.0
+    for x in (pr.get("data") or []):
+        if (not p["hedge"]) or str(x.get("positionSide")) == p["ps"]:
+            amt += abs(float(x.get("availableAmt") or x.get("positionAmt") or 0))
+    if amt <= 0:                                                       # лимит не исполнился — позиции нет, ордера сняты
+        del s["open"][sym]; save(s)
+        return {"ok": True, "exit": None, "pnl_usd": 0.0, "why": "лимит не исполнился — ордера сняты, позиции не было"}
+    body = {"symbol": p["bx"], "side": "SELL" if p["side"] == 1 else "BUY", "positionSide": p["ps"], "type": "MARKET", "quantity": amt}
     if not p["hedge"]:
         body["reduceOnly"] = "true"
     r = request("POST", "/openApi/swap/v2/trade/order", body, c)
-    request("DELETE", "/openApi/swap/v2/trade/allOpenOrders", {"symbol": p["bx"]}, c)                                   # снять оставшийся стоп
     if r.get("code") != 0 and "not exist" not in str(r.get("msg", "")).lower():
         return {"ok": False, "why": f"закрытие не принято: {r.get('code')} {r.get('msg')}"}
     o = (r.get("data") or {}).get("order") or r.get("data") or {}
