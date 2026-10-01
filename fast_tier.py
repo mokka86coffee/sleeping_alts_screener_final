@@ -242,11 +242,16 @@ except ImportError:
 try:
     from core_config import FAST3_SHORT_TP, FAST3_SHORT_SL, FAST3_SHORT_HOLD_MIN
     try:
+        from core_config import FAST3_SHORT_BE_AT
+    except ImportError:
+        FAST3_SHORT_BE_AT = 0.05
+    try:
         from core_config import FAST3_SHORT_HOLD_BY_SESSION
     except ImportError:
         FAST3_SHORT_HOLD_BY_SESSION = True
 except ImportError:
-    FAST3_SHORT_TP, FAST3_SHORT_SL, FAST3_SHORT_HOLD_MIN = 1.0, 0.10, 240
+    FAST3_SHORT_TP, FAST3_SHORT_SL, FAST3_SHORT_HOLD_MIN = 0.10, 0.10, 240
+    FAST3_SHORT_BE_AT = 0.05
     FAST3_SHORT_HOLD_BY_SESSION = True
 
 
@@ -596,6 +601,21 @@ def scan(sym: str, want_spike: bool, want_climax: bool):
     return sym, c[-1], int(k[-1][0]), out
 
 
+def short_walk(e: float, stop: float, tgt: float, k: list):
+    """01.10 владелец «ставь цель 10% или вынос лонгов, при уходе в +5% стоп в вх»: шорт по 3-мин барам от входа по порядку —
+    стоп +stop → цель −tgt → после касания −FAST3_SHORT_BE_AT стоп переносится на вход (безубыток). → (результат от входа без комиссии, причина) или (None, None)"""
+    be = False
+    for x in k:
+        h_, l_ = float(x[2]), float(x[3])
+        if h_ >= (e if be else e * (1 + stop)):
+            return (0.0, "стоп в безубыток") if be else (-stop, "стоп")
+        if tgt and l_ <= e * (1 - tgt):
+            return tgt, "цель"
+        if not be and FAST3_SHORT_BE_AT and l_ <= e * (1 - FAST3_SHORT_BE_AT):
+            be = True
+    return None, None
+
+
 def step(state: dict, write: bool) -> list[str]:
     now = time.time(); now_ms = int(now * 1000); ev = []; msgs = []
     # выходы
@@ -609,9 +629,8 @@ def step(state: dict, write: bool) -> list[str]:
         if sd == 1:
             if lo <= e * (1 - pos["stop"]): res, why = -pos["stop"], "стоп"
             elif hi >= e * (1 + pos["target"]): res, why = pos["target"], "цель"
-        else:
-            if hi >= e * (1 + pos["stop"]): res, why = -pos["stop"], "стоп"
-            elif lo <= e * (1 - pos["target"]): res, why = pos["target"], "цель"
+        else:                                                         # 01.10: шорт — цель FAST3_SHORT_TP, стоп, безубыток после −5% (short_walk); для уже открытых шортов тоже
+            res, why = short_walk(e, pos["stop"], FAST3_SHORT_TP, k)
         if res is None:
             fx = fuel_exit(sym, pos, now, c)
             if fx: res, why = (c / e - 1) * sd, fx
@@ -737,9 +756,8 @@ def wake_step(state: dict, write: bool) -> list[str]:
         if sd == 1:
             if lo <= e * (1 - pos["stop"]): res, why = -pos["stop"], "стоп"
             elif hi >= e * (1 + pos["target"]): res, why = pos["target"], "цель"
-        else:
-            if hi >= e * (1 + pos["stop"]): res, why = -pos["stop"], "стоп"
-            elif lo <= e * (1 - pos["target"]): res, why = pos["target"], "цель"
+        else:                                                         # 01.10: шорт — цель FAST3_SHORT_TP, стоп, безубыток после −5% (short_walk); для уже открытых шортов тоже
+            res, why = short_walk(e, pos["stop"], FAST3_SHORT_TP, k)
         if res is None:
             fx = fuel_exit(sym, pos, now, c)
             if fx: res, why = (c / e - 1) * sd, fx

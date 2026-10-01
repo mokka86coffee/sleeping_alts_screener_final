@@ -977,7 +977,8 @@ function realDetail(g, l) {
     d.entry = it.entry; d.exitPx = it.exit; d.res = it.res; d.usd = it.usd; d.rv = rv; d.item = it;
     d.now = ch && ch.bars && ch.bars.length ? ch.bars[ch.bars.length - 1][4] : it.exit;
     const resTxt = it.res != null ? `итог ${pctStr(it.res)}${it.usd != null ? ` (${it.usd >= 0 ? '+' : '−'}${Math.abs(Math.round(it.usd))} $)` : ''}` : '';   // 30.09 владелец «нет итога сделки»: итог виден сразу, а не только после разбора через 2 ч
-    d.status = rv ? `${resTxt} · ${rv.verdict}` : `${it.book} · ${it.why} · ${resTxt} · разбор придёт через 2 ч после выхода`;
+    const tm = it.t_in && it.t_out ? `вход ${dmhT(it.t_in)} → выход ${dmhT(it.t_out)}` : '';   // 01.10 владелец «а где время сделки?»: время входа и выхода в подписи закрытой сделки
+    d.status = rv ? `${tm ? tm + ' · ' : ''}${resTxt} · ${rv.verdict}` : `${it.book} · ${tm ? tm + ' · ' : ''}${it.why} · ${resTxt} · разбор придёт через 2 ч после выхода`;
   } else if (kind === 'entry') {
     d.entry = it.level; d.now = it.px; d.left = it.dist != null ? it.dist : (it.level / it.px - 1) * 100;
     d.volPct = Math.round((it.vol_x || 0) * 100); d.bar = it.bar || 0; d.oi = it.oi1h || 0;
