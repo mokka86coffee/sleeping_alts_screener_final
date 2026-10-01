@@ -891,6 +891,15 @@ def page_step() -> None:
 _LOCK = None
 
 
+def _paused_until() -> float:
+    """секунд до конца паузы по output/fast_pause.json (прогон run.py), 0 — паузы нет"""
+    try:
+        d = json.loads((BASE_DIR / "output" / "fast_pause.json").read_text(encoding="utf-8"))
+        return max(0.0, float(d.get("until", 0)) - time.time())
+    except (OSError, ValueError, TypeError):
+        return 0.0
+
+
 def main() -> int:
     global _LOCK
     ap = argparse.ArgumentParser(); ap.add_argument("--loop", action="store_true"); a = ap.parse_args()
@@ -913,6 +922,10 @@ def main() -> int:
         wstate = {"open": {}, "last_exit": {}}
     wstate.setdefault("open", {}); wstate.setdefault("last_exit", {})
     while True:
+        _pu = _paused_until()                                           # 01.10 владелец: прогон ставит бота на паузу (output/fast_pause.json), снимает через минуту после прохода по Binance
+        if _pu:
+            print(f"{datetime.now(L):%H:%M:%S} пауза: прогон идёт по Binance, ещё {_pu:.0f} с", flush=True)
+            time.sleep(min(_pu, 30)); continue
         try:
             for m in step(state, a.loop):
                 print(f"{datetime.now(L):%H:%M:%S} {BOOK}: {m}", flush=True)

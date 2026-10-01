@@ -956,6 +956,7 @@ def run_once(args: argparse.Namespace) -> int:
         select_stats = {"selected": len(symbols), "explicit": True}
         log(f"→ Явно заданы {len(symbols)} монет")
     else:
+        _pause_fast(True)                                             # 01.10 владелец «прогон должен тормозить быстрого бота»: флаг паузы на время прохода по Binance
         log("→ Загружаю тикеры Binance Futures")
         # Журнал добавляется только на полном прогоне. Явный --limit
         # в докстроке файла описан как «только N монет, для отладки»,
@@ -1054,6 +1055,7 @@ def run_once(args: argparse.Namespace) -> int:
     candidates, errors = analyze_all(symbols, args.workers)
 
     duration = time.monotonic() - started
+    _pause_fast(False)                                                # 01.10: проход по Binance окончен — бот продолжит через минуту (FAST_PAUSE_RESUME_SEC)
 
     if errors:
         log(f"\n⚠ Ошибок: {len(errors)} из {len(symbols)}")
@@ -1985,6 +1987,21 @@ def _start_liq_stream() -> None:
         log("→ Поток ликвидаций Binance: " + ("перезапущен" if pr is not None else "запущен") + " (output/liq_stream.log)")
     except Exception as e:  # noqa: BLE001
         _issue("Поток ликвидаций", f"{type(e).__name__}: {e}")
+
+
+def _pause_fast(on: bool) -> None:
+    """01.10 владелец «прогон должен тормозить быстрого бота и запускать его через минуту после прохода по Binance»:
+    файл output/fast_pause.json = {until: ts}. on=True — пауза на всё время прохода (до снятия, но не дольше FAST_PAUSE_MAX_SEC — страховка от зависшего прогона);
+    on=False — пауза ещё FAST_PAUSE_RESUME_SEC секунд после прохода, потом бот сам продолжает. fast_tier читает файл перед каждым шагом; открытые позиции он
+    и в паузе не ведёт — все выходы пересчитываются по свечам после паузы (стоп/цель по пути, как и было)."""
+    try:
+        from core_config import FAST_PAUSE_MAX_SEC as _mx, FAST_PAUSE_RESUME_SEC as _rs
+    except ImportError:
+        _mx, _rs = 1500, 60
+    try:
+        (BASE_DIR / "output" / "fast_pause.json").write_text(json.dumps({"until": time.time() + (_mx if on else _rs), "why": "прогон по Binance" if on else "минута после прохода"}), encoding="utf-8")
+    except OSError as e:
+        log(f"→ Пауза бота: {type(e).__name__}: {e}")
 
 
 def _start_depth_tick() -> None:
