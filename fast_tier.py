@@ -700,6 +700,8 @@ def step(state: dict, write: bool) -> list[str]:
             res, why, newpos = flip_check(e, pos, k, now)                # 01.10 владелец (ALICE, CAP): А-шорт держится 6 ч → закрыт, лонг
             if res is None:
                 res, why = short_walk(e, pos["stop"], FAST3_SHORT_TP, k)   # шорт — цель, стоп, безубыток после −5%
+                if res is None and FAST3_SHORT_BE_AT and min(float(x[3]) for x in k) <= e * (1 - FAST3_SHORT_BE_AT):
+                    pos["stop_px"] = e                                     # 01.10: стоп в безубытке — записываем, мост BingX переставит стоп на бирже
         if res is None:
             fx = fuel_exit(sym, pos, now, c)
             if fx: res, why = (c / e - 1) * sd, fx
@@ -833,6 +835,8 @@ def wake_step(state: dict, write: bool) -> list[str]:
             res, why, newpos = flip_check(e, pos, k, now)                # 01.10 владелец (ALICE, CAP): А-шорт держится 6 ч → закрыт, лонг
             if res is None:
                 res, why = short_walk(e, pos["stop"], FAST3_SHORT_TP, k)   # шорт — цель, стоп, безубыток после −5%
+                if res is None and FAST3_SHORT_BE_AT and min(float(x[3]) for x in k) <= e * (1 - FAST3_SHORT_BE_AT):
+                    pos["stop_px"] = e                                     # 01.10: стоп в безубытке — записываем, мост BingX переставит стоп на бирже
         if res is None:
             fx = fuel_exit(sym, pos, now, c)
             if fx: res, why = (c / e - 1) * sd, fx

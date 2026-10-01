@@ -130,6 +130,106 @@ def ready(c: dict) -> str | None:
     return None
 
 
+
+def position_amt(bx: str, ps: str, hedge: bool, c: dict) -> float:
+    """фактический объём позиции на бирже по символу и стороне (availableAmt), 0 — позиции нет"""
+    pr = request("GET", "/openApi/swap/v2/user/positions", {"symbol": bx}, c)
+    amt = 0.0
+    for x in (pr.get("data") or []):
+        if (not hedge) or str(x.get("positionSide")) == ps:
+            amt += abs(float(x.get("availableAmt") or x.get("positionAmt") or 0))
+    return amt
+
+
+def bot_stop(sym: str, side: int, entry: float, stop_pct: float):
+    """текущий стоп бота по монете: stop_px из состояния книг (безубыток, низ удержания, переворот) или −stop_pct от входа"""
+    for f in ("paper_fast3.json", "paper_wake.json"):
+        try:
+            pos = (json.loads((BASE_DIR / "output" / f).read_text(encoding="utf-8")).get("open") or {}).get(sym)
+        except (OSError, ValueError):
+            pos = None
+        if pos and int(pos.get("side", 0)) == side:
+            if pos.get("stop_px"):
+                return float(pos["stop_px"])
+            return float(pos["px"]) * (1 - side * float(pos.get("stop") or stop_pct))
+    return entry * (1 - side * stop_pct)
+
+
+def bot_target(sym: str, side: int, entry: float):
+    """текущая цель бота по монете: px*(1+side*target) из состояния книг (лонг +5 % / удержанный +10 % / шорт −10 %); None — цели нет"""
+    for f in ("paper_fast3.json", "paper_wake.json"):
+        try:
+            pos = (json.loads((BASE_DIR / "output" / f).read_text(encoding="utf-8")).get("open") or {}).get(sym)
+        except (OSError, ValueError):
+            pos = None
+        if pos and int(pos.get("side", 0)) == side:
+            t = float(pos.get("target") or 0)
+            return float(pos["px"]) * (1 + side * t) if 0 < t < 0.5 else None
+    return None
+
+
+def _place_tp(p: dict, want: float, qty: float, c: dict) -> dict:
+    return request("POST", "/openApi/swap/v2/trade/order", {"symbol": p["bx"], "side": "SELL" if p["side"] == 1 else "BUY", "positionSide": p["ps"], "type": "TAKE_PROFIT_MARKET",
+                                                            "quantity": round(qty, 6), "stopPrice": want, "workingType": "MARK_PRICE"}, c)
+
+
+def sync_stops(c: dict) -> list[str]:
+    """01.10 владелец «все стопы один в один»: стоп на бирже = текущий стоп бота; при смене уровня (безубыток, низ удержания) старый стоп снимается, ставится новый;
+    непокрытый объём (лимит исполнился позже/частично) — досылается"""
+    out = []
+    if not c.get("exchange_stop"):
+        return out
+    s = state(); changed = False
+    for sym, p in s["open"].items():
+        amt = position_amt(p["bx"], p["ps"], p["hedge"], c)
+        if amt <= 0:
+            continue
+        want = bot_stop(sym, int(p["side"]), float(p["entry"]), float(c["stop_pct"]))
+        pp = int((contracts().get(sym) or {}).get("pricePrecision", 6)); want = round(want, pp)
+        covered = float(p.get("stop_qty") or 0)
+        moved = abs(want - float(p["stop"])) > abs(float(p["stop"])) * 5e-4
+        if moved:
+            for oid in p.get("stop_ids") or []:
+                request("DELETE", "/openApi/swap/v2/trade/order", {"symbol": p["bx"], "orderId": oid}, c)
+            covered = 0.0; p["stop_ids"] = []
+        if amt - covered <= covered * 0.01 + 1e-9:
+            continue
+        sr = request("POST", "/openApi/swap/v2/trade/order", {"symbol": p["bx"], "side": "SELL" if p["side"] == 1 else "BUY", "positionSide": p["ps"], "type": "STOP_MARKET",
+                                                              "quantity": round(amt - covered, 6), "stopPrice": want, "workingType": "MARK_PRICE"}, c)
+        if sr.get("code") == 0:
+            oid = str((((sr.get("data") or {}).get("order") or {}).get("orderId")) or "")
+            p["stop_ids"] = (p.get("stop_ids") or []) + ([oid] if oid else []); p["stop_qty"] = amt; p["stop"] = want; p["stop_ok"] = True; changed = True
+            out.append(f"BingX {sym[:-4]} стоп {want}{' (переставлен)' if moved else ''} на {round(amt - covered, 4)} ok")
+        else:
+            out.append(f"BingX {sym[:-4]} стоп не поставлен: {sr.get('msg')}")
+    for sym, p in s["open"].items():                                     # 01.10 владелец «а где тп?»: цель бота — TAKE_PROFIT_MARKET на бирже, переставляется при смене (удержание +10 %)
+        amt = position_amt(p["bx"], p["ps"], p["hedge"], c)
+        if amt <= 0:
+            continue
+        want = bot_target(sym, int(p["side"]), float(p["entry"]))
+        if want is None:
+            continue
+        pp = int((contracts().get(sym) or {}).get("pricePrecision", 6)); want = round(want, pp)
+        covered = float(p.get("tp_qty") or 0); cur = float(p.get("tp") or 0)
+        moved = cur and abs(want - cur) > abs(cur) * 5e-4
+        if moved:
+            for oid in p.get("tp_ids") or []:
+                request("DELETE", "/openApi/swap/v2/trade/order", {"symbol": p["bx"], "orderId": oid}, c)
+            covered = 0.0; p["tp_ids"] = []
+        if amt - covered <= covered * 0.01 + 1e-9:
+            continue
+        tr = _place_tp(p, want, amt - covered, c)
+        if tr.get("code") == 0:
+            oid = str((((tr.get("data") or {}).get("order") or {}).get("orderId")) or "")
+            p["tp_ids"] = (p.get("tp_ids") or []) + ([oid] if oid else []); p["tp_qty"] = amt; p["tp"] = want; changed = True
+            out.append(f"BingX {sym[:-4]} цель {want}{' (переставлена)' if moved else ''} на {round(amt - covered, 4)} ok")
+        else:
+            out.append(f"BingX {sym[:-4]} цель не поставлена: {tr.get('msg')}")
+    if changed:
+        save(s)
+    return out
+
+
 def open_position(sym: str, side: int, px: float, why: str = "", c: dict | None = None, size_usd: float | None = None) -> dict:
     """вход: ЛИМИТНЫЙ ордер по цене бота + STOP_MARKET на бирже (01.10 владелец); плечо и тип маржи не трогаем. side: 1 лонг / −1 шорт. → {ok, ...}"""
     c = c or cfg(); why0 = ready(c)
@@ -169,13 +269,18 @@ def open_position(sym: str, side: int, px: float, why: str = "", c: dict | None 
         return {"ok": False, "why": f"лимитный ордер не принят: {r.get('code')} {r.get('msg')}"}
     o = (r.get("data") or {}).get("order") or r.get("data") or {}
     stop = round(lim * (1 - side * float(c["stop_pct"])), pp)
-    if c.get("exchange_stop"):                                         # 01.10 владелец «не надо пока никаких отдельных правил на бирже»: стоп на бирже выключен (exchange_stop: false) — все выходы, включая стопы, даёт бот своим сигналом закрытия
+    time.sleep(1.5)
+    q_pos = position_amt(bx, ps, hedge, c)                               # 01.10: лимит мог исполниться частично/позже — стоп ставим на фактический объём, остальное досылает sync_stops
+    if c.get("exchange_stop") and q_pos <= 0:
+        sr = {"code": -1, "msg": "лимит ещё не исполнен — стоп поставит sync_stops после исполнения"}
+    elif c.get("exchange_stop"):                                         # 01.10 владелец «не надо пока никаких отдельных правил на бирже»: стоп на бирже выключен (exchange_stop: false) — все выходы, включая стопы, даёт бот своим сигналом закрытия
         sr = request("POST", "/openApi/swap/v2/trade/order", {"symbol": bx, "side": "SELL" if side == 1 else "BUY", "positionSide": ps, "type": "STOP_MARKET",
-                                                              "quantity": q, "stopPrice": stop, "workingType": "MARK_PRICE"}, c)
+                                                              "quantity": q_pos, "stopPrice": stop, "workingType": "MARK_PRICE"}, c)
     else:
         sr = {"code": 0, "msg": "стоп на бирже выключен"}
+    sid = str((((sr.get("data") or {}).get("order") or {}).get("orderId")) or "") if sr.get("code") == 0 and c.get("exchange_stop") else ""
     s["open"][sym] = dict(bx=bx, side=side, qty=q, entry=lim, stop=stop, t=time.time(), ps=ps, hedge=hedge, mode=c["mode"], why=why[:120], stop_ok=(sr.get("code") == 0),
-                          order_id=str(o.get("orderId") or ""), limit=True)
+                          order_id=str(o.get("orderId") or ""), limit=True, stop_qty=(q_pos if sr.get("code") == 0 else 0.0), stop_ids=([sid] if sid else []))
     save(s)
     return {"ok": True, "qty": q, "entry": lim, "stop": stop, "order_id": str(o.get("orderId") or ""), "stop_ok": sr.get("code") == 0, "stop_msg": sr.get("msg") if sr.get("code") != 0 else ""}
 
@@ -216,6 +321,7 @@ def on_events(ev: list[dict]) -> list[str]:
         c = cfg()
         if not c["enabled"]:
             return msgs
+        msgs += sync_stops(c)                                            # 01.10: дослать стопы на исполнившиеся лимиты
         for e in ev:
             k = str(e.get("kind", ""))
             if k == "entry":
