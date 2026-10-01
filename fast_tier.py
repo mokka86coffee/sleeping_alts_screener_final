@@ -428,6 +428,13 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
               else "ликвидаций по монете в потоке нет — вход только по свече")
         # 29.09 владелец «да»: шорт — стоп +FAST3_SHORT_SL, без цели, срок FAST3_SHORT_HOLD_MIN, выход по выносу лонгов (fuel_exit); стоп за вершиной убран (unified_exit.py)
         stop, tgt = FAST3_SHORT_SL, FAST3_SHORT_TP
+        try:                                                              # 02.10 владелец: монета после пампа/роста держит уровень (×2+ от минимума 90 дн) — цель шорта 5 %, не 10 %
+            from core_config import FAST3_SHORT_TP_PULLUP as _tp5, FAST3_RUN90_X as _rx
+            _r90 = _run90(sym)
+            if _r90 and _r90 >= _rx:
+                tgt = _tp5; why = why + f" · цель 5%: монета ×{_r90:.1f} от минимума 90 дн, продавец тянет вверх"
+        except ImportError:
+            pass
         del state["pending"][sym]
         t_bar = int(last[0]); ok, sw, _h = ses_gate(now, t_bar, -1)
         # 30.09 владелец «вноси» (after_exit.py: шорты у вершины 90 дн — после выхода по сроку цена шла ещё +6.2% вперёд, у 65% ≥ 3% за 2 ч; по сроку +21.5%, держать ещё 2 ч +114.6% на 23 сделках, НЕ ПРОВЕРЕНО):
@@ -436,6 +443,9 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
         if not ok:
             msgs.append(f"{sym[:-4]} шорт после вершины пропущен: {sw}"); continue
         why = p["why"] + f" · вход после вершины {top:.6g} ({sq}): стоп +{stop * 100:.0f}%, выход по выносу лонгов, срок {hold} мин · сессия {sw}"
+        _lg = london_gate(sym, now, why)                                     # 02.10 владелец: Лондон — максимум 5 самых надёжных (и для шортов после вершины)
+        if _lg:
+            msgs.append(f"{sym[:-4]} шорт после вершины пропущен: {_lg}"); continue
         stop, _spx, _snote = _range_stop(sym, -1, c, stop)                # 02.10 владелец: стоп за диапазоном 30 дн (шорт — над максимумом)
         if _snote: why = why + " · " + _snote
         pos = dict(sym=sym, side=-1, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), stop_px=_spx, hold_min=hold, rule=why, last_px=c, bars=0)
@@ -656,6 +666,44 @@ def _range_stop(sym: str, side: int, e: float, default_pct: float):
     return round(dist, 5), edge, f"стоп за диапазоном {nd} дн: {edge:.6g} ({'низ' if side == 1 else 'верх'} {lo if side == 1 else hi:.6g} {'−' if side == 1 else '+'}{mg * 100:.1f}%)"
 
 
+_LON = {"day": "", "n": 0}
+
+
+def london_gate(sym: str, now: float, why: str):
+    """02.10 владелец: «на Лондоне максимум 5 сделок самых надёжных» → в FAST3_LONDON_HOURS (UTC+3) вход только если объём всплеска ≥ ×FAST3_LONDON_SPIKE_X медианы
+    и интерес за 7 дн ≥ 0, и входов за эту сессию (обе книги) < FAST3_LONDON_MAX. → причина отказа или None; счётчик — output/london_count.json"""
+    import re
+    try:
+        from core_config import FAST3_LONDON_HOURS as hh, FAST3_LONDON_MAX as mx, FAST3_LONDON_SPIKE_X as sx
+    except ImportError:
+        hh, mx, sx = (11, 15), 5, 10.0
+    d = datetime.fromtimestamp(now, L)
+    if not (hh[0] <= d.hour < hh[1]):
+        return None
+    m = re.search(r"объёме ×([\d.]+)", why or "")
+    x = float(m.group(1)) if m else 0.0
+    if x < sx:
+        return f"Лондон: всплеск ×{x:.1f} < ×{sx:g} — не из самых надёжных"
+    o7 = _oi7(sym)
+    if o7 is not None and o7 < 0:
+        return f"Лондон: интерес за 7 дн {o7:+.0f}% — не из самых надёжных"
+    p = BASE_DIR / "output" / "london_count.json"
+    try:
+        c = json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        c = {"day": "", "n": 0}
+    if c.get("day") != d.strftime("%Y-%m-%d"):
+        c = {"day": d.strftime("%Y-%m-%d"), "n": 0}
+    if c["n"] >= mx:
+        return f"Лондон: уже {c['n']} входов из {mx}"
+    c["n"] += 1
+    try:
+        p.write_text(json.dumps(c), encoding="utf-8")
+    except OSError:
+        pass
+    return None
+
+
 def _pump_open(e: float, rule: str):
     """открытие бара всплеска по записи входа («бар +1.44%»): цена входа — закрытие этого бара"""
     import re
@@ -706,7 +754,7 @@ def flip_check(e: float, pos: dict, k: list, now: float):
     nf = max(1, FAST3_FLIP_HOLD_MIN // 3)
     if pos.get("flip") or not str(pos.get("rule", "")).startswith("А") or len(k) < nf:
         return None, None, None
-    r, _ = short_walk(e, pos["stop"], FAST3_SHORT_TP, k[:nf])
+    r, _ = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k[:nf])
     if r is not None:
         return None, None, None
     lowest = min(float(x[3]) for x in k[:nf])
@@ -735,7 +783,7 @@ def step(state: dict, write: bool) -> list[str]:
         else:
             res, why, newpos = flip_check(e, pos, k, now)                # 01.10 владелец (ALICE, CAP): А-шорт держится 6 ч → закрыт, лонг
             if res is None:
-                res, why = short_walk(e, pos["stop"], FAST3_SHORT_TP, k)   # шорт — цель, стоп, безубыток после −5%
+                res, why = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k)   # шорт — цель позиции (10 % или 5 % у монет ×2+), стоп, безубыток после −5%
                 if res is None and FAST3_SHORT_BE_AT and min(float(x[3]) for x in k) <= e * (1 - FAST3_SHORT_BE_AT):
                     pos["stop_px"] = e                                     # 01.10: стоп в безубытке — записываем, мост BingX переставит стоп на бирже
         if res is None:
@@ -802,6 +850,9 @@ def step(state: dict, write: bool) -> list[str]:
                 ok, sw, h2 = ses_gate(now, t_bar, sd)
                 if not ok:
                     msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); continue
+            _lg = london_gate(sym, now, why)                                 # 02.10 владелец: Лондон — максимум 5 самых надёжных
+            if _lg:
+                msgs.append(f"{sym[:-4]} не взят: {_lg}"); continue
             sl, _spx, _snote = _range_stop(sym, sd, px, sl)                 # 02.10 владелец: стоп за диапазоном 30 дн
             if _snote: why = why + " · " + _snote
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, stop_px=_spx, hold_min=hold, rule=why, last_px=px, bars=0, pump_open=_pump_open(px, why))
@@ -872,7 +923,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
         else:
             res, why, newpos = flip_check(e, pos, k, now)                # 01.10 владелец (ALICE, CAP): А-шорт держится 6 ч → закрыт, лонг
             if res is None:
-                res, why = short_walk(e, pos["stop"], FAST3_SHORT_TP, k)   # шорт — цель, стоп, безубыток после −5%
+                res, why = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k)   # шорт — цель позиции (10 % или 5 % у монет ×2+), стоп, безубыток после −5%
                 if res is None and FAST3_SHORT_BE_AT and min(float(x[3]) for x in k) <= e * (1 - FAST3_SHORT_BE_AT):
                     pos["stop_px"] = e                                     # 01.10: стоп в безубытке — записываем, мост BingX переставит стоп на бирже
         if res is None:
@@ -944,6 +995,9 @@ def wake_step(state: dict, write: bool) -> list[str]:
                 ok, sw, h2 = ses_gate(now, t_bar, sd)
                 if not ok:
                     msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); continue
+            _lg = london_gate(sym, now, why)                                 # 02.10 владелец: Лондон — максимум 5 самых надёжных
+            if _lg:
+                msgs.append(f"{sym[:-4]} не взят: {_lg}"); continue
             sl, _spx, _snote = _range_stop(sym, sd, px, sl)                 # 02.10 владелец: стоп за диапазоном 30 дн
             if _snote: why = why + " · " + _snote
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, stop_px=_spx, hold_min=hold, rule=why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", last_px=px, bars=0, pump_open=_pump_open(px, why))
