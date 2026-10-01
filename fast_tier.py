@@ -436,7 +436,9 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
         if not ok:
             msgs.append(f"{sym[:-4]} шорт после вершины пропущен: {sw}"); continue
         why = p["why"] + f" · вход после вершины {top:.6g} ({sq}): стоп +{stop * 100:.0f}%, выход по выносу лонгов, срок {hold} мин · сессия {sw}"
-        pos = dict(sym=sym, side=-1, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), hold_min=hold, rule=why, last_px=c, bars=0)
+        stop, _spx, _snote = _range_stop(sym, -1, c, stop)                # 02.10 владелец: стоп за диапазоном 30 дн (шорт — над максимумом)
+        if _snote: why = why + " · " + _snote
+        pos = dict(sym=sym, side=-1, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), stop_px=_spx, hold_min=hold, rule=why, last_px=c, bars=0)
         state["open"][sym] = pos
         ev.append(dict(book=book, sym=sym, kind="entry", side=-1, px=c, at=now, usd_in=FAST3_SIZE, rule=why, target=pos["target"], stop=pos["stop"],
                        hold_min=hold, fon=fon(), bub=_bub(sym)))
@@ -628,6 +630,32 @@ def short_walk(e: float, stop: float, tgt: float, k: list):
     return None, None
 
 
+_RNG: dict = {}
+
+
+def _range_stop(sym: str, side: int, e: float, default_pct: float):
+    """02.10 владелец (COAI: «стоп должен быть 0.266 — там, где ты хотел, стоят стопы других»): входной стоп — за пределами диапазона FAST3_STOP_RANGE_DAYS дней:
+    лонг — низ диапазона × (1 − FAST3_STOP_RANGE_MARGIN), шорт — максимум × (1 + …). Если край диапазона дальше FAST3_STOP_RANGE_MAX от входа — обычный стоп default_pct.
+    → (доля стопа от входа, цена стопа, подпись)"""
+    try:
+        from core_config import FAST3_STOP_RANGE_DAYS as nd, FAST3_STOP_RANGE_MARGIN as mg, FAST3_STOP_RANGE_MAX as mx
+    except ImportError:
+        nd, mg, mx = 30, 0.027, 0.25
+    t, v = _RNG.get(sym, (0, None))
+    if time.time() - t > 3600:
+        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1d", "limit": nd + 1}, quiet_400=True) or []
+        v = (min(float(x[3]) for x in k[:-1]), max(float(x[2]) for x in k[:-1])) if len(k) >= 8 else None
+        _RNG[sym] = (time.time(), v)
+    if not v:
+        return default_pct, e * (1 - side * default_pct), ""
+    lo, hi = v
+    edge = lo * (1 - mg) if side == 1 else hi * (1 + mg)
+    dist = (e - edge) / e if side == 1 else (edge - e) / e
+    if dist <= 0 or dist > mx:
+        return default_pct, e * (1 - side * default_pct), ""
+    return round(dist, 5), edge, f"стоп за диапазоном {nd} дн: {edge:.6g} ({'низ' if side == 1 else 'верх'} {lo if side == 1 else hi:.6g} {'−' if side == 1 else '+'}{mg * 100:.1f}%)"
+
+
 def _pump_open(e: float, rule: str):
     """открытие бара всплеска по записи входа («бар +1.44%»): цена входа — закрытие этого бара"""
     import re
@@ -774,7 +802,9 @@ def step(state: dict, write: bool) -> list[str]:
                 ok, sw, h2 = ses_gate(now, t_bar, sd)
                 if not ok:
                     msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); continue
-            pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why, last_px=px, bars=0, pump_open=_pump_open(px, why))
+            sl, _spx, _snote = _range_stop(sym, sd, px, sl)                 # 02.10 владелец: стоп за диапазоном 30 дн
+            if _snote: why = why + " · " + _snote
+            pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, stop_px=_spx, hold_min=hold, rule=why, last_px=px, bars=0, pump_open=_pump_open(px, why))
             state["open"][sym] = pos
             ev.append(dict(book=BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=why, target=tp, stop=sl, hold_min=hold,
                            oi1h=o1h if sd != 0 else None, oi5=o5, run24=info.get(sym, {}).get("run24"), fon=bg, bub=_bub(sym), pack=_pack(), btc=_btc()))
@@ -914,7 +944,9 @@ def wake_step(state: dict, write: bool) -> list[str]:
                 ok, sw, h2 = ses_gate(now, t_bar, sd)
                 if not ok:
                     msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); continue
-            pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", last_px=px, bars=0, pump_open=_pump_open(px, why))
+            sl, _spx, _snote = _range_stop(sym, sd, px, sl)                 # 02.10 владелец: стоп за диапазоном 30 дн
+            if _snote: why = why + " · " + _snote
+            pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, stop_px=_spx, hold_min=hold, rule=why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", last_px=px, bars=0, pump_open=_pump_open(px, why))
             state["open"][sym] = pos
             ev.append(dict(book=WAKE_BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=pos["rule"], target=tp, stop=sl, hold_min=hold,
                            oi1h=oi1h, crowd=cr, wake_x=round(cd["x"], 1), wake_chg=round(cd["chg"], 2), qv24=round(cd["qv"]), fon=fon(), bub=_bub(sym), pack=_pack(), btc=_btc()))
