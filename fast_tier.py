@@ -253,6 +253,10 @@ except ImportError:
     FAST3_SHORT_TP, FAST3_SHORT_SL, FAST3_SHORT_HOLD_MIN = 0.10, 0.10, 240
     FAST3_SHORT_BE_AT = 0.05
     FAST3_SHORT_HOLD_BY_SESSION = True
+try:
+    from core_config import FAST3_PUMP_BACK_EXIT, FAST3_LONG_HOLD_TP, FAST3_LONG_HOLD_EXT_MIN, FAST3_FLIP_HOLD_MIN, FAST3_FLIP_HELD_PCT
+except ImportError:
+    FAST3_PUMP_BACK_EXIT, FAST3_LONG_HOLD_TP, FAST3_LONG_HOLD_EXT_MIN, FAST3_FLIP_HOLD_MIN, FAST3_FLIP_HELD_PCT = True, 0.10, 1440, 360, 0.02
 
 
 def _run90(sym: str):
@@ -616,6 +620,69 @@ def short_walk(e: float, stop: float, tgt: float, k: list):
     return None, None
 
 
+def _pump_open(e: float, rule: str):
+    """открытие бара всплеска по записи входа («бар +1.44%»): цена входа — закрытие этого бара"""
+    import re
+    m = re.search(r"бар \+([\d.]+)%", rule or "")
+    return e / (1 + float(m.group(1)) / 100) if m else None
+
+
+def long_walk(e: float, pos: dict, k: list):
+    """01.10 владелец (NIGHT, CBRS): лонг по 3-мин барам от входа.
+    Фаза 1 (первые FAST3_LONG_HOLD_MIN мин): стоп −FAST3_LONG_SL → цель +FAST3_LONG_TP → памп вернулся (закрытие бара ниже открытия бара всплеска) → выход сразу.
+    На исходе фазы 1: закрытие ≥ входа → удержался: цель FAST3_LONG_HOLD_TP, стоп — низ первых 2 ч, срок FAST3_LONG_HOLD_EXT_MIN; иначе — выход «срок», как было.
+    Фаза 2 (и сразу — для лонга-переворота, pos["held"]): стоп на низу удержания → цель. → (результат от входа без комиссии, причина) или (None, None)."""
+    n1 = max(1, int(pos.get("hold1_min") or FAST3_LONG_HOLD_MIN) // 3)
+    i0 = 0 if pos.get("flip") else n1                                  # удержанный лонг: фаза 2 — только бары ПОСЛЕ окна удержания (его низ = стоп); переворот — бары идут от бара переворота
+    if not pos.get("held"):
+        po = pos.get("pump_open") or _pump_open(e, pos.get("rule", ""))
+        for x in k[:n1]:
+            h_, l_, c_ = float(x[2]), float(x[3]), float(x[4])
+            if l_ <= e * (1 - pos["stop"]):
+                return -pos["stop"], "стоп"
+            if h_ >= e * (1 + pos["target"]):
+                return pos["target"], "цель"
+            if FAST3_PUMP_BACK_EXIT and po and c_ < po:
+                return c_ / e - 1, "памп вернулся"
+        if len(k) < n1:
+            return None, None
+        c_end = float(k[n1 - 1][4])
+        if c_end < e:
+            return c_end / e - 1, f"срок {n1 * 3} мин"
+        lowest = min(float(x[3]) for x in k[:n1])
+        pos.update(held=True, hold1_min=n1 * 3, stop_px=lowest, stop=round(max(1e-6, 1 - lowest / e), 5), target=FAST3_LONG_HOLD_TP, hold_min=FAST3_LONG_HOLD_EXT_MIN,
+                   rule=pos.get("rule", "") + f" · удержался {n1 * 3} мин: цель +{FAST3_LONG_HOLD_TP * 100:.0f}%, стоп на низу {lowest:.6g}")
+        i0 = n1
+    sp = float(pos.get("stop_px") or e * (1 - pos["stop"]))
+    for x in k[i0:]:
+        h_, l_ = float(x[2]), float(x[3])
+        if l_ <= sp:
+            return sp / e - 1, "стоп на низу удержания"
+        if h_ >= e * (1 + pos["target"]):
+            return pos["target"], "цель"
+    return None, None
+
+
+def flip_check(e: float, pos: dict, k: list, now: float):
+    """01.10 владелец (ALICE, CAP): шорт, в который А/А2 перевернули лонг у вершины, держится FAST3_FLIP_HOLD_MIN — цена ни разу не ушла ниже входа на FAST3_FLIP_HELD_PCT
+    и стоп/цель/безубыток за окно не сработали → шорт закрыт по закрытию последнего бара окна, новый лонг с целью FAST3_LONG_HOLD_TP и стопом на низу окна.
+    → (результат шорта, причина, новая позиция) или (None, None, None)"""
+    nf = max(1, FAST3_FLIP_HOLD_MIN // 3)
+    if pos.get("flip") or not str(pos.get("rule", "")).startswith("А") or len(k) < nf:
+        return None, None, None
+    r, _ = short_walk(e, pos["stop"], FAST3_SHORT_TP, k[:nf])
+    if r is not None:
+        return None, None, None
+    lowest = min(float(x[3]) for x in k[:nf])
+    if lowest <= e * (1 - FAST3_FLIP_HELD_PCT):
+        return None, None, None
+    c_f = float(k[nf - 1][4])
+    newpos = dict(sym=pos["sym"], side=1, px=c_f, t_ms=int(k[nf - 1][0]), at=now, target=FAST3_LONG_HOLD_TP, stop=round(max(1e-6, 1 - lowest / c_f), 5), stop_px=lowest,
+                  hold_min=FAST3_LONG_HOLD_EXT_MIN, held=True, flip=True, last_px=c_f, bars=0,
+                  rule=f"переворот: шорт держался {nf * 3} мин (цена не уходила ниже входа на {FAST3_FLIP_HELD_PCT * 100:.0f}%) — лонг, цель +{FAST3_LONG_HOLD_TP * 100:.0f}%, стоп на низу {lowest:.6g} · было: " + str(pos.get("rule", ""))[:220])
+    return 1 - c_f / e, f"переворот в лонг: шорт держится {nf * 3} мин", newpos
+
+
 def step(state: dict, write: bool) -> list[str]:
     now = time.time(); now_ms = int(now * 1000); ev = []; msgs = []
     # выходы
@@ -626,11 +693,13 @@ def step(state: dict, write: bool) -> list[str]:
             continue
         e, sd = float(pos["px"]), int(pos["side"]); hi = max(float(x[2]) for x in k); lo = min(float(x[3]) for x in k); c = float(k[-1][4])
         res = why = None
+        newpos = None
         if sd == 1:
-            if lo <= e * (1 - pos["stop"]): res, why = -pos["stop"], "стоп"
-            elif hi >= e * (1 + pos["target"]): res, why = pos["target"], "цель"
-        else:                                                         # 01.10: шорт — цель FAST3_SHORT_TP, стоп, безубыток после −5% (short_walk); для уже открытых шортов тоже
-            res, why = short_walk(e, pos["stop"], FAST3_SHORT_TP, k)
+            res, why = long_walk(e, pos, k)                              # 01.10 владелец: памп вернулся → выход; удержался 2 ч → цель +10%, стоп на низу
+        else:
+            res, why, newpos = flip_check(e, pos, k, now)                # 01.10 владелец (ALICE, CAP): А-шорт держится 6 ч → закрыт, лонг
+            if res is None:
+                res, why = short_walk(e, pos["stop"], FAST3_SHORT_TP, k)   # шорт — цель, стоп, безубыток после −5%
         if res is None:
             fx = fuel_exit(sym, pos, now, c)
             if fx: res, why = (c / e - 1) * sd, fx
@@ -644,6 +713,10 @@ def step(state: dict, write: bool) -> list[str]:
             if write:
                 cg(sym, *cg_caption(BOOK, sym, pos, e * (1 + res * sd), why, res))
             state["last_exit"][sym] = now; del state["open"][sym]
+            if newpos:                                                    # переворот: на месте шорта встаёт лонг
+                state["open"][sym] = newpos
+                ev.append(dict(book=BOOK, sym=sym, kind="entry", side=1, px=newpos["px"], at=now, usd_in=FAST3_SIZE, rule=newpos["rule"], target=newpos["target"], stop=newpos["stop"], hold_min=newpos["hold_min"], flip=True))
+                msgs.append(f"{sym[:-4]} лонг-переворот вход {newpos['px']:.6g} · цель +{newpos['target'] * 100:.0f}%, стоп {newpos['stop_px']:.6g}")
         else:
             ev.append(dict(book=BOOK, sym=sym, kind="follow", side=sd, px_in=e, px=c, result_pct=round((c / e - 1) * sd * 100, 2), at=now))
     # входы: сначала ждущие шорты (Б)
@@ -669,7 +742,7 @@ def step(state: dict, write: bool) -> list[str]:
             sd, why, start_low = picture(sym, sd, why, now, t_bar)       # 28.09: картина вокруг всплеска (Г, Д, Е)
             if sd == 0:
                 msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
-            ab = gate_ab(sym, sd, px)                                     # 29.09: А и Б; 30.09 владелец: «фильтрация должна работать в обратную сторону, а не закрывать входы»
+            ab = None if why.startswith("шорт не взят") else gate_ab(sym, sd, px)   # 01.10 владелец (CAP, MOVR): Г главнее А — продавец тянет вверх, А не переворачивает в шорт; 29.09: А и Б
             if ab and ab.startswith("Б") and FAST3_B_SKIP:                # 30.09 владелец «верни не входить»: Б (шорт не у вершины 90 дн) — не входить, а не лонг (вживую 12 сделок −189 $, 1 в плюс)
                 msgs.append(f"{sym[:-4]} не взят: {ab}"); continue
             if ab:
@@ -691,7 +764,7 @@ def step(state: dict, write: bool) -> list[str]:
                 ok, sw, h2 = ses_gate(now, t_bar, sd)
                 if not ok:
                     msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); continue
-            pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why, last_px=px, bars=0)
+            pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why, last_px=px, bars=0, pump_open=_pump_open(px, why))
             state["open"][sym] = pos
             ev.append(dict(book=BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=why, target=tp, stop=sl, hold_min=hold,
                            oi1h=o1h if sd != 0 else None, oi5=o5, run24=info.get(sym, {}).get("run24"), fon=bg, bub=_bub(sym), pack=_pack(), btc=_btc()))
@@ -753,11 +826,13 @@ def wake_step(state: dict, write: bool) -> list[str]:
         k = [x for x in k if int(x[0]) + 180_000 <= now_ms]
         if not k: continue
         e, sd = float(pos["px"]), int(pos["side"]); hi = max(float(x[2]) for x in k); lo = min(float(x[3]) for x in k); c = float(k[-1][4]); res = why = None
+        newpos = None
         if sd == 1:
-            if lo <= e * (1 - pos["stop"]): res, why = -pos["stop"], "стоп"
-            elif hi >= e * (1 + pos["target"]): res, why = pos["target"], "цель"
-        else:                                                         # 01.10: шорт — цель FAST3_SHORT_TP, стоп, безубыток после −5% (short_walk); для уже открытых шортов тоже
-            res, why = short_walk(e, pos["stop"], FAST3_SHORT_TP, k)
+            res, why = long_walk(e, pos, k)                              # 01.10 владелец: памп вернулся → выход; удержался 2 ч → цель +10%, стоп на низу
+        else:
+            res, why, newpos = flip_check(e, pos, k, now)                # 01.10 владелец (ALICE, CAP): А-шорт держится 6 ч → закрыт, лонг
+            if res is None:
+                res, why = short_walk(e, pos["stop"], FAST3_SHORT_TP, k)   # шорт — цель, стоп, безубыток после −5%
         if res is None:
             fx = fuel_exit(sym, pos, now, c)
             if fx: res, why = (c / e - 1) * sd, fx
@@ -771,6 +846,10 @@ def wake_step(state: dict, write: bool) -> list[str]:
             if write:
                 cg(sym, *cg_caption(WAKE_BOOK, sym, pos, e * (1 + res * sd), why, res))
             state["last_exit"][sym] = now; del state["open"][sym]
+            if newpos:                                                    # переворот: на месте шорта встаёт лонг
+                state["open"][sym] = newpos
+                ev.append(dict(book=WAKE_BOOK, sym=sym, kind="entry", side=1, px=newpos["px"], at=now, usd_in=FAST3_SIZE, rule=newpos["rule"], target=newpos["target"], stop=newpos["stop"], hold_min=newpos["hold_min"], flip=True))
+                msgs.append(f"{sym[:-4]} лонг-переворот вход {newpos['px']:.6g} · цель +{newpos['target'] * 100:.0f}%, стоп {newpos['stop_px']:.6g}")
         else:
             ev.append(dict(book=WAKE_BOOK, sym=sym, kind="follow", side=sd, px_in=e, px=c, result_pct=round((c / e - 1) * sd * 100, 2), at=now))
     pending_step(state, WAKE_BOOK, now, ev, msgs, write)                 # ждущие шорты (Б)
@@ -794,7 +873,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
             sd, why, start_low = picture(sym, sd, why, now, t_bar)       # 28.09: картина вокруг всплеска (Г, Д, Е)
             if sd == 0:
                 msgs.append(f"{sym[:-4]} {why.split(' · ')[0]}"); continue
-            ab = gate_ab(sym, sd, px)                                     # 29.09: А и Б; 30.09 владелец: «фильтрация должна работать в обратную сторону, а не закрывать входы»
+            ab = None if why.startswith("шорт не взят") else gate_ab(sym, sd, px)   # 01.10 владелец (CAP, MOVR): Г главнее А — продавец тянет вверх, А не переворачивает в шорт; 29.09: А и Б
             if ab and ab.startswith("Б") and FAST3_B_SKIP:                # 30.09 владелец «верни не входить»: Б (шорт не у вершины 90 дн) — не входить, а не лонг (вживую 12 сделок −189 $, 1 в плюс)
                 msgs.append(f"{sym[:-4]} не взят: {ab}"); continue
             if ab:
@@ -823,7 +902,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
                 ok, sw, h2 = ses_gate(now, t_bar, sd)
                 if not ok:
                     msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); continue
-            pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", last_px=px, bars=0)
+            pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, hold_min=hold, rule=why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", last_px=px, bars=0, pump_open=_pump_open(px, why))
             state["open"][sym] = pos
             ev.append(dict(book=WAKE_BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=pos["rule"], target=tp, stop=sl, hold_min=hold,
                            oi1h=oi1h, crowd=cr, wake_x=round(cd["x"], 1), wake_chg=round(cd["chg"], 2), qv24=round(cd["qv"]), fon=fon(), bub=_bub(sym), pack=_pack(), btc=_btc()))

@@ -2133,5 +2133,337 @@ async function checkSite() {
 setInterval(checkSite, 60000); checkSite();
 requestAnimationFrame(frame);
 </script>
+<script>
+// ===== ЛЕНТА ДНЯ «Пузырьки по времени» (01.10, владелец выбрал вариант F): график вместо списка имён — время входа × результат %, яркость пузырька = деньги; пузырьки покачиваются, периодически всплывают снизу, внутри колышется жидкость и плавает огонёк; шкала времени лучами, столбик итогов справа. Переопределяет ribLabel / ribStatic / drawRibbon / findHover / ribGeom выше. =====
+// ===== общий каркас ленты: меняется только отрисовка, раскладка и клики остаются прежними =====
+const ribFit = (c2, a, G) => { let s = a.name; while (s.length > 2 && c2.measureText(s).width > G.cw - 6) s = s.slice(0, -1); return s !== a.name ? s.slice(0, -1) + '…' : s; };
+function ribMake(o) {
+  ribLabel = o.label;
+  ribStatic = function (G, t) {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2), top = G.yb - RIB_H, bh = RIB_H + 52;
+    RIBC.width = W * dpr; RIBC.height = bh * dpr;
+    rctx.setTransform(dpr, 0, 0, dpr, 0, -top * dpr);
+    rctx.clearRect(0, top, W, bh);
+    ribLayout(G);
+    o.static(rctx, G, t);
+    for (const a of RIB.arcs) if (a.hit && t - a.born >= ANIM_SLOW) ribLabel(rctx, a, 1, false, G);
+    rctx.font = RIB_FONT; rctx.fillStyle = o.more; rctx.textAlign = 'left';
+    for (const m of RIB.more) rctx.fillText(`+${m.n}`, m.x, m.y);
+  };
+  drawRibbon = function (t) {
+    if (W < 900 || !window.STATE) return;
+    const G = ribGeom(), { yb, x0, x1 } = G;
+    const settled = RIB.arcs.filter(a => t - a.born >= ANIM_SLOW).length;
+    const key = [W, H, RIB.day, G.t0, RIB.arcs.map(a => a.key + (a.item.res || 0)).join(','), settled].join('|');
+    if (key !== ribKey) { ribStatic(G, t); ribKey = key; }
+    ctx.drawImage(RIBC, 0, yb - RIB_H, W, RIB_H + 52);
+    const nowS = Date.now() / 1000, today = RIB.day === 0, nx = G.X(nowS);
+    if (o.live) o.live(ctx, G, t, today && nx < x1 ? nx : null, nowS);
+    if (o.overlay) o.overlay(G, t);
+    // заголовок
+    const DW = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'], d = new Date(G.t0 * 1000);
+    const by = {};
+    for (const a of RIB.arcs.filter(a => !a.open)) by[a.item.book] = (by[a.item.book] || 0) + (a.item.usd != null ? a.item.usd : a.item.res * 5);
+    tctx.letterSpacing = o.hdrSp || '0px';
+    ctx.font = `11.7px ${o.hdrFont || FONT}`; ctx.textAlign = 'right'; ctx.fillStyle = o.hdr1;
+    text(`СДЕЛКИ · ${RIB.day === 0 ? 'СЕГОДНЯ' : DW[d.getDay()].toUpperCase() + ' ' + d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`, x1, yb - RIB_H + 20);
+    tctx.letterSpacing = '0px'; ctx.fillStyle = o.hdr2;
+    text(`${RIB.arcs.length} входов · ` + Object.entries(by).map(([b, v]) => `${b} ${v >= 0 ? '+' : '−'}${Math.abs(Math.round(v))} $`).join(' · '), x1, yb - RIB_H + 39);
+    // сессии
+    const curH = today ? (nowS - G.t0) / 3600 : -1;
+    ctx.textAlign = 'center'; ctx.font = `11px ${o.sessFont || FONT}`; tctx.letterSpacing = o.sessSp || '3px';
+    [[0, 3, 'SYDNEY'], [3, 10, 'TOKYO'], [10, 16, 'LONDON'], [16, 24, 'NEW YORK']].forEach(([a, b, nm]) => {
+      const on = curH >= a && curH < b, cx = x0 + (a + b) / 2 * G.cw;
+      ctx.fillStyle = on ? o.sessOn : o.sessOff;
+      if (on) { tctx.shadowColor = o.glow; tctx.shadowBlur = 10; }
+      text(o.sessFmt ? o.sessFmt(nm) : nm, cx, yb + 44); tctx.shadowBlur = 0;
+    });
+    tctx.letterSpacing = '0px';
+    // стрелки дней
+    RIB.arrows = [];
+    const ay = yb - G.maxH / 2, arrow = (x, dir, on) => {
+      ctx.font = `22px ${THIN_FONT}`; ctx.fillStyle = on ? o.arrowOn : o.arrowOff; ctx.textAlign = 'center';
+      text(dir < 0 ? '‹' : '›', x, ay + 7);
+      if (on) RIB.arrows.push({ x: x - 16, y: ay - 18, w: 32, h: 36, d: dir });
+    };
+    arrow(x0 - 34, -1, RIB.day > -RIB_DAYS); arrow(x1 + 34, 1, RIB.day < 0);
+    ctx.textAlign = 'left';
+    // проявление новых названий и подсказка под курсором
+    for (const a of RIB.arcs) {
+      if (!a.hit) continue;
+      const p = ease(clamp((t - a.born) / ANIM_SLOW)), on = a === hovered || a === selected;
+      if (p >= 1 && !on) continue;
+      ribLabel(ctx, a, p, on, G);
+      if (on) {
+        const r = a.item.res, lab = a.open ? `${a.item.side < 0 ? 'шорт' : 'лонг'} · открыта ${hmT(a.item.t_in)}`
+          : `${a.name} ${r >= 0 ? '+' : ''}${r.toFixed(1)}% · ${hmT(a.item.t_in)}→${hmT(a.item.t_out)}`;
+        ctx.font = `9px ${FONT}`; ctx.fillStyle = o.tip(a); text(lab, a.hit.tx, o.tipY ? o.tipY(G) : yb - G.maxH - 16);
+      }
+    }
+    if (today && nx < x1) { ctx.textAlign = 'center'; ctx.font = `9px ${FONT}`; ctx.fillStyle = o.nowTxt; text(hmT(nowS), nx, yb - G.maxH - 8); ctx.textAlign = 'left'; }
+  };
+  ribKey = '';
+}
+// часовая статистика для рисунков
+function ribHours(G) {
+  const hc = Array.from({ length: 24 }, () => ({ n: 0, net: 0, closed: 0 }));
+  for (const a of RIB.arcs) { const h = clamp(Math.floor((a.item.t_in - G.t0) / 3600), 0, 23), o = hc[h]; o.n++; if (!a.open) { o.closed++; o.net += a.item.res || 0; } }
+  return hc;
+}
+
+// ===== F «Пузыри по времени»: раскладка D (время × результат), но размер = деньги: крупные яркие, мелкие тусклые =====
+let FSC = null;
+function drawBub(c, d, now) {
+  const col = d.a.open ? '225,235,250' : d.v >= 0 ? '110,240,180' : '255,110,130', b = d.b, ph = d.ph * TAU;
+  // всплытие: раз в 9–14 с (у каждого своя фаза) пузырёк поднимается снизу графика к своему месту, прозрачный и меньше → яркий и полный
+  const P = 9 + 5 * ((d.ph * 13) % 1), u = ((now + d.ph * P) % P) / P, k = u < .2 ? ease(u / .2) : 1, yb0 = (FSC.pb || d.cy) + 10;
+  const baseY = d.cy + Math.sin(now * (.55 + .5 * ((d.ph * 7) % 1)) + ph) * (1 + 1.9 * b);
+  const x = d.cx + Math.cos(now * .42 + ph) * .9 + (k < 1 ? Math.sin((1 - k) * 9 + ph) * 3 * (1 - k) : 0), y = k < 1 ? yb0 + (baseY - yb0) * k : baseY;
+  const r = d.r * (1 + .05 * Math.sin(now * 1.3 + ph)) * (.55 + .45 * k); c.globalAlpha = k < 1 ? .12 + .88 * k : 1;
+  if (k < 1) { c.fillStyle = `rgba(190,225,255,${.45 * (1 - k)})`; for (let q = 1; q <= 3; q++) { c.beginPath(); c.arc(x + Math.sin(ph + q) * 2, y + q * 5 * (1 - k * .6), Math.max(.7, r * .13 / q), 0, TAU); c.fill(); } }
+  if (d.a.open) { c.strokeStyle = `rgba(${col},1)`; c.lineWidth = 1.4; c.setLineDash([3, 2]); c.lineDashOffset = -now * 5; c.beginPath(); c.arc(x, y, r, 0, TAU); c.stroke(); c.setLineDash([]); c.globalAlpha = 1; return; }
+  // мыльный пузырь: прозрачная середина, плотнее к краю, чёткий ободок и блик; яркость = величина результата
+  const g = c.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, `rgba(${col},${.02 + .08 * b})`); g.addColorStop(.62, `rgba(${col},${.08 + .22 * b})`); g.addColorStop(1, `rgba(${col},${.22 + .5 * b})`);
+  c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill();
+  c.save(); c.beginPath(); c.arc(x, y, r - .8, 0, TAU); c.clip();
+  {   // жидкость колышется внутри: уровень = яркость (величина результата), поверхность — бегущая волна
+    const lvl = y + r * (.8 - 1.7 * (.25 + .6 * b)), amp = r * (.10 + .08 * b);
+    c.beginPath(); c.moveTo(x - r, y + r);
+    for (let xx = -r; xx <= r; xx += Math.max(1, r / 6)) c.lineTo(x + xx, lvl + Math.sin(xx * 2.6 / r + now * (2 + 1.4 * b) + ph) * amp);
+    c.lineTo(x + r, y + r); c.closePath();
+    const lg = c.createLinearGradient(0, lvl - amp, 0, y + r); lg.addColorStop(0, `rgba(${col},${.35 + .35 * b})`); lg.addColorStop(1, `rgba(${col},${.12 + .2 * b})`);
+    c.fillStyle = lg; c.fill();
+    c.strokeStyle = `rgba(255,255,255,${.3 + .5 * b})`; c.lineWidth = .8; c.beginPath();
+    for (let xx = -r; xx <= r; xx += Math.max(1, r / 6)) { const yy = lvl + Math.sin(xx * 2.6 / r + now * (2 + 1.4 * b) + ph) * amp; xx === -r ? c.moveTo(x + xx, yy) : c.lineTo(x + xx, yy); }
+    c.stroke();
+    // яркий огонёк плавает внутри по петле
+    const mx = x + Math.cos(now * .9 + ph) * r * .45, my = y + Math.sin(now * 1.35 + ph * 1.7) * r * .42, mg = c.createRadialGradient(mx, my, 0, mx, my, r * .55);
+    mg.addColorStop(0, `rgba(255,255,255,${.65 + .35 * b})`); mg.addColorStop(.35, `rgba(${col},${.4 + .4 * b})`); mg.addColorStop(1, `rgba(${col},0)`);
+    c.globalCompositeOperation = 'lighter'; c.fillStyle = mg; c.fillRect(mx - r * .55, my - r * .55, r * 1.1, r * 1.1); c.globalCompositeOperation = 'source-over';
+  }
+  c.restore();
+  c.lineWidth = 1.3;
+  if (b > .6) { c.shadowColor = `rgba(${col},.9)`; c.shadowBlur = 4 + 7 * (b - .6) + 2 * Math.sin(now * 2 + ph); }
+  c.strokeStyle = `rgba(${col},${.3 + .7 * b})`; c.beginPath(); c.arc(x, y, r - .65, 0, TAU); c.stroke(); c.shadowBlur = 0;
+  const tw = .75 + .25 * Math.sin(now * 2.1 + ph);   // блик мерцает
+  c.fillStyle = `rgba(255,255,255,${(.2 + .7 * b) * tw})`; c.beginPath(); c.ellipse(x - r * .32, y - r * .4, r * .36, r * .18, -.7, 0, TAU); c.fill();
+  c.fillStyle = `rgba(255,255,255,${.1 + .3 * b})`; c.beginPath(); c.arc(x + r * .38, y + r * .42, Math.max(.8, r * .11), 0, TAU); c.fill();
+  if (b > .55) {   // искорка бежит по ободку у ярких
+    const a = now * 1.5 + ph, sx = x + Math.cos(a) * (r - .6), sy = y + Math.sin(a) * (r - .6);
+    c.fillStyle = `rgba(255,255,255,${.5 + .5 * b})`; c.shadowColor = `rgba(${col},1)`; c.shadowBlur = 5; c.beginPath(); c.arc(sx, sy, 1.1, 0, TAU); c.fill(); c.shadowBlur = 0;
+  }
+  if (b > .5 && k >= 1) {   // у ярких из пузырька выплывает крошечный пузырёк и поднимается вверх
+    for (let q = 0; q < 2; q++) {
+      const t = (now * .42 + d.ph + q * .5) % 1, ty = y - r - t * 18, tx = x + Math.sin(t * 6 + ph + q * 3) * 2.2;
+      c.strokeStyle = `rgba(${col},${(1 - t) * .7 * b})`; c.lineWidth = .8; c.beginPath(); c.arc(tx, ty, 1 + (1 - t) * .8, 0, TAU); c.stroke();
+    }
+  }
+  c.globalAlpha = 1;
+}
+function totBlock(G) {
+  const S = FSC && FSC.sum; if (!S) return;
+  if (!document.getElementById('ribTotCss')) {
+    const st = document.createElement('style'); st.id = 'ribTotCss';
+    st.textContent = `#ribTot { min-width: 200px; position: fixed; z-index: 2; pointer-events: none; text-align: right; font-family: Futura, 'Avenir Next', sans-serif; }
+#ribTot .tt-top { display: flex; align-items: center; gap: 12px; }
+#ribTot .tt-top i { flex: 1; height: 1px; min-width: 60px; background: linear-gradient(90deg, transparent, rgba(150,205,255,.8)); box-shadow: 0 0 8px rgba(120,190,255,.7); }
+#ribTot .tt-top span { white-space: nowrap; font-size: 7.2px; letter-spacing: .42em; color: rgba(165,205,245,.9); text-transform: uppercase; }
+#ribTot .tt-cols { display: flex; flex-direction: column; align-items: flex-end; gap: 13px; margin-top: 14px; padding-bottom: 14px; border-bottom: 1px solid transparent; border-image: linear-gradient(90deg, transparent, rgba(150,205,255,.55)) 1; }
+#ribTot .tt-cols > div { text-align: right; }
+#ribTot .tt-main { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; margin-top: 14px; white-space: nowrap; }
+#ribTot .tt-sp { overflow: visible; filter: drop-shadow(0 0 4px var(--c)) drop-shadow(0 0 10px var(--c)); }
+#ribTot .tt-sp .pu { animation: totpulse 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes totpulse { 50% { transform: scale(2.6); opacity: .3; } }
+#ribTot .tt-num { display: flex; align-items: flex-end; justify-content: flex-end; gap: 6px; }
+#ribTot .tt-num svg { display: block; color: #fff; overflow: visible; filter: drop-shadow(0 0 1px rgba(255,255,255,.9)) drop-shadow(0 0 7px rgba(var(--rgb),.55)) drop-shadow(0 0 16px rgba(var(--rgb),.3)); }
+#ribTot .cur { font-style: normal; font-weight: 500; font-size: 16.3px; color: #fff; text-shadow: 0 0 6px rgba(var(--rgb),.55), 0 0 14px rgba(var(--rgb),.3); }
+#ribTot .tt-cols small { display: block; font-size: 5.6px; letter-spacing: .34em; color: rgba(165,205,245,.85); text-transform: uppercase; }
+#ribTot .tt-cols svg { display: block; margin-top: 4px; margin-left: auto; overflow: visible; color: #fff; filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 6px var(--k)); }
+#ribTot .tt-cols .cur { font-size: 8.8px; }
+#ribTot .tt-sh { position: relative; margin-top: 8px; height: 1px; background: linear-gradient(90deg, transparent, rgba(var(--rgb),.9) 25%, #fff 60%, rgba(var(--rgb),.9) 85%, transparent); box-shadow: 0 0 8px rgba(var(--rgb),.9), 0 0 20px rgba(var(--rgb),.5); }
+@media (max-width: 899px) { #ribTot { display: none; } }`;
+    document.head.appendChild(st);
+  }
+  let el = document.getElementById('ribTot'); if (!el) { el = document.createElement('div'); el.id = 'ribTot'; document.body.appendChild(el); }
+  const pos = S.total >= 0, rgb = pos ? '110,240,180' : '255,110,130', DW = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'], d0 = new Date(G.t0 * 1000);
+  const lab = `СДЕЛКИ · ${RIB.day === 0 ? 'СЕГОДНЯ' : DW[d0.getDay()].toUpperCase() + ' ' + d0.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`;
+  // мини-кривая накопленного итога
+  const SW = 200, SH = 30, lo = Math.min(0, ...S.pts.map(q => q[1])), hi = Math.max(0, ...S.pts.map(q => q[1])), sp = hi - lo || 1, X = u => (u * SW).toFixed(1), Y = v => (SH - 3 - (v - lo) / sp * (SH - 6)).toFixed(1);
+  let d = `M${X(S.pts[0][0])},${Y(S.pts[0][1])}`; for (let i = 1; i < S.pts.length; i++) d += ` L${X(S.pts[i][0])},${Y(S.pts[i - 1][1])} L${X(S.pts[i][0])},${Y(S.pts[i][1])}`; d += ` L${SW},${Y(S.total)}`;
+  const spark = S.pts.length > 2 ? `<svg class="tt-sp" width="${SW}" height="${SH}" viewBox="0 0 ${SW} ${SH}"><defs><linearGradient id="totg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgb(${rgb})" stop-opacity=".14"/><stop offset="1" stop-color="rgb(${rgb})" stop-opacity="0"/></linearGradient></defs>
+    <line x1="0" x2="${SW}" y1="${Y(0)}" y2="${Y(0)}" stroke="rgba(160,200,240,.4)" stroke-dasharray="2 3"/>
+    <path d="${d} L${SW},${Y(0)} L0,${Y(0)} Z" fill="url(#totg)"/><path d="${d}" fill="none" stroke="rgb(${rgb})" stroke-width="1.3" stroke-linejoin="round"/>
+    <circle cx="${SW}" cy="${Y(S.total)}" r="2.2" fill="#fff"/><circle class="pu" cx="${SW}" cy="${Y(S.total)}" r="2.2" fill="rgb(${rgb})"/></svg>` : '';
+  const item = (name, v) => { const p = v >= 0, k = p ? '110,240,180' : '255,110,130'; return `<div style="--k:rgb(${k});--c:rgb(${k})"><small>${name}</small><div style="display:flex;align-items:flex-end;justify-content:flex-end;gap:4px">${cryo(`${p ? '+' : '−'}${Math.abs(Math.round(v))}`, 11.2, 1.3) + '<em class="cur" style="font-size:8.8px">$</em>'}</div></div>`; };
+  el.style.cssText = `right:${W - G.x1}px; bottom:${H - (G.yb - G.maxH - 90)}px; --c: rgb(${rgb}); --w: rgb(${rgb.split(',').map(v => Math.round(+v + (255 - v) * .6)).join(',')}); --rgb: ${rgb}`;
+  el.innerHTML = `<div class="tt-top"><i></i><span>${lab}</span></div>
+    <div class="tt-cols">${Object.entries(S.by).map(([b, v]) => item(b, v)).join('')}<div style="--k:rgb(165,205,245)"><small>входов</small><div style="display:flex;align-items:flex-end;justify-content:flex-end">${cryo(String(S.n), 11.2, 1.3)}</div></div></div>
+    <div class="tt-main">${spark}<div class="tt-num">${cryo(`${pos ? '+' : '−'}${Math.abs(Math.round(S.total))}`, 28.8, 1.9)}<em class="cur">$</em></div></div>
+    <div class="tt-sh"></div>`;
+}
+const bubUsd = a => Math.abs(a.item.usd != null ? a.item.usd : (a.item.res || 0) * 5);
+const ribRes = a => a.open ? ((a.item.px && a.item.entry) ? (a.item.px / a.item.entry - 1) * (a.item.side || 1) * 100 : 0) : (a.item.res || 0);
+ribMake({
+  more: 'rgba(0,0,0,0)', hdr1: 'rgba(0,0,0,0)', hdr2: 'rgba(0,0,0,0)', hdrSp: '1px',
+  sessOn: '#fff', sessOff: 'rgba(190,215,245,.85)', glow: 'rgba(120,210,255,.95)', sessSp: '4px',
+  arrowOn: 'rgba(190,220,255,.85)', arrowOff: 'rgba(150,185,225,.15)', nowTxt: 'rgba(235,245,160,.9)', tip: a => (a.open ? 'rgb(225,235,250)' : ribRes(a) >= 0 ? 'rgb(110,240,180)' : 'rgb(255,110,130)'),
+  label(c2, a, alpha, on, G) {
+    const h = a.hit; if (!h) return;
+    const col = a.open ? '225,235,250' : ribRes(a) >= 0 ? '110,240,180' : '255,110,130';
+    if (on) {   // подсветка под курсором: кольцо и имя — на резком текстовом слое, как подсказка со временем
+      const col2 = a.open ? '225,235,250' : ribRes(a) >= 0 ? '110,240,180' : '255,110,130', rr = Math.max(11, (h.r || 0) + 4);
+      tctx.save(); tctx.strokeStyle = '#fff'; tctx.lineWidth = 1.4; tctx.beginPath(); tctx.arc(h.ax, h.ay, rr, 0, TAU); tctx.stroke();
+      tctx.font = `600 11px ${FONT}`; tctx.textAlign = 'left'; tctx.fillStyle = '#fff'; tctx.shadowColor = 'rgba(0,6,16,.95)'; tctx.shadowBlur = 5;
+      const w = tctx.measureText(a.name).width, x = h.ax + rr + 6 + w > G.x1 + 40 ? h.ax - rr - 6 - w : h.ax + rr + 6;
+      tctx.fillText(a.name, x, h.ay + 4);
+      tctx.shadowBlur = 0; tctx.strokeStyle = `rgba(${col2},.9)`; tctx.lineWidth = .8; tctx.beginPath(); tctx.arc(h.ax, h.ay, rr + 2.5, 0, TAU); tctx.stroke(); tctx.restore();
+      return;
+    }
+    if (alpha < 1) {   // новая сделка: расходящееся кольцо
+      c2.globalAlpha = 1 - alpha; c2.strokeStyle = `rgb(${col})`; c2.lineWidth = 1.5; c2.beginPath(); c2.arc(h.ax, h.ay, 5 + 16 * alpha, 0, TAU); c2.stroke();
+      const fy = h.ay - (1 - alpha) * 22, fg = c2.createRadialGradient(h.ax, fy, 0, h.ax, fy, 12); fg.addColorStop(0, '#fff'); fg.addColorStop(.4, `rgba(${col},.8)`); fg.addColorStop(1, `rgba(${col},0)`);
+      c2.globalAlpha = 1 - alpha * .4; c2.fillStyle = fg; c2.fillRect(h.ax - 12, fy - 12, 24, 24); c2.globalAlpha = 1;
+    }
+  },
+  overlay(G, t) {   // цифры шкалы — на резком текстовом слое, крупно и ярко
+    if (!FSC) return;
+    tctx.shadowColor = 'rgba(0,6,16,.9)'; tctx.shadowBlur = 4;
+    ctx.textAlign = 'right'; ctx.font = `600 10.5px ${FONT}`;
+    for (const k of [-4, -2, 0, 2, 4]) {
+      const v = Math.abs(k * FSC.M / 4), lab = k === 0 ? '0' : `${k > 0 ? '+' : '−'}${+v.toFixed(1)}%`;
+      ctx.fillStyle = k === 0 ? '#fff' : k > 0 ? 'rgb(150,250,205)' : 'rgb(255,150,168)';
+      text(lab, G.x0 - 17, FSC.Y(k * FSC.M / 4) + 3.5);
+    }
+    ctx.textAlign = 'center'; ctx.font = `600 9.5px ${FONT}`; ctx.fillStyle = '#fff';
+    for (let h = 0; h < 24; h++) { ctx.fillStyle = h % 3 === 0 ? '#fff' : 'rgba(225,238,252,.92)'; text(String(h).padStart(2, '0'), G.x0 + (h + .5) * G.cw, G.yb + 18); }
+    tctx.shadowBlur = 0;
+  },
+  static(c, G, t) {
+    RIB.more = []; setTimeout(() => totBlock(G), 0);
+    const arcs = RIB.arcs, pt = G.yb - G.maxH - 4, pb = G.yb - 6, mid = (pt + pb) / 2, half = (pb - pt) / 2 - 4;
+    const abs = arcs.filter(a => !a.open).map(a => Math.abs(ribRes(a))).sort((a, b) => a - b);
+    const M = Math.max(2, Math.ceil((abs[Math.floor(abs.length * .97)] || 2) / 1) * 1), Y = v => mid - clamp(v / M, -1, 1) * half;
+    FSC = { M, Y };
+    // фон по смыслу: над нулём зелёное свечение (плюс), под нулём красное (минус) — вместо плоских плашек
+    const gx0 = G.x0 - 14, gw = G.x1 - G.x0 + 28;
+    for (const [rgb, y0, y1] of [['80,170,255', mid, pt - 8], ['60,100,235', mid, pb + 6]]) {
+      const g = c.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, `rgba(${rgb},.17)`); g.addColorStop(1, `rgba(${rgb},0)`);
+      c.fillStyle = g; c.fillRect(gx0, Math.min(y0, y1), gw, Math.abs(y1 - y0));
+    }
+    // линия нуля: светлая в центре, растворяется к краям
+    const zg = c.createLinearGradient(G.x0 - 10, 0, G.x1 + 10, 0);
+    zg.addColorStop(0, 'rgba(225,240,255,0)'); zg.addColorStop(.1, 'rgba(225,240,255,.55)'); zg.addColorStop(.5, 'rgba(235,245,255,.9)'); zg.addColorStop(.9, 'rgba(225,240,255,.55)'); zg.addColorStop(1, 'rgba(225,240,255,0)');
+    c.fillStyle = zg; c.fillRect(G.x0 - 10, Math.round(mid), G.x1 - G.x0 + 20, 1.2);
+    // свечение границы: вверх зелёное (плюс), вниз красное (минус); к краям линии растворяется
+    for (const [rgb, dir] of [['110,240,180', -1], ['255,110,130', 1]]) {
+      const y0 = Math.round(mid) + (dir < 0 ? 0 : 1.2), H2 = 24, vg = c.createLinearGradient(0, y0, 0, y0 + dir * H2);
+      vg.addColorStop(0, `rgba(${rgb},.62)`); vg.addColorStop(.35, `rgba(${rgb},.22)`); vg.addColorStop(1, `rgba(${rgb},0)`);
+      c.save(); c.beginPath(); c.rect(G.x0 - 10, dir < 0 ? y0 - H2 : y0, G.x1 - G.x0 + 20, H2); c.clip();
+      c.fillStyle = vg; c.fillRect(G.x0 - 10, dir < 0 ? y0 - H2 : y0, G.x1 - G.x0 + 20, H2);
+      c.restore();
+      c.strokeStyle = `rgba(${rgb},.9)`; c.lineWidth = 1; c.shadowColor = `rgba(${rgb},.95)`; c.shadowBlur = 9;
+      const lg = c.createLinearGradient(G.x0 - 10, 0, G.x1 + 10, 0); lg.addColorStop(0, `rgba(${rgb},0)`); lg.addColorStop(.1, `rgba(${rgb},.85)`); lg.addColorStop(.9, `rgba(${rgb},.85)`); lg.addColorStop(1, `rgba(${rgb},0)`);
+      c.strokeStyle = lg; c.beginPath(); c.moveTo(G.x0 - 10, y0 + (dir < 0 ? -.3 : .9)); c.lineTo(G.x1 + 10, y0 + (dir < 0 ? -.3 : .9)); c.stroke(); c.shadowBlur = 0;
+    }
+    // линейка результата по краям: риски и подписи, короткие штрихи вместо сетки на всю ширину
+    c.font = `8px ${THIN_FONT}`;
+    for (let k = -4; k <= 4; k++) {
+      const y = Math.round(Y(k * M / 4)) + .5, long = k % 2 === 0, L = k === 0 ? 9 : long ? 6 : 3;
+      c.strokeStyle = k === 0 ? 'rgba(235,245,255,.9)' : `rgba(160,200,240,${long ? .6 : .3})`; c.lineWidth = 1;
+      c.beginPath(); c.moveTo(G.x0 - 3, y); c.lineTo(G.x0 - 3 - L, y); c.moveTo(G.x1 + 3, y); c.lineTo(G.x1 + 3 + L, y); c.stroke();
+      if (long && k !== 0) { c.strokeStyle = 'rgba(160,200,240,.14)'; c.beginPath(); c.moveTo(G.x0, y); c.lineTo(G.x0 + 22, y); c.moveTo(G.x1 - 22, y); c.lineTo(G.x1, y); c.stroke(); }
+    }
+    // нижняя шкала времени: тонкие светящиеся лучи вместо плашек
+    const hues = [['120,150,255', 'SYDNEY'], ['190,130,255', 'TOKYO'], ['90,220,235', 'LONDON'], ['255,200,120', 'NEW YORK']], ay = G.yb + 2;
+    c.lineWidth = .34;
+    [[0, 3], [3, 10], [10, 16], [16, 24]].forEach(([a, b], i) => {
+      const rgb = hues[i][0], xa = G.x0 + a * G.cw, xb = G.x0 + b * G.cw;
+      // лучи часов вверх: короче и бледнее у обычных, ярче каждые 3 ч, длинные на границах сессий
+      for (let h = a; h <= b; h++) {
+        if (h === b && b !== 24) continue;                       // правая граница — левый луч следующей сессии
+        const x = Math.round(G.x0 + h * G.cw) + .5, edge = h === a || h === 24, three = h % 3 === 0;
+        const len = edge ? ay - (pt - 10) : three ? 34 : 16, al = edge ? .95 : three ? .7 : .42;
+        const g = c.createLinearGradient(0, ay, 0, ay - len); g.addColorStop(0, `rgba(${rgb},${al})`); g.addColorStop(1, `rgba(${rgb},0)`);
+        c.strokeStyle = g; c.beginPath(); c.moveTo(x, ay); c.lineTo(x, ay - len); c.stroke();
+        if (edge) { c.shadowColor = `rgba(${rgb},.9)`; c.shadowBlur = 6; c.fillStyle = '#fff'; c.beginPath(); c.arc(x, ay, .9, 0, TAU); c.fill(); c.shadowBlur = 0; }
+      }
+      // ось сессии: тонкая светящаяся линия, концы растворяются
+      const g = c.createLinearGradient(xa, 0, xb, 0); g.addColorStop(0, `rgba(${rgb},0)`); g.addColorStop(.08, `rgba(${rgb},.95)`); g.addColorStop(.92, `rgba(${rgb},.95)`); g.addColorStop(1, `rgba(${rgb},0)`);
+      c.shadowColor = `rgba(${rgb},.95)`; c.shadowBlur = 7; c.fillStyle = g; c.fillRect(xa, ay - .22, xb - xa, .44); c.shadowBlur = 0;
+      c.fillStyle = `rgba(255,255,255,.55)`; c.fillRect(xa + (xb - xa) * .1, ay - .1, (xb - xa) * .8, .2);   // светлая сердцевина
+    });
+    {   // накопленный итог дня — данные для блока справа (на график не рисуем)
+      const cl = arcs.filter(x => !x.open && x.item.t_out).sort((p, q) => p.item.t_out - q.item.t_out), by = {}; let cum = 0; const pts = [[0, 0]];
+      for (const x of cl) { const u = x.item.usd != null ? x.item.usd : (x.item.res || 0) * 5; cum += u; by[x.item.book] = (by[x.item.book] || 0) + u; pts.push([clamp((x.item.t_out - G.t0) / 86400), cum]); }
+      FSC.sum = { total: cum, by, pts, n: arcs.length };
+    }
+    const maxU = Math.max(1, ...arcs.map(bubUsd));
+    const dots = arcs.map((a, i) => { const cx = G.x0 + (G.x1 - G.x0) * clamp((a.item.t_in - G.t0) / 86400), v = ribRes(a), cy = Y(v);
+      const r = a.open ? 6 : 4.5 + 5 * Math.sqrt(bubUsd(a) / maxU), b = a.open ? 1 : clamp(Math.pow(bubUsd(a) / maxU, .6)), usd = a.item.usd != null ? a.item.usd : (a.item.res || 0) * 5;
+      a.hit = { x: cx - Math.max(8, r), y: cy - Math.max(8, r), w: Math.max(16, r * 2), h: Math.max(16, r * 2), ax: cx, ay: cy, tx: cx + 6, ty: cy + 3, r }; return { a, cx, cy, v, r, b, usd, ph: Math.abs(Math.sin((i + 1) * 78.233) * 43758.5453) % 1 }; });
+    Object.assign(FSC, { mid, pt, pb, big: dots.filter(d => !d.a.open).sort((p, q) => q.b - p.b).slice(0, 7).map(d => ({ cx: d.cx, cy: d.cy, r: d.r, b: d.b, col: d.v >= 0 ? '110,240,180' : '255,110,130' })) });
+    for (const d of dots) {   // стебель к нулю — только у крупных
+      if (d.b < .55) continue;
+      const col = d.a.open ? '225,235,250' : d.v >= 0 ? '110,240,180' : '255,110,130';
+      c.strokeStyle = `rgba(${col},.2)`; c.lineWidth = 1; c.beginPath(); c.moveTo(d.cx + .5, mid); c.lineTo(d.cx + .5, d.cy); c.stroke();
+    }
+    FSC.dots = dots.slice().sort((p, q) => p.b - q.b);   // рисуются на живом слое: тусклые сначала, яркие поверх
+    c.shadowBlur = 0;
+    c.font = `7.5px ${FONT}`; c.fillStyle = 'rgba(150,185,225,.55)'; c.textAlign = 'right';
+    c.fillText('ПУЗЫРЁК = СДЕЛКА · ЯРКОСТЬ = ДЕНЬГИ (ЧЕМ ЯРЧЕ, ТЕМ БОЛЬШЕ ПЛЮС ИЛИ МИНУС) · ВЫШЕ 0 ПЛЮС, НИЖЕ МИНУС · ПУНКТИР = ОТКРЫТА · ИМЯ ПО НАВЕДЕНИЮ', G.x1, G.yb + 30);
+    c.textAlign = 'left';
+  },
+  live(c, G, t, nx) {
+    if (FSC && FSC.big) {
+      const now = performance.now() / 1000, left = G.x0, w = G.x1 - G.x0, hgt = FSC.pb - FSC.pt;
+      c.save(); c.globalCompositeOperation = 'lighter';
+      // пульсирующие кольца вокруг самых крупных сделок
+      FSC.big.forEach((d, i) => {
+        for (let k = 0; k < 2; k++) {
+          const ph = (now * .38 + i * .29 + k * .5) % 1, rr = d.r + 3 + ph * 20;
+          c.strokeStyle = `rgba(${d.col},${(1 - ph) * .5 * d.b})`; c.lineWidth = 1; c.beginPath(); c.arc(d.cx, d.cy, rr, 0, TAU); c.stroke();
+        }
+      });
+      // блик, бегущий по линии нуля
+      const gx = left + w * ((now * .05) % 1.3 - .15), gg = c.createLinearGradient(gx - 110, 0, gx + 110, 0);
+      gg.addColorStop(0, 'rgba(255,255,255,0)'); gg.addColorStop(.5, 'rgba(255,255,255,.9)'); gg.addColorStop(1, 'rgba(255,255,255,0)');
+      c.save(); c.beginPath(); c.rect(left, FSC.mid - 3, w, 6); c.clip(); c.fillStyle = gg; c.fillRect(gx - 110, FSC.mid - .6, 220, 1.4); c.restore();
+      // пыль: редкие частицы медленно плывут вверх
+      if (!FSC.dust) FSC.dust = Array.from({ length: 56 }, (_, i) => ({ u: Math.abs(Math.sin(i * 12.99) * 43758.5) % 1, v: Math.abs(Math.sin(i * 78.23) * 12345.6) % 1, s: .5 + (i % 5) * .25, sp: .006 + (i % 7) * .0025 }));
+      for (const p of FSC.dust) {
+        const v = (p.v - now * p.sp * 1.4) % 1, y = FSC.pt + (v < 0 ? v + 1 : v) * hgt, x = left + p.u * w + Math.sin(now * .4 + p.u * 20) * 6;
+        const fade = Math.sin(Math.PI * (y - FSC.pt) / hgt);
+        c.fillStyle = `rgba(190,225,255,${.55 * fade * (.4 + p.s * .4)})`; c.beginPath(); c.arc(x, y, p.s, 0, TAU); c.fill();
+      }
+      c.restore();
+      for (const d of (FSC.dots || [])) drawBub(c, d, now);
+      // мягкое затухание по краям графика
+      for (const [x0, x1, a0, a1] of [[left - 30, left + 40, 1, 0], [G.x1 - 40, G.x1 + 30, 0, 1]]) {
+        const eg = c.createLinearGradient(x0, 0, x1, 0); eg.addColorStop(0, `rgba(4,12,28,${a0 * .5})`); eg.addColorStop(1, `rgba(4,12,28,${a1 * .5})`);
+        c.fillStyle = eg; c.fillRect(x0, FSC.pt - 8, x1 - x0, hgt + 14);
+      }
+    }
+    if (nx == null) return;
+    const fg = c.createLinearGradient(0, G.yb - G.maxH - 12, 0, G.yb + 20); fg.addColorStop(0, 'rgba(2,8,20,0)'); fg.addColorStop(1, 'rgba(2,8,20,.35)');
+    c.fillStyle = fg; c.fillRect(nx, G.yb - G.maxH - 12, G.x1 - nx, G.maxH + 32);
+    const pu = .5 + .5 * Math.sin(t * 2.6), ng = c.createLinearGradient(0, G.yb + 10, 0, G.yb - G.maxH - 6); ng.addColorStop(0, 'rgba(235,245,160,.95)'); ng.addColorStop(1, 'rgba(235,245,160,.15)');
+    c.strokeStyle = ng; c.lineWidth = 1.2; c.beginPath(); c.moveTo(nx + .5, G.yb - G.maxH - 6); c.lineTo(nx + .5, G.yb + 10); c.stroke();
+    c.globalCompositeOperation = 'lighter'; const R = 12 + 6 * pu, bg = c.createRadialGradient(nx + .5, G.yb, 0, nx + .5, G.yb, R); bg.addColorStop(0, 'rgba(255,255,230,.95)'); bg.addColorStop(.3, 'rgba(235,245,160,.5)'); bg.addColorStop(1, 'rgba(235,245,160,0)');
+    c.fillStyle = bg; c.fillRect(nx - R, G.yb - R, R * 2, R * 2); c.globalCompositeOperation = 'source-over';
+  },
+});
+// ближайшая точка к курсору (в ленте кликаем по точке, а не по строке названия)
+const _fh0 = findHover;
+findHover = function () {
+  const r = _fh0();
+  if (r && !RIB.arcs.includes(r)) return r;
+  if (!mouse) return null;
+  let best = null, bd = 5;
+  for (const a of RIB.arcs) { const h = a.hit; if (!h) continue; const d = Math.hypot(mouse.x - h.ax, mouse.y - h.ay) - Math.max(h.r || 0, 3); if (d < bd) { bd = d; best = a; } }
+  return best;
+};
+
+</script>
 </body>
 </html>
