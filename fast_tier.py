@@ -549,6 +549,13 @@ def ses_gate(now: float, t_bar: int, side: int = 1):
     except ImportError:
         return True, "", None
     d = datetime.fromtimestamp(now, L)
+    try:
+        from core_config import FAST3_NO_ENTRY_HOURS as _nh
+    except ImportError:
+        _nh = []
+    for _a, _b in _nh:                                                # 01.10 владелец: час до открытия Лондона (09–10) и НЙ (15–16), UTC+3 — новых входов нет
+        if _a <= d.hour < _b:
+            return False, f"торговля выключена за час до открытия сессии ({_a:02d}–{_b:02d}, владелец 01.10)", None
     name, a, b = next(x for x in SES_WIN if x[1] <= d.hour < x[2])
     o = d.replace(hour=a, minute=0, second=0, microsecond=0)
     mins = (d - o).total_seconds() / 60
