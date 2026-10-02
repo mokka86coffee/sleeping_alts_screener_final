@@ -266,9 +266,9 @@ def _open_short_now(state: dict, ev: list, msgs: list, sym: str, c: float, t_bar
     ok, sw, _h = ses_gate(now, t_bar, -1)
     if not ok:
         msgs.append(f"{sym[:-4]} шорт на выносе шортов пропущен: {sw}"); return False
-    hold = _h if (_h and FAST3_SHORT_HOLD_BY_SESSION) else FAST3_SHORT_HOLD_MIN
+    hold = 7 * 1440                                                      # 03.10 владелец: «выход либо прибыль 10 %, либо вынос лонгов; как только позиция выходит в +5 % — стоп в твх» — срока нет
     stop, tgt = FAST3_SHORT_SL, FAST3_SHORT_TP
-    why = why + f": стоп +{stop * 100:.0f}%, цель −{tgt * 100:.0f}%, выход по выносу лонгов, срок {hold} мин · сессия {sw}"
+    why = why + f": стоп +{stop * 100:.0f}%, цель −{tgt * 100:.0f}%, после −5 % стоп в твх, выход по выносу лонгов, без срока · сессия {sw}"
     pos = dict(sym=sym, side=-1, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), stop_px=None, hold_min=hold, rule=why, last_px=c, bars=0, flush_short=True)
     state["open"][sym] = pos
     ev.append(dict(book=book, sym=sym, kind="entry", side=-1, px=c, at=now, usd_in=FAST3_SIZE, rule=why, target=pos["target"], stop=pos["stop"], hold_min=hold, fon=fon(), bub=_bub(sym)))
