@@ -1,4 +1,3 @@
-import re
 #!/usr/bin/env python3
 """ТРЁХМИНУТНАЯ СТУПЕНЬ (27.09, владелец: «зачем прогон для всех монет, если всплеск нужен только у тех, у кого был интерес за час —
 раз в полчаса отбираем, каждые 3 минуты смотрим только их»). Книга «всплеск/вынос».
@@ -14,6 +13,7 @@ import re
     python3 fast_tier.py             # один проход без записи
 """
 from __future__ import annotations
+import re
 import argparse, json, statistics as st, sys, time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -305,7 +305,8 @@ def _ladder_calc(kd: list, px: float):
         g, hd, fd, fm = 1.3, 0.85, 5, 0.20
     if len(kd) < 10 or not px:
         return None
-    hi = max(float(x[2]) for x in kd); lo = min(float(x[3]) for x in kd)
+    hi = max(float(x[2]) for x in kd); imax = max(range(len(kd)), key=lambda i: float(kd[i][2]))
+    lo = min(float(x[3]) for x in kd[:imax + 1])                       # 02.10 13:40 (проверка): минимум ДО максимума — рост, а не падение с отскоком
     last = kd[-fd:]; flat = max(float(x[2]) for x in last) / min(float(x[3]) for x in last) - 1
     if lo > 0 and hi / lo >= g and px >= hi * hd and flat <= fm:
         return f"R47: рост ×{hi / lo:.2f} за 30 дн, цена держится ({px / hi * 100:.0f}% от максимума), флэт {fd} дн {flat * 100:.0f}% — после роста и флэта шорт не берём"
@@ -431,7 +432,7 @@ def picture(sym: str, sd: int, why: str, now: float, t_bar: int):
     pre = [x for x in k if int(x[0]) < t_bar][-20:]
     sp = next((x for x in k if int(x[0]) == t_bar), None)
     start_low = min(float(x[3]) for x in pre) if pre else None
-    up_ok = lambda: _no_short(sym, float(sp[4]) if sp else 0.0)       # noqa: E731  — Г · R47 рост+флэт (02.10) · ручной список лестницы
+    up_ok = lambda: _no_short(sym, float(sp[4]) if sp else (float(pre[-1][4]) if pre else 0.0))   # noqa: E731  — Г · R47 рост+флэт (02.10) · ручной список лестницы
     if sd == 1:                                                       # 29.09 владелец «да вноси»: Д убрана — лонг после выноса шортов берём (цель +5%);
         fl = _flush(sym, now, "short")                                # бот 27–28.09: 8 таких лонгов, 5 в плюс, +116 $; сигналы канала: 5 из 8 вверх первыми (не проверено)
         return 1, (f"вынос шортов на всплеске: {fl} · " + why if fl else why), start_low
@@ -477,12 +478,15 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
         sq = (f"вынос шортов {since / 1e3:.1f}K$ с начала всплеска (максимум за сутки до него {max(before) / 1e3:.1f}K$)" if hs and before
               else "ликвидаций по монете в потоке нет — вход только по свече")
         # 29.09 владелец «да»: шорт — стоп +FAST3_SHORT_SL, без цели, срок FAST3_SHORT_HOLD_MIN, выход по выносу лонгов (fuel_exit); стоп за вершиной убран (unified_exit.py)
-        stop, tgt = FAST3_SHORT_SL, FAST3_SHORT_TP
+        stop, tgt = FAST3_SHORT_SL, FAST3_SHORT_TP; _tpnote = ""
+        _ns = _no_short(sym, c)                                           # 02.10 13:40 (проверка): перепроверка в момент входа — за время ожидания монета могла стать ×2+ / R47, ожидания из старого кода
+        if _ns:
+            msgs.append(f"{sym[:-4]} шорт после вершины не взят: {_ns}"); del state["pending"][sym]; continue
         try:                                                              # 02.10 владелец: монета после пампа/роста держит уровень (×2+ от минимума 90 дн) — цель шорта 5 %, не 10 %
             from core_config import FAST3_SHORT_TP_PULLUP as _tp5, FAST3_RUN90_X as _rx
             _r90 = _run90(sym)
             if _r90 and _r90 >= _rx:
-                tgt = _tp5; why = why + f" · цель 5%: монета ×{_r90:.1f} от минимума 90 дн, продавец тянет вверх"
+                tgt = _tp5; _tpnote = f" · цель 5%: монета ×{_r90:.1f} от минимума 90 дн, продавец тянет вверх"   # 02.10 13:40: раньше здесь было why = why + … до присваивания why → UnboundLocalError (нашла проверка)
         except ImportError:
             pass
         del state["pending"][sym]
@@ -492,7 +496,7 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
         hold = _h if (_h and FAST3_SHORT_HOLD_BY_SESSION) else FAST3_SHORT_HOLD_MIN
         if not ok:
             msgs.append(f"{sym[:-4]} шорт после вершины пропущен: {sw}"); continue
-        why = p["why"] + f" · вход после вершины {top:.6g} ({sq}): стоп +{stop * 100:.0f}%, выход по выносу лонгов, срок {hold} мин · сессия {sw}"
+        why = p["why"] + f" · вход после вершины {top:.6g} ({sq}): стоп +{stop * 100:.0f}%, выход по выносу лонгов, срок {hold} мин · сессия {sw}" + _tpnote
         _lg = london_gate(sym, now, why)                                     # 02.10 владелец: Лондон — максимум 5 самых надёжных (и для шортов после вершины)
         if _lg:
             msgs.append(f"{sym[:-4]} шорт после вершины пропущен: {_lg}"); continue
@@ -696,6 +700,17 @@ def short_walk(e: float, stop: float, tgt: float, k: list, top=None):
     return None, None
 
 
+def _ladder_top(sym: str, pos: dict):
+    """02.10 владелец («по таким шортам … цена пошла выше — сразу закрытие, не ждём стопов»): вершина входа для выхода шорта — только в монетах лестницы
+    (Г / R47 рост+флэт / ручной список), т.е. для шортов, открытых до правки; на всех шортах счёт 110 сделок: +606 → +135 $ (sim_top2.py) — шире не применяем"""
+    try:
+        if pos.get("ladder") or _no_short(sym, float(pos.get("px") or 0)):
+            return _top_of(pos)
+    except Exception:  # noqa: BLE001
+        return None
+    return None
+
+
 def _top_of(pos: dict):
     """вершина, после которой взят шорт: pos["top"] или число из подписи «вход после вершины X» (позиции до 02.10)"""
     if pos.get("top"):
@@ -827,7 +842,7 @@ def flip_check(e: float, pos: dict, k: list, now: float):
     nf = max(1, FAST3_FLIP_HOLD_MIN // 3)
     if pos.get("flip") or not str(pos.get("rule", "")).startswith("А") or len(k) < nf:
         return None, None, None
-    r, _ = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k[:nf], _top_of(pos))
+    r, _ = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k[:nf], _ladder_top(pos["sym"], pos))
     if r is not None:
         return None, None, None
     lowest = min(float(x[3]) for x in k[:nf])
@@ -856,7 +871,7 @@ def step(state: dict, write: bool) -> list[str]:
         else:
             res, why, newpos = flip_check(e, pos, k, now)                # 01.10 владелец (ALICE, CAP): А-шорт держится 6 ч → закрыт, лонг
             if res is None:
-                res, why = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k, _top_of(pos))   # шорт — цель, стоп, безубыток после −5%, 02.10: выход выше вершины входа
+                res, why = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k, _ladder_top(sym, pos))   # шорт — цель, стоп, безубыток после −5%; 02.10: в монетах лестницы — выход выше вершины входа
                 if res is None and FAST3_SHORT_BE_AT and min(float(x[3]) for x in k) <= e * (1 - FAST3_SHORT_BE_AT):
                     pos["stop_px"] = e                                     # 01.10: стоп в безубытке — записываем, мост BingX переставит стоп на бирже
         if res is None:
@@ -996,7 +1011,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
         else:
             res, why, newpos = flip_check(e, pos, k, now)                # 01.10 владелец (ALICE, CAP): А-шорт держится 6 ч → закрыт, лонг
             if res is None:
-                res, why = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k, _top_of(pos))   # шорт — цель, стоп, безубыток после −5%, 02.10: выход выше вершины входа
+                res, why = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k, _ladder_top(sym, pos))   # шорт — цель, стоп, безубыток после −5%; 02.10: в монетах лестницы — выход выше вершины входа
                 if res is None and FAST3_SHORT_BE_AT and min(float(x[3]) for x in k) <= e * (1 - FAST3_SHORT_BE_AT):
                     pos["stop_px"] = e                                     # 01.10: стоп в безубытке — записываем, мост BingX переставит стоп на бирже
         if res is None:
