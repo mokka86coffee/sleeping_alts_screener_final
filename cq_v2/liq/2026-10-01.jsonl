@@ -14165,3 +14165,9 @@
 {"t": 1790898876545, "sym": "DATAUSDT", "side": "long", "usd": 154.32, "px": 0.2114, "src": "okx"}
 {"t": 1790898968216, "sym": "SUPERUSDT", "side": "long", "usd": 19.86, "px": 0.23642, "src": "bybit"}
 {"t": 1790899084535, "sym": "JASMYUSDT", "side": "long", "usd": 70.93, "px": 0.005758, "src": "bybit"}
+{"t": 1790899094117, "sym": "BTCUSDT", "side": "long", "usd": 255.37, "px": 85124.3, "src": "bybit"}
+{"t": 1790899094865, "sym": "BTCUSDT", "side": "long", "usd": 425.63, "px": 85126.9, "src": "bybit"}
+{"t": 1790899099168, "sym": "BTCUSDT", "side": "long", "usd": 681.14, "px": 85143.1, "src": "bybit"}
+{"t": 1790899099250, "sym": "BTCUSDT", "side": "long", "usd": 766.37, "px": 85151.7, "src": "bybit"}
+{"t": 1790899099491, "sym": "BTCUSDT", "side": "long", "usd": 681.22, "px": 85152.1, "src": "bybit"}
+{"t": 1790899112102, "sym": "SANDUSDT", "side": "short", "usd": 148.31, "px": 0.04508, "src": "okx"}
