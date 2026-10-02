@@ -93,10 +93,26 @@ def _all_perps() -> list[str]:
     """все торгуемые USDT-перпы Binance, кэш 1 ч"""
     if time.time() - _PERPS["t"] > 3600 or not _PERPS["v"]:
         ex = get_json("https://fapi.binance.com/fapi/v1/exchangeInfo") or {}
-        v = [x["symbol"] for x in ex.get("symbols", []) if x.get("quoteAsset") == "USDT" and x.get("contractType") == "PERPETUAL" and x.get("status") == "TRADING"]
+        try:
+            from core_config import FAST3_MIN_LISTING_DAYS as _mind
+        except ImportError:
+            _mind = 180
+        _now_ms = time.time() * 1000                                      # 03.10 владелец (牛来): «листинг больше полугода? … такое не торгуем вообще никогда» — моложе FAST3_MIN_LISTING_DAYS в список не берём
+        v = [x["symbol"] for x in ex.get("symbols", []) if x.get("quoteAsset") == "USDT" and x.get("contractType") == "PERPETUAL" and x.get("status") == "TRADING"
+             and (_now_ms - int(x.get("onboardDate") or 0)) / 86400_000 >= _mind]
         if v:
             _PERPS.update(t=time.time(), v=v)
     return _PERPS["v"]
+
+
+def _too_young(sym: str):
+    """03.10: подпись, если монета моложе FAST3_MIN_LISTING_DAYS на фьючерсах Binance (для ожиданий и позиций, созданных до правки), иначе None"""
+    try:
+        from core_config import FAST3_MIN_LISTING_DAYS as _mind
+    except ImportError:
+        _mind = 180
+    a = listing_age_days().get(sym)
+    return f"листинг {a:.0f} дн < {_mind} — не торгуем" if a is not None and a < _mind else None
 
 
 def short_list(all_coins: bool = True) -> tuple[list[str], list[str], dict]:
@@ -433,9 +449,11 @@ def picture(sym: str, sd: int, why: str, now: float, t_bar: int):
     sp = next((x for x in k if int(x[0]) == t_bar), None)
     start_low = min(float(x[3]) for x in pre) if pre else None
     up_ok = lambda: _no_short(sym, float(sp[4]) if sp else (float(pre[-1][4]) if pre else 0.0))   # noqa: E731  — Г · R47 рост+флэт (02.10) · ручной список лестницы
-    if sd == 1:                                                       # 29.09 владелец «да вноси»: Д убрана — лонг после выноса шортов берём (цель +5%);
-        fl = _flush(sym, now, "short")                                # бот 27–28.09: 8 таких лонгов, 5 в плюс, +116 $; сигналы канала: 5 из 8 вверх первыми (не проверено)
-        return 1, (f"вынос шортов на всплеске: {fl} · " + why if fl else why), start_low
+    if sd == 1:
+        fl = _flush(sym, now, "short")
+        if fl:                                                        # 03.10 владелец: «вынос шортов — это конец в любом случае лонга… убирай нахер, это всегда шорт; кого выносят — в ту сторону и нужно вставать»
+            return -1, f"вынос шортов на всплеске → шорт после вершины: {fl} · " + why, start_low   # (было с 29.09: лонг после выноса шортов; с 29.09 такие лонги 6: −102 $, шорт вместо них +190 $)
+        return 1, why, start_low
     if sd == -1:
         no = up_ok()
         if no:
@@ -479,7 +497,7 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
               else "ликвидаций по монете в потоке нет — вход только по свече")
         # 29.09 владелец «да»: шорт — стоп +FAST3_SHORT_SL, без цели, срок FAST3_SHORT_HOLD_MIN, выход по выносу лонгов (fuel_exit); стоп за вершиной убран (unified_exit.py)
         stop, tgt = FAST3_SHORT_SL, FAST3_SHORT_TP; _tpnote = ""
-        _ns = _no_short(sym, c)                                           # 02.10 13:40 (проверка): перепроверка в момент входа — за время ожидания монета могла стать ×2+ / R47, ожидания из старого кода
+        _ns = _no_short(sym, c) or _too_young(sym)                        # 02.10 13:40 (проверка): перепроверка в момент входа — за время ожидания монета могла стать ×2+ / R47, ожидания из старого кода; 03.10: листинг < 180 дн
         if _ns:
             msgs.append(f"{sym[:-4]} шорт после вершины не взят: {_ns}"); del state["pending"][sym]; continue
         try:                                                              # 02.10 владелец: монета после пампа/роста держит уровень (×2+ от минимума 90 дн) — цель шорта 5 %, не 10 %
