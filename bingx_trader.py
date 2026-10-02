@@ -135,6 +135,20 @@ def ready(c: dict) -> str | None:
 
 
 
+def position_info(bx: str, ps: str, hedge: bool, c: dict):
+    """(объём, средняя цена) позиции на бирже; (0, 0) — позиции нет (03.10: для проверки цены исполнения против цены бота)"""
+    pr = request("GET", "/openApi/swap/v2/user/positions", {"symbol": bx}, c)
+    amt = 0.0; avg = 0.0
+    for x in (pr.get("data") or []):
+        if (not hedge) or str(x.get("positionSide")) == ps:
+            a = abs(float(x.get("availableAmt") or x.get("positionAmt") or 0)); amt += a
+            try:
+                avg = float(x.get("avgPrice") or 0) or avg
+            except (TypeError, ValueError):
+                pass
+    return amt, avg
+
+
 def position_amt(bx: str, ps: str, hedge: bool, c: dict) -> float:
     """фактический объём позиции на бирже по символу и стороне (availableAmt), 0 — позиции нет"""
     pr = request("GET", "/openApi/swap/v2/user/positions", {"symbol": bx}, c)
@@ -260,6 +274,8 @@ def open_position(sym: str, side: int, px: float, why: str = "", c: dict | None 
         bp = 0.0
     if bp and px and abs(bp / px - 1) > 0.05:
         return {"ok": False, "why": f"цена {ct['symbol']} на BingX {bp} не совпадает с сигналом {px} (вероятно другой актив/множитель)"}
+    if not bp:                                                           # 03.10 (牛来: запрос цены пустой → проверка расхождения пропущена → лимит исполнился на 18 % выше цены бота, стоп биржа отклонила): без цены BingX не входим
+        return {"ok": False, "why": f"цена {ct['symbol']} на BingX недоступна — расхождение с Binance не проверить, не входим"}
     q = qty_for(ct, px, float(size_usd or c["size_usd"]))
     if not q:
         return {"ok": False, "why": "количество не посчиталось"}
@@ -277,7 +293,11 @@ def open_position(sym: str, side: int, px: float, why: str = "", c: dict | None 
     o = (r.get("data") or {}).get("order") or r.get("data") or {}
     stop = round(float(px) * (1 - side * float(c["stop_pct"])), pp)      # 02.10: от цены входа бота, не от лимита
     time.sleep(1.5)
-    q_pos = position_amt(bx, ps, hedge, c)                               # 01.10: лимит мог исполниться частично/позже — стоп ставим на фактический объём, остальное досылает sync_stops
+    q_pos, avg_px = position_info(bx, ps, hedge, c)                      # 01.10: лимит мог исполниться частично/позже — стоп ставим на фактический объём, остальное досылает sync_stops
+    if q_pos > 0 and avg_px and px and abs(avg_px / px - 1) > 0.05:      # 03.10 (牛来 0.10518 против 0.08931): исполнение далеко от цены бота — рынок BingX другой, закрываем по рынку сразу
+        request("DELETE", "/openApi/swap/v2/trade/allOpenOrders", {"symbol": bx}, c)
+        rr = request("POST", "/openApi/swap/v2/trade/order", {"symbol": bx, "side": "SELL" if side == 1 else "BUY", "positionSide": ps, "type": "MARKET", "quantity": q_pos}, c)
+        return {"ok": False, "why": f"исполнение {avg_px} далеко от цены бота {px} ({(avg_px / px - 1) * 100:+.1f} %) — позиция закрыта по рынку ({'ok' if rr.get('code') == 0 else rr.get('msg')})"}
     if c.get("exchange_stop") and q_pos <= 0:
         sr = {"code": -1, "msg": "лимит ещё не исполнен — стоп поставит sync_stops после исполнения"}
     elif c.get("exchange_stop"):                                         # 01.10 владелец «не надо пока никаких отдельных правил на бирже»: стоп на бирже выключен (exchange_stop: false) — все выходы, включая стопы, даёт бот своим сигналом закрытия
