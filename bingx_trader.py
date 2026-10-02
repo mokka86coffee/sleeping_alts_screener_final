@@ -29,7 +29,8 @@ STOP_FLAG = BASE_DIR / "bingx_stop"
 JOURNAL = BASE_DIR / "output" / "bingx_orders.jsonl"
 STATE = BASE_DIR / "output" / "bingx_state.json"
 HOST = {"live": "https://open-api.bingx.com", "demo": "https://open-api-vst.bingx.com"}
-DEFAULTS = dict(enabled=False, mode="demo", api_key="", api_secret="", size_usd=None, leverage=3, max_open=None, daily_loss_limit_usd=None, stop_pct=0.10, exchange_stop=False)
+DEFAULTS = dict(enabled=False, mode="demo", api_key="", api_secret="", size_usd=None, leverage=3, max_open=None, daily_loss_limit_usd=None, stop_pct=0.10, exchange_stop=False,
+                entry_slip_pct=0.01)   # 02.10 владелец: «ставь у лимиток вход +1 %» — лимит лонга выше цены бота на 1 %, шорта ниже; «если цена уже выше и этого — не входим»
 _CT: dict = {"t": 0, "v": {}}
 ALIAS = {"RAYSOLUSDT": "RAY-USDT", "METUSDT": "METEORA-USDT"}          # вручную: Binance → BingX; остальное сопоставляется по displayName
 
@@ -95,7 +96,10 @@ def qty_for(ct: dict, px: float, size_usd: float) -> float | None:
     prec = int(ct.get("quantityPrecision", 0)); step = 10 ** -prec
     usd = max(size_usd, float(ct.get("tradeMinUSDT") or 0))
     q = max(usd / px, float(ct.get("tradeMinQuantity") or 0))
-    q = math.ceil(q / step - 1e-9) * step
+    # 02.10: округление ВНИЗ — VTHO отклонён BingX (101209: «максимум позиции 1000 USDT»), вверх давало 1000.0003 $;
+    # вверх только если вниз получается меньше минимума контракта
+    q_dn = math.floor(q / step + 1e-9) * step
+    q = q_dn if q_dn * px >= float(ct.get("tradeMinUSDT") or 0) and q_dn >= float(ct.get("tradeMinQuantity") or 0) and q_dn > 0 else math.ceil(q / step - 1e-9) * step
     return round(q, prec) if q > 0 else None
 
 
@@ -262,13 +266,16 @@ def open_position(sym: str, side: int, px: float, why: str = "", c: dict | None 
     bx = ct["symbol"]; hedge = hedge_mode(c); ps = ("LONG" if side == 1 else "SHORT") if hedge else "BOTH"
     # 01.10 владелец: «плечи не регулируешь, ничего кроме позиций, стопов и сигналов открытия/закрытия; покупка лимитным ордером по цене бота, стоп-лосс, продавать можно по рынку»
     # 01.10 владелец: «не меняешь ни плечи, ни маржу — ничего кроме открытия/закрытия позиций, стопов, рыночных закрытий»: плечо и тип маржи берутся с аккаунта как есть
-    pp = int(ct.get("pricePrecision", 6)); lim = round(float(px), pp)
+    pp = int(ct.get("pricePrecision", 6)); slip = float(c.get("entry_slip_pct") or 0)
+    lim = round(float(px) * (1 + side * slip), pp)                       # 02.10 владелец: лимит на вход = цена бота +1 % (лонг) / −1 % (шорт); «твх и стоп-лосс те же» — стоп и тейк от цены бота
+    if bp and slip and ((side == 1 and bp > lim) or (side == -1 and bp < lim)):   # 02.10 владелец: «если цена уже выше и этого — не входим в сделку»
+        return {"ok": False, "why": f"цена BingX {bp} уже дальше лимита {lim} (бот {px} {'+' if side == 1 else '−'}{slip*100:g} %) — не входим"}
     body = {"symbol": bx, "side": "BUY" if side == 1 else "SELL", "positionSide": ps, "type": "LIMIT", "price": lim, "quantity": q, "timeInForce": "GTC"}
     r = request("POST", "/openApi/swap/v2/trade/order", body, c)
     if r.get("code") != 0:
         return {"ok": False, "why": f"лимитный ордер не принят: {r.get('code')} {r.get('msg')}"}
     o = (r.get("data") or {}).get("order") or r.get("data") or {}
-    stop = round(lim * (1 - side * float(c["stop_pct"])), pp)
+    stop = round(float(px) * (1 - side * float(c["stop_pct"])), pp)      # 02.10: от цены входа бота, не от лимита
     time.sleep(1.5)
     q_pos = position_amt(bx, ps, hedge, c)                               # 01.10: лимит мог исполниться частично/позже — стоп ставим на фактический объём, остальное досылает sync_stops
     if c.get("exchange_stop") and q_pos <= 0:
@@ -279,10 +286,10 @@ def open_position(sym: str, side: int, px: float, why: str = "", c: dict | None 
     else:
         sr = {"code": 0, "msg": "стоп на бирже выключен"}
     sid = str((((sr.get("data") or {}).get("order") or {}).get("orderId")) or "") if sr.get("code") == 0 and c.get("exchange_stop") else ""
-    s["open"][sym] = dict(bx=bx, side=side, qty=q, entry=lim, stop=stop, t=time.time(), ps=ps, hedge=hedge, mode=c["mode"], why=why[:120], stop_ok=(sr.get("code") == 0),
+    s["open"][sym] = dict(bx=bx, side=side, qty=q, entry=round(float(px), pp), limit_px=lim, stop=stop, t=time.time(), ps=ps, hedge=hedge, mode=c["mode"], why=why[:120], stop_ok=(sr.get("code") == 0),
                           order_id=str(o.get("orderId") or ""), limit=True, stop_qty=(q_pos if sr.get("code") == 0 else 0.0), stop_ids=([sid] if sid else []))
     save(s)
-    return {"ok": True, "qty": q, "entry": lim, "stop": stop, "order_id": str(o.get("orderId") or ""), "stop_ok": sr.get("code") == 0, "stop_msg": sr.get("msg") if sr.get("code") != 0 else ""}
+    return {"ok": True, "qty": q, "entry": round(float(px), pp), "limit_px": lim, "stop": stop, "order_id": str(o.get("orderId") or ""), "stop_ok": sr.get("code") == 0, "stop_msg": sr.get("msg") if sr.get("code") != 0 else ""}
 
 
 def close_position(sym: str, exit_px: float | None = None, why: str = "", c: dict | None = None) -> dict:

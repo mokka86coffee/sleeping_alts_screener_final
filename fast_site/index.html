@@ -227,7 +227,7 @@
 </div>
 <script>
 const TAU = Math.PI * 2;
-const MAX_LABELS = 15, MIN_LABELS = 10;
+const MIN_LABELS = 10;   // 02.10: потолок подписей (был 15) снят по слову владельца — кольца показывают всё
 const ANIM_SLOW = 3;   // appear / disappear speed factor
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
 const tcv = document.getElementById('tx'), tctx = tcv.getContext('2d');
@@ -469,7 +469,8 @@ function drawLabel(g, l, t) {
   if (!old) return drawLabel0(g, l, t);
   const a0 = ctx.globalAlpha, b0 = tctx.globalAlpha;
   ctx.globalAlpha = a0 * ENTRY_OLD_A; tctx.globalAlpha = b0 * ENTRY_OLD_A;
-  try { return drawLabel0(g, l, t); } finally { ctx.globalAlpha = a0; tctx.globalAlpha = b0; }
+  LBL_DIM = ENTRY_TEXT_A;
+  try { return drawLabel0(g, l, t); } finally { LBL_DIM = 1; ctx.globalAlpha = a0; tctx.globalAlpha = b0; }
 }
 
 function drawLabel0(g, l, t) {
@@ -643,11 +644,11 @@ function drawLabel0(g, l, t) {
     const split = (1 - p) + o;
     if (split > 0) {
       const off = split * 4;
-      tctx.globalAlpha = al * .6 * Math.min(1, split * 2);
+      tctx.globalAlpha = al * .6 * Math.min(1, split * 2) * LBL_DIM;
       tctx.fillStyle = `rgb(${l.c2})`; tctx.fillText(gl.c, gx - off, gy);
       tctx.fillStyle = `rgb(${mix(l.c1, '255,255,255', .5)})`; tctx.fillText(gl.c, gx + off, gy);
     }
-    tctx.globalAlpha = al;
+    tctx.globalAlpha = al * LBL_DIM;
     if (gl.name) {
       tctx.shadowColor = `rgba(${l.c1},.9)`; tctx.shadowBlur = 6;
       tctx.fillStyle = nameFill;
@@ -2010,7 +2011,7 @@ function frame() {
   tctx.clearRect(0, 0, W, H);
   drawHUD(t);
   for (const g of rings) {
-    if (g.queue.length && g.labels.filter(l => !l.dying).length < MAX_LABELS && t >= g.next) {
+    if (g.queue.length && t >= g.next) {   // 02.10 владелец: «убери вообще эти потолки на кольцах» — был потолок 15 подписей, из-за него 7 открытых позиций не рисовались
       spawn(g, t);
       g.next = t + (g.labels.length < MIN_LABELS ? .12 + Math.random() * .35 : .7 + Math.random() * 1.4);
     }
@@ -2101,7 +2102,8 @@ function announce(S) {
 }
 const EXIT_KEEP = 15 * 60;   // закрытая сделка держится на кольце «выход» 15 минут
 const ENTRY_KEEP = Infinity;   // 28.09 владелец: «чтобы открытые висели пока открыты» — снимается, когда позиция закрылась (нет в S.open)
-const ENTRY_FRESH = 15 * 60, ENTRY_OLD_A = .35;   // «через 15 минут после появления делай их более прозрачными — где новая, где поздняя»
+const ENTRY_FRESH = 15 * 60, ENTRY_OLD_A = .35, ENTRY_TEXT_A = .14;   // фигуры .35; названия и цены — почти прозрачные (01.10 владелец: «названия и ТВХ нет»)
+let LBL_DIM = 1;   // множитель яркости букв: drawLabel0 сам ставит globalAlpha на буквах и обходил обёртку   // «через 15 минут после появления делай их более прозрачными — где новая, где поздняя»
 // между обновлениями данных: у закрытых истекли 15 минут — гаснут сразу, не ждут следующей рассылки
 setInterval(() => {
   const t = performance.now() / 1000 / TIME_SLOW, nowS = Date.now() / 1000;
