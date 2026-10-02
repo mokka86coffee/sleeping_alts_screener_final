@@ -238,6 +238,88 @@ def _flush(sym: str, now: float, side: str = "long", since_ms: int | None = None
     return None
 
 
+def _short_flush_record(sym: str, after_ms: int = 0):
+    """03.10 владелец: «в самый крупный вынос шортов на часовике бот должен входить всегда; самый крупный должен быть минимум на 30 % больше самого
+    большого выноса до него» — последний/предпоследний час с выносом шортов ≥ FAST3_FLUSH_X × максимума часа за предыдущие сутки (поток OKX+Bybit).
+    → (час мс, вынос $, прежний максимум $) или None; after_ms — часы не позже него уже отработаны"""
+    try:
+        from core_config import FAST3_FLUSH_X as _x
+    except ImportError:
+        _x = 1.3
+    try:
+        hs = _liq_hourly().get((sym, "short")) or {}
+    except Exception:  # noqa: BLE001
+        return None
+    if not hs:
+        return None
+    for hm in sorted(hs, reverse=True)[:2]:
+        if hm <= after_ms:
+            continue
+        win = hs[hm]; prev = [v for h, v in hs.items() if hm - 86_400_000 <= h < hm]
+        if prev and win > 0 and win >= _x * max(prev):
+            return hm, win, max(prev)
+    return None
+
+
+def _open_short_now(state: dict, ev: list, msgs: list, sym: str, c: float, t_bar: int, now: float, why: str, book: str, write: bool) -> bool:
+    """03.10 (R49): шорт по рынку сейчас — стоп +10 %, цель −10 %, безубыток после −5 %, выход по выносу лонгов / стык сессий; ворота — только сессии владельца"""
+    ok, sw, _h = ses_gate(now, t_bar, -1)
+    if not ok:
+        msgs.append(f"{sym[:-4]} шорт на выносе шортов пропущен: {sw}"); return False
+    hold = _h if (_h and FAST3_SHORT_HOLD_BY_SESSION) else FAST3_SHORT_HOLD_MIN
+    stop, tgt = FAST3_SHORT_SL, FAST3_SHORT_TP
+    why = why + f": стоп +{stop * 100:.0f}%, цель −{tgt * 100:.0f}%, выход по выносу лонгов, срок {hold} мин · сессия {sw}"
+    pos = dict(sym=sym, side=-1, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), stop_px=None, hold_min=hold, rule=why, last_px=c, bars=0, flush_short=True)
+    state["open"][sym] = pos
+    ev.append(dict(book=book, sym=sym, kind="entry", side=-1, px=c, at=now, usd_in=FAST3_SIZE, rule=why, target=pos["target"], stop=pos["stop"], hold_min=hold, fon=fon(), bub=_bub(sym)))
+    msgs.append(f"{sym[:-4]} шорт вход {c:.6g} на выносе шортов · стоп +{stop * 100:.0f}% · срок {hold} мин")
+    if write:
+        cg(sym, *cg_caption(book, sym, pos))
+    return True
+
+
+def flush_entries(state: dict, book: str, now: float, ev: list, msgs: list, write: bool) -> None:
+    """03.10 владелец: «бот сразу закрывает предыдущий шорт, если был, если не было — входит на самом крупном выносе шортов за 24 ч на часовике» (R49).
+    Каждый проход: монеты списка с рекордным часом выноса шортов (≥ ×1.3 прежнего максимума за сутки) → открытая позиция (шорт или лонг) закрывается по рынку, новый шорт по рынку.
+    Один вход на один рекордный час (state["flush_hour"])."""
+    seen = state.setdefault("flush_hour", {}); uni = set(_all_perps()); own = _own_mm()
+    try:
+        hs_all = _liq_hourly()
+    except Exception:  # noqa: BLE001
+        return
+    t_bar = int(now * 1000) // 180_000 * 180_000 - 180_000
+    for (sym, side) in list(hs_all.keys()):
+        if side != "short" or sym not in uni or sym in own or _too_young(sym):
+            continue
+        rec = _short_flush_record(sym, int(seen.get(sym) or 0))
+        if not rec:
+            continue
+        hm, win, prev = rec
+        seen[sym] = hm
+        p = state["open"].get(sym)
+        if p and int(p.get("t_ms") or 0) >= hm:                          # позиция открыта уже после этого часа — не трогаем
+            continue
+        tk = get_json("https://fapi.binance.com/fapi/v1/ticker/price", {"symbol": sym}, quiet_400=True) or {}
+        try:
+            c = float(tk.get("price") or 0)
+        except (TypeError, ValueError):
+            c = 0.0
+        if not c:
+            continue
+        note = f"вынос шортов {win / 1e3:.0f}K$ за час с {datetime.fromtimestamp(hm / 1000, L):%H:%M} — ×{win / prev:.1f} к максимуму часа за сутки ({prev / 1e3:.0f}K$)"
+        if p:                                                            # закрываем, что было: шорт — перезаход, лонг — конец лонга
+            sd, e = int(p["side"]), float(p["px"]); res = (c / e - 1) * sd - FEE
+            why = ("новый рекордный вынос шортов — закрыт, перезаход" if sd == -1 else "вынос шортов — конец лонга (R49)") + ": " + note
+            ev.append(dict(book=book, sym=sym, kind="exit_long" if sd == 1 else "exit_short", side=sd, px_in=e, px_out=round(c, 8), opened_at=p["at"], at=now,
+                           result_pct=round(res * 100, 2), usd=round(FAST3_SIZE * res, 2), why_exit=why, rule=p["rule"], size=1.0))
+            msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} выход {why} {res * 100:+.2f}%")
+            if write:
+                cg(sym, *cg_caption(book, sym, p, c, why, res))
+            state["last_exit"][sym] = now; del state["open"][sym]
+        state.setdefault("pending", {}).pop(sym, None)
+        _open_short_now(state, ev, msgs, sym, c, t_bar, now, "R49 вынос шортов → шорт: " + note, book, write)
+
+
 def _long_flush(sym: str, now: float):
     return _flush(sym, now, "long")
 
@@ -451,8 +533,8 @@ def picture(sym: str, sd: int, why: str, now: float, t_bar: int):
     up_ok = lambda: _no_short(sym, float(sp[4]) if sp else (float(pre[-1][4]) if pre else 0.0))   # noqa: E731  — Г · R47 рост+флэт (02.10) · ручной список лестницы
     if sd == 1:
         fl = _flush(sym, now, "short")
-        if fl:                                                        # 03.10 владелец: «вынос шортов — это конец в любом случае лонга… убирай нахер, это всегда шорт; кого выносят — в ту сторону и нужно вставать»
-            return -1, f"вынос шортов на всплеске → шорт после вершины: {fl} · " + why, start_low   # (было с 29.09: лонг после выноса шортов; с 29.09 такие лонги 6: −102 $, шорт вместо них +190 $)
+        if fl:                                                        # 03.10 владелец: «вынос шортов — это конец в любом случае лонга… это всегда шорт»; сам шорт даёт flush_entries (рекорд ≥ ×1.3 за сутки)
+            return 0, f"лонг не взят: вынос шортов на всплеске ({fl}) — шорт берёт сканер выносов (R49) · " + why, start_low
         return 1, why, start_low
     if sd == -1:
         no = up_ok()
@@ -914,6 +996,7 @@ def step(state: dict, write: bool) -> list[str]:
             ev.append(dict(book=BOOK, sym=sym, kind="follow", side=sd, px_in=e, px=c, result_pct=round((c / e - 1) * sd * 100, 2), at=now))
     # входы: сначала ждущие шорты (Б)
     pending_step(state, BOOK, now, ev, msgs, write)
+    flush_entries(state, BOOK, now, ev, msgs, write)                      # 03.10 владелец (R49): рекордный вынос шортов → шорт по рынку (закрыв, что было)
     spike, climax, info = short_list()
     todo = sorted(set(spike) | set(climax))
     with ThreadPoolExecutor(12) as ex:
