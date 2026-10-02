@@ -497,7 +497,8 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
               else "ликвидаций по монете в потоке нет — вход только по свече")
         # 29.09 владелец «да»: шорт — стоп +FAST3_SHORT_SL, без цели, срок FAST3_SHORT_HOLD_MIN, выход по выносу лонгов (fuel_exit); стоп за вершиной убран (unified_exit.py)
         stop, tgt = FAST3_SHORT_SL, FAST3_SHORT_TP; _tpnote = ""
-        _ns = _no_short(sym, c) or _too_young(sym)                        # 02.10 13:40 (проверка): перепроверка в момент входа — за время ожидания монета могла стать ×2+ / R47, ожидания из старого кода; 03.10: листинг < 180 дн
+        _flush_short = "вынос шортов на всплеске → шорт" in p.get("why", "")   # 03.10 владелец (CAP, ALICE «вот тоже»): вынос шортов = конец лестницы — такой шорт идёт мимо Г / R47 / ручного списка
+        _ns = (None if _flush_short else _no_short(sym, c)) or _too_young(sym)   # 02.10 13:40 (проверка): перепроверка в момент входа; 03.10: листинг < 180 дн — всегда
         if _ns:
             msgs.append(f"{sym[:-4]} шорт после вершины не взят: {_ns}"); del state["pending"][sym]; continue
         try:                                                              # 02.10 владелец: монета после пампа/роста держит уровень (×2+ от минимума 90 дн) — цель шорта 5 %, не 10 %
