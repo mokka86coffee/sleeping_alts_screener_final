@@ -1,3 +1,4 @@
+import re
 #!/usr/bin/env python3
 """ТРЁХМИНУТНАЯ СТУПЕНЬ (27.09, владелец: «зачем прогон для всех монет, если всплеск нужен только у тех, у кого был интерес за час —
 раз в полчаса отбираем, каждые 3 минуты смотрим только их»). Книга «всплеск/вынос».
@@ -292,6 +293,53 @@ def _spot_cvd7(sym: str):
     return v
 
 
+_LAD: dict = {}
+
+
+def _ladder_calc(kd: list, px: float):
+    """R47 чистый счёт по закрытым дневным барам (последний — вчера): рост ≥ FAST3_LADDER_GROWTH, цена не ушла (px ≥ HOLD·макс30), флэт последних FLAT_DAYS дней ≤ FLAT_MAX.
+    → подпись признака или None"""
+    try:
+        from core_config import FAST3_LADDER_GROWTH as g, FAST3_LADDER_HOLD as hd, FAST3_LADDER_FLAT_DAYS as fd, FAST3_LADDER_FLAT_MAX as fm
+    except ImportError:
+        g, hd, fd, fm = 1.3, 0.85, 5, 0.20
+    if len(kd) < 10 or not px:
+        return None
+    hi = max(float(x[2]) for x in kd); lo = min(float(x[3]) for x in kd)
+    last = kd[-fd:]; flat = max(float(x[2]) for x in last) / min(float(x[3]) for x in last) - 1
+    if lo > 0 and hi / lo >= g and px >= hi * hd and flat <= fm:
+        return f"R47: рост ×{hi / lo:.2f} за 30 дн, цена держится ({px / hi * 100:.0f}% от максимума), флэт {fd} дн {flat * 100:.0f}% — после роста и флэта шорт не берём"
+    return None
+
+
+def _ladder(sym: str, px: float):
+    """R47 (02.10 владелец: «после роста/пампа и флэта цены шорт не берём»): дневные бары раз в час на монету"""
+    t, kd = _LAD.get(sym, (0, None))
+    if time.time() - t > 3600:
+        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1d", "limit": 31}, quiet_400=True) or []
+        kd = k[:-1] if len(k) >= 2 else []
+        _LAD[sym] = (time.time(), kd)
+    return _ladder_calc(kd or [], px)
+
+
+def _no_short(sym: str, px: float):
+    """почему шорт в монете не берём: Г (×2+ от минимума 90 дн) · R47 (рост + флэт) · ручной список лестницы. → подпись или None"""
+    try:
+        from core_config import FAST3_RUN90_X as _rx
+    except ImportError:
+        _rx = 2.0
+    r = _run90(sym)
+    if r and r >= _rx:
+        return f"монета ×{r:.1f} от минимума 90 дн — её продавец тянет вверх"
+    try:
+        from core_config import FAST3_NO_SHORT_MANUAL as _man
+    except ImportError:
+        _man = []
+    if sym in _man:
+        return "монета из списка лестницы владельца (R45) — шорт не берём"
+    return _ladder(sym, px)
+
+
 def gate_ab(sym: str, sd: int, px: float):
     """29.09 владелец «вноси» — правки А и Б по разбору 125 сделок на Coinglass (НЕ ПРОВЕРЕНО, счёт на тех же днях 27–28.09):
     А: лонг у вершины 90 дн (≤ FAST3_TOP90_PCT% ниже максимума) при споте, продающем 7 дн — не брать (13 сделок, 2 в плюс, −126 $; 27.09 −94, 28.09 −33);
@@ -312,6 +360,8 @@ def gate_ab(sym: str, sd: int, px: float):
             _rx = 2.0
         _r = _run90(sym)
         if _r and _r >= _rx:
+            return None
+        if _no_short(sym, px):                                        # 02.10 владелец (SAND, MINA, ALICE, LITE): R47 рост+флэт и ручной список лестницы — лонг в шорт не переворачиваем
             return None
     if sd == 1 and top:                                               # 29.09 владелец «да вноси»: А расширена — лонг у вершины 90 дн не берём, спот не смотрим
         cv = _spot_cvd7(sym)                                          # (сделки 27–28.09: лонги у вершины 34 шт., 32% в плюс, −318 $ при 1000 $; сигналы канала 29.09: у вершины 3 из 21 вверх первыми, 7 из 21 вниз)
@@ -381,7 +431,7 @@ def picture(sym: str, sd: int, why: str, now: float, t_bar: int):
     pre = [x for x in k if int(x[0]) < t_bar][-20:]
     sp = next((x for x in k if int(x[0]) == t_bar), None)
     start_low = min(float(x[3]) for x in pre) if pre else None
-    up_ok = lambda: (lambda r: f"монета ×{r:.1f} от минимума 90 дн — её продавец тянет вверх" if r and r >= run_x else None)(_run90(sym))  # noqa: E731
+    up_ok = lambda: _no_short(sym, float(sp[4]) if sp else 0.0)       # noqa: E731  — Г · R47 рост+флэт (02.10) · ручной список лестницы
     if sd == 1:                                                       # 29.09 владелец «да вноси»: Д убрана — лонг после выноса шортов берём (цель +5%);
         fl = _flush(sym, now, "short")                                # бот 27–28.09: 8 таких лонгов, 5 в плюс, +116 $; сигналы канала: 5 из 8 вверх первыми (не проверено)
         return 1, (f"вынос шортов на всплеске: {fl} · " + why if fl else why), start_low
@@ -446,9 +496,9 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
         _lg = london_gate(sym, now, why)                                     # 02.10 владелец: Лондон — максимум 5 самых надёжных (и для шортов после вершины)
         if _lg:
             msgs.append(f"{sym[:-4]} шорт после вершины пропущен: {_lg}"); continue
-        stop, _spx, _snote = _range_stop(sym, -1, c, stop)                # 02.10 владелец: стоп за диапазоном 30 дн (шорт — над максимумом)
+        stop, _spx, _snote = _range_stop(sym, -1, c, stop)                # 02.10: для шортов возвращает обычный +10 % (FAST3_RANGE_STOP_SHORT=False — владелец по SAND: «с поднятым выше стопом»)
         if _snote: why = why + " · " + _snote
-        pos = dict(sym=sym, side=-1, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), stop_px=_spx, hold_min=hold, rule=why, last_px=c, bars=0)
+        pos = dict(sym=sym, side=-1, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), stop_px=_spx, hold_min=hold, rule=why, last_px=c, bars=0, top=top)
         state["open"][sym] = pos
         ev.append(dict(book=book, sym=sym, kind="entry", side=-1, px=c, at=now, usd_in=FAST3_SIZE, rule=why, target=pos["target"], stop=pos["stop"],
                        hold_min=hold, fon=fon(), bub=_bub(sym)))
@@ -625,19 +675,36 @@ def scan(sym: str, want_spike: bool, want_climax: bool):
     return sym, c[-1], int(k[-1][0]), out
 
 
-def short_walk(e: float, stop: float, tgt: float, k: list):
+def short_walk(e: float, stop: float, tgt: float, k: list, top=None):
     """01.10 владелец «ставь цель 10% или вынос лонгов, при уходе в +5% стоп в вх»: шорт по 3-мин барам от входа по порядку —
     стоп +stop → цель −tgt → после касания −FAST3_SHORT_BE_AT стоп переносится на вход (безубыток). → (результат от входа без комиссии, причина) или (None, None)"""
     be = False
+    try:
+        from core_config import FAST3_SHORT_EXIT_ABOVE_TOP as _above
+    except ImportError:
+        _above = True
     for x in k:
-        h_, l_ = float(x[2]), float(x[3])
+        h_, l_, c_ = float(x[2]), float(x[3]), float(x[4])
         if h_ >= (e if be else e * (1 + stop)):
             return (0.0, "стоп в безубыток") if be else (-stop, "стоп")
+        if _above and top and c_ > top:                                   # 02.10 владелец (SAND): «цена пошла выше — сразу закрытие, не ждём стопов»
+            return 1 - c_ / e, f"цена выше вершины входа {top:.6g}"
         if tgt and l_ <= e * (1 - tgt):
             return tgt, "цель"
         if not be and FAST3_SHORT_BE_AT and l_ <= e * (1 - FAST3_SHORT_BE_AT):
             be = True
     return None, None
+
+
+def _top_of(pos: dict):
+    """вершина, после которой взят шорт: pos["top"] или число из подписи «вход после вершины X» (позиции до 02.10)"""
+    if pos.get("top"):
+        return float(pos["top"])
+    m = re.search(r"вход после вершины ([0-9.eE+-]+)", str(pos.get("rule", "")))
+    try:
+        return float(m.group(1)) if m else None
+    except ValueError:
+        return None
 
 
 _RNG: dict = {}
@@ -656,6 +723,12 @@ def _range_stop(sym: str, side: int, e: float, default_pct: float):
         k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1d", "limit": nd + 1}, quiet_400=True) or []
         v = (min(float(x[3]) for x in k[:-1]), max(float(x[2]) for x in k[:-1])) if len(k) >= 8 else None
         _RNG[sym] = (time.time(), v)
+    try:
+        from core_config import FAST3_RANGE_STOP_SHORT as _rss
+    except ImportError:
+        _rss = False
+    if side == -1 and not _rss:                                        # 02.10 владелец (SAND −13.5 %: «ещё и с поднятым выше стопом»): шорт — обычный стоп, за диапазон не выносим
+        return default_pct, e * (1 - side * default_pct), ""
     if not v:
         return default_pct, e * (1 - side * default_pct), ""
     lo, hi = v
@@ -754,7 +827,7 @@ def flip_check(e: float, pos: dict, k: list, now: float):
     nf = max(1, FAST3_FLIP_HOLD_MIN // 3)
     if pos.get("flip") or not str(pos.get("rule", "")).startswith("А") or len(k) < nf:
         return None, None, None
-    r, _ = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k[:nf])
+    r, _ = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k[:nf], _top_of(pos))
     if r is not None:
         return None, None, None
     lowest = min(float(x[3]) for x in k[:nf])
@@ -783,7 +856,7 @@ def step(state: dict, write: bool) -> list[str]:
         else:
             res, why, newpos = flip_check(e, pos, k, now)                # 01.10 владелец (ALICE, CAP): А-шорт держится 6 ч → закрыт, лонг
             if res is None:
-                res, why = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k)   # шорт — цель позиции (10 % или 5 % у монет ×2+), стоп, безубыток после −5%
+                res, why = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k, _top_of(pos))   # шорт — цель, стоп, безубыток после −5%, 02.10: выход выше вершины входа
                 if res is None and FAST3_SHORT_BE_AT and min(float(x[3]) for x in k) <= e * (1 - FAST3_SHORT_BE_AT):
                     pos["stop_px"] = e                                     # 01.10: стоп в безубытке — записываем, мост BingX переставит стоп на бирже
         if res is None:
@@ -923,7 +996,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
         else:
             res, why, newpos = flip_check(e, pos, k, now)                # 01.10 владелец (ALICE, CAP): А-шорт держится 6 ч → закрыт, лонг
             if res is None:
-                res, why = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k)   # шорт — цель позиции (10 % или 5 % у монет ×2+), стоп, безубыток после −5%
+                res, why = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k, _top_of(pos))   # шорт — цель, стоп, безубыток после −5%, 02.10: выход выше вершины входа
                 if res is None and FAST3_SHORT_BE_AT and min(float(x[3]) for x in k) <= e * (1 - FAST3_SHORT_BE_AT):
                     pos["stop_px"] = e                                     # 01.10: стоп в безубытке — записываем, мост BingX переставит стоп на бирже
         if res is None:
