@@ -312,13 +312,18 @@ def close_position(sym: str, exit_px: float | None = None, why: str = "", c: dic
             amt += abs(float(x.get("availableAmt") or x.get("positionAmt") or 0))
     if amt <= 0:                                                       # позиции нет: либо лимит не исполнился, либо биржа уже закрыла её стопом/тейком
         # 02.10 владелец по SAND («всмысле не было в демо? было»): стоп на бирже сработал в 10:04, бот вышел в 10:11 — журнал писал «позиции не было», −135 $ терялись
-        fill = None
+        fills = []                                                     # 02.10 13:45 (проверка): все исполненные стоп/тейк-ордера (стоп мог быть в двух частях), executedQty приходит строкой
         for oid, tag in [(o, "стопом") for o in (p.get("stop_ids") or [])] + [(o, "тейком") for o in (p.get("tp_ids") or [])]:
             oi = order_info(p["bx"], oid, c)
             if oi and str(oi.get("status", "")).upper() == "FILLED" and float(oi.get("avgPrice") or 0) > 0:
-                fill = (float(oi["avgPrice"]), tag, float(oi.get("executedQty") or p["qty"])); break
-        if fill:
-            out, tag, qf = fill
+                try:
+                    qx = float(oi.get("executedQty") or 0)
+                except (TypeError, ValueError):
+                    qx = 0.0
+                fills.append((float(oi["avgPrice"]), tag, qx if qx > 0 else float(p["qty"])))
+        if fills:
+            qf = sum(q for _, _, q in fills) or float(p["qty"])
+            out = sum(px_ * q for px_, _, q in fills) / qf; tag = "/".join(sorted({t_ for _, t_, _ in fills}))
             pnl = (out / p["entry"] - 1) * p["side"] * p["entry"] * qf
             today = datetime.now(timezone.utc).strftime("%Y-%m-%d"); s["pnl"][today] = round(s["pnl"].get(today, 0.0) + pnl, 4)
             del s["open"][sym]; save(s)

@@ -319,7 +319,7 @@ def _ladder(sym: str, px: float):
     if time.time() - t > 3600:
         k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1d", "limit": 31}, quiet_400=True) or []
         kd = k[:-1] if len(k) >= 2 else []
-        _LAD[sym] = (time.time(), kd)
+        _LAD[sym] = (time.time() if len(kd) >= 10 else time.time() - 3600 + 300, kd)   # 02.10 13:45 (проверка): пустой/битый ответ не держим час — повтор через 5 мин (нет данных ≠ разрешение)
     return _ladder_calc(kd or [], px)
 
 
@@ -733,17 +733,17 @@ def _range_stop(sym: str, side: int, e: float, default_pct: float):
         from core_config import FAST3_STOP_RANGE_DAYS as nd, FAST3_STOP_RANGE_MARGIN as mg, FAST3_STOP_RANGE_MAX as mx
     except ImportError:
         nd, mg, mx = 30, 0.027, 0.25
+    try:
+        from core_config import FAST3_RANGE_STOP_SHORT as _rss
+    except ImportError:
+        _rss = False
+    if side == -1 and not _rss:                                        # 02.10 владелец (SAND −13.5 %: «ещё и с поднятым выше стопом»): шорт — обычный стоп, за диапазон не выносим (и без запроса дневок)
+        return default_pct, e * (1 - side * default_pct), ""
     t, v = _RNG.get(sym, (0, None))
     if time.time() - t > 3600:
         k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1d", "limit": nd + 1}, quiet_400=True) or []
         v = (min(float(x[3]) for x in k[:-1]), max(float(x[2]) for x in k[:-1])) if len(k) >= 8 else None
         _RNG[sym] = (time.time(), v)
-    try:
-        from core_config import FAST3_RANGE_STOP_SHORT as _rss
-    except ImportError:
-        _rss = False
-    if side == -1 and not _rss:                                        # 02.10 владелец (SAND −13.5 %: «ещё и с поднятым выше стопом»): шорт — обычный стоп, за диапазон не выносим
-        return default_pct, e * (1 - side * default_pct), ""
     if not v:
         return default_pct, e * (1 - side * default_pct), ""
     lo, hi = v
