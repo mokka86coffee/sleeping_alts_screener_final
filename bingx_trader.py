@@ -292,6 +292,12 @@ def open_position(sym: str, side: int, px: float, why: str = "", c: dict | None 
     return {"ok": True, "qty": q, "entry": round(float(px), pp), "limit_px": lim, "stop": stop, "order_id": str(o.get("orderId") or ""), "stop_ok": sr.get("code") == 0, "stop_msg": sr.get("msg") if sr.get("code") != 0 else ""}
 
 
+def order_info(bx: str, oid: str, c: dict) -> dict:
+    """ордер по orderId: {status, avgPrice, executedQty, ...} или {} (02.10: чтобы отличать «лимит не исполнился» от «биржа закрыла стопом»)"""
+    r = request("GET", "/openApi/swap/v2/trade/order", {"symbol": bx, "orderId": str(oid)}, c)
+    return ((r.get("data") or {}).get("order") or r.get("data") or {}) if r.get("code") == 0 else {}
+
+
 def close_position(sym: str, exit_px: float | None = None, why: str = "", c: dict | None = None) -> dict:
     c = c or cfg(); s = state(); p = s["open"].get(sym)
     if not p:
@@ -304,7 +310,19 @@ def close_position(sym: str, exit_px: float | None = None, why: str = "", c: dic
     for x in (pr.get("data") or []):
         if (not p["hedge"]) or str(x.get("positionSide")) == p["ps"]:
             amt += abs(float(x.get("availableAmt") or x.get("positionAmt") or 0))
-    if amt <= 0:                                                       # лимит не исполнился — позиции нет, ордера сняты
+    if amt <= 0:                                                       # позиции нет: либо лимит не исполнился, либо биржа уже закрыла её стопом/тейком
+        # 02.10 владелец по SAND («всмысле не было в демо? было»): стоп на бирже сработал в 10:04, бот вышел в 10:11 — журнал писал «позиции не было», −135 $ терялись
+        fill = None
+        for oid, tag in [(o, "стопом") for o in (p.get("stop_ids") or [])] + [(o, "тейком") for o in (p.get("tp_ids") or [])]:
+            oi = order_info(p["bx"], oid, c)
+            if oi and str(oi.get("status", "")).upper() == "FILLED" and float(oi.get("avgPrice") or 0) > 0:
+                fill = (float(oi["avgPrice"]), tag, float(oi.get("executedQty") or p["qty"])); break
+        if fill:
+            out, tag, qf = fill
+            pnl = (out / p["entry"] - 1) * p["side"] * p["entry"] * qf
+            today = datetime.now(timezone.utc).strftime("%Y-%m-%d"); s["pnl"][today] = round(s["pnl"].get(today, 0.0) + pnl, 4)
+            del s["open"][sym]; save(s)
+            return {"ok": True, "exit": out, "pnl_usd": round(pnl, 4), "why": f"закрыта на бирже {tag} по {out} до сигнала бота"}
         del s["open"][sym]; save(s)
         return {"ok": True, "exit": None, "pnl_usd": 0.0, "why": "лимит не исполнился — ордера сняты, позиции не было"}
     body = {"symbol": p["bx"], "side": "SELL" if p["side"] == 1 else "BUY", "positionSide": p["ps"], "type": "MARKET", "quantity": amt}

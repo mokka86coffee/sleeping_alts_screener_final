@@ -82,6 +82,12 @@ if __name__ == "__main__":
     except OSError:
         raise SystemExit(0)
     d = build()
+    try:                                                                  # 02.10 владелец: ручной список (TRUTH: «такое говнище не торгуем, постоянные манипуляции везде»)
+        from core_config import OWN_MM_MANUAL
+        for _s in OWN_MM_MANUAL:
+            d["coins"][_s] = dict(block=True, why="владелец: свой ММ, не торгуем (ручной список OWN_MM_MANUAL)", flush20=None, worst=None, rec_h=None, handwriting="")
+    except ImportError:
+        pass
     tmp = OUT.with_suffix(".tmp"); tmp.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8"); tmp.replace(OUT)
     b = sorted(s[:-4] for s, v in d["coins"].items() if v["block"]); m = sorted(s[:-4] for s, v in d["coins"].items() if not v["block"])
     print(f"own_mm: запрет {len(b)}: {', '.join(b)}\n        пометка {len(m)}: {', '.join(m)}")

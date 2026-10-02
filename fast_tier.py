@@ -1038,6 +1038,11 @@ def _own_mm() -> set:
             import subprocess
             subprocess.Popen([PY, "own_mm.py"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "own_mm.log", "a"),
                              stderr=subprocess.STDOUT, start_new_session=True)
+        try:                                                              # 02.10 владелец: ручной список «свой ММ» (TRUTH: «такое говнище не торгуем»)
+            from core_config import OWN_MM_MANUAL as _man
+            _OWN["v"] = set(_OWN.get("v") or set()) | set(_man)
+        except ImportError:
+            pass
     return _OWN["v"]
 
 
