@@ -238,7 +238,7 @@ def _board_state_notes() -> list:
     (суточная после слома отстаёт) и флаг «день доски» по R28: медиана за 6 ч на 06:00 UTC > +0.5% → день закрылся с доской > +1% в 7 из 7."""
     out: list = []
     try:
-        raise ImportError("paper_sight удалён 03.10 (владелец: остался только быстрый бот)")  # блок остаётся пустым
+        return out                                                       # 03.10: paper_sight удалён владельцем (остался только быстрый бот) — строк состояния доски нет
         try:
             from core_config import SIGHT_BOARD_GATE as _gate, SIGHT_LEADER_BREAK_H as _lbh
         except ImportError:
