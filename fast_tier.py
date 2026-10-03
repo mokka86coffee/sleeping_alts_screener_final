@@ -238,86 +238,85 @@ def _flush(sym: str, now: float, side: str = "long", since_ms: int | None = None
     return None
 
 
-def _short_flush_record(sym: str, after_ms: int = 0):
-    """03.10 владелец: «в самый крупный вынос шортов на часовике бот должен входить всегда; самый крупный должен быть минимум на 30 % больше самого
-    большого выноса до него» — последний/предпоследний час с выносом шортов ≥ FAST3_FLUSH_X × максимума часа за предыдущие сутки (поток OKX+Bybit).
-    → (час мс, вынос $, прежний максимум $) или None; after_ms — часы не позже него уже отработаны"""
+def _flush_record(sym: str, side: str, after_ms: int = 0):
+    """R49/R52 (03.10 владелец): «рекордный за 24 часа вынос на часовой свече… вход в течение максимум 30 минут после закрытия часовой свечи».
+    Только что закрытый час: вынос стороны side ≥ FAST3_FLUSH_X × максимума часа этой стороны за предыдущие сутки и больше любого часа
+    противоположной стороны за сутки (поток OKX+Bybit). → (час мс, вынос $, прежний максимум $) или None"""
     try:
-        from core_config import FAST3_FLUSH_X as _x
+        from core_config import FAST3_FLUSH_X as _x, FAST3_FLUSH_WINDOW_MIN as _wm
     except ImportError:
-        _x = 1.3
+        _x, _wm = 1.3, 30
     try:
-        hs = _liq_hourly().get((sym, "short")) or {}
+        hs = _liq_hourly().get((sym, side)) or {}; ho = _liq_hourly().get((sym, "long" if side == "short" else "short")) or {}
     except Exception:  # noqa: BLE001
         return None
     if not hs:
         return None
-    try:
-        hl = _liq_hourly().get((sym, "long")) or {}
-    except Exception:  # noqa: BLE001
-        hl = {}
     now_ms = int(time.time() * 1000); now_h = now_ms // 3_600_000 * 3_600_000
-    if now_ms - now_h > 5 * 60_000:                                      # 03.10 владелец: «в течение 5 минут после закрытия часовой свечи с максимальным выносом; если прошло больше 5 минут — не заходит»
+    if now_ms - now_h > _wm * 60_000:
         return None
-    for hm in (now_h - 3_600_000,):                                      # только что ЗАКРЫТЫЙ час (02:50: старые часы за вчера принимались за рекорд — 101 шорт разом)
-        if hm <= after_ms or hm not in hs:
-            continue
-        win = hs[hm]; prev = [v for h, v in hs.items() if hm - 86_400_000 <= h < hm]
-        big_long = max((v for h, v in hl.items() if hm - 86_400_000 <= h <= hm), default=0.0)
-        if prev and win > 0 and win >= _x * max(prev) and win > big_long:   # 03.10 владелец (FIL): «вынос лонгов — 99 % будет рост» — вынос шортов должен быть крупнее любого выноса лонгов за сутки
-            return hm, win, max(prev)
+    hm = now_h - 3_600_000
+    if hm <= after_ms or hm not in hs:
+        return None
+    win = hs[hm]; prev = [v for h, v in hs.items() if hm - 86_400_000 <= h < hm]
+    other = max((v for h, v in ho.items() if hm - 86_400_000 <= h <= hm), default=0.0)
+    if prev and win > 0 and win >= _x * max(prev) and win > other:
+        return hm, win, max(prev)
     return None
 
 
-_RATE_F = BASE_DIR / "output" / "fast_entry_times.json"
+def _short_flush_record(sym: str, after_ms: int = 0):
+    return _flush_record(sym, "short", after_ms)
 
 
-def _rate_ok(now: float, note: bool = False):
-    """03.10 владелец: «запрет на открытие ботом больше 5 сделок за 20 минут» — общий счётчик входов обеих книг (файл, переживает перезапуск).
-    note=True — записать вход. → None, если можно, иначе подпись отказа"""
+def _move_10h(sym: str, hm: int):
+    """R52 (03.10 владелец): «ход за 24 часа, минимумы каждой часовой свечи… сначала проверить, что размах часовой свечи выноса больше 20 %, потом смотреть
+    минимумы часовых свеч за 24 часа до выноса: росли или падали; пила/отскоки 5–10 часов или флэт внутри — нормально».
+    → (направление +1 рост / −1 падение / 0 нет, ход минимумов %, размах свечи выноса %)"""
     try:
-        from core_config import FAST3_MAX_ENTRIES as _mx, FAST3_MAX_ENTRIES_MIN as _wm
+        from core_config import FAST3_FLUSH_MOVE_H as _mh, FAST3_FLUSH_BAR_RANGE as _rng
     except ImportError:
-        _mx, _wm = 5, 20
-    try:
-        ts = [float(x) for x in json.loads(_RATE_F.read_text(encoding="utf-8"))]
-    except (OSError, ValueError):
-        ts = []
-    ts = [t for t in ts if now - t < _wm * 60]
-    if note:
-        ts.append(now)
-        try:
-            _RATE_F.write_text(json.dumps(ts), encoding="utf-8")
-        except OSError:
-            pass
-        return None
-    return None if len(ts) < _mx else f"лимит входов: {len(ts)} за {_wm} мин (максимум {_mx})"
+        _mh, _rng = 24, 20.0
+    k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1h", "endTime": hm + 3_599_999, "limit": _mh + 1}, quiet_400=True) or []
+    if len(k) < _mh + 1 or int(k[-1][0]) != hm:
+        return 0, 0.0, 0.0
+    bar = k[-1]; rng = (float(bar[2]) / float(bar[3]) - 1) * 100 if float(bar[3]) > 0 else 0.0
+    lows = [float(x[3]) for x in k[:-1]]                                 # 24 часа до часа выноса
+    n = len(lows) // 3; first, last = lows[:n], lows[-n:]
+    a1, a2 = sum(first) / n, sum(last) / n; mv = (a2 / a1 - 1) * 100
+    if min(last) > min(first) and a2 > a1:                               # минимумы росли (флэт/отскоки внутри допустимы)
+        return 1, mv, rng
+    if max(last) < max(first) and a2 < a1:                               # минимумы падали
+        return -1, mv, rng
+    return 0, mv, rng
 
 
-def _open_short_now(state: dict, ev: list, msgs: list, sym: str, c: float, t_bar: int, now: float, why: str, book: str, write: bool) -> bool:
-    """03.10 (R49): шорт по рынку сейчас — стоп +10 %, цель −10 %, безубыток после −5 %, выход по выносу лонгов / стык сессий; ворота — только сессии владельца"""
-    ok, sw, _h = ses_gate(now, t_bar, -1)
+def _open_short_now(state: dict, ev: list, msgs: list, sym: str, c: float, t_bar: int, now: float, why: str, book: str, write: bool, side: int = -1) -> bool:
+    """03.10 (R49/R52): позиция по рынку сейчас против хода — стоп 10 %, цель 10 %, безубыток после 5 %, выход по выносу противоположной стороны; ворота — только сессии владельца"""
+    nm = "лонг" if side == 1 else "шорт"
+    ok, sw, _h = ses_gate(now, t_bar, side)
     if not ok:
-        msgs.append(f"{sym[:-4]} шорт на выносе шортов пропущен: {sw}"); return False
+        msgs.append(f"{sym[:-4]} {nm} на выносе пропущен: {sw}"); return False
     _rl = _rate_ok(now)
     if _rl:
-        msgs.append(f"{sym[:-4]} шорт на выносе шортов пропущен: {_rl}"); return False
+        msgs.append(f"{sym[:-4]} {nm} на выносе пропущен: {_rl}"); return False
     hold = 7 * 1440                                                      # 03.10 владелец: «выход либо прибыль 10 %, либо вынос лонгов; как только позиция выходит в +5 % — стоп в твх» — срока нет
     stop, tgt = FAST3_SHORT_SL, FAST3_SHORT_TP
-    why = why + f": стоп +{stop * 100:.0f}%, цель −{tgt * 100:.0f}%, после −5 % стоп в твх, выход по выносу лонгов, без срока · сессия {sw}"
-    pos = dict(sym=sym, side=-1, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), stop_px=None, hold_min=hold, rule=why, last_px=c, bars=0, flush_short=True)
+    why = why + f": стоп {stop * 100:.0f}%, цель {tgt * 100:.0f}%, после 5 % стоп в твх, выход по выносу противоположной стороны, без срока · сессия {sw}"
+    pos = dict(sym=sym, side=side, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), stop_px=None, hold_min=hold, rule=why, last_px=c, bars=0, flush_short=(side == -1), flush=True)
     state["open"][sym] = pos
-    ev.append(dict(book=book, sym=sym, kind="entry", side=-1, px=c, at=now, usd_in=FAST3_SIZE, rule=why, target=pos["target"], stop=pos["stop"], hold_min=hold, fon=fon(), bub=_bub(sym)))
+    ev.append(dict(book=book, sym=sym, kind="entry", side=side, px=c, at=now, usd_in=FAST3_SIZE, rule=why, target=pos["target"], stop=pos["stop"], hold_min=hold, fon=fon(), bub=_bub(sym)))
     _rate_ok(now, note=True)
-    msgs.append(f"{sym[:-4]} шорт вход {c:.6g} на выносе шортов · стоп +{stop * 100:.0f}% · срок {hold} мин")
+    msgs.append(f"{sym[:-4]} {nm} вход {c:.6g} на выносе · стоп {stop * 100:.0f}% · цель {tgt * 100:.0f}%")
     if write:
         cg(sym, *cg_caption(book, sym, pos))
     return True
 
 
 def flush_entries(state: dict, book: str, now: float, ev: list, msgs: list, write: bool) -> None:
-    """03.10 владелец: «бот сразу закрывает предыдущий шорт, если был, если не было — входит на самом крупном выносе шортов за 24 ч на часовике» (R49).
-    Каждый проход: монеты списка с рекордным часом выноса шортов (≥ ×1.3 прежнего максимума за сутки) → открытая позиция (шорт или лонг) закрывается по рынку, новый шорт по рынку.
+    """R52 (03.10 владелец): «если цена больше 10 часов шла в направлении, которое вынесли в итоге сквизом (на росте вынесли лонги, на падении вынесли шорты),
+    в такие сделки нужно заходить в обратном направлении»; вместе с R49 (рост + вынос шортов → шорт; падение + вынос лонгов → лонг) — вход ВСЕГДА против хода
+    за 10 ч, на рекордном за 24 ч часовом выносе любой стороны, в первые 30 минут после закрытия часа. Открытая позиция по монете закрывается по рынку.
     Один вход на один рекордный час (state["flush_hour"])."""
     seen = state.setdefault("flush_hour", {}); uni = set(_all_perps()); own = _own_mm()
     try:
@@ -326,16 +325,26 @@ def flush_entries(state: dict, book: str, now: float, ev: list, msgs: list, writ
         return
     t_bar = int(now * 1000) // 180_000 * 180_000 - 180_000
     for (sym, side) in list(hs_all.keys()):
-        if side != "short" or sym not in uni or sym in own or _too_young(sym):
+        if side not in ("short", "long") or sym not in uni or sym in own or _too_young(sym):
             continue
-        rec = _short_flush_record(sym, int(seen.get(sym) or 0))
+        rec = _flush_record(sym, side, int(seen.get(sym) or 0))
         if not rec:
             continue
         hm, win, prev = rec
         seen[sym] = hm
         p = state["open"].get(sym)
-        if p and int(p.get("t_ms") or 0) >= hm:                          # позиция открыта уже после этого часа — не трогаем
+        if p and int(p.get("t_ms") or 0) >= hm:
             continue
+        mv, mvp, rng = _move_10h(sym, hm)
+        try:
+            from core_config import FAST3_FLUSH_BAR_RANGE as _rng
+        except ImportError:
+            _rng = 20.0
+        if _rng and rng < _rng:                                          # 03.10 04:55 владелец: «давай не будем ставить порог разницы цен на свече выноса» — FAST3_FLUSH_BAR_RANGE = 0, порог выключен
+            msgs.append(f"{sym[:-4]} вынос {'шортов' if side == 'short' else 'лонгов'} {win / 1e3:.0f}K$ — размах свечи {rng:.1f}% < {_rng:g}%, пропуск"); continue
+        if mv == 0:
+            msgs.append(f"{sym[:-4]} вынос {'шортов' if side == 'short' else 'лонгов'} {win / 1e3:.0f}K$ (свеча {rng:.0f}%) — минимумы за 24 ч ни росли, ни падали, пропуск"); continue
+        new_side = -mv                                                   # против хода: рост → шорт, падение → лонг
         tk = get_json("https://fapi.binance.com/fapi/v1/ticker/price", {"symbol": sym}, quiet_400=True) or {}
         try:
             c = float(tk.get("price") or 0)
@@ -343,10 +352,11 @@ def flush_entries(state: dict, book: str, now: float, ev: list, msgs: list, writ
             c = 0.0
         if not c:
             continue
-        note = f"вынос шортов {win / 1e3:.0f}K$ за час с {datetime.fromtimestamp(hm / 1000, L):%H:%M} — ×{win / prev:.1f} к максимуму часа за сутки ({prev / 1e3:.0f}K$)"
-        if p:                                                            # закрываем, что было: шорт — перезаход, лонг — конец лонга
+        note = (f"вынос {'шортов' if side == 'short' else 'лонгов'} {win / 1e3:.0f}K$ за час с {datetime.fromtimestamp(hm / 1000, L):%H:%M} — ×{win / prev:.1f} к максимуму часа за сутки ({prev / 1e3:.0f}K$), "
+                f"свеча {rng:.0f}%, минимумы за 24 ч {mvp:+.1f}% → {'шорт' if new_side == -1 else 'лонг'} против хода")
+        if p:
             sd, e = int(p["side"]), float(p["px"]); res = (c / e - 1) * sd - FEE
-            why = ("новый рекордный вынос шортов — закрыт, перезаход" if sd == -1 else "вынос шортов — конец лонга (R49)") + ": " + note
+            why = "рекордный вынос — позиция закрыта" + (" (перезаход)" if sd == new_side else " (разворот)") + ": " + note
             ev.append(dict(book=book, sym=sym, kind="exit_long" if sd == 1 else "exit_short", side=sd, px_in=e, px_out=round(c, 8), opened_at=p["at"], at=now,
                            result_pct=round(res * 100, 2), usd=round(FAST3_SIZE * res, 2), why_exit=why, rule=p["rule"], size=1.0))
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} выход {why} {res * 100:+.2f}%")
@@ -354,7 +364,7 @@ def flush_entries(state: dict, book: str, now: float, ev: list, msgs: list, writ
                 cg(sym, *cg_caption(book, sym, p, c, why, res))
             state["last_exit"][sym] = now; del state["open"][sym]
         state.setdefault("pending", {}).pop(sym, None)
-        _open_short_now(state, ev, msgs, sym, c, t_bar, now, "R49 вынос шортов → шорт: " + note, book, write)
+        _open_short_now(state, ev, msgs, sym, c, t_bar, now, "R52 вынос → против хода: " + note, book, write, side=new_side)
 
 
 def _long_flush(sym: str, now: float):
@@ -853,6 +863,20 @@ def _ladder_top(sym: str, pos: dict):
     return None
 
 
+def flush_long_walk(e: float, pos: dict, k: list):
+    """R52 (03.10): лонг против падения на рекордном выносе — стоп −stop, цель +target, после +FAST3_SHORT_BE_AT стоп в точку входа"""
+    be = False; stop = float(pos.get("stop") or FAST3_SHORT_SL); tgt = float(pos.get("target") or FAST3_SHORT_TP)
+    for x in k:
+        h_, l_ = float(x[2]), float(x[3])
+        if l_ <= (e if be else e * (1 - stop)):
+            return (0.0, "стоп в безубыток") if be else (-stop, "стоп")
+        if h_ >= e * (1 + tgt):
+            return tgt, "цель"
+        if not be and FAST3_SHORT_BE_AT and h_ >= e * (1 + FAST3_SHORT_BE_AT):
+            be = True; pos["stop_px"] = e
+    return None, None
+
+
 def _top_of(pos: dict):
     """вершина, после которой взят шорт: pos["top"] или число из подписи «вход после вершины X» (позиции до 02.10)"""
     if pos.get("top"):
@@ -1008,7 +1032,9 @@ def step(state: dict, write: bool) -> list[str]:
         e, sd = float(pos["px"]), int(pos["side"]); hi = max(float(x[2]) for x in k); lo = min(float(x[3]) for x in k); c = float(k[-1][4])
         res = why = None
         newpos = None
-        if sd == 1:
+        if sd == 1 and pos.get("flush"):                                 # R52: лонг на выносе — цель +10 %, стоп −10 %, после +5 % стоп в твх
+            res, why = flush_long_walk(e, pos, k)
+        elif sd == 1:
             res, why = long_walk(e, pos, k)                              # 01.10 владелец: памп вернулся → выход; удержался 2 ч → цель +10%, стоп на низу
         else:
             res, why, newpos = flip_check(e, pos, k, now)                # 01.10 владелец (ALICE, CAP): А-шорт держится 6 ч → закрыт, лонг
@@ -1153,7 +1179,9 @@ def wake_step(state: dict, write: bool) -> list[str]:
         if not k: continue
         e, sd = float(pos["px"]), int(pos["side"]); hi = max(float(x[2]) for x in k); lo = min(float(x[3]) for x in k); c = float(k[-1][4]); res = why = None
         newpos = None
-        if sd == 1:
+        if sd == 1 and pos.get("flush"):                                 # R52: лонг на выносе — цель +10 %, стоп −10 %, после +5 % стоп в твх
+            res, why = flush_long_walk(e, pos, k)
+        elif sd == 1:
             res, why = long_walk(e, pos, k)                              # 01.10 владелец: памп вернулся → выход; удержался 2 ч → цель +10%, стоп на низу
         else:
             res, why, newpos = flip_check(e, pos, k, now)                # 01.10 владелец (ALICE, CAP): А-шорт держится 6 ч → закрыт, лонг
