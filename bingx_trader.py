@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
 import math
 import sys
 import time
@@ -372,6 +373,18 @@ def on_events(ev: list[dict]) -> list[str]:
         if not c["enabled"]:
             return msgs
         msgs += sync_stops(c)                                            # 01.10: дослать стопы на исполнившиеся лимиты
+        # 03.10 владелец: «после любой правки бота в течение 1 часа сделки только в журнале, на бирже сделки не открываются» —
+        # правка = изменение fast_tier.py / core_config.py / bingx_trader.py (mtime); выходы по открытым позициям идут как обычно
+        try:
+            from core_config import BINGX_FREEZE_AFTER_EDIT_MIN as _fz
+        except ImportError:
+            _fz = 60
+        _edited = max(os.path.getmtime(BASE_DIR / f) for f in ("fast_tier.py", "core_config.py", "bingx_trader.py") if (BASE_DIR / f).exists())
+        _left = _fz * 60 - (time.time() - _edited)
+        if _left > 0 and any(str(e.get("kind", "")) == "entry" for e in ev):
+            msgs.append(f"BingX: входы заморожены после правки бота ещё {int(_left // 60) + 1} мин — сделки только в журнале")
+            jlog("freeze", left_min=int(_left // 60) + 1, skipped=[e["sym"] for e in ev if str(e.get("kind", "")) == "entry"])
+            ev = [e for e in ev if str(e.get("kind", "")) != "entry"]
         for e in ev:
             k = str(e.get("kind", ""))
             if k == "entry":

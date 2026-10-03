@@ -269,17 +269,46 @@ def _short_flush_record(sym: str, after_ms: int = 0):
     return None
 
 
+_RATE_F = BASE_DIR / "output" / "fast_entry_times.json"
+
+
+def _rate_ok(now: float, note: bool = False):
+    """03.10 владелец: «запрет на открытие ботом больше 5 сделок за 20 минут» — общий счётчик входов обеих книг (файл, переживает перезапуск).
+    note=True — записать вход. → None, если можно, иначе подпись отказа"""
+    try:
+        from core_config import FAST3_MAX_ENTRIES as _mx, FAST3_MAX_ENTRIES_MIN as _wm
+    except ImportError:
+        _mx, _wm = 5, 20
+    try:
+        ts = [float(x) for x in json.loads(_RATE_F.read_text(encoding="utf-8"))]
+    except (OSError, ValueError):
+        ts = []
+    ts = [t for t in ts if now - t < _wm * 60]
+    if note:
+        ts.append(now)
+        try:
+            _RATE_F.write_text(json.dumps(ts), encoding="utf-8")
+        except OSError:
+            pass
+        return None
+    return None if len(ts) < _mx else f"лимит входов: {len(ts)} за {_wm} мин (максимум {_mx})"
+
+
 def _open_short_now(state: dict, ev: list, msgs: list, sym: str, c: float, t_bar: int, now: float, why: str, book: str, write: bool) -> bool:
     """03.10 (R49): шорт по рынку сейчас — стоп +10 %, цель −10 %, безубыток после −5 %, выход по выносу лонгов / стык сессий; ворота — только сессии владельца"""
     ok, sw, _h = ses_gate(now, t_bar, -1)
     if not ok:
         msgs.append(f"{sym[:-4]} шорт на выносе шортов пропущен: {sw}"); return False
+    _rl = _rate_ok(now)
+    if _rl:
+        msgs.append(f"{sym[:-4]} шорт на выносе шортов пропущен: {_rl}"); return False
     hold = 7 * 1440                                                      # 03.10 владелец: «выход либо прибыль 10 %, либо вынос лонгов; как только позиция выходит в +5 % — стоп в твх» — срока нет
     stop, tgt = FAST3_SHORT_SL, FAST3_SHORT_TP
     why = why + f": стоп +{stop * 100:.0f}%, цель −{tgt * 100:.0f}%, после −5 % стоп в твх, выход по выносу лонгов, без срока · сессия {sw}"
     pos = dict(sym=sym, side=-1, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), stop_px=None, hold_min=hold, rule=why, last_px=c, bars=0, flush_short=True)
     state["open"][sym] = pos
     ev.append(dict(book=book, sym=sym, kind="entry", side=-1, px=c, at=now, usd_in=FAST3_SIZE, rule=why, target=pos["target"], stop=pos["stop"], hold_min=hold, fon=fon(), bub=_bub(sym)))
+    _rate_ok(now, note=True)
     msgs.append(f"{sym[:-4]} шорт вход {c:.6g} на выносе шортов · стоп +{stop * 100:.0f}% · срок {hold} мин")
     if write:
         cg(sym, *cg_caption(book, sym, pos))
@@ -609,12 +638,16 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
         _lg = london_gate(sym, now, why)                                     # 02.10 владелец: Лондон — максимум 5 самых надёжных (и для шортов после вершины)
         if _lg:
             msgs.append(f"{sym[:-4]} шорт после вершины пропущен: {_lg}"); continue
+        _rl = _rate_ok(now)
+        if _rl:
+            msgs.append(f"{sym[:-4]} шорт после вершины пропущен: {_rl}"); continue
         stop, _spx, _snote = _range_stop(sym, -1, c, stop)                # 02.10: для шортов возвращает обычный +10 % (FAST3_RANGE_STOP_SHORT=False — владелец по SAND: «с поднятым выше стопом»)
         if _snote: why = why + " · " + _snote
         pos = dict(sym=sym, side=-1, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), stop_px=_spx, hold_min=hold, rule=why, last_px=c, bars=0, top=top)
         state["open"][sym] = pos
         ev.append(dict(book=book, sym=sym, kind="entry", side=-1, px=c, at=now, usd_in=FAST3_SIZE, rule=why, target=pos["target"], stop=pos["stop"],
                        hold_min=hold, fon=fon(), bub=_bub(sym)))
+        _rate_ok(now, note=True)
         msgs.append(f"{sym[:-4]} шорт вход {c:.6g} · стоп +{stop * 100:.0f}% · выход по выносу лонгов / {hold} мин")
         if write:
             cg(sym, *cg_caption(book, sym, pos))
@@ -1051,12 +1084,16 @@ def step(state: dict, write: bool) -> list[str]:
             _lg = london_gate(sym, now, why)                                 # 02.10 владелец: Лондон — максимум 5 самых надёжных
             if _lg:
                 msgs.append(f"{sym[:-4]} не взят: {_lg}"); continue
+            _rl = _rate_ok(now)
+            if _rl:
+                msgs.append(f"{sym[:-4]} не взят: {_rl}"); continue
             sl, _spx, _snote = _range_stop(sym, sd, px, sl)                 # 02.10 владелец: стоп за диапазоном 30 дн
             if _snote: why = why + " · " + _snote
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, stop_px=_spx, hold_min=hold, rule=why, last_px=px, bars=0, pump_open=_pump_open(px, why))
             state["open"][sym] = pos
             ev.append(dict(book=BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=why, target=tp, stop=sl, hold_min=hold,
                            oi1h=o1h if sd != 0 else None, oi5=o5, run24=info.get(sym, {}).get("run24"), fon=bg, bub=_bub(sym), pack=_pack(), btc=_btc()))
+            _rate_ok(now, note=True)
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} вход {px:.6g} · {why}")
             if write:
                 cg(sym, *cg_caption(BOOK, sym, pos))
@@ -1196,12 +1233,16 @@ def wake_step(state: dict, write: bool) -> list[str]:
             _lg = london_gate(sym, now, why)                                 # 02.10 владелец: Лондон — максимум 5 самых надёжных
             if _lg:
                 msgs.append(f"{sym[:-4]} не взят: {_lg}"); continue
+            _rl = _rate_ok(now)
+            if _rl:
+                msgs.append(f"{sym[:-4]} не взят: {_rl}"); continue
             sl, _spx, _snote = _range_stop(sym, sd, px, sl)                 # 02.10 владелец: стоп за диапазоном 30 дн
             if _snote: why = why + " · " + _snote
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, stop_px=_spx, hold_min=hold, rule=why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", last_px=px, bars=0, pump_open=_pump_open(px, why))
             state["open"][sym] = pos
             ev.append(dict(book=WAKE_BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=pos["rule"], target=tp, stop=sl, hold_min=hold,
                            oi1h=oi1h, crowd=cr, wake_x=round(cd["x"], 1), wake_chg=round(cd["chg"], 2), qv24=round(cd["qv"]), fon=fon(), bub=_bub(sym), pack=_pack(), btc=_btc()))
+            _rate_ok(now, note=True)
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} вход {px:.6g} · {pos['rule']}")
             if write:
                 cg(sym, *cg_caption(WAKE_BOOK, sym, pos))
