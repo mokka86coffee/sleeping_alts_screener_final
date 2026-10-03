@@ -679,7 +679,10 @@ def fuel_exit(sym: str, pos: dict, now: float, c: float):
         return None
     if (c - e) * sd <= 0:
         return None
-    fl = _flush(sym, now, "short" if sd == 1 else "long", since_ms=int(pos["t_ms"]))
+    since = int(pos["t_ms"])
+    if pos.get("flush"):                                                 # 03.10 05:00 (NIGHT 04:00: шорт закрыт через 12 мин «топливом» того же часа, где был сам сквиз): для позиций сканера выносов — только часы ПОСЛЕ часа входа
+        since = (since // 3_600_000 + 1) * 3_600_000
+    fl = _flush(sym, now, "short" if sd == 1 else "long", since_ms=since)
     return f"топливо сожжено: {fl}" if fl else None
 
 

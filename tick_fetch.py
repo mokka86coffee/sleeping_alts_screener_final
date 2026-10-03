@@ -55,7 +55,6 @@ from core_http import get_json
 
 TICK_DIR = BASE_DIR / "cq_v2" / "tick"
 STATE = BASE_DIR / "output" / "tick_state.json"
-SIGHT_STATE = BASE_DIR / "output" / "paper_sight.json"
 TICK_WORKERS = 8
 STEP = {"1m": 60, "3m": 180, "5m": 300}[TICK_INTERVAL]
 # индексы свечи Binance: 0 время открытия, 1 открытие, 2 максимум, 3 минимум, 4 закрытие, 5 объём, 7 оборот $,
@@ -86,24 +85,14 @@ def leaders() -> list[str]:
     for s in TICK_EXTRA or []:
         s = str(s).upper()
         out.add(s if s.endswith("USDT") else s + "USDT")
-    # 23.09: открытые позиции «картины» — её цели и повтор идут по трёхминуткам (paper_sight --tick)
-    for s in ((_read(SIGHT_STATE) or {}).get("open") or {}):
-        out.add(str(s).upper())
     out.add("BTCUSDT")
     return sorted(out)
 
 
 def sight_tick() -> None:
-    """цели и повтор «картины» по только что записанным трёхминуткам; сбой книги сборщик не роняет"""
-    try:
-        r = subprocess.run([sys.executable, "paper_sight.py", "--tick", "--write"], cwd=BASE_DIR,
-                           capture_output=True, text=True, timeout=150)
-        for line in (r.stdout or "").splitlines():
-            log(line)
-        if r.returncode:
-            log(f"tick: paper_sight --tick код {r.returncode}: {(r.stderr or '').strip()[-300:]}")
-    except Exception as e:  # noqa: BLE001
-        log(f"tick: paper_sight --tick сбой {type(e).__name__}: {e}")
+    """03.10: книга «картина» удалена владельцем — пусто"""
+    return None
+
 
 
 def _row(sym: str, k: list, oi, fund) -> dict:

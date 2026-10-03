@@ -259,18 +259,6 @@ def build_letter(stars: list, market: dict) -> tuple[str, str]:
             add("РУКА ВЕРНУЛАСЬ (после конца — ясный белый пузырь и интерес выше) — флаг конца снят:")
             add("  · " + ", ".join(x.replace("USDT", "") for x in _back))
             add("")
-        # ПУЗЫРЬ У ДНА (17.09, paper_bottom — наблюдение): живые сигналы прогона
-        try:
-            _pbm = json.loads((BASE_DIR / "output" / "paper_bottom.json").read_text(encoding="utf-8")) or {}
-            _sgs = _pbm.get("signals") or []
-            if _sgs:
-                add("ПУЗЫРЬ У ДНА (ясный белый пузырь 4ч у дна, доводы за, против пусто) — наблюдение:")
-                for _sg in _sgs[:8]:
-                    add(f"  · {str(_sg.get('sym', '')).replace('USDT', '')} — от дна {float(_sg.get('dist_now_pct') or 0):+.1f}% · "
-                        f"{str(_sg.get('why') or '').replace('пузырь у дна · ', '')[:160]} · {_sg.get('card_rule') or ''}")
-                add("")
-        except (OSError, ValueError):
-            pass
         _block("ОТДАЮТ", "giving", " — плечо уходит, отскоки — кандидаты на шорт")
         if not _near_n and not (_nm.get("going") or _nm.get("giving")):
             add("БЛИЗКИЕ К ХОДУ: пока никого")

@@ -518,14 +518,6 @@ def render_report(candidates: list[Candidate], snapshot: RunSnapshot) -> bool:
     except Exception as e:
         _issue("Интро", f"{type(e).__name__}: {e}")
 
-    # ЭКРАН КНИГИ БОТА (16.09): позиции трёх бумажных книг приборами, условие выхода с числом.
-    # Заходят с интро по спутнику в левом нижнем углу. Сбой не роняет отчёт.
-    try:
-        from render_book import render_book as _rb
-        pages["book.html"] = _rb()
-    except Exception as e:
-        _issue("Экран книги", f"{type(e).__name__}: {e}")
-
     # ЭКРАН ТОЧНОСТИ: дни → часы → монеты, из output/entries_score.json и market_bg.jsonl.
     # Заходят с интро по планете. Это НЕ журнал 01.09 (render_journal.py, journal.html) — другой
     # экран и другое имя файла. Сбой не роняет отчёт — экран просто не обновится.
@@ -913,9 +905,6 @@ def resolve_explicit_symbols(raw: str) -> list[tuple[str, float]]:
 # PREV MAIN
 # ─────────────────────────────────────────────────────────────
 
-class _SkipFirst3(Exception):
-    """27.09: тихий выход из блока «3 в первых», когда книга выключена флагом"""
-
 def run_once(args: argparse.Namespace) -> int:
     """Один полный прогон. Возвращает код возврата."""
     started = time.monotonic()
@@ -1180,19 +1169,6 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("Конец по доске", (_rb.stderr or "").strip()[-300:] or f"код {_rb.returncode}")
     except Exception as e:  # noqa: BLE001
         _issue("Конец по доске", f"{type(e).__name__}: {e}")
-
-    # ── БУМАЖНАЯ КНИГА ПО ПЕРВЫМ (11.09, владелец): каждая монета, что была в первых трёх не меньше
-    # трёх прогонов за сутки, — бумажная позиция; четыре выхода на ней считаются независимо
-    # (конец, хедж вихря, сила, выпадение), стоп в точку входа после +10%, добор ×2. Читает только
-    # queue_log и архив, пишет output/paper_book.json; сбой прогон не роняет. Сводка:
-    # `python3 paper_book.py --report`, сравнение правил входа на журнале: `--variants`.
-    try:
-        import paper_book
-        _pb = paper_book.update()
-        _pb_first = (_pb.splitlines() or [""])[0]
-        log(f"→ Бумажная книга: {_pb_first[:120]}" + (" · события: " + "; ".join(l.strip("→ ") for l in _pb.splitlines() if l.startswith("  →"))[:300] if "  →" in _pb else ""))
-    except Exception as e:
-        _issue("Бумажная книга", f"{type(e).__name__}: {e}")
 
     # ── Coinglass: дождаться потока и разобрать результат ──
     if _cg_thread is not None:
@@ -1495,113 +1471,6 @@ def run_once(args: argparse.Namespace) -> int:
             _issue("Стакан", (_rd.stderr or "").strip()[-300:] or f"код {_rd.returncode}")
     except Exception as e:  # noqa: BLE001
         _issue("Стакан", f"{type(e).__name__}: {e}")
-    # ── БУМАЖНЫЙ БОТ НА БЫСТРЫХ (15.09): вход по трём условиям у дна, выход по слому после вершины; журнал
-    #    в output/paper_fast.jsonl. Сбой бота прогон не роняет. ──
-    try:
-        try:
-            from core_config import PAPER_FAST_ENABLED as _pfe
-        except ImportError:
-            _pfe = True
-        if not _pfe:
-            log("→ Бумажный бот «быстрые»: на паузе (PAPER_FAST_ENABLED = False, 26.09)")
-        _rp = (subprocess.run([sys.executable, "paper_fast.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=600)
-               if _pfe else subprocess.CompletedProcess([], 0, "", ""))
-        _tp = (_rp.stdout or "").strip().splitlines()
-        for _l in _tp:
-            if "entry" in _l or "exit" in _l or _l.startswith("paper_fast: открыто"):
-                log(f"→ {_l[:300]}")
-        if _rp.returncode:
-            _issue("Бумажный бот", (_rp.stderr or "").strip()[-300:] or f"код {_rp.returncode}")
-    except Exception as e:  # noqa: BLE001
-        _issue("Бумажный бот", f"{type(e).__name__}: {e}")
-    # ── БУМАЖНЫЙ БОТ «ПРОТИВ ТОЛПЫ ПО ФОНУ» (16.09): короткие сделки по архиву получасовок; журнал
-    #    output/paper_crowd.jsonl. Сбой прогон не роняет. ──
-    try:
-        _rc = subprocess.run([sys.executable, "paper_crowd.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=300)
-        for _l in (_rc.stdout or "").strip().splitlines():
-            if "вход" in _l or "выход" in _l or _l.startswith("paper_crowd: открыто"):
-                log(f"→ {_l[:300]}")
-        if _rc.returncode:
-            _issue("Бот против толпы", (_rc.stderr or "").strip()[-300:] or f"код {_rc.returncode}")
-    except Exception as e:  # noqa: BLE001
-        _issue("Бот против толпы", f"{type(e).__name__}: {e}")
-    # ── БУМАЖНЫЙ БОТ «ШОРТ ПО КОНЦУ» (16.09): размер по росту до сигнала; журнал output/paper_end.jsonl ──
-    try:
-        _re = subprocess.run([sys.executable, "paper_end.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=300)
-        for _l in (_re.stdout or "").strip().splitlines():
-            if "шорт" in _l or "выход" in _l or _l.startswith("paper_end: открыто"):
-                log(f"→ {_l[:300]}")
-        if _re.returncode:
-            _issue("Бот по концу", (_re.stderr or "").strip()[-300:] or f"код {_re.returncode}")
-    except Exception as e:  # noqa: BLE001
-        _issue("Бот по концу", f"{type(e).__name__}: {e}")
-    # ── БУМАЖНЫЙ БОТ «ДНО» (17.09, случай ENA): лонг на ясном белом пузыре 4ч у дна, выход «рука ушла»;
-    #    журнал output/paper_bottom.jsonl, сигналы прогона — звёздам. Наблюдение, в отбор не входит. ──
-    try:
-        try:
-            from core_config import PAPER_BOTTOM_ENABLED as _pbe
-        except ImportError:
-            _pbe = True
-        if not _pbe:
-            log("→ Бумажный бот «дно»: на паузе (PAPER_BOTTOM_ENABLED = False, 26.09)")
-        _rb2 = (subprocess.run([sys.executable, "paper_bottom.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=300)
-                if _pbe else subprocess.CompletedProcess([], 0, "", ""))
-        for _l in (_rb2.stdout or "").strip().splitlines():
-            if "вход" in _l or "выход" in _l or _l.startswith("paper_bottom: сигналов"):
-                log(f"→ {_l[:300]}")
-        if _rb2.returncode:
-            _issue("Бот дно", (_rb2.stderr or "").strip()[-300:] or f"код {_rb2.returncode}")
-    except Exception as e:  # noqa: BLE001
-        _issue("Бот дно", f"{type(e).__name__}: {e}")
-    # ── БУМАЖНЫЙ БОТ «КАРТИНА» (17.09, владелец: «очень быстрая, изначально тупая — все признаки, что знаем,
-    #    сделки каждые полчаса по всем монетам»): сторона по согласию голосов, цель 3%, вместо стопа хедж до разворота.
-    #    Журнал output/paper_sight.jsonl. Сбой прогон не роняет. ──
-    try:
-        _rs2 = subprocess.run([sys.executable, "paper_sight.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=600)
-        for _l in (_rs2.stdout or "").strip().splitlines():
-            if "вход" in _l or "выход" in _l or "хедж" in _l or _l.startswith("paper_sight: открыто"):
-                log(f"→ {_l[:300]}")
-        if _rs2.returncode:
-            _issue("Бот картина", (_rs2.stderr or "").strip()[-300:] or f"код {_rs2.returncode}")
-    except Exception as e:  # noqa: BLE001
-        _issue("Бот картина", f"{type(e).__name__}: {e}")
-    # ── БУМАЖНАЯ КНИГА «3 В ПЕРВЫХ ПОДРЯД» (24.09, владелец): монета первая в очереди три получасовки подряд — лонг
-    #    500 $, выход +40%, после +20% стоп в точку входа, повтор не раньше 48 ч. Цель и стоп — по трёхминуткам
-    #    Binance от последней проверки. Журнал output/paper_first3.jsonl. Идёт после near_move: очередь уже записана. ──
-    try:
-        # 27.09 07:00 владелец: «убери мою стратегию из бота, ты её неправильно понял — я говорил без стопов»; книга выключена
-        # (PAPER_FIRST3_ENABLED = False), журнал и состояние остаются как есть
-        import core_config as _cc3
-        if not getattr(_cc3, "PAPER_FIRST3_ENABLED", True):
-            log("→ Бот 3 в первых: выключен (PAPER_FIRST3_ENABLED = False, 27.09)")
-            raise _SkipFirst3()
-        _rf3 = subprocess.run([sys.executable, "paper_first3.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=300)
-        for _l in (_rf3.stdout or "").strip().splitlines():
-            log(f"→ {_l[:300]}")
-        if _rf3.returncode:
-            _issue("Бот 3 в первых", (_rf3.stderr or "").strip()[-300:] or f"код {_rf3.returncode}")
-    except _SkipFirst3:
-        pass
-    except Exception as e:  # noqa: BLE001
-        _issue("Бот 3 в первых", f"{type(e).__name__}: {e}")
-    # ── КНИГИ «ИНТЕРЕС» (R34) И «ВТОРОЙ ХОД» (R18/R19) (26.09, владелец «правь пока только бота»): бумажно, копят счёт;
-    #    журналы output/paper_interest.jsonl и output/paper_second.jsonl. Идут после near_move (нужен run_from_low7). Сбой прогон не роняет. ──
-    for _bk, _flag, _title in (("paper_interest.py", "PAPER_INTEREST_ENABLED", "Бот интерес"), ("paper_second.py", "PAPER_SECOND_ENABLED", "Бот второй ход"),
-                               ("paper_funding.py", "PAPER_FUNDING_ENABLED", "Бот фандинг−"), ("paper_div.py", "PAPER_DIV_ENABLED", "Бот дивергенция"),
-                               ("paper_liqstart.py", "PAPER_LIQSTART_ENABLED", "Бот вынос лонгов у дна")):
-        try:
-            import core_config as _cc
-            if not getattr(_cc, _flag, True):
-                log(f"→ {_title}: на паузе ({_flag} = False)")
-                continue
-            _rb = subprocess.run([sys.executable, _bk, "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=300)
-            for _l in (_rb.stdout or "").strip().splitlines():
-                if "вход" in _l or "выход" in _l or "открыто" in _l:
-                    log(f"→ {_l[:300]}")
-            if _rb.returncode:
-                _issue(_title, (_rb.stderr or "").strip()[-300:] or f"код {_rb.returncode}")
-        except Exception as e:  # noqa: BLE001
-            _issue(_title, f"{type(e).__name__}: {e}")
     # ── ТРЁХМИНУТНАЯ СТУПЕНЬ (27.09, владелец): fast_tier.py --loop живёт отдельным процессом, прогон только следит, что он жив ──
     try:
         import core_config as _cc
@@ -1613,16 +1482,6 @@ def run_once(args: argparse.Namespace) -> int:
                 log("→ Трёхминутная ступень: запущена (fast_tier.py --loop, лог output/fast_tier.log)")
     except Exception as e:  # noqa: BLE001
         _issue("Трёхминутная ступень", f"{type(e).__name__}: {e}")
-    # ── СЛЕД ПОСЛЕ ВЫХОДА (16.09): к закрытым сделкам дописывается, куда цена дошла за 1/6/12/24 ч и
-    #    что было внутри сделки — по этому видно, резала ли цель ход и выбивало ли стоп хвостом. ──
-    try:
-        _rf = subprocess.run([sys.executable, "paper_followup.py", "--write"], cwd=BASE_DIR, capture_output=True, text=True, timeout=600)
-        for _l in (_rf.stdout or "").strip().splitlines():
-            log(f"→ {_l[:300]}")
-        if _rf.returncode:
-            _issue("След сделок", (_rf.stderr or "").strip()[-300:] or f"код {_rf.returncode}")
-    except Exception as e:  # noqa: BLE001
-        _issue("След сделок", f"{type(e).__name__}: {e}")
     # ── ЖУРНАЛ НАБЛЮДЕНИЙ ПО ЛИДЕРАМ (16.09, владелец: «внедряй всё сразу в журнал, пока как наблюдения, на ботов
     #    не распространяется»): сигналы быстрых по линиям у стыков сессий, меры режима (analytics_regime) и исходы
     #    через 12 ч — в output/junction_log.jsonl. Ни один бот его не читает. Сбой прогон не роняет. ──
