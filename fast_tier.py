@@ -252,11 +252,19 @@ def _short_flush_record(sym: str, after_ms: int = 0):
         return None
     if not hs:
         return None
-    for hm in sorted(hs, reverse=True)[:2]:
-        if hm <= after_ms:
+    try:
+        hl = _liq_hourly().get((sym, "long")) or {}
+    except Exception:  # noqa: BLE001
+        hl = {}
+    now_ms = int(time.time() * 1000); now_h = now_ms // 3_600_000 * 3_600_000
+    if now_ms - now_h > 5 * 60_000:                                      # 03.10 владелец: «в течение 5 минут после закрытия часовой свечи с максимальным выносом; если прошло больше 5 минут — не заходит»
+        return None
+    for hm in (now_h - 3_600_000,):                                      # только что ЗАКРЫТЫЙ час (02:50: старые часы за вчера принимались за рекорд — 101 шорт разом)
+        if hm <= after_ms or hm not in hs:
             continue
         win = hs[hm]; prev = [v for h, v in hs.items() if hm - 86_400_000 <= h < hm]
-        if prev and win > 0 and win >= _x * max(prev):
+        big_long = max((v for h, v in hl.items() if hm - 86_400_000 <= h <= hm), default=0.0)
+        if prev and win > 0 and win >= _x * max(prev) and win > big_long:   # 03.10 владелец (FIL): «вынос лонгов — 99 % будет рост» — вынос шортов должен быть крупнее любого выноса лонгов за сутки
             return hm, win, max(prev)
     return None
 
