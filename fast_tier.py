@@ -679,6 +679,8 @@ def fuel_exit(sym: str, pos: dict, now: float, c: float):
         return None
     if (c - e) * sd <= 0:
         return None
+    if str(pos.get("rule", "")).startswith("всплеск → шорт 5/5"):          # 03.10: шорт на всплеске — только цель 5 %, стоп 5 %, срок 24 ч (как в счёте)
+        return None
     since = int(pos["t_ms"])
     if pos.get("flush"):                                                 # 03.10 05:00 (NIGHT 04:00: шорт закрыт через 12 мин «топливом» того же часа, где был сам сквиз): для позиций сканера выносов — только часы ПОСЛЕ часа входа
         since = (since // 3_600_000 + 1) * 3_600_000
@@ -1116,6 +1118,13 @@ def step(state: dict, write: bool) -> list[str]:
             _rl = _rate_ok(now)
             if _rl:
                 msgs.append(f"{sym[:-4]} не взят: {_rl}"); continue
+            try:                                                           # 03.10 владелец «делай»: всплеск берём в ШОРТ, а не в лонг — цель 5 %, стоп 5 %, вход по той же цене
+                from core_config import FAST3_SPIKE_SHORT as _ss, FAST3_SPIKE_SHORT_TP as _stp, FAST3_SPIKE_SHORT_SL as _ssl, FAST3_SPIKE_SHORT_HOLD_MIN as _shm
+            except ImportError:
+                _ss, _stp, _ssl, _shm = True, 0.05, 0.05, 1440
+            if _ss and sd == 1 and not _no_short(sym, px):                # в монетах лестницы (Г / R47 / ручной список) шорт не берём — там остаётся лонг по прежним правилам
+                sd, tp, sl, hold = -1, _stp, _ssl, _shm
+                why = f"всплеск → шорт 5/5 (03.10: на 301 входе недели лонг −1632 $, шорт 5/5 +1958 $) · " + why
             sl, _spx, _snote = _range_stop(sym, sd, px, sl)                 # 02.10 владелец: стоп за диапазоном 30 дн
             if _snote: why = why + " · " + _snote
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, stop_px=_spx, hold_min=hold, rule=why, last_px=px, bars=0, pump_open=_pump_open(px, why))
@@ -1267,6 +1276,13 @@ def wake_step(state: dict, write: bool) -> list[str]:
             _rl = _rate_ok(now)
             if _rl:
                 msgs.append(f"{sym[:-4]} не взят: {_rl}"); continue
+            try:                                                           # 03.10 владелец «делай»: всплеск берём в ШОРТ, а не в лонг — цель 5 %, стоп 5 %, вход по той же цене
+                from core_config import FAST3_SPIKE_SHORT as _ss, FAST3_SPIKE_SHORT_TP as _stp, FAST3_SPIKE_SHORT_SL as _ssl, FAST3_SPIKE_SHORT_HOLD_MIN as _shm
+            except ImportError:
+                _ss, _stp, _ssl, _shm = True, 0.05, 0.05, 1440
+            if _ss and sd == 1 and not _no_short(sym, px):                # в монетах лестницы (Г / R47 / ручной список) шорт не берём — там остаётся лонг по прежним правилам
+                sd, tp, sl, hold = -1, _stp, _ssl, _shm
+                why = f"всплеск → шорт 5/5 (03.10: на 301 входе недели лонг −1632 $, шорт 5/5 +1958 $) · " + why
             sl, _spx, _snote = _range_stop(sym, sd, px, sl)                 # 02.10 владелец: стоп за диапазоном 30 дн
             if _snote: why = why + " · " + _snote
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, stop_px=_spx, hold_min=hold, rule=why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", last_px=px, bars=0, pump_open=_pump_open(px, why))
