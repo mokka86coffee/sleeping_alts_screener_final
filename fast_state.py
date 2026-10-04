@@ -113,9 +113,59 @@ def reviews() -> dict:
 HIST_DAYS = 6   # 28.09 владелец: «стрелки по бокам с переключением на предыдущий день» — лента показывает сделки прошлых дней (6 дн)
 
 
+# 04.10 22:00 владелец: «на сайте бота от каждой сделки отнимаем 20$ при цене позиции 500$ — так информация будет надёжнее; сделки, которых
+# не было на bingx, помечаем отдельно» (сверка 02–04.10: одни и те же 77 сделок в книге −109 $, на бирже −458 $ — книга пишет выход по расчётной
+# цене, биржа закрывает по рынку). Вычет пропорционален сумме позиции: 8 $ на 500 $, 16 $ на 1000 $ (сначала было 20 $). Процент хода (res) остаётся как был.
+SITE_CUT_USD, SITE_CUT_PER = 8.0, 500.0   # 04.10 22:10 владелец: «пересчитай по 8$ вместо 20»
+
+
+def _bx_book() -> tuple[list, list, set]:
+    """журнал зеркала BingX: входы, принятые биржей; записи «позиции не было» (лимит не исполнился); открытые сейчас"""
+    ok, dead, openb = [], [], set()
+    try:
+        with open(BASE_DIR / "output" / "bingx_orders.jsonl", encoding="utf-8") as f:
+            for ln in f:
+                if '"kind": "req"' in ln:
+                    continue
+                try:
+                    e = json.loads(ln)
+                except ValueError:
+                    continue
+                k = e.get("kind")
+                if k == "entry" and e.get("ok"):
+                    ok.append((e.get("sym"), float(e.get("t") or 0)))
+                elif k == "entry_unfilled" or (k == "exit" and "лимит не исполнился" in str(e.get("why") or "")):
+                    dead.append((e.get("sym"), float(e.get("t") or 0)))
+    except OSError:
+        pass
+    openb = set((_read(BASE_DIR / "output" / "bingx_state.json", {}).get("open") or {}).keys())
+    return ok, dead, openb
+
+
+def _was_bx(bx: tuple, sym: str, t_in: float, t_out: float | None = None) -> bool:
+    """была ли сделка бота на бирже: вход принят (±20 мин от входа бота) и позиция существовала (лимит исполнился)"""
+    ok, dead, _ = bx
+    ent = [t for s, t in ok if s == sym and abs(t - t_in) < 1200]
+    if not ent:
+        return False
+    hi = (t_out + 600) if t_out else float("inf")
+    return not any(s == sym and min(ent) <= t <= hi for s, t in dead)
+
+
+def _cut(raw: float, rp: float, r: dict) -> tuple[float, float]:
+    """сумма позиции и вычет с неё: сумма — из записи (usd_in) или из отношения денег к проценту; вычет SITE_CUT_USD на SITE_CUT_PER"""
+    if r.get("usd_in"):
+        size = float(r["usd_in"])
+    elif abs(rp) > 0.05:
+        size = round(abs(raw / rp) * 100 / 100) * 100.0
+    else:
+        size = float(cc.FAST3_SIZE) * float(r.get("size") or 1)
+    return size, round(SITE_CUT_USD * size / SITE_CUT_PER, 2)
+
+
 def positions(now: float) -> tuple[list, list, list]:
     day0 = datetime.fromtimestamp(now, L).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
-    RV = reviews()
+    RV = reviews(); BX = _bx_book()
     op, cl, hist = [], [], []
     for book, stem in BOOKS:
         stt = _read(BASE_DIR / "output" / f"{stem}.json", {})
@@ -128,15 +178,18 @@ def positions(now: float) -> tuple[list, list, list]:
                            stop=(float(p["stop_px"]) if p.get("stop_px") else e * (1 - sd * float(p["stop"]))),      # 04.10: стоп, перенесённый в твх или на низ удержания, показываем как есть
                            tp=float(p["target"]), sl=float(p["stop"]), t_in=float(p["at"]), goal=_goal(p, e, sd),
                            exit_at=(int(p["t_ms"]) + B3) / 1000 + int(p.get("hold_min") or 0) * 60, px=p.get("last_px"), rule=p.get("rule") or "",
-                           oi1h_in=er.get("oi1h"), board6_in=(er.get("fon") or {}).get("board6")))
+                           oi1h_in=er.get("oi1h"), board6_in=(er.get("fon") or {}).get("board6"), bx=sym in BX[2]))
         for r in R:
             if not str(r.get("kind", "")).startswith("exit") or float(r.get("at") or 0) < day0 - HIST_DAYS * 86400:
                 continue
             key = f"{book}|{r['sym']}|{int(float(r['at']))}"
+            raw = round(float(r["usd"]) if r.get("usd") is not None else float(r["result_pct"]) * 5, 2)   # 29.09: сумма сделки берётся из записи (было 500 $ → 1000 $)
+            size, cut = _cut(raw, float(r["result_pct"]), r)
             (cl if float(r["at"]) >= day0 else hist).append(dict(book=book, sym=r["sym"], side=int(r.get("side") or 1), entry=float(r["px_in"]), exit=float(r.get("px_out") or 0),
                            t_in=float(r.get("opened_at") or 0), t_out=float(r["at"]), why=r.get("why_exit") or "", res=float(r["result_pct"]),
-                           usd=round(float(r["usd"]) if r.get("usd") is not None else float(r["result_pct"]) * 5, 2),   # 29.09: сумма сделки берётся из записи (было 500 $ → 1000 $)
-                            rule=r.get("rule") or "", review=RV.get(key)))
+                           usd=round(raw - cut, 2), usd_raw=raw, size_usd=size, cut=cut,                    # 04.10: деньги на сайте — за вычетом 20 $ на 500 $ позиции
+                           bx=_was_bx(BX, r["sym"], float(r.get("opened_at") or 0), float(r["at"])),             # была ли сделка на BingX
+                           rule=r.get("rule") or "", review=RV.get(key)))
     cl.sort(key=lambda x: -x["t_out"])
     hist.sort(key=lambda x: -x["t_out"])
     return op, cl, hist

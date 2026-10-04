@@ -684,7 +684,8 @@ FUNDING_LOW = -0.30             # R14 фандинг− (лонг): фандин
 FUNDING_FON_HI24_MIN = -12.0
 FUNDING_SIZE, FUNDING_TARGET, FUNDING_STOP, FUNDING_HOLD, FUNDING_PAUSE_H = 500.0, 0.10, 0.06, 48, 8
 DIV_SIZE, DIV_TARGET, DIV_STOP, DIV_HOLD, DIV_PAUSE_H = 500.0, 0.10, 0.05, 48, 8   # R32 дивергенция (лонг): новый максимум 24 ч при интересе ≤ 0.8 × прошлого
-FAST3_SIZE, FAST3_SPIKE_X, FAST3_SPIKE_MINQ, FAST3_SPIKE_PCT = 1000.0, 5.0, 50_000, 0.01   # всплеск: бар ×5 медианы 30, ≥50K$, +1% (пороги мои, не из счёта)
+# 04.10 21:45 владелец: «поменяй сумму ордера на 500$», «и в боте и на бингикс» — сумма на сделку 500 $ (было 1000); на BingX то же в bingx_config.json size_usd
+FAST3_SIZE, FAST3_SPIKE_X, FAST3_SPIKE_MINQ, FAST3_SPIKE_PCT = 500.0, 5.0, 50_000, 0.01   # всплеск: бар ×5 медианы 30, ≥50K$, +1% (пороги мои, не из счёта)
 FAST3_SPIKE_TP, FAST3_SPIKE_SL, FAST3_SPIKE_HOLD_MIN = 0.05, 0.05, 120       # выход всплеска: +5 / −5 / 2 ч
 FAST3_CLIMAX_BAR, FAST3_CLIMAX_RUN, FAST3_CLIMAX_OI = 0.04, 30.0, -0.02     # вынос: бар +4% при ходе 24 ч ≥ +30% и интерес на баре −2% → шорт
 FAST3_CLIMAX_TP, FAST3_CLIMAX_SL, FAST3_CLIMAX_HOLD_MIN = 0.08, 0.06, 720   # выход выноса: −8 / +6 / 12 ч

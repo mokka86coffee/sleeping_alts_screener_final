@@ -1222,7 +1222,8 @@ function realDetail(g, l) {
     d.now = ch && ch.bars && ch.bars.length ? ch.bars[ch.bars.length - 1][4] : it.exit;
     const resTxt = it.res != null ? `итог ${pctStr(it.res)}${it.usd != null ? ` (${it.usd >= 0 ? '+' : '−'}${Math.abs(Math.round(it.usd))} $)` : ''}` : '';   // 30.09 владелец «нет итога сделки»: итог виден сразу, а не только после разбора через 2 ч
     const tm = it.t_in && it.t_out ? `вход ${dmhT(it.t_in)} → выход ${dmhT(it.t_out)}` : '';   // 01.10 владелец «а где время сделки?»: время входа и выхода в подписи закрытой сделки
-    d.status = rv ? `${tm ? tm + ' · ' : ''}${resTxt} · ${rv.verdict}` : `${it.book} · ${tm ? tm + ' · ' : ''}${it.why} · ${resTxt} · разбор придёт через 2 ч после выхода`;
+    const bxTxt = it.bx === false ? 'НЕ БЫЛО НА BINGX · ' : '';   // 04.10 владелец: «сделки, которых не было на bingx, помечаем отдельно»
+    d.status = bxTxt + (rv ? `${tm ? tm + ' · ' : ''}${resTxt} · ${rv.verdict}` : `${it.book} · ${tm ? tm + ' · ' : ''}${it.why} · ${resTxt} · разбор придёт через 2 ч после выхода`);
   } else if (kind === 'entry') {
     d.entry = it.level; d.now = it.px; d.left = it.dist != null ? it.dist : (it.level / it.px - 1) * 100;
     d.volPct = Math.round((it.vol_x || 0) * 100); d.bar = it.bar || 0; d.oi = it.oi1h || 0;
@@ -1234,7 +1235,7 @@ function realDetail(g, l) {
     d.left = it.target != null ? (it.target / d.now - 1) * 100 * (it.side || 1) : null;
     d.pnl = (d.now / it.entry - 1) * 100 * (it.side || 1);
     d.oi = it.oi1h_in || 0; d.side = it.side;
-    d.status = `${it.book} · ${it.side < 0 ? 'шорт' : 'лонг'} с ${dmhT(it.t_in)} · ` + (d.left != null ? `до цели ещё ${pctStr(d.left)}` : (it.goal || 'цель — выход по времени или стопу'));
+    d.status = (it.bx === false ? 'НЕТ НА BINGX · ' : '') + `${it.book} · ${it.side < 0 ? 'шорт' : 'лонг'} с ${dmhT(it.t_in)} · ` + (d.left != null ? `до цели ещё ${pctStr(d.left)}` : (it.goal || 'цель — выход по времени или стопу'));
     d.exitNote = `стоп ${fmtPrice(it.stop)} · срок ${hmT(it.exit_at)}`;
   }
   if (ch && ch.bars && ch.bars.length) {
@@ -1279,7 +1280,7 @@ function renderCard(g, l) {
     const it = d.item, rv = d.rv;
     t.push(tile('вход', fmtPrice(d.entry), '', `${it.side < 0 ? 'шорт' : 'лонг'} · ${dmhT(it.t_in)}`));
     t.push(tile('выход', fmtPrice(d.exitPx), sgn(d.res), `${it.why} · ${dmhT(it.t_out)}`));
-    t.push(tile('итог', pctStr(d.res), sgn(d.res), `${d.usd >= 0 ? '+' : '−'}${Math.abs(Math.round(d.usd))} $ при ${Math.abs(d.res) > 0.05 ? Math.round(Math.abs(d.usd / d.res) * 100 / 100) * 100 / 100 : 500} $`));
+    t.push(tile('итог', pctStr(d.res), sgn(d.res), `${d.usd >= 0 ? '+' : '−'}${Math.abs(Math.round(d.usd))} $ при ${it.size_usd ? Math.round(it.size_usd) : (Math.abs(d.res) > 0.05 ? Math.round(Math.abs(d.usd / d.res) * 100 / 100) * 100 / 100 : 500)} $${it.cut ? ` · вычтено ${Math.round(it.cut)} $` : ''}${it.bx === false ? ' · не было на BingX' : ''}`));
     if (rv) {
       t.push(tile('в сделке', `${pctStr(rv.mfe)} / ${pctStr(rv.mae)}`, '', `лучшее ${rv.mfe_min} мин · худшее ${rv.mae_min} мин`));
       t.push(tile('после выхода', rv.post_best != null ? pctStr(rv.post_best) : '—', rv.post_best != null ? sgn(rv.post_best) : '', rv.post_h ? `лучшее за ${rv.post_h} ч · сейчас ${pctStr(rv.post_close)}` : ''));
@@ -2630,7 +2631,7 @@ function totBlock(G) {
   const item = (name, v) => { const p = v >= 0, k = p ? '110,240,180' : '255,110,130'; return `<div style="--k:rgb(${k});--c:rgb(${k})"><small>${name}</small><div style="display:flex;align-items:flex-end;justify-content:flex-end;gap:4px">${cryo(`${p ? '+' : '−'}${Math.abs(Math.round(v))}`, 11.2, 1.3) + '<em class="cur" style="font-size:8.8px">$</em>'}</div></div>`; };
   el.style.cssText = `right:${W - G.x1}px; top:54px; --c: rgb(${rgb}); --w: rgb(${rgb.split(',').map(v => Math.round(+v + (255 - v) * .6)).join(',')}); --rgb: ${rgb}`;
   el.innerHTML = `<div class="tt-top"><i></i><span>${lab}</span></div>
-    <div class="tt-cols">${Object.entries(S.by).map(([b, v]) => item(b, v)).join('')}<div style="--k:rgb(165,205,245)"><small>входов</small><div style="display:flex;align-items:flex-end;justify-content:flex-end">${cryo(String(S.n), 11.2, 1.3)}</div></div></div>
+    <div class="tt-cols">${Object.entries(S.by).map(([b, v]) => item(b, v)).join('')}${S.nobxN ? item(`не было на BingX · ${S.nobxN}`, S.nobx) : ''}<div style="--k:rgb(165,205,245)"><small>входов</small><div style="display:flex;align-items:flex-end;justify-content:flex-end">${cryo(String(S.n), 11.2, 1.3)}</div></div></div>
     <div class="tt-main">${spark}<div class="tt-num">${cryo(`${pos ? '+' : '−'}${Math.abs(Math.round(S.total))}`, 28.8, 1.9)}<em class="cur">$</em></div></div>
     <div class="tt-sh"></div>`;
 }
@@ -2737,8 +2738,9 @@ ribMake({
     });
     {   // накопленный итог дня — данные для блока справа (на график не рисуем)
       const cl = arcs.filter(x => !x.open && x.item.t_out).sort((p, q) => p.item.t_out - q.item.t_out), by = {}; let cum = 0; const pts = [[0, 0]];
-      for (const x of cl) { const u = x.item.usd != null ? x.item.usd : (x.item.res || 0) * 5; cum += u; by[x.item.book] = (by[x.item.book] || 0) + u; pts.push([clamp((x.item.t_out - G.t0) / 86400), cum]); }
-      FSC.sum = { total: cum, by, pts, n: arcs.length };
+      let nobx = 0, nobxN = 0;   // 04.10 владелец: сделки, которых не было на BingX, — отдельной строкой
+      for (const x of cl) { const u = x.item.usd != null ? x.item.usd : (x.item.res || 0) * 5; cum += u; by[x.item.book] = (by[x.item.book] || 0) + u; if (x.item.bx === false) { nobx += u; nobxN++; } pts.push([clamp((x.item.t_out - G.t0) / 86400), cum]); }
+      FSC.sum = { total: cum, by, pts, n: arcs.length, nobx, nobxN };
     }
     const maxU = Math.max(1, ...arcs.map(bubUsd));
     const dots = arcs.map((a, i) => { const cx = G.x0 + (G.x1 - G.x0) * clamp((a.item.t_in - G.t0) / 86400), v = ribRes(a), cy = Y(v);
