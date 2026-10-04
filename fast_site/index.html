@@ -1222,7 +1222,7 @@ function realDetail(g, l) {
     d.now = ch && ch.bars && ch.bars.length ? ch.bars[ch.bars.length - 1][4] : it.exit;
     const resTxt = it.res != null ? `итог ${pctStr(it.res)}${it.usd != null ? ` (${it.usd >= 0 ? '+' : '−'}${Math.abs(Math.round(it.usd))} $)` : ''}` : '';   // 30.09 владелец «нет итога сделки»: итог виден сразу, а не только после разбора через 2 ч
     const tm = it.t_in && it.t_out ? `вход ${dmhT(it.t_in)} → выход ${dmhT(it.t_out)}` : '';   // 01.10 владелец «а где время сделки?»: время входа и выхода в подписи закрытой сделки
-    const bxTxt = it.bx === false ? 'НЕ БЫЛО НА BINGX · ' : '';   // 04.10 владелец: «сделки, которых не было на bingx, помечаем отдельно»
+    const bxTxt = it.bx === false ? 'НЕ БЫЛО НА BINGX · ' : (it.real != null ? `НА BINGX ${it.real >= 0 ? '+' : '−'}${Math.abs(Math.round(it.real))} $ · ` : '');   // 04.10 владелец: «на бумаге все сделки пусть остаются как есть в боте, в итог только реальное число попадает»
     d.status = bxTxt + (rv ? `${tm ? tm + ' · ' : ''}${resTxt} · ${rv.verdict}` : `${it.book} · ${tm ? tm + ' · ' : ''}${it.why} · ${resTxt} · разбор придёт через 2 ч после выхода`);
   } else if (kind === 'entry') {
     d.entry = it.level; d.now = it.px; d.left = it.dist != null ? it.dist : (it.level / it.px - 1) * 100;
@@ -1280,7 +1280,7 @@ function renderCard(g, l) {
     const it = d.item, rv = d.rv;
     t.push(tile('вход', fmtPrice(d.entry), '', `${it.side < 0 ? 'шорт' : 'лонг'} · ${dmhT(it.t_in)}`));
     t.push(tile('выход', fmtPrice(d.exitPx), sgn(d.res), `${it.why} · ${dmhT(it.t_out)}`));
-    t.push(tile('итог', pctStr(d.res), sgn(d.res), `${d.usd >= 0 ? '+' : '−'}${Math.abs(Math.round(d.usd))} $ при ${it.size_usd ? Math.round(it.size_usd) : (Math.abs(d.res) > 0.05 ? Math.round(Math.abs(d.usd / d.res) * 100 / 100) * 100 / 100 : 500)} $${it.cut ? ` · вычтено ${Math.round(it.cut)} $` : ''}${it.bx === false ? ' · не было на BingX' : ''}`));
+    t.push(tile('итог', pctStr(d.res), sgn(d.res), `на бумаге ${d.usd >= 0 ? '+' : '−'}${Math.abs(Math.round(d.usd))} $` + (it.real != null ? ` · на BingX ${it.real >= 0 ? '+' : '−'}${Math.abs(Math.round(it.real))} $ с комиссией` : (it.bx === false ? ' · на BingX не было' : ''))));
     if (rv) {
       t.push(tile('в сделке', `${pctStr(rv.mfe)} / ${pctStr(rv.mae)}`, '', `лучшее ${rv.mfe_min} мин · худшее ${rv.mae_min} мин`));
       t.push(tile('после выхода', rv.post_best != null ? pctStr(rv.post_best) : '—', rv.post_best != null ? sgn(rv.post_best) : '', rv.post_h ? `лучшее за ${rv.post_h} ч · сейчас ${pctStr(rv.post_close)}` : ''));
@@ -1958,7 +1958,7 @@ function drawRibbon(t) {
   // заголовок: день и итог дня по книгам (резкий слой)
   const DW = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'], d = new Date(G.t0 * 1000);
   const cl = RIB.arcs.filter(a => !a.open), by = {};
-  for (const a of cl) { const b = by[a.item.book] || (by[a.item.book] = 0); by[a.item.book] = b + (a.item.usd != null ? a.item.usd : a.item.res * 5); }
+  for (const a of cl) { if (a.item.book === 'только BingX') continue; by[a.item.book] = (by[a.item.book] || 0) + (a.item.usd != null ? a.item.usd : a.item.res * 5); }
   ctx.font = `11.7px ${FONT}`; ctx.textAlign = 'right'; ctx.fillStyle = 'rgba(150,185,225,.6)';   // 30.09 владелец: шрифт заголовка ленты +30% (было 9px)
   text(`СДЕЛКИ · ${RIB.day === 0 ? 'СЕГОДНЯ' : DW[d.getDay()].toUpperCase() + ' ' + d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`, x1, yb - RIB_H + 20);
   ctx.fillStyle = 'rgba(225,240,255,.95)';   // 30.09 владелец «суммы ярче» (было .4)
@@ -2503,7 +2503,7 @@ function ribMake(o) {
     // заголовок
     const DW = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'], d = new Date(G.t0 * 1000);
     const by = {};
-    for (const a of RIB.arcs.filter(a => !a.open)) by[a.item.book] = (by[a.item.book] || 0) + (a.item.usd != null ? a.item.usd : a.item.res * 5);
+    for (const a of RIB.arcs.filter(a => !a.open)) { if (a.item.book === 'только BingX') continue; by[a.item.book] = (by[a.item.book] || 0) + (a.item.usd != null ? a.item.usd : a.item.res * 5); }
     tctx.letterSpacing = o.hdrSp || '0px';
     ctx.font = `11.7px ${o.hdrFont || FONT}`; ctx.textAlign = 'right'; ctx.fillStyle = o.hdr1;
     text(`СДЕЛКИ · ${RIB.day === 0 ? 'СЕГОДНЯ' : DW[d.getDay()].toUpperCase() + ' ' + d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`, x1, yb - RIB_H + 20);
@@ -2631,9 +2631,12 @@ function totBlock(G) {
   const item = (name, v) => { const p = v >= 0, k = p ? '110,240,180' : '255,110,130'; return `<div style="--k:rgb(${k});--c:rgb(${k})"><small>${name}</small><div style="display:flex;align-items:flex-end;justify-content:flex-end;gap:4px">${cryo(`${p ? '+' : '−'}${Math.abs(Math.round(v))}`, 11.2, 1.3) + '<em class="cur" style="font-size:8.8px">$</em>'}</div></div>`; };
   el.style.cssText = `right:${W - G.x1}px; top:54px; --c: rgb(${rgb}); --w: rgb(${rgb.split(',').map(v => Math.round(+v + (255 - v) * .6)).join(',')}); --rgb: ${rgb}`;
   el.innerHTML = `<div class="tt-top"><i></i><span>${lab}</span></div>
-    <div class="tt-cols">${Object.entries(S.by).map(([b, v]) => item(b, v)).join('')}${S.nobxN ? item(`не было на BingX · ${S.nobxN}`, S.nobx) : ''}<div style="--k:rgb(165,205,245)"><small>входов</small><div style="display:flex;align-items:flex-end;justify-content:flex-end">${cryo(String(S.n), 11.2, 1.3)}</div></div></div>
+    <div class="tt-cols">${Object.entries(S.by).map(([b, v]) => item(b, v)).join('')}<div style="--k:rgb(165,205,245)"><small>входов</small><div style="display:flex;align-items:flex-end;justify-content:flex-end">${cryo(String(S.n), 11.2, 1.3)}</div></div></div>
     <div class="tt-main">${spark}<div class="tt-num">${cryo(`${pos ? '+' : '−'}${Math.abs(Math.round(S.total))}`, 28.8, 1.9)}<em class="cur">$</em></div></div>
-    <div class="tt-sh"></div>`;
+    <div class="tt-sh"></div>
+    <div class="tt-top" style="margin-top:16px"><i></i><span>BingX · по бирже</span></div>
+    <div class="tt-cols" style="flex-direction:row;justify-content:flex-end;gap:22px;margin-top:10px;padding-bottom:10px"><div style="--k:rgb(165,205,245)"><small>вошло · из ${S.nIn}</small><div style="display:flex;align-items:flex-end;justify-content:flex-end">${cryo(String(S.bxIn), 11.2, 1.3)}</div></div><div style="--k:rgb(165,205,245)"><small>закрыто · из ${S.nOut}</small><div style="display:flex;align-items:flex-end;justify-content:flex-end">${cryo(String(S.bxOut), 11.2, 1.3)}</div></div></div>
+    <div class="tt-main" style="margin-top:10px;--rgb:${S.real >= 0 ? '110,240,180' : '255,110,130'}"><div class="tt-num">${cryo(`${S.real >= 0 ? '+' : '−'}${Math.abs(Math.round(S.real || 0))}`, 20, 1.6)}<em class="cur">$</em></div></div>`;
 }
 const bubUsd = a => Math.abs(a.item.usd != null ? a.item.usd : (a.item.res || 0) * 5);
 const ribRes = a => a.open ? ((a.item.px && a.item.entry) ? (a.item.px / a.item.entry - 1) * (a.item.side || 1) * 100 : 0) : (a.item.res || 0);
@@ -2738,9 +2741,17 @@ ribMake({
     });
     {   // накопленный итог дня — данные для блока справа (на график не рисуем)
       const cl = arcs.filter(x => !x.open && x.item.t_out).sort((p, q) => p.item.t_out - q.item.t_out), by = {}; let cum = 0; const pts = [[0, 0]];
-      let nobx = 0, nobxN = 0;   // 04.10 владелец: сделки, которых не было на BingX, — отдельной строкой
-      for (const x of cl) { const u = x.item.usd != null ? x.item.usd : (x.item.res || 0) * 5; cum += u; by[x.item.book] = (by[x.item.book] || 0) + u; if (x.item.bx === false) { nobx += u; nobxN++; } pts.push([clamp((x.item.t_out - G.t0) / 86400), cum]); }
-      FSC.sum = { total: cum, by, pts, n: arcs.length, nobx, nobxN };
+      // 04.10 владелец: «сделаем 2 итога: один по боту как сейчас, 2-й ниже по bingx — итог и открытые/закрытые реально количество / общих сделок бота»;
+      // «не открытые до сих пор, а открытые в этот день». Итог бота — бумажный, как в журнале бота. Итог BingX — деньги биржи по исполнениям с комиссией
+      // (real), вместе со сделками, которые были на бирже, а в журнале бота их нет (книга «только BingX»).
+      let real = 0, bxIn = 0, nIn = 0, bxOut = 0, nOut = 0;
+      for (const x of arcs) { if (x.item.book === 'только BingX') continue; nIn++; if (x.item.bx) bxIn++; if (!x.open) { nOut++; if (x.item.bx) bxOut++; } }
+      for (const x of cl) {
+        if (x.item.real != null) real += x.item.real;
+        if (x.item.book === 'только BingX') continue;
+        const u = x.item.usd != null ? x.item.usd : (x.item.res || 0) * 5; cum += u; by[x.item.book] = (by[x.item.book] || 0) + u; pts.push([clamp((x.item.t_out - G.t0) / 86400), cum]);
+      }
+      FSC.sum = { total: cum, by, pts, n: nIn, real, bxIn, nIn, bxOut, nOut };
     }
     const maxU = Math.max(1, ...arcs.map(bubUsd));
     const dots = arcs.map((a, i) => { const cx = G.x0 + (G.x1 - G.x0) * clamp((a.item.t_in - G.t0) / 86400), v = ribRes(a), cy = Y(v);

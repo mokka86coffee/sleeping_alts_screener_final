@@ -113,59 +113,110 @@ def reviews() -> dict:
 HIST_DAYS = 6   # 28.09 владелец: «стрелки по бокам с переключением на предыдущий день» — лента показывает сделки прошлых дней (6 дн)
 
 
-# 04.10 22:00 владелец: «на сайте бота от каждой сделки отнимаем 20$ при цене позиции 500$ — так информация будет надёжнее; сделки, которых
-# не было на bingx, помечаем отдельно» (сверка 02–04.10: одни и те же 77 сделок в книге −109 $, на бирже −458 $ — книга пишет выход по расчётной
-# цене, биржа закрывает по рынку). Вычет пропорционален сумме позиции: 8 $ на 500 $, 16 $ на 1000 $ (сначала было 20 $). Процент хода (res) остаётся как был.
-SITE_CUT_USD, SITE_CUT_PER = 8.0, 500.0   # 04.10 22:10 владелец: «пересчитай по 8$ вместо 20»
+# 04.10 22:30 владелец: «давай заменим, так будет честнее, + комиссия биржи»; «на бумаге все сделки пусть остаются как есть в боте, в итог
+# только реальное число попадает» (до этого час стоял вычет 20 $ / 8 $ на сделку — «8$ это просто цифра с потолка»). Бумажный результат сделки
+# (usd, res) остаётся как в журнале бота. Рядом поле real — что эта сделка дала на BingX по данным самой биржи: исполнения ордеров
+# (продано минус куплено) плюс комиссии; фандинг не входит (за 02–04.10 это −2 $). Сделки, которых на бирже не было, — real = None, в итог дня не идут. Сделки, которые были
+# на бирже, а в журнале бота их нет (пачка сканера 03.10), добавляются книгой «только BingX», чтобы итог дня равнялся бирже.
+BX_FILLS = BASE_DIR / "output" / "bingx_fills.json"
+BX_ONLY_BOOK = "только BingX"
 
 
-def _bx_book() -> tuple[list, list, set]:
-    """журнал зеркала BingX: входы, принятые биржей; записи «позиции не было» (лимит не исполнился); открытые сейчас"""
-    ok, dead, openb = [], [], set()
+def _bx_fills(now: float, since: float) -> list[dict]:
+    """исполнения ордеров на BingX (цена, объём, комиссия каждого исполнения) — /trade/allFillOrders, кэш в output/bingx_fills.json, дочитывается
+    с последнего запроса по суткам. Выбраны исполнения, а не /user/income: доход биржа отдаёт с опозданием на часы (04.10 в 22:30 кончался на 10:00)."""
+    cache = _read(BX_FILLS, {}) or {}
+    rows = {r["id"]: r for r in cache.get("rows") or []}
+    start = max(since, float(cache.get("last") or 0) - 3600)
+    try:
+        import bingx_trader as bx
+        c = bx.cfg(); a = start
+        while a < now:
+            b = min(a + 86400, now)
+            r = bx.request("GET", "/openApi/swap/v2/trade/allFillOrders", {"startTs": int(a * 1000), "endTs": int(b * 1000), "tradingUnit": "COIN"}, c) or {}
+            if r.get("code") != 0:
+                raise RuntimeError(f"{r.get('code')} {r.get('msg')}")
+            d = r.get("data") or {}
+            for x in (d.get("fill_orders") if isinstance(d, dict) else d) or []:
+                t = datetime.fromisoformat(str(x.get("filledTime"))).timestamp()
+                k = f"{x.get('orderId')}|{x.get('filledTime')}|{x.get('price')}|{x.get('volume')}"
+                rows[k] = dict(id=k, sym=x.get("symbol"), side=x.get("side"), ps=x.get("positionSide"), px=float(x.get("price") or 0), qty=float(x.get("volume") or 0),
+                               amt=float(x.get("amount") or 0), fee=float(x.get("commission") or 0), t=t)
+            a = b
+        out = sorted(rows.values(), key=lambda r: r["t"])
+        tmp = BX_FILLS.with_suffix(".tmp"); tmp.write_text(json.dumps(dict(last=now, rows=out), ensure_ascii=False), encoding="utf-8"); tmp.replace(BX_FILLS)
+        return out
+    except Exception as e:  # noqa: BLE001
+        print(f"исполнения BingX: сбой {type(e).__name__}: {e} — беру кэш")
+        return sorted(rows.values(), key=lambda r: r["t"])
+
+
+def _bx_book() -> tuple[list, set]:
+    """журнал зеркала BingX → сделки биржи: [{sym, bx, side, t_in, t_out, px_in, px_out, dead}], dead — лимит не исполнился, позиции не было;
+    и монеты, открытые на бирже сейчас. Имя монеты на BingX берётся из запроса ордера рядом со входом."""
+    trades, last_req, cur = [], {}, {}
     try:
         with open(BASE_DIR / "output" / "bingx_orders.jsonl", encoding="utf-8") as f:
             for ln in f:
                 if '"kind": "req"' in ln:
+                    if '"POST"' in ln and "/trade/order" in ln:
+                        try:
+                            e = json.loads(ln)
+                        except ValueError:
+                            continue
+                        last_req = dict(t=float(e.get("t") or 0), bx=(e.get("params") or {}).get("symbol"))
                     continue
                 try:
                     e = json.loads(ln)
                 except ValueError:
                     continue
-                k = e.get("kind")
+                k, sym, t = e.get("kind"), e.get("sym"), float(e.get("t") or 0)
                 if k == "entry" and e.get("ok"):
-                    ok.append((e.get("sym"), float(e.get("t") or 0)))
-                elif k == "entry_unfilled" or (k == "exit" and "лимит не исполнился" in str(e.get("why") or "")):
-                    dead.append((e.get("sym"), float(e.get("t") or 0)))
+                    bxs = last_req.get("bx") if last_req and t - last_req.get("t", 0) < 30 else None
+                    if sym in cur:                                        # добор к открытой позиции (R63) — та же сделка
+                        continue
+                    cur[sym] = dict(sym=sym, bx=bxs or (sym[:-4] + "-USDT"), side=int(e.get("side") or 1), t_in=t, t_out=None, px_in=float(e.get("entry") or 0), px_out=None, dead=False)
+                    trades.append(cur[sym])
+                elif k in ("exit", "exit_manual") and sym in cur:
+                    tr = cur.pop(sym); tr["t_out"] = t; tr["px_out"] = e.get("exit")
+                    tr["dead"] = "лимит не исполнился" in str(e.get("why") or "")
+                elif k == "entry_unfilled" and sym in cur:
+                    tr = cur.pop(sym); tr["t_out"] = t; tr["dead"] = True
     except OSError:
         pass
-    openb = set((_read(BASE_DIR / "output" / "bingx_state.json", {}).get("open") or {}).keys())
-    return ok, dead, openb
+    return trades, set((_read(BASE_DIR / "output" / "bingx_state.json", {}).get("open") or {}).keys())
 
 
-def _was_bx(bx: tuple, sym: str, t_in: float, t_out: float | None = None) -> bool:
-    """была ли сделка бота на бирже: вход принят (±20 мин от входа бота) и позиция существовала (лимит исполнился)"""
-    ok, dead, _ = bx
-    ent = [t for s, t in ok if s == sym and abs(t - t_in) < 1200]
-    if not ent:
-        return False
-    hi = (t_out + 600) if t_out else float("inf")
-    return not any(s == sym and min(ent) <= t <= hi for s, t in dead)
-
-
-def _cut(raw: float, rp: float, r: dict) -> tuple[float, float]:
-    """сумма позиции и вычет с неё: сумма — из записи (usd_in) или из отношения денег к проценту; вычет SITE_CUT_USD на SITE_CUT_PER"""
-    if r.get("usd_in"):
-        size = float(r["usd_in"])
-    elif abs(rp) > 0.05:
-        size = round(abs(raw / rp) * 100 / 100) * 100.0
-    else:
-        size = float(cc.FAST3_SIZE) * float(r.get("size") or 1)
-    return size, round(SITE_CUT_USD * size / SITE_CUT_PER, 2)
+def _bx_real(trades: list, fills: list) -> None:
+    """каждой сделке биржи — её деньги по исполнениям: продано минус куплено по монете и стороне позиции за время жизни сделки, плюс комиссии
+    (каждое исполнение идёт только в одну сделку). Объёмы входа и выхода не сошлись или исполнений нет — real остаётся None."""
+    by = {}
+    for r in fills:
+        by.setdefault(r["sym"], []).append(r)
+    used = set()
+    for tr in sorted(trades, key=lambda x: x["t_in"]):
+        tr["real"], tr["fee"] = None, 0.0
+        if tr["dead"] or not tr["t_out"]:
+            continue
+        ps = "LONG" if tr["side"] == 1 else "SHORT"
+        got = [r for r in by.get(tr["bx"], []) if r["id"] not in used and r["ps"] in (ps, "BOTH") and tr["t_in"] - 30 <= r["t"] <= tr["t_out"] + 120]
+        buy = [r for r in got if r["side"] == "BUY"]; sell = [r for r in got if r["side"] == "SELL"]
+        qb, qs = sum(r["qty"] for r in buy), sum(r["qty"] for r in sell)
+        if not buy or not sell or abs(qb - qs) > 1e-9 * max(qb, qs, 1) + 1e-12:
+            continue
+        used.update(r["id"] for r in got)
+        tr["fee"] = round(sum(r["fee"] for r in got), 2)
+        tr["real"] = round(sum(r["amt"] for r in sell) - sum(r["amt"] for r in buy) + tr["fee"], 2)
+        opn, cls = (buy, sell) if tr["side"] == 1 else (sell, buy)
+        tr["fill_in"] = sum(r["amt"] for r in opn) / sum(r["qty"] for r in opn); tr["fill_out"] = sum(r["amt"] for r in cls) / sum(r["qty"] for r in cls)
 
 
 def positions(now: float) -> tuple[list, list, list]:
     day0 = datetime.fromtimestamp(now, L).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
-    RV = reviews(); BX = _bx_book()
+    RV = reviews(); BXT, BXO = _bx_book()
+    _bx_real(BXT, _bx_fills(now, day0 - (HIST_DAYS + 1) * 86400))
+    for _t in BXT:
+        _t["paired"] = False
     op, cl, hist = [], [], []
     for book, stem in BOOKS:
         stt = _read(BASE_DIR / "output" / f"{stem}.json", {})
@@ -178,18 +229,27 @@ def positions(now: float) -> tuple[list, list, list]:
                            stop=(float(p["stop_px"]) if p.get("stop_px") else e * (1 - sd * float(p["stop"]))),      # 04.10: стоп, перенесённый в твх или на низ удержания, показываем как есть
                            tp=float(p["target"]), sl=float(p["stop"]), t_in=float(p["at"]), goal=_goal(p, e, sd),
                            exit_at=(int(p["t_ms"]) + B3) / 1000 + int(p.get("hold_min") or 0) * 60, px=p.get("last_px"), rule=p.get("rule") or "",
-                           oi1h_in=er.get("oi1h"), board6_in=(er.get("fon") or {}).get("board6"), bx=sym in BX[2]))
+                           oi1h_in=er.get("oi1h"), board6_in=(er.get("fon") or {}).get("board6"), bx=sym in BXO))
         for r in R:
             if not str(r.get("kind", "")).startswith("exit") or float(r.get("at") or 0) < day0 - HIST_DAYS * 86400:
                 continue
             key = f"{book}|{r['sym']}|{int(float(r['at']))}"
-            raw = round(float(r["usd"]) if r.get("usd") is not None else float(r["result_pct"]) * 5, 2)   # 29.09: сумма сделки берётся из записи (было 500 $ → 1000 $)
-            size, cut = _cut(raw, float(r["result_pct"]), r)
+            t_in = float(r.get("opened_at") or 0)
+            tr = next((x for x in BXT if x["sym"] == r["sym"] and not x["paired"] and abs(x["t_in"] - t_in) < 1200), None)
+            if tr:
+                tr["paired"] = True
             (cl if float(r["at"]) >= day0 else hist).append(dict(book=book, sym=r["sym"], side=int(r.get("side") or 1), entry=float(r["px_in"]), exit=float(r.get("px_out") or 0),
-                           t_in=float(r.get("opened_at") or 0), t_out=float(r["at"]), why=r.get("why_exit") or "", res=float(r["result_pct"]),
-                           usd=round(raw - cut, 2), usd_raw=raw, size_usd=size, cut=cut,                    # 04.10: деньги на сайте — за вычетом 20 $ на 500 $ позиции
-                           bx=_was_bx(BX, r["sym"], float(r.get("opened_at") or 0), float(r["at"])),             # была ли сделка на BingX
+                           t_in=t_in, t_out=float(r["at"]), why=r.get("why_exit") or "", res=float(r["result_pct"]),
+                           usd=round(float(r["usd"]) if r.get("usd") is not None else float(r["result_pct"]) * 5, 2),   # 29.09: сумма сделки берётся из записи; это БУМАЖНЫЙ результат, как в журнале бота
+                           bx=bool(tr and not tr["dead"]), real=(tr or {}).get("real"), fee=(tr or {}).get("fee"),    # 04.10: real — деньги этой сделки на BingX с комиссией (None — на бирже не было или биржа ещё не отдала)
                            rule=r.get("rule") or "", review=RV.get(key)))
+    for tr in BXT:                                                        # были на бирже, а в журнале бота сделки нет — в итог дня идут по данным биржи
+        if tr["paired"] or tr["dead"] or tr.get("real") is None or tr["t_out"] < day0 - HIST_DAYS * 86400:
+            continue
+        pi, po = float(tr.get("fill_in") or tr["px_in"]), float(tr.get("fill_out") or tr["px_out"] or 0)
+        (cl if tr["t_out"] >= day0 else hist).append(dict(book=BX_ONLY_BOOK, sym=tr["sym"], side=tr["side"], entry=pi, exit=po or pi, t_in=tr["t_in"], t_out=tr["t_out"],
+                       why="закрыта на бирже", res=round((po / pi - 1) * tr["side"] * 100, 2) if pi and po else 0.0, usd=0.0, bx=True, real=tr["real"], fee=tr["fee"],
+                       rule="сделка была на BingX, в журнале бота её нет", review=None))
     cl.sort(key=lambda x: -x["t_out"])
     hist.sort(key=lambda x: -x["t_out"])
     return op, cl, hist
