@@ -91,10 +91,10 @@
    "oi": 145,
    "liq": 215,
    "ohlcv": 208,
-   "trade": 371
+   "trade": 372
   },
   "bmt": {
-   "funding": 207,
+   "funding": 208,
    "oi": 145,
    "liq": 214,
    "ohlcv": 208,
@@ -102,7 +102,7 @@
   },
   "bome": {
    "funding": 208,
-   "oi": 144,
+   "oi": 145,
    "liq": 215,
    "ohlcv": 208,
    "trade": 400
@@ -136,7 +136,7 @@
    "trade": 198
   },
   "clo": {
-   "funding": 207,
+   "funding": 208,
    "oi": 145,
    "liq": 215,
    "ohlcv": 208,
@@ -157,7 +157,7 @@
    "trade": 400
   },
   "eden": {
-   "funding": 207,
+   "funding": 208,
    "oi": 145,
    "liq": 215,
    "ohlcv": 208,
@@ -165,7 +165,7 @@
   },
   "ena": {
    "funding": 208,
-   "oi": 144,
+   "oi": 145,
    "liq": 215,
    "ohlcv": 208,
    "trade": 400
@@ -187,7 +187,7 @@
   "ff": {
    "funding": 208,
    "oi": 145,
-   "liq": 214,
+   "liq": 215,
    "ohlcv": 208,
    "trade": 369
   },
@@ -195,7 +195,7 @@
    "funding": 208,
    "oi": 145,
    "liq": 215,
-   "ohlcv": 207,
+   "ohlcv": 208,
    "trade": 400
   },
   "gps": {
@@ -203,7 +203,7 @@
    "oi": 145,
    "liq": 215,
    "ohlcv": 208,
-   "trade": 399
+   "trade": 400
   },
   "gua": {
    "funding": 193,
@@ -493,7 +493,7 @@
    "trade": 398
   },
   "flock": {
-   "funding": 207,
+   "funding": 208,
    "oi": 145,
    "liq": 215,
    "ohlcv": 208,
@@ -507,7 +507,7 @@
    "trade": 398
   },
   "dogs": {
-   "funding": 206,
+   "funding": 207,
    "oi": 145,
    "liq": 215,
    "ohlcv": 208,
@@ -515,7 +515,7 @@
   },
   "coti": {
    "funding": 208,
-   "oi": 144,
+   "oi": 145,
    "liq": 215,
    "ohlcv": 208,
    "trade": 397
@@ -566,7 +566,7 @@
    "funding": 171,
    "oi": 145,
    "liq": 165,
-   "ohlcv": 170,
+   "ohlcv": 171,
    "trade": 170
   },
   "hive": {
@@ -601,13 +601,13 @@
    "funding": 208,
    "oi": 145,
    "liq": 215,
-   "ohlcv": 207,
+   "ohlcv": 208,
    "trade": 394
   },
   "dusk": {
    "funding": 208,
    "oi": 145,
-   "liq": 214,
+   "liq": 215,
    "ohlcv": 208,
    "trade": 393
   },
@@ -711,7 +711,7 @@
   },
   "cati": {
    "funding": 208,
-   "oi": 144,
+   "oi": 145,
    "liq": 215,
    "ohlcv": 208,
    "trade": 391
@@ -826,7 +826,7 @@
    "oi": 145,
    "liq": 215,
    "ohlcv": 208,
-   "trade": 385
+   "trade": 386
   },
   "powr": {
    "funding": 207,
@@ -956,7 +956,7 @@
   },
   "drift": {
    "funding": 207,
-   "oi": 144,
+   "oi": 145,
    "liq": 214,
    "ohlcv": 208,
    "trade": 381
@@ -1055,7 +1055,7 @@
   "broccoli714": {
    "funding": 208,
    "oi": 145,
-   "liq": 214,
+   "liq": 215,
    "ohlcv": 208,
    "trade": 219
   },
@@ -1070,7 +1070,7 @@
    "funding": 208,
    "oi": 145,
    "liq": 215,
-   "ohlcv": 207,
+   "ohlcv": 208,
    "trade": 373
   },
   "lyn": {
@@ -1167,7 +1167,7 @@
   "celo": {
    "funding": 208,
    "oi": 145,
-   "liq": 213,
+   "liq": 214,
    "ohlcv": 208,
    "trade": 369
   },
@@ -1189,7 +1189,7 @@
    "funding": 208,
    "oi": 144,
    "liq": 215,
-   "ohlcv": 207,
+   "ohlcv": 208,
    "trade": 369
   },
   "soon": {
@@ -1243,7 +1243,7 @@
   },
   "gtc": {
    "funding": 208,
-   "oi": 144,
+   "oi": 145,
    "liq": 215,
    "ohlcv": 208,
    "trade": 367
@@ -1326,8 +1326,8 @@
    "trade": 29
   }
  },
- "at": "2026-10-04T21:14:05Z",
- "full_at": "2026-10-04T21:14:05Z",
+ "at": "2026-10-04T21:33:25Z",
+ "full_at": "2026-10-04T21:33:25Z",
  "data_at": "2026-10-03",
  "full_data_at": "2026-10-03"
 }
