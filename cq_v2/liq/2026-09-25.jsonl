@@ -5,7 +5,7 @@
 {"t": 1790380683041, "sym": "NESUSDT", "side": "short", "usd": 258.17, "px": 0.1634, "src": "okx"}
 {"t": 1790377990958, "sym": "XPLUSDT", "side": "short", "usd": 112.85, "px": 0.11634, "src": "okx"}
 {"t": 1790380710199, "sym": "BERAUSDT", "side": "short", "usd": 107.92, "px": 0.2373, "src": "okx"}
-{"t": 1790380728536, "sym": "PHAUSDT", "side": "long", "usd": 72.63, "px": 0.08912, "src": "bybit"}
+{"t": 1790380728536, "sym": "PHAUSDT", "side": "short", "usd": 72.63, "px": 0.08912, "src": "bybit", "fixed": 1}
 {"t": 1790380741849, "sym": "FETUSDT", "side": "short", "usd": 4.93, "px": 0.2466, "src": "okx"}
 {"t": 1790380752765, "sym": "FETUSDT", "side": "short", "usd": 360.47, "px": 0.2469, "src": "okx"}
 {"t": 1790378185931, "sym": "WLDUSDT", "side": "short", "usd": 1764.07, "px": 0.4972, "src": "okx"}

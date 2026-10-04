@@ -22,3 +22,11 @@ BINANCE:CUSDT.P: сбой TimeoutError
 504/740 · записано 500 · 3299 с · BINANCE:TSLAUSDT.P баров 249 oi 249 liq 0
 529/740 · записано 525 · 3502 с · BINANCE:AMCUSDT.P баров 16 oi 16 liq 0
 554/740 · записано 550 · 3694 с · BINANCE:COPPERUSDT.P баров 212 oi 212 liq 0
+579/740 · записано 575 · 3919 с · BINANCE:SAPIENUSDT.P баров 410 oi 410 liq 405
+604/740 · записано 600 · 4164 с · BINANCE:NOWUSDT.P баров 123 oi 123 liq 0
+629/740 · записано 625 · 4410 с · BINANCE:TTWOUSDT.P баров 94 oi 94 liq 0
+654/740 · записано 650 · 4666 с · BINANCE:LITUSDT.P баров 285 oi 285 liq 279
+679/740 · записано 675 · 4858 с · BINANCE:MAGMAUSDT.P баров 277 oi 277 liq 276
+704/740 · записано 700 · 5049 с · BINANCE:TAUSDT.P баров 440 oi 440 liq 438
+729/740 · записано 725 · 5164 с · BINANCE:HANAUSDT.P баров 373 oi 373 liq 357
+готово: записано 736 за 5227 с; график возвращён на ['BINANCE:GALAUSDT.P', '6D']

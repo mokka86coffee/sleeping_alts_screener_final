@@ -260,8 +260,18 @@ def _flush_record(sym: str, side: str, after_ms: int = 0):
         return None
     win = hs[hm]; prev = [v for h, v in hs.items() if hm - 86_400_000 <= h < hm]
     other = max((v for h, v in ho.items() if hm - 86_400_000 <= h <= hm), default=0.0)
-    if prev and win > 0 and win >= _x * max(prev) and win > other:
-        return hm, win, max(prev)
+    if not prev or win <= 0 or win <= other:
+        return None
+    try:
+        from core_config import FAST3_FLUSH_X2 as _x2
+    except ImportError:
+        _x2 = 2.0
+    mx = max(prev); mean = sum(prev) / len(prev)
+    # R61 (03.10 владелец): «вынос рекордным должен быть за 24 часа, ×2 минимум от любого другого выноса, при условии что выносы были практически одинаковыми за 24 часа;
+    # если выносы ×2+ к общему среднему уже были, то +30 % от него» — среднее по часам суток, где выносы этой стороны были
+    need = _x * mx if (len(prev) > 1 and mx >= 2 * mean) else max(_x, _x2) * mx
+    if win >= need:
+        return hm, win, mx
     return None
 
 
@@ -277,21 +287,212 @@ def _move_10h(sym: str, hm: int):
         from core_config import FAST3_FLUSH_MOVE_H as _mh, FAST3_FLUSH_BAR_RANGE as _rng
     except ImportError:
         _mh, _rng = 24, 20.0
-    k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1h", "endTime": hm + 3_599_999, "limit": _mh + 1}, quiet_400=True) or []
+    k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1h", "endTime": hm + 3_599_999, "limit": 49}, quiet_400=True) or []
     if len(k) < _mh + 1 or int(k[-1][0]) != hm:
-        return 0, 0.0, 0.0
+        return 0, 0.0, 0.0, {}
     bar = k[-1]; rng = (float(bar[2]) / float(bar[3]) - 1) * 100 if float(bar[3]) > 0 else 0.0
-    lows = [float(x[3]) for x in k[:-1]]                                 # 24 часа до часа выноса
+    lows_all = [float(x[3]) for x in k[:-1]]; lows = lows_all[-_mh:]     # 24 часа до часа выноса
     n = len(lows) // 3; first, last = lows[:n], lows[-n:]
     a1, a2 = sum(first) / n, sum(last) / n; mv = (a2 / a1 - 1) * 100
+    # R58 (03.10 владелец): «смотрим минимумы часовых свечей за последние 48 часов… максимум на часовой свече выноса и минимум на часовой за 48 часов: больше 60 % — памп, 40 — просто рост»
+    inf = dict(open=float(bar[1]), high=float(bar[2]), low=float(bar[3]), close=float(bar[4]), rising48=False, rise48=None)
+    if len(lows_all) >= 48:
+        l48 = lows_all[-48:]; f3, l3 = l48[:16], l48[-16:]
+        inf["rising48"] = min(l3) > min(f3) and sum(l3) > sum(f3)
+        inf["rise48"] = (float(bar[2]) / min(l48) - 1) * 100 if min(l48) > 0 else None
     if min(last) > min(first) and a2 > a1:                               # минимумы росли (флэт/отскоки внутри допустимы)
-        return 1, mv, rng
+        return 1, mv, rng, inf
     if max(last) < max(first) and a2 < a1:                               # минимумы падали
-        return -1, mv, rng
-    return 0, mv, rng
+        return -1, mv, rng, inf
+    return 0, mv, rng, inf
 
 
-def _open_short_now(state: dict, ev: list, msgs: list, sym: str, c: float, t_bar: int, now: float, why: str, book: str, write: bool, side: int = -1) -> bool:
+def _pump_end_all() -> dict:
+    """R58/R60: когда по монете был сквиз «конец роста» (секунды) — общий для обеих книг файл output/pump_end.json"""
+    try:
+        return json.loads((BASE_DIR / "output" / "pump_end.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def _pump_end_set(sym: str, now: float) -> None:
+    d = {k: v for k, v in _pump_end_all().items() if now - float(v) < 3 * 86400}; d[sym] = now
+    try:
+        (BASE_DIR / "output" / "pump_end.json").write_text(json.dumps(d), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _pump_ban(sym: str, now: float):
+    """R60 (03.10 владелец: «лонги тут после выноса брать нельзя — именно их и будут выносить, причём достаточно долго»; «лонг берётся минимум через 6 часов») → подпись отказа или None"""
+    try:
+        from core_config import FAST3_FLUSH_NEW as _on, FAST3_PUMP_END_LONG_BAN_H as _bh
+    except ImportError:
+        _on, _bh = True, 6
+    t = _pump_end_all().get(sym) if _on else None
+    if t and 0 <= now - float(t) < _bh * 3600:
+        return f"лонг не взят: сквиз в конце роста был {(now - float(t)) / 3600:.1f} ч назад — лонг в этой монете не раньше чем через {_bh:g} ч (R60)"
+    return None
+
+
+_RATE_F = BASE_DIR / "output" / "fast_entry_times.json"                 # 03.10 15:58: возвращено вместе с _rate_ok (потеряно при правке R52 в 04:30 — каждый вход падал с NameError)
+
+
+# ── R54–R56 (03.10 16:20, владелец: «делай все» на три предложения по счёту TradingView, claude/research/leaders_tv.md) ──────────────────────────────
+_BOARD = {"t": 0.0, "v": None}
+_BOARD_F = BASE_DIR / "output" / "board_now.json"
+_FUND7 = {"t": 0.0, "v": None, "busy": False}
+_FUND7_F = BASE_DIR / "output" / "fund7_cache.json"
+
+
+def _board_set(tk: list) -> None:
+    """доска за 24 ч по всем перпам Binance из общего тикера: медиана хода, доля монет в плюсе, BTC; пишется в output/board_now.json (сайт)"""
+    try:
+        from core_config import FAST3_FLUSH_BOARD_UP as _up
+    except ImportError:
+        _up = 1.0
+    try:
+        ch = {x["symbol"]: float(x["priceChangePercent"]) for x in tk if x.get("symbol", "").endswith("USDT") and float(x.get("quoteVolume") or 0) > 0}
+        if len(ch) < 100:
+            return
+        v = sorted(ch.values()); med = v[len(v) // 2]
+        try:
+            from core_config import FAST3_BOARD_FLAT as _flat, FAST3_BOARD_DEEP as _deep
+        except ImportError:
+            _flat, _deep = 1.0, 3.0
+        sf = _board_short_flush()                                        # рекордный вынос шортов по всей доске за последние 6 ч (время часа, $) или None
+        # 03.10 18:30 владелец «вноси» (счёт tv_board_turn.py): выше +3 % — рост продолжается (лонг); ровная — сползает (шорт); ниже −3 % — ждать отскок; +1…+3 и −3…−1 — шум;
+        # рекордный вынос шортов по всей доске — местная вершина (следующие 6 ч вниз в 3 случаях из 4)
+        zone = "рост" if med > _up else ("отскок" if med < -_deep else ("ровная" if abs(med) <= _flat else "шум"))
+        lean = "шорт" if sf else {"рост": "лонг", "отскок": "ждать отскок", "ровная": "шорт", "шум": "нет перевеса"}[zone]
+        mode = {"рост": "растёт сильно", "отскок": "глубокое падение", "ровная": "ровная — сползает", "шум": "шум"}[zone]
+        b = dict(at=time.time(), board24=round(med, 2), up=round(sum(1 for x in v if x > 0) / len(v) * 100, 1), n=len(v), btc=round(ch.get("BTCUSDT", 0.0), 2), up_level=_up,
+                 flat=_flat, deep=_deep, zone=zone, lean=lean, mode=mode, short_flush_at=sf[0] if sf else None, short_flush_usd=round(sf[1]) if sf else None,
+                 flush_side="лонг" if med > _up else "шорт")
+        _BOARD["v"], _BOARD["t"] = b, time.time()
+        tmp = _BOARD_F.with_suffix(".tmp"); tmp.write_text(json.dumps(b, ensure_ascii=False), encoding="utf-8"); tmp.replace(_BOARD_F)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _board_short_flush():
+    """сумма выноса шортов по всем монетам потока за закрытый час ≥ максимума такой суммы за прошлые 7 дней — в последние 6 часов → (час, сек; $) или None"""
+    try:
+        tot: dict = {}
+        for (sym_, sd_), hs in _liq_hourly().items():
+            if sd_ != "short":
+                continue
+            for h, v_ in hs.items():
+                tot[h] = tot.get(h, 0.0) + v_
+        now_h = int(time.time() * 1000) // 3_600_000 * 3_600_000; best = None
+        for h in range(now_h - 6 * 3_600_000, now_h, 3_600_000):          # закрытые часы за последние 6 ч
+            prev = [v_ for hh, v_ in tot.items() if h - 7 * 86_400_000 <= hh < h]
+            if len(prev) >= 72 and tot.get(h, 0.0) > 0 and tot[h] >= max(prev):
+                best = (h // 1000, tot[h])
+        return best
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def _board24():
+    """→ dict(board24, up, n, btc, mode) не старше 6 минут или None (нет данных — правило R54 не применяется, остаётся шорт)"""
+    if _BOARD["v"] is None or time.time() - _BOARD["t"] > 360:
+        _board_set(get_json("https://fapi.binance.com/fapi/v1/ticker/24hr", weight=40) or [])
+    b = _BOARD["v"]
+    return b if b and time.time() - b["at"] <= 900 else None
+
+
+def _fund7_refresh() -> None:
+    """средний фандинг за 7 дней по всем перпам: /fapi/v1/fundingRate без символа, страницами по 1000 (≈20 запросов), в фоне, раз в FAST3_FUND7_REFRESH_H часов"""
+    try:
+        st_ms = int((time.time() - 7 * 86400) * 1000); by: dict = {}
+        for _ in range(60):
+            r = get_json("https://fapi.binance.com/fapi/v1/fundingRate", {"startTime": st_ms, "limit": 1000}, quiet_400=True) or []
+            if not r:
+                break
+            for x in r:
+                by.setdefault(x["symbol"], []).append(float(x["fundingRate"]))
+            st_ms = int(r[-1]["fundingTime"]) + 1
+            if len(r) < 1000:
+                break
+            time.sleep(0.5)
+        mean = {s_: sum(v) / len(v) * 100 for s_, v in by.items() if s_.endswith("USDT") and len(v) >= 3}
+        if len(mean) >= 100:
+            d = dict(at=time.time(), mean=mean)
+            tmp = _FUND7_F.with_suffix(".tmp"); tmp.write_text(json.dumps(d), encoding="utf-8"); tmp.replace(_FUND7_F)
+            _FUND7["v"], _FUND7["t"] = d, time.time()
+    except Exception:  # noqa: BLE001
+        pass
+    finally:
+        _FUND7["busy"] = False
+
+
+def _fund_rank(sym: str):
+    """R55: место монеты на доске по среднему фандингу за 7 дней (0 — самый низкий, 1 — самый высокий) → (место, средний фандинг %) или None.
+    Кэш в файле; старше FAST3_FUND7_REFRESH_H часов — обновляется в фоне; старше 24 ч или нет монеты — None"""
+    try:
+        from core_config import FAST3_FUND7_REFRESH_H as _rh
+    except ImportError:
+        _rh = 4
+    d = _FUND7["v"]
+    if d is None:
+        try:
+            d = json.loads(_FUND7_F.read_text(encoding="utf-8")); _FUND7["v"], _FUND7["t"] = d, float(d.get("at") or 0)
+        except (OSError, ValueError):
+            d = None
+    age = time.time() - float(d.get("at") or 0) if d else 1e12
+    if age > _rh * 3600 and not _FUND7["busy"]:
+        import threading
+        _FUND7["busy"] = True; threading.Thread(target=_fund7_refresh, daemon=True).start()
+    if not d or age > 86400 or sym not in d["mean"]:
+        return None
+    uni = set(_all_perps()); vals = sorted(v for s_, v in d["mean"].items() if s_ in uni) or sorted(d["mean"].values()); m = d["mean"][sym]
+    return sum(1 for v in vals if v < m) / max(1, len(vals) - 1), m
+
+
+def _spike_short_plan(sym: str, px: float):
+    """R53 + R55: всплеск берём в шорт 5/5, если монета не из лестницы (R47) и её фандинг за 7 дней в нижней половине доски.
+    → (вход будет шортом?, причина «не входить» или None, подпись)"""
+    try:
+        from core_config import FAST3_SPIKE_SHORT as _ss, FAST3_SPIKE_SHORT_FUND_RANK as _fr
+    except ImportError:
+        _ss, _fr = True, 0.5
+    if not _ss or _no_short(sym, px):
+        return False, None, ""
+    if not _fr:
+        return True, None, ""
+    r = _fund_rank(sym)
+    if r is None:
+        return True, "всплеск → шорт не взят: фандинг монеты за 7 дн неизвестен (R55)", ""
+    rank, mean = r
+    if rank >= _fr:
+        return True, f"всплеск → шорт не взят: фандинг монеты в верхней половине доски (7 дн {mean:+.4f}%, место {rank * 100:.0f} из 100) (R55)", ""
+    return True, None, f"фандинг 7 дн {mean:+.4f}% — место {rank * 100:.0f} из 100, нижняя половина доски (R55)"
+
+
+def _rate_ok(now: float, note: bool = False):
+    """03.10 владелец: «запрет на открытие ботом больше 5 сделок за 20 минут» — общий счётчик входов обеих книг (файл, переживает перезапуск).
+    note=True — записать вход. → None, если можно, иначе подпись отказа"""
+    try:
+        from core_config import FAST3_MAX_ENTRIES as _mx, FAST3_MAX_ENTRIES_MIN as _wm
+    except ImportError:
+        _mx, _wm = 5, 20
+    try:
+        ts = [float(x) for x in json.loads(_RATE_F.read_text(encoding="utf-8"))]
+    except (OSError, ValueError):
+        ts = []
+    ts = [t for t in ts if now - t < _wm * 60]
+    if note:
+        ts.append(now)
+        try:
+            _RATE_F.write_text(json.dumps(ts), encoding="utf-8")
+        except OSError:
+            pass
+        return None
+    return None if len(ts) < _mx else f"лимит входов: {len(ts)} за {_wm} мин (максимум {_mx})"
+
+
+def _open_short_now(state: dict, ev: list, msgs: list, sym: str, c: float, t_bar: int, now: float, why: str, book: str, write: bool, side: int = -1, mode: str = "", tgt_abs=None) -> bool:
     """03.10 (R49/R52): позиция по рынку сейчас против хода — стоп 10 %, цель 10 %, безубыток после 5 %, выход по выносу противоположной стороны; ворота — только сессии владельца"""
     nm = "лонг" if side == 1 else "шорт"
     ok, sw, _h = ses_gate(now, t_bar, side)
@@ -300,17 +501,97 @@ def _open_short_now(state: dict, ev: list, msgs: list, sym: str, c: float, t_bar
     _rl = _rate_ok(now)
     if _rl:
         msgs.append(f"{sym[:-4]} {nm} на выносе пропущен: {_rl}"); return False
-    hold = 7 * 1440                                                      # 03.10 владелец: «выход либо прибыль 10 %, либо вынос лонгов; как только позиция выходит в +5 % — стоп в твх» — срока нет
+    hold = 7 * 1440                                                      # 03.10 владелец: «выход либо прибыль 10 %, либо вынос лонгов; как только позиция выходит в +5 % — стоп в твх»
     stop, tgt = FAST3_SHORT_SL, FAST3_SHORT_TP
-    why = why + f": стоп {stop * 100:.0f}%, цель {tgt * 100:.0f}%, после 5 % стоп в твх, выход по выносу противоположной стороны, без срока · сессия {sw}"
-    pos = dict(sym=sym, side=side, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), stop_px=None, hold_min=hold, rule=why, last_px=c, bars=0, flush_short=(side == -1), flush=True)
+    extra = {}
+    if mode == "pump_end":                                               # R58: шорт «конец роста» — цели нет, стоп 10 % не переносится, закрытие по времени
+        try:
+            from core_config import FAST3_PUMP_END_HOLD_MIN as _ph
+        except ImportError:
+            _ph = 960
+        hold, tgt = _ph, 0.0; extra = dict(pump_end=True)
+        why = why + f": цели нет, стоп {stop * 100:.0f}%, после 5 % стоп в твх; через 6 ч стоп в твх или закрытие, если цена выше входа; выход через {_ph // 60} ч · сессия {sw}"
+    elif mode == "flat_long":                                            # R70: лонг лимиткой от линии флэта — цель на верх флэта, стоп 10 % (владелец 04.10)
+        try:
+            from core_config import FAST3_FLAT_LONG_SL as _fsl
+        except ImportError:
+            _fsl = 0.10
+        tgt, stop = float(tgt_abs) / c - 1, _fsl; extra = dict(flat_long=True)
+        why = why + f": вход на линии {c:.6g}, цель — верх флэта {float(tgt_abs):.6g} (+{tgt * 100:.1f}%), стоп −{stop * 100:.0f}%, после 5 % стоп в твх, без срока · сессия {sw}"
+    elif mode == "long_back":                                            # R59: лонг на выносе лонгов при росте, цена вернулась — цель +5 %, стоп −10 %
+        try:
+            from core_config import FAST3_LONG_FLUSH_TP as _ltp, FAST3_LONG_FLUSH_SL as _lsl
+        except ImportError:
+            _ltp, _lsl = 0.05, 0.10
+        tgt, stop = _ltp, _lsl
+        why = why + f": цель +{tgt * 100:.0f}%, стоп −{stop * 100:.0f}%, без срока · сессия {sw}"
+    else:
+        _fn = ""
+        if side == -1:
+            tgt, _fn = _flat_target(sym, c, tgt)                         # R62: во флэте цель шорта — низ флэта
+        why = why + f": стоп {stop * 100:.0f}%, цель {tgt * 100:.1f}%, после 5 % стоп в твх, выход по выносу противоположной стороны, без срока · сессия {sw}" + (" · " + _fn if _fn else "")
+    pos = dict(sym=sym, side=side, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), stop_px=None, hold_min=hold, rule=why, last_px=c, bars=0, flush_short=(side == -1), flush=True, **extra)
     state["open"][sym] = pos
     ev.append(dict(book=book, sym=sym, kind="entry", side=side, px=c, at=now, usd_in=FAST3_SIZE, rule=why, target=pos["target"], stop=pos["stop"], hold_min=hold, fon=fon(), bub=_bub(sym)))
     _rate_ok(now, note=True)
-    msgs.append(f"{sym[:-4]} {nm} вход {c:.6g} на выносе · стоп {stop * 100:.0f}% · цель {tgt * 100:.0f}%")
+    msgs.append(f"{sym[:-4]} {nm} вход {c:.6g} на выносе · стоп {stop * 100:.0f}% · " + (f"цель {tgt * 100:.0f}%" if tgt else f"без цели, выход через {hold // 60} ч"))
     if write:
         cg(sym, *cg_caption(book, sym, pos))
     return True
+
+
+def pump_end_walk(e: float, pos: dict, k: list):
+    """R58 (03.10 21:50 владелец): шорт «конец роста» — стоп 10 %; после −5 % стоп в точку входа; через FAST3_PUMP_END_BE_MIN (6 ч) — если стоп ещё не в точке входа:
+    цена выше входа → закрытие, иначе стоп в точку входа; цели нет (выход по сроку — в step). → (результат без комиссии, причина) или (None, None)"""
+    try:
+        from core_config import FAST3_PUMP_END_BE_MIN as _bm
+    except ImportError:
+        _bm = 360
+    be = False; stop = float(pos.get("stop") or FAST3_SHORT_SL); n6 = max(1, _bm // 3)
+    for n, x in enumerate(k, 1):
+        h_, l_, c_ = float(x[2]), float(x[3]), float(x[4])
+        if h_ >= (e if be else e * (1 + stop)):
+            return (0.0, "стоп в безубыток") if be else (-stop, "стоп")
+        if not be and FAST3_SHORT_BE_AT and l_ <= e * (1 - FAST3_SHORT_BE_AT):
+            be = True
+        if n >= n6 and not be:
+            if c_ > e:
+                return 1 - c_ / e, f"{_bm // 60} ч после входа цена выше входа — закрытие"
+            be = True
+    if be:
+        pos["stop_px"] = e                                                # мост BingX переставит стоп в точку входа
+    return None, None
+
+
+def pump_end_wait_step(state: dict, book: str, now: float, ev: list, msgs: list, write: bool) -> None:
+    """R58 (03.10 21:45 владелец: «поставь брать цену практически на верхе свечи сквиза и всё»; «от чего зависит 4 часа… завтра будет 3, и бот будет всегда на низах шортить»):
+    после сквиза «конец роста» шорт берётся не по рынку, а когда цена вернулась к максимуму свечи сквиза — вход по этой цене. Ждём FAST3_PUMP_END_WAIT_H часов.
+    Счёт pump_end_r58.py (Binance, месяц, 62 сигнала): вход сразу +0.4 $ на сделку, вход на максимуме свечи +20.6 $ (обе половины месяца), входит 50 из 62."""
+    w = state.setdefault("pe_wait", {}); now_ms = int(now * 1000)
+    for sym, q in list(w.items()):
+        if now > float(q["until"]):
+            msgs.append(f"{sym[:-4]} шорт «конец роста»: цена за {int((q['until'] - q['at']) // 3600)} ч не вернулась к верху свечи сквиза {q['level']:.6g} — ожидание снято"); del w[sym]; continue
+        if sym in state["open"]:
+            continue
+        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "3m", "startTime": int(q["chk"]), "limit": 500}, quiet_400=True) or []
+        k = [x for x in k if int(x[0]) + 180_000 <= now_ms]
+        if not k:
+            continue
+        hit = next((x for x in k if float(x[2]) >= float(q["level"])), None)
+        q["chk"] = int(k[-1][0]) + 180_000
+        if not hit:
+            continue
+        if _open_short_now(state, ev, msgs, sym, float(q["level"]), int(hit[0]), now, q["why"] + f" · вход на верхе свечи сквиза {q['level']:.6g}", book, write, side=-1, mode="pump_end"):
+            del w[sym]
+
+
+def _manual_no_short(sym: str) -> bool:
+    """R47 (02.10 владелец): ручной список лестницы FAST3_NO_SHORT_MANUAL — шорт в этих монетах бот не берёт (и сканером выносов тоже, 04.10)"""
+    try:
+        from core_config import FAST3_NO_SHORT_MANUAL as _man
+    except ImportError:
+        _man = []
+    return sym in _man
 
 
 def flush_entries(state: dict, book: str, now: float, ev: list, msgs: list, write: bool) -> None:
@@ -319,6 +600,10 @@ def flush_entries(state: dict, book: str, now: float, ev: list, msgs: list, writ
     за 10 ч, на рекордном за 24 ч часовом выносе любой стороны, в первые 30 минут после закрытия часа. Открытая позиция по монете закрывается по рынку.
     Один вход на один рекордный час (state["flush_hour"])."""
     seen = state.setdefault("flush_hour", {}); uni = set(_all_perps()); own = _own_mm()
+    try:
+        pump_end_wait_step(state, book, now, ev, msgs, write)             # R58: ждущие шорты «конец роста» — вход, когда цена вернулась к верху свечи сквиза
+    except Exception as e:  # noqa: BLE001
+        msgs.append(f"ожидание шорта «конец роста»: сбой {type(e).__name__}: {e}")
     try:
         hs_all = _liq_hourly()
     except Exception:  # noqa: BLE001
@@ -335,16 +620,21 @@ def flush_entries(state: dict, book: str, now: float, ev: list, msgs: list, writ
         p = state["open"].get(sym)
         if p and int(p.get("t_ms") or 0) >= hm:
             continue
-        mv, mvp, rng = _move_10h(sym, hm)
+        mv, mvp, rng, inf = _move_10h(sym, hm)
         try:
             from core_config import FAST3_FLUSH_BAR_RANGE as _rng
         except ImportError:
             _rng = 20.0
         if _rng and rng < _rng:                                          # 03.10 04:55 владелец: «давай не будем ставить порог разницы цен на свече выноса» — FAST3_FLUSH_BAR_RANGE = 0, порог выключен
             msgs.append(f"{sym[:-4]} вынос {'шортов' if side == 'short' else 'лонгов'} {win / 1e3:.0f}K$ — размах свечи {rng:.1f}% < {_rng:g}%, пропуск"); continue
-        if mv == 0:
-            msgs.append(f"{sym[:-4]} вынос {'шортов' if side == 'short' else 'лонгов'} {win / 1e3:.0f}K$ (свеча {rng:.0f}%) — минимумы за 24 ч ни росли, ни падали, пропуск"); continue
-        new_side = -mv                                                   # против хода: рост → шорт, падение → лонг
+        try:
+            from core_config import FAST3_FLUSH_BAR_MAX as _rmx
+        except ImportError:
+            _rmx = 8.0
+        try:
+            from core_config import (FAST3_FLUSH_NEW as _fn, FAST3_PUMP_RISE as _pr, FAST3_GROW_RISE as _gr, FAST3_PUMP_END_MEMORY_H as _pm, FAST3_LONG_FLUSH_BACK as _lb)
+        except ImportError:
+            _fn, _pr, _gr, _pm, _lb = True, 60.0, 40.0, 24, 5.0
         tk = get_json("https://fapi.binance.com/fapi/v1/ticker/price", {"symbol": sym}, quiet_400=True) or {}
         try:
             c = float(tk.get("price") or 0)
@@ -352,8 +642,95 @@ def flush_entries(state: dict, book: str, now: float, ev: list, msgs: list, writ
             c = 0.0
         if not c:
             continue
+        lab = f"вынос {'шортов' if side == 'short' else 'лонгов'} {win / 1e3:.0f}K$"
+        kind = ""                                                        # "" — обычная клетка (R52/R54/R57), pump_end — R58, long_back — R59
+        p_pe = bool(p and p.get("pump_end") and int(p.get("side", 0)) == -1)
+        pe_t = _pump_end_all().get(sym) if _fn else None
+        pe_age = (now - float(pe_t)) / 3600 if pe_t else None
+        rise = inf.get("rise48") if inf else None
+        back = (c / inf["open"] - 1) * 100 if inf and inf.get("open") else None
+        if _fn and p_pe:                                                 # открыт шорт «конец роста»: держим до времени, другие выносы его не закрывают и не переворачивают
+            if side == "short" and inf.get("rising48") and rise is not None and rise >= _pr:
+                _pump_end_set(sym, now)
+            msgs.append(f"{sym[:-4]} {lab}: открыт шорт «конец роста» — держим до выхода по времени, сигнал пропущен (R58)"); continue
+        if _fn and side == "short" and inf.get("rising48") and rise is not None and rise >= _gr:
+            if rise >= _pr:                                              # R58: рост и памп → рекордный вынос шортов = конец движения
+                if _manual_no_short(sym):                                # 04.10 20:20 поломка: сканер взял шорт MON (ручной список лестницы, R47 «шорт в этих монетах бот больше не берёт») — в пути сканера списка не было
+                    msgs.append(f"{sym[:-4]} {lab}: шорт «конец роста» не взят — монета из списка лестницы владельца (R47)"); continue
+                _pump_end_set(sym, now)
+                try:
+                    from core_config import FAST3_PUMP_END_WAIT_H as _wh
+                except ImportError:
+                    _wh = 24
+                _why = (f"R58 конец роста → шорт: минимумы за 48 ч росли, максимум свечи выноса выше минимума за 48 ч на {rise:.0f}% (памп от {_pr:g}%) · {lab} за час с "
+                        f"{datetime.fromtimestamp(hm / 1000, L):%H:%M} — ×{win / prev:.1f} к максимуму часа за сутки ({prev / 1e3:.0f}K$), свеча {rng:.0f}%")
+                if p and int(p.get("side", 0)) == 1:                     # в монете открыт лонг — закрыть: движение кончилось
+                    e_ = float(p["px"]); res_ = (c / e_ - 1) - FEE; wx = "рекордный вынос шортов в конце роста — лонг закрыт (R58)"
+                    ev.append(dict(book=book, sym=sym, kind="exit_long", side=1, px_in=e_, px_out=round(c, 8), opened_at=p["at"], at=now, result_pct=round(res_ * 100, 2), usd=round(FAST3_SIZE * res_, 2), why_exit=wx, rule=p["rule"], size=1.0))
+                    msgs.append(f"{sym[:-4]} лонг выход {wx} {res_ * 100:+.2f}%"); state["last_exit"][sym] = now; del state["open"][sym]
+                    if write:
+                        cg(sym, *cg_caption(book, sym, p, c, wx, res_))
+                elif p:
+                    msgs.append(f"{sym[:-4]} {lab}: сквиз в конце роста, шорт уже открыт — уровень ожидания не ставим (R58)"); continue
+                state.setdefault("pending", {}).pop(sym, None)
+                state.setdefault("pe_wait", {})[sym] = dict(level=float(inf["high"]), at=now, until=now + _wh * 3600, chk=hm + 3_600_000, hm=hm, why=_why)
+                msgs.append(f"{sym[:-4]} {lab}: конец роста (+{rise:.0f}% за 48 ч) — шорт ждёт возврата цены к верху свечи сквиза {inf['high']:.6g} (сейчас {c:.6g}), до {_wh} ч (R58)"); continue
+            else:
+                msgs.append(f"{sym[:-4]} {lab}: рост за 48 ч {rise:+.0f}% — просто рост, ждём пампа с выносом (меньше {_pr:g}%), шорт не берём (R58)"); continue
+        elif _fn and side == "long" and mv == 1 and back is not None:    # R59: вынос лонгов на росте — смотрим, вернулась ли цена
+            if back >= -_lb:
+                ban = _pump_ban(sym, now)
+                if ban:
+                    msgs.append(f"{sym[:-4]} {lab}: {ban}"); continue
+                kind = "long_back"
+            elif pe_age is not None and pe_age <= _pm and not (p and int(p.get("side", 0)) == -1):
+                kind = "pump_end"                                        # цена не вернулась, шорты были выбиты, шорта у бота нет — берём шорт сейчас
+            else:
+                msgs.append(f"{sym[:-4]} {lab} на росте: цена не вернулась ({back:+.1f}% к цене до выноса, порог −{_lb:g}%), сквиза в конце роста не было — пропуск (R59)"); continue
+        if not kind:
+            if _rmx and rng >= _rmx:                                     # R57 (03.10 владелец «делай»; LYN 18:00: шорт на дне свечи 29 %): свеча выноса шире 8 % — не входим
+                msgs.append(f"{sym[:-4]} {lab} — свеча выноса {rng:.0f}% ≥ {_rmx:g}%, пропуск (R57)"); continue
+            if mv == 0:
+                msgs.append(f"{sym[:-4]} {lab} (свеча {rng:.0f}%) — минимумы за 24 ч ни росли, ни падали, пропуск"); continue
+        new_side = -1 if kind == "pump_end" else (1 if kind == "long_back" else -mv)   # обычная клетка — против хода: рост → шорт, падение → лонг
+        if _fn and new_side == 1 and not kind:
+            ban = _pump_ban(sym, now)                                    # R60: после сквиза в конце роста лонг не раньше чем через 6 ч
+            if ban:
+                msgs.append(f"{sym[:-4]} {lab}: {ban}"); continue
+        _bnote = ""
+        try:
+            from core_config import FAST3_FLUSH_BOARD_LONG as _bl, FAST3_FLUSH_BOARD_UP as _bu
+        except ImportError:
+            _bl, _bu = True, 1.0
+        if _bl and new_side == -1 and not kind:                                       # R54 (03.10 владелец: «при росте доски заменяй шорт на лонг»; «делай все»): доска за 24 ч выше +1 % — после выноса на росте лонг, не шорт
+            _b = _board24()                                              #   счёт TradingView: часовые 06.09–03.10 шорт −35/−30 $, лонг +26/+24 $ на сделку; 4-часовые 22.06–03.10 −18/−10 и +14/+4; нет данных доски — остаётся шорт
+            if _b and _b.get("board24") is not None and _b["board24"] > _bu:
+                new_side = 1; _bnote = f" · доска за 24 ч {_b['board24']:+.1f}% (в плюсе {_b['up']:.0f}% монет) растёт → лонг вместо шорта (R54)"
+        if new_side == -1 and _manual_no_short(sym):                      # 04.10 20:20: то же для шорта против хода после выноса лонгов на росте и шорта вдогонку (R47, ручной список)
+            msgs.append(f"{sym[:-4]} {lab}: шорт не взят — монета из списка лестницы владельца (R47)"); continue
+        if new_side == -1 and not kind:
+            _ff = _flat5(sym, c)
+            if _ff[0]:                                                   # R67: шорт на флэте не берём
+                msgs.append(f"{sym[:-4]} {lab}: шорт не взят — флэт, {_flat_txt(sym, _ff)} (R67)")
+                _flat_long_set(state, sym, now, msgs, lab); continue      # R70
+        if new_side == 1 and _long_window_closed(now):                    # R69
+            msgs.append(f"{sym[:-4]} {lab}: лонг не взят — {_long_window_closed(now)}"); continue
+        if new_side == 1 and _slide(sym)[0]:                              # R65: минимумы часовых свечей за 3 дня падают — лонг не берём (и сканером тоже)
+            msgs.append(f"{sym[:-4]} {lab}: лонг не взят — минимумы часовых свечей за 3 дня падают ({_slide(sym)[2]:+.0f}%), это отскок на сползании (R65)"); continue
         note = (f"вынос {'шортов' if side == 'short' else 'лонгов'} {win / 1e3:.0f}K$ за час с {datetime.fromtimestamp(hm / 1000, L):%H:%M} — ×{win / prev:.1f} к максимуму часа за сутки ({prev / 1e3:.0f}K$), "
-                f"свеча {rng:.0f}%, минимумы за 24 ч {mvp:+.1f}% → {'шорт' if new_side == -1 else 'лонг'} против хода")
+                f"свеча {rng:.0f}%, минимумы за 24 ч {mvp:+.1f}% → {'шорт' if new_side == -1 else 'лонг'} {'по ходу' if _bnote else 'против хода'}" + _bnote)
+        head = "R52 вынос → против хода: "
+        if kind == "pump_end" and side == "short":
+            head = f"R58 конец роста → шорт: минимумы за 48 ч росли, максимум свечи выноса выше минимума за 48 ч на {rise:.0f}% (памп от {_pr:g}%) · "
+        elif kind == "pump_end":
+            head = f"R58 конец роста → шорт вдогонку: сквиз был {pe_age:.1f} ч назад, цена после выноса лонгов не вернулась ({back:+.1f}%) · "
+        elif kind == "long_back":
+            head = f"R59 вынос лонгов на росте → лонг: цена вернулась ({back:+.1f}% к цене до выноса, порог −{_lb:g}%) · "
+        if p:                                                            # 04.10 16:25 (BOME: в 16:05 лонг закрыт «перезаходом» по выносу на 3K$, а новый вход не состоялся — окно 15–17 закрыто;
+            _gok, _gsw, _ = ses_gate(now, t_bar, new_side)               # позиция закрылась впустую): если новый вход сейчас невозможен (час без входов, лимит входов) — открытую не трогаем
+            _grl = None if not _gok else _rate_ok(now)
+            if not _gok or _grl:
+                msgs.append(f"{sym[:-4]} {lab}: новый вход сейчас закрыт ({_gsw if not _gok else _grl}) — открытую позицию не трогаем"); continue
         if p:
             sd, e = int(p["side"]), float(p["px"]); res = (c / e - 1) * sd - FEE
             why = "рекордный вынос — позиция закрыта" + (" (перезаход)" if sd == new_side else " (разворот)") + ": " + note
@@ -364,7 +741,7 @@ def flush_entries(state: dict, book: str, now: float, ev: list, msgs: list, writ
                 cg(sym, *cg_caption(book, sym, p, c, why, res))
             state["last_exit"][sym] = now; del state["open"][sym]
         state.setdefault("pending", {}).pop(sym, None)
-        _open_short_now(state, ev, msgs, sym, c, t_bar, now, "R52 вынос → против хода: " + note, book, write, side=new_side)
+        _open_short_now(state, ev, msgs, sym, c, t_bar, now, head + note, book, write, side=new_side, mode=kind)
 
 
 def _long_flush(sym: str, now: float):
@@ -385,6 +762,10 @@ try:
     from core_config import FAST3_B_SKIP
 except ImportError:
     FAST3_B_SKIP = True
+try:                                                                     # 03.10 16:55: флаг R56 не был подключён — NameError на первом всплеске у вершины (поймано пересчётом дня)
+    from core_config import FAST3_ZH_OFF_FOR_SPIKE_SHORT
+except ImportError:
+    FAST3_ZH_OFF_FOR_SPIKE_SHORT = True
 try:
     from core_config import FAST3_SHORT_TP, FAST3_SHORT_SL, FAST3_SHORT_HOLD_MIN
     try:
@@ -468,6 +849,195 @@ def _ladder(sym: str, px: float):
     return _ladder_calc(kd or [], px)
 
 
+_SLD: dict = {}
+
+
+def _slide_calc(lows: list):
+    """R65 чистый счёт: lows — минимумы закрытых часовых свечей (самые свежие в конце). → (сползание 72 ч?, отскок 24 ч?, ход минимумов за 72 ч %)
+    Мерка та же, что у сканера (_move_10h): первая треть против последней — «падают», если и самый высокий, и средний минимум последней трети ниже, чем у первой;
+    «растут» — если и самый низкий, и средний минимум последней трети выше."""
+    try:
+        from core_config import FAST3_SLIDE_H as _sh, FAST3_SLIDE_BOUNCE_H as _bh
+    except ImportError:
+        _sh, _bh = 72, 24
+    if len(lows) < _sh:
+        return False, False, 0.0
+    w = lows[-_sh:]; n = _sh // 3; f, l = w[:n], w[-n:]; a1, a2 = sum(f) / n, sum(l) / n
+    slide = max(l) < max(f) and a2 < a1
+    b = lows[-_bh:]; m = _bh // 3; bf, bl = b[:m], b[-m:]
+    bounce = min(bl) > min(bf) and sum(bl) > sum(bf)
+    return slide, bounce, (a2 / a1 - 1) * 100 if a1 else 0.0
+
+
+def _slide(sym: str):
+    """R65 (04.10 владелец по BR: «брать историю монеты за 3 последних дня на часовых свечах и смотреть лои: если постепенное падение — не брать лонги; это просто отскоки,
+    пока не снесёт всех»; «на таких монетах надо брать только шорты на отскоках со стопом 10 % и только на отскоках, не на падении или флэте»).
+    → (сползание?, отскок?, ход минимумов %); часовые свечи раз в час на монету; нет данных — (False, False, 0)"""
+    try:
+        from core_config import FAST3_SLIDE_ON as _on, FAST3_SLIDE_H as _sh
+    except ImportError:
+        _on, _sh = True, 72
+    if not _on:
+        return False, False, 0.0
+    t, v = _SLD.get(sym, (0, None))
+    if time.time() - t > 3600 or v is None:
+        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1h", "limit": _sh + 1}, quiet_400=True) or []
+        lows = [float(x[3]) for x in k[:-1]]                             # только закрытые часы
+        v = _slide_calc(lows) if len(lows) >= _sh else (False, False, 0.0)
+        _SLD[sym] = (time.time() if len(lows) >= _sh else time.time() - 3600 + 300, v)
+    return v
+
+
+def _slide_gate(state: dict, sym: str, why: str, t_bar: int, now: float, msgs: list, book_note: str = "") -> bool:
+    """R65 для сигналов всплеска/выноса на свече (обе книги): монета сползает 3 дня → лонг не берём вовсе; шорт — только на отскоке (отскок — сам всплеск) и только
+    через ожидание вершины (как все шорты после вершины): стоп FAST3_SLIDE_SHORT_SL (10 %), цели нет, после хода 5 % стоп в точку входа, выход через FAST3_SLIDE_HOLD_MIN
+    (16 ч) — владелец 04.10: «закрытие также через 16 часов, стоп в бу при подходе цены на 5 %». На падении и во флэте — ни лонга, ни шорта. Правило главнее «лестницы» и переворотов. → True, если сигнал обработан здесь (дальше по цепочке не идёт)."""
+    sl, bn, mv = _slide(sym)
+    if not sl:
+        return False
+    if sym in _own_mm():
+        msgs.append(f"{sym[:-4]} пропущен: свой ММ (список own_mm)"); return True
+    # 04.10 05:00 владелец на мою мерку «минимумы суток растут»: «какие растущие минимумы за сутки… отскок это 2–3 часа максимум, а то полчаса: отскочило, лонги зашли,
+    # и сквиз для выноса или медленное падение… какие нах сутки» — суточная мерка убрана: отскок — это сам всплеск (свеча вверх на объёме), шорт берётся после его вершины
+    try:
+        from core_config import FAST3_NO_SHORT_MANUAL as _man
+    except ImportError:
+        _man = []
+    if sym in _man:                                                      # 04.10 08:20 (MEGA: R65 поставил шорт в ожидание в монете из ручного списка лестницы владельца): ручной запрет шорта главнее R65
+        msgs.append(f"{sym[:-4]} не взят: монета сползает ({mv:+.0f}% за 3 дня) — лонга нет (R65), а шорт в монетах ручного списка лестницы не берём (R45)"); return True
+    _ff = _flat5(sym, 0.0)
+    if _ff[0]:                                                           # R67: во флэте шорт не берём, а лонга в сползающей монете нет — сигнал пропускается
+        msgs.append(f"{sym[:-4]} не взят: монета сползает ({mv:+.0f}% за 3 дня), лонга нет, а шорт на флэте не берём — {_flat_txt(sym, _ff)} (R65, R67)"); return True
+    ok, sw, _ = ses_gate(now, t_bar, -1)
+    if not ok:
+        msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); return True
+    if sym not in state.setdefault("pending", {}):
+        w = f"R65 сползание 3 дня (минимумы {mv:+.0f}%) → шорт на отскоке, после вершины всплеска · " + why + book_note
+        msgs.append(to_pending(state, sym, w, t_bar, now, None)); state["pending"][sym]["slide"] = True
+    return True
+
+
+_H1: dict = {}; _FLATK: dict = {}
+
+
+def _h1(sym: str) -> list:
+    """закрытые часовые свечи монеты (49 штук), раз в час на монету; нет данных — []"""
+    t, v = _H1.get(sym, (0, None))
+    if time.time() - t > 3600 or v is None:
+        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1h", "limit": 50}, quiet_400=True) or []
+        v = k[:-1]
+        _H1[sym] = (time.time() if len(v) >= 48 else time.time() - 3600 + 300, v)
+    return v or []
+
+
+def _flat24(sym: str):
+    """R70 (04.10 владелец по ENJ — двое суток в коридоре после пампа, бот взял шорт 5/5: «снова шорт на флэте», «должен был быть лонг лимиткой на линии флэта, а не шорт на
+    пике»; на предложенную мерку и вход — «да, цель на верх флэта, стоп 10 %»): флэт по суткам — последние 24 закрытых часа целиком внутри диапазона предыдущих 24 часов
+    (максимум не выше, минимум не ниже). Линия флэта — минимум последних суток, верх — их максимум. → (флэт?, линия, верх)"""
+    k = _h1(sym)
+    if len(k) < 48:
+        return False, 0.0, 0.0
+    a, b = k[-48:-24], k[-24:]
+    hi0, lo0 = max(float(x[2]) for x in a), min(float(x[3]) for x in a); hi, lo = max(float(x[2]) for x in b), min(float(x[3]) for x in b)
+    return (lo > 0 and hi <= hi0 and lo >= lo0), lo, hi
+
+
+def _flat_txt(sym: str, ff) -> str:
+    """подпись флэта для строки отказа: какой меркой он найден"""
+    k = _FLATK.get(sym)
+    if k and k[0] == "сутки":
+        return f"последние сутки {k[1]:.6g}–{k[2]:.6g} внутри диапазона предыдущих (размах {ff[1] * 100:.0f}%)"
+    return f"размах 5 дневных свечей {ff[1] * 100:.0f}%"
+
+
+def _flat_long_set(state: dict, sym: str, now: float, msgs: list, src: str) -> None:
+    """R70: вместо шорта во флэте по суткам ставится ожидание лонга на линии флэта (лимитка): цена коснулась линии — лонг по ней, цель — верх флэта, стоп FAST3_FLAT_LONG_SL.
+    Ожидание живёт FAST3_FLAT_LONG_WAIT_H часов. Не ставится в окне без лонгов (R69), в сползающей монете (R65), в «своём ММ» и у молодых листингов."""
+    try:
+        from core_config import FAST3_FLAT_LONG as _on, FAST3_FLAT_LONG_WAIT_H as _wh
+    except ImportError:
+        _on, _wh = True, 24
+    if not _on or sym in state["open"] or sym in state.setdefault("flat_wait", {}):
+        return
+    fl, lo, hi = _flat24(sym)
+    if not fl or hi <= lo or _long_window_closed(now) or _slide(sym)[0] or sym in _own_mm() or _too_young(sym):
+        return
+    state["flat_wait"][sym] = dict(level=lo, top=hi, at=now, until=now + _wh * 3600, chk=int(now * 1000) // 180_000 * 180_000,
+                                   why=f"R70 флэт по суткам ({lo:.6g}–{hi:.6g} внутри диапазона предыдущих суток) → лонг лимиткой от линии флэта {lo:.6g} вместо шорта · сигнал: {src[:120]}")
+    msgs.append(f"{sym[:-4]} лонг лимиткой ждёт на линии флэта {lo:.6g} (верх {hi:.6g}, +{(hi / lo - 1) * 100:.1f}%), до {_wh} ч (R70)")
+
+
+def flat_wait_step(state: dict, book: str, now: float, ev: list, msgs: list, write: bool) -> None:
+    """R70: ждущие лонги от линии флэта — вход, когда 3-минутная свеча коснулась линии (цена входа — сама линия, как у лимитного ордера)"""
+    w = state.setdefault("flat_wait", {}); now_ms = int(now * 1000)
+    for sym, q in list(w.items()):
+        if now > float(q["until"]):
+            msgs.append(f"{sym[:-4]} лонг от линии флэта: цена не пришла к {q['level']:.6g} — ожидание снято (R70)"); del w[sym]; continue
+        if sym in state["open"]:
+            continue
+        if _long_window_closed(now) or _slide(sym)[0]:
+            msgs.append(f"{sym[:-4]} лонг от линии флэта снят: {_long_window_closed(now) or 'монета сползает (R65)'}"); del w[sym]; continue
+        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "3m", "startTime": int(q["chk"]), "limit": 500}, quiet_400=True) or []
+        k = [x for x in k if int(x[0]) + 180_000 <= now_ms]
+        if not k:
+            continue
+        hit = next((x for x in k if float(x[3]) <= float(q["level"])), None)
+        q["chk"] = int(k[-1][0]) + 180_000
+        if not hit:
+            continue
+        _open_short_now(state, ev, msgs, sym, float(q["level"]), int(hit[0]), now, q["why"], book, write, side=1, mode="flat_long", tgt_abs=float(q["top"]))
+        del w[sym]                                                        # коснулась — либо вошли, либо вход был закрыт (час без входов, лимит): уровень отработан
+
+
+def _flat5(sym: str, px: float):
+    """R67 (04.10 владелец по SOLV и INIT — шорты, закрытые в минус правилом шести часов: «вот они и пошли минусы», «туда же», «убери вообще шорты на флэте»):
+    флэт — та же мерка, что в R47 и R62: размах FAST3_LADDER_FLAT_DAYS закрытых дневных свечей (максимум / минимум − 1) не больше FAST3_LADDER_FLAT_MAX.
+    Во флэте шорт не берётся никакой, кроме «конец роста» (R58). → (флэт?, размах долей); нет данных — (False, 0)"""
+    try:
+        from core_config import FAST3_NO_FLAT_SHORT as _on, FAST3_LADDER_FLAT_DAYS as fd, FAST3_LADDER_FLAT_MAX as fm
+    except ImportError:
+        _on, fd, fm = True, 5, 0.25
+    if not _on:
+        return False, 0.0
+    _ladder(sym, px)                                                   # дневные бары в кэше _LAD (раз в час на монету)
+    kd = (_LAD.get(sym) or (0, None))[1] or []
+    rng = None
+    if len(kd) >= fd:
+        last = kd[-fd:]; hi = max(float(x[2]) for x in last); lo = min(float(x[3]) for x in last)
+        rng = hi / lo - 1 if lo > 0 else None
+    if rng is not None and rng <= fm:
+        _FLATK[sym] = ("5 дн", None, None)
+        return True, rng
+    f24, lo24, hi24 = _flat24(sym)                                     # 04.10 17:45 (ENJ): флэт и по суткам — последние 24 часа внутри диапазона предыдущих
+    if f24:
+        _FLATK[sym] = ("сутки", lo24, hi24)
+        return True, hi24 / lo24 - 1
+    return False, rng or 0.0
+
+
+def _flat_target(sym: str, px: float, tgt: float):
+    """R62 (04.10 владелец по 1000CAT: шорт во флэте 0.0021–0.0024, цель бота −10 % = 0.00205 ниже дна флэта — «цена ниже флэта и при каких условиях туда дойдём…
+    почему тогда цель такая далёкая», «вноси»): если монета во флэте (размах FAST3_LADDER_FLAT_DAYS закрытых дневных свечей ≤ FAST3_LADDER_FLAT_MAX — та же мерка, что в R47),
+    вход выше низа флэта и низ ближе обычной цели — цель шорта ставится на низ флэта. НЕ ПРОВЕРЕНО вне выборки; счёт claude/research/flat_target.py на 191 закрытом шорте
+    27.09–03.10: правило применимо к 90, до своей цели не дошёл ни один, до низа флэта 4; итог +474 → +517 $, по дням хуже не стало (01.10 +582 → +598, 02.10 −109 → −82).
+    → (цель долей, подпись)"""
+    try:
+        from core_config import FAST3_FLAT_TP as _on, FAST3_LADDER_FLAT_DAYS as fd, FAST3_LADDER_FLAT_MAX as fm
+    except ImportError:
+        _on, fd, fm = True, 5, 0.25
+    if not _on or not px or not tgt:
+        return tgt, ""
+    _ladder(sym, px)                                                   # дневные бары в кэше _LAD (раз в час на монету)
+    kd = (_LAD.get(sym) or (0, None))[1] or []
+    if len(kd) < fd:
+        return tgt, ""
+    last = kd[-fd:]; hi = max(float(x[2]) for x in last); lo = min(float(x[3]) for x in last)
+    if lo <= 0 or hi / lo - 1 > fm or px <= lo or lo <= px * (1 - tgt):
+        return tgt, ""
+    nt = round(1 - lo / px, 5)
+    return nt, f"цель — низ флэта {fd} дн {lo:.6g} (−{nt * 100:.1f}%) вместо −{tgt * 100:.0f}% (R62)"
+
+
 def _no_short(sym: str, px: float):
     """почему шорт в монете не берём: Г (×2+ от минимума 90 дн) · R47 (рост + флэт) · ручной список лестницы. → подпись или None"""
     try:
@@ -484,6 +1054,15 @@ def _no_short(sym: str, px: float):
     if sym in _man:
         return "монета из списка лестницы владельца (R45) — шорт не берём"
     return _ladder(sym, px)
+
+
+def _flip_recheck() -> bool:
+    """R64: проверять ли перевёрнутый шорт правилом Б (FAST3_FLIP_RECHECK, по умолчанию да)"""
+    try:
+        from core_config import FAST3_FLIP_RECHECK as _on
+    except ImportError:
+        _on = True
+    return bool(_on)
 
 
 def gate_ab(sym: str, sd: int, px: float):
@@ -626,22 +1205,45 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
               else "ликвидаций по монете в потоке нет — вход только по свече")
         # 29.09 владелец «да»: шорт — стоп +FAST3_SHORT_SL, без цели, срок FAST3_SHORT_HOLD_MIN, выход по выносу лонгов (fuel_exit); стоп за вершиной убран (unified_exit.py)
         stop, tgt = FAST3_SHORT_SL, FAST3_SHORT_TP; _tpnote = ""
-        _flush_short = "вынос шортов на всплеске → шорт" in p.get("why", "")   # 03.10 владелец (CAP, ALICE «вот тоже»): вынос шортов = конец лестницы — такой шорт идёт мимо Г / R47 / ручного списка
+        _sld = bool(p.get("slide"))                                       # R65: шорт на отскоке в сползающей монете — стоп и цель свои, «лестница» не запрещает
+        if _sld:
+            try:
+                from core_config import FAST3_SLIDE_SHORT_SL as _ssl65, FAST3_SLIDE_HOLD_MIN as _hold65
+            except ImportError:
+                _ssl65, _hold65 = 0.10, 960
+            stop, tgt = _ssl65, 0.0                                       # 04.10 владелец: «закрытие также через 16 часов, стоп в бу при подходе цены на 5 %» — цели нет
+            try:
+                from core_config import FAST3_NO_SHORT_MANUAL as _man65
+            except ImportError:
+                _man65 = []
+            if sym in _man65:                                             # ручной список лестницы главнее R65 (ожидания, поставленные до правки 08:20)
+                msgs.append(f"{sym[:-4]} шорт на отскоке не взят: монета из ручного списка лестницы владельца (R45)"); del state["pending"][sym]; continue
+            if not _slide(sym)[0]:                                        # за время ожидания монета перестала сползать — шорт на отскоке не берём
+                msgs.append(f"{sym[:-4]} шорт на отскоке не взят: минимумы за 3 дня больше не падают (R65)"); del state["pending"][sym]; continue
+        _flush_short = _sld or "вынос шортов на всплеске → шорт" in p.get("why", "")   # 03.10 владелец (CAP, ALICE «вот тоже»): вынос шортов = конец лестницы — такой шорт идёт мимо Г / R47 / ручного списка
         _ns = (None if _flush_short else _no_short(sym, c)) or _too_young(sym)   # 02.10 13:40 (проверка): перепроверка в момент входа; 03.10: листинг < 180 дн — всегда
         if _ns:
             msgs.append(f"{sym[:-4]} шорт после вершины не взят: {_ns}"); del state["pending"][sym]; continue
+        _ff = _flat5(sym, c)
+        if _ff[0]:                                                        # R67
+            msgs.append(f"{sym[:-4]} шорт после вершины не взят: флэт — {_flat_txt(sym, _ff)} (R67)"); del state["pending"][sym]
+            _flat_long_set(state, sym, now, msgs, str(p.get("why", ""))); continue   # R70
         try:                                                              # 02.10 владелец: монета после пампа/роста держит уровень (×2+ от минимума 90 дн) — цель шорта 5 %, не 10 %
             from core_config import FAST3_SHORT_TP_PULLUP as _tp5, FAST3_RUN90_X as _rx
             _r90 = _run90(sym)
             if _r90 and _r90 >= _rx:
-                tgt = _tp5; _tpnote = f" · цель 5%: монета ×{_r90:.1f} от минимума 90 дн, продавец тянет вверх"   # 02.10 13:40: раньше здесь было why = why + … до присваивания why → UnboundLocalError (нашла проверка)
+                tgt = min(tgt, _tp5); _tpnote = f" · цель 5%: монета ×{_r90:.1f} от минимума 90 дн, продавец тянет вверх"   # 02.10 13:40: раньше здесь было why = why + … до присваивания why → UnboundLocalError (нашла проверка)
         except ImportError:
             pass
+        tgt, _fn = _flat_target(sym, c, tgt)                              # R62: во флэте цель шорта — низ флэта
+        if _fn: _tpnote += " · " + _fn
         del state["pending"][sym]
         t_bar = int(last[0]); ok, sw, _h = ses_gate(now, t_bar, -1)
         # 30.09 владелец «вноси» (after_exit.py: шорты у вершины 90 дн — после выхода по сроку цена шла ещё +6.2% вперёд, у 65% ≥ 3% за 2 ч; по сроку +21.5%, держать ещё 2 ч +114.6% на 23 сделках, НЕ ПРОВЕРЕНО):
         # срок по часам убран — держим до выноса лонгов (fuel_exit) или стопа; время — только стык сессий (час выхода следующей сессии из ses_gate, R41); FAST3_SHORT_HOLD_MIN — запас, если ses_gate не дал срок
         hold = _h if (_h and FAST3_SHORT_HOLD_BY_SESSION) else FAST3_SHORT_HOLD_MIN
+        if _sld:
+            hold = _hold65; _tpnote += f" · R65: цели нет, после 5 % стоп в твх, выход через {_hold65 // 60} ч, вынос лонгов не закрывает"
         if not ok:
             msgs.append(f"{sym[:-4]} шорт после вершины пропущен: {sw}"); continue
         why = p["why"] + f" · вход после вершины {top:.6g} ({sq}): стоп +{stop * 100:.0f}%, выход по выносу лонгов, срок {hold} мин · сессия {sw}" + _tpnote
@@ -654,6 +1256,7 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
         stop, _spx, _snote = _range_stop(sym, -1, c, stop)                # 02.10: для шортов возвращает обычный +10 % (FAST3_RANGE_STOP_SHORT=False — владелец по SAND: «с поднятым выше стопом»)
         if _snote: why = why + " · " + _snote
         pos = dict(sym=sym, side=-1, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), stop_px=_spx, hold_min=hold, rule=why, last_px=c, bars=0, top=top)
+        if _sld: pos["slide"] = True
         state["open"][sym] = pos
         ev.append(dict(book=book, sym=sym, kind="entry", side=-1, px=c, at=now, usd_in=FAST3_SIZE, rule=why, target=pos["target"], stop=pos["stop"],
                        hold_min=hold, fon=fon(), bub=_bub(sym)))
@@ -680,6 +1283,8 @@ def fuel_exit(sym: str, pos: dict, now: float, c: float):
     if (c - e) * sd <= 0:
         return None
     if str(pos.get("rule", "")).startswith("всплеск → шорт 5/5"):          # 03.10: шорт на всплеске — только цель 5 %, стоп 5 %, срок 24 ч (как в счёте)
+        return None
+    if pos.get("pump_end") or pos.get("slide"):                          # R58 и R65: шорт «конец роста» и шорт на отскоке вынос лонгов не закрывает — выход по времени
         return None
     since = int(pos["t_ms"])
     if pos.get("flush"):                                                 # 03.10 05:00 (NIGHT 04:00: шорт закрыт через 12 мин «топливом» того же часа, где был сам сквиз): для позиций сканера выносов — только часы ПОСЛЕ часа входа
@@ -836,7 +1441,12 @@ def scan(sym: str, want_spike: bool, want_climax: bool):
     return sym, c[-1], int(k[-1][0]), out
 
 
-def short_walk(e: float, stop: float, tgt: float, k: list, top=None):
+def _short_tgt(pos: dict) -> float:
+    """цель шорта при ведении: у шорта на отскоке R65 цели нет (0), у остальных — своя или общая FAST3_SHORT_TP"""
+    return 0.0 if pos.get("slide") else float(pos.get("target") or FAST3_SHORT_TP)
+
+
+def short_walk(e: float, stop: float, tgt: float, k: list, top=None, be_on: bool = True):
     """01.10 владелец «ставь цель 10% или вынос лонгов, при уходе в +5% стоп в вх»: шорт по 3-мин барам от входа по порядку —
     стоп +stop → цель −tgt → после касания −FAST3_SHORT_BE_AT стоп переносится на вход (безубыток). → (результат от входа без комиссии, причина) или (None, None)"""
     be = False
@@ -852,7 +1462,7 @@ def short_walk(e: float, stop: float, tgt: float, k: list, top=None):
             return 1 - c_ / e, f"цена выше вершины входа {top:.6g}"
         if tgt and l_ <= e * (1 - tgt):
             return tgt, "цель"
-        if not be and FAST3_SHORT_BE_AT and l_ <= e * (1 - FAST3_SHORT_BE_AT):
+        if be_on and not be and FAST3_SHORT_BE_AT and l_ <= e * (1 - FAST3_SHORT_BE_AT):
             be = True
     return None, None
 
@@ -861,6 +1471,8 @@ def _ladder_top(sym: str, pos: dict):
     """02.10 владелец («по таким шортам … цена пошла выше — сразу закрытие, не ждём стопов»): вершина входа для выхода шорта — только в монетах лестницы
     (Г / R47 рост+флэт / ручной список), т.е. для шортов, открытых до правки; на всех шортах счёт 110 сделок: +606 → +135 $ (sim_top2.py) — шире не применяем"""
     try:
+        if pos.get("slide"):                                             # R65: шорт на отскоке держит свой стоп 10 %, вершина входа его не закрывает
+            return None
         if pos.get("ladder") or _no_short(sym, float(pos.get("px") or 0)):
             return _top_of(pos)
     except Exception:  # noqa: BLE001
@@ -1011,9 +1623,11 @@ def flip_check(e: float, pos: dict, k: list, now: float):
     и стоп/цель/безубыток за окно не сработали → шорт закрыт по закрытию последнего бара окна, новый лонг с целью FAST3_LONG_HOLD_TP и стопом на низу окна.
     → (результат шорта, причина, новая позиция) или (None, None, None)"""
     nf = max(1, FAST3_FLIP_HOLD_MIN // 3)
+    if _slide(pos["sym"])[0] or _long_window_closed(now):                # R65: монета сползает — переворота шорта в лонг нет; R69: и в окне без лонгов
+        return None, None, None
     if pos.get("flip") or not str(pos.get("rule", "")).startswith("А") or len(k) < nf:
         return None, None, None
-    r, _ = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k[:nf], _ladder_top(pos["sym"], pos))
+    r, _ = short_walk(e, pos["stop"], _short_tgt(pos), k[:nf], _ladder_top(pos["sym"], pos))
     if r is not None:
         return None, None, None
     lowest = min(float(x[3]) for x in k[:nf])
@@ -1026,12 +1640,181 @@ def flip_check(e: float, pos: dict, k: list, now: float):
     return 1 - c_f / e, f"переворот в лонг: шорт держится {nf * 3} мин", newpos
 
 
+_K3C: dict = {}
+
+
+def _k3_since(sym: str, t_ms: int, now_ms: int) -> list:
+    """закрытые 3-мин свечи позиции от t_ms до сейчас. 04.10 (поломка кода, найдена при внесении R66): раньше брался ОДИН запрос на 1000 свечей от входа — это 50 часов;
+    у позиции старше 50 часов новые свечи в ответ не попадали, и стоп, цель, срок и цена «сейчас» переставали обновляться (сканерные позиции держатся до 7 дней).
+    Теперь закрытые свечи копятся в памяти, каждый проход досылаются только новые (и запросы к Binance стали легче)."""
+    key = (sym, int(t_ms)); c = _K3C.get(key) or []
+    for _ in range(6):
+        start = (int(c[-1][0]) + 180_000) if c else int(t_ms)
+        if start + 180_000 > now_ms:
+            break
+        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "3m", "startTime": start, "limit": 1000}, quiet_400=True, weight=5) or []
+        k = [x for x in k if int(x[0]) + 180_000 <= now_ms and int(x[0]) >= start]
+        if not k:
+            break
+        c = c + k
+        if len(k) < 900:
+            break
+    if c:
+        _K3C[key] = c
+        if len(_K3C) > 300:                                              # закрытые позиции из кэша уходят сами: держим последние
+            for kk in list(_K3C)[:100]:
+                _K3C.pop(kk, None)
+    return [x for x in c if int(x[0]) + 180_000 <= now_ms]
+
+
+def _stall_exit(pos: dict, k: list, now: float, c: float):
+    """R66 (04.10 владелец по SUPER, NIGHT, NMR: «такие шорты надо закрывать, если после выноса цена стоит больше 6 часов»; «все шорты, что висят больше 6 часов, уже под
+    вопросом, а если ещё цена стояла практически во флэте (в случае NIGHT вернулась после небольшого падения) — это закрытие сразу по рынку, если минус, если плюс — то стоп
+    в твх»): шорт старше FAST3_STALL_H часов, минимум с входа не обновлялся столько же часов («цена стоит») → в минусе закрывается по рынку, в плюсе стоп переносится в точку
+    входа. Все шорты, кроме «конец роста» (R58 — у него такое же своё правило шести часов). С 06:00 возраст минимума не проверяется: достаточно, что шорту 6 часов.
+    → ("close", причина) / ("be", подпись) / None"""
+    try:
+        from core_config import FAST3_STALL_H as _sh
+    except ImportError:
+        _sh = 6
+    if not _sh or not k or int(pos.get("side", 0)) != -1 or pos.get("pump_end"):
+        return None
+    if now - float(pos.get("at") or now) < _sh * 3600:
+        return None
+    # 04.10 06:00 (MUBARAK: вход 23:00, минимум в 23:57, дальше цена стояла выше входа; моё добавочное условие «минимум не обновлялся 6 часов» отложило закрытие с 05:00
+    # до 05:57, а там случился вынос — −6.1 % вместо примерно −3 %): условия про возраст минимума больше нет. Шорту исполнилось 6 часов → в минусе закрытие, в плюсе стоп в твх —
+    # как сказал владелец и как у шорта «конец роста» (R58).
+    i = min(range(len(k)), key=lambda j: float(k[j][3])); t_low = int(k[i][0]) / 1000 + 180
+    e = float(pos["px"]); tail = f"лучшая цена {float(k[i][3]):.6g} была {datetime.fromtimestamp(t_low, L):%d.%m %H:%M}"
+    if c > e:
+        return "close", f"шорт висит больше {_sh:g} ч и в минусе ({tail}) — закрытие по рынку (R66)"
+    if pos.get("be_from") or (pos.get("stop_px") and abs(float(pos["stop_px"]) / e - 1) < 1e-9):
+        return None                                                      # стоп уже в точке входа
+    return "be", f"шорт висит больше {_sh:g} ч, позиция в плюсе ({tail}) — стоп в точку входа (R66)"
+
+
+def _long_window_closed(now: float):
+    """R69 (04.10 владелец, окончательно: «давай даже не так: в воскресенье лонги закрываем за 2 часа до закрытия Нью-Йорка, открывать лонги можно только со вторника через час
+    после открытия Нью-Йорка»; до этого — «все лонги закрывать на Сиднее через 2 часа после начала сессии в воскресенье», «не должны открываться до понедельника…»):
+    по часам бота (UTC+3) с воскресенья 22:00 (Нью-Йорк закрывается в 24:00, минус FAST3_SUNDAY_CLOSE_BEFORE_NY_END_H) до вторника 17:00 (Нью-Йорк открывается в 16:00, плюс
+    FAST3_LONG_OPEN_AFTER_NY_H) лонгов нет: открытые закрываются по рынку, новые не берутся (всплеск, сканер, перевороты шорта в лонг). Шорты не затронуты.
+    На истории не считалось. → подпись окна или None"""
+    try:
+        from core_config import FAST3_SUNDAY_LONG_CLOSE as _on, FAST3_SUNDAY_CLOSE_BEFORE_NY_END_H as _h, FAST3_LONG_OPEN_AFTER_NY_H as _m
+    except ImportError:
+        _on, _h, _m = True, 2, 1
+    if not _on:
+        return None
+    d = datetime.fromtimestamp(now, L); hh = d.hour + d.minute / 60
+    ny = next(x for x in SES_WIN if x[0] == "Нью-Йорк"); a = ny[2] - _h; b = ny[1] + _m
+    if (d.weekday() == 6 and hh >= a) or d.weekday() == 0 or (d.weekday() == 1 and hh < b):
+        return f"лонги закрыты с воскресенья {int(a):02d}:00 до вторника {int(b):02d}:00 (R69)"
+    return None
+
+
+def _sunday_close(pos: dict, now: float):
+    """R69: открытый лонг в окне «воскресенье 22:00 → вторник 17:00» закрывается по рынку. → причина выхода или None"""
+    if int(pos.get("side", 0)) != 1:
+        return None
+    w = _long_window_closed(now)
+    return f"все лонги закрываются: {w}" if w else None
+
+
+def _stall_flip(pos: dict, k: list, now: float, c: float):
+    """R68 (04.10 владелец по MUBARAK — шорт сканера 6 часов не шёл и закрыт в минус, а цена ушла дальше вверх: «надо такие шорты в лонги переворачивать», «сделать ещё правило
+    для лонгов по этому принципу, по тому что брались шорты»; 14:20 «ты сделал, чтобы шорты переворачивались в лонги?»): шорт, закрытый правилом шести часов в минусе (R66),
+    переворачивается в лонг по той же цене. Параметры — как у уже существующего переворота шорта у вершины (flip_check, владелец 01.10): цель FAST3_LONG_HOLD_TP (+10 %),
+    стоп на минимуме часов, пока висел шорт, срок FAST3_LONG_HOLD_EXT_MIN (сутки). Лонга нет, если монета сползает (R65) или после сквиза «конец роста» не прошло 6 часов (R60).
+    Счёт claude/research/short6h_flip.py (26 шортов, три дня): закрыть на шестом часу −495 $, лонг после закрытия +551 $ (шорты А/А2 19 сделок +667 $, прочие 7 сделок −115 $).
+    → новая позиция или None"""
+    try:
+        from core_config import FAST3_STALL_FLIP as _on
+    except ImportError:
+        _on = True
+    sym = pos["sym"]
+    if not _on or not k or _slide(sym)[0] or _pump_ban(sym, now) or _long_window_closed(now):
+        return None
+    lowest = min(float(x[3]) for x in k)
+    if lowest <= 0 or c <= lowest:
+        return None
+    return dict(sym=sym, side=1, px=c, t_ms=int(k[-1][0]), at=now, target=FAST3_LONG_HOLD_TP, stop=round(max(1e-6, 1 - lowest / c), 5), stop_px=lowest,
+                hold_min=FAST3_LONG_HOLD_EXT_MIN, held=True, flip=True, last_px=c, bars=0,
+                rule=f"R68 переворот: шорт висел больше 6 ч и был в минусе — лонг от цены закрытия, цель +{FAST3_LONG_HOLD_TP * 100:.0f}%, стоп на минимуме этих часов {lowest:.6g} · было: " + str(pos.get("rule", ""))[:220])
+
+
+_OTHER = {}   # R63: книга → вторая книга (её состояние и имя); заполняется в main
+
+
+def _x2_exits(state: dict, ev: list) -> None:
+    """R63: выход по удвоенной позиции — результат считается по двум половинам: вторая (ведущая) — как посчитал выход, первая — от своего входа px0 до той же цены выхода"""
+    x2 = state.get("x2") or {}
+    for r in ev:
+        if str(r.get("kind", "")).startswith("exit") and r.get("sym") in x2:
+            a = x2.pop(r["sym"]); sd = int(r["side"]); e0 = float(a["px0"]); out = float(r["px_out"]); r1 = float(r["result_pct"]) / 100
+            r0 = (out / e0 - 1) * sd                                      # комиссия уже сидит в px_out
+            r.update(usd=round(FAST3_SIZE * (r1 + r0), 2), result_pct=round((r1 + r0) / 2 * 100, 2), size=2.0, usd_in=FAST3_SIZE * 2, px_in0=e0,
+                     px_in=round((float(r["px_in"]) + e0) / 2, 10), res_first=round(r0 * 100, 2), res_second=round(r1 * 100, 2), book0=a.get("book0"))
+    for s_ in [s_ for s_ in x2 if s_ not in state["open"]]:
+        x2.pop(s_)
+
+
+def _one_position(state: dict, book: str, ev: list, msgs: list, now: float, write: bool) -> None:
+    """R63 (04.10 владелец по AIN: «не должно быть 2-х одинаковых сделок, если 2 стратегии одновременно — позиция ×2»; «если сделка открывается следующая в противоположном
+    направлении, то закрываем текущую и открываем новую»; «если 2 в одном направлении, то смотрим по цене: если не ушла более чем на 2 %, то добираем с целью 2-й сделки,
+    а не 1-й»): одна монета — одна позиция на обе книги. Вызывается в конце прохода книги по её новым входам, когда во второй книге монета уже открыта:
+      • в другую сторону — позиция второй книги закрывается по цене нового входа, новая остаётся;
+      • в ту же сторону и цена от первого входа ушла не больше FAST3_ADD_MAX_MOVE (2 %) — позиции сливаются: дальше её ведёт новая (вторая) сделка со своей целью, стопом
+        и сроком, размер ×2 (первая половина — по цене первого входа, state["x2"]); из первой книги позиция уходит событием merge без результата;
+      • в ту же сторону, но цена ушла дальше, или позиция уже ×2 — новый вход отменяется.
+    НЕ ПРОВЕРЕНО на истории: счёта нет, это устройство позиции по слову владельца."""
+    try:
+        from core_config import FAST3_ONE_POSITION as _on, FAST3_ADD_MAX_MOVE as _mv
+    except ImportError:
+        _on, _mv = True, 0.02
+    o = _OTHER.get(book)
+    if not _on or not o:
+        return
+    ost, obook = o["state"], o["book"]; oev = []
+    for r in [r for r in ev if r.get("kind") == "entry"]:
+        sym = r["sym"]; op = ost["open"].get(sym); pos = state["open"].get(sym)
+        if not op or not pos:
+            continue
+        sd = int(r["side"]); px = float(r["px"]); e0 = float(op["px"]); osd = int(op["side"]); nm = "лонг" if sd == 1 else "шорт"
+        if osd != sd:                                                     # встречный сигнал: старую закрываем, новая остаётся
+            res = (px / e0 - 1) * osd - FEE
+            x = dict(book=obook, sym=sym, kind="exit_long" if osd == 1 else "exit_short", side=osd, px_in=e0, px_out=round(e0 * (1 + res * osd), 8), opened_at=op["at"], at=now,
+                     result_pct=round(res * 100, 2), usd=round(FAST3_SIZE * res, 2), why_exit=f"встречный сигнал: «{book}» открывает {nm} (R63)", rule=op["rule"], size=1.0)
+            del ost["open"][sym]; ost.setdefault("last_exit", {})[sym] = now
+            _x2_exits(ost, [x]); oev.append(x)
+            msgs.append(f"{sym[:-4]} {nm}: в «{obook}» был {'лонг' if osd == 1 else 'шорт'} — закрыт встречным сигналом {res * 100:+.2f}% (R63)")
+            continue
+        mv = abs(px / e0 - 1)
+        if (ost.get("x2") or {}).get(sym) or float(op.get("size") or 1) >= 2 or mv > _mv:
+            del state["open"][sym]; ev.remove(r)
+            why_ = "позиция уже ×2" if mv <= _mv else f"цена ушла от входа {e0:.6g} на {mv * 100:.1f}% (больше {_mv * 100:g}%)"
+            msgs.append(f"{sym[:-4]} {nm} не добран: в «{obook}» уже открыт {nm}, {why_} (R63)")
+            continue
+        note = f"R63: добор к {nm}у «{obook}» (вход {e0:.6g}, цена ушла на {mv * 100:.1f}%) — размер ×2, цель и стоп этой сделки"
+        pos["size"] = 2.0; pos["px0"] = e0; pos["at0"] = op["at"]; pos["rule"] = str(pos.get("rule") or "") + " · " + note
+        state.setdefault("x2", {})[sym] = dict(px0=e0, at0=op["at"], book0=obook, rule0=op.get("rule"))
+        r["x2"] = True; r["px0"] = e0; r["size"] = 2.0; r["rule"] = pos["rule"]
+        oev.append(dict(book=obook, sym=sym, kind="merge", side=sd, px_in=e0, px=px, opened_at=op["at"], at=now, to=book, rule=op.get("rule")))
+        del ost["open"][sym]; (ost.get("x2") or {}).pop(sym, None)
+        msgs.append(f"{sym[:-4]} {nm}: добор к позиции «{obook}» (вход {e0:.6g}) — размер ×2, цель этой сделки (R63)")
+    if oev and write:
+        olog, ofile = (WAKE_LOG, WAKE_STATE) if obook == WAKE_BOOK else (LOG, STATE)
+        with olog.open("a", encoding="utf-8") as f:
+            for x in oev:
+                f.write(json.dumps(x, ensure_ascii=False) + "\n")
+        tmp = ofile.with_suffix(".tmp"); tmp.write_text(json.dumps(ost, ensure_ascii=False), encoding="utf-8"); tmp.replace(ofile)
+        msgs += _bingx([x for x in oev if str(x["kind"]).startswith("exit")])   # выход на бирже — раньше нового входа
+
+
 def step(state: dict, write: bool) -> list[str]:
     now = time.time(); now_ms = int(now * 1000); ev = []; msgs = []
     # выходы
     for sym, pos in list(state["open"].items()):
-        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "3m", "startTime": int(pos["t_ms"]) + 180_000, "limit": 1000}, quiet_400=True, weight=5) or []
-        k = [x for x in k if int(x[0]) + 180_000 <= now_ms]
+        k = _k3_since(sym, int(pos["t_ms"]) + 180_000, now_ms)        # 04.10: свечи позиции копятся, а не берутся одним запросом на 1000 штук
         if not k:
             continue
         e, sd = float(pos["px"]), int(pos["side"]); hi = max(float(x[2]) for x in k); lo = min(float(x[3]) for x in k); c = float(k[-1][4])
@@ -1044,12 +1827,30 @@ def step(state: dict, write: bool) -> list[str]:
         else:
             res, why, newpos = flip_check(e, pos, k, now)                # 01.10 владелец (ALICE, CAP): А-шорт держится 6 ч → закрыт, лонг
             if res is None:
-                res, why = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k, _ladder_top(sym, pos))   # шорт — цель, стоп, безубыток после −5%; 02.10: в монетах лестницы — выход выше вершины входа
-                if res is None and FAST3_SHORT_BE_AT and min(float(x[3]) for x in k) <= e * (1 - FAST3_SHORT_BE_AT):
+                _pe = bool(pos.get("pump_end"))                         # R58: шорт «конец роста» — цели нет, стоп не переносится, выход по времени
+                if _pe:
+                    res, why = pump_end_walk(e, pos, k)
+                else:
+                    res, why = short_walk(e, pos["stop"], _short_tgt(pos), k, _ladder_top(sym, pos))   # шорт — цель, стоп, безубыток после −5%; 02.10: в монетах лестницы — выход выше вершины входа
+                if res is None and not _pe and FAST3_SHORT_BE_AT and min(float(x[3]) for x in k) <= e * (1 - FAST3_SHORT_BE_AT):
                     pos["stop_px"] = e                                     # 01.10: стоп в безубытке — записываем, мост BingX переставит стоп на бирже
         if res is None:
             fx = fuel_exit(sym, pos, now, c)
             if fx: res, why = (c / e - 1) * sd, fx
+        if res is None and sd == -1:
+            if pos.get("be_from") and any(int(x[0]) >= int(pos["be_from"]) and float(x[2]) >= e for x in k):   # R66: стоп в точке входа, поставленный на шестом часу
+                res, why = 0.0, "стоп в безубыток (R66)"
+            else:
+                _stl = _stall_exit(pos, k, now, c)                         # R66: шорт старше 6 ч, цена стоит → минус закрыть, плюс — стоп в твх
+                if _stl and _stl[0] == "close":
+                    res, why = (c / e - 1) * sd, _stl[1]
+                    newpos = _stall_flip(pos, k, now, c)                   # R68: шорт не пошёл за 6 часов → лонг
+                elif _stl:
+                    pos["stop_px"] = e; pos["be_from"] = int(k[-1][0]) + 180_000; pos["rule"] = str(pos.get("rule") or "") + " · " + _stl[1]
+                    msgs.append(f"{sym[:-4]} {_stl[1]}")
+        if res is None and sd == 1:
+            _sun = _sunday_close(pos, now)                                 # R69: воскресенье, Сидней + 2 ч — лонги закрываются
+            if _sun: res, why = (c / e - 1) * sd, _sun
         if res is None and len(k) * 3 >= pos["hold_min"]: res, why = (c / e - 1) * sd, f"срок {pos['hold_min']} мин"
         pos["last_px"] = c; pos["bars"] = len(k)
         if res is not None:
@@ -1068,6 +1869,10 @@ def step(state: dict, write: bool) -> list[str]:
             ev.append(dict(book=BOOK, sym=sym, kind="follow", side=sd, px_in=e, px=c, result_pct=round((c / e - 1) * sd * 100, 2), at=now))
     # входы: сначала ждущие шорты (Б)
     pending_step(state, BOOK, now, ev, msgs, write)
+    try:
+        flat_wait_step(state, BOOK, now, ev, msgs, write)                 # R70: ждущие лонги от линии флэта
+    except Exception as e:  # noqa: BLE001
+        msgs.append(f"ожидание лонга от линии флэта: сбой {type(e).__name__}: {e}")
     flush_entries(state, BOOK, now, ev, msgs, write)                      # 03.10 владелец (R49): рекордный вынос шортов → шорт по рынку (закрыв, что было)
     spike, climax, info = short_list()
     todo = sorted(set(spike) | set(climax))
@@ -1077,6 +1882,8 @@ def step(state: dict, write: bool) -> list[str]:
     for sym, px, t_bar, outs in res_all:
         for sd, why, tp, sl, hold in outs:
             if sym in state["open"] or now - state["last_exit"].get(sym, 0) < 2 * 3600:
+                continue
+            if _slide_gate(state, sym, why, t_bar, now, msgs):            # R65: монета сползает 3 дня — лонгов нет, шорт только на отскоке
                 continue
             o1h, o5 = _oi_live(sym) if sd == 1 else (None, None)
             if o1h is None:
@@ -1096,7 +1903,19 @@ def step(state: dict, write: bool) -> list[str]:
             if ab:
                 sd = -sd; why = f"{ab} → сторона перевёрнута · " + why
                 msgs.append(f"{sym[:-4]} {ab.split(':')[0]}: сторона перевёрнута → {'шорт' if sd == -1 else 'лонг'}")
+                if sd == -1 and FAST3_B_SKIP and _flip_recheck():          # R64 (04.10 владелец по SAGA: «сделай обязательно проверку при перевороте»): шорт, в который А/А2
+                    ab2 = gate_ab(sym, sd, px)                             # перевернули лонг, проходит ту же проверку Б, что и обычный шорт (не у вершины 90 дн — не входим)
+                    if ab2 and ab2.startswith("Б"):
+                        msgs.append(f"{sym[:-4]} не взят: {ab.split(':')[0]} перевернул лонг в шорт, но {ab2} (R64)"); continue
+            _ws, _wskip, _wnote = _spike_short_plan(sym, px) if sd == 1 else (False, None, "")   # 03.10 16:20: этот всплеск будет шортом 5/5 (R53)?
+            if sd == -1 or _ws:                                           # R67: шорт на флэте не берём
+                _ff = _flat5(sym, px)
+                if _ff[0]:
+                    msgs.append(f"{sym[:-4]} не взят: шорт на флэте — {_flat_txt(sym, _ff)} (R67)")
+                    _flat_long_set(state, sym, now, msgs, why); continue      # R70: вместо шорта — лонг лимиткой от линии флэта
             gn = gate_new(sym, sd, px)                                    # 30.09 владелец «делай»: В (шорт при интересе +50% за 7 дн) и Ж (лонг у максимума 30 ч) — не входить
+            if gn and gn.startswith("Ж") and _ws and FAST3_ZH_OFF_FOR_SPIKE_SHORT:   # R56 (03.10 владелец «делай все»): Ж писался для лонга («покупка на вершине»); вход теперь шорт — вершина ему не помеха
+                why = why + " · у максимума 30 ч — Ж не применён, вход шортом (R56)"; gn = None
             if gn:
                 msgs.append(f"{sym[:-4]} не взят: {gn}"); continue
             if sd == -1:                                                  # Б: шорт — после вершины пампа
@@ -1115,6 +1934,16 @@ def step(state: dict, write: bool) -> list[str]:
             _lg = london_gate(sym, now, why)                                 # 02.10 владелец: Лондон — максимум 5 самых надёжных
             if _lg:
                 msgs.append(f"{sym[:-4]} не взят: {_lg}"); continue
+            if sd == 1 and not _ws:
+                _lw = _long_window_closed(now)                            # R69: с воскресенья 22:00 до вторника 17:00 лонги не берём
+                if _lw:
+                    msgs.append(f"{sym[:-4]} лонг не взят: {_lw}"); continue
+            if sd == 1 and not _ws:
+                _pb = _pump_ban(sym, now)                                 # R60 (03.10 владелец): после сквиза в конце роста лонг в монете не раньше чем через 6 ч
+                if _pb:
+                    msgs.append(f"{sym[:-4]} {_pb}"); continue
+            if _ws and _wskip:                                            # R55 (03.10 владелец «делай все»): шорт по всплеску только у монет с фандингом в нижней половине доски
+                msgs.append(f"{sym[:-4]} {_wskip}"); continue                #   на 266 входах недели: нижняя половина 107 входов +1547 $, верхняя 159 входов −3 $ (одна неделя, не проверено)
             _rl = _rate_ok(now)
             if _rl:
                 msgs.append(f"{sym[:-4]} не взят: {_rl}"); continue
@@ -1122,11 +1951,14 @@ def step(state: dict, write: bool) -> list[str]:
                 from core_config import FAST3_SPIKE_SHORT as _ss, FAST3_SPIKE_SHORT_TP as _stp, FAST3_SPIKE_SHORT_SL as _ssl, FAST3_SPIKE_SHORT_HOLD_MIN as _shm
             except ImportError:
                 _ss, _stp, _ssl, _shm = True, 0.05, 0.05, 1440
-            if _ss and sd == 1 and not _no_short(sym, px):                # в монетах лестницы (Г / R47 / ручной список) шорт не берём — там остаётся лонг по прежним правилам
+            if _ws:                                                       # в монетах лестницы (Г / R47 / ручной список) шорт не берём — там остаётся лонг по прежним правилам
                 sd, tp, sl, hold = -1, _stp, _ssl, _shm
-                why = f"всплеск → шорт 5/5 (03.10: на 301 входе недели лонг −1632 $, шорт 5/5 +1958 $) · " + why
+                why = f"всплеск → шорт 5/5 (03.10: на 301 входе недели лонг −1632 $, шорт 5/5 +1958 $) · " + (_wnote + " · " if _wnote else "") + why
             sl, _spx, _snote = _range_stop(sym, sd, px, sl)                 # 02.10 владелец: стоп за диапазоном 30 дн
             if _snote: why = why + " · " + _snote
+            if sd == -1:                                                   # R62: во флэте цель шорта — низ флэта
+                tp, _fn = _flat_target(sym, px, tp)
+                if _fn: why = why + " · " + _fn
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, stop_px=_spx, hold_min=hold, rule=why, last_px=px, bars=0, pump_open=_pump_open(px, why))
             state["open"][sym] = pos
             ev.append(dict(book=BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=why, target=tp, stop=sl, hold_min=hold,
@@ -1135,6 +1967,7 @@ def step(state: dict, write: bool) -> list[str]:
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} вход {px:.6g} · {why}")
             if write:
                 cg(sym, *cg_caption(BOOK, sym, pos))
+    _x2_exits(state, ev); _one_position(state, BOOK, ev, msgs, now, write)   # R63: одна монета — одна позиция на обе книги
     if write:
         with LOG.open("a", encoding="utf-8") as f:
             for r in ev:
@@ -1168,6 +2001,7 @@ def wake_candidates() -> list[dict]:
     except ImportError:
         WAKE_X, WAKE_PCT, WAKE_MIN_QV, WAKE_MIN_AGE_DAYS = 5.0, 1.0, 5_000_000, 100
     tk = get_json("https://fapi.binance.com/fapi/v1/ticker/24hr") or []
+    _board_set(tk)                                                        # 03.10 16:20: тот же ответ тикера — доска за 24 ч (R54, сайт)
     now = {x["symbol"]: (float(x["quoteVolume"]), float(x["lastPrice"]), float(x["lowPrice"])) for x in tk if x["symbol"].endswith("USDT")}
     prev, t_prev = _TK["v"], _TK["t"]; _TK["v"], _TK["t"] = now, time.time()
     if not prev or time.time() - t_prev > 600:
@@ -1186,8 +2020,7 @@ def wake_candidates() -> list[dict]:
 def wake_step(state: dict, write: bool) -> list[str]:
     now = time.time(); now_ms = int(now * 1000); ev = []; msgs = []
     for sym, pos in list(state["open"].items()):                        # выходы — как у основной книги
-        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "3m", "startTime": int(pos["t_ms"]) + 180_000, "limit": 1000}, quiet_400=True, weight=5) or []
-        k = [x for x in k if int(x[0]) + 180_000 <= now_ms]
+        k = _k3_since(sym, int(pos["t_ms"]) + 180_000, now_ms)        # 04.10: свечи позиции копятся, а не берутся одним запросом на 1000 штук
         if not k: continue
         e, sd = float(pos["px"]), int(pos["side"]); hi = max(float(x[2]) for x in k); lo = min(float(x[3]) for x in k); c = float(k[-1][4]); res = why = None
         newpos = None
@@ -1198,12 +2031,26 @@ def wake_step(state: dict, write: bool) -> list[str]:
         else:
             res, why, newpos = flip_check(e, pos, k, now)                # 01.10 владелец (ALICE, CAP): А-шорт держится 6 ч → закрыт, лонг
             if res is None:
-                res, why = short_walk(e, pos["stop"], float(pos.get("target") or FAST3_SHORT_TP), k, _ladder_top(sym, pos))   # шорт — цель, стоп, безубыток после −5%; 02.10: в монетах лестницы — выход выше вершины входа
+                res, why = short_walk(e, pos["stop"], _short_tgt(pos), k, _ladder_top(sym, pos))   # шорт — цель, стоп, безубыток после −5%; 02.10: в монетах лестницы — выход выше вершины входа
                 if res is None and FAST3_SHORT_BE_AT and min(float(x[3]) for x in k) <= e * (1 - FAST3_SHORT_BE_AT):
                     pos["stop_px"] = e                                     # 01.10: стоп в безубытке — записываем, мост BingX переставит стоп на бирже
         if res is None:
             fx = fuel_exit(sym, pos, now, c)
             if fx: res, why = (c / e - 1) * sd, fx
+        if res is None and sd == -1:
+            if pos.get("be_from") and any(int(x[0]) >= int(pos["be_from"]) and float(x[2]) >= e for x in k):   # R66: стоп в точке входа, поставленный на шестом часу
+                res, why = 0.0, "стоп в безубыток (R66)"
+            else:
+                _stl = _stall_exit(pos, k, now, c)                         # R66: шорт старше 6 ч, цена стоит → минус закрыть, плюс — стоп в твх
+                if _stl and _stl[0] == "close":
+                    res, why = (c / e - 1) * sd, _stl[1]
+                    newpos = _stall_flip(pos, k, now, c)                   # R68: шорт не пошёл за 6 часов → лонг
+                elif _stl:
+                    pos["stop_px"] = e; pos["be_from"] = int(k[-1][0]) + 180_000; pos["rule"] = str(pos.get("rule") or "") + " · " + _stl[1]
+                    msgs.append(f"{sym[:-4]} {_stl[1]}")
+        if res is None and sd == 1:
+            _sun = _sunday_close(pos, now)                                 # R69: воскресенье, Сидней + 2 ч — лонги закрываются
+            if _sun: res, why = (c / e - 1) * sd, _sun
         if res is None and len(k) * 3 >= pos["hold_min"]: res, why = (c / e - 1) * sd, f"срок {pos['hold_min']} мин"
         pos["last_px"] = c; pos["bars"] = len(k)
         if res is not None:
@@ -1221,6 +2068,10 @@ def wake_step(state: dict, write: bool) -> list[str]:
         else:
             ev.append(dict(book=WAKE_BOOK, sym=sym, kind="follow", side=sd, px_in=e, px=c, result_pct=round((c / e - 1) * sd * 100, 2), at=now))
     pending_step(state, WAKE_BOOK, now, ev, msgs, write)                 # ждущие шорты (Б)
+    try:
+        flat_wait_step(state, WAKE_BOOK, now, ev, msgs, write)            # R70
+    except Exception as e:  # noqa: BLE001
+        msgs.append(f"ожидание лонга от линии флэта: сбой {type(e).__name__}: {e}")
     cands = wake_candidates()
     for cd in cands:
         sym = cd["sym"]
@@ -1233,6 +2084,8 @@ def wake_step(state: dict, write: bool) -> list[str]:
         if not r: continue
         _, px, t_bar, outs = r
         for sd, why, tp, sl, hold in outs:
+            if _slide_gate(state, sym, why, t_bar, now, msgs, f" · пробуждение: оборот ×{cd['x']:.0f} за интервал"):   # R65
+                continue
             sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, oi1h, oibar * 100 if oibar is not None else None,
                                                       _crowd_live(sym) if sd == 1 else None, _long_flush(sym, now) if sd == 1 else None)
             if sd == 0:
@@ -1247,7 +2100,19 @@ def wake_step(state: dict, write: bool) -> list[str]:
             if ab:
                 sd = -sd; why = f"{ab} → сторона перевёрнута · " + why
                 msgs.append(f"{sym[:-4]} {ab.split(':')[0]}: сторона перевёрнута → {'шорт' if sd == -1 else 'лонг'}")
+                if sd == -1 and FAST3_B_SKIP and _flip_recheck():          # R64 (04.10 владелец по SAGA: «сделай обязательно проверку при перевороте»): шорт, в который А/А2
+                    ab2 = gate_ab(sym, sd, px)                             # перевернули лонг, проходит ту же проверку Б, что и обычный шорт (не у вершины 90 дн — не входим)
+                    if ab2 and ab2.startswith("Б"):
+                        msgs.append(f"{sym[:-4]} не взят: {ab.split(':')[0]} перевернул лонг в шорт, но {ab2} (R64)"); continue
+            _ws, _wskip, _wnote = _spike_short_plan(sym, px) if sd == 1 else (False, None, "")   # 03.10 16:20: этот всплеск будет шортом 5/5 (R53)?
+            if sd == -1 or _ws:                                           # R67: шорт на флэте не берём
+                _ff = _flat5(sym, px)
+                if _ff[0]:
+                    msgs.append(f"{sym[:-4]} не взят: шорт на флэте — {_flat_txt(sym, _ff)} (R67)")
+                    _flat_long_set(state, sym, now, msgs, why); continue      # R70: вместо шорта — лонг лимиткой от линии флэта
             gn = gate_new(sym, sd, px)                                    # 30.09 владелец «делай»: В (шорт при интересе +50% за 7 дн) и Ж (лонг у максимума 30 ч) — не входить
+            if gn and gn.startswith("Ж") and _ws and FAST3_ZH_OFF_FOR_SPIKE_SHORT:   # R56 (03.10 владелец «делай все»): Ж писался для лонга («покупка на вершине»); вход теперь шорт — вершина ему не помеха
+                why = why + " · у максимума 30 ч — Ж не применён, вход шортом (R56)"; gn = None
             if gn:
                 msgs.append(f"{sym[:-4]} не взят: {gn}"); continue
             if sd != sd0:
@@ -1273,6 +2138,16 @@ def wake_step(state: dict, write: bool) -> list[str]:
             _lg = london_gate(sym, now, why)                                 # 02.10 владелец: Лондон — максимум 5 самых надёжных
             if _lg:
                 msgs.append(f"{sym[:-4]} не взят: {_lg}"); continue
+            if sd == 1 and not _ws:
+                _lw = _long_window_closed(now)                            # R69: с воскресенья 22:00 до вторника 17:00 лонги не берём
+                if _lw:
+                    msgs.append(f"{sym[:-4]} лонг не взят: {_lw}"); continue
+            if sd == 1 and not _ws:
+                _pb = _pump_ban(sym, now)                                 # R60 (03.10 владелец): после сквиза в конце роста лонг в монете не раньше чем через 6 ч
+                if _pb:
+                    msgs.append(f"{sym[:-4]} {_pb}"); continue
+            if _ws and _wskip:                                            # R55 (03.10 владелец «делай все»): шорт по всплеску только у монет с фандингом в нижней половине доски
+                msgs.append(f"{sym[:-4]} {_wskip}"); continue                #   на 266 входах недели: нижняя половина 107 входов +1547 $, верхняя 159 входов −3 $ (одна неделя, не проверено)
             _rl = _rate_ok(now)
             if _rl:
                 msgs.append(f"{sym[:-4]} не взят: {_rl}"); continue
@@ -1280,11 +2155,14 @@ def wake_step(state: dict, write: bool) -> list[str]:
                 from core_config import FAST3_SPIKE_SHORT as _ss, FAST3_SPIKE_SHORT_TP as _stp, FAST3_SPIKE_SHORT_SL as _ssl, FAST3_SPIKE_SHORT_HOLD_MIN as _shm
             except ImportError:
                 _ss, _stp, _ssl, _shm = True, 0.05, 0.05, 1440
-            if _ss and sd == 1 and not _no_short(sym, px):                # в монетах лестницы (Г / R47 / ручной список) шорт не берём — там остаётся лонг по прежним правилам
+            if _ws:                                                       # в монетах лестницы (Г / R47 / ручной список) шорт не берём — там остаётся лонг по прежним правилам
                 sd, tp, sl, hold = -1, _stp, _ssl, _shm
-                why = f"всплеск → шорт 5/5 (03.10: на 301 входе недели лонг −1632 $, шорт 5/5 +1958 $) · " + why
+                why = f"всплеск → шорт 5/5 (03.10: на 301 входе недели лонг −1632 $, шорт 5/5 +1958 $) · " + (_wnote + " · " if _wnote else "") + why
             sl, _spx, _snote = _range_stop(sym, sd, px, sl)                 # 02.10 владелец: стоп за диапазоном 30 дн
             if _snote: why = why + " · " + _snote
+            if sd == -1:                                                   # R62: во флэте цель шорта — низ флэта
+                tp, _fn = _flat_target(sym, px, tp)
+                if _fn: why = why + " · " + _fn
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, stop_px=_spx, hold_min=hold, rule=why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", last_px=px, bars=0, pump_open=_pump_open(px, why))
             state["open"][sym] = pos
             ev.append(dict(book=WAKE_BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=pos["rule"], target=tp, stop=sl, hold_min=hold,
@@ -1293,6 +2171,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} вход {px:.6g} · {pos['rule']}")
             if write:
                 cg(sym, *cg_caption(WAKE_BOOK, sym, pos))
+    _x2_exits(state, ev); _one_position(state, WAKE_BOOK, ev, msgs, now, write)   # R63
     if write:
         with WAKE_LOG.open("a", encoding="utf-8") as f:
             for r_ in ev: f.write(json.dumps(r_, ensure_ascii=False) + "\n")
@@ -1389,6 +2268,7 @@ def main() -> int:
     except (OSError, ValueError):
         wstate = {"open": {}, "last_exit": {}}
     wstate.setdefault("open", {}); wstate.setdefault("last_exit", {})
+    _OTHER[BOOK] = dict(state=wstate, book=WAKE_BOOK); _OTHER[WAKE_BOOK] = dict(state=state, book=BOOK)   # R63
     while True:
         _pu = _paused_until()                                           # 01.10 владелец: прогон ставит бота на паузу (output/fast_pause.json), снимает через минуту после прохода по Binance
         if _pu:

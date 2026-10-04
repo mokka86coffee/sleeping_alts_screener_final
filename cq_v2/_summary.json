@@ -1296,10 +1296,38 @@
    "liq": 214,
    "ohlcv": 207,
    "trade": 364
+  },
+  "akt": {
+   "funding": 29,
+   "oi": 29,
+   "liq": 29,
+   "ohlcv": 29,
+   "trade": 29
+  },
+  "pumpbtc": {
+   "funding": 29,
+   "oi": 29,
+   "liq": 29,
+   "ohlcv": 29,
+   "trade": 29
+  },
+  "resolv": {
+   "funding": 29,
+   "oi": 29,
+   "liq": 29,
+   "ohlcv": 29,
+   "trade": 29
+  },
+  "velvet": {
+   "funding": 29,
+   "oi": 29,
+   "liq": 29,
+   "ohlcv": 29,
+   "trade": 29
   }
  },
- "at": "2026-10-03T03:43:16Z",
+ "at": "2026-10-04T18:18:06Z",
  "full_at": "2026-10-03T03:43:16Z",
- "data_at": "2026-10-02",
+ "data_at": "2026-10-03",
  "full_data_at": "2026-10-02"
 }

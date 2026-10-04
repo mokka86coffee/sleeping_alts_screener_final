@@ -38,6 +38,7 @@ WIN = (("Сидней", 0, 3), ("Токио", 3, 10), ("Лондон", 10, 16), 
 WD = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
 BOOKS = (("всплеск/вынос", "paper_fast3"), ("пробуждение", "paper_wake"))
 B3 = 180_000
+BOARD_STEP = 900   # шаг точек линий доски на странице, секунд (15 минут)
 CHART_H = 6
 
 
@@ -123,8 +124,9 @@ def positions(now: float) -> tuple[list, list, list]:
         for sym, p in (stt.get("open") or {}).items():
             e, sd = float(p["px"]), int(p["side"])
             er = ent.get((sym, round(float(p["at"]), 3))) or {}
-            op.append(dict(book=book, sym=sym, side=sd, entry=e, target=(None if float(p["target"]) >= 0.9 else e * (1 + sd * float(p["target"]))), stop=e * (1 - sd * float(p["stop"])),
-                           tp=float(p["target"]), sl=float(p["stop"]), t_in=float(p["at"]),
+            op.append(dict(book=book, sym=sym, side=sd, entry=e, target=(None if not 0 < float(p.get("target") or 0) < 0.9 else e * (1 + sd * float(p["target"]))),   # 04.10: у позиции без цели (0 — шорты R58 и R65) цель не показываем, раньше рисовалась на цене входа
+                           stop=(float(p["stop_px"]) if p.get("stop_px") else e * (1 - sd * float(p["stop"]))),      # 04.10: стоп, перенесённый в твх или на низ удержания, показываем как есть
+                           tp=float(p["target"]), sl=float(p["stop"]), t_in=float(p["at"]), goal=_goal(p, e, sd),
                            exit_at=(int(p["t_ms"]) + B3) / 1000 + int(p.get("hold_min") or 0) * 60, px=p.get("last_px"), rule=p.get("rule") or "",
                            oi1h_in=er.get("oi1h"), board6_in=(er.get("fon") or {}).get("board6")))
         for r in R:
@@ -191,11 +193,186 @@ def charts(syms: list[str]) -> dict:
     return res
 
 
+def _goal(p: dict, e: float, sd: int) -> str:
+    """04.10 владелец по карточке AGT («цели нет: выход по выносу лонгов, стопу или сроку» — «какой срок?», «надо дописывать: цели нет в философии, в боте цель есть всегда,
+    просто это может быть не конкретная цена»): подпись цели для позиции без цены-цели — что именно её закроет и когда."""
+    t = float(p.get("target") or 0)
+    if 0 < t < 0.9:
+        return ""
+    ex = datetime.fromtimestamp((int(p["t_ms"]) + 180_000) / 1000 + int(p.get("hold_min") or 0) * 60, L)
+    hrs = int(p.get("hold_min") or 0) / 60
+    be = bool(p.get("stop_px")) and abs(float(p["stop_px"]) / e - 1) < 1e-6
+    stp = "стоп в точке входа" if be else f"стоп {float(p.get('stop') or 0) * 100:.0f}%, после хода 5% — в точку входа"
+    if p.get("slide") or p.get("pump_end"):
+        return f"цель — выход по времени {ex:%d.%m %H:%M} ({hrs:.0f} ч от входа) · {stp}"
+    if sd == -1:
+        return f"цель — вынос лонгов или срок {ex:%d.%m %H:%M} · {stp}"
+    return f"цель — срок {ex:%d.%m %H:%M} · {stp}"
+
+
 def score(cl: list[dict]) -> dict:
     out = {}
     for book, _ in BOOKS:
         g = [x for x in cl if x["book"] == book]
         out[book] = dict(n=len(g), win=sum(1 for x in g if x["res"] > 0), usd=round(sum(x["usd"] for x in g), 1))
+    return out
+
+
+# 03.10 23:30 владелец: «разобьём на 3 сводки за каждые 3 часа», «рост / нейтрально / падение» — вместо линий по 3 минуты на странице восемь трёхчасовых блоков на каждую из трёх строк.
+# Граница «нейтрально» — типичный ход строки за 3 часа (медиана модуля по часовым данным TradingView 12.09–03.10, 220 блоков): доска 0.31 %, все монеты 0.42 %, BTC 0.27 %;
+# при таких границах половина блоков нейтральные, по четверти — рост и падение.
+# 04.10 03:50 владелец: «поставь пороги 0,57 и 0,59» — после смены состава (только крипто) и расчёта (медиана ходов за блок) прежние 0.31 / 0.42 давали треть нейтральных блоков;
+# медиана модуля хода за блок на 23 днях часовых данных (10.09–02.10, 184 блока): доска 0.57 %, все монеты 0.59 %. Порог BTC прежний (про него владелец не говорил).
+NEUTRAL_3H = (0.57, 0.59, 0.27)
+_B3H: dict = {}
+
+# ── СОСТАВ ДОСКИ (04.10 03:40, владелец: «в доску и все монеты должны входить ТОЛЬКО крипто-монеты… всё некриптовое отбрасываем»; «делай правки медиан и доски и акций, золота»;
+#    «всё, что я прислал, принимаю»). Делим по разметке самой Binance (fapi/v1/exchangeInfo): крипто = contractType PERPETUAL и underlyingType COIN. Всё остальное — не доска:
+#    акции и ETF (EQUITY, HK_/KR_/CN_EQUITY), бумаги до размещения (PREMARKET), сырьё и металлы (COMMODITY), валюта (FX), индексы (INDEX: BTCDOM, ALL).
+#    Поверх разметки — явный список BOARD_EXCLUDE: то, что Binance числит монетой, а по решению владельца в доску не входит.
+#    Справочник читается раз в сутки и кладётся в output/board_universe.json (keep — состав, drop — кто отброшен и почему); не скачался — берётся прошлый файл.
+BOARD_EXCLUDE = {"USDCUSDT": "стейблкоин", "PAXGUSDT": "золото (токен)", "XAUTUSDT": "золото (токен)"}
+BOARD_TYPE_WHY = {"EQUITY": "акция или ETF США", "HK_EQUITY": "бумага Гонконга", "KR_EQUITY": "бумага Кореи", "CN_EQUITY": "бумага Китая", "PREMARKET": "компания до размещения",
+                  "COMMODITY": "сырьё или металл", "FX": "валютная пара", "INDEX": "индекс, не монета"}
+SNAP_LATE = 600   # снимок цен на начало 3-часового блока годится, если сборка успела за 10 минут от начала блока (техническая граница, не торговая)
+
+
+def board_universe(now: float):
+    """→ множество символов крипто-состава доски или None (справочника нет ни с биржи, ни в файле — тогда доска считается по всем, как раньше)"""
+    f = BASE_DIR / "output" / "board_universe.json"; u = _read(f, {})
+    day = datetime.fromtimestamp(now, L).strftime("%Y-%m-%d")
+    if u.get("day") != day or not u.get("keep"):
+        try:
+            ex = get_json("https://fapi.binance.com/fapi/v1/exchangeInfo") or {}
+            keep, drop = [], {}
+            for x in ex.get("symbols", []):
+                s_ = str(x.get("symbol", ""))
+                if not s_.endswith("USDT") or x.get("status") != "TRADING":
+                    continue
+                if s_ in BOARD_EXCLUDE:
+                    drop[s_] = BOARD_EXCLUDE[s_]
+                elif x.get("contractType") == "PERPETUAL" and x.get("underlyingType") == "COIN":
+                    keep.append(s_)
+                else:
+                    drop[s_] = BOARD_TYPE_WHY.get(str(x.get("underlyingType")), f"не крипто ({x.get('contractType')}/{x.get('underlyingType')})")
+            if len(keep) >= 100:
+                u = {"day": day, "t": now, "keep": sorted(keep), "drop": dict(sorted(drop.items()))}
+                f.write_text(json.dumps(u, ensure_ascii=False), encoding="utf-8")
+        except Exception:  # noqa: BLE001
+            pass
+    return set(u["keep"]) if u.get("keep") else None
+
+
+def _blocks_old(day: str, rows: list, now: float) -> list:
+    """прежний расчёт (до 04.10) — ход самого ряда между двумя моментами; остаётся запасным для блоков, где нет снимков цен"""
+    d0 = datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=L).timestamp(); out = []
+    def at(t):                                                            # значение на момент t: последняя точка не позже t (до первой точки — ноль, это 00:00)
+        v = [0.0, 0.0, 0.0]
+        for r in rows:
+            if r[0] <= t + 90: v = r[1:4]
+            else: break
+        return v
+    last_t = rows[-1][0] if rows else d0
+    for k in range(8):
+        t0, t1 = d0 + k * 10800, d0 + (k + 1) * 10800
+        if last_t < t0 + 90 or t0 > now:
+            out.append(None); continue
+        a, b = at(t0), at(min(t1, last_t))
+        out.append([round(((1 + b[j] / 100) / (1 + a[j] / 100) - 1) * 100, 2) for j in range(3)])
+    return out
+
+
+def _blocks_3h(day: str, rows: list, now: float, snaps: dict | None = None, nxt: dict | None = None) -> list:
+    """восемь трёхчасовых блоков дня: [[доска %, все монеты %, BTC %], …], None — блок ещё не начался.
+    04.10 владелец: доска = медиана ходов крипто-монет ЗА БЛОК (цена конца блока / цена начала блока − 1), все монеты = среднее тех же ходов, BTC = его ход за блок
+    (раньше брался ход самой медианы от 00:00 между двумя моментами: разность медиан ≠ медиана разностей). Снимки цен на начало блоков — snaps {"0".."7": {t, px}, "last": {t, px}};
+    конец блока — снимок начала следующего (у последнего блока дня — снимок 00:00 следующего дня, nxt), у текущего — последняя точка. Монеты, которых нет в обоих снимках, пропускаются.
+    Блок без снимков (старые дни, пропуск сборки) считается прежним способом по ряду rows."""
+    old = _blocks_old(day, rows, now)
+    if not snaps:
+        return old
+    d0 = datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=L).timestamp(); out = []
+    for k in range(8):
+        if old[k] is None:
+            out.append(None); continue
+        t1 = d0 + (k + 1) * 10800
+        a = snaps.get(str(k))
+        b = (snaps.get(str(k + 1)) if k < 7 else nxt) if now >= t1 else snaps.get("last")
+        if now >= t1 and not b:
+            b = snaps.get("last") if abs((snaps.get("last") or {}).get("t", 0) - t1) <= SNAP_LATE else None   # следующего снимка нет — годится последняя точка дня, только если она у самого конца блока
+        try:
+            pa, pb = a["px"], b["px"]
+            mv = [(pb[s_] / pa[s_] - 1) * 100 for s_ in pa if pa[s_] > 0 and pb.get(s_)]
+            if len(mv) < 100 or not pa.get("BTCUSDT") or not pb.get("BTCUSDT") or b["t"] <= a["t"]:
+                raise ValueError
+            out.append([round(st.median(mv), 2), round(sum(mv) / len(mv), 2), round((pb["BTCUSDT"] / pa["BTCUSDT"] - 1) * 100, 2)])
+        except (TypeError, KeyError, ValueError):
+            out.append(old[k])
+    return out
+
+
+def board_day(now: float) -> dict:
+    """03.10 владелец: «добавим медиану доски линией, цену биткоина линией и общее движение всех монет линией… важно не текущее положение, а что было в течение дня».
+    Раз в сборку (3 мин) один запрос цен по всему Binance: ход каждой КРИПТО-монеты (board_universe) от её цены в 00:00 (UTC+3) → медиана доски, среднее по всем монетам, BTC, в %.
+    output/board_base.json — цены на начало суток; output/board_day.jsonl — точки [t, медиана, среднее, BTC] по дням; output/board_base_3h.json — снимки цен крипто-состава на начало
+    каждого 3-часового блока и последняя точка дня ({день: {"0".."7"/"last": {t, px}}}, 9 дней). → {день: [[t, med, avg, btc], …]} за 8 дней"""
+    base_f = BASE_DIR / "output" / "board_base.json"; day_f = BASE_DIR / "output" / "board_day.jsonl"; snap_f = BASE_DIR / "output" / "board_base_3h.json"
+    dt = datetime.fromtimestamp(now, L); day = dt.strftime("%Y-%m-%d")
+    d0 = dt.replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+    snaps_all = _read(snap_f, {})
+    try:
+        tk = get_json("https://fapi.binance.com/fapi/v1/ticker/price", weight=2) or []
+        px = {x["symbol"]: float(x["price"]) for x in tk if str(x.get("symbol", "")).endswith("USDT") and float(x.get("price") or 0) > 0}
+        if len(px) >= 100:
+            uni = board_universe(now)
+            base = _read(base_f, {})
+            if base.get("day") != day:
+                base = {"day": day, "t": now, "px": px}; base_f.write_text(json.dumps(base), encoding="utf-8")
+            pc = {s_: v for s_, v in px.items() if uni is None or s_ in uni}       # только крипто-состав
+            ch = [(pc[s_] / base["px"][s_] - 1) * 100 for s_ in pc if base["px"].get(s_)]
+            if len(ch) >= 100 and "BTCUSDT" in px and base["px"].get("BTCUSDT"):
+                row = [int(now), round(st.median(ch), 3), round(sum(ch) / len(ch), 3), round((px["BTCUSDT"] / base["px"]["BTCUSDT"] - 1) * 100, 3)]
+                with day_f.open("a", encoding="utf-8") as f:
+                    f.write(json.dumps({"day": day, "r": row}) + "\n")
+            if len(pc) >= 100:                                                     # снимки цен по блокам
+                sd = snaps_all.setdefault(day, {})
+                if "0" not in sd and base.get("day") == day and float(base.get("t") or 0) - d0 <= SNAP_LATE:
+                    sd["0"] = {"t": base["t"], "px": {s_: v for s_, v in base["px"].items() if uni is None or s_ in uni}}
+                k = int((now - d0) // 10800)
+                if str(k) not in sd and now - (d0 + k * 10800) <= SNAP_LATE:
+                    sd[str(k)] = {"t": now, "px": pc}
+                sd["last"] = {"t": now, "px": pc}
+                keep9 = {(dt - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(9)}
+                for d_ in [d_ for d_ in snaps_all if d_ not in keep9]:
+                    del snaps_all[d_]
+                tmp = snap_f.with_suffix(".tmp"); tmp.write_text(json.dumps(snaps_all, separators=(",", ":")), encoding="utf-8"); tmp.replace(snap_f)
+    except Exception:  # noqa: BLE001
+        pass
+    out: dict = {}
+    try:
+        keep = {(datetime.fromtimestamp(now, L) - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(8)}
+        for ln in day_f.open(encoding="utf-8"):
+            try:
+                r = json.loads(ln)
+            except ValueError:
+                continue
+            if r.get("day") in keep:
+                out.setdefault(r["day"], []).append(r["r"])
+        for d_ in out:
+            out[d_].sort()
+            nd = (datetime.strptime(d_, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+            _B3H[d_] = _blocks_3h(d_, out[d_], now, snaps_all.get(d_), (snaps_all.get(nd) or {}).get("0"))
+            # 03.10 23:20 владелец: «давай может не рисовать графики за каждые 3 минуты» — на страницу отдаётся одна точка на 15 минут (последняя в интервале и самая свежая);
+            # в файле output/board_day.jsonl остаются все точки
+            thin: dict = {}
+            for r in out[d_]:
+                thin[int(r[0]) // BOARD_STEP] = r
+            rows = [thin[k] for k in sorted(thin)]
+            if rows and rows[-1] is not out[d_][-1]:
+                rows.append(out[d_][-1])
+            out[d_] = rows
+    except OSError:
+        pass
     return out
 
 
@@ -205,7 +382,11 @@ def build() -> dict:
     ent = candidates()
     # графики: открытые (кольцо «вход») и закрытые сегодня (кольцо «выход» и лента); кандидаты на странице не показываются
     syms = list(dict.fromkeys([p["sym"] for p in op] + [c["sym"] for c in cl]))[:40]
-    return dict(meta=meta(now), entry=ent, open=op, closed=cl, closed_hist=hist, charts=charts(syms), score=score(cl))
+    try:                                                                 # 03.10 владелец: «сюда выводи информацию о доске» (правый верхний круг сайта) — output/board_now.json пишет fast_tier (R54)
+        board = json.loads((BASE_DIR / "output" / "board_now.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        board = None
+    return dict(meta=meta(now), entry=ent, open=op, closed=cl, closed_hist=hist, charts=charts(syms), score=score(cl), board=board, board_day=board_day(now), board_3h=dict(blocks=dict(_B3H), neutral=list(NEUTRAL_3H)))
 
 
 def write() -> Path:
@@ -228,3 +409,12 @@ if __name__ == "__main__":
     d = json.loads(p.read_text())
     print(f"fast_state: вход {len(d['entry'])}, в работе {len(d['open'])}, закрыто {len(d['closed'])}, графиков {len(d['charts'])}, "
           f"{p.stat().st_size // 1024} КБ, {time.time() - t:.0f} с")
+    # 04.10 04:15 владелец: «давай только в журнал сделок тогда писать и всё», «делай» — страница журнала сделок на сайте (book.html, render_book.py) собирается здесь же,
+    # каждые 3 минуты (сборка ~1 с); на сайт уходит вместе с прогоном — он выкладывает все изменившиеся файлы. Ни прогон, ни бот для этого не перезапускаются.
+    try:
+        import render_book
+        _bk = BASE_DIR / "book.html"; _tmp = _bk.with_suffix(".tmp")
+        _tmp.write_text(render_book.render_book(), encoding="utf-8"); _tmp.replace(_bk)
+        print(f"книга: book.html {_bk.stat().st_size // 1024} КБ")
+    except Exception as e:  # noqa: BLE001
+        print(f"книга: не собралась — {type(e).__name__}: {e}")

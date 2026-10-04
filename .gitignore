@@ -41,3 +41,6 @@ pulse_archive/
 bingx_config.json
 bingx_keys.json
 bingx_stop
+
+# 04.10: данные TradingView для исследования — 169 МБ, GitHub не принимает файлы больше 100 МБ (публикация стояла с 03.10 09:00)
+claude/research/tvd/_leaders_rows.json

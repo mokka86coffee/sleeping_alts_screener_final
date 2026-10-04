@@ -168,8 +168,10 @@ def parse(src: str, msg: str, ct: dict[str, float]) -> list[tuple[str, int, str,
         for x in d.get("data") or []:
             try:
                 px = float(x["p"]); usd = float(x["v"]) * px
-                # S — сторона ордера ликвидации: Sell закрывает лонг, Buy закрывает шорт (как у Binance)
-                out.append((str(x["s"]), int(x["T"]), "long" if x.get("S") == "Sell" else "short", usd, px))
+                # 03.10 18:25 ИСПРАВЛЕНО (LYN 18:00: обвал −16 % записан как «вынос шортов 48K$»): в канале Bybit allLiquidation поле S — сторона ПОЗИЦИИ,
+                # которую ликвидировали (Buy = лонг, Sell = шорт), а не сторона ордера. Проверка на всей истории потока: часы с меткой «лонги» шли вверх 191 раз из 209,
+                # с меткой «шорты» — вниз 518 раз из 551 (у OKX метки верные). Старые файлы cq_v2/liq исправлены тем же днём.
+                out.append((str(x["s"]), int(x["T"]), "long" if x.get("S") == "Buy" else "short", usd, px))
             except (KeyError, TypeError, ValueError):
                 continue
     else:

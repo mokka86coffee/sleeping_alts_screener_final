@@ -50,12 +50,29 @@ def jlog(kind: str, **kw) -> None:
         f.write(json.dumps({"t": round(time.time(), 1), "kind": kind, **kw}, ensure_ascii=False) + "\n")
 
 
+_TOFF = {"t": 0.0, "ms": 0.0}
+
+
+def _time_off(c: dict) -> float:
+    """разница «время сервера BingX − часы компьютера», мс; обновляется раз в 10 минут, при сбое остаётся прежней"""
+    if time.time() - _TOFF["t"] > 600:
+        try:
+            t0 = time.time()
+            with urllib.request.urlopen(f"{HOST[c['mode']]}/openApi/swap/v2/server/time", timeout=8) as r:
+                srv = float(json.loads(r.read().decode("utf-8"))["data"]["serverTime"])
+            _TOFF.update(t=time.time(), ms=srv - (t0 + time.time()) / 2 * 1000)
+        except Exception:  # noqa: BLE001
+            _TOFF["t"] = time.time() - 540                                # повторить через минуту
+    return _TOFF["ms"]
+
+
 def request(method: str, path: str, params: dict | None = None, c: dict | None = None, signed: bool = True) -> dict:
     """подписанный запрос BingX: подпись — HMAC-SHA256 от строки параметров, ключ в заголовке X-BX-APIKEY"""
     c = c or cfg()
     p = {k: v for k, v in (params or {}).items() if v is not None}
     if signed:
-        p["timestamp"] = int(time.time() * 1000)
+        p["timestamp"] = int(time.time() * 1000 + _time_off(c))          # 03.10 20:50: часы компьютера отставали от сервера BingX на ~2 с, вместе с задержкой сети запросы
+        p.setdefault("recvWindow", 20000)                                #   отклонялись «109400 timestamp is invalid» (PUMP, AIN, AT 03.10) — берём время сервера и шире окно
     qs = urllib.parse.urlencode(sorted(p.items()))
     if signed:
         sig = hmac.new(c["api_secret"].encode(), qs.encode(), hashlib.sha256).hexdigest()
@@ -187,6 +204,9 @@ def bot_target(sym: str, side: int, entry: float):
     return None
 
 
+UNFILLED_MIN = 10   # минут: входной лимит без исполнения дольше этого снимается (техническая граница зеркала, не торговая)
+
+
 def _place_tp(p: dict, want: float, qty: float, c: dict) -> dict:
     return request("POST", "/openApi/swap/v2/trade/order", {"symbol": p["bx"], "side": "SELL" if p["side"] == 1 else "BUY", "positionSide": p["ps"], "type": "TAKE_PROFIT_MARKET",
                                                             "quantity": round(qty, 6), "stopPrice": want, "workingType": "MARK_PRICE"}, c)
@@ -199,7 +219,29 @@ def sync_stops(c: dict) -> list[str]:
     if not c.get("exchange_stop"):
         return out
     s = state(); changed = False
+    # 04.10 14:20 (TRB: лимит на вход 20.295 провисел на демо 10 часов без исполнения — цена демо-рынка BingX была на 2.9 % выше настоящей; в состоянии зеркала позиция числилась
+    # «открытой», стопа не было): входной лимит, не исполнившийся за UNFILLED_MIN минут, снимается, запись из состояния убирается. Снимаем только когда биржа прямо ответила,
+    # что ордер ждёт и исполнено 0; при любой ошибке запроса ничего не трогаем.
+    for sym, p in list(s["open"].items()):
+        if p.get("exit_pending") or not p.get("limit") or float(p.get("stop_qty") or 0) > 0 or time.time() - float(p.get("t") or 0) < UNFILLED_MIN * 60:
+            continue
+        if position_amt(p["bx"], p["ps"], p["hedge"], c) > 0 or not p.get("order_id"):
+            continue
+        oi = order_info(p["bx"], p["order_id"], c)
+        try:
+            pending = str(oi.get("status", "")).upper() in ("PENDING", "NEW") and float(oi.get("executedQty") or 0) == 0
+        except (TypeError, ValueError):
+            pending = False
+        if not pending:
+            continue
+        dr = request("DELETE", "/openApi/swap/v2/trade/order", {"symbol": p["bx"], "orderId": p["order_id"]}, c)
+        if dr.get("code") == 0:
+            del s["open"][sym]; changed = True
+            jlog("entry_unfilled", sym=sym, limit_px=p.get("limit_px"), mins=round((time.time() - float(p.get("t") or 0)) / 60))
+            out.append(f"BingX {sym[:-4]} вход отменён: лимит {p.get('limit_px')} не исполнился за {UNFILLED_MIN} мин — ордер снят")
     for sym, p in s["open"].items():
+        if p.get("exit_pending"):
+            continue
         amt = position_amt(p["bx"], p["ps"], p["hedge"], c)
         if amt <= 0:
             continue
@@ -222,6 +264,8 @@ def sync_stops(c: dict) -> list[str]:
         else:
             out.append(f"BingX {sym[:-4]} стоп не поставлен: {sr.get('msg')}")
     for sym, p in s["open"].items():                                     # 01.10 владелец «а где тп?»: цель бота — TAKE_PROFIT_MARKET на бирже, переставляется при смене (удержание +10 %)
+        if p.get("exit_pending"):
+            continue
         amt = position_amt(p["bx"], p["ps"], p["hedge"], c)
         if amt <= 0:
             continue
@@ -313,10 +357,58 @@ def open_position(sym: str, side: int, px: float, why: str = "", c: dict | None 
     return {"ok": True, "qty": q, "entry": round(float(px), pp), "limit_px": lim, "stop": stop, "order_id": str(o.get("orderId") or ""), "stop_ok": sr.get("code") == 0, "stop_msg": sr.get("msg") if sr.get("code") != 0 else ""}
 
 
+def add_position(sym: str, side: int, px: float, c: dict | None = None, size_usd: float | None = None) -> dict:
+    """R63 (04.10 владелец: «если 2 стратегии одновременно — позиция ×2», «добираем с целью 2-й сделки»): добор к открытой позиции той же стороны — ещё один ЛИМИТНЫЙ ордер
+    того же размера по цене бота; плечо и маржу не трогаем. Стоп и цель на новый объём и новые уровни доставит sync_stops (берёт их из книги бота). Один раз на позицию."""
+    c = c or cfg(); why0 = ready(c)
+    if why0:
+        return {"ok": False, "why": why0}
+    if STOP_FLAG.exists():
+        return {"ok": False, "why": "стоит файл bingx_stop"}
+    s = state(); p = s["open"].get(sym)
+    if not p or int(p["side"]) != side:
+        return {"ok": False, "why": "позиции той же стороны на бирже нет — добирать не к чему"}
+    if p.get("x2"):
+        return {"ok": False, "why": "позиция уже добрана"}
+    ct = contracts().get(sym)
+    if not ct or str(ct.get("apiStateOpen")).lower() != "true":
+        return {"ok": False, "why": f"{sym}: контракт недоступен"}
+    try:
+        bp = float(((json.load(urllib.request.urlopen(f"{HOST['live']}/openApi/swap/v2/quote/price?symbol={ct['symbol']}", timeout=10)).get("data") or {}).get("price")) or 0)
+    except Exception:  # noqa: BLE001
+        bp = 0.0
+    if not bp or (px and abs(bp / px - 1) > 0.05):
+        return {"ok": False, "why": f"цена {ct['symbol']} на BingX {bp or 'недоступна'} против сигнала {px} — не добираем"}
+    q = qty_for(ct, px, float(size_usd or c["size_usd"]))
+    if not q:
+        return {"ok": False, "why": "количество не посчиталось"}
+    pp = int(ct.get("pricePrecision", 6)); slip = float(c.get("entry_slip_pct") or 0); lim = round(float(px) * (1 + side * slip), pp)
+    if slip and ((side == 1 and bp > lim) or (side == -1 and bp < lim)):
+        return {"ok": False, "why": f"цена BingX {bp} уже дальше лимита {lim} — не добираем"}
+    r = request("POST", "/openApi/swap/v2/trade/order", {"symbol": p["bx"], "side": "BUY" if side == 1 else "SELL", "positionSide": p["ps"], "type": "LIMIT", "price": lim, "quantity": q, "timeInForce": "GTC"}, c)
+    if r.get("code") != 0:
+        return {"ok": False, "why": f"лимитный ордер добора не принят: {r.get('code')} {r.get('msg')}"}
+    o = (r.get("data") or {}).get("order") or r.get("data") or {}
+    p.update(x2=True, entry0=p["entry"], add_px=round(float(px), pp), add_qty=q, add_order_id=str(o.get("orderId") or ""),
+             entry=round((float(p["entry"]) * float(p["qty"]) + float(px) * q) / (float(p["qty"]) + q), pp), qty=float(p["qty"]) + q)
+    save(s)
+    return {"ok": True, "qty": q, "entry": p["entry"], "limit_px": lim, "order_id": p["add_order_id"]}
+
+
 def order_info(bx: str, oid: str, c: dict) -> dict:
     """ордер по orderId: {status, avgPrice, executedQty, ...} или {} (02.10: чтобы отличать «лимит не исполнился» от «биржа закрыла стопом»)"""
     r = request("GET", "/openApi/swap/v2/trade/order", {"symbol": bx, "orderId": str(oid)}, c)
     return ((r.get("data") or {}).get("order") or r.get("data") or {}) if r.get("code") == 0 else {}
+
+
+def _positions(bx: str, c: dict, tries: int = 3):
+    """позиции по символу; None — биржа не ответила (код ≠ 0) и после повторов: это «не знаем», а не «позиции нет»"""
+    for i in range(tries):
+        pr = request("GET", "/openApi/swap/v2/user/positions", {"symbol": bx}, c)
+        if pr.get("code") == 0:
+            return pr.get("data") or []
+        time.sleep(1.0 + i)
+    return None
 
 
 def close_position(sym: str, exit_px: float | None = None, why: str = "", c: dict | None = None) -> dict:
@@ -325,10 +417,15 @@ def close_position(sym: str, exit_px: float | None = None, why: str = "", c: dic
         return {"ok": False, "why": "позиции нет в состоянии"}
     if ready(c) and ready(c) != "торговля выключена (enabled: false)":
         return {"ok": False, "why": ready(c)}
+    # 04.10 (SOON: 03.10 18:28 запрос позиций вернул «109400 timestamp is invalid», пустой ответ был принят за «позиции нет» — лонг остался на бирже без пары в боте):
+    # сначала читаем позицию (с повторами); биржа не ответила — ордера и состояние не трогаем, выход помечается и повторяется на следующих проходах (on_events)
+    data = _positions(p["bx"], c)
+    if data is None:
+        p["exit_pending"] = dict(px=exit_px, why=str(why)[:80], t=time.time()); save(s)
+        return {"ok": False, "why": "биржа не отдала позицию (ошибка запроса) — ордера не трогаю, выход повторю на следующем проходе"}
     request("DELETE", "/openApi/swap/v2/trade/allOpenOrders", {"symbol": p["bx"]}, c)                                   # снять лимит (если не исполнился) и стоп
-    pr = request("GET", "/openApi/swap/v2/user/positions", {"symbol": p["bx"]}, c)
     amt = 0.0
-    for x in (pr.get("data") or []):
+    for x in data:
         if (not p["hedge"]) or str(x.get("positionSide")) == p["ps"]:
             amt += abs(float(x.get("availableAmt") or x.get("positionAmt") or 0))
     if amt <= 0:                                                       # позиции нет: либо лимит не исполнился, либо биржа уже закрыла её стопом/тейком
@@ -356,7 +453,8 @@ def close_position(sym: str, exit_px: float | None = None, why: str = "", c: dic
         body["reduceOnly"] = "true"
     r = request("POST", "/openApi/swap/v2/trade/order", body, c)
     if r.get("code") != 0 and "not exist" not in str(r.get("msg", "")).lower():
-        return {"ok": False, "why": f"закрытие не принято: {r.get('code')} {r.get('msg')}"}
+        p["exit_pending"] = dict(px=exit_px, why=str(why)[:80], t=time.time()); p["stop_qty"] = 0.0; p["stop_ids"] = []; p["tp_qty"] = 0.0; p["tp_ids"] = []; save(s)   # 04.10: ордера уже сняты — выход повторится на следующем проходе
+        return {"ok": False, "why": f"закрытие не принято: {r.get('code')} {r.get('msg')} — повторю на следующем проходе"}
     o = (r.get("data") or {}).get("order") or r.get("data") or {}
     out = float(o.get("avgPrice") or 0) or (exit_px or p["entry"])
     pnl = (out / p["entry"] - 1) * p["side"] * p["entry"] * p["qty"]
@@ -372,6 +470,11 @@ def on_events(ev: list[dict]) -> list[str]:
         c = cfg()
         if not c["enabled"]:
             return msgs
+        for sym_, p_ in list(state()["open"].items()):                    # 04.10: выходы, которые не дошли до биржи (ошибка запроса), повторяются каждый проход
+            if p_.get("exit_pending"):
+                r_ = close_position(sym_, (p_["exit_pending"] or {}).get("px"), why=str((p_["exit_pending"] or {}).get("why") or "повтор выхода"), c=c)
+                jlog("exit_retry", sym=sym_, **r_)
+                msgs.append(f"BingX {sym_[:-4]} выход (повтор): {'ok' if r_['ok'] else r_['why']}")
         msgs += sync_stops(c)                                            # 01.10: дослать стопы на исполнившиеся лимиты
         # 03.10 владелец: «после любой правки бота в течение 1 часа сделки только в журнале, на бирже сделки не открываются» —
         # правка = изменение fast_tier.py / core_config.py / bingx_trader.py (mtime); выходы по открытым позициям идут как обычно
@@ -387,7 +490,11 @@ def on_events(ev: list[dict]) -> list[str]:
             ev = [e for e in ev if str(e.get("kind", "")) != "entry"]
         for e in ev:
             k = str(e.get("kind", ""))
-            if k == "entry":
+            if k == "entry" and e.get("x2") and e["sym"] in state()["open"]:   # R63: вторая стратегия в ту же сторону — добор к открытой позиции
+                r = add_position(e["sym"], int(e["side"]), float(e["px"]), c=c)
+                jlog("add", sym=e["sym"], book=e.get("book"), side=e["side"], **r)
+                msgs.append(f"BingX {e['sym'][:-4]} добор: {'ok' if r['ok'] else r['why']}")
+            elif k == "entry":
                 r = open_position(e["sym"], int(e["side"]), float(e["px"]), why=e.get("rule") or "", c=c)
                 jlog("entry", sym=e["sym"], book=e.get("book"), side=e["side"], **r)
                 msgs.append(f"BingX {e['sym'][:-4]} вход: {'ok' if r['ok'] else r['why']}")
