@@ -220,7 +220,7 @@ def _closed_rows(stem: str, book: str, cut: float) -> list[dict]:
             "res": float(r["result_pct"]), "why": r.get("why_exit") or "", "rule": rule,
             "rk": _short_rule(bk, rule), "size": float(r.get("size") or 1.0), "at": at,
             "ent": r.get("entry_at") or r.get("opened_at") or 0, "day": _utc_day(r.get("opened_at") or r.get("entry_at") or at),   # сделка — в дне входа
-            "fixed": FIXED.get(stem), "usd": r.get("usd"),
+            "fixed": FIXED.get(stem), "usd": r.get("usd"), "usd_in": r.get("usd_in"),
             "entry": r.get("px_in") or r.get("entry_px") or r.get("px"),      # 26.09: цена входа в списке
             "exit": r.get("px_out") or r.get("px_exit"),                        # …и выхода (у толпы/конца её нет в записи — по ходу)
         })
@@ -840,6 +840,12 @@ def _money_day(rows: list[dict]) -> dict:
         if r.get("fixed"):
             share = float(r["fixed"]) * float(r.get("size") or 1)
             money = float(r["usd"]) if r.get("usd") is not None else share * float(r.get("res") or 0) / 100
+            # 04.10 владелец: «когда починится книга?» — после смены суммы сделки на 500 $ старые сделки по 1000 $ подписывались «500 $»:
+            # сумма берётся из записи сделки (usd_in) или из отношения денег к проценту, а не из нынешней настройки
+            if r.get("usd_in"):
+                share = float(r["usd_in"])
+            elif r.get("usd") is not None and abs(float(r.get("res") or 0)) > 0.05:
+                share = round(abs(float(r["usd"]) / float(r["res"])) * 100 / 100) * 100.0
         else:
             share = BOOK_DEPOSIT * float(r.get("size") or 1) / (w or 1.0)
             money = share * float(r.get("res") or 0) / 100
@@ -856,12 +862,40 @@ def _row(x: dict, is_open: bool) -> dict:
             "size": round(float(x["size"]), 2), "money": round(float(x["money"]), 2),
             "at": int(x["at"] or 0), "ent": int(x.get("ent") or 0), "open": is_open,
             "entry": x.get("entry"), "share": round(float(x.get("share") or 0)), "stop": x.get("stop_px"),
+            "bx": bool(x.get("bx")), "real": (None if x.get("real") is None else round(float(x["real"]), 2)),
             "exit": x.get("exit") or (None if is_open or not x.get("entry") or x.get("res") is None
                                       else float(x["entry"]) * (1 + int(x["side"]) * float(x["res"]) / 100))}
 
 
+def _bx_attach(opened: list[dict], closed: list[dict]) -> dict:
+    """04.10 владелец (сайт бота: «2 итога: один по боту как сейчас, 2-й по bingx — итог и открытые/закрытые реально количество / общих сделок бота»;
+    «когда починится книга?») — те же числа биржи в книге. Каждой закрытой сделке: bx (была на BingX) и real (деньги биржи по исполнениям с комиссией).
+    Сделки, которые были на бирже без пары в журнале бота, — отдельной суммой по дню входа. Исполнения читаются из кэша сайта (output/bingx_fills.json)."""
+    try:
+        import fast_state as fs
+        trades, bx_open = fs._bx_book()
+        fs._bx_real(trades, (fs._read(fs.BX_FILLS, {}) or {}).get("rows") or [])
+    except Exception:  # noqa: BLE001
+        return {}
+    for t in trades:
+        t["paired"] = False
+    for c in sorted(closed, key=lambda x: x.get("ent") or 0):
+        tr = next((t for t in trades if t["sym"] == c["sym"] and not t["paired"] and abs(t["t_in"] - float(c.get("ent") or 0)) < 1200), None)
+        if tr:
+            tr["paired"] = True
+        c["bx"] = bool(tr and not tr["dead"]); c["real"] = (tr or {}).get("real")
+    for p in opened:
+        p["bx"] = p["sym"] in bx_open; p["real"] = None
+    only = {}
+    for t in trades:
+        if not t["paired"] and not t["dead"] and t.get("real") is not None:
+            only[_utc_day(t["t_in"])] = only.get(_utc_day(t["t_in"]), 0.0) + t["real"]
+    return only
+
+
 def _source(opened: list[dict], closed: list[dict]) -> dict:
     """один источник экрана: дни с деньгами, открытые в сегодняшнем дне, итог и строка вывода"""
+    bx_only = _bx_attach(opened, closed)
     days = sorted({c["day"] for c in closed if c.get("day")}, reverse=True)[:BOOK_DAYS]
     today = datetime.now(BOT_TZ).strftime("%Y-%m-%d")
     if opened and today not in days:
@@ -883,9 +917,14 @@ def _source(opened: list[dict], closed: list[dict]) -> dict:
         rows = [_row(x, False) for x in sorted(m["rows"], key=lambda x: -(x["at"] or 0))]
         if d == today:
             rows = [_row(p, True) for p in sorted(opened, key=lambda x: -(x["at"] or 0))] + rows
+        _op = opened if d == today else []
         out_days.append({"d": d, "n": m["n"], "nopen": len(opened) if d == today else 0,
                          "total": round(m["total"], 2), "hit": round(m["hit"]), "rows": rows,
-                         "ex": _exits(m["rows"])})
+                         "ex": _exits(m["rows"]),
+                         # биржа: сумма по исполнениям (сделки бота + сделки без пары в журнале бота), вошло / закрыто из сделок бота этого дня
+                         "bx": round(sum(float(x["real"]) for x in m["rows"] if x.get("real") is not None) + bx_only.get(d, 0.0), 2),
+                         "bxin": sum(1 for x in m["rows"] if x.get("bx")) + sum(1 for x in _op if x.get("bx")), "nin": m["n"] + len(_op),
+                         "bxout": sum(1 for x in m["rows"] if x.get("bx"))})
     allrows = [x for d in days for x in per_day[d]["rows"]]
     by_event = [x["money"] for x in allrows if not str(x.get("why") or "").startswith("срок")]
     by_time = [x["money"] for x in allrows if str(x.get("why") or "").startswith("срок")]
@@ -894,7 +933,7 @@ def _source(opened: list[dict], closed: list[dict]) -> dict:
         note = (f"выходы по событию и цели дают {st.mean(by_event):+.1f} $ на сделку, по сроку "
                 f"{st.mean(by_time):+.1f} $ · сделок {len(by_event)} против {len(by_time)}")
     return {"note": note, "total": round(sum(per_day[d]["total"] for d in days), 2), "days": out_days,
-            "ex": _exits(allrows)}
+            "bx": round(sum(x["bx"] for x in out_days), 2), "ex": _exits(allrows)}
 
 
 def _exits(rows: list[dict]) -> dict:
@@ -1144,7 +1183,7 @@ function drawBack(){
     o+=side<0?`<path d="M${f2(p[0])} ${f2(p[1])}A430 430 0 0 1 ${f2(q[0])} ${f2(q[1])}" class="garc"/>`:`<path d="M${f2(q[0])} ${f2(q[1])}A430 430 0 0 1 ${f2(p[0])} ${f2(p[1])}" class="garc"/>`;
     o+=`<circle cx="${CX+side*430}" cy="${CY}" r="6.5" class="ret"/>`;
   }
-  o+=T(396,306,'cap','ВЫХОДЫ','middle')+T(1204,306,'cap','ДЕПОЗИТ ДНЯ','middle');
+  o+=T(396,306,'cap','ВЫХОДЫ','middle')+T(1204,306,'cap','BINGX · ПО БИРЖЕ','middle');
   // значок и рамка заголовка «закрыты»
   o+=`<path d="M70 243V236H77M100 243V236H93M70 259V266H77M100 259V266H93" class="frm"/><circle cx="85" cy="251" r="4" class="ico"/><ellipse cx="85" cy="251" rx="10" ry="3.5" class="ico"/>`;
   // рамки четырёх панелей
@@ -1164,7 +1203,7 @@ function drawDay(){
   // шапка
   if(d){
     o+=`<g class="a-fi" ${del(.3)}>`+T(800,62,'ttl',`СДЕЛКИ ЗА ${ddmm(d.d)}`,'middle')
-      +T(800,84,'sm dim',`закрыто <tspan class="lt">${d.n}</tspan>   в работе <tspan class="lt">${d.nopen}</tspan>   итог <tspan class="${d.total<0?'ros':'lt'}">${usd(d.total)}</tspan>   депозит дня <tspan class="lt">${Math.round(BOOK.deposit).toLocaleString('ru-RU')} $</tspan>`,'middle')+`</g>`;
+      +T(800,84,'sm dim',`закрыто <tspan class="lt">${d.n}</tspan>   в работе <tspan class="lt">${d.nopen}</tspan>   итог бота <tspan class="${d.total<0?'ros':'lt'}">${usd(d.total)}</tspan>   BingX <tspan class="${(d.bx||0)<0?'ros':'lt'}">${usd(d.bx||0)}</tspan> · вошло <tspan class="lt">${d.bxin||0}</tspan> из ${d.nin||0} · закрыто <tspan class="lt">${d.bxout||0}</tspan> из ${d.n}`,'middle')+`</g>`;
   }else o+=T(800,62,'ttl',SRC==='back'?'РЕКОНСТРУКЦИИ НЕТ':'ЖИВЫХ ЖУРНАЛОВ ПОКА НЕТ','middle');
   // неделя выбранного дня
   const idx={}; DAYS().forEach((x,i)=>idx[x.d]=i);
@@ -1176,7 +1215,7 @@ function drawDay(){
     const on=d&&ds===d.d, has=i!=null;
     o+=`<g class="a-fi" ${del(.35+k*.05)}>`;
     o+=T(x,y-16,'xs2',on?`<tspan class="lt">${WDS[wd]}</tspan> <tspan class="lt big2">${+ds.slice(8,10)}</tspan>`:`<tspan class="dim">${WDS[wd]}</tspan> <tspan class="mid">${+ds.slice(8,10)}</tspan>`,'middle');
-    if(has){const X=DAYS()[i],v=X.total;o+=T(x,y+20,'xs '+(on?'amb':(v<0?'ros':'mid')),X.n?usd(v):(X.nopen?`в работе ${X.nopen}`:'сделок нет'),'middle');}
+    if(has){const X=DAYS()[i],v=X.total;o+=T(x,y+20,'xs '+(on?'amb':(v<0?'ros':'mid')),X.n?usd(v)+`<tspan class="${(X.bx||0)<0?'ros':'dim'}"> / ${usd(X.bx||0)}</tspan>`:(X.nopen?`в работе ${X.nopen}`:'сделок нет'),'middle');}
     else o+=T(x,y+20,'xs dim2','нет данных','middle');
     if(has&&!on) o+=`<rect x="${x-80}" y="${f2(y-30)}" width="160" height="58" class="hit" data-act="day" data-i="${i}"><title>${esc('день бота '+ddmm(ds)+' UTC')}</title></rect>`;
     o+=`</g>`;
@@ -1232,7 +1271,7 @@ function drawDay(){
   o+=`<g class="a-fi" ${del(1.4)}>`+T(800,416,'cap','ИТОГ БОТА','middle')
     +`<text x="800" y="484" text-anchor="middle" class="bigg" filter="url(#g2)">${usd(tot)}</text>`
     +T(800,484,'big'+(tot<0?' ros':''),`${usdN(tot)}<tspan class="bigu" dx="6">$</tspan>`,'middle')
-    +T(800,508,'sm dim',DAYS().length?(SRC==='back'?`задним числом за ${DAYS().length} дн`:`закрытые за ${DAYS().length} дн`):'закрытых сделок нет','middle')+`</g>`;
+    +T(800,508,'sm dim',DAYS().length?(SRC==='back'?`задним числом за ${DAYS().length} дн`:`закрытые за ${DAYS().length} дн · BingX <tspan class="${(B.bx||0)<0?'ros':'lt'}">${usd(B.bx||0)}</tspan>`):'закрытых сделок нет','middle')+`</g>`;
   // бок слева: выходы за все дни источника
   const E=B.ex||{};
   const gk=Math.min(2.5,18/(Math.max(Math.abs(E.tm||0),Math.abs(E.ev||0))||1));
@@ -1244,15 +1283,15 @@ function drawDay(){
     +T(404,560,'big2x'+(E.ev<0?' ros':''),E.ev==null?'—':`${numS(E.ev)}<tspan class="bigu2">$</tspan>`)
     +T(406,580,'xs dim','событие и цель, на сделку')
     +T(406,612,'xs lt',`сделок ${E.ev_n||0} против ${E.tm_n||0} · за ${DAYS().length} дн`);
-  // бок справа: итог дня к депозиту
-  const dp=d?d.total/BOOK.deposit*100:0, ra=-Math.max(-19,Math.min(19,dp*10))*Math.PI/180;
+  // бок справа: итог дня на BingX (04.10 владелец: два итога — бот и биржа; раньше здесь был «депозит дня», от которого деньги сделок давно не считаются)
+  const bxd=d?(d.bx||0):0, ra=-Math.max(-19,Math.min(19,bxd/20))*Math.PI/180;
   o+=Ln(CX+432*Math.cos(ra),CY+432*Math.sin(ra),CX+454*Math.cos(ra),CY+454*Math.sin(ra),'mk-a')
     +Ln(CX+432*Math.cos(ra),CY+432*Math.sin(ra),CX+454*Math.cos(ra),CY+454*Math.sin(ra),'mk-a','filter="url(#g1)"')
-    +T(1196,410,'big2x'+(dp<0?' ros':''),`${num(dp,2)}<tspan class="bigu2">%</tspan>`,'end')
-    +T(1194,430,'xs dim','итог дня к депозиту','end')
-    +T(1196,560,'big2x',`${Math.round(BOOK.deposit).toLocaleString('ru-RU')}<tspan class="bigu2">$</tspan>`,'end')
-    +T(1194,580,'xs dim','депозит дня','end')
-    +T(1194,612,'xs lt','вес правила решает долю','end');
+    +T(1196,410,'big2x'+(bxd<0?' ros':''),`${numS(bxd)}<tspan class="bigu2">$</tspan>`,'end')
+    +T(1194,430,'xs dim','итог дня на BingX, с комиссией','end')
+    +T(1196,560,'big2x',`${d?(d.bxout||0):0}<tspan class="bigu2"> / ${d?d.n:0}</tspan>`,'end')
+    +T(1194,580,'xs dim','закрыто на BingX из закрытых ботом','end')
+    +T(1194,612,'xs lt',`вошло на BingX ${d?(d.bxin||0):0} из ${d?(d.nin||0):0} входов дня`,'end');
   $('L_day').innerHTML=o;
 }
 
@@ -1266,7 +1305,9 @@ function drawCols(anim){
   const row=(r,k,x0,x1,selx,hx0,dot)=>{const y=RY+k*RS;
     return `<g class="row${r.sym===SYM?' on':''}${anim?' a-fl':''}" data-sym="${esc(r.sym)}" ${anim?del(.9+k*.05):''}>`
       +`<rect x="${selx}" y="${y-13}" width="2" height="30" class="sel"/>`
-      +T(x0,y,'tk',`${esc(r.sym)}<tspan class="${dot}" dx="7" font-size="8">●</tspan>`)
+      +T(x0,y,'tk',`${esc(r.sym)}<tspan class="${dot}" dx="7" font-size="8">●</tspan>`
+          +(r.open?(r.bx?'':'<tspan class="dim2" dx="8" font-size="8" letter-spacing="0">нет на BingX</tspan>')    // 04.10: метка биржи рядом с именем
+                  :`<tspan class="${r.real!=null?(r.real<0?'ros':'mid'):'dim2'}" dx="8" font-size="8" letter-spacing="0">${r.real!=null?'BingX '+usd(r.real):(r.bx?'BingX —':'нет на BingX')}</tspan>`))
       +T(x1,y,'mono sm '+sg(r.money),usd(r.money),'end')
       +T(x0,y+13,'xs2 dim',`<tspan class="dim2">${r.side<0?'▼':'▲'}</tspan> <tspan class="lt">${sd(r)}</tspan> <tspan class="mono">${usd0(r.share)}</tspan> · <tspan class="mono">${pxs(r.entry)}</tspan>${r.open?'':' → <tspan class="mono">'+pxs(r.exit)+'</tspan>'}`)
       +(r.open?T(x1,y+13,'xs2 mono '+(r.stop?'ros':'dim2'),r.stop?'стоп '+pxs(r.stop):'без стопа','end'):'')
@@ -1420,7 +1461,7 @@ function drawCtl(){
   const txt=MODE==='pos'?'← вернуть панели монеты':(w?'разбор позиции: почему взята и чего ждём':(SRC==='back'?'разбор — только у живых позиций':'у выбранной монеты позиции нет'));
   o+=`<rect x="640" y="876" width="320" height="34" rx="3" class="btn${w?'':' off'}"/>`+(w?`<rect x="640" y="876" width="320" height="34" rx="3" fill="url(#bt)"/>`:'')
     +T(800,898,'sm '+(w?'amb':'dim2'),txt,'middle')+(w?`<rect x="640" y="876" width="320" height="34" class="hit" data-act="pos"/>`:'')
-    +T(800,938,'xs dim','вес правила решает, сколько депозита дня получила сделка','middle');
+    +T(800,938,'xs dim','под днём: итог бота / итог BingX по исполнениям с комиссией','middle');
   // подвал
   const bt=new Date(BOOK.built*1000);
   o+=T(1530,990,'xs dim2',`сборка ${bt.toLocaleString('ru-RU',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})} · время ваше · день бота по UTC+3, сделка в дне входа`,'end');
