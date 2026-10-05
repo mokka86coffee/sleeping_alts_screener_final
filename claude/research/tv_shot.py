@@ -66,6 +66,8 @@ async def main(out: Path, jobs: list):
                 got = await ev(ws, SET % (json.dumps(full), json.dumps(res), frm, to))
                 if not got or got[0] != full:
                     print(f"{j}: монета не встала ({got})", flush=True); continue
+                if await ev(ws, "document.body.innerText.includes(\"This symbol doesn't exist\")"):
+                    print(f"{j}: такой монеты на TradingView нет — снимок не делаю", flush=True); continue
                 r = await call(ws, "Page.captureScreenshot", {"format": "jpeg", "quality": 72})
                 f = out / f"{sym.replace('USDT.P', '')}_{res}{'_' + p[2] if len(p) > 2 else ''}.jpg"
                 f.write_bytes(base64.b64decode(r["data"])); print(f"{j}: {f.name} {f.stat().st_size // 1024} КБ", flush=True)

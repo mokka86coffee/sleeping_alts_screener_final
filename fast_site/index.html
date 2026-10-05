@@ -2254,34 +2254,6 @@ let lastT = 0;
 // 28.09 владелец: «карточка сильно тормозит» — под открытой карточкой фон за вуалью не перерисовываем (стекло карточки размывает его
 // заново на каждом кадре); один кадр рисуется при открытии, смене монеты и resize, дальше крутится только кристалл.
 let bgFrozen = false;
-// ── КОМЕТА (04.10 владелец: «луч, линию, чтобы проплывала как комета через экран периодически»): раз в 10–20 с тонкая светящаяся линия с яркой головой
-//    и длинным затухающим хвостом медленно проплывает по диагонали через весь экран; без shadowBlur — только линии и градиенты (дёшево)
-let COMET = null, cometNext = performance.now() + 5000;
-function drawComet() {
-  const now = performance.now();
-  if (!COMET && now >= cometNext && W > 700) {
-    const ltr = Math.random() < .5, y0 = H * (.08 + Math.random() * .5), slope = (Math.random() * .5 + .12) * (Math.random() < .5 ? 1 : -1);
-    const cols = ['150,220,255', '170,255,230', '200,190,255', '255,225,170'];
-    COMET = { t0: now, dur: 5200 + Math.random() * 2400, ltr, y0, slope, col: cols[(Math.random() * cols.length) | 0] };
-  }
-  if (!COMET) return;
-  const C = COMET, p = (now - C.t0) / C.dur;
-  if (p >= 1) { COMET = null; cometNext = now + 10000 + Math.random() * 10000; return; }
-  const dir = C.ltr ? 1 : -1, head = (-.25 + 1.5 * p) * W, L = W * .34;                 // голова идёт от -25% до 125% ширины
-  const hx = C.ltr ? head : W - head, hy = C.y0 + head * C.slope, tx = hx - dir * L, ty = hy - L * C.slope;
-  const fade = Math.sin(Math.PI * clamp(p)) ** .6;
-  ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
-  const g = ctx.createLinearGradient(tx, ty, hx, hy);
-  g.addColorStop(0, `rgba(${C.col},0)`); g.addColorStop(.7, `rgba(${C.col},${.22 * fade})`); g.addColorStop(1, `rgba(255,255,255,${.85 * fade})`);
-  ctx.strokeStyle = g; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(hx, hy); ctx.stroke();
-  const g2 = ctx.createLinearGradient(tx, ty, hx, hy);   // широкая бледная подложка хвоста
-  g2.addColorStop(0, `rgba(${C.col},0)`); g2.addColorStop(1, `rgba(${C.col},${.12 * fade})`);
-  ctx.strokeStyle = g2; ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(tx + (hx - tx) * .35, ty + (hy - ty) * .35); ctx.lineTo(hx, hy); ctx.stroke();
-  const hg = ctx.createRadialGradient(hx, hy, 0, hx, hy, 16);   // голова
-  hg.addColorStop(0, `rgba(255,255,255,${.95 * fade})`); hg.addColorStop(.25, `rgba(${C.col},${.55 * fade})`); hg.addColorStop(1, `rgba(${C.col},0)`);
-  ctx.fillStyle = hg; ctx.fillRect(hx - 16, hy - 16, 32, 32);
-  ctx.restore();
-}
 function frame() {
   const t = performance.now() / 1000 / TIME_SLOW;
   // hovered and opened coins pause their life so they don't fade away
@@ -2292,7 +2264,6 @@ function frame() {
   ctx.clearRect(0, 0, W, H);
   tctx.clearRect(0, 0, W, H);
   drawHUD(t);
-  drawComet();
   drawFace(t);
   if (RIVER) drawRiver(t);
   else for (const g of rings) {
@@ -2610,6 +2581,8 @@ function totBlock(G) {
 #ribTot .tt-num { display: flex; align-items: flex-end; justify-content: flex-end; gap: 6px; }
 #ribTot .tt-num svg { display: block; color: #fff; overflow: visible; filter: drop-shadow(0 0 1px rgba(255,255,255,.9)) drop-shadow(0 0 7px rgba(var(--rgb),.55)) drop-shadow(0 0 16px rgba(var(--rgb),.3)); }
 #ribTot .cur { font-style: normal; font-weight: 500; font-size: 16.3px; color: #fff; text-shadow: 0 0 6px rgba(var(--rgb),.55), 0 0 14px rgba(var(--rgb),.3); }
+#ribTot .of-row { display: flex; align-items: flex-end; justify-content: flex-end; gap: 7px; }   /* 04.10 владелец: «в одну строку 5 из 8» */
+#ribTot .of-row b.of { font-size: 10px; font-weight: 700; letter-spacing: .14em; color: #fff; text-shadow: 0 0 6px rgba(165,205,245,.8), 0 0 14px rgba(165,205,245,.45); text-transform: uppercase; line-height: 1; padding-bottom: 1px; }
 #ribTot .tt-cols small { display: block; font-size: 5.6px; letter-spacing: .34em; color: rgba(165,205,245,.85); text-transform: uppercase; }
 #ribTot .tt-cols svg { display: block; margin-top: 4px; margin-left: auto; overflow: visible; color: #fff; filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 6px var(--k)); }
 #ribTot .tt-cols .cur { font-size: 8.8px; }
@@ -2635,7 +2608,7 @@ function totBlock(G) {
     <div class="tt-main">${spark}<div class="tt-num">${cryo(`${pos ? '+' : '−'}${Math.abs(Math.round(S.total))}`, 28.8, 1.9)}<em class="cur">$</em></div></div>
     <div class="tt-sh"></div>
     <div class="tt-top" style="margin-top:16px"><i></i><span>BingX · по бирже</span></div>
-    <div class="tt-cols" style="flex-direction:row;justify-content:flex-end;gap:22px;margin-top:10px;padding-bottom:10px"><div style="--k:rgb(165,205,245)"><small>вошло · из ${S.nIn}</small><div style="display:flex;align-items:flex-end;justify-content:flex-end">${cryo(String(S.bxIn), 11.2, 1.3)}</div></div><div style="--k:rgb(165,205,245)"><small>закрыто · из ${S.nOut}</small><div style="display:flex;align-items:flex-end;justify-content:flex-end">${cryo(String(S.bxOut), 11.2, 1.3)}</div></div></div>
+    <div class="tt-cols" style="flex-direction:row;justify-content:flex-end;gap:22px;margin-top:10px;padding-bottom:10px"><div style="--k:rgb(165,205,245)"><small>вошло</small><div class="of-row">${cryo(String(S.bxIn), 11.2, 2)}<b class="of">из</b><span class="of-n">${cryo(String(S.nIn), 11.2, 2)}</span></div></div><div style="--k:rgb(165,205,245)"><small>закрыто</small><div class="of-row">${cryo(String(S.bxOut), 11.2, 2)}<b class="of">из</b><span class="of-n">${cryo(String(S.nOut), 11.2, 2)}</span></div></div></div>
     <div class="tt-main" style="margin-top:10px;--rgb:${S.real >= 0 ? '110,240,180' : '255,110,130'}"><div class="tt-num">${cryo(`${S.real >= 0 ? '+' : '−'}${Math.abs(Math.round(S.real || 0))}`, 20, 1.6)}<em class="cur">$</em></div></div>`;
 }
 const bubUsd = a => Math.abs(a.item.usd != null ? a.item.usd : (a.item.res || 0) * 5);
