@@ -534,3 +534,10 @@ if __name__ == "__main__":
         print(f"книга: book.html {_bk.stat().st_size // 1024} КБ")
     except Exception as e:  # noqa: BLE001
         print(f"книга: не собралась — {type(e).__name__}: {e}")
+    # 05.10 владелец: «чтобы бот находил всплески, ты… делал выводы, разбирая эти монеты через два, четыре, шесть, восемь часов… можешь начинать» —
+    # журнал всплесков (surge_journal.py): читает лог бота и уже записанные файлы, с Binance ничего не запрашивает, в торговлю не вмешивается
+    try:
+        import surge_journal
+        print(surge_journal.update())
+    except Exception as e:  # noqa: BLE001
+        print(f"журнал всплесков: сбой {type(e).__name__}: {e}")
