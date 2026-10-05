@@ -43,6 +43,22 @@ try:
     k2 = k1 + [[1, 0.94, 1.001, 0.94, 0.99]]                                       # возврат к входу → стоп в безубыток
     assert ft.short_walk(e, 0.1, ft._short_tgt(p), k2, None)[1] == "стоп в безубыток"
     assert ft.short_walk(e, 0.1, ft._short_tgt(p), [[0, 1, 1.11, 0.99, 1.1]], None)[1] == "стоп"
+    # 6) 05.10 зоны от вершины 30 дн: до 30 % — как было; 30–60 % — цель 10 %, стоп 10 %; глубже 60 % — сделок нет
+    ft._hi90 = lambda s: 2.0
+    assert ft._slide_zone("XUSDT", 1.5)[0] == 1 and ft._slide_zone("XUSDT", 1.0)[0] == 2 and ft._slide_zone("XUSDT", 0.7)[0] == 3 and ft._slide_zone("XUSDT", 0.0) == (1, None)
+    st = {"open": {}, "last_exit": {}}; m = []
+    assert ft._slide_gate(st, "XUSDT", "всплеск", t_bar, now, m, px=0.7) is True and not st.get("pending") and "глубже 60" in m[0], (st, m)
+    st = {"open": {}, "last_exit": {}}; m = []
+    assert ft._slide_gate(st, "XUSDT", "всплеск", t_bar, now, m, px=1.0) is True and st["pending"]["XUSDT"].get("slide"), (st, m)
+    ft._hi90 = lambda s: 2.0                                                      # вход по ~1.035 при вершине 2.0 → на 48 % ниже → зона 2
+    st = {"open": {}, "last_exit": {}, "pending": {"XUSDT": dict(why="R65 сползание → шорт на отскоке · всплеск", t_ms=t0, at=now, expire=now + 3600, start_low=None, slide=True)}}
+    ev = []; m = []; ft.pending_step(st, ft.BOOK, now, ev, m, False); p2 = st["open"].get("XUSDT")
+    assert p2 and p2["target"] == 0.1 and p2["stop"] == 0.1 and p2["hold_min"] == _cc.FAST3_SLIDE_ZONE2_HOLD_MIN == 4320 and p2.get("slide") and p2.get("slide_tp") and ft._short_tgt(p2) == 0.1, (p2, m)
+    assert ft.short_walk(1.0, 0.1, ft._short_tgt(p2), [[0, 1, 1.01, 0.89, 0.9]], None)[1] == "цель", ft.short_walk(1.0, 0.1, ft._short_tgt(p2), [[0, 1, 1.01, 0.89, 0.9]], None)
+    ft._hi90 = lambda s: 10.0                                                     # вход глубже 60 % от вершины — ожидание снимается без сделки
+    st = {"open": {}, "last_exit": {}, "pending": {"XUSDT": dict(why="R65 сползание → шорт на отскоке · всплеск", t_ms=t0, at=now, expire=now + 3600, start_low=None, slide=True)}}
+    ev = []; m = []; ft.pending_step(st, ft.BOOK, now, ev, m, False)
+    assert not st["open"] and not st["pending"] and not ev and any("глубже 60" in x for x in m), (st, m)
     print("R65: ок — мерка сползания, лонгов нет, шорт на отскоке (всплеск) через ожидание вершины, стоп 10 % / без цели / 16 ч, ведение")
 except Exception as ex:  # noqa: BLE001
     print("СБОЙ R65", type(ex).__name__, ex); traceback.print_exc()

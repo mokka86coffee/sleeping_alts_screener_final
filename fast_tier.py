@@ -798,12 +798,19 @@ def _run90(sym: str):
 _H90: dict = {}; _SP7: dict = {}
 
 
+try:
+    from core_config import FAST3_TOP_DAYS as _TOPD
+except ImportError:
+    _TOPD = 90
+
+
 def _hi90(sym: str):
-    """максимум 90 дн (фьючерс Binance, дневки; кэш 1 ч)"""
+    """вершина монеты: максимум за FAST3_TOP_DAYS дней (05.10 владелец: «90 дней это несколько движений уже», «уменьши до 30 дней»; было 90) —
+    фьючерс Binance, дневки; кэш 1 ч. Имя функции прежнее."""
     t, v = _H90.get(sym, (0, None))
     if time.time() - t > 3600:
-        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1d", "limit": 90}, quiet_400=True) or []
-        v = max(float(x[2]) for x in k) if len(k) >= 30 else None
+        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1d", "limit": int(_TOPD)}, quiet_400=True) or []
+        v = max(float(x[2]) for x in k) if len(k) >= min(30, int(_TOPD)) else None
         _H90[sym] = (time.time(), v)
     return v
 
@@ -888,7 +895,22 @@ def _slide(sym: str):
     return v
 
 
-def _slide_gate(state: dict, sym: str, why: str, t_bar: int, now: float, msgs: list, book_note: str = "") -> bool:
+def _slide_zone(sym: str, px: float):
+    """зона шорта на сползании по расстоянию цены от вершины FAST3_TOP_DAYS дней (05.10 владелец: «от вершины до 30 % шорт закрывается через 16 часов,
+    от 30 до 60 % только шорт на отскоке с целью 10 % и стопом 10 %», «ниже уже никаких сделок»). → (зона 1 / 2 / 3, на сколько % цена ниже вершины);
+    вершина неизвестна или цены нет — зона 1 (как было до правки)."""
+    try:
+        from core_config import FAST3_SLIDE_ZONE1_PCT as _z1, FAST3_SLIDE_ZONE2_PCT as _z2
+    except ImportError:
+        _z1, _z2 = 30.0, 60.0
+    hi = _hi90(sym) if px else None
+    if not hi:
+        return 1, None
+    d = (1 - px / hi) * 100
+    return (1 if d <= _z1 else (2 if d <= _z2 else 3)), d
+
+
+def _slide_gate(state: dict, sym: str, why: str, t_bar: int, now: float, msgs: list, book_note: str = "", px: float = 0.0) -> bool:
     """R65 для сигналов всплеска/выноса на свече (обе книги): монета сползает 3 дня → лонг не берём вовсе; шорт — только на отскоке (отскок — сам всплеск) и только
     через ожидание вершины (как все шорты после вершины): стоп FAST3_SLIDE_SHORT_SL (10 %), цели нет, после хода 5 % стоп в точку входа, выход через FAST3_SLIDE_HOLD_MIN
     (16 ч) — владелец 04.10: «закрытие также через 16 часов, стоп в бу при подходе цены на 5 %». На падении и во флэте — ни лонга, ни шорта. Правило главнее «лестницы» и переворотов. → True, если сигнал обработан здесь (дальше по цепочке не идёт)."""
@@ -905,6 +927,9 @@ def _slide_gate(state: dict, sym: str, why: str, t_bar: int, now: float, msgs: l
         _man = []
     if sym in _man:                                                      # 04.10 08:20 (MEGA: R65 поставил шорт в ожидание в монете из ручного списка лестницы владельца): ручной запрет шорта главнее R65
         msgs.append(f"{sym[:-4]} не взят: монета сползает ({mv:+.0f}% за 3 дня) — лонга нет (R65), а шорт в монетах ручного списка лестницы не берём (R45)"); return True
+    _zn, _zd = _slide_zone(sym, px)
+    if _zn == 3:                                                         # 05.10: глубже 60 % от вершины — «ниже уже никаких сделок»
+        msgs.append(f"{sym[:-4]} не взят: монета сползает ({mv:+.0f}% за 3 дня), цена на {_zd:.0f}% ниже вершины {_TOPD} дн — глубже 60 % сделок нет (R65)"); return True
     _ff = _flat5(sym, 0.0)
     if _ff[0]:                                                           # R67: во флэте шорт не берём, а лонга в сползающей монете нет — сигнал пропускается
         msgs.append(f"{sym[:-4]} не взят: монета сползает ({mv:+.0f}% за 3 дня), лонга нет, а шорт на флэте не берём — {_flat_txt(sym, _ff)} (R65, R67)"); return True
@@ -1090,13 +1115,13 @@ def gate_ab(sym: str, sd: int, px: float):
             return None
     if sd == 1 and top:                                               # 29.09 владелец «да вноси»: А расширена — лонг у вершины 90 дн не берём, спот не смотрим
         cv = _spot_cvd7(sym)                                          # (сделки 27–28.09: лонги у вершины 34 шт., 32% в плюс, −318 $ при 1000 $; сигналы канала 29.09: у вершины 3 из 21 вверх первыми, 7 из 21 вниз)
-        return f"А: лонг у вершины 90 дн ({(px / hi - 1) * 100:+.1f}% от максимума)" + (f", спот за 7 дн {cv / 1e6:+.0f}M$" if cv is not None else "") + " — раздача"
+        return f"А: лонг у вершины {_TOPD} дн ({(px / hi - 1) * 100:+.1f}% от максимума)" + (f", спот за 7 дн {cv / 1e6:+.0f}M$" if cv is not None else "") + " — раздача"
     if sd == 1 and not top:                                           # 30.09 владелец «да»: А расширена — лонг при падающем споте CVD за 7 дн (Binance) тоже переворачивается в шорт
         cv = _spot_cvd7(sym)                                          # (claude/research/trade_facts, 176 сделок 27–30.09, НЕ ПРОВЕРЕНО: 48 таких лонгов −302 $ против +90 $ как шорты, 66% в плюсе)
         if cv is not None and cv < 0:
             return f"А2: лонг при падающем споте за 7 дн ({cv / 1e6:+.1f}M$) — продавцы на споте"
     if sd == -1 and not top:
-        return f"Б: шорт не у вершины 90 дн ({(px / hi - 1) * 100:+.1f}% от максимума) — середина/низ диапазона"
+        return f"Б: шорт не у вершины {_TOPD} дн ({(px / hi - 1) * 100:+.1f}% от максимума) — середина/низ диапазона"
     return None
 
 
@@ -1220,6 +1245,9 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
                 msgs.append(f"{sym[:-4]} шорт на отскоке не взят: монета из ручного списка лестницы владельца (R45)"); del state["pending"][sym]; continue
             if not _slide(sym)[0]:                                        # за время ожидания монета перестала сползать — шорт на отскоке не берём
                 msgs.append(f"{sym[:-4]} шорт на отскоке не взят: минимумы за 3 дня больше не падают (R65)"); del state["pending"][sym]; continue
+            _zn65, _zd65 = _slide_zone(sym, c)                            # 05.10: зона по цене входа
+            if _zn65 == 3:
+                msgs.append(f"{sym[:-4]} шорт на отскоке не взят: цена на {_zd65:.0f}% ниже вершины {_TOPD} дн — глубже 60 % сделок нет (R65)"); del state["pending"][sym]; continue
         _flush_short = _sld or "вынос шортов на всплеске → шорт" in p.get("why", "")   # 03.10 владелец (CAP, ALICE «вот тоже»): вынос шортов = конец лестницы — такой шорт идёт мимо Г / R47 / ручного списка
         _ns = (None if _flush_short else _no_short(sym, c)) or _too_young(sym)   # 02.10 13:40 (проверка): перепроверка в момент входа; 03.10: листинг < 180 дн — всегда
         if _ns:
@@ -1242,8 +1270,15 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
         # 30.09 владелец «вноси» (after_exit.py: шорты у вершины 90 дн — после выхода по сроку цена шла ещё +6.2% вперёд, у 65% ≥ 3% за 2 ч; по сроку +21.5%, держать ещё 2 ч +114.6% на 23 сделках, НЕ ПРОВЕРЕНО):
         # срок по часам убран — держим до выноса лонгов (fuel_exit) или стопа; время — только стык сессий (час выхода следующей сессии из ses_gate, R41); FAST3_SHORT_HOLD_MIN — запас, если ses_gate не дал срок
         hold = _h if (_h and FAST3_SHORT_HOLD_BY_SESSION) else FAST3_SHORT_HOLD_MIN
-        if _sld:
-            hold = _hold65; _tpnote += f" · R65: цели нет, после 5 % стоп в твх, выход через {_hold65 // 60} ч, вынос лонгов не закрывает"
+        if _sld and _zn65 == 2:                                           # 05.10: от 30 до 60 % ниже вершины — цель 10 %, стоп 10 % (подтяжки цели R62 и «×2 от минимума» сюда не идут)
+            try:
+                from core_config import FAST3_SLIDE_ZONE2_TP as _tp65, FAST3_SLIDE_ZONE2_HOLD_MIN as _h65b
+            except ImportError:
+                _tp65, _h65b = 0.10, 4320
+            tgt = _tp65; hold = _h65b
+            _tpnote = f" · R65: цена на {_zd65:.0f}% ниже вершины {_TOPD} дн (зона 30–60 %) — цель {_tp65 * 100:.0f} %, стоп {stop * 100:.0f} %, после 5 % стоп в твх, вынос лонгов не закрывает"
+        elif _sld:
+            hold = _hold65; _tpnote += (f" · R65: цена на {_zd65:.0f}% ниже вершины {_TOPD} дн (зона до 30 %)" if _zd65 is not None else " · R65") + f": цели нет, после 5 % стоп в твх, выход через {_hold65 // 60} ч, вынос лонгов не закрывает"
         if not ok:
             msgs.append(f"{sym[:-4]} шорт после вершины пропущен: {sw}"); continue
         why = p["why"] + f" · вход после вершины {top:.6g} ({sq}): стоп +{stop * 100:.0f}%, выход по выносу лонгов, срок {hold} мин · сессия {sw}" + _tpnote
@@ -1257,6 +1292,7 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
         if _snote: why = why + " · " + _snote
         pos = dict(sym=sym, side=-1, px=c, t_ms=t_bar, at=now, target=round(tgt, 5), stop=round(stop, 5), stop_px=_spx, hold_min=hold, rule=why, last_px=c, bars=0, top=top)
         if _sld: pos["slide"] = True
+        if _sld and _zn65 == 2: pos["slide_tp"] = True                    # у шорта на сползании в зоне 30–60 % цель есть
         state["open"][sym] = pos
         ev.append(dict(book=book, sym=sym, kind="entry", side=-1, px=c, at=now, usd_in=FAST3_SIZE, rule=why, target=pos["target"], stop=pos["stop"],
                        hold_min=hold, fon=fon(), bub=_bub(sym)))
@@ -1443,7 +1479,7 @@ def scan(sym: str, want_spike: bool, want_climax: bool):
 
 def _short_tgt(pos: dict) -> float:
     """цель шорта при ведении: у шорта на отскоке R65 цели нет (0), у остальных — своя или общая FAST3_SHORT_TP"""
-    return 0.0 if pos.get("slide") else float(pos.get("target") or FAST3_SHORT_TP)
+    return 0.0 if (pos.get("slide") and not pos.get("slide_tp")) else float(pos.get("target") or FAST3_SHORT_TP)
 
 
 def short_walk(e: float, stop: float, tgt: float, k: list, top=None, be_on: bool = True):
@@ -1883,7 +1919,7 @@ def step(state: dict, write: bool) -> list[str]:
         for sd, why, tp, sl, hold in outs:
             if sym in state["open"] or now - state["last_exit"].get(sym, 0) < 2 * 3600:
                 continue
-            if _slide_gate(state, sym, why, t_bar, now, msgs):            # R65: монета сползает 3 дня — лонгов нет, шорт только на отскоке
+            if _slide_gate(state, sym, why, t_bar, now, msgs, px=px):     # R65: монета сползает 3 дня — лонгов нет, шорт только на отскоке (зоны от вершины — 05.10)
                 continue
             o1h, o5 = _oi_live(sym) if sd == 1 else (None, None)
             if o1h is None:
@@ -2084,7 +2120,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
         if not r: continue
         _, px, t_bar, outs = r
         for sd, why, tp, sl, hold in outs:
-            if _slide_gate(state, sym, why, t_bar, now, msgs, f" · пробуждение: оборот ×{cd['x']:.0f} за интервал"):   # R65
+            if _slide_gate(state, sym, why, t_bar, now, msgs, f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", px=px):   # R65
                 continue
             sd, why, tp, sl, hold, _flip = flip_spike(sd, why, tp, sl, hold, oi1h, oibar * 100 if oibar is not None else None,
                                                       _crowd_live(sym) if sd == 1 else None, _long_flush(sym, now) if sd == 1 else None)
