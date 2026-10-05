@@ -35,7 +35,9 @@ $PY claude/research/test_r70.py >> $T/r63.out 2>&1   # R70: флэт по сут
 $PY claude/research/test_scanman.py >> $T/r63.out 2>&1   # 04.10: сканер не берёт шорт в монете ручного списка лестницы (R47)
 grep -q 'R70: ок' $T/r63.out || echo "СБОЙ: проверка R70 не дала «ок»" >> $T/r63.out
 $PY claude/research/test_bingx_close.py >> $T/r63.out 2>&1   # выход на BingX: ошибка запроса не теряет позицию (SOON 03.10)
+$PY claude/research/test_bingx_be.py >> $T/r63.out 2>&1   # 05.10: стоп в твх на BingX — от цены исполнения с комиссией (NOM 04.10)
 grep -q 'ВЫХОД BINGX: ок' $T/r63.out || echo "СБОЙ: проверка выхода BingX не дала «ок»" >> $T/r63.out
+grep -q 'ТВХ BINGX: ок' $T/r63.out || echo "СБОЙ: проверка твх BingX не дала «ок»" >> $T/r63.out
 echo "сутки: $(grep -c ' вход ' $T/day.out) входов, $(grep -c ' выход ' $T/day.out) выходов · $(grep 'готово' $T/day.out)"
 echo "растущая доска (R54), 02:00–08:00: $(grep -c ' вход ' $T/board.out) входов, из них лонг вместо шорта (R54): $(grep -c "R54" $T/board/output/paper_fast3.jsonl 2>/dev/null)"
 echo "заниженные пороги пампа (R58–R60), 00:00–20:00: входов $(grep -c ' вход ' $T/pump.out) · шорт «конец роста»: $(grep -c 'R58 конец роста' $T/pump/output/paper_fast3.jsonl 2>/dev/null) · лонг на выносе лонгов (R59): $(grep -c 'R59 вынос лонгов' $T/pump/output/paper_fast3.jsonl 2>/dev/null) · отказов по запрету лонга (R60): $(grep -c 'R60' $T/pump/replay_msgs.log 2>/dev/null) · ожиданий у верха свечи: $(grep -c 'ждёт возврата цены' $T/pump/replay_msgs.log 2>/dev/null) · выходов шорта «конец роста»: $(grep -c 'R58' <(grep 'exit_short' $T/pump/output/paper_fast3.jsonl 2>/dev/null))"

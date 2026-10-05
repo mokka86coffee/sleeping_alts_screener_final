@@ -204,6 +204,17 @@ def bot_target(sym: str, side: int, entry: float):
     return None
 
 
+# 05.10 04:20 владелец по NOM (бот вошёл по 0.002674, лимит на BingX исполнился по 0.002665; стоп «в твх» встал на цену бота — на бирже это −3.55 $, а не ноль),
+# на предложение «брать цену входа из исполнения биржи и ставить стоп в твх от неё, с учётом комиссии» — «делай». Комиссия BingX за исполнение по рынку
+# 0.05 % с каждой стороны (видно в исполнениях: 0.498 $ с 996 $); безубыток = цена исполнения × (1 ± 2 × комиссия).
+FEE_RATE = 0.0005
+
+
+def real_breakeven(fill: float, side: int) -> float:
+    """цена, на которой позиция с входом fill закрывается в ноль с учётом комиссии входа и выхода (лонг — чуть выше входа, шорт — чуть ниже)"""
+    return fill * (1 + side * 2 * FEE_RATE)
+
+
 UNFILLED_MIN = 10   # минут: входной лимит без исполнения дольше этого снимается (техническая граница зеркала, не торговая)
 
 
@@ -242,11 +253,16 @@ def sync_stops(c: dict) -> list[str]:
     for sym, p in s["open"].items():
         if p.get("exit_pending"):
             continue
-        amt = position_amt(p["bx"], p["ps"], p["hedge"], c)
+        amt, avg = position_info(p["bx"], p["ps"], p["hedge"], c)
         if amt <= 0:
             continue
-        want = bot_stop(sym, int(p["side"]), float(p["entry"]), float(c["stop_pct"]))
-        pp = int((contracts().get(sym) or {}).get("pricePrecision", 6)); want = round(want, pp)
+        if avg and abs(avg - float(p.get("fill") or 0)) > avg * 1e-9:     # 05.10: настоящая цена входа — средняя цена позиции на бирже (после добора R63 она меняется)
+            p["fill"] = avg; changed = True
+        want = bot_stop(sym, int(p["side"]), float(p["entry"]), float(c["stop_pct"])); want_bot = None
+        pp = int((contracts().get(sym) or {}).get("pricePrecision", 6))
+        if p.get("fill") and abs(want / float(p["entry"]) - 1) < 1e-6:    # бот перенёс стоп в свою точку входа → на бирже стоп в НАСТОЯЩИЙ безубыток: от цены исполнения, с комиссией
+            want_bot = round(want, pp); want = real_breakeven(float(p["fill"]), int(p["side"]))
+        want = round(want, pp)
         covered = float(p.get("stop_qty") or 0)
         moved = abs(want - float(p["stop"])) > abs(float(p["stop"])) * 5e-4
         if moved:
@@ -255,12 +271,14 @@ def sync_stops(c: dict) -> list[str]:
             covered = 0.0; p["stop_ids"] = []
         if amt - covered <= covered * 0.01 + 1e-9:
             continue
-        sr = request("POST", "/openApi/swap/v2/trade/order", {"symbol": p["bx"], "side": "SELL" if p["side"] == 1 else "BUY", "positionSide": p["ps"], "type": "STOP_MARKET",
-                                                              "quantity": round(amt - covered, 6), "stopPrice": want, "workingType": "MARK_PRICE"}, c)
+        _sb = {"symbol": p["bx"], "side": "SELL" if p["side"] == 1 else "BUY", "positionSide": p["ps"], "type": "STOP_MARKET", "quantity": round(amt - covered, 6), "stopPrice": want, "workingType": "MARK_PRICE"}
+        sr = request("POST", "/openApi/swap/v2/trade/order", _sb, c); _note = ""
+        if sr.get("code") != 0 and want_bot is not None and want_bot != want:   # настоящий безубыток биржа не приняла (цена уже за ним) — позиция не остаётся без стопа: ставим уровень бота
+            sr = request("POST", "/openApi/swap/v2/trade/order", dict(_sb, stopPrice=want_bot), c); _note = f" (безубыток по исполнению {want} не принят — стоит уровень бота {want_bot})"
         if sr.get("code") == 0:
             oid = str((((sr.get("data") or {}).get("order") or {}).get("orderId")) or "")
             p["stop_ids"] = (p.get("stop_ids") or []) + ([oid] if oid else []); p["stop_qty"] = amt; p["stop"] = want; p["stop_ok"] = True; changed = True
-            out.append(f"BingX {sym[:-4]} стоп {want}{' (переставлен)' if moved else ''} на {round(amt - covered, 4)} ok")
+            out.append(f"BingX {sym[:-4]} стоп {want}{' (переставлен)' if moved else ''} на {round(amt - covered, 4)} ok{_note}")
         else:
             out.append(f"BingX {sym[:-4]} стоп не поставлен: {sr.get('msg')}")
     for sym, p in s["open"].items():                                     # 01.10 владелец «а где тп?»: цель бота — TAKE_PROFIT_MARKET на бирже, переставляется при смене (удержание +10 %)
@@ -352,7 +370,8 @@ def open_position(sym: str, side: int, px: float, why: str = "", c: dict | None 
         sr = {"code": 0, "msg": "стоп на бирже выключен"}
     sid = str((((sr.get("data") or {}).get("order") or {}).get("orderId")) or "") if sr.get("code") == 0 and c.get("exchange_stop") else ""
     s["open"][sym] = dict(bx=bx, side=side, qty=q, entry=round(float(px), pp), limit_px=lim, stop=stop, t=time.time(), ps=ps, hedge=hedge, mode=c["mode"], why=why[:120], stop_ok=(sr.get("code") == 0),
-                          order_id=str(o.get("orderId") or ""), limit=True, stop_qty=(q_pos if sr.get("code") == 0 else 0.0), stop_ids=([sid] if sid else []))
+                          order_id=str(o.get("orderId") or ""), limit=True, stop_qty=(q_pos if sr.get("code") == 0 else 0.0), stop_ids=([sid] if sid else []),
+                          fill=(avg_px if q_pos > 0 and avg_px else None))   # 05.10: цена исполнения на бирже (лимит ещё не исполнен — допишет sync_stops)
     save(s)
     return {"ok": True, "qty": q, "entry": round(float(px), pp), "limit_px": lim, "stop": stop, "order_id": str(o.get("orderId") or ""), "stop_ok": sr.get("code") == 0, "stop_msg": sr.get("msg") if sr.get("code") != 0 else ""}
 
@@ -442,7 +461,7 @@ def close_position(sym: str, exit_px: float | None = None, why: str = "", c: dic
         if fills:
             qf = sum(q for _, _, q in fills) or float(p["qty"])
             out = sum(px_ * q for px_, _, q in fills) / qf; tag = "/".join(sorted({t_ for _, t_, _ in fills}))
-            pnl = (out / p["entry"] - 1) * p["side"] * p["entry"] * qf
+            e0 = float(p.get("fill") or p["entry"]); pnl = (out / e0 - 1) * p["side"] * e0 * qf   # 05.10: от цены исполнения входа (BR 04.10: бот 0.5175, биржа 0.5038 — журнал писал −42.8 $ вместо −16.2 $)
             today = datetime.now(timezone.utc).strftime("%Y-%m-%d"); s["pnl"][today] = round(s["pnl"].get(today, 0.0) + pnl, 4)
             del s["open"][sym]; save(s)
             return {"ok": True, "exit": out, "pnl_usd": round(pnl, 4), "why": f"закрыта на бирже {tag} по {out} до сигнала бота"}
@@ -457,7 +476,7 @@ def close_position(sym: str, exit_px: float | None = None, why: str = "", c: dic
         return {"ok": False, "why": f"закрытие не принято: {r.get('code')} {r.get('msg')} — повторю на следующем проходе"}
     o = (r.get("data") or {}).get("order") or r.get("data") or {}
     out = float(o.get("avgPrice") or 0) or (exit_px or p["entry"])
-    pnl = (out / p["entry"] - 1) * p["side"] * p["entry"] * p["qty"]
+    e0 = float(p.get("fill") or p["entry"]); pnl = (out / e0 - 1) * p["side"] * e0 * p["qty"]   # 05.10: от цены исполнения входа
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d"); s["pnl"][today] = round(s["pnl"].get(today, 0.0) + pnl, 4)
     del s["open"][sym]; save(s)
     return {"ok": True, "exit": out, "pnl_usd": round(pnl, 4)}

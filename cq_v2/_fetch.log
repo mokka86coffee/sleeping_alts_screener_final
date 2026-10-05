@@ -841,3 +841,6 @@
 2026-10-04 21:38:09 дозабор, попытка 3: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
 2026-10-04 21:38:11 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
 2026-10-04 21:57:09 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json
+2026-10-05 01:29:07 данные по 2026-10-03, ждём 2026-10-04 (возраст 3.5 ч)
+2026-10-05 01:29:07 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-10-05 01:29:09 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
