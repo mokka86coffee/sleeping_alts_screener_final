@@ -1024,3 +1024,13 @@
 2026-10-05 15:28:48 данные по 2026-10-03, ждём 2026-10-04 (возраст 17.5 ч)
 2026-10-05 15:28:48 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
 2026-10-05 15:28:54 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-10-05 15:51:36 дозабор, попытка 3: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-10-05 15:51:38 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-10-05 15:58:54 дозабор, попытка 2: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-10-05 15:58:56 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-10-05 16:13:37 нет в архиве: 2 (carv, edu)
+2026-10-05 16:13:37 добор новичков: carv, edu
+2026-10-05 16:13:39 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-10-05 16:13:39 данные по 2026-10-03, ждём 2026-10-04 (возраст 18.3 ч)
+2026-10-05 16:13:39 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-10-05 16:13:44 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
