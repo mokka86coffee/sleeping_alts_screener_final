@@ -321,8 +321,9 @@ def open_position(sym: str, side: int, px: float, why: str = "", c: dict | None 
     ct = contracts().get(sym)
     if not ct:
         return {"ok": False, "why": f"{sym} нет на BingX"}
-    if str(ct.get("apiStateOpen")).lower() != "true":                     # 145 контрактов BingX закрыты для торговли по API (apiStateOpen: false — например ARX)
-        return {"ok": False, "why": f"{ct['symbol']}: торговля по API закрыта (apiStateOpen=false)"}
+    # 05.10 10:25 владелец («towns magma не открыты», «а откуда уверенность что по апи на реальном не открывается?», пробный ордер на демо — «да», «убери конечно»):
+    # проверка apiStateOpen убрана. Поле в списке контрактов у 144 монет false, но пробный ордер MAGMA-USDT на демо 05.10 биржа приняла (открытие и закрытие);
+    # отказов биржи «закрыто для API» в журнале не было ни разу. Если биржа ордер не примет — её отказ вернётся ниже как «лимитный ордер не принят».
     s = state()
     if sym in s["open"]:
         return {"ok": False, "why": "позиция по монете уже открыта"}
@@ -390,7 +391,7 @@ def add_position(sym: str, side: int, px: float, c: dict | None = None, size_usd
     if p.get("x2"):
         return {"ok": False, "why": "позиция уже добрана"}
     ct = contracts().get(sym)
-    if not ct or str(ct.get("apiStateOpen")).lower() != "true":
+    if not ct:                                                           # 05.10: проверка apiStateOpen убрана и здесь (см. open_position)
         return {"ok": False, "why": f"{sym}: контракт недоступен"}
     try:
         bp = float(((json.load(urllib.request.urlopen(f"{HOST['live']}/openApi/swap/v2/quote/price?symbol={ct['symbol']}", timeout=10)).get("data") or {}).get("price")) or 0)

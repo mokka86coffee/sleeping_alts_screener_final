@@ -196,8 +196,10 @@ def _bx_real(trades: list, fills: list) -> None:
     used = set()
     for tr in sorted(trades, key=lambda x: x["t_in"]):
         tr["real"], tr["fee"] = None, 0.0
-        if tr["dead"] or not tr["t_out"]:
+        if not tr["t_out"]:
             continue
+        # 05.10 владелец: «буду руками сделки закрывать» — позицию, закрытую вручную на бирже, зеркало при выходе бота записывает как «лимит не исполнился,
+        # позиции не было» (dead). Была она или нет, решают исполнения: есть вход и выход в равном объёме — сделка была, считаем её деньги.
         ps = "LONG" if tr["side"] == 1 else "SHORT"
         got = [r for r in by.get(tr["bx"], []) if r["id"] not in used and r["ps"] in (ps, "BOTH") and tr["t_in"] - 30 <= r["t"] <= tr["t_out"] + 120]
         buy = [r for r in got if r["side"] == "BUY"]; sell = [r for r in got if r["side"] == "SELL"]
@@ -205,6 +207,7 @@ def _bx_real(trades: list, fills: list) -> None:
         if not buy or not sell or abs(qb - qs) > 1e-9 * max(qb, qs, 1) + 1e-12:
             continue
         used.update(r["id"] for r in got)
+        tr["dead"] = False
         tr["fee"] = round(sum(r["fee"] for r in got), 2)
         tr["real"] = round(sum(r["amt"] for r in sell) - sum(r["amt"] for r in buy) + tr["fee"], 2)
         opn, cls = (buy, sell) if tr["side"] == 1 else (sell, buy)
