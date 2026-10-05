@@ -46,6 +46,18 @@ async def main(out: Path, jobs: list):
     async with websockets.connect(page(), max_size=256 * 1024 * 1024) as ws:
         was = await ev(ws, "(()=>{const c=window.TradingViewApi.activeChart(); const r=c.getVisibleRange(); return [c.symbol(), c.resolution(), r.from, r.to]})()")
         print("на графике было:", was[:2], flush=True)
+        # 06.10: если окно TradingView свёрнуто или закрыто другими окнами, график не перерисовывается и снимок выходит старым
+        # (ночью 06.10 все четыре снимка оказались одним и тем же кадром GALA 6D) — в таком случае не снимаем вовсе
+        if await ev(ws, "document.hidden"):                      # 06.10 владелец: «tv держи» — окно выводится на передний план на время снимков
+            await call(ws, "Page.bringToFront", {}); await asyncio.sleep(1.2)
+            if await ev(ws, "document.hidden"):
+                import subprocess
+                subprocess.run(["osascript", "-e", 'tell application "TradingView" to activate'], capture_output=True, timeout=10)
+                await asyncio.sleep(2.0)
+            if await ev(ws, "document.hidden"):
+                print("ОКНО TRADINGVIEW СКРЫТО и вывести его вперёд не удалось — график не перерисовывается, снимки не делаю", flush=True)
+                return
+            print("окно TradingView выведено на передний план", flush=True)
         try:
             for j in jobs:
                 p = j.split(":"); sym = p[0].upper(); res = p[1]
