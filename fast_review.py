@@ -239,7 +239,11 @@ def main() -> int:
         today = [x for x in T if x["t_out"] >= day0]
         due = [x for x in T if x["t_out"] >= since and x["key"] not in done and time.time() >= x["t_out"] + REVIEW_AFTER_H * 3600]
         cfg = None
-        if a.write and not a.backfill:
+        try:                                        # 06.10 владелец: «разбор не нужен в тг» — в журнал пишется как раньше
+            from core_config import FAST3_TG_REVIEW as _tg
+        except ImportError:
+            _tg = True
+        if a.write and not a.backfill and _tg:
             from send_brief_telegram import load_config
             cfg = load_config()
         n = 0

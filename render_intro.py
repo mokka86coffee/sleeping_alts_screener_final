@@ -332,7 +332,36 @@ _QS: dict = {}   # sym → прогонов подряд первой до «с�
 _QT: dict = {}   # sym → метки «первая N подряд» / «первая N раз за сутки»
 
 
+def _new_only() -> bool:
+    try:
+        from core_config import STARS_NEW_ONLY as v
+    except ImportError:
+        v = False
+    return bool(v)
+
+
+def _collect_new() -> list[dict]:
+    """ЗВЁЗДЫ «НОВЫЕ» (06.10, владелец: «пусть все они будут в новых, все остальное убери с экрана»): одна группа — монеты с признаком
+    «шорты — топливо» или «скачок интереса» (stars_new.py). Прежние группы не собираются; файл для Телеграма пишется тем же видом."""
+    import stars_new
+    items = stars_new.collect()[:MAX_NAMES]
+    try:
+        import json as _json
+        _out = [{"sym": it["sym"], "name": it["n"], "g": 0, "sub": it["sub"], "why": it["why"], "run": None, "dd": None} for it in items]
+        _txt = _json.dumps({"at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "stars": _out, "new_only": True}, ensure_ascii=False)
+        try:
+            from sources_storage import write_atomic as _wa
+            _wa(BASE_DIR / "output" / "stars.json", _txt)
+        except ImportError:
+            (BASE_DIR / "output" / "stars.json").write_text(_txt, encoding="utf-8")
+    except Exception:  # noqa: BLE001
+        pass
+    return items
+
+
 def collect_items() -> list[dict]:
+    if _new_only():
+        return _collect_new()
     nm = _read("near_move.json") or {}
     coins = nm.get("coins") or {}
     rep = _read("reputation.json") or {}
@@ -901,6 +930,8 @@ def render_intro(items: list[dict] | None = None) -> str:
               {"n": f"пошли {counts[2]}", "sym": "", "g": 2, "why": "прошли от основания 60% и больше, от вершины отдали меньше 60% — вход только по лестнице", "label": True}]
     if counts[3]:
         labels.append({"n": f"остывшие {counts[3]}", "sym": "", "g": 4, "why": "", "label": True})
+    if _new_only():                             # 06.10 владелец: одна группа «новые», остальное с экрана убрано
+        labels = [{"n": f"новые {counts[0]}", "sym": "", "g": 0, "why": "шорты — топливо: интерес в монетах растёт, фандинг в минусе, цена не падает; или скачок интереса в монетах за 5 дней (главный признак, 06.10)", "label": True}]
     # переход в книгу — не подписью в ряду, а спутником в левом нижнем углу (16.09, владелец):
     # подпись убрана, чтобы не было двух переходов в одно место
     # раскладка (откат 06.09, владелец: «с зонами некрасиво»): одно облако-созвездие для всех

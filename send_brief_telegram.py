@@ -325,25 +325,46 @@ def _new_soon() -> tuple[str, str]:
     cur = {str(x.get("sym")): x for x in _st if x.get("g") == 0 and x.get("sym")}
     mem = BASE_DIR / "output" / "tg_soon.json"
     try:
-        prev = set(json.loads(mem.read_text(encoding="utf-8")).get("soon") or [])
+        _m = json.loads(mem.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        prev = set()
+        _m = {}
+    prev = set(_m.get("soon") or [])
+    try:                                        # 06.10 владелец: «и звезды также должны приходить с причиной» — звёзды «новые» (stars_new.py)
+        from core_config import STARS_NEW_ONLY as _new_only, STARS_NEW_FUEL_H as _h
+    except ImportError:
+        _new_only, _h = False, 8
+    sent = {k: float(v) for k, v in (_m.get("sent") or {}).items()} if _new_only else {}
+    ts = time.time()
+    if _new_only:                               # та же звезда повторно — не чаще раза за окно признака: признак у границы мигает от прогона к прогону
+        new = [cur[k] for k in cur if k not in prev and ts - sent.get(k, 0) >= float(_h) * 3600]
+        for x in new:
+            sent[str(x.get("sym"))] = ts
+        sent = {k: v for k, v in sent.items() if ts - v < 7 * 86400}
+    else:
+        new = [cur[k] for k in cur if k not in prev]
     try:
-        mem.write_text(json.dumps({"at": now.isoformat(timespec="seconds"), "soon": sorted(cur)}, ensure_ascii=False),
+        mem.write_text(json.dumps({"at": now.isoformat(timespec="seconds"), "soon": sorted(cur), "sent": sent}, ensure_ascii=False),
                        encoding="utf-8")
     except OSError:
         pass
-    new = [cur[k] for k in cur if k not in prev]
     if not new:
         return "", ""
-    lines = ["★ СКОРО"]
+    lines = ["★ НОВЫЕ" if _new_only else "★ СКОРО"]
     for x in new:
         parts = [p.strip() for p in str(x.get("sub") or "").split(" ‖ ") if p.strip()]
+        if _new_only and len(lines) > 1:
+            lines.append("")
         lines.append(f"{x.get('name')} — " + (parts[0] if parts else ""))
         for p in parts[1:]:
             if not p.endswith(": —"):
                 lines.append("  " + p)
-    return f"Скоро · {now:%d.%m %H:%M}", "\n".join(lines)
+        if _new_only:                           # ссылки, как у сигналов бота (06.10 владелец: «коингласс только ссылка и на трэйдингвью»)
+            try:
+                from cg_shot import links as _links
+                lines += ["  " + ln for ln in _links(str(x.get("sym"))).split("\n")]
+            except Exception:  # noqa: BLE001
+                pass
+    return f"{'Новые' if _new_only else 'Скоро'} · {now:%d.%m %H:%M}", "\n".join(lines)
 
 
 def send_after_run() -> None:

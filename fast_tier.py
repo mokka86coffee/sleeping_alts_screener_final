@@ -1430,17 +1430,22 @@ def cg_caption(book: str, sym: str, pos: dict, px_out: float | None = None, why_
 
 
 def cg(sym: str, caption: str, extra: list[str] | None = None) -> None:
-    """скрин Coinglass (Binance, 3m) в телеграм — отдельным процессом, цикл не ждёт (27.09 владелец; FAST3_CG_SHOTS)"""
+    """сигнал входа/выхода в телеграм — отдельным процессом, цикл не ждёт (27.09 владелец; FAST3_CG_SHOTS). С 06.10 (FAST3_TG_LINKS) — текст
+    со ссылками на Coinglass и TradingView вместо снимка"""
     try:
         from core_config import FAST3_CG_SHOTS as _on
     except ImportError:
         _on = True
     if not _on:
         return
+    try:                                            # 06.10 07:15 UTC владелец: «коингласс только ссылка и на трэйдингвью» — текст сигнала с двумя ссылками, без снимка
+        from core_config import FAST3_TG_LINKS as _links
+    except ImportError:
+        _links = False
     import subprocess
     try:
         lg = open(BASE_DIR / "output" / "cg_shot.log", "a")
-        subprocess.Popen([PY, "cg_shot.py", sym, "--caption", caption] + (extra or []), cwd=BASE_DIR, stdout=lg, stderr=subprocess.STDOUT,
+        subprocess.Popen([PY, "cg_shot.py", sym, "--caption", caption] + (["--links"] if _links else (extra or [])), cwd=BASE_DIR, stdout=lg, stderr=subprocess.STDOUT,
                          start_new_session=True)
     except Exception as e:  # noqa: BLE001
         print(f"скрин Coinglass {sym}: {type(e).__name__}: {e}", flush=True)

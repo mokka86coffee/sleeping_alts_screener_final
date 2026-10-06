@@ -200,6 +200,14 @@ def shot(sym: str, lines: dict | None = None, price: bool = False) -> list[Path]
 QUEUE = BASE_DIR / "output" / "tg_queue.jsonl"   # 28.09: что не ушло в телеграм — досылаем при следующей отправке
 
 
+TV_URL = "https://www.tradingview.com/chart/?symbol=BINANCE:{sym}.P"
+
+
+def links(sym: str) -> str:
+    """две ссылки под сигналом и под звездой (06.10 владелец): график Coinglass (Binance) и TradingView (бессрочный Binance)"""
+    return f"Coinglass: {URL.format(sym=sym)}\nTradingView: {TV_URL.format(sym=sym)}"
+
+
 def _queue_add(item: dict) -> None:
     with open(QUEUE, "a", encoding="utf-8") as f:
         fcntl.flock(f, fcntl.LOCK_EX)
@@ -330,12 +338,17 @@ def main() -> int:
     ap.add_argument("--t-in", type=float, default=None)                # время входа, сек (вертикаль)
     ap.add_argument("--t-out", type=float, default=None)               # время выхода, сек
     ap.add_argument("--price", action="store_true")                     # второй снимок: только цена и линии (на входе)
+    ap.add_argument("--links", action="store_true")                     # 06.10: только текст с двумя ссылками, без снимка
     a = ap.parse_args()
     if a.setup:
         return setup()
     if not a.sym:
         ap.error("нужна монета, например PENGUUSDT")
     sym = a.sym.upper() if a.sym.upper().endswith("USDT") else a.sym.upper() + "USDT"
+    if a.links:                                                         # 06.10 владелец: «коингласс только ссылка и на трэйдингвью»
+        if not a.no_send and a.caption:
+            send_text(a.caption.rstrip() + "\n\n" + links(sym))
+        return 0
     if not a.no_send and a.caption:
         send_text(a.caption)
     try:
