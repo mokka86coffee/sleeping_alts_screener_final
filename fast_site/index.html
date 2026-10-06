@@ -578,7 +578,14 @@ function riverLabel(g, l, t, R, nowS) {
   if (!l.shown) { l.born = t; return true; }   // ещё ищет место: не рисуем и не стартуем анимацию появления
   const x = l.fx;   // место выбрано один раз и не меняется
   RIVL = { x, y: riverY(R, x, t) + l.rv * R.hh };
-  try { return drawLabel0(g, l, t); } finally { RIVL = null; }
+  let dim = 1;   // под открытой панелью текст подписей не должен мешать: там они бледнеют
+  if (typeof selected !== 'undefined' && selected && typeof PZ !== 'undefined' && PZ) {
+    const bw = l.bw || l.ebw || 140, yb = RIVL.y, yt = yb - (l.h + (l.dy || 0)) - 26;
+    if (x < PZ.x + PZ.w + 260 && x + bw > PZ.x && yb > PZ.y - 10 && yt < PZ.y + 150) dim = .12;
+  }
+  l.dimNow = (l.dimNow == null ? dim : l.dimNow + (dim - l.dimNow) * .15);
+  const a0 = ctx.globalAlpha; ctx.globalAlpha = a0 * l.dimNow; LBL_DIM = l.dimNow;   // текст гасится через LBL_DIM (drawLabel0 сам задаёт прозрачность текстового слоя)
+  try { return drawLabel0(g, l, t); } finally { RIVL = null; LBL_DIM = 1; ctx.globalAlpha = a0; }
 }
 
 // ===== ДЕВУШКА ИЗ ЦИФР (04.10 00:10–01:00, владелец: «и сделай по центру вверху что-нибудь анимированное», «нарисуй человеческое лицо из точек, типа ИИ», картинка-образец
@@ -2201,7 +2208,7 @@ function fillPanelText(l) {
   const dirEl = document.getElementById('pzDir');
   dirEl.textContent = D.dir ? (short ? '▼ ШОРТ' : '▲ ЛОНГ') : ''; dirEl.className = short ? 'dn' : 'up';
   // 04.10 владелец: «может списком? а вход/выход рядом с названием» — время сделки (до «вход … → выход …») под названием, остальное — строками «название — значение»
-  const segs = (d.status || '').split(' · '), ti = segs.findIndex(x => /^(вход |(лонг|шорт) с )/i.test(x)), head = ti >= 0 ? segs.slice(0, ti + 1) : [], rest = segs.slice(ti + 1);
+  const segs = (d.status || '').split(' · '), ti = segs.findIndex(x => /^(вход |(лонг|шорт) с )/i.test(x)), hs = ti >= 0 ? Math.max(0, ti - 1) : 0, hs2 = ti >= 1 && segs[ti - 1].length < 28 ? ti - 1 : ti, head = ti >= 0 ? segs.slice(hs2, ti + 1) : [], rest = (ti >= 0 ? segs.slice(0, hs2) : []).concat(segs.slice(ti + 1));   // длинные примечания (напр. «нет на BingX…») — в колонку справа, под названием остаётся короткая строка
   document.getElementById('pzTimes').innerHTML = head.length ? pzRich(head.join(' · ')) : '';
   const esc1 = t => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   document.getElementById('pzSub').innerHTML = rest.map(x => {
