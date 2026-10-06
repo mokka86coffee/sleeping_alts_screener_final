@@ -27,6 +27,8 @@ PYEOF
 $PY claude/research/test_r63.py > $T/r63.out 2>&1   # R63: одна монета — одна позиция на обе книги (слияние ×2, отмена, встречный сигнал, зеркало)
 $PY claude/research/test_r65.py >> $T/r63.out 2>&1   # R65: сползающая монета — лонгов нет, шорт только на отскоке
 grep -q 'R65: ок' $T/r63.out || echo "СБОЙ: проверка R65 не дала «ок»" >> $T/r63.out
+$PY claude/research/test_r72.py >> $T/r63.out 2>&1   # R72 (06.10): лонг только после слива на 20 % от максимума 72 ч
+grep -q 'R72: ок' $T/r63.out || echo "СБОЙ: проверка R72 не дала «ок»" >> $T/r63.out
 $PY claude/research/test_r66.py >> $T/r63.out 2>&1   # R66 и свечи позиции дальше 50 часов
 grep -q 'R66: ок' $T/r63.out || echo "СБОЙ: проверка R66 не дала «ок»" >> $T/r63.out
 $PY claude/research/test_r67.py >> $T/r63.out 2>&1   # R67: во флэте шорт не берём
