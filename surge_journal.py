@@ -26,7 +26,7 @@ DIR = BASE / "claude" / "research" / "surges"
 JOURNAL = DIR / "journal.jsonl"
 STATE = DIR / "state.json"
 LOG = BASE / "output" / "fast_tier.log"
-L = timezone(timedelta(hours=3))
+L = timezone.utc   # 06.10: всё по UTC (журнал бота с этого дня пишет время в UTC; старый журнал отложен в fast_tier_utc3_*.log)
 HOURS = (2, 4, 6, 8, 24)
 SAME_MIN = 60            # повтор той же монеты того же вида в течение часа — та же запись
 BINGX_MAX = 12           # запросов к BingX за один проход (цена на момент и часовые свечи для исходов)
@@ -110,7 +110,7 @@ def _bg():
 
 def _ses(t: float) -> str:
     h = datetime.fromtimestamp(t, L).hour
-    return "Сидней" if h < 3 else "Токио" if h < 10 else "Лондон" if h < 16 else "Нью-Йорк"
+    return "Токио" if h < 7 else "Лондон" if h < 13 else "Нью-Йорк" if h < 21 else "Сидней"      # часы UTC
 
 
 _BXN = {"n": 0}

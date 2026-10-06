@@ -36,7 +36,10 @@ BOOK = "всплеск/вынос"; FEE = 0.001
 PY = str(BASE_DIR / ".venv" / "bin" / "python") if (BASE_DIR / ".venv" / "bin" / "python").exists() else sys.executable
 _CROWD = {"t": 0, "v": {}}      # 27.09 п.1: толпа по счетам (Binance globalLongShortAccountRatio), обновляется раз в 30 мин
 STATE = BASE_DIR / "output" / "paper_fast3.json"; LOG = BASE_DIR / "output" / "paper_fast3.jsonl"
-L = timezone(timedelta(hours=3))
+L = timezone.utc   # 06.10 владелец: «всё должно быть в utc везде, хоть в настройках бота»; «эта хрень где-то всплывёт с разницей в 3 часа — это конец сделки
+                   # как минимум». До 06.10 здесь стояло UTC+3 и все часы правил были московские. Теперь все часы правил, сессии, дни недели и время в
+                   # сообщениях бота — UTC. Местное время — только на экране сайта (его считает браузер). Равенство старых и новых ответов
+                   # проверяет claude/research/utc_equiv.py (каждая минута двух недель).
 
 
 def crowd_of(sym: str):
@@ -663,7 +666,7 @@ def flush_entries(state: dict, book: str, now: float, ev: list, msgs: list, writ
                 except ImportError:
                     _wh = 24
                 _why = (f"R58 конец роста → шорт: минимумы за 48 ч росли, максимум свечи выноса выше минимума за 48 ч на {rise:.0f}% (памп от {_pr:g}%) · {lab} за час с "
-                        f"{datetime.fromtimestamp(hm / 1000, L):%H:%M} — ×{win / prev:.1f} к максимуму часа за сутки ({prev / 1e3:.0f}K$), свеча {rng:.0f}%")
+                        f"{datetime.fromtimestamp(hm / 1000, L):%H:%M} UTC — ×{win / prev:.1f} к максимуму часа за сутки ({prev / 1e3:.0f}K$), свеча {rng:.0f}%")
                 if p and int(p.get("side", 0)) == 1:                     # в монете открыт лонг — закрыть: движение кончилось
                     e_ = float(p["px"]); res_ = (c / e_ - 1) - FEE; wx = "рекордный вынос шортов в конце роста — лонг закрыт (R58)"
                     ev.append(dict(book=book, sym=sym, kind="exit_long", side=1, px_in=e_, px_out=round(c, 8), opened_at=p["at"], at=now, result_pct=round(res_ * 100, 2), usd=round(FAST3_SIZE * res_, 2), why_exit=wx, rule=p["rule"], size=1.0))
@@ -719,7 +722,7 @@ def flush_entries(state: dict, book: str, now: float, ev: list, msgs: list, writ
             msgs.append(f"{sym[:-4]} {lab}: лонг не взят — минимумы часовых свечей за 3 дня падают ({_slide(sym)[2]:+.0f}%), это отскок на сползании (R65)"); continue
         if new_side == 1 and _top72_block(sym, c):                        # R72
             msgs.append(f"{sym[:-4]} {lab}: {_top72_block(sym, c)}"); continue
-        note = (f"вынос {'шортов' if side == 'short' else 'лонгов'} {win / 1e3:.0f}K$ за час с {datetime.fromtimestamp(hm / 1000, L):%H:%M} — ×{win / prev:.1f} к максимуму часа за сутки ({prev / 1e3:.0f}K$), "
+        note = (f"вынос {'шортов' if side == 'short' else 'лонгов'} {win / 1e3:.0f}K$ за час с {datetime.fromtimestamp(hm / 1000, L):%H:%M} UTC — ×{win / prev:.1f} к максимуму часа за сутки ({prev / 1e3:.0f}K$), "
                 f"свеча {rng:.0f}%, минимумы за 24 ч {mvp:+.1f}% → {'шорт' if new_side == -1 else 'лонг'} {'по ходу' if _bnote else 'против хода'}" + _bnote)
         head = "R52 вынос → против хода: "
         if kind == "pump_end" and side == "short":
@@ -1332,7 +1335,7 @@ def to_pending(state: dict, sym: str, why: str, t_bar: int, now: float, start_lo
     _, a, b = next(x for x in SES_WIN if x[1] <= d.hour < x[2])
     end = d.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(hours=b)
     state.setdefault("pending", {})[sym] = dict(why=why, t_ms=t_bar, at=now, expire=end.timestamp(), start_low=start_low)
-    return f"{sym[:-4]} шорт — ждём вершину пампа (до {end:%H:%M})"
+    return f"{sym[:-4]} шорт — ждём вершину пампа (до {end:%H:%M} UTC)"
 
 
 def fuel_exit(sym: str, pos: dict, now: float, c: float):
@@ -1413,7 +1416,7 @@ def cg_caption(book: str, sym: str, pos: dict, px_out: float | None = None, why_
         mins = int((time.time() - float(pos["at"])) / 60)
         ok = (res or 0) > 0
         head = [f"{'✅' if ok else '❌'} ВЫХОД · {side} · {sym[:-4]} · {res * 100:+.2f}% ({FAST3_SIZE * res:+.0f} $)", f"📘 {book} · {why_out}", ""]
-        body = [f"💵 вход:   {e:.6g}  ·  {t_in:%H:%M}", f"🏁 выход:  {px_out:.6g}  ·  {datetime.now(L):%H:%M}"]
+        body = [f"💵 вход:   {e:.6g}  ·  {t_in:%H:%M} UTC", f"🏁 выход:  {px_out:.6g}  ·  {datetime.now(L):%H:%M} UTC"]
         if tgt: body.append(f"🎯 цель:   {tgt:.6g}")
         if stp: body.append(f"🛑 стоп:   {stp:.6g}")
         body.append(f"⏱ в сделке: {mins} мин")
@@ -1443,7 +1446,7 @@ def cg(sym: str, caption: str, extra: list[str] | None = None) -> None:
         print(f"скрин Coinglass {sym}: {type(e).__name__}: {e}", flush=True)
 
 
-SES_WIN = (("Сидней", 0, 3), ("Токио", 3, 10), ("Лондон", 10, 16), ("Нью-Йорк", 16, 24))
+SES_WIN = (("Токио", 0, 7), ("Лондон", 7, 13), ("Нью-Йорк", 13, 21), ("Сидней", 21, 24))   # часы UTC (06.10; до этого UTC+3: Сидней 0–3, Токио 3–10, Лондон 10–16, Нью-Йорк 16–24)
 WDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
 
 
@@ -1466,7 +1469,7 @@ def ses_gate(now: float, t_bar: int, side: int = 1):
         if side == -1 and not _nst:                                   # R75 (06.10 владелец: «стыки это сливы, там не шорты нельзя брать, а лонги»): запрет часа перед сессией — только лонгам
             break
         if _a <= d.hour < _b:
-            return False, f"торговля выключена за час до открытия сессии ({_a:02d}–{_b:02d}, владелец 01.10)", None
+            return False, f"торговля выключена за час до открытия сессии ({_a:02d}–{_b:02d} UTC, владелец 01.10)", None
     name, a, b = next(x for x in SES_WIN if x[1] <= d.hour < x[2])
     o = d.replace(hour=a, minute=0, second=0, microsecond=0)
     mins = (d - o).total_seconds() / 60
@@ -1486,7 +1489,7 @@ def ses_gate(now: float, t_bar: int, side: int = 1):
             end += timedelta(days=1)
         lab = "R41, через стык сессий"
     hold = int((end.timestamp() * 1000 - (t_bar + 180_000)) // 60_000)
-    return (hold >= 3), f"{name}, выход {end:%d.%m %H:%M} ({lab})", hold
+    return (hold >= 3), f"{name}, выход {end:%d.%m %H:%M} UTC ({lab})", hold
 
 
 def scan(sym: str, want_spike: bool, want_climax: bool):
@@ -1772,7 +1775,7 @@ def _stall_exit(pos: dict, k: list, now: float, c: float):
     # до 05:57, а там случился вынос — −6.1 % вместо примерно −3 %): условия про возраст минимума больше нет. Шорту исполнилось 6 часов → в минусе закрытие, в плюсе стоп в твх —
     # как сказал владелец и как у шорта «конец роста» (R58).
     i = min(range(len(k)), key=lambda j: float(k[j][3])); t_low = int(k[i][0]) / 1000 + 180
-    e = float(pos["px"]); tail = f"лучшая цена {float(k[i][3]):.6g} была {datetime.fromtimestamp(t_low, L):%d.%m %H:%M}"
+    e = float(pos["px"]); tail = f"лучшая цена {float(k[i][3]):.6g} была {datetime.fromtimestamp(t_low, L):%d.%m %H:%M} UTC"
     if c > e:
         return "close", f"шорт висит больше {_sh:g} ч и в минусе ({tail}) — закрытие по рынку (R66)"
     if pos.get("be_from") or (pos.get("stop_px") and abs(float(pos["stop_px"]) / e - 1) < 1e-9):
@@ -1783,7 +1786,7 @@ def _stall_exit(pos: dict, k: list, now: float, c: float):
 def _long_window_closed(now: float):
     """R69 (04.10 владелец, окончательно: «давай даже не так: в воскресенье лонги закрываем за 2 часа до закрытия Нью-Йорка, открывать лонги можно только со вторника через час
     после открытия Нью-Йорка»; до этого — «все лонги закрывать на Сиднее через 2 часа после начала сессии в воскресенье», «не должны открываться до понедельника…»):
-    по часам бота (UTC+3) с воскресенья 22:00 (Нью-Йорк закрывается в 24:00, минус FAST3_SUNDAY_CLOSE_BEFORE_NY_END_H) до вторника 17:00 (Нью-Йорк открывается в 16:00, плюс
+    по часам бота (с 06.10 — UTC: воскресенье 19:00 → вторник 14:00; ниже слова владельца в московских часах) с воскресенья 22:00 (Нью-Йорк закрывается в 24:00, минус FAST3_SUNDAY_CLOSE_BEFORE_NY_END_H) до вторника 17:00 (Нью-Йорк открывается в 16:00, плюс
     FAST3_LONG_OPEN_AFTER_NY_H) лонгов нет: открытые закрываются по рынку, новые не берутся (всплеск, сканер, перевороты шорта в лонг). Шорты не затронуты.
     На истории не считалось. → подпись окна или None"""
     try:
@@ -1795,7 +1798,7 @@ def _long_window_closed(now: float):
     d = datetime.fromtimestamp(now, L); hh = d.hour + d.minute / 60
     ny = next(x for x in SES_WIN if x[0] == "Нью-Йорк"); a = ny[2] - _h; b = ny[1] + _m
     if (d.weekday() == 6 and hh >= a) or d.weekday() == 0 or (d.weekday() == 1 and hh < b):
-        return f"лонги закрыты с воскресенья {int(a):02d}:00 до вторника {int(b):02d}:00 (R69)"
+        return f"лонги закрыты с воскресенья {int(a):02d}:00 до вторника {int(b):02d}:00 UTC (R69)"
     return None
 
 

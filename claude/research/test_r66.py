@@ -32,13 +32,15 @@ try:
     assert ft.long_walk(1.02, dict(np_), [[0, 1.02, 1.05, 1.0, 1.04]]) == (None, None) and ft.long_walk(1.02, dict(np_), [[0, 1.02, 1.03, 0.94, 0.95]])[1] == "стоп на низу удержания"
     ft._slide = lambda s: (True, False, -9.0)
     assert ft._stall_flip(dict(pos, sym="XUSDT"), kb(10), now, 1.02) is None                              # монета сползает → лонга нет
-    # R69: окно без лонгов — с воскресенья 22:00 до вторника 17:00 (UTC+3)
+    # R69: окно без лонгов — с воскресенья 19:00 до вторника 14:00 UTC (06.10: все часы бота переведены на UTC; до этого 22:00 → 17:00 по UTC+3 — те же моменты)
     from datetime import datetime as _dt
-    T = lambda d, hh, mm=0: _dt(2026, 10, d, hh, mm, tzinfo=ft.L).timestamp()
+    from datetime import timezone as _tz
+    assert ft.L == _tz.utc                                                                                 # часы бота — UTC
+    T = lambda d, hh, mm=0: _dt(2026, 10, d, hh, mm, tzinfo=_tz.utc).timestamp()
     assert _dt.fromtimestamp(T(4, 3), ft.L).weekday() == 6
-    assert ft._long_window_closed(T(4, 21, 59)) is None and ft._long_window_closed(T(4, 22)) and ft._long_window_closed(T(5, 12)) and ft._long_window_closed(T(6, 16, 59))
-    assert ft._long_window_closed(T(6, 17)) is None and ft._long_window_closed(T(3, 23)) is None and ft._long_window_closed(T(7, 3)) is None
-    assert ft._sunday_close(dict(side=1, at=T(4, 9)), T(4, 22, 5)) and ft._sunday_close(dict(side=-1, at=T(3, 9)), T(5, 12)) is None and ft._sunday_close(dict(side=1, at=T(3, 9)), T(4, 12)) is None
+    assert ft._long_window_closed(T(4, 18, 59)) is None and ft._long_window_closed(T(4, 19)) and ft._long_window_closed(T(5, 12)) and ft._long_window_closed(T(6, 13, 59))
+    assert ft._long_window_closed(T(6, 14)) is None and ft._long_window_closed(T(3, 20)) is None and ft._long_window_closed(T(7, 0)) is None
+    assert ft._sunday_close(dict(side=1, at=T(4, 9)), T(4, 19, 5)) and ft._sunday_close(dict(side=-1, at=T(3, 9)), T(5, 12)) is None and ft._sunday_close(dict(side=1, at=T(3, 9)), T(4, 12)) is None
     _real = ft._long_window_closed; ft._long_window_closed = lambda n: "окно"
     ft._slide = lambda s: (False, False, 0.0)
     assert ft._stall_flip(dict(pos, sym="XUSDT"), kb(10), now, 1.02) is None                              # в окне переворота в лонг нет

@@ -34,13 +34,13 @@ except ImportError:
 sys.path.insert(0, str(BASE_DIR))
 from core_http import get_json  # noqa: E402
 
-L = timezone(timedelta(hours=3))
+L = timezone.utc   # 06.10 владелец: «всё должно быть в utc везде» (до этого UTC+3)
 BOOKS = (("всплеск/вынос", BASE_DIR / "output" / "paper_fast3.jsonl"), ("пробуждение", BASE_DIR / "output" / "paper_wake.jsonl"))
 STATE = BASE_DIR / "output" / "fast_reviews.json"
 JOURNAL = BASE_DIR / "output" / "fast_reviews.jsonl"
 REVIEW_AFTER_H = 2.0
 B3 = 180_000
-BACKFILL_FROM = datetime(2026, 9, 27, 7, 15, tzinfo=L).timestamp()
+BACKFILL_FROM = datetime(2026, 9, 27, 4, 15, tzinfo=L).timestamp()   # 04:15 UTC = прежние 07:15 UTC+3
 
 
 def _rows(p: Path) -> list[dict]:
@@ -166,7 +166,7 @@ def text(r: dict) -> str:
     """сообщение разбора: заголовок и строки с отступами и значками (27.09 владелец: «простыня не читаемая»)"""
     sd = "ЛОНГ" if r["side"] == 1 else "ШОРТ"
     tin = datetime.fromtimestamp(r["t_in"], L); tout = datetime.fromtimestamp(r["t_out"], L)
-    ln = [f"🧾 РАЗБОР · {sd} · {r['sym'][:-4]} · {r['why']} {r['res']:+.2f}%", f"📘 {r['book']} · {tin:%H:%M} → {tout:%H:%M}", "",
+    ln = [f"🧾 РАЗБОР · {sd} · {r['sym'][:-4]} · {r['why']} {r['res']:+.2f}%", f"📘 {r['book']} · {tin:%H:%M} → {tout:%H:%M} UTC", "",
           f"📈 в сделке:   лучшее {r['mfe']:+.1f}% ({r['mfe_min']} мин) · худшее {r['mae']:+.1f}% ({r['mae_min']} мин)"]
     if r.get("after_mae_best") is not None:
         ln.append(f"↩️ после минимума: дошла до {r['after_mae_best']:+.1f}%")

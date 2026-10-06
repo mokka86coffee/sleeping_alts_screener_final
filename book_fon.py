@@ -8,7 +8,7 @@ from __future__ import annotations
 import statistics as st, time
 from datetime import datetime, timezone, timedelta
 _CACHE: dict = {}
-SES = (("Сидней", 0, 9), ("Токио", 3, 12), ("Лондон", 10, 19), ("Нью-Йорк", 16, 25))
+SES = (("Сидней", 21, 30), ("Токио", 0, 9), ("Лондон", 7, 16), ("Нью-Йорк", 13, 22))   # часы UTC (06.10 владелец: «всё должно быть в utc везде»); до этого UTC+3: Сидней 0–9, Токио 3–12, Лондон 10–19, Нью-Йорк 16–25 — те же моменты
 WD = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
 
 
@@ -38,7 +38,7 @@ def fon() -> dict:
         out.update(h_since_break=round((time.time() * 1000 - lb[1]) / 3600_000, 1) if lb else None, broken=lb[0][:-4] if lb else None)
     except Exception:  # noqa: BLE001
         out.update(h_since_break=None, broken=None)
-    t = datetime.now(timezone(timedelta(hours=3))); h = t.hour
+    t = datetime.now(timezone.utc); h = t.hour                    # 06.10: час и день недели в фоне — UTC (до этого UTC+3)
     out.update(wd=WD[t.weekday()], hour=h, sessions=[n for n, a, b in SES if a <= (h if h >= a else h + 24) < b])
     _CACHE["v"] = out
     return out

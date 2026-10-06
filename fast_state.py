@@ -38,9 +38,11 @@ def _hold(p: dict) -> int:
     h = int(p.get("hold_min") or 0); cap = int(getattr(cc, "FAST3_MAX_HOLD_MIN", 0) or 0)
     return h if (not cap or p.get("pump_end")) else min(h, cap)
 
-L = timezone(timedelta(hours=3))
+U = timezone.utc                    # 06.10 владелец: «всё должно быть в utc везде» — сессии и время в подписях считаются по UTC
+L = timezone(timedelta(hours=3))    # ТОЛЬКО граница суток для доски и дневных списков сайта: сутки начинаются в 21:00 UTC (как было до 06.10).
+                                    # От машины не зависит. Перенос границы на 00:00 UTC меняет числа доски за день — ждёт слова владельца.
 OUT = BASE_DIR / "output" / "fast_state.json"
-WIN = (("Сидней", 0, 3), ("Токио", 3, 10), ("Лондон", 10, 16), ("Нью-Йорк", 16, 24))
+WIN = (("Токио", 0, 7), ("Лондон", 7, 13), ("Нью-Йорк", 13, 21), ("Сидней", 21, 24))   # часы UTC (06.10), как fast_tier.SES_WIN
 WD = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
 BOOKS = (("всплеск/вынос", "paper_fast3"), ("пробуждение", "paper_wake"))
 B3 = 180_000
@@ -69,7 +71,7 @@ def _rows(p: Path) -> list[dict]:
 
 
 def meta(now: float) -> dict:
-    d = datetime.fromtimestamp(now, L)
+    d = datetime.fromtimestamp(now, U)
     name, a, b = next(x for x in WIN if x[1] <= d.hour < x[2])
     o = d.replace(hour=a, minute=0, second=0, microsecond=0)
     end = o + timedelta(hours=b - a)
@@ -321,15 +323,15 @@ def _goal(p: dict, e: float, sd: int) -> str:
     t = float(p.get("target") or 0)
     if 0 < t < 0.9:
         return ""
-    ex = datetime.fromtimestamp((int(p["t_ms"]) + 180_000) / 1000 + _hold(p) * 60, L)
+    ex = datetime.fromtimestamp((int(p["t_ms"]) + 180_000) / 1000 + _hold(p) * 60, U)
     hrs = _hold(p) / 60
     be = bool(p.get("stop_px")) and abs(float(p["stop_px"]) / e - 1) < 1e-6
     stp = "стоп в точке входа" if be else f"стоп {float(p.get('stop') or 0) * 100:.0f}%, после хода 5% — в точку входа"
     if p.get("slide") or p.get("pump_end"):
-        return f"цель — выход по времени {ex:%d.%m %H:%M} ({hrs:.0f} ч от входа) · {stp}"
+        return f"цель — выход по времени {ex:%d.%m %H:%M} UTC ({hrs:.0f} ч от входа) · {stp}"
     if sd == -1:
-        return f"цель — вынос лонгов или срок {ex:%d.%m %H:%M} · {stp}"
-    return f"цель — срок {ex:%d.%m %H:%M} · {stp}"
+        return f"цель — вынос лонгов или срок {ex:%d.%m %H:%M} UTC · {stp}"
+    return f"цель — срок {ex:%d.%m %H:%M} UTC · {stp}"
 
 
 def score(cl: list[dict]) -> dict:

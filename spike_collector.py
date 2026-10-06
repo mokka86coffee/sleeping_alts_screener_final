@@ -34,7 +34,7 @@ except ImportError:
 LOG = BASE_DIR / "output" / "spike_log.jsonl"
 STATE = BASE_DIR / "output" / "spike_state.json"
 HORIZONS = (1, 2, 4)                                     # часы до записи исхода
-L = timezone(timedelta(hours=3))
+L = timezone.utc   # 06.10 владелец: «всё должно быть в utc везде»; сессии берутся из fast_tier.SES_WIN, а они теперь в часах UTC (до этого UTC+3)
 _ft = None
 
 
