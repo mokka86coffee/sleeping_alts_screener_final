@@ -20,6 +20,7 @@ AGT, NOM, MON, LYN, BR, ARK, USELESS, US, PHAROS, AR, SAND, 4, SCR, GRASS, SOON,
 - 06.10 (третий проход, 50 монет, по 4ч/1ч/15м): EPIC, SKYAI, CAP, IMX, MUBARAK, NMR, ONDO, INX, BULLA, CVX; EVAA, SAGA, QNT, 哈基米 (на TV нет — только по сделкам), MINA, WIF, MORPHO, GTC, BABY, SYRUP; 1000BONK, PENDLE, VVV, TAKE, AAVE, STX, HUMA, BEAMX, 2Z, SOLV; JASMY, RESOLV, MEGA, NEAR, IOTA, SKY, MAGMA, AXS, ORCA, Q; OPN, VET, BIGTIME, SPK, PTB, APR, ZK, XAI, JUP, DOOD. Читали пять помощников по моему заданию; места на картине и цифры шкал — на глаз, приблизительно.
 - 06.10 (второй проход, 4ч, 1ч, 15м): TOWNS, RAYSOL, ZRO, WLD, SUPER, ENA, ZEST, PROM, DEEP, REZ.
 - 06.10: ALICE, MAGIC, MET, NIGHT, NIL, PUMP (4ч, 1ч, 15м); FIL, KOMA, MERL (4ч и 1ч); PUMPBTC (графика на TV больше нет — по сохранённым свечам).
+- 06.10: RLC (4ч, 1ч, 15м; сделок бота нет — разбор хода 05–06.10 по слову владельца «почему пошла rlc»; признак «шорты — топливо», проверка в `../movers_sign.md`).
 - FIL, KOMA, MERL: 15-минутные снимки прочитаны и добавлены в файлы 06.10.
 - Монеты, разобранные 05.10 только по часовому снимку (все, кроме MOVR, AGT, SCR), надо досмотреть на 4ч и 15м — владелец 06.10: «почему графики только по 1ч?».
 
