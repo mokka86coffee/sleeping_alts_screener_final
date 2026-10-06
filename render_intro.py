@@ -343,7 +343,9 @@ def _new_only() -> bool:
 def _collect_new() -> list[dict]:
     """ЗВЁЗДЫ «НОВЫЕ» (06.10, владелец: «пусть все они будут в новых, все остальное убери с экрана»): одна группа — монеты с признаком
     «шорты — топливо» или «скачок интереса» (stars_new.py). Прежние группы не собираются; файл для Телеграма пишется тем же видом."""
+    import importlib
     import stars_new
+    importlib.reload(stars_new)                 # 07.10: прогон живёт сутками — правки stars_new.py подхватываются без его перезапуска
     items = stars_new.collect()[:MAX_NAMES]
     try:
         import json as _json
