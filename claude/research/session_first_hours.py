@@ -67,3 +67,73 @@ def run(W):
                 print("     сессии: " + " · ".join(f"{p[3]} шорты {len(p[2])}/{sum(p[2]):+.0f}%" for p in g))
 for W in (1, 2):
     run(W)
+
+
+def dynamic(min_h=1.0):
+    """«как ведёт себя рынок дальше» (владелец: «1 час не всегда показателен»): режим считается на минуту входа — ход цены по рынку и объём от открытия
+    сессии до последнего показания пульса перед входом; сделки раньше min_h часов от открытия не берутся"""
+    out = []
+    for t, side, res in TR:
+        d = dt.datetime.fromtimestamp(t, U); s = next((n for n, (a, b) in SES.items() if a <= d.hour < b), None)
+        if not s: continue
+        t0 = dt.datetime(d.year, d.month, d.day, SES[s][0], tzinfo=U).timestamp()
+        if t - t0 < min_h * 3600: continue
+        rv, dp = [], []
+        for sy, rs in H.items():
+            a = [x for x in rs if t0 - 2400 <= x[0] <= t0 + 900]; b = [x for x in rs if t - 3000 <= x[0] <= t]
+            if not a or not b: continue
+            dp.append(b[-1][1] / a[-1][1] - 1)
+            v = [x[2] for x in rs if t0 + 2700 <= x[0] <= t and x[2] is not None]
+            if v: rv.append(st.mean(v))
+        if len(rv) >= 15: out.append((st.median(rv), st.median(dp) * 100, side, res, f"{d:%d.%m} {s}"))
+    rv = sorted(x[0] for x in out); hi = rv[2 * len(rv) // 3]
+    print(f"\n═══ режим на минуту входа (с открытия сессии до входа), сделки не раньше {min_h:g} ч от открытия · сделок {len(out)} · объём «высокий» — верхняя треть, от ×{hi:.2f}")
+    w = lambda q: f"{100 * sum(1 for x in q if x > 0) // max(1, len(q))}%"
+    for vn, vs in (("объём не высокий", lambda x: x[0] < hi), ("объём высокий", lambda x: x[0] >= hi)):
+        for pn, ps in (("рынок с открытия вверх", lambda x: x[1] >= 0), ("рынок с открытия вниз", lambda x: x[1] < 0)):
+            g = [x for x in out if vs(x) and ps(x)]
+            for sd, nm in ((1, "лонги"), (-1, "шорты")):
+                q = [x for x in g if x[2] == sd]; ses = collections.defaultdict(float)
+                for x in q: ses[x[4]] += x[3]
+                print(f"  {vn}, {pn} · {nm}: {len(q):3d} сд., в плюс {w([x[3] for x in q])}, {sum(x[3] for x in q):+5.0f}% · сессий в плюс {sum(1 for v in ses.values() if v > 0)} из {len(ses)}")
+for mh in (1.0, 2.0):
+    dynamic(mh)
+
+
+def fine():
+    """06.10 владелец: «разбивай до самого момента вплоть до часа, важно качество не количество сделок». Режим на минуту входа, только сессии без объёма
+    (ниже верхней трети): сделка «против хода сессии» — шорт, когда рынок с открытия вверх, лонг на всплеске, когда вниз. По сессиям и по часу сессии."""
+    rows = []
+    for t, side, res in TR:
+        d = dt.datetime.fromtimestamp(t, U); s = next((n for n, (a, b) in SES.items() if a <= d.hour < b), None)
+        if not s: continue
+        t0 = dt.datetime(d.year, d.month, d.day, SES[s][0], tzinfo=U).timestamp()
+        rv, dp = [], []
+        for sy, rs in H.items():
+            a = [x for x in rs if t0 - 2400 <= x[0] <= t0 + 900]; b = [x for x in rs if t - 3000 <= x[0] <= t]
+            if not a or not b: continue
+            dp.append(b[-1][1] / a[-1][1] - 1)
+            v = [x[2] for x in rs if t0 + 2700 <= x[0] <= t and x[2] is not None]
+            if v: rv.append(st.mean(v))
+        if len(dp) >= 15: rows.append(dict(rv=st.median(rv) if len(rv) >= 15 else None, dp=st.median(dp) * 100, side=side, res=res, ses=s, day=f"{d:%d.%m}", h=int((t - t0) // 3600) + 1))
+    rvs = sorted(r["rv"] for r in rows if r["rv"] is not None); hi = rvs[2 * len(rvs) // 3]
+    w = lambda q: f"{100 * sum(1 for x in q if x['res'] > 0) // max(1, len(q))}%"
+    def line(nm, q):
+        dd = collections.defaultdict(float)
+        for x in q: dd[x["day"]] += x["res"]
+        return f"{nm}: {len(q):3d} сд., в плюс {w(q)}, {sum(x['res'] for x in q):+5.0f}%, дней в плюс {sum(1 for v in dd.values() if v > 0)} из {len(dd)}"
+    print(f"\n═══ ПО ЧАСУ СЕССИИ · сессии без объёма (объём с открытия ниже ×{hi:.2f}; в первый час объём ещё не известен — он идёт отдельной строкой)")
+    for s in SES:
+        print(f"\n{s}:")
+        for h in range(1, SES[s][1] - SES[s][0] + 1):
+            q = [r for r in rows if r["ses"] == s and r["h"] == h and (r["rv"] is None or r["rv"] < hi)]
+            if not q: continue
+            su = [r for r in q if r["side"] == -1 and r["dp"] >= 0]; sdn = [r for r in q if r["side"] == -1 and r["dp"] < 0]
+            lu = [r for r in q if r["side"] == 1 and r["dp"] >= 0]; ld = [r for r in q if r["side"] == 1 and r["dp"] < 0]
+            print(f"  {h}-й час | " + " | ".join(line(n, g) for n, g in (("шорт при рынке вверх", su), ("шорт при рынке вниз", sdn), ("лонг при рынке вверх", lu), ("лонг при рынке вниз", ld)) if g))
+    print("\nпо размеру хода рынка с открытия сессии (без объёма, со второго часа):")
+    q = [r for r in rows if r["h"] >= 2 and r["rv"] is not None and r["rv"] < hi]
+    for nm, cond in (("рынок вверх больше +0,5 %", lambda r: r["dp"] >= 0.5), ("вверх до +0,5 %", lambda r: 0 <= r["dp"] < 0.5), ("вниз до −0,5 %", lambda r: -0.5 < r["dp"] < 0), ("вниз больше −0,5 %", lambda r: r["dp"] <= -0.5)):
+        g = [r for r in q if cond(r)]
+        print(f"  {nm:26s} | " + line("шорты", [r for r in g if r["side"] == -1]) + " | " + line("лонги", [r for r in g if r["side"] == 1]))
+fine()

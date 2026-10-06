@@ -724,22 +724,18 @@ function drawLabel0(g, l, t) {
   // выход — круги заменены стрелками, разлетающимися от точки в стороны (янтарные)
   const ap = clamp(ea / .3) * A, isEnt = g.mode === 'entry', bc = l.c1, ky = g.k * 1.6;   // цвет — как у ветки (владелец: форма и так всё показывает)
   ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-  if (isEnt) {   // вход — та же анимация, что при первом появлении, повторяется: два расходящихся круга и мягкая вспышка (приглушённо)
-    const cyc = 3.8, ph = ((t / cyc) + (l.shimmer || 0) * .13) % 1;
-    for (let j = 0; j < 2; j++) {
-      const q = clamp((ph - j * .2) / .95);
-      if (q <= 0 || q >= 1) continue;
-      const rr = 5 + ease(q) * 36, fadeIn = q < .3 ? (1 - Math.cos(Math.PI * q / .3)) / 2 : 1;
-      ctx.strokeStyle = `rgba(${bc},${fadeIn * Math.pow(1 - q, .6) * .8 * ap})`; ctx.lineWidth = 1.2 * (1 - q) + .5;
+  if (isEnt) {   // вход — круги расходятся непрерывно: три волны со сдвигом на треть цикла, поэтому хотя бы один круг виден всегда (пауз нет); вспышка в центре не гаснет совсем
+    const cyc = 3.8, base = t / cyc + (l.shimmer || 0) * .13;
+    for (let i = 0; i < 3; i++) {
+      const ph = (base + i / 3) % 1, rr = 5 + ease(ph) * 38, k = ph < .12 ? ph / .12 : 1 - (ph - .12) / .88, al = Math.pow(Math.max(0, k), .8) * .85 * ap;
+      ctx.strokeStyle = `rgba(${bc},${al})`; ctx.lineWidth = 1.3 * (1 - ph * .6) + .4;
       ctx.beginPath(); ctx.ellipse(x, y, rr, rr * ky, 0, 0, TAU); ctx.stroke();
     }
-    const f = Math.pow(Math.sin(Math.PI * clamp(ph / .9)), 2) * .6 * ap;
-    if (f > 0.02) {
-      const gr = ctx.createRadialGradient(x, y, 0, x, y, 40);   // ореол больше по диаметру
-      gr.addColorStop(0, `rgba(255,255,255,${f * .8})`); gr.addColorStop(.25, `rgba(${bc},${f * .55})`); gr.addColorStop(1, `rgba(${l.c2},0)`);
-      ctx.fillStyle = gr; ctx.fillRect(x - 40, y - 40, 80, 80);
-      ctx.fillStyle = `rgba(${bc},${f * .5})`; ctx.fillRect(x - .5, y - 36 * f, 1, 72 * f); ctx.fillRect(x - 30 * f, y - .5, 60 * f, 1);
-    }
+    const f = (.4 + .3 * Math.pow(Math.sin(Math.PI * (base % 1)), 2)) * ap;
+    const gr = ctx.createRadialGradient(x, y, 0, x, y, 40);
+    gr.addColorStop(0, `rgba(255,255,255,${f * .8})`); gr.addColorStop(.25, `rgba(${bc},${f * .55})`); gr.addColorStop(1, `rgba(${l.c2},0)`);
+    ctx.fillStyle = gr; ctx.fillRect(x - 40, y - 40, 80, 80);
+    ctx.fillStyle = `rgba(${bc},${f * .5})`; ctx.fillRect(x - .5, y - 32 * f, 1, 64 * f); ctx.fillRect(x - 27 * f, y - .5, 54 * f, 1);
   } else {   // выход — стрелки заменены лучами: от точки разлетаются тонкие лучи со светящейся головой и затухающим хвостом
     const dotsMode = (l.item && l.item._style || EXIT_STYLE) === 'dots', N = dotsMode ? 0 : 8;
     for (let q = 0; q < N; q++) {

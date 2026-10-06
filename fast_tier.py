@@ -1412,10 +1412,15 @@ def cg_caption(book: str, sym: str, pos: dict, px_out: float | None = None, why_
         if tgt: body.append(f"🎯 цель:   {tgt:.6g}  ({sd * float(pos['target']) * 100:+.1f}%)")
         if stp: body.append(f"🛑 стоп:   {stp:.6g}  ({-sd * float(pos['stop']) * 100:+.1f}%)")
         body.append(f"⏳ срок:   до {end:%H:%M}")
+        try:                                                              # R79: размер входа по уверенности
+            _u, _rg = _conf_usd(sd, float(pos["at"]))
+            body.append(f"💰 размер: {_u:.0f} $ · " + (f"клетка {_rg['win']:.0f}% в плюс" if _rg.get("win") else "проверка"))
+        except Exception:  # noqa: BLE001
+            pass
     else:
         mins = int((time.time() - float(pos["at"])) / 60)
         ok = (res or 0) > 0
-        head = [f"{'✅' if ok else '❌'} ВЫХОД · {side} · {sym[:-4]} · {res * 100:+.2f}% ({FAST3_SIZE * res:+.0f} $)", f"📘 {book} · {why_out}", ""]
+        head = [f"{'✅' if ok else '❌'} ВЫХОД · {side} · {sym[:-4]} · {res * 100:+.2f}% ({FAST3_SIZE * float(pos.get('k') or 1.0) * res:+.0f} $)", f"📘 {book} · {why_out}", ""]
         body = [f"💵 вход:   {e:.6g}  ·  {t_in:%H:%M} UTC", f"🏁 выход:  {px_out:.6g}  ·  {datetime.now(L):%H:%M} UTC"]
         if tgt: body.append(f"🎯 цель:   {tgt:.6g}")
         if stp: body.append(f"🛑 стоп:   {stp:.6g}")
@@ -1821,6 +1826,96 @@ def _stall_exit(pos: dict, k: list, now: float, c: float):
     return "be", f"шорт висит больше {_sh:g} ч, позиция в плюсе ({tail}) — стоп в точку входа (R66)"
 
 
+_REG: dict = {"key": None, "v": None}
+
+
+def _session_regime(now: float) -> dict:
+    """R79: режим сессии на эту минуту по пульсу скринера (pulse.json) — как в счёте claude/research/session_first_hours.py:
+    dp — ход рынка с открытия сессии (медиана по монетам: последнее показание к показанию у открытия), rv — объём часа к норме с открытия (медиана по монетам
+    среднего rvol_1h), h — часов от открытия. Сидней и устаревший пульс (последнее показание старше 50 мин или раньше открытия) → пусто. Время — UTC."""
+    d = datetime.fromtimestamp(now, L); hh = d.hour + d.minute / 60
+    ses = next((x for x in SES_WIN if x[1] <= hh < x[2]), None)
+    if not ses or ses[0] == "Сидней":
+        return {}
+    t0 = d.replace(hour=int(ses[1]), minute=0, second=0, microsecond=0).timestamp()
+    p = BASE_DIR / "pulse.json"
+    try:
+        key = (p.stat().st_mtime, int(t0))
+    except OSError:
+        return {}
+    if _REG["key"] != key:
+        v = {}
+        try:
+            pulse = json.loads(p.read_text(encoding="utf-8"))
+            dp, rv, t_last = [], [], 0.0
+            for sym, rs in pulse.items():
+                if sym == "_meta" or not rs:
+                    continue
+                a = [r for r in rs if t0 - 2400 <= float(r.get("t") or 0) <= t0 + 900 and r.get("price")]
+                b = rs[-1]
+                if not a or not b.get("price") or float(b["t"]) < t0 + 900:
+                    continue
+                dp.append(float(b["price"]) / float(a[-1]["price"]) - 1); t_last = max(t_last, float(b["t"]))
+                q = [float(r["rvol_1h"]) for r in rs if float(r.get("t") or 0) >= t0 + 2700 and r.get("rvol_1h") is not None]
+                if q:
+                    rv.append(sum(q) / len(q))
+            if len(dp) >= 15 and len(rv) >= 15:
+                dp.sort(); rv.sort()
+                v = dict(ses=ses[0], t0=t0, dp=round(dp[len(dp) // 2] * 100, 2), rv=round(rv[len(rv) // 2], 2), n=len(dp), t_last=t_last)
+        except (OSError, ValueError, KeyError, TypeError):
+            v = {}
+        _REG["key"], _REG["v"] = key, v
+    v = dict(_REG["v"] or {})
+    if not v or now - v["t_last"] > 3000:
+        return {}
+    v["h"] = round((now - t0) / 3600, 2)
+    return v
+
+
+def _conf_usd(side: int, now: float) -> tuple[float, dict]:
+    """R79 (06.10 20:19 UTC, владелец: «чем больше уверенности тем больше вход», «поднимай на 900… 100$… 500… остальные 20$ для проверки просто»):
+    сумма входа по доле сделок в плюс в посчитанной клетке (FAST3_CONF_CELLS → FAST3_SIZE_TIERS); клетки нет, сессия с объёмом, первый час или пульс устарел —
+    проверочный вход FAST3_PROBE_USD. → (сумма $, метка режима для журнала)"""
+    try:
+        from core_config import (FAST3_SIZE_BY_CONF as on, FAST3_PROBE_USD as pu, FAST3_SIZE_TIERS as tiers, FAST3_CONF_MIN_N as mn,
+                                 FAST3_CONF_VOL_MAX as vm, FAST3_CONF_MIN_H as mh, FAST3_CONF_CELLS as cells)
+    except ImportError:
+        return float(FAST3_SIZE), {}
+    if not on:
+        return float(FAST3_SIZE), {}
+    r = _session_regime(now); usd, win = float(pu), None
+    if r and r["h"] >= mh and r["rv"] < vm:
+        for c in cells:
+            lo, hi = c["dp"]
+            if int(c["side"]) == int(side) and (lo is None or r["dp"] >= lo) and (hi is None or r["dp"] < hi) and int(c["n"]) >= mn:
+                win = float(c["win"])
+                usd = next((float(u) for w, u in sorted(tiers, reverse=True) if win >= w), float(pu))
+                break
+    return usd, dict({k: r[k] for k in ("ses", "h", "dp", "rv") if k in r}, win=win, usd=usd)
+
+
+def _size_events(state: dict, ev: list, now: float, book: str = "") -> None:
+    """R79: размер по уверенности ставится в одном месте — по событиям прогона, до ордеров на бирже и записи журнала. Вход: usd_in и метка режима reg;
+    добор R63 (x2) — той же суммой, что первая часть; выход: usd умножается на долю входа. Сделки, открытые до правки, идут полной суммой."""
+    ks = state.setdefault("ksize", {})
+    for e in ev:
+        kind, sym = str(e.get("kind", "")), e.get("sym")
+        if kind == "entry":
+            if e.get("x2") and sym in ks:
+                k = ks[sym]
+            else:
+                usd, reg = _conf_usd(int(e.get("side") or 1), now); k = usd / FAST3_SIZE; e["reg"] = reg
+            ks[sym] = k; e["k"] = round(k, 4); e["usd_in"] = round(FAST3_SIZE * k, 2)
+            if sym in (state.get("open") or {}):
+                state["open"][sym]["k"] = round(k, 4)
+        elif kind.startswith("exit"):
+            k = ks.pop(sym, None) if (not book or e.get("book") in (None, book)) else e.get("k_pos")   # выход позиции другой книги (R63) — её доля приходит в событии
+            k = 1.0 if k is None else float(k)
+            e["k"] = round(k, 4)
+            if e.get("usd") is not None:
+                e["usd"] = round(float(e["usd"]) * k, 2)
+
+
 def _spike_long_off() -> bool:
     """R78 (06.10 19:54 UTC, владелец: «проблема в том что нет ни одного плюсового дня пока», «20 сделок и все почти по стопу», на предложение выключить — «да»):
     новый лонг на всплеске не берётся ни в книге «всплеск/вынос», ни в «пробуждении» (FAST3_SPIKE_LONG_ON = False). Счёт по исполнениям BingX 01–06.10:
@@ -1923,7 +2018,7 @@ def _one_position(state: dict, book: str, ev: list, msgs: list, now: float, writ
         if osd != sd:                                                     # встречный сигнал: старую закрываем, новая остаётся
             res = (px / e0 - 1) * osd - FEE
             x = dict(book=obook, sym=sym, kind="exit_long" if osd == 1 else "exit_short", side=osd, px_in=e0, px_out=round(e0 * (1 + res * osd), 8), opened_at=op["at"], at=now,
-                     result_pct=round(res * 100, 2), usd=round(FAST3_SIZE * res, 2), why_exit=f"встречный сигнал: «{book}» открывает {nm} (R63)", rule=op["rule"], size=1.0)
+                     result_pct=round(res * 100, 2), usd=round(FAST3_SIZE * res, 2), why_exit=f"встречный сигнал: «{book}» открывает {nm} (R63)", rule=op["rule"], size=1.0, k_pos=op.get("k"))
             del ost["open"][sym]; _exit_mark(ost, sym, now, op.get("at"))
             _x2_exits(ost, [x]); oev.append(x)
             msgs.append(f"{sym[:-4]} {nm}: в «{obook}» был {'лонг' if osd == 1 else 'шорт'} — закрыт встречным сигналом {res * 100:+.2f}% (R63)")
@@ -2113,6 +2208,7 @@ def step(state: dict, write: bool) -> list[str]:
                 cg(sym, *cg_caption(BOOK, sym, pos))
     _x2_exits(state, ev); _one_position(state, BOOK, ev, msgs, now, write)   # R63: одна монета — одна позиция на обе книги
     if write:
+        _size_events(state, ev, now, BOOK)                              # R79: размер входа по уверенности — до ордеров и журнала
         _bx_msgs = _bingx(ev)                                           # 06.10 16:53 UTC владелец: «сначала биржа потом все остальное» — ордера первыми, потом журнал, состояние и Телеграм
         with LOG.open("a", encoding="utf-8") as f:
             for r in ev:
@@ -2323,6 +2419,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
                 cg(sym, *cg_caption(WAKE_BOOK, sym, pos))
     _x2_exits(state, ev); _one_position(state, WAKE_BOOK, ev, msgs, now, write)   # R63
     if write:
+        _size_events(state, ev, now, WAKE_BOOK)                         # R79: размер входа по уверенности — до ордеров и журнала
         _bx_msgs = _bingx(ev)                                           # 06.10 владелец: «сначала биржа потом все остальное» — как в step
         with WAKE_LOG.open("a", encoding="utf-8") as f:
             for r_ in ev: f.write(json.dumps(r_, ensure_ascii=False) + "\n")

@@ -511,11 +511,11 @@ def on_events(ev: list[dict]) -> list[str]:
         for e in ev:
             k = str(e.get("kind", ""))
             if k == "entry" and e.get("x2") and e["sym"] in state()["open"]:   # R63: вторая стратегия в ту же сторону — добор к открытой позиции
-                r = add_position(e["sym"], int(e["side"]), float(e["px"]), c=c)
+                r = add_position(e["sym"], int(e["side"]), float(e["px"]), c=c, size_usd=e.get("usd_in"))   # R79 (06.10): сумма входа приходит из события
                 jlog("add", sym=e["sym"], book=e.get("book"), side=e["side"], **r)
                 msgs.append(f"BingX {e['sym'][:-4]} добор: {'ok' if r['ok'] else r['why']}")
             elif k == "entry":
-                r = open_position(e["sym"], int(e["side"]), float(e["px"]), why=e.get("rule") or "", c=c)
+                r = open_position(e["sym"], int(e["side"]), float(e["px"]), why=e.get("rule") or "", c=c, size_usd=e.get("usd_in"))   # R79 (06.10): сумма входа по уверенности
                 jlog("entry", sym=e["sym"], book=e.get("book"), side=e["side"], **r)
                 msgs.append(f"BingX {e['sym'][:-4]} вход: {'ok' if r['ok'] else r['why']}")
             elif k.startswith("exit"):
