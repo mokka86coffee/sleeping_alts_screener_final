@@ -717,6 +717,8 @@ def flush_entries(state: dict, book: str, now: float, ev: list, msgs: list, writ
             msgs.append(f"{sym[:-4]} {lab}: лонг не взят — {_long_window_closed(now)}"); continue
         if new_side == 1 and _slide(sym)[0]:                              # R65: минимумы часовых свечей за 3 дня падают — лонг не берём (и сканером тоже)
             msgs.append(f"{sym[:-4]} {lab}: лонг не взят — минимумы часовых свечей за 3 дня падают ({_slide(sym)[2]:+.0f}%), это отскок на сползании (R65)"); continue
+        if new_side == 1 and _top72_block(sym, c):                        # R72
+            msgs.append(f"{sym[:-4]} {lab}: {_top72_block(sym, c)}"); continue
         note = (f"вынос {'шортов' if side == 'short' else 'лонгов'} {win / 1e3:.0f}K$ за час с {datetime.fromtimestamp(hm / 1000, L):%H:%M} — ×{win / prev:.1f} к максимуму часа за сутки ({prev / 1e3:.0f}K$), "
                 f"свеча {rng:.0f}%, минимумы за 24 ч {mvp:+.1f}% → {'шорт' if new_side == -1 else 'лонг'} {'по ходу' if _bnote else 'против хода'}" + _bnote)
         head = "R52 вынос → против хода: "
@@ -857,6 +859,7 @@ def _ladder(sym: str, px: float):
 
 
 _SLD: dict = {}
+_SLH: dict = {}   # R72: максимум часовых свечей за FAST3_SLIDE_H часов (заполняется вместе с _SLD)
 
 
 def _slide_calc(lows: list):
@@ -890,9 +893,30 @@ def _slide(sym: str):
     if time.time() - t > 3600 or v is None:
         k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1h", "limit": _sh + 1}, quiet_400=True) or []
         lows = [float(x[3]) for x in k[:-1]]                             # только закрытые часы
+        _SLH[sym] = max([float(x[2]) for x in k[:-1]] or [0.0])
         v = _slide_calc(lows) if len(lows) >= _sh else (False, False, 0.0)
         _SLD[sym] = (time.time() if len(lows) >= _sh else time.time() - 3600 + 300, v)
     return v
+
+
+def _top72_block(sym: str, px: float) -> str:
+    """R72 (06.10 владелец «делай»; счёт 265 лонгов бота 27.09–03.10 по часовым свечам TradingView: цена ближе 20 % к максимуму 72 ч — 71–74 % в минус в обеих половинах недели,
+    сумма −155 %; глубже 20 % — в плюс, +42 %): лонг не берём, пока слива от максимума 3 суток нет хотя бы на FAST3_TOP72_PCT %. Нет данных — не блокируем.
+    → текст отказа или ''"""
+    try:
+        from core_config import FAST3_TOP72_ON as _on, FAST3_TOP72_PCT as _pc
+    except ImportError:
+        _on, _pc = True, 20.0
+    if not _on or not px:
+        return ""
+    _slide(sym)                                                          # прогревает _SLH (тот же запрос часовых свечей, кэш час)
+    hi = _SLH.get(sym) or 0.0
+    if hi <= 0:
+        return ""
+    d = (1 - px / hi) * 100
+    if d < _pc:
+        return f"лонг не взят — цена на {max(d, 0):.0f}% ниже максимума 72 ч ({hi:.6g}), слива на {_pc:g}% ещё не было (R72)"
+    return ""
 
 
 def _slide_zone(sym: str, px: float):
@@ -985,7 +1009,7 @@ def _flat_long_set(state: dict, sym: str, now: float, msgs: list, src: str) -> N
     if not _on or sym in state["open"] or sym in state.setdefault("flat_wait", {}):
         return
     fl, lo, hi = _flat24(sym)
-    if not fl or hi <= lo or _long_window_closed(now) or _slide(sym)[0] or sym in _own_mm() or _too_young(sym):
+    if not fl or hi <= lo or _long_window_closed(now) or _slide(sym)[0] or sym in _own_mm() or _too_young(sym) or _top72_block(sym, lo):   # R72
         return
     state["flat_wait"][sym] = dict(level=lo, top=hi, at=now, until=now + _wh * 3600, chk=int(now * 1000) // 180_000 * 180_000,
                                    why=f"R70 флэт по суткам ({lo:.6g}–{hi:.6g} внутри диапазона предыдущих суток) → лонг лимиткой от линии флэта {lo:.6g} вместо шорта · сигнал: {src[:120]}")
@@ -1659,6 +1683,8 @@ def flip_check(e: float, pos: dict, k: list, now: float):
     и стоп/цель/безубыток за окно не сработали → шорт закрыт по закрытию последнего бара окна, новый лонг с целью FAST3_LONG_HOLD_TP и стопом на низу окна.
     → (результат шорта, причина, новая позиция) или (None, None, None)"""
     nf = max(1, FAST3_FLIP_HOLD_MIN // 3)
+    if _top72_block(pos["sym"], float(k[min(len(k), nf) - 1][4]) if k else 0.0):           # R72: слива от максимума 72 ч ещё не было — шорт в лонг не переворачиваем
+        return None, None, None
     if _slide(pos["sym"])[0] or _long_window_closed(now):                # R65: монета сползает — переворота шорта в лонг нет; R69: и в окне без лонгов
         return None, None, None
     if pos.get("flip") or not str(pos.get("rule", "")).startswith("А") or len(k) < nf:
@@ -1768,7 +1794,7 @@ def _stall_flip(pos: dict, k: list, now: float, c: float):
     except ImportError:
         _on = True
     sym = pos["sym"]
-    if not _on or not k or _slide(sym)[0] or _pump_ban(sym, now) or _long_window_closed(now):
+    if not _on or not k or _slide(sym)[0] or _pump_ban(sym, now) or _long_window_closed(now) or _top72_block(sym, c):   # R72
         return None
     lowest = min(float(x[3]) for x in k)
     if lowest <= 0 or c <= lowest:
@@ -1978,6 +2004,8 @@ def step(state: dict, write: bool) -> list[str]:
                 _pb = _pump_ban(sym, now)                                 # R60 (03.10 владелец): после сквиза в конце роста лонг в монете не раньше чем через 6 ч
                 if _pb:
                     msgs.append(f"{sym[:-4]} {_pb}"); continue
+            if sd == 1 and not _ws and _top72_block(sym, px):             # R72 (06.10): слива от максимума 72 ч ещё не было — лонг не берём
+                msgs.append(f"{sym[:-4]} {_top72_block(sym, px)}"); continue
             if _ws and _wskip:                                            # R55 (03.10 владелец «делай все»): шорт по всплеску только у монет с фандингом в нижней половине доски
                 msgs.append(f"{sym[:-4]} {_wskip}"); continue                #   на 266 входах недели: нижняя половина 107 входов +1547 $, верхняя 159 входов −3 $ (одна неделя, не проверено)
             _rl = _rate_ok(now)
@@ -2182,6 +2210,8 @@ def wake_step(state: dict, write: bool) -> list[str]:
                 _pb = _pump_ban(sym, now)                                 # R60 (03.10 владелец): после сквиза в конце роста лонг в монете не раньше чем через 6 ч
                 if _pb:
                     msgs.append(f"{sym[:-4]} {_pb}"); continue
+            if sd == 1 and not _ws and _top72_block(sym, px):             # R72 (06.10): слива от максимума 72 ч ещё не было — лонг не берём
+                msgs.append(f"{sym[:-4]} {_top72_block(sym, px)}"); continue
             if _ws and _wskip:                                            # R55 (03.10 владелец «делай все»): шорт по всплеску только у монет с фандингом в нижней половине доски
                 msgs.append(f"{sym[:-4]} {_wskip}"); continue                #   на 266 входах недели: нижняя половина 107 входов +1547 $, верхняя 159 входов −3 $ (одна неделя, не проверено)
             _rl = _rate_ok(now)
