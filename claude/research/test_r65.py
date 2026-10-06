@@ -53,7 +53,7 @@ try:
     ft._hi90 = lambda s: 2.0                                                      # вход по ~1.035 при вершине 2.0 → на 48 % ниже → зона 2
     st = {"open": {}, "last_exit": {}, "pending": {"XUSDT": dict(why="R65 сползание → шорт на отскоке · всплеск", t_ms=t0, at=now, expire=now + 3600, start_low=None, slide=True)}}
     ev = []; m = []; ft.pending_step(st, ft.BOOK, now, ev, m, False); p2 = st["open"].get("XUSDT")
-    assert p2 and p2["target"] == 0.1 and p2["stop"] == 0.1 and p2["hold_min"] == _cc.FAST3_SLIDE_ZONE2_HOLD_MIN == 4320 and p2.get("slide") and p2.get("slide_tp") and ft._short_tgt(p2) == 0.1, (p2, m)
+    assert p2 and p2["target"] == 0.1 and p2["stop"] == 0.1 and p2["hold_min"] == _cc.FAST3_SLIDE_ZONE2_HOLD_MIN == 960 and p2.get("slide") and p2.get("slide_tp") and ft._short_tgt(p2) == 0.1, (p2, m)
     assert ft.short_walk(1.0, 0.1, ft._short_tgt(p2), [[0, 1, 1.01, 0.89, 0.9]], None)[1] == "цель", ft.short_walk(1.0, 0.1, ft._short_tgt(p2), [[0, 1, 1.01, 0.89, 0.9]], None)
     ft._hi90 = lambda s: 10.0                                                     # вход глубже 60 % от вершины — ожидание снимается без сделки
     st = {"open": {}, "last_exit": {}, "pending": {"XUSDT": dict(why="R65 сползание → шорт на отскоке · всплеск", t_ms=t0, at=now, expire=now + 3600, start_low=None, slide=True)}}

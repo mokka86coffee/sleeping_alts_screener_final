@@ -32,6 +32,12 @@ sys.path.insert(0, str(BASE_DIR))
 from core_http import get_json  # noqa: E402
 import core_config as cc  # noqa: E402
 
+
+def _hold(p: dict) -> int:
+    """срок позиции в минутах с потолком R74 (06.10: «не должны сделки висеть больше 16 часов», кроме шорта «конец роста» от вершины пампа — 3 дня) — как fast_tier._hold_lim"""
+    h = int(p.get("hold_min") or 0); cap = int(getattr(cc, "FAST3_MAX_HOLD_MIN", 0) or 0)
+    return h if (not cap or p.get("pump_end")) else min(h, cap)
+
 L = timezone(timedelta(hours=3))
 OUT = BASE_DIR / "output" / "fast_state.json"
 WIN = (("Сидней", 0, 3), ("Токио", 3, 10), ("Лондон", 10, 16), ("Нью-Йорк", 16, 24))
@@ -231,7 +237,7 @@ def positions(now: float) -> tuple[list, list, list]:
             op.append(dict(book=book, sym=sym, side=sd, entry=e, target=(None if not 0 < float(p.get("target") or 0) < 0.9 else e * (1 + sd * float(p["target"]))),   # 04.10: у позиции без цели (0 — шорты R58 и R65) цель не показываем, раньше рисовалась на цене входа
                            stop=(float(p["stop_px"]) if p.get("stop_px") else e * (1 - sd * float(p["stop"]))),      # 04.10: стоп, перенесённый в твх или на низ удержания, показываем как есть
                            tp=float(p["target"]), sl=float(p["stop"]), t_in=float(p["at"]), goal=_goal(p, e, sd),
-                           exit_at=(int(p["t_ms"]) + B3) / 1000 + int(p.get("hold_min") or 0) * 60, px=p.get("last_px"), rule=p.get("rule") or "",
+                           exit_at=(int(p["t_ms"]) + B3) / 1000 + _hold(p) * 60, px=p.get("last_px"), rule=p.get("rule") or "",
                            oi1h_in=er.get("oi1h"), board6_in=(er.get("fon") or {}).get("board6"), bx=sym in BXO))
         for r in R:
             if not str(r.get("kind", "")).startswith("exit") or float(r.get("at") or 0) < day0 - HIST_DAYS * 86400:
@@ -315,8 +321,8 @@ def _goal(p: dict, e: float, sd: int) -> str:
     t = float(p.get("target") or 0)
     if 0 < t < 0.9:
         return ""
-    ex = datetime.fromtimestamp((int(p["t_ms"]) + 180_000) / 1000 + int(p.get("hold_min") or 0) * 60, L)
-    hrs = int(p.get("hold_min") or 0) / 60
+    ex = datetime.fromtimestamp((int(p["t_ms"]) + 180_000) / 1000 + _hold(p) * 60, L)
+    hrs = _hold(p) / 60
     be = bool(p.get("stop_px")) and abs(float(p["stop_px"]) / e - 1) < 1e-6
     stp = "стоп в точке входа" if be else f"стоп {float(p.get('stop') or 0) * 100:.0f}%, после хода 5% — в точку входа"
     if p.get("slide") or p.get("pump_end"):

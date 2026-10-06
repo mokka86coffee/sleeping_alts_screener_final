@@ -1400,7 +1400,7 @@ def cg_caption(book: str, sym: str, pos: dict, px_out: float | None = None, why_
     e, sd = float(pos["px"]), int(pos["side"])
     tgt = e * (1 + sd * float(pos["target"])) if pos.get("target") else None
     stp = e * (1 - sd * float(pos["stop"])) if pos.get("stop") else None
-    end = datetime.fromtimestamp((int(pos["t_ms"]) + 180_000) / 1000 + int(pos.get("hold_min") or 0) * 60, L)
+    end = datetime.fromtimestamp((int(pos["t_ms"]) + 180_000) / 1000 + _hold_lim(pos) * 60, L)
     side = "ЛОНГ" if sd == 1 else "ШОРТ"
     t_in = datetime.fromtimestamp(pos["at"], L)
     if px_out is None:
@@ -1499,6 +1499,19 @@ def scan(sym: str, want_spike: bool, want_climax: bool):
     if any(o[0] == 1 for o in out):
         _SPK[sym] = int(k[-1][0]) + 180_000                              # 30.09: только запись — метка всплеска для размера пачки
     return sym, c[-1], int(k[-1][0]), out
+
+
+def _hold_lim(pos: dict) -> int:
+    """R74 (06.10 05:30, владелец по ZAMA, висевшей 42 ч: «не должны сделки висеть больше 16 часов»; «3-е суток нужно только от вершины
+    пампа оставлять, остальное 16 часов»; на моё прочтение «вторая зона сползания» — «именно его», то есть шорт «конец роста»): срок
+    любой позиции не длиннее FAST3_MAX_HOLD_MIN; исключение — шорт «конец роста» от вершины пампа (R58, pump_end), у него свой срок
+    3 дня. Зона 30–60 % сползания (R71) — под потолком, 16 ч. 0 в настройке — потолка нет. → срок позиции в минутах"""
+    h = int(pos.get("hold_min") or 0)
+    try:
+        from core_config import FAST3_MAX_HOLD_MIN as cap
+    except ImportError:
+        cap = 960
+    return h if (not cap or pos.get("pump_end")) else min(h, int(cap))
 
 
 def _short_tgt(pos: dict) -> float:
@@ -1913,7 +1926,7 @@ def step(state: dict, write: bool) -> list[str]:
         if res is None and sd == 1:
             _sun = _sunday_close(pos, now)                                 # R69: воскресенье, Сидней + 2 ч — лонги закрываются
             if _sun: res, why = (c / e - 1) * sd, _sun
-        if res is None and len(k) * 3 >= pos["hold_min"]: res, why = (c / e - 1) * sd, f"срок {pos['hold_min']} мин"
+        if res is None and len(k) * 3 >= _hold_lim(pos): res, why = (c / e - 1) * sd, f"срок {_hold_lim(pos)} мин"   # R74: потолок 16 ч
         pos["last_px"] = c; pos["bars"] = len(k)
         if res is not None:
             res -= FEE
@@ -2115,7 +2128,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
         if res is None and sd == 1:
             _sun = _sunday_close(pos, now)                                 # R69: воскресенье, Сидней + 2 ч — лонги закрываются
             if _sun: res, why = (c / e - 1) * sd, _sun
-        if res is None and len(k) * 3 >= pos["hold_min"]: res, why = (c / e - 1) * sd, f"срок {pos['hold_min']} мин"
+        if res is None and len(k) * 3 >= _hold_lim(pos): res, why = (c / e - 1) * sd, f"срок {_hold_lim(pos)} мин"   # R74: потолок 16 ч
         pos["last_px"] = c; pos["bars"] = len(k)
         if res is not None:
             res -= FEE

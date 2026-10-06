@@ -29,6 +29,8 @@ $PY claude/research/test_r65.py >> $T/r63.out 2>&1   # R65: сползающая
 grep -q 'R65: ок' $T/r63.out || echo "СБОЙ: проверка R65 не дала «ок»" >> $T/r63.out
 $PY claude/research/test_r72.py >> $T/r63.out 2>&1   # R72 (06.10): лонг только после слива на 20 % от максимума 72 ч
 grep -q 'R72: ок' $T/r63.out || echo "СБОЙ: проверка R72 не дала «ок»" >> $T/r63.out
+$PY claude/research/test_hold_cap.py >> $T/r63.out 2>&1   # R74 (06.10): потолок срока позиции 16 ч, кроме шорта «конец роста» (3 дня)
+grep -q 'R74: ок' $T/r63.out || echo "СБОЙ: проверка R74 не дала «ок»" >> $T/r63.out
 $PY claude/research/test_r66.py >> $T/r63.out 2>&1   # R66 и свечи позиции дальше 50 часов
 grep -q 'R66: ок' $T/r63.out || echo "СБОЙ: проверка R66 не дала «ок»" >> $T/r63.out
 $PY claude/research/test_r67.py >> $T/r63.out 2>&1   # R67: во флэте шорт не берём
