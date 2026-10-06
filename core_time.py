@@ -12,9 +12,22 @@
 """
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 UTC = timezone.utc
+# 06.10 владелец: «никакой привязки к машине быть не должно во времени» (сайт запускается на другой машине в другом поясе) — время в
+# подписях сообщений и журналов печатается в поясе владельца (UTC+3), а не в поясе машины; расчёты — по UTC, как и раньше.
+MSG_TZ = timezone(timedelta(hours=3))
+
+
+def msg_now() -> datetime:
+    """сейчас — для подписи сообщения (пояс владельца, не машины)"""
+    return datetime.now(MSG_TZ)
+
+
+def msg_hm(ts: float) -> str:
+    """ЧЧ:ММ момента ts (секунды) — для подписи сообщения (пояс владельца, не машины)"""
+    return datetime.fromtimestamp(float(ts), MSG_TZ).strftime("%H:%M")
 
 
 def utc_now() -> datetime:

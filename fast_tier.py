@@ -1458,7 +1458,13 @@ def ses_gate(now: float, t_bar: int, side: int = 1):
         from core_config import FAST3_NO_ENTRY_HOURS as _nh
     except ImportError:
         _nh = []
+    try:
+        from core_config import FAST3_NO_ENTRY_SHORTS_TOO as _nst
+    except ImportError:
+        _nst = False
     for _a, _b in _nh:                                                # 01.10 владелец: час до открытия Лондона (09–10) и НЙ (15–16), UTC+3 — новых входов нет
+        if side == -1 and not _nst:                                   # R75 (06.10 владелец: «стыки это сливы, там не шорты нельзя брать, а лонги»): запрет часа перед сессией — только лонгам
+            break
         if _a <= d.hour < _b:
             return False, f"торговля выключена за час до открытия сессии ({_a:02d}–{_b:02d}, владелец 01.10)", None
     name, a, b = next(x for x in SES_WIN if x[1] <= d.hour < x[2])
@@ -1623,6 +1629,12 @@ def london_gate(sym: str, now: float, why: str):
         hh, mx, sx = (11, 15), 5, 10.0
     d = datetime.fromtimestamp(now, L)
     if not (hh[0] <= d.hour < hh[1]):
+        return None
+    try:
+        from core_config import FAST3_LONDON_DAYS as _ld
+    except ImportError:
+        _ld = ["пн", "вт"]
+    if _ld and WDAYS[d.weekday()] not in _ld:                          # 06.10 владелец: «максимум 5 входов на лондоне в понедельник и вторник» — в остальные дни лондонского ограничения нет
         return None
     m = re.search(r"объёме ×([\d.]+)", why or "")
     x = float(m.group(1)) if m else 0.0

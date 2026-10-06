@@ -28,6 +28,7 @@ import argparse
 import json
 import sys
 import time
+from core_time import msg_hm   # 06.10: подписи — в поясе владельца, не машины
 from pathlib import Path
 
 try:
@@ -276,7 +277,7 @@ def main() -> int:
     tr = trades()
     ts = int(time.time() // 60 * 60 * 1000)
     if banned("fut"):
-        print(f"depth_tick: фьючерсы Binance под баном до {time.strftime('%H:%M', time.localtime(banned('fut')))} — шаг пропущен")
+        print(f"depth_tick: фьючерсы Binance под баном до {msg_hm(banned('fut'))} — шаг пропущен")
         return 0
     # 27.09 после бана: монеты сделок — по половине за шаг (каждая раз в 6 мин), монеты тревог — каждые 3 мин
     half = (ts // (SNAP_MIN * 60_000)) % 2

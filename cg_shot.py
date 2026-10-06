@@ -18,6 +18,7 @@ import fcntl
 import json
 import sys
 import time
+from core_time import msg_hm   # 06.10: подписи — в поясе владельца, не машины
 import urllib.request
 import uuid
 from pathlib import Path
@@ -164,7 +165,7 @@ def _price_only(pg, lines: dict) -> None:
 def shot(sym: str, lines: dict | None = None, price: bool = False) -> list[Path]:
     from playwright.sync_api import sync_playwright
     SHOTS.mkdir(parents=True, exist_ok=True)
-    out = SHOTS / f"{sym}_{time.strftime('%Y%m%d_%H%M%S')}.png"
+    out = SHOTS / f"{sym}_{time.strftime('%Y%m%d_%H%M%S', time.gmtime())}.png"
     with open(SHOTS / ".lock", "w") as lk:
         fcntl.flock(lk, fcntl.LOCK_EX)                     # профиль Chromium не открыть двумя процессами сразу
         with sync_playwright() as p:
@@ -223,7 +224,7 @@ def flush_queue(cfg: dict) -> None:
                 continue
             if down:
                 keep.append(it); continue
-            cap = f"⏳ не ушло в {time.strftime('%H:%M', time.localtime(it['at']))}\n" + it["caption"]
+            cap = f"⏳ не ушло в {msg_hm(it['at'])}\n" + it["caption"]
             if it["kind"] == "text":
                 ok = _send_to(cap, cfg, it["chat"])
             else:

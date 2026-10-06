@@ -30,6 +30,7 @@ import sys
 import time
 import urllib.request
 from datetime import datetime
+from core_time import msg_now
 from pathlib import Path
 
 try:
@@ -261,7 +262,7 @@ def _pick_lines(sym_usdt: str) -> list[str]:
 
 def _short_brief() -> tuple[str, str]:
     """заголовок и текст: биткоин · звёзды «скоро» и «могут» · свои монеты — цена и стыки"""
-    now = datetime.now()
+    now = msg_now()                                                # 06.10: пояс владельца, не машины
     subject = f"Скринер · {now:%d.%m %H:%M}"
     lines: list[str] = []
     # биткоин — как был, первой строкой
@@ -316,7 +317,7 @@ def _short_brief() -> tuple[str, str]:
 
 def _new_soon() -> tuple[str, str]:
     """звёзды, которые впервые появились в «скоро» с прошлого прогона; память — output/tg_soon.json"""
-    now = datetime.now()
+    now = msg_now()                                                # 06.10: пояс владельца, не машины
     try:
         _st = json.loads((BASE_DIR / "output" / "stars.json").read_text(encoding="utf-8")).get("stars") or []
     except (OSError, ValueError):
