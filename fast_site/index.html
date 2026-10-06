@@ -554,18 +554,18 @@ function layoutRiverLabels(R, t, nowS) {
   // 04.10 владелец: «пусть место сначала найдут и только потом появляются», «чтобы не бегали круги по экрану» — каждая подпись один раз выбирает себе МЕСТО на всей реке
   // (самое свободное от остальных, по длине и по ширине русла), и стоит там неподвижно, пока не погаснет; до выбора места она невидима, остальные не двигаются
   const all = [];
-  for (const gg of rings) for (const l of gg.labels) if (l.bw && l.rv != null) all.push(l);
+  for (const gg of rings) for (const l of gg.labels) if (l.rv != null) { l.ebw = l.bw || 70 + l.name.length * 9 + 40; all.push(l); }   // ширина ещё не измерена (подпись скрыта) — берём с запасом
   for (const l of all) if (l.slotW !== R.w) { l.slotW = R.w; l.fx = null; l.shown = false; }   // изменился размер окна — места выбираются заново
-  const geom = l => { const x = l.fx, y = riverY(R, x, t) + l.rv * R.hh, BH = l.bh || 18, e = l.h + (l.dy || 0); return { x, y, cx: x + l.bw / 2, cy: y - e - BH / 2, bw: l.bw, bh: BH + 8 }; };
+  const geom = l => { const x = l.fx, y = riverY(R, x, t) + l.rv * R.hh, BH = l.bh || 18, e = l.h + (l.dy || 0); return { x, y, cx: x + l.ebw / 2, cy: y - e - BH / 2, bw: l.ebw, bh: BH + 8 }; };
   const placed = all.filter(l => l.fx != null).map(geom);
   for (const l of all) {
     if (l.fx != null) continue;
     let best = null, bestD = -1;
     for (let k = 0; k < 90; k++) {
-      const fx = R.x0 + 14 + Math.random() * Math.max(1, R.w - 30 - l.bw), rv = -.82 + Math.random() * 1.64;
-      const y = riverY(R, fx, t) + rv * R.hh, BH = l.bh || 18, cx = fx + l.bw / 2, cy = y - l.h - BH / 2;
+      const fx = R.x0 + 14 + Math.random() * Math.max(1, R.w - 30 - l.ebw), rv = -.82 + Math.random() * 1.64;
+      const y = riverY(R, fx, t) + rv * R.hh, BH = l.bh || 18, cx = fx + l.ebw / 2, cy = y - l.h - BH / 2;
       let d = 9;
-      for (const q of placed) d = Math.min(d, Math.max(Math.abs(cx - q.cx) / ((l.bw + q.bw) / 2 + 10), Math.abs(cy - q.cy) / ((BH + 8 + q.bh) / 2 + 4)), Math.hypot(fx - q.x, y - q.y) / 46);
+      for (const q of placed) d = Math.min(d, Math.max(Math.abs(cx - q.cx) / ((l.ebw + q.bw) / 2 + 10), Math.abs(cy - q.cy) / ((BH + 8 + q.bh) / 2 + 4)), Math.hypot(fx - q.x, y - q.y) / 46);
       if (d > bestD) { bestD = d; best = { fx, rv }; }
     }
     l.fx = best.fx; l.rv = best.rv; l.dy = 0; l.shown = true;

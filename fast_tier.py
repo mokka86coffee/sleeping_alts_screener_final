@@ -670,7 +670,7 @@ def flush_entries(state: dict, book: str, now: float, ev: list, msgs: list, writ
                 if p and int(p.get("side", 0)) == 1:                     # в монете открыт лонг — закрыть: движение кончилось
                     e_ = float(p["px"]); res_ = (c / e_ - 1) - FEE; wx = "рекордный вынос шортов в конце роста — лонг закрыт (R58)"
                     ev.append(dict(book=book, sym=sym, kind="exit_long", side=1, px_in=e_, px_out=round(c, 8), opened_at=p["at"], at=now, result_pct=round(res_ * 100, 2), usd=round(FAST3_SIZE * res_, 2), why_exit=wx, rule=p["rule"], size=1.0))
-                    msgs.append(f"{sym[:-4]} лонг выход {wx} {res_ * 100:+.2f}%"); state["last_exit"][sym] = now; del state["open"][sym]
+                    msgs.append(f"{sym[:-4]} лонг выход {wx} {res_ * 100:+.2f}%"); _exit_mark(state, sym, now, p.get("at")); del state["open"][sym]
                     if write:
                         cg(sym, *cg_caption(book, sym, p, c, wx, res_))
                 elif p:
@@ -744,7 +744,7 @@ def flush_entries(state: dict, book: str, now: float, ev: list, msgs: list, writ
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} выход {why} {res * 100:+.2f}%")
             if write:
                 cg(sym, *cg_caption(book, sym, p, c, why, res))
-            state["last_exit"][sym] = now; del state["open"][sym]
+            _exit_mark(state, sym, now, p.get("at")); del state["open"][sym]
         state.setdefault("pending", {}).pop(sym, None)
         _open_short_now(state, ev, msgs, sym, c, t_bar, now, head + note, book, write, side=new_side, mode=kind)
 
@@ -1442,13 +1442,24 @@ def cg(sym: str, caption: str, extra: list[str] | None = None) -> None:
         from core_config import FAST3_TG_LINKS as _links
     except ImportError:
         _links = False
+    # 06.10 16:53 UTC владелец: «сначала биржа потом все остальное» — сообщение не уходит сразу, а встаёт в очередь; step / wake_step отправляют очередь
+    # (_tg_flush) только после ордеров на BingX и записи журнала
+    _TGQ.append((sym, caption, ["--links"] if _links else list(extra or [])))
+
+
+_TGQ: list = []
+
+
+def _tg_flush() -> None:
+    """отправка накопленных сообщений о сделках в Телеграм — отдельными процессами, цикл не ждёт; зовётся после ордеров на бирже"""
     import subprocess
-    try:
-        lg = open(BASE_DIR / "output" / "cg_shot.log", "a")
-        subprocess.Popen([PY, "cg_shot.py", sym, "--caption", caption] + (["--links"] if _links else (extra or [])), cwd=BASE_DIR, stdout=lg, stderr=subprocess.STDOUT,
-                         start_new_session=True)
-    except Exception as e:  # noqa: BLE001
-        print(f"скрин Coinglass {sym}: {type(e).__name__}: {e}", flush=True)
+    while _TGQ:
+        sym, caption, args = _TGQ.pop(0)
+        try:
+            lg = open(BASE_DIR / "output" / "cg_shot.log", "a")
+            subprocess.Popen([PY, "cg_shot.py", sym, "--caption", caption] + args, cwd=BASE_DIR, stdout=lg, stderr=subprocess.STDOUT, start_new_session=True)
+        except Exception as e:  # noqa: BLE001
+            print(f"сообщение в Телеграм {sym}: {type(e).__name__}: {e}", flush=True)
 
 
 SES_WIN = (("Токио", 0, 7), ("Лондон", 7, 13), ("Нью-Йорк", 13, 21), ("Сидней", 21, 24))   # часы UTC (06.10; до этого UTC+3: Сидней 0–3, Токио 3–10, Лондон 10–16, Нью-Йорк 16–24)
@@ -1513,6 +1524,28 @@ def scan(sym: str, want_spike: bool, want_climax: bool):
     if any(o[0] == 1 for o in out):
         _SPK[sym] = int(k[-1][0]) + 180_000                              # 30.09: только запись — метка всплеска для размера пачки
     return sym, c[-1], int(k[-1][0]), out
+
+
+def _exit_mark(st: dict, sym: str, now: float, opened_at=None) -> None:
+    """R77 (06.10 16:29 UTC, владелец по ORCA: «давай если бот быстро закрывает позицию в течении 9 минут после входа то в нее можно повторно заходить»,
+    «для всех»): запрет повторного входа в монету (FAST3_REENTRY_BAN_MIN, 2 ч) ставится только после сделки, прожившей дольше FAST3_REENTRY_FAST_MIN минут
+    (три прогона). Выход на первом, втором или третьем прогоне после входа запрета не ставит. Обе книги, лонги и шорты, любая причина выхода."""
+    try:
+        from core_config import FAST3_REENTRY_FAST_MIN as fast
+    except ImportError:
+        fast = 0
+    if fast and opened_at and now - float(opened_at) < (float(fast) + 1.5) * 60:      # +1,5 мин: прогон приходит не ровно в границу бара
+        return
+    st.setdefault("last_exit", {})[sym] = now
+
+
+def _reentry_banned(st: dict, sym: str, now: float) -> bool:
+    try:
+        from core_config import FAST3_REENTRY_BAN_MIN as ban
+    except ImportError:
+        ban = 120
+    return now - (st.get("last_exit") or {}).get(sym, 0) < float(ban) * 60
+
 
 
 def _hold_lim(pos: dict) -> int:
@@ -1879,7 +1912,7 @@ def _one_position(state: dict, book: str, ev: list, msgs: list, now: float, writ
             res = (px / e0 - 1) * osd - FEE
             x = dict(book=obook, sym=sym, kind="exit_long" if osd == 1 else "exit_short", side=osd, px_in=e0, px_out=round(e0 * (1 + res * osd), 8), opened_at=op["at"], at=now,
                      result_pct=round(res * 100, 2), usd=round(FAST3_SIZE * res, 2), why_exit=f"встречный сигнал: «{book}» открывает {nm} (R63)", rule=op["rule"], size=1.0)
-            del ost["open"][sym]; ost.setdefault("last_exit", {})[sym] = now
+            del ost["open"][sym]; _exit_mark(ost, sym, now, op.get("at"))
             _x2_exits(ost, [x]); oev.append(x)
             msgs.append(f"{sym[:-4]} {nm}: в «{obook}» был {'лонг' if osd == 1 else 'шорт'} — закрыт встречным сигналом {res * 100:+.2f}% (R63)")
             continue
@@ -1955,7 +1988,7 @@ def step(state: dict, write: bool) -> list[str]:
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} выход {why} {res * 100:+.2f}%")
             if write:
                 cg(sym, *cg_caption(BOOK, sym, pos, e * (1 + res * sd), why, res))
-            state["last_exit"][sym] = now; del state["open"][sym]
+            _exit_mark(state, sym, now, pos.get("at")); del state["open"][sym]
             if newpos:                                                    # переворот: на месте шорта встаёт лонг
                 state["open"][sym] = newpos
                 ev.append(dict(book=BOOK, sym=sym, kind="entry", side=1, px=newpos["px"], at=now, usd_in=FAST3_SIZE, rule=newpos["rule"], target=newpos["target"], stop=newpos["stop"], hold_min=newpos["hold_min"], flip=True))
@@ -1976,7 +2009,7 @@ def step(state: dict, write: bool) -> list[str]:
     bg = fon()
     for sym, px, t_bar, outs in res_all:
         for sd, why, tp, sl, hold in outs:
-            if sym in state["open"] or now - state["last_exit"].get(sym, 0) < 2 * 3600:
+            if sym in state["open"] or _reentry_banned(state, sym, now):
                 continue
             if _slide_gate(state, sym, why, t_bar, now, msgs, px=px):     # R65: монета сползает 3 дня — лонгов нет, шорт только на отскоке (зоны от вершины — 05.10)
                 continue
@@ -2066,11 +2099,13 @@ def step(state: dict, write: bool) -> list[str]:
                 cg(sym, *cg_caption(BOOK, sym, pos))
     _x2_exits(state, ev); _one_position(state, BOOK, ev, msgs, now, write)   # R63: одна монета — одна позиция на обе книги
     if write:
+        _bx_msgs = _bingx(ev)                                           # 06.10 16:53 UTC владелец: «сначала биржа потом все остальное» — ордера первыми, потом журнал, состояние и Телеграм
         with LOG.open("a", encoding="utf-8") as f:
             for r in ev:
                 f.write(json.dumps(r, ensure_ascii=False) + "\n")
         tmp = STATE.with_suffix(".tmp"); tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8"); tmp.replace(STATE)
-        msgs += _bingx(ev)
+        msgs += _bx_msgs
+        _tg_flush()
     msgs.append(f"список: всплеск {len(spike)}, вынос {len(climax)} · открыто {len(state['open'])}")
     return msgs
 
@@ -2157,7 +2192,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
             msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} выход {why} {res * 100:+.2f}%")
             if write:
                 cg(sym, *cg_caption(WAKE_BOOK, sym, pos, e * (1 + res * sd), why, res))
-            state["last_exit"][sym] = now; del state["open"][sym]
+            _exit_mark(state, sym, now, pos.get("at")); del state["open"][sym]
             if newpos:                                                    # переворот: на месте шорта встаёт лонг
                 state["open"][sym] = newpos
                 ev.append(dict(book=WAKE_BOOK, sym=sym, kind="entry", side=1, px=newpos["px"], at=now, usd_in=FAST3_SIZE, rule=newpos["rule"], target=newpos["target"], stop=newpos["stop"], hold_min=newpos["hold_min"], flip=True))
@@ -2172,7 +2207,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
     cands = wake_candidates()
     for cd in cands:
         sym = cd["sym"]
-        if sym in state["open"] or now - state["last_exit"].get(sym, 0) < 2 * 3600: continue
+        if sym in state["open"] or _reentry_banned(state, sym, now): continue
         oi = get_json("https://fapi.binance.com/futures/data/openInterestHist", {"symbol": sym, "period": "5m", "limit": 13}, quiet_400=True) or []
         ov = [float(x["sumOpenInterestValue"]) for x in oi]; oi1h = (ov[-1] / ov[0] - 1) * 100 if len(ov) >= 13 and ov[0] else None
         oibar = (ov[-1] / ov[-2] - 1) if len(ov) >= 2 and ov[-2] else None
@@ -2272,10 +2307,12 @@ def wake_step(state: dict, write: bool) -> list[str]:
                 cg(sym, *cg_caption(WAKE_BOOK, sym, pos))
     _x2_exits(state, ev); _one_position(state, WAKE_BOOK, ev, msgs, now, write)   # R63
     if write:
+        _bx_msgs = _bingx(ev)                                           # 06.10 владелец: «сначала биржа потом все остальное» — как в step
         with WAKE_LOG.open("a", encoding="utf-8") as f:
             for r_ in ev: f.write(json.dumps(r_, ensure_ascii=False) + "\n")
         tmp = WAKE_STATE.with_suffix(".tmp"); tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8"); tmp.replace(WAKE_STATE)
-        msgs += _bingx(ev)
+        msgs += _bx_msgs
+        _tg_flush()
     msgs.append(f"пробуждений {len(cands)}" + (": " + ", ".join(c['sym'][:-4] for c in cands[:8]) if cands else "") + f" · открыто {len(state['open'])}")
     return msgs
 

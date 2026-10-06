@@ -32,6 +32,8 @@ grep -q 'R72: ок' $T/r63.out || echo "СБОЙ: проверка R72 не да
 $PY claude/research/test_hold_cap.py >> $T/r63.out 2>&1   # R74 (06.10): потолок срока позиции 16 ч, кроме шорта «конец роста» (3 дня)
 grep -q 'R74: ок' $T/r63.out || echo "СБОЙ: проверка R74 не дала «ок»" >> $T/r63.out
 $PY claude/research/test_junction.py >> $T/r63.out 2>&1   # R75 (06.10): час перед сессией закрыт только лонгам; порог пампа 40 %
+$PY claude/research/test_reentry.py >> $T/r63.out 2>&1   # R77 (06.10): быстрый выход (до 9 мин) не ставит запрет повторного входа
+$PY claude/research/test_bx_first.py >> $T/r63.out 2>&1   # 06.10: ордера BingX идут до журнала и Телеграма
 grep -q 'R75: ок' $T/r63.out || echo "СБОЙ: проверка R75 не дала «ок»" >> $T/r63.out
 $PY claude/research/test_time_utc.py >> $T/r63.out 2>&1   # сторож правила «всё по UTC» (06.10)
 grep -q 'ВРЕМЯ: ок' $T/r63.out || echo "СБОЙ: проверка времени (UTC) не дала «ок»" >> $T/r63.out
