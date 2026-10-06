@@ -500,9 +500,121 @@ def board_day(now: float) -> dict:
     return out
 
 
+BX_MISS_KEEP = 30 * 60        # 06.10 владелец: «надо чтобы флаг с невзятым на бирже висел дольше — до 30 минут с пометкой»
+BX_UNCLOSED_AFTER = 200       # позиция на бирже без сделки бота дольше одного цикла (3 мин) — «не закрыто»; меньше — зеркало ещё могло не успеть
+BX_WARN_MISS = "НЕ ВЗЯТО НА BINGX"
+BX_WARN_OPEN = "НЕ ЗАКРЫТО НА BINGX"
+
+
+def bx_warn(now: float, op: list, cl: list) -> list:
+    """ПРЕДУПРЕЖДЕНИЯ ЗЕРКАЛА (06.10 владелец: «флаг с невзятым на бирже висел дольше — до 30 минут с пометкой», «то что не закрыто на бирже должно
+    висеть всегда, пока ордер не закроется, и бот должен сам проверять, закрыто или нет»).
+    Не взято — запись зеркала output/bingx_orders.jsonl: вход с отказом (ok false, причина в why) или вход, пропущенный заморозкой после правки бота.
+    Открытой сделке бота без биржи метка ставится прямо в её запись (op); если бумажная сделка уже закрыта — отдельный флаг на 30 минут.
+    Не закрыто — монета есть в output/bingx_state.json (зеркало сверяет позиции с биржей каждый цикл и повторяет выход), а у бота сделки по ней нет."""
+    miss: dict = {}
+    try:
+        with open(BASE_DIR / "output" / "bingx_orders.jsonl", encoding="utf-8") as f:
+            for ln in f:
+                if '"kind": "req"' in ln[:80]:
+                    continue
+                try:
+                    e = json.loads(ln)
+                except ValueError:
+                    continue
+                t = float(e.get("t") or 0)
+                if now - t > BX_MISS_KEEP + 1200:
+                    continue
+                if e.get("kind") == "entry" and not e.get("ok"):
+                    miss[e.get("sym")] = dict(t=t, why=str(e.get("why") or "зеркало не вошло"), side=int(e.get("side") or 1))
+                elif e.get("kind") == "entry" and e.get("ok"):
+                    miss.pop(e.get("sym"), None)                          # вторая книга вошла — монета на бирже есть
+                elif e.get("kind") == "freeze":
+                    for sy in e.get("skipped") or []:
+                        miss[sy] = dict(t=t, why=f"входы на BingX заморожены после правки бота (ещё {e.get('left_min')} мин)", side=None)
+    except OSError:
+        pass
+    out, open_syms = [], {o["sym"] for o in op}
+    for o in op:                                                          # открыта у бота, на бирже нет — метка в саму сделку
+        if o.get("bx") is False:
+            m = miss.get(o["sym"]) or {}
+            o["warn"], o["warn_why"], o["keep"] = BX_WARN_MISS, m.get("why") or "на бирже позиции нет", BX_MISS_KEEP
+    for c in cl:                                                          # бумажная сделка уже закрыта — причина в её запись и отдельный флаг до 30 минут от входа
+        m = miss.get(c["sym"])
+        if not m or c.get("bx") or c.get("book") == BX_ONLY_BOOK or abs(float(c["t_in"]) - m["t"]) > 1200:
+            continue
+        c["warn_why"] = m["why"]
+        if now - float(c["t_in"]) < BX_MISS_KEEP and c["sym"] not in open_syms and not any(w["sym"] == c["sym"] for w in out):
+            out.append(dict(kind_w="miss", sym=c["sym"], side=c["side"], book=c["book"], t_in=c["t_in"], entry=c["entry"], level=c["entry"], px=c.get("exit") or c["entry"],
+                            dist=0.0, warn=BX_WARN_MISS, warn_why=m["why"] + f" · бот уже вышел: {c.get('res', 0):+.1f}%", keep=BX_MISS_KEEP, bx=False))
+    last_out: dict = {}
+    for c in cl:
+        last_out[c["sym"]] = max(last_out.get(c["sym"], 0), float(c["t_out"]))
+    for sym, st_ in ((_read(BASE_DIR / "output" / "bingx_state.json", {}) or {}).get("open") or {}).items():
+        if sym in open_syms:
+            continue
+        t0 = last_out.get(sym) or float(st_.get("t") or now)
+        if now - t0 < BX_UNCLOSED_AFTER:
+            continue
+        e = float(st_.get("fill") or st_.get("entry") or 0)
+        out.append(dict(kind_w="unclosed", sym=sym, side=int(st_.get("side") or 1), book="BingX", t_in=t0, entry=e, level=e, px=e, dist=0.0, warn=BX_WARN_OPEN,
+                        warn_why="бот из сделки вышел, позиция на бирже осталась — зеркало повторяет выход каждый цикл", keep=10 ** 12, bx=True))
+    return out
+
+
+def bx_warn_tg(s: dict, now: float) -> None:
+    """отдельное предупреждение в Телеграм (06.10 владелец: «и в тг приходило отдельное предупреждение — не взято и не закрыто»): по одному разу на случай;
+    когда «не закрыто» ушло — сообщение, что закрыто. Память — output/bx_warn_tg.json. Зовётся только из запуска файла (не из build), проверки бота его не трогают."""
+    try:
+        on = bool(getattr(cc, "FAST3_TG_BX_WARN", True))
+    except Exception:  # noqa: BLE001
+        on = True
+    if not on:
+        return
+    mem_f = BASE_DIR / "output" / "bx_warn_tg.json"
+    first = not mem_f.exists()
+    sent = dict((_read(mem_f, {}) or {}).get("sent") or {})
+    items = [o for o in (s.get("open") or []) if o.get("warn")] + list(s.get("bx_warn") or [])
+    todo, live = [], set()
+    for it in items:
+        unclosed = it["warn"] == BX_WARN_OPEN
+        key = f"unclosed|{it['sym']}" if unclosed else f"miss|{it['sym']}|{round(float(it['t_in']))}"
+        live.add(key)
+        if key in sent or (not unclosed and now - float(it["t_in"]) >= BX_MISS_KEEP):
+            continue
+        sent[key] = now
+        side = "ЛОНГ" if int(it.get("side") or 1) == 1 else "ШОРТ"
+        t_in = datetime.fromtimestamp(float(it["t_in"]), timezone.utc)
+        body = ([f"⚠️ {BX_WARN_OPEN} · {side} · {it['sym'][:-4]}", "", "бот из сделки вышел, позиция на бирже осталась", "зеркало повторяет выход каждые 3 минуты"] if unclosed else
+                [f"⚠️ {BX_WARN_MISS} · {side} · {it['sym'][:-4]}", f"📘 {it.get('book')}", "", f"причина: {it.get('warn_why')}", f"вход бота: {float(it['entry']):.6g} · {t_in:%H:%M} UTC"])
+        todo.append((it["sym"], "\n".join(body)))
+    for key in [k for k in sent if k.startswith("unclosed|") and k not in live]:
+        sym = key.split("|")[1]
+        todo.append((sym, f"✅ ЗАКРЫТО НА BINGX · {sym[:-4]}\n\nпозиции на бирже больше нет"))
+        sent.pop(key, None)
+    sent = {k: v for k, v in sent.items() if k in live or now - float(v) < 2 * 86400}
+    if not first:                                                         # первый запуск — только запомнить, что уже висит
+        try:
+            import cg_shot
+            for sym, txt in todo:
+                cg_shot.send_text(txt + "\n\n" + cg_shot.links(sym))
+        except Exception as e:  # noqa: BLE001
+            print(f"предупреждения зеркала в Телеграм: {type(e).__name__}: {e}")
+    try:
+        tmp = mem_f.with_suffix(".tmp"); tmp.write_text(json.dumps(dict(sent=sent), ensure_ascii=False), encoding="utf-8"); tmp.replace(mem_f)
+    except OSError:
+        pass
+    if todo:
+        print(f"предупреждения зеркала: {len(todo)}" + (" (первый запуск — не отправлены)" if first else " → Телеграм"))
+
+
 def build() -> dict:
     now = time.time()
     op, cl, hist = positions(now)
+    try:
+        warn = bx_warn(now, op, cl)
+    except Exception as e:  # noqa: BLE001
+        print(f"предупреждения зеркала: {type(e).__name__}: {e}"); warn = []
     ent = candidates()
     # графики: открытые (кольцо «вход») и закрытые сегодня (кольцо «выход» и лента); кандидаты на странице не показываются
     syms = list(dict.fromkeys([p["sym"] for p in op] + [c["sym"] for c in cl]))[:40]
@@ -510,7 +622,7 @@ def build() -> dict:
         board = json.loads((BASE_DIR / "output" / "board_now.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         board = None
-    return dict(meta=meta(now), entry=ent, open=op, closed=cl, closed_hist=hist, charts=charts(syms), score=score(cl), board=board, board_day=board_day(now), board_3h=dict(blocks=dict(_B3H), neutral=list(NEUTRAL_3H)))
+    return dict(meta=meta(now), entry=ent, open=op, closed=cl, closed_hist=hist, charts=charts(syms), score=score(cl), board=board, board_day=board_day(now), board_3h=dict(blocks=dict(_B3H), neutral=list(NEUTRAL_3H)), bx_warn=warn)
 
 
 def write() -> Path:
@@ -531,6 +643,10 @@ if __name__ == "__main__":
     t = time.time()
     p = write()
     d = json.loads(p.read_text())
+    try:
+        bx_warn_tg(d, time.time())
+    except Exception as e:  # noqa: BLE001
+        print(f"предупреждения зеркала в Телеграм: {type(e).__name__}: {e}")
     print(f"fast_state: вход {len(d['entry'])}, в работе {len(d['open'])}, закрыто {len(d['closed'])}, графиков {len(d['charts'])}, "
           f"{p.stat().st_size // 1024} КБ, {time.time() - t:.0f} с")
     # 04.10 04:15 владелец: «давай только в журнал сделок тогда писать и всё», «делай» — страница журнала сделок на сайте (book.html, render_book.py) собирается здесь же,

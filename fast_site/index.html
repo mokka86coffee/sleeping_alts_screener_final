@@ -551,28 +551,32 @@ function drawRiver(t) {
 }
 // на реке подписи стоят по времени входа/выхода и плывут вправо — те, что оказались рядом, разводим по высоте (флажки не должны ложиться друг на друга)
 function layoutRiverLabels(R, t, nowS) {
-  const placed = [], GAP = 3;
-  for (const gg of rings) for (const l of gg.labels) {
-    if (!l.bw || l.rv == null) continue;
-    const it = l.item || {}, age = nowS - (gg.mode === 'entry' ? it.t_in : it.t_out), xs = R.x0 + R.w * RIV_START;
-    const x = xs + l.rdx + clamp(age / RIV_KEEP) * (R.x1 - 110 - xs), y = riverY(R, x, t) + l.rv * R.hh, BH = l.bh || 18;
-    const left = x + l.bw > W - 100, x0 = left ? x - l.bw : x, x1 = x0 + l.bw;
-    let dy = 0;
-    for (let k = 0; k < 8; k++) {
-      const top = y - l.h - dy - BH - 4, bot = y - l.h - dy + 4;
-      const hit = placed.find(q => x0 < q.x1 + 2 && x1 > q.x0 - 2 && top < q.bot + GAP && bot > q.top - GAP);
-      if (!hit) break;
-      dy = y - l.h + 4 - hit.top + GAP;
+  // 04.10 владелец: «пусть место сначала найдут и только потом появляются», «чтобы не бегали круги по экрану» — каждая подпись один раз выбирает себе МЕСТО на всей реке
+  // (самое свободное от остальных, по длине и по ширине русла), и стоит там неподвижно, пока не погаснет; до выбора места она невидима, остальные не двигаются
+  const all = [];
+  for (const gg of rings) for (const l of gg.labels) if (l.bw && l.rv != null) all.push(l);
+  for (const l of all) if (l.slotW !== R.w) { l.slotW = R.w; l.fx = null; l.shown = false; }   // изменился размер окна — места выбираются заново
+  const geom = l => { const x = l.fx, y = riverY(R, x, t) + l.rv * R.hh, BH = l.bh || 18, e = l.h + (l.dy || 0); return { x, y, cx: x + l.bw / 2, cy: y - e - BH / 2, bw: l.bw, bh: BH + 8 }; };
+  const placed = all.filter(l => l.fx != null).map(geom);
+  for (const l of all) {
+    if (l.fx != null) continue;
+    let best = null, bestD = -1;
+    for (let k = 0; k < 90; k++) {
+      const fx = R.x0 + 14 + Math.random() * Math.max(1, R.w - 30 - l.bw), rv = -.82 + Math.random() * 1.64;
+      const y = riverY(R, fx, t) + rv * R.hh, BH = l.bh || 18, cx = fx + l.bw / 2, cy = y - l.h - BH / 2;
+      let d = 9;
+      for (const q of placed) d = Math.min(d, Math.max(Math.abs(cx - q.cx) / ((l.bw + q.bw) / 2 + 10), Math.abs(cy - q.cy) / ((BH + 8 + q.bh) / 2 + 4)), Math.hypot(fx - q.x, y - q.y) / 46);
+      if (d > bestD) { bestD = d; best = { fx, rv }; }
     }
-    l.dy = (l.dy || 0) + (dy - (l.dy || 0)) * .12;
-    const e = l.h + l.dy;
-    placed.push({ x0, x1, top: y - e - BH - 4, bot: y - e + 4 });
+    l.fx = best.fx; l.rv = best.rv; l.dy = 0; l.shown = true;
+    placed.push(geom(l));
   }
 }
 function riverLabel(g, l, t, R, nowS) {
   const it = l.item || {}, age = nowS - (g.mode === 'entry' ? it.t_in : it.t_out);
   if (l.rv == null) { let hs = 0; for (const c of l.key) hs = (hs * 31 + c.charCodeAt(0)) >>> 0; l.rv = (hs % 1000) / 1000 * 1.5 - .75; l.rdx = (hs >>> 10) % 70; }
-  const xs = R.x0 + R.w * RIV_START, x = xs + l.rdx + clamp(age / RIV_KEEP) * (R.x1 - 110 - xs);
+  if (!l.shown) { l.born = t; return true; }   // ещё ищет место: не рисуем и не стартуем анимацию появления
+  const x = l.fx;   // место выбрано один раз и не меняется
   RIVL = { x, y: riverY(R, x, t) + l.rv * R.hh };
   try { return drawLabel0(g, l, t); } finally { RIVL = null; }
 }
@@ -777,6 +781,12 @@ function drawLabel0(g, l, t) {
       tctx.font = resFont;
       for (const c of rs) { l.glyphs.push({ c, x: gx, font: resFont, col: rc, a: 1 }); gx += tctx.measureText(c).width + .6; }
     }
+    // 06.10 владелец: «флаг с невзятым на бирже висел дольше — до 30 минут с пометкой», «не закрыто на бирже должно висеть всегда, пока ордер не закроется» —
+    // пометка зеркала BingX янтарём после цены: «НЕ ВЗЯТО НА BINGX» / «НЕ ЗАКРЫТО НА BINGX» (причина — в карточке по клику)
+    if (l.item && l.item.warn) {
+      gx += 7; const wf = `600 7.6px ${FONT}`; tctx.font = wf;
+      for (const c of l.item.warn) { l.glyphs.push({ c, x: gx, font: wf, col: '255,186,84', a: 1 }); gx += tctx.measureText(c).width + .7; }
+    }
     l.nameW = l.glyphs.filter(q => q.name).reduce((m, q) => Math.max(m, q.x), 0) + 10;
     l.shimmer = Math.random() * 7;
     l.px1 = gx; l.bw = gx + 11; l.bh = 18;
@@ -834,10 +844,11 @@ function drawLabel0(g, l, t) {
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     for (let q = 0; q < 24; q++) {
       const h1 = Math.abs(Math.sin((q + 1) * 12.9898 + (l.shimmer || 0) * 3.1)) , dx = rx0 + rw0 * ((q * .618 + h1 * .3) % 1), ph = (t * (.45 + .25 * h1) + q * .0417 + h1) % 1, f = Math.pow(ph, 1.5), dy = ty + 3 + f * fall;
-      const al = Math.min(1, ph * 6) * (1 - Math.max(0, (ph - .86) / .14)) * A * rp * depth;
-      ctx.fillStyle = `rgba(${l.c1},${.85 * al})`; ctx.fillRect(dx - .5, dy - .5, 1, 1);   // капли мельче
-      ctx.fillStyle = `rgba(${l.c1},${.28 * al})`; ctx.fillRect(dx - .35, dy - 2.5 - f * 2, .7, 2 + f * 2);   // короткий след, длиннее к низу
-      if (ph > .9) { const sp = (ph - .9) / .1; ctx.strokeStyle = `rgba(${l.c1},${(1 - sp) * .6 * A * rp})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(dx, y, 1 + sp * 6, (1 + sp * 6) * g.k * 1.6, 0, 0, TAU); ctx.stroke(); }
+      const al = Math.min(1, ph * 6) * (1 - Math.max(0, (ph - .9) / .1)) * A * rp;
+      ctx.fillStyle = `rgba(255,255,255,${.9 * al})`; ctx.fillRect(dx - .7, dy - .7, 1.4, 1.4);   // капли яркие: белая сердцевина и цветной ореол
+      ctx.fillStyle = `rgba(${l.c1},${.55 * al})`; ctx.fillRect(dx - 1.3, dy - 1.3, 2.6, 2.6);
+      ctx.fillStyle = `rgba(${l.c1},${.5 * al})`; ctx.fillRect(dx - .5, dy - 3.5 - f * 3, 1, 3 + f * 3);   // короткий след, длиннее к низу
+      if (ph > .9) { const sp = (ph - .9) / .1; ctx.strokeStyle = `rgba(${l.c1},${(1 - sp) * .9 * A * rp})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.ellipse(dx, y, 1 + sp * 6, (1 + sp * 6) * g.k * 1.6, 0, 0, TAU); ctx.stroke(); }
     }
     ctx.restore();
   }
@@ -1292,20 +1303,21 @@ function realDetail(g, l) {
     d.now = ch && ch.bars && ch.bars.length ? ch.bars[ch.bars.length - 1][4] : it.exit;
     const resTxt = it.res != null ? `итог ${pctStr(it.res)}${it.usd != null ? ` (${it.usd >= 0 ? '+' : '−'}${Math.abs(Math.round(it.usd))} $)` : ''}` : '';   // 30.09 владелец «нет итога сделки»: итог виден сразу, а не только после разбора через 2 ч
     const tm = it.t_in && it.t_out ? `вход ${dmhT(it.t_in)} → выход ${dmhT(it.t_out)}` : '';   // 01.10 владелец «а где время сделки?»: время входа и выхода в подписи закрытой сделки
-    const bxTxt = it.bx === false ? 'НЕ БЫЛО НА BINGX · ' : (it.real != null ? `НА BINGX ${it.real >= 0 ? '+' : '−'}${Math.abs(Math.round(it.real))} $ · ` : '');   // 04.10 владелец: «на бумаге все сделки пусть остаются как есть в боте, в итог только реальное число попадает»
+    const bxTxt = it.bx === false ? 'НЕ БЫЛО НА BINGX' + (it.warn_why ? ' — ' + it.warn_why : '') + ' · ' : (it.real != null ? `НА BINGX ${it.real >= 0 ? '+' : '−'}${Math.abs(Math.round(it.real))} $ · ` : '');   // 04.10 владелец: «на бумаге все сделки пусть остаются как есть в боте, в итог только реальное число попадает»
     d.status = bxTxt + (rv ? `${tm ? tm + ' · ' : ''}${resTxt} · ${rv.verdict}` : `${it.book} · ${tm ? tm + ' · ' : ''}${it.why} · ${resTxt} · разбор придёт через 2 ч после выхода`);
   } else if (kind === 'entry') {
     d.entry = it.level; d.now = it.px; d.left = it.dist != null ? it.dist : (it.level / it.px - 1) * 100;
     d.volPct = Math.round((it.vol_x || 0) * 100); d.bar = it.bar || 0; d.oi = it.oi1h || 0;
     d.status = M.open_gate ? (it.flip ? 'кандидат · интерес ≥ +6% за час → всплеск будет перевёрнут в шорт' : 'кандидат на всплеск · вход открыт')
                            : 'кандидат на всплеск · вход закрыт: ' + (M.gate_why || '');
+    if (it.warn) d.status = it.warn + (it.warn_why ? ' · ' + it.warn_why : '');   // 06.10: флаг зеркала BingX
     d.exitNote = 'цель / стоп · до ' + (M.exit_at ? hmT(M.exit_at) : '—');
   } else {
     d.entry = it.entry; d.target = it.target; d.stop = it.stop; d.now = it.px || it.entry;
     d.left = it.target != null ? (it.target / d.now - 1) * 100 * (it.side || 1) : null;
     d.pnl = (d.now / it.entry - 1) * 100 * (it.side || 1);
     d.oi = it.oi1h_in || 0; d.side = it.side;
-    d.status = (it.bx === false ? 'НЕТ НА BINGX · ' : '') + `${it.book} · ${it.side < 0 ? 'шорт' : 'лонг'} с ${dmhT(it.t_in)} · ` + (d.left != null ? `до цели ещё ${pctStr(d.left)}` : (it.goal || 'цель — выход по времени или стопу'));
+    d.status = (it.bx === false ? 'НЕТ НА BINGX' + (it.warn_why ? ' — ' + it.warn_why : '') + ' · ' : '') + `${it.book} · ${it.side < 0 ? 'шорт' : 'лонг'} с ${dmhT(it.t_in)} · ` + (d.left != null ? `до цели ещё ${pctStr(d.left)}` : (it.goal || 'цель — выход по времени или стопу'));
     d.exitNote = `стоп ${fmtPrice(it.stop)} · срок ${hmT(it.exit_at)}`;
   }
   if (ch && ch.bars && ch.bars.length) {
@@ -2197,11 +2209,12 @@ function fillPanelText(l) {
     return m < 0 ? `<div class="r"><i class="k">${esc1(x)}</i></div>` : `<div class="r${m > 16 ? ' wide' : ''}"><i>${esc1(x.slice(0, m).trim())}</i> <span>${pzRich(x.slice(m))}</span></div>`;
   }).join('');
   const list = document.getElementById('pzSub'), pzEl = document.getElementById('pz'), lk = pzEl.querySelector('.pz-links');
+  const tmEl = document.getElementById('pzTimes'); tmEl.style.maxWidth = '';
   list.classList.remove('side'); list.style.left = list.style.width = '';
   requestAnimationFrame(() => {   // справа — если за значками хватает места; иначе остаётся под названием
     if (!lk || !rest.length) return;
     const pr = pzEl.getBoundingClientRect(), lr = lk.getBoundingClientRect(), left = lr.right - pr.left + 24;   // колонка может выходить за край панели вправо — там пусто
-    if (W >= 900) { list.classList.add('side'); list.style.left = left + 'px'; list.style.width = '200px'; }
+    if (W >= 900) { list.classList.add('side'); list.style.left = left + 'px'; list.style.width = '200px'; tmEl.style.maxWidth = (left - 18) + 'px'; }   // строка времени переносится левее колонки, не наезжает на неё
   });
 }
 for (const id of ['pzTV', 'pzCG']) document.getElementById(id).addEventListener('click', e => e.stopPropagation());   // ссылка не закрывает панель
@@ -2368,7 +2381,9 @@ function applyState(S) {
   layout(); bgFrozen = false;   // layout перезадаёт холсты — один кадр фона заново
   const nowS = Date.now() / 1000;
   const sets = [
-    (S.open || []).filter(p => nowS - p.t_in < ENTRY_KEEP).map(p => ({ key: 'in|' + p.book + '|' + p.sym + '|' + Math.round(p.t_in), name: p.sym.replace(/USDT$/, ''), side: p.side, price: p.entry, item: p })),
+    (S.open || []).filter(p => nowS - p.t_in < (p.keep || ENTRY_KEEP)).map(p => ({ key: 'in|' + p.book + '|' + p.sym + '|' + Math.round(p.t_in), name: p.sym.replace(/USDT$/, ''), side: p.side, price: p.entry, item: p }))
+      // 06.10: флаги зеркала BingX — «не взято» (30 мин от входа, сделка бота уже закрыта) и «не закрыто» (пока позиция на бирже есть)
+      .concat((S.bx_warn || []).filter(w => nowS - w.t_in < (w.keep || ENTRY_KEEP)).map(w => ({ key: 'warn|' + w.kind_w + '|' + w.sym + '|' + Math.round(w.t_in), name: w.sym.replace(/USDT$/, ''), side: w.side, price: w.entry, item: w }))),
     (S.closed || []).filter(c => nowS - c.t_out < EXIT_KEEP).map(c => ({ key: 'out|' + c.book + '|' + c.sym + '|' + Math.round(c.t_out), name: c.sym.replace(/USDT$/, ''), side: c.side, price: c.exit, item: c })),
   ];
   rings.forEach((g, i) => {
@@ -2377,6 +2392,7 @@ function applyState(S) {
       const x = want.get(l.key);
       if (!x) { if (!l.dying) { l.dying = true; l.life = (t - l.born) + 1.1 * ANIM_SLOW; } continue; }   // гаснет родным затуханием
       if (Math.abs(x.price - l.price) > 1e-12) { l.price = x.price; l.glyphs = null; }
+      if (((x.item || {}).warn || '') !== ((l.item || {}).warn || '')) l.glyphs = null;   // 06.10: пометка зеркала появилась или снята — флаг перерисовать
       l.item = x.item;
     }
     const shown = new Set(g.labels.filter(l => !l.dying).map(l => l.key));
@@ -2442,8 +2458,8 @@ let LBL_DIM = 1;   // множитель яркости букв: drawLabel0 с�
 setInterval(() => {
   const t = performance.now() / 1000 / TIME_SLOW, nowS = Date.now() / 1000;
   for (const l of rings[1].labels) if (!l.dying && l.item && nowS - l.item.t_out >= EXIT_KEEP) { l.dying = true; l.life = (t - l.born) + 1.1 * ANIM_SLOW; }
-  for (const l of rings[0].labels) if (!l.dying && l.item && nowS - l.item.t_in >= ENTRY_KEEP) { l.dying = true; l.life = (t - l.born) + 1.1 * ANIM_SLOW; }
-  rings[0].queue = rings[0].queue.filter(q => nowS - q.item.t_in < ENTRY_KEEP);
+  for (const l of rings[0].labels) if (!l.dying && l.item && nowS - l.item.t_in >= (l.item.keep || ENTRY_KEEP)) { l.dying = true; l.life = (t - l.born) + 1.1 * ANIM_SLOW; }
+  rings[0].queue = rings[0].queue.filter(q => nowS - q.item.t_in < (q.item.keep || ENTRY_KEEP));
   rings[1].queue = rings[1].queue.filter(q => nowS - q.item.t_out < EXIT_KEEP);
 }, 5000);
 let ws = null, lastStateT = 0;
@@ -2645,13 +2661,13 @@ function totBlock(G) {
   const S = FSC && FSC.sum; if (!S) return;
   if (!document.getElementById('ribTotCss')) {
     const st = document.createElement('style'); st.id = 'ribTotCss';
-    st.textContent = `#ribTot { min-width: 200px; position: fixed; z-index: 2; pointer-events: none; text-align: right; font-family: Futura, 'Avenir Next', sans-serif; }
+    st.textContent = `#ribTot { min-width: 420px; position: fixed; z-index: 2; pointer-events: none; text-align: right; font-family: Futura, 'Avenir Next', sans-serif; }
 #ribTot .tt-top { display: flex; align-items: center; gap: 12px; }
 #ribTot .tt-top i { flex: 1; height: 1px; min-width: 60px; background: linear-gradient(90deg, transparent, rgba(150,205,255,.8)); box-shadow: 0 0 8px rgba(120,190,255,.7); }
 #ribTot .tt-top span { white-space: nowrap; font-size: 7.2px; letter-spacing: .42em; color: rgba(165,205,245,.9); text-transform: uppercase; }
-#ribTot .tt-cols { display: flex; flex-direction: column; align-items: flex-end; gap: 13px; margin-top: 14px; padding-bottom: 14px; border-bottom: 1px solid transparent; border-image: linear-gradient(90deg, transparent, rgba(150,205,255,.55)) 1; }
+#ribTot .tt-cols { display: flex; flex-direction: row; justify-content: flex-end; align-items: flex-end; gap: 26px; margin-top: 12px; padding-bottom: 12px; border-bottom: 1px solid transparent; border-image: linear-gradient(90deg, transparent, rgba(150,205,255,.55)) 1; }
 #ribTot .tt-cols > div { text-align: right; }
-#ribTot .tt-main { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; margin-top: 14px; white-space: nowrap; }
+#ribTot .tt-main { display: flex; flex-direction: row; justify-content: flex-end; align-items: center; gap: 22px; margin-top: 12px; white-space: nowrap; }
 #ribTot .tt-sp { overflow: visible; filter: drop-shadow(0 0 4px var(--c)) drop-shadow(0 0 10px var(--c)); }
 #ribTot .tt-sp .pu { animation: totpulse 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 @keyframes totpulse { 50% { transform: scale(2.6); opacity: .3; } }
