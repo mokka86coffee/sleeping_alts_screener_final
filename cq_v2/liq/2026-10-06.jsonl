@@ -10493,3 +10493,9 @@
 {"t": 1791330653331, "sym": "BONKUSDT", "side": "long", "usd": 4.38, "px": 3.648e-06, "src": "okx"}
 {"t": 1791330840126, "sym": "AEONUSDT", "side": "short", "usd": 50.39, "px": 0.06718, "src": "okx"}
 {"t": 1791330907913, "sym": "NKEUSDT", "side": "short", "usd": 3098.53, "px": 34.698, "src": "okx"}
+{"t": 1791331015905, "sym": "FILUSDT", "side": "long", "usd": 104.12, "px": 1.153, "src": "okx"}
+{"t": 1791331084025, "sym": "MINAUSDT", "side": "long", "usd": 1401.19, "px": 0.11125, "src": "bybit"}
+{"t": 1791331090631, "sym": "ARBUSDT", "side": "long", "usd": 1177.37, "px": 0.19743, "src": "bybit"}
+{"t": 1791331090822, "sym": "FILUSDT", "side": "long", "usd": 7.84, "px": 1.1524, "src": "okx"}
+{"t": 1791331110120, "sym": "KNCUSDT", "side": "short", "usd": 955.02, "px": 0.15082, "src": "bybit"}
+{"t": 1791331135838, "sym": "AAVEUSDT", "side": "long", "usd": 5969.9, "px": 179.6, "src": "okx"}
