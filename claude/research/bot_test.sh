@@ -34,7 +34,7 @@ grep -q 'R74: ок' $T/r63.out || echo "СБОЙ: проверка R74 не да
 $PY claude/research/test_junction.py >> $T/r63.out 2>&1   # R75 (06.10): час перед сессией закрыт только лонгам; порог пампа 40 %
 $PY claude/research/test_reentry.py >> $T/r63.out 2>&1   # R77 (06.10): быстрый выход (до 9 мин) не ставит запрет повторного входа
 $PY claude/research/test_bx_first.py >> $T/r63.out 2>&1   # 06.10: ордера BingX идут до журнала и Телеграма
-$PY claude/research/test_spike_long_off.py >> $T/r63.out 2>&1   # R78 (06.10): лонги на всплеске выключены в обеих книгах
+$PY claude/research/test_spike_long_off.py >> $T/r63.out 2>&1   # R78 (06.10) и отмена 08.10: лонги на всплеске снова включены, выключатель на месте
 $PY claude/research/test_size_conf.py >> $T/r63.out 2>&1   # R79 (06.10): размер входа по уверенности
 $PY claude/research/test_wide_stop.py >> $T/r63.out 2>&1   # R57 снято, R80 (08.10): шорт на широкой свече выноса со стопом 20 %
 grep -q 'R75: ок' $T/r63.out || echo "СБОЙ: проверка R75 не дала «ок»" >> $T/r63.out
