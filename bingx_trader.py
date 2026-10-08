@@ -350,6 +350,12 @@ def open_position(sym: str, side: int, px: float, why: str = "", c: dict | None 
     lim = round(float(px) * (1 + side * slip), pp)                       # 02.10 владелец: лимит на вход = цена бота +1 % (лонг) / −1 % (шорт); «твх и стоп-лосс те же» — стоп и тейк от цены бота
     if bp and slip and ((side == 1 and bp > lim) or (side == -1 and bp < lim)):   # 02.10 владелец: «если цена уже выше и этого — не входим в сделку»
         return {"ok": False, "why": f"цена BingX {bp} уже дальше лимита {lim} (бот {px} {'+' if side == 1 else '−'}{slip*100:g} %) — не входим"}
+    # 08.10 08:50 UTC (владелец открыл на демо шорт SAND руками, тот же счёт): зеркало считало себя единственным на счёте — после своего лимита оно
+    # читает всю позицию по монете (проверка цены исполнения ниже закрыла бы её целиком по рынку), а выход бота закрывает весь объём и снимает все ордера.
+    # Если на бирже уже есть позиция по монете, которой нет в состоянии зеркала, — она не бота: не добавляем к ней и не трогаем её.
+    q_own, _ = position_info(bx, ps, hedge, c)
+    if q_own > 0:
+        return {"ok": False, "why": f"на BingX по {bx} уже открыта позиция не бота (объём {q_own:g}) — не добавляю и не трогаю её"}
     body = {"symbol": bx, "side": "BUY" if side == 1 else "SELL", "positionSide": ps, "type": "LIMIT", "price": lim, "quantity": q, "timeInForce": "GTC"}
     r = request("POST", "/openApi/swap/v2/trade/order", body, c)
     if r.get("code") != 0:

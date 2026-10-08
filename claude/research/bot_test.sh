@@ -48,6 +48,7 @@ $PY claude/research/test_r70.py >> $T/r63.out 2>&1   # R70: флэт по сут
 $PY claude/research/test_scanman.py >> $T/r63.out 2>&1   # 04.10: сканер не берёт шорт в монете ручного списка лестницы (R47)
 grep -q 'R70: ок' $T/r63.out || echo "СБОЙ: проверка R70 не дала «ок»" >> $T/r63.out
 $PY claude/research/test_bingx_close.py >> $T/r63.out 2>&1   # выход на BingX: ошибка запроса не теряет позицию (SOON 03.10)
+$PY claude/research/test_bingx_foreign.py >> $T/r63.out 2>&1   # 08.10: зеркало не входит в монету, где на бирже уже есть позиция не бота
 $PY claude/research/test_bingx_be.py >> $T/r63.out 2>&1   # 05.10: стоп в твх на BingX — от цены исполнения с комиссией (NOM 04.10)
 grep -q 'ВЫХОД BINGX: ок' $T/r63.out || echo "СБОЙ: проверка выхода BingX не дала «ок»" >> $T/r63.out
 grep -q 'ТВХ BINGX: ок' $T/r63.out || echo "СБОЙ: проверка твх BingX не дала «ок»" >> $T/r63.out
