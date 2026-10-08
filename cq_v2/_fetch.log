@@ -1910,3 +1910,13 @@
 2026-10-08 09:12:05 данные по 2026-10-03, ждём 2026-10-07 (возраст 83.2 ч)
 2026-10-08 09:12:05 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
 2026-10-08 09:12:06 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-10-08 09:42:06 дозабор, попытка 2: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-10-08 09:42:07 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-10-08 10:12:07 дозабор, попытка 3: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-10-08 10:12:38 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-10-08 10:18:24 нет в архиве: 10 (aia, band, carv, dia, edu, orca, parti, rlc, ta, ygg); беру 8, остальных возьмёт следующий прогон
+2026-10-08 10:18:24 добор новичков: aia, band, carv, dia, edu, orca, parti, rlc
+2026-10-08 10:18:55 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-10-08 10:18:55 данные по 2026-10-03, ждём 2026-10-07 (возраст 84.4 ч)
+2026-10-08 10:18:55 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-10-08 10:19:25 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
