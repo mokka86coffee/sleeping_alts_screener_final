@@ -2509,8 +2509,9 @@ function drawDayLines(G) {
   const NAMES = ['ДОСКА', 'ВСЕ МОНЕТЫ', 'BTC'], SYM = ['◈', '∑', '₿'],
         NEU = bh.neutral || [.31, .42, .27], UP = '80,235,160', DN = '255,85,105', MID = '150,175,210';
   const top = G.yb - RIB_H - LINES_H + 12, rowH = (LINES_H - 22) / 3, bw = 3 * G.cw, sg = v => (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(2) + '%';
-  let lastK = -1; blocks.forEach((b, k) => { if (b) lastK = k; });
-  const live = G.S && RIB.day === 0 ? lastK : -1, pulse = .6 + .4 * Math.sin(performance.now() / 1000 * 3);
+  // 08.10 владелец: идущий блок «рисуется не блоками, а из того что есть каждые полчаса, мигать не надо, вообще отличий никаких, завершается достигнув 3ч» —
+  // ячейка идущего блока тянется до последней получасовой отметки (S.board_3h.prog[день] = {k, n}), значение в ней — ход с начала блока; мигания и точки нет
+  const pg = RIB.day === 0 && bh.prog ? bh.prog[key] : null;
   ctx.save();
   for (let n = 0; n < 3; n++) {
     const y = top + n * rowH, hh = rowH - 6;
@@ -2522,16 +2523,17 @@ function drawDayLines(G) {
       if (!b) { k++; continue; }
       const s0 = st(b[n]); let j = k, acc = 1;
       while (j < 8 && blocks[j] && st(blocks[j][n]) === s0) { acc *= 1 + blocks[j][n] / 100; j++; }   // подряд идущие блоки одного состояния — одна ячейка
-      const v = (acc - 1) * 100, col = s0 > 0 ? UP : s0 < 0 ? DN : MID, inten = clamp(Math.abs(v) / 2.5, .15, 1), isLive = live >= k && live < j;
-      const x = G.x0 + k * bw + 3, w = (j - k) * bw - 6, fade = s0 === 0 ? .16 : 1;   // нейтраль почти прозрачна (04.10 владелец)
+      const v = (acc - 1) * 100, col = s0 > 0 ? UP : s0 < 0 ? DN : MID, inten = clamp(Math.abs(v) / 2.5, .15, 1);
+      const part = pg && pg.k >= k && pg.k < j ? (1 - clamp(pg.n / 6, 0, 1)) * bw : 0;
+      const x = G.x0 + k * bw + 3, w = (j - k) * bw - 6 - part, fade = s0 === 0 ? .16 : 1;   // нейтраль почти прозрачна (04.10 владелец)
       ctx.globalAlpha = fade; tctx.globalAlpha = fade;
       const g = ctx.createLinearGradient(0, y, 0, y + hh); g.addColorStop(0, `rgba(${col},0)`); g.addColorStop(1, `rgba(${col},${.08 + .3 * inten})`);
       ctx.fillStyle = g; ctx.fillRect(x, y, w, hh);                                               // мягкое свечение ячейки
-      const a = (.5 + .5 * inten) * (isLive ? pulse : 1), bar = ctx.createLinearGradient(x, 0, x + w, 0);
+      const a = .5 + .5 * inten, bar = ctx.createLinearGradient(x, 0, x + w, 0);
       bar.addColorStop(0, `rgba(${col},0)`); bar.addColorStop(.12, `rgba(${col},${a})`); bar.addColorStop(.88, `rgba(${col},${a})`); bar.addColorStop(1, `rgba(${col},0)`);
       ctx.shadowColor = `rgba(${col},.9)`; ctx.shadowBlur = 6; ctx.fillStyle = bar; ctx.fillRect(x, y + hh - 1.6, w, 1.6); ctx.shadowBlur = 0;   // яркая полоса снизу
       tctx.save(); tctx.font = `600 8.5px "Avenir Next", "Helvetica Neue", sans-serif`; tctx.textAlign = 'center'; tctx.fillStyle = `rgb(${col.split(',').map(c => Math.round(+c + (255 - c) * .55)).join(',')})`;
-      tctx.shadowColor = `rgba(${col},.8)`; tctx.shadowBlur = 5; const lab = sg(v) + (isLive ? ' ·' : ''), tw = tctx.measureText(lab).width;
+      tctx.shadowColor = `rgba(${col},.8)`; tctx.shadowBlur = 5; const lab = sg(v), tw = tctx.measureText(lab).width;
       tctx.fillText(lab, x + w / 2 + 7, y + hh / 2 + 3);
       tctx.font = `600 11px "Avenir Next", "Helvetica Neue", sans-serif`; tctx.textAlign = 'right'; tctx.fillStyle = 'rgba(215,230,255,.95)'; tctx.shadowColor = 'rgba(170,210,255,.8)'; tctx.shadowBlur = 6;
       tctx.fillText(SYM[n], x + w / 2 + 7 - tw / 2 - 7, y + hh / 2 + 3.5);                                // символ метрики слева от процента в каждой ячейке

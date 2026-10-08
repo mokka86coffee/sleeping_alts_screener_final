@@ -349,6 +349,7 @@ def score(cl: list[dict]) -> dict:
 # медиана модуля хода за блок на 23 днях часовых данных (10.09–02.10, 184 блока): доска 0.57 %, все монеты 0.59 %. Порог BTC прежний (про него владелец не говорил).
 NEUTRAL_3H = (0.57, 0.59, 0.27)
 _B3H: dict = {}
+_P3H: dict = {}   # 08.10: {сегодня: {"k": номер идущего 3-часового блока, "n": сколько его получасов уже посчитано (1–5)}} — ширина ячейки на странице
 
 # ── СОСТАВ ДОСКИ (04.10 03:40, владелец: «в доску и все монеты должны входить ТОЛЬКО крипто-монеты… всё некриптовое отбрасываем»; «делай правки медиан и доски и акций, золота»;
 #    «всё, что я прислал, принимаю»). Делим по разметке самой Binance (fapi/v1/exchangeInfo): крипто = contractType PERPETUAL и underlyingType COIN. Всё остальное — не доска:
@@ -420,6 +421,13 @@ def _blocks_3h(day: str, rows: list, now: float, snaps: dict | None = None, nxt:
         if old[k] is None:
             out.append(None); continue
         t1 = d0 + (k + 1) * 10800
+        if now < t1:                                                      # 08.10 владелец: идущий блок — «из того что есть каждые полчаса… за 30 мин, на часе за весь час… завершается достигнув 3ч»:
+            hf = snaps.get("half") or {}                                  #   ход с начала блока до последней получасовой отметки; до первой отметки (30 мин) ячейки нет
+            if hf.get("k") == k and hf.get("n"):
+                out.append(hf.get("v") or _blocks_old(day, [r for r in rows if r[0] <= hf["t"] + 90], now)[k])
+            else:
+                out.append(None)
+            continue
         a = snaps.get(str(k))
         b = (snaps.get(str(k + 1)) if k < 7 else nxt) if now >= t1 else snaps.get("last")
         if now >= t1 and not b:
@@ -466,6 +474,15 @@ def board_day(now: float) -> dict:
                 if str(k) not in sd and now - (d0 + k * 10800) <= SNAP_LATE:
                     sd[str(k)] = {"t": now, "px": pc}
                 sd["last"] = {"t": now, "px": pc}
+                n = int((now - (d0 + k * 10800)) // 1800)                      # 08.10 владелец: «каждые полчаса должны обновляться данные… 30м 1ч 1ч30м 2ч 2ч30м и 3ч» — сколько получасов идущего блока прошло
+                hf = sd.get("half") or {}
+                if n >= 1 and (hf.get("k"), hf.get("n")) != (k, n):             # первая сборка после отметки: ход всех монет с начала блока (как у закрытого блока — медиана, среднее, BTC)
+                    v, a0 = None, sd.get(str(k))
+                    if a0:
+                        mv = [(pc[s_] / a0["px"][s_] - 1) * 100 for s_ in a0["px"] if a0["px"][s_] > 0 and pc.get(s_)]
+                        if len(mv) >= 100 and a0["px"].get("BTCUSDT") and pc.get("BTCUSDT"):
+                            v = [round(st.median(mv), 2), round(sum(mv) / len(mv), 2), round((pc["BTCUSDT"] / a0["px"]["BTCUSDT"] - 1) * 100, 2)]
+                    sd["half"] = {"k": k, "n": n, "t": now, "v": v}
                 keep9 = {(dt - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(9)}
                 for d_ in [d_ for d_ in snaps_all if d_ not in keep9]:
                     del snaps_all[d_]
@@ -486,6 +503,11 @@ def board_day(now: float) -> dict:
             out[d_].sort()
             nd = (datetime.strptime(d_, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
             _B3H[d_] = _blocks_3h(d_, out[d_], now, snaps_all.get(d_), (snaps_all.get(nd) or {}).get("0"))
+            if d_ == day:
+                hf = (snaps_all.get(d_) or {}).get("half") or {}; kk = int((now - d0) // 10800)
+                _P3H.clear()
+                if hf.get("k") == kk and hf.get("n"):
+                    _P3H[d_] = {"k": kk, "n": int(hf["n"])}
             # 03.10 23:20 владелец: «давай может не рисовать графики за каждые 3 минуты» — на страницу отдаётся одна точка на 15 минут (последняя в интервале и самая свежая);
             # в файле output/board_day.jsonl остаются все точки
             thin: dict = {}
@@ -622,7 +644,7 @@ def build() -> dict:
         board = json.loads((BASE_DIR / "output" / "board_now.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         board = None
-    return dict(meta=meta(now), entry=ent, open=op, closed=cl, closed_hist=hist, charts=charts(syms), score=score(cl), board=board, board_day=board_day(now), board_3h=dict(blocks=dict(_B3H), neutral=list(NEUTRAL_3H)), bx_warn=warn)
+    return dict(meta=meta(now), entry=ent, open=op, closed=cl, closed_hist=hist, charts=charts(syms), score=score(cl), board=board, board_day=board_day(now), board_3h=dict(blocks=dict(_B3H), neutral=list(NEUTRAL_3H), prog=dict(_P3H)), bx_warn=warn)
 
 
 def write() -> Path:

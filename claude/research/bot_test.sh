@@ -36,6 +36,7 @@ $PY claude/research/test_reentry.py >> $T/r63.out 2>&1   # R77 (06.10): быст
 $PY claude/research/test_bx_first.py >> $T/r63.out 2>&1   # 06.10: ордера BingX идут до журнала и Телеграма
 $PY claude/research/test_spike_long_off.py >> $T/r63.out 2>&1   # R78 (06.10): лонги на всплеске выключены в обеих книгах
 $PY claude/research/test_size_conf.py >> $T/r63.out 2>&1   # R79 (06.10): размер входа по уверенности
+$PY claude/research/test_wide_stop.py >> $T/r63.out 2>&1   # R57 снято, R80 (08.10): шорт на широкой свече выноса со стопом 20 %
 grep -q 'R75: ок' $T/r63.out || echo "СБОЙ: проверка R75 не дала «ок»" >> $T/r63.out
 $PY claude/research/test_time_utc.py >> $T/r63.out 2>&1   # сторож правила «всё по UTC» (06.10)
 grep -q 'ВРЕМЯ: ок' $T/r63.out || echo "СБОЙ: проверка времени (UTC) не дала «ок»" >> $T/r63.out
