@@ -18,7 +18,9 @@ try:
     # 2а) монета из ручного списка лестницы: сползает → ни лонга, ни шорта
     import core_config as _cc
     st = {"open": {}, "last_exit": {}}; m = []
-    assert ft._slide_gate(st, _cc.FAST3_NO_SHORT_MANUAL[0], "всплеск", t_bar, now, m) is True and not st.get("pending") and "R45" in m[0], (st, m)
+    _keep = _cc.FAST3_NO_SHORT_MANUAL; _cc.FAST3_NO_SHORT_MANUAL = ["LADDERUSDT"]      # 08.10: ручной список снят владельцем — механизм проверяем на подставном списке
+    assert ft._slide_gate(st, "LADDERUSDT", "всплеск", t_bar, now, m) is True and not st.get("pending") and "R45" in m[0], (st, m)
+    _cc.FAST3_NO_SHORT_MANUAL = _keep
     # 3) не сползает → правило не вмешивается
     ft._slide = lambda s: (False, True, 3.0); st = {"open": {}, "last_exit": {}}; m = []
     assert ft._slide_gate(st, "XUSDT", "всплеск", t_bar, now, m) is False and not st.get("pending") and not m
