@@ -1295,6 +1295,8 @@ function tradeChart(it, l) {
   return null;
 }
 
+// 08.10 владелец по карточке BTC («−0 $», «что за нах»): сделки по 20 $ дают центы — сумму меньше 10 $ показываем с одним знаком, а не округляем до нуля
+const usdAbs = v => Math.abs(v) < 10 ? Math.abs(v).toFixed(1).replace('.', ',') : String(Math.abs(Math.round(v)));
 function realDetail(g, l) {
   const it = l.item || {}, S = window.STATE || {}, M = S.meta || {};
   const ch = (it.t_out ? tradeChart(it, l) : null) || (S.charts || {})[it.sym] || null;   // закрытая — окно вокруг сделки
@@ -1304,9 +1306,9 @@ function realDetail(g, l) {
     const rv = it.review || null;
     d.entry = it.entry; d.exitPx = it.exit; d.res = it.res; d.usd = it.usd; d.rv = rv; d.item = it;
     d.now = ch && ch.bars && ch.bars.length ? ch.bars[ch.bars.length - 1][4] : it.exit;
-    const resTxt = it.res != null ? `итог ${pctStr(it.res)}${it.usd != null ? ` (${it.usd >= 0 ? '+' : '−'}${Math.abs(Math.round(it.usd))} $)` : ''}` : '';   // 30.09 владелец «нет итога сделки»: итог виден сразу, а не только после разбора через 2 ч
+    const resTxt = it.res != null ? `итог ${pctStr(it.res)}${it.usd != null ? ` (${it.usd >= 0 ? '+' : '−'}${usdAbs(it.usd)} $)` : ''}` : '';   // 30.09 владелец «нет итога сделки»: итог виден сразу, а не только после разбора через 2 ч
     const tm = it.t_in && it.t_out ? `вход ${dmhT(it.t_in)} → выход ${dmhT(it.t_out)}` : '';   // 01.10 владелец «а где время сделки?»: время входа и выхода в подписи закрытой сделки
-    const bxTxt = it.bx === false ? 'НЕ БЫЛО НА BINGX' + (it.warn_why ? ' — ' + it.warn_why : '') + ' · ' : (it.real != null ? `НА BINGX ${it.real >= 0 ? '+' : '−'}${Math.abs(Math.round(it.real))} $ · ` : '');   // 04.10 владелец: «на бумаге все сделки пусть остаются как есть в боте, в итог только реальное число попадает»
+    const bxTxt = it.bx === false ? 'НЕ БЫЛО НА BINGX' + (it.warn_why ? ' — ' + it.warn_why : '') + ' · ' : (it.real != null ? `НА BINGX ${it.real >= 0 ? '+' : '−'}${usdAbs(it.real)} $ · ` : '');   // 04.10 владелец: «на бумаге все сделки пусть остаются как есть в боте, в итог только реальное число попадает»
     d.status = bxTxt + (rv ? `${tm ? tm + ' · ' : ''}${resTxt} · ${rv.verdict}` : `${it.book} · ${tm ? tm + ' · ' : ''}${it.why} · ${resTxt} · разбор придёт через 2 ч после выхода`);
   } else if (kind === 'entry') {
     d.entry = it.level; d.now = it.px; d.left = it.dist != null ? it.dist : (it.level / it.px - 1) * 100;
@@ -1365,7 +1367,7 @@ function renderCard(g, l) {
     const it = d.item, rv = d.rv;
     t.push(tile('вход', fmtPrice(d.entry), '', `${it.side < 0 ? 'шорт' : 'лонг'} · ${dmhT(it.t_in)}`));
     t.push(tile('выход', fmtPrice(d.exitPx), sgn(d.res), `${it.why} · ${dmhT(it.t_out)}`));
-    t.push(tile('итог', pctStr(d.res), sgn(d.res), `на бумаге ${d.usd >= 0 ? '+' : '−'}${Math.abs(Math.round(d.usd))} $` + (it.real != null ? ` · на BingX ${it.real >= 0 ? '+' : '−'}${Math.abs(Math.round(it.real))} $ с комиссией` : (it.bx === false ? ' · на BingX не было' : ''))));
+    t.push(tile('итог', pctStr(d.res), sgn(d.res), `на бумаге ${d.usd >= 0 ? '+' : '−'}${usdAbs(d.usd)} $` + (it.real != null ? ` · на BingX ${it.real >= 0 ? '+' : '−'}${usdAbs(it.real)} $ с комиссией` : (it.bx === false ? ' · на BingX не было' : ''))));
     if (rv) {
       t.push(tile('в сделке', `${pctStr(rv.mfe)} / ${pctStr(rv.mae)}`, '', `лучшее ${rv.mfe_min} мин · худшее ${rv.mae_min} мин`));
       t.push(tile('после выхода', rv.post_best != null ? pctStr(rv.post_best) : '—', rv.post_best != null ? sgn(rv.post_best) : '', rv.post_h ? `лучшее за ${rv.post_h} ч · сейчас ${pctStr(rv.post_close)}` : ''));
