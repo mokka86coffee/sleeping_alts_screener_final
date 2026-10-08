@@ -8,6 +8,15 @@ bad = []
 def chk(name, cond):
     if not cond: bad.append(name)
 now = time.time(); real = ft._session_regime
+_cfg_real = (cc.FAST3_PROBE_USD, cc.FAST3_SIZE_TIERS)
+# 08.10 владелец: «все сделки поставь по 900$» — в настройках все ступени и проверочный вход 900 $; сам механизм клеток проверяем на прежних суммах
+for _side in (1, -1):
+    for _r in (dict(), dict(dp=0.2), dict(dp=-0.9), dict(rv=1.2), dict(h=0.5)):
+        ft._session_regime = (lambda rr: (lambda _n: dict(dict(ses="Лондон", t0=now - 7200, t_last=now, n=200, h=2.0, dp=0.8, rv=0.7), **rr)))(_r)
+        chk(f"настройки 08.10: любой вход 900 $ (сторона {_side}, режим {_r})", ft._conf_usd(_side, now)[0] == 900.0)
+ft._session_regime = lambda _n: {}; chk("настройки 08.10: пульса нет — тоже 900 $", ft._conf_usd(-1, now)[0] == 900.0)
+ft._session_regime = real
+cc.FAST3_PROBE_USD, cc.FAST3_SIZE_TIERS = 20.0, [(80.0, 900.0), (65.0, 500.0), (50.0, 100.0)]
 def reg(**k): return lambda _n: dict(dict(ses="Лондон", t0=now - 7200, t_last=now, n=200, h=2.0, dp=0.8, rv=0.7), **k)
 try:
     ft._session_regime = reg();                    chk("шорт, без объёма, рынок +0,8 % → 500", ft._conf_usd(-1, now)[0] == 500.0)
@@ -34,10 +43,11 @@ try:
     chk("выключатель: всё по полной сумме", ft._conf_usd(1, now)[0] == float(ft.FAST3_SIZE)); cc.FAST3_SIZE_BY_CONF = keep
 finally:
     ft._session_regime = real
+    cc.FAST3_PROBE_USD, cc.FAST3_SIZE_TIERS = _cfg_real
 src = inspect.getsource(bx.on_events)
 chk("зеркало берёт сумму из события (вход и добор)", src.count('size_usd=e.get("usd_in")') == 2)
 for fn in (ft.step, ft.wake_step):
     t = inspect.getsource(fn); t = t[t.rindex("if write:"):]
     chk(f"{fn.__name__}: размер ставится до ордеров", 0 <= t.find("_size_events(") < t.find("_bingx(ev)"))
-print("R79: " + ("ок — клетки дают 500 и 100 $, вне клеток 20 $, события и зеркало получают сумму" if not bad else "СБОЙ: " + "; ".join(bad)))
+print("R79: " + ("ок — в настройках с 08.10 любой вход 900 $; механизм клеток (500 / 100 / 20 $ на прежних суммах), события и зеркало получают сумму" if not bad else "СБОЙ: " + "; ".join(bad)))
 sys.exit(1 if bad else 0)
