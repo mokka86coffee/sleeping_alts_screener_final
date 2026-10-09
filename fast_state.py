@@ -732,37 +732,34 @@ def stars_now(now: float) -> list[dict]:
 
 
 def _held_path(places: list) -> tuple:
-    """правило мест (09.10 владелец: «1-1-1-2-3-1 — это всегда 1-е, 3-3-3-2-2-2 — с 3-го на 2-е, 3-3-3-7-8-3 — это 3-е, 3-3-3-8-8-10 — вылет»;
-    «если монета смещается с 1-го на 2-е не больше 2 раз, также показываем её 1-й, для остальных мест также; если сместилась больше 2 раз —
-    убираем с экрана, если не в первых 3»). Вход: Q_RUNS прогонов подряд в первых Q_TOP местах — место закрепляется за монетой (последнее из
-    серии). Дальше: то же место — держим; место лучше — закрепляется, когда продержалось Q_RUNS подряд; место хуже или выпадение — терпим
-    Q_SLIP прогонов, на следующем монета уходит с экрана (если она при этом в первых Q_TOP — закрепляется её текущее место).
-    → (закреплённое место или None, индекс прогона входа, индекс прогона последней смены закреплённого места)"""
-    H = None; top_run = 0; slip = 0; cand = (None, 0); i_in = None; i_ch = None
+    """правило кристаллов очереди (09.10 владелец, последняя формулировка: «показывать 3 подряд в 1-х; если смена места не больше 2 прогонов,
+    то тоже первое; остальные, что были больше 2 раз в топе 1-2-3 с переменой мест, и выпали на 2 прогона — тоже кажем; если больше 2 прогонов
+    дальше 4-го уходит — скрываем»; ранее: «1-1-1-2-3-1 — всегда 1-е, 3-3-3-7-8-3 — показываем, 3-3-3-8-8-10 — вылет»).
+    «1»: Q_RUNS прогонов на 1-м месте подряд, уход с 1-го терпим Q_SLIP прогонов (счёт первых не сбрасывается), дольше — счёт первых с нуля.
+    «★»: Q_RUNS прогонов в первых Q_TOP (места внутри тройки меняются свободно), выпадение из тройки терпим Q_SLIP прогонов, дольше — с экрана.
+    → (метка 1 | "★" | None, индекс прогона, с которого метка такая, счёт прогонов за меткой)"""
+    one_run = top_run = slip_one = slip_top = 0; mark = None; i_mark = None
     for i, p in enumerate(places):
-        if H is None:
-            top_run = top_run + 1 if (p is not None and p <= Q_TOP) else 0
-            if top_run >= Q_RUNS:
-                H, i_in, i_ch, slip, cand = p, i, i, 0, (None, 0)
-            continue
-        if p == H:
-            slip = 0; cand = (None, 0)
-        elif p is not None and p < H:
-            slip = 0; cand = (p, cand[1] + 1) if cand[0] == p else (p, 1)
-            if cand[1] >= Q_RUNS:
-                H, i_ch, cand = p, i, (None, 0)
+        if p == 1:
+            one_run += 1; slip_one = 0
         else:
-            slip += 1; cand = (None, 0)
-            if slip > Q_SLIP:
-                if p is not None and p <= Q_TOP:
-                    H, i_ch, slip = p, i, 0
-                else:
-                    H, top_run, slip = None, 0, 0
-    return H, i_in, i_ch
+            slip_one += 1
+            if slip_one > Q_SLIP:
+                one_run = 0
+        if p is not None and p <= Q_TOP:
+            top_run += 1; slip_top = 0
+        else:
+            slip_top += 1
+            if slip_top > Q_SLIP:
+                top_run = 0
+        m = 1 if one_run >= Q_RUNS else ("★" if top_run >= Q_RUNS else None)
+        if m != mark:
+            mark, i_mark = m, i
+    return mark, i_mark, (one_run if mark == 1 else top_run)
 
 
 def queue_now(now: float) -> list[dict]:
-    """кристаллы очереди на реке: монеты с закреплённым местом по _held_path (журнал output/queue_log.jsonl за сутки UTC).
+    """кристаллы очереди на реке: «1» и «★» по _held_path (журнал output/queue_log.jsonl за сутки UTC).
     ranks — места последних Q_PATH прогонов как есть и закреплённое место последним — страница рисует его внутри кристалла;
     res — ход цены от первого попадания в первые Q_TOP за сутки до последнего прогона, % (как «+N%» на экране точности); t — прогон последней смены закреплённого места; streak — сколько прогонов подряд на закреплённом месте."""
     by_run: dict = {}
@@ -783,24 +780,17 @@ def queue_now(now: float) -> list[dict]:
     out = []
     for sym in syms:
         places = [int(by_run[a][sym]["place"]) if sym in by_run[a] else None for a in runs]
-        H, i_in, i_ch = _held_path(places)
-        if H is None:
+        mark, i_mark, streak = _held_path(places)
+        if mark is None:
             continue
         raw = [p for p in places if p is not None]                      # 09.10 владелец: «последние 3 места»; «если 13 раз подряд 1-е, значит последние 3 — 1-1-1»:
-        ranks = raw[-Q_PATH - 1:-1] + [H]                                 # места последних прогонов как есть (не сжатый путь) и закреплённое место последним
-        i_top = next((k for k, p in enumerate(places) if p is not None and p <= Q_TOP), i_in)   # как на экране «первые и очередь»: итог от первого
-        p0 = float((by_run[runs[i_top]].get(sym) or {}).get("px") or 0)                          # попадания в первые Q_TOP за сутки («в первых HH:MM»)
+        ranks = raw[-Q_PATH - 1:-1] + [mark]                              # места последних прогонов как есть и метка последней — страница рисует её в большом кристалле
+        i_top = next((k for k, p in enumerate(places) if p is not None and p <= Q_TOP), i_mark)
         cur = next((by_run[a][sym] for a in reversed(runs) if sym in by_run[a]), None)
-        p1 = float((cur or {}).get("px") or 0)
-        res = round((p1 / p0 - 1) * 100, 1) if p0 and p1 else None
-        streak = 0
-        for p in reversed(places):
-            if p == H:
-                streak += 1
-            elif streak:
-                break
-        out.append(dict(sym=sym, ranks=ranks, res=res, t=_unix(runs[i_ch]), keep=KEEP_S, place=H, now_place=places[-1], streak=streak, since=_unix(runs[i_top])))
-    out.sort(key=lambda q: (q["place"], q["sym"]))
+        res = round(float(cur["px_chg_pct"]), 1) if (cur or {}).get("px_chg_pct") is not None else None   # как «+N%» на экране точности — ход с начала дня UTC
+        out.append(dict(sym=sym, ranks=ranks, res=res, t=_unix(runs[i_mark]), keep=KEEP_S, place=(1 if mark == 1 else 2), now_place=places[-1],
+                        streak=streak, since=_unix(runs[i_top]), mark=mark))
+    out.sort(key=lambda q: (q["place"], q["sym"]))                   # 1-е первым, дальше звёзды
     return out
 
 
