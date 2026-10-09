@@ -630,6 +630,180 @@ def bx_warn_tg(s: dict, now: float) -> None:
         print(f"предупреждения зеркала: {len(todo)}" + (" (первый запуск — не отправлены)" if first else " → Телеграм"))
 
 
+
+# ── ПРОГНОЗЫ · ЗВЁЗДЫ · ОЧЕРЕДЬ ДЛЯ СТРАНИЦЫ (09.10 17:20 UTC, владелец: «его тоже нужно будет обновлять из прогона основного без перезагрузки
+#    страницы», промт из чата дизайна: поля STATE.forecasts / STATE.stars / STATE.queue; «звёзды из очереди в щите — те, что в первых 3 местах
+#    больше 2 раз подряд, т.е. показываются, когда попадают 3-й раз»). Дизайн в fast_site/index.html не трогаем — только данные. Время — unix UTC.
+FC_TAIL = 4_000_000          # хвост output/forecasts.jsonl, байт (≈ 6 дней прогонов) — мерка Claude
+FC_WIN_H = 72                # окно линии цены и меток смен в панели — 3 дня получасовок cq_v2/intraday (без запросов к бирже)
+QL_TAIL = 12_000_000         # хвост output/queue_log.jsonl, байт (≈ сутки прогонов); строки без места отбрасываются до разбора
+Q_TOP, Q_RUNS = 3, 3         # владелец: первые 3 места, 3 прогона подряд
+Q_SLIP = 2                   # владелец: смещение с закреплённого места терпим не больше 2 прогонов
+Q_PATH = 3                   # 09.10 владелец: «последние 3 и основное» — места трёх прошлых прогонов мелкими и закреплённое место в большом кристалле
+KEEP_S = 24 * 3600           # сколько держать на реке: пока монета есть в массиве (сутки — чтобы решал массив, а не срок) — мерка Claude
+STARS_MEM = BASE_DIR / "output" / "fast_stars_mem.json"
+
+
+def _tail_lines(p: Path, nbytes: int) -> list[str]:
+    try:
+        with p.open("rb") as f:
+            f.seek(0, 2); size = f.tell(); f.seek(max(0, size - nbytes))
+            raw = f.read().decode("utf-8", "ignore")
+    except OSError:
+        return []
+    ls = raw.splitlines()
+    return ls[1:] if len(ls) > 1 else ls
+
+
+def _unix(at: str, hm: str = "") -> float:
+    s = at if len(at) >= 16 else f"{at}T{hm}:00"
+    s = s.replace("Z", "")[:19]
+    if len(s) == 16:
+        s += ":00"
+    return datetime.strptime(s, "%Y-%m-%dT%H:%M:%S").replace(tzinfo=timezone.utc).timestamp()
+
+
+def _intraday_px(sym: str, t0: float) -> tuple[list, list]:
+    """закрытия получасовок cq_v2/intraday с момента t0 → (цены, время unix)"""
+    p = BASE_DIR / "cq_v2" / "intraday" / (sym[:-4].lower() + ".jsonl")
+    cl, tm = [], []
+    for ln in _tail_lines(p, 60_000) if p.exists() else []:
+        try:
+            r = json.loads(ln)
+        except ValueError:
+            continue
+        if r.get("px") and r.get("candle"):
+            t = _unix(r["candle"]) + 1800
+            if t >= t0:
+                cl.append(float(r["px"])); tm.append(t)
+    return cl, tm
+
+
+def forecasts(now: float) -> list[dict]:
+    """смены прогноза (tpl монеты отличается от её предыдущей записи) за последний прогон скринера, свежие первыми; в прогоне без смен —
+    смены последнего прогона, где они были (чтобы запись не пустовала; мерка Claude). veto страница не читает — не фильтруем."""
+    rows = []
+    for ln in _tail_lines(BASE_DIR / "output" / "forecasts.jsonl", FC_TAIL):
+        try:
+            r = json.loads(ln)
+        except ValueError:
+            continue
+        if r.get("sym") and r.get("tpl") and r.get("at"):
+            rows.append(r)
+    last_tpl: dict = {}; changes: dict = {}; per_run: dict = {}
+    for r in rows:
+        key = (r["at"], r.get("hm", "")); t = _unix(r["at"], r.get("hm", "00:00"))
+        pv = last_tpl.get(r["sym"])
+        if pv is not None and pv != r["tpl"]:
+            c = dict(t=t, tpl=r["tpl"], px=float(r.get("px") or 0))
+            changes.setdefault(r["sym"], []).append(c); per_run.setdefault(key, []).append((r["sym"], c))
+        last_tpl[r["sym"]] = r["tpl"]
+    runs = sorted(per_run)
+    if not runs:
+        return []
+    picked = per_run[runs[-1]]
+    out = []
+    for sym, c in reversed(picked):
+        cl, tm = _intraday_px(sym, now - FC_WIN_H * 3600)
+        ch = []
+        for q in changes.get(sym, []):
+            if q["t"] < now - FC_WIN_H * 3600:
+                continue
+            i = min(range(len(tm)), key=lambda k: abs(tm[k] - q["t"])) if tm else None
+            ch.append(dict(t=q["t"], tpl=q["tpl"], px=q["px"], i=i))
+        out.append(dict(sym=sym, tpl=c["tpl"], t=c["t"], px=c["px"], closes=cl, times=tm, changes=ch))
+    return out
+
+
+def stars_now(now: float) -> list[dict]:
+    """звёзды экрана «звёзды» (output/stars.json); t — когда монета впервые появилась среди звёзд (память output/fast_stars_mem.json)"""
+    st = _read(BASE_DIR / "output" / "stars.json", {}) or {}
+    mem = _read(STARS_MEM, {}) or {}
+    cur = [s for s in (st.get("stars") or []) if s.get("sym")]
+    syms = {s["sym"] for s in cur}
+    mem = {k: v for k, v in mem.items() if k in syms}
+    for s in cur:
+        mem.setdefault(s["sym"], now)
+    try:
+        tmp = STARS_MEM.with_suffix(".tmp"); tmp.write_text(json.dumps(mem), encoding="utf-8"); tmp.replace(STARS_MEM)
+    except OSError:
+        pass
+    return [dict(sym=s["sym"], reason=(s.get("sub") or s.get("why") or "").split(" ‖ ")[0].strip(), t=float(mem[s["sym"]]), keep=KEEP_S) for s in cur]
+
+
+def _held_path(places: list) -> tuple:
+    """правило мест (09.10 владелец: «1-1-1-2-3-1 — это всегда 1-е, 3-3-3-2-2-2 — с 3-го на 2-е, 3-3-3-7-8-3 — это 3-е, 3-3-3-8-8-10 — вылет»;
+    «если монета смещается с 1-го на 2-е не больше 2 раз, также показываем её 1-й, для остальных мест также; если сместилась больше 2 раз —
+    убираем с экрана, если не в первых 3»). Вход: Q_RUNS прогонов подряд в первых Q_TOP местах — место закрепляется за монетой (последнее из
+    серии). Дальше: то же место — держим; место лучше — закрепляется, когда продержалось Q_RUNS подряд; место хуже или выпадение — терпим
+    Q_SLIP прогонов, на следующем монета уходит с экрана (если она при этом в первых Q_TOP — закрепляется её текущее место).
+    → (закреплённое место или None, индекс прогона входа, индекс прогона последней смены закреплённого места)"""
+    H = None; top_run = 0; slip = 0; cand = (None, 0); i_in = None; i_ch = None
+    for i, p in enumerate(places):
+        if H is None:
+            top_run = top_run + 1 if (p is not None and p <= Q_TOP) else 0
+            if top_run >= Q_RUNS:
+                H, i_in, i_ch, slip, cand = p, i, i, 0, (None, 0)
+            continue
+        if p == H:
+            slip = 0; cand = (None, 0)
+        elif p is not None and p < H:
+            slip = 0; cand = (p, cand[1] + 1) if cand[0] == p else (p, 1)
+            if cand[1] >= Q_RUNS:
+                H, i_ch, cand = p, i, (None, 0)
+        else:
+            slip += 1; cand = (None, 0)
+            if slip > Q_SLIP:
+                if p is not None and p <= Q_TOP:
+                    H, i_ch, slip = p, i, 0
+                else:
+                    H, top_run, slip = None, 0, 0
+    return H, i_in, i_ch
+
+
+def queue_now(now: float) -> list[dict]:
+    """кристаллы очереди на реке: монеты с закреплённым местом по _held_path (журнал output/queue_log.jsonl за сутки UTC).
+    ranks — места последних Q_PATH прогонов как есть и закреплённое место последним — страница рисует его внутри кристалла;
+    res — ход цены от первого попадания в первые Q_TOP за сутки до последнего прогона, % (как «+N%» на экране точности); t — прогон последней смены закреплённого места; streak — сколько прогонов подряд на закреплённом месте."""
+    by_run: dict = {}
+    for ln in _tail_lines(BASE_DIR / "output" / "queue_log.jsonl", QL_TAIL):
+        if '"place": null' in ln or '"sym"' not in ln:
+            continue
+        try:
+            r = json.loads(ln)
+        except ValueError:
+            continue
+        if r.get("sym") and r.get("place") is not None and r.get("at"):
+            by_run.setdefault(r["at"], {})[r["sym"]] = r
+    runs = sorted(by_run)
+    if len(runs) < Q_RUNS:
+        return []
+    day = runs[-1][:10]; runs = [a for a in runs if a[:10] == day]      # сутки UTC, как на экране «первые и очередь»
+    syms = {s for a in runs for s in by_run[a]}
+    out = []
+    for sym in syms:
+        places = [int(by_run[a][sym]["place"]) if sym in by_run[a] else None for a in runs]
+        H, i_in, i_ch = _held_path(places)
+        if H is None:
+            continue
+        raw = [p for p in places if p is not None]                      # 09.10 владелец: «последние 3 места»; «если 13 раз подряд 1-е, значит последние 3 — 1-1-1»:
+        ranks = raw[-Q_PATH - 1:-1] + [H]                                 # места последних прогонов как есть (не сжатый путь) и закреплённое место последним
+        i_top = next((k for k, p in enumerate(places) if p is not None and p <= Q_TOP), i_in)   # как на экране «первые и очередь»: итог от первого
+        p0 = float((by_run[runs[i_top]].get(sym) or {}).get("px") or 0)                          # попадания в первые Q_TOP за сутки («в первых HH:MM»)
+        cur = next((by_run[a][sym] for a in reversed(runs) if sym in by_run[a]), None)
+        p1 = float((cur or {}).get("px") or 0)
+        res = round((p1 / p0 - 1) * 100, 1) if p0 and p1 else None
+        streak = 0
+        for p in reversed(places):
+            if p == H:
+                streak += 1
+            elif streak:
+                break
+        out.append(dict(sym=sym, ranks=ranks, res=res, t=_unix(runs[i_ch]), keep=KEEP_S, place=H, now_place=places[-1], streak=streak, since=_unix(runs[i_top])))
+    out.sort(key=lambda q: (q["place"], q["sym"]))
+    return out
+
+
 def build() -> dict:
     now = time.time()
     op, cl, hist = positions(now)
@@ -644,7 +818,13 @@ def build() -> dict:
         board = json.loads((BASE_DIR / "output" / "board_now.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         board = None
-    return dict(meta=meta(now), entry=ent, open=op, closed=cl, closed_hist=hist, charts=charts(syms), score=score(cl), board=board, board_day=board_day(now), board_3h=dict(blocks=dict(_B3H), neutral=list(NEUTRAL_3H), prog=dict(_P3H)), bx_warn=warn)
+    fsq = {}
+    for nm, fn in (("forecasts", forecasts), ("stars", stars_now), ("queue", queue_now)):   # 09.10: поля для дизайна «прогнозы · звёзды · очередь»; сбой одного не роняет состояние
+        try:
+            fsq[nm] = fn(now)
+        except Exception as e:  # noqa: BLE001
+            print(f"{nm}: сбой {type(e).__name__}: {e}"); fsq[nm] = []
+    return dict(**fsq, meta=meta(now), entry=ent, open=op, closed=cl, closed_hist=hist, charts=charts(syms), score=score(cl), board=board, board_day=board_day(now), board_3h=dict(blocks=dict(_B3H), neutral=list(NEUTRAL_3H), prog=dict(_P3H)), bx_warn=warn)
 
 
 def write() -> Path:

@@ -565,6 +565,7 @@ function layoutRiverLabels(R, t, nowS) {
       const fx = R.x0 + 14 + Math.random() * Math.max(1, R.w - 30 - l.ebw), rv = -.82 + Math.random() * 1.64;
       const y = riverY(R, fx, t) + rv * R.hh, BH = l.bh || 18, cx = fx + l.ebw / 2, cy = y - l.h - BH / 2;
       let d = 9;
+      if (window.FC_RESERVED) { const bx0 = fx - 6, bx1 = fx + l.ebw + 6, by0 = y - l.h - BH - 24, by1 = y + 10; if (FC_RESERVED().some(q => bx0 < q.r && bx1 > q.l && by0 < q.b && by1 > q.t)) continue; }   // не лезть под список прогнозов и открытую панель
       for (const q of placed) d = Math.min(d, Math.max(Math.abs(cx - q.cx) / ((l.ebw + q.bw) / 2 + 10), Math.abs(cy - q.cy) / ((BH + 8 + q.bh) / 2 + 4)), Math.hypot(fx - q.x, y - q.y) / 46);
       if (d > bestD) { bestD = d; best = { fx, rv }; }
     }
@@ -2145,7 +2146,12 @@ function layoutPanel() {
 function buildLine() {
   const D = pzData, { sx, sy, sr, xEnd } = PZL, n = D.n;
   const vals = D.closes.concat(D.marks.map(m => m.price)), p0 = D.closes[0];
-  const dev = Math.max(...vals.map(v => Math.abs(v - p0))) || 1, k = (PZ.h * .3) / dev, x0 = sx + sr * .95;
+  const dev = Math.max(...vals.map(v => Math.abs(v - p0))) || 1, x0 = sx + sr * .95;
+  // 09.10 владелец: «вёрстку поправь» — линия и метки не заходят под шапку панели (название, время, колонка «цель/итог» справа): масштаб по высоте режется снизу шапки
+  let k = (PZ.h * .3) / dev;
+  { const pr = pz.getBoundingClientRect(), hd = pz.querySelector('.pz-head'), sl = document.getElementById('pzSub'); let hb = 0;
+    if (hd) hb = Math.max(hb, hd.getBoundingClientRect().bottom - pr.top); if (sl) hb = Math.max(hb, sl.getBoundingClientRect().bottom - pr.top);
+    const up = Math.max(...vals.map(v => v - p0), 0); if (up > 0 && sy - up * k < hb + 30) k = Math.max((sy - hb - 30) / up, 0); }
   const Y = v => sy - (v - p0) * k * (D.dir < 0 ? 1 : 1);
   D.pts = D.closes.map((v, i) => [x0 + (xEnd - x0) * i / Math.max(1, n - 1), Y(v)]);
   D.lenTot = 0; D.segLen = [0];
@@ -2388,7 +2394,10 @@ function applyState(S) {
   const sets = [
     (S.open || []).filter(p => nowS - p.t_in < (p.keep || ENTRY_KEEP)).map(p => ({ key: 'in|' + p.book + '|' + p.sym + '|' + Math.round(p.t_in), name: p.sym.replace(/USDT$/, ''), side: p.side, price: p.entry, item: p }))
       // 06.10: флаги зеркала BingX — «не взято» (30 мин от входа, сделка бота уже закрыта) и «не закрыто» (пока позиция на бирже есть)
-      .concat((S.bx_warn || []).filter(w => nowS - w.t_in < (w.keep || ENTRY_KEEP)).map(w => ({ key: 'warn|' + w.kind_w + '|' + w.sym + '|' + Math.round(w.t_in), name: w.sym.replace(/USDT$/, ''), side: w.side, price: w.entry, item: w }))),
+      .concat((S.bx_warn || []).filter(w => nowS - w.t_in < (w.keep || ENTRY_KEEP)).map(w => ({ key: 'warn|' + w.kind_w + '|' + w.sym + '|' + Math.round(w.t_in), name: w.sym.replace(/USDT$/, ''), side: w.side, price: w.entry, item: w })))
+      // 09.10: звёзды и очередь — свои типы на реке (kind: 'star' | 'queue'); живут, пока есть в данных и не старше keep (моё умолчание 2 ч)
+      .concat((S.stars || []).filter(s => nowS - s.t < (s.keep || 7200)).map(s => ({ key: 'star|' + s.sym + '|' + Math.round(s.t), name: s.sym.replace(/USDT$/, ''), side: 0, price: 0, item: { kind: 'star', sym: s.sym, reason: s.reason || '', t_in: s.t, t_out: null, keep: s.keep || 7200 } })))
+      .concat((S.queue || []).filter(q => nowS - q.t < (q.keep || 7200)).map(q => ({ key: 'queue|' + q.sym + '|' + Math.round(q.t), name: q.sym.replace(/USDT$/, ''), side: 0, price: 0, item: { kind: 'queue', sym: q.sym, ranks: q.ranks || [], res: q.res || 0, t_in: q.t, t_out: null, keep: q.keep || 7200 } }))),
     (S.closed || []).filter(c => nowS - c.t_out < EXIT_KEEP).map(c => ({ key: 'out|' + c.book + '|' + c.sym + '|' + Math.round(c.t_out), name: c.sym.replace(/USDT$/, ''), side: c.side, price: c.exit, item: c })),
   ];
   rings.forEach((g, i) => {
@@ -2885,6 +2894,179 @@ findHover = function () {
   return best;
 };
 
+</script>
+<style>
+/* ПРОГНОЗЫ · ЗВЁЗДЫ · ОЧЕРЕДЬ (09.10 владелец): список «прогнозы обновились» под кругом события, клик — панель слева внизу с линией цены и метками смен; на реке два новых типа: ЗВЕЗДА (монета из экрана «звёзды») и КРИСТАЛЛ (монета из «первые и очередь»). Данные: STATE.forecasts, STATE.stars, STATE.queue — см. комментарий в скрипте ниже. */
+#fcList { position: fixed; z-index: 2; font-family: Futura, 'Avenir Next', sans-serif; pointer-events: none; }
+#fcList .fc-row { position: relative; display: inline-flex; align-items: baseline; gap: 14px; padding: 5px 12px 5px 14px; cursor: pointer; pointer-events: auto; white-space: nowrap;
+  background: linear-gradient(90deg, rgba(var(--c),.12), rgba(var(--c),0) 90%); }
+#fcList .fc-row::before { content: ''; position: absolute; left: 0; top: 3px; bottom: 3px; width: 2px; background: rgb(var(--c)); box-shadow: 0 0 8px rgb(var(--c)), 0 0 18px rgba(var(--c),.6); }
+#fcList .fc-row:hover { background: linear-gradient(90deg, rgba(var(--c),.24), rgba(var(--c),0) 90%); }
+#fcList .fc-row.on { background: linear-gradient(90deg, rgba(var(--c),.32), rgba(var(--c),0) 95%); }
+#fcList .fc-row b { font-weight: 600; font-size: 14px; letter-spacing: .1em; color: #fff; text-shadow: 0 0 8px rgba(var(--c),.9), 0 0 2px rgba(2,8,20,1); }
+#fcList .fc-row span { font-size: 8.5px; letter-spacing: .16em; text-transform: uppercase; color: rgb(var(--c)); text-shadow: 0 0 6px rgba(var(--c),.7), 0 0 3px rgba(2,8,20,1); }
+#fcList .fc-row.swap { animation: fcswap .8s ease-out; }
+@keyframes fcswap { 0% { opacity: 0; transform: translateX(-16px); filter: brightness(2.2); } 45% { opacity: 1; filter: brightness(1.7); } 100% { transform: none; filter: none; } }
+@media (max-width: 899px) { #fcList { display: none; } }
+</style>
+<script>
+// ── ДАННЫЕ (ожидаются в fast_state.json, считает fast_state.py — этот файл только рисует):
+//   STATE.forecasts = [{ sym:'XLMUSDT', tpl:'кит поглощает слив (шаблон …)', t:<unix UTC смены>, px:<цена при смене>,
+//                        closes:[…цены за окно…], times:[…unix на каждую цену…], changes:[{ t, tpl, px, i:<индекс в closes> }, …] }, …]  — свежие первыми
+//   STATE.stars     = [{ sym:'KAIAUSDT', reason:'шорты — топливо', t:<unix UTC когда стала звездой>, keep:<сек держать на реке> }, …]
+//   STATE.queue     = [{ sym:'MAGICUSDT', ranks:[8,4,1] (места по времени, последнее — текущее), res:<% итог>, t:<unix UTC последней смены места>, keep:<сек> }, …]
+(() => {
+  const TYPES = { kit: ['КИТ', '90,225,235'], big: ['КРУПНЯК', '110,240,180'], trig: ['КУРОК', '255,125,145'], dump: ['РАЗДАЧА', '255,175,85'], quiet: ['ТИХО', '190,155,255'], other: ['СМЕНА', '160,200,255'] };
+  const typeOf = tpl => { const s = (tpl || '').toLowerCase(); return /курок/.test(s) ? 'trig' : /раздач/.test(s) ? 'dump' : /тихо/.test(s) ? 'quiet' : /крупняк/.test(s) ? 'big' : /кит/.test(s) ? 'kit' : 'other'; };
+  const short = tpl => (tpl || '').replace(/\s*\(.*$/, '');   // «кит поглощает слив (шаблон BLESS/TRUMP)» → «кит поглощает слив»
+  const hhmm = t => { const d = new Date(t * 1000); return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); };
+  const coin = s => (s || '').replace(/USDT$/, '');
+
+  // ── список «прогнозы · обновились»
+  const _pd = panelData;
+  panelData = function (l) {
+    if (!l.fc) return _pd(l);
+    const f = l.fc, c = f.closes || [], n = c.length, ch = f.changes || [], last = ch[ch.length - 1], prev = ch[ch.length - 2];
+    const d = prev && prev.px ? (last.px / prev.px - 1) * 100 : 0, sgn = d >= 0 ? '+' : '−';
+    const marks = ch.map(q => ({ label: TYPES[typeOf(q.tpl)][0], price: q.px, rgb: TYPES[typeOf(q.tpl)][1], idx: q.i != null && q.i < n ? q.i : null }));
+    const nowPx = n ? c[n - 1] : (last ? last.px : 0);
+    marks.push({ label: 'СЕЙЧАС', price: nowPx, rgb: '255,255,255', idx: null, now: true });
+    const closes = n ? c : [last ? last.px : 0, nowPx];
+    return { g: { title: 'ПРОГНОЗ · СМЕНА' }, d: { ring: 'closed', now: nowPx, candles: [], status: `${short(last && last.tpl || f.tpl)} · ${hhmm(f.t)} UTC · ${sgn}${Math.abs(d).toFixed(1)}% от прошлой · смен прогноза ${ch.length}` }, it: { sym: f.sym }, closes, n: closes.length, kind: 'closed', dir: 0, marks, ei: null, xi: null };
+  };
+  const _rc = renderCard; renderCard = function (g, l) { if (l && l.fc) return; return _rc(g, l); };
+  window.FC_RESERVED = () => { const o = []; const el = document.getElementById('fcList'); if (el && el.style.display !== 'none') { const r = el.getBoundingClientRect(); if (r.height > 0) o.push({ l: r.left - 10, r: r.right + 10, t: r.top - 10, b: r.bottom + 10 }); } if (typeof PZ !== 'undefined' && typeof pzOn !== 'undefined' && pzOn) o.push({ l: PZ.x - 10, r: PZ.x + PZ.w * .55, t: PZ.y - 10, b: PZ.y + 150 }); return o; };
+  const root = document.createElement('div'); root.id = 'fcList'; document.body.appendChild(root);
+  // 09.10 владелец: «вверх, одной строкой, по одной монете за раз, по кругу до следующего прогона» — цикл по обновившимся за прогон, 6 с на монету (моё число)
+  const CYC = 6, place = () => { const ev = document.getElementById('evCnt'), r = ev ? ev.getBoundingClientRect() : { right: 300, top: 160 }; const left = Math.round(r.right + 54), w = Math.max(220, Math.min(380, W / 2 - 190 - left)); root.style.left = left + 'px'; root.style.top = Math.round(Math.max(60, H * .22)) + 'px'; root.style.width = w + 'px'; };
+  let sel = null, idx = 0, runKey = null, tick = 0, feed = [];
+  function current() { return feed.length ? feed[idx % feed.length] : null; }
+  function paint(swap) {   // одна запись: монета и прогноз, без шапки, счётчика и времени; сменяется на следующую
+    place(); const f = current(); if (!f) { root.innerHTML = ''; return; }
+    const T = TYPES[typeOf(f.tpl)];
+    root.innerHTML = `<div class="fc-row${swap ? ' swap' : ''}${sel === f.sym ? ' on' : ''}" style="--c:${T[1]}"><b>${coin(f.sym)}</b><span>${short(f.tpl)}</span></div>`;
+    root.querySelector('.fc-row').addEventListener('click', e => { e.stopPropagation(); if (sel === f.sym) { closeCard(); sel = null; paint(false); return; } sel = f.sym; openCard({ fc: f, name: coin(f.sym), c1: T[1], c2: T[1], closed: true, born: performance.now() / 1000, item: { sym: f.sym } }); paint(false); });
+  }
+  function render() {   // новый прогон — список обновившихся и цикл с первой монеты
+    const S = window.STATE || {}, nf = (S.forecasts || []).slice(); feed = nf;
+    const k = nf.length ? nf[0].sym + '|' + nf[0].t + '|' + nf.length : '';
+    if (k !== runKey) { runKey = k; idx = 0; tick = 0; paint(true); } else paint(false);
+  }
+  setInterval(() => { if (!feed.length || sel) return;   // открыта панель — стоим на этой монете
+    tick += .25; if (tick >= CYC) { tick = 0; idx = (idx + 1) % feed.length; paint(true); } }, 250);
+  addEventListener('keydown', e => { if (e.key === 'Escape' && sel) { sel = null; paint(false); } });
+  addEventListener('click', () => { if (sel && !selected) { sel = null; paint(false); } });
+  addEventListener('resize', () => setTimeout(() => paint(false), 100));
+  // ── звуки новых элементов (владелец 09.10): свой у каждого типа; первая загрузка — без звука, дальше — только на новое; заголовок мигает как у сделок
+  let fcKnown = null;
+  function announceNew(S) {
+    const nowS = Date.now() / 1000, cur = new Map();
+    for (const f of (S.forecasts || [])) cur.set('fc|' + f.sym + '|' + Math.round(f.t), ['fc', f]);
+    for (const q of (S.stars || [])) if (nowS - q.t < (q.keep || 7200)) cur.set('star|' + q.sym + '|' + Math.round(q.t), ['star', q]);
+    for (const q of (S.queue || [])) if (nowS - q.t < (q.keep || 7200)) cur.set('queue|' + q.sym + '|' + Math.round(q.t), ['queue', q]);
+    if (fcKnown === null) { fcKnown = new Set(cur.keys()); return; }
+    const fresh = [...cur.entries()].filter(([k]) => !fcKnown.has(k)).map(([, v]) => v); for (const k of cur.keys()) fcKnown.add(k);
+    if (!fresh.length) return;
+    const kinds = new Set(fresh.map(v => v[0])), f0 = fresh[0], nm = coin(f0[1].sym); let msg;
+    // звуки звезды и кристалла играют в момент появления на реке (посадка метеора, всплеск) — см. drawStar / drawBuoy; прогноз — тихий тик, когда запись нового прогона показалась
+    if (kinds.has('fc')) tone([740, 740], .1, .08, 'square', .05);
+    if (f0[0] === 'star') msg = `✦ ЗВЕЗДА · ${nm}`; else if (f0[0] === 'queue') msg = `◈ ОЧЕРЕДЬ · ${nm} · место ${f0[1].ranks ? f0[1].ranks[f0[1].ranks.length - 1] : '?'}`; else msg = `◇ ПРОГНОЗ · ${nm} · ${short(f0[1].tpl)}`;
+    if (fresh.length > 1) msg += ` · и ещё ${fresh.length - 1}`;
+    flashTitle(msg);
+  }
+  const _as = applyState; applyState = function (S) { _as(S); try { render(); } catch (e) {} try { announceNew(S); } catch (e) {} }; window.applyState = applyState;
+  setTimeout(render, 1500);
+
+  // ── два новых типа на реке
+  const _rl = riverLabel;
+  riverLabel = function (g, l, t, R, nowS) {
+    const k = l.item && l.item.kind; if (!k) return _rl(g, l, t, R, nowS);
+    if (l.rv == null) { let hs = 0; for (const c of l.key) hs = (hs * 31 + c.charCodeAt(0)) >>> 0; l.rv = (hs % 1000) / 1000 * 1.5 - .75; l.rdx = 0; l.bw = k === 'star' ? 120 : 130; l.bh = k === 'star' ? 40 : 30; l.h = k === 'star' ? 58 : 44; }
+    if (!l.shown) { l.born = t; return true; }
+    const x = l.fx, y = riverY(R, x, t) + l.rv * R.hh, age = t - l.born; if (age > l.life) return false;
+    const ea = age / ANIM_SLOW, out = clamp((l.life - age) / ANIM_SLOW / 1.1);   // те же часы, что у флажков: появление и исчезновение
+    (k === 'star' ? drawStar : drawBuoy)(l, x, y, t, ea, out); return true;
+  };
+  const ph = l => { let h = 0; for (const c of l.key) h = (h * 31 + c.charCodeAt(0)) >>> 0; return (h % 628) / 100; };
+  // буквы проявляются волной снизу вверх, как у флажков
+  function waveText(str, x, y, ea, t0, font, fill, sp, glow, out) {
+    tctx.save(); tctx.font = font; tctx.textAlign = 'left'; tctx.letterSpacing = '0px'; let w = 0; const ws = [...str].map(c => { const q = tctx.measureText(c).width + sp; w += q; return q; }); let gx = x - w / 2;
+    [...str].forEach((c, i) => { const p = clamp((ea - t0 - i * .05) / .35), o = clamp((1.1 - out * 1.1 - i * .03) / .35); if (p > 0) { tctx.globalAlpha = Math.min(1, p * 1.5) * (1 - o); if (glow) { tctx.shadowColor = glow; tctx.shadowBlur = 8; } tctx.fillStyle = fill; tctx.fillText(c, gx, y + (1 - backOut(p)) * 6 - o * 5 + Math.sin(performance.now() / 1000 * 2.2 - i * .6) * .4); tctx.shadowBlur = 0; } gx += ws[i]; });
+    tctx.restore();
+  }
+  function ripples(x, y, ea, c, big) {   // всплеск при появлении: два кольца и вспышка — как у флажков
+    for (let j = 0; j < 2; j++) { const q = clamp((ea - j * .18) / .9); if (q <= 0 || q >= 1) continue; const rr = 4 + ease(q) * (big || 26), fi = q < .3 ? (1 - Math.cos(Math.PI * q / .3)) / 2 : 1; ctx.strokeStyle = c(fi * (1 - q) * .9); ctx.lineWidth = 1.3 * (1 - q) + .3; ctx.beginPath(); ctx.ellipse(x, y, rr, rr * .3, 0, 0, TAU); ctx.stroke(); }
+    const f = Math.pow(Math.sin(Math.PI * clamp(ea / .9)), 2); if (f > .01) { const gr = ctx.createRadialGradient(x, y, 0, x, y, 26); gr.addColorStop(0, `rgba(255,255,255,${f})`); gr.addColorStop(.3, c(f * .7)); gr.addColorStop(1, c(0)); ctx.fillStyle = gr; ctx.fillRect(x - 26, y - 26, 52, 52); ctx.fillStyle = c(f * .7); ctx.fillRect(x - .5, y - 30 * f, 1, 60 * f); ctx.fillRect(x - 24 * f, y - .5, 48 * f, 1); }
+  }
+  // ЗВЕЗДА появляется иначе, чем флажки и поплавки: падает с неба метеором с хвостом, вспыхивает и раскрывает лучи на месте, потом спускает нить к воде; уходит — взлетает обратно в небо
+  function drawStar(l, x, y, t, ea, out) {
+    const p = ph(l), cc = l.c1 || '170,200,255', col = a => `rgba(${cc},${a})`, tw = .75 + .25 * Math.sin(t * 2.3 + p), cy0 = y - 54, ex = 1 - out;
+    const e = clamp((ea - .05) / .7), fall = 1 - Math.pow(1 - e, 3), sx0 = x + 150, sy0 = cy0 - 260;   // старт — над рекой справа
+    const ux = e < 1 ? sx0 + (x - sx0) * fall : x, uy = e < 1 ? sy0 + (cy0 - sy0) * fall : cy0;
+    const bob = Math.sin(t * .8 + p) * 3 * clamp((ea - .9) * 2) * out, cx = ux + ex * ex * 120, cy = uy + bob - ex * ex * 280;   // уход вверх
+    const A = clamp(ea / .15) * clamp(out * 2.2), sz = .35 + .65 * clamp((ea - .55) / .5);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+    // хвост метеора (падение и взлёт)
+    const tr = (e < 1 ? 1 : 0) * (1 - clamp((ea - .7) / .2)) * 1 + ex * Math.min(1, ex * 4); if (tr > .02) { const dx = (e < 1 ? ux - sx0 : 120), dy = (e < 1 ? uy - sy0 : -280), L = Math.hypot(dx, dy) || 1, tl = 120 * tr, tx = cx - dx / L * tl * (e < 1 ? 1 : -1) * (e < 1 ? 1 : -1), ty = cy - dy / L * tl * (e < 1 ? 1 : -1) * (e < 1 ? 1 : -1);
+      const lg = ctx.createLinearGradient(tx, ty, cx, cy); lg.addColorStop(0, col(0)); lg.addColorStop(1, `rgba(255,255,255,${.85 * A})`); ctx.strokeStyle = lg; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(cx, cy); ctx.stroke(); ctx.lineWidth = 6; ctx.strokeStyle = col(.12 * A); ctx.stroke(); }
+    // вспышка при посадке: расширяющееся кольцо в воздухе и крест; звук появления — в момент посадки (владелец 09.10)
+    const lf = clamp((ea - .7) / .5), fl = Math.pow(Math.sin(Math.PI * lf), 2);
+    if (lf > 0 && !l.sfx) { l.sfx = true; if (typeof tone === 'function' && typeof AC !== 'undefined' && AC) tone([880, 1175, 1760], .16, .03, 'sine', .1); } if (lf > 0 && lf < 1) { ctx.strokeStyle = col(.8 * (1 - lf) * A); ctx.lineWidth = 1.4 * (1 - lf) + .3; ctx.beginPath(); ctx.arc(cx, cy, 6 + ease(lf) * 40, 0, TAU); ctx.stroke(); const gf = ctx.createRadialGradient(cx, cy, 0, cx, cy, 60); gf.addColorStop(0, `rgba(255,255,255,${.9 * fl * A})`); gf.addColorStop(1, col(0)); ctx.fillStyle = gf; ctx.fillRect(cx - 60, cy - 60, 120, 120); }
+    // нить вниз к воде после посадки и всплеск у основания; при уходе нить втягивается
+    const th = clamp((ea - .85) / .45) * clamp(out * 1.5); if (th > 0) { const yy = cy + 6 + (y - cy - 6) * th; ctx.strokeStyle = col(.4 * A); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, cy + 6); ctx.lineTo(cx, yy); ctx.stroke(); if (th >= .98) { ctx.strokeStyle = col(.45 * A); ctx.beginPath(); ctx.ellipse(cx, y, 7, 2.6, 0, 0, TAU); ctx.stroke(); const sp = (t * .45 + p) % 1, spy = y - (y - cy - 8) * sp; ctx.fillStyle = `rgba(255,255,255,${.8 * A * Math.sin(Math.PI * sp)})`; ctx.fillRect(cx - 1, spy - 1, 2, 2); for (let i = 0; i < 6; i++) { ctx.fillStyle = col(.2 * (1 - i / 6) * (.5 + .5 * Math.sin(t * 2 + i + p)) * A); ctx.fillRect(cx - 10 + i * .6, y + 4 + i * 3.4, 20 - i * 2.5, 1); } } }
+    const g1 = ctx.createRadialGradient(cx, cy, 0, cx, cy, 46 * sz); g1.addColorStop(0, `rgba(255,255,255,${.5 * A * tw})`); g1.addColorStop(.25, col(.28 * tw * A)); g1.addColorStop(1, col(0)); ctx.fillStyle = g1; ctx.fillRect(cx - 46, cy - 46, 92, 92);
+    for (let i = 0; i < 10; i++) { const a = i * TAU / 10 + p + t * .03, L = (i % 2 ? 28 : 52) * sz * (.8 + .2 * Math.sin(t * 1.7 + i + p)), lg = ctx.createLinearGradient(cx, cy, cx + Math.cos(a) * L, cy + Math.sin(a) * L); lg.addColorStop(0, `rgba(255,255,255,${.5 * A})`); lg.addColorStop(1, col(0)); ctx.strokeStyle = lg; ctx.lineWidth = i % 2 ? .6 : .85; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * L, cy + Math.sin(a) * L); ctx.stroke(); }
+    if (sz > .6) for (const sg of [-1, 1]) { const a = sg * .62 + p * .02, L = 96 * sz, x0 = cx - Math.cos(a) * L * .3, y0 = cy - Math.sin(a) * L * .3, lg = ctx.createLinearGradient(x0, y0, cx + Math.cos(a) * L, cy + Math.sin(a) * L); lg.addColorStop(0, col(0)); lg.addColorStop(.3, `rgba(255,255,255,${.3 * A})`); lg.addColorStop(1, col(0)); ctx.strokeStyle = lg; ctx.lineWidth = .7; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(cx + Math.cos(a) * L, cy + Math.sin(a) * L); ctx.stroke(); }
+    ctx.fillStyle = `rgba(255,255,255,${.95 * A})`; ctx.fillRect(cx - 13 * tw * sz, cy - .5, 26 * tw * sz, 1); ctx.fillRect(cx - .5, cy - 13 * tw * sz, 1, 26 * tw * sz); ctx.beginPath(); ctx.arc(cx, cy, 2.4 * sz, 0, TAU); ctx.fill();
+    if (l.item.reason === 'скачок интереса' && ea > 1.2) { const rw = 20, rh = 7, ra = clamp((ea - 1.2) / .5) * A; ctx.strokeStyle = `rgba(${cc},${.5 * ra})`; ctx.lineWidth = .9; ctx.beginPath(); ctx.ellipse(cx, cy, rw, rh, -.35, 0, TAU); ctx.stroke(); for (let j = 0; j < 2; j++) { const a = t * .9 + j * 3.1 + p; ctx.fillStyle = j ? `rgba(255,120,130,${.9 * ra})` : `rgba(120,255,190,${.9 * ra})`; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * rw * Math.cos(-.35) - Math.sin(a) * rh * Math.sin(-.35), cy + Math.cos(a) * rw * Math.sin(-.35) + Math.sin(a) * rh * Math.cos(-.35), 1.8, 0, TAU); ctx.fill(); } }
+    ctx.restore();
+    if (ea > 1.0 && ex < .5) { waveText(l.name, cx, cy + 20, ea, 1.1, `600 10.5px Futura, "Avenir Next", sans-serif`, '#fff', 2, `rgba(${cc},.95)`, out); waveText(l.item.reason || '', cx, cy + 31, ea, 1.45, `400 7px Futura, "Avenir Next", sans-serif`, 'rgba(190,215,255,.85)', .5, null, out); }
+  }
+  // граненый кристалл-шестигранник: рёбра рисуются по очереди, потом проявляются грани и ядро
+  function gem(x, y, r, rot, ea0, c, A, lit, lw1 = 1.5) {
+    const V = i => [x + Math.cos(rot + i * Math.PI / 3) * r, y + Math.sin(rot + i * Math.PI / 3) * r], sw = clamp(ea0) * 6;
+    for (const [lw, a2] of [[r * .5, .14], [lw1, 1]]) { ctx.lineWidth = lw; ctx.strokeStyle = c(a2 * A); ctx.beginPath(); for (let i = 0; i < 6; i++) { const k = clamp(sw - i); if (k <= 0) break; const P = V(i), Q = V((i + 1) % 6); if (!i) ctx.moveTo(P[0], P[1]); ctx.lineTo(P[0] + (Q[0] - P[0]) * k, P[1] + (Q[1] - P[1]) * k); } ctx.stroke(); }
+    const fa = clamp((ea0 - .9) / .5); if (fa > 0) {
+      ctx.lineWidth = .8; ctx.strokeStyle = c(.45 * fa * A); ctx.beginPath(); for (let i = 0; i < 6; i += 2) { const P = V(i); ctx.moveTo(P[0], P[1]); ctx.lineTo(x, y); } ctx.stroke();   // грани: три луча к ядру
+      ctx.beginPath(); for (let i = 0; i < 6; i++) { const P = [x + Math.cos(rot + i * Math.PI / 3) * r * .58, y + Math.sin(rot + i * Math.PI / 3) * r * .58]; i ? ctx.lineTo(P[0], P[1]) : ctx.moveTo(P[0], P[1]); } ctx.closePath(); ctx.strokeStyle = c(.3 * fa * A); ctx.stroke();
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r * 1.1); g.addColorStop(0, c(.5 * fa * A * lit)); g.addColorStop(1, c(0)); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 1.1, 0, TAU); ctx.fill();
+    }
+  }
+  // ПОПЛАВОК-КРИСТАЛЛ выныривает из-под воды: тусклое свечение внизу, круги по поверхности, прорыв со всплеском капель, потом покачивается; уходя — ныряет обратно (часть ниже воды скрыта)
+  function drawBuoy(l, x, y, t, ea, out) {
+    const it = l.item, p = ph(l), pos = it.res >= 0, col = pos ? '110,240,180' : '255,110,130', c = a => `rgba(${col},${a})`, ranks = it.ranks, now = ranks[ranks.length - 1], n = ranks.length, ex = 1 - out;
+    const R = 13, wl = y + 4, br = backOut(clamp((ea - .38) / .55)), dive = ex * ex, bob = Math.sin(t * 1.1 + p) * 2.2 * clamp(ea - 1) * out;
+    const cy = (y + 22) + (-(22 + 34) + bob) * br + dive * 70, A = clamp((ea - .05) / .3) * (.35 + .65 * clamp(1 - dive * 1.4)), rot = -Math.PI / 6 + Math.sin(t * .4 + p) * .06;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // всплеск вместо кругов (владелец): столб брызг вверх из точки выхода, вспышка на воде, короткие «усы» воды в стороны; капли падают обратно
+    const sp0 = ea - .3;
+    if (sp0 > 0 && !l.sfx) { l.sfx = true; if (typeof tone === 'function' && typeof AC !== 'undefined' && AC) tone(now <= 3 ? [392, 523, 784] : [392, 494], .2, .04, 'triangle', .1); }   // звук появления — в момент всплеска; в тройке — аккорд
+    if (sp0 > 0 && sp0 < 1.3) {
+      const fl = Math.pow(Math.sin(Math.PI * clamp(sp0 / .55)), 2); if (fl > .01) { const gf = ctx.createRadialGradient(x, wl, 0, x, wl, 34); gf.addColorStop(0, `rgba(255,255,255,${.9 * fl})`); gf.addColorStop(.3, c(.5 * fl)); gf.addColorStop(1, c(0)); ctx.fillStyle = gf; ctx.fillRect(x - 34, wl - 34, 68, 68);
+        ctx.strokeStyle = c(.8 * fl); ctx.lineWidth = 1; for (let k = -2; k <= 2; k++) { const a0 = -Math.PI / 2 + k * .36, L = 18 + 10 * Math.abs(k); ctx.beginPath(); ctx.moveTo(x, wl); ctx.lineTo(x + Math.cos(a0) * L * fl, wl + Math.sin(a0) * L * fl * .9); ctx.stroke(); } }   // усы брызг
+      for (let k = 0; k < 22; k++) { const r2 = ((p * 977 + k * 61) % 100) / 100, r3 = ((p * 311 + k * 97) % 100) / 100, vx = (r2 - .5) * 110, vy = 90 + r3 * 110, tt = sp0 * 1.15, dx = x + vx * tt, dy = wl - vy * tt + 210 * tt * tt; if (dy > wl + 1 || tt > 1.25) continue;
+        const al = (1 - sp0 / 1.3) * .95; ctx.fillStyle = k % 3 ? c(al) : `rgba(255,255,255,${al})`; const sz = 1 + r3 * 1.4; ctx.fillRect(dx - sz / 2, dy - sz / 2, sz, sz); if (k % 4 === 0) { ctx.strokeStyle = c(al * .4); ctx.beginPath(); ctx.moveTo(dx, dy); ctx.lineTo(dx - vx * .06, dy + (vy - 420 * tt) * .06); ctx.stroke(); } }
+      const q = clamp((sp0 - .1) / .9); if (q > 0 && q < 1) { const rr = 6 + ease(q) * 30; ctx.strokeStyle = c((1 - q) * .7); ctx.lineWidth = 1.2 * (1 - q) + .3; ctx.beginPath(); ctx.ellipse(x, wl, rr, rr * .3, 0, 0, TAU); ctx.stroke(); }   // один круг от удара
+    }
+    if (ex > .05 && ex < 1) for (let i = 0; i < 2; i++) { const q = clamp(ex * 1.4 - i * .25); if (q <= 0 || q >= 1) continue; const rr = 6 + ease(q) * 30; ctx.strokeStyle = c((1 - q) * .7); ctx.lineWidth = 1.2 * (1 - q) + .3; ctx.beginPath(); ctx.ellipse(x, wl, rr, rr * .3, 0, 0, TAU); ctx.stroke(); }
+    if (ea > 1.3) for (let i = 0; i < 2; i++) { const q = ((t * .22 + i * .5 + p) % 1), rr = 10 + q * 24; ctx.strokeStyle = c((1 - q) * .38 * A * out); ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(x, wl, rr, rr * .3, 0, 0, TAU); ctx.stroke(); }
+    // всё, что ниже линии воды, скрыто: обрезка по поверхности, пока кристалл не вынырнул совсем (и при нырянии)
+    const clipOn = br < 1 || dive > 0 || cy + R * 1.7 > wl; ctx.save(); if (clipOn) { ctx.beginPath(); ctx.rect(0, 0, W, wl); ctx.clip(); }
+    if (cy < wl + 60) { const rs = clamp((ea - .5) / .4); ctx.strokeStyle = c(.3 * A * out); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, wl); ctx.lineTo(x, wl + (cy + R - wl) * rs); ctx.stroke(); }
+    const prev = ranks.slice(-4, -1).map((r, i, a) => ({ x: x - 22 - 13 * (a.length - 1 - i), y: cy - 6 + 14 * (a.length - 1 - i), r, a: clamp((ea - 1.1 - i * .25) / .35) * out, k: .45 + .4 * (i + 1) / (a.length + 1) }));   // три последних прошлых места — всегда одной и той же дугой слева-снизу вверх к щиту (владелец: не привязывать высоту к месту)   // 09.10 владелец: «цифры мелкие, не видны» — кристаллы и цифры крупнее, шаг шире
+    const chain = prev.concat([{ x, y: cy, a: 1, now: true }]);
+    ctx.setLineDash([2, 3]); ctx.lineWidth = 1; ctx.strokeStyle = c(.38 * A); ctx.beginPath(); chain.forEach((q, i) => { if (i === 0) ctx.moveTo(q.x, q.y); else { const P = chain[i - 1], k = Math.min(P.a, q.a); const m = [(P.x + q.x) / 2, Math.min(P.y, q.y) - 6]; ctx.quadraticCurveTo(m[0], m[1], P.x + (q.x - P.x) * k, P.y + (q.y - P.y) * k); } }); ctx.stroke(); ctx.setLineDash([]);
+    if (ea > 1.6 && out > .5) { const u = (t * .3 + p) % 1, seg = u * (chain.length - 1), i0 = Math.floor(seg), f = seg - i0, P = chain[i0], Q = chain[Math.min(chain.length - 1, i0 + 1)], sx = P.x + (Q.x - P.x) * f, sy = P.y + (Q.y - P.y) * f - Math.sin(Math.PI * f) * 5; const gs = ctx.createRadialGradient(sx, sy, 0, sx, sy, 6); gs.addColorStop(0, `rgba(255,255,255,${.9 * A})`); gs.addColorStop(1, c(0)); ctx.fillStyle = gs; ctx.fillRect(sx - 6, sy - 6, 12, 12); }
+    prev.forEach(q => gem(q.x, q.y, 6.4 * q.k + 2, rot, q.a, c, A * .9 * q.a, .6, 2));   // цифра прежняя, кристалл чуть шире — воздух между цифрой и обводкой (владелец)
+    gem(x, cy, R, rot, (ea - .4) / .6, c, A, 1);
+    if (ea > 1.2 && out > .3) { const oa = clamp((ea - 1.2) / .5) * A; ctx.strokeStyle = c(.55 * oa); ctx.lineWidth = 1.1; for (let i = 0; i < 8; i++) { const a0 = t * (pos ? .5 : -.5) + i * TAU / 8; ctx.beginPath(); ctx.arc(x, cy, R * 1.6, a0, a0 + .38); ctx.stroke(); } }
+    if (now <= 3 && ea > 1.3 && out > .3) { const ka = clamp((ea - 1.3) / .4) * A; for (let i = -1; i <= 1; i++) { ctx.strokeStyle = `rgba(255,255,255,${.75 * ka})`; ctx.lineWidth = 1; const bx = x + i * 5, by = cy - R * 1.6 + Math.abs(i) * 1.5; ctx.beginPath(); ctx.moveTo(bx - 1.8, by); ctx.lineTo(bx, by - (i ? 5 : 8)); ctx.lineTo(bx + 1.8, by); ctx.stroke(); } }
+    ctx.restore(); ctx.restore();
+    const na = clamp((ea - .95) / .3) * clamp(out * 2) * (cy + R < wl ? 1 : 0); if (na > 0) { tctx.save(); tctx.globalAlpha = na; tctx.textAlign = 'center'; tctx.textBaseline = 'middle'; tctx.font = `700 ${14 * (.7 + .3 * backOut(clamp((ea - .95) / .3)))}px Futura, "Avenir Next", sans-serif`; tctx.shadowColor = `rgba(${col},.9)`; tctx.shadowBlur = 8; tctx.fillStyle = '#fff'; tctx.fillText(String(now), x, cy + .5); tctx.restore(); }
+    prev.forEach(q => { if (q.a > 0) { tctx.save(); tctx.globalAlpha = .8 * q.a; tctx.textAlign = 'center'; tctx.textBaseline = 'middle'; tctx.font = `700 ${5.5 + q.k * 3}px Futura, sans-serif`; tctx.shadowColor = `rgba(${col},.8)`; tctx.shadowBlur = 5; tctx.fillStyle = '#fff'; tctx.fillText(String(q.r), q.x, q.y + .4); tctx.restore(); } });
+    if (ea > 1.2 && ex < .5) { waveText(l.name, x + R * 1.9 + l.name.length * 3.2, cy - 2, ea, 1.3, `500 10px Futura, "Avenir Next", sans-serif`, '#fff', 1.2, `rgba(${col},.8)`, out); waveText((it.res >= 0 ? '+' : '−') + Math.abs(it.res).toFixed(1) + '%', x + R * 1.9 + 17, cy + 10, ea, 1.6, `600 9.5px Futura, "Avenir Next", sans-serif`, pos ? 'rgb(120,245,185)' : 'rgb(255,125,145)', .6, null, out); }
+  }
+})();
 </script>
 </body>
 </html>
