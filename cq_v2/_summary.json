@@ -1324,10 +1324,80 @@
    "liq": 29,
    "ohlcv": 29,
    "trade": 29
+  },
+  "jct": {
+   "funding": 213,
+   "oi": 150,
+   "liq": 220,
+   "ohlcv": 213,
+   "trade": 324
+  },
+  "us": {
+   "funding": 213,
+   "oi": 150,
+   "liq": 220,
+   "ohlcv": 213,
+   "trade": 298
+  },
+  "aia": {
+   "funding": 213,
+   "oi": 150,
+   "liq": 220,
+   "ohlcv": 213,
+   "trade": 328
+  },
+  "band": {
+   "funding": 213,
+   "oi": 150,
+   "liq": 220,
+   "ohlcv": 213,
+   "trade": 364
+  },
+  "bat": {
+   "funding": 213,
+   "oi": 150,
+   "liq": 220,
+   "ohlcv": 213,
+   "trade": 364
+  },
+  "carv": {
+   "funding": 213,
+   "oi": 150,
+   "liq": 220,
+   "ohlcv": 213,
+   "trade": 364
+  },
+  "dia": {
+   "funding": 213,
+   "oi": 150,
+   "liq": 219,
+   "ohlcv": 213,
+   "trade": 364
+  },
+  "edu": {
+   "funding": 213,
+   "oi": 150,
+   "liq": 220,
+   "ohlcv": 213,
+   "trade": 364
+  },
+  "orca": {
+   "funding": 213,
+   "oi": 150,
+   "liq": 220,
+   "ohlcv": 213,
+   "trade": 364
+  },
+  "parti": {
+   "funding": 213,
+   "oi": 150,
+   "liq": 220,
+   "ohlcv": 213,
+   "trade": 364
   }
  },
- "at": "2026-10-04T21:57:09Z",
+ "at": "2026-10-09T16:33:36Z",
  "full_at": "2026-10-04T21:57:09Z",
- "data_at": "2026-10-03",
+ "data_at": "2026-10-08",
  "full_data_at": "2026-10-03"
 }
