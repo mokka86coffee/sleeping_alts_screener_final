@@ -2132,3 +2132,15 @@
 2026-10-09 01:43:33 данные по 2026-10-03, ждём 2026-10-08 (возраст 99.8 ч)
 2026-10-09 01:43:33 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
 2026-10-09 01:43:35 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-10-09 01:49:31 дозабор, попытка 3: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-10-09 01:49:32 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-10-09 02:13:35 дозабор, попытка 2: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-10-09 02:13:36 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-10-09 02:43:36 дозабор, попытка 3: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-10-09 02:43:38 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-10-09 02:48:39 нет в архиве: 10 (aia, band, carv, dia, edu, orca, parti, rlc, ta, ygg); беру 8, остальных возьмёт следующий прогон
+2026-10-09 02:48:39 добор новичков: aia, band, carv, dia, edu, orca, parti, rlc
+2026-10-09 02:48:41 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-10-09 02:48:41 данные по 2026-10-03, ждём 2026-10-08 (возраст 100.9 ч)
+2026-10-09 02:48:41 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-10-09 02:48:42 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
