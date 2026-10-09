@@ -57,6 +57,11 @@ def process_request(connection, request):
             return _resp(200, STATE.read_bytes(), "application/json; charset=utf-8")
         except OSError:
             return _resp(404, b"{}", "application/json")
+    if path == "/coin.html":                                 # 09.10 владелец: из панели звезды/очереди имя монеты ведёт в карточку coin.html#ТИКЕР
+        try:
+            return _resp(200, (BASE_DIR / "coin.html").read_bytes(), "text/html; charset=utf-8")
+        except OSError:
+            return _resp(404, b"no coin page", "text/plain")
     return _resp(404, b"not found", "text/plain")
 
 
