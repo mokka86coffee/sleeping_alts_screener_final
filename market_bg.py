@@ -1006,6 +1006,15 @@ def main() -> int:
             cap_write(cap)
     else:
         print("капитализация: запрос не прошёл")
+    try:                                                               # 10.10 23:40 UTC владелец: «нужно писать каждый большой рост и отнимать из 600 млн капитализации…
+        import pump_pot                                                #   раз в прогон»; «как только доходит до 600 — только шорты на выносе шортов у лидеров»; «через 3.5 суток обнуляется»
+        pot = pump_pot.build()
+        res["pot"] = {k: pot[k] for k in ("pot_usd", "used_usd", "left_usd", "cycle_from", "full", "full_at", "reset_at", "n", "active")}
+        print("котёл: " + pump_pot.line(pot))
+        if a.write:
+            pump_pot.write(pot)
+    except Exception as e:  # noqa: BLE001 — фон рынка из-за котла падать не должен
+        print(f"котёл: сбой {type(e).__name__}: {e}")
     if a.write and not res.get("note"):
         print("\n→", write(res))
     return 0

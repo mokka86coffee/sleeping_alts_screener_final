@@ -16,6 +16,10 @@
   .hud { position: fixed; inset: 0; pointer-events: none; text-transform: uppercase; letter-spacing: .16em; }
   .top { position: absolute; top: 20px; left: 0; right: 0; text-align: center; }
   .top small { display: block; font-size: 9px; color: var(--dim); }
+  /* 10.10 владелец: «после достижения 400 уже гореть красным какая-то метка на экране, т.е. ход остался только у тех, кто идёт сейчас»; «как только доходит до 600 — только шорты на выносе шортов у лидеров»; «через 3.5 суток обнуляется» — котёл больших ростов (STATE.pot, считает pump_pot.py) */
+  .top small#pot { margin-top: 7px; font-size: 10px; }
+  .top small#pot.warn { color: #ff6e82; font-size: 12px; font-weight: 600; text-shadow: 0 0 10px rgba(255,80,110,.75), 0 0 2px rgba(255,80,110,.9); }
+  .top small#pot.full { color: #ff4a66; font-size: 13px; font-weight: 700; text-shadow: 0 0 14px rgba(255,60,90,.9), 0 0 3px rgba(255,60,90,1); }
   .top h1 { margin: 10px 0 0; font-weight: 300; font-size: 22px; letter-spacing: .34em; color: #e8f2ff; }
   .btns { position: absolute; bottom: 22px; left: 0; right: 0; display: flex; justify-content: center; gap: 14px; flex-wrap: wrap; padding: 0 16px; }
   .btns span { font-size: 11px; padding: 9px 14px; border: 1px solid rgba(140,175,215,.15); color: rgba(150,180,215,.25); }
@@ -200,7 +204,7 @@
 <canvas id="tx"></canvas>
 </div>
 <div class="hud">
-  <div class="top"><small id="status">подключение…</small></div><!-- 03.10 владелец: «вверху убрать надпись crypto orbit» -->
+  <div class="top"><small id="status">подключение…</small><small id="pot"></small></div><!-- 03.10 владелец: «вверху убрать надпись crypto orbit» -->
 </div>
 <div class="pz" id="pz">
   <canvas id="pzc"></canvas>
@@ -2417,6 +2421,19 @@ function applyState(S) {
   const M = S.meta || {};
   const st = document.getElementById('status');
   if (st) st.textContent = `${M.ses || ''} · ${M.open_gate ? 'вход открыт · выход ' + hmT(M.exit_at) : 'вход закрыт: ' + (M.gate_why || '')} · данные ${hmT(M.t)}`;
+  const pe = document.getElementById('pot'), P = S.pot;   // 10.10 владелец: котёл больших ростов — красная метка от 400 млн $, «полный» от 600, обнуление через 3,5 суток (всё время — UTC, показ местный)
+  if (pe) {
+    if (!P) { pe.textContent = ''; pe.className = ''; }
+    else {
+      const m = v => Math.round(v / 1e6), who = (P.moves || []).filter(x => !x.done).map(x => x.sym.replace(/USDT$/, '')).join(', ');
+      const dm = iso => { const d = new Date(iso); return String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+      let txt = `котёл ${m(P.used_usd)} из ${m(P.pot_usd)} млн $`;
+      if (P.full) txt = `КОТЁЛ ПОЛНЫЙ · ${m(P.used_usd)} из ${m(P.pot_usd)} млн $ · только шорты на выносе шортов у лидеров · обнуление ${dm(P.reset_at)}`;
+      else if (P.warn) txt = `КОТЁЛ ${m(P.used_usd)} из ${m(P.pot_usd)} млн $ · ход остался только у тех, кто идёт сейчас${who ? ': ' + who : ''}`;
+      else txt += ` · осталось ${m(P.left_usd)}`;
+      pe.textContent = txt; pe.className = P.full ? 'full' : (P.warn ? 'warn' : '');
+    }
+  }
   if (selected) renderCard(selected.closed ? RIB_G : (rings.find(g => g.labels.includes(selected)) || rings[0]), selected);
 }
 window.applyState = applyState;

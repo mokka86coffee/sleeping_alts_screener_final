@@ -829,6 +829,12 @@ def build() -> dict:
             fsq[nm] = fn(now)
         except Exception as e:  # noqa: BLE001
             print(f"{nm}: сбой {type(e).__name__}: {e}"); fsq[nm] = []
+    try:                                                                 # 10.10 владелец: «после достижения 400 уже гореть красным какая-то метка на экране» — котёл больших ростов (pump_pot.py, пишет прогон)
+        _pp = _read(BASE_DIR / "output" / "pump_pot.json", None)
+        fsq["pot"] = None if not _pp else dict({k: _pp.get(k) for k in ("at", "pot_usd", "used_usd", "left_usd", "warn_usd", "warn", "full", "full_at", "reset_at", "cycle_from", "state", "n", "active")},
+                                               moves=[dict(sym=m["sym"], added=m["added"], done=m["done"], cap_before=m["cap_before"], cap_peak=m["cap_peak"]) for m in (_pp.get("moves") or [])[:8]])
+    except Exception as e:  # noqa: BLE001
+        print(f"pot: сбой {type(e).__name__}: {e}"); fsq["pot"] = None
     return dict(**fsq, meta=meta(now), entry=ent, open=op, closed=cl, closed_hist=hist, charts=charts(syms), score=score(cl), board=board, board_day=board_day(now), board_3h=dict(blocks=dict(_B3H), neutral=list(NEUTRAL_3H), prog=dict(_P3H)), bx_warn=warn)
 
 
