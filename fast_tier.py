@@ -594,8 +594,77 @@ def pump_end_wait_step(state: dict, book: str, now: float, ev: list, msgs: list,
         q["chk"] = int(k[-1][0]) + 180_000
         if not hit:
             continue
+        _r8 = _short_flush_block(sym, now)                                # R81/R82 (10.10 владелец «да»): ждём разворота фандинга; монета с меткой очереди — не входим, ожидание остаётся
+        if _r8:
+            msgs.append(f"{sym[:-4]} шорт «конец роста» на верхе свечи сквиза {q['level']:.6g} не взят — {_r8}"); continue
         if _open_short_now(state, ev, msgs, sym, float(q["level"]), int(hit[0]), now, q["why"] + f" · вход на верхе свечи сквиза {q['level']:.6g}", book, write, side=-1, mode="pump_end"):
             del w[sym]
+
+
+_FT: dict = {"key": None, "v": {}}
+_QM: dict = {"key": None, "v": {}}
+
+
+def _fund_turn(sym: str, now: float, pulse_path=None):
+    """R81 (10.10 владелец «да»): шорт на выносе шортов — только на развороте фандинга. По пульсу скринера (pulse.json, показание раз в ~35 мин):
+    последний фандинг монеты ниже нуля и ниже предыдущего — шортов ещё выносят, не входим; не ниже предыдущего — развернулся, можно.
+    → причина не входить или None"""
+    try:
+        from core_config import FAST3_FLUSH_SHORT_FUND_TURN as _on, FAST3_FUND_TURN_MAX_AGE_MIN as _age
+    except ImportError:
+        _on, _age = True, 90
+    if not _on:
+        return None
+    p = Path(pulse_path) if pulse_path else BASE_DIR / "pulse.json"
+    try:
+        key = (str(p), p.stat().st_mtime)
+    except OSError:
+        return "фандинг неизвестен — нет пульса скринера (R81)"
+    if _FT["key"] != key:
+        try:
+            _FT["v"], _FT["key"] = json.loads(p.read_text(encoding="utf-8")), key
+        except (OSError, ValueError):
+            return "фандинг неизвестен — пульс не читается (R81)"
+    rs = [r for r in (_FT["v"].get(sym) or []) if r.get("funding") is not None and r.get("t")]
+    if len(rs) < 2 or now - float(rs[-1]["t"]) > _age * 60:
+        return f"фандинг неизвестен — показаний пульса меньше двух или последнее старше {_age} мин (R81)"
+    f0, f1 = float(rs[-2]["funding"]), float(rs[-1]["funding"])
+    if f1 < 0 and f1 < f0:
+        return f"фандинг отрицательный и растёт по модулю ({f0:+.4f} → {f1:+.4f} %) — шортов ещё выносят, ждём разворота (R81)"
+    return None
+
+
+def _queue_mark(sym: str, now: float, state_path=None):
+    """R82 (10.10 владелец «да»): шорт на выносе шортов не берём по монете с меткой очереди «1» или «★» (fast_state.queue_now, страница бота).
+    Читает output/fast_state.json; файла нет или он старше FAST3_QUEUE_MARK_MAX_AGE_MIN — правило молчит. → причина не входить или None"""
+    try:
+        from core_config import FAST3_FLUSH_SHORT_QUEUE_MARK as _on, FAST3_QUEUE_MARK_MAX_AGE_MIN as _age
+    except ImportError:
+        _on, _age = True, 15
+    if not _on:
+        return None
+    p = Path(state_path) if state_path else BASE_DIR / "output" / "fast_state.json"
+    try:
+        key = (str(p), p.stat().st_mtime)
+        if now - p.stat().st_mtime > _age * 60:
+            return None
+    except OSError:
+        return None
+    if _QM["key"] != key:
+        try:
+            s = json.loads(p.read_text(encoding="utf-8"))
+            _QM["v"], _QM["key"] = {q["sym"]: q for q in (s.get("queue") or []) if q.get("sym")}, key
+        except (OSError, ValueError):
+            return None
+    q = _QM["v"].get(sym)
+    if not q:
+        return None
+    return f"монета в первых местах очереди — метка «{q.get('mark')}», {q.get('streak') or '?'} прогонов подряд (R82)"
+
+
+def _short_flush_block(sym: str, now: float):
+    """R81 + R82 для шорта после выноса шортов → причина не входить или None"""
+    return _fund_turn(sym, now) or _queue_mark(sym, now)
 
 
 def _manual_no_short(sym: str) -> bool:
@@ -723,6 +792,10 @@ def flush_entries(state: dict, book: str, now: float, ev: list, msgs: list, writ
                 new_side = 1; _bnote = f" · доска за 24 ч {_b['board24']:+.1f}% (в плюсе {_b['up']:.0f}% монет) растёт → лонг вместо шорта (R54)"
         if new_side == -1 and _manual_no_short(sym):                      # 04.10 20:20: то же для шорта против хода после выноса лонгов на росте и шорта вдогонку (R47, ручной список)
             msgs.append(f"{sym[:-4]} {lab}: шорт не взят — монета из списка лестницы владельца (R47)"); continue
+        if new_side == -1 and side == "short":                            # R81/R82 (10.10 владелец «да»): шорт после выноса шортов — только на развороте фандинга и не по монете
+            _r8 = _short_flush_block(sym, now)                            #   с меткой очереди «1»/«★» (сканер R52 против хода и R58 «конец роста» сразу)
+            if _r8:
+                msgs.append(f"{sym[:-4]} {lab}: шорт не взят — {_r8}"); continue
         if new_side == -1 and not kind:
             _ff = _flat5(sym, c)
             if _ff[0]:                                                   # R67: шорт на флэте не берём
@@ -1299,6 +1372,10 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
         _ns = (None if _flush_short else _no_short(sym, c)) or _too_young(sym)   # 02.10 13:40 (проверка): перепроверка в момент входа; 03.10: листинг < 180 дн — всегда
         if _ns:
             msgs.append(f"{sym[:-4]} шорт после вершины не взят: {_ns}"); del state["pending"][sym]; continue
+        if "вынос шортов на всплеске → шорт" in p.get("why", ""):        # R81/R82 (10.10 владелец «да»): шорт на выносе шортов у сканера всплесков — только на развороте фандинга
+            _r8 = _short_flush_block(sym, now)                            #   и не по монете с меткой очереди; ожидание остаётся — следующий бар проверит снова
+            if _r8:
+                msgs.append(f"{sym[:-4]} шорт после вершины не взят: {_r8}"); continue
         _ff = _flat5(sym, c)
         if _ff[0]:                                                        # R67
             msgs.append(f"{sym[:-4]} шорт после вершины не взят: флэт — {_flat_txt(sym, _ff)} (R67)"); del state["pending"][sym]

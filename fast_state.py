@@ -787,7 +787,8 @@ def queue_now(now: float) -> list[dict]:
         if mark is None:
             continue
         raw = [p for p in places if p is not None]                      # 09.10 владелец: «последние 3 места»; «если 13 раз подряд 1-е, значит последние 3 — 1-1-1»:
-        ranks = raw[-Q_PATH - 1:-1] + [mark]                              # места последних прогонов как есть и метка последней — страница рисует её в большом кристалле
+        shown = 1 if mark == 1 else (places[-1] if places[-1] is not None else "—")   # 10.10 владелец: «вместо звезды текущее место» — в большом кристалле
+        ranks = raw[-Q_PATH - 1:-1] + [shown]                             #   текущее место (вне очереди — «—»), у первой — 1; метка остаётся в поле mark
         i_top = next((k for k, p in enumerate(places) if p is not None and p <= Q_TOP), i_mark)
         cur = next((by_run[a][sym] for a in reversed(runs) if sym in by_run[a]), None)
         res = round(float(cur["px_chg_pct"]), 1) if (cur or {}).get("px_chg_pct") is not None else None   # как «+N%» на экране точности — ход с начала дня UTC

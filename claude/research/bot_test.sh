@@ -37,6 +37,8 @@ $PY claude/research/test_bx_first.py >> $T/r63.out 2>&1   # 06.10: ордера 
 $PY claude/research/test_spike_long_off.py >> $T/r63.out 2>&1   # R78 (06.10) и отмена 08.10: лонги на всплеске снова включены, выключатель на месте
 $PY claude/research/test_size_conf.py >> $T/r63.out 2>&1   # R79 (06.10): размер входа по уверенности
 $PY claude/research/test_wide_stop.py >> $T/r63.out 2>&1   # R57 снято, R80 (08.10): шорт на широкой свече выноса со стопом 20 %
+$PY claude/research/test_r81_r82.py >> $T/r63.out 2>&1   # R81/R82 (10.10): шорт на выносе шортов — только на развороте фандинга и не по монете с меткой очереди
+grep -q 'R81/R82: ок' $T/r63.out || echo "СБОЙ: проверка R81/R82 не дала «ок»" >> $T/r63.out
 grep -q 'R75: ок' $T/r63.out || echo "СБОЙ: проверка R75 не дала «ок»" >> $T/r63.out
 $PY claude/research/test_time_utc.py >> $T/r63.out 2>&1   # сторож правила «всё по UTC» (06.10)
 grep -q 'ВРЕМЯ: ок' $T/r63.out || echo "СБОЙ: проверка времени (UTC) не дала «ок»" >> $T/r63.out

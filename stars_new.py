@@ -3,8 +3,8 @@
 убери с экрана», «и звезды также должны приходить с причиной»).
 
 Два признака, монета с любым из них — звезда «новые» (счёт на 456 монетах за пять недель — claude/research/movers_sign.md):
-  1. ШОРТЫ — ТОПЛИВО (главный): за окно STARS_NEW_FUEL_H часов интерес в МОНЕТАХ вырос, фандинг всё окно в минусе, цена не ниже, чем в начале окна —
-     новые позиции это шорты, их выкупают; зажаты шорты.
+  1. ШОРТЫ — ТОПЛИВО (главный): за окно STARS_NEW_FUEL_H часов интерес в МОНЕТАХ вырос (с 10.10 — от STARS_NEW_FUEL_OI_MIN %), фандинг всё окно
+     в минусе (с 10.10 последний — не выше −STARS_NEW_FUEL_FUND_MIN %), цена не ниже, чем в начале окна — новые позиции это шорты, их выкупают.
   2. СКАЧОК ИНТЕРЕСА: интерес в монетах к тому, что был 5 дней назад, — от STARS_NEW_OI5D_X раз.
 Источник — пульс скринера (pulse.json: неделя, шаг — прогон; старше — pulse_archive/). Интерес в монетах = oi_usd / price. Время — UTC (секунды эпохи).
 Экран (render_intro.collect_items) и Телеграм (send_brief_telegram._new_soon) берут список отсюда; выключатель — STARS_NEW_ONLY в core_config.
@@ -38,6 +38,15 @@ def _cfg() -> tuple[float, float, set]:
     except ImportError:
         h, x, sk = 8, 1.16, []
     return float(h), float(x), {str(s).upper() for s in sk}
+
+
+def _fuel_min() -> tuple[float, float]:
+    """10.10 владелец «делай»: порог роста интереса за окно (%) и порог фандинга (%, по модулю) для «шорты — топливо»"""
+    try:
+        from core_config import STARS_NEW_FUEL_OI_MIN as a, STARS_NEW_FUEL_FUND_MIN as b
+    except ImportError:
+        a, b = 5.0, 0.03
+    return float(a), float(b)
 
 
 def _rows(rs: list) -> list[tuple]:
@@ -90,8 +99,10 @@ def collect(now: float | None = None) -> list[dict]:
         px_min7 = min(x[2] for x in r)
         # 1. шорты — топливо
         w = [x for x in r if x[0] >= t - H * 3600]
+        _oi_min, _fu_min = _fuel_min()
         fuel = (len(w) >= 3 and t - w[0][0] >= 0.75 * H * 3600 and all(x[3] is not None and x[3] < 0 for x in w)
-                and oi > w[0][1] and px >= w[0][2])
+                and oi > w[0][1] and px >= w[0][2]
+                and (oi / w[0][1] - 1) * 100 >= _oi_min and fu is not None and fu <= -_fu_min)   # 10.10 владелец «делай»: рост интереса от 5 %, фандинг ниже −0,03 %
         # 2. скачок интереса за 5 дней: показание из окна [t−6 дн, t−5 дн+3 ч] — из пульса, иначе из архива
         old = [x for x in r if t - 6 * D <= x[0] <= t - 5 * D + 3 * 3600]
         if not old:
