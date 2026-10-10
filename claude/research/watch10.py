@@ -29,7 +29,18 @@ def main():
         marks = {q["sym"]: q.get("mark") for q in fs.get("queue", [])}
     except Exception:  # noqa: BLE001
         opens, stars, marks = {}, set(), {}
-    b = kl("BTCUSDT", "15m", 100); bc = b[-1][4]
+    b = []
+    for _try in range(3):                                                 # 10.10 08:15: пустой ответ по BTC ронял скрипт целиком
+        try:
+            b = kl("BTCUSDT", "15m", 100)
+        except Exception:  # noqa: BLE001
+            b = []
+        if len(b) >= 97:
+            break
+        time.sleep(1.0)
+    if len(b) < 97:
+        print("BTC: цен BingX нет сейчас"); b = [(0, 0, 0, 0, prev.get("BTCUSDT") or 1)] * 100
+    bc = b[-1][4]
     print(f"{dt.datetime.fromtimestamp(now, dt.timezone.utc):%H:%M} UTC · BTC {bc:,.0f} · за 1 ч {(bc / b[-5][4] - 1) * 100:+.2f} % · за 24 ч {(bc / b[-97][4] - 1) * 100:+.2f} %" + (f" · с прошлой {(bc / prev['BTCUSDT'] - 1) * 100:+.2f} %" if prev.get("BTCUSDT") else ""))
     cur = {"BTCUSDT": bc}
     for s in WATCH:
