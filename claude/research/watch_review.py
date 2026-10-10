@@ -91,6 +91,10 @@ def main():
         last_pl = places[-1] if places else None
         print(f"- {sym[:-4]} · первой с {f_t(t1)} UTC ({(now - t1) / 3600:.1f} ч назад) · первой {n1} из {len(places)} прогонов · сейчас место {last_pl if last_pl else 'вне очереди'}{mk} · {res}")
         time.sleep(0.2)
+    try:
+        movers(now, by_run, runs, marks)
+    except Exception as e:  # noqa: BLE001
+        print("выросшие: сбой", type(e).__name__, e)
     # ── новые звёзды
     try:
         sj = json.loads((R / "stars_journal.json").read_text(encoding="utf-8"))
@@ -105,6 +109,62 @@ def main():
     if old:
         up = sum(1 for s in old if s["last_pct"] > 0); big = sum(1 for s in old if s["hi"] >= 5)
         print(f"итог по звёздам старше часа: {len(old)} · в плюсе сейчас {up} · доходили до +5 % {big} · медиана сейчас {sorted(s['last_pct'] for s in old)[len(old) // 2]:+.1f} %")
+
+
+
+def movers(now: float, by_run: dict, runs: list, marks: dict) -> None:
+    """10.10 владелец: «следи просто, чтобы то, что выросло, попадало к нам как можно раньше» — монеты с ходом ≥ MOVE_PCT за сутки
+    (получасовки cq_v2/intraday, 200+ монет): когда начался ход (первая получасовка, закрывшаяся выше максимума 24 ч до неё на 3 % —
+    мерка Claude), когда монета впервые попала в первую тройку очереди и в звёзды (stars_journal), опоздание в часах."""
+    MOVE_PCT, WIN = 20.0, 24 * 3600
+    try:
+        sj = json.loads((R / "stars_journal.json").read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        sj = {}
+    out = []
+    for p in (BASE / "cq_v2" / "intraday").glob("*.jsonl"):
+        sym = p.stem.upper() + "USDT"
+        if sym in ("BTCUSDT", "ETHUSDT"):
+            continue
+        rows = []
+        for ln in tail_lines(p, 40_000):
+            try:
+                r = json.loads(ln)
+            except ValueError:
+                continue
+            if r.get("px") and r.get("h") and r.get("candle"):
+                rows.append((ts(r["candle"]) + 1800, float(r["o"] or r["px"]), float(r["h"]), float(r["px"])))
+        rows.sort()
+        day = [x for x in rows if x[0] > now - WIN]
+        if len(day) < 10:
+            continue
+        lo = min(x[3] for x in day); hi = max(x[2] for x in day); last = day[-1][3]
+        base = day[0][1]
+        if hi / base - 1 < MOVE_PCT / 100:
+            continue
+        start = None
+        for i, x in enumerate(rows):
+            if x[0] <= now - WIN:
+                continue
+            prev = [y for y in rows if x[0] - 48 * 1800 <= y[0] < x[0]]
+            if prev and x[3] >= max(y[2] for y in prev) * 1.03:
+                start = x[0]; break
+        top = next((ts(a) for a in runs if sym in by_run[a] and int(by_run[a][sym]["place"]) <= 3), None)
+        st = sj.get(sym); t_star = st["t0"] if st else None
+        out.append((sym, base, hi, last, start, top, t_star))
+    out.sort(key=lambda o: -(o[2] / o[1]))
+    print(f"\nВЫРОСЛИ ЗА СУТКИ (макс ≥ +{MOVE_PCT:.0f} % от цены сутки назад): {len(out)}")
+    lag = []
+    for sym, base, hi, last, start, top, t_star in out:
+        s = f"старт {f_t(start)} UTC" if start else "старта по мерке нет"
+        q = f"в тройке с {f_t(top)}" if top else "в тройке не была"
+        z = f"звезда с {f_t(t_star)}" if t_star else "звездой не была"
+        d = []
+        if start and top: d.append(f"очередь +{(top - start) / 3600:.1f} ч"); lag.append((top - start) / 3600)
+        if start and t_star: d.append(f"звезда {(t_star - start) / 3600:+.1f} ч")
+        print(f"- {sym[:-4]} · макс +{(hi / base - 1) * 100:.0f} % · сейчас {(last / base - 1) * 100:+.0f} % · {s} · {q} · {z}" + (" · опоздание: " + ", ".join(d) if d else ""))
+    seen = sum(1 for o in out if o[5] or o[6])
+    print(f"итог: выросших {len(out)} · попали к нам (тройка или звезда) {seen} · не попали {len(out) - seen}" + (f" · медиана опоздания очереди {sorted(lag)[len(lag) // 2]:.1f} ч" if lag else ""))
 
 
 if __name__ == "__main__":

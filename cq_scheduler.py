@@ -36,7 +36,8 @@ RUN_AT_UTC = (1, 10)          # час, минута
 STALE_HOURS = 30
 LAG_MIN_HOURS = 3             # реже проверять «источник ещё не выложил день»
 MAX_NEW = 8                   # новичков за один прицельный добор
-RETRIES, RETRY_SLEEP = 3, 1800
+RETRIES, RETRY_SLEEP = 2, 60    # 10.10 02:40 UTC (владелец: «каждые 30 мин должно ходить»): было 3 × 1800 с — при недоступном кванте
+                                #   поток прогона висел на повторах до 20 мин каждый прогон, прогоны шли раз в 40–50 мин
 
 
 def log(out: Path, msg: str) -> None:
@@ -189,10 +190,34 @@ def seconds_to_next_run(now: dt.datetime) -> float:
     return (tgt - now).total_seconds()
 
 
+LOCK_MAX_H = 3                # замок старше — считаем брошенным (10.10)
+
+
+def _lock(out: Path):
+    """один обход кванта за раз: замок cq_v2/_fetch.lock с pid; живой чужой замок — не запускаемся (10.10)"""
+    p = out / "_fetch.lock"
+    try:
+        if p.exists():
+            pid = int((p.read_text() or "0").split()[0])
+            age_h = (time.time() - p.stat().st_mtime) / 3600
+            alive = False
+            try:
+                os.kill(pid, 0); alive = True
+            except (OSError, ValueError):
+                alive = False
+            if alive and age_h < LOCK_MAX_H:
+                return None
+        p.write_text(f"{os.getpid()} {int(time.time())}")
+        return p
+    except OSError:
+        return None
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--journal", required=True)
     ap.add_argument("--out", default="cq_v2")
+    ap.add_argument("--once", action="store_true", help="10.10: один ensure_fresh и выход — так зовёт прогон run.py в отдельном процессе, не ожидая")
     a = ap.parse_args()
     out = Path(a.out)
 
@@ -205,6 +230,17 @@ def main() -> int:
         print("нет CQ_TOKEN в окружении")
         return 1
 
+    if a.once:                             # 10.10 (владелец «каждые 30 мин должно ходить»): прогон больше не ждёт квант —
+        lk = _lock(out)                    #   обход идёт отдельным процессом, один за раз
+        if lk is None:
+            log(out, "обход уже идёт в другом процессе — пропуск"); return 0
+        try:
+            return 0 if ensure_fresh(a.journal, out) else 1
+        finally:
+            try:
+                lk.unlink()
+            except OSError:
+                pass
     log(out, "планировщик поднят")
     ensure_fresh(a.journal, out)          # догнать при старте
     while True:

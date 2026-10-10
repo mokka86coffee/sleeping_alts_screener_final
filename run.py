@@ -1649,16 +1649,16 @@ def run_once(args: argparse.Namespace) -> int:
                     _issue("CryptoQuant", "нет CQ_TOKEN в config/config.json")
                 else:
                     from pathlib import Path as _P
-                    from cq_scheduler import ensure_fresh as _cq_fresh
                     _base = _P(__file__).resolve().parent
                     _j = _base / "output" / "leaders.json"
                     if not _j.exists():
                         _j = _base / "leaders.json"
-                    _ok = _cq_fresh(str(_j), _base / "cq_v2")
-                    if _ok:
-                        log("→ CryptoQuant: архив свеж")
-                    else:
-                        _issue("CryptoQuant", "дозабор не удался (см. cq_v2/_fetch.log)")
+                    # 10.10 02:45 UTC (владелец: «каждые 30 мин должно ходить»): обход кванта шёл здесь же, в потоке прогона — полное обновление
+                    # дневок 01:44–02:20 (36 мин), а при недоступном кванте повторы по 30 мин; прогон ждал поток до 20 мин и шёл раз в 40–50 мин.
+                    # Теперь обход — отдельный процесс (cq_scheduler.py --once, замок cq_v2/_fetch.lock), прогон его не ждёт; итог — в cq_v2/_fetch.log.
+                    subprocess.Popen([sys.executable, str(_base / "cq_scheduler.py"), "--once", "--journal", str(_j), "--out", str(_base / "cq_v2")],
+                                     cwd=BASE_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+                    log("→ CryptoQuant: обход запущен отдельным процессом (cq_scheduler --once), прогон его не ждёт")
             except Exception as e:
                 _issue("CryptoQuant", f"{type(e).__name__}: {e}")
 

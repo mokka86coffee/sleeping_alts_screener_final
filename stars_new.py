@@ -3,8 +3,8 @@
 убери с экрана», «и звезды также должны приходить с причиной»).
 
 Два признака, монета с любым из них — звезда «новые» (счёт на 456 монетах за пять недель — claude/research/movers_sign.md):
-  1. ШОРТЫ — ТОПЛИВО (главный): за окно STARS_NEW_FUEL_H часов интерес в МОНЕТАХ вырос (с 10.10 — от STARS_NEW_FUEL_OI_MIN %), фандинг всё окно
-     в минусе (с 10.10 последний — не выше −STARS_NEW_FUEL_FUND_MIN %), цена не ниже, чем в начале окна — новые позиции это шорты, их выкупают.
+  1. ГЛАВНЫЙ: за окно STARS_NEW_FUEL_H часов интерес в МОНЕТАХ вырос от STARS_NEW_FUEL_OI_MIN % (с 10.10 01:54 UTC — 10 %) при цене не ниже начала окна.
+     Условие по фандингу выключено (STARS_NEW_FUEL_FUND_ON); если фандинг всё окно в минусе — признак называется «шорты — топливо», иначе «интерес растёт».
   2. СКАЧОК ИНТЕРЕСА: интерес в монетах к тому, что был 5 дней назад, — от STARS_NEW_OI5D_X раз.
 Источник — пульс скринера (pulse.json: неделя, шаг — прогон; старше — pulse_archive/). Интерес в монетах = oi_usd / price. Время — UTC (секунды эпохи).
 Экран (render_intro.collect_items) и Телеграм (send_brief_telegram._new_soon) берут список отсюда; выключатель — STARS_NEW_ONLY в core_config.
@@ -40,13 +40,13 @@ def _cfg() -> tuple[float, float, set]:
     return float(h), float(x), {str(s).upper() for s in sk}
 
 
-def _fuel_min() -> tuple[float, float]:
-    """10.10 владелец «делай»: порог роста интереса за окно (%) и порог фандинга (%, по модулю) для «шорты — топливо»"""
+def _fuel_min() -> tuple[float, float, bool]:
+    """10.10 владелец: порог роста интереса за окно (%), порог фандинга (%, по модулю) и нужен ли фандинг вообще (с 10.10 01:54 UTC — нет)"""
     try:
-        from core_config import STARS_NEW_FUEL_OI_MIN as a, STARS_NEW_FUEL_FUND_MIN as b
+        from core_config import STARS_NEW_FUEL_OI_MIN as a, STARS_NEW_FUEL_FUND_MIN as b, STARS_NEW_FUEL_FUND_ON as c
     except ImportError:
-        a, b = 5.0, 0.03
-    return float(a), float(b)
+        a, b, c = 10.0, 0.03, False
+    return float(a), float(b), bool(c)
 
 
 def _rows(rs: list) -> list[tuple]:
@@ -99,10 +99,11 @@ def collect(now: float | None = None) -> list[dict]:
         px_min7 = min(x[2] for x in r)
         # 1. шорты — топливо
         w = [x for x in r if x[0] >= t - H * 3600]
-        _oi_min, _fu_min = _fuel_min()
-        fuel = (len(w) >= 3 and t - w[0][0] >= 0.75 * H * 3600 and all(x[3] is not None and x[3] < 0 for x in w)
-                and oi > w[0][1] and px >= w[0][2]
-                and (oi / w[0][1] - 1) * 100 >= _oi_min and fu is not None and fu <= -_fu_min)   # 10.10 владелец «делай»: рост интереса от 5 %, фандинг ниже −0,03 %
+        _oi_min, _fu_min, _fu_on = _fuel_min()
+        neg = len(w) >= 3 and all(x[3] is not None and x[3] < 0 for x in w)                       # фандинг всё окно в минусе — тогда это «шорты — топливо»
+        fuel = (len(w) >= 3 and t - w[0][0] >= 0.75 * H * 3600 and oi > w[0][1] and px >= w[0][2]
+                and (oi / w[0][1] - 1) * 100 >= _oi_min                                          # 10.10 владелец «да»: рост интереса за окно от 10 %
+                and (not _fu_on or (neg and fu is not None and fu <= -_fu_min)))                 #   без условия по фандингу (STARS_NEW_FUEL_FUND_ON)
         # 2. скачок интереса за 5 дней: показание из окна [t−6 дн, t−5 дн+3 ч] — из пульса, иначе из архива
         old = [x for x in r if t - 6 * D <= x[0] <= t - 5 * D + 3 * 3600]
         if not old:
@@ -115,14 +116,14 @@ def collect(now: float | None = None) -> list[dict]:
         if not (fuel or (jump and JUMP_ALONE)):
             continue
         name = sym.replace("USDT", "")
-        head = " · ".join(n for n, ok in (("шорты — топливо", fuel), ("скачок интереса", jump)) if ok)
+        head = " · ".join(n for n, ok in (("шорты — топливо" if neg else "интерес растёт", fuel), ("скачок интереса", jump)) if ok)
         g_oi = [f"×{oi / oi_min7:.1f} к минимуму недели"]
         if len(w) >= 2 and w[0][1]:
             g_oi.append(f"за {H:.0f} ч {(oi / w[0][1] - 1) * 100:+.0f}%")
         if oi5 is not None:
             g_oi.append(f"за 5 дн ×{oi5:.2f}")
         g_fu = [f"{fu:+.3f}%" if fu is not None else "—"]
-        if fuel:
+        if fuel and neg:
             g_fu.append(f"в минусе все {H:.0f} ч")
         g_px = []
         if len(w) >= 2 and w[0][2]:
@@ -132,8 +133,10 @@ def collect(now: float | None = None) -> list[dict]:
         g_px.append(f"от минимума недели ×{px / px_min7:.2f}")
         sub = " ‖ ".join([head, "интерес: " + " · ".join(g_oi), "фандинг: " + " · ".join(g_fu), "цена: " + " · ".join(g_px)])
         why = []
-        if fuel:
-            why.append(f"шорты — топливо: за {H:.0f} ч интерес в монетах вырос, фандинг всё это время в минусе, цена не упала — новые позиции это шорты, их выкупают")
+        if fuel and neg:
+            why.append(f"шорты — топливо: за {H:.0f} ч интерес в монетах вырос на {(oi / w[0][1] - 1) * 100:+.0f}%, фандинг всё это время в минусе, цена не упала — новые позиции это шорты, их выкупают")
+        elif fuel:
+            why.append(f"интерес растёт: за {H:.0f} ч интерес в монетах вырос на {(oi / w[0][1] - 1) * 100:+.0f}% при цене не ниже начала окна (10.10: без условия по фандингу)")
         if jump:
             why.append(f"скачок интереса: в монетах ×{oi5:.2f} за 5 дней при цене ×{px5:.2f} (в счёте 06.10 такие дали ×2 в 15 случаях из 227 против 29 из 2040)")
         why.append(f"интерес ×{oi / oi_min7:.1f} к минимуму недели · фандинг {fu:+.3f}%" if fu is not None else f"интерес ×{oi / oi_min7:.1f} к минимуму недели")

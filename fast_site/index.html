@@ -565,7 +565,7 @@ function layoutRiverLabels(R, t, nowS) {
       const fx = R.x0 + 14 + Math.random() * Math.max(1, R.w - 30 - l.ebw), rv = -.82 + Math.random() * 1.64;
       const y = riverY(R, fx, t) + rv * R.hh, BH = l.bh || 18, cx = fx + l.ebw / 2, cy = y - l.h - BH / 2;
       let d = 9;
-      if (window.FC_RESERVED) { const bx0 = fx - 6, bx1 = fx + l.ebw + 6, by0 = y - l.h - BH - 24, by1 = y + 10; if (FC_RESERVED().some(q => bx0 < q.r && bx1 > q.l && by0 < q.b && by1 > q.t)) continue; }   // не лезть под список прогнозов и открытую панель
+      if (window.FC_RESERVED) { const bx0 = fx - 6, bx1 = fx + l.ebw + 6, by0 = y - l.h - BH - 24, by1 = y + 10; if (FC_RESERVED().some(q => bx0 < q.r && bx1 > q.l && by0 < q.b && by1 > q.t)) continue; if (pzDimAt(bx0 - 90, bx1, by0 - 40, by1 + 30) < 1) continue; }   // не лезть под список прогнозов и открытую панель
       for (const q of placed) d = Math.min(d, Math.max(Math.abs(cx - q.cx) / ((l.ebw + q.bw) / 2 + 10), Math.abs(cy - q.cy) / ((BH + 8 + q.bh) / 2 + 4)), Math.hypot(fx - q.x, y - q.y) / 46);
       if (d > bestD) { bestD = d; best = { fx, rv }; }
     }
@@ -579,11 +579,7 @@ function riverLabel(g, l, t, R, nowS) {
   if (!l.shown) { l.born = t; return true; }   // ещё ищет место: не рисуем и не стартуем анимацию появления
   const x = l.fx;   // место выбрано один раз и не меняется
   RIVL = { x, y: riverY(R, x, t) + l.rv * R.hh };
-  let dim = 1;   // под открытой панелью текст подписей не должен мешать: там они бледнеют
-  if (typeof selected !== 'undefined' && selected && typeof PZ !== 'undefined' && PZ) {
-    const bw = l.bw || l.ebw || 140, yb = RIVL.y, yt = yb - (l.h + (l.dy || 0)) - 26;
-    if (x < PZ.x + PZ.w + 260 && x + bw > PZ.x && yb > PZ.y - 10 && yt < PZ.y + 150) dim = .12;
-  }
+  const dim = (typeof pzDimAt === 'function') ? pzDimAt(x - 90, x + (l.bw || l.ebw || 140), RIVL.y - (l.h + (l.dy || 0)) - 60, RIVL.y + 40) : 1;   // под открытой панелью всё на реке бледнеет
   l.dimNow = (l.dimNow == null ? dim : l.dimNow + (dim - l.dimNow) * .15);
   const a0 = ctx.globalAlpha; ctx.globalAlpha = a0 * l.dimNow; LBL_DIM = l.dimNow;   // текст гасится через LBL_DIM (drawLabel0 сам задаёт прозрачность текстового слоя)
   try { return drawLabel0(g, l, t); } finally { RIVL = null; LBL_DIM = 1; ctx.globalAlpha = a0; }
@@ -2085,6 +2081,10 @@ const ribArrowAt = (x, y) => RIB.arrows.find(r => x >= r.x && x <= r.x + r.w && 
 // ---------- боковая панель по клику: кристалл + линия цены из него + светящиеся ВХ / СТОП / ЦЕЛЬ ----------
 const pz = document.getElementById('pz'), pzc = document.getElementById('pzc'), pctx = pzc.getContext('2d');
 const PM = 80;   // запас холста вокруг зоны: лучи и осколки гаснут за её краями
+function pzDimAt(x0, x1, y0, y1) {   // 10.10 владелец (наложения): элемент реки, попавший под открытую панель или её колонку справа, гаснет до .1
+  if (!pzOn || !PZ) return 1; const px1 = PZ.x + PZ.w + 300, py1 = PZ.y + Math.min(PZ.h, 240);
+  return (x0 < px1 && x1 > PZ.x - 20 && y0 < py1 && y1 > PZ.y - 20) ? .1 : 1;
+}
 let PZ = { x: 0, y: 0, w: 300, h: 460 }, PZL = {}, pzOn = false, pzUntil = 0, pzData = null, pzAC = '160,210,255', pzOpenT = 0;
 const pzShards = [];
 
@@ -3017,15 +3017,18 @@ findHover = function () {
     if (!l.shown) { l.born = t; return true; }
     const x = l.fx, y = riverY(R, x, t) + l.rv * R.hh, age = t - l.born; if (age > l.life) return false;
     const ea = age / ANIM_SLOW, out = clamp((l.life - age) / ANIM_SLOW / 1.1);   // те же часы, что у флажков: появление и исчезновение
-    (k === 'star' ? drawStar : drawBuoy)(l, x, y, t, ea, out);
-    if (ea > .8) { const cy = k === 'star' ? y - 54 : y - 22; l.hit = { x: x - 22, y: cy - 22, w: 44 + (k === 'queue' ? 70 : 0), h: 44, ax: x, ay: y, tx: x, ty: cy }; } else l.hit = null;   // область клика: звезда / кристалл с подписью
+    const dimT = pzDimAt(x - 100, x + 120, y - 90, y + 30); l.dimNow = l.dimNow == null ? dimT : l.dimNow + (dimT - l.dimNow) * .15;
+    const a0 = ctx.globalAlpha, b0 = tctx.globalAlpha; ctx.globalAlpha = a0 * l.dimNow; tctx.globalAlpha = b0 * l.dimNow;
+    WT_DIM = l.dimNow; try { (k === 'star' ? drawStar : drawBuoy)(l, x, y, t, ea, out); } finally { WT_DIM = 1; ctx.globalAlpha = a0; tctx.globalAlpha = b0; }
+    if (ea > .8 && l.dimNow > .5) { const cy = k === 'star' ? y - 54 : y - 22; l.hit = { x: x - 22, y: cy - 22, w: 44 + (k === 'queue' ? 70 : 0), h: 44, ax: x, ay: y, tx: x, ty: cy }; } else l.hit = null;   // область клика: звезда / кристалл с подписью
     return true;
   };
   const ph = l => { let h = 0; for (const c of l.key) h = (h * 31 + c.charCodeAt(0)) >>> 0; return (h % 628) / 100; };
   // буквы проявляются волной снизу вверх, как у флажков
+  let WT_DIM = 1;
   function waveText(str, x, y, ea, t0, font, fill, sp, glow, out) {
     tctx.save(); tctx.font = font; tctx.textAlign = 'left'; tctx.letterSpacing = '0px'; let w = 0; const ws = [...str].map(c => { const q = tctx.measureText(c).width + sp; w += q; return q; }); let gx = x - w / 2;
-    [...str].forEach((c, i) => { const p = clamp((ea - t0 - i * .05) / .35), o = clamp((1.1 - out * 1.1 - i * .03) / .35); if (p > 0) { tctx.globalAlpha = Math.min(1, p * 1.5) * (1 - o); if (glow) { tctx.shadowColor = glow; tctx.shadowBlur = 8; } tctx.fillStyle = fill; tctx.fillText(c, gx, y + (1 - backOut(p)) * 6 - o * 5 + Math.sin(performance.now() / 1000 * 2.2 - i * .6) * .4); tctx.shadowBlur = 0; } gx += ws[i]; });
+    [...str].forEach((c, i) => { const p = clamp((ea - t0 - i * .05) / .35), o = clamp((1.1 - out * 1.1 - i * .03) / .35); if (p > 0) { tctx.globalAlpha = Math.min(1, p * 1.5) * (1 - o) * WT_DIM; if (glow) { tctx.shadowColor = glow; tctx.shadowBlur = 8; } tctx.fillStyle = fill; tctx.fillText(c, gx, y + (1 - backOut(p)) * 6 - o * 5 + Math.sin(performance.now() / 1000 * 2.2 - i * .6) * .4); tctx.shadowBlur = 0; } gx += ws[i]; });
     tctx.restore();
   }
   function ripples(x, y, ea, c, big) {   // всплеск при появлении: два кольца и вспышка — как у флажков
@@ -3102,8 +3105,8 @@ findHover = function () {
     if (ea > 1.2 && out > .3) { const oa = clamp((ea - 1.2) / .5) * A; ctx.strokeStyle = c(.55 * oa); ctx.lineWidth = 1.1; for (let i = 0; i < 8; i++) { const a0 = t * (pos ? .5 : -.5) + i * TAU / 8; ctx.beginPath(); ctx.arc(x, cy, R * 1.6, a0, a0 + .38); ctx.stroke(); } }
     if (now <= 3 && ea > 1.3 && out > .3) { const ka = clamp((ea - 1.3) / .4) * A; for (let i = -1; i <= 1; i++) { ctx.strokeStyle = `rgba(255,255,255,${.75 * ka})`; ctx.lineWidth = 1; const bx = x + i * 5, by = cy - R * 1.6 + Math.abs(i) * 1.5; ctx.beginPath(); ctx.moveTo(bx - 1.8, by); ctx.lineTo(bx, by - (i ? 5 : 8)); ctx.lineTo(bx + 1.8, by); ctx.stroke(); } }
     ctx.restore(); ctx.restore();
-    const na = clamp((ea - .95) / .3) * clamp(out * 2) * (cy + R < wl ? 1 : 0); if (na > 0) { tctx.save(); tctx.globalAlpha = na; tctx.textAlign = 'center'; tctx.textBaseline = 'middle'; tctx.font = `700 ${14 * (.7 + .3 * backOut(clamp((ea - .95) / .3)))}px Futura, "Avenir Next", sans-serif`; tctx.shadowColor = `rgba(${col},.9)`; tctx.shadowBlur = 8; tctx.fillStyle = '#fff'; tctx.fillText(String(now), x, cy + .5); tctx.restore(); }
-    prev.forEach(q => { if (q.a > 0) { tctx.save(); tctx.globalAlpha = .8 * q.a; tctx.textAlign = 'center'; tctx.textBaseline = 'middle'; tctx.font = `700 ${5.5 + q.k * 3}px Futura, sans-serif`; tctx.shadowColor = `rgba(${col},.8)`; tctx.shadowBlur = 5; tctx.fillStyle = '#fff'; tctx.fillText(String(q.r), q.x, q.y + .4); tctx.restore(); } });
+    const na = clamp((ea - .95) / .3) * clamp(out * 2) * (cy + R < wl ? 1 : 0); if (na > 0) { tctx.save(); tctx.globalAlpha = na * (l.dimNow == null ? 1 : l.dimNow); tctx.textAlign = 'center'; tctx.textBaseline = 'middle'; tctx.font = `700 ${14 * (.7 + .3 * backOut(clamp((ea - .95) / .3)))}px Futura, "Avenir Next", sans-serif`; tctx.shadowColor = `rgba(${col},.9)`; tctx.shadowBlur = 8; tctx.fillStyle = '#fff'; tctx.fillText(String(now), x, cy + .5); tctx.restore(); }
+    prev.forEach(q => { if (q.a > 0) { tctx.save(); tctx.globalAlpha = .8 * q.a * (l.dimNow == null ? 1 : l.dimNow); tctx.textAlign = 'center'; tctx.textBaseline = 'middle'; tctx.font = `700 ${5.5 + q.k * 3}px Futura, sans-serif`; tctx.shadowColor = `rgba(${col},.8)`; tctx.shadowBlur = 5; tctx.fillStyle = '#fff'; tctx.fillText(String(q.r), q.x, q.y + .4); tctx.restore(); } });
     if (ea > 1.2 && ex < .5) { waveText(l.name, x + R * 1.9 + l.name.length * 3.2, cy - 2, ea, 1.3, `500 10px Futura, "Avenir Next", sans-serif`, '#fff', 1.2, `rgba(${col},.8)`, out); waveText((it.res >= 0 ? '+' : '−') + Math.abs(it.res).toFixed(1) + '%', x + R * 1.9 + 17, cy + 10, ea, 1.6, `600 9.5px Futura, "Avenir Next", sans-serif`, pos ? 'rgb(120,245,185)' : 'rgb(255,125,145)', .6, null, out); }
   }
 })();
