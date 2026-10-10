@@ -719,6 +719,12 @@ def forecasts(now: float) -> list[dict]:
 
 def stars_now(now: float) -> list[dict]:
     """звёзды экрана «звёзды» (output/stars.json); t — когда монета впервые появилась среди звёзд (память output/fast_stars_mem.json)"""
+    try:                                   # 10.10 владелец: «убери звезды вообще свои» — выключатель STARS_OFF в stars_new.py
+        from stars_new import STARS_OFF as _off
+    except ImportError:
+        _off = False
+    if _off:
+        return []
     st = _read(BASE_DIR / "output" / "stars.json", {}) or {}
     mem = _read(STARS_MEM, {}) or {}
     cur = [s for s in (st.get("stars") or []) if s.get("sym")]
