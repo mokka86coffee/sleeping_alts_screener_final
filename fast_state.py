@@ -803,7 +803,8 @@ def queue_now(now: float) -> list[dict]:
             p0 = float((by_run[runs[i_top]].get(sym) or {}).get("px") or 0); p1 = float((cur or {}).get("px") or 0)
             res = round((p1 / p0 - 1) * 100, 1) if p0 and p1 else 0.0
         out.append(dict(sym=sym, ranks=ranks, res=res, t=_unix(runs[i_mark]), keep=KEEP_S, place=(1 if mark == 1 else 2), now_place=places[-1],
-                        streak=streak, since=_unix(runs[i_top]), mark=mark))
+                        streak=streak, since=_unix(runs[i_top]), mark=mark,
+                        v2c=(cur or {}).get("vol_to_cap"), cap=(cur or {}).get("cap_now_usd")))   # 10.10 владелец: «надо соотношение объемов к капитализации показывать для лидеров в топе» — оборот фьючерсов Binance за 24 ч к капитализации по цене прогона (near_move)
     out.sort(key=lambda q: (q["place"], q["sym"]))                   # 1-е первым, дальше звёзды
     return out
 

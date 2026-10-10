@@ -83,6 +83,8 @@ sys.path.insert(0, str(BASE_DIR))
 ARCH = BASE_DIR / "cq_v2"
 INTRA = ARCH / "intraday"
 OUT = BASE_DIR / "output" / "market_bg.jsonl"
+CAP_LOG = BASE_DIR / "output" / "market_cap.jsonl"   # 10.10 22:10 UTC владелец: «окей, тогда нам это нужно каждый прогон» — капитализация рынка, строка на прогон
+CAP_URL = "https://api.coingecko.com/api/v3/global"   # без ключа; один запрос на прогон
 BIG_MOVE = 50.0          # «сильный рост одной-двух»: от +50% за день
 STREAK_MIN = 0.03        # день считается растущим от +3%
 LEADERS_N = 10           # сколько лидеров биржи писать
@@ -853,6 +855,65 @@ def taker_line(row: dict | None = None) -> str:
     return out
 
 
+def _cap_prev(hours: float, now: datetime) -> dict | None:
+    """строка журнала капитализации, ближайшая к «hours часов назад» (не дальше 45 минут от этой точки); None — нет"""
+    try:
+        lines = CAP_LOG.read_text(encoding="utf-8").splitlines()[-400:]
+    except OSError:
+        return None
+    want = now - timedelta(hours=hours); best = None
+    for ln in lines:
+        try:
+            r = json.loads(ln); t = datetime.strptime(r["at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        except (ValueError, KeyError, TypeError):
+            continue
+        gap = abs((t - want).total_seconds())
+        if gap <= 45 * 60 and (best is None or gap < best[0]):
+            best = (gap, r)
+    return best[1] if best else None
+
+
+def cap_total(now: datetime | None = None, candle: str | None = None) -> dict | None:
+    """КАПИТАЛИЗАЦИЯ РЫНКА НА ПРОГОН (10.10 22:10 UTC, владелец по графику TradingView «Crypto Total Market Cap Excluding BTC and ETH»:
+    «вот это вот главное это оно?», «окей, тогда нам это нужно каждый прогон»). Один запрос CoinGecko /global: вся капитализация, BTC, ETH и
+    остаток без них (котёл альтов) в долларах, оборот рынка за сутки, доли первых десяти монет как есть (dom). Изменения — к прошлому прогону
+    и к суткам назад по собственному журналу CAP_LOG. Ничего не решает, только пишет. Уровень отличается от TradingView (у него свой набор
+    монет): 10.10 22:00 UTC у нас 846 млрд $, у него 805. Время — UTC. None — запрос не прошёл (прогон из-за этого не падает)."""
+    import urllib.request
+    now = now or datetime.now(timezone.utc)
+    try:
+        with urllib.request.urlopen(urllib.request.Request(CAP_URL, headers=UA), timeout=20) as r:
+            d = (json.loads(r.read().decode("utf-8")) or {}).get("data") or {}
+        tot = float((d.get("total_market_cap") or {}).get("usd") or 0)
+        dom = {k: round(float(v), 3) for k, v in (d.get("market_cap_percentage") or {}).items()}
+        if not tot or "btc" not in dom:
+            return None
+        btc = tot * dom["btc"] / 100; eth = tot * dom.get("eth", 0.0) / 100
+        row = {"at": now.strftime("%Y-%m-%dT%H:%M:%SZ"), "candle": candle, "src_at": d.get("updated_at"),
+               "total_usd": round(tot), "btc_usd": round(btc), "eth_usd": round(eth), "alt_usd": round(tot - btc - eth),
+               "vol24_usd": round(float((d.get("total_volume") or {}).get("usd") or 0)), "dom": dom}
+        try:                                                             # прошлый прогон — последняя строка журнала, какой бы давности она ни была (её время — в prev_at)
+            last = json.loads(CAP_LOG.read_text(encoding="utf-8").splitlines()[-1])
+        except (OSError, ValueError, IndexError):
+            last = None
+        if last:
+            row["prev_at"] = last.get("at")
+        for key, pr in (("run", last), ("d1", _cap_prev(24.0, now))):    # к прошлому прогону и к суткам назад — в долларах и процентах
+            if pr and pr.get("alt_usd") and pr.get("total_usd"):
+                row[f"alt_chg_{key}_usd"] = round(row["alt_usd"] - pr["alt_usd"])
+                row[f"alt_chg_{key}_pct"] = round((row["alt_usd"] / pr["alt_usd"] - 1) * 100, 3)
+                row[f"total_chg_{key}_pct"] = round((row["total_usd"] / pr["total_usd"] - 1) * 100, 3)
+        return row
+    except Exception:  # noqa: BLE001 — фон рынка не должен падать из-за чужого сервиса
+        return None
+
+
+def cap_write(row: dict) -> None:
+    CAP_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with CAP_LOG.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
 def write(res: dict) -> Path:
     """Пишет срез фона в ленту. ВМЕСТЕ С СОСТОЯНИЯМИ ПАНЕЛИ (09.09, владелец: «убедись, что мы
     пишем в журнал каждый прогон текущее состояние всех индикаторов на боковой панели»).
@@ -935,6 +996,16 @@ def main() -> int:
     a = ap.parse_args()
     res = build([x.strip() for x in a.only.split(",")] if a.only else None, leaders=not a.no_leaders)
     _print(res)
+    cap = cap_total(candle=res.get("candle"))                            # 10.10: капитализация рынка — в строку фона и в свой короткий журнал
+    if cap:
+        res["cap"] = cap
+        print(f"капитализация: всего {cap['total_usd'] / 1e9:.0f} млрд $ · альты без BTC и ETH {cap['alt_usd'] / 1e9:.1f} млрд $"
+              + (f" · за прогон {cap['alt_chg_run_usd'] / 1e9:+.2f} млрд $ ({cap['alt_chg_run_pct']:+.2f}%)" if cap.get("alt_chg_run_usd") is not None else "")
+              + (f" · за сутки {cap['alt_chg_d1_usd'] / 1e9:+.1f} млрд $ ({cap['alt_chg_d1_pct']:+.2f}%)" if cap.get("alt_chg_d1_usd") is not None else ""))
+        if a.write:
+            cap_write(cap)
+    else:
+        print("капитализация: запрос не прошёл")
     if a.write and not res.get("note"):
         print("\n→", write(res))
     return 0

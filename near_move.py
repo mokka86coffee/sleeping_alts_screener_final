@@ -149,6 +149,7 @@ def _money_state(v: dict, oi_chg: float) -> str:
 
 
 _MCAP_CACHE: dict = {}
+_CIRC_CACHE: dict = {}   # 10.10: монеты в обороте из той же карточки CoinGecko, что и капитализация (_mcap)
 
 
 def _mcap(sym_usdt: str) -> float | None:
@@ -164,7 +165,9 @@ def _mcap(sym_usdt: str) -> float | None:
     _cap = 0.0
     try:
         from external_data import get_fundamentals
-        _cap = float(getattr(get_fundamentals(sym_usdt), "mcap_usd", 0) or 0)
+        _f = get_fundamentals(sym_usdt)
+        _cap = float(getattr(_f, "mcap_usd", 0) or 0)
+        _CIRC_CACHE[sym_usdt] = float(getattr(_f, "circ_supply", 0) or 0)
     except Exception:   # noqa: BLE001 — капа не обязана быть
         _cap = 0.0
     _MCAP_CACHE[sym_usdt] = _cap
@@ -966,6 +969,23 @@ def attach_today(sym_usdt: str, j: dict) -> dict:
             _pch = _t2.get("px_chg_pct")
             if _pch is not None:
                 _t2["cap_chg_pct"] = round(float(_pch), 2)   # капа ходит ценой: supply за сутки постоянна
+            # КАПИТАЛИЗАЦИЯ ПО ЦЕНЕ ПРОГОНА И ОБОРОТ ЗА 24 Ч К НЕЙ (10.10 22:20 UTC, владелец: «капитализация = монеты в обороте умножить на цену»,
+            # «надо соотношение объемов к капитализации показывать для лидеров в топе»). cap_usd выше — капитализация на момент карточки CoinGecko
+            # (раз в 12 ч, цена старая: у STRK 10.10 — 536 млн $ при цене 0,072, а цена прогона 0,104). Здесь: монеты в обороте из той же карточки ×
+            # цена прогона; оборот — сумма долларового объёма фьючерсов Binance за последние 48 получасовок архива. vol_to_cap до этого всегда был
+            # пуст (поля оборота в «сегодня» нет) — теперь это оборот за 24 ч к капитализации по цене прогона. В балл и место очереди не идёт.
+            try:
+                _circ = _CIRC_CACHE.get(sym_usdt) or 0.0
+                _pxn = float(_t2.get("px") or 0)
+                if _circ and _pxn:
+                    _capn = _circ * _pxn
+                    _t2["cap_now_usd"] = round(_capn)
+                    _v24 = sum(float(((r.get("kv") or {}).get("qv")) or 0) for r in _intraday_rows(sym_usdt, back=48))
+                    if _v24:
+                        _t2["vol24_usd"] = round(_v24)
+                        _t2["vol_to_cap"] = round(_v24 / _capn, 3)
+            except Exception:   # noqa: BLE001 — журнал очереди из-за этого поля падать не должен
+                pass
         _pick = _session_pickup_rows(_intraday_rows(sym_usdt))
         if _pick and isinstance(j.get("today"), dict):
             j["today"]["sess_pickup"] = _pick
@@ -1523,6 +1543,7 @@ def log_queue(res: dict) -> int:
             "btc_24h": _btc24, "board_med_24h": _board_med, "board_med_day": _board_day, "obs": _obs,
             "score": q.get("score"), "first_streak": q.get("first_streak"), "oi_inflow": q.get("oi_inflow"),
             "cap_usd": t.get("cap_usd"), "vol_to_cap": t.get("vol_to_cap"), "cap_chg_pct": t.get("cap_chg_pct"),
+            "cap_now_usd": t.get("cap_now_usd"), "vol24_usd": t.get("vol24_usd"),   # 10.10: капитализация по цене прогона и оборот фьючерсов за 24 ч
             "money": q.get("money"), "sess_pickup": (t.get("sess_pickup") or {}).get("why"),
             "fast_against": q.get("fast_against"),
             "days_since_harvest": q.get("days_since_harvest"), "oi_grow": n.get("oi_grow"),

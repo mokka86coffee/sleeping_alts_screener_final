@@ -70,6 +70,7 @@ class CoinFundamentals:
     tvl_change_7d: float = 0.0
     tvl_change_30d: float = 0.0
     defillama_slug: str | None = None
+    circ_supply: float = 0.0   # 10.10: монеты в обороте (CoinGecko market_data.circulating_supply) — капитализация на прогон = circ_supply × цена прогона
     defillama_category: str = ""
 
     def has_data(self) -> bool:
@@ -440,6 +441,7 @@ def get_fundamentals(symbol: str) -> CoinFundamentals:
             md = detail.get("market_data") or {}
             result.mcap_usd = float((md.get("market_cap") or {}).get("usd") or 0)
             result.mcap_rank = detail.get("market_cap_rank")
+            result.circ_supply = float(md.get("circulating_supply") or 0)
             result.fdv_usd = float((md.get("fully_diluted_valuation") or {}).get("usd") or 0)
             result.ath_price_usd = float((md.get("ath") or {}).get("usd") or 0)
             result.ath_change_pct = float((md.get("ath_change_percentage") or {}).get("usd") or 0)

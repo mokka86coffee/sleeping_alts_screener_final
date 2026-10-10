@@ -2397,7 +2397,7 @@ function applyState(S) {
       .concat((S.bx_warn || []).filter(w => nowS - w.t_in < (w.keep || ENTRY_KEEP)).map(w => ({ key: 'warn|' + w.kind_w + '|' + w.sym + '|' + Math.round(w.t_in), name: w.sym.replace(/USDT$/, ''), side: w.side, price: w.entry, item: w })))
       // 09.10: звёзды и очередь — свои типы на реке (kind: 'star' | 'queue'); живут, пока есть в данных и не старше keep (моё умолчание 2 ч)
       // 10.10 владелец: звёзды (S.stars) с реки убраны — очередь получила их вид
-      .concat((S.queue || []).filter(q => nowS - q.t < (q.keep || 7200)).map(q => ({ key: 'queue|' + q.sym + '|' + Math.round(q.t), name: q.sym.replace(/USDT$/, ''), side: 0, price: 0, item: { kind: 'queue', sym: q.sym, ranks: q.ranks || [], res: q.res || 0, t_in: q.t, t_out: null, keep: q.keep || 7200 } }))),
+      .concat((S.queue || []).filter(q => nowS - q.t < (q.keep || 7200)).map(q => ({ key: 'queue|' + q.sym + '|' + Math.round(q.t), name: q.sym.replace(/USDT$/, ''), side: 0, price: 0, item: { kind: 'queue', sym: q.sym, ranks: q.ranks || [], res: q.res || 0, v2c: q.v2c, cap: q.cap, t_in: q.t, t_out: null, keep: q.keep || 7200 } }))),
     (S.closed || []).filter(c => nowS - c.t_out < EXIT_KEEP).map(c => ({ key: 'out|' + c.book + '|' + c.sym + '|' + Math.round(c.t_out), name: c.sym.replace(/USDT$/, ''), side: c.side, price: c.exit, item: c })),
   ];
   rings.forEach((g, i) => {
@@ -3122,7 +3122,7 @@ findHover = function () {
     // текст: место в звезде, имя и итог за 24 ч под ней
     const na = clamp((ea - .75) / .3) * out * sz; if (na > 0 && now != null) { tctx.save(); tctx.globalAlpha = na * (l.dimNow == null ? 1 : l.dimNow); tctx.textAlign = 'center'; tctx.textBaseline = 'middle'; tctx.font = `700 ${11 * (.7 + .3 * backOut(clamp((ea - .75) / .3)))}px Futura, "Avenir Next", sans-serif`; tctx.shadowColor = `rgba(${cc},.9)`; tctx.shadowBlur = 6; tctx.fillStyle = '#fff'; tctx.fillText(String(now), cx, cy + .5); tctx.restore(); }
     prev.forEach(q => { if (q.a > 0) { tctx.save(); tctx.globalAlpha = .8 * q.a * (l.dimNow == null ? 1 : l.dimNow); tctx.textAlign = 'center'; tctx.textBaseline = 'middle'; tctx.font = `700 ${5.5 + q.k * 3}px Futura, sans-serif`; tctx.fillStyle = 'rgb(210,230,252)'; tctx.fillText(String(q.r), q.x, q.y + .3); tctx.restore(); } });
-    if (ea > 1.0 && ex < .5) { const r24 = it.res24 != null ? it.res24 : it.res; const rs = r24 != null ? (r24 >= 0 ? '+' : '−') + Math.abs(r24).toFixed(1) + '% · 24 ч' : ''; waveText(l.name, cx, cy + 20, ea, 1.1, `600 10.5px Futura, "Avenir Next", sans-serif`, '#fff', 2, `rgba(${cc},.95)`, out); if (rs) waveText(rs, cx, cy + 31, ea, 1.45, `600 7.5px Futura, "Avenir Next", sans-serif`, r24 >= 0 ? 'rgb(120,245,185)' : 'rgb(255,125,145)', .5, null, out); }
+    if (ea > 1.0 && ex < .5) { const r24 = it.res24 != null ? it.res24 : it.res; const vc = it.v2c != null ? ' · об/кап ' + (it.v2c >= 3 ? '×' + it.v2c.toFixed(it.v2c >= 10 ? 0 : 1) : Math.round(it.v2c * 100) + '%') : '';   /* 10.10 владелец: «надо соотношение объемов к капитализации показывать для лидеров в топе» — оборот фьючерсов за 24 ч к капитализации (STATE.queue[].v2c) */ const rs = r24 != null ? (r24 >= 0 ? '+' : '−') + Math.abs(r24).toFixed(1) + '% · 24 ч' + vc : ''; waveText(l.name, cx, cy + 20, ea, 1.1, `600 10.5px Futura, "Avenir Next", sans-serif`, '#fff', 2, `rgba(${cc},.95)`, out); if (rs) waveText(rs, cx, cy + 31, ea, 1.45, `600 7.5px Futura, "Avenir Next", sans-serif`, r24 >= 0 ? 'rgb(120,245,185)' : 'rgb(255,125,145)', .5, null, out); }
   }
 })();
 </script>
