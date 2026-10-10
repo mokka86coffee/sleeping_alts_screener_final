@@ -829,6 +829,14 @@ def build() -> dict:
             fsq[nm] = fn(now)
         except Exception as e:  # noqa: BLE001
             print(f"{nm}: сбой {type(e).__name__}: {e}"); fsq[nm] = []
+    fsq["btc_clock"] = _read(BASE_DIR / "output" / "btc_clock.json", None)   # 10.10 владелец: «время в часах от сквиза биткоина и время во флэте +-10% хода от цены» (market_bg.btc_clock, раз в прогон)
+    try:                                                                 # 10.10 владелец: «добавить общую капитализацию крипторынка и считать её изменение относительно 700 млрд» (market_bg.cap_total, строка на прогон)
+        _cl = _tail_lines(BASE_DIR / "output" / "market_cap.jsonl", 20000)
+        _cr = json.loads(_cl[-1]) if _cl else None
+        fsq["cap"] = None if not _cr else {k: _cr.get(k) for k in ("at", "total_usd", "alt_usd", "tv_total_usd", "tv_total3_usd", "tv_btc_dom", "base_usd", "base_src", "over_base_usd", "over_base_pct",
+                                                                     "over_base_chg_run_usd", "over_base_chg_d1_usd", "alt_chg_run_usd", "alt_chg_d1_usd", "zone", "zone_prev", "marks_usd")}
+    except Exception as e:  # noqa: BLE001
+        print(f"cap: сбой {type(e).__name__}: {e}"); fsq["cap"] = None
     try:                                                                 # 10.10 владелец: «после достижения 400 уже гореть красным какая-то метка на экране» — котёл больших ростов (pump_pot.py, пишет прогон)
         _pp = _read(BASE_DIR / "output" / "pump_pot.json", None)
         fsq["pot"] = None if not _pp else dict({k: _pp.get(k) for k in ("at", "pot_usd", "used_usd", "left_usd", "warn_usd", "warn", "full", "full_at", "reset_at", "cycle_from", "state", "n", "active")},

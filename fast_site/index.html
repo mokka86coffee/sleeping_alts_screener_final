@@ -17,6 +17,10 @@
   .top { position: absolute; top: 20px; left: 0; right: 0; text-align: center; }
   .top small { display: block; font-size: 9px; color: var(--dim); }
   /* 10.10 владелец: «после достижения 400 уже гореть красным какая-то метка на экране, т.е. ход остался только у тех, кто идёт сейчас»; «как только доходит до 600 — только шорты на выносе шортов у лидеров»; «через 3.5 суток обнуляется» — котёл больших ростов (STATE.pot, считает pump_pot.py) */
+  .top small#capline { margin-top: 6px; font-size: 10px; color: #9fb6d6; }   /* 10.10 владелец: «добавить общую капитализацию крипторынка и считать её изменение относительно 700 млрд» (STATE.cap) */
+  .top small#capline { font-size: 12px; font-weight: 600; } .top small#capline.z-red { color: #ff5a72; text-shadow: 0 0 10px rgba(255,80,110,.6); }
+  .top small#capline.z-yellow { color: #ffd34d; text-shadow: 0 0 10px rgba(255,205,70,.5); } .top small#capline.z-green { color: #78f5b9; text-shadow: 0 0 10px rgba(110,240,180,.5); }
+  .top small#btcline { margin-top: 5px; font-size: 10px; color: #9fb6d6; }   /* 10.10 владелец: часы от сквиза биткоина и время во флэте ±10 % */
   .top small#pot { margin-top: 7px; font-size: 10px; }
   .top small#pot.warn { color: #ff6e82; font-size: 12px; font-weight: 600; text-shadow: 0 0 10px rgba(255,80,110,.75), 0 0 2px rgba(255,80,110,.9); }
   .top small#pot.full { color: #ff4a66; font-size: 13px; font-weight: 700; text-shadow: 0 0 14px rgba(255,60,90,.9), 0 0 3px rgba(255,60,90,1); }
@@ -204,7 +208,7 @@
 <canvas id="tx"></canvas>
 </div>
 <div class="hud">
-  <div class="top"><small id="status">подключение…</small><small id="pot"></small></div><!-- 03.10 владелец: «вверху убрать надпись crypto orbit» -->
+  <div class="top"><small id="status">подключение…</small><small id="capline"></small><small id="btcline"></small><small id="pot"></small></div><!-- 03.10 владелец: «вверху убрать надпись crypto orbit» -->
 </div>
 <div class="pz" id="pz">
   <canvas id="pzc"></canvas>
@@ -2421,6 +2425,23 @@ function applyState(S) {
   const M = S.meta || {};
   const st = document.getElementById('status');
   if (st) st.textContent = `${M.ses || ''} · ${M.open_gate ? 'вход открыт · выход ' + hmT(M.exit_at) : 'вход закрыт: ' + (M.gate_why || '')} · данные ${hmT(M.t)}`;
+  const ce = document.getElementById('capline'), C = S.cap;   // 10.10 владелец: «просто нужно текущее значение и цвет — красный ниже 750, жёлтый выше 750, зелёный выше 900» (альты без BTC и ETH, ряд TradingView; остальные числа — в журнале output/market_cap.jsonl)
+  if (ce) {
+    const ref = C ? (C.base_src === 'tradingview' ? C.tv_total3_usd : C.alt_usd) : null;
+    if (!ref) { ce.textContent = ''; ce.className = ''; }
+    else { const m = C.marks_usd || [750e9, 900e9]; ce.textContent = `альты без BTC и ETH · ${(ref / 1e9).toFixed(0)} млрд $`; ce.className = ref >= m[1] ? 'z-green' : (ref >= m[0] ? 'z-yellow' : 'z-red'); }
+  }
+  const be = document.getElementById('btcline'), B = S.btc_clock;   // 10.10 владелец: «время в часах от сквиза биткоина и время во флэте +-10% хода от цены»
+  if (be) {
+    if (!B) be.textContent = '';
+    else {
+      const q = B.squeeze, f = B.flat, age = B.at ? (Date.now() - Date.parse(B.at)) / 3.6e6 : 0;   // часы идут и между прогонами
+      const qd = iso => { const d = new Date(iso); return String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'); };
+      be.textContent = (q ? `от сквиза BTC ${Math.round(q.hours_ago + age)} ч (${q.manual ? 'задан' : 'по ликвидациям'} ${qd(q.at)}${q.usd ? ', ' + (q.side === 'long' ? 'лонги' : 'шорты') + ' ' + (q.usd / 1e6).toFixed(0) + ' млн $' : ''})`   /* 10.10: время сквиза задаёт владелец — MANUAL_BY_USER_BTC_SQUEEZE_AT в core_config.py */
+        + (q.auto_newer ? ` · по ликвидациям был сквиз позже: ${qd(q.auto_newer.at)}` : '') : 'сквиза BTC нет')
+        + (f ? ` · флэт BTC ±${Math.round(f.band_pct)}% ${f.capped ? 'не меньше ' : ''}${Math.round(f.hours + age)} ч` : '');
+    }
+  }
   const pe = document.getElementById('pot'), P = S.pot;   // 10.10 владелец: котёл больших ростов — красная метка от 400 млн $, «полный» от 600, обнуление через 3,5 суток (всё время — UTC, показ местный)
   if (pe) {
     if (!P) { pe.textContent = ''; pe.className = ''; }

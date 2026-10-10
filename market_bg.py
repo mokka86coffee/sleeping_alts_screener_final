@@ -85,6 +85,12 @@ INTRA = ARCH / "intraday"
 OUT = BASE_DIR / "output" / "market_bg.jsonl"
 CAP_LOG = BASE_DIR / "output" / "market_cap.jsonl"   # 10.10 22:10 UTC владелец: «окей, тогда нам это нужно каждый прогон» — капитализация рынка, строка на прогон
 CAP_URL = "https://api.coingecko.com/api/v3/global"   # без ключа; один запрос на прогон
+CAP_TV_URL = "https://scanner.tradingview.com/global/scan"   # открытый сканер TradingView: те же ряды, что на графике владельца (CRYPTOCAP:TOTAL3 и др.)
+CAP_MARKS_USD = (750e9, 900e9)   # 10.10 23:45 UTC владелец: «по сути важны 3 мерки — выше 750, ниже 750, выше 900» (тот же ряд, альты без BTC и ETH); до этого:
+                                 # «на пиках в предыдущих альтсезонах была около 1 трлн, на падении рынка опускалась до 600 примерно»
+CAP_BASE_USD = 700e9   # 10.10 23:35 UTC владелец: «дальше нужно добавить общую капитализацию крипторынка и считать её изменение относительно 700 млрд» —
+                       # 700 млрд $ на его графике «Crypto Total Market Cap Excluding BTC and ETH» (TradingView, шкала 630–870 млрд); общая капитализация
+                       # (2,8 трлн) пишется рядом. Отсчёт от 700 — по ряду TradingView; если он не ответил — по CoinGecko (уровень выше на ~40 млрд), с пометкой
 BIG_MOVE = 50.0          # «сильный рост одной-двух»: от +50% за день
 STREAK_MIN = 0.03        # день считается растущим от +3%
 LEADERS_N = 10           # сколько лидеров биржи писать
@@ -873,6 +879,126 @@ def _cap_prev(hours: float, now: datetime) -> dict | None:
     return best[1] if best else None
 
 
+BTC_CLOCK = BASE_DIR / "output" / "btc_clock.json"
+
+
+def _owner(name: str, default):
+    """мерка владельца из общего конфига (core_config.py, блок «РУЧНЫЕ МЕРКИ ВЛАДЕЛЬЦА»); нет или не читается — значение по умолчанию"""
+    try:
+        import core_config
+        v = getattr(core_config, name, None)
+        return default if v is None else v
+    except Exception:  # noqa: BLE001
+        return default
+
+
+BTC_SQ_USD = 10e6      # сквиз биткоина: час, в котором в нашем потоке ликвидаций (cq_v2/liq) одной стороны BTC вынесено от 10 млн $ — мерка Claude:
+                       # за 25.09–10.10 таких часов два (08.10 15:00 UTC лонги 27,8 млн $ — сквиз, названный владельцем; 02.10 04:00 шорты 14,7 млн $), медиана часа 0,1 млн $
+BTC_SQ_DAYS = 21       # за сколько суток потока искать последний сквиз
+BTC_FLAT_BAND = 0.10   # «время во флэте +-10% хода от цены» (владелец 10.10): сколько часов подряд цена BTC не выходила из коридора ±10 % от нынешней цены
+
+
+def btc_clock(now: datetime | None = None) -> dict:
+    """ЧАСЫ БИТКОИНА (10.10 ~23:50 UTC, владелец: «дальше нужно добавить время в часах от сквиза биткоина и время во флэте +-10% хода от цены»).
+    squeeze — последний час со сквизом BTC (BTC_SQ_USD) и сколько часов прошло с начала этого часа; flat — сколько часов назад цена BTC последний
+    раз была вне коридора ±BTC_FLAT_BAND от нынешней цены (получасовой архив, глубже — дневные свечи TradingView из claude/research/tvd; дошли до
+    конца данных — capped: «не меньше»). Время — UTC. Ничего не решает."""
+    now = now or datetime.now(timezone.utc); out: dict = {"at": now.strftime("%Y-%m-%dT%H:%M:%SZ")}
+    BTC_SQ_USD = float(_owner("MANUAL_BY_USER_BTC_SQUEEZE_AUTO_MLN", 10.0)) * 1e6        # 10.10 23:20: мерки — из общего конфига (владелец задаёт сам)
+    BTC_FLAT_BAND = float(_owner("MANUAL_BY_USER_BTC_FLAT_BAND_PCT", 10.0)) / 100
+    try:                                                                 # сквиз
+        hl: dict = {}; hs: dict = {}; seen = set()
+        for p in sorted((ARCH / "liq").glob("*.jsonl"))[-BTC_SQ_DAYS:]:
+            with p.open(encoding="utf-8", errors="ignore") as f:
+                for ln in f:
+                    if '"BTCUSDT"' not in ln:
+                        continue
+                    try:
+                        r = json.loads(ln)
+                    except ValueError:
+                        continue
+                    if r.get("sym") != "BTCUSDT" or r.get("side") not in ("long", "short"):
+                        continue
+                    k = (r.get("t"), r["side"], r.get("usd"), r.get("src"))
+                    if k in seen:
+                        continue
+                    seen.add(k); h = int(r["t"]) // 3_600_000
+                    d = hl if r["side"] == "long" else hs
+                    d[h] = d.get(h, 0.0) + float(r.get("usd") or 0)
+        sq = sorted(h for h in set(hl) | set(hs) if max(hl.get(h, 0), hs.get(h, 0)) >= BTC_SQ_USD)
+        def _one(h: int) -> dict:
+            side = "long" if hl.get(h, 0) >= hs.get(h, 0) else "short"
+            return {"at": datetime.fromtimestamp(h * 3600, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "side": side,
+                    "usd": round(max(hl.get(h, 0), hs.get(h, 0))), "hours_ago": round((now.timestamp() - h * 3600) / 3600, 1)}
+        auto = _one(sq[-1]) if sq else None
+        out["squeeze"] = auto; out["squeeze_auto"] = auto
+        out["squeezes"] = [_one(h) for h in sq[-6:]]
+        man = str(_owner("MANUAL_BY_USER_BTC_SQUEEZE_AT", "") or "").strip()        # время сквиза, заданное владельцем (UTC) — главнее поиска по ликвидациям
+        if man:
+            try:
+                tm = datetime.strptime(man.replace("T", " ")[:16], "%Y-%m-%d %H:%M").replace(tzinfo=timezone.utc)
+                hm = int(tm.timestamp()) // 3600
+                out["squeeze"] = {"at": tm.strftime("%Y-%m-%dT%H:%M:%SZ"), "manual": True, "hours_ago": round((now - tm).total_seconds() / 3600, 1),
+                                  "side": ("long" if hl.get(hm, 0) >= hs.get(hm, 0) else "short") if (hl.get(hm) or hs.get(hm)) else None,
+                                  "usd": round(max(hl.get(hm, 0), hs.get(hm, 0))) or None}
+                if auto and auto["at"] > out["squeeze"]["at"]:
+                    out["squeeze"]["auto_newer"] = auto                  # по ликвидациям был сквиз позже заданного — подсказка на экран
+            except ValueError:
+                out["squeeze_cfg_err"] = f"MANUAL_BY_USER_BTC_SQUEEZE_AT не читается: «{man}» — нужно «ГГГГ-ММ-ДД ЧЧ:ММ» по UTC; взят поиск по ликвидациям"
+        out["sq_usd"] = round(BTC_SQ_USD); out["sq_days"] = BTC_SQ_DAYS
+    except Exception as e:  # noqa: BLE001
+        out["squeeze"] = None; out["squeeze_err"] = f"{type(e).__name__}: {e}"
+    try:                                                                 # флэт
+        bars = []                                                        # (unix начала, верх, низ, длина в секундах)
+        for ln in (INTRA / "btc.jsonl").read_text(encoding="utf-8").splitlines():
+            try:
+                r = json.loads(ln)
+            except ValueError:
+                continue
+            if r.get("px") and r.get("h") and r.get("l"):
+                t = datetime.strptime(r["candle"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
+                bars.append((t, float(r["h"]), float(r["l"]), 1800, float(r["px"])))
+        bars.sort()
+        px = bars[-1][4]; t_first = bars[0][0]
+        try:
+            dd = json.loads((BASE_DIR / "claude" / "research" / "tvd" / "BTCUSDT.P_1D.json").read_text(encoding="utf-8")).get("bars") or []
+            old = [(float(b[0]), float(b[2]), float(b[3]), 86400, float(b[4])) for b in dd if float(b[0]) + 86400 <= t_first]
+        except (OSError, ValueError, AttributeError):
+            old = []
+        allb = sorted(old) + bars
+        hi, lo = px * (1 + BTC_FLAT_BAND), px * (1 - BTC_FLAT_BAND)
+        brk = None
+        for b in reversed(allb):
+            if b[1] > hi or b[2] < lo:
+                brk = b; break
+        t_from = (brk[0] + brk[3]) if brk else allb[0][0]
+        out["flat"] = {"px": px, "band_pct": BTC_FLAT_BAND * 100, "lo": round(lo, 1), "hi": round(hi, 1), "hours": round((now.timestamp() - t_from) / 3600, 1),
+                       "from": datetime.fromtimestamp(t_from, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "capped": brk is None,
+                       "broke": None if not brk else ("вверх" if brk[1] > hi else "вниз")}
+    except Exception as e:  # noqa: BLE001
+        out["flat"] = None; out["flat_err"] = f"{type(e).__name__}: {e}"
+    return out
+
+
+def _cap_tv() -> dict:
+    """ряды капитализации TradingView (как на графике владельца): вся, без BTC, без BTC и ETH, доля BTC; {} — не ответил"""
+    import urllib.request
+    try:
+        body = json.dumps({"symbols": {"tickers": ["CRYPTOCAP:TOTAL", "CRYPTOCAP:TOTAL2", "CRYPTOCAP:TOTAL3", "CRYPTOCAP:BTC.D"]}, "columns": ["close"]}).encode()
+        req = urllib.request.Request(CAP_TV_URL, data=body, headers=dict(UA, **{"Content-Type": "application/json", "Origin": "https://www.tradingview.com", "Referer": "https://www.tradingview.com/"}))
+        with urllib.request.urlopen(req, timeout=20) as r:
+            d = {x["s"]: (x.get("d") or [None])[0] for x in (json.loads(r.read().decode("utf-8")) or {}).get("data") or []}
+        out = {}
+        for k, key in (("CRYPTOCAP:TOTAL", "tv_total_usd"), ("CRYPTOCAP:TOTAL2", "tv_total2_usd"), ("CRYPTOCAP:TOTAL3", "tv_total3_usd")):
+            if d.get(k):
+                out[key] = round(float(d[k]))
+        if d.get("CRYPTOCAP:BTC.D"):
+            out["tv_btc_dom"] = round(float(d["CRYPTOCAP:BTC.D"]), 3)
+        return out
+    except Exception:  # noqa: BLE001
+        return {}
+
+
 def cap_total(now: datetime | None = None, candle: str | None = None) -> dict | None:
     """КАПИТАЛИЗАЦИЯ РЫНКА НА ПРОГОН (10.10 22:10 UTC, владелец по графику TradingView «Crypto Total Market Cap Excluding BTC and ETH»:
     «вот это вот главное это оно?», «окей, тогда нам это нужно каждый прогон»). Один запрос CoinGecko /global: вся капитализация, BTC, ETH и
@@ -903,6 +1029,20 @@ def cap_total(now: datetime | None = None, candle: str | None = None) -> dict | 
                 row[f"alt_chg_{key}_usd"] = round(row["alt_usd"] - pr["alt_usd"])
                 row[f"alt_chg_{key}_pct"] = round((row["alt_usd"] / pr["alt_usd"] - 1) * 100, 3)
                 row[f"total_chg_{key}_pct"] = round((row["total_usd"] / pr["total_usd"] - 1) * 100, 3)
+        row.update(_cap_tv())                                            # ряды TradingView — шкала графика владельца
+        ref, src = (row["tv_total3_usd"], "tradingview") if row.get("tv_total3_usd") else (row["alt_usd"], "coingecko")
+        _base = float(_owner("MANUAL_BY_USER_ALT_CAP_BASE_BN", CAP_BASE_USD / 1e9)) * 1e9
+        row["base_usd"] = round(_base); row["base_src"] = src            # отсчёт от 700 млрд $ (владелец 10.10)
+        row["over_base_usd"] = round(ref - _base); row["over_base_pct"] = round((ref / _base - 1) * 100, 3)
+        _mk = _owner("MANUAL_BY_USER_ALT_CAP_MARKS_BN", None)                      # 10.10 23:20: мерки — из общего конфига
+        _m1, _m2 = (float(_mk[0]) * 1e9, float(_mk[1]) * 1e9) if _mk else CAP_MARKS_USD   # три мерки владельца: ниже 750 / выше 750 / выше 900 млрд $
+        row["marks_usd"] = [round(_m1), round(_m2)]
+        row["zone"] = f"выше {_m2 / 1e9:.0f}" if ref >= _m2 else (f"выше {_m1 / 1e9:.0f}" if ref >= _m1 else f"ниже {_m1 / 1e9:.0f}")
+        if last and last.get("zone") and last.get("base_src") == src and last["zone"] != row["zone"]:
+            row["zone_prev"] = last["zone"]                              # мерка пройдена с прошлого прогона
+        for key, pr in (("run", last), ("d1", _cap_prev(24.0, now))):    # как изменился отсчёт от 700: к прошлому прогону и к суткам назад (только при том же источнике)
+            if pr and pr.get("over_base_usd") is not None and pr.get("base_src") == src:
+                row[f"over_base_chg_{key}_usd"] = round(row["over_base_usd"] - pr["over_base_usd"])
         return row
     except Exception:  # noqa: BLE001 — фон рынка не должен падать из-за чужого сервиса
         return None
@@ -1002,10 +1142,27 @@ def main() -> int:
         print(f"капитализация: всего {cap['total_usd'] / 1e9:.0f} млрд $ · альты без BTC и ETH {cap['alt_usd'] / 1e9:.1f} млрд $"
               + (f" · за прогон {cap['alt_chg_run_usd'] / 1e9:+.2f} млрд $ ({cap['alt_chg_run_pct']:+.2f}%)" if cap.get("alt_chg_run_usd") is not None else "")
               + (f" · за сутки {cap['alt_chg_d1_usd'] / 1e9:+.1f} млрд $ ({cap['alt_chg_d1_pct']:+.2f}%)" if cap.get("alt_chg_d1_usd") is not None else ""))
+        if cap.get("over_base_usd") is not None:
+            print(f"зона: {cap.get('zone')}" + (f" (была {cap['zone_prev']})" if cap.get("zone_prev") else "") + f" · к 700 млрд $ ({cap['base_src']}): {cap['over_base_usd'] / 1e9:+.1f} млрд $ ({cap['over_base_pct']:+.1f}%)"
+                  + (f" · за прогон {cap['over_base_chg_run_usd'] / 1e9:+.2f}" if cap.get("over_base_chg_run_usd") is not None else "")
+                  + (f" · за сутки {cap['over_base_chg_d1_usd'] / 1e9:+.1f}" if cap.get("over_base_chg_d1_usd") is not None else "")
+                  + (f" · вся капитализация {cap['tv_total_usd'] / 1e9:.0f} млрд $" if cap.get("tv_total_usd") else ""))
         if a.write:
             cap_write(cap)
     else:
         print("капитализация: запрос не прошёл")
+    try:                                                               # 10.10 ~23:50 UTC владелец: «добавить время в часах от сквиза биткоина и время во флэте +-10% хода от цены»
+        bc = btc_clock(); res["btc_clock"] = bc
+        _sq, _fl = bc.get("squeeze"), bc.get("flat")
+        print("часы биткоина: " + (f"от сквиза {_sq['hours_ago']:.0f} ч ({'задан владельцем' if _sq.get('manual') else 'по ликвидациям'}, {_sq['at'][5:16].replace('T', ' ')} UTC"
+                                   + (f", {'лонги' if _sq['side'] == 'long' else 'шорты'} {_sq['usd'] / 1e6:.1f} млн $" if _sq.get("usd") else "") + ")"
+                                   + (f" · по ликвидациям был сквиз позже: {_sq['auto_newer']['at'][5:16].replace('T', ' ')} UTC" if _sq.get("auto_newer") else "") if _sq else f"сквиза за {BTC_SQ_DAYS} дн нет")
+              + (" · " + bc["squeeze_cfg_err"] if bc.get("squeeze_cfg_err") else "")
+              + (f" · во флэте ±{_fl['band_pct']:.0f}% {'не меньше ' if _fl['capped'] else ''}{_fl['hours']:.0f} ч (с {_fl['from'][:16].replace('T', ' ')} UTC)" if _fl else ""))
+        if a.write:
+            _tmp = BTC_CLOCK.with_suffix(".tmp"); _tmp.write_text(json.dumps(bc, ensure_ascii=False), encoding="utf-8"); _tmp.replace(BTC_CLOCK)
+    except Exception as e:  # noqa: BLE001
+        print(f"биткоин (часы): сбой {type(e).__name__}: {e}")
     try:                                                               # 10.10 23:40 UTC владелец: «нужно писать каждый большой рост и отнимать из 600 млн капитализации…
         import pump_pot                                                #   раз в прогон»; «как только доходит до 600 — только шорты на выносе шортов у лидеров»; «через 3.5 суток обнуляется»
         pot = pump_pot.build()

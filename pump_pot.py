@@ -29,13 +29,23 @@ try:
 except ImportError:
     BASE_DIR = Path(__file__).resolve().parent
 
-POT_USD = 600e6     # котёл: «отнимать из 600 млн капитализации» (владелец 10.10)
-TRIG = 0.50         # «монету, которая дала больше 50% за 24 часа» (владелец 10.10)
-WIN_H = 72          # окно роста в часах: «считай рост за 3 дня» (владелец 10.10 ~22:50 UTC; до этого было 24 — STRK с ходом +46 % за сутки и +438 млн $ в котёл не попадала)
+def _owner(name: str, default):
+    """мерка владельца из общего конфига (core_config.py, блок «РУЧНЫЕ МЕРКИ ВЛАДЕЛЬЦА», 10.10 23:20 UTC: «перенеси в общий конфиг… чтобы я сам их мог задавать»)"""
+    try:
+        import core_config
+        v = getattr(core_config, name, None)
+        return default if v is None else v
+    except Exception:  # noqa: BLE001
+        return default
+
+
+POT_USD = float(_owner("MANUAL_BY_USER_POT_MAX_MLN", 600)) * 1e6     # котёл: «отнимать из 600 млн капитализации» (владелец 10.10)
+TRIG = float(_owner("MANUAL_BY_USER_POT_TRIG_PCT", 50)) / 100         # «монету, которая дала больше 50%…» (владелец 10.10)
+WIN_H = int(round(float(_owner("MANUAL_BY_USER_POT_WIN_DAYS", 3)) * 24))          # окно роста в часах: «считай рост за 3 дня» (владелец 10.10 ~22:50 UTC; до этого было 24 — STRK с ходом +46 % за сутки и +438 млн $ в котёл не попадала)
 W = WIN_H * 2       # то же в получасовках
 WARM_D = 20         # запас архива до начала круга для разгона счёта ростов, суток
-RESET_D = 3.5       # «через 3.5 суток обнуляется» (владелец 10.10) — от момента, когда вычтенное дошло до котла
-WARN_USD = 400e6    # «после достижения 400 уже гореть красным какая-то метка на экране, т.е. ход остался только у тех, кто идёт сейчас» (владелец 10.10)
+RESET_D = float(_owner("MANUAL_BY_USER_POT_RESET_DAYS", 3.5))       # «через 3.5 суток обнуляется» (владелец 10.10) — от момента, когда вычтенное дошло до котла
+WARN_USD = float(_owner("MANUAL_BY_USER_POT_WARN_MLN", 400)) * 1e6    # «после достижения 400 уже гореть красным какая-то метка на экране, т.е. ход остался только у тех, кто идёт сейчас» (владелец 10.10)
 SKIP = {"BTC", "ETH"}
 INTRA = BASE_DIR / "cq_v2" / "intraday"
 TAB = BASE_DIR / "output" / "circ_supply.json"
@@ -52,7 +62,8 @@ def _t(s: str) -> datetime:
 
 def _flow(cap: float) -> int:
     """поток по капитализации (границы владельца 10.10): 1 — от 500 млн $, 2 — 100–500 млн $, 3 — ниже 100 млн $"""
-    return 1 if cap >= 5e8 else (2 if cap >= 1e8 else 3)
+    lo, hi = _owner("MANUAL_BY_USER_FLOW_MARKS_MLN", (100, 500))
+    return 1 if cap >= float(hi) * 1e6 else (2 if cap >= float(lo) * 1e6 else 3)
 
 
 def _rows(p: Path, t_from: str, t_to: str) -> list:
