@@ -12805,3 +12805,8 @@
 {"t": 1791589796945, "sym": "CAPUSDT", "side": "short", "usd": 408.1, "px": 0.08683, "src": "okx"}
 {"t": 1791589813527, "sym": "WIFUSDT", "side": "short", "usd": 441.78, "px": 0.2172, "src": "okx"}
 {"t": 1791589848948, "sym": "CAPUSDT", "side": "short", "usd": 8.7, "px": 0.08699, "src": "okx"}
+{"t": 1791589896672, "sym": "UNIUSDT", "side": "short", "usd": 1670.21, "px": 7.374, "src": "bybit"}
+{"t": 1791590108486, "sym": "GMTUSDT", "side": "long", "usd": 253.7, "px": 0.0094, "src": "okx"}
+{"t": 1791590135464, "sym": "STRKUSDT", "side": "long", "usd": 98.39, "px": 0.07256, "src": "okx"}
+{"t": 1791590140582, "sym": "STRKUSDT", "side": "long", "usd": 10820.11, "px": 0.07231, "src": "okx"}
+{"t": 1791590322060, "sym": "RAYUSDT", "side": "long", "usd": 6.83, "px": 2.2782, "src": "okx"}
