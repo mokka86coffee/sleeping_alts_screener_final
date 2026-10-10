@@ -165,8 +165,11 @@ def movers(now: float, by_run: dict, runs: list, marks: dict) -> None:
         q = f"в тройке с {f_t(top)}" if top else "в тройке не была"
         z = f"звезда с {f_t(t_star)}" if t_star else "звездой не была"
         d = []
-        if start and top: d.append(f"очередь +{(top - start) / 3600:.1f} ч"); lag.append((top - start) / 3600)
-        if start and t_star: d.append(f"звезда {(t_star - start) / 3600:+.1f} ч")
+        if start and top:                                                 # 10.10 07:24: окно суток уехало за первый старт (MAGIC «старт 15:00, −6,7 ч») —
+            if top >= start: d.append(f"очередь +{(top - start) / 3600:.1f} ч"); lag.append((top - start) / 3600)
+            else: d.append("очередь раньше старта по мерке")
+        if start and t_star:
+            d.append(f"звезда +{(t_star - start) / 3600:.1f} ч" if t_star >= start else "звезда раньше старта по мерке")
         print(f"- {sym[:-4]} · макс +{(hi / base - 1) * 100:.0f} % · сейчас {(last / base - 1) * 100:+.0f} % · {s} · {q} · {z}" + (" · опоздание: " + ", ".join(d) if d else ""))
     seen = sum(1 for o in out if o[5] or o[6])
     print(f"итог: выросших {len(out)} · попали к нам (тройка или звезда) {seen} · не попали {len(out) - seen}" + (f" · медиана опоздания очереди {sorted(lag)[len(lag) // 2]:.1f} ч" if lag else ""))
