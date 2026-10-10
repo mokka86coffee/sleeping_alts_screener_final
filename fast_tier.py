@@ -2564,6 +2564,154 @@ def wake_step(state: dict, write: bool) -> list[str]:
     return msgs
 
 
+# ===== КНИГА «ОЧЕРЕДЬ» — R83 (10.10 ~15:00 UTC владелец: «сделай еще одну стратегию у бота, брать после 3х подряд в первых цель 20% без бу»; на план — «все так делай да»;
+# «их сделки друг с другом не связаны, можно зайти 3 раза в одну монету по разным ценам хоть в шорт хоть в лонг»; «bingx только для новой стратегии, остальные просто на бумаге»).
+# Своя книга и журнал (paper_queue.json/.jsonl), с другими книгами не связана: ни R63, ни запретов повторного входа, ни сессий, ни Лондона, ни R47/R81/R82.
+# Лонг, когда монета первая в очереди QUEUE_FIRST_RUNS прогонов подряд (строго место 1 по журналу очереди); вход по цене Binance в ближайшем цикле после третьего прогона.
+# Выход по закрытым 3-мин свечам: низ ≤ −QUEUE_SL → стоп, верх ≥ +QUEUE_TP → цель (обе в одной свече — стоп); безубытка и срока нет. После стопа монета под запретом QUEUE_BAN_DAYS дней.
+# Входы — дни недели QUEUE_WDAYS по UTC. Счёт 19.09–10.10: 63 входа, 34 цели, 15 стопов, +320 $ при 100 $ на сделку; +407 / −16 / −72 $ по неделям. Настройки — core_config.py (R83).
+QUEUE_BOOK = "очередь"; QUEUE_STATE = BASE_DIR / "output" / "paper_queue.json"; QUEUE_LOG = BASE_DIR / "output" / "paper_queue.jsonl"
+QUEUE_LOG_SRC = BASE_DIR / "output" / "queue_log.jsonl"
+
+
+def _queue_cfg() -> dict:
+    try:
+        from core_config import QUEUE_BOOK_ON, QUEUE_FIRST_RUNS, QUEUE_TP, QUEUE_SL, QUEUE_BAN_DAYS, QUEUE_WDAYS, QUEUE_RUN_MAX_AGE_MIN, QUEUE_LOG_TAIL
+        return dict(on=bool(QUEUE_BOOK_ON), runs=int(QUEUE_FIRST_RUNS), tp=float(QUEUE_TP), sl=float(QUEUE_SL), ban=float(QUEUE_BAN_DAYS), wdays=set(QUEUE_WDAYS),
+                    max_age=float(QUEUE_RUN_MAX_AGE_MIN), tail=int(QUEUE_LOG_TAIL))
+    except ImportError:
+        return dict(on=False, runs=3, tp=0.20, sl=0.20, ban=14.0, wdays={2, 3, 4, 5, 6}, max_age=40.0, tail=6_000_000)
+
+
+def _queue_firsts(n: int, path=None, tail: int = 6_000_000) -> list:
+    """последние n прогонов скринера по журналу очереди: [(at, первая монета или None)] от старого к новому. Читается хвост файла: строка «_BG» отмечает прогон
+    (прогон без первой рвёт серию), строка с place 1 — первую монету прогона."""
+    p = Path(path) if path else QUEUE_LOG_SRC
+    try:
+        with open(p, "rb") as f:
+            f.seek(0, 2); size = f.tell(); f.seek(max(0, size - tail)); raw = f.read()
+    except OSError:
+        return []
+    lines = raw.split(b"\n")
+    if size > tail:
+        lines = lines[1:]
+    runs: dict = {}
+    for line in lines:
+        if b'"place": 1,' not in line and b'"_BG"' not in line:
+            continue
+        try:
+            r = json.loads(line)
+        except ValueError:
+            continue
+        at = r.get("at")
+        if not at:
+            continue
+        if r.get("sym") == "_BG":
+            runs.setdefault(at, None)
+        elif r.get("place") == 1 and r.get("sym") and not str(r["sym"]).startswith("_"):
+            runs[at] = r["sym"]
+    ats = sorted(runs)[-n:]
+    return [(a, runs[a]) for a in ats]
+
+
+def _queue_caption(sym: str, pos: dict, px_out=None, why_out: str = "", res=None) -> str:
+    e = float(pos["px"]); t_in = datetime.fromtimestamp(float(pos["at"]), L)
+    tgt = e * (1 + float(pos["target"])); stp = e * (1 - float(pos["stop"]))
+    if px_out is None:
+        lines = [f"🟢 ВХОД · ЛОНГ · {sym[:-4]}", f"📘 {QUEUE_BOOK}", "", f"💵 вход:   {e:.6g}  ·  {t_in:%H:%M} UTC",
+                 f"🎯 цель:   {tgt:.6g}  (+{float(pos['target']) * 100:.0f}%)", f"🛑 стоп:   {stp:.6g}  (−{float(pos['stop']) * 100:.0f}%)", "⏳ срок:   без срока, без безубытка"]
+    else:
+        mins = int((time.time() - float(pos["at"])) / 60); ok = (res or 0) > 0
+        lines = [f"{'✅' if ok else '❌'} ВЫХОД · ЛОНГ · {sym[:-4]} · {float(res) * 100:+.2f}% ({FAST3_SIZE * float(pos.get('k') or 1.0) * float(res):+.0f} $)",
+                 f"📘 {QUEUE_BOOK} · {why_out}", "", f"💵 вход:   {e:.6g}  ·  {t_in:%H:%M} UTC", f"🏁 выход:  {float(px_out):.6g}  ·  {datetime.now(L):%H:%M} UTC", f"⏱ в сделке: {mins} мин"]
+    return "\n".join(lines + [""] + _rule_lines(pos.get("rule") or ""))
+
+
+def _queue_price(sym: str):
+    d = get_json("https://fapi.binance.com/fapi/v1/ticker/price", {"symbol": sym}, quiet_400=True) or {}
+    try:
+        return float(d.get("price") or 0) or None
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+def queue_step(state: dict, write: bool, log_src=None) -> list[str]:
+    cf = _queue_cfg(); now = time.time(); now_ms = int(now * 1000); ev = []; msgs = []
+    if not cf["on"]:
+        return ["выключена (QUEUE_BOOK_ON)"]
+    state.setdefault("open", {}); state.setdefault("banned", {})
+    for sym, pos in list(state["open"].items()):                       # выходы: стоп / цель по закрытым 3-мин свечам, без безубытка и срока
+        k = _k3_since(sym, int(pos["t_ms"]) + 180_000, now_ms)
+        if not k:
+            continue
+        e, tp, sl = float(pos["px"]), float(pos["target"]), float(pos["stop"]); res = why = None
+        for x in k:
+            if float(x[3]) <= e * (1 - sl):
+                res, why = -sl, f"стоп −{sl * 100:.0f}%"; break
+            if float(x[2]) >= e * (1 + tp):
+                res, why = tp, f"цель +{tp * 100:.0f}%"; break
+        c = float(k[-1][4]); pos["last_px"] = c; pos["bars"] = len(k)
+        if res is None:
+            ev.append(dict(book=QUEUE_BOOK, sym=sym, kind="follow", side=1, px_in=e, px=c, result_pct=round((c / e - 1) * 100, 2), at=now)); continue
+        res -= FEE; px_out = round(e * (1 + res), 8)
+        ev.append(dict(book=QUEUE_BOOK, sym=sym, kind="exit_long", side=1, px_in=e, px_out=px_out, opened_at=pos["at"], at=now, result_pct=round(res * 100, 2),
+                       usd=round(FAST3_SIZE * res, 2), why_exit=why, rule=pos["rule"], size=1.0))
+        msgs.append(f"{sym[:-4]} лонг выход {why} {res * 100:+.2f}%")
+        if why.startswith("стоп"):
+            state["banned"][sym] = now                                   # после стопа — без перезахода QUEUE_BAN_DAYS дней
+        if write:
+            cg(sym, _queue_caption(sym, pos, px_out, why, res))
+        del state["open"][sym]
+    runs = _queue_firsts(cf["runs"] + 1, path=log_src, tail=cf["tail"])
+    streak = 0
+    if runs and runs[-1][1]:
+        for _, s_ in reversed(runs):
+            if s_ == runs[-1][1]:
+                streak += 1
+            else:
+                break
+    if runs and runs[-1][1] and streak == cf["runs"] and state.get("seen_run") != runs[-1][0]:   # ровно третий прогон первой подряд, этот прогон ещё не разбирали
+        last_at, sym = runs[-1]; state["seen_run"] = last_at
+        t_run = datetime.strptime(last_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        head = f"{sym[:-4]} первая {cf['runs']} прогона подряд (прогон {t_run:%d.%m %H:%M} UTC)"
+        ban_left = cf["ban"] * 86400 - (now - float(state["banned"].get(sym, 0)))
+        if now - t_run.timestamp() > cf["max_age"] * 60:
+            msgs.append(f"{head} — прогон старше {cf['max_age']:.0f} мин, не входим")
+        elif t_run.weekday() not in cf["wdays"]:
+            msgs.append(f"{head} — {WDAYS[t_run.weekday()]}, входы только {'/'.join(WDAYS[d] for d in sorted(cf['wdays']))} (R83), не входим")
+        elif sym in state["open"]:
+            msgs.append(f"{head} — позиция уже открыта")
+        elif ban_left > 0:
+            msgs.append(f"{head} — после стопа запрет ещё {ban_left / 86400:.1f} дн (R83), не входим")
+        else:
+            px = _queue_price(sym)
+            if not px:
+                msgs.append(f"{head} — нет цены Binance, не входим")
+            else:
+                t_ms = (now_ms // 180_000) * 180_000 - 180_000
+                rule = (f"R83 очередь: первая {cf['runs']} прогона подряд, прогон {t_run:%d.%m %H:%M} UTC · цель +{cf['tp'] * 100:.0f}%, стоп −{cf['sl'] * 100:.0f}%, "
+                        f"без безубытка и срока · счёт 19.09–10.10: 34 цели / 15 стопов из 63")
+                pos = dict(sym=sym, side=1, px=px, t_ms=t_ms, at=now, target=cf["tp"], stop=cf["sl"], stop_px=px * (1 - cf["sl"]), hold_min=0, rule=rule, last_px=px, bars=0, run_at=last_at)
+                state["open"][sym] = pos
+                ev.append(dict(book=QUEUE_BOOK, sym=sym, kind="entry", side=1, px=px, at=now, usd_in=FAST3_SIZE, rule=rule, target=cf["tp"], stop=cf["sl"], hold_min=0,
+                               run_at=last_at, fon=fon(), btc=_btc()))
+                msgs.append(f"{sym[:-4]} лонг вход {px:.6g} · {rule}")
+                if write:
+                    cg(sym, _queue_caption(sym, pos))
+    if write:
+        _size_events(state, ev, now, QUEUE_BOOK)                        # R79: размер входа — как у остальных книг
+        _bx_msgs = _bingx(ev)                                           # «сначала биржа, потом всё остальное»
+        with QUEUE_LOG.open("a", encoding="utf-8") as f:
+            for r_ in ev:
+                f.write(json.dumps(r_, ensure_ascii=False) + "\n")
+        tmp = QUEUE_STATE.with_suffix(".tmp"); tmp.write_text(json.dumps(state, ensure_ascii=False), encoding="utf-8"); tmp.replace(QUEUE_STATE)
+        msgs += _bx_msgs
+        _tg_flush()
+    first_now = runs[-1][1][:-4] if runs and runs[-1][1] else "—"
+    msgs.append(f"прогонов в журнале {len(runs)} · первая сейчас {first_now} ({streak} подряд) · открыто {len(state['open'])}")
+    return msgs
+
+
 _OWN = {"t": 0, "v": set()}
 
 
@@ -2652,6 +2800,11 @@ def main() -> int:
         wstate = {"open": {}, "last_exit": {}}
     wstate.setdefault("open", {}); wstate.setdefault("last_exit", {})
     _OTHER[BOOK] = dict(state=wstate, book=WAKE_BOOK); _OTHER[WAKE_BOOK] = dict(state=state, book=BOOK)   # R63
+    try:                                                            # R83 (10.10): книга «очередь», своё состояние, с другими не связана
+        qstate = json.loads(QUEUE_STATE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        qstate = {"open": {}, "banned": {}}
+    qstate.setdefault("open", {}); qstate.setdefault("banned", {})
     while True:
         _pu = _paused_until()                                           # 01.10 владелец: прогон ставит бота на паузу (output/fast_pause.json), снимает через минуту после прохода по Binance
         if _pu:
@@ -2667,6 +2820,11 @@ def main() -> int:
                 print(f"{datetime.now(L):%H:%M:%S} {WAKE_BOOK}: {m}", flush=True)
         except Exception as e:  # noqa: BLE001
             print(f"{datetime.now(L):%H:%M:%S} {WAKE_BOOK}: сбой {type(e).__name__}: {e}", flush=True)
+        try:
+            for m in queue_step(qstate, a.loop):
+                print(f"{datetime.now(L):%H:%M:%S} {QUEUE_BOOK}: {m}", flush=True)
+        except Exception as e:  # noqa: BLE001
+            print(f"{datetime.now(L):%H:%M:%S} {QUEUE_BOOK}: сбой {type(e).__name__}: {e}", flush=True)
         if not a.loop:
             return 0
         page_step()

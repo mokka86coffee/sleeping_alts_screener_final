@@ -179,7 +179,7 @@ def position_amt(bx: str, ps: str, hedge: bool, c: dict) -> float:
 
 def bot_stop(sym: str, side: int, entry: float, stop_pct: float):
     """текущий стоп бота по монете: stop_px из состояния книг (безубыток, низ удержания, переворот) или −stop_pct от входа"""
-    for f in ("paper_fast3.json", "paper_wake.json"):
+    for f in ("paper_fast3.json", "paper_wake.json", "paper_queue.json"):   # 10.10: + книга «очередь» (R83)
         try:
             pos = (json.loads((BASE_DIR / "output" / f).read_text(encoding="utf-8")).get("open") or {}).get(sym)
         except (OSError, ValueError):
@@ -193,7 +193,7 @@ def bot_stop(sym: str, side: int, entry: float, stop_pct: float):
 
 def bot_target(sym: str, side: int, entry: float):
     """текущая цель бота по монете: px*(1+side*target) из состояния книг (лонг +5 % / удержанный +10 % / шорт −10 %); None — цели нет"""
-    for f in ("paper_fast3.json", "paper_wake.json"):
+    for f in ("paper_fast3.json", "paper_wake.json", "paper_queue.json"):   # 10.10: + книга «очередь» (R83)
         try:
             pos = (json.loads((BASE_DIR / "output" / f).read_text(encoding="utf-8")).get("open") or {}).get(sym)
         except (OSError, ValueError):
@@ -514,6 +514,15 @@ def on_events(ev: list[dict]) -> list[str]:
             msgs.append(f"BingX: входы заморожены после правки бота ещё {int(_left // 60) + 1} мин — сделки только в журнале")
             jlog("freeze", left_min=int(_left // 60) + 1, skipped=[e["sym"] for e in ev if str(e.get("kind", "")) == "entry"])
             ev = [e for e in ev if str(e.get("kind", "")) != "entry"]
+        try:                                                             # 10.10 владелец: «bingx только для новой стратегии, остальные просто на бумаге»
+            from core_config import BINGX_BOOKS as _bb
+        except ImportError:
+            _bb = None
+        if _bb is not None:                                              # входы на биржу — только из книг BINGX_BOOKS; выходы по уже открытым позициям идут из любой книги
+            _paper = [e for e in ev if str(e.get("kind", "")) == "entry" and e.get("book") not in _bb]
+            if _paper:
+                jlog("paper_only", skipped=[f"{e.get('book')}:{e['sym']}" for e in _paper])
+                ev = [e for e in ev if e not in _paper]
         for e in ev:
             k = str(e.get("kind", ""))
             if k == "entry" and e.get("x2") and e["sym"] in state()["open"]:   # R63: вторая стратегия в ту же сторону — добор к открытой позиции

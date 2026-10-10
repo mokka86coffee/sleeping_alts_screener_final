@@ -18,7 +18,11 @@ SS = {}
 for nm, f in (("всплеск/вынос", ft.STATE), ("пробуждение", ft.WAKE_STATE)):
     s = json.loads(f.read_text()); s.setdefault("open", {}); s.setdefault("last_exit", {}); SS[nm] = copy.deepcopy(s)
 ft._OTHER["всплеск/вынос"] = dict(state=SS["пробуждение"], book="пробуждение"); ft._OTHER["пробуждение"] = dict(state=SS["всплеск/вынос"], book="всплеск/вынос")   # R63: книги видят друг друга, как в main
-for nm, fn in (("всплеск/вынос", ft.step), ("пробуждение", ft.wake_step)):
+try:                                                                   # R83 (10.10): книга «очередь» — своё состояние, вхолостую
+    SS["очередь"] = json.loads(ft.QUEUE_STATE.read_text()) if ft.QUEUE_STATE.exists() else {"open": {}, "banned": {}}
+except Exception:
+    SS["очередь"] = {"open": {}, "banned": {}}
+for nm, fn in (("всплеск/вынос", ft.step), ("пробуждение", ft.wake_step), ("очередь", ft.queue_step)):
     try:
         for m in fn(SS[nm], False): print(nm + ":", m)
     except Exception as e:
@@ -39,6 +43,8 @@ $PY claude/research/test_size_conf.py >> $T/r63.out 2>&1   # R79 (06.10): раз
 $PY claude/research/test_wide_stop.py >> $T/r63.out 2>&1   # R57 снято, R80 (08.10): шорт на широкой свече выноса со стопом 20 %
 $PY claude/research/test_r81_r82.py >> $T/r63.out 2>&1   # R81/R82 (10.10): шорт на выносе шортов — только на развороте фандинга и не по монете с меткой очереди
 grep -q 'R81/R82: ок' $T/r63.out || echo "СБОЙ: проверка R81/R82 не дала «ок»" >> $T/r63.out
+$PY claude/research/test_queue_book.py >> $T/r63.out 2>&1   # R83 (10.10): книга «очередь» — три прогона первой подряд → лонг, цель +20 %, стоп −20 %, без перезахода; зеркало только для неё
+grep -q 'R83: ок' $T/r63.out || echo "СБОЙ: проверка R83 не дала «ок»" >> $T/r63.out
 grep -q 'R75: ок' $T/r63.out || echo "СБОЙ: проверка R75 не дала «ок»" >> $T/r63.out
 $PY claude/research/test_time_utc.py >> $T/r63.out 2>&1   # сторож правила «всё по UTC» (06.10)
 grep -q 'ВРЕМЯ: ок' $T/r63.out || echo "СБОЙ: проверка времени (UTC) не дала «ок»" >> $T/r63.out
