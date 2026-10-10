@@ -1166,13 +1166,8 @@ function drawHUD(t) {
     });
   }
 
-  // right scale
-  const rx = W - 58;
-  ctx.strokeStyle = 'rgba(120,170,230,.3)';
-  ctx.beginPath(); ctx.moveTo(rx + .5, H * .55); ctx.lineTo(rx + .5, H - 90); ctx.stroke();
-  for (let y = H * .55; y <= H - 90; y += 22) {
-    ctx.beginPath(); ctx.moveTo(rx - 9, y + .5); ctx.lineTo(rx + 10, y + .5); ctx.stroke();
-  }
+  // 11.10 владелец: три значения сверху — элементами: шкала альтов (на месте декоративной правой шкалы), часы от сквиза BTC, котёл
+  if (typeof drawCapGauge === 'function') { drawCapGauge(t); drawBtcClock(t); drawPot(t); }
 }
 
 // ---------- hover summary card (demo data; replace demoDetail with real series) ----------
@@ -3162,6 +3157,114 @@ findHover = function () {
     prev.forEach(q => { if (q.a > 0) { tctx.save(); tctx.globalAlpha = .8 * q.a * (l.dimNow == null ? 1 : l.dimNow); tctx.textAlign = 'center'; tctx.textBaseline = 'middle'; tctx.font = `700 ${5.5 + q.k * 3}px Futura, sans-serif`; tctx.fillStyle = 'rgb(210,230,252)'; tctx.fillText(String(q.r), q.x, q.y + .3); tctx.restore(); } });
     if (ea > 1.0 && ex < .5) { const r24 = it.res24 != null ? it.res24 : it.res; const vc = it.v2c != null ? ' · об/кап ' + (it.v2c >= 3 ? '×' + it.v2c.toFixed(it.v2c >= 10 ? 0 : 1) : Math.round(it.v2c * 100) + '%') : '';   /* 10.10 владелец: «надо соотношение объемов к капитализации показывать для лидеров в топе» — оборот фьючерсов за 24 ч к капитализации (STATE.queue[].v2c) */ const rs = r24 != null ? (r24 >= 0 ? '+' : '−') + Math.abs(r24).toFixed(1) + '% · 24 ч' + vc : ''; waveText(l.name, cx, cy + 20, ea, 1.1, `600 10.5px Futura, "Avenir Next", sans-serif`, '#fff', 2, `rgba(${cc},.95)`, out); if (rs) waveText(rs, cx, cy + 31, ea, 1.45, `600 7.5px Futura, "Avenir Next", sans-serif`, r24 >= 0 ? 'rgb(120,245,185)' : 'rgb(255,125,145)', .5, null, out); }
   }
+})();
+</script>
+<style>
+.top small#capline, .top small#btcline, .top small#pot { display: none !important; }   /* три строки текста заменены элементами */
+</style>
+<script>
+// ── ТРИ ЭЛЕМЕНТА ВМЕСТО СТРОК (11.10 владелец): STATE.cap → шкала альтов, STATE.btc_clock → часы от сквиза BTC, STATE.pot → котёл
+(() => {
+  const txt = (s, x, y, font, fill, align = 'center', sp = '0px', glow) => { tctx.save(); tctx.font = font; tctx.textAlign = align; tctx.letterSpacing = sp; tctx.fillStyle = fill; if (glow) { tctx.shadowColor = glow; tctx.shadowBlur = 8; } tctx.fillText(s, x, y); tctx.restore(); };
+  const RED = '255,90,114', YEL = '255,211,77', GRN = '120,245,185', DIM = 'rgba(165,205,245,.9)';
+
+  // 1) АЛЬТЫ БЕЗ BTC И ETH — вертикальная шкала справа от реки: три зоны по двум отметкам из данных (ниже 750 красная, 750–900 жёлтая, выше 900 зелёная), указатель на текущем значении
+  window.drawCapGauge = function (t) {
+    const C = (window.STATE || {}).cap, rx = W - 58, y0 = H * .55, y1 = H - 90, ref = C ? (C.base_src === 'tradingview' ? C.tv_total3_usd : C.alt_usd) : null;
+    ctx.save(); ctx.lineCap = 'round'; ctx.lineWidth = 1;
+    if (!ref) { ctx.strokeStyle = 'rgba(120,170,230,.3)'; ctx.beginPath(); ctx.moveTo(rx + .5, y0); ctx.lineTo(rx + .5, y1); ctx.stroke(); ctx.restore(); return; }
+    const m = C.marks_usd || [750e9, 900e9], v = ref / 1e9, m0 = m[0] / 1e9, m1 = m[1] / 1e9, pad = (m1 - m0) / 3;
+    const lo = Math.min(m0 - pad, v - pad * .5), hi = Math.max(m1 + pad, v + pad * .5), Y = q => y1 - (q - lo) / (hi - lo) * (y1 - y0);
+    const COL = [RED, YEL, GRN], zone = v >= m1 ? 2 : v >= m0 ? 1 : 0, cc = COL[zone], now = performance.now() / 1000;
+    ctx.globalCompositeOperation = 'lighter';
+    [[lo, m0, 0], [m0, m1, 1], [m1, hi, 2]].forEach(([a, b, i]) => { const on = i === zone, seg = () => { ctx.beginPath(); ctx.moveTo(rx + .5, Y(a)); ctx.lineTo(rx + .5, Y(b)); ctx.stroke(); };
+      if (on) { ctx.strokeStyle = `rgba(${COL[i]},.18)`; ctx.lineWidth = 7; seg(); } ctx.strokeStyle = `rgba(${COL[i]},${on ? .95 : .3})`; ctx.lineWidth = on ? 1.8 : 1; seg(); });
+    ctx.lineWidth = 1;
+    for (let q = Math.ceil(lo / 25) * 25; q <= hi; q += 25) { const big = Math.abs(q - m0) < .01 || Math.abs(q - m1) < .01, zi = q >= m1 ? 2 : q >= m0 ? 1 : 0, y = Y(q), L = big ? 11 : 5; ctx.strokeStyle = `rgba(${COL[zi]},${big ? .95 : .35})`; ctx.beginPath(); ctx.moveTo(rx - L, y + .5); ctx.lineTo(rx + L, y + .5); ctx.stroke(); }
+    const yv = Y(v), pu = .6 + .4 * Math.sin(now * 2.4), g = ctx.createRadialGradient(rx, yv, 0, rx, yv, 24);
+    g.addColorStop(0, `rgba(${cc},${.5 * pu})`); g.addColorStop(1, `rgba(${cc},0)`); ctx.fillStyle = g; ctx.fillRect(rx - 24, yv - 24, 48, 48);
+    const lg = ctx.createLinearGradient(rx - 40, 0, rx + 14, 0); lg.addColorStop(0, `rgba(${cc},0)`); lg.addColorStop(.6, `rgba(${cc},.95)`); lg.addColorStop(1, 'rgba(255,255,255,.95)'); ctx.strokeStyle = lg; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(rx - 40, yv); ctx.lineTo(rx + 14, yv); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.moveTo(rx, yv - 5); ctx.lineTo(rx + 4, yv); ctx.lineTo(rx, yv + 5); ctx.lineTo(rx - 4, yv); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    txt(String(Math.round(m1)), rx + 16, Y(m1) + 3, `600 8px ${FONT}`, `rgba(${GRN},${zone === 2 ? 1 : .6})`, 'left');
+    txt(String(Math.round(m0)), rx + 16, Y(m0) + 3, `600 8px ${FONT}`, `rgba(${YEL},${zone >= 1 ? .9 : .6})`, 'left');
+    txt(String(Math.round(v)), rx - 14, yv - 6, `600 14px ${FONT}`, '#fff', 'right', '.5px', `rgba(${cc},.95)`);
+    txt('АЛЬТЫ', rx, y0 - 24, `500 6.5px ${FONT}`, DIM, 'center', '2.5px'); txt('БЕЗ BTC · ETH', rx, y0 - 14, `500 5.5px ${FONT}`, 'rgba(165,205,245,.6)', 'center', '1.5px'); txt('МЛРД $', rx, y1 + 14, `500 5.5px ${FONT}`, 'rgba(165,205,245,.6)', 'center', '1.5px');
+  };
+
+  // 2) BTC — часы от последнего сквиза. 11.10 владелец: «не нравится надпись и часы», «поднять повыше» — блок в том же стиле, что отсчёт в круге события:
+  //    подпись в два тона, цифры линейным шрифтом CRYO, под ними шкала; спокойная до 12 суток, желтеет с 12 до 21, после 21 постепенно краснеет (11.10 владелец: «поменяй 7 на 12 и 14 на 21»; было 7 и 14)
+  window.drawBtcClock = function (t) {
+    const B = (window.STATE || {}).btc_clock; let el = document.getElementById('btcClk');
+    if (!B || !B.squeeze || W < 900) { if (el) el.style.display = 'none'; return; }
+    if (!document.getElementById('btcClkCss')) { const st = document.createElement('style'); st.id = 'btcClkCss';
+      st.textContent = `#btcClk { position: fixed; z-index: 2; width: 190px; pointer-events: none; font-family: Futura, 'Avenir Next', sans-serif; text-align: right; }
+#btcClk .bc-lab { font-size: 7px; letter-spacing: .42em; text-transform: uppercase; color: rgba(150,190,225,.75); white-space: nowrap; }
+#btcClk .bc-lab b { font-weight: 500; color: rgb(var(--rgb)); text-shadow: 0 0 8px rgba(var(--rgb),.7); }
+#btcClk .bc-num { display: flex; align-items: flex-end; justify-content: flex-end; gap: 7px; margin-top: 8px; }
+#btcClk .bc-num svg { overflow: visible; color: #fff; filter: drop-shadow(0 0 1.2px #fff) drop-shadow(0 0 8px rgba(var(--rgb),.9)) drop-shadow(0 0 20px rgba(var(--rgb),.5)); }
+#btcClk .bc-num .bc-sym { font-size: 21px; line-height: 1; font-weight: 500; margin-right: 5px; padding-bottom: 1px; color: rgb(var(--rgb)); text-shadow: 0 0 8px rgba(var(--rgb),.9), 0 0 20px rgba(var(--rgb),.5); }
+#btcClk .bc-num em { font-style: normal; font-size: 8px; letter-spacing: .3em; color: rgb(var(--rgb)); padding-bottom: 2px; text-shadow: 0 0 6px rgba(var(--rgb),.7); }
+#btcClk .bc-bar { position: relative; height: 2px; margin-top: 12px; background: linear-gradient(90deg, rgba(150,190,235,.22) 0 var(--p1), rgba(255,211,77,.3) var(--p1) var(--p2), rgba(255,90,114,.32) var(--p2) 100%); }
+#btcClk .bc-bar i { position: absolute; left: 0; top: 0; bottom: 0; width: var(--w); background: linear-gradient(90deg, rgba(150,215,235,.25), rgb(var(--rgb))); box-shadow: 0 0 8px rgb(var(--rgb)), 0 0 18px rgba(var(--rgb),.6); }
+#btcClk .bc-bar b { position: absolute; top: -2px; left: var(--w); width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px rgb(var(--rgb)), 0 0 16px rgb(var(--rgb)); }
+#btcClk .bc-bar u { position: absolute; top: -3px; width: 1px; height: 8px; background: rgba(var(--c),.85); }
+#btcClk .bc-tk { position: relative; height: 10px; margin-top: 6px; }
+#btcClk .bc-tk span { position: absolute; transform: translateX(-50%); font-size: 5.5px; letter-spacing: .2em; color: rgba(var(--c),.8); white-space: nowrap; }`; document.head.appendChild(st); }
+    if (!el) { el = document.createElement('div'); el.id = 'btcClk'; document.body.appendChild(el); }
+    const q = B.squeeze, age = B.at ? (Date.now() - Date.parse(B.at)) / 3.6e6 : 0, h = Math.round(q.hours_ago + age), d = h / 24, D1 = 12, D2 = 21, maxD = Math.max(32, B.sq_days || 0), N = '150,215,235';   // D1, D2 — мерки шкалы в сутках (владелец 11.10: 12 и 21), шкала до 32 суток
+    const cc = d < D1 ? N : d < D2 ? mix(N, YEL, (d - D1) / (D2 - D1)) : mix(YEL, RED, clamp((d - D2) / (D2 - D1)));
+    // 11.10 владелец (стрелка вправо): часы BTC — в правой колонке, под блоком итогов, по его правому краю
+    const tb = document.getElementById('ribTot'), tr = tb && tb.getBoundingClientRect().height ? tb.getBoundingClientRect() : { right: W - 90, bottom: 270 };
+    el.style.display = ''; el.style.left = Math.round(tr.right - 190) + 'px'; el.style.top = Math.round(tr.bottom + 26) + 'px';
+    const key = 'v3|' + h + '|' + cc + '|' + maxD;
+    if (el.dataset.k !== key) { el.dataset.k = key; el.style.setProperty('--rgb', cc);
+      const p7 = (D1 / maxD * 100).toFixed(1), p14 = (D2 / maxD * 100).toFixed(1); el.style.setProperty('--p1', p7 + '%'); el.style.setProperty('--p2', p14 + '%');
+      el.innerHTML = `<div class="bc-lab"><b>от сквиза</b></div><div class="bc-num"><span class="bc-sym">₿</span>${cryo(String(h), 24, 1.8)}<em>Ч</em></div>` +   // владелец: BTC — символом, рядом с часами
+        `<div class="bc-bar" style="--w:${(clamp(d / maxD) * 100).toFixed(1)}%"><i></i><u style="left:${p7}%;--c:${YEL}"></u><u style="left:${p14}%;--c:${RED}"></u><b></b></div>` +
+        `<div class="bc-tk"><span style="left:${p7}%;--c:${YEL}">${D1} СУТ</span><span style="left:${p14}%;--c:${RED}">${D2} СУТ</span></div>`; }
+  };
+
+  // 3) КОТЁЛ — простое заполнение (владелец): стеклянный шар, уровень = использовано / котёл, риска предупреждения, кольцо отсчёта до обнуления; полный — жидкость у края и переливается
+  window.drawPot = function (t) {
+    const P = (window.STATE || {}).pot; if (!P || W < 1100) return;
+    // 11.10 владелец (стрелка): котёл слева от лица, между кругом события и лицом; над записью прогноза, не задевая её
+    const cx = W / 2 - Math.max(240, W * .13), R = clamp(W * .02, 26, 46), recTop = Math.max(60, H * .22), cy = Math.min(96 + R, recTop - R - 50), used = P.used_usd, pot = P.pot_usd, f = clamp(used / pot), over = used > pot;
+    const cc = P.full ? RED : P.warn ? '255,180,90' : '120,190,255', now = performance.now() / 1000, m = v => Math.round(v / 1e6);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+    const hg = ctx.createRadialGradient(cx, cy, R * .4, cx, cy, R * 2.1); hg.addColorStop(0, `rgba(${cc},.16)`); hg.addColorStop(1, `rgba(${cc},0)`); ctx.fillStyle = hg; ctx.fillRect(cx - R * 2.1, cy - R * 2.1, R * 4.2, R * 4.2);
+    // кольцо отсчёта до обнуления
+    const t0 = Date.parse(P.cycle_from), t1 = Date.parse(P.reset_at), pr = t1 > t0 ? clamp((Date.now() - t0) / (t1 - t0)) : 0, rr = R + 12, a0 = -Math.PI / 2, a1 = a0 + TAU * pr;
+    ctx.strokeStyle = 'rgba(150,190,235,.14)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, rr, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = `rgba(${cc},.85)`; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.arc(cx, cy, rr, a0, a1); ctx.stroke();
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx + Math.cos(a1) * rr, cy + Math.sin(a1) * rr, 2, 0, TAU); ctx.fill();
+    // жидкость
+    ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, R - 2.5, 0, TAU); ctx.clip();
+    const ly = cy + R - 2 * R * f + (f >= 1 ? 3 : 0), wy = xx => ly + Math.sin(xx * .13 + now * 1.6) * 1.8 + Math.sin(xx * .05 - now) * 1.4;
+    ctx.beginPath(); ctx.moveTo(cx - R, wy(cx - R)); for (let xx = cx - R; xx <= cx + R; xx += 3) ctx.lineTo(xx, wy(xx)); ctx.lineTo(cx + R, cy + R); ctx.lineTo(cx - R, cy + R); ctx.closePath();
+    const lq = ctx.createLinearGradient(0, ly, 0, cy + R); lq.addColorStop(0, `rgba(${cc},.22)`); lq.addColorStop(1, `rgba(${cc},.6)`); ctx.fillStyle = lq; ctx.fill();
+    ctx.strokeStyle = `rgba(255,255,255,.75)`; ctx.lineWidth = 1; ctx.beginPath(); for (let xx = cx - R; xx <= cx + R; xx += 3) xx === cx - R ? ctx.moveTo(xx, wy(xx)) : ctx.lineTo(xx, wy(xx)); ctx.stroke();
+    const nb = P.full ? 9 : P.warn ? 5 : 2; for (let i = 0; i < nb; i++) { const u = (now * (.22 + i * .035) + i * .37) % 1, bx = cx + Math.sin(i * 2.4) * R * .62 + Math.sin(now + i) * 2, by = cy + R - u * (cy + R - ly); ctx.strokeStyle = `rgba(255,255,255,${(1 - u) * .7})`; ctx.lineWidth = .8; ctx.beginPath(); ctx.arc(bx, by, 1 + (i % 3) * .7, 0, TAU); ctx.stroke(); }
+    ctx.restore();
+    // стекло: шар с горлышком, блик
+    const gp = .36; ctx.strokeStyle = 'rgba(205,232,255,.6)'; ctx.lineWidth = 1.3; ctx.beginPath(); ctx.arc(cx, cy, R, -Math.PI / 2 + gp, -Math.PI / 2 - gp + TAU); ctx.stroke();
+    for (const sg of [-1, 1]) { const ax = cx + Math.sin(gp) * R * sg, ay = cy - Math.cos(gp) * R; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(ax + sg * 2.5, ay - 8); ctx.stroke(); }
+    ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(cx, cy, R - 5, Math.PI * 1.05, Math.PI * 1.36); ctx.stroke();
+    // риска предупреждения на стекле
+    const fw = clamp(P.warn_usd / pot), yw = cy + R - 2 * R * fw, xe = cx + Math.sqrt(Math.max(0, R * R - (yw - cy) * (yw - cy)));
+    ctx.strokeStyle = 'rgba(255,180,90,.9)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(xe - 6, yw + .5); ctx.lineTo(xe + 5, yw + .5); ctx.stroke();
+    // перелив: струйки по стенкам от горлышка и падающие капли
+    if (over) for (const sg of [-1, 1]) { const b0 = -Math.PI / 2 + sg * (gp + .04), b1 = sg > 0 ? .75 : Math.PI - .75;
+      ctx.strokeStyle = `rgba(${cc},.6)`; ctx.lineWidth = 2; ctx.setLineDash([5, 7]); ctx.lineDashOffset = -now * 22; ctx.beginPath(); ctx.arc(cx, cy, R + 3, b0, b1, sg < 0); ctx.stroke(); ctx.setLineDash([]);
+      const ex = cx + Math.cos(b1) * (R + 3), ey = cy + Math.sin(b1) * (R + 3); for (let i = 0; i < 4; i++) { const u = (now * .8 + i * .25) % 1; ctx.fillStyle = `rgba(${cc},${(1 - u) * .9})`; ctx.fillRect(ex - 1 + sg * u * 3, ey + u * u * 36, 2, 2 + u * 2); } }
+    ctx.restore();
+    txt('400', cx + R + 18, yw + 3, `600 6.5px ${FONT}`, 'rgba(255,180,90,.85)', 'left');
+    txt('КОТЁЛ', cx, cy - R - 22, `500 6.5px ${FONT}`, DIM, 'center', '3px');
+    const by = cy + R + 34;
+    txt(String(m(used)), cx - 4, by, `200 24px ${THIN_FONT}`, '#fff', 'right', '1px', `rgba(${cc},.95)`);
+    txt(`/ ${m(pot)} МЛН $`, cx + 4, by, `600 8px ${FONT}`, 'rgba(190,215,245,.9)', 'left', '1px');
+    // подписи под числом убраны (владелец): состояние видно по цвету и переливу, срок обнуления — по кольцу
+  };
 })();
 </script>
 </body>
