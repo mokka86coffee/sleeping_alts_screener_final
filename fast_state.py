@@ -639,6 +639,7 @@ FC_WIN_H = 72                # окно линии цены и меток сме
 QL_TAIL = 12_000_000         # хвост output/queue_log.jsonl, байт (≈ сутки прогонов); строки без места отбрасываются до разбора
 Q_TOP, Q_RUNS = 3, 3         # владелец: первые 3 места, 3 прогона подряд
 Q_SLIP = 2                   # владелец: смещение с закреплённого места терпим не больше 2 прогонов
+Q_WIN_H = 24                 # окно прогонов для серий — скользящие сутки, не календарные UTC (10.10)
 Q_PATH = 3                   # 09.10 владелец: «последние 3 и основное» — места трёх прошлых прогонов мелкими и закреплённое место в большом кристалле
 KEEP_S = 24 * 3600           # сколько держать на реке: пока монета есть в массиве (сутки — чтобы решал массив, а не срок) — мерка Claude
 STARS_MEM = BASE_DIR / "output" / "fast_stars_mem.json"
@@ -759,7 +760,7 @@ def _held_path(places: list) -> tuple:
 
 
 def queue_now(now: float) -> list[dict]:
-    """кристаллы очереди на реке: «1» и «★» по _held_path (журнал output/queue_log.jsonl за сутки UTC).
+    """кристаллы очереди на реке: «1» и «★» по _held_path (журнал output/queue_log.jsonl за скользящие сутки).
     ranks — места последних Q_PATH прогонов как есть и закреплённое место последним — страница рисует его внутри кристалла;
     res — ход цены от первого попадания в первые Q_TOP за сутки до последнего прогона, % (как «+N%» на экране точности); t — прогон последней смены закреплённого места; streak — сколько прогонов подряд на закреплённом месте."""
     by_run: dict = {}
@@ -775,7 +776,9 @@ def queue_now(now: float) -> list[dict]:
     runs = sorted(by_run)
     if len(runs) < Q_RUNS:
         return []
-    day = runs[-1][:10]; runs = [a for a in runs if a[:10] == day]      # сутки UTC, как на экране «первые и очередь»
+    t_last = _unix(runs[-1]); runs = [a for a in runs if t_last - _unix(a) <= Q_WIN_H * 3600]   # скользящие сутки: 10.10 00:57 UTC владелец «нет ни одной
+    if len(runs) < Q_RUNS:                                                                        # в первых» — по суткам UTC после полуночи прогонов 1–2, серий нет
+        return []
     syms = {s for a in runs for s in by_run[a]}
     out = []
     for sym in syms:
@@ -788,6 +791,9 @@ def queue_now(now: float) -> list[dict]:
         i_top = next((k for k, p in enumerate(places) if p is not None and p <= Q_TOP), i_mark)
         cur = next((by_run[a][sym] for a in reversed(runs) if sym in by_run[a]), None)
         res = round(float(cur["px_chg_pct"]), 1) if (cur or {}).get("px_chg_pct") is not None else None   # как «+N%» на экране точности — ход с начала дня UTC
+        if res is None:                                                   # на свече 00:00 UTC ход дня пуст — тогда от первого попадания в первые Q_TOP в окне
+            p0 = float((by_run[runs[i_top]].get(sym) or {}).get("px") or 0); p1 = float((cur or {}).get("px") or 0)
+            res = round((p1 / p0 - 1) * 100, 1) if p0 and p1 else 0.0
         out.append(dict(sym=sym, ranks=ranks, res=res, t=_unix(runs[i_mark]), keep=KEEP_S, place=(1 if mark == 1 else 2), now_place=places[-1],
                         streak=streak, since=_unix(runs[i_top]), mark=mark))
     out.sort(key=lambda q: (q["place"], q["sym"]))                   # 1-е первым, дальше звёзды
