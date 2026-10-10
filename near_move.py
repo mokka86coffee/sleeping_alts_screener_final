@@ -259,8 +259,11 @@ def _today_bars(sym_usdt: str) -> dict | None:
     # ИНТЕРЕС ЗА 3 Ч (26.09, R34): интерес последнего бара к интересу 6 баров назад — повод в «скоро» (STAR_OI_JUMP_3H)
     _ois = [r.get("oi") for r in all_rows[-7:] if r.get("oi")]
     oi_jump_3h = (_ois[-1] / _ois[0] - 1) if len(_ois) >= 5 and _ois[0] else None
-    if len(rows) < 4:
-        return None
+    day_short = len(rows) < 4
+    if day_short:                                                          # 10.10 владелец «да»: первые два часа суток UTC монета оставалась без «сегодня»
+        rows = all_rows[-8:]                                               #   (балл падал, MAGIC на пампе стояла 5–6-й, кристалл снялся, R82 отпустил шорт) —
+        if len(rows) < 4:                                                  #   пока дневных баров меньше четырёх, окно «сегодня» = последние 8 получасовок (мерка Claude)
+            return None
     # ПУСТЫЕ БАРЫ ВОН (07.09): Coinglass иногда отдаёт интерес без сделок — в архиве fut: null и
     # пометка missing: ["fut_bar"] (09:00 сегодня у всех монет разом). Такой бар в сумме дельты даёт
     # ноль и занижает день, а в доминирующем типе голосует своим oi_type — считаем только полные.
@@ -645,7 +648,7 @@ def _today_bars(sym_usdt: str) -> dict | None:
     kind = None
     if leaving:
         kind = "коррекция" if (bubble_signal or not hit) else "конец"
-    return {"bars": len(rows), "delta": round(d, 0), "taker": round(b / sl, 3) if sl else None,
+    return {"bars": len(rows), "day_short": day_short, "delta": round(d, 0), "taker": round(b / sl, 3) if sl else None,
             # СИЛА ВЫДЫХАЕТСЯ (10.09): было записано ниже, после раннего возврата — не доезжало
             "force_turn_at": (force_at or "")[11:16] or None, "force_turn_ago": force_ago,
             "oi_chg_pct": round(oi_chg * 100, 1) if oi_chg is not None else None,
@@ -1022,6 +1025,8 @@ def build(only: list[str] | None = None) -> dict:
         # Ход цены за сегодня: кто уже идёт, тот и пойдёт раньше. Пятнадцать процентов — полный балл.
         _tv = v.get("today") or {}
         _px_chg = _tv.get("px_chg_pct")
+        if _px_chg is None or _tv.get("day_short"):                       # 10.10 владелец «да»: в начале суток UTC темп — по ходу за 24 ч, а не по пустому дню
+            _px_chg = _tv.get("px_chg_24h_pct") if _tv.get("px_chg_24h_pct") is not None else _px_chg
         m_score = min(1.0, max(0.0, (float(_px_chg) / 15.0))) if _px_chg is not None else 0.0
         # ОТКАТ ОТ ВЕРШИНЫ ДНЯ — В БАЛЛ (07.09): темп по цене за день не отличает того, кто идёт,
         # от того, кто уже сходил и отдаёт. DOOD 07.09: +7% за сутки и −11% от вершины — по дневному
