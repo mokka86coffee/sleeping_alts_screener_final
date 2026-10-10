@@ -33,11 +33,16 @@ def main():
     print(f"{dt.datetime.fromtimestamp(now, dt.timezone.utc):%H:%M} UTC · BTC {bc:,.0f} · за 1 ч {(bc / b[-5][4] - 1) * 100:+.2f} % · за 24 ч {(bc / b[-97][4] - 1) * 100:+.2f} %" + (f" · с прошлой {(bc / prev['BTCUSDT'] - 1) * 100:+.2f} %" if prev.get("BTCUSDT") else ""))
     cur = {"BTCUSDT": bc}
     for s in WATCH:
-        try:
-            k = kl(s, "15m", 100)
-        except Exception as e:  # noqa: BLE001
-            k = []
-        if len(k) < 100:                                                  # 10.10 04:15: BingX вернул пусто по GMT — скрипт падал, остальные монеты не выводились
+        k = []
+        for _try in range(3):                                             # 10.10 07:15: BingX через раз отдаёт пусто — до трёх попыток с паузой
+            try:
+                k = kl(s, "15m", 100)
+            except Exception:  # noqa: BLE001
+                k = []
+            if len(k) >= 97:
+                break
+            time.sleep(1.0)
+        if len(k) < 97:                                                   # 10.10 04:15: BingX вернул пусто по GMT (а по PIXEL — 98–99 свечей вместо 100) — скрипт падал, остальные монеты не выводились
             print(f"- {s[:-4]}: цен BingX нет сейчас"); time.sleep(0.3); continue
         c = k[-1][4]; cur[s] = c
         vol = [x[5] for x in k[:-1]]; vx = k[-1][5] / (sum(vol) / len(vol)) if vol else 0
