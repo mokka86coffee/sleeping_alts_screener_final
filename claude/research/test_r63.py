@@ -4,6 +4,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import fast_tier as ft
 import bingx_trader as bx
+import core_config
+core_config.BINGX_BOOKS = None   # 10.10 (R83): в бою на биржу идут входы только книги «очередь»; здесь проверяется механика добора/выхода зеркала для старых книг — фильтр книг снят
 S = ft.FAST3_SIZE; FEE = ft.FEE
 def mk(side, px, at=1000.0, **kw):
     d = dict(sym="XUSDT", side=side, px=px, t_ms=0, at=at, target=0.05, stop=0.1, stop_px=None, hold_min=120, rule="первая", last_px=px, bars=0); d.update(kw); return d
