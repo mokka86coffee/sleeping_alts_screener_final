@@ -93,6 +93,12 @@ def main():
         if win:
             s["hi"] = round((max(x[2] for x in win) / s["px0"] - 1) * 100, 2); s["lo"] = round((min(x[3] for x in win) / s["px0"] - 1) * 100, 2)
             s["last"] = win[-1][4]; s["last_pct"] = round((win[-1][4] / s["px0"] - 1) * 100, 2)
+            s.setdefault("x", {})                                          # 10.10 владелец: «не ждать 10–20x: 2x норм, 3x идеально, 5x идеально» —
+            for mult in (2, 3, 5):                                         #   когда (часов от появления) цена впервые дошла до ×2, ×3, ×5
+                if str(mult) not in s["x"]:
+                    hit = next((x for x in win if x[2] >= s["px0"] * mult), None)
+                    if hit:
+                        s["x"][str(mult)] = round((hit[0] + 900 - s["t0"]) / 3600, 1); log(dict(kind=f"x{mult}", sym=sym, t0=s["t0"], at=hit[0] + 900, hours=s["x"][str(mult)]))
         for h in range(1, min(HOURS, age_h) + 1):
             if str(h) in s["hours"]:
                 continue
@@ -111,7 +117,8 @@ def main():
     for sym, s in sorted(st.items(), key=lambda kv: -kv[1]["t0"]):
         hs = " ".join(f"{h}ч {s['hours'][str(h)]:+.1f}" for h in range(1, HOURS + 1) if str(h) in s["hours"])
         status = f"ушла {f_t(s['gone'])}" if s.get("gone") else "звезда сейчас"
-        lines.append(f"- **{sym[:-4]}** · {s['reason']} · с {f_t(s['t0'])} UTC · {status} · сейчас {s['last_pct']:+.1f} % · макс {s['hi']:+.1f} % · мин {s['lo']:+.1f} %" + (f" · {hs}" if hs else ""))
+        xs = " ".join(f"×{m} через {h} ч" for m, h in sorted((s.get("x") or {}).items(), key=lambda kv: int(kv[0])))
+        lines.append(f"- **{sym[:-4]}** · {s['reason']} · с {f_t(s['t0'])} UTC · {status} · сейчас {s['last_pct']:+.1f} % · макс {s['hi']:+.1f} % · мин {s['lo']:+.1f} %" + (f" · {xs}" if xs else "") + (f" · {hs}" if hs else ""))
     MD.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"журнал звёзд: звёзд в состоянии {len(st)} · новых {new} · ушло {gone} · часов дописано {hours_added} → {MD.name}")
     for ln in lines[2:]:

@@ -95,6 +95,10 @@ def main():
         movers(now, by_run, runs, marks)
     except Exception as e:  # noqa: BLE001
         print("выросшие: сбой", type(e).__name__, e)
+    try:
+        quiet_accum()
+    except Exception as e:  # noqa: BLE001
+        print("тихий набор: сбой", type(e).__name__, e)
     # ── новые звёзды
     try:
         sj = json.loads((R / "stars_journal.json").read_text(encoding="utf-8"))
@@ -108,7 +112,8 @@ def main():
     old = [s for s in sj.values() if now - s["t0"] >= 3600]
     if old:
         up = sum(1 for s in old if s["last_pct"] > 0); big = sum(1 for s in old if s["hi"] >= 5)
-        print(f"итог по звёздам старше часа: {len(old)} · в плюсе сейчас {up} · доходили до +5 % {big} · медиана сейчас {sorted(s['last_pct'] for s in old)[len(old) // 2]:+.1f} %")
+        x2 = sum(1 for s in sj.values() if "2" in (s.get("x") or {})); x3 = sum(1 for s in sj.values() if "3" in (s.get("x") or {}))
+        print(f"итог по звёздам старше часа: {len(old)} · в плюсе сейчас {up} · доходили до +5 % {big} · медиана сейчас {sorted(s['last_pct'] for s in old)[len(old) // 2]:+.1f} % · дошли до ×2: {x2}, до ×3: {x3} (цель владельца: 2x норм, 3x идеально)")
 
 
 
@@ -165,6 +170,39 @@ def movers(now: float, by_run: dict, runs: list, marks: dict) -> None:
         print(f"- {sym[:-4]} · макс +{(hi / base - 1) * 100:.0f} % · сейчас {(last / base - 1) * 100:+.0f} % · {s} · {q} · {z}" + (" · опоздание: " + ", ".join(d) if d else ""))
     seen = sum(1 for o in out if o[5] or o[6])
     print(f"итог: выросших {len(out)} · попали к нам (тройка или звезда) {seen} · не попали {len(out) - seen}" + (f" · медиана опоздания очереди {sorted(lag)[len(lag) // 2]:.1f} ч" if lag else ""))
+
+
+
+def quiet_accum() -> None:
+    """10.10 владелец: «объёмы идут на спросе, накопление идёт до спроса, но с той же целью» — тихий набор по дневкам кванта (все биржи):
+    интерес в монетах за 14 дн ≥ +15 %, цена за 14 дн не выше +5 %, оборот 14 дн не выше ×1,5 нормы (пороги Claude). Печать для журнала."""
+    import glob, statistics as st
+    out = []
+    for f in glob.glob(str(BASE / "cq_v2" / "*.json")):
+        if Path(f).name.startswith("_"):
+            continue
+        try:
+            d = json.loads(Path(f).read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            continue
+        oh = sorted((r for r in d.get("ohlcv", []) if r.get("close") and r.get("quote_volume")), key=lambda r: r["datetime"])
+        oi = sorted((r for r in d.get("oi", []) if r.get("open_interest")), key=lambda r: r["datetime"])
+        if len(oh) < 60 or len(oi) < 45:
+            continue
+        px = {r["datetime"][:10]: r for r in oh}
+        coins = [(r["datetime"][:10], r["open_interest"] / px[r["datetime"][:10]]["close"]) for r in oi if r["datetime"][:10] in px]
+        if len(coins) < 45:
+            continue
+        c_now, c_14 = coins[-1][1], coins[-15][1]; p_now, p_14 = oh[-1]["close"], oh[-15]["close"]
+        vol14 = st.median(r["quote_volume"] for r in oh[-14:]); vol_norm = st.median(r["quote_volume"] for r in oh[-60:-14])
+        fu = [r.get("funding_rate") for r in sorted(d.get("funding", []), key=lambda r: r["datetime"])[-3:] if r.get("funding_rate") is not None]
+        lo120 = min(r["low"] for r in oh[-120:]); hi120 = max(r["high"] for r in oh[-120:])
+        if (c_now / c_14 - 1) * 100 >= 15 and (p_now / p_14 - 1) * 100 <= 5 and vol14 / vol_norm <= 1.5:
+            out.append((Path(f).stem.upper(), (c_now / c_14 - 1) * 100, (p_now / p_14 - 1) * 100, vol14 / vol_norm, st.mean(fu) if fu else None, (p_now / lo120 - 1) * 100, (p_now / hi120 - 1) * 100, oh[-1]["datetime"][:10]))
+    out.sort(key=lambda o: -o[1])
+    print(f"\nТИХИЙ НАБОР (дневки кванта до {out[0][7] if out else '—'}; интерес 14 дн ≥ +15 %, цена ≤ +5 %, оборот ≤ ×1,5): {len(out)}")
+    for o in out[:20]:
+        print(f"- {o[0]} · интерес +{o[1]:.0f} % · цена {o[2]:+.1f} % · оборот ×{o[3]:.1f} · фандинг 3 дн {o[4] if o[4] is None else round(o[4], 3)} · от мин 120 дн {o[5]:+.0f} % · от макс {o[6]:+.0f} %")
 
 
 if __name__ == "__main__":

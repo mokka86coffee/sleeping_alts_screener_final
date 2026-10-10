@@ -36,7 +36,9 @@ def main():
         try:
             k = kl(s, "15m", 100)
         except Exception as e:  # noqa: BLE001
-            print(f"- {s[:-4]}: цен нет ({type(e).__name__})"); continue
+            k = []
+        if len(k) < 100:                                                  # 10.10 04:15: BingX вернул пусто по GMT — скрипт падал, остальные монеты не выводились
+            print(f"- {s[:-4]}: цен BingX нет сейчас"); time.sleep(0.3); continue
         c = k[-1][4]; cur[s] = c
         vol = [x[5] for x in k[:-1]]; vx = k[-1][5] / (sum(vol) / len(vol)) if vol else 0
         d_prev = (c / prev[s] - 1) * 100 if prev.get(s) else None
