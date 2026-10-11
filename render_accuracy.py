@@ -405,7 +405,11 @@ html,body{margin:0;min-height:100%;color:var(--ink);font-family:Inter,system-ui,
 .head{display:flex;align-items:baseline;gap:12px;padding:2px 4px 18px}
 .head h1{margin:0;font-size:21px;font-weight:500;letter-spacing:-.01em;color:#1d2a36}
 .head s{text-decoration:none;font-size:13px;color:var(--mid)}
-.days{display:flex;gap:10px;margin-left:auto}
+/* 11.10 владелец: «нет скролла у кнопок, всё улетает за экран» — ряд дней занимает остаток строки и прокручивается вбок (колесо, тачпад, тяга);
+   свежий день слева; поля и отрицательные отступы — чтобы прокрутка не срезала тени кнопок */
+.days{display:flex;gap:10px;margin:-14px 0 -18px auto;padding:14px 12px 18px;min-width:0;flex:1 1 0;overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;scrollbar-color:rgba(120,140,175,.45) transparent}
+.days::-webkit-scrollbar{height:6px}.days::-webkit-scrollbar-thumb{background:rgba(120,140,175,.45);border-radius:3px}
+.day{flex:0 0 auto;white-space:nowrap}
 .day{cursor:pointer;font-size:12px;padding:10px 18px;border-radius:999px;color:#5d7285;
  background:linear-gradient(160deg,#fff,#e9eef7);box-shadow:5px 6px 12px rgba(120,140,175,.25),-4px -5px 10px rgba(255,255,255,.95)}
 .day.on{color:#fff;background:linear-gradient(160deg,#38455c,#1e2735)}
@@ -679,6 +683,7 @@ function part3(){
 function redraw(){drawFilters();part1();part2();part3();}
 const days=Object.keys(D.days).sort().reverse();
 document.getElementById('days').innerHTML=days.map((d,i)=>`<div class="day${i?'':' on'}" data-d="${d}">${d.slice(8,10)}.${d.slice(5,7)}</div>`).join('');
+document.getElementById('days').addEventListener('wheel',e=>{const el=e.currentTarget;if(Math.abs(e.deltaY)>Math.abs(e.deltaX)&&el.scrollWidth>el.clientWidth){el.scrollLeft+=e.deltaY;e.preventDefault();}},{passive:false});   // 11.10: колесо мыши крутит ряд дней вбок
 // ПОЧЕМУ ПЕРЕШЛО НА ЭТО МЕСТО (09.09): наведение на ступень — история прогон за прогоном.
 // Показываем, что было с баллом, ходом и интересом на каждом прогоне внутри ступени, и чем
 // первый прогон ступени отличался от последнего прогона предыдущей — это и есть причина перехода.

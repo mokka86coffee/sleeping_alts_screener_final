@@ -495,9 +495,87 @@ def _rate_ok(now: float, note: bool = False):
     return None if len(ts) < _mx else f"лимит входов: {len(ts)} за {_wm} мин (максимум {_mx})"
 
 
+# ===== R84 — КОТЁЛ БОЛЬШИХ РОСТОВ В БОТЕ (11.10 00:30 UTC, владелец: «написал же делай с котлом»; формула 10.10: «нужно писать каждый большой рост и
+# отнимать из 600 млн капитализации»; «после достижения 400 уже гореть красным… ход остался только у тех, кто идёт сейчас»; «как только доходит до 600 —
+# только шорты на выносе шортов у лидеров»; «через 3.5 суток обнуляется»; по сделке NIL 10.10 22:54 UTC (лонг на всплеске при полном котле, −5 % за шесть
+# минут): «вот он и переполненный», «и все лонги это сквизы для выноса толпы»). Котёл считает pump_pot.py раз в прогон (output/pump_pot.json), числа — в
+# общем конфиге, блок MANUAL_BY_USER_. Что делает бот, все три книги, все пути входа:
+#   • котёл полный — лонги не берём; шорт берём только на выносе шортов (сканер R52, R58 «конец роста» на самом выносе, «вынос шортов на всплеске») и только
+#     по монете из списка лидеров (output/leaders.json); остальные шорты (сползание R65, «всплеск → шорт 5/5», перевёрнутый всплеск, А/А2, R58 «вдогонку») не берём;
+#   • красная метка (от 400 млн, котёл ещё не полный) — новый лонг только по монете, которая сейчас идёт в котле (рост не закончен); шорты как обычно;
+#   • ниже метки, после обнуления, снимок котла старше POT_MAX_AGE_MIN или выключатель MANUAL_BY_USER_POT_BOT_ON = False — правило молчит.
+# Открытые позиции правило не закрывает. Запрет R82 (шорт на выносе по монете с меткой очереди) действует как раньше. На истории не проверено: счёт по
+# бумаге за первые 10,5 ч полного котла (с 10.10 13:30 UTC) — лонги 20 закрыто, 5 в плюс, −74 $; шорты 6 закрыто, +69 $, из 10 открытых в плюсе 8.
+POT_MAX_AGE_MIN = 90
+_POT_C = {"mt": None, "v": None}; _LEAD_C = {"mt": None, "v": set()}
+
+
+def _pot_state(now: float, path=None):
+    """снимок котла (output/pump_pot.json), если он свежий; иначе None — правило молчит"""
+    p = Path(path) if path else BASE_DIR / "output" / "pump_pot.json"
+    try:
+        mt = p.stat().st_mtime
+        if _POT_C["mt"] != (str(p), mt):
+            _POT_C["v"] = json.loads(p.read_text(encoding="utf-8")); _POT_C["mt"] = (str(p), mt)
+        d = _POT_C["v"] or {}
+        at = datetime.strptime(d["at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return d if now - at <= POT_MAX_AGE_MIN * 60 else None
+
+
+def _leaders_set(path=None) -> set:
+    p = Path(path) if path else BASE_DIR / "output" / "leaders.json"
+    try:
+        mt = p.stat().st_mtime
+        if _LEAD_C["mt"] != (str(p), mt):
+            d = json.loads(p.read_text(encoding="utf-8")); _LEAD_C["v"] = set(d if isinstance(d, list) else d.keys()); _LEAD_C["mt"] = (str(p), mt)
+    except (OSError, ValueError):
+        pass
+    return _LEAD_C["v"]
+
+
+def _short_on_squeeze(why: str) -> bool:
+    """шорт именно на выносе шортов: сканер R52 («вынос шортов …» в начале причины), R58 «конец роста → шорт:» на самом выносе (не «вдогонку»), «вынос шортов на всплеске → шорт»"""
+    head = (why or "").split(" · ")[0]
+    return ("вынос шортов" in head) or (head.startswith("R58 конец роста → шорт:") and "вынос шортов" in why) or ("вынос шортов на всплеске → шорт" in (why or ""))
+
+
+def _pot_gate(sym: str, side: int, why: str, now: float, pot_path=None, leaders_path=None):
+    """R84: причина отказа от входа по котлу больших ростов или None"""
+    try:
+        from core_config import MANUAL_BY_USER_POT_BOT_ON as on
+    except ImportError:
+        on = True
+    if not on:
+        return None
+    p = _pot_state(now, pot_path)
+    if not p:
+        return None
+    used, pot = float(p.get("used_usd") or 0) / 1e6, float(p.get("pot_usd") or 0) / 1e6
+    if p.get("full"):
+        tail = f"котёл полный ({used:.0f} из {pot:.0f} млн $, обнуление {str(p.get('reset_at') or '')[5:16].replace('T', ' ')} UTC)"
+        if side == 1:
+            return f"{tail} — лонги не берём, только шорты на выносе шортов у лидеров (R84)"
+        if not _short_on_squeeze(why):
+            return f"{tail} — шорт только на выносе шортов у лидеров, этот вход другого рода (R84)"
+        if sym not in _leaders_set(leaders_path):
+            return f"{tail} — шорт на выносе шортов только у лидеров, монеты нет в списке лидеров (R84)"
+        return None
+    if p.get("warn") and side == 1:
+        going = {m.get("sym") for m in (p.get("moves") or []) if not m.get("done")}
+        if sym not in going:
+            return (f"котёл {used:.0f} из {pot:.0f} млн $, красная метка — ход остался только у тех, кто идёт сейчас"
+                    + (f" ({', '.join(sorted(x[:-4] for x in going if x))})" if going else "") + ": лонг не берём (R84)")
+    return None
+
+
 def _open_short_now(state: dict, ev: list, msgs: list, sym: str, c: float, t_bar: int, now: float, why: str, book: str, write: bool, side: int = -1, mode: str = "", tgt_abs=None, stop_abs=None) -> bool:
     """03.10 (R49/R52): позиция по рынку сейчас против хода — стоп 10 %, цель 10 %, безубыток после 5 %, выход по выносу противоположной стороны; ворота — только сессии владельца"""
     nm = "лонг" if side == 1 else "шорт"
+    _pg = _pot_gate(sym, side, why, now)                                 # R84: котёл больших ростов
+    if _pg:
+        msgs.append(f"{sym[:-4]} {nm} не взят: {_pg}"); return False
     ok, sw, _h = ses_gate(now, t_bar, side)
     if not ok:
         msgs.append(f"{sym[:-4]} {nm} на выносе пропущен: {sw}"); return False
@@ -1406,6 +1484,9 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
         if not ok:
             msgs.append(f"{sym[:-4]} шорт после вершины пропущен: {sw}"); continue
         why = p["why"] + f" · вход после вершины {top:.6g} ({sq}): стоп +{stop * 100:.0f}%, выход по выносу лонгов, срок {hold} мин · сессия {sw}" + _tpnote
+        _pg = _pot_gate(sym, -1, why, now)                                   # R84: котёл больших ростов
+        if _pg:
+            msgs.append(f"{sym[:-4]} шорт после вершины не взят: {_pg}"); continue
         _lg = london_gate(sym, now, why)                                     # 02.10 владелец: Лондон — максимум 5 самых надёжных (и для шортов после вершины)
         if _lg:
             msgs.append(f"{sym[:-4]} шорт после вершины пропущен: {_lg}"); continue
@@ -2226,6 +2307,10 @@ def step(state: dict, write: bool) -> list[str]:
             if write:
                 cg(sym, *cg_caption(BOOK, sym, pos, e * (1 + res * sd), why, res))
             _exit_mark(state, sym, now, pos.get("at")); del state["open"][sym]
+            if newpos:                                                    # R84: котёл больших ростов — лонг-переворот не встаёт, шорт при этом закрыт как обычно
+                _pg = _pot_gate(sym, 1, newpos.get("rule") or "", now)
+                if _pg:
+                    msgs.append(f"{sym[:-4]} лонг-переворот не взят: {_pg}"); newpos = None
             if newpos:                                                    # переворот: на месте шорта встаёт лонг
                 state["open"][sym] = newpos
                 ev.append(dict(book=BOOK, sym=sym, kind="entry", side=1, px=newpos["px"], at=now, usd_in=FAST3_SIZE, rule=newpos["rule"], target=newpos["target"], stop=newpos["stop"], hold_min=newpos["hold_min"], flip=True))
@@ -2328,6 +2413,9 @@ def step(state: dict, write: bool) -> list[str]:
             if sd == -1:                                                   # R62: во флэте цель шорта — низ флэта
                 tp, _fn = _flat_target(sym, px, tp)
                 if _fn: why = why + " · " + _fn
+            _pg = _pot_gate(sym, sd, why, now)                             # R84: котёл больших ростов
+            if _pg:
+                msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} не взят: {_pg}"); continue
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, stop_px=_spx, hold_min=hold, rule=why, last_px=px, bars=0, pump_open=_pump_open(px, why))
             state["open"][sym] = pos
             ev.append(dict(book=BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=why, target=tp, stop=sl, hold_min=hold,
@@ -2437,6 +2525,10 @@ def wake_step(state: dict, write: bool) -> list[str]:
             if write:
                 cg(sym, *cg_caption(WAKE_BOOK, sym, pos, e * (1 + res * sd), why, res))
             _exit_mark(state, sym, now, pos.get("at")); del state["open"][sym]
+            if newpos:                                                    # R84: котёл больших ростов — лонг-переворот не встаёт, шорт при этом закрыт как обычно
+                _pg = _pot_gate(sym, 1, newpos.get("rule") or "", now)
+                if _pg:
+                    msgs.append(f"{sym[:-4]} лонг-переворот не взят: {_pg}"); newpos = None
             if newpos:                                                    # переворот: на месте шорта встаёт лонг
                 state["open"][sym] = newpos
                 ev.append(dict(book=WAKE_BOOK, sym=sym, kind="entry", side=1, px=newpos["px"], at=now, usd_in=FAST3_SIZE, rule=newpos["rule"], target=newpos["target"], stop=newpos["stop"], hold_min=newpos["hold_min"], flip=True))
@@ -2543,6 +2635,9 @@ def wake_step(state: dict, write: bool) -> list[str]:
             if sd == -1:                                                   # R62: во флэте цель шорта — низ флэта
                 tp, _fn = _flat_target(sym, px, tp)
                 if _fn: why = why + " · " + _fn
+            _pg = _pot_gate(sym, sd, why, now)                             # R84: котёл больших ростов
+            if _pg:
+                msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} не взят: {_pg}"); continue
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, stop_px=_spx, hold_min=hold, rule=why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", last_px=px, bars=0, pump_open=_pump_open(px, why))
             state["open"][sym] = pos
             ev.append(dict(book=WAKE_BOOK, sym=sym, kind="entry", side=sd, px=px, at=now, usd_in=FAST3_SIZE, rule=pos["rule"], target=tp, stop=sl, hold_min=hold,
@@ -2683,6 +2778,8 @@ def queue_step(state: dict, write: bool, log_src=None) -> list[str]:
             msgs.append(f"{head} — позиция уже открыта")
         elif ban_left > 0:
             msgs.append(f"{head} — после стопа запрет ещё {ban_left / 86400:.1f} дн (R83), не входим")
+        elif (_pg := _pot_gate(sym, 1, "R83 очередь", now)):              # R84: котёл больших ростов
+            msgs.append(f"{head} — {_pg}")
         else:
             px = _queue_price(sym)
             if not px:
