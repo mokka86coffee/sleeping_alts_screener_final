@@ -44,11 +44,26 @@ core_config.MANUAL_BY_USER_SHORT_LOW_PCT = 0
 chk(ft.short_low_block("AIOTUSDT", -1, px=0.0401, low=0.040) is None, "0 % — правило выключено")
 core_config.MANUAL_BY_USER_SHORT_LOW_PCT = 20
 import os
-os.environ["FAST_POT_OFF"] = "1"; os.environ.pop("FAST_SHORT_LOW_OFF", None)
+os.environ["FAST_POT_OFF"] = "1"; os.environ["FAST_BTC_SQ_OFF"] = "1"; os.environ.pop("FAST_SHORT_LOW_OFF", None)   # здесь проверяется только R86
 real_block = ft.short_low_block; ft.short_low_block = lambda sym, side, px=None, low=None: real_block(sym, side, px=0.0452, low=0.040)
 st = {"open": {}, "last_exit": {}}; ev = []; msgs = []
 import time as _t
 ok = ft._open_short_now(st, ev, msgs, "AAAUSDT", 0.0452, int(_t.time() * 1000), _t.time(), "R52 вынос → против хода: вынос лонгов 10K$", "всплеск/вынос", False, side=-1)
 chk(ok is False and not st["open"] and any("R86" in m for m in msgs), f"общий путь входа открыл шорт у дна: {msgs}")
 ft.short_low_block = real_block
-print("R85, R86: ок" if not errs else "СБОЙ R85/R86: " + "; ".join(errs))
+# R87: после сквиза биткоина шорты не берём 3 дня
+import json as _j, tempfile
+from datetime import datetime as _dt, timezone as _tz
+core_config.MANUAL_BY_USER_BTC_SQUEEZE_NO_SHORT_DAYS = 3
+CK = Path(tempfile.mkdtemp()) / "btc_clock.json"
+def clock(hours_ago):
+    CK.write_text(_j.dumps({"squeeze": {"at": _dt.fromtimestamp(_t.time() - hours_ago * 3600, _tz.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}}), encoding="utf-8"); ft._BTCQ["key"] = None
+clock(60); r = ft.btc_squeeze_block(-1, _t.time(), clock_path=CK)
+chk(r and "R87" in r, f"60 ч после сквиза шорт должен быть отклонён: {r}")
+chk(ft.btc_squeeze_block(1, _t.time(), clock_path=CK) is None, "лонгов правило не касается")
+clock(73); chk(ft.btc_squeeze_block(-1, _t.time(), clock_path=CK) is None, "через 73 ч шорт снова берётся")
+clock(60); core_config.MANUAL_BY_USER_BTC_SQUEEZE_NO_SHORT_DAYS = 0
+chk(ft.btc_squeeze_block(-1, _t.time(), clock_path=CK) is None, "0 дней — правило выключено")
+core_config.MANUAL_BY_USER_BTC_SQUEEZE_NO_SHORT_DAYS = 3
+chk(ft.btc_squeeze_block(-1, _t.time(), clock_path=CK.with_name("нет.json")) is None, "нет файла часов — правило молчит")
+print("R85, R86, R87: ок" if not errs else "СБОЙ R85/R86/R87: " + "; ".join(errs))

@@ -5,6 +5,8 @@
 как правило заработало в боте, решает, взял бы её бот сейчас:
   R84 — котёл больших ростов: полный — лонг не берётся; красная метка — лонг только по монете, чей большой рост ещё идёт (до 11.10 00:44:38 UTC);
   R86 — шорт не берётся, когда цена входа не выше «минимум дневных свечей за 60 суток + 20 %» (до 11.10 02:16:17 UTC);
+  R84, дополнение — шорт по монете, чей большой рост в котле ещё идёт, не берётся, кроме R58 «вдогонку» (до перезапуска бота 11.10 ~04:00 UTC);
+  R87 — после сквиза биткоина шорты не берутся 3 дня: сквиз 08.10 15:00 UTC, заданный владельцем (другие сквизы в пересчёт не идут);
   «свой ММ» — монеты ручного списка OWN_MM_MANUAL (ARPA добавлена 11.10).
 Сделки, которые по новым правилам не берутся, пишутся в output/recount_new_rules.json (skip: {«книга|монета|секунда входа»: причина}); страница бота
 (fast_state.positions) их не показывает и в итоги не считает. Журналы и книги бота не меняются — снять пересчёт можно, удалив файл.
@@ -35,6 +37,9 @@ OUT = ROOT / "output" / "recount_new_rules.json"
 TVD = ROOT / "claude" / "research" / "tvd"
 R84_ON = datetime(2026, 10, 11, 0, 44, 38, tzinfo=U).timestamp()      # с этой секунды бот сам слушает котёл
 R86_ON = datetime(2026, 10, 11, 2, 16, 17, tzinfo=U).timestamp()      # с этой секунды бот сам не шортит дно
+R87_ON = datetime(2026, 10, 11, 4, 0, 0, tzinfo=U).timestamp()        # с этой секунды бот сам не шортит идущую монету и три дня после сквиза биткоина (время перезапуска)
+SQ_AT = datetime(2026, 10, 8, 15, 0, 0, tzinfo=U).timestamp()         # сквиз биткоина, заданный владельцем (MANUAL_BY_USER_BTC_SQUEEZE_AT)
+SQ_DAYS = float(getattr(core_config, "MANUAL_BY_USER_BTC_SQUEEZE_NO_SHORT_DAYS", 3))
 BOOKS = (("всплеск/вынос", "paper_fast3"), ("пробуждение", "paper_wake"), ("очередь", "paper_queue"))
 LOW_D = int(getattr(core_config, "MANUAL_BY_USER_SHORT_LOW_DAYS", 60))
 LOW_P = float(getattr(core_config, "MANUAL_BY_USER_SHORT_LOW_PCT", 20))
@@ -137,6 +142,12 @@ def main() -> int:
         why = None
         if x["sym"] in OWN and x["sym"] == "ARPAUSDT":                    # остальные монеты ручного списка бот и раньше не брал
             why = "свой ММ: монета в ручном списке владельца (11.10)"
+        if not why and x["side"] == -1 and x["t_in"] < R87_ON and SQ_DAYS and SQ_AT <= x["t_in"] < SQ_AT + SQ_DAYS * 86400:
+            why = f"R87: после сквиза биткоина 08.10 15:00 UTC шорты не берутся {SQ_DAYS:g} дн"
+        if not why and x["side"] == -1 and x["t_in"] < R87_ON and not x["rule"].split(" · ")[0].startswith("R58 конец роста → шорт вдогонку"):
+            _st, _used, _going = pot.at(x["t_in"])
+            if x["sym"] in _going:
+                why = "R84: монета идёт в котле (большой рост не закончен) — шорт не берётся"
         if not why and x["t_in"] < R84_ON:
             st, used, going = pot.at(x["t_in"])
             if x["side"] == 1 and st == "полный":
@@ -168,7 +179,7 @@ def main() -> int:
     print("шорты без дневных свечей TradingView (R86 не проверен):", len(nolow), " ".join(nolow)[:300])
     if "--dry" not in sys.argv:
         tmp = OUT.with_suffix(".tmp")
-        tmp.write_text(json.dumps(dict(at=datetime.now(U).strftime(pp.FMT), rules="R84, R86, свой ММ (ARPA)", n_all=len(T), n_skip=len(skip), skip=skip), ensure_ascii=False), encoding="utf-8")
+        tmp.write_text(json.dumps(dict(at=datetime.now(U).strftime(pp.FMT), rules="R84 (лонги при котле, шорт по идущей монете), R86, R87, свой ММ (ARPA)", n_all=len(T), n_skip=len(skip), skip=skip), ensure_ascii=False), encoding="utf-8")
         tmp.replace(OUT); print("записано:", OUT, len(skip))
     return 0
 

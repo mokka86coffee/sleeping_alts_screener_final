@@ -6,6 +6,7 @@
 cd "$(dirname "$0")/../.." || exit 1
 T=${TMPDIR:-/tmp}/bot_test_$$; mkdir -p $T; PY=.venv/bin/python
 export FAST_SHORT_LOW_OFF=1   # R86 (11.10): то же для «не шортить дно» — правило смотрит сегодняшние дневные свечи, повтор прошлых суток с ним не сверить; своя проверка — test_pe_low.py
+export FAST_BTC_SQ_OFF=1   # R87 (11.10): то же для «после сквиза биткоина шорты не берём 3 дня» — иначе в эти три дня прежним проверкам шортов нечего проверять; своя проверка — test_pe_low.py
 export FAST_POT_OFF=1   # R84 (11.10): проверки прежних правил и повтор суток идут без котла больших ростов — иначе при полном котле бот не берёт входов и проверять нечего; сам котёл проверяет test_pot_gate.py
 $PY -m py_compile fast_tier.py core_config.py bingx_trader.py || { echo "ПРОВАЛ: не компилируется"; exit 1; }
 $PY claude/research/replay_fetch.py $T/k3.pkl | tail -1

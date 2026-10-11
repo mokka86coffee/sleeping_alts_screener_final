@@ -509,6 +509,10 @@ def _rate_ok(now: float, note: bool = False):
 #   • 11.10 01:25 UTC (владелец по счёту «при полном котле правило убирает 190 шортов, +97 $»: «а при чём тут шорты-то при полном котле», «как шорты попали туда,
 #     где лонги не надо брать», «логика железная: наполняют его лонги, наполнили — значит дальше только шорты»): ШОРТЫ КОТЁЛ НЕ ТРОГАЕТ ВООБЩЕ — при полном котле
 #     отклоняются только лонги, все пути шорта идут как без котла. Отбор «только на выносе шортов у лидеров» из первых двух версий снят: это было моё сужение.
+#   • 11.10 02:50 UTC (владелец по шортам STRK 10.10 15:11 UTC, MAGIC, NIGHT — все по стопу, монета в это время росла: «так лидер же идёт», «в смысле котёл их
+#     пропускает»): ШОРТ ПО МОНЕТЕ, КОТОРАЯ СЕЙЧАС ИДЁТ В КОТЛЕ (её большой рост не закончен — не отдана половина), НЕ БЕРЁМ, при любом состоянии котла.
+#     Исключение — шорт R58 «вдогонку» (после выноса шортов вынесли лонгов и цена не вернулась — так взят JCT 10.10 20:00 UTC, +42 %): исключение моё, без
+#     него правило отклонило бы и ту сделку. Счёт по бумаге 26.09–10.10: шортов по идущей монете 27, в плюс 8, −665 $; «вдогонку» среди них нет.
 # Открытые позиции правило не закрывает. Запрет R82 (шорт на выносе по монете с меткой очереди) действует как раньше. На истории не проверено: счёт по
 # бумаге за первые 10,5 ч полного котла (с 10.10 13:30 UTC) — лонги 20 закрыто, 5 в плюс, −74 $; шорты 6 закрыто, +69 $, из 10 открытых в плюсе 8.
 POT_MAX_AGE_MIN = 90
@@ -561,13 +565,15 @@ def _pot_gate(sym: str, side: int, why: str, now: float, pot_path=None, leaders_
     if not p:
         return None
     used, pot = float(p.get("used_usd") or 0) / 1e6, float(p.get("pot_usd") or 0) / 1e6
+    going = {m.get("sym") for m in (p.get("moves") or []) if not m.get("done")}
+    if side == -1 and sym in going and not str(why or "").split(" · ")[0].startswith("R58 конец роста → шорт вдогонку"):
+        return (f"{sym[:-4]} сейчас идёт в котле (большой рост не закончен) — шорт не берём; исключение — шорт «вдогонку» после выноса лонгов (R84)")
     if p.get("full"):
         tail = f"котёл полный ({used:.0f} из {pot:.0f} млн $, обнуление {str(p.get('reset_at') or '')[5:16].replace('T', ' ')} UTC)"
         if side == 1:
             return f"{tail} — лонги не берём, дальше только шорты (R84)"
         return None                                                      # 11.10 01:25 UTC: шорты котёл не трогает — см. шапку правила
     if p.get("warn") and side == 1:
-        going = {m.get("sym") for m in (p.get("moves") or []) if not m.get("done")}
         if sym not in going:
             return (f"котёл {used:.0f} из {pot:.0f} млн $, красная метка — ход остался только у тех, кто идёт сейчас"
                     + (f" ({', '.join(sorted(x[:-4] for x in going if x))})" if going else "") + ": лонг не берём (R84)")
@@ -1028,9 +1034,42 @@ def short_low_block(sym: str, side: int, px=None, low=None):
     return None
 
 
+_BTCQ = {"key": None, "v": None}
+
+
+def btc_squeeze_block(side: int, now: float, clock_path=None):
+    """R87 (11.10 03:50 UTC, владелец: «после сквиза биткоина шорты не берём 3 дня»): MANUAL_BY_USER_BTC_SQUEEZE_NO_SHORT_DAYS суток от сквиза биткоина
+    (output/btc_clock.json, поле squeeze — время, заданное владельцем, или найденное по ликвидациям; пишет прогон) шорт не берётся ни одним путём.
+    Файла нет или время сквиза не читается — правило молчит. FAST_BTC_SQ_OFF=1 (ставит bot_test.sh) — прежние проверки идут без него. → причина отказа или None"""
+    if side != -1:
+        return None
+    import os
+    if os.environ.get("FAST_BTC_SQ_OFF") and clock_path is None:
+        return None
+    try:
+        from core_config import MANUAL_BY_USER_BTC_SQUEEZE_NO_SHORT_DAYS as _nd
+    except ImportError:
+        _nd = 3
+    if not _nd:
+        return None
+    p = Path(clock_path) if clock_path else BASE_DIR / "output" / "btc_clock.json"
+    try:
+        key = (str(p), p.stat().st_mtime)
+        if _BTCQ["key"] != key:
+            _BTCQ["v"], _BTCQ["key"] = json.loads(p.read_text(encoding="utf-8")), key
+        at = str(((_BTCQ["v"] or {}).get("squeeze") or {}).get("at") or "")
+        t0 = datetime.strptime(at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None
+    if 0 <= now - t0 < float(_nd) * 86400:
+        until = datetime.fromtimestamp(t0 + float(_nd) * 86400, timezone.utc)
+        return f"после сквиза биткоина {at[5:16].replace('T', ' ')} UTC прошло {(now - t0) / 3600:.0f} ч — шорты не берём {float(_nd):g} дн, до {until:%d.%m %H:%M} UTC (R87)"
+    return None
+
+
 def _entry_gate(sym: str, side: int, why: str, now: float):
-    """общие ворота входа всех книг: котёл больших ростов (R84), затем «не шортить дно» (R86) → причина отказа или None"""
-    return _pot_gate(sym, side, why, now) or short_low_block(sym, side)
+    """общие ворота входа всех книг: котёл больших ростов (R84), после сквиза биткоина без шортов (R87), «не шортить дно» (R86) → причина отказа или None"""
+    return _pot_gate(sym, side, why, now) or btc_squeeze_block(side, now) or short_low_block(sym, side)
 
 
 def manual_exit(pos: dict, e: float, sd: int, k: list):
