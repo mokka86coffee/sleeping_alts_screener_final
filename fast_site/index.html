@@ -564,17 +564,19 @@ function layoutRiverLabels(R, t, nowS) {
   const all = [];
   for (const gg of rings) for (const l of gg.labels) if (l.rv != null) { l.ebw = l.bw || 70 + l.name.length * 9 + 40; all.push(l); }   // ширина ещё не измерена (подпись скрыта) — берём с запасом
   for (const l of all) if (l.slotW !== R.w) { l.slotW = R.w; l.fx = null; l.shown = false; }   // изменился размер окна — места выбираются заново
-  const geom = l => { const x = l.fx, y = riverY(R, x, t) + l.rv * R.hh, BH = l.bh || 18, e = l.h + (l.dy || 0); return { x, y, cx: x + l.ebw / 2, cy: y - e - BH / 2, bw: l.ebw, bh: BH + 8 }; };
+  const full = (l, x, y) => { const BH = l.bh || 18, k = l.item && l.item.kind, x0 = k === 'fc' ? x - 9 : k ? x - 70 : x - 44, x1 = k === 'fc' ? x + l.ebw : k ? x + 60 : x + Math.max(l.ebw, 44) + 6, y0 = k === 'fc' ? y - 38 : k ? y - 98 : y - l.h - BH - 8, y1 = k === 'fc' ? y + 8 : k ? y + 34 : y + 18; return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0 }; };
+  const geom = l => { const x = l.fx, y = riverY(R, x, t) + l.rv * R.hh, BH = l.bh || 18, e = l.h + (l.dy || 0); return { x, y, cx: x + l.ebw / 2 + (l.cxo || 0), cy: y - e - BH / 2, bw: l.ebw, bh: BH + 8, low: !!l.low, F: full(l, x, y) }; };
   const placed = all.filter(l => l.fx != null).map(geom);
   for (const l of all) {
     if (l.fx != null) continue;
     let best = null, bestD = -1;
-    for (let k = 0; k < 90; k++) {
+    for (let k = 0; k < 260; k++) {
       const fx = R.x0 + 14 + Math.random() * Math.max(1, R.w - 30 - l.ebw), rv = -.82 + Math.random() * 1.64;
-      const y = riverY(R, fx, t) + rv * R.hh, BH = l.bh || 18, cx = fx + l.ebw / 2, cy = y - l.h - BH / 2;
+      const y = riverY(R, fx, t) + rv * R.hh, BH = l.bh || 18, cx = fx + l.ebw / 2 + (l.cxo || 0), cy = y - l.h - BH / 2, F = full(l, fx, y);
       let d = 9;
       if (window.FC_RESERVED) { const bx0 = fx - 6, bx1 = fx + l.ebw + 6, by0 = y - l.h - BH - 24, by1 = y + 10; if (FC_RESERVED().some(q => bx0 < q.r && bx1 > q.l && by0 < q.b && by1 > q.t)) continue; if (pzDimAt(bx0 - 90, bx1, by0 - 40, by1 + 30) < 1) continue; }   // не лезть под список прогнозов и открытую панель
-      for (const q of placed) d = Math.min(d, Math.max(Math.abs(cx - q.cx) / ((l.ebw + q.bw) / 2 + 10), Math.abs(cy - q.cy) / ((BH + 8 + q.bh) / 2 + 4)), Math.hypot(fx - q.x, y - q.y) / 46);
+      for (const q of placed) d = Math.min(d, Math.max(Math.abs(cx - q.cx) / ((l.ebw + q.bw) / 2 + 10), Math.abs(cy - q.cy) / ((BH + 8 + q.bh) / 2 + 4)), Math.hypot(fx - q.x, y - q.y) / 46,
+        l.low || q.low ? (ov => ov < 1 ? ov * .3 : 9)(Math.max(Math.abs(F.cx - q.F.cx) / ((F.w + q.F.w) / 2), Math.abs(F.cy - q.F.cy) / ((F.h + q.F.h) / 2))) : 9);   // меньше 1 — области пересеклись: такое место берётся только если другого нет
       if (d > bestD) { bestD = d; best = { fx, rv }; }
     }
     l.fx = best.fx; l.rv = best.rv; l.dy = 0; l.shown = true;
@@ -2400,7 +2402,9 @@ function applyState(S) {
       .concat((S.bx_warn || []).filter(w => nowS - w.t_in < (w.keep || ENTRY_KEEP)).map(w => ({ key: 'warn|' + w.kind_w + '|' + w.sym + '|' + Math.round(w.t_in), name: w.sym.replace(/USDT$/, ''), side: w.side, price: w.entry, item: w })))
       // 09.10: звёзды и очередь — свои типы на реке (kind: 'star' | 'queue'); живут, пока есть в данных и не старше keep (моё умолчание 2 ч)
       // 10.10 владелец: звёзды (S.stars) с реки убраны — очередь получила их вид
-      .concat((S.queue || []).filter(q => nowS - q.t < (q.keep || 7200)).map(q => ({ key: 'queue|' + q.sym + '|' + Math.round(q.t), name: q.sym.replace(/USDT$/, ''), side: 0, price: 0, item: { kind: 'queue', sym: q.sym, ranks: q.ranks || [], res: q.res || 0, v2c: q.v2c, cap: q.cap, t_in: q.t, t_out: null, keep: q.keep || 7200 } }))),
+      .concat((S.queue || []).filter(q => nowS - q.t < (q.keep || 7200)).map(q => ({ key: 'queue|' + q.sym + '|' + Math.round(q.t), name: q.sym.replace(/USDT$/, ''), side: 0, price: 0, item: { kind: 'queue', sym: q.sym, ranks: q.ranks || [], res: q.res || 0, v2c: q.v2c, cap: q.cap, t_in: q.t, t_out: null, keep: q.keep || 7200 } })))
+      // 11.10 владелец: «надо для прогнозов что-то добавить в реке», «чтобы сразу видеть все» — все прогнозы последнего прогона (S.forecasts) стоят на реке разом, пока есть в данных
+      .concat((S.forecasts || []).map(f => ({ key: 'fc|' + f.sym + '|' + Math.round(f.t), name: f.sym.replace(/USDT$/, ''), side: 0, price: 0, item: { kind: 'fc', sym: f.sym, tpl: f.tpl, t_in: f.t, t_out: null, keep: Infinity, fc: f } }))),   // keep: без срока — стоят до следующего прогона
     (S.closed || []).filter(c => nowS - c.t_out < EXIT_KEEP).map(c => ({ key: 'out|' + c.book + '|' + c.sym + '|' + Math.round(c.t_out), name: c.sym.replace(/USDT$/, ''), side: c.side, price: c.exit, item: c })),
   ];
   rings.forEach((g, i) => {
@@ -2961,7 +2965,10 @@ findHover = function () {
   const short = tpl => (tpl || '').replace(/\s*\(.*$/, '');   // «кит поглощает слив (шаблон BLESS/TRUMP)» → «кит поглощает слив»
   const hhmm = t => { const d = new Date(t * 1000); return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0'); };
   const coin = s => (s || '').replace(/USDT$/, '');
+  const markName = tpl => typeOf(tpl) === 'other' ? short(tpl).toUpperCase() : TYPES[typeOf(tpl)][0];   // 11.10 владелец: «а где на графике разгон на спросе» — у прогноза без своего типа метка на линии цены несёт его имя, а не общее «СМЕНА»
 
+  // 11.10 владелец: «цена сейчас берется не оттуда» — ряд прогноза идёт шагом 30 мин, его последняя точка отстаёт; «сейчас» — свежая цена: поле now у прогноза (если пришло) или последняя минутная свеча STATE.charts, и только свежее последней точки ряда
+  const livePx = f => { const tl = f.times && f.times.length ? f.times[f.times.length - 1] : 0, cb = ((window.STATE || {}).charts || {})[f.sym], b = cb && cb.bars && cb.bars.length ? cb.bars[cb.bars.length - 1] : null; return f.now != null && (f.now_t == null || f.now_t > tl) ? f.now : b && b[0] / 1000 > tl ? b[4] : null; };
   // ── список «прогнозы · обновились»
   const _pd = panelData;
   panelData = function (l) {
@@ -2970,19 +2977,21 @@ findHover = function () {
       const it = l.item, S = window.STATE || {}, ch = (S.charts || {})[it.sym], fc = (S.forecasts || []).find(f => f.sym === it.sym);
       let closes = fc && Array.isArray(fc.closes) && fc.closes.length > 1 ? fc.closes : (Array.isArray(it.closes) && it.closes.length > 1 ? it.closes : (ch && ch.bars && ch.bars.length > 1 ? ch.bars.map(b => b[4]) : null));
       if (!closes) { const p0 = it.px || 1; closes = [p0, p0]; }
+      if (fc && closes === fc.closes) { const lp = livePx(fc); if (lp != null) closes = closes.concat([lp]); }   /* линия доходит до свежей цены */
       const n = closes.length, now = closes[n - 1], marks = [];
       let status = '';
       if (fc && fc.changes && fc.changes.length) {
-        for (const q of fc.changes) marks.push({ label: TYPES[typeOf(q.tpl)][0], price: q.px, rgb: TYPES[typeOf(q.tpl)][1], idx: q.i != null && q.i < n ? q.i : null });
+        for (const q of fc.changes) marks.push({ label: markName(q.tpl), price: q.px, rgb: TYPES[typeOf(q.tpl)][1], idx: q.i != null && q.i < n ? q.i : null });
         const last = fc.changes[fc.changes.length - 1]; status = `${short(last.tpl)} · ${hhmm(last.t)} UTC · смен прогноза ${fc.changes.length}`;
       }
       marks.push({ label: 'СЕЙЧАС', price: now, rgb: '255,255,255', idx: null, now: true });
       return { g: { title: 'ОЧЕРЕДЬ' }, d: { ring: 'closed', now, candles: [], status }, it: { sym: it.sym }, closes, n, kind: 'closed', dir: 0, marks, ei: null, xi: null };
     }
+    if (kind === 'fc' && !l.fc) l = { fc: l.item.fc };   /* прогноз на реке — та же панель, что у записи вверху */
     if (!l.fc) return _pd(l);
-    const f = l.fc, c = f.closes || [], n = c.length, ch = f.changes || [], last = ch[ch.length - 1], prev = ch[ch.length - 2];
+    const f = l.fc, lp = livePx(f), c = lp != null && (f.closes || []).length ? f.closes.concat([lp]) : (f.closes || []), n = c.length, ch = f.changes || [], last = ch[ch.length - 1], prev = ch[ch.length - 2];
     const d = prev && prev.px ? (last.px / prev.px - 1) * 100 : 0, sgn = d >= 0 ? '+' : '−';
-    const marks = ch.map(q => ({ label: TYPES[typeOf(q.tpl)][0], price: q.px, rgb: TYPES[typeOf(q.tpl)][1], idx: q.i != null && q.i < n ? q.i : null }));
+    const marks = ch.map(q => ({ label: markName(q.tpl), price: q.px, rgb: TYPES[typeOf(q.tpl)][1], idx: q.i != null && q.i < n ? q.i : null }));
     const nowPx = n ? c[n - 1] : (last ? last.px : 0);
     marks.push({ label: 'СЕЙЧАС', price: nowPx, rgb: '255,255,255', idx: null, now: true });
     const closes = n ? c : [last ? last.px : 0, nowPx];
@@ -3050,13 +3059,14 @@ findHover = function () {
   const _rl = riverLabel;
   riverLabel = function (g, l, t, R, nowS) {
     const k = l.item && l.item.kind; if (!k) return _rl(g, l, t, R, nowS);
-    if (l.rv == null) { let hs = 0; for (const c of l.key) hs = (hs * 31 + c.charCodeAt(0)) >>> 0; l.rv = (hs % 1000) / 1000 * 1.5 - .75; l.rdx = 0; l.bw = 120; l.bh = 40; l.h = 58; }
+    if (l.rv == null) { let hs = 0; for (const c of l.key) hs = (hs * 31 + c.charCodeAt(0)) >>> 0; l.rv = (hs % 1000) / 1000 * 1.5 - .75; l.rdx = 0; if (k === 'fc') fcBox(l); else { l.bw = 120; l.bh = 60; l.h = 30; l.cxo = -60; } }   /* звезда рисуется по центру точки: её место при расстановке — от −60 до +60 и от воды до лучей */
     if (!l.shown) { l.born = t; return true; }
     const x = l.fx, y = riverY(R, x, t) + l.rv * R.hh, age = t - l.born; if (age > l.life) return false;
     const ea = age / ANIM_SLOW, out = clamp((l.life - age) / ANIM_SLOW / 1.1);   // те же часы, что у флажков: появление и исчезновение
-    const dimT = pzDimAt(x - 100, x + 120, y - 90, y + 30); l.dimNow = l.dimNow == null ? dimT : l.dimNow + (dimT - l.dimNow) * .15;
+    const dimT = k === 'fc' ? pzDimAt(x - 10, x + l.bw, y - 50, y + 16) : pzDimAt(x - 100, x + 120, y - 90, y + 30); l.dimNow = l.dimNow == null ? dimT : l.dimNow + (dimT - l.dimNow) * .15;
     const a0 = ctx.globalAlpha, b0 = tctx.globalAlpha; ctx.globalAlpha = a0 * l.dimNow; tctx.globalAlpha = b0 * l.dimNow;
-    WT_DIM = l.dimNow; try { (k === 'star' ? drawStar : drawBuoy)(l, x, y, t, ea, out); } finally { WT_DIM = 1; ctx.globalAlpha = a0; tctx.globalAlpha = b0; }
+    WT_DIM = l.dimNow; try { (k === 'star' ? drawStar : k === 'fc' ? drawFc : drawBuoy)(l, x, y, t, ea, out); } finally { WT_DIM = 1; ctx.globalAlpha = a0; tctx.globalAlpha = b0; }
+    if (k === 'fc') { l.hit = ea > .9 && l.dimNow > .5 ? { x: x - 4, y: y - 37, w: l.bw + 4, h: 26, ax: x + 6, ay: y, tx: x + 6, ty: y - 24 } : null; return true; }
     if (ea > .8 && l.dimNow > .5) { const cy = y - 54; l.hit = { x: x - 24, y: cy - 24, w: 48, h: 70, ax: x, ay: y, tx: x, ty: cy }; } else l.hit = null;   // область клика: звезда / кристалл с подписью
     return true;
   };
@@ -3095,6 +3105,45 @@ findHover = function () {
     if (l.item.reason === 'скачок интереса' && ea > 1.2) { const rw = 20, rh = 7, ra = clamp((ea - 1.2) / .5) * A; ctx.strokeStyle = `rgba(${cc},${.5 * ra})`; ctx.lineWidth = .9; ctx.beginPath(); ctx.ellipse(cx, cy, rw, rh, -.35, 0, TAU); ctx.stroke(); for (let j = 0; j < 2; j++) { const a = t * .9 + j * 3.1 + p; ctx.fillStyle = j ? `rgba(255,120,130,${.9 * ra})` : `rgba(120,255,190,${.9 * ra})`; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * rw * Math.cos(-.35) - Math.sin(a) * rh * Math.sin(-.35), cy + Math.cos(a) * rw * Math.sin(-.35) + Math.sin(a) * rh * Math.cos(-.35), 1.8, 0, TAU); ctx.fill(); } }
     ctx.restore();
     if (ea > 1.0 && ex < .5) { waveText(l.name, cx, cy + 20, ea, 1.1, `600 10.5px Futura, "Avenir Next", sans-serif`, '#fff', 2, `rgba(${cc},.95)`, out); waveText(l.item.reason || '', cx, cy + 31, ea, 1.45, `400 7px Futura, "Avenir Next", sans-serif`, 'rgba(190,215,255,.85)', .5, null, out); }
+  }
+  // ПРОГНОЗ НА РЕКЕ (11.10 владелец: «надо для прогнозов что-то добавить в реке», «чтобы сразу видеть все») — тот же ромб-маяк, что у записи вверху:
+  // висит над водой на пунктирной нити, справа имя и короткий прогноз цветом типа; собирается из искр, уходит — рассыпается; монета, что сейчас в записи вверху, светится ярче
+  const FC_NF = `600 8px Futura, "Avenir Next", sans-serif`, FC_TF = `600 5.5px Futura, "Avenir Next", sans-serif`;   // 11.10 владелец: «сделай мелким шрифтом все монеты что в прогнозах» (было 11 и 7)
+  function fcBox(l) {
+    const m = (str, font, sp) => { tctx.save(); tctx.font = font; tctx.letterSpacing = '0px'; let w = 0; for (const c of str) w += tctx.measureText(c).width + sp; tctx.restore(); return w; };
+    l.ftx = short(l.item.tpl).toUpperCase(); l.w1 = m(l.name, FC_NF, 1.5); l.w2 = m(l.ftx, FC_TF, 1);
+    l.bw = Math.round(22 + Math.max(l.w1, l.w2)); l.bh = 22; l.h = 14; l.low = true; l.c1 = l.c2 = TYPES[typeOf(l.item.tpl)][1];
+  }
+  function drawFc(l, x, y, t, ea, out) {
+    const it = l.item, cc = TYPES[typeOf(it.tpl)][1], col = a => `rgba(${cc},${a})`, p = ph(l), ex = 1 - out, cur = current();
+    const on = (cur && cur.sym === it.sym) || (typeof selected !== 'undefined' && selected === l); l.onK = (l.onK || 0) + ((on ? 1 : 0) - (l.onK || 0)) * .07; const K = l.onK;
+    const cx = x + 6, cy = y - 24 + Math.sin(t * .9 + p) * 1.6 * out, as = clamp((ea - .05) / .75), B = clamp((ea - .7) / .3) * clamp((out - .35) / .3), r = 4 + 1.2 * K;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // сборка из искр (и рассыпание при уходе): искры летят по спирали к месту ромба, за каждой короткий след
+    if (as < 1 || ex > .001) { const k = as < 1 ? 1 - ease(as) : ex * ex, al = as < 1 ? clamp(as * 4) * clamp((1 - as) * 5) : clamp(ex * 5) * clamp(out * 2.5);
+      for (let i = 0; i < 16; i++) { const tw = as < 1 ? (1 - as) * 1.6 : -ex * .9, a = i * TAU / 16 + p + tw, d = k * (30 + (i % 4) * 13), a2 = a + .22 * Math.sign(tw || 1), d2 = d * 1.3;
+        const sx = cx + Math.cos(a) * d, sy = cy + Math.sin(a) * d * .8; ctx.strokeStyle = col(.75 * al); ctx.lineWidth = 1.3; ctx.beginPath(); ctx.moveTo(cx + Math.cos(a2) * d2, cy + Math.sin(a2) * d2 * .8); ctx.lineTo(sx, sy); ctx.stroke();
+        ctx.fillStyle = i % 3 ? col(al) : `rgba(255,255,255,${al})`; ctx.fillRect(sx - 1.2, sy - 1.2, 2.4, 2.4); }
+      if (as < 1) { const hg = ctx.createRadialGradient(cx, cy, 0, cx, cy, 22); hg.addColorStop(0, col(.45 * as)); hg.addColorStop(1, col(0)); ctx.fillStyle = hg; ctx.fillRect(cx - 22, cy - 22, 44, 44); } }
+    // вспышка в момент сборки
+    const lf = clamp((ea - .72) / .5); if (lf > 0 && lf < 1) { const fl = Math.pow(Math.sin(Math.PI * lf), 2); ctx.strokeStyle = col(.8 * (1 - lf)); ctx.lineWidth = 1.3 * (1 - lf) + .3; ctx.beginPath(); for (let i = 0; i < 4; i++) { const a = i * TAU / 4, rr = 4 + ease(lf) * 22; i ? ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr) : ctx.moveTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } ctx.closePath(); ctx.stroke();
+      const gf = ctx.createRadialGradient(cx, cy, 0, cx, cy, 28); gf.addColorStop(0, `rgba(255,255,255,${.8 * fl})`); gf.addColorStop(.35, col(.4 * fl)); gf.addColorStop(1, col(0)); ctx.fillStyle = gf; ctx.fillRect(cx - 28, cy - 28, 56, 56); }
+    if (B > 0) {
+      const dia = rr => { ctx.beginPath(); ctx.moveTo(cx, cy - rr); ctx.lineTo(cx + rr, cy); ctx.lineTo(cx, cy + rr); ctx.lineTo(cx - rr, cy); ctx.closePath(); };
+      // пунктирная нить к воде, блик и отражение на воде
+      const th = clamp((ea - .95) / .4) * B; if (th > 0) { const y1 = cy + r + 3, yy = y1 + (y - 2 - y1) * th; ctx.setLineDash([1.5, 3.5]); ctx.strokeStyle = col(.55 * B); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, y1); ctx.lineTo(cx, yy); ctx.stroke(); ctx.setLineDash([]);
+        if (th >= .98) { ctx.strokeStyle = col((.4 + .3 * K) * B); ctx.beginPath(); ctx.ellipse(cx, y, 4.5 + 1.5 * K, 1.8, 0, 0, TAU); ctx.stroke(); for (let i = 0; i < 4; i++) { ctx.fillStyle = col(.22 * (1 - i / 4) * (.5 + .5 * Math.sin(t * 2 + i + p)) * B); ctx.fillRect(cx - 5 + i * .7, y + 3.5 + i * 2.8, 10 - i * 1.9, 1); } } }
+      // ореол и расходящийся ромб-маяк (у монеты из записи вверху — второй, шире)
+      const hr = 14 + 9 * K, hg = ctx.createRadialGradient(cx, cy, 0, cx, cy, hr); hg.addColorStop(0, col((.3 + .3 * K) * B)); hg.addColorStop(1, col(0)); ctx.fillStyle = hg; ctx.fillRect(cx - hr, cy - hr, hr * 2, hr * 2);
+      for (let j = 0; j < 2; j++) { const q = (t * .42 + p / TAU + j * .5) % 1, a = (1 - q) * (j ? K : 1) * .75 * B; if (a < .02) continue; ctx.strokeStyle = col(a); ctx.lineWidth = 1; dia(r + 2 + q * (8 + 5 * K)); ctx.stroke(); }
+      // сам ромб: широкая бледная обводка вместо свечения, заливка от белого ядра к цвету типа
+      ctx.strokeStyle = col(.2 * B); ctx.lineWidth = 4; dia(r); ctx.stroke();
+      const dg = ctx.createRadialGradient(cx, cy, 0, cx, cy, r); dg.addColorStop(0, `rgba(255,255,255,${.95 * B})`); dg.addColorStop(.55, col(.9 * B)); dg.addColorStop(1, col(.55 * B)); ctx.fillStyle = dg; dia(r * clamp((ea - .7) / .25)); ctx.fill();
+      ctx.strokeStyle = `rgba(255,255,255,${.85 * B})`; ctx.lineWidth = 1; dia(r); ctx.stroke();
+      if (K > .02) { const L = 9 * K; ctx.fillStyle = `rgba(255,255,255,${.7 * K * B})`; ctx.fillRect(cx - L, cy - .5, L * 2, 1); ctx.fillRect(cx - .5, cy - L * .8, 1, L * 1.6); }
+    }
+    ctx.restore();
+    if (ea > .95 && ex < .6) { const tx = cx + 13; waveText(l.name, tx + l.w1 / 2, cy - .5, ea, 1.0, FC_NF, '#fff', 1.5, `rgba(${cc},.95)`, out); waveText(l.ftx, tx + l.w2 / 2, cy + 7.5, ea, 1.3, FC_TF, `rgb(${cc})`, 1, null, out); }
   }
   // граненый кристалл-шестигранник: рёбра рисуются по очереди, потом проявляются грани и ядро
   function gem(x, y, r, rot, ea0, c, A, lit, lw1 = 1.5) {
