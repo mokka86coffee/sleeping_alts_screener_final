@@ -7,6 +7,9 @@
   R86 — шорт не берётся, когда цена входа не выше «минимум дневных свечей за 60 суток + 20 %» (до 11.10 02:16:17 UTC);
   R84, дополнение — шорт по монете, чей большой рост в котле ещё идёт, не берётся, кроме R58 «вдогонку» (до перезапуска бота 11.10 ~04:00 UTC);
   R87 — после сквиза биткоина шорты не берутся 3 дня: сквиз 08.10 15:00 UTC, заданный владельцем (другие сквизы в пересчёт не идут);
+  R82 — шорт на выносе шортов (сканер R52, R58 «конец роста» на самом выносе, «вынос шортов на всплеске») не берётся по монете с меткой очереди
+        «1» или «★» (правило с 10.10 00:55 UTC; метка считается по output/queue_log.jsonl тем же fast_state._held_path, что рисует страницу);
+        11.10 14:40 UTC владелец по шорту MAGIC 09.10 15:18 UTC: «и magic шорт остался, хотя он был в топе». R81 (разворот фандинга) в пересчёт не входит;
   «свой ММ» — монеты ручного списка OWN_MM_MANUAL (ARPA добавлена 11.10).
 Сделки, которые по новым правилам не берутся, пишутся в output/recount_new_rules.json (skip: {«книга|монета|секунда входа»: причина}); страница бота
 (fast_state.positions) их не показывает и в итоги не считает. Журналы и книги бота не меняются — снять пересчёт можно, удалив файл.
@@ -36,6 +39,7 @@ U = timezone.utc
 OUT = ROOT / "output" / "recount_new_rules.json"
 TVD = ROOT / "claude" / "research" / "tvd"
 R84_ON = datetime(2026, 10, 11, 0, 44, 38, tzinfo=U).timestamp()      # с этой секунды бот сам слушает котёл
+R82_ON = datetime(2026, 10, 10, 0, 55, 0, tzinfo=U).timestamp()       # с этой минуты бот сам не шортит на выносе шортов монету с меткой очереди
 R86_ON = datetime(2026, 10, 11, 2, 16, 17, tzinfo=U).timestamp()      # с этой секунды бот сам не шортит дно
 R87_ON = datetime(2026, 10, 11, 4, 1, 23, tzinfo=U).timestamp()        # с этой секунды бот сам не шортит идущую монету и три дня после сквиза биткоина (время перезапуска)
 SQ_AT = datetime(2026, 10, 8, 15, 0, 0, tzinfo=U).timestamp()         # сквиз биткоина, заданный владельцем (MANUAL_BY_USER_BTC_SQUEEZE_AT)
@@ -136,13 +140,46 @@ class Lows:
         return min(v) if v else None
 
 
+class Marks:
+    """метка очереди монеты («1», «★» или нет) на момент входа — по output/queue_log.jsonl за скользящие сутки, правилом страницы fast_state._held_path"""
+    def __init__(self) -> None:
+        import fast_state
+        self.fs = fast_state; self.by: dict = {}
+        with (ROOT / "output" / "queue_log.jsonl").open(encoding="utf-8") as f:
+            for ln in f:
+                if '"place": null' in ln or '"place"' not in ln:
+                    continue
+                try:
+                    r = json.loads(ln)
+                except ValueError:
+                    continue
+                if r.get("sym") and r.get("place") is not None and r.get("at"):
+                    self.by.setdefault(r["at"], {})[r["sym"]] = int(r["place"])
+        self.runs = sorted(self.by); self.ts = [pp._t(a).timestamp() for a in self.runs]
+
+    def mark(self, sym: str, ts: float):
+        j = bisect.bisect_right(self.ts, ts); i = bisect.bisect_left(self.ts, ts - float(self.fs.Q_WIN_H) * 3600)
+        places = [self.by[a].get(sym) for a in self.runs[i:j]]
+        return self.fs._held_path(places)[0] if places else None
+
+
+def _on_short_squeeze(rule: str) -> bool:
+    head = (rule or "").split(" · ")[0]
+    return ("вынос шортов" in head) or head.startswith("R58 конец роста → шорт:") or ("вынос шортов на всплеске → шорт" in (rule or ""))
+
+
 def main() -> int:
-    T = trades(); pot = Pot(); lows = Lows(); skip = {}
+    T = trades(); pot = Pot(); lows = Lows(); marks = Marks(); skip = {}
     for x in T:
         why = None
         if x["sym"] in OWN and x["sym"] == "ARPAUSDT":                    # остальные монеты ручного списка бот и раньше не брал
             why = "свой ММ: монета в ручном списке владельца (11.10)"
-        if not why and x["side"] == -1 and x["t_in"] < R87_ON and SQ_DAYS and SQ_AT <= x["t_in"] < SQ_AT + SQ_DAYS * 86400:
+        if not why and x["side"] == -1 and x["t_in"] < R82_ON and _on_short_squeeze(x["rule"]):
+            _m = marks.mark(x["sym"], x["t_in"])
+            if _m:
+                why = f"R82: монета в первых местах очереди (метка «{_m}») — шорт на выносе шортов не берётся"
+        _pe = x["rule"].split(" · ")[0].startswith("R58 конец роста → шорт")   # 11.10 14:15 UTC: «завершение пампа никак не связано с ростом биткоина» — R58 под запрет R87 не попадает
+        if not why and x["side"] == -1 and not _pe and x["t_in"] < R87_ON and SQ_DAYS and SQ_AT <= x["t_in"] < SQ_AT + SQ_DAYS * 86400:
             why = f"R87: после сквиза биткоина 08.10 15:00 UTC шорты не берутся {SQ_DAYS:g} дн"
         if not why and x["side"] == -1 and x["t_in"] < R87_ON and not x["rule"].split(" · ")[0].startswith("R58 конец роста → шорт вдогонку"):
             _st, _used, _going = pot.at(x["t_in"])
@@ -182,7 +219,7 @@ def main() -> int:
     print("шорты без дневных свечей TradingView (R86 не проверен):", len(nolow), " ".join(nolow)[:300])
     if "--dry" not in sys.argv:
         tmp = OUT.with_suffix(".tmp")
-        tmp.write_text(json.dumps(dict(at=datetime.now(U).strftime(pp.FMT), rules="R84 (лонги при котле, шорт по идущей монете), R86, R87, свой ММ (ARPA)", n_all=len(T), n_skip=len(skip), skip=skip), ensure_ascii=False), encoding="utf-8")
+        tmp.write_text(json.dumps(dict(at=datetime.now(U).strftime(pp.FMT), rules="R82, R84 (лонги при котле, шорт по идущей монете), R86, R87, свой ММ (ARPA)", n_all=len(T), n_skip=len(skip), skip=skip), ensure_ascii=False), encoding="utf-8")
         tmp.replace(OUT); print("записано:", OUT, len(skip))
     return 0
 

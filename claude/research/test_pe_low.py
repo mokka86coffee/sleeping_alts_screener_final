@@ -61,6 +61,9 @@ def clock(hours_ago):
 clock(60); r = ft.btc_squeeze_block(-1, _t.time(), clock_path=CK)
 chk(r and "R87" in r, f"60 ч после сквиза шорт должен быть отклонён: {r}")
 chk(ft.btc_squeeze_block(1, _t.time(), clock_path=CK) is None, "лонгов правило не касается")
+chk(ft.btc_squeeze_block(-1, _t.time(), clock_path=CK, why="R58 конец роста → шорт вдогонку: сквиз был 10.0 ч назад · вынос лонгов 8K$") is None, "шорт «вдогонку» под запрет не попадает (11.10, JCT)")
+chk(ft.btc_squeeze_block(-1, _t.time(), clock_path=CK, why="R58 конец роста → шорт: минимумы за 48 ч росли") is None, "шорт «конец роста» на самом выносе под запрет не попадает («завершение пампа не связано с ростом биткоина»)")
+chk(ft.btc_squeeze_block(-1, _t.time(), clock_path=CK, why="R65 сползание 3 дня → шорт на отскоке"), "прочие шорты под запретом")
 clock(73); chk(ft.btc_squeeze_block(-1, _t.time(), clock_path=CK) is None, "через 73 ч шорт снова берётся")
 clock(60); core_config.MANUAL_BY_USER_BTC_SQUEEZE_NO_SHORT_DAYS = 0
 chk(ft.btc_squeeze_block(-1, _t.time(), clock_path=CK) is None, "0 дней — правило выключено")

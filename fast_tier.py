@@ -1037,11 +1037,14 @@ def short_low_block(sym: str, side: int, px=None, low=None):
 _BTCQ = {"key": None, "v": None}
 
 
-def btc_squeeze_block(side: int, now: float, clock_path=None):
+def btc_squeeze_block(side: int, now: float, clock_path=None, why: str = ""):
     """R87 (11.10 03:50 UTC, владелец: «после сквиза биткоина шорты не берём 3 дня»): MANUAL_BY_USER_BTC_SQUEEZE_NO_SHORT_DAYS суток от сквиза биткоина
     (output/btc_clock.json, поле squeeze — время, заданное владельцем, или найденное по ликвидациям; пишет прогон) шорт не берётся ни одним путём.
-    Файла нет или время сквиза не читается — правило молчит. FAST_BTC_SQ_OFF=1 (ставит bot_test.sh) — прежние проверки идут без него. → причина отказа или None"""
-    if side != -1:
+    Файла нет или время сквиза не читается — правило молчит. FAST_BTC_SQ_OFF=1 (ставит bot_test.sh) — прежние проверки идут без него. → причина отказа или None
+    11.10 04:20 UTC (владелец по шорту JCT 10.10 20:00 UTC — R58 «вдогонку», после вершины пампа, через 53 ч после сквиза: «ну и всё, почему на него-то этот
+    запрет», «это кардинально другая история», «завершение пампа вообще никак не связано с ростом биткоина»): шорты R58 «конец роста» (на самом выносе
+    и «вдогонку») под запрет не попадают."""
+    if side != -1 or str(why or "").split(" · ")[0].startswith("R58 конец роста → шорт"):
         return None
     import os
     if os.environ.get("FAST_BTC_SQ_OFF") and clock_path is None:
@@ -1069,7 +1072,7 @@ def btc_squeeze_block(side: int, now: float, clock_path=None):
 
 def _entry_gate(sym: str, side: int, why: str, now: float):
     """общие ворота входа всех книг: котёл больших ростов (R84), после сквиза биткоина без шортов (R87), «не шортить дно» (R86) → причина отказа или None"""
-    return _pot_gate(sym, side, why, now) or btc_squeeze_block(side, now) or short_low_block(sym, side)
+    return _pot_gate(sym, side, why, now) or btc_squeeze_block(side, now, why=why) or short_low_block(sym, side)
 
 
 def manual_exit(pos: dict, e: float, sd: int, k: list):
