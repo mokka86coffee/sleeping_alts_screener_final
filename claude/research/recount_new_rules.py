@@ -37,7 +37,7 @@ OUT = ROOT / "output" / "recount_new_rules.json"
 TVD = ROOT / "claude" / "research" / "tvd"
 R84_ON = datetime(2026, 10, 11, 0, 44, 38, tzinfo=U).timestamp()      # с этой секунды бот сам слушает котёл
 R86_ON = datetime(2026, 10, 11, 2, 16, 17, tzinfo=U).timestamp()      # с этой секунды бот сам не шортит дно
-R87_ON = datetime(2026, 10, 11, 4, 0, 0, tzinfo=U).timestamp()        # с этой секунды бот сам не шортит идущую монету и три дня после сквиза биткоина (время перезапуска)
+R87_ON = datetime(2026, 10, 11, 4, 1, 23, tzinfo=U).timestamp()        # с этой секунды бот сам не шортит идущую монету и три дня после сквиза биткоина (время перезапуска)
 SQ_AT = datetime(2026, 10, 8, 15, 0, 0, tzinfo=U).timestamp()         # сквиз биткоина, заданный владельцем (MANUAL_BY_USER_BTC_SQUEEZE_AT)
 SQ_DAYS = float(getattr(core_config, "MANUAL_BY_USER_BTC_SQUEEZE_NO_SHORT_DAYS", 3))
 BOOKS = (("всплеск/вынос", "paper_fast3"), ("пробуждение", "paper_wake"), ("очередь", "paper_queue"))
@@ -175,6 +175,9 @@ def main() -> int:
         d = datetime.fromtimestamp(x["t_in"], U).strftime("%m-%d"); days[d][0] += x["usd"]; days[d][1] += 0 if x["skip"] else x["usd"]
     print("по дням входа, было → стало:", " · ".join(f"{d} {a:+.0f}→{b:+.0f}" for d, (a, b) in sorted(days.items())))
     print("открытых сейчас:", sum(1 for x in T if x["open"]), "| из них по новым правилам не берётся:", [(x["sym"][:-4], x["skip"][:40]) for x in T if x["open"] and x["skip"]])
+    for x in T:
+        if x["side"] == -1:
+            lows._load(x["sym"])
     nolow = sorted({x["sym"][:-4] for x in T if x["side"] == -1 and not lows.d1.get(x["sym"])})
     print("шорты без дневных свечей TradingView (R86 не проверен):", len(nolow), " ".join(nolow)[:300])
     if "--dry" not in sys.argv:
