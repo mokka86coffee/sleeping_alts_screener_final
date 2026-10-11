@@ -222,8 +222,20 @@ def _bx_real(trades: list, fills: list) -> None:
         tr["fill_in"] = sum(r["amt"] for r in opn) / sum(r["qty"] for r in opn); tr["fill_out"] = sum(r["amt"] for r in cls) / sum(r["qty"] for r in cls)
 
 
+def _site_flags() -> tuple[dict, bool]:
+    """11.10 владелец: «пересчитай все сделки бота по новым правилам, пусть они рисуются сразу по новой, по бирже везде выстави 0».
+    → (сделки, которые по новым правилам не берутся: {«книга|монета|секунда входа»: причина}; показывать ли биржу)"""
+    try:
+        from core_config import MANUAL_BY_USER_SITE_NEW_RULES as _nr, MANUAL_BY_USER_BINGX_ON_SITE as _bx
+    except ImportError:
+        _nr, _bx = False, True
+    skip = (_read(BASE_DIR / "output" / "recount_new_rules.json", {}) or {}).get("skip") or {} if _nr else {}
+    return (skip if isinstance(skip, dict) else {}), bool(_bx)
+
+
 def positions(now: float) -> tuple[list, list, list]:
     day0 = datetime.fromtimestamp(now, L).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
+    SKIP, BXON = _site_flags()
     RV = reviews(); BXT, BXO = _bx_book()
     _bx_real(BXT, _bx_fills(now, day0 - (HIST_DAYS + 1) * 86400))
     for _t in BXT:
@@ -240,22 +252,27 @@ def positions(now: float) -> tuple[list, list, list]:
                            stop=(float(p["stop_px"]) if p.get("stop_px") else e * (1 - sd * float(p["stop"]))),      # 04.10: стоп, перенесённый в твх или на низ удержания, показываем как есть
                            tp=float(p["target"]), sl=float(p["stop"]), t_in=float(p["at"]), goal=_goal(p, e, sd),
                            exit_at=(int(p["t_ms"]) + B3) / 1000 + _hold(p) * 60, px=p.get("last_px"), rule=p.get("rule") or "",
-                           oi1h_in=er.get("oi1h"), board6_in=(er.get("fon") or {}).get("board6"), bx=sym in BXO))
+                           oi1h_in=er.get("oi1h"), board6_in=(er.get("fon") or {}).get("board6"), bx=(sym in BXO) if BXON else None))
+            _sk = SKIP.get(f"{book}|{sym}|{int(float(p['at']))}")       # 11.10: позиция открыта по прежним правилам — показываем с пометкой, после закрытия в итог не пойдёт
+            if _sk:
+                op[-1]["goal"] = f"по новым правилам этот вход не берётся ({_sk}) — в итог не пойдёт · " + (op[-1]["goal"] or "")
         for r in R:
             if not str(r.get("kind", "")).startswith("exit") or float(r.get("at") or 0) < day0 - HIST_DAYS * 86400:
                 continue
             key = f"{book}|{r['sym']}|{int(float(r['at']))}"
             t_in = float(r.get("opened_at") or 0)
+            if f"{book}|{r['sym']}|{int(t_in)}" in SKIP:                  # 11.10: по новым правилам (R84, R86, «свой ММ») бот бы эту сделку не взял — страница её не рисует и не считает
+                continue
             tr = next((x for x in BXT if x["sym"] == r["sym"] and not x["paired"] and abs(x["t_in"] - t_in) < 1200), None)
             if tr:
                 tr["paired"] = True
             (cl if float(r["at"]) >= day0 else hist).append(dict(book=book, sym=r["sym"], side=int(r.get("side") or 1), entry=float(r["px_in"]), exit=float(r.get("px_out") or 0),
                            t_in=t_in, t_out=float(r["at"]), why=r.get("why_exit") or "", res=float(r["result_pct"]),
                            usd=round(float(r["usd"]) if r.get("usd") is not None else float(r["result_pct"]) * 5, 2),   # 29.09: сумма сделки берётся из записи; это БУМАЖНЫЙ результат, как в журнале бота
-                           bx=bool(tr and not tr["dead"]), real=(tr or {}).get("real"), fee=(tr or {}).get("fee"),    # 04.10: real — деньги этой сделки на BingX с комиссией (None — на бирже не было или биржа ещё не отдала)
+                           bx=bool(tr and not tr["dead"]) if BXON else None, real=(tr or {}).get("real") if BXON else None, fee=(tr or {}).get("fee") if BXON else None,    # 04.10: real — деньги этой сделки на BingX с комиссией (None — на бирже не было или биржа ещё не отдала)
                            rule=r.get("rule") or "", review=RV.get(key)))
     for tr in BXT:                                                        # были на бирже, а в журнале бота сделки нет — в итог дня идут по данным биржи
-        if tr["paired"] or tr["dead"] or tr.get("real") is None or tr["t_out"] < day0 - HIST_DAYS * 86400:
+        if not BXON or tr["paired"] or tr["dead"] or tr.get("real") is None or tr["t_out"] < day0 - HIST_DAYS * 86400:
             continue
         pi, po = float(tr.get("fill_in") or tr["px_in"]), float(tr.get("fill_out") or tr["px_out"] or 0)
         (cl if tr["t_out"] >= day0 else hist).append(dict(book=BX_ONLY_BOOK, sym=tr["sym"], side=tr["side"], entry=pi, exit=po or pi, t_in=tr["t_in"], t_out=tr["t_out"],
@@ -452,6 +469,21 @@ def _blocks_3h(day: str, rows: list, now: float, snaps: dict | None = None, nxt:
     return out
 
 
+_PX_NOW: dict = {"t": 0.0, "px": {}}
+
+
+def _fc_now(fc: list) -> None:
+    """11.10 (чат дизайна): у каждой монеты прогнозов свежая цена — now и её время now_t (unix UTC) на момент записи состояния, а не только в прогон
+    скринера: свечи charts есть не у всех монет прогнозов, ряд closes отстаёт до 30 минут. Цены — тот же запрос всех цен, что делает board_day."""
+    if not _PX_NOW["px"] or not isinstance(fc, list):
+        return
+    for f in fc:
+        s_ = str(f.get("sym") or "")
+        p = _PX_NOW["px"].get(s_) or _PX_NOW["px"].get(s_ + "USDT")
+        if p:
+            f["now"], f["now_t"] = p, round(_PX_NOW["t"], 1)
+
+
 def board_day(now: float) -> dict:
     """03.10 владелец: «добавим медиану доски линией, цену биткоина линией и общее движение всех монет линией… важно не текущее положение, а что было в течение дня».
     Раз в сборку (3 мин) один запрос цен по всему Binance: ход каждой КРИПТО-монеты (board_universe) от её цены в 00:00 (UTC+3) → медиана доски, среднее по всем монетам, BTC, в %.
@@ -465,6 +497,7 @@ def board_day(now: float) -> dict:
         tk = get_json("https://fapi.binance.com/fapi/v1/ticker/price", weight=2) or []
         px = {x["symbol"]: float(x["price"]) for x in tk if str(x.get("symbol", "")).endswith("USDT") and float(x.get("price") or 0) > 0}
         if len(px) >= 100:
+            _PX_NOW["t"], _PX_NOW["px"] = time.time(), px               # 11.10: те же цены идут в поля now / now_t прогнозов
             uni = board_universe(now)
             base = _read(base_f, {})
             if base.get("day") != day:
@@ -822,7 +855,7 @@ def build() -> dict:
     now = time.time()
     op, cl, hist = positions(now)
     try:
-        warn = bx_warn(now, op, cl)
+        warn = bx_warn(now, op, cl) if _site_flags()[1] else []         # 11.10: «по бирже везде выстави 0» — предупреждений зеркала на странице нет
     except Exception as e:  # noqa: BLE001
         print(f"предупреждения зеркала: {type(e).__name__}: {e}"); warn = []
     ent = candidates()
@@ -852,7 +885,9 @@ def build() -> dict:
                                                moves=[dict(sym=m["sym"], added=m["added"], done=m["done"], cap_before=m["cap_before"], cap_peak=m["cap_peak"]) for m in (_pp.get("moves") or [])[:8]])
     except Exception as e:  # noqa: BLE001
         print(f"pot: сбой {type(e).__name__}: {e}"); fsq["pot"] = None
-    return dict(**fsq, meta=meta(now), entry=ent, open=op, closed=cl, closed_hist=hist, charts=charts(syms), score=score(cl), board=board, board_day=board_day(now), board_3h=dict(blocks=dict(_B3H), neutral=list(NEUTRAL_3H), prog=dict(_P3H)), bx_warn=warn)
+    _st = dict(**fsq, meta=meta(now), entry=ent, open=op, closed=cl, closed_hist=hist, charts=charts(syms), score=score(cl), board=board, board_day=board_day(now), board_3h=dict(blocks=dict(_B3H), neutral=list(NEUTRAL_3H), prog=dict(_P3H)), bx_warn=warn)
+    _fc_now(_st.get("forecasts"))
+    return _st
 
 
 def write() -> Path:
@@ -874,7 +909,8 @@ if __name__ == "__main__":
     p = write()
     d = json.loads(p.read_text())
     try:
-        bx_warn_tg(d, time.time())
+        if _site_flags()[1]:                                             # 11.10: биржа на странице выключена — предупреждения зеркала в Телеграм не идут
+            bx_warn_tg(d, time.time())
     except Exception as e:  # noqa: BLE001
         print(f"предупреждения зеркала в Телеграм: {type(e).__name__}: {e}")
     print(f"fast_state: вход {len(d['entry'])}, в работе {len(d['open'])}, закрыто {len(d['closed'])}, графиков {len(d['charts'])}, "
