@@ -327,7 +327,14 @@ def _goal(p: dict, e: float, sd: int) -> str:
     hrs = _hold(p) / 60
     be = bool(p.get("stop_px")) and abs(float(p["stop_px"]) / e - 1) < 1e-6
     stp = "стоп в точке входа" if be else f"стоп {float(p.get('stop') or 0) * 100:.0f}%, после хода 5% — в точку входа"
-    if p.get("slide") or p.get("pump_end"):
+    if p.get("pump_end"):                                                # R85 (11.10): шорт «конец роста» выходит ещё и у дна — числа владельца из общего конфига
+        try:
+            from core_config import MANUAL_BY_USER_PUMP_END_LOW_DAYS as _ld, MANUAL_BY_USER_PUMP_END_LOW_PCT as _lp
+        except ImportError:
+            _ld, _lp = 60, 20
+        low = f" или цена не выше {_lp:g}% над дном за {_ld} дн" if _lp else ""
+        return f"цель — выход по времени {ex:%d.%m %H:%M} UTC ({hrs:.0f} ч от входа){low} · {stp}"
+    if p.get("slide"):
         return f"цель — выход по времени {ex:%d.%m %H:%M} UTC ({hrs:.0f} ч от входа) · {stp}"
     if sd == -1:
         return f"цель — вынос лонгов или срок {ex:%d.%m %H:%M} UTC · {stp}"

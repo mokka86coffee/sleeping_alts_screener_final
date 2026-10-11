@@ -500,10 +500,15 @@ def _rate_ok(now: float, note: bool = False):
 # только шорты на выносе шортов у лидеров»; «через 3.5 суток обнуляется»; по сделке NIL 10.10 22:54 UTC (лонг на всплеске при полном котле, −5 % за шесть
 # минут): «вот он и переполненный», «и все лонги это сквизы для выноса толпы»). Котёл считает pump_pot.py раз в прогон (output/pump_pot.json), числа — в
 # общем конфиге, блок MANUAL_BY_USER_. Что делает бот, все три книги, все пути входа:
-#   • котёл полный — лонги не берём; шорт берём только на выносе шортов (сканер R52, R58 «конец роста» на самом выносе, «вынос шортов на всплеске») и только
-#     по монете из списка лидеров (output/leaders.json); остальные шорты (сползание R65, «всплеск → шорт 5/5», перевёрнутый всплеск, А/А2, R58 «вдогонку») не берём;
+#   • котёл полный — лонги не берём; шорт берём только на выносе шортов (сканер R52, R58 «конец роста» на самом выносе и «вдогонку», «вынос шортов на всплеске»)
+#     и только по монете из списка лидеров (output/leaders.json); остальные шорты (сползание R65, «всплеск → шорт 5/5», перевёрнутый всплеск, А/А2) не берём;
+#     11.10 01:15 UTC (владелец по шорту JCT 10.10 20:00 UTC, вход 0.002788 «вдогонку» через 10 ч после выноса шортов, +33 %: «вот идеальнейшая сделка бота,
+#     лидер вымыл шорты, котёл наполнен, бот залетел на самом пике», «да делай»): R58 «вдогонку» — тоже шорт на выносе шортов, первая версия правила его отклоняла;
 #   • красная метка (от 400 млн, котёл ещё не полный) — новый лонг только по монете, которая сейчас идёт в котле (рост не закончен); шорты как обычно;
 #   • ниже метки, после обнуления, снимок котла старше POT_MAX_AGE_MIN или выключатель MANUAL_BY_USER_POT_BOT_ON = False — правило молчит.
+#   • 11.10 01:25 UTC (владелец по счёту «при полном котле правило убирает 190 шортов, +97 $»: «а при чём тут шорты-то при полном котле», «как шорты попали туда,
+#     где лонги не надо брать», «логика железная: наполняют его лонги, наполнили — значит дальше только шорты»): ШОРТЫ КОТЁЛ НЕ ТРОГАЕТ ВООБЩЕ — при полном котле
+#     отклоняются только лонги, все пути шорта идут как без котла. Отбор «только на выносе шортов у лидеров» из первых двух версий снят: это было моё сужение.
 # Открытые позиции правило не закрывает. Запрет R82 (шорт на выносе по монете с меткой очереди) действует как раньше. На истории не проверено: счёт по
 # бумаге за первые 10,5 ч полного котла (с 10.10 13:30 UTC) — лонги 20 закрыто, 5 в плюс, −74 $; шорты 6 закрыто, +69 $, из 10 открытых в плюсе 8.
 POT_MAX_AGE_MIN = 90
@@ -536,9 +541,11 @@ def _leaders_set(path=None) -> set:
 
 
 def _short_on_squeeze(why: str) -> bool:
-    """шорт именно на выносе шортов: сканер R52 («вынос шортов …» в начале причины), R58 «конец роста → шорт:» на самом выносе (не «вдогонку»), «вынос шортов на всплеске → шорт»"""
+    """шорт именно на выносе шортов: сканер R52 («вынос шортов …» в начале причины), R58 «конец роста → шорт:» на самом выносе и «вдогонку» (11.10: он идёт
+    после того же выноса шортов, вход на выносе лонгов), «вынос шортов на всплеске → шорт»"""
     head = (why or "").split(" · ")[0]
-    return ("вынос шортов" in head) or (head.startswith("R58 конец роста → шорт:") and "вынос шортов" in why) or ("вынос шортов на всплеске → шорт" in (why or ""))
+    return (("вынос шортов" in head) or (head.startswith("R58 конец роста → шорт:") and "вынос шортов" in why) or head.startswith("R58 конец роста → шорт вдогонку")
+            or ("вынос шортов на всплеске → шорт" in (why or "")))
 
 
 def _pot_gate(sym: str, side: int, why: str, now: float, pot_path=None, leaders_path=None):
@@ -557,12 +564,8 @@ def _pot_gate(sym: str, side: int, why: str, now: float, pot_path=None, leaders_
     if p.get("full"):
         tail = f"котёл полный ({used:.0f} из {pot:.0f} млн $, обнуление {str(p.get('reset_at') or '')[5:16].replace('T', ' ')} UTC)"
         if side == 1:
-            return f"{tail} — лонги не берём, только шорты на выносе шортов у лидеров (R84)"
-        if not _short_on_squeeze(why):
-            return f"{tail} — шорт только на выносе шортов у лидеров, этот вход другого рода (R84)"
-        if sym not in _leaders_set(leaders_path):
-            return f"{tail} — шорт на выносе шортов только у лидеров, монеты нет в списке лидеров (R84)"
-        return None
+            return f"{tail} — лонги не берём, дальше только шорты (R84)"
+        return None                                                      # 11.10 01:25 UTC: шорты котёл не трогает — см. шапку правила
     if p.get("warn") and side == 1:
         going = {m.get("sym") for m in (p.get("moves") or []) if not m.get("done")}
         if sym not in going:
@@ -592,7 +595,7 @@ def _open_short_now(state: dict, ev: list, msgs: list, sym: str, c: float, t_bar
         except ImportError:
             _ph = 960
         hold, tgt = _ph, 0.0; extra = dict(pump_end=True)
-        why = why + f": цели нет, стоп {stop * 100:.0f}%, после 5 % стоп в твх; через 6 ч стоп в твх или закрытие, если цена выше входа; выход через {_ph // 60} ч · сессия {sw}"
+        why = why + f": цели нет, стоп {stop * 100:.0f}%, после 5 % стоп в твх; через 6 ч стоп в твх или закрытие, если цена выше входа; выход через {_ph // 60} ч или у дна (R85) · сессия {sw}"
     elif mode == "flat_long":                                            # R70: лонг лимиткой от линии флэта — цель на верх флэта, стоп 10 % (владелец 04.10)
         try:
             from core_config import FAST3_FLAT_LONG_SL as _fsl
@@ -961,6 +964,39 @@ try:
     from core_config import FAST3_PUMP_BACK_EXIT, FAST3_LONG_HOLD_TP, FAST3_LONG_HOLD_EXT_MIN, FAST3_FLIP_HOLD_MIN, FAST3_FLIP_HELD_PCT
 except ImportError:
     FAST3_PUMP_BACK_EXIT, FAST3_LONG_HOLD_TP, FAST3_LONG_HOLD_EXT_MIN, FAST3_FLIP_HOLD_MIN, FAST3_FLIP_HELD_PCT = True, 0.10, 1440, 360, 0.02
+
+
+_LOWD: dict = {}
+
+
+def _low_days(sym: str, days: int):
+    """самый низкий минимум дневных свечей монеты за days суток (фьючерс Binance, как _run90); кэш 1 ч. → цена или None"""
+    t, v = _LOWD.get((sym, days), (0, None))
+    if time.time() - t > 3600:
+        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1d", "limit": int(days)}, quiet_400=True) or []
+        lows = [float(x[3]) for x in k if float(x[3]) > 0]
+        v = min(lows) if lows else None
+        _LOWD[(sym, days)] = (time.time(), v)
+    return v
+
+
+def pump_end_low_exit(sym: str, c: float, low=None):
+    """R85 (11.10 01:45 UTC, владелец: «выход через 72 часа как сейчас или если цена на 20% выше исторического дна за 2 месяца»; «тут нет смысла ждать уже»):
+    шорт «конец роста» закрываем, когда цена опустилась до «дно за MANUAL_BY_USER_PUMP_END_LOW_DAYS суток + MANUAL_BY_USER_PUMP_END_LOW_PCT %» и ниже.
+    Числа — в блоке MANUAL_BY_USER_ общего конфига; 0 % — выключено. low — подставное дно для проверки. → причина выхода или None"""
+    try:
+        from core_config import MANUAL_BY_USER_PUMP_END_LOW_DAYS as _ld, MANUAL_BY_USER_PUMP_END_LOW_PCT as _lp
+    except ImportError:
+        _ld, _lp = 60, 20
+    if not _lp or not _ld or not c:
+        return None
+    lo = low if low is not None else _low_days(sym, int(_ld))
+    if not lo:
+        return None
+    lvl = lo * (1 + float(_lp) / 100)
+    if c <= lvl:
+        return f"цена {c:.6g} у дна: не выше {float(_lp):g}% над минимумом за {int(_ld)} дн ({lo:.6g}, уровень {lvl:.6g}) — закрытие (R85)"
+    return None
 
 
 def _run90(sym: str):
@@ -2273,6 +2309,10 @@ def step(state: dict, write: bool) -> list[str]:
                 _wd = bool(pos.get("wide"))                              # R80: шорт на широкой свече выноса — свои стоп, цель и перенос стопа
                 if _pe:
                     res, why = pump_end_walk(e, pos, k)
+                    if res is None:
+                        _lx = pump_end_low_exit(sym, c)                  # R85: цена дошла до «дно за 2 месяца + 20 %» — ждать срока незачем
+                        if _lx:
+                            res, why = 1 - c / e, _lx
                 elif _wd:
                     res, why, _lv = wide_walk(e, pos, k)
                     if res is None and _lv is not None:
