@@ -521,7 +521,7 @@ def _pot_state(now: float, path=None):
         at = datetime.strptime(d["at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
     except (OSError, ValueError, KeyError, TypeError):
         return None
-    return d if now - at <= POT_MAX_AGE_MIN * 60 else None
+    return d if -300 <= now - at <= POT_MAX_AGE_MIN * 60 else None      # снимок из «будущего» (повтор суток в bot_test идёт по прошлому времени) — не годится
 
 
 def _leaders_set(path=None) -> set:
@@ -547,7 +547,8 @@ def _pot_gate(sym: str, side: int, why: str, now: float, pot_path=None, leaders_
         from core_config import MANUAL_BY_USER_POT_BOT_ON as on
     except ImportError:
         on = True
-    if not on:
+    import os
+    if not on or (os.environ.get("FAST_POT_OFF") and pot_path is None):   # FAST_POT_OFF=1 ставит bot_test.sh: старые проверки правил идут без котла, у котла своя проверка (test_pot_gate.py)
         return None
     p = _pot_state(now, pot_path)
     if not p:

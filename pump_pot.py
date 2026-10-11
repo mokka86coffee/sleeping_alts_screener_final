@@ -44,6 +44,7 @@ TRIG = float(_owner("MANUAL_BY_USER_POT_TRIG_PCT", 50)) / 100         # «мон
 WIN_H = int(round(float(_owner("MANUAL_BY_USER_POT_WIN_DAYS", 3)) * 24))          # окно роста в часах: «считай рост за 3 дня» (владелец 10.10 ~22:50 UTC; до этого было 24 — STRK с ходом +46 % за сутки и +438 млн $ в котёл не попадала)
 W = WIN_H * 2       # то же в получасовках
 WARM_D = 20         # запас архива до начала круга для разгона счёта ростов, суток
+MIN_HIST_H = 12     # у монеты с рядами короче окна роста сравниваем с самой ранней строкой, если рядам не меньше стольких часов (мерка Claude)
 RESET_D = float(_owner("MANUAL_BY_USER_POT_RESET_DAYS", 3.5))       # «через 3.5 суток обнуляется» (владелец 10.10) — от момента, когда вычтенное дошло до котла
 WARN_USD = float(_owner("MANUAL_BY_USER_POT_WARN_MLN", 400)) * 1e6    # «после достижения 400 уже гореть красным какая-то метка на экране, т.е. ход остался только у тех, кто идёт сейчас» (владелец 10.10)
 SKIP = {"BTC", "ETH"}
@@ -66,36 +67,77 @@ def _flow(cap: float) -> int:
     return 1 if cap >= float(hi) * 1e6 else (2 if cap >= float(lo) * 1e6 else 3)
 
 
-def _rows(p: Path, t_from: str, t_to: str) -> list:
-    out = []
-    try:
-        lines = p.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return out
-    for ln in lines:
-        try:
-            r = json.loads(ln)
-        except ValueError:
-            continue
+ARCHIVE = BASE_DIR / "cq_v2" / "archive" / "intraday"   # закрытые дни: <ГГГГ-ММ>/<ГГГГ-ММ-ДД>.jsonl.gz, все монеты вместе (archive_intraday.py)
+HIST_FROM = "2026-09-10T00:00:00Z"                      # с какого времени считать круги при пересчёте с начала (отсюда они посчитаны 10.10); архив глубже, но начало не двигаем
+
+
+def hist_rows(t_from: str, t_to: str, only: set | None = None) -> dict:
+    """ПОЛУЧАСОВКИ ПО МОНЕТАМ ИЗ АРХИВА И ЖИВЫХ ФАЙЛОВ: {«STRK»: [(свеча, цена, верх, низ), …]} по времени, без повторов.
+    11.10 00:30 UTC (поломка, найдена на прогоне 00:21): живые файлы cq_v2/intraday раз в сутки подрезаются до трёх дней (archive_intraday.py),
+    старшее уходит в cq_v2/archive/intraday. Счёт котла читал только живые файлы — после подрезки в полночь у каждой монеты осталось 138
+    получасовок при нужных 156, все монеты были пропущены и котёл обнулился (вычтено 0, круг «с сейчас»). Теперь читается и архив."""
+    import gzip
+    acc: dict = {}
+    def put(base: str, r: dict) -> None:
         c = r.get("candle")
         if not c or c < t_from or c > t_to or not (r.get("px") and r.get("h") and r.get("l")):
+            return
+        acc.setdefault(base, {})[c] = (c, float(r["px"]), float(r["h"]), float(r["l"]))
+    d0, d1 = t_from[:10], t_to[:10]
+    if ARCHIVE.exists():
+        for gz in sorted(ARCHIVE.rglob("*.jsonl.gz")):
+            if not (d0 <= gz.name[:10] <= d1):
+                continue
+            try:
+                with gzip.open(gz, "rt", encoding="utf-8") as f:
+                    for ln in f:
+                        try:
+                            r = json.loads(ln)
+                        except ValueError:
+                            continue
+                        base = str(r.get("sym") or "")[:-4]
+                        if base and (only is None or base in only):
+                            put(base, r)
+            except OSError:
+                continue
+    for p in sorted(INTRA.glob("*.jsonl")):
+        base = p.stem.upper()
+        if only is not None and base not in only:
             continue
-        out.append((c, float(r["px"]), float(r["h"]), float(r["l"])))
-    return out
+        try:
+            lines = p.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for ln in lines:
+            try:
+                put(base, json.loads(ln))
+            except ValueError:
+                continue
+    return {b: [v[c] for c in sorted(v)] for b, v in acc.items()}
 
 
 def coin_events(sym: str, rows: list, circ: float) -> tuple[list, list]:
-    """большие росты монеты и события «вершина выросла»: ([рост…], [(время, id роста, добавлено $)…]); рост: {id, sym, t0, t_trig, t_peak, base, peak, done}"""
+    """большие росты монеты и события «вершина выросла»: ([рост…], [(время, id роста, добавлено $)…]); рост: {id, sym, t0, t_trig, t_peak, base, peak, done}.
+    Окно — ПО ВРЕМЕНИ, а не по числу строк (11.10): в архиве получасовки с пропусками (около 39 из 48 в сутки), 144 строки назад — это не трое суток.
+    Сравниваем с последней строкой не позже чем WIN_H часов назад; у монеты, чьи ряды короче окна (добавлена недавно: US, RLC, JCT, OGN, BAT…), —
+    с самой ранней строкой, если рядам не меньше MIN_HIST_H часов."""
+    import bisect
     moves = []; ev = []; act = None; armed = True
-    for i in range(W, len(rows)):
+    ts = [_t(r[0]).timestamp() for r in rows]
+    for i in range(1, len(rows)):
         c, px, h, l = rows[i]
-        hot = px >= rows[i - W][1] * (1 + TRIG)
+        j = bisect.bisect_right(ts, ts[i] - WIN_H * 3600) - 1
+        if j < 0:
+            if ts[i] - ts[0] < MIN_HIST_H * 3600:
+                continue
+            j = 0
+        hot = px >= rows[j][1] * (1 + TRIG)
         if act is None:
             if not hot:
                 armed = True
             elif armed:
-                j = min(range(i - W, i + 1), key=lambda k: rows[k][3])
-                act = dict(id=f"{sym}|{c}", sym=sym, t0=rows[j][0], t_trig=c, t_peak=c, base=rows[j][3], peak=h, done=False, circ=circ)
+                k0 = min(range(j, i + 1), key=lambda k: rows[k][3])
+                act = dict(id=f"{sym}|{c}", sym=sym, t0=rows[k0][0], t_trig=c, t_peak=c, base=rows[k0][3], peak=h, done=False, circ=circ)
                 moves.append(act); ev.append((c, act["id"], circ * (h - act["base"])))
         else:
             if h > act["peak"]:
@@ -114,16 +156,15 @@ def load(asof: datetime, t_from: str | None) -> tuple[dict, list, str, str]:
         tab = {}
     # разгон: росты одной монеты зависят от её прежних ростов (новый — только после того, как условие пропало), поэтому архив читается
     # с запасом WARM_D суток до начала круга — иначе счёт от сохранённого начала расходится со счётом по всему архиву (10.10: RLC и ORCA менялись местами)
-    lo = (_t(t_from) - timedelta(days=WARM_D)).strftime(FMT) if t_from else "0"
+    lo = (_t(t_from) - timedelta(days=WARM_D)).strftime(FMT) if t_from else HIST_FROM
     hi = asof.strftime(FMT)
     allm = {}; evs = []; last = ""; first = "9"
-    for p in sorted(INTRA.glob("*.jsonl")):
-        base = p.stem.upper(); t = tab.get(base + "USDT")
+    for base, rows in sorted(hist_rows(lo, hi).items()):
+        t = tab.get(base + "USDT")
         if base in SKIP or not t or not t.get("circ"):
             continue
         circ = float(t["circ"]) / (1000 if base.startswith("1000") else 1)
-        rows = _rows(p, lo, hi)
-        if len(rows) < W + 12:
+        if len(rows) < 24:
             continue
         last = max(last, rows[-1][0]); first = min(first, rows[0][0])
         ms, ev = coin_events(base + "USDT", rows, circ)

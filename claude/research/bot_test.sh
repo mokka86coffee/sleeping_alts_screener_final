@@ -5,6 +5,7 @@
 # Ничего в книге бота не меняет (временная папка). Итог: строки «СБОЙ»/Traceback — их быть не должно. Запуск: zsh claude/research/bot_test.sh
 cd "$(dirname "$0")/../.." || exit 1
 T=${TMPDIR:-/tmp}/bot_test_$$; mkdir -p $T; PY=.venv/bin/python
+export FAST_POT_OFF=1   # R84 (11.10): проверки прежних правил и повтор суток идут без котла больших ростов — иначе при полном котле бот не берёт входов и проверять нечего; сам котёл проверяет test_pot_gate.py
 $PY -m py_compile fast_tier.py core_config.py bingx_trader.py || { echo "ПРОВАЛ: не компилируется"; exit 1; }
 $PY claude/research/replay_fetch.py $T/k3.pkl | tail -1
 $PY claude/research/replay_day.py $T/k3.pkl $T/day > $T/day.out 2>&1

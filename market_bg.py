@@ -949,15 +949,11 @@ def btc_clock(now: datetime | None = None) -> dict:
     except Exception as e:  # noqa: BLE001
         out["squeeze"] = None; out["squeeze_err"] = f"{type(e).__name__}: {e}"
     try:                                                                 # флэт
+        import pump_pot as _pp                                           # 11.10: живой файл btc.jsonl хранит три дня — получасовки берём вместе с архивом (pump_pot.hist_rows)
         bars = []                                                        # (unix начала, верх, низ, длина в секундах)
-        for ln in (INTRA / "btc.jsonl").read_text(encoding="utf-8").splitlines():
-            try:
-                r = json.loads(ln)
-            except ValueError:
-                continue
-            if r.get("px") and r.get("h") and r.get("l"):
-                t = datetime.strptime(r["candle"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
-                bars.append((t, float(r["h"]), float(r["l"]), 1800, float(r["px"])))
+        for c_, px_, h_, l_ in (_pp.hist_rows("0", now.strftime("%Y-%m-%dT%H:%M:%SZ"), only={"BTC"}).get("BTC") or []):
+            t = datetime.strptime(c_, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
+            bars.append((t, h_, l_, 1800, px_))
         bars.sort()
         px = bars[-1][4]; t_first = bars[0][0]
         try:
