@@ -5,6 +5,7 @@
 # Ничего в книге бота не меняет (временная папка). Итог: строки «СБОЙ»/Traceback — их быть не должно. Запуск: zsh claude/research/bot_test.sh
 cd "$(dirname "$0")/../.." || exit 1
 T=${TMPDIR:-/tmp}/bot_test_$$; mkdir -p $T; PY=.venv/bin/python
+export FAST_SHORT_LOW_OFF=1   # R86 (11.10): то же для «не шортить дно» — правило смотрит сегодняшние дневные свечи, повтор прошлых суток с ним не сверить; своя проверка — test_pe_low.py
 export FAST_POT_OFF=1   # R84 (11.10): проверки прежних правил и повтор суток идут без котла больших ростов — иначе при полном котле бот не берёт входов и проверять нечего; сам котёл проверяет test_pot_gate.py
 $PY -m py_compile fast_tier.py core_config.py bingx_trader.py || { echo "ПРОВАЛ: не компилируется"; exit 1; }
 $PY claude/research/replay_fetch.py $T/k3.pkl | tail -1
@@ -47,7 +48,7 @@ grep -q 'R81/R82: ок' $T/r63.out || echo "СБОЙ: проверка R81/R82 �
 $PY claude/research/test_queue_book.py >> $T/r63.out 2>&1   # R83 (10.10): книга «очередь» — три прогона первой подряд → лонг, цель +20 %, стоп −20 %, без перезахода; зеркало только для неё
 grep -q 'R83: ок' $T/r63.out || echo "СБОЙ: проверка R83 не дала «ок»" >> $T/r63.out
 $PY claude/research/test_pot_gate.py >> $T/r63.out 2>&1   # R84 (11.10): бот слушает котёл больших ростов — полный: без лонгов, шорты котёл не трогает; красная метка — лонг только по идущей монете
-$PY claude/research/test_pe_low.py >> $T/r63.out 2>&1   # R85 (11.10): шорт «конец роста» закрывается, когда цена не выше 20 % над дном за 2 месяца
+$PY claude/research/test_pe_low.py >> $T/r63.out 2>&1   # R85, R86 (11.10): шорт «конец роста» закрывается у дна (2 месяца + 20 %); шорт у дна не берётся; цена выхода владельца
 grep -q 'R84: ок' $T/r63.out || echo "СБОЙ: проверка R84 не дала «ок»" >> $T/r63.out
 grep -q 'R75: ок' $T/r63.out || echo "СБОЙ: проверка R75 не дала «ок»" >> $T/r63.out
 $PY claude/research/test_time_utc.py >> $T/r63.out 2>&1   # сторож правила «всё по UTC» (06.10)

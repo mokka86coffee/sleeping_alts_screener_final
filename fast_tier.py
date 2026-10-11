@@ -577,7 +577,7 @@ def _pot_gate(sym: str, side: int, why: str, now: float, pot_path=None, leaders_
 def _open_short_now(state: dict, ev: list, msgs: list, sym: str, c: float, t_bar: int, now: float, why: str, book: str, write: bool, side: int = -1, mode: str = "", tgt_abs=None, stop_abs=None) -> bool:
     """03.10 (R49/R52): позиция по рынку сейчас против хода — стоп 10 %, цель 10 %, безубыток после 5 %, выход по выносу противоположной стороны; ворота — только сессии владельца"""
     nm = "лонг" if side == 1 else "шорт"
-    _pg = _pot_gate(sym, side, why, now)                                 # R84: котёл больших ростов
+    _pg = _entry_gate(sym, side, why, now)                                 # R84: котёл больших ростов
     if _pg:
         msgs.append(f"{sym[:-4]} {nm} не взят: {_pg}"); return False
     ok, sw, _h = ses_gate(now, t_bar, side)
@@ -997,6 +997,59 @@ def pump_end_low_exit(sym: str, c: float, low=None):
     if c <= lvl:
         return f"цена {c:.6g} у дна: не выше {float(_lp):g}% над минимумом за {int(_ld)} дн ({lo:.6g}, уровень {lvl:.6g}) — закрытие (R85)"
     return None
+
+
+def short_low_block(sym: str, side: int, px=None, low=None):
+    """R86 (11.10 02:00 UTC, владелец: «вноси правки по шортам — не шортить историческое дно (2 месяца) + 20%»): шорт не берём, когда цена не выше
+    «минимум дневных свечей за MANUAL_BY_USER_SHORT_LOW_DAYS суток + MANUAL_BY_USER_SHORT_LOW_PCT %». Дневные свечи фьючерса Binance без кэша — зовётся
+    только когда шорт уже прошёл остальные проверки. px, low — подставные для теста; FAST_SHORT_LOW_OFF=1 (ставит bot_test.sh) — старые проверки правил
+    идут без этого правила, у него своя (test_pe_low.py). → причина отказа или None"""
+    if side != -1:
+        return None
+    import os
+    if os.environ.get("FAST_SHORT_LOW_OFF") and low is None:
+        return None
+    try:
+        from core_config import MANUAL_BY_USER_SHORT_LOW_DAYS as _ld, MANUAL_BY_USER_SHORT_LOW_PCT as _lp
+    except ImportError:
+        _ld, _lp = 60, 20
+    if not _lp or not _ld:
+        return None
+    if low is None or px is None:
+        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1d", "limit": int(_ld)}, quiet_400=True) or []
+        lows = [float(x[3]) for x in k if float(x[3]) > 0]
+        if not lows:
+            return None
+        low = min(lows) if low is None else low
+        px = float(k[-1][4]) if px is None else px
+    lvl = low * (1 + float(_lp) / 100)
+    if px <= lvl:
+        return f"шорт не берём: цена {px:.6g} у дна — не выше {float(_lp):g}% над минимумом за {int(_ld)} дн ({low:.6g}, уровень {lvl:.6g}) (R86)"
+    return None
+
+
+def _entry_gate(sym: str, side: int, why: str, now: float):
+    """общие ворота входа всех книг: котёл больших ростов (R84), затем «не шортить дно» (R86) → причина отказа или None"""
+    return _pot_gate(sym, side, why, now) or short_low_block(sym, side)
+
+
+def manual_exit(pos: dict, e: float, sd: int, k: list):
+    """цена выхода, поставленная владельцем позиции вручную (поля manual_exit_px и manual_exit_from в книге; 11.10 01:55 UTC по шорту JCT: «в боте закрой
+    сделку по 0.16» — это 0.0016): шорт закрывается, когда минимум свечей дошёл до цены, лонг — когда максимум. Смотрим свечи не раньше manual_exit_from
+    (мс, когда цена поставлена); без этого поля — все свечи позиции (так закрыт JCT: цена была там через полчаса после входа). → (результат, причина) или (None, None)"""
+    try:
+        px = float(pos.get("manual_exit_px") or 0)
+    except (TypeError, ValueError):
+        px = 0.0
+    if px <= 0 or not e:
+        return None, None
+    kk = [x for x in k if int(x[0]) >= int(pos.get("manual_exit_from") or 0)]
+    if not kk:
+        return None, None
+    hi = max(float(x[2]) for x in kk); lo = min(float(x[3]) for x in kk)
+    if (sd == -1 and lo <= px) or (sd == 1 and hi >= px):
+        return (px / e - 1) * sd, f"цена выхода владельца {px:.6g} (поставлена вручную)"
+    return None, None
 
 
 def _run90(sym: str):
@@ -1521,7 +1574,7 @@ def pending_step(state: dict, book: str, now: float, ev: list, msgs: list, write
         if not ok:
             msgs.append(f"{sym[:-4]} шорт после вершины пропущен: {sw}"); continue
         why = p["why"] + f" · вход после вершины {top:.6g} ({sq}): стоп +{stop * 100:.0f}%, выход по выносу лонгов, срок {hold} мин · сессия {sw}" + _tpnote
-        _pg = _pot_gate(sym, -1, why, now)                                   # R84: котёл больших ростов
+        _pg = _entry_gate(sym, -1, why, now)                                   # R84: котёл больших ростов
         if _pg:
             msgs.append(f"{sym[:-4]} шорт после вершины не взят: {_pg}"); continue
         _lg = london_gate(sym, now, why)                                     # 02.10 владелец: Лондон — максимум 5 самых надёжных (и для шортов после вершины)
@@ -2322,6 +2375,8 @@ def step(state: dict, write: bool) -> list[str]:
                 if res is None and not _pe and not _wd and FAST3_SHORT_BE_AT and min(float(x[3]) for x in k) <= e * (1 - FAST3_SHORT_BE_AT):
                     pos["stop_px"] = e                                     # 01.10: стоп в безубытке — записываем, мост BingX переставит стоп на бирже
         if res is None:
+            res, why = manual_exit(pos, e, sd, k)                         # цена выхода, поставленная владельцем вручную (обе книги)
+        if res is None:
             fx = fuel_exit(sym, pos, now, c)
             if fx: res, why = (c / e - 1) * sd, fx
         if res is None and sd == -1:
@@ -2349,7 +2404,7 @@ def step(state: dict, write: bool) -> list[str]:
                 cg(sym, *cg_caption(BOOK, sym, pos, e * (1 + res * sd), why, res))
             _exit_mark(state, sym, now, pos.get("at")); del state["open"][sym]
             if newpos:                                                    # R84: котёл больших ростов — лонг-переворот не встаёт, шорт при этом закрыт как обычно
-                _pg = _pot_gate(sym, 1, newpos.get("rule") or "", now)
+                _pg = _entry_gate(sym, 1, newpos.get("rule") or "", now)
                 if _pg:
                     msgs.append(f"{sym[:-4]} лонг-переворот не взят: {_pg}"); newpos = None
             if newpos:                                                    # переворот: на месте шорта встаёт лонг
@@ -2454,7 +2509,7 @@ def step(state: dict, write: bool) -> list[str]:
             if sd == -1:                                                   # R62: во флэте цель шорта — низ флэта
                 tp, _fn = _flat_target(sym, px, tp)
                 if _fn: why = why + " · " + _fn
-            _pg = _pot_gate(sym, sd, why, now)                             # R84: котёл больших ростов
+            _pg = _entry_gate(sym, sd, why, now)                             # R84: котёл больших ростов
             if _pg:
                 msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} не взят: {_pg}"); continue
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, stop_px=_spx, hold_min=hold, rule=why, last_px=px, bars=0, pump_open=_pump_open(px, why))
@@ -2540,6 +2595,8 @@ def wake_step(state: dict, write: bool) -> list[str]:
                 if res is None and FAST3_SHORT_BE_AT and min(float(x[3]) for x in k) <= e * (1 - FAST3_SHORT_BE_AT):
                     pos["stop_px"] = e                                     # 01.10: стоп в безубытке — записываем, мост BingX переставит стоп на бирже
         if res is None:
+            res, why = manual_exit(pos, e, sd, k)                         # цена выхода, поставленная владельцем вручную (обе книги)
+        if res is None:
             fx = fuel_exit(sym, pos, now, c)
             if fx: res, why = (c / e - 1) * sd, fx
         if res is None and sd == -1:
@@ -2567,7 +2624,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
                 cg(sym, *cg_caption(WAKE_BOOK, sym, pos, e * (1 + res * sd), why, res))
             _exit_mark(state, sym, now, pos.get("at")); del state["open"][sym]
             if newpos:                                                    # R84: котёл больших ростов — лонг-переворот не встаёт, шорт при этом закрыт как обычно
-                _pg = _pot_gate(sym, 1, newpos.get("rule") or "", now)
+                _pg = _entry_gate(sym, 1, newpos.get("rule") or "", now)
                 if _pg:
                     msgs.append(f"{sym[:-4]} лонг-переворот не взят: {_pg}"); newpos = None
             if newpos:                                                    # переворот: на месте шорта встаёт лонг
@@ -2676,7 +2733,7 @@ def wake_step(state: dict, write: bool) -> list[str]:
             if sd == -1:                                                   # R62: во флэте цель шорта — низ флэта
                 tp, _fn = _flat_target(sym, px, tp)
                 if _fn: why = why + " · " + _fn
-            _pg = _pot_gate(sym, sd, why, now)                             # R84: котёл больших ростов
+            _pg = _entry_gate(sym, sd, why, now)                             # R84: котёл больших ростов
             if _pg:
                 msgs.append(f"{sym[:-4]} {'лонг' if sd == 1 else 'шорт'} не взят: {_pg}"); continue
             pos = dict(sym=sym, side=sd, px=px, t_ms=t_bar, at=now, target=tp, stop=sl, stop_px=_spx, hold_min=hold, rule=why + f" · пробуждение: оборот ×{cd['x']:.0f} за интервал", last_px=px, bars=0, pump_open=_pump_open(px, why))
@@ -2819,7 +2876,7 @@ def queue_step(state: dict, write: bool, log_src=None) -> list[str]:
             msgs.append(f"{head} — позиция уже открыта")
         elif ban_left > 0:
             msgs.append(f"{head} — после стопа запрет ещё {ban_left / 86400:.1f} дн (R83), не входим")
-        elif (_pg := _pot_gate(sym, 1, "R83 очередь", now)):              # R84: котёл больших ростов
+        elif (_pg := _entry_gate(sym, 1, "R83 очередь", now)):              # R84: котёл больших ростов
             msgs.append(f"{head} — {_pg}")
         else:
             px = _queue_price(sym)

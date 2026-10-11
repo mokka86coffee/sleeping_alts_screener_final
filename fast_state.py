@@ -323,6 +323,8 @@ def _goal(p: dict, e: float, sd: int) -> str:
     t = float(p.get("target") or 0)
     if 0 < t < 0.9:
         return ""
+    if p.get("manual_exit_px"):                                          # 11.10: цена выхода, поставленная владельцем вручную
+        return f"цель {float(p['manual_exit_px']):.6g} — поставлена владельцем вручную · выход по времени и стоп как были"
     ex = datetime.fromtimestamp((int(p["t_ms"]) + 180_000) / 1000 + _hold(p) * 60, U)
     hrs = _hold(p) / 60
     be = bool(p.get("stop_px")) and abs(float(p["stop_px"]) / e - 1) < 1e-6
