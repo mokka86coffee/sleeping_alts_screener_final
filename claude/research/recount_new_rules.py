@@ -44,6 +44,8 @@ R86_ON = datetime(2026, 10, 11, 2, 16, 17, tzinfo=U).timestamp()      # с эт�
 R87_ON = datetime(2026, 10, 11, 4, 1, 23, tzinfo=U).timestamp()        # с этой секунды бот сам не шортит идущую монету и три дня после сквиза биткоина (время перезапуска)
 SQ_AT = datetime(2026, 10, 8, 15, 0, 0, tzinfo=U).timestamp()         # сквиз биткоина, заданный владельцем (MANUAL_BY_USER_BTC_SQUEEZE_AT)
 SQ_DAYS = float(getattr(core_config, "MANUAL_BY_USER_BTC_SQUEEZE_NO_SHORT_DAYS", 3))
+FREE_DAYS = float(getattr(core_config, "MANUAL_BY_USER_BTC_SQUEEZE_LONG_FREE_DAYS", 3))
+POT_LONGS = bool(getattr(core_config, "MANUAL_BY_USER_POT_BLOCKS_LONGS", False))
 BOOKS = (("всплеск/вынос", "paper_fast3"), ("пробуждение", "paper_wake"), ("очередь", "paper_queue"))
 LOW_D = int(getattr(core_config, "MANUAL_BY_USER_SHORT_LOW_DAYS", 60))
 LOW_P = float(getattr(core_config, "MANUAL_BY_USER_SHORT_LOW_PCT", 20))
@@ -185,7 +187,8 @@ def main() -> int:
             _st, _used, _going = pot.at(x["t_in"])
             if x["sym"] in _going:
                 why = "R84: монета идёт в котле (большой рост не закончен) — шорт не берётся"
-        if not why and x["t_in"] < R84_ON:
+        _free = FREE_DAYS and SQ_AT <= x["t_in"] < SQ_AT + FREE_DAYS * 86400   # 11.10 14:50 UTC: «после сквиза биткоина лонги берём, котёл их не трогает 3 дня»
+        if not why and x["t_in"] < R84_ON and POT_LONGS and not (x["side"] == 1 and _free):   # 11.10 15:45 UTC: котёл лонги не отклоняет (мерка MANUAL_BY_USER_POT_BLOCKS_LONGS)
             st, used, going = pot.at(x["t_in"])
             if x["side"] == 1 and st == "полный":
                 why = f"R84: котёл полный ({used / 1e6:.0f} из {pp.POT_USD / 1e6:.0f} млн $) — лонг не берётся"

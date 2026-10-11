@@ -552,7 +552,24 @@ def _short_on_squeeze(why: str) -> bool:
             or ("вынос шортов на всплеске → шорт" in (why or "")))
 
 
-def _pot_gate(sym: str, side: int, why: str, now: float, pot_path=None, leaders_path=None):
+_BTCQ = {"key": None, "v": None}
+
+
+def _btc_squeeze_age(now: float, clock_path=None):
+    """секунд от сквиза биткоина (output/btc_clock.json, поле squeeze — время владельца или найденное по ликвидациям; пишет прогон) и само время строкой
+    → (секунды, «ГГГГ-ММ-ДДTЧЧ:ММ:ССZ») или (None, "") — файла нет или время не читается"""
+    p = Path(clock_path) if clock_path else BASE_DIR / "output" / "btc_clock.json"
+    try:
+        key = (str(p), p.stat().st_mtime)
+        if _BTCQ["key"] != key:
+            _BTCQ["v"], _BTCQ["key"] = json.loads(p.read_text(encoding="utf-8")), key
+        at = str(((_BTCQ["v"] or {}).get("squeeze") or {}).get("at") or "")
+        return now - datetime.strptime(at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp(), at
+    except (OSError, ValueError, TypeError, AttributeError):
+        return None, ""
+
+
+def _pot_gate(sym: str, side: int, why: str, now: float, pot_path=None, leaders_path=None, clock_path=None):
     """R84: причина отказа от входа по котлу больших ростов или None"""
     try:
         from core_config import MANUAL_BY_USER_POT_BOT_ON as on
@@ -565,6 +582,20 @@ def _pot_gate(sym: str, side: int, why: str, now: float, pot_path=None, leaders_
     if not p:
         return None
     used, pot = float(p.get("used_usd") or 0) / 1e6, float(p.get("pot_usd") or 0) / 1e6
+    if side == 1:
+        try:                                                             # 11.10 15:45 UTC (владелец: «котёл просто означает, что не ждать от лидеров 2-5x», «переполненный, а не про лонги вообще»)
+            from core_config import MANUAL_BY_USER_POT_BLOCKS_LONGS as _bl
+        except ImportError:
+            _bl = False
+        if not _bl:
+            return None
+        try:                                                             # 11.10 14:50 UTC (владелец: «после сквиза биткоина лонги берём, котёл их не трогает 3 дня»)
+            from core_config import MANUAL_BY_USER_BTC_SQUEEZE_LONG_FREE_DAYS as _fd
+        except ImportError:
+            _fd = 3
+        _age = _btc_squeeze_age(now, clock_path)[0] if _fd else None
+        if _age is not None and 0 <= _age < float(_fd) * 86400:
+            return None
     going = {m.get("sym") for m in (p.get("moves") or []) if not m.get("done")}
     if side == -1 and sym in going and not str(why or "").split(" · ")[0].startswith("R58 конец роста → шорт вдогонку"):
         return (f"{sym[:-4]} сейчас идёт в котле (большой рост не закончен) — шорт не берём; исключение — шорт «вдогонку» после выноса лонгов (R84)")
@@ -1034,9 +1065,6 @@ def short_low_block(sym: str, side: int, px=None, low=None):
     return None
 
 
-_BTCQ = {"key": None, "v": None}
-
-
 def btc_squeeze_block(side: int, now: float, clock_path=None, why: str = ""):
     """R87 (11.10 03:50 UTC, владелец: «после сквиза биткоина шорты не берём 3 дня»): MANUAL_BY_USER_BTC_SQUEEZE_NO_SHORT_DAYS суток от сквиза биткоина
     (output/btc_clock.json, поле squeeze — время, заданное владельцем, или найденное по ликвидациям; пишет прогон) шорт не берётся ни одним путём.
@@ -1055,15 +1083,10 @@ def btc_squeeze_block(side: int, now: float, clock_path=None, why: str = ""):
         _nd = 3
     if not _nd:
         return None
-    p = Path(clock_path) if clock_path else BASE_DIR / "output" / "btc_clock.json"
-    try:
-        key = (str(p), p.stat().st_mtime)
-        if _BTCQ["key"] != key:
-            _BTCQ["v"], _BTCQ["key"] = json.loads(p.read_text(encoding="utf-8")), key
-        at = str(((_BTCQ["v"] or {}).get("squeeze") or {}).get("at") or "")
-        t0 = datetime.strptime(at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
-    except (OSError, ValueError, TypeError, AttributeError):
+    age, at = _btc_squeeze_age(now, clock_path)
+    if age is None:
         return None
+    t0 = now - age
     if 0 <= now - t0 < float(_nd) * 86400:
         until = datetime.fromtimestamp(t0 + float(_nd) * 86400, timezone.utc)
         return f"после сквиза биткоина {at[5:16].replace('T', ' ')} UTC прошло {(now - t0) / 3600:.0f} ч — шорты не берём {float(_nd):g} дн, до {until:%d.%m %H:%M} UTC (R87)"

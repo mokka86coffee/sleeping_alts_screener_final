@@ -27,6 +27,8 @@ errs = []
 def chk(c, m):
     if not c: errs.append(m)
 core_config.MANUAL_BY_USER_POT_BOT_ON = True
+core_config.MANUAL_BY_USER_BTC_SQUEEZE_LONG_FREE_DAYS = 0   # здесь котёл проверяется без окна после сквиза биткоина; само окно — пункт 5
+core_config.MANUAL_BY_USER_POT_BLOCKS_LONGS = True        # пункты 1–5 проверяют прежний запрет лонгов (мерка True); мерка False — пункт 6
 # 1. котёл полный
 pot(935, True, True, moves=(("STRKUSDT", False),))
 chk(g("AAAUSDT", 1, "всплеск: бар +2%") and "лонги не берём" in g("AAAUSDT", 1, "x"), "полный: лонг должен быть отклонён")
@@ -58,4 +60,22 @@ st = {"open": {}, "last_exit": {}}; ev = []; msgs = []
 ok = ft._open_short_now(st, ev, msgs, "AAAUSDT", 1.0, int(now * 1000), now, "R59 вынос лонгов на росте → лонг", "всплеск/вынос", False, side=1)
 chk(ok is False and not st["open"] and not ev and any("R84" in m for m in msgs), f"_open_short_now открыл лонг при полном котле: {msgs}")
 ft._pot_gate = real
+# 5. три дня после сквиза биткоина котёл лонги не трогает (11.10 14:50 UTC: «после сквиза биткоина лонги берём, котёл их не трогает 3 дня»)
+CK = T / "btc_clock.json"
+def clock(hours_ago):
+    CK.write_text(json.dumps({"squeeze": {"at": datetime.fromtimestamp(now - hours_ago * 3600, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}}), encoding="utf-8"); ft._BTCQ["key"] = None
+def gc(sym, side, why): return ft._pot_gate(sym, side, why, now, pot_path=POT, leaders_path=LEAD, clock_path=CK)
+core_config.MANUAL_BY_USER_BTC_SQUEEZE_LONG_FREE_DAYS = 3
+pot(935, True, True, moves=(("STRKUSDT", False),)); clock(40)
+chk(gc("AAAUSDT", 1, "всплеск") is None, "40 ч после сквиза: лонг при полном котле должен пройти: " + str(gc("AAAUSDT", 1, "всплеск")))
+chk(gc("STRKUSDT", -1, R52), "40 ч после сквиза: шорт по идущей монете по-прежнему отклонён")
+pot(450, False, True, moves=(("STRKUSDT", False),)); chk(gc("AAAUSDT", 1, "всплеск") is None, "40 ч после сквиза: лонг при красной метке не по идущей монете должен пройти")
+pot(935, True, True); clock(73); chk(gc("AAAUSDT", 1, "всплеск"), "73 ч после сквиза: лонг при полном котле снова отклонён")
+clock(40); core_config.MANUAL_BY_USER_BTC_SQUEEZE_LONG_FREE_DAYS = 0; chk(gc("AAAUSDT", 1, "всплеск"), "0 дней — котёл трогает лонги всегда")
+# 6. котёл лонги не отклоняет вовсе (11.10 15:45 UTC: «переполненный, а не про лонги вообще»); шорт по идущей монете — по-прежнему нет
+core_config.MANUAL_BY_USER_POT_BLOCKS_LONGS = False; core_config.MANUAL_BY_USER_BTC_SQUEEZE_LONG_FREE_DAYS = 0
+pot(935, True, True, moves=(("STRKUSDT", False),))
+chk(g("AAAUSDT", 1, "всплеск") is None and g("STRKUSDT", 1, "R83 очередь") is None, "мерка False: лонги при полном котле проходят")
+chk(g("STRKUSDT", -1, R52), "мерка False: шорт по идущей монете по-прежнему отклонён")
+pot(450, False, True, moves=(("STRKUSDT", False),)); chk(g("AAAUSDT", 1, "всплеск") is None, "мерка False: лонг при красной метке проходит")
 print("R84: ок" if not errs else "СБОЙ R84: " + "; ".join(errs))
