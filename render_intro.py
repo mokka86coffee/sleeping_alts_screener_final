@@ -958,27 +958,46 @@ def render_intro(items: list[dict] | None = None) -> str:
         rnd = random.Random(seed + sum(counts_g.values()))
         CX0, CY0, AX = 0.56, 0.44, 1.55           # центр облака и сжатие по вертикали
         BAND = {0: (0.02, 0.11), 1: (0.15, 0.24), 2: (0.27, 0.36)}
-        PANEL = (0.0, 0.16, 0.245, 0.76)
+        # ЗАНЯТЫЕ МЕСТА ЭКРАНА (12.10, владелец: «верстку поправь у звезд» — звёзды ложились друг на друга, на планету точности и к блоку лидера):
+        # приборы слева с луной книги, блок «сейчас ведёт» сверху по центру, планета точности справа внизу — с запасом на имя и подпись звезды
+        ZONES = ((0.0, 0.16, 0.245, 0.88), (0.34, 0.0, 0.66, 0.21), (0.775, 0.69, 1.0, 1.0))
         out: dict = {g: [] for g in counts_g}
         placed: list = []
+        def _free(x: float, y: float, k: float = 1.0) -> bool:
+            if not (0.08 <= x <= 0.92 and 0.10 <= y <= 0.78):
+                return False
+            if any(z[0] <= x <= z[2] and z[1] <= y <= z[3] for z in ZONES):
+                return False
+            return all((abs(y - py) >= 0.075 * k) or (abs(x - px) >= 0.17 * k) for px, py in placed) and \
+                   all(math.hypot((x - px) * 1.4, y - py) >= 0.12 * k for px, py in placed)
         for g in (0, 1, 2):
             r0, r1 = BAND.get(g, (0.27, 0.36))
             for _k in range(counts_g.get(g, 0)):
                 ok = False
-                for _try in range(4000):
-                    rr = r0 + rnd.random() * (r1 - r0)
-                    a = rnd.random() * 2 * math.pi
-                    x, y = CX0 + rr * AX * math.cos(a) * 0.62, CY0 + rr * math.sin(a)
-                    if not (0.08 <= x <= 0.92 and 0.10 <= y <= 0.78):
-                        continue
-                    if PANEL[0] <= x <= PANEL[2] and PANEL[1] <= y <= PANEL[3]:
-                        continue
-                    if all((abs(y - py) >= 0.075) or (abs(x - px) >= 0.17) for px, py in placed) and \
-                       all(math.hypot((x - px) * 1.4, y - py) >= 0.12 for px, py in placed):
-                        ok = True; break
-                if not ok:                                   # не поместилась — чуть дальше от центра, но в своём секторе
-                    x, y = CX0 + (r1 + 0.05 * (_k + 1)) * AX * 0.62 * math.cos(a), CY0 + (r1 + 0.05 * (_k + 1)) * math.sin(a)
-                    x, y = min(0.92, max(0.26, x)), min(0.78, max(0.10, y))
+                # НЕ ПОМЕСТИЛАСЬ В СВОЁ КОЛЬЦО (12.10): раньше ставилась у края без проверки расстояний — отсюда наложения, когда
+                # в группе больше трёх-четырёх звёзд. Теперь кольцо шаг за шагом расширяется наружу с теми же расстояниями;
+                # и только если места нет совсем — расстояния понемногу сжимаются
+                for _step in range(40):
+                    _r1 = r1 + 0.03 * min(_step, 14)
+                    _kk = 1.0 if _step <= 14 else max(0.4, 1.0 - 0.03 * (_step - 14))
+                    for _try in range(4000 if _step == 0 else 500):
+                        rr = r0 + rnd.random() * (_r1 - r0)
+                        a = rnd.random() * 2 * math.pi
+                        x, y = CX0 + rr * AX * math.cos(a) * 0.62, CY0 + rr * math.sin(a)
+                        if _free(x, y, _kk):
+                            ok = True; break
+                    if ok:
+                        break
+                if not ok:                                   # места нет совсем — самая свободная точка вне занятых мест
+                    _best, _bd = (CX0, CY0), -1.0
+                    for _try in range(3000):
+                        x, y = 0.08 + rnd.random() * 0.84, 0.10 + rnd.random() * 0.68
+                        if any(z[0] <= x <= z[2] and z[1] <= y <= z[3] for z in ZONES):
+                            continue
+                        _d = min([math.hypot((x - px) * 1.4, y - py) for px, py in placed] or [9.0])
+                        if _d > _bd:
+                            _best, _bd = (x, y), _d
+                    x, y = _best
                 placed.append((x, y)); out[g].append([round(x, 3), round(y, 3)])
         return out
     _ring_pos = _rings({g: sum(1 for it in items if it["g"] == g) for g in (0, 1, 2)})

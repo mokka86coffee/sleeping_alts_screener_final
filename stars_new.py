@@ -135,7 +135,7 @@ def queue_top(now: float | None = None) -> list[dict]:
             g.append(f"оборот к капитализации {float(v2c) * 100:.0f}%")
         head = "три прогона подряд в топе очереди"
         out.append({"n": name, "sym": sym, "g": 0, "sub": " ‖ ".join([head] + g), "why": head + " · " + " · ".join(g), "run": None, "dd": None,
-                    "fuel": False, "jump": False, "rel": -float(sum(places)), "t": t_last})
+                    "fuel": False, "jump": False, "rel": -float(sum(places)), "t": t_last, "bright": 1.0})   # 12.10 владелец: «звёзды все должны гореть» — полная яркость у каждой
     out.sort(key=lambda x: -x["rel"])
     return out
 
@@ -224,7 +224,7 @@ def _week_items(now: float | None, skip: set) -> list[dict]:
         if w.get("chg") is not None:
             grp.append(f"ход с начала суток UTC {float(w['chg']):+.1f}%")
         out.append({"n": w["name"], "sym": w["sym"], "g": g, "sub": " ‖ ".join([head] + grp), "why": head + " · " + " · ".join(grp), "run": None, "dd": None,
-                    "fuel": False, "jump": False, "rel": w["t_to"] / 1e6, "t": w["t_to"]})
+                    "fuel": False, "jump": False, "rel": w["t_to"] / 1e6, "t": w["t_to"], "bright": 1.0})
     return out
 
 
