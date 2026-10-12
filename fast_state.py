@@ -879,6 +879,18 @@ def build() -> dict:
                             week=f"на неделе · {w['day']} · первой {w['n']}", onriver=w["sym"] not in _onq) for w in _sn.queue_week(now)]
     except Exception as e:  # noqa: BLE001
         print(f"week: сбой {type(e).__name__}: {e}"); fsq["week"] = []
+    try:                                                                 # 12.10 владелец: пузыри рыночных заявок «на наших звёздах отдельным значком»; 11:40 UTC: «дат не надо никаких
+        import market_bubbles as _mb                                     #   и не надо последний — были белые или нет; чем больше таких пузырьков на получасовках, тем ярче пузырёк у звезды»
+        _stars = list(fsq.get("queue") or []) + list(fsq.get("week") or [])
+        _wm = _mb.white_marks([q["sym"] for q in _stars], now)           # поля: wn — белых пузырей (рыночные продажи под свечой) за неделю, wb — яркость значка 0..1 (0 — пузырей не было)
+        for _q in _stars:
+            _m = _wm.get(_q["sym"]) or {}
+            _q["wn"], _q["wb"] = int(_m.get("n") or 0), float(_m.get("b") or 0)
+            _q.pop("bub", None); _q.pop("bubble", None)
+            # 12.10 владелец: «можешь на карточке рисовать, где они были по времени» — сами белые пузыри недели (t — конец получасовки, unix UTC; size 1..3)
+            _q["wbub"] = [dict(t=b["t"], size=b["size"], x=b.get("x"), vol=b.get("vol")) for b in _mb.bubbles(_q["sym"], _mb.MOB_RECENT_H, now) if b["side"] == "sell"]
+    except Exception as e:  # noqa: BLE001
+        print(f"пузыри: сбой {type(e).__name__}: {e}")
     fsq["btc_clock"] = _read(BASE_DIR / "output" / "btc_clock.json", None)   # 10.10 владелец: «время в часах от сквиза биткоина и время во флэте +-10% хода от цены» (market_bg.btc_clock, раз в прогон)
     try:                                                                 # 10.10 владелец: «добавить общую капитализацию крипторынка и считать её изменение относительно 700 млрд» (market_bg.cap_total, строка на прогон)
         _cl = _tail_lines(BASE_DIR / "output" / "market_cap.jsonl", 20000)
@@ -899,13 +911,20 @@ def build() -> dict:
         _p = _PX_NOW["px"].get(_w["sym"])
         if _p:
             _w["now"], _w["now_t"] = _p, round(_PX_NOW["t"], 1)
-        try:                                                             # 12.10 (панель «на неделе» показывала «сейчас 1.00» — у монеты не было ряда цен): линия цены за FC_WIN_H часов
-            _cl, _tm = _intraday_px(_w["sym"], now - FC_WIN_H * 3600)   #   получасовками и свежая цена последней точкой; px — цена сейчас для панели
+        _w["px"] = _p or _w.get("px_now")
+    try:                                                                 # 12.10: линия цены карточки звезды — получасовки за неделю (столько живёт звезда и её пузыри) и свежая цена
+        import market_bubbles as _mb2                                    #   последней точкой; у монет «на неделе» и у кристаллов очереди — поля closes, times (unix UTC), px
+        for _q in list(_st.get("queue") or []) + list(_st.get("week") or []):
+            _rw = [r for r in _mb2._rows(_q["sym"]) if now - (_unix(r[0]) + 1800) <= _mb2.MOB_RECENT_H * 3600]
+            _cl, _tm = [r[2] for r in _rw], [_unix(r[0]) + 1800 for r in _rw]
+            _p = _PX_NOW["px"].get(_q["sym"])
             if _p:
                 _cl, _tm = _cl + [_p], _tm + [round(_PX_NOW["t"], 1)]
-            _w["closes"], _w["times"], _w["px"] = _cl, _tm, (_p or _w.get("px_now") or (_cl[-1] if _cl else None))
-        except Exception as e:  # noqa: BLE001
-            print(f"week цены {_w.get('sym')}: {type(e).__name__}: {e}")
+            _q["closes"], _q["times"] = _cl, _tm
+            if not _q.get("px"):
+                _q["px"] = _p or (_cl[-1] if _cl else None)
+    except Exception as e:  # noqa: BLE001
+        print(f"линия цены звёзд: {type(e).__name__}: {e}")
     return _st
 
 
@@ -1054,6 +1073,59 @@ def queue_week_tg(s: dict, now: float) -> None:
         pass
 
 
+QBUB_MEM = BASE_DIR / "output" / "queue_bubble_tg.json"
+
+
+def queue_bubble_tg(s: dict, now: float) -> None:
+    """12.10 11:55 UTC (владелец: «и давай, как только пузырёк появляется, отправлять в тг»): у звезды (кристалл очереди или монета «на неделе») появился
+    новый БЕЛЫЙ пузырь — всплеск рыночных продаж на получасовке (market_bubbles.py) — сообщение в Телеграм. Получасовки приходят с прогоном скринера,
+    так что сообщение уходит в первую сборку после прогона, обычно через 5–35 минут после закрытия свечи. Раз на пузырь (память output/queue_bubble_tg.json);
+    в первую сборку нынешние пузыри только запоминаются; пузырь старше трёх часов (монета только что стала звездой) не шлётся. Настройки — как у queue_star_tg."""
+    try:
+        raw = json.loads((BASE_DIR / "config" / "telegram_config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    token = raw.get("queue_stars_bot_token") or raw.get("bot_token"); chat = raw.get("queue_stars_chat_id") or raw.get("chat_id")
+    if not raw.get("queue_stars") or not (token and chat):
+        return
+    cfg = dict(raw, bot_token=token, chat_id=chat)
+    first = not QBUB_MEM.exists()
+    sent = dict((_read(QBUB_MEM, {}) or {}).get("sent") or {})
+    size = {1: "малый", 2: "средний", 3: "большой"}
+    seen = set()
+    for q in list(s.get("queue") or []) + list(s.get("week") or []):
+        sym = q.get("sym")
+        if not sym or sym in seen:
+            continue
+        seen.add(sym)
+        cat = (str(q.get("week")) if q.get("week") else "в топе очереди")
+        for b in q.get("wbub") or []:
+            key = f"{sym}|{int(b['t'])}"
+            if key in sent:
+                continue
+            if first or now - float(b["t"]) > 3 * 3600:
+                sent[key] = now; continue
+            d1 = datetime.fromtimestamp(float(b["t"]), timezone.utc); d0 = datetime.fromtimestamp(float(b["t"]) - 1800, timezone.utc)
+            name = sym[:-4] if sym.endswith("USDT") else sym
+            txt = (f"🟢 {name} — белый пузырь: рыночные продажи на свече {d0:%H:%M}–{d1:%H:%M} UTC\n"
+                   f"{size.get(int(b.get('size') or 1), 'малый')}" + (f", оборот ×{b['x']} к среднему" if b.get("x") else "") + f" · белых за неделю: {q.get('wn') or 1}\n"
+                   f"звезда: {cat}")
+            try:
+                import cg_shot
+                from send_brief_telegram import chat_ids, _send_to
+                ok = all([_send_to(txt + "\n\n" + cg_shot.links(sym), cfg, c) for c in chat_ids(cfg)])
+            except Exception as e:  # noqa: BLE001
+                print(f"пузырь в Телеграм {sym}: {type(e).__name__}: {e}"); ok = False
+            print(f"Телеграм пузырь: {name} {d1:%d.%m %H:%M} UTC · {'ушло' if ok else 'НЕ ушло'}")
+            if ok:
+                sent[key] = now
+    sent = {k: v for k, v in sent.items() if now - float(v) < 9 * 86400}
+    try:
+        tmp = QBUB_MEM.with_suffix(".tmp"); tmp.write_text(json.dumps(dict(sent=sent), ensure_ascii=False), encoding="utf-8"); tmp.replace(QBUB_MEM)
+    except OSError:
+        pass
+
+
 def write() -> Path:
     s = build()
     tmp = OUT.with_suffix(".tmp")
@@ -1077,6 +1149,10 @@ if __name__ == "__main__":
             bx_warn_tg(d, time.time())
     except Exception as e:  # noqa: BLE001
         print(f"предупреждения зеркала в Телеграм: {type(e).__name__}: {e}")
+    try:
+        queue_bubble_tg(d, time.time())                                  # 12.10: новый белый пузырь у звезды
+    except Exception as e:  # noqa: BLE001
+        print(f"пузыри в Телеграм: {type(e).__name__}: {e}")
     try:
         queue_week_tg(d, time.time())                                    # 12.10: вторая категория «на неделе» — снова первая, держит ход, вернулась к вершине
     except Exception as e:  # noqa: BLE001

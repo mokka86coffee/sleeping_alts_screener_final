@@ -228,11 +228,29 @@ def _week_items(now: float | None, skip: set) -> list[dict]:
     return out
 
 
+def _with_bubbles(items: list[dict], now: float | None) -> list[dict]:
+    """12.10 владелец: пузыри рыночных заявок «на наших звёздах»; «дат не надо никаких и не надо последний — были белые или нет» — в подписи звезды
+    только число белых пузырей (рыночные продажи под свечой) на получасовках за неделю, если они были"""
+    try:
+        import market_bubbles as mb
+    except ImportError:
+        return items
+    for it in items:
+        try:
+            n = mb.white_count(it["sym"], now)
+        except Exception:  # noqa: BLE001
+            n = 0
+        if n:
+            it["sub"] = it["sub"] + f" ‖ белых пузырей за неделю: {n}"
+            it["why"] = it["why"] + f" · белых пузырей за неделю: {n}"
+    return items
+
+
 def collect(now: float | None = None) -> list[dict]:
     """звёзды «новые», ярчайшая первой; у каждой — sub (группы через « ‖ », как у прежних звёзд) и why (полный довод)"""
     if STARS_QUEUE_TOP:
         top = queue_top(now)
-        return top + _week_items(now, {x["sym"] for x in top})          # 12.10: первая категория — три прогона подряд в топе, вторая — «на неделе»
+        return _with_bubbles(top + _week_items(now, {x["sym"] for x in top}), now)   # 12.10: первая категория — три прогона подряд в топе, вторая — «на неделе»
     if STARS_OFF:
         return []
     now = time.time() if now is None else now

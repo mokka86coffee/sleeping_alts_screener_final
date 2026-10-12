@@ -4,8 +4,28 @@
     {
       "name": "project-static",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8793", "--bind", "127.0.0.1"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8793",
+        "--bind",
+        "127.0.0.1"
+      ],
       "port": 8793
+    },
+    {
+      "name": "site-preview",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8794",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "/private/tmp/claude-501/-Users-evgenijminko-Work-random-python/51e8dd7c-89df-4aca-bc0c-f32e6070898b/scratchpad/site_preview"
+      ],
+      "port": 8794
     }
   ]
 }

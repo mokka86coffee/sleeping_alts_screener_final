@@ -2175,6 +2175,7 @@ function buildLine() {
     o.at = 2.8 * (1 - Math.pow(1 - Math.min(1, pr), 1 / 3)) + .2;
   });
   document.getElementById('pzMarks').innerHTML = D.dots.map(o => {
+    if (o.m.bub) return '';   /* пузырь на линии цены — только точка, без подписи и цены */
     const above = o.m.idx != null;
     return `<div class="mk${above ? ' a' : ''}" style="left:${o.x}px;top:${o.ly}px;--c:${o.m.rgb};--dl:${o.at.toFixed(2)}s"><small>${o.m.label}</small>${cryo(fmtPrice(o.m.price), 14, 1.6)}</div>`;
   }).join('');
@@ -2347,10 +2348,12 @@ function drawPanel() {
   // светящиеся точки маркеров: появляются, когда линия доходит
   for (const o of D.dots) {
     const a = clamp((now - pzOpenT - o.at) / .8); if (a <= 0) continue;
-    const pu = o.m.now ? .5 + .5 * Math.sin(now * 2.4) : .7, R = 9 + 4 * pu;
+    const pu = o.m.now ? .5 + .5 * Math.sin(now * 2.4) : .7, R = o.m.bub ? 12 + 5 * (o.m.sz || 1) : 9 + 4 * pu;
     const g = c.createRadialGradient(o.x, o.y, 0, o.x, o.y, R);
-    g.addColorStop(0, `rgba(255,255,255,${.95 * a})`); g.addColorStop(.25, `rgba(${o.m.rgb},${.75 * a})`); g.addColorStop(1, `rgba(${o.m.rgb},0)`);
+    if (o.m.bub) { g.addColorStop(0, `rgba(255,255,255,${a})`); g.addColorStop(.18, `rgba(150,255,190,${a})`); g.addColorStop(.45, `rgba(${o.m.rgb},${.7 * a})`); g.addColorStop(1, `rgba(${o.m.rgb},0)`); }   /* 12.10 владелец: «надо их поярче сделать» — пузыри на линии цены: шире ореол, плотнее середина и сплошное ядро */
+    else { g.addColorStop(0, `rgba(255,255,255,${.95 * a})`); g.addColorStop(.25, `rgba(${o.m.rgb},${.75 * a})`); g.addColorStop(1, `rgba(${o.m.rgb},0)`); }
     c.fillStyle = g; c.fillRect(o.x - R, o.y - R, R * 2, R * 2);
+    if (o.m.bub) { c.fillStyle = `rgba(190,255,215,${a})`; c.beginPath(); c.arc(o.x, o.y, 2.2 + 1.1 * (o.m.sz || 1), 0, TAU); c.fill(); }
   }
   c.globalCompositeOperation = 'source-over';
 }
@@ -2402,10 +2405,10 @@ function applyState(S) {
       .concat((S.bx_warn || []).filter(w => nowS - w.t_in < (w.keep || ENTRY_KEEP)).map(w => ({ key: 'warn|' + w.kind_w + '|' + w.sym + '|' + Math.round(w.t_in), name: w.sym.replace(/USDT$/, ''), side: w.side, price: w.entry, item: w })))
       // 09.10: звёзды и очередь — свои типы на реке (kind: 'star' | 'queue'); живут, пока есть в данных и не старше keep (моё умолчание 2 ч)
       // 10.10 владелец: звёзды (S.stars) с реки убраны — очередь получила их вид
-      .concat((S.queue || []).filter(q => nowS - q.t < (q.keep || 7200)).map(q => ({ key: 'queue|' + q.sym + '|' + Math.round(q.t), name: q.sym.replace(/USDT$/, ''), side: 0, price: 0, item: { kind: 'queue', sym: q.sym, ranks: q.ranks || [], res: q.res || 0, v2c: q.v2c, cap: q.cap, t_in: q.t, t_out: null, keep: q.keep || 7200 } })))
+      .concat((S.queue || []).filter(q => nowS - q.t < (q.keep || 7200)).map(q => ({ key: 'queue|' + q.sym + '|' + Math.round(q.t), name: q.sym.replace(/USDT$/, ''), side: 0, price: 0, item: { kind: 'queue', sym: q.sym, ranks: q.ranks || [], res: q.res || 0, v2c: q.v2c, cap: q.cap, wb: q.wb, wn: q.wn, wbub: q.wbub, closes: q.closes, times: q.times, px: q.px, t_in: q.t, t_out: null, keep: q.keep || 7200 } })))
       // 12.10 владелец: «давай их здесь тоже отображать … в категории на неделе» — монеты, что за неделю были первыми от 5 прогонов подряд (S.week, считает fast_state);
       // рисуются тем же кристаллом очереди, внутри — место сейчас («—» вне очереди), подпись — «на неделе · день · первой N»; тех, что уже стоят кристаллом очереди, не дублируем
-      .concat((S.week || []).filter(q => q.onriver).map(q => ({ key: 'week|' + q.sym + '|' + Math.round(q.t), name: q.sym.replace(/USDT$/, ''), side: 0, price: 0, item: { kind: 'week', sym: q.sym, ranks: q.ranks || [], res: q.res || 0, v2c: q.v2c, cap: null, week: q.week, day: q.day, n: q.n, place: q.place_now, closes: q.closes, px: q.px || q.now, t_in: q.t, t_out: null, keep: q.keep || 7200 } }))),   /* 12.10: closes и px — линия цены и «сейчас» в панели (без них панель показывала 1.00) */   // 12.10 владелец: «красивее и меньше… в каком-то другом виде» — kind 'week': маленький след звезды (drawWeek), не звезда очереди
+      .concat((S.week || []).filter(q => q.onriver).map(q => ({ key: 'week|' + q.sym + '|' + Math.round(q.t), name: q.sym.replace(/USDT$/, ''), side: 0, price: 0, item: { kind: 'week', sym: q.sym, ranks: q.ranks || [], res: q.res || 0, v2c: q.v2c, cap: null, week: q.week, day: q.day, n: q.n, place: q.place_now, closes: q.closes, times: q.times, px: q.px || q.now, wb: q.wb, wn: q.wn, wbub: q.wbub, t_in: q.t, t_out: null, keep: q.keep || 7200 } }))),   /* 12.10: closes и px — линия цены и «сейчас» в панели (без них панель показывала 1.00) */   // 12.10 владелец: «красивее и меньше… в каком-то другом виде» — kind 'week': маленький след звезды (drawWeek), не звезда очереди
       // 12.10 владелец: «убери прогнозы с реки» — прогнозы (S.forecasts) на реку больше не ставятся, остались записью вверху; рисунок drawFc оставлен без вызова
     (S.closed || []).filter(c => nowS - c.t_out < EXIT_KEEP).map(c => ({ key: 'out|' + c.book + '|' + c.sym + '|' + Math.round(c.t_out), name: c.sym.replace(/USDT$/, ''), side: c.side, price: c.exit, item: c })),
   ];
@@ -2978,6 +2981,7 @@ findHover = function () {
     if (kind === 'star' || kind === 'queue' || kind === 'week') {   // владелец 09–10.10: по клику — шар с линией цены; если у монеты есть прогнозы (смены в STATE.forecasts) — их метки на линии, как у записи прогноза
       const it = l.item, S = window.STATE || {}, ch = (S.charts || {})[it.sym], fc = (S.forecasts || []).find(f => f.sym === it.sym);
       let closes = fc && Array.isArray(fc.closes) && fc.closes.length > 1 ? fc.closes : (Array.isArray(it.closes) && it.closes.length > 1 ? it.closes : (ch && ch.bars && ch.bars.length > 1 ? ch.bars.map(b => b[4]) : null));
+      const tms = fc && closes === fc.closes ? fc.times : (closes === it.closes ? it.times : null);   /* время каждой точки линии — чтобы поставить на неё пузыри */
       if (!closes) { const p0 = it.px || 1; closes = [p0, p0]; }
       if (fc && closes === fc.closes) { const lp = livePx(fc); if (lp != null) closes = closes.concat([lp]); }   /* линия доходит до свежей цены */
       const n = closes.length, now = closes[n - 1], marks = [];
@@ -2986,6 +2990,8 @@ findHover = function () {
         for (const q of fc.changes) marks.push({ label: markName(q.tpl), price: q.px, rgb: TYPES[typeOf(q.tpl)][1], idx: q.i != null && q.i < n ? q.i : null });
         const last = fc.changes[fc.changes.length - 1]; status = `${short(last.tpl)} · ${hhmm(last.t)} UTC · смен прогноза ${fc.changes.length}`;
       }
+      // 12.10 владелец: «можешь на карточке рисовать, где они были по времени» — белые пузыри недели (it.wbub) зелёными точками на линии цены, без подписей; крупнее пузырь — крупнее точка
+      if (tms && Array.isArray(it.wbub)) for (const b of it.wbub) { let bi = -1, bd = 1e18; for (let k = 0; k < tms.length && k < n; k++) { const dd = Math.abs(tms[k] - b.t); if (dd < bd) { bd = dd; bi = k; } } if (bi >= 0 && bd <= 3600) marks.push({ label: '', price: closes[bi], rgb: '70,255,140', idx: bi, bub: true, sz: b.size || 1 }); }
       marks.push({ label: 'СЕЙЧАС', price: now, rgb: '255,255,255', idx: null, now: true });
       if (kind === 'week' && !status) status = String(it.week || '');
       return { g: { title: kind === 'week' ? 'НА НЕДЕЛЕ' : 'ОЧЕРЕДЬ' }, d: { ring: 'closed', now, candles: [], status }, it: { sym: it.sym }, closes, n, kind: 'closed', dir: 0, marks, ei: null, xi: null };
@@ -3154,7 +3160,7 @@ findHover = function () {
   // внутри кольца место сейчас, если монета в очереди (вне очереди — пусто); появляется всплеском из воды со звуком (см. drawWeek)
   function weekBox(l) {
     const it = l.item, m = (str, font, sp) => { tctx.save(); tctx.font = font; tctx.letterSpacing = '0px'; let w = 0; for (const c of str) w += tctx.measureText(c).width + sp; tctx.restore(); return w; };
-    l.ftx = (it.day && it.n != null ? `${it.day} · первой ${it.n}` : String(it.week || '').replace(/^на неделе\s*·\s*/i, '')).toUpperCase(); l.w1 = m(l.name, FC_NF, 1.5); l.w2 = m(l.ftx, FC_TF, 1);
+    l.ftx = ((it.day && it.n != null ? `${it.day} · первой ${it.n}` : String(it.week || '').replace(/^на неделе\s*·\s*/i, ''))).toUpperCase(); l.w1 = m(l.name, FC_NF, 1.5); l.w2 = m(l.ftx, FC_TF, 1);
     let h = 0; for (const ch of l.key) h = (h * 31 + ch.charCodeAt(0)) >>> 0; const WH = ['70,200,255', '255,170,50', '175,125,255', '60,245,160', '255,220,70', '60,240,235', '230,110,255']; l.qc = WH[h % WH.length]; l.c1 = l.c2 = l.qc;   /* 12.10 владелец: «поярче и сочнее» — свой насыщенный набор; розового нет — он читается как минус */
     l.bw = Math.round(26 + Math.max(l.w1, l.w2)); l.bh = 22; l.h = 12; l.low = true;
   }
@@ -3175,6 +3181,8 @@ findHover = function () {
     // кольцо: ореол, широкая обводка вместо свечения, яркая линия с белым бликом; прочерчивается по кругу после вспышки
     if (sw > 0) { const a0 = -Math.PI / 2, hr = 17 + 5 * K, hg = ctx.createRadialGradient(cx, cy, 0, cx, cy, hr); hg.addColorStop(0, col((.42 + .2 * K) * sw * A)); hg.addColorStop(.45, col(.16 * sw * A)); hg.addColorStop(1, col(0)); ctx.fillStyle = hg; ctx.fillRect(cx - hr, cy - hr, hr * 2, hr * 2);
       ctx.strokeStyle = col((.3 + .15 * K) * A); ctx.lineWidth = 5.5; ctx.beginPath(); ctx.arc(cx, cy, r, a0, a0 + TAU * ease(sw)); ctx.stroke(); ctx.strokeStyle = col(A); ctx.lineWidth = 1.8; ctx.beginPath(); ctx.arc(cx, cy, r, a0, a0 + TAU * ease(sw)); ctx.stroke(); ctx.strokeStyle = `rgba(255,255,255,${.45 * A})`; ctx.lineWidth = .7; ctx.beginPath(); ctx.arc(cx, cy, r, a0, a0 + TAU * ease(sw)); ctx.stroke(); }
+    // 12.10 владелец: «были белые или нет; чем больше таких пузырьков на получасовках, тем ярче пузырёк у звезды» — белая точка у кольца: были белые пузыри (рыночные продажи под свечой) за неделю, яркость — it.wb (0..1, считает fast_state)
+    if (it.wb > 0 && sw > 0) { const wk = clamp(it.wb), ba = (.45 + .55 * wk) * sw * A, br = 1.6 + 2.6 * wk, gr = 6 + 8 * wk, bx = cx - r - 5, bq = cy - r - 3, bg = ctx.createRadialGradient(bx, bq, 0, bx, bq, gr); bg.addColorStop(0, `rgba(210,255,225,${.95 * ba})`); bg.addColorStop(.3, `rgba(70,255,140,${.55 * ba})`); bg.addColorStop(1, 'rgba(70,255,140,0)'); ctx.fillStyle = bg; ctx.fillRect(bx - gr, bq - gr, gr * 2, gr * 2); ctx.fillStyle = `rgba(110,255,160,${ba})`; ctx.beginPath(); ctx.arc(bx, bq, br, 0, TAU); ctx.fill(); }   /* 12.10 владелец: «сделай его зелёным и чем больше пузырьков, тем больше и ярче» */
     if (ea > 1.1) { const a = t * .5 + p, da = clamp((ea - 1.1) / .4) * A; ctx.fillStyle = `rgba(255,255,255,${.9 * da})`; ctx.beginPath(); ctx.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 1.7, 0, TAU); ctx.fill(); ctx.strokeStyle = `rgba(255,255,255,${.55 * da})`; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.arc(cx, cy, r, a - 1.1, a); ctx.stroke(); }   // по кольцу идёт светлая точка
     if (pl == null && sw >= 1) { ctx.fillStyle = col(.95 * A); ctx.beginPath(); ctx.arc(cx, cy, 1.5, 0, TAU); ctx.fill(); }   // вне очереди — в центре точка
     ctx.restore();
@@ -3237,6 +3245,8 @@ findHover = function () {
     const rot = -Math.PI / 6 + Math.sin(t * .4 + p) * .06;
     prev.forEach(q => gem(q.x, q.y, 6.4 * q.k + 2, rot, q.a, c, A * .9 * q.a, .6, 2));
     ctx.restore();
+    // 12.10 владелец: белая точка у звезды очереди — за неделю на получасовках были белые пузыри (рыночные продажи под свечой); чем их больше, тем ярче (it.wb 0..1)
+    if (it.wb > 0 && ea > 1.0 && ex < .5) { const wk = clamp(it.wb), ba = (.45 + .55 * wk) * clamp((ea - 1) * 3) * out, br = 1.8 + 3 * wk, gr = 7 + 9 * wk, bx = cx + 15, bq = cy - 13; ctx.save(); ctx.globalCompositeOperation = 'lighter'; const bg = ctx.createRadialGradient(bx, bq, 0, bx, bq, gr); bg.addColorStop(0, `rgba(210,255,225,${.95 * ba})`); bg.addColorStop(.3, `rgba(70,255,140,${.55 * ba})`); bg.addColorStop(1, 'rgba(70,255,140,0)'); ctx.fillStyle = bg; ctx.fillRect(bx - gr, bq - gr, gr * 2, gr * 2); ctx.fillStyle = `rgba(110,255,160,${ba})`; ctx.beginPath(); ctx.arc(bx, bq, br, 0, TAU); ctx.fill(); ctx.restore(); }
     // текст: место в звезде, имя и итог за 24 ч под ней
     const na = clamp((ea - .75) / .3) * out * sz; if (na > 0 && now != null) { tctx.save(); tctx.globalAlpha = na * (l.dimNow == null ? 1 : l.dimNow); tctx.textAlign = 'center'; tctx.textBaseline = 'middle'; tctx.font = `700 ${11 * (.7 + .3 * backOut(clamp((ea - .75) / .3)))}px Futura, "Avenir Next", sans-serif`; tctx.shadowColor = `rgba(${cc},.9)`; tctx.shadowBlur = 6; tctx.fillStyle = '#fff'; tctx.fillText(String(now), cx, cy + .5); tctx.restore(); }
     prev.forEach(q => { if (q.a > 0) { tctx.save(); tctx.globalAlpha = .8 * q.a * (l.dimNow == null ? 1 : l.dimNow); tctx.textAlign = 'center'; tctx.textBaseline = 'middle'; tctx.font = `700 ${5.5 + q.k * 3}px Futura, sans-serif`; tctx.fillStyle = 'rgb(210,230,252)'; tctx.fillText(String(q.r), q.x, q.y + .3); tctx.restore(); } });
