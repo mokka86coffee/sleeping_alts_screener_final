@@ -899,6 +899,13 @@ def build() -> dict:
         _p = _PX_NOW["px"].get(_w["sym"])
         if _p:
             _w["now"], _w["now_t"] = _p, round(_PX_NOW["t"], 1)
+        try:                                                             # 12.10 (панель «на неделе» показывала «сейчас 1.00» — у монеты не было ряда цен): линия цены за FC_WIN_H часов
+            _cl, _tm = _intraday_px(_w["sym"], now - FC_WIN_H * 3600)   #   получасовками и свежая цена последней точкой; px — цена сейчас для панели
+            if _p:
+                _cl, _tm = _cl + [_p], _tm + [round(_PX_NOW["t"], 1)]
+            _w["closes"], _w["times"], _w["px"] = _cl, _tm, (_p or _w.get("px_now") or (_cl[-1] if _cl else None))
+        except Exception as e:  # noqa: BLE001
+            print(f"week цены {_w.get('sym')}: {type(e).__name__}: {e}")
     return _st
 
 
@@ -929,7 +936,8 @@ def queue_star_tg(s: dict, now: float) -> None:
         try:
             import cg_shot
             from send_brief_telegram import chat_ids, _send_to
-            return all([_send_to(txt + "\n\n" + cg_shot.links(sym), cfg, c) for c in chat_ids(cfg)])
+            ok = all([_send_to(txt + "\n\n" + cg_shot.links(sym), cfg, c) for c in chat_ids(cfg)])
+            print(f"Телеграм звезда очереди: {txt.splitlines()[0]} · {'ушло' if ok else 'НЕ ушло'}"); return ok
         except Exception as e:  # noqa: BLE001
             print(f"звезда очереди в Телеграм {sym}: {type(e).__name__}: {e}"); return False
     onriver = {q["sym"]: q for q in (s.get("queue") or [])}
@@ -990,7 +998,8 @@ def queue_week_tg(s: dict, now: float) -> None:
         try:
             import cg_shot
             from send_brief_telegram import chat_ids, _send_to
-            return all([_send_to(txt + "\n\n" + cg_shot.links(sym), cfg, c) for c in chat_ids(cfg)])
+            ok = all([_send_to(txt + "\n\n" + cg_shot.links(sym), cfg, c) for c in chat_ids(cfg)])
+            print(f"Телеграм «на неделе»: {w['name']} · {head} · {'ушло' if ok else 'НЕ ушло'}"); return ok
         except Exception as e:  # noqa: BLE001
             print(f"«на неделе» в Телеграм {sym}: {type(e).__name__}: {e}"); return False
     live = set()
