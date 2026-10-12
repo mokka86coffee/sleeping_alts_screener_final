@@ -2372,3 +2372,6 @@
 2026-10-11 19:24:33 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json (прицельно, full_at не тронут)
 2026-10-12 00:51:10 нет в архиве: 1 (frax)
 2026-10-12 00:51:10 добор новичков: frax
+2026-10-12 00:58:11 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json (прицельно, full_at не тронут)
+2026-10-12 01:42:19 данные по 2026-10-10, ждём 2026-10-11 (возраст 23.4 ч)
+2026-10-12 01:42:19 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
