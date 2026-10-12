@@ -661,6 +661,9 @@ def alert_telegram(text: str) -> bool:
             if p.exists():
                 cfg = _j.loads(p.read_text(encoding="utf-8"))
                 break
+        if cfg.get("enabled") is False:           # 12.10 владелец: «из отправки в тг убери всё, кроме 3 подряд в топе» — тревоги прогона тоже молчат
+            log("→ Тревога в Телеграм не отправлена: отправка выключена (enabled=false)")
+            return False
         token = next((cfg[k] for k in ("bot_token", "token", "TG_TOKEN",
                                        "BOT_TOKEN", "TELEGRAM_TOKEN")
                       if cfg.get(k)), "")

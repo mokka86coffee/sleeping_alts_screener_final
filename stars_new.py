@@ -26,6 +26,10 @@ except ImportError:
 STARS_OFF = True            # 10.10 UTC, владелец: «убери звезды вообще свои» — звёзды «новые» не собираются: collect() даёт пустой список,
                             # экран «новые», Телеграм и кристаллы сайта пусты. За сутки 10.10 по признаку было 19 звёзд, медиана −2 %, до ×2 ни одной.
                             # False — вернуть как было. Прежние звёзды («скоро / могут») этим не возвращаются (STARS_NEW_ONLY в core_config).
+STARS_QUEUE_TOP = True      # 12.10 02:40 UTC, владелец (по экрану «новые 0», после того как в Телеграм оставлено только «3 подряд в топе»): «тут тоже сделай
+                            # то же самое» — звёзды экрана «новые» = монеты очереди, три прогона подряд в первых трёх местах (те же, что уходят в
+                            # Телеграм: fast_state.queue_star_tg). False — экран снова пустой (мои признаки выключены выше).
+QTOP, QRUNS = 3, 3          # те же мерки, что у кристаллов страницы бота (fast_state.Q_TOP, Q_RUNS): первые 3 места, 3 прогона подряд
 FRESH_S = 3 * 3600          # показание старше — монета из пульса выпала, не судим
 JUMP_ALONE = False          # 07.10 владелец по LYN на экране (−30 % за сутки, «раздача после пика», а стоит звездой за один скачок интереса): «снова шансы 20 из 100»,
                             # «как казино»; до этого: «идем в точность и в уменьшение количества». Один скачок интереса звездой не делает — звезда только с главным
@@ -81,8 +85,57 @@ def _archive(t_from: float, t_to: float) -> dict:
     return out
 
 
+def queue_top(now: float | None = None) -> list[dict]:
+    """звёзды очереди: монеты, которые QRUNS последних прогонов подряд стоят в первых QTOP местах (output/queue_log.jsonl); первая в очереди — первой.
+    Журнал старше FRESH_S — пусто. Формат записи — как у collect()."""
+    now = time.time() if now is None else now
+    p = BASE_DIR / "output" / "queue_log.jsonl"
+    try:
+        with p.open("rb") as f:
+            f.seek(0, 2); n = f.tell(); f.seek(max(0, n - 3_000_000))   # прогон — около 300 КБ строк, берём с запасом
+            tail = f.read().decode("utf-8", "ignore").splitlines()[1:]
+    except OSError:
+        return []
+    by: dict = {}
+    for ln in tail:
+        if '"place": null' in ln or '"place"' not in ln:
+            continue
+        try:
+            r = json.loads(ln)
+        except ValueError:
+            continue
+        if r.get("sym") and r.get("place") is not None and r.get("at"):
+            by.setdefault(r["at"], {})[r["sym"]] = r
+    runs = sorted(by)[-QRUNS:]
+    if len(runs) < QRUNS:
+        return []
+    t_last = datetime.strptime(runs[-1], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
+    if now - t_last > FRESH_S:
+        return []
+    out = []
+    for sym, cur in by[runs[-1]].items():
+        places = [int(by[a][sym]["place"]) if sym in by[a] else None for a in runs]
+        if not all(pl is not None and pl <= QTOP for pl in places):
+            continue
+        name = sym.replace("USDT", "")
+        path = " → ".join(str(pl) for pl in places)
+        chg = cur.get("px_chg_pct"); v2c = cur.get("vol_to_cap")
+        g = [f"места: {path}"]
+        if chg is not None:
+            g.append(f"ход с начала суток UTC {float(chg):+.1f}%")
+        if isinstance(v2c, (int, float)):
+            g.append(f"оборот к капитализации {float(v2c) * 100:.0f}%")
+        head = "три прогона подряд в топе очереди"
+        out.append({"n": name, "sym": sym, "g": 0, "sub": " ‖ ".join([head] + g), "why": head + " · " + " · ".join(g), "run": None, "dd": None,
+                    "fuel": False, "jump": False, "rel": -float(sum(places)), "t": t_last})
+    out.sort(key=lambda x: -x["rel"])
+    return out
+
+
 def collect(now: float | None = None) -> list[dict]:
     """звёзды «новые», ярчайшая первой; у каждой — sub (группы через « ‖ », как у прежних звёзд) и why (полный довод)"""
+    if STARS_QUEUE_TOP:
+        return queue_top(now)
     if STARS_OFF:
         return []
     now = time.time() if now is None else now

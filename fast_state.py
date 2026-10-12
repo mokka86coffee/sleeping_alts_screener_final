@@ -846,6 +846,7 @@ def queue_now(now: float) -> list[dict]:
             res = round((p1 / p0 - 1) * 100, 1) if p0 and p1 else 0.0
         out.append(dict(sym=sym, ranks=ranks, res=res, t=_unix(runs[i_mark]), keep=KEEP_S, place=(1 if mark == 1 else 2), now_place=places[-1],
                         streak=streak, since=_unix(runs[i_top]), mark=mark,
+                        top3=bool(len(places) >= Q_RUNS and all(p is not None and p <= Q_TOP for p in places[-Q_RUNS:])), last3=places[-Q_RUNS:],   # 12.10: «3 подряд в топе» — для Телеграма
                         v2c=(cur or {}).get("vol_to_cap"), cap=(cur or {}).get("cap_now_usd")))   # 10.10 владелец: «надо соотношение объемов к капитализации показывать для лидеров в топе» — оборот фьючерсов Binance за 24 ч к капитализации по цене прогона (near_move)
     out.sort(key=lambda q: (q["place"], q["sym"]))                   # 1-е первым, дальше звёзды
     return out
@@ -890,6 +891,48 @@ def build() -> dict:
     return _st
 
 
+QSTAR_MEM = BASE_DIR / "output" / "queue_star_tg.json"
+
+
+def queue_star_tg(s: dict, now: float) -> None:
+    """12.10 02:20 UTC (владелец: «из отправки в тг убери всё, кроме 3 подряд в топе, отправку»; «bat strk ain — для примера»): единственное сообщение
+    в Телеграм — монета очереди три прогона подряд в первых Q_TOP местах (кристаллы на реке, поле top3 у queue_now). Одно сообщение на серию: пока монета
+    держится в топе, повторов нет; серия прервалась и набралась заново — новое сообщение. Не ушло (сеть) — повтор в следующую сборку.
+    Вся прежняя отправка выключена ключом "enabled": false в config/telegram_config.json; эта читает настройки сама и идёт при "queue_stars": true.
+    Память — output/queue_star_tg.json."""
+    try:
+        cfg = json.loads((BASE_DIR / "config" / "telegram_config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if not cfg.get("queue_stars") or not (cfg.get("bot_token") and cfg.get("chat_id")):
+        return
+    live = {q["sym"]: q for q in (s.get("queue") or []) if q.get("top3")}
+    sent = dict((_read(QSTAR_MEM, {}) or {}).get("sent") or {})
+    sent = {k: v for k, v in sent.items() if k in live}                  # серия прервалась — забываем, новая серия придёт новым сообщением
+    for sym, q in live.items():
+        if sym in sent:
+            continue
+        pl = " → ".join("—" if p is None else str(p) for p in (q.get("last3") or []))
+        v2c = q.get("v2c")
+        tail = (f" · оборот к капитализации {float(v2c) * 100:.0f}%" if isinstance(v2c, (int, float)) and v2c < 10 else
+                f" · оборот к капитализации ×{float(v2c):.1f}" if isinstance(v2c, (int, float)) else "")
+        txt = (f"⭐ {sym[:-4] if sym.endswith('USDT') else sym} — три прогона подряд в топе очереди\n"
+               f"места: {pl}\n"
+               f"ход с начала суток UTC {float(q.get('res') or 0):+.1f}%{tail}")
+        try:
+            import cg_shot
+            from send_brief_telegram import chat_ids, _send_to
+            ok = all([_send_to(txt + "\n\n" + cg_shot.links(sym), cfg, c) for c in chat_ids(cfg)])
+        except Exception as e:  # noqa: BLE001
+            print(f"звезда очереди в Телеграм {sym}: {type(e).__name__}: {e}"); ok = False
+        if ok:
+            sent[sym] = now
+    try:
+        tmp = QSTAR_MEM.with_suffix(".tmp"); tmp.write_text(json.dumps(dict(sent=sent), ensure_ascii=False), encoding="utf-8"); tmp.replace(QSTAR_MEM)
+    except OSError:
+        pass
+
+
 def write() -> Path:
     s = build()
     tmp = OUT.with_suffix(".tmp")
@@ -913,6 +956,10 @@ if __name__ == "__main__":
             bx_warn_tg(d, time.time())
     except Exception as e:  # noqa: BLE001
         print(f"предупреждения зеркала в Телеграм: {type(e).__name__}: {e}")
+    try:
+        queue_star_tg(d, time.time())                                    # 12.10: единственное сообщение в Телеграм — «3 подряд в топе»
+    except Exception as e:  # noqa: BLE001
+        print(f"звёзды очереди в Телеграм: {type(e).__name__}: {e}")
     print(f"fast_state: вход {len(d['entry'])}, в работе {len(d['open'])}, закрыто {len(d['closed'])}, графиков {len(d['charts'])}, "
           f"{p.stat().st_size // 1024} КБ, {time.time() - t:.0f} с")
     # 04.10 04:15 владелец: «давай только в журнал сделок тогда писать и всё», «делай» — страница журнала сделок на сайте (book.html, render_book.py) собирается здесь же,
