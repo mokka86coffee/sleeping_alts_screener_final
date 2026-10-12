@@ -35,6 +35,7 @@ except ImportError:
     BASE_DIR = Path(__file__).resolve().parent
 
 MAX_NAMES = 12
+WEEK_GROUP = True            # 12.10 владелец: «на основном экране в категории на неделе» — экран умеет вторую группу звёзд (g=1, подпись «на неделе N»); stars_new смотрит на эту метку
 END_WORDS = ("осечк", "отпустил", "отбой")
 
 
@@ -349,7 +350,7 @@ def _collect_new() -> list[dict]:
     items = stars_new.collect()[:MAX_NAMES]
     try:
         import json as _json
-        _out = [{"sym": it["sym"], "name": it["n"], "g": 0, "sub": it["sub"], "why": it["why"], "run": None, "dd": None} for it in items]
+        _out = [{"sym": it["sym"], "name": it["n"], "g": int(it.get("g") or 0), "sub": it["sub"], "why": it["why"], "run": None, "dd": None} for it in items]
         _txt = _json.dumps({"at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "stars": _out, "new_only": True}, ensure_ascii=False)
         try:
             from sources_storage import write_atomic as _wa
@@ -934,6 +935,8 @@ def render_intro(items: list[dict] | None = None) -> str:
         labels.append({"n": f"остывшие {counts[3]}", "sym": "", "g": 4, "why": "", "label": True})
     if _new_only():                             # 06.10 владелец: одна группа «новые», остальное с экрана убрано
         labels = [{"n": f"новые {counts[0]}", "sym": "", "g": 0, "why": "шорты — топливо: интерес в монетах растёт, фандинг в минусе, цена не падает; или скачок интереса в монетах за 5 дней (главный признак, 06.10)", "label": True}]
+        if counts[1]:                           # 12.10 владелец: вторая категория — «на неделе»: были первыми в очереди от 5 прогонов подряд за последние 7 дней
+            labels.append({"n": f"на неделе {counts[1]}", "sym": "", "g": 1, "why": "были первыми в очереди от пяти прогонов подряд за последнюю неделю", "label": True})
     # переход в книгу — не подписью в ряду, а спутником в левом нижнем углу (16.09, владелец):
     # подпись убрана, чтобы не было двух переходов в одно место
     # раскладка (откат 06.09, владелец: «с зонами некрасиво»): одно облако-созвездие для всех

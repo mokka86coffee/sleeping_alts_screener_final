@@ -30,6 +30,14 @@ STARS_QUEUE_TOP = True      # 12.10 02:40 UTC, владелец (по экран
                             # то же самое» — звёзды экрана «новые» = монеты очереди, три прогона подряд в первых трёх местах (те же, что уходят в
                             # Телеграм: fast_state.queue_star_tg). False — экран снова пустой (мои признаки выключены выше).
 QTOP, QRUNS = 3, 3          # те же мерки, что у кристаллов страницы бота (fast_state.Q_TOP, Q_RUNS): первые 3 места, 3 прогона подряд
+# ВТОРАЯ КАТЕГОРИЯ «НА НЕДЕЛЕ» (12.10 03:40 UTC, владелец по W и MAGIC: «монета была в топе вчера, а пошла сегодня», «давай 2-ю категорию сделаем — монеты,
+# которые были в первых от 5 раз подряд за неделю»). «В первых» читаю как первое место в очереди — так было у обоих его примеров (W «1 (8)», MAGIC); за неделю
+# таких монет 10, а с серией от 5 в первых трёх местах — 28. Поменять чтение — WEEK_PLACE = 3.
+WEEK_DAYS, WEEK_RUNS, WEEK_PLACE = 7, 5, 1
+# Телеграм по монетам «на неделе» (12.10 03:50 UTC, владелец: «в тг присылаем их, если цена держится или растёт в течение часа или снова в первые вернулась,
+# даже 1 раз»; «держится — значит не отдала ход больше 30%»; «или вернулась снова к −30% от вершины или больше»).
+WEEK_GIVEBACK_PCT = 30      # «держится»: от вершины отдано не больше стольких процентов хода (ход — от цены, с которой монета стала первой, до вершины после этого)
+WEEK_HOLD_MIN = 60          # столько минут подряд цена должна быть не ниже этого уровня
 FRESH_S = 3 * 3600          # показание старше — монета из пульса выпала, не судим
 JUMP_ALONE = False          # 07.10 владелец по LYN на экране (−30 % за сутки, «раздача после пика», а стоит звездой за один скачок интереса): «снова шансы 20 из 100»,
                             # «как казино»; до этого: «идем в точность и в уменьшение количества». Один скачок интереса звездой не делает — звезда только с главным
@@ -132,10 +140,99 @@ def queue_top(now: float | None = None) -> list[dict]:
     return out
 
 
+def queue_week(now: float | None = None) -> list[dict]:
+    """монеты «на неделе»: за WEEK_DAYS суток была серия от WEEK_RUNS прогонов подряд на месте не ниже WEEK_PLACE (output/queue_log.jsonl), свежая серия первой.
+    У каждой: n — прогонов в последней такой серии, t_from / t_to — её начало и конец (unix UTC), day — день (дни) серии, first_now — стоит ли в первых сейчас,
+    left_at — прогон, на котором последний раз ушла из первых (unix; None — ещё там), px_left — цена на последнем прогоне в первых, back_from — начало
+    последнего захода в первые уже ПОСЛЕ серии (unix; None — не возвращалась), place_now / px_now / chg / v2c — из последнего прогона (если монета в очереди)."""
+    now = time.time() if now is None else now
+    lo = datetime.fromtimestamp(now - WEEK_DAYS * 86400, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    marks = tuple(f'"place": {k},' for k in range(1, WEEK_PLACE + 1))
+    runs: list = []; first: dict = {}; cur_at = None; cur_lines: list = []
+    try:
+        with (BASE_DIR / "output" / "queue_log.jsonl").open(encoding="utf-8") as f:
+            for ln in f:
+                i = ln.find('"at": "')
+                if i < 0:
+                    continue
+                at = ln[i + 7:i + 27]
+                if at < lo:
+                    continue
+                if at != cur_at:
+                    cur_at, cur_lines = at, []
+                cur_lines.append(ln)
+                if '"sym": "_BG"' in ln:
+                    runs.append(at)
+                elif any(m in ln for m in marks):
+                    try:
+                        r = json.loads(ln)
+                    except ValueError:
+                        continue
+                    if r.get("sym") and r.get("place") is not None and int(r["place"]) <= WEEK_PLACE:
+                        first.setdefault(r["sym"], {})[at] = r.get("px")
+    except OSError:
+        return []
+    runs = sorted(set(runs))
+    if not runs:
+        return []
+    ts = {a: datetime.strptime(a, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp() for a in runs}
+    last: dict = {}
+    for ln in cur_lines if cur_at == runs[-1] else []:
+        try:
+            r = json.loads(ln)
+        except ValueError:
+            continue
+        if r.get("sym") and r.get("sym") != "_BG":
+            last[r["sym"]] = r
+    out = []
+    for sym, hit in first.items():
+        groups = []; g = None
+        for k, a in enumerate(runs):
+            if a in hit:
+                g = [k, k] if g is None else [g[0], k]
+            elif g is not None:
+                groups.append(g); g = None
+        if g is not None:
+            groups.append(g)
+        big = [x for x in groups if x[1] - x[0] + 1 >= WEEK_RUNS]
+        if not big:
+            continue
+        b, gl = big[-1], groups[-1]
+        d0, d1 = datetime.fromtimestamp(ts[runs[b[0]]], timezone.utc), datetime.fromtimestamp(ts[runs[b[1]]], timezone.utc)
+        day = f"{d0:%d.%m}" if d0.date() == d1.date() else f"{d0:%d.%m}–{d1:%d.%m}"
+        cur = last.get(sym) or {}
+        out.append({"sym": sym, "name": sym.replace("USDT", ""), "n": b[1] - b[0] + 1, "t_from": ts[runs[b[0]]], "t_to": ts[runs[b[1]]], "day": day,
+                    "hours": f"{d0:%H:%M}–{d1:%H:%M}", "first_now": gl[1] == len(runs) - 1,
+                    "left_at": ts[runs[gl[1] + 1]] if gl[1] < len(runs) - 1 else None, "px_left": hit.get(runs[gl[1]]), "px_from": hit.get(runs[b[0]]),
+                    "back_from": ts[runs[gl[0]]] if gl[0] > b[1] else None,
+                    "place_now": cur.get("place"), "px_now": cur.get("px"), "chg": cur.get("px_chg_pct"), "v2c": cur.get("vol_to_cap")})
+    out.sort(key=lambda x: -x["t_to"])
+    return out
+
+
+def _week_items(now: float | None, skip: set) -> list[dict]:
+    """монеты «на неделе» в формате звёзд экрана; группа 1 с подписью «на неделе», если загруженный экран её умеет (render_intro.WEEK_GROUP), иначе — в общей"""
+    import sys
+    g = 1 if getattr(sys.modules.get("render_intro"), "WEEK_GROUP", False) else 0
+    out = []
+    for w in queue_week(now):
+        if w["sym"] in skip:
+            continue
+        where = ("сейчас первая" if w["first_now"] else f"сейчас место {w['place_now']}" if w.get("place_now") else "сейчас вне очереди")
+        head = "на неделе"
+        grp = [f"была первой {w['n']} прогонов подряд {w['day']} ({w['hours']} UTC)", where]
+        if w.get("chg") is not None:
+            grp.append(f"ход с начала суток UTC {float(w['chg']):+.1f}%")
+        out.append({"n": w["name"], "sym": w["sym"], "g": g, "sub": " ‖ ".join([head] + grp), "why": head + " · " + " · ".join(grp), "run": None, "dd": None,
+                    "fuel": False, "jump": False, "rel": w["t_to"] / 1e6, "t": w["t_to"]})
+    return out
+
+
 def collect(now: float | None = None) -> list[dict]:
     """звёзды «новые», ярчайшая первой; у каждой — sub (группы через « ‖ », как у прежних звёзд) и why (полный довод)"""
     if STARS_QUEUE_TOP:
-        return queue_top(now)
+        top = queue_top(now)
+        return top + _week_items(now, {x["sym"] for x in top})          # 12.10: первая категория — три прогона подряд в топе, вторая — «на неделе»
     if STARS_OFF:
         return []
     now = time.time() if now is None else now

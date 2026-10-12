@@ -872,6 +872,13 @@ def build() -> dict:
             fsq[nm] = fn(now)
         except Exception as e:  # noqa: BLE001
             print(f"{nm}: сбой {type(e).__name__}: {e}"); fsq[nm] = []
+    try:                                                                 # 12.10 владелец: вторая категория звёзд «на неделе» (stars_new.queue_week) — на реку и в Телеграм
+        import stars_new as _sn
+        _onq = {q["sym"] for q in (fsq.get("queue") or [])}
+        fsq["week"] = [dict(w, t=w["t_to"], keep=_sn.WEEK_DAYS * 86400, ranks=[w["place_now"] if w.get("place_now") else "—"], res=float(w.get("chg") or 0),
+                            week=f"на неделе · {w['day']} · первой {w['n']}", onriver=w["sym"] not in _onq) for w in _sn.queue_week(now)]
+    except Exception as e:  # noqa: BLE001
+        print(f"week: сбой {type(e).__name__}: {e}"); fsq["week"] = []
     fsq["btc_clock"] = _read(BASE_DIR / "output" / "btc_clock.json", None)   # 10.10 владелец: «время в часах от сквиза биткоина и время во флэте +-10% хода от цены» (market_bg.btc_clock, раз в прогон)
     try:                                                                 # 10.10 владелец: «добавить общую капитализацию крипторынка и считать её изменение относительно 700 млрд» (market_bg.cap_total, строка на прогон)
         _cl = _tail_lines(BASE_DIR / "output" / "market_cap.jsonl", 20000)
@@ -888,6 +895,10 @@ def build() -> dict:
         print(f"pot: сбой {type(e).__name__}: {e}"); fsq["pot"] = None
     _st = dict(**fsq, meta=meta(now), entry=ent, open=op, closed=cl, closed_hist=hist, charts=charts(syms), score=score(cl), board=board, board_day=board_day(now), board_3h=dict(blocks=dict(_B3H), neutral=list(NEUTRAL_3H), prog=dict(_P3H)), bx_warn=warn)
     _fc_now(_st.get("forecasts"))
+    for _w in _st.get("week") or []:                                     # свежая цена монет «на неделе» — тем же запросом всех цен
+        _p = _PX_NOW["px"].get(_w["sym"])
+        if _p:
+            _w["now"], _w["now_t"] = _p, round(_PX_NOW["t"], 1)
     return _st
 
 
@@ -895,40 +906,141 @@ QSTAR_MEM = BASE_DIR / "output" / "queue_star_tg.json"
 
 
 def queue_star_tg(s: dict, now: float) -> None:
-    """12.10 02:20 UTC (владелец: «из отправки в тг убери всё, кроме 3 подряд в топе, отправку»; «bat strk ain — для примера»): единственное сообщение
-    в Телеграм — монета очереди три прогона подряд в первых Q_TOP местах (кристаллы на реке, поле top3 у queue_now). Одно сообщение на серию: пока монета
-    держится в топе, повторов нет; серия прервалась и набралась заново — новое сообщение. Не ушло (сеть) — повтор в следующую сборку.
-    Вся прежняя отправка выключена ключом "enabled": false в config/telegram_config.json; эта читает настройки сама и идёт при "queue_stars": true.
-    Память — output/queue_star_tg.json."""
+    """12.10 02:20 UTC (владелец: «из отправки в тг убери всё, кроме 3 подряд в топе, отправку»; «bat strk ain — для примера»): единственные сообщения
+    в Телеграм — про звёзды очереди. ПОЯВИЛАСЬ: монета три прогона подряд в первых Q_TOP местах (поле top3 у queue_now). ИСЧЕЗЛА (12.10 03:30 UTC:
+    «и должно сообщение об исчезании тоже приходить»): кристалл монеты ушёл с реки — её больше нет в queue_now (вне топа дольше допуска Q_SLIP прогонов).
+    На одну жизнь кристалла — одно «появилась» и одно «исчезла»; не ушло (сеть) — повтор в следующую сборку. Память — output/queue_star_tg.json.
+    Вся прежняя отправка выключена: "enabled": false в config/telegram_config.json, а токен и чат лежат под ключами queue_stars_bot_token /
+    queue_stars_chat_id — их читает только эта функция (12.10 03:30 UTC, «и сообщения о потолке тоже пока убери из тг», «отключи, просто не удаляй»:
+    «потолок» шлёт давно запущенный прогон своим старым кодом, под прежними ключами он бота и чат больше не находит). Вернуть прежнюю отправку —
+    переименовать ключи обратно в bot_token / chat_id и поставить enabled: true."""
     try:
-        cfg = json.loads((BASE_DIR / "config" / "telegram_config.json").read_text(encoding="utf-8"))
+        raw = json.loads((BASE_DIR / "config" / "telegram_config.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return
-    if not cfg.get("queue_stars") or not (cfg.get("bot_token") and cfg.get("chat_id")):
+    token = raw.get("queue_stars_bot_token") or raw.get("bot_token"); chat = raw.get("queue_stars_chat_id") or raw.get("chat_id")
+    if not raw.get("queue_stars") or not (token and chat):
         return
-    live = {q["sym"]: q for q in (s.get("queue") or []) if q.get("top3")}
-    sent = dict((_read(QSTAR_MEM, {}) or {}).get("sent") or {})
-    sent = {k: v for k, v in sent.items() if k in live}                  # серия прервалась — забываем, новая серия придёт новым сообщением
-    for sym, q in live.items():
-        if sym in sent:
-            continue
-        pl = " → ".join("—" if p is None else str(p) for p in (q.get("last3") or []))
-        v2c = q.get("v2c")
-        tail = (f" · оборот к капитализации {float(v2c) * 100:.0f}%" if isinstance(v2c, (int, float)) and v2c < 10 else
-                f" · оборот к капитализации ×{float(v2c):.1f}" if isinstance(v2c, (int, float)) else "")
-        txt = (f"⭐ {sym[:-4] if sym.endswith('USDT') else sym} — три прогона подряд в топе очереди\n"
-               f"места: {pl}\n"
-               f"ход с начала суток UTC {float(q.get('res') or 0):+.1f}%{tail}")
+    cfg = dict(raw, bot_token=token, chat_id=chat)
+    name = lambda sym: sym[:-4] if sym.endswith("USDT") else sym
+    path = lambda pl: " → ".join("—" if p is None else str(p) for p in (pl or []))
+
+    def send(sym: str, txt: str) -> bool:
         try:
             import cg_shot
             from send_brief_telegram import chat_ids, _send_to
-            ok = all([_send_to(txt + "\n\n" + cg_shot.links(sym), cfg, c) for c in chat_ids(cfg)])
+            return all([_send_to(txt + "\n\n" + cg_shot.links(sym), cfg, c) for c in chat_ids(cfg)])
         except Exception as e:  # noqa: BLE001
-            print(f"звезда очереди в Телеграм {sym}: {type(e).__name__}: {e}"); ok = False
-        if ok:
-            sent[sym] = now
+            print(f"звезда очереди в Телеграм {sym}: {type(e).__name__}: {e}"); return False
+    onriver = {q["sym"]: q for q in (s.get("queue") or [])}
+    mem = dict((_read(QSTAR_MEM, {}) or {}).get("sent") or {})
+    mem = {k: (v if isinstance(v, dict) else dict(t=float(v))) for k, v in mem.items()}        # прежний формат памяти — просто время
+    for sym, q in onriver.items():
+        if sym in mem:                                                    # кристалл жив — запоминаем последние места на случай ухода
+            mem[sym].update(last3=q.get("last3"), res=q.get("res")); continue
+        if not q.get("top3"):
+            continue
+        v2c = q.get("v2c")
+        tail = (f" · оборот к капитализации {float(v2c) * 100:.0f}%" if isinstance(v2c, (int, float)) and v2c < 10 else
+                f" · оборот к капитализации ×{float(v2c):.1f}" if isinstance(v2c, (int, float)) else "")
+        if send(sym, f"⭐ {name(sym)} — три прогона подряд в топе очереди\nместа: {path(q.get('last3'))}\n"
+                     f"ход с начала суток UTC {float(q.get('res') or 0):+.1f}%{tail}"):
+            mem[sym] = dict(t=now, last3=q.get("last3"), res=q.get("res"))
+    for sym in [k for k in mem if k not in onriver]:
+        m = mem[sym]; since = datetime.fromtimestamp(float(m.get("t") or now), timezone.utc)
+        if send(sym, f"✖ {name(sym)} — ушла из топа очереди\nв топе была с {since:%d.%m %H:%M} UTC ({(now - since.timestamp()) / 3600:.1f} ч)\n"
+                     f"последние места, пока держалась: {path(m.get('last3')) or '—'}"):
+            del mem[sym]
     try:
-        tmp = QSTAR_MEM.with_suffix(".tmp"); tmp.write_text(json.dumps(dict(sent=sent), ensure_ascii=False), encoding="utf-8"); tmp.replace(QSTAR_MEM)
+        tmp = QSTAR_MEM.with_suffix(".tmp"); tmp.write_text(json.dumps(dict(sent=mem), ensure_ascii=False), encoding="utf-8"); tmp.replace(QSTAR_MEM)
+    except OSError:
+        pass
+
+
+QWEEK_MEM = BASE_DIR / "output" / "queue_week_tg.json"
+
+
+def queue_week_tg(s: dict, now: float) -> None:
+    """12.10 03:50 UTC (владелец): монеты «на неделе» (были первыми от 5 прогонов подряд за неделю) в Телеграм — «если цена держится или растёт в течение
+    часа или снова в первые вернулась, даже 1 раз»; «держится — значит не отдала ход больше 30%»; «или вернулась снова к −30% от вершины или больше»;
+    «также с подписью на неделе и в какой день была». Три сообщения на монету:
+      • СНОВА ПЕРВАЯ — после серии монета опять встала в первые, хоть на один прогон (раз на каждый новый заход);
+      • ДЕРЖИТ ХОД — WEEK_HOLD_MIN минут после ухода из первых цена ни разу не опускалась ниже уровня «вершина − WEEK_GIVEBACK_PCT % хода»;
+      • ВЕРНУЛАСЬ К ВЕРШИНЕ — была ниже этого уровня и снова WEEK_HOLD_MIN минут держится не ниже его.
+    Ход — от цены, с которой монета стала первой (начало серии), до вершины после этого; вершина до первой сборки — по получасовкам (pump_pot.hist_rows),
+    дальше — по ценам каждой сборки. Память — output/queue_week_tg.json (цены за последний час, вершина, состояние). В первую сборку и по монетам, чей час
+    после ухода давно прошёл, состояние только запоминается — без сообщений задним числом. Настройки бота и чата — как у queue_star_tg."""
+    try:
+        raw = json.loads((BASE_DIR / "config" / "telegram_config.json").read_text(encoding="utf-8"))
+        import stars_new as sn
+    except (OSError, ValueError, ImportError):
+        return
+    token = raw.get("queue_stars_bot_token") or raw.get("bot_token"); chat = raw.get("queue_stars_chat_id") or raw.get("chat_id")
+    if not raw.get("queue_stars") or not (token and chat):
+        return
+    cfg = dict(raw, bot_token=token, chat_id=chat)
+    first_run = not QWEEK_MEM.exists()
+    mem = _read(QWEEK_MEM, {}) or {}
+    coins = dict(mem.get("coins") or {})
+    hold_s, give = float(sn.WEEK_HOLD_MIN) * 60, float(sn.WEEK_GIVEBACK_PCT) / 100
+
+    def send(sym: str, head: str, w: dict, extra: str = "") -> bool:
+        txt = (f"📅 {w['name']} — на неделе · {head}\n" + (extra + "\n" if extra else "")
+               + f"была первой {w['n']} прогонов подряд {w['day']} ({w['hours']} UTC)")
+        try:
+            import cg_shot
+            from send_brief_telegram import chat_ids, _send_to
+            return all([_send_to(txt + "\n\n" + cg_shot.links(sym), cfg, c) for c in chat_ids(cfg)])
+        except Exception as e:  # noqa: BLE001
+            print(f"«на неделе» в Телеграм {sym}: {type(e).__name__}: {e}"); return False
+    live = set()
+    for w in s.get("week") or []:
+        sym = w["sym"]; live.add(sym); px = w.get("now") or w.get("px_now")
+        c = coins.get(sym) or {}
+        if c.get("t_from") != w["t_from"]:                                # новая серия — счёт хода заново
+            c = dict(t_from=w["t_from"], base=w.get("px_from"), peak=None, ticks=[], hold=None, back=None, left=None)
+            try:
+                import pump_pot
+                iso = lambda t: datetime.fromtimestamp(t, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+                rows = pump_pot.hist_rows(iso(w["t_from"]), iso(now), only={w["name"]}).get(w["name"]) or []
+                c["peak"] = max((float(r[2]) for r in rows), default=None)
+            except Exception as e:  # noqa: BLE001
+                print(f"«на неделе» вершина {sym}: {type(e).__name__}: {e}")
+        if px:
+            c["peak"] = max(float(c.get("peak") or 0), float(px))
+            c["ticks"] = [x for x in (c.get("ticks") or []) if now - x[0] <= hold_s + 600] + [[round(now), float(px)]]
+        # 1. снова первая
+        bf = w.get("back_from")
+        if bf and c.get("back") != bf:
+            if first_run or now - float(bf) > 2 * 3600 or send(sym, "снова первая в очереди", w):
+                c["back"] = bf
+        # 2. держит ход / вернулась к вершине
+        base, peak = c.get("base"), c.get("peak")
+        if w.get("first_now") or not w.get("left_at"):
+            c["left"] = None; c["hold"] = None                            # пока первая — это первая категория, счёт удержания начнётся с ухода
+        elif base and peak and peak > base and px:
+            lvl = peak - give * (peak - base)
+            span = [x for x in c["ticks"] if now - x[0] <= hold_s]
+            full = bool(c["ticks"]) and now - c["ticks"][0][0] >= hold_s - 240 and now - float(w["left_at"]) >= hold_s
+            ok = bool(span) and min(x[1] for x in span) >= lvl
+            if c.get("left") != w["left_at"]:                             # новый уход из первых
+                c["left"] = w["left_at"]; c["hold"] = None
+            if full:
+                was = c.get("hold")
+                if ok and was is not True:
+                    gb = (peak - float(px)) / (peak - base) * 100
+                    extra = f"от вершины {peak:.6g} отдано {gb:.0f}% хода (ход {((peak / base) - 1) * 100:+.0f}% от {base:.6g})"
+                    late = was is None and now - float(w["left_at"]) > hold_s + 45 * 60      # час после ухода давно прошёл — только запомнить
+                    head = (f"{int(sn.WEEK_HOLD_MIN)} мин после ухода из первых держит ход" if was is None else
+                            f"вернулась к вершине: {int(sn.WEEK_HOLD_MIN)} мин держится, отдано меньше {int(sn.WEEK_GIVEBACK_PCT)}% хода")
+                    if first_run or late or send(sym, head, w, extra):
+                        c["hold"] = True
+                elif not ok:
+                    c["hold"] = False
+        coins[sym] = c
+    coins = {k: v for k, v in coins.items() if k in live}
+    try:
+        tmp = QWEEK_MEM.with_suffix(".tmp"); tmp.write_text(json.dumps(dict(coins=coins), ensure_ascii=False), encoding="utf-8"); tmp.replace(QWEEK_MEM)
     except OSError:
         pass
 
@@ -956,6 +1068,10 @@ if __name__ == "__main__":
             bx_warn_tg(d, time.time())
     except Exception as e:  # noqa: BLE001
         print(f"предупреждения зеркала в Телеграм: {type(e).__name__}: {e}")
+    try:
+        queue_week_tg(d, time.time())                                    # 12.10: вторая категория «на неделе» — снова первая, держит ход, вернулась к вершине
+    except Exception as e:  # noqa: BLE001
+        print(f"«на неделе» в Телеграм: {type(e).__name__}: {e}")
     try:
         queue_star_tg(d, time.time())                                    # 12.10: единственное сообщение в Телеграм — «3 подряд в топе»
     except Exception as e:  # noqa: BLE001
