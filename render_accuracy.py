@@ -516,8 +516,11 @@ html,body{margin:0;min-height:100%;color:var(--ink);font-family:Inter,system-ui,
 .two s{display:block;text-decoration:none;font-size:10px;color:var(--mid);margin-top:3px;line-height:1.5}
 .pop{position:absolute;left:0;right:0;top:calc(100% + 8px);z-index:9;padding:14px;border-radius:18px;
  background:linear-gradient(160deg,#fff,#eef2f9);box-shadow:10px 12px 28px rgba(120,140,175,.4),-6px -7px 16px rgba(255,255,255,1);
- opacity:0;visibility:hidden;transform:translateY(-4px);transition:.16s}
-.an:hover .pop{opacity:1;visibility:visible;transform:none}
+ display:none;max-height:min(60vh,520px);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(120,140,175,.45) transparent}
+/* 12.10 владелец: «вниз очень большой скролл за экран» — скрытый список не занимает места; открытый не выше 60% экрана, длинный листается внутри */
+.an:hover .pop{display:block;animation:popin .16s ease}
+@keyframes popin{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.an::after{content:'';position:absolute;left:0;right:0;top:100%;height:10px}   /* мостик через зазор: курсор доходит до списка, не теряя наведения */
 .pop h5{margin:0 0 9px;font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--dim);font-weight:400}
 .pr{display:grid;grid-template-columns:58px 44px minmax(0,1fr) 52px;gap:8px;font-size:11px;padding:6px 0;
  border-top:1px solid rgba(120,140,175,.16);color:var(--mid);font-variant-numeric:tabular-nums}
