@@ -177,7 +177,7 @@ body{background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;fon
 .vig{position:fixed;inset:0;background:radial-gradient(ellipse 70% 60% at 50% 45%, transparent 45%, rgba(0,0,0,.55) 100%);pointer-events:none}
 .mono,.cap{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace}
 .num{font-family:Jost,Inter,sans-serif;font-weight:200}
-.wrap{position:relative;height:100vh;display:grid;grid-template-columns:340px 1fr;grid-template-rows:auto 1fr;gap:0 28px;padding:28px 48px 24px 48px}
+.wrap{position:relative;height:100vh;display:grid;grid-template-columns:340px 1fr;grid-template-rows:auto auto minmax(0,1fr);gap:0 28px;padding:28px 48px 24px 48px}
 .head{grid-column:1/3;display:flex;align-items:baseline;gap:26px;flex-wrap:wrap;margin-bottom:14px}
 .head .t{font-family:Jost,Inter,sans-serif;font-size:22px;font-weight:200;letter-spacing:.3em;color:#fff;text-shadow:0 0 18px rgba(255,255,255,.25)}
 .head .s{font-size:11px;color:#7fb8a0}
@@ -186,7 +186,7 @@ body{background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;fon
 .back{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:7.5px;letter-spacing:.28em;text-transform:uppercase;color:#7fb8a0;text-decoration:none;border:1px solid rgba(127,232,176,.25);border-radius:14px;padding:5px 12px;align-self:center}
 .back:hover{color:#dfffee;border-color:rgba(127,232,176,.5)}
 /* к разбору */
-.review{grid-column:1/3;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 16px;padding:12px 16px;border-radius:12px;
+.review{grid-column:1/3;display:flex;align-items:center;align-content:flex-start;gap:10px;flex-wrap:wrap;margin:0 0 16px;padding:12px 16px;border-radius:12px;max-height:96px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(255,138,112,.3) transparent;
   background:linear-gradient(135deg,rgba(255,90,74,.08),rgba(3,18,14,.5));border:1px solid rgba(255,138,112,.28);box-shadow:0 0 40px rgba(255,90,74,.06)}
 .review .cap{font-size:7.5px;letter-spacing:.32em;text-transform:uppercase;color:#ff8a70;margin-right:6px}
 .review .hint{font-size:10px;color:#9fd8bf;margin-right:8px}
@@ -198,7 +198,7 @@ body{background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;fon
 .chip em{font-style:normal;font-size:10px;color:#9fd8bf}
 .review .none{font-size:10px;color:#7fb8a0}
 /* список */
-.list{overflow:auto;padding-right:6px;scrollbar-width:thin;scrollbar-color:rgba(127,232,176,.25) transparent}
+.list{overflow:auto;min-height:0;padding-right:6px;scrollbar-width:thin;scrollbar-color:rgba(127,232,176,.25) transparent}
 .list::-webkit-scrollbar{width:6px}.list::-webkit-scrollbar-thumb{background:rgba(127,232,176,.25);border-radius:3px}
 .row{display:grid;grid-template-columns:1fr auto auto;align-items:center;gap:12px;padding:9px 12px;margin-bottom:4px;border-radius:9px;cursor:pointer;
   background:rgba(3,18,14,.45);border:1px solid rgba(127,232,176,.08);transition:.18s}
@@ -210,7 +210,7 @@ body{background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;fon
 .row .c.up{color:#7fe8b0}.row .c.dn{color:#ff8a70}
 .row .w{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:7px;letter-spacing:.16em;text-transform:uppercase;color:#7fb8a0;white-space:nowrap}
 /* панель */
-.pane{position:relative;min-width:0}
+.pane{position:relative;min-width:0;min-height:0}
 .pane svg{display:block;width:100%;height:100%;overflow:visible}
 .ttl{position:absolute;left:0;top:0;display:flex;align-items:baseline;gap:16px}
 .ttl .t{font-family:Jost,Inter,sans-serif;font-size:30px;font-weight:200;letter-spacing:.2em;color:#fff;text-shadow:0 0 18px rgba(255,255,255,.25);text-decoration:none}
@@ -239,8 +239,8 @@ body{background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;fon
   var GOLD = '#f5a93a', GOLDL = '#ffd98a', RED = '#ff8a70', MINT = '#7fe8b0';
   function esc(t){ return String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
   function pad(n){ return (n < 10 ? '0' : '') + n; }
-  function dm(ms){ var d = new Date(ms); return pad(d.getDate()) + '.' + pad(d.getMonth() + 1); }
-  function hm(ms){ var d = new Date(ms); return pad(d.getHours()) + ':' + pad(d.getMinutes()); }
+  function dm(ms){ var d = new Date(ms); return pad(d.getUTCDate()) + '.' + pad(d.getUTCMonth() + 1); }   // время везде UTC
+  function hm(ms){ var d = new Date(ms); return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
   function px4(v){ v = +v; return v >= 100 ? v.toFixed(1) : v >= 1 ? v.toFixed(3) : v >= 0.01 ? v.toFixed(4) : v.toFixed(6); }
   function pct(v){ return (v > 0 ? '+' : v < 0 ? '−' : '') + Math.abs(v).toFixed(1) + '%'; }
   var MISS = /осечка|ушёл|отпустил|раздача/;
@@ -254,7 +254,7 @@ body{background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;fon
 
   // ── список ──
   var ls = document.getElementById('list');
-  ls.innerHTML = D.map(function(c){ return '<div class="row" data-t="' + esc(c.t) + '"><span class="n">' + (c.miss.length ? '<i title="осечек ' + c.miss.length + '"></i>' : '') + esc(c.t) + '</span><span class="c ' + (c.chg >= 0 ? 'up' : 'dn') + '">' + pct(c.chg) + '</span><span class="w">смен ' + c.sw.length + '</span></div>'; }).join('');
+  ls.innerHTML = D.slice().sort(function(a, b){ return a.t < b.t ? -1 : a.t > b.t ? 1 : 0; }).map(function(c){ return '<div class="row" data-t="' + esc(c.t) + '"><span class="n">' + (c.miss.length ? '<i title="осечек ' + c.miss.length + '"></i>' : '') + esc(c.t) + '</span><span class="c ' + (c.chg >= 0 ? 'up' : 'dn') + '">' + pct(c.chg) + '</span><span class="w">смен ' + c.sw.length + '</span></div>'; }).join('');
 
   // ── панель ──
   var pane = document.getElementById('pane');
@@ -276,18 +276,28 @@ body{background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;fon
     s += '<line x1="' + x0 + '" y1="' + y1 + '" x2="' + x1 + '" y2="' + y1 + '" stroke="' + GOLD + '" stroke-width="14" opacity=".16" filter="url(#b12)"/>' +
          '<line x1="' + x0 + '" y1="' + y1 + '" x2="' + x1 + '" y2="' + y1 + '" stroke="#fff6dc" stroke-width="1" opacity=".55"/>';
     // шкала дат: смена суток и края
-    var seen = {}; for (i = 0; i < n; i++) { var d = dm(P[i][0]); if (seen[d] && i !== 0 && i !== n - 1) continue; seen[d] = 1;
-      s += '<line x1="' + X(i).toFixed(0) + '" y1="' + y1 + '" x2="' + X(i).toFixed(0) + '" y2="' + (y1 + 7) + '" stroke="#5e8f7a" stroke-width="1"/><text x="' + X(i).toFixed(0) + '" y="' + (y1 + 24) + '" text-anchor="middle" font-family="IBM Plex Mono,Menlo,monospace" font-size="8" letter-spacing=".16em" fill="#7fb8a0">' + d + '</text>'; }
+    var seen = {}, lastLab = -99; for (i = 0; i < n; i++) { var d = dm(P[i][0]); if (seen[d] && i !== 0 && i !== n - 1) continue; seen[d] = 1;
+      s += '<line x1="' + X(i).toFixed(0) + '" y1="' + y1 + '" x2="' + X(i).toFixed(0) + '" y2="' + (y1 + 7) + '" stroke="#5e8f7a" stroke-width="1"/>'; if (X(i) - lastLab < 40) continue; lastLab = X(i);
+      s += '<text x="' + X(i).toFixed(0) + '" y="' + (y1 + 24) + '" text-anchor="middle" font-family="IBM Plex Mono,Menlo,monospace" font-size="8" letter-spacing=".16em" fill="#7fb8a0">' + d + '</text>'; }
     // линия — неон
     [[36, .12, ' filter="url(#b30)"', '#e0891f'], [16, .22, ' filter="url(#b12)"', GOLD], [7, .5, ' filter="url(#b3)"', GOLD], [3, .9, '', GOLD], [1.6, 1, '', GOLDL]].forEach(function(q){
       s += '<polyline class="ln" points="' + pl + '" fill="none" stroke="' + q[3] + '" stroke-width="' + q[0] + '" stroke-linejoin="round" stroke-linecap="round" opacity="' + q[1] + '" style="--L:' + Math.ceil(L + 2) + '"' + q[2] + '/>'; });
     // метки смен
-    var k = 0, prevPx = P[0][1];
+    var k = 0, prevPx = P[0][1], lanes = [], boxes = [], fUp = { x: X(0) - 4, y: Y(P[0][1]) - 26, w: 170, h: 16 }, fDn = { x: X(0) - 4, y: Y(P[0][1]) + 10, w: 170, h: 16 };
+    var fB = fDn.y + fDn.h < y1 - 2 && cost(fDn) < cost(fUp) ? fDn : fUp; boxes.push(fB, { x: X(n - 1) + 6, y: Y(P[n - 1][1]) - 12, w: 150, h: 34 });   // «начало записи» — над точкой или под ней, где меньше линии
+    for (var j = 0; y0 + 30 + j * 40 <= y1 - 44; j++) lanes.push(y0 + 30 + j * 40);
+    function cost(b){ var m = 0, u, o, w, h; for (u = 0; u < boxes.length; u++){ o = boxes[u]; w = Math.min(b.x + b.w, o.x + o.w) - Math.max(b.x, o.x); h = Math.min(b.y + b.h, o.y + o.h) - Math.max(b.y, o.y); if (w > -6 && h > -4) m += 1e4 + (w + 6) * (h + 4); }
+      for (u = 0; u < n; u++){ w = X(u); if (w >= b.x && w <= b.x + b.w){ h = Y(P[u][1]); if (h >= b.y - 4 && h <= b.y + b.h + 4) m += 1; } } return m; }
     c.sw.forEach(function(i){
-      var q = P[i], x = X(i), y = Y(q[1]), up = k % 2 === 0, ly = up ? (y0 + 30 + Math.floor(k / 2) * 44) : (y1 - 64 - Math.floor(k / 2) * 44); k++;
+      var q = P[i], x = X(i), y = Y(q[1]), up = k % 2 === 0, ly; k++;
       var move = prevPx ? (q[1] / prevPx - 1) * 100 : 0, missed = MISS.test(q[2]), col = missed ? RED : (q[3] === 'moving' ? MINT : GOLD);
       var sub = dm(q[0]) + ' ' + hm(q[0]) + ' · ' + px4(q[1]) + ' · ' + pct(move) + ' от прошлой';
       var bw = Math.max(q[2].length * 7.2, sub.length * 5.4) + 18, left = x + bw + 20 > x1 + padR - 10;   // у правого края — подпись влево
+      bw = Math.max(bw, sub.length * 5.9 + 18);   // строка с датой шире прежней оценки — плашка по ней
+      var best = null, order = up ? lanes : lanes.slice().reverse();   // чётные ищут место сверху вниз, нечётные — снизу вверх, как раньше
+      order.forEach(function(yy){ [false, true].forEach(function(lf){ if (!lf && left) return; if (lf && x - 8 - bw < x0 - 20) return; var b = { x: lf ? x - 8 - bw : x + 8, y: yy - 14, w: bw, h: 34 }, m = cost(b); if (!best || m < best.m) best = { m: m, b: b, lf: lf, ly: yy }; }); });
+      if (!best) best = { b: { x: x + 8, y: (order[0] || y0 + 30) - 14, w: bw, h: 34 }, lf: left, ly: order[0] || y0 + 30 };
+      left = best.lf; ly = best.ly; boxes.push(best.b);
       var tx = left ? x - 16 : x + 16, rx = left ? x - 8 - bw : x + 8, anc = left ? ' text-anchor="end"' : '';
       s += '<g class="an" style="animation-delay:' + (1.4 + k * .1).toFixed(1) + 's">' +
         '<line x1="' + x.toFixed(0) + '" y1="' + y0 + '" x2="' + x.toFixed(0) + '" y2="' + y1 + '" stroke="' + col + '" stroke-width="1" opacity=".18"/>' +
@@ -300,13 +310,14 @@ body{background:#020907;color:#e8fff4;font-family:Inter,system-ui,sans-serif;fon
     });
     // начало и сейчас
     var f = P[0], l = P[n - 1];
-    s += '<circle cx="' + X(0).toFixed(0) + '" cy="' + Y(f[1]).toFixed(0) + '" r="3" fill="#9fd8bf"/><text x="' + X(0).toFixed(0) + '" y="' + (Y(f[1]) - 14).toFixed(0) + '" font-family="IBM Plex Mono,Menlo,monospace" font-size="8" letter-spacing=".12em" fill="#9fd8bf">начало записи · ' + px4(f[1]) + '</text>';
+    s += '<circle cx="' + X(0).toFixed(0) + '" cy="' + Y(f[1]).toFixed(0) + '" r="3" fill="#9fd8bf"/><text x="' + X(0).toFixed(0) + '" y="' + (fB.y + 12).toFixed(0) + '" font-family="IBM Plex Mono,Menlo,monospace" font-size="8" letter-spacing=".12em" fill="#9fd8bf">начало записи · ' + px4(f[1]) + '</text>';
     s += '<g class="an" style="animation-delay:1.5s"><circle cx="' + X(n - 1).toFixed(0) + '" cy="' + Y(l[1]).toFixed(0) + '" r="14" fill="#fff" opacity=".2" filter="url(#b12)"/><circle cx="' + X(n - 1).toFixed(0) + '" cy="' + Y(l[1]).toFixed(0) + '" r="3.4" fill="#fff"/>' +
-         '<text x="' + (X(n - 1) + 12).toFixed(0) + '" y="' + (Y(l[1]) + 4).toFixed(0) + '" font-family="Jost,Inter,sans-serif" font-weight="300" font-size="13" fill="#fff">' + px4(l[1]) + ' <tspan fill="#bfe9d6" font-size="10">сейчас</tspan></text></g>';
+         '<text x="' + (X(n - 1) + 12).toFixed(0) + '" y="' + (Y(l[1]) + 4).toFixed(0) + '" font-family="Jost,Inter,sans-serif" font-weight="300" font-size="13" fill="#fff">' + px4(l[1]) + '</text>' +
+         '<text x="' + (X(n - 1) + 12).toFixed(0) + '" y="' + (Y(l[1]) + 18).toFixed(0) + '" font-family="IBM Plex Mono,Menlo,monospace" font-size="8" letter-spacing=".12em" fill="#9fd8bf">посл. запись ' + dm(l[0]) + ' ' + hm(l[0]) + ' UTC</text></g>';
     s += '</svg>';
     var tv = 'https://www.tradingview.com/chart/?symbol=' + encodeURIComponent('BINANCE:' + t + 'USDT.P');
     pane.innerHTML = '<div class="ttl"><a class="t" href="' + tv + '" target="_blank" rel="noopener" title="открыть в TradingView">' + esc(t) + '</a><span class="c ' + (c.chg >= 0 ? 'up' : 'dn') + '">' + pct(c.chg) + '</span>' +
-      '<span class="s">записей <b>' + n + '</b> · смен прогноза <b>' + c.sw.length + '</b>' + (c.miss.length ? ' · <b style="color:#ff8a70">осечек ' + c.miss.length + '</b>' : '') + ' · с <b>' + dm(f[0]) + ' ' + hm(f[0]) + '</b></span></div>' + s;
+      '<span class="s">записей <b>' + n + '</b> · смен прогноза <b>' + c.sw.length + '</b>' + (c.miss.length ? ' · <b style="color:#ff8a70">осечек ' + c.miss.length + '</b>' : '') + ' · с <b>' + dm(f[0]) + ' ' + hm(f[0]) + ' UTC</b></span></div>' + s;
     [].forEach.call(document.querySelectorAll('.row,.chip'), function(el){ el.classList.toggle('on', el.dataset.t === t); });
     var row = document.querySelector('.row.on'); if (row && row.scrollIntoView) row.scrollIntoView({ block: 'nearest' });
     location.hash = t;
