@@ -236,6 +236,15 @@ def _site_flags() -> tuple[dict, bool]:
 def positions(now: float) -> tuple[list, list, list]:
     day0 = datetime.fromtimestamp(now, L).replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
     SKIP, BXON = _site_flags()
+    # 13.10 владелец: «поставь у шортов стоп 15% вместо 10», «и пересчитай все сделки за последние 5 дней» — шорты, закрытые стопом 10 %, показываются с итогом,
+    # какой дал бы стоп 15 % (claude/research/recount_stop15.py → output/recount_stop15.json); в причине выхода стоит «пересчёт». Мерка та же, что у отбора по правилам.
+    ADJ = ((_read(BASE_DIR / "output" / "recount_stop15.json", {}) or {}).get("adjust") or {}) if (SKIP or _read(BASE_DIR / "output" / "recount_new_rules.json", None) is not None) else {}
+    try:
+        from core_config import MANUAL_BY_USER_SITE_NEW_RULES as _nr2
+    except ImportError:
+        _nr2 = False
+    if not _nr2:
+        ADJ = {}
     RV = reviews(); BXT, BXO = _bx_book()
     _bx_real(BXT, _bx_fills(now, day0 - (HIST_DAYS + 1) * 86400))
     for _t in BXT:
@@ -266,9 +275,11 @@ def positions(now: float) -> tuple[list, list, list]:
             tr = next((x for x in BXT if x["sym"] == r["sym"] and not x["paired"] and abs(x["t_in"] - t_in) < 1200), None)
             if tr:
                 tr["paired"] = True
-            (cl if float(r["at"]) >= day0 else hist).append(dict(book=book, sym=r["sym"], side=int(r.get("side") or 1), entry=float(r["px_in"]), exit=float(r.get("px_out") or 0),
-                           t_in=t_in, t_out=float(r["at"]), why=r.get("why_exit") or "", res=float(r["result_pct"]),
-                           usd=round(float(r["usd"]) if r.get("usd") is not None else float(r["result_pct"]) * 5, 2),   # 29.09: сумма сделки берётся из записи; это БУМАЖНЫЙ результат, как в журнале бота
+            _aj = ADJ.get(f"{book}|{r['sym']}|{int(t_in)}") or {}
+            _tout = float(_aj.get("t_out") or r["at"])
+            (cl if _tout >= day0 else hist).append(dict(book=book, sym=r["sym"], side=int(r.get("side") or 1), entry=float(r["px_in"]), exit=float(_aj.get("exit") or r.get("px_out") or 0),
+                           t_in=t_in, t_out=_tout, why=_aj.get("why") or r.get("why_exit") or "", res=float(_aj["res"]) if _aj else float(r["result_pct"]),
+                           usd=round(float(_aj["usd"]) if _aj else (float(r["usd"]) if r.get("usd") is not None else float(r["result_pct"]) * 5), 2),   # 29.09: сумма сделки берётся из записи; это БУМАЖНЫЙ результат, как в журнале бота
                            bx=bool(tr and not tr["dead"]) if BXON else None, real=(tr or {}).get("real") if BXON else None, fee=(tr or {}).get("fee") if BXON else None,    # 04.10: real — деньги этой сделки на BingX с комиссией (None — на бирже не было или биржа ещё не отдала)
                            rule=r.get("rule") or "", review=RV.get(key)))
     for tr in BXT:                                                        # были на бирже, а в журнале бота сделки нет — в итог дня идут по данным биржи
