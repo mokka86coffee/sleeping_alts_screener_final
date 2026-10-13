@@ -781,6 +781,27 @@ def _queue_mark(sym: str, now: float, state_path=None):
     return f"монета в первых местах очереди — метка «{q.get('mark')}», {q.get('streak') or '?'} прогонов подряд (R82)"
 
 
+def _queue_top3(sym: str, now: float, state_path=None):
+    """R88 (13.10 17:40 UTC, владелец: «не брать шорт вдогонку нельзя на монетах, что в топе 3+ раза подряд, остальные ок»; повод — W 11.10 20:44 UTC: книга
+    «очередь» взяла лонг по первой в очереди, а через 16 минут вторая книга взяла по ней шорт «вдогонку», стоп): шорт R58 «вдогонку» не берём по монете,
+    которая три последних прогона подряд стоит в первых трёх местах очереди (поле top3 у кристаллов fast_state.queue_now — те же монеты, что уходят в
+    Телеграм). Читает output/fast_state.json; файла нет или он старше FAST3_QUEUE_MARK_MAX_AGE_MIN — правило молчит. → причина не входить или None"""
+    try:
+        from core_config import FAST3_QUEUE_MARK_MAX_AGE_MIN as _age
+    except ImportError:
+        _age = 15
+    p = Path(state_path) if state_path else BASE_DIR / "output" / "fast_state.json"
+    try:
+        if now - p.stat().st_mtime > _age * 60:
+            return None
+        q = next((x for x in (json.loads(p.read_text(encoding="utf-8")).get("queue") or []) if x.get("sym") == sym), None)
+    except (OSError, ValueError):
+        return None
+    if q and q.get("top3"):
+        return f"монета три прогона подряд в топе очереди (места {' → '.join(str(v) for v in (q.get('last3') or []))}) — шорт «вдогонку» не берём (R88)"
+    return None
+
+
 def _short_flush_block(sym: str, now: float):
     """R81 + R82 для шорта после выноса шортов → причина не входить или None"""
     return _fund_turn(sym, now) or _queue_mark(sym, now)
@@ -915,6 +936,10 @@ def flush_entries(state: dict, book: str, now: float, ev: list, msgs: list, writ
             _r8 = _short_flush_block(sym, now)                            #   с меткой очереди «1»/«★» (сканер R52 против хода и R58 «конец роста» сразу)
             if _r8:
                 msgs.append(f"{sym[:-4]} {lab}: шорт не взят — {_r8}"); continue
+        if new_side == -1 and kind == "pump_end" and side != "short":       # R88 (13.10 владелец): шорт «вдогонку» — не по монете, что 3+ прогона подряд в топе очереди
+            _t3 = _queue_top3(sym, now)
+            if _t3:
+                msgs.append(f"{sym[:-4]} {lab}: шорт не взят — {_t3}"); continue
         if new_side == -1 and not kind:
             _ff = _flat5(sym, c)
             if _ff[0]:                                                   # R67: шорт на флэте не берём

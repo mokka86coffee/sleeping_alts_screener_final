@@ -69,4 +69,12 @@ clock(60); core_config.MANUAL_BY_USER_BTC_SQUEEZE_NO_SHORT_DAYS = 0
 chk(ft.btc_squeeze_block(-1, _t.time(), clock_path=CK) is None, "0 дней — правило выключено")
 core_config.MANUAL_BY_USER_BTC_SQUEEZE_NO_SHORT_DAYS = 3
 chk(ft.btc_squeeze_block(-1, _t.time(), clock_path=CK.with_name("нет.json")) is None, "нет файла часов — правило молчит")
-print("R85, R86, R87: ок" if not errs else "СБОЙ R85/R86/R87: " + "; ".join(errs))
+# R88: шорт «вдогонку» не по монете, что три прогона подряд в топе очереди
+FS = Path(tempfile.mkdtemp()) / "fast_state.json"
+FS.write_text(_j.dumps({"queue": [{"sym": "WUSDT", "top3": True, "last3": [1, 1, 1]}, {"sym": "AINUSDT", "top3": False, "last3": [3, None, None]}]}), encoding="utf-8")
+r = ft._queue_top3("WUSDT", _t.time(), state_path=FS)
+chk(r and "R88" in r and "1 → 1 → 1" in r, f"монета три прогона в топе — «вдогонку» должен быть отклонён: {r}")
+chk(ft._queue_top3("AINUSDT", _t.time(), state_path=FS) is None, "кристалл держится по допуску, но трёх прогонов подряд в топе нет — «вдогонку» проходит")
+chk(ft._queue_top3("JCTUSDT", _t.time(), state_path=FS) is None, "монеты нет среди звёзд очереди — «вдогонку» проходит")
+chk(ft._queue_top3("WUSDT", _t.time() + 3600, state_path=FS) is None, "состояние страницы устарело — правило молчит")
+print("R85, R86, R87, R88: ок" if not errs else "СБОЙ R85–R88: " + "; ".join(errs))
