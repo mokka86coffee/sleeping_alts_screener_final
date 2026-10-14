@@ -2389,3 +2389,5 @@
 2026-10-13 16:35:32 нет в архиве: 1 (bluai)
 2026-10-13 16:35:32 добор новичков: bluai
 2026-10-13 16:35:54 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json (прицельно, full_at не тронут)
+2026-10-14 08:36:21 данные по 2026-10-12, ждём 2026-10-13 (возраст 30.5 ч)
+2026-10-14 08:36:21 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
