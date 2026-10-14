@@ -2392,3 +2392,6 @@
 2026-10-14 08:36:21 данные по 2026-10-12, ждём 2026-10-13 (возраст 30.5 ч)
 2026-10-14 08:36:21 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
 2026-10-14 09:00:52 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json
+2026-10-14 10:24:22 нет в архиве: 1 (deep)
+2026-10-14 10:24:22 добор новичков: deep
+2026-10-14 10:24:30 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json (прицельно, full_at не тронут)
