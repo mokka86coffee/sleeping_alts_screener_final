@@ -69,6 +69,9 @@ clock(60); core_config.MANUAL_BY_USER_BTC_SQUEEZE_NO_SHORT_DAYS = 0
 chk(ft.btc_squeeze_block(-1, _t.time(), clock_path=CK) is None, "0 дней — правило выключено")
 core_config.MANUAL_BY_USER_BTC_SQUEEZE_NO_SHORT_DAYS = 3
 chk(ft.btc_squeeze_block(-1, _t.time(), clock_path=CK.with_name("нет.json")) is None, "нет файла часов — правило молчит")
+CK.write_text(_j.dumps({"squeeze": {"at": _dt.fromtimestamp(_t.time() - 10 * 3600, _tz.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}, "falling": True}), encoding="utf-8"); ft._BTCQ["key"] = None
+chk(ft.btc_squeeze_block(-1, _t.time(), clock_path=CK) is None, "14.10: отметка «биткоин падает» (falling) — R87 молчит")
+clock(10); chk(ft.btc_squeeze_block(-1, _t.time(), clock_path=CK), "без отметки падения через 10 ч после сквиза шорт снова под запретом")
 # R88: шорт «вдогонку» не по монете, что три прогона подряд в топе очереди
 FS = Path(tempfile.mkdtemp()) / "fast_state.json"
 FS.write_text(_j.dumps({"queue": [{"sym": "WUSDT", "top3": True, "last3": [1, 1, 1]}, {"sym": "AINUSDT", "top3": False, "last3": [3, None, None]}]}), encoding="utf-8")

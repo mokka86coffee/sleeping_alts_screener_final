@@ -906,6 +906,7 @@ def btc_clock(now: datetime | None = None) -> dict:
     now = now or datetime.now(timezone.utc); out: dict = {"at": now.strftime("%Y-%m-%dT%H:%M:%SZ")}
     BTC_SQ_USD = float(_owner("MANUAL_BY_USER_BTC_SQUEEZE_AUTO_MLN", 10.0)) * 1e6        # 10.10 23:20: мерки — из общего конфига (владелец задаёт сам)
     BTC_FLAT_BAND = float(_owner("MANUAL_BY_USER_BTC_FLAT_BAND_PCT", 10.0)) / 100
+    out["falling"] = bool(_owner("MANUAL_BY_USER_BTC_FALLING", False))          # 14.10 21:30 UTC владелец: «по переменной отмечать идет ли падение биткоина или нет»
     try:                                                                 # сквиз
         hl: dict = {}; hs: dict = {}; seen = set()
         for p in sorted((ARCH / "liq").glob("*.jsonl"))[-BTC_SQ_DAYS:]:

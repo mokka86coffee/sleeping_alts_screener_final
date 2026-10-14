@@ -2570,12 +2570,21 @@ function drawDayLines(G) {
     const y = top + n * rowH, hh = rowH - 6;
     twoTone(NAMES[n], SYM[n], G.x0 - 12, y + hh / 2 + 3, 6.5, '200,220,255', 'right');
     const st = v => v > NEU[n] ? 1 : v < -NEU[n] ? -1 : 0;
+    // 14.10 22:20 UTC владелец: «там где начало и конец одного цвета — нейтральный заменяем на этот цвет»: нейтральные блоки между двумя блоками
+    // одного состояния получают это состояние и склеиваются с ними в одну ячейку (ход — общий за весь отрезок)
+    const sts = blocks.map(b => b ? st(b[n]) : null);
+    for (let i = 0; i < 8; i++) {
+      if (sts[i] !== 0) continue;
+      let e = i; while (e < 8 && sts[e] === 0) e++;
+      if (i > 0 && e < 8 && sts[i - 1] && sts[i - 1] === sts[e]) for (let q = i; q < e; q++) sts[q] = sts[e];
+      i = e - 1;
+    }
     let k = 0;
     while (k < 8) {
       const b = blocks[k];
       if (!b) { k++; continue; }
-      const s0 = st(b[n]); let j = k, acc = 1;
-      while (j < 8 && blocks[j] && st(blocks[j][n]) === s0) { acc *= 1 + blocks[j][n] / 100; j++; }   // подряд идущие блоки одного состояния — одна ячейка
+      const s0 = sts[k]; let j = k, acc = 1;
+      while (j < 8 && blocks[j] && sts[j] === s0) { acc *= 1 + blocks[j][n] / 100; j++; }   // подряд идущие блоки одного состояния — одна ячейка
       const v = (acc - 1) * 100, col = s0 > 0 ? UP : s0 < 0 ? DN : MID, inten = clamp(Math.abs(v) / 2.5, .15, 1);
       const part = pg && pg.k >= k && pg.k < j ? (1 - clamp(pg.n / 6, 0, 1)) * bw : 0;
       const x = G.x0 + k * bw + 3, w = (j - k) * bw - 6 - part, fade = s0 === 0 ? .16 : 1;   // нейтраль почти прозрачна (04.10 владелец)
@@ -3305,17 +3314,22 @@ findHover = function () {
 #btcClk .bc-bar b { position: absolute; top: -2px; left: var(--w); width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: #fff; box-shadow: 0 0 8px rgb(var(--rgb)), 0 0 16px rgb(var(--rgb)); }
 #btcClk .bc-bar u { position: absolute; top: -3px; width: 1px; height: 8px; background: rgba(var(--c),.85); }
 #btcClk .bc-tk { position: relative; height: 10px; margin-top: 6px; }
-#btcClk .bc-tk span { position: absolute; transform: translateX(-50%); font-size: 5.5px; letter-spacing: .2em; color: rgba(var(--c),.8); white-space: nowrap; }`; document.head.appendChild(st); }
+#btcClk .bc-tk span { position: absolute; transform: translateX(-50%); font-size: 5.5px; letter-spacing: .2em; color: rgba(var(--c),.8); white-space: nowrap; }
+#btcClk .bc-fall { margin-top: 4px; font-size: 7px; letter-spacing: .42em; text-transform: uppercase; color: rgba(150,190,225,.6); white-space: nowrap; }
+#btcClk .bc-fall.on { color: rgb(255,90,114); text-shadow: 0 0 8px rgba(255,90,114,.8), 0 0 18px rgba(255,90,114,.45); }`; document.head.appendChild(st); }
     if (!el) { el = document.createElement('div'); el.id = 'btcClk'; document.body.appendChild(el); }
-    const q = B.squeeze, age = B.at ? (Date.now() - Date.parse(B.at)) / 3.6e6 : 0, h = Math.round(q.hours_ago + age), d = h / 24, D1 = 12, D2 = 21, maxD = Math.max(32, B.sq_days || 0), N = '150,215,235';   // D1, D2 — мерки шкалы в сутках (владелец 11.10: 12 и 21), шкала до 32 суток
+    const q = B.squeeze, age = B.at ? (Date.now() - Date.parse(B.at)) / 3.6e6 : 0, h = B.falling ? 0 : Math.round(q.hours_ago + age), d = h / 24,   /* 14.10 владелец: «когда падает от сквиза 0», «или прочерк вообще раз он пока падает» — цифры прочерком, шкала с нуля */ D1 = 12, D2 = 21, maxD = Math.max(32, B.sq_days || 0), N = '150,215,235';   // D1, D2 — мерки шкалы в сутках (владелец 11.10: 12 и 21), шкала до 32 суток
     const cc = d < D1 ? N : d < D2 ? mix(N, YEL, (d - D1) / (D2 - D1)) : mix(YEL, RED, clamp((d - D2) / (D2 - D1)));
     // 11.10 владелец (стрелка вправо): часы BTC — в правой колонке, под блоком итогов, по его правому краю
     const tb = document.getElementById('ribTot'), tr = tb && tb.getBoundingClientRect().height ? tb.getBoundingClientRect() : { right: W - 90, bottom: 270 };
     el.style.display = ''; el.style.left = Math.round(tr.right - 190) + 'px'; el.style.top = Math.round(tr.bottom + 26) + 'px';
-    const key = 'v3|' + h + '|' + cc + '|' + maxD;
-    if (el.dataset.k !== key) { el.dataset.k = key; el.style.setProperty('--rgb', cc);
+    const key = 'v4|' + h + '|' + cc + '|' + maxD + '|' + !!B.falling;
+    if (el.dataset.k !== key) { el.dataset.k = key; el.style.setProperty('--rgb', B.falling ? RED : cc);
       const p7 = (D1 / maxD * 100).toFixed(1), p14 = (D2 / maxD * 100).toFixed(1); el.style.setProperty('--p1', p7 + '%'); el.style.setProperty('--p2', p14 + '%');
-      el.innerHTML = `<div class="bc-lab"><b>от сквиза</b></div><div class="bc-num"><span class="bc-sym">₿</span>${cryo(String(h), 24, 1.8)}<em>Ч</em></div>` +   // владелец: BTC — символом, рядом с часами
+      // 14.10 22:40 UTC владелец: «может показывать либо падает либо от сквиза» — пока стоит MANUAL_BY_USER_BTC_FALLING: только «падает» и прочерк,
+      // без часов и шкалы; отметка снята — прежние часы от сквиза со шкалой
+      el.innerHTML = B.falling ? `<div class="bc-lab"><b>падает</b></div><div class="bc-num"><span class="bc-sym">₿</span>${cryo('−−', 24, 1.8)}</div>` :
+        `<div class="bc-lab"><b>от сквиза</b></div><div class="bc-num"><span class="bc-sym">₿</span>${cryo(String(h), 24, 1.8)}<em>Ч</em></div>` +   // владелец: BTC — символом, рядом с часами
         `<div class="bc-bar" style="--w:${(clamp(d / maxD) * 100).toFixed(1)}%"><i></i><u style="left:${p7}%;--c:${YEL}"></u><u style="left:${p14}%;--c:${RED}"></u><b></b></div>` +
         `<div class="bc-tk"><span style="left:${p7}%;--c:${YEL}">${D1} СУТ</span><span style="left:${p14}%;--c:${RED}">${D2} СУТ</span></div>`; }
   };

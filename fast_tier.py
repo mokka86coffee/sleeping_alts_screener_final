@@ -1111,11 +1111,79 @@ def btc_squeeze_block(side: int, now: float, clock_path=None, why: str = ""):
     age, at = _btc_squeeze_age(now, clock_path)
     if age is None:
         return None
+    if (_BTCQ["v"] or {}).get("falling"):                                 # 14.10 21:40 UTC владелец: «сейчас не взят ни один шорт за весь день потому что я переносил дату сквиза а он
+        return None                                                      #   весь день падал», «так не должно быть» → «да»: пока стоит MANUAL_BY_USER_BTC_FALLING = True (поле falling в btc_clock.json) — R87 молчит
     t0 = now - age
     if 0 <= now - t0 < float(_nd) * 86400:
         until = datetime.fromtimestamp(t0 + float(_nd) * 86400, timezone.utc)
         return f"после сквиза биткоина {at[5:16].replace('T', ' ')} UTC прошло {(now - t0) / 3600:.0f} ч — шорты не берём {float(_nd):g} дн, до {until:%d.%m %H:%M} UTC (R87)"
     return None
+
+
+BTC_FALL_END_HOLD_PCT, BTC_FALL_END_HOLD_H, BTC_FALL_END_NOW_PCT = 2.0, 2.0, 3.0   # 14.10 22:00 UTC владелец: «если он поднялся на 2% и цена держится более 2ч, если цена +3% и больше — не ждём»
+
+
+def btc_fall_step(now: float, clock_path=None, cfg_path=None, fall_path=None, bars=None) -> list[str]:
+    """КОНЕЦ ПАДЕНИЯ БИТКОИНА — БОТ САМ (14.10 22:00 UTC, владелец: «поставь чтобы бот сам её перевыставил в false и записал дату сквиза, если он
+    поднялся на 2% и цена держится более 2ч, если цена +3% и больше — не ждём, сразу ставим падение кончилось», «и дату сквиза»).
+    Пока в output/btc_clock.json стоит falling (MANUAL_BY_USER_BTC_FALLING = True): минимум BTC — по 3-минуткам фьючерса Binance с момента,
+    когда бот впервые увидел отметку (output/btc_fall.json, since). Закрытие последней свечи от минимума + BTC_FALL_END_NOW_PCT % — падение
+    кончилось сразу; все закрытия после минимума не ниже + BTC_FALL_END_HOLD_PCT % дольше BTC_FALL_END_HOLD_H ч — тоже. Тогда в core_config.py:
+    MANUAL_BY_USER_BTC_FALLING = False и MANUAL_BY_USER_BTC_SQUEEZE_AT = начало свечи минимума (UTC); то же сразу в btc_clock.json.
+    Время сквиза = свеча минимума — выбор Claude (владелец сказал «записал дату сквиза», не сказал какую). Только в цикле --loop."""
+    cp = Path(clock_path) if clock_path else BASE_DIR / "output" / "btc_clock.json"
+    cf = Path(cfg_path) if cfg_path else BASE_DIR / "core_config.py"
+    fp = Path(fall_path) if fall_path else BASE_DIR / "output" / "btc_fall.json"
+    try:
+        clk = json.loads(cp.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+    try:
+        fs = json.loads(fp.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        fs = {}
+    if not clk.get("falling"):
+        if fs.get("since"):
+            fp.write_text(json.dumps({}), encoding="utf-8")
+        return []
+    if not fs.get("since"):
+        fs = {"since": now}; fp.write_text(json.dumps(fs), encoding="utf-8")
+    since = float(fs["since"])
+    if bars is None:                                                     # [(начало unix, закрытие, минимум)] закрытых 3-минуток
+        k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": "BTCUSDT", "interval": "3m", "startTime": int(since * 1000) // 180_000 * 180_000, "limit": 1500}, quiet_400=True) or []
+        bars = [(int(x[0]) / 1000, float(x[4]), float(x[3])) for x in k if int(x[0]) / 1000 + 180 <= now]
+    if not bars:
+        return []
+    i_lo = min(range(len(bars)), key=lambda i: bars[i][2]); lo, t_lo = bars[i_lo][2], bars[i_lo][0]
+    c = bars[-1][1]; up = (c / lo - 1) * 100; why = None
+    if up >= BTC_FALL_END_NOW_PCT:
+        why = f"BTC {c:.0f} — +{up:.1f}% от минимума {lo:.0f}, от +{BTC_FALL_END_NOW_PCT:g}% не ждём"
+    else:
+        j = len(bars)
+        while j > i_lo + 1 and bars[j - 1][1] >= lo * (1 + BTC_FALL_END_HOLD_PCT / 100):
+            j -= 1
+        if j < len(bars) and bars[-1][0] + 180 - bars[j][0] >= BTC_FALL_END_HOLD_H * 3600:
+            why = f"BTC держится от +{BTC_FALL_END_HOLD_PCT:g}% над минимумом {lo:.0f} {(bars[-1][0] + 180 - bars[j][0]) / 3600:.1f} ч (сейчас {c:.0f}, +{up:.1f}%)"
+    if not why:
+        return []
+    sq = datetime.fromtimestamp(t_lo, timezone.utc).strftime("%Y-%m-%d %H:%M"); stamp = datetime.fromtimestamp(now, timezone.utc).strftime("%d.%m %H:%M")
+    try:
+        txt = cf.read_text(encoding="utf-8")
+        r1 = re.compile(r"^MANUAL_BY_USER_BTC_FALLING = .*$", re.M); r2 = re.compile(r"^MANUAL_BY_USER_BTC_SQUEEZE_AT = .*$", re.M)
+        if len(r1.findall(txt)) != 1 or len(r2.findall(txt)) != 1:
+            return [f"падение BTC кончилось ({why}), но в {cf.name} не нашлось ровно по одной строке отметки и сквиза — не записал"]
+        txt = r1.sub(lambda m: f"MANUAL_BY_USER_BTC_FALLING = False   # {stamp} UTC поставил бот: падение кончилось — {why}", txt)
+        txt = r2.sub(lambda m: f'MANUAL_BY_USER_BTC_SQUEEZE_AT = "{sq}"   # {stamp} UTC записал бот: минимум BTC при конце падения — {why}', txt)
+        tmp = cf.with_suffix(".tmp"); tmp.write_text(txt, encoding="utf-8"); tmp.replace(cf)
+        clk["falling"] = False
+        clk["squeeze"] = {"at": datetime.fromtimestamp(t_lo, timezone.utc).strftime("%Y-%m-%dT%H:%M:00Z"), "manual": True, "by_bot": why,
+                          "hours_ago": round((now - t_lo) / 3600, 1), "side": None, "usd": None}
+        tmp = cp.with_suffix(".tmp"); tmp.write_text(json.dumps(clk, ensure_ascii=False), encoding="utf-8"); tmp.replace(cp)
+        _BTCQ["key"] = None
+        fp.write_text(json.dumps({}), encoding="utf-8")
+    except OSError as e:
+        return [f"падение BTC кончилось ({why}), запись не прошла: {type(e).__name__}: {e}"]
+    return [f"падение BTC кончилось: {why} → MANUAL_BY_USER_BTC_FALLING = False, сквиз BTC {sq} UTC (свеча минимума)"]
 
 
 def _entry_gate(sym: str, side: int, why: str, now: float):
@@ -3112,6 +3180,11 @@ def main() -> int:
             print(f"{datetime.now(L):%H:%M:%S} {QUEUE_BOOK}: сбой {type(e).__name__}: {e}", flush=True)
         if not a.loop:
             return 0
+        try:                                    # 14.10 22:00 UTC владелец: бот сам снимает отметку «биткоин падает» и пишет дату сквиза
+            for m in btc_fall_step(time.time()):
+                print(f"{datetime.now(L):%H:%M:%S} биткоин: {m}", flush=True)
+        except Exception as e:  # noqa: BLE001
+            print(f"{datetime.now(L):%H:%M:%S} биткоин: сбой {type(e).__name__}: {e}", flush=True)
         page_step()
         try:                                    # 27.09 владелец: разбор выхода быстрых сделок через 2 ч — отдельным процессом (fast_review.py)
             import subprocess
