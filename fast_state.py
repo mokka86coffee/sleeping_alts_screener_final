@@ -1087,11 +1087,108 @@ def queue_week_tg(s: dict, now: float) -> None:
 QBUB_MEM = BASE_DIR / "output" / "queue_bubble_tg.json"
 
 
-def queue_bubble_tg(s: dict, now: float) -> None:
-    """12.10 11:55 UTC (владелец: «и давай, как только пузырёк появляется, отправлять в тг»): у звезды (кристалл очереди или монета «на неделе») появился
-    новый БЕЛЫЙ пузырь — всплеск рыночных продаж на получасовке (market_bubbles.py) — сообщение в Телеграм. Получасовки приходят с прогоном скринера,
-    так что сообщение уходит в первую сборку после прогона, обычно через 5–35 минут после закрытия свечи. Раз на пузырь (память output/queue_bubble_tg.json);
-    в первую сборку нынешние пузыри только запоминаются; пузырь старше трёх часов (монета только что стала звездой) не шлётся. Настройки — как у queue_star_tg."""
+def _px_hour_txt(q: dict, now: float) -> str:
+    """15.10 владелец («давай может цену добавлять час назад и сейчас»): строка «цена час назад → сейчас» по получасовкам звезды
+    (q["closes"]/q["times"] — начала свечей, последняя точка — живая цена; час назад = закрытие последней свечи, закрывшейся
+    не позже чем час назад). Нет ряда — пустая строка."""
+    cl, tm = q.get("closes") or [], q.get("times") or []
+    if len(cl) < 3 or len(cl) != len(tm):
+        return ""
+    ts = [float(x) / 1000 if float(x) > 1e11 else float(x) for x in tm]
+    i = max((k for k in range(len(ts) - 1) if ts[k] + 1800 <= now - 3600), default=None)
+    p_now = float(q.get("px") or cl[-1])
+    if i is None or not cl[i] or not p_now:
+        return ""
+    p0 = float(cl[i])
+    return f"цена: час назад {p0:.6g} → сейчас {p_now:.6g} ({(p_now / p0 - 1) * 100:+.1f}%)\n"
+
+
+def _sell_verdict(q: dict, t_close: float, now: float) -> str:
+    """вердикт по цене после крупных продаж (15.10, мерка Claude): живая цена против закрытия свечи с продажами (t_close — конец свечи)"""
+    cl, tm = q.get("closes") or [], q.get("times") or []
+    ts = [float(x) / 1000 if float(x) > 1e11 else float(x) for x in tm]
+    i = next((k for k in range(len(ts) - 1) if abs(ts[k] + 1800 - t_close) < 60), None)
+    p_now = float(q.get("px") or (cl[-1] if cl else 0) or 0)
+    if i is None or not cl[i] or not p_now:
+        return ""
+    d = (p_now / float(cl[i]) - 1) * 100
+    return (f"вердикт: цена держит ({d:+.1f}% к закрытию той свечи) — продажи принимают\n" if d >= 0
+            else f"вердикт: цена ниже ({d:+.1f}% к закрытию той свечи) — продажи давят\n")
+
+
+BTC_HOUR_MEM = BASE_DIR / "output" / "btc_hour_tg.json"
+
+
+def btc_hour_tg(s: dict, now: float) -> None:
+    """15.10 владелец: «давай btc ещё раз в час отсылать», «падает или сколько часов после сквиза», «если падает то каждый час, если уже
+    отрастает то раз в 3 часа сколько часов от сквиза»: в тот же Телеграм, что и звёзды, — «₿ BTC 81 005 (за час −0.6%) — падает» каждый час
+    (первая сборка часа UTC), пока стоит отметка falling (output/btc_clock.json); без отметки — «… — 15 ч после сквиза» раз в 3 часа.
+    Цена — получасовки cq_v2/intraday/btc.jsonl (обновляет прогон скринера раз в полчаса)."""
+    try:
+        raw = json.loads((BASE_DIR / "config" / "telegram_config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    token = raw.get("queue_stars_bot_token") or raw.get("bot_token"); chat = raw.get("queue_stars_chat_id") or raw.get("chat_id")
+    if not raw.get("queue_stars") or not (token and chat):
+        return
+    hour = datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%dT%H")
+    mem = _read(BTC_HOUR_MEM, {}) or {}
+    B = s.get("btc_clock") or {}
+    if mem.get("hour") == hour or now - float(mem.get("t") or 0) < (1 if B.get("falling") else 3) * 3600 - 600:
+        return
+    if B.get("falling"):
+        state = "падает"
+    elif (B.get("squeeze") or {}).get("at"):
+        try:
+            h = (now - datetime.strptime(B["squeeze"]["at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()) / 3600
+            state = f"{h:.0f} ч после сквиза"
+        except ValueError:
+            state = ""
+    else:
+        state = ""
+    rows = []
+    try:
+        for ln in _tail_lines(BASE_DIR / "cq_v2" / "intraday" / "btc.jsonl", 20000)[-6:]:
+            try:
+                r = json.loads(ln)
+            except ValueError:
+                continue
+            if r.get("px"):
+                rows.append((r["candle"], float(r["px"])))
+    except Exception:  # noqa: BLE001
+        rows = []
+    px = ""
+    if len(rows) >= 3:
+        (_, p1), (_, p0) = rows[-1], rows[-3]
+        px = f" {p1:,.0f}".replace(",", " ") + f" (за час {(p1 / p0 - 1) * 100:+.1f}%)"
+    elif rows:
+        px = f" {rows[-1][1]:,.0f}".replace(",", " ")
+    if not state and not px:
+        return
+    txt = f"₿ BTC{px}" + (f" — {state}" if state else "")
+    cfg = dict(raw, bot_token=token, chat_id=chat)
+    try:
+        from send_brief_telegram import chat_ids, _send_to
+        ok = all([_send_to(txt, cfg, c) for c in chat_ids(cfg)])
+    except Exception as e:  # noqa: BLE001
+        print(f"биткоин в Телеграм: {type(e).__name__}: {e}"); ok = False
+    print(f"Телеграм биткоин {hour}: {txt} · {'ушло' if ok else 'НЕ ушло'}")
+    if ok:
+        try:
+            tmp = BTC_HOUR_MEM.with_suffix(".tmp"); tmp.write_text(json.dumps(dict(hour=hour, t=now, txt=txt), ensure_ascii=False), encoding="utf-8"); tmp.replace(BTC_HOUR_MEM)
+        except OSError:
+            pass
+
+
+def queue_bubble_tg(s: dict, now: float, send=None) -> None:
+    """КРУПНЫЕ ПРОДАЖИ ПО РЫНКУ У ЗВЁЗД — В ТЕЛЕГРАМ ИТОГОМ ЧЕРЕЗ 4 ЧАСА (15.10 владелец: «давай может через 4 часа после появления, сколько
+    пузырей появилось и что с ценой за это время, и только одно сообщение в 12 часов по монете, отсчёт от первого пузыря и за 4 часа после»;
+    до 15.10 сообщение уходило сразу на каждый пузырь — спецификация пузырей §8: индикатор размечает прошлое, «сейчас» не показывает).
+    Пузыри — market_bubbles.py (белые на графике владельца = рыночные продажи), у звезды (кристалл очереди или «на неделе») в поле wbub.
+    Первый пузырь открывает окно монеты (t0 — конец его свечи); в t0 + 4 ч одно сообщение: сколько пузырей было за 4 ч, цена на закрытии
+    первой свечи → сейчас, минимум закрытий за окно и вердикт (мерка Claude: сейчас не ниже закрытия первой свечи — продажи принимают, ниже —
+    давят). Следующее окно по монете — только с пузыря позже t0 + 12 ч. Пузырь старше 4 ч, впервые увиденный (монета только стала звездой
+    или первая сборка), окна не открывает. send — подмена отправки для проверки."""
     try:
         raw = json.loads((BASE_DIR / "config" / "telegram_config.json").read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -1100,8 +1197,8 @@ def queue_bubble_tg(s: dict, now: float) -> None:
     if not raw.get("queue_stars") or not (token and chat):
         return
     cfg = dict(raw, bot_token=token, chat_id=chat)
-    first = not QBUB_MEM.exists()
-    sent = dict((_read(QBUB_MEM, {}) or {}).get("sent") or {})
+    mem = _read(QBUB_MEM, {}) or {}
+    win = dict(mem.get("win") or {})
     size = {1: "малый", 2: "средний", 3: "большой"}
     seen = set()
     for q in list(s.get("queue") or []) + list(s.get("week") or []):
@@ -1109,30 +1206,48 @@ def queue_bubble_tg(s: dict, now: float) -> None:
         if not sym or sym in seen:
             continue
         seen.add(sym)
-        cat = (str(q.get("week")) if q.get("week") else "в топе очереди")
-        for b in q.get("wbub") or []:
-            key = f"{sym}|{int(b['t'])}"
-            if key in sent:
-                continue
-            if first or now - float(b["t"]) > 3 * 3600:
-                sent[key] = now; continue
-            d1 = datetime.fromtimestamp(float(b["t"]), timezone.utc); d0 = datetime.fromtimestamp(float(b["t"]) - 1800, timezone.utc)
-            name = sym[:-4] if sym.endswith("USDT") else sym
-            txt = (f"🟢 {name} — белый пузырь: рыночные продажи на свече {d0:%H:%M}–{d1:%H:%M} UTC\n"
-                   f"{size.get(int(b.get('size') or 1), 'малый')}" + (f", оборот ×{b['x']} к среднему" if b.get("x") else "") + f" · белых за неделю: {q.get('wn') or 1}\n"
-                   f"звезда: {cat}")
-            try:
+        bubs = sorted((b for b in q.get("wbub") or [] if b.get("t")), key=lambda b: float(b["t"]))
+        w = win.get(sym)
+        if not w or now - float(w["t0"]) >= 12 * 3600:                  # окна нет или 12 ч прошли — новое с первого свежего пузыря
+            lo = float(w["t0"]) + 12 * 3600 if w else 0
+            b0 = next((b for b in bubs if float(b["t"]) >= lo and now - float(b["t"]) <= 4 * 3600), None)
+            if b0:
+                win[sym] = w = dict(t0=float(b0["t"]), done=False)
+        if not w or w.get("done") or not (4 * 3600 <= now - float(w["t0"]) <= 6 * 3600):   # итог — в t0 + 4 ч (запоздавший больше чем на 2 ч не шлём)
+            continue
+        t0 = float(w["t0"]); inw = [b for b in bubs if t0 <= float(b["t"]) <= t0 + 4 * 3600]
+        cl, tm = q.get("closes") or [], q.get("times") or []
+        ts = [float(x) / 1000 if float(x) > 1e11 else float(x) for x in tm]
+        i0 = next((k for k in range(len(ts) - 1) if abs(ts[k] + 1800 - t0) < 60), None)
+        p_now = float(q.get("px") or (cl[-1] if cl else 0) or 0)
+        name = sym[:-4] if sym.endswith("USDT") else sym
+        d0 = datetime.fromtimestamp(t0 - 1800, timezone.utc); d1 = datetime.fromtimestamp(t0, timezone.utc)
+        big = max(inw or [{}], key=lambda b: (int(b.get("size") or 1), float(b.get("x") or 0)))
+        lines = [f"🟢 {name} — крупные продажи по рынку: {len(inw) or 1} за 4 ч с {d0:%H:%M}–{d1:%H:%M} UTC",
+                 f"крупнейшая: {size.get(int(big.get('size') or 1), 'малый')}" + (f", оборот ×{big['x']} к среднему" if big.get("x") else "")
+                 + f" · таких за неделю: {q.get('wn') or len(bubs) or 1}"]
+        if i0 is not None and cl[i0] and p_now:
+            p0 = float(cl[i0]); mn = min(float(x) for x in cl[i0:] if x)
+            dd = (p_now / p0 - 1) * 100
+            lines.append(f"цена: {p0:.6g} → {p_now:.6g} ({dd:+.1f}%), минимум за окно {mn:.6g} ({(mn / p0 - 1) * 100:+.1f}%)")
+            lines.append("вердикт: цена держит — продажи принимают" if dd >= 0 else "вердикт: цена ниже — продажи давят")
+        lines.append("звезда: " + (str(q.get("week")) if q.get("week") else "в топе очереди"))
+        txt = "\n".join(lines)
+        try:
+            if send:
+                ok = bool(send(sym, txt))
+            else:
                 import cg_shot
                 from send_brief_telegram import chat_ids, _send_to
                 ok = all([_send_to(txt + "\n\n" + cg_shot.links(sym), cfg, c) for c in chat_ids(cfg)])
-            except Exception as e:  # noqa: BLE001
-                print(f"пузырь в Телеграм {sym}: {type(e).__name__}: {e}"); ok = False
-            print(f"Телеграм пузырь: {name} {d1:%d.%m %H:%M} UTC · {'ушло' if ok else 'НЕ ушло'}")
-            if ok:
-                sent[key] = now
-    sent = {k: v for k, v in sent.items() if now - float(v) < 9 * 86400}
+        except Exception as e:  # noqa: BLE001
+            print(f"продажи в Телеграм {sym}: {type(e).__name__}: {e}"); ok = False
+        print(f"Телеграм продажи: {name} окно с {d1:%d.%m %H:%M} UTC, {len(inw)} за 4 ч · {'ушло' if ok else 'НЕ ушло'}")
+        if ok:
+            w["done"] = True
+    win = {k: v for k, v in win.items() if now - float(v["t0"]) < 16 * 3600}   # 16 ч: старое окно ещё нужно, чтобы следующее открылось не раньше t0 + 12 ч
     try:
-        tmp = QBUB_MEM.with_suffix(".tmp"); tmp.write_text(json.dumps(dict(sent=sent), ensure_ascii=False), encoding="utf-8"); tmp.replace(QBUB_MEM)
+        tmp = QBUB_MEM.with_suffix(".tmp"); tmp.write_text(json.dumps(dict(win=win), ensure_ascii=False), encoding="utf-8"); tmp.replace(QBUB_MEM)
     except OSError:
         pass
 
@@ -1164,6 +1279,10 @@ if __name__ == "__main__":
         queue_bubble_tg(d, time.time())                                  # 12.10: новый белый пузырь у звезды
     except Exception as e:  # noqa: BLE001
         print(f"пузыри в Телеграм: {type(e).__name__}: {e}")
+    try:
+        btc_hour_tg(d, time.time())                                      # 15.10: биткоин раз в час — «падает» или часы после сквиза
+    except Exception as e:  # noqa: BLE001
+        print(f"биткоин в Телеграм: {type(e).__name__}: {e}")
     try:
         queue_week_tg(d, time.time())                                    # 12.10: вторая категория «на неделе» — снова первая, держит ход, вернулась к вершине
     except Exception as e:  # noqa: BLE001
