@@ -2398,3 +2398,5 @@
 2026-10-14 20:23:11 нет в архиве: 1 (zerebro)
 2026-10-14 20:23:11 добор новичков: zerebro
 2026-10-14 20:23:27 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json (прицельно, full_at не тронут)
+2026-10-15 01:43:20 данные по 2026-10-13, ждём 2026-10-14 (возраст 16.7 ч)
+2026-10-15 01:43:20 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
