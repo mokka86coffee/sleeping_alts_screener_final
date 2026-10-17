@@ -738,7 +738,7 @@ _ATL: dict = {}
 _FSIGN_F = BASE_DIR / "output" / "favorites_signs.json"
 _FAV_GROUP = {"памп был": "на ходу", "шевелится": "шевелятся", "копит": "скоро"}   # 17.10: пока владелец не задал group в config/favorites.json —
                                                                                    #   список по стадии (мерка Claude); «лежит» — без группы, на сайте не показывается
-FAV_SIGN_TTL_H = 6                   # признаки избранных обновляются раз в 6 ч (интерес по дням и фандинг — Binance, 2 запроса на монету)
+FAV_SIGN_TTL_H = 0.5                 # 17.10 владелец: «по всем обновляй раз в прогон вместе с остальными» — раз в 30 мин, как прогон скринера (было 6 ч); интерес по дням и фандинг — Binance, 2 запроса на монету
 
 
 def _fav_signs(sym: str, now: float, px_now, bars_vol) -> dict:
@@ -747,7 +747,7 @@ def _fav_signs(sym: str, now: float, px_now, bars_vol) -> dict:
     потом первый всплеск. Здесь по монете: oi7/oi30 — интерес в монетах за 7/30 дн, %; fund3 — средний фандинг за 3 дня, %; vol_x — оборот
     последнего дня к медиане 30 дн; px7 — цена за 7 дн, %. Стадия (мерки Claude): «памп был» — цена за 14 дн делала ×2 от медианы 30 дн;
     «шевелится» — оборот ×3 или цена +15 % за 7 дн; «копит» — интерес +20 % за 30 дн при цене ±15 %; иначе «лежит».
-    Кэш output/favorites_signs.json на FAV_SIGN_TTL_H часов."""
+    Кэш output/favorites_signs.json на FAV_SIGN_TTL_H часов (17.10: 0,5 ч — раз в прогон)."""
     try:
         cache = json.loads(_FSIGN_F.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -799,7 +799,7 @@ def favorites(now: float) -> list[dict]:
     """ИЗБРАННЫЕ МОНЕТЫ ВЛАДЕЛЬЦА (17.10 02:35 UTC: «сделай отдельный json типа избранные и занеси туда agt»; «добавь в fast_state.json поле
     STATE.favorites… правила бота список не читают — только показ на сайте»; 17.10 03:00 UTC: «для таких монет нужна только цена сейчас +
     рост от исторического дна»). На каждую: sym, added, px_added, note, now, now_t (тот же запрос всех цен, что у прогнозов — _PX_NOW),
-    atl, atl_at (дно из config/favorites.json, если задано владельцем; иначе минимум дневных свечей фьючерса Binance, кэш 6 ч), from_atl_pct — рост от дна, %."""
+    atl, atl_at (дно из config/favorites.json, если задано владельцем; иначе минимум дневных свечей фьючерса Binance, кэш 6 ч); признаки — раз в FAV_SIGN_TTL_H, from_atl_pct — рост от дна, %."""
     cfg = _read(BASE_DIR / "config" / "favorites.json", {}) or {}
     out = []
     for c in cfg.get("coins") or []:
@@ -822,7 +822,7 @@ def favorites(now: float) -> list[dict]:
         bv = None
         try:                                                             # дневки за 30 дн для оборота и цены — тот же запрос, что и дно, кэш 6 ч
             tk, kk = _ATL.get("k:" + sym, (0, None))
-            if now - tk > 6 * 3600 or not kk:
+            if now - tk > FAV_SIGN_TTL_H * 3600 or not kk:
                 kk = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1d", "limit": 31}, quiet_400=True) or []
                 _ATL["k:" + sym] = (now, kk)
             bv = [(float(x[4]), float(x[7])) for x in kk[:-1]] if kk else None   # без текущей незакрытой свечи
@@ -1335,12 +1335,14 @@ def favorites_tg(s: dict, now: float, send=None) -> None:
         pass
 
 
+BUB_TG_WIN_H = 8   # 17.10 18:08 UTC владелец: «у нас там раз в 4 было поменяй на 8» — итог по пузырям через 8 ч после первого (было 4 с 15.10)
+
 def queue_bubble_tg(s: dict, now: float, send=None) -> None:
-    """КРУПНЫЕ ПРОДАЖИ ПО РЫНКУ У ЗВЁЗД — В ТЕЛЕГРАМ ИТОГОМ ЧЕРЕЗ 4 ЧАСА (15.10 владелец: «давай может через 4 часа после появления, сколько
-    пузырей появилось и что с ценой за это время, и только одно сообщение в 12 часов по монете, отсчёт от первого пузыря и за 4 часа после»;
+    """КРУПНЫЕ ПРОДАЖИ ПО РЫНКУ У ЗВЁЗД — В ТЕЛЕГРАМ ИТОГОМ ЧЕРЕЗ 8 ЧАСОВ (с 17.10; 15.10 владелец: «давай может через 4 часа после появления, сколько
+    пузырей появилось и что с ценой за это время, и только одно сообщение в 12 часов по монете, отсчёт от первого пузыря и за 4 часа после»; 17.10 18:08 UTC владелец: «пузыри давай раз в 8 часов… у нас там раз в 4 было поменяй на 8» — окно итога 4 ч → BUB_TG_WIN_H = 8 ч, повтор по монете 12 ч остался;
     до 15.10 сообщение уходило сразу на каждый пузырь — спецификация пузырей §8: индикатор размечает прошлое, «сейчас» не показывает).
     Пузыри — market_bubbles.py (белые на графике владельца = рыночные продажи), у звезды (кристалл очереди или «на неделе») в поле wbub.
-    Первый пузырь открывает окно монеты (t0 — конец его свечи); в t0 + 4 ч одно сообщение: сколько пузырей было за 4 ч, цена на закрытии
+    Первый пузырь открывает окно монеты (t0 — конец его свечи); в t0 + 8 ч одно сообщение: сколько пузырей было за 8 ч, цена на закрытии
     первой свечи → сейчас, минимум закрытий за окно и вердикт (мерка Claude: сейчас не ниже закрытия первой свечи — продажи принимают, ниже —
     давят). Следующее окно по монете — только с пузыря позже t0 + 12 ч. Пузырь старше 4 ч, впервые увиденный (монета только стала звездой
     или первая сборка), окна не открывает. send — подмена отправки для проверки."""
@@ -1365,12 +1367,12 @@ def queue_bubble_tg(s: dict, now: float, send=None) -> None:
         w = win.get(sym)
         if not w or now - float(w["t0"]) >= 12 * 3600:                  # окна нет или 12 ч прошли — новое с первого свежего пузыря
             lo = float(w["t0"]) + 12 * 3600 if w else 0
-            b0 = next((b for b in bubs if float(b["t"]) >= lo and now - float(b["t"]) <= 4 * 3600), None)
+            b0 = next((b for b in bubs if float(b["t"]) >= lo and now - float(b["t"]) <= BUB_TG_WIN_H * 3600), None)
             if b0:
                 win[sym] = w = dict(t0=float(b0["t"]), done=False)
-        if not w or w.get("done") or not (4 * 3600 <= now - float(w["t0"]) <= 6 * 3600):   # итог — в t0 + 4 ч (запоздавший больше чем на 2 ч не шлём)
+        if not w or w.get("done") or not (BUB_TG_WIN_H * 3600 <= now - float(w["t0"]) <= (BUB_TG_WIN_H + 2) * 3600):   # итог — в t0 + 8 ч (запоздавший больше чем на 2 ч не шлём)
             continue
-        t0 = float(w["t0"]); inw = [b for b in bubs if t0 <= float(b["t"]) <= t0 + 4 * 3600]
+        t0 = float(w["t0"]); inw = [b for b in bubs if t0 <= float(b["t"]) <= t0 + BUB_TG_WIN_H * 3600]
         cl, tm = q.get("closes") or [], q.get("times") or []
         ts = [float(x) / 1000 if float(x) > 1e11 else float(x) for x in tm]
         i0 = next((k for k in range(len(ts) - 1) if abs(ts[k] + 1800 - t0) < 60), None)
@@ -1378,7 +1380,7 @@ def queue_bubble_tg(s: dict, now: float, send=None) -> None:
         name = sym[:-4] if sym.endswith("USDT") else sym
         d0 = datetime.fromtimestamp(t0 - 1800, timezone.utc); d1 = datetime.fromtimestamp(t0, timezone.utc)
         big = max(inw or [{}], key=lambda b: (int(b.get("size") or 1), float(b.get("x") or 0)))
-        lines = [f"🟢 {name} — крупные продажи по рынку: {len(inw) or 1} за 4 ч с {d0:%H:%M}–{d1:%H:%M} UTC",
+        lines = [f"🟢 {name} — крупные продажи по рынку: {len(inw) or 1} за {BUB_TG_WIN_H} ч с {d0:%H:%M}–{d1:%H:%M} UTC",
                  f"крупнейшая: {size.get(int(big.get('size') or 1), 'малый')}" + (f", оборот ×{big['x']} к среднему" if big.get("x") else "")
                  + f" · таких за неделю: {q.get('wn') or len(bubs) or 1}"]
         if i0 is not None and cl[i0] and p_now:

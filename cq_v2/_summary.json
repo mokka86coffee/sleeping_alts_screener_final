@@ -1555,9 +1555,65 @@
    "liq": 228,
    "ohlcv": 221,
    "trade": 364
+  },
+  "2z": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 364
+  },
+  "agt": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 332
+  },
+  "birb": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 257
+  },
+  "brev": {
+   "funding": 220,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 278
+  },
+  "clanker": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 364
+  },
+  "fluid": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 221,
+   "trade": 364
+  },
+  "fogo": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 275
+  },
+  "holo": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 364
   }
  },
- "at": "2026-10-17T13:36:35Z",
+ "at": "2026-10-17T18:23:37Z",
  "full_at": "2026-10-17T02:31:21Z",
  "data_at": "2026-10-16",
  "full_data_at": "2026-10-16"

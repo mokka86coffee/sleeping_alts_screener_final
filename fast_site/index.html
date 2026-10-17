@@ -3267,6 +3267,13 @@ findHover = function () {
   const FAV_GRP = ['НА ХОДУ', 'СКОРО', 'ШЕВЕЛЯТСЯ'],   /* 17.10 владелец: «будут на ходу, скоро, шевелятся» */ FAV_WARM = ['255,186,84', '255,120,150', '255,215,90', '255,150,70'];
   const favGrp = f => { const g = String(f.group || f.list || '').toLowerCase(); return /ход|идут|going/.test(g) ? 0 : /скоро|близ|soon/.test(g) ? 1 : /шевел|stir/.test(g) ? 2 : -1; };   // без списка (group) монета не рисуется: в избранном 52 монеты, списки задаёт владелец
   const favWarm = (now, seed) => { const c = (now + fr(seed, 13) * 30) / 30, i = Math.floor(c), u = (c - i) * 30 / 3, n = FAV_WARM.length, cur = FAV_WARM[((i % n) + n) % n], prv = FAV_WARM[(((i - 1) % n) + n) % n]; return u < 1 ? mix(prv, cur, ease(u)) : cur; };
+  // 17.10 владелец: «сделай чтобы скролить их можно было, а не ждать 10 сек» — колесо над свечой или свайп пальцем листает монеты её списка;
+  // после ручного шага автосмена ждёт 15 с (моё число)
+  const favStep = (g, d) => { const L = FAVL['slot' + g]; if (!L || !(L.len > 1)) return; L.idx = (L.idx + d + L.len) % L.len; L.t0 = performance.now() / 1000 + 5; };
+  favHit.addEventListener('wheel', e => { const b = e.target.closest && e.target.closest('i[data-g]'); if (!b) return; e.preventDefault(); e.stopPropagation(); const d = Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX; if (Math.abs(d) < 6) return; if (!favHit._wl || performance.now() - favHit._wl > 350) { favHit._wl = performance.now(); favStep(+b.dataset.g, d > 0 ? 1 : -1); } }, { passive: false });
+  let favTY = null, favTX = null; favHit.addEventListener('touchstart', e => { const t0 = e.touches[0]; favTY = t0.clientY; favTX = t0.clientX; }, { passive: true });
+  favHit.addEventListener('touchmove', e => { if (favTY == null) return; const b = e.target.closest && e.target.closest('i[data-g]'); if (!b) return; const t0 = e.touches[0], dy = t0.clientY - favTY, dx = t0.clientX - favTX; if (Math.abs(dy) > 28 || Math.abs(dx) > 40) { favStep(+b.dataset.g, (Math.abs(dy) > Math.abs(dx) ? dy : dx) < 0 ? 1 : -1); favTY = t0.clientY; favTX = t0.clientX; } }, { passive: true });
+  favHit.addEventListener('touchend', () => { favTY = favTX = null; }, { passive: true });
   window.drawFavs = function (t) {
     const F = ((window.STATE || {}).favorites || []).filter(f => f && f.sym), ST = 'candle';
     if (W < 1100 || !F.length) { favHit.innerHTML = ''; return; }
@@ -3279,7 +3286,8 @@ findHover = function () {
     const now = performance.now() / 1000, hits = [];
     slots.forEach(({ g, list }, j) => {
       let L = FAVL['slot' + g]; if (!L) L = FAVL['slot' + g] = { closed: true, born: now, seed: g * 137 + 11, item: null, grp: g };
-      const len = list.length; if (!(typeof selected !== 'undefined' && selected === L)) L.idx = len > 1 ? Math.floor((now + g * 3.3) / 10) % len : 0;   // открыта панель — монета в свече не меняется
+      const len = list.length; L.len = len; if (L.idx == null || L.idx >= len) { L.idx = 0; L.t0 = now - g * 3.3; }   // свечи сменяются не разом
+      if (len > 1 && !(typeof selected !== 'undefined' && selected === L) && now - L.t0 >= 10) { L.idx = (L.idx + 1) % len; L.t0 = now; }   // раз в 10 с следующая; открыта панель — стоит
       const f = list[Math.min(L.idx, len - 1)];
       if (L.sym !== f.sym) { const first = L.sym == null; L.sym = f.sym; L.key = 'fav|' + f.sym; L.name = f.sym.replace(/USDT$/, ''); if (!first) { L.swT = now; L.pxOld = L.pxS; L.pxS = favPx(f.now); L.pxV = +f.now; L.pxT = now; L.pxSw = true; } }
       const rgb = g === 0 ? favWarm(now, L.seed) : g === 1 ? '90,215,255' : '180,160,240';
@@ -3319,7 +3327,7 @@ findHover = function () {
       hits.push(L);
     });
     const keyH = hits.map(L => L.key + '@' + L.hit.x + ',' + L.hit.y + ',' + L.hit.h).join('|'); if (favHit.dataset.k !== keyH) { favHit.dataset.k = keyH; favHit.innerHTML = '';
-      hits.forEach(L => { const b = document.createElement('i'); b.title = L.name + ' · ' + FAV_GRP[L.grp].toLowerCase(); Object.assign(b.style, { left: L.hit.x + 'px', top: L.hit.y + 'px', width: L.hit.w + 'px', height: L.hit.h + 'px' }); b.addEventListener('click', e => { e.stopPropagation(); if (selected === L) closeCard(); else openCard(L); }); favHit.appendChild(b); }); }
+      hits.forEach(L => { const b = document.createElement('i'); b.dataset.g = L.grp; b.title = L.name + ' · ' + FAV_GRP[L.grp].toLowerCase() + (L.len > 1 ? ' · колесо или свайп — следующая' : ''); Object.assign(b.style, { left: L.hit.x + 'px', top: L.hit.y + 'px', width: L.hit.w + 'px', height: L.hit.h + 'px' }); b.addEventListener('click', e => { e.stopPropagation(); if (selected === L) closeCard(); else openCard(L); }); favHit.appendChild(b); }); }
   };
   // граненый кристалл-шестигранник: рёбра рисуются по очереди, потом проявляются грани и ядро
   function gem(x, y, r, rot, ea0, c, A, lit, lw1 = 1.5) {
