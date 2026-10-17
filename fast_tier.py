@@ -2845,9 +2845,10 @@ def wake_step(state: dict, write: bool) -> list[str]:
                 continue                                                  # всплеск без интереса и без шортов в топливе — не вход (R39)
             if sd == -1 and not _flip and not (oibar is not None and oibar <= FAST3_CLIMAX_OI):
                 continue
-            if sym in _own_mm():                                          # 27.09: свой ММ — не входим
-                msgs.append(f"{sym[:-4]} пропущен: свой ММ (список own_mm)"); continue
-            if sd == -1:                                                  # Б: шорт — после вершины пампа
+            if sym in _own_mm_manual():                                   # 17.10 владелец («я специально делал в скринере стратегию по типу AKE», «Q AGT туда должны
+                msgs.append(f"{sym[:-4]} пропущен: свой ММ (ручной список владельца)"); continue   #   попасть», «сделай»): в книге «пробуждение» счётный «свой ММ» (проколы >20 %)
+            if sd == -1:                                                  #   не применяется — он выбрасывал ровно те монеты, для которых книга заведена (Q, AGT 16–17.10);
+                                                                          #   остаётся только ручной список OWN_MM_MANUAL. Б: шорт — после вершины пампа
                 ok, sw, _ = ses_gate(now, t_bar, sd)
                 if not ok:
                     msgs.append(f"{sym[:-4]} всплеск пропущен: {sw}"); continue
@@ -3066,6 +3067,15 @@ def queue_step(state: dict, write: bool, log_src=None) -> list[str]:
 
 
 _OWN = {"t": 0, "v": set()}
+
+
+def _own_mm_manual() -> set:
+    """только ручной список владельца OWN_MM_MANUAL (17.10: для книги «пробуждение» счётный «свой ММ» не применяется)"""
+    try:
+        from core_config import OWN_MM_MANUAL as _man
+        return set(_man)
+    except ImportError:
+        return set()
 
 
 def _own_mm() -> set:

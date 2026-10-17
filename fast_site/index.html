@@ -3262,7 +3262,7 @@ findHover = function () {
     const R = riverGeom(), top = 30, bot = R.cy - R.amp - R.hh * 1.4 - 14, avail = bot - top, ch = Math.max(3.9, avail / 104), cw = ch * .74, nr = Math.floor(avail / ch), nc = Math.round(nr * ch * GIRL_W / GIRL_H / cw);
     const faceR = W / 2 + nc * cw / 2, tb = document.getElementById('ribTot'), lim = tb && tb.getBoundingClientRect().width ? tb.getBoundingClientRect().left - 14 : W - 300;
     const x0 = Math.round(faceR + 26), wmax = lim - x0; if (wmax < 110) { favHit.innerHTML = ''; return; }
-    const H1 = ST === 'candle' ? (F.length === 1 ? Math.min(100, avail - 40) : 70) : (F.length === 1 ? Math.min(200, avail - 40) : 110), n = Math.max(1, Math.min(F.length, Math.floor((avail - 20) / (H1 + 10)))), y00 = Math.round(top + Math.max(6, (avail - n * (H1 + 10)) * .45));
+    const H1 = ST === 'candle' ? (F.length * 110 <= avail - 20 ? Math.min(100, avail - 40) : 70) :   /* 17.10 владелец: «попробуй 2 нарисовать сразу» — пока помещаются, свечи полного размера, столбиком */ (F.length === 1 ? Math.min(200, avail - 40) : 110), n = Math.max(1, Math.min(F.length, Math.floor((avail - 20) / (H1 + 10)))), y00 = Math.round(top + Math.max(6, (avail - n * (H1 + 10)) * .45));
     const now = performance.now() / 1000, hits = [];
     F.slice(0, n).forEach((f, j) => {
       let L = FAVL[f.sym]; if (!L) { let h = 0; for (const c of f.sym) h = (h * 31 + c.charCodeAt(0)) >>> 0; L = FAVL[f.sym] = { key: 'fav|' + f.sym, name: f.sym.replace(/USDT$/, ''), closed: true, born: now, seed: (h % 997) + 1, item: null }; }
@@ -3277,7 +3277,7 @@ findHover = function () {
       // текст — мелко: подпись вида, имя, цена; во сколько раз от исторического дна
       const ta = clamp((ea - .8) / .5); if (ta > 0) { const yb = y0 + H1 / 2 - 26;
         tctx.save(); tctx.globalAlpha = ta; tctx.textAlign = 'left'; tctx.textBaseline = 'alphabetic';
-        tctx.font = `500 5.5px ${FONT}`; tctx.letterSpacing = '2.5px'; tctx.fillStyle = `rgba(${rgb},.75)`; tctx.fillText('ИЗБРАННОЕ', tx, yb + 6);
+        tctx.font = `500 5.5px ${FONT}`; tctx.letterSpacing = '2.5px'; tctx.fillStyle = `rgba(${rgb},.75)`; if (j === 0) tctx.fillText('ИЗБРАННОЕ', tx, yb + 6);   // подпись вида — один раз, над первой монетой
         { // 17.10 владелец: «чтобы название было какое-то мерцающее» — буквы дышат светом вразнобой, раз в ~6 с по имени проходит тёплый блик
           tctx.font = `600 11px Futura, "Avenir Next", sans-serif`; tctx.letterSpacing = '0px'; const chs = [...L.name], sweep = ((now * .17 + L.seed * .13) % 1) * (chs.length + 6) - 2; let gx = tx;
           chs.forEach((c, i) => { const fl = .8 + .2 * Math.sin(now * 5.3 + i * 1.9 + L.seed) * Math.sin(now * 2.1 + i * .7), sw = Math.max(0, 1 - Math.abs(i - sweep) / 1.3);
