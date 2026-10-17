@@ -14671,3 +14671,13 @@
 {"t": 1792194980901, "sym": "FILUSDT", "side": "short", "usd": 3533.31, "px": 1.1593, "src": "okx"}
 {"t": 1792195024331, "sym": "SUSDT", "side": "short", "usd": 282.44, "px": 0.05549, "src": "okx"}
 {"t": 1792195084945, "sym": "SUSDT", "side": "long", "usd": 14.66, "px": 0.05411, "src": "bybit"}
+{"t": 1792195127839, "sym": "WLDUSDT", "side": "short", "usd": 166.76, "px": 0.5163, "src": "okx"}
+{"t": 1792195134904, "sym": "STRKUSDT", "side": "short", "usd": 409.55, "px": 0.0739, "src": "okx"}
+{"t": 1792195141515, "sym": "STRKUSDT", "side": "short", "usd": 155.51, "px": 0.07409, "src": "okx"}
+{"t": 1792195142172, "sym": "TIAUSDT", "side": "short", "usd": 18.58, "px": 0.6881, "src": "okx"}
+{"t": 1792195142172, "sym": "BASEDUSDT", "side": "short", "usd": 7.29, "px": 0.05605, "src": "okx"}
+{"t": 1792195142172, "sym": "STRKUSDT", "side": "short", "usd": 14.23, "px": 0.0741, "src": "okx"}
+{"t": 1792195142172, "sym": "ZILUSDT", "side": "long", "usd": 10.26, "px": 0.002503, "src": "okx"}
+{"t": 1792195142172, "sym": "WALUSDT", "side": "long", "usd": 4.88, "px": 0.04436, "src": "okx"}
+{"t": 1792195142172, "sym": "ETHUSDT", "side": "long", "usd": 12.11, "px": 2422.62, "src": "okx"}
+{"t": 1792195146114, "sym": "STRKUSDT", "side": "short", "usd": 394.02, "px": 0.07412, "src": "okx"}
