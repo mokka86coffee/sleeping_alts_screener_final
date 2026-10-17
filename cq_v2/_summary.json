@@ -1667,9 +1667,51 @@
    "liq": 228,
    "ohlcv": 221,
    "trade": 364
+  },
+  "toshi": {
+   "funding": 220,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 364
+  },
+  "towns": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 364
+  },
+  "turtle": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 358
+  },
+  "wct": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 364
+  },
+  "wlfi": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 364
+  },
+  "yb": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 358
   }
  },
- "at": "2026-10-17T18:51:08Z",
+ "at": "2026-10-17T19:22:23Z",
  "full_at": "2026-10-17T02:31:21Z",
  "data_at": "2026-10-16",
  "full_data_at": "2026-10-16"
