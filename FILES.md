@@ -3896,3 +3896,12 @@ LAB и RIVER попали ОДНОВРЕМЕННО в «откатились» �
 - 17.10 00:05 UTC — «подключи bingx снова»: BINGX_BOOKS = None (все книги на демо BingX, как до 10.10), MANUAL_BY_USER_BINGX_ON_SITE = True; bot_test, перезапуск бота между циклами.
 - 17.10 02:35 UTC — `config/favorites.json`: избранные монеты владельца («сделай отдельный json типа избранные и занеси туда agt»), первая запись AGTUSDT; бот и страница список пока не читают.
 - 17.10 02:50 UTC — `fast_state.favorites` → поле STATE.favorites в output/fast_state.json (sym, added, px_added, note, now, now_t, closes, times; ряд — cq_v2/intraday или получасовки Binance с момента добавления); бот список не читает.
+- 17.10 20:40 UTC — `claude/research/base_watch.md`: список перпов Binance в плоской базе по типу AKE/Q/AGT (владелец: «все монеты просмотри на binance и всех скинь сюда списком», «все что ходили уже не нужны»).
+- 17.10 20:55 UTC — base_watch.md: владелец снял FIGHT, MIRA, C, LINEA, NXPC («мимо, остальные ок»); осталось 56.
+- 17.10 21:00 UTC — config/favorites.json: +56 монет из base_watch.md, atl = минимальное дневное закрытие после листинга (TV).
+- 17.10 21:00 UTC — config/favorites.json: +56 монет из base_watch.md, atl = минимальное дневное закрытие после листинга (TV).
+- 17.10 21:20 UTC — признаки избранных: `fast_state._fav_signs` (oi7/oi30 — интерес в монетах, fund3, vol_x, px7, stage: памп был / шевелится / копит / лежит; кэш output/favorites_signs.json 6 ч; мерки Claude), на странице под «ОТ ДНА» строка стадии с интересом за 30 дн и меткой фандинга.
+- 17.10 21:30 UTC — из избранного и base_watch.md убраны C, STBL, MMT, FIGHT, BMT, LINEA, PTB, NIGHT, AVNT (владелец).
+- 17.10 21:40 UTC — избранное и base_watch.md сведены к 26 монетам первого списка минус снятые владельцем; AGT и Q оставлены как его ранние записи.
+- 17.10 21:50 UTC — STATE.favorites: поле group (из config/favorites.json, иначе по стадии: памп был → на ходу, копит → скоро, шевелится → шевелятся; лежит — без группы) для трёх свечей избранного на сайте.
+- 17.10 22:05 UTC — `fast_state.favorites_tg`: избранные в Телеграм — «скоро» раз в 3 ч, «шевелятся» раз в 12 ч, «на ходу» и без группы не шлются; память output/favorites_tg.json.

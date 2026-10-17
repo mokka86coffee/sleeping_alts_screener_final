@@ -3007,7 +3007,7 @@ findHover = function () {
       return { g: { title: kind === 'week' ? 'НА НЕДЕЛЕ' : 'ОЧЕРЕДЬ' }, d: { ring: 'closed', now, candles: [], status }, it: { sym: it.sym }, closes, n, kind: 'closed', dir: 0, marks, ei: null, xi: null };
     }
     if (kind === 'fav') { const it = l.item, lo = +it.low || 0, nw = +it.now || lo, kx = lo && nw ? nw / lo : (it.rise != null ? 1 + it.rise / 100 : 0), xs = kx > 0 ? '×' + kx.toFixed(1) : '—', dd = it.low_t ? new Date(typeof it.low_t === 'number' ? it.low_t * 1000 : it.low_t) : null, ds = dd && !isNaN(dd) ? String(dd.getUTCDate()).padStart(2, '0') + '.' + String(dd.getUTCMonth() + 1).padStart(2, '0') + '.' + dd.getUTCFullYear() : '';
-      return { g: { title: 'ИЗБРАННОЕ' }, d: { ring: 'closed', now: nw, candles: [], status: `от исторического дна ${xs}` + (ds ? ` · дно ${ds}` : '') }, it: { sym: it.sym }, closes: [lo, nw], n: 2, kind: 'closed', dir: 0, marks: [{ label: 'ДНО', price: lo, rgb: l.c1 || '110,255,150', idx: 0 }, { label: 'СЕЙЧАС', price: nw, rgb: '255,255,255', idx: null, now: true }], ei: null, xi: null }; }
+      return { g: { title: 'ИЗБРАННОЕ' + (l.grp != null ? ' · ' + ['НА ХОДУ', 'СКОРО', 'ШЕВЕЛЯТСЯ'][l.grp] : '') }, d: { ring: 'closed', now: nw, candles: [], status: `от исторического дна ${xs}` + (ds ? ` · дно ${ds}` : '') + (it.stage ? ` · ${it.stage}` : '') + (it.oi30 != null ? ` · интерес за 30 дн ${it.oi30 >= 0 ? '+' : ''}${Math.round(it.oi30)}%` : '') + (it.fund3 != null ? ` · фандинг ${it.fund3}%` : '') + (it.vol_x != null ? ` · оборот ×${it.vol_x}` : '') }, it: { sym: it.sym }, closes: [lo, nw], n: 2, kind: 'closed', dir: 0, marks: [{ label: 'ДНО', price: lo, rgb: l.c1 || '110,255,150', idx: 0 }, { label: 'СЕЙЧАС', price: nw, rgb: '255,255,255', idx: null, now: true }], ei: null, xi: null }; }
     if (kind === 'fc' && !l.fc) l = { fc: l.item.fc };   /* прогноз на реке — та же панель, что у записи вверху */
     if (!l.fc) return _pd(l);
     const f = l.fc, lp = livePx(f), c = lp != null && (f.closes || []).length ? f.closes.concat([lp]) : (f.closes || []), n = c.length, ch = f.changes || [], last = ch[ch.length - 1], prev = ch[ch.length - 2];
@@ -3217,77 +3217,93 @@ findHover = function () {
   const glowLine = (x1, y1, x2, y2, rgb, a, w) => { ctx.strokeStyle = `rgba(${rgb},${.18 * a})`; ctx.lineWidth = w * 4; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.strokeStyle = `rgba(${rgb},${a})`; ctx.lineWidth = w; ctx.stroke(); ctx.strokeStyle = `rgba(255,255,255,${.6 * a})`; ctx.lineWidth = w * .4; ctx.stroke(); };
   const flash = (x, y, lf, rgb, R) => { if (lf <= 0 || lf >= 1) return; const fl = Math.pow(Math.sin(Math.PI * lf), 2); ctx.strokeStyle = `rgba(${rgb},${.8 * (1 - lf)})`; ctx.lineWidth = 1.3 * (1 - lf) + .3; ctx.beginPath(); ctx.arc(x, y, 4 + ease(lf) * R, 0, TAU); ctx.stroke(); const g = ctx.createRadialGradient(x, y, 0, x, y, R * 1.5); g.addColorStop(0, `rgba(255,255,255,${.85 * fl})`); g.addColorStop(.3, `rgba(${rgb},${.4 * fl})`); g.addColorStop(1, `rgba(${rgb},0)`); ctx.fillStyle = g; ctx.fillRect(x - R * 1.5, y - R * 1.5, R * 3, R * 3); ctx.fillStyle = `rgba(255,255,255,${.8 * fl})`; ctx.fillRect(x - R * fl, y - .5, R * 2 * fl, 1); ctx.fillRect(x - .5, y - R * fl, 1, R * 2 * fl); };
   // свеча: фитиль, тело с белым ядром, бледная широкая обводка вместо свечения
-  function favCandle(cx, yTop, yBodyT, yBodyB, yBot, bw, rgb, a, grow) {
+  function favCandle(cx, yTop, yBodyT, yBodyB, yBot, bw, rgb, a, grow, fillK = 1) {
     const h = yBot - yTop, wy = yBot - h * clamp(grow / .45), by = yBodyB - (yBodyB - yBodyT) * clamp((grow - .3) / .5);
     if (grow > 0) glowLine(cx, yBot, cx, Math.max(yTop, wy), rgb, .85 * a, 1.2);
     if (grow > .3 && by < yBodyB - .5) { const g = ctx.createLinearGradient(cx - bw / 2, 0, cx + bw / 2, 0); g.addColorStop(0, `rgba(${rgb},${.55 * a})`); g.addColorStop(.5, `rgba(235,255,240,${.95 * a})`); g.addColorStop(1, `rgba(${rgb},${.55 * a})`);
       for (let i = 6; i >= 1; i--) { const e = i * 2.2; ctx.fillStyle = `rgba(${rgb},${.05 * a})`; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(cx - bw / 2 - e, by - e, bw + e * 2, yBodyB - by + e * 2, e); else ctx.rect(cx - bw / 2 - e, by - e, bw + e * 2, yBodyB - by + e * 2); ctx.fill(); }
-      ctx.fillStyle = g; ctx.fillRect(cx - bw / 2, by, bw, yBodyB - by); ctx.strokeStyle = `rgba(220,255,230,${.8 * a})`; ctx.lineWidth = .8; ctx.strokeRect(cx - bw / 2 + .4, by + .4, bw - .8, yBodyB - by - .8); }
+      const fy = yBodyB - (yBodyB - by) * fillK; if (fillK > 0) { ctx.fillStyle = g; ctx.fillRect(cx - bw / 2, fy, bw, yBodyB - fy); }
+      if (fillK < 1) { const ig = ctx.createLinearGradient(0, by, 0, fy); ig.addColorStop(0, `rgba(${rgb},${.05 * a})`); ig.addColorStop(1, `rgba(${rgb},${.22 * a})`); ctx.fillStyle = ig; ctx.fillRect(cx - bw / 2, by, bw, fy - by); if (fillK > 0) { ctx.fillStyle = `rgba(255,255,255,${.8 * a})`; ctx.fillRect(cx - bw / 2, fy - .5, bw, 1); } }   /* пустая часть тела и граница налива */ ctx.strokeStyle = `rgba(220,255,230,${.8 * a})`; ctx.lineWidth = .8; ctx.strokeRect(cx - bw / 2 + .4, by + .4, bw - .8, yBodyB - by - .8); }
     return by;
   }
   const FAV_DRAW = {
     // ОДНА СВЕЧА: высокая зелёная свеча над «землёй», с неё капают искры, внизу отражение и блики; за ней — тусклые свечи рынка
-    candle(L, x0, y0, H, now, ea, rgb) {
-      const k = L.seed, cx = x0 + 12, gy = y0 + H - 5, grow = clamp(ea / 1.1);
-      for (let i = 0; i < 7; i++) { const bx = x0 - 4 + fr(k, i) * 32, bh = 4 + fr(k, i + 9) * 13, byy = y0 + H * (.15 + fr(k, i + 3) * .45), up = fr(k, i + 5) > .45, c = up ? '110,255,150' : '255,90,110', al = .1 + .06 * Math.sin(now * .6 + i); if (Math.abs(bx - cx) < 7) continue; ctx.fillStyle = `rgba(${c},${al})`; ctx.fillRect(bx, byy, 2, bh); ctx.fillRect(bx + .5, byy - 2, 1, bh + 4); }   // тусклые свечи фона
-      const hg = ctx.createRadialGradient(cx, y0 + H * .45, 0, cx, y0 + H * .45, H * .55); hg.addColorStop(0, `rgba(${rgb},${.22 * grow})`); hg.addColorStop(1, `rgba(${rgb},0)`); ctx.fillStyle = hg; ctx.fillRect(cx - H * .55, y0 - 10, H * 1.1, H + 20);
-      const yT = y0 + H * .1, yBT = y0 + H * .3, yBB = y0 + H * .66, by = favCandle(cx, yT, yBT, yBB, gy, 7, rgb, 1, grow);
+    candle(L, x0, y0, H, now, ea, rgb, M = 0) {   // M: 0 — идут, 1 — близко, 2 — могут
+      const k = L.seed, cx = x0 + 12, gy = y0 + H - 5, grow = clamp(ea / 1.1), A = M === 2 ? .55 + .12 * Math.sin(now * .8 + k) : M === 1 ? .9 : 1, beat = M === 1 ? 1 + .7 * Math.pow(Math.max(0, Math.sin(now * 2.6 + k)), 8) : 1;
+      for (let i = 0; i < 7; i++) { const bx = x0 - 4 + fr(k, i) * 32, bh = 4 + fr(k, i + 9) * 13, byy = y0 + H * (.15 + fr(k, i + 3) * .45), up = fr(k, i + 5) > .45, c = up ? '110,255,150' : '255,90,110', al = .1 + .06 * Math.sin(now * .6 + i); if (Math.abs(bx - cx) < 7) continue; ctx.fillStyle = `rgba(${c},${al * A})`; ctx.fillRect(bx, byy, 2, bh); ctx.fillRect(bx + .5, byy - 2, 1, bh + 4); }   // тусклые свечи фона
+      const hg = ctx.createRadialGradient(cx, y0 + H * .45, 0, cx, y0 + H * .45, H * .55); hg.addColorStop(0, `rgba(${rgb},${.22 * grow * A * beat * (M === 2 ? .6 : 1)})`); hg.addColorStop(1, `rgba(${rgb},0)`); ctx.fillStyle = hg; ctx.fillRect(cx - H * .55, y0 - 10, H * 1.1, H + 20);
+      const yT = y0 + H * .1, yBT = y0 + H * .3, yBB = y0 + H * .66, by = favCandle(cx, yT, yBT, yBB, gy, 7, rgb, A, grow, M === 0 ? 1 : M === 1 ? .55 + .06 * Math.sin(now * 2.2 + k) : 0);
       // дым с фитиля: клубы поднимаются, расплываются и качаются; у фитиля тёплые, выше — серо-сиреневые
-      const sa = clamp((ea - .9) / .8); if (sa > 0) for (let i = 0; i < 14; i++) { const q = (now * (.07 + fr(k, i + 3) * .03) + i / 14) % 1, sx = cx + Math.sin(q * 5.5 + i * 1.3 + now * .4) * (2 + q * 9) + q * q * 6, sy = yT - q * (H * .55 + 22), r = 2 + q * 13, a = .17 * Math.sin(Math.PI * Math.min(1, q * 1.15)) * sa, c = q < .25 ? rgb : '185,170,215';
+      const sa = clamp((ea - .9) / .8) * (M === 2 ? 0 : 1), NS = M === 1 ? 7 : 14; if (sa > 0) for (let i = 0; i < NS; i++) { const q = (now * (.07 + fr(k, i + 3) * .03) + i / NS) % 1, sx = cx + Math.sin(q * 5.5 + i * 1.3 + now * .4) * (2 + q * 9) + q * q * 6, sy = yT - q * (H * .55 + 22), r = 2 + q * 13, a = (M === 1 ? .1 : .17) * Math.sin(Math.PI * Math.min(1, q * 1.15)) * sa, c = q < .25 ? rgb : '185,170,215';
         const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, r); sg.addColorStop(0, `rgba(${c},${a})`); sg.addColorStop(1, `rgba(${c},0)`); ctx.fillStyle = sg; ctx.fillRect(sx - r, sy - r, r * 2, r * 2); }
       if (sa > 0) { const wl = ctx.createLinearGradient(0, yT - 14, 0, yT); wl.addColorStop(0, `rgba(${rgb},0)`); wl.addColorStop(1, `rgba(255,235,200,${.7 * sa})`); ctx.strokeStyle = wl; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, yT); for (let u = 1; u <= 8; u++) ctx.lineTo(cx + Math.sin(now * 1.7 + u * .8) * u * .3, yT - u * 1.7); ctx.stroke();   // тонкая струйка над фитилём
         const fg = ctx.createRadialGradient(cx, yT, 0, cx, yT, 5); fg.addColorStop(0, `rgba(255,245,215,${.9 * sa * (.8 + .2 * Math.sin(now * 7))})`); fg.addColorStop(1, `rgba(${rgb},0)`); ctx.fillStyle = fg; ctx.fillRect(cx - 5, yT - 5, 10, 10); }   // тлеющий кончик фитиля
       // искры поднимаются от тела свечи и гаснут
-      if (grow >= 1) for (let i = 0; i < 9; i++) { const q = (now * (.18 + fr(k, i) * .2) + fr(k, i + 20)) % 1, px = cx + (fr(k, i + 40) - .5) * 8 + Math.sin(now * 1.3 + i * 2) * 2.5 * q, py = yBB - (yBB - yT + 12) * q; ctx.fillStyle = `rgba(255,${200 + 40 * (1 - q) | 0},140,${.85 * (1 - q) * (.6 + .4 * Math.sin(now * 9 + i))})`; ctx.fillRect(px - .7, py - .7, 1.4, 1.4); }
+      // «могут»: вместо дыма и искр — три медленные искорки-тени вокруг пустой свечи
+      if (M === 2 && grow >= 1) for (let i = 0; i < 3; i++) { const a2 = now * (.4 + i * .13) + i * 2.1, px = cx + Math.cos(a2) * (8 + i * 2), py = (yBT + yBB) / 2 + Math.sin(a2 * 1.3) * (H * .25); ctx.fillStyle = `rgba(${rgb},${.6 * A * (.5 + .5 * Math.sin(now * 3 + i))})`; ctx.fillRect(px - .7, py - .7, 1.4, 1.4); }
+      if (M === 2 && grow >= 1) { const fg2 = ctx.createRadialGradient(cx, yT, 0, cx, yT, 4); fg2.addColorStop(0, `rgba(${rgb},${.6 * A})`); fg2.addColorStop(1, `rgba(${rgb},0)`); ctx.fillStyle = fg2; ctx.fillRect(cx - 4, yT - 4, 8, 8); }   // фитиль еле тлеет
+      if (grow >= 1 && M < 2) for (let i = 0; i < (M === 1 ? 4 : 9); i++) { const q = (now * (.18 + fr(k, i) * .2) + fr(k, i + 20)) % 1, px = cx + (fr(k, i + 40) - .5) * 8 + Math.sin(now * 1.3 + i * 2) * 2.5 * q, py = yBB - (yBB - yT + 12) * q; ctx.fillStyle = `rgba(255,${200 + 40 * (1 - q) | 0},140,${.85 * (1 - q) * (.6 + .4 * Math.sin(now * 9 + i))})`; ctx.fillRect(px - .7, py - .7, 1.4, 1.4); }
       // земля: блик, расходящееся кольцо, отражение вниз
-      const ga = clamp((ea - .2) / .5); ctx.strokeStyle = `rgba(${rgb},${.6 * ga})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(cx, gy, 5, 1.4, 0, 0, TAU); ctx.stroke();
+      const ga = clamp((ea - .2) / .5) * A; ctx.strokeStyle = `rgba(${rgb},${.6 * ga})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(cx, gy, 5, 1.4, 0, 0, TAU); ctx.stroke();
       const q = (now * .4) % 1; ctx.strokeStyle = `rgba(${rgb},${.4 * (1 - q) * ga})`; ctx.beginPath(); ctx.ellipse(cx, gy, 5 + q * 12, 1.4 + q * 3, 0, 0, TAU); ctx.stroke();
       const rg = ctx.createLinearGradient(0, gy, 0, gy + 16); rg.addColorStop(0, `rgba(${rgb},${.5 * ga})`); rg.addColorStop(1, `rgba(${rgb},0)`); ctx.fillStyle = rg; ctx.fillRect(cx - 2, gy, 4, 16);
       for (let i = 0; i < 16; i++) { const sx = cx + (fr(k, i + 60) - .5) * 40, sy = gy + 1 + fr(k, i + 80) * 7; ctx.fillStyle = `rgba(${rgb},${(.15 + .25 * fr(k, i + 99)) * ga * (.6 + .4 * Math.sin(now * 2 + i))})`; ctx.fillRect(sx, sy, 1.2, 1.2); }
       // 17.10 владелец: «добавь ещё какие-нибудь искры раз в 10 секунд» — раз в 10 с от верха тела свечи разлетается сноп искр (как бенгальский огонь): летят вверх и в стороны, падают дугой и гаснут
-      if (ea > 2) { const cyc = (now + fr(k, 7) * 10) / 10, ci = Math.floor(cyc), u = (cyc - ci) * 10 / 1.6; if (u < 1) {
+      if (ea > 2 && M === 0) { const cyc = (now + fr(k, 7) * 10) / 10, ci = Math.floor(cyc), u = (cyc - ci) * 10 / 1.6; if (u < 1) {   // сноп — только у «идут»
         const ox = cx, oy = yBT, fl = Math.pow(1 - u, 2); const g0 = ctx.createRadialGradient(ox, oy, 0, ox, oy, 16); g0.addColorStop(0, `rgba(255,250,230,${.9 * fl})`); g0.addColorStop(.4, `rgba(${rgb},${.4 * fl})`); g0.addColorStop(1, `rgba(${rgb},0)`); ctx.fillStyle = g0; ctx.fillRect(ox - 16, oy - 16, 32, 32);
         for (let i = 0; i < 24; i++) { const a = -Math.PI / 2 + (fr(ci, i) - .5) * 2.6, v = 20 + fr(ci, i + 30) * 26, tt = u * (.7 + fr(ci, i + 60) * .5), px = ox + Math.cos(a) * v * tt, py = oy + Math.sin(a) * v * tt + 34 * tt * tt, al = clamp(1 - tt / 1.05);
           if (al <= 0) continue; const qx = ox + Math.cos(a) * v * Math.max(0, tt - .08), qy = oy + Math.sin(a) * v * Math.max(0, tt - .08) + 34 * Math.max(0, tt - .08) ** 2; ctx.strokeStyle = `rgba(255,${210 + 40 * al | 0},150,${.85 * al})`; ctx.lineWidth = .9; ctx.beginPath(); ctx.moveTo(qx, qy); ctx.lineTo(px, py); ctx.stroke();
           if (fr(ci, i + 90) > .7) { ctx.fillStyle = `rgba(255,255,240,${al})`; ctx.fillRect(px - .8, py - .8, 1.6, 1.6); } } } }
       if (!L.sfx && grow >= .8) { L.sfx = true; if (typeof tone === 'function' && typeof AC !== 'undefined' && AC) tone([440, 659, 880], .14, .05, 'sine', .07); }
       flash(cx, yBT, clamp((ea - .85) / .5), rgb, 15);
+      if (L.swT != null) flash(cx, yBT, clamp((now - L.swT) / .7), rgb, 15);   // смена монеты в свече — вспышка
       return { ax: cx, ay: (yBT + yBB) / 2 };
     },
   };
+  // 17.10 владелец: «будет 3 списка: те что идут (сейчас 2 на экране), те что близко и те что в принципе могут; сделай 3 свечи со сменой через 10 секунд
+  // и разнообразь, чтобы отличать» — свеча на список сверху вниз; в свече монеты своего списка по кругу раз в 10 с (открыта панель — смена стоит);
+  // список монеты — поле group: «на ходу» / «скоро» / «шевелятся»; без поля монета не рисуется. Вид: на ходу — горит, тёплые цвета по кругу, дым и сноп искр;
+  // скоро — ледяная, тело налито наполовину и дышит, свечение пульсирует; шевелятся — сиреневая тень: пустой контур, без дыма (цвета — мои)
+  const FAV_GRP = ['НА ХОДУ', 'СКОРО', 'ШЕВЕЛЯТСЯ'],   /* 17.10 владелец: «будут на ходу, скоро, шевелятся» */ FAV_WARM = ['255,186,84', '255,120,150', '255,215,90', '255,150,70'];
+  const favGrp = f => { const g = String(f.group || f.list || '').toLowerCase(); return /ход|идут|going/.test(g) ? 0 : /скоро|близ|soon/.test(g) ? 1 : /шевел|stir/.test(g) ? 2 : -1; };   // без списка (group) монета не рисуется: в избранном 52 монеты, списки задаёт владелец
+  const favWarm = (now, seed) => { const c = (now + fr(seed, 13) * 30) / 30, i = Math.floor(c), u = (c - i) * 30 / 3, n = FAV_WARM.length, cur = FAV_WARM[((i % n) + n) % n], prv = FAV_WARM[(((i - 1) % n) + n) % n]; return u < 1 ? mix(prv, cur, ease(u)) : cur; };
   window.drawFavs = function (t) {
-    const F = ((window.STATE || {}).favorites || []).filter(f => f && f.sym), ST = 'candle', rgb = FAV_RGB;
+    const F = ((window.STATE || {}).favorites || []).filter(f => f && f.sym), ST = 'candle';
     if (W < 1100 || !F.length) { favHit.innerHTML = ''; return; }
     // место: справа от лица девушки, до блока итогов справа
     const R = riverGeom(), top = 30, bot = R.cy - R.amp - R.hh * 1.4 - 14, avail = bot - top, ch = Math.max(3.9, avail / 104), cw = ch * .74, nr = Math.floor(avail / ch), nc = Math.round(nr * ch * GIRL_W / GIRL_H / cw);
     const faceR = W / 2 + nc * cw / 2, tb = document.getElementById('ribTot'), lim = tb && tb.getBoundingClientRect().width ? tb.getBoundingClientRect().left - 14 : W - 300;
     const x0 = Math.round(faceR + 26), wmax = lim - x0; if (wmax < 110) { favHit.innerHTML = ''; return; }
-    const H1 = ST === 'candle' ? (F.length * 110 <= avail - 20 ? Math.min(100, avail - 40) : 70) :   /* 17.10 владелец: «попробуй 2 нарисовать сразу» — пока помещаются, свечи полного размера, столбиком */ (F.length === 1 ? Math.min(200, avail - 40) : 110), n = Math.max(1, Math.min(F.length, Math.floor((avail - 20) / (H1 + 10)))), y00 = Math.round(top + Math.max(6, (avail - n * (H1 + 10)) * .45));
+    const G = [[], [], []]; F.forEach(f => { const g = favGrp(f); if (g >= 0) G[g].push(f); }); if (!G.some(q => q.length)) { favHit.innerHTML = ''; return; } const slots = G.map((list, g) => ({ g, list })).filter(q => q.list.length);
+    const n = slots.length, H1 = Math.min(100, Math.max(60, Math.floor((avail - 20) / n) - 10)), y00 = Math.round(top + Math.max(6, (avail - n * (H1 + 10)) * .45));
     const now = performance.now() / 1000, hits = [];
-    F.slice(0, n).forEach((f, j) => {
-      let L = FAVL[f.sym]; if (!L) { let h = 0; for (const c of f.sym) h = (h * 31 + c.charCodeAt(0)) >>> 0; L = FAVL[f.sym] = { key: 'fav|' + f.sym, name: f.sym.replace(/USDT$/, ''), closed: true, born: now, seed: (h % 997) + 1, item: null }; }
-      const rgb = favCol(now, L.seed);   // свой цвет на этот миг
-      L.c1 = L.c2 = rgb; L.item = { kind: 'fav', sym: f.sym, now: f.now, low: f.low ?? f.atl, low_t: f.low_t ?? (f.atl_at && !isNaN(Date.parse(f.atl_at)) ? f.atl_at : null), rise: f.rise ?? f.from_atl_pct };   // в данных дно — atl, рост от дна — from_atl_pct (fast_state)
-      const ea = (now - L.born) / 1.6, y0 = y00 + j * (H1 + 10), tx = x0 + (ST === 'candle' ? 32 : 52);
+    slots.forEach(({ g, list }, j) => {
+      let L = FAVL['slot' + g]; if (!L) L = FAVL['slot' + g] = { closed: true, born: now, seed: g * 137 + 11, item: null, grp: g };
+      const len = list.length; if (!(typeof selected !== 'undefined' && selected === L)) L.idx = len > 1 ? Math.floor((now + g * 3.3) / 10) % len : 0;   // открыта панель — монета в свече не меняется
+      const f = list[Math.min(L.idx, len - 1)];
+      if (L.sym !== f.sym) { const first = L.sym == null; L.sym = f.sym; L.key = 'fav|' + f.sym; L.name = f.sym.replace(/USDT$/, ''); if (!first) { L.swT = now; L.pxOld = L.pxS; L.pxS = favPx(f.now); L.pxV = +f.now; L.pxT = now; L.pxSw = true; } }
+      const rgb = g === 0 ? favWarm(now, L.seed) : g === 1 ? '90,215,255' : '180,160,240';
+      L.c1 = L.c2 = rgb; L.item = { kind: 'fav', sym: f.sym, now: f.now, low: f.low ?? f.atl, low_t: f.low_t ?? (f.atl_at && !isNaN(Date.parse(f.atl_at)) ? f.atl_at : null), rise: f.rise ?? f.from_atl_pct, stage: f.stage, oi30: f.oi30, fund3: f.fund3, vol_x: f.vol_x };   // в данных дно — atl, рост от дна — from_atl_pct (fast_state); стадия и интерес — от другого чата
+      const ea = (now - L.born) / 1.6, y0 = y00 + j * (H1 + 10), tx = x0 + 32;
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       // 17.10 владелец: «пусть она ещё раз в 20 секунд немного прозрачной становится на 2 сек» — плавно до половины яркости и обратно (глубина — моя)
       if (ea > 2) { const c20 = (now + fr(L.seed, 11) * 20) / 20, u = (c20 - Math.floor(c20)) * 20 / 2; if (u < 1) ctx.globalAlpha *= 1 - .5 * Math.sin(Math.PI * u); }
-      const an = FAV_DRAW[ST](L, x0, y0, H1, now, ea, rgb);
+      const an = FAV_DRAW[ST](L, x0, y0, H1, now, ea, rgb, g);
       ctx.restore();
-      // текст — мелко: подпись вида, имя, цена; во сколько раз от исторического дна
-      const ta = clamp((ea - .8) / .5); if (ta > 0) { const yb = y0 + H1 / 2 - 26;
+      // текст — мелко: список (и место монеты в нём), имя, цена; во сколько раз от исторического дна
+      const ta = clamp((ea - .8) / .5) * (g === 2 ? .85 : 1); if (ta > 0) { const yb = y0 + H1 / 2 - 26, sw0 = L.swT != null ? now - L.swT : 9;
         tctx.save(); tctx.globalAlpha = ta; tctx.textAlign = 'left'; tctx.textBaseline = 'alphabetic';
-        tctx.font = `500 5.5px ${FONT}`; tctx.letterSpacing = '2.5px'; tctx.fillStyle = `rgba(${rgb},.75)`; if (j === 0) tctx.fillText('ИЗБРАННОЕ', tx, yb + 6);   // подпись вида — один раз, над первой монетой
+        tctx.font = `500 5.5px ${FONT}`; tctx.letterSpacing = '2.5px'; tctx.fillStyle = `rgba(${rgb},.8)`; tctx.fillText(FAV_GRP[g] + (len > 1 ? ` · ${L.idx + 1}/${len}` : ''), tx, yb + 6);
         { // 17.10 владелец: «чтобы название было какое-то мерцающее» — буквы дышат светом вразнобой, раз в ~6 с по имени проходит тёплый блик
           tctx.font = `600 11px Futura, "Avenir Next", sans-serif`; tctx.letterSpacing = '0px'; const chs = [...L.name], sweep = ((now * .17 + L.seed * .13) % 1) * (chs.length + 6) - 2; let gx = tx;
           chs.forEach((c, i) => { const fl = .8 + .2 * Math.sin(now * 5.3 + i * 1.9 + L.seed) * Math.sin(now * 2.1 + i * .7), sw = Math.max(0, 1 - Math.abs(i - sweep) / 1.3);
-            tctx.globalAlpha = ta * Math.min(1, fl + sw * .3); tctx.shadowColor = sw > .15 ? 'rgba(255,240,210,1)' : `rgba(${rgb},.95)`; tctx.shadowBlur = 4 + 6 * fl + 9 * sw; tctx.fillStyle = sw > .35 ? '#fff8e6' : '#fff'; tctx.fillText(c, gx, yb + 20); gx += tctx.measureText(c).width + 1.5; });
+            tctx.globalAlpha = ta * Math.min(1, fl + sw * .3) * clamp(sw0 * 4 - i * .25);   /* при смене монеты буквы проявляются по очереди */ tctx.shadowColor = sw > .15 ? 'rgba(255,240,210,1)' : `rgba(${rgb},.95)`; tctx.shadowBlur = 4 + 6 * fl + 9 * sw; tctx.fillStyle = sw > .35 ? '#fff8e6' : '#fff'; tctx.fillText(c, gx, yb + 20); gx += tctx.measureText(c).width + 1.5; });
           tctx.shadowBlur = 0; tctx.globalAlpha = ta; }
         { // 17.10 владелец: «и цена при обновлении какой-нибудь искрой полыхала и перерисовывалась» — старая уходит вверх и гаснет, новая проявляется слева направо, по фронту бежит искра; вспышка мятная — цена выросла, коралловая — упала
-          const ps = favPx(L.item.now), pv = +L.item.now, py = yb + 31; if (L.pxS == null) { L.pxS = ps; L.pxV = pv; } else if (ps !== L.pxS) { L.pxOld = L.pxS; L.pxUp = pv >= L.pxV; L.pxS = ps; L.pxV = pv; L.pxT = now; }
+          const ps = favPx(L.item.now), pv = +L.item.now, py = yb + 31; if (L.pxS == null) { L.pxS = ps; L.pxV = pv; } else if (ps !== L.pxS) { L.pxOld = L.pxS; L.pxUp = pv >= L.pxV; L.pxS = ps; L.pxV = pv; L.pxT = now; L.pxSw = false; }
           tctx.font = `400 8.5px ${FONT}`; tctx.letterSpacing = '0px'; const pu = L.pxT != null ? (now - L.pxT) / 1.2 : 9, chs = [...ps], ws = chs.map(c => tctx.measureText(c).width + .5);
           if (pu >= 1) { let gx = tx; tctx.fillStyle = 'rgba(225,235,250,.85)'; chs.forEach((c, i) => { tctx.fillText(c, gx, py); gx += ws[i]; }); }
-          else { const tint = L.pxUp ? '120,255,190' : '255,130,140', tw = ws.reduce((a, b) => a + b, 0), rv = clamp((pu - .12) / .5), front = tx + tw * rv;
+          else { const tint = L.pxSw ? '255,240,210' : L.pxUp ? '120,255,190' : '255,130,140',   /* смена монеты — белая искра, не рост и не падение */ tw = ws.reduce((a, b) => a + b, 0), rv = clamp((pu - .12) / .5), front = tx + tw * rv;
             const oa = clamp(1 - pu * 3); if (oa > 0) { tctx.globalAlpha = ta * oa; tctx.fillStyle = `rgba(${tint},.8)`; tctx.fillText(L.pxOld, tx, py - pu * 12); }   // старая цена
             let gx = tx; chs.forEach((c, i) => { const mid = gx + ws[i] / 2; if (mid <= front) { const k = clamp((front - mid) / 22 + (pu - .62) * 2.5); tctx.globalAlpha = ta; tctx.shadowColor = `rgba(${tint},1)`; tctx.shadowBlur = 10 * (1 - k); tctx.fillStyle = k < .5 ? '#fffdf2' : `rgba(225,235,250,${.85 + .15 * (1 - k)})`; tctx.fillText(c, gx, py); } gx += ws[i]; }); tctx.shadowBlur = 0;
             if (rv > 0 && rv < 1) { const g = tctx.createRadialGradient(front, py - 3, 0, front, py - 3, 11); g.addColorStop(0, `rgba(255,255,245,${.9 * (1 - rv * .5) * ta})`); g.addColorStop(.4, `rgba(${tint},${.5 * ta})`); g.addColorStop(1, `rgba(${tint},0)`); tctx.globalAlpha = 1; tctx.fillStyle = g; tctx.fillRect(front - 11, py - 14, 22, 22); }   // искра на фронте
@@ -3296,12 +3312,14 @@ findHover = function () {
             tctx.globalAlpha = ta; } }
         const xs = favX(L.item); tctx.font = `200 16px ${THIN_FONT}`; tctx.letterSpacing = '.5px'; tctx.shadowColor = `rgba(${rgb},.9)`; tctx.shadowBlur = 8; tctx.fillStyle = `rgb(${rgb})`; tctx.fillText(xs, tx - 1, yb + 50); tctx.shadowBlur = 0;
         const xw = tctx.measureText(xs).width; tctx.font = `500 5.5px ${FONT}`; tctx.letterSpacing = '2px'; tctx.fillStyle = `rgba(${rgb},.8)`; tctx.fillText('ОТ ДНА', tx + xw + 6, yb + 49);
+        if (L.item.stage) { const sg = L.item.stage.toUpperCase(), oi = L.item.oi30 != null ? ` · ИНТЕРЕС ${L.item.oi30 >= 0 ? '+' : '−'}${Math.abs(Math.round(L.item.oi30))}%` : '', fd = L.item.fund3 != null && L.item.fund3 < 0 ? ' · ФАНДИНГ −' : '';
+          tctx.font = `500 5.5px ${FONT}`; tctx.letterSpacing = '2px'; tctx.fillStyle = L.item.stage === 'копит' ? `rgb(${rgb})` : L.item.stage === 'шевелится' ? 'rgba(120,245,185,.9)' : L.item.stage === 'памп был' ? 'rgba(255,90,114,.85)' : 'rgba(165,205,245,.55)'; tctx.fillText(sg + oi + fd, tx, yb + 62); }
         tctx.restore(); }
       L.hit = { x: x0 - 6, y: y0, w: Math.min(wmax, 200), h: H1, ax: an.ax, ay: an.ay, tx: an.ax, ty: an.ay };
       hits.push(L);
     });
     const keyH = hits.map(L => L.key + '@' + L.hit.x + ',' + L.hit.y + ',' + L.hit.h).join('|'); if (favHit.dataset.k !== keyH) { favHit.dataset.k = keyH; favHit.innerHTML = '';
-      hits.forEach(L => { const b = document.createElement('i'); b.title = L.name + ' · избранное'; Object.assign(b.style, { left: L.hit.x + 'px', top: L.hit.y + 'px', width: L.hit.w + 'px', height: L.hit.h + 'px' }); b.addEventListener('click', e => { e.stopPropagation(); if (selected === L) closeCard(); else openCard(L); }); favHit.appendChild(b); }); }
+      hits.forEach(L => { const b = document.createElement('i'); b.title = L.name + ' · ' + FAV_GRP[L.grp].toLowerCase(); Object.assign(b.style, { left: L.hit.x + 'px', top: L.hit.y + 'px', width: L.hit.w + 'px', height: L.hit.h + 'px' }); b.addEventListener('click', e => { e.stopPropagation(); if (selected === L) closeCard(); else openCard(L); }); favHit.appendChild(b); }); }
   };
   // граненый кристалл-шестигранник: рёбра рисуются по очереди, потом проявляются грани и ядро
   function gem(x, y, r, rot, ea0, c, A, lit, lw1 = 1.5) {

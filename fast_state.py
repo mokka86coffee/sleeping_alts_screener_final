@@ -735,6 +735,64 @@ def _intraday_px(sym: str, t0: float) -> tuple[list, list]:
 
 
 _ATL: dict = {}
+_FSIGN_F = BASE_DIR / "output" / "favorites_signs.json"
+_FAV_GROUP = {"памп был": "на ходу", "шевелится": "шевелятся", "копит": "скоро"}   # 17.10: пока владелец не задал group в config/favorites.json —
+                                                                                   #   список по стадии (мерка Claude); «лежит» — без группы, на сайте не показывается
+FAV_SIGN_TTL_H = 6                   # признаки избранных обновляются раз в 6 ч (интерес по дням и фандинг — Binance, 2 запроса на монету)
+
+
+def _fav_signs(sym: str, now: float, px_now, bars_vol) -> dict:
+    """ПРИЗНАКИ БЛИЗОСТИ К ХОДУ (17.10 владелец: «нужно признаки какие-то по ним смотреть, что ближе к ходу или был памп»). По четырём
+    образцам (AKE, Q, AGT, RAVE) перед ходом: интерес в монетах растёт на флэте, фандинг уходит в минус при стоящей цене, оборот мёртвый,
+    потом первый всплеск. Здесь по монете: oi7/oi30 — интерес в монетах за 7/30 дн, %; fund3 — средний фандинг за 3 дня, %; vol_x — оборот
+    последнего дня к медиане 30 дн; px7 — цена за 7 дн, %. Стадия (мерки Claude): «памп был» — цена за 14 дн делала ×2 от медианы 30 дн;
+    «шевелится» — оборот ×3 или цена +15 % за 7 дн; «копит» — интерес +20 % за 30 дн при цене ±15 %; иначе «лежит».
+    Кэш output/favorites_signs.json на FAV_SIGN_TTL_H часов."""
+    try:
+        cache = json.loads(_FSIGN_F.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        cache = {}
+    c = cache.get(sym)
+    if c and now - float(c.get("t") or 0) < FAV_SIGN_TTL_H * 3600:
+        return c
+    out = dict(t=now)
+    try:
+        oi = get_json("https://fapi.binance.com/futures/data/openInterestHist", {"symbol": sym, "period": "1d", "limit": 30}, quiet_400=True) or []
+        v = [float(x["sumOpenInterest"]) for x in oi if x.get("sumOpenInterest")]
+        if len(v) >= 8:
+            out["oi7"] = round((v[-1] / v[-8] - 1) * 100, 1)
+        if len(v) >= 2:
+            out["oi30"] = round((v[-1] / v[0] - 1) * 100, 1); out["oi_now"] = v[-1]
+        fr = get_json("https://fapi.binance.com/fapi/v1/fundingRate", {"symbol": sym, "limit": 18}, quiet_400=True) or []
+        f = [float(x["fundingRate"]) for x in fr if x.get("fundingRate")]
+        if f:
+            out["fund3"] = round(sum(f) * 100 / len(f), 4)
+    except Exception as e:  # noqa: BLE001
+        out["err"] = f"{type(e).__name__}: {e}"
+    if bars_vol:                                                         # дневки: [(закрытие, оборот $)] за 30 дн, свежие последними
+        cl = [b[0] for b in bars_vol]; vol = [b[1] for b in bars_vol]
+        med_px = st.median(cl); med_vol = st.median(vol) or 0
+        out["vol_x"] = round(vol[-1] / med_vol, 1) if med_vol else None
+        out["px7"] = round((cl[-1] / cl[-8] - 1) * 100, 1) if len(cl) >= 8 else None
+        hi14 = max(cl[-14:]) if len(cl) >= 14 else max(cl)
+        pumped = hi14 >= 2 * med_px
+        px_ok = abs(out["px7"]) <= 15 if out.get("px7") is not None else True
+        if pumped:
+            out["stage"] = "памп был"
+        elif (out.get("vol_x") or 0) >= 3 or (out.get("px7") or 0) >= 15:
+            out["stage"] = "шевелится"
+        elif (out.get("oi30") or 0) >= 20 and px_ok:
+            out["stage"] = "копит"
+        else:
+            out["stage"] = "лежит"
+    cache[sym] = out
+    try:
+        tmp = _FSIGN_F.with_suffix(".tmp"); tmp.write_text(json.dumps(cache), encoding="utf-8"); tmp.replace(_FSIGN_F)
+    except OSError:
+        pass
+    return out
+
+
 
 
 def favorites(now: float) -> list[dict]:
@@ -761,9 +819,21 @@ def favorites(now: float) -> list[dict]:
             except Exception as e:  # noqa: BLE001
                 print(f"избранные {sym}: дневки не получены: {type(e).__name__}: {e}")
         p_now = _PX_NOW["px"].get(sym) if _PX_NOW["px"] else None
+        bv = None
+        try:                                                             # дневки за 30 дн для оборота и цены — тот же запрос, что и дно, кэш 6 ч
+            tk, kk = _ATL.get("k:" + sym, (0, None))
+            if now - tk > 6 * 3600 or not kk:
+                kk = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1d", "limit": 31}, quiet_400=True) or []
+                _ATL["k:" + sym] = (now, kk)
+            bv = [(float(x[4]), float(x[7])) for x in kk[:-1]] if kk else None   # без текущей незакрытой свечи
+        except Exception:  # noqa: BLE001
+            bv = None
+        sg = _fav_signs(sym, now, p_now, bv)
         out.append(dict(sym=sym, added=c.get("added"), px_added=c.get("px_added"), note=c.get("note"),
                         now=p_now, now_t=round(_PX_NOW["t"], 1) if p_now else None,
-                        atl=atl, atl_at=atl_at, from_atl_pct=round((p_now / atl - 1) * 100, 1) if (p_now and atl) else None))
+                        atl=atl, atl_at=atl_at, from_atl_pct=round((p_now / atl - 1) * 100, 1) if (p_now and atl) else None,
+                        oi7=sg.get("oi7"), oi30=sg.get("oi30"), fund3=sg.get("fund3"), vol_x=sg.get("vol_x"), px7=sg.get("px7"), stage=sg.get("stage"),
+                        group=c.get("group") or _FAV_GROUP.get(sg.get("stage") or "")))   # 17.10 (чат сайта): три свечи «на ходу» / «скоро» / «шевелятся»; group из
     return out
 
 
@@ -1217,6 +1287,54 @@ def btc_hour_tg(s: dict, now: float) -> None:
             pass
 
 
+FAV_TG_MEM = BASE_DIR / "output" / "favorites_tg.json"
+FAV_TG_EVERY_H = {"скоро": 3, "шевелятся": 12}      # 17.10 владелец: «по ним в тг тоже сделай отправку: если близко — раз в 3 часа, если шевелятся — раз в 12 часов»
+
+
+def favorites_tg(s: dict, now: float, send=None) -> None:
+    """ИЗБРАННЫЕ В ТЕЛЕГРАМ (17.10 владелец): монета из STATE.favorites с группой «скоро» — сообщение раз в 3 ч, «шевелятся» — раз в 12 ч;
+    «на ходу» и без группы — не шлём (ушедшие владелец удаляет сам). Текст: группа, цена, ×от дна, интерес за 30/7 дн, фандинг, оборот,
+    цена за 7 дн; ссылки cg_shot. Память output/favorites_tg.json {sym: unix последней отправки}. send — подмена отправки для проверки."""
+    try:
+        raw = json.loads((BASE_DIR / "config" / "telegram_config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    token = raw.get("queue_stars_bot_token") or raw.get("bot_token"); chat = raw.get("queue_stars_chat_id") or raw.get("chat_id")
+    if not raw.get("queue_stars") or not (token and chat):
+        return
+    cfg = dict(raw, bot_token=token, chat_id=chat)
+    mem = _read(FAV_TG_MEM, {}) or {}
+    for f in s.get("favorites") or []:
+        g = f.get("group"); sym = f.get("sym")
+        if not sym or g not in FAV_TG_EVERY_H:
+            continue
+        if now - float(mem.get(sym) or 0) < FAV_TG_EVERY_H[g] * 3600:
+            continue
+        name = sym[:-4] if sym.endswith("USDT") else sym
+        k = (f["now"] / f["atl"]) if (f.get("now") and f.get("atl")) else None
+        fmt = lambda v, u="%", p=0: "—" if v is None else f"{v:+.{p}f}{u}"
+        txt = (f"{'🟡' if g == 'скоро' else '🟢'} {name} — избранное: {g}\n"
+               f"цена {f.get('now')}" + (f" · ×{k:.1f} от дна" if k else "") + "\n"
+               f"интерес в монетах: 30 дн {fmt(f.get('oi30'))}, 7 дн {fmt(f.get('oi7'))} · фандинг {fmt(f.get('fund3'), '%', 3)}"
+               f" · оборот ×{f.get('vol_x') if f.get('vol_x') is not None else '—'} к среднему · цена за 7 дн {fmt(f.get('px7'))}")
+        try:
+            if send:
+                ok = bool(send(sym, txt))
+            else:
+                import cg_shot
+                from send_brief_telegram import chat_ids, _send_to
+                ok = all([_send_to(txt + "\n\n" + cg_shot.links(sym), cfg, c) for c in chat_ids(cfg)])
+        except Exception as e:  # noqa: BLE001
+            print(f"избранное в Телеграм {sym}: {type(e).__name__}: {e}"); ok = False
+        print(f"Телеграм избранное: {name} ({g}) · {'ушло' if ok else 'НЕ ушло'}")
+        if ok:
+            mem[sym] = now
+    try:
+        tmp = FAV_TG_MEM.with_suffix(".tmp"); tmp.write_text(json.dumps(mem), encoding="utf-8"); tmp.replace(FAV_TG_MEM)
+    except OSError:
+        pass
+
+
 def queue_bubble_tg(s: dict, now: float, send=None) -> None:
     """КРУПНЫЕ ПРОДАЖИ ПО РЫНКУ У ЗВЁЗД — В ТЕЛЕГРАМ ИТОГОМ ЧЕРЕЗ 4 ЧАСА (15.10 владелец: «давай может через 4 часа после появления, сколько
     пузырей появилось и что с ценой за это время, и только одно сообщение в 12 часов по монете, отсчёт от первого пузыря и за 4 часа после»;
@@ -1316,6 +1434,10 @@ if __name__ == "__main__":
         queue_bubble_tg(d, time.time())                                  # 12.10: новый белый пузырь у звезды
     except Exception as e:  # noqa: BLE001
         print(f"пузыри в Телеграм: {type(e).__name__}: {e}")
+    try:
+        favorites_tg(d, time.time())                                     # 17.10: избранные — «скоро» раз в 3 ч, «шевелятся» раз в 12 ч
+    except Exception as e:  # noqa: BLE001
+        print(f"избранное в Телеграм: {type(e).__name__}: {e}")
     try:
         btc_hour_tg(d, time.time())                                      # 15.10: биткоин раз в час — «падает» или часы после сквиза
     except Exception as e:  # noqa: BLE001
