@@ -741,7 +741,7 @@ def favorites(now: float) -> list[dict]:
     """ИЗБРАННЫЕ МОНЕТЫ ВЛАДЕЛЬЦА (17.10 02:35 UTC: «сделай отдельный json типа избранные и занеси туда agt»; «добавь в fast_state.json поле
     STATE.favorites… правила бота список не читают — только показ на сайте»; 17.10 03:00 UTC: «для таких монет нужна только цена сейчас +
     рост от исторического дна»). На каждую: sym, added, px_added, note, now, now_t (тот же запрос всех цен, что у прогнозов — _PX_NOW),
-    atl, atl_at (минимум дневных свечей фьючерса Binance за всю историю контракта, кэш 6 ч), from_atl_pct — рост от дна, %."""
+    atl, atl_at (дно из config/favorites.json, если задано владельцем; иначе минимум дневных свечей фьючерса Binance, кэш 6 ч), from_atl_pct — рост от дна, %."""
     cfg = _read(BASE_DIR / "config" / "favorites.json", {}) or {}
     out = []
     for c in cfg.get("coins") or []:
@@ -749,7 +749,9 @@ def favorites(now: float) -> list[dict]:
         if not sym:
             continue
         t, atl, atl_at = _ATL.get(sym, (0, None, None))
-        if now - t > 6 * 3600:
+        if c.get("atl"):                                                 # 17.10 владелец: «дно поставь 0.014» — дно из файла главнее счётного
+            atl, atl_at = float(c["atl"]), "владелец"
+        elif now - t > 6 * 3600:
             try:
                 k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1d", "limit": 1500}, quiet_400=True) or []
                 lows = [(float(x[3]), int(x[0])) for x in k if float(x[3]) > 0]

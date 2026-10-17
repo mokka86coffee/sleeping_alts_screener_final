@@ -1170,6 +1170,7 @@ function drawHUD(t) {
 
   // 11.10 владелец: три значения сверху — элементами: шкала альтов (на месте декоративной правой шкалы), часы от сквиза BTC, котёл
   if (typeof drawCapGauge === 'function') { drawCapGauge(t); drawBtcClock(t); drawPot(t); }
+  if (typeof drawFavs === 'function') drawFavs(t);   // 17.10 владелец: избранное — справа от девушки
 }
 
 // ---------- hover summary card (demo data; replace demoDetail with real series) ----------
@@ -3005,6 +3006,8 @@ findHover = function () {
       if (kind === 'week' && !status) status = String(it.week || '');
       return { g: { title: kind === 'week' ? 'НА НЕДЕЛЕ' : 'ОЧЕРЕДЬ' }, d: { ring: 'closed', now, candles: [], status }, it: { sym: it.sym }, closes, n, kind: 'closed', dir: 0, marks, ei: null, xi: null };
     }
+    if (kind === 'fav') { const it = l.item, lo = +it.low || 0, nw = +it.now || lo, kx = lo && nw ? nw / lo : (it.rise != null ? 1 + it.rise / 100 : 0), xs = kx > 0 ? '×' + kx.toFixed(1) : '—', dd = it.low_t ? new Date(typeof it.low_t === 'number' ? it.low_t * 1000 : it.low_t) : null, ds = dd && !isNaN(dd) ? String(dd.getUTCDate()).padStart(2, '0') + '.' + String(dd.getUTCMonth() + 1).padStart(2, '0') + '.' + dd.getUTCFullYear() : '';
+      return { g: { title: 'ИЗБРАННОЕ' }, d: { ring: 'closed', now: nw, candles: [], status: `от исторического дна ${xs}` + (ds ? ` · дно ${ds}` : '') }, it: { sym: it.sym }, closes: [lo, nw], n: 2, kind: 'closed', dir: 0, marks: [{ label: 'ДНО', price: lo, rgb: l.c1 || '110,255,150', idx: 0 }, { label: 'СЕЙЧАС', price: nw, rgb: '255,255,255', idx: null, now: true }], ei: null, xi: null }; }
     if (kind === 'fc' && !l.fc) l = { fc: l.item.fc };   /* прогноз на реке — та же панель, что у записи вверху */
     if (!l.fc) return _pd(l);
     const f = l.fc, lp = livePx(f), c = lp != null && (f.closes || []).length ? f.closes.concat([lp]) : (f.closes || []), n = c.length, ch = f.changes || [], last = ch[ch.length - 1], prev = ch[ch.length - 2];
@@ -3025,7 +3028,8 @@ findHover = function () {
   window.FC_RESERVED = () => { const o = []; const el = document.getElementById('fcList'); if (el && el.style.display !== 'none') { const r = el.getBoundingClientRect(); if (r.height > 0) o.push({ l: r.left - 10, r: r.right + 10, t: r.top - 10, b: r.bottom + 10 }); } if (typeof PZ !== 'undefined' && typeof pzOn !== 'undefined' && pzOn) o.push({ l: PZ.x - 10, r: PZ.x + PZ.w * .55, t: PZ.y - 10, b: PZ.y + 150 }); return o; };
   const root = document.createElement('div'); root.id = 'fcList'; document.body.appendChild(root);
   // 09.10 владелец: «вверх, одной строкой, по одной монете за раз, по кругу до следующего прогона» — цикл по обновившимся за прогон, 6 с на монету (моё число)
-  const CYC = 6, place = () => { const ev = document.getElementById('evCnt'), r = ev ? ev.getBoundingClientRect() : { right: 300, top: 160 }; const left = Math.round(Math.max(r.right + 150, W * .36)), w = Math.max(220, Math.min(380, W / 2 - 120 - left)); /* правее круга события (владелец: налезала на него) */ root.style.left = left + 'px'; root.style.top = Math.round(Math.max(60, H * .22)) + 'px'; root.style.width = w + 'px'; };
+  const CYC = 6, place = () => { const ev = document.getElementById('evCnt'), r = ev ? ev.getBoundingClientRect() : { right: 300, top: 160 }; const RG0 = riverGeom(), fa = RG0.cy - RG0.amp - RG0.hh * 1.4 - 44, fch = Math.max(3.9, fa / 104), fnr = Math.floor(fa / fch), fnc = Math.round(fnr * fch * GIRL_W / GIRL_H / (fch * .74)), faceL = W / 2 - fnc * fch * .74 / 2;   /* левый край лица девушки — как в drawFace */
+    const left0 = Math.round(Math.max(r.right + 150, W * .36)), left = Math.round(Math.max(W * .2, Math.min(left0, faceL - 28 - (root._rw || 260)))), w = Math.max(220, Math.min(380, W / 2 - 120 - left));   /* 17.10 владелец: «и левее от девушки» — запись кончается до лица (зазор 28 px — мой) */ /* правее круга события (владелец: налезала на него) */ root.style.left = left + 'px'; const RG = riverGeom(), rTop = RG.cy - RG.amp - RG.hh * 1.4; root.style.top = Math.round(Math.max(60, Math.min(H * .22 + H * .07, rTop - 70))) + 'px'; /* 17.10 владелец (стрелка вниз): «эту надпись чуть пониже» — на 7% высоты ниже прежнего (моё), но не ближе 70 px к реке */ root.style.width = w + 'px'; };
   let sel = null, idx = 0, runKey = null, tick = 0, feed = [];
   function current() { return feed.length ? feed[idx % feed.length] : null; }
   function paint(swap) {   // одна запись: монета и прогноз, без шапки, счётчика и времени; сменяется на следующую
@@ -3033,7 +3037,7 @@ findHover = function () {
     const T = TYPES[typeOf(f.tpl)];
     root.querySelectorAll('.fc-row.out').forEach(o => o.remove()); const old = root.querySelector('.fc-row'); if (swap && old) { old.className = 'fc-row out'; old.style.position = 'absolute'; old.style.left = '0'; old.style.top = '0'; setTimeout(() => old.remove(), 420); } else root.innerHTML = '';   // старая запись уходит вверх, новая входит снизу
     const el = document.createElement('div'); el.className = 'fc-row' + (swap ? ' swap' : '') + (sel === f.sym ? ' on' : ''); el.style.setProperty('--c', T[1]);
-    el.innerHTML = `<i></i><u></u><b>${coin(f.sym)}</b><span>${short(f.tpl)}</span>`; root.appendChild(el);
+    el.innerHTML = `<i></i><u></u><b>${coin(f.sym)}</b><span>${short(f.tpl)}</span>`; root.appendChild(el); { const rw = Math.round(el.getBoundingClientRect().width); if (rw && Math.abs(rw - (root._rw || 0)) > 2) { root._rw = rw; place(); } }   // ширина записи — чтобы она не заходила на лицо
     el.addEventListener('click', e => { e.stopPropagation(); if (sel === f.sym) { closeCard(); sel = null; paint(false); return; } sel = f.sym; openCard({ fc: f, name: coin(f.sym), c1: T[1], c2: T[1], closed: true, born: performance.now() / 1000, item: { sym: f.sym } }); paint(false); });
   }
   // владелец 09.10: листать самому — колесом над записью или пальцем (свайп вверх/вниз, влево/вправо) на планшете; после ручного шага автосмена ждёт 12 с (моё число)
@@ -3198,6 +3202,107 @@ findHover = function () {
     if (pl != null && ea > .9) { tctx.save(); tctx.globalAlpha = clamp((ea - .9) / .3) * A * (l.dimNow == null ? 1 : l.dimNow); tctx.textAlign = 'center'; tctx.textBaseline = 'middle'; tctx.font = `700 ${pl > 9 ? 6.5 : 7.5}px Futura, "Avenir Next", sans-serif`; tctx.fillStyle = '#fff'; tctx.fillText(String(pl), cx, cy + .4); tctx.restore(); }
     if (ea > .9 && out > .4) { const tx = cx + r + 8; waveText(l.name, tx + l.w1 / 2, cy - .5, ea, .95, FC_NF, '#fff', 1.5, `rgb(${cc})`, out); waveText(l.ftx, tx + l.w2 / 2, cy + 7.5, ea, 1.2, FC_TF, `rgb(${cc})`, 1, `rgba(${cc},.6)`, out); }
   }
+  // ИЗБРАННОЕ (17.10 владелец: «новый вид — избранное»; «только цена сейчас + рост от исторического дна», «не в процентах, а в x2 3 4 10 100»;
+  // «не на реке, а выше — справа от девушки»; «скорее одна за раз»; по его картинкам выбрана свеча — янтарная, с дымом, раз в 10 с сноп искр, раз в 20 с на 2 с полупрозрачна; «шрифты огромные не надо»)
+  // монеты из config/favorites.json (STATE.favorites): слева знак, справа мелко имя, цена сейчас и «×N от дна»; клик — панель
+  const FAVL = {}, FAV_RGB = '255,186,84';   // янтарь (17.10 владелец: «цвет какой-то другой»)
+  // 17.10 владелец: «пусть она цвета ещё меняет, эта свеча, раз в 30 сек» — по кругу янтарь → сирень → лёд → роза → мята, переход плавный за 3 с (набор и время перехода — мои)
+  const FAV_PAL = ['255,186,84', '190,140,255', '90,220,255', '255,120,170', '110,255,170'];
+  const favCol = (now, seed) => { const c = (now + fr(seed, 13) * 30) / 30, i = Math.floor(c), u = (c - i) * 30 / 3, n = FAV_PAL.length, cur = FAV_PAL[((i % n) + n) % n], prv = FAV_PAL[(((i - 1) % n) + n) % n]; return u < 1 ? mix(prv, cur, ease(u)) : cur; };
+  const favPx = v => { v = +v; return !isFinite(v) || !v ? '—' : v >= 100 ? v.toFixed(1) : v >= 1 ? v.toFixed(3) : v >= .01 ? v.toFixed(4) : v.toPrecision(3); };
+  const favX = it => { const lo = +it.low || 0, nw = +it.now || 0, k = lo && nw ? nw / lo : (it.rise != null ? 1 + it.rise / 100 : null); return k != null && isFinite(k) && k > 0 ? '×' + k.toFixed(1) : '—'; };   // 17.10 владелец: «округление до десятых»
+  const favHit = document.createElement('div'); favHit.id = 'favHit'; document.body.appendChild(favHit);
+  const favCss = document.createElement('style'); favCss.textContent = '#favHit{position:fixed;z-index:3;left:0;top:0;width:0;height:0}#favHit i{position:absolute;display:block;cursor:pointer}'; document.head.appendChild(favCss);
+  const fr = (k, i) => { const v = Math.sin(k * 127.1 + i * 311.7) * 43758.5453; return v - Math.floor(v); };   // постоянный «случай» на монету
+  const glowLine = (x1, y1, x2, y2, rgb, a, w) => { ctx.strokeStyle = `rgba(${rgb},${.18 * a})`; ctx.lineWidth = w * 4; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke(); ctx.strokeStyle = `rgba(${rgb},${a})`; ctx.lineWidth = w; ctx.stroke(); ctx.strokeStyle = `rgba(255,255,255,${.6 * a})`; ctx.lineWidth = w * .4; ctx.stroke(); };
+  const flash = (x, y, lf, rgb, R) => { if (lf <= 0 || lf >= 1) return; const fl = Math.pow(Math.sin(Math.PI * lf), 2); ctx.strokeStyle = `rgba(${rgb},${.8 * (1 - lf)})`; ctx.lineWidth = 1.3 * (1 - lf) + .3; ctx.beginPath(); ctx.arc(x, y, 4 + ease(lf) * R, 0, TAU); ctx.stroke(); const g = ctx.createRadialGradient(x, y, 0, x, y, R * 1.5); g.addColorStop(0, `rgba(255,255,255,${.85 * fl})`); g.addColorStop(.3, `rgba(${rgb},${.4 * fl})`); g.addColorStop(1, `rgba(${rgb},0)`); ctx.fillStyle = g; ctx.fillRect(x - R * 1.5, y - R * 1.5, R * 3, R * 3); ctx.fillStyle = `rgba(255,255,255,${.8 * fl})`; ctx.fillRect(x - R * fl, y - .5, R * 2 * fl, 1); ctx.fillRect(x - .5, y - R * fl, 1, R * 2 * fl); };
+  // свеча: фитиль, тело с белым ядром, бледная широкая обводка вместо свечения
+  function favCandle(cx, yTop, yBodyT, yBodyB, yBot, bw, rgb, a, grow) {
+    const h = yBot - yTop, wy = yBot - h * clamp(grow / .45), by = yBodyB - (yBodyB - yBodyT) * clamp((grow - .3) / .5);
+    if (grow > 0) glowLine(cx, yBot, cx, Math.max(yTop, wy), rgb, .85 * a, 1.2);
+    if (grow > .3 && by < yBodyB - .5) { const g = ctx.createLinearGradient(cx - bw / 2, 0, cx + bw / 2, 0); g.addColorStop(0, `rgba(${rgb},${.55 * a})`); g.addColorStop(.5, `rgba(235,255,240,${.95 * a})`); g.addColorStop(1, `rgba(${rgb},${.55 * a})`);
+      for (let i = 6; i >= 1; i--) { const e = i * 2.2; ctx.fillStyle = `rgba(${rgb},${.05 * a})`; ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(cx - bw / 2 - e, by - e, bw + e * 2, yBodyB - by + e * 2, e); else ctx.rect(cx - bw / 2 - e, by - e, bw + e * 2, yBodyB - by + e * 2); ctx.fill(); }
+      ctx.fillStyle = g; ctx.fillRect(cx - bw / 2, by, bw, yBodyB - by); ctx.strokeStyle = `rgba(220,255,230,${.8 * a})`; ctx.lineWidth = .8; ctx.strokeRect(cx - bw / 2 + .4, by + .4, bw - .8, yBodyB - by - .8); }
+    return by;
+  }
+  const FAV_DRAW = {
+    // ОДНА СВЕЧА: высокая зелёная свеча над «землёй», с неё капают искры, внизу отражение и блики; за ней — тусклые свечи рынка
+    candle(L, x0, y0, H, now, ea, rgb) {
+      const k = L.seed, cx = x0 + 12, gy = y0 + H - 5, grow = clamp(ea / 1.1);
+      for (let i = 0; i < 7; i++) { const bx = x0 - 4 + fr(k, i) * 32, bh = 4 + fr(k, i + 9) * 13, byy = y0 + H * (.15 + fr(k, i + 3) * .45), up = fr(k, i + 5) > .45, c = up ? '110,255,150' : '255,90,110', al = .1 + .06 * Math.sin(now * .6 + i); if (Math.abs(bx - cx) < 7) continue; ctx.fillStyle = `rgba(${c},${al})`; ctx.fillRect(bx, byy, 2, bh); ctx.fillRect(bx + .5, byy - 2, 1, bh + 4); }   // тусклые свечи фона
+      const hg = ctx.createRadialGradient(cx, y0 + H * .45, 0, cx, y0 + H * .45, H * .55); hg.addColorStop(0, `rgba(${rgb},${.22 * grow})`); hg.addColorStop(1, `rgba(${rgb},0)`); ctx.fillStyle = hg; ctx.fillRect(cx - H * .55, y0 - 10, H * 1.1, H + 20);
+      const yT = y0 + H * .1, yBT = y0 + H * .3, yBB = y0 + H * .66, by = favCandle(cx, yT, yBT, yBB, gy, 7, rgb, 1, grow);
+      // дым с фитиля: клубы поднимаются, расплываются и качаются; у фитиля тёплые, выше — серо-сиреневые
+      const sa = clamp((ea - .9) / .8); if (sa > 0) for (let i = 0; i < 14; i++) { const q = (now * (.07 + fr(k, i + 3) * .03) + i / 14) % 1, sx = cx + Math.sin(q * 5.5 + i * 1.3 + now * .4) * (2 + q * 9) + q * q * 6, sy = yT - q * (H * .55 + 22), r = 2 + q * 13, a = .17 * Math.sin(Math.PI * Math.min(1, q * 1.15)) * sa, c = q < .25 ? rgb : '185,170,215';
+        const sg = ctx.createRadialGradient(sx, sy, 0, sx, sy, r); sg.addColorStop(0, `rgba(${c},${a})`); sg.addColorStop(1, `rgba(${c},0)`); ctx.fillStyle = sg; ctx.fillRect(sx - r, sy - r, r * 2, r * 2); }
+      if (sa > 0) { const wl = ctx.createLinearGradient(0, yT - 14, 0, yT); wl.addColorStop(0, `rgba(${rgb},0)`); wl.addColorStop(1, `rgba(255,235,200,${.7 * sa})`); ctx.strokeStyle = wl; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, yT); for (let u = 1; u <= 8; u++) ctx.lineTo(cx + Math.sin(now * 1.7 + u * .8) * u * .3, yT - u * 1.7); ctx.stroke();   // тонкая струйка над фитилём
+        const fg = ctx.createRadialGradient(cx, yT, 0, cx, yT, 5); fg.addColorStop(0, `rgba(255,245,215,${.9 * sa * (.8 + .2 * Math.sin(now * 7))})`); fg.addColorStop(1, `rgba(${rgb},0)`); ctx.fillStyle = fg; ctx.fillRect(cx - 5, yT - 5, 10, 10); }   // тлеющий кончик фитиля
+      // искры поднимаются от тела свечи и гаснут
+      if (grow >= 1) for (let i = 0; i < 9; i++) { const q = (now * (.18 + fr(k, i) * .2) + fr(k, i + 20)) % 1, px = cx + (fr(k, i + 40) - .5) * 8 + Math.sin(now * 1.3 + i * 2) * 2.5 * q, py = yBB - (yBB - yT + 12) * q; ctx.fillStyle = `rgba(255,${200 + 40 * (1 - q) | 0},140,${.85 * (1 - q) * (.6 + .4 * Math.sin(now * 9 + i))})`; ctx.fillRect(px - .7, py - .7, 1.4, 1.4); }
+      // земля: блик, расходящееся кольцо, отражение вниз
+      const ga = clamp((ea - .2) / .5); ctx.strokeStyle = `rgba(${rgb},${.6 * ga})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(cx, gy, 5, 1.4, 0, 0, TAU); ctx.stroke();
+      const q = (now * .4) % 1; ctx.strokeStyle = `rgba(${rgb},${.4 * (1 - q) * ga})`; ctx.beginPath(); ctx.ellipse(cx, gy, 5 + q * 12, 1.4 + q * 3, 0, 0, TAU); ctx.stroke();
+      const rg = ctx.createLinearGradient(0, gy, 0, gy + 16); rg.addColorStop(0, `rgba(${rgb},${.5 * ga})`); rg.addColorStop(1, `rgba(${rgb},0)`); ctx.fillStyle = rg; ctx.fillRect(cx - 2, gy, 4, 16);
+      for (let i = 0; i < 16; i++) { const sx = cx + (fr(k, i + 60) - .5) * 40, sy = gy + 1 + fr(k, i + 80) * 7; ctx.fillStyle = `rgba(${rgb},${(.15 + .25 * fr(k, i + 99)) * ga * (.6 + .4 * Math.sin(now * 2 + i))})`; ctx.fillRect(sx, sy, 1.2, 1.2); }
+      // 17.10 владелец: «добавь ещё какие-нибудь искры раз в 10 секунд» — раз в 10 с от верха тела свечи разлетается сноп искр (как бенгальский огонь): летят вверх и в стороны, падают дугой и гаснут
+      if (ea > 2) { const cyc = (now + fr(k, 7) * 10) / 10, ci = Math.floor(cyc), u = (cyc - ci) * 10 / 1.6; if (u < 1) {
+        const ox = cx, oy = yBT, fl = Math.pow(1 - u, 2); const g0 = ctx.createRadialGradient(ox, oy, 0, ox, oy, 16); g0.addColorStop(0, `rgba(255,250,230,${.9 * fl})`); g0.addColorStop(.4, `rgba(${rgb},${.4 * fl})`); g0.addColorStop(1, `rgba(${rgb},0)`); ctx.fillStyle = g0; ctx.fillRect(ox - 16, oy - 16, 32, 32);
+        for (let i = 0; i < 24; i++) { const a = -Math.PI / 2 + (fr(ci, i) - .5) * 2.6, v = 20 + fr(ci, i + 30) * 26, tt = u * (.7 + fr(ci, i + 60) * .5), px = ox + Math.cos(a) * v * tt, py = oy + Math.sin(a) * v * tt + 34 * tt * tt, al = clamp(1 - tt / 1.05);
+          if (al <= 0) continue; const qx = ox + Math.cos(a) * v * Math.max(0, tt - .08), qy = oy + Math.sin(a) * v * Math.max(0, tt - .08) + 34 * Math.max(0, tt - .08) ** 2; ctx.strokeStyle = `rgba(255,${210 + 40 * al | 0},150,${.85 * al})`; ctx.lineWidth = .9; ctx.beginPath(); ctx.moveTo(qx, qy); ctx.lineTo(px, py); ctx.stroke();
+          if (fr(ci, i + 90) > .7) { ctx.fillStyle = `rgba(255,255,240,${al})`; ctx.fillRect(px - .8, py - .8, 1.6, 1.6); } } } }
+      if (!L.sfx && grow >= .8) { L.sfx = true; if (typeof tone === 'function' && typeof AC !== 'undefined' && AC) tone([440, 659, 880], .14, .05, 'sine', .07); }
+      flash(cx, yBT, clamp((ea - .85) / .5), rgb, 15);
+      return { ax: cx, ay: (yBT + yBB) / 2 };
+    },
+  };
+  window.drawFavs = function (t) {
+    const F = ((window.STATE || {}).favorites || []).filter(f => f && f.sym), ST = 'candle', rgb = FAV_RGB;
+    if (W < 1100 || !F.length) { favHit.innerHTML = ''; return; }
+    // место: справа от лица девушки, до блока итогов справа
+    const R = riverGeom(), top = 30, bot = R.cy - R.amp - R.hh * 1.4 - 14, avail = bot - top, ch = Math.max(3.9, avail / 104), cw = ch * .74, nr = Math.floor(avail / ch), nc = Math.round(nr * ch * GIRL_W / GIRL_H / cw);
+    const faceR = W / 2 + nc * cw / 2, tb = document.getElementById('ribTot'), lim = tb && tb.getBoundingClientRect().width ? tb.getBoundingClientRect().left - 14 : W - 300;
+    const x0 = Math.round(faceR + 26), wmax = lim - x0; if (wmax < 110) { favHit.innerHTML = ''; return; }
+    const H1 = ST === 'candle' ? (F.length === 1 ? Math.min(100, avail - 40) : 70) : (F.length === 1 ? Math.min(200, avail - 40) : 110), n = Math.max(1, Math.min(F.length, Math.floor((avail - 20) / (H1 + 10)))), y00 = Math.round(top + Math.max(6, (avail - n * (H1 + 10)) * .45));
+    const now = performance.now() / 1000, hits = [];
+    F.slice(0, n).forEach((f, j) => {
+      let L = FAVL[f.sym]; if (!L) { let h = 0; for (const c of f.sym) h = (h * 31 + c.charCodeAt(0)) >>> 0; L = FAVL[f.sym] = { key: 'fav|' + f.sym, name: f.sym.replace(/USDT$/, ''), closed: true, born: now, seed: (h % 997) + 1, item: null }; }
+      const rgb = favCol(now, L.seed);   // свой цвет на этот миг
+      L.c1 = L.c2 = rgb; L.item = { kind: 'fav', sym: f.sym, now: f.now, low: f.low ?? f.atl, low_t: f.low_t ?? (f.atl_at && !isNaN(Date.parse(f.atl_at)) ? f.atl_at : null), rise: f.rise ?? f.from_atl_pct };   // в данных дно — atl, рост от дна — from_atl_pct (fast_state)
+      const ea = (now - L.born) / 1.6, y0 = y00 + j * (H1 + 10), tx = x0 + (ST === 'candle' ? 32 : 52);
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      // 17.10 владелец: «пусть она ещё раз в 20 секунд немного прозрачной становится на 2 сек» — плавно до половины яркости и обратно (глубина — моя)
+      if (ea > 2) { const c20 = (now + fr(L.seed, 11) * 20) / 20, u = (c20 - Math.floor(c20)) * 20 / 2; if (u < 1) ctx.globalAlpha *= 1 - .5 * Math.sin(Math.PI * u); }
+      const an = FAV_DRAW[ST](L, x0, y0, H1, now, ea, rgb);
+      ctx.restore();
+      // текст — мелко: подпись вида, имя, цена; во сколько раз от исторического дна
+      const ta = clamp((ea - .8) / .5); if (ta > 0) { const yb = y0 + H1 / 2 - 26;
+        tctx.save(); tctx.globalAlpha = ta; tctx.textAlign = 'left'; tctx.textBaseline = 'alphabetic';
+        tctx.font = `500 5.5px ${FONT}`; tctx.letterSpacing = '2.5px'; tctx.fillStyle = `rgba(${rgb},.75)`; tctx.fillText('ИЗБРАННОЕ', tx, yb + 6);
+        { // 17.10 владелец: «чтобы название было какое-то мерцающее» — буквы дышат светом вразнобой, раз в ~6 с по имени проходит тёплый блик
+          tctx.font = `600 11px Futura, "Avenir Next", sans-serif`; tctx.letterSpacing = '0px'; const chs = [...L.name], sweep = ((now * .17 + L.seed * .13) % 1) * (chs.length + 6) - 2; let gx = tx;
+          chs.forEach((c, i) => { const fl = .8 + .2 * Math.sin(now * 5.3 + i * 1.9 + L.seed) * Math.sin(now * 2.1 + i * .7), sw = Math.max(0, 1 - Math.abs(i - sweep) / 1.3);
+            tctx.globalAlpha = ta * Math.min(1, fl + sw * .3); tctx.shadowColor = sw > .15 ? 'rgba(255,240,210,1)' : `rgba(${rgb},.95)`; tctx.shadowBlur = 4 + 6 * fl + 9 * sw; tctx.fillStyle = sw > .35 ? '#fff8e6' : '#fff'; tctx.fillText(c, gx, yb + 20); gx += tctx.measureText(c).width + 1.5; });
+          tctx.shadowBlur = 0; tctx.globalAlpha = ta; }
+        { // 17.10 владелец: «и цена при обновлении какой-нибудь искрой полыхала и перерисовывалась» — старая уходит вверх и гаснет, новая проявляется слева направо, по фронту бежит искра; вспышка мятная — цена выросла, коралловая — упала
+          const ps = favPx(L.item.now), pv = +L.item.now, py = yb + 31; if (L.pxS == null) { L.pxS = ps; L.pxV = pv; } else if (ps !== L.pxS) { L.pxOld = L.pxS; L.pxUp = pv >= L.pxV; L.pxS = ps; L.pxV = pv; L.pxT = now; }
+          tctx.font = `400 8.5px ${FONT}`; tctx.letterSpacing = '0px'; const pu = L.pxT != null ? (now - L.pxT) / 1.2 : 9, chs = [...ps], ws = chs.map(c => tctx.measureText(c).width + .5);
+          if (pu >= 1) { let gx = tx; tctx.fillStyle = 'rgba(225,235,250,.85)'; chs.forEach((c, i) => { tctx.fillText(c, gx, py); gx += ws[i]; }); }
+          else { const tint = L.pxUp ? '120,255,190' : '255,130,140', tw = ws.reduce((a, b) => a + b, 0), rv = clamp((pu - .12) / .5), front = tx + tw * rv;
+            const oa = clamp(1 - pu * 3); if (oa > 0) { tctx.globalAlpha = ta * oa; tctx.fillStyle = `rgba(${tint},.8)`; tctx.fillText(L.pxOld, tx, py - pu * 12); }   // старая цена
+            let gx = tx; chs.forEach((c, i) => { const mid = gx + ws[i] / 2; if (mid <= front) { const k = clamp((front - mid) / 22 + (pu - .62) * 2.5); tctx.globalAlpha = ta; tctx.shadowColor = `rgba(${tint},1)`; tctx.shadowBlur = 10 * (1 - k); tctx.fillStyle = k < .5 ? '#fffdf2' : `rgba(225,235,250,${.85 + .15 * (1 - k)})`; tctx.fillText(c, gx, py); } gx += ws[i]; }); tctx.shadowBlur = 0;
+            if (rv > 0 && rv < 1) { const g = tctx.createRadialGradient(front, py - 3, 0, front, py - 3, 11); g.addColorStop(0, `rgba(255,255,245,${.9 * (1 - rv * .5) * ta})`); g.addColorStop(.4, `rgba(${tint},${.5 * ta})`); g.addColorStop(1, `rgba(${tint},0)`); tctx.globalAlpha = 1; tctx.fillStyle = g; tctx.fillRect(front - 11, py - 14, 22, 22); }   // искра на фронте
+            for (let j = 0; j < 12; j++) { const t0 = .12 + j * .04, st = clamp((pu - t0) / .45); if (st <= 0 || st >= 1) continue; const ox = tx + tw * clamp((t0 - .12) / .5), a = -Math.PI / 2 + (fr(L.seed + j, 3) - .5) * 2.8, d = st * (8 + fr(L.seed + j, 5) * 10);
+              tctx.globalAlpha = ta * (1 - st); tctx.fillStyle = j % 3 ? `rgb(${tint})` : '#fffbe8'; tctx.fillRect(ox + Math.cos(a) * d - .7, py - 3 + Math.sin(a) * d + st * st * 9 - .7, 1.4, 1.4); }   // разлёт искр
+            tctx.globalAlpha = ta; } }
+        const xs = favX(L.item); tctx.font = `200 16px ${THIN_FONT}`; tctx.letterSpacing = '.5px'; tctx.shadowColor = `rgba(${rgb},.9)`; tctx.shadowBlur = 8; tctx.fillStyle = `rgb(${rgb})`; tctx.fillText(xs, tx - 1, yb + 50); tctx.shadowBlur = 0;
+        const xw = tctx.measureText(xs).width; tctx.font = `500 5.5px ${FONT}`; tctx.letterSpacing = '2px'; tctx.fillStyle = `rgba(${rgb},.8)`; tctx.fillText('ОТ ДНА', tx + xw + 6, yb + 49);
+        tctx.restore(); }
+      L.hit = { x: x0 - 6, y: y0, w: Math.min(wmax, 200), h: H1, ax: an.ax, ay: an.ay, tx: an.ax, ty: an.ay };
+      hits.push(L);
+    });
+    const keyH = hits.map(L => L.key + '@' + L.hit.x + ',' + L.hit.y + ',' + L.hit.h).join('|'); if (favHit.dataset.k !== keyH) { favHit.dataset.k = keyH; favHit.innerHTML = '';
+      hits.forEach(L => { const b = document.createElement('i'); b.title = L.name + ' · избранное'; Object.assign(b.style, { left: L.hit.x + 'px', top: L.hit.y + 'px', width: L.hit.w + 'px', height: L.hit.h + 'px' }); b.addEventListener('click', e => { e.stopPropagation(); if (selected === L) closeCard(); else openCard(L); }); favHit.appendChild(b); }); }
+  };
   // граненый кристалл-шестигранник: рёбра рисуются по очереди, потом проявляются грани и ядро
   function gem(x, y, r, rot, ea0, c, A, lit, lw1 = 1.5) {
     const V = i => [x + Math.cos(rot + i * Math.PI / 3) * r, y + Math.sin(rot + i * Math.PI / 3) * r], sw = clamp(ea0) * 6;
