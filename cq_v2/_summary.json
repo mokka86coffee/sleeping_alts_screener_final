@@ -1611,9 +1611,65 @@
    "liq": 228,
    "ohlcv": 221,
    "trade": 364
+  },
+  "newt": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 364
+  },
+  "open": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 364
+  },
+  "order": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 364
+  },
+  "prove": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 364
+  },
+  "pundix": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 221,
+   "trade": 364
+  },
+  "q": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 364
+  },
+  "recall": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 358
+  },
+  "sxt": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 364
   }
  },
- "at": "2026-10-17T18:23:37Z",
+ "at": "2026-10-17T18:51:08Z",
  "full_at": "2026-10-17T02:31:21Z",
  "data_at": "2026-10-16",
  "full_data_at": "2026-10-16"
