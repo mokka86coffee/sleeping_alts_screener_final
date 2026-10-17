@@ -2428,3 +2428,5 @@
 2026-10-17 01:52:35 данные по 2026-10-15, ждём 2026-10-16 (возраст 23.8 ч)
 2026-10-17 01:52:35 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
 2026-10-17 02:10:36 обход уже идёт в другом процессе — пропуск
+2026-10-17 02:28:28 обход уже идёт в другом процессе — пропуск
+2026-10-17 02:31:21 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json
