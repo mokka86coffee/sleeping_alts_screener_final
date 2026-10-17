@@ -734,6 +734,37 @@ def _intraday_px(sym: str, t0: float) -> tuple[list, list]:
     return cl, tm
 
 
+_ATL: dict = {}
+
+
+def favorites(now: float) -> list[dict]:
+    """ИЗБРАННЫЕ МОНЕТЫ ВЛАДЕЛЬЦА (17.10 02:35 UTC: «сделай отдельный json типа избранные и занеси туда agt»; «добавь в fast_state.json поле
+    STATE.favorites… правила бота список не читают — только показ на сайте»; 17.10 03:00 UTC: «для таких монет нужна только цена сейчас +
+    рост от исторического дна»). На каждую: sym, added, px_added, note, now, now_t (тот же запрос всех цен, что у прогнозов — _PX_NOW),
+    atl, atl_at (минимум дневных свечей фьючерса Binance за всю историю контракта, кэш 6 ч), from_atl_pct — рост от дна, %."""
+    cfg = _read(BASE_DIR / "config" / "favorites.json", {}) or {}
+    out = []
+    for c in cfg.get("coins") or []:
+        sym = str(c.get("sym") or "").upper()
+        if not sym:
+            continue
+        t, atl, atl_at = _ATL.get(sym, (0, None, None))
+        if now - t > 6 * 3600:
+            try:
+                k = get_json("https://fapi.binance.com/fapi/v1/klines", {"symbol": sym, "interval": "1d", "limit": 1500}, quiet_400=True) or []
+                lows = [(float(x[3]), int(x[0])) for x in k if float(x[3]) > 0]
+                if lows:
+                    atl, t_ms = min(lows); atl_at = datetime.fromtimestamp(t_ms / 1000, timezone.utc).strftime("%Y-%m-%d")
+                _ATL[sym] = (now, atl, atl_at)
+            except Exception as e:  # noqa: BLE001
+                print(f"избранные {sym}: дневки не получены: {type(e).__name__}: {e}")
+        p_now = _PX_NOW["px"].get(sym) if _PX_NOW["px"] else None
+        out.append(dict(sym=sym, added=c.get("added"), px_added=c.get("px_added"), note=c.get("note"),
+                        now=p_now, now_t=round(_PX_NOW["t"], 1) if p_now else None,
+                        atl=atl, atl_at=atl_at, from_atl_pct=round((p_now / atl - 1) * 100, 1) if (p_now and atl) else None))
+    return out
+
+
 def forecasts(now: float) -> list[dict]:
     """смены прогноза (tpl монеты отличается от её предыдущей записи) за последний прогон скринера, свежие первыми; в прогоне без смен —
     смены последнего прогона, где они были (чтобы запись не пустовала; мерка Claude). veto страница не читает — не фильтруем."""
@@ -918,6 +949,10 @@ def build() -> dict:
         print(f"pot: сбой {type(e).__name__}: {e}"); fsq["pot"] = None
     _st = dict(**fsq, meta=meta(now), entry=ent, open=op, closed=cl, closed_hist=hist, charts=charts(syms), score=score(cl), board=board, board_day=board_day(now), board_3h=dict(blocks=dict(_B3H), neutral=list(NEUTRAL_3H), prog=dict(_P3H)), bx_warn=warn)
     _fc_now(_st.get("forecasts"))
+    try:                                                                 # 17.10: избранные владельца — после board_day, когда есть _PX_NOW
+        _st["favorites"] = favorites(now)
+    except Exception as e:  # noqa: BLE001
+        print(f"избранные: сбой {type(e).__name__}: {e}"); _st["favorites"] = []
     for _w in _st.get("week") or []:                                     # свежая цена монет «на неделе» — тем же запросом всех цен
         _p = _PX_NOW["px"].get(_w["sym"])
         if _p:
