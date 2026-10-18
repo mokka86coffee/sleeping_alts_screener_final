@@ -437,7 +437,7 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
     bonsai(g, rx1 + 10, WATER - 18, 52, -1.5, 6, 4, r, 0); bonsai(g, rx2 + 10, WATER - 14, 44, -1.45, 5, 4, r, 0);
     pagoda(g, 118, WATER - 6, 240, winLamp()); heron(g, 232, WATER - 14, 34);
     const mn = MOON(); rock(g, mn.x - 34, WATER, 112, 20, r); bonsai(g, mn.x - 44, WATER - 12, 46, -1.25, 5, 4, r, .12);   // сосна на камне перед луной
-    const hb = HOUSE(); rock(g, hb.x, WATER, 78, 9, r); house(g, hb.x, WATER - 6);   // дом в светлой полосе
+    /* ворота сняты: 18.10 владелец «давай вместо ворот кита» — кит рисуется по кадру в whale() */   // 18.10 владелец выбрал из четырёх: «давай ворота» — ворота стоят прямо в воде, в тёмной полосе
   }
   function columns() { return [{ tone: 'cold', h: .45 }, { tone: 'cool', h: .62 }, { tone: 'amber', h: .9 }, { tone: 'gold', h: .55 }, { tone: 'pale', h: .35 }]; }   // столбы света — без чисел
   // 18.10 владелец: «светящиеся столбы пусть попеременно растут и падают, или потухают и появляются» — у каждого столба свой медленный ритм
@@ -452,7 +452,7 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
     const s0 = t / 1000;
     COLC.forEach(c => { const q = .5 + .5 * Math.sin(s0 * TAU / c.per + c.ph), f = c.keep ? 1 : .85 + .15 * q, a = 1;   // 18.10 владелец: «пусть ни один не пропадает… просто ужимается немного и обратно» — все, кроме жёлтого, слегка ужимаются по высоте (до 85 %, предел мой), яркость не меняется
       if (a < .01 || f < .01) return; g.globalAlpha = a; g.drawImage(c.cv, c.x, WATER - c.h * f, c.w, c.h * f); });
-    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.drawImage(fgL, 0, 0); pagodaWin(g, t); cranes(g, t);
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.drawImage(fgL, 0, 0); pagodaWin(g, t); cranes(g, t); whale(g, t);
   }
   const STEP = (navigator.hardwareConcurrency || 4) <= 4 ? 2 : 1;
   function water(t) {
@@ -602,18 +602,23 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
   }
 
   // ── 18.10 владелец (по образцу с полосами): «может ещё дом добавить с такой вертикальной полосой» — павильон между кольцом и столбами, вокруг него светлая полоса во всю высоту, и в воде тоже
-  const HOUSE = () => ({ x: Math.round((RING.cx + RING.r + W * .47 - 40) / 2), w: 76, k: 1.15 });
-  function house(g, x, base) {
+  const HOUSE = () => ({ x: Math.round((RING.cx + RING.r + W * .47 - 40) / 2), w: 80, k: 1 });
+  function house(g, x, base) {   // 18.10 владелец: «может дом как-то поменять» — храм как на образце: высокий корпус с решёткой, одна широкая кровля с задранными краями, мезонин; слева красный клён на скале
     const k = HOUSE().k; g.save(); g.translate(x, base); g.scale(k, k); g.translate(-x, -base); g.fillStyle = '#04070A';
-    g.fillRect(x - 30, base - 5, 60, 5); g.fillRect(x - 24, base - 9, 48, 4);   // помост в две ступени
-    g.fillRect(x - 20, base - 33, 40, 24);   // нижний этаж
-    const roof = (cx, y, w, h) => { g.beginPath(); g.moveTo(cx - w / 2, y - h * .2); g.bezierCurveTo(cx - w * .3, y + h * .1, cx - w * .16, y - h * .5, cx, y - h); g.bezierCurveTo(cx + w * .16, y - h * .5, cx + w * .3, y + h * .1, cx + w / 2, y - h * .2); g.bezierCurveTo(cx + w * .3, y + h * .35, cx - w * .3, y + h * .35, cx - w / 2, y - h * .2); g.closePath(); g.fill(); };
-    roof(x, base - 33, 66, 14);
-    g.fillRect(x - 13, base - 54, 26, 12);   // верхний этаж
-    roof(x, base - 54, 46, 12);
-    g.fillRect(x - 1, base - 74, 2, 9); g.beginPath(); g.arc(x, base - 75, 2, 0, TAU); g.fill();   // шпиль
-    g.fillStyle = 'rgba(255,170,90,.85)'; for (const k of [-1, 0, 1]) g.fillRect(x + k * 12 - 4, base - 29, 8, 12);   // окна нижнего этажа
-    g.fillStyle = 'rgba(255,190,110,.75)'; g.fillRect(x - 8, base - 51, 16, 6);   // окно наверху
+    g.beginPath(); g.moveTo(x - 36, base + 6); g.lineTo(x - 30, base - 8); g.lineTo(x - 18, base - 14); g.lineTo(x - 6, base - 10); g.lineTo(x + 14, base - 12); g.lineTo(x + 30, base - 6); g.lineTo(x + 38, base + 6); g.closePath(); g.fill();   // скала
+    g.fillRect(x - 22, base - 16, 44, 4);   // помост
+    g.fillRect(x - 18, base - 50, 36, 34);   // корпус
+    g.fillRect(x - 24, base - 30, 48, 3);   // галерея
+    const roof = (cx, y, w, h) => { g.beginPath(); g.moveTo(cx - w / 2, y - h * .45); g.bezierCurveTo(cx - w * .36, y - h * .05, cx - w * .2, y - h * .55, cx - w * .12, y - h); g.lineTo(cx + w * .12, y - h); g.bezierCurveTo(cx + w * .2, y - h * .55, cx + w * .36, y - h * .05, cx + w / 2, y - h * .45); g.bezierCurveTo(cx + w * .32, y + h * .25, cx - w * .32, y + h * .25, cx - w / 2, y - h * .45); g.closePath(); g.fill(); };
+    roof(x, base - 50, 74, 20);   // широкая кровля, края задраны
+    g.fillRect(x - 9, base - 78, 18, 10); roof(x, base - 78, 32, 11);   // мезонин
+    g.fillRect(x - 1, base - 96, 2, 9); g.beginPath(); g.arc(x, base - 97, 1.8, 0, TAU); g.fill();   // шпиль
+    g.fillStyle = 'rgba(255,140,70,.16)'; for (let j = 0; j < 5; j++) g.fillRect(x - 15 + j * 6.4, base - 46, 3.2, 13); g.fillStyle = 'rgba(255,140,70,.12)'; for (let j = 0; j < 5; j++) g.fillRect(x - 15 + j * 6.4, base - 27, 3.2, 9); g.fillRect(x - 5, base - 76, 10, 5);   // решётчатые окна, «чуть темнее»
+    const r = mulberry(55); g.strokeStyle = '#04070A'; g.lineCap = 'round';
+    const br = (bx, by, len, ang, wid, d) => { if (!d) return; const ex = bx + Math.cos(ang) * len, ey = by + Math.sin(ang) * len; g.lineWidth = wid; g.beginPath(); g.moveTo(bx, by); g.lineTo(ex, ey); g.stroke();
+      if (d <= 2) { const C = ['#B8262A', '#D9452F', '#8E1C22']; for (let i = 0; i < 40; i++) { const a = r() * TAU, rr = Math.pow(r(), .6) * len * .9; g.fillStyle = C[i % 3]; g.fillRect(ex + Math.cos(a) * rr, ey + Math.sin(a) * rr * .55, 1.8, 1.8); } }
+      for (let i = 0; i < 2; i++) br(ex, ey, len * (.62 + r() * .15), ang + (r() - .5) * 1.4, wid * .6, d - 1); };
+    br(x - 26, base - 10, 18, -1.9, 2.6, 4);   // красный клён у храма, как на образце
     g.restore();
   }
   function houseBand() {   // светлая полоса: прямая, с чёткими краями, от верха неба до низа воды; у горизонта чуть теплее
@@ -628,6 +633,72 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
     const hg = ctx.createRadialGradient(0, -26, 0, 0, -26, 44); hg.addColorStop(0, `rgba(255,150,70,${(.22 * fl).toFixed(3)})`); hg.addColorStop(1, 'rgba(255,150,70,0)'); ctx.fillStyle = hg; ctx.fillRect(-44, -70, 88, 88);
     ctx.restore();
   }
+  function redBand(t) {   // красная полоса на доме, как на образце владельца: сверху дымка, к горизонту густеет; в воде красное отражение с горизонтальной рябью
+    const hb = HOUSE(), x = hb.x - hb.w / 2, w = hb.w, top = -OY / S, s0 = t / 1000;
+    const gr = ctx.createLinearGradient(0, top, 0, WATER); gr.addColorStop(0, 'rgba(3,6,10,.10)'); gr.addColorStop(.55, 'rgba(3,6,10,.20)'); gr.addColorStop(1, 'rgba(3,6,10,.34)');   /* 18.10 владелец: «давай тёмную полосу, не красную» */
+    ctx.fillStyle = gr; ctx.fillRect(x, top, w, WATER - top);
+    for (let y = WATER; y < WATER + 280; y += 3) { const k = (y - WATER) / 280, a = .32 * Math.pow(1 - k, 1.2) * (.55 + .45 * Math.sin(y * .7 + s0 * 1.5)), dx = Math.sin(y * .11 + s0) * (1 + k * 3);
+      ctx.fillStyle = `rgba(3,6,10,${a.toFixed(3)})`; ctx.fillRect(x + dx, y, w, 2); }
+    ctx.fillStyle = 'rgba(200,220,240,.05)'; ctx.fillRect(x, top, 1, WATER - top); ctx.fillRect(x + w - 1, top, 1, WATER - top);   // тонкие края
+  }
+  function torii(g, x, base) {   // ворота-тории: два красных столба, перекладина, сверху выгнутая чёрная балка; координаты как в эскизе-варианте 2 (центр 160, вода 292)
+    g.save(); g.translate(x, base); g.scale(1 / 3, 1 / 3); g.translate(-160, -292);   /* 18.10 владелец: «уменьши ворота в 3 раза» */
+    g.fillStyle = '#8E1C22'; g.fillRect(126, 186, 6, 106); g.fillRect(188, 186, 6, 106); g.fillRect(118, 206, 84, 6);
+    g.beginPath(); g.moveTo(104, 180); g.quadraticCurveTo(160, 190, 216, 180); g.lineTo(212, 190); g.quadraticCurveTo(160, 198, 108, 190); g.closePath(); g.fill();
+    g.fillStyle = '#04070A'; g.beginPath(); g.moveTo(100, 176); g.quadraticCurveTo(160, 186, 220, 176); g.lineTo(218, 181); g.quadraticCurveTo(160, 190, 102, 181); g.closePath(); g.fill(); g.fillRect(156, 190, 8, 16);
+    g.restore();
+  }
+  // ── 18.10 владелец (по картинке со светящимся китом): «давай вместо ворот кита» — кит из светящихся линий висит в тёмной полосе головой вверх, хвост касается воды;
+  //    тело медленно изгибается, плавники плавно машут, по краю искры, от хвоста по воде круги; в слое неба — отражается
+  const WH = (() => { const r = mulberry(612), a = []; for (let i = 0; i < 70; i++) a.push({ u: r(), sd: r() < .5 ? -1 : 1, ph: r() * TAU, sp: .6 + r() * 1.6 }); return a; })();
+  // 18.10 владелец: «кит не похож на референс» — как на картинке: огромный, ярко-синий, видно брюхо; тело из густых линий вдоль, по кромке искры,
+  //    два длинных плавника раскинуты в стороны, хвост изгибается вниз, и от него к воде сыплется светящийся след; кит висит в пустом небе слева, над кольцом
+  const WHD = (() => { const r = mulberry(613), a = []; for (let i = 0; i < 46; i++) a.push({ u: .05 + r() * .85, f: r() * 1.8 - .9, ph: r() * TAU, sp: .5 + r() * 1.5 }); return a; })();
+  function whale(g, t) {   // 18.10 владелец: «оставь светлый дождь, который под китом, и светящуюся часть хвоста кита» — от кита остался только хвост (с U0 до конца) и след к воде
+    const s0 = t / 1000, L = 280, Hd = [W * .21 + 10, 150], Tl = [HOUSE().x, 330], dl = Math.hypot(Tl[0] - Hd[0], Tl[1] - Hd[1]), d = [(Tl[0] - Hd[0]) / dl, (Tl[1] - Hd[1]) / dl], n = [-d[1], d[0]];   // n смотрит вниз-влево
+    const sw = Math.sin(s0 * .45) * 5;
+    const P = u => { const b = L * .05 * Math.sin(Math.PI * u) + sw * u, c = L * .2 * Math.pow(Math.max(0, (u - .55) / .45), 2); return [Hd[0] + (Tl[0] - Hd[0]) * u + n[0] * b, Hd[1] + (Tl[1] - Hd[1]) * u + n[1] * b + c]; };
+    const Wd = u => L * .17 * Math.pow(Math.sin(Math.PI * clamp(u * .9 + .1)), .5) * (1 - .86 * Math.pow(u, 1.15)) + 1.5;   // горбач толстый: широкая грудь, тонкий хвостовой стебель
+    const N = u => { const a = P(Math.max(0, u - .01)), b = P(Math.min(1, u + .01)), dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1; return [-dy / l, dx / l]; };
+    const at = (u, f) => { const p = P(u), m = N(u), w = Wd(u) * f; return [p[0] + m[0] * w, p[1] + m[1] * w]; };
+    const M = 44, U0 = .55, mid = P(.8), uu = i => U0 + (1 - U0) * i / M;
+    const fade = (c0, c1) => { const a0 = P(U0), a1 = P(.8), gr = g.createLinearGradient(a0[0], a0[1], a1[0], a1[1]); gr.addColorStop(0, c0); gr.addColorStop(1, c1); return gr; };
+    g.save(); g.globalCompositeOperation = 'lighter';
+    const gl = g.createRadialGradient(mid[0], mid[1], 0, mid[0], mid[1], L * .35);   /* ореол не выше верха слоя неба — иначе виден срез */ gl.addColorStop(0, 'rgba(40,120,255,.26)'); gl.addColorStop(.5, 'rgba(40,110,255,.09)'); gl.addColorStop(1, 'rgba(40,110,255,0)'); g.fillStyle = gl; g.fillRect(mid[0] - L * .35, mid[1] - L * .35, L * .7, L * .7);
+    const edge = path => { g.strokeStyle = 'rgba(60,140,255,.18)'; g.lineWidth = 6; g.stroke(path); g.strokeStyle = 'rgba(210,240,255,.95)'; g.lineWidth = 1.3; g.stroke(path); };
+    const fin = (side, u0, dir, len, fl) => {   // длинный плавник горбача: шишки по передней кромке, линии вдоль
+      const b0 = at(u0, side), b1 = at(u0 + .15, side), a0 = Math.atan2(dir[1], dir[0]) + Math.sin(s0 * .8 + side) * fl, tip = [b0[0] + Math.cos(a0) * len, b0[1] + Math.sin(a0) * len], o = [-Math.sin(a0) * side, Math.cos(a0) * side];
+      const fp = new Path2D(); fp.moveTo(b0[0], b0[1]); const K = 12;
+      for (let k = 1; k <= K; k++) { const q = k / K, bump = (k % 2 ? 2.2 : 0) * (1 - q * .6), x = b0[0] + (tip[0] - b0[0]) * q - o[0] * (len * .22 * Math.sin(Math.PI * Math.pow(q, .7)) + bump), y = b0[1] + (tip[1] - b0[1]) * q - o[1] * (len * .22 * Math.sin(Math.PI * Math.pow(q, .7)) + bump); fp.lineTo(x, y); }
+      fp.quadraticCurveTo((tip[0] + b1[0]) / 2 + o[0] * len * .2, (tip[1] + b1[1]) / 2 + o[1] * len * .2, b1[0], b1[1]); fp.closePath();
+      g.fillStyle = 'rgba(25,80,230,.30)'; g.fill(fp); g.save(); g.clip(fp); g.strokeStyle = 'rgba(90,170,255,.6)'; g.lineWidth = .8;
+      for (let k = -6; k <= 6; k++) { g.beginPath(); g.moveTo((b0[0] + b1[0]) / 2 + o[0] * k * 3.5, (b0[1] + b1[1]) / 2 + o[1] * k * 3.5); g.lineTo(tip[0] + o[0] * k * .6, tip[1] + o[1] * k * .6); g.stroke(); } g.restore(); edge(fp);
+      for (let k = 1; k <= 12; k += 2) { const q = k / 12, x = b0[0] + (tip[0] - b0[0]) * q - o[0] * (len * .22 * Math.sin(Math.PI * Math.pow(q, .7)) + 2.2), y = b0[1] + (tip[1] - b0[1]) * q - o[1] * (len * .22 * Math.sin(Math.PI * Math.pow(q, .7)) + 2.2), a = .45 + .55 * Math.abs(Math.sin(s0 * 1.3 + k + side)); g.fillStyle = `rgba(225,245,255,${a.toFixed(3)})`; g.beginPath(); g.arc(x, y, 1.7, 0, TAU); g.fill(); }
+    };
+    const nd = (a, b) => { const l = Math.hypot(a, b); return [a / l, b / l]; };
+    // тело
+    const bp = new Path2D(); for (let i = 0; i <= M; i++) { const q = at(uu(i), -1); i ? bp.lineTo(q[0], q[1]) : bp.moveTo(q[0], q[1]); } for (let i = M; i >= 0; i--) { const q = at(uu(i), 1); bp.lineTo(q[0], q[1]); }
+    bp.closePath();
+    g.fillStyle = fade('rgba(20,70,220,0)', 'rgba(20,70,220,.34)'); g.fill(bp); g.save(); g.clip(bp);
+    for (let f = -1.05; f <= 1.06; f += .07) { const c = 1 - Math.abs(f); const lc = `${Math.round(80 + 90 * c)},${Math.round(160 + 60 * c)},255`; g.strokeStyle = fade(`rgba(${lc},0)`, `rgba(${lc},${(.45 + .35 * c).toFixed(2)})`); g.lineWidth = .8; g.beginPath();
+      for (let i = 0; i <= M; i++) { const u = uu(i), q = at(u, f * (1 + .15 * Math.sin(u * 9 + f * 4 + s0 * .3) * (1 - u))); i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]); } g.stroke(); }
+    for (const e of WHD) { if (e.u < U0 + .08) continue; const q = at(e.u, e.f), a = Math.pow(.5 + .5 * Math.sin(s0 * e.sp + e.ph), 4); if (a < .05) continue; g.fillStyle = `rgba(230,248,255,${(.9 * a).toFixed(3)})`; g.beginPath(); g.arc(q[0], q[1], 1.4, 0, TAU); g.fill(); }   // светящиеся точки на брюхе
+    g.restore();
+    for (const sd of [-1, 1]) { const ep = new Path2D(); for (let i = 0; i <= M; i++) { const q = at(uu(i), sd); i ? ep.lineTo(q[0], q[1]) : ep.moveTo(q[0], q[1]); } g.strokeStyle = fade('rgba(60,140,255,0)', 'rgba(60,140,255,.18)'); g.lineWidth = 6; g.stroke(ep); g.strokeStyle = fade('rgba(210,240,255,0)', 'rgba(210,240,255,.95)'); g.lineWidth = 1.3; g.stroke(ep); }   // кромка хвоста, проявляется от середины
+    // хвостовой плавник
+    const T0 = P(1), tn = N(1), td = [tn[1], -tn[0]], fw = L * .25, fs = Math.sin(s0 * .5) * .05 * L;
+    const fA = [T0[0] + tn[0] * fw - td[0] * L * .05, T0[1] + tn[1] * fw - td[1] * L * .05 + fs], fB = [T0[0] - tn[0] * fw - td[0] * L * .05, T0[1] - tn[1] * fw - td[1] * L * .05 - fs], tb = [T0[0] - td[0] * L * .03, T0[1] - td[1] * L * .03];
+    const fp2 = new Path2D(); fp2.moveTo(tb[0], tb[1]); fp2.quadraticCurveTo((tb[0] + fA[0]) / 2 - td[0] * 6, (tb[1] + fA[1]) / 2 - td[1] * 6, fA[0], fA[1]); fp2.quadraticCurveTo((T0[0] + fA[0]) / 2 + td[0] * 3, (T0[1] + fA[1]) / 2 + td[1] * 3, T0[0] + td[0] * 3, T0[1] + td[1] * 3);
+    fp2.quadraticCurveTo((T0[0] + fB[0]) / 2 + td[0] * 3, (T0[1] + fB[1]) / 2 + td[1] * 3, fB[0], fB[1]); fp2.quadraticCurveTo((tb[0] + fB[0]) / 2 - td[0] * 6, (tb[1] + fB[1]) / 2 - td[1] * 6, tb[0], tb[1]); fp2.closePath();
+    /* 18.10 владелец: «и плавники убери» — хвостовой плавник не рисуется */
+    // след: светящаяся пыль сыплется с хвоста к воде
+    const wx = HOUSE().x, end = [wx, WATER - 2], cp = [T0[0] - 30, (T0[1] + WATER) / 2];
+    for (let i = 0; i < 70; i++) { const ph = (s0 * .09 + i / 70) % 1, q = ph, x = (1 - q) * (1 - q) * T0[0] + 2 * (1 - q) * q * cp[0] + q * q * end[0] + Math.sin(i * 2.1 + s0 * .6) * (1.5 + 7 * q),   /* 18.10 владелец: «дождь сделай тоньше в 2 раза» */ y = (1 - q) * (1 - q) * T0[1] + 2 * (1 - q) * q * cp[1] + q * q * end[1];
+      if (y > WATER - 1) continue; g.fillStyle = `rgba(${150 + (i % 3) * 30},220,255,${(.85 * (1 - q * .55)).toFixed(3)})`; g.beginPath(); g.arc(x, y, i % 4 ? .8 : 1.3, 0, TAU); g.fill(); }
+    const pg = g.createRadialGradient(end[0], WATER, 0, end[0], WATER, 60); pg.addColorStop(0, 'rgba(60,150,255,.30)'); pg.addColorStop(1, 'rgba(60,150,255,0)'); g.fillStyle = pg; g.fillRect(end[0] - 60, WATER - 60, 120, 60);   // свет там, где след касается воды
+    g.restore();
+    if (!whale.rip || s0 - whale.rip > 3.2) { whale.rip = s0; RIPS.push({ x: end[0], y: WATER + 3, t0: s0 }); }
+  }
   function frame(t) {
     if (fgDirty) { buildFG(); fgDirty = false; dirty = true; }
     if (dirty) { bakeColumns(); dirty = false; }
@@ -635,7 +706,7 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
     compose(t);
     const iw = innerWidth, ih = innerHeight; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#080F16'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore();
     const bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#16242F'); bg.addColorStop(.55, '#1D3241'); bg.addColorStop(.62, '#152634'); bg.addColorStop(1, '#080F16'); ctx.fillStyle = bg; ctx.fillRect(-OX / S, -OY / S, iw / S, ih / S);
-    ctx.drawImage(sky, 0, 0); water(t); houseBand();
+    ctx.drawImage(sky, 0, 0); water(t);   /* 18.10 владелец: «тёмную полосу можешь убрать» — полосы нет (redBand не зовётся) */
     ctx.fillStyle = 'rgba(170,205,230,.26)'; ctx.fillRect(0, WATER - .5, W, 1);
     const r = mulberry(211); ctx.fillStyle = 'rgba(4,7,10,.55)'; ctx.beginPath(); ctx.ellipse(W * .486, WATER + 16, 44, 4, 0, 0, 7); ctx.fill(); cairn(ctx, W * .486, WATER + 16, 52, r);
     fog(t); lanterns(t); floatLamp(t); drawDolphins(t); drawBoats(t); fireflies(t); petals(t);
