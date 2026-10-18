@@ -27,16 +27,15 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
 .dec .w { font-size: 46px; font-weight: 200; color: #FFA83C; letter-spacing: .02em; text-shadow: 0 0 22px rgba(255,150,60,.45); }
 .foot { font-size: 12px; letter-spacing: .05em; color: rgba(200,215,230,.75); }
 .foot b { color: #FFC06A; font-weight: 400; }
-#sw { position: fixed; z-index: 5; right: 16px; top: 10px; pointer-events: auto; cursor: pointer; font: 500 9px Futura, sans-serif; letter-spacing: .32em; text-transform: uppercase; color: rgba(200,225,245,.85); text-decoration: none;
-  border: 1px solid rgba(160,200,235,.35); border-radius: 12px; padding: 5px 12px; background: rgba(8,15,22,.55); }
-#sw:hover { color: #fff; border-color: rgba(200,230,255,.8); }
+/* 18.10 владелец: «поменяй кнопку переключения… поинтереснее нарисовать, подписи не надо» → вариант 1: капсула со светящимся бегунком */
+#sw{position:fixed;z-index:5;right:16px;top:10px;display:flex;gap:4px;padding:3px;border:1px solid rgba(160,200,235,.28);border-radius:18px;background:rgba(8,15,22,.6);cursor:pointer;pointer-events:auto}#sw i{position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:radial-gradient(circle,rgba(90,160,255,.45),rgba(40,90,200,.15));box-shadow:0 0 12px rgba(80,150,255,.55);transition:transform .5s cubic-bezier(.6,.1,.2,1)}#sw.b i{transform:translateX(30px)}#sw svg{position:relative;width:26px;height:26px;opacity:.35;transition:opacity .45s,filter .45s}#sw svg.lit{opacity:1;filter:drop-shadow(0 0 5px rgba(120,180,255,.95))}#sw:hover{border-color:rgba(200,230,255,.6)}
 .up { color: #6FE3B4; } .dn { color: #FF8A52; }
 </style>
 </head>
 <body>
 <canvas id="cv"></canvas>
 <div id="lay"></div>
-<a id="sw" href="/" title="вернуться к орбите">орбита</a>
+<a id="sw" class="b" href="/" title="вернуться к орбите"><i></i><svg viewBox="0 0 26 26"><ellipse cx="13" cy="13" rx="10" ry="4.5" fill="none" stroke="#9fd0ff" stroke-width="1.2" transform="rotate(-20 13 13)"/><circle cx="13" cy="13" r="3" fill="#cfe6ff"/><circle cx="22" cy="9.6" r="1.5" fill="#fff"/></svg><svg class="lit" viewBox="0 0 26 26"><circle cx="16.5" cy="9.5" r="4.5" fill="#FFC06A"/><path d="M3 17 Q7 14.5 11 17 T19 17 T25 17" fill="none" stroke="#9fd0ff" stroke-width="1.2"/><path d="M5 21 Q9 19 13 21 T21 21" fill="none" stroke="#6fa8d8" stroke-width="1"/></svg></a><script>(()=>{const a=document.getElementById('sw');a.addEventListener('click',e=>{e.preventDefault();const s=a.querySelectorAll('svg');a.classList.toggle('b');s[0].classList.toggle('lit');s[1].classList.toggle('lit');setTimeout(()=>{location.href=a.getAttribute('href')},480);});})();</script>
 <script>
 (() => {
   const H = 880, WATER = 530;
@@ -448,7 +447,7 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
       g2.globalCompositeOperation = 'lighter'; drawColumn(g2, makeColumn(cw / 2, w, h, i * 97 + 13, ch), TONE[c.tone]); return { cv: c2, x: cx - cw / 2, w: cw, h: ch, per: 19 + i * 7.3, ph: i * 1.9, fade: i % 2, keep: c.tone === 'amber' }; });   /* 18.10 владелец: «жёлтый столб оставь, чтобы горел всегда» */
   }
   function compose(t) {
-    const g = sky.getContext('2d'); g.clearRect(0, 0, W, WATER); stars(g, t); g.drawImage(bgL, 0, 0); drawMoon(g, t); drawRing(t, g); g.globalCompositeOperation = 'lighter';
+    const g = sky.getContext('2d'); g.clearRect(0, 0, W, WATER); stars(g, t); aurora(g, t); g.drawImage(bgL, 0, 0); drawMoon(g, t); drawRing(t, g); g.globalCompositeOperation = 'lighter';
     const s0 = t / 1000;
     COLC.forEach(c => { const q = .5 + .5 * Math.sin(s0 * TAU / c.per + c.ph), f = c.keep ? 1 : .85 + .15 * q, a = 1;   // 18.10 владелец: «пусть ни один не пропадает… просто ужимается немного и обратно» — все, кроме жёлтого, слегка ужимаются по высоте (до 85 %, предел мой), яркость не меняется
       if (a < .01 || f < .01) return; g.globalAlpha = a; g.drawImage(c.cv, c.x, WATER - c.h * f, c.w, c.h * f); });
@@ -693,12 +692,90 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
     /* 18.10 владелец: «и плавники убери» — хвостовой плавник не рисуется */
     // след: светящаяся пыль сыплется с хвоста к воде
     const wx = HOUSE().x, end = [wx, WATER - 2], cp = [T0[0] - 30, (T0[1] + WATER) / 2];
-    for (let i = 0; i < 70; i++) { const ph = (s0 * .09 + i / 70) % 1, q = ph, x = (1 - q) * (1 - q) * T0[0] + 2 * (1 - q) * q * cp[0] + q * q * end[0] + Math.sin(i * 2.1 + s0 * .6) * (1.5 + 7 * q),   /* 18.10 владелец: «дождь сделай тоньше в 2 раза» */ y = (1 - q) * (1 - q) * T0[1] + 2 * (1 - q) * q * cp[1] + q * q * end[1];
+    for (let i = 0; i < 70; i++) { const ph = (s0 * .09 + i / 70) % 1, q = ph; const x = (1 - q) * (1 - q) * T0[0] + 2 * (1 - q) * q * cp[0] + q * q * end[0] + Math.sin(i * 2.1 + s0 * .6) * (1.5 + 7 * q),   /* 18.10 владелец: «дождь сделай тоньше в 2 раза» */ y = (1 - q) * (1 - q) * T0[1] + 2 * (1 - q) * q * cp[1] + q * q * end[1];
       if (y > WATER - 1) continue; g.fillStyle = `rgba(${150 + (i % 3) * 30},220,255,${(.85 * (1 - q * .55)).toFixed(3)})`; g.beginPath(); g.arc(x, y, i % 4 ? .8 : 1.3, 0, TAU); g.fill(); }
     const pg = g.createRadialGradient(end[0], WATER, 0, end[0], WATER, 60); pg.addColorStop(0, 'rgba(60,150,255,.30)'); pg.addColorStop(1, 'rgba(60,150,255,0)'); g.fillStyle = pg; g.fillRect(end[0] - 60, WATER - 60, 120, 60);   // свет там, где след касается воды
     g.restore();
     if (!whale.rip || s0 - whale.rip > 3.2) { whale.rip = s0; RIPS.push({ x: end[0], y: WATER + 3, t0: s0 }); }
   }
+  // ── 18.10 владелец: «что ещё можно добавить» → «добавляй все» (медуз не надо): скат, огоньки от дождя, след лодки, созвездие кита, лунная дорожка, сияние, звезда в воду
+  // 6. северное сияние: тонкие колышущиеся ленты над горами, совсем слабые; полоска градиента нарисована один раз, по кадру только тянется
+  const AURS = [['80,255,180', '150,255,220'], ['90,190,255', '170,230,255']].map(([c, h]) => { const s = document.createElement('canvas'); s.width = 1; s.height = 128; const q = s.getContext('2d'), gr = q.createLinearGradient(0, 0, 0, 128);
+    gr.addColorStop(0, `rgba(${c},0)`); gr.addColorStop(.7, `rgba(${c},.35)`); gr.addColorStop(.9, `rgba(${h},.6)`); gr.addColorStop(1, `rgba(${c},0)`); q.fillStyle = gr; q.fillRect(0, 0, 1, 128); return s; });
+  function aurora(g, t) {
+    const s0 = t / 1000; g.save(); g.globalCompositeOperation = 'lighter';
+    for (let k = 0; k < 2; k++) for (let x = 0; x < W; x += 5) { const yb = 160 + k * 38 + Math.sin(x * .0035 + s0 * .04 + k) * 28 + Math.sin(x * .009 - s0 * .07) * 10, h = 70 + 40 * Math.sin(x * .006 + s0 * .05 + k * 2), e = clamp(x / 160) * clamp((W - x) / 160);
+      g.globalAlpha = .11 * Math.pow(.5 + .5 * Math.sin(x * .004 + s0 * .03 + k * 1.7), 2) * e; g.drawImage(AURS[k], x, yb - h, 5, h); }
+    g.restore();
+  }
+  // 4. созвездие кита: раз в 4 мин (моё число) звёзды справа соединяются линиями в кита, держатся и гаснут; в остальное время это просто звёзды чуть ярче
+  const CONST = [[0, .25], [.12, .12], [.35, .06], [.6, .1], [.8, .2], [.95, .05], [.92, .25], [1, .42], [.8, .3], [.55, .38], [.3, .4], [.12, .36], [0, .25]], CFIN = [[.3, .4], [.42, .56]];
+  function constel(g, t) {
+    const s0 = t / 1000, P = 240, u = (s0 + 200) % P, ox = W * .62, oy = 60, sc = 190, pt = q => [ox + q[0] * sc, oy + q[1] * sc];
+    const draw = u < 3 ? u / 3 : 1, a = u < 6 ? 1 : u < 8 ? 1 - (u - 6) / 2 : 0;
+    g.save(); g.globalCompositeOperation = 'lighter';
+    if (a > 0) { g.strokeStyle = `rgba(170,210,255,${(.45 * a).toFixed(3)})`; g.lineWidth = .9; g.beginPath(); const n = (CONST.length - 1) * draw;
+      for (let i = 0; i <= Math.floor(n); i++) { const p = pt(CONST[i]); i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1]); }
+      const i0 = Math.floor(n); if (i0 < CONST.length - 1) { const p0 = pt(CONST[i0]), p1 = pt(CONST[i0 + 1]), f = n - i0; g.lineTo(p0[0] + (p1[0] - p0[0]) * f, p0[1] + (p1[1] - p0[1]) * f); } g.stroke();
+      if (draw >= 1) { const f0 = pt(CFIN[0]), f1 = pt(CFIN[1]); g.beginPath(); g.moveTo(f0[0], f0[1]); g.lineTo(f1[0], f1[1]); g.stroke(); } }
+    for (const q of CONST.slice(0, -1).concat([CFIN[1]])) { const p = pt(q), b = .35 + .6 * a; g.fillStyle = `rgba(225,238,255,${b.toFixed(3)})`; g.beginPath(); g.arc(p[0], p[1], 1.3 + a, 0, TAU); g.fill(); }
+    g.restore();
+  }
+  // 5. лунная дорожка: под луной по воде мерцают тёплые блики, к низу реже и тусклее
+  function moonPath(t) {
+    const s0 = t / 1000, mx = MOON().x; ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (let y = WATER + 6; y < WATER + 240; y += 4) { const k = (y - WATER) / 240, hw = 70 * (1 - k * .35);
+      for (let j = 0; j < 3; j++) { const o = Math.sin(y * .31 + s0 * 1.1 + j * 2.1) * hw, len = 6 + 12 * (.5 + .5 * Math.sin(y * .17 + j * 3 + s0 * .8)), a = .22 * (1 - k) * (.5 + .5 * Math.sin(y * .7 + s0 * 2.3 + j)); if (a < .02) continue;
+        ctx.fillStyle = `rgba(255,215,150,${a.toFixed(3)})`; ctx.fillRect(mx + o - len / 2, y, len, 1.2); } }
+    ctx.restore();
+  }
+  // 1. светящийся скат: из таких же линий, как хвост; раз в 2 мин проплывает в глубине слева направо за 45 с, виден сквозь воду
+  const RAYP = new Path2D('M45,0 C40,-10 25,-18 10,-22 C0,-40 -10,-52 -20,-60 C-18,-40 -25,-20 -35,-8 L-40,0 L-35,8 C-25,20 -18,40 -20,60 C-10,52 0,40 10,22 C25,18 40,10 45,0 Z');
+  function deep(t) {
+    const s0 = t / 1000, P = 120, u = ((s0 + 30) % P) / 45; if (u >= 1) return;
+    const x = -90 + (W + 180) * u, y = WATER + 125 + Math.sin(u * TAU) * 18, A = .6 * clamp(u / .08) * clamp((1 - u) / .08);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = A; ctx.translate(x, y); ctx.scale(1, .38 * (1 + .14 * Math.sin(s0 * 1.6)));
+    const gl = ctx.createRadialGradient(0, 0, 0, 0, 0, 90); gl.addColorStop(0, 'rgba(40,120,255,.25)'); gl.addColorStop(1, 'rgba(40,120,255,0)'); ctx.fillStyle = gl; ctx.fillRect(-90, -90, 180, 180);
+    ctx.fillStyle = 'rgba(20,70,220,.30)'; ctx.fill(RAYP); ctx.save(); ctx.clip(RAYP); ctx.lineWidth = 1.1;
+    for (let k = -6; k <= 6; k++) { ctx.strokeStyle = `rgba(110,185,255,${(.6 - Math.abs(k) * .05).toFixed(2)})`; ctx.beginPath(); ctx.moveTo(42, 0); ctx.quadraticCurveTo(5, k * 7, -38, k * 10); ctx.stroke(); }
+    ctx.restore(); ctx.strokeStyle = 'rgba(210,240,255,.9)'; ctx.lineWidth = 1.4; ctx.stroke(RAYP);
+    ctx.beginPath(); ctx.moveTo(-40, 0); for (let i = 1; i <= 12; i++) ctx.lineTo(-40 - i * 5, Math.sin(i * .6 + s0 * 2) * 3); ctx.strokeStyle = 'rgba(160,215,255,.6)'; ctx.lineWidth = 1; ctx.stroke();   // хвост-хлыст
+    ctx.beginPath(); ctx.moveTo(44, -5); ctx.lineTo(53, -9); ctx.moveTo(44, 5); ctx.lineTo(53, 9); ctx.stroke();   // головные плавники
+    ctx.restore();
+  }
+  // 2. огоньки от дождя: где капля из хвоста касается воды, загорается голубой огонёк и гаснет кругом
+  const RSPARK = [];
+  function rainSparks(t) {
+    const s0 = t / 1000; ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (let i = RSPARK.length - 1; i >= 0; i--) { const p = RSPARK[i], u = (s0 - p.t0) / 1.6; if (u >= 1 || u < 0) { RSPARK.splice(i, 1); continue; }
+      const gl = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, 9); gl.addColorStop(0, `rgba(170,225,255,${(.85 * (1 - u)).toFixed(3)})`); gl.addColorStop(1, 'rgba(80,170,255,0)'); ctx.fillStyle = gl; ctx.fillRect(p.x - 9, p.y - 9, 18, 18);
+      ctx.strokeStyle = `rgba(150,215,255,${(.5 * (1 - u)).toFixed(3)})`; ctx.lineWidth = .8; ctx.beginPath(); ctx.ellipse(p.x, p.y, 2 + u * 11, .8 + u * 2.6, 0, 0, TAU); ctx.stroke(); }
+    ctx.restore();
+  }
+  // 3. след лодки: вокруг корпуса вода вспыхивает голубыми искрами и медленно гаснет
+  const BGLOW = [];
+  function boatGlow(t) {
+    const s0 = t / 1000;
+    for (const b of BOATS.values()) { if (b.x === undefined) continue; if (Math.random() < .4 && BGLOW.length < 140) BGLOW.push({ x: b.x + (Math.random() - .5) * 120, y: b.y + 4 + Math.random() * 9, t0: s0, r: .8 + Math.random() * 1.2 }); }
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (let i = BGLOW.length - 1; i >= 0; i--) { const p = BGLOW[i], u = (s0 - p.t0) / 2.8; if (u >= 1 || u < 0) { BGLOW.splice(i, 1); continue; } const a = Math.sin(Math.PI * Math.min(1, u * 3)) * (1 - u);
+      ctx.fillStyle = `rgba(110,200,255,${(.8 * a).toFixed(3)})`; ctx.beginPath(); ctx.arc(p.x, p.y + u * 3, p.r, 0, TAU); ctx.fill(); }
+    ctx.restore();
+  }
+  // 8. звезда падает в воду: раз в 3 мин (моё число) летит с неба 3 с и вспыхивает на воде светом, брызгами и кругами
+  function cometFall(t) {
+    const s0 = t / 1000, P = 180, cyc = (s0 + 60) / P, ci = Math.floor(cyc), u = (cyc - ci) * P; if (u > 6) return;
+    const rr = mulberry(ci + 901), sx = W * (.55 + rr() * .35), sy = 40 + rr() * 50, ex = W * (.3 + rr() * .45), ey = WATER + 10;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    if (u < 3) { const q = Math.pow(u / 3, 1.5), hx = sx + (ex - sx) * q, hy = sy + (ey - sy) * q, dx = (ex - sx) / Math.hypot(ex - sx, ey - sy), dy = (ey - sy) / Math.hypot(ex - sx, ey - sy);
+      const lg = ctx.createLinearGradient(hx - dx * 90, hy - dy * 90, hx, hy); lg.addColorStop(0, 'rgba(160,210,255,0)'); lg.addColorStop(1, 'rgba(240,250,255,.95)'); ctx.strokeStyle = lg; ctx.lineWidth = 1.8; ctx.beginPath(); ctx.moveTo(hx - dx * 90, hy - dy * 90); ctx.lineTo(hx, hy); ctx.stroke();
+      const hg = ctx.createRadialGradient(hx, hy, 0, hx, hy, 12); hg.addColorStop(0, 'rgba(255,255,255,.95)'); hg.addColorStop(1, 'rgba(160,210,255,0)'); ctx.fillStyle = hg; ctx.fillRect(hx - 12, hy - 12, 24, 24); }
+    else { const v = (u - 3) / 3, fl = ctx.createRadialGradient(ex, ey, 0, ex, ey, 90); fl.addColorStop(0, `rgba(200,235,255,${(.6 * (1 - v)).toFixed(3)})`); fl.addColorStop(.4, `rgba(90,170,255,${(.25 * (1 - v)).toFixed(3)})`); fl.addColorStop(1, 'rgba(90,170,255,0)'); ctx.fillStyle = fl; ctx.fillRect(ex - 90, ey - 90, 180, 180);
+      for (let k = 0; k < 14; k++) { const ang = -Math.PI * (.15 + .7 * ((k * .618) % 1)), sp = 30 + (k * 13) % 40, x = ex + Math.cos(ang) * sp * v * 1.4, y = ey + Math.sin(ang) * sp * v * 1.4 + 60 * v * v; if (y > ey + 4) continue; ctx.fillStyle = `rgba(220,240,255,${(.9 * (1 - v)).toFixed(3)})`; ctx.fillRect(x, y, 1.6, 1.6); }   // брызги
+      if (cometFall.ci !== ci) { cometFall.ci = ci; for (const d of [0, .4, .8]) RIPS.push({ x: ex, y: ey, t0: s0 + d }); } }
+    ctx.restore();
+  }
+
   function frame(t) {
     if (fgDirty) { buildFG(); fgDirty = false; dirty = true; }
     if (dirty) { bakeColumns(); dirty = false; }
@@ -706,7 +783,7 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
     compose(t);
     const iw = innerWidth, ih = innerHeight; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#080F16'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore();
     const bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#16242F'); bg.addColorStop(.55, '#1D3241'); bg.addColorStop(.62, '#152634'); bg.addColorStop(1, '#080F16'); ctx.fillStyle = bg; ctx.fillRect(-OX / S, -OY / S, iw / S, ih / S);
-    ctx.drawImage(sky, 0, 0); water(t);   /* 18.10 владелец: «тёмную полосу можешь убрать» — полосы нет (redBand не зовётся) */
+    ctx.drawImage(sky, 0, 0); water(t);   /* 18.10 владелец: «убери всё, оставь только сияние» — из семи добавок осталось только aurora */ /* 18.10 владелец: «тёмную полосу можешь убрать» — полосы нет (redBand не зовётся) */
     ctx.fillStyle = 'rgba(170,205,230,.26)'; ctx.fillRect(0, WATER - .5, W, 1);
     const r = mulberry(211); ctx.fillStyle = 'rgba(4,7,10,.55)'; ctx.beginPath(); ctx.ellipse(W * .486, WATER + 16, 44, 4, 0, 0, 7); ctx.fill(); cairn(ctx, W * .486, WATER + 16, 52, r);
     fog(t); lanterns(t); floatLamp(t); drawDolphins(t); drawBoats(t); fireflies(t); petals(t);

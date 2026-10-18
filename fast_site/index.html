@@ -1171,7 +1171,7 @@ function drawHUD(t) {
   // 11.10 владелец: три значения сверху — элементами: шкала альтов (на месте декоративной правой шкалы), часы от сквиза BTC, котёл
   if (typeof drawCapGauge === 'function') { drawCapGauge(t); drawBtcClock(t); drawPot(t); }
   if (typeof drawFavs === 'function') drawFavs(t);
-  if (typeof drawOrb === 'function') drawOrb();   // 18.10 владелец: раз в 30 с пролетает солнце, как на главной   // 17.10 владелец: избранное — справа от девушки
+  /* drawOrb() выключен: 18.10 владелец «и убери солнце в боте» (было: раз в 30 с пролетает солнце) */   // 17.10 владелец: избранное — справа от девушки
 }
 
 // ---------- hover summary card (demo data; replace demoDetail with real series) ----------
@@ -3543,8 +3543,8 @@ findHover = function () {
   };
 })();
 </script>
-<style>#viewSw{position:fixed;z-index:20;right:16px;top:6px;cursor:pointer;font:500 9px Futura,"Avenir Next",sans-serif;letter-spacing:.32em;text-transform:uppercase;color:rgba(200,225,245,.85);text-decoration:none;border:1px solid rgba(160,200,235,.35);border-radius:12px;padding:5px 12px;background:rgba(8,15,22,.55)}#viewSw:hover{color:#fff;border-color:rgba(200,230,255,.8)}</style>
-<a id="viewSw" href="lake.html" title="второй дизайн — озеро">озеро</a>   <!-- 18.10 владелец: «кнопка переключения дизайнов», «не взамен, а просто два разных дизайна» -->
+<style>#viewSw{position:fixed;z-index:20;right:16px;top:6px;display:flex;gap:4px;padding:3px;border:1px solid rgba(160,200,235,.28);border-radius:18px;background:rgba(8,15,22,.6);cursor:pointer;pointer-events:auto}#viewSw i{position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:radial-gradient(circle,rgba(90,160,255,.45),rgba(40,90,200,.15));box-shadow:0 0 12px rgba(80,150,255,.55);transition:transform .5s cubic-bezier(.6,.1,.2,1)}#viewSw.b i{transform:translateX(30px)}#viewSw svg{position:relative;width:26px;height:26px;opacity:.35;transition:opacity .45s,filter .45s}#viewSw svg.lit{opacity:1;filter:drop-shadow(0 0 5px rgba(120,180,255,.95))}#viewSw:hover{border-color:rgba(200,230,255,.6)}</style>
+<a id="viewSw" href="lake.html" title="второй дизайн — озеро"><i></i><svg class="lit" viewBox="0 0 26 26"><ellipse cx="13" cy="13" rx="10" ry="4.5" fill="none" stroke="#9fd0ff" stroke-width="1.2" transform="rotate(-20 13 13)"/><circle cx="13" cy="13" r="3" fill="#cfe6ff"/><circle cx="22" cy="9.6" r="1.5" fill="#fff"/></svg><svg viewBox="0 0 26 26"><circle cx="16.5" cy="9.5" r="4.5" fill="#FFC06A"/><path d="M3 17 Q7 14.5 11 17 T19 17 T25 17" fill="none" stroke="#9fd0ff" stroke-width="1.2"/><path d="M5 21 Q9 19 13 21 T21 21" fill="none" stroke="#6fa8d8" stroke-width="1"/></svg></a><script>(()=>{const a=document.getElementById('viewSw');a.addEventListener('click',e=>{e.preventDefault();const s=a.querySelectorAll('svg');a.classList.toggle('b');s[0].classList.toggle('lit');s[1].classList.toggle('lit');setTimeout(()=>{location.href=a.getAttribute('href')},480);});})();</script>   <!-- 18.10 владелец: «кнопка переключения дизайнов», «не взамен, а просто два разных дизайна» -->
 <script>try { localStorage.setItem('fastView', 'orbit'); } catch (e) {}</script>
 </body>
 </html>
