@@ -413,6 +413,7 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
   function mk(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
   function layout() {
     const dpr = Math.min(devicePixelRatio || 1, 2), iw = innerWidth, ih = innerHeight;
+    if (!iw || !ih) return;   // окно нулевого размера (скрытая вкладка при открытии): ждём resize, иначе масштаб бесконечный и кадр падает
     S = ih / H; W = Math.max(1240, Math.round(iw / S)); if (iw / S < 1240) { S = iw / 1240; W = 1240; }
     OX = (iw - W * S) / 2; OY = (ih - H * S) / 2;
     cv.width = Math.round(iw * dpr); cv.height = Math.round(ih * dpr); cv.style.width = iw + 'px'; cv.style.height = ih + 'px';
@@ -449,8 +450,15 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
   function compose(t) {
     const g = sky.getContext('2d'); g.clearRect(0, 0, W, WATER); stars(g, t); aurora(g, t); g.drawImage(bgL, 0, 0); drawMoon(g, t); drawRing(t, g); g.globalCompositeOperation = 'lighter';
     const s0 = t / 1000;
-    COLC.forEach(c => { const q = .5 + .5 * Math.sin(s0 * TAU / c.per + c.ph), f = c.keep ? 1 : .85 + .15 * q, a = 1;   // 18.10 владелец: «пусть ни один не пропадает… просто ужимается немного и обратно» — все, кроме жёлтого, слегка ужимаются по высоте (до 85 %, предел мой), яркость не меняется
-      if (a < .01 || f < .01) return; g.globalAlpha = a; g.drawImage(c.cv, c.x, WATER - c.h * f, c.w, c.h * f); });
+    // 18.10 владелец: «светящиеся столбы не двигаются вообще» + «а они могут переливаться?» — дышат заметнее (до 75 % высоты, быстрее), по каждому снизу вверх бегут световые волны и поднимаются искры; жёлтый по высоте стоит, но тоже переливается
+    COLC.forEach((c, i) => { const per = 9 + i * 2.3, q = .5 + .5 * Math.sin(s0 * TAU / per + c.ph), f = c.keep ? 1 : .75 + .25 * q, hh = c.h * f, top = WATER - hh;
+      g.globalAlpha = 1; g.drawImage(c.cv, c.x, top, c.w, hh);
+      for (let k = 0; k < 2; k++) { const v = ((s0 / (5.5 + i * .9) + k * .5 + c.ph * .13) % 1), yc = WATER - v * hh * 1.1;   // волна света: тот же столб ещё раз, но только в полосе, — ярче там, где она проходит
+        for (const [bw, ba] of [[56, .22], [28, .3], [12, .38]]) { const y0 = Math.max(top, yc - bw / 2), y1 = Math.min(WATER, yc + bw / 2); if (y1 <= y0) continue; const sy = (y0 - top) / hh * c.h, sh = (y1 - y0) / hh * c.h;
+          g.globalAlpha = ba * Math.sin(Math.PI * v); g.drawImage(c.cv, 0, sy, c.cv.width, sh, c.x, y0, c.w, y1 - y0); } }
+      const tn = TONE[COLS[i].tone], cx = c.x + c.w / 2;
+      for (let k = 0; k < 14; k++) { const v = (s0 * (.12 + (k % 5) * .03) + k / 14 + i * .37) % 1, y = WATER - v * hh, x = cx + Math.sin(k * 2.7 + s0 * .8 + i) * (c.w - 52) * .32, al = Math.pow(.5 + .5 * Math.sin(s0 * 3 + k * 1.9), 2) * Math.sin(Math.PI * v);   // искры поднимаются
+        if (al < .05) continue; g.globalAlpha = .9 * al; g.fillStyle = tn.core; g.fillRect(x - 1, y - 1, 2, 2); } });
     g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.drawImage(fgL, 0, 0); pagodaWin(g, t); cranes(g, t); whale(g, t);
   }
   const STEP = (navigator.hardwareConcurrency || 4) <= 4 ? 2 : 1;
@@ -777,6 +785,7 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
   }
 
   function frame(t) {
+    if (!bgL) { requestAnimationFrame(frame); return; }   // слоёв ещё нет — окно было нулевым
     if (fgDirty) { buildFG(); fgDirty = false; dirty = true; }
     if (dirty) { bakeColumns(); dirty = false; }
     if (!frame.bg || t - frame.bg > 200) { frame.bg = t; buildBG(t); }   // гряда пересчитывается 5 раз в секунду — меняется медленно, этого хватает
