@@ -10,25 +10,25 @@
    "trade": 204
   },
   "1000lunc": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 216,
-   "ohlcv": 220,
-   "trade": 231
+   "funding": 221,
+   "oi": 158,
+   "liq": 217,
+   "ohlcv": 221,
+   "trade": 232
   },
   "4": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 371
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 372
   },
   "ace": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 412
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 413
   },
   "acu": {
    "funding": 185,
@@ -38,74 +38,74 @@
    "trade": 196
   },
   "aio": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 412
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 413
   },
   "apr": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 331
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 332
   },
   "ath": {
-   "funding": 219,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 412
+   "funding": 220,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 413
   },
   "avaai": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 412
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 413
   },
   "beamx": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 226,
-   "ohlcv": 220,
-   "trade": 231
+   "funding": 221,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 221,
+   "trade": 232
   },
   "bera": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 412
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 413
   },
   "bico": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 412
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 413
   },
   "bless": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 384
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 385
   },
   "bmt": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 226,
-   "ohlcv": 220,
-   "trade": 412
+   "funding": 221,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 221,
+   "trade": 413
   },
   "bome": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 412
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 413
   },
   "btr": {
    "funding": 193,
@@ -115,11 +115,11 @@
    "trade": 204
   },
   "bulla": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 412
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 413
   },
   "cetus": {
    "funding": 193,
@@ -136,11 +136,11 @@
    "trade": 198
   },
   "clo": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 356
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 357
   },
   "cookie": {
    "funding": 193,
@@ -150,60 +150,60 @@
    "trade": 385
   },
   "cvx": {
-   "funding": 219,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 412
+   "funding": 220,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 413
   },
   "eden": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 371
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 372
   },
   "ena": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 412
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 413
   },
   "esp": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 233
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 234
   },
   "ethfi": {
-   "funding": 219,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 412
+   "funding": 220,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 413
   },
   "ff": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 381
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 382
   },
   "fhe": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 412
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 413
   },
   "gps": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 412
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 413
   },
   "gua": {
    "funding": 193,
@@ -213,25 +213,25 @@
    "trade": 269
   },
   "h": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 412
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 413
   },
   "hemi": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 408
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 409
   },
   "hype": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 412
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 413
   },
   "inx": {
    "funding": 193,
@@ -241,25 +241,25 @@
    "trade": 204
   },
   "lsk": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 413
+  },
+  "me": {
    "funding": 220,
    "oi": 157,
    "liq": 227,
    "ohlcv": 220,
    "trade": 412
   },
-  "me": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 411
-  },
   "melania": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 411
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 412
   },
   "mmt": {
    "funding": 193,
@@ -269,25 +269,25 @@
    "trade": 304
   },
   "mon": {
-   "funding": 218,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 315
+   "funding": 219,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 316
   },
   "move": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 411
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 412
   },
   "movr": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 411
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 412
   },
   "mubarak": {
    "funding": 193,
@@ -297,81 +297,81 @@
    "trade": 385
   },
   "neiro": {
-   "funding": 218,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 411
+   "funding": 219,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 412
   },
   "nil": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 411
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 412
   },
   "ong": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 225,
-   "ohlcv": 219,
-   "trade": 230
+   "funding": 220,
+   "oi": 157,
+   "liq": 226,
+   "ohlcv": 220,
+   "trade": 231
   },
   "ont": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 411
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 412
   },
   "portal": {
-   "funding": 218,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 411
+   "funding": 219,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 412
   },
   "prom": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 411
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 412
   },
   "raysol": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 230
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 231
   },
   "saga": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 411
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 412
   },
   "santos": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 225,
-   "ohlcv": 219,
-   "trade": 410
-  },
-  "shell": {
-   "funding": 219,
-   "oi": 156,
+   "funding": 220,
+   "oi": 157,
    "liq": 226,
-   "ohlcv": 219,
+   "ohlcv": 220,
    "trade": 411
   },
+  "shell": {
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 412
+  },
   "skr": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 264
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 265
   },
   "skyai": {
    "funding": 193,
@@ -381,18 +381,18 @@
    "trade": 385
   },
   "spk": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 224,
-   "ohlcv": 219,
-   "trade": 410
+   "funding": 220,
+   "oi": 157,
+   "liq": 225,
+   "ohlcv": 220,
+   "trade": 411
   },
   "sqd": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 410
+   "funding": 219,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 411
   },
   "stg": {
    "funding": 210,
@@ -409,32 +409,32 @@
    "trade": 371
   },
   "stx": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 410
+   "funding": 219,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 411
   },
   "tac": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 224,
-   "ohlcv": 218,
-   "trade": 355
+   "funding": 219,
+   "oi": 156,
+   "liq": 225,
+   "ohlcv": 219,
+   "trade": 356
   },
   "tree": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 410
+   "funding": 219,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 411
   },
   "trump": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 410
+   "funding": 219,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 411
   },
   "tst": {
    "funding": 193,
@@ -444,424 +444,424 @@
    "trade": 384
   },
   "wld": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 410
+   "funding": 219,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 411
   },
   "xan": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 378
+   "funding": 219,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 379
   },
   "zro": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 410
+   "funding": 219,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 411
   },
   "zora": {
-   "funding": 217,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 409
+   "funding": 218,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 410
   },
   "zkc": {
-   "funding": 217,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 387
+   "funding": 218,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 388
   },
   "anime": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 410
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 411
   },
   "axl": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 410
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 411
   },
   "flock": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 410
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 411
   },
   "arb": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 410
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 411
   },
   "dogs": {
-   "funding": 219,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 409
+   "funding": 220,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 410
   },
   "coti": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 410
+  },
+  "somi": {
    "funding": 220,
    "oi": 157,
    "liq": 227,
    "ohlcv": 220,
-   "trade": 409
-  },
-  "somi": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 402
+   "trade": 403
   },
   "useless": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 407
-  },
-  "zen": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 407
-  },
-  "not": {
    "funding": 219,
    "oi": 156,
    "liq": 226,
    "ohlcv": 219,
-   "trade": 407
+   "trade": 408
   },
-  "ake": {
+  "zen": {
+   "funding": 219,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 408
+  },
+  "not": {
    "funding": 220,
    "oi": 157,
    "liq": 227,
    "ohlcv": 220,
    "trade": 408
   },
+  "ake": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 409
+  },
   "river": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 356
-  },
-  "chip": {
-   "funding": 183,
-   "oi": 157,
-   "liq": 177,
-   "ohlcv": 183,
-   "trade": 182
-  },
-  "hive": {
    "funding": 220,
    "oi": 157,
-   "liq": 226,
+   "liq": 227,
    "ohlcv": 220,
-   "trade": 407
+   "trade": 357
+  },
+  "chip": {
+   "funding": 184,
+   "oi": 158,
+   "liq": 178,
+   "ohlcv": 184,
+   "trade": 183
+  },
+  "hive": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 221,
+   "trade": 408
   },
   "uni": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 405
-  },
-  "tradoor": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 389
-  },
-  "merl": {
    "funding": 219,
    "oi": 156,
    "liq": 226,
    "ohlcv": 219,
-   "trade": 405
+   "trade": 406
   },
-  "enj": {
+  "tradoor": {
+   "funding": 219,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 390
+  },
+  "merl": {
    "funding": 220,
    "oi": 157,
    "liq": 227,
    "ohlcv": 220,
    "trade": 406
   },
+  "enj": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 407
+  },
   "dusk": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 405
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 406
   },
   "nom": {
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 377
+  },
+  "zk": {
    "funding": 219,
    "oi": 156,
    "liq": 226,
    "ohlcv": 219,
-   "trade": 376
-  },
-  "zk": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 403
+   "trade": 404
   },
   "form": {
-   "funding": 219,
+   "funding": 220,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 406
+  },
+  "play": {
+   "funding": 220,
    "oi": 157,
    "liq": 227,
+   "ohlcv": 220,
+   "trade": 381
+  },
+  "jup": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
    "ohlcv": 220,
    "trade": 405
   },
-  "play": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 380
-  },
-  "jup": {
+  "metis": {
    "funding": 220,
    "oi": 157,
    "liq": 227,
-   "ohlcv": 219,
+   "ohlcv": 220,
    "trade": 404
-  },
-  "metis": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 403
   },
   "dood": {
-   "funding": 219,
-   "oi": 157,
-   "liq": 226,
-   "ohlcv": 220,
-   "trade": 404
+   "funding": 220,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 221,
+   "trade": 405
   },
   "pha": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 402
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 403
   },
   "strk": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 401
+   "funding": 219,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 402
   },
   "naoris": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 402
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 403
   },
   "soph": {
-   "funding": 218,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 402
+   "funding": 219,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 403
   },
   "luna2": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 230
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 231
   },
   "rez": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 401
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 402
   },
   "bigtime": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 402
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 403
   },
   "cati": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 403
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 404
   },
   "inj": {
-   "funding": 219,
+   "funding": 220,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 404
+  },
+  "solv": {
+   "funding": 220,
    "oi": 157,
    "liq": 227,
    "ohlcv": 220,
    "trade": 403
   },
-  "solv": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 402
-  },
   "haedal": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 225,
-   "ohlcv": 220,
-   "trade": 402
+   "funding": 221,
+   "oi": 158,
+   "liq": 226,
+   "ohlcv": 221,
+   "trade": 403
   },
   "ksm": {
-   "funding": 219,
-   "oi": 157,
-   "liq": 226,
-   "ohlcv": 220,
-   "trade": 402
+   "funding": 220,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 221,
+   "trade": 403
   },
   "b": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 401
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 402
   },
   "kat": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 226
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 227
   },
   "vet": {
-   "funding": 217,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 399
-  },
-  "iost": {
-   "funding": 219,
-   "oi": 157,
-   "liq": 226,
-   "ohlcv": 220,
-   "trade": 401
-  },
-  "mina": {
-   "funding": 219,
+   "funding": 218,
    "oi": 156,
    "liq": 226,
    "ohlcv": 219,
    "trade": 400
   },
+  "iost": {
+   "funding": 220,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 221,
+   "trade": 402
+  },
+  "mina": {
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 401
+  },
   "vtho": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 224,
-   "ohlcv": 218,
-   "trade": 398
+   "funding": 219,
+   "oi": 156,
+   "liq": 225,
+   "ohlcv": 219,
+   "trade": 399
   },
   "sahara": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 399
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 400
   },
   "knc": {
-   "funding": 219,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 398
-  },
-  "kava": {
    "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
    "trade": 399
   },
+  "kava": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 400
+  },
   "lab": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 356
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 357
   },
   "met": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 338
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 339
   },
   "griffain": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 398
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 399
   },
   "powr": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 225,
-   "ohlcv": 219,
-   "trade": 396
-  },
-  "ilv": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 397
-  },
-  "ava": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 396
-  },
-  "ark": {
    "funding": 220,
    "oi": 157,
    "liq": 226,
    "ohlcv": 220,
    "trade": 397
   },
-  "cvc": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 225,
-   "ohlcv": 220,
+  "ilv": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 398
+  },
+  "ava": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
    "trade": 397
+  },
+  "ark": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 221,
+   "trade": 398
+  },
+  "cvc": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 226,
+   "ohlcv": 221,
+   "trade": 398
   },
   "alch": {
    "funding": 188,
@@ -871,25 +871,25 @@
    "trade": 365
   },
   "fil": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 396
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 397
   },
   "iotx": {
-   "funding": 219,
-   "oi": 157,
-   "liq": 226,
-   "ohlcv": 220,
-   "trade": 396
+   "funding": 220,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 221,
+   "trade": 397
   },
   "waxp": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 224,
-   "ohlcv": 218,
-   "trade": 393
+   "funding": 219,
+   "oi": 156,
+   "liq": 225,
+   "ohlcv": 219,
+   "trade": 394
   },
   "crwd": {
    "funding": 128,
@@ -899,410 +899,410 @@
    "trade": 127
   },
   "sent": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 251
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 252
   },
   "zil": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 393
+   "funding": 219,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 394
   },
   "wal": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 393
+   "funding": 219,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 394
   },
   "ain": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 394
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 395
   },
   "astr": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 226,
-   "ohlcv": 220,
-   "trade": 394
+   "funding": 221,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 221,
+   "trade": 395
   },
   "syn": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 378
-  },
-  "br": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 226,
-   "ohlcv": 220,
-   "trade": 394
-  },
-  "one": {
    "funding": 219,
    "oi": 156,
-   "liq": 224,
-   "ohlcv": 219,
-   "trade": 392
-  },
-  "drift": {
-   "funding": 219,
-   "oi": 157,
    "liq": 226,
+   "ohlcv": 219,
+   "trade": 379
+  },
+  "br": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 221,
+   "trade": 395
+  },
+  "one": {
+   "funding": 220,
+   "oi": 157,
+   "liq": 225,
    "ohlcv": 220,
    "trade": 393
   },
+  "drift": {
+   "funding": 220,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 221,
+   "trade": 394
+  },
   "lpt": {
-   "funding": 219,
+   "funding": 220,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 221,
+   "trade": 393
+  },
+  "s": {
+   "funding": 220,
    "oi": 157,
-   "liq": 226,
+   "liq": 227,
    "ohlcv": 220,
    "trade": 392
   },
-  "s": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 391
-  },
   "0g": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 391
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 392
   },
   "g": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 391
+   "funding": 221,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 392
   },
   "sei": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 390
-  },
-  "c": {
    "funding": 220,
    "oi": 157,
    "liq": 227,
    "ohlcv": 220,
    "trade": 391
   },
+  "c": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 392
+  },
   "chz": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 390
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 391
   },
   "ptb": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 388
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 389
   },
   "joe": {
-   "funding": 220,
-   "oi": 157,
+   "funding": 221,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 389
+  },
+  "zeta": {
+   "funding": 218,
+   "oi": 156,
    "liq": 226,
    "ohlcv": 219,
    "trade": 388
   },
-  "zeta": {
-   "funding": 217,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 387
-  },
   "evaa": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 367
+   "funding": 220,
+   "oi": 157,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 368
   },
   "chr": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 387
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 388
   },
   "api3": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 387
+  },
+  "broccoli714": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 232
+  },
+  "xai": {
+   "funding": 219,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 385
+  },
+  "dym": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 386
+  },
+  "lyn": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 221,
+   "trade": 358
+  },
+  "axs": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 385
+  },
+  "rare": {
    "funding": 220,
    "oi": 157,
    "liq": 227,
    "ohlcv": 220,
-   "trade": 386
+   "trade": 384
   },
-  "broccoli714": {
+  "spell": {
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 384
+  },
+  "w": {
+   "funding": 219,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 382
+  },
+  "super": {
+   "funding": 219,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 382
+  },
+  "imx": {
+   "funding": 220,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 383
+  },
+  "baby": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 383
+  },
+  "jasmy": {
+   "funding": 220,
+   "oi": 157,
+   "liq": 228,
+   "ohlcv": 220,
+   "trade": 383
+  },
+  "irys": {
+   "funding": 220,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 319
+  },
+  "algo": {
+   "funding": 220,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 382
+  },
+  "xlm": {
+   "funding": 219,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 381
+  },
+  "nmr": {
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 381
+  },
+  "celo": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 221,
+   "trade": 382
+  },
+  "init": {
+   "funding": 221,
+   "oi": 157,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 381
+  },
+  "avax": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 382
+  },
+  "grass": {
+   "funding": 221,
+   "oi": 157,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 382
+  },
+  "soon": {
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 381
+  },
+  "trb": {
+   "funding": 219,
+   "oi": 156,
+   "liq": 226,
+   "ohlcv": 219,
+   "trade": 379
+  },
+  "hbar": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 381
+  },
+  "mew": {
+   "funding": 219,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 380
+  },
+  "flow": {
+   "funding": 221,
+   "oi": 157,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 381
+  },
+  "plume": {
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 379
+  },
+  "mega": {
+   "funding": 219,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 231
+  },
+  "gtc": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 380
+  },
+  "night": {
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 310
+  },
+  "alice": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 380
+  },
+  "magic": {
+   "funding": 221,
+   "oi": 158,
+   "liq": 227,
+   "ohlcv": 221,
+   "trade": 380
+  },
+  "scr": {
    "funding": 220,
    "oi": 157,
    "liq": 227,
    "ohlcv": 220,
    "trade": 231
   },
-  "xai": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 384
-  },
-  "dym": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 385
-  },
-  "lyn": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 226,
-   "ohlcv": 220,
-   "trade": 357
-  },
-  "axs": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 384
-  },
-  "rare": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 383
-  },
-  "spell": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 383
-  },
-  "w": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 381
-  },
-  "super": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 381
-  },
-  "imx": {
-   "funding": 219,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 382
-  },
-  "baby": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 382
-  },
-  "jasmy": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 227,
-   "ohlcv": 219,
-   "trade": 382
-  },
-  "irys": {
-   "funding": 219,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 318
-  },
-  "algo": {
-   "funding": 219,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 381
-  },
-  "xlm": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 380
-  },
-  "nmr": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 380
-  },
-  "celo": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 226,
-   "ohlcv": 220,
-   "trade": 381
-  },
-  "init": {
-   "funding": 220,
-   "oi": 156,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 380
-  },
-  "avax": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 381
-  },
-  "grass": {
-   "funding": 220,
-   "oi": 156,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 381
-  },
-  "soon": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 380
-  },
-  "trb": {
-   "funding": 218,
-   "oi": 155,
-   "liq": 225,
-   "ohlcv": 218,
-   "trade": 378
-  },
-  "hbar": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 380
-  },
-  "mew": {
-   "funding": 218,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 379
-  },
-  "flow": {
-   "funding": 220,
-   "oi": 156,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 380
-  },
-  "plume": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 378
-  },
-  "mega": {
-   "funding": 218,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 230
-  },
-  "gtc": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 379
-  },
-  "night": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 309
-  },
-  "alice": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 227,
-   "ohlcv": 220,
-   "trade": 379
-  },
-  "magic": {
-   "funding": 220,
-   "oi": 157,
-   "liq": 226,
-   "ohlcv": 220,
-   "trade": 379
-  },
-  "scr": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 230
-  },
   "sand": {
-   "funding": 219,
-   "oi": 156,
-   "liq": 226,
-   "ohlcv": 219,
-   "trade": 377
+   "funding": 220,
+   "oi": 157,
+   "liq": 227,
+   "ohlcv": 220,
+   "trade": 378
   },
   "ape": {
-   "funding": 220,
+   "funding": 221,
+   "oi": 158,
+   "liq": 228,
+   "ohlcv": 221,
+   "trade": 378
+  },
+  "mana": {
+   "funding": 221,
    "oi": 157,
-   "liq": 227,
+   "liq": 228,
    "ohlcv": 220,
    "trade": 377
   },
-  "mana": {
-   "funding": 220,
-   "oi": 156,
-   "liq": 227,
-   "ohlcv": 219,
-   "trade": 376
-  },
   "akt": {
-   "funding": 41,
-   "oi": 41,
-   "liq": 41,
-   "ohlcv": 41,
-   "trade": 41
+   "funding": 42,
+   "oi": 42,
+   "liq": 42,
+   "ohlcv": 42,
+   "trade": 42
   },
   "pumpbtc": {
    "funding": 31,
@@ -1312,414 +1312,414 @@
    "trade": 32
   },
   "resolv": {
-   "funding": 41,
-   "oi": 41,
-   "liq": 41,
-   "ohlcv": 41,
-   "trade": 41
+   "funding": 42,
+   "oi": 42,
+   "liq": 42,
+   "ohlcv": 42,
+   "trade": 42
   },
   "velvet": {
-   "funding": 41,
-   "oi": 41,
-   "liq": 41,
-   "ohlcv": 41,
-   "trade": 41
+   "funding": 42,
+   "oi": 42,
+   "liq": 42,
+   "ohlcv": 42,
+   "trade": 42
   },
   "jct": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 332
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 333
   },
   "us": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 306
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 307
   },
   "aia": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 336
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 337
   },
   "band": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 372
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 373
   },
   "bat": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 372
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 373
   },
   "carv": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 372
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 373
   },
   "dia": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 227,
-   "ohlcv": 221,
-   "trade": 372
+   "funding": 222,
+   "oi": 159,
+   "liq": 228,
+   "ohlcv": 222,
+   "trade": 373
   },
   "edu": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 372
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 373
   },
   "orca": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 372
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 373
   },
   "parti": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 372
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 373
   },
   "rlc": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 372
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 373
   },
   "skl": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 372
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 373
   },
   "ta": {
-   "funding": 220,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 372
+   "funding": 221,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 373
   },
   "ygg": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 372
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 373
   },
   "ogn": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 372
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 373
   },
   "c98": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 371
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 372
   },
   "ckb": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 370
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 371
   },
   "lumia": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 370
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 371
   },
   "cfx": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 369
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 370
   },
   "frax": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 369
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 370
   },
   "rsr": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 369
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 370
   },
   "truth": {
-   "funding": 220,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 332
+   "funding": 221,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 333
   },
   "bluai": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 358
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 359
   },
   "deep": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 367
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 368
   },
   "zerebro": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 367
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 368
   },
   "opn": {
-   "funding": 220,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 232
+   "funding": 221,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 233
   },
   "pyth": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 366
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 367
   },
   "stbl": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 365
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 366
   },
   "icnt": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 365
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 366
   },
   "elsa": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 268
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 269
   },
   "aria": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 365
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 366
   },
   "siren": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 365
   },
   "a": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 365
   },
   "2z": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 365
   },
   "agt": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 332
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 333
   },
   "birb": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 257
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 258
   },
   "brev": {
-   "funding": 220,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 278
+   "funding": 221,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 279
   },
   "clanker": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 365
   },
   "fluid": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 227,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 222,
+   "oi": 159,
+   "liq": 228,
+   "ohlcv": 222,
+   "trade": 365
   },
   "fogo": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 275
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 276
   },
   "holo": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 365
   },
   "newt": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 365
   },
   "open": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 365
   },
   "order": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 365
   },
   "prove": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 365
   },
   "pundix": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 227,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 222,
+   "oi": 159,
+   "liq": 228,
+   "ohlcv": 222,
+   "trade": 365
   },
   "q": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 365
   },
   "recall": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 358
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 359
   },
   "sxt": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 365
   },
   "toshi": {
-   "funding": 220,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 221,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 365
   },
   "towns": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 365
   },
   "turtle": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 358
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 359
   },
   "wct": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 365
   },
   "wlfi": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 365
   },
   "yb": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 358
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 359
   },
   "era": {
-   "funding": 221,
-   "oi": 158,
-   "liq": 228,
-   "ohlcv": 221,
-   "trade": 364
+   "funding": 222,
+   "oi": 159,
+   "liq": 229,
+   "ohlcv": 222,
+   "trade": 365
   }
  },
- "at": "2026-10-17T21:20:22Z",
- "full_at": "2026-10-17T02:31:21Z",
- "data_at": "2026-10-16",
- "full_data_at": "2026-10-16"
+ "at": "2026-10-18T02:22:22Z",
+ "full_at": "2026-10-18T02:22:22Z",
+ "data_at": "2026-10-17",
+ "full_data_at": "2026-10-17"
 }
