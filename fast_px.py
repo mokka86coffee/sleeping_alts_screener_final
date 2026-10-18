@@ -44,6 +44,8 @@ def patch_once() -> str:
         p = px.get(f.get("sym"))
         if p:
             f["now"], f["now_t"] = p, t; n += 1
+            if f.get("circ"):
+                f["mcap"] = round(p * float(f["circ"]))                      # 18.10: капа = цена × обращение
             lo = f.get("atl")
             if lo:
                 f["from_atl_pct"] = round((p / float(lo) - 1) * 100, 1)
@@ -61,14 +63,13 @@ def patch_once() -> str:
 
 def main() -> None:
     lk = open(OUT.with_suffix(".px.lock"), "w")
-    try:
-        fcntl.flock(lk, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except OSError:
-        return
+    fcntl.flock(lk, fcntl.LOCK_EX)                                       # 18.10 04:05 UTC: ЖДЁМ замок, не выходим — прежний экземпляр спит до 3 мин
+                                                                         # после новой сборки и держит замок; новый выходил сразу, и цена стояла
+                                                                         # до следующей сборки (дыры 01:53→02:26, 03:50→04:00 в fast_px.log)
     if "--once" in sys.argv:
         print(f"{time.strftime('%H:%M:%S', time.gmtime())} fast_px: {patch_once()}", flush=True); return
     try:
-        t0 = float((json.loads(OUT.read_text(encoding="utf-8")).get("meta") or {}).get("t") or 0)
+        t0 = float((json.loads(OUT.read_text(encoding="utf-8")).get("meta") or {}).get("t") or 0)   # читается ПОСЛЕ замка — свежая сборка
     except (OSError, ValueError):
         t0 = 0.0
     start = time.time()

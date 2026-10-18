@@ -62,6 +62,11 @@ def process_request(connection, request):
             return _resp(200, (BASE_DIR / "coin.html").read_bytes(), "text/html; charset=utf-8")
         except OSError:
             return _resp(404, b"no coin page", "text/plain")
+    if path == "/lake.html":                                 # 18.10 владелец: второй дизайн бота — «Озеро» (fast_site/lake.html), переключение кнопкой сверху
+        try:
+            return _resp(200, (BASE_DIR / "fast_site" / "lake.html").read_bytes(), "text/html; charset=utf-8")
+        except OSError:
+            return _resp(404, b"no lake page", "text/plain")
     return _resp(404, b"not found", "text/plain")
 
 

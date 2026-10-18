@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Быстрый бот · Озеро</title>
+<style>
+/* 18.10 владелец: «попробуй сверху в бота добавить кнопку переключения дизайнов и перенести туда дизайн карточки (озеро) с нашими данными бота —
+   лодки, вода, фонари, дельфины, дом»; «не взамен, а просто два разных дизайна»; «фонари не трогать, они в жёлтом очень красиво».
+   Рисунок — из сцены карточки монеты (render_cardscene.py), данные — бота (state.json). */
+html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; color: #E9F0F6; font-family: Futura, 'Avenir Next', 'Helvetica Neue', sans-serif; }
+#cv { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+#lay { position: fixed; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; }
+#lay .t { position: absolute; white-space: nowrap; }
+.cap { font-size: 9px; letter-spacing: .42em; text-transform: uppercase; color: rgba(160,190,215,.72); }
+.sub { font-size: 9.5px; letter-spacing: .1em; color: rgba(160,190,215,.62); }
+.big { font-weight: 200; letter-spacing: .02em; }
+.mid { font-size: 12px; letter-spacing: .22em; text-transform: uppercase; color: rgba(225,235,245,.82); }
+.col { text-align: center; transform: translateX(-50%); }
+.col .v { font-size: 30px; font-weight: 200; }
+.col .n { font-size: 12px; letter-spacing: .32em; text-transform: uppercase; margin-top: 8px; color: rgba(230,240,248,.85); }
+.col .s { font-size: 10px; letter-spacing: .08em; margin-top: 6px; color: rgba(160,190,215,.62); }
+.gauge { text-align: center; transform: translateX(-50%); }
+.gauge .v { font-size: 26px; font-weight: 200; }
+.ringtxt { text-align: center; transform: translateX(-50%); }
+.ringtxt .v { font-size: 46px; font-weight: 200; letter-spacing: .03em; }
+.dec .w { font-size: 46px; font-weight: 200; color: #FFA83C; letter-spacing: .02em; text-shadow: 0 0 22px rgba(255,150,60,.45); }
+.foot { font-size: 12px; letter-spacing: .05em; color: rgba(200,215,230,.75); }
+.foot b { color: #FFC06A; font-weight: 400; }
+#sw { position: fixed; z-index: 5; right: 16px; top: 10px; pointer-events: auto; cursor: pointer; font: 500 9px Futura, sans-serif; letter-spacing: .32em; text-transform: uppercase; color: rgba(200,225,245,.85); text-decoration: none;
+  border: 1px solid rgba(160,200,235,.35); border-radius: 12px; padding: 5px 12px; background: rgba(8,15,22,.55); }
+#sw:hover { color: #fff; border-color: rgba(200,230,255,.8); }
+.up { color: #6FE3B4; } .dn { color: #FF8A52; }
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+<div id="lay"></div>
+<a id="sw" href="/" title="вернуться к орбите">орбита</a>
+<script>
+(() => {
+  const H = 880, WATER = 530;
+  let W = 1240, S = 1, OX = 0, OY = 0;
+  const cv = document.getElementById('cv'), ctx = cv.getContext('2d'), lay = document.getElementById('lay');
+  const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), ease = q => 1 - Math.pow(1 - q, 3), TAU = Math.PI * 2;
+
+  const TONE = {
+    cold: {core:'#7FA8C4', glow:'#2E5C7A', txt:'#9FC0D6'},
+    hot:  {core:'#FF6A2A', glow:'#C43208', txt:'#FF8A52'},
+    cool: {core:'#4FD6A0', glow:'#137A55', txt:'#6FE3B4'},
+    amber:{core:'#FFA83C', glow:'#C96A0E', txt:'#FFC06A'},
+    gold: {core:'#FFD79A', glow:'#B98A3A', txt:'#FFE1B0'},
+    pale: {core:'#E9F0F6', glow:'#7C8B99', txt:'#F1F6FA'},
+    flat: {core:'#6E7B87', glow:'#39434D', txt:'#8A96A2'}
+  };
+
+  function mulberry(a){ return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function hex(h, a){
+    const n = parseInt(h.slice(1), 16);
+    return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; }
+  function makeColumn(cx, w, h, seed, base){
+    const r = mulberry(seed);
+    const x0 = cx - w/2, x1 = cx + w/2, ty = base - h;
+    const n = 2 + (r() > .55 ? 1 : 0), lobes = [];
+    for (let i = 0; i < n; i++){
+      const lw = w * (.30 + r()*.16);
+      const lx = x0 + lw + (w - 2*lw) * (n === 1 ? .5 : i/(n-1));
+      lobes.push({x:lx, r:lw, top: ty + h * (i === 0 ? 0 : .06 + r()*.22)});
+    }
+    return {x0, x1, cx, w, h, ty, base, lobes,
+      topY(x){
+        let best = base;
+        for (const L of lobes){
+          const d = Math.abs(x - L.x);
+          if (d <= L.r){
+            // купол вытянут по вертикали в 1.7 раза — иначе верх
+            // получается округлым, как у столбика гистограммы
+            const y = L.top + (1 - Math.sqrt(1 - (d/L.r)**2)) * L.r * 1.7;
+            if (y < best) best = y;
+          }
+        }
+        return best;
+      }};
+  }
+
+  function stipple(g, col, tone, dense){
+    const N = Math.round(col.w * col.h * .10 * dense);
+    g.fillStyle = tone.core;
+    for (let i = 0; i < N; i++){
+      const x = col.x0 + Math.random() * col.w;
+      const yt = col.topY(x);
+      if (yt >= col.base - 2) continue;
+      const t = Math.random();
+      const y = col.base - (col.base - yt) * t;
+      const fade = Math.pow(1 - t, .55);
+      if (Math.random() > fade * 1.15) continue;
+      g.globalAlpha = (.16 + .95 * fade) * (.45 + Math.random()*.55);
+      g.fillRect(x, y, t > .7 ? 1.5 : 1.9, t > .7 ? 1.5 : 1.9);
+    }
+    g.globalAlpha = 1;
+  }
+
+  function drawColumn(g, col, tone){
+    const gr = g.createLinearGradient(0, col.base, 0, col.ty);
+    gr.addColorStop(0,  hex(tone.glow, .80));
+    gr.addColorStop(.18,hex(tone.glow, .38));
+    gr.addColorStop(.65,hex(tone.glow, .11));
+    gr.addColorStop(1,  hex(tone.glow, 0));
+    g.fillStyle = gr;
+    g.beginPath();
+    g.moveTo(col.x0 - 8, col.base);
+    for (let x = col.x0 - 8; x <= col.x1 + 8; x += 2) g.lineTo(x, col.topY(x));
+    g.lineTo(col.x1 + 8, col.base);
+    g.closePath();
+    g.fill();
+    stipple(g, col, tone, 1.4);
+  }
+
+  function pagoda(g, x, base, hgt, lamp){
+    /* Пагода узнаётся пропорцией и кровлей, а не числом этажей.
+       Было три яруса с почти прямыми навесами — выходила башня.
+       Стало пять, каждый заметно уже нижнего, и кровля вогнутая:
+       от конька она провисает, а у самых концов задирается вверх.
+       Этот двойной изгиб и есть подпись дальневосточной крыши;
+       без него любой навес читается козырьком.
+
+       Стена по-прежнему ровно во весь промежуток между ярусами,
+       поэтому этажи стоят друг на друге, а не висят. */
+    const T = 5, band = hgt * .118, y0 = base - hgt * .17;
+    g.fillStyle = '#04070A';
+
+    // синбасира — сквозной столб, на нём держится вся постройка
+    g.fillRect(x - hgt * .035, base - hgt * .68, hgt * .07, hgt * .68);
+
+    for (let i = 0; i < T; i++){
+      const w  = hgt * (.52 - i * .068);   // размах кровли
+      const ww = w * .44;                  // стена заметно уже: свес глубокий
+      const yt = y0 - i * band;
+
+      g.fillRect(x - ww / 2, yt, ww, band + 2);
+      // галерея с перилами — то, что делает ярус этажом, а не полкой
+      g.fillRect(x - ww * .78, yt + hgt * .020, ww * 1.56, hgt * .011);
+
+      g.beginPath();
+      g.moveTo(x - w / 2, yt - hgt * .030);
+      g.bezierCurveTo(x - w * .30, yt - hgt * .004, x - w * .15, yt - hgt * .036,
+                      x,           yt - hgt * .050);
+      g.bezierCurveTo(x + w * .15, yt - hgt * .036, x + w * .30, yt - hgt * .004,
+                      x + w / 2,   yt - hgt * .030);
+      g.bezierCurveTo(x + w * .28, yt + hgt * .028, x + w * .12, yt + hgt * .014,
+                      x,           yt + hgt * .012);
+      g.bezierCurveTo(x - w * .12, yt + hgt * .014, x - w * .28, yt + hgt * .028,
+                      x - w / 2,   yt - hgt * .030);
+      g.closePath();
+      g.fill();
+    }
+
+    // сорин: мачта с кольцами и шариком, растёт из столба
+    const yTop = y0 - (T - 1) * band;
+    g.fillRect(x - hgt * .007, base - hgt * .93, hgt * .014, yTop - (base - hgt * .93));
+    for (let k = 0; k < 4; k++){
+      const rw = hgt * (.048 - k * .010);
+      g.fillRect(x - rw / 2, base - hgt * (.80 + k * .033), rw, hgt * .009);
+    }
+    g.beginPath(); g.arc(x, base - hgt * .945, hgt * .016, 0, 7); g.fill();
+
+    // каменное основание в две ступени
+    g.fillRect(x - hgt * .21, base - hgt * .048, hgt * .42, hgt * .034);
+    g.fillRect(x - hgt * .27, base - hgt * .016, hgt * .54, hgt * .020);
+
+    /* Свет только на двух нижних ярусах: наверху пагоды жилья нет,
+       и ровный ряд огней до самой макушки выдал бы декорацию. */
+    g.fillStyle = 'rgba(255,132,50,' + (.75 * (lamp === undefined ? 1 : lamp)).toFixed(3) + ')';
+    for (let i = 0; i < 2; i++){
+      const w = hgt * (.52 - i * .068), ww = w * .44;
+      const yt = y0 - i * band + hgt * .042;
+      /* Три проёма разной ширины: средний уже боковых. Ровный ряд
+         одинаковых прямоугольников выдаёт узор, а не постройку.
+
+         Башня круглая, и стена уходит от нас по дуге. Значит,
+         крайние окна мы видим не в лоб: они сужаются тем сильнее,
+         чем ближе к краю, и разворачиваются вслед за поверхностью.
+         Прямой угол у всех трёх сразу выдавал плоскую декорацию —
+         рисованный фасад, приклеенный к цилиндру. */
+      const wq = [.20, .13, .17], gap = ww * .15;
+      let px = x - (ww * (wq[0] + wq[1] + wq[2]) + gap * 2) / 2;
+      for (let k = 0; k < 3; k++){
+        const w2 = ww * wq[k], cx = px + w2 / 2;
+        const u = (cx - x) / (ww / 2);              // −1…1 вдоль стены
+        const nar = Math.sqrt(Math.max(.2, 1 - u * u * .8));  // ракурс
+        g.save();
+        g.translate(cx, yt + hgt * .025);
+        g.rotate(-u * .14);                         // разворот по дуге
+        g.fillRect(-w2 * nar / 2, -hgt * .025, w2 * nar, hgt * .050);
+        g.restore();
+        px += w2 + gap;
+      }
+    }
+  }
+
+  function bonsai(g, x, y, len, ang, wid, depth, r, sw){
+    if (depth === 0 || len < 4) return;
+    const x2 = x + Math.cos(ang) * len, y2 = y + Math.sin(ang) * len;
+    g.strokeStyle = '#04070A'; g.lineWidth = wid; g.lineCap = 'round';
+    g.beginPath(); g.moveTo(x, y);
+    g.quadraticCurveTo(x + Math.cos(ang - .3)*len*.6, y + Math.sin(ang - .3)*len*.6, x2, y2);
+    g.stroke();
+    if (depth <= 2){
+      // крона — облако точек, а не заливка: у сосны на референсе
+      // читается силуэт из отдельных хвойных подушек
+      g.fillStyle = '#04070A';
+      for (let i = 0; i < 90; i++){
+        const a = r()*Math.PI*2, rr = Math.pow(r(),.55)*len*.85;
+        g.fillRect(x2 + Math.cos(a)*rr, y2 + Math.sin(a)*rr*.42, 1.6, 1.6);
+      }
+    }
+    const br = 2 + (r() > .6 ? 1 : 0);
+    for (let i = 0; i < br; i++)
+      bonsai(g, x2, y2, len*(.62 + r()*.16), ang + (r()-.5)*1.5 - .1 + (sw || 0), wid*.6, depth-1, r, sw);
+  }
+
+  function cairn(g, x, base, h, r){
+    g.fillStyle = '#04070A';
+    /* Плоская плита под стопкой. Без неё камни лежат горизонтально
+       на склоне в сорок пять градусов: нижний одним краем оперт, а
+       другим висит в воздухе. В саду такую стопку и ставят на плиту —
+       ровное основание тут не украшение, а условие, чтобы она стояла. */
+    g.beginPath();
+    g.ellipse(x, base, h * .46, h * .085, 0, 0, 7);
+    g.fill();
+    let y = base - h * .05, w = h * .52;
+    for (let i = 0; i < 4; i++){
+      const dx = (r() - .5) * w * .22, hh = h * (.20 - i * .022);
+      g.beginPath();
+      g.ellipse(x + dx, y - hh / 2, w / 2, hh / 2, 0, 0, 7);
+      g.fill();
+      y -= hh * .96;
+      w *= .74;
+    }
+  }
+
+  function heron(g, x, base, h){
+    g.fillStyle = '#04070A';
+    g.strokeStyle = '#04070A';
+    // ноги
+    g.lineWidth = h * .022;
+    g.beginPath();
+    g.moveTo(x - h * .02, base); g.lineTo(x - h * .01, base - h * .34);
+    g.moveTo(x + h * .05, base); g.lineTo(x + h * .02, base - h * .34);
+    g.stroke();
+    // тело каплей, хвост оттянут назад
+    g.beginPath();
+    g.ellipse(x, base - h * .44, h * .13, h * .10, -.18, 0, 7);
+    g.fill();
+    g.beginPath();
+    g.moveTo(x - h * .10, base - h * .44);
+    g.quadraticCurveTo(x - h * .26, base - h * .40, x - h * .30, base - h * .30);
+    g.quadraticCurveTo(x - h * .18, base - h * .36, x - h * .08, base - h * .38);
+    g.closePath(); g.fill();
+    // шея S и клюв
+    g.lineWidth = h * .035;
+    g.beginPath();
+    g.moveTo(x + h * .06, base - h * .50);
+    g.bezierCurveTo(x + h * .20, base - h * .60, x - h * .02, base - h * .72,
+                    x + h * .08, base - h * .84);
+    g.stroke();
+    g.lineWidth = h * .018;
+    g.beginPath();
+    g.moveTo(x + h * .08, base - h * .86);
+    g.lineTo(x + h * .30, base - h * .80);
+    g.stroke();
+  }
+
+  function rock(g, x, y, w, h, r){
+    g.fillStyle = '#04070A';
+    g.beginPath(); g.moveTo(x - w/2, y);
+    for (let i = 0; i <= 8; i++){
+      const t = i/8, px = x - w/2 + w*t;
+      const py = y - Math.sin(t*Math.PI) * h * (.6 + r()*.7);
+      g.lineTo(px, py);
+    }
+    g.lineTo(x + w/2, y); g.closePath(); g.fill();
+  }
+
+  function ridge(g, price, entry, rnd){
+    const R = rnd || Math.random;
+    const x0 = 120, x1 = W - 120, base = WATER, top = WATER - 350;
+    g.beginPath(); g.moveTo(x0, base);
+    const pt = i => [x0 + (x1-x0)*i/(price.length-1), base - (base-top)*price[i]];
+    for (let i = 0; i < price.length; i++) g.lineTo(...pt(i));
+    g.lineTo(x1, base); g.closePath();
+    const gr = g.createLinearGradient(0, top, 0, base);
+    gr.addColorStop(0, '#31506B'); gr.addColorStop(1, '#13212D');
+    g.fillStyle = gr; g.fill();
+    // зерно по верхней кромке — гряда светится изнутри так же,
+    // как столбы, иначе она читается как плоская подложка
+    g.fillStyle = '#8FB4CC';
+    for (let k = 0; k < 2600; k++){
+      const i = R()*(price.length-1);
+      const a = Math.floor(i), f = i - a;
+      const px = x0 + (x1-x0)*i/(price.length-1);
+      const h  = price[a] + (price[a+1]-price[a])*f;
+      const py = base - (base-top)*h;
+      const d  = Math.pow(R(), 2.6) * 120;
+      g.globalAlpha = (1 - d/120) * .55;
+      g.fillRect(px, py + d, 1.5, 1.5);
+    }
+    g.globalAlpha = 1;
+    // отметка попадания в журнал и её уровень
+    const i = entry*(price.length-1), a = Math.floor(i), f = i-a;
+    const ex = x0 + (x1-x0)*i/(price.length-1);
+    const ey = base - (base-top)*(price[a] + (price[a+1]-price[a])*f);
+    g.strokeStyle = 'rgba(217,164,75,.28)'; g.lineWidth = 1;
+    g.setLineDash([3,7]); g.beginPath(); g.moveTo(x0, ey); g.lineTo(x1, ey);
+    g.stroke(); g.setLineDash([]);
+    g.fillStyle = '#F0C070'; g.beginPath(); g.arc(ex, ey, 3.4, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(240,192,112,.4)'; g.beginPath(); g.arc(ex, ey, 8, 0, 7); g.stroke();
+  }
+
+  const LANTERNS = [
+      {
+        x: 328,
+        y: 58,
+        sp: -.000068,
+        amp: 22,
+        r: 7.6
+      },
+      {
+        x: 368,
+        y: 106,
+        sp: -.00008,
+        amp: 22,
+        r: 8.6
+      },
+      {
+        x: 611,
+        y: 76,
+        sp: .000076,
+        amp: 26,
+        r: 9
+      },
+      {
+        x: 810,
+        y: 52,
+        sp: .000072,
+        amp: 28,
+        r: 6.8
+      },
+  ];
+
+  const LAMP_ST = {
+    ok:   {warm:[255,196,120], halo:[255,168,80], a:.42, blink:0, sat:0},
+    warn: {warm:[255,186,96],  halo:[255,122,20], a:.62, blink:0, sat:1},
+    hot:  {warm:[255,125,125], halo:[255,70,70],  a:.60, blink:0, sat:1},
+    burn: {warm:[255,110,110], halo:[255,50,50],  a:.66, blink:1, sat:1},
+  };
+
+  function lanterns(t){
+    const st = LAMP_ST.ok;   // фонари всегда жёлтые (владелец: «фонари не хотелось бы трогать, они в жёлтом очень красиво смотрятся»)
+    /* Период мигания тот же, что у значка ворот: два красных сигнала
+       об одном событии, моргающие вразнобой, разваливают кадр.
+       Дно 0.4, а не 0 — погасшая вода читается как отсутствие данных,
+       а не как тревога. */
+    const br = st.blink ? (.4 + .6 * (.5 + .5 * Math.sin(t / 1900 * Math.PI * 2))) : 1;
+    const HW = st.warm, HH = st.halo, HA = st.a * br;
+    LANTERNS.forEach(L => {
+      const x = L.x + Math.sin(t * L.sp * 6) * L.amp;
+      const y = WATER + L.y + Math.sin(t * .0007 + L.x) * 1.6;
+
+      // ореол: на тревожных ступенях туже и плотнее
+      const R = st.sat ? L.r * 3.0 : L.r * 4.2;
+      const halo = ctx.createRadialGradient(x, y, 0, x, y, R);
+      halo.addColorStop(0, `rgba(${HH[0]},${HH[1]},${HH[2]},${HA})`);
+      halo.addColorStop(st.sat ? .28 : .45,
+        `rgba(${HH[0]},${HH[1]},${HH[2]},${HA * (st.sat ? .5 : .28)})`);
+      halo.addColorStop(1, `rgba(${HH[0]},${HH[1]},${HH[2]},0)`);
+      ctx.fillStyle = halo;
+      ctx.fillRect(x - R, y - R, R * 2, R * 2);
+
+      // хвост блика вниз: он и сажает огонь на воду
+      /* Отражение — половина того, что видно: если огонь красный, а
+         блик под ним янтарный, кадр разваливается. */
+      const tail = ctx.createLinearGradient(0, y, 0, y + L.r * 9);
+      tail.addColorStop(0, `rgba(${HH[0]},${HH[1]},${HH[2]},${HA * .8})`);
+      tail.addColorStop(1, `rgba(${HH[0]},${HH[1]},${HH[2]},0)`);
+      ctx.fillStyle = tail;
+      ctx.fillRect(x - L.r * .42, y, L.r * .84, L.r * 9);
+
+      // сам фонарь
+      ctx.fillStyle = `rgba(${HW[0]},${HW[1]},${HW[2]},${.95 * br})`;
+      ctx.beginPath();
+      ctx.ellipse(x, y, L.r * .52, L.r * .40, 0, 0, 7);
+      ctx.fill();
+      /* Раскалённая сердцевина только на тревожных: огонь перестаёт
+         быть уютным пятном и становится источником. */
+      if (st.sat) {
+        ctx.fillStyle = `rgba(255,244,232,${.8 * br})`;
+        ctx.beginPath();
+        ctx.ellipse(x, y, L.r * .24, L.r * .18, 0, 0, 7);
+        ctx.fill();
+      }
+      ctx.fillStyle = 'rgba(20,12,6,.8)';
+      ctx.fillRect(x - L.r * .52, y + L.r * .30, L.r * 1.04, L.r * .14);
+    });
+  }
+
+
+  // ── слои неба: гряда (история бота), столбы, берег
+  let bgL, fgL, sky;
+  function mk(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
+  function layout() {
+    const dpr = Math.min(devicePixelRatio || 1, 2), iw = innerWidth, ih = innerHeight;
+    S = ih / H; W = Math.max(1240, Math.round(iw / S)); if (iw / S < 1240) { S = iw / 1240; W = 1240; }
+    OX = (iw - W * S) / 2; OY = (ih - H * S) / 2;
+    cv.width = Math.round(iw * dpr); cv.height = Math.round(ih * dpr); cv.style.width = iw + 'px'; cv.style.height = ih + 'px';
+    ctx.setTransform(dpr * S, 0, 0, dpr * S, dpr * OX, dpr * OY);
+    lay.style.transform = `translate(${OX}px,${OY}px) scale(${S})`; lay.style.width = W + 'px'; lay.style.height = H + 'px';
+    bgL = mk(W, WATER); fgL = mk(W, WATER); sky = mk(W, WATER); dirty = true; fgDirty = true;
+  }
+  let dirty = true, fgDirty = true, ST = null, COLS = [];
+
+  // гряда: накопленный итог закрытых сделок бота, по времени
+  function ridgeSeries() {
+    const h = ((ST && ST.closed_hist) || []).filter(c => c && c.t_out && typeof c.usd === 'number').sort((a, b) => a.t_out - b.t_out);
+    if (h.length < 3) return { price: Array.from({ length: 90 }, (_, i) => .35 + .1 * Math.sin(i / 9)), entry: .5 };
+    let acc = 0; const pts = h.map(c => (acc += c.usd)); const lo = Math.min(...pts, 0), hi = Math.max(...pts, 0), N = 90, out = [];
+    for (let i = 0; i < N; i++) { const f = i / (N - 1) * (pts.length - 1), a = Math.floor(f), b = Math.min(pts.length - 1, a + 1), v = pts[a] + (pts[b] - pts[a]) * (f - a); out.push(.12 + .72 * (v - lo) / ((hi - lo) || 1)); }
+    const d0 = new Date(); d0.setUTCHours(0, 0, 0, 0); const k = h.findIndex(c => c.t_out * 1000 >= d0.getTime());   // начало сегодняшних суток UTC — отметка на гряде
+    return { price: out, entry: k < 0 ? 1 : clamp(k / (h.length - 1)) };
+  }
+  function buildBG() {
+    const g = bgL.getContext('2d'); g.clearRect(0, 0, W, WATER); const r = ridgeSeries(); ridge(g, r.price, r.entry, mulberry(21));
+    const bl = g.createRadialGradient(W * .55, WATER, 10, W * .55, WATER, 620); bl.addColorStop(0, 'rgba(120,150,180,.30)'); bl.addColorStop(.35, 'rgba(80,110,140,.14)'); bl.addColorStop(1, 'rgba(60,90,120,0)');
+    g.globalCompositeOperation = 'lighter'; g.fillStyle = bl; g.fillRect(0, 0, W, WATER); g.globalCompositeOperation = 'source-over';
+  }
+  function winLamp() { const sc = (ST && ST.score) || {}; let n = 0, w = 0; for (const k in sc) { n += sc[k].n || 0; w += sc[k].win || 0; } return n ? .25 + .75 * w / n : .6; }   // окна пагоды: доля плюсовых сделок за день
+  function buildFG() {
+    const g = fgL.getContext('2d'), r = mulberry(7); g.clearRect(0, 0, W, WATER);
+    const rx1 = W * .556, rx2 = W * .75;
+    rock(g, rx1, WATER, 190, 34, r); rock(g, rx2, WATER, 150, 28, r); rock(g, 205, WATER, 120, 26, r);
+    bonsai(g, rx1 + 10, WATER - 18, 52, -1.5, 6, 4, r, 0); bonsai(g, rx2 + 10, WATER - 14, 44, -1.45, 5, 4, r, 0);
+    pagoda(g, 118, WATER - 6, 240, winLamp()); heron(g, 232, WATER - 14, 34);
+  }
+  // столбы: первая тройка очереди (итог за 24 ч) и избранное «на ходу» (во сколько раз от дна)
+  function columns() {
+    const q = ((ST && ST.queue) || []).slice(0, 3).map(x => ({ name: x.sym.replace(/USDT$/, ''), tone: (x.res || 0) >= 0 ? 'cool' : 'hot', v: ((x.res || 0) >= 0 ? '+' : '−') + Math.abs(x.res || 0).toFixed(1) + '%', s: 'очередь · место ' + ((x.ranks || []).slice(-1)[0] ?? '—'), h: Math.min(1, Math.abs(x.res || 0) / 30) }));
+    const f = ((ST && ST.favorites) || []).filter(x => /ход/.test(String(x.group || ''))).slice(0, 5 - q.length).map(x => { const k = x.now && (x.atl || x.low) ? x.now / (x.atl || x.low) : 1 + (x.from_atl_pct || 0) / 100; return { name: x.sym.replace(/USDT$/, ''), tone: 'amber', v: '×' + k.toFixed(1), s: 'на ходу · от дна', h: Math.min(1, Math.log(Math.max(1, k)) / Math.log(20)) }; });
+    return q.concat(f);
+  }
+  function compose() {
+    COLS = columns(); const g = sky.getContext('2d'); g.clearRect(0, 0, W, WATER); g.drawImage(bgL, 0, 0); g.globalCompositeOperation = 'lighter';
+    const n = COLS.length, left = W * .44, span = W * .38;   // столбы не налезают друг на друга и подписи не слипаются
+    COLS.forEach((c, i) => { const cx = n > 1 ? left + span * i / (n - 1) : left + span / 2, w = 74 + (i % 3) * 11, h = 130 + 330 * c.h, PADc = 26, cw = w + PADc * 2, ch = h + PADc, c2 = mk(cw, ch), g2 = c2.getContext('2d');
+      g2.globalCompositeOperation = 'lighter'; drawColumn(g2, makeColumn(cw / 2, w, h, i * 97 + 13, ch), TONE[c.tone]); g.drawImage(c2, cx - cw / 2, WATER - ch); c.cx = cx; });
+    g.globalCompositeOperation = 'source-over'; g.drawImage(fgL, 0, 0);
+  }
+  const STEP = (navigator.hardwareConcurrency || 4) <= 4 ? 2 : 1;
+  function water(t) {
+    const hgt = H - WATER;
+    for (let j = 0; j < hgt; j += STEP) { const src = WATER - 1 - j * (WATER / hgt) * .82; if (src < 0) break; const k = j / hgt, dx = Math.sin(j * .055 + t * .0009) * (2 + k * 11) * (.4 + k); ctx.globalAlpha = (1 - k) * .62; ctx.drawImage(sky, 0, Math.floor(src), W, 1, dx, WATER + j, W, STEP + .2); }
+    ctx.globalAlpha = 1; ctx.fillStyle = 'rgba(200,225,245,.10)';
+    for (let j = 0; j < 34; j++) { const y = WATER + Math.pow(j / 34, 1.7) * hgt; ctx.fillRect(Math.sin(j * 2.7 + t * .0004) * 380 + W * .4, y, 60 + ((j * 97) % 300), 1); }
+  }
+
+  // ── кольцо-луна: сессия и её ход; три круга сверху; лодки — открытые сделки; дельфин — новый вход
+  const BOAT_SAIL = new Path2D('M150,18 C214,34 246,74 250,132 L150,146 Z'), BOAT_HULL = new Path2D('M40,150 C36,138 46,132 62,134 L268,140 C286,142 292,150 286,158 C240,182 96,180 40,150 Z'), BOAT_CAB = new Path2D('M84,128 Q124,110 164,128 Q124,134 84,128 Z');
+  const DOL = [new Path2D('M137,29 C131,24 126,21 118,19 C100,13 76,12 54,18 C40,22 28,26 20,29 C30,35 42,40 58,41 C86,42 118,36 132,31 Z'), new Path2D('M80,15 C77,8 72,3 65,1 C71,7 73,11 74,16 Z'), new Path2D('M86,35 C79,42 73,48 75,52 C83,46 89,40 92,37 Z'), new Path2D('M20,28 C12,21 3,17 0,21 C5,25 12,28 17,30 Z'), new Path2D('M19,30 C13,34 7,40 8,44 C14,41 18,35 20,31 Z')];
+  const RING = { cx: 330, cy: 392, r: 140 };
+  function sessionFrac() { const m = (ST && ST.meta) || {}, now = Date.now() / 1000; return m.ses_start && m.ses_end ? clamp((now - m.ses_start) / (m.ses_end - m.ses_start)) : 0; }
+  function drawRing(t) {
+    const { cx, cy, r } = RING, f = sessionFrac(), a0 = -Math.PI / 2, a1 = a0 + TAU * f;
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const gl = ctx.createRadialGradient(cx, cy, r * .6, cx, cy, r * 1.25); gl.addColorStop(0, 'rgba(120,160,210,0)'); gl.addColorStop(.75, 'rgba(120,160,210,.07)'); gl.addColorStop(1, 'rgba(120,160,210,0)'); ctx.fillStyle = gl; ctx.fillRect(cx - r * 1.3, cy - r * 1.3, r * 2.6, r * 2.6);
+    ctx.strokeStyle = 'rgba(200,225,245,.18)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = 'rgba(235,245,255,.9)'; ctx.lineWidth = 2.6; ctx.beginPath(); ctx.arc(cx, cy, r, a0, a1); ctx.stroke(); ctx.strokeStyle = 'rgba(200,225,255,.25)'; ctx.lineWidth = 8; ctx.stroke();
+    const ex = cx + Math.cos(a1) * r, ey = cy + Math.sin(a1) * r, gg = ctx.createRadialGradient(ex, ey, 0, ex, ey, 46); gg.addColorStop(0, 'rgba(255,250,235,.85)'); gg.addColorStop(.25, 'rgba(255,240,210,.25)'); gg.addColorStop(1, 'rgba(255,240,210,0)'); ctx.fillStyle = gg; ctx.fillRect(ex - 46, ey - 46, 92, 92);
+    ctx.restore();
+  }
+  const GAUGES = () => [{ x: 160 }, { x: W / 2 }, { x: W - 170 }];
+  function gaugeVals() {
+    const S0 = ST || {}, op = S0.open || [], L = op.filter(p => p.side > 0).length, sc = S0.score || {}; let n = 0, w = 0, usd = 0; for (const k in sc) { n += sc[k].n || 0; w += sc[k].win || 0; usd += sc[k].usd || 0; }
+    const pot = S0.pot || {};
+    return [{ f: op.length ? L / op.length : 0, v: String(op.length), cap: 'сделки · открыто', sub: `лонг ${L} · шорт ${op.length - L}` },
+            { f: n ? w / n : 0, v: (usd >= 0 ? '+' : '−') + Math.abs(usd).toFixed(0) + ' $', cap: 'день · итог бота', sub: `${w} из ${n} в плюс`, cls: usd >= 0 ? 'up' : 'dn' },
+            { f: pot.pot_usd ? clamp(pot.used_usd / pot.pot_usd) : 0, v: pot.pot_usd ? Math.round(pot.used_usd / 1e6) + '/' + Math.round(pot.pot_usd / 1e6) : '—', cap: 'котёл · млн $', sub: pot.state || '' }];
+  }
+  function drawGauges() {
+    const G = GAUGES(), V = gaugeVals();
+    G.forEach((g, i) => { const v = V[i], cx = g.x, cy = 122, r = 34, a0 = -Math.PI / 2; ctx.save(); ctx.strokeStyle = 'rgba(200,225,245,.16)'; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.arc(cx, cy, r, 0, TAU); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,190,110,.95)'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(cx, cy, r, a0 - .8, a0 - .8 + TAU * .22 * Math.max(.05, v.f) * 2.2); ctx.stroke(); ctx.restore(); });
+    ctx.save(); ctx.strokeStyle = 'rgba(160,190,215,.18)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(110, 190); ctx.lineTo(W - 110, 190); ctx.stroke(); ctx.restore();
+  }
+  // лодки
+  const BOATS = new Map(), LEAVING = [], DOLPH = []; let firstData = true, nextIdle = 0;
+  function pnl(p) { return p.px && p.entry ? p.side * (p.px / p.entry - 1) * 100 : 0; }
+  function syncBoats() {
+    const op = ((ST && ST.open) || []).slice().sort((a, b) => b.t_in - a.t_in).slice(0, 6), keys = new Set(op.map(p => p.sym + '|' + Math.round(p.t_in))), now = performance.now() / 1000;
+    for (const [k, b] of BOATS) if (!keys.has(k)) { BOATS.delete(k); b.leaveT = now; LEAVING.push(b); }   // сделка закрылась — лодка уплывает
+    op.forEach((p, i) => { const k = p.sym + '|' + Math.round(p.t_in); let b = BOATS.get(k); if (!b) { let h = 0; for (const c of k) h = (h * 31 + c.charCodeAt(0)) >>> 0; b = { k, ph: (h % 628) / 100, bornT: now }; BOATS.set(k, b); if (!firstData) DOLPH.push({ t0: now + .2, x: 0, k }); }
+      b.p = p; b.slot = i; });
+    firstData = false;
+  }
+  function boatPos(b, t) { const n = 6, x0 = 520, x1 = W - 140, x = x0 + (x1 - x0) * (b.slot + .5) / n + Math.sin(t * .13 + b.ph) * 14, y = WATER + 232 + (b.slot % 2) * 26 + Math.sin(t * .8 + b.ph) * 1.6; return [x, y]; }
+  function drawBoat(x, y, sc, side, a, t, ph) {
+    ctx.save(); ctx.globalAlpha = a; ctx.translate(x, y); ctx.rotate(Math.sin(t * .9 + ph) * .025); ctx.scale(sc, sc); ctx.translate(-150, -160);
+    ctx.fillStyle = side > 0 ? 'rgba(79,214,160,.78)' : 'rgba(255,120,70,.78)'; ctx.fill(BOAT_SAIL); ctx.strokeStyle = 'rgba(190,215,235,.35)'; ctx.lineWidth = 1.4; ctx.stroke(BOAT_SAIL);
+    ctx.strokeStyle = '#04070A'; ctx.lineWidth = 3.4; ctx.beginPath(); ctx.moveTo(150, 10); ctx.lineTo(150, 164); ctx.stroke();
+    ctx.fillStyle = '#04070A'; ctx.fill(BOAT_HULL); ctx.strokeStyle = 'rgba(190,215,235,.25)'; ctx.lineWidth = 1.1; ctx.stroke(BOAT_HULL); ctx.fill(BOAT_CAB); ctx.fillStyle = 'rgba(255,150,60,.34)'; ctx.fillRect(96, 128, 56, 12);
+    ctx.fillStyle = 'rgba(255,178,92,.9)'; ctx.beginPath(); ctx.arc(52, 112, 5, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(255,150,60,.14)'; ctx.beginPath(); ctx.arc(52, 112, 15, 0, TAU); ctx.fill();
+    ctx.restore();
+    // отражение лодки
+    ctx.save(); ctx.globalAlpha = a * .22; ctx.translate(x, y + 4); ctx.scale(sc, -sc * .7); ctx.translate(-150, -160); ctx.fillStyle = side > 0 ? 'rgba(79,214,160,.6)' : 'rgba(255,120,70,.6)'; ctx.fill(BOAT_SAIL); ctx.fillStyle = '#04070A'; ctx.fill(BOAT_HULL); ctx.restore();
+  }
+  function drawBoats(t) {
+    const now = performance.now() / 1000;
+    for (const b of BOATS.values()) { const [x, y] = boatPos(b, t), a = clamp((now - b.bornT) / 1.5); drawBoat(x, y, .2, b.p.side, a, t, b.ph); b.x = x; b.y = y; }
+    for (let i = LEAVING.length - 1; i >= 0; i--) { const b = LEAVING[i], u = (now - b.leaveT) / 6; if (u >= 1) { LEAVING.splice(i, 1); continue; } const [x, y] = boatPos(b, t); drawBoat(x + ease(u) * 260, y - u * 6, .2 * (1 - .35 * u), b.p.side, 1 - u, t, b.ph); }
+  }
+  function drawDolphins(t) {
+    const now = performance.now() / 1000;
+    if (ST && ST.meta && ST.meta.open_gate && now > nextIdle) { nextIdle = now + 22 + Math.random() * 10; DOLPH.push({ t0: now, x: 380 + Math.random() * (W - 700) }); }   // вход открыт — дельфины иногда играют
+    for (let i = DOLPH.length - 1; i >= 0; i--) { const d = DOLPH[i], u = (now - d.t0) / 1.7; if (u < 0) continue; if (u >= 1.25) { DOLPH.splice(i, 1); continue; }
+      if (!d.x) { const b = BOATS.get(d.k); d.x = b && b.x ? b.x - 60 : W / 2; }
+      const yb = WATER + 185, q = clamp(u), x = d.x + q * 130, y = yb - Math.sin(Math.PI * q) * 62, ang = Math.atan2(-Math.cos(Math.PI * q) * 62 * Math.PI, 130);
+      if (u < 1) { ctx.save(); ctx.translate(x, y); ctx.rotate(-ang); ctx.scale(-.38, .38); ctx.translate(-70, -30); ctx.fillStyle = '#04070A'; DOL.forEach(p => ctx.fill(p)); ctx.strokeStyle = 'rgba(190,215,235,.3)'; ctx.lineWidth = 1.5; ctx.stroke(DOL[0]); ctx.restore(); }
+      for (const [sx, s0] of [[d.x, 0], [d.x + 130, .95]]) { const v = (u - s0) / .4; if (v < 0 || v > 1) continue; ctx.strokeStyle = `rgba(200,225,245,${.6 * (1 - v)})`; ctx.lineWidth = 1.2; ctx.beginPath(); ctx.ellipse(sx, yb + 4, 8 + v * 26, 2 + v * 5, 0, 0, TAU); ctx.stroke(); }
+    }
+  }
+
+  // ── подписи (DOM поверх холста, в тех же координатах)
+  const fmtT = s => { s = Math.max(0, Math.round(s)); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h + ':' + String(m).padStart(2, '0'); };
+  function labels() {
+    if (!ST) return; const m = ST.meta || {}, now = Date.now() / 1000, gv = gaugeVals(), G = GAUGES(), b = ST.board || {}, cap = ST.cap || {}, bc = ST.btc_clock || {}, last = ((ST.closed || []).slice().sort((a, c) => c.t_out - a.t_out))[0];
+    let h = '';
+    G.forEach((g, i) => { const v = gv[i]; h += `<div class="t gauge" style="left:${g.x}px;top:104px"><div class="v ${v.cls || ''}">${v.v}</div></div><div class="t gauge cap" style="left:${g.x}px;top:200px">${v.cap}</div><div class="t gauge sub" style="left:${g.x}px;top:218px">${v.sub}</div>`; });
+    const left = m.exit_at ? m.exit_at - now : 0, gate = m.open_gate ? '<span class="up">вход открыт</span>' : '<span class="dn">вход закрыт' + (m.gate_why ? ' · ' + m.gate_why : '') + '</span>';
+    h += `<div class="t ringtxt" style="left:${RING.cx}px;top:${RING.cy - 62}px"><div class="cap">до выхода · ${m.ses || ''}</div><div class="v">${fmtT(left)}</div><div class="mid" style="margin-top:10px">${gate}</div>
+      <div class="cap" style="margin-top:22px">доска</div><div class="sub" style="margin-top:6px;font-size:12px;color:${(b.board24 || 0) >= 0 ? '#6FE3B4' : '#FF8A52'}">${b.board24 != null ? ((b.board24 >= 0 ? '+' : '−') + Math.abs(b.board24).toFixed(2) + '% · ' + (b.zone || '')) : '—'}</div>
+      <div class="sub" style="margin-top:6px">btc от сквиза · ${bc.squeeze ? Math.round(bc.squeeze.hours_ago + (Date.now() - Date.parse(bc.at)) / 3.6e6) + ' ч' : '—'}</div></div>`;
+    COLS.forEach(c => { const tn = TONE[c.tone]; h += `<div class="t col" style="left:${c.cx}px;top:${WATER + 62}px"><div class="v" style="color:${tn.txt}">${c.v}</div><div class="n">${c.name}</div><div class="s">${c.s}</div></div>`; });
+    for (const bt of BOATS.values()) { if (!bt.x) continue; const pp = pnl(bt.p); h += `<div class="t col" style="left:${bt.x}px;top:${bt.y + 22}px"><div class="s" style="color:rgba(225,235,245,.85);letter-spacing:.2em">${bt.p.sym.replace(/USDT$/, '')} <span class="${pp >= 0 ? 'up' : 'dn'}">${(pp >= 0 ? '+' : '−') + Math.abs(pp).toFixed(1)}%</span></div></div>`; }
+    h += `<div class="t dec" style="left:70px;top:${WATER + 98}px"><div class="cap">— сессия</div><div class="w">${(m.ses || '—').toLowerCase()}</div>
+      <div class="cap" style="margin-top:8px;line-height:2">${m.wd || ''} · до выхода ${fmtT(left)}<br>альты ${cap.tv_total3_usd ? Math.round(cap.tv_total3_usd / 1e9) + ' млрд · ' + (cap.zone || '') : '—'}<br>очередь: ${((ST.queue || []).map(q => q.sym.replace(/USDT$/, '')).join(' · ')) || '—'}</div></div>`;
+    if (last) h += `<div class="t foot" style="left:110px;top:${H - 46}px">последняя сделка: <b>${last.sym.replace(/USDT$/, '')}</b> · ${last.side > 0 ? 'лонг' : 'шорт'} · ${last.why || ''} · <span class="${last.res >= 0 ? 'up' : 'dn'}">${(last.res >= 0 ? '+' : '−') + Math.abs(last.res).toFixed(1)}% · ${(last.usd >= 0 ? '+' : '−') + Math.abs(last.usd).toFixed(1)} $</span> · ${last.book || ''}</div>`;
+    lay.innerHTML = h;
+  }
+
+  function frame(t) {
+    if (fgDirty) { buildFG(); fgDirty = false; dirty = true; }
+    if (dirty) { buildBG(); compose(); dirty = false; }
+    const iw = innerWidth, ih = innerHeight; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#080F16'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore();
+    const bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#16242F'); bg.addColorStop(.55, '#1D3241'); bg.addColorStop(.62, '#152634'); bg.addColorStop(1, '#080F16'); ctx.fillStyle = bg; ctx.fillRect(-OX / S, -OY / S, iw / S, ih / S);
+    ctx.drawImage(sky, 0, 0); water(t);
+    ctx.fillStyle = 'rgba(170,205,230,.26)'; ctx.fillRect(0, WATER - .5, W, 1);
+    const r = mulberry(211); ctx.fillStyle = 'rgba(4,7,10,.55)'; ctx.beginPath(); ctx.ellipse(W * .486, WATER + 16, 44, 4, 0, 0, 7); ctx.fill(); cairn(ctx, W * .486, WATER + 16, 52, r);
+    lanterns(t); drawRing(t); drawGauges(); drawDolphins(t); drawBoats(t);
+    if (t - (frame.lt || 0) > 500) { frame.lt = t; labels(); }   // подписи — дважды в секунду
+    requestAnimationFrame(frame);
+  }
+  async function load() {
+    try { const r = await fetch('/state.json', { cache: 'no-store' }); if (r.ok) { const S1 = await r.json(); if (!ST || S1.meta.t !== ST.meta.t) { ST = S1; dirty = true; fgDirty = true; syncBoats(); } } } catch (e) {}
+  }
+  addEventListener('resize', layout); layout(); load(); setInterval(load, 5000); requestAnimationFrame(frame);
+  try { localStorage.setItem('fastView', 'lake'); } catch (e) {}
+})();
+</script>
+</body>
+</html>

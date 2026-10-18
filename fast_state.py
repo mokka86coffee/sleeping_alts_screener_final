@@ -795,6 +795,39 @@ def _fav_signs(sym: str, now: float, px_now, bars_vol) -> dict:
 
 
 
+_SUPPLY_F = BASE_DIR / "output" / "favorites_supply.json"
+SUPPLY_TTL_H = 6
+
+
+def _fav_supply(cfg_coins: list, now: float) -> dict:
+    """ОБРАЩЕНИЕ ИЗБРАННЫХ (18.10 владелец: «здесь капитализацию нужно выводить, а не интерес, у тех кто идёт»). Капа на странице = цена
+    Binance (та же, что now) × обращение. Обращение — с CoinGecko одним запросом по cg_id из config/favorites.json, кэш output/favorites_supply.json
+    на SUPPLY_TTL_H часов; ручное поле circ в конфиге главнее (AGT: на CoinGecko пусто, взято 3,26 млрд с CoinMarketCap 18.10).
+    Возвращает {sym: circ}; чего нет — нет в словаре (капа на странице тогда не рисуется)."""
+    cache = _read(_SUPPLY_F, {}) or {}
+    ids = {str(c.get("sym") or "").upper(): c.get("cg_id") for c in cfg_coins if c.get("cg_id") and not c.get("circ")}
+    stale = [s for s in ids if now - float((cache.get(s) or {}).get("t") or 0) > SUPPLY_TTL_H * 3600]
+    if stale:
+        try:
+            r = get_json("https://api.coingecko.com/api/v3/coins/markets", {"vs_currency": "usd", "ids": ",".join(sorted({ids[s] for s in stale})), "per_page": 100}) or []
+            by = {x.get("id"): x for x in r if isinstance(x, dict)}
+            for s in stale:
+                x = by.get(ids[s])
+                if x and x.get("circulating_supply"):
+                    cache[s] = {"id": ids[s], "circ": float(x["circulating_supply"]), "t": now}
+            try:
+                tmp = _SUPPLY_F.with_suffix(".tmp"); tmp.write_text(json.dumps(cache), encoding="utf-8"); tmp.replace(_SUPPLY_F)
+            except OSError:
+                pass
+        except Exception as e:  # noqa: BLE001
+            print(f"избранные: обращение CoinGecko не получено: {type(e).__name__}: {e}")
+    out = {s: float((cache.get(s) or {}).get("circ") or 0) for s in ids}
+    for c in cfg_coins:                                                  # ручное обращение главнее
+        if c.get("circ"):
+            out[str(c.get("sym") or "").upper()] = float(c["circ"])
+    return {s: v for s, v in out.items() if v > 0}
+
+
 def favorites(now: float) -> list[dict]:
     """ИЗБРАННЫЕ МОНЕТЫ ВЛАДЕЛЬЦА (17.10 02:35 UTC: «сделай отдельный json типа избранные и занеси туда agt»; «добавь в fast_state.json поле
     STATE.favorites… правила бота список не читают — только показ на сайте»; 17.10 03:00 UTC: «для таких монет нужна только цена сейчас +
@@ -802,6 +835,7 @@ def favorites(now: float) -> list[dict]:
     atl, atl_at (дно из config/favorites.json, если задано владельцем; иначе минимум дневных свечей фьючерса Binance, кэш 6 ч); признаки — раз в FAV_SIGN_TTL_H, from_atl_pct — рост от дна, %."""
     cfg = _read(BASE_DIR / "config" / "favorites.json", {}) or {}
     out = []
+    supply = _fav_supply(cfg.get("coins") or [], now)                     # 18.10: обращение для капы
     for c in cfg.get("coins") or []:
         sym = str(c.get("sym") or "").upper()
         if not sym:
@@ -832,6 +866,7 @@ def favorites(now: float) -> list[dict]:
         out.append(dict(sym=sym, added=c.get("added"), px_added=c.get("px_added"), note=c.get("note"),
                         now=p_now, now_t=round(_PX_NOW["t"], 1) if p_now else None,
                         atl=atl, atl_at=atl_at, from_atl_pct=round((p_now / atl - 1) * 100, 1) if (p_now and atl) else None,
+                        circ=supply.get(sym), mcap=round(p_now * supply[sym]) if (p_now and supply.get(sym)) else None,   # 18.10: капа = цена × обращение
                         oi7=sg.get("oi7"), oi30=sg.get("oi30"), fund3=sg.get("fund3"), vol_x=sg.get("vol_x"), px7=sg.get("px7"), stage=sg.get("stage"),
                         group=c.get("group") or _FAV_GROUP.get(sg.get("stage") or "")))   # 17.10 (чат сайта): три свечи «на ходу» / «скоро» / «шевелятся»; group из
     return out

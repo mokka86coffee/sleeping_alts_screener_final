@@ -1170,7 +1170,8 @@ function drawHUD(t) {
 
   // 11.10 владелец: три значения сверху — элементами: шкала альтов (на месте декоративной правой шкалы), часы от сквиза BTC, котёл
   if (typeof drawCapGauge === 'function') { drawCapGauge(t); drawBtcClock(t); drawPot(t); }
-  if (typeof drawFavs === 'function') drawFavs(t);   // 17.10 владелец: избранное — справа от девушки
+  if (typeof drawFavs === 'function') drawFavs(t);
+  if (typeof drawOrb === 'function') drawOrb();   // 18.10 владелец: раз в 30 с пролетает солнце, как на главной   // 17.10 владелец: избранное — справа от девушки
 }
 
 // ---------- hover summary card (demo data; replace demoDetail with real series) ----------
@@ -3007,7 +3008,7 @@ findHover = function () {
       return { g: { title: kind === 'week' ? 'НА НЕДЕЛЕ' : 'ОЧЕРЕДЬ' }, d: { ring: 'closed', now, candles: [], status }, it: { sym: it.sym }, closes, n, kind: 'closed', dir: 0, marks, ei: null, xi: null };
     }
     if (kind === 'fav') { const it = l.item, lo = +it.low || 0, nw = +it.now || lo, kx = lo && nw ? nw / lo : (it.rise != null ? 1 + it.rise / 100 : 0), xs = kx > 0 ? '×' + kx.toFixed(1) : '—', dd = it.low_t ? new Date(typeof it.low_t === 'number' ? it.low_t * 1000 : it.low_t) : null, ds = dd && !isNaN(dd) ? String(dd.getUTCDate()).padStart(2, '0') + '.' + String(dd.getUTCMonth() + 1).padStart(2, '0') + '.' + dd.getUTCFullYear() : '';
-      return { g: { title: 'ИЗБРАННОЕ' + (l.grp != null ? ' · ' + ['НА ХОДУ', 'СКОРО', 'ШЕВЕЛЯТСЯ'][l.grp] : '') }, d: { ring: 'closed', now: nw, candles: [], status: `от исторического дна ${xs}` + (ds ? ` · дно ${ds}` : '') + (it.stage && it.stage !== 'памп был' ? ` · ${it.stage}` : '') + (it.oi30 != null ? ` · интерес за 30 дн ${it.oi30 >= 0 ? '+' : ''}${Math.round(it.oi30)}%` : '') + (it.fund3 != null ? ` · фандинг ${it.fund3}%` : '') + (it.vol_x != null ? ` · оборот ×${it.vol_x}` : '') }, it: { sym: it.sym }, closes: [lo, nw], n: 2, kind: 'closed', dir: 0, marks: [{ label: 'ДНО', price: lo, rgb: l.c1 || '110,255,150', idx: 0 }, { label: 'СЕЙЧАС', price: nw, rgb: '255,255,255', idx: null, now: true }], ei: null, xi: null }; }
+      return { g: { title: 'ИЗБРАННОЕ' + (l.grp != null ? ' · ' + ['НА ХОДУ', 'СКОРО', 'ШЕВЕЛЯТСЯ'][l.grp] : '') }, d: { ring: 'closed', now: nw, candles: [], status: `от исторического дна ${xs}` + (ds ? ` · дно ${ds}` : '') + (it.stage && it.stage !== 'памп был' ? ` · ${it.stage}` : '') + (it.mcap > 0 ? ` · капа ${it.mcap >= 1e9 ? (it.mcap / 1e9).toFixed(2) + ' млрд $' : Math.round(it.mcap / 1e6) + ' млн $'}` : '') + (it.oi30 != null ? ` · интерес за 30 дн ${it.oi30 >= 0 ? '+' : ''}${Math.round(it.oi30)}%` : '') + (it.fund3 != null ? ` · фандинг ${it.fund3}%` : '') + (it.vol_x != null ? ` · оборот ×${it.vol_x}` : '') }, it: { sym: it.sym }, closes: [lo, nw], n: 2, kind: 'closed', dir: 0, marks: [{ label: 'ДНО', price: lo, rgb: l.c1 || '110,255,150', idx: 0 }, { label: 'СЕЙЧАС', price: nw, rgb: '255,255,255', idx: null, now: true }], ei: null, xi: null }; }
     if (kind === 'fc' && !l.fc) l = { fc: l.item.fc };   /* прогноз на реке — та же панель, что у записи вверху */
     if (!l.fc) return _pd(l);
     const f = l.fc, lp = livePx(f), c = lp != null && (f.closes || []).length ? f.closes.concat([lp]) : (f.closes || []), n = c.length, ch = f.changes || [], last = ch[ch.length - 1], prev = ch[ch.length - 2];
@@ -3211,6 +3212,8 @@ findHover = function () {
   const FAV_PAL = ['255,186,84', '190,140,255', '90,220,255', '255,120,170', '110,255,170'];
   const favCol = (now, seed) => { const c = (now + fr(seed, 13) * 30) / 30, i = Math.floor(c), u = (c - i) * 30 / 3, n = FAV_PAL.length, cur = FAV_PAL[((i % n) + n) % n], prv = FAV_PAL[(((i - 1) % n) + n) % n]; return u < 1 ? mix(prv, cur, ease(u)) : cur; };
   const favPx = v => { v = +v; return !isFinite(v) || !v ? '—' : v >= 100 ? v.toFixed(1) : v >= 1 ? v.toFixed(3) : v >= .01 ? v.toFixed(4) : v.toPrecision(3); };
+  // 18.10 владелец: «шрифт маленький обратно, а значение белым и побольше», «интерес можно догадаться по паре букв, капитализация тоже», «значение влом разглядывать, а видеть надо»
+  const favSegs = (segs, x, y, lab) => { let gx = x; segs.forEach(([str, big]) => { tctx.font = big ? `600 10.5px ${FONT}` : `500 5.5px ${FONT}`;   /* значения — 10,5 px (владелец: «побольше») */ tctx.letterSpacing = big ? '.5px' : '2px'; tctx.fillStyle = big ? '#fff' : lab; tctx.fillText(str, gx, y); gx += tctx.measureText(str).width + (big ? 3 : 0); }); };
   const favX = it => { const lo = +it.low || 0, nw = +it.now || 0, k = lo && nw ? nw / lo : (it.rise != null ? 1 + it.rise / 100 : null); return k != null && isFinite(k) && k > 0 ? '×' + k.toFixed(1) : '—'; };   // 17.10 владелец: «округление до десятых»
   const favHit = document.createElement('div'); favHit.id = 'favHit'; document.body.appendChild(favHit);
   const favCss = document.createElement('style'); favCss.textContent = '#favHit{position:fixed;z-index:3;left:0;top:0;width:0;height:0}#favHit i{position:absolute;display:block;cursor:pointer}'; document.head.appendChild(favCss);
@@ -3292,7 +3295,7 @@ findHover = function () {
       const f = list[Math.min(L.idx, len - 1)];
       if (L.sym !== f.sym) { const first = L.sym == null; L.sym = f.sym; L.key = 'fav|' + f.sym; L.name = f.sym.replace(/USDT$/, ''); if (!first) { L.swT = now; L.pxOld = L.pxS; L.pxS = favPx(f.now); L.pxV = +f.now; L.pxT = now; L.pxSw = true; } }
       const rgb = g === 0 ? favWarm(now, L.seed) : g === 1 ? '90,215,255' : '180,160,240';
-      L.c1 = L.c2 = rgb; L.item = { kind: 'fav', sym: f.sym, now: f.now, low: f.low ?? f.atl, low_t: f.low_t ?? (f.atl_at && !isNaN(Date.parse(f.atl_at)) ? f.atl_at : null), rise: f.rise ?? f.from_atl_pct, stage: f.stage, oi30: f.oi30, fund3: f.fund3, vol_x: f.vol_x };   // в данных дно — atl, рост от дна — from_atl_pct (fast_state); стадия и интерес — от другого чата
+      L.c1 = L.c2 = rgb; L.item = { kind: 'fav', sym: f.sym, now: f.now, low: f.low ?? f.atl, low_t: f.low_t ?? (f.atl_at && !isNaN(Date.parse(f.atl_at)) ? f.atl_at : null), rise: f.rise ?? f.from_atl_pct, stage: f.stage, oi30: f.oi30, fund3: f.fund3, vol_x: f.vol_x, mcap: f.mcap };   /* 18.10: капа = цена × обращение (fast_state) */   // в данных дно — atl, рост от дна — from_atl_pct (fast_state); стадия и интерес — от другого чата
       const ea = (now - L.born) / 1.6, y0 = y00 + j * (H1 + 10), tx = x0 + 32;
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       // 17.10 владелец: «пусть она ещё раз в 20 секунд немного прозрачной становится на 2 сек» — плавно до половины яркости и обратно (глубина — моя)
@@ -3321,14 +3324,45 @@ findHover = function () {
             tctx.globalAlpha = ta; } }
         const xs = favX(L.item); tctx.font = `200 16px ${THIN_FONT}`; tctx.letterSpacing = '.5px'; tctx.shadowColor = `rgba(${rgb},.9)`; tctx.shadowBlur = 8; tctx.fillStyle = `rgb(${rgb})`; tctx.fillText(xs, tx - 1, yb + 50); tctx.shadowBlur = 0;
         const xw = tctx.measureText(xs).width; tctx.font = `500 5.5px ${FONT}`; tctx.letterSpacing = '2px'; tctx.fillStyle = `rgba(${rgb},.8)`; tctx.fillText('ОТ ДНА', tx + xw + 6, yb + 49);
-        if (L.item.stage) { const sg = L.item.stage === 'памп был' ? '' : L.item.stage.toUpperCase(), oi =   /* 18.10 владелец: «убери надпись памп был» — слово не пишем, интерес/фандинг остаются */ L.item.oi30 != null ? ` · ИНТЕРЕС ${L.item.oi30 >= 0 ? '+' : '−'}${Math.abs(Math.round(L.item.oi30))}%` : '', fd = L.item.fund3 != null && L.item.fund3 < 0 ? ' · ФАНДИНГ −' : '';
-          tctx.font = `500 5.5px ${FONT}`; tctx.letterSpacing = '2px'; tctx.fillStyle = L.item.stage === 'копит' ? `rgb(${rgb})` : L.item.stage === 'шевелится' ? 'rgba(120,245,185,.9)' : L.item.stage === 'памп был' ? 'rgba(255,90,114,.85)' : 'rgba(165,205,245,.55)'; tctx.fillText((sg + oi + fd).replace(/^ · /, ''), tx, yb + 62); }
+        const capTxt = L.item.mcap > 0 ? (L.item.mcap >= 1e9 ? (L.item.mcap / 1e9).toFixed(2).replace('.', ',') + ' МЛРД $' : Math.round(L.item.mcap / 1e6) + ' МЛН $') : '';   /* 18.10 владелец: «здесь капитализацию нужно выводить, а не интерес, у тех кто идёт»; «2 млрд это максимум обычно» */
+        if (g === 0 && capTxt) { const room = 2e9 / L.item.mcap; favSegs([['КП ', 0], [capTxt, 1]].concat(room > 1.05 ? [[' · ', 0], ['×' + (room >= 10 ? Math.round(room) : room.toFixed(1).replace('.', ',')), 1], [' ДО 2 МЛРД', 0]] : [[' · ВЫШЕ 2 МЛРД', 0]]), tx, yb + 67, `rgba(${rgb},.85)`); }   /* 18.10 владелец: «слепилось немного» — строка ниже на 5 px */
+        else if (L.item.stage) { const sg = L.item.stage === 'памп был' ? '' : L.item.stage.toUpperCase(), oi =   /* 18.10 владелец: «убери надпись памп был» — слово не пишем, интерес/фандинг остаются */ L.item.oi30 != null ? ` · ИНТЕРЕС ${L.item.oi30 >= 0 ? '+' : '−'}${Math.abs(Math.round(L.item.oi30))}%` : '', fd = L.item.fund3 != null && L.item.fund3 < 0 ? ' · ФАНДИНГ −' : '';
+          { const lab = L.item.stage === 'копит' ? `rgb(${rgb})` : L.item.stage === 'шевелится' ? 'rgba(120,245,185,.9)' : L.item.stage === 'памп был' ? 'rgba(255,90,114,.85)' : 'rgba(165,205,245,.55)', segs = [];
+            if (sg) segs.push([sg, 0]); if (L.item.oi30 != null) { segs.push([(segs.length ? ' · ' : '') + 'ИН ', 0]); segs.push([`${L.item.oi30 >= 0 ? '+' : '−'}${Math.abs(Math.round(L.item.oi30))}%`, 1]); } if (fd) segs.push([(segs.length ? ' · ' : '') + 'ФАНДИНГ −', 0]);
+            favSegs(segs, tx, yb + 67, lab); } }
         tctx.restore(); }
       L.hit = { x: x0 - 6, y: y0, w: Math.min(wmax, 200), h: H1, ax: an.ax, ay: an.ay, tx: an.ax, ty: an.ay };
       hits.push(L);
     });
     const keyH = hits.map(L => L.key + '@' + L.hit.x + ',' + L.hit.y + ',' + L.hit.h).join('|'); if (favHit.dataset.k !== keyH) { favHit.dataset.k = keyH; favHit.innerHTML = '';
       hits.forEach(L => { const b = document.createElement('i'); b.dataset.g = L.grp; b.title = L.name + ' · ' + FAV_GRP[L.grp].toLowerCase() + (L.len > 1 ? ' · колесо или свайп — следующая' : ''); Object.assign(b.style, { left: L.hit.x + 'px', top: L.hit.y + 'px', width: L.hit.w + 'px', height: L.hit.h + 'px' }); b.addEventListener('click', e => { e.stopPropagation(); if (selected === L) closeCard(); else openCard(L); }); favHit.appendChild(b); }); }
+  };
+  // 18.10 владелец: «сделай, чтобы какой-нибудь шар светящийся, как звезда, пролетал раз в 30 секунд», «вот как на главной странице — когда доска давит, там солнце
+  // с лучами и точками притягивающимися» — то же солнце в малом: ядро бело-голубое, ореол, девять лучей разной длины, к ядру со всех сторон летят искры-штрихи;
+  // раз в 30 с проходит через верхнюю половину экрана по пологой дуге за ~6 с, путь каждый раз свой (время и размеры — мои)
+  window.drawOrb = function () {
+    const now = Date.now() / 1000, ci = Math.floor(now / 60), u = (now - ci * 60) / 30; if (u >= 1 || W < 700) return;   /* 18.10 владелец: «анимацию движения замедли в 5 раз» — пролёт 30 с вместо 6, раз в минуту (30 с полёта + 30 с паузы) */
+    const r = i => { const v = Math.sin(ci * 91.7 + i * 47.3) * 43758.5453; return v - Math.floor(v); }, ltr = r(1) > .35;
+    const x0 = ltr ? -140 : W + 140, x2 = ltr ? W + 140 : -140, y0 = H * (.1 + r(3) * .28), y2 = H * (.1 + r(4) * .28), x1 = W / 2, y1 = Math.min(y0, y2) - H * (.04 + r(5) * .08);
+    const P = q => { const k = 1 - q; return [k * k * x0 + 2 * k * q * x1 + q * q * x2, k * k * y0 + 2 * k * q * y1 + q * q * y2]; }, e = q => q < .5 ? 2 * q * q : 1 - Math.pow(-2 * q + 2, 2) / 2;
+    const [px, py] = P(e(u)), A = clamp(u / .08) * clamp((1 - u) / .08), br = 1 + .2 * Math.sin(now * 1.14);   // дыхание ядра
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+    // лёгкий след по пройденному пути
+    for (let j = 1; j <= 18; j++) { const [ax, ay] = P(e(Math.max(0, u - (j - 1) * .007))), [bx, by] = P(e(Math.max(0, u - j * .007))), a = (1 - j / 18) * A; ctx.strokeStyle = `rgba(140,185,255,${.3 * a})`; ctx.lineWidth = 2 * (1 - j / 18) + .3; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke(); }
+    // 18.10 владелец: «поменьше его сделай в 3 раза» — всё солнце рисуется в масштабе 1/3 вокруг своей точки; штрихи искр толще, чтобы не терялись
+    ctx.translate(px, py); ctx.scale(1 / 3, 1 / 3); ctx.translate(-px, -py);
+    // дальнее свечение и ореол
+    const far = ctx.createRadialGradient(px, py, 0, px, py, 195); far.addColorStop(0, `rgba(120,165,255,${.22 * A})`); far.addColorStop(1, 'rgba(120,165,255,0)'); ctx.fillStyle = far; ctx.fillRect(px - 195, py - 195, 390, 390);
+    const halo = ctx.createRadialGradient(px, py, 0, px, py, 92); halo.addColorStop(0, `rgba(200,225,255,${.55 * A * br})`); halo.addColorStop(.4, `rgba(140,185,255,${.25 * A})`); halo.addColorStop(1, 'rgba(100,150,255,0)'); ctx.fillStyle = halo; ctx.fillRect(px - 92, py - 92, 184, 184);
+    // девять лучей из ядра под разными углами, разной длины и яркости, каждый дышит в своём ритме
+    for (let i = 0; i < 9; i++) { const a = i * TAU / 9 + r(10 + i) * .5, L = (45 + r(20 + i) * 63) * (.75 + .25 * Math.sin(now * (1.3 + r(30 + i)) + i)), al = (.45 + .45 * r(40 + i)) * A, lg = ctx.createLinearGradient(px, py, px + Math.cos(a) * L, py + Math.sin(a) * L);
+      lg.addColorStop(0, `rgba(210,232,255,${.9 * al})`); lg.addColorStop(.45, `rgba(160,200,255,${.35 * al})`); lg.addColorStop(1, 'rgba(160,200,255,0)'); ctx.strokeStyle = lg; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + Math.cos(a) * L, py + Math.sin(a) * L); ctx.stroke(); }
+    // притяжение: искры летят к ядру со всех сторон, вытягиваются по ходу, ускоряются и гаснут у поверхности
+    for (let i = 0; i < 28; i++) { const dur = 1.2 + r(50 + i) * 1.4, q = ((now + r(60 + i) * dur) % dur) / dur, a = r(70 + i) * TAU + ci, R0 = 126 + r(80 + i) * 60, k = Math.pow(q, 1.6), d = R0 + (50 - R0) * k, op = (q < .1 ? q / .1 : q > .85 ? (1 - q) / .15 : 1) * A, ln = 4 + 15 * k;
+      const hx = px + Math.cos(a) * d, hy = py + Math.sin(a) * d, tx = px + Math.cos(a) * (d + ln), ty = py + Math.sin(a) * (d + ln); ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(hx, hy); ctx.strokeStyle = `rgba(140,190,255,${.35 * op})`; ctx.lineWidth = 11; ctx.stroke(); ctx.strokeStyle = `rgba(230,242,255,${op})`; ctx.lineWidth = 4.5; ctx.stroke(); ctx.fillStyle = `rgba(255,255,255,${op})`; ctx.beginPath(); ctx.arc(hx, hy, 3.2, 0, TAU); ctx.fill(); }   /* 18.10 владелец: «точки ярче» — ореол, яркий штрих и белая головка */
+    // ядро: от белого к голубому
+    const core = ctx.createRadialGradient(px - 12, py - 12, 0, px, py, 48);   /* 18.10 владелец: «ядро само больше в 2 раза» */ core.addColorStop(0, `rgba(255,255,255,${A})`); core.addColorStop(.34, `rgba(234,243,255,${A})`); core.addColorStop(.62, `rgba(169,200,255,${.95 * A})`); core.addColorStop(1, `rgba(107,147,255,${.0 * A})`); ctx.fillStyle = core; ctx.beginPath(); ctx.arc(px, py, 48 * br, 0, TAU); ctx.fill();
+    ctx.restore();
   };
   // граненый кристалл-шестигранник: рёбра рисуются по очереди, потом проявляются грани и ядро
   function gem(x, y, r, rot, ea0, c, A, lit, lw1 = 1.5) {
@@ -3509,5 +3543,8 @@ findHover = function () {
   };
 })();
 </script>
+<style>#viewSw{position:fixed;z-index:20;right:16px;top:6px;cursor:pointer;font:500 9px Futura,"Avenir Next",sans-serif;letter-spacing:.32em;text-transform:uppercase;color:rgba(200,225,245,.85);text-decoration:none;border:1px solid rgba(160,200,235,.35);border-radius:12px;padding:5px 12px;background:rgba(8,15,22,.55)}#viewSw:hover{color:#fff;border-color:rgba(200,230,255,.8)}</style>
+<a id="viewSw" href="lake.html" title="второй дизайн — озеро">озеро</a>   <!-- 18.10 владелец: «кнопка переключения дизайнов», «не взамен, а просто два разных дизайна» -->
+<script>try { localStorage.setItem('fastView', 'orbit'); } catch (e) {}</script>
 </body>
 </html>
