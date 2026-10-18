@@ -1440,6 +1440,12 @@ if __name__ == "__main__":
         favorites_tg(d, time.time())                                     # 17.10: избранные — «скоро» раз в 3 ч, «шевелятся» раз в 12 ч
     except Exception as e:  # noqa: BLE001
         print(f"избранное в Телеграм: {type(e).__name__}: {e}")
+    try:                                                                 # 18.10 владелец: «цену обновлять раз в 3 минуты… только цену пока» — fast_px.py
+        import subprocess                                                #   правит now/now_t избранных раз в 3 мин, пока бот на паузе и новой сборки нет
+        subprocess.Popen([sys.executable, "fast_px.py"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "fast_px.log", "a"),
+                         stderr=subprocess.STDOUT, start_new_session=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"fast_px: {type(e).__name__}: {e}")
     try:
         btc_hour_tg(d, time.time())                                      # 15.10: биткоин раз в час — «падает» или часы после сквиза
     except Exception as e:  # noqa: BLE001
