@@ -41,6 +41,7 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
   const H = 880, WATER = 530;
   let W = 1240, S = 1, OX = 0, OY = 0;
   const cv = document.getElementById('cv'), ctx = cv.getContext('2d'), lay = document.getElementById('lay');
+  const ZOOM = .9, RIDGE_K = 1 / ZOOM;   // весь кадр в 0,9; горы растянуты обратно, чтобы на экране остались прежними
   const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), ease = q => 1 - Math.pow(1 - q, 3), TAU = Math.PI * 2;
 
   const TONE = {
@@ -287,7 +288,7 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
 
   function ridge(g, price, entry, rnd){
     const R = rnd || Math.random;
-    const x0 = 120, x1 = W - 120, base = WATER, top = WATER - 350;
+    const x0 = 120, x1 = W - 120, base = WATER, top = WATER - 350 * RIDGE_K;
     g.beginPath(); g.moveTo(x0, base);
     const pt = i => [x0 + (x1-x0)*i/(price.length-1), base - (base-top)*price[i]];
     for (let i = 0; i < price.length; i++) g.lineTo(...pt(i));
@@ -414,8 +415,8 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
   function layout() {
     const dpr = Math.min(devicePixelRatio || 1, 2), iw = innerWidth, ih = innerHeight;
     if (!iw || !ih) return;   // окно нулевого размера (скрытая вкладка при открытии): ждём resize, иначе масштаб бесконечный и кадр падает
-    S = ih / H; W = Math.max(1240, Math.round(iw / S)); if (iw / S < 1240) { S = iw / 1240; W = 1240; }
-    OX = (iw - W * S) / 2; OY = (ih - H * S) / 2;
+    S = ih / H; if (iw / S < 1240) S = iw / 1240; S *= ZOOM; W = Math.round(iw / S);   // 18.10 владелец: «чуть картинку ужать, все объекты меньше на 10 %» — масштаб 0,9, кадр шире
+    OX = (iw - W * S) / 2; OY = ih - H * S;   // вода у нижнего края, освободившееся место — небо сверху
     cv.width = Math.round(iw * dpr); cv.height = Math.round(ih * dpr); cv.style.width = iw + 'px'; cv.style.height = ih + 'px';
     ctx.setTransform(dpr * S, 0, 0, dpr * S, dpr * OX, dpr * OY);
     lay.style.transform = `translate(${OX}px,${OY}px) scale(${S})`; lay.style.width = W + 'px'; lay.style.height = H + 'px';
@@ -430,20 +431,22 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
     g.globalCompositeOperation = 'lighter'; g.fillStyle = bl; g.fillRect(0, 0, W, WATER); g.globalCompositeOperation = 'source-over';
   }
   function winLamp() { return 0; }   // свет окон пагоды живой, рисуется по кадру в pagodaWin
+  let TREES = [], treeL = null; const treeG = () => treeL.getContext('2d');
   function buildFG() {
-    const g = fgL.getContext('2d'), r = mulberry(7); g.clearRect(0, 0, W, WATER);
+    const g = fgL.getContext('2d'), r = mulberry(7); g.clearRect(0, 0, W, WATER); treeL = mk(W, WATER);
     const rx1 = W * .556, rx2 = W * .75;
     rock(g, rx1, WATER, 190, 34, r); rock(g, rx2, WATER, 150, 28, r); rock(g, 205, WATER, 120, 26, r);
-    bonsai(g, rx1 + 10, WATER - 18, 52, -1.5, 6, 4, r, 0); bonsai(g, rx2 + 10, WATER - 14, 44, -1.45, 5, 4, r, 0);
+    TREES = []; const tree = (x, y, len, ang, wid, dep, sw, k) => { const vals = [], rr = () => { const v = r(); vals.push(v); return v; }; bonsai(treeG(), x, y, len, ang, wid, dep, rr, sw); TREES.push({ x, y, len, ang, wid, dep, sw, k, vals }); };   // 18.10 ветер: деревья рисуются отдельно и в порыв гнутся
+    tree(rx1 + 10, WATER - 18, 52, -1.5, 6, 4, 0, 1); tree(rx2 + 10, WATER - 14, 44, -1.45, 5, 4, 0, 1.15);
     pagoda(g, 118, WATER - 6, 240, winLamp()); heron(g, 232, WATER - 14, 34);
-    const mn = MOON(); rock(g, mn.x - 34, WATER, 112, 20, r); bonsai(g, mn.x - 44, WATER - 12, 46, -1.25, 5, 4, r, .12);   // сосна на камне перед луной
+    const mn = MOON(); rock(g, mn.x - 34, WATER, 112, 20, r); tree(mn.x - 44, WATER - 12, 46, -1.25, 5, 4, .12, .9);   // сосна на камне перед луной
     /* ворота сняты: 18.10 владелец «давай вместо ворот кита» — кит рисуется по кадру в whale() */   // 18.10 владелец выбрал из четырёх: «давай ворота» — ворота стоят прямо в воде, в тёмной полосе
   }
   function columns() { return [{ tone: 'cold', h: .45 }, { tone: 'cool', h: .62 }, { tone: 'amber', h: .9 }, { tone: 'gold', h: .55 }, { tone: 'pale', h: .35 }]; }   // столбы света — без чисел
   // 18.10 владелец: «светящиеся столбы пусть попеременно растут и падают, или потухают и появляются» — у каждого столба свой медленный ритм
   let COLC = [];
   function bakeColumns() {
-    COLS = columns(); const n = COLS.length, left = W * .47, span = W * .32;
+    COLS = columns(); const n = COLS.length, left = W * .495, span = W * .27;   /* 18.10 владелец: «и столбы ближе друг к другу» — было .47 / .32, центр группы на месте */
     COLC = COLS.map((c, i) => { const cx = n > 1 ? left + span * i / (n - 1) : left + span / 2, w = 74 + (i % 3) * 11, h = 130 + 330 * c.h, PADc = 26, cw = w + PADc * 2, ch = h + PADc, c2 = mk(cw, ch), g2 = c2.getContext('2d');
       g2.globalCompositeOperation = 'lighter'; drawColumn(g2, makeColumn(cw / 2, w, h, i * 97 + 13, ch), TONE[c.tone]); return { cv: c2, x: cx - cw / 2, w: cw, h: ch, per: 19 + i * 7.3, ph: i * 1.9, fade: i % 2, keep: c.tone === 'amber' }; });   /* 18.10 владелец: «жёлтый столб оставь, чтобы горел всегда» */
   }
@@ -453,13 +456,17 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
     // 18.10 владелец: «светящиеся столбы не двигаются вообще» + «а они могут переливаться?» — дышат заметнее (до 75 % высоты, быстрее), по каждому снизу вверх бегут световые волны и поднимаются искры; жёлтый по высоте стоит, но тоже переливается
     COLC.forEach((c, i) => { const per = 9 + i * 2.3, q = .5 + .5 * Math.sin(s0 * TAU / per + c.ph), f = c.keep ? 1 : .75 + .25 * q, hh = c.h * f, top = WATER - hh;
       g.globalAlpha = 1; g.drawImage(c.cv, c.x, top, c.w, hh);
-      for (let k = 0; k < 2; k++) { const v = ((s0 / (5.5 + i * .9) + k * .5 + c.ph * .13) % 1), yc = WATER - v * hh * 1.1;   // волна света: тот же столб ещё раз, но только в полосе, — ярче там, где она проходит
+      c.bt = top + 30; c.ba = .75 + .25 * Math.sin(s0 * .9 + i * 1.7);   // 18.10 владелец: «могут свет до конца экрана вверх отбрасывать, как пучок, просто в небо»
+      c.pulses = []; const Yt = -OY / S, D = WATER - Yt;
+      for (let k = 0; k < 2; k++) { const v = ((s0 / (8 + i * 1.2) + k * .5 + c.ph * .13) % 1), yc = WATER - v * D;   // 18.10 владелец: «свет идёт по столбу и потом уходит и рассеивается в конце экрана» — волна идёт снизу вверх по столбу, выходит из макушки и летит дальше в небо
+        if (yc < top + 20) { c.pulses.push({ yc, k }); continue; }   // выше столба — дорисует beamsTop на основном холсте
+        const inP = Math.sin(Math.PI * clamp((WATER - yc) / hh * .5 + .1));
         for (const [bw, ba] of [[56, .22], [28, .3], [12, .38]]) { const y0 = Math.max(top, yc - bw / 2), y1 = Math.min(WATER, yc + bw / 2); if (y1 <= y0) continue; const sy = (y0 - top) / hh * c.h, sh = (y1 - y0) / hh * c.h;
-          g.globalAlpha = ba * Math.sin(Math.PI * v); g.drawImage(c.cv, 0, sy, c.cv.width, sh, c.x, y0, c.w, y1 - y0); } }
+          g.globalAlpha = ba * inP; g.drawImage(c.cv, 0, sy, c.cv.width, sh, c.x, y0, c.w, y1 - y0); } }
       const tn = TONE[COLS[i].tone], cx = c.x + c.w / 2;
       for (let k = 0; k < 14; k++) { const v = (s0 * (.12 + (k % 5) * .03) + k / 14 + i * .37) % 1, y = WATER - v * hh, x = cx + Math.sin(k * 2.7 + s0 * .8 + i) * (c.w - 52) * .32, al = Math.pow(.5 + .5 * Math.sin(s0 * 3 + k * 1.9), 2) * Math.sin(Math.PI * v);   // искры поднимаются
         if (al < .05) continue; g.globalAlpha = .9 * al; g.fillStyle = tn.core; g.fillRect(x - 1, y - 1, 2, 2); } });
-    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.drawImage(fgL, 0, 0); pagodaWin(g, t); cranes(g, t); whale(g, t);
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over'; g.drawImage(fgL, 0, 0); drawTrees(g, t); pagodaWin(g, t); cranes(g, t); whale(g, t);
   }
   const STEP = (navigator.hardwareConcurrency || 4) <= 4 ? 2 : 1;
   function water(t) {
@@ -553,10 +560,10 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
   const PETALS = []; let nextPetal = 0; const RIPS = [];
   function petals(t) {   // лепестки сакуры: летят по ветру, касаясь воды, расходятся кругами
     const s0 = t / 1000;
-    if (s0 > nextPetal && PETALS.length < 9) { nextPetal = s0 + 2.5 + Math.random() * 3.5; PETALS.push({ x: -20 + Math.random() * W * .5, y: -10 - Math.random() * 60, vx: 18 + Math.random() * 16, vy: 14 + Math.random() * 10, ph: Math.random() * TAU, s: .7 + Math.random() * .6, t0: s0 }); }
+    const wf = 1 + (WIND.mul - 1) * clamp(WIND.w * 1.6); if (s0 > nextPetal && PETALS.length < 9 * wf) { nextPetal = s0 + (2.5 + Math.random() * 3.5) / wf;   /* в порыв — в WIND.mul раз (4–8) больше лепестков */ PETALS.push({ x: -20 + Math.random() * W * .5, y: -10 - Math.random() * 60, vx: 18 + Math.random() * 16, vy: 14 + Math.random() * 10, ph: Math.random() * TAU, s: .7 + Math.random() * .6, t0: s0 }); }
     const dt = Math.min(.05, (t - (petals.lt || t)) / 1000); petals.lt = t;
     ctx.save();
-    for (let i = PETALS.length - 1; i >= 0; i--) { const p = PETALS[i]; p.x += (p.vx + Math.sin(s0 * 1.3 + p.ph) * 14) * dt; p.y += (p.vy + Math.sin(s0 * 2.1 + p.ph) * 6) * dt;
+    for (let i = PETALS.length - 1; i >= 0; i--) { const p = PETALS[i]; p.x += (p.vx + Math.sin(s0 * 1.3 + p.ph) * 14 + WIND.w * 70) * dt; p.y += (p.vy + Math.sin(s0 * 2.1 + p.ph) * 6) * dt;
       const wy = WATER + 6 + ((p.ph * 37) % 1) * 60; if (p.y >= wy || p.x > W + 30) { if (p.y >= wy) RIPS.push({ x: p.x, y: wy, t0: s0 }); PETALS.splice(i, 1); continue; }
       ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(s0 * 1.6 + p.ph); ctx.scale(p.s, p.s * (.45 + .55 * Math.abs(Math.sin(s0 * 2.4 + p.ph)))); ctx.fillStyle = 'rgba(255,190,210,.85)'; ctx.beginPath(); ctx.ellipse(0, 0, 4.2, 2.6, 0, 0, TAU); ctx.fill(); ctx.fillStyle = 'rgba(255,235,240,.6)'; ctx.beginPath(); ctx.ellipse(-1, -.5, 1.6, .9, 0, 0, TAU); ctx.fill(); ctx.restore(); }
     for (let i = RIPS.length - 1; i >= 0; i--) { const r = RIPS[i], u = (s0 - r.t0) / 2.4; if (u >= 1) { RIPS.splice(i, 1); continue; } ctx.strokeStyle = `rgba(210,230,250,${(.5 * (1 - u)).toFixed(3)})`; ctx.lineWidth = 1; for (const k of [0, .35]) { const v = clamp(u - k); if (v <= 0) continue; ctx.beginPath(); ctx.ellipse(r.x, r.y, 3 + v * 22, 1 + v * 5, 0, 0, TAU); ctx.stroke(); } }
@@ -784,6 +791,62 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
     ctx.restore();
   }
 
+  // 18.10 владелец: «эта рябь шикарна по столбу, потом сходит и уходит в небо и рассеивается» → «почти прозрачной» → «просто точки оставь и распыление больше»:
+  //    выйдя из макушки, волна — только точки цвета столба; кверху они разлетаются вширь, редеют и гаснут к краю экрана
+  const PDOT = (() => { const r = mulberry(4242), a = []; for (let i = 0; i < 90; i++) a.push([r(), r(), r(), r() * TAU, .8 + r() * 1.2]); return a; })();
+  function beamsTop() {
+    const Yt = -OY / S, s0 = performance.now() / 1000; ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    COLC.forEach((c, i) => { if (!c.pulses || !c.pulses.length) return; const tn = TONE[COLS[i].tone], cx = c.x + c.w / 2, top = c.bt, wb = c.w - 52;
+      for (const { yc, k } of c.pulses) { const p = clamp((top - yc) / (top - Yt)), fade = Math.pow(1 - p, 1.2) * clamp((top - yc) / 30); ctx.fillStyle = tn.core;
+        for (let j = 0; j < PDOT.length; j++) { const d = PDOT[j]; if (d[2] < p * .75) continue;   // кверху точек всё меньше
+          const sx = (d[0] - .5) * wb * (1 + 4 * p), sy = (d[1] - .5) * 34 * (1 + 3 * p) - p * p * 40 * d[2], x = cx + sx + Math.sin(s0 * .7 + d[3] + i + k) * 6 * p, y = yc + sy;
+          const a = .6 * fade * (.55 + .45 * Math.sin(s0 * 3 + d[3])); if (a < .02) continue; ctx.globalAlpha = a; ctx.fillRect(x - d[4] / 2, y - d[4] / 2, d[4], d[4]); } } });
+    ctx.restore();
+  }
+  // ── 18.10 владелец: «дуновение ветра иногда, с разной частотой по времени; во время него немного колышутся деревья и в 4–8 раз больше лепестков сразу пролетает»
+  //    порыв: через 15–50 с (случайно), длится 4–8 с, сила плавно растёт и спадает; частоты мои
+  const WIND = { w: 0, next: 8 + Math.random() * 10, t0: -1, dur: 0, amp: 0, mul: 6 };
+  function wind(s0) {
+    if (WIND.t0 < 0 && s0 > WIND.next) { WIND.t0 = s0; WIND.dur = 4 + Math.random() * 4; WIND.amp = .6 + Math.random() * .4; WIND.mul = 4 + Math.random() * 4; }
+    if (WIND.t0 >= 0) { const u = (s0 - WIND.t0) / WIND.dur; if (u >= 1) { WIND.t0 = -1; WIND.w = 0; WIND.next = s0 + 15 + Math.random() * 35; } else WIND.w = WIND.amp * Math.pow(Math.sin(Math.PI * u), 1.5) * (.85 + .15 * Math.sin(s0 * 7)); }
+    else WIND.w = 0;
+  }
+  function drawTrees(g, t) {   // в штиль — готовая картинка; в порыв — те же деревья заново, с наклоном по ветру (крона гнётся сильнее ствола)
+    const s0 = t / 1000; wind(s0);
+    if (WIND.w < .01) { g.drawImage(treeL, 0, 0); return; }
+    for (const tr of TREES) { let i = 0; const rp = () => tr.vals[i++] ?? .5, sway = WIND.w * tr.k * (.75 + .25 * Math.sin(s0 * 5.3 + tr.x));
+      bonsai(g, tr.x, tr.y, tr.len, tr.ang + sway * .07, tr.wid, tr.dep, rp, tr.sw + sway * .09); }
+  }
+  // ── 18.10 владелец: «фонарь одинокий, который горизонтально иногда проплывает, — давай 3 разных объекта по форме, с разных концов, не по ровной линии и медленнее»
+  //    домик-фонарик (справа налево), лотос со свечой (слева направо), круглый красный фонарь на плотике (справа налево, ближе к берегу);
+  //    у каждого свой цикл, плывут 100–130 с волнистым путём, вблизи крупнее; частоты мои
+  const FLOAT = [{ kind: 0, P: 150, off: 20, dur: 110, dir: -1, y0: WATER + 70, dy: 110 }, /* лотос убран: 18.10 владелец «убери вообще лотос» */ { kind: 2, P: 190, off: 150, dur: 100, dir: -1, y0: WATER + 40, dy: 60 }];
+  function floaters(t) {
+    const s0 = t / 1000;
+    for (const f of FLOAT) { const cyc = (s0 + f.off) / f.P, ci = Math.floor(cyc), u = (cyc - ci) * f.P / f.dur; if (u >= 1) continue;
+      const rr = mulberry(ci * 7 + f.kind + 11), yb = f.y0 + rr() * f.dy, ph = rr() * TAU, q = f.dir > 0 ? u : 1 - u, qx = q + Math.sin(q * Math.PI * 4 + ph) * .012, x = -50 + (W + 100) * qx, y = yb + Math.sin(u * Math.PI * 5 + ph) * 18 + Math.sin(u * Math.PI * 1.3 + ph * 1.7) * 34 + Math.sin(s0 * 1.1 + ph) * 3.2 + Math.sin(s0 * 2.3 + ph * 2) * 1.2;   /* «а то по ровной линии плывут» — путь петляет: 2–3 изгиба за проход плюс медленный дрейф ближе-дальше, скорость то быстрее, то медленнее */   /* 18.10 владелец: «чтобы вертикально ещё немного двигались» — покачиваются на волне ±4 */   // путь волной, а не по линейке
+      const k = .75 + (y - WATER) / 260, A = clamp(u / .05) * clamp((1 - u) / .05);
+      ctx.save(); ctx.translate(x, y); ctx.scale(k, k); ctx.rotate(Math.sin(s0 * .7 + ph) * .05);
+      const col = f.kind === 1 ? '240,110,160' : f.kind === 2 ? '255,110,70' : '255,168,80';
+      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = A;
+      const halo = ctx.createRadialGradient(0, -4, 0, 0, -4, 42); const B = 1;   /* 18.10 владелец: лотос «снова ярким, как был, только цвет более тёмный и без мигания» */ halo.addColorStop(0, `rgba(${col},${.42 * B})`); halo.addColorStop(.45, `rgba(${col},${.11 * B})`); halo.addColorStop(1, `rgba(${col},0)`); ctx.fillStyle = halo; ctx.fillRect(-42, -46, 84, 84);
+      const tail = ctx.createLinearGradient(0, 2, 0, 72); tail.addColorStop(0, `rgba(${col},${.32 * B})`); tail.addColorStop(1, `rgba(${col},0)`); ctx.fillStyle = tail; ctx.fillRect(-4, 4, 8, 68);   // отблеск на воде
+      ctx.globalCompositeOperation = 'source-over';
+      if (f.kind === 0) {   // домик-фонарик, как был
+        ctx.fillStyle = 'rgba(255,205,130,.95)'; ctx.beginPath(); ctx.moveTo(-7, 2); ctx.lineTo(-5, -10); ctx.lineTo(5, -10); ctx.lineTo(7, 2); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(255,245,220,.9)'; ctx.fillRect(-2, -7, 4, 6); ctx.fillStyle = '#04070A'; ctx.fillRect(-9, 2, 18, 3); ctx.fillRect(-6, -12, 12, 2);
+      } else if (f.kind === 1) {   // лотос: лепестки веером, в середине огонёк
+        for (let j = -3; j <= 3; j++) { const a = j * .38; ctx.save(); ctx.rotate(a); ctx.fillStyle = j % 2 ? 'rgba(196,58,112,.95)' : 'rgba(222,96,146,.95)'; ctx.beginPath(); ctx.ellipse(0, -6, 2.6, 7, 0, 0, TAU); ctx.fill(); ctx.restore(); }
+        ctx.fillStyle = 'rgba(60,110,70,.95)'; ctx.beginPath(); ctx.ellipse(0, 2, 11, 2.6, 0, 0, TAU); ctx.fill();   // лист под цветком
+        const fl = 1; ctx.fillStyle = 'rgba(255,240,190,1)'; ctx.beginPath(); ctx.ellipse(0, -6, 1.6, 3.2 * fl, 0, 0, TAU); ctx.fill();
+      } else {   // круглый красный фонарь на плотике
+        ctx.translate(0, 6);   /* 18.10 владелец: «у круглого красного фонаря убери плот» — плотика и стойки нет, фонарь сам лежит на воде */
+        const lg = ctx.createRadialGradient(-2, -14, 1, 0, -12, 9); lg.addColorStop(0, 'rgba(255,220,170,1)'); lg.addColorStop(.5, 'rgba(255,110,70,.95)'); lg.addColorStop(1, 'rgba(180,40,30,.95)'); ctx.fillStyle = lg; ctx.beginPath(); ctx.ellipse(0, -12, 7, 8.5, 0, 0, TAU); ctx.fill();
+        ctx.strokeStyle = 'rgba(120,25,20,.55)'; ctx.lineWidth = .7; for (const yy of [-17, -14, -11, -8]) { ctx.beginPath(); ctx.ellipse(0, yy, 7 * Math.sqrt(Math.max(0, 1 - ((yy + 12) / 8.5) ** 2)), 1, 0, 0, TAU); ctx.stroke(); }
+        ctx.fillStyle = '#04070A'; ctx.fillRect(-3.5, -21.5, 7, 2); ctx.fillRect(-3.5, -4.5, 7, 1.6);
+      }
+      ctx.restore(); }
+  }
   function frame(t) {
     if (!bgL) { requestAnimationFrame(frame); return; }   // слоёв ещё нет — окно было нулевым
     if (fgDirty) { buildFG(); fgDirty = false; dirty = true; }
@@ -792,10 +855,10 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
     compose(t);
     const iw = innerWidth, ih = innerHeight; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#080F16'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore();
     const bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#16242F'); bg.addColorStop(.55, '#1D3241'); bg.addColorStop(.62, '#152634'); bg.addColorStop(1, '#080F16'); ctx.fillStyle = bg; ctx.fillRect(-OX / S, -OY / S, iw / S, ih / S);
-    ctx.drawImage(sky, 0, 0); water(t);   /* 18.10 владелец: «убери всё, оставь только сияние» — из семи добавок осталось только aurora */ /* 18.10 владелец: «тёмную полосу можешь убрать» — полосы нет (redBand не зовётся) */
+    ctx.drawImage(sky, 0, 0); beamsTop(); water(t);   /* 18.10 владелец: «убери всё, оставь только сияние» — из семи добавок осталось только aurora */ /* 18.10 владелец: «тёмную полосу можешь убрать» — полосы нет (redBand не зовётся) */
     ctx.fillStyle = 'rgba(170,205,230,.26)'; ctx.fillRect(0, WATER - .5, W, 1);
     const r = mulberry(211); ctx.fillStyle = 'rgba(4,7,10,.55)'; ctx.beginPath(); ctx.ellipse(W * .486, WATER + 16, 44, 4, 0, 0, 7); ctx.fill(); cairn(ctx, W * .486, WATER + 16, 52, r);
-    fog(t); lanterns(t); floatLamp(t); drawDolphins(t); drawBoats(t); fireflies(t); petals(t);
+    fog(t); lanterns(t); floaters(t); drawDolphins(t); drawBoats(t); fireflies(t); petals(t);
     requestAnimationFrame(frame);
   }
   addEventListener('resize', layout); layout(); syncBoats(); requestAnimationFrame(frame);
