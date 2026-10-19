@@ -15938,3 +15938,12 @@
 {"t": 1792367715440, "sym": "APRUSDT", "side": "long", "usd": 198.69, "px": 0.0297, "src": "okx"}
 {"t": 1792367744166, "sym": "TSLAUSDT", "side": "short", "usd": 207.68, "px": 364.35, "src": "okx"}
 {"t": 1792367749773, "sym": "ARIAUSDT", "side": "short", "usd": 28.68, "px": 0.05646, "src": "bybit"}
+{"t": 1792367767872, "sym": "OKBUSDT", "side": "short", "usd": 927.22, "px": 113.63, "src": "okx"}
+{"t": 1792367773670, "sym": "AZTECUSDT", "side": "short", "usd": 312.66, "px": 0.0193, "src": "okx"}
+{"t": 1792367790324, "sym": "APRUSDT", "side": "long", "usd": 47.66, "px": 0.0296, "src": "okx"}
+{"t": 1792367826709, "sym": "APRUSDT", "side": "long", "usd": 112.69, "px": 0.0295, "src": "okx"}
+{"t": 1792367831046, "sym": "ICNTUSDT", "side": "long", "usd": 616.53, "px": 0.183, "src": "bybit"}
+{"t": 1792367853183, "sym": "ACUUSDT", "side": "short", "usd": 118.54, "px": 0.09716, "src": "okx"}
+{"t": 1792367886600, "sym": "CLUSDT", "side": "long", "usd": 9937.35, "px": 97.32, "src": "bybit"}
+{"t": 1792367991363, "sym": "APRUSDT", "side": "long", "usd": 2.06, "px": 0.0294, "src": "okx"}
+{"t": 1792367991363, "sym": "INJUSDT", "side": "long", "usd": 93.21, "px": 8.711, "src": "okx"}
