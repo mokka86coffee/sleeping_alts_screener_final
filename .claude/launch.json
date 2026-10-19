@@ -39,6 +39,19 @@
         "visual-test"
       ],
       "port": 3102
+    },
+    {
+      "name": "visual-test-head-3103",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "PORT=3103",
+        "npm",
+        "--prefix",
+        "/private/tmp/claude-501/-Users-evgenijminko-Work-random-python/efbcfa9d-4a81-43b2-9a8b-336f332152f4/scratchpad/wt-head",
+        "run",
+        "visual-test"
+      ],
+      "port": 3103
     }
   ]
 }
