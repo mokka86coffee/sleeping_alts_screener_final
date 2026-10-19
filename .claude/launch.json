@@ -48,6 +48,17 @@
         "cd /private/tmp/claude-501/-Users-evgenijminko-Work-random-python/efbcfa9d-4a81-43b2-9a8b-336f332152f4/scratchpad/wt-head && PORT=3103 node visual-test/server.js"
       ],
       "port": 3103
+    },
+    {
+      "name": "visual-test-3002",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "/Users/evgenijminko/Work/consist/frontend",
+        "run",
+        "visual-test"
+      ],
+      "port": 3002
     }
   ]
 }
