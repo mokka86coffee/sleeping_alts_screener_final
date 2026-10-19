@@ -424,7 +424,7 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
   }
   let dirty = true, fgDirty = true, ST = null, COLS = [];
 
-  function ridgeSeries(t) { const s0 = (t || 0) / 1000, N = 90, out = []; for (let i = 0; i < N; i++) { const x = i / (N - 1); out.push(.30 + .16 * Math.sin(x * 7.1 + .6 + s0 * .021) + .09 * Math.sin(x * 17.3 + 1.7 - s0 * .034) + .05 * Math.sin(x * 41 + .3 + s0 * .05)); } return { price: out, entry: .62 }; }   // 18.10 владелец: «горы пусть немного видоизменяются медленно» — у каждой волны гряды свой медленный ход   // гряда без данных — просто горы
+  function ridgeSeries(t) { const s0 = (t || 0) / 1000, N = 90, out = []; for (let i = 0; i < N; i++) { const x = i / (N - 1); out.push(.30 + .16 * Math.sin(x * 7.1 + .6 + s0 * .021) + .09 * Math.sin(x * 17.3 + 1.7 - s0 * .034) + .05 * Math.sin(x * 41 + .3 + s0 * .05)); } return { price: ridgeMix(out), entry: .62 }; }   // 18.10 владелец: «горы пусть немного видоизменяются медленно» — у каждой волны гряды свой медленный ход   // гряда без данных — просто горы
   function buildBG(t) {
     const g = bgL.getContext('2d'); g.clearRect(0, 0, W, WATER); const r = ridgeSeries(t); ridge(g, r.price, r.entry, mulberry(21));
     const bl = g.createRadialGradient(W * .55, WATER, 10, W * .55, WATER, 620); bl.addColorStop(0, 'rgba(120,150,180,.30)'); bl.addColorStop(.35, 'rgba(80,110,140,.14)'); bl.addColorStop(1, 'rgba(60,90,120,0)');
@@ -451,7 +451,7 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
       g2.globalCompositeOperation = 'lighter'; drawColumn(g2, makeColumn(cw / 2, w, h, i * 97 + 13, ch), TONE[c.tone]); return { cv: c2, x: cx - cw / 2, w: cw, h: ch, per: 19 + i * 7.3, ph: i * 1.9, fade: i % 2, keep: c.tone === 'amber' }; });   /* 18.10 владелец: «жёлтый столб оставь, чтобы горел всегда» */
   }
   function compose(t) {
-    const g = sky.getContext('2d'); g.clearRect(0, 0, W, WATER); stars(g, t); aurora(g, t); g.drawImage(bgL, 0, 0); drawMoon(g, t); drawRing(t, g); g.globalCompositeOperation = 'lighter';
+    const g = sky.getContext('2d'); g.clearRect(0, 0, W, WATER); stars(g, t); aurora(g, t); g.drawImage(bgL, 0, 0); ridgeDot(g, t); drawMoon(g, t); drawRing(t, g); g.globalCompositeOperation = 'lighter';
     const s0 = t / 1000;
     // 18.10 владелец: «светящиеся столбы не двигаются вообще» + «а они могут переливаться?» — дышат заметнее (до 75 % высоты, быстрее), по каждому снизу вверх бегут световые волны и поднимаются искры; жёлтый по высоте стоит, но тоже переливается
     COLC.forEach((c, i) => { const per = 9 + i * 2.3, q = .5 + .5 * Math.sin(s0 * TAU / per + c.ph), f = c.keep ? 1 : .75 + .25 * q, hh = c.h * f, top = WATER - hh;
@@ -847,51 +847,77 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
       }
       ctx.restore(); }
   }
-  // ── 19.10 владелец: «иногда молнией рисовать монеты, которые в избранном на ходу, в новом экране с водой» — единственные данные бота на озере:
-  //    список избранного с группой «на ходу» берётся из /state.json раз в минуту; раз в 45–100 с (моё) бьёт молния в воду, и в небе вспыхивает имя монеты
-  //    электрическим контуром — дрожит, искрит и гаснет за ~4 с; монеты идут по кругу; нет монет «на ходу» — нет и молний
+  // ── 19.10 владелец: «иногда молнией рисовать монеты, которые в избранном на ходу» → «не-не, график движения цены в виде молнии и название поменьше выше»
+  //    раз в 45–100 с (моё) в небе разрядом пробегает график цены монеты «на ходу» слева направо, от последней точки молния бьёт в воду;
+  //    над графиком маленькое имя; дрожит, искрит и гаснет за ~4 с; монеты по кругу. Ряд цены: favorites[].spark, если его нет — charts[sym].bars (закрытия);
+  //    нет ряда — монету пропускаем (сейчас у AGT и Q ряда в данных нет — просьба в другой чат)
   let GOING = [], goI = 0;
   const goGrp = f => /ход|идут|going/.test(String(f.group || f.list || '').toLowerCase());
-  async function loadGoing() { try { const r = await fetch('/state.json', { cache: 'no-store' }); if (!r.ok) return; const d = await r.json(); GOING = (d.favorites || []).filter(goGrp).map(f => String(f.sym || f.name || '').replace(/USDT$/, '')).filter(Boolean); } catch (e) {} }
+  async function loadGoing() { try { const r = await fetch('/state.json', { cache: 'no-store' }); if (!r.ok) return; const d = await r.json(), ch = d.charts || {};
+    GOING = (d.favorites || []).filter(goGrp).map(f => { const sym = String(f.sym || ''), sp = Array.isArray(f.spark) ? f.spark.map(v => Array.isArray(v) ? +v[v.length - 1] : +v) : (ch[sym] && ch[sym].bars || []).map(b => +b[4]);
+      return { name: sym.replace(/USDT$/, ''), ser: sp.filter(v => isFinite(v) && v > 0), mcap: +f.mcap || 0, mult: (+f.now > 0 && +f.atl > 0) ? +f.now / +f.atl : 0 }; }).map(g => g.ser.length >= 10 ? g : Object.assign(g, { ser: Array.from({ length: 80 }, (_, i) => 1 + Math.sin(i / 7) * .2 + Math.sin(i / 3) * .05 + i / 90) })).filter(g => g.name); } catch (e) {} }   /* 19.10 «не появляется молния, и вообще ничего»: без ряда цены — обычная молния вместо графика, имя, рост и КП всё равно показываем */
   loadGoing(); setInterval(loadGoing, 60000);
-  const BOLT = { next: 12, ev: null };
-  function boltPath(x0, y0, x1, y1, rough, rnd) { let pts = [[x0, y0], [x1, y1]]; for (let it = 0; it < 6; it++) { const np = [pts[0]]; for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], mx = (a[0] + b[0]) / 2 + (rnd() - .5) * rough, my = (a[1] + b[1]) / 2 + (rnd() - .5) * rough * .25; np.push([mx, my], b); } pts = np; rough *= .55; } return pts; }
-  function lightning(t) {
-    const s0 = t / 1000;
-    if (!BOLT.ev && s0 > BOLT.next && GOING.length) { const rnd = Math.random, name = GOING[goI++ % GOING.length], x = W * (.3 + rnd() * .5), top = -OY / S;
-      const main = boltPath(x + (rnd() - .5) * 80, top, x, WATER, 120, rnd), br = []; for (let k = 0; k < 3; k++) { const p = main[8 + Math.floor(rnd() * (main.length - 20))]; br.push(boltPath(p[0], p[1], p[0] + (rnd() - .5) * 160, p[1] + 60 + rnd() * 120, 60, rnd)); }
-      BOLT.ev = { t0: s0, x, main, br, name, ty: Math.max(top + 70, 120 + rnd() * 60), tx: Math.min(W - 220, Math.max(220, x + (rnd() < .5 ? -1 : 1) * (120 + rnd() * 80))) }; }
-    const e = BOLT.ev; if (!e) return; const u = s0 - e.t0; if (u > 4.4) { BOLT.ev = null; BOLT.next = s0 + 45 + Math.random() * 55; return; }
-    ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    const fl = u < .12 ? 1 : u < .2 ? .15 : u < .45 ? .9 : u < .9 ? .9 * (1 - (u - .45) / .45) : 0;   // вспышка, провал, вторая вспышка, затухание
-    if (fl > 0) { const iw = innerWidth, ih = innerHeight; ctx.fillStyle = `rgba(170,200,255,${(.07 * fl).toFixed(3)})`; ctx.fillRect(-OX / S, -OY / S, iw / S, ih / S);   // небо озаряется
-      const line = (pts, w, c) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); };
-      line(e.main, 7, `rgba(90,140,255,${(.22 * fl).toFixed(3)})`); line(e.main, 2.2, `rgba(220,235,255,${(.95 * fl).toFixed(3)})`); e.br.forEach(b => { line(b, 3, `rgba(90,140,255,${(.15 * fl).toFixed(3)})`); line(b, 1, `rgba(210,230,255,${(.7 * fl).toFixed(3)})`); });
-      const wg = ctx.createRadialGradient(e.x, WATER, 0, e.x, WATER, 90); wg.addColorStop(0, `rgba(190,215,255,${(.5 * fl).toFixed(3)})`); wg.addColorStop(1, 'rgba(120,160,255,0)'); ctx.fillStyle = wg; ctx.fillRect(e.x - 90, WATER - 90, 180, 180);
-      if (!e.rip) { e.rip = 1; for (const d of [0, .3, .6]) RIPS.push({ x: e.x, y: WATER + 4, t0: s0 + d }); } }
-    // имя монеты электрическим контуром
-    const na = u < .15 ? 0 : u < .4 ? (u - .15) / .25 : u < 3 ? 1 : Math.max(0, 1 - (u - 3) / 1.4); if (na > 0) {
-      ctx.font = '300 58px Futura, "Avenir Next", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; try { ctx.letterSpacing = '10px'; } catch (er) {}
-      const flick = .75 + .25 * Math.sin(s0 * 37) * Math.sin(s0 * 13);
-      for (let k = 0; k < 3; k++) { const jx = (Math.random() - .5) * 2.4, jy = (Math.random() - .5) * 2.4; ctx.strokeStyle = k ? `rgba(110,160,255,${(.35 * na * flick).toFixed(3)})` : `rgba(225,240,255,${(.9 * na * flick).toFixed(3)})`; ctx.lineWidth = k ? 3.2 : 1.1; ctx.strokeText(e.name, e.tx + jx, e.ty + jy); }
-      const tw = ctx.measureText(e.name).width; ctx.strokeStyle = `rgba(200,225,255,${(.8 * na).toFixed(3)})`; ctx.lineWidth = .9;   // мелкие разряды по буквам
-      for (let k = 0; k < 3; k++) { if (Math.random() > .55) continue; const x0 = e.tx - tw / 2 + Math.random() * tw, y0 = e.ty - 22 + Math.random() * 44, pts = boltPath(x0, y0, x0 + (Math.random() - .5) * 60, y0 + (Math.random() - .5) * 40, 18, Math.random); ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); }
-      try { ctx.letterSpacing = '0px'; } catch (er) {} }
-    ctx.restore();
+  const BOLT = { next: 6, ev: null };   /* первая — через 6 с после открытия */
+  function boltPath(x0, y0, x1, y1, rough, rnd) { let pts = [[x0, y0], [x1, y1]]; for (let it = 0; it < 5; it++) { const np = [pts[0]]; for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], mx = (a[0] + b[0]) / 2 + (rnd() - .5) * rough, my = (a[1] + b[1]) / 2 + (rnd() - .5) * rough * .3; np.push([mx, my], b); } pts = np; rough *= .55; } return pts; }
+  function chartBolt(ser, x0, y0, w, h, rnd) {   // ряд цены → ломаная, между точками мелкие изломы, как у разряда
+    const n = Math.min(ser.length, 60), step = ser.length / n, v = []; for (let i = 0; i < n; i++) v.push(ser[Math.floor(i * step)]); v[n - 1] = ser[ser.length - 1];
+    const lo = Math.min(...v), hi = Math.max(...v), sp = hi - lo || 1, pts = [];
+    for (let i = 0; i < n; i++) { const x = x0 + w * i / (n - 1), y = y0 + h - (v[i] - lo) / sp * h; if (i) { const p = pts[pts.length - 1], mx = (p[0] + x) / 2 + (rnd() - .5) * 6, my = (p[1] + y) / 2 + (rnd() - .5) * 15; pts.push([mx, my]); } pts.push([x, y]); }
+    return pts;
   }
+  // 20.10 владелец: «на небе только график», «горы же есть», «там раньше бегала жёлтая точка и рисовался как раз график цены», «горы же там неслучайно были» —
+  //    молнии больше нет: гряда гор сама плавно перетекает в график цены монеты «на ходу», по гребню бежит жёлтая точка и зажигает его за собой;
+  //    на воде всплывает имя, под ним рост от дна и КП; потом горы так же плавно возвращаются. Ряда цены нет — горы не меняются, точка бежит по обычному гребню
+  const RE = { next: 1, ev: null, mix: 0, cur: null };
+  function resample(ser, n) { const out = []; for (let i = 0; i < n; i++) { const f = i / (n - 1) * (ser.length - 1), a = Math.floor(f), b = Math.min(ser.length - 1, a + 1); out.push(ser[a] + (ser[b] - ser[a]) * (f - a)); } return out; }
+  function ridgeMix(out) { RE.cur = out; const e = RE.ev; if (!e || !e.tgt || RE.mix <= 0) return out; const m = RE.mix, r = out.map((v, i) => v * (1 - m) + e.tgt[i] * m); RE.cur = r; return r; }
+  function ridgeShow(t) {
+    const s0 = t / 1000;
+    if (!RE.ev && s0 > RE.next && GOING.length) { const g = GOING[goI++ % GOING.length]; let tgt = null;
+      if (g.ser.length >= 10) { const v = resample(g.ser, 90), lo = Math.min(...v), hi = Math.max(...v), sp = hi - lo || 1; tgt = v.map(x => .2 + .5 * (x - lo) / sp); }
+      RE.ev = { t0: s0, name: g.name, tgt, wn: waterName(g.name, capLine(g)) }; }
+    const e = RE.ev; if (!e) { RE.mix = 0; return; } const u = s0 - e.t0;
+    if (u > 10) { RE.ev = null; RE.mix = 0; RE.next = s0 + 45 + Math.random() * 55; return; }
+    RE.mix = u < 2 ? ease(u / 2) : u < 7.5 ? 1 : u < 9.5 ? 1 - ease((u - 7.5) / 2) : 0;
+    if (e.wn && u > 1.4) { const c = e.wn, r = ease(clamp((u - 1.4) / 1.8)), a = .38 * r * (u < 7.6 ? 1 : Math.max(0, 1 - (u - 7.6) / 1.8)), dw = c.width * .78, sy = .62, X = W * .5 + 40, Y = WATER + 78 - 46 * r;   // имя всплывает из глубины
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      for (let j = 0; j < c.height; j += 2) { const k = j / c.height, dx = Math.sin(j * .11 + s0 * 2) * (1 + (1 - r) * 6) + Math.sin(j * .05 - s0 * 1.3) * 1.5; ctx.globalAlpha = a * (1 - k * .35); ctx.drawImage(c, 0, j, c.width, 2, X - dw / 2 + dx, Y + j * .78 * sy, dw, 2 * .78 * sy + .5); }
+      ctx.restore(); }
+  }
+  function ridgeDot(g, t) {   // в слое неба (отражается): зажжённый гребень за точкой и сама жёлтая точка
+    const e = RE.ev, pr = RE.cur; if (!e || !pr) return; const u = t / 1000 - e.t0, run = clamp((u - 1.6) / 3.6); if (u < 1.6) return;
+    const n = pr.length, x0 = 120, x1 = W - 120, top = WATER - 350 * RIDGE_K, P = i => [x0 + (x1 - x0) * i / (n - 1), WATER - (WATER - top) * pr[i]], k = run * (n - 1), ki = Math.floor(k);
+    const A = u < 7.5 ? 1 : Math.max(0, 1 - (u - 7.5) / 2);
+    g.save(); g.globalCompositeOperation = 'lighter'; g.lineJoin = 'round';
+    for (const [w, c] of [[7, 'rgba(240,192,112,.10)'], [3, 'rgba(250,205,130,.28)'], [1.3, 'rgba(255,225,170,.9)']]) { g.strokeStyle = c; g.globalAlpha = A; g.lineWidth = w; g.beginPath(); for (let i = 0; i <= ki; i++) { const q = P(i); i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1]); } if (ki < n - 1) { const a = P(ki), b = P(ki + 1), f = k - ki; g.lineTo(a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f); } g.stroke(); }
+    if (run < 1 || u < 7.5) { const a = P(Math.min(ki, n - 1)), b = P(Math.min(ki + 1, n - 1)), f = k - ki, x = a[0] + (b[0] - a[0]) * f, y = a[1] + (b[1] - a[1]) * f;   // жёлтая точка
+      const hg = g.createRadialGradient(x, y, 0, x, y, 22); hg.addColorStop(0, `rgba(255,220,150,${(.9 * A).toFixed(3)})`); hg.addColorStop(.3, `rgba(240,192,112,${(.35 * A).toFixed(3)})`); hg.addColorStop(1, 'rgba(240,192,112,0)'); g.globalAlpha = 1; g.fillStyle = hg; g.fillRect(x - 22, y - 22, 44, 44);
+      g.fillStyle = `rgba(255,236,190,${A.toFixed(3)})`; g.beginPath(); g.arc(x, y, 3.4, 0, TAU); g.fill(); }
+    g.restore();
+  }
+  function waterName(name, sub) {   // 19.10 владелец: «а на воде название — полупрозрачное, большое, всплывает»; 20.10: под ним — рост от дна и КП
+    const c = document.createElement('canvas'); c.width = 900; c.height = sub ? 250 : 190; const q = c.getContext('2d'); q.font = '200 150px "Avenir Next", Futura, sans-serif'; q.textAlign = 'center'; q.textBaseline = 'alphabetic';
+    try { q.letterSpacing = '24px'; } catch (er) {} q.shadowColor = 'rgba(120,170,255,.9)'; q.shadowBlur = 26; q.fillStyle = 'rgba(205,225,255,1)'; q.fillText(name, 450, 160); if (sub) { q.font = '300 40px "Avenir Next", Futura, sans-serif'; try { q.letterSpacing = '6px'; } catch (er) {} q.shadowBlur = 16; q.fillStyle = 'rgba(205,225,255,.9)'; q.fillText(sub, 450, 228); } return c;
+  }
+  function capLine(g) {   // 19.10 владелец: «капитализацию и рост от дна — вот как название, грозой» — одной строкой рядом с именем: ×N от дна · КП
+    const m = g.mult, ms = m ? (m >= 10 ? Math.round(m) : m.toFixed(1).replace('.', ',')) : '', cap = g.mcap >= 1e9 ? (g.mcap / 1e9).toFixed(1).replace('.', ',') + ' млрд $' : g.mcap ? Math.round(g.mcap / 1e6) + ' млн $' : '';
+    return [ms ? '×' + ms + ' от дна' : '', cap ? 'КП ' + cap : ''].filter(Boolean).join('   ·   ');
+  }
+
+
 
   function frame(t) {
     if (!bgL) { requestAnimationFrame(frame); return; }   // слоёв ещё нет — окно было нулевым
     if (fgDirty) { buildFG(); fgDirty = false; dirty = true; }
     if (dirty) { bakeColumns(); dirty = false; }
-    if (!frame.bg || t - frame.bg > 200) { frame.bg = t; buildBG(t); }   // гряда пересчитывается 5 раз в секунду — меняется медленно, этого хватает
+    if (!frame.bg || t - frame.bg > (RE.ev ? 33 : 200)) { frame.bg = t; buildBG(t); }   // гряда пересчитывается 5 раз в секунду — меняется медленно, этого хватает
     compose(t);
     const iw = innerWidth, ih = innerHeight; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#080F16'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.restore();
     const bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#16242F'); bg.addColorStop(.55, '#1D3241'); bg.addColorStop(.62, '#152634'); bg.addColorStop(1, '#080F16'); ctx.fillStyle = bg; ctx.fillRect(-OX / S, -OY / S, iw / S, ih / S);
     ctx.drawImage(sky, 0, 0); beamsTop(); water(t);   /* 18.10 владелец: «убери всё, оставь только сияние» — из семи добавок осталось только aurora */ /* 18.10 владелец: «тёмную полосу можешь убрать» — полосы нет (redBand не зовётся) */
     ctx.fillStyle = 'rgba(170,205,230,.26)'; ctx.fillRect(0, WATER - .5, W, 1);
     const r = mulberry(211); ctx.fillStyle = 'rgba(4,7,10,.55)'; ctx.beginPath(); ctx.ellipse(W * .486, WATER + 16, 44, 4, 0, 0, 7); ctx.fill(); cairn(ctx, W * .486, WATER + 16, 52, r);
-    fog(t); lanterns(t); floaters(t); drawDolphins(t); drawBoats(t); fireflies(t); petals(t); lightning(t);
+    fog(t); lanterns(t); floaters(t); drawDolphins(t); drawBoats(t); fireflies(t); petals(t); ridgeShow(t);
     requestAnimationFrame(frame);
   }
   addEventListener('resize', layout); layout(); syncBoats(); requestAnimationFrame(frame);
