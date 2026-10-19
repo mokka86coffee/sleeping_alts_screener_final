@@ -847,6 +847,39 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
       }
       ctx.restore(); }
   }
+  // ── 19.10 владелец: «иногда молнией рисовать монеты, которые в избранном на ходу, в новом экране с водой» — единственные данные бота на озере:
+  //    список избранного с группой «на ходу» берётся из /state.json раз в минуту; раз в 45–100 с (моё) бьёт молния в воду, и в небе вспыхивает имя монеты
+  //    электрическим контуром — дрожит, искрит и гаснет за ~4 с; монеты идут по кругу; нет монет «на ходу» — нет и молний
+  let GOING = [], goI = 0;
+  const goGrp = f => /ход|идут|going/.test(String(f.group || f.list || '').toLowerCase());
+  async function loadGoing() { try { const r = await fetch('/state.json', { cache: 'no-store' }); if (!r.ok) return; const d = await r.json(); GOING = (d.favorites || []).filter(goGrp).map(f => String(f.sym || f.name || '').replace(/USDT$/, '')).filter(Boolean); } catch (e) {} }
+  loadGoing(); setInterval(loadGoing, 60000);
+  const BOLT = { next: 12, ev: null };
+  function boltPath(x0, y0, x1, y1, rough, rnd) { let pts = [[x0, y0], [x1, y1]]; for (let it = 0; it < 6; it++) { const np = [pts[0]]; for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], mx = (a[0] + b[0]) / 2 + (rnd() - .5) * rough, my = (a[1] + b[1]) / 2 + (rnd() - .5) * rough * .25; np.push([mx, my], b); } pts = np; rough *= .55; } return pts; }
+  function lightning(t) {
+    const s0 = t / 1000;
+    if (!BOLT.ev && s0 > BOLT.next && GOING.length) { const rnd = Math.random, name = GOING[goI++ % GOING.length], x = W * (.3 + rnd() * .5), top = -OY / S;
+      const main = boltPath(x + (rnd() - .5) * 80, top, x, WATER, 120, rnd), br = []; for (let k = 0; k < 3; k++) { const p = main[8 + Math.floor(rnd() * (main.length - 20))]; br.push(boltPath(p[0], p[1], p[0] + (rnd() - .5) * 160, p[1] + 60 + rnd() * 120, 60, rnd)); }
+      BOLT.ev = { t0: s0, x, main, br, name, ty: Math.max(top + 70, 120 + rnd() * 60), tx: Math.min(W - 220, Math.max(220, x + (rnd() < .5 ? -1 : 1) * (120 + rnd() * 80))) }; }
+    const e = BOLT.ev; if (!e) return; const u = s0 - e.t0; if (u > 4.4) { BOLT.ev = null; BOLT.next = s0 + 45 + Math.random() * 55; return; }
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const fl = u < .12 ? 1 : u < .2 ? .15 : u < .45 ? .9 : u < .9 ? .9 * (1 - (u - .45) / .45) : 0;   // вспышка, провал, вторая вспышка, затухание
+    if (fl > 0) { const iw = innerWidth, ih = innerHeight; ctx.fillStyle = `rgba(170,200,255,${(.07 * fl).toFixed(3)})`; ctx.fillRect(-OX / S, -OY / S, iw / S, ih / S);   // небо озаряется
+      const line = (pts, w, c) => { ctx.strokeStyle = c; ctx.lineWidth = w; ctx.lineJoin = 'round'; ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); };
+      line(e.main, 7, `rgba(90,140,255,${(.22 * fl).toFixed(3)})`); line(e.main, 2.2, `rgba(220,235,255,${(.95 * fl).toFixed(3)})`); e.br.forEach(b => { line(b, 3, `rgba(90,140,255,${(.15 * fl).toFixed(3)})`); line(b, 1, `rgba(210,230,255,${(.7 * fl).toFixed(3)})`); });
+      const wg = ctx.createRadialGradient(e.x, WATER, 0, e.x, WATER, 90); wg.addColorStop(0, `rgba(190,215,255,${(.5 * fl).toFixed(3)})`); wg.addColorStop(1, 'rgba(120,160,255,0)'); ctx.fillStyle = wg; ctx.fillRect(e.x - 90, WATER - 90, 180, 180);
+      if (!e.rip) { e.rip = 1; for (const d of [0, .3, .6]) RIPS.push({ x: e.x, y: WATER + 4, t0: s0 + d }); } }
+    // имя монеты электрическим контуром
+    const na = u < .15 ? 0 : u < .4 ? (u - .15) / .25 : u < 3 ? 1 : Math.max(0, 1 - (u - 3) / 1.4); if (na > 0) {
+      ctx.font = '300 58px Futura, "Avenir Next", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; try { ctx.letterSpacing = '10px'; } catch (er) {}
+      const flick = .75 + .25 * Math.sin(s0 * 37) * Math.sin(s0 * 13);
+      for (let k = 0; k < 3; k++) { const jx = (Math.random() - .5) * 2.4, jy = (Math.random() - .5) * 2.4; ctx.strokeStyle = k ? `rgba(110,160,255,${(.35 * na * flick).toFixed(3)})` : `rgba(225,240,255,${(.9 * na * flick).toFixed(3)})`; ctx.lineWidth = k ? 3.2 : 1.1; ctx.strokeText(e.name, e.tx + jx, e.ty + jy); }
+      const tw = ctx.measureText(e.name).width; ctx.strokeStyle = `rgba(200,225,255,${(.8 * na).toFixed(3)})`; ctx.lineWidth = .9;   // мелкие разряды по буквам
+      for (let k = 0; k < 3; k++) { if (Math.random() > .55) continue; const x0 = e.tx - tw / 2 + Math.random() * tw, y0 = e.ty - 22 + Math.random() * 44, pts = boltPath(x0, y0, x0 + (Math.random() - .5) * 60, y0 + (Math.random() - .5) * 40, 18, Math.random); ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(p[0], p[1]) : ctx.moveTo(p[0], p[1])); ctx.stroke(); }
+      try { ctx.letterSpacing = '0px'; } catch (er) {} }
+    ctx.restore();
+  }
+
   function frame(t) {
     if (!bgL) { requestAnimationFrame(frame); return; }   // слоёв ещё нет — окно было нулевым
     if (fgDirty) { buildFG(); fgDirty = false; dirty = true; }
@@ -858,7 +891,7 @@ html, body { margin: 0; height: 100%; background: #080F16; overflow: hidden; col
     ctx.drawImage(sky, 0, 0); beamsTop(); water(t);   /* 18.10 владелец: «убери всё, оставь только сияние» — из семи добавок осталось только aurora */ /* 18.10 владелец: «тёмную полосу можешь убрать» — полосы нет (redBand не зовётся) */
     ctx.fillStyle = 'rgba(170,205,230,.26)'; ctx.fillRect(0, WATER - .5, W, 1);
     const r = mulberry(211); ctx.fillStyle = 'rgba(4,7,10,.55)'; ctx.beginPath(); ctx.ellipse(W * .486, WATER + 16, 44, 4, 0, 0, 7); ctx.fill(); cairn(ctx, W * .486, WATER + 16, 52, r);
-    fog(t); lanterns(t); floaters(t); drawDolphins(t); drawBoats(t); fireflies(t); petals(t);
+    fog(t); lanterns(t); floaters(t); drawDolphins(t); drawBoats(t); fireflies(t); petals(t); lightning(t);
     requestAnimationFrame(frame);
   }
   addEventListener('resize', layout); layout(); syncBoats(); requestAnimationFrame(frame);

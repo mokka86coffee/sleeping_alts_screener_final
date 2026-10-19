@@ -2771,6 +2771,10 @@ const ready=document.fonts?Promise.race([
 let started=false;
 ready.then(()=>{if(started)return;started=true;try{resize();requestAnimationFrame(loop)}catch(e){console.error('интро:',e)}});
 </script>
+<!-- 19.10 владелец: «на странице со звёздами такой же переключатель на озеро» — капсула как на орбите и озере: слева звезда (эта страница), справа озеро; озеро живёт на сервере бота :8765 -->
+<style>#viewSw{position:fixed;z-index:20;right:16px;top:12px;display:flex;gap:4px;padding:3px;border:1px solid rgba(160,200,235,.28);border-radius:18px;background:rgba(8,15,22,.55);cursor:pointer}#viewSw i{position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:radial-gradient(circle,rgba(90,160,255,.45),rgba(40,90,200,.15));box-shadow:0 0 12px rgba(80,150,255,.55);transition:transform .5s cubic-bezier(.6,.1,.2,1)}#viewSw.b i{transform:translateX(30px)}#viewSw svg{position:relative;width:26px;height:26px;opacity:.35;transition:opacity .45s,filter .45s}#viewSw svg.lit{opacity:1;filter:drop-shadow(0 0 5px rgba(120,180,255,.95))}#viewSw:hover{border-color:rgba(200,230,255,.6)}</style>
+<a id="viewSw" href="#" title="второй дизайн — озеро"><i></i><svg class="lit" viewBox="0 0 26 26"><path d="M13 3 L14.6 11.4 L23 13 L14.6 14.6 L13 23 L11.4 14.6 L3 13 L11.4 11.4 Z" fill="#cfe6ff"/><circle cx="20" cy="6.5" r="1.2" fill="#fff"/></svg><svg viewBox="0 0 26 26"><circle cx="16.5" cy="9.5" r="4.5" fill="#FFC06A"/><path d="M3 17 Q7 14.5 11 17 T19 17 T25 17" fill="none" stroke="#9fd0ff" stroke-width="1.2"/><path d="M5 21 Q9 19 13 21 T21 21" fill="none" stroke="#6fa8d8" stroke-width="1"/></svg></a>
+<script>(()=>{const a=document.getElementById('viewSw');a.href=location.protocol+'//'+(location.hostname||'127.0.0.1')+':8765/lake.html';a.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();const s=a.querySelectorAll('svg');a.classList.add('b');s[0].classList.remove('lit');s[1].classList.add('lit');setTimeout(()=>{location.href=a.href},480);});})();</script>
 </body>
 </html>
 '''
