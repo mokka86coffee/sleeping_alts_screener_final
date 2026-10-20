@@ -9969,3 +9969,6 @@
 {"t": 1792453777413, "sym": "XAUUSDT", "side": "long", "usd": 4637.02, "px": 4140.2, "src": "okx"}
 {"t": 1792453780134, "sym": "XAUUSDT", "side": "long", "usd": 492.61, "px": 4139.6, "src": "okx"}
 {"t": 1792453865583, "sym": "SNDKUSDT", "side": "long", "usd": 6.87, "px": 1374.1, "src": "okx"}
+{"t": 1792454142848, "sym": "ELSAUSDT", "side": "long", "usd": 392.36, "px": 0.0663, "src": "bybit"}
+{"t": 1792454282285, "sym": "MAGICUSDT", "side": "long", "usd": 129.16, "px": 0.09292, "src": "bybit"}
+{"t": 1792454282285, "sym": "BRUSDT", "side": "short", "usd": 12.48, "px": 0.77989, "src": "bybit"}
