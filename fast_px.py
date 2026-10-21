@@ -33,6 +33,12 @@ def patch_once() -> str:
     except (OSError, ValueError) as e:
         return f"состояние не прочитано: {type(e).__name__}"
     fav = s.get("favorites") or []
+    try:                                                                 # 21.10 владелец: «хули вот оно висит если ты удалил» — монеты, убранные
+        cfg = {str(c.get("sym") or "").upper() for c in json.loads((BASE_DIR / "config" / "favorites.json").read_text(encoding="utf-8")).get("coins") or []}
+        if cfg:                                                          # из config/favorites.json, снимаем со страницы сразу, не дожидаясь сборки
+            fav = [f for f in fav if f.get("sym") in cfg]; s["favorites"] = fav
+    except (OSError, ValueError):
+        pass
     if not fav:
         return "избранных нет"
     tk = get_json("https://fapi.binance.com/fapi/v1/ticker/price", weight=2) or []
@@ -63,9 +69,13 @@ def patch_once() -> str:
 
 def main() -> None:
     lk = open(OUT.with_suffix(".px.lock"), "w")
-    fcntl.flock(lk, fcntl.LOCK_EX)                                       # 18.10 04:05 UTC: ЖДЁМ замок, не выходим — прежний экземпляр спит до 3 мин
-                                                                         # после новой сборки и держит замок; новый выходил сразу, и цена стояла
-                                                                         # до следующей сборки (дыры 01:53→02:26, 03:50→04:00 в fast_px.log)
+    for _ in range(30):                                                  # 21.10: ждём замок не дольше 30 с. Прежний экземпляр видит новую сборку
+        try:                                                             # за ≤10 с и уходит сам; бесконечное ожидание (18.10) копило очередь из
+            fcntl.flock(lk, fcntl.LOCK_EX | fcntl.LOCK_NB); break        # десятков процессов на паузах прогона
+        except OSError:
+            time.sleep(1)
+    else:
+        return
     if "--once" in sys.argv:
         print(f"{time.strftime('%H:%M:%S', time.gmtime())} fast_px: {patch_once()}", flush=True); return
     try:
@@ -73,15 +83,18 @@ def main() -> None:
     except (OSError, ValueError):
         t0 = 0.0
     start = time.time()
+    last = time.time()
     while time.time() - start < PX_MAX_MIN * 60:
-        time.sleep(PX_EVERY)
+        time.sleep(10)                                                   # 21.10: проверка новой сборки каждые 10 с, цена — раз в PX_EVERY
         try:
             t1 = float((json.loads(OUT.read_text(encoding="utf-8")).get("meta") or {}).get("t") or 0)
         except (OSError, ValueError):
             t1 = t0
         if t1 != t0:                                                     # пришла новая полная сборка — она запустила своего fast_px
             return
-        print(f"{time.strftime('%H:%M:%S', time.gmtime())} fast_px: {patch_once()}", flush=True)
+        if time.time() - last >= PX_EVERY:
+            last = time.time()
+            print(f"{time.strftime('%H:%M:%S', time.gmtime())} fast_px: {patch_once()}", flush=True)
 
 
 if __name__ == "__main__":
