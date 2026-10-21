@@ -16134,3 +16134,7 @@
 {"t": 1792537417814, "sym": "NEARUSDT", "side": "long", "usd": 4348.49, "px": 4.908, "src": "okx"}
 {"t": 1792537627423, "sym": "ZECUSDT", "side": "long", "usd": 1031.25, "px": 1257.62, "src": "okx"}
 {"t": 1792537667225, "sym": "BERAUSDT", "side": "long", "usd": 0.05, "px": 0.1669, "src": "okx"}
+{"t": 1792539321189, "sym": "DOODUSDT", "side": "short", "usd": 200.77, "px": 0.002574, "src": "okx"}
+{"t": 1792540453048, "sym": "SPCXUSDT", "side": "short", "usd": 1913.05, "px": 159.82, "src": "okx"}
+{"t": 1792540468255, "sym": "DOODUSDT", "side": "long", "usd": 17.0, "px": 0.002429, "src": "okx"}
+{"t": 1792540738859, "sym": "PUMPUSDT", "side": "short", "usd": 667.74, "px": 0.004874, "src": "okx"}
