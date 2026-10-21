@@ -673,25 +673,33 @@ def _open_short_now(state: dict, ev: list, msgs: list, sym: str, c: float, t_bar
 
 
 def pump_end_walk(e: float, pos: dict, k: list):
-    """R58 (03.10 21:50 владелец): шорт «конец роста» — стоп 10 %; после −5 % стоп в точку входа; через FAST3_PUMP_END_BE_MIN (6 ч) — если стоп ещё не в точке входа:
+    """R58 (03.10 21:50 владелец): шорт «конец роста» — стоп 10 %; после −5 % стоп в точку входа; после −10 % стоп на +5 % (21.10 «добавь»); через FAST3_PUMP_END_BE_MIN (6 ч) — если стоп ещё не в точке входа:
     цена выше входа → закрытие, иначе стоп в точку входа; цели нет (выход по сроку — в step). → (результат без комиссии, причина) или (None, None)"""
     try:
         from core_config import FAST3_PUMP_END_BE_MIN as _bm
     except ImportError:
         _bm = 360
-    be = False; stop = float(pos.get("stop") or FAST3_SHORT_SL); n6 = max(1, _bm // 3)
+    try:                                                                  # 21.10 владелец «добавь»: после хода 10 % в плюс стоп на +5 % (как широкая книга 08.10)
+        from core_config import FAST3_PUMP_END_TRAIL_AT as _ta, FAST3_PUMP_END_TRAIL_TO as _tt
+    except ImportError:
+        _ta, _tt = 0.0, 0.0
+    be = tr = False; stop = float(pos.get("stop") or FAST3_SHORT_SL); n6 = max(1, _bm // 3)
     for n, x in enumerate(k, 1):
         h_, l_, c_ = float(x[2]), float(x[3]), float(x[4])
+        if tr and h_ >= e * (1 - _tt):
+            return _tt, f"стоп на +{_tt * 100:.0f} % после хода {_ta * 100:.0f} %"
         if h_ >= (e if be else e * (1 + stop)):
             return (0.0, "стоп в безубыток") if be else (-stop, "стоп")
         if not be and FAST3_SHORT_BE_AT and l_ <= e * (1 - FAST3_SHORT_BE_AT):
             be = True
+        if _ta and not tr and l_ <= e * (1 - _ta):
+            be = tr = True
         if n >= n6 and not be:
             if c_ > e:
                 return 1 - c_ / e, f"{_bm // 60} ч после входа цена выше входа — закрытие"
             be = True
     if be:
-        pos["stop_px"] = e                                                # мост BingX переставит стоп в точку входа
+        pos["stop_px"] = e * (1 - _tt) if tr else e                       # мост BingX переставит стоп в точку входа (после хода _ta — на +_tt)
     return None, None
 
 
@@ -2269,8 +2277,8 @@ def _stall_exit(pos: dict, k: list, now: float, c: float):
     e = float(pos["px"]); tail = f"лучшая цена {float(k[i][3]):.6g} была {datetime.fromtimestamp(t_low, L):%d.%m %H:%M} UTC"
     if c > e:
         return "close", f"шорт висит больше {_sh:g} ч и в минусе ({tail}) — закрытие по рынку (R66)"
-    if pos.get("be_from") or (pos.get("stop_px") and abs(float(pos["stop_px"]) / e - 1) < 1e-9):
-        return None                                                      # стоп уже в точке входа
+    if pos.get("be_from") or (pos.get("stop_px") and float(pos["stop_px"]) <= e * (1 + 1e-9)):
+        return None                                                      # стоп уже в точке входа или ниже (21.10: R58 после хода 10 % — на +5 %, назад на вход не сдвигать)
     return "be", f"шорт висит больше {_sh:g} ч, позиция в плюсе ({tail}) — стоп в точку входа (R66)"
 
 
