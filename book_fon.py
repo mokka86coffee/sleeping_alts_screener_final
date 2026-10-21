@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """ФОН ДЛЯ КНИГ (27.09, владелец: «вход только при фоне, где правило работало»; поля — как в claude/research/trade_context.py).
-Считается из архива получасовок cq_v2/intraday по всем монетам архива, один раз за процесс:
+Считается из архива получасовок cq_v2/intraday по всем монетам архива, не чаще раза в FON_TTL секунд (до 21.10 — один раз за процесс):
   board6 / board24 — медиана хода монет за 6 ч / 24 ч (%), up24 — доля монет в плюсе за 24 ч (%), leader / leader_run48 — лидер 48 ч,
   h_since_break / broken — часы после последнего слома лидера (paper_sight.leader_break_recent), sessions / wd / hour — время UTC+3.
 """
@@ -12,8 +12,11 @@ SES = (("Сидней", 21, 30), ("Токио", 0, 9), ("Лондон", 7, 16), 
 WD = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
 
 
+FON_TTL = 300   # 21.10 владелец «бота правь»: кэш «один раз за процесс» держал фон с запуска бота (18.10 01:06 UTC, «вс», час 1) трое суток во всех записях входов; теперь не старше 5 мин (срок мой)
+
+
 def fon() -> dict:
-    if "v" in _CACHE:
+    if "v" in _CACHE and time.time() - _CACHE.get("at", 0) < FON_TTL:
         return _CACHE["v"]
     out: dict = {}
     try:
@@ -40,7 +43,7 @@ def fon() -> dict:
         out.update(h_since_break=None, broken=None)
     t = datetime.now(timezone.utc); h = t.hour                    # 06.10: час и день недели в фоне — UTC (до этого UTC+3)
     out.update(wd=WD[t.weekday()], hour=h, sessions=[n for n, a, b in SES if a <= (h if h >= a else h + 24) < b])
-    _CACHE["v"] = out
+    _CACHE["v"] = out; _CACHE["at"] = time.time()
     return out
 
 
