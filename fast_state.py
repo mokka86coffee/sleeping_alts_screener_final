@@ -1001,6 +1001,49 @@ def queue_now(now: float) -> list[dict]:
     return out
 
 
+PRE_RUN_MAX = 9.0          # 21.10 «до хода»: от минимума за 7 дней не больше 9 % (run_from_low7) — порог Claude, аудит 07–21.10
+PRE_OI_MIN = 3.0           # интерес за сутки (oi_chg_pct журнала очереди — срез за 24 ч) растёт больше 3 % — порог Claude
+PRE_MEM = BASE_DIR / "output" / "premove_mem.json"
+PRE_TG_MEM = BASE_DIR / "output" / "premove_tg.json"
+
+
+def pre_move(now: float) -> list[dict]:
+    """21.10 владелец («делай» на предложение Claude): отдельный список «до хода» рядом со звёздами. Монета из последнего прогона
+    (output/queue_log.jsonl, прогон закрыт строкой _BG): от минимума за 7 дней прошла не больше PRE_RUN_MAX %, движок «сквиз», интерес за сутки
+    растёт больше PRE_OI_MIN %. Аудит 07–21.10 (claude/research/stars2w): среди монет ≤ +9 % от минимума «пошло» (+15 % раньше −10 % за 24 ч) 2,6 %,
+    у «сквиза» 8,4 %, у интереса > 3,3 % 5,8 % — девять из десяти не идут, проверка на следующих неделях. Правила бота это не читает.
+    t — когда монета впервые встала в список (память PRE_MEM, выпала — забыта)."""
+    by_at: dict = {}
+    for ln in _tail_lines(BASE_DIR / "output" / "queue_log.jsonl", 2_000_000):
+        try:
+            r = json.loads(ln)
+        except ValueError:
+            continue
+        if r.get("at"):
+            by_at.setdefault(r["at"], []).append(r)
+    done = [a for a in sorted(by_at) if any(r.get("sym") == "_BG" for r in by_at[a])]
+    if not done:
+        return []
+    out = []
+    for r in by_at[done[-1]]:
+        rf, oi = r.get("run_from_low7"), r.get("oi_chg_pct")
+        if (str(r.get("sym") or "").endswith("USDT") and r.get("engine") == "сквиз" and isinstance(rf, (int, float)) and rf <= PRE_RUN_MAX
+                and isinstance(oi, (int, float)) and oi > PRE_OI_MIN):
+            out.append(r)
+    mem = _read(PRE_MEM, {}) or {}
+    mem = {k: v for k, v in mem.items() if k in {r["sym"] for r in out}}
+    for r in out:
+        mem.setdefault(r["sym"], now)
+    try:
+        tmp = PRE_MEM.with_suffix(".tmp"); tmp.write_text(json.dumps(mem), encoding="utf-8"); tmp.replace(PRE_MEM)
+    except OSError:
+        pass
+    return [dict(sym=r["sym"], t=float(mem[r["sym"]]), keep=KEEP_S, ranks=[r.get("place") or "—"], res=float(r.get("px_chg_pct") or 0),
+                 week=f"до хода · сквиз · от дна 7 дн +{float(r['run_from_low7']):.0f}% · интерес 24 ч +{float(r['oi_chg_pct']):.0f}%",
+                 place_now=r.get("place"), px_now=r.get("px"), run7=r.get("run_from_low7"), oi24=r.get("oi_chg_pct"), v2c=r.get("vol_to_cap"),
+                 onriver=True) for r in sorted(out, key=lambda r: float(r["run_from_low7"]))]
+
+
 def build() -> dict:
     now = time.time()
     op, cl, hist = positions(now)
@@ -1028,6 +1071,11 @@ def build() -> dict:
                             week=f"на неделе · {w['day']} · первой {w['n']}", onriver=w["sym"] not in _onq) for w in _sn.queue_week(now)]
     except Exception as e:  # noqa: BLE001
         print(f"week: сбой {type(e).__name__}: {e}"); fsq["week"] = []
+    try:                                                                 # 21.10 владелец «делай»: список «до хода» (pre_move) — на реку тем же следом, что «на неделе»
+        _onq2 = {q["sym"] for q in (fsq.get("queue") or [])} | {w["sym"] for w in (fsq.get("week") or []) if w.get("onriver")}
+        fsq["pre"] = [dict(x, onriver=x["sym"] not in _onq2) for x in pre_move(now)]
+    except Exception as e:  # noqa: BLE001
+        print(f"до хода: сбой {type(e).__name__}: {e}"); fsq["pre"] = []
     try:                                                                 # 12.10 владелец: пузыри рыночных заявок «на наших звёздах отдельным значком»; 11:40 UTC: «дат не надо никаких
         import market_bubbles as _mb                                     #   и не надо последний — были белые или нет; чем больше таких пузырьков на получасовках, тем ярче пузырёк у звезды»
         _stars = list(fsq.get("queue") or []) + list(fsq.get("week") or [])
@@ -1060,14 +1108,14 @@ def build() -> dict:
         _st["favorites"] = favorites(now)
     except Exception as e:  # noqa: BLE001
         print(f"избранные: сбой {type(e).__name__}: {e}"); _st["favorites"] = []
-    for _w in _st.get("week") or []:                                     # свежая цена монет «на неделе» — тем же запросом всех цен
+    for _w in list(_st.get("week") or []) + list(_st.get("pre") or []):   # свежая цена монет «на неделе» и «до хода» — тем же запросом всех цен
         _p = _PX_NOW["px"].get(_w["sym"])
         if _p:
             _w["now"], _w["now_t"] = _p, round(_PX_NOW["t"], 1)
         _w["px"] = _p or _w.get("px_now")
     try:                                                                 # 12.10: линия цены карточки звезды — получасовки за неделю (столько живёт звезда и её пузыри) и свежая цена
         import market_bubbles as _mb2                                    #   последней точкой; у монет «на неделе» и у кристаллов очереди — поля closes, times (unix UTC), px
-        for _q in list(_st.get("queue") or []) + list(_st.get("week") or []):
+        for _q in list(_st.get("queue") or []) + list(_st.get("week") or []) + list(_st.get("pre") or []):
             _rw = [r for r in _mb2._rows(_q["sym"]) if now - (_unix(r[0]) + 1800) <= _mb2.MOB_RECENT_H * 3600]
             _cl, _tm = [r[2] for r in _rw], [_unix(r[0]) + 1800 for r in _rw]
             _p = _PX_NOW["px"].get(_q["sym"])
@@ -1133,6 +1181,41 @@ def queue_star_tg(s: dict, now: float) -> None:
             del mem[sym]
     try:
         tmp = QSTAR_MEM.with_suffix(".tmp"); tmp.write_text(json.dumps(dict(sent=mem), ensure_ascii=False), encoding="utf-8"); tmp.replace(QSTAR_MEM)
+    except OSError:
+        pass
+
+
+def pre_move_tg(s: dict, now: float) -> None:
+    """21.10 владелец («делай»): «до хода» в Телеграм — одно сообщение, когда монета встала в список; выпала и вернулась — снова.
+    Память — PRE_TG_MEM; настройки бота и чата — как у queue_star_tg."""
+    try:
+        raw = json.loads((BASE_DIR / "config" / "telegram_config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    token = raw.get("queue_stars_bot_token") or raw.get("bot_token"); chat = raw.get("queue_stars_chat_id") or raw.get("chat_id")
+    if not raw.get("queue_stars") or not (token and chat):
+        return
+    cfg = dict(raw, bot_token=token, chat_id=chat)
+    cur = {x["sym"]: x for x in (s.get("pre") or [])}
+    mem = {k: v for k, v in ((_read(PRE_TG_MEM, {}) or {}).items()) if k in cur}
+    for sym, x in cur.items():
+        if sym in mem:
+            continue
+        pl = x.get("place_now")
+        txt = (f"🔹 {sym[:-4]} — до хода: движок «сквиз», от дна 7 дн +{float(x['run7']):.1f}%, интерес за сутки +{float(x['oi24']):.1f}%\n"
+               f"место в очереди: {pl if pl else 'вне очереди'} · ход с начала суток UTC {float(x.get('res') or 0):+.1f}%\n"
+               f"пороги Claude, по 07–21.10 из таких пошло около 1 из 12")
+        try:
+            import cg_shot
+            from send_brief_telegram import chat_ids, _send_to
+            ok = all([_send_to(txt + "\n\n" + cg_shot.links(sym), cfg, c) for c in chat_ids(cfg)])
+        except Exception as e:  # noqa: BLE001
+            print(f"до хода в Телеграм {sym}: {type(e).__name__}: {e}"); ok = False
+        print(f"Телеграм до хода: {sym[:-4]} · {'ушло' if ok else 'НЕ ушло'}")
+        if ok:
+            mem[sym] = now
+    try:
+        tmp = PRE_TG_MEM.with_suffix(".tmp"); tmp.write_text(json.dumps(mem), encoding="utf-8"); tmp.replace(PRE_TG_MEM)
     except OSError:
         pass
 
@@ -1489,6 +1572,10 @@ if __name__ == "__main__":
         queue_week_tg(d, time.time())                                    # 12.10: вторая категория «на неделе» — снова первая, держит ход, вернулась к вершине
     except Exception as e:  # noqa: BLE001
         print(f"«на неделе» в Телеграм: {type(e).__name__}: {e}")
+    try:
+        pre_move_tg(d, time.time())                                      # 21.10 владелец «делай»: список «до хода»
+    except Exception as e:  # noqa: BLE001
+        print(f"«до хода» в Телеграм: {type(e).__name__}: {e}")
     try:
         queue_star_tg(d, time.time())                                    # 12.10: единственное сообщение в Телеграм — «3 подряд в топе»
     except Exception as e:  # noqa: BLE001
