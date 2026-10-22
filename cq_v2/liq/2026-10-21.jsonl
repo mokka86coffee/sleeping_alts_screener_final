@@ -22861,3 +22861,6 @@
 {"t": 1792626136421, "sym": "BILLUSDT", "side": "long", "usd": 190.6, "px": 0.006881, "src": "okx"}
 {"t": 1792626365253, "sym": "SKHYNIXUSDT", "side": "long", "usd": 3952.59, "px": 950.6, "src": "okx"}
 {"t": 1792626406007, "sym": "ETHUSDT", "side": "long", "usd": 136.0, "px": 2472.64, "src": "okx"}
+{"t": 1792626554009, "sym": "BTCUSDT", "side": "long", "usd": 302.87, "px": 84129.6, "src": "okx"}
+{"t": 1792626581443, "sym": "ETHUSDT", "side": "long", "usd": 834.83, "px": 2469.92, "src": "okx"}
+{"t": 1792627081418, "sym": "BTCUSDT", "side": "long", "usd": 1428.71, "px": 84041.5, "src": "okx"}
