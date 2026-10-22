@@ -22742,3 +22742,9 @@
 {"t": 1792614841607, "sym": "IRYSUSDT", "side": "short", "usd": 25.32, "px": 0.0211, "src": "okx"}
 {"t": 1792614919589, "sym": "PUMPUSDT", "side": "short", "usd": 19954.95, "px": 0.005167, "src": "okx"}
 {"t": 1792614994815, "sym": "STRKUSDT", "side": "short", "usd": 77.01, "px": 0.06035, "src": "okx"}
+{"t": 1792615330259, "sym": "BTCUSDT", "side": "short", "usd": 440.47, "px": 84706.3, "src": "okx"}
+{"t": 1792615580596, "sym": "SOPHUSDT", "side": "long", "usd": 1.16, "px": 0.001651, "src": "okx"}
+{"t": 1792615596007, "sym": "XAGUSDT", "side": "short", "usd": 3.49, "px": 58.09, "src": "okx"}
+{"t": 1792615721410, "sym": "NVDAUSDT", "side": "short", "usd": 44.58, "px": 222.88, "src": "okx"}
+{"t": 1792616089381, "sym": "LITUSDT", "side": "long", "usd": 11.41, "px": 3.8025, "src": "okx"}
+{"t": 1792616255618, "sym": "IRYSUSDT", "side": "short", "usd": 66.22, "px": 0.02136, "src": "okx"}
