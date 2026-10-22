@@ -22752,3 +22752,7 @@
 {"t": 1792616747990, "sym": "GRASSUSDT", "side": "long", "usd": 2.11, "px": 0.7031, "src": "okx"}
 {"t": 1792616819793, "sym": "BILLUSDT", "side": "short", "usd": 11.85, "px": 0.006582, "src": "okx"}
 {"t": 1792617025429, "sym": "BILLUSDT", "side": "short", "usd": 1.98, "px": 0.006606, "src": "okx"}
+{"t": 1792617816829, "sym": "NEARUSDT", "side": "short", "usd": 6397.2, "px": 5.331, "src": "okx"}
+{"t": 1792617886605, "sym": "CRVUSDT", "side": "short", "usd": 2.38, "px": 0.3964, "src": "okx"}
+{"t": 1792617947829, "sym": "GRVTUSDT", "side": "long", "usd": 5.18, "px": 0.25888, "src": "okx"}
+{"t": 1792618795631, "sym": "IOSTUSDT", "side": "short", "usd": 40.59, "px": 0.0015613, "src": "okx"}
