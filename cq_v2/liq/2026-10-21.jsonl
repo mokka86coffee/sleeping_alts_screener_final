@@ -22714,3 +22714,10 @@
 {"t": 1792627169469, "sym": "IRYSUSDT", "side": "long", "usd": 51.27, "px": 0.01768, "src": "okx"}
 {"t": 1792627170242, "sym": "IRYSUSDT", "side": "long", "usd": 206.11, "px": 0.01732, "src": "bybit"}
 {"t": 1792611214807, "sym": "LITUSDT", "side": "short", "usd": 35.19, "px": 3.91, "src": "okx"}
+{"t": 1792611644827, "sym": "LITUSDT", "side": "short", "usd": 6288.02, "px": 3.8911, "src": "okx"}
+{"t": 1792611801806, "sym": "IOSTUSDT", "side": "short", "usd": 4.94, "px": 0.0016481, "src": "okx"}
+{"t": 1792611851121, "sym": "IOSTUSDT", "side": "short", "usd": 6.63, "px": 0.0016567, "src": "okx"}
+{"t": 1792611852007, "sym": "IOSTUSDT", "side": "short", "usd": 600.74, "px": 0.0016641, "src": "okx"}
+{"t": 1792611853249, "sym": "IOSTUSDT", "side": "short", "usd": 682.21, "px": 0.001668, "src": "okx"}
+{"t": 1792612004801, "sym": "GRVTUSDT", "side": "long", "usd": 785.23, "px": 0.27265, "src": "okx"}
+{"t": 1792612951016, "sym": "DOODUSDT", "side": "short", "usd": 83.89, "px": 0.002542, "src": "okx"}
