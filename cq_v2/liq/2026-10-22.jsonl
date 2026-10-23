@@ -21560,3 +21560,11 @@
 {"t": 1792696102819, "sym": "ACNUSDT", "side": "short", "usd": 2.54, "px": 254.45, "src": "okx"}
 {"t": 1792696120010, "sym": "SOLUSDT", "side": "long", "usd": 4739.29, "px": 103.32, "src": "okx"}
 {"t": 1792696120010, "sym": "GOOGLUSDT", "side": "long", "usd": 14505.48, "px": 323.35, "src": "okx"}
+{"t": 1792696480820, "sym": "EDGEUSDT", "side": "short", "usd": 1552.0, "px": 0.3104, "src": "okx"}
+{"t": 1792696880805, "sym": "ETHUSDT", "side": "short", "usd": 465.58, "px": 2387.6, "src": "okx"}
+{"t": 1792696923432, "sym": "STRKUSDT", "side": "short", "usd": 0.27, "px": 0.05463, "src": "okx"}
+{"t": 1792697044030, "sym": "ETHUSDT", "side": "short", "usd": 355.95, "px": 2388.95, "src": "okx"}
+{"t": 1792697212034, "sym": "SNDKUSDT", "side": "short", "usd": 700.53, "px": 1264.5, "src": "okx"}
+{"t": 1792697242014, "sym": "SNDKUSDT", "side": "short", "usd": 215.2, "px": 1265.9, "src": "okx"}
+{"t": 1792697282420, "sym": "CTUSDT", "side": "long", "usd": 77.53, "px": 0.2215, "src": "okx"}
+{"t": 1792697411221, "sym": "BTCUSDT", "side": "short", "usd": 118246.78, "px": 81493.3, "src": "okx"}
