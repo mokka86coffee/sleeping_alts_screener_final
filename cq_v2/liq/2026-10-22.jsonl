@@ -21513,3 +21513,6 @@
 {"t": 1792692209607, "sym": "SOLUSDT", "side": "long", "usd": 88.84, "px": 103.3, "src": "okx"}
 {"t": 1792692244629, "sym": "LITEUSDT", "side": "long", "usd": 12302.04, "px": 751.04, "src": "okx"}
 {"t": 1792692299837, "sym": "GOOGLUSDT", "side": "long", "usd": 279.71, "px": 325.24, "src": "okx"}
+{"t": 1792692519214, "sym": "AKEUSDT", "side": "short", "usd": 166.37, "px": 0.03139, "src": "okx"}
+{"t": 1792692631425, "sym": "BILLUSDT", "side": "long", "usd": 156.91, "px": 0.006538, "src": "okx"}
+{"t": 1792692667036, "sym": "NOKUSDT", "side": "long", "usd": 47.62, "px": 7.937, "src": "okx"}
