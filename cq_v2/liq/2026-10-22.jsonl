@@ -21519,3 +21519,6 @@
 {"t": 1792693023043, "sym": "BILLUSDT", "side": "long", "usd": 164.68, "px": 0.006509, "src": "okx"}
 {"t": 1792693276861, "sym": "OPGUSDT", "side": "long", "usd": 3100.01, "px": 0.12495, "src": "okx"}
 {"t": 1792693341016, "sym": "UBUSDT", "side": "long", "usd": 1252.25, "px": 0.12649, "src": "okx"}
+{"t": 1792693419241, "sym": "WLDUSDT", "side": "short", "usd": 149.45, "px": 0.5415, "src": "okx"}
+{"t": 1792693453880, "sym": "MEWUSDT", "side": "long", "usd": 4.81, "px": 0.0004807, "src": "okx"}
+{"t": 1792693669873, "sym": "METAUSDT", "side": "long", "usd": 244.72, "px": 643.99, "src": "okx"}
