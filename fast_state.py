@@ -863,12 +863,20 @@ def favorites(now: float) -> list[dict]:
         except Exception:  # noqa: BLE001
             bv = None
         sg = _fav_signs(sym, now, p_now, bv)
+        x2 = None                                                        # 24.10 владелец: «в скоро автоматически должны попадать монеты, которые за 48 ч поднимались ×2 из избранного»:
+        try:                                                             #   по дневкам этого же запроса (31 дн — глубина Claude): максимум за 48 ч (тот же и 2 следующих дня) от минимума дня ≥ ×2
+            hl = [(float(x[2]), float(x[3]), int(x[0])) for x in (kk or [])][-3:]   # 24.10 владелец: «только в течение последних 2-х дней» — сегодняшняя свеча и две прошлые
+            for i, (_, lo, ti) in enumerate(hl):
+                if lo > 0 and max(h for h, _, _ in hl[i:]) >= 2 * lo:
+                    x2 = datetime.fromtimestamp(ti / 1000, timezone.utc).strftime("%Y-%m-%d")
+        except Exception:  # noqa: BLE001
+            x2 = None
         out.append(dict(sym=sym, added=c.get("added"), px_added=c.get("px_added"), note=c.get("note"),
                         now=p_now, now_t=round(_PX_NOW["t"], 1) if p_now else None,
                         atl=atl, atl_at=atl_at, from_atl_pct=round((p_now / atl - 1) * 100, 1) if (p_now and atl) else None,
                         circ=supply.get(sym), mcap=round(p_now * supply[sym]) if (p_now and supply.get(sym)) else None,   # 18.10: капа = цена × обращение
                         oi7=sg.get("oi7"), oi30=sg.get("oi30"), fund3=sg.get("fund3"), vol_x=sg.get("vol_x"), px7=sg.get("px7"), stage=sg.get("stage"),
-                        group=c.get("group") or _FAV_GROUP.get(sg.get("stage") or "")))   # 17.10 (чат сайта): три свечи «на ходу» / «скоро» / «шевелятся»; group из
+                        x2_48=x2, group=c.get("group") or ("скоро" if x2 else _FAV_GROUP.get(sg.get("stage") or ""))))   # 17.10 (чат сайта): три свечи «на ходу» / «скоро» / «шевелятся»; group из
     return out
 
 
@@ -1545,15 +1553,17 @@ if __name__ == "__main__":
     t = time.time()
     p = write()
     d = json.loads(p.read_text())
-    try:
-        if _site_flags()[1]:                                             # 11.10: биржа на странице выключена — предупреждения зеркала в Телеграм не идут
-            bx_warn_tg(d, time.time())
-    except Exception as e:  # noqa: BLE001
-        print(f"предупреждения зеркала в Телеграм: {type(e).__name__}: {e}")
-    try:
-        queue_bubble_tg(d, time.time())                                  # 12.10: новый белый пузырь у звезды
-    except Exception as e:  # noqa: BLE001
-        print(f"пузыри в Телеграм: {type(e).__name__}: {e}")
+    # 24.10 владелец: «это убери» (предупреждения зеркала BingX в Телеграм) — выключено; функция bx_warn_tg оставлена, вернуть — раскомментировать
+    # try:
+    #     if _site_flags()[1]:                                             # 11.10: биржа на странице выключена — предупреждения зеркала в Телеграм не идут
+    #         bx_warn_tg(d, time.time())
+    # except Exception as e:  # noqa: BLE001
+    #     print(f"предупреждения зеркала в Телеграм: {type(e).__name__}: {e}")
+    # 24.10 владелец: «убери из тг пузыри» — отправка итогов по пузырям выключена (функция queue_bubble_tg оставлена; вернуть — раскомментировать)
+    # try:
+    #     queue_bubble_tg(d, time.time())                                  # 12.10: новый белый пузырь у звезды
+    # except Exception as e:  # noqa: BLE001
+    #     print(f"пузыри в Телеграм: {type(e).__name__}: {e}")
     try:
         favorites_tg(d, time.time())                                     # 17.10: избранные — «скоро» раз в 3 ч, «шевелятся» раз в 12 ч
     except Exception as e:  # noqa: BLE001
@@ -1564,10 +1574,11 @@ if __name__ == "__main__":
                          stderr=subprocess.STDOUT, start_new_session=True)
     except Exception as e:  # noqa: BLE001
         print(f"fast_px: {type(e).__name__}: {e}")
-    try:
-        btc_hour_tg(d, time.time())                                      # 15.10: биткоин раз в час — «падает» или часы после сквиза
-    except Exception as e:  # noqa: BLE001
-        print(f"биткоин в Телеграм: {type(e).__name__}: {e}")
+    # 24.10 владелец: «btc тоже убери» — сообщения о биткоине в Телеграм выключены (функция btc_hour_tg оставлена; вернуть — раскомментировать)
+    # try:
+    #     btc_hour_tg(d, time.time())                                      # 15.10: биткоин раз в час — «падает» или часы после сквиза
+    # except Exception as e:  # noqa: BLE001
+    #     print(f"биткоин в Телеграм: {type(e).__name__}: {e}")
     try:
         queue_week_tg(d, time.time())                                    # 12.10: вторая категория «на неделе» — снова первая, держит ход, вернулась к вершине
     except Exception as e:  # noqa: BLE001
