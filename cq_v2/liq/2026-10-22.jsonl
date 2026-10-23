@@ -21494,3 +21494,8 @@
 {"t": 1792691179896, "sym": "CLUSDT", "side": "short", "usd": 1715.7, "px": 99.75, "src": "okx"}
 {"t": 1792691203629, "sym": "INJUSDT", "side": "short", "usd": 8769.34, "px": 8.107, "src": "okx"}
 {"t": 1792691439019, "sym": "CLUSDT", "side": "short", "usd": 981.67, "px": 100.17, "src": "okx"}
+{"t": 1792691484600, "sym": "AKEUSDT", "side": "short", "usd": 9.21, "px": 0.03069, "src": "okx"}
+{"t": 1792691906439, "sym": "ZECUSDT", "side": "long", "usd": 2146.12, "px": 1192.29, "src": "okx"}
+{"t": 1792691911835, "sym": "XRPUSDT", "side": "long", "usd": 10338.95, "px": 1.3079, "src": "okx"}
+{"t": 1792691940605, "sym": "SPCXUSDT", "side": "long", "usd": 437.58, "px": 145.86, "src": "okx"}
+{"t": 1792691987224, "sym": "DNAUSDT", "side": "short", "usd": 39.38, "px": 0.1969, "src": "okx"}
