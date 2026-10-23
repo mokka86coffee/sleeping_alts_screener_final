@@ -3271,7 +3271,7 @@ findHover = function () {
   // и разнообразь, чтобы отличать» — свеча на список сверху вниз; в свече монеты своего списка по кругу раз в 10 с (открыта панель — смена стоит);
   // список монеты — поле group: «на ходу» / «скоро» / «шевелятся»; без поля монета не рисуется. Вид: на ходу — горит, тёплые цвета по кругу, дым и сноп искр;
   // скоро — ледяная, тело налито наполовину и дышит, свечение пульсирует; шевелятся — сиреневая тень: пустой контур, без дыма (цвета — мои)
-  const FAV_GRP = ['НА ХОДУ', 'СКОРО', 'ШЕВЕЛЯТСЯ'],   /* 17.10 владелец: «будут на ходу, скоро, шевелятся» */ FAV_WARM = ['255,186,84', '255,120,150', '255,215,90', '255,150,70'];
+  const FAV_GRP = ['НА ХОДУ', 'СКОРО', 'ШЕВЕЛЯТСЯ', 'ОСТАЛЬНЫЕ'],   /* 17.10 владелец: «будут на ходу, скоро, шевелятся» */ FAV_WARM = ['255,186,84', '255,120,150', '255,215,90', '255,150,70'];
   const favGrp = f => { const g = String(f.group || f.list || '').toLowerCase(); return /ход|идут|going/.test(g) ? 0 : /скоро|близ|soon/.test(g) ? 1 : /шевел|stir/.test(g) ? 2 : -1; };   // без списка (group) монета не рисуется: в избранном 52 монеты, списки задаёт владелец
   const favWarm = (now, seed) => { const c = (now + fr(seed, 13) * 30) / 30, i = Math.floor(c), u = (c - i) * 30 / 3, n = FAV_WARM.length, cur = FAV_WARM[((i % n) + n) % n], prv = FAV_WARM[(((i - 1) % n) + n) % n]; return u < 1 ? mix(prv, cur, ease(u)) : cur; };
   // 17.10 владелец: «сделай чтобы скролить их можно было, а не ждать 10 сек» — колесо над свечой или свайп пальцем листает монеты её списка;
@@ -3285,8 +3285,8 @@ findHover = function () {
   //    (имя, во сколько раз от дна, КП); наведение на строку ставит эту монету в свечу; клик по имени — график на TradingView в новой вкладке
   const favList = document.createElement('div'); favList.id = 'favList'; document.body.appendChild(favList);
   const favListCss = document.createElement('style'); favListCss.textContent = '#favList{position:fixed;z-index:7;display:none;min-width:190px;max-height:60vh;overflow:auto;padding:8px 6px;border-radius:10px;background:rgba(8,14,26,.82);border:1px solid rgba(160,200,235,.22);box-shadow:0 8px 30px rgba(0,0,0,.45);backdrop-filter:blur(6px);font:400 10px Futura,"Avenir Next",sans-serif;color:rgba(220,232,250,.85)}'
-    + '#favList .h{font-size:7px;letter-spacing:.3em;padding:2px 8px 6px;opacity:.75}#favList a{display:flex;align-items:baseline;gap:8px;padding:4px 8px;border-radius:6px;color:inherit;text-decoration:none;cursor:pointer;white-space:nowrap}'
-    + '#favList a:hover{background:rgba(255,255,255,.07)}#favList a.on{background:rgba(255,255,255,.1)}#favList b{font:600 11px Futura,"Avenir Next",sans-serif;color:#fff;min-width:64px}#favList em{font-style:normal;opacity:.75}#favList u{text-decoration:none;margin-left:auto;opacity:.6;font-size:9px}';
+    + '/* 24.10 владелец: «топ-признак ещё есть, добавь его в списке как-то» → «огонёк пусть горит рядом с названием» — у монет с top рядом с именем мерцает тёплый огонёк */#favList .h{font-size:7px;letter-spacing:.3em;padding:2px 8px 6px;opacity:.75}#favList a{display:flex;align-items:baseline;gap:8px;padding:4px 8px;border-radius:6px;color:inherit;text-decoration:none;cursor:pointer;white-space:nowrap}'
+    + '#favList a:hover{background:rgba(255,255,255,.07)}#favList a.on{background:rgba(255,255,255,.1)}#favList b{font:600 11px Futura,"Avenir Next",sans-serif;color:#fff;min-width:64px;display:flex;align-items:baseline;gap:6px}#favList .tp{display:inline-block;width:6px;height:6px;border-radius:50%;align-self:center;background:radial-gradient(circle,#fff 0,#ffe2a0 35%,#ff9f45 70%,rgba(255,140,60,0) 100%);box-shadow:0 0 6px 2px rgba(255,165,70,.75),0 0 14px 4px rgba(255,140,60,.25);animation:favTp 1.7s ease-in-out infinite}@keyframes favTp{0%,100%{transform:scale(1);opacity:1}45%{transform:scale(.8);opacity:.75}70%{transform:scale(1.15);opacity:1}}#favList em{font-style:normal;opacity:.75}#favList u{text-decoration:none;margin-left:auto;opacity:.6;font-size:9px}';
   document.head.appendChild(favListCss);
   let favListG = -1, favListHide = 0;
   const favMult = f => { const m = +f.now > 0 && +f.atl > 0 ? +f.now / +f.atl : 0; return m ? '×' + (m >= 10 ? Math.round(m) : m.toFixed(1).replace('.', ',')) : ''; };
@@ -3296,7 +3296,7 @@ findHover = function () {
     const rgb = L && L.c1 ? L.c1 : '200,220,255';
     if (favListG !== g || favList._n !== list.length) { favListG = g; favList._n = list.length;
       favList.innerHTML = `<div class="h" style="color:rgb(${rgb})">${FAV_GRP[g]} · ${list.length}</div>` + list.map((f, i) => { const sym = String(f.sym), nm = sym.replace(/USDT$/, ''), m = favMult(f), c = favCap(f);
-        return `<a data-i="${i}" href="https://www.tradingview.com/chart/?symbol=BINANCE:${sym}.P" target="_blank" rel="noopener" title="${nm} — открыть график на TradingView"><b>${nm}</b><em style="color:rgb(${rgb})">${m}${m ? ' от дна' : ''}</em><u>${c ? 'КП ' + c : ''}</u></a>`; }).join('');
+        return `<a data-i="${i}" href="https://www.tradingview.com/chart/?symbol=BINANCE:${sym}.P" target="_blank" rel="noopener"><b>${nm}${f.top ? '<i class="tp" title=""></i>' : ''}</b><em style="color:rgb(${rgb})">${m}${m ? ' от дна' : ''}</em><u>${c ? 'КП ' + c : ''}</u></a>`; }).join('');
       favList.querySelectorAll('a').forEach(a => a.addEventListener('mouseenter', () => { const Lg = FAVL['slot' + g]; if (Lg && Lg.len > 1) { Lg.idx = +a.dataset.i; Lg.t0 = performance.now() / 1000 + 5; } })); }
     favList.querySelectorAll('a').forEach(a => a.classList.toggle('on', L && +a.dataset.i === L.idx));
     const r = b.getBoundingClientRect(); favList.style.display = 'block'; const w = favList.offsetWidth, h = favList.offsetHeight;
@@ -3307,54 +3307,16 @@ findHover = function () {
   favHit.addEventListener('mouseover', e => { const b = e.target.closest && e.target.closest('i[data-g]'); if (b) favListShow(b); });
   favHit.addEventListener('mouseout', e => { const b = e.target.closest && e.target.closest('i[data-g]'); if (b && !(e.relatedTarget && favList.contains(e.relatedTarget))) favListOff(); });
   favList.addEventListener('mouseenter', () => clearTimeout(favListHide)); favList.addEventListener('mouseleave', favListOff);
-  // 24.10 владелец: «давай добавим какой-то новый крутой элемент, при клике на который будет убираться река и появляться весь список избранного — вместо реки»
-  //    кристалл под свечами: вращающееся кольцо цветов трёх списков, три точки-спутника, дышащее ядро; клик — на месте реки раскрывается всё избранное
-  //    (на ходу / скоро / шевелятся / остальные), клик по имени — TradingView; закрыть — тот же кристалл, Esc или клик по пустому месту
-  const favAll = document.createElement('div'); favAll.id = 'favAll'; favAll.innerHTML = '<i class="r"></i><i class="o"></i><i class="c"></i><span></span>'; favAll.title = 'всё избранное вместо реки'; document.body.appendChild(favAll);
-  const favBoard = document.createElement('div'); favBoard.id = 'favBoard'; document.body.appendChild(favBoard);
-  const favAllCss = document.createElement('style'); favAllCss.textContent =
-    '#favAll{position:fixed;z-index:6;display:none;align-items:center;gap:9px;cursor:pointer;user-select:none}#favAll .r,#favAll .o,#favAll .c{position:absolute;left:0;top:0;width:30px;height:30px;border-radius:50%}'
-    + '#favAll .r{background:conic-gradient(from 0deg,rgb(255,186,84),rgb(255,120,150),rgb(90,215,255),rgb(180,160,240),rgb(255,186,84));-webkit-mask:radial-gradient(circle,transparent 11px,#000 12px,#000 14px,transparent 15px);mask:radial-gradient(circle,transparent 11px,#000 12px,#000 14px,transparent 15px);animation:faR 7s linear infinite;filter:drop-shadow(0 0 5px rgba(160,200,255,.8))}'
-    + '#favAll .o{animation:faR 4.5s linear infinite reverse}#favAll .o::before,#favAll .o::after{content:"";position:absolute;width:4px;height:4px;border-radius:50%;left:13px;top:-2px;background:#ffe2a8;box-shadow:0 0 6px #ffc06a}#favAll .o::after{left:auto;right:-2px;top:13px;background:#9fe6ff;box-shadow:0 0 6px #5ad7ff}'
-    + '#favAll .c{width:10px;height:10px;left:10px;top:10px;background:radial-gradient(circle,#fff,rgba(255,220,160,.9) 45%,rgba(255,190,110,0) 75%);animation:faC 2.6s ease-in-out infinite}'
-    + '#favAll span{margin-left:38px;font:500 6px Futura,"Avenir Next",sans-serif;letter-spacing:.32em;color:rgba(220,232,250,.75);white-space:nowrap;line-height:30px}#favAll:hover span{color:#fff}#favAll.on .c{background:radial-gradient(circle,#fff,rgba(150,215,255,.95) 45%,rgba(90,170,255,0) 75%)}'
-    + '@keyframes faR{to{transform:rotate(360deg)}}@keyframes faC{50%{transform:scale(1.45);opacity:.75}}'
-    + '#favBoard{position:fixed;z-index:8;display:none;opacity:0;transition:opacity .45s;overflow:auto;padding:16px 22px 18px;border-radius:22px;background:radial-gradient(ellipse at 50% 0%,rgba(22,34,62,.97),rgba(5,9,18,.97) 70%);border:1px solid rgba(160,200,235,.18);box-shadow:0 0 40px rgba(60,110,200,.25),inset 0 1px 0 rgba(200,225,255,.12);backdrop-filter:blur(10px);font:400 10px Futura,"Avenir Next",sans-serif;color:rgba(220,232,250,.85)}'
-    + '#favBoard.show{opacity:1}#favBoard .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;font-size:7px;letter-spacing:.4em;color:rgba(200,220,245,.7)}#favBoard .top b{cursor:pointer;font-size:12px;letter-spacing:0;color:rgba(220,232,250,.6)}#favBoard .top b:hover{color:#fff}'
-    + '#favBoard .grp{margin:4px 0 12px}#favBoard .gh{font-size:6.5px;letter-spacing:.38em;margin:0 0 6px 2px}#favBoard .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:2px 6px}'
-    + '#favBoard a{display:flex;flex-direction:column;gap:2px;padding:5px 9px;color:inherit;text-decoration:none;opacity:0;transform:translateY(6px);animation:faIn .5s forwards}'
-    + '#favBoard a:hover b{text-shadow:0 0 8px rgba(var(--c),.95)}#favBoard a:hover em{text-shadow:0 0 6px rgba(var(--c),.8)}#favBoard a b{font:600 11px Futura,"Avenir Next",sans-serif;color:#fff;letter-spacing:.04em}#favBoard a em{font-style:normal;color:rgb(var(--c));font-size:9.5px}#favBoard a u{text-decoration:none;opacity:.55;font-size:8.5px}'
-    + '@keyframes faIn{to{opacity:1;transform:none}}';   /* 24.10 владелец: «убери плашки» — у монет нет подложек и рамок, только текст; при наведении имя светится */
-  document.head.appendChild(favAllCss);
-  let favOpen = false, favBoardT = 0;
-  function favBoardFill() {
-    const F = ((window.STATE || {}).favorites || []).filter(f => f && f.sym), G = [[], [], [], []]; F.forEach(f => { const g = favGrp(f); G[g >= 0 ? g : 3].push(f); });
-    const NAMES = FAV_GRP.concat(['ОСТАЛЬНЫЕ']), COL = ['255,186,84', '90,215,255', '180,160,240', '160,180,205']; let k = 0;
-    favBoard.innerHTML = `<div class="top"><span>ИЗБРАННОЕ · ${F.length}</span><b title="вернуть реку">✕</b></div>` + G.map((list, g) => !list.length ? '' : `<div class="grp" style="--c:${COL[g]}"><div class="gh" style="color:rgb(${COL[g]})">${NAMES[g]} · ${list.length}</div><div class="grid">`
-      + list.map(f => { const sym = String(f.sym), nm = sym.replace(/USDT$/, ''), m = favMult(f), c = favCap(f);
-        return `<a href="https://www.tradingview.com/chart/?symbol=BINANCE:${sym}.P" target="_blank" rel="noopener" title="${nm} — график на TradingView" style="animation-delay:${Math.min(900, 60 + (k++) * 14)}ms"><b>${nm}</b></a>`; }).join('')   /* 24.10 владелец: «просто название пока» */ + '</div></div>').join('');
-    favBoard.querySelector('.top b').addEventListener('click', e => { e.stopPropagation(); favToggle(false); });
-  }
-  function favBoardPlace() { const R = riverGeom(), y0 = Math.max(20, R.cy - R.amp - R.hh * 1.35), y1 = R.cy + R.amp + R.hh * 1.35; Object.assign(favBoard.style, { left: (R.x0 - 20) + 'px', top: y0 + 'px', width: (R.w + 40) + 'px', height: (y1 - y0) + 'px' }); }
-  function favToggle(on) {
-    favOpen = on == null ? !favOpen : on; window.FAV_OPEN = favOpen; favAll.classList.toggle('on', favOpen); favList.style.display = 'none';
-    if (favOpen) { favBoardFill(); favBoardPlace(); favBoard.style.display = 'block'; requestAnimationFrame(() => favBoard.classList.add('show')); favBoardT = setInterval(() => { if (favOpen) { favBoardFill(); favBoardPlace(); } }, 30000); }
-    else { favBoard.classList.remove('show'); clearInterval(favBoardT); setTimeout(() => { if (!favOpen) favBoard.style.display = 'none'; }, 460); }
-  }
-  favAll.addEventListener('click', e => { e.stopPropagation(); favToggle(); });
-  favBoard.addEventListener('click', e => { if (!e.target.closest('a')) favToggle(false); else e.stopPropagation(); });
-  addEventListener('keydown', e => { if (favOpen && e.key === 'Escape') favToggle(false); });
-  addEventListener('resize', () => { if (favOpen) favBoardPlace(); });
   window.drawFavs = function (t) {
     const F = ((window.STATE || {}).favorites || []).filter(f => f && f.sym), ST = 'candle';
-    if (W < 1100 || !F.length) { favHit.innerHTML = ''; favAll.style.display = 'none'; return; }
+    if (W < 1100 || !F.length) { favHit.innerHTML = ''; return; }
     // место: справа от лица девушки, до блока итогов справа
     const R = riverGeom(), top = 30, bot = R.cy - R.amp - R.hh * 1.4 - 14, avail = bot - top, ch = Math.max(3.9, avail / 104), cw = ch * .74, nr = Math.floor(avail / ch), nc = Math.round(nr * ch * GIRL_W / GIRL_H / cw);
     const faceR = W / 2 + nc * cw / 2, tb = document.getElementById('ribTot'), lim = tb && tb.getBoundingClientRect().width ? tb.getBoundingClientRect().left - 14 : W - 300;
     const x0 = Math.round(faceR + 26), wmax = lim - x0; if (wmax < 110) { favHit.innerHTML = ''; return; }
-    const G = [[], [], []]; F.forEach(f => { const g = favGrp(f); if (g >= 0) G[g].push(f); }); favHit._G = G; if (!G.some(q => q.length)) { favHit.innerHTML = ''; return; } const slots = G.map((list, g) => ({ g, list })).filter(q => q.list.length);
+    const G = [[], [], [], []]; F.forEach(f => { const g = favGrp(f); G[g >= 0 ? g : 3].push(f); }); favHit._G = G;   /* 24.10 владелец: «убирай свечу на ходу, добавь свечу остальные» — свечи: скоро, шевелятся, остальные (без списка) */
+    const slots = G.map((list, g) => ({ g, list })).filter(q => q.g !== 0 && q.list.length); if (!slots.length) { favHit.innerHTML = ''; return; }
     const n = slots.length, H1 = Math.min(100, Math.max(60, Math.floor((avail - 20) / n) - 10)), y00 = Math.round(top + Math.max(6, (avail - n * (H1 + 10)) * .45));
-    { const ax = x0 + 2, ay = Math.min(bot - 6, y00 + n * (H1 + 10) + 2), k2 = ax + ',' + ay; if (favAll._k !== k2) { favAll._k = k2; Object.assign(favAll.style, { left: ax + 'px', top: ay + 'px', display: 'flex' }); } favAll.querySelector('span').textContent = 'ВСЁ ИЗБРАННОЕ · ' + F.length; }
     const now = performance.now() / 1000, hits = [];
     slots.forEach(({ g, list }, j) => {
       let L = FAVL['slot' + g]; if (!L) L = FAVL['slot' + g] = { closed: true, born: now, seed: g * 137 + 11, item: null, grp: g };
@@ -3362,13 +3324,13 @@ findHover = function () {
       if (len > 1 && !(typeof selected !== 'undefined' && selected === L) && now - L.t0 >= 10) { L.idx = (L.idx + 1) % len; L.t0 = now; }   // раз в 10 с следующая; открыта панель — стоит
       const f = list[Math.min(L.idx, len - 1)];
       if (L.sym !== f.sym) { const first = L.sym == null; L.sym = f.sym; L.key = 'fav|' + f.sym; L.name = f.sym.replace(/USDT$/, ''); if (!first) { L.swT = now; L.pxOld = L.pxS; L.pxS = favPx(f.now); L.pxV = +f.now; L.pxT = now; L.pxSw = true; } }
-      const rgb = g === 0 ? favWarm(now, L.seed) : g === 1 ? '90,215,255' : '180,160,240';
-      L.c1 = L.c2 = rgb; L.item = { kind: 'fav', sym: f.sym, now: f.now, low: f.low ?? f.atl, low_t: f.low_t ?? (f.atl_at && !isNaN(Date.parse(f.atl_at)) ? f.atl_at : null), rise: f.rise ?? f.from_atl_pct, stage: f.stage, oi30: f.oi30, fund3: f.fund3, vol_x: f.vol_x, mcap: f.mcap };   /* 18.10: капа = цена × обращение (fast_state) */   // в данных дно — atl, рост от дна — from_atl_pct (fast_state); стадия и интерес — от другого чата
+      const rgb = g === 0 ? favWarm(now, L.seed) : g === 1 ? '90,215,255' : g === 2 ? '180,160,240' : '165,185,210';   /* остальные — серебристая тень (цвет мой) */
+      L.c1 = L.c2 = rgb; L.item = { kind: 'fav', sym: f.sym, now: f.now, low: f.low ?? f.atl, low_t: f.low_t ?? (f.atl_at && !isNaN(Date.parse(f.atl_at)) ? f.atl_at : null), rise: f.rise ?? f.from_atl_pct, stage: f.stage, oi30: f.oi30, fund3: f.fund3, vol_x: f.vol_x, mcap: f.mcap, top: !!f.top };   /* 18.10: капа = цена × обращение (fast_state) */   // в данных дно — atl, рост от дна — from_atl_pct (fast_state); стадия и интерес — от другого чата
       const ea = (now - L.born) / 1.6, y0 = y00 + j * (H1 + 10), tx = x0 + 32;
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       // 17.10 владелец: «пусть она ещё раз в 20 секунд немного прозрачной становится на 2 сек» — плавно до половины яркости и обратно (глубина — моя)
       if (ea > 2) { const c20 = (now + fr(L.seed, 11) * 20) / 20, u = (c20 - Math.floor(c20)) * 20 / 2; if (u < 1) ctx.globalAlpha *= 1 - .5 * Math.sin(Math.PI * u); }
-      const an = FAV_DRAW[ST](L, x0, y0, H1, now, ea, rgb, g);
+      const an = FAV_DRAW[ST](L, x0, y0, H1, now, ea, rgb, g === 3 ? 2 : g);   /* остальные рисуются контуром, как «шевелятся» */
       ctx.restore();
       // текст — мелко: список (и место монеты в нём), имя, цена; во сколько раз от исторического дна
       const ta = clamp((ea - .8) / .5) * (g === 2 ? .85 : 1); if (ta > 0) { const yb = y0 + H1 / 2 - 26, sw0 = L.swT != null ? now - L.swT : 9;
@@ -3378,7 +3340,15 @@ findHover = function () {
           tctx.font = `600 11px Futura, "Avenir Next", sans-serif`; tctx.letterSpacing = '0px'; const chs = [...L.name], sweep = ((now * .17 + L.seed * .13) % 1) * (chs.length + 6) - 2; let gx = tx;
           chs.forEach((c, i) => { const fl = .8 + .2 * Math.sin(now * 5.3 + i * 1.9 + L.seed) * Math.sin(now * 2.1 + i * .7), sw = Math.max(0, 1 - Math.abs(i - sweep) / 1.3);
             tctx.globalAlpha = ta * Math.min(1, fl + sw * .3) * clamp(sw0 * 4 - i * .25);   /* при смене монеты буквы проявляются по очереди */ tctx.shadowColor = sw > .15 ? 'rgba(255,240,210,1)' : `rgba(${rgb},.95)`; tctx.shadowBlur = 4 + 6 * fl + 9 * sw; tctx.fillStyle = sw > .35 ? '#fff8e6' : '#fff'; tctx.fillText(c, gx, yb + 20); gx += tctx.measureText(c).width + 1.5; });
-          tctx.shadowBlur = 0; tctx.globalAlpha = ta; }
+          tctx.shadowBlur = 0; tctx.globalAlpha = ta;
+          if (L.item.top) { const nx0 = tx, nw = Math.max(8, gx - tx), ny = yb + 15;   // 24.10 владелец: искры из названия → «не пламя, а искры» → «только не вьющиеся, а рассыпающиеся»: раз в ~2,4 с из букв брызгами разлетается сноп и гаснет
+            tctx.save(); tctx.globalCompositeOperation = 'lighter'; tctx.lineCap = 'round';
+            for (const off of [0, .8, 1.6]) {   /* «и побольше»: три снопа внахлёст, искр и разлёта больше */ const c = (now + off + fr(L.seed, 7) * 2.4) / 2.4, ci = Math.floor(c), u = (c - ci) * 2.4 / 1.1; if (u >= 1) continue; const e = 1 - Math.pow(1 - u, 3);
+              for (let j = 0; j < 26; j++) { const k = ci * 31 + j + off * 100, ox = nx0 + fr(k, 1) * nw, oy = ny + (fr(k, 2) - .5) * 7, a = -Math.PI / 2 + (fr(k, 3) - .5) * 3.2, d = (12 + fr(k, 4) * 34) * e, d0 = (12 + fr(k, 4) * 34) * (1 - Math.pow(1 - Math.max(0, u - .08), 3));
+                const x1 = ox + Math.cos(a) * d, y1 = oy + Math.sin(a) * d + 9 * u * u, x0 = ox + Math.cos(a) * d0, y0 = oy + Math.sin(a) * d0 + 9 * Math.max(0, u - .08) ** 2, al = (1 - u) * Math.min(1, u * 14);
+                tctx.strokeStyle = `rgba(255,${210 + (j % 3) * 15},${140 + (j % 2) * 70},${(.95 * al).toFixed(3)})`; tctx.lineWidth = 1.1; tctx.beginPath(); tctx.moveTo(x0, y0); tctx.lineTo(x1, y1); tctx.stroke();
+                if (fr(k, 5) > .35) { tctx.fillStyle = `rgba(255,252,238,${al.toFixed(3)})`; tctx.fillRect(x1 - .9, y1 - .9, 1.8, 1.8); } } }
+            tctx.restore(); } }
         { // 17.10 владелец: «и цена при обновлении какой-нибудь искрой полыхала и перерисовывалась» — старая уходит вверх и гаснет, новая проявляется слева направо, по фронту бежит искра; вспышка мятная — цена выросла, коралловая — упала
           const ps = favPx(L.item.now), pv = +L.item.now, py = yb + 31; if (L.pxS == null) { L.pxS = ps; L.pxV = pv; } else if (ps !== L.pxS) { L.pxOld = L.pxS; L.pxUp = pv >= L.pxV; L.pxS = ps; L.pxV = pv; L.pxT = now; L.pxSw = false; }
           tctx.font = `400 8.5px ${FONT}`; tctx.letterSpacing = '0px'; const pu = L.pxT != null ? (now - L.pxT) / 1.2 : 9, chs = [...ps], ws = chs.map(c => tctx.measureText(c).width + .5);
@@ -3403,7 +3373,7 @@ findHover = function () {
       hits.push(L);
     });
     const keyH = hits.map(L => L.key + '@' + L.hit.x + ',' + L.hit.y + ',' + L.hit.h).join('|'); if (favHit.dataset.k !== keyH) { favHit.dataset.k = keyH; favHit.innerHTML = '';
-      hits.forEach(L => { const b = document.createElement('i'); b.dataset.g = L.grp; b.title = L.name + ' · ' + FAV_GRP[L.grp].toLowerCase() + (L.len > 1 ? ' · колесо или свайп — следующая' : ''); Object.assign(b.style, { left: L.hit.x + 'px', top: L.hit.y + 'px', width: L.hit.w + 'px', height: L.hit.h + 'px' }); b.addEventListener('click', e => { e.stopPropagation(); if (selected === L) closeCard(); else openCard(L); }); favHit.appendChild(b); }); }
+      hits.forEach(L => { const b = document.createElement('i'); b.dataset.g = L.grp;   /* 24.10 владелец: «title убери при наведении» — подсказки браузера нет, при наведении только список */ Object.assign(b.style, { left: L.hit.x + 'px', top: L.hit.y + 'px', width: L.hit.w + 'px', height: L.hit.h + 'px' }); b.addEventListener('click', e => { e.stopPropagation(); if (selected === L) closeCard(); else openCard(L); }); favHit.appendChild(b); }); }
   };
   // 18.10 владелец: «сделай, чтобы какой-нибудь шар светящийся, как звезда, пролетал раз в 30 секунд», «вот как на главной странице — когда доска давит, там солнце
   // с лучами и точками притягивающимися» — то же солнце в малом: ядро бело-голубое, ореол, девять лучей разной длины, к ядру со всех сторон летят искры-штрихи;
