@@ -21484,3 +21484,5 @@
 {"t": 1792689374235, "sym": "DNAUSDT", "side": "long", "usd": 17.56, "px": 0.1951, "src": "okx"}
 {"t": 1792689396855, "sym": "DNAUSDT", "side": "long", "usd": 193.9, "px": 0.1939, "src": "okx"}
 {"t": 1792689514235, "sym": "ETHUSDT", "side": "short", "usd": 972.87, "px": 2384.49, "src": "okx"}
+{"t": 1792689609246, "sym": "INJUSDT", "side": "short", "usd": 49.94, "px": 8.055, "src": "okx"}
+{"t": 1792690110439, "sym": "LUNRUSDT", "side": "long", "usd": 563.2, "px": 10.24, "src": "okx"}
