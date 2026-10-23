@@ -21490,3 +21490,7 @@
 {"t": 1792690599210, "sym": "ZECUSDT", "side": "long", "usd": 1016.18, "px": 1195.51, "src": "okx"}
 {"t": 1792690605638, "sym": "ZECUSDT", "side": "long", "usd": 453.37, "px": 1193.08, "src": "okx"}
 {"t": 1792690807230, "sym": "DNAUSDT", "side": "long", "usd": 15.3, "px": 0.1912, "src": "okx"}
+{"t": 1792691126608, "sym": "IRYSUSDT", "side": "long", "usd": 5.98, "px": 0.01993, "src": "okx"}
+{"t": 1792691179896, "sym": "CLUSDT", "side": "short", "usd": 1715.7, "px": 99.75, "src": "okx"}
+{"t": 1792691203629, "sym": "INJUSDT", "side": "short", "usd": 8769.34, "px": 8.107, "src": "okx"}
+{"t": 1792691439019, "sym": "CLUSDT", "side": "short", "usd": 981.67, "px": 100.17, "src": "okx"}
