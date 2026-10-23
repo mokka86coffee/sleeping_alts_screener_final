@@ -876,7 +876,7 @@ def favorites(now: float) -> list[dict]:
                         atl=atl, atl_at=atl_at, from_atl_pct=round((p_now / atl - 1) * 100, 1) if (p_now and atl) else None,
                         circ=supply.get(sym), mcap=round(p_now * supply[sym]) if (p_now and supply.get(sym)) else None,   # 18.10: капа = цена × обращение
                         oi7=sg.get("oi7"), oi30=sg.get("oi30"), fund3=sg.get("fund3"), vol_x=sg.get("vol_x"), px7=sg.get("px7"), stage=sg.get("stage"),
-                        x2_48=x2, group=c.get("group") or ("скоро" if x2 else _FAV_GROUP.get(sg.get("stage") or ""))))   # 17.10 (чат сайта): три свечи «на ходу» / «скоро» / «шевелятся»; group из
+                        x2_48=x2, top=bool(c.get("top")), group=c.get("group") or ("скоро" if x2 else _FAV_GROUP.get(sg.get("stage") or ""))))   # 17.10 (чат сайта): три свечи «на ходу» / «скоро» / «шевелятся»; group из
     return out
 
 

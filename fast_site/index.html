@@ -3281,15 +3281,80 @@ findHover = function () {
   let favTY = null, favTX = null; favHit.addEventListener('touchstart', e => { const t0 = e.touches[0]; favTY = t0.clientY; favTX = t0.clientX; }, { passive: true });
   favHit.addEventListener('touchmove', e => { if (favTY == null) return; const b = e.target.closest && e.target.closest('i[data-g]'); if (!b) return; const t0 = e.touches[0], dy = t0.clientY - favTY, dx = t0.clientX - favTX; if (Math.abs(dy) > 28 || Math.abs(dx) > 40) { favStep(+b.dataset.g, (Math.abs(dy) > Math.abs(dx) ? dy : dx) < 0 ? 1 : -1); favTY = t0.clientY; favTX = t0.clientX; } }, { passive: true });
   favHit.addEventListener('touchend', () => { favTY = favTX = null; }, { passive: true });
+  // 24.10 владелец: «при наведении весь список нужно показывать», «и при клике название должно переходить на TV» — навёл на свечу: рядом всплывает весь её список
+  //    (имя, во сколько раз от дна, КП); наведение на строку ставит эту монету в свечу; клик по имени — график на TradingView в новой вкладке
+  const favList = document.createElement('div'); favList.id = 'favList'; document.body.appendChild(favList);
+  const favListCss = document.createElement('style'); favListCss.textContent = '#favList{position:fixed;z-index:7;display:none;min-width:190px;max-height:60vh;overflow:auto;padding:8px 6px;border-radius:10px;background:rgba(8,14,26,.82);border:1px solid rgba(160,200,235,.22);box-shadow:0 8px 30px rgba(0,0,0,.45);backdrop-filter:blur(6px);font:400 10px Futura,"Avenir Next",sans-serif;color:rgba(220,232,250,.85)}'
+    + '#favList .h{font-size:7px;letter-spacing:.3em;padding:2px 8px 6px;opacity:.75}#favList a{display:flex;align-items:baseline;gap:8px;padding:4px 8px;border-radius:6px;color:inherit;text-decoration:none;cursor:pointer;white-space:nowrap}'
+    + '#favList a:hover{background:rgba(255,255,255,.07)}#favList a.on{background:rgba(255,255,255,.1)}#favList b{font:600 11px Futura,"Avenir Next",sans-serif;color:#fff;min-width:64px}#favList em{font-style:normal;opacity:.75}#favList u{text-decoration:none;margin-left:auto;opacity:.6;font-size:9px}';
+  document.head.appendChild(favListCss);
+  let favListG = -1, favListHide = 0;
+  const favMult = f => { const m = +f.now > 0 && +f.atl > 0 ? +f.now / +f.atl : 0; return m ? '×' + (m >= 10 ? Math.round(m) : m.toFixed(1).replace('.', ',')) : ''; };
+  const favCap = f => +f.mcap > 0 ? (+f.mcap >= 1e9 ? (+f.mcap / 1e9).toFixed(2).replace('.', ',') + ' млрд $' : Math.round(+f.mcap / 1e6) + ' млн $') : '';
+  function favListShow(b) {
+    const g = +b.dataset.g, list = (favHit._G || [])[g] || [], L = FAVL['slot' + g]; if (!list.length) return; clearTimeout(favListHide);
+    const rgb = L && L.c1 ? L.c1 : '200,220,255';
+    if (favListG !== g || favList._n !== list.length) { favListG = g; favList._n = list.length;
+      favList.innerHTML = `<div class="h" style="color:rgb(${rgb})">${FAV_GRP[g]} · ${list.length}</div>` + list.map((f, i) => { const sym = String(f.sym), nm = sym.replace(/USDT$/, ''), m = favMult(f), c = favCap(f);
+        return `<a data-i="${i}" href="https://www.tradingview.com/chart/?symbol=BINANCE:${sym}.P" target="_blank" rel="noopener" title="${nm} — открыть график на TradingView"><b>${nm}</b><em style="color:rgb(${rgb})">${m}${m ? ' от дна' : ''}</em><u>${c ? 'КП ' + c : ''}</u></a>`; }).join('');
+      favList.querySelectorAll('a').forEach(a => a.addEventListener('mouseenter', () => { const Lg = FAVL['slot' + g]; if (Lg && Lg.len > 1) { Lg.idx = +a.dataset.i; Lg.t0 = performance.now() / 1000 + 5; } })); }
+    favList.querySelectorAll('a').forEach(a => a.classList.toggle('on', L && +a.dataset.i === L.idx));
+    const r = b.getBoundingClientRect(); favList.style.display = 'block'; const w = favList.offsetWidth, h = favList.offsetHeight;
+    let x = r.right + 8; if (x + w > innerWidth - 8) x = Math.max(8, r.left - w - 8); let y = Math.min(Math.max(8, r.top), innerHeight - h - 8);
+    favList.style.left = x + 'px'; favList.style.top = y + 'px';
+  }
+  const favListOff = () => { clearTimeout(favListHide); favListHide = setTimeout(() => { favList.style.display = 'none'; favListG = -1; }, 260); };
+  favHit.addEventListener('mouseover', e => { const b = e.target.closest && e.target.closest('i[data-g]'); if (b) favListShow(b); });
+  favHit.addEventListener('mouseout', e => { const b = e.target.closest && e.target.closest('i[data-g]'); if (b && !(e.relatedTarget && favList.contains(e.relatedTarget))) favListOff(); });
+  favList.addEventListener('mouseenter', () => clearTimeout(favListHide)); favList.addEventListener('mouseleave', favListOff);
+  // 24.10 владелец: «давай добавим какой-то новый крутой элемент, при клике на который будет убираться река и появляться весь список избранного — вместо реки»
+  //    кристалл под свечами: вращающееся кольцо цветов трёх списков, три точки-спутника, дышащее ядро; клик — на месте реки раскрывается всё избранное
+  //    (на ходу / скоро / шевелятся / остальные), клик по имени — TradingView; закрыть — тот же кристалл, Esc или клик по пустому месту
+  const favAll = document.createElement('div'); favAll.id = 'favAll'; favAll.innerHTML = '<i class="r"></i><i class="o"></i><i class="c"></i><span></span>'; favAll.title = 'всё избранное вместо реки'; document.body.appendChild(favAll);
+  const favBoard = document.createElement('div'); favBoard.id = 'favBoard'; document.body.appendChild(favBoard);
+  const favAllCss = document.createElement('style'); favAllCss.textContent =
+    '#favAll{position:fixed;z-index:6;display:none;align-items:center;gap:9px;cursor:pointer;user-select:none}#favAll .r,#favAll .o,#favAll .c{position:absolute;left:0;top:0;width:30px;height:30px;border-radius:50%}'
+    + '#favAll .r{background:conic-gradient(from 0deg,rgb(255,186,84),rgb(255,120,150),rgb(90,215,255),rgb(180,160,240),rgb(255,186,84));-webkit-mask:radial-gradient(circle,transparent 11px,#000 12px,#000 14px,transparent 15px);mask:radial-gradient(circle,transparent 11px,#000 12px,#000 14px,transparent 15px);animation:faR 7s linear infinite;filter:drop-shadow(0 0 5px rgba(160,200,255,.8))}'
+    + '#favAll .o{animation:faR 4.5s linear infinite reverse}#favAll .o::before,#favAll .o::after{content:"";position:absolute;width:4px;height:4px;border-radius:50%;left:13px;top:-2px;background:#ffe2a8;box-shadow:0 0 6px #ffc06a}#favAll .o::after{left:auto;right:-2px;top:13px;background:#9fe6ff;box-shadow:0 0 6px #5ad7ff}'
+    + '#favAll .c{width:10px;height:10px;left:10px;top:10px;background:radial-gradient(circle,#fff,rgba(255,220,160,.9) 45%,rgba(255,190,110,0) 75%);animation:faC 2.6s ease-in-out infinite}'
+    + '#favAll span{margin-left:38px;font:500 6px Futura,"Avenir Next",sans-serif;letter-spacing:.32em;color:rgba(220,232,250,.75);white-space:nowrap;line-height:30px}#favAll:hover span{color:#fff}#favAll.on .c{background:radial-gradient(circle,#fff,rgba(150,215,255,.95) 45%,rgba(90,170,255,0) 75%)}'
+    + '@keyframes faR{to{transform:rotate(360deg)}}@keyframes faC{50%{transform:scale(1.45);opacity:.75}}'
+    + '#favBoard{position:fixed;z-index:8;display:none;opacity:0;transition:opacity .45s;overflow:auto;padding:16px 22px 18px;border-radius:22px;background:radial-gradient(ellipse at 50% 0%,rgba(22,34,62,.97),rgba(5,9,18,.97) 70%);border:1px solid rgba(160,200,235,.18);box-shadow:0 0 40px rgba(60,110,200,.25),inset 0 1px 0 rgba(200,225,255,.12);backdrop-filter:blur(10px);font:400 10px Futura,"Avenir Next",sans-serif;color:rgba(220,232,250,.85)}'
+    + '#favBoard.show{opacity:1}#favBoard .top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;font-size:7px;letter-spacing:.4em;color:rgba(200,220,245,.7)}#favBoard .top b{cursor:pointer;font-size:12px;letter-spacing:0;color:rgba(220,232,250,.6)}#favBoard .top b:hover{color:#fff}'
+    + '#favBoard .grp{margin:4px 0 12px}#favBoard .gh{font-size:6.5px;letter-spacing:.38em;margin:0 0 6px 2px}#favBoard .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:2px 6px}'
+    + '#favBoard a{display:flex;flex-direction:column;gap:2px;padding:5px 9px;color:inherit;text-decoration:none;opacity:0;transform:translateY(6px);animation:faIn .5s forwards}'
+    + '#favBoard a:hover b{text-shadow:0 0 8px rgba(var(--c),.95)}#favBoard a:hover em{text-shadow:0 0 6px rgba(var(--c),.8)}#favBoard a b{font:600 11px Futura,"Avenir Next",sans-serif;color:#fff;letter-spacing:.04em}#favBoard a em{font-style:normal;color:rgb(var(--c));font-size:9.5px}#favBoard a u{text-decoration:none;opacity:.55;font-size:8.5px}'
+    + '@keyframes faIn{to{opacity:1;transform:none}}';   /* 24.10 владелец: «убери плашки» — у монет нет подложек и рамок, только текст; при наведении имя светится */
+  document.head.appendChild(favAllCss);
+  let favOpen = false, favBoardT = 0;
+  function favBoardFill() {
+    const F = ((window.STATE || {}).favorites || []).filter(f => f && f.sym), G = [[], [], [], []]; F.forEach(f => { const g = favGrp(f); G[g >= 0 ? g : 3].push(f); });
+    const NAMES = FAV_GRP.concat(['ОСТАЛЬНЫЕ']), COL = ['255,186,84', '90,215,255', '180,160,240', '160,180,205']; let k = 0;
+    favBoard.innerHTML = `<div class="top"><span>ИЗБРАННОЕ · ${F.length}</span><b title="вернуть реку">✕</b></div>` + G.map((list, g) => !list.length ? '' : `<div class="grp" style="--c:${COL[g]}"><div class="gh" style="color:rgb(${COL[g]})">${NAMES[g]} · ${list.length}</div><div class="grid">`
+      + list.map(f => { const sym = String(f.sym), nm = sym.replace(/USDT$/, ''), m = favMult(f), c = favCap(f);
+        return `<a href="https://www.tradingview.com/chart/?symbol=BINANCE:${sym}.P" target="_blank" rel="noopener" title="${nm} — график на TradingView" style="animation-delay:${Math.min(900, 60 + (k++) * 14)}ms"><b>${nm}</b></a>`; }).join('')   /* 24.10 владелец: «просто название пока» */ + '</div></div>').join('');
+    favBoard.querySelector('.top b').addEventListener('click', e => { e.stopPropagation(); favToggle(false); });
+  }
+  function favBoardPlace() { const R = riverGeom(), y0 = Math.max(20, R.cy - R.amp - R.hh * 1.35), y1 = R.cy + R.amp + R.hh * 1.35; Object.assign(favBoard.style, { left: (R.x0 - 20) + 'px', top: y0 + 'px', width: (R.w + 40) + 'px', height: (y1 - y0) + 'px' }); }
+  function favToggle(on) {
+    favOpen = on == null ? !favOpen : on; window.FAV_OPEN = favOpen; favAll.classList.toggle('on', favOpen); favList.style.display = 'none';
+    if (favOpen) { favBoardFill(); favBoardPlace(); favBoard.style.display = 'block'; requestAnimationFrame(() => favBoard.classList.add('show')); favBoardT = setInterval(() => { if (favOpen) { favBoardFill(); favBoardPlace(); } }, 30000); }
+    else { favBoard.classList.remove('show'); clearInterval(favBoardT); setTimeout(() => { if (!favOpen) favBoard.style.display = 'none'; }, 460); }
+  }
+  favAll.addEventListener('click', e => { e.stopPropagation(); favToggle(); });
+  favBoard.addEventListener('click', e => { if (!e.target.closest('a')) favToggle(false); else e.stopPropagation(); });
+  addEventListener('keydown', e => { if (favOpen && e.key === 'Escape') favToggle(false); });
+  addEventListener('resize', () => { if (favOpen) favBoardPlace(); });
   window.drawFavs = function (t) {
     const F = ((window.STATE || {}).favorites || []).filter(f => f && f.sym), ST = 'candle';
-    if (W < 1100 || !F.length) { favHit.innerHTML = ''; return; }
+    if (W < 1100 || !F.length) { favHit.innerHTML = ''; favAll.style.display = 'none'; return; }
     // место: справа от лица девушки, до блока итогов справа
     const R = riverGeom(), top = 30, bot = R.cy - R.amp - R.hh * 1.4 - 14, avail = bot - top, ch = Math.max(3.9, avail / 104), cw = ch * .74, nr = Math.floor(avail / ch), nc = Math.round(nr * ch * GIRL_W / GIRL_H / cw);
     const faceR = W / 2 + nc * cw / 2, tb = document.getElementById('ribTot'), lim = tb && tb.getBoundingClientRect().width ? tb.getBoundingClientRect().left - 14 : W - 300;
     const x0 = Math.round(faceR + 26), wmax = lim - x0; if (wmax < 110) { favHit.innerHTML = ''; return; }
-    const G = [[], [], []]; F.forEach(f => { const g = favGrp(f); if (g >= 0) G[g].push(f); }); if (!G.some(q => q.length)) { favHit.innerHTML = ''; return; } const slots = G.map((list, g) => ({ g, list })).filter(q => q.list.length);
+    const G = [[], [], []]; F.forEach(f => { const g = favGrp(f); if (g >= 0) G[g].push(f); }); favHit._G = G; if (!G.some(q => q.length)) { favHit.innerHTML = ''; return; } const slots = G.map((list, g) => ({ g, list })).filter(q => q.list.length);
     const n = slots.length, H1 = Math.min(100, Math.max(60, Math.floor((avail - 20) / n) - 10)), y00 = Math.round(top + Math.max(6, (avail - n * (H1 + 10)) * .45));
+    { const ax = x0 + 2, ay = Math.min(bot - 6, y00 + n * (H1 + 10) + 2), k2 = ax + ',' + ay; if (favAll._k !== k2) { favAll._k = k2; Object.assign(favAll.style, { left: ax + 'px', top: ay + 'px', display: 'flex' }); } favAll.querySelector('span').textContent = 'ВСЁ ИЗБРАННОЕ · ' + F.length; }
     const now = performance.now() / 1000, hits = [];
     slots.forEach(({ g, list }, j) => {
       let L = FAVL['slot' + g]; if (!L) L = FAVL['slot' + g] = { closed: true, born: now, seed: g * 137 + 11, item: null, grp: g };
