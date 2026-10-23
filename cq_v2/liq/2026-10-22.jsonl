@@ -21471,3 +21471,16 @@
 {"t": 1792688275610, "sym": "ETHUSDT", "side": "short", "usd": 501.7, "px": 2377.72, "src": "okx"}
 {"t": 1792688309617, "sym": "ETHUSDT", "side": "short", "usd": 4342.36, "px": 2378.07, "src": "okx"}
 {"t": 1792688313619, "sym": "ETHUSDT", "side": "short", "usd": 530.48, "px": 2378.84, "src": "okx"}
+{"t": 1792688366825, "sym": "MRNAUSDT", "side": "long", "usd": 1843.55, "px": 196.96, "src": "okx"}
+{"t": 1792688456606, "sym": "ETHUSDT", "side": "short", "usd": 2578.04, "px": 2380.46, "src": "okx"}
+{"t": 1792688516021, "sym": "BILLUSDT", "side": "short", "usd": 704.17, "px": 0.006797, "src": "okx"}
+{"t": 1792688517047, "sym": "DOODUSDT", "side": "short", "usd": 282.37, "px": 0.002206, "src": "okx"}
+{"t": 1792688656073, "sym": "SOXLUSDT", "side": "long", "usd": 4893.08, "px": 83.4, "src": "okx"}
+{"t": 1792688656073, "sym": "CRCLUSDT", "side": "long", "usd": 17525.64, "px": 85.2, "src": "okx"}
+{"t": 1792688786708, "sym": "MRNAUSDT", "side": "long", "usd": 18883.0, "px": 188.83, "src": "okx"}
+{"t": 1792688913615, "sym": "ORCLUSDT", "side": "long", "usd": 1339.58, "px": 124.15, "src": "okx"}
+{"t": 1792688965261, "sym": "AKEUSDT", "side": "long", "usd": 34.67, "px": 0.02889, "src": "okx"}
+{"t": 1792689218462, "sym": "ZECUSDT", "side": "long", "usd": 359.22, "px": 1197.41, "src": "okx"}
+{"t": 1792689374235, "sym": "DNAUSDT", "side": "long", "usd": 17.56, "px": 0.1951, "src": "okx"}
+{"t": 1792689396855, "sym": "DNAUSDT", "side": "long", "usd": 193.9, "px": 0.1939, "src": "okx"}
+{"t": 1792689514235, "sym": "ETHUSDT", "side": "short", "usd": 972.87, "px": 2384.49, "src": "okx"}
