@@ -21486,3 +21486,6 @@
 {"t": 1792689514235, "sym": "ETHUSDT", "side": "short", "usd": 972.87, "px": 2384.49, "src": "okx"}
 {"t": 1792689609246, "sym": "INJUSDT", "side": "short", "usd": 49.94, "px": 8.055, "src": "okx"}
 {"t": 1792690110439, "sym": "LUNRUSDT", "side": "long", "usd": 563.2, "px": 10.24, "src": "okx"}
+{"t": 1792690542217, "sym": "SPCXUSDT", "side": "long", "usd": 468.13, "px": 147.21, "src": "okx"}
+{"t": 1792690599210, "sym": "ZECUSDT", "side": "long", "usd": 1016.18, "px": 1195.51, "src": "okx"}
+{"t": 1792690605638, "sym": "ZECUSDT", "side": "long", "usd": 453.37, "px": 1193.08, "src": "okx"}
