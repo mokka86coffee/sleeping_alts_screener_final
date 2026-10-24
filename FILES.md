@@ -3930,3 +3930,5 @@ LAB и RIVER попали ОДНОВРЕМЕННО в «откатились» �
 - 24.10 ~01:20 UTC, владелец «доп признак … топ, пока просто в json, я сам руками»: config/favorites.json — поле "top": false у каждой монеты (ставит владелец), fast_state передаёт его в STATE.favorites[].top; ни на что не влияет.
 
 - 24.10.2026 16:35 UTC — избранное: «во сколько раз ушла от пика». config/favorites.json у каждой монеты peak {day, px}, low {day, px}, fall_x (пик с листинга → низ после пика, дневки TV с тенями; посчитано 24.10). fast_state.favorites отдаёт fall_x и peak; fast_site/index.html — в списке избранного при наведении «↓×N от пика» перед «×N от дна», в панели монеты «от пика ↓×N». Копии до правки — scratchpad/fast_state_before_fall.py, index_before_fall.html, favorites_before_fall.json.
+
+- 24.10.2026 — избранное: список «идёт сейчас» (владелец: «поставь в идёт сейчас jct agt»). config/favorites.json group=«идёт сейчас» у JCTUSDT и AGTUSDT; fast_site/index.html — FAV_GRP[4] «ИДЁТ СЕЙЧАС», favGrp /ид[её]т сейчас/ → 4, свеча тёплая, верхней; свеча «на ходу» (0) по-прежнему скрыта. Убраны из избранного W и MMT (владелец).

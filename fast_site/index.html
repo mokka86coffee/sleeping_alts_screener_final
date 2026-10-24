@@ -3011,7 +3011,7 @@ findHover = function () {
       return { g: { title: kind === 'week' ? 'НА НЕДЕЛЕ' : 'ОЧЕРЕДЬ' }, d: { ring: 'closed', now, candles: [], status }, it: { sym: it.sym }, closes, n, kind: 'closed', dir: 0, marks, ei: null, xi: null };
     }
     if (kind === 'fav') { const it = l.item, lo = +it.low || 0, nw = +it.now || lo, kx = lo && nw ? nw / lo : (it.rise != null ? 1 + it.rise / 100 : 0), xs = kx > 0 ? '×' + kx.toFixed(1) : '—', dd = it.low_t ? new Date(typeof it.low_t === 'number' ? it.low_t * 1000 : it.low_t) : null, ds = dd && !isNaN(dd) ? String(dd.getUTCDate()).padStart(2, '0') + '.' + String(dd.getUTCMonth() + 1).padStart(2, '0') + '.' + dd.getUTCFullYear() : '';
-      return { g: { title: 'ИЗБРАННОЕ' + (l.grp != null ? ' · ' + ['НА ХОДУ', 'СКОРО', 'ШЕВЕЛЯТСЯ'][l.grp] : '') }, d: { ring: 'closed', now: nw, candles: [], status: (+it.fall_x > 0 ? `от пика ↓×${it.fall_x} · ` : '') + `от исторического дна ${xs}` + (ds ? ` · дно ${ds}` : '') + (it.stage && it.stage !== 'памп был' ? ` · ${it.stage}` : '') + (it.mcap > 0 ? ` · капа ${it.mcap >= 1e9 ? (it.mcap / 1e9).toFixed(2) + ' млрд $' : Math.round(it.mcap / 1e6) + ' млн $'}` : '') + (it.oi30 != null ? ` · интерес за 30 дн ${it.oi30 >= 0 ? '+' : ''}${Math.round(it.oi30)}%` : '') + (it.fund3 != null ? ` · фандинг ${it.fund3}%` : '') + (it.vol_x != null ? ` · оборот ×${it.vol_x}` : '') }, it: { sym: it.sym }, closes: [lo, nw], n: 2, kind: 'closed', dir: 0, marks: [{ label: 'ДНО', price: lo, rgb: l.c1 || '110,255,150', idx: 0 }, { label: 'СЕЙЧАС', price: nw, rgb: '255,255,255', idx: null, now: true }], ei: null, xi: null }; }
+      return { g: { title: 'ИЗБРАННОЕ' + (l.grp != null ? ' · ' + ['НА ХОДУ', 'СКОРО', 'ШЕВЕЛЯТСЯ', 'ОСТАЛЬНЫЕ', 'ИДЁТ СЕЙЧАС'][l.grp] : '') }, d: { ring: 'closed', now: nw, candles: [], status: (+it.fall_x > 0 ? `от пика ↓×${it.fall_x} · ` : '') + `от исторического дна ${xs}` + (ds ? ` · дно ${ds}` : '') + (it.stage && it.stage !== 'памп был' ? ` · ${it.stage}` : '') + (it.mcap > 0 ? ` · капа ${it.mcap >= 1e9 ? (it.mcap / 1e9).toFixed(2) + ' млрд $' : Math.round(it.mcap / 1e6) + ' млн $'}` : '') + (it.oi30 != null ? ` · интерес за 30 дн ${it.oi30 >= 0 ? '+' : ''}${Math.round(it.oi30)}%` : '') + (it.fund3 != null ? ` · фандинг ${it.fund3}%` : '') + (it.vol_x != null ? ` · оборот ×${it.vol_x}` : '') }, it: { sym: it.sym }, closes: [lo, nw], n: 2, kind: 'closed', dir: 0, marks: [{ label: 'ДНО', price: lo, rgb: l.c1 || '110,255,150', idx: 0 }, { label: 'СЕЙЧАС', price: nw, rgb: '255,255,255', idx: null, now: true }], ei: null, xi: null }; }
     if (kind === 'fc' && !l.fc) l = { fc: l.item.fc };   /* прогноз на реке — та же панель, что у записи вверху */
     if (!l.fc) return _pd(l);
     const f = l.fc, lp = livePx(f), c = lp != null && (f.closes || []).length ? f.closes.concat([lp]) : (f.closes || []), n = c.length, ch = f.changes || [], last = ch[ch.length - 1], prev = ch[ch.length - 2];
@@ -3271,8 +3271,8 @@ findHover = function () {
   // и разнообразь, чтобы отличать» — свеча на список сверху вниз; в свече монеты своего списка по кругу раз в 10 с (открыта панель — смена стоит);
   // список монеты — поле group: «на ходу» / «скоро» / «шевелятся»; без поля монета не рисуется. Вид: на ходу — горит, тёплые цвета по кругу, дым и сноп искр;
   // скоро — ледяная, тело налито наполовину и дышит, свечение пульсирует; шевелятся — сиреневая тень: пустой контур, без дыма (цвета — мои)
-  const FAV_GRP = ['НА ХОДУ', 'СКОРО', 'ШЕВЕЛЯТСЯ', 'ОСТАЛЬНЫЕ'],   /* 17.10 владелец: «будут на ходу, скоро, шевелятся» */ FAV_WARM = ['255,186,84', '255,120,150', '255,215,90', '255,150,70'];
-  const favGrp = f => { const g = String(f.group || f.list || '').toLowerCase(); return /ход|идут|going/.test(g) ? 0 : /скоро|близ|soon/.test(g) ? 1 : /шевел|stir/.test(g) ? 2 : -1; };   // без списка (group) монета не рисуется: в избранном 52 монеты, списки задаёт владелец
+  const FAV_GRP = ['НА ХОДУ', 'СКОРО', 'ШЕВЕЛЯТСЯ', 'ОСТАЛЬНЫЕ', 'ИДЁТ СЕЙЧАС'],   /* 24.10 владелец: «поставь в идёт сейчас jct agt» — пятый список, только по group из config/favorites.json */   /* 17.10 владелец: «будут на ходу, скоро, шевелятся» */ FAV_WARM = ['255,186,84', '255,120,150', '255,215,90', '255,150,70'];
+  const favGrp = f => { const g = String(f.group || f.list || '').toLowerCase(); return /ид[её]т сейчас/.test(g) ? 4 : /ход|идут|going/.test(g) ? 0 : /скоро|близ|soon/.test(g) ? 1 : /шевел|stir/.test(g) ? 2 : -1; };   // без списка (group) монета не рисуется: в избранном 52 монеты, списки задаёт владелец
   const favWarm = (now, seed) => { const c = (now + fr(seed, 13) * 30) / 30, i = Math.floor(c), u = (c - i) * 30 / 3, n = FAV_WARM.length, cur = FAV_WARM[((i % n) + n) % n], prv = FAV_WARM[(((i - 1) % n) + n) % n]; return u < 1 ? mix(prv, cur, ease(u)) : cur; };
   // 17.10 владелец: «сделай чтобы скролить их можно было, а не ждать 10 сек» — колесо над свечой или свайп пальцем листает монеты её списка;
   // после ручного шага автосмена ждёт 15 с (моё число)
@@ -3314,23 +3314,26 @@ findHover = function () {
     const R = riverGeom(), top = 30, bot = R.cy - R.amp - R.hh * 1.4 - 14, avail = bot - top, ch = Math.max(3.9, avail / 104), cw = ch * .74, nr = Math.floor(avail / ch), nc = Math.round(nr * ch * GIRL_W / GIRL_H / cw);
     const faceR = W / 2 + nc * cw / 2, tb = document.getElementById('ribTot'), lim = tb && tb.getBoundingClientRect().width ? tb.getBoundingClientRect().left - 14 : W - 300;
     const x0 = Math.round(faceR + 26), wmax = lim - x0; if (wmax < 110) { favHit.innerHTML = ''; return; }
-    const G = [[], [], [], []]; F.forEach(f => { const g = favGrp(f); G[g >= 0 ? g : 3].push(f); }); favHit._G = G;   /* 24.10 владелец: «убирай свечу на ходу, добавь свечу остальные» — свечи: скоро, шевелятся, остальные (без списка) */
-    const slots = G.map((list, g) => ({ g, list })).filter(q => q.g !== 0 && q.list.length); if (!slots.length) { favHit.innerHTML = ''; return; }
-    const n = slots.length, H1 = Math.min(100, Math.max(60, Math.floor((avail - 20) / n) - 10)), y00 = Math.round(top + Math.max(6, (avail - n * (H1 + 10)) * .45));
+    const G = [[], [], [], [], []]; F.forEach(f => { const g = favGrp(f); G[g >= 0 ? g : 3].push(f); }); favHit._G = G;   /* 24.10 владелец: «убирай свечу на ходу, добавь свечу остальные» — свечи: скоро, шевелятся, остальные (без списка) */
+    // 24.10 владелец (стрелкой на снимке): «давай здесь показывать, что идёт сейчас» → «да, делай» — свеча «идёт сейчас» (и «на ходу», если есть) стоит отдельно,
+    // правее столбика, на уровне нижней свечи; в столбике — скоро, шевелятся, остальные
+    const going = G[4].concat(G[0]); favHit._G[4] = going; const colSlots = G.map((list, g) => ({ g, list })).filter(q => q.g !== 0 && q.g !== 4 && q.list.length), slots = colSlots.slice(); if (going.length) slots.push({ g: 4, list: going, solo: true });   /* «идёт сейчас» — верхней свечой */ if (!slots.length) { favHit.innerHTML = ''; return; }
+    const n = Math.max(1, colSlots.length), H1 = Math.min(100, Math.max(60, Math.floor((avail - 20) / n) - 10)), y00 = Math.round(top + Math.max(6, (avail - n * (H1 + 10)) * .45));
     const now = performance.now() / 1000, hits = [];
-    slots.forEach(({ g, list }, j) => {
+    const xg = Math.round(Math.min(x0 + 280, W - 420)), yg = y00 + (n - 1) * (H1 + 10);
+    slots.forEach(({ g, list, solo }, j) => { const X0 = solo ? xg : x0;
       let L = FAVL['slot' + g]; if (!L) L = FAVL['slot' + g] = { closed: true, born: now, seed: g * 137 + 11, item: null, grp: g };
       const len = list.length; L.len = len; if (L.idx == null || L.idx >= len) { L.idx = 0; L.t0 = now - g * 3.3; }   // свечи сменяются не разом
       if (len > 1 && !(typeof selected !== 'undefined' && selected === L) && now - L.t0 >= 10) { L.idx = (L.idx + 1) % len; L.t0 = now; }   // раз в 10 с следующая; открыта панель — стоит
       const f = list[Math.min(L.idx, len - 1)];
       if (L.sym !== f.sym) { const first = L.sym == null; L.sym = f.sym; L.key = 'fav|' + f.sym; L.name = f.sym.replace(/USDT$/, ''); if (!first) { L.swT = now; L.pxOld = L.pxS; L.pxS = favPx(f.now); L.pxV = +f.now; L.pxT = now; L.pxSw = true; } }
-      const rgb = g === 0 ? favWarm(now, L.seed) : g === 1 ? '90,215,255' : g === 2 ? '180,160,240' : '165,185,210';   /* остальные — серебристая тень (цвет мой) */
+      const rgb = g === 0 || g === 4 ? favWarm(now, L.seed) : g === 1 ? '90,215,255' : g === 2 ? '180,160,240' : '165,185,210';   /* остальные — серебристая тень (цвет мой) */
       L.c1 = L.c2 = rgb; L.item = { kind: 'fav', sym: f.sym, now: f.now, low: f.low ?? f.atl, low_t: f.low_t ?? (f.atl_at && !isNaN(Date.parse(f.atl_at)) ? f.atl_at : null), rise: f.rise ?? f.from_atl_pct, stage: f.stage, oi30: f.oi30, fund3: f.fund3, vol_x: f.vol_x, mcap: f.mcap, top: !!f.top, fall_x: f.fall_x };   /* 18.10: капа = цена × обращение (fast_state) */   // в данных дно — atl, рост от дна — from_atl_pct (fast_state); стадия и интерес — от другого чата
-      const ea = (now - L.born) / 1.6, y0 = y00 + j * (H1 + 10), tx = x0 + 32;
+      const ea = (now - L.born) / 1.6, y0 = solo ? yg : y00 + j * (H1 + 10), tx = X0 + 32;
       ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
       // 17.10 владелец: «пусть она ещё раз в 20 секунд немного прозрачной становится на 2 сек» — плавно до половины яркости и обратно (глубина — моя)
       if (ea > 2) { const c20 = (now + fr(L.seed, 11) * 20) / 20, u = (c20 - Math.floor(c20)) * 20 / 2; if (u < 1) ctx.globalAlpha *= 1 - .5 * Math.sin(Math.PI * u); }
-      const an = FAV_DRAW[ST](L, x0, y0, H1, now, ea, rgb, g === 3 ? 2 : g);   /* остальные рисуются контуром, как «шевелятся» */
+      const an = FAV_DRAW[ST](L, X0, y0, H1, now, ea, rgb, g === 3 ? 2 : g === 4 ? 0 : g);   /* остальные рисуются контуром, как «шевелятся» */
       ctx.restore();
       // текст — мелко: список (и место монеты в нём), имя, цена; во сколько раз от исторического дна
       const ta = clamp((ea - .8) / .5) * (g === 2 ? .85 : 1); if (ta > 0) { const yb = y0 + H1 / 2 - 26, sw0 = L.swT != null ? now - L.swT : 9;
@@ -3369,7 +3372,7 @@ findHover = function () {
             if (sg) segs.push([sg, 0]); if (L.item.oi30 != null) { segs.push([(segs.length ? ' · ' : '') + 'ИН ', 0]); segs.push([`${L.item.oi30 >= 0 ? '+' : '−'}${Math.abs(Math.round(L.item.oi30))}%`, 1]); } if (fd) segs.push([(segs.length ? ' · ' : '') + 'ФАНДИНГ −', 0]);
             favSegs(segs, tx, yb + 67, lab); } }
         tctx.restore(); }
-      L.hit = { x: x0 - 6, y: y0, w: Math.min(wmax, 200), h: H1, ax: an.ax, ay: an.ay, tx: an.ax, ty: an.ay };
+      L.hit = { x: X0 - 6, y: y0, w: Math.min(wmax, 200), h: H1, ax: an.ax, ay: an.ay, tx: an.ax, ty: an.ay };
       hits.push(L);
     });
     const keyH = hits.map(L => L.key + '@' + L.hit.x + ',' + L.hit.y + ',' + L.hit.h).join('|'); if (favHit.dataset.k !== keyH) { favHit.dataset.k = keyH; favHit.innerHTML = '';
