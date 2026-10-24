@@ -14,7 +14,7 @@ JS = r"""
   if (c.resolution() !== res) { await new Promise(r => { let d = false; c.setResolution(res, () => { d = true; r(); }); setTimeout(() => { if (!d) r(); }, 9000); }); }
   if (c.symbol() !== sym) { await new Promise(r => { let d = false; c.setSymbol(sym, () => { d = true; r(); }); setTimeout(() => { if (!d) r(); }, 12000); }); }
   const m = window.TradingViewApi._activeChartWidgetWV.value()._chartWidget.model();
-  const find = n => m.model().dataSources().find(s => s.metaInfo && s.data && (s.metaInfo().description || '') === n);
+  const find = n => m.model().dataSources().find(s => s.metaInfo && s.data && (s.metaInfo().description || '').toLowerCase() === n.toLowerCase());   // 24.10: TV переименовал индикаторы со строчной («Open interest», «Klinger oscillator», «Vortex indicator»)
   const lastT = () => { const b = m.mainSeries().bars(); const v = b.valueAt(b.lastIndex()); return v ? v[0] : null; };
   for (let i = 0; i < 45; i++) {
     await sleep(250);
