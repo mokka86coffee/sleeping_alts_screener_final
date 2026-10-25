@@ -15922,3 +15922,6 @@
 {"t": 1792819751187, "sym": "DATAUSDT", "side": "long", "usd": 18.18, "px": 0.1515, "src": "okx"}
 {"t": 1792805649310, "sym": "IRYSUSDT", "side": "short", "usd": 200.81, "px": 0.11156, "src": "okx"}
 {"t": 1792806328036, "sym": "IRYSUSDT", "side": "short", "usd": 20.77, "px": 0.10383, "src": "okx"}
+{"t": 1792820367219, "sym": "AKEUSDT", "side": "short", "usd": 2400.16, "px": 0.03509, "src": "okx"}
+{"t": 1792806949635, "sym": "IRYSUSDT", "side": "short", "usd": 9.9, "px": 0.09896, "src": "okx"}
+{"t": 1792820486419, "sym": "KATUSDT", "side": "long", "usd": 80.63, "px": 0.00453, "src": "okx"}
