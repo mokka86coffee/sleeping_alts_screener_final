@@ -93,7 +93,7 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
   // ── платформы (стоять сверху) и стены
   const PLAT = [{ x: 0, w: POLE[0], y: FENCE_TOP }, { x: POLE[1], w: GAP[0] - POLE[1], y: FENCE_TOP }, { x: GAP[0], w: GAP[1] - GAP[0], y: GAP[2] }, { x: GAP[1], w: WALL_X - GAP[1], y: FENCE_TOP }, { x: 225, w: 30, y: 166 }]
     .concat(BOLTS.map(([x, y]) => ({ x, w: 27, y })));
-  const WALLS = [{ x: POLE[0], y: 0, w: POLE[1] - POLE[0], h: GROUND }, { x: WALL_X, y: 0, w: W - WALL_X, h: FENCE_TOP }];
+  const WALLS = [{ x: WALL_X, y: 0, w: W - WALL_X, h: FENCE_TOP }];   // столб — фон, сквозь него проходишь
 
   // ── звук (M): квадратные волны
   let AC = null, SND = false; const beep = (f, d = .08, type = 'square', vol = .05, slide = 0) => { if (!SND) return; if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); const t = AC.currentTime, o = AC.createOscillator(), v = AC.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, f * slide), t + d); v.gain.setValueAtTime(vol, t); v.gain.exponentialRampToValueAtTime(.0001, t + d); o.connect(v); v.connect(AC.destination); o.start(t); o.stop(t + d + .02); };
@@ -148,7 +148,7 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
       timers.dog -= dt; if (timers.dog <= 0 && dogs.filter(d => !d.dead).length < 2) { timers.dog = 5 + Math.random() * 3; dogs.push({ x: 228, y: 166 - 18, vx: 0, vy: -2, w: 24, h: 18, face: -1, on: false, t: 0, dead: 0 }); beep(300, .1, 'square', .04, .6); }
       for (const d of dogs) { d.t += dt; if (d.dead) { d.dead += dt; continue; } const db = d.y + d.h; d.vy = Math.min(5, d.vy + .25); d.y += d.vy; d.x += d.on ? d.face * .7 : d.face * .9;
         if (d.vy >= 0) { const p = land(d, db); if (p) { d.y = p.y - d.h; d.vy = 0; d.on = true; } }
-        if (walls(d)) d.face = -d.face; if (d.x < POLE[1] + 2) { d.x = POLE[1] + 2; d.face = 1; } if (d.x > 222 && d.on && d.y + d.h >= GROUND) { d.x = 222; d.face = -1; }
+        if (walls(d)) d.face = -d.face; if (d.x < 2) { d.x = 2; d.face = 1; } if (d.x > 222 && d.on && d.y + d.h >= GROUND) { d.x = 222; d.face = -1; }
         if (hit({ x: P.x + 2, y: P.y + 3, w: P.w - 4, h: P.h - 3 }, { x: d.x + 3, y: d.y + 3, w: d.w - 6, h: d.h - 3 })) hurt(); }
       dogs = dogs.filter(d => !(d.dead > .6));
       scoreEl.textContent = 'РОБОТОВ: ' + score;
