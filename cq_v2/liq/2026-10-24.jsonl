@@ -15946,3 +15946,5 @@
 {"t": 1792822865225, "sym": "CPUSDT", "side": "long", "usd": 189.18, "px": 0.009957, "src": "okx"}
 {"t": 1792822904811, "sym": "PEPEUSDT", "side": "long", "usd": 1117.76, "px": 4.489e-06, "src": "okx"}
 {"t": 1792823248044, "sym": "LIGHTUSDT", "side": "short", "usd": 141.42, "px": 0.2357, "src": "okx"}
+{"t": 1792823759622, "sym": "OPENAIUSDT", "side": "long", "usd": 790.68, "px": 143.24, "src": "okx"}
+{"t": 1792823895638, "sym": "DOSUSDT", "side": "short", "usd": 423.81, "px": 0.277, "src": "okx"}
