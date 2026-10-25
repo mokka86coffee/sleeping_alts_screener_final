@@ -15932,3 +15932,6 @@
 {"t": 1792821132637, "sym": "AXISUSDT", "side": "long", "usd": 358.43, "px": 0.3012, "src": "okx"}
 {"t": 1792821149636, "sym": "AXISUSDT", "side": "long", "usd": 11.92, "px": 0.2981, "src": "okx"}
 {"t": 1792821165044, "sym": "AXISUSDT", "side": "long", "usd": 152.57, "px": 0.2934, "src": "okx"}
+{"t": 1792821349693, "sym": "AKEUSDT", "side": "short", "usd": 60.4, "px": 0.03553, "src": "okx"}
+{"t": 1792821364807, "sym": "AKEUSDT", "side": "short", "usd": 210.92, "px": 0.03575, "src": "okx"}
+{"t": 1792821775014, "sym": "WLDUSDT", "side": "long", "usd": 224.34, "px": 0.4753, "src": "okx"}
