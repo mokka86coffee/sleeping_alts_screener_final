@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Бурундук · уровень 1</title>
+<!-- 25.10 владелец: «вот первый уровень идеально» (снимок экрана с забором, столбом, яблоком, ящиками и собакой-роботом), «графику поправь».
+     Свой экран в духе 8-бит, без перехода: забор, столб с болтами-ступеньками, кирпичная стена, мостовая, ящики, яблоко, стальные коробки, мусорный бак и собака-робот.
+     Всё нарисовано здесь (персонажи и графика оригинала не копируются). ← → ходить, Z / пробел — прыжок, X — взять / бросить (↑+X — вверх), M — звук, R — заново. -->
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+#wrap { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -54%); }
+canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+#ui { position: absolute; inset: 0; pointer-events: none; font-family: "Press Start 2P", monospace; color: #fcfcfc; }
+#score { position: absolute; right: 4%; top: 4.5%; font-size: var(--fs); text-shadow: .12em .12em 0 #000; }
+#msg { position: absolute; left: 50%; top: 38%; transform: translateX(-50%); text-align: center; font-size: var(--fs); line-height: 2; display: none; padding: 1em 1.4em; background: #000; border: .25em solid #fcfcfc; }
+#msg b { color: #f8b800; font-weight: normal; }
+#help { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); color: #8a8a8a; font: 11px "Press Start 2P", monospace; white-space: nowrap; line-height: 1.6; }
+#help b { color: #fcfcfc; font-weight: normal; }
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c" width="256" height="224"></canvas><div id="ui"><div id="score"></div><div id="msg"></div></div></div>
+<div id="help"><b>← →</b> ходить &nbsp;<b>Z</b> прыжок &nbsp;<b>X</b> взять/бросить &nbsp;<b>↑+X</b> вверх &nbsp;<b>M</b> звук &nbsp;<b>R</b> заново</div>
+<script>
+(() => {
+  const cv = document.getElementById('c'), g = cv.getContext('2d'), W = 256, H = 224, GROUND = 196; g.imageSmoothingEnabled = false;
+  const wrap = document.getElementById('wrap'), ui = document.getElementById('ui'), scoreEl = document.getElementById('score'), msgEl = document.getElementById('msg');
+  function fit() { const k = Math.max(1, Math.floor(Math.min(innerWidth / W, (innerHeight - 50) / H))); cv.style.width = W * k + 'px'; cv.style.height = H * k + 'px'; ui.style.setProperty('--fs', (k * 6) + 'px'); }
+  addEventListener('resize', fit); fit();
+
+  // ── палитра Денди
+  const C = { k: '#000000', K: '#1c1c1c', w: '#fcfcfc', l: '#bcbcbc', m: '#747474', n: '#545454', s: '#3cbcfc',
+    b: '#c84c0c', B: '#881400', d: '#7c0800', t: '#fcbcb0', T: '#f0d0b0', o: '#fc9838', O: '#e45c10', y: '#f8b800', Y: '#fce0a8',
+    h: '#ac7c00', H: '#503000', j: '#0078f8', J: '#0000bc', r: '#d82800', R: '#fc7460', g: '#00a800', G: '#b8f818', p: '#f878f8' };
+  const spr = (rows, x, y, flip, ctx = g) => { for (let j = 0; j < rows.length; j++) { const r = rows[j]; for (let i = 0; i < r.length; i++) { const ch = r[flip ? r.length - 1 - i : i]; if (ch !== '.') { ctx.fillStyle = C[ch]; ctx.fillRect(Math.round(x) + i, Math.round(y) + j, 1, 1); } } } };
+
+  // ── герой 16×20: бурундук в шляпе и синей куртке
+  const HEAD = ['......kkkkk.....', '.....khhhhhk....', '....khhhhhhhk...', '...kHHHHHHHHHk..', '..kkhhhhhhhhhkk.', '...kbbbbbbbbbk..', '..kbbbbbbbbbbbk.', '..kbTwwbbbwwTbk.', '..kbTwkbbbwkTbk.', '..kbTTTTkTTTTbk.', '...kbTTTTTTTbk..', '....kkbTTTbkk...'];
+  const BODY = ['...kjjjjjjjjjk..', '..kbjjjTTjjjjbk.', '..kbkjjTTjjjkbk.', '....kjjjjjjjk...'];
+  const LEGS = { a: ['....kbbbkbbbk...', '...kbbbk.kbbbk..', '...kkkk...kkkk..'], b: ['....kbbbkbbk....', '...kbbbk..kbbk..', '..kkkk.....kkk..'], c: ['....kbbkbbbk....', '....kbbkkbbbk...', '...kkk...kkkk...'], j: ['...kbbbkkbbbk...', '..kbbbk..kbbbk..', '..kkk......kkk..'] };
+  const LIFT = ['...kjjjjjjjjjk..', '...kjjjTTjjjjk..', '...kjjjTTjjjjk..', '....kjjjjjjjk...'];
+  const TAIL = ['..kkk...', '.kbbbk..', 'kbbdbbk.', 'kbdbbk..', 'kbbbk...', '.kbbk...', '..kbk...', '...k....'];
+  function hero(x, y, face, pose, anim) { const f = face < 0;
+    spr(TAIL, f ? x + 13 : x - 5, y + 9, f);
+    spr(HEAD, x, y, f); spr(pose === 'lift' ? LIFT : BODY, x, y + 12, f); spr(pose === 'jump' ? LEGS.j : pose === 'walk' ? (anim % 2 ? LEGS.b : LEGS.c) : LEGS.a, x, y + 16, f);
+    if (pose === 'lift') { g.fillStyle = C.k; g.fillRect(x + 1, y + 3, 3, 11); g.fillRect(x + 12, y + 3, 3, 11); g.fillStyle = C.b; g.fillRect(x + 2, y + 4, 1, 9); g.fillRect(x + 13, y + 4, 1, 9); } }   // руки подняты — держит над головой
+
+  // ── предметы
+  function crate(x, y) { x = Math.round(x); y = Math.round(y); g.fillStyle = C.k; g.fillRect(x, y, 16, 16); g.fillStyle = C.O; g.fillRect(x + 1, y + 1, 14, 14);
+    g.fillStyle = C.o; for (const r of [2, 6, 10]) g.fillRect(x + 2, y + r, 12, 2); g.fillStyle = C.B; for (const r of [4, 8, 12]) g.fillRect(x + 2, y + r, 12, 1); g.fillStyle = C.B; g.fillRect(x + 1, y + 1, 1, 14); g.fillRect(x + 14, y + 1, 1, 14); g.fillStyle = C.Y; g.fillRect(x + 2, y + 2, 2, 1); }
+  function apple(x, y) { x = Math.round(x); y = Math.round(y);
+    const A = ['.......kk.......', '.......kHk.gg...', '..kkkkkkHkggGk..', '.kRrrrrkHkkgk...', 'kRRRrrrrkrrrrk..', 'kRwRrrrrrrrrrrk.', 'kRwRrrrrrrrrrrk.', 'kRRrrrrrrrrrrrk.', 'krrrrrrrrrrrrrk.', 'krrrrrrrrrrrrrk.', 'krrrrrrrrrrrrdk.', '.krrrrrrrrrrdk..', '.krrrrrrrrrrdk..', '..krrrrrrrrdk...', '...kkrrdrrkk....', '.....kkkkk......'];
+    spr(A, x, y); }
+  function steelBox(x, y) { x = Math.round(x); y = Math.round(y); g.fillStyle = C.k; g.fillRect(x, y, 16, 16); g.fillStyle = C.w; g.fillRect(x + 1, y + 1, 14, 14); g.fillStyle = C.l; g.fillRect(x + 2, y + 2, 12, 12);
+    const F = ['....kk....', '...kwwk...', '.kkkwwkkk.', 'kwwkkkkwwk', 'kwwk..kwwk', '.kkkkkkkk.', '...kwwk...', '...kwwk...', '....kk....']; spr(F, x + 3, y + 3); g.fillStyle = C.m; g.fillRect(x + 1, y + 14, 14, 1); g.fillRect(x + 14, y + 1, 1, 14); }
+  function heart(x, y, on) { spr(['.kk.kk.', 'krrkrrk', 'krRrrrk', 'krrrrrk', '.krrrk.', '..krk..', '...k...'].map(r => on ? r : r.replace(/[rR]/g, 'n')), x, y); }
+  // собака-робот 24×18 (своя): тяжёлая челюсть, красный глаз, колёса
+  function dog(x, y, face, t, hurt) { const f = face > 0; x = Math.round(x); y = Math.round(y);
+    const D = ['......kkkkkk............', '....kklllllkk...........', '...kllwwlllllkk.........', '..klwwlllllllllk...kkk..', '..klwlkkkklllllkk.klllk.', '.kllwkrrRklllllllkkllk..', '.klllkrrrkllmmllllllk...', 'kklllkkkkllmmmmlllllk...', 'kwklllllllmmmmmllllk....', 'kwwkkkkkkkkmmmmllllk....', 'kwkwkwkwkwkkmmmlllk.....', '.kwwwwwwwwwkkmmlllk.....', '..kkkkkkkkkkkmmmllk.....', '...........kmmmmlk......', '..........kkkkkkkk......', '.........kkn.kkn.k......', '.........knnk.knnk......', '..........kk...kk.......'];
+    spr(hurt ? D.map(r => r.replace(/[lmw]/g, 'R')) : D, x, y, f);
+    g.fillStyle = C.l; const sp = (t * 12 | 0) % 2; g.fillRect(x + (f ? 24 - 11 : 11) - (sp ? 0 : 1), y + 16, 1, 1); g.fillRect(x + (f ? 24 - 15 : 15) - (sp ? 0 : 1), y + 16, 1, 1); }   // спицы колёс крутятся
+
+  // ── статичный фон: небо, стена, забор, столб с болтами, мостовая, бак — рисуется один раз
+  const BG = document.createElement('canvas'); BG.width = W; BG.height = H; const bg = BG.getContext('2d');
+  const FENCE_TOP = 84, GAP = [176, 206, 98], POLE = [36, 60], WALL_X = 230;
+  (function paintBG() { const r = (i) => { const v = Math.sin(i * 12.9898) * 43758.5; return v - Math.floor(v); };
+    bg.fillStyle = C.s; bg.fillRect(0, 0, W, H);
+    // кирпичная стена справа
+    bg.fillStyle = C.l; bg.fillRect(WALL_X, 0, W - WALL_X, FENCE_TOP); bg.fillStyle = C.m; for (let y = 0; y < FENCE_TOP; y += 8) { bg.fillRect(WALL_X, y + 7, W - WALL_X, 1); for (let x = WALL_X + ((y / 8) % 2 ? 0 : 8); x < W; x += 16) bg.fillRect(x, y, 1, 7); } bg.fillStyle = C.w; for (let y = 0; y < FENCE_TOP; y += 8) bg.fillRect(WALL_X, y, W - WALL_X, 1); bg.fillStyle = C.k; bg.fillRect(WALL_X - 1, 0, 1, FENCE_TOP);
+    // забор: доски с прожилками, верхний срез
+    for (let x = 0; x < W; x += 24) { const top = x + 12 >= GAP[0] && x + 12 < GAP[1] ? GAP[2] : FENCE_TOP;
+      bg.fillStyle = C.b; bg.fillRect(x, top, 24, GROUND - top); bg.fillStyle = C.B; bg.fillRect(x, top, 2, GROUND - top); bg.fillRect(x + 22, top, 2, GROUND - top); bg.fillStyle = C.k; bg.fillRect(x + 23, top, 1, GROUND - top);
+      bg.fillStyle = C.d; for (let k = 0; k < 26; k++) { const gx = x + 4 + (r(x + k) * 16 | 0), gy = top + 8 + (r(x * 3 + k) * (GROUND - top - 12) | 0); bg.fillRect(gx, gy, 1, 3 + (k % 3)); bg.fillRect(gx + 1, gy + 3, 1, 2); }   // прожилки
+      bg.fillStyle = C.o; bg.fillRect(x, top, 24, 4); bg.fillStyle = C.O; for (let i = 0; i < 24; i += 3) bg.fillRect(x + i, top + 2, 2, 1); bg.fillStyle = C.k; bg.fillRect(x, top + 4, 24, 1); }
+    // столб
+    for (let y = 0; y < GROUND; y++) { bg.fillStyle = C.k; bg.fillRect(POLE[0], y, 1, 1); bg.fillRect(POLE[1] - 1, y, 1, 1); bg.fillStyle = C.m; bg.fillRect(POLE[0] + 1, y, 4, 1); bg.fillStyle = C.l; bg.fillRect(POLE[0] + 5, y, 6, 1); bg.fillStyle = C.w; bg.fillRect(POLE[0] + 11, y, 4, 1); bg.fillStyle = C.l; bg.fillRect(POLE[0] + 15, y, 5, 1); bg.fillStyle = C.m; bg.fillRect(POLE[0] + 20, y, 3, 1); }
+    bg.fillStyle = C.k; bg.fillRect(POLE[0] - 2, FENCE_TOP - 4, POLE[1] - POLE[0] + 4, 6); bg.fillStyle = C.l; bg.fillRect(POLE[0] - 1, FENCE_TOP - 3, POLE[1] - POLE[0] + 2, 4); bg.fillStyle = C.w; bg.fillRect(POLE[0] - 1, FENCE_TOP - 3, POLE[1] - POLE[0] + 2, 1);   // хомут
+    // мостовая
+    bg.fillStyle = C.m; bg.fillRect(0, GROUND, W, H - GROUND);
+    for (let row = 0, y = GROUND; y < H; row++, y += 7) for (let x = -(row % 2) * 8; x < W; x += 16) { bg.fillStyle = C.k; bg.fillRect(x + 1, y, 14, 7); bg.fillStyle = C.l; bg.fillRect(x + 2, y + 1, 12, 5); bg.fillStyle = C.w; bg.fillRect(x + 3, y + 1, 9, 1); bg.fillStyle = C.m; bg.fillRect(x + 2, y + 5, 12, 1); }
+    bg.fillStyle = C.w; bg.fillRect(0, GROUND, W, 1);
+    // мусорный бак
+    const cx = 228, cy = 168; bg.fillStyle = C.k; bg.fillRect(cx - 1, cy - 1, 26, 30); bg.fillStyle = C.l; bg.fillRect(cx, cy + 3, 24, 25); bg.fillStyle = C.w; for (let i = 3; i < 22; i += 5) bg.fillRect(cx + i, cy + 4, 1, 23); bg.fillStyle = C.m; for (let i = 5; i < 22; i += 5) bg.fillRect(cx + i, cy + 4, 1, 23);
+    bg.fillStyle = C.k; bg.fillRect(cx - 3, cy - 2, 30, 6); bg.fillStyle = C.w; bg.fillRect(cx - 2, cy - 1, 28, 2); bg.fillStyle = C.l; bg.fillRect(cx - 2, cy + 1, 28, 2); bg.fillStyle = C.k; bg.fillRect(cx + 9, cy - 4, 6, 2);
+  })();
+  const BOLTS = [[10, FENCE_TOP], [10, 140], [60, 112], [60, 164]];   // болты-ступеньки на столбе: [x, y верха]
+  function bolt(x, y, right) { x = Math.round(x); bg.fillStyle = C.k; bg.fillRect(x, y - 1, 27, 9); bg.fillStyle = C.l; bg.fillRect(x + 1, y, 25, 7); bg.fillStyle = C.w; bg.fillRect(x + 1, y + 1, 25, 2); bg.fillStyle = C.m; bg.fillRect(x + 1, y + 5, 25, 2);
+    const th = right ? x + 18 : x + 2; bg.fillStyle = C.m; for (let i = 0; i < 7; i += 2) bg.fillRect(th + i, y, 1, 7); bg.fillStyle = C.k; const cap = right ? x + 25 : x - 2; bg.fillRect(cap, y - 2, 4, 11); bg.fillStyle = C.w; bg.fillRect(cap + 1, y - 1, 2, 9); }
+  BOLTS.forEach(([x, y]) => bolt(x, y, x > POLE[0]));
+
+  // ── платформы (стоять сверху) и стены
+  const PLAT = [{ x: 0, w: POLE[0], y: FENCE_TOP }, { x: POLE[1], w: GAP[0] - POLE[1], y: FENCE_TOP }, { x: GAP[0], w: GAP[1] - GAP[0], y: GAP[2] }, { x: GAP[1], w: WALL_X - GAP[1], y: FENCE_TOP }, { x: 225, w: 30, y: 166 }]
+    .concat(BOLTS.map(([x, y]) => ({ x, w: 27, y })));
+  const WALLS = [{ x: POLE[0], y: 0, w: POLE[1] - POLE[0], h: GROUND }, { x: WALL_X, y: 0, w: W - WALL_X, h: FENCE_TOP }];
+
+  // ── звук (M): квадратные волны
+  let AC = null, SND = false; const beep = (f, d = .08, type = 'square', vol = .05, slide = 0) => { if (!SND) return; if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); const t = AC.currentTime, o = AC.createOscillator(), v = AC.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, f * slide), t + d); v.gain.setValueAtTime(vol, t); v.gain.exponentialRampToValueAtTime(.0001, t + d); o.connect(v); v.connect(AC.destination); o.start(t); o.stop(t + d + .02); };
+  const MEL = [659, 0, 784, 659, 523, 0, 587, 659, 698, 0, 659, 587, 523, 0, 392, 0, 440, 0, 523, 440, 392, 0, 440, 523, 587, 659, 587, 523, 494, 0, 523, 0]; let musT = 0, musI = 0;
+  const music = dt => { if (!SND || state !== 'play') return; musT -= dt; if (musT > 0) return; musT = .15; const n = MEL[musI % MEL.length]; if (n) beep(n, .11, 'square', .022); if (musI % 2 === 0) beep([131, 98, 110, 87][(musI / 8 | 0) % 4], .12, 'triangle', .05); musI++; };
+
+  // ── состояние
+  const keys = {}; let state, P, items, dogs, parts, shake, score, timers;
+  const HOME = [{ kind: 'crate', x: 140, y: GROUND - 32 }, { kind: 'crate', x: 156, y: GROUND - 32 }, { kind: 'crate', x: 140, y: GROUND - 16 }, { kind: 'crate', x: 156, y: GROUND - 16 }, { kind: 'apple', x: 130, y: FENCE_TOP - 16 }, { kind: 'steel', x: 208, y: FENCE_TOP - 16 }];
+  function reset() { P = { x: 92, y: GROUND - 20, vx: 0, vy: 0, w: 12, h: 20, face: 1, on: true, hold: null, hp: 3, inv: 0, anim: 0 };
+    items = HOME.map((h, i) => ({ ...h, home: i, w: 16, h: 16, vx: 0, vy: 0, st: 'rest' })); dogs = []; parts = []; shake = 0; score = 0; timers = { dog: 1.5, back: [] }; state = 'play'; msgEl.style.display = 'none'; }
+  reset();
+  addEventListener('keydown', e => { const k = e.key.toLowerCase(); if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' '].includes(k)) e.preventDefault();
+    if (!keys[k]) { if (k === 'z' || k === ' ' || k === 'я') jump(); if (k === 'x' || k === 'ч') grab(); if (k === 'm' || k === 'ь') { SND = !SND; if (SND) beep(880, .1); } if (k === 'r' || k === 'к') reset(); } keys[k] = true; });
+  addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+  const hit = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  function jump() { if (state !== 'play' || !P.on) return; P.vy = P.hold ? (P.hold.kind === 'apple' ? -3.6 : -4.3) : -4.9; P.on = false; beep(330, .12, 'square', .04, 2.2); }
+  function grab() { if (state !== 'play') return;
+    if (P.hold) { const c = P.hold, up = keys.arrowup || keys.w || keys['ц']; P.hold = null; c.st = 'fly'; c.x = P.x - 2; c.y = P.y - 16; if (up) { c.vx = P.face * 1.4; c.vy = -6.2; } else { c.vx = P.face * 4.2; c.vy = -1.5; } beep(220, .1, 'square', .05, .5); return; }
+    let best = null, bd = 99; for (const c of items) if (c.st === 'rest') { const dx = Math.abs(c.x + 8 - (P.x + 6)), dy = Math.abs(c.y + 16 - (P.y + 20)); if (dx < 16 && dy < 6 && dx < bd) { best = c; bd = dx; } }
+    for (let up = best; up; ) { best = up; up = items.find(o => o !== best && o.st === 'rest' && o.x < best.x + 14 && o.x + 14 > best.x && Math.abs(o.y + 16 - best.y) < 2); }   // из стопки берётся верхний ящик
+    if (best) { best.st = 'held'; P.hold = best; beep(660, .06); } }
+  const burst = (x, y, col, n = 10) => { for (let i = 0; i < n; i++) parts.push({ x, y, vx: (Math.random() - .5) * 3.2, vy: -Math.random() * 3, t: 0, col }); };
+  function hurt() { if (P.inv > 0 || state !== 'play') return; P.hp--; P.inv = 1.6; P.vy = -3; P.vx = -P.face * 2; shake = 5; beep(110, .3, 'sawtooth', .06, .5); if (P.hold) { P.hold.st = 'fly'; P.hold.vx = 0; P.hold.vy = 0; P.hold = null; } if (P.hp <= 0) { state = 'over'; msgEl.innerHTML = 'ИГРА ОКОНЧЕНА<br><b>R</b> — ЗАНОВО'; msgEl.style.display = 'block'; } }
+  function land(o, prevBottom) { let best = null; const cands = PLAT.concat(items.filter(c => c !== o && c.st === 'rest').map(c => ({ x: c.x, w: c.w, y: c.y })));
+    for (const p of cands) if (o.x + o.w > p.x + 1 && o.x < p.x + p.w - 1 && prevBottom <= p.y + .5 && o.y + o.h >= p.y) if (!best || p.y < best.y) best = p; if (!best && o.y + o.h >= GROUND) best = { y: GROUND }; return best; }
+  function walls(o) { let bump = false; const solid = WALLS.concat(items.filter(c => c !== o && c.st === 'rest' && o.y + o.h > c.y + 2));   // лежащие ящики — препятствие, если не стоишь на них
+    for (const w of solid) if (hit(o, w)) { o.x = o.x + o.w / 2 < w.x + w.w / 2 ? w.x - o.w : w.x + w.w; bump = true; } o.x = Math.max(0, Math.min(W - o.w, o.x)); return bump; }
+
+  // ── шаг
+  let last = performance.now();
+  function step(dt) {
+    if (state === 'play') {
+      const sp = P.hold ? (P.hold.kind === 'apple' ? 1.0 : 1.35) : 1.7, L = keys.arrowleft || keys.a || keys['ф'], R = keys.arrowright || keys.d || keys['в'];
+      if (P.inv < 1.3) P.vx = L ? -sp : R ? sp : P.vx * .65; if (L) P.face = -1; if (R) P.face = 1;
+      const pb = P.y + P.h; P.vy = Math.min(5, P.vy + .25); P.x += P.vx; walls(P); P.y += P.vy; P.on = false;
+      if (P.vy >= 0) { const p = land(P, pb); if (p) { P.y = p.y - P.h; P.vy = 0; P.on = true; } }
+      P.inv = Math.max(0, P.inv - dt); P.anim += Math.abs(P.vx) * dt * 5;
+      // предметы
+      for (const c of items) {
+        if (c.st === 'held') { c.x = P.x - 2; c.y = P.y - 15; continue; }
+        const cb = c.y + c.h; c.vy = Math.min(6, c.vy + (c.st === 'fly' ? .22 : .3)); c.x += c.vx; c.y += c.vy;
+        if (c.st === 'fly') { let boom = false; for (const d of dogs) if (!d.dead && hit(c, d)) { d.dead = .01; score++; shake = 5; burst(d.x + 12, d.y + 9, C.l, 16); burst(d.x + 12, d.y + 9, C.y, 8); beep(900, .2, 'square', .06, .3); boom = true; }
+          if (!boom) for (const w of WALLS.concat(items.filter(o => o !== c && o.st === 'rest'))) if (hit(c, w)) boom = true; if (c.x < -16 || c.x > W) boom = true;
+          if (boom) { if (c.kind === 'steel') { c.vx = -c.vx * .3; c.st = 'fall'; } else { burst(c.x + 8, c.y + 8, c.kind === 'apple' ? C.r : C.O, 10); c.dead = true; beep(140, .12, 'sawtooth', .05, .6); } continue; } }
+        if (c.vy >= 0) { const p = land(c, cb); if (p) { c.y = p.y - c.h; if (c.st === 'fly' && c.kind !== 'steel') { burst(c.x + 8, c.y + 12, c.kind === 'apple' ? C.r : C.O, 8); c.dead = true; beep(140, .1, 'sawtooth', .04, .6); } else { c.st = 'rest'; c.vx = 0; c.vy = 0; } } }
+        walls(c);
+      }
+      items.filter(c => c.dead).forEach(c => timers.back.push({ t: 6, home: c.home })); items = items.filter(c => !c.dead);
+      timers.back.forEach(b => { b.t -= dt; if (b.t <= 0) { const h = HOME[b.home]; items.push({ ...h, home: b.home, w: 16, h: 16, y: -16, vx: 0, vy: 0, st: 'fall' }); } }); timers.back = timers.back.filter(b => b.t > 0);   // разбитое возвращается сверху
+      // собаки-роботы: выезжают из бака, катятся влево до столба и обратно
+      timers.dog -= dt; if (timers.dog <= 0 && dogs.filter(d => !d.dead).length < 2) { timers.dog = 5 + Math.random() * 3; dogs.push({ x: 228, y: 166 - 18, vx: 0, vy: -2, w: 24, h: 18, face: -1, on: false, t: 0, dead: 0 }); beep(300, .1, 'square', .04, .6); }
+      for (const d of dogs) { d.t += dt; if (d.dead) { d.dead += dt; continue; } const db = d.y + d.h; d.vy = Math.min(5, d.vy + .25); d.y += d.vy; d.x += d.on ? d.face * .7 : d.face * .9;
+        if (d.vy >= 0) { const p = land(d, db); if (p) { d.y = p.y - d.h; d.vy = 0; d.on = true; } }
+        if (walls(d)) d.face = -d.face; if (d.x < POLE[1] + 2) { d.x = POLE[1] + 2; d.face = 1; } if (d.x > 222 && d.on && d.y + d.h >= GROUND) { d.x = 222; d.face = -1; }
+        if (hit({ x: P.x + 2, y: P.y + 3, w: P.w - 4, h: P.h - 3 }, { x: d.x + 3, y: d.y + 3, w: d.w - 6, h: d.h - 3 })) hurt(); }
+      dogs = dogs.filter(d => !(d.dead > .6));
+      scoreEl.textContent = 'РОБОТОВ: ' + score;
+    }
+    for (const p of parts) { p.t += dt; p.vy += .16; p.x += p.vx; p.y += p.vy; } parts = parts.filter(p => p.t < .8); shake = Math.max(0, shake - dt * 30);
+  }
+  // ── рисование
+  function draw() { const sx = shake ? Math.round((Math.random() - .5) * shake) : 0; g.setTransform(1, 0, 0, 1, sx, 0); g.drawImage(BG, 0, 0);
+    for (const c of items) if (c.st !== 'held') (c.kind === 'crate' ? crate : c.kind === 'apple' ? apple : steelBox)(c.x, c.y);
+    for (const d of dogs) if (!(d.dead && (d.dead * 20 | 0) % 2)) dog(d.x, d.y, d.face, d.t, d.dead > 0);
+    if (!(P.inv > 0 && (P.inv * 12 | 0) % 2)) { const pose = P.hold ? 'lift' : !P.on ? 'jump' : Math.abs(P.vx) > .3 ? 'walk' : 'stand'; hero(P.x - 2, P.y, P.face, pose, P.anim | 0); if (P.hold) (P.hold.kind === 'crate' ? crate : P.hold.kind === 'apple' ? apple : steelBox)(P.hold.x, P.hold.y); }
+    for (const p of parts) { g.fillStyle = p.col; g.fillRect(Math.round(p.x), Math.round(p.y), 2, 2); }
+    g.setTransform(1, 0, 0, 1, 0, 0); for (let i = 0; i < 3; i++) heart(10 + i * 9, 10, i < P.hp);
+    if (SND) spr(['..kk', '..kw', '..kw', 'kkkw', 'kwwk', 'kkk.'], 46, 10); }
+  function loop(t) { const dt = Math.min(.05, (t - last) / 1000); last = t; step(dt); music(dt); draw(); requestAnimationFrame(loop); }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
