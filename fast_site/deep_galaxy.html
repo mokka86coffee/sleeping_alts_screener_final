@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Избранное · галактика</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#05060a}#cv{position:fixed;inset:0;display:block}</style></head>
+<body><canvas id="cv"></canvas>
+<script>
+(() => {
+  // ── общее для трёх «глубинных» страниц (25.10 владелец, по картинкам deep web / галактика / корни: «а такие можно 3 разных?» → «да»)
+  //    данные — избранное бота из output/fast_state.json (только чтение, раз в 30 с); наведение на монету — имя, ×N от дна, КП; клик — TradingView
+  const TAU = Math.PI * 2, clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), ease = q => 1 - Math.pow(1 - q, 3);
+  const GRP = [{ k: 'go', name: 'ИДЁТ СЕЙЧАС' }, { k: 'soon', name: 'СКОРО' }, { k: 'stir', name: 'ШЕВЕЛЯТСЯ' }, { k: 'rest', name: 'ОСТАЛЬНЫЕ' }], GI = { go: 0, soon: 1, stir: 2, rest: 3 };
+  const grpOf = f => { const g = String(f.group || f.list || '').toLowerCase(); return /ид[её]т сейчас|ход|идут|going/.test(g) ? 'go' : /скоро|близ|soon/.test(g) ? 'soon' : /шевел|stir/.test(g) ? 'stir' : 'rest'; };
+  const multOf = f => +f.now > 0 && +f.atl > 0 ? +f.now / +f.atl : 0, multS = m => m ? '×' + (m >= 10 ? Math.round(m) : m.toFixed(1).replace('.', ',')) : '';
+  const capS = f => +f.mcap > 0 ? (+f.mcap >= 1e9 ? (+f.mcap / 1e9).toFixed(2).replace('.', ',') + ' млрд $' : Math.round(+f.mcap / 1e6) + ' млн $') : '';
+  const tvUrl = sym => `https://www.tradingview.com/chart/?symbol=BINANCE:${sym}.P`;
+  const hash = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; };
+  const rnd = (seed, i) => { const v = Math.sin(seed * 9301 + i * 49297) * 233280; return v - Math.floor(v); };
+  let COINS = [], BY = { go: [], soon: [], stir: [], rest: [] }, LOADED = false;
+  async function loadFav() { try { const r = await fetch('../output/fast_state.json', { cache: 'no-store' }); if (!r.ok) return; const d = await r.json(), F = (d.favorites || []).filter(f => f && f.sym);
+      const by = { go: [], soon: [], stir: [], rest: [] }; COINS = F.map(f => { const sym = String(f.sym), c = { sym, nm: sym.replace(/USDT$/, ''), g: grpOf(f), f, seed: hash(sym), m: multOf(f) }; return c; });
+      COINS.forEach(c => { c.i = by[c.g].length; by[c.g].push(c); }); BY = by; LOADED = true; } catch (e) {} }
+  loadFav(); setInterval(loadFav, 30000);
+  // подсказка и клик: каждую рамку сцена кладёт в HIT экранные точки монет
+  let HIT = [], MX = -1, MY = -1, HOVER = null; const tip = document.createElement('div'); tip.id = 'tip'; document.body.appendChild(tip);
+  const tipCss = document.createElement('style'); tipCss.textContent = '#tip{position:fixed;z-index:9;display:none;pointer-events:none;padding:9px 12px;border-radius:10px;background:rgba(6,8,14,.86);border:1px solid rgba(255,255,255,.12);box-shadow:0 10px 30px rgba(0,0,0,.5);font:400 11px "Avenir Next",Futura,sans-serif;color:rgba(230,236,245,.85);white-space:nowrap}#tip b{display:block;font:600 15px "Avenir Next",Futura,sans-serif;color:#fff;letter-spacing:.05em;margin-bottom:3px}#tip i{font-style:normal;font-size:8.5px;letter-spacing:.28em;color:rgba(255,120,110,.9)}#tip em{font-style:normal;color:#9fe6ff}';
+  document.head.appendChild(tipCss);
+  addEventListener('mousemove', e => { MX = e.clientX; MY = e.clientY; }); addEventListener('mouseleave', () => { MX = MY = -1; });
+  addEventListener('click', () => { if (HOVER) window.open(tvUrl(HOVER.sym), '_blank', 'noopener'); });
+  function hitTest() { let best = null, bd = 18 * 18; for (const h of HIT) { const dx = h.x - MX, dy = h.y - MY, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = h.c; } } HOVER = best; document.body.style.cursor = best ? 'pointer' : 'default';
+    if (!best) { tip.style.display = 'none'; return; } const f = best.f, m = multS(best.m), cp = capS(f);
+    tip.innerHTML = `<i>${GRP[GI[best.g]].name}</i><b>${best.nm}${f.top ? ' ✦' : ''}</b>${m ? `<em>${m}</em> от дна` : ''}${cp ? (m ? ' · ' : '') + 'КП ' + cp : ''}`;
+    tip.style.display = 'block'; const w = tip.offsetWidth, h2 = tip.offsetHeight; tip.style.left = Math.min(innerWidth - w - 10, MX + 16) + 'px'; tip.style.top = Math.max(10, Math.min(innerHeight - h2 - 10, MY - h2 - 10)) + 'px'; }
+  // HUD: точечная сетка, уголки, красные треугольники, подписи слоёв
+  function hudGrid(g, W, H, a = .07) { g.fillStyle = `rgba(200,210,230,${a})`; for (let x = 24; x < W; x += 34) for (let y = 24; y < H; y += 34) g.fillRect(x, y, 1, 1); }
+  function hudCross(g, x, y, s = 7, a = .4) { g.strokeStyle = `rgba(220,228,240,${a})`; g.lineWidth = 1; g.beginPath(); g.moveTo(x - s, y); g.lineTo(x + s, y); g.moveTo(x, y - s); g.lineTo(x, y + s); g.stroke(); }
+  function hudTri(g, x, y, s, rot, a) { g.save(); g.translate(x, y); g.rotate(rot); g.fillStyle = `rgba(230,40,50,${a})`; g.beginPath(); g.moveTo(0, -s); g.lineTo(s * .87, s * .5); g.lineTo(-s * .87, s * .5); g.closePath(); g.fill(); g.restore(); }
+  function hudLabel(g, x, y, title, num, sub, align = 'left', red = true) {   // как «DEEP WEB · 19 …» на образце
+    g.save(); g.textAlign = align; g.textBaseline = 'alphabetic'; g.font = '300 15px "Avenir Next", Futura, sans-serif'; try { g.letterSpacing = '3px'; } catch (e) {}
+    const tw = g.measureText(title).width; g.fillStyle = 'rgba(235,240,248,.92)'; g.fillText(title, x, y);
+    const nx = align === 'left' ? x + tw + 12 : x + 12; g.textAlign = 'left'; g.font = '200 22px "Avenir Next", Futura, sans-serif'; try { g.letterSpacing = '1px'; } catch (e) {} g.fillStyle = red ? 'rgba(255,90,90,.95)' : 'rgba(160,220,255,.95)'; g.fillText(num, nx, y + 1);
+    if (sub) { g.font = '400 7px "Avenir Next", Futura, sans-serif'; try { g.letterSpacing = '2px'; } catch (e) {} g.fillStyle = 'rgba(220,228,240,.55)'; g.fillText(sub, nx + g.measureText(num).width + 26, y - 6); }
+    g.restore(); }
+  function fitCanvas(cv) { const d = Math.min(devicePixelRatio || 1, 2), W = innerWidth, H = innerHeight; cv.width = Math.round(W * d); cv.height = Math.round(H * d); cv.style.width = W + 'px'; cv.style.height = H + 'px'; const g = cv.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); return { W, H, g }; }
+
+  // 2. ГАЛАКТИКА: спираль из частиц, монеты — звёзды; ядро — «идёт сейчас», внутреннее кольцо — «скоро», дальше «шевелятся», рукава — «остальные»
+  const cv = document.getElementById('cv'); let S = fitCanvas(cv), G = {};
+  function build() { const { W, H } = S, R = Math.min(W * .42, H * .78), P = [];
+    for (let i = 0; i < 5200; i++) { const arm = i % 2, q = Math.pow(rnd(1, i), .75), sc = (rnd(2, i) + rnd(3, i) + rnd(4, i) - 1.5) * .42 * (1 - q * .45);
+      P.push({ r: q * R, a: arm * Math.PI + q * 5.6 + sc, s: .6 + rnd(5, i) * 1.3, b: .25 + rnd(6, i) * .65 * (1 - q * .5), w: rnd(7, i) }); }
+    for (let i = 0; i < 1400; i++) { const q = Math.pow(rnd(8, i), 2) * .22; P.push({ r: q * R, a: rnd(9, i) * TAU, s: .7 + rnd(10, i), b: .5 + rnd(11, i) * .5, w: rnd(12, i) }); }   // балдж
+    G = { W, H, R, P, cx: W * .5, cy: H * .52 }; }
+  addEventListener('resize', () => { S = fitCanvas(cv); build(); }); build();
+  const RAD = { go: [.03, .09], soon: [.18, .26], stir: [.36, .48], rest: [.58, .86] }, COL = { go: '255,250,235', soon: '200,225,255', stir: '255,170,180', rest: '255,90,95' }, SZ = { go: 3.4, soon: 2.6, stir: 2.2, rest: 1.9 };
+  const TILT = .42, INC = -.22, proj = (r, a) => { const x = r * Math.cos(a), y = r * Math.sin(a) * TILT, c = Math.cos(INC), s = Math.sin(INC); return [G.cx + x * c - y * s, G.cy + x * s + y * c]; };
+  function coinPos(c, t) { const rr = RAD[c.g], n = BY[c.g].length, q = rr[0] + (rr[1] - rr[0]) * rnd(c.seed, 3), rot = t / 1000 * .03; return proj(q * G.R, c.seed * TAU + (n ? c.i / n * TAU * .15 : 0) + rot * (1.4 - q)); }
+  function star(g, x, y, s, rgb, a) { const gl = g.createRadialGradient(x, y, 0, x, y, s * 6); gl.addColorStop(0, `rgba(${rgb},${.9 * a})`); gl.addColorStop(.25, `rgba(${rgb},${.3 * a})`); gl.addColorStop(1, `rgba(${rgb},0)`); g.fillStyle = gl; g.fillRect(x - s * 6, y - s * 6, s * 12, s * 12);
+    g.strokeStyle = `rgba(${rgb},${.55 * a})`; g.lineWidth = .7; g.beginPath(); g.moveTo(x - s * 5, y); g.lineTo(x + s * 5, y); g.moveTo(x, y - s * 5); g.lineTo(x, y + s * 5); g.stroke(); g.fillStyle = `rgba(255,255,255,${a})`; g.beginPath(); g.arc(x, y, s * .6, 0, TAU); g.fill(); }
+  function frame(t) { const { g } = S, { W, H, P, R, cx, cy } = G, s0 = t / 1000, rot = s0 * .03; HIT = [];
+    const bg = g.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * .8); bg.addColorStop(0, '#10121c'); bg.addColorStop(1, '#040409'); g.fillStyle = bg; g.fillRect(0, 0, W, H); hudGrid(g, W, H, .05);
+    // красные плоскости HUD, как на образце
+    g.save(); g.fillStyle = 'rgba(200,30,40,.22)'; g.beginPath(); g.moveTo(W, H * .52); g.lineTo(W, H); g.lineTo(W * .78, H); g.closePath(); g.fill(); g.fillStyle = 'rgba(230,40,50,.5)'; g.beginPath(); g.moveTo(W, H * .62); g.lineTo(W, H * .86); g.lineTo(W * .86, H * .86); g.closePath(); g.fill(); g.restore();
+    hudTri(g, W * .015, H * .26, 9, Math.PI / 2, .85); hudTri(g, W * .36, H * .36, 7, s0 * .1, .7); hudTri(g, W * .62, H * .32, 5, -s0 * .15, .6);
+    g.save(); g.globalCompositeOperation = 'lighter';
+    const core = g.createRadialGradient(cx, cy, 0, cx, cy, R * .3); core.addColorStop(0, 'rgba(255,252,240,.95)'); core.addColorStop(.12, 'rgba(240,235,255,.45)'); core.addColorStop(.5, 'rgba(160,170,230,.10)'); core.addColorStop(1, 'rgba(120,130,200,0)'); g.fillStyle = core; g.fillRect(cx - R * .3, cy - R * .3, R * .6, R * .6);
+    for (const p of P) { const [x, y] = proj(p.r, p.a + rot * (1.4 - p.r / R)), tw = .75 + .25 * Math.sin(s0 * (1 + p.w * 2) + p.w * 40); g.fillStyle = p.w > .9 ? `rgba(255,170,175,${p.b * tw})` : `rgba(215,225,255,${p.b * tw})`; g.fillRect(x, y, p.s, p.s); }
+    // сеть линий между монетами — как паутина на образце
+    const pos = COINS.map(c => coinPos(c, t)); g.strokeStyle = 'rgba(220,228,245,.10)'; g.lineWidth = .6;
+    pos.forEach((p, i) => { let best = [], bd = []; pos.forEach((q, j) => { if (i === j) return; const d = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2; best.push([d, q]); }); best.sort((a, b) => a[0] - b[0]).slice(0, 2).forEach(([, q]) => { g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.stroke(); }); });
+    COINS.forEach((c, i) => { const [x, y] = pos[i], hv = HOVER === c; star(g, x, y, SZ[c.g] * (hv ? 1.5 : 1), COL[c.g], .85 + .15 * Math.sin(s0 * 2.3 + c.seed * 30)); HIT.push({ x, y, c }); });
+    g.restore();
+    COINS.forEach((c, i) => { if (!(c.g === 'go' || c.g === 'soon' || HOVER === c)) return; const [x, y] = pos[i]; g.font = c.g === 'go' ? '600 12px "Avenir Next", Futura, sans-serif' : '500 9px "Avenir Next", Futura, sans-serif'; g.fillStyle = c.g === 'go' || HOVER === c ? '#fff' : 'rgba(215,228,245,.72)'; g.textAlign = 'left'; g.fillText(c.nm, x + 10, y - 6); });
+    // легенда слева: тонкие линии и подписи колец
+    GRP.forEach((gr, j) => { const y = H * .62 + j * 34; g.fillStyle = 'rgba(220,228,240,.18)'; g.fillRect(W * .03, y + 6, W * .16, 1); hudLabel(g, W * .03, y, gr.name, String(BY[gr.k].length), ['ЯДРО', 'КОЛЬЦО 1', 'КОЛЬЦО 2', 'РУКАВА'][j], 'left', j > 1); });
+    hudCross(g, W * .04, H * .1); hudCross(g, W * .96, H * .12);
+    g.font = '400 8px "Avenir Next", Futura, sans-serif'; try { g.letterSpacing = '3px'; } catch (e) {} g.fillStyle = 'rgba(220,228,240,.45)'; g.textAlign = 'left'; g.fillText('ИЗБРАННОЕ · ' + COINS.length + (LOADED ? '' : ' · ЗАГРУЗКА'), W * .03, H - 22); try { g.letterSpacing = '0px'; } catch (e) {}
+    hitTest(); requestAnimationFrame(frame); }
+  requestAnimationFrame(frame);
+
+})();
+</script></body></html>

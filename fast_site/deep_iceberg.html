@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Избранное · айсберг</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#05060a}#cv{position:fixed;inset:0;display:block}</style></head>
+<body><canvas id="cv"></canvas>
+<script>
+(() => {
+  // ── общее для трёх «глубинных» страниц (25.10 владелец, по картинкам deep web / галактика / корни: «а такие можно 3 разных?» → «да»)
+  //    данные — избранное бота из output/fast_state.json (только чтение, раз в 30 с); наведение на монету — имя, ×N от дна, КП; клик — TradingView
+  const TAU = Math.PI * 2, clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), ease = q => 1 - Math.pow(1 - q, 3);
+  const GRP = [{ k: 'go', name: 'ИДЁТ СЕЙЧАС' }, { k: 'soon', name: 'СКОРО' }, { k: 'stir', name: 'ШЕВЕЛЯТСЯ' }, { k: 'rest', name: 'ОСТАЛЬНЫЕ' }], GI = { go: 0, soon: 1, stir: 2, rest: 3 };
+  const grpOf = f => { const g = String(f.group || f.list || '').toLowerCase(); return /ид[её]т сейчас|ход|идут|going/.test(g) ? 'go' : /скоро|близ|soon/.test(g) ? 'soon' : /шевел|stir/.test(g) ? 'stir' : 'rest'; };
+  const multOf = f => +f.now > 0 && +f.atl > 0 ? +f.now / +f.atl : 0, multS = m => m ? '×' + (m >= 10 ? Math.round(m) : m.toFixed(1).replace('.', ',')) : '';
+  const capS = f => +f.mcap > 0 ? (+f.mcap >= 1e9 ? (+f.mcap / 1e9).toFixed(2).replace('.', ',') + ' млрд $' : Math.round(+f.mcap / 1e6) + ' млн $') : '';
+  const tvUrl = sym => `https://www.tradingview.com/chart/?symbol=BINANCE:${sym}.P`;
+  const hash = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; };
+  const rnd = (seed, i) => { const v = Math.sin(seed * 9301 + i * 49297) * 233280; return v - Math.floor(v); };
+  let COINS = [], BY = { go: [], soon: [], stir: [], rest: [] }, LOADED = false;
+  async function loadFav() { try { const r = await fetch('../output/fast_state.json', { cache: 'no-store' }); if (!r.ok) return; const d = await r.json(), F = (d.favorites || []).filter(f => f && f.sym);
+      const by = { go: [], soon: [], stir: [], rest: [] }; COINS = F.map(f => { const sym = String(f.sym), c = { sym, nm: sym.replace(/USDT$/, ''), g: grpOf(f), f, seed: hash(sym), m: multOf(f) }; return c; });
+      COINS.forEach(c => { c.i = by[c.g].length; by[c.g].push(c); }); BY = by; LOADED = true; } catch (e) {} }
+  loadFav(); setInterval(loadFav, 30000);
+  // подсказка и клик: каждую рамку сцена кладёт в HIT экранные точки монет
+  let HIT = [], MX = -1, MY = -1, HOVER = null; const tip = document.createElement('div'); tip.id = 'tip'; document.body.appendChild(tip);
+  const tipCss = document.createElement('style'); tipCss.textContent = '#tip{position:fixed;z-index:9;display:none;pointer-events:none;padding:9px 12px;border-radius:10px;background:rgba(6,8,14,.86);border:1px solid rgba(255,255,255,.12);box-shadow:0 10px 30px rgba(0,0,0,.5);font:400 11px "Avenir Next",Futura,sans-serif;color:rgba(230,236,245,.85);white-space:nowrap}#tip b{display:block;font:600 15px "Avenir Next",Futura,sans-serif;color:#fff;letter-spacing:.05em;margin-bottom:3px}#tip i{font-style:normal;font-size:8.5px;letter-spacing:.28em;color:rgba(255,120,110,.9)}#tip em{font-style:normal;color:#9fe6ff}';
+  document.head.appendChild(tipCss);
+  addEventListener('mousemove', e => { MX = e.clientX; MY = e.clientY; }); addEventListener('mouseleave', () => { MX = MY = -1; });
+  addEventListener('click', () => { if (HOVER) window.open(tvUrl(HOVER.sym), '_blank', 'noopener'); });
+  function hitTest() { let best = null, bd = 18 * 18; for (const h of HIT) { const dx = h.x - MX, dy = h.y - MY, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = h.c; } } HOVER = best; document.body.style.cursor = best ? 'pointer' : 'default';
+    if (!best) { tip.style.display = 'none'; return; } const f = best.f, m = multS(best.m), cp = capS(f);
+    tip.innerHTML = `<i>${GRP[GI[best.g]].name}</i><b>${best.nm}${f.top ? ' ✦' : ''}</b>${m ? `<em>${m}</em> от дна` : ''}${cp ? (m ? ' · ' : '') + 'КП ' + cp : ''}`;
+    tip.style.display = 'block'; const w = tip.offsetWidth, h2 = tip.offsetHeight; tip.style.left = Math.min(innerWidth - w - 10, MX + 16) + 'px'; tip.style.top = Math.max(10, Math.min(innerHeight - h2 - 10, MY - h2 - 10)) + 'px'; }
+  // HUD: точечная сетка, уголки, красные треугольники, подписи слоёв
+  function hudGrid(g, W, H, a = .07) { g.fillStyle = `rgba(200,210,230,${a})`; for (let x = 24; x < W; x += 34) for (let y = 24; y < H; y += 34) g.fillRect(x, y, 1, 1); }
+  function hudCross(g, x, y, s = 7, a = .4) { g.strokeStyle = `rgba(220,228,240,${a})`; g.lineWidth = 1; g.beginPath(); g.moveTo(x - s, y); g.lineTo(x + s, y); g.moveTo(x, y - s); g.lineTo(x, y + s); g.stroke(); }
+  function hudTri(g, x, y, s, rot, a) { g.save(); g.translate(x, y); g.rotate(rot); g.fillStyle = `rgba(230,40,50,${a})`; g.beginPath(); g.moveTo(0, -s); g.lineTo(s * .87, s * .5); g.lineTo(-s * .87, s * .5); g.closePath(); g.fill(); g.restore(); }
+  function hudLabel(g, x, y, title, num, sub, align = 'left', red = true) {   // как «DEEP WEB · 19 …» на образце
+    g.save(); g.textAlign = align; g.textBaseline = 'alphabetic'; g.font = '300 15px "Avenir Next", Futura, sans-serif'; try { g.letterSpacing = '3px'; } catch (e) {}
+    const tw = g.measureText(title).width; g.fillStyle = 'rgba(235,240,248,.92)'; g.fillText(title, x, y);
+    const nx = align === 'left' ? x + tw + 12 : x + 12; g.textAlign = 'left'; g.font = '200 22px "Avenir Next", Futura, sans-serif'; try { g.letterSpacing = '1px'; } catch (e) {} g.fillStyle = red ? 'rgba(255,90,90,.95)' : 'rgba(160,220,255,.95)'; g.fillText(num, nx, y + 1);
+    if (sub) { g.font = '400 7px "Avenir Next", Futura, sans-serif'; try { g.letterSpacing = '2px'; } catch (e) {} g.fillStyle = 'rgba(220,228,240,.55)'; g.fillText(sub, nx + g.measureText(num).width + 26, y - 6); }
+    g.restore(); }
+  function fitCanvas(cv) { const d = Math.min(devicePixelRatio || 1, 2), W = innerWidth, H = innerHeight; cv.width = Math.round(W * d); cv.height = Math.round(H * d); cv.style.width = W + 'px'; cv.style.height = H + 'px'; const g = cv.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); return { W, H, g }; }
+
+  // 1. АЙСБЕРГ: над водой стеклянная гора — «идёт сейчас»; под водой слоями «скоро», «шевелятся», «остальные» — светящиеся кубики, чем глубже, тем краснее
+  const cv = document.getElementById('cv'); let S = fitCanvas(cv), G = {};
+  function build() { const { W, H } = S, wy = H * .4, cx = W * .56, wTop = Math.min(W * .34, H * .62), ridge = [];
+    for (let i = 0; i <= 14; i++) { const u = i / 14 * 2 - 1, k = Math.pow(1 - Math.abs(u), 1.25); ridge.push([cx + u * wTop / 2, wy - H * .3 * k * (.82 + .18 * rnd(7, i)) - (i % 2 ? 0 : H * .015 * k)]); }
+    const mass = []; for (let i = 0; i <= 60; i++) { const a = i / 60 * Math.PI; mass.push([cx + Math.cos(a) * wTop * .78 * (1 + .07 * Math.sin(5 * a + 1)), wy + Math.sin(a) * H * .5 * (1 + .05 * Math.sin(7 * a))]); }
+    G = { W, H, wy, cx, wTop, ridge, mass, dust: Array.from({ length: 220 }, (_, i) => ({ x: rnd(3, i) * W, y: rnd(5, i) * H, s: .5 + rnd(9, i) * 1.4, sp: .2 + rnd(11, i) })) }; }
+  addEventListener('resize', () => { S = fitCanvas(cv); build(); }); build();
+  const DEPTH = { soon: .2, stir: .43, rest: .68 }, COL = { go: '230,245,255', soon: '190,220,255', stir: '255,150,165', rest: '255,70,75' }, SZ = { go: 7, soon: 5.5, stir: 4.5, rest: 3.8 };
+  function coinPos(c, t) { const { H, wy, cx, wTop } = G, n = BY[c.g].length, k = n > 1 ? c.i / (n - 1) - .5 : 0, s0 = t / 1000;
+    if (c.g === 'go') { const y = wy - H * (.08 + .13 * (c.i % 3) / 2) - (c.i > 2 ? H * .04 : 0); return [cx + k * wTop * .45 + Math.sin(s0 * .5 + c.seed * 9) * 3, y + Math.sin(s0 * .7 + c.seed * 7) * 2]; }
+    const dy = DEPTH[c.g], y0 = wy + H * .5 * dy, half = wTop * .78 * Math.sqrt(Math.max(.05, 1 - dy * dy)) * .92, rows = c.g === 'rest' ? 3 : 2, row = c.i % rows;
+    return [cx + k * half * 1.85 + (rnd(c.seed, 1) - .5) * 18 + Math.sin(s0 * .4 + c.seed * 11) * 5, y0 + (row - (rows - 1) / 2) * 26 + (rnd(c.seed, 2) - .5) * 10 + Math.sin(s0 * .6 + c.seed * 5) * 3]; }
+  function cube(g, x, y, s, rgb, a, rot) { g.save(); g.translate(x, y); g.rotate(rot); const gl = g.createRadialGradient(0, 0, 0, 0, 0, s * 4); gl.addColorStop(0, `rgba(${rgb},${.45 * a})`); gl.addColorStop(1, `rgba(${rgb},0)`); g.fillStyle = gl; g.fillRect(-s * 4, -s * 4, s * 8, s * 8);
+    g.fillStyle = `rgba(${rgb},${.55 * a})`; g.fillRect(-s / 2, -s / 2, s, s); g.strokeStyle = `rgba(255,255,255,${.7 * a})`; g.lineWidth = .7; g.strokeRect(-s / 2, -s / 2, s, s); g.restore(); }
+  function frame(t) { const { g } = S, { W, H, wy, cx, ridge, mass } = G, s0 = t / 1000; HIT = [];
+    const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#07090f'); bg.addColorStop(.4, '#0b0e16'); bg.addColorStop(1, '#090507'); g.fillStyle = bg; g.fillRect(0, 0, W, H); hudGrid(g, W, H, .06);
+    g.save(); g.globalCompositeOperation = 'lighter';
+    for (const d of G.dust) { const y = (d.y - s0 * 6 * d.sp + H) % H; g.fillStyle = `rgba(200,215,235,${.25 * d.sp})`; g.fillRect(d.x, y, d.s, d.s); }
+    const core = g.createRadialGradient(cx, wy + H * .36, 0, cx, wy + H * .36, H * .32); core.addColorStop(0, `rgba(255,70,60,${.42 + .08 * Math.sin(s0 * 1.3)})`); core.addColorStop(.45, 'rgba(200,30,40,.14)'); core.addColorStop(1, 'rgba(160,20,30,0)'); g.fillStyle = core; g.fillRect(0, wy, W, H - wy);   // красное ядро в глубине
+    g.restore();
+    // подводная масса: контур, горизонтальные срезы, корни-нити к ядру
+    g.save(); g.beginPath(); mass.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.closePath(); const mg = g.createLinearGradient(0, wy, 0, wy + H * .5); mg.addColorStop(0, 'rgba(120,150,175,.12)'); mg.addColorStop(1, 'rgba(120,30,40,.10)'); g.fillStyle = mg; g.fill();
+    g.strokeStyle = 'rgba(200,215,235,.22)'; g.lineWidth = 1; g.stroke(); g.clip();
+    g.strokeStyle = 'rgba(200,215,235,.07)'; for (let k = 1; k < 9; k++) { const y = wy + H * .5 * k / 9; g.beginPath(); g.ellipse(cx, y, G.wTop * .78 * Math.sqrt(1 - (k / 9) ** 2), 10 + k * 2, 0, 0, TAU); g.stroke(); }
+    g.globalCompositeOperation = 'lighter'; for (let k = 0; k < 7; k++) { g.strokeStyle = `rgba(230,235,245,${.10 + .05 * (k % 2)})`; g.lineWidth = .8; g.beginPath(); for (let j = 0; j <= 40; j++) { const q = j / 40, y = wy + q * H * .5, x = cx + (k - 3) * 9 * (1 - q) + Math.sin(q * 9 + k + s0 * .6) * 14 * q; j ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); }
+    g.restore();
+    // линия воды с бликом слева
+    g.save(); g.globalCompositeOperation = 'lighter'; const wl = g.createLinearGradient(0, 0, W, 0); wl.addColorStop(0, 'rgba(220,235,255,.9)'); wl.addColorStop(.5, 'rgba(220,235,255,.35)'); wl.addColorStop(1, 'rgba(220,235,255,.08)'); g.fillStyle = wl; g.fillRect(0, wy - .5, W, 1);
+    const fl = g.createRadialGradient(W * .015, wy, 0, W * .015, wy, 46); fl.addColorStop(0, 'rgba(235,245,255,.9)'); fl.addColorStop(1, 'rgba(200,225,255,0)'); g.fillStyle = fl; g.fillRect(0, wy - 46, 92, 92);
+    const hz = g.createLinearGradient(0, wy - 30, 0, wy + 30); hz.addColorStop(0, 'rgba(170,200,230,0)'); hz.addColorStop(.5, 'rgba(170,200,230,.10)'); hz.addColorStop(1, 'rgba(170,200,230,0)'); g.fillStyle = hz; g.fillRect(0, wy - 30, W, 60); g.restore();
+    // монеты под водой
+    for (const c of COINS) { if (c.g === 'go') continue; const [x, y] = coinPos(c, t), hv = HOVER === c;
+      g.save(); g.globalCompositeOperation = 'lighter'; g.strokeStyle = `rgba(${COL[c.g]},.10)`; g.lineWidth = .6; g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo((x + cx) / 2, y + 30, cx, y + 60); g.stroke();
+      cube(g, x, y, SZ[c.g] * (hv ? 1.6 : 1), COL[c.g], .85 + .15 * Math.sin(s0 * 2 + c.seed * 20), s0 * .4 + c.seed * 6); g.restore();
+      if (c.g === 'soon' || hv) { g.font = '500 9px "Avenir Next", Futura, sans-serif'; g.fillStyle = hv ? '#fff' : 'rgba(215,228,245,.7)'; g.textAlign = 'left'; g.fillText(c.nm, x + 9, y + 3); }
+      HIT.push({ x, y, c }); }
+    // стеклянная гора над водой
+    g.save(); const ap = ridge.reduce((a, p) => p[1] < a[1] ? p : a, ridge[0]);
+    for (let i = 0; i < ridge.length - 1; i++) { const p = ridge[i], q = ridge[i + 1], m = [(p[0] + q[0]) / 2, wy], sh = .05 + .07 * ((i * 7) % 5) / 5 + .03 * Math.sin(s0 * .8 + i);
+      g.fillStyle = `rgba(190,215,235,${sh})`; g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.lineTo(m[0], m[1]); g.closePath(); g.fill();
+      g.fillStyle = `rgba(160,190,215,${sh * .7})`; g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(m[0], m[1]); g.lineTo(i ? (ridge[i - 1][0] + p[0]) / 2 : p[0], wy); g.closePath(); g.fill(); }
+    g.strokeStyle = 'rgba(225,238,250,.42)'; g.lineWidth = .8; g.beginPath(); ridge.forEach((p, i) => i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])); g.stroke();
+    g.strokeStyle = 'rgba(225,238,250,.12)'; for (let i = 0; i < ridge.length; i += 2) { g.beginPath(); g.moveTo(ridge[i][0], ridge[i][1]); g.lineTo(ap[0] + (ridge[i][0] - ap[0]) * .2, wy); g.stroke(); }
+    g.restore();
+    // «идёт сейчас» — на склоне над водой, с именами
+    for (const c of BY.go) { const [x, y] = coinPos(c, t), hv = HOVER === c; g.save(); g.globalCompositeOperation = 'lighter'; cube(g, x, y, SZ.go * (hv ? 1.4 : 1), COL.go, 1, s0 * .5 + c.seed * 6); g.restore();
+      g.font = '600 13px "Avenir Next", Futura, sans-serif'; try { g.letterSpacing = '2px'; } catch (e) {} g.fillStyle = '#fff'; g.textAlign = 'left'; g.shadowColor = 'rgba(160,210,255,.9)'; g.shadowBlur = 10; g.fillText(c.nm, x + 12, y + 4); g.shadowBlur = 0; try { g.letterSpacing = '0px'; } catch (e) {}
+      HIT.push({ x, y, c }); }
+    // подписи слоёв
+    hudLabel(g, W * .05, wy - H * .2, 'ИДЁТ СЕЙЧАС', String(BY.go.length), 'НАД ВОДОЙ', 'left', false);
+    [['soon', 'СКОРО'], ['stir', 'ШЕВЕЛЯТСЯ'], ['rest', 'ОСТАЛЬНЫЕ']].forEach(([k, nm], j) => { const y = wy + H * .5 * DEPTH[k]; hudLabel(g, W * .05, y, nm, String(BY[k].length), `ГЛУБИНА ${j + 1}`);
+      g.strokeStyle = 'rgba(255,80,80,.35)'; g.lineWidth = .7; g.beginPath(); g.moveTo(W * .05, y + 8); g.lineTo(cx - G.wTop * .78 * Math.sqrt(Math.max(.05, 1 - DEPTH[k] ** 2)), y + 8); g.stroke(); });
+    hudCross(g, W * .06, H * .08); hudCross(g, W * .94, H * .9); hudTri(g, W * .48, H * .9, 6, s0 * .2, .7);
+    g.font = '400 8px "Avenir Next", Futura, sans-serif'; try { g.letterSpacing = '3px'; } catch (e) {} g.fillStyle = 'rgba(220,228,240,.45)'; g.textAlign = 'left'; g.fillText('ИЗБРАННОЕ · ' + COINS.length + (LOADED ? '' : ' · ЗАГРУЗКА'), W * .05, H - 22); try { g.letterSpacing = '0px'; } catch (e) {}
+    hitTest(); requestAnimationFrame(frame); }
+  requestAnimationFrame(frame);
+
+})();
+</script></body></html>
