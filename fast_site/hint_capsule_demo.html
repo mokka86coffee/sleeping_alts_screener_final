@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Капсула · варианты текста</title>
+<!-- 25.10 владелец про Hint-Cards: «мне не очень нравятся кнопки в капсуле… точнее текст как выглядит, что-то поинтереснее хочу», «сделай пример отдельно».
+     Отдельный пример, репозиторий Hint-Cards не тронут: та же капсула (#303030, скругление 100px, внутренняя тень), пять вариантов текста кнопок. Наведи и кликни. -->
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=JetBrains+Mono:wght@400;600&family=Josefin+Sans:wght@300;600&family=Unbounded:wght@300;600&display=swap" rel="stylesheet">
+<style>
+:root { --blue: #2d9bd8; --blue2: #6cbcfd; --red: #d62e07; }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: #141414 radial-gradient(ellipse at 30% 20%, #2a2a2a, #111 70%); color: #fff; font-family: "Josefin Sans", sans-serif; display: flex; flex-direction: column; align-items: center; padding: 34px 20px; gap: 26px; }
+h1 { margin: 0; font: 300 13px "Josefin Sans", sans-serif; letter-spacing: .4em; text-transform: uppercase; color: rgba(255,255,255,.55); }
+.row { display: flex; flex-wrap: wrap; justify-content: center; gap: 36px; }
+.v { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.v p { margin: 0; font-size: 11px; letter-spacing: .25em; text-transform: uppercase; color: rgba(255,255,255,.45); }
+.cap { width: 170px; height: 500px; border-radius: 100px; background: #303030; box-shadow: inset 11px -10px 20px #000, 0 20px 40px rgba(0,0,0,.4); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 30px 0; }
+.cap button { all: unset; cursor: pointer; position: relative; text-align: center; transition: all .35s; }
+
+/* 1. НЕОН: тонкие заглавные с разрядкой; выбранная светится голубым, слева точка */
+.neon button { font: 300 12px "Unbounded", sans-serif; letter-spacing: .22em; text-transform: uppercase; color: rgba(255,255,255,.38); padding: 6px 10px; }
+.neon button:hover { color: rgba(255,255,255,.85); letter-spacing: .28em; }
+.neon button.on { color: #e9f6ff; text-shadow: 0 0 6px var(--blue2), 0 0 18px var(--blue), 0 0 34px rgba(45,155,216,.6); }
+.neon button.on::before { content: ""; position: absolute; left: -10px; top: 50%; width: 5px; height: 5px; margin-top: -2.5px; border-radius: 50%; background: var(--blue2); box-shadow: 0 0 10px var(--blue2); }
+
+/* 2. ГРАВИРОВКА: буквы вдавлены в тёмный пластик; выбранная подсвечена изнутри красным, как кнопка LINK */
+.engr button { font: 600 15px "Josefin Sans", sans-serif; letter-spacing: .08em; color: #262626; text-shadow: 0 1px 0 rgba(255,255,255,.12), 0 -1px 0 rgba(0,0,0,.9); padding: 6px 12px; }
+.engr button:hover { color: #3a3a3a; }
+.engr button.on { color: #ff6a3d; text-shadow: 0 0 8px rgba(214,46,7,.9), 0 0 20px rgba(214,46,7,.55), 0 1px 0 rgba(0,0,0,.6); }
+
+/* 3. ТЕРМИНАЛ: моноширинный, строчные, «›» перед словом; выбранная — с мигающим курсором */
+.term button { font: 400 12.5px "JetBrains Mono", monospace; color: rgba(160,205,235,.45); text-transform: lowercase; padding: 5px 8px; }
+.term button::before { content: "› "; opacity: .5; }
+.term button:hover { color: rgba(200,230,250,.9); }
+.term button.on { color: #c9ecff; text-shadow: 0 0 8px rgba(45,155,216,.7); }
+.term button.on::after { content: "▍"; margin-left: 2px; color: var(--blue2); animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+/* 4. ОТ РУКИ: рукописный шрифт (в проекте уже подключён Caveat); выбранная подчёркнута мазком */
+.hand button { font: 500 21px "Caveat", cursive; color: rgba(255,255,255,.5); padding: 2px 10px 6px; transform: rotate(-2deg); }
+.hand button:nth-child(even) { transform: rotate(1.5deg); }
+.hand button:hover { color: #fff; }
+.hand button.on { color: #fff; font-weight: 700; }
+.hand button.on::after { content: ""; position: absolute; left: 6px; right: 6px; bottom: 2px; height: 7px; background: var(--red); border-radius: 50% 40% 60% 45%; opacity: .85; z-index: -1; transform: rotate(-1.5deg); }
+.hand button { z-index: 0; }
+
+/* 5. ПЕРЕЛИВ: жирный, по выбранной бежит блик голубое → белое → голубое */
+.shim button { font: 600 14px "Unbounded", sans-serif; letter-spacing: .04em; color: rgba(255,255,255,.3); padding: 6px 10px; }
+.shim button:hover { color: rgba(255,255,255,.75); }
+.shim button.on { color: transparent; background: linear-gradient(100deg, var(--blue) 20%, #fff 40%, var(--blue2) 55%, var(--blue) 80%) 0 0 / 250% 100%; -webkit-background-clip: text; background-clip: text; animation: sh 2.6s linear infinite; filter: drop-shadow(0 0 6px rgba(45,155,216,.5)); }
+@keyframes sh { to { background-position: -250% 0; } }
+</style>
+</head>
+<body>
+<h1>Капсула Hint-Cards · варианты текста</h1>
+<div class="row" id="row"></div>
+<script>
+const ITEMS = ['About', 'Git', 'React hooks', 'React Mobx', 'Lodash', 'Javascript', 'Node'];
+const V = [['neon', '1 · неон'], ['engr', '2 · гравировка'], ['term', '3 · терминал'], ['hand', '4 · от руки'], ['shim', '5 · перелив']];
+const row = document.getElementById('row');
+V.forEach(([cls, name]) => { const v = document.createElement('div'); v.className = 'v'; const cap = document.createElement('div'); cap.className = 'cap ' + cls;
+  ITEMS.forEach((t, i) => { const b = document.createElement('button'); b.textContent = t; if (i === 1) b.classList.add('on'); b.onclick = () => { cap.querySelectorAll('button').forEach(x => x.classList.remove('on')); b.classList.add('on'); }; cap.appendChild(b); });
+  const p = document.createElement('p'); p.textContent = name; v.append(cap, p); row.appendChild(v); });
+</script>
+</body>
+</html>
