@@ -15984,3 +15984,8 @@
 {"t": 1792827179622, "sym": "KATUSDT", "side": "long", "usd": 11.0, "px": 0.004583, "src": "okx"}
 {"t": 1792827624252, "sym": "RSRUSDT", "side": "long", "usd": 55.21, "px": 0.001673, "src": "okx"}
 {"t": 1792827637407, "sym": "LAUSDT", "side": "long", "usd": 37.13, "px": 0.06514, "src": "okx"}
+{"t": 1792827803049, "sym": "AXISUSDT", "side": "long", "usd": 61.71, "px": 0.2805, "src": "okx"}
+{"t": 1792827814240, "sym": "AXISUSDT", "side": "long", "usd": 254.53, "px": 0.2797, "src": "okx"}
+{"t": 1792828045255, "sym": "ADAUSDT", "side": "long", "usd": 710.64, "px": 0.2084, "src": "okx"}
+{"t": 1792828208477, "sym": "NEARUSDT", "side": "long", "usd": 2723.49, "px": 4.585, "src": "okx"}
+{"t": 1792828314639, "sym": "LAUSDT", "side": "long", "usd": 139.3, "px": 0.06479, "src": "okx"}
