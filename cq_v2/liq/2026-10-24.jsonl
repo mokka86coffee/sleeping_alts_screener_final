@@ -15896,3 +15896,6 @@
 {"t": 1792807302920, "sym": "IRYSUSDT", "side": "short", "usd": 9.47, "px": 0.09469, "src": "okx"}
 {"t": 1792818620056, "sym": "PUMPUSDT", "side": "long", "usd": 25.48, "px": 0.004247, "src": "okx"}
 {"t": 1792807589061, "sym": "IRYSUSDT", "side": "long", "usd": 119.35, "px": 0.09946, "src": "okx"}
+{"t": 1792818792247, "sym": "DOODUSDT", "side": "long", "usd": 1.61, "px": 0.001611, "src": "okx"}
+{"t": 1792819009425, "sym": "AKEUSDT", "side": "long", "usd": 3.44, "px": 0.03441, "src": "okx"}
+{"t": 1792819220637, "sym": "INITUSDT", "side": "short", "usd": 630.17, "px": 0.14193, "src": "okx"}
