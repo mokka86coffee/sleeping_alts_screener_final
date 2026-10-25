@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Бурундук · босс</title>
+<!-- 25.10 владелец: «а ты можешь бахнуть игру Чип и Дейл с Денди? только не всю» → «давай вот один экран сделаем без перехода, и ящики, чтобы можно было брать и кидать».
+     Своя игра в духе 8-бит (персонажи и графика оригинала не копируются): один экран — арена с боссом-башней, ящики берём и кидаем.
+     Управление: ← → ходить, Z / пробел — прыжок, X — взять / бросить ящик (с ↑ — бросок вверх дугой), M — звук, R — заново. -->
+<style>
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; font-family: monospace; }
+canvas { image-rendering: pixelated; image-rendering: crisp-edges; background: #000; }
+#help { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); color: #888; font-size: 12px; letter-spacing: .05em; white-space: nowrap; }
+#help b { color: #fcfcfc; font-weight: normal; }
+</style>
+</head>
+<body>
+<canvas id="c" width="256" height="240"></canvas>
+<div id="help"><b>← →</b> ходить · <b>Z</b> прыжок · <b>X</b> взять / бросить (<b>↑+X</b> — вверх) · <b>M</b> звук · <b>R</b> заново</div>
+<script>
+(() => {
+  const cv = document.getElementById('c'), g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
+  const W = 256, H = 240, FLOOR = 208;
+  function fit() { const k = Math.max(1, Math.floor(Math.min(innerWidth / W, (innerHeight - 40) / H))); cv.style.width = W * k + 'px'; cv.style.height = H * k + 'px'; }
+  addEventListener('resize', fit); fit();
+
+  // ── палитра в духе Денди и спрайты (рисованы здесь, символ = цвет)
+  const PAL = { k: '#000000', b: '#c84c0c', d: '#7c0800', t: '#fcbcb0', w: '#fcfcfc', h: '#ac7c00', H: '#503000', j: '#0058f8', J: '#0000bc', r: '#f83800', y: '#f8b800' };
+  const HERO = {
+    stand: ['....hhhhhh....', '...hhhhhhhh...', '.HHhhhhhhhhHH.', '..kbbbbbbbbk..', '.kbbwwbbwwbbk.', '.kbbwkbbwkbbk.', '.kbbbbttbbbbk.', '..kbttkkttbk..', '...kbttttbk...', '..kjjjjjjjjk..', '.kbjjjjjjjjbk.', '.kbkjjJJjjkbk.', '..k.jjjjjj.k..', '...kbbkkbbk...', '..kbbk..kbbk..', '..kkk....kkk..'],
+    walk: ['....hhhhhh....', '...hhhhhhhh...', '.HHhhhhhhhhHH.', '..kbbbbbbbbk..', '.kbbwwbbwwbbk.', '.kbbwkbbwkbbk.', '.kbbbbttbbbbk.', '..kbttkkttbk..', '...kbttttbk...', '..kjjjjjjjjk..', '.kbjjjjjjjjbk.', '.kbkjjJJjjkbk.', '..k.jjjjjj.k..', '...kbbkbbk....', '....kbbkbbk...', '...kkk.kkk....'],
+    jump: ['....hhhhhh....', '...hhhhhhhh...', '.HHhhhhhhhhHH.', '..kbbbbbbbbk..', '.kbbwwbbwwbbk.', '.kbbwkbbwkbbk.', '.kbbbbttbbbbk.', '..kbttkkttbk..', 'kk.kbttttbk.kk', 'kbkjjjjjjjjkbk', '.kkjjjjjjjjkk.', '...kjjJJjjk...', '...kjjjjjjk...', '...kbbkkbbk...', '...kbbkkbbk...', '...kkk..kkk...'],
+    lift: ['.kk.hhhhhh.kk.', '.kbhhhhhhhhbk.', '.kHhhhhhhhhHk.', '..kbbbbbbbbk..', '.kbbwwbbwwbbk.', '.kbbwkbbwkbbk.', '.kbbbbttbbbbk.', '..kbttkkttbk..', '...kbttttbk...', '..kjjjjjjjjk..', '..kjjjjjjjjk..', '...kjjJJjjk...', '..k.jjjjjj.k..', '...kbbkkbbk...', '..kbbk..kbbk..', '..kkk....kkk..'],
+  };
+  const TAIL = ['..kkk.', '.kbbbk', 'kbbdbk', 'kbdbk.', 'kbbk..', '.kbk..', '..kk..'];
+  const GLOVE = ['..kkk.kk..', '.kwwwkwwk.', 'kwwwwwwwwk', 'kwwwwwwwwk', '.kwwwwwwk.', '..kkkkkk..'];
+  const FIST = ['.kkkkkk.', 'kwwkwwwk', 'kwwkwwwk', 'kwwwwwwk', '.kwwwwk.', '..kkkk..'];
+  const spr = (rows, x, y, flip) => { for (let j = 0; j < rows.length; j++) { const r = rows[j]; for (let i = 0; i < r.length; i++) { const ch = r[flip ? r.length - 1 - i : i]; if (ch !== '.') { g.fillStyle = PAL[ch]; g.fillRect(Math.round(x) + i, Math.round(y) + j, 1, 1); } } } };
+
+  // ── звук: квадратные волны, по умолчанию выключен (M)
+  let AC = null, SND = false;
+  function beep(f, d = .08, type = 'square', vol = .05, slide = 0) { if (!SND) return; if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); const t = AC.currentTime, o = AC.createOscillator(), v = AC.createGain(); o.type = type; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(40, f * slide), t + d); v.gain.setValueAtTime(vol, t); v.gain.exponentialRampToValueAtTime(.0001, t + d); o.connect(v); v.connect(AC.destination); o.start(t); o.stop(t + d + .02); }
+  const MEL = [523, 0, 659, 0, 784, 659, 523, 0, 587, 0, 698, 0, 880, 698, 587, 0, 523, 0, 659, 0, 784, 880, 988, 0, 1047, 988, 880, 784, 659, 587, 523, 0], BASS = [131, 131, 165, 165, 147, 147, 175, 175];
+  let musT = 0, musI = 0;
+  function music(dt) { if (!SND || state !== 'play') return; musT -= dt; if (musT > 0) return; musT = .14; const n = MEL[musI % MEL.length]; if (n) beep(n, .1, 'square', .025); if (musI % 4 === 0) beep(BASS[(musI / 4 | 0) % BASS.length], .25, 'triangle', .05); musI++; }
+
+  // ── мир
+  const keys = {}; let state, P, crates, parts, boss, shake, spawnT, msgT;
+  const TOWER = { x: 160, w: 30, top: 100 };
+  function reset() {
+    P = { x: 30, y: FLOOR - 16, vx: 0, vy: 0, w: 12, h: 16, face: 1, on: true, hold: null, hp: 3, inv: 0, anim: 0 };
+    crates = []; parts = []; shake = 0; spawnT = 0; msgT = 0; state = 'play';
+    for (const x of [64, 104]) crates.push({ x, y: FLOOR - 16, vx: 0, vy: 0, w: 16, h: 16, state: 'rest' });
+    boss = { hp: 5, flash: 0, t: 0, dead: 0, arms: [
+      { side: -1, y: 118, ph: 0, max: 112, kind: 'glove', stun: 0 },
+      { side: -1, y: 186, ph: 2.1, max: 120, kind: 'fist', stun: 0 },
+      { side: 1, y: 140, ph: 1.0, max: 50, kind: 'glove', stun: 0 },
+      { side: -1, y: 152, ph: 3.6, max: 96, kind: 'saw', stun: 0 } ] };
+  }
+  reset();
+  addEventListener('keydown', e => { const k = e.key.toLowerCase(); if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown', ' '].includes(k)) e.preventDefault();
+    if (!keys[k]) { if (k === 'z' || k === ' ' || k === 'я') jump(); if (k === 'x' || k === 'ч') grab(); if (k === 'm' || k === 'ь') { SND = !SND; if (SND) beep(880, .1); } if (k === 'r' || k === 'к') reset(); }
+    keys[k] = true; });
+  addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+  const hit = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  function jump() { if (state !== 'play' || !P.on) return; P.vy = P.hold ? -4.2 : -4.8; P.on = false; beep(330, .12, 'square', .04, 2.2); }
+  function grab() { if (state !== 'play') return;
+    if (P.hold) { const c = P.hold, up = keys.arrowup || keys.w || keys['ц']; P.hold = null; c.state = 'fly'; c.x = P.x - 2; c.y = P.y - 16;   // бросок
+      if (up) { c.vx = P.face * 1.6; c.vy = -6.4; } else { c.vx = P.face * 4.2; c.vy = -1.6; } beep(220, .1, 'square', .05, .5); return; }
+    for (const c of crates) if (c.state === 'rest' && Math.abs((c.x + 8) - (P.x + 6)) < 14 && Math.abs((c.y + 16) - (P.y + 16)) < 6) { c.state = 'held'; P.hold = c; beep(660, .06); return; } }
+  function burst(x, y, col, n = 10) { for (let i = 0; i < n; i++) parts.push({ x, y, vx: (Math.random() - .5) * 3, vy: -Math.random() * 3, t: 0, col }); }
+  function hurt() { if (P.inv > 0 || state !== 'play') return; P.hp--; P.inv = 1.6; P.vy = -3; P.vx = -P.face * 2; shake = 6; beep(110, .3, 'sawtooth', .06, .5);
+    if (P.hold) { P.hold.state = 'fly'; P.hold.vx = 0; P.hold.vy = 0; P.hold = null; } if (P.hp <= 0) { state = 'over'; msgT = 0; } }
+  function armBox(a) { const L = armLen(a), x0 = a.side < 0 ? TOWER.x : TOWER.x + TOWER.w, ex = x0 + a.side * L; return { x: a.side < 0 ? ex - 12 : ex, y: a.y - 6, w: 12, h: 11, ex }; }
+  function armLen(a) { if (a.stun > 0) return 6; const s = (Math.sin(boss.t * (a.kind === 'fist' ? 1.6 : 1.15) + a.ph) + 1) / 2; return 6 + a.max * Math.pow(s, a.kind === 'fist' ? 3 : 1.6); }
+
+  // ── шаг
+  let last = performance.now();
+  function step(dt) {
+    if (state === 'play') {
+      boss.t += dt; boss.flash = Math.max(0, boss.flash - dt); boss.arms.forEach(a => a.stun = Math.max(0, a.stun - dt));
+      const sp = P.hold ? 1.3 : 1.7, L = keys.arrowleft || keys.a || keys['ф'], R = keys.arrowright || keys.d || keys['в'];
+      if (P.inv < 1.3) P.vx = L ? -sp : R ? sp : P.vx * .7; if (L) P.face = -1; if (R) P.face = 1;
+      P.vy = Math.min(5, P.vy + .25); P.x += P.vx; P.y += P.vy; P.on = false;
+      if (P.y + P.h >= FLOOR) { P.y = FLOOR - P.h; P.vy = 0; P.on = true; }
+      for (const c of crates) if (c.state === 'rest' && P.vy >= 0 && P.x + P.w > c.x + 2 && P.x < c.x + c.w - 2 && P.y + P.h >= c.y && P.y + P.h <= c.y + 6) { P.y = c.y - P.h; P.vy = 0; P.on = true; }   // можно встать на ящик
+      P.x = Math.max(4, Math.min(W - 4 - P.w, P.x)); if (P.x + P.w > TOWER.x && P.x < TOWER.x + TOWER.w && P.y + P.h > TOWER.top) P.x = P.x + P.w / 2 < TOWER.x + TOWER.w / 2 ? TOWER.x - P.w : TOWER.x + TOWER.w;   // башня — стена
+      P.inv = Math.max(0, P.inv - dt); P.anim += Math.abs(P.vx) * dt * 6;
+      // руки босса
+      for (const a of boss.arms) { const b = armBox(a); if (hit(P, b)) hurt(); }
+      // ящики
+      for (const c of crates) {
+        if (c.state === 'held') { c.x = P.x - 2; c.y = P.y - 15; continue; }
+        if (c.state === 'rest' && c.y + c.h >= FLOOR) continue;
+        c.vy = Math.min(6, c.vy + (c.state === 'fly' ? .22 : .3)); c.x += c.vx; c.y += c.vy;
+        if (c.state === 'fly') {
+          const btn = { x: TOWER.x + 7, y: TOWER.top - 12, w: 16, h: 12 };
+          if (boss.hp > 0 && hit(c, btn)) { boss.hp--; boss.flash = .5; shake = 8; burst(c.x + 8, c.y + 8, '#00a800', 14); c.dead = true; beep(1200, .25, 'square', .06, .3); if (boss.hp <= 0) { boss.dead = .01; state = 'win'; msgT = 0; } continue; }
+          let broke = false; for (const a of boss.arms) { const b = armBox(a); if (a.stun <= 0 && hit(c, b)) { a.stun = 1.8; broke = true; } }
+          if (!broke && c.x + c.w > TOWER.x && c.x < TOWER.x + TOWER.w && c.y + c.h > TOWER.top) broke = true;
+          if (broke || c.x < -16 || c.x > W) { burst(c.x + 8, c.y + 8, '#c84c0c', 10); c.dead = true; beep(140, .12, 'noise' === 1 ? 'square' : 'sawtooth', .05, .6); continue; }
+        }
+        if (c.y + c.h >= FLOOR) { c.y = FLOOR - c.h; c.vy = 0; c.vx = 0; if (c.state === 'fly') { burst(c.x + 8, c.y + 12, '#c84c0c', 8); c.dead = true; } else c.state = 'rest'; }
+        if (c.state === 'fall' && hit(c, P) && c.vy > 2) hurt();
+      }
+      crates = crates.filter(c => !c.dead);
+      spawnT -= dt; if (spawnT <= 0 && crates.length < 3) { spawnT = 3.5; const x = 12 + Math.random() * (TOWER.x - 40); crates.push({ x, y: -16, vx: 0, vy: 0, w: 16, h: 16, state: 'fall' }); beep(500, .05); }   // сверху падают новые ящики
+    } else { msgT += dt; if (state === 'win') { boss.dead += dt; if (Math.random() < .5) burst(TOWER.x + Math.random() * TOWER.w, TOWER.top + Math.random() * (FLOOR - TOWER.top), ['#f83800', '#f8b800', '#fcfcfc'][Math.random() * 3 | 0], 3); } }
+    for (const p of parts) { p.t += dt; p.vy += .15; p.x += p.vx; p.y += p.vy; } parts = parts.filter(p => p.t < .8);
+    shake = Math.max(0, shake - dt * 30);
+  }
+
+  // ── рисование
+  function crate(x, y) { x = Math.round(x); y = Math.round(y); g.fillStyle = '#000'; g.fillRect(x, y, 16, 16); g.fillStyle = '#c84c0c'; g.fillRect(x + 1, y + 1, 14, 14); g.fillStyle = '#fc9838'; g.fillRect(x + 2, y + 2, 12, 2); g.fillRect(x + 2, y + 2, 2, 12);
+    g.fillStyle = '#7c0800'; g.fillRect(x + 4, y + 7, 8, 2); g.fillRect(x + 7, y + 4, 2, 8); g.fillRect(x + 12, y + 3, 2, 11); g.fillRect(x + 3, y + 12, 11, 2); }
+  function draw() {
+    const sx = shake ? (Math.random() - .5) * shake : 0; g.setTransform(1, 0, 0, 1, Math.round(sx), 0);
+    g.fillStyle = '#000'; g.fillRect(-8, 0, W + 16, H);
+    for (let i = 0; i < 40; i++) { g.fillStyle = i % 3 ? '#202020' : '#3c3c3c'; g.fillRect((i * 53) % W, (i * 37) % 180, 1, 1); }   // искорки фона
+    // пол: металлические плиты с заклёпками
+    g.fillStyle = '#747474'; g.fillRect(0, FLOOR, W, H - FLOOR); g.fillStyle = '#bcbcbc'; g.fillRect(0, FLOOR, W, 2); g.fillStyle = '#3c3c3c'; g.fillRect(0, FLOOR + 14, W, 2);
+    for (let x = 0; x < W; x += 32) { g.fillStyle = '#3c3c3c'; g.fillRect(x + 30, FLOOR + 2, 2, 12); g.fillStyle = '#bcbcbc'; g.fillRect(x + 4, FLOOR + 6, 2, 2); g.fillRect(x + 24, FLOOR + 6, 2, 2); }
+    g.fillStyle = '#545454'; g.fillRect(0, FLOOR + 16, W, H - FLOOR - 16); g.fillStyle = '#3c3c3c'; for (let x = 0; x < W; x += 16) g.fillRect(x, FLOOR + 20 + (x / 16 % 2) * 6, 10, 2);
+    // босс: башня из розовых тарелок, кнопка наверху, руки
+    if (!(state === 'win' && boss.dead > 2.2)) {
+      const fl = boss.flash > 0 && (boss.flash * 20 | 0) % 2;
+      for (let y = TOWER.top; y < FLOOR; y += 6) { const wob = Math.round(Math.sin(boss.t * 3 + y * .2) * 1); g.fillStyle = fl ? '#fcfcfc' : '#000'; g.fillRect(TOWER.x - 2 + wob, y, TOWER.w + 4, 6); g.fillStyle = fl ? '#fcfcfc' : '#f878f8'; g.fillRect(TOWER.x - 1 + wob, y + 1, TOWER.w + 2, 3); g.fillStyle = fl ? '#fcfcfc' : '#a8005c'; g.fillRect(TOWER.x - 1 + wob, y + 4, TOWER.w + 2, 1); }
+      g.fillStyle = '#000'; g.fillRect(TOWER.x + 6, TOWER.top - 12, 18, 12); g.fillStyle = boss.flash > 0 ? '#f83800' : '#00a800'; g.fillRect(TOWER.x + 7, TOWER.top - 11, 16, 11); g.fillStyle = boss.flash > 0 ? '#fcbcb0' : '#b8f818'; g.fillRect(TOWER.x + 9, TOWER.top - 10, 5, 3);   // кнопка
+      for (const a of boss.arms) { const b = armBox(a), x0 = a.side < 0 ? TOWER.x : TOWER.x + TOWER.w;
+        for (let x = Math.min(x0, b.ex); x < Math.max(x0, b.ex); x += 6) { g.fillStyle = '#000'; g.fillRect(Math.round(x), a.y - 2, 6, 5); g.fillStyle = a.stun > 0 ? '#747474' : '#bcbcbc'; g.fillRect(Math.round(x) + 1, a.y - 1, 4, 3); }   // звенья
+        const flip = a.side > 0;
+        if (a.kind === 'saw') { const r = 6, cx = b.x + 6, cy = a.y; g.fillStyle = '#000'; g.fillRect(cx - r, cy - 3, r * 2, 7); g.fillStyle = '#a8543c'; g.fillRect(cx - r + 1, cy - 2, r * 2 - 2, 2); g.fillStyle = '#7c0800'; for (let i = 0; i < 6; i++) g.fillRect(cx - r + 1 + ((i * 2 + (boss.t * 20 | 0)) % (r * 2 - 2)), cy, 1, 2); }
+        else spr(a.kind === 'glove' ? GLOVE : FIST, b.x + (a.kind === 'fist' ? 2 : 1), a.y - 5, !flip); }
+    }
+    // ящики
+    for (const c of crates) if (c.state !== 'held') crate(c.x, c.y);
+    // герой (мигает после удара)
+    if (!(P.inv > 0 && (P.inv * 12 | 0) % 2)) { const f = P.hold ? HERO.lift : !P.on ? HERO.jump : Math.abs(P.vx) > .3 && (P.anim | 0) % 2 ? HERO.walk : HERO.stand;
+      spr(TAIL, P.face > 0 ? P.x - 4 : P.x + P.w - 2, P.y + 7, P.face < 0); spr(f, P.x - 1, P.y, P.face < 0); if (P.hold) crate(P.hold.x, P.hold.y); }
+    for (const p of parts) { g.fillStyle = p.col; g.fillRect(Math.round(p.x), Math.round(p.y), 2, 2); }
+    // интерфейс: сердечки, полоса босса
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    for (let i = 0; i < 3; i++) { const x = 8 + i * 11, y = 8, on = i < P.hp; g.fillStyle = '#000'; g.fillRect(x, y, 9, 8); g.fillStyle = on ? '#f83800' : '#3c3c3c'; g.fillRect(x + 1, y + 1, 3, 3); g.fillRect(x + 5, y + 1, 3, 3); g.fillRect(x + 1, y + 3, 7, 2); g.fillRect(x + 2, y + 5, 5, 1); g.fillRect(x + 3, y + 6, 3, 1); }
+    g.font = '8px monospace'; g.textBaseline = 'top'; g.fillStyle = '#fcfcfc'; g.fillText('БОСС', W - 78, 8); for (let i = 0; i < 5; i++) { g.fillStyle = i < boss.hp ? '#f878f8' : '#3c3c3c'; g.fillRect(W - 50 + i * 9, 9, 7, 6); }
+    g.fillStyle = SND ? '#f8b800' : '#545454'; g.fillText(SND ? '♪' : '♪̸', W - 12, 22);
+    if (state !== 'play' && msgT > .6) { const t = state === 'win' ? 'ПОБЕДА!' : 'ИГРА ОКОНЧЕНА'; g.fillStyle = '#000'; g.fillRect(W / 2 - 60, 84, 120, 34); g.fillStyle = state === 'win' ? '#f8b800' : '#f83800'; g.textAlign = 'center'; g.fillText(t, W / 2, 90); g.fillStyle = '#fcfcfc'; g.fillText('R — ЗАНОВО', W / 2, 104); g.textAlign = 'left'; }
+  }
+  function loop(t) { const dt = Math.min(.05, (t - last) / 1000); last = t; step(dt); music(dt); draw(); requestAnimationFrame(loop); }
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
