@@ -15945,3 +15945,4 @@
 {"t": 1792822861835, "sym": "CPUSDT", "side": "long", "usd": 34.02, "px": 0.010007, "src": "okx"}
 {"t": 1792822865225, "sym": "CPUSDT", "side": "long", "usd": 189.18, "px": 0.009957, "src": "okx"}
 {"t": 1792822904811, "sym": "PEPEUSDT", "side": "long", "usd": 1117.76, "px": 4.489e-06, "src": "okx"}
+{"t": 1792823248044, "sym": "LIGHTUSDT", "side": "short", "usd": 141.42, "px": 0.2357, "src": "okx"}
