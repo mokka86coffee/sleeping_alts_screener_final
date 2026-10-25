@@ -56,11 +56,12 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
   function steelBox(x, y) { x = Math.round(x); y = Math.round(y); g.fillStyle = C.k; g.fillRect(x, y, 16, 16); g.fillStyle = C.w; g.fillRect(x + 1, y + 1, 14, 14); g.fillStyle = C.l; g.fillRect(x + 2, y + 2, 12, 12);
     const F = ['....kk....', '...kwwk...', '.kkkwwkkk.', 'kwwkkkkwwk', 'kwwk..kwwk', '.kkkkkkkk.', '...kwwk...', '...kwwk...', '....kk....']; spr(F, x + 3, y + 3); g.fillStyle = C.m; g.fillRect(x + 1, y + 14, 14, 1); g.fillRect(x + 14, y + 1, 1, 14); }
   function heart(x, y, on) { spr(['.kk.kk.', 'krrkrrk', 'krRrrrk', 'krrrrrk', '.krrrk.', '..krk..', '...k...'].map(r => on ? r : r.replace(/[rR]/g, 'n')), x, y); }
-  // собака-робот 24×18 (своя): тяжёлая челюсть, красный глаз, колёса
+  // собака-робот 32×24 (своя): крупнее героя — купол-голова, красный глаз, зубастая челюсть, два колеса
+  const DOG = ['..........kkkkkkk...............', '........kkwwwlllllkk............', '.......kwwllllllllllk...........', '......kwwllllllllllllk..........', '.....kwwlllkkkkklllllk..........', '.....kwllkkrrRRkkllllk.....kkk..', '....kwlllkrrrrRkklllllkkkkkllk..', '....kwlllkkrrrkklllllllllllllk..', '...kkwllllkkkkkllllmmmmmllllk...', '..kwwklllllllllllmmmmmmmmlllk...', '.kwwwwkkkkkkkkklmmmmmmmmmmllk...', '.kwkwkwkwkwkwkkmmmmmmmmmmmlk....', '.kwwwwwwwwwwwwkmmmllllmmmmlk....', '..kwkwkwkwkwkkmmmlwwwlmmmmlk....', '..kkwwwwwwwwwkmmmllllmmmmllk....', '...kkkkkkkkkkmmmmmmmmmmmlllk....', '............kmmmmmmmmmmlllk.....', '...........kkkkkkkkkkkkkkkk.....', '..........kknnnk....kknnnk......', '.........knnllnnk..knnllnnk.....', '.........knlkklnk..knlkklnk.....', '.........knnllnnk..knnllnnk.....', '..........knnnk.....knnnk.......', '...........kkk.......kkk........'];
   function dog(x, y, face, t, hurt) { const f = face > 0; x = Math.round(x); y = Math.round(y);
-    const D = ['......kkkkkk............', '....kklllllkk...........', '...kllwwlllllkk.........', '..klwwlllllllllk...kkk..', '..klwlkkkklllllkk.klllk.', '.kllwkrrRklllllllkkllk..', '.klllkrrrkllmmllllllk...', 'kklllkkkkllmmmmlllllk...', 'kwklllllllmmmmmllllk....', 'kwwkkkkkkkkmmmmllllk....', 'kwkwkwkwkwkkmmmlllk.....', '.kwwwwwwwwwkkmmlllk.....', '..kkkkkkkkkkkmmmllk.....', '...........kmmmmlk......', '..........kkkkkkkk......', '.........kkn.kkn.k......', '.........knnk.knnk......', '..........kk...kk.......'];
+    const D = DOG;
     spr(hurt ? D.map(r => r.replace(/[lmw]/g, 'R')) : D, x, y, f);
-    g.fillStyle = C.l; const sp = (t * 12 | 0) % 2; g.fillRect(x + (f ? 24 - 11 : 11) - (sp ? 0 : 1), y + 16, 1, 1); g.fillRect(x + (f ? 24 - 15 : 15) - (sp ? 0 : 1), y + 16, 1, 1); }   // спицы колёс крутятся
+    g.fillStyle = C.w; const sp = (t * 10 | 0) % 2, px = i => x + (f ? 31 - i : i); for (const cx of [11, 21]) { g.fillRect(px(cx + (sp ? 0 : 3)), y + 19, 1, 1); g.fillRect(px(cx + (sp ? 3 : 0)), y + 21, 1, 1); } }   // спицы колёс крутятся
 
   // ── статичный фон: небо, стена, забор, столб с болтами, мостовая, бак — рисуется один раз
   const BG = document.createElement('canvas'); BG.width = W; BG.height = H; const bg = BG.getContext('2d');
@@ -136,7 +137,7 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
       for (const c of items) {
         if (c.st === 'held') { c.x = P.x - 2; c.y = P.y - 15; continue; }
         const cb = c.y + c.h; c.vy = Math.min(6, c.vy + (c.st === 'fly' ? .22 : .3)); c.x += c.vx; c.y += c.vy;
-        if (c.st === 'fly') { let boom = false; for (const d of dogs) if (!d.dead && hit(c, d)) { d.dead = .01; score++; shake = 5; burst(d.x + 12, d.y + 9, C.l, 16); burst(d.x + 12, d.y + 9, C.y, 8); beep(900, .2, 'square', .06, .3); boom = true; }
+        if (c.st === 'fly') { let boom = false; for (const d of dogs) if (!d.dead && hit(c, d)) { d.dead = .01; score++; shake = 5; burst(d.x + 16, d.y + 12, C.l, 20); burst(d.x + 16, d.y + 12, C.y, 10); beep(900, .2, 'square', .06, .3); boom = true; }
           if (!boom) for (const w of WALLS.concat(items.filter(o => o !== c && o.st === 'rest'))) if (hit(c, w)) boom = true; if (c.x < -16 || c.x > W) boom = true;
           if (boom) { if (c.kind === 'steel') { c.vx = -c.vx * .3; c.st = 'fall'; } else { burst(c.x + 8, c.y + 8, c.kind === 'apple' ? C.r : C.O, 10); c.dead = true; beep(140, .12, 'sawtooth', .05, .6); } continue; } }
         if (c.vy >= 0) { const p = land(c, cb); if (p) { c.y = p.y - c.h; if (c.st === 'fly' && c.kind !== 'steel') { burst(c.x + 8, c.y + 12, c.kind === 'apple' ? C.r : C.O, 8); c.dead = true; beep(140, .1, 'sawtooth', .04, .6); } else { c.st = 'rest'; c.vx = 0; c.vy = 0; } } }
@@ -145,10 +146,10 @@ canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edge
       items.filter(c => c.dead).forEach(c => timers.back.push({ t: 6, home: c.home })); items = items.filter(c => !c.dead);
       timers.back.forEach(b => { b.t -= dt; if (b.t <= 0) { const h = HOME[b.home]; items.push({ ...h, home: b.home, w: 16, h: 16, y: -16, vx: 0, vy: 0, st: 'fall' }); } }); timers.back = timers.back.filter(b => b.t > 0);   // разбитое возвращается сверху
       // собаки-роботы: выезжают из бака, катятся влево до столба и обратно
-      timers.dog -= dt; if (timers.dog <= 0 && dogs.filter(d => !d.dead).length < 2) { timers.dog = 5 + Math.random() * 3; dogs.push({ x: 228, y: 166 - 18, vx: 0, vy: -2, w: 24, h: 18, face: -1, on: false, t: 0, dead: 0 }); beep(300, .1, 'square', .04, .6); }
+      timers.dog -= dt; if (timers.dog <= 0 && dogs.filter(d => !d.dead).length < 2) { timers.dog = 5 + Math.random() * 3; dogs.push({ x: 224, y: 166 - 24, vx: 0, vy: -2, w: 32, h: 24, face: -1, on: false, t: 0, dead: 0 }); beep(300, .1, 'square', .04, .6); }
       for (const d of dogs) { d.t += dt; if (d.dead) { d.dead += dt; continue; } const db = d.y + d.h; d.vy = Math.min(5, d.vy + .25); d.y += d.vy; d.x += d.on ? d.face * .7 : d.face * .9;
         if (d.vy >= 0) { const p = land(d, db); if (p) { d.y = p.y - d.h; d.vy = 0; d.on = true; } }
-        if (walls(d)) d.face = -d.face; if (d.x < 2) { d.x = 2; d.face = 1; } if (d.x > 222 && d.on && d.y + d.h >= GROUND) { d.x = 222; d.face = -1; }
+        if (walls(d)) d.face = -d.face; if (d.x < 2) { d.x = 2; d.face = 1; } if (d.x > W - 34 && d.on && d.y + d.h >= GROUND) { d.x = W - 34; d.face = -1; }
         if (hit({ x: P.x + 2, y: P.y + 3, w: P.w - 4, h: P.h - 3 }, { x: d.x + 3, y: d.y + 3, w: d.w - 6, h: d.h - 3 })) hurt(); }
       dogs = dogs.filter(d => !(d.dead > .6));
       scoreEl.textContent = 'РОБОТОВ: ' + score;

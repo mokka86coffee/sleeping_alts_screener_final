@@ -16432,3 +16432,5 @@
 {"t": 1792839645645, "sym": "ORDERUSDT", "side": "short", "usd": 80.52, "px": 0.07669, "src": "okx"}
 {"t": 1792839669241, "sym": "ORDERUSDT", "side": "long", "usd": 200.85, "px": 0.07439, "src": "okx"}
 {"t": 1792839689833, "sym": "IRYSUSDT", "side": "long", "usd": 26.1, "px": 0.06526, "src": "okx"}
+{"t": 1792839726227, "sym": "ORDERUSDT", "side": "short", "usd": 384.85, "px": 0.07697, "src": "okx"}
+{"t": 1792839734026, "sym": "ORDERUSDT", "side": "short", "usd": 34.8, "px": 0.07734, "src": "okx"}
