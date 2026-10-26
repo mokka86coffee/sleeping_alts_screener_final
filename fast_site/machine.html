@@ -12,7 +12,7 @@
      или крутящегося генератора; транспортёр и генератор крутятся только от шестерёнок, а шестерёнки — от хомяка (бежит, если его напугать мячом),
      мотора, ветряка (дует включённый вентилятор) или водяного колеса (открыть кран). Все детали доступны во всех задачах.
      Графика, текстуры и физика свои (из оригинала ничего не копируется). Мышь — тащить; колесо / Q E — наклон; правая кнопка — развернуть; пробел — пуск. -->
-<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;600;700&family=Exo+2:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 html, body { margin: 0; height: 100%; background: radial-gradient(ellipse at 50% 40%, #2a2219, #0d0a07 75%); overflow: hidden; }
 canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate(-50%, -50%); display: block; cursor: default; border-radius: 6px; box-shadow: 0 0 0 1px #000, 0 24px 70px rgba(0,0,0,.75); }
@@ -157,6 +157,10 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
       balls: [['billiard', 70, 52]], fixed: [['mill', 330, 200], ['gen', 357, 200, 0, -1], ['lamp', 430, 320, 0, 1, { goal: 1 }]], sol: [['switch', 70, 300], ['fan', 150, 200, 0, 1]] },
     { title: 'ВЫСТРЕЛИ В НАСОС — ШАРИК ПОЗВОНИТ', goal: { type: 'bell' }, objs: [{ kind: 'rail', cx: 64, cy: 78, w: 108, h: 8, ang: 6 }],
       balls: [['billiard', 30, 63.5]], fixed: [['pump', 440, 368], ['bell', 460, 110, 0, 1, { goal: 1 }]], sol: [['gun', 195, 362, -75]] },
+    { title: 'РОСТОК ПОДНИМЕТ МЯЧ К ФЛАЖКУ', goal: { type: 'zone', x: 222, y: 236, w: 56, h: 40, ball: 'tennis' }, objs: [{ kind: 'pipe', cx: 150, cy: 22, w: 30, h: 44 }],
+      balls: [['billiard', 150, 52], ['tennis', 250, 347.5]], fixed: [['sprout', 250, 362], ['lamp', 296, 330]], sol: [['switch', 150, 330]] },
+    { title: 'БАМБУК ДОРАСТЁТ ДО ЗВОНКА', goal: { type: 'bell' }, objs: [{ kind: 'pipe', cx: 80, cy: 22, w: 30, h: 44 }],
+      balls: [['steel', 80, 52]], fixed: [['sprout', 250, 362], ['bell', 250, 222, 0, 1, { goal: 1 }], ['gen', 380, 300, 0, -1], ['hamster', 80, 140]], sol: [['lamp', 292, 340], ['chain', 3, 0, 2, 0]] },
   ];
 
   // обучающие задачи — в начале: только нужные детали и подсказка внизу
@@ -174,14 +178,15 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
     [42, { spring: 1 }, 'Пружина подбрасывает мяч в ту сторону, куда наклонена (колесо мыши). Закинь теннисный мяч в ведро.'],
     [26, { bump: 1 }, 'Отбойник отбрасывает мяч в сторону от места удара. Поставь его под падающий шар чуть сбоку.'],
     [16, { kettle: 1 }, 'Качели: тяжёлое падает на один край — подкидывает то, что лежит на другом. Поставь гирю повыше над левым краем.'],
-    [19, { dom: 3, pin: 2 }, 'Домино и кегли падают и валят соседних. Выстрой ряд от места, где остановится шар, — последняя заденет звонок.'],
+    [19, { dom: 10, pin: 2 }, 'Домино и кегли падают и валят соседних. Выстрой ряд от места, где остановится шар, — последняя заденет звонок.'],
     [41, { pend: 1 }, 'Маятник качается от начального наклона (колесо мыши). Его груз нажимает рычаги и спуски — пусть ударит по спуску пушки.'],
     [15, { ramp: 1 }, 'Мяч падает на ручку насоса — насос надувает воздушный шар. Шар летит вверх и скользит по наклонной доске снизу.'],
     [17, { switch: 1 }, 'Электромагнит с током тянет железо: ядро, гирю, стальной шарик. Включи ток.'],
-    [18, { gear: 2 }, 'Мотор с током крутит свою шестерню. Собери цепочку шестерён до ролика транспортёра — каждая следующая крутится в обратную сторону.'],
+    [18, { gear: 2, gearS: 2 }, 'Мотор с током крутит свою шестерню. Собери цепочку шестерён до ролика транспортёра. Шестерня, поставленная между двумя, сама встанет так, чтобы сцепиться с обеими (две зелёные точки).'],
     [21, { vacuum: 1, switch: 1 }, 'Пылесос с током всасывает мячи к себе. Правая кнопка мыши разворачивает его.'],
     [24, { switch: 1 }, 'Перчатка с током бьёт всё, что перед ней: мячи, кегли, домино.'],
     [27, { boost: 1, switch: 1 }, 'Ускоритель с током разгоняет мяч, который на нём лежит или по нему катится.'],
+    [55, { switch: 1 }, 'Росток растёт, пока рядом горит лампа, и поднимает то, что лежит на листьях. Включи лампе ток.'],
   ];
   for (const [i, inv, tip] of TUTOR) Object.assign(LEVELS0[i], { inv, tip });
   const LEVELS = TUTOR.map(t => LEVELS0[t[0]]).concat(LEVELS0.filter((_, i) => !TUTOR.some(t => t[0] === i)));
@@ -193,11 +198,11 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
     if (LV.goal.type === 'bucket') { const { x, y } = LV.goal; LEVEL.push({ cx: x - 23, cy: y + 17, w: 4, h: 36, kind: 'bucketwall' }, { cx: x + 23, cy: y + 17, w: 4, h: 36, kind: 'bucketwall' }, { cx: x, cy: y + 34, w: 50, h: 4, kind: 'bucketwall' }); }
     LEVEL = LEVEL.map(o => ({ ang: 0, e: o.kind === 'rim' ? .5 : o.kind === 'bucketwall' ? .2 : .3, ...o }));
     BALLS0 = LV.balls.map(([kind, x, y]) => ({ kind, x, y, lv: true, ...BALL[kind] }));
-    parts = (LV.fixed || []).map(([type, x, y, ang, dir, o]) => ({ type, x, y, ang: rad(ang ?? PARTS[type].def ?? 0), dir: dir || 1, hit: 0, fixed: true, ...(o || {}) })); mode = 'edit'; won = 0; confetti = []; drag = null; hover = null; pins = levelPins(); bgScale = 0; PG = 0; panelKey = ''; chains = []; chainMode = null; }
+    parts = (LV.fixed || []).map(([type, x, y, ang, dir, o]) => ({ type, x, y, ang: rad(ang ?? PARTS[type].def ?? 0), dir: dir || 1, hit: 0, fixed: true, ...(o || {}) })); mode = 'edit'; won = 0; confetti = []; drag = null; hover = null; pins = levelPins(); bgScale = 0; SCY = 0; panelKey = ''; ANIM.plq = 0; ANIM.tip = 0; chains = []; chainMode = null; listKey = ''; }
   const levelPins = () => (LV.pins || []).map(([x, y]) => ({ type: 'pin', fixed: true, bx: x, by: y, a: 0, w: 0, L: 34, W: 10, fallen: false, I: 2 * 34 * 34 / 3 })).concat((LV.saws || []).map(([x, y, a]) => ({ type: 'saw', fixed: true, bx: x, by: y, a, w: 0, fallen: false, I: 2304 })));
   let SOLVED = {}; try { SOLVED = JSON.parse(localStorage.getItem('tim_solved') || '{}'); } catch (e) {}
 
-  let chains = [], chainMode = null, parts = [], mode = 'edit', balls = [], world = [], pins = [], drops = [], won = 0, tRun = 0, drag = null, hover = null, mouse = { x: 0, y: 0 }, confetti = [], bgScale = 0, PG = 0, panelKey = '', GEARS = [];
+  let SCY = 0, tipOff = -1, TIPX = null, TIPB = null, chains = [], chainMode = null, parts = [], mode = 'edit', balls = [], world = [], pins = [], drops = [], won = 0, tRun = 0, drag = null, hover = null, mouse = { x: 0, y: 0 }, confetti = [], bgScale = 0, PG = 0, panelKey = '', GEARS = [];
 
   // ── физика: мяч против повёрнутого прямоугольника или круга
   function hitBox(b, o) {
@@ -223,7 +228,7 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
       if (o.kind === 'cactus' && (b.kind === 'balloon' || b.kind === 'beach')) { b.pop = 1; return; }
       if (o.kind === 'pump' && h.top && -vn > 50) P.fire = 1;
       if ((o.kind === 'trigger' || o.kind === 'tap') && -vn > 15) P.fire = 1;
-      if (o.kind === 'lever' && -vn > 15 && !P.on) { P.on = 1; beep(1200, .05, 'square', .06); beep(600, .08, 'square', .05); }
+      if (o.kind === 'lever' && -vn > 6 && !P.on) { P.on = 1; beep(1200, .05, 'square', .06); beep(600, .08, 'square', .05); }
       if (o.kind === 'hamster' && -vn > 25) { if (!(P.run > 0)) beep(1400, .1, 'sine', .05, 1.4); P.run = 14; }   // напуганный хомяк бежит
       let e = Math.min(b.e, o.e); if (o.kind === 'tramp' && h.top) { e = .97; P.hit = 1; if (-vn > 60) beep(180 + Math.random() * 40, .12, 'triangle', .07, 2); } else if (-vn < 45) e = 0; else if (-vn > 90) beep(o.kind === 'rim' ? 900 : b.kind === 'bowl' ? 90 : 220, .05, 'triangle', Math.min(.08, -vn / 4000));
       if (-vn > 170 && o.kind !== 'tramp' && o.kind !== 'cushion') puff(b.x - h.nx * b.r, b.y - h.ny * b.r);
@@ -254,12 +259,12 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
 
   function start() { mode = 'run'; won = 0; tRun = 0; confetti = []; puffs = []; drops = [];
     for (const p of parts) Object.assign(p, { hit: 0, fire: 0, cool: 0, pt: -9, gone: 0, acidHits: 0, on: 0, run: 0, spin: 0, om: 0, ra: 0, bs: 0, bd: 0, open: 0 });
-    for (const p of parts) p.src = ELEC.has(p.type) ? srcOf(p) : null;
+    for (const p of parts) { p.src = ELEC.has(p.type) ? srcOf(p) : null; p.gh = 4; }
     GEARS = meshes().concat(chains.filter(c => parts.includes(c.a) && parts.includes(c.b)).map(c => [c.a, hubsOf(c.a)[c.ai][2], c.b, hubsOf(c.b)[c.bi][2], 1]));
     balls = BALLS0.concat(parts.filter(p => PARTS[p.type].ball).map(p => ({ kind: PARTS[p.type].ball, x: p.x, y: p.y, ...BALL[PARTS[p.type].ball] }))).map(b => ({ ...b, vx: 0, vy: 0, rot: 0, py: b.y }));
     world = LEVEL.concat(...parts.map(p => (PARTS[p.type].bodies ? PARTS[p.type].bodies(p) : []).map(o => ({ part: p, ang: 0, e: .25, ...o }))));
     pins = levelPins().concat(parts.filter(p => PARTS[p.type].hinge).map(p => ({ part: p, a: 0, w: 0, fallen: false, pour: 0, ...PARTS[p.type].hinge(p) }))); }
-  function stop() { mode = 'edit'; won = 0; for (const p of parts) { p.hit = 0; p.gone = 0; p.on = 0; p.run = 0; } pins = levelPins(); drops = []; }
+  function stop() { mode = 'edit'; won = 0; for (const p of parts) { p.hit = 0; p.gone = 0; p.on = 0; p.run = 0; p.gh = 4; } pins = levelPins(); drops = []; }
   function win() { won = tRun; SOLVED[LI] = 1; panelKey = ''; try { localStorage.setItem('tim_solved', JSON.stringify(SOLVED)); } catch (e) {} winTune();
     const gz = LV.goal.type === 'zone', gx = HOOP ? HOOP.x : LV.goal.type === 'bucket' ? LV.goal.x : gz ? LV.goal.x + LV.goal.w / 2 : 250, gy = HOOP ? HOOP.y : LV.goal.type === 'bucket' ? LV.goal.y : gz ? LV.goal.y : 200;
     for (let i = 0; i < 110; i++) confetti.push({ x: gx, y: gy, vx: (Math.random() - .5) * 280, vy: -Math.random() * 320 - 60, c: ['#ffd23f', '#ff5e5b', '#3bceac', '#fff', '#7aa2ff'][i % 5], t: 0 }); }
@@ -277,10 +282,15 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
         const tx = p.bx + Math.sin(p.a) * p.L, ty = p.by - Math.cos(p.a) * p.L;
         const hitO = Math.abs(p.a) > .15 && world.find(o => inBox(tx, ty, o)); if (Math.abs(p.a) > 1.5 || hitO) { if (hitO && POKE.has(hitO.kind)) poke(hitO); p.fallen = true; p.w = 0; beep(130, .08, 'triangle', .06); }
         if (Math.abs(p.w) > .3) for (const o of world) if (o.kind === 'bell' && inBox(tx, ty, o, 1)) { if (!o.part.rung) beep(1568, .7, 'sine', .1); o.part.rung = 1; o.part.hit = 1; }
-        if (Math.abs(p.w) > .3) for (const q of pins) if (q !== p && q.type === 'pin' && !q.fallen && inBox(tx, ty, pinBox(q), 1)) { q.w += p.w * .8; p.w *= .5; } }   // кегля валит кеглю
+        if (Math.abs(p.w) > .3) for (const q of pins) if (q !== p && q.type === 'pin' && !q.fallen && inBox(tx, ty, pinBox(q), 3)) { q.w += p.w * .8; p.w *= .5; } }   // кегля валит кеглю
       if (p.acid && Math.abs(p.a) > .9 && p.pour < 2.4) { p.pour += dt; if (Math.random() < .45) { const s = Math.sin(p.a), c = Math.cos(p.a); drops.push({ x: p.bx + s * p.L, y: p.by - c * p.L, vx: s * 40 + (Math.random() - .5) * 10, vy: 0, acid: 1 }); } } }   // колба опрокинулась — льётся кислота
     for (const p of pins) { if (p.type === 'saw') continue; let px, py, m = 1; if (p.type === 'pend') { if (Math.abs(p.w) < .5) continue; px = p.bx - Math.sin(p.a) * p.L; py = p.by + Math.cos(p.a) * p.L; m = 7; } else { if (p.fallen && Math.abs(p.w) < .01 || Math.abs(p.w) < .3) continue; px = p.bx + Math.sin(p.a) * p.L; py = p.by - Math.cos(p.a) * p.L; }
       for (const o of world) if (POKE.has(o.kind) && inBox(px, py, o, m)) poke(o); }   // верх падающей кегли или груз маятника задевает рычаг
+    // росток растёт под включённой лампой (как бамбук, до 120 точек): поднимает то, что на листьях, и задевает рычаги
+    for (const p of parts) if (p.type === 'sprout' && !p.gone && p.gh < 120 && parts.some(q => q.type === 'lamp' && q.on && Math.hypot(q.x - p.x, q.y - p.y) < 100)) {
+      p.gh = Math.min(120, p.gh + 26 * dt); for (const o of world) if (o.part === p) { if (o.kind === 'stem') { o.h = p.gh; o.cy = p.y - p.gh / 2; } else if (o.kind === 'leaf') o.cy = p.y - p.gh - 2; }
+      for (const o of world) if (POKE.has(o.kind) && inBox(p.x, p.y - p.gh - 5, o, 2)) poke(o);
+      for (const q of pins) { if (q.type !== 'pin' || q.fallen || q.pushed === p) continue; const c = pinBox(q), dx = c.cx - p.x; if (Math.abs(dx) < 15 + q.W / 2 && c.cy < p.y && p.y - p.gh < c.cy + q.L * .45) { q.w += (Math.sign(dx) || 1) * 3; q.pushed = p; } } }   // листья растущего бамбука толкают кегли и домино рядом
     // краны, перчатки, насосы, пушки
     for (const p of parts) { if (p.cool > 0) p.cool -= dt;
       if (p.type === 'tap') { if (p.fire) { if (!(p.open > 0)) beep(300, .25, 'sine', .04, .7); p.open = 12; } if (p.open > 0) { p.open -= dt; if (Math.random() < .6) drops.push({ x: p.x + p.dir * 18, y: p.y + 10, vx: p.dir * 22 + (Math.random() - .5) * 8, vy: 10 }); } }
@@ -499,13 +509,47 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
     if (LV.goal.type === 'zone') { const z = LV.goal; g.save(); g.fillStyle = 'rgba(255,214,90,.12)'; g.fillRect(z.x, z.y, z.w, z.h); g.setLineDash([4, 3]); g.strokeStyle = 'rgba(255,214,90,.85)'; g.lineWidth = 1.2; g.strokeRect(z.x + .5, z.y + .5, z.w - 1, z.h - 1); g.setLineDash([]);
       tube(z.x + z.w - 4, z.y + z.h, z.x + z.w - 4, z.y - 16, 1.4); for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) { g.fillStyle = (i + j) % 2 ? '#111' : '#f4f4f4'; g.fillRect(z.x + z.w - 3 + i * 3, z.y - 16 + j * 3, 3, 3); } g.restore(); }   // флажок — сюда довести мяч
     // табличка с задачей
-    brass(150, 12, 300, 30, 4); engrave('ЗАДАЧА ' + (LI + 1) + ' ИЗ ' + LEVELS.length + (SOLVED[LI] ? '  ✓' : ''), 300, 25, 7.5, '#5d4210'); engrave(LV.title, 300, 36, 9);
     // шкаф с деталями
-    g.fillStyle = pat(T_WAL, 0, 0, .5, 90); g.fillRect(PW, 0, LW - PW, LH); g.fillStyle = lin(PW, 0, LW, 0, [[0, 'rgba(0,0,0,.6)'], [.06, 'rgba(0,0,0,.1)'], [.5, 'rgba(255,220,170,.06)'], [1, 'rgba(0,0,0,.35)']]); g.fillRect(PW, 0, LW - PW, LH);
+    g.fillStyle = '#2b2724'; g.fillRect(PW, 0, LW - PW, LH); g.fillStyle = lin(PW, 0, PW + 10, 0, [[0, 'rgba(0,0,0,.55)'], [1, 'rgba(0,0,0,0)']]); g.fillRect(PW, 0, 10, LH);   // однотонный шкаф
     g = M; }
   function button(r, label, top, bot, on) { g.save(); g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 4 * SC; g.shadowOffsetY = 2 * SC; g.fillStyle = lin(0, r.y, 0, r.y + r.h, [[0, top], [1, bot]]); rrect(r.x, r.y, r.w, r.h, r.h / 2); g.fill(); g.restore();
     g.fillStyle = lin(0, r.y, 0, r.y + r.h / 2, [[0, 'rgba(255,255,255,.45)'], [1, 'rgba(255,255,255,0)']]); rrect(r.x + 4, r.y + 1.5, r.w - 8, r.h / 2 - 1, r.h / 4); g.fill();
     g.font = `700 ${r.h > 26 ? 12 : 9}px Rubik, sans-serif`; g.textAlign = 'center'; g.fillStyle = on ? '#fff' : 'rgba(255,255,255,.4)'; g.fillText(label, r.x + r.w / 2 + (r.h > 26 ? 6 : 0) + (label.includes('▶') ? 0 : 0), r.y + r.h / 2 + (r.h > 26 ? 4.3 : 3.2)); }
+  // современные кнопки и карточки: плоские, со скруглением, мягким цветным свечением и значком
+  const ANIM = {}; let FDT = 1 / 60;
+  function ease(k, tgt, sp = 10) { const v = ANIM[k] ?? 0, nv = v + (tgt - v) * Math.min(1, FDT * sp); return ANIM[k] = Math.abs(nv - tgt) < .003 ? tgt : nv; }   // плавное появление и наведение
+  // готовые картинки панелей: рисуются один раз, дальше только двигаются и тают
+  const SPR = new Map();
+  function sprite(key, rx, ry, w, hh, fn, bx = rx, by = ry) { const pad = 24; let c = SPR.get(key); if (!c || c.sc !== SC) { c = document.createElement('canvas'); c.sc = SC; c.width = Math.ceil((w + pad * 2) * SC); c.height = Math.ceil((hh + pad * 2) * SC); const k = c.getContext('2d'); k.setTransform(SC, 0, 0, SC, (pad - rx) * SC, (pad - ry) * SC); const g0 = g; g = k; fn(); g = g0; SPR.set(key, c); if (SPR.size > 160) SPR.delete(SPR.keys().next().value); }
+    g.drawImage(c, bx - pad, by - pad, c.width / SC, c.height / SC); }
+  function drawPlaque() { const a = ease('plq', 1, 6), x = 150, y = 12 - (1 - a) * 16, w = 300, hh = 30; g.save(); g.globalAlpha = a;
+    sprite('plq' + LI + (SOLVED[LI] ? 's' : ''), x, 12, w, hh, () => { uiCard(x, 12, w, hh, 7); g.textAlign = 'center'; g.font = `500 4.8px ${UIF}`; try { g.letterSpacing = '2px'; } catch (e) {} g.save(); g.shadowColor = '#45f0ff'; g.shadowBlur = 6 * SC; g.fillStyle = '#7ff6ff'; g.fillText('ЗАДАЧА ' + (LI + 1) + ' / ' + LEVELS.length + (SOLVED[LI] ? '  ✓' : ''), x + w / 2, 23.5); g.restore();
+      g.font = `500 7px ${UIF}`; try { g.letterSpacing = '1px'; } catch (e) {} g.fillStyle = '#eafcff'; g.fillText(LV.title, x + w / 2, 34.5); try { g.letterSpacing = '0px'; } catch (e) {} }, x, y);
+    g.save(); hudPath(x, y, w, hh, 8); g.clip(); const sx = x - 40 + ((T * 70) % (w + 80)), q = g.createLinearGradient(sx - 30, 0, sx + 30, 0); q.addColorStop(0, 'rgba(127,246,255,0)'); q.addColorStop(.5, 'rgba(127,246,255,.12)'); q.addColorStop(1, 'rgba(127,246,255,0)'); g.fillStyle = q; g.fillRect(sx - 30, y, 60, hh); g.restore();   // бегущий луч
+    for (const [r, d] of [[BTN.prev, -1], [BTN.next, 1]]) { const on = LI + d >= 0 && LI + d < LEVELS.length, hv = ease('ar' + d, on && at(r, mouse.x, mouse.y) ? 1 : 0, 12), cx = r.x + r.w / 2 + d * (hv * 1.5 + Math.sin(T * 4) * hv), cy = y + hh / 2;
+      g.save(); g.globalAlpha *= on ? .7 + .3 * hv : .2; g.strokeStyle = hv > .05 ? '#c8fbff' : '#7ff6ff'; g.lineWidth = 1.3 + .4 * hv; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); g.moveTo(cx - d * 2.5, cy - 4.5); g.lineTo(cx + d * 2, cy); g.lineTo(cx - d * 2.5, cy + 4.5); g.stroke(); g.restore(); }
+    g.restore(); }
+  function wrapText(s, maxW) { const words = s.split(' '), lines = ['']; for (const w of words) { const cur = lines[lines.length - 1], t2 = cur + (cur ? ' ' : '') + w; if (g.measureText(t2).width > maxW && cur) lines.push(w); else lines[lines.length - 1] = t2; } return lines; }
+  // космический интерфейс: неоновые панели со скошенными углами, перелив бирюзового в фиолетовый, звёзды внутри
+  const UIF = '"Exo 2", Rubik, sans-serif';
+  function hudPath(x, y, w, hh, c) { g.beginPath(); g.moveTo(x + c, y); g.lineTo(x + w, y); g.lineTo(x + w, y + hh - c); g.lineTo(x + w - c, y + hh); g.lineTo(x, y + hh); g.lineTo(x, y + c); g.closePath(); }
+  function neon(x, y, w, hh, c, a = 1, cols = ['#45f0ff', '#b86bff']) { const q = g.createLinearGradient(x, y, x + w, y + hh), sh = (T * .25) % 1; q.addColorStop(0, cols[0]); q.addColorStop(clamp(sh, .05, .95), '#ffffff'); q.addColorStop(1, cols[1]);
+    g.save(); g.globalAlpha *= a; g.shadowColor = cols[0]; g.shadowBlur = 8 * SC; g.strokeStyle = q; g.lineWidth = 1.2; hudPath(x + .5, y + .5, w - 1, hh - 1, c); g.stroke(); g.restore(); }   // по рамке бежит блик
+  function stars(x, y, w, hh, seed, n) { for (let k = 0; k < n; k++) { const sx = x + hash(seed, k) * w, sy = y + hash(seed + 7, k) * hh, tw = .35 + .65 * Math.abs(Math.sin(T * (1 + hash(k, seed) * 2) + k)); g.fillStyle = `rgba(${k % 5 ? '220,235,255' : '200,160,255'},${.55 * tw})`; g.fillRect(sx, sy, k % 7 ? .7 : 1.2, k % 7 ? .7 : 1.2); } }
+  function uiBtn(r, label, kind, hv, on = true) { const q = Math.round((+hv || 0) * 5) / 5; sprite('b' + kind + (on ? 1 : 0) + q + '|' + r.x + ',' + r.y + ',' + r.w + ',' + r.h, r.x, r.y, r.w, r.h, () => uiBtn0(r, label, kind, q, on)); }
+  function uiBtn0(r, label, kind, hv, on = true) { const cols = kind === 'stop' ? ['#ff5c8a', '#ff9d5c'] : kind === 'go' ? ['#45f0ff', '#b86bff'] : ['#8d8aff', '#5d6bff'], c = Math.min(8, r.h / 3);
+    hv = +hv || 0; g.save(); g.globalAlpha *= on ? 1 : .35; { const sc = 1 + .035 * hv, cx0 = r.x + r.w / 2, cy0 = r.y + r.h / 2; g.translate(cx0, cy0); g.scale(sc, sc); g.translate(-cx0, -cy0); } const bg = g.createLinearGradient(r.x, r.y, r.x + r.w, r.y + r.h); bg.addColorStop(0, kind === 'stop' ? 'rgba(60,8,30,.92)' : 'rgba(8,16,44,.92)'); bg.addColorStop(1, kind === 'stop' ? 'rgba(40,10,20,.92)' : 'rgba(30,10,60,.92)'); g.fillStyle = bg; hudPath(r.x, r.y, r.w, r.h, c); g.fill();
+    if (kind !== 'ghost') { g.save(); hudPath(r.x, r.y, r.w, r.h, c); g.clip(); const gl = g.createRadialGradient(r.x + r.w / 2, r.y + r.h, 2, r.x + r.w / 2, r.y + r.h, r.w * .7); gl.addColorStop(0, kind === 'stop' ? 'rgba(255,92,138,.45)' : 'rgba(69,240,255,.38)'); gl.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gl; g.fillRect(r.x, r.y, r.w, r.h); stars(r.x, r.y, r.w, r.h, r.x | 0, 10); g.restore(); }
+    neon(r.x, r.y, r.w, r.h, c, .7 + .3 * hv + (kind === 'go' ? .15 * Math.sin(T * 3) : 0), cols);   // «пуск» мягко пульсирует
+    const big = r.h > 26, iw = big ? 11 : 8, cx = r.x + r.w / 2, cy = r.y + r.h / 2;   // без надписей — только значок
+    g.save(); g.shadowColor = cols[0]; g.shadowBlur = (6 + 8 * hv + (kind === 'go' ? 3 * Math.sin(T * 3) : 0)) * SC; g.fillStyle = '#eafcff'; g.strokeStyle = '#eafcff'; g.lineWidth = 1.3; g.lineCap = 'round'; g.lineJoin = 'round';
+    if (kind === 'go') { g.beginPath(); g.moveTo(cx - iw * .38, cy - iw * .55); g.lineTo(cx + iw * .55, cy); g.lineTo(cx - iw * .38, cy + iw * .55); g.closePath(); g.fill(); }
+    else if (kind === 'stop') g.fillRect(cx - iw * .45, cy - iw * .45, iw * .9, iw * .9);
+    else { const s = iw * 1.1, x0 = cx - s / 2; g.beginPath(); g.moveTo(x0, cy - s * .32); g.lineTo(x0 + s, cy - s * .32); g.moveTo(x0 + s * .36, cy - s * .5); g.lineTo(x0 + s * .64, cy - s * .5); g.moveTo(x0 + s * .14, cy - s * .18); g.lineTo(x0 + s * .22, cy + s * .5); g.lineTo(x0 + s * .78, cy + s * .5); g.lineTo(x0 + s * .86, cy - s * .18); g.moveTo(x0 + s * .4, cy - s * .05); g.lineTo(x0 + s * .42, cy + s * .35); g.moveTo(x0 + s * .6, cy - s * .05); g.lineTo(x0 + s * .58, cy + s * .35); g.stroke(); }   // корзина
+    g.restore(); g.restore(); }
+  function uiCard(x, y, w, hh, rd = 14) { const c = Math.min(14, rd + 2); g.save(); g.shadowColor = 'rgba(69,240,255,.25)'; g.shadowBlur = 24 * SC; const bg = g.createLinearGradient(x, y, x + w, y + hh); bg.addColorStop(0, 'rgba(6,12,34,.94)'); bg.addColorStop(1, 'rgba(24,8,48,.94)'); g.fillStyle = bg; hudPath(x, y, w, hh, c); g.fill(); g.restore();
+    g.save(); hudPath(x, y, w, hh, c); g.clip(); const q = g.createRadialGradient(x + w * .85, y, 0, x + w * .85, y, w * .6); q.addColorStop(0, 'rgba(184,107,255,.22)'); q.addColorStop(1, 'rgba(184,107,255,0)'); g.fillStyle = q; g.fillRect(x, y, w, hh); stars(x, y, w, hh, (x * 7 + w) | 0, Math.round(w * hh / 260)); g.restore();
+    neon(x, y, w, hh, c, .9); g.strokeStyle = 'rgba(69,240,255,.9)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x + w - 12, y + hh - 2.5); g.lineTo(x + w - c - 2.5, y + hh - 2.5); g.moveTo(x + 2.5, y + c + 2.5); g.lineTo(x + 2.5, y + 12); g.stroke(); }   // уголки-скобы
 
   // ── новые мячи: текстуры
   const discOf = img => { const c = document.createElement('canvas'); c.width = c.height = img.width; const k = c.getContext('2d'); k.beginPath(); k.arc(img.width / 2, img.width / 2, img.width / 2 - 1, 0, TAU); k.clip(); k.drawImage(img, 0, 0); return c; };
@@ -526,6 +570,12 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
     g.strokeStyle = on ? '#fff3b0' : 'rgba(90,90,90,.8)'; g.lineWidth = .6; g.beginPath(); g.moveTo(x - 2, y + 4); g.lineTo(x - 1, y - 1); g.lineTo(x + 1, y + 1); g.lineTo(x + 2, y - 1); g.lineTo(x + 2, y + 4); g.stroke(); }
   function drawBell(x, y, hit) { g.fillStyle = '#3a3f46'; rrect(x - 10, y - 12, 20, 3, 1); g.fill(); tube(x, y - 10, x, y - 5, 1.4); g.save(); g.translate(x, y - 6); g.rotate(Math.sin((hit || 0) * 20) * (hit || 0) * .4);
     g.fillStyle = lin(-11, 0, 11, 0, [[0, '#7a5410'], [.35, '#ffe08a'], [.6, '#c99422'], [1, '#6a4708']]); g.beginPath(); g.moveTo(-4, 1); g.quadraticCurveTo(-5, 10, -11, 18); g.lineTo(11, 18); g.quadraticCurveTo(5, 10, 4, 1); g.quadraticCurveTo(0, -2, -4, 1); g.fill(); g.fillStyle = '#5c3e0a'; g.beginPath(); g.arc(0, 19.5, 2.4, 0, TAU); g.fill(); g.restore(); }
+  function drawSprout(x, y, gh, t) { const top = y - gh;
+    g.fillStyle = lin(0, y + 1, 0, y + 15, [[0, '#d6764a'], [1, '#8a3f1f']]); g.beginPath(); g.moveTo(x - 11, y + 1); g.lineTo(x + 11, y + 1); g.lineTo(x + 8, y + 15); g.lineTo(x - 8, y + 15); g.closePath(); g.fill(); g.fillStyle = '#b5582e'; g.fillRect(x - 12, y, 24, 3); g.fillStyle = '#3e2715'; g.fillRect(x - 10, y - 1, 20, 2);
+    g.fillStyle = lin(x - 2.5, 0, x + 2.5, 0, [[0, '#4f7d1f'], [.45, '#b6d86a'], [1, '#3e6418']]); g.fillRect(x - 2.2, top, 4.4, gh);   // стебель бамбука
+    g.fillStyle = 'rgba(40,70,15,.85)'; for (let yy = y - 12; yy > top + 2; yy -= 12) { g.fillRect(x - 2.8, yy, 5.6, 1.4); }   // коленца
+    for (let yy = y - 18, k = 0; yy > top + 6; yy -= 24, k++) { const s = k % 2 ? 1 : -1; g.fillStyle = '#5aa83c'; g.beginPath(); g.moveTo(x + s * 2, yy); g.quadraticCurveTo(x + s * 9, yy - 5 + Math.sin(t * 2 + k) * .6, x + s * 15, yy - 2); g.quadraticCurveTo(x + s * 9, yy + 1, x + s * 2, yy); g.fill(); }
+    g.fillStyle = lin(0, top - 4, 0, top + 1, [[0, '#9be27a'], [1, '#2f7a2a']]); g.beginPath(); g.ellipse(x - 6, top - 2, 7, 2.4, .25, 0, TAU); g.ellipse(x + 6, top - 2, 7, 2.4, -.25, 0, TAU); g.fill(); }   // листья наверху — на них можно положить мяч
   function drawBall(b) { if (b.kind === 'balloon') return drawBalloon(b); if (b.kind === 'egg') return drawEgg(b); const r = b.r; g.save(); g.translate(b.x, b.y);
     g.save(); g.rotate(b.rot); g.drawImage(TEXB[b.kind] || T_BOWL, -r, -r, r * 2, r * 2);
     if (b.kind === 'kettle') { g.strokeStyle = '#26282c'; g.lineWidth = 3.2; g.beginPath(); g.arc(0, -r * .9, r * .55, Math.PI * 1.05, Math.PI * 1.95); g.stroke(); }   // ручка гири
@@ -578,7 +628,7 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
     tube(x - 9, y + 10, x - 11, y + 18, 1.6); tube(x + 9, y + 10, x + 11, y + 18, 1.6);
     g.save(); g.translate(x, y); g.scale(dir, 1); tube(13, 6, 18, 6, 4); tube(18, 6, 18, 9.5, 3); g.translate(16, 1.5); g.rotate(open ? .8 : 0); g.fillStyle = lin(-6, 0, 6, 0, [[0, '#ff6b52'], [1, '#9e1c0c']]); rrect(-6, -2, 12, 3, 1.4); g.fill(); g.restore(); }   // красная ручка — задеть мячом, кран откроется
   const PLUG = { lamp: [0, 14], fan: [-10, 14], vacuum: [-16, 7], motor: [-11, 6], magnet: [0, 9], boost: [-26, 1], glove: [-19, 8] };
-  const plugPt = p => { const o = PLUG[p.type] || [0, 0]; return [p.x + o[0] * (p.dir || 1), p.y + o[1]]; }, sockPt = q => q.type === 'switch' ? [q.x, q.y + 5] : [q.x - (q.dir || 1) * 3.5, q.y + 5];
+  const plugPt = p => { const o = PLUG[p.type] || [0, 0]; return [p.x + o[0] * (p.dir || 1), p.y + o[1]]; }, sockPt = q => q.type === 'switch' ? [q.x - 5 * Math.sin(q.ang || 0), q.y + 5 * Math.cos(q.ang || 0)] : [q.x - (q.dir || 1) * 3.5, q.y + 5];
   function drawCords(run) { for (const p of parts) { if (!ELEC.has(p.type) || (drag && p === drag.part)) continue; const s = run ? p.src : srcOf(p), [x0, y0] = plugPt(p);
       g.strokeStyle = '#17140f'; g.lineWidth = 1.3; g.lineCap = 'round'; g.beginPath(); g.moveTo(x0, y0);
       if (s) { const [x1, y1] = sockPt(s), sag = Math.min(40, Math.hypot(x1 - x0, y1 - y0) * .3); g.bezierCurveTo(x0, y0 + sag, x1, y1 + sag, x1, y1 + 2); g.stroke(); g.fillStyle = '#2b2722'; rrect(x1 - 2, y1 - .5, 4, 4, 1); g.fill(); }
@@ -635,7 +685,7 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
   function drawPump(x, y, hit) { const d = (hit || 0) * 4; g.fillStyle = lin(0, y + 1, 0, y + 15, [[0, '#e0483c'], [1, '#7a140c']]); rrect(x - 13, y + 1, 26, 14, 2); g.fill();
     g.fillStyle = lin(x - 4, 0, x + 4, 0, CHROME); g.fillRect(x - 4, y - 6 + d * .3, 8, 8); tube(x, y - 7 + d, x, y - 1, 1.4); g.fillStyle = lin(0, y - 10 + d, 0, y - 6 + d, [[0, '#3a3f46'], [1, '#15171a']]); rrect(x - 8, y - 10 + d, 16, 4, 1.5); g.fill();
     g.strokeStyle = '#1b1d21'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(x + 13, y + 8); g.quadraticCurveTo(x + 22, y + 6, x + 20, y - 6); g.stroke(); g.fillStyle = 'rgba(200,30,45,.85)'; g.beginPath(); g.ellipse(x + 20, y - 9, 3, 4, 0, 0, TAU); g.fill(); }
-  function drawGun(x, y, ang, dir, flash) { g.save(); g.translate(x, y - 4); g.scale(dir, 1); g.rotate(dir > 0 ? ang : -ang); if (flash > 0) { const q = g.createRadialGradient(28, 0, 1, 28, 0, 14); q.addColorStop(0, `rgba(255,240,170,${flash})`); q.addColorStop(1, 'rgba(255,120,30,0)'); g.fillStyle = q; g.fillRect(14, -14, 28, 28); }
+  function drawGun(x, y, ang, dir, flash) { g.save(); g.translate(x, y - 4); g.scale(dir, 1); g.rotate(ang); if (flash > 0) { const q = g.createRadialGradient(28, 0, 1, 28, 0, 14); q.addColorStop(0, `rgba(255,240,170,${flash})`); q.addColorStop(1, 'rgba(255,120,30,0)'); g.fillStyle = q; g.fillRect(14, -14, 28, 28); }
     g.fillStyle = lin(0, -5, 0, 5, [[0, '#6b6f77'], [.35, '#2a2d33'], [1, '#0d0e10']]); g.beginPath(); g.moveTo(-8, -5.5); g.lineTo(26, -3.6); g.lineTo(26, 3.6); g.lineTo(-8, 5.5); g.closePath(); g.fill();
     g.fillStyle = '#4b4f57'; g.fillRect(24, -4.4, 3, 8.8); g.fillRect(4, -5, 2, 10); g.beginPath(); g.arc(-8, 0, 5.5, 0, TAU); g.fill(); g.restore();
     plank(x - 18, y + 1, 36, 7, T_OAK, 21, 1); for (const wx of [-10, 10]) { g.strokeStyle = '#3b2410'; g.lineWidth = 1.6; g.beginPath(); g.arc(x + wx, y + 10, 5.5, 0, TAU); g.stroke(); g.lineWidth = .7; for (let i = 0; i < 4; i++) { const a = i * Math.PI / 4; g.beginPath(); g.moveTo(x + wx - Math.cos(a) * 5, y + 10 - Math.sin(a) * 5); g.lineTo(x + wx + Math.cos(a) * 5, y + 10 + Math.sin(a) * 5); g.stroke(); } }
@@ -670,7 +720,7 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
     tap: { name: 'КРАН С ВОДОЙ', w: 40, h: 36, flip: 1, bodies: p => [B(p.x, p.y - 3, 26, 26, 'metal', .2), B(p.x + p.dir * 16, p.y + 1.5, 12, 4, 'tap', .2)], draw: p => drawTap(p.x, p.y, p.dir, p.open > 0), icon: [.6, (x, y) => drawTap(x - 3, y, 1, 0)] },
     wheel: { name: 'ВОДЯНОЕ КОЛЕСО', w: 44, h: 44, draw: p => drawWheel(p.x, p.y, p.ra || 0), icon: [.75, (x, y) => drawWheel(x, y, .3)] },
     mill: { name: 'ВЕТРЯК', w: 46, h: 60, oy: 10, flip: 1, draw: p => drawMill(p.x, p.y, p.ra || 0), icon: [.55, (x, y) => drawMill(x, y - 10, .4)] },
-    switch: { name: 'ВЫКЛЮЧАТЕЛЬ', w: 20, h: 30, bodies: p => [B(p.x, p.y, 18, 24, 'metal', .2), B(p.x, p.y - 13.5, 16, 4, 'lever', .2)], draw: p => drawSwitch(p.x, p.y, p.on), icon: [.8, (x, y) => drawSwitch(x, y + 2, 0)] },
+    switch: { name: 'ВЫКЛЮЧАТЕЛЬ', w: 20, h: 30, rot: [-180, 180], step: 15, quarter: 1, bodies: p => { const s = Math.sin(p.ang), c = Math.cos(p.ang); return [B(p.x, p.y, 18, 24, 'metal', .2, p.ang), B(p.x + 13.5 * s, p.y - 13.5 * c, 16, 4, 'lever', .2, p.ang)]; }, draw: p => { g.save(); g.translate(p.x, p.y); g.rotate(p.ang || 0); drawSwitch(0, 0, p.on); g.restore(); }, icon: [.8, (x, y) => drawSwitch(x, y + 2, 0)] },
     gen: { name: 'ГЕНЕРАТОР', w: 44, h: 22, flip: 1, bodies: p => [B(p.x, p.y, 20, 18, 'metal', .2)], draw: p => drawGen(p.x, p.y, p.dir, p.on, p.ra || 0), icon: [.75, (x, y) => drawGen(x - 4, y, 1, 0, 0)] },
     motor: { name: 'МОТОР', w: 40, h: 20, flip: 1, bodies: p => [B(p.x, p.y, 20, 16, 'metal', .2)], draw: p => drawMotor(p.x, p.y, p.dir, p.on, p.ra || 0), icon: [.8, (x, y) => drawMotor(x - 4, y, 1, 0, 0)] },
     gear: { name: 'ШЕСТЕРНЯ', w: 32, h: 32, draw: p => drawGear(p.x, p.y, 14, p.ra || 0, 0), icon: [.75, (x, y) => drawGear(x, y, 14, .2, 0)] },
@@ -681,16 +731,17 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
     vacuum: { name: 'ПЫЛЕСОС', w: 44, h: 24, flip: 1, bodies: p => [B(p.x - p.dir * 7, p.y, 26, 18, 'metal', .2)], draw: (p, t, run) => drawVacuum(p.x, p.y, p.dir, run && p.on, t), icon: [.7, (x, y) => drawVacuum(x, y, 1, 0, 0)] },
     magnet: { name: 'ЭЛЕКТРОМАГНИТ', w: 26, h: 24, bodies: p => [B(p.x, p.y, 24, 20, 'metal', .05)], draw: (p, t, run) => drawMagnet(p.x, p.y, run && p.on, t), icon: [.9, (x, y) => drawMagnet(x, y, 0, 0)] },
     boost: { name: 'УСКОРИТЕЛЬ', w: 54, h: 10, flip: 1, bodies: p => [B(p.x, p.y, 52, 6, 'boost', .1)], draw: (p, t, run) => drawBoost(p.x, p.y, p.dir, run && p.on, t), icon: [.6, (x, y) => drawBoost(x, y, 1, 0, 0)] },
-    lamp: { name: 'ЛАМПА', w: 20, h: 28, bodies: p => [B(p.x, p.y + 6, 14, 18, 'metal', .2)], draw: (p, t, run) => drawLamp(p.x, p.y, run && p.on), icon: [.9, (x, y) => drawLamp(x, y - 4, 0)] },
+    sprout: { name: 'РОСТОК В ГОРШКЕ', w: 26, h: 30, bodies: p => { const gh = p.gh || 4; return [B(p.x, p.y + 8, 22, 14, 'pot', .2), B(p.x, p.y - gh / 2, 4, gh, 'stem', .2), B(p.x, p.y - gh - 2, 24, 4, 'leaf', .1)]; }, draw: (p, t, run) => drawSprout(p.x, p.y, run ? p.gh || 4 : 4, t), icon: [.85, (x, y) => drawSprout(x, y + 4, 14, 0)] },
+    lamp: { name: 'ЛАМПА', w: 20, h: 28, bodies: p => [B(p.x, p.y + 6, 14, 18, 'metal', .2)], draw: (p, t, run) => drawLamp(p.x, p.y, run && p.on), icon: [1, (x, y) => drawLamp(x, y - 5, 1)] },
     bell: { name: 'ЗВОНОК', w: 26, h: 30, bodies: p => [B(p.x, p.y + 4, 22, 20, 'bell', .3)], draw: (p, t, run) => drawBell(p.x, p.y, run ? p.hit : 0), icon: [.8, (x, y) => drawBell(x, y, 0)] },
     chain: { name: 'ЦЕПЬ', w: 1, h: 1, draw: () => {}, icon: [.9, (x, y) => { g.save(); drawGear(x - 11, y + 6, 7, .3, 0); drawGear(x + 11, y - 6, 5, .3, 1); chainPath([x - 11, y + 6, 7], [x + 11, y - 6, 5], 1.2); g.strokeStyle = '#1f2125'; g.lineWidth = 2.6; g.stroke(); g.strokeStyle = '#a3a9b1'; g.lineWidth = 1.3; g.setLineDash([1.6, 1.1]); g.stroke(); g.restore(); }] },
     glove: { name: 'ПЕРЧАТКА', w: 44, h: 22, flip: 1, bodies: p => [B(p.x - p.dir * 12, p.y, 14, 20, 'metal', .2)], draw: (p, t, run) => { const k = run ? tRun - p.pt : 9; drawGlove(p.x, p.y, p.dir, k < 0 ? 0 : k < .06 ? k / .06 : Math.max(0, 1 - (k - .06) / .35)); }, icon: [.7, (x, y) => drawGlove(x + 4, y, 1, 0)] },
   };
-  const HINT = { "chain": "Нажми, потом на одну шестерню и на другую — цепь свяжет их на расстоянии, крутятся в одну сторону. Правая кнопка — отмена","gear": "Поставь вплотную к другой шестерне или к ролику — зубья сцепятся (зелёная точка), вращение передастся", "gearS": "Маленькая шестерня: крутится быстрее большой. Ставь вплотную к другой — сцепятся", "hamster": "Испугается от удара мяча и побежит — колесо крутит соседние шестерни", "belt": "Едет, только если ролик сцеплен с крутящейся шестернёй. Куда едет — зависит от стороны вращения", "gen": "Шестерня генератора крутится — даёт ток. Провода тянутся к нему сами, до 170 точек", "motor": "Включённый в ток мотор крутит свою шестерню", "mill": "Включённый вентилятор дует — ветряк крутит шестерню на оси", "wheel": "Струя воды из крана крутит колесо и шестерню на оси", "tap": "Задень мячом красную ручку — кран откроется, польётся вода", "switch": "Задень мячом красный рычаг — включится ток. Провода тянутся к нему сами, до 170 точек", "fan": "Дует, только если провод дотянулся до включённого выключателя или генератора", "vacuum": "Всасывает мячи; нужен ток", "magnet": "Тянет ядро, гирю и стальной шарик; нужен ток", "boost": "Разгоняет мяч; нужен ток", "glove": "Бьёт мяч перед собой; нужен ток", "lamp": "Горит от тока", "acid": "Сбей колбу — кислота растворит доски, батут, подушку, коробку и мягкие мячи", "pump": "Мяч падает на ручку — насос надувает воздушный шар, он летит вверх", "gun": "Мяч задевает красный спуск сзади — пушка стреляет ядром. Колесо мыши — наклон ствола", "cactus": "Протыкает воздушный и пляжный мячи", "pend": "Груз качается от начального наклона (колесо мыши)", "balloon": "Летит вверх", "cushion": "Гасит удар — на ней яйцо не разобьётся", "bump": "Отбрасывает мяч", "ice": "Скользкий — мяч не тормозит", "spring": "Подбрасывает мяч по своему наклону", "saw": "Упало на один край — подкинет то, что на другом", "dom": "Падает и валит соседние"};
+  const HINT = {"sprout": "Растёт как бамбук, пока рядом (ближе 100 точек) горит лампа: поднимает то, что лежит на листьях, и верхушкой задевает рычаги, спуски и звонки", "chain": "Нажми, потом на одну шестерню и на другую — цепь свяжет их на расстоянии, крутятся в одну сторону. Правая кнопка — отмена", "gear": "Поставь вплотную к другой шестерне или к ролику — зубья сцепятся (зелёная точка), вращение передастся", "gearS": "Маленькая шестерня: крутится быстрее большой. Ставь вплотную к другой — сцепятся", "hamster": "Испугается от удара мяча и побежит — колесо крутит соседние шестерни", "belt": "Едет, только если ролик сцеплен с крутящейся шестернёй. Куда едет — зависит от стороны вращения", "gen": "Шестерня генератора крутится — даёт ток. Провода тянутся к нему сами, до 170 точек", "motor": "Включённый в ток мотор крутит свою шестерню", "mill": "Включённый вентилятор дует — ветряк крутит шестерню на оси", "wheel": "Струя воды из крана крутит колесо и шестерню на оси", "tap": "Задень мячом красную ручку — кран откроется, польётся вода", "switch": "Колесо мыши или правая кнопка — повернуть, чтобы рычаг задел катящийся сбоку мяч. Задень мячом красный рычаг — включится ток. Провода тянутся к нему сами, до 170 точек", "fan": "Дует, только если провод дотянулся до включённого выключателя или генератора", "vacuum": "Всасывает мячи; нужен ток", "magnet": "Тянет ядро, гирю и стальной шарик; нужен ток", "boost": "Разгоняет мяч; нужен ток", "glove": "Бьёт мяч перед собой; нужен ток", "lamp": "Горит от тока; рядом с горящей лампой растёт росток", "acid": "Сбей колбу — кислота растворит доски, батут, подушку, коробку и мягкие мячи", "pump": "Мяч падает на ручку — насос надувает воздушный шар, он летит вверх", "gun": "Мяч задевает красный спуск сзади — пушка стреляет ядром. Колесо мыши — наклон ствола", "cactus": "Протыкает воздушный и пляжный мячи", "pend": "Груз качается от начального наклона (колесо мыши)", "balloon": "Летит вверх", "cushion": "Гасит удар — на ней яйцо не разобьётся", "bump": "Отбрасывает мяч", "ice": "Скользкий — мяч не тормозит", "spring": "Подбрасывает мяч по своему наклону", "saw": "Упало на один край — подкинет то, что на другом", "dom": "Падает и валит соседние", "ramp": "Доска: мяч катится по ней. Колесо мыши — наклон, правая кнопка — зеркально", "tramp": "Батут: мяч отскакивает почти на ту же высоту", "funnel": "Воронка: собирает мяч и роняет его вниз ровно", "wall": "Стенка: кирпичный упор, мяч от неё отскакивает", "arc": "Дуга: падающий мяч катится по ней и уходит в сторону. Правая кнопка — развернуть", "tube": "Трубка: мяч катится внутри. Колесо мыши — наклон", "stairs": "Ступеньки: мяч скачет по ним вниз. Правая кнопка — развернуть", "box": "Коробка: ловит мяч, удар в ней яйцо не разобьёт; кислота её растворяет", "pin": "Кегля: падает от удара и валит соседей, верхушкой нажимает рычаги", "ball": "Теннисный мячик: лёгкий и прыгучий", "billiard": "Бильярдный шар: тяжёлый и прыгучий", "beach": "Пляжный мяч: очень лёгкий, ветер его уносит; кактус и кислота лопают", "cannonball": "Ядро: очень тяжёлое, его тянет магнит", "steel": "Стальной шарик: его тянет магнит", "kettle": "Гиря: очень тяжёлая, её тянет магнит; хорошо подкидывает качелями"};
   const ORDER = ['ramp', 'tramp', 'spring', 'saw', 'funnel', 'wall', 'ice', 'arc', 'tube', 'stairs', 'box', 'cushion', 'bump', 'cactus', 'pin',
     'dom', 'pend', 'acid', 'pump', 'gun', 'ball', 'billiard', 'beach', 'cannonball', 'balloon', 'steel', 'kettle', 'tap', 'wheel', 'mill',
-    'switch', 'gen', 'motor', 'gear', 'gearS', 'chain', 'hamster', 'belt', 'fan', 'vacuum', 'magnet', 'boost', 'glove'];
-  const LIMIT = 3, lim = () => LV.inv && !SOLVED[LI], cap = t => lim() ? LV.inv[t] || 0 : LIMIT, left = t => t === 'chain' ? cap(t) - chains.length : cap(t) - parts.filter(p => p.type === t && !p.fixed).length;   // в обучающих задачах — только нужные детали
+    'switch', 'lamp', 'sprout', 'gen', 'motor', 'gear', 'gearS', 'chain', 'hamster', 'belt', 'fan', 'vacuum', 'magnet', 'boost', 'glove'];
+  const LIMIT = 3, lim = () => LV.inv && !SOLVED[LI], cap = t => lim() ? LV.inv[t] || 0 : t === 'dom' ? 10 : LIMIT, left = t => t === 'chain' ? cap(t) - chains.length : cap(t) - parts.filter(p => p.type === t && !p.fixed).length;   // в обучающих задачах — только нужные детали
   // цепь: охватывает два зубчатых колеса, крутит их в одну сторону
   function chainPath(u, w, k = 1) { const dx = w[0] - u[0], dy = w[1] - u[1], d = Math.hypot(dx, dy) || 1, th = Math.atan2(dy, dx), r1 = u[2] + k, r2 = w[2] + k, be = Math.acos(clamp((r1 - r2) / d, -1, 1));
     g.beginPath(); g.moveTo(u[0] + r1 * Math.cos(th + be), u[1] + r1 * Math.sin(th + be)); g.lineTo(w[0] + r2 * Math.cos(th + be), w[1] + r2 * Math.sin(th + be)); g.arc(w[0], w[1], r2, th + be, th - be, true);
@@ -701,26 +752,30 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
   function drawPart(p, t, run) { if (run && p.gone) return; const P = PARTS[p.type]; P.draw(p, t, run, run ? pins.find(q => q.part === p) : null); }
 
   // ── шкаф: страницы по 15 деталей; количество мелко рядом; при наведении — свечение и название
-  const PER = 15, AVAIL = () => lim() ? ORDER.filter(t => LV.inv[t]) : ORDER,   // решил задачу — в ней открываются все детали
-    NPG = () => Math.max(1, Math.ceil(AVAIL().length / PER)), VIS = () => AVAIL().slice(PG * PER, PG * PER + PER);
-  const SLOT = i => ({ x: PW + 5 + (i % 3) * 44, y: 22 + (i / 3 | 0) * 59, w: 43, h: 56 }), BTN = { run: { x: PW + 14, y: 322, w: 112, h: 30 }, clr: { x: PW + 14, y: 360, w: 112, h: 24 }, prev: { x: 156, y: 15, w: 16, h: 24 }, next: { x: 428, y: 15, w: 16, h: 24 }, go: { x: 200, y: 215, w: 100, h: 20 }, pp: { x: PW + 10, y: 3, w: 22, h: 16 }, pn: { x: LW - 32, y: 3, w: 22, h: 16 } };
-  const PANEL = document.createElement('canvas');
-  function drawPanel(t) { const vis = VIS(), hs = mode === 'edit' && !drag ? vis.findIndex((ty, k) => at(SLOT(k), mouse.x, mouse.y)) : -1, key = vis.map(left).join(',') + '|' + hs + '|' + mode + '|' + parts.length + '|' + SC + '|' + PG;
-    if (key !== panelKey) { panelKey = key; PANEL.width = (LW - PW) * SC; PANEL.height = LH * SC; const P = PANEL.getContext('2d'); P.setTransform(SC, 0, 0, SC, -PW * SC, 0); const g0 = g; g = P; drawPanelInner(t, vis); g = g0; }
+  const AVAIL = () => lim() ? ORDER.filter(t => LV.inv[t]) : ORDER,   // решил задачу — в ней открываются все детали
+    MAXS = () => Math.max(0, Math.ceil(AVAIL().length / 3) * 59 - 292), VIS = () => AVAIL(), inView = s => s.y + s.h > 20 && s.y < 314;
+  const slotAt = m => VIS().findIndex((ty, k) => { const s = SLOT(k); return inView(s) && at(s, m.x, m.y); });   // шкаф прокручивается колесом и тачпадом
+  const SLOT = i => ({ x: PW + 5 + (i % 3) * 44, y: 22 + (i / 3 | 0) * 59 - SCY, w: 43, h: 56 }), BTN = { run: { x: PW + 14, y: 322, w: 112, h: 30 }, clr: { x: PW + 14, y: 360, w: 112, h: 24 }, prev: { x: 156, y: 15, w: 16, h: 24 }, next: { x: 428, y: 15, w: 16, h: 24 }, go: { x: 225, y: 204, w: 50, h: 14 }, pp: { x: PW + 10, y: 3, w: 22, h: 16 }, pn: { x: LW - 32, y: 3, w: 22, h: 16 } };
+  const PANEL = document.createElement('canvas'), LIST = document.createElement('canvas'); let listKey = '';
+  function drawPanel(t) { const vis = VIS(), hs = mode === 'edit' && !drag ? slotAt(mouse) : -1, key = vis.map(left).join(',') + '|' + hs + '|' + mode + '|' + parts.length + '|' + SC + '|' + SCY + '|' + at(BTN.run, mouse.x, mouse.y) + at(BTN.clr, mouse.x, mouse.y);
+    if (key !== panelKey) { panelKey = key; if (PANEL.width !== (LW - PW) * SC || PANEL.height !== LH * SC) { PANEL.width = (LW - PW) * SC; PANEL.height = LH * SC; } const P = PANEL.getContext('2d'); P.setTransform(1, 0, 0, 1, 0, 0); P.clearRect(0, 0, PANEL.width, PANEL.height); P.setTransform(SC, 0, 0, SC, -PW * SC, 0); const g0 = g; g = P; drawPanelInner(t, vis); g = g0; }
     M.save(); M.setTransform(1, 0, 0, 1, 0, 0); M.drawImage(PANEL, PW * SC, 0); M.restore(); }
   function drawPanelInner(t, vis) {
-    g.font = '600 8px Rubik, sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(241,230,204,.8)'; g.fillText((PG + 1) + ' / ' + NPG(), PW + 70, 14);
-    for (const [r, d] of [[BTN.pp, -1], [BTN.pn, 1]]) { const on = PG + d >= 0 && PG + d < NPG(), cx = r.x + r.w / 2, cy = r.y + r.h / 2; g.fillStyle = on ? '#f1e6cc' : 'rgba(241,230,204,.2)'; g.beginPath(); g.moveTo(cx + d * 5, cy); g.lineTo(cx - d * 3, cy - 5); g.lineTo(cx - d * 3, cy + 5); g.fill(); }
-    let tip = null; vis.forEach((ty, i) => { const s = SLOT(i), n = left(ty), cx = s.x + s.w / 2 - 3, cy = s.y + s.h / 2 - 2, hv = mode === 'edit' && !drag && at(s, mouse.x, mouse.y), [sc, fn] = PARTS[ty].icon;
-      if (hv) tip = [s, PARTS[ty].name];
-      g.save(); g.globalAlpha = n > 0 ? 1 : .25; if (hv) { g.shadowColor = 'rgba(255,214,110,.95)'; g.shadowBlur = 10 * SC; } else { g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 3 * SC; g.shadowOffsetX = 2 * SC; g.shadowOffsetY = 3 * SC; }   // при наведении — золотое свечение
-      g.translate(cx, cy); g.scale(sc, sc); g.translate(-cx, -cy); fn(cx, cy, t); g.restore();
-      g.font = '600 6.5px Rubik, sans-serif'; g.textAlign = 'right'; g.fillStyle = n > 0 ? 'rgba(241,230,204,.9)' : 'rgba(241,230,204,.3)'; g.fillText('×' + n, s.x + s.w - 2, s.y + s.h - 4); });
-    if (tip) { const [s, nm] = tip; g.font = '600 8px Rubik, sans-serif'; const w = g.measureText(nm).width + 12, x = clamp(s.x + s.w / 2 - w / 2, PW + 3, LW - 3 - w), y = s.y + s.h - 2;
-      g.save(); g.textAlign = 'center'; g.shadowColor = 'rgba(0,0,0,.95)'; g.shadowBlur = 3 * SC; g.fillStyle = '#ffe3a0'; g.fillText(nm, x + w / 2, y + 9.2); g.restore(); }
-    const run = mode === 'run'; button(BTN.run, run ? 'СТОП' : 'ПУСК', run ? '#ff6a55' : '#5fd37a', run ? '#8e1d12' : '#1d6b32', true);
-    g.fillStyle = '#fff'; const bx = BTN.run.x + 30, byy = BTN.run.y + BTN.run.h / 2; if (run) g.fillRect(bx - 4, byy - 4, 8, 8); else { g.beginPath(); g.moveTo(bx - 3.5, byy - 5); g.lineTo(bx + 5, byy); g.lineTo(bx - 3.5, byy + 5); g.fill(); }
-    button(BTN.clr, 'УБРАТЬ ВСЁ', '#8b929c', '#3a3f46', mode === 'edit' && parts.some(p => !p.fixed)); }
+    const mx = MAXS(); if (mx > 0) { const th = 292 * 292 / (292 + mx), ty0 = 22 + (292 - th) * SCY / mx; g.fillStyle = 'rgba(0,0,0,.35)'; rrect(LW - 5, 22, 3, 292, 1.5); g.fill(); g.fillStyle = 'rgba(241,230,204,.55)'; rrect(LW - 5, ty0, 3, th, 1.5); g.fill(); }   // полоска прокрутки
+    for (const [r, d] of [[BTN.pp, -1], [BTN.pn, 1]]) { const on = d < 0 ? SCY > 0 : SCY < mx, cx = r.x + r.w / 2, cy = r.y + r.h / 2; g.fillStyle = on ? '#f1e6cc' : 'rgba(241,230,204,.2)'; g.beginPath(); g.moveTo(cx + d * 5, cy); g.lineTo(cx - d * 3, cy - 5); g.lineTo(cx - d * 3, cy + 5); g.fill(); }
+    // список рисуется один раз в высокий холст и при прокрутке только сдвигается; заново — лишь значок под мышью
+    const lk = vis.map(left).join(',') + '|' + vis.length + '|' + SC + '|' + mode; if (lk !== listKey) { listKey = lk; const rows = Math.ceil(vis.length / 3), sy = SCY; SCY = 0; LIST.width = (LW - PW) * SC; LIST.height = (rows * 59 + 4) * SC;
+      const Lc = LIST.getContext('2d'); Lc.setTransform(SC, 0, 0, SC, -PW * SC, -22 * SC); const g1 = g; g = Lc;
+      vis.forEach((ty, i) => { const s = SLOT(i), n = left(ty), cx = s.x + s.w / 2 - 3, cy = s.y + s.h / 2 - 2, [sc, fn] = PARTS[ty].icon;
+        g.save(); g.globalAlpha = n > 0 ? 1 : .25; g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 3 * SC; g.shadowOffsetX = 2 * SC; g.shadowOffsetY = 3 * SC; g.translate(cx, cy); g.scale(sc, sc); g.translate(-cx, -cy); fn(cx, cy, t); g.restore();
+        g.font = '600 6.5px Rubik, sans-serif'; g.textAlign = 'right'; g.fillStyle = n > 0 ? 'rgba(241,230,204,.9)' : 'rgba(241,230,204,.3)'; g.fillText('×' + n, s.x + s.w - 2, s.y + s.h - 4); });
+      g = g1; SCY = sy; }
+    g.save(); g.beginPath(); g.rect(PW, 19, LW - PW, 298); g.clip(); g.drawImage(LIST, PW, 22 - SCY, LW - PW, LIST.height / SC);
+    let tip = null; const hk = mode === 'edit' && !drag ? slotAt(mouse) : -1; if (hk >= 0) { const ty = vis[hk], s = SLOT(hk), n = left(ty), cx = s.x + s.w / 2 - 3, cy = s.y + s.h / 2 - 2, [sc, fn] = PARTS[ty].icon; tip = [s, PARTS[ty].name];
+      const cy0 = s.h / 2 - 2; sprite('hv' + ty + (n > 0 ? 1 : 0), s.x, 0, s.w, s.h, () => { g.globalAlpha = n > 0 ? 1 : .25; g.shadowColor = 'rgba(255,214,110,.95)'; g.shadowBlur = 10 * SC; g.translate(cx, cy0); g.scale(sc, sc); g.translate(-cx, -cy0); fn(cx, cy0, 0); }, s.x, s.y); }   // при наведении — золотое свечение (готовой картинкой)
+    g.restore();
+    const run = mode === 'run'; uiBtn(BTN.run, '', run ? 'stop' : 'go', ANIM.bRun || 0);
+    uiBtn(BTN.clr, '', 'ghost', ANIM.bClr || 0, mode === 'edit' && parts.some(p => !p.fixed)); }
 
   // ── кадр: фон → слой предметов с мягкой тенью → ветер, пыль, конфетти, шкаф
   const OBJ = document.createElement('canvas'), O = OBJ.getContext('2d'); let puffs = [];
@@ -752,52 +807,72 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
     if (drag && hubsOf(drag.part).length) { const q = { ...drag.part }; snapGear(q); if (q.x !== drag.part.x || q.y !== drag.part.y) for (const u of hubsOf(q)) { g.strokeStyle = 'rgba(90,255,110,.85)'; g.lineWidth = 1.4; g.setLineDash([3, 2]); g.beginPath(); g.arc(u[0], u[1], u[2] + 2.5, 0, TAU); g.stroke(); g.setLineDash([]); } }
     if (drag) { const p = drag.part, bad = !okPlace(p) && p.x < PW; M.save(); M.shadowColor = bad ? 'rgba(255,40,40,.9)' : 'rgba(25,15,5,.45)'; M.shadowBlur = (bad ? 10 : 12) * SC; M.shadowOffsetX = (bad ? 0 : 10) * SC; M.shadowOffsetY = (bad ? 0 : 14) * SC; drawPart(p, t, false); if (PARTS[p.type].front) PARTS[p.type].front(p); M.restore(); }
     for (const c of confetti) { c.t += 1 / 60; c.vy += 300 / 60; c.vx *= .99; c.x += c.vx / 60; c.y += c.vy / 60; g.save(); g.translate(c.x, c.y); g.rotate(c.t * 9 + c.vx); g.fillStyle = c.c; g.fillRect(-1.6, -.9, 3.2, 1.8); g.restore(); } confetti = confetti.filter(c => c.t < 3);
-    for (const [r, d] of [[BTN.prev, -1], [BTN.next, 1]]) { const on = LI + d >= 0 && LI + d < LEVELS.length; g.fillStyle = on ? '#5d4210' : 'rgba(93,66,16,.25)'; const cx = r.x + r.w / 2, cy = r.y + r.h / 2; g.beginPath(); g.moveTo(cx + d * 5, cy); g.lineTo(cx - d * 3, cy - 5.5); g.lineTo(cx - d * 3, cy + 5.5); g.fill(); }
+    drawPlaque(); ease('bRun', at(BTN.run, mouse.x, mouse.y) ? 1 : 0, 12); ease('bClr', at(BTN.clr, mouse.x, mouse.y) ? 1 : 0, 12);
     drawPanel(t);
-    if (LV.tip && mode === 'edit' && !drag && mouse.x <= PW) { g.font = '500 8.5px Rubik, sans-serif'; const words = LV.tip.split(' '), lines = ['']; for (const w of words) { const t2 = lines[lines.length - 1] + (lines[lines.length - 1] ? ' ' : '') + w; if (g.measureText(t2).width > PW - 60) lines.push(w); else lines[lines.length - 1] = t2; }
-      const hh = 8 + lines.length * 11; g.fillStyle = 'rgba(12,9,6,.82)'; rrect(20, LH - 14 - hh, PW - 40, hh, 6); g.fill(); g.textAlign = 'center'; g.fillStyle = '#ffe3a0'; lines.forEach((s, k) => g.fillText(s, PW / 2, LH - 14 - hh + 15 + k * 11)); }
-    if (mode === 'edit' && !drag && mouse.x > PW) { const k = VIS().findIndex((ty, j) => at(SLOT(j), mouse.x, mouse.y)), ty = k >= 0 ? VIS()[k] : null; if (ty) { const s = PARTS[ty].name + (HINT[ty] ? ' — ' + HINT[ty] : ''); g.font = '500 8.5px Rubik, sans-serif'; const w = Math.min(PW - 20, g.measureText(s).width + 16);
-      g.fillStyle = 'rgba(12,9,6,.85)'; rrect(PW / 2 - w / 2, LH - 30, w, 18, 5); g.fill(); g.fillStyle = '#ffe3a0'; g.textAlign = 'center'; g.fillText(s, PW / 2, LH - 18, PW - 30); } }
-    if (won) { g.save(); g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 14 * SC; g.shadowOffsetY = 6 * SC; brass(150, 168, 200, 62, 6); g.restore(); brass(150, 168, 200, 62, 6); engrave('ГОТОВО!', 250, 194, 16); engrave('деталей: ' + parts.length + '  ·  время: ' + won.toFixed(1) + ' с', 250, 210, 9, '#5d4210'); if (LI < LEVELS.length - 1) { const r = BTN.go; button(r, 'ДАЛЬШЕ  ▶', '#5fd37a', '#1d6b32', true); } }
+    TIPX = null; TIPB = null; const tipShow = !!(LV.tip && tipOff !== LI && mode === 'edit' && !drag), ta = ease('tip', tipShow ? 1 : 0, 9); if (LV.tip && ta > .01) { g.font = `400 5.6px ${UIF}`; const W = 196, lines = wrapText(LV.tip, W - 36), hh = 30 + lines.length * 8, bx = PW / 2 - W / 2, by0 = LH / 2 - hh / 2 - 10, by = by0 + (1 - ta) * 12; TIPB = { x: bx, y: by, w: W, h: hh };   // подсказка по центру поля, закрывается крестиком
+      g.save(); g.globalAlpha = ta; sprite('tip' + LI, bx, by0, W, hh, () => { uiCard(bx, by0, W, hh, 7); g.font = `500 4.6px ${UIF}`; try { g.letterSpacing = '1.6px'; } catch (e) {} g.save(); g.shadowColor = '#45f0ff'; g.shadowBlur = 6 * SC; g.fillStyle = '#7ff6ff'; g.textAlign = 'left'; g.fillText('ПОДСКАЗКА', bx + 19, by0 + 13);
+        g.beginPath(); g.moveTo(bx + 14, by0 + 8.6); g.lineTo(bx + 16.4, by0 + 11.4); g.lineTo(bx + 14, by0 + 14.2); g.lineTo(bx + 11.6, by0 + 11.4); g.closePath(); g.fill(); g.restore(); try { g.letterSpacing = '0px'; } catch (e) {}
+        g.font = `400 5.6px ${UIF}`; g.fillStyle = 'rgba(226,240,255,.92)'; lines.forEach((s, k) => g.fillText(s, bx + 12, by0 + 25 + k * 8)); }, bx, by);
+      const cx = bx + W - 12, cy = by + 11; TIPX = { x: cx - 7, y: cy - 7, w: 14, h: 14 }; const hv = at(TIPX, mouse.x, mouse.y); g.strokeStyle = hv ? '#e6c8ff' : 'rgba(184,107,255,.85)'; g.lineWidth = hv ? 1.3 : .9; g.beginPath(); for (let k = 0; k < 6; k++) { const a = k * TAU / 6 + Math.PI / 6; g.lineTo(cx + Math.cos(a) * 5.5, cy + Math.sin(a) * 5.5); } g.closePath(); g.stroke();
+      g.strokeStyle = hv ? '#fff' : 'rgba(226,240,255,.85)'; g.lineWidth = .9; g.lineCap = 'round'; g.beginPath(); g.moveTo(cx - 2, cy - 2); g.lineTo(cx + 2, cy + 2); g.moveTo(cx + 2, cy - 2); g.lineTo(cx - 2, cy + 2); g.stroke(); g.restore(); if (!tipShow) { TIPX = null; TIPB = null; } }
+    { const k = mode === 'edit' && !drag && mouse.x > PW ? slotAt(mouse) : -1, ty0 = k >= 0 ? VIS()[k] : null; if (ty0) { ANIM.lastDesc = ty0; const s0 = SLOT(k); ANIM.descT = s0.y + s0.h / 2; if (ANIM.descY == null || !ANIM.desc) ANIM.descY = ANIM.descT; }
+      ANIM.descY = (ANIM.descY ?? 200) + ((ANIM.descT ?? 200) - (ANIM.descY ?? 200)) * Math.min(1, FDT * 16); const da = ease('desc', ty0 ? 1 : 0, ty0 ? 14 : 22), ty = da > .01 ? ANIM.lastDesc : null;   // карточка сбоку от шкафа, плавно едет к детали
+      if (ty) { const W = 150, d = HINT[ty] || ''; g.font = `400 5.4px ${UIF}`; const lines = d ? wrapText(d, W - 24) : [], hh = 17 + lines.length * 7.5, bx = PW - 12 - W, sy = ANIM.descY, by = clamp(sy - hh / 2, 48, LH - 10 - hh);
+        g.save(); g.globalAlpha = da; sprite('desc' + ty, bx, 0, W, hh, () => { uiCard(bx, 0, W, hh, 5); g.textAlign = 'left'; g.font = `500 5px ${UIF}`; try { g.letterSpacing = '1.4px'; } catch (e) {} g.save(); g.shadowColor = '#45f0ff'; g.shadowBlur = 6 * SC; g.fillStyle = '#7ff6ff'; g.fillText(PARTS[ty].name, bx + 11, 10); g.restore(); try { g.letterSpacing = '0px'; } catch (e) {}
+          g.font = `400 5.4px ${UIF}`; g.fillStyle = 'rgba(226,240,255,.88)'; lines.forEach((s, j) => g.fillText(s, bx + 11, 18 + j * 7.5)); }, bx + (1 - da) * 10, by);
+        const ay = clamp(sy, by + 6, by + hh - 6), ax = bx + W + (1 - da) * 10; g.fillStyle = '#7ff6ff'; g.beginPath(); g.moveTo(ax + 6, ay); g.lineTo(ax + 1, ay - 3.5); g.lineTo(ax + 1, ay + 3.5); g.closePath(); g.fill(); g.restore(); } }   // стрелочка к детали
+    if (won) { const a = ease('win', 1, 6), s = .6 + .4 * (1 + 2.2 * Math.pow(a - 1, 3) + 1.2 * Math.pow(a - 1, 2)); g.save(); g.globalAlpha = Math.min(1, a * 1.5); g.translate(250, 199); g.scale(s, s); g.translate(-250, -199); uiCard(165, 172, 170, 52, 8);   // «Готово» выскакивает с пружинкой
+      g.textAlign = 'center'; g.font = `600 9px ${UIF}`; try { g.letterSpacing = '5px'; } catch (e) {} g.save(); g.shadowColor = '#45f0ff'; g.shadowBlur = (8 + 4 * Math.sin(T * 4)) * SC; g.fillStyle = '#eafcff'; g.fillText('ГОТОВО', 252, 189); g.restore();
+      g.font = `400 4.8px ${UIF}`; try { g.letterSpacing = '1.2px'; } catch (e) {} g.fillStyle = 'rgba(200,225,255,.8)'; g.fillText('деталей ' + parts.filter(p => !p.fixed).length + '  ·  ' + won.toFixed(1) + ' с', 250, 199); try { g.letterSpacing = '0px'; } catch (e) {}
+      if (LI < LEVELS.length - 1) uiBtn(BTN.go, '', 'go', ease('bGo', at(BTN.go, mouse.x, mouse.y) ? 1 : 0, 12)); g.restore(); } else ANIM.win = 0;
     if (!SND) { g.font = '500 8px Rubik, sans-serif'; g.textAlign = 'left'; g.fillStyle = 'rgba(241,230,204,.5)'; g.fillText('звук выкл', PW + 14, LH - 5); } }
 
   // ── мышь
   const okPlace = p => p.x > 18 && p.x < PW - 18 && p.y > 18 && p.y < FLOOR - 4;
-  function partAt(x, y) { for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i], T = PARTS[p.type]; if (!p.fixed && inBox(x, y, { cx: p.x, cy: p.y + (T.oy || 0), w: T.w + 6, h: Math.max(T.h, 14) + 6, ang: T.rot && T.mirror && p.type !== 'pend' ? p.ang : 0 })) return p; } return null; }
+  function partAt(x, y) { for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i], T = PARTS[p.type]; if (!p.fixed && inBox(x, y, { cx: p.x, cy: p.y + (T.oy || 0), w: T.w + 6, h: Math.max(T.h, 14) + 6, ang: T.rot && p.type !== 'pend' && p.type !== 'gun' ? p.ang : 0 })) return p; } return null; }
   // шестерня, поставленная почти вплотную к другой, сама встаёт в зацепление
-  function snapGear(p) { const hs = hubsOf(p); if (!hs.length) return; let best = null; for (const q of parts) { if (q === p) continue; for (const b of hubsOf(q)) for (const a of hs) { const dx = a[0] - b[0], dy = a[1] - b[1], d = Math.hypot(dx, dy) || 1, want = a[2] + b[2], err = Math.abs(d - want); if (err < 7 && (!best || err < best.err)) best = { err, dx: dx / d * want - dx, dy: dy / d * want - dy }; } } if (best) { p.x += best.dx; p.y += best.dy; } }
+  function circInt(c1, r1, c2, r2) { const dx = c2[0] - c1[0], dy = c2[1] - c1[1], d = Math.hypot(dx, dy); if (!d || d > r1 + r2 || d < Math.abs(r1 - r2)) return []; const a = (r1 * r1 - r2 * r2 + d * d) / (2 * d), hh = Math.sqrt(Math.max(0, r1 * r1 - a * a)), xm = c1[0] + a * dx / d, ym = c1[1] + a * dy / d; return [[xm + hh * dy / d, ym - hh * dx / d], [xm - hh * dy / d, ym + hh * dx / d]]; }
+  // шестерня, поставленная рядом, сама встаёт в зацепление; если рядом две оси — так, чтобы сцепиться сразу с обеими
+  function snapGear(p) { const hs = hubsOf(p); if (!hs.length) return; const a = hs[0], cand = []; for (const q of parts) { if (q === p) continue; for (const b of hubsOf(q)) { const want = a[2] + b[2], e = Math.abs(Math.hypot(a[0] - b[0], a[1] - b[1]) - want); if (e < 16) cand.push({ b, want, e }); } }
+    if (!cand.length) return; let best = null;
+    for (let i = 0; i < cand.length; i++) for (let j = i + 1; j < cand.length; j++) for (const pt of circInt(cand[i].b, cand[i].want, cand[j].b, cand[j].want)) { const dd = Math.hypot(pt[0] - a[0], pt[1] - a[1]); if (dd < 16 && (!best || dd < best.dd)) best = { dd, x: pt[0], y: pt[1] }; }
+    if (!best) { const c = cand.sort((u, v) => u.e - v.e)[0]; if (c.e < 7) { const dx = a[0] - c.b[0], dy = a[1] - c.b[1], d = Math.hypot(dx, dy) || 1; best = { x: c.b[0] + dx / d * c.want, y: c.b[1] + dy / d * c.want }; } }
+    if (best) { p.x += best.x - a[0]; p.y += best.y - a[1]; } }
   const at = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   function pos(e) { const b = cv.getBoundingClientRect(); return { x: (e.clientX - b.left) / b.width * LW, y: (e.clientY - b.top) / b.height * LH }; }
   const audio = () => { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (x) {} } };
   cv.addEventListener('pointerdown', e => { audio(); const m = pos(e); if (e.button === 2 || (e.button === 0 && e.ctrlKey)) { e.preventDefault(); if (chainMode) { chainMode = null; return; } flipAt(m); return; } if (e.button !== 0) return;
     if (chainMode && m.x < PW && mode === 'edit') { const hb = hubAt(m); if (!hb) { chainMode = null; beep(160, .06); } else if (!chainMode.a) { chainMode.a = hb; beep(620, .04); } else if (hb.p !== chainMode.a.p) { chains.push({ a: chainMode.a.p, ai: chainMode.a.i, b: hb.p, bi: hb.i }); chainMode = null; beep(820, .06); panelKey = ''; } return; }
+    if (TIPX && at(TIPX, m.x, m.y)) { tipOff = LI; beep(500, .04); return; }
+    if (TIPB && at(TIPB, m.x, m.y)) return;   // по карточке подсказки ничего не ставим
+    if (LV.tip && tipOff === LI && m.x > 175 && m.x < 425 && m.y > 12 && m.y < 42) { tipOff = -1; beep(600, .04); return; }   // нажал на табличку — подсказка вернулась
     if (at(BTN.run, m.x, m.y)) { mode === 'run' ? stop() : start(); beep(mode === 'run' ? 660 : 330, .08); return; }
     if (at(BTN.clr, m.x, m.y) && mode === 'edit') { parts = parts.filter(p => p.fixed); chains = []; beep(200, .1); return; }
     if (won && LI < LEVELS.length - 1 && at(BTN.go, m.x, m.y)) { loadLevel(LI + 1); save(); beep(700, .08); return; }
     for (const [r, d] of [[BTN.prev, -1], [BTN.next, 1]]) if (at(r, m.x, m.y) && LI + d >= 0 && LI + d < LEVELS.length) { loadLevel(LI + d); save(); beep(600, .06); return; }
-    for (const [r, d] of [[BTN.pp, -1], [BTN.pn, 1]]) if (at(r, m.x, m.y) && PG + d >= 0 && PG + d < NPG()) { PG += d; beep(560, .04); return; }
+    for (const [r, d] of [[BTN.pp, -1], [BTN.pn, 1]]) if (at(r, m.x, m.y)) { SCY = clamp(SCY + d * 236, 0, MAXS()); beep(560, .04); return; }
     if (mode !== 'edit') return;
-    const vis = VIS(), i = vis.findIndex((ty, k) => at(SLOT(k), m.x, m.y)); if (i >= 0 && left(vis[i]) > 0 && vis[i] === 'chain') { chainMode = { a: null }; beep(560, .05); return; } chainMode = null;
+    const vis = VIS(), i = slotAt(m); if (i >= 0 && left(vis[i]) > 0 && vis[i] === 'chain') { chainMode = { a: null }; beep(560, .05); return; } chainMode = null;
     if (i >= 0 && left(vis[i]) > 0) { const ty = vis[i]; drag = { part: { type: ty, x: m.x, y: m.y, ang: rad(PARTS[ty].def || 0), dir: 1, hit: 0 }, dx: 0, dy: 0 }; cv.setPointerCapture(e.pointerId); beep(500, .04); return; }
     const p = partAt(m.x, m.y); if (p) { parts = parts.filter(q => q !== p); drag = { part: p, dx: p.x - m.x, dy: p.y - m.y }; cv.setPointerCapture(e.pointerId); beep(500, .04); } });
   cv.addEventListener('pointermove', e => { const m = pos(e); mouse = m; if (drag) { drag.part.x = Math.round(m.x + drag.dx); drag.part.y = Math.round(m.y + drag.dy); } hover = mode === 'edit' && !drag ? partAt(m.x, m.y) : null;
-    cv.style.cursor = drag ? 'grabbing' : hover || (mode === 'edit' && m.x > PW && VIS().some((ty, k) => at(SLOT(k), m.x, m.y) && left(ty) > 0)) ? 'grab' : [BTN.run, BTN.clr, BTN.prev, BTN.next, BTN.pp, BTN.pn].some(r => at(r, m.x, m.y)) || (won && at(BTN.go, m.x, m.y)) ? 'pointer' : 'default'; });
+    cv.style.cursor = drag ? 'grabbing' : hover || (mode === 'edit' && m.x > PW && (slotAt(m) >= 0 && left(VIS()[slotAt(m)]) > 0)) ? 'grab' : (TIPX && at(TIPX, m.x, m.y)) || [BTN.run, BTN.clr, BTN.prev, BTN.next, BTN.pp, BTN.pn].some(r => at(r, m.x, m.y)) || (won && at(BTN.go, m.x, m.y)) ? 'pointer' : 'default'; });
   cv.addEventListener('pointerup', e => { if (!drag) return; const p = drag.part; drag = null; if (p.x < PW && okPlace(p)) { snapGear(p); parts.push(p); beep(380, .05); hover = p; } else { chains = chains.filter(c => c.a !== p && c.b !== p); beep(160, .08); } });
   cv.addEventListener('contextmenu', e => e.preventDefault());
-  function flipAt(m) { if (mode !== 'edit') return; const p = drag ? drag.part : partAt(m.x, m.y); if (!p) return; const T = PARTS[p.type];
+  function flipAt(m) { if (mode !== 'edit') return; const p = drag ? drag.part : partAt(m.x, m.y); if (!p) return; const T = PARTS[p.type]; if (T.quarter) { p.ang = Math.round((p.ang + Math.PI / 2) / (Math.PI / 2)) * (Math.PI / 2); if (p.ang > Math.PI + .01) p.ang -= TAU; beep(440, .05); return; }
     if (T.flip) { if (p.type === 'fan' && p.vd === undefined) p.vd = p.dir; p.dir = -p.dir; beep(440, .05); } else if (T.mirror) { p.ang = -p.ang; beep(440, .05); } }
-  function turn(sgn) { const p = drag ? drag.part : hover; if (mode !== 'edit' || !p || !PARTS[p.type].rot) return false; const [a, b] = PARTS[p.type].rot; p.ang = clamp(p.ang + sgn * rad(5), rad(a), rad(b)); beep(600 + sgn * 40, .03); return true; }
-  cv.addEventListener('wheel', e => { if (turn(Math.sign(e.deltaY))) e.preventDefault(); }, { passive: false });
+  function turn(sgn) { const p = drag ? drag.part : hover; if (mode !== 'edit' || !p || !PARTS[p.type].rot) return false; const [a, b] = PARTS[p.type].rot; const st = rad(PARTS[p.type].step || 5); p.ang = PARTS[p.type].quarter ? Math.round((p.ang + sgn * st) / st) * st : clamp(p.ang + sgn * st, rad(a), rad(b)); if (PARTS[p.type].quarter && Math.abs(p.ang) > Math.PI + .01) p.ang -= Math.sign(p.ang) * TAU; beep(600 + sgn * 40, .03); return true; }
+  cv.addEventListener('wheel', e => { const m = pos(e); if (m.x > PW && m.y < 318 && !drag) { e.preventDefault(); SCY = clamp(SCY + e.deltaY + e.deltaX, 0, MAXS()); return; } if (turn(Math.sign(e.deltaY || e.deltaX))) e.preventDefault(); }, { passive: false });   // над шкафом — прокрутка в любую сторону
   addEventListener('keydown', e => { const k = e.key.toLowerCase(); if (k === ' ') { e.preventDefault(); audio(); mode === 'run' ? stop() : start(); }
     if (k === 'q' || k === 'й') turn(-1); if (k === 'e' || k === 'у') turn(1); if (k === 'm' || k === 'ь') SND = !SND; });
-  document.fonts && document.fonts.ready.then(() => { bgScale = 0; panelKey = ''; });
+  document.fonts && document.fonts.ready.then(() => { bgScale = 0; panelKey = ''; listKey = ''; }); document.fonts && document.fonts.load('500 10px "Exo 2"').then(() => { panelKey = ''; SPR.clear(); }); document.fonts && document.fonts.ready.then(() => SPR.clear());
 
   const save = () => { try { localStorage.setItem('tim_level', String(LI)); } catch (e) {} };
   let L0 = 0; try { L0 = +localStorage.getItem('tim_level') || 0; } catch (e) {} loadLevel(L0);
 
   // ── цикл: физика мелким шагом 1/240 с
   let last = performance.now(), acc = 0, T = 0;
-  function loop(t) { const dt = Math.min(.05, (t - last) / 1000); last = t; T += dt;
+  function loop(t) { const dt = Math.min(.05, (t - last) / 1000); last = t; T += dt; FDT = dt;
     if (mode === 'run') { acc += dt; while (acc >= 1 / 240) { sim(1 / 240); acc -= 1 / 240; } }
     for (const p of parts.concat(drag ? [drag.part] : [])) if (p.vd !== undefined) { p.vd += (p.dir - p.vd) * Math.min(1, dt * 14); if (Math.abs(p.dir - p.vd) < .01) p.vd = p.dir; }
     draw(T); requestAnimationFrame(loop); }

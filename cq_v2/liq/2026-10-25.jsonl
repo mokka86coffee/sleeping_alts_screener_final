@@ -7757,3 +7757,5 @@
 {"t": 1792965611032, "sym": "NGUSDT", "side": "long", "usd": 14.92, "px": 2.983, "src": "okx"}
 {"t": 1792965698451, "sym": "ZECUSDT", "side": "short", "usd": 631.9, "px": 1215.2, "src": "okx"}
 {"t": 1792966064233, "sym": "ATUSDT", "side": "short", "usd": 985.64, "px": 0.1202, "src": "okx"}
+{"t": 1792967016644, "sym": "INITUSDT", "side": "long", "usd": 6.21, "px": 0.15521, "src": "okx"}
+{"t": 1792967479805, "sym": "GRASSUSDT", "side": "short", "usd": 11.67, "px": 0.7294, "src": "okx"}
