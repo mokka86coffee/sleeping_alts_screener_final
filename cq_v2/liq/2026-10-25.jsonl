@@ -7759,3 +7759,10 @@
 {"t": 1792966064233, "sym": "ATUSDT", "side": "short", "usd": 985.64, "px": 0.1202, "src": "okx"}
 {"t": 1792967016644, "sym": "INITUSDT", "side": "long", "usd": 6.21, "px": 0.15521, "src": "okx"}
 {"t": 1792967479805, "sym": "GRASSUSDT", "side": "short", "usd": 11.67, "px": 0.7294, "src": "okx"}
+{"t": 1792968220838, "sym": "AXISUSDT", "side": "short", "usd": 412.52, "px": 0.2845, "src": "okx"}
+{"t": 1792968678032, "sym": "APRUSDT", "side": "long", "usd": 1032.0, "px": 0.04128, "src": "okx"}
+{"t": 1792968683237, "sym": "APRUSDT", "side": "long", "usd": 0.82, "px": 0.04086, "src": "okx"}
+{"t": 1792968709612, "sym": "CTUSDT", "side": "long", "usd": 1665.25, "px": 0.1631, "src": "okx"}
+{"t": 1792968717213, "sym": "APRUSDT", "side": "long", "usd": 1013.75, "px": 0.04055, "src": "okx"}
+{"t": 1792968737236, "sym": "APRUSDT", "side": "long", "usd": 1.21, "px": 0.04036, "src": "okx"}
+{"t": 1792969019063, "sym": "APRUSDT", "side": "long", "usd": 61.89, "px": 0.03967, "src": "okx"}
