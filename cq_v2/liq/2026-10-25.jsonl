@@ -7826,3 +7826,9 @@
 {"t": 1792971048038, "sym": "ETHUSDT", "side": "long", "usd": 231.16, "px": 2311.59, "src": "okx"}
 {"t": 1792971049395, "sym": "CPUSDT", "side": "long", "usd": 20.04, "px": 0.008713, "src": "okx"}
 {"t": 1792971271502, "sym": "ETHUSDT", "side": "short", "usd": 2416.41, "px": 2330.19, "src": "okx"}
+{"t": 1792971680436, "sym": "APRUSDT", "side": "long", "usd": 966.25, "px": 0.03865, "src": "okx"}
+{"t": 1792971848454, "sym": "APRUSDT", "side": "short", "usd": 4.41, "px": 0.0401, "src": "okx"}
+{"t": 1792971964820, "sym": "ETHUSDT", "side": "long", "usd": 143423.39, "px": 2321.18, "src": "okx"}
+{"t": 1792971989448, "sym": "SNDKUSDT", "side": "long", "usd": 77.58, "px": 1251.3, "src": "okx"}
+{"t": 1792972045834, "sym": "ETHUSDT", "side": "long", "usd": 81.09, "px": 2316.79, "src": "okx"}
+{"t": 1792972072299, "sym": "AXISUSDT", "side": "long", "usd": 2.74, "px": 0.2737, "src": "okx"}
