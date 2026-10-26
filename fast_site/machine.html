@@ -5,9 +5,13 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Хитрая машина</title>
 <!-- 26.10 владелец: «вот такую игру хочу» — по образцу The Incredible Machine 2 (1994): собрать цепочку из деталей, чтобы сделать простое дело.
-     «графика слишком убогая», «сделай более реалистично всё», «добавь побольше задач». Графика, текстуры и физика свои (из оригинала ничего не копируется).
-     Пять задач; стрелки на табличке — выбрать задачу. Детали тащить мышью из шкафа справа; колесо мыши или Q / E — повернуть доску;
-     правая кнопка — развернуть вентилятор и транспортёр; ПУСК / СТОП — пробел; вернуть деталь — утащить её обратно в шкаф. -->
+     «графика слишком убогая», «сделай более реалистично всё», «добавь побольше задач», «добавь ещё 20 предметов вообще разных»,
+     «там были кислоты, шарики надувать», «всё всегда можно использовать», «двигать предмет одним вентилятором неинтересно — что-то может падать,
+     течь, шестерёнки что-то крутить, чтобы подуло, и дуть нужно включить», «интереснее изобретать, а не втупую использовать очевидное».
+     Поэтому машины сами не работают: вентилятор, пылесос, магнит, мотор, перчатка, ускоритель берут ток по проводу от включённого выключателя
+     или крутящегося генератора; транспортёр и генератор крутятся только от шестерёнок, а шестерёнки — от хомяка (бежит, если его напугать мячом),
+     мотора, ветряка (дует включённый вентилятор) или водяного колеса (открыть кран). Все детали доступны во всех задачах.
+     Графика, текстуры и физика свои (из оригинала ничего не копируется). Мышь — тащить; колесо / Q E — наклон; правая кнопка — развернуть; пробел — пуск. -->
 <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 html, body { margin: 0; height: 100%; background: radial-gradient(ellipse at 50% 40%, #2a2219, #0d0a07 75%); overflow: hidden; }
@@ -18,7 +22,7 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="help"><b>мышь</b> — тащить деталь &nbsp;·&nbsp; <b>колесо / Q E</b> — повернуть доску &nbsp;·&nbsp; <b>правая кнопка</b> — развернуть &nbsp;·&nbsp; <b>пробел</b> — пуск / стоп &nbsp;·&nbsp; <b>M</b> — звук</div>
+<div id="help"><b>мышь</b> — тащить деталь &nbsp;·&nbsp; <b>колесо / Q E</b> — наклон &nbsp;·&nbsp; <b>правая кнопка</b> — развернуть &nbsp;·&nbsp; <b>пробел</b> — пуск / стоп &nbsp;·&nbsp; <b>M</b> — звук</div>
 <script>
 (() => {
   const LW = 640, LH = 400, PW = 500, G = 600, FLOOR = 384;
@@ -27,28 +31,160 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
   addEventListener('resize', fit); fit();
   const TAU = Math.PI * 2, clamp = (v, a, b) => Math.max(a, Math.min(b, v)), rad = d => d * Math.PI / 180;
 
-  // ── задачи: предметы уровня, мячи, цель, детали в шкафу
-  const BALL = { bowl: { r: 12, m: 5, e: .15 }, basket: { r: 11, m: 1, e: .72 }, tennis: { r: 6.5, m: .3, e: .78 } };
-  const LEVELS = [
+  // ── мячи: масса, упругость; воздушный шар тянет вверх, лёгкие тормозит воздух, железные тянет магнит
+  const BALL = { bowl: { r: 12, m: 5, e: .15 }, basket: { r: 11, m: 1, e: .72 }, tennis: { r: 6.5, m: .3, e: .78 }, billiard: { r: 6, m: 1.6, e: .9 }, beach: { r: 15, m: .12, e: .8, drag: .7 },
+    iron: { r: 9, m: 10, e: .05, metal: 1 }, balloon: { r: 11, m: .08, e: .4, drag: 1.6, lift: 1 }, steel: { r: 5, m: 2, e: .5, metal: 1 }, kettle: { r: 10, m: 12, e: .02, metal: 1 } };
+  BALL.egg = { r: 7, m: .5, e: .12, fragile: 1 };   // яйцо бьётся от сильного удара
+  const SOFT = new Set(['balloon', 'beach', 'tennis']);
+
+  // ── задачи: предметы уровня, мячи, цель
+  const LEVELS0 = [
     { title: 'ЗАГОНИ БАСКЕТБОЛЬНЫЙ МЯЧ В КОРЗИНУ', goal: { type: 'hoop', x: 425, y: 160, ball: 'basket' },
       objs: [{ kind: 'rail', cx: 64, cy: 78, w: 108, h: 8, ang: 6 }, { kind: 'shelf', cx: 245, cy: 105, w: 110, h: 10 }, { kind: 'brick', cx: 340, cy: 330, w: 22, h: 108 }],
-      balls: [['bowl', 30, 57], ['basket', 245, 89]], inv: { ramp: 3, tramp: 1, fan: 1, belt: 1, pin: 2, spring: 1, saw: 1, funnel: 1, wall: 1, ball: 1 } },
+      balls: [['bowl', 30, 57], ['basket', 245, 89]] },
     { title: 'СБЕЙ ВСЕ КЕГЛИ ЗА СТЕНКОЙ', goal: { type: 'pins' },
       objs: [{ kind: 'rail', cx: 436, cy: 80, w: 108, h: 8, ang: -6 }, { kind: 'brick', cx: 230, cy: 350, w: 22, h: 68 }],
-      pins: [[60, FLOOR], [84, FLOOR], [108, FLOOR]], balls: [['bowl', 470, 58]], inv: { ramp: 2, tramp: 1, fan: 1, belt: 1, spring: 1, wall: 1 } },
+      pins: [[60, FLOOR], [84, FLOOR], [108, FLOOR]], balls: [['bowl', 470, 58]] },
     { title: 'ПОЛОЖИ ТЕННИСНЫЙ МЯЧ В ВЕДРО', goal: { type: 'bucket', x: 420, y: 240, ball: 'tennis' },
       objs: [{ kind: 'shelf', cx: 90, cy: 130, w: 120, h: 10 }, { kind: 'brick', cx: 420, cy: 330, w: 70, h: 108 }],
-      balls: [['tennis', 125, 118.5]], inv: { fan: 1, ramp: 2, tramp: 1, pin: 1, spring: 1, funnel: 1, wall: 1 } },
+      balls: [['tennis', 125, 118.5]] },
     { title: 'МЯЧ ВЫПАДЕТ ИЗ ТРУБЫ — ПОПАДИ В КОРЗИНУ', goal: { type: 'hoop', x: 330, y: 150, ball: 'basket' },
       objs: [{ kind: 'pipe', cx: 70, cy: 22, w: 30, h: 44 }, { kind: 'brick', cx: 190, cy: 318, w: 22, h: 132 }],
-      balls: [['basket', 70, 58]], inv: { tramp: 1, ramp: 2, fan: 1, spring: 1, funnel: 1, wall: 1 } },
+      balls: [['basket', 70, 58]] },
     { title: 'СБЕЙ КЕГЛИ НА ДАЛЬНЕЙ ПОЛКЕ', goal: { type: 'pins' },
       objs: [{ kind: 'rail', cx: 64, cy: 78, w: 108, h: 8, ang: 6 }, { kind: 'shelf', cx: 385, cy: 170, w: 170, h: 10 }, { kind: 'brick', cx: 300, cy: 300, w: 22, h: 168 }],
-      pins: [[400, 165], [424, 165], [448, 165]], balls: [['bowl', 30, 57]], inv: { ramp: 3, tramp: 1, fan: 1, saw: 1, spring: 1, wall: 1 } },
+      pins: [[400, 165], [424, 165], [448, 165]], balls: [['bowl', 30, 57]] },
     { title: 'ПОДБРОСЬ МЯЧ КАЧЕЛЯМИ', goal: { type: 'hoop', x: 400, y: 200, ball: 'basket' },
       objs: [{ kind: 'pipe', cx: 100, cy: 22, w: 30, h: 44 }],
-      saws: [[250, 362, .3]], balls: [['bowl', 100, 58], ['basket', 288, 357]], inv: { ramp: 2, fan: 1, spring: 1, wall: 1, funnel: 1 } },
+      saws: [[250, 362, .3]], balls: [['bowl', 100, 58], ['basket', 288, 357]] },
+    // ── новые задачи: часть машины уже стоит (детали уровня не двигаются), остальное — придумать
+    { title: 'ВКЛЮЧИ ЛАМПУ', goal: { type: 'on' }, objs: [{ kind: 'rail', cx: 64, cy: 78, w: 108, h: 8, ang: 6 }],
+      balls: [['billiard', 30, 63.5]], fixed: [['lamp', 300, 330, 0, 1, { goal: 1 }]], sol: [['switch', 166, 296]] },
+    { title: 'ПОЗВОНИ В ЗВОНОК ЗА СТЕНКОЙ', goal: { type: 'bell' }, objs: [{ kind: 'pipe', cx: 250, cy: 22, w: 30, h: 44 }, { kind: 'brick', cx: 330, cy: 330, w: 20, h: 108 }],
+      balls: [['steel', 250, 52]], fixed: [['bell', 420, 330, 0, 1, { goal: 1 }]], sol: [['ramp', 220, 165, 15]] },
+    { title: 'ЛОПНИ ВОЗДУШНЫЙ ШАРИК', goal: { type: 'pop' }, objs: [{ kind: 'rail', cx: 64, cy: 200, w: 108, h: 8, ang: 6 }, { kind: 'shelf', cx: 260, cy: 115, w: 360, h: 10 }, { kind: 'shelf', cx: 320, cy: 166, w: 40, h: 10 }],
+      balls: [['billiard', 30, 185.5], ['balloon', 220, 340]], fixed: [['fan', 130, 140, 0, 1], ['cactus', 320, 145]], sol: [['switch', 126, 238]] },
+    { title: 'ЗАПУСТИ ТРАНСПОРТЁР — ДОВЕЗИ МЯЧ ДО ФЛАЖКА', goal: { type: 'zone', x: 380, y: 320, w: 100, h: 64, ball: 'basket' }, objs: [{ kind: 'pipe', cx: 58, cy: 22, w: 30, h: 44 }],
+      balls: [['steel', 58, 52], ['basket', 100, 361]], fixed: [['hamster', 58, 342], ['belt', 110, 370]], sol: [['gear', 78, 360]] },
+    { title: 'ВОДА КРУТИТ КОЛЕСО — ЗАЖГИ ЛАМПУ', goal: { type: 'on' }, objs: [{ kind: 'pipe', cx: 120, cy: 22, w: 30, h: 44 }],
+      balls: [['billiard', 120, 52]], fixed: [['tap', 100, 200, 0, 1], ['wheel', 125, 270], ['gen', 182, 270, 0, -1], ['lamp', 260, 270, 0, 1, { goal: 1 }]], sol: [['gear', 147, 270]] },
+    { title: 'ДОНЕСИ ЯЙЦО ДО ФЛАЖКА И НЕ РАЗБЕЙ', goal: { type: 'zone', x: 160, y: 330, w: 110, h: 54, ball: 'egg' }, objs: [{ kind: 'rail', cx: 64, cy: 78, w: 108, h: 8, ang: 6 }],
+      balls: [['egg', 30, 62.5]], sol: [['cushion', 176, 378]] },
+    { title: 'ВЫСТРЕЛИ ИЗ ПУШКИ В ЗВОНОК', goal: { type: 'bell' }, objs: [{ kind: 'rail', cx: 64, cy: 78, w: 108, h: 8, ang: 6 }],
+      balls: [['billiard', 30, 63.5]], fixed: [['gun', 60, 362, -45, 1], ['bell', 300, 222, 0, 1, { goal: 1 }]], sol: [['ramp', 120, 150, -25]] },
+    { title: 'РАСТВОРИ КИСЛОТОЙ ЯЩИК', goal: { type: 'melt' }, objs: [{ kind: 'rail', cx: 64, cy: 100, w: 108, h: 8, ang: 6 }, { kind: 'shelf', cx: 230, cy: 150, w: 110, h: 10 }],
+      balls: [['billiard', 30, 85.5]], fixed: [['acid', 270, 132], ['box', 304, 369, 0, 1, { goal: 1 }]], sol: [['ramp', 130, 113, 12]] },
+    { title: 'ВЕТЕР КРУТИТ ВЕТРЯК — ЗАЖГИ ЛАМПУ', goal: { type: 'on' }, objs: [{ kind: 'pipe', cx: 100, cy: 22, w: 30, h: 44 }],
+      balls: [['steel', 100, 52]], fixed: [['switch', 100, 260], ['fan', 180, 200, 0, 1], ['gen', 400, 200, 0, -1], ['lamp', 430, 300, 0, 1, { goal: 1 }]], sol: [['mill', 373, 200]] },
+    { title: 'ШАРИК ИЗ НАСОСА — ДОВЕДИ ДО ФЛАЖКА НАВЕРХУ', goal: { type: 'zone', x: 340, y: 12, w: 140, h: 80, ball: 'balloon' }, objs: [{ kind: 'rail', cx: 64, cy: 78, w: 108, h: 8, ang: 6 }],
+      balls: [['billiard', 30, 63.5]], fixed: [['pump', 190, 368]], sol: [['ramp', 300, 120, -30]] },
+    { title: 'ГИРЯ И КАЧЕЛИ — ЗАКИНЬ МЯЧ НА ПОЛКУ', goal: { type: 'zone', x: 52, y: 150, w: 140, h: 46, ball: 'basket' }, objs: [{ kind: 'shelf', cx: 120, cy: 200, w: 140, h: 10 }],
+      saws: [[250, 362, .3]], balls: [['basket', 288, 357]], sol: [['kettle', 212, 120]] },
+    { title: 'ПОДНИМИ ЯДРО МАГНИТОМ', goal: { type: 'zone', x: 225, y: 280, w: 50, h: 40, ball: 'iron' }, objs: [{ kind: 'shelf', cx: 250, cy: 263, w: 90, h: 10 }, { kind: 'pipe', cx: 130, cy: 22, w: 30, h: 44 }],
+      balls: [['billiard', 130, 52], ['iron', 250, 374]], fixed: [['magnet', 250, 280]], sol: [['switch', 118, 240]] },
+    { title: 'МОТОР И ШЕСТЕРНИ — ДОВЕЗИ МЯЧ', goal: { type: 'zone', x: 380, y: 320, w: 100, h: 64, ball: 'basket' }, objs: [{ kind: 'pipe', cx: 60, cy: 22, w: 30, h: 44 }],
+      balls: [['billiard', 60, 52], ['basket', 150, 337]], fixed: [['switch', 60, 230], ['motor', 86, 300, 0, -1], ['belt', 156, 346]], sol: [['gear', 85, 316], ['gear', 102, 338]] },
+    { title: 'ДОМИНО ДО ЗВОНКА', goal: { type: 'bell' }, objs: [{ kind: 'rail', cx: 64, cy: 78, w: 108, h: 8, ang: 6 }],
+      balls: [['billiard', 30, 63.5]], fixed: [['bell', 330, 348, 0, 1, { goal: 1 }]], sol: [['dom', 215, 371], ['dom', 237, 371], ['dom', 259, 371], ['pin', 281, 367], ['pin', 303, 367]] },
+    { title: 'ЯЙЦО НА ПОЛКУ — ЦЕЛЫМ', goal: { type: 'zone', x: 190, y: 110, w: 95, h: 35, ball: 'egg' }, objs: [{ kind: 'rail', cx: 64, cy: 78, w: 108, h: 8, ang: 6 }, { kind: 'shelf', cx: 230, cy: 150, w: 110, h: 10 }],
+      balls: [['egg', 30, 62.5]], sol: [['ramp', 155, 115, 30], ['wall', 275, 125]] },
+    { title: 'ПЫЛЕСОС — ПРИТЯНИ МЯЧ К ФЛАЖКУ', goal: { type: 'zone', x: 214, y: 340, w: 48, h: 44, ball: 'tennis' }, objs: [{ kind: 'pipe', cx: 400, cy: 22, w: 30, h: 44 }],
+      balls: [['steel', 400, 52], ['tennis', 70, 377]], sol: [['vacuum', 262, 372, 0, -1], ['switch', 400, 360]] },
+    { title: 'ВЕТРЯК КРУТИТ ТРАНСПОРТЁР', goal: { type: 'zone', x: 380, y: 320, w: 100, h: 64, ball: 'basket' }, objs: [{ kind: 'pipe', cx: 60, cy: 22, w: 30, h: 44 }],
+      balls: [['billiard', 60, 52], ['basket', 300, 203]], fixed: [['switch', 60, 260], ['fan', 120, 150, 0, 1], ['belt', 306, 212]], sol: [['mill', 250, 150], ['gear', 250, 170], ['gear', 250, 198], ['gearS', 250, 220]] },
+    { title: 'ЦЕПЬ — ХОМЯК ДАЛЕКО ОТ ТРАНСПОРТЁРА', goal: { type: 'zone', x: 400, y: 320, w: 80, h: 64, ball: 'basket' }, objs: [{ kind: 'pipe', cx: 80, cy: 22, w: 30, h: 44 }],
+      balls: [['steel', 80, 52], ['basket', 300, 361]], fixed: [['hamster', 80, 140], ['belt', 300, 370]], sol: [['chain', 0, 0, 1, 0]] },
+    { title: 'ПЕРЧАТКА СБИВАЕТ КЕГЛИ', goal: { type: 'pins' }, objs: [{ kind: 'pipe', cx: 250, cy: 22, w: 30, h: 44 }, { kind: 'shelf', cx: 385, cy: 170, w: 170, h: 10 }],
+      pins: [[400, 165], [424, 165], [448, 165]], balls: [['steel', 250, 52]], fixed: [['glove', 370, 150, 0, 1]], sol: [['switch', 250, 200]] },
+    { title: 'ПУШКА ПО КЕГЛЯМ', goal: { type: 'pins' }, objs: [{ kind: 'rail', cx: 64, cy: 78, w: 108, h: 8, ang: 6 }, { kind: 'shelf', cx: 385, cy: 170, w: 170, h: 10 }, { kind: 'brick', cx: 300, cy: 300, w: 22, h: 168 }],
+      pins: [[400, 165], [424, 165], [448, 165]], balls: [['billiard', 30, 63.5]], sol: [['gun', 200, 362, -75]] },
+    { title: 'ОТБОЙНИК — ЗАКИНЬ ШАР В ЗВОНОК', goal: { type: 'bell' }, objs: [{ kind: 'pipe', cx: 100, cy: 22, w: 30, h: 44 }, { kind: 'brick', cx: 230, cy: 330, w: 20, h: 108 }],
+      balls: [['steel', 100, 52]], fixed: [['bell', 330, 250, 0, 1, { goal: 1 }]], sol: [['bump', 88, 216]] },
+    { title: 'УСКОРИТЕЛЬ — ПЕРЕПРЫГНИ ПРОПАСТЬ', goal: { type: 'zone', x: 300, y: 225, w: 165, h: 40, ball: 'basket' }, objs: [{ kind: 'pipe', cx: 240, cy: 22, w: 30, h: 44 }, { kind: 'shelf', cx: 120, cy: 250, w: 160, h: 10 }, { kind: 'shelf', cx: 385, cy: 270, w: 170, h: 10 }],
+      balls: [['steel', 240, 52], ['basket', 110, 234]], sol: [['boost', 120, 241], ['switch', 240, 300]] },
+    { title: 'ШАР ДЛЯ БОУЛИНГА — В ВЕДРО', goal: { type: 'bucket', x: 250, y: 240, ball: 'bowl' }, objs: [{ kind: 'pipe', cx: 100, cy: 22, w: 30, h: 44 }, { kind: 'brick', cx: 250, cy: 330, w: 70, h: 108 }],
+      balls: [['bowl', 100, 58]], sol: [['ramp', 104, 100, 20]] },
+    { title: 'ЗАЖГИ ОБЕ ЛАМПЫ', goal: { type: 'on' }, objs: [{ kind: 'pipe', cx: 70, cy: 22, w: 30, h: 44 }, { kind: 'pipe', cx: 430, cy: 22, w: 30, h: 44 }],
+      balls: [['billiard', 70, 52], ['billiard', 430, 52]], fixed: [['lamp', 40, 330, 0, 1, { goal: 1 }], ['lamp', 470, 330, 0, 1, { goal: 1 }]], sol: [['switch', 70, 300], ['switch', 430, 300]] },
+    { title: 'ВЕТЕР ГОНИТ ПЛЯЖНЫЙ МЯЧ — ЗАКИНЬ НА ПОЛКУ', goal: { type: 'zone', x: 365, y: 160, w: 115, h: 55, ball: 'beach' }, objs: [{ kind: 'pipe', cx: 120, cy: 22, w: 30, h: 44 }, { kind: 'shelf', cx: 420, cy: 220, w: 120, h: 10 }, { kind: 'shelf', cx: 90, cy: 250, w: 120, h: 10 }],
+      balls: [['billiard', 120, 52], ['beach', 100, 230]], fixed: [['switch', 120, 150], ['fan', 40, 228, 0, 1]], sol: [['ramp', 170, 220, -30]] },
+    { title: 'ЯЙЦО В КОРОБКУ', goal: { type: 'zone', x: 342, y: 345, w: 36, h: 39, ball: 'egg' }, objs: [{ kind: 'rail', cx: 64, cy: 78, w: 108, h: 8, ang: 6 }],
+      balls: [['egg', 30, 62.5]], fixed: [['box', 360, 369]], sol: [['ramp', 165, 112, 20]] },
+    { title: 'ХОМЯК КРУТИТ ГЕНЕРАТОР — ЗАЖГИ ЛАМПУ', goal: { type: 'on' }, objs: [{ kind: 'pipe', cx: 80, cy: 22, w: 30, h: 44 }],
+      balls: [['steel', 80, 52]], fixed: [['hamster', 80, 140], ['gen', 400, 300, 0, -1], ['lamp', 450, 350, 0, 1, { goal: 1 }]], sol: [['chain', 0, 0, 1, 0]] },
+    { title: 'ВОДА КРУТИТ ТРАНСПОРТЁР', goal: { type: 'zone', x: 400, y: 320, w: 80, h: 64, ball: 'basket' }, objs: [{ kind: 'pipe', cx: 120, cy: 22, w: 30, h: 44 }],
+      balls: [['billiard', 120, 52], ['basket', 330, 361]], fixed: [['tap', 100, 200, 0, 1], ['wheel', 125, 270], ['belt', 330, 370]], sol: [['chain', 1, 0, 2, 0]] },
+    { title: 'РАСТВОРИ ЯЩИК — КОЛБА ВЫСОКО', goal: { type: 'melt' }, objs: [{ kind: 'rail', cx: 64, cy: 78, w: 108, h: 8, ang: 6 }, { kind: 'shelf', cx: 310, cy: 310, w: 40, h: 10 }],
+      balls: [['billiard', 30, 63.5]], fixed: [['acid', 305, 292], ['box', 336, 369, 0, 1, { goal: 1 }]], sol: [['spring', 218, 370, 20]] },
+    { title: 'ВОЗДУШНЫЙ ШАР ПОЗВОНИТ', goal: { type: 'bell' }, objs: [{ kind: 'pipe', cx: 100, cy: 22, w: 30, h: 44 }],
+      balls: [['steel', 100, 52]], fixed: [['pump', 100, 368], ['bell', 210, 90, 0, 1, { goal: 1 }]], sol: [['ramp', 144, 140, -30]] },
+    { title: 'ОТБОЙНИК — ЧЕРЕЗ СТЕНКУ ПО КЕГЛЯМ', goal: { type: 'pins' }, objs: [{ kind: 'pipe', cx: 150, cy: 22, w: 30, h: 44 }, { kind: 'brick', cx: 330, cy: 340, w: 20, h: 88 }],
+      pins: [[400, FLOOR], [424, FLOOR], [448, FLOOR]], balls: [['steel', 150, 52]], sol: [['bump', 140, 200]] },
+    { title: 'ХОМЯК, ГЕНЕРАТОР И МАГНИТ — ПОДНИМИ ГИРЮ', goal: { type: 'zone', x: 355, y: 295, w: 50, h: 40, ball: 'kettle' }, objs: [{ kind: 'pipe', cx: 80, cy: 22, w: 30, h: 44 }],
+      balls: [['steel', 80, 52], ['kettle', 380, 374]], fixed: [['hamster', 80, 140], ['gen', 330, 200, 0, -1], ['magnet', 380, 290]], sol: [['chain', 0, 0, 1, 0]] },
+    { title: 'ВОДА, ГЕНЕРАТОР И ПЫЛЕСОС', goal: { type: 'zone', x: 392, y: 340, w: 40, h: 44, ball: 'tennis' }, objs: [{ kind: 'pipe', cx: 120, cy: 22, w: 30, h: 44 }],
+      balls: [['billiard', 120, 52], ['tennis', 260, 377]], fixed: [['tap', 100, 200, 0, 1], ['wheel', 125, 270], ['gen', 320, 300, 0, 1], ['vacuum', 440, 372, 0, -1]], sol: [['chain', 1, 0, 2, 0]] },
+    { title: 'ТРАНСПОРТЁР КРУТИТСЯ НЕ ТУДА — РАЗВЕРНИ', goal: { type: 'bell' }, objs: [{ kind: 'pipe', cx: 420, cy: 22, w: 30, h: 44 }],
+      balls: [['steel', 420, 52], ['billiard', 110, 215.5]], fixed: [['gun', 51, 362, -45, 1], ['bell', 291, 222, 0, 1, { goal: 1 }], ['belt', 95, 220], ['hamster', 420, 300]], sol: [['gear', 137, 208], ['chain', 3, 0, 4, 0]] },
+    { title: 'ДОМИНО ВКЛЮЧИТ СВЕТ', goal: { type: 'on' }, objs: [{ kind: 'rail', cx: 64, cy: 78, w: 108, h: 8, ang: 6 }],
+      balls: [['billiard', 30, 63.5]], fixed: [['switch', 330, 372], ['lamp', 420, 330, 0, 1, { goal: 1 }]], sol: [['dom', 215, 371], ['dom', 237, 371], ['dom', 259, 371], ['pin', 281, 367], ['pin', 303, 367]] },
+    { title: 'МАЯТНИК НАЖМЁТ НА СПУСК', goal: { type: 'pins' }, objs: [{ kind: 'shelf', cx: 385, cy: 170, w: 170, h: 10 }, { kind: 'brick', cx: 300, cy: 300, w: 22, h: 168 }],
+      pins: [[400, 165], [424, 165], [448, 165]], balls: [], fixed: [['gun', 200, 362, -75, 1]], sol: [['pend', 150, 304, 60]] },
+    { title: 'ПРУЖИНА ЗАБРОСИТ МЯЧ В ВЕДРО', goal: { type: 'bucket', x: 420, y: 240, ball: 'tennis' }, objs: [{ kind: 'pipe', cx: 120, cy: 22, w: 30, h: 44 }, { kind: 'brick', cx: 420, cy: 330, w: 70, h: 108 }],
+      balls: [['tennis', 120, 52]], sol: [['spring', 110, 265, 30]] },
+    { title: 'ХОМЯК, ГЕНЕРАТОР, ВЕНТИЛЯТОР — ЛОПНИ ШАРИК', goal: { type: 'pop' }, objs: [{ kind: 'pipe', cx: 80, cy: 22, w: 30, h: 44 }, { kind: 'shelf', cx: 300, cy: 115, w: 300, h: 10 }, { kind: 'shelf', cx: 420, cy: 166, w: 40, h: 10 }],
+      balls: [['steel', 80, 52], ['balloon', 300, 340]], fixed: [['hamster', 80, 140], ['gen', 200, 300, 0, -1], ['fan', 230, 140, 0, 1], ['cactus', 420, 145]], sol: [['chain', 0, 0, 1, 0]] },
+    { title: 'МАГНИТ ПРОТАЩИТ ШАРИК ЧЕРЕЗ ЗВОНОК', goal: { type: 'bell' }, objs: [{ kind: 'pipe', cx: 180, cy: 22, w: 30, h: 44 }],
+      balls: [['billiard', 180, 52], ['steel', 230, 379]], fixed: [['bell', 300, 366, 0, 1, { goal: 1 }]], sol: [['switch', 180, 340], ['magnet', 345, 370]] },
+    { title: 'ЯДРО ИЗ ПУШКИ — В ВЕДРО', goal: { type: 'bucket', x: 420, y: 240, ball: 'iron' }, objs: [{ kind: 'rail', cx: 64, cy: 78, w: 108, h: 8, ang: 6 }, { kind: 'brick', cx: 420, cy: 330, w: 70, h: 108 }],
+      balls: [['billiard', 30, 63.5]], sol: [['gun', 205, 362, -45]] },
+    { title: 'ВЕТЕР, ГЕНЕРАТОР И ПЫЛЕСОС', goal: { type: 'zone', x: 392, y: 340, w: 40, h: 44, ball: 'tennis' }, objs: [{ kind: 'pipe', cx: 60, cy: 22, w: 30, h: 44 }],
+      balls: [['billiard', 60, 52], ['tennis', 250, 377]], fixed: [['switch', 60, 260], ['fan', 120, 150, 0, 1], ['gen', 400, 260, 0, -1], ['vacuum', 440, 372, 0, -1]], sol: [['mill', 250, 150], ['chain', 4, 0, 2, 0]] },
+    { title: 'СБЕЙ ШАРИК ЯДРОМ', goal: { type: 'pop' }, objs: [{ kind: 'rail', cx: 64, cy: 78, w: 108, h: 8, ang: 6 }, { kind: 'shelf', cx: 400, cy: 130, w: 160, h: 10 }],
+      balls: [['billiard', 30, 63.5], ['balloon', 420, 300]], sol: [['gun', 195, 362, -65]] },
+    { title: 'ВОДА ЗАПУСТИТ ПЕРЧАТКУ', goal: { type: 'pins' }, objs: [{ kind: 'pipe', cx: 120, cy: 22, w: 30, h: 44 }, { kind: 'shelf', cx: 385, cy: 170, w: 170, h: 10 }],
+      pins: [[400, 165], [424, 165], [448, 165]], balls: [['billiard', 120, 52]], fixed: [['tap', 100, 200, 0, 1], ['wheel', 125, 270], ['gen', 280, 250, 0, 1], ['glove', 370, 150, 0, 1]], sol: [['chain', 1, 0, 2, 0]] },
+    { title: 'ХОМЯК → ГЕНЕРАТОР → МОТОР → ТРАНСПОРТЁР', goal: { type: 'zone', x: 430, y: 320, w: 50, h: 64, ball: 'basket' }, objs: [{ kind: 'pipe', cx: 80, cy: 22, w: 30, h: 44 }],
+      balls: [['steel', 80, 52], ['basket', 380, 331]], fixed: [['hamster', 80, 140], ['gen', 200, 140, 0, 1], ['motor', 300, 250, 0, 1], ['belt', 380, 340]], sol: [['chain', 0, 0, 1, 0], ['chain', 2, 0, 3, 0]] },
+    { title: 'ДОМИНО НАЖМЁТ НА СПУСК', goal: { type: 'bell' }, objs: [{ kind: 'rail', cx: 64, cy: 78, w: 108, h: 8, ang: 6 }],
+      balls: [['billiard', 30, 63.5]], fixed: [['gun', 342, 362, -60, 1], ['bell', 436, 220, 0, 1, { goal: 1 }]], sol: [['dom', 215, 371], ['dom', 237, 371], ['dom', 259, 371], ['pin', 281, 367], ['pin', 303, 367]] },
+    { title: 'КАЧЕЛИ ПО КЕГЛЯМ', goal: { type: 'pins' }, objs: [{ kind: 'shelf', cx: 120, cy: 200, w: 140, h: 10 }],
+      saws: [[250, 362, .3]], pins: [[70, 195], [94, 195], [118, 195]], balls: [['basket', 288, 357]], sol: [['kettle', 212, 120]] },
+    // ── хитрые задачи: цепочка через несколько механизмов
+    { title: 'ХЛОПОК РАЗБУДИТ ХОМЯКА — ЗАЖГИ ЛАМПУ', goal: { type: 'on' }, objs: [{ kind: 'shelf', cx: 240, cy: 132, w: 40, h: 10 }],
+      balls: [['balloon', 150, 340]], fixed: [['cactus', 240, 111], ['hamster', 270, 210], ['gen', 420, 300, 0, -1], ['lamp', 450, 350, 0, 1, { goal: 1 }]], sol: [['ramp', 188, 300, -15], ['chain', 1, 0, 2, 0]] },
+    { title: 'РАСКРУТИ ВЕТРЯК — БЕЗ ВЕНТИЛЯТОРА НИКАК', goal: { type: 'on' }, objs: [{ kind: 'pipe', cx: 70, cy: 22, w: 30, h: 44 }],
+      balls: [['billiard', 70, 52]], fixed: [['mill', 330, 200], ['gen', 357, 200, 0, -1], ['lamp', 430, 320, 0, 1, { goal: 1 }]], sol: [['switch', 70, 300], ['fan', 150, 200, 0, 1]] },
+    { title: 'ВЫСТРЕЛИ В НАСОС — ШАРИК ПОЗВОНИТ', goal: { type: 'bell' }, objs: [{ kind: 'rail', cx: 64, cy: 78, w: 108, h: 8, ang: 6 }],
+      balls: [['billiard', 30, 63.5]], fixed: [['pump', 440, 368], ['bell', 460, 110, 0, 1, { goal: 1 }]], sol: [['gun', 195, 362, -75]] },
   ];
+
+  // обучающие задачи — в начале: только нужные детали и подсказка внизу
+  const TUTOR = [
+    [6, { switch: 1 }, 'Лампе нужен ток. Поставь выключатель туда, куда упадёт шар: шар заденет красный рычаг — включится ток, провод сам дотянется до лампы (до 170 точек).'],
+    [7, { ramp: 1 }, 'Доску можно наклонять колесом мыши или клавишами Q / E. Направь шар через стенку прямо в звонок.'],
+    [11, { cushion: 1 }, 'Яйцо разбивается от сильного удара. На подушку можно падать с любой высоты.'],
+    [9, { gear: 1, gearS: 1 }, 'Хомяк побежит, когда в него врежется шар. Шестерни сцепляются, если поставить вплотную, — появится зелёная точка. Соедини хомяка с роликом транспортёра.'],
+    [10, { gear: 1 }, 'Вода из крана крутит колесо, колесо — шестерни, шестерни — генератор, а генератор даёт ток лампе.'],
+    [14, { mill: 1 }, 'Включённый вентилятор крутит ветряк. Поставь ветряк в струю ветра так, чтобы его шестерня сцепилась с шестернёй генератора.'],
+    [23, { chain: 1 }, 'Цепь связывает шестерни на расстоянии и крутит их в одну сторону: нажми «ЦЕПЬ», потом на хомяка и на ролик транспортёра.'],
+    [8, { switch: 1 }, 'Воздушный шар летит вверх, кактус его протыкает. Включи вентилятор — пусть сдует шар на кактус.'],
+    [13, { ramp: 1 }, 'Колба от удара опрокинется, а кислота растворит дерево, картон и ткань.'],
+    [12, { ramp: 1 }, 'Пушка стреляет, когда мяч задевает красный спуск у неё сзади.'],
+    [42, { spring: 1 }, 'Пружина подбрасывает мяч в ту сторону, куда наклонена (колесо мыши). Закинь теннисный мяч в ведро.'],
+    [26, { bump: 1 }, 'Отбойник отбрасывает мяч в сторону от места удара. Поставь его под падающий шар чуть сбоку.'],
+    [16, { kettle: 1 }, 'Качели: тяжёлое падает на один край — подкидывает то, что лежит на другом. Поставь гирю повыше над левым краем.'],
+    [19, { dom: 3, pin: 2 }, 'Домино и кегли падают и валят соседних. Выстрой ряд от места, где остановится шар, — последняя заденет звонок.'],
+    [41, { pend: 1 }, 'Маятник качается от начального наклона (колесо мыши). Его груз нажимает рычаги и спуски — пусть ударит по спуску пушки.'],
+    [15, { ramp: 1 }, 'Мяч падает на ручку насоса — насос надувает воздушный шар. Шар летит вверх и скользит по наклонной доске снизу.'],
+    [17, { switch: 1 }, 'Электромагнит с током тянет железо: ядро, гирю, стальной шарик. Включи ток.'],
+    [18, { gear: 2 }, 'Мотор с током крутит свою шестерню. Собери цепочку шестерён до ролика транспортёра — каждая следующая крутится в обратную сторону.'],
+    [21, { vacuum: 1, switch: 1 }, 'Пылесос с током всасывает мячи к себе. Правая кнопка мыши разворачивает его.'],
+    [24, { switch: 1 }, 'Перчатка с током бьёт всё, что перед ней: мячи, кегли, домино.'],
+    [27, { boost: 1, switch: 1 }, 'Ускоритель с током разгоняет мяч, который на нём лежит или по нему катится.'],
+  ];
+  for (const [i, inv, tip] of TUTOR) Object.assign(LEVELS0[i], { inv, tip });
+  const LEVELS = TUTOR.map(t => LEVELS0[t[0]]).concat(LEVELS0.filter((_, i) => !TUTOR.some(t => t[0] === i)));
   let LI = 0, LV, LEVEL, BALLS0, HOOP;
   function loadLevel(i) { LI = clamp(i, 0, LEVELS.length - 1); LV = LEVELS[LI]; HOOP = LV.goal.type === 'hoop' ? LV.goal : null;
     LEVEL = [{ cx: PW / 2, cy: 392, w: PW, h: 16, kind: 'floor' }, { cx: 6, cy: 200, w: 12, h: 400, kind: 'brick' }, { cx: 494, cy: 200, w: 12, h: 400, kind: 'brick' }].concat(LV.objs.map(o => ({ ...o, ang: rad(o.ang || 0) })));
@@ -57,90 +193,138 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
     if (LV.goal.type === 'bucket') { const { x, y } = LV.goal; LEVEL.push({ cx: x - 23, cy: y + 17, w: 4, h: 36, kind: 'bucketwall' }, { cx: x + 23, cy: y + 17, w: 4, h: 36, kind: 'bucketwall' }, { cx: x, cy: y + 34, w: 50, h: 4, kind: 'bucketwall' }); }
     LEVEL = LEVEL.map(o => ({ ang: 0, e: o.kind === 'rim' ? .5 : o.kind === 'bucketwall' ? .2 : .3, ...o }));
     BALLS0 = LV.balls.map(([kind, x, y]) => ({ kind, x, y, lv: true, ...BALL[kind] }));
-    parts = []; mode = 'edit'; won = 0; confetti = []; drag = null; hover = null; pins = levelPins(); bgScale = 0; }
-  const levelPins = () => (LV.pins || []).map(([x, y]) => ({ type: 'pin', fixed: true, bx: x, by: y, a: 0, w: 0, fallen: false, I: 2 * 34 * 34 / 3 })).concat((LV.saws || []).map(([x, y, a]) => ({ type: 'saw', fixed: true, bx: x, by: y, a, w: 0, fallen: false, I: 2304 })));
+    parts = (LV.fixed || []).map(([type, x, y, ang, dir, o]) => ({ type, x, y, ang: rad(ang ?? PARTS[type].def ?? 0), dir: dir || 1, hit: 0, fixed: true, ...(o || {}) })); mode = 'edit'; won = 0; confetti = []; drag = null; hover = null; pins = levelPins(); bgScale = 0; PG = 0; panelKey = ''; chains = []; chainMode = null; }
+  const levelPins = () => (LV.pins || []).map(([x, y]) => ({ type: 'pin', fixed: true, bx: x, by: y, a: 0, w: 0, L: 34, W: 10, fallen: false, I: 2 * 34 * 34 / 3 })).concat((LV.saws || []).map(([x, y, a]) => ({ type: 'saw', fixed: true, bx: x, by: y, a, w: 0, fallen: false, I: 2304 })));
   let SOLVED = {}; try { SOLVED = JSON.parse(localStorage.getItem('tim_solved') || '{}'); } catch (e) {}
 
-  // ── детали
-  const TYPES = {
-    ramp: { name: 'ДОСКА', w: 84, h: 8 },
-    tramp: { name: 'БАТУТ', w: 48, h: 22 },
-    fan: { name: 'ВЕНТИЛЯТОР', w: 30, h: 36 },
-    belt: { name: 'ТРАНСПОРТЁР', w: 96, h: 30 },
-    pin: { name: 'КЕГЛЯ', w: 12, h: 34 },
-    spring: { name: 'ПРУЖИНА', w: 30, h: 22 },
-    saw: { name: 'КАЧЕЛИ', w: 100, h: 30 },
-    funnel: { name: 'ВОРОНКА', w: 64, h: 34 },
-    wall: { name: 'СТЕНКА', w: 20, h: 40 },
-    ball: { name: 'МЯЧИК', w: 14, h: 14 },
-  };
-  const ORDER = ['ramp', 'tramp', 'fan', 'belt', 'pin', 'spring', 'saw', 'funnel', 'wall', 'ball'];
-  let parts = [], mode = 'edit', balls = [], world = [], pins = [], won = 0, tRun = 0, drag = null, hover = null, mouse = { x: 0, y: 0 }, confetti = [], bgScale = 0;
-  const left = t => (LV.inv[t] || 0) - parts.filter(p => p.type === t).length;
+  let chains = [], chainMode = null, parts = [], mode = 'edit', balls = [], world = [], pins = [], drops = [], won = 0, tRun = 0, drag = null, hover = null, mouse = { x: 0, y: 0 }, confetti = [], bgScale = 0, PG = 0, panelKey = '', GEARS = [];
 
-  // каждая деталь — набор твёрдых прямоугольников для физики
-  function bodies(p) {
-    if (p.type === 'ramp') return [{ cx: p.x, cy: p.y, w: 84, h: 8, ang: p.ang, e: .25, kind: 'ramp' }];
-    if (p.type === 'tramp') return [{ cx: p.x, cy: p.y - 8, w: 46, h: 4, ang: 0, e: 1, kind: 'tramp', part: p }, { cx: p.x, cy: p.y + 9, w: 48, h: 4, ang: 0, e: .2, kind: 'frame' }];
-    if (p.type === 'fan') return [{ cx: p.x, cy: p.y, w: 26, h: 34, ang: 0, e: .2, kind: 'fan' }];
-    if (p.type === 'belt') return [{ cx: p.x, cy: p.y + 8, w: 96, h: 12, ang: 0, e: .1, kind: 'belt', speed: p.dir * 120 }];
-    if (p.type === 'spring') { const s = Math.sin(p.ang), c = Math.cos(p.ang); return [{ cx: p.x, cy: p.y, w: 28, h: 5, ang: p.ang, e: .3, kind: 'spring', part: p }, { cx: p.x - s * 12, cy: p.y + c * 12, w: 30, h: 4, ang: p.ang, e: .2, kind: 'frame' }]; }
-    if (p.type === 'saw') return [{ cx: p.x, cy: p.y + 11, w: 12, h: 22, ang: 0, e: .2, kind: 'stand' }];
-    if (p.type === 'funnel') { const a = Math.atan2(24, 16); return [{ cx: p.x - 22, cy: p.y, w: 28.8, h: 3, ang: a, e: .2, kind: 'tin' }, { cx: p.x + 22, cy: p.y, w: 28.8, h: 3, ang: -a, e: .2, kind: 'tin' }, { cx: p.x - 15.5, cy: p.y + 16, w: 3, h: 8, ang: 0, e: .2, kind: 'tin' }, { cx: p.x + 15.5, cy: p.y + 16, w: 3, h: 8, ang: 0, e: .2, kind: 'tin' }]; }
-    if (p.type === 'wall') return [{ cx: p.x, cy: p.y, w: 20, h: 40, ang: 0, e: .3, kind: 'brick' }];
-    return []; }
-
-  // ── физика: мяч против повёрнутого прямоугольника
-  function hitBox(b, o) { const c = Math.cos(o.ang), s = Math.sin(o.ang), dx = b.x - o.cx, dy = b.y - o.cy, lx = dx * c + dy * s, ly = -dx * s + dy * c, hw = o.w / 2, hh = o.h / 2;
+  // ── физика: мяч против повёрнутого прямоугольника или круга
+  function hitBox(b, o) {
+    if (o.circle) { const dx = b.x - o.cx, dy = b.y - o.cy, d = Math.hypot(dx, dy), R = b.r + o.circle; if (d >= R || d < 1e-6) return null; return { nx: dx / d, ny: dy / d, pen: R - d, top: dy / d < -.7, tx: 1, ty: 0 }; }
+    const c = Math.cos(o.ang), s = Math.sin(o.ang), dx = b.x - o.cx, dy = b.y - o.cy, lx = dx * c + dy * s, ly = -dx * s + dy * c, hw = o.w / 2, hh = o.h / 2;
     const qx = clamp(lx, -hw, hw), qy = clamp(ly, -hh, hh); let nx = lx - qx, ny = ly - qy, d = Math.hypot(nx, ny);
     if (d >= b.r) return null;
     if (d < 1e-6) { const px = hw - Math.abs(lx), py = hh - Math.abs(ly); if (px < py) { nx = Math.sign(lx) || 1; ny = 0; d = -px; } else { nx = 0; ny = Math.sign(ly) || -1; d = -py; } } else { nx /= d; ny /= d; }
     return { nx: nx * c - ny * s, ny: nx * s + ny * c, pen: b.r - d, top: ny < -.7, tx: c, ty: s }; }
   const inBox = (x, y, o, m = 0) => { const c = Math.cos(o.ang), s = Math.sin(o.ang), dx = x - o.cx, dy = y - o.cy; return Math.abs(dx * c + dy * s) < o.w / 2 + m && Math.abs(-dx * s + dy * c) < o.h / 2 + m; };
-  const pinBox = p => ({ cx: p.bx + Math.sin(p.a) * 17, cy: p.by - Math.cos(p.a) * 17, w: 10, h: 34, ang: p.a });
-  function hingeBoxes(p) { if (p.type !== 'saw') return [pinBox(p)]; const c = Math.cos(p.a), s = Math.sin(p.a), at = (lx, ly, w, h) => ({ cx: p.bx + lx * c - ly * s, cy: p.by + lx * s + ly * c, w, h, ang: p.a });
-    return [at(0, 0, 96, 6), at(-46.5, -6.5, 3, 8), at(46.5, -6.5, 3, 8)]; }   // качели: доска и два бортика
+  const pinBox = p => ({ cx: p.bx + Math.sin(p.a) * p.L / 2, cy: p.by - Math.cos(p.a) * p.L / 2, w: p.W, h: p.L, ang: p.a });
+  function hingeBoxes(p) { const c = Math.cos(p.a), s = Math.sin(p.a), at = (lx, ly, w, h) => ({ cx: p.bx + lx * c - ly * s, cy: p.by + lx * s + ly * c, w, h, ang: p.a });
+    if (p.type === 'saw') return [at(0, 0, 96, 6), at(-46.5, -6.5, 3, 8), at(46.5, -6.5, 3, 8)];   // качели: доска и два бортика
+    if (p.type === 'pend') return [at(0, p.L, 14, 14)];   // маятник: груз на конце
+    return [pinBox(p)]; }
 
-  function resolve(b, h, o, dt) { b.x += h.nx * h.pen; b.y += h.ny * h.pen; const vn = b.vx * h.nx + b.vy * h.ny;
-    if (vn < 0) { if (o.kind === 'spring' && h.top) { const k = Math.max(-vn * .9, 430) - vn; b.vx += k * h.nx; b.vy += k * h.ny; o.part.hit = 1; beep(240, .2, 'sine', .09, 2.4); return; }   // пружина подбрасывает
-      let e = Math.min(b.e, o.e); if (o.kind === 'tramp' && h.top) { e = .97; o.part.hit = 1; if (-vn > 60) beep(180 + Math.random() * 40, .12, 'triangle', .07, 2); } else if (-vn < 45) e = 0; else if (-vn > 90) beep(o.kind === 'rim' ? 900 : b.kind === 'bowl' ? 90 : 220, .05, 'triangle', Math.min(.08, -vn / 4000));
-      if (-vn > 170 && o.kind !== 'tramp') puff(b.x - h.nx * b.r, b.y - h.ny * b.r);
+  function resolve(b, h, o) { b.x += h.nx * h.pen; b.y += h.ny * h.pen; const vn = b.vx * h.nx + b.vy * h.ny, P = o.part;
+    if (vn < 0) {
+      if (b.fragile && -vn > (o.kind === 'cushion' || o.kind === 'box' ? 900 : 230) && !b.broken) { b.broken = 1; b.e = 0; beep(700, .15, 'square', .08, .3); puff(b.x, b.y, '255,240,200'); }
+      if (o.kind === 'bell' && -vn > 25) { if (!P.rung) { beep(1568, .7, 'sine', .1); beep(2093, .5, 'sine', .05); } P.rung = 1; P.hit = 1; }
+      if (o.kind === 'spring' && h.top) { const k = Math.max(-vn * .9, 430) - vn; b.vx += k * h.nx; b.vy += k * h.ny; P.hit = 1; beep(240, .2, 'sine', .09, 2.4); return; }   // пружина подбрасывает
+      if (o.kind === 'bump') { const k = Math.max(-vn * .9, 330) - vn; b.vx += k * h.nx; b.vy += k * h.ny; P.hit = 1; beep(880, .08, 'square', .05, 1.5); return; }   // отбойник отбрасывает
+      if (o.kind === 'cactus' && (b.kind === 'balloon' || b.kind === 'beach')) { b.pop = 1; return; }
+      if (o.kind === 'pump' && h.top && -vn > 50) P.fire = 1;
+      if ((o.kind === 'trigger' || o.kind === 'tap') && -vn > 15) P.fire = 1;
+      if (o.kind === 'lever' && -vn > 15 && !P.on) { P.on = 1; beep(1200, .05, 'square', .06); beep(600, .08, 'square', .05); }
+      if (o.kind === 'hamster' && -vn > 25) { if (!(P.run > 0)) beep(1400, .1, 'sine', .05, 1.4); P.run = 14; }   // напуганный хомяк бежит
+      let e = Math.min(b.e, o.e); if (o.kind === 'tramp' && h.top) { e = .97; P.hit = 1; if (-vn > 60) beep(180 + Math.random() * 40, .12, 'triangle', .07, 2); } else if (-vn < 45) e = 0; else if (-vn > 90) beep(o.kind === 'rim' ? 900 : b.kind === 'bowl' ? 90 : 220, .05, 'triangle', Math.min(.08, -vn / 4000));
+      if (-vn > 170 && o.kind !== 'tramp' && o.kind !== 'cushion') puff(b.x - h.nx * b.r, b.y - h.ny * b.r);
       b.vx -= (1 + e) * vn * h.nx; b.vy -= (1 + e) * vn * h.ny; }
-    const tx = -h.ny, ty = h.nx, sv = o.kind === 'belt' && h.top ? o.speed : 0, vt = (b.vx - h.tx * sv) * tx + (b.vy - h.ty * sv) * ty, k = sv ? .06 : .002;   // трение мало — мячи катятся; лента тянет за собой
-    b.vx -= tx * vt * k; b.vy -= ty * vt * k; if (h.ny < -.5) b.ground = true; }
+    const sv = o.kind === 'belt' && h.top ? (P.bs || 0) : 0, tx = -h.ny, ty = h.nx, vt = (b.vx - h.tx * sv) * tx + (b.vy - h.ty * sv) * ty, k = sv ? .06 : o.kind === 'cushion' ? .3 : o.kind === 'ice' ? 0 : .002;   // мячи катятся; лента тянет; подушка гасит; лёд не тормозит
+    b.vx -= tx * vt * k; b.vy -= ty * vt * k; if (h.ny < -.5) b.ground = true; if (o.kind === 'ice') b.ice = 1;
+    if (o.kind === 'boost' && h.top && P.on) { const cur = b.vx * P.dir; if (cur < 460) b.vx += P.dir * Math.min(460 - cur, 30); } }
 
-  function start() { mode = 'run'; won = 0; tRun = 0; confetti = []; puffs = [];
-    balls = BALLS0.concat(parts.filter(p => p.type === 'ball').map(p => ({ kind: 'tennis', x: p.x, y: p.y, ...BALL.tennis }))).map(b => ({ ...b, vx: 0, vy: 0, rot: 0, py: b.y }));
-    world = LEVEL.concat(...parts.map(bodies));
-    pins = levelPins().concat(parts.filter(p => p.type === 'pin').map(p => ({ type: 'pin', part: p, bx: p.x, by: p.y + 17, a: 0, w: 0, fallen: false, I: 2 * 34 * 34 / 3 })), parts.filter(p => p.type === 'saw').map(p => ({ type: 'saw', part: p, bx: p.x, by: p.y, a: 0, w: 0, fallen: false, I: 2304 }))); }
-  function stop() { mode = 'edit'; won = 0; parts.forEach(p => p.hit = 0); pins = levelPins(); }
-  function win() { won = tRun; SOLVED[LI] = 1; try { localStorage.setItem('tim_solved', JSON.stringify(SOLVED)); } catch (e) {} winTune();
-    const gx = HOOP ? HOOP.x : LV.goal.type === 'bucket' ? LV.goal.x : 250, gy = HOOP ? HOOP.y : LV.goal.type === 'bucket' ? LV.goal.y : 200;
+  // ── энергия: шестерни крутят друг друга, провод несёт ток от включённого выключателя или крутящегося генератора
+  const HUB = { gear: [0, 0, 14], gearS: [0, 0, 8], hamster: [0, 0, 13], mill: [0, 0, 6], wheel: [0, 0, 8], motor: [13, 0, 6], gen: [13, 0, 8] };   // зубчатое колесо: смещение и радиус
+  function hubsOf(p) { if (p.type === 'belt') return [[p.x - 42, p.y + 8, 6], [p.x + 42, p.y + 8, 6]]; const h = HUB[p.type]; return h ? [[p.x + h[0] * (p.dir || 1), p.y + h[1], h[2]]] : []; }
+  function meshes() { const E = [], H = parts.map(p => [p, hubsOf(p)]).filter(x => x[1].length);
+    for (let i = 0; i < H.length; i++) for (let j = i + 1; j < H.length; j++) for (const a of H[i][1]) for (const b of H[j][1]) { const d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (Math.abs(d - a[2] - b[2]) < 3.5) E.push([H[i][0], a[2], H[j][0], b[2]]); }
+    return E; }
+  const ELEC = new Set(['fan', 'vacuum', 'motor', 'magnet', 'boost', 'glove', 'lamp']), RANGE = 170;
+  function srcOf(p) { let best = null, bd = RANGE; for (const q of parts) if ((q.type === 'switch' || q.type === 'gen') && q !== p) { const d = Math.hypot(q.x - p.x, q.y - p.y); if (d < bd) { bd = d; best = q; } } return best; }
+  function energy(dt) {
+    for (const m of parts) if (m.type === 'mill') { let tgt = 0; for (const f of parts) if (f.type === 'fan' && f.on) { const d = (m.x - f.x) * f.dir; if (d > 10 && d < 240 && Math.abs(m.y - f.y) < 34) tgt = Math.max(tgt, 6 * (1 - d / 240)); } m.spin += (tgt * m.dir - m.spin) * Math.min(1, dt * 1.5); }   // ветряк крутит только ветер
+    for (const w of parts) if (w.type === 'wheel') w.spin *= 1 - dt * .5;
+    const src = []; for (const p of parts) { p.om = 0;
+      if (p.type === 'hamster' && p.run > 0) { p.run -= dt; p.om = 3.2; src.push(p); }
+      else if (p.type === 'motor' && p.on) { p.om = 5 * p.dir; src.push(p); }
+      else if ((p.type === 'mill' || p.type === 'wheel') && Math.abs(p.spin) > .05) { p.om = p.spin; src.push(p); } }
+    const seen = new Set(src), q = src.slice();
+    while (q.length) { const a = q.shift(); for (const [p1, r1, p2, r2, sg] of GEARS) { let b = null, ra, rb; if (p1 === a) { b = p2; ra = r1; rb = r2; } else if (p2 === a) { b = p1; ra = r2; rb = r1; } if (!b || seen.has(b)) continue; b.om = (sg || -1) * a.om * ra / rb; seen.add(b); q.push(b); } }   // соседняя шестерня крутится в обратную сторону, через цепь — в ту же
+    for (const p of parts) { p.ra += p.om * dt; if (p.type === 'belt') { p.bs = clamp(p.om * 24, -150, 150); p.bd += p.bs * dt; } if (p.type === 'gen') p.on = Math.abs(p.om) > .8 ? 1 : 0; }
+    for (const p of parts) if (ELEC.has(p.type)) p.on = p.src && p.src.on ? 1 : 0; }
+
+  function start() { mode = 'run'; won = 0; tRun = 0; confetti = []; puffs = []; drops = [];
+    for (const p of parts) Object.assign(p, { hit: 0, fire: 0, cool: 0, pt: -9, gone: 0, acidHits: 0, on: 0, run: 0, spin: 0, om: 0, ra: 0, bs: 0, bd: 0, open: 0 });
+    for (const p of parts) p.src = ELEC.has(p.type) ? srcOf(p) : null;
+    GEARS = meshes().concat(chains.filter(c => parts.includes(c.a) && parts.includes(c.b)).map(c => [c.a, hubsOf(c.a)[c.ai][2], c.b, hubsOf(c.b)[c.bi][2], 1]));
+    balls = BALLS0.concat(parts.filter(p => PARTS[p.type].ball).map(p => ({ kind: PARTS[p.type].ball, x: p.x, y: p.y, ...BALL[PARTS[p.type].ball] }))).map(b => ({ ...b, vx: 0, vy: 0, rot: 0, py: b.y }));
+    world = LEVEL.concat(...parts.map(p => (PARTS[p.type].bodies ? PARTS[p.type].bodies(p) : []).map(o => ({ part: p, ang: 0, e: .25, ...o }))));
+    pins = levelPins().concat(parts.filter(p => PARTS[p.type].hinge).map(p => ({ part: p, a: 0, w: 0, fallen: false, pour: 0, ...PARTS[p.type].hinge(p) }))); }
+  function stop() { mode = 'edit'; won = 0; for (const p of parts) { p.hit = 0; p.gone = 0; p.on = 0; p.run = 0; } pins = levelPins(); drops = []; }
+  function win() { won = tRun; SOLVED[LI] = 1; panelKey = ''; try { localStorage.setItem('tim_solved', JSON.stringify(SOLVED)); } catch (e) {} winTune();
+    const gz = LV.goal.type === 'zone', gx = HOOP ? HOOP.x : LV.goal.type === 'bucket' ? LV.goal.x : gz ? LV.goal.x + LV.goal.w / 2 : 250, gy = HOOP ? HOOP.y : LV.goal.type === 'bucket' ? LV.goal.y : gz ? LV.goal.y : 200;
     for (let i = 0; i < 110; i++) confetti.push({ x: gx, y: gy, vx: (Math.random() - .5) * 280, vy: -Math.random() * 320 - 60, c: ['#ffd23f', '#ff5e5b', '#3bceac', '#fff', '#7aa2ff'][i % 5], t: 0 }); }
+  const ACIDY = new Set(['ramp', 'tramp', 'cushion', 'box', 'stairs', 'arc']);   // кислота ест дерево, ткань и картон
+  function dissolve(p) { p.gone = 1; world = world.filter(o => o.part !== p); beep(200, .4, 'sawtooth', .04, .3); for (let i = 0; i < 5; i++) puff(p.x + (Math.random() - .5) * 30, p.y, '150,255,120'); }
 
-  function sim(dt) { tRun += dt;
-    for (const p of pins) if (p.type === 'saw') { p.w *= .998; p.a += p.w * dt; if (Math.abs(p.a) > .3) { p.a = Math.sign(p.a) * .3; if (p.w * Math.sign(p.a) > 0) p.w = -p.w * .15; } }   // качели упираются в ±17°
-    else if (!p.fallen) { p.w += 3 * G / (2 * 34) * Math.sin(p.a) * dt; p.w *= .9995; p.a += p.w * dt;
-      const tx = p.bx + Math.sin(p.a) * 34, ty = p.by - Math.cos(p.a) * 34;
-      if (Math.abs(p.a) > 1.5 || (Math.abs(p.a) > .15 && world.some(o => inBox(tx, ty, o)))) { p.fallen = true; p.w = 0; beep(130, .08, 'triangle', .06); }
-      if (Math.abs(p.w) > .3) for (const q of pins) if (q !== p && q.type === 'pin' && !q.fallen && inBox(tx, ty, pinBox(q), 1)) { q.w += p.w * .8; p.w *= .5; } }   // кегля валит кеглю
-    for (const b of balls) { b.ground = false; b.py = b.y; b.vy += G * dt;
-      for (const f of parts) if (f.type === 'fan') { const d = (b.x - f.x) * f.dir; if (d > 10 && d < 230 && Math.abs(b.y - f.y) < 18 + b.r) b.vx += f.dir * 900 * (1 - d / 230) / b.m * dt; }   // ветер, лёгкий мяч сдувает сильнее
+  const POKE = new Set(['lever', 'trigger', 'tap', 'hamster', 'pump', 'bell']);
+  function poke(o) { const P = o.part; if (!P) return; if (o.kind === 'lever' && !P.on) { P.on = 1; beep(1200, .05, 'square', .06); } else if (o.kind === 'trigger' || o.kind === 'tap' || o.kind === 'pump') P.fire = 1; else if (o.kind === 'hamster') { if (!(P.run > 0)) beep(1400, .1, 'sine', .05, 1.4); P.run = 14; } else if (o.kind === 'bell') { if (!P.rung) beep(1568, .7, 'sine', .1); P.rung = 1; P.hit = 1; } }
+  function sim(dt) { tRun += dt; energy(dt);
+    // шарнирные: кегли, домино, колба, маятник, качели
+    for (const p of pins) {
+      if (p.type === 'saw') { p.w *= .998; p.a += p.w * dt; if (Math.abs(p.a) > .3) { p.a = Math.sign(p.a) * .3; if (p.w * Math.sign(p.a) > 0) p.w = -p.w * .15; } }   // качели упираются в ±17°
+      else if (p.type === 'pend') { p.w += -G / p.L * Math.sin(p.a) * dt; p.w *= .9996; p.a += p.w * dt; }
+      else if (!p.fallen) { p.w += 3 * G / (2 * p.L) * Math.sin(p.a) * dt; p.w *= .9995; p.a += p.w * dt;
+        const tx = p.bx + Math.sin(p.a) * p.L, ty = p.by - Math.cos(p.a) * p.L;
+        const hitO = Math.abs(p.a) > .15 && world.find(o => inBox(tx, ty, o)); if (Math.abs(p.a) > 1.5 || hitO) { if (hitO && POKE.has(hitO.kind)) poke(hitO); p.fallen = true; p.w = 0; beep(130, .08, 'triangle', .06); }
+        if (Math.abs(p.w) > .3) for (const o of world) if (o.kind === 'bell' && inBox(tx, ty, o, 1)) { if (!o.part.rung) beep(1568, .7, 'sine', .1); o.part.rung = 1; o.part.hit = 1; }
+        if (Math.abs(p.w) > .3) for (const q of pins) if (q !== p && q.type === 'pin' && !q.fallen && inBox(tx, ty, pinBox(q), 1)) { q.w += p.w * .8; p.w *= .5; } }   // кегля валит кеглю
+      if (p.acid && Math.abs(p.a) > .9 && p.pour < 2.4) { p.pour += dt; if (Math.random() < .45) { const s = Math.sin(p.a), c = Math.cos(p.a); drops.push({ x: p.bx + s * p.L, y: p.by - c * p.L, vx: s * 40 + (Math.random() - .5) * 10, vy: 0, acid: 1 }); } } }   // колба опрокинулась — льётся кислота
+    for (const p of pins) { if (p.type === 'saw') continue; let px, py, m = 1; if (p.type === 'pend') { if (Math.abs(p.w) < .5) continue; px = p.bx - Math.sin(p.a) * p.L; py = p.by + Math.cos(p.a) * p.L; m = 7; } else { if (p.fallen && Math.abs(p.w) < .01 || Math.abs(p.w) < .3) continue; px = p.bx + Math.sin(p.a) * p.L; py = p.by - Math.cos(p.a) * p.L; }
+      for (const o of world) if (POKE.has(o.kind) && inBox(px, py, o, m)) poke(o); }   // верх падающей кегли или груз маятника задевает рычаг
+    // краны, перчатки, насосы, пушки
+    for (const p of parts) { if (p.cool > 0) p.cool -= dt;
+      if (p.type === 'tap') { if (p.fire) { if (!(p.open > 0)) beep(300, .25, 'sine', .04, .7); p.open = 12; } if (p.open > 0) { p.open -= dt; if (Math.random() < .6) drops.push({ x: p.x + p.dir * 18, y: p.y + 10, vx: p.dir * 22 + (Math.random() - .5) * 8, vy: 10 }); } }
+      else if (p.type === 'glove' && p.on && p.cool <= 0) { p.cool = 1.6; p.pt = tRun; beep(150, .12, 'square', .07, .5); for (const b of balls) { const d = (b.x - p.x) * p.dir; if (d > -2 && d < 52 && Math.abs(b.y - p.y) < 12 + b.r) { b.vx = p.dir * 480 / Math.max(1, Math.sqrt(b.m)); b.vy -= 70; } } 
+        for (const q of pins) { if (q.type === 'saw') continue; const c = q.type === 'pend' ? hingeBoxes(q)[0] : pinBox(q), d = (c.cx - p.x) * p.dir; if (d > -2 && d < 56 && Math.abs(c.cy - p.y) < 22) { q.w += p.dir * (q.type === 'pend' ? -4 : 6); q.fallen = false; } } }   // перчатка валит кегли, домино, колбу и толкает маятник
+      else if (p.type === 'pump' && p.fire && p.cool <= 0) { p.cool = 1.4; p.hit = 1; balls.push({ kind: 'balloon', ...BALL.balloon, lv: !!p.fixed, x: p.x + 20, y: p.y - 18, vx: 0, vy: -30, rot: 0, py: p.y }); beep(500, .3, 'sine', .05, 1.8); }   // насос надувает шар
+      else if (p.type === 'gun' && p.fire && p.cool <= 0) { p.cool = 1.6; p.pt = tRun; const dx = p.dir * Math.cos(p.ang), dy = Math.sin(p.ang), mx = p.x + dx * 26, my = p.y - 4 + dy * 26; balls.push({ kind: 'iron', ...BALL.iron, lv: true, x: mx, y: my, vx: dx * 520, vy: dy * 520, rot: 0, py: my, ghost: .15 }); puff(mx, my); puff(mx, my); beep(70, .35, 'sawtooth', .12, .4); }
+      p.fire = 0; if (p.hit) p.hit = Math.max(0, p.hit - dt * 4); }
+    // мячи
+    for (const b of balls) { b.ground = false; b.ice = 0; b.py = b.y; b.vy += (b.lift ? -G * .32 : G) * dt; if (b.drag) { const k = 1 - b.drag * dt; b.vx *= k; b.vy *= k; }
+      for (const f of parts) { if (!f.on) continue;
+        if (f.type === 'fan') { const d = (b.x - f.x) * f.dir; if (d > 10 && d < 230 && Math.abs(b.y - f.y) < 18 + b.r) b.vx += f.dir * 900 * (1 - d / 230) / b.m * dt; }
+        else if (f.type === 'vacuum') { const d = (b.x - f.x) * f.dir; if (d > 6 && d < 200 && Math.abs(b.y - f.y) < 16 + b.r) b.vx -= f.dir * 800 * (1 - d / 200) / b.m * dt; }
+        else if (f.type === 'magnet' && b.metal) { const dx = f.x - b.x, dy = f.y - b.y, d = Math.hypot(dx, dy); if (d < 170 && d > 1) { const a = 1500 * (1 - d / 170); b.vx += dx / d * a * dt; b.vy += dy / d * a * dt; } } }
       b.x += b.vx * dt; b.y += b.vy * dt;
-      for (const o of world) { const h = hitBox(b, o); if (h) resolve(b, h, o, dt); }
+      for (const o of world) { const h = hitBox(b, o); if (h) resolve(b, h, o); }
       for (const p of pins) for (const hb of hingeBoxes(p)) { const h = hitBox(b, hb); if (!h) continue; b.x += h.nx * h.pen; b.y += h.ny * h.pen;
         const rx = b.x - h.nx * b.r - p.bx, ry = b.y - h.ny * b.r - p.by, vpx = -p.w * ry, vpy = p.w * rx, vn = (b.vx - vpx) * h.nx + (b.vy - vpy) * h.ny;
         if (vn < 0) { const cr = rx * h.ny - ry * h.nx, j = -(1.3) * vn / (1 / b.m + (p.fallen ? 0 : cr * cr / p.I)); b.vx += j * h.nx / b.m; b.vy += j * h.ny / b.m; if (!p.fallen) p.w -= j * cr / p.I; if (-vn > 60) beep(520, .04, 'triangle', .05); } }
-      if (b.ground) b.vx *= .9993; b.rot += b.vx / b.r * dt;
+      if (b.ground && !b.ice) b.vx *= .9993; b.rot += b.vx / b.r * dt;
       if (!won && HOOP && b.lv && b.kind === HOOP.ball && b.py < HOOP.y && b.y >= HOOP.y && Math.abs(b.x - HOOP.x) < 21) win();
       if (HOOP && b.kind === HOOP.ball && Math.abs(b.x - HOOP.x) < 22 && b.y > HOOP.y && b.y < HOOP.y + 26) { b.vx *= .985; }   // сетка гасит мяч
       if (!won && LV.goal.type === 'bucket' && b.lv && b.kind === LV.goal.ball && Math.abs(b.x - LV.goal.x) < 21 && b.y > LV.goal.y + 8 && b.y < LV.goal.y + 34) win();
-      b.x = clamp(b.x, 12 + b.r, PW - 12 - b.r); }
+      b.x = clamp(b.x, 12 + b.r, PW - 12 - b.r); if (b.y < b.r + 2) { b.y = b.r + 2; if (b.vy < 0) b.vy = 0; } }
+    // капли воды и кислоты
+    for (const d of drops) { d.vy += G * dt; d.x += d.vx * dt; d.y += d.vy * dt;
+      if (!d.acid) for (const p of parts) if (p.type === 'wheel' && Math.hypot(d.x - p.x, d.y - p.y) < 21) { p.spin = clamp(p.spin + (d.x > p.x ? .35 : -.35), -6, 6); d.dead = 1; break; }   // вода крутит колесо
+      if (d.dead) continue;
+      for (const o of world) if (inBox(d.x, d.y, o, 1)) { if (d.acid && o.part && ACIDY.has(o.part.type) && ++o.part.acidHits > 12) dissolve(o.part); d.dead = 1; if (Math.random() < .3) puff(d.x, d.y, d.acid ? '150,255,120' : '170,210,255'); break; }
+      if (d.acid) for (const b of balls) if (SOFT.has(b.kind) && Math.hypot(b.x - d.x, b.y - d.y) < b.r) { b.pop = 1; d.dead = 1; } }
+    drops = drops.filter(d => !d.dead && d.y < LH);
+    for (const b of balls) if (b.pop) { puff(b.x, b.y); puff(b.x, b.y); beep(1000, .05, 'square', .09, .3); for (const q of parts) if (q.type === 'hamster' && Math.hypot(q.x - b.x, q.y - b.y) < 130) { if (!(q.run > 0)) beep(1400, .1, 'sine', .05, 1.4); q.run = 14; } } balls = balls.filter(b => !b.pop);   // хлопок шарика пугает хомяка рядом
     if (!won && LV.goal.type === 'pins' && pins.filter(p => p.fixed && p.type === 'pin').every(p => p.fallen)) win();
-    for (let i = 0; i < balls.length; i++) for (let j = i + 1; j < balls.length; j++) { const a = balls[i], c = balls[j], dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy), R = a.r + c.r;
+    const gl = LV.goal, gp = parts.filter(p => p.goal);
+    if (!won && gl.type === 'on' && gp.length && gp.every(p => p.on)) win();
+    if (!won && gl.type === 'melt' && gp.length && gp.every(p => p.gone)) win();
+    if (!won && gl.type === 'bell' && gp.some(p => p.rung)) win();
+    if (!won && gl.type === 'pop' && !balls.some(b => b.lv && b.kind === 'balloon')) win();
+    if (!won && gl.type === 'zone') for (const b of balls) { if (b.lv && b.kind === gl.ball && !b.broken && b.x > gl.x && b.x < gl.x + gl.w && b.y > gl.y && b.y < gl.y + gl.h) { b.inz = (b.inz || 0) + dt; if (b.inz > .3) { win(); break; } } else b.inz = 0; }
+    for (const b of balls) if (b.ghost > 0) b.ghost -= dt;   // ядро только что из ствола — не цепляет мячи у пушки
+    for (let i = 0; i < balls.length; i++) for (let j = i + 1; j < balls.length; j++) { const a = balls[i], c = balls[j]; if (a.ghost > 0 || c.ghost > 0) continue; const dx = c.x - a.x, dy = c.y - a.y, d = Math.hypot(dx, dy), R = a.r + c.r;
       if (d > 0 && d < R) { const nx = dx / d, ny = dy / d, ia = 1 / a.m, ic = 1 / c.m, pen = R - d; a.x -= nx * pen * ia / (ia + ic); a.y -= ny * pen * ia / (ia + ic); c.x += nx * pen * ic / (ia + ic); c.y += ny * pen * ic / (ia + ic);
-        const vn = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny; if (vn < 0) { const jj = -(1.5) * vn / (ia + ic); a.vx -= jj * nx * ia; a.vy -= jj * ny * ia; c.vx += jj * nx * ic; c.vy += jj * ny * ic; if (-vn > 40) beep(300, .06, 'triangle', .06); } } }
-    parts.forEach(p => { if (p.hit) p.hit = Math.max(0, p.hit - dt * 4); }); }
+        const vn = (c.vx - a.vx) * nx + (c.vy - a.vy) * ny; if (vn < -120 && (a.kind === 'balloon') !== (c.kind === 'balloon') && (a.kind === 'balloon' ? c : a).m >= 1) (a.kind === 'balloon' ? a : c).pop = 1;   // тяжёлый мяч лопает шарик
+        if (vn < 0) { const jj = -(1.5) * vn / (ia + ic); a.vx -= jj * nx * ia; a.vy -= jj * ny * ia; c.vx += jj * nx * ic; c.vy += jj * ny * ic; if (-vn > 40) beep(300, .06, 'triangle', .06); } } } }
 
   // ── звук
   let AC = null, SND = true;
@@ -229,13 +413,6 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
     g.fillStyle = lin(-6, 0, 6, 0, [[0, '#9ea4ad'], [.22, '#f2f3f5'], [.38, '#ffffff'], [.75, '#c9cdd3'], [1, '#7f858e']]); g.fill();
     g.save(); g.clip(); g.fillStyle = '#c8202d'; g.fillRect(-6, -24.4, 12, 1.7); g.fillRect(-6, -21.8, 12, 1.2); g.fillStyle = 'rgba(255,255,255,.75)'; g.fillRect(-2.6, -31, .9, 6); g.fillRect(-3.8, -15, 1.1, 11); g.restore();
     g.strokeStyle = 'rgba(60,64,70,.6)'; g.lineWidth = .5; g.stroke(); g.restore(); }
-  function drawBall(b) { const r = b.r; g.save(); g.translate(b.x, b.y);
-    g.save(); g.rotate(b.rot); g.drawImage(b.kind === 'basket' ? T_BASKET : b.kind === 'tennis' ? T_TENNIS : T_BOWL, -r, -r, r * 2, r * 2); g.restore();
-    let q = g.createRadialGradient(-r * .4, -r * .45, r * .1, -r * .1, -r * .1, r * 1.25); q.addColorStop(0, b.kind === 'bowl' ? 'rgba(200,190,255,.25)' : 'rgba(255,240,200,.35)'); q.addColorStop(.45, 'rgba(0,0,0,0)'); q.addColorStop(1, 'rgba(0,0,0,.72)'); g.fillStyle = q; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill();
-    g.strokeStyle = 'rgba(255,230,200,.22)'; g.lineWidth = .7; g.beginPath(); g.arc(0, 0, r - .5, .2, 1.3); g.stroke();   // отражённый свет снизу справа
-    if (b.kind === 'bowl') { g.fillStyle = 'rgba(255,255,255,.55)'; g.save(); g.rotate(-.6); rrect(-r * .55, -r * .78, r * .5, r * .26, r * .12); g.fill(); g.restore(); q = g.createRadialGradient(-r * .38, -r * .42, 0, -r * .38, -r * .42, r * .3); q.addColorStop(0, 'rgba(255,255,255,.95)'); q.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = q; g.fillRect(-r, -r, r * 2, r * 2); }
-    else { q = g.createRadialGradient(-r * .4, -r * .45, 0, -r * .4, -r * .45, r * .45); q.addColorStop(0, 'rgba(255,240,220,.45)'); q.addColorStop(1, 'rgba(255,240,220,0)'); g.fillStyle = q; g.fillRect(-r, -r, r * 2, r * 2); }
-    g.restore(); }
   function drawSpring(x, y, ang, hit) { const top = 2.5 + (hit || 0) * 3; g.save(); g.translate(x, y); g.rotate(ang);
     g.fillStyle = lin(0, 10, 0, 14, [[0, '#a7afb8'], [1, '#3d434a']]); rrect(-15, 10, 30, 4, 1); g.fill();
     g.strokeStyle = lin(-8, 0, 8, 0, CHROME); g.lineWidth = 1.4; g.lineJoin = 'round'; g.beginPath(); for (let i = 0; i <= 10; i++) { const yy = 10 - (10 - top) * i / 10, xx = i % 2 ? 8 : -8; i ? g.lineTo(xx, yy) : g.moveTo(xx, yy); } g.stroke();
@@ -245,10 +422,6 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
   function drawFunnel(x, y) { g.fillStyle = lin(x - 30, 0, x + 30, 0, [[0, 'rgba(40,46,54,.45)'], [.5, 'rgba(120,130,140,.25)'], [1, 'rgba(40,46,54,.45)']]); g.beginPath(); g.moveTo(x - 30, y - 12); g.lineTo(x + 30, y - 12); g.lineTo(x + 14, y + 12); g.lineTo(x + 14, y + 20); g.lineTo(x - 14, y + 20); g.lineTo(x - 14, y + 12); g.closePath(); g.fill();
     for (const s of [-1, 1]) { tube(x + s * 30, y - 12, x + s * 14, y + 12, 3); tube(x + s * 14, y + 12, x + s * 14, y + 20, 3); }
     g.strokeStyle = lin(0, y - 15, 0, y - 9, CHROME); g.lineWidth = 1.6; g.beginPath(); g.ellipse(x, y - 12, 30, 3, 0, 0, Math.PI); g.stroke(); }
-  function drawPart(p, t, run) { if (p.type === 'spring') return drawSpring(p.x, p.y, p.ang, p.hit); if (p.type === 'funnel') return drawFunnel(p.x, p.y); if (p.type === 'wall') return brickWall(p.x - 10, p.y - 20, 20, 40, 5 + (p.x | 0));
-    if (p.type === 'ball') { if (!run) drawBall({ kind: 'tennis', x: p.x, y: p.y, r: BALL.tennis.r, rot: 0 }); return; }
-    if (p.type === 'saw') { const hn = run && pins.find(q => q.part === p); return drawSaw(p.x, p.y, hn ? hn.a : 0); }
- if (p.type === 'ramp') drawRamp(p.x, p.y, p.ang); else if (p.type === 'tramp') drawTramp(p.x, p.y, p.hit); else if (p.type === 'fan') drawFan(p.x, p.y, p.vd ?? p.dir, t, run); else if (p.type === 'belt') drawBelt(p.x, p.y, p.vd ?? p.dir, t, run); else if (p.type === 'pin') { const pn = run && pins.find(q => q.part === p); drawPin(pn ? pn.bx : p.x, pn ? pn.by : p.y + 17, pn ? pn.a : 0); } }
   // корзина: задняя половина обода — за мячом, сетка и передняя половина — перед ним
   function hoopBack() { if (!HOOP) return; g.strokeStyle = '#8c2a0c'; g.lineWidth = 2.2; g.beginPath(); g.ellipse(HOOP.x, HOOP.y, 25, 3.4, 0, Math.PI, TAU); g.stroke(); }
   function hoopFront(bl) { if (!HOOP) return; const x = HOOP.x, y = HOOP.y, bb = bl.find(b => b.kind === 'basket'), sw = bb && Math.abs(bb.x - x) < 30 && bb.y > y - 8 && bb.y < y + 34 ? clamp(bb.vx / 80, -3, 3) : 0;
@@ -323,38 +496,235 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
     // свет лампы слева сверху и зерно
     let q = g.createRadialGradient(110, 20, 10, 110, 20, 460); q.addColorStop(0, 'rgba(255,236,190,.28)'); q.addColorStop(.5, 'rgba(255,236,190,.06)'); q.addColorStop(1, 'rgba(255,236,190,0)'); g.fillStyle = q; g.fillRect(0, 0, PW, LH);
     g.save(); g.globalCompositeOperation = 'overlay'; g.globalAlpha = .08; g.fillStyle = pat(T_GRAIN, 0, 0, .5); g.fillRect(0, 0, PW, LH); g.restore();
+    if (LV.goal.type === 'zone') { const z = LV.goal; g.save(); g.fillStyle = 'rgba(255,214,90,.12)'; g.fillRect(z.x, z.y, z.w, z.h); g.setLineDash([4, 3]); g.strokeStyle = 'rgba(255,214,90,.85)'; g.lineWidth = 1.2; g.strokeRect(z.x + .5, z.y + .5, z.w - 1, z.h - 1); g.setLineDash([]);
+      tube(z.x + z.w - 4, z.y + z.h, z.x + z.w - 4, z.y - 16, 1.4); for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) { g.fillStyle = (i + j) % 2 ? '#111' : '#f4f4f4'; g.fillRect(z.x + z.w - 3 + i * 3, z.y - 16 + j * 3, 3, 3); } g.restore(); }   // флажок — сюда довести мяч
     // табличка с задачей
     brass(150, 12, 300, 30, 4); engrave('ЗАДАЧА ' + (LI + 1) + ' ИЗ ' + LEVELS.length + (SOLVED[LI] ? '  ✓' : ''), 300, 25, 7.5, '#5d4210'); engrave(LV.title, 300, 36, 9);
     // шкаф с деталями
     g.fillStyle = pat(T_WAL, 0, 0, .5, 90); g.fillRect(PW, 0, LW - PW, LH); g.fillStyle = lin(PW, 0, LW, 0, [[0, 'rgba(0,0,0,.6)'], [.06, 'rgba(0,0,0,.1)'], [.5, 'rgba(255,220,170,.06)'], [1, 'rgba(0,0,0,.35)']]); g.fillRect(PW, 0, LW - PW, LH);
     g = M; }
-
-  const SLOT = i => ({ x: PW + 8 + (i % 2) * 64, y: 12 + (i / 2 | 0) * 60, w: 60, h: 56 }), BTN = { run: { x: PW + 14, y: 322, w: 112, h: 30 }, clr: { x: PW + 14, y: 360, w: 112, h: 24 }, prev: { x: 156, y: 15, w: 16, h: 24 }, next: { x: 428, y: 15, w: 16, h: 24 }, go: { x: 200, y: 215, w: 100, h: 20 } };
   function button(r, label, top, bot, on) { g.save(); g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 4 * SC; g.shadowOffsetY = 2 * SC; g.fillStyle = lin(0, r.y, 0, r.y + r.h, [[0, top], [1, bot]]); rrect(r.x, r.y, r.w, r.h, r.h / 2); g.fill(); g.restore();
     g.fillStyle = lin(0, r.y, 0, r.y + r.h / 2, [[0, 'rgba(255,255,255,.45)'], [1, 'rgba(255,255,255,0)']]); rrect(r.x + 4, r.y + 1.5, r.w - 8, r.h / 2 - 1, r.h / 4); g.fill();
     g.font = `700 ${r.h > 26 ? 12 : 9}px Rubik, sans-serif`; g.textAlign = 'center'; g.fillStyle = on ? '#fff' : 'rgba(255,255,255,.4)'; g.fillText(label, r.x + r.w / 2 + (r.h > 26 ? 6 : 0) + (label.includes('▶') ? 0 : 0), r.y + r.h / 2 + (r.h > 26 ? 4.3 : 3.2)); }
-  // шкаф рисуется в свой холст и перерисовывается, только когда что-то поменялось
-  const PANEL = document.createElement('canvas'); let panelKey = '';
-  function drawPanel(t) { const hs = mode === 'edit' && !drag ? ORDER.findIndex((ty, k) => at(SLOT(k), mouse.x, mouse.y)) : -1, key = ORDER.map(left).join(',') + '|' + hs + '|' + mode + '|' + parts.length + '|' + SC;
-    if (key !== panelKey) { panelKey = key; PANEL.width = (LW - PW) * SC; PANEL.height = LH * SC; const P = PANEL.getContext('2d'); P.setTransform(SC, 0, 0, SC, -PW * SC, 0); const g0 = g; g = P; drawPanelInner(t); g = g0; }
+
+  // ── новые мячи: текстуры
+  const discOf = img => { const c = document.createElement('canvas'); c.width = c.height = img.width; const k = c.getContext('2d'); k.beginPath(); k.arc(img.width / 2, img.width / 2, img.width / 2 - 1, 0, TAU); k.clip(); k.drawImage(img, 0, 0); return c; };
+  const T_BILL = (() => { const c = document.createElement('canvas'); c.width = c.height = 64; const k = c.getContext('2d'); k.fillStyle = '#c3122a'; k.fillRect(0, 0, 64, 64); k.fillStyle = '#fbf8ef'; k.beginPath(); k.arc(32, 32, 15, 0, TAU); k.fill(); k.fillStyle = '#111'; k.font = '700 20px Rubik, sans-serif'; k.textAlign = 'center'; k.fillText('3', 32, 39); return discOf(c); })();
+  const T_BEACH = (() => { const c = document.createElement('canvas'); c.width = c.height = 96; const k = c.getContext('2d'); ['#e8322f', '#fbfbf6', '#1f6fd1', '#fbfbf6', '#f5c518', '#fbfbf6'].forEach((col, i) => { k.fillStyle = col; k.beginPath(); k.moveTo(48, 48); k.arc(48, 48, 50, i * TAU / 6, (i + 1) * TAU / 6); k.fill(); }); k.fillStyle = '#fbfbf6'; k.beginPath(); k.arc(48, 48, 9, 0, TAU); k.fill(); return discOf(c); })();
+  const T_IRON = discOf(tex(64, 64, (x, y) => { const v = fbm(x / 8, y / 8, 8, 8, 4) * 60 + hash(x, y) * 22; return [38 + v, 38 + v, 42 + v]; }));
+  const T_STEEL = discOf(tex(64, 64, (x, y) => { const v = 150 + Math.sin(y / 5) * 30 + hash(x, y) * 14; return [v, v + 4, v + 10]; }));
+  const TEXB = { basket: T_BASKET, tennis: T_TENNIS, bowl: T_BOWL, billiard: T_BILL, beach: T_BEACH, iron: T_IRON, kettle: T_IRON, steel: T_STEEL };
+  function drawBalloon(b) { const { x, y, r } = b; g.strokeStyle = 'rgba(240,240,240,.8)'; g.lineWidth = .5; g.beginPath(); g.moveTo(x, y + r * 1.15); g.bezierCurveTo(x + 4, y + r + 10, x - 4, y + r + 18, x + 1, y + r + 28); g.stroke();
+    g.fillStyle = '#8e0f1c'; g.beginPath(); g.moveTo(x - 2, y + r * 1.2); g.lineTo(x + 2, y + r * 1.2); g.lineTo(x, y + r * 1.06); g.fill();
+    const q = g.createRadialGradient(x - r * .35, y - r * .45, 1, x, y, r * 1.2); q.addColorStop(0, '#ff9aa4'); q.addColorStop(.35, '#e3263b'); q.addColorStop(1, '#6d0714'); g.fillStyle = q; g.beginPath(); g.ellipse(x, y, r * .95, r * 1.12, 0, 0, TAU); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.6)'; g.beginPath(); g.ellipse(x - r * .38, y - r * .5, r * .18, r * .3, -.5, 0, TAU); g.fill(); }
+  function drawEgg(b) { const { x, y } = b; if (b.broken) { g.fillStyle = 'rgba(250,246,232,.95)'; g.beginPath(); g.ellipse(x, y + 4, 10, 3, 0, 0, TAU); g.fill(); g.fillStyle = '#f2b51f'; g.beginPath(); g.arc(x + 1, y + 3.5, 3, 0, TAU); g.fill(); return; }
+    g.save(); g.translate(x, y); g.rotate(b.rot * .2); const q = g.createRadialGradient(-2.5, -3, 1, 0, 0, 9); q.addColorStop(0, '#fffdf6'); q.addColorStop(.6, '#efe3c9'); q.addColorStop(1, '#a8957a'); g.fillStyle = q; g.beginPath(); g.ellipse(0, 0, 6.4, 8, 0, 0, TAU); g.fill(); g.restore(); }
+  function drawLamp(x, y, on) { if (on) { const q = g.createRadialGradient(x, y, 2, x, y, 60); q.addColorStop(0, 'rgba(255,236,150,.55)'); q.addColorStop(1, 'rgba(255,236,150,0)'); g.fillStyle = q; g.fillRect(x - 60, y - 60, 120, 120); }
+    g.fillStyle = lin(0, y + 6, 0, y + 14, CHROME); rrect(x - 5, y + 5, 10, 9, 1.5); g.fill(); g.fillStyle = '#2b2722'; rrect(x - 8, y + 13, 16, 3, 1); g.fill();
+    const q = g.createRadialGradient(x - 2, y - 3, 1, x, y, 9); q.addColorStop(0, on ? '#fffbe0' : 'rgba(240,245,250,.9)'); q.addColorStop(.6, on ? '#ffd84a' : 'rgba(200,210,220,.55)'); q.addColorStop(1, on ? '#e08a10' : 'rgba(120,130,140,.5)'); g.fillStyle = q; g.beginPath(); g.arc(x, y, 7.5, 0, TAU); g.fill();
+    g.strokeStyle = on ? '#fff3b0' : 'rgba(90,90,90,.8)'; g.lineWidth = .6; g.beginPath(); g.moveTo(x - 2, y + 4); g.lineTo(x - 1, y - 1); g.lineTo(x + 1, y + 1); g.lineTo(x + 2, y - 1); g.lineTo(x + 2, y + 4); g.stroke(); }
+  function drawBell(x, y, hit) { g.fillStyle = '#3a3f46'; rrect(x - 10, y - 12, 20, 3, 1); g.fill(); tube(x, y - 10, x, y - 5, 1.4); g.save(); g.translate(x, y - 6); g.rotate(Math.sin((hit || 0) * 20) * (hit || 0) * .4);
+    g.fillStyle = lin(-11, 0, 11, 0, [[0, '#7a5410'], [.35, '#ffe08a'], [.6, '#c99422'], [1, '#6a4708']]); g.beginPath(); g.moveTo(-4, 1); g.quadraticCurveTo(-5, 10, -11, 18); g.lineTo(11, 18); g.quadraticCurveTo(5, 10, 4, 1); g.quadraticCurveTo(0, -2, -4, 1); g.fill(); g.fillStyle = '#5c3e0a'; g.beginPath(); g.arc(0, 19.5, 2.4, 0, TAU); g.fill(); g.restore(); }
+  function drawBall(b) { if (b.kind === 'balloon') return drawBalloon(b); if (b.kind === 'egg') return drawEgg(b); const r = b.r; g.save(); g.translate(b.x, b.y);
+    g.save(); g.rotate(b.rot); g.drawImage(TEXB[b.kind] || T_BOWL, -r, -r, r * 2, r * 2);
+    if (b.kind === 'kettle') { g.strokeStyle = '#26282c'; g.lineWidth = 3.2; g.beginPath(); g.arc(0, -r * .9, r * .55, Math.PI * 1.05, Math.PI * 1.95); g.stroke(); }   // ручка гири
+    g.restore();
+    let q = g.createRadialGradient(-r * .4, -r * .45, r * .1, -r * .1, -r * .1, r * 1.25); q.addColorStop(0, b.kind === 'bowl' ? 'rgba(200,190,255,.25)' : 'rgba(255,240,200,.35)'); q.addColorStop(.45, 'rgba(0,0,0,0)'); q.addColorStop(1, 'rgba(0,0,0,.72)'); g.fillStyle = q; g.beginPath(); g.arc(0, 0, r, 0, TAU); g.fill();
+    g.strokeStyle = 'rgba(255,230,200,.22)'; g.lineWidth = .7; g.beginPath(); g.arc(0, 0, r - .5, .2, 1.3); g.stroke();   // отражённый свет снизу справа
+    if (b.kind === 'bowl' || b.kind === 'billiard' || b.kind === 'steel') { g.fillStyle = 'rgba(255,255,255,.55)'; g.save(); g.rotate(-.6); rrect(-r * .55, -r * .78, r * .5, r * .26, r * .12); g.fill(); g.restore(); q = g.createRadialGradient(-r * .38, -r * .42, 0, -r * .38, -r * .42, r * .3); q.addColorStop(0, 'rgba(255,255,255,.95)'); q.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = q; g.fillRect(-r, -r, r * 2, r * 2); }
+    else { q = g.createRadialGradient(-r * .4, -r * .45, 0, -r * .4, -r * .45, r * .45); q.addColorStop(0, 'rgba(255,240,220,.45)'); q.addColorStop(1, 'rgba(255,240,220,0)'); g.fillStyle = q; g.fillRect(-r, -r, r * 2, r * 2); }
+    g.restore(); }
+
+  // ── механизмы: шестерни, транспортёр, хомяк, мотор, генератор, выключатель, ветряк, водяное колесо, кран, провода
+  function drawGear(x, y, r, a, steel) { const n = Math.max(6, Math.round(r * .9)), ro = r + 1.6, ri = r - 1.2; g.save(); g.translate(x, y); g.rotate(a); g.beginPath();
+    for (let i = 0; i < n; i++) { const a0 = i * TAU / n, st = TAU / n; g.lineTo(Math.cos(a0) * ri, Math.sin(a0) * ri); g.lineTo(Math.cos(a0 + st * .25) * ro, Math.sin(a0 + st * .25) * ro); g.lineTo(Math.cos(a0 + st * .5) * ro, Math.sin(a0 + st * .5) * ro); g.lineTo(Math.cos(a0 + st * .75) * ri, Math.sin(a0 + st * .75) * ri); }
+    g.closePath(); const q = g.createRadialGradient(-r * .3, -r * .3, 1, 0, 0, ro); q.addColorStop(0, steel ? '#f2f4f6' : '#ffe7a0'); q.addColorStop(.6, steel ? '#9aa3ad' : '#c9952f'); q.addColorStop(1, steel ? '#4b525a' : '#6e4c10'); g.fillStyle = q; g.fill(); g.strokeStyle = 'rgba(40,25,5,.6)'; g.lineWidth = .5; g.stroke();
+    if (r > 9) { g.fillStyle = 'rgba(30,20,8,.55)'; for (let i = 0; i < 4; i++) { const aa = i * TAU / 4 + .4; g.beginPath(); g.arc(Math.cos(aa) * r * .52, Math.sin(aa) * r * .52, r * .17, 0, TAU); g.fill(); } }
+    g.restore(); screw(x, y, Math.max(1.2, r * .16)); }
+  function drawConveyor(x, y, ra, bd) { const by = y + 8;
+    for (const s of [-1, 1]) { tube(x + s * 30, by + 4, x + s * 34, by + 15, 2); g.fillStyle = '#111'; rrect(x + s * 34 - 3, by + 14.5, 6, 2.4, 1); g.fill(); }
+    g.fillStyle = lin(0, by - 6, 0, by + 6, [[0, '#3a3c41'], [.2, '#17181b'], [1, '#0b0b0d']]); rrect(x - 48, by - 6, 96, 12, 6); g.fill();
+    g.save(); rrect(x - 48, by - 6, 96, 12, 6); g.clip(); const off = md(bd || 0, 6); g.fillStyle = 'rgba(120,124,132,.6)'; for (let i = -54; i < 54; i += 6) g.fillRect(x + i + off, by - 6, 2.2, 1.6); g.restore();
+    g.fillStyle = lin(0, by - 3.5, 0, by + 3.5, [[0, '#dfe3e8'], [.5, '#8d959e'], [1, '#5b636c']]); rrect(x - 36, by - 3.4, 72, 6.8, 1.4); g.fill();
+    g.save(); rrect(x - 12, by - 2, 24, 4, 1); g.clip(); g.fillStyle = '#f2c230'; g.fillRect(x - 12, by - 2, 24, 4); g.fillStyle = '#1a1a1a'; for (let i = -16; i < 14; i += 4) { g.beginPath(); g.moveTo(x + i, by + 2); g.lineTo(x + i + 2, by + 2); g.lineTo(x + i + 4, by - 2); g.lineTo(x + i + 2, by - 2); g.fill(); } g.restore();
+    [-30, -20, 20, 30].forEach(px => screw(x + px, by, .9)); drawGear(x - 42, by, 6, ra || 0, 1); drawGear(x + 42, by, 6, ra || 0, 1); }
+  function drawHamsterWheel(x, y, ra, running, t) { tube(x - 9, y + 18, x, y, 1.6); tube(x + 9, y + 18, x, y, 1.6); g.fillStyle = '#3a3f46'; rrect(x - 12, y + 17, 24, 3, 1); g.fill();
+    drawGear(x, y, 13, ra, 1); g.save(); g.globalCompositeOperation = 'destination-out'; g.beginPath(); g.arc(x, y, 10.8, 0, TAU); g.fill(); g.restore();   // колесо-клетка: зубья снаружи, внутри пусто
+    g.strokeStyle = 'rgba(190,196,205,.85)'; g.lineWidth = .6; for (let i = 0; i < 10; i++) { const a = ra + i * TAU / 10; g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * 10.8, y + Math.sin(a) * 10.8); g.stroke(); }
+    drawHamster(x - 1, y - 2, t, running); screw(x, y, 1.3);
+    if (running) { g.fillStyle = '#fff'; g.font = '700 7px Rubik, sans-serif'; g.textAlign = 'center'; g.fillText('!', x + 8, y - 12); } }
+  function led(x, y, on) { g.fillStyle = on ? '#7dff6a' : '#4a1616'; g.beginPath(); g.arc(x, y, 1.4, 0, TAU); g.fill(); if (on) { const q = g.createRadialGradient(x, y, 0, x, y, 5); q.addColorStop(0, 'rgba(125,255,106,.6)'); q.addColorStop(1, 'rgba(125,255,106,0)'); g.fillStyle = q; g.fillRect(x - 5, y - 5, 10, 10); } }
+  function drawMotor(x, y, dir, on, ra) { tube(x + dir * 6, y, x + dir * 12, y, 2.2); drawGear(x + dir * 13, y, 6, ra, 1);
+    g.fillStyle = lin(0, y - 8, 0, y + 8, [[0, '#86a6cf'], [.4, '#3a5d8c'], [1, '#1b2c45']]); rrect(x - 11, y - 8, 20, 16, 3); g.fill();
+    g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = .6; for (let i = -8; i <= 6; i += 3) { g.beginPath(); g.moveTo(x + i, y - 8); g.lineTo(x + i, y + 8); g.stroke(); }
+    g.fillStyle = '#20242a'; rrect(x - 13, y + 7, 24, 3, 1); g.fill(); led(x - dir * 7, y - 5, on); }
+  function drawGen(x, y, dir, on, ra) { tube(x + dir * 7, y, x + dir * 12, y, 2.2); drawGear(x + dir * 13, y, 8, ra, 0);
+    g.fillStyle = lin(0, y - 9, 0, y + 9, [[0, '#ffd75e'], [.5, '#d9a21b'], [1, '#7c5a08']]); rrect(x - 11, y - 9, 20, 18, 2.5); g.fill(); g.strokeStyle = 'rgba(60,40,0,.6)'; g.lineWidth = .6; g.stroke();
+    g.fillStyle = '#2a2208'; g.beginPath(); g.moveTo(x - 1, y - 6); g.lineTo(x - 5, y + 1); g.lineTo(x - 1.5, y + 1); g.lineTo(x - 3, y + 6); g.lineTo(x + 3, y - 1.5); g.lineTo(x - .5, y - 1.5); g.lineTo(x + 1.5, y - 6); g.fill();   // молния
+    g.fillStyle = '#1a1a1a'; g.beginPath(); g.arc(x - dir * 5, y + 5, 1, 0, TAU); g.arc(x - dir * 2, y + 5, 1, 0, TAU); g.fill(); led(x + dir * 5, y - 5, on); }
+  function drawSwitch(x, y, on) { g.fillStyle = lin(0, y - 12, 0, y + 12, [[0, '#f4f1ea'], [1, '#b9b3a6']]); rrect(x - 9, y - 12, 18, 24, 2.5); g.fill(); g.strokeStyle = 'rgba(60,55,45,.6)'; g.lineWidth = .6; g.stroke();
+    g.fillStyle = '#2a2622'; g.beginPath(); g.ellipse(x - 3, y + 5, 1, 1.8, 0, 0, TAU); g.ellipse(x + 3, y + 5, 1, 1.8, 0, 0, TAU); g.fill();
+    g.save(); g.translate(x, y - 12); g.rotate(on ? .35 : -.35); g.fillStyle = lin(0, -4, 0, 1, [[0, '#ff7a5c'], [1, '#9e1c0c']]); rrect(-8, -3.5, 16, 3.5, 1.5); g.fill(); g.fillStyle = '#5b636c'; g.fillRect(-1, -1, 2, 2); g.restore();   // рычаг: задеть мячом — включится
+    led(x, y - 5, on); }
+  function drawMill(x, y, ra) { tube(x, y, x, y + 36, 2.4); g.fillStyle = '#3a3f46'; rrect(x - 8, y + 35, 16, 3, 1); g.fill();
+    g.save(); g.translate(x, y); g.rotate(ra); for (let i = 0; i < 4; i++) { g.rotate(TAU / 4); g.fillStyle = lin(0, -3, 0, 3, [[0, '#f5efe0'], [1, '#bdb29a']]); g.beginPath(); g.moveTo(3, -2); g.lineTo(22, -5); g.lineTo(22, 5); g.lineTo(3, 2); g.closePath(); g.fill(); g.strokeStyle = 'rgba(80,60,30,.5)'; g.lineWidth = .4; g.stroke(); g.strokeStyle = '#6b4a22'; g.lineWidth = 1; g.beginPath(); g.moveTo(0, 0); g.lineTo(22, 0); g.stroke(); } g.restore();
+    drawGear(x, y, 6, ra, 0); }
+  function drawWheel(x, y, ra) { g.save(); g.translate(x, y); g.rotate(ra); g.strokeStyle = '#5a3a1c'; g.lineWidth = 2; g.beginPath(); g.arc(0, 0, 14, 0, TAU); g.stroke();
+    for (let i = 0; i < 8; i++) { g.save(); g.rotate(i * TAU / 8); g.strokeStyle = '#6b4a22'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, 0); g.lineTo(13, 0); g.stroke(); g.fillStyle = pat(T_OAK, i * 20, 0, .3); g.fillRect(12, -2.2, 9, 4.4); g.strokeStyle = 'rgba(40,20,5,.6)'; g.lineWidth = .4; g.strokeRect(12, -2.2, 9, 4.4); g.restore(); }
+    g.restore(); drawGear(x, y, 8, ra, 0); }
+  function drawTap(x, y, dir, open) { g.fillStyle = lin(x - 13, 0, x + 13, 0, [[0, '#3d5a72'], [.35, '#9cc3dc'], [.6, '#5d84a0'], [1, '#2a3e50']]); rrect(x - 13, y - 16, 26, 26, 3); g.fill(); g.strokeStyle = 'rgba(20,30,40,.6)'; g.lineWidth = .6; g.stroke();
+    for (const yy of [y - 10, y + 3]) { g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x - 13, yy, 26, 1.2); } g.fillStyle = 'rgba(255,255,255,.8)'; g.font = '700 6px Rubik, sans-serif'; g.textAlign = 'center'; g.fillText('ВОДА', x, y - 2);
+    tube(x - 9, y + 10, x - 11, y + 18, 1.6); tube(x + 9, y + 10, x + 11, y + 18, 1.6);
+    g.save(); g.translate(x, y); g.scale(dir, 1); tube(13, 6, 18, 6, 4); tube(18, 6, 18, 9.5, 3); g.translate(16, 1.5); g.rotate(open ? .8 : 0); g.fillStyle = lin(-6, 0, 6, 0, [[0, '#ff6b52'], [1, '#9e1c0c']]); rrect(-6, -2, 12, 3, 1.4); g.fill(); g.restore(); }   // красная ручка — задеть мячом, кран откроется
+  const PLUG = { lamp: [0, 14], fan: [-10, 14], vacuum: [-16, 7], motor: [-11, 6], magnet: [0, 9], boost: [-26, 1], glove: [-19, 8] };
+  const plugPt = p => { const o = PLUG[p.type] || [0, 0]; return [p.x + o[0] * (p.dir || 1), p.y + o[1]]; }, sockPt = q => q.type === 'switch' ? [q.x, q.y + 5] : [q.x - (q.dir || 1) * 3.5, q.y + 5];
+  function drawCords(run) { for (const p of parts) { if (!ELEC.has(p.type) || (drag && p === drag.part)) continue; const s = run ? p.src : srcOf(p), [x0, y0] = plugPt(p);
+      g.strokeStyle = '#17140f'; g.lineWidth = 1.3; g.lineCap = 'round'; g.beginPath(); g.moveTo(x0, y0);
+      if (s) { const [x1, y1] = sockPt(s), sag = Math.min(40, Math.hypot(x1 - x0, y1 - y0) * .3); g.bezierCurveTo(x0, y0 + sag, x1, y1 + sag, x1, y1 + 2); g.stroke(); g.fillStyle = '#2b2722'; rrect(x1 - 2, y1 - .5, 4, 4, 1); g.fill(); }
+      else { g.quadraticCurveTo(x0 - 3, y0 + 10, x0 + 2, y0 + 14); g.stroke(); g.fillStyle = '#2b2722'; rrect(x0, y0 + 13, 4, 4, 1); g.fill(); g.fillStyle = '#c9cdd3'; g.fillRect(x0 + .8, y0 + 17, .8, 2); g.fillRect(x0 + 2.4, y0 + 17, .8, 2); } } }   // вилка висит — не дотянулась до розетки
+
+  // ── прочие новые детали
+  function drawIce(x, y, ang) { g.save(); g.translate(x, y); g.rotate(ang); g.fillStyle = lin(0, -5, 0, 5, [[0, 'rgba(235,250,255,.95)'], [.4, 'rgba(160,210,235,.78)'], [1, 'rgba(90,150,190,.85)']]); rrect(-42, -4.5, 84, 9, 2.5); g.fill(); g.strokeStyle = 'rgba(255,255,255,.8)'; g.lineWidth = .6; g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = .4; g.beginPath(); g.moveTo(-20, -4); g.lineTo(-14, 0); g.lineTo(-17, 4); g.moveTo(12, -4); g.lineTo(18, -1); g.lineTo(25, 1); g.lineTo(22, 4); g.stroke(); g.fillStyle = 'rgba(255,255,255,.7)'; g.fillRect(-38, -3.4, 30, .9); g.restore(); }
+  function drawCushion(x, y) { g.fillStyle = lin(0, y - 7, 0, y + 7, [[0, '#d2475a'], [.5, '#9c1f33'], [1, '#5e0f1d']]); g.beginPath(); g.moveTo(x - 25, y - 4); g.quadraticCurveTo(x - 27, y - 8, x - 20, y - 7); g.quadraticCurveTo(x, y - 9, x + 20, y - 7); g.quadraticCurveTo(x + 27, y - 8, x + 25, y - 4); g.quadraticCurveTo(x + 27, y + 7, x + 20, y + 6.5); g.quadraticCurveTo(x, y + 8, x - 20, y + 6.5); g.quadraticCurveTo(x - 27, y + 7, x - 25, y - 4); g.fill();
+    for (const k of [-12, 0, 12]) { g.fillStyle = 'rgba(40,5,10,.5)'; g.beginPath(); g.arc(x + k, y - .5, 1.6, 0, TAU); g.fill(); g.strokeStyle = 'rgba(255,180,190,.25)'; g.lineWidth = .5; g.beginPath(); g.arc(x + k, y - .5, 4, Math.PI * 1.1, Math.PI * 1.9); g.stroke(); } g.fillStyle = 'rgba(255,220,225,.25)'; g.fillRect(x - 18, y - 6.5, 36, 1); }
+  function drawBumper(x, y, hit) { const q = g.createRadialGradient(x - 3, y - 3, 1, x, y, 11); q.addColorStop(0, hit ? '#fff6b0' : '#ff8a8a'); q.addColorStop(.6, hit ? '#ffcf3a' : '#d01d2a'); q.addColorStop(1, '#5c0710'); g.fillStyle = q; g.beginPath(); g.arc(x, y, 10, 0, TAU); g.fill();
+    g.strokeStyle = lin(x - 10, y - 10, x + 10, y + 10, CHROME); g.lineWidth = 1.6; g.beginPath(); g.arc(x, y, 10, 0, TAU); g.stroke(); g.fillStyle = '#fff'; g.beginPath(); g.arc(x, y, 3, 0, TAU); g.fill();
+    if (hit) { g.strokeStyle = `rgba(255,240,150,${hit})`; g.lineWidth = 1.2; g.beginPath(); g.arc(x, y, 13 + (1 - hit) * 6, 0, TAU); g.stroke(); } }
+  function drawCactus(x, y) { g.fillStyle = lin(0, y + 6, 0, y + 16, [[0, '#d6764a'], [1, '#8a3f1f']]); g.beginPath(); g.moveTo(x - 9, y + 6); g.lineTo(x + 9, y + 6); g.lineTo(x + 7, y + 16); g.lineTo(x - 7, y + 16); g.closePath(); g.fill(); g.fillStyle = '#b5582e'; g.fillRect(x - 10, y + 5, 20, 3);
+    const body = (bx, by, w, h) => { g.fillStyle = lin(bx - w, 0, bx + w, 0, [[0, '#1f5a2c'], [.45, '#5fb25a'], [1, '#174522']]); rrect(bx - w, by - h, w * 2, h, w); g.fill(); };
+    body(x, y + 6, 4.5, 22); body(x - 7, y - 2, 2.6, 9); body(x + 7, y - 6, 2.6, 8); g.fillStyle = '#3f8a43'; g.fillRect(x - 7, y - 4, 4, 2.6); g.fillRect(x + 3, y - 8, 4, 2.6);
+    g.strokeStyle = 'rgba(255,250,220,.85)'; g.lineWidth = .35; for (let i = 0; i < 16; i++) { const yy = y - 14 + i * 1.3, s = i % 2 ? 1 : -1; g.beginPath(); g.moveTo(x + s * 4.4, yy); g.lineTo(x + s * 6.6, yy - .8); g.stroke(); } }
+  function arcBoxes(p) { const R = 36, out = []; for (let i = 0; i < 8; i++) { const tm = Math.PI - (i + .5) * Math.PI / 16; let bx = p.x + 18 + (R + 2) * Math.cos(tm), ang = tm + Math.PI / 2; const by = p.y - 18 + (R + 2) * Math.sin(tm); if (p.dir < 0) { bx = 2 * p.x - bx; ang = -ang; } out.push({ cx: bx, cy: by, w: R * Math.PI / 16 + 2.5, h: 4, ang, e: .15, kind: 'wood' }); } return out; }
+  function drawArc(x, y, dir) { g.save(); g.translate(x, y); g.scale(dir, 1); tube(-20, -18, -20, 22, 1.6); tube(-8.9, 8.9, -8.9, 22, 1.6); g.fillStyle = '#3a3f46'; rrect(-24, 21, 26, 2.5, 1); g.fill();
+    g.lineCap = 'butt'; g.strokeStyle = '#5a3412'; g.lineWidth = 5.2; g.beginPath(); g.arc(18, -18, 38, Math.PI / 2, Math.PI); g.stroke(); g.strokeStyle = pat(T_OAK, 0, 0, .35); g.lineWidth = 4; g.beginPath(); g.arc(18, -18, 38, Math.PI / 2, Math.PI); g.stroke();
+    g.strokeStyle = 'rgba(255,230,190,.6)'; g.lineWidth = .7; g.beginPath(); g.arc(18, -18, 36.3, Math.PI / 2, Math.PI); g.stroke(); g.restore(); }
+  function drawTube(x, y, ang) { g.save(); g.translate(x, y); g.rotate(ang); g.fillStyle = 'rgba(190,225,245,.14)'; g.fillRect(-35, -13, 70, 26);
+    for (const s of [-1, 1]) { g.fillStyle = lin(0, s * 13 - 1.5, 0, s * 13 + 1.5, [[0, 'rgba(235,248,255,.9)'], [1, 'rgba(120,160,190,.8)']]); g.fillRect(-35, s * 13 - 1.5, 70, 3); }
+    g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(-32, -10, 64, 1.2); g.strokeStyle = 'rgba(220,240,255,.7)'; g.lineWidth = .8; for (const s of [-1, 1]) { g.beginPath(); g.ellipse(s * 35, 0, 2.5, 14.5, 0, 0, TAU); g.stroke(); } g.restore(); }
+  function drawStairs(x, y, dir) { for (let i = 0; i < 4; i++) { const cx = x + dir * (-21 + i * 14), h = (i + 1) * 8; plank(cx - 7, y + 16 - h, 14, h, T_OAK, i * 13 + 5, 1); } }
+  function drawBoxBack(x, y) { g.fillStyle = '#b98a55'; for (const s of [-1, 1]) { g.beginPath(); g.moveTo(x + s * 21.5, y - 15); g.lineTo(x + s * 31, y - 21); g.lineTo(x + s * 29, y - 24); g.lineTo(x + s * 17, y - 15); g.closePath(); g.fill(); }
+    g.fillStyle = lin(0, y - 15, 0, y + 15, [[0, '#4a321b'], [1, '#7a5631']]); g.fillRect(x - 21.5, y - 15, 43, 30.5); }
+  function drawBoxFront(x, y) { g.fillStyle = lin(x - 21, 0, x + 21, 0, [[0, '#a87a47'], [.4, '#d2a46c'], [1, '#9a6d3c']]); g.fillRect(x - 21.5, y - 11, 43, 26.5); g.strokeStyle = 'rgba(70,45,20,.6)'; g.lineWidth = .6; g.strokeRect(x - 21.5, y - 11, 43, 26.5);
+    g.fillStyle = 'rgba(230,205,160,.55)'; g.fillRect(x - 3, y - 11, 6, 26.5); g.fillStyle = 'rgba(60,40,20,.55)'; g.font = '700 6px Rubik, sans-serif'; g.textAlign = 'center'; g.fillText('↑ ↑', x - 12, y + 8); }
+  function drawGlove(x, y, dir, ext) { const gx = 4 + ext * 26; g.save(); g.translate(x, y); g.scale(dir, 1);
+    g.fillStyle = lin(0, -10, 0, 10, [[0, '#c9d0d7'], [1, '#4b525a']]); rrect(-19, -10, 14, 20, 2); g.fill(); screw(-15, -6, 1); screw(-15, 6, 1);
+    g.strokeStyle = '#5b636c'; g.lineWidth = 1; g.beginPath(); g.moveTo(-5, 0); const n = 6; for (let i = 1; i <= n; i++) g.lineTo(-5 + (gx - 1) * i / n, i % 2 ? -4 : 4); g.stroke();
+    g.fillStyle = '#f4f0e6'; g.fillRect(gx - 6, -5, 4, 10);
+    const q = g.createRadialGradient(gx + 2, -3, 1, gx + 4, 0, 10); q.addColorStop(0, '#ff7464'); q.addColorStop(.6, '#c8161e'); q.addColorStop(1, '#5c070b'); g.fillStyle = q; g.beginPath(); g.ellipse(gx + 4, 0, 8, 7, 0, 0, TAU); g.fill(); g.beginPath(); g.ellipse(gx + 1, -6, 3.5, 3, -.4, 0, TAU); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.4)'; g.beginPath(); g.ellipse(gx + 3, -3.5, 3, 1.4, -.3, 0, TAU); g.fill(); g.restore(); }
+  function drawMagnet(x, y, on, t) { if (on) { g.strokeStyle = 'rgba(160,200,255,.35)'; g.lineWidth = .6; for (let k = 0; k < 3; k++) { const r = 10 + ((t * 30 + k * 12) % 36); g.globalAlpha = 1 - r / 46; g.beginPath(); g.arc(x, y + 4, r, .2, Math.PI - .2); g.stroke(); } g.globalAlpha = 1; }
+    g.lineCap = 'butt'; g.strokeStyle = lin(x - 12, 0, x + 12, 0, [[0, '#7c0d12'], [.4, '#e0303a'], [1, '#6a0a10']]); g.lineWidth = 7; g.beginPath(); g.moveTo(x - 8, y + 6); g.lineTo(x - 8, y - 2); g.arc(x, y - 2, 8, Math.PI, 0); g.lineTo(x + 8, y + 6); g.stroke();
+    g.fillStyle = lin(0, y + 5, 0, y + 10, CHROME); g.fillRect(x - 11.5, y + 5, 7, 4.5); g.fillRect(x + 4.5, y + 5, 7, 4.5); led(x, y - 8, on); }
+  function drawVacuum(x, y, dir, on, t) { g.save(); g.translate(x, y); g.scale(dir, 1);
+    if (on) { g.strokeStyle = 'rgba(255,255,255,.25)'; g.lineWidth = .7; for (let i = 0; i < 5; i++) { const u = 1 - ((t * 1.6 + i / 5) % 1), x0 = 22 + u * 150, yy = -8 + (i * 7) % 18; g.globalAlpha = u; g.beginPath(); g.moveTo(x0, yy); g.lineTo(x0 - 10, yy * .9); g.stroke(); } g.globalAlpha = 1; }
+    g.fillStyle = lin(0, -9, 0, 9, [[0, '#6f9ad6'], [.5, '#2f5ea5'], [1, '#173361']]); rrect(-19, -9, 24, 18, 8); g.fill(); g.fillStyle = lin(0, -9, 0, -5, CHROME); g.fillRect(-12, -9, 10, 3);
+    g.fillStyle = '#16181c'; for (const wx of [-14, 1]) { g.beginPath(); g.arc(wx, 9, 3, 0, TAU); g.fill(); }
+    g.strokeStyle = '#2a2d33'; g.lineWidth = 3; g.beginPath(); g.moveTo(4, -2); g.quadraticCurveTo(12, -6, 15, 1); g.stroke(); g.fillStyle = lin(14, 0, 22, 0, CHROME); g.beginPath(); g.moveTo(14, -1); g.lineTo(21, -5); g.lineTo(21, 7); g.lineTo(14, 3); g.closePath(); g.fill(); g.restore(); led(x - dir * 12, y - 4, on); }
+  function drawBoost(x, y, dir, on, t) { g.fillStyle = lin(0, y - 3, 0, y + 3, [[0, '#3a3e45'], [1, '#15171a']]); rrect(x - 26, y - 3, 52, 6, 3); g.fill();
+    for (let i = 0; i < 6; i++) { const ph = on ? (t * 3 + i / 6) % 1 : .3, cx = x - 20 + i * 8; g.strokeStyle = on ? `rgba(255,${150 + ph * 100 | 0},40,${.4 + ph * .6})` : 'rgba(120,120,120,.5)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(cx - dir * 2, y - 2); g.lineTo(cx + dir * 1.5, y); g.lineTo(cx - dir * 2, y + 2); g.stroke(); } }
+  function drawPend(x, y, a) { g.fillStyle = lin(0, y - 5, 0, y + 3, CHROME); rrect(x - 6, y - 5, 12, 6, 1.5); g.fill(); const bx = x - Math.sin(a) * 50, by = y + Math.cos(a) * 50;
+    g.strokeStyle = '#3a3f46'; g.lineWidth = 1.4; g.beginPath(); g.moveTo(x, y); g.lineTo(bx, by); g.stroke(); const q = g.createRadialGradient(bx - 2.5, by - 2.5, 1, bx, by, 8); q.addColorStop(0, '#ffe7a0'); q.addColorStop(.6, '#b8862a'); q.addColorStop(1, '#5c3e0a'); g.fillStyle = q; g.beginPath(); g.arc(bx, by, 7.5, 0, TAU); g.fill(); screw(x, y - 2, 1.4); }
+  function drawDomino(bx, by, a) { g.save(); g.translate(bx, by); g.rotate(a); g.fillStyle = lin(-3.5, 0, 3.5, 0, [[0, '#2b2d31'], [.4, '#4a4e55'], [1, '#0f1012']]); rrect(-3.5, -26, 7, 26, 1.2); g.fill(); g.fillStyle = '#e9e6dc'; g.fillRect(-2.5, -13.4, 5, .8);
+    for (const [px, py] of [[0, -21], [-1.4, -18], [1.4, -18], [0, -8], [-1.4, -4], [1.4, -4]]) { g.beginPath(); g.arc(px, py, .8, 0, TAU); g.fill(); } g.restore(); }
+  function drawFlask(bx, by, a, pour) { g.save(); g.translate(bx, by); g.rotate(a); g.beginPath(); g.moveTo(-8, 0); g.lineTo(8, 0); g.lineTo(2.6, -16); g.lineTo(2.6, -26); g.lineTo(-2.6, -26); g.lineTo(-2.6, -16); g.closePath();
+    g.save(); g.clip(); const lvl = -11 * (1 - (pour || 0) / 2.4); g.fillStyle = 'rgba(110,255,70,.85)'; g.fillRect(-9, lvl, 18, 12); g.restore();
+    g.fillStyle = 'rgba(220,245,255,.22)'; g.fill(); g.strokeStyle = 'rgba(235,250,255,.85)'; g.lineWidth = .8; g.stroke(); g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(-5, -6, 1, 5);
+    g.fillStyle = '#f4f0e6'; g.fillRect(-4, -9, 8, 4); g.fillStyle = '#1a1a1a'; g.font = '700 4px Rubik, sans-serif'; g.textAlign = 'center'; g.fillText('☠', 0, -5.8); g.restore(); }
+  function drawPump(x, y, hit) { const d = (hit || 0) * 4; g.fillStyle = lin(0, y + 1, 0, y + 15, [[0, '#e0483c'], [1, '#7a140c']]); rrect(x - 13, y + 1, 26, 14, 2); g.fill();
+    g.fillStyle = lin(x - 4, 0, x + 4, 0, CHROME); g.fillRect(x - 4, y - 6 + d * .3, 8, 8); tube(x, y - 7 + d, x, y - 1, 1.4); g.fillStyle = lin(0, y - 10 + d, 0, y - 6 + d, [[0, '#3a3f46'], [1, '#15171a']]); rrect(x - 8, y - 10 + d, 16, 4, 1.5); g.fill();
+    g.strokeStyle = '#1b1d21'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(x + 13, y + 8); g.quadraticCurveTo(x + 22, y + 6, x + 20, y - 6); g.stroke(); g.fillStyle = 'rgba(200,30,45,.85)'; g.beginPath(); g.ellipse(x + 20, y - 9, 3, 4, 0, 0, TAU); g.fill(); }
+  function drawGun(x, y, ang, dir, flash) { g.save(); g.translate(x, y - 4); g.scale(dir, 1); g.rotate(dir > 0 ? ang : -ang); if (flash > 0) { const q = g.createRadialGradient(28, 0, 1, 28, 0, 14); q.addColorStop(0, `rgba(255,240,170,${flash})`); q.addColorStop(1, 'rgba(255,120,30,0)'); g.fillStyle = q; g.fillRect(14, -14, 28, 28); }
+    g.fillStyle = lin(0, -5, 0, 5, [[0, '#6b6f77'], [.35, '#2a2d33'], [1, '#0d0e10']]); g.beginPath(); g.moveTo(-8, -5.5); g.lineTo(26, -3.6); g.lineTo(26, 3.6); g.lineTo(-8, 5.5); g.closePath(); g.fill();
+    g.fillStyle = '#4b4f57'; g.fillRect(24, -4.4, 3, 8.8); g.fillRect(4, -5, 2, 10); g.beginPath(); g.arc(-8, 0, 5.5, 0, TAU); g.fill(); g.restore();
+    plank(x - 18, y + 1, 36, 7, T_OAK, 21, 1); for (const wx of [-10, 10]) { g.strokeStyle = '#3b2410'; g.lineWidth = 1.6; g.beginPath(); g.arc(x + wx, y + 10, 5.5, 0, TAU); g.stroke(); g.lineWidth = .7; for (let i = 0; i < 4; i++) { const a = i * Math.PI / 4; g.beginPath(); g.moveTo(x + wx - Math.cos(a) * 5, y + 10 - Math.sin(a) * 5); g.lineTo(x + wx + Math.cos(a) * 5, y + 10 + Math.sin(a) * 5); g.stroke(); } }
+    tube(x - dir * 16, y + 1, x - dir * 16, y - 5, 1.2); g.fillStyle = lin(0, y - 8, 0, y - 4, [[0, '#ff8466'], [1, '#9e1c0c']]); rrect(x - dir * 16 - 5, y - 8, 10, 4, 1.5); g.fill(); }   // спуск сзади: задеть мячом — выстрел
+
+  // ── все детали: размеры для выбора мышью, тела для физики, рисование, значок в шкафу
+  const B = (cx, cy, w, h, kind, e = .25, ang = 0, x = {}) => ({ cx, cy, w, h, kind, e, ang, ...x });
+  const hn0 = (p, hn) => hn || null, ballPart = (kind, nm, w) => ({ name: nm, w, h: w, ball: kind, draw: (p, t, run) => { if (!run) drawBall({ kind, x: p.x, y: p.y, rot: 0, ...BALL[kind] }); }, icon: [1, (x, y) => drawBall({ kind, x, y, rot: .5, ...BALL[kind], r: Math.min(10, BALL[kind].r * 1.15) })] });
+  const PARTS = {
+    ramp: { name: 'ДОСКА', w: 84, h: 9, rot: [-90, 90], def: 15, mirror: 1, bodies: p => [B(p.x, p.y, 84, 8, 'ramp', .25, p.ang)], draw: p => drawRamp(p.x, p.y, p.ang), icon: [1, (x, y) => drawRamp(x, y, rad(-25), 34)] },
+    tramp: { name: 'БАТУТ', w: 48, h: 22, bodies: p => [B(p.x, p.y - 8, 46, 4, 'tramp', 1), B(p.x, p.y + 9, 48, 4, 'frame', .2)], draw: p => drawTramp(p.x, p.y, p.hit), icon: [.62, (x, y) => drawTramp(x, y + 2, 0)] },
+    spring: { name: 'ПРУЖИНА', w: 30, h: 22, rot: [-90, 90], mirror: 1, bodies: p => { const s = Math.sin(p.ang), c = Math.cos(p.ang); return [B(p.x, p.y, 28, 5, 'spring', .3, p.ang), B(p.x - s * 12, p.y + c * 12, 30, 4, 'frame', .2, p.ang)]; }, draw: p => drawSpring(p.x, p.y, p.ang, p.hit), icon: [.7, (x, y) => drawSpring(x, y - 4, 0, 0)] },
+    saw: { name: 'КАЧЕЛИ', w: 100, h: 30, bodies: p => [B(p.x, p.y + 11, 12, 22, 'stand', .2)], hinge: p => ({ type: 'saw', bx: p.x, by: p.y, I: 2304 }), draw: (p, t, run, hn) => drawSaw(p.x, p.y, hn ? hn.a : 0), icon: [.36, (x, y) => drawSaw(x, y - 6, -.25)] },
+    funnel: { name: 'ВОРОНКА', w: 64, h: 34, bodies: p => { const a = Math.atan2(24, 16); return [B(p.x - 22, p.y, 28.8, 3, 'tin', .2, a), B(p.x + 22, p.y, 28.8, 3, 'tin', .2, -a), B(p.x - 15.5, p.y + 16, 3, 8, 'tin', .2), B(p.x + 15.5, p.y + 16, 3, 8, 'tin', .2)]; }, draw: p => drawFunnel(p.x, p.y), icon: [.56, (x, y) => drawFunnel(x, y - 4)] },
+    wall: { name: 'СТЕНКА', w: 20, h: 40, bodies: p => [B(p.x, p.y, 20, 40, 'brick', .3)], draw: p => brickWall(p.x - 10, p.y - 20, 20, 40, 5 + (p.x | 0)), icon: [.5, (x, y) => brickWall(x - 10, y - 20, 20, 40, 9)] },
+    ice: { name: 'ЛЁД', w: 84, h: 9, rot: [-90, 90], mirror: 1, bodies: p => [B(p.x, p.y, 84, 8, 'ice', .1, p.ang)], draw: p => drawIce(p.x, p.y, p.ang), icon: [.42, (x, y) => drawIce(x, y, rad(-25))] },
+    arc: { name: 'ДУГА', w: 44, h: 44, flip: 1, bodies: p => arcBoxes(p), draw: p => drawArc(p.x, p.y, p.dir), icon: [.6, (x, y) => drawArc(x, y, 1)] },
+    tube: { name: 'ТРУБКА', w: 70, h: 30, rot: [-90, 90], mirror: 1, bodies: p => { const s = Math.sin(p.ang), c = Math.cos(p.ang); return [-13, 13].map(ly => B(p.x - ly * s, p.y + ly * c, 70, 3, 'glass', .3, p.ang)); }, draw: p => drawTube(p.x, p.y, p.ang), icon: [.42, (x, y) => drawTube(x, y, rad(-20))] },
+    stairs: { name: 'СТУПЕНЬКИ', w: 56, h: 34, flip: 1, bodies: p => [0, 1, 2, 3].map(i => B(p.x + p.dir * (-21 + i * 14), p.y + 16 - (i + 1) * 4, 14, (i + 1) * 8, 'wood', .25)), draw: p => drawStairs(p.x, p.y, p.dir), icon: [.55, (x, y) => drawStairs(x, y, 1)] },
+    pin: { name: 'КЕГЛЯ', w: 12, h: 34, hinge: p => ({ type: 'pin', L: 34, W: 10, bx: p.x, by: p.y + 17, I: 2 * 34 * 34 / 3 }), draw: (p, t, run, hn) => drawPin(hn ? hn.bx : p.x, hn ? hn.by : p.y + 17, hn ? hn.a : 0), icon: [.6, (x, y) => drawPin(x, y + 12, 0)] },
+    dom: { name: 'ДОМИНО', w: 10, h: 28, hinge: p => ({ type: 'pin', L: 26, W: 7, bx: p.x, by: p.y + 13, I: 2 * 26 * 26 / 3 }), draw: (p, t, run, hn) => drawDomino(hn ? hn.bx : p.x, hn ? hn.by : p.y + 13, hn ? hn.a : 0), icon: [.8, (x, y) => drawDomino(x, y + 11, 0)] },
+    pend: { name: 'МАЯТНИК', w: 30, h: 64, oy: 26, rot: [-150, 150], def: 60, mirror: 1, hinge: p => ({ type: 'pend', L: 50, bx: p.x, by: p.y, a: p.ang, I: 10000 }), draw: (p, t, run, hn) => drawPend(p.x, p.y, hn ? hn.a : p.ang), icon: [.42, (x, y) => drawPend(x + 8, y - 20, .5)] },
+    box: { name: 'КОРОБКА', w: 44, h: 32, bodies: p => [B(p.x - 20, p.y, 3, 30, 'box', .1), B(p.x + 20, p.y, 3, 30, 'box', .1), B(p.x, p.y + 14, 40, 3, 'box', .05)], draw: p => drawBoxBack(p.x, p.y), front: p => drawBoxFront(p.x, p.y), icon: [.6, (x, y) => { drawBoxBack(x, y + 2); drawBoxFront(x, y + 2); }] },
+    cushion: { name: 'ПОДУШКА', w: 52, h: 16, bodies: p => [B(p.x, p.y, 50, 12, 'cushion', 0)], draw: p => drawCushion(p.x, p.y), icon: [.6, (x, y) => drawCushion(x, y)] },
+    bump: { name: 'ОТБОЙНИК', w: 22, h: 22, bodies: p => [B(p.x, p.y, 20, 20, 'bump', .9, 0, { circle: 10 })], draw: p => drawBumper(p.x, p.y, p.hit), icon: [.95, (x, y) => drawBumper(x, y, 0)] },
+    cactus: { name: 'КАКТУС', w: 20, h: 32, bodies: p => [B(p.x, p.y, 12, 32, 'cactus', .2)], draw: p => drawCactus(p.x, p.y), icon: [.75, (x, y) => drawCactus(x, y - 1)] },
+    acid: { name: 'КИСЛОТА', w: 18, h: 26, hinge: p => ({ type: 'pin', acid: 1, L: 26, W: 14, bx: p.x, by: p.y + 13, I: 2 * 26 * 26 / 3 }), draw: (p, t, run, hn) => drawFlask(hn ? hn.bx : p.x, hn ? hn.by : p.y + 13, hn ? hn.a : 0, hn ? hn.pour : 0), icon: [.85, (x, y) => drawFlask(x, y + 11, 0, 0)] },
+    pump: { name: 'НАСОС С ШАРИКОМ', w: 34, h: 30, bodies: p => [B(p.x, p.y + 8, 26, 14, 'metal', .2), B(p.x, p.y - 8, 16, 4, 'pump', .2)], draw: p => drawPump(p.x, p.y, p.hit), icon: [.7, (x, y) => drawPump(x - 4, y - 2, 0)] },
+    gun: { name: 'ПУШКА', w: 44, h: 30, rot: [-80, 20], def: -25, flip: 1, bodies: p => [B(p.x, p.y + 8, 36, 14, 'metal', .1), B(p.x - p.dir * 16, p.y - 6, 10, 4, 'trigger', .1)], draw: (p, t, run) => drawGun(p.x, p.y, p.ang, p.dir, run ? 1 - (tRun - p.pt) * 8 : 0), icon: [.55, (x, y) => drawGun(x, y - 2, rad(-25), 1, 0)] },
+    ball: ballPart('tennis', 'МЯЧИК', 14), billiard: ballPart('billiard', 'БИЛЬЯРДНЫЙ ШАР', 14), beach: ballPart('beach', 'ПЛЯЖНЫЙ МЯЧ', 30), cannonball: ballPart('iron', 'ЯДРО', 20),
+    balloon: { ...ballPart('balloon', 'ВОЗДУШНЫЙ ШАР', 24), icon: [.8, (x, y) => drawBalloon({ x, y: y - 6, r: 11 })] }, steel: ballPart('steel', 'СТАЛЬНОЙ ШАРИК', 12), kettle: ballPart('kettle', 'ГИРЯ', 22),
+    tap: { name: 'КРАН С ВОДОЙ', w: 40, h: 36, flip: 1, bodies: p => [B(p.x, p.y - 3, 26, 26, 'metal', .2), B(p.x + p.dir * 16, p.y + 1.5, 12, 4, 'tap', .2)], draw: p => drawTap(p.x, p.y, p.dir, p.open > 0), icon: [.6, (x, y) => drawTap(x - 3, y, 1, 0)] },
+    wheel: { name: 'ВОДЯНОЕ КОЛЕСО', w: 44, h: 44, draw: p => drawWheel(p.x, p.y, p.ra || 0), icon: [.75, (x, y) => drawWheel(x, y, .3)] },
+    mill: { name: 'ВЕТРЯК', w: 46, h: 60, oy: 10, flip: 1, draw: p => drawMill(p.x, p.y, p.ra || 0), icon: [.55, (x, y) => drawMill(x, y - 10, .4)] },
+    switch: { name: 'ВЫКЛЮЧАТЕЛЬ', w: 20, h: 30, bodies: p => [B(p.x, p.y, 18, 24, 'metal', .2), B(p.x, p.y - 13.5, 16, 4, 'lever', .2)], draw: p => drawSwitch(p.x, p.y, p.on), icon: [.8, (x, y) => drawSwitch(x, y + 2, 0)] },
+    gen: { name: 'ГЕНЕРАТОР', w: 44, h: 22, flip: 1, bodies: p => [B(p.x, p.y, 20, 18, 'metal', .2)], draw: p => drawGen(p.x, p.y, p.dir, p.on, p.ra || 0), icon: [.75, (x, y) => drawGen(x - 4, y, 1, 0, 0)] },
+    motor: { name: 'МОТОР', w: 40, h: 20, flip: 1, bodies: p => [B(p.x, p.y, 20, 16, 'metal', .2)], draw: p => drawMotor(p.x, p.y, p.dir, p.on, p.ra || 0), icon: [.8, (x, y) => drawMotor(x - 4, y, 1, 0, 0)] },
+    gear: { name: 'ШЕСТЕРНЯ', w: 32, h: 32, draw: p => drawGear(p.x, p.y, 14, p.ra || 0, 0), icon: [.75, (x, y) => drawGear(x, y, 14, .2, 0)] },
+    gearS: { name: 'ШЕСТЕРЁНКА', w: 20, h: 20, draw: p => drawGear(p.x, p.y, 8, p.ra || 0, 1), icon: [1, (x, y) => drawGear(x, y, 8, .2, 1)] },
+    hamster: { name: 'ХОМЯК В КОЛЕСЕ', w: 30, h: 40, oy: 4, bodies: p => [B(p.x, p.y, 24, 24, 'hamster', .3)], draw: (p, t, run) => drawHamsterWheel(p.x, p.y, p.ra || 0, run && p.run > 0, t), icon: [.75, (x, y) => drawHamsterWheel(x, y - 3, 0, 0, 0)] },
+    belt: { name: 'ТРАНСПОРТЁР', w: 100, h: 24, oy: 6, bodies: p => [B(p.x, p.y + 8, 96, 12, 'belt', .1)], draw: p => drawConveyor(p.x, p.y, p.ra, p.bd), icon: [.34, (x, y) => drawConveyor(x, y - 6, 0, 0)] },
+    fan: { name: 'ВЕНТИЛЯТОР', w: 30, h: 36, flip: 1, bodies: p => [B(p.x, p.y, 26, 34, 'fan', .2)], draw: (p, t, run) => drawFan(p.x, p.y, p.vd ?? p.dir, t, run && p.on), icon: [.62, (x, y) => drawFan(x, y - 1, 1, 0, false)] },
+    vacuum: { name: 'ПЫЛЕСОС', w: 44, h: 24, flip: 1, bodies: p => [B(p.x - p.dir * 7, p.y, 26, 18, 'metal', .2)], draw: (p, t, run) => drawVacuum(p.x, p.y, p.dir, run && p.on, t), icon: [.7, (x, y) => drawVacuum(x, y, 1, 0, 0)] },
+    magnet: { name: 'ЭЛЕКТРОМАГНИТ', w: 26, h: 24, bodies: p => [B(p.x, p.y, 24, 20, 'metal', .05)], draw: (p, t, run) => drawMagnet(p.x, p.y, run && p.on, t), icon: [.9, (x, y) => drawMagnet(x, y, 0, 0)] },
+    boost: { name: 'УСКОРИТЕЛЬ', w: 54, h: 10, flip: 1, bodies: p => [B(p.x, p.y, 52, 6, 'boost', .1)], draw: (p, t, run) => drawBoost(p.x, p.y, p.dir, run && p.on, t), icon: [.6, (x, y) => drawBoost(x, y, 1, 0, 0)] },
+    lamp: { name: 'ЛАМПА', w: 20, h: 28, bodies: p => [B(p.x, p.y + 6, 14, 18, 'metal', .2)], draw: (p, t, run) => drawLamp(p.x, p.y, run && p.on), icon: [.9, (x, y) => drawLamp(x, y - 4, 0)] },
+    bell: { name: 'ЗВОНОК', w: 26, h: 30, bodies: p => [B(p.x, p.y + 4, 22, 20, 'bell', .3)], draw: (p, t, run) => drawBell(p.x, p.y, run ? p.hit : 0), icon: [.8, (x, y) => drawBell(x, y, 0)] },
+    chain: { name: 'ЦЕПЬ', w: 1, h: 1, draw: () => {}, icon: [.9, (x, y) => { g.save(); drawGear(x - 11, y + 6, 7, .3, 0); drawGear(x + 11, y - 6, 5, .3, 1); chainPath([x - 11, y + 6, 7], [x + 11, y - 6, 5], 1.2); g.strokeStyle = '#1f2125'; g.lineWidth = 2.6; g.stroke(); g.strokeStyle = '#a3a9b1'; g.lineWidth = 1.3; g.setLineDash([1.6, 1.1]); g.stroke(); g.restore(); }] },
+    glove: { name: 'ПЕРЧАТКА', w: 44, h: 22, flip: 1, bodies: p => [B(p.x - p.dir * 12, p.y, 14, 20, 'metal', .2)], draw: (p, t, run) => { const k = run ? tRun - p.pt : 9; drawGlove(p.x, p.y, p.dir, k < 0 ? 0 : k < .06 ? k / .06 : Math.max(0, 1 - (k - .06) / .35)); }, icon: [.7, (x, y) => drawGlove(x + 4, y, 1, 0)] },
+  };
+  const HINT = { "chain": "Нажми, потом на одну шестерню и на другую — цепь свяжет их на расстоянии, крутятся в одну сторону. Правая кнопка — отмена","gear": "Поставь вплотную к другой шестерне или к ролику — зубья сцепятся (зелёная точка), вращение передастся", "gearS": "Маленькая шестерня: крутится быстрее большой. Ставь вплотную к другой — сцепятся", "hamster": "Испугается от удара мяча и побежит — колесо крутит соседние шестерни", "belt": "Едет, только если ролик сцеплен с крутящейся шестернёй. Куда едет — зависит от стороны вращения", "gen": "Шестерня генератора крутится — даёт ток. Провода тянутся к нему сами, до 170 точек", "motor": "Включённый в ток мотор крутит свою шестерню", "mill": "Включённый вентилятор дует — ветряк крутит шестерню на оси", "wheel": "Струя воды из крана крутит колесо и шестерню на оси", "tap": "Задень мячом красную ручку — кран откроется, польётся вода", "switch": "Задень мячом красный рычаг — включится ток. Провода тянутся к нему сами, до 170 точек", "fan": "Дует, только если провод дотянулся до включённого выключателя или генератора", "vacuum": "Всасывает мячи; нужен ток", "magnet": "Тянет ядро, гирю и стальной шарик; нужен ток", "boost": "Разгоняет мяч; нужен ток", "glove": "Бьёт мяч перед собой; нужен ток", "lamp": "Горит от тока", "acid": "Сбей колбу — кислота растворит доски, батут, подушку, коробку и мягкие мячи", "pump": "Мяч падает на ручку — насос надувает воздушный шар, он летит вверх", "gun": "Мяч задевает красный спуск сзади — пушка стреляет ядром. Колесо мыши — наклон ствола", "cactus": "Протыкает воздушный и пляжный мячи", "pend": "Груз качается от начального наклона (колесо мыши)", "balloon": "Летит вверх", "cushion": "Гасит удар — на ней яйцо не разобьётся", "bump": "Отбрасывает мяч", "ice": "Скользкий — мяч не тормозит", "spring": "Подбрасывает мяч по своему наклону", "saw": "Упало на один край — подкинет то, что на другом", "dom": "Падает и валит соседние"};
+  const ORDER = ['ramp', 'tramp', 'spring', 'saw', 'funnel', 'wall', 'ice', 'arc', 'tube', 'stairs', 'box', 'cushion', 'bump', 'cactus', 'pin',
+    'dom', 'pend', 'acid', 'pump', 'gun', 'ball', 'billiard', 'beach', 'cannonball', 'balloon', 'steel', 'kettle', 'tap', 'wheel', 'mill',
+    'switch', 'gen', 'motor', 'gear', 'gearS', 'chain', 'hamster', 'belt', 'fan', 'vacuum', 'magnet', 'boost', 'glove'];
+  const LIMIT = 3, lim = () => LV.inv && !SOLVED[LI], cap = t => lim() ? LV.inv[t] || 0 : LIMIT, left = t => t === 'chain' ? cap(t) - chains.length : cap(t) - parts.filter(p => p.type === t && !p.fixed).length;   // в обучающих задачах — только нужные детали
+  // цепь: охватывает два зубчатых колеса, крутит их в одну сторону
+  function chainPath(u, w, k = 1) { const dx = w[0] - u[0], dy = w[1] - u[1], d = Math.hypot(dx, dy) || 1, th = Math.atan2(dy, dx), r1 = u[2] + k, r2 = w[2] + k, be = Math.acos(clamp((r1 - r2) / d, -1, 1));
+    g.beginPath(); g.moveTo(u[0] + r1 * Math.cos(th + be), u[1] + r1 * Math.sin(th + be)); g.lineTo(w[0] + r2 * Math.cos(th + be), w[1] + r2 * Math.sin(th + be)); g.arc(w[0], w[1], r2, th + be, th - be, true);
+    g.lineTo(u[0] + r1 * Math.cos(th - be), u[1] + r1 * Math.sin(th - be)); g.arc(u[0], u[1], r1, th - be, th + be, true); g.closePath(); }
+  function drawChain(c, run) { const u = hubsOf(c.a)[c.ai], w = hubsOf(c.b)[c.bi]; if (!u || !w) return; chainPath(u, w, 1.2); g.strokeStyle = '#1f2125'; g.lineWidth = 2.6; g.stroke();
+    g.strokeStyle = '#a3a9b1'; g.lineWidth = 1.3; g.setLineDash([1.6, 1.1]); g.lineDashOffset = -((c.a.ra || 0) * u[2]); g.stroke(); g.setLineDash([]); g.lineDashOffset = 0; }
+  function hubAt(m) { for (let i = parts.length - 1; i >= 0; i--) { const hs = hubsOf(parts[i]); for (let k = 0; k < hs.length; k++) if (Math.hypot(hs[k][0] - m.x, hs[k][1] - m.y) < hs[k][2] + 5) return { p: parts[i], i: k }; } return null; }   // любые детали в любой задаче, по три штуки
+  function drawPart(p, t, run) { if (run && p.gone) return; const P = PARTS[p.type]; P.draw(p, t, run, run ? pins.find(q => q.part === p) : null); }
+
+  // ── шкаф: страницы по 15 деталей; количество мелко рядом; при наведении — свечение и название
+  const PER = 15, AVAIL = () => lim() ? ORDER.filter(t => LV.inv[t]) : ORDER,   // решил задачу — в ней открываются все детали
+    NPG = () => Math.max(1, Math.ceil(AVAIL().length / PER)), VIS = () => AVAIL().slice(PG * PER, PG * PER + PER);
+  const SLOT = i => ({ x: PW + 5 + (i % 3) * 44, y: 22 + (i / 3 | 0) * 59, w: 43, h: 56 }), BTN = { run: { x: PW + 14, y: 322, w: 112, h: 30 }, clr: { x: PW + 14, y: 360, w: 112, h: 24 }, prev: { x: 156, y: 15, w: 16, h: 24 }, next: { x: 428, y: 15, w: 16, h: 24 }, go: { x: 200, y: 215, w: 100, h: 20 }, pp: { x: PW + 10, y: 3, w: 22, h: 16 }, pn: { x: LW - 32, y: 3, w: 22, h: 16 } };
+  const PANEL = document.createElement('canvas');
+  function drawPanel(t) { const vis = VIS(), hs = mode === 'edit' && !drag ? vis.findIndex((ty, k) => at(SLOT(k), mouse.x, mouse.y)) : -1, key = vis.map(left).join(',') + '|' + hs + '|' + mode + '|' + parts.length + '|' + SC + '|' + PG;
+    if (key !== panelKey) { panelKey = key; PANEL.width = (LW - PW) * SC; PANEL.height = LH * SC; const P = PANEL.getContext('2d'); P.setTransform(SC, 0, 0, SC, -PW * SC, 0); const g0 = g; g = P; drawPanelInner(t, vis); g = g0; }
     M.save(); M.setTransform(1, 0, 0, 1, 0, 0); M.drawImage(PANEL, PW * SC, 0); M.restore(); }
-  function drawPanelInner(t) {
-    let tip = null; ORDER.forEach((ty, i) => { const s = SLOT(i), n = left(ty), cx = s.x + s.w / 2 - 5, cy = s.y + s.h / 2, hv = mode === 'edit' && !drag && at(s, mouse.x, mouse.y);
-      if (hv) tip = [s, TYPES[ty].name];
+  function drawPanelInner(t, vis) {
+    g.font = '600 8px Rubik, sans-serif'; g.textAlign = 'center'; g.fillStyle = 'rgba(241,230,204,.8)'; g.fillText((PG + 1) + ' / ' + NPG(), PW + 70, 14);
+    for (const [r, d] of [[BTN.pp, -1], [BTN.pn, 1]]) { const on = PG + d >= 0 && PG + d < NPG(), cx = r.x + r.w / 2, cy = r.y + r.h / 2; g.fillStyle = on ? '#f1e6cc' : 'rgba(241,230,204,.2)'; g.beginPath(); g.moveTo(cx + d * 5, cy); g.lineTo(cx - d * 3, cy - 5); g.lineTo(cx - d * 3, cy + 5); g.fill(); }
+    let tip = null; vis.forEach((ty, i) => { const s = SLOT(i), n = left(ty), cx = s.x + s.w / 2 - 3, cy = s.y + s.h / 2 - 2, hv = mode === 'edit' && !drag && at(s, mouse.x, mouse.y), [sc, fn] = PARTS[ty].icon;
+      if (hv) tip = [s, PARTS[ty].name];
       g.save(); g.globalAlpha = n > 0 ? 1 : .25; if (hv) { g.shadowColor = 'rgba(255,214,110,.95)'; g.shadowBlur = 10 * SC; } else { g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 3 * SC; g.shadowOffsetX = 2 * SC; g.shadowOffsetY = 3 * SC; }   // при наведении — золотое свечение
-      const sc = { ramp: 1, tramp: .78, fan: .8, belt: .42, pin: .72, spring: .85, saw: .44, funnel: .72, wall: .62, ball: 1 }[ty]; g.translate(cx, cy); g.scale(sc, sc); g.translate(-cx, -cy);
-      if (ty === 'ramp') drawRamp(cx, cy, rad(-25), 42); else if (ty === 'tramp') drawTramp(cx, cy + 2, 0); else if (ty === 'fan') drawFan(cx, cy - 1, 1, 0, false); else if (ty === 'belt') drawBelt(cx + 4, cy - 2, 1, t, false); else if (ty === 'pin') drawPin(cx, cy + 12, 0);
-      else if (ty === 'spring') drawSpring(cx, cy - 4, 0, 0); else if (ty === 'saw') drawSaw(cx, cy - 6, -.25); else if (ty === 'funnel') drawFunnel(cx, cy - 4); else if (ty === 'wall') brickWall(cx - 10, cy - 20, 20, 40, 9); else drawBall({ kind: 'tennis', x: cx, y: cy, r: 9, rot: .6 });
-      g.restore(); g.font = '600 7px Rubik, sans-serif'; g.textAlign = 'right'; g.fillStyle = n > 0 ? 'rgba(241,230,204,.9)' : 'rgba(241,230,204,.3)'; g.fillText('×' + n, s.x + s.w - 3, s.y + s.h - 5); });
+      g.translate(cx, cy); g.scale(sc, sc); g.translate(-cx, -cy); fn(cx, cy, t); g.restore();
+      g.font = '600 6.5px Rubik, sans-serif'; g.textAlign = 'right'; g.fillStyle = n > 0 ? 'rgba(241,230,204,.9)' : 'rgba(241,230,204,.3)'; g.fillText('×' + n, s.x + s.w - 2, s.y + s.h - 4); });
     if (tip) { const [s, nm] = tip; g.font = '600 8px Rubik, sans-serif'; const w = g.measureText(nm).width + 12, x = clamp(s.x + s.w / 2 - w / 2, PW + 3, LW - 3 - w), y = s.y + s.h - 2;
-      g.save(); g.textAlign = 'center'; g.shadowColor = 'rgba(0,0,0,.9)'; g.shadowBlur = 3 * SC; g.fillStyle = '#ffe3a0'; g.fillText(nm, x + w / 2, y + 9.2); g.restore(); }
+      g.save(); g.textAlign = 'center'; g.shadowColor = 'rgba(0,0,0,.95)'; g.shadowBlur = 3 * SC; g.fillStyle = '#ffe3a0'; g.fillText(nm, x + w / 2, y + 9.2); g.restore(); }
     const run = mode === 'run'; button(BTN.run, run ? 'СТОП' : 'ПУСК', run ? '#ff6a55' : '#5fd37a', run ? '#8e1d12' : '#1d6b32', true);
     g.fillStyle = '#fff'; const bx = BTN.run.x + 30, byy = BTN.run.y + BTN.run.h / 2; if (run) g.fillRect(bx - 4, byy - 4, 8, 8); else { g.beginPath(); g.moveTo(bx - 3.5, byy - 5); g.lineTo(bx + 5, byy); g.lineTo(bx - 3.5, byy + 5); g.fill(); }
-    button(BTN.clr, 'УБРАТЬ ВСЁ', '#8b929c', '#3a3f46', mode === 'edit' && parts.length > 0); }
+    button(BTN.clr, 'УБРАТЬ ВСЁ', '#8b929c', '#3a3f46', mode === 'edit' && parts.some(p => !p.fixed)); }
 
   // ── кадр: фон → слой предметов с мягкой тенью → ветер, пыль, конфетти, шкаф
   const OBJ = document.createElement('canvas'), O = OBJ.getContext('2d'); let puffs = [];
-  const puff = (x, y) => { for (let i = 0; i < 5; i++) puffs.push({ x, y, vx: (Math.random() - .5) * 30, vy: -Math.random() * 20, r: 1.5 + Math.random() * 2, t: 0 }); };
+  const puff = (x, y, c = '235,225,205') => { for (let i = 0; i < 5; i++) puffs.push({ x, y, c, vx: (Math.random() - .5) * 30, vy: -Math.random() * 20, r: 1.5 + Math.random() * 2, t: 0 }); };
   // мягкая тень без размытия: силуэт слоя в 1/6 размера, растянутый обратно
   const SH = document.createElement('canvas'), SHc = SH.getContext('2d');
   function softShadow() { const w = Math.ceil(OBJ.width / 6), hh = Math.ceil(OBJ.height / 6); if (SH.width !== w || SH.height !== hh) { SH.width = w; SH.height = hh; }
@@ -363,42 +733,60 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
   function draw(t) { if (bgScale !== SC) paintBG(); if (OBJ.width !== cv.width || OBJ.height !== cv.height) { OBJ.width = cv.width; OBJ.height = cv.height; }
     M.setTransform(1, 0, 0, 1, 0, 0); M.drawImage(BG, 0, 0); const run = mode === 'run';
     O.setTransform(1, 0, 0, 1, 0, 0); O.clearRect(0, 0, OBJ.width, OBJ.height); O.setTransform(SC, 0, 0, SC, 0, 0); g = O;
+    drawCords(run);
+    for (const c of chains) drawChain(c, run);
+    if (chainMode) { for (const p of parts) for (const u of hubsOf(p)) { g.strokeStyle = 'rgba(255,214,110,.8)'; g.lineWidth = 1; g.beginPath(); g.arc(u[0], u[1], u[2] + 3, 0, TAU); g.stroke(); }
+      if (chainMode.a) { const u = hubsOf(chainMode.a.p)[chainMode.a.i]; g.strokeStyle = 'rgba(255,214,110,.9)'; g.setLineDash([3, 2]); g.lineWidth = 1.2; g.beginPath(); g.moveTo(u[0], u[1]); g.lineTo(mouse.x, mouse.y); g.stroke(); g.setLineDash([]); } }
     for (const p of parts) if (!drag || p !== drag.part) drawPart(p, t, run);
     for (const p of pins) if (p.fixed) p.type === 'saw' ? drawSaw(p.bx, p.by, p.a) : drawPin(p.bx, p.by, p.a);
     const bl = run ? balls : BALLS0.map(b => ({ ...b, rot: 0, vx: 0 })); hoopBack(); bucketBack(); bl.forEach(drawBall); hoopFront(bl); bucketFront();
+    for (const p of parts) if (PARTS[p.type].front && !(run && p.gone) && (!drag || p !== drag.part)) PARTS[p.type].front(p);
+    for (const d of drops) { g.fillStyle = d.acid ? 'rgba(120,255,80,.9)' : 'rgba(120,180,255,.9)'; g.beginPath(); g.ellipse(d.x, d.y, 1.3, 2, 0, 0, TAU); g.fill(); }
+    for (const [p1, r1, p2, r2, sg] of run ? GEARS : meshes()) { if (sg > 0) continue; let a, b, be = 1e9; for (const u of hubsOf(p1)) for (const w of hubsOf(p2)) { const e = Math.abs(Math.hypot(u[0] - w[0], u[1] - w[1]) - r1 - r2); if (e < be) { be = e; a = u; b = w; } } const mx = a[0] + (b[0] - a[0]) * r1 / (r1 + r2), my = a[1] + (b[1] - a[1]) * r1 / (r1 + r2);
+      g.fillStyle = 'rgba(90,255,110,.9)'; g.beginPath(); g.arc(mx, my, 1.8, 0, TAU); g.fill(); }   // зелёная точка — шестерни сцеплены
     g = M; softShadow(); M.setTransform(1, 0, 0, 1, 0, 0); M.drawImage(OBJ, 0, 0); M.setTransform(SC, 0, 0, SC, 0, 0);
     if (!run && hover && !drag) { M.save(); M.shadowColor = 'rgba(255,214,110,.95)'; M.shadowBlur = 9 * SC; drawPart(hover, t, false); M.restore(); }
-    if (run) for (const f of parts) if (f.type === 'fan') { for (let i = 0; i < 7; i++) { const u = (t * 1.4 + i / 7) % 1, x0 = f.x + f.dir * (14 + u * 200), yy = f.y - 14 + (i * 9) % 26; g.strokeStyle = `rgba(255,255,255,${.22 * (1 - u)})`; g.lineWidth = .8; g.beginPath(); g.moveTo(x0, yy); g.quadraticCurveTo(x0 + f.dir * 8, yy - 1.5, x0 + f.dir * 16, yy); g.stroke(); } }
-    for (const p of puffs) { p.t += 1 / 60; p.x += p.vx / 60; p.y += p.vy / 60; p.r += .15; g.fillStyle = `rgba(235,225,205,${.35 * (1 - p.t / .6)})`; g.beginPath(); g.arc(p.x, p.y, p.r, 0, TAU); g.fill(); } puffs = puffs.filter(p => p.t < .6);
+    if (run) for (const f of parts) if (f.type === 'fan' && f.on) { for (let i = 0; i < 7; i++) { const u = (t * 1.4 + i / 7) % 1, x0 = f.x + f.dir * (14 + u * 200), yy = f.y - 14 + (i * 9) % 26; g.strokeStyle = `rgba(255,255,255,${.22 * (1 - u)})`; g.lineWidth = .8; g.beginPath(); g.moveTo(x0, yy); g.quadraticCurveTo(x0 + f.dir * 8, yy - 1.5, x0 + f.dir * 16, yy); g.stroke(); } }
+    for (const p of puffs) { p.t += 1 / 60; p.x += p.vx / 60; p.y += p.vy / 60; p.r += .15; g.fillStyle = `rgba(${p.c},${.35 * (1 - p.t / .6)})`; g.beginPath(); g.arc(p.x, p.y, p.r, 0, TAU); g.fill(); } puffs = puffs.filter(p => p.t < .6);
     const v = g.createRadialGradient(PW / 2, LH * .45, LH * .35, PW / 2, LH * .45, LH * .85); v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(10,6,2,.45)'); g.fillStyle = v; g.fillRect(0, 0, PW, LH);
-    if (drag) { const p = drag.part, bad = !okPlace(p) && p.x < PW; M.save(); M.shadowColor = bad ? 'rgba(255,40,40,.9)' : 'rgba(25,15,5,.45)'; M.shadowBlur = (bad ? 10 : 12) * SC; M.shadowOffsetX = (bad ? 0 : 10) * SC; M.shadowOffsetY = (bad ? 0 : 14) * SC; drawPart(p, t, false); M.restore(); }
+    if (drag && hubsOf(drag.part).length) { const q = { ...drag.part }; snapGear(q); if (q.x !== drag.part.x || q.y !== drag.part.y) for (const u of hubsOf(q)) { g.strokeStyle = 'rgba(90,255,110,.85)'; g.lineWidth = 1.4; g.setLineDash([3, 2]); g.beginPath(); g.arc(u[0], u[1], u[2] + 2.5, 0, TAU); g.stroke(); g.setLineDash([]); } }
+    if (drag) { const p = drag.part, bad = !okPlace(p) && p.x < PW; M.save(); M.shadowColor = bad ? 'rgba(255,40,40,.9)' : 'rgba(25,15,5,.45)'; M.shadowBlur = (bad ? 10 : 12) * SC; M.shadowOffsetX = (bad ? 0 : 10) * SC; M.shadowOffsetY = (bad ? 0 : 14) * SC; drawPart(p, t, false); if (PARTS[p.type].front) PARTS[p.type].front(p); M.restore(); }
     for (const c of confetti) { c.t += 1 / 60; c.vy += 300 / 60; c.vx *= .99; c.x += c.vx / 60; c.y += c.vy / 60; g.save(); g.translate(c.x, c.y); g.rotate(c.t * 9 + c.vx); g.fillStyle = c.c; g.fillRect(-1.6, -.9, 3.2, 1.8); g.restore(); } confetti = confetti.filter(c => c.t < 3);
     for (const [r, d] of [[BTN.prev, -1], [BTN.next, 1]]) { const on = LI + d >= 0 && LI + d < LEVELS.length; g.fillStyle = on ? '#5d4210' : 'rgba(93,66,16,.25)'; const cx = r.x + r.w / 2, cy = r.y + r.h / 2; g.beginPath(); g.moveTo(cx + d * 5, cy); g.lineTo(cx - d * 3, cy - 5.5); g.lineTo(cx - d * 3, cy + 5.5); g.fill(); }
     drawPanel(t);
+    if (LV.tip && mode === 'edit' && !drag && mouse.x <= PW) { g.font = '500 8.5px Rubik, sans-serif'; const words = LV.tip.split(' '), lines = ['']; for (const w of words) { const t2 = lines[lines.length - 1] + (lines[lines.length - 1] ? ' ' : '') + w; if (g.measureText(t2).width > PW - 60) lines.push(w); else lines[lines.length - 1] = t2; }
+      const hh = 8 + lines.length * 11; g.fillStyle = 'rgba(12,9,6,.82)'; rrect(20, LH - 14 - hh, PW - 40, hh, 6); g.fill(); g.textAlign = 'center'; g.fillStyle = '#ffe3a0'; lines.forEach((s, k) => g.fillText(s, PW / 2, LH - 14 - hh + 15 + k * 11)); }
+    if (mode === 'edit' && !drag && mouse.x > PW) { const k = VIS().findIndex((ty, j) => at(SLOT(j), mouse.x, mouse.y)), ty = k >= 0 ? VIS()[k] : null; if (ty) { const s = PARTS[ty].name + (HINT[ty] ? ' — ' + HINT[ty] : ''); g.font = '500 8.5px Rubik, sans-serif'; const w = Math.min(PW - 20, g.measureText(s).width + 16);
+      g.fillStyle = 'rgba(12,9,6,.85)'; rrect(PW / 2 - w / 2, LH - 30, w, 18, 5); g.fill(); g.fillStyle = '#ffe3a0'; g.textAlign = 'center'; g.fillText(s, PW / 2, LH - 18, PW - 30); } }
     if (won) { g.save(); g.shadowColor = 'rgba(0,0,0,.6)'; g.shadowBlur = 14 * SC; g.shadowOffsetY = 6 * SC; brass(150, 168, 200, 62, 6); g.restore(); brass(150, 168, 200, 62, 6); engrave('ГОТОВО!', 250, 194, 16); engrave('деталей: ' + parts.length + '  ·  время: ' + won.toFixed(1) + ' с', 250, 210, 9, '#5d4210'); if (LI < LEVELS.length - 1) { const r = BTN.go; button(r, 'ДАЛЬШЕ  ▶', '#5fd37a', '#1d6b32', true); } }
     if (!SND) { g.font = '500 8px Rubik, sans-serif'; g.textAlign = 'left'; g.fillStyle = 'rgba(241,230,204,.5)'; g.fillText('звук выкл', PW + 14, LH - 5); } }
 
   // ── мышь
   const okPlace = p => p.x > 18 && p.x < PW - 18 && p.y > 18 && p.y < FLOOR - 4;
-  function partAt(x, y) { for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i], T = TYPES[p.type]; if (inBox(x, y, { cx: p.x, cy: p.y, w: T.w + 6, h: Math.max(T.h, 14) + 6, ang: p.type === 'ramp' || p.type === 'spring' ? p.ang : 0 })) return p; } return null; }
+  function partAt(x, y) { for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i], T = PARTS[p.type]; if (!p.fixed && inBox(x, y, { cx: p.x, cy: p.y + (T.oy || 0), w: T.w + 6, h: Math.max(T.h, 14) + 6, ang: T.rot && T.mirror && p.type !== 'pend' ? p.ang : 0 })) return p; } return null; }
+  // шестерня, поставленная почти вплотную к другой, сама встаёт в зацепление
+  function snapGear(p) { const hs = hubsOf(p); if (!hs.length) return; let best = null; for (const q of parts) { if (q === p) continue; for (const b of hubsOf(q)) for (const a of hs) { const dx = a[0] - b[0], dy = a[1] - b[1], d = Math.hypot(dx, dy) || 1, want = a[2] + b[2], err = Math.abs(d - want); if (err < 7 && (!best || err < best.err)) best = { err, dx: dx / d * want - dx, dy: dy / d * want - dy }; } } if (best) { p.x += best.dx; p.y += best.dy; } }
   const at = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
   function pos(e) { const b = cv.getBoundingClientRect(); return { x: (e.clientX - b.left) / b.width * LW, y: (e.clientY - b.top) / b.height * LH }; }
   const audio = () => { if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch (x) {} } };
-  cv.addEventListener('pointerdown', e => { audio(); const m = pos(e); if (e.button === 2 || (e.button === 0 && e.ctrlKey)) { e.preventDefault(); flipAt(m); return; } if (e.button !== 0) return;
+  cv.addEventListener('pointerdown', e => { audio(); const m = pos(e); if (e.button === 2 || (e.button === 0 && e.ctrlKey)) { e.preventDefault(); if (chainMode) { chainMode = null; return; } flipAt(m); return; } if (e.button !== 0) return;
+    if (chainMode && m.x < PW && mode === 'edit') { const hb = hubAt(m); if (!hb) { chainMode = null; beep(160, .06); } else if (!chainMode.a) { chainMode.a = hb; beep(620, .04); } else if (hb.p !== chainMode.a.p) { chains.push({ a: chainMode.a.p, ai: chainMode.a.i, b: hb.p, bi: hb.i }); chainMode = null; beep(820, .06); panelKey = ''; } return; }
     if (at(BTN.run, m.x, m.y)) { mode === 'run' ? stop() : start(); beep(mode === 'run' ? 660 : 330, .08); return; }
-    if (at(BTN.clr, m.x, m.y) && mode === 'edit') { parts = []; beep(200, .1); return; }
+    if (at(BTN.clr, m.x, m.y) && mode === 'edit') { parts = parts.filter(p => p.fixed); chains = []; beep(200, .1); return; }
     if (won && LI < LEVELS.length - 1 && at(BTN.go, m.x, m.y)) { loadLevel(LI + 1); save(); beep(700, .08); return; }
     for (const [r, d] of [[BTN.prev, -1], [BTN.next, 1]]) if (at(r, m.x, m.y) && LI + d >= 0 && LI + d < LEVELS.length) { loadLevel(LI + d); save(); beep(600, .06); return; }
+    for (const [r, d] of [[BTN.pp, -1], [BTN.pn, 1]]) if (at(r, m.x, m.y) && PG + d >= 0 && PG + d < NPG()) { PG += d; beep(560, .04); return; }
     if (mode !== 'edit') return;
-    const i = ORDER.findIndex((ty, k) => at(SLOT(k), m.x, m.y)); if (i >= 0 && left(ORDER[i]) > 0) { const ty = ORDER[i]; drag = { part: { type: ty, x: m.x, y: m.y, ang: ty === 'ramp' ? rad(15) : 0, dir: 1, hit: 0 }, dx: 0, dy: 0 }; cv.setPointerCapture(e.pointerId); beep(500, .04); return; }
+    const vis = VIS(), i = vis.findIndex((ty, k) => at(SLOT(k), m.x, m.y)); if (i >= 0 && left(vis[i]) > 0 && vis[i] === 'chain') { chainMode = { a: null }; beep(560, .05); return; } chainMode = null;
+    if (i >= 0 && left(vis[i]) > 0) { const ty = vis[i]; drag = { part: { type: ty, x: m.x, y: m.y, ang: rad(PARTS[ty].def || 0), dir: 1, hit: 0 }, dx: 0, dy: 0 }; cv.setPointerCapture(e.pointerId); beep(500, .04); return; }
     const p = partAt(m.x, m.y); if (p) { parts = parts.filter(q => q !== p); drag = { part: p, dx: p.x - m.x, dy: p.y - m.y }; cv.setPointerCapture(e.pointerId); beep(500, .04); } });
   cv.addEventListener('pointermove', e => { const m = pos(e); mouse = m; if (drag) { drag.part.x = Math.round(m.x + drag.dx); drag.part.y = Math.round(m.y + drag.dy); } hover = mode === 'edit' && !drag ? partAt(m.x, m.y) : null;
-    cv.style.cursor = drag ? 'grabbing' : hover || (mode === 'edit' && m.x > PW && ORDER.some((ty, k) => at(SLOT(k), m.x, m.y) && left(ty) > 0)) ? 'grab' : at(BTN.run, m.x, m.y) || at(BTN.clr, m.x, m.y) || at(BTN.prev, m.x, m.y) || at(BTN.next, m.x, m.y) || (won && at(BTN.go, m.x, m.y)) ? 'pointer' : 'default'; });
-  cv.addEventListener('pointerup', e => { if (!drag) return; const p = drag.part; drag = null; if (p.x < PW && okPlace(p)) { parts.push(p); beep(380, .05); hover = p; } else beep(160, .08); });
+    cv.style.cursor = drag ? 'grabbing' : hover || (mode === 'edit' && m.x > PW && VIS().some((ty, k) => at(SLOT(k), m.x, m.y) && left(ty) > 0)) ? 'grab' : [BTN.run, BTN.clr, BTN.prev, BTN.next, BTN.pp, BTN.pn].some(r => at(r, m.x, m.y)) || (won && at(BTN.go, m.x, m.y)) ? 'pointer' : 'default'; });
+  cv.addEventListener('pointerup', e => { if (!drag) return; const p = drag.part; drag = null; if (p.x < PW && okPlace(p)) { snapGear(p); parts.push(p); beep(380, .05); hover = p; } else { chains = chains.filter(c => c.a !== p && c.b !== p); beep(160, .08); } });
   cv.addEventListener('contextmenu', e => e.preventDefault());
-  function flipAt(m) { if (mode !== 'edit') return; const p = drag ? drag.part : partAt(m.x, m.y); if (!p) return;
-    if (p.type === 'fan' || p.type === 'belt') { if (p.vd === undefined) p.vd = p.dir; p.dir = -p.dir; beep(440, .05); } else if (p.type === 'ramp' || p.type === 'spring') { p.ang = -p.ang; beep(440, .05); } }
-  function turn(sgn) { const p = drag ? drag.part : hover; if (mode !== 'edit' || !p || (p.type !== 'ramp' && p.type !== 'spring')) return false; p.ang = clamp(p.ang + sgn * rad(5), rad(p.type === 'spring' ? -90 : -80), rad(p.type === 'spring' ? 90 : 80)); beep(600 + sgn * 40, .03); return true; }
+  function flipAt(m) { if (mode !== 'edit') return; const p = drag ? drag.part : partAt(m.x, m.y); if (!p) return; const T = PARTS[p.type];
+    if (T.flip) { if (p.type === 'fan' && p.vd === undefined) p.vd = p.dir; p.dir = -p.dir; beep(440, .05); } else if (T.mirror) { p.ang = -p.ang; beep(440, .05); } }
+  function turn(sgn) { const p = drag ? drag.part : hover; if (mode !== 'edit' || !p || !PARTS[p.type].rot) return false; const [a, b] = PARTS[p.type].rot; p.ang = clamp(p.ang + sgn * rad(5), rad(a), rad(b)); beep(600 + sgn * 40, .03); return true; }
   cv.addEventListener('wheel', e => { if (turn(Math.sign(e.deltaY))) e.preventDefault(); }, { passive: false });
   addEventListener('keydown', e => { const k = e.key.toLowerCase(); if (k === ' ') { e.preventDefault(); audio(); mode === 'run' ? stop() : start(); }
     if (k === 'q' || k === 'й') turn(-1); if (k === 'e' || k === 'у') turn(1); if (k === 'm' || k === 'ь') SND = !SND; });
@@ -414,7 +802,7 @@ canvas { position: fixed; left: 50%; top: calc(50% - 16px); transform: translate
     for (const p of parts.concat(drag ? [drag.part] : [])) if (p.vd !== undefined) { p.vd += (p.dir - p.vd) * Math.min(1, dt * 14); if (Math.abs(p.dir - p.vd) < .01) p.vd = p.dir; }
     draw(T); requestAnimationFrame(loop); }
   requestAnimationFrame(loop);
-  window.TIM = { load: i => loadLevel(i), parts: () => parts, add: (type, x, y, ang = 0, dir = 1) => parts.push({ type, x, y, ang: rad(ang), dir, hit: 0 }), clear: () => { parts = []; }, start, stop, sim: (sec) => { for (let i = 0; i < sec * 240; i++) sim(1 / 240); return { won, balls: balls.map(b => [b.kind, b.x | 0, b.y | 0]) }; }, draw: () => draw(T) };   // для проверки уровня из консоли
+  window.TIM = { chain: (a, ai, b, bi) => chains.push({ a: parts[a], ai, b: parts[b], bi }), pins: () => pins.map(p => [p.type, p.bx | 0, +p.a.toFixed(2), p.fallen]), lv: i => LEVELS[i], load: i => loadLevel(i), parts: () => parts, add: (type, x, y, ang, dir = 1) => parts.push({ type, x, y, ang: rad(ang ?? PARTS[type].def ?? 0), dir, hit: 0 }), clear: () => { parts = parts.filter(p => p.fixed); }, sol: i => { loadLevel(i); for (const s of LEVELS[i].sol || []) if (s[0] === 'chain') chains.push({ a: parts[s[1]], ai: s[2], b: parts[s[3]], bi: s[4] }); else parts.push({ type: s[0], x: s[1], y: s[2], ang: rad(s[3] ?? PARTS[s[0]].def ?? 0), dir: s[4] || 1, hit: 0 }); }, n: () => LEVELS.length, start, stop, sim: (sec) => { for (let i = 0; i < sec * 240; i++) sim(1 / 240); return { won, balls: balls.map(b => [b.kind, b.x | 0, b.y | 0]) }; }, draw: () => draw(T), state: () => parts.map(p => [p.type, p.on, +(p.om || 0).toFixed(2), p.run | 0]) };   // для проверки из консоли
 })();
 </script>
 </body>
