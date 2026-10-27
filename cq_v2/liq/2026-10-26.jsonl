@@ -7917,3 +7917,6 @@
 {"t": 1793051197879, "sym": "DOODUSDT", "side": "long", "usd": 627.69, "px": 0.001999, "src": "okx"}
 {"t": 1793051415830, "sym": "BASEDUSDT", "side": "short", "usd": 26.59, "px": 0.05214, "src": "okx"}
 {"t": 1793052446608, "sym": "BTWUSDT", "side": "long", "usd": 183.17, "px": 1.1593, "src": "okx"}
+{"t": 1793052652333, "sym": "RLSUSDT", "side": "long", "usd": 94.23, "px": 0.002647, "src": "okx"}
+{"t": 1793053101615, "sym": "DOODUSDT", "side": "long", "usd": 196.51, "px": 0.001985, "src": "okx"}
+{"t": 1793053334410, "sym": "DOODUSDT", "side": "long", "usd": 5.93, "px": 0.001975, "src": "okx"}
