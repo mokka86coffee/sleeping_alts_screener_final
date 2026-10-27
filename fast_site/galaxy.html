@@ -15,8 +15,10 @@
   const hash = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; };
   const rnd = (seed, i) => { const v = Math.sin(seed * 9301 + i * 49297) * 233280; return v - Math.floor(v); };
   let COINS = [], BY = { go: [], soon: [], stir: [], rest: [] }, LOADED = false, UP24 = [];
-  async function loadFav() { try { let r = await fetch('/state.json', { cache: 'no-store' }).catch(() => null); if (!r || !r.ok) r = await fetch('../output/fast_state.json', { cache: 'no-store' }); if (!r.ok) return; const d = await r.json(), F = (d.favorites || []).filter(f => f && f.sym);
-      const by = { go: [], soon: [], stir: [], rest: [] }; COINS = F.map(f => { const sym = String(f.sym), c = { sym, nm: sym.replace(/USDT$/, ''), g: grpOf(f), f, seed: hash(sym), m: multOf(f) }; return c; });
+  async function loadFav() { try { let r = await fetch('/state.json', { cache: 'no-store' }).catch(() => null); if (!r || !r.ok) r = await fetch('../output/fast_state.json', { cache: 'no-store' }); if (!r.ok) return; const d = await r.json(), F = (d.favorites || []).filter(f => f && f.sym), Q = (d.queue || []).filter(q => q && q.sym), TOPS = new Set(Q.map(q => String(q.sym)));
+      // 27.10 владелец: «в топах очереди init apr brev, а в галактике elsa at ava» — первые (✦) = монеты очереди (STATE.queue), не ручной top избранного; кого нет в избранном — отдельной звездой «идёт сейчас»
+      Q.forEach(q => { if (!F.some(f => f.sym === q.sym)) F.push({ sym: q.sym, group: 'идёт сейчас', mcap: q.cap, v2c: q.v2c, now: (q.closes || []).slice(-1)[0], q: true }); });
+      const by = { go: [], soon: [], stir: [], rest: [] }; COINS = F.map(f => { const sym = String(f.sym), c = { sym, nm: sym.replace(/USDT$/, ''), g: grpOf(f), f, seed: hash(sym), m: multOf(f), top: TOPS.has(sym) }; return c; });
       COINS.forEach(c => { c.i = by[c.g].length; by[c.g].push(c); }); BY = by; LOADED = true; UP24 = (d.up24 || []).filter(u => u && u.sym).map(u => ({ nm: String(u.sym).replace(/USDT$/, ''), chg: u.chg })); } catch (e) {} }   // 27.10: STATE.up24 — монеты Binance +50 % и больше за 24 ч
   loadFav(); setInterval(loadFav, 30000);
   // подсказка и клик: каждую рамку сцена кладёт в HIT экранные точки монет
@@ -34,7 +36,7 @@
   function arcText(g, s, x, y, r, mid, top) { let tot = 0; const ws = [...s].map(ch => { const w = g.measureText(ch).width + 2.2; tot += w; return w; }); let a = mid - (top ? 1 : -1) * tot / r / 2;
     [...s].forEach((ch, i) => { const aa = a + (top ? 1 : -1) * ws[i] / r / 2; g.save(); g.translate(x + Math.cos(aa) * r, y + Math.sin(aa) * r); g.rotate(aa + (top ? Math.PI / 2 : -Math.PI / 2)); g.fillText(ch, 0, 0); g.restore(); a += (top ? 1 : -1) * ws[i] / r; }); }
   function drawTipFx(g, W, s0) { NOW = s0; if (!HOVER) return; const h = HIT.find(q => q.c === HOVER); if (!h) return; const x = h.x, y = h.y, c = HOVER, col = TCOL[c.g], dt = s0 - HT0, e = ease(clamp(dt / .45));
-    const f = c.f, m = c.m, cp = capS(f), gn = GRP[GI[c.g]].name, nm = c.nm + (f.top ? ' ✦' : ''), ms = m ? '×' + fmtM(m) : ''; g.save();
+    const f = c.f, m = c.m, cp = capS(f), gn = GRP[GI[c.g]].name, nm = c.nm + (c.top ? ' ✦' : ''), ms = m ? '×' + fmtM(m) : ''; g.save();
     { const r = 34 * e + 4; g.fillStyle = `rgba(4,5,12,${.55 * e})`; const bg = g.createRadialGradient(x, y, r * .3, x, y, r * 2.3); bg.addColorStop(0, `rgba(4,5,12,${.6 * e})`); bg.addColorStop(1, 'rgba(4,5,12,0)'); g.fillStyle = bg; g.fillRect(x - r * 2.4, y - r * 2.4, r * 4.8, r * 4.8);
       g.setLineDash([2, 4]); g.lineDashOffset = -s0 * 10; g.strokeStyle = `rgba(${col},.8)`; g.lineWidth = .8; g.beginPath(); g.arc(x, y, r, 0, TAU); g.stroke(); g.setLineDash([]);
       g.strokeStyle = `rgba(150,200,255,${.25 * e})`; g.beginPath(); g.ellipse(x, y, r * 1.5, r * .5, -.35 + s0 * .05, 0, TAU); g.stroke();
@@ -176,7 +178,7 @@
     toast.textContent = TOPV ? 'ПЕРВЫЕ ' + v + ' · ' + TOPN[v] : 'ПЕРВЫЕ · СМЕНА РАЗ В 10 МИН'; toast.style.opacity = 1; clearTimeout(toast.t); toast.t = setTimeout(() => { toast.style.opacity = 0; }, 1600); });
   const ray = (g, x, y, a, L, w, al) => { const ex = x + Math.cos(a) * L, ey = y + Math.sin(a) * L, q = g.createLinearGradient(x, y, ex, ey); q.addColorStop(0, `rgba(${GOLD},${al})`); q.addColorStop(1, `rgba(${GOLD},0)`); g.fillStyle = q;
     const nx = -Math.sin(a) * w, ny = Math.cos(a) * w; g.beginPath(); g.moveTo(x + nx, y + ny); g.lineTo(ex, ey); g.lineTo(x - nx, y - ny); g.closePath(); g.fill(); };
-  function drawTop(g, pos, s0) { const v = TOPV || 1 + Math.floor(Date.now() / 6e5) % 5, T = []; COINS.forEach((c, i) => { if (c.f.top) T.push([pos[i][0], pos[i][1], c, v]); }); if (!T.length) return;
+  function drawTop(g, pos, s0) { const v = TOPV || 1 + Math.floor(Date.now() / 6e5) % 5, T = []; COINS.forEach((c, i) => { if (c.top) T.push([pos[i][0], pos[i][1], c, v]); }); if (!T.length) return;
     const T5 = T.filter(q => q[3] === 5);
     if (T5.length > 1) { const P2 = T5.slice().sort((a, b) => Math.atan2(a[1] - G.cy, a[0] - G.cx) - Math.atan2(b[1] - G.cy, b[0] - G.cx)), n = P2.length, E = n > 2 ? n : 1;
       g.strokeStyle = `rgba(${GOLD},.35)`; g.lineWidth = .8; g.beginPath(); for (let k = 0; k < E; k++) { const a = P2[k], b = P2[(k + 1) % n]; g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); } g.stroke();
@@ -288,10 +290,10 @@
     const pos = COINS.map(c => coinPos(c, t)); g.strokeStyle = 'rgba(220,228,245,.12)'; g.lineWidth = .3;
     pos.forEach((p, i) => { let best = [], bd = []; pos.forEach((q, j) => { if (i === j) return; const d = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2; best.push([d, q]); }); best.sort((a, b) => a[0] - b[0]).slice(0, 2).forEach(([, q]) => { g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.stroke(); }); });
     COINS.forEach((c, i) => { if (c.g === 'go' || c.g === 'soon') drawCluster(g, pos[i][0], pos[i][1], c.seed, s0, c.g === 'go' ? .13 : .026); });   // у «на ходу» на рукавах облачко крупное, у «скоро» вокруг ядра поменьше
-    COINS.forEach((c, i) => { const [x, y] = pos[i], hv = HOVER === c; star(g, x, y, SZ[c.g] * (hv ? 1.5 : 1), COL[c.g], (.85 + .15 * Math.sin(s0 * 2.3 + c.seed * 30)) * (hv || c.g === 'go' || c.g === 'soon' || c.f.top ? 1 : .22)); HIT.push({ x, y, c }); });   // 27.10 владелец: «все звёзды затемним кроме тех что скоро и на ходу» — шевелятся/остальные тусклые, при наведении ярко
+    COINS.forEach((c, i) => { const [x, y] = pos[i], hv = HOVER === c; star(g, x, y, SZ[c.g] * (hv ? 1.5 : 1), COL[c.g], (.85 + .15 * Math.sin(s0 * 2.3 + c.seed * 30)) * (hv || c.g === 'go' || c.g === 'soon' || c.top ? 1 : .22)); HIT.push({ x, y, c }); });   // 27.10 владелец: «все звёзды затемним кроме тех что скоро и на ходу» — шевелятся/остальные тусклые, при наведении ярко
     drawTop(g, pos, s0);
     g.restore();
-    COINS.forEach((c, i) => { if (HOVER === c || !(c.g === 'go' || c.g === 'soon' || c.f.top)) return; const [x, y] = pos[i]; g.font = c.g === 'go' ? '600 12px "Avenir Next", Futura, sans-serif' : '500 9px "Avenir Next", Futura, sans-serif'; g.fillStyle = c.f.top ? 'rgba(255,214,150,.95)' : c.g === 'go' || HOVER === c ? '#fff' : 'rgba(215,228,245,.72)'; g.textAlign = 'left'; g.fillText(c.nm + (c.f.top ? ' ✦' : ''), x + 10, y - 6); });   // первые — золотом и со звёздочкой
+    COINS.forEach((c, i) => { if (HOVER === c || !(c.g === 'go' || c.g === 'soon' || c.top)) return; const [x, y] = pos[i]; g.font = c.g === 'go' ? '600 12px "Avenir Next", Futura, sans-serif' : '500 9px "Avenir Next", Futura, sans-serif'; g.fillStyle = c.top ? 'rgba(255,214,150,.95)' : c.g === 'go' || HOVER === c ? '#fff' : 'rgba(215,228,245,.72)'; g.textAlign = 'left'; g.fillText(c.nm + (c.top ? ' ✦' : ''), x + 10, y - 6); });   // первые — золотом и со звёздочкой
     // легенда слева: тонкие линии и подписи колец
     // 27.10 владелец: «слева не надо эти надписи» — легенду групп и подпись «ИЗБРАННОЕ» убрал
     // 27.10 владелец: «эти крестики убери» — крестики по углам сняты
