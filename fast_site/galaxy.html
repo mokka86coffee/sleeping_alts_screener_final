@@ -43,7 +43,8 @@
       g.font = `300 7.5px ${TF}`; g.fillStyle = `rgba(${col},.95)`; arcText(g, gn, x, y, r + 9, Math.PI / 2, false);
       g.strokeStyle = `rgba(${col},.6)`; g.lineWidth = .7; g.textBaseline = 'alphabetic';
       if (ms) { g.beginPath(); g.moveTo(x + r + 4, y); g.lineTo(x + r + 22, y); g.stroke(); g.textAlign = 'left'; g.fillStyle = '#fff'; g.font = `200 20px ${TF}`; g.fillText(ms, x + r + 26, y + 7); g.font = `300 7px ${TF}`; g.fillStyle = 'rgba(200,215,255,.6)'; g.fillText('ОТ ДНА', x + r + 27, y + 17); }
-      if (cp) { g.beginPath(); g.moveTo(x - r - 4, y); g.lineTo(x - r - 22, y); g.stroke(); g.textAlign = 'right'; g.fillStyle = 'rgba(235,240,255,.9)'; g.font = `300 11px ${TF}`; g.fillText(cp, x - r - 26, y + 4); g.font = `300 7px ${TF}`; g.fillStyle = 'rgba(200,215,255,.6)'; g.fillText('КАПИТАЛИЗАЦИЯ', x - r - 26, y + 14); } }
+      if (cp) { g.beginPath(); g.moveTo(x - r - 4, y); g.lineTo(x - r - 22, y); g.stroke(); g.textAlign = 'right'; g.fillStyle = 'rgba(235,240,255,.9)'; g.font = `300 11px ${TF}`; g.fillText(cp, x - r - 26, y + 4); g.font = `300 7px ${TF}`; g.fillStyle = 'rgba(200,215,255,.6)'; g.fillText('КАПИТАЛИЗАЦИЯ', x - r - 26, y + 14);
+        const v = +f.v2c; if (v > 0) { g.fillStyle = 'rgba(235,240,255,.9)'; g.font = `300 11px ${TF}`; g.fillText(v >= 3 ? '×' + (v >= 10 ? Math.round(v) : v.toFixed(1).replace('.', ',')) : (v < .1 ? (v * 100).toFixed(1).replace('.', ',') : Math.round(v * 100)) + '%', x - r - 26, y + 30); g.font = `300 7px ${TF}`; g.fillStyle = 'rgba(200,215,255,.6)'; g.fillText('ОБОРОТ К КАПЕ', x - r - 26, y + 40); } } }   /* 27.10 владелец: «здесь нужно показывать оборот к капитализации тоже» — f.v2c из fast_state: оборот фьючерсов за прошлые сутки UTC к капе; ≥ ×3 — разы, ниже — % (как в очереди index.html) */
     g.restore(); }
   // HUD: точечная сетка, уголки, красные треугольники, подписи слоёв
   function hudGrid(g, W, H, a = .07) { g.fillStyle = `rgba(200,210,230,${a})`; for (let x = 24; x < W; x += 34) for (let y = 24; y < H; y += 34) g.fillRect(x, y, 1, 1); }
@@ -166,6 +167,30 @@
   const CLG = Array.from({ length: 700 }, (_, i) => ({ r: Math.min(3.2, Math.sqrt(-2 * Math.log(1 - rnd(26, i) * .997)) * (rnd(27, i) < .35 ? .45 : 1)), a: rnd(28, i) * TAU, s: .5 + rnd(29, i) * 1.2, b: .4 + rnd(30, i) * .6, w: rnd(31, i) }));   // скопление «на ходу»: треть частиц — плотное ядро
   function drawCluster(g, x, y, seed, s0, m) { const big = m > .04, PS = big ? CLG : CL; const k = G.R * m * (1 + .1 * Math.sin(s0 * .6 + seed * 9)), gl = g.createRadialGradient(x, y, 0, x, y, k * 3); gl.addColorStop(0, `rgba(235,230,255,${big ? .3 : .16})`); gl.addColorStop(.4, `rgba(200,205,250,${big ? .09 : .05})`); gl.addColorStop(1, 'rgba(180,190,240,0)'); g.fillStyle = gl; g.fillRect(x - k * 3, y - k * 3, k * 6, k * 6);
     for (const p of PS) { const a = p.a + s0 * .12 + seed * 7, px = x + Math.cos(a) * p.r * k, py = y + Math.sin(a) * p.r * k * .62, tw = .7 + .3 * Math.sin(s0 * (1 + p.w * 2.5) + p.w * 50); g.globalAlpha = Math.min(1, p.b * tw * (1 - p.r / 3.4)); const d = p.s * 2.2; g.drawImage(p.w > .88 ? DOT_R : DOT_W, px - d / 2, py - d / 2, d, d); } g.globalAlpha = 1; }
+  // 27.10 владелец: «есть идея ещё первых показывать… попробуй тоже 5 разных дизайнов» — «первые» = монеты с топ-признаком (✦); 5 вариантов, клавиши 1–5 (запоминается), ?top=N в адресе
+  const TOPN = ['', 'ПУЛЬСАР', 'СВЕРХНОВАЯ', 'ДВОЙНАЯ', 'ЛУЧИ', 'СОЗВЕЗДИЕ'], GOLD = '255,200,120', DOT_G = dot(GOLD);
+  // 27.10 владелец: «раз в 10 минут чтобы вид менялся у всех» — у всех первых один вид, по часам UTC каждые 10 мин следующий из пяти; клавиши 1–5 — закрепить один, 0 — снова смена
+  let TOPV = (() => { const q = +(new URLSearchParams(location.search).get('top') || 0); return q >= 1 && q <= 5 ? q : 0; })();
+  const toast = document.createElement('div'); toast.style.cssText = 'position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:10;pointer-events:none;font:300 10px "Exo 2","Avenir Next",sans-serif;letter-spacing:.4em;color:rgba(255,215,160,.9);opacity:0;transition:opacity .4s'; document.body.appendChild(toast);
+  addEventListener('keydown', e => { const v = +e.key; if (!(e.key >= '0' && e.key <= '5')) return; TOPV = v;
+    toast.textContent = v ? 'ПЕРВЫЕ ' + v + ' · ' + TOPN[v] : 'ПЕРВЫЕ · СМЕНА РАЗ В 10 МИН'; toast.style.opacity = 1; clearTimeout(toast.t); toast.t = setTimeout(() => { toast.style.opacity = 0; }, 1600); });
+  const ray = (g, x, y, a, L, w, al) => { const ex = x + Math.cos(a) * L, ey = y + Math.sin(a) * L, q = g.createLinearGradient(x, y, ex, ey); q.addColorStop(0, `rgba(${GOLD},${al})`); q.addColorStop(1, `rgba(${GOLD},0)`); g.fillStyle = q;
+    const nx = -Math.sin(a) * w, ny = Math.cos(a) * w; g.beginPath(); g.moveTo(x + nx, y + ny); g.lineTo(ex, ey); g.lineTo(x - nx, y - ny); g.closePath(); g.fill(); };
+  function drawTop(g, pos, s0) { const v = TOPV || 1 + Math.floor(Date.now() / 6e5) % 5, T = []; COINS.forEach((c, i) => { if (c.f.top) T.push([pos[i][0], pos[i][1], c, v]); }); if (!T.length) return;
+    const T5 = T.filter(q => q[3] === 5);
+    if (T5.length > 1) { const P2 = T5.slice().sort((a, b) => Math.atan2(a[1] - G.cy, a[0] - G.cx) - Math.atan2(b[1] - G.cy, b[0] - G.cx)), n = P2.length, E = n > 2 ? n : 1;
+      g.strokeStyle = `rgba(${GOLD},.35)`; g.lineWidth = .8; g.beginPath(); for (let k = 0; k < E; k++) { const a = P2[k], b = P2[(k + 1) % n]; g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); } g.stroke();
+      for (let k = 0; k < E; k++) { const a = P2[k], b = P2[(k + 1) % n], u = (s0 * .22 + k * .37) % 1, px = a[0] + (b[0] - a[0]) * u, py = a[1] + (b[1] - a[1]) * u, z = 7 * Math.sin(u * Math.PI) + 2; g.drawImage(DOT_G, px - z / 2, py - z / 2, z, z); } }
+    for (const [x, y, c, V] of T) { const ph = c.seed * 10;
+      if (V === 1) { const a = s0 * .5 + ph, L = 64 + 8 * Math.sin(s0 * 2 + ph); for (const k of [0, Math.PI]) { ray(g, x, y, a + k, L, 2.2, .75); ray(g, x, y, a + k, L * .45, 6, .18); } }
+      if (V === 2) { g.lineWidth = 1; for (let k = 0; k < 3; k++) { const u = ((s0 + ph) / 2.4 + k / 3) % 1, r = 6 + u * 58; g.strokeStyle = `rgba(${GOLD},${.75 * (1 - u) * (1 - u)})`; g.beginPath(); g.ellipse(x, y, r, r * .62, -.22, 0, TAU); g.stroke(); } }
+      if (V === 3) { const a = s0 * 1.6 + ph, r = 17, pt = t => [x + Math.cos(t) * r, y + Math.sin(t) * r * .55]; g.lineWidth = 1.2;
+        for (let k = 0; k < 24; k++) { const t0 = a - 1.8 + k * .075, [x0, y0] = pt(t0), [x1, y1] = pt(t0 + .075); g.strokeStyle = `rgba(${GOLD},${.5 * k / 24})`; g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); }
+        const [cx2, cy2] = pt(a); g.drawImage(DOT_G, cx2 - 4, cy2 - 4, 8, 8); }
+      if (V === 4) { const h = g.createRadialGradient(x, y, 0, x, y, 38); h.addColorStop(0, `rgba(${GOLD},.28)`); h.addColorStop(1, `rgba(${GOLD},0)`); g.fillStyle = h; g.fillRect(x - 38, y - 38, 76, 76);
+        const tw = .85 + .15 * Math.sin(s0 * 1.7 + ph); for (let k = 0; k < 4; k++) ray(g, x, y, k * Math.PI / 2, 62 * tw, .9, .8); for (let k = 0; k < 4; k++) ray(g, x, y, Math.PI / 4 + k * Math.PI / 2, 22 * tw, .7, .55); }
+      if (V === 5) { g.strokeStyle = `rgba(${GOLD},.7)`; g.lineWidth = .8; g.beginPath(); g.arc(x, y, 8 + Math.sin(s0 * 2 + ph), 0, TAU); g.stroke(); }
+      g.drawImage(DOT_G, x - 6, y - 6, 12, 12); } }
   function frame(t) { const { g } = S, { W, H, P, R, cx, cy } = G, s0 = t / 1000, rot = s0 * .03; HIT = [];
     const bg = g.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * .8); bg.addColorStop(0, '#10121c'); bg.addColorStop(1, '#040409'); g.fillStyle = bg; g.fillRect(0, 0, W, H); hudGrid(g, W, H, .05);
     // 27.10 владелец: «эту часть сделай поинтереснее» — вместо красных плоскостей край красной планеты с атмосферой, кольцом и луной
@@ -180,9 +205,10 @@
     const pos = COINS.map(c => coinPos(c, t)); g.strokeStyle = 'rgba(220,228,245,.12)'; g.lineWidth = .3;
     pos.forEach((p, i) => { let best = [], bd = []; pos.forEach((q, j) => { if (i === j) return; const d = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2; best.push([d, q]); }); best.sort((a, b) => a[0] - b[0]).slice(0, 2).forEach(([, q]) => { g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.stroke(); }); });
     COINS.forEach((c, i) => { if (c.g === 'go' || c.g === 'soon') drawCluster(g, pos[i][0], pos[i][1], c.seed, s0, c.g === 'go' ? .13 : .026); });   // у «на ходу» на рукавах облачко крупное, у «скоро» вокруг ядра поменьше
-    COINS.forEach((c, i) => { const [x, y] = pos[i], hv = HOVER === c; star(g, x, y, SZ[c.g] * (hv ? 1.5 : 1), COL[c.g], (.85 + .15 * Math.sin(s0 * 2.3 + c.seed * 30)) * (hv || c.g === 'go' || c.g === 'soon' ? 1 : .22)); HIT.push({ x, y, c }); });   // 27.10 владелец: «все звёзды затемним кроме тех что скоро и на ходу» — шевелятся/остальные тусклые, при наведении ярко
+    COINS.forEach((c, i) => { const [x, y] = pos[i], hv = HOVER === c; star(g, x, y, SZ[c.g] * (hv ? 1.5 : 1), COL[c.g], (.85 + .15 * Math.sin(s0 * 2.3 + c.seed * 30)) * (hv || c.g === 'go' || c.g === 'soon' || c.f.top ? 1 : .22)); HIT.push({ x, y, c }); });   // 27.10 владелец: «все звёзды затемним кроме тех что скоро и на ходу» — шевелятся/остальные тусклые, при наведении ярко
+    drawTop(g, pos, s0);
     g.restore();
-    COINS.forEach((c, i) => { if (HOVER === c || !(c.g === 'go' || c.g === 'soon')) return; const [x, y] = pos[i]; g.font = c.g === 'go' ? '600 12px "Avenir Next", Futura, sans-serif' : '500 9px "Avenir Next", Futura, sans-serif'; g.fillStyle = c.g === 'go' || HOVER === c ? '#fff' : 'rgba(215,228,245,.72)'; g.textAlign = 'left'; g.fillText(c.nm, x + 10, y - 6); });
+    COINS.forEach((c, i) => { if (HOVER === c || !(c.g === 'go' || c.g === 'soon' || c.f.top)) return; const [x, y] = pos[i]; g.font = c.g === 'go' ? '600 12px "Avenir Next", Futura, sans-serif' : '500 9px "Avenir Next", Futura, sans-serif'; g.fillStyle = c.f.top ? 'rgba(255,214,150,.95)' : c.g === 'go' || HOVER === c ? '#fff' : 'rgba(215,228,245,.72)'; g.textAlign = 'left'; g.fillText(c.nm + (c.f.top ? ' ✦' : ''), x + 10, y - 6); });   // первые — золотом и со звёздочкой
     // легенда слева: тонкие линии и подписи колец
     // 27.10 владелец: «слева не надо эти надписи» — легенду групп и подпись «ИЗБРАННОЕ» убрал
     // 27.10 владелец: «эти крестики убери» — крестики по углам сняты
