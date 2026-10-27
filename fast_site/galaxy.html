@@ -14,10 +14,10 @@
   const tvUrl = sym => `https://www.tradingview.com/chart/?symbol=BINANCE:${sym}.P`;
   const hash = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; };
   const rnd = (seed, i) => { const v = Math.sin(seed * 9301 + i * 49297) * 233280; return v - Math.floor(v); };
-  let COINS = [], BY = { go: [], soon: [], stir: [], rest: [] }, LOADED = false;
+  let COINS = [], BY = { go: [], soon: [], stir: [], rest: [] }, LOADED = false, UP24 = [];
   async function loadFav() { try { let r = await fetch('/state.json', { cache: 'no-store' }).catch(() => null); if (!r || !r.ok) r = await fetch('../output/fast_state.json', { cache: 'no-store' }); if (!r.ok) return; const d = await r.json(), F = (d.favorites || []).filter(f => f && f.sym);
       const by = { go: [], soon: [], stir: [], rest: [] }; COINS = F.map(f => { const sym = String(f.sym), c = { sym, nm: sym.replace(/USDT$/, ''), g: grpOf(f), f, seed: hash(sym), m: multOf(f) }; return c; });
-      COINS.forEach(c => { c.i = by[c.g].length; by[c.g].push(c); }); BY = by; LOADED = true; } catch (e) {} }
+      COINS.forEach(c => { c.i = by[c.g].length; by[c.g].push(c); }); BY = by; LOADED = true; UP24 = (d.up24 || []).filter(u => u && u.sym).map(u => ({ nm: String(u.sym).replace(/USDT$/, ''), chg: u.chg })); } catch (e) {} }   // 27.10: STATE.up24 — монеты Binance +50 % и больше за 24 ч
   loadFav(); setInterval(loadFav, 30000);
   // подсказка и клик: каждую рамку сцена кладёт в HIT экранные точки монет
   // 27.10 владелец: «хинты бы поинтереснее» → из четырёх вариантов «оставь только 3й» — «Орбита»: имя по дуге сверху, группа снизу, ×N справа, КП слева, по орбите бежит спутник
@@ -169,11 +169,11 @@
     for (const p of PS) { const a = p.a + s0 * .12 + seed * 7, px = x + Math.cos(a) * p.r * k, py = y + Math.sin(a) * p.r * k * .62, tw = .7 + .3 * Math.sin(s0 * (1 + p.w * 2.5) + p.w * 50); g.globalAlpha = Math.min(1, p.b * tw * (1 - p.r / 3.4)); const d = p.s * 2.2; g.drawImage(p.w > .88 ? DOT_R : DOT_W, px - d / 2, py - d / 2, d, d); } g.globalAlpha = 1; }
   // 27.10 владелец: «есть идея ещё первых показывать… попробуй тоже 5 разных дизайнов» — «первые» = монеты с топ-признаком (✦); 5 вариантов, клавиши 1–5 (запоминается), ?top=N в адресе
   const TOPN = ['', 'ПУЛЬСАР', 'СВЕРХНОВАЯ', 'ДВОЙНАЯ', 'ЛУЧИ', 'СОЗВЕЗДИЕ'], GOLD = '255,200,120', DOT_G = dot(GOLD);
-  // 27.10 владелец: «раз в 10 минут чтобы вид менялся у всех» — у всех первых один вид, по часам UTC каждые 10 мин следующий из пяти; клавиши 1–5 — закрепить один, 0 — снова смена
+  // 27.10 владелец: «раз в 10 минут чтобы вид менялся у всех» — у всех первых один вид, по часам UTC каждые 10 мин следующий из пяти; клавиши 1–5 — закрепить один, та же ещё раз — снова смена
   let TOPV = (() => { const q = +(new URLSearchParams(location.search).get('top') || 0); return q >= 1 && q <= 5 ? q : 0; })();
   const toast = document.createElement('div'); toast.style.cssText = 'position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:10;pointer-events:none;font:300 10px "Exo 2","Avenir Next",sans-serif;letter-spacing:.4em;color:rgba(255,215,160,.9);opacity:0;transition:opacity .4s'; document.body.appendChild(toast);
-  addEventListener('keydown', e => { const v = +e.key; if (!(e.key >= '0' && e.key <= '5')) return; TOPV = v;
-    toast.textContent = v ? 'ПЕРВЫЕ ' + v + ' · ' + TOPN[v] : 'ПЕРВЫЕ · СМЕНА РАЗ В 10 МИН'; toast.style.opacity = 1; clearTimeout(toast.t); toast.t = setTimeout(() => { toast.style.opacity = 0; }, 1600); });
+  addEventListener('keydown', e => { const v = +e.key; if (!(e.key >= '1' && e.key <= '5')) return; TOPV = TOPV === v ? 0 : v;   // та же клавиша ещё раз — снова смена раз в 10 мин (0 отдан связи)
+    toast.textContent = TOPV ? 'ПЕРВЫЕ ' + v + ' · ' + TOPN[v] : 'ПЕРВЫЕ · СМЕНА РАЗ В 10 МИН'; toast.style.opacity = 1; clearTimeout(toast.t); toast.t = setTimeout(() => { toast.style.opacity = 0; }, 1600); });
   const ray = (g, x, y, a, L, w, al) => { const ex = x + Math.cos(a) * L, ey = y + Math.sin(a) * L, q = g.createLinearGradient(x, y, ex, ey); q.addColorStop(0, `rgba(${GOLD},${al})`); q.addColorStop(1, `rgba(${GOLD},0)`); g.fillStyle = q;
     const nx = -Math.sin(a) * w, ny = Math.cos(a) * w; g.beginPath(); g.moveTo(x + nx, y + ny); g.lineTo(ex, ey); g.lineTo(x - nx, y - ny); g.closePath(); g.fill(); };
   function drawTop(g, pos, s0) { const v = TOPV || 1 + Math.floor(Date.now() / 6e5) % 5, T = []; COINS.forEach((c, i) => { if (c.f.top) T.push([pos[i][0], pos[i][1], c, v]); }); if (!T.length) return;
@@ -219,11 +219,77 @@
     for (const rd of CITY.RD) { let pv = null; for (const p of rd) { const q = pr(p); if (q[2] > .05) { if (pv) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]); pv = q; } else pv = null; } } g.stroke();
     CITY.P.forEach((o, i) => { const [x, y, z] = pr(o.p); if (z <= 0) return; const f = Math.min(1, z / .3), tw = .8 + .2 * Math.sin(s0 * (1.5 + (i % 7) * .3) + i); g.globalAlpha = o.b * f * tw; const dd = o.s * 2 * (.6 + .4 * f); g.drawImage(o.s > 2 ? DOT_CT2 : DOT_CT, x - dd / 2, y - dd / 2, dd, dd); });
     g.restore(); }
+  // 27.10 владелец: «хочу вот такой элемент (образец: светящееся кольцо на горизонте) и из него как будто капли, как в лава-лампе… внизу где-нибудь» — фиолетовое кольцо на линии горизонта, сияние кэшировано, капли каждый кадр
+  let PRT = null;
+  // 27.10 владелец: «не заняты 6–0 кнопки… разные вариации и пусть рандомно тоже раз в 10 минут меняются» — связь: 6 луч, 7 капля, 8 эхо, 9 пульс, 0 орбита; без выбора — случайный вид, смена раз в 10 мин (без повтора подряд); та же клавиша ещё раз — снова автосмена
+  let LINKV = (() => { const q = +(new URLSearchParams(location.search).get('link') || 0); return q >= 1 && q <= 5 ? q : 0; })();
+  const LINKN = ['', 'ЛУЧ', 'КАПЛЯ', 'ЭХО', 'ПУЛЬС', 'ОРБИТА'], linkAuto = () => { const sl = Math.floor(Date.now() / 6e5), f = k => 1 + Math.floor(rnd(k, 151) * 5), v = f(sl); return v === f(sl - 1) ? v % 5 + 1 : v; };
+  addEventListener('keydown', e => { if (!/^[06-9]$/.test(e.key)) return; const v = e.key === '0' ? 5 : +e.key - 5; LINKV = LINKV === v ? 0 : v;
+    toast.textContent = LINKV ? 'СВЯЗЬ ' + e.key + ' · ' + LINKN[v] : 'СВЯЗЬ · СМЕНА РАЗ В 10 МИН'; toast.style.opacity = 1; clearTimeout(toast.t); toast.t = setTimeout(() => { toast.style.opacity = 0; }, 1600); });
+  // 27.10 владелец: «попробуй другие цвета» — палитры кольца и капель: [сияние, середина, капля, ядро капли]; ?portal=N в адресе
+  const PPAL = [null, ['150,100,255', '200,165,255', '205,160,255', '255,235,255'], ['40,190,255', '130,225,255', '110,215,255', '230,250,255'], ['255,150,60', '255,200,120', '255,180,90', '255,245,215'], ['255,70,160', '255,150,210', '255,120,190', '255,230,245'], ['40,230,160', '140,255,210', '110,245,190', '230,255,245'], ['255,60,60', '255,140,120', '255,110,90', '255,225,210']];
+  const PV = (() => { const q = +(new URLSearchParams(location.search).get('portal') || 0); return q >= 1 && q < PPAL.length ? q : 3; })(), PP = PPAL[PV];   // владелец выбрал «золотой» (3)
+  function portalLayer(W, H) { const d = Math.min(devicePixelRatio || 1, 2), c = document.createElement('canvas'); c.width = Math.round(W * d); c.height = Math.round(H * d); const k = c.getContext('2d'); k.setTransform(d, 0, 0, d, 0, 0); k.globalCompositeOperation = 'lighter';
+    const r = Math.min(W, H) * .055, px = W * .5, hy = H - r * .45;
+    let q = k.createRadialGradient(px, hy, 0, px, hy, r * 4.5); q.addColorStop(0, `rgba(${PP[0]},.32)`); q.addColorStop(.35, `rgba(${PP[0]},.1)`); q.addColorStop(1, `rgba(${PP[0]},0)`); k.fillStyle = q; k.fillRect(px - r * 4.5, hy - r * 4.5, r * 9, r * 9);
+    k.lineWidth = .6; [2.1, 3.1].forEach((m, i) => { k.strokeStyle = `rgba(${PP[1]},${.1 - i * .04})`; k.beginPath(); k.arc(px, hy, r * m, Math.PI, TAU); k.stroke(); });
+    const ring = (sy, al) => { k.save(); k.translate(px, hy); k.scale(1, sy); [[r * .5, PP[0], .22 * al, r * .42], [r * .18, PP[1], .65 * al, r * .17], [0, PP[3], al, r * .055]].forEach(([b, rgb, a, lw]) => { k.shadowBlur = b; k.shadowColor = `rgba(${rgb},.9)`; k.strokeStyle = `rgba(${rgb},${a})`; k.lineWidth = lw; k.beginPath(); k.arc(0, 0, r, Math.PI, TAU); k.stroke(); }); k.restore(); };
+    ring(1, 1); ring(-.45, .35);
+    q = k.createLinearGradient(px - r * 4, 0, px + r * 4, 0); q.addColorStop(0, `rgba(${PP[1]},0)`); q.addColorStop(.5, `rgba(${PP[3]},.95)`); q.addColorStop(1, `rgba(${PP[1]},0)`); k.fillStyle = q; k.fillRect(px - r * 4, hy - .8, r * 8, 1.6);
+    q = k.createRadialGradient(0, 0, 0, 0, 0, r * 2); q.addColorStop(0, `rgba(${PP[3]},.55)`); q.addColorStop(.3, `rgba(${PP[1]},.18)`); q.addColorStop(1, `rgba(${PP[0]},0)`); k.save(); k.translate(px, hy); k.scale(1, .18); k.fillStyle = q; k.fillRect(-r * 2, -r * 2, r * 4, r * 4); k.restore();
+    return { c, W, H, r, px, hy }; }
+  // кольцо над горизонтом, его отражение снизу, горизонт и вспышка на нём — в слое выше; капли: отрываются от верха кольца шейкой, поднимаются, качаются, дышат и тают
+  const SPK = {};   // точки букв имени для искр: рисую имя в маленький холст и беру закрашенные пиксели
+  function sparkPts(t, r) { const key = t + '|' + Math.round(r); if (SPK[key]) return SPK[key]; const sp = t.split('').join(' '), m = document.createElement('canvas').getContext('2d'); let fs = r * .34; m.font = `400 ${fs}px "Exo 2","Avenir Next",sans-serif`; let tw = m.measureText(sp).width; if (tw > r * 1.3) { fs *= r * 1.3 / tw; tw = r * 1.3; }
+    const c = document.createElement('canvas'), w = Math.ceil(tw) + 6, h = Math.ceil(fs * 1.5); c.width = w; c.height = h; const k = c.getContext('2d'); k.font = `400 ${fs}px "Exo 2","Avenir Next",sans-serif`; k.textAlign = 'center'; k.textBaseline = 'middle'; k.fillStyle = '#fff'; k.fillText(sp, w / 2, h / 2);
+    const d = k.getImageData(0, 0, w, h).data, P = [], st = Math.max(1, fs / 11); for (let y = 0; y < h; y += st) for (let x = 0; x < w; x += st) if (d[(Math.floor(y) * w + Math.floor(x)) * 4 + 3] > 120) P.push([x - w / 2, y - h / 2]);
+    return (SPK[key] = P); }
+  const bigDot = rgb => { const c = document.createElement('canvas'); c.width = c.height = 64; const k = c.getContext('2d'), q = k.createRadialGradient(32, 32, 0, 32, 32, 30); q.addColorStop(0, `rgba(${rgb},1)`); q.addColorStop(.35, `rgba(${rgb},.55)`); q.addColorStop(1, `rgba(${rgb},0)`); k.fillStyle = q; k.fillRect(0, 0, 64, 64); return c; };   // крупная капля: у 16-пиксельной при растяжке проступала рамка
+  const DOT_LV = bigDot(PP[2]), DOT_LW = bigDot(PP[3]);
+  function drawPortal(g, W, H, s0) { if (!W || !H) return; if (!PRT || PRT.W !== W || PRT.H !== H) PRT = portalLayer(W, H); const { c, r, px, hy } = PRT;
+    g.save(); g.globalCompositeOperation = 'lighter'; g.globalAlpha = .9 + .1 * Math.sin(s0 * 1.1); g.drawImage(c, 0, 0, W, H);
+    // 27.10 владелец: «не много шаров, а по одному уходило» — одна капля за раз: набухает на верху кольца, тянет шейку, отрывается, всплывает и тает; следующая — после
+    { const LV = LINKV || linkAuto(), T = 7, n = Math.floor(s0 / T), u = (s0 % T) / T, y0 = hy - r * .95, gr = Math.min(1, u / .28), rise = Math.max(0, (u - .28) / .72);
+      const at = (m, rs) => [px + Math.sin(rs * Math.PI * 1.3 + m) * r * .18 + (rnd(m, 116) - .5) * r * .6 * rs, y0 - r * .15 - rs * rs * r * 1.7 - rs * r * .5];
+      const L = UP24, nm =   /* 27.10 владелец: «давай в нём показывать все монеты, которые выросли 50+% за 24 часа», «попеременно, как сейчас сделано» (вместо избранного) */ m => L.length ? L[((m % L.length) + L.length) % L.length].nm : '';
+      const FAV = t => t && COINS.find(c => c.nm === t), LF = LV === 2 && FAV(nm(n)), LP = LF ? coinPos(LF, s0 * 1000) : null;   // вариант «капля»: капля избранной монеты летит к её звезде
+      const fly = t => { const ax = px, ay = y0 - r * .15, kx2 = (ax + LP[0]) / 2, ky2 = Math.min(ay, LP[1]) - r * 1.2, e3 = ease(t); return [(1 - e3) * (1 - e3) * ax + 2 * (1 - e3) * e3 * kx2 + e3 * e3 * LP[0], (1 - e3) * (1 - e3) * ay + 2 * (1 - e3) * e3 * ky2 + e3 * e3 * LP[1]]; };
+      const [sx, sy0] = LP && rise > 0 ? fly(rise) : at(n, rise), sy = rise > 0 ? sy0 : y0 - r * .15 * gr, R0 = r * (.16 + .2 * gr) * (1 - rise * .35), al = Math.min(1, u * 8) * (1 - Math.pow(rise, LP ? 8 : 2.2)), st = 1 + .2 * Math.sin(s0 * 2.2) + (u < .34 ? .35 * gr : 0);
+      if (u < .34) for (let k = 1; k <= 5; k++) { const f = k / 6, nx = px + (sx - px) * f, ny = y0 + (sy - y0) * f, nr = R0 * (.4 + .2 * Math.sin(f * Math.PI)) * (u < .28 ? 1 : 1 - (u - .28) / .06); g.globalAlpha = .75 * al; g.drawImage(DOT_LV, nx - nr * 2, ny - nr * 2, nr * 4, nr * 4); }   // шейка до отрыва
+      g.globalAlpha = al * .85; g.drawImage(DOT_LV, sx - R0 * 2.2, sy - R0 * 2.2 * st, R0 * 4.4, R0 * 4.4 * st); g.globalAlpha = al; g.drawImage(DOT_LW, sx - R0 * .9, sy - R0 * .9 * st, R0 * 1.8, R0 * 1.8 * st);
+      // 27.10 владелец: «там, где шар растворяется, таким же цветом появлялось название монеты» — по очереди «на ходу», «скоро», первые; держится, гаснет с выходом следующей капли
+      // 27.10 владелец: «и из искр» → «не из искр, а из светящихся линий» — буквы прорисовываются неоновой линией (штрих растёт по контуру), от места, где растаяла капля, влетают световые росчерки; перед следующей каплей линия стирается
+      const label = (m, a2, dsp) => { const t2 = nm(m); if (!t2 || (a2 <= .01 && !dsp) || dsp >= 1) return; const sp = t2.split('').join(' '), [ox, oy] = LV === 2 && FAV(t2) ? coinPos(FAV(t2), s0 * 1000) : at(m, 1), cx2 = px, cy2 = hy - r * .42;
+        let fs = r * .34; g.font = `300 ${fs}px "Exo 2","Avenir Next",sans-serif`; const tw = g.measureText(sp).width; if (tw > r * 1.3) { fs *= r * 1.3 / tw; g.font = `300 ${fs}px "Exo 2","Avenir Next",sans-serif`; }
+        g.textAlign = 'center'; g.textBaseline = 'middle'; g.lineJoin = g.lineCap = 'round'; const D = fs * 6, p = ease(clamp(a2)), keep = 1 - dsp;
+        g.setLineDash([Math.max(.01, D * p * keep), D]); g.lineDashOffset = -D * dsp;
+        [[10, .35, 2.2], [4, .7, 1.1], [0, 1, .5]].forEach(([bl, al2, lw]) => { g.shadowColor = `rgba(${PP[0]},.95)`; g.shadowBlur = bl; g.strokeStyle = `rgba(${al2 > .9 ? PP[3] : PP[1]},${al2 * keep})`; g.lineWidth = lw; g.globalAlpha = 1; g.strokeText(sp, cx2, cy2); });
+        g.setLineDash([]); g.lineDashOffset = 0; g.shadowBlur = 0;
+        if (a2 > 0 && a2 < 1 && !dsp) { const P2 = sparkPts(t2, r); for (let i = 0; i < 7; i++) { const q = P2[Math.floor(rnd(i, 141 + m) * P2.length)] || [0, 0], tx = cx2 + q[0], ty = cy2 + q[1], e2 = ease(clamp(a2 * 1.6 - i * .06)), e1 = Math.max(0, e2 - .3);
+            const hx = ox + (tx - ox) * e2, hy2 = oy + (ty - oy) * e2, tx1 = ox + (tx - ox) * e1, ty1 = oy + (ty - oy) * e1, gq = g.createLinearGradient(tx1, ty1, hx, hy2); gq.addColorStop(0, `rgba(${PP[1]},0)`); gq.addColorStop(1, `rgba(${PP[3]},${.9 * (1 - e2 * .6)})`);
+            g.strokeStyle = gq; g.lineWidth = 1; g.beginPath(); g.moveTo(tx1, ty1); g.lineTo(hx, hy2); g.stroke(); } }   // росчерки света к буквам
+        // 27.10 владелец: «если монета в полукруге совпадает с избранным — показывать связь» → «красиво, но не то» → «ещё 3–4 варианта»: клавиши 6–9 (запоминается в этой вкладке), ?link=N
+        const fc = FAV(t2); if (fc) { const [ex, ey] = coinPos(fc, s0 * 1000), life = s0 - (m + .7984) * T;
+          const glow = (a3, R1) => { if (a3 <= 0) return; const gl3 = g.createRadialGradient(ex, ey, 0, ex, ey, R1); gl3.addColorStop(0, `rgba(${PP[3]},${.8 * a3})`); gl3.addColorStop(.3, `rgba(${PP[1]},${.3 * a3})`); gl3.addColorStop(1, `rgba(${PP[0]},0)`); g.fillStyle = gl3; g.fillRect(ex - R1, ey - R1, R1 * 2, R1 * 2); };
+          const wave = (x4, y4, w, R1) => { if (w <= 0 || w >= 1) return; g.strokeStyle = `rgba(${PP[1]},${.8 * (1 - w)})`; g.lineWidth = 1; g.beginPath(); g.ellipse(x4, y4, 5 + w * R1, (5 + w * R1) * .62, 0, 0, TAU); g.stroke(); };
+          if (LV === 1) { const bx = cx2, by = cy2 - fs * .9, mx = (bx + ex) / 2, my = (by + ey) / 2, dx = ex - bx, dy = ey - by, dl = Math.hypot(dx, dy) || 1, kx = mx - dy / dl * dl * .18, ky = my + dx / dl * dl * .18, q2 = t => [(1 - t) * (1 - t) * bx + 2 * (1 - t) * t * kx + t * t * ex, (1 - t) * (1 - t) * by + 2 * (1 - t) * t * ky + t * t * ey];
+            const t0 = dsp, t1 = p, N = 48; if (t1 > t0) { [[4, .12], [1.6, .35], [.7, .85]].forEach(([lw, al3]) => { g.strokeStyle = `rgba(${al3 > .5 ? PP[3] : PP[1]},${al3})`; g.lineWidth = lw; g.beginPath(); for (let k = 0; k <= N; k++) { const t = t0 + (t1 - t0) * k / N, [x3, y3] = q2(t); k ? g.lineTo(x3, y3) : g.moveTo(x3, y3); } g.stroke(); });
+              for (let k = 0; k < 3; k++) { const t = (s0 * .45 + k / 3) % 1; if (t < t0 || t > t1) continue; const [x3, y3] = q2(t); g.globalAlpha = 1; g.drawImage(DOT_LW, x3 - 4, y3 - 4, 8, 8); } }
+            glow(clamp(p * 2 - 1) * keep, 22); wave(ex, ey, (life - 1.25) / 1.3, 34); }
+          if (LV === 2) { glow(clamp((life - 1.3) * 3) * keep, 26); wave(ex, ey, (life - 1.41) / 1.3, 40); }   // капля влилась в звезду
+          if (LV === 3) { const rr2 = 15, cy3 = ey + 7, a3 = p * keep; g.lineCap = 'round'; [[8, .3, 3], [3, .7, 1.4], [0, 1, .6]].forEach(([bl, al3, lw]) => { g.shadowColor = `rgba(${PP[0]},.95)`; g.shadowBlur = bl; g.strokeStyle = `rgba(${al3 > .9 ? PP[3] : PP[1]},${al3 * a3})`; g.lineWidth = lw; g.beginPath(); g.arc(ex, cy3, rr2, Math.PI, Math.PI + Math.PI * p); g.stroke(); }); g.shadowBlur = 0;
+            const hq = g.createLinearGradient(ex - rr2 * 2.2, 0, ex + rr2 * 2.2, 0); hq.addColorStop(0, `rgba(${PP[1]},0)`); hq.addColorStop(.5, `rgba(${PP[3]},${.8 * a3})`); hq.addColorStop(1, `rgba(${PP[1]},0)`); g.fillStyle = hq; g.fillRect(ex - rr2 * 2.2, cy3 - .5, rr2 * 4.4, 1); glow(.6 * a3, 18); }   // эхо: маленькое полукольцо у звезды
+          if (LV === 4) { for (let k = 0; k < 3; k++) { const w = (life - .3 - k * .7) / 1.2; wave(ex, ey, w, 30); wave(px, hy - r * .3, w, r * 1.6); } glow(p * keep * .7 * (.6 + .4 * Math.sin(life * 9)), 20); }   // пульс: кольцо и звезда бьются в такт
+          if (LV === 5) { const pos5 = tt => { if (tt < 1.2) { const e3 = ease(tt / 1.2), ax = px, ay = hy - r, kx2 = (ax + ex) / 2, ky2 = Math.min(ay, ey) - r; return [(1 - e3) * (1 - e3) * ax + 2 * (1 - e3) * e3 * kx2 + e3 * e3 * (ex + 14), (1 - e3) * (1 - e3) * ay + 2 * (1 - e3) * e3 * ky2 + e3 * e3 * ey]; } const an = (tt - 1.2) * 4; return [ex + Math.cos(an) * 14, ey + Math.sin(an) * 14 * .62]; };   // орбита: спутник из кольца долетает до звезды и кружит
+            if (life > 0) { for (let k = 0; k < 12; k++) { const tt = life - k * .05; if (tt < 0) break; const [x5, y5] = pos5(tt); g.globalAlpha = keep * (1 - k / 12) * .9; const z = 6 - k * .35; g.drawImage(DOT_LW, x5 - z / 2, y5 - z / 2, z, z); } g.globalAlpha = 1; glow(clamp((life - 1.1) * 3) * keep * .7, 20); } } } };
+      label(n, Math.min(1, Math.max(0, (rise - .72) / .25)), 0); label(n - 1, 1, u < .14 ? 0 : Math.min(1, (u - .14) / .22)); }
+    g.restore(); }
   function frame(t) { const { g } = S, { W, H, P, R, cx, cy } = G, s0 = t / 1000, rot = s0 * .03; HIT = [];
     const bg = g.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * .8); bg.addColorStop(0, '#10121c'); bg.addColorStop(1, '#040409'); g.fillStyle = bg; g.fillRect(0, 0, W, H); hudGrid(g, W, H, .05);
     // 27.10 владелец: «эту часть сделай поинтереснее» — вместо красных плоскостей край красной планеты с атмосферой, кольцом и луной
     drawPlanet(g, W, H, s0);
     drawNight(g, W, H, s0);
+    drawPortal(g, W, H, s0);
     drawHelix(g, W, H, s0);   // 27.10 владелец: «что-то интересное большое» по образцу (спираль из искр) — спираль слева дугой над галактикой
     drawComets(g, W, H, s0);   // 27.10 владелец: красные треугольники — «сделай поинтереснее»: кометы и падающая звезда
     g.save(); g.globalCompositeOperation = 'lighter';

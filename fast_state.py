@@ -1118,6 +1118,14 @@ def build() -> dict:
         _st["favorites"] = favorites(now)
     except Exception as e:  # noqa: BLE001
         print(f"избранные: сбой {type(e).__name__}: {e}"); _st["favorites"] = []
+    try:                                                                 # 27.10 владелец: «в нём (кольцо на галактике) показывать все монеты, которые выросли 50+% за 24 часа»
+        _uni = board_universe(now)                                       #   скользящие 24 ч фьючерсов Binance (ticker/24hr), только крипто-состав доски
+        _st["up24"] = sorted([dict(sym=x["symbol"], chg=round(float(x["priceChangePercent"]), 1), px=float(x["lastPrice"]))
+                              for x in (get_json("https://fapi.binance.com/fapi/v1/ticker/24hr", weight=40) or [])
+                              if str(x.get("symbol", "")).endswith("USDT") and (_uni is None or x["symbol"] in _uni) and float(x.get("priceChangePercent") or 0) >= 50],
+                             key=lambda r: -r["chg"])
+    except Exception as e:  # noqa: BLE001
+        print(f"рост 50+% за 24 ч: сбой {type(e).__name__}: {e}"); _st["up24"] = []
     for _w in list(_st.get("week") or []) + list(_st.get("pre") or []):   # свежая цена монет «на неделе» и «до хода» — тем же запросом всех цен
         _p = _PX_NOW["px"].get(_w["sym"])
         if _p:
