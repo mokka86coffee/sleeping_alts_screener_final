@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Избранное · галактика</title><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Exo+2:wght@200;300;400&display=swap">
+<style>html,body{margin:0;height:100%;overflow:hidden;background:#05060a}#cv{position:fixed;inset:0;display:block}</style></head>
+<body><canvas id="cv"></canvas>
+<script>
+(() => {
+  // ── общее для трёх «глубинных» страниц (25.10 владелец, по картинкам deep web / галактика / корни: «а такие можно 3 разных?» → «да»)
+  //    данные — избранное бота из output/fast_state.json (только чтение, раз в 30 с); наведение на монету — имя, ×N от дна, КП; клик — TradingView
+  const TAU = Math.PI * 2, clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), ease = q => 1 - Math.pow(1 - q, 3);
+  const GRP = [{ k: 'go', name: 'ИДЁТ СЕЙЧАС' }, { k: 'soon', name: 'СКОРО' }, { k: 'stir', name: 'ШЕВЕЛЯТСЯ' }, { k: 'rest', name: 'ОСТАЛЬНЫЕ' }], GI = { go: 0, soon: 1, stir: 2, rest: 3 };
+  const grpOf = f => { const g = String(f.group || f.list || '').toLowerCase(); return /ид[её]т сейчас|ход|идут|going/.test(g) ? 'go' : /скоро|близ|soon/.test(g) ? 'soon' : /шевел|stir/.test(g) ? 'stir' : 'rest'; };
+  const multOf = f => +f.now > 0 && +f.atl > 0 ? +f.now / +f.atl : 0, multS = m => m ? '×' + (m >= 10 ? Math.round(m) : m.toFixed(1).replace('.', ',')) : '';
+  const capS = f => +f.mcap > 0 ? (+f.mcap >= 1e9 ? (+f.mcap / 1e9).toFixed(2).replace('.', ',') + ' млрд $' : Math.round(+f.mcap / 1e6) + ' млн $') : '';
+  const tvUrl = sym => `https://www.tradingview.com/chart/?symbol=BINANCE:${sym}.P`;
+  const hash = s => { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; };
+  const rnd = (seed, i) => { const v = Math.sin(seed * 9301 + i * 49297) * 233280; return v - Math.floor(v); };
+  let COINS = [], BY = { go: [], soon: [], stir: [], rest: [] }, LOADED = false;
+  async function loadFav() { try { let r = await fetch('/state.json', { cache: 'no-store' }).catch(() => null); if (!r || !r.ok) r = await fetch('../output/fast_state.json', { cache: 'no-store' }); if (!r.ok) return; const d = await r.json(), F = (d.favorites || []).filter(f => f && f.sym);
+      const by = { go: [], soon: [], stir: [], rest: [] }; COINS = F.map(f => { const sym = String(f.sym), c = { sym, nm: sym.replace(/USDT$/, ''), g: grpOf(f), f, seed: hash(sym), m: multOf(f) }; return c; });
+      COINS.forEach(c => { c.i = by[c.g].length; by[c.g].push(c); }); BY = by; LOADED = true; } catch (e) {} }
+  loadFav(); setInterval(loadFav, 30000);
+  // подсказка и клик: каждую рамку сцена кладёт в HIT экранные точки монет
+  // 27.10 владелец: «хинты бы поинтереснее» → из четырёх вариантов «оставь только 3й» — «Орбита»: имя по дуге сверху, группа снизу, ×N справа, КП слева, по орбите бежит спутник
+  let HIT = [], MX = -1, MY = -1, HOVER = null, HPOS = null, HT0 = 0, NOW = 0;
+  const TCOL = { go: '255,214,170', soon: '150,205,255', stir: '255,150,175', rest: '255,105,105' }, TF = '"Exo 2","Avenir Next",sans-serif';
+  const fmtM = m => m >= 10 ? String(Math.round(m)) : m.toFixed(1).replace('.', ',');
+  addEventListener('mousemove', e => { MX = e.clientX; MY = e.clientY; }); addEventListener('mouseleave', () => { MX = MY = -1; });
+  addEventListener('click', () => { if (HOVER) window.open(tvUrl(HOVER.sym), '_blank', 'noopener'); });
+  function hitTest() { let best = null, bd = 18 * 18; for (const h of HIT) { const dx = h.x - MX, dy = h.y - MY, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = h.c; } }
+    if (!best && HOVER && HPOS) { const dx = HPOS[0] - MX, dy = HPOS[1] - MY; if (dx * dx + dy * dy < 28 * 28) best = HOVER; }   // держим подсказку, пока мышь рядом, — без мигания
+    if (best !== HOVER) { HOVER = best; HT0 = NOW; } document.body.style.cursor = best ? 'pointer' : 'default';
+    const h = best && HIT.find(q => q.c === best); HPOS = h ? [h.x, h.y] : null; }
+  // подсказка рисуется на холсте поверх сцены
+  function arcText(g, s, x, y, r, mid, top) { let tot = 0; const ws = [...s].map(ch => { const w = g.measureText(ch).width + 2.2; tot += w; return w; }); let a = mid - (top ? 1 : -1) * tot / r / 2;
+    [...s].forEach((ch, i) => { const aa = a + (top ? 1 : -1) * ws[i] / r / 2; g.save(); g.translate(x + Math.cos(aa) * r, y + Math.sin(aa) * r); g.rotate(aa + (top ? Math.PI / 2 : -Math.PI / 2)); g.fillText(ch, 0, 0); g.restore(); a += (top ? 1 : -1) * ws[i] / r; }); }
+  function drawTipFx(g, W, s0) { NOW = s0; if (!HOVER) return; const h = HIT.find(q => q.c === HOVER); if (!h) return; const x = h.x, y = h.y, c = HOVER, col = TCOL[c.g], dt = s0 - HT0, e = ease(clamp(dt / .45));
+    const f = c.f, m = c.m, cp = capS(f), gn = GRP[GI[c.g]].name, nm = c.nm + (f.top ? ' ✦' : ''), ms = m ? '×' + fmtM(m) : ''; g.save();
+    { const r = 34 * e + 4; g.fillStyle = `rgba(4,5,12,${.55 * e})`; const bg = g.createRadialGradient(x, y, r * .3, x, y, r * 2.3); bg.addColorStop(0, `rgba(4,5,12,${.6 * e})`); bg.addColorStop(1, 'rgba(4,5,12,0)'); g.fillStyle = bg; g.fillRect(x - r * 2.4, y - r * 2.4, r * 4.8, r * 4.8);
+      g.setLineDash([2, 4]); g.lineDashOffset = -s0 * 10; g.strokeStyle = `rgba(${col},.8)`; g.lineWidth = .8; g.beginPath(); g.arc(x, y, r, 0, TAU); g.stroke(); g.setLineDash([]);
+      g.strokeStyle = `rgba(150,200,255,${.25 * e})`; g.beginPath(); g.ellipse(x, y, r * 1.5, r * .5, -.35 + s0 * .05, 0, TAU); g.stroke();
+      const sa = s0 * 1.3, sx = x + Math.cos(sa) * r, sy = y + Math.sin(sa) * r, sg = g.createRadialGradient(sx, sy, 0, sx, sy, 7); sg.addColorStop(0, `rgba(${col},1)`); sg.addColorStop(1, `rgba(${col},0)`); g.fillStyle = sg; g.fillRect(sx - 7, sy - 7, 14, 14);
+      g.globalAlpha = e; g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.font = `300 13px ${TF}`; arcText(g, nm, x, y, r + 9, -Math.PI / 2, true);
+      g.font = `300 7.5px ${TF}`; g.fillStyle = `rgba(${col},.95)`; arcText(g, gn, x, y, r + 9, Math.PI / 2, false);
+      g.strokeStyle = `rgba(${col},.6)`; g.lineWidth = .7; g.textBaseline = 'alphabetic';
+      if (ms) { g.beginPath(); g.moveTo(x + r + 4, y); g.lineTo(x + r + 22, y); g.stroke(); g.textAlign = 'left'; g.fillStyle = '#fff'; g.font = `200 20px ${TF}`; g.fillText(ms, x + r + 26, y + 7); g.font = `300 7px ${TF}`; g.fillStyle = 'rgba(200,215,255,.6)'; g.fillText('ОТ ДНА', x + r + 27, y + 17); }
+      if (cp) { g.beginPath(); g.moveTo(x - r - 4, y); g.lineTo(x - r - 22, y); g.stroke(); g.textAlign = 'right'; g.fillStyle = 'rgba(235,240,255,.9)'; g.font = `300 11px ${TF}`; g.fillText(cp, x - r - 26, y + 4); g.font = `300 7px ${TF}`; g.fillStyle = 'rgba(200,215,255,.6)'; g.fillText('КАПИТАЛИЗАЦИЯ', x - r - 26, y + 14); } }
+    g.restore(); }
+  // HUD: точечная сетка, уголки, красные треугольники, подписи слоёв
+  function hudGrid(g, W, H, a = .07) { g.fillStyle = `rgba(200,210,230,${a})`; for (let x = 24; x < W; x += 34) for (let y = 24; y < H; y += 34) g.fillRect(x, y, 1, 1); }
+  function hudCross(g, x, y, s = 7, a = .4) { g.strokeStyle = `rgba(220,228,240,${a})`; g.lineWidth = 1; g.beginPath(); g.moveTo(x - s, y); g.lineTo(x + s, y); g.moveTo(x, y - s); g.lineTo(x, y + s); g.stroke(); }
+  function hudTri(g, x, y, s, rot, a) { g.save(); g.translate(x, y); g.rotate(rot); g.fillStyle = `rgba(230,40,50,${a})`; g.beginPath(); g.moveTo(0, -s); g.lineTo(s * .87, s * .5); g.lineTo(-s * .87, s * .5); g.closePath(); g.fill(); g.restore(); }
+  function hudLabel(g, x, y, title, num, sub, align = 'left', red = true) {   // как «DEEP WEB · 19 …» на образце
+    g.save(); g.textAlign = align; g.textBaseline = 'alphabetic'; g.font = '300 15px "Avenir Next", Futura, sans-serif'; try { g.letterSpacing = '3px'; } catch (e) {}
+    const tw = g.measureText(title).width; g.fillStyle = 'rgba(235,240,248,.92)'; g.fillText(title, x, y);
+    const nx = align === 'left' ? x + tw + 12 : x + 12; g.textAlign = 'left'; g.font = '200 22px "Avenir Next", Futura, sans-serif'; try { g.letterSpacing = '1px'; } catch (e) {} g.fillStyle = red ? 'rgba(255,90,90,.95)' : 'rgba(160,220,255,.95)'; g.fillText(num, nx, y + 1);
+    if (sub) { g.font = '400 7px "Avenir Next", Futura, sans-serif'; try { g.letterSpacing = '2px'; } catch (e) {} g.fillStyle = 'rgba(220,228,240,.55)'; g.fillText(sub, nx + g.measureText(num).width + 26, y - 6); }
+    g.restore(); }
+  function fitCanvas(cv) { const d = Math.min(devicePixelRatio || 1, 2), W = innerWidth, H = innerHeight; cv.width = Math.round(W * d); cv.height = Math.round(H * d); cv.style.width = W + 'px'; cv.style.height = H + 'px'; const g = cv.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); return { W, H, g }; }
+
+  // 2. ГАЛАКТИКА: спираль из частиц, монеты — звёзды; ядро — «идёт сейчас», внутреннее кольцо — «скоро», дальше «шевелятся», рукава — «остальные»
+  const cv = document.getElementById('cv'); let S = fitCanvas(cv), G = {};
+  function build() { const { W, H } = S, R = Math.min(W * .42, H * .78), P = [];
+    for (let i = 0; i < 5200; i++) { const arm = i % 2, q = Math.pow(rnd(1, i), .75), sc = (rnd(2, i) + rnd(3, i) + rnd(4, i) - 1.5) * .42 * (1 - q * .45);
+      P.push({ r: q * R, a: arm * Math.PI + q * 5.6 + sc, s: .6 + rnd(5, i) * 1.3, b: .25 + rnd(6, i) * .65 * (1 - q * .5), w: rnd(7, i) }); }
+    for (let i = 0; i < 2000; i++) { const q = Math.pow(rnd(8, i), 2) * .32; P.push({ r: q * R, a: rnd(9, i) * TAU, s: .7 + rnd(10, i), b: .5 + rnd(11, i) * .5, w: rnd(12, i) }); }   // балдж
+    G = { W, H, R, P, cx: W * .5, cy: H * .52 }; }
+  addEventListener('resize', () => { S = fitCanvas(cv); build(); }); build();
+  const RAD = { go: [.03, .09], soon: [.18, .26], stir: [.36, .48], rest: [.58, .86] }, COL = { go: '255,250,235', soon: '200,225,255', stir: '255,170,180', rest: '255,90,95' }, SZ = { go: 3.4, soon: 2.6, stir: 2.2, rest: 1.9 };
+  const TILT = .42, INC = -.22, proj = (r, a) => { const x = r * Math.cos(a), y = r * Math.sin(a) * TILT, c = Math.cos(INC), s = Math.sin(INC); return [G.cx + x * c - y * s, G.cy + x * s + y * c]; };
+  function coinPos(c, t) { const rr = RAD[c.g], n = BY[c.g].length, q = rr[0] + (rr[1] - rr[0]) * rnd(c.seed, 3), rot = t / 1000 * .03; return proj(q * G.R, c.seed * TAU + (n ? c.i / n * TAU * .15 : 0) + rot * (1.4 - q)); }
+  function star(g, x, y, s, rgb, a) { const gl = g.createRadialGradient(x, y, 0, x, y, s * 6); gl.addColorStop(0, `rgba(${rgb},${.9 * a})`); gl.addColorStop(.25, `rgba(${rgb},${.3 * a})`); gl.addColorStop(1, `rgba(${rgb},0)`); g.fillStyle = gl; g.fillRect(x - s * 6, y - s * 6, s * 12, s * 12);
+    g.strokeStyle = `rgba(${rgb},${.5 * a})`; g.lineWidth = .3; g.beginPath(); g.moveTo(x - s * 5, y); g.lineTo(x + s * 5, y); g.moveTo(x, y - s * 5); g.lineTo(x, y + s * 5); g.stroke(); g.fillStyle = `rgba(255,255,255,${a})`; g.beginPath(); g.arc(x, y, s * .6, 0, TAU); g.fill(); }
+  const dot = rgb => { const c = document.createElement('canvas'); c.width = c.height = 16; const k = c.getContext('2d'), q = k.createRadialGradient(8, 8, 0, 8, 8, 8); q.addColorStop(0, `rgba(${rgb},1)`); q.addColorStop(.35, `rgba(${rgb},.55)`); q.addColorStop(1, `rgba(${rgb},0)`); k.fillStyle = q; k.fillRect(0, 0, 16, 16); return c; };
+  const DOT_W = dot('225,232,255'), DOT_R = dot('255,170,175');   // круглые мягкие звёзды
+
+  // планета в правом нижнем углу: тело и полосы рисуются один раз в слой, каждый кадр — только дыхание атмосферы и луна
+  let PLN = null;
+  function planetLayer(W, H) { const d = Math.min(devicePixelRatio || 1, 2), c = document.createElement('canvas'); c.width = Math.round(W * d); c.height = Math.round(H * d); const k = c.getContext('2d'); k.setTransform(d, 0, 0, d, 0, 0);
+    const R = Math.min(W, H) * .62, px = W + R * .38, py = H + R * .34, lx = -.62, ly = -.55;   // центр за углом; свет со стороны ядра галактики
+    let q = k.createRadialGradient(px, py, R * .96, px, py, R * 1.22); q.addColorStop(0, 'rgba(255,90,80,.30)'); q.addColorStop(.35, 'rgba(220,50,70,.10)'); q.addColorStop(1, 'rgba(160,30,60,0)'); k.fillStyle = q; k.beginPath(); k.arc(px, py, R * 1.22, 0, TAU); k.fill();   // атмосфера
+    k.save(); k.beginPath(); k.arc(px, py, R, 0, TAU); k.clip();
+    q = k.createRadialGradient(px + lx * R * .55, py + ly * R * .55, R * .05, px, py, R * 1.05); q.addColorStop(0, '#d2473f'); q.addColorStop(.45, '#7d1c24'); q.addColorStop(.8, '#2c0910'); q.addColorStop(1, '#12040a'); k.fillStyle = q; k.fillRect(px - R, py - R, R * 2, R * 2);
+    for (let i = 0; i < 26; i++) { const y = py - R + (i + .5) * (R * 2 / 26) + Math.sin(i * 2.3) * 6, a = .025 + .05 * Math.abs(Math.sin(i * 1.7)), wv = 5 + 9 * Math.sin(i * .9); k.strokeStyle = i % 3 ? `rgba(255,150,120,${a})` : `rgba(40,5,10,${a * 1.8})`; k.lineWidth = 8 + (i * 7) % 16; k.lineCap = 'round'; k.beginPath();
+      for (let x = px - R; x <= px + R; x += 12) { const yy = y + Math.sin(x / 70 + i) * wv; x === px - R ? k.moveTo(x, yy) : k.lineTo(x, yy); } k.stroke(); }   // полосы облаков
+    for (let i = 0; i < 3; i++) { const sx = px - R * (.55 - i * .12), sy = py - R * (.62 - i * .2); q = k.createRadialGradient(sx, sy, 0, sx, sy, R * .09); q.addColorStop(0, 'rgba(255,190,150,.35)'); q.addColorStop(1, 'rgba(255,190,150,0)'); k.fillStyle = q; k.beginPath(); k.ellipse(sx, sy, R * .12, R * .05, -.3, 0, TAU); k.fill(); }   // вихри
+    q = k.createRadialGradient(px - lx * R * .6, py - ly * R * .6, R * .2, px - lx * R * .3, py - ly * R * .3, R * 1.2); q.addColorStop(0, 'rgba(0,0,0,.75)'); q.addColorStop(.6, 'rgba(0,0,0,.35)'); q.addColorStop(1, 'rgba(0,0,0,0)'); k.fillStyle = q; k.fillRect(px - R, py - R, R * 2, R * 2);   // тень
+    k.restore();
+    k.strokeStyle = 'rgba(255,200,180,.55)'; k.lineWidth = 1.2; k.beginPath(); k.arc(px, py, R, Math.PI * 1.08, Math.PI * 1.42); k.stroke();   // светлый край со стороны ядра
+    return { c, px, py, R }; }
+  function drawPlanet(g, W, H, s0) { if (!W || !H) return;   // окно нулевого размера — пропуск, иначе drawImage падает и анимация встаёт
+    if (!PLN || PLN.W !== W || PLN.H !== H) { PLN = planetLayer(W, H); PLN.W = W; PLN.H = H; } const { c, px, py, R } = PLN;
+    g.save(); g.globalAlpha = .9 + .1 * Math.sin(s0 * .8); g.drawImage(c, 0, 0, W, H); g.restore();
+    g.save(); g.translate(px, py); g.lineCap = 'butt';   // 27.10 владелец: «именно кольца сами» задвигать — каждое кольцо покачивается в своём ритме, по нему скользит отлив
+    // 27.10 владелец: «кольца как из кусков» — кольцо целое: задняя половина прячется за планетой по её краю, передняя идёт поверх; отлив — один гладкий мазок с плавной яркостью
+    [[1.3, .45], [1.36, .25], [1.44, .4], [1.5, .18]].forEach(([k, a], n) => { const tl = .42 + .045 * Math.sin(s0 * .22 + n * 1.7), fl = .22 + .025 * Math.sin(s0 * .3 + n * 2.3), rr = R * k * (1 + .006 * Math.sin(s0 * .5 + n));
+      const u = ((s0 / 9 - n * .035) % 1 + 1) % 1, h0 = Math.PI * (.3 + 1.4 * u), e = Math.min(1, u * 5, (1 - u) * 5);
+      const pa = t => Math.atan2(fl * Math.sin(t), Math.cos(t)), st0 = pa(h0 - Math.PI * .3);   // отлив одним мазком: конический градиент по углу эллипса, яркость нарастает и спадает плавно
+      let sh = null; if (g.createConicGradient && e > .01) { sh = g.createConicGradient(st0, 0, 0); sh.addColorStop(0, 'rgba(255,228,210,0)');
+        for (let q = 1; q < 24; q++) { const t = h0 - Math.PI * .3 + q * Math.PI * .6 / 24, w = Math.exp(-(((t - h0) / (Math.PI * .1)) ** 2)) * e; sh.addColorStop(Math.min(.999, ((pa(t) - st0) % TAU + TAU) % TAU / TAU), `rgba(255,228,210,${.6 * w * a / .45})`); }
+        sh.addColorStop(1, 'rgba(255,228,210,0)'); }
+      const pass = back => { g.strokeStyle = `rgba(255,185,165,${a})`; g.lineWidth = .7; g.beginPath(); g.ellipse(0, 0, rr, rr * fl, 0, back ? Math.PI : 0, back ? TAU : Math.PI); g.stroke();
+        if (sh) { g.globalCompositeOperation = 'lighter'; g.lineWidth = 1.6; g.strokeStyle = sh; g.beginPath(); g.ellipse(0, 0, rr, rr * fl, 0, back ? Math.PI : 0, back ? TAU : Math.PI); g.stroke(); }
+        g.globalCompositeOperation = 'source-over'; };
+      g.save(); g.rotate(tl); g.save(); g.beginPath(); g.rect(-R * 3, -R * 3, R * 6, R * 6); g.arc(0, 0, R, 0, TAU); g.clip('evenodd'); pass(true); g.restore(); pass(false); g.restore(); });
+    g.restore();
+    const ma = Math.PI * 1.28 + Math.sin(s0 * .05) * .12, mx = px + Math.cos(ma) * R * 1.2, my = py + Math.sin(ma) * R * 1.2, mr = Math.max(2.5, R * .018);   // маленькая луна у края планеты
+    const mq = g.createRadialGradient(mx - mr * .4, my - mr * .4, 0, mx, my, mr); mq.addColorStop(0, '#f4e6e0'); mq.addColorStop(.7, '#9b8a92'); mq.addColorStop(1, '#3a3038'); g.fillStyle = mq; g.beginPath(); g.arc(mx, my, mr, 0, TAU); g.fill(); }   // луна
+
+  // кометы: медленно летят по небу со светящимся хвостом; изредка — падающая звезда
+  const COMETS = [   // 27.10 владелец: «у комет хвост подлинее» — хвосты ×3
+   { x0: -.1, y0: .18, x1: 1.1, y1: .42, T: 46, ph: .1, s: 1.6, tail: 230 }, { x0: .2, y0: -.05, x1: .75, y1: .7, T: 62, ph: .55, s: 1.2, tail: 170 }, { x0: 1.08, y0: .1, x1: .35, y1: .36, T: 38, ph: .8, s: 1, tail: 130 }];
+  function comet(g, x, y, vx, vy, s, tail, a) { const d = Math.hypot(vx, vy) || 1, ux = vx / d, uy = vy / d, tx = x - ux * tail, ty = y - uy * tail;
+    const q = g.createLinearGradient(x, y, tx, ty); q.addColorStop(0, `rgba(255,236,225,${.75 * a})`); q.addColorStop(.25, `rgba(255,120,120,${.35 * a})`); q.addColorStop(1, 'rgba(200,40,70,0)');
+    g.strokeStyle = q; g.lineCap = 'round'; g.lineWidth = s * 1.6; g.beginPath(); g.moveTo(x, y); g.lineTo(tx, ty); g.stroke(); g.lineWidth = s * .5; g.strokeStyle = `rgba(255,250,245,${.5 * a})`; g.beginPath(); g.moveTo(x, y); g.lineTo(x - ux * tail * .35, y - uy * tail * .35); g.stroke();
+    const gl = g.createRadialGradient(x, y, 0, x, y, s * 6); gl.addColorStop(0, `rgba(255,245,235,${a})`); gl.addColorStop(.3, `rgba(255,150,140,${.4 * a})`); gl.addColorStop(1, 'rgba(255,90,100,0)'); g.fillStyle = gl; g.fillRect(x - s * 6, y - s * 6, s * 12, s * 12); }
+  // 27.10 владелец: медленные кометы «чтобы не выглядели как полосы» — голова с комой, хвост веером с изгибом, пыль сходит с хвоста
+  const CP = Array.from({ length: 130 }, (_, i) => ({ f: rnd(71, i), j: rnd(72, i) - .5, s: .5 + rnd(73, i) * 1.2, v: .1 + rnd(74, i) * .12 })), DOT_C = dot('255,205,190'), DOT_B = dot('190,215,255');
+  function slowComet(g, x, y, vx, vy, s, tail, a, s0, sd) { const d = Math.hypot(vx, vy) || 1, ux = vx / d, uy = vy / d, nx = -uy, ny = ux, L = tail * 1.15, bend = L * .12;
+    const fan = (len, w, b, c0, c1) => { const ex = x - ux * len + nx * b, ey = y - uy * len + ny * b, mx = x - ux * len * .5 + nx * b * .2, my = y - uy * len * .5 + ny * b * .2, q = g.createLinearGradient(x, y, ex, ey); q.addColorStop(0, c0); q.addColorStop(1, c1);
+      g.fillStyle = q; g.beginPath(); g.moveTo(x + nx * s, y + ny * s); g.quadraticCurveTo(mx + nx * w * .5, my + ny * w * .5, ex + nx * w, ey + ny * w); g.lineTo(ex - nx * w, ey - ny * w); g.quadraticCurveTo(mx - nx * w * .5, my - ny * w * .5, x - nx * s, y - ny * s); g.closePath(); g.fill(); };
+    [1, .66, .4, .2].forEach(k => fan(L * (1 - k * .15), L * .12 * k, bend, `rgba(255,170,150,${.055 * a})`, 'rgba(200,60,80,0)'));   // пылевой хвост: слои к краю прозрачнее — без жёсткой кромки, тёплый, изогнут
+    [1, .5, .22].forEach(k => fan(L * .85, L * .035 * k, 0, `rgba(200,220,255,${.09 * a})`, 'rgba(120,150,255,0)'));   // ионный хвост: узкий, голубой, прямой
+    for (const p of CP) { const f = (p.f + s0 * p.v + sd) % 1, w = f * L * .13 * p.j * 2, px = x - ux * f * L + nx * (bend * f * f + w), py = y - uy * f * L + ny * (bend * f * f + w), al = a * (1 - f) * (.5 + .5 * Math.sin(s0 * 3 + p.f * 40)); if (al < .02) continue; g.globalAlpha = al; const z = p.s * (2.2 + f * 2.5); g.drawImage(p.j > .3 ? DOT_B : DOT_C, px - z / 2, py - z / 2, z, z); } g.globalAlpha = 1;
+    const co = g.createRadialGradient(x, y, 0, x, y, s * 16); co.addColorStop(0, `rgba(255,250,245,${a})`); co.addColorStop(.12, `rgba(255,215,200,${.55 * a})`); co.addColorStop(.4, `rgba(220,160,190,${.14 * a})`); co.addColorStop(1, 'rgba(180,120,200,0)'); g.fillStyle = co; g.fillRect(x - s * 16, y - s * 16, s * 32, s * 32);   // кома
+    g.fillStyle = `rgba(255,255,255,${a})`; g.beginPath(); g.arc(x, y, s * .9, 0, TAU); g.fill(); }
+  function drawComets(g, W, H, s0) { g.save(); g.globalCompositeOperation = 'lighter';
+    for (const c of COMETS) { const u = (s0 / c.T + c.ph) % 1, x = (c.x0 + (c.x1 - c.x0) * u) * W, y = (c.y0 + (c.y1 - c.y0) * u) * H, a = Math.min(1, u * 8, (1 - u) * 8); slowComet(g, x, y, (c.x1 - c.x0) * W, (c.y1 - c.y0) * H, c.s, c.tail, a * .85, s0, c.ph); }
+    const k = Math.floor(s0 / 9), u = (s0 % 9) / .9; if (u < 1) { const sx = (rnd(k, 3) * .8 + .1) * W, sy = rnd(k, 5) * H * .35, ang = .55 + rnd(k, 7) * .4, len = 220 * u; comet(g, sx + Math.cos(ang) * len, sy + Math.sin(ang) * len, Math.cos(ang), Math.sin(ang), .7, 150 * (1 - u * .5), Math.sin(u * Math.PI)); }   // падающая звезда раз в 9 с
+    g.restore(); }
+  // спираль по образцу владельца: бусины тёмные сиренево-серые, оранжевым только отсвечивает сторона к свету; горячий жёлто-белый участок на передней нити, искры, пыль и боке
+  const HXT = ['95,55,70', '135,70,70', '185,95,60', '225,125,60', '245,160,85', '255,196,130'].map(dot);   // 27.10 владелец: «золотым с красным оттенком» — от тёмной винной бусины к медному и красному золоту
+  const HXP = Array.from({ length: 6400 }, (_, i) => ({ s: rnd(i, 21), k: i % 2, j: Math.sqrt(rnd(i, 23)), ph: rnd(i, 25) * TAU, z: .6 + rnd(i, 27) * .8 }));   // бусины нитей в трубке
+  const HXR = Array.from({ length: 34 * 28 }, (_, i) => ({ s: (Math.floor(i / 28) + .5) / 34, f: (i % 28 + rnd(i, 29)) / 28, j: rnd(i, 30), ph: rnd(i, 32) * TAU, z: .5 + rnd(i, 31) * .7 }));   // перемычки
+  const HXS = Array.from({ length: 200 }, (_, i) => ({ s: .04 + rnd(i, 33) * .5, k: i % 3 ? 0 : 1, a: rnd(i, 35) * TAU, v: .3 + rnd(i, 37), L: 2 + rnd(i, 39) * 4, ph: rnd(i, 41) }));   // искры, больше от горячего участка
+  const HXD = Array.from({ length: 150 }, (_, i) => ({ x: rnd(i, 51), y: rnd(i, 53), v: .004 + rnd(i, 55) * .01, ph: rnd(i, 57) * TAU, z: rnd(i, 59) }));   // пыль по всему небу
+  const HXB = Array.from({ length: 10 }, (_, i) => ({ x: rnd(i, 61), y: rnd(i, 63), r: .03 + rnd(i, 65) * .07, a: .05 + rnd(i, 67) * .09 }));   // боке
+  const LU = .75, LW = .66;   // свет: со стороны галактики (справа от спирали) и спереди
+  function hxAt(W, H, s, t) { const x0 = W * .1, y0 = H * 1.06, cx = W * .02, cy = H * .1, x1 = W * .68, y1 = -H * .12, u = 1 - s;   // 27.10 владелец: «а можешь ее слева сделать» — из-под левого нижнего края дугой за верх
+    const bx = u * u * x0 + 2 * u * s * cx + s * s * x1, by = u * u * y0 + 2 * u * s * cy + s * s * y1, dx = 2 * u * (cx - x0) + 2 * s * (x1 - cx), dy = 2 * u * (cy - y0) + 2 * s * (y1 - cy), dl = Math.hypot(dx, dy) || 1;
+    return [bx, by, -dy / dl, dx / dl, Math.min(W, H) * (.05 + .11 * u), s * TAU * 2.7 + t * .3]; }
+  function drawHelix(g, W, H, s0) { const sc = Math.min(W, H) / 800, fade = s => Math.min(1, s * 8, (1 - s) * 5), cl = v => v < 0 ? 0 : v > 1 ? 1 : v;
+    const hot = (s, z) => cl((s - .1) * 12) * cl((.4 - s) * 10) * cl((z - .2) * 2) * (.75 + .25 * Math.sin(s * 90 + s0 * 5) * Math.sin(s * 37 - s0 * 3));
+    g.save(); g.globalCompositeOperation = 'lighter';
+    for (const b of HXB) { const r = Math.min(W, H) * b.r; g.globalAlpha = b.a * (.8 + .2 * Math.sin(s0 * .3 + b.x * 9)); g.drawImage(HXT[3], b.x * W - r, b.y * H - r, r * 2, r * 2); }   // боке
+    for (const p of HXD) { const y = ((p.y - s0 * p.v) % 1 + 1) % 1, d = sc * (1 + p.z * 2.4); g.globalAlpha = (.25 + .45 * p.z) * (.6 + .4 * Math.sin(s0 * 1.3 + p.ph)); g.drawImage(HXT[4], p.x * W + Math.sin(s0 * .2 + p.ph) * 6 - d / 2, y * H - d / 2, d, d); }   // пыль
+    for (let i = 0; i < 300; i++) { const s = i / 299, k = i % 2, [x, y, nx, ny, amp, th] = hxAt(W, H, s, s0), t2 = th + k * Math.PI * .8, z = Math.sin(t2), lt = cl(Math.cos(t2) * LU + z * LW), ht = k ? 0 : hot(s, z), r = amp * (.3 + .2 * ht);
+      g.globalAlpha = (.03 + .06 * lt + .1 * ht) * fade(s); g.drawImage(HXT[ht > .3 ? 4 : 3], x + nx * amp * Math.cos(t2) - r, y + ny * amp * Math.cos(t2) - r, r * 2, r * 2); }   // мягкий отсвет вдоль нитей
+    for (const p of HXP) { const [x, y, nx, ny, amp, th] = hxAt(W, H, p.s, s0), t2 = th + p.k * Math.PI * .8, c = Math.cos(t2), z = Math.sin(t2), tr = amp * .13 * p.j, cu = Math.cos(p.ph), cw = Math.sin(p.ph), o = amp * c + tr * cu, dep = cl((z + tr * cw / amp + 1) / 2);
+      const lt = .55 * cl(cu * LU + cw * LW) + .45 * cl(c * LU + z * LW), ht = p.k ? 0 : hot(p.s, z) * cl(.3 + cu * LU + cw * LW), lv = cl(lt * .75 + ht), d = sc * p.z * (.85 + .85 * dep) * (1.8 - p.s * 1.1) * (1 + ht * .5);   // 27.10 владелец: бусины в 2 раза мельче
+      g.globalAlpha = cl((.22 + .4 * dep + .3 * lt + ht) * fade(p.s)); g.drawImage(HXT[Math.min(5, lv * 5.4 | 0)], x + nx * o - d / 2, y + ny * o - d / 2, d, d); }   // бусины нитей
+    for (const p of HXR) { const [x, y, nx, ny, amp, th] = hxAt(W, H, p.s, s0), c0 = Math.cos(th), z0 = Math.sin(th), c1 = Math.cos(th + Math.PI * .8), z1 = Math.sin(th + Math.PI * .8), cu = Math.cos(p.ph), cw = Math.sin(p.ph), tr = amp * .07 * p.j;
+      const c = c0 + (c1 - c0) * p.f, z = z0 + (z1 - z0) * p.f, o = amp * c + tr * cu, dep = cl((z + 1) / 2), lt = cl(cu * LU + cw * LW) * .5 + dep * .3, d = sc * p.z * (.7 + .7 * dep) * (1.8 - p.s * 1.1);
+      g.globalAlpha = cl((.3 + .4 * dep + .25 * lt) * fade(p.s)); g.drawImage(HXT[Math.min(5, lt * 5 | 0)], x + nx * o - d / 2, y + ny * o - d / 2, d, d); }   // перемычки
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    for (const [lw, a, col] of [[3, .14, '255,110,50'], [1.2, .5, '255,160,80'], [.5, .8, '255,210,150']]) { g.lineWidth = lw * sc; g.strokeStyle = `rgba(${col},${a})`; g.beginPath(); let on = false;
+      for (let i = 0; i <= 90; i++) { const s = .06 + .36 * i / 90, [x, y, nx, ny, amp, th] = hxAt(W, H, s, s0), z = Math.sin(th), hz = hot(s, z), jg = (Math.sin(s * 210 + s0 * 9) + Math.sin(s * 133 - s0 * 7)) * amp * .04, o = amp * Math.cos(th) + jg;
+        if (hz > .25) { on ? g.lineTo(x + nx * o, y + ny * o) : g.moveTo(x + nx * o, y + ny * o); on = true; } else on = false; } g.stroke(); }   // горячая жилка на передней нити
+    for (const p of HXS) { const age = ((s0 / p.L + p.ph) % 1), [x, y, nx, ny, amp, th] = hxAt(W, H, p.s, s0 - age * p.L), o = amp * Math.cos(th + p.k * Math.PI * .8), dist = age * p.v * 80 * sc, d = sc * (1.2 + 1.8 * (1 - age));
+      g.globalAlpha = (1 - age) * .75 * fade(p.s); g.drawImage(HXT[p.k ? 3 : 4], x + nx * o + Math.cos(p.a) * dist - d / 2, y + ny * o + Math.sin(p.a) * dist + age * age * 16 * sc - d / 2, d, d); }   // искры отрываются и гаснут
+    g.globalAlpha = 1; g.restore(); }
+
+  // 27.10 владелец: «делать скопление рядом у тех что на ходу» — облачко частиц вокруг звезды «на ходу», гуще у монеты, дышит и медленно кружит
+  const CL = Array.from({ length: 220 }, (_, i) => ({ r: Math.min(3, Math.sqrt(-2 * Math.log(1 - rnd(21, i) * .995))), a: rnd(22, i) * TAU, s: .5 + rnd(23, i) * 1.1, b: .35 + rnd(24, i) * .6, w: rnd(25, i) }));
+  function drawCluster(g, x, y, seed, s0, m) { const k = G.R * m * (1 + .1 * Math.sin(s0 * .6 + seed * 9)), gl = g.createRadialGradient(x, y, 0, x, y, k * 3); gl.addColorStop(0, 'rgba(235,230,255,.16)'); gl.addColorStop(.4, 'rgba(200,205,250,.05)'); gl.addColorStop(1, 'rgba(180,190,240,0)'); g.fillStyle = gl; g.fillRect(x - k * 3, y - k * 3, k * 6, k * 6);
+    for (const p of CL) { const a = p.a + s0 * .12 + seed * 7, px = x + Math.cos(a) * p.r * k, py = y + Math.sin(a) * p.r * k * .62, tw = .7 + .3 * Math.sin(s0 * (1 + p.w * 2.5) + p.w * 50); g.globalAlpha = Math.min(1, p.b * tw * (1 - p.r / 3.4)); const d = p.s * 2.2; g.drawImage(p.w > .88 ? DOT_R : DOT_W, px - d / 2, py - d / 2, d, d); } g.globalAlpha = 1; }
+  function frame(t) { const { g } = S, { W, H, P, R, cx, cy } = G, s0 = t / 1000, rot = s0 * .03; HIT = [];
+    const bg = g.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * .8); bg.addColorStop(0, '#10121c'); bg.addColorStop(1, '#040409'); g.fillStyle = bg; g.fillRect(0, 0, W, H); hudGrid(g, W, H, .05);
+    // 27.10 владелец: «эту часть сделай поинтереснее» — вместо красных плоскостей край красной планеты с атмосферой, кольцом и луной
+    drawPlanet(g, W, H, s0);
+    drawHelix(g, W, H, s0);   // 27.10 владелец: «что-то интересное большое» по образцу (спираль из искр) — спираль слева дугой над галактикой
+    drawComets(g, W, H, s0);   // 27.10 владелец: красные треугольники — «сделай поинтереснее»: кометы и падающая звезда
+    g.save(); g.globalCompositeOperation = 'lighter';
+    const core = g.createRadialGradient(cx, cy, 0, cx, cy, R * .45); core.addColorStop(0, 'rgba(255,250,240,.55)'); core.addColorStop(.1, 'rgba(250,240,250,.28)'); core.addColorStop(.35, 'rgba(180,185,240,.09)'); core.addColorStop(1, 'rgba(120,130,200,0)'); g.fillStyle = core; g.fillRect(cx - R * .45, cy - R * .45, R * .9, R * .9);   // 27.10 владелец: «может ядро больше сделать»
+    // 27.10 владелец: «вместо спирали превращается в круг со временем» — рукава крутятся целиком, без закрутки центра
+    for (const p of P) { const [x, y] = proj(p.r, p.a + rot), tw = .75 + .25 * Math.sin(s0 * (1 + p.w * 2) + p.w * 40); g.globalAlpha = Math.min(1, p.b * tw); const d = p.s * 2.4; g.drawImage(p.w > .9 ? DOT_R : DOT_W, x - d / 2, y - d / 2, d, d); } g.globalAlpha = 1;
+    // сеть линий между монетами — как паутина на образце
+    const pos = COINS.map(c => coinPos(c, t)); g.strokeStyle = 'rgba(220,228,245,.12)'; g.lineWidth = .3;
+    pos.forEach((p, i) => { let best = [], bd = []; pos.forEach((q, j) => { if (i === j) return; const d = (p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2; best.push([d, q]); }); best.sort((a, b) => a[0] - b[0]).slice(0, 2).forEach(([, q]) => { g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(q[0], q[1]); g.stroke(); }); });
+    COINS.forEach((c, i) => { if (c.g === 'go' || c.g === 'soon') drawCluster(g, pos[i][0], pos[i][1], c.seed, s0, c.g === 'go' ? .036 : .026); });   // «на ходу» в ядре — облачко и у «скоро» вокруг ядра
+    COINS.forEach((c, i) => { const [x, y] = pos[i], hv = HOVER === c; star(g, x, y, SZ[c.g] * (hv ? 1.5 : 1), COL[c.g], (.85 + .15 * Math.sin(s0 * 2.3 + c.seed * 30)) * (hv || c.g === 'go' || c.g === 'soon' ? 1 : .22)); HIT.push({ x, y, c }); });   // 27.10 владелец: «все звёзды затемним кроме тех что скоро и на ходу» — шевелятся/остальные тусклые, при наведении ярко
+    g.restore();
+    COINS.forEach((c, i) => { if (HOVER === c || !(c.g === 'go' || c.g === 'soon')) return; const [x, y] = pos[i]; g.font = c.g === 'go' ? '600 12px "Avenir Next", Futura, sans-serif' : '500 9px "Avenir Next", Futura, sans-serif'; g.fillStyle = c.g === 'go' || HOVER === c ? '#fff' : 'rgba(215,228,245,.72)'; g.textAlign = 'left'; g.fillText(c.nm, x + 10, y - 6); });
+    // легенда слева: тонкие линии и подписи колец
+    // 27.10 владелец: «слева не надо эти надписи» — легенду групп и подпись «ИЗБРАННОЕ» убрал
+    // 27.10 владелец: «эти крестики убери» — крестики по углам сняты
+
+    drawTipFx(g, W, s0); hitTest(); requestAnimationFrame(frame); }
+  requestAnimationFrame(frame);
+
+})();
+</script>
+<!-- 27.10 владелец: «давай 3й экран добавим в бота» — галактика избранного; переключатель орбита / озеро / галактика -->
+<style>#viewSw{position:fixed;z-index:20;right:16px;top:10px;display:flex;gap:4px;padding:3px;border:1px solid rgba(160,200,235,.28);border-radius:18px;background:rgba(8,15,22,.6);cursor:pointer;pointer-events:auto}#viewSw i{position:absolute;top:3px;left:3px;width:26px;height:26px;border-radius:50%;background:radial-gradient(circle,rgba(90,160,255,.45),rgba(40,90,200,.15));box-shadow:0 0 12px rgba(80,150,255,.55);transition:transform .5s cubic-bezier(.6,.1,.2,1)}#viewSw[data-i="1"] i{transform:translateX(30px)}#viewSw[data-i="2"] i{transform:translateX(60px)}#viewSw svg{position:relative;width:26px;height:26px;opacity:.35;transition:opacity .45s,filter .45s}#viewSw svg.lit{opacity:1;filter:drop-shadow(0 0 5px rgba(120,180,255,.95))}#viewSw svg:hover{opacity:.8}#viewSw:hover{border-color:rgba(200,230,255,.6)}</style><div id="viewSw" data-i="2"><i></i><span title="орбита" style="display:contents"><svg data-k="0" data-href="index.html" viewBox="0 0 26 26"><ellipse cx="13" cy="13" rx="10" ry="4.5" fill="none" stroke="#9fd0ff" stroke-width="1.2" transform="rotate(-20 13 13)"/><circle cx="13" cy="13" r="3" fill="#cfe6ff"/><circle cx="22" cy="9.6" r="1.5" fill="#fff"/></svg></span><span title="озеро" style="display:contents"><svg data-k="1" data-href="lake.html" viewBox="0 0 26 26"><circle cx="16.5" cy="9.5" r="4.5" fill="#FFC06A"/><path d="M3 17 Q7 14.5 11 17 T19 17 T25 17" fill="none" stroke="#9fd0ff" stroke-width="1.2"/><path d="M5 21 Q9 19 13 21 T21 21" fill="none" stroke="#6fa8d8" stroke-width="1"/></svg></span><span title="галактика" style="display:contents"><svg data-k="2" data-href="galaxy.html" class="lit" viewBox="0 0 26 26"><circle cx="13" cy="13" r="2.4" fill="#fff"/><path d="M13 13 C17 11 19 15 16 18 C12 21 6 17 7 12 C8 6 16 4 20 8" fill="none" stroke="#c9b8ff" stroke-width="1.1"/><circle cx="20" cy="8" r="1" fill="#ff9aa8"/><circle cx="6.5" cy="15" r=".9" fill="#cfe6ff"/><circle cx="18" cy="19" r=".8" fill="#cfe6ff"/></svg></span></div><script>(()=>{const a=document.getElementById("viewSw");a.querySelectorAll("svg").forEach(s=>s.addEventListener("click",e=>{e.preventDefault();const k=+s.dataset.k;if(k===+a.dataset.i)return;a.dataset.i=k;a.querySelectorAll("svg").forEach(x=>x.classList.toggle("lit",x===s));setTimeout(()=>{location.href=s.dataset.href},480);}));})();</script></body></html>

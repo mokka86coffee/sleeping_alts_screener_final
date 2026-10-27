@@ -67,6 +67,11 @@ def process_request(connection, request):
             return _resp(200, (BASE_DIR / "fast_site" / "lake.html").read_bytes(), "text/html; charset=utf-8")
         except OSError:
             return _resp(404, b"no lake page", "text/plain")
+    if path == "/galaxy.html":                               # 27.10 владелец: третий дизайн бота — «Галактика» избранного (fast_site/galaxy.html)
+        try:
+            return _resp(200, (BASE_DIR / "fast_site" / "galaxy.html").read_bytes(), "text/html; charset=utf-8")
+        except OSError:
+            return _resp(404, b"no galaxy page", "text/plain")
     return _resp(404, b"not found", "text/plain")
 
 
