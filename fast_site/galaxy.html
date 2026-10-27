@@ -191,10 +191,39 @@
         const tw = .85 + .15 * Math.sin(s0 * 1.7 + ph); for (let k = 0; k < 4; k++) ray(g, x, y, k * Math.PI / 2, 62 * tw, .9, .8); for (let k = 0; k < 4; k++) ray(g, x, y, Math.PI / 4 + k * Math.PI / 2, 22 * tw, .7, .55); }
       if (V === 5) { g.strokeStyle = `rgba(${GOLD},.7)`; g.lineWidth = .8; g.beginPath(); g.arc(x, y, 8 + Math.sin(s0 * 2 + ph), 0, TAU); g.stroke(); }
       g.drawImage(DOT_G, x - 6, y - 6, 12, 12); } }
+  // 27.10 владелец: «может планету какую-то нарисовать в огнях городов… там же справа вверху» — ночная сторона: золотые огни по материкам, нити дорог, голубая кромка атмосферы со стороны галактики, медленно вращается
+  const CITY = (() => { let sd = 20261027; const rn = () => { sd = sd + 0x6D2B79F5 | 0; let t = Math.imul(sd ^ sd >>> 15, 1 | sd); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };   // свой генератор: rnd() давал полоски
+    const land = (x, y, z) => Math.sin(3 * x + 1.3) * Math.sin(2.7 * y + .4) * Math.sin(3.3 * z + 2) + .45 * Math.sin(6.5 * x + 2.1 * z + .7) * Math.sin(5.8 * y - 1.1);
+    const sph = () => { const th = rn() * TAU, ph = Math.acos(2 * rn() - 1); return [Math.sin(ph) * Math.cos(th), Math.cos(ph), Math.sin(ph) * Math.sin(th)]; }, nrm = p => { const l = Math.hypot(...p); return p.map(q => q / l); }, d2 = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2, gs = () => (rn() + rn() + rn() - 1.5);
+    const M = [], P = [], RD = [];
+    for (let i = 0; i < 20000 && M.length < 44; i++) { const p = sph(); if (land(...p) > .25 && M.every(m => d2(m, p) > .05)) M.push(p); }
+    M.forEach(m => { const n = 30 + Math.floor(rn() * 50), w = .03 + rn() * .04; for (let k = 0; k < n; k++) P.push({ p: nrm([m[0] + gs() * w, m[1] + gs() * w, m[2] + gs() * w]), b: .45 + rn() * .55, s: k < 3 ? 2.6 : .9 + rn() * 1.2 }); });
+    for (let i = 0; i < 40000 && P.length < 7000; i++) { const p = sph(), n = land(...p); if (n > .1 && rn() < (n - .04) * 1.8) P.push({ p, b: (n < .22 ? .42 : .2) + rn() * .25, s: .5 + rn() * .7 }); }   // россыпь по суше, ярче у берегов
+    M.forEach((a, ai) => M.map((b, bi) => [d2(a, b), bi]).filter(q => q[1] > ai).sort((x, y) => x[0] - y[0]).slice(0, 2).forEach(([dd, bi]) => { if (dd < .35) RD.push(Array.from({ length: 17 }, (_, t) => nrm(a.map((q, j) => q * (1 - t / 16) + M[bi][j] * t / 16)))); }));
+    return { P, RD }; })();
+  const DOT_CT = dot('255,185,105'), DOT_CT2 = dot('255,228,175');
+  let NGT = null;
+  function nightLayer(W, H) { const d = Math.min(devicePixelRatio || 1, 2), c = document.createElement('canvas'); c.width = Math.round(W * d); c.height = Math.round(H * d); const k = c.getContext('2d'); k.setTransform(d, 0, 0, d, 0, 0);
+    const R = Math.min(W, H) * .352, px = W + R * .12, py = -R * .22,   // 27.10 владелец: «поменьше в 2 раза» → «увеличь обратно и уменьши на 20 %» (.44 × .8)
+    lx0 = G.cx - px, ly0 = G.cy - py, ll = Math.hypot(lx0, ly0), lx = lx0 / ll, ly = ly0 / ll;
+    const at = document.createElement('canvas'); at.width = c.width; at.height = c.height; const a = at.getContext('2d'); a.setTransform(d, 0, 0, d, 0, 0);
+    // 27.10 владелец: «голубой, просто поменьше яркости» — кромка вдвое тусклее
+    let q = a.createRadialGradient(px, py, R * .9, px, py, R * 1.09); q.addColorStop(0, 'rgba(80,170,255,0)'); q.addColorStop(.5, 'rgba(120,195,255,.3)'); q.addColorStop(.62, 'rgba(90,160,255,.12)'); q.addColorStop(1, 'rgba(60,120,255,0)'); a.fillStyle = q; a.fillRect(0, 0, W, H);
+    a.globalCompositeOperation = 'destination-in'; q = a.createLinearGradient(px - lx * R, py - ly * R, px + lx * R, py + ly * R); q.addColorStop(0, 'rgba(0,0,0,0)'); q.addColorStop(.55, 'rgba(0,0,0,.25)'); q.addColorStop(1, 'rgba(0,0,0,1)'); a.fillStyle = q; a.fillRect(0, 0, W, H);   // кромка только со стороны галактики
+    k.drawImage(at, 0, 0, W, H);
+    q = k.createRadialGradient(px + lx * R * .45, py + ly * R * .45, R * .1, px, py, R); q.addColorStop(0, '#111727'); q.addColorStop(.65, '#070a14'); q.addColorStop(1, '#04050b'); k.fillStyle = q; k.beginPath(); k.arc(px, py, R, 0, TAU); k.fill();
+    return { c, px, py, R, W, H }; }
+  function drawNight(g, W, H, s0) { if (!W || !H) return; if (!NGT || NGT.W !== W || NGT.H !== H) NGT = nightLayer(W, H); const { c, px, py, R } = NGT; g.drawImage(c, 0, 0, W, H);
+    const sp = s0 * .012, cs = Math.cos(sp), sn = Math.sin(sp), T = .42, ct = Math.cos(T), st = Math.sin(T), pr = p => { const x = p[0] * cs - p[2] * sn, z0 = p[0] * sn + p[2] * cs, y = p[1] * ct - z0 * st, z = p[1] * st + z0 * ct; return [px + R * x, py - R * y, z]; };
+    g.save(); g.globalCompositeOperation = 'lighter'; g.strokeStyle = 'rgba(255,175,95,.16)'; g.lineWidth = .5; g.beginPath();
+    for (const rd of CITY.RD) { let pv = null; for (const p of rd) { const q = pr(p); if (q[2] > .05) { if (pv) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]); pv = q; } else pv = null; } } g.stroke();
+    CITY.P.forEach((o, i) => { const [x, y, z] = pr(o.p); if (z <= 0) return; const f = Math.min(1, z / .3), tw = .8 + .2 * Math.sin(s0 * (1.5 + (i % 7) * .3) + i); g.globalAlpha = o.b * f * tw; const dd = o.s * 2 * (.6 + .4 * f); g.drawImage(o.s > 2 ? DOT_CT2 : DOT_CT, x - dd / 2, y - dd / 2, dd, dd); });
+    g.restore(); }
   function frame(t) { const { g } = S, { W, H, P, R, cx, cy } = G, s0 = t / 1000, rot = s0 * .03; HIT = [];
     const bg = g.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * .8); bg.addColorStop(0, '#10121c'); bg.addColorStop(1, '#040409'); g.fillStyle = bg; g.fillRect(0, 0, W, H); hudGrid(g, W, H, .05);
     // 27.10 владелец: «эту часть сделай поинтереснее» — вместо красных плоскостей край красной планеты с атмосферой, кольцом и луной
     drawPlanet(g, W, H, s0);
+    drawNight(g, W, H, s0);
     drawHelix(g, W, H, s0);   // 27.10 владелец: «что-то интересное большое» по образцу (спираль из искр) — спираль слева дугой над галактикой
     drawComets(g, W, H, s0);   // 27.10 владелец: красные треугольники — «сделай поинтереснее»: кометы и падающая звезда
     g.save(); g.globalCompositeOperation = 'lighter';
