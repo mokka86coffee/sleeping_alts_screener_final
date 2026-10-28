@@ -14988,3 +14988,11 @@
 {"t": 1793145249740, "sym": "DGAIUSDT", "side": "long", "usd": 509.8, "px": 0.7843, "src": "okx"}
 {"t": 1793145261204, "sym": "MUUSDT", "side": "short", "usd": 22244.63, "px": 942.17, "src": "okx"}
 {"t": 1793145279633, "sym": "VICRUSDT", "side": "short", "usd": 384.28, "px": 213.49, "src": "okx"}
+{"t": 1793145531291, "sym": "AXISUSDT", "side": "long", "usd": 311.3, "px": 0.2432, "src": "okx"}
+{"t": 1793145549266, "sym": "AXISUSDT", "side": "long", "usd": 406.39, "px": 0.2419, "src": "okx"}
+{"t": 1793145560242, "sym": "AXISUSDT", "side": "long", "usd": 369.34, "px": 0.2414, "src": "okx"}
+{"t": 1793145561931, "sym": "AXISUSDT", "side": "long", "usd": 9.62, "px": 0.2405, "src": "okx"}
+{"t": 1793145593695, "sym": "EVAAUSDT", "side": "short", "usd": 2945.93, "px": 1.2355, "src": "bybit"}
+{"t": 1793138045440, "sym": "AKEUSDT", "side": "long", "usd": 6367.76, "px": 0.02192, "src": "okx"}
+{"t": 1793138161891, "sym": "AKEUSDT", "side": "long", "usd": 331.82, "px": 0.02183, "src": "okx"}
+{"t": 1793139402160, "sym": "PUMPUSDT", "side": "short", "usd": 121.88, "px": 0.004353, "src": "okx"}
