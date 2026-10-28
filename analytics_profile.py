@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from core_tail import tail_lines   # 28.10: хвост журнала с конца, без чтения целиком
 
 try:
     from core_config import BASE_DIR
@@ -61,7 +62,7 @@ def _queue_recent(hours: float = 3.0) -> dict:
     since = datetime.now(timezone.utc).timestamp() - hours * 3600
     out: dict = {}
     try:
-        lines = p.read_text(encoding="utf-8").splitlines()[-40000:]
+        lines = tail_lines(p, 40000)   # 28.10: хвост с конца, файл 683 МБ не читается целиком
     except OSError:
         return out
     for line in lines:

@@ -39,6 +39,7 @@ import json
 from collections import OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
+from core_tail import tail_lines   # 28.10: хвост журнала с конца, без чтения целиком
 
 
 def _read_json(name: str):
@@ -537,7 +538,7 @@ def _fast_events(days: int | None = None, only: list | None = None) -> dict:
                            Path(__file__).resolve().parent / "output" / "queue_log.jsonl") if q.exists()), None)
     if ql is not None:
         try:
-            lines = ql.read_text(encoding="utf-8").splitlines()[-6000:]
+            lines = tail_lines(ql, 6000)   # 28.10: хвост с конца, файл 683 МБ не читается целиком
         except OSError:
             lines = []
         seen_top: dict = {}

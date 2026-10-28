@@ -49,6 +49,26 @@ def _jsonl(path: Path) -> list[dict]:
     return out
 
 
+def _jsonl_keys(path: Path, keys: tuple, pick=None) -> list[dict]:
+    """ПОСТРОЧНО И ТОЛЬКО НУЖНЫЕ ПОЛЯ (28.10): _jsonl держал весь queue_log.jsonl (683 МБ) строкой и все записи целиком —
+    run.py раздувался до 4–5 ГБ. Здесь файл идёт по строке, у записи остаются только keys; pick(r) → значение по записи вместо словаря."""
+    out: list = []
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except ValueError:
+                    continue
+                out.append(pick(r) if pick else {k: r[k] for k in keys if k in r})
+    except OSError:
+        pass
+    return out
+
+
 def _bars(sym: str) -> list[dict]:
     rows = _jsonl(INTRA / f"{sym.replace('USDT', '').lower()}.jsonl")
     rows.sort(key=lambda r: str(r.get("candle") or ""))
@@ -75,12 +95,13 @@ def _session_of(hhmm: str) -> str:
 
 def _bg_rows() -> list[dict]:
     """Лента фона целиком — сырая, как пишется каждый прогон."""
-    rows = [r for r in _jsonl(OUTD / "market_bg.jsonl") if r.get("at")]
+    rows = [r for r in _jsonl_keys(OUTD / "market_bg.jsonl", BG_KEYS) if r.get("at")]   # 28.10: только поля для _bg_at
     rows.sort(key=lambda r: str(r.get("at")))
     return rows
 
 
 _BG_CACHE: list = []
+BG_KEYS = ("at", "btc", "breadth", "risk_on", "taker", "leader", "pumps", "money")   # 28.10: что читает _bg_at
 
 
 def _bg_at(day: str, hhmm: str) -> dict:
@@ -121,9 +142,12 @@ def _bg_at(day: str, hhmm: str) -> dict:
     }
 
 
+Q1_KEYS = ("at", "sym", "place", "score", "move_pct", "oi_chg_pct", "oi_trend_pct", "today", "stage", "bubble", "mode", "engine", "size")   # 28.10: что читает _part1
+
+
 def _part1() -> dict:
     """Монеты, побывавшие в первых: путь по местам, вход и выход, цены дня."""
-    q = [r for r in _jsonl(OUTD / "queue_log.jsonl") if r.get("at") and r.get("sym")]
+    q = [r for r in _jsonl_keys(OUTD / "queue_log.jsonl", Q1_KEYS) if r.get("at") and r.get("sym")]   # 28.10: построчно, только поля ниже
     q.sort(key=lambda r: (str(r["at"]), r.get("place") or 99))
     runs = sorted({r["at"] for r in q})
     by_run: dict = {}
@@ -257,7 +281,7 @@ def _part3() -> dict:
     # ПО ДНЯМ, А НЕ СРАЗУ ЗА ВСЮ ИСТОРИЮ (09.09, владелец: «пузыри и уровни — один и тот же процент
     # за все дни»): раньше считалось по всему архиву и одно число показывалось на каждой вкладке.
     # Теперь каждая дата считается отдельно, плюс общий итог под ключом «все».
-    syms = {r["sym"] for r in _jsonl(OUTD / "queue_log.jsonl") if r.get("sym")}
+    syms = {s for s in _jsonl_keys(OUTD / "queue_log.jsonl", (), pick=lambda r: r.get("sym")) if s}   # 28.10: построчно, только имя
     by_day: dict = {}
 
     def _slot(day: str):
@@ -349,6 +373,7 @@ def _part3() -> dict:
 
 
 def build_data() -> dict:
+    _BG_CACHE.clear()                   # 28.10: лента фона перечитывается каждую сборку — в run.py --loop кэш жил весь процесс и новых дней не видел
     days = _part1()
     p3 = _part3()
     rows = [r for v in days.values() for r in v]

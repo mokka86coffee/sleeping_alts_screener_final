@@ -25,6 +25,7 @@ import json
 import statistics
 import sys
 from pathlib import Path
+from core_tail import tail_lines   # 28.10: хвост журнала с конца, без чтения целиком
 
 try:
     from core_config import (BASE_DIR, VORTEX_SCORE_BOOST, VORTEX_SCORE_MAX_AGO, PUMP_LEADERS_PATH,
@@ -1302,7 +1303,7 @@ def build(only: list[str] | None = None) -> dict:
         if (s2 in ordered and s2 in _live_syms and not _q.get("out_reason") and not _t.get("ended_at")):
             _held.append(s2)
     try:
-        _lines = (BASE_DIR / "output" / "queue_log.jsonl").read_text(encoding="utf-8").splitlines()[-3000:]
+        _lines = tail_lines((BASE_DIR / "output" / "queue_log.jsonl"), 3000)   # 28.10: хвост с конца, файл 683 МБ не читается целиком
         _byrun: dict = {}
         _last_streak: dict = {}
         for _ln in _lines:

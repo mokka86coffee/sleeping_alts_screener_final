@@ -26,6 +26,7 @@ import re
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from core_tail import tail_lines   # 28.10: хвост журнала с конца, без чтения целиком
 
 from core_time import row_dt
 
@@ -661,7 +662,7 @@ def collect_items() -> list[dict]:
         _since = _now - timedelta(hours=24)
         _slots: dict = {}                                          # номер получаса → кто был первым (для рисунка)
         _runs: dict = {}                                           # прогон → {монета: место}
-        for _line in (BASE_DIR / "output" / "queue_log.jsonl").read_text(encoding="utf-8").splitlines()[-9000:]:
+        for _line in tail_lines((BASE_DIR / "output" / "queue_log.jsonl"), 9000):   # 28.10: хвост с конца (core_tail) — файл 683 МБ больше не читается в память целиком
             try:
                 _r = json.loads(_line)
             except ValueError:
@@ -1118,8 +1119,8 @@ def render_intro(items: list[dict] | None = None) -> str:
             # только то, что сработало: пустых строк не будет.
             _risk: list = []
             try:
-                _rows = [json.loads(_l) for _l in
-                         (BASE_DIR / "output" / "queue_log.jsonl").read_text(encoding="utf-8").splitlines()
+                _rows = [json.loads(_l) for _l in                  # 28.10: последние ~сутки журнала (12000 строк) с конца, а не весь файл 683 МБ —
+                         tail_lines((BASE_DIR / "output" / "queue_log.jsonl"), 12000)   #   ищется последняя строка текущей монеты
                          if _l.strip()]
                 _last = next((r for r in reversed(_rows) if r.get("sym") == _sym), None)
             except (OSError, ValueError):
@@ -1210,7 +1211,7 @@ def render_intro(items: list[dict] | None = None) -> str:
         _since = datetime.now(timezone.utc) - timedelta(hours=24)
         _n1 = 0
         if _first:
-            for _line in (BASE_DIR / "output" / "queue_log.jsonl").read_text(encoding="utf-8").splitlines()[-4000:]:
+            for _line in tail_lines((BASE_DIR / "output" / "queue_log.jsonl"), 4000):   # 28.10: хвост с конца (core_tail) — файл 683 МБ больше не читается в память целиком
                 try:
                     _r = json.loads(_line)
                 except ValueError:
@@ -1298,7 +1299,7 @@ def render_intro(items: list[dict] | None = None) -> str:
     # мелькающие: за последние 6 прогонов были и в первых, и вне их
     try:
         _by: dict = {}
-        for line in (BASE_DIR / "output" / "queue_log.jsonl").read_text(encoding="utf-8").splitlines():
+        for line in tail_lines((BASE_DIR / "output" / "queue_log.jsonl"), 12000):   # 28.10: последние ~сутки (нужны 6 последних прогонов), не весь файл 683 МБ
             try:
                 _r = json.loads(line)
             except ValueError:
