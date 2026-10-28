@@ -821,11 +821,34 @@ def _git(*cmd: str) -> tuple[int, str]:
     return proc.returncode, out.strip()
 
 
+def write_galaxy_state() -> None:
+    """28.10 владелец: галактика на сайте (GitHub Pages) — «только избранное и первые в очереди»,
+    «ни котлов, ни каждой сделки». Из output/fast_state.json (в гит не идёт) — малый срез для fast_site/galaxy.html."""
+    src, dst = BASE_DIR / "output" / "fast_state.json", BASE_DIR / "fast_site" / "galaxy_state.json"
+    try:
+        d = json.loads(src.read_text(encoding="utf-8"))
+        out = {
+            "favorites": d.get("favorites") or [],
+            "queue": [{"sym": q.get("sym"), "cap": q.get("cap"), "v2c": q.get("v2c"), "closes": (q.get("closes") or [])[-1:]}
+                      for q in d.get("queue") or [] if q.get("sym")],
+            "week": [{"sym": w.get("sym"), "n": w.get("n"), "day": w.get("day"), "hours": w.get("hours"), "v2c": w.get("v2c"), "px": w.get("px")}
+                     for w in d.get("week") or [] if w.get("sym")],
+            "up24": [{"sym": u.get("sym"), "chg": u.get("chg")} for u in d.get("up24") or [] if u.get("sym")],
+        }
+        tmp = dst.with_suffix(".tmp")
+        tmp.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        tmp.replace(dst)
+    except (OSError, ValueError) as e:
+        log(f"✗ срез галактики: {type(e).__name__}: {e}")
+
+
 def git_publish() -> bool:
     """add → commit → push. Пустой коммит не создаётся."""
     if not (BASE_DIR / ".git").exists():
         log("→ git: репозиторий не найден, публикация пропущена")
         return False
+
+    write_galaxy_state()   # 28.10: срез для галактики на сайте уходит вместе с этой публикацией
 
     code, out = _git("add", GIT_ADD_ALL_CHANGED) # GIT_ADD_HTML_ONLY | GIT_ADD_ALL_CHANGED
     if code != 0:
