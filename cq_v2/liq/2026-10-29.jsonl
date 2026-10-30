@@ -39590,3 +39590,15 @@
 {"t": 1793307879539, "sym": "SECZUSDT", "side": "long", "usd": 8.14, "px": 8.144, "src": "okx"}
 {"t": 1793307901610, "sym": "ZECUSDT", "side": "long", "usd": 531.44, "px": 1235.9, "src": "okx"}
 {"t": 1793307913314, "sym": "ZECUSDT", "side": "long", "usd": 716.03, "px": 1234.54, "src": "okx"}
+{"t": 1793308230253, "sym": "QQQUSDT", "side": "long", "usd": 21206.4, "px": 706.88, "src": "okx"}
+{"t": 1793308332709, "sym": "GRVTUSDT", "side": "long", "usd": 6.48, "px": 0.21603, "src": "okx"}
+{"t": 1793308383758, "sym": "SNDKUSDT", "side": "short", "usd": 832.8, "px": 1311.5, "src": "okx"}
+{"t": 1793308398610, "sym": "TRXUSDT", "side": "short", "usd": 1011.14, "px": 0.33931, "src": "okx"}
+{"t": 1793308516218, "sym": "INTWUSDT", "side": "long", "usd": 246.99, "px": 11.33, "src": "okx"}
+{"t": 1793308523397, "sym": "BTCUSDT", "side": "short", "usd": 206.0, "px": 79231.1, "src": "okx"}
+{"t": 1793308527123, "sym": "ETHUSDT", "side": "short", "usd": 800.57, "px": 2274.36, "src": "okx"}
+{"t": 1793308597035, "sym": "ZECUSDT", "side": "short", "usd": 17339.58, "px": 1271.23, "src": "okx"}
+{"t": 1793308598827, "sym": "ZECUSDT", "side": "short", "usd": 12.72, "px": 1272.28, "src": "okx"}
+{"t": 1793308650189, "sym": "BTCUSDT", "side": "short", "usd": 2327.92, "px": 79451.2, "src": "okx"}
+{"t": 1793308650382, "sym": "INJUSDT", "side": "short", "usd": 263.24, "px": 7.608, "src": "okx"}
+{"t": 1793308660193, "sym": "STRKUSDT", "side": "short", "usd": 310.78, "px": 0.04329, "src": "okx"}
