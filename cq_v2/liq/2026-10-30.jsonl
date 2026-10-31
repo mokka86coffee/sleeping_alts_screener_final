@@ -25183,3 +25183,8 @@
 {"t": 1793327821301, "sym": "BTCUSDT", "side": "short", "usd": 69.69, "px": 77437.4, "src": "okx"}
 {"t": 1793327876771, "sym": "ETHUSDT", "side": "short", "usd": 28626.61, "px": 2217.57, "src": "okx"}
 {"t": 1793327933326, "sym": "BTCUSDT", "side": "short", "usd": 31.0, "px": 77507.4, "src": "okx"}
+{"t": 1793328320513, "sym": "ZECUSDT", "side": "short", "usd": 177.7, "px": 1269.25, "src": "okx"}
+{"t": 1793328414108, "sym": "MERLUSDT", "side": "short", "usd": 1681.66, "px": 0.02757, "src": "okx"}
+{"t": 1793329017472, "sym": "CVXUSDT", "side": "long", "usd": 7.11, "px": 1.778, "src": "okx"}
+{"t": 1793329422636, "sym": "TRXUSDT", "side": "long", "usd": 3.51, "px": 0.35127, "src": "okx"}
+{"t": 1793329450130, "sym": "DOODUSDT", "side": "short", "usd": 542.43, "px": 0.002024, "src": "okx"}

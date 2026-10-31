@@ -2536,3 +2536,5 @@
 2026-10-30 09:45:24 нет в архиве: 1 (alpine)
 2026-10-30 09:45:24 добор новичков: alpine
 2026-10-30 09:45:36 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json (прицельно, full_at не тронут)
+2026-10-31 01:45:55 данные по 2026-10-29, ждём 2026-10-30 (возраст 23.3 ч)
+2026-10-31 01:45:55 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
