@@ -25492,3 +25492,12 @@
 {"t": 1793351706446, "sym": "PARTIUSDT", "side": "long", "usd": 22.53, "px": 0.05364, "src": "okx"}
 {"t": 1793351761110, "sym": "PARTIUSDT", "side": "long", "usd": 132.09, "px": 0.05305, "src": "okx"}
 {"t": 1793351918202, "sym": "SNDKUSDT", "side": "long", "usd": 255.11, "px": 1262.9, "src": "okx"}
+{"t": 1793351984191, "sym": "BTCUSDT", "side": "long", "usd": 5890.42, "px": 77710.0, "src": "okx"}
+{"t": 1793352010533, "sym": "BTCUSDT", "side": "long", "usd": 994.43, "px": 77689.8, "src": "okx"}
+{"t": 1793352136924, "sym": "BTCUSDT", "side": "long", "usd": 27248.45, "px": 77630.9, "src": "okx"}
+{"t": 1793352139116, "sym": "SNDKUSDT", "side": "long", "usd": 117.94, "px": 1254.7, "src": "okx"}
+{"t": 1793352139116, "sym": "BTCUSDT", "side": "long", "usd": 163.02, "px": 77629.9, "src": "okx"}
+{"t": 1793352151699, "sym": "BTCUSDT", "side": "long", "usd": 3818.05, "px": 77602.7, "src": "okx"}
+{"t": 1793352166196, "sym": "SNDKUSDT", "side": "long", "usd": 263.94, "px": 1250.9, "src": "okx"}
+{"t": 1793352773473, "sym": "BTCUSDT", "side": "long", "usd": 7600.29, "px": 77554.0, "src": "okx"}
+{"t": 1793352849239, "sym": "DOODUSDT", "side": "short", "usd": 119.5, "px": 0.001959, "src": "okx"}
