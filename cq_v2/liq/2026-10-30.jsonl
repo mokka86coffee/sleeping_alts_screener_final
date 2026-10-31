@@ -25313,3 +25313,12 @@
 {"t": 1793340061266, "sym": "ETHUSDT", "side": "long", "usd": 9248.72, "px": 2235.61, "src": "okx"}
 {"t": 1793340133545, "sym": "TRXUSDT", "side": "long", "usd": 13.53, "px": 0.33835, "src": "okx"}
 {"t": 1793340325827, "sym": "SKHYUSDT", "side": "long", "usd": 1943.27, "px": 151.11, "src": "okx"}
+{"t": 1793340468684, "sym": "ARBUSDT", "side": "short", "usd": 13748.09, "px": 0.16517, "src": "okx"}
+{"t": 1793340756698, "sym": "ZHONGJIUSDT", "side": "long", "usd": 51.14, "px": 86.68, "src": "okx"}
+{"t": 1793341060448, "sym": "DOODUSDT", "side": "long", "usd": 500.49, "px": 0.001903, "src": "okx"}
+{"t": 1793341229553, "sym": "XRPUSDT", "side": "short", "usd": 15.17, "px": 1.2638, "src": "okx"}
+{"t": 1793341733627, "sym": "WLDUSDT", "side": "short", "usd": 8.01, "px": 0.4004, "src": "okx"}
+{"t": 1793341790054, "sym": "AAVEUSDT", "side": "short", "usd": 15315.37, "px": 127.49, "src": "okx"}
+{"t": 1793341811104, "sym": "ARBUSDT", "side": "short", "usd": 407.88, "px": 0.16621, "src": "okx"}
+{"t": 1793341812030, "sym": "ETHUSDT", "side": "short", "usd": 883.92, "px": 2254.89, "src": "okx"}
+{"t": 1793341825477, "sym": "SOPHUSDT", "side": "short", "usd": 54.53, "px": 0.001782, "src": "okx"}
