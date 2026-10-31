@@ -25341,3 +25341,5 @@
 {"t": 1793343747726, "sym": "PARTIUSDT", "side": "long", "usd": 1.55, "px": 0.05153, "src": "okx"}
 {"t": 1793343847915, "sym": "HYPEUSDT", "side": "short", "usd": 131.23, "px": 93.733, "src": "okx"}
 {"t": 1793344127214, "sym": "LITUSDT", "side": "long", "usd": 2861.45, "px": 2.9139, "src": "okx"}
+{"t": 1793345262251, "sym": "APRUSDT", "side": "long", "usd": 121.38, "px": 0.05443, "src": "okx"}
+{"t": 1793345508830, "sym": "CRVUSDT", "side": "short", "usd": 65.01, "px": 0.279, "src": "okx"}
