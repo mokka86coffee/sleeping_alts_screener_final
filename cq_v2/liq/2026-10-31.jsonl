@@ -7543,3 +7543,10 @@
 {"t": 1793490033841, "sym": "AKEUSDT", "side": "long", "usd": 82.73, "px": 0.010606, "src": "bybit"}
 {"t": 1793490223317, "sym": "BTCUSDT", "side": "long", "usd": 617.54, "px": 77192.0, "src": "bybit"}
 {"t": 1793490388229, "sym": "JCTUSDT", "side": "short", "usd": 167.33, "px": 0.00498, "src": "bybit"}
+{"t": 1793490613358, "sym": "LITUSDT", "side": "long", "usd": 4560.54, "px": 3.1539, "src": "okx"}
+{"t": 1793490965238, "sym": "DOODUSDT", "side": "short", "usd": 486.84, "px": 0.001971, "src": "okx"}
+{"t": 1793490965301, "sym": "BTWUSDT", "side": "long", "usd": 40.79, "px": 1.0734, "src": "okx"}
+{"t": 1793490967029, "sym": "PARTIUSDT", "side": "short", "usd": 31.29, "px": 0.04889, "src": "okx"}
+{"t": 1793490985758, "sym": "BTWUSDT", "side": "long", "usd": 1271.26, "px": 1.0656, "src": "okx"}
+{"t": 1793491033180, "sym": "APRUSDT", "side": "short", "usd": 228.02, "px": 0.05521, "src": "okx"}
+{"t": 1793491157487, "sym": "HYPEUSDT", "side": "short", "usd": 69.94, "px": 88.528, "src": "bybit"}
