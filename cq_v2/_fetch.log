@@ -2553,3 +2553,5 @@
 2026-10-31 20:22:41 нет в архиве: 1 (zbt)
 2026-10-31 20:22:41 добор новичков: zbt
 2026-10-31 20:22:50 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json (прицельно, full_at не тронут)
+2026-11-01 01:46:20 данные по 2026-10-30, ждём 2026-10-31 (возраст 22.0 ч)
+2026-11-01 01:46:20 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
