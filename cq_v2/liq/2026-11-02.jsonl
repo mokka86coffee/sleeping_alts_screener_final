@@ -18507,3 +18507,10 @@
 {"t": 1793637055299, "sym": "BTCUSDT", "side": "long", "usd": 1082.7, "px": 77335.7, "src": "okx"}
 {"t": 1793637055299, "sym": "ZECUSDT", "side": "long", "usd": 392.82, "px": 1227.55, "src": "okx"}
 {"t": 1793637108614, "sym": "AEONUSDT", "side": "long", "usd": 760.5, "px": 0.02535, "src": "okx"}
+{"t": 1793637343365, "sym": "HUMAUSDT", "side": "short", "usd": 2123.32, "px": 0.02293, "src": "okx"}
+{"t": 1793637345736, "sym": "HUMAUSDT", "side": "short", "usd": 13.8, "px": 0.023, "src": "okx"}
+{"t": 1793637487724, "sym": "INITUSDT", "side": "long", "usd": 122.0, "px": 0.13864, "src": "okx"}
+{"t": 1793637592378, "sym": "HUMAUSDT", "side": "short", "usd": 6391.0, "px": 0.02324, "src": "okx"}
+{"t": 1793637633704, "sym": "SOXLUSDT", "side": "long", "usd": 539.93, "px": 75.62, "src": "okx"}
+{"t": 1793638085782, "sym": "AAOIUSDT", "side": "long", "usd": 37.31, "px": 67.83, "src": "okx"}
+{"t": 1793638534517, "sym": "AXSUSDT", "side": "long", "usd": 139.73, "px": 0.8367, "src": "okx"}
