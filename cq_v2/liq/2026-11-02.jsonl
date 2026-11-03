@@ -18371,3 +18371,7 @@
 {"t": 1793663872609, "sym": "ANTHROPICUSDT", "side": "long", "usd": 2.45, "px": 163.51, "src": "okx"}
 {"t": 1793663890554, "sym": "ANTHROPICUSDT", "side": "long", "usd": 31.86, "px": 163.4, "src": "okx"}
 {"t": 1793663995036, "sym": "DUSKUSDT", "side": "long", "usd": 23.1, "px": 0.07805, "src": "bybit"}
+{"t": 1793633186929, "sym": "AKEUSDT", "side": "long", "usd": 971.52, "px": 0.00552, "src": "okx"}
+{"t": 1793633333006, "sym": "SKHYNIXUSDT", "side": "short", "usd": 68.06, "px": 1097.7, "src": "okx"}
+{"t": 1793633415791, "sym": "APRUSDT", "side": "long", "usd": 1281.75, "px": 0.05127, "src": "okx"}
+{"t": 1793633557856, "sym": "SNDKUSDT", "side": "long", "usd": 12.48, "px": 1134.2, "src": "okx"}
