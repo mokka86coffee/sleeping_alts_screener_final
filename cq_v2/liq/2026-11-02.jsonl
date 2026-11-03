@@ -19089,3 +19089,5 @@
 {"t": 1793655294593, "sym": "AKEUSDT", "side": "short", "usd": 17.95, "px": 0.00579, "src": "okx"}
 {"t": 1793655422336, "sym": "SOXSUSDT", "side": "long", "usd": 5.7, "px": 56.98, "src": "okx"}
 {"t": 1793655468802, "sym": "PEPEUSDT", "side": "short", "usd": 57.57, "px": 4.7973e-06, "src": "okx"}
+{"t": 1793655865644, "sym": "ZECUSDT", "side": "short", "usd": 10565.1, "px": 1161.0, "src": "okx"}
+{"t": 1793656590508, "sym": "SOLUSDT", "side": "short", "usd": 80.21, "px": 92.19, "src": "okx"}
