@@ -11572,3 +11572,6 @@
 {"t": 1793710289521, "sym": "PIPPINUSDT", "side": "short", "usd": 1.1, "px": 0.01373, "src": "okx"}
 {"t": 1793710330346, "sym": "XRPUSDT", "side": "short", "usd": 51500.0, "px": 1.2875, "src": "okx"}
 {"t": 1793710577857, "sym": "LITUSDT", "side": "short", "usd": 774.69, "px": 3.2414, "src": "okx"}
+{"t": 1793711313255, "sym": "ACTUSDT", "side": "short", "usd": 0.27, "px": 0.008846, "src": "okx"}
+{"t": 1793711535923, "sym": "AKEUSDT", "side": "long", "usd": 7.67, "px": 0.00426, "src": "okx"}
+{"t": 1793712174685, "sym": "XPLUSDT", "side": "long", "usd": 105.02, "px": 0.06443, "src": "okx"}
