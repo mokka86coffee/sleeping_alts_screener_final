@@ -11422,3 +11422,9 @@
 {"t": 1793694235922, "sym": "TRUMPUSDT", "side": "long", "usd": 117.3, "px": 1.564, "src": "okx"}
 {"t": 1793694460447, "sym": "NEARUSDT", "side": "long", "usd": 1717.96, "px": 3.751, "src": "okx"}
 {"t": 1793695023274, "sym": "BTCUSDT", "side": "long", "usd": 757.61, "px": 76526.0, "src": "okx"}
+{"t": 1793695258615, "sym": "XAGUSDT", "side": "long", "usd": 212.08, "px": 48.98, "src": "okx"}
+{"t": 1793695321858, "sym": "XAUUSDT", "side": "long", "usd": 336.6, "px": 3914.0, "src": "okx"}
+{"t": 1793695502599, "sym": "XAUUSDT", "side": "long", "usd": 590.56, "px": 3911.0, "src": "okx"}
+{"t": 1793695564461, "sym": "XAUUSDT", "side": "long", "usd": 715.29, "px": 3908.7, "src": "okx"}
+{"t": 1793695613381, "sym": "AKEUSDT", "side": "short", "usd": 0.92, "px": 0.00459, "src": "okx"}
+{"t": 1793696176292, "sym": "CYPHUSDT", "side": "long", "usd": 685.71, "px": 2.3564, "src": "okx"}
