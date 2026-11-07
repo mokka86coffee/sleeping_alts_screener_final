@@ -21164,3 +21164,5 @@
 {"t": 1793987973229, "sym": "AKEUSDT", "side": "long", "usd": 1217.6, "px": 0.003805, "src": "okx"}
 {"t": 1793988167319, "sym": "SNXXUSDT", "side": "long", "usd": 41.59, "px": 3.175, "src": "okx"}
 {"t": 1793988232629, "sym": "LITUSDT", "side": "long", "usd": 441.88, "px": 3.3224, "src": "okx"}
+{"t": 1793988521003, "sym": "AKEUSDT", "side": "long", "usd": 188.2, "px": 0.003749, "src": "okx"}
+{"t": 1793988597058, "sym": "AKEUSDT", "side": "short", "usd": 62.65, "px": 0.003965, "src": "okx"}
