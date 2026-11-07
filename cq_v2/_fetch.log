@@ -3281,3 +3281,11 @@
 2026-11-07 07:51:04 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
 2026-11-07 07:52:04 дозабор, попытка 2: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
 2026-11-07 07:52:05 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-11-07 08:21:11 нет в архиве: 1 (cyber)
+2026-11-07 08:21:11 добор новичков: cyber
+2026-11-07 08:21:12 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-11-07 08:21:12 данные по 2026-11-03, ждём 2026-11-06 (возраст 76.3 ч)
+2026-11-07 08:21:12 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-11-07 08:21:13 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-11-07 08:22:13 дозабор, попытка 2: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-11-07 08:22:13 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
