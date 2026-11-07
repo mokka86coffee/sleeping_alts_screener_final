@@ -21200,3 +21200,9 @@
 {"t": 1793993965551, "sym": "ANTHROPICUSDT", "side": "long", "usd": 10564.8, "px": 132.06, "src": "okx"}
 {"t": 1793995031404, "sym": "APPUSDT", "side": "short", "usd": 115.36, "px": 397.78, "src": "okx"}
 {"t": 1793995100272, "sym": "AKEUSDT", "side": "short", "usd": 271.64, "px": 0.003716, "src": "okx"}
+{"t": 1793995163595, "sym": "SNDKUSDT", "side": "short", "usd": 846.4, "px": 829.8, "src": "okx"}
+{"t": 1793995234221, "sym": "INJUSDT", "side": "short", "usd": 0.85, "px": 8.454, "src": "okx"}
+{"t": 1793995769770, "sym": "MRVLUSDT", "side": "short", "usd": 7811.88, "px": 140.35, "src": "okx"}
+{"t": 1793995891105, "sym": "SOXLUSDT", "side": "short", "usd": 311.09, "px": 46.71, "src": "okx"}
+{"t": 1793996378668, "sym": "XRPUSDT", "side": "long", "usd": 123.68, "px": 1.1779, "src": "okx"}
+{"t": 1793996384070, "sym": "QUANTUSDT", "side": "long", "usd": 584.9, "px": 192.4, "src": "okx"}
