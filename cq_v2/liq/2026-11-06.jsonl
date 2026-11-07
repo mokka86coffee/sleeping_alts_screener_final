@@ -21195,3 +21195,8 @@
 {"t": 1793993310373, "sym": "ARBUSDT", "side": "long", "usd": 204.87, "px": 0.1667, "src": "okx"}
 {"t": 1793993472051, "sym": "CAPUSDT", "side": "long", "usd": 4308.34, "px": 0.09973, "src": "okx"}
 {"t": 1793993567509, "sym": "LITUSDT", "side": "long", "usd": 1085.34, "px": 3.2691, "src": "okx"}
+{"t": 1793993755654, "sym": "AKEUSDT", "side": "long", "usd": 310.44, "px": 0.003593, "src": "okx"}
+{"t": 1793993769680, "sym": "MUBARAKUSDT", "side": "long", "usd": 46.52, "px": 0.042288, "src": "okx"}
+{"t": 1793993965551, "sym": "ANTHROPICUSDT", "side": "long", "usd": 10564.8, "px": 132.06, "src": "okx"}
+{"t": 1793995031404, "sym": "APPUSDT", "side": "short", "usd": 115.36, "px": 397.78, "src": "okx"}
+{"t": 1793995100272, "sym": "AKEUSDT", "side": "short", "usd": 271.64, "px": 0.003716, "src": "okx"}
