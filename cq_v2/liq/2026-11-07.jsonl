@@ -8468,3 +8468,14 @@
 {"t": 1794055402246, "sym": "ARXUSDT", "side": "long", "usd": 106.55, "px": 0.2267, "src": "okx"}
 {"t": 1794055511771, "sym": "ZECUSDT", "side": "long", "usd": 281.97, "px": 1281.7, "src": "okx"}
 {"t": 1794055512624, "sym": "ZECUSDT", "side": "long", "usd": 64.08, "px": 1281.54, "src": "okx"}
+{"t": 1794056821583, "sym": "ONEUSDT", "side": "short", "usd": 1815.63, "px": 0.0019565, "src": "okx"}
+{"t": 1794056889381, "sym": "ZECUSDT", "side": "long", "usd": 2298.01, "px": 1276.67, "src": "okx"}
+{"t": 1794056890478, "sym": "ZECUSDT", "side": "long", "usd": 165.88, "px": 1275.98, "src": "okx"}
+{"t": 1794057067063, "sym": "PARTIUSDT", "side": "short", "usd": 10.05, "px": 0.05025, "src": "okx"}
+{"t": 1794057265159, "sym": "PUMPUSDT", "side": "long", "usd": 172.13, "px": 0.003742, "src": "okx"}
+{"t": 1794057394636, "sym": "PIEVERSEUSDT", "side": "long", "usd": 5291.03, "px": 1.3429, "src": "okx"}
+{"t": 1794057750559, "sym": "CAPUSDT", "side": "short", "usd": 702.59, "px": 0.10037, "src": "okx"}
+{"t": 1794058243552, "sym": "CAPUSDT", "side": "short", "usd": 107.97, "px": 0.10797, "src": "okx"}
+{"t": 1794058242800, "sym": "CAPUSDT", "side": "short", "usd": 9473.92, "px": 0.1048, "src": "okx"}
+{"t": 1794058862095, "sym": "TRUMPUSDT", "side": "short", "usd": 103.75, "px": 1.205, "src": "okx"}
+{"t": 1794058933879, "sym": "TIAUSDT", "side": "short", "usd": 89.89, "px": 0.4472, "src": "okx"}
