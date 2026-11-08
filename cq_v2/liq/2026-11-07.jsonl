@@ -8479,3 +8479,12 @@
 {"t": 1794058242800, "sym": "CAPUSDT", "side": "short", "usd": 9473.92, "px": 0.1048, "src": "okx"}
 {"t": 1794058862095, "sym": "TRUMPUSDT", "side": "short", "usd": 103.75, "px": 1.205, "src": "okx"}
 {"t": 1794058933879, "sym": "TIAUSDT", "side": "short", "usd": 89.89, "px": 0.4472, "src": "okx"}
+{"t": 1794059771149, "sym": "CAPUSDT", "side": "short", "usd": 309.76, "px": 0.11063, "src": "okx"}
+{"t": 1794060167298, "sym": "YBUSDT", "side": "long", "usd": 355.01, "px": 0.05003, "src": "okx"}
+{"t": 1794061537163, "sym": "AKEUSDT", "side": "short", "usd": 70.04, "px": 0.006144, "src": "okx"}
+{"t": 1794061805089, "sym": "ONEUSDT", "side": "short", "usd": 18.9, "px": 0.0020997, "src": "okx"}
+{"t": 1794061806313, "sym": "ONEUSDT", "side": "short", "usd": 406.98, "px": 0.002112, "src": "okx"}
+{"t": 1794063201311, "sym": "ZECUSDT", "side": "long", "usd": 392.52, "px": 1266.18, "src": "okx"}
+{"t": 1794063204821, "sym": "STRKUSDT", "side": "long", "usd": 59.21, "px": 0.04075, "src": "okx"}
+{"t": 1794063219058, "sym": "ZECUSDT", "side": "long", "usd": 2462.44, "px": 1262.79, "src": "okx"}
+{"t": 1794063221144, "sym": "ZECUSDT", "side": "long", "usd": 3762.19, "px": 1262.48, "src": "okx"}
