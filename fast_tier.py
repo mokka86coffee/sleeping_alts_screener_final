@@ -1896,7 +1896,7 @@ def _tg_flush() -> None:
         sym, caption, args = _TGQ.pop(0)
         try:
             lg = open(BASE_DIR / "output" / "cg_shot.log", "a")
-            subprocess.Popen([PY, "cg_shot.py", sym, "--caption", caption] + args, cwd=BASE_DIR, stdout=lg, stderr=subprocess.STDOUT, start_new_session=True)
+            subprocess.Popen([PY, "cg_shot.py", sym, "--caption", caption] + args, cwd=BASE_DIR, stdout=lg, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
         except Exception as e:  # noqa: BLE001
             print(f"сообщение в Телеграм {sym}: {type(e).__name__}: {e}", flush=True)
 
@@ -3104,7 +3104,7 @@ def _own_mm() -> set:
         if age_h > _mx:
             import subprocess
             subprocess.Popen([PY, "own_mm.py"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "own_mm.log", "a"),
-                             stderr=subprocess.STDOUT, start_new_session=True)
+                             stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
         try:                                                              # 02.10 владелец: ручной список «свой ММ» (TRUTH: «такое говнище не торгуем»)
             from core_config import OWN_MM_MANUAL as _man
             _OWN["v"] = set(_OWN.get("v") or set()) | set(_man)
@@ -3126,12 +3126,12 @@ def page_step() -> None:
     import subprocess
     try:
         subprocess.Popen([PY, "fast_state.py"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "fast_state.log", "a"),
-                         stderr=subprocess.STDOUT, start_new_session=True)
+                         stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
         s = socket.socket(); s.settimeout(1)
         alive = s.connect_ex(("127.0.0.1", _port)) == 0; s.close()
         if not alive:
             subprocess.Popen([PY, "fast_server.py"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "fast_server.log", "a"),
-                             stderr=subprocess.STDOUT, start_new_session=True)
+                             stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
             print(f"{datetime.now(L):%H:%M:%S} страница: сервер запущен, http://localhost:{_port}/", flush=True)
     except Exception as e:  # noqa: BLE001
         print(f"{datetime.now(L):%H:%M:%S} страница: {type(e).__name__}: {e}", flush=True)
@@ -3207,7 +3207,7 @@ def main() -> int:
         try:                                    # 27.09 владелец: разбор выхода быстрых сделок через 2 ч — отдельным процессом (fast_review.py)
             import subprocess
             subprocess.Popen([PY, "fast_review.py", "--write"], cwd=BASE_DIR, stdout=open(BASE_DIR / "output" / "fast_review.log", "a"),
-                             stderr=subprocess.STDOUT, start_new_session=True)
+                             stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
         except Exception as e:  # noqa: BLE001
             print(f"{datetime.now(L):%H:%M:%S} разбор выходов: {type(e).__name__}: {e}", flush=True)
         time.sleep(max(1, 180 - (time.time() % 180)))

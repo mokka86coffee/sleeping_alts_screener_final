@@ -1504,7 +1504,7 @@ def run_once(args: argparse.Namespace) -> int:
             _chk = subprocess.run(["pgrep", "-f", "fast_tier.py --loop"], capture_output=True, text=True)
             if not (_chk.stdout or "").strip():
                 _lg = open(BASE_DIR / "output" / "fast_tier.log", "a")
-                subprocess.Popen([sys.executable, "fast_tier.py", "--loop"], cwd=BASE_DIR, stdout=_lg, stderr=subprocess.STDOUT, start_new_session=True)
+                subprocess.Popen([sys.executable, "fast_tier.py", "--loop"], cwd=BASE_DIR, stdout=_lg, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, start_new_session=True)
                 log("→ Трёхминутная ступень: запущена (fast_tier.py --loop, лог output/fast_tier.log)")
     except Exception as e:  # noqa: BLE001
         _issue("Трёхминутная ступень", f"{type(e).__name__}: {e}")
