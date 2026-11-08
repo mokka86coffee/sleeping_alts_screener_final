@@ -8451,3 +8451,6 @@
 {"t": 1794095361570, "sym": "HYPEUSDT", "side": "short", "usd": 245.17, "px": 78.33, "src": "bybit"}
 {"t": 1794095672384, "sym": "AKEUSDT", "side": "long", "usd": 41.68, "px": 0.005557, "src": "bybit"}
 {"t": 1794095730277, "sym": "ACTUSDT", "side": "short", "usd": 500.34, "px": 0.012478, "src": "okx"}
+{"t": 1794050078726, "sym": "RAYUSDT", "side": "long", "usd": 108.01, "px": 1.7421, "src": "okx"}
+{"t": 1794050777269, "sym": "PUMPUSDT", "side": "long", "usd": 3501.53, "px": 0.003831, "src": "okx"}
+{"t": 1794051137088, "sym": "CTUSDT", "side": "long", "usd": 396.8, "px": 0.13139, "src": "okx"}
