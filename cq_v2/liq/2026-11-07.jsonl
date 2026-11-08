@@ -8658,3 +8658,8 @@
 {"t": 1794074971074, "sym": "BTWUSDT", "side": "short", "usd": 349.08, "px": 1.2079, "src": "okx"}
 {"t": 1794075715591, "sym": "BTWUSDT", "side": "short", "usd": 1.23, "px": 1.2264, "src": "okx"}
 {"t": 1794075754627, "sym": "ZECUSDT", "side": "short", "usd": 101.82, "px": 1272.8, "src": "okx"}
+{"t": 1794075985130, "sym": "AEONUSDT", "side": "long", "usd": 94.45, "px": 0.02631, "src": "okx"}
+{"t": 1794076201562, "sym": "SNDKUSDT", "side": "short", "usd": 92464.85, "px": 840.2, "src": "okx"}
+{"t": 1794077035427, "sym": "AEONUSDT", "side": "long", "usd": 404.81, "px": 0.0261, "src": "okx"}
+{"t": 1794078341791, "sym": "CTUSDT", "side": "long", "usd": 7.67, "px": 0.12776, "src": "okx"}
+{"t": 1794078342711, "sym": "CTUSDT", "side": "long", "usd": 22.98, "px": 0.12769, "src": "okx"}
