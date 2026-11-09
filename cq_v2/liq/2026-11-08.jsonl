@@ -32579,3 +32579,17 @@
 {"t": 1794159047450, "sym": "CASHCATUSDT", "side": "long", "usd": 23.17, "px": 0.07242, "src": "okx"}
 {"t": 1794159542636, "sym": "SLXUSDT", "side": "long", "usd": 3.23, "px": 0.03592, "src": "okx"}
 {"t": 1794160127875, "sym": "BILLUSDT", "side": "long", "usd": 1.29, "px": 0.004292, "src": "okx"}
+{"t": 1794161590129, "sym": "CASHCATUSDT", "side": "short", "usd": 66.63, "px": 0.07572, "src": "okx"}
+{"t": 1794161619799, "sym": "PUMPUSDT", "side": "short", "usd": 33.26, "px": 0.003696, "src": "okx"}
+{"t": 1794161659344, "sym": "SNXXUSDT", "side": "short", "usd": 534.28, "px": 3.333, "src": "okx"}
+{"t": 1794161659577, "sym": "SNDKUSDT", "side": "short", "usd": 38.77, "px": 842.8, "src": "okx"}
+{"t": 1794161666993, "sym": "SNDKUSDT", "side": "short", "usd": 2550.14, "px": 843.3, "src": "okx"}
+{"t": 1794161668074, "sym": "SNDKUSDT", "side": "short", "usd": 944.61, "px": 843.4, "src": "okx"}
+{"t": 1794161733110, "sym": "SNDKUSDT", "side": "short", "usd": 62.49, "px": 844.5, "src": "okx"}
+{"t": 1794161762525, "sym": "SNDKUSDT", "side": "short", "usd": 133.65, "px": 851.3, "src": "okx"}
+{"t": 1794161817692, "sym": "ZECUSDT", "side": "short", "usd": 8730.0, "px": 1261.56, "src": "okx"}
+{"t": 1794161834979, "sym": "SNDKUSDT", "side": "short", "usd": 131.56, "px": 854.3, "src": "okx"}
+{"t": 1794161838025, "sym": "ZECUSDT", "side": "short", "usd": 21485.11, "px": 1263.83, "src": "okx"}
+{"t": 1794161904643, "sym": "SOXLUSDT", "side": "short", "usd": 57.48, "px": 47.5, "src": "okx"}
+{"t": 1794161909522, "sym": "SNDKUSDT", "side": "short", "usd": 1623.34, "px": 858.0, "src": "okx"}
+{"t": 1794161990233, "sym": "PONSUSDT", "side": "short", "usd": 3.19, "px": 0.1594, "src": "okx"}
