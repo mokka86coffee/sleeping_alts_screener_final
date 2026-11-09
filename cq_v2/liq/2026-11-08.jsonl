@@ -33791,3 +33791,6 @@
 {"t": 1794181961971, "sym": "ETHUSDT", "side": "long", "usd": 6.36, "px": 2121.11, "src": "okx"}
 {"t": 1794181963274, "sym": "XPLUSDT", "side": "long", "usd": 58.12, "px": 0.05143, "src": "okx"}
 {"t": 1794181963654, "sym": "ETHUSDT", "side": "long", "usd": 477.19, "px": 2120.84, "src": "okx"}
+{"t": 1794182190450, "sym": "ETHUSDT", "side": "long", "usd": 16.97, "px": 2121.36, "src": "okx"}
+{"t": 1794182190450, "sym": "BTCUSDT", "side": "long", "usd": 425.29, "px": 74612.7, "src": "okx"}
+{"t": 1794182264300, "sym": "NVDLUSDT", "side": "long", "usd": 1456.22, "px": 21.67, "src": "okx"}
