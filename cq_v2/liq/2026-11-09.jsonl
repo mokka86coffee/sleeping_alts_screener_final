@@ -17623,3 +17623,9 @@
 {"t": 1794231236732, "sym": "OPUSDT", "side": "short", "usd": 295.93, "px": 0.10222, "src": "okx"}
 {"t": 1794231241215, "sym": "EDGEUSDT", "side": "short", "usd": 2268.6, "px": 0.3781, "src": "okx"}
 {"t": 1794231427434, "sym": "ONEUSDT", "side": "long", "usd": 331.53, "px": 0.0014689, "src": "okx"}
+{"t": 1794232940902, "sym": "STRKUSDT", "side": "long", "usd": 100.87, "px": 0.03899, "src": "okx"}
+{"t": 1794232996902, "sym": "BTCUSDT", "side": "long", "usd": 3724.02, "px": 74480.3, "src": "okx"}
+{"t": 1794233070470, "sym": "SIGNUSDT", "side": "short", "usd": 28.04, "px": 0.008764, "src": "okx"}
+{"t": 1794233353802, "sym": "BTCUSDT", "side": "long", "usd": 297.86, "px": 74465.1, "src": "okx"}
+{"t": 1794233360910, "sym": "AKEUSDT", "side": "long", "usd": 1.87, "px": 0.004684, "src": "okx"}
+{"t": 1794233411610, "sym": "PEPEUSDT", "side": "short", "usd": 15.49, "px": 5.1645e-06, "src": "okx"}
