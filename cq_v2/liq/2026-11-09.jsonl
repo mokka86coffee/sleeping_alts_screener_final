@@ -17608,3 +17608,7 @@
 {"t": 1794228650277, "sym": "PIEVERSEUSDT", "side": "short", "usd": 275.73, "px": 1.8382, "src": "okx"}
 {"t": 1794228655859, "sym": "ARBUSDT", "side": "short", "usd": 136.84, "px": 0.18467, "src": "okx"}
 {"t": 1794228650030, "sym": "PIEVERSEUSDT", "side": "short", "usd": 91.44, "px": 1.8288, "src": "okx"}
+{"t": 1794229226585, "sym": "ARBUSDT", "side": "short", "usd": 218.61, "px": 0.18637, "src": "okx"}
+{"t": 1794229234545, "sym": "ARBUSDT", "side": "short", "usd": 4642.54, "px": 0.18671, "src": "okx"}
+{"t": 1794229263907, "sym": "ARBUSDT", "side": "short", "usd": 1885.92, "px": 0.18743, "src": "okx"}
+{"t": 1794229279804, "sym": "XAUUSDT", "side": "short", "usd": 1702.63, "px": 4132.6, "src": "okx"}
