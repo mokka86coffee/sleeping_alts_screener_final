@@ -17868,3 +17868,10 @@
 {"t": 1794249705555, "sym": "UPUSDT", "side": "short", "usd": 1022.87, "px": 0.1353, "src": "okx"}
 {"t": 1794249752411, "sym": "PIEVERSEUSDT", "side": "short", "usd": 2098.93, "px": 2.2094, "src": "okx"}
 {"t": 1794249768647, "sym": "PIEVERSEUSDT", "side": "short", "usd": 44.37, "px": 2.2186, "src": "okx"}
+{"t": 1794250025364, "sym": "SNDKUSDT", "side": "short", "usd": 2266.31, "px": 892.6, "src": "okx"}
+{"t": 1794250119330, "sym": "BCHUSDT", "side": "long", "usd": 283.29, "px": 238.06, "src": "okx"}
+{"t": 1794250420713, "sym": "INITUSDT", "side": "short", "usd": 1.47, "px": 0.14697, "src": "okx"}
+{"t": 1794250556948, "sym": "PIEVERSEUSDT", "side": "short", "usd": 399.76, "px": 2.2209, "src": "okx"}
+{"t": 1794250628696, "sym": "PIEVERSEUSDT", "side": "short", "usd": 1050.64, "px": 2.2354, "src": "okx"}
+{"t": 1794250962799, "sym": "INITUSDT", "side": "short", "usd": 432.2, "px": 0.15007, "src": "okx"}
+{"t": 1794251531597, "sym": "PIEVERSEUSDT", "side": "short", "usd": 603.59, "px": 2.2355, "src": "okx"}
