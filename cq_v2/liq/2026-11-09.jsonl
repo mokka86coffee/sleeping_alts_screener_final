@@ -17536,3 +17536,7 @@
 {"t": 1794223379872, "sym": "PIEVERSEUSDT", "side": "short", "usd": 87.23, "px": 1.7446, "src": "okx"}
 {"t": 1794223610593, "sym": "ETHUSDT", "side": "long", "usd": 1052.19, "px": 2117.08, "src": "okx"}
 {"t": 1794223804644, "sym": "ONEUSDT", "side": "long", "usd": 4.71, "px": 0.0015196, "src": "okx"}
+{"t": 1794223966117, "sym": "SOLUSDT", "side": "long", "usd": 1747.72, "px": 86.35, "src": "okx"}
+{"t": 1794224445574, "sym": "AKEUSDT", "side": "short", "usd": 22.25, "px": 0.005704, "src": "okx"}
+{"t": 1794224597107, "sym": "PIEVERSEUSDT", "side": "short", "usd": 941.23, "px": 1.7759, "src": "okx"}
+{"t": 1794224658388, "sym": "PIEVERSEUSDT", "side": "short", "usd": 142.77, "px": 1.7846, "src": "okx"}
