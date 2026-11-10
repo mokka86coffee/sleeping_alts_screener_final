@@ -4345,3 +4345,11 @@
 2026-11-10 05:51:15 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
 2026-11-10 05:52:15 дозабор, попытка 2: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
 2026-11-10 05:52:16 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-11-10 06:21:38 нет в архиве: 7 (aiot, cyber, hana, hmstr, koma, sign, swarms)
+2026-11-10 06:21:38 добор новичков: aiot, cyber, hana, hmstr, koma, sign, swarms
+2026-11-10 06:21:38 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-11-10 06:21:38 данные по 2026-11-03, ждём 2026-11-09 (возраст 146.3 ч)
+2026-11-10 06:21:38 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-11-10 06:21:39 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-11-10 06:22:39 дозабор, попытка 2: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-11-10 06:22:39 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
