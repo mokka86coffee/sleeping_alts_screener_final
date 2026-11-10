@@ -17618,3 +17618,8 @@
 {"t": 1794230401236, "sym": "SOXSUSDT", "side": "short", "usd": 307.21, "px": 69.82, "src": "okx"}
 {"t": 1794230905188, "sym": "AVAXUSDT", "side": "short", "usd": 45.19, "px": 8.691, "src": "okx"}
 {"t": 1794230932382, "sym": "AIXBTUSDT", "side": "short", "usd": 0.9, "px": 0.015, "src": "okx"}
+{"t": 1794231085425, "sym": "AKEUSDT", "side": "short", "usd": 3.43, "px": 0.004893, "src": "okx"}
+{"t": 1794231147158, "sym": "ONEUSDT", "side": "long", "usd": 0.44, "px": 0.0014792, "src": "okx"}
+{"t": 1794231236732, "sym": "OPUSDT", "side": "short", "usd": 295.93, "px": 0.10222, "src": "okx"}
+{"t": 1794231241215, "sym": "EDGEUSDT", "side": "short", "usd": 2268.6, "px": 0.3781, "src": "okx"}
+{"t": 1794231427434, "sym": "ONEUSDT", "side": "long", "usd": 331.53, "px": 0.0014689, "src": "okx"}
