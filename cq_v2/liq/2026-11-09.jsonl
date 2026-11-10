@@ -17480,3 +17480,7 @@
 {"t": 1794219804227, "sym": "SNDKUSDT", "side": "short", "usd": 128.84, "px": 825.9, "src": "okx"}
 {"t": 1794219846469, "sym": "ONEUSDT", "side": "long", "usd": 234.47, "px": 0.0015355, "src": "okx"}
 {"t": 1794220055621, "sym": "AKEUSDT", "side": "short", "usd": 85.17, "px": 0.005425, "src": "okx"}
+{"t": 1794220241645, "sym": "AKEUSDT", "side": "short", "usd": 24.29, "px": 0.005521, "src": "okx"}
+{"t": 1794220926729, "sym": "AKEUSDT", "side": "short", "usd": 98.78, "px": 0.005581, "src": "okx"}
+{"t": 1794221170112, "sym": "XRPUSDT", "side": "long", "usd": 66.14, "px": 1.0842, "src": "okx"}
+{"t": 1794221401549, "sym": "AKEUSDT", "side": "short", "usd": 189.47, "px": 0.005589, "src": "okx"}
