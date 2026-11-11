@@ -25969,3 +25969,5 @@
 {"t": 1794318511427, "sym": "ETHUSDT", "side": "short", "usd": 866.1, "px": 2076.98, "src": "okx"}
 {"t": 1794318530163, "sym": "ZECUSDT", "side": "short", "usd": 586.37, "px": 1172.74, "src": "okx"}
 {"t": 1794318531452, "sym": "ZECUSDT", "side": "short", "usd": 353.15, "px": 1177.18, "src": "okx"}
+{"t": 1794319147413, "sym": "BTCUSDT", "side": "long", "usd": 905.94, "px": 73653.8, "src": "okx"}
+{"t": 1794319148207, "sym": "ETHUSDT", "side": "long", "usd": 4332.47, "px": 2063.08, "src": "okx"}
