@@ -25549,3 +25549,8 @@
 {"t": 1794294160734, "sym": "XRPUSDT", "side": "short", "usd": 5027.62, "px": 1.1057, "src": "okx"}
 {"t": 1794294303510, "sym": "INITUSDT", "side": "short", "usd": 31.2, "px": 0.22288, "src": "okx"}
 {"t": 1794294303911, "sym": "INITUSDT", "side": "short", "usd": 96.11, "px": 0.22351, "src": "okx"}
+{"t": 1794295161615, "sym": "CNPYUSDT", "side": "long", "usd": 2.4, "px": 0.1199, "src": "okx"}
+{"t": 1794295581098, "sym": "ONEUSDT", "side": "short", "usd": 49.2, "px": 0.0015139, "src": "okx"}
+{"t": 1794295818396, "sym": "PIEVERSEUSDT", "side": "short", "usd": 1097.88, "px": 2.1113, "src": "okx"}
+{"t": 1794295841057, "sym": "ONEUSDT", "side": "short", "usd": 235.64, "px": 0.0015741, "src": "okx"}
+{"t": 1794296145641, "sym": "PIUSDT", "side": "short", "usd": 4.72, "px": 0.07153, "src": "okx"}
