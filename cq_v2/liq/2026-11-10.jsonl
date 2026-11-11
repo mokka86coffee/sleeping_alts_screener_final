@@ -25572,3 +25572,13 @@
 {"t": 1794299573268, "sym": "CLUSDT", "side": "long", "usd": 33716.0, "px": 84.29, "src": "okx"}
 {"t": 1794299642280, "sym": "BTCUSDT", "side": "long", "usd": 1414.18, "px": 74430.7, "src": "okx"}
 {"t": 1794299644122, "sym": "BTCUSDT", "side": "long", "usd": 4971.73, "px": 74427.1, "src": "okx"}
+{"t": 1794299793518, "sym": "ONEUSDT", "side": "short", "usd": 1.25, "px": 0.0017832, "src": "okx"}
+{"t": 1794300241583, "sym": "ONEUSDT", "side": "short", "usd": 8.24, "px": 0.0018311, "src": "okx"}
+{"t": 1794300631382, "sym": "BZUSDT", "side": "long", "usd": 2905.52, "px": 88.99, "src": "okx"}
+{"t": 1794300846720, "sym": "PIEVERSEUSDT", "side": "short", "usd": 42.87, "px": 2.1434, "src": "okx"}
+{"t": 1794301065072, "sym": "ONEUSDT", "side": "short", "usd": 20.82, "px": 0.0018421, "src": "okx"}
+{"t": 1794301206696, "sym": "XLMUSDT", "side": "long", "usd": 596.67, "px": 0.14769, "src": "okx"}
+{"t": 1794301227621, "sym": "XAUUSDT", "side": "long", "usd": 98.52, "px": 4105.0, "src": "okx"}
+{"t": 1794301235792, "sym": "XRPUSDT", "side": "long", "usd": 6256.2, "px": 1.0837, "src": "okx"}
+{"t": 1794301247443, "sym": "ETHUSDT", "side": "long", "usd": 67.43, "px": 2107.17, "src": "okx"}
+{"t": 1794301249170, "sym": "ETHUSDT", "side": "long", "usd": 5007.56, "px": 2104.9, "src": "okx"}
