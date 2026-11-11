@@ -26100,3 +26100,4 @@
 {"t": 1794321431261, "sym": "INITUSDT", "side": "short", "usd": 76.64, "px": 0.23951, "src": "okx"}
 {"t": 1794321481192, "sym": "PEPEUSDT", "side": "short", "usd": 973.8, "px": 5.4402e-06, "src": "okx"}
 {"t": 1794321540256, "sym": "XAGUSDT", "side": "long", "usd": 10317.03, "px": 51.73, "src": "okx"}
+{"t": 1794321691433, "sym": "BTCUSDT", "side": "short", "usd": 1346.0, "px": 74364.4, "src": "okx"}
