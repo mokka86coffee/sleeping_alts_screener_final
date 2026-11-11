@@ -25775,3 +25775,9 @@
 {"t": 1794312173084, "sym": "ZHONGJIUSDT", "side": "long", "usd": 1151.74, "px": 73.5, "src": "okx"}
 {"t": 1794312472298, "sym": "LIGHTUSDT", "side": "long", "usd": 592.41, "px": 0.2155, "src": "okx"}
 {"t": 1794312472298, "sym": "ORDERUSDT", "side": "long", "usd": 530.08, "px": 0.03029, "src": "okx"}
+{"t": 1794312816616, "sym": "NVDAUSDT", "side": "long", "usd": 7894.29, "px": 178.04, "src": "okx"}
+{"t": 1794312934982, "sym": "ENAUSDT", "side": "short", "usd": 138.73, "px": 0.15414, "src": "okx"}
+{"t": 1794313007250, "sym": "UPUSDT", "side": "long", "usd": 78.81, "px": 0.1292, "src": "okx"}
+{"t": 1794313031153, "sym": "HUSDT", "side": "long", "usd": 2523.6, "px": 0.04206, "src": "okx"}
+{"t": 1794313061963, "sym": "UPUSDT", "side": "long", "usd": 122.36, "px": 0.1236, "src": "okx"}
+{"t": 1794313821509, "sym": "NVDAUSDT", "side": "long", "usd": 764.41, "px": 177.77, "src": "okx"}
