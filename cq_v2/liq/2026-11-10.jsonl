@@ -25621,3 +25621,9 @@
 {"t": 1794301805256, "sym": "APTUSDT", "side": "long", "usd": 3979.92, "px": 0.5822, "src": "okx"}
 {"t": 1794301948340, "sym": "SOLUSDT", "side": "long", "usd": 157.95, "px": 84.92, "src": "okx"}
 {"t": 1794302044948, "sym": "INJUSDT", "side": "long", "usd": 22.04, "px": 7.871, "src": "okx"}
+{"t": 1794302318633, "sym": "CNPYUSDT", "side": "short", "usd": 53.1, "px": 0.1235, "src": "okx"}
+{"t": 1794302812688, "sym": "SNDKUSDT", "side": "short", "usd": 2198.68, "px": 894.5, "src": "okx"}
+{"t": 1794303048855, "sym": "SNDKUSDT", "side": "short", "usd": 530.72, "px": 898.0, "src": "okx"}
+{"t": 1794303052930, "sym": "SNDKUSDT", "side": "short", "usd": 15524.69, "px": 899.2, "src": "okx"}
+{"t": 1794303091208, "sym": "XAUUSDT", "side": "long", "usd": 643.02, "px": 4095.7, "src": "okx"}
+{"t": 1794303139246, "sym": "ONEUSDT", "side": "short", "usd": 19.14, "px": 0.0018578, "src": "okx"}
