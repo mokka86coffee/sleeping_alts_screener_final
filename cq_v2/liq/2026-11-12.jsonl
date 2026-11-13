@@ -22593,3 +22593,7 @@
 {"t": 1794519340851, "sym": "NVDAUSDT", "side": "short", "usd": 102.89, "px": 168.67, "src": "okx"}
 {"t": 1794519666985, "sym": "PUMPUSDT", "side": "short", "usd": 347.94, "px": 0.003445, "src": "okx"}
 {"t": 1794519960015, "sym": "PEPEUSDT", "side": "long", "usd": 999.89, "px": 4.504e-06, "src": "okx"}
+{"t": 1794521781684, "sym": "ETHUSDT", "side": "long", "usd": 201.1, "px": 2011.03, "src": "okx"}
+{"t": 1794521781684, "sym": "ZECUSDT", "side": "long", "usd": 470.48, "px": 940.96, "src": "okx"}
+{"t": 1794521803471, "sym": "BTCUSDT", "side": "long", "usd": 92.75, "px": 71347.2, "src": "okx"}
+{"t": 1794523019779, "sym": "ETHUSDT", "side": "long", "usd": 4.02, "px": 2008.39, "src": "okx"}
