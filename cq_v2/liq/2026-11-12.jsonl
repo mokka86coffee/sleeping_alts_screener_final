@@ -22591,3 +22591,5 @@
 {"t": 1794519002468, "sym": "DOGEUSDT", "side": "short", "usd": 147.45, "px": 0.06642, "src": "okx"}
 {"t": 1794519015623, "sym": "MEGAUSDT", "side": "short", "usd": 1.41, "px": 0.04697, "src": "okx"}
 {"t": 1794519340851, "sym": "NVDAUSDT", "side": "short", "usd": 102.89, "px": 168.67, "src": "okx"}
+{"t": 1794519666985, "sym": "PUMPUSDT", "side": "short", "usd": 347.94, "px": 0.003445, "src": "okx"}
+{"t": 1794519960015, "sym": "PEPEUSDT", "side": "long", "usd": 999.89, "px": 4.504e-06, "src": "okx"}
