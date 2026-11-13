@@ -22517,3 +22517,15 @@
 {"t": 1794513072180, "sym": "XRPUSDT", "side": "short", "usd": 20.64, "px": 1.032, "src": "okx"}
 {"t": 1794513285372, "sym": "ZECUSDT", "side": "short", "usd": 57.39, "px": 956.5, "src": "okx"}
 {"t": 1794513315406, "sym": "PEPEUSDT", "side": "short", "usd": 71.68, "px": 4.4799e-06, "src": "okx"}
+{"t": 1794513600649, "sym": "BARDUSDT", "side": "long", "usd": 2935.2, "px": 0.1223, "src": "okx"}
+{"t": 1794513767450, "sym": "BARDUSDT", "side": "short", "usd": 6.52, "px": 0.1279, "src": "okx"}
+{"t": 1794513922778, "sym": "BARDUSDT", "side": "short", "usd": 392.97, "px": 0.1288, "src": "okx"}
+{"t": 1794513925685, "sym": "BARDUSDT", "side": "short", "usd": 0.39, "px": 0.1294, "src": "okx"}
+{"t": 1794513932948, "sym": "BARDUSDT", "side": "short", "usd": 1424.91, "px": 0.1302, "src": "okx"}
+{"t": 1794514011075, "sym": "GRAMUSDT", "side": "long", "usd": 16.88, "px": 1.125, "src": "okx"}
+{"t": 1794514131553, "sym": "SPCXUSDT", "side": "long", "usd": 653.0, "px": 140.43, "src": "okx"}
+{"t": 1794514134092, "sym": "SPCXUSDT", "side": "long", "usd": 115.03, "px": 140.28, "src": "okx"}
+{"t": 1794514136653, "sym": "SPCXUSDT", "side": "long", "usd": 550.14, "px": 139.63, "src": "okx"}
+{"t": 1794514219544, "sym": "ETHUSDT", "side": "short", "usd": 6.06, "px": 2019.79, "src": "okx"}
+{"t": 1794514298718, "sym": "SNXXUSDT", "side": "long", "usd": 28.34, "px": 3.936, "src": "okx"}
+{"t": 1794514547623, "sym": "SNDKUSDT", "side": "long", "usd": 5821.2, "px": 924.0, "src": "okx"}
