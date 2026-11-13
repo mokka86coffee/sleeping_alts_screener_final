@@ -22586,3 +22586,8 @@
 {"t": 1794517780840, "sym": "BARDUSDT", "side": "long", "usd": 2899.2, "px": 0.1208, "src": "okx"}
 {"t": 1794517924492, "sym": "HUSDT", "side": "short", "usd": 92.11, "px": 0.02326, "src": "okx"}
 {"t": 1794518114323, "sym": "BARDUSDT", "side": "short", "usd": 178.05, "px": 0.1294, "src": "okx"}
+{"t": 1794518169568, "sym": "BARDUSDT", "side": "short", "usd": 415.09, "px": 0.13, "src": "okx"}
+{"t": 1794518174817, "sym": "BARDUSDT", "side": "short", "usd": 16.1, "px": 0.1309, "src": "okx"}
+{"t": 1794519002468, "sym": "DOGEUSDT", "side": "short", "usd": 147.45, "px": 0.06642, "src": "okx"}
+{"t": 1794519015623, "sym": "MEGAUSDT", "side": "short", "usd": 1.41, "px": 0.04697, "src": "okx"}
+{"t": 1794519340851, "sym": "NVDAUSDT", "side": "short", "usd": 102.89, "px": 168.67, "src": "okx"}
