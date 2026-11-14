@@ -39890,3 +39890,5 @@
 {"t": 1794564675457, "sym": "DOGEUSDT", "side": "short", "usd": 237.62, "px": 0.0651, "src": "okx"}
 {"t": 1794564755501, "sym": "BTCUSDT", "side": "short", "usd": 90.24, "px": 69414.2, "src": "okx"}
 {"t": 1794564782439, "sym": "BTCUSDT", "side": "short", "usd": 493.14, "px": 69456.1, "src": "okx"}
+{"t": 1794565152035, "sym": "SOLUSDT", "side": "short", "usd": 199.89, "px": 80.6, "src": "okx"}
+{"t": 1794565152215, "sym": "ETHUSDT", "side": "short", "usd": 43.06, "px": 1957.18, "src": "okx"}
