@@ -5961,3 +5961,11 @@
 2026-11-14 20:44:49 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
 2026-11-14 20:45:49 дозабор, попытка 2: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
 2026-11-14 20:45:49 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-11-14 21:14:51 нет в архиве: 17 (aiot, bananas31, bard, cyber, edge, hana, hmstr, jto, kgen, koma, magma, opg); беру 8, остальных возьмёт следующий прогон
+2026-11-14 21:14:51 добор новичков: aiot, bananas31, bard, cyber, edge, hana, hmstr, jto
+2026-11-14 21:14:52 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-11-14 21:14:52 данные по 2026-11-03, ждём 2026-11-13 (возраст 257.2 ч)
+2026-11-14 21:14:52 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-11-14 21:14:53 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-11-14 21:15:53 дозабор, попытка 2: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-11-14 21:15:54 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
