@@ -40013,3 +40013,17 @@
 {"t": 1794574808386, "sym": "BEATUSDT", "side": "short", "usd": 2218.14, "px": 0.08715, "src": "okx"}
 {"t": 1794574913284, "sym": "BEATUSDT", "side": "short", "usd": 64.66, "px": 0.08773, "src": "okx"}
 {"t": 1794575239518, "sym": "SOPHUSDT", "side": "short", "usd": 611.45, "px": 0.001747, "src": "okx"}
+{"t": 1794575594131, "sym": "SOPHUSDT", "side": "short", "usd": 624.05, "px": 0.001783, "src": "okx"}
+{"t": 1794575919584, "sym": "XAUUSDT", "side": "long", "usd": 1858.42, "px": 3887.9, "src": "okx"}
+{"t": 1794575952595, "sym": "BARDUSDT", "side": "long", "usd": 1128.48, "px": 0.1518, "src": "okx"}
+{"t": 1794575975412, "sym": "BARDUSDT", "side": "long", "usd": 0.45, "px": 0.1498, "src": "okx"}
+{"t": 1794576180759, "sym": "GRAMUSDT", "side": "long", "usd": 28.23, "px": 1.129, "src": "okx"}
+{"t": 1794576350453, "sym": "HYPEUSDT", "side": "short", "usd": 163.7, "px": 74.411, "src": "okx"}
+{"t": 1794576605660, "sym": "TRUMPUSDT", "side": "short", "usd": 10854.76, "px": 1.101, "src": "okx"}
+{"t": 1794576605743, "sym": "ETHUSDT", "side": "short", "usd": 1.96, "px": 1964.98, "src": "okx"}
+{"t": 1794576607869, "sym": "ZECUSDT", "side": "short", "usd": 1575.9, "px": 978.82, "src": "okx"}
+{"t": 1794576608723, "sym": "SOXLUSDT", "side": "short", "usd": 23.44, "px": 65.1, "src": "okx"}
+{"t": 1794576614032, "sym": "ZECUSDT", "side": "short", "usd": 695.15, "px": 979.09, "src": "okx"}
+{"t": 1794576641374, "sym": "SNDKUSDT", "side": "short", "usd": 6111.95, "px": 940.3, "src": "okx"}
+{"t": 1794576651002, "sym": "CYPHUSDT", "side": "short", "usd": 1.97, "px": 1.9746, "src": "okx"}
+{"t": 1794576675567, "sym": "PUMPUSDT", "side": "short", "usd": 613.87, "px": 0.003528, "src": "okx"}
