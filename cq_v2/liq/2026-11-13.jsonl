@@ -39699,3 +39699,13 @@
 {"t": 1794554248356, "sym": "AKEUSDT", "side": "short", "usd": 215.38, "px": 0.00494, "src": "okx"}
 {"t": 1794554266656, "sym": "NVDAUSDT", "side": "short", "usd": 2342.74, "px": 166.27, "src": "okx"}
 {"t": 1794554597641, "sym": "NVDAUSDT", "side": "short", "usd": 897.06, "px": 166.43, "src": "okx"}
+{"t": 1794554839461, "sym": "NVDAUSDT", "side": "short", "usd": 76.67, "px": 166.68, "src": "okx"}
+{"t": 1794556269518, "sym": "BTCUSDT", "side": "long", "usd": 295.23, "px": 68657.4, "src": "okx"}
+{"t": 1794556326793, "sym": "BTCUSDT", "side": "long", "usd": 425.56, "px": 68639.2, "src": "okx"}
+{"t": 1794556485244, "sym": "ETHUSDT", "side": "long", "usd": 359.97, "px": 1935.33, "src": "okx"}
+{"t": 1794556681513, "sym": "ETHUSDT", "side": "long", "usd": 92.82, "px": 1933.79, "src": "okx"}
+{"t": 1794556735356, "sym": "ZECUSDT", "side": "long", "usd": 714.79, "px": 940.51, "src": "okx"}
+{"t": 1794556892668, "sym": "ETHUSDT", "side": "long", "usd": 117.87, "px": 1932.35, "src": "okx"}
+{"t": 1794556898750, "sym": "ETHUSDT", "side": "long", "usd": 992.75, "px": 1931.42, "src": "okx"}
+{"t": 1794556900355, "sym": "ZECUSDT", "side": "long", "usd": 1669.25, "px": 937.78, "src": "okx"}
+{"t": 1794556917874, "sym": "SOXLUSDT", "side": "long", "usd": 63.91, "px": 63.91, "src": "okx"}
