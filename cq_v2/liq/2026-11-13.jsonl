@@ -39483,3 +39483,14 @@
 {"t": 1794614361010, "sym": "SHELLUSDT", "side": "short", "usd": 199.4, "px": 0.03817, "src": "bybit"}
 {"t": 1794614361161, "sym": "SHELLUSDT", "side": "short", "usd": 17.74, "px": 0.03824, "src": "bybit"}
 {"t": 1794548088888, "sym": "BTCUSDT", "side": "long", "usd": 1738.77, "px": 68455.6, "src": "okx"}
+{"t": 1794548297132, "sym": "BTCUSDT", "side": "long", "usd": 601.89, "px": 68396.4, "src": "okx"}
+{"t": 1794614315501, "sym": "ETHUSDT", "side": "short", "usd": 501.5, "px": 1928.83, "src": "okx"}
+{"t": 1794548771543, "sym": "PEPEUSDT", "side": "short", "usd": 17.95, "px": 4.4882e-06, "src": "okx"}
+{"t": 1794548786773, "sym": "DOGEUSDT", "side": "short", "usd": 24.97, "px": 0.06403, "src": "okx"}
+{"t": 1794548789845, "sym": "PEPEUSDT", "side": "short", "usd": 577.48, "px": 4.5471e-06, "src": "okx"}
+{"t": 1794548791848, "sym": "ETHUSDT", "side": "short", "usd": 30.79, "px": 1924.42, "src": "okx"}
+{"t": 1794548828388, "sym": "XAUUSDT", "side": "long", "usd": 7064.07, "px": 3902.8, "src": "okx"}
+{"t": 1794548829649, "sym": "XAUUSDT", "side": "long", "usd": 36440.5, "px": 3900.3, "src": "okx"}
+{"t": 1794548846874, "sym": "XAUUSDT", "side": "long", "usd": 7.8, "px": 3899.4, "src": "okx"}
+{"t": 1794548991838, "sym": "DNAUSDT", "side": "short", "usd": 32.56, "px": 0.1809, "src": "okx"}
+{"t": 1794549091852, "sym": "ZHIPUUSDT", "side": "long", "usd": 819.63, "px": 50.47, "src": "okx"}
