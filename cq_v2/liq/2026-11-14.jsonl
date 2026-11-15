@@ -53756,3 +53756,7 @@
 {"t": 1794700332374, "sym": "ETHUSDT", "side": "short", "usd": 122.14, "px": 1770.16, "src": "okx"}
 {"t": 1794700342329, "sym": "ETHUSDT", "side": "short", "usd": 8.86, "px": 1771.27, "src": "okx"}
 {"t": 1794700379622, "sym": "ZECUSDT", "side": "short", "usd": 1034.99, "px": 862.49, "src": "okx"}
+{"t": 1794700501137, "sym": "BTCUSDT", "side": "short", "usd": 417.17, "px": 64179.9, "src": "okx"}
+{"t": 1794700641245, "sym": "ZECUSDT", "side": "short", "usd": 864.7, "px": 864.7, "src": "okx"}
+{"t": 1794700647834, "sym": "DOGEUSDT", "side": "short", "usd": 1329.59, "px": 0.05731, "src": "okx"}
+{"t": 1794700742295, "sym": "FILUSDT", "side": "short", "usd": 127.16, "px": 0.6167, "src": "okx"}
