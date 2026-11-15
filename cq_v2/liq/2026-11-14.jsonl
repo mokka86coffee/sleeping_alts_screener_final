@@ -53740,3 +53740,6 @@
 {"t": 1794698436028, "sym": "BTCUSDT", "side": "short", "usd": 31090.91, "px": 63815.5, "src": "okx"}
 {"t": 1794698454573, "sym": "ETHUSDT", "side": "short", "usd": 327.47, "px": 1751.17, "src": "okx"}
 {"t": 1794698500444, "sym": "BTCUSDT", "side": "short", "usd": 1936.15, "px": 63899.4, "src": "okx"}
+{"t": 1794698841372, "sym": "ETHUSDT", "side": "long", "usd": 1646.7, "px": 1744.39, "src": "okx"}
+{"t": 1794699416690, "sym": "BCHUSDT", "side": "long", "usd": 78.68, "px": 196.7, "src": "okx"}
+{"t": 1794699425391, "sym": "BTCUSDT", "side": "long", "usd": 1263.09, "px": 63472.0, "src": "okx"}
