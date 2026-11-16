@@ -19284,3 +19284,10 @@
 {"t": 1794755421211, "sym": "XRPUSDT", "side": "short", "usd": 180.2, "px": 0.9585, "src": "okx"}
 {"t": 1794755593374, "sym": "INITUSDT", "side": "long", "usd": 346.25, "px": 0.11242, "src": "okx"}
 {"t": 1794755939466, "sym": "AKEUSDT", "side": "short", "usd": 46.8, "px": 0.0117, "src": "okx"}
+{"t": 1794756228680, "sym": "SOLUSDT", "side": "long", "usd": 156.16, "px": 70.98, "src": "okx"}
+{"t": 1794756435426, "sym": "BTWUSDT", "side": "long", "usd": 121.36, "px": 0.537, "src": "okx"}
+{"t": 1794756634042, "sym": "BTWUSDT", "side": "long", "usd": 935.1, "px": 0.5195, "src": "okx"}
+{"t": 1794756833423, "sym": "BTWUSDT", "side": "short", "usd": 119.22, "px": 0.5961, "src": "okx"}
+{"t": 1794757009472, "sym": "RESOLVUSDT", "side": "long", "usd": 133.94, "px": 0.01239, "src": "okx"}
+{"t": 1794757262578, "sym": "AKEUSDT", "side": "long", "usd": 23.87, "px": 0.010851, "src": "okx"}
+{"t": 1794757379460, "sym": "PEPEUSDT", "side": "long", "usd": 1051.79, "px": 3.8955e-06, "src": "okx"}
