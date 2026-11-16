@@ -19349,3 +19349,11 @@
 {"t": 1794762022878, "sym": "OLUSDT", "side": "long", "usd": 9.04, "px": 0.00393, "src": "okx"}
 {"t": 1794762161448, "sym": "INITUSDT", "side": "long", "usd": 6.66, "px": 0.11099, "src": "okx"}
 {"t": 1794762273627, "sym": "UPUSDT", "side": "long", "usd": 32.09, "px": 0.1689, "src": "okx"}
+{"t": 1794763476931, "sym": "BTCUSDT", "side": "short", "usd": 1427.16, "px": 64871.0, "src": "okx"}
+{"t": 1794763985100, "sym": "MMTUSDT", "side": "long", "usd": 105.77, "px": 0.1017, "src": "okx"}
+{"t": 1794764018346, "sym": "UPUSDT", "side": "long", "usd": 89.15, "px": 0.1651, "src": "okx"}
+{"t": 1794764057026, "sym": "PEPEUSDT", "side": "long", "usd": 11.6, "px": 3.8673e-06, "src": "okx"}
+{"t": 1794764150788, "sym": "ETHUSDT", "side": "long", "usd": 5.42, "px": 1806.86, "src": "okx"}
+{"t": 1794764153370, "sym": "JUPUSDT", "side": "long", "usd": 44.1, "px": 0.2594, "src": "okx"}
+{"t": 1794764178625, "sym": "ETHUSDT", "side": "long", "usd": 3146.42, "px": 1806.21, "src": "okx"}
+{"t": 1794764205624, "sym": "HYPEUSDT", "side": "long", "usd": 252.68, "px": 66.494, "src": "okx"}
