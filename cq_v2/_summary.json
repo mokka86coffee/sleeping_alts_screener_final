@@ -1884,10 +1884,66 @@
    "liq": 30,
    "ohlcv": 30,
    "trade": 30
+  },
+  "aiot": {
+   "funding": 29,
+   "oi": 29,
+   "liq": 29,
+   "ohlcv": 29,
+   "trade": 29
+  },
+  "bananas31": {
+   "funding": 29,
+   "oi": 29,
+   "liq": 29,
+   "ohlcv": 29,
+   "trade": 29
+  },
+  "bard": {
+   "funding": 29,
+   "oi": 29,
+   "liq": 29,
+   "ohlcv": 29,
+   "trade": 29
+  },
+  "cyber": {
+   "funding": 29,
+   "oi": 29,
+   "liq": 29,
+   "ohlcv": 29,
+   "trade": 29
+  },
+  "edge": {
+   "funding": 29,
+   "oi": 29,
+   "liq": 29,
+   "ohlcv": 29,
+   "trade": 29
+  },
+  "hana": {
+   "funding": 29,
+   "oi": 29,
+   "liq": 29,
+   "ohlcv": 29,
+   "trade": 29
+  },
+  "hmstr": {
+   "funding": 29,
+   "oi": 29,
+   "liq": 29,
+   "ohlcv": 29,
+   "trade": 29
+  },
+  "jellyjelly": {
+   "funding": 29,
+   "oi": 29,
+   "liq": 29,
+   "ohlcv": 29,
+   "trade": 29
   }
  },
- "at": "2026-11-04T04:03:33Z",
+ "at": "2026-11-16T05:19:21Z",
  "full_at": "2026-11-04T04:03:33Z",
- "data_at": "2026-11-03",
+ "data_at": "2026-11-15",
  "full_data_at": "2026-11-03"
 }
