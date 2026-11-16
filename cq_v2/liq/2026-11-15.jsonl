@@ -19357,3 +19357,14 @@
 {"t": 1794764153370, "sym": "JUPUSDT", "side": "long", "usd": 44.1, "px": 0.2594, "src": "okx"}
 {"t": 1794764178625, "sym": "ETHUSDT", "side": "long", "usd": 3146.42, "px": 1806.21, "src": "okx"}
 {"t": 1794764205624, "sym": "HYPEUSDT", "side": "long", "usd": 252.68, "px": 66.494, "src": "okx"}
+{"t": 1794764361642, "sym": "CASHCATUSDT", "side": "long", "usd": 153.43, "px": 0.03904, "src": "okx"}
+{"t": 1794764446730, "sym": "ARBUSDT", "side": "long", "usd": 549.52, "px": 0.13472, "src": "okx"}
+{"t": 1794764923686, "sym": "BTCUSDT", "side": "long", "usd": 18767.06, "px": 64425.2, "src": "okx"}
+{"t": 1794764972351, "sym": "ETHUSDT", "side": "long", "usd": 7.22, "px": 1803.87, "src": "okx"}
+{"t": 1794765010698, "sym": "ETHUSDT", "side": "long", "usd": 6371.34, "px": 1802.87, "src": "okx"}
+{"t": 1794765014770, "sym": "ETHUSDT", "side": "long", "usd": 409.22, "px": 1802.73, "src": "okx"}
+{"t": 1794765135447, "sym": "SHELLUSDT", "side": "short", "usd": 1403.0, "px": 0.02806, "src": "okx"}
+{"t": 1794765201368, "sym": "SHELLUSDT", "side": "short", "usd": 1414.5, "px": 0.02829, "src": "okx"}
+{"t": 1794765380569, "sym": "SHELLUSDT", "side": "short", "usd": 37.36, "px": 0.02965, "src": "okx"}
+{"t": 1794765507074, "sym": "RESOLVUSDT", "side": "long", "usd": 7.45, "px": 0.01221, "src": "okx"}
+{"t": 1794765606495, "sym": "SHELLUSDT", "side": "short", "usd": 921.17, "px": 0.03213, "src": "okx"}
