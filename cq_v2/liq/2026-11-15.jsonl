@@ -19429,3 +19429,14 @@
 {"t": 1794774818867, "sym": "ETHUSDT", "side": "short", "usd": 881.68, "px": 1833.01, "src": "okx"}
 {"t": 1794774845396, "sym": "SHELLUSDT", "side": "long", "usd": 11.26, "px": 0.02682, "src": "okx"}
 {"t": 1794774924846, "sym": "DNAUSDT", "side": "long", "usd": 1007.76, "px": 0.156, "src": "okx"}
+{"t": 1794775085093, "sym": "SHIBUSDT", "side": "short", "usd": 0.39, "px": 3.936e-06, "src": "okx"}
+{"t": 1794775296524, "sym": "SOPHUSDT", "side": "long", "usd": 0.12, "px": 0.001154, "src": "okx"}
+{"t": 1794775346951, "sym": "SOPHUSDT", "side": "long", "usd": 124.4, "px": 0.001133, "src": "okx"}
+{"t": 1794775803724, "sym": "ZECUSDT", "side": "short", "usd": 13494.61, "px": 913.65, "src": "okx"}
+{"t": 1794775976952, "sym": "ASTERUSDT", "side": "short", "usd": 2326.33, "px": 0.6055, "src": "okx"}
+{"t": 1794776076881, "sym": "PIEVERSEUSDT", "side": "short", "usd": 5578.2, "px": 1.8594, "src": "okx"}
+{"t": 1794776151547, "sym": "ASTERUSDT", "side": "short", "usd": 55.52, "px": 0.6169, "src": "okx"}
+{"t": 1794776285743, "sym": "ASTERUSDT", "side": "short", "usd": 163.61, "px": 0.6221, "src": "okx"}
+{"t": 1794776322143, "sym": "ASTERUSDT", "side": "long", "usd": 659.65, "px": 0.6142, "src": "okx"}
+{"t": 1794776408364, "sym": "ASTERUSDT", "side": "short", "usd": 570.38, "px": 0.6261, "src": "okx"}
+{"t": 1794776501718, "sym": "INITUSDT", "side": "long", "usd": 121.27, "px": 0.10454, "src": "okx"}
