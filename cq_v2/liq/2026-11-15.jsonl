@@ -19345,3 +19345,7 @@
 {"t": 1794761430644, "sym": "NESUSDT", "side": "short", "usd": 46.68, "px": 0.1667, "src": "okx"}
 {"t": 1794761505876, "sym": "ETHUSDT", "side": "long", "usd": 5.42, "px": 1807.41, "src": "okx"}
 {"t": 1794761944534, "sym": "PIEVERSEUSDT", "side": "long", "usd": 104.33, "px": 1.7389, "src": "okx"}
+{"t": 1794762011533, "sym": "MEGAUSDT", "side": "long", "usd": 414.24, "px": 0.04908, "src": "okx"}
+{"t": 1794762022878, "sym": "OLUSDT", "side": "long", "usd": 9.04, "px": 0.00393, "src": "okx"}
+{"t": 1794762161448, "sym": "INITUSDT", "side": "long", "usd": 6.66, "px": 0.11099, "src": "okx"}
+{"t": 1794762273627, "sym": "UPUSDT", "side": "long", "usd": 32.09, "px": 0.1689, "src": "okx"}
