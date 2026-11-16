@@ -19334,3 +19334,14 @@
 {"t": 1794760577388, "sym": "NVDAUSDT", "side": "long", "usd": 293.6, "px": 161.32, "src": "okx"}
 {"t": 1794760577388, "sym": "ETHUSDT", "side": "long", "usd": 2602.74, "px": 1811.23, "src": "okx"}
 {"t": 1794760615519, "sym": "CASHCATUSDT", "side": "long", "usd": 24.39, "px": 0.03999, "src": "okx"}
+{"t": 1794760649056, "sym": "SOLUSDT", "side": "long", "usd": 74.86, "px": 71.3, "src": "okx"}
+{"t": 1794761075584, "sym": "ETHUSDT", "side": "short", "usd": 8977.95, "px": 1819.24, "src": "okx"}
+{"t": 1794761083105, "sym": "SOXLUSDT", "side": "short", "usd": 650.74, "px": 56.39, "src": "okx"}
+{"t": 1794761265833, "sym": "WLDUSDT", "side": "long", "usd": 182.81, "px": 0.2619, "src": "okx"}
+{"t": 1794761265833, "sym": "PEPEUSDT", "side": "long", "usd": 176.45, "px": 3.921e-06, "src": "okx"}
+{"t": 1794761343066, "sym": "MEGAUSDT", "side": "long", "usd": 33.42, "px": 0.04915, "src": "okx"}
+{"t": 1794761396847, "sym": "ETHUSDT", "side": "long", "usd": 283.84, "px": 1807.87, "src": "okx"}
+{"t": 1794761431406, "sym": "NESUSDT", "side": "short", "usd": 6.8, "px": 0.17, "src": "okx"}
+{"t": 1794761430644, "sym": "NESUSDT", "side": "short", "usd": 46.68, "px": 0.1667, "src": "okx"}
+{"t": 1794761505876, "sym": "ETHUSDT", "side": "long", "usd": 5.42, "px": 1807.41, "src": "okx"}
+{"t": 1794761944534, "sym": "PIEVERSEUSDT", "side": "long", "usd": 104.33, "px": 1.7389, "src": "okx"}

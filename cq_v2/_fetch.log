@@ -6264,3 +6264,5 @@
 2026-11-16 05:19:21 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
 2026-11-16 06:07:26 обход уже идёт в другом процессе — пропуск
 2026-11-16 07:03:07 обход уже идёт в другом процессе — пропуск
+2026-11-16 07:32:37 обход уже идёт в другом процессе — пропуск
+2026-11-16 07:36:30 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json
