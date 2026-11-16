@@ -19422,3 +19422,10 @@
 {"t": 1794773196476, "sym": "INJUSDT", "side": "long", "usd": 2106.85, "px": 6.856, "src": "okx"}
 {"t": 1794773214741, "sym": "ZILUSDT", "side": "long", "usd": 189.43, "px": 0.00116, "src": "okx"}
 {"t": 1794773442054, "sym": "ETHUSDT", "side": "long", "usd": 36.33, "px": 1816.36, "src": "okx"}
+{"t": 1794774525847, "sym": "ASTERUSDT", "side": "short", "usd": 1739.45, "px": 0.572, "src": "okx"}
+{"t": 1794774563254, "sym": "ASTERUSDT", "side": "short", "usd": 32.31, "px": 0.5769, "src": "okx"}
+{"t": 1794774815903, "sym": "ETHUSDT", "side": "short", "usd": 5.49, "px": 1830.42, "src": "okx"}
+{"t": 1794774817594, "sym": "ETHUSDT", "side": "short", "usd": 1344.06, "px": 1831.15, "src": "okx"}
+{"t": 1794774818867, "sym": "ETHUSDT", "side": "short", "usd": 881.68, "px": 1833.01, "src": "okx"}
+{"t": 1794774845396, "sym": "SHELLUSDT", "side": "long", "usd": 11.26, "px": 0.02682, "src": "okx"}
+{"t": 1794774924846, "sym": "DNAUSDT", "side": "long", "usd": 1007.76, "px": 0.156, "src": "okx"}
