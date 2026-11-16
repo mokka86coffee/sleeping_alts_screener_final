@@ -19410,3 +19410,8 @@
 {"t": 1794770194074, "sym": "SHELLUSDT", "side": "long", "usd": 45.49, "px": 0.02791, "src": "okx"}
 {"t": 1794770196845, "sym": "NVDAUSDT", "side": "long", "usd": 106.32, "px": 163.57, "src": "okx"}
 {"t": 1794770246090, "sym": "BARDUSDT", "side": "long", "usd": 186.25, "px": 0.102, "src": "okx"}
+{"t": 1794770734986, "sym": "MUUSDT", "side": "short", "usd": 428.58, "px": 765.33, "src": "okx"}
+{"t": 1794770862371, "sym": "ALLOUSDT", "side": "long", "usd": 377.88, "px": 0.14819, "src": "okx"}
+{"t": 1794770973445, "sym": "SHELLUSDT", "side": "long", "usd": 57.65, "px": 0.02732, "src": "okx"}
+{"t": 1794771149076, "sym": "SOLUSDT", "side": "short", "usd": 155.76, "px": 71.78, "src": "okx"}
+{"t": 1794771247690, "sym": "INITUSDT", "side": "long", "usd": 63.44, "px": 0.10573, "src": "okx"}
