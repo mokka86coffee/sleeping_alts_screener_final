@@ -19415,3 +19415,10 @@
 {"t": 1794770973445, "sym": "SHELLUSDT", "side": "long", "usd": 57.65, "px": 0.02732, "src": "okx"}
 {"t": 1794771149076, "sym": "SOLUSDT", "side": "short", "usd": 155.76, "px": 71.78, "src": "okx"}
 {"t": 1794771247690, "sym": "INITUSDT", "side": "long", "usd": 63.44, "px": 0.10573, "src": "okx"}
+{"t": 1794771858493, "sym": "VVVUSDT", "side": "short", "usd": 10810.8, "px": 20.417, "src": "okx"}
+{"t": 1794772158649, "sym": "NEARUSDT", "side": "short", "usd": 3487.0, "px": 3.17, "src": "okx"}
+{"t": 1794772158903, "sym": "PUMPUSDT", "side": "short", "usd": 17.42, "px": 0.002903, "src": "okx"}
+{"t": 1794773077517, "sym": "KITEUSDT", "side": "short", "usd": 981.53, "px": 0.14184, "src": "okx"}
+{"t": 1794773196476, "sym": "INJUSDT", "side": "long", "usd": 2106.85, "px": 6.856, "src": "okx"}
+{"t": 1794773214741, "sym": "ZILUSDT", "side": "long", "usd": 189.43, "px": 0.00116, "src": "okx"}
+{"t": 1794773442054, "sym": "ETHUSDT", "side": "long", "usd": 36.33, "px": 1816.36, "src": "okx"}
