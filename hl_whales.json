@@ -27,58 +27,58 @@
   ],
   "auto": [
     {
-      "addr": "0x5b5d51203a0f9079f8aeb098a6523a13f298c060",
-      "auto": true,
-      "label": "авто: pnl мес $140.2M, 23 монет (HYPE, XMR, WLD…)"
-    },
-    {
       "addr": "0xb83de012dba672c76a7dbbbf3e459cb59d7d6e36",
       "auto": true,
-      "label": "авто: pnl мес $114.8M, 30 монет (HYPE, WLD, DOGE…)"
-    },
-    {
-      "addr": "0x45d26f28196d226497130c4bac709d808fed4029",
-      "auto": true,
-      "label": "авто: pnl мес $36.3M, 49 монет (HYPE, BTC, ETH…)"
-    },
-    {
-      "addr": "0x7fdafde5cfb5465924316eced2d3715494c517d1",
-      "auto": true,
-      "label": "авто: pnl мес $34.8M, 35 монет (BTC, ETH, SOL…)"
+      "label": "авто: pnl мес $105.2M, 4 монет (WLD, DOGE, FARTCOIN…)"
     },
     {
       "addr": "0xb695651daa495f59dd2725c6fe98322d8b51a92d",
       "auto": true,
-      "label": "авто: pnl мес $34.3M, 9 монет (BTC, ETH, NEAR…)"
+      "label": "авто: pnl мес $31.1M, 9 монет (BTC, ETH, HYPE…)"
+    },
+    {
+      "addr": "0x7fdafde5cfb5465924316eced2d3715494c517d1",
+      "auto": true,
+      "label": "авто: pnl мес $31.0M, 35 монет (BTC, ZEC, SOL…)"
     },
     {
       "addr": "0xdf954bbe619273a56e0cfa90dad8382195dc7d72",
       "auto": true,
-      "label": "авто: pnl мес $33.4M, 164 монет (ETH, BTC, HYPE…)"
+      "label": "авто: pnl мес $30.5M, 165 монет (ETH, BTC, HYPE…)"
+    },
+    {
+      "addr": "0x45d26f28196d226497130c4bac709d808fed4029",
+      "auto": true,
+      "label": "авто: pnl мес $30.3M, 49 монет (HYPE, BTC, ETH…)"
     },
     {
       "addr": "0xfc27136e42af1732ddc9ce2605ea9bff1b959d9d",
       "auto": true,
-      "label": "авто: pnl мес $27.7M, 22 монет (BTC, SOL, XRP…)"
-    },
-    {
-      "addr": "0xecb63caa47c7c4e77f60f1ce858cf28dc2b82b00",
-      "auto": true,
-      "label": "авто: pnl мес $27.6M, 86 монет (SOL, ETH, BTC…)"
+      "label": "авто: pnl мес $25.5M, 22 монет (BTC, SOL, ZEC…)"
     },
     {
       "addr": "0xf5d81a135f756ca16544e53c20fc20643ec3ad53",
       "auto": true,
-      "label": "авто: pnl мес $25.8M, 30 монет (BTC, ETH, INIT…)"
+      "label": "авто: pnl мес $24.9M, 31 монет (BTC, HYPE, ETH…)"
+    },
+    {
+      "addr": "0xecb63caa47c7c4e77f60f1ce858cf28dc2b82b00",
+      "auto": true,
+      "label": "авто: pnl мес $24.9M, 86 монет (BTC, SOL, ETH…)"
     },
     {
       "addr": "0xfe7ce058edc7cfcde9ef8262ba51f8d4796ab7ae",
       "auto": true,
-      "label": "авто: pnl мес $23.0M, 109 монет (HYPE, BTC, ZRO…)"
+      "label": "авто: pnl мес $19.5M, 68 монет (HYPE, BTC, ZRO…)"
+    },
+    {
+      "addr": "0x3dc908374e11623d8eb9f07dfc7a2e5e803a54b0",
+      "auto": true,
+      "label": "авто: pnl мес $16.3M, 10 монет (SOL, ETH, HYPE…)"
     }
   ],
   "_auto": {
-    "at": "2026-11-16T13:12:24+00:00",
+    "at": "2026-11-17T13:42:37+00:00",
     "picked": 10
   }
 }
