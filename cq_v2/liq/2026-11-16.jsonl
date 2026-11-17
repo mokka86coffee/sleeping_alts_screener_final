@@ -11147,3 +11147,6 @@
 {"t": 1794836791892, "sym": "BTCUSDT", "side": "short", "usd": 953.19, "px": 64404.8, "src": "okx"}
 {"t": 1794836818165, "sym": "JTOUSDT", "side": "short", "usd": 151.39, "px": 0.267, "src": "okx"}
 {"t": 1794836834157, "sym": "ETHUSDT", "side": "short", "usd": 4072.88, "px": 1807.76, "src": "okx"}
+{"t": 1794837744381, "sym": "BTWUSDT", "side": "long", "usd": 37.88, "px": 0.4073, "src": "okx"}
+{"t": 1794837773892, "sym": "ASTERUSDT", "side": "short", "usd": 4.42, "px": 0.553, "src": "okx"}
+{"t": 1794837977996, "sym": "NVDAUSDT", "side": "short", "usd": 257.74, "px": 158.12, "src": "okx"}
