@@ -10829,3 +10829,9 @@
 {"t": 1794810381986, "sym": "AVAXUSDT", "side": "long", "usd": 96.08, "px": 7.065, "src": "okx"}
 {"t": 1794810394775, "sym": "SHIBUSDT", "side": "long", "usd": 640.97, "px": 3.852e-06, "src": "okx"}
 {"t": 1794810604974, "sym": "FILUSDT", "side": "long", "usd": 859.23, "px": 0.5971, "src": "okx"}
+{"t": 1794811020206, "sym": "BTCUSDT", "side": "short", "usd": 6.47, "px": 64650.6, "src": "okx"}
+{"t": 1794811088509, "sym": "AKEUSDT", "side": "short", "usd": 790.87, "px": 0.010559, "src": "okx"}
+{"t": 1794811214746, "sym": "ZECUSDT", "side": "short", "usd": 1005.97, "px": 890.24, "src": "okx"}
+{"t": 1794811680675, "sym": "AXISUSDT", "side": "long", "usd": 68.05, "px": 0.08725, "src": "okx"}
+{"t": 1794811852126, "sym": "SHELLUSDT", "side": "short", "usd": 10.74, "px": 0.02982, "src": "okx"}
+{"t": 1794811934402, "sym": "BTCUSDT", "side": "short", "usd": 2212.28, "px": 64686.6, "src": "okx"}
