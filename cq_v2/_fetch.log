@@ -6266,3 +6266,19 @@
 2026-11-16 07:03:07 обход уже идёт в другом процессе — пропуск
 2026-11-16 07:32:37 обход уже идёт в другом процессе — пропуск
 2026-11-16 07:36:30 код 0 · готово: /Users/evgenijminko/Work/random/python/cq_v2/ · сводка _summary.json
+2026-11-17 01:23:29 нет в архиве: 1 (space)
+2026-11-17 01:23:29 добор новичков: space
+2026-11-17 01:23:30 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-11-17 01:23:30 данные по 2026-11-15, ждём 2026-11-16 (возраст 17.8 ч)
+2026-11-17 01:23:30 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-11-17 01:23:31 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-11-17 01:24:31 дозабор, попытка 2: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-11-17 01:24:32 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-11-17 02:11:57 нет в архиве: 1 (space)
+2026-11-17 02:11:57 добор новичков: space
+2026-11-17 02:11:58 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-11-17 02:11:58 данные по 2026-11-15, ждём 2026-11-16 (возраст 18.6 ч)
+2026-11-17 02:11:58 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-11-17 02:11:58 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-11-17 02:12:58 дозабор, попытка 2: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-11-17 02:12:59 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
