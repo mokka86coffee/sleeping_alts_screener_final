@@ -10835,3 +10835,5 @@
 {"t": 1794811680675, "sym": "AXISUSDT", "side": "long", "usd": 68.05, "px": 0.08725, "src": "okx"}
 {"t": 1794811852126, "sym": "SHELLUSDT", "side": "short", "usd": 10.74, "px": 0.02982, "src": "okx"}
 {"t": 1794811934402, "sym": "BTCUSDT", "side": "short", "usd": 2212.28, "px": 64686.6, "src": "okx"}
+{"t": 1794812266685, "sym": "BTCUSDT", "side": "short", "usd": 1319.95, "px": 64703.5, "src": "okx"}
+{"t": 1794812416561, "sym": "BTCUSDT", "side": "short", "usd": 647.73, "px": 64772.8, "src": "okx"}
