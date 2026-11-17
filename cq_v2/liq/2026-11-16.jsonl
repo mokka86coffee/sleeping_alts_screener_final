@@ -10862,3 +10862,10 @@
 {"t": 1794815569556, "sym": "AKEUSDT", "side": "short", "usd": 87.93, "px": 0.011273, "src": "okx"}
 {"t": 1794815570453, "sym": "AKEUSDT", "side": "short", "usd": 2373.89, "px": 0.011315, "src": "okx"}
 {"t": 1794815772206, "sym": "SPACEUSDT", "side": "short", "usd": 1902.0, "px": 0.00317, "src": "okx"}
+{"t": 1794816451022, "sym": "BTCUSDT", "side": "long", "usd": 64.67, "px": 64674.1, "src": "okx"}
+{"t": 1794816660868, "sym": "AKEUSDT", "side": "short", "usd": 16.77, "px": 0.010479, "src": "okx"}
+{"t": 1794816839250, "sym": "INJUSDT", "side": "long", "usd": 242.22, "px": 6.618, "src": "okx"}
+{"t": 1794816918190, "sym": "ETHUSDT", "side": "long", "usd": 180.98, "px": 1809.84, "src": "okx"}
+{"t": 1794816932436, "sym": "AKEUSDT", "side": "short", "usd": 228.97, "px": 0.01075, "src": "okx"}
+{"t": 1794816960608, "sym": "ALLOUSDT", "side": "long", "usd": 149.33, "px": 0.14359, "src": "okx"}
+{"t": 1794816996062, "sym": "FILUSDT", "side": "long", "usd": 632.59, "px": 0.5942, "src": "okx"}
