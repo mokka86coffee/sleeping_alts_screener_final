@@ -11506,3 +11506,15 @@
 {"t": 1794842860779, "sym": "ZECUSDT", "side": "long", "usd": 795.45, "px": 846.22, "src": "okx"}
 {"t": 1794843049823, "sym": "SOLUSDT", "side": "short", "usd": 453.44, "px": 70.41, "src": "okx"}
 {"t": 1794843069139, "sym": "SPACEUSDT", "side": "short", "usd": 1786.37, "px": 0.003684, "src": "okx"}
+{"t": 1794843111552, "sym": "SOXLUSDT", "side": "short", "usd": 1991.0, "px": 49.75, "src": "okx"}
+{"t": 1794843173657, "sym": "BARDUSDT", "side": "long", "usd": 8.97, "px": 0.09437, "src": "okx"}
+{"t": 1794843238494, "sym": "SPACEUSDT", "side": "short", "usd": 126.97, "px": 0.003779, "src": "okx"}
+{"t": 1794843248066, "sym": "SPACEUSDT", "side": "short", "usd": 25.77, "px": 0.00379, "src": "okx"}
+{"t": 1794843373486, "sym": "ANTHROPICUSDT", "side": "long", "usd": 0.1, "px": 98.85, "src": "okx"}
+{"t": 1794843405236, "sym": "ETHUSDT", "side": "long", "usd": 90.13, "px": 1802.67, "src": "okx"}
+{"t": 1794843409153, "sym": "SOXLUSDT", "side": "long", "usd": 58.51, "px": 48.76, "src": "okx"}
+{"t": 1794843416102, "sym": "SOXLUSDT", "side": "long", "usd": 4947.88, "px": 48.69, "src": "okx"}
+{"t": 1794843418857, "sym": "SNDKUSDT", "side": "long", "usd": 4603.46, "px": 804.8, "src": "okx"}
+{"t": 1794843682507, "sym": "NVDAUSDT", "side": "long", "usd": 1497.73, "px": 158.49, "src": "okx"}
+{"t": 1794843735499, "sym": "AKEUSDT", "side": "long", "usd": 27.6, "px": 0.010614, "src": "okx"}
+{"t": 1794843741476, "sym": "ZECUSDT", "side": "short", "usd": 137.65, "px": 860.32, "src": "okx"}
