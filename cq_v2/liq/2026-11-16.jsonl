@@ -10822,3 +10822,10 @@
 {"t": 1794809657361, "sym": "BTCUSDT", "side": "long", "usd": 675.12, "px": 64296.8, "src": "okx"}
 {"t": 1794809678562, "sym": "BTCUSDT", "side": "long", "usd": 3637.48, "px": 64266.4, "src": "okx"}
 {"t": 1794809691786, "sym": "FILUSDT", "side": "long", "usd": 247.06, "px": 0.5998, "src": "okx"}
+{"t": 1794810035999, "sym": "TRUTHUSDT", "side": "long", "usd": 1.49, "px": 0.014864, "src": "okx"}
+{"t": 1794810367822, "sym": "PUMPUSDT", "side": "long", "usd": 838.49, "px": 0.002852, "src": "okx"}
+{"t": 1794810379423, "sym": "SOLUSDT", "side": "long", "usd": 3464.24, "px": 70.8, "src": "okx"}
+{"t": 1794810379423, "sym": "SUIUSDT", "side": "long", "usd": 370.28, "px": 0.7162, "src": "okx"}
+{"t": 1794810381986, "sym": "AVAXUSDT", "side": "long", "usd": 96.08, "px": 7.065, "src": "okx"}
+{"t": 1794810394775, "sym": "SHIBUSDT", "side": "long", "usd": 640.97, "px": 3.852e-06, "src": "okx"}
+{"t": 1794810604974, "sym": "FILUSDT", "side": "long", "usd": 859.23, "px": 0.5971, "src": "okx"}
