@@ -22578,3 +22578,5 @@
 {"t": 1794957544327, "sym": "ETHUSDT", "side": "long", "usd": 144.06, "px": 1823.49, "src": "okx"}
 {"t": 1794957777826, "sym": "SNXXUSDT", "side": "long", "usd": 10882.68, "px": 3.183, "src": "okx"}
 {"t": 1794957803848, "sym": "SNDKUSDT", "side": "long", "usd": 613.89, "px": 839.8, "src": "okx"}
+{"t": 1794959709101, "sym": "SNDKUSDT", "side": "long", "usd": 336.9, "px": 833.9, "src": "okx"}
+{"t": 1794959861840, "sym": "BREVUSDT", "side": "short", "usd": 89.03, "px": 0.10991, "src": "okx"}
