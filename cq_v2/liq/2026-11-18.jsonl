@@ -20886,3 +20886,7 @@
 {"t": 1795030563171, "sym": "BTCUSDT", "side": "long", "usd": 3197.37, "px": 62693.6, "src": "okx"}
 {"t": 1795030569348, "sym": "SNDKUSDT", "side": "long", "usd": 186.49, "px": 764.3, "src": "okx"}
 {"t": 1795030901389, "sym": "UNHUSDT", "side": "long", "usd": 1721.25, "px": 344.25, "src": "okx"}
+{"t": 1795031160050, "sym": "NVDAUSDT", "side": "long", "usd": 119.31, "px": 151.02, "src": "okx"}
+{"t": 1795031212681, "sym": "MMTUSDT", "side": "long", "usd": 118.22, "px": 0.2463, "src": "okx"}
+{"t": 1795031212681, "sym": "PIPPINUSDT", "side": "long", "usd": 31.2, "px": 0.01846, "src": "okx"}
+{"t": 1795031827697, "sym": "HUMAUSDT", "side": "short", "usd": 37.42, "px": 0.008703, "src": "okx"}
