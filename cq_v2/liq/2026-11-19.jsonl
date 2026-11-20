@@ -16160,3 +16160,11 @@
 {"t": 1795091467512, "sym": "INITUSDT", "side": "long", "usd": 17.02, "px": 0.10013, "src": "okx"}
 {"t": 1795091486423, "sym": "UPUSDT", "side": "short", "usd": 11.64, "px": 0.2328, "src": "okx"}
 {"t": 1795091587029, "sym": "PEPEUSDT", "side": "short", "usd": 90.98, "px": 3.9555e-06, "src": "okx"}
+{"t": 1795091842786, "sym": "MMTUSDT", "side": "short", "usd": 121.57, "px": 0.2096, "src": "okx"}
+{"t": 1795091843540, "sym": "MMTUSDT", "side": "short", "usd": 697.09, "px": 0.2106, "src": "okx"}
+{"t": 1795091881542, "sym": "PEPEUSDT", "side": "short", "usd": 44.37, "px": 4.0333e-06, "src": "okx"}
+{"t": 1795091996394, "sym": "CHIPUSDT", "side": "short", "usd": 922.14, "px": 0.0327, "src": "okx"}
+{"t": 1795092093215, "sym": "SNDKUSDT", "side": "short", "usd": 282.14, "px": 820.16, "src": "okx"}
+{"t": 1795092461044, "sym": "ETHUSDT", "side": "short", "usd": 95.7, "px": 1805.73, "src": "okx"}
+{"t": 1795092549316, "sym": "MMTUSDT", "side": "short", "usd": 370.3, "px": 0.2116, "src": "okx"}
+{"t": 1795092580442, "sym": "PIEVERSEUSDT", "side": "short", "usd": 91.9, "px": 3.0632, "src": "okx"}
