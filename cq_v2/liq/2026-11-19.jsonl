@@ -16194,3 +16194,12 @@
 {"t": 1795095732679, "sym": "MMTUSDT", "side": "short", "usd": 208.6, "px": 0.2243, "src": "okx"}
 {"t": 1795095738942, "sym": "MMTUSDT", "side": "short", "usd": 11.25, "px": 0.225, "src": "okx"}
 {"t": 1795095742111, "sym": "MMTUSDT", "side": "short", "usd": 6.78, "px": 0.2261, "src": "okx"}
+{"t": 1795096169686, "sym": "MMTUSDT", "side": "long", "usd": 133.55, "px": 0.2154, "src": "okx"}
+{"t": 1795096582553, "sym": "TRUMPUSDT", "side": "short", "usd": 3.63, "px": 0.9806, "src": "okx"}
+{"t": 1795096587648, "sym": "ETHUSDT", "side": "short", "usd": 362.2, "px": 1811.0, "src": "okx"}
+{"t": 1795096594122, "sym": "XRPUSDT", "side": "short", "usd": 95.33, "px": 0.993, "src": "okx"}
+{"t": 1795096613124, "sym": "ETHUSDT", "side": "short", "usd": 1043.04, "px": 1813.98, "src": "okx"}
+{"t": 1795096613151, "sym": "BTCUSDT", "side": "short", "usd": 179.24, "px": 64015.1, "src": "okx"}
+{"t": 1795096716401, "sym": "BTCUSDT", "side": "short", "usd": 1190.81, "px": 64022.1, "src": "okx"}
+{"t": 1795096734179, "sym": "PIEVERSEUSDT", "side": "short", "usd": 31.21, "px": 3.1214, "src": "okx"}
+{"t": 1795096736596, "sym": "PIEVERSEUSDT", "side": "short", "usd": 312.81, "px": 3.1281, "src": "okx"}
