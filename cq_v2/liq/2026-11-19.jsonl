@@ -16065,3 +16065,13 @@
 {"t": 1795079163705, "sym": "ALLOUSDT", "side": "short", "usd": 406.75, "px": 0.15349, "src": "okx"}
 {"t": 1795079171395, "sym": "STRKUSDT", "side": "short", "usd": 35.69, "px": 0.03523, "src": "okx"}
 {"t": 1795079182404, "sym": "BTCUSDT", "side": "short", "usd": 2338.86, "px": 63903.3, "src": "okx"}
+{"t": 1795079689806, "sym": "ANTHROPICUSDT", "side": "short", "usd": 948.96, "px": 105.23, "src": "okx"}
+{"t": 1795080054265, "sym": "BTWUSDT", "side": "long", "usd": 471.6, "px": 0.5815, "src": "okx"}
+{"t": 1795080055311, "sym": "BTWUSDT", "side": "long", "usd": 90.92, "px": 0.5791, "src": "okx"}
+{"t": 1795080234425, "sym": "XPLUSDT", "side": "short", "usd": 13.68, "px": 0.04884, "src": "okx"}
+{"t": 1795080607869, "sym": "SOLUSDT", "side": "long", "usd": 7424.0, "px": 74.24, "src": "okx"}
+{"t": 1795080689092, "sym": "PIEVERSEUSDT", "side": "short", "usd": 27.04, "px": 2.7035, "src": "okx"}
+{"t": 1795080901476, "sym": "STRKUSDT", "side": "long", "usd": 281.04, "px": 0.03513, "src": "okx"}
+{"t": 1795081282379, "sym": "STRKUSDT", "side": "short", "usd": 40.5, "px": 0.03568, "src": "okx"}
+{"t": 1795081550112, "sym": "SOXLUSDT", "side": "short", "usd": 4282.59, "px": 54.21, "src": "okx"}
+{"t": 1795082462210, "sym": "SOXLUSDT", "side": "long", "usd": 178.49, "px": 53.44, "src": "okx"}
