@@ -65759,3 +65759,7 @@
 {"t": 1795211896300, "sym": "XAUUSDT", "side": "short", "usd": 17827.91, "px": 3553.5, "src": "okx"}
 {"t": 1795212016727, "sym": "ETHUSDT", "side": "long", "usd": 98.54, "px": 1615.47, "src": "okx"}
 {"t": 1795212166983, "sym": "PARTIUSDT", "side": "long", "usd": 624.23, "px": 0.03258, "src": "okx"}
+{"t": 1795212936382, "sym": "DNAUSDT", "side": "short", "usd": 22.79, "px": 0.1628, "src": "okx"}
+{"t": 1795213218393, "sym": "SOLUSDT", "side": "short", "usd": 85.2, "px": 69.27, "src": "okx"}
+{"t": 1795213413484, "sym": "ZECUSDT", "side": "long", "usd": 914.36, "px": 737.39, "src": "okx"}
+{"t": 1795214485556, "sym": "OUSDT", "side": "short", "usd": 11.62, "px": 0.5811, "src": "okx"}
