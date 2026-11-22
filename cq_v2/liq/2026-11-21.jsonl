@@ -37511,3 +37511,7 @@
 {"t": 1795290613619, "sym": "XPLUSDT", "side": "long", "usd": 158.6, "px": 0.04493, "src": "okx"}
 {"t": 1795290752290, "sym": "BTCUSDT", "side": "short", "usd": 1794.81, "px": 60431.2, "src": "okx"}
 {"t": 1795292584317, "sym": "ZECUSDT", "side": "short", "usd": 381.54, "px": 794.88, "src": "okx"}
+{"t": 1795292778112, "sym": "OUSDT", "side": "short", "usd": 38.19, "px": 0.6365, "src": "okx"}
+{"t": 1795292949876, "sym": "BTCUSDT", "side": "short", "usd": 6.04, "px": 60436.1, "src": "okx"}
+{"t": 1795293104791, "sym": "SKDDUSDT", "side": "long", "usd": 2.86, "px": 14.294, "src": "okx"}
+{"t": 1795293167685, "sym": "SOXSUSDT", "side": "long", "usd": 69.26, "px": 76.95, "src": "okx"}
