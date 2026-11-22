@@ -37555,3 +37555,6 @@
 {"t": 1795303467786, "sym": "ZECUSDT", "side": "long", "usd": 684.46, "px": 777.79, "src": "okx"}
 {"t": 1795303491437, "sym": "ZECUSDT", "side": "long", "usd": 194.28, "px": 777.13, "src": "okx"}
 {"t": 1795303594470, "sym": "ENSOUSDT", "side": "long", "usd": 21.82, "px": 0.4743, "src": "okx"}
+{"t": 1795304552323, "sym": "ANTHROPICUSDT", "side": "short", "usd": 109.79, "px": 90.66, "src": "okx"}
+{"t": 1795304582224, "sym": "BTWUSDT", "side": "short", "usd": 1299.78, "px": 0.7221, "src": "okx"}
+{"t": 1795304585434, "sym": "BTWUSDT", "side": "short", "usd": 304.85, "px": 0.7224, "src": "okx"}
