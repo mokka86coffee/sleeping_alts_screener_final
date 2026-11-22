@@ -37520,3 +37520,11 @@
 {"t": 1795295986957, "sym": "BTCUSDT", "side": "short", "usd": 211.76, "px": 60503.4, "src": "okx"}
 {"t": 1795296007956, "sym": "BTCUSDT", "side": "short", "usd": 163.4, "px": 60519.5, "src": "okx"}
 {"t": 1795296008116, "sym": "BTCUSDT", "side": "short", "usd": 296.55, "px": 60519.5, "src": "okx"}
+{"t": 1795296593581, "sym": "XRPUSDT", "side": "long", "usd": 136.65, "px": 0.9296, "src": "okx"}
+{"t": 1795296632656, "sym": "PUMPUSDT", "side": "long", "usd": 160.89, "px": 0.002366, "src": "okx"}
+{"t": 1795296684418, "sym": "INJUSDT", "side": "long", "usd": 239.6, "px": 6.02, "src": "okx"}
+{"t": 1795296710158, "sym": "ENSOUSDT", "side": "long", "usd": 730.37, "px": 0.4658, "src": "okx"}
+{"t": 1795296744248, "sym": "PUMPUSDT", "side": "long", "usd": 177.22, "px": 0.002363, "src": "okx"}
+{"t": 1795296924671, "sym": "ENSOUSDT", "side": "long", "usd": 2090.25, "px": 0.4645, "src": "okx"}
+{"t": 1795296997586, "sym": "APTUSDT", "side": "long", "usd": 278.92, "px": 0.367, "src": "okx"}
+{"t": 1795297202908, "sym": "ENSOUSDT", "side": "long", "usd": 46.17, "px": 0.4617, "src": "okx"}
