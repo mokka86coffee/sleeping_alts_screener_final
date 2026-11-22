@@ -37533,3 +37533,7 @@
 {"t": 1795298555763, "sym": "PUMPUSDT", "side": "long", "usd": 1119.04, "px": 0.002346, "src": "okx"}
 {"t": 1795298724458, "sym": "XRPUSDT", "side": "long", "usd": 23.18, "px": 0.9271, "src": "okx"}
 {"t": 1795298746515, "sym": "BTCUSDT", "side": "long", "usd": 6.02, "px": 60177.2, "src": "okx"}
+{"t": 1795299806754, "sym": "SOXLUSDT", "side": "short", "usd": 4.33, "px": 33.29, "src": "okx"}
+{"t": 1795300658459, "sym": "VVVUSDT", "side": "short", "usd": 650.13, "px": 24.626, "src": "okx"}
+{"t": 1795300900640, "sym": "VVVUSDT", "side": "short", "usd": 6672.07, "px": 24.794, "src": "okx"}
+{"t": 1795301503230, "sym": "BTCUSDT", "side": "long", "usd": 144.28, "px": 60116.5, "src": "okx"}
