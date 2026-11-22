@@ -37500,3 +37500,8 @@
 {"t": 1795285810678, "sym": "TRUMPUSDT", "side": "short", "usd": 6.12, "px": 0.8871, "src": "okx"}
 {"t": 1795285967772, "sym": "TRUMPUSDT", "side": "short", "usd": 149.63, "px": 0.8912, "src": "okx"}
 {"t": 1795286377075, "sym": "PIEVERSEUSDT", "side": "short", "usd": 758.08, "px": 3.4458, "src": "okx"}
+{"t": 1795287794063, "sym": "BTCUSDT", "side": "short", "usd": 1483.03, "px": 60285.8, "src": "okx"}
+{"t": 1795287795023, "sym": "BTCUSDT", "side": "short", "usd": 995.72, "px": 60346.7, "src": "okx"}
+{"t": 1795287957638, "sym": "BTCUSDT", "side": "short", "usd": 549.67, "px": 60403.7, "src": "okx"}
+{"t": 1795288184778, "sym": "PARTIUSDT", "side": "short", "usd": 40.37, "px": 0.03704, "src": "okx"}
+{"t": 1795288525448, "sym": "ZECUSDT", "side": "long", "usd": 23.62, "px": 787.36, "src": "okx"}
