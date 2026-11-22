@@ -37415,3 +37415,16 @@
 {"t": 1795295971907, "sym": "SOLUSDT", "side": "short", "usd": 2363.61, "px": 70.64, "src": "okx"}
 {"t": 1795295987148, "sym": "BTCUSDT", "side": "short", "usd": 2129.72, "px": 60503.4, "src": "okx"}
 {"t": 1795296265546, "sym": "ENSOUSDT", "side": "long", "usd": 71.53, "px": 0.4675, "src": "okx"}
+{"t": 1795296744296, "sym": "PUMPUSDT", "side": "long", "usd": 21.27, "px": 0.002363, "src": "okx"}
+{"t": 1795276435474, "sym": "AKEUSDT", "side": "long", "usd": 332.77, "px": 0.005065, "src": "okx"}
+{"t": 1795297019354, "sym": "ENSOUSDT", "side": "long", "usd": 1335.41, "px": 0.4624, "src": "okx"}
+{"t": 1795297247944, "sym": "ENSOUSDT", "side": "long", "usd": 2069.55, "px": 0.4599, "src": "okx"}
+{"t": 1795297450497, "sym": "CASHCATUSDT", "side": "short", "usd": 72.49, "px": 0.03961, "src": "okx"}
+{"t": 1795297580287, "sym": "CAPUSDT", "side": "short", "usd": 9.08, "px": 0.09082, "src": "okx"}
+{"t": 1795298459670, "sym": "PUMPUSDT", "side": "long", "usd": 4933.46, "px": 0.002356, "src": "okx"}
+{"t": 1795298685387, "sym": "SPKUSDT", "side": "long", "usd": 755.09, "px": 0.01191, "src": "okx"}
+{"t": 1795298745180, "sym": "ZECUSDT", "side": "long", "usd": 23.47, "px": 782.24, "src": "okx"}
+{"t": 1795298891935, "sym": "XRPUSDT", "side": "long", "usd": 341.8, "px": 0.9263, "src": "okx"}
+{"t": 1795277416018, "sym": "SOXLUSDT", "side": "short", "usd": 10.19, "px": 32.88, "src": "okx"}
+{"t": 1795277486652, "sym": "BTCUSDT", "side": "long", "usd": 23743.03, "px": 59776.0, "src": "okx"}
+{"t": 1795277487346, "sym": "BTCUSDT", "side": "long", "usd": 1165.32, "px": 59759.9, "src": "okx"}
