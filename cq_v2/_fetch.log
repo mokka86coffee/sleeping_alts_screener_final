@@ -8042,3 +8042,11 @@
 2026-11-22 22:25:51 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
 2026-11-22 22:26:51 дозабор, попытка 2: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
 2026-11-22 22:26:52 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-11-22 22:52:57 нет в архиве: 5 (cross, pippin, shaz, space, tlm)
+2026-11-22 22:52:57 добор новичков: cross, pippin, shaz, space, tlm
+2026-11-22 22:52:57 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-11-22 22:52:57 данные по 2026-11-15, ждём 2026-11-21 (возраст 159.3 ч)
+2026-11-22 22:52:57 дозабор, попытка 1: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-11-22 22:52:58 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
+2026-11-22 22:53:58 дозабор, попытка 2: /Users/evgenijminko/Work/random/python/cryptoquant_fetch.py --update --journal /Users/evgenijminko/Work/random/python/output/leaders.json --out /Users/evgenijminko/Work/random/python/cq_v2
+2026-11-22 22:53:59 код 1 · токен/тариф не отвечает даже на минимальный запрос — стоп
