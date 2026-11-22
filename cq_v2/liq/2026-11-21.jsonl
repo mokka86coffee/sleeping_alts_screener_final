@@ -37528,3 +37528,8 @@
 {"t": 1795296924671, "sym": "ENSOUSDT", "side": "long", "usd": 2090.25, "px": 0.4645, "src": "okx"}
 {"t": 1795296997586, "sym": "APTUSDT", "side": "long", "usd": 278.92, "px": 0.367, "src": "okx"}
 {"t": 1795297202908, "sym": "ENSOUSDT", "side": "long", "usd": 46.17, "px": 0.4617, "src": "okx"}
+{"t": 1795297922776, "sym": "CAPUSDT", "side": "short", "usd": 18.34, "px": 0.0917, "src": "okx"}
+{"t": 1795298459881, "sym": "PUMPUSDT", "side": "long", "usd": 7097.31, "px": 0.002354, "src": "okx"}
+{"t": 1795298555763, "sym": "PUMPUSDT", "side": "long", "usd": 1119.04, "px": 0.002346, "src": "okx"}
+{"t": 1795298724458, "sym": "XRPUSDT", "side": "long", "usd": 23.18, "px": 0.9271, "src": "okx"}
+{"t": 1795298746515, "sym": "BTCUSDT", "side": "long", "usd": 6.02, "px": 60177.2, "src": "okx"}
