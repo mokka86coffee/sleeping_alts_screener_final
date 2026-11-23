@@ -14059,3 +14059,17 @@
 {"t": 1795362571623, "sym": "DGAIUSDT", "side": "short", "usd": 19.66, "px": 0.9829, "src": "okx"}
 {"t": 1795362573177, "sym": "DGAIUSDT", "side": "short", "usd": 7238.71, "px": 0.9862, "src": "okx"}
 {"t": 1795363055447, "sym": "PARTIUSDT", "side": "short", "usd": 19.02, "px": 0.03963, "src": "okx"}
+{"t": 1795363230457, "sym": "OFCUSDT", "side": "short", "usd": 77.1, "px": 0.003654, "src": "okx"}
+{"t": 1795363432043, "sym": "PIEVERSEUSDT", "side": "long", "usd": 141.27, "px": 3.5318, "src": "okx"}
+{"t": 1795363584193, "sym": "GRVTUSDT", "side": "long", "usd": 157.75, "px": 0.1396, "src": "okx"}
+{"t": 1795363765161, "sym": "PIEVERSEUSDT", "side": "short", "usd": 294.07, "px": 3.6759, "src": "okx"}
+{"t": 1795363785107, "sym": "PIEVERSEUSDT", "side": "short", "usd": 37.21, "px": 3.7214, "src": "okx"}
+{"t": 1795363790957, "sym": "PIEVERSEUSDT", "side": "short", "usd": 75.04, "px": 3.7522, "src": "okx"}
+{"t": 1795363795306, "sym": "PIEVERSEUSDT", "side": "short", "usd": 376.81, "px": 3.7681, "src": "okx"}
+{"t": 1795364049721, "sym": "BTCUSDT", "side": "short", "usd": 500.62, "px": 61051.7, "src": "okx"}
+{"t": 1795364084790, "sym": "BTCUSDT", "side": "short", "usd": 4912.21, "px": 61097.1, "src": "okx"}
+{"t": 1795364085046, "sym": "BTCUSDT", "side": "short", "usd": 2676.39, "px": 61104.8, "src": "okx"}
+{"t": 1795364224065, "sym": "PIEVERSEUSDT", "side": "short", "usd": 9496.0, "px": 3.7984, "src": "okx"}
+{"t": 1795364238466, "sym": "PIEVERSEUSDT", "side": "short", "usd": 3484.48, "px": 3.8291, "src": "okx"}
+{"t": 1795364250368, "sym": "PIEVERSEUSDT", "side": "short", "usd": 76.88, "px": 3.8442, "src": "okx"}
+{"t": 1795364505665, "sym": "BTCUSDT", "side": "short", "usd": 299.44, "px": 61110.9, "src": "okx"}
