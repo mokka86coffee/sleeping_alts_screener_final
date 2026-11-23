@@ -14090,3 +14090,13 @@
 {"t": 1795365414130, "sym": "PIEVERSEUSDT", "side": "long", "usd": 36.85, "px": 3.6854, "src": "okx"}
 {"t": 1795365420634, "sym": "PIEVERSEUSDT", "side": "long", "usd": 183.01, "px": 3.6602, "src": "okx"}
 {"t": 1795365529026, "sym": "PIEVERSEUSDT", "side": "long", "usd": 365.22, "px": 3.6522, "src": "okx"}
+{"t": 1795365671962, "sym": "PIEVERSEUSDT", "side": "long", "usd": 249.42, "px": 3.5631, "src": "okx"}
+{"t": 1795365786004, "sym": "PIEVERSEUSDT", "side": "long", "usd": 455.96, "px": 3.5074, "src": "okx"}
+{"t": 1795365792554, "sym": "PIEVERSEUSDT", "side": "long", "usd": 104.67, "px": 3.4889, "src": "okx"}
+{"t": 1795365827377, "sym": "PIEVERSEUSDT", "side": "long", "usd": 103.77, "px": 3.4591, "src": "okx"}
+{"t": 1795365828379, "sym": "PIEVERSEUSDT", "side": "long", "usd": 171.54, "px": 3.4308, "src": "okx"}
+{"t": 1795365892640, "sym": "PIEVERSEUSDT", "side": "long", "usd": 102.36, "px": 3.4119, "src": "okx"}
+{"t": 1795366466708, "sym": "PIEVERSEUSDT", "side": "short", "usd": 10924.8, "px": 3.6416, "src": "okx"}
+{"t": 1795366668958, "sym": "PIEVERSEUSDT", "side": "short", "usd": 74.92, "px": 3.7458, "src": "okx"}
+{"t": 1795366665744, "sym": "PIEVERSEUSDT", "side": "short", "usd": 36.78, "px": 3.6776, "src": "okx"}
+{"t": 1795366881401, "sym": "CRVUSDT", "side": "long", "usd": 96.88, "px": 0.1828, "src": "okx"}
