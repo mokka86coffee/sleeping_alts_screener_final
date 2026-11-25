@@ -21066,3 +21066,5 @@
 {"t": 1795554194044, "sym": "MONUSDT", "side": "long", "usd": 232.09, "px": 0.00928, "src": "okx"}
 {"t": 1795554306222, "sym": "MONUSDT", "side": "long", "usd": 1239.58, "px": 0.00913, "src": "okx"}
 {"t": 1795555920566, "sym": "AKEUSDT", "side": "long", "usd": 54.64, "px": 0.001987, "src": "okx"}
+{"t": 1795556821149, "sym": "SKYUSDT", "side": "short", "usd": 420.34, "px": 0.04081, "src": "okx"}
+{"t": 1795557394468, "sym": "OPGUSDT", "side": "short", "usd": 1394.27, "px": 0.16658, "src": "okx"}
