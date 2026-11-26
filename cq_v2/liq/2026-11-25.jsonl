@@ -28542,3 +28542,12 @@
 {"t": 1795600350964, "sym": "OPUSDT", "side": "long", "usd": 1062.14, "px": 0.06697, "src": "okx"}
 {"t": 1795577598680, "sym": "ANTHROPICUSDT", "side": "short", "usd": 1714.68, "px": 81.23, "src": "okx"}
 {"t": 1795600409547, "sym": "HYPEUSDT", "side": "long", "usd": 346.18, "px": 57.696, "src": "okx"}
+{"t": 1795600517636, "sym": "SOXLUSDT", "side": "short", "usd": 64.74, "px": 28.27, "src": "okx"}
+{"t": 1795600537694, "sym": "SOXLUSDT", "side": "short", "usd": 294.99, "px": 28.31, "src": "okx"}
+{"t": 1795577879848, "sym": "SOXLUSDT", "side": "short", "usd": 178.75, "px": 31.36, "src": "okx"}
+{"t": 1795577888654, "sym": "SNDKUSDT", "side": "short", "usd": 368.86, "px": 75.82, "src": "okx"}
+{"t": 1795601011876, "sym": "MOODENGUSDT", "side": "short", "usd": 79.02, "px": 0.02802, "src": "okx"}
+{"t": 1795601193339, "sym": "MOODENGUSDT", "side": "long", "usd": 38.07, "px": 0.027, "src": "okx"}
+{"t": 1795601501213, "sym": "MONUSDT", "side": "long", "usd": 838.29, "px": 0.00993, "src": "okx"}
+{"t": 1795601812669, "sym": "SLXUSDT", "side": "long", "usd": 1607.0, "px": 0.03214, "src": "okx"}
+{"t": 1795601833066, "sym": "SLXUSDT", "side": "long", "usd": 258.71, "px": 0.0319, "src": "okx"}
