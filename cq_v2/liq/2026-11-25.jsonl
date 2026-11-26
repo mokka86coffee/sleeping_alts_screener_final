@@ -30727,3 +30727,13 @@
 {"t": 1795647611694, "sym": "XAGUSDT", "side": "short", "usd": 1468.09, "px": 41.53, "src": "okx"}
 {"t": 1795647645551, "sym": "BTCUSDT", "side": "long", "usd": 6.0, "px": 60007.9, "src": "okx"}
 {"t": 1795647654958, "sym": "BTCUSDT", "side": "long", "usd": 62698.64, "px": 59970.0, "src": "okx"}
+{"t": 1795647927527, "sym": "XAGUSDT", "side": "long", "usd": 766.53, "px": 41.3, "src": "okx"}
+{"t": 1795647999646, "sym": "BTCUSDT", "side": "long", "usd": 1072.95, "px": 59941.6, "src": "okx"}
+{"t": 1795648086179, "sym": "PIEVERSEUSDT", "side": "long", "usd": 1238.06, "px": 3.5373, "src": "okx"}
+{"t": 1795648551000, "sym": "ZECUSDT", "side": "short", "usd": 1072.78, "px": 760.84, "src": "okx"}
+{"t": 1795648571424, "sym": "SLXUSDT", "side": "short", "usd": 124.27, "px": 0.03377, "src": "okx"}
+{"t": 1795648571424, "sym": "BLURUSDT", "side": "long", "usd": 42.56, "px": 0.010829, "src": "okx"}
+{"t": 1795648571424, "sym": "VVVUSDT", "side": "short", "usd": 208.04, "px": 29.302, "src": "okx"}
+{"t": 1795648571424, "sym": "BTWUSDT", "side": "short", "usd": 86.43, "px": 0.9003, "src": "okx"}
+{"t": 1795648571424, "sym": "PIEVERSEUSDT", "side": "short", "usd": 35.23, "px": 3.523, "src": "okx"}
+{"t": 1795648571424, "sym": "CTUSDT", "side": "short", "usd": 162.43, "px": 0.13424, "src": "okx"}
