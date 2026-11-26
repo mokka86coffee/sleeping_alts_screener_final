@@ -30718,3 +30718,5 @@
 {"t": 1795642072775, "sym": "XAUUSDT", "side": "short", "usd": 3968.22, "px": 3594.4, "src": "okx"}
 {"t": 1795642446801, "sym": "VVVUSDT", "side": "short", "usd": 1063.62, "px": 28.592, "src": "okx"}
 {"t": 1795643418826, "sym": "SNDKUSDT", "side": "long", "usd": 655.16, "px": 73.58, "src": "okx"}
+{"t": 1795644267236, "sym": "JDUSDT", "side": "short", "usd": 0.0, "px": 26.699, "src": "okx"}
+{"t": 1795645415074, "sym": "BTCUSDT", "side": "long", "usd": 150.12, "px": 60048.8, "src": "okx"}
