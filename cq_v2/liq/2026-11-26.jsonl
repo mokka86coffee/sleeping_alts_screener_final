@@ -12140,3 +12140,7 @@
 {"t": 1795734735644, "sym": "PEPEUSDT", "side": "long", "usd": 68.67, "px": 3.4333e-06, "src": "okx"}
 {"t": 1795735206894, "sym": "FILUSDT", "side": "long", "usd": 3574.6, "px": 0.5354, "src": "okx"}
 {"t": 1795735667906, "sym": "ATUSDT", "side": "long", "usd": 221.76, "px": 0.0528, "src": "okx"}
+{"t": 1795735761837, "sym": "DNAUSDT", "side": "short", "usd": 4.14, "px": 0.138, "src": "okx"}
+{"t": 1795735766269, "sym": "ZECUSDT", "side": "long", "usd": 928.04, "px": 677.4, "src": "okx"}
+{"t": 1795736257124, "sym": "ETHUSDT", "side": "long", "usd": 1.68, "px": 1684.04, "src": "okx"}
+{"t": 1795736446292, "sym": "SSVUSDT", "side": "long", "usd": 20.13, "px": 2.684, "src": "okx"}
